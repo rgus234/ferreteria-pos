@@ -1,0 +1,432 @@
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body{
+    font-family: Arial, sans-serif;
+    background: #f4f4f4;
+    color: #222;
+}
+
+
+
+
+
+header{
+    background: #7b1e3a;
+    color: white;
+    padding: 20px;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+
+
+
+
+header button{
+    background: black;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    border-radius: 10px;
+}
+
+
+
+
+
+.login-container{
+
+    width: 100%;
+    height: 100vh;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+
+
+
+
+.login-box{
+
+    background: white;
+
+    padding: 40px;
+
+    border-radius: 20px;
+
+    width: 350px;
+
+    box-shadow: 0 0 20px rgba(0,0,0,0.2);
+}
+
+
+
+
+
+.login-box h1{
+    margin-bottom: 20px;
+}
+
+
+
+
+
+.login-box input{
+
+    width: 100%;
+
+    padding: 12px;
+
+    margin-bottom: 15px;
+
+    border-radius: 10px;
+
+    border: 1px solid #ccc;
+}
+
+
+
+
+
+.login-box button{
+
+    width: 100%;
+
+    padding: 12px;
+
+    background: #7b1e3a;
+
+    color: white;
+
+    border: none;
+
+    border-radius: 10px;
+
+    cursor: pointer;
+}
+
+
+
+
+
+.dashboard{
+
+    display: grid;
+
+    grid-template-columns:
+    repeat(auto-fit,minmax(200px,1fr));
+
+    gap: 20px;
+
+    padding: 20px;
+}
+
+
+
+
+
+.card-dashboard{
+
+    background: white;
+
+    padding: 20px;
+
+    border-radius: 15px;
+
+    text-align: center;
+
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+
+
+
+
+.card-dashboard p{
+
+    font-size: 30px;
+
+    margin-top: 10px;
+
+    color: #7b1e3a;
+}
+
+
+
+
+
+.form-producto{
+
+    display: flex;
+
+    gap: 10px;
+
+    padding: 20px;
+}
+
+
+
+
+
+.form-producto input{
+
+    flex: 1;
+
+    padding: 12px;
+
+    border-radius: 10px;
+
+    border: 1px solid #ccc;
+}
+
+
+
+
+
+.form-producto button{
+
+    padding: 12px 20px;
+
+    border: none;
+
+    background: green;
+
+    color: white;
+
+    border-radius: 10px;
+
+    cursor: pointer;
+}
+
+
+
+
+
+#busqueda{
+
+    width: calc(100% - 40px);
+
+    margin: 0 20px;
+
+    padding: 12px;
+
+    border-radius: 10px;
+
+    border: 1px solid #ccc;
+}
+
+
+
+
+
+.contenedor-principal{
+
+    display: grid;
+
+    grid-template-columns: 2fr 1fr;
+
+    gap: 20px;
+
+    padding: 20px;
+}
+
+
+
+
+
+.productos{
+
+    display: grid;
+
+    grid-template-columns:
+    repeat(auto-fit,minmax(220px,1fr));
+
+    gap: 20px;
+}
+
+
+
+
+
+.producto{
+
+    background: white;
+
+    padding: 20px;
+
+    border-radius: 15px;
+
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+
+
+
+
+.producto h2{
+    margin-bottom: 10px;
+}
+
+
+
+
+
+.producto p{
+    margin-bottom: 10px;
+}
+
+
+
+
+
+.producto button{
+
+    width: 100%;
+
+    padding: 10px;
+
+    border: none;
+
+    background: #7b1e3a;
+
+    color: white;
+
+    border-radius: 10px;
+
+    cursor: pointer;
+}
+
+
+
+
+
+.panel-derecho{
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 20px;
+}
+
+
+
+
+
+.carrito,
+.historial{
+
+    background: white;
+
+    padding: 20px;
+
+    border-radius: 15px;
+
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+
+
+
+
+.item-carrito{
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    margin-bottom: 10px;
+}
+
+
+
+
+
+.item-carrito button{
+
+    background: red;
+
+    color: white;
+
+    border: none;
+
+    padding: 5px 10px;
+
+    border-radius: 5px;
+
+    cursor: pointer;
+}
+
+
+
+
+
+.venta{
+
+    background: #f0f0f0;
+
+    padding: 10px;
+
+    border-radius: 10px;
+
+    margin-bottom: 10px;
+}
+
+
+
+
+
+body.oscuro{
+
+    background: #121212;
+
+    color: white;
+}
+
+
+
+
+
+body.oscuro .card-dashboard,
+body.oscuro .producto,
+body.oscuro .carrito,
+body.oscuro .historial,
+body.oscuro .login-box{
+
+    background: #1e1e1e;
+
+    color: white;
+}
+
+
+
+
+
+body.oscuro input{
+
+    background: #2b2b2b;
+
+    color: white;
+
+    border: 1px solid #555;
+}
+
+
+
+
+
+body.oscuro .venta{
+
+    background: #2b2b2b;
+}

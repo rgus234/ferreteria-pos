@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>
+        Ferretería Olímpico
+    </title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+<body>
+
+    <div id="login">
+
+        <div class="login-box">
+
+            <h1>
+                🔐 Iniciar Sesión
+            </h1>
+
+            <input
+                id="usuario"
+                placeholder="Usuario"
+            >
+
+            <input
+                id="password"
+                type="password"
+                placeholder="Contraseña"
+            >
+
+            <button
+                onclick="iniciarSesion()"
+            >
+                Entrar
+            </button>
+
+        </div>
+    </div>
+
+
+
+    <div
+        id="sistema"
+        style="display:none;"
+    >
+
+        <header>
+
+            <h1>
+                🔨 Ferretería Olímpico
+            </h1>
+
+            <div>
+
+                <button onclick="mostrarInicio()">
+                    🏠 Inicio
+                </button>
+
+                <button onclick="mostrarInventario()">
+                    📦 Inventario
+                </button>
+
+                <button onclick="mostrarInventarioBajo()">
+                    🔴 Inventario bajo
+                </button>
+
+                <button onclick="mostrarGraficas()">
+                    📊 Reportes
+                </button>
+
+                <button onclick="cambiarModo()">
+                    🌙 Modo Oscuro
+                </button>
+
+            </div>
+
+        </header>
+
+
+
+        <div id="pantallaInicio">
+
+            <div class="productos">
+
+                <div id="productos"></div>
+
+                <div class="lado">
+
+                    <div class="caja">
+
+                        <h2>
+                            🛒 Carrito
+                        </h2>
+
+                        <div id="carrito"></div>
+
+                    </div>
+
+                    <div class="caja">
+
+                        <h2>
+                            📜 Historial
+                        </h2>
+
+                        <div id="historial"></div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <div
+            id="pantallaInventario"
+            style="display:none;"
+        >
+
+            <h2>
+                📦 Inventario
+            </h2>
+
+            <div id="inventario"></div>
+
+        </div>
+
+
+
+        <div
+            id="pantallaInventarioBajo"
+            style="display:none;"
+        >
+
+            <h2>
+                🔴 Inventario bajo
+            </h2>
+
+            <div id="inventarioBajo"></div>
+
+        </div>
+
+
+
+        <div
+            id="pantallaGraficas"
+            style="display:none;"
+        >
+
+            <canvas
+                id="graficaVentas"
+            ></canvas>
+
+        </div>
+
+    </div>
+
+    <script src="app.js"></script>
+
+</body>
+</html>
