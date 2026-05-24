@@ -3,18 +3,26 @@ const path = require("path");
 const pool = require("./db");
 
 const app = express();
-const PORT = 3000;
+
+// Render ocupa su puerto automático
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
+// Servir carpeta public
 app.use(express.static(path.join(__dirname, "public")));
+
+// Abrir index.html al entrar al dominio
+app.get("/", (req, res) => {
+    res.sendFile(
+        path.join(__dirname, "public", "index.html")
+    );
+});
 
 
 
 app.get("/productos", async (req, res) => {
-
     try {
-
         const resultado =
         await pool.query(
             "SELECT * FROM productos ORDER BY id"
@@ -23,10 +31,11 @@ app.get("/productos", async (req, res) => {
         res.json(resultado.rows);
 
     } catch (error) {
-
         console.log(error);
 
-        res.status(500).send("Error servidor");
+        res.status(500).json({
+            error: "Error servidor"
+        });
     }
 });
 
@@ -34,20 +43,17 @@ app.get("/productos", async (req, res) => {
 
 app.get("/producto-codigo/:codigo", async (req, res) => {
 
-    const codigo =
-    req.params.codigo;
+    const codigo = req.params.codigo;
 
     try {
 
         const resultado =
         await pool.query(
-
             `
             SELECT *
             FROM productos
             WHERE codigo = $1
             `,
-
             [codigo]
         );
 
@@ -59,7 +65,9 @@ app.get("/producto-codigo/:codigo", async (req, res) => {
 
         console.log(error);
 
-        res.status(500).send("Error código");
+        res.status(500).json({
+            error: "Error código"
+        });
     }
 });
 
@@ -77,7 +85,6 @@ app.post("/agregar-producto", async (req, res) => {
     try {
 
         await pool.query(
-
             `
             INSERT INTO productos
             (
@@ -86,10 +93,8 @@ app.post("/agregar-producto", async (req, res) => {
                 stock,
                 codigo
             )
-
             VALUES ($1,$2,$3,$4)
             `,
-
             [
                 nombre,
                 precio,
@@ -106,7 +111,9 @@ app.post("/agregar-producto", async (req, res) => {
 
         console.log(error);
 
-        res.status(500).send("Error agregar");
+        res.status(500).json({
+            error: "Error agregar"
+        });
     }
 });
 
@@ -114,8 +121,7 @@ app.post("/agregar-producto", async (req, res) => {
 
 app.put("/editar-producto/:id", async (req, res) => {
 
-    const { id } =
-    req.params;
+    const { id } = req.params;
 
     const {
         nombre,
@@ -127,23 +133,15 @@ app.put("/editar-producto/:id", async (req, res) => {
     try {
 
         await pool.query(
-
             `
             UPDATE productos
-
             SET
-
                 nombre = $1,
-
                 precio = $2,
-
                 stock = $3,
-
                 codigo = $4
-
             WHERE id = $5
             `,
-
             [
                 nombre,
                 precio,
@@ -161,7 +159,9 @@ app.put("/editar-producto/:id", async (req, res) => {
 
         console.log(error);
 
-        res.status(500).send("Error editar");
+        res.status(500).json({
+            error: "Error editar"
+        });
     }
 });
 
@@ -169,18 +169,15 @@ app.put("/editar-producto/:id", async (req, res) => {
 
 app.delete("/eliminar-producto/:id", async (req, res) => {
 
-    const { id } =
-    req.params;
+    const { id } = req.params;
 
     try {
 
         await pool.query(
-
             `
             DELETE FROM productos
             WHERE id = $1
             `,
-
             [id]
         );
 
@@ -192,7 +189,9 @@ app.delete("/eliminar-producto/:id", async (req, res) => {
 
         console.log(error);
 
-        res.status(500).send("Error eliminar");
+        res.status(500).json({
+            error: "Error eliminar"
+        });
     }
 });
 
@@ -209,20 +208,16 @@ app.post("/login", async (req, res) => {
 
         const resultado =
         await pool.query(
-
             `
             SELECT *
             FROM usuarios
-
             WHERE usuario = $1
             AND password = $2
             `,
-
             [usuario, password]
         );
 
         res.json({
-
             success:
             resultado.rows.length > 0
         });
@@ -231,7 +226,9 @@ app.post("/login", async (req, res) => {
 
         console.log(error);
 
-        res.status(500).send("Error login");
+        res.status(500).json({
+            error: "Error login"
+        });
     }
 });
 
@@ -247,37 +244,29 @@ app.post("/ventas", async (req, res) => {
     try {
 
         await pool.query(
-
             `
             INSERT INTO ventas(total)
             VALUES($1)
             `,
-
             [total]
         );
 
         await pool.query(
-
             `
             INSERT INTO historial_ventas(total)
             VALUES($1)
             `,
-
             [total]
         );
 
-        for(const producto of productos){
+        for (const producto of productos) {
 
             await pool.query(
-
                 `
                 UPDATE productos
-
                 SET stock = stock - 1
-
                 WHERE id = $1
                 `,
-
                 [producto.id]
             );
         }
@@ -290,7 +279,9 @@ app.post("/ventas", async (req, res) => {
 
         console.log(error);
 
-        res.status(500).send("Error venta");
+        res.status(500).json({
+            error: "Error venta"
+        });
     }
 });
 
@@ -301,41 +292,28 @@ app.get("/dashboard", async (req, res) => {
     try {
 
         const totalVentas =
-        await pool.query(
-
-            `
+        await pool.query(`
             SELECT
             COALESCE(SUM(total),0)
             AS total
-
             FROM historial_ventas
-            `
-        );
+        `);
 
         const cantidadVentas =
-        await pool.query(
-
-            `
+        await pool.query(`
             SELECT COUNT(*)
             AS cantidad
-
             FROM historial_ventas
-            `
-        );
+        `);
 
         const productos =
-        await pool.query(
-
-            `
+        await pool.query(`
             SELECT COUNT(*)
             AS productos
-
             FROM productos
-            `
-        );
+        `);
 
         res.json({
-
             totalVentas:
             totalVentas.rows[0].total,
 
@@ -350,7 +328,9 @@ app.get("/dashboard", async (req, res) => {
 
         console.log(error);
 
-        res.status(500).send("Error dashboard");
+        res.status(500).json({
+            error: "Error dashboard"
+        });
     }
 });
 
@@ -359,19 +339,13 @@ app.get("/dashboard", async (req, res) => {
 app.get("/historial", async (req, res) => {
 
     const historial =
-    await pool.query(
-
-        `
+    await pool.query(`
         SELECT *
         FROM historial_ventas
-
         ORDER BY fecha DESC
-        `
-    );
+    `);
 
-    res.json(
-        historial.rows
-    );
+    res.json(historial.rows);
 });
 
 
@@ -379,34 +353,21 @@ app.get("/historial", async (req, res) => {
 app.get("/grafica-ventas", async (req, res) => {
 
     const resultado =
-    await pool.query(
-
-        `
+    await pool.query(`
         SELECT
-
-        TO_CHAR(
-            fecha,
-            'DD/MM'
-        ) AS dia,
-
+        TO_CHAR(fecha,'DD/MM') AS dia,
         total
-
         FROM historial_ventas
-
         ORDER BY fecha ASC
-        `
-    );
+    `);
 
-    res.json(
-        resultado.rows
-    );
+    res.json(resultado.rows);
 });
 
 
 
 app.listen(PORT, () => {
-
     console.log(
-        `Servidor corriendo ${PORT}`
+        `Servidor corriendo en puerto ${PORT}`
     );
 });
