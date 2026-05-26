@@ -4,28 +4,22 @@ const pool = require("./db");
 
 const app = express();
 
-// Render ocupa su puerto automático
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-
-// Servir carpeta public
 app.use(express.static(path.join(__dirname, "public")));
 
-// Abrir index.html al entrar al dominio
 app.get("/", (req, res) => {
     res.sendFile(
         path.join(__dirname, "public", "index.html")
     );
 });
 
-
-
 app.get("/productos", async (req, res) => {
     try {
         const resultado =
         await pool.query(
-            "SELECT * FROM productos ORDER BY id"
+            "SELECT * FROM public.productos ORDER BY id"
         );
 
         res.json(resultado.rows);
@@ -34,12 +28,12 @@ app.get("/productos", async (req, res) => {
         console.log(error);
 
         res.status(500).json({
-            error: "Error servidor"
+            error: error.message,
+            detail: error.detail || null,
+            code: error.code || null
         });
     }
 });
-
-
 
 app.get("/producto-codigo/:codigo", async (req, res) => {
 
@@ -51,7 +45,7 @@ app.get("/producto-codigo/:codigo", async (req, res) => {
         await pool.query(
             `
             SELECT *
-            FROM productos
+            FROM public.productos
             WHERE codigo = $1
             `,
             [codigo]
@@ -71,8 +65,6 @@ app.get("/producto-codigo/:codigo", async (req, res) => {
     }
 });
 
-
-
 app.post("/agregar-producto", async (req, res) => {
 
     const {
@@ -86,7 +78,7 @@ app.post("/agregar-producto", async (req, res) => {
 
         await pool.query(
             `
-            INSERT INTO productos
+            INSERT INTO public.productos
             (
                 nombre,
                 precio,
@@ -117,8 +109,6 @@ app.post("/agregar-producto", async (req, res) => {
     }
 });
 
-
-
 app.put("/editar-producto/:id", async (req, res) => {
 
     const { id } = req.params;
@@ -134,7 +124,7 @@ app.put("/editar-producto/:id", async (req, res) => {
 
         await pool.query(
             `
-            UPDATE productos
+            UPDATE public.productos
             SET
                 nombre = $1,
                 precio = $2,
@@ -157,15 +147,11 @@ app.put("/editar-producto/:id", async (req, res) => {
 
     } catch (error) {
 
-        console.log(error);
-
         res.status(500).json({
             error: "Error editar"
         });
     }
 });
-
-
 
 app.delete("/eliminar-producto/:id", async (req, res) => {
 
@@ -175,7 +161,7 @@ app.delete("/eliminar-producto/:id", async (req, res) => {
 
         await pool.query(
             `
-            DELETE FROM productos
+            DELETE FROM public.productos
             WHERE id = $1
             `,
             [id]
@@ -187,15 +173,11 @@ app.delete("/eliminar-producto/:id", async (req, res) => {
 
     } catch (error) {
 
-        console.log(error);
-
         res.status(500).json({
             error: "Error eliminar"
         });
     }
 });
-
-
 
 app.post("/login", async (req, res) => {
 
@@ -210,7 +192,7 @@ app.post("/login", async (req, res) => {
         await pool.query(
             `
             SELECT *
-            FROM usuarios
+            FROM public.usuarios
             WHERE usuario = $1
             AND password = $2
             `,
@@ -224,15 +206,11 @@ app.post("/login", async (req, res) => {
 
     } catch (error) {
 
-        console.log(error);
-
         res.status(500).json({
             error: "Error login"
         });
     }
 });
-
-
 
 app.post("/ventas", async (req, res) => {
 
@@ -245,7 +223,7 @@ app.post("/ventas", async (req, res) => {
 
         await pool.query(
             `
-            INSERT INTO ventas(total)
+            INSERT INTO public.ventas(total)
             VALUES($1)
             `,
             [total]
@@ -253,7 +231,7 @@ app.post("/ventas", async (req, res) => {
 
         await pool.query(
             `
-            INSERT INTO historial_ventas(total)
+            INSERT INTO public.historial_ventas(total)
             VALUES($1)
             `,
             [total]
@@ -263,7 +241,7 @@ app.post("/ventas", async (req, res) => {
 
             await pool.query(
                 `
-                UPDATE productos
+                UPDATE public.productos
                 SET stock = stock - 1
                 WHERE id = $1
                 `,
@@ -277,15 +255,11 @@ app.post("/ventas", async (req, res) => {
 
     } catch (error) {
 
-        console.log(error);
-
         res.status(500).json({
             error: "Error venta"
         });
     }
 });
-
-
 
 app.get("/dashboard", async (req, res) => {
 
@@ -296,21 +270,21 @@ app.get("/dashboard", async (req, res) => {
             SELECT
             COALESCE(SUM(total),0)
             AS total
-            FROM historial_ventas
+            FROM public.historial_ventas
         `);
 
         const cantidadVentas =
         await pool.query(`
             SELECT COUNT(*)
             AS cantidad
-            FROM historial_ventas
+            FROM public.historial_ventas
         `);
 
         const productos =
         await pool.query(`
             SELECT COUNT(*)
             AS productos
-            FROM productos
+            FROM public.productos
         `);
 
         res.json({
@@ -326,29 +300,23 @@ app.get("/dashboard", async (req, res) => {
 
     } catch (error) {
 
-        console.log(error);
-
         res.status(500).json({
             error: "Error dashboard"
         });
     }
 });
 
-
-
 app.get("/historial", async (req, res) => {
 
     const historial =
     await pool.query(`
         SELECT *
-        FROM historial_ventas
+        FROM public.historial_ventas
         ORDER BY fecha DESC
     `);
 
     res.json(historial.rows);
 });
-
-
 
 app.get("/grafica-ventas", async (req, res) => {
 
@@ -357,14 +325,12 @@ app.get("/grafica-ventas", async (req, res) => {
         SELECT
         TO_CHAR(fecha,'DD/MM') AS dia,
         total
-        FROM historial_ventas
+        FROM public.historial_ventas
         ORDER BY fecha ASC
     `);
 
     res.json(resultado.rows);
 });
-
-
 
 app.listen(PORT, () => {
     console.log(
