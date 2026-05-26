@@ -2,31 +2,26 @@ let carrito = [];
 let grafica = null;
 let todosProductos = [];
 
-
-
-async function iniciarSesion(){
+async function iniciarSesion() {
 
     document.getElementById("login")
-    .style.display = "none";
+        .style.display = "none";
 
     document.getElementById("sistema")
-    .style.display = "block";
+        .style.display = "block";
 
     cargarProductos();
-    cargarDashboard();
-    cargarHistorial();
-    cargarGrafica();
 }
 
 
 
-async function cargarProductos(){
+async function cargarProductos() {
 
     const respuesta =
-    await fetch("/productos");
+        await fetch("/productos");
 
     todosProductos =
-    await respuesta.json();
+        await respuesta.json();
 
     mostrarProductos(
         todosProductos
@@ -35,16 +30,16 @@ async function cargarProductos(){
 
 
 
-function mostrarProductos(productos){
+function mostrarProductos(productos) {
 
     const contenedor =
-    document.getElementById(
-        "productos"
-    );
+        document.getElementById(
+            "productos"
+        );
 
     contenedor.innerHTML = "";
 
-    productos.forEach(producto=>{
+    productos.forEach(producto => {
 
         contenedor.innerHTML += `
 
@@ -52,13 +47,9 @@ function mostrarProductos(productos){
 
             <h2>${producto.nombre}</h2>
 
-            <p>
-                Precio: $${producto.precio}
-            </p>
+            <p>Precio: $${producto.precio}</p>
 
-            <p>
-                Stock: ${producto.stock}
-            </p>
+            <p>Stock: ${producto.stock}</p>
 
             <button
             onclick="agregar(
@@ -100,31 +91,7 @@ function mostrarProductos(productos){
 
 
 
-function buscarProducto(){
-
-    const texto =
-    document.getElementById(
-        "buscarProducto"
-    )
-    .value
-    .toLowerCase();
-
-    const filtrados =
-    todosProductos.filter(
-        producto =>
-        producto.nombre
-        .toLowerCase()
-        .includes(texto)
-    );
-
-    mostrarProductos(
-        filtrados
-    );
-}
-
-
-
-function agregar(id,nombre,precio){
+function agregar(id, nombre, precio) {
 
     carrito.push({
         id,
@@ -137,30 +104,30 @@ function agregar(id,nombre,precio){
 
 
 
-function eliminar(index){
+function eliminar(index) {
 
-    carrito.splice(index,1);
+    carrito.splice(index, 1);
 
     actualizarCarrito();
 }
 
 
 
-function actualizarCarrito(){
+function actualizarCarrito() {
 
     const contenedor =
-    document.getElementById(
-        "carrito"
-    );
+        document.getElementById(
+            "carrito"
+        );
 
     contenedor.innerHTML = "";
 
     let total = 0;
 
-    carrito.forEach((p,i)=>{
+    carrito.forEach((p, i) => {
 
         total +=
-        Number(p.precio);
+            Number(p.precio);
 
         contenedor.innerHTML += `
 
@@ -179,8 +146,6 @@ function actualizarCarrito(){
         </div>
         `;
     });
-
-
 
     contenedor.innerHTML += `
 
@@ -204,18 +169,16 @@ function actualizarCarrito(){
 
 
 
-async function cobrar(total){
+async function cobrar(total) {
 
     const dinero =
-    Number(
-        document.getElementById(
-            "dinero"
-        ).value
-    );
+        Number(
+            document.getElementById(
+                "dinero"
+            ).value
+        );
 
-
-
-    if(dinero < total){
+    if (dinero < total) {
 
         alert(
             "Dinero insuficiente"
@@ -224,152 +187,37 @@ async function cobrar(total){
         return;
     }
 
-
-
     const cambio =
-    dinero - total;
+        dinero - total;
 
+    await fetch("/ventas", {
 
+        method: "POST",
 
-    await fetch("/ventas",{
-
-        method:"POST",
-
-        headers:{
+        headers: {
             "Content-Type":
-            "application/json"
+                "application/json"
         },
 
-        body:JSON.stringify({
+        body: JSON.stringify({
 
             total,
             productos: carrito
         })
     });
 
-
-
     document.getElementById(
         "cambio"
     ).innerHTML =
 
-    `Cambio: $${cambio}`;
-
-
-
-    const fecha =
-    new Date()
-    .toLocaleString();
-
-
-
-    let lista = "";
-
-    carrito.forEach(producto=>{
-
-        lista += `
-
-        <tr>
-
-            <td>
-                ${producto.nombre}
-            </td>
-
-            <td>
-                $${producto.precio}
-            </td>
-
-        </tr>
-        `;
-    });
-
-
-
-    const ticket =
-    window.open(
-        "",
-        "ticket",
-        "width=500,height=700"
-    );
-
-
-
-    ticket.document.write(`
-
-    <html>
-
-    <body
-    style="
-        font-family:Arial;
-        padding:20px;
-    ">
-
-        <h2>
-            🔨 Ferretería Olímpico
-        </h2>
-
-        <p>${fecha}</p>
-
-        <hr>
-
-        <table>
-
-            ${lista}
-
-        </table>
-
-        <hr>
-
-        <p>Total: $${total}</p>
-
-        <p>
-            Dinero: $${dinero}
-        </p>
-
-        <p>
-            Cambio: $${cambio}
-        </p>
-
-        <h3>
-            Gracias por su compra
-        </h3>
-
-    </body>
-
-    </html>
-    `);
-
-
-
-    ticket.document.close();
-
-    ticket.print();
-
-
+        `Cambio: $${cambio}`;
 
     carrito = [];
-
-
 
     actualizarCarrito();
 
     cargarProductos();
-    cargarDashboard();
-    cargarHistorial();
-    cargarGrafica();
 }
-
-
-
-async function cargarDashboard(){}
-
-
-
-async function cargarHistorial(){}
-
-
-
-async function cargarGrafica(){}
 
 
 
@@ -379,48 +227,47 @@ async function editarProducto(
     precioActual,
     stockActual,
     codigoActual
-){
+) {
 
     const nombre =
-    prompt(
-        "Nombre:",
-        nombreActual
-    );
+        prompt(
+            "Nombre:",
+            nombreActual
+        );
 
-    if(!nombre) return;
+    if (!nombre) return;
 
     const precio =
-    prompt(
-        "Precio:",
-        precioActual
-    );
+        prompt(
+            "Precio:",
+            precioActual
+        );
 
     const stock =
-    prompt(
-        "Stock:",
-        stockActual
-    );
+        prompt(
+            "Stock:",
+            stockActual
+        );
 
     const codigo =
-    prompt(
-        "Código:",
-        codigoActual
-    );
+        prompt(
+            "Código:",
+            codigoActual
+        );
 
     await fetch(
 
         `/editar-producto/${id}`,
 
         {
+            method: "PUT",
 
-            method:"PUT",
-
-            headers:{
+            headers: {
                 "Content-Type":
-                "application/json"
+                    "application/json"
             },
 
-            body:JSON.stringify({
+            body: JSON.stringify({
 
                 nombre,
                 precio,
@@ -435,24 +282,21 @@ async function editarProducto(
 
 
 
-async function eliminarProducto(id){
+async function eliminarProducto(id) {
 
     const confirmar =
-    confirm(
-        "¿Eliminar producto?"
-    );
+        confirm(
+            "¿Eliminar producto?"
+        );
 
-    if(!confirmar){
-
-        return;
-    }
+    if (!confirmar) return;
 
     await fetch(
 
         `/eliminar-producto/${id}`,
 
         {
-            method:"DELETE"
+            method: "DELETE"
         }
     );
 
@@ -461,25 +305,60 @@ async function eliminarProducto(id){
 
 
 
-function mostrarInicio(){}
+function mostrarInicio() {
+
+    cargarProductos();
+
+    document.getElementById("productos")
+        .style.display = "block";
+
+    document.getElementById("carrito")
+        .style.display = "block";
+}
 
 
 
-function mostrarInventario(){}
+function mostrarInventario() {
+
+    cargarProductos();
+}
 
 
 
-function mostrarInventarioBajo(){}
+function mostrarInventarioBajo() {
+
+    const bajos =
+        todosProductos.filter(
+            producto =>
+                Number(producto.stock) <= 5
+        );
+
+    mostrarProductos(
+        bajos
+    );
+}
 
 
 
-function mostrarGraficas(){}
+function mostrarGraficas() {
+
+    alert(
+        "📊 Reportes próximamente"
+    );
+}
 
 
 
-function cambiarModo(){
+function cambiarModo() {
 
     document.body.classList.toggle(
         "oscuro"
     );
 }
+
+
+
+window.onload = () => {
+
+    iniciarSesion();
+};
