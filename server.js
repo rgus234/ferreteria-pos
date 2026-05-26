@@ -255,8 +255,12 @@ app.post("/ventas", async (req, res) => {
 
     } catch (error) {
 
+        console.log("ERROR EN /ventas:", error);
+
         res.status(500).json({
-            error: "Error venta"
+            error: error.message,
+            detail: error.detail || null,
+            code: error.code || null
         });
     }
 });
