@@ -7,25 +7,34 @@ async function iniciarSesion() {
     document.getElementById("sistema").style.display = "block";
 
     cargarProductos();
+    cargarHistorial();
 }
 
 async function cargarProductos() {
-    const respuesta = await fetch("/productos");
+    const respuesta =
+        await fetch("/productos");
 
-    todosProductos = await respuesta.json();
+    todosProductos =
+        await respuesta.json();
 
-    mostrarProductos(todosProductos);
+    mostrarProductos(
+        todosProductos
+    );
 }
 
 function mostrarProductos(productos) {
+
     const contenedor =
-        document.getElementById("productos");
+        document.getElementById(
+            "productos"
+        );
 
     contenedor.innerHTML = "";
 
     productos.forEach(producto => {
 
         contenedor.innerHTML += `
+
         <div class="producto">
 
             <h2>${producto.nombre}</h2>
@@ -34,31 +43,28 @@ function mostrarProductos(productos) {
 
             <p>Stock: ${producto.stock}</p>
 
-            <button
-            onclick="agregar(
+            <button onclick="agregar(
                 ${producto.id},
                 '${producto.nombre}',
                 ${producto.precio}
             )">
-            Agregar
+                Agregar
             </button>
 
-            <button
-            onclick="editarProducto(
+            <button onclick="editarProducto(
                 ${producto.id},
                 '${producto.nombre}',
                 ${producto.precio},
                 ${producto.stock},
                 '${producto.codigo || ""}'
             )">
-            ✏️ Editar
+                ✏️ Editar
             </button>
 
-            <button
-            onclick="eliminarProducto(
+            <button onclick="eliminarProducto(
                 ${producto.id}
             )">
-            🗑 Eliminar
+                🗑 Eliminar
             </button>
 
         </div>
@@ -67,6 +73,7 @@ function mostrarProductos(productos) {
 }
 
 function agregar(id, nombre, precio) {
+
     carrito.push({
         id,
         nombre,
@@ -77,14 +84,18 @@ function agregar(id, nombre, precio) {
 }
 
 function eliminar(index) {
+
     carrito.splice(index, 1);
 
     actualizarCarrito();
 }
 
 function actualizarCarrito() {
+
     const contenedor =
-        document.getElementById("carrito");
+        document.getElementById(
+            "carrito"
+        );
 
     contenedor.innerHTML = "";
 
@@ -95,28 +106,32 @@ function actualizarCarrito() {
         total += Number(p.precio);
 
         contenedor.innerHTML += `
+
         <div>
             ${p.nombre} - $${p.precio}
 
-            <button
-            onclick="eliminar(${i})">
-            X
+            <button onclick="eliminar(${i})">
+                X
             </button>
+
         </div>
         `;
     });
 
     contenedor.innerHTML += `
+
     <h3>Total: $${total}</h3>
 
     <input
-    type="number"
-    id="dinero"
-    placeholder="Dinero recibido">
+        type="number"
+        id="dinero"
+        placeholder="Dinero recibido">
 
     <button
-    onclick="cobrar(${total})">
-    Cobrar
+        onclick="cobrar(${total})">
+
+        Cobrar
+
     </button>
 
     <p id="cambio"></p>
@@ -133,7 +148,11 @@ async function cobrar(total) {
         );
 
     if (dinero < total) {
-        alert("Dinero insuficiente");
+
+        alert(
+            "Dinero insuficiente"
+        );
+
         return;
     }
 
@@ -144,6 +163,7 @@ async function cobrar(total) {
 
         const respuesta =
             await fetch("/ventas", {
+
                 method: "POST",
 
                 headers: {
@@ -152,6 +172,7 @@ async function cobrar(total) {
                 },
 
                 body: JSON.stringify({
+
                     total,
                     productos: carrito
                 })
@@ -181,6 +202,8 @@ async function cobrar(total) {
 
         cargarProductos();
 
+        cargarHistorial();
+
     } catch (error) {
 
         console.log(error);
@@ -189,6 +212,35 @@ async function cobrar(total) {
             "Error de conexión"
         );
     }
+}
+
+async function cargarHistorial() {
+
+    const respuesta =
+        await fetch("/historial");
+
+    const historial =
+        await respuesta.json();
+
+    const contenedor =
+        document.getElementById(
+            "historial"
+        );
+
+    contenedor.innerHTML = "";
+
+    historial.forEach(venta => {
+
+        contenedor.innerHTML += `
+
+        <div>
+
+            🧾 Venta:
+            $${venta.total}
+
+        </div>
+        `;
+    });
 }
 
 async function editarProducto(
@@ -250,7 +302,9 @@ async function editarProducto(
 async function eliminarProducto(id) {
 
     const confirmar =
-        confirm("¿Eliminar producto?");
+        confirm(
+            "¿Eliminar producto?"
+        );
 
     if (!confirmar) return;
 
@@ -265,18 +319,24 @@ async function eliminarProducto(id) {
 }
 
 function mostrarInicio() {
+
     cargarProductos();
+
+    cargarHistorial();
 
     document.getElementById(
         "productos"
-    ).style.display = "block";
+    ).style.display =
+        "block";
 
     document.getElementById(
         "carrito"
-    ).style.display = "block";
+    ).style.display =
+        "block";
 }
 
 function mostrarInventario() {
+
     cargarProductos();
 }
 
@@ -288,19 +348,26 @@ function mostrarInventarioBajo() {
                 Number(producto.stock) <= 5
         );
 
-    mostrarProductos(bajos);
+    mostrarProductos(
+        bajos
+    );
 }
 
 function mostrarGraficas() {
-    alert("📊 Reportes próximamente");
+
+    alert(
+        "📊 Reportes próximamente"
+    );
 }
 
 function cambiarModo() {
+
     document.body.classList.toggle(
         "oscuro"
     );
 }
 
 window.onload = () => {
+
     iniciarSesion();
 };
