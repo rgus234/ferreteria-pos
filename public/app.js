@@ -3,46 +3,29 @@ let grafica = null;
 let todosProductos = [];
 
 async function iniciarSesion() {
-
-    document.getElementById("login")
-        .style.display = "none";
-
-    document.getElementById("sistema")
-        .style.display = "block";
+    document.getElementById("login").style.display = "none";
+    document.getElementById("sistema").style.display = "block";
 
     cargarProductos();
 }
 
-
-
 async function cargarProductos() {
+    const respuesta = await fetch("/productos");
 
-    const respuesta =
-        await fetch("/productos");
+    todosProductos = await respuesta.json();
 
-    todosProductos =
-        await respuesta.json();
-
-    mostrarProductos(
-        todosProductos
-    );
+    mostrarProductos(todosProductos);
 }
 
-
-
 function mostrarProductos(productos) {
-
     const contenedor =
-        document.getElementById(
-            "productos"
-        );
+        document.getElementById("productos");
 
     contenedor.innerHTML = "";
 
     productos.forEach(producto => {
 
         contenedor.innerHTML += `
-
         <div class="producto">
 
             <h2>${producto.nombre}</h2>
@@ -57,9 +40,7 @@ function mostrarProductos(productos) {
                 '${producto.nombre}',
                 ${producto.precio}
             )">
-
             Agregar
-
             </button>
 
             <button
@@ -70,18 +51,14 @@ function mostrarProductos(productos) {
                 ${producto.stock},
                 '${producto.codigo || ""}'
             )">
-
             ✏️ Editar
-
             </button>
 
             <button
             onclick="eliminarProducto(
                 ${producto.id}
             )">
-
             🗑 Eliminar
-
             </button>
 
         </div>
@@ -89,10 +66,7 @@ function mostrarProductos(productos) {
     });
 }
 
-
-
 function agregar(id, nombre, precio) {
-
     carrito.push({
         id,
         nombre,
@@ -102,23 +76,15 @@ function agregar(id, nombre, precio) {
     actualizarCarrito();
 }
 
-
-
 function eliminar(index) {
-
     carrito.splice(index, 1);
 
     actualizarCarrito();
 }
 
-
-
 function actualizarCarrito() {
-
     const contenedor =
-        document.getElementById(
-            "carrito"
-        );
+        document.getElementById("carrito");
 
     contenedor.innerHTML = "";
 
@@ -126,29 +92,21 @@ function actualizarCarrito() {
 
     carrito.forEach((p, i) => {
 
-        total +=
-            Number(p.precio);
+        total += Number(p.precio);
 
         contenedor.innerHTML += `
-
         <div>
-
-            ${p.nombre}
-            - $${p.precio}
+            ${p.nombre} - $${p.precio}
 
             <button
             onclick="eliminar(${i})">
-
             X
-
             </button>
-
         </div>
         `;
     });
 
     contenedor.innerHTML += `
-
     <h3>Total: $${total}</h3>
 
     <input
@@ -158,16 +116,12 @@ function actualizarCarrito() {
 
     <button
     onclick="cobrar(${total})">
-
     Cobrar
-
     </button>
 
     <p id="cambio"></p>
     `;
 }
-
-
 
 async function cobrar(total) {
 
@@ -179,47 +133,63 @@ async function cobrar(total) {
         );
 
     if (dinero < total) {
-
-        alert(
-            "Dinero insuficiente"
-        );
-
+        alert("Dinero insuficiente");
         return;
     }
 
     const cambio =
         dinero - total;
 
-    await fetch("/ventas", {
+    try {
 
-        method: "POST",
+        const respuesta =
+            await fetch("/ventas", {
+                method: "POST",
 
-        headers: {
-            "Content-Type":
-                "application/json"
-        },
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
 
-        body: JSON.stringify({
+                body: JSON.stringify({
+                    total,
+                    productos: carrito
+                })
+            });
 
-            total,
-            productos: carrito
-        })
-    });
+        const resultado =
+            await respuesta.json();
 
-    document.getElementById(
-        "cambio"
-    ).innerHTML =
+        if (!respuesta.ok) {
 
-        `Cambio: $${cambio}`;
+            console.log(resultado);
 
-    carrito = [];
+            alert(
+                "Error al cobrar"
+            );
 
-    actualizarCarrito();
+            return;
+        }
 
-    cargarProductos();
+        alert(
+            `Venta realizada ✅ Cambio: $${cambio}`
+        );
+
+        carrito = [];
+
+        actualizarCarrito();
+
+        cargarProductos();
+
+    } catch (error) {
+
+        console.log(error);
+
+        alert(
+            "Error de conexión"
+        );
+    }
 }
-
-
 
 async function editarProducto(
     id,
@@ -256,9 +226,7 @@ async function editarProducto(
         );
 
     await fetch(
-
         `/editar-producto/${id}`,
-
         {
             method: "PUT",
 
@@ -268,7 +236,6 @@ async function editarProducto(
             },
 
             body: JSON.stringify({
-
                 nombre,
                 precio,
                 stock,
@@ -280,21 +247,15 @@ async function editarProducto(
     cargarProductos();
 }
 
-
-
 async function eliminarProducto(id) {
 
     const confirmar =
-        confirm(
-            "¿Eliminar producto?"
-        );
+        confirm("¿Eliminar producto?");
 
     if (!confirmar) return;
 
     await fetch(
-
         `/eliminar-producto/${id}`,
-
         {
             method: "DELETE"
         }
@@ -303,27 +264,21 @@ async function eliminarProducto(id) {
     cargarProductos();
 }
 
-
-
 function mostrarInicio() {
-
     cargarProductos();
 
-    document.getElementById("productos")
-        .style.display = "block";
+    document.getElementById(
+        "productos"
+    ).style.display = "block";
 
-    document.getElementById("carrito")
-        .style.display = "block";
+    document.getElementById(
+        "carrito"
+    ).style.display = "block";
 }
-
-
 
 function mostrarInventario() {
-
     cargarProductos();
 }
-
-
 
 function mostrarInventarioBajo() {
 
@@ -333,32 +288,19 @@ function mostrarInventarioBajo() {
                 Number(producto.stock) <= 5
         );
 
-    mostrarProductos(
-        bajos
-    );
+    mostrarProductos(bajos);
 }
-
-
 
 function mostrarGraficas() {
-
-    alert(
-        "📊 Reportes próximamente"
-    );
+    alert("📊 Reportes próximamente");
 }
 
-
-
 function cambiarModo() {
-
     document.body.classList.toggle(
         "oscuro"
     );
 }
 
-
-
 window.onload = () => {
-
     iniciarSesion();
 };
