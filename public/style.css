@@ -157,3 +157,36 @@ body.oscuro input{
 .formulario-producto button{
     margin-top:0;
 }
+#carrito{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.item-carrito{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:#f8f8f8;
+    padding:10px 12px;
+    border-radius:12px;
+}
+
+.item-carrito span{
+    font-size:18px;
+}
+
+.item-carrito button{
+    width:auto;
+    margin:0;
+    padding:6px 12px;
+    background:#7b1e3a;
+    color:white;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+}
+
+body.oscuro .item-carrito{
+    background:#2b2b2b;
+}
