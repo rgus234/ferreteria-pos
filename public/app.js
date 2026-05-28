@@ -11,6 +11,7 @@ async function iniciarSesion() {
 }
 
 async function cargarProductos() {
+
     const respuesta =
         await fetch("/productos");
 
@@ -19,6 +20,33 @@ async function cargarProductos() {
 
     mostrarProductos(
         todosProductos
+    );
+}
+
+function buscarProductos() {
+
+    const texto =
+        document.getElementById(
+            "busqueda"
+        ).value.toLowerCase();
+
+    const filtrados =
+        todosProductos.filter(
+            producto =>
+
+                producto.nombre
+                    .toLowerCase()
+                    .includes(texto)
+
+                ||
+
+                String(
+                    producto.codigo || ""
+                ).includes(texto)
+        );
+
+    mostrarProductos(
+        filtrados
     );
 }
 
@@ -47,9 +75,7 @@ function mostrarProductos(productos) {
                 ${producto.id},
                 '${producto.nombre}',
                 ${producto.precio}
-            )">
-                Agregar
-            </button>
+            )">Agregar</button>
 
             <button onclick="editarProducto(
                 ${producto.id},
@@ -57,15 +83,11 @@ function mostrarProductos(productos) {
                 ${producto.precio},
                 ${producto.stock},
                 '${producto.codigo || ""}'
-            )">
-                ✏️ Editar
-            </button>
+            )">✏️ Editar</button>
 
             <button onclick="eliminarProducto(
                 ${producto.id}
-            )">
-                🗑 Eliminar
-            </button>
+            )">🗑 Eliminar</button>
 
         </div>
         `;
@@ -113,7 +135,6 @@ function actualizarCarrito() {
             <button onclick="eliminar(${i})">
                 X
             </button>
-
         </div>
         `;
     });
@@ -127,14 +148,9 @@ function actualizarCarrito() {
         id="dinero"
         placeholder="Dinero recibido">
 
-    <button
-        onclick="cobrar(${total})">
-
+    <button onclick="cobrar(${total})">
         Cobrar
-
     </button>
-
-    <p id="cambio"></p>
     `;
 }
 
@@ -159,59 +175,33 @@ async function cobrar(total) {
     const cambio =
         dinero - total;
 
-    try {
+    await fetch("/ventas", {
 
-        const respuesta =
-            await fetch("/ventas", {
+        method: "POST",
 
-                method: "POST",
+        headers: {
+            "Content-Type":
+                "application/json"
+        },
 
-                headers: {
-                    "Content-Type":
-                        "application/json"
-                },
+        body: JSON.stringify({
 
-                body: JSON.stringify({
+            total,
+            productos: carrito
+        })
+    });
 
-                    total,
-                    productos: carrito
-                })
-            });
+    alert(
+        `Venta realizada ✅ Cambio: $${cambio}`
+    );
 
-        const resultado =
-            await respuesta.json();
+    carrito = [];
 
-        if (!respuesta.ok) {
+    actualizarCarrito();
 
-            console.log(resultado);
+    cargarProductos();
 
-            alert(
-                "Error al cobrar"
-            );
-
-            return;
-        }
-
-        alert(
-            `Venta realizada ✅ Cambio: $${cambio}`
-        );
-
-        carrito = [];
-
-        actualizarCarrito();
-
-        cargarProductos();
-
-        cargarHistorial();
-
-    } catch (error) {
-
-        console.log(error);
-
-        alert(
-            "Error de conexión"
-        );
-    }
+    cargarHistorial();
 }
 
 async function cargarHistorial() {
@@ -234,109 +224,18 @@ async function cargarHistorial() {
         contenedor.innerHTML += `
 
         <div>
-
-            🧾 Venta:
-            $${venta.total}
-
+            🧾 Venta: $${venta.total}
         </div>
         `;
     });
 }
 
-async function editarProducto(
-    id,
-    nombreActual,
-    precioActual,
-    stockActual,
-    codigoActual
-) {
-
-    const nombre =
-        prompt(
-            "Nombre:",
-            nombreActual
-        );
-
-    if (!nombre) return;
-
-    const precio =
-        prompt(
-            "Precio:",
-            precioActual
-        );
-
-    const stock =
-        prompt(
-            "Stock:",
-            stockActual
-        );
-
-    const codigo =
-        prompt(
-            "Código:",
-            codigoActual
-        );
-
-    await fetch(
-        `/editar-producto/${id}`,
-        {
-            method: "PUT",
-
-            headers: {
-                "Content-Type":
-                    "application/json"
-            },
-
-            body: JSON.stringify({
-                nombre,
-                precio,
-                stock,
-                codigo
-            })
-        }
-    );
-
-    cargarProductos();
-}
-
-async function eliminarProducto(id) {
-
-    const confirmar =
-        confirm(
-            "¿Eliminar producto?"
-        );
-
-    if (!confirmar) return;
-
-    await fetch(
-        `/eliminar-producto/${id}`,
-        {
-            method: "DELETE"
-        }
-    );
-
-    cargarProductos();
-}
-
 function mostrarInicio() {
-
     cargarProductos();
-
     cargarHistorial();
-
-    document.getElementById(
-        "productos"
-    ).style.display =
-        "block";
-
-    document.getElementById(
-        "carrito"
-    ).style.display =
-        "block";
 }
 
 function mostrarInventario() {
-
     cargarProductos();
 }
 
@@ -368,6 +267,5 @@ function cambiarModo() {
 }
 
 window.onload = () => {
-
     iniciarSesion();
 };

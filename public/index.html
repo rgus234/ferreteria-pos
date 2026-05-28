@@ -2,17 +2,12 @@
 <html lang="es">
 
 <head>
-
     <meta charset="UTF-8">
-
-    <title>
-        Ferretería Olímpico
-    </title>
+    <title>Ferretería Olímpico</title>
 
     <link rel="stylesheet" href="style.css">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 </head>
 
 <body>
@@ -21,14 +16,9 @@
 
         <div class="login-box">
 
-            <h1>
-                🔐 Iniciar Sesión
-            </h1>
+            <h1>🔐 Iniciar Sesión</h1>
 
-            <input
-                id="usuario"
-                placeholder="Usuario"
-            >
+            <input id="usuario" placeholder="Usuario">
 
             <input
                 id="password"
@@ -36,13 +26,12 @@
                 placeholder="Contraseña"
             >
 
-            <button
-                onclick="iniciarSesion()"
-            >
+            <button onclick="iniciarSesion()">
                 Entrar
             </button>
 
         </div>
+
     </div>
 
 
@@ -52,114 +41,63 @@
         style="display:none;"
     >
 
-        <header>
+        <div class="layout">
 
-            <h1>
-                🔨 Ferretería Olímpico
-            </h1>
+            <aside class="sidebar">
 
-            <div>
+                <h1>🔨 Olímpico</h1>
 
-                <button onclick="mostrarInicio()">
-                    🏠 Inicio
-                </button>
+                <button onclick="mostrarInicio()">🏠 Inicio</button>
 
-                <button onclick="mostrarInventario()">
-                    📦 Inventario
-                </button>
+                <button onclick="mostrarInventario()">📦 Inventario</button>
 
-                <button onclick="mostrarInventarioBajo()">
-                    🔴 Inventario bajo
-                </button>
+                <button onclick="mostrarInventarioBajo()">🔴 Inventario bajo</button>
 
-                <button onclick="mostrarGraficas()">
-                    📊 Reportes
-                </button>
+                <button onclick="mostrarGraficas()">📊 Reportes</button>
 
-                <button onclick="cambiarModo()">
-                    🌙 Modo Oscuro
-                </button>
+                <button onclick="cambiarModo()">🌙 Modo oscuro</button>
 
-            </div>
+            </aside>
 
-        </header>
+            <main class="contenido">
 
+                <div id="pantallaInicio">
 
+<input
+    id="busqueda"
+    type="text"
+    placeholder="🔎 Buscar por nombre o código"
+    oninput="buscarProductos()"
+>
+                    <div class="productos">
 
-        <div id="pantallaInicio">
+                        <div id="productos"></div>
 
-            <div class="productos">
+                        <div class="lado">
 
-                <div id="productos"></div>
+                            <div class="caja">
 
-                <div class="lado">
+                                <h2>🛒 Carrito</h2>
 
-                    <div class="caja">
+                                <div id="carrito"></div>
 
-                        <h2>
-                            🛒 Carrito
-                        </h2>
+                            </div>
 
-                        <div id="carrito"></div>
+                            <div class="caja">
 
-                    </div>
+                                <h2>📜 Historial</h2>
 
-                    <div class="caja">
+                                <div id="historial"></div>
 
-                        <h2>
-                            📜 Historial
-                        </h2>
+                            </div>
 
-                        <div id="historial"></div>
+                        </div>
 
                     </div>
 
                 </div>
 
-            </div>
-
-        </div>
-
-
-
-        <div
-            id="pantallaInventario"
-            style="display:none;"
-        >
-
-            <h2>
-                📦 Inventario
-            </h2>
-
-            <div id="inventario"></div>
-
-        </div>
-
-
-
-        <div
-            id="pantallaInventarioBajo"
-            style="display:none;"
-        >
-
-            <h2>
-                🔴 Inventario bajo
-            </h2>
-
-            <div id="inventarioBajo"></div>
-
-        </div>
-
-
-
-        <div
-            id="pantallaGraficas"
-            style="display:none;"
-        >
-
-            <canvas
-                id="graficaVentas"
-            ></canvas>
+            </main>
 
         </div>
 
