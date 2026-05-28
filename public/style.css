@@ -143,3 +143,17 @@ body.oscuro input{
     color:white;
     border:1px solid #555;
 }
+.formulario-producto{
+    display:grid;
+
+    grid-template-columns:
+        repeat(auto-fit,minmax(180px,1fr));
+
+    gap:12px;
+
+    margin-bottom:20px;
+}
+
+.formulario-producto button{
+    margin-top:0;
+}

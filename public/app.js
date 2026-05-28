@@ -269,3 +269,73 @@ function cambiarModo() {
 window.onload = () => {
     iniciarSesion();
 };
+async function agregarProductoNuevo() {
+
+    const nombre =
+        document.getElementById(
+            "nuevoNombre"
+        ).value;
+
+    const precio =
+        document.getElementById(
+            "nuevoPrecio"
+        ).value;
+
+    const stock =
+        document.getElementById(
+            "nuevoStock"
+        ).value;
+
+    const codigo =
+        document.getElementById(
+            "nuevoCodigo"
+        ).value;
+
+    if (
+        !nombre ||
+        !precio ||
+        !stock
+    ) {
+        alert(
+            "Completa los campos"
+        );
+        return;
+    }
+
+    await fetch(
+        "/productos",
+        {
+            method:"POST",
+
+            headers:{
+                "Content-Type":
+                    "application/json"
+            },
+
+            body:JSON.stringify({
+                nombre,
+                precio,
+                stock,
+                codigo
+            })
+        }
+    );
+
+    document.getElementById(
+        "nuevoNombre"
+    ).value = "";
+
+    document.getElementById(
+        "nuevoPrecio"
+    ).value = "";
+
+    document.getElementById(
+        "nuevoStock"
+    ).value = "";
+
+    document.getElementById(
+        "nuevoCodigo"
+    ).value = "";
+
+    cargarProductos();
+}

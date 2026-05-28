@@ -68,7 +68,35 @@
     type="text"
     placeholder="🔎 Buscar por nombre o código"
     oninput="buscarProductos()"
->
+><div class="formulario-producto">
+
+    <input
+        id="nuevoNombre"
+        placeholder="Nombre del producto"
+    >
+
+    <input
+        id="nuevoPrecio"
+        type="number"
+        placeholder="Precio"
+    >
+
+    <input
+        id="nuevoStock"
+        type="number"
+        placeholder="Stock"
+    >
+
+    <input
+        id="nuevoCodigo"
+        placeholder="Código de barras"
+    >
+
+    <button onclick="agregarProductoNuevo()">
+        ➕ Agregar producto
+    </button>
+
+</div>
                     <div class="productos">
 
                         <div id="productos"></div>
