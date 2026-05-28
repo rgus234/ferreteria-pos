@@ -269,6 +269,7 @@ function cambiarModo() {
 window.onload = () => {
     iniciarSesion();
 };
+
 async function agregarProductoNuevo() {
 
     const nombre =
@@ -303,16 +304,16 @@ async function agregarProductoNuevo() {
     }
 
     await fetch(
-        "/productos",
+        "/agregar-producto",
         {
-            method:"POST",
+            method: "POST",
 
-            headers:{
+            headers: {
                 "Content-Type":
                     "application/json"
             },
 
-            body:JSON.stringify({
+            body: JSON.stringify({
                 nombre,
                 precio,
                 stock,
@@ -337,15 +338,18 @@ async function agregarProductoNuevo() {
         "nuevoCodigo"
     ).value = "";
 
-    cargarProductos();
+    await cargarProductos();
+
+    alert("Producto agregado ✅");
 }
+
 function editarProducto(
     id,
     nombre,
     precio,
     stock,
     codigo
-){
+) {
 
     document.getElementById(
         "nuevoNombre"
@@ -366,12 +370,12 @@ function editarProducto(
     eliminarProducto(id);
 }
 
-async function eliminarProducto(id){
+async function eliminarProducto(id) {
 
     await fetch(
-        `/productos/${id}`,
+        `/eliminar-producto/${id}`,
         {
-            method:"DELETE"
+            method: "DELETE"
         }
     );
 
