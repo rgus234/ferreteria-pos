@@ -339,3 +339,41 @@ async function agregarProductoNuevo() {
 
     cargarProductos();
 }
+function editarProducto(
+    id,
+    nombre,
+    precio,
+    stock,
+    codigo
+){
+
+    document.getElementById(
+        "nuevoNombre"
+    ).value = nombre;
+
+    document.getElementById(
+        "nuevoPrecio"
+    ).value = precio;
+
+    document.getElementById(
+        "nuevoStock"
+    ).value = stock;
+
+    document.getElementById(
+        "nuevoCodigo"
+    ).value = codigo || "";
+
+    eliminarProducto(id);
+}
+
+async function eliminarProducto(id){
+
+    await fetch(
+        `/productos/${id}`,
+        {
+            method:"DELETE"
+        }
+    );
+
+    cargarProductos();
+}
