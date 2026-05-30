@@ -2,12 +2,15 @@
 <html lang="es">
 
 <head>
+
     <meta charset="UTF-8">
+
     <title>Ferretería Olímpico</title>
 
     <link rel="stylesheet" href="style.css">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 </head>
 
 <body>
@@ -18,7 +21,10 @@
 
             <h1>🔐 Iniciar Sesión</h1>
 
-            <input id="usuario" placeholder="Usuario">
+            <input
+                id="usuario"
+                placeholder="Usuario"
+            >
 
             <input
                 id="password"
@@ -34,8 +40,6 @@
 
     </div>
 
-
-
     <div
         id="sistema"
         style="display:none;"
@@ -45,17 +49,41 @@
 
             <aside class="sidebar">
 
-                <h1>🔨 Olímpico</h1>
+                <h1>
+                    🔨 FERRETERÍA OLÍMPICO
+                </h1>
 
-                <button onclick="mostrarInicio()">🏠 Inicio</button>
+                <button onclick="mostrarInicio()">
+                    🏠 Inicio / Dashboard
+                </button>
 
-                <button onclick="mostrarInventario()">📦 Inventario</button>
+                <button onclick="mostrarInicio()">
+                    🛒 Punto de venta
+                </button>
 
-                <button onclick="mostrarInventarioBajo()">🔴 Inventario bajo</button>
+                <button onclick="mostrarInventario()">
+                    📦 Inventario
+                </button>
 
-                <button onclick="mostrarGraficas()">📊 Reportes</button>
+                <button onclick="mostrarInventarioBajo()">
+                    🔴 Inventario bajo
+                </button>
 
-                <button onclick="cambiarModo()">🌙 Modo oscuro</button>
+                <button onclick="mostrarGraficas()">
+                    📊 Reportes / Ventas
+                </button>
+
+                <button>
+                    👥 Clientes
+                </button>
+
+                <button>
+                    🚚 Proveedores
+                </button>
+
+                <button onclick="cambiarModo()">
+                    ⚙️ Configuración
+                </button>
 
             </aside>
 
@@ -63,40 +91,96 @@
 
                 <div id="pantallaInicio">
 
-<input
-    id="busqueda"
-    type="text"
-    placeholder="🔎 Buscar por nombre o código"
-    oninput="buscarProductos()"
-><div class="formulario-producto">
+                    <div class="dashboard-top">
 
-    <input
-        id="nuevoNombre"
-        placeholder="Nombre del producto"
-    >
+                        <div class="caja mini">
 
-    <input
-        id="nuevoPrecio"
-        type="number"
-        placeholder="Precio"
-    >
+                            <h3>
+                                Ventas del día
+                            </h3>
 
-    <input
-        id="nuevoStock"
-        type="number"
-        placeholder="Stock"
-    >
+                            <p>
+                                $3,820
+                            </p>
 
-    <input
-        id="nuevoCodigo"
-        placeholder="Código de barras"
-    >
+                        </div>
 
-    <button onclick="agregarProductoNuevo()">
-        ➕ Agregar producto
-    </button>
+                        <div class="caja mini">
 
-</div>
+                            <h3>
+                                Ventas del mes
+                            </h3>
+
+                            <p>
+                                $45,230
+                            </p>
+
+                        </div>
+
+                        <div class="caja mini">
+
+                            <h3>
+                                Transacciones
+                            </h3>
+
+                            <p>
+                                32
+                            </p>
+
+                        </div>
+
+                        <div class="caja mini">
+
+                            <h3>
+                                Productos
+                            </h3>
+
+                            <p id="totalProductos">
+                                0
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                    <input
+                        id="busqueda"
+                        type="text"
+                        placeholder="🔎 Buscar por nombre o código de barras"
+                        oninput="buscarProductos()"
+                        onkeydown="buscarCodigoEnter(event)"
+                    >
+
+                    <div class="formulario-producto">
+
+                        <input
+                            id="nuevoNombre"
+                            placeholder="Nombre del producto"
+                        >
+
+                        <input
+                            id="nuevoPrecio"
+                            type="number"
+                            placeholder="Precio"
+                        >
+
+                        <input
+                            id="nuevoStock"
+                            type="number"
+                            placeholder="Stock"
+                        >
+
+                        <input
+                            id="nuevoCodigo"
+                            placeholder="Código de barras"
+                        >
+
+                        <button onclick="agregarProductoNuevo()">
+                            ➕ Agregar producto
+                        </button>
+
+                    </div>
+
                     <div class="productos">
 
                         <div id="productos"></div>
@@ -105,7 +189,9 @@
 
                             <div class="caja">
 
-                                <h2>🛒 Carrito</h2>
+                                <h2>
+                                    🛒 Carrito
+                                </h2>
 
                                 <div id="carrito"></div>
 
@@ -113,7 +199,9 @@
 
                             <div class="caja">
 
-                                <h2>📜 Historial</h2>
+                                <h2>
+                                    📜 Historial
+                                </h2>
 
                                 <div id="historial"></div>
 
@@ -134,4 +222,5 @@
     <script src="app.js"></script>
 
 </body>
+
 </html>

@@ -50,6 +50,70 @@ function buscarProductos() {
     );
 }
 
+function buscarCodigoEnter(event) {
+
+    console.log(
+        "ENTER DETECTADO:",
+        event.key
+    );
+
+    if (
+        event.key !== "Enter"
+    ) return;
+
+    event.preventDefault();
+
+    const input =
+        document.getElementById(
+            "busqueda"
+        );
+
+    const codigo =
+        input.value.trim();
+
+    if (!codigo) return;
+
+    const producto =
+        todosProductos.find(
+            p =>
+
+                String(
+                    p.codigo || ""
+                ).trim() === codigo.trim()
+
+                ||
+
+                String(
+                    p.id || ""
+                ).trim() === codigo.trim()
+        );
+
+    console.log(
+        "Buscando:",
+        codigo,
+        todosProductos
+    );
+
+    if (!producto) {
+
+        alert(
+            "Producto no encontrado"
+        );
+
+        return;
+    }
+
+    agregar(
+        producto.id,
+        producto.nombre,
+        producto.precio
+    );
+
+    input.value = "";
+
+    buscarProductos();
+}
+
 function mostrarProductos(productos) {
 
     const contenedor =
@@ -75,7 +139,9 @@ function mostrarProductos(productos) {
                 ${producto.id},
                 '${producto.nombre}',
                 ${producto.precio}
-            )">Agregar</button>
+            )">
+                Agregar
+            </button>
 
             <button onclick="editarProducto(
                 ${producto.id},
@@ -83,11 +149,15 @@ function mostrarProductos(productos) {
                 ${producto.precio},
                 ${producto.stock},
                 '${producto.codigo || ""}'
-            )">✏️ Editar</button>
+            )">
+                ✏️ Editar
+            </button>
 
             <button onclick="eliminarProducto(
                 ${producto.id}
-            )">🗑 Eliminar</button>
+            )">
+                🗑 Eliminar
+            </button>
 
         </div>
         `;
@@ -107,7 +177,10 @@ function agregar(id, nombre, precio) {
 
 function eliminar(index) {
 
-    carrito.splice(index, 1);
+    carrito.splice(
+        index,
+        1
+    );
 
     actualizarCarrito();
 }
@@ -125,7 +198,8 @@ function actualizarCarrito() {
 
     carrito.forEach((p, i) => {
 
-        total += Number(p.precio);
+        total +=
+            Number(p.precio);
 
         contenedor.innerHTML += `
 
@@ -146,7 +220,8 @@ function actualizarCarrito() {
     <input
         type="number"
         id="dinero"
-        placeholder="Dinero recibido">
+        placeholder="Dinero recibido"
+    >
 
     <button onclick="cobrar(${total})">
         Cobrar
@@ -175,21 +250,22 @@ async function cobrar(total) {
     const cambio =
         dinero - total;
 
-    await fetch("/ventas", {
+    await fetch(
+        "/ventas",
+        {
+            method: "POST",
 
-        method: "POST",
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
 
-        headers: {
-            "Content-Type":
-                "application/json"
-        },
-
-        body: JSON.stringify({
-
-            total,
-            productos: carrito
-        })
-    });
+            body: JSON.stringify({
+                total,
+                productos: carrito
+            })
+        }
+    );
 
     alert(
         `Venta realizada ✅ Cambio: $${cambio}`
@@ -244,7 +320,9 @@ function mostrarInventarioBajo() {
     const bajos =
         todosProductos.filter(
             producto =>
-                Number(producto.stock) <= 5
+                Number(
+                    producto.stock
+                ) <= 5
         );
 
     mostrarProductos(
@@ -265,10 +343,6 @@ function cambiarModo() {
         "oscuro"
     );
 }
-
-window.onload = () => {
-    iniciarSesion();
-};
 
 async function agregarProductoNuevo() {
 
@@ -338,9 +412,11 @@ async function agregarProductoNuevo() {
         "nuevoCodigo"
     ).value = "";
 
-    await cargarProductos();
+    cargarProductos();
 
-    alert("Producto agregado ✅");
+    alert(
+        "Producto agregado ✅"
+    );
 }
 
 function editarProducto(
@@ -365,7 +441,8 @@ function editarProducto(
 
     document.getElementById(
         "nuevoCodigo"
-    ).value = codigo || "";
+    ).value =
+        codigo || "";
 
     eliminarProducto(id);
 }
@@ -381,3 +458,20 @@ async function eliminarProducto(id) {
 
     cargarProductos();
 }
+window.onload = async () => {
+
+    await iniciarSesion();
+
+    const inputBusqueda =
+        document.getElementById(
+            "busqueda"
+        );
+
+    if (inputBusqueda) {
+
+        inputBusqueda.addEventListener(
+            "keydown",
+            buscarCodigoEnter
+        );
+    }
+};
