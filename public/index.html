@@ -57,7 +57,7 @@
                     🏠 Inicio / Dashboard
                 </button>
 
-                <button onclick="mostrarInicio()">
+                <button onclick="mostrarPuntoVenta()">
                     🛒 Punto de venta
                 </button>
 
@@ -88,6 +88,8 @@
             </aside>
 
             <main class="contenido">
+
+                <!-- DASHBOARD -->
 
                 <div id="pantallaInicio">
 
@@ -142,6 +144,25 @@
                         </div>
 
                     </div>
+
+                    <div class="caja">
+
+                        <h2>
+                            🔴 Alertas de inventario
+                        </h2>
+
+                        <div id="inventarioBajo"></div>
+
+                    </div>
+
+                </div>
+
+                <!-- PUNTO DE VENTA -->
+
+                <div
+                    id="pantallaPuntoVenta"
+                    style="display:none;"
+                >
 
                     <input
                         id="busqueda"

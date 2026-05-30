@@ -3,11 +3,20 @@ let grafica = null;
 let todosProductos = [];
 
 async function iniciarSesion() {
-    document.getElementById("login").style.display = "none";
-    document.getElementById("sistema").style.display = "block";
 
-    cargarProductos();
+    document.getElementById(
+        "login"
+    ).style.display = "none";
+
+    document.getElementById(
+        "sistema"
+    ).style.display = "block";
+
+    await cargarProductos();
+
     cargarHistorial();
+
+    actualizarDashboard();
 }
 
 async function cargarProductos() {
@@ -21,6 +30,66 @@ async function cargarProductos() {
     mostrarProductos(
         todosProductos
     );
+
+    actualizarDashboard();
+
+    actualizarInventarioBajo();
+}
+
+function actualizarDashboard() {
+
+    const total =
+        document.getElementById(
+            "totalProductos"
+        );
+
+    if (total) {
+
+        total.textContent =
+            todosProductos.length;
+    }
+}
+
+function actualizarInventarioBajo() {
+
+    const contenedor =
+        document.getElementById(
+            "inventarioBajo"
+        );
+
+    if (!contenedor) return;
+
+    const bajos =
+        todosProductos.filter(
+            p =>
+                Number(
+                    p.stock
+                ) <= 5
+        );
+
+    contenedor.innerHTML = "";
+
+    if (
+        bajos.length === 0
+    ) {
+
+        contenedor.innerHTML =
+            "<p>✅ Sin alertas</p>";
+
+        return;
+    }
+
+    bajos.forEach(p => {
+
+        contenedor.innerHTML += `
+
+        <div>
+            🔴 ${p.nombre}
+            — Stock:
+            ${p.stock}
+        </div>
+        `;
+    });
 }
 
 function buscarProductos() {
@@ -28,7 +97,8 @@ function buscarProductos() {
     const texto =
         document.getElementById(
             "busqueda"
-        ).value.toLowerCase();
+        ).value
+        .toLowerCase();
 
     const filtrados =
         todosProductos.filter(
@@ -52,11 +122,6 @@ function buscarProductos() {
 
 function buscarCodigoEnter(event) {
 
-    console.log(
-        "ENTER DETECTADO:",
-        event.key
-    );
-
     if (
         event.key !== "Enter"
     ) return;
@@ -79,20 +144,14 @@ function buscarCodigoEnter(event) {
 
                 String(
                     p.codigo || ""
-                ).trim() === codigo.trim()
+                ).trim() === codigo
 
                 ||
 
                 String(
                     p.id || ""
-                ).trim() === codigo.trim()
+                ).trim() === codigo
         );
-
-    console.log(
-        "Buscando:",
-        codigo,
-        todosProductos
-    );
 
     if (!producto) {
 
@@ -121,6 +180,8 @@ function mostrarProductos(productos) {
             "productos"
         );
 
+    if (!contenedor) return;
+
     contenedor.innerHTML = "";
 
     productos.forEach(producto => {
@@ -129,11 +190,17 @@ function mostrarProductos(productos) {
 
         <div class="producto">
 
-            <h2>${producto.nombre}</h2>
+            <h2>
+                ${producto.nombre}
+            </h2>
 
-            <p>Precio: $${producto.precio}</p>
+            <p>
+                Precio: $${producto.precio}
+            </p>
 
-            <p>Stock: ${producto.stock}</p>
+            <p>
+                Stock: ${producto.stock}
+            </p>
 
             <button onclick="agregar(
                 ${producto.id},
@@ -164,7 +231,11 @@ function mostrarProductos(productos) {
     });
 }
 
-function agregar(id, nombre, precio) {
+function agregar(
+    id,
+    nombre,
+    precio
+) {
 
     carrito.push({
         id,
@@ -192,30 +263,41 @@ function actualizarCarrito() {
             "carrito"
         );
 
+    if (!contenedor) return;
+
     contenedor.innerHTML = "";
 
     let total = 0;
 
-    carrito.forEach((p, i) => {
+    carrito.forEach(
+        (p, i) => {
 
-        total +=
-            Number(p.precio);
+            total +=
+                Number(
+                    p.precio
+                );
 
-        contenedor.innerHTML += `
+            contenedor.innerHTML += `
 
-        <div>
-            ${p.nombre} - $${p.precio}
+            <div>
 
-            <button onclick="eliminar(${i})">
-                X
-            </button>
-        </div>
-        `;
-    });
+                ${p.nombre}
+                - $${p.precio}
+
+                <button onclick="eliminar(${i})">
+                    X
+                </button>
+
+            </div>
+            `;
+        }
+    );
 
     contenedor.innerHTML += `
 
-    <h3>Total: $${total}</h3>
+    <h3>
+        Total: $${total}
+    </h3>
 
     <input
         type="number"
@@ -238,7 +320,9 @@ async function cobrar(total) {
             ).value
         );
 
-    if (dinero < total) {
+    if (
+        dinero < total
+    ) {
 
         alert(
             "Dinero insuficiente"
@@ -283,7 +367,9 @@ async function cobrar(total) {
 async function cargarHistorial() {
 
     const respuesta =
-        await fetch("/historial");
+        await fetch(
+            "/historial"
+        );
 
     const historial =
         await respuesta.json();
@@ -293,41 +379,60 @@ async function cargarHistorial() {
             "historial"
         );
 
+    if (!contenedor) return;
+
     contenedor.innerHTML = "";
 
-    historial.forEach(venta => {
+    historial.forEach(
+        venta => {
 
-        contenedor.innerHTML += `
+            contenedor.innerHTML += `
 
-        <div>
-            🧾 Venta: $${venta.total}
-        </div>
-        `;
-    });
+            <div>
+                🧾 Venta:
+                $${venta.total}
+            </div>
+            `;
+        }
+    );
 }
 
 function mostrarInicio() {
-    cargarProductos();
-    cargarHistorial();
+
+    document.getElementById(
+        "pantallaInicio"
+    ).style.display =
+        "block";
+
+    document.getElementById(
+        "pantallaPuntoVenta"
+    ).style.display =
+        "none";
+}
+
+function mostrarPuntoVenta() {
+
+    document.getElementById(
+        "pantallaInicio"
+    ).style.display =
+        "none";
+
+    document.getElementById(
+        "pantallaPuntoVenta"
+    ).style.display =
+        "block";
 }
 
 function mostrarInventario() {
+
+    mostrarPuntoVenta();
+
     cargarProductos();
 }
 
 function mostrarInventarioBajo() {
 
-    const bajos =
-        todosProductos.filter(
-            producto =>
-                Number(
-                    producto.stock
-                ) <= 5
-        );
-
-    mostrarProductos(
-        bajos
-    );
+    mostrarInicio();
 }
 
 function mostrarGraficas() {
@@ -371,9 +476,11 @@ async function agregarProductoNuevo() {
         !precio ||
         !stock
     ) {
+
         alert(
             "Completa los campos"
         );
+
         return;
     }
 
@@ -458,20 +565,22 @@ async function eliminarProducto(id) {
 
     cargarProductos();
 }
-window.onload = async () => {
 
-    await iniciarSesion();
+window.onload =
+    async () => {
 
-    const inputBusqueda =
-        document.getElementById(
-            "busqueda"
-        );
+        await iniciarSesion();
 
-    if (inputBusqueda) {
+        const input =
+            document.getElementById(
+                "busqueda"
+            );
 
-        inputBusqueda.addEventListener(
-            "keydown",
-            buscarCodigoEnter
-        );
-    }
-};
+        if (input) {
+
+            input.addEventListener(
+                "keydown",
+                buscarCodigoEnter
+            );
+        }
+    };
