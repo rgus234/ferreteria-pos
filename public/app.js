@@ -543,7 +543,12 @@ ticket += `
 
 </div>
 `;
-
+const ventana =
+    window.open(
+        "",
+        "_blank",
+        "width=420,height=700"
+    );
 ventana.document.write(`
 
 <html>
