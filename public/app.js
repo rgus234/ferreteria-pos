@@ -901,13 +901,6 @@ function mostrarInventario() {
 
     cargarTablaInventario();
 
-    document
-        .getElementById(
-            "pantallaInventario"
-        )
-        .scrollIntoView({
-            behavior: "smooth"
-        });
 }
 function mostrarPuntoVenta() {
     document.getElementById("pantallaInicio").style.display = "none";
