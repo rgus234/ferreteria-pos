@@ -380,22 +380,44 @@ function actualizarCarrito() {
     </div>
     `;
 }
-    contenedor.innerHTML += `
+   contenedor.innerHTML += `
+
+<div class="caja">
 
     <h3>
-        Total: $${total}
+        💰 Subtotal:
+        $${total}
     </h3>
 
     <input
         type="number"
         id="dinero"
         placeholder="Dinero recibido"
+        oninput="calcularCambio(${total})"
     >
 
+    <h3 id="cambioTexto">
+
+        Cambio: $0
+
+    </h3>
+
     <button onclick="cobrar(${total})">
-        Cobrar
+
+        ✅ Cobrar
+
     </button>
-    `;
+
+    <button
+        onclick="limpiarCarrito()"
+    >
+
+        🗑 Limpiar
+
+    </button>
+
+</div>
+`;
 }
 
 async function cobrar(total) {
