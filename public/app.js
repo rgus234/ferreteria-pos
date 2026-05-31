@@ -848,8 +848,6 @@ window.onload =
 
 }
 
-
-
 function cobrarConEnter(
     event,
     total
@@ -857,6 +855,8 @@ function cobrarConEnter(
     if (
         event.key === "Enter"
     ) {
+
+        event.preventDefault();
 
         cobrar(total);
 
