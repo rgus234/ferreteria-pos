@@ -151,7 +151,17 @@ function buscarCodigoEnter(event) {
     const codigo =
         input.value.trim();
 
-    if (!codigo) return;
+    // si está vacío brinca a cobrar
+    if (!codigo) {
+
+        document
+            .getElementById(
+                "dinero"
+            )
+            ?.focus();
+
+        return;
+    }
 
     const producto =
         todosProductos.find(
@@ -186,6 +196,8 @@ function buscarCodigoEnter(event) {
     input.value = "";
 
     buscarProductos();
+
+    input.focus();
 }
 
 function mostrarProductos(productos) {
