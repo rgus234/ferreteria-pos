@@ -892,3 +892,20 @@ function cobrarConEnter(
         }, 400);
     }
 }
+function mostrarInventario() {
+    document.getElementById("pantallaInicio").style.display = "none";
+    document.getElementById("pantallaPuntoVenta").style.display = "none";
+    document.getElementById("pantallaInventario").style.display = "block";
+}
+
+function mostrarPuntoVenta() {
+    document.getElementById("pantallaInicio").style.display = "none";
+    document.getElementById("pantallaInventario").style.display = "none";
+    document.getElementById("pantallaPuntoVenta").style.display = "block";
+}
+
+function mostrarInicio() {
+    document.getElementById("pantallaPuntoVenta").style.display = "none";
+    document.getElementById("pantallaInventario").style.display = "none";
+    document.getElementById("pantallaInicio").style.display = "block";
+}
