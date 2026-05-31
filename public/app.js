@@ -420,9 +420,16 @@ async function cobrar(total) {
         }
     );
 
-    alert(
-        `Venta realizada ✅ Cambio: $${cambio}`
+    const cambioTexto =
+    document.getElementById(
+        "cambioTexto"
     );
+
+if (cambioTexto) {
+
+    cambioTexto.textContent =
+        `✅ Venta realizada | Cambio: $${cambio}`;
+}
 
     carrito = [];
 
