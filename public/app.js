@@ -48,6 +48,25 @@ function actualizarDashboard() {
         total.textContent =
             todosProductos.length;
     }
+
+    const bajos =
+        todosProductos.filter(
+            p =>
+                Number(
+                    p.stock
+                ) <= 5
+        );
+
+    const totalBajos =
+        document.getElementById(
+            "totalBajos"
+        );
+
+    if (totalBajos) {
+
+        totalBajos.textContent =
+            bajos.length;
+    }
 }
 
 function actualizarInventarioBajo() {
@@ -379,20 +398,55 @@ async function cargarHistorial() {
             "historial"
         );
 
-    if (!contenedor) return;
+    const ultimas =
+        document.getElementById(
+            "ultimasVentas"
+        );
 
-    contenedor.innerHTML = "";
+    const conteo =
+        document.getElementById(
+            "conteoVentas"
+        );
+
+    if (conteo) {
+
+        conteo.textContent =
+            historial.length;
+    }
+
+    if (contenedor) {
+
+        contenedor.innerHTML = "";
+    }
+
+    if (ultimas) {
+
+        ultimas.innerHTML = "";
+    }
 
     historial.forEach(
         venta => {
 
-            contenedor.innerHTML += `
+            if (contenedor) {
 
-            <div>
-                🧾 Venta:
-                $${venta.total}
-            </div>
-            `;
+                contenedor.innerHTML += `
+
+                <div>
+                    🧾 Venta:
+                    $${venta.total}
+                </div>
+                `;
+            }
+
+            if (ultimas) {
+
+                ultimas.innerHTML += `
+
+                <div>
+                    🧾 Venta registrada
+                </div>
+                `;
+            }
         }
     );
 }

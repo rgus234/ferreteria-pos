@@ -2,15 +2,11 @@
 <html lang="es">
 
 <head>
-
     <meta charset="UTF-8">
-
     <title>Ferretería Olímpico</title>
 
     <link rel="stylesheet" href="style.css">
-
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 </head>
 
 <body>
@@ -21,15 +17,12 @@
 
             <h1>🔐 Iniciar Sesión</h1>
 
-            <input
-                id="usuario"
-                placeholder="Usuario"
-            >
+            <input id="usuario" placeholder="Usuario">
 
             <input
                 id="password"
-                type="password"
                 placeholder="Contraseña"
+                type="password"
             >
 
             <button onclick="iniciarSesion()">
@@ -97,49 +90,39 @@
 
                         <div class="caja mini">
 
-                            <h3>
-                                Ventas del día
-                            </h3>
-
-                            <p>
-                                $3,820
-                            </p>
-
-                        </div>
-
-                        <div class="caja mini">
-
-                            <h3>
-                                Ventas del mes
-                            </h3>
-
-                            <p>
-                                $45,230
-                            </p>
-
-                        </div>
-
-                        <div class="caja mini">
-
-                            <h3>
-                                Transacciones
-                            </h3>
-
-                            <p>
-                                32
-                            </p>
-
-                        </div>
-
-                        <div class="caja mini">
-
-                            <h3>
-                                Productos
-                            </h3>
+                            <h3>📦 Productos</h3>
 
                             <p id="totalProductos">
                                 0
                             </p>
+
+                        </div>
+
+                        <div class="caja mini">
+
+                            <h3>🔴 Inventario bajo</h3>
+
+                            <p id="totalBajos">
+                                0
+                            </p>
+
+                        </div>
+
+                        <div class="caja mini">
+
+                            <h3>🕒 Últimas ventas</h3>
+
+                            <p id="conteoVentas">
+                                0
+                            </p>
+
+                        </div>
+
+                        <div class="caja mini">
+
+                            <h3>📋 Pendientes</h3>
+
+                            <p>0</p>
 
                         </div>
 
@@ -152,6 +135,16 @@
                         </h2>
 
                         <div id="inventarioBajo"></div>
+
+                    </div>
+
+                    <div class="caja">
+
+                        <h2>
+                            🕒 Últimas ventas
+                        </h2>
+
+                        <div id="ultimasVentas"></div>
 
                     </div>
 
@@ -210,9 +203,7 @@
 
                             <div class="caja">
 
-                                <h2>
-                                    🛒 Carrito
-                                </h2>
+                                <h2>🛒 Carrito</h2>
 
                                 <div id="carrito"></div>
 
@@ -220,9 +211,7 @@
 
                             <div class="caja">
 
-                                <h2>
-                                    📜 Historial
-                                </h2>
+                                <h2>📜 Historial</h2>
 
                                 <div id="historial"></div>
 
@@ -243,5 +232,4 @@
     <script src="app.js"></script>
 
 </body>
-
 </html>
