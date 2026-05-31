@@ -274,7 +274,40 @@ function eliminar(index) {
 
     actualizarCarrito();
 }
+function limpiarCarrito() {
 
+    carrito = [];
+
+    actualizarCarrito();
+}
+
+function calcularCambio(total) {
+
+    const dinero =
+        Number(
+            document.getElementById(
+                "dinero"
+            )?.value || 0
+        );
+
+    const cambio =
+        dinero - total;
+
+    const texto =
+        document.getElementById(
+            "cambioTexto"
+        );
+
+    if (!texto) return;
+
+    texto.textContent =
+
+        cambio >= 0
+
+        ? `Cambio: $${cambio}`
+
+        : "Dinero insuficiente";
+}
 function actualizarCarrito() {
 
     const contenedor =
@@ -291,17 +324,21 @@ function actualizarCarrito() {
     carrito.forEach(
         (p, i) => {
 
-            total +=
-                Number(
-                    p.precio
-                );
+            total += Number(
+                p.precio
+            );
 
             contenedor.innerHTML += `
 
-            <div>
+            <div class="item-carrito">
 
-                ${p.nombre}
-                - $${p.precio}
+                <span>
+                    ${p.nombre}
+                </span>
+
+                <span>
+                    $${p.precio}
+                </span>
 
                 <button onclick="eliminar(${i})">
                     X
@@ -312,6 +349,37 @@ function actualizarCarrito() {
         }
     );
 
+    contenedor.innerHTML += `
+
+    <div class="caja">
+
+        <h3>
+            💰 Subtotal:
+            $${total}
+        </h3>
+
+        <input
+            type="number"
+            id="dinero"
+            placeholder="Dinero recibido"
+            oninput="calcularCambio(${total})"
+        >
+
+        <h3 id="cambioTexto">
+            Cambio: $0
+        </h3>
+
+        <button onclick="cobrar(${total})">
+            ✅ Cobrar
+        </button>
+
+        <button onclick="limpiarCarrito()">
+            🗑 Limpiar
+        </button>
+
+    </div>
+    `;
+}
     contenedor.innerHTML += `
 
     <h3>
