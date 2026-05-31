@@ -351,3 +351,40 @@ body.oscuro input{
         grid-template-columns:1fr;
     }
 }
+#pantallaInventario {
+    display: block;
+    width: 100%;
+    padding: 20px;
+    color: white;
+}
+
+#pantallaInventario .caja {
+    background: rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 20px;
+}
+
+.tabla-inventario {
+    width: 100%;
+    border-collapse: collapse;
+    color: white;
+}
+
+.tabla-inventario th,
+.tabla-inventario td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+
+.formulario-producto input {
+    margin: 6px;
+    padding: 10px;
+    border-radius: 10px;
+}
+
+.inventario-top {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
