@@ -357,13 +357,13 @@ function actualizarCarrito() {
             $${total}
         </h3>
 
-        <input
-            type="number"
-            id="dinero"
-            placeholder="Dinero recibido"
-            oninput="calcularCambio(${total})"
-        >
-
+       <input
+    type="number"
+    id="dinero"
+    placeholder="Dinero recibido"
+    oninput="calcularCambio(${total})"
+    onkeydown="cobrarConEnter(event, ${total})"
+>
         <h3 id="cambioTexto">
             Cambio: $0
         </h3>
