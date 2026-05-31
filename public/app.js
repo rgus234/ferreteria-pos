@@ -842,3 +842,32 @@ window.onload =
             );
         }
     };
+    function cargarHistorial() {
+
+   // código...
+
+}
+
+
+
+function cobrarConEnter(
+    event,
+    total
+) {
+    if (
+        event.key === "Enter"
+    ) {
+
+        cobrar(total);
+
+        setTimeout(() => {
+
+            document
+                .getElementById(
+                    "busqueda"
+                )
+                ?.focus();
+
+        }, 400);
+    }
+}
