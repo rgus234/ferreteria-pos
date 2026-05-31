@@ -886,15 +886,29 @@ function cobrarConEnter(
     }
 }
 function mostrarInventario() {
-    document.getElementById("pantallaInicio").style.display = "none";
 
-    document.getElementById("pantallaPuntoVenta").style.display = "none";
+    document.getElementById(
+        "pantallaInicio"
+    ).style.display = "none";
 
-    document.getElementById("pantallaInventario").style.display = "block";
+    document.getElementById(
+        "pantallaPuntoVenta"
+    ).style.display = "none";
+
+    document.getElementById(
+        "pantallaInventario"
+    ).style.display = "block";
 
     cargarTablaInventario();
-}
 
+    document
+        .getElementById(
+            "pantallaInventario"
+        )
+        .scrollIntoView({
+            behavior: "smooth"
+        });
+}
 function mostrarPuntoVenta() {
     document.getElementById("pantallaInicio").style.display = "none";
     document.getElementById("pantallaInventario").style.display = "none";
