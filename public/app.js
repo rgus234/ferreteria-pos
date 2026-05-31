@@ -841,10 +841,6 @@ window.onload =
                 buscarCodigoEnter
             );
         }
-    };
-    function cargarHistorial() {
-
-   // código...
 
 }
 
