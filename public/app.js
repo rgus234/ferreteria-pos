@@ -137,67 +137,45 @@ function buscarProductos() {
 
 function buscarCodigoEnter(event) {
 
-    if (
-        event.key !== "Enter"
-    ) return;
-
-    event.preventDefault();
+    if (event.key !== "Enter") return;
 
     const input =
-        document.getElementById(
-            "busqueda"
-        );
+        event.target;
 
     const codigo =
         input.value.trim();
 
-    // si está vacío brinca a cobrar
+    // Si está vacío:
+    // bajar a dinero recibido
     if (!codigo) {
 
         document
-            .getElementById(
-                "dinero"
-            )
+            .getElementById("dinero")
             ?.focus();
 
         return;
     }
 
     const producto =
-        todosProductos.find(
+        productos.find(
             p =>
-
                 String(
-                    p.codigo || ""
-                ).trim() === codigo
-
-                ||
-
-                String(
-                    p.id || ""
-                ).trim() === codigo
+                    p.codigoBarras
+                ) === codigo
         );
 
-    if (!producto) {
+    if (producto) {
 
-        alert(
-            "Producto no encontrado"
+        agregarAlCarrito(
+            producto.id
         );
 
-        return;
+        input.value = "";
+
+        // seguir listo
+        // para escanear otro
+        input.focus();
     }
-
-    agregar(
-        producto.id,
-        producto.nombre,
-        producto.precio
-    );
-
-    input.value = "";
-
-    buscarProductos();
-
-    input.focus();
 }
 
 function mostrarProductos(productos) {
