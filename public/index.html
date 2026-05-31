@@ -228,6 +228,50 @@
         </div>
 
     </div>
+<div
+    id="pantallaInventario"
+    style="display:none;"
+>
+
+    <div class="caja">
+
+        <div class="inventario-top">
+
+            <input
+                id="buscarInventario"
+                type="text"
+                placeholder="🔎 Buscar producto..."
+                oninput="buscarInventario()"
+            >
+
+            <button onclick="mostrarFormularioAgregar()">
+                ➕ Agregar
+            </button>
+
+        </div>
+
+        <table class="tabla-inventario">
+
+            <thead>
+
+                <tr>
+                    <th>Código</th>
+                    <th>Producto</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+
+            </thead>
+
+            <tbody id="tablaInventario">
+
+            </tbody>
+
+        </table>
+
+    </div>
 
     <script src="app.js"></script>
 
