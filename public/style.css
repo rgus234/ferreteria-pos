@@ -394,3 +394,12 @@ body.oscuro input{
     gap: 12px;
     margin-bottom: 20px;
 }
+#pantallaInicio,
+#pantallaPuntoVenta,
+#pantallaInventario {
+  position: absolute;
+  top: 0;
+  left: 260px; /* ajusta según ancho de tu menú */
+  right: 0;
+  padding: 20px;
+}
