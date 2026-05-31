@@ -914,7 +914,7 @@ function cargarTablaInventario() {
 
     tabla.innerHTML = "";
 
-    productos.forEach((producto) => {
+    todosProductos.forEach((producto) => {
         const estado =
             producto.stock <= 5
                 ? "🔴 Bajo"
