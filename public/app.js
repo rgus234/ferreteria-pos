@@ -705,9 +705,15 @@ function mostrarPuntoVenta() {
 
 function mostrarInventario() {
 
-    mostrarPuntoVenta();
+function mostrarInventario() {
+    document.getElementById("pantallaInicio").style.display = "none";
 
-    cargarProductos();
+    document.getElementById("pantallaPuntoVenta").style.display = "none";
+
+    document.getElementById("pantallaInventario").style.display = "block";
+
+    cargarTablaInventario();
+}
 }
 
 function mostrarInventarioBajo() {
@@ -908,4 +914,38 @@ function mostrarInicio() {
     document.getElementById("pantallaPuntoVenta").style.display = "none";
     document.getElementById("pantallaInventario").style.display = "none";
     document.getElementById("pantallaInicio").style.display = "block";
+}
+function cargarTablaInventario() {
+    const tabla =
+        document.getElementById("tablaInventario");
+
+    if (!tabla) return;
+
+    tabla.innerHTML = "";
+
+    productos.forEach((producto) => {
+        const estado =
+            producto.stock <= 5
+                ? "🔴 Bajo"
+                : "🟢 En stock";
+
+        tabla.innerHTML += `
+            <tr>
+                <td>${producto.codigo || "-"}</td>
+                <td>${producto.nombre}</td>
+                <td>$${producto.precio}</td>
+                <td>${producto.stock}</td>
+                <td>${estado}</td>
+                <td>
+                    <button onclick="editarProducto(${producto.id})">
+                        ✏️
+                    </button>
+
+                    <button onclick="eliminarProducto(${producto.id})">
+                        🗑️
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
 }
