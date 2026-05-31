@@ -703,19 +703,6 @@ function mostrarPuntoVenta() {
         "block";
 }
 
-function mostrarInventario() {
-
-function mostrarInventario() {
-    document.getElementById("pantallaInicio").style.display = "none";
-
-    document.getElementById("pantallaPuntoVenta").style.display = "none";
-
-    document.getElementById("pantallaInventario").style.display = "block";
-
-    cargarTablaInventario();
-}
-}
-
 function mostrarInventarioBajo() {
 
     mostrarInicio();
@@ -900,8 +887,12 @@ function cobrarConEnter(
 }
 function mostrarInventario() {
     document.getElementById("pantallaInicio").style.display = "none";
+
     document.getElementById("pantallaPuntoVenta").style.display = "none";
+
     document.getElementById("pantallaInventario").style.display = "block";
+
+    cargarTablaInventario();
 }
 
 function mostrarPuntoVenta() {
