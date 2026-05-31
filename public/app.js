@@ -544,13 +544,6 @@ ticket += `
 </div>
 `;
 
-const ventana =
-    window.open(
-        "",
-        "_blank",
-        "width=420,height=700"
-    );
-
 ventana.document.write(`
 
 <html>
@@ -577,30 +570,6 @@ window.print();
 
 `);
 
-const ventana =
-    window.open(
-        "",
-        "_blank",
-        "width=400,height=600"
-    );
-
-ventana.document.write(`
-
-<pre style="
-font-size:18px;
-font-family:monospace;
-padding:20px;
-">
-
-${ticket}
-
-</pre>
-
-<script>
-window.print();
-</script>
-
-`);
     carrito = [];
 
     actualizarCarrito();
