@@ -52,9 +52,7 @@ function actualizarDashboard() {
     const bajos =
         todosProductos.filter(
             p =>
-                Number(
-                    p.stock
-                ) <= 5
+                Number(p.stock) <= 5
         );
 
     const totalBajos =
@@ -81,9 +79,7 @@ function actualizarInventarioBajo() {
     const bajos =
         todosProductos.filter(
             p =>
-                Number(
-                    p.stock
-                ) <= 5
+                Number(p.stock) <= 5
         );
 
     contenedor.innerHTML = "";
@@ -274,6 +270,7 @@ function eliminar(index) {
 
     actualizarCarrito();
 }
+
 function limpiarCarrito() {
 
     carrito = [];
@@ -308,6 +305,7 @@ function calcularCambio(total) {
 
         : "Dinero insuficiente";
 }
+
 function actualizarCarrito() {
 
     const contenedor =
@@ -324,9 +322,10 @@ function actualizarCarrito() {
     carrito.forEach(
         (p, i) => {
 
-            total += Number(
-                p.precio
-            );
+            total +=
+                Number(
+                    p.precio
+                );
 
             contenedor.innerHTML += `
 
@@ -379,45 +378,6 @@ function actualizarCarrito() {
 
     </div>
     `;
-}
-   contenedor.innerHTML += `
-
-<div class="caja">
-
-    <h3>
-        💰 Subtotal:
-        $${total}
-    </h3>
-
-    <input
-        type="number"
-        id="dinero"
-        placeholder="Dinero recibido"
-        oninput="calcularCambio(${total})"
-    >
-
-    <h3 id="cambioTexto">
-
-        Cambio: $0
-
-    </h3>
-
-    <button onclick="cobrar(${total})">
-
-        ✅ Cobrar
-
-    </button>
-
-    <button
-        onclick="limpiarCarrito()"
-    >
-
-        🗑 Limpiar
-
-    </button>
-
-</div>
-`;
 }
 
 async function cobrar(total) {
@@ -680,15 +640,18 @@ function editarProducto(
 
     document.getElementById(
         "nuevoNombre"
-    ).value = nombre;
+    ).value =
+        nombre;
 
     document.getElementById(
         "nuevoPrecio"
-    ).value = precio;
+    ).value =
+        precio;
 
     document.getElementById(
         "nuevoStock"
-    ).value = stock;
+    ).value =
+        stock;
 
     document.getElementById(
         "nuevoCodigo"
