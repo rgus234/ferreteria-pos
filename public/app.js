@@ -189,18 +189,28 @@ function buscarCodigoEnter(event) {
     }
 
     agregar(
-        producto.id,
-        producto.nombre,
-        producto.precio
-    );
+    producto.id,
+    producto.nombre,
+    producto.precio
+);
 
-    // limpiar buscador
-    input.value = "";
+// limpiar buscador
+input.value = "";
 
-    buscarProductos();
+buscarProductos();
 
-    // quedarse aquí
-    input.focus();
+// regresar al buscador
+setTimeout(() => {
+
+    document
+        .getElementById(
+            "busqueda"
+        )
+        ?.focus();
+
+}, 50);
+
+return;
 }
 
 function mostrarProductos(productos) {
