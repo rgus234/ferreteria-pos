@@ -430,7 +430,55 @@ if (cambioTexto) {
     cambioTexto.textContent =
         `✅ Venta realizada | Cambio: $${cambio}`;
 }
+let ticket = `
+================================
+      FERRETERÍA OLÍMPICO
+================================
 
+`;
+
+carrito.forEach(p => {
+
+    ticket +=
+        `${p.nombre}   $${p.precio}\n`;
+});
+
+ticket += `
+
+--------------------------------
+TOTAL: $${total}
+
+RECIBIDO: $${dinero}
+
+CAMBIO: $${cambio}
+
+Gracias por su compra 🔨
+`;
+
+const ventana =
+    window.open(
+        "",
+        "_blank",
+        "width=400,height=600"
+    );
+
+ventana.document.write(`
+
+<pre style="
+font-size:18px;
+font-family:monospace;
+padding:20px;
+">
+
+${ticket}
+
+</pre>
+
+<script>
+window.print();
+</script>
+
+`);
     carrito = [];
 
     actualizarCarrito();
