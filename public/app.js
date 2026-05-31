@@ -430,30 +430,152 @@ if (cambioTexto) {
     cambioTexto.textContent =
         `✅ Venta realizada | Cambio: $${cambio}`;
 }
+const fecha =
+    new Date()
+        .toLocaleString(
+            "es-MX"
+        );
+
 let ticket = `
-================================
-      FERRETERÍA OLÍMPICO
-================================
+
+<div style="
+    width:300px;
+    font-family:monospace;
+    padding:20px;
+    color:black;
+">
+
+    <div style="
+        text-align:center;
+        margin-bottom:12px;
+    ">
+
+        <h2 style="
+            margin:0;
+            font-size:22px;
+        ">
+            🔨 FERRETERÍA
+        </h2>
+
+        <h2 style="
+            margin:0;
+            font-size:22px;
+        ">
+            OLÍMPICO
+        </h2>
+
+        <div>
+            Río Grande, Zac.
+        </div>
+
+        <div>
+            ${fecha}
+        </div>
+
+    </div>
+
+    <hr>
 
 `;
 
 carrito.forEach(p => {
 
-    ticket +=
-        `${p.nombre}   $${p.precio}\n`;
+    ticket += `
+
+    <div style="
+        display:flex;
+        justify-content:space-between;
+        margin:6px 0;
+    ">
+
+        <span>
+            ${p.nombre}
+        </span>
+
+        <span>
+            $${p.precio}
+        </span>
+
+    </div>
+    `;
 });
 
 ticket += `
 
---------------------------------
-TOTAL: $${total}
+    <hr>
 
-RECIBIDO: $${dinero}
+    <div style="
+        display:flex;
+        justify-content:space-between;
+        font-weight:bold;
+    ">
+        <span>TOTAL</span>
+        <span>$${total}</span>
+    </div>
 
-CAMBIO: $${cambio}
+    <div style="
+        display:flex;
+        justify-content:space-between;
+    ">
+        <span>RECIBIDO</span>
+        <span>$${dinero}</span>
+    </div>
 
-Gracias por su compra 🔨
+    <div style="
+        display:flex;
+        justify-content:space-between;
+    ">
+        <span>CAMBIO</span>
+        <span>$${cambio}</span>
+    </div>
+
+    <hr>
+
+    <div style="
+        text-align:center;
+        margin-top:12px;
+        font-size:14px;
+    ">
+
+        Gracias por su compra 🔨
+
+    </div>
+
+</div>
 `;
+
+const ventana =
+    window.open(
+        "",
+        "_blank",
+        "width=420,height=700"
+    );
+
+ventana.document.write(`
+
+<html>
+
+<head>
+
+<title>
+Ticket
+</title>
+
+</head>
+
+<body>
+
+${ticket}
+
+<script>
+window.print();
+</script>
+
+</body>
+
+</html>
+
+`);
 
 const ventana =
     window.open(
