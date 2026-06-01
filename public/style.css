@@ -493,3 +493,13 @@ body.oscuro input{
   font-weight: bold;
   cursor: pointer;
 }
+#altaRotacion{
+    width:100%;
+    padding:15px 18px;
+    font-size:16px;
+    border:none;
+    border-radius:12px;
+    background:#162038;
+    color:white;
+    outline:none;
+}
