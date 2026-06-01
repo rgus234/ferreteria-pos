@@ -29,4 +29,4 @@ const catalogo = [
         altaRotacion: "no"
     }
 ];
-window.catalogo = catalogo;
+// window.catalogo = catalogo;
