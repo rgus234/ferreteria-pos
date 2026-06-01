@@ -960,3 +960,36 @@ function cerrarFormularioAgregar() {
         "modalAgregar"
     ).style.display = "none";
 }
+function buscarEnCatalogo(){
+
+    const codigo =
+        document
+        .getElementById("nuevoCodigo")
+        .value
+        .trim();
+
+    const producto =
+        catalogo.find(
+            item => item.codigo === codigo
+        );
+
+    if(!producto) return;
+
+    document.getElementById("nuevoNombre").value =
+        producto.nombre;
+
+    document.getElementById("precioDistribuidor").value =
+        producto.distribuidor;
+
+    document.getElementById("precioMedioMayoreo").value =
+        producto.medioMayoreo;
+
+    document.getElementById("nuevoPrecio").value =
+        producto.publico;
+
+    document.getElementById("stockMinimo").value =
+        producto.stockMinimo;
+
+    document.getElementById("altaRotacion").value =
+        producto.altaRotacion;
+}
