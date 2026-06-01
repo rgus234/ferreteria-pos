@@ -1,3 +1,16 @@
+const catalogo = [
+  {
+    codigo: "7500001",
+    nombre: "Pinza electricista 9",
+    distribuidor: 118,
+    medioMayoreo: 129,
+    publico: 149,
+    stockMinimo: 3,
+    altaRotacion: "si"
+  }
+];
+
+function mostrarFormularioAgregar() {
 let carrito = [];
 let grafica = null;
 let todosProductos = [];
