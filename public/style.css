@@ -435,11 +435,16 @@ body.oscuro input{
   padding:10px 16px;
   border-radius:12px;
 }
-
+.modal-header h2{
+    font-size:34px;
+    font-weight:bold;
+    margin:0;
+}
 .modal-header button{
-    width: auto;
-
-    padding: 8px 14px;
+  width:auto;
+  padding:8px 14px;
+  border-radius:12px;
+  margin-left:auto;
 }
 
 .modal-botones{
