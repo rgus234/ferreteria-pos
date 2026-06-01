@@ -421,28 +421,19 @@ body.oscuro input{
 }
 
 .modal-producto{
-    background: #161d2d;
-
-    width: 820px;
-
-    max-width: 92%;
-
-    border-radius: 20px;
-
-    padding: 28px;
-
-    box-shadow:
-        0 12px 35px rgba(0,0,0,.45);
+  background:#162038;
+  width:900px;
+  max-width:95%;
+  min-height:430px;
+  border-radius:20px;
+  padding:30px;
+  box-shadow:0 10px 35px rgba(0,0,0,.45);
 }
 
-.modal-header{
-    display: flex;
-
-    justify-content: space-between;
-
-    align-items: center;
-
-    margin-bottom: 20px;
+.modal-header button{
+  width:auto;
+  padding:10px 16px;
+  border-radius:12px;
 }
 
 .modal-header button{
@@ -452,11 +443,10 @@ body.oscuro input{
 }
 
 .modal-botones{
-    display: flex;
-
-    gap: 12px;
-
-    margin-top: 20px;
+  display:flex;
+  justify-content:space-between;
+  gap:15px;
+  margin-top:30px;
 }
 #buscarInventario {
   width: 520px;
