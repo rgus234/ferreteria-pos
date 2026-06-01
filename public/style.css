@@ -429,7 +429,12 @@ body.oscuro input{
   padding:30px;
   box-shadow:0 10px 35px rgba(0,0,0,.45);
 }
-
+.modal-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:20px;
+}
 .modal-header button{
   width:auto;
   padding:10px 16px;
