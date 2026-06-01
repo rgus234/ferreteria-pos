@@ -459,15 +459,15 @@ body.oscuro input{
     margin-top: 20px;
 }
 #buscarInventario {
-  width: 340px;
-  padding: 14px 18px;
+  width: 430px;
+  padding: 15px 18px;
   font-size: 16px;
   border: none;
   border-radius: 12px;
   background: #162038;
   color: white;
   outline: none;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 14px rgba(0,0,0,.25);
 }
 
 #buscarInventario::placeholder {
@@ -487,8 +487,9 @@ body.oscuro input{
   color: white;
   border: none;
   border-radius: 12px;
-  padding: 14px 22px;
-  font-size: 16px;
+  padding: 12px 20px;
+  min-width: 210px;
+  font-size: 15px;
   font-weight: bold;
   cursor: pointer;
 }
