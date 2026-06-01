@@ -947,3 +947,16 @@ function cargarTablaInventario() {
         `;
     });
 }
+function mostrarFormularioAgregar() {
+
+    document.getElementById(
+        "modalAgregar"
+    ).style.display = "flex";
+}
+
+function cerrarFormularioAgregar() {
+
+    document.getElementById(
+        "modalAgregar"
+    ).style.display = "none";
+}

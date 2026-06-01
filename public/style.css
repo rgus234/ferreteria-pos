@@ -403,3 +403,58 @@ body.oscuro input{
   right: 0;
   padding: 20px;
 }
+.modal-overlay{
+    position: fixed;
+    inset: 0;
+
+    background: rgba(0,0,0,.55);
+
+    backdrop-filter: blur(4px);
+
+    display: flex;
+
+    justify-content: center;
+
+    align-items: center;
+
+    z-index: 999;
+}
+
+.modal-producto{
+    background: #161d2d;
+
+    width: 820px;
+
+    max-width: 92%;
+
+    border-radius: 20px;
+
+    padding: 28px;
+
+    box-shadow:
+        0 12px 35px rgba(0,0,0,.45);
+}
+
+.modal-header{
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    margin-bottom: 20px;
+}
+
+.modal-header button{
+    width: auto;
+
+    padding: 8px 14px;
+}
+
+.modal-botones{
+    display: flex;
+
+    gap: 12px;
+
+    margin-top: 20px;
+}
