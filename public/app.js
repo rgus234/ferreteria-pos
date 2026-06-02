@@ -1029,6 +1029,9 @@ console.log("BUSCANDO...");
         .split("\n")
         .map(l => l.trim())
         .filter(l => l);
+console.log("CODIGO:", codigo);
+console.log("LINEAS:", lineas.length);
+console.log("PRIMERA:", lineas[1]);
 
     let producto = null;
 
