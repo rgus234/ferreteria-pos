@@ -714,7 +714,24 @@ function mostrarPuntoVenta() {
     ).style.display =
         "block";
 }
+function mostrarCatalogo() {
 
+  document.getElementById(
+    "pantallaInicio"
+  ).style.display = "none";
+
+  document.getElementById(
+    "pantallaPuntoVenta"
+  ).style.display = "none";
+
+  document.getElementById(
+    "pantallaInventario"
+  ).style.display = "none";
+
+  document.getElementById(
+    "pantallaCatalogo"
+  ).style.display = "block";
+}
 function mostrarInventarioBajo() {
 
     mostrarInicio();
