@@ -718,13 +718,19 @@ function mostrarInicio() {
 
     document.getElementById(
         "pantallaInicio"
-    ).style.display =
-        "block";
+    ).style.display = "block";
 
     document.getElementById(
         "pantallaPuntoVenta"
-    ).style.display =
-        "none";
+    ).style.display = "none";
+
+    document.getElementById(
+        "pantallaInventario"
+    ).style.display = "none";
+
+    document.getElementById(
+        "pantallaCatalogo"
+    ).style.display = "none";
 }
 
 function mostrarPuntoVenta() {
@@ -738,6 +744,16 @@ function mostrarPuntoVenta() {
         "pantallaPuntoVenta"
     ).style.display =
         "block";
+
+    document.getElementById(
+        "pantallaInventario"
+    ).style.display =
+        "none";
+
+    document.getElementById(
+        "pantallaCatalogo"
+    ).style.display =
+        "none";
 }
 function mostrarCatalogo() {
 
