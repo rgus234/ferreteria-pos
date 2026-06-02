@@ -396,13 +396,11 @@ body.oscuro input{
 }
 #pantallaInicio,
 #pantallaPuntoVenta,
-#pantallaInventario {
-  position: absolute;
-  top: 0;
-  left: 260px; /* ajusta según ancho de tu menú */
-  right: 0;
-  padding: 20px;
+#pantallaInventario,
+#pantallaCatalogo {
+  width: 100%;
 }
+
 .modal-overlay{
     position: fixed;
     inset: 0;
@@ -502,4 +500,19 @@ body.oscuro input{
     background:#162038;
     color:white;
     outline:none;
+}
+.subir-catalogo{
+  margin-top:20px;
+  margin-bottom:20px;
+}
+
+.subir-catalogo label{
+  display:block;
+  margin-bottom:10px;
+  font-weight:bold;
+  color:white;
+}
+
+.subir-catalogo input{
+  color:white;
 }
