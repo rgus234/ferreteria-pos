@@ -1096,30 +1096,4 @@ function buscarEnCatalogo() {
     ).value =
         producto.altaRotacion || "";
 
-if (!producto) {
-  producto =
-    catalogo.find(
-      item =>
-        String(item.codigo).trim() === codigo
-    );
-
-    if(!producto) return;
-
-    document.getElementById("nuevoNombre").value =
-        producto.nombre;
-
-    document.getElementById("precioDistribuidor").value =
-        producto.distribuidor;
-
-    document.getElementById("precioMayoreo").value =
-        producto.medioMayoreo;
-
-    document.getElementById("nuevoPrecio").value =
-        producto.publico;
-
-    document.getElementById("stockMinimo").value =
-        producto.stockMinimo;
-
-    document.getElementById("altaRotacion").value =
-        producto.altaRotacion;  
 }
