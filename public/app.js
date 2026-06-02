@@ -1010,7 +1010,7 @@ function cerrarFormularioAgregar() {
     ).style.display = "none";
 }
 function buscarEnCatalogo() {
-
+console.log("BUSCANDO...");
     const codigo =
         document
         .getElementById("nuevoCodigo")
