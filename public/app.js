@@ -1095,7 +1095,6 @@ function buscarEnCatalogo() {
         "altaRotacion"
     ).value =
         producto.altaRotacion || "";
-}
 
 if (!producto) {
   producto =
