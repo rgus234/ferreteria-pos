@@ -1038,8 +1038,10 @@ console.log("BUSCANDO...");
             linea.split(",");
 
         if (
-            String(datos[0]).trim() === codigo
-        ) {
+    String(datos[0]).replace(/"/g, "").trim() === codigo
+) {
+
+    console.log("ENCONTRADO", datos);
            producto = {
     codigo: datos[0].replace(/"/g, ""),
     nombre: datos[2].replace(/"/g, ""),
