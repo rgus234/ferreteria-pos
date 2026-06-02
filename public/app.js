@@ -1103,7 +1103,6 @@ if (!producto) {
       item =>
         String(item.codigo).trim() === codigo
     );
-}
 
     if(!producto) return;
 
