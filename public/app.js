@@ -1063,7 +1063,7 @@ console.log("BUSCANDO...");
                         .trim() === codigo
             );
     }
-
+console.log("PRODUCTO:", producto);
     if (!producto) return;
 
     document.getElementById(
