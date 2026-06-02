@@ -1040,15 +1040,15 @@ function buscarEnCatalogo() {
         if (
             String(datos[0]).trim() === codigo
         ) {
-            producto = {
-                codigo: datos[0],
-                nombre: datos[1],
-                distribuidor: datos[2],
-                medioMayoreo: datos[3],
-                publico: datos[4],
-                stockMinimo: datos[5] || 3,
-                altaRotacion: datos[6] || ""
-            };
+           producto = {
+    codigo: datos[0].replace(/"/g, ""),
+    nombre: datos[2].replace(/"/g, ""),
+    distribuidor: datos[10],
+    medioMayoreo: datos[9],
+    publico: datos[6],
+    stockMinimo: 3,
+    altaRotacion: datos[8]
+};
 
             break;
         }
