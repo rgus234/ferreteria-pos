@@ -1009,7 +1009,7 @@ function cerrarFormularioAgregar() {
         "modalAgregar"
     ).style.display = "none";
 }
-function buscarEnCatalogo(){
+function buscarEnCatalogo() {
 
     const codigo =
         document
@@ -1017,33 +1017,84 @@ function buscarEnCatalogo(){
         .value
         .trim();
 
-   const catalogoGuardado =
-  localStorage.getItem(
-    "catalogoProveedorCsv"
-  ) || "";
+    if (!codigo) return;
 
-const lineas =
-  catalogoGuardado.split("\n");
+    const catalogoGuardado =
+        localStorage.getItem(
+            "catalogoProveedorCsv"
+        ) || "";
 
-const productoCsv =
-  lineas.find(
-    linea =>
-      linea.startsWith(codigo + ",")
-  );
+    const lineas =
+        catalogoGuardado
+        .split("\n")
+        .map(l => l.trim())
+        .filter(l => l);
 
-let producto = null;
+    let producto = null;
 
-if (productoCsv) {
-  const datos =
-    productoCsv.split(",");
+    for (const linea of lineas) {
 
-  producto = {
-    codigo: datos[0],
-    nombre: datos[1],
-    distribuidor: datos[2],
-    medioMayoreo: datos[3],
-    publico: datos[4]
-  };
+        const datos =
+            linea.split(",");
+
+        if (
+            String(datos[0]).trim() === codigo
+        ) {
+            producto = {
+                codigo: datos[0],
+                nombre: datos[1],
+                distribuidor: datos[2],
+                medioMayoreo: datos[3],
+                publico: datos[4],
+                stockMinimo: datos[5] || 3,
+                altaRotacion: datos[6] || ""
+            };
+
+            break;
+        }
+    }
+
+    if (!producto) {
+
+        producto =
+            catalogo.find(
+                item =>
+                    String(item.codigo)
+                        .trim() === codigo
+            );
+    }
+
+    if (!producto) return;
+
+    document.getElementById(
+        "nuevoNombre"
+    ).value =
+        producto.nombre || "";
+
+    document.getElementById(
+        "precioDistribuidor"
+    ).value =
+        producto.distribuidor || "";
+
+    document.getElementById(
+        "precioMayoreo"
+    ).value =
+        producto.medioMayoreo || "";
+
+    document.getElementById(
+        "nuevoPrecio"
+    ).value =
+        producto.publico || "";
+
+    document.getElementById(
+        "stockMinimo"
+    ).value =
+        producto.stockMinimo || 3;
+
+    document.getElementById(
+        "altaRotacion"
+    ).value =
+        producto.altaRotacion || "";
 }
 
 if (!producto) {
