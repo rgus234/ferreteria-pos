@@ -1017,10 +1017,20 @@ function buscarEnCatalogo(){
         .value
         .trim();
 
-    const producto =
-        catalogo.find(
-            item => item.codigo === codigo
-        );
+   const catalogoGuardado =
+  JSON.parse(
+    localStorage.getItem("catalogoProveedor") || "[]"
+  );
+
+const producto =
+  catalogoGuardado.find(
+    item =>
+      String(item.codigo).trim() === codigo
+  ) ||
+  catalogo.find(
+    item =>
+      String(item.codigo).trim() === codigo
+  );
 
     if(!producto) return;
 
