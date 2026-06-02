@@ -988,7 +988,7 @@ function buscarEnCatalogo(){
     document.getElementById("precioDistribuidor").value =
         producto.distribuidor;
 
-    document.getElementById("precioMedioMayoreo").value =
+    document.getElementById("precioMayoreo").value =
         producto.medioMayoreo;
 
     document.getElementById("nuevoPrecio").value =
