@@ -968,14 +968,29 @@ function mostrarInventario() {
     document.getElementById(
         "pantallaInventario"
     ).style.display = "block";
-
+document.getElementById(
+    "pantallaCatalogo"
+).style.display = "none";
     cargarTablaInventario();
 
 }
 function mostrarPuntoVenta() {
-    document.getElementById("pantallaInicio").style.display = "none";
-    document.getElementById("pantallaInventario").style.display = "none";
-    document.getElementById("pantallaPuntoVenta").style.display = "block";
+
+    document.getElementById(
+        "pantallaInicio"
+    ).style.display = "none";
+
+    document.getElementById(
+        "pantallaInventario"
+    ).style.display = "none";
+
+    document.getElementById(
+        "pantallaCatalogo"
+    ).style.display = "none";
+
+    document.getElementById(
+        "pantallaPuntoVenta"
+    ).style.display = "block";
 }
 
 function cargarTablaInventario() {
