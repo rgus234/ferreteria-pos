@@ -1018,19 +1018,41 @@ function buscarEnCatalogo(){
         .trim();
 
    const catalogoGuardado =
-  JSON.parse(
-    localStorage.getItem("catalogoProveedor") || "[]"
+  localStorage.getItem(
+    "catalogoProveedorCsv"
+  ) || "";
+
+const lineas =
+  catalogoGuardado.split("\n");
+
+const productoCsv =
+  lineas.find(
+    linea =>
+      linea.startsWith(codigo + ",")
   );
 
-const producto =
-  catalogoGuardado.find(
-    item =>
-      String(item.codigo).trim() === codigo
-  ) ||
-  catalogo.find(
-    item =>
-      String(item.codigo).trim() === codigo
-  );
+let producto = null;
+
+if (productoCsv) {
+  const datos =
+    productoCsv.split(",");
+
+  producto = {
+    codigo: datos[0],
+    nombre: datos[1],
+    distribuidor: datos[2],
+    medioMayoreo: datos[3],
+    publico: datos[4]
+  };
+}
+
+if (!producto) {
+  producto =
+    catalogo.find(
+      item =>
+        String(item.codigo).trim() === codigo
+    );
+}
 
     if(!producto) return;
 
