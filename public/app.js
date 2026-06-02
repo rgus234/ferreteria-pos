@@ -13,7 +13,32 @@ const catalogo = [
 let carrito = [];
 let grafica = null;
 let todosProductos = [];
+const archivoCatalogo =
+  document.getElementById("archivoCatalogo");
 
+archivoCatalogo.addEventListener(
+  "change",
+  function (e) {
+    const archivo = e.target.files[0];
+
+    if (!archivo) return;
+
+    const lector = new FileReader();
+
+    lector.onload = function (evento) {
+      const texto = evento.target.result;
+
+      localStorage.setItem(
+        "catalogoProveedorCsv",
+        texto
+      );
+
+      alert("Catálogo actualizado correctamente ✅");
+    };
+
+    lector.readAsText(archivo);
+  }
+);
 async function iniciarSesion() {
 
     document.getElementById(
