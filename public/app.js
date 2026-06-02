@@ -10,7 +10,6 @@ const catalogo = [
   }
 ];
 
-function mostrarFormularioAgregar() {
 let carrito = [];
 let grafica = null;
 let todosProductos = [];
@@ -873,7 +872,7 @@ window.onload =
             );
         }
 
-}
+}; 
 
 function cobrarConEnter(
     event,
@@ -921,11 +920,6 @@ function mostrarPuntoVenta() {
     document.getElementById("pantallaPuntoVenta").style.display = "block";
 }
 
-function mostrarInicio() {
-    document.getElementById("pantallaPuntoVenta").style.display = "none";
-    document.getElementById("pantallaInventario").style.display = "none";
-    document.getElementById("pantallaInicio").style.display = "block";
-}
 function cargarTablaInventario() {
     const tabla =
         document.getElementById("tablaInventario");
@@ -1004,5 +998,5 @@ function buscarEnCatalogo(){
         producto.stockMinimo;
 
     document.getElementById("altaRotacion").value =
-        producto.altaRotacion;
+        producto.altaRotacion;  
 }
