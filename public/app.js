@@ -813,7 +813,11 @@ async function agregarProductoNuevo() {
         document.getElementById(
             "nuevoCodigo"
         ).value;
+const proveedor =
+document.getElementById("nuevoProveedor").value;
 
+const ubicacion =
+document.getElementById("nuevaUbicacion").value;
     if (
         !nombre ||
         !precio ||
@@ -837,12 +841,14 @@ async function agregarProductoNuevo() {
                     "application/json"
             },
 
-            body: JSON.stringify({
-                nombre,
-                precio,
-                stock,
-                codigo
-            })
+           body: JSON.stringify({
+    nombre,
+    precio,
+    stock,
+    codigo,
+    proveedor,
+    ubicacion
+})
         }
     );
 

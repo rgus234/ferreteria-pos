@@ -67,33 +67,38 @@ app.get("/producto-codigo/:codigo", async (req, res) => {
 
 app.post("/agregar-producto", async (req, res) => {
 
-    const {
-        nombre,
-        precio,
-        stock,
-        codigo
-    } = req.body;
-
+   const {
+    nombre,
+    precio,
+    stock,
+    codigo,
+    proveedor,
+    ubicacion
+} = req.body;
     try {
 
         await pool.query(
-            `
-            INSERT INTO public.productos
-            (
-                nombre,
-                precio,
-                stock,
-                codigo
-            )
-            VALUES ($1,$2,$3,$4)
-            `,
-            [
-                nombre,
-                precio,
-                stock,
-                codigo
-            ]
-        );
+`
+INSERT INTO public.productos
+(
+    nombre,
+    precio,
+    stock,
+    codigo,
+    proveedor,
+    ubicacion
+)
+VALUES ($1,$2,$3,$4,$5,$6)
+`,
+[
+    nombre,
+    precio,
+    stock,
+    codigo,
+    proveedor,
+    ubicacion
+]
+);
 
         res.json({
             success: true
