@@ -19,7 +19,7 @@ app.get("/productos", async (req, res) => {
     try {
         const resultado =
         await pool.query(
-            "SELECT * FROM public.productos ORDER BY id"
+            "SELECT * FROM public.productos"
         );
 
         res.json(resultado.rows);
