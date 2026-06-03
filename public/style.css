@@ -542,3 +542,22 @@ body:not(.oscuro) input{
 body:not(.oscuro) .producto p{
     color:#374151;
 }
+body:not(.oscuro) .tabla-inventario{
+    color:#111827;
+}
+
+body:not(.oscuro) .tabla-inventario th{
+    color:#111827;
+}
+
+body:not(.oscuro) .tabla-inventario td{
+    color:#374151;
+}
+
+body:not(.oscuro) #pantallaInventario .caja{
+    background:white;
+}
+
+body:not(.oscuro) #pantallaInventario{
+    color:#111827;
+}
