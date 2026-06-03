@@ -787,9 +787,23 @@ function mostrarGraficas() {
 
 function cambiarModo() {
 
-    document.body.classList.toggle(
-        "oscuro"
-    );
+    document.body.classList.toggle("oscuro");
+
+    const boton =
+        document.getElementById("btnModo");
+
+    if(
+        document.body.classList.contains(
+            "oscuro"
+        )
+    ){
+        boton.innerHTML =
+            "☀️ Modo claro";
+    }else{
+        boton.innerHTML =
+            "🌙 Modo oscuro";
+    }
+console.log(document.body.className);
 }
 
 async function agregarProductoNuevo() {

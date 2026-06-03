@@ -516,3 +516,33 @@ body.oscuro input{
 .subir-catalogo input{
   color:white;
 }
+body:not(.oscuro){
+    background:#f3f4f6;
+    color:#111827;
+}
+
+body:not(.oscuro) .sidebar{
+    background:
+        linear-gradient(
+            180deg,
+            #ff4f9d,
+            #ff80b7
+        );
+}
+
+body:not(.oscuro) .producto,
+body:not(.oscuro) .caja,
+body:not(.oscuro) .modal-producto{
+    background:white;
+    color:#111827;
+}
+
+body:not(.oscuro) input{
+    background:white;
+    color:#111827;
+    border:1px solid #d1d5db;
+}
+
+body:not(.oscuro) .producto p{
+    color:#374151;
+}
