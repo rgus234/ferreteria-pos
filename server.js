@@ -81,22 +81,18 @@ app.post("/agregar-producto", async (req, res) => {
 `
 INSERT INTO public.productos
 (
-    nombre,
-    precio,
-    stock,
-    codigo,
-    proveedor,
-    ubicacion
+  nombre,
+  precio,
+  stock,
+  codigo
 )
-VALUES ($1,$2,$3,$4,$5,$6)
+VALUES ($1,$2,$3,$4)
 `,
 [
-    nombre,
-    precio,
-    stock,
-    codigo,
-    proveedor,
-    ubicacion
+  nombre,
+  precio,
+  stock,
+  codigo
 ]
 );
 
