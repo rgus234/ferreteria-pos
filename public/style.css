@@ -6,8 +6,8 @@
 
 body{
     font-family:Arial,sans-serif;
-    background:#0e1320;
-    color:#fff;
+    background:#f3f4f6;
+    color:#111827;
 }
 
 /* LOGIN */
@@ -49,8 +49,8 @@ body{
     background:
         linear-gradient(
             180deg,
-            #7b1e3a,
-            #1a2030
+            #1e3a8a,
+            #2563eb
         );
     color:white;
     padding:24px;
@@ -192,7 +192,7 @@ body{
 }
 
 .producto{
-    background:#161d2d;
+    background:white;
 
     border-radius:20px;
 
@@ -245,7 +245,7 @@ button{
 /* CAJAS */
 
 .caja{
-    background:#161d2d;
+    background:white;
 
     padding:20px;
 
@@ -416,7 +416,7 @@ body.oscuro input{
 }
 
 .modal-producto{
-  background:#162038;
+  background:white;
   width:900px;
   max-width:95%;
   min-height:430px;
