@@ -1090,7 +1090,7 @@ console.log("PRIMERA:", lineas[1]);
 
         const datos =
             linea.split(",");
-
+console.log("DATOS COMPLETOS:", datos);
         if (
     String(datos[0]).replace(/"/g, "").trim() === codigo
 ) {
