@@ -561,3 +561,21 @@ body:not(.oscuro) #pantallaInventario .caja{
 body:not(.oscuro) #pantallaInventario{
     color:#111827;
 }
+/* DASHBOARD MODO OSCURO */
+
+body.oscuro .mini h3,
+body.oscuro .caja h2,
+body.oscuro .caja p,
+body.oscuro .caja li,
+body.oscuro #inventarioBajo,
+body.oscuro #historial{
+    color:white !important;
+}
+
+body.oscuro .caja{
+    color:white;
+}
+
+body.oscuro .mini{
+    color:white;
+}
