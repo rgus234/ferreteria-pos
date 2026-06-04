@@ -1097,13 +1097,13 @@ console.log("DATOS COMPLETOS:", datos);
 
     console.log("ENCONTRADO", datos);
            producto = {
-    codigo: datos[0].replace(/"/g, ""),
-    nombre: datos[2].replace(/"/g, ""),
-    distribuidor: datos[10],
-    medioMayoreo: datos[9],
-    publico: datos[6],
+    codigo: datos[0].replace(/"/g,""),
+    nombre: datos[2].replace(/"/g,""),
+    distribuidor: datos[14],
+    medioMayoreo: datos[13],
+    publico: datos[15],
     stockMinimo: 3,
-    altaRotacion: datos[8]
+    altaRotacion: datos[12]
 };
 
             break;
