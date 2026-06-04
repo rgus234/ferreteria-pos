@@ -420,6 +420,7 @@ body.oscuro input{
   border-radius:20px;
   padding:30px;
   box-shadow:0 10px 35px rgba(0,0,0,.45);
+   border:1px solid #dbe3ef;
 }
 .modal-header{
     display:flex;
@@ -431,6 +432,11 @@ body.oscuro input{
   width:auto;
   padding:10px 16px;
   border-radius:12px;
+}
+.modal-producto input,
+.modal-producto select{
+    border:1px solid #d1d5db !important;
+    background:#f8fafc !important;
 }
 .modal-header h2{
     font-size:34px;
@@ -494,6 +500,11 @@ body.oscuro input{
     background:#162038;
     color:white;
     outline:none;
+}
+body:not(.oscuro) #altaRotacion{
+    background:#f8fafc;
+    color:#111827;
+    border:1px solid #d1d5db;
 }
 .subir-catalogo{
   margin-top:20px;
@@ -575,4 +586,15 @@ body.oscuro .caja{
 
 body.oscuro .mini{
     color:white;
+}
+body.oscuro .producto h2{
+    color:white;
+}
+
+body.oscuro .producto p{
+    color:#d1d5db;
+}
+body:not(.oscuro) .tabla-inventario th,
+body:not(.oscuro) .tabla-inventario td{
+    border-bottom:1px solid #d1d5db;
 }
