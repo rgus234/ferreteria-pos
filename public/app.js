@@ -1056,6 +1056,14 @@ function mostrarFormularioAgregar() {
 
 function cerrarFormularioAgregar() {
 
+    document.getElementById("nuevoCodigo").value = "";
+    document.getElementById("nuevoNombre").value = "";
+    document.getElementById("precioDistribuidor").value = "";
+    document.getElementById("precioMayoreo").value = "";
+    document.getElementById("nuevoPrecio").value = "";
+    document.getElementById("stockMinimo").value = "3";
+    document.getElementById("altaRotacion").value = "";
+
     document.getElementById(
         "modalAgregar"
     ).style.display = "none";
@@ -1068,7 +1076,15 @@ console.log("BUSCANDO...");
         .value
         .trim();
 
-    if (!codigo) return;
+    if (!codigo) {
+    document.getElementById("nuevoNombre").value = "";
+    document.getElementById("precioDistribuidor").value = "";
+    document.getElementById("precioMayoreo").value = "";
+    document.getElementById("nuevoPrecio").value = "";
+    document.getElementById("stockMinimo").value = "3";
+    document.getElementById("altaRotacion").value = "";
+    return;
+}
 
     const catalogoGuardado =
         localStorage.getItem(
