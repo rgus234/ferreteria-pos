@@ -598,3 +598,18 @@ body:not(.oscuro) .tabla-inventario th,
 body:not(.oscuro) .tabla-inventario td{
     border-bottom:1px solid #d1d5db;
 }
+body.oscuro .modal-producto{
+    background:#111827 !important;
+    color:white !important;
+}
+
+body.oscuro .modal-producto input,
+body.oscuro .modal-producto select{
+    background:#1f2937 !important;
+    color:white !important;
+    border:1px solid #374151 !important;
+}
+
+body.oscuro .modal-producto h2{
+    color:white !important;
+}
