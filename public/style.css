@@ -613,3 +613,22 @@ body.oscuro .modal-producto select{
 body.oscuro .modal-producto h2{
     color:white !important;
 }
+body.oscuro #busqueda{
+    background:#161d2d;
+    color:white;
+}
+
+body:not(.oscuro) #busqueda{
+    background:white;
+    color:black;
+}
+
+body.oscuro .item-carrito{
+    background:#1b2740;
+    color:white;
+}
+
+body:not(.oscuro) .item-carrito{
+    background:#f3f6fb;
+    color:black;
+}
