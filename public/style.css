@@ -423,8 +423,9 @@ body.oscuro input{
 }
 .modal-header{
     display:flex;
-    justify-content:space-between;
     align-items:center;
+    justify-content:space-between;
+    gap:20px;
     margin-bottom:20px;
 }
 .modal-header button{
@@ -441,6 +442,8 @@ body.oscuro input{
     font-size:34px;
     font-weight:bold;
     margin:0;
+    margin-right:10px;
+white-space:nowrap;
 }
 .modal-header button{
   width:auto;
@@ -740,4 +743,26 @@ body.oscuro .usuario-info p{
 
 .cliente-credito button{
     margin-top:10px;
+}
+.credito-resumen{
+    display:flex;
+    gap:20px;
+    align-items:center;
+    margin-left:20px;
+}
+
+.credito-resumen div{
+    display:flex;
+    flex-direction:column;
+}
+
+.credito-resumen strong{
+    font-size:22px;
+    font-weight:700;
+    line-height:1;
+}
+
+.credito-resumen span{
+    font-size:13px;
+    opacity:.8;
 }
