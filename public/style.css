@@ -766,3 +766,17 @@ body.oscuro .usuario-info p{
     font-size:13px;
     opacity:.8;
 }
+.barra-creditos{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:20px;
+}
+
+.barra-creditos input{
+    width:320px;
+    padding:10px 14px;
+    border-radius:10px;
+    border:1px solid #d1d5db;
+    font-size:14px;
+}
