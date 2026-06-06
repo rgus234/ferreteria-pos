@@ -790,7 +790,7 @@ function cambiarModo() {
     document.body.classList.toggle("oscuro");
 
     const boton =
-        document.getElementById("btnModo");
+document.getElementById("btnModoDashboard");
 
     if(
         document.body.classList.contains(
