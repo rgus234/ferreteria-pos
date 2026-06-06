@@ -1169,3 +1169,18 @@ console.log("PRODUCTO:", producto);
         producto.altaRotacion || "";
 
 }
+function abrirCreditos() {
+
+    document.getElementById(
+        "modalCreditos"
+    ).style.display = "flex";
+
+}
+
+function cerrarCreditos() {
+
+    document.getElementById(
+        "modalCreditos"
+    ).style.display = "none";
+
+}

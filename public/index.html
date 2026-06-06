@@ -169,7 +169,11 @@
 
                         </div>
 
-                        <div class="caja mini">
+                        <div
+    class="caja mini"
+    onclick="abrirCreditos()"
+    style="cursor:pointer;"
+>
 
     <h3>💳 Crédito pendiente</h3>
 
@@ -180,6 +184,80 @@
     <small id="clientesDeuda">
         0 clientes
     </small>
+
+</div>
+<div
+    id="modalCreditos"
+    class="modal-overlay"
+    style="display:none;"
+>
+
+    <div class="modal-producto">
+
+        <div class="modal-header">
+
+            <h2>💳 Créditos pendientes</h2>
+
+            <button onclick="cerrarCreditos()">
+                ✕
+            </button>
+
+        </div>
+
+        <div class="formulario-producto">
+
+            <input
+                type="text"
+                placeholder="🔎 Buscar cliente..."
+            >
+
+            <div class="lista-creditos">
+
+                <div class="cliente-credito">
+
+                    <h3>👷 Arq. Juan Pérez</h3>
+
+                    <p>Saldo: $5,650</p>
+
+                    <p>Último movimiento: 10/06/2026</p>
+
+                    <button>
+                        Ver cuenta
+                    </button>
+
+                </div>
+
+                <div class="cliente-credito">
+
+                    <h3>🏗️ Constructora López</h3>
+
+                    <p>Saldo: $12,400</p>
+
+                    <p>Último movimiento: 08/06/2026</p>
+
+                    <button>
+                        Ver cuenta
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="modal-botones">
+
+            <button>
+                ➕ Nuevo cliente
+            </button>
+
+            <button onclick="cerrarCreditos()">
+                Cerrar
+            </button>
+
+        </div>
+
+    </div>
 
 </div>
 
