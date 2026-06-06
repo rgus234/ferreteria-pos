@@ -662,3 +662,30 @@ body.oscuro #saludoUsuario{
 body.oscuro #rolUsuario{
     color:#cbd5e1;
 }
+.dashboard-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:25px;
+}
+
+.usuario-info h1{
+    font-size:52px;
+    font-weight:700;
+    margin-bottom:5px;
+}
+
+.usuario-info p{
+    font-size:18px;
+    opacity:.8;
+}
+
+#btnModoDashboard{
+    width:auto;
+    min-width:180px;
+    padding:14px 22px;
+}
+body.oscuro .usuario-info h1,
+body.oscuro .usuario-info p{
+    color:white;
+}
