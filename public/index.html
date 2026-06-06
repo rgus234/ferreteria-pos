@@ -197,21 +197,39 @@
         <div class="modal-header">
 
             <h2>💳 Créditos pendientes</h2>
+<div class="credito-resumen">
+    <div>
+        <strong>$18,050</strong>
+        <span>Crédito total</span>
+    </div>
 
+    <div>
+        <strong>2</strong>
+        <span>Clientes con adeudo</span>
+    </div>
+</div>
             <button onclick="cerrarCreditos()">
                 ✕
             </button>
 
         </div>
 
-        <div class="formulario-producto">
+        <div class="creditos-contenido">
 
-            <input
-                type="text"
-                placeholder="🔎 Buscar cliente..."
-            >
+    <div class="barra-creditos">
 
-            <div class="lista-creditos">
+        <input
+            type="text"
+            placeholder="🔎 Buscar cliente..."
+        >
+
+        <button onclick="verTodosCreditos()">
+    👥 Ver todos
+</button>
+
+    </div>
+
+    <div class="lista-creditos">
 
                 <div class="cliente-credito">
 
@@ -221,9 +239,9 @@
 
                     <p>Último movimiento: 10/06/2026</p>
 
-                    <button>
-                        Ver cuenta
-                    </button>
+                    <button onclick="abrirCuentaCliente()">
+    Ver cuenta
+</button>
 
                 </div>
 
@@ -235,9 +253,9 @@
 
                     <p>Último movimiento: 08/06/2026</p>
 
-                    <button>
-                        Ver cuenta
-                    </button>
+                    <button onclick="abrirCuentaCliente()">
+    Ver cuenta
+</button>
 
                 </div>
 
@@ -247,9 +265,9 @@
 
         <div class="modal-botones">
 
-            <button>
-                ➕ Nuevo cliente
-            </button>
+           <button onclick="abrirNuevoClienteCredito()">
+    ➕ Nuevo cliente
+</button>
 
             <button onclick="cerrarCreditos()">
                 Cerrar
