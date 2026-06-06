@@ -695,7 +695,8 @@ body.oscuro .usuario-info p{
 }
 
 .resumen-inventario{
-    background:#f8f9fc;
+    background:rgba(255,255,255,0.08);
+    color:inherit;
     padding:20px;
     border-radius:15px;
 }
