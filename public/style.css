@@ -688,3 +688,30 @@ body.oscuro .usuario-info h1,
 body.oscuro .usuario-info p{
     color:white;
 }
+.alertas-grid{
+    display:grid;
+    grid-template-columns:2fr 1fr;
+    gap:25px;
+}
+
+.resumen-inventario{
+    background:#f8f9fc;
+    padding:20px;
+    border-radius:15px;
+}
+
+.resumen-inventario h3{
+    margin-bottom:15px;
+}
+
+.resumen-inventario p{
+    margin:10px 0;
+}
+
+.btn-alerta{
+    margin-top:15px;
+    padding:10px 15px;
+    border:none;
+    border-radius:10px;
+    cursor:pointer;
+}
