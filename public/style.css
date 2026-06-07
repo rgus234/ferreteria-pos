@@ -746,6 +746,9 @@ body.oscuro .usuario-info p{
 
     display:flex;
     flex-direction:column;
+
+    align-items:flex-start;
+    gap:8px;
 }
 
 .cliente-credito h3{
