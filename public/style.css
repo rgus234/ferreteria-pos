@@ -793,7 +793,7 @@ margin-right:20px;
 .credito-resumen span{
     font-size:13px;
     opacity:.8;
-    color:#d0d7e2;
+    color:#64748b;
 }
 .barra-creditos{
     display:flex;
@@ -876,4 +876,12 @@ body.dark .credito-resumen div{
 
 body.dark .credito-resumen span{
     color:#d0d7e2;
+}
+body.dark .credito-resumen span{
+    color:#d0d7e2;
+}
+
+body.dark .credito-resumen div{
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.12);
 }
