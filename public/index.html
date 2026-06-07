@@ -202,7 +202,11 @@
             </button>
 
         </div>
-<div class="creditos-layout">
+
+<div
+    id="listaCreditos"
+    class="creditos-layout"
+>
 
     <div class="creditos-principales">
 
@@ -262,7 +266,8 @@
 
     </div>
 
-        </div>
+</div>
+
 
         
 <div class="ver-todos-container">
@@ -292,7 +297,49 @@
 </div>
 
                     </div>
+<div id="detalleCliente" style="display:none;">
 
+    <button
+        onclick="regresarListaCreditos()"
+        class="btn-regresar"
+    >
+        ← Regresar
+    </button>
+
+    <h2>👷 Arq. Juan Pérez</h2>
+
+    <div class="cliente-detalle-card">
+
+        <h3>Saldo pendiente</h3>
+
+        <strong>$5,650</strong>
+
+        <h3>Movimientos</h3>
+
+        <div class="movimiento">
+            Venta #1048
+            <span>12 productos</span>
+            <strong>$2,450</strong>
+        </div>
+
+        <div class="movimiento">
+            Abono
+            <strong>-$1,000</strong>
+        </div>
+
+        <div class="movimiento">
+            Venta #1031
+            <span>5 productos</span>
+            <strong>$890</strong>
+        </div>
+
+        <button>
+            🖨 Imprimir estado de cuenta
+        </button>
+
+    </div>
+
+</div>
                    <div class="caja">
 
     <div class="alertas-grid">

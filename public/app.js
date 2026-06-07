@@ -1185,5 +1185,11 @@ function cerrarCreditos() {
 
 }
 function abrirCuentaCliente() {
-    alert("Abriendo cuenta del cliente");
+    document.getElementById("listaCreditos").style.display = "none";
+    document.getElementById("detalleCliente").style.display = "block";
+}
+
+function regresarListaCreditos() {
+    document.getElementById("listaCreditos").style.display = "block";
+    document.getElementById("detalleCliente").style.display = "none";
 }
