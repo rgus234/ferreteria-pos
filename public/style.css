@@ -793,6 +793,7 @@ margin-right:20px;
 .credito-resumen span{
     font-size:13px;
     opacity:.8;
+    color:#d0d7e2;
 }
 .barra-creditos{
     display:flex;
@@ -830,10 +831,19 @@ margin-right:20px;
 }
 
 .credito-resumen div{
-    background:#f8fafc;
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.12);
+
     padding:18px;
     border-radius:14px;
     text-align:center;
+
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+
+    min-height:90px;
 }
 
 .credito-resumen strong{
@@ -858,4 +868,12 @@ body.dark-mode .credito-resumen span{
 
 body.dark-mode .credito-resumen strong{
     color:#60a5fa;
+}
+body.dark .credito-resumen div{
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.12);
+}
+
+body.dark .credito-resumen span{
+    color:#d0d7e2;
 }
