@@ -422,11 +422,12 @@ body.oscuro input{
    border:1px solid #dbe3ef;
 }
 .modal-header{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:20px;
-    margin-bottom:20px;
+    display:block;
+    margin-bottom:30px;
+}
+.modal-header h2{
+    margin:0;
+    font-size:42px;
 }
 .modal-header button{
   width:auto;
