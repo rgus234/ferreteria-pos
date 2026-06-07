@@ -762,7 +762,8 @@ body.oscuro .usuario-info p{
 .cliente-credito button{
     margin-top:15px;
     width:180px;
-    align-self:center;
+   align-self:flex-end;
+margin-right:20px;
 }
 .credito-resumen{
     display:flex;
