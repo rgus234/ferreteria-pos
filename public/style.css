@@ -767,8 +767,15 @@ body.oscuro .usuario-info p{
 }
 
 .credito-resumen div{
+    width:170px;
+    height:120px;
+
     display:flex;
     flex-direction:column;
+    justify-content:center;
+    align-items:center;
+
+    border-radius:18px;
 }
 
 .credito-resumen strong{
