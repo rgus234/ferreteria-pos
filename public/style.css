@@ -422,8 +422,10 @@ body.oscuro input{
    border:1px solid #dbe3ef;
 }
 .modal-header{
-    display:block;
-    margin-bottom:30px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:20px;
 }
 .modal-header h2{
     margin:0;
@@ -433,6 +435,13 @@ body.oscuro input{
   width:auto;
   padding:10px 16px;
   border-radius:12px;
+}
+.btn-cerrar-creditos{
+    width:42px;
+    height:42px;
+    border:none;
+    border-radius:50%;
+    cursor:pointer;
 }
 .modal-producto input,
 .modal-producto select{
