@@ -728,13 +728,15 @@ body.oscuro .usuario-info p{
 }
 
 .cliente-credito{
-    background:rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.05);
     border:1px solid rgba(255,255,255,0.1);
-    padding:15px;
+    padding:20px;
     border-radius:12px;
-
+    margin-bottom:15px;
     width:100%;
-    display:block;
+
+    display:flex;
+    flex-direction:column;
 }
 
 .cliente-credito h3{
@@ -786,7 +788,7 @@ body.oscuro .usuario-info p{
 }
 .creditos-layout{
     display:grid;
-    grid-template-columns:3fr 1fr;
+    grid-template-columns:75% 25%;
     gap:20px;
     margin-top:20px;
 }
