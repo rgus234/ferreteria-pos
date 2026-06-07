@@ -1179,9 +1179,13 @@ function abrirCreditos() {
 
 function cerrarCreditos() {
 
-    document.getElementById(
-        "modalCreditos"
-    ).style.display = "none";
+    document.getElementById("modalCreditos").style.display = "none";
+
+    document.getElementById("listaCreditos").style.display = "block";
+
+    document.getElementById("detalleCliente").style.display = "none";
+
+}
 
 }
 function abrirCuentaCliente() {
