@@ -739,6 +739,7 @@ body.oscuro .usuario-info p{
 .cliente-credito{
     background: rgba(255,255,255,0.05);
     border:1px solid rgba(255,255,255,0.1);
+    box-shadow:0 4px 12px rgba(0,0,0,0.08);
     padding:20px;
     border-radius:12px;
     margin-bottom:15px;
@@ -782,6 +783,7 @@ margin-right:20px;
     align-items:center;
 
     border-radius:18px;
+    box-shadow:0 4px 10px rgba(0,0,0,0.06);
 }
 
 .credito-resumen strong{
@@ -831,8 +833,9 @@ margin-right:20px;
 }
 
 .credito-resumen div{
-    background:rgba(255,255,255,0.08);
-    border:1px solid rgba(255,255,255,0.12);
+    background:#f8fafc;
+    border:1px solid #dbe3ef;
+    box-shadow:0 4px 10px rgba(0,0,0,0.05);
 
     padding:18px;
     border-radius:14px;
@@ -846,42 +849,21 @@ margin-right:20px;
     min-height:90px;
 }
 
-.credito-resumen strong{
-    display:block;
-    font-size:28px;
-    color:#0d6efd;
+body.oscuro .cliente-credito{
+    border:1px solid rgba(255,255,255,0.12);
+    box-shadow:0 8px 20px rgba(0,0,0,0.25);
 }
 
-.estado-credito{
-    font-weight:600;
-    margin:10px 0;
-}
-body.dark-mode .credito-resumen div{
-    background:#1f2937;
-    border:1px solid #374151;
-    color:white;
+body.oscuro .credito-resumen div{
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.15);
+    box-shadow:0 8px 20px rgba(0,0,0,0.25);
 }
 
-body.dark-mode .credito-resumen span{
-    color:#d1d5db;
+body.oscuro .credito-resumen span{
+    color:#d0d7e2;
 }
 
-body.dark-mode .credito-resumen strong{
+body.oscuro .credito-resumen strong{
     color:#60a5fa;
-}
-body.dark .credito-resumen div{
-    background:rgba(255,255,255,0.08);
-    border:1px solid rgba(255,255,255,0.12);
-}
-
-body.dark .credito-resumen span{
-    color:#d0d7e2;
-}
-body.dark .credito-resumen span{
-    color:#d0d7e2;
-}
-
-body.dark .credito-resumen div{
-    background:rgba(255,255,255,0.08);
-    border:1px solid rgba(255,255,255,0.12);
 }
