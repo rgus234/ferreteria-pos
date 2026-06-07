@@ -1184,3 +1184,6 @@ function cerrarCreditos() {
     ).style.display = "none";
 
 }
+function abrirCuentaCliente() {
+    alert("Abriendo cuenta del cliente");
+}
