@@ -1187,7 +1187,6 @@ function cerrarCreditos() {
 
 }
 
-}
 function abrirCuentaCliente() {
     document.getElementById("listaCreditos").style.display = "none";
     document.getElementById("detalleCliente").style.display = "block";
