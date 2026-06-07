@@ -197,16 +197,66 @@
         <div class="modal-header">
 
             <h2>💳 Créditos pendientes</h2>
-<div class="credito-resumen">
-    <div>
-        <strong>$18,050</strong>
-        <span>Crédito total</span>
+<div class="creditos-layout">
+
+    <div class="creditos-principales">
+
+        <!-- Juan Pérez -->
+        <div class="cliente-credito">
+            <h3>👷 Arq. Juan Pérez</h3>
+
+            <p>Saldo: $5,650</p>
+
+            <p class="estado-credito">
+                ⚠️ Vence en 5 días
+            </p>
+
+            <button onclick="abrirCuentaCliente()">
+                Ver cuenta
+            </button>
+        </div>
+
+        <!-- Constructora -->
+        <div class="cliente-credito">
+            <h3>🏗️ Constructora López</h3>
+
+            <p>Saldo: $12,400</p>
+
+            <p class="estado-credito">
+                ⚪ Sin plazo
+            </p>
+
+            <button onclick="abrirCuentaCliente()">
+                Ver cuenta
+            </button>
+        </div>
+
     </div>
 
-    <div>
-        <strong>2</strong>
-        <span>Clientes con adeudo</span>
+    <div class="credito-resumen">
+
+        <div>
+            <strong>$18,050</strong>
+            <span>Crédito total</span>
+        </div>
+
+        <div>
+            <strong>2</strong>
+            <span>Clientes con adeudo</span>
+        </div>
+
+        <div>
+            <strong>0</strong>
+            <span>Vencidos</span>
+        </div>
+
+        <div>
+            <strong>1</strong>
+            <span>Por vencer</span>
+        </div>
+
     </div>
+
 </div>
             <button onclick="cerrarCreditos()">
                 ✕

@@ -780,3 +780,39 @@ body.oscuro .usuario-info p{
     border:1px solid #d1d5db;
     font-size:14px;
 }
+.creditos-layout{
+    display:grid;
+    grid-template-columns:2fr 1fr;
+    gap:20px;
+    margin-top:20px;
+}
+
+.creditos-principales{
+    display:flex;
+    flex-direction:column;
+    gap:15px;
+}
+
+.credito-resumen{
+    display:flex;
+    flex-direction:column;
+    gap:15px;
+}
+
+.credito-resumen div{
+    background:#f8fafc;
+    padding:18px;
+    border-radius:14px;
+    text-align:center;
+}
+
+.credito-resumen strong{
+    display:block;
+    font-size:28px;
+    color:#0d6efd;
+}
+
+.estado-credito{
+    font-weight:600;
+    margin:10px 0;
+}
