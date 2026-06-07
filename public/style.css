@@ -846,3 +846,16 @@ margin-right:20px;
     font-weight:600;
     margin:10px 0;
 }
+body.dark-mode .credito-resumen div{
+    background:#1f2937;
+    border:1px solid #374151;
+    color:white;
+}
+
+body.dark-mode .credito-resumen span{
+    color:#d1d5db;
+}
+
+body.dark-mode .credito-resumen strong{
+    color:#60a5fa;
+}
