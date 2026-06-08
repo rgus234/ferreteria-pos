@@ -874,3 +874,41 @@ body.oscuro .credito-resumen strong{
     padding:10px 20px;
     border-radius:10px;
 }
+.cliente-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:20px;
+    margin-bottom:25px;
+}
+
+.cliente-info{
+    flex:1;
+    text-align:center;
+}
+
+.cliente-info h2{
+    margin:0;
+    font-size:34px;
+}
+
+.cliente-info p{
+    margin-top:4px;
+    color:#777;
+}
+
+.limite-credito{
+    text-align:right;
+    min-width:180px;
+}
+
+.limite-credito span{
+    display:block;
+    font-size:14px;
+    color:#777;
+}
+
+.limite-credito strong{
+    font-size:32px;
+    color:#0d6efd;
+}
