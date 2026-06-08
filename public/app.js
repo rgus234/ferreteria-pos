@@ -1181,7 +1181,7 @@ function cerrarCreditos() {
 
     document.getElementById("modalCreditos").style.display = "none";
 
-    document.getElementById("listaCreditos").style.display = "block";
+    document.getElementById("listaCreditos").style.display = "grid";
 
     document.getElementById("detalleCliente").style.display = "none";
 
@@ -1193,6 +1193,6 @@ function abrirCuentaCliente() {
 }
 
 function regresarListaCreditos() {
-    document.getElementById("listaCreditos").style.display = "block";
+    document.getElementById("listaCreditos").style.display = "grid";
     document.getElementById("detalleCliente").style.display = "none";
 }
