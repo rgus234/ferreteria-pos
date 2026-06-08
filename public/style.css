@@ -413,9 +413,9 @@ body.oscuro input{
 
 .modal-producto{
   background:white;
-  width:900px;
+  width:1000px;
   max-width:95%;
-  min-height:430px;
+  min-height:650px;
   border-radius:20px;
   padding:30px;
   box-shadow:0 10px 35px rgba(0,0,0,.45);
