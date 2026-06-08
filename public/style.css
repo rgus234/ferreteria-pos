@@ -881,6 +881,9 @@ body.oscuro .credito-resumen strong{
     gap:20px;
     margin-bottom:25px;
 }
+#detalleCliente{
+    width:100%;
+}
 
 .cliente-info{
     flex:1;
