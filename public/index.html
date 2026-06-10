@@ -19,11 +19,7 @@
 
             <input id="usuario" placeholder="Usuario">
 
-            <input
-                id="password"
-                placeholder="Contraseña"
-                type="password"
-            >
+            <input id="password" placeholder="Contraseña" type="password">
 
             <button onclick="iniciarSesion()">
                 Entrar
@@ -33,10 +29,7 @@
 
     </div>
 
-    <div
-        id="sistema"
-        style="display:none;"
-    >
+    <div id="sistema" style="display:none;">
 
         <div class="layout">
 
@@ -73,69 +66,58 @@
                 <button>
                     🚚 Proveedores
                 </button>
-<button onclick="mostrarCatalogo()">
-  📄 Catálogo proveedor
-</button>
+                <button onclick="mostrarCatalogo()">
+                    📄 Catálogo proveedor
+                </button>
 
 
             </aside>
 
             <main class="contenido">
-<section
-  id="pantallaCatalogo"
-  style="display:none;"
->
+                <section id="pantallaCatalogo" style="display:none;">
 
-  <div class="caja">
+                    <div class="caja">
 
-    <h2>
-      📄 Catálogo proveedor
-    </h2>
+                        <h2>
+                            📄 Catálogo proveedor
+                        </h2>
 
-    <div class="subir-catalogo">
+                        <div class="subir-catalogo">
 
-  <label>
-    📁 Sube aquí archivos
-  </label>
+                            <label>
+                                📁 Sube aquí archivos
+                            </label>
 
-  <input
-    type="file"
-    id="archivoCatalogo"
-    multiple
-    accept=".xlsx,.csv"
-  />
+                            <input type="file" id="archivoCatalogo" multiple accept=".xlsx,.csv" />
 
-</div>
+                        </div>
 
-  </div>
+                    </div>
 
-</section>
+                </section>
                 <!-- DASHBOARD -->
 
                 <div id="pantallaInicio">
                     <div class="dashboard-header">
 
 
-    <div class="usuario-info">
+                        <div class="usuario-info">
 
-        <h1 id="saludoUsuario">
-            Bienvenido, Gustavo
-        </h1>
+                            <h1 id="saludoUsuario">
+                                Bienvenido, Gustavo
+                            </h1>
 
-        <p id="rolUsuario">
-            Administrador
-        </p>
+                            <p id="rolUsuario">
+                                Administrador
+                            </p>
 
-    </div>
+                        </div>
 
-    <button
-        id="btnModoDashboard"
-        onclick="cambiarModo()"
-    >
-        ☀️ Modo claro
-    </button>
+                        <button id="btnModoDashboard" onclick="cambiarModo()">
+                            ☀️ Modo claro
+                        </button>
 
-</div>
+                    </div>
 
                     <div class="dashboard-top">
 
@@ -169,239 +151,216 @@
 
                         </div>
 
-                        <div
-    class="caja mini"
-    onclick="abrirCreditos()"
-    style="cursor:pointer;"
->
+                        <div class="caja mini" onclick="abrirCreditos()" style="cursor:pointer;">
 
-    <h3>💳 Crédito pendiente</h3>
+                            <h3>💳 Crédito pendiente</h3>
 
-    <p id="creditoPendiente">
-        $0
-    </p>
+                            <p id="creditoPendiente">
+                                $0
+                            </p>
 
-    <small id="clientesDeuda">
-        0 clientes
-    </small>
+                            <small id="clientesDeuda">
+                                0 clientes
+                            </small>
 
-</div>
-<div
-    id="modalCreditos"
-    class="modal-overlay"
-    style="display:none;"
->
+                        </div>
+                        <div id="modalCreditos" class="modal-overlay" style="display:none;">
 
-    <div class="modal-producto">
+                            <div class="modal-producto">
 
-        <div class="modal-header">
+                                <div class="modal-header">
 
-            <h2>💳 Créditos pendientes</h2>
-             <button onclick="cerrarCreditos()">
-                ✕
-            </button>
+                                    <h2>💳 Créditos pendientes</h2>
+                                    <button onclick="cerrarCreditos()">
+                                        ✕
+                                    </button>
 
-        </div>
+                                </div>
 
-<div
-    id="listaCreditos"
-    class="creditos-layout"
->
+                                <div id="listaCreditos" class="creditos-layout">
 
-    <div class="creditos-principales">
+                                    <div class="creditos-principales">
 
-        <!-- Juan Pérez -->
-        <div class="cliente-credito">
-            <h3>👷 Arq. Juan Pérez</h3>
+                                        <!-- Juan Pérez -->
+                                        <div class="cliente-credito">
+                                            <h3>👷 Arq. Juan Pérez</h3>
 
-            <p>Saldo: $5,650</p>
+                                            <p>Saldo: $5,650</p>
 
-            <p class="estado-credito">
-                ⚠️ Vence en 5 días
-            </p>
+                                            <p class="estado-credito">
+                                                ⚠️ Vence en 5 días
+                                            </p>
 
-            <button onclick="abrirCuentaCliente()">
-                Ver cuenta
-            </button>
-        </div>
+                                            <button onclick="abrirCuentaCliente()">
+                                                Ver cuenta
+                                            </button>
+                                        </div>
 
-        <!-- Constructora -->
-        <div class="cliente-credito">
-            <h3>🏗️ Constructora López</h3>
+                                        <!-- Constructora -->
+                                        <div class="cliente-credito">
+                                            <h3>🏗️ Constructora López</h3>
 
-            <p>Saldo: $12,400</p>
+                                            <p>Saldo: $12,400</p>
 
-            <p class="estado-credito">
-                ⚪ Sin plazo
-            </p>
+                                            <p class="estado-credito">
+                                                ⚪ Sin plazo
+                                            </p>
 
-            <button onclick="abrirCuentaCliente()">
-                Ver cuenta
-            </button>
-        </div>
+                                            <button onclick="abrirCuentaCliente()">
+                                                Ver cuenta
+                                            </button>
+                                        </div>
 
-    </div>
+                                    </div>
 
-    <div class="credito-resumen">
+                                    <div class="credito-resumen">
 
-        <div>
-            <strong>$18,050</strong>
-            <span>Crédito total</span>
-        </div>
+                                        <div>
+                                            <strong>$18,050</strong>
+                                            <span>Crédito total</span>
+                                        </div>
 
-        <div>
-            <strong>2</strong>
-            <span>Clientes con adeudo</span>
-        </div>
+                                        <div>
+                                            <strong>2</strong>
+                                            <span>Clientes con adeudo</span>
+                                        </div>
 
-        <div>
-            <strong>0</strong>
-            <span>Vencidos</span>
-        </div>
+                                        <div>
+                                            <strong>0</strong>
+                                            <span>Vencidos</span>
+                                        </div>
 
-        <div>
-            <strong>1</strong>
-            <span>Por vencer</span>
-        </div>
+                                        <div>
+                                            <strong>1</strong>
+                                            <span>Por vencer</span>
+                                        </div>
 
-    </div>
+                                    </div>
 
-</div>
+                                </div>
 
-<div id="detalleCliente" style="display:none;">
+                                <div id="detalleCliente" style="display:none;">
 
-    <div class="cliente-header">
+                                    <div class="cliente-header">
 
-    <button
-        onclick="regresarListaCreditos()"
-        class="btn-regresar"
-    >
-        ← Regresar
-    </button>
+                                        <button onclick="regresarListaCreditos()" class="btn-regresar">
+                                            ← Regresar
+                                        </button>
 
-    <div class="cliente-info">
-        <h2>👷 Arq. Juan Pérez</h2>
-        <p>Cliente desde: 12/03/2024</p>
-    </div>
+                                        <div class="cliente-info">
+                                            <h2>👷 Arq. Juan Pérez</h2>
+                                            <p>Cliente desde: 12/03/2024</p>
+                                        </div>
 
-    <div class="limite-credito">
-        <span>Límite de crédito</span>
-        <strong>$15,000</strong>
-    </div>
+                                        <div class="limite-credito">
+                                            <span>Límite de crédito</span>
+                                            <strong>$15,000</strong>
+                                        </div>
 
-    </div>
-        
-<div class="ver-todos-container">
+                                    </div>
 
-    <button
-        class="btn-ver-todos"
-        onclick="verTodosCreditos()"
-    >
-        👥 Ver todos los clientes
-    </button>
+                                    <div class="ver-todos-container">
 
-</div>
-        <div class="modal-botones">
+                                        <button class="btn-ver-todos" onclick="verTodosCreditos()">
+                                            👥 Ver todos los clientes
+                                        </button>
 
-           <button onclick="abrirNuevoClienteCredito()">
-    ➕ Nuevo cliente
-</button>
+                                    </div>
+                                    <div class="modal-botones">
 
-            <button onclick="cerrarCreditos()">
-                Cerrar
-            </button>
+                                        <button onclick="abrirNuevoClienteCredito()">
+                                            ➕ Nuevo cliente
+                                        </button>
 
-        </div>
+                                        <button onclick="cerrarCreditos()">
+                                            Cerrar
+                                        </button>
 
-    </div>
+                                    </div>
 
-</div>
-
-                    </div>
-
-                   <div class="caja">
-
-    <div class="alertas-grid">
-
-        <div>
-
-            <h2>
-                🔴 Alertas de inventario
-            </h2>
-
-            <div id="inventarioBajo"></div>
-
-            <button class="btn-alerta">
-                Ver inventario bajo
-            </button>
-
-        </div>
-
-        <div class="resumen-inventario">
-
-            <h3>📦 Resumen rápido</h3>
-
-            <p>Productos: <strong id="resumenProductos">15</strong></p>
-
-            <p>Stock bajo: <strong id="resumenBajos">7</strong></p>
-
-            <p>Sin existencia: <strong id="resumenSinStock">0</strong></p>
-
-            <p>Críticos: <strong id="resumenCriticos">0</strong></p>
-
-        </div>
-
-    </div>
-
-</div>
-                    <div class="caja">
-
-                        <h2>
-                            🕒 Últimas ventas
-                        </h2>
-
-                        <div id="ultimasVentas"></div>
-
-                    </div>
-
-                </div>
-
-                <!-- PUNTO DE VENTA -->
-
-                <div
-                    id="pantallaPuntoVenta"
-                    style="display:none;"
-                >
-
-                    <input
-                        id="busqueda"
-                        type="text"
-                        placeholder="🔎 Buscar por nombre o código de barras"
-                        oninput="buscarProductos()"
-                        onkeydown="buscarCodigoEnter(event)"
-                    >
-
-                    
-
-                    <div class="productos">
-
-                        <div id="productos"></div>
-
-                        <div class="lado">
-
-                            <div class="caja">
-
-                                <h2>🛒 Carrito</h2>
-
-                                <div id="carrito"></div>
+                                </div>
 
                             </div>
 
-                            <div class="caja">
+                        </div>
 
-                                <h2>📜 Historial</h2>
+                        <div class="caja">
 
-                                <div id="historial"></div>
+                            <div class="alertas-grid">
+
+                                <div>
+
+                                    <h2>
+                                        🔴 Alertas de inventario
+                                    </h2>
+
+                                    <div id="inventarioBajo"></div>
+
+                                    <button class="btn-alerta">
+                                        Ver inventario bajo
+                                    </button>
+
+                                </div>
+
+                                <div class="resumen-inventario">
+
+                                    <h3>📦 Resumen rápido</h3>
+
+                                    <p>Productos: <strong id="resumenProductos">15</strong></p>
+
+                                    <p>Stock bajo: <strong id="resumenBajos">7</strong></p>
+
+                                    <p>Sin existencia: <strong id="resumenSinStock">0</strong></p>
+
+                                    <p>Críticos: <strong id="resumenCriticos">0</strong></p>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+                        <div class="caja">
+
+                            <h2>
+                                🕒 Últimas ventas
+                            </h2>
+
+                            <div id="ultimasVentas"></div>
+
+                        </div>
+
+                    </div>
+</div>
+                    <!-- PUNTO DE VENTA -->
+
+                    <div id="pantallaPuntoVenta" style="display:none;">
+
+                        <input id="busqueda" type="text" placeholder="🔎 Buscar por nombre o código de barras"
+                            oninput="buscarProductos()" onkeydown="buscarCodigoEnter(event)">
+
+
+
+                        <div class="productos">
+
+                            <div id="productos"></div>
+
+                            <div class="lado">
+
+                                <div class="caja">
+
+                                    <h2>🛒 Carrito</h2>
+
+                                    <div id="carrito"></div>
+
+                                </div>
+
+                                <div class="caja">
+
+                                    <h2>📜 Historial</h2>
+
+                                    <div id="historial"></div>
+
+                                </div>
 
                             </div>
 
@@ -409,158 +368,112 @@
 
                     </div>
 
-                </div>
+                    <div id="pantallaInventario" style="display:none;">
 
-<div
-    id="pantallaInventario"
-    style="display:none;"
->
+                        <div class="caja">
 
-    <div class="caja">
+                            <div class="inventario-top">
 
-        <div class="inventario-top">
+                                <input id="buscarInventario" type="text" placeholder="🔎 Buscar producto..."
+                                    oninput="buscarInventario()">
+                                <button class="btn-agregar" onclick="mostrarFormularioAgregar()">
+                                    + Agregar producto
+                                </button>
+                            </div>
 
-            <input
-                id="buscarInventario"
-                type="text"
-                placeholder="🔎 Buscar producto..."
-                oninput="buscarInventario()"
-            >
-<button class="btn-agregar" onclick="mostrarFormularioAgregar()">
-  + Agregar producto
-</button>
+                            <table class="tabla-inventario">
+
+                                <thead>
+
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Producto</th>
+                                        <th>Precio</th>
+                                        <th>Stock</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+
+                                </thead>
+
+                                <tbody id="tablaInventario">
+
+                                </tbody>
+
+                            </table>
+                            <div id="modalAgregar" class="modal-overlay" style="display:none;">
+
+                                <div class="modal-producto">
+
+                                    <div class="modal-header">
+
+                                        <h2>➕ Nuevo producto</h2>
+                                        <button onclick="abrirActualizarCatalogo()">
+                                            📄 Actualizar catálogo
+                                        </button>
+                                        <button onclick="cerrarFormularioAgregar()">
+                                            ✕
+                                        </button>
+
+                                    </div>
+
+                                    <div class="formulario-producto">
+
+                                        <input id="nuevoCodigo" placeholder="📷 Código de barras"
+                                            oninput="buscarEnCatalogo()" />
+                                        <input id="nuevoNombre" placeholder="Nombre del producto">
+                                        <input id="precioDistribuidor" type="number"
+                                            placeholder="💲 Precio distribuidor" />
+
+                                        <input id="precioMayoreo" type="number" placeholder="💲 Precio medio mayoreo" />
+                                        <input id="nuevoPrecio" type="number" placeholder="Precio público">
+
+                                        <input id="nuevoStock" type="number" placeholder="Stock actual">
+
+                                        <input id="stockMinimo" type="number" value="3" placeholder="Stock mínimo">
+                                        <input id="nuevoProveedor" type="text" placeholder="Proveedor">
+
+                                        <input id="nuevaUbicacion" type="text" placeholder="Ubicación">
+                                        <select id="altaRotacion">
+
+                                            <option value="">
+                                                🔥 ¿Se vende rápido?
+                                            </option>
+
+                                            <option value="si">
+                                                Sí
+                                            </option>
+
+                                            <option value="no">
+                                                No
+                                            </option>
+
+                                        </select>
+                                    </div>
+
+                                    <div class="modal-botones">
+
+                                        <button onclick="cerrarFormularioAgregar()">
+                                            Cancelar
+                                        </button>
+
+                                        <button onclick="agregarProductoNuevo()">
+                                            Guardar producto
+                                        </button>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+            </main>
         </div>
-
-        <table class="tabla-inventario">
-
-            <thead>
-
-                <tr>
-                    <th>Código</th>
-                    <th>Producto</th>
-                    <th>Precio</th>
-                    <th>Stock</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                </tr>
-
-            </thead>
-
-            <tbody id="tablaInventario">
-
-            </tbody>
-
-        </table>
-<div
-    id="modalAgregar"
-    class="modal-overlay"
-    style="display:none;"
->
-
-    <div class="modal-producto">
-
-        <div class="modal-header">
-
-            <h2>➕ Nuevo producto</h2>
-<button onclick="abrirActualizarCatalogo()">
-  📄 Actualizar catálogo
-</button>
-            <button onclick="cerrarFormularioAgregar()">
-                ✕
-            </button>
-
-        </div>
-
-        <div class="formulario-producto">
-
-           <input
-  id="nuevoCodigo"
-  placeholder="📷 Código de barras"
-  oninput="buscarEnCatalogo()"
-/>
-            <input
-                id="nuevoNombre"
-                placeholder="Nombre del producto"
-            >
-<input
-  id="precioDistribuidor"
-  type="number"
-  placeholder="💲 Precio distribuidor"
-/>
-
-<input
-  id="precioMayoreo"
-  type="number"
-  placeholder="💲 Precio medio mayoreo"
-/>
-            <input
-                id="nuevoPrecio"
-                type="number"
-                placeholder="Precio público"
-            >
-
-            <input
-                id="nuevoStock"
-                type="number"
-                placeholder="Stock actual"
-            >
-
-            <input
-                id="stockMinimo"
-                type="number"
-                value="3"
-                placeholder="Stock mínimo"
-            >
-            <input
-    id="nuevoProveedor"
-    type="text"
-    placeholder="Proveedor"
->
-
-<input
-    id="nuevaUbicacion"
-    type="text"
-    placeholder="Ubicación"
->
-<select id="altaRotacion">
-
-    <option value="">
-        🔥 ¿Se vende rápido?
-    </option>
-
-    <option value="si">
-        Sí
-    </option>
-
-    <option value="no">
-        No
-    </option>
-
-</select>
-        </div>
-
-        <div class="modal-botones">
-
-            <button onclick="cerrarFormularioAgregar()">
-                Cancelar
-            </button>
-
-            <button onclick="agregarProductoNuevo()">
-                Guardar producto
-            </button>
-
-        </div>
-
     </div>
 
-</div>
-    </div>
-</div>
-</main>
-</div>
-</div>
-
-<script src="app.js"></script>
+    <script src="app.js"></script>
 
 </body>
+
 </html>
