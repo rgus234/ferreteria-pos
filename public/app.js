@@ -102,6 +102,28 @@ function actualizarDashboard() {
         totalBajos.textContent =
             bajos.length;
     }
+    const resumenProductos = document.getElementById("resumenProductos");
+const resumenBajos = document.getElementById("resumenBajos");
+const resumenSinStock = document.getElementById("resumenSinStock");
+const resumenCriticos = document.getElementById("resumenCriticos");
+
+if (resumenProductos) {
+    resumenProductos.textContent = todosProductos.length;
+}
+
+if (resumenBajos) {
+    resumenBajos.textContent = bajos.length;
+}
+
+if (resumenSinStock) {
+    resumenSinStock.textContent =
+        todosProductos.filter(p => Number(p.stock) <= 0).length;
+}
+
+if (resumenCriticos) {
+    resumenCriticos.textContent =
+        todosProductos.filter(p => Number(p.stock) < 0).length;
+}
 }
 
 function actualizarInventarioBajo() {
