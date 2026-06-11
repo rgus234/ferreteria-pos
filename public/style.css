@@ -468,6 +468,10 @@ white-space:nowrap;
   gap:15px;
   margin-top:30px;
 }
+.modal-botones button{
+    flex:1;
+    padding:14px;
+}
 #buscarInventario {
   width: 520px;
   padding: 15px 18px;
