@@ -703,7 +703,7 @@ body.oscuro .usuario-info p{
 }
 .alertas-grid{
     display:grid;
-    grid-template-columns:2fr 1fr;
+    grid-template-columns:2.5fr 1.5fr;
     gap:25px;
 }
 
