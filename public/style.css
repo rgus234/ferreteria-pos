@@ -469,7 +469,8 @@ white-space:nowrap;
   margin-top:30px;
 }
 .modal-botones button{
-    flex:1;
+    flex:1 !important;
+    width:auto !important;
     padding:14px;
 }
 #buscarInventario {
