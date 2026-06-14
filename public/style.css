@@ -771,7 +771,7 @@ body.oscuro .usuario-info p{
    align-self:flex-end;
 margin-right:20px;
 }
-.credito-resumen{
+.credito-resumen-detalle{
     display:grid;
 grid-template-columns:repeat(4,180px);
 justify-content:center;
@@ -835,7 +835,7 @@ justify-content:center;
 
 
 
-.credito-resumen div{
+.credito-resumen-detalle .resumen-card{
     background:#f8fafc;
     border:1px solid #dbe3ef;
     box-shadow:0 4px 10px rgba(0,0,0,0.05);
@@ -863,11 +863,11 @@ body.oscuro .credito-resumen div{
     box-shadow:0 8px 20px rgba(0,0,0,0.25);
 }
 
-body.oscuro .credito-resumen span{
+body.oscuro .credito-resumen-detalle span{
     color:#d0d7e2;
 }
 
-body.oscuro .credito-resumen strong{
+body.oscuro .credito-resumen-detalle strong{
     color:#60a5fa;
 }
 .btn-regresar{
