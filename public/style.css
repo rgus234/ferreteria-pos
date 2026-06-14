@@ -833,11 +833,7 @@ justify-content:center;
      align-items:stretch;
 }
 
-.credito-resumen{
-    display:flex;
-    flex-direction:column;
-    gap:15px;
-}
+
 
 .credito-resumen div{
     background:#f8fafc;
