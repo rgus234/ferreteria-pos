@@ -772,10 +772,11 @@ body.oscuro .usuario-info p{
 margin-right:20px;
 }
 .credito-resumen{
-    display:flex;
-    gap:10px;
-    align-items:center;
-    margin-left:20px;
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+    margin:25px 0;
+    width:100%;
 }
 
 .credito-resumen div{
