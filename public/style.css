@@ -780,7 +780,7 @@ justify-content:center;
     width:100%;
 }
 
-.credito-resumen div{
+#detalleCliente .resumen-card{
     width:170px;
     height:90px;
 
@@ -793,13 +793,13 @@ justify-content:center;
     box-shadow:0 4px 10px rgba(0,0,0,0.06);
 }
 
-.credito-resumen strong{
+#detalleCliente .resumen-card strong{
     font-size:22px;
     font-weight:700;
     line-height:1;
 }
 
-.credito-resumen span{
+#detalleCliente .resumen-card span{
     font-size:13px;
     opacity:.8;
     color:#64748b;
