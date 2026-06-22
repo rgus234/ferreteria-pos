@@ -34,6 +34,19 @@ Para empezar rapido:
 - Variables: configuradas en el panel del proveedor, no en Git.
 - Health check: `/health`.
 
+## Estado del repositorio
+
+Ramas remotas esperadas:
+
+- `main`: produccion estable.
+- `dev`: desarrollo y pruebas.
+
+Tag base:
+
+- `v0.1.0-preprod`
+
+Para desplegar el primer cliente, conectar el proveedor de hosting a `main`, no a `dev`.
+
 ## Variables requeridas en PROD
 
 - `APP_NAME=Nexo POS`
@@ -64,3 +77,23 @@ Debe responder:
 ## Regla de oro
 
 Nunca probar cambios nuevos directamente en la base del cliente.
+
+## Checklist de Render
+
+1. Crear Web Service desde GitHub.
+2. Seleccionar rama `main`.
+3. Build command:
+
+```bash
+npm ci
+```
+
+4. Start command:
+
+```bash
+npm start
+```
+
+5. Agregar variables de entorno reales.
+6. Confirmar que `/health` responde `ok: true`.
+7. Entrar al POS y hacer una venta de prueba pequeña solo en base de pruebas.
