@@ -12,7 +12,7 @@ Publicar una version estable para el primer cliente sin bloquear el desarrollo l
 ```bash
 npm run check
 npm run check:env
-npm start
+npm run dev
 ```
 
 3. Crear respaldo de la base si ya hay datos reales.

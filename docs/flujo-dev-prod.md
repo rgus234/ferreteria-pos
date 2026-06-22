@@ -17,7 +17,7 @@ Mantener una version de desarrollo para cambios diarios y una version estable de
 ### PROD
 
 - Corre en internet para clientes.
-- Usa `.env.production` o variables del proveedor de hosting.
+- Usa variables del proveedor de hosting.
 - Usa una base de datos exclusiva del cliente.
 - Solo se actualiza desde `main` cuando el cambio ya fue probado.
 - Rama sugerida: `main`.
@@ -59,6 +59,22 @@ Variables actuales:
 - `PORT`
 - `DATABASE_URL`
 - `PGSSLMODE`
+
+## Comandos
+
+Local:
+
+```bash
+npm run dev
+```
+
+Produccion:
+
+```bash
+npm start
+```
+
+En produccion las variables se cargan desde el proveedor de hosting, no desde `.env`.
 
 ## Checklist antes de produccion
 

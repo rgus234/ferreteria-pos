@@ -7,7 +7,7 @@
                     "node":  ">=22"
                 },
     "scripts":  {
-                    "start":  "node --env-file=.env server.js",
+                    "start":  "node server.js",
                     "dev":  "node --env-file=.env server.js",
                     "start:prod":  "node --env-file=.env.production server.js",
                     "check":  "node --check server.js && node --check public/app.js",
