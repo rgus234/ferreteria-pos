@@ -1,13 +1,22 @@
-{
-  "name": "ferreteria-pos",
-  "version": "1.0.0",
-  "description": "Sistema POS para ferretería",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "express": "^5.2.1",
-    "pg": "^8.21.0"
-  }
+﻿{
+    "name":  "nexo-pos",
+    "version":  "1.0.0",
+    "description":  "Nexo POS - sistema comercial para punto de venta",
+    "main":  "server.js",
+    "engines":  {
+                    "node":  ">=22"
+                },
+    "scripts":  {
+                    "start":  "node --env-file=.env server.js",
+                    "dev":  "node --env-file=.env server.js",
+                    "start:prod":  "node --env-file=.env.production server.js",
+                    "check":  "node --check server.js && node --check public/app.js",
+                    "check:env":  "node --env-file=.env scripts/check-env.js",
+                    "migrate":  "node --env-file=.env scripts/migrate.js",
+                    "migrate:prod":  "node --env-file=.env.production scripts/migrate.js"
+                },
+    "dependencies":  {
+                         "express":  "^5.2.1",
+                         "pg":  "^8.21.0"
+                     }
 }

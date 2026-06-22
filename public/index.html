@@ -1,558 +1,978 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 
 <head>
-    <meta charset="UTF-8">
-    <title>Ferretería Olímpico</title>
+ <meta charset="UTF-8">
+ <title>Ferreteria Olimpico</title>
 
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="style.css?v=pos-universal-20260621-13">
+ <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
 
-    <div id="login">
+ <div id="configuracionInicial" style="display:none;">
+ <div class="setup-card">
+ <div class="setup-intro">
+ <div class="setup-logo-preview" id="previewLogoNegocio">
+ FO
+ </div>
+ <div>
+ <span>Configuracion inicial</span>
+ <h1>Personaliza tu POS</h1>
+ <p>Agrega la identidad del negocio para dejar el sistema listo para instalarse o venderse.</p>
+ </div>
+ </div>
+
+ <div class="setup-grid">
+ <label>
+ <span>Nombre del negocio</span>
+ <input id="setupNombreNegocio" placeholder="Ej. Ferreteria Olimpico">
+ </label>
+
+ <label>
+ <span>Slogan o descripcion</span>
+ <input id="setupSloganNegocio" placeholder="Todo para construir, todo para ti">
+ </label>
+
+ <label>
+ <span>Telefono</span>
+ <input id="setupTelefonoNegocio" placeholder="Ej. 498 123 4567">
+ </label>
+
+ <label>
+ <span>Direccion</span>
+ <input id="setupDireccionNegocio" placeholder="Ej. Rio Grande, Zac.">
+ </label>
+
+ <label>
+ <span>Nombre del administrador</span>
+ <input id="setupAdminNombre" placeholder="Ej. Gustavo">
+ </label>
+
+ <label>
+ <span>PIN del administrador</span>
+ <input id="setupAdminPin" type="password" placeholder="Minimo 4 digitos">
+ </label>
+
+ <label>
+ <span>Color principal</span>
+ <input id="setupColorNegocio" type="color" value="#0d6efd">
+ </label>
 
-        <div class="login-box">
+ <label>
+ <span>Logo del negocio</span>
+ <input id="setupLogoNegocio" type="file" accept="image/*" onchange="cargarLogoConfiguracion(event)">
+ </label>
+ </div>
 
-            <h1>🔐 Iniciar Sesión</h1>
+ <button class="setup-save" onclick="guardarConfiguracionInicial()">
+ Guardar y entrar al POS
+ </button>
+ </div>
+ </div>
 
-            <input id="usuario" placeholder="Usuario">
+ <div id="login">
 
-            <input id="password" placeholder="Contraseña" type="password">
+ <div class="login-box">
 
-            <button onclick="iniciarSesion()">
-                Entrar
-            </button>
+ <div class="login-brand" id="loginMarcaNegocio"></div>
 
-        </div>
+ <h1> Iniciar Sesion</h1>
 
-    </div>
+ <input id="usuario" placeholder="Usuario">
 
-    <div id="sistema" style="display:none;">
+ <input id="password" placeholder="Contrasena" type="password">
 
-        <div class="layout">
+ <button onclick="iniciarSesion()">
+ Entrar
+ </button>
 
-            <aside class="sidebar">
+ </div>
 
-                <h1>
-                    🔨 FERRETERÍA OLÍMPICO
-                </h1>
+ </div>
 
-                <button onclick="mostrarInicio()">
-                    🏠 Inicio / Dashboard
-                </button>
+ <div id="sistema" style="display:none;">
 
-                <button onclick="mostrarPuntoVenta()">
-                    🛒 Punto de venta
-                </button>
+ <div class="layout">
 
-                <button onclick="mostrarInventario()">
-                    📦 Inventario
-                </button>
+ <aside class="sidebar">
 
-                <button onclick="mostrarInventarioBajo()">
-                    🔴 Inventario bajo
-                </button>
+ <h1 id="marcaSidebar">
+ FERRETERIA OLIMPICO
+ </h1>
 
-                <button onclick="mostrarGraficas()">
-                    📊 Reportes / Ventas
-                </button>
+ <button onclick="mostrarInicio()">
+ Inicio / Dashboard
+ </button>
 
-                <button>
-                    👥 Clientes
-                </button>
+ <button onclick="mostrarPuntoVenta()">
+ Punto de venta
+ </button>
 
-                <button>
-                    🚚 Proveedores
-                </button>
-                <button onclick="mostrarCatalogo()">
-                    📄 Catálogo proveedor
-                </button>
+ <button onclick="toggleSubmenuInventario()">
+ Inventario
+ </button>
 
+ <div id="submenuInventario" class="submenu-sidebar">
+ <button onclick="mostrarInventario()">
+ Productos
+ </button>
+ <button onclick="mostrarCategoriasInventario()">
+ Categorias
+ </button>
+ </div>
 
-            </aside>
+ <button onclick="mostrarInventarioBajo()">
+ Inventario bajo
+ </button>
 
-            <main class="contenido">
-                <section id="pantallaCatalogo" style="display:none;">
+ <button onclick="mostrarGraficas()">
+ Reportes / Ventas
+ </button>
 
-                    <div class="caja">
+ <button onclick="mostrarClientes()">
+ Clientes
+ </button>
 
-                        <h2>
-                            📄 Catálogo proveedor
-                        </h2>
+ <button onclick="mostrarProveedores()">
+ Proveedores
+ </button>
+ <button onclick="mostrarCatalogo()">
+ Catalogo proveedor
+ </button>
 
-                        <div class="subir-catalogo">
 
-                            <label>
-                                📁 Sube aquí archivos
-                            </label>
+ <button class="btn-configuracion-sidebar" data-modulo="configuracion" onclick="mostrarConfiguracion()">
+ Configuracion
+ </button>
 
-                            <input type="file" id="archivoCatalogo" multiple accept=".xlsx,.csv" />
+ <button class="btn-dueno-sidebar" onclick="window.open('/dueno', '_blank')">
+ App dueno
+ </button>
 
-                        </div>
+ </aside>
 
-                    </div>
+ <main class="contenido">
+ <header id="topbarPOS" class="topbar-pos" aria-label="Barra superior del POS"></header>
+ <section id="pantallaConfiguracion" style="display:none;"></section>
 
-                </section>
-                <!-- DASHBOARD -->
+ <section id="pantallaCatalogo" style="display:none;">
 
-                <div id="pantallaInicio">
-                    <div class="dashboard-header">
+ <div class="caja">
 
+ <h2>
+ Catalogo proveedor
+ </h2>
 
-                        <div class="usuario-info">
+ <div class="subir-catalogo">
 
-                            <h1 id="saludoUsuario">
-                                Bienvenido, Gustavo
-                            </h1>
+ <label>
+ Sube aqui archivos
+ </label>
 
-                            <p id="rolUsuario">
-                                Administrador
-                            </p>
+ <input type="file" id="archivoCatalogo" multiple accept=".xlsx,.csv" />
 
-                        </div>
+ </div>
 
-                        <button id="btnModoDashboard" onclick="cambiarModo()">
-                            ☀️ Modo claro
-                        </button>
+ </div>
 
-                    </div>
+ </section>
+ <!-- DASHBOARD -->
 
-                    <div class="dashboard-top">
+ <div id="pantallaInicio">
+ <div class="dashboard-header">
 
-                        <div class="caja mini">
 
-                            <h3>📦 Productos</h3>
+ <div class="usuario-info">
 
-                            <p id="totalProductos">
-                                0
-                            </p>
+ <h1 id="saludoUsuario">
+ Bienvenido, Gustavo
+ </h1>
 
-                        </div>
+ <p id="rolUsuario">
+ Administrador
+ </p>
 
-                        <div class="caja mini">
+ </div>
 
-                            <h3>🔴 Inventario bajo</h3>
+ <button id="btnModoDashboard" onclick="cambiarModo()">
+ Modo claro
+ </button>
 
-                            <p id="totalBajos">
-                                0
-                            </p>
+ </div>
 
-                        </div>
+ <div class="dashboard-top">
 
-                        <div class="caja mini">
+ <div class="caja mini">
 
-                            <h3>🕒 Últimas ventas</h3>
+ <h3> Productos</h3>
 
-                            <p id="conteoVentas">
-                                0
-                            </p>
+ <p id="totalProductos">
+ 0
+ </p>
 
-                        </div>
+ </div>
 
-                        <div class="caja mini" onclick="abrirCreditos()" style="cursor:pointer;">
+ <div class="caja mini">
 
-                            <h3>💳 Crédito pendiente</h3>
+ <h3> Inventario bajo</h3>
 
-                            <p id="creditoPendiente">
-                                $0
-                            </p>
+ <p id="totalBajos">
+ 0
+ </p>
 
-                            <small id="clientesDeuda">
-                                0 clientes
-                            </small>
+ </div>
 
-                        </div>
-                        <div id="modalCreditos" class="modal-overlay" style="display:none;">
+ <div class="caja mini">
 
-                            <div class="modal-producto">
+ <h3> Ultimas ventas</h3>
 
-                                <div class="modal-header">
+ <p id="conteoVentas">
+ 0
+ </p>
 
-                                    <h2>💳 Créditos pendientes</h2>
-                                    <button onclick="cerrarCreditos()">
-                                        ✕
-                                    </button>
+ </div>
 
-                                </div>
+ <div class="caja mini" onclick="abrirCreditos()" style="cursor:pointer;">
 
-                                <div id="listaCreditos" class="creditos-layout">
+ <h3> Credito pendiente</h3>
 
-                                    <div class="creditos-principales">
+ <p id="creditoPendiente">
+ $0
+ </p>
 
-                                        <!-- Juan Pérez -->
-                                        <div class="cliente-credito">
-                                            <h3>👷 Arq. Juan Pérez</h3>
+ <small id="clientesDeuda">
+ 0 clientes
+ </small>
 
-                                            <p>Saldo: $5,650</p>
+ </div>
+ <div id="modalCreditos" class="modal-overlay" style="display:none;">
 
-                                            <p class="estado-credito">
-                                                ⚠️ Vence en 5 días
-                                            </p>
+ <div class="modal-producto">
 
-                                            <button onclick="abrirCuentaCliente()">
-                                                Ver cuenta
-                                            </button>
-                                        </div>
+ <div class="modal-header">
 
-                                        <!-- Constructora -->
-                                        <div class="cliente-credito">
-                                            <h3>🏗️ Constructora López</h3>
+ <h2> Creditos pendientes</h2>
+ <button onclick="cerrarCreditos()">
+ 
+ </button>
 
-                                            <p>Saldo: $12,400</p>
+ </div>
 
-                                            <p class="estado-credito">
-                                                ⚪ Sin plazo
-                                            </p>
+ <div id="listaCreditos" class="creditos-layout">
 
-                                            <button onclick="abrirCuentaCliente()">
-                                                Ver cuenta
-                                            </button>
-                                        </div>
+ <div class="creditos-principales">
+ <div class="cliente-credito">
+ <h3>Cargando creditos...</h3>
+ <p>Espera un momento.</p>
+ </div>
+ </div>
 
-                                    </div>
+ <div class="credito-resumen">
 
-                                    <div class="credito-resumen">
+ <div>
+ <strong>$0</strong>
+ <span>Credito total</span>
+ </div>
 
-                                        <div>
-                                            <strong>$18,050</strong>
-                                            <span>Crédito total</span>
-                                        </div>
+ <div>
+ <strong>0</strong>
+ <span>Clientes con adeudo</span>
+ </div>
 
-                                        <div>
-                                            <strong>2</strong>
-                                            <span>Clientes con adeudo</span>
-                                        </div>
+ <div>
+ <strong>0</strong>
+ <span>Clientes registrados</span>
+ </div>
 
-                                        <div>
-                                            <strong>0</strong>
-                                            <span>Vencidos</span>
-                                        </div>
+ <div>
+ <strong>0</strong>
+ <span>Sin adeudo</span>
+ </div>
 
-                                        <div>
-                                            <strong>1</strong>
-                                            <span>Por vencer</span>
-                                        </div>
-
-                                    </div>
+ </div>
 <div class="ver-todos-container">
 
-                                        <button class="btn-ver-todos" onclick="verTodosCreditos()">
-                                            👥 Ver todos los clientes
-                                        </button>
+ <button class="btn-ver-todos" onclick="verTodosCreditos()">
+ Ver todos los clientes
+ </button>
 
-                                    </div>
-                                    <div class="modal-botones">
+ </div>
+ <div class="modal-botones">
 
-                                        <button onclick="abrirNuevoClienteCredito()">
-                                            ➕ Nuevo cliente
-                                        </button>
+ <button onclick="abrirNuevoClienteCredito()">
+ Nuevo cliente
+ </button>
 
-                                        <button onclick="cerrarCreditos()">
-                                            Cerrar
-                                        </button>
+ <button onclick="cerrarCreditos()">
+ Cerrar
+ </button>
 
-                                    </div>
-                                </div>
+ </div>
+ </div>
 
-                                <div id="detalleCliente" style="display:none;">
+ <div id="detalleCliente" style="display:none;">
 
-                                    <div class="cliente-header">
+ <div class="cliente-header">
 
-                                        <button onclick="regresarListaCreditos()" class="btn-regresar">
-                                            ← Regresar
-                                        </button>
+ <button onclick="regresarListaCreditos()" class="btn-regresar">
+ Regresar Regresar
+ </button>
 
-                                        <div class="cliente-info">
-                                            <h2>👷 Arq. Juan Pérez</h2>
-                                            <p>Cliente desde: 12/03/2024</p>
-                                        </div>
+ <div class="cliente-info">
+ <h2> Arq. Juan Perez</h2>
+ <p>Cliente desde: 12/03/2024</p>
+ </div>
 
-                                        <div class="limite-credito">
-                                            <span>Límite de crédito</span>
-                                            <strong>$15,000</strong>
-                                        </div>
+ <div class="limite-credito">
+ <span>Limite de credito</span>
+ <strong>$15,000</strong>
+ </div>
 
-                                    </div>
+ </div>
 <div class="credito-resumen">
 
-    <div class="resumen-card">
-        <span>Saldo pendiente</span>
-        <strong class="rojo">$5,650</strong>
-    </div>
+ <div class="resumen-card">
+ <span>Saldo pendiente</span>
+ <strong class="rojo">$5,650</strong>
+ </div>
 
-    <div class="resumen-card">
-        <span>Crédito utilizado</span>
-        <strong>$5,650</strong>
-    </div>
+ <div class="resumen-card">
+ <span>Credito utilizado</span>
+ <strong>$5,650</strong>
+ </div>
 
-    <div class="resumen-card">
-        <span>Disponible</span>
-        <strong class="verde">$9,350</strong>
-    </div>
+ <div class="resumen-card">
+ <span>Disponible</span>
+ <strong class="verde">$9,350</strong>
+ </div>
 
-    <div class="resumen-card">
-        <span>Estado</span>
-        <strong class="amarillo">⚠ Por vencer</strong>
-    </div>
+ <div class="resumen-card">
+ <span>Estado</span>
+ <strong class="amarillo"> Por vencer</strong>
+ </div>
 
 </div>
 <div class="movimientos-cliente">
 
-    <h3>Movimientos</h3>
+ <h3>Movimientos</h3>
 
-    <table class="tabla-creditos">
+ <table class="tabla-creditos">
 
-        <thead>
-            <tr>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Referencia</th>
-                <th>Concepto</th>
-                <th>Monto</th>
-                <th>Saldo</th>
-            </tr>
-        </thead>
+ <thead>
+ <tr>
+ <th>Fecha</th>
+ <th>Tipo</th>
+ <th>Referencia</th>
+ <th>Concepto</th>
+ <th>Monto</th>
+ <th>Saldo</th>
+ </tr>
+ </thead>
 
-        <tbody>
+ <tbody>
 
-            <tr>
-                <td>15/06/2026</td>
-                <td>🛒 Venta</td>
-                <td>#00015</td>
-                <td>Venta de productos</td>
-                <td>$2,450</td>
-                <td>$2,450</td>
-            </tr>
+ <tr>
+ <td>15/06/2026</td>
+ <td> Venta</td>
+ <td>#00015</td>
+ <td>Venta de productos</td>
+ <td>$2,450</td>
+ <td>$2,450</td>
+ </tr>
 
-            <tr>
-                <td>18/06/2026</td>
-                <td>💵 Abono</td>
-                <td>#A0003</td>
-                <td>Pago parcial</td>
-                <td>-$1,000</td>
-                <td>$1,450</td>
-            </tr>
+ <tr>
+ <td>18/06/2026</td>
+ <td> Abono</td>
+ <td>#A0003</td>
+ <td>Pago parcial</td>
+ <td>-$1,000</td>
+ <td>$1,450</td>
+ </tr>
 
-        </tbody>
+ </tbody>
 
-    </table>
+ </table>
 
 </div>
 <div class="acciones-credito">
 
-    <button class="btn-abono">
-        ➕ Registrar abono
-    </button>
+ <button class="btn-abono" onclick="registrarAbonoCredito()">
+ Registrar abono
+ </button>
 
-    <button class="btn-imprimir">
-        🖨 Imprimir estado
-    </button>
+ <button class="btn-imprimir" onclick="window.print()">
+ Imprimir estado de cuenta
+ </button>
 
-    <button class="btn-opciones">
-        Más opciones ▼
-    </button>
+ <button class="btn-opciones" onclick="registrarCargoCredito()">
+ Mas opciones 
+ </button>
 
 </div>
-                                    
+ 
 
-                                </div>
+ </div>
 
-                            </div>
+ </div>
 
-                        </div>
+ </div>
 
-                        <div class="caja">
+ <div class="caja">
 
-                            <div class="alertas-grid">
+ <div class="alertas-grid">
 
-                                <div>
+ <div>
 
-                                    <h2>
-                                        🔴 Alertas de inventario
-                                    </h2>
+ <h2>
+ Alertas de inventario
+ </h2>
 
-                                    <div id="inventarioBajo"></div>
+ <div id="inventarioBajo"></div>
 
-                                    <button class="btn-alerta">
-                                        Ver inventario bajo
-                                    </button>
+ <button class="btn-alerta" onclick="mostrarInventarioBajo()">
+ Ver inventario bajo
+ </button>
 
-                                </div>
+ </div>
 
-                                <div class="resumen-inventario">
+ <div class="resumen-inventario">
 
-                                    <h3>📦 Resumen rápido</h3>
+ <h3> Resumen rapido</h3>
 
-                                    <p>Productos: <strong id="resumenProductos">15</strong></p>
+ <p>Productos: <strong id="resumenProductos">15</strong></p>
 
-                                    <p>Stock bajo: <strong id="resumenBajos">7</strong></p>
+ <p>Stock bajo: <strong id="resumenBajos">7</strong></p>
 
-                                    <p>Sin existencia: <strong id="resumenSinStock">0</strong></p>
+ <p>Sin existencia: <strong id="resumenSinStock">0</strong></p>
 
-                                    <p>Críticos: <strong id="resumenCriticos">0</strong></p>
+ <p>Criticos: <strong id="resumenCriticos">0</strong></p>
 
-                                </div>
+ </div>
 
-                            </div>
+ </div>
 
-                        </div>
-                        <div class="caja">
+ </div>
+ <div class="caja">
 
-                            <h2>
-                                🕒 Últimas ventas
-                            </h2>
+ <h2>
+ Ultimas ventas
+ </h2>
 
-                            <div id="ultimasVentas"></div>
+ <div id="ultimasVentas"></div>
 
-                        </div>
+ </div>
 
-                    </div>
+ </div>
 </div>
-                    <!-- PUNTO DE VENTA -->
+ <!-- PUNTO DE VENTA -->
 
-                    <div id="pantallaPuntoVenta" style="display:none;">
+ <div id="pantallaPuntoVenta" style="display:none;">
 
-                        <input id="busqueda" type="text" placeholder="🔎 Buscar por nombre o código de barras"
-                            oninput="buscarProductos()" onkeydown="buscarCodigoEnter(event)">
+ <div class="pos-header">
+ <div>
+ <h2>Punto de venta</h2>
+ <p>Venta rapida, cobro y ticket</p>
+ </div>
 
+ <div class="cliente-pos">
+ Cliente: <strong>Publico general</strong>
+ </div>
+ </div>
 
+ <div class="pos-toolbar">
+ <div class="buscador-con-limpiar pos-buscador">
+ <input id="busqueda" type="text" placeholder="Buscar producto: codigo, nombre o marca"
+ oninput="buscarProductos()" onkeydown="buscarCodigoEnter(event)">
+ <button type="button" onclick="limpiarBusquedaPos()">
+ x
+ </button>
+ </div>
 
-                        <div class="productos">
+ <button type="button" class="btn-tool" onclick="toggleVistaProductosPOS()">Vista</button>
+ <button type="button" class="btn-tool" onclick="enfocarFiltroPOS()">Filtro</button>
+ </div>
 
-                            <div id="productos"></div>
+ <div class="pos-subheader">
+ <h3>Productos destacados</h3>
+ <span>Los mas vendidos y de venta rapida</span>
+ </div>
 
-                            <div class="lado">
+ <div class="productos pos-grid">
 
-                                <div class="caja">
+ <div id="productos"></div>
 
-                                    <h2>🛒 Carrito</h2>
+ <div class="lado">
 
-                                    <div id="carrito"></div>
+ <div class="caja pos-carrito-card">
 
-                                </div>
+ <h2> Carrito</h2>
 
-                                <div class="caja">
+ <div id="carrito"></div>
 
-                                    <h2>📜 Historial</h2>
+ </div>
 
-                                    <div id="historial"></div>
+ <div class="caja pos-historial-card">
 
-                                </div>
+ <h2>Ultimas ventas</h2>
 
-                            </div>
+ <div id="historial"></div>
 
-                        </div>
+ </div>
 
-                    </div>
+ </div>
 
-                    <div id="pantallaInventario" style="display:none;">
+ </div>
 
-                        <div class="caja">
+ </div>
 
-                            <div class="inventario-top">
+ <div id="pantallaInventario" style="display:none;">
 
-                                <input id="buscarInventario" type="text" placeholder="🔎 Buscar producto..."
-                                    oninput="buscarInventario()">
-                                <button class="btn-agregar" onclick="mostrarFormularioAgregar()">
-                                    + Agregar producto
-                                </button>
-                            </div>
+ <div class="caja">
 
-                            <table class="tabla-inventario">
+ <div class="inventario-top">
 
-                                <thead>
+ <div class="buscador-con-limpiar">
+ <input id="buscarInventario" type="text" placeholder="Buscar producto..."
+ oninput="buscarInventario()">
+ <button type="button" onclick="limpiarBusquedaInventario()">
+ x
+ </button>
+ </div>
+ <button class="btn-agregar" onclick="mostrarFormularioAgregar()">
+ + Agregar producto
+ </button>
+ </div>
 
-                                    <tr>
-                                        <th>Código</th>
-                                        <th>Producto</th>
-                                        <th>Precio</th>
-                                        <th>Stock</th>
-                                        <th>Estado</th>
-                                        <th>Acciones</th>
-                                    </tr>
+ <table class="tabla-inventario">
 
-                                </thead>
+ <thead>
 
-                                <tbody id="tablaInventario">
+ <tr>
+ <th>Codigo</th>
+ <th>Producto</th>
+ <th>Precio</th>
+ <th>Stock</th>
+ <th>Estado</th>
+ <th>Acciones</th>
+ </tr>
 
-                                </tbody>
+ </thead>
 
-                            </table>
-                            <div id="modalAgregar" class="modal-overlay" style="display:none;">
+ <tbody id="tablaInventario">
 
-                                <div class="modal-producto">
+ </tbody>
 
-                                    <div class="modal-header">
+ </table>
+ <div id="paginacionInventario" class="paginacion-tabla"></div>
+ <div id="modalAgregar" class="modal-overlay" style="display:none;">
 
-                                        <h2>➕ Nuevo producto</h2>
-                                        <button onclick="abrirActualizarCatalogo()">
-                                            📄 Actualizar catálogo
-                                        </button>
-                                        <button onclick="cerrarFormularioAgregar()">
-                                            ✕
-                                        </button>
+ <div class="modal-producto">
 
-                                    </div>
+ <div class="modal-header">
 
-                                    <div class="formulario-producto">
+ <h2 id="modalAgregarTitulo">+ Nuevo producto</h2>
+ <button onclick="abrirActualizarCatalogo()">
+ Actualizar catalogo
+ </button>
+ <button onclick="cerrarFormularioAgregar()">
+ 
+ </button>
 
-                                        <input id="nuevoCodigo" placeholder="📷 Código de barras"
-                                            oninput="buscarEnCatalogo()" />
-                                        <input id="nuevoNombre" placeholder="Nombre del producto">
-                                        <input id="precioDistribuidor" type="number"
-                                            placeholder="💲 Precio distribuidor" />
+ </div>
 
-                                        <input id="precioMayoreo" type="number" placeholder="💲 Precio medio mayoreo" />
-                                        <input id="nuevoPrecio" type="number" placeholder="Precio público">
+ <div class="tipo-producto-selector">
+ <button type="button" class="tipo-producto-card activo" data-tipo-producto="catalogo"
+ onclick="seleccionarTipoProducto('catalogo')">
+ <strong>Con codigo</strong>
+ <span>Escaner y catalogo</span>
+ </button>
+ <button type="button" class="tipo-producto-card" data-tipo-producto="manual"
+ onclick="seleccionarTipoProducto('manual')">
+ <strong>Sin codigo</strong>
+ <span>Codigo automatico</span>
+ </button>
+ <button type="button" class="tipo-producto-card" data-tipo-producto="granel"
+ onclick="seleccionarTipoProducto('granel')">
+ <strong>Granel</strong>
+ <span>Peso, metro o litro</span>
+ </button>
+ <button type="button" class="tipo-producto-card" data-tipo-producto="servicio"
+ onclick="seleccionarTipoProducto('servicio')">
+ <strong>Servicio</strong>
+ <span>Mano de obra o impresion</span>
+ </button>
+ </div>
 
-                                        <input id="nuevoStock" type="number" placeholder="Stock actual">
+ <div class="formulario-producto ficha-producto">
 
-                                        <input id="stockMinimo" type="number" value="3" placeholder="Stock mínimo">
-                                        <input id="nuevoProveedor" type="text" placeholder="Proveedor">
+ <input id="tipoProductoInventario" type="hidden" value="catalogo">
+ <input id="nuevoCodigo" placeholder=" Codigo de barras"
+ oninput="buscarEnCatalogo()" />
+ <input id="nuevoNombre" placeholder="Nombre del producto">
+ <input id="nuevoCodigoInterno" placeholder="Codigo interno / clave proveedor">
+ <input id="codigosRelacionados" placeholder="Codigos alternos: caja, paquete, proveedor">
+ <input id="nuevaCategoria" placeholder="Categoria" list="listaCategoriasProducto">
+ <datalist id="listaCategoriasProducto"></datalist>
+ <input id="nuevaSubcategoria" placeholder="Subcategoria">
+ <input id="nuevaMarca" placeholder="Marca">
+ <select id="unidadVenta">
+ <option value="pieza">Pieza</option>
+ <option value="metro">Metro</option>
+ <option value="kg">Kilo</option>
+ <option value="litro">Litro</option>
+ <option value="gramo">Gramo</option>
+ <option value="caja">Caja</option>
+ <option value="paquete">Paquete</option>
+ <option value="tramo">Tramo</option>
+ <option value="saco">Saco</option>
+ <option value="bulto">Bulto</option>
+ <option value="servicio">Servicio</option>
+ </select>
+ <input id="presentacionCompra" type="text" placeholder="Presentacion: caja, rollo, saco">
+ <input id="factorConversion" type="number" step="0.001" placeholder="Factor conversion: ej. caja 100 piezas">
+ <input id="precioDistribuidor" type="number" step="0.01"
+ placeholder=" Precio distribuidor" />
 
-                                        <input id="nuevaUbicacion" type="text" placeholder="Ubicación">
-                                        <select id="altaRotacion">
+ <input id="precioMayoreo" type="number" step="0.01" placeholder=" Precio medio mayoreo" />
+ <input id="nuevoPrecio" type="number" step="0.01" placeholder="Precio publico">
 
-                                            <option value="">
-                                                🔥 ¿Se vende rápido?
-                                            </option>
+ <input id="precioPublico" type="number" step="0.01" placeholder="Precio publico">
 
-                                            <option value="si">
-                                                Sí
-                                            </option>
+ <input id="nuevoStock" type="number" step="0.001" placeholder="Stock actual">
 
-                                            <option value="no">
-                                                No
-                                            </option>
+ <input id="stockMinimo" type="number" step="0.001" value="3" placeholder="Stock minimo">
+ <input id="nuevoProveedor" type="text" placeholder="Proveedor">
 
-                                        </select>
-                                    </div>
+ <input id="nuevaUbicacion" type="text" placeholder="Ubicacion">
+ <select id="basculaDigital">
+ <option value="no">Bascula digital: no</option>
+ <option value="preparado">Preparar para bascula</option>
+ </select>
+ <input id="nuevaDescripcion" class="campo-descripcion-input" placeholder="Descripcion / notas">
 
-                                    <div class="modal-botones">
+ <select id="altaRotacion">
 
-                                        <button onclick="cerrarFormularioAgregar()">
-                                            Cancelar
-                                        </button>
+ <option value="">
+ Se vende rapido?
+ </option>
 
-                                        <button onclick="agregarProductoNuevo()">
-                                            Guardar producto
-                                        </button>
+ <option value="si">
+ Si
+ </option>
 
-                                    </div>
+ <option value="no">
+ No
+ </option>
 
-                                </div>
+ </select>
+ </div>
 
-                            </div>
-                        </div>
-                    </div>
-            </main>
-        </div>
-    </div>
+ <div class="modal-botones">
 
-    <script src="app.js"></script>
+ <button onclick="cerrarFormularioAgregar()">
+ Cancelar
+ </button>
+
+ <button id="btnGuardarProducto" onclick="agregarProductoNuevo()">
+ Guardar producto
+ </button>
+
+ </div>
+
+ </div>
+
+ </div>
+ </div>
+ </div>
+
+ <div id="pantallaClientes" style="display:none;">
+
+ <div class="clientes-shell">
+
+ <div class="clientes-header">
+ <div>
+ <h2>Clientes</h2>
+ <p>Administra clientes y cuentas de credito</p>
+ </div>
+
+ <button class="btn-cliente-nuevo" onclick="abrirNuevoClienteCredito()">
+ + Nuevo cliente
+ </button>
+ </div>
+
+ <div class="clientes-resumen">
+ <div>
+ <span>Total clientes</span>
+ <strong id="clientesTotal">0</strong>
+ </div>
+ <div>
+ <span>Con adeudo</span>
+ <strong id="clientesConAdeudo">0</strong>
+ </div>
+ <div>
+ <span>Credito total</span>
+ <strong id="clientesCreditoTotal">$0.00</strong>
+ </div>
+ </div>
+
+ <div class="clientes-toolbar">
+ <input id="buscarClientes" type="text" placeholder="Buscar cliente, telefono o saldo"
+ oninput="buscarClientes()">
+ </div>
+
+ <table class="tabla-clientes">
+ <thead>
+ <tr>
+ <th>Cliente</th>
+ <th>Telefono</th>
+ <th>Saldo</th>
+ <th>Limite</th>
+ <th>Estado</th>
+ <th>Acciones</th>
+ </tr>
+ </thead>
+ <tbody id="tablaClientes"></tbody>
+ </table>
+ </div>
+ </div>
+
+ <div id="pantallaCategoriasInventario" style="display:none;">
+ <div class="categorias-shell">
+ <div class="categorias-header">
+ <div>
+ <h2>Categorias</h2>
+ <p>Organiza productos por area, familia o tipo de venta.</p>
+ </div>
+ <button class="btn-agregar" onclick="abrirFormularioCategoria()">
+ + Nueva categoria
+ </button>
+ </div>
+
+ <div class="categorias-resumen" id="resumenCategoriasInventario"></div>
+
+ <div class="categorias-grid" id="listaCategoriasInventario"></div>
+ </div>
+ </div>
+
+ <div id="modalCategoriaProductos" class="modal-overlay" style="display:none;">
+ <div class="modal-producto modal-categoria-productos">
+ <div class="modal-header">
+ <h2 id="tituloCategoriaProductos">Categoria</h2>
+ <button onclick="cerrarModalCategoriaProductos()">x</button>
+ </div>
+ <div id="listaProductosCategoria" class="lista-productos-categoria"></div>
+ <div class="modal-botones">
+ <button onclick="cerrarModalCategoriaProductos()">Regresar</button>
+ <button onclick="irInventarioDesdeCategoria()">Ver en inventario</button>
+ </div>
+ </div>
+ </div>
+
+ <div id="pantallaInventarioBajo" style="display:none;">
+
+ <div class="bajo-shell">
+
+ <div class="bajo-header">
+ <div>
+ <h2>Inventario bajo</h2>
+ <p>Productos que necesitan revision o reposicion.</p>
+ </div>
+
+ <button class="btn-bajo-inventario" onclick="mostrarInventario()">
+ Ver inventario completo
+ </button>
+ </div>
+
+ <div class="bajo-resumen">
+ <div>
+ <span>Productos bajos</span>
+ <strong id="bajoTotal">0</strong>
+ </div>
+ <div>
+ <span>Sin existencia</span>
+ <strong id="bajoSinStock">0</strong>
+ </div>
+ <div>
+ <span>Reposicion sugerida</span>
+ <strong id="bajoReposicion">0</strong>
+ </div>
+ </div>
+
+ <div class="bajo-toolbar">
+ <input id="buscarInventarioBajo" type="text"
+ placeholder="Buscar producto bajo, codigo o proveedor"
+ oninput="renderInventarioBajo()">
+ <button onclick="generarSugerenciaPedido()" class="btn-bajo-pedido">
+ Sugerir pedido
+ </button>
+ </div>
+
+ <table class="tabla-bajo">
+ <thead>
+ <tr>
+ <th>Producto</th>
+ <th>Codigo</th>
+ <th>Proveedor</th>
+ <th>Stock</th>
+ <th>Estado</th>
+ <th>Acciones</th>
+ </tr>
+ </thead>
+ <tbody id="tablaInventarioBajo"></tbody>
+ </table>
+ <div id="paginacionInventarioBajo" class="paginacion-tabla"></div>
+ </div>
+ </div>
+
+ <div id="pantallaProveedores" style="display:none;">
+
+ <div class="proveedores-shell">
+
+ <div class="proveedores-header">
+ <div>
+ <h2>Proveedores</h2>
+ <p>Control de contactos, surtido y productos relacionados</p>
+ </div>
+
+ <button class="btn-proveedor-nuevo" onclick="abrirNuevoProveedor()">
+ + Nuevo proveedor
+ </button>
+ </div>
+
+ <div class="proveedores-resumen">
+ <div>
+ <span>Proveedores activos</span>
+ <strong id="proveedoresTotal">0</strong>
+ </div>
+ <div>
+ <span>Productos vinculados</span>
+ <strong id="proveedoresProductos">0</strong>
+ </div>
+ <div>
+ <span>Sin contacto</span>
+ <strong id="proveedoresSinContacto">0</strong>
+ </div>
+ </div>
+
+ <div class="proveedores-toolbar">
+ <input id="buscarProveedores" type="text"
+ placeholder="Buscar proveedor, contacto, telefono o correo"
+ oninput="buscarProveedores()">
+ </div>
+
+ <table class="tabla-proveedores">
+ <thead>
+ <tr>
+ <th>Proveedor</th>
+ <th>Contacto</th>
+ <th>Telefono</th>
+ <th>Correo</th>
+ <th>Productos</th>
+ <th>Acciones</th>
+ </tr>
+ </thead>
+ <tbody id="tablaProveedores"></tbody>
+ </table>
+ </div>
+ </div>
+ <div id="pantallaReportes" style="display:none;">
+
+ <div class="reportes-shell">
+
+ <div class="reportes-header">
+ <div>
+ <h2>Reportes / Ventas</h2>
+ <p>Resumen real de ventas registradas en el sistema.</p>
+ </div>
+
+ <button class="btn-reporte-actualizar" onclick="cargarReportesVentas()">
+ Actualizar
+ </button>
+ </div>
+
+ <div class="reportes-resumen">
+ <div>
+ <span>Ventas totales</span>
+ <strong id="reporteTotalVentas">$0.00</strong>
+ </div>
+ <div>
+ <span>Transacciones</span>
+ <strong id="reporteTransacciones">0</strong>
+ </div>
+ <div>
+ <span>Ticket promedio</span>
+ <strong id="reporteTicketPromedio">$0.00</strong>
+ </div>
+ <div>
+ <span>Venta mayor</span>
+ <strong id="reporteVentaMayor">$0.00</strong>
+ </div>
+ </div>
+
+ <div class="reportes-grid">
+ <div class="reportes-panel">
+ <h3>Ventas por dia</h3>
+ <canvas id="graficaVentasReporte"></canvas>
+ </div>
+
+ <div class="reportes-panel">
+ <h3>Ultimas ventas</h3>
+ <div id="reporteUltimasVentas"></div>
+ <div id="paginacionReporteVentas" class="paginacion-tabla"></div>
+ </div>
+ </div>
+
+ </div>
+ </div>
+ </main>
+ </div>
+ </div>
+
+ <div id="modalFormularioCredito" class="modal-form-credito" style="display:none;">
+ <div class="form-credito-card">
+ <div class="form-credito-header">
+ <div>
+ <h2 id="formCreditoTitulo">Nuevo cliente</h2>
+ <p id="formCreditoSubtitulo">Completa los datos</p>
+ </div>
+ <button type="button" onclick="cerrarFormularioCredito()"></button>
+ </div>
+
+ <form id="formCreditoCampos" class="form-credito-campos" onsubmit="event.preventDefault(); guardarFormularioCredito();"></form>
+
+ <div class="form-credito-acciones">
+ <button type="button" class="btn-secundario" onclick="cerrarFormularioCredito()">
+ Cancelar
+ </button>
+ <button type="button" class="btn-primario" onclick="guardarFormularioCredito()">
+ Guardar
+ </button>
+ </div>
+ </div>
+ </div>
+
+ <div id="modalSugerenciaPedido" class="modal-form-credito" style="display:none;">
+ <div class="form-credito-card modal-pedido-card">
+ <div class="form-credito-header">
+ <div>
+ <h2>Sugerencia de pedido</h2>
+ <p>Productos bajos calculados para llegar al stock objetivo.</p>
+ </div>
+ <button type="button" onclick="cerrarSugerenciaPedido()">x</button>
+ </div>
+ <div id="listaSugerenciaPedido" class="pedido-lista"></div>
+ <div class="form-credito-acciones">
+ <button type="button" class="btn-secundario" onclick="cerrarSugerenciaPedido()">Cerrar</button>
+ <button type="button" class="btn-primario" onclick="imprimirSugerenciaPedido()">Imprimir pedido</button>
+ </div>
+ </div>
+ </div>
+
+  <script src="app.js?v=pos-universal-20260621-13"></script>
 
 </body>
 
 </html>
+

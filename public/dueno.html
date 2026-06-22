@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Dueño POS">
+    <title>Panel del dueño</title>
+    <link rel="stylesheet" href="dueno.css?v=dueno-pwa-20260615-1">
+</head>
+
+<body>
+    <main class="dueno-app">
+        <section class="dueno-hero">
+            <div>
+                <span class="dueno-eyebrow">Panel del dueño</span>
+                <h1 id="duenoNegocio">Ferreteria Olimpico</h1>
+                <p id="duenoEstado">Conectando con el POS...</p>
+            </div>
+            <button id="btnActualizarDueno" type="button" onclick="cargarPanelDueno()">
+                Actualizar
+            </button>
+        </section>
+
+        <section class="dueno-kpis">
+            <article class="kpi kpi-ventas">
+                <span>Ventas hoy</span>
+                <strong id="duenoVentasHoy">$0.00</strong>
+                <small id="duenoVentasEstado">Sin datos</small>
+            </article>
+            <article class="kpi">
+                <span>Transacciones</span>
+                <strong id="duenoTransacciones">0</strong>
+                <small>Tickets del dia</small>
+            </article>
+            <article class="kpi">
+                <span>Ticket promedio</span>
+                <strong id="duenoTicketPromedio">$0.00</strong>
+                <small>Venta promedio</small>
+            </article>
+        </section>
+
+        <section class="dueno-grid">
+            <article class="dueno-card">
+                <div class="card-head">
+                    <div>
+                        <span>Inventario bajo</span>
+                        <h2 id="duenoInventarioBajo">0 productos</h2>
+                    </div>
+                    <b class="alert-dot"></b>
+                </div>
+                <div id="duenoListaBajos" class="lista-compacta"></div>
+            </article>
+
+            <article class="dueno-card">
+                <div class="card-head">
+                    <div>
+                        <span>Creditos pendientes</span>
+                        <h2 id="duenoCreditosTotal">$0.00</h2>
+                    </div>
+                    <small id="duenoClientesCredito">0 clientes</small>
+                </div>
+                <div id="duenoListaCreditos" class="lista-compacta"></div>
+            </article>
+
+            <article class="dueno-card dueno-card-wide">
+                <div class="card-head">
+                    <div>
+                        <span>Ultimas ventas</span>
+                        <h2>Movimiento reciente</h2>
+                    </div>
+                    <small id="duenoActualizado">Ahora</small>
+                </div>
+                <div id="duenoUltimasVentas" class="lista-ventas"></div>
+            </article>
+        </section>
+    </main>
+
+    <script src="dueno.js?v=dueno-pwa-20260615-1"></script>
+</body>
+
+</html>
