@@ -1168,6 +1168,49 @@ app.get("/reportes/ventas", async (req, res) => {
 
 async function inicializarCreditos() {
     await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.productos (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            precio NUMERIC(12,2) NOT NULL DEFAULT 0,
+            stock NUMERIC(12,3) NOT NULL DEFAULT 0,
+            codigo TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.ventas (
+            id SERIAL PRIMARY KEY,
+            total NUMERIC(12,2) NOT NULL DEFAULT 0,
+            fecha TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.historial_ventas (
+            id SERIAL PRIMARY KEY,
+            total NUMERIC(12,2) NOT NULL DEFAULT 0,
+            fecha TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.usuarios (
+            id SERIAL PRIMARY KEY,
+            usuario TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            rol TEXT NOT NULL DEFAULT 'Administrador',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+
+    await pool.query(`
+        INSERT INTO public.usuarios (usuario, password, rol)
+        VALUES ('admin', '1234', 'Administrador')
+        ON CONFLICT (usuario) DO NOTHING
+    `);
+
+    await pool.query(`
         ALTER TABLE public.productos
         ADD COLUMN IF NOT EXISTS proveedor TEXT
     `);
