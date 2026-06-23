@@ -7513,9 +7513,110 @@ body.oscuro .modal-metodo-pago .metodo-flecha{
 
 /* Marca fija del producto */
 .nexo-brand-pill{
- min-width:196px;
- gap:12px;
- padding-left:10px;
+  min-width:196px;
+  gap:12px;
+  padding-left:10px;
+}
+
+.topbar-product-menu{
+ position:relative;
+}
+
+.nexo-brand-button{
+ width:100%;
+ cursor:pointer;
+ text-align:left;
+}
+
+.nexo-brand-button:hover{
+ transform:translateY(-1px);
+ border-color:color-mix(in srgb, var(--brand-color, #0d6efd) 34%, var(--pos-line));
+ box-shadow:0 16px 36px rgba(15,23,42,.14);
+}
+
+.nexo-menu-caret{
+ margin-left:auto;
+ color:var(--pos-muted);
+ font-size:18px;
+ font-weight:900;
+ line-height:1;
+}
+
+.nexo-menu-panel{
+ position:absolute;
+ top:calc(100% + 10px);
+ right:0;
+ z-index:75;
+ width:260px;
+ display:none;
+ padding:10px;
+ border:1px solid var(--pos-line);
+ border-radius:18px;
+ background:var(--pos-surface-strong);
+ box-shadow:0 24px 70px rgba(15,23,42,.22);
+}
+
+.nexo-menu-panel.abierto{
+ display:grid;
+ gap:8px;
+ animation:posPanelIn .16s ease-out;
+}
+
+.nexo-menu-head{
+ padding:8px 10px 12px;
+ border-bottom:1px solid var(--pos-line);
+}
+
+.nexo-menu-head strong,
+.nexo-menu-head span{
+ display:block;
+}
+
+.nexo-menu-head strong{
+ color:var(--pos-text);
+ font-size:15px;
+ font-weight:900;
+}
+
+.nexo-menu-head span{
+ margin-top:2px;
+ color:var(--pos-muted);
+ font-size:12px;
+ font-weight:750;
+}
+
+.nexo-menu-panel button{
+ min-height:42px;
+ display:flex;
+ align-items:center;
+ gap:10px;
+ width:100%;
+ padding:0 10px;
+ border:0;
+ border-radius:12px;
+ background:transparent;
+ color:var(--pos-text);
+ font-weight:850;
+ cursor:pointer;
+ text-align:left;
+}
+
+.nexo-menu-panel button:hover{
+ background:color-mix(in srgb, var(--brand-color, #0d6efd) 10%, transparent);
+}
+
+.nexo-menu-panel .ui-icon{
+ width:18px;
+ height:18px;
+ color:var(--brand-color);
+}
+
+.nexo-menu-panel .nexo-menu-danger{
+ color:#dc2626;
+}
+
+.nexo-menu-panel .nexo-menu-danger .ui-icon{
+ color:#dc2626;
 }
 
 .nexo-topbar-logo{
@@ -7540,7 +7641,121 @@ body.oscuro .modal-metodo-pago .metodo-flecha{
 }
 
 body.oscuro .nexo-topbar-logo{
- background:rgba(255,255,255,.96);
+  background:rgba(255,255,255,.96);
+}
+
+.contacto-dev-card{
+ width:min(540px,94vw);
+ border-radius:22px;
+ border:1px solid var(--pos-line);
+ background:var(--pos-surface-strong);
+ color:var(--pos-text);
+ box-shadow:0 28px 80px rgba(15,23,42,.28);
+}
+
+.contacto-dev-resumen{
+ display:flex;
+ align-items:center;
+ gap:14px;
+ margin:18px 0;
+ padding:14px;
+ border:1px solid var(--pos-line);
+ border-radius:18px;
+ background:linear-gradient(135deg,rgba(255,255,255,.72),rgba(255,255,255,.45));
+}
+
+body.oscuro .contacto-dev-resumen{
+ background:rgba(15,23,42,.66);
+}
+
+.contacto-dev-resumen img{
+ width:58px;
+ height:58px;
+ object-fit:cover;
+ border-radius:16px;
+ background:white;
+}
+
+.contacto-dev-resumen strong,
+.contacto-dev-resumen span{
+ display:block;
+}
+
+.contacto-dev-resumen strong{
+ color:var(--pos-text);
+ font-size:18px;
+ font-weight:900;
+}
+
+.contacto-dev-resumen span{
+ margin-top:3px;
+ color:var(--pos-muted);
+ font-size:13px;
+ font-weight:750;
+}
+
+.contacto-dev-actions{
+ display:grid;
+ gap:8px;
+ margin-bottom:16px;
+}
+
+.contacto-dev-actions a,
+.contacto-dev-actions span{
+ display:flex;
+ align-items:center;
+ min-height:40px;
+ padding:0 12px;
+ border-radius:12px;
+ background:color-mix(in srgb, var(--brand-color, #0d6efd) 9%, transparent);
+ color:var(--pos-text);
+ font-weight:850;
+ text-decoration:none;
+}
+
+.contacto-dev-actions span{
+ color:var(--pos-muted);
+}
+
+.contacto-dev-form{
+ display:grid;
+ grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:12px;
+ margin-bottom:18px;
+}
+
+.contacto-dev-form label{
+ display:grid;
+ gap:6px;
+ color:var(--pos-muted);
+ font-size:13px;
+ font-weight:900;
+}
+
+.contacto-dev-form input{
+ min-height:44px;
+ border:1px solid var(--pos-line);
+ border-radius:13px;
+ padding:0 12px;
+ background:rgba(255,255,255,.72);
+ color:var(--pos-text);
+ font-weight:800;
+}
+
+body.oscuro .contacto-dev-form input{
+ background:rgba(15,23,42,.72);
+ color:#f8fafc;
+}
+
+@media (max-width:760px){
+ .nexo-menu-panel{
+  right:auto;
+  left:0;
+ }
+
+ .contacto-dev-form{
+  grid-template-columns:1fr;
+ }
 }
 
 /* Fase 8.3 - Centro de notificaciones */
