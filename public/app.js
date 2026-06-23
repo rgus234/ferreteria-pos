@@ -403,10 +403,12 @@ function inicializarConfiguracionInicial() {
  "none";
 
  setTimeout(() => {
- document
- .getElementById("setupNombreNegocio")
- ?.focus();
- }, 50);
+  document
+  .getElementById("setupNombreNegocio")
+  ?.focus();
+
+  cambiarPasoSetup(0);
+  }, 50);
 
  const campoNombre =
  document.getElementById("setupNombreNegocio");
@@ -418,10 +420,12 @@ function inicializarConfiguracionInicial() {
  const preview =
  document.getElementById("previewLogoNegocio");
 
- if (preview && !logoConfiguracionTemporal) {
- preview.textContent =
- inicialesNegocio(campoNombre.value);
- }
+  if (preview && !logoConfiguracionTemporal) {
+  preview.innerHTML =
+  campoNombre.value.trim()
+  ? inicialesNegocio(campoNombre.value)
+  : `<img src="nexo-pos-icon.jpg" alt="Nexo POS">`;
+  }
  });
 
  campoColor?.addEventListener("input", () => {
@@ -468,7 +472,59 @@ function cargarLogoConfiguracion(event) {
  }
  };
 
- lector.readAsDataURL(archivo);
+  lector.readAsDataURL(archivo);
+}
+
+let pasoSetupActual = 0;
+
+function cambiarPasoSetup(paso) {
+ const pasos =
+ Array.from(document.querySelectorAll("[data-setup-step]"));
+
+ if (!pasos.length) return;
+
+ pasoSetupActual =
+ Math.max(0, Math.min(Number(paso || 0), pasos.length - 1));
+
+ pasos.forEach((elemento, indice) => {
+ elemento.classList.toggle("active", indice === pasoSetupActual);
+ });
+
+ document.querySelectorAll("[data-setup-dot]").forEach((elemento, indice) => {
+ elemento.classList.toggle("active", indice === pasoSetupActual);
+ elemento.classList.toggle("done", indice < pasoSetupActual);
+ });
+
+ const botonAtras =
+ document.getElementById("setupBackButton");
+
+ const botonSiguiente =
+ document.getElementById("setupNextButton");
+
+ const botonFinal =
+ document.getElementById("setupFinishButton");
+
+ if (botonAtras) botonAtras.disabled = pasoSetupActual === 0;
+ if (botonSiguiente) botonSiguiente.style.display = pasoSetupActual === pasos.length - 1 ? "none" : "inline-flex";
+ if (botonFinal) botonFinal.style.display = pasoSetupActual === pasos.length - 1 ? "inline-flex" : "none";
+}
+
+function setupSiguiente() {
+ if (pasoSetupActual === 0) {
+  const nombre =
+  document.getElementById("setupNombreNegocio")?.value.trim();
+
+  if (!nombre) {
+   alert("Primero escribe el nombre del negocio.");
+   return;
+  }
+ }
+
+ cambiarPasoSetup(pasoSetupActual + 1);
+}
+
+function setupAnterior() {
+ cambiarPasoSetup(pasoSetupActual - 1);
 }
 
 function guardarConfiguracionInicial() {
@@ -4699,6 +4755,15 @@ function productosCarritoAgrupados() {
 
 function imprimirTicketPOS(ticket) {
  try {
+  const negocio =
+  configuracionNegocio() || {};
+
+  const anchoMm =
+  negocio.ticketAncho === "58" ? 58 : 80;
+
+  const anchoContenido =
+  negocio.ticketAncho === "58" ? "52mm" : "72mm";
+
   const iframe =
   document.createElement("iframe");
 
@@ -4718,15 +4783,87 @@ function imprimirTicketPOS(ticket) {
 
   documento.open();
   documento.write(`
-  <html>
-  <head>
-  <title>Ticket</title>
-  </head>
-  <body>
-  ${ticket}
-  </body>
-  </html>
-  `);
+   <html>
+   <head>
+   <title>Ticket</title>
+   <style>
+   @page {
+    size: ${anchoMm}mm auto;
+    margin: 0;
+   }
+
+   * {
+    box-sizing: border-box;
+   }
+
+   html,
+   body {
+    width: ${anchoMm}mm;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+   }
+
+   body {
+    display: block;
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    font-size: 11px;
+    line-height: 1.25;
+   }
+
+   .ticket-print-page {
+    width: ${anchoMm}mm;
+    min-height: auto;
+    padding: 3mm 3mm 5mm;
+    background: #fff;
+   }
+
+   .ticket-print-page > div {
+    width: ${anchoContenido} !important;
+    max-width: ${anchoContenido} !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+   }
+
+   .ticket-print-page h1,
+   .ticket-print-page h2,
+   .ticket-print-page h3 {
+    font-size: 15px !important;
+    line-height: 1.05 !important;
+    margin: 0 0 1.5mm !important;
+   }
+
+   .ticket-print-page img {
+    max-width: 16mm !important;
+    max-height: 16mm !important;
+   }
+
+   .ticket-print-page hr {
+    border: 0;
+    border-top: 1px dashed #000;
+    margin: 2mm 0;
+   }
+
+   @media print {
+    html,
+    body {
+     width: ${anchoMm}mm;
+    }
+
+    .ticket-print-page {
+     width: ${anchoMm}mm;
+    }
+   }
+   </style>
+   </head>
+   <body>
+   <main class="ticket-print-page">
+   ${ticket}
+   </main>
+   </body>
+   </html>
+   `);
   documento.close();
 
   setTimeout(() => {

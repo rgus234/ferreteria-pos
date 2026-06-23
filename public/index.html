@@ -5,22 +5,41 @@
  <meta charset="UTF-8">
  <title>Ferreteria Olimpico</title>
 
-  <link rel="stylesheet" href="style.css?v=pos-universal-20260621-13">
+  <link rel="stylesheet" href="style.css?v=nexo-onboarding-ticket-20260622-01">
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
 
  <div id="configuracionInicial" style="display:none;">
- <div class="setup-card">
+ <div class="setup-shell">
+ <aside class="setup-brand-panel">
+ <div class="setup-nexo-lockup">
+ <img src="nexo-pos-icon.jpg" alt="Nexo POS">
+ <div>
+ <strong>Nexo POS</strong>
+ <span>Configuracion inicial</span>
+ </div>
+ </div>
+ <h1>Deja listo el punto de venta</h1>
+ <p>Configura la marca del negocio, el acceso del administrador y la apariencia base antes de empezar a vender.</p>
+ <div class="setup-progress">
+ <button type="button" class="active" data-setup-dot="0" onclick="cambiarPasoSetup(0)">1</button>
+ <button type="button" data-setup-dot="1" onclick="cambiarPasoSetup(1)">2</button>
+ <button type="button" data-setup-dot="2" onclick="cambiarPasoSetup(2)">3</button>
+ </div>
+ </aside>
+
+ <section class="setup-card setup-wizard">
+ <div class="setup-step active" data-setup-step="0">
  <div class="setup-intro">
- <div class="setup-logo-preview" id="previewLogoNegocio">
- FO
+ <div class="setup-logo-preview setup-logo-nexo">
+ <img src="nexo-pos-icon.jpg" alt="Nexo POS">
  </div>
  <div>
- <span>Configuracion inicial</span>
- <h1>Personaliza tu POS</h1>
- <p>Agrega la identidad del negocio para dejar el sistema listo para instalarse o venderse.</p>
+ <span>Paso 1 de 3</span>
+ <h2>Datos del negocio</h2>
+ <p>Estos datos apareceran en el sistema y en los tickets.</p>
  </div>
  </div>
 
@@ -44,17 +63,22 @@
  <span>Direccion</span>
  <input id="setupDireccionNegocio" placeholder="Ej. Rio Grande, Zac.">
  </label>
+ </div>
+ </div>
 
- <label>
- <span>Nombre del administrador</span>
- <input id="setupAdminNombre" placeholder="Ej. Gustavo">
- </label>
+ <div class="setup-step" data-setup-step="1">
+ <div class="setup-intro">
+ <div class="setup-logo-preview" id="previewLogoNegocio">
+ <img src="nexo-pos-icon.jpg" alt="Nexo POS">
+ </div>
+ <div>
+ <span>Paso 2 de 3</span>
+ <h2>Marca y estilo</h2>
+ <p>Sube el logo del cliente y ajusta el color principal del POS.</p>
+ </div>
+ </div>
 
- <label>
- <span>PIN del administrador</span>
- <input id="setupAdminPin" type="password" placeholder="Minimo 4 digitos">
- </label>
-
+ <div class="setup-grid">
  <label>
  <span>Color principal</span>
  <input id="setupColorNegocio" type="color" value="#0d6efd">
@@ -65,10 +89,45 @@
  <input id="setupLogoNegocio" type="file" accept="image/*" onchange="cargarLogoConfiguracion(event)">
  </label>
  </div>
+ </div>
 
- <button class="setup-save" onclick="guardarConfiguracionInicial()">
+ <div class="setup-step" data-setup-step="2">
+ <div class="setup-intro">
+ <div class="setup-logo-preview setup-logo-nexo">
+ <img src="nexo-pos-icon.jpg" alt="Nexo POS">
+ </div>
+ <div>
+ <span>Paso 3 de 3</span>
+ <h2>Administrador</h2>
+ <p>Crea el usuario principal para entrar al sistema.</p>
+ </div>
+ </div>
+
+ <div class="setup-grid">
+ <label>
+ <span>Nombre del administrador</span>
+ <input id="setupAdminNombre" placeholder="Ej. Gustavo">
+ </label>
+
+ <label>
+ <span>PIN del administrador</span>
+ <input id="setupAdminPin" type="password" placeholder="Minimo 4 digitos">
+ </label>
+ </div>
+ </div>
+
+ <div class="setup-actions">
+ <button type="button" class="setup-secondary" id="setupBackButton" onclick="setupAnterior()" disabled>
+ Atras
+ </button>
+ <button type="button" class="setup-save" id="setupNextButton" onclick="setupSiguiente()">
+ Siguiente
+ </button>
+ <button type="button" class="setup-save setup-finish" id="setupFinishButton" onclick="guardarConfiguracionInicial()">
  Guardar y entrar al POS
  </button>
+ </div>
+ </section>
  </div>
  </div>
 
