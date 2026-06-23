@@ -9106,11 +9106,77 @@ function cerrarMenuNexoPOS() { document.getElementById("menuNexoPOS")?.classList
 async function cerrarSesionPOS() { cerrarMenuNexoPOS(); const confirmar = await confirmarPOS("Se cerrara la sesion actual y volveras al inicio de sesion.", "Cerrar sesion", "alerta"); if (!confirmar) return; localStorage.removeItem(SESION_POS_KEY); localStorage.removeItem("usuarioActualSistema"); usuarioActual = null; document.getElementById("sistema").style.display = "none"; document.getElementById("login").style.display = "flex"; document.getElementById("password").value = ""; inicializarLoginUsuarios(); setTimeout(() => document.getElementById("password")?.focus(), 80); }
 function contactoDesarrolladorPOS() { try { return { ...CONTACTO_DESARROLLADOR_DEFAULT, ...JSON.parse(localStorage.getItem(CONTACTO_DESARROLLADOR_KEY) || "{}") }; } catch (error) { return { ...CONTACTO_DESARROLLADOR_DEFAULT }; } }
 function modoDesarrolladorNexoPOS() { return localStorage.getItem(MODO_DESARROLLADOR_NEXO_KEY) === "true"; }
-function activarModoDesarrolladorNexoPOS(clave) { if (String(clave || "") !== "nexo2026") return false; localStorage.setItem(MODO_DESARROLLADOR_NEXO_KEY, "true"); alertaPOS("Modo desarrollador activo", "Ya puedes editar el contacto de soporte.", "exito"); return true; }
+function activarModoDesarrolladorNexoPOS(clave) { if (String(clave || "") !== "nexo2026") { alertaPOS("Clave incorrecta", "No se activo el modo desarrollador.", "alerta"); return false; } localStorage.setItem(MODO_DESARROLLADOR_NEXO_KEY, "true"); alertaPOS("Modo desarrollador activo", "Ya puedes editar el contacto de soporte.", "exito"); return true; }
 function desactivarModoDesarrolladorNexoPOS() { localStorage.removeItem(MODO_DESARROLLADOR_NEXO_KEY); alertaPOS("Modo desarrollador desactivado", "El cliente vera solo los datos de contacto.", "info"); }
-function abrirContactoDesarrolladorPOS() { cerrarMenuNexoPOS(); const contacto = contactoDesarrolladorPOS(); const dev = modoDesarrolladorNexoPOS(); let modal = document.getElementById("modalContactoDesarrolladorPOS"); if (!modal) { modal = document.createElement("div"); modal.id = "modalContactoDesarrolladorPOS"; modal.className = "modal-personalizado"; document.body.appendChild(modal); } const whatsappLimpio = String(contacto.whatsapp || "").replace(/\D/g, ""); const whatsappLink = whatsappLimpio ? "https://wa.me/" + whatsappLimpio : ""; const tieneContacto = contacto.telefono || contacto.correo || whatsappLink; const acciones = tieneContacto ? (contacto.telefono ? '<a href="tel:' + contacto.telefono + '">Telefono: ' + contacto.telefono + '</a>' : "") + (contacto.correo ? '<a href="mailto:' + contacto.correo + '">Correo: ' + contacto.correo + '</a>' : "") + (whatsappLink ? '<a href="' + whatsappLink + '" target="_blank" rel="noopener">Abrir WhatsApp</a>' : "") : '<span>Datos de soporte por configurar.</span>'; const editor = dev ? '<div class="contacto-dev-editor-title"><strong>Modo desarrollador</strong><span>Estos campos no aparecen para el cliente.</span></div><div class="contacto-dev-form"><label>Nombre<input id="contactoDevNombrePOS" value="' + (contacto.nombre || "") + '" placeholder="Ej. Gustavo Diaz"></label><label>Telefono<input id="contactoDevTelefonoPOS" value="' + (contacto.telefono || "") + '" placeholder="Ej. 498 123 4567"></label><label>WhatsApp<input id="contactoDevWhatsappPOS" value="' + (contacto.whatsapp || "") + '" placeholder="Ej. 524981234567"></label><label>Correo<input id="contactoDevCorreoPOS" value="' + (contacto.correo || "") + '" placeholder="correo@ejemplo.com"></label></div><div class="modal-actions-row"><button type="button" onclick="desactivarModoDesarrolladorNexoPOS(); abrirContactoDesarrolladorPOS()">Ocultar edicion</button><button type="button" class="btn-principal" onclick="guardarContactoDesarrolladorPOS()">Guardar contacto</button></div>' : '<div class="modal-actions-row"><button type="button" class="btn-principal" onclick="cerrarContactoDesarrolladorPOS()">Listo</button></div>'; modal.innerHTML = '<div class="modal-card contacto-dev-card"><div class="modal-card-header"><div><span>Nexo POS</span><h3>Contacto del desarrollador</h3></div><button type="button" onclick="cerrarContactoDesarrolladorPOS()">Cerrar</button></div><div class="contacto-dev-resumen"><img src="nexo-pos-icon.jpg" alt="Nexo POS"><div><strong>' + (contacto.nombre || "Soporte Nexo POS") + '</strong><span>Soporte, cambios y mejoras del sistema</span></div></div><div class="contacto-dev-actions">' + acciones + '</div>' + editor + '</div>'; modal.style.display = "flex"; }
+async function alternarModoDesarrolladorNexoPOS() { if (modoDesarrolladorNexoPOS()) { const confirmar = await confirmarPOS("Ocultar las opciones de edicion del desarrollador?", "Modo desarrollador", "alerta"); if (!confirmar) return; desactivarModoDesarrolladorNexoPOS(); return; } const clave = await pedirTextoPOS("Escribe la clave de desarrollador", "", "Activar modo desarrollador"); if (clave === null) return; activarModoDesarrolladorNexoPOS(clave); }
+function abrirContactoDesarrolladorPOS() {
+ cerrarMenuNexoPOS();
+ const contacto = contactoDesarrolladorPOS();
+ const dev = modoDesarrolladorNexoPOS();
+ let modal = document.getElementById("modalContactoDesarrolladorPOS");
+
+ if (!modal) {
+  modal = document.createElement("div");
+  modal.id = "modalContactoDesarrolladorPOS";
+  modal.className = "modal-personalizado";
+  document.body.appendChild(modal);
+ }
+
+ const whatsappLimpio = String(contacto.whatsapp || "").replace(/\D/g, "");
+ const whatsappLink = whatsappLimpio ? "https://wa.me/" + whatsappLimpio : "";
+ const tieneContacto = contacto.telefono || contacto.correo || whatsappLink;
+
+ const acciones = tieneContacto
+ ? `${contacto.telefono ? `<a href="tel:${contacto.telefono}">Telefono: ${contacto.telefono}</a>` : ""}
+ ${contacto.correo ? `<a href="mailto:${contacto.correo}">Correo: ${contacto.correo}</a>` : ""}
+ ${whatsappLink ? `<a href="${whatsappLink}" target="_blank" rel="noopener">Abrir WhatsApp</a>` : ""}`
+ : '<span>Datos de soporte por configurar.</span>';
+
+ const editor = dev
+ ? `<section class="contacto-dev-editor">
+ <div class="contacto-dev-editor-title">
+ <div>
+ <strong>Modo desarrollador</strong>
+ <span>Estos campos no aparecen para el cliente.</span>
+ </div>
+ </div>
+ <div class="contacto-dev-form">
+ <label>Nombre<input id="contactoDevNombrePOS" value="${contacto.nombre || ""}" placeholder="Ej. Gustavo Diaz"></label>
+ <label>Telefono<input id="contactoDevTelefonoPOS" value="${contacto.telefono || ""}" placeholder="Ej. 498 123 4567"></label>
+ <label>WhatsApp<input id="contactoDevWhatsappPOS" value="${contacto.whatsapp || ""}" placeholder="Ej. 524981234567"></label>
+ <label>Correo<input id="contactoDevCorreoPOS" value="${contacto.correo || ""}" placeholder="correo@ejemplo.com"></label>
+ </div>
+ <div class="modal-actions-row">
+ <button type="button" onclick="desactivarModoDesarrolladorNexoPOS(); abrirContactoDesarrolladorPOS()">Ocultar edicion</button>
+ <button type="button" class="btn-principal" onclick="guardarContactoDesarrolladorPOS()">Guardar contacto</button>
+ </div>
+ </section>`
+ : '<div class="modal-actions-row contacto-dev-final"><button type="button" class="btn-principal" onclick="cerrarContactoDesarrolladorPOS()">Listo</button></div>';
+
+ modal.innerHTML = `
+ <div class="modal-card contacto-dev-card ${dev ? "modo-dev" : "modo-cliente"}">
+ <div class="contacto-dev-header">
+ <div>
+ <span>Nexo POS</span>
+ <h3>Contacto del desarrollador</h3>
+ </div>
+ <button type="button" onclick="cerrarContactoDesarrolladorPOS()">Cerrar</button>
+ </div>
+ <div class="contacto-dev-resumen">
+ <img src="nexo-pos-icon.jpg" alt="Nexo POS">
+ <div>
+ <strong>${contacto.nombre || "Soporte Nexo POS"}</strong>
+ <span>Soporte, cambios y mejoras del sistema</span>
+ </div>
+ </div>
+ <div class="contacto-dev-actions">${acciones}</div>
+ ${editor}
+ </div>`;
+ modal.style.display = "flex";
+}
 function cerrarContactoDesarrolladorPOS() { const modal = document.getElementById("modalContactoDesarrolladorPOS"); if (modal) modal.style.display = "none"; }
 function guardarContactoDesarrolladorPOS() { const contacto = { nombre: document.getElementById("contactoDevNombrePOS")?.value.trim() || "Desarrollador Nexo POS", telefono: document.getElementById("contactoDevTelefonoPOS")?.value.trim() || "", whatsapp: document.getElementById("contactoDevWhatsappPOS")?.value.trim() || "", correo: document.getElementById("contactoDevCorreoPOS")?.value.trim() || "" }; localStorage.setItem(CONTACTO_DESARROLLADOR_KEY, JSON.stringify(contacto)); cerrarContactoDesarrolladorPOS(); alertaPOS("Contacto guardado", "Los datos del desarrollador quedaron listos en Nexo POS.", "exito"); }
+function instalarAtajoDesarrolladorNexoPOS() { if (window.__atajoDevNexoPOS) return; window.__atajoDevNexoPOS = true; document.addEventListener("keydown", event => { const tecla = String(event.key || "").toLowerCase(); if (event.ctrlKey && event.shiftKey && tecla === "d") { event.preventDefault(); alternarModoDesarrolladorNexoPOS(); } }); }
 function actualizarTopbarContexto(titulo, subtitulo, modulo) { contextoTopbarPOS = { titulo, subtitulo }; renderTopbarPOS(); if (modulo) actualizarModuloActivoPOS(modulo); }
 function renderNotificacionesPOS() {
  const panel = document.getElementById("panelNotificacionesPOS");
@@ -9185,7 +9251,7 @@ async function limpiarTodasNotificacionesPOS() {
  alertaPOS("Notificaciones limpiadas", "El centro quedo listo.", "exito");
 }
 function instalarWrappersShellPOS() { const wrappers = { mostrarInicio:["Inicio","Resumen operativo de ventas, creditos e inventario","inicio"], mostrarPuntoVenta:["Punto de venta","Venta rapida, cobro, credito y carrito ferretero","venta"], mostrarInventario:["Inventario","Productos, categorias, stock y precios de ferreteria","inventario"], mostrarCategoriasInventario:["Categorias","Organizacion ferretera por familias de producto","categorias"], mostrarInventarioBajo:["Inventario bajo","Alertas y sugerencias para reabastecer","inventario-bajo"], mostrarGraficas:["Reportes y ventas","Indicadores reales de operacion y caja","reportes"], mostrarClientes:["Clientes","Cuentas, historial y relacion comercial","clientes"], mostrarProveedores:["Proveedores","Distribuidores, contactos y catalogos","proveedores"], mostrarCatalogo:["Catalogo proveedor","Carga, mapeo y mantenimiento de listas","catalogo"], mostrarConfiguracion:["Configuracion","Empresa, usuarios, tickets y apariencia","configuracion"] }; Object.entries(wrappers).forEach(([nombre, contexto]) => { const original = window[nombre]; if (typeof original !== "function" || original.__shellPOS) return; const envuelta = function(...args) { const resultado = original.apply(this, args); setTimeout(() => { actualizarTopbarContexto(contexto[0], contexto[1], contexto[2]); cerrarNotificacionesPOS(); }, 20); return resultado; }; envuelta.__shellPOS = true; window[nombre] = envuelta; }); ["cargarProductos", "cargarCreditos"].forEach(nombre => { const original = window[nombre]; if (typeof original !== "function" || original.__notifyPOS) return; const envuelta = function(...args) { const resultado = original.apply(this, args); Promise.resolve(resultado).finally(() => setTimeout(() => { renderTopbarPOS(); renderNotificacionesPOS(); }, 30)); return resultado; }; envuelta.__notifyPOS = true; window[nombre] = envuelta; }); }
-function iniciarShellFerreteroPOS() { profesionalizarSidebarPOS(); renderTopbarPOS(); instalarWrappersShellPOS(); actualizarModuloActivoPOS("inicio"); if (!window.__clickShellPOS) { window.__clickShellPOS = true; document.addEventListener("click", event => { const panel = document.getElementById("panelNotificacionesPOS"); const boton = document.getElementById("btnNotificacionesPOS"); const menuNexo = document.getElementById("menuNexoPOS"); const botonNexo = document.getElementById("btnMenuNexoPOS"); if (panel && boton && !panel.contains(event.target) && !boton.contains(event.target)) panel.classList.remove("abierto"); if (menuNexo && botonNexo && !menuNexo.contains(event.target) && !botonNexo.contains(event.target)) cerrarMenuNexoPOS(); }); } }
+function iniciarShellFerreteroPOS() { profesionalizarSidebarPOS(); renderTopbarPOS(); instalarWrappersShellPOS(); instalarAtajoDesarrolladorNexoPOS(); actualizarModuloActivoPOS("inicio"); if (!window.__clickShellPOS) { window.__clickShellPOS = true; document.addEventListener("click", event => { const panel = document.getElementById("panelNotificacionesPOS"); const boton = document.getElementById("btnNotificacionesPOS"); const menuNexo = document.getElementById("menuNexoPOS"); const botonNexo = document.getElementById("btnMenuNexoPOS"); if (panel && boton && !panel.contains(event.target) && !boton.contains(event.target)) panel.classList.remove("abierto"); if (menuNexo && botonNexo && !menuNexo.contains(event.target) && !botonNexo.contains(event.target)) cerrarMenuNexoPOS(); }); } }
 (function conectarShellFerreteroPOS() { const onloadOriginal = window.onload; window.onload = async function(...args) { if (typeof onloadOriginal === "function") await onloadOriginal.apply(this, args); iniciarShellFerreteroPOS(); }; if (document.readyState !== "loading") setTimeout(iniciarShellFerreteroPOS, 60); else document.addEventListener("DOMContentLoaded", () => setTimeout(iniciarShellFerreteroPOS, 60)); })();
 
 

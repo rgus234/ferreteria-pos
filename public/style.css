@@ -7367,6 +7367,180 @@ body.oscuro .inventario-bajo-detalle strong{
  }
 }
 
+/* Ajuste final - contacto desarrollador compacto */
+#modalContactoDesarrolladorPOS .contacto-dev-card{
+ width:min(620px, 94vw) !important;
+ padding:0 !important;
+ border-radius:24px !important;
+ overflow:hidden !important;
+ background:rgba(255,255,255,.97) !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-header{
+ display:flex !important;
+ align-items:flex-start !important;
+ justify-content:space-between !important;
+ gap:18px !important;
+ padding:22px 22px 16px !important;
+ border-bottom:1px solid rgba(15,23,42,.08) !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-header span{
+ display:block !important;
+ color:var(--brand-color, #0d6efd) !important;
+ font-size:12px !important;
+ font-weight:950 !important;
+ letter-spacing:.14em !important;
+ text-transform:uppercase !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-header h3{
+ margin:5px 0 0 !important;
+ color:#0f172a !important;
+ font-size:28px !important;
+ line-height:1.05 !important;
+ letter-spacing:0 !important;
+ max-width:360px !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-header button{
+ width:auto !important;
+ min-width:86px !important;
+ min-height:38px !important;
+ padding:0 14px !important;
+ border-radius:12px !important;
+ border:1px solid rgba(13,110,253,.18) !important;
+ background:rgba(13,110,253,.09) !important;
+ color:#0d3b8c !important;
+ box-shadow:none !important;
+ font-size:13px !important;
+ font-weight:950 !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-resumen{
+ margin:18px 22px 12px !important;
+ padding:14px !important;
+ background:rgba(248,250,252,.92) !important;
+ border:1px solid rgba(15,23,42,.08) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.9) !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-actions{
+ margin:0 22px 18px !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-actions a,
+#modalContactoDesarrolladorPOS .contacto-dev-actions span{
+ min-height:44px !important;
+ border-radius:14px !important;
+ font-size:14px !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-editor{
+ margin:0 22px 22px !important;
+ padding:16px !important;
+ border-radius:18px !important;
+ background:rgba(13,110,253,.045) !important;
+ border:1px solid rgba(13,110,253,.12) !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-editor-title{
+ margin:0 0 12px !important;
+ padding:0 !important;
+ border:0 !important;
+ align-items:flex-start !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-form{
+ gap:10px !important;
+ margin-bottom:14px !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-form input{
+ min-height:42px !important;
+ background:rgba(255,255,255,.92) !important;
+ border-color:rgba(15,23,42,.10) !important;
+}
+
+#modalContactoDesarrolladorPOS .modal-actions-row{
+ gap:10px !important;
+}
+
+#modalContactoDesarrolladorPOS .modal-actions-row button{
+ min-height:42px !important;
+ border-radius:13px !important;
+ font-weight:950 !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-final{
+ padding:0 22px 22px !important;
+ justify-content:flex-end !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-final .btn-principal{
+ min-width:160px !important;
+}
+
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-card{
+ background:rgba(15,23,42,.98) !important;
+ border-color:rgba(226,232,240,.14) !important;
+}
+
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-header{
+ border-bottom-color:rgba(226,232,240,.12) !important;
+}
+
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-header h3,
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-resumen strong,
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-editor-title strong{
+ color:#f8fafc !important;
+}
+
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-resumen,
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-editor{
+ background:rgba(30,41,59,.72) !important;
+ border-color:rgba(226,232,240,.12) !important;
+}
+
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-header button{
+ background:rgba(59,130,246,.18) !important;
+ color:#dbeafe !important;
+ border-color:rgba(147,197,253,.22) !important;
+}
+
+@media(max-width:760px){
+ #modalContactoDesarrolladorPOS .contacto-dev-header{
+  padding:18px 18px 14px !important;
+ }
+
+ #modalContactoDesarrolladorPOS .contacto-dev-header h3{
+  font-size:24px !important;
+ }
+
+ #modalContactoDesarrolladorPOS .contacto-dev-header button{
+  min-width:72px !important;
+ }
+
+ #modalContactoDesarrolladorPOS .contacto-dev-resumen,
+ #modalContactoDesarrolladorPOS .contacto-dev-actions,
+ #modalContactoDesarrolladorPOS .contacto-dev-editor{
+  margin-left:18px !important;
+  margin-right:18px !important;
+ }
+
+ #modalContactoDesarrolladorPOS .contacto-dev-form{
+  grid-template-columns:1fr !important;
+ }
+
+ #modalContactoDesarrolladorPOS .modal-actions-row{
+  flex-direction:column !important;
+ }
+
+ #modalContactoDesarrolladorPOS .modal-actions-row button{
+  width:100% !important;
+ }
+}
+
 @media (max-width:900px){
  #configuracionInicial{
   align-items:flex-start;
