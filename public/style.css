@@ -8093,6 +8093,120 @@ body.oscuro #inventarioBajo > .alerta-inventario-card .alerta-info small{
  color:#cbd5e1 !important;
 }
 
+/* Ajuste final - login legible y contacto de desarrollador */
+#login{
+ background:
+ radial-gradient(circle at 50% 20%, rgba(13,110,253,.18), transparent 34%),
+ linear-gradient(135deg,#07111f,#101b35 48%,#07111f) !important;
+}
+
+#login .login-box{
+ background:rgba(15,23,42,.94) !important;
+ border:1px solid rgba(255,255,255,.12) !important;
+ box-shadow:0 26px 70px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.08) !important;
+}
+
+#login .login-box h1{
+ color:#f8fafc !important;
+ opacity:1 !important;
+ text-shadow:0 2px 10px rgba(0,0,0,.32) !important;
+}
+
+#login .login-brand strong{
+ color:#ffffff !important;
+}
+
+#login .login-brand span{
+ color:#dbeafe !important;
+}
+
+#login .login-box input{
+ background:rgba(255,255,255,.96) !important;
+ color:#0f172a !important;
+ border:1px solid rgba(255,255,255,.72) !important;
+}
+
+#login .login-box input::placeholder{
+ color:#64748b !important;
+ opacity:1 !important;
+}
+
+#modalContactoDesarrolladorPOS.modal-personalizado{
+ position:fixed !important;
+ inset:0 !important;
+ width:100vw !important;
+ height:100vh !important;
+ display:none;
+ align-items:center !important;
+ justify-content:center !important;
+ padding:24px !important;
+ background:rgba(15,23,42,.48) !important;
+ backdrop-filter:blur(12px) !important;
+ -webkit-backdrop-filter:blur(12px) !important;
+ z-index:10000 !important;
+ overflow:auto !important;
+}
+
+#modalContactoDesarrolladorPOS.modal-personalizado[style*="flex"]{
+ display:flex !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-card{
+ position:relative !important;
+ inset:auto !important;
+ margin:auto !important;
+ max-height:calc(100vh - 48px) !important;
+ overflow:auto !important;
+ background:rgba(255,255,255,.98) !important;
+ color:#0f172a !important;
+ border:1px solid rgba(255,255,255,.92) !important;
+ box-shadow:0 28px 80px rgba(15,23,42,.28) !important;
+ transform:none !important;
+}
+
+#modalContactoDesarrolladorPOS .modal-card-header h3,
+#modalContactoDesarrolladorPOS .contacto-dev-resumen strong{
+ color:#0f172a !important;
+}
+
+#modalContactoDesarrolladorPOS .modal-card-header span,
+#modalContactoDesarrolladorPOS .contacto-dev-resumen span{
+ color:#64748b !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-actions a,
+#modalContactoDesarrolladorPOS .contacto-dev-actions span{
+ background:rgba(13,110,253,.08) !important;
+ color:#0f172a !important;
+ border:1px solid rgba(13,110,253,.12) !important;
+}
+
+.contacto-dev-editor-title{
+ display:flex;
+ justify-content:space-between;
+ gap:12px;
+ align-items:end;
+ margin:14px 0 10px;
+ padding-top:12px;
+ border-top:1px solid rgba(15,23,42,.08);
+}
+
+.contacto-dev-editor-title strong,
+.contacto-dev-editor-title span{
+ display:block;
+}
+
+.contacto-dev-editor-title strong{
+ color:#0f172a;
+ font-weight:950;
+}
+
+.contacto-dev-editor-title span{
+ color:#64748b;
+ font-size:12px;
+ font-weight:800;
+}
+
 /* Ajuste final mobile - menu Nexo POS liquid glass */
 .topbar-product-menu{
  isolation:isolate;
@@ -8120,11 +8234,11 @@ body.oscuro #inventarioBajo > .alerta-inventario-card .alerta-info small{
 }
 
 .nexo-menu-panel{
- background:rgba(255,255,255,.76) !important;
+ background:rgba(255,255,255,.94) !important;
  border:1px solid rgba(255,255,255,.9) !important;
  box-shadow:0 24px 70px rgba(15,23,42,.18), inset 0 1px 0 rgba(255,255,255,.95) !important;
- backdrop-filter:blur(22px) saturate(1.2) !important;
- -webkit-backdrop-filter:blur(22px) saturate(1.2) !important;
+ backdrop-filter:blur(14px) saturate(1.1) !important;
+ -webkit-backdrop-filter:blur(14px) saturate(1.1) !important;
  color:#0f172a !important;
 }
 
@@ -8177,7 +8291,7 @@ body.oscuro #inventarioBajo > .alerta-inventario-card .alerta-info small{
 
 body.oscuro .nexo-brand-button,
 body.oscuro .nexo-menu-panel{
- background:rgba(15,23,42,.74) !important;
+ background:rgba(15,23,42,.94) !important;
  border-color:rgba(226,232,240,.16) !important;
  color:#f8fafc !important;
 }
@@ -8238,10 +8352,22 @@ body.oscuro .nexo-menu-panel .nexo-menu-danger{
   min-width:0 !important;
   border-radius:20px !important;
   padding:12px !important;
+  background:rgba(255,255,255,.96) !important;
  }
 
  .nexo-menu-panel button{
   border-radius:16px !important;
   justify-content:flex-start !important;
+ }
+
+ #modalContactoDesarrolladorPOS.modal-personalizado{
+  align-items:center !important;
+  padding:16px !important;
+ }
+
+ #modalContactoDesarrolladorPOS .contacto-dev-card{
+  width:min(430px, 94vw) !important;
+  max-height:calc(100vh - 32px) !important;
+  border-radius:22px !important;
  }
 }
