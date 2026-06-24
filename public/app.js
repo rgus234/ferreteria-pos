@@ -2567,7 +2567,7 @@ async function abrirMapeoCatalogo({ proveedor, archivo, csv, plantilla }) {
  <h2>${proveedor}</h2>
  <p>${archivo}</p>
  </div>
- <button type="button" id="cerrarMapeoCatalogo">x</button>
+ <button type="button" id="cerrarMapeoCatalogo" class="modal-cerrar-x" aria-label="Cerrar mapeo">×</button>
  </div>
 
  <div class="catalogo-mapeo-grid">
@@ -9190,7 +9190,7 @@ function abrirContactoDesarrolladorPOS() {
  <span>Nexo POS</span>
  <h3>Contacto del desarrollador</h3>
  </div>
- <button type="button" onclick="cerrarContactoDesarrolladorPOS()">Cerrar</button>
+ <button type="button" class="modal-cerrar-x" onclick="cerrarContactoDesarrolladorPOS()" aria-label="Cerrar contacto">×</button>
  </div>
  <div class="contacto-dev-resumen">
  <img src="nexo-pos-icon.jpg" alt="Nexo POS">
@@ -9626,11 +9626,19 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
  if (window.__recepcionMercanciaV1) return;
  window.__recepcionMercanciaV1 = true;
 
- const estadoRecepcion = {
-  archivo: null,
-  proveedor: "",
-  conceptos: []
- };
+  const estadoRecepcion = {
+   archivo: null,
+   proveedor: "",
+   documento: {
+    tipo: "Factura",
+    folio: "",
+    fecha: "",
+    subtotal: 0,
+    iva: 0,
+    total: 0
+   },
+   conceptos: []
+  };
 
  function textoSeguro(valor) {
   return String(typeof limpiarTextoUI === "function" ? limpiarTextoUI(valor || "") : (valor || ""))
@@ -9668,7 +9676,7 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
      <div>
       <span>Compras ferreteras</span>
       <h2>Recepcion de mercancia</h2>
-      <p>Lee XML CFDI o CSV, compara contra inventario y actualiza existencias con vista previa.</p>
+      <p>Registra factura o remision, compara contra inventario y actualiza existencias con vista previa.</p>
      </div>
      <button type="button" onclick="limpiarRecepcionMercancia()">Nueva recepcion</button>
     </div>
@@ -9676,20 +9684,26 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
     <div class="recepcion-grid">
      <section class="recepcion-panel recepcion-carga">
       <h3>Archivo de compra</h3>
-      <p>Prioridad recomendada: XML CFDI. Tambien acepta CSV exportado desde Excel.</p>
-      <label class="recepcion-drop">
-       <input id="archivoRecepcionMercancia" type="file" accept=".xml,.csv,.txt,.xlsx,.xls" onchange="leerArchivoRecepcionMercancia(this.files[0])">
-       <strong>Seleccionar archivo</strong>
-       <span id="recepcionArchivoNombre">XML, CSV o Excel</span>
-      </label>
-      <div class="recepcion-form">
-       <label>Proveedor
-        <input id="recepcionProveedor" placeholder="Ej. Truper, Diprofer, proveedor local" oninput="estadoRecepcionProveedor(this.value)">
+       <p>Prioridad recomendada: XML CFDI. Tambien acepta CSV exportado desde Excel con columnas de factura.</p>
+       <label class="recepcion-drop">
+        <input id="archivoRecepcionMercancia" type="file" accept=".xml,.csv,.txt,.xlsx,.xls,.pdf" onchange="leerArchivoRecepcionMercancia(this.files[0])">
+        <strong>Seleccionar archivo</strong>
+        <span id="recepcionArchivoNombre">XML CFDI, CSV o Excel</span>
        </label>
-       <label>Categoria para productos nuevos
-        <input id="recepcionCategoriaDefault" placeholder="Ej. Electricos, Tornilleria, Plomeria">
-       </label>
-      </div>
+       <div class="recepcion-form">
+        <label>Proveedor
+         <input id="recepcionProveedor" placeholder="Ej. Truper, Diprofer, proveedor local" oninput="estadoRecepcionProveedor(this.value)">
+        </label>
+        <label>Folio / factura
+         <input id="recepcionFolio" placeholder="Ej. A1143646" oninput="estadoRecepcionDocumento('folio', this.value)">
+        </label>
+        <label>Fecha del documento
+         <input id="recepcionFecha" type="date" onchange="estadoRecepcionDocumento('fecha', this.value)">
+        </label>
+        <label>Categoria para productos nuevos
+         <input id="recepcionCategoriaDefault" placeholder="Ej. Electricos, Tornilleria, Plomeria">
+        </label>
+       </div>
       <div class="recepcion-ayuda">
        <strong>Como trabaja</strong>
        <span>Si encuentra codigo o nombre, suma stock. Si no existe, prepara el producto para crearlo con datos minimos.</span>
@@ -9702,10 +9716,15 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
        <div><span>Conceptos</span><strong id="recepcionTotalConceptos">0</strong></div>
        <div><span>Existentes</span><strong id="recepcionExistentes">0</strong></div>
        <div><span>Nuevos</span><strong id="recepcionNuevos">0</strong></div>
-       <div><span>Importe</span><strong id="recepcionImporte">$0.00</strong></div>
-      </div>
-      <button type="button" class="btn-recepcion-confirmar" onclick="confirmarRecepcionMercancia()">Confirmar entrada</button>
-     </section>
+        <div><span>Subtotal</span><strong id="recepcionSubtotal">$0.00</strong></div>
+        <div><span>IVA</span><strong id="recepcionIva">$0.00</strong></div>
+        <div><span>Total</span><strong id="recepcionImporte">$0.00</strong></div>
+       </div>
+       <div class="recepcion-documento-resumen">
+        <span id="recepcionDocumentoResumen">Sin documento cargado</span>
+       </div>
+       <button type="button" class="btn-recepcion-confirmar" onclick="confirmarRecepcionMercancia()">Confirmar entrada</button>
+      </section>
     </div>
 
     <section class="recepcion-panel recepcion-preview">
@@ -9768,23 +9787,51 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
   renderRecepcionMercancia();
  };
 
- window.estadoRecepcionProveedor = function(valor) {
-  estadoRecepcion.proveedor = valor || "";
-  renderRecepcionMercancia();
- };
+  window.estadoRecepcionProveedor = function(valor) {
+   estadoRecepcion.proveedor = valor || "";
+   renderRecepcionMercancia();
+  };
 
- function conceptosDesdeXml(texto) {
-  const doc = new DOMParser().parseFromString(texto, "text/xml");
-  const error = doc.querySelector("parsererror");
-  if (error) throw new Error("XML invalido");
+  window.estadoRecepcionDocumento = function(campo, valor) {
+   estadoRecepcion.documento[campo] = campo === "subtotal" || campo === "iva" || campo === "total" ? numero(valor) : (valor || "");
+   renderRecepcionMercancia();
+  };
 
-  const emisor = doc.getElementsByTagNameNS("*", "Emisor")[0] || doc.getElementsByTagName("cfdi:Emisor")[0];
-  const proveedor = emisor?.getAttribute("Nombre") || emisor?.getAttribute("Rfc") || "";
-  if (proveedor && !estadoRecepcion.proveedor) {
-   estadoRecepcion.proveedor = proveedor;
-   const input = document.getElementById("recepcionProveedor");
-   if (input) input.value = proveedor;
+  function aplicarDocumentoRecepcion(datos = {}) {
+   estadoRecepcion.documento = {
+    ...estadoRecepcion.documento,
+    ...datos
+   };
+   const folio = document.getElementById("recepcionFolio");
+   const fecha = document.getElementById("recepcionFecha");
+   if (folio && datos.folio !== undefined) folio.value = datos.folio || "";
+   if (fecha && datos.fecha !== undefined) fecha.value = datos.fecha || "";
   }
+
+  function conceptosDesdeXml(texto) {
+   const doc = new DOMParser().parseFromString(texto, "text/xml");
+   const error = doc.querySelector("parsererror");
+   if (error) throw new Error("XML invalido");
+
+   const comprobante = doc.getElementsByTagNameNS("*", "Comprobante")[0] || doc.getElementsByTagName("cfdi:Comprobante")[0] || doc.documentElement;
+   const emisor = doc.getElementsByTagNameNS("*", "Emisor")[0] || doc.getElementsByTagName("cfdi:Emisor")[0];
+   const proveedor = emisor?.getAttribute("Nombre") || emisor?.getAttribute("Rfc") || "";
+   if (proveedor && !estadoRecepcion.proveedor) {
+    estadoRecepcion.proveedor = proveedor;
+   const input = document.getElementById("recepcionProveedor");
+    if (input) input.value = proveedor;
+   }
+
+   const impuestos = doc.getElementsByTagNameNS("*", "Impuestos")[0] || doc.getElementsByTagName("cfdi:Impuestos")[0];
+   const fechaXml = comprobante?.getAttribute("Fecha") || "";
+   aplicarDocumentoRecepcion({
+    tipo: "Factura",
+    folio: comprobante?.getAttribute("Folio") || comprobante?.getAttribute("Serie") || estadoRecepcion.documento.folio || "",
+    fecha: fechaXml ? fechaXml.slice(0, 10) : estadoRecepcion.documento.fecha,
+    subtotal: numero(comprobante?.getAttribute("SubTotal") || 0),
+    iva: numero(impuestos?.getAttribute("TotalImpuestosTrasladados") || 0),
+    total: numero(comprobante?.getAttribute("Total") || 0)
+   });
 
   const nodos = [
    ...doc.getElementsByTagNameNS("*", "Concepto"),
@@ -9822,7 +9869,7 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
   return headers.findIndex(h => patrones.some(p => p.test(h)));
  }
 
- function conceptosDesdeCsv(texto) {
+  function conceptosDesdeCsv(texto) {
   const lineas = texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   if (!lineas.length) return [];
   const headersRaw = separarCsvLinea(lineas[0]);
@@ -9831,8 +9878,22 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
   const idxDesc = indicePorEncabezado(headers, [/descripcion/, /producto/, /nombre/, /concepto/]);
   const idxCant = indicePorEncabezado(headers, [/cantidad/, /cant/, /existencia/]);
   const idxCosto = indicePorEncabezado(headers, [/valor.?unit/, /costo/, /precio/, /unitario/]);
-  const idxImporte = indicePorEncabezado(headers, [/importe/, /total/]);
-  const idxUnidad = indicePorEncabezado(headers, [/unidad/, /medida/]);
+   const idxImporte = indicePorEncabezado(headers, [/importe/, /total/]);
+   const idxUnidad = indicePorEncabezado(headers, [/unidad/, /medida/]);
+   const idxFolio = indicePorEncabezado(headers, [/folio/, /factura/, /documento/]);
+   const idxFecha = indicePorEncabezado(headers, [/fecha/]);
+   const idxProveedor = indicePorEncabezado(headers, [/proveedor/, /emisor/]);
+
+   const primera = separarCsvLinea(lineas[1] || "");
+   if (idxProveedor >= 0 && primera[idxProveedor] && !estadoRecepcion.proveedor) {
+    estadoRecepcion.proveedor = primera[idxProveedor];
+    const input = document.getElementById("recepcionProveedor");
+    if (input) input.value = primera[idxProveedor];
+   }
+   aplicarDocumentoRecepcion({
+    folio: idxFolio >= 0 ? primera[idxFolio] || estadoRecepcion.documento.folio : estadoRecepcion.documento.folio,
+    fecha: idxFecha >= 0 ? primera[idxFecha] || estadoRecepcion.documento.fecha : estadoRecepcion.documento.fecha
+   });
 
   return lineas.slice(1).map(linea => {
    const cols = separarCsvLinea(linea);
@@ -9853,12 +9914,19 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
   const nombre = document.getElementById("recepcionArchivoNombre");
   if (nombre) nombre.textContent = archivo.name;
 
-  const extension = archivo.name.toLowerCase().split(".").pop();
-  if (["xlsx", "xls"].includes(extension)) {
-   alertaPOS("Excel detectado", "Por ahora exportalo como CSV para lectura directa. La estructura ya queda preparada para lector XLSX posterior.", "info");
-   estadoRecepcion.conceptos = [];
-   renderRecepcionMercancia();
-   return;
+   const extension = archivo.name.toLowerCase().split(".").pop();
+   if (extension === "pdf") {
+    alertaPOS("PDF detectado", "Para aplicar inventario usa el XML CFDI de la factura o exporta la tabla a CSV. El PDF servira como referencia visual en la siguiente fase.", "info");
+    estadoRecepcion.conceptos = [];
+    renderRecepcionMercancia();
+    return;
+   }
+
+   if (["xlsx", "xls"].includes(extension)) {
+    alertaPOS("Excel detectado", "Por ahora exportalo como CSV para lectura directa. Despues agregaremos lector XLSX directo.", "info");
+    estadoRecepcion.conceptos = [];
+    renderRecepcionMercancia();
+    return;
   }
 
   const texto = await archivo.text();
@@ -9904,7 +9972,11 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
   const lista = conceptosPreparados();
   const existentes = lista.filter(i => i.existe).length;
   const nuevos = lista.length - existentes;
-  const importe = lista.reduce((sum, i) => sum + (Number(i.importe || 0) || Number(i.costo || 0) * Number(i.cantidad || 0)), 0);
+   const importe = lista.reduce((sum, i) => sum + (Number(i.importe || 0) || Number(i.costo || 0) * Number(i.cantidad || 0)), 0);
+   const subtotal = Number(estadoRecepcion.documento.subtotal || 0) || importe;
+   const iva = Number(estadoRecepcion.documento.iva || 0);
+   const total = Number(estadoRecepcion.documento.total || 0) || (subtotal + iva);
+   const formatoDinero = valor => typeof dinero === "function" ? dinero(valor) : "$" + Number(valor || 0).toFixed(2);
 
   const setText = (id, valor) => {
    const el = document.getElementById(id);
@@ -9913,7 +9985,15 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
   setText("recepcionTotalConceptos", lista.length);
   setText("recepcionExistentes", existentes);
   setText("recepcionNuevos", nuevos);
-  setText("recepcionImporte", typeof dinero === "function" ? dinero(importe) : "$" + importe.toFixed(2));
+   setText("recepcionSubtotal", formatoDinero(subtotal));
+   setText("recepcionIva", formatoDinero(iva));
+   setText("recepcionImporte", formatoDinero(total));
+   setText("recepcionDocumentoResumen", [
+    estadoRecepcion.documento.tipo || "Documento",
+    estadoRecepcion.documento.folio ? "Folio " + estadoRecepcion.documento.folio : "",
+    estadoRecepcion.documento.fecha || "",
+    estadoRecepcion.proveedor || ""
+   ].filter(Boolean).join(" · ") || "Sin documento cargado");
 
   if (!lista.length) {
    contenedor.innerHTML = '<div class="recepcion-empty">Carga un XML CFDI o CSV para comenzar.</div>';
@@ -9924,13 +10004,13 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
    const producto = item.producto;
    const stockActual = Number(producto?.stock || 0);
    const stockNuevo = stockActual + Number(item.cantidad || 0);
-   return '<tr class="' + (item.existe ? "existente" : "nuevo") + '"><td><strong>' + textoSeguro(item.descripcion) + '</strong><small>' + (item.existe ? "Actualizar stock" : "Crear producto") + '</small></td><td>' +
-    textoSeguro(item.codigo || producto?.codigo || "Sin codigo") + '</td><td><input type="number" step="0.001" value="' + textoSeguro(item.cantidad || 0) + '" onchange="editarConceptoRecepcion(' + index + ', \'cantidad\', this.value)"></td><td><input type="number" step="0.01" value="' + textoSeguro(item.costo || 0) + '" onchange="editarConceptoRecepcion(' + index + ', \'costo\', this.value)"></td><td>' +
-    textoSeguro(item.existe ? stockActual + " -> " + stockNuevo : "Nuevo") + '</td><td><span>' +
-    textoSeguro(item.proveedor || "Sin proveedor") + '</span></td></tr>';
-  }).join("");
+    const importeLinea = Number(item.importe || 0) || Number(item.costo || 0) * Number(item.cantidad || 0);
+    return '<tr class="' + (item.existe ? "existente" : "nuevo") + '"><td><strong>' + textoSeguro(item.codigo || producto?.codigo || "Sin codigo") + '</strong><small>' + textoSeguro(item.unidad || "pieza") + '</small></td><td><strong>' + textoSeguro(item.descripcion) + '</strong><small>' + (item.existe ? "Actualizar stock" : "Crear producto") + '</small></td><td><input type="number" step="0.001" value="' + textoSeguro(item.cantidad || 0) + '" onchange="editarConceptoRecepcion(' + index + ', \'cantidad\', this.value)"></td><td><input type="number" step="0.01" value="' + textoSeguro(item.costo || 0) + '" onchange="editarConceptoRecepcion(' + index + ', \'costo\', this.value)"></td><td>' + formatoDinero(importeLinea) + '</td><td>' +
+     textoSeguro(item.existe ? stockActual + " -> " + stockNuevo : "Nuevo") + '</td><td><span class="recepcion-estado ' + (item.existe ? "ok" : "nuevo") + '">' +
+     (item.existe ? "Encontrado" : "Nuevo") + '</span></td></tr>';
+   }).join("");
 
-  contenedor.innerHTML = '<table class="recepcion-tabla"><thead><tr><th>Producto</th><th>Codigo</th><th>Cantidad</th><th>Costo</th><th>Stock</th><th>Proveedor</th></tr></thead><tbody>' + filas + '</tbody></table>';
+   contenedor.innerHTML = '<table class="recepcion-tabla"><thead><tr><th>Codigo</th><th>Descripcion</th><th>Cantidad</th><th>Costo</th><th>Importe</th><th>Stock</th><th>Estado</th></tr></thead><tbody>' + filas + '</tbody></table>';
  };
 
  window.editarConceptoRecepcion = function(index, campo, valor) {
@@ -10034,14 +10114,22 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
  };
 
  window.limpiarRecepcionMercancia = function() {
-  estadoRecepcion.archivo = null;
-  estadoRecepcion.conceptos = [];
-  const archivo = document.getElementById("archivoRecepcionMercancia");
-  if (archivo) archivo.value = "";
-  const nombre = document.getElementById("recepcionArchivoNombre");
-  if (nombre) nombre.textContent = "XML, CSV o Excel";
-  renderRecepcionMercancia();
- };
+   estadoRecepcion.archivo = null;
+   estadoRecepcion.proveedor = "";
+   estadoRecepcion.documento = { tipo: "Factura", folio: "", fecha: "", subtotal: 0, iva: 0, total: 0 };
+   estadoRecepcion.conceptos = [];
+   const archivo = document.getElementById("archivoRecepcionMercancia");
+   if (archivo) archivo.value = "";
+   const nombre = document.getElementById("recepcionArchivoNombre");
+   if (nombre) nombre.textContent = "XML CFDI, CSV o Excel";
+   const proveedor = document.getElementById("recepcionProveedor");
+   const folio = document.getElementById("recepcionFolio");
+   const fecha = document.getElementById("recepcionFecha");
+   if (proveedor) proveedor.value = "";
+   if (folio) folio.value = "";
+   if (fecha) fecha.value = "";
+   renderRecepcionMercancia();
+  };
 
  const ocultarBase = window.ocultarPantallasPrincipales;
  if (typeof ocultarBase === "function" && !ocultarBase.__recepcionMercancia) {

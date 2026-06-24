@@ -313,8 +313,8 @@
  <div class="modal-header">
 
  <h2> Creditos pendientes</h2>
- <button onclick="cerrarCreditos()">
- 
+ <button type="button" class="modal-cerrar-x" onclick="cerrarCreditos()" aria-label="Cerrar creditos">
+ ×
  </button>
 
  </div>
@@ -996,7 +996,7 @@
  <h2 id="formCreditoTitulo">Nuevo cliente</h2>
  <p id="formCreditoSubtitulo">Completa los datos</p>
  </div>
- <button type="button" onclick="cerrarFormularioCredito()"></button>
+ <button type="button" class="modal-cerrar-x" onclick="cerrarFormularioCredito()" aria-label="Cerrar formulario">×</button>
  </div>
 
  <form id="formCreditoCampos" class="form-credito-campos" onsubmit="event.preventDefault(); guardarFormularioCredito();"></form>
@@ -1019,7 +1019,7 @@
  <h2>Sugerencia de pedido</h2>
  <p>Productos bajos calculados para llegar al stock objetivo.</p>
  </div>
- <button type="button" onclick="cerrarSugerenciaPedido()">x</button>
+ <button type="button" class="modal-cerrar-x" onclick="cerrarSugerenciaPedido()" aria-label="Cerrar sugerencia">×</button>
  </div>
  <div id="listaSugerenciaPedido" class="pedido-lista"></div>
  <div class="form-credito-acciones">

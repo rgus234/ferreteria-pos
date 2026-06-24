@@ -6929,7 +6929,7 @@ body.oscuro .recepcion-drop{
 }
 .recepcion-kpis{
  display:grid;
- grid-template-columns:repeat(2,minmax(0,1fr));
+ grid-template-columns:repeat(3,minmax(0,1fr));
  gap:10px;
  margin-bottom:14px;
 }
@@ -6957,6 +6957,19 @@ body.oscuro .recepcion-kpis div{
 }
 .btn-recepcion-confirmar{
  width:100%;
+}
+.recepcion-documento-resumen{
+ margin:2px 0 14px;
+ padding:12px 14px;
+ border:1px solid var(--pos-line);
+ border-radius:16px;
+ background:linear-gradient(135deg,rgba(248,250,252,.92),rgba(255,255,255,.68));
+ color:var(--pos-muted);
+ font-size:13px;
+ font-weight:850;
+}
+body.oscuro .recepcion-documento-resumen{
+ background:rgba(30,41,59,.72);
 }
 .recepcion-preview-head{
  display:flex;
@@ -7033,15 +7046,43 @@ body.oscuro .recepcion-kpis div{
 .recepcion-tabla tr.existente td:first-child small{
  color:#047857;
 }
+.recepcion-estado{
+ display:inline-flex;
+ align-items:center;
+ justify-content:center;
+ min-width:96px;
+ min-height:30px;
+ border-radius:999px;
+ padding:0 12px;
+ font-size:12px;
+ font-weight:950;
+}
+.recepcion-estado.ok{
+ background:rgba(16,185,129,.12);
+ color:#047857;
+}
+.recepcion-estado.nuevo{
+ background:rgba(245,158,11,.14);
+ color:#92400e;
+}
 body.oscuro .recepcion-tabla tr.nuevo td:first-child small{
  color:#fcd34d;
 }
 body.oscuro .recepcion-tabla tr.existente td:first-child small{
  color:#6ee7b7;
 }
+body.oscuro .recepcion-estado.ok{
+ color:#6ee7b7;
+}
+body.oscuro .recepcion-estado.nuevo{
+ color:#fcd34d;
+}
 @media (max-width:980px){
  .recepcion-grid,
  .recepcion-form{
+  grid-template-columns:1fr;
+ }
+ .recepcion-kpis{
   grid-template-columns:1fr;
  }
  .recepcion-header,
@@ -8546,7 +8587,7 @@ body.oscuro .nexo-menu-panel .nexo-menu-danger{
  }
 }
 /* Cierre compacto para modales de formularios */
-.modal-header .modal-cerrar-x {
+button.modal-cerrar-x {
  width: 40px !important;
  height: 40px !important;
  min-width: 40px !important;
@@ -8564,12 +8605,12 @@ body.oscuro .nexo-menu-panel .nexo-menu-danger{
  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 8px 22px rgba(15, 44, 90, .12) !important;
 }
 
-.modal-header .modal-cerrar-x:hover {
+button.modal-cerrar-x:hover {
  background: rgba(232, 240, 255, .95) !important;
  transform: translateY(-1px);
 }
 
-body.oscuro .modal-header .modal-cerrar-x {
+body.oscuro button.modal-cerrar-x {
  background: rgba(20, 31, 54, .82) !important;
  color: #cfe2ff !important;
  border-color: rgba(120, 170, 255, .28) !important;
