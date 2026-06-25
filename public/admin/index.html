@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nexo POS Admin</title>
+  <meta name="description" content="Panel interno para administrar clientes, negocios, ingresos, soporte y versiones de Nexo POS.">
+  <link rel="icon" href="../nexo-pos-icon.jpg">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <aside class="admin-sidebar">
+    <a class="brand" href="#inicio" aria-label="Nexo POS Admin">
+      <img src="../nexo-pos-icon.jpg" alt="Nexo POS">
+      <span>Nexo Admin</span>
+    </a>
+    <nav aria-label="Panel interno">
+      <a href="#inicio" class="active">Resumen</a>
+      <a href="#clientes">Clientes</a>
+      <a href="#ingresos">Ingresos</a>
+      <a href="#soporte">Soporte</a>
+      <a href="#versiones">Versiones</a>
+      <a href="#roadmap">Roadmap</a>
+    </nav>
+  </aside>
+
+  <main class="admin-main">
+    <header id="inicio" class="topbar">
+      <div>
+        <p class="eyebrow">Panel interno</p>
+        <h1>Nexo POS Control</h1>
+        <span>Vista operativa para administrar clientes, ingresos, soporte y despliegues.</span>
+      </div>
+      <div class="topbar-actions">
+        <button type="button">Nuevo cliente</button>
+        <button type="button" class="secondary">Exportar</button>
+      </div>
+    </header>
+
+    <section class="metrics-grid" aria-label="Metricas generales">
+      <article class="metric-card strong">
+        <span>MRR estimado</span>
+        <strong>$1,197</strong>
+        <small>3 clientes activos x plan base</small>
+      </article>
+      <article class="metric-card">
+        <span>Clientes activos</span>
+        <strong>3</strong>
+        <small>1 en produccion, 2 en prueba</small>
+      </article>
+      <article class="metric-card">
+        <span>Pagos pendientes</span>
+        <strong>$399</strong>
+        <small>1 mensualidad por revisar</small>
+      </article>
+      <article class="metric-card warning">
+        <span>Soporte abierto</span>
+        <strong>4</strong>
+        <small>2 altas, 2 normales</small>
+      </article>
+    </section>
+
+    <section class="admin-grid">
+      <article class="panel wide" id="clientes">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Clientes</p>
+            <h2>Negocios registrados</h2>
+          </div>
+          <button type="button">Ver todos</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Negocio</th>
+                <th>Giro</th>
+                <th>Estado</th>
+                <th>Plan</th>
+                <th>Ultimo uso</th>
+                <th>Version</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Ferreteria Olimpico</strong><span>Quetos</span></td>
+                <td>Ferreteria</td>
+                <td><em class="pill ok">Activo</em></td>
+                <td>Ferreteria Pro</td>
+                <td>Hoy</td>
+                <td>v0.8.4</td>
+              </tr>
+              <tr>
+                <td><strong>Cliente demo</strong><span>Prueba comercial</span></td>
+                <td>Ferreteria</td>
+                <td><em class="pill trial">Prueba</em></td>
+                <td>Demo</td>
+                <td>Ayer</td>
+                <td>v0.8.4</td>
+              </tr>
+              <tr>
+                <td><strong>Mostrador futuro</strong><span>Prospecto</span></td>
+                <td>Abarrotes</td>
+                <td><em class="pill lead">Prospecto</em></td>
+                <td>Sin plan</td>
+                <td>-</td>
+                <td>-</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="panel" id="ingresos">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Ingresos</p>
+            <h2>Mensualidades</h2>
+          </div>
+        </div>
+        <div class="money-list">
+          <div><span>Cobrado este mes</span><strong>$798</strong></div>
+          <div><span>Pendiente</span><strong>$399</strong></div>
+          <div><span>Proyectado</span><strong>$1,197</strong></div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Embudo</p>
+            <h2>Ventas SaaS</h2>
+          </div>
+        </div>
+        <div class="pipeline">
+          <div><span>Leads</span><strong>8</strong></div>
+          <div><span>Demos</span><strong>3</strong></div>
+          <div><span>Pruebas</span><strong>2</strong></div>
+          <div><span>Pagando</span><strong>1</strong></div>
+        </div>
+      </article>
+
+      <article class="panel wide" id="soporte">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Soporte</p>
+            <h2>Tickets pendientes</h2>
+          </div>
+          <button type="button">Crear ticket</button>
+        </div>
+        <div class="support-list">
+          <div class="support-item high">
+            <strong>Impresion de ticket</strong>
+            <span>Ferreteria Olimpico - revisar tamano termico y formato.</span>
+            <em>Alta</em>
+          </div>
+          <div class="support-item high">
+            <strong>Recepcion de mercancia</strong>
+            <span>Ajustar flujo para XML/CSV y entrada de factura.</span>
+            <em>Alta</em>
+          </div>
+          <div class="support-item">
+            <strong>Panel movil</strong>
+            <span>Mejorar visualizacion en celular para dueno.</span>
+            <em>Normal</em>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel" id="versiones">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Versiones</p>
+            <h2>Despliegues</h2>
+          </div>
+        </div>
+        <ol class="release-list">
+          <li><strong>v0.8.4</strong><span>Landing publica y admin inicial.</span></li>
+          <li><strong>v0.8.3</strong><span>Recepcion, cierres de modales y sidebar.</span></li>
+          <li><strong>v0.8.2</strong><span>Nexo menu, contacto y logout.</span></li>
+        </ol>
+      </article>
+
+      <article class="panel" id="roadmap">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Roadmap</p>
+            <h2>Siguientes bloques</h2>
+          </div>
+        </div>
+        <div class="roadmap-list">
+          <span>Multi-negocio con negocio_id</span>
+          <span>Admin conectado a base real</span>
+          <span>Planes, pagos y cortes</span>
+          <span>Modo local + sincronizacion</span>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
