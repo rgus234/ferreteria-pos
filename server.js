@@ -2,6 +2,11 @@ const express = require("express");
 const path = require("path");
 const { config, validarConfigProduccion } = require("./config");
 const pool = require("./db");
+const {
+    DEFAULT_NEGOCIO_SLUG,
+    DEFAULT_NEGOCIO_NOMBRE,
+    asegurarNegocioActual
+} = require("./tenant");
 
 validarConfigProduccion();
 
@@ -55,6 +60,10 @@ function normalizarCodigo(codigo) {
         .trim();
 }
 
+async function negocioActual(req) {
+    return asegurarNegocioActual(pool, req);
+}
+
 app.get("/", (req, res) => {
     res.sendFile(
         path.join(__dirname, "public", "index.html")
@@ -69,6 +78,7 @@ app.get("/dueno", (req, res) => {
 
 app.get("/productos", async (req, res) => {
     try {
+        const negocio = await negocioActual(req);
         const resultado =
         await pool.query(
             `
@@ -87,9 +97,12 @@ app.get("/productos", async (req, res) => {
             FROM public.productos p
             LEFT JOIN public.producto_codigos pc
                 ON pc.producto_id = p.id
+                AND pc.negocio_id = p.negocio_id
+            WHERE p.negocio_id = $1
             GROUP BY p.id
             ORDER BY p.nombre ASC
-            `
+            `,
+            [negocio.id]
         );
 
         res.json(resultado.rows);
@@ -110,6 +123,7 @@ app.get("/producto-codigo/:codigo", async (req, res) => {
     const codigo = normalizarCodigo(req.params.codigo);
 
     try {
+        const negocio = await negocioActual(req);
 
         const resultado =
         await pool.query(
@@ -119,13 +133,17 @@ app.get("/producto-codigo/:codigo", async (req, res) => {
             FROM public.productos p
             LEFT JOIN public.producto_codigos pc
                 ON pc.producto_id = p.id
+                AND pc.negocio_id = p.negocio_id
             WHERE
-                LOWER(regexp_replace(COALESCE(p.codigo, ''), '[^a-zA-Z0-9]', '', 'g')) = LOWER($1)
-                OR LOWER(regexp_replace(COALESCE(pc.codigo, ''), '[^a-zA-Z0-9]', '', 'g')) = LOWER($1)
+                p.negocio_id = $2
+                AND (
+                    LOWER(regexp_replace(COALESCE(p.codigo, ''), '[^a-zA-Z0-9]', '', 'g')) = LOWER($1)
+                    OR LOWER(regexp_replace(COALESCE(pc.codigo, ''), '[^a-zA-Z0-9]', '', 'g')) = LOWER($1)
+                )
             ORDER BY p.id
             LIMIT 1
             `,
-            [codigo]
+            [codigo, negocio.id]
         );
 
         res.json(
@@ -168,11 +186,13 @@ app.post("/agregar-producto", async (req, res) => {
     codigosRelacionados
 } = req.body;
     try {
+        const negocio = await negocioActual(req);
 
         const resultado = await pool.query(
 `
 INSERT INTO public.productos
 (
+  negocio_id,
   nombre,
   precio,
   stock,
@@ -194,10 +214,11 @@ INSERT INTO public.productos
   factor_conversion,
   bascula_digital
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
 RETURNING id
 `,
 [
+  negocio.id,
   nombre,
   precio,
   stock,
@@ -226,7 +247,7 @@ RETURNING id
             codigo,
             proveedor,
             codigosRelacionados
-        });
+        }, negocio.id);
 
         res.json({
             success: true
@@ -271,6 +292,7 @@ app.put("/editar-producto/:id", async (req, res) => {
     } = req.body;
 
     try {
+        const negocio = await negocioActual(req);
 
         await pool.query(
             `
@@ -297,6 +319,7 @@ app.put("/editar-producto/:id", async (req, res) => {
                 factor_conversion = $19,
                 bascula_digital = $20
             WHERE id = $21
+            AND negocio_id = $22
             `,
             [
                 nombre,
@@ -319,7 +342,8 @@ app.put("/editar-producto/:id", async (req, res) => {
                 presentacionCompra || "",
                 factorConversion || null,
                 basculaDigital || "no",
-                id
+                id,
+                negocio.id
             ]
         );
 
@@ -327,7 +351,7 @@ app.put("/editar-producto/:id", async (req, res) => {
             codigo,
             proveedor,
             codigosRelacionados
-        });
+        }, negocio.id);
 
         res.json({
             success: true
@@ -346,13 +370,15 @@ app.delete("/eliminar-producto/:id", async (req, res) => {
     const { id } = req.params;
 
     try {
+        const negocio = await negocioActual(req);
 
         await pool.query(
             `
             DELETE FROM public.productos
             WHERE id = $1
+            AND negocio_id = $2
             `,
-            [id]
+            [id, negocio.id]
         );
 
         res.json({
@@ -367,7 +393,7 @@ app.delete("/eliminar-producto/:id", async (req, res) => {
     }
 });
 
-async function guardarCodigosProducto(productoId, datos) {
+async function guardarCodigosProducto(productoId, datos, negocioId) {
     const codigos =
         new Map();
 
@@ -413,8 +439,9 @@ async function guardarCodigosProducto(productoId, datos) {
         `
         DELETE FROM public.producto_codigos
         WHERE producto_id = $1
+        AND negocio_id = $2
         `,
-        [productoId]
+        [productoId, negocioId]
     );
 
     for (const item of codigos.values()) {
@@ -422,15 +449,17 @@ async function guardarCodigosProducto(productoId, datos) {
             `
             INSERT INTO public.producto_codigos
             (
+                negocio_id,
                 producto_id,
                 codigo,
                 tipo,
                 proveedor
             )
-            VALUES ($1, $2, $3, $4)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT DO NOTHING
             `,
             [
+                negocioId,
                 productoId,
                 item.codigo,
                 item.tipo,
@@ -448,6 +477,7 @@ app.post("/login", async (req, res) => {
     } = req.body;
 
     try {
+        const negocio = await negocioActual(req);
 
         const resultado =
         await pool.query(
@@ -456,8 +486,9 @@ app.post("/login", async (req, res) => {
             FROM public.usuarios
             WHERE usuario = $1
             AND password = $2
+            AND negocio_id = $3
             `,
-            [usuario, password]
+            [usuario, password, negocio.id]
         );
 
         res.json({
@@ -490,6 +521,7 @@ app.post("/ventas", async (req, res) => {
     const pagoCredito = Number(pagosVenta.credito || 0);
 
     try {
+        const negocio = await negocioActual(req);
 
         await pool.query(`
             ALTER TABLE public.historial_ventas
@@ -525,19 +557,19 @@ app.post("/ventas", async (req, res) => {
         `);
         await pool.query(
             `
-            INSERT INTO public.ventas(total)
-            VALUES($1)
+            INSERT INTO public.ventas(negocio_id, total)
+            VALUES($1, $2)
             `,
-            [total]
+            [negocio.id, total]
         );
 
         await pool.query(
             `
             INSERT INTO public.historial_ventas
-                (total, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+                (negocio_id, total, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json)
+            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
             `,
-            [total, metodoPago || "efectivo", pagoEfectivo, pagoTarjeta, pagoTransferencia, pagoCredito, Number(recibido || 0), Number(cambio || 0), JSON.stringify(pagosVenta)]
+            [negocio.id, total, metodoPago || "efectivo", pagoEfectivo, pagoTarjeta, pagoTransferencia, pagoCredito, Number(recibido || 0), Number(cambio || 0), JSON.stringify(pagosVenta)]
         );
 
         for (const producto of productos) {
@@ -549,8 +581,9 @@ app.post("/ventas", async (req, res) => {
                 UPDATE public.productos
                 SET stock = stock - $1
                 WHERE id = $2
+                AND negocio_id = $3
                 `,
-                [cantidad, producto.id]
+                [cantidad, producto.id, negocio.id]
             );
         }
 
@@ -572,6 +605,7 @@ app.post("/ventas", async (req, res) => {
 
 app.get("/creditos", async (req, res) => {
     try {
+        const negocio = await negocioActual(req);
         const clientes = await pool.query(`
             SELECT
                 c.id,
@@ -592,10 +626,12 @@ app.get("/creditos", async (req, res) => {
             FROM public.clientes_credito c
             LEFT JOIN public.movimientos_credito m
                 ON m.cliente_id = c.id
+                AND m.negocio_id = c.negocio_id
             WHERE c.activo = true
+            AND c.negocio_id = $1
             GROUP BY c.id
             ORDER BY saldo DESC, c.nombre ASC
-        `);
+        `, [negocio.id]);
 
         const total = clientes.rows.reduce(
             (suma, cliente) =>
@@ -626,6 +662,7 @@ app.get("/creditos/clientes/:id", async (req, res) => {
     const { id } = req.params;
 
     try {
+        const negocio = await negocioActual(req);
         const cliente = await pool.query(`
             SELECT
                 c.*,
@@ -642,9 +679,11 @@ app.get("/creditos/clientes/:id", async (req, res) => {
             FROM public.clientes_credito c
             LEFT JOIN public.movimientos_credito m
                 ON m.cliente_id = c.id
+                AND m.negocio_id = c.negocio_id
             WHERE c.id = $1
+            AND c.negocio_id = $2
             GROUP BY c.id
-        `, [id]);
+        `, [id, negocio.id]);
 
         if (cliente.rows.length === 0) {
             res.status(404).json({
@@ -657,8 +696,9 @@ app.get("/creditos/clientes/:id", async (req, res) => {
             SELECT *
             FROM public.movimientos_credito
             WHERE cliente_id = $1
+            AND negocio_id = $2
             ORDER BY fecha ASC, id ASC
-        `, [id]);
+        `, [id, negocio.id]);
 
         res.json({
             cliente: cliente.rows[0],
@@ -686,16 +726,19 @@ app.post("/creditos/clientes", async (req, res) => {
     }
 
     try {
+        const negocio = await negocioActual(req);
         const resultado = await pool.query(`
             INSERT INTO public.clientes_credito
             (
+                negocio_id,
                 nombre,
                 telefono,
                 limite_credito
             )
-            VALUES ($1, $2, $3)
+            VALUES ($1, $2, $3, $4)
             RETURNING *
         `, [
+            negocio.id,
             nombre,
             telefono || null,
             limiteCredito || 0
@@ -729,6 +772,7 @@ app.put("/creditos/clientes/:id", async (req, res) => {
     }
 
     try {
+        const negocio = await negocioActual(req);
         const resultado = await pool.query(`
             UPDATE public.clientes_credito
             SET
@@ -736,12 +780,14 @@ app.put("/creditos/clientes/:id", async (req, res) => {
                 telefono = $2,
                 limite_credito = $3
             WHERE id = $4
+            AND negocio_id = $5
             RETURNING *
         `, [
             nombre,
             telefono || "",
             Number(limiteCredito || 0),
-            id
+            id,
+            negocio.id
         ]);
 
         if (resultado.rows.length === 0) {
@@ -765,12 +811,14 @@ app.delete("/creditos/clientes/:id", async (req, res) => {
     const { id } = req.params;
 
     try {
+        const negocio = await negocioActual(req);
         const resultado = await pool.query(`
             UPDATE public.clientes_credito
             SET activo = false
             WHERE id = $1
+            AND negocio_id = $2
             RETURNING id
-        `, [id]);
+        `, [id, negocio.id]);
 
         if (resultado.rows.length === 0) {
             res.status(404).json({
@@ -791,6 +839,7 @@ app.delete("/creditos/clientes/:id", async (req, res) => {
 
 app.get("/proveedores", async (req, res) => {
     try {
+        const negocio = await negocioActual(req);
         const resultado = await pool.query(`
             SELECT
                 pr.*,
@@ -798,10 +847,12 @@ app.get("/proveedores", async (req, res) => {
             FROM public.proveedores pr
             LEFT JOIN public.productos p
                 ON LOWER(COALESCE(p.proveedor, '')) = LOWER(pr.nombre)
+                AND p.negocio_id = pr.negocio_id
             WHERE pr.activo = true
+            AND pr.negocio_id = $1
             GROUP BY pr.id
             ORDER BY pr.nombre ASC
-        `);
+        `, [negocio.id]);
 
         res.json({
             proveedores: resultado.rows
@@ -830,18 +881,21 @@ app.post("/proveedores", async (req, res) => {
     }
 
     try {
+        const negocio = await negocioActual(req);
         const resultado = await pool.query(`
             INSERT INTO public.proveedores
             (
+                negocio_id,
                 nombre,
                 contacto,
                 telefono,
                 correo,
                 notas
             )
-            VALUES ($1, $2, $3, $4, $5)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING *
         `, [
+            negocio.id,
             nombre,
             contacto || "",
             telefono || "",
@@ -878,6 +932,7 @@ app.put("/proveedores/:id", async (req, res) => {
     }
 
     try {
+        const negocio = await negocioActual(req);
         const resultado = await pool.query(`
             UPDATE public.proveedores
             SET
@@ -887,6 +942,7 @@ app.put("/proveedores/:id", async (req, res) => {
                 correo = $4,
                 notas = $5
             WHERE id = $6
+            AND negocio_id = $7
             RETURNING *
         `, [
             nombre,
@@ -894,7 +950,8 @@ app.put("/proveedores/:id", async (req, res) => {
             telefono || "",
             correo || "",
             notas || "",
-            id
+            id,
+            negocio.id
         ]);
 
         if (resultado.rows.length === 0) {
@@ -918,12 +975,14 @@ app.delete("/proveedores/:id", async (req, res) => {
     const { id } = req.params;
 
     try {
+        const negocio = await negocioActual(req);
         const resultado = await pool.query(`
             UPDATE public.proveedores
             SET activo = false
             WHERE id = $1
+            AND negocio_id = $2
             RETURNING id
-        `, [id]);
+        `, [id, negocio.id]);
 
         if (resultado.rows.length === 0) {
             res.status(404).json({
@@ -958,22 +1017,28 @@ app.post("/creditos/clientes/:id/abonos", async (req, res) => {
     }
 
     try {
+        const negocio = await negocioActual(req);
         const resultado = await pool.query(`
             INSERT INTO public.movimientos_credito
             (
+                negocio_id,
                 cliente_id,
                 tipo,
                 referencia,
                 concepto,
                 monto
             )
-            VALUES ($1, 'abono', $2, $3, $4)
+            SELECT $1, c.id, 'abono', $2, $3, $4
+            FROM public.clientes_credito c
+            WHERE c.id = $5
+            AND c.negocio_id = $1
             RETURNING *
         `, [
-            id,
+            negocio.id,
             `AB-${Date.now()}`,
             concepto || "Abono",
-            monto
+            monto,
+            id
         ]);
 
         res.json({
@@ -1004,9 +1069,11 @@ app.post("/creditos/clientes/:id/cargos", async (req, res) => {
     }
 
     try {
+        const negocio = await negocioActual(req);
         const resultado = await pool.query(`
             INSERT INTO public.movimientos_credito
             (
+                negocio_id,
                 cliente_id,
                 tipo,
                 referencia,
@@ -1014,14 +1081,18 @@ app.post("/creditos/clientes/:id/cargos", async (req, res) => {
                 monto,
                 productos
             )
-            VALUES ($1, 'venta', $2, $3, $4, $5::jsonb)
+            SELECT $1, c.id, 'venta', $2, $3, $4, $5::jsonb
+            FROM public.clientes_credito c
+            WHERE c.id = $6
+            AND c.negocio_id = $1
             RETURNING *
         `, [
-            id,
+            negocio.id,
             `CR-${Date.now()}`,
             concepto || "Venta a credito",
             monto,
-            JSON.stringify(productos || [])
+            JSON.stringify(productos || []),
+            id
         ]);
 
         if (Array.isArray(productos)) {
@@ -1034,10 +1105,12 @@ app.post("/creditos/clientes/:id/cargos", async (req, res) => {
                     UPDATE public.productos
                     SET stock = stock - $1
                     WHERE id = $2
+                    AND negocio_id = $3
                     `,
                     [
                         cantidad,
-                        producto.id
+                        producto.id,
+                        negocio.id
                     ]
                 );
             }
@@ -1057,6 +1130,7 @@ app.post("/creditos/clientes/:id/cargos", async (req, res) => {
 app.get("/dashboard", async (req, res) => {
 
     try {
+        const negocio = await negocioActual(req);
 
         const totalVentas =
         await pool.query(`
@@ -1064,21 +1138,24 @@ app.get("/dashboard", async (req, res) => {
             COALESCE(SUM(total),0)
             AS total
             FROM public.historial_ventas
-        `);
+            WHERE negocio_id = $1
+        `, [negocio.id]);
 
         const cantidadVentas =
         await pool.query(`
             SELECT COUNT(*)
             AS cantidad
             FROM public.historial_ventas
-        `);
+            WHERE negocio_id = $1
+        `, [negocio.id]);
 
         const productos =
         await pool.query(`
             SELECT COUNT(*)
             AS productos
             FROM public.productos
-        `);
+            WHERE negocio_id = $1
+        `, [negocio.id]);
 
         res.json({
             totalVentas:
@@ -1100,18 +1177,21 @@ app.get("/dashboard", async (req, res) => {
 });
 
 app.get("/historial", async (req, res) => {
+    const negocio = await negocioActual(req);
 
     const historial =
     await pool.query(`
         SELECT *
         FROM public.historial_ventas
+        WHERE negocio_id = $1
         ORDER BY fecha DESC
-    `);
+    `, [negocio.id]);
 
     res.json(historial.rows);
 });
 
 app.get("/grafica-ventas", async (req, res) => {
+    const negocio = await negocioActual(req);
 
     const resultado =
     await pool.query(`
@@ -1119,14 +1199,16 @@ app.get("/grafica-ventas", async (req, res) => {
         TO_CHAR(fecha,'DD/MM') AS dia,
         total
         FROM public.historial_ventas
+        WHERE negocio_id = $1
         ORDER BY fecha ASC
-    `);
+    `, [negocio.id]);
 
     res.json(resultado.rows);
 });
 
 app.get("/reportes/ventas", async (req, res) => {
     try {
+        const negocio = await negocioActual(req);
         const resumen = await pool.query(`
             SELECT
                 COALESCE(SUM(total), 0) AS total,
@@ -1134,7 +1216,8 @@ app.get("/reportes/ventas", async (req, res) => {
                 COALESCE(AVG(total), 0) AS ticket_promedio,
                 COALESCE(MAX(total), 0) AS venta_mayor
             FROM public.historial_ventas
-        `);
+            WHERE negocio_id = $1
+        `, [negocio.id]);
 
         const porDia = await pool.query(`
             SELECT
@@ -1142,17 +1225,19 @@ app.get("/reportes/ventas", async (req, res) => {
                 COALESCE(SUM(total), 0) AS total,
                 COUNT(*) AS transacciones
             FROM public.historial_ventas
+            WHERE negocio_id = $1
             GROUP BY TO_CHAR(fecha, 'DD/MM'), DATE(fecha)
             ORDER BY DATE(fecha) ASC
             LIMIT 30
-        `);
+        `, [negocio.id]);
 
         const ultimas = await pool.query(`
             SELECT *
             FROM public.historial_ventas
+            WHERE negocio_id = $1
             ORDER BY fecha DESC
             LIMIT 12
-        `);
+        `, [negocio.id]);
 
         res.json({
             resumen: resumen.rows[0],
@@ -1168,6 +1253,32 @@ app.get("/reportes/ventas", async (req, res) => {
 
 async function inicializarCreditos() {
     await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.negocios (
+            id SERIAL PRIMARY KEY,
+            slug TEXT NOT NULL UNIQUE,
+            nombre TEXT NOT NULL,
+            giro TEXT NOT NULL DEFAULT 'ferreteria',
+            estado TEXT NOT NULL DEFAULT 'activo',
+            plan TEXT NOT NULL DEFAULT 'demo',
+            telefono TEXT,
+            correo TEXT,
+            direccion TEXT,
+            app_version TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+
+    await pool.query(
+        `
+        INSERT INTO public.negocios (slug, nombre, giro, estado, plan)
+        VALUES ($1, $2, 'ferreteria', 'activo', 'demo')
+        ON CONFLICT (slug) DO NOTHING
+        `,
+        [DEFAULT_NEGOCIO_SLUG, DEFAULT_NEGOCIO_NOMBRE]
+    );
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS public.productos (
             id SERIAL PRIMARY KEY,
             nombre TEXT NOT NULL,
@@ -1179,6 +1290,20 @@ async function inicializarCreditos() {
     `);
 
     await pool.query(`
+        ALTER TABLE public.productos
+        ADD COLUMN IF NOT EXISTS negocio_id INTEGER REFERENCES public.negocios(id)
+    `);
+
+    await pool.query(
+        `
+        UPDATE public.productos
+        SET negocio_id = (SELECT id FROM public.negocios WHERE slug = $1)
+        WHERE negocio_id IS NULL
+        `,
+        [DEFAULT_NEGOCIO_SLUG]
+    );
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS public.ventas (
             id SERIAL PRIMARY KEY,
             total NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -1187,12 +1312,40 @@ async function inicializarCreditos() {
     `);
 
     await pool.query(`
+        ALTER TABLE public.ventas
+        ADD COLUMN IF NOT EXISTS negocio_id INTEGER REFERENCES public.negocios(id)
+    `);
+
+    await pool.query(
+        `
+        UPDATE public.ventas
+        SET negocio_id = (SELECT id FROM public.negocios WHERE slug = $1)
+        WHERE negocio_id IS NULL
+        `,
+        [DEFAULT_NEGOCIO_SLUG]
+    );
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS public.historial_ventas (
             id SERIAL PRIMARY KEY,
             total NUMERIC(12,2) NOT NULL DEFAULT 0,
             fecha TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     `);
+
+    await pool.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS negocio_id INTEGER REFERENCES public.negocios(id)
+    `);
+
+    await pool.query(
+        `
+        UPDATE public.historial_ventas
+        SET negocio_id = (SELECT id FROM public.negocios WHERE slug = $1)
+        WHERE negocio_id IS NULL
+        `,
+        [DEFAULT_NEGOCIO_SLUG]
+    );
 
     await pool.query(`
         CREATE TABLE IF NOT EXISTS public.usuarios (
@@ -1205,10 +1358,29 @@ async function inicializarCreditos() {
     `);
 
     await pool.query(`
-        INSERT INTO public.usuarios (usuario, password, rol)
-        VALUES ('admin', '1234', 'Administrador')
-        ON CONFLICT (usuario) DO NOTHING
+        ALTER TABLE public.usuarios
+        ADD COLUMN IF NOT EXISTS negocio_id INTEGER REFERENCES public.negocios(id)
     `);
+
+    await pool.query(
+        `
+        INSERT INTO public.usuarios (negocio_id, usuario, password, rol)
+        SELECT id, 'admin', '1234', 'Administrador'
+        FROM public.negocios
+        WHERE slug = $1
+        ON CONFLICT (usuario) DO NOTHING
+        `,
+        [DEFAULT_NEGOCIO_SLUG]
+    );
+
+    await pool.query(
+        `
+        UPDATE public.usuarios
+        SET negocio_id = (SELECT id FROM public.negocios WHERE slug = $1)
+        WHERE negocio_id IS NULL
+        `,
+        [DEFAULT_NEGOCIO_SLUG]
+    );
 
     await pool.query(`
         ALTER TABLE public.productos
@@ -1293,6 +1465,7 @@ async function inicializarCreditos() {
     await pool.query(`
         CREATE TABLE IF NOT EXISTS public.producto_codigos (
             id SERIAL PRIMARY KEY,
+            negocio_id INTEGER REFERENCES public.negocios(id),
             producto_id INTEGER NOT NULL
                 REFERENCES public.productos(id)
                 ON DELETE CASCADE,
@@ -1305,14 +1478,29 @@ async function inicializarCreditos() {
     `);
 
     await pool.query(`
+        ALTER TABLE public.producto_codigos
+        ADD COLUMN IF NOT EXISTS negocio_id INTEGER REFERENCES public.negocios(id)
+    `);
+
+    await pool.query(`
+        UPDATE public.producto_codigos pc
+        SET negocio_id = p.negocio_id
+        FROM public.productos p
+        WHERE pc.producto_id = p.id
+        AND pc.negocio_id IS NULL
+    `);
+
+    await pool.query(`
         INSERT INTO public.producto_codigos
         (
+            negocio_id,
             producto_id,
             codigo,
             tipo,
             proveedor
         )
         SELECT
+            negocio_id,
             id,
             regexp_replace(COALESCE(codigo, ''), '[^a-zA-Z0-9]', '', 'g'),
             'barra',
@@ -1325,6 +1513,7 @@ async function inicializarCreditos() {
     await pool.query(`
         CREATE TABLE IF NOT EXISTS public.clientes_credito (
             id SERIAL PRIMARY KEY,
+            negocio_id INTEGER REFERENCES public.negocios(id),
             nombre TEXT NOT NULL,
             telefono TEXT,
             limite_credito NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -1334,8 +1523,23 @@ async function inicializarCreditos() {
     `);
 
     await pool.query(`
+        ALTER TABLE public.clientes_credito
+        ADD COLUMN IF NOT EXISTS negocio_id INTEGER REFERENCES public.negocios(id)
+    `);
+
+    await pool.query(
+        `
+        UPDATE public.clientes_credito
+        SET negocio_id = (SELECT id FROM public.negocios WHERE slug = $1)
+        WHERE negocio_id IS NULL
+        `,
+        [DEFAULT_NEGOCIO_SLUG]
+    );
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS public.movimientos_credito (
             id SERIAL PRIMARY KEY,
+            negocio_id INTEGER REFERENCES public.negocios(id),
             cliente_id INTEGER NOT NULL
                 REFERENCES public.clientes_credito(id)
                 ON DELETE CASCADE,
@@ -1351,12 +1555,26 @@ async function inicializarCreditos() {
 
     await pool.query(`
         ALTER TABLE public.movimientos_credito
+        ADD COLUMN IF NOT EXISTS negocio_id INTEGER REFERENCES public.negocios(id)
+    `);
+
+    await pool.query(`
+        UPDATE public.movimientos_credito m
+        SET negocio_id = c.negocio_id
+        FROM public.clientes_credito c
+        WHERE m.cliente_id = c.id
+        AND m.negocio_id IS NULL
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.movimientos_credito
         ADD COLUMN IF NOT EXISTS productos JSONB NOT NULL DEFAULT '[]'::jsonb
     `);
 
     await pool.query(`
         CREATE TABLE IF NOT EXISTS public.proveedores (
             id SERIAL PRIMARY KEY,
+            negocio_id INTEGER REFERENCES public.negocios(id),
             nombre TEXT NOT NULL,
             contacto TEXT,
             telefono TEXT,
@@ -1366,6 +1584,20 @@ async function inicializarCreditos() {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     `);
+
+    await pool.query(`
+        ALTER TABLE public.proveedores
+        ADD COLUMN IF NOT EXISTS negocio_id INTEGER REFERENCES public.negocios(id)
+    `);
+
+    await pool.query(
+        `
+        UPDATE public.proveedores
+        SET negocio_id = (SELECT id FROM public.negocios WHERE slug = $1)
+        WHERE negocio_id IS NULL
+        `,
+        [DEFAULT_NEGOCIO_SLUG]
+    );
 }
 function cargarModuloPOS(nombre, instalar) {
     try {
