@@ -1,3 +1,5 @@
+const { DEFAULT_NEGOCIO_SLUG, asegurarNegocioActual } = require("./tenant");
+
 module.exports = (app, pool) => {
     let listo = false;
 
@@ -6,12 +8,17 @@ module.exports = (app, pool) => {
         return Number.isFinite(n) ? n : 0;
     };
 
+    async function negocioActual(req) {
+        return asegurarNegocioActual(pool, req);
+    }
+
     async function asegurarFinanzas() {
         if (listo) return;
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS public.cuentas_pagar (
                 id SERIAL PRIMARY KEY,
+                negocio_id INTEGER REFERENCES public.negocios(id),
                 proveedor TEXT NOT NULL DEFAULT '',
                 origen_tipo TEXT NOT NULL DEFAULT 'manual',
                 origen_id INTEGER,
@@ -30,6 +37,7 @@ module.exports = (app, pool) => {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS public.pagos_proveedor (
                 id SERIAL PRIMARY KEY,
+                negocio_id INTEGER REFERENCES public.negocios(id),
                 cuenta_id INTEGER
                     REFERENCES public.cuentas_pagar(id)
                     ON DELETE SET NULL,
@@ -45,6 +53,7 @@ module.exports = (app, pool) => {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS public.gastos_operativos (
                 id SERIAL PRIMARY KEY,
+                negocio_id INTEGER REFERENCES public.negocios(id),
                 categoria TEXT NOT NULL DEFAULT '',
                 concepto TEXT NOT NULL DEFAULT '',
                 monto NUMERIC(12,2) NOT NULL CHECK (monto > 0),
@@ -55,12 +64,55 @@ module.exports = (app, pool) => {
             )
         `);
 
+        for (const tabla of ["cuentas_pagar", "pagos_proveedor", "gastos_operativos"]) {
+            await pool.query(`
+                ALTER TABLE public.${tabla}
+                ADD COLUMN IF NOT EXISTS negocio_id INTEGER REFERENCES public.negocios(id)
+            `);
+        }
+
+        await pool.query(
+            `
+            UPDATE public.cuentas_pagar
+            SET negocio_id = (SELECT id FROM public.negocios WHERE slug = $1)
+            WHERE negocio_id IS NULL
+            `,
+            [DEFAULT_NEGOCIO_SLUG]
+        );
+
+        await pool.query(`
+            UPDATE public.pagos_proveedor p
+            SET negocio_id = c.negocio_id
+            FROM public.cuentas_pagar c
+            WHERE p.cuenta_id = c.id
+            AND p.negocio_id IS NULL
+        `);
+
+        await pool.query(
+            `
+            UPDATE public.pagos_proveedor
+            SET negocio_id = (SELECT id FROM public.negocios WHERE slug = $1)
+            WHERE negocio_id IS NULL
+            `,
+            [DEFAULT_NEGOCIO_SLUG]
+        );
+
+        await pool.query(
+            `
+            UPDATE public.gastos_operativos
+            SET negocio_id = (SELECT id FROM public.negocios WHERE slug = $1)
+            WHERE negocio_id IS NULL
+            `,
+            [DEFAULT_NEGOCIO_SLUG]
+        );
+
         listo = true;
     }
 
     app.get("/finanzas/resumen", async (req, res) => {
         try {
             await asegurarFinanzas();
+            const negocio = await negocioActual(req);
 
             const cuentas = await pool.query(`
                 SELECT
@@ -72,19 +124,22 @@ module.exports = (app, pool) => {
                         AND vencimiento < CURRENT_DATE
                     ) AS vencidas
                 FROM public.cuentas_pagar
-            `);
+                WHERE negocio_id = $1
+            `, [negocio.id]);
 
             const gastos = await pool.query(`
                 SELECT COALESCE(SUM(monto), 0) AS gastos_mes
                 FROM public.gastos_operativos
-                WHERE created_at >= date_trunc('month', NOW())
-            `);
+                WHERE negocio_id = $1
+                AND created_at >= date_trunc('month', NOW())
+            `, [negocio.id]);
 
             const pagos = await pool.query(`
                 SELECT COALESCE(SUM(monto), 0) AS pagos_mes
                 FROM public.pagos_proveedor
-                WHERE created_at >= date_trunc('month', NOW())
-            `);
+                WHERE negocio_id = $1
+                AND created_at >= date_trunc('month', NOW())
+            `, [negocio.id]);
 
             res.json({
                 ...cuentas.rows[0],
@@ -99,10 +154,12 @@ module.exports = (app, pool) => {
     app.get("/cuentas-pagar", async (req, res) => {
         try {
             await asegurarFinanzas();
+            const negocio = await negocioActual(req);
 
             const resultado = await pool.query(`
                 SELECT *
                 FROM public.cuentas_pagar
+                WHERE negocio_id = $1
                 ORDER BY
                     CASE estado
                         WHEN 'pendiente' THEN 1
@@ -112,7 +169,7 @@ module.exports = (app, pool) => {
                     END,
                     COALESCE(vencimiento, CURRENT_DATE + 9999) ASC,
                     created_at DESC
-            `);
+            `, [negocio.id]);
 
             res.json({ cuentas: resultado.rows });
         } catch (error) {
@@ -142,13 +199,15 @@ module.exports = (app, pool) => {
 
         try {
             await asegurarFinanzas();
+            const negocio = await negocioActual(req);
 
             const resultado = await pool.query(`
                 INSERT INTO public.cuentas_pagar
-                    (proveedor, origen_tipo, origen_id, concepto, monto_total, saldo, vencimiento, notas)
-                VALUES ($1,$2,$3,$4,$5,$5,$6,$7)
+                    (negocio_id, proveedor, origen_tipo, origen_id, concepto, monto_total, saldo, vencimiento, notas)
+                VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8)
                 RETURNING *
             `, [
+                negocio.id,
                 proveedor,
                 origenTipo || "manual",
                 origenId || null,
@@ -165,13 +224,7 @@ module.exports = (app, pool) => {
     });
 
     app.post("/cuentas-pagar/:id/pagos", async (req, res) => {
-        const {
-            monto,
-            metodo,
-            referencia,
-            notas
-        } = req.body;
-
+        const { monto, metodo, referencia, notas } = req.body;
         const pagoMonto = numero(monto);
 
         if (pagoMonto <= 0) {
@@ -183,14 +236,16 @@ module.exports = (app, pool) => {
 
         try {
             await asegurarFinanzas();
+            const negocio = await negocioActual(req);
             await client.query("BEGIN");
 
             const cuenta = await client.query(`
                 SELECT *
                 FROM public.cuentas_pagar
                 WHERE id = $1
+                AND negocio_id = $2
                 FOR UPDATE
-            `, [req.params.id]);
+            `, [req.params.id, negocio.id]);
 
             if (cuenta.rows.length === 0) {
                 await client.query("ROLLBACK");
@@ -215,10 +270,11 @@ module.exports = (app, pool) => {
 
             const pago = await client.query(`
                 INSERT INTO public.pagos_proveedor
-                    (cuenta_id, proveedor, monto, metodo, referencia, notas)
-                VALUES ($1,$2,$3,$4,$5,$6)
+                    (negocio_id, cuenta_id, proveedor, monto, metodo, referencia, notas)
+                VALUES ($1,$2,$3,$4,$5,$6,$7)
                 RETURNING *
             `, [
+                negocio.id,
                 req.params.id,
                 cuenta.rows[0].proveedor,
                 pagoMonto,
@@ -231,10 +287,12 @@ module.exports = (app, pool) => {
                 UPDATE public.cuentas_pagar
                 SET saldo = $1, estado = $2, updated_at = NOW()
                 WHERE id = $3
+                AND negocio_id = $4
             `, [
                 nuevoSaldo,
                 estado,
-                req.params.id
+                req.params.id,
+                negocio.id
             ]);
 
             await client.query("COMMIT");
@@ -250,13 +308,15 @@ module.exports = (app, pool) => {
     app.get("/pagos-proveedor", async (req, res) => {
         try {
             await asegurarFinanzas();
+            const negocio = await negocioActual(req);
 
             const resultado = await pool.query(`
                 SELECT *
                 FROM public.pagos_proveedor
+                WHERE negocio_id = $1
                 ORDER BY created_at DESC
                 LIMIT 80
-            `);
+            `, [negocio.id]);
 
             res.json({ pagos: resultado.rows });
         } catch (error) {
@@ -267,13 +327,15 @@ module.exports = (app, pool) => {
     app.get("/gastos-operativos", async (req, res) => {
         try {
             await asegurarFinanzas();
+            const negocio = await negocioActual(req);
 
             const resultado = await pool.query(`
                 SELECT *
                 FROM public.gastos_operativos
+                WHERE negocio_id = $1
                 ORDER BY created_at DESC
                 LIMIT 80
-            `);
+            `, [negocio.id]);
 
             res.json({ gastos: resultado.rows });
         } catch (error) {
@@ -302,13 +364,15 @@ module.exports = (app, pool) => {
 
         try {
             await asegurarFinanzas();
+            const negocio = await negocioActual(req);
 
             const resultado = await pool.query(`
                 INSERT INTO public.gastos_operativos
-                    (categoria, concepto, monto, metodo, referencia, notas)
-                VALUES ($1,$2,$3,$4,$5,$6)
+                    (negocio_id, categoria, concepto, monto, metodo, referencia, notas)
+                VALUES ($1,$2,$3,$4,$5,$6,$7)
                 RETURNING *
             `, [
+                negocio.id,
                 categoria || "",
                 concepto,
                 gastoMonto,

@@ -75,18 +75,21 @@ Ya esta preparada la base multi-cliente del nucleo:
 - Proveedores.
 - Dashboard.
 - Reportes.
-
-## Pendiente fase 2
-
-Los modulos siguientes tambien deben migrarse a `negocio_id`:
-
 - Recepcion de mercancia.
 - Pedidos a proveedor.
 - Ajustes de inventario.
 - Finanzas.
 - Caja y cortes.
 
-Estos modulos estan en archivos separados y deben recibir el contexto de negocio antes de abrir el sistema a muchos clientes reales.
+## Pendiente fase 3
+
+Los modulos siguientes son la siguiente capa para venderlo a muchos clientes:
+
+- Login con seleccion de negocio o subdominio.
+- Roles por negocio sin usuario global unico.
+- Panel admin interno conectado a negocios reales.
+- Dispositivos instalados por cliente.
+- Cola de sincronizacion local/nube.
 
 ## Camino a modo local + nube
 
