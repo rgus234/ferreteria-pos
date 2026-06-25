@@ -37,6 +37,8 @@ Por ahora el backend acepta estas formas:
 - Body JSON: `negocioSlug`
 - Fallback automatico: `ferreteria-olimpico`
 
+El frontend ya guarda un `codigo del negocio` y lo manda automaticamente en cada peticion con el header `x-negocio-slug`. Si un cliente usa el codigo `diprofer`, sus productos, ventas, creditos y reportes se guardan bajo ese negocio.
+
 Esto permite que el primer cliente siga funcionando sin cambios, pero deja lista la puerta para:
 
 - `app.nexopos.com/` con negocio detectado por login.
@@ -80,13 +82,15 @@ Ya esta preparada la base multi-cliente del nucleo:
 - Ajustes de inventario.
 - Finanzas.
 - Caja y cortes.
+- Frontend enviando `x-negocio-slug`.
+- Login con codigo de negocio.
+- Usuarios repetibles por negocio, sin usuario global unico.
 
 ## Pendiente fase 3
 
 Los modulos siguientes son la siguiente capa para venderlo a muchos clientes:
 
-- Login con seleccion de negocio o subdominio.
-- Roles por negocio sin usuario global unico.
+- Selector visual de negocio o deteccion por subdominio.
 - Panel admin interno conectado a negocios reales.
 - Dispositivos instalados por cliente.
 - Cola de sincronizacion local/nube.

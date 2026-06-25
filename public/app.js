@@ -33,6 +33,7 @@ const TAMANO_PAGINA_REPORTES = 8;
 const CONFIG_NEGOCIO_KEY = "configuracionNegocioPOS";
 const TEMA_POS_KEY = "temaPOS";
 const SESION_POS_KEY = "sesionUsuarioPOS";
+const NEGOCIO_ACTIVO_KEY = "negocioActivoNexoPOS";
 const CONTACTO_DESARROLLADOR_KEY = "contactoDesarrolladorNexoPOS";
 const MODO_DESARROLLADOR_NEXO_KEY = "modoDesarrolladorNexoPOS";
 const CONTACTO_DESARROLLADOR_DEFAULT = {
@@ -41,6 +42,78 @@ const CONTACTO_DESARROLLADOR_DEFAULT = {
  whatsapp: "",
  correo: ""
 };
+
+function normalizarSlugNegocio(valor) {
+ return String(valor || "ferreteria-olimpico")
+ .normalize("NFD")
+ .replace(/[\u0300-\u036f]/g, "")
+ .toLowerCase()
+ .replace(/[^a-z0-9]+/g, "-")
+ .replace(/^-+|-+$/g, "")
+ .slice(0, 80) || "ferreteria-olimpico";
+}
+
+function negocioActivoSlug() {
+ const configuracion =
+ configuracionNegocio();
+
+ return normalizarSlugNegocio(
+ localStorage.getItem(NEGOCIO_ACTIVO_KEY) ||
+ configuracion?.negocioSlug ||
+ configuracion?.nombre ||
+ "ferreteria-olimpico"
+ );
+}
+
+function guardarNegocioActivo(slug) {
+ const limpio =
+ normalizarSlugNegocio(slug);
+
+ localStorage.setItem(NEGOCIO_ACTIVO_KEY, limpio);
+ return limpio;
+}
+
+function instalarContextoNegocioFetch() {
+ if (window.__nexoFetchNegocioInstalado) return;
+
+ window.__nexoFetchNegocioInstalado = true;
+
+ const fetchOriginal =
+ window.fetch.bind(window);
+
+ window.fetch = (input, init = {}) => {
+ const url =
+ typeof input === "string"
+ ? input
+ : input?.url || "";
+
+ const destino =
+ new URL(url || window.location.href, window.location.href);
+
+ if (destino.origin !== window.location.origin) {
+ return fetchOriginal(input, init);
+ }
+
+ const headers =
+ new Headers(
+ init.headers ||
+ (typeof input !== "string" && input?.headers) ||
+ {}
+ );
+
+ headers.set("x-negocio-slug", negocioActivoSlug());
+
+ if (typeof input !== "string") {
+ return fetchOriginal(
+ new Request(input, { ...init, headers })
+ );
+ }
+
+ return fetchOriginal(input, { ...init, headers });
+ };
+}
+
+instalarContextoNegocioFetch();
 
 const PLANTILLAS_GIRO_NEGOCIO = {
  ferreteria: {
@@ -338,6 +411,18 @@ function logoMarcaHtml(configuracion) {
 function aplicarConfiguracionNegocio(configuracion) {
  if (!configuracion) return;
 
+ if (!configuracion.negocioSlug) {
+ configuracion.negocioSlug =
+ normalizarSlugNegocio(configuracion.nombre);
+
+ localStorage.setItem(
+ CONFIG_NEGOCIO_KEY,
+ JSON.stringify(configuracion)
+ );
+ }
+
+ guardarNegocioActivo(configuracion.negocioSlug);
+
  document.title =
  configuracion.nombre || "POS Ferreteria";
 
@@ -421,6 +506,9 @@ function inicializarConfiguracionInicial() {
  const campoNombre =
  document.getElementById("setupNombreNegocio");
 
+ const campoCodigo =
+ document.getElementById("setupCodigoNegocio");
+
  const campoColor =
  document.getElementById("setupColorNegocio");
 
@@ -434,6 +522,16 @@ function inicializarConfiguracionInicial() {
   ? inicialesNegocio(campoNombre.value)
   : `<img src="nexo-pos-icon.jpg" alt="Nexo POS">`;
   }
+ });
+
+ campoNombre?.addEventListener("input", () => {
+ if (!campoCodigo || campoCodigo.dataset.editado === "true") return;
+ campoCodigo.value = normalizarSlugNegocio(campoNombre.value);
+ });
+
+ campoCodigo?.addEventListener("input", () => {
+ campoCodigo.dataset.editado = "true";
+ campoCodigo.value = normalizarSlugNegocio(campoCodigo.value);
  });
 
  campoColor?.addEventListener("input", () => {
@@ -453,6 +551,14 @@ function inicializarConfiguracionInicial() {
 
  document.getElementById("login").style.display =
  "flex";
+
+ const campoNegocioLogin =
+ document.getElementById("negocioLogin");
+
+ if (campoNegocioLogin) {
+ campoNegocioLogin.value =
+ negocioActivoSlug();
+ }
 
  return true;
 }
@@ -539,6 +645,12 @@ function guardarConfiguracionInicial() {
  const nombre =
  document.getElementById("setupNombreNegocio").value.trim();
 
+ const negocioSlug =
+ normalizarSlugNegocio(
+ document.getElementById("setupCodigoNegocio")?.value ||
+ nombre
+ );
+
  const adminNombre =
  document.getElementById("setupAdminNombre").value.trim();
 
@@ -551,6 +663,7 @@ function guardarConfiguracionInicial() {
  }
 
  const configuracion = {
+ negocioSlug,
  nombre,
  slogan: document.getElementById("setupSloganNegocio").value.trim(),
  telefono: document.getElementById("setupTelefonoNegocio").value.trim(),
@@ -565,6 +678,8 @@ function guardarConfiguracionInicial() {
  CONFIG_NEGOCIO_KEY,
  JSON.stringify(configuracion)
  );
+
+ guardarNegocioActivo(negocioSlug);
 
  const usuarios =
  asegurarUsuariosSistema();
@@ -1638,6 +1753,7 @@ function guardarSesionPersistente(usuario) {
  SESION_POS_KEY,
  JSON.stringify({
  usuarioId: usuario.id,
+ negocioSlug: negocioActivoSlug(),
  expira: Date.now() + horas * 60 * 60 * 1000
  })
  );
@@ -1692,6 +1808,10 @@ async function intentarRestaurarSesion() {
  leerSesionPersistente();
 
  if (!sesion) return false;
+
+ if (sesion.negocioSlug) {
+ guardarNegocioActivo(sesion.negocioSlug);
+ }
 
  const usuario =
  asegurarUsuariosSistema()
@@ -2813,6 +2933,15 @@ async function iniciarSesion() {
 
  const pin =
  document.getElementById("password").value.trim();
+
+ const negocioSlug =
+ normalizarSlugNegocio(
+ document.getElementById("negocioLogin")?.value ||
+ configuracionNegocio()?.negocioSlug ||
+ configuracionNegocio()?.nombre
+ );
+
+ guardarNegocioActivo(negocioSlug);
 
  const usuario =
  usuarios.find(item =>
@@ -9130,10 +9259,10 @@ function usuarioActualTopbarPOS() {
  return {};
  }
 }
-function renderTopbarPOS() { const topbar = asegurarTopbarPOS(); if (!topbar) return; const notificaciones = notificacionesSistemaPOS(); const logoSistema = '<img src="nexo-pos-icon.jpg" alt="Nexo POS" class="nexo-pos-logo">'; const usuario = usuarioActualTopbarPOS(); const nombreUsuario = usuario?.nombre || "Usuario"; topbar.innerHTML = '<div class="topbar-title-block"><span class="topbar-eyebrow">Ferreteria Olimpico POS</span><strong id="topbarTituloPOS">' + contextoTopbarPOS.titulo + '</strong><small id="topbarSubtituloPOS">' + contextoTopbarPOS.subtitulo + '</small></div><div class="topbar-actions"><button type="button" class="topbar-action" onclick="abrirRecordatorioPOS()" title="Nuevo recordatorio">' + iconoUISVG("plus") + '<span>Recordatorio</span></button><button type="button" id="btnNotificacionesPOS" class="topbar-bell" onclick="toggleNotificacionesPOS()" title="Notificaciones">' + iconoUISVG("bell") + '<span id="badgeNotificacionesPOS" class="notification-badge">' + notificaciones.length + '</span></button><div class="topbar-product-menu"><button type="button" id="btnMenuNexoPOS" class="topbar-brand-pill nexo-brand-pill nexo-brand-button" onclick="toggleMenuNexoPOS()" aria-haspopup="true" aria-expanded="false"><div class="topbar-logo nexo-topbar-logo">' + logoSistema + '</div><div><strong>Nexo POS</strong><span>' + nombreUsuario + '</span></div><span class="nexo-menu-caret">⌄</span></button><div id="menuNexoPOS" class="nexo-menu-panel"><div class="nexo-menu-head"><strong>Nexo POS</strong><span>Sistema comercial</span></div><button type="button" onclick="abrirContactoDesarrolladorPOS()">' + iconoUISVG("users") + '<span>Contactar desarrollador</span></button><button type="button" class="nexo-menu-danger" onclick="cerrarSesionPOS()">' + iconoUISVG("alert") + '<span>Cerrar sesion</span></button></div></div></div><div id="panelNotificacionesPOS" class="notificaciones-panel" aria-live="polite"></div>'; renderNotificacionesPOS(); }
+function renderTopbarPOS() { const topbar = asegurarTopbarPOS(); if (!topbar) return; const notificaciones = notificacionesSistemaPOS(); const logoSistema = '<img src="nexo-pos-icon.jpg" alt="Nexo POS" class="nexo-pos-logo">'; const usuario = usuarioActualTopbarPOS(); const nombreUsuario = usuario?.nombre || "Usuario"; const negocio = negocioActivoSlug(); topbar.innerHTML = '<div class="topbar-title-block"><span class="topbar-eyebrow">Ferreteria Olimpico POS</span><strong id="topbarTituloPOS">' + contextoTopbarPOS.titulo + '</strong><small id="topbarSubtituloPOS">' + contextoTopbarPOS.subtitulo + '</small></div><div class="topbar-actions"><button type="button" class="topbar-action" onclick="abrirRecordatorioPOS()" title="Nuevo recordatorio">' + iconoUISVG("plus") + '<span>Recordatorio</span></button><button type="button" id="btnNotificacionesPOS" class="topbar-bell" onclick="toggleNotificacionesPOS()" title="Notificaciones">' + iconoUISVG("bell") + '<span id="badgeNotificacionesPOS" class="notification-badge">' + notificaciones.length + '</span></button><div class="topbar-product-menu"><button type="button" id="btnMenuNexoPOS" class="topbar-brand-pill nexo-brand-pill nexo-brand-button" onclick="toggleMenuNexoPOS()" aria-haspopup="true" aria-expanded="false"><div class="topbar-logo nexo-topbar-logo">' + logoSistema + '</div><div><strong>Nexo POS</strong><span>' + nombreUsuario + ' · ' + negocio + '</span></div><span class="nexo-menu-caret">⌄</span></button><div id="menuNexoPOS" class="nexo-menu-panel"><div class="nexo-menu-head"><strong>Nexo POS</strong><span>Negocio: ' + negocio + '</span></div><button type="button" onclick="abrirContactoDesarrolladorPOS()">' + iconoUISVG("users") + '<span>Contactar desarrollador</span></button><button type="button" class="nexo-menu-danger" onclick="cerrarSesionPOS()">' + iconoUISVG("alert") + '<span>Cerrar sesion</span></button></div></div></div><div id="panelNotificacionesPOS" class="notificaciones-panel" aria-live="polite"></div>'; renderNotificacionesPOS(); }
 function toggleMenuNexoPOS() { const menu = document.getElementById("menuNexoPOS"); const boton = document.getElementById("btnMenuNexoPOS"); if (!menu) return; const abierto = menu.classList.toggle("abierto"); if (boton) boton.setAttribute("aria-expanded", abierto ? "true" : "false"); cerrarNotificacionesPOS(); }
 function cerrarMenuNexoPOS() { document.getElementById("menuNexoPOS")?.classList.remove("abierto"); document.getElementById("btnMenuNexoPOS")?.setAttribute("aria-expanded", "false"); }
-async function cerrarSesionPOS() { cerrarMenuNexoPOS(); const confirmar = await confirmarPOS("Se cerrara la sesion actual y volveras al inicio de sesion.", "Cerrar sesion", "alerta"); if (!confirmar) return; localStorage.removeItem(SESION_POS_KEY); localStorage.removeItem("usuarioActualSistema"); usuarioActual = null; document.getElementById("sistema").style.display = "none"; document.getElementById("login").style.display = "flex"; document.getElementById("password").value = ""; inicializarLoginUsuarios(); setTimeout(() => document.getElementById("password")?.focus(), 80); }
+async function cerrarSesionPOS() { cerrarMenuNexoPOS(); const confirmar = await confirmarPOS("Se cerrara la sesion actual y volveras al inicio de sesion.", "Cerrar sesion", "alerta"); if (!confirmar) return; localStorage.removeItem(SESION_POS_KEY); localStorage.removeItem("usuarioActualSistema"); usuarioActual = null; document.getElementById("sistema").style.display = "none"; document.getElementById("login").style.display = "flex"; document.getElementById("password").value = ""; const campoNegocio = document.getElementById("negocioLogin"); if (campoNegocio) campoNegocio.value = negocioActivoSlug(); inicializarLoginUsuarios(); setTimeout(() => document.getElementById("password")?.focus(), 80); }
 function contactoDesarrolladorPOS() { try { return { ...CONTACTO_DESARROLLADOR_DEFAULT, ...JSON.parse(localStorage.getItem(CONTACTO_DESARROLLADOR_KEY) || "{}") }; } catch (error) { return { ...CONTACTO_DESARROLLADOR_DEFAULT }; } }
 function modoDesarrolladorNexoPOS() { return localStorage.getItem(MODO_DESARROLLADOR_NEXO_KEY) === "true"; }
 function activarModoDesarrolladorNexoPOS(clave) { if (String(clave || "") !== "nexo2026") { alertaPOS("Clave incorrecta", "No se activo el modo desarrollador.", "alerta"); return false; } localStorage.setItem(MODO_DESARROLLADOR_NEXO_KEY, "true"); alertaPOS("Modo desarrollador activo", "Ya puedes editar el contacto de soporte.", "exito"); return true; }

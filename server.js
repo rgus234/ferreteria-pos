@@ -54,6 +54,22 @@ app.get("/version", (req, res) => {
     });
 });
 
+app.get("/negocio-actual", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+
+        res.json({
+            ok: true,
+            negocio
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
 function normalizarCodigo(codigo) {
     return String(codigo || "")
         .replace(/[^a-zA-Z0-9]/g, "")
@@ -1350,7 +1366,7 @@ async function inicializarCreditos() {
     await pool.query(`
         CREATE TABLE IF NOT EXISTS public.usuarios (
             id SERIAL PRIMARY KEY,
-            usuario TEXT NOT NULL UNIQUE,
+            usuario TEXT NOT NULL,
             password TEXT NOT NULL,
             rol TEXT NOT NULL DEFAULT 'Administrador',
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -1368,7 +1384,12 @@ async function inicializarCreditos() {
         SELECT id, 'admin', '1234', 'Administrador'
         FROM public.negocios
         WHERE slug = $1
-        ON CONFLICT (usuario) DO NOTHING
+        AND NOT EXISTS (
+            SELECT 1
+            FROM public.usuarios
+            WHERE negocio_id = public.negocios.id
+            AND usuario = 'admin'
+        )
         `,
         [DEFAULT_NEGOCIO_SLUG]
     );
@@ -1381,6 +1402,40 @@ async function inicializarCreditos() {
         `,
         [DEFAULT_NEGOCIO_SLUG]
     );
+
+    await pool.query(`
+        DO $$
+        DECLARE
+            constraint_name TEXT;
+        BEGIN
+            FOR constraint_name IN
+                SELECT con.conname
+                FROM pg_constraint con
+                JOIN pg_class rel ON rel.oid = con.conrelid
+                JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+                WHERE nsp.nspname = 'public'
+                AND rel.relname = 'usuarios'
+                AND con.contype = 'u'
+                AND (
+                    SELECT array_agg(att.attname ORDER BY att.attnum)
+                    FROM unnest(con.conkey) key(attnum)
+                    JOIN pg_attribute att
+                    ON att.attrelid = rel.oid
+                    AND att.attnum = key.attnum
+                ) = ARRAY['usuario']
+            LOOP
+                EXECUTE format(
+                    'ALTER TABLE public.usuarios DROP CONSTRAINT IF EXISTS %I',
+                    constraint_name
+                );
+            END LOOP;
+        END $$;
+    `);
+
+    await pool.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_negocio_usuario_unique
+        ON public.usuarios (negocio_id, usuario)
+    `);
 
     await pool.query(`
         ALTER TABLE public.productos
