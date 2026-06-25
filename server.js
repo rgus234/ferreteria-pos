@@ -1,5 +1,6 @@
 const express = require("express");
 const path = require("path");
+const crypto = require("crypto");
 const { config, validarConfigProduccion } = require("./config");
 const pool = require("./db");
 const {
@@ -70,6 +71,313 @@ app.get("/negocio-actual", async (req, res) => {
     }
 });
 
+app.get("/licencia/estado", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const licencia = await licenciaActual(negocio);
+
+        res.json({
+            ok: true,
+            negocio: {
+                id: negocio.id,
+                slug: negocio.slug,
+                nombre: negocio.nombre,
+                estado: negocio.estado,
+                plan: negocio.plan
+            },
+            licencia: {
+                estado: licencia.estado,
+                plan: licencia.plan,
+                modo: licencia.modo,
+                fechaInicio: licencia.fecha_inicio,
+                fechaVencimiento: licencia.fecha_vencimiento,
+                graciaDias: licencia.gracia_dias,
+                ultimoPagoAt: licencia.ultimo_pago_at
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
+app.post("/dispositivos/activar", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const deviceId =
+            obtenerDeviceId(req) || crypto.randomUUID();
+        const nombreEquipo =
+            req.body?.nombreEquipo || req.body?.hostname || "Equipo Windows";
+        const plataforma =
+            req.body?.plataforma || "windows";
+        const appVersion =
+            req.body?.appVersion || config.appVersion;
+
+        const resultado =
+        await pool.query(
+            `
+            INSERT INTO public.dispositivos
+                (negocio_id, device_id, nombre_equipo, plataforma, app_version, ultimo_checkin_at)
+            VALUES
+                ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (negocio_id, device_id)
+            DO UPDATE SET
+                nombre_equipo = EXCLUDED.nombre_equipo,
+                plataforma = EXCLUDED.plataforma,
+                app_version = EXCLUDED.app_version,
+                estado = 'activo',
+                ultimo_checkin_at = NOW(),
+                updated_at = NOW()
+            RETURNING *
+            `,
+            [negocio.id, deviceId, nombreEquipo, plataforma, appVersion]
+        );
+
+        res.json({
+            ok: true,
+            negocio,
+            dispositivo: resultado.rows[0],
+            licencia: await licenciaActual(negocio)
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
+app.post("/dispositivos/checkin", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const deviceId = obtenerDeviceId(req);
+
+        if (!deviceId) {
+            return res.status(400).json({
+                ok: false,
+                error: "deviceId requerido"
+            });
+        }
+
+        const resultado =
+        await pool.query(
+            `
+            UPDATE public.dispositivos
+            SET
+                app_version = COALESCE($3, app_version),
+                ultimo_checkin_at = NOW(),
+                updated_at = NOW()
+            WHERE negocio_id = $1
+            AND device_id = $2
+            RETURNING *
+            `,
+            [negocio.id, deviceId, req.body?.appVersion || null]
+        );
+
+        if (resultado.rows.length === 0) {
+            return res.status(404).json({
+                ok: false,
+                error: "Dispositivo no registrado"
+            });
+        }
+
+        res.json({
+            ok: true,
+            dispositivo: resultado.rows[0],
+            licencia: await licenciaActual(negocio)
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
+app.post("/sync/push", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const deviceId = obtenerDeviceId(req);
+        const eventos = Array.isArray(req.body?.eventos)
+            ? req.body.eventos
+            : [];
+
+        if (!deviceId) {
+            return res.status(400).json({
+                ok: false,
+                error: "deviceId requerido"
+            });
+        }
+
+        if (eventos.length === 0) {
+            return res.json({
+                ok: true,
+                aceptados: [],
+                duplicados: [],
+                errores: []
+            });
+        }
+
+        const aceptados = [];
+        const duplicados = [];
+        const errores = [];
+
+        for (const evento of eventos) {
+            const eventId =
+                String(evento.eventId || evento.event_id || "").trim();
+            const tipo =
+                String(evento.tipo || "").trim();
+
+            if (!eventId || !tipo) {
+                errores.push({
+                    eventId,
+                    error: "eventId y tipo son requeridos"
+                });
+                continue;
+            }
+
+            const insertado =
+            await pool.query(
+                `
+                INSERT INTO public.sync_eventos
+                    (negocio_id, device_id, event_id, tipo, entidad, entidad_id, payload)
+                VALUES
+                    ($1, $2, $3, $4, $5, $6, $7::jsonb)
+                ON CONFLICT (negocio_id, event_id) DO NOTHING
+                RETURNING id
+                `,
+                [
+                    negocio.id,
+                    deviceId,
+                    eventId,
+                    tipo,
+                    evento.entidad || null,
+                    evento.entidadId || evento.entidad_id || null,
+                    JSON.stringify(evento.payload || {})
+                ]
+            );
+
+            if (insertado.rows.length > 0) {
+                aceptados.push(eventId);
+            } else {
+                duplicados.push(eventId);
+            }
+        }
+
+        await pool.query(
+            `
+            UPDATE public.dispositivos
+            SET ultimo_checkin_at = NOW(), updated_at = NOW()
+            WHERE negocio_id = $1
+            AND device_id = $2
+            `,
+            [negocio.id, deviceId]
+        );
+
+        res.json({
+            ok: true,
+            aceptados,
+            duplicados,
+            errores
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
+app.get("/sync/pull", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const deviceId = obtenerDeviceId(req);
+        const fechaDesde =
+            req.query.desde ? new Date(req.query.desde) : new Date(0);
+        const desde =
+            Number.isNaN(fechaDesde.getTime()) ? new Date(0) : fechaDesde;
+        const limiteSolicitado =
+            Number(req.query.limite || 100);
+        const limite =
+            Number.isFinite(limiteSolicitado)
+                ? Math.min(Math.max(limiteSolicitado, 1), 500)
+                : 100;
+
+        const resultado =
+        await pool.query(
+            `
+            SELECT
+                event_id AS "eventId",
+                tipo,
+                entidad,
+                entidad_id AS "entidadId",
+                payload,
+                estado,
+                recibido_at AS "recibidoAt"
+            FROM public.sync_eventos
+            WHERE negocio_id = $1
+            AND recibido_at > $2
+            AND ($3::text = '' OR device_id <> $3)
+            ORDER BY recibido_at ASC
+            LIMIT $4
+            `,
+            [negocio.id, desde, deviceId || "", limite]
+        );
+
+        res.json({
+            ok: true,
+            eventos: resultado.rows
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
+app.get("/updates/latest", async (req, res) => {
+    try {
+        const canal =
+            String(req.query.canal || "stable");
+        const plataforma =
+            String(req.query.plataforma || "windows");
+
+        const resultado =
+        await pool.query(
+            `
+            SELECT *
+            FROM public.app_versiones
+            WHERE canal = $1
+            AND plataforma = $2
+            AND publicada = true
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            `,
+            [canal, plataforma]
+        );
+
+        const version =
+            resultado.rows[0] || null;
+        const updateAvailable =
+            Boolean(version && version.version !== config.appVersion);
+
+        res.json({
+            ok: true,
+            updateAvailable,
+            currentServerVersion: config.appVersion,
+            latest: version
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
 function normalizarCodigo(codigo) {
     return String(codigo || "")
         .replace(/[^a-zA-Z0-9]/g, "")
@@ -78,6 +386,62 @@ function normalizarCodigo(codigo) {
 
 async function negocioActual(req) {
     return asegurarNegocioActual(pool, req);
+}
+
+function obtenerDeviceId(req) {
+    return String(
+        req.headers["x-device-id"] ||
+        req.body?.deviceId ||
+        req.query.deviceId ||
+        ""
+    ).trim();
+}
+
+function calcularModoLicencia(licencia) {
+    if (!licencia) return "bloqueado";
+    if (licencia.estado === "suspendida" || licencia.estado === "cancelada") {
+        return "bloqueado";
+    }
+
+    if (!licencia.fecha_vencimiento) return "normal";
+
+    const vence =
+        new Date(licencia.fecha_vencimiento).getTime();
+    const ahora =
+        Date.now();
+
+    if (ahora <= vence) return "normal";
+
+    const graciaMs =
+        Number(licencia.gracia_dias || 0) * 24 * 60 * 60 * 1000;
+
+    if (ahora <= vence + graciaMs) return "gracia";
+
+    return "limitado";
+}
+
+async function licenciaActual(negocio) {
+    const resultado =
+    await pool.query(
+        `
+        INSERT INTO public.licencias
+            (negocio_id, estado, plan, fecha_vencimiento, gracia_dias)
+        VALUES
+            ($1, 'activa', $2, NOW() + INTERVAL '30 days', 15)
+        ON CONFLICT (negocio_id)
+        DO UPDATE SET updated_at = NOW()
+        RETURNING *
+        `,
+        [negocio.id, negocio.plan || "demo"]
+    );
+
+    const licencia =
+        resultado.rows[0];
+
+    return {
+        ...licencia,
+        modo: calcularModoLicencia(licencia)
+    };
 }
 
 app.get("/", (req, res) => {
@@ -1293,6 +1657,82 @@ async function inicializarCreditos() {
         `,
         [DEFAULT_NEGOCIO_SLUG, DEFAULT_NEGOCIO_NOMBRE]
     );
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.licencias (
+            id SERIAL PRIMARY KEY,
+            negocio_id INTEGER NOT NULL REFERENCES public.negocios(id) ON DELETE CASCADE,
+            estado TEXT NOT NULL DEFAULT 'activa',
+            plan TEXT NOT NULL DEFAULT 'demo',
+            fecha_inicio TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            fecha_vencimiento TIMESTAMPTZ,
+            gracia_dias INTEGER NOT NULL DEFAULT 15,
+            ultimo_pago_at TIMESTAMPTZ,
+            notas TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (negocio_id)
+        )
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.dispositivos (
+            id SERIAL PRIMARY KEY,
+            negocio_id INTEGER NOT NULL REFERENCES public.negocios(id) ON DELETE CASCADE,
+            device_id TEXT NOT NULL,
+            nombre_equipo TEXT,
+            plataforma TEXT NOT NULL DEFAULT 'windows',
+            app_version TEXT,
+            estado TEXT NOT NULL DEFAULT 'activo',
+            ultimo_checkin_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (negocio_id, device_id)
+        )
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.sync_eventos (
+            id BIGSERIAL PRIMARY KEY,
+            negocio_id INTEGER NOT NULL REFERENCES public.negocios(id) ON DELETE CASCADE,
+            device_id TEXT NOT NULL,
+            event_id TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            entidad TEXT,
+            entidad_id TEXT,
+            payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+            estado TEXT NOT NULL DEFAULT 'recibido',
+            recibido_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            aplicado_at TIMESTAMPTZ,
+            error TEXT,
+            UNIQUE (negocio_id, event_id)
+        )
+    `);
+
+    await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_sync_eventos_negocio_recibido
+        ON public.sync_eventos (negocio_id, recibido_at DESC)
+    `);
+
+    await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_sync_eventos_negocio_device
+        ON public.sync_eventos (negocio_id, device_id)
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.app_versiones (
+            id SERIAL PRIMARY KEY,
+            version TEXT NOT NULL,
+            canal TEXT NOT NULL DEFAULT 'stable',
+            plataforma TEXT NOT NULL DEFAULT 'windows',
+            url_descarga TEXT,
+            notas TEXT,
+            obligatoria BOOLEAN NOT NULL DEFAULT false,
+            publicada BOOLEAN NOT NULL DEFAULT false,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (version, canal, plataforma)
+        )
+    `);
 
     await pool.query(`
         CREATE TABLE IF NOT EXISTS public.productos (
