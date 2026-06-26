@@ -1,0 +1,40 @@
+{
+  "name": "nexo-pos-desktop",
+  "version": "0.1.0",
+  "description": "Nexo POS para Windows",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check main.js && node --check preload.js",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.nexopos.desktop",
+    "productName": "Nexo POS",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "NexoPOS_Setup_${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Nexo POS"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  }
+}

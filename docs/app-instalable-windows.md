@@ -12,6 +12,49 @@ Primera version recomendada: Electron + SQLite local + API nube.
 - SQLite guarda datos locales sin instalar PostgreSQL en la PC del cliente.
 - La nube sigue siendo respaldo, panel del dueno, licencias y actualizaciones.
 
+## Carpeta creada
+
+La base de la app Windows vive en:
+
+```text
+apps/desktop/
+```
+
+Esta carpeta tiene su propio `package.json` para no afectar el despliegue de Render. Render sigue usando el `package.json` principal del proyecto.
+
+## Probar app desktop en desarrollo
+
+Desde la raiz del proyecto:
+
+```bash
+cd apps/desktop
+npm install
+npm start
+```
+
+Primer arranque:
+
+1. Escribe la URL del servidor, por ejemplo `https://ferreteria-pos.onrender.com`.
+2. Escribe el codigo del negocio, por ejemplo `ferreteria-olimpico`.
+3. Escribe el nombre del equipo, por ejemplo `Caja principal`.
+4. La app llama a `/dispositivos/activar`.
+5. Si activa correctamente, abre el POS con `?desktop=1&negocio=...`.
+
+## Generar instalador Windows
+
+Cuando ya este lista para empaquetar:
+
+```bash
+cd apps/desktop
+npm run dist
+```
+
+El instalador esperado queda como:
+
+```text
+apps/desktop/dist/NexoPOS_Setup_0.1.0.exe
+```
+
 ## Nuevas piezas de backend
 
 - `licencias`: estado comercial del negocio.
@@ -53,9 +96,7 @@ Todas las llamadas deben mandar:
 
 ## Pendiente despues de esta fase
 
-- App Electron real.
 - SQLite local.
 - Motor que aplique eventos a inventario/ventas/creditos.
-- Instalador Windows.
 - Auto-update firmado.
 - Panel admin para editar licencias, pagos y versiones.

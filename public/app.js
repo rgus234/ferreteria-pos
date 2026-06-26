@@ -73,6 +73,17 @@ function guardarNegocioActivo(slug) {
  return limpio;
 }
 
+function aplicarNegocioDesdeURL() {
+ const parametros =
+ new URLSearchParams(window.location.search);
+ const negocio =
+ parametros.get("negocio");
+
+ if (negocio) {
+ guardarNegocioActivo(negocio);
+ }
+}
+
 function instalarContextoNegocioFetch() {
  if (window.__nexoFetchNegocioInstalado) return;
 
@@ -113,6 +124,7 @@ function instalarContextoNegocioFetch() {
  };
 }
 
+aplicarNegocioDesdeURL();
 instalarContextoNegocioFetch();
 
 const PLANTILLAS_GIRO_NEGOCIO = {

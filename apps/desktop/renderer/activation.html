@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Activar Nexo POS</title>
+  <link rel="stylesheet" href="activation.css">
+</head>
+<body>
+  <main class="activation-shell">
+    <section class="activation-card">
+      <div class="brand-row">
+        <img src="../../public/nexo-pos-icon.jpg" alt="Nexo POS">
+        <div>
+          <span>NEXO POS</span>
+          <h1>Activar equipo</h1>
+        </div>
+      </div>
+
+      <p class="intro">
+        Conecta esta computadora con el negocio del cliente. Esta activacion crea
+        el identificador local que despues se usara para licencia, sincronizacion
+        y actualizaciones.
+      </p>
+
+      <form id="activationForm">
+        <label>
+          <span>Servidor Nexo POS</span>
+          <input id="apiBaseUrl" autocomplete="off" placeholder="https://ferreteria-pos.onrender.com">
+        </label>
+
+        <label>
+          <span>Codigo del negocio</span>
+          <input id="negocioSlug" autocomplete="off" placeholder="ferreteria-olimpico">
+        </label>
+
+        <label>
+          <span>Nombre de esta computadora</span>
+          <input id="deviceName" autocomplete="off" placeholder="Caja principal">
+        </label>
+
+        <button id="activateButton" type="submit">Activar y abrir POS</button>
+      </form>
+
+      <div id="statusMessage" class="status-message"></div>
+    </section>
+  </main>
+
+  <script src="activation.js"></script>
+</body>
+</html>
