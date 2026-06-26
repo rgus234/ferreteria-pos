@@ -935,19 +935,21 @@ app.post("/ventas", async (req, res) => {
             ALTER TABLE public.historial_ventas
             ADD COLUMN IF NOT EXISTS pagos_json JSONB NOT NULL DEFAULT '{}'::jsonb
         `);
-        await pool.query(
+        const ventaCreada = await pool.query(
             `
             INSERT INTO public.ventas(negocio_id, total)
             VALUES($1, $2)
+            RETURNING id, fecha
             `,
             [negocio.id, total]
         );
 
-        await pool.query(
+        const historialCreado = await pool.query(
             `
             INSERT INTO public.historial_ventas
                 (negocio_id, total, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json)
             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
+            RETURNING id, fecha
             `,
             [negocio.id, total, metodoPago || "efectivo", pagoEfectivo, pagoTarjeta, pagoTransferencia, pagoCredito, Number(recibido || 0), Number(cambio || 0), JSON.stringify(pagosVenta)]
         );
@@ -968,7 +970,10 @@ app.post("/ventas", async (req, res) => {
         }
 
         res.json({
-            success: true
+            success: true,
+            ventaId: ventaCreada.rows[0]?.id || null,
+            historialId: historialCreado.rows[0]?.id || null,
+            fecha: historialCreado.rows[0]?.fecha || ventaCreada.rows[0]?.fecha || null
         });
 
     } catch (error) {

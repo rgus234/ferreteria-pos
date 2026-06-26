@@ -127,6 +127,61 @@ function instalarContextoNegocioFetch() {
 aplicarNegocioDesdeURL();
 instalarContextoNegocioFetch();
 
+function desktopNexoDisponible() {
+ return Boolean(
+ window.nexoDesktop &&
+ typeof window.nexoDesktop.queueEvent === "function"
+ );
+}
+
+function crearEventIdPOS(tipo) {
+ return [
+ negocioActivoSlug(),
+ tipo || "evento",
+ Date.now(),
+ Math.random().toString(16).slice(2)
+ ].join("-");
+}
+
+async function registrarEventoDesktopPOS(tipo, entidad, entidadId, payload = {}) {
+ if (!desktopNexoDisponible()) {
+ return {
+ ok: false,
+ skipped: true
+ };
+ }
+
+ try {
+ const resultado =
+ await window.nexoDesktop.queueEvent({
+ eventId: payload.eventId || crearEventIdPOS(tipo),
+ tipo,
+ entidad,
+ entidadId: entidadId ? String(entidadId) : "",
+ payload: {
+ negocioSlug: negocioActivoSlug(),
+ usuario: usuarioActual?.nombre || "",
+ fechaLocal: new Date().toISOString(),
+ ...payload
+ }
+ });
+
+ if (typeof window.nexoDesktop.syncPush === "function") {
+ window.nexoDesktop.syncPush().catch(error => {
+ console.warn("No se pudo sincronizar evento desktop", error);
+ });
+ }
+
+ return resultado;
+ } catch (error) {
+ console.warn("No se pudo guardar evento desktop", error);
+ return {
+ ok: false,
+ error: error.message
+ };
+ }
+}
+
 const PLANTILLAS_GIRO_NEGOCIO = {
  ferreteria: {
  nombre: "Ferreteria",
@@ -5054,12 +5109,14 @@ async function cobrar(total) {
  return;
  }
 
- const cambio =
- dinero - total;
+const cambio =
+dinero - total;
 
- let respuesta;
+let respuesta;
+const productosVenta =
+productosCarritoAgrupados();
 
- try {
+try {
  respuesta = await fetch(
  "/ventas",
  {
@@ -5072,7 +5129,7 @@ async function cobrar(total) {
 
  body: JSON.stringify({
  total,
- productos: productosCarritoAgrupados()
+ productos: productosVenta
  })
  }
  );
@@ -5085,6 +5142,27 @@ async function cobrar(total) {
  await alertaPOS("El servidor no pudo registrar la venta. No se imprimio ticket para evitar errores de inventario.", "Venta no registrada", "peligro");
  return;
  }
+
+ const ventaRegistrada =
+ await respuesta.json().catch(() => ({
+ success: true
+ }));
+
+ await registrarEventoDesktopPOS(
+ "venta_creada",
+ "venta",
+ ventaRegistrada.ventaId || ventaRegistrada.historialId || "",
+ {
+ ventaId: ventaRegistrada.ventaId || null,
+ historialId: ventaRegistrada.historialId || null,
+ total,
+ recibido: dinero,
+ cambio,
+ metodoPago: "efectivo",
+ productos: productosVenta,
+ fechaServidor: ventaRegistrada.fecha || null
+ }
+ );
 
  const cambioTexto =
  document.getElementById(
@@ -5147,7 +5225,7 @@ let ticket = `
 
 `;
 
-productosCarritoAgrupados().forEach(p => {
+productosVenta.forEach(p => {
 
  ticket += `
 
@@ -5398,6 +5476,27 @@ async function cobrarCredito(total) {
  alert("No se pudo registrar la venta a credito");
  return;
  }
+
+ const creditoRegistrado =
+ await respuesta.json().catch(() => ({
+ success: true
+ }));
+
+ await registrarEventoDesktopPOS(
+ "credito_cargo_creado",
+ "credito",
+ creditoRegistrado.movimiento?.id || clienteId,
+ {
+ clienteId,
+ clienteNombre: clienteSeleccionado?.nombre || "",
+ movimientoId: creditoRegistrado.movimiento?.id || null,
+ referencia: creditoRegistrado.movimiento?.referencia || null,
+ total,
+ concepto: datos.concepto || "Venta de productos",
+ productos,
+ fechaServidor: creditoRegistrado.movimiento?.fecha || null
+ }
+ );
 
  const fechaCredito =
  new Date().toLocaleString("es-MX");

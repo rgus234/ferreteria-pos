@@ -116,6 +116,17 @@ APIs disponibles dentro de Electron:
 
 Nota: esta fase crea la base y la cola offline. El siguiente paso es conectar ventas, inventario, clientes y creditos reales del POS a esta cola.
 
+## Eventos conectados al POS web
+
+El POS web ya detecta si esta corriendo dentro de Electron con `window.nexoDesktop`.
+
+Eventos que se encolan localmente despues de que la nube confirma la operacion:
+
+- `venta_creada`: venta normal cobrada en punto de venta.
+- `credito_cargo_creado`: venta enviada a credito de un cliente.
+
+Esto da trazabilidad local y prepara la sincronizacion, pero todavia no significa venta offline completa. Para venta offline real falta que el servidor procese eventos creados sin internet y los aplique a `ventas`, `historial_ventas`, `movimientos_credito` e inventario cuando la PC vuelva a conectarse.
+
 ## Reglas de licencia
 
 - Los datos nunca se borran por falta de pago.
