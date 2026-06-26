@@ -224,6 +224,10 @@ app.post("/sync/push", async (req, res) => {
         const duplicados = [];
         const errores = [];
         const aplicados = [];
+        const idMappings = {
+            producto: new Map(),
+            cliente_credito: new Map()
+        };
 
         for (const evento of eventos) {
             const eventId =
@@ -271,12 +275,31 @@ app.post("/sync/push", async (req, res) => {
                     continue;
                 }
 
+                const payloadEvento =
+                    evento.payload || {};
+
+                if (
+                    payloadEvento.productoId &&
+                    idMappings.producto.has(String(payloadEvento.productoId))
+                ) {
+                    payloadEvento.productoId =
+                        idMappings.producto.get(String(payloadEvento.productoId));
+                }
+
+                if (
+                    payloadEvento.clienteId &&
+                    idMappings.cliente_credito.has(String(payloadEvento.clienteId))
+                ) {
+                    payloadEvento.clienteId =
+                        idMappings.cliente_credito.get(String(payloadEvento.clienteId));
+                }
+
                 const resultadoAplicacion =
                     await aplicarEventoSync(client, negocio, {
                         ...evento,
                         eventId,
                         tipo,
-                        payload: evento.payload || {}
+                        payload: payloadEvento
                     });
 
                 await client.query(
@@ -293,8 +316,24 @@ app.post("/sync/push", async (req, res) => {
                 await client.query("COMMIT");
 
                 aceptados.push(eventId);
+
+                if (payloadEvento.localId && resultadoAplicacion?.productoId) {
+                    idMappings.producto.set(
+                        String(payloadEvento.localId),
+                        resultadoAplicacion.productoId
+                    );
+                }
+
+                if (payloadEvento.localId && resultadoAplicacion?.clienteId) {
+                    idMappings.cliente_credito.set(
+                        String(payloadEvento.localId),
+                        resultadoAplicacion.clienteId
+                    );
+                }
+
                 aplicados.push({
                     eventId,
+                    localId: payloadEvento.localId || null,
                     ...resultadoAplicacion
                 });
             } catch (error) {

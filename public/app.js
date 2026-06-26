@@ -303,6 +303,71 @@ function crearEventIdPOS(tipo) {
  ].join("-");
 }
 
+async function aplicarMappingsSyncFrontendPOS(resultadoSync) {
+ const aplicados =
+ Array.isArray(resultadoSync?.aplicados)
+ ? resultadoSync.aplicados
+ : [];
+
+ if (aplicados.length === 0) return;
+
+ let cambioProductos = false;
+ let cambioClientes = false;
+
+ aplicados.forEach(item => {
+ if (item.localId && item.productoId) {
+ todosProductos =
+ todosProductos.map(producto =>
+ String(producto.id) === String(item.localId)
+ ? {
+ ...producto,
+ id: item.productoId,
+ pendienteSync: false
+ }
+ : producto
+ );
+ cambioProductos = true;
+ }
+
+ if (item.localId && item.clienteId) {
+ clientesCredito =
+ clientesCredito.map(cliente =>
+ String(cliente.id) === String(item.localId)
+ ? {
+ ...cliente,
+ id: item.clienteId,
+ pendienteSync: false
+ }
+ : cliente
+ );
+ cambioClientes = true;
+ }
+ });
+
+ if (cambioProductos) {
+ mostrarProductos(todosProductos);
+ actualizarDashboard();
+ actualizarInventarioBajo();
+ actualizarDatalistCategorias();
+ }
+
+ if (cambioClientes) {
+ renderCreditos({
+ clientes: clientesCredito,
+ total: clientesCredito.reduce((suma, cliente) => suma + Number(cliente.saldo || 0), 0),
+ clientesConAdeudo: clientesCredito.filter(cliente => Number(cliente.saldo || 0) > 0).length
+ });
+
+ if (document.getElementById("pantallaClientes")?.style.display === "block") {
+ renderClientes();
+ }
+ }
+
+ if (cambioProductos || cambioClientes) {
+ await guardarCatalogosLocalesDesktopPOS();
+ }
+}
+
 async function registrarEventoDesktopPOS(tipo, entidad, entidadId, payload = {}) {
  if (!desktopNexoDisponible()) {
  return {
@@ -327,7 +392,7 @@ async function registrarEventoDesktopPOS(tipo, entidad, entidadId, payload = {})
  });
 
  if (typeof window.nexoDesktop.syncPush === "function") {
- window.nexoDesktop.syncPush().catch(error => {
+ window.nexoDesktop.syncPush().then(aplicarMappingsSyncFrontendPOS).catch(error => {
  console.warn("No se pudo sincronizar evento desktop", error);
  });
  }

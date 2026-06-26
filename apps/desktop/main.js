@@ -124,7 +124,7 @@ function saveActivationLocally(config, activation) {
 
 async function syncPendingEvents() {
   const config = await readConfig();
-  const eventos = localDb.pendingEvents(100);
+  const eventos = localDb.pendingEvents(100, config.negocioSlug);
 
   if (eventos.length === 0) {
     return {
@@ -152,6 +152,7 @@ async function syncPendingEvents() {
     ];
 
     localDb.markEventsSynced(synced);
+    localDb.applySyncMappings(config.negocioSlug, response.aplicados || []);
 
     const failed = eventos
       .map(event => event.eventId)

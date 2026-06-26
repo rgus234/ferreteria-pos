@@ -103,6 +103,15 @@ function initLocalDatabase(userDataPath) {
       PRIMARY KEY (negocio_slug, cliente_id)
     );
 
+    CREATE TABLE IF NOT EXISTS id_mappings (
+      negocio_slug TEXT NOT NULL,
+      entidad TEXT NOT NULL,
+      local_id TEXT NOT NULL,
+      cloud_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (negocio_slug, entidad, local_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sync_outbox_estado
     ON sync_outbox (estado, created_at);
 
@@ -117,6 +126,9 @@ function initLocalDatabase(userDataPath) {
 
     CREATE INDEX IF NOT EXISTS idx_clientes_credito_cache_nombre
     ON clientes_credito_cache (negocio_slug, nombre);
+
+    CREATE INDEX IF NOT EXISTS idx_id_mappings_cloud
+    ON id_mappings (negocio_slug, entidad, cloud_id);
   `);
 
   return db;
@@ -232,7 +244,50 @@ function enqueueEvent(event) {
     });
 }
 
-function pendingEvents(limit = 100) {
+function resolveMappedId(negocioSlug, entidad, id) {
+  if (!negocioSlug || id === null || id === undefined || id === "") return id;
+
+  const row = ensureDb()
+    .prepare(`
+      SELECT cloud_id AS cloudId
+      FROM id_mappings
+      WHERE negocio_slug = ?
+      AND entidad = ?
+      AND local_id = ?
+    `)
+    .get(negocioSlug, entidad, String(id));
+
+  return row?.cloudId || id;
+}
+
+function resolveEventMappings(event, negocioSlug) {
+  if (!negocioSlug || !event?.payload) return event;
+
+  const payload = {
+    ...event.payload
+  };
+
+  if (payload.productoId) {
+    payload.productoId = resolveMappedId(negocioSlug, "producto", payload.productoId);
+  }
+
+  if (payload.clienteId) {
+    payload.clienteId = resolveMappedId(negocioSlug, "cliente_credito", payload.clienteId);
+  }
+
+  return {
+    ...event,
+    entidadId:
+      event.entidad === "producto"
+      ? String(resolveMappedId(negocioSlug, "producto", event.entidadId))
+      : event.entidad === "cliente_credito"
+      ? String(resolveMappedId(negocioSlug, "cliente_credito", event.entidadId))
+      : event.entidadId,
+    payload
+  };
+}
+
+function pendingEvents(limit = 100, negocioSlug = null) {
   return ensureDb()
     .prepare(`
       SELECT
@@ -250,7 +305,8 @@ function pendingEvents(limit = 100) {
     .map(row => ({
       ...row,
       payload: JSON.parse(row.payload)
-    }));
+    }))
+    .map(event => resolveEventMappings(event, negocioSlug));
 }
 
 function markEventsSynced(eventIds) {
@@ -544,6 +600,86 @@ function hydrateStructuredCache(negocioSlug, endpoint, payload) {
   }
 }
 
+function saveIdMapping(negocioSlug, entidad, localId, cloudId) {
+  if (!negocioSlug || !entidad || !localId || !cloudId) return;
+
+  ensureDb()
+    .prepare(`
+      INSERT INTO id_mappings
+        (negocio_slug, entidad, local_id, cloud_id, created_at)
+      VALUES
+        (@negocioSlug, @entidad, @localId, @cloudId, CURRENT_TIMESTAMP)
+      ON CONFLICT(negocio_slug, entidad, local_id)
+      DO UPDATE SET
+        cloud_id = excluded.cloud_id
+    `)
+    .run({
+      negocioSlug,
+      entidad,
+      localId: String(localId),
+      cloudId: String(cloudId)
+    });
+}
+
+function replaceCacheId(table, idColumn, negocioSlug, localId, cloudId) {
+  const row = ensureDb()
+    .prepare(`
+      SELECT payload
+      FROM ${table}
+      WHERE negocio_slug = ?
+      AND ${idColumn} = ?
+    `)
+    .get(negocioSlug, String(localId));
+
+  if (!row) return;
+
+  const payload = {
+    ...parsePayload(row.payload, {}),
+    id: Number(cloudId)
+  };
+
+  if (String(localId) !== String(cloudId)) {
+    ensureDb()
+      .prepare(`
+        DELETE FROM ${table}
+        WHERE negocio_slug = ?
+        AND ${idColumn} = ?
+      `)
+      .run(negocioSlug, String(cloudId));
+  }
+
+  ensureDb()
+    .prepare(`
+      UPDATE ${table}
+      SET ${idColumn} = ?,
+          payload = ?,
+          synced_at = CURRENT_TIMESTAMP
+      WHERE negocio_slug = ?
+      AND ${idColumn} = ?
+    `)
+    .run(String(cloudId), JSON.stringify(payload), negocioSlug, String(localId));
+}
+
+function applySyncMappings(negocioSlug, aplicados = []) {
+  if (!Array.isArray(aplicados) || aplicados.length === 0) return;
+
+  const trx = ensureDb().transaction(items => {
+    items.forEach(item => {
+      if (item.localId && item.productoId) {
+        saveIdMapping(negocioSlug, "producto", item.localId, item.productoId);
+        replaceCacheId("productos_cache", "producto_id", negocioSlug, item.localId, item.productoId);
+      }
+
+      if (item.localId && item.clienteId) {
+        saveIdMapping(negocioSlug, "cliente_credito", item.localId, item.clienteId);
+        replaceCacheId("clientes_credito_cache", "cliente_id", negocioSlug, item.localId, item.clienteId);
+      }
+    });
+  });
+
+  trx(aplicados);
+}
+
 function localDataStats(negocioSlug) {
   const productos = ensureDb()
     .prepare("SELECT COUNT(*) AS total FROM productos_cache WHERE negocio_slug = ?")
@@ -557,10 +693,15 @@ function localDataStats(negocioSlug) {
     .prepare("SELECT COUNT(*) AS total FROM resource_cache WHERE negocio_slug = ?")
     .get(negocioSlug);
 
+  const mappings = ensureDb()
+    .prepare("SELECT COUNT(*) AS total FROM id_mappings WHERE negocio_slug = ?")
+    .get(negocioSlug);
+
   return {
     productos: Number(productos?.total || 0),
     clientesCredito: Number(clientes?.total || 0),
     recursosCache: Number(cache?.total || 0),
+    mapeosId: Number(mappings?.total || 0),
     eventos: syncStats()
   };
 }
@@ -645,6 +786,7 @@ module.exports = {
   lastLicense,
   enqueueEvent,
   pendingEvents,
+  resolveMappedId,
   markEventsSynced,
   markEventsFailed,
   saveInboundEvents,
@@ -657,5 +799,6 @@ module.exports = {
   localDataStats,
   getProductosCache,
   getClientesCreditoCache,
-  getStructuredResource
+  getStructuredResource,
+  applySyncMappings
 };
