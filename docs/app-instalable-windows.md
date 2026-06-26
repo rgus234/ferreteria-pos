@@ -29,8 +29,11 @@ Desde la raiz del proyecto:
 ```bash
 cd apps/desktop
 npm install
+npm run rebuild
 npm start
 ```
+
+`npm run rebuild` recompila dependencias nativas como SQLite para Electron. Si no se ejecuta, en algunas maquinas Windows la app puede abrir pero fallar al crear la base local.
 
 Primer arranque:
 
@@ -86,6 +89,32 @@ Todas las llamadas deben mandar:
 6. Cuando hay internet, manda eventos a `/sync/push`.
 7. La nube ignora duplicados por `event_id`.
 8. La app consulta `/updates/latest` para saber si hay nueva version.
+
+## Base local SQLite
+
+La app desktop crea una base local en la carpeta de datos del usuario de Windows:
+
+```text
+%APPDATA%\Nexo POS\nexo-pos-local.sqlite
+```
+
+Tablas locales iniciales:
+
+- `settings`: configuracion local de la app.
+- `device_state`: equipo activado, negocio y servidor.
+- `license_cache`: ultima licencia valida consultada.
+- `sync_outbox`: eventos creados localmente pendientes de subir.
+- `sync_inbox`: eventos recibidos desde la nube.
+
+APIs disponibles dentro de Electron:
+
+- `window.nexoDesktop.licenseStatus()`
+- `window.nexoDesktop.queueEvent({...})`
+- `window.nexoDesktop.syncPush()`
+- `window.nexoDesktop.syncPull()`
+- `window.nexoDesktop.syncStats()`
+
+Nota: esta fase crea la base y la cola offline. El siguiente paso es conectar ventas, inventario, clientes y creditos reales del POS a esta cola.
 
 ## Reglas de licencia
 

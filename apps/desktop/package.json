@@ -6,7 +6,8 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.js && node --check preload.js",
+    "check": "node --check main.js && node --check preload.js && node --check local-db.js && node --check renderer/activation.js",
+    "rebuild": "electron-builder install-app-deps",
     "dist": "electron-builder --win nsis"
   },
   "build": {
@@ -17,6 +18,7 @@
     },
     "files": [
       "main.js",
+      "local-db.js",
       "preload.js",
       "renderer/**",
       "package.json"
@@ -32,6 +34,9 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Nexo POS"
     }
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1"
   },
   "devDependencies": {
     "electron": "^33.4.11",

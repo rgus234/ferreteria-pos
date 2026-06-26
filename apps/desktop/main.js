@@ -3,6 +3,7 @@ const fs = require("fs/promises");
 const path = require("path");
 const crypto = require("crypto");
 const os = require("os");
+const localDb = require("./local-db");
 
 const DEFAULT_API_URL = "https://ferreteria-pos.onrender.com";
 const CONFIG_FILE = "desktop-config.json";
@@ -64,6 +65,7 @@ async function writeConfig(nextConfig) {
 
   await fs.mkdir(app.getPath("userData"), { recursive: true });
   await fs.writeFile(configPath(), JSON.stringify(configCache, null, 2));
+  localDb.saveSetting("desktopConfig", configCache);
   return configCache;
 }
 
@@ -105,6 +107,93 @@ async function activateDevice() {
   });
 }
 
+function saveActivationLocally(config, activation) {
+  localDb.saveDeviceState({
+    deviceId: config.deviceId,
+    negocioSlug: config.negocioSlug,
+    deviceName: config.deviceName,
+    apiBaseUrl: config.apiBaseUrl,
+    activatedAt: config.activatedAt || new Date().toISOString(),
+    appVersion: app.getVersion()
+  });
+
+  if (activation?.licencia) {
+    localDb.saveLicense(config.negocioSlug, activation.licencia);
+  }
+}
+
+async function syncPendingEvents() {
+  const config = await readConfig();
+  const eventos = localDb.pendingEvents(100);
+
+  if (eventos.length === 0) {
+    return {
+      ok: true,
+      enviados: 0,
+      aceptados: [],
+      duplicados: [],
+      errores: [],
+      stats: localDb.syncStats()
+    };
+  }
+
+  try {
+    const response = await apiRequest("/sync/push", {
+      method: "POST",
+      body: JSON.stringify({
+        deviceId: config.deviceId,
+        eventos
+      })
+    });
+
+    const synced = [
+      ...(response.aceptados || []),
+      ...(response.duplicados || [])
+    ];
+
+    localDb.markEventsSynced(synced);
+
+    const failed = eventos
+      .map(event => event.eventId)
+      .filter(eventId => !synced.includes(eventId));
+
+    if (failed.length > 0) {
+      localDb.markEventsFailed(failed, "La nube no confirmo el evento");
+    }
+
+    return {
+      ...response,
+      enviados: eventos.length,
+      stats: localDb.syncStats()
+    };
+  } catch (error) {
+    localDb.markEventsFailed(
+      eventos.map(event => event.eventId),
+      error.message
+    );
+
+    return {
+      ok: false,
+      enviados: 0,
+      error: error.message,
+      stats: localDb.syncStats()
+    };
+  }
+}
+
+async function pullCloudEvents() {
+  const response = await apiRequest("/sync/pull", {
+    method: "GET"
+  });
+
+  localDb.saveInboundEvents(response.eventos || []);
+
+  return {
+    ...response,
+    recibidos: (response.eventos || []).length
+  };
+}
+
 async function loadPosWindow() {
   const config = await readConfig();
   const url =
@@ -118,6 +207,8 @@ async function loadActivationWindow() {
 }
 
 async function createWindow() {
+  localDb.initLocalDatabase(app.getPath("userData"));
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -167,6 +258,8 @@ ipcMain.handle("nexo:activate", async (_event, payload) => {
     lastLicense: activation.licencia || null
   });
 
+  saveActivationLocally(await readConfig(), activation);
+
   await loadPosWindow();
 
   return {
@@ -177,15 +270,63 @@ ipcMain.handle("nexo:activate", async (_event, payload) => {
 });
 
 ipcMain.handle("nexo:license-status", async () => {
-  const status = await apiRequest("/licencia/estado");
+  const config = await readConfig();
 
-  await writeConfig({
-    lastLicense: status.licencia,
-    lastLicenseCheckAt: new Date().toISOString()
+  try {
+    const status = await apiRequest("/licencia/estado");
+
+    localDb.saveLicense(config.negocioSlug, status.licencia);
+
+    await writeConfig({
+      lastLicense: status.licencia,
+      lastLicenseCheckAt: new Date().toISOString()
+    });
+
+    return {
+      ...status,
+      offline: false
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      offline: true,
+      error: error.message,
+      cached: localDb.lastLicense(config.negocioSlug)
+    };
+  }
+});
+
+ipcMain.handle("nexo:queue-event", async (_event, payload) => {
+  if (!payload?.tipo) {
+    throw new Error("tipo de evento requerido");
+  }
+
+  const eventId =
+    payload?.eventId || crypto.randomUUID();
+
+  localDb.enqueueEvent({
+    eventId,
+    tipo: payload?.tipo,
+    entidad: payload?.entidad,
+    entidadId: payload?.entidadId,
+    payload: payload?.payload || {}
   });
 
-  return status;
+  return {
+    ok: true,
+    eventId,
+    stats: localDb.syncStats()
+  };
 });
+
+ipcMain.handle("nexo:sync-push", async () => syncPendingEvents());
+
+ipcMain.handle("nexo:sync-pull", async () => pullCloudEvents());
+
+ipcMain.handle("nexo:sync-stats", async () => ({
+  ok: true,
+  stats: localDb.syncStats()
+}));
 
 ipcMain.handle("nexo:reset-activation", async () => {
   const config = await readConfig();
