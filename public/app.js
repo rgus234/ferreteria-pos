@@ -182,6 +182,93 @@ async function registrarEventoDesktopPOS(tipo, entidad, entidadId, payload = {})
  }
 }
 
+async function registrarVentaOfflineDesktopPOS(payload) {
+ if (!desktopNexoDisponible()) {
+ return {
+ ok: false,
+ offlineDisponible: false
+ };
+ }
+
+ const resultado =
+ await registrarEventoDesktopPOS(
+ "venta_creada",
+ "venta",
+ "",
+ {
+ ...payload,
+ ventaId: null,
+ historialId: null,
+ modoRegistro: "offline"
+ }
+ );
+
+ return {
+ ...resultado,
+ offlineDisponible: true
+ };
+}
+
+async function registrarCreditoOfflineDesktopPOS(payload) {
+ if (!desktopNexoDisponible()) {
+ return {
+ ok: false,
+ offlineDisponible: false
+ };
+ }
+
+ const resultado =
+ await registrarEventoDesktopPOS(
+ "credito_cargo_creado",
+ "credito",
+ payload.clienteId || "",
+ {
+ ...payload,
+ movimientoId: null,
+ modoRegistro: "offline"
+ }
+ );
+
+ return {
+ ...resultado,
+ offlineDisponible: true
+ };
+}
+
+function descontarInventarioLocalPOS(productos = []) {
+ if (!Array.isArray(todosProductos) || !Array.isArray(productos)) return;
+
+ productos.forEach(item => {
+ const producto =
+ todosProductos.find(actual => Number(actual.id) === Number(item.id));
+
+ if (!producto) return;
+
+ const cantidad =
+ Number(item.cantidad || 0);
+
+ producto.stock =
+ Math.max(
+ 0,
+ Number(producto.stock || 0) - cantidad
+ );
+ });
+
+ mostrarProductos(todosProductos);
+ actualizarDashboard();
+ actualizarInventarioBajo();
+ actualizarDatalistCategorias();
+}
+
+async function intentarRefrescarNubePOS(operacion, contexto = "operacion") {
+ try {
+ return await operacion();
+ } catch (error) {
+ console.warn(`No se pudo refrescar ${contexto}`, error);
+ return null;
+ }
+}
+
 const PLANTILLAS_GIRO_NEGOCIO = {
  ferreteria: {
  nombre: "Ferreteria",
@@ -5113,6 +5200,8 @@ const cambio =
 dinero - total;
 
 let respuesta;
+let ventaRegistrada = null;
+let ventaOffline = false;
 const productosVenta =
 productosCarritoAgrupados();
 
@@ -5134,20 +5223,61 @@ try {
  }
  );
  } catch (error) {
+ const offline =
+ await registrarVentaOfflineDesktopPOS({
+ total,
+ recibido: dinero,
+ cambio,
+ metodoPago: "efectivo",
+ productos: productosVenta,
+ errorConexion: error.message
+ });
+
+ if (offline.offlineDisponible && offline.ok) {
+ ventaRegistrada = {
+ success: true,
+ offline: true,
+ eventId: offline.eventId
+ };
+ ventaOffline = true;
+ } else {
  await alertaPOS("No se pudo conectar con el servidor para registrar la venta.", "Venta no registrada", "peligro");
  return;
  }
+ }
 
- if (!respuesta.ok) {
+ if (!ventaOffline && !respuesta.ok) {
+ const offline =
+ await registrarVentaOfflineDesktopPOS({
+ total,
+ recibido: dinero,
+ cambio,
+ metodoPago: "efectivo",
+ productos: productosVenta,
+ errorServidor: respuesta.status
+ });
+
+ if (offline.offlineDisponible && offline.ok) {
+ ventaRegistrada = {
+ success: true,
+ offline: true,
+ eventId: offline.eventId
+ };
+ ventaOffline = true;
+ } else {
  await alertaPOS("El servidor no pudo registrar la venta. No se imprimio ticket para evitar errores de inventario.", "Venta no registrada", "peligro");
  return;
  }
+ }
 
- const ventaRegistrada =
+ if (!ventaRegistrada) {
+ ventaRegistrada =
  await respuesta.json().catch(() => ({
  success: true
  }));
+ }
 
+ if (!ventaOffline) {
  await registrarEventoDesktopPOS(
  "venta_creada",
  "venta",
@@ -5163,6 +5293,7 @@ try {
  fechaServidor: ventaRegistrada.fecha || null
  }
  );
+ }
 
  const cambioTexto =
  document.getElementById(
@@ -5172,7 +5303,9 @@ try {
 if (cambioTexto) {
 
  cambioTexto.textContent =
- ` Venta realizada | Cambio: $${cambio}`;
+ ventaOffline
+ ? ` Venta offline guardada | Cambio: $${cambio}`
+ : ` Venta realizada | Cambio: $${cambio}`;
 }
 const fecha =
  new Date()
@@ -5360,10 +5493,14 @@ if (negocio.nombre) {
 const mensajeTicket =
  negocio.mensajeTicket || "Gracias por su compra";
 
-const extraTicket =
+let extraTicket =
  `${mensajeTicket}
  ${negocio.notaTicket ? `<br><small>${negocio.notaTicket}</small>` : ""}
  ${negocio.mostrarBarcodeTicket ? `<div style="margin-top:10px;font-size:22px;letter-spacing:2px;">|||| ||| |||| || |||||</div>` : ""}`;
+
+if (ventaOffline) {
+ extraTicket += `<br><small style="font-weight:bold;">PENDIENTE DE SINCRONIZAR</small>`;
+}
 
 ticket = ticket.replace(
  "Gracias por su compra",
@@ -5381,23 +5518,34 @@ if (!ticketEnviado) {
  );
 }
 
+if (ventaOffline) {
+ await alertaPOS(
+ "La venta quedo guardada en esta computadora y se sincronizara cuando vuelva el internet.",
+ "Venta offline guardada",
+ "exito"
+ );
+}
+
  carrito = [];
 
  actualizarCarrito();
 
-  cargarProductos();
-
-  cargarHistorial();
+ if (ventaOffline) {
+  descontarInventarioLocalPOS(productosVenta);
+ } else {
+  intentarRefrescarNubePOS(() => cargarProductos(), "productos");
+  intentarRefrescarNubePOS(() => cargarHistorial(), "historial");
+ }
 
  if (
  document.getElementById("pantallaReportes")?.style.display !== "none" &&
  typeof cargarReportesVentas === "function"
  ) {
-  cargarReportesVentas();
+  intentarRefrescarNubePOS(() => cargarReportesVentas(), "reportes de ventas");
  }
 
   if (typeof window.refrescarCaja7Metodos === "function") {
-   window.refrescarCaja7Metodos();
+   intentarRefrescarNubePOS(() => window.refrescarCaja7Metodos(), "caja");
   }
 
  if (typeof enfocarBusquedaVentaRapida === "function") {
@@ -5411,10 +5559,10 @@ async function cobrarCredito(total) {
  return;
  }
 
- await cargarCreditos();
+ await intentarRefrescarNubePOS(() => cargarCreditos(), "clientes de credito");
 
  if (clientesCredito.length === 0) {
- alert("Primero registra un cliente de credito.");
+ alert("Primero registra un cliente de credito o conecta internet para cargar la lista.");
  return;
  }
 
@@ -5456,7 +5604,14 @@ async function cobrarCredito(total) {
  const productos =
  productosCarritoAgrupados();
 
- const respuesta =
+ let respuesta;
+ let creditoRegistrado = null;
+ let creditoOffline = false;
+ const conceptoCredito =
+ datos.concepto || "Venta de productos";
+
+ try {
+ respuesta =
  await fetch(
  `/creditos/clientes/${clienteId}/cargos`,
  {
@@ -5466,22 +5621,67 @@ async function cobrarCredito(total) {
  },
  body: JSON.stringify({
  monto: total,
- concepto: datos.concepto || "Venta de productos",
+ concepto: conceptoCredito,
  productos
  })
  }
  );
+ } catch (error) {
+ const offline =
+ await registrarCreditoOfflineDesktopPOS({
+ clienteId,
+ clienteNombre: clienteSeleccionado?.nombre || "",
+ total,
+ concepto: conceptoCredito,
+ productos,
+ errorConexion: error.message
+ });
 
- if (!respuesta.ok) {
+ if (offline.offlineDisponible && offline.ok) {
+ creditoRegistrado = {
+ success: true,
+ offline: true,
+ eventId: offline.eventId
+ };
+ creditoOffline = true;
+ } else {
  alert("No se pudo registrar la venta a credito");
  return;
  }
+ }
 
- const creditoRegistrado =
+ if (!creditoOffline && !respuesta.ok) {
+ const offline =
+ await registrarCreditoOfflineDesktopPOS({
+ clienteId,
+ clienteNombre: clienteSeleccionado?.nombre || "",
+ total,
+ concepto: conceptoCredito,
+ productos,
+ errorServidor: respuesta.status
+ });
+
+ if (offline.offlineDisponible && offline.ok) {
+ creditoRegistrado = {
+ success: true,
+ offline: true,
+ eventId: offline.eventId
+ };
+ creditoOffline = true;
+ } else {
+ alert("No se pudo registrar la venta a credito");
+ return;
+ }
+ }
+
+ if (!creditoRegistrado) {
+ creditoRegistrado =
  await respuesta.json().catch(() => ({
  success: true
  }));
+ }
 
+ if (!creditoOffline) {
  await registrarEventoDesktopPOS(
  "credito_cargo_creado",
  "credito",
@@ -5492,11 +5692,12 @@ async function cobrarCredito(total) {
  movimientoId: creditoRegistrado.movimiento?.id || null,
  referencia: creditoRegistrado.movimiento?.referencia || null,
  total,
- concepto: datos.concepto || "Venta de productos",
+ concepto: conceptoCredito,
  productos,
  fechaServidor: creditoRegistrado.movimiento?.fecha || null
  }
  );
+ }
 
  const fechaCredito =
  new Date().toLocaleString("es-MX");
@@ -5506,6 +5707,7 @@ async function cobrarCredito(total) {
  <div style="text-align:center;margin-bottom:12px;">
  <h2 style="margin:0;font-size:20px;">${(configuracionNegocio()?.ticketNombre || configuracionNegocio()?.nombre || "Ferreteria").toUpperCase()}</h2>
  <div>VENTA A CREDITO</div>
+ ${creditoOffline ? `<div style="font-weight:bold;font-size:12px;">PENDIENTE DE SINCRONIZAR</div>` : ""}
  <div>${fechaCredito}</div>
  <div>Cliente: ${clienteSeleccionado?.nombre || "Cliente"}</div>
  </div>
@@ -5539,13 +5741,20 @@ async function cobrarCredito(total) {
 
  carrito = [];
  actualizarCarrito();
- await cargarProductos();
- await cargarCreditos();
- await cargarHistorial();
+
+ if (creditoOffline) {
+ descontarInventarioLocalPOS(productos);
+ } else {
+ await intentarRefrescarNubePOS(() => cargarProductos(), "productos");
+ await intentarRefrescarNubePOS(() => cargarCreditos(), "creditos");
+ await intentarRefrescarNubePOS(() => cargarHistorial(), "historial");
+ }
 
  await alertaPOS(
- `Venta a credito registrada para ${clienteSeleccionado?.nombre || "el cliente"} por ${dinero(total)}.`,
- "Credito guardado",
+ creditoOffline
+ ? `Credito guardado offline para ${clienteSeleccionado?.nombre || "el cliente"} por ${dinero(total)}. Se sincronizara al volver el internet.`
+ : `Venta a credito registrada para ${clienteSeleccionado?.nombre || "el cliente"} por ${dinero(total)}.`,
+ creditoOffline ? "Credito offline guardado" : "Credito guardado",
  "exito"
  );
 
