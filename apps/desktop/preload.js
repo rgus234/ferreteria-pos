@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("nexoDesktop", {
   syncPush: () => ipcRenderer.invoke("nexo:sync-push"),
   syncPull: () => ipcRenderer.invoke("nexo:sync-pull"),
   syncStats: () => ipcRenderer.invoke("nexo:sync-stats"),
+  localDataStats: () => ipcRenderer.invoke("nexo:local-data-stats"),
   saveCache: payload => ipcRenderer.invoke("nexo:cache-save", payload),
   getCache: payload => ipcRenderer.invoke("nexo:cache-get", payload)
 });

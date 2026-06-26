@@ -328,6 +328,15 @@ ipcMain.handle("nexo:sync-stats", async () => ({
   stats: localDb.syncStats()
 }));
 
+ipcMain.handle("nexo:local-data-stats", async () => {
+  const config = await readConfig();
+
+  return {
+    ok: true,
+    stats: localDb.localDataStats(config.negocioSlug)
+  };
+});
+
 ipcMain.handle("nexo:cache-save", async (_event, payload) => {
   const config = await readConfig();
 
@@ -341,6 +350,12 @@ ipcMain.handle("nexo:cache-save", async (_event, payload) => {
     endpoint: payload.endpoint,
     payload: payload.payload
   });
+
+  localDb.hydrateStructuredCache(
+    config.negocioSlug,
+    payload.endpoint,
+    payload.payload
+  );
 
   return {
     ok: true,

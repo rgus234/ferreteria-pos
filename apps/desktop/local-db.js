@@ -71,6 +71,38 @@ function initLocalDatabase(userDataPath) {
       PRIMARY KEY (negocio_slug, cache_key)
     );
 
+    CREATE TABLE IF NOT EXISTS productos_cache (
+      negocio_slug TEXT NOT NULL,
+      producto_id TEXT NOT NULL,
+      codigo TEXT,
+      nombre TEXT NOT NULL,
+      categoria TEXT,
+      subcategoria TEXT,
+      marca TEXT,
+      proveedor TEXT,
+      unidad_venta TEXT,
+      precio_publico REAL NOT NULL DEFAULT 0,
+      precio_mayoreo REAL NOT NULL DEFAULT 0,
+      costo REAL NOT NULL DEFAULT 0,
+      stock REAL NOT NULL DEFAULT 0,
+      stock_minimo REAL NOT NULL DEFAULT 0,
+      payload TEXT NOT NULL DEFAULT '{}',
+      synced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (negocio_slug, producto_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS clientes_credito_cache (
+      negocio_slug TEXT NOT NULL,
+      cliente_id TEXT NOT NULL,
+      nombre TEXT NOT NULL,
+      telefono TEXT,
+      limite_credito REAL NOT NULL DEFAULT 0,
+      saldo REAL NOT NULL DEFAULT 0,
+      payload TEXT NOT NULL DEFAULT '{}',
+      synced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (negocio_slug, cliente_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sync_outbox_estado
     ON sync_outbox (estado, created_at);
 
@@ -79,6 +111,12 @@ function initLocalDatabase(userDataPath) {
 
     CREATE INDEX IF NOT EXISTS idx_resource_cache_endpoint
     ON resource_cache (negocio_slug, endpoint);
+
+    CREATE INDEX IF NOT EXISTS idx_productos_cache_busqueda
+    ON productos_cache (negocio_slug, nombre, codigo);
+
+    CREATE INDEX IF NOT EXISTS idx_clientes_credito_cache_nombre
+    ON clientes_credito_cache (negocio_slug, nombre);
   `);
 
   return db;
@@ -345,6 +383,180 @@ function getResourceCache(negocioSlug, cacheKey) {
   }
 }
 
+function numberValue(value) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function saveProductosCache(negocioSlug, productos = []) {
+  if (!Array.isArray(productos)) return;
+
+  const stmt = ensureDb().prepare(`
+    INSERT INTO productos_cache
+      (
+        negocio_slug,
+        producto_id,
+        codigo,
+        nombre,
+        categoria,
+        subcategoria,
+        marca,
+        proveedor,
+        unidad_venta,
+        precio_publico,
+        precio_mayoreo,
+        costo,
+        stock,
+        stock_minimo,
+        payload,
+        synced_at
+      )
+    VALUES
+      (
+        @negocioSlug,
+        @productoId,
+        @codigo,
+        @nombre,
+        @categoria,
+        @subcategoria,
+        @marca,
+        @proveedor,
+        @unidadVenta,
+        @precioPublico,
+        @precioMayoreo,
+        @costo,
+        @stock,
+        @stockMinimo,
+        @payload,
+        CURRENT_TIMESTAMP
+      )
+    ON CONFLICT(negocio_slug, producto_id)
+    DO UPDATE SET
+      codigo = excluded.codigo,
+      nombre = excluded.nombre,
+      categoria = excluded.categoria,
+      subcategoria = excluded.subcategoria,
+      marca = excluded.marca,
+      proveedor = excluded.proveedor,
+      unidad_venta = excluded.unidad_venta,
+      precio_publico = excluded.precio_publico,
+      precio_mayoreo = excluded.precio_mayoreo,
+      costo = excluded.costo,
+      stock = excluded.stock,
+      stock_minimo = excluded.stock_minimo,
+      payload = excluded.payload,
+      synced_at = CURRENT_TIMESTAMP
+  `);
+
+  const trx = ensureDb().transaction(items => {
+    items.forEach(producto => {
+      stmt.run({
+        negocioSlug,
+        productoId: String(producto.id || producto.producto_id || producto.codigo || ""),
+        codigo: producto.codigo || "",
+        nombre: producto.nombre || "Producto sin nombre",
+        categoria: producto.categoria || "",
+        subcategoria: producto.subcategoria || "",
+        marca: producto.marca || "",
+        proveedor: producto.proveedor || "",
+        unidadVenta: producto.unidad_venta || producto.unidadVenta || "pieza",
+        precioPublico: numberValue(producto.precio_publico ?? producto.precioPublico ?? producto.precio ?? producto.publico),
+        precioMayoreo: numberValue(producto.precio_mayoreo ?? producto.precioMayoreo ?? producto.medio_mayoreo ?? producto.medioMayoreo),
+        costo: numberValue(producto.costo ?? producto.precio_proveedor ?? producto.distribuidor),
+        stock: numberValue(producto.stock),
+        stockMinimo: numberValue(producto.stock_minimo ?? producto.stockMinimo),
+        payload: JSON.stringify(producto)
+      });
+    });
+  });
+
+  trx(productos.filter(producto => producto?.id || producto?.codigo));
+}
+
+function saveClientesCreditoCache(negocioSlug, clientes = []) {
+  if (!Array.isArray(clientes)) return;
+
+  const stmt = ensureDb().prepare(`
+    INSERT INTO clientes_credito_cache
+      (
+        negocio_slug,
+        cliente_id,
+        nombre,
+        telefono,
+        limite_credito,
+        saldo,
+        payload,
+        synced_at
+      )
+    VALUES
+      (
+        @negocioSlug,
+        @clienteId,
+        @nombre,
+        @telefono,
+        @limiteCredito,
+        @saldo,
+        @payload,
+        CURRENT_TIMESTAMP
+      )
+    ON CONFLICT(negocio_slug, cliente_id)
+    DO UPDATE SET
+      nombre = excluded.nombre,
+      telefono = excluded.telefono,
+      limite_credito = excluded.limite_credito,
+      saldo = excluded.saldo,
+      payload = excluded.payload,
+      synced_at = CURRENT_TIMESTAMP
+  `);
+
+  const trx = ensureDb().transaction(items => {
+    items.forEach(cliente => {
+      stmt.run({
+        negocioSlug,
+        clienteId: String(cliente.id || cliente.cliente_id || cliente.nombre || ""),
+        nombre: cliente.nombre || "Cliente sin nombre",
+        telefono: cliente.telefono || "",
+        limiteCredito: numberValue(cliente.limite_credito ?? cliente.limiteCredito),
+        saldo: numberValue(cliente.saldo),
+        payload: JSON.stringify(cliente)
+      });
+    });
+  });
+
+  trx(clientes.filter(cliente => cliente?.id || cliente?.nombre));
+}
+
+function hydrateStructuredCache(negocioSlug, endpoint, payload) {
+  if (endpoint === "/productos") {
+    saveProductosCache(negocioSlug, payload);
+  }
+
+  if (endpoint === "/creditos") {
+    saveClientesCreditoCache(negocioSlug, payload?.clientes || []);
+  }
+}
+
+function localDataStats(negocioSlug) {
+  const productos = ensureDb()
+    .prepare("SELECT COUNT(*) AS total FROM productos_cache WHERE negocio_slug = ?")
+    .get(negocioSlug);
+
+  const clientes = ensureDb()
+    .prepare("SELECT COUNT(*) AS total FROM clientes_credito_cache WHERE negocio_slug = ?")
+    .get(negocioSlug);
+
+  const cache = ensureDb()
+    .prepare("SELECT COUNT(*) AS total FROM resource_cache WHERE negocio_slug = ?")
+    .get(negocioSlug);
+
+  return {
+    productos: Number(productos?.total || 0),
+    clientesCredito: Number(clientes?.total || 0),
+    recursosCache: Number(cache?.total || 0),
+    eventos: syncStats()
+  };
+}
+
 module.exports = {
   initLocalDatabase,
   saveSetting,
@@ -359,5 +571,9 @@ module.exports = {
   saveInboundEvents,
   syncStats,
   saveResourceCache,
-  getResourceCache
+  getResourceCache,
+  saveProductosCache,
+  saveClientesCreditoCache,
+  hydrateStructuredCache,
+  localDataStats
 };
