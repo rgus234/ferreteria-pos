@@ -328,6 +328,43 @@ ipcMain.handle("nexo:sync-stats", async () => ({
   stats: localDb.syncStats()
 }));
 
+ipcMain.handle("nexo:cache-save", async (_event, payload) => {
+  const config = await readConfig();
+
+  if (!payload?.cacheKey || !payload?.endpoint) {
+    throw new Error("cacheKey y endpoint son requeridos");
+  }
+
+  localDb.saveResourceCache({
+    negocioSlug: config.negocioSlug,
+    cacheKey: payload.cacheKey,
+    endpoint: payload.endpoint,
+    payload: payload.payload
+  });
+
+  return {
+    ok: true,
+    cacheKey: payload.cacheKey
+  };
+});
+
+ipcMain.handle("nexo:cache-get", async (_event, payload) => {
+  const config = await readConfig();
+
+  if (!payload?.cacheKey) {
+    throw new Error("cacheKey requerido");
+  }
+
+  const cached =
+    localDb.getResourceCache(config.negocioSlug, payload.cacheKey);
+
+  return {
+    ok: Boolean(cached),
+    cacheKey: payload.cacheKey,
+    cached
+  };
+});
+
 ipcMain.handle("nexo:reset-activation", async () => {
   const config = await readConfig();
 

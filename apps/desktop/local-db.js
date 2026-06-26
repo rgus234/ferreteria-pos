@@ -62,11 +62,23 @@ function initLocalDatabase(userDataPath) {
       aplicado_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS resource_cache (
+      negocio_slug TEXT NOT NULL,
+      cache_key TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      payload TEXT NOT NULL DEFAULT '{}',
+      saved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (negocio_slug, cache_key)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sync_outbox_estado
     ON sync_outbox (estado, created_at);
 
     CREATE INDEX IF NOT EXISTS idx_sync_inbox_recibido
     ON sync_inbox (recibido_at);
+
+    CREATE INDEX IF NOT EXISTS idx_resource_cache_endpoint
+    ON resource_cache (negocio_slug, endpoint);
   `);
 
   return db;
@@ -290,6 +302,49 @@ function syncStats() {
   return stats;
 }
 
+function saveResourceCache({ negocioSlug, cacheKey, endpoint, payload }) {
+  ensureDb()
+    .prepare(`
+      INSERT INTO resource_cache
+        (negocio_slug, cache_key, endpoint, payload, saved_at)
+      VALUES
+        (@negocioSlug, @cacheKey, @endpoint, @payload, CURRENT_TIMESTAMP)
+      ON CONFLICT(negocio_slug, cache_key)
+      DO UPDATE SET
+        endpoint = excluded.endpoint,
+        payload = excluded.payload,
+        saved_at = CURRENT_TIMESTAMP
+    `)
+    .run({
+      negocioSlug,
+      cacheKey,
+      endpoint,
+      payload: JSON.stringify(payload)
+    });
+}
+
+function getResourceCache(negocioSlug, cacheKey) {
+  const row = ensureDb()
+    .prepare(`
+      SELECT endpoint, payload, saved_at AS savedAt
+      FROM resource_cache
+      WHERE negocio_slug = ?
+      AND cache_key = ?
+    `)
+    .get(negocioSlug, cacheKey);
+
+  if (!row) return null;
+
+  try {
+    return {
+      ...row,
+      payload: JSON.parse(row.payload)
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
 module.exports = {
   initLocalDatabase,
   saveSetting,
@@ -302,5 +357,7 @@ module.exports = {
   markEventsSynced,
   markEventsFailed,
   saveInboundEvents,
-  syncStats
+  syncStats,
+  saveResourceCache,
+  getResourceCache
 };

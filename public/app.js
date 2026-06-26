@@ -84,6 +84,80 @@ function aplicarNegocioDesdeURL() {
  }
 }
 
+function desktopCacheDisponible() {
+ return Boolean(
+ window.nexoDesktop &&
+ typeof window.nexoDesktop.saveCache === "function" &&
+ typeof window.nexoDesktop.getCache === "function"
+ );
+}
+
+function recursoCacheableDesktop(destino, metodo) {
+ if (String(metodo || "GET").toUpperCase() !== "GET") return false;
+
+ return [
+ "/productos",
+ "/creditos",
+ "/historial",
+ "/proveedores",
+ "/categorias",
+ "/configuracion"
+ ].includes(destino.pathname);
+}
+
+function cacheKeyDesktop(destino) {
+ return [
+ negocioActivoSlug(),
+ destino.pathname,
+ destino.search || ""
+ ].join("|");
+}
+
+async function guardarCacheDesktop(destino, respuesta) {
+ if (!desktopCacheDisponible() || !respuesta?.ok) return;
+
+ try {
+ const data =
+ await respuesta.clone().json();
+
+ await window.nexoDesktop.saveCache({
+ cacheKey: cacheKeyDesktop(destino),
+ endpoint: `${destino.pathname}${destino.search || ""}`,
+ payload: data
+ });
+ } catch (error) {
+ console.warn("No se pudo guardar cache local", error);
+ }
+}
+
+async function respuestaDesdeCacheDesktop(destino) {
+ if (!desktopCacheDisponible()) return null;
+
+ try {
+ const resultado =
+ await window.nexoDesktop.getCache({
+ cacheKey: cacheKeyDesktop(destino)
+ });
+
+ if (!resultado?.ok || !resultado.cached) return null;
+
+ return new Response(
+ JSON.stringify(resultado.cached.payload),
+ {
+ status: 200,
+ headers: {
+ "content-type": "application/json",
+ "x-nexo-cache": "desktop",
+ "x-nexo-cache-saved-at": resultado.cached.savedAt || ""
+ }
+ }
+ );
+ } catch (error) {
+ console.warn("No se pudo leer cache local", error);
+ return null;
+ }
+}
+
 function instalarContextoNegocioFetch() {
  if (window.__nexoFetchNegocioInstalado) return;
 
@@ -92,7 +166,7 @@ function instalarContextoNegocioFetch() {
  const fetchOriginal =
  window.fetch.bind(window);
 
- window.fetch = (input, init = {}) => {
+ window.fetch = async (input, init = {}) => {
  const url =
  typeof input === "string"
  ? input
@@ -105,6 +179,14 @@ function instalarContextoNegocioFetch() {
  return fetchOriginal(input, init);
  }
 
+ const metodo =
+ init.method ||
+ (typeof input !== "string" && input?.method) ||
+ "GET";
+
+ const esCacheable =
+ recursoCacheableDesktop(destino, metodo);
+
  const headers =
  new Headers(
  init.headers ||
@@ -115,12 +197,49 @@ function instalarContextoNegocioFetch() {
  headers.set("x-negocio-slug", negocioActivoSlug());
 
  if (typeof input !== "string") {
- return fetchOriginal(
- new Request(input, { ...init, headers })
- );
+ const request =
+ new Request(input, { ...init, headers });
+
+ try {
+ const respuesta =
+ await fetchOriginal(request);
+
+ if (esCacheable) {
+ await guardarCacheDesktop(destino, respuesta);
  }
 
- return fetchOriginal(input, { ...init, headers });
+ return respuesta;
+ } catch (error) {
+ const cache =
+ esCacheable
+ ? await respuestaDesdeCacheDesktop(destino)
+ : null;
+
+ if (cache) return cache;
+
+ throw error;
+ }
+ }
+
+ try {
+ const respuesta =
+ await fetchOriginal(input, { ...init, headers });
+
+ if (esCacheable) {
+ await guardarCacheDesktop(destino, respuesta);
+ }
+
+ return respuesta;
+ } catch (error) {
+ const cache =
+ esCacheable
+ ? await respuestaDesdeCacheDesktop(destino)
+ : null;
+
+ if (cache) return cache;
+
+ throw error;
+ }
  };
 }
 

@@ -8,5 +8,7 @@ contextBridge.exposeInMainWorld("nexoDesktop", {
   queueEvent: payload => ipcRenderer.invoke("nexo:queue-event", payload),
   syncPush: () => ipcRenderer.invoke("nexo:sync-push"),
   syncPull: () => ipcRenderer.invoke("nexo:sync-pull"),
-  syncStats: () => ipcRenderer.invoke("nexo:sync-stats")
+  syncStats: () => ipcRenderer.invoke("nexo:sync-stats"),
+  saveCache: payload => ipcRenderer.invoke("nexo:cache-save", payload),
+  getCache: payload => ipcRenderer.invoke("nexo:cache-get", payload)
 });
