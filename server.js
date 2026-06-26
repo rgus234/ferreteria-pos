@@ -223,6 +223,7 @@ app.post("/sync/push", async (req, res) => {
         const aceptados = [];
         const duplicados = [];
         const errores = [];
+        const aplicados = [];
 
         for (const evento of eventos) {
             const eventId =
@@ -238,31 +239,85 @@ app.post("/sync/push", async (req, res) => {
                 continue;
             }
 
-            const insertado =
-            await pool.query(
-                `
-                INSERT INTO public.sync_eventos
-                    (negocio_id, device_id, event_id, tipo, entidad, entidad_id, payload)
-                VALUES
-                    ($1, $2, $3, $4, $5, $6, $7::jsonb)
-                ON CONFLICT (negocio_id, event_id) DO NOTHING
-                RETURNING id
-                `,
-                [
-                    negocio.id,
-                    deviceId,
-                    eventId,
-                    tipo,
-                    evento.entidad || null,
-                    evento.entidadId || evento.entidad_id || null,
-                    JSON.stringify(evento.payload || {})
-                ]
-            );
+            const client = await pool.connect();
 
-            if (insertado.rows.length > 0) {
+            try {
+                await client.query("BEGIN");
+
+                const insertado =
+                await client.query(
+                    `
+                    INSERT INTO public.sync_eventos
+                        (negocio_id, device_id, event_id, tipo, entidad, entidad_id, payload)
+                    VALUES
+                        ($1, $2, $3, $4, $5, $6, $7::jsonb)
+                    ON CONFLICT (negocio_id, event_id) DO NOTHING
+                    RETURNING id
+                    `,
+                    [
+                        negocio.id,
+                        deviceId,
+                        eventId,
+                        tipo,
+                        evento.entidad || null,
+                        evento.entidadId || evento.entidad_id || null,
+                        JSON.stringify(evento.payload || {})
+                    ]
+                );
+
+                if (insertado.rows.length === 0) {
+                    await client.query("COMMIT");
+                    duplicados.push(eventId);
+                    continue;
+                }
+
+                const resultadoAplicacion =
+                    await aplicarEventoSync(client, negocio, {
+                        ...evento,
+                        eventId,
+                        tipo,
+                        payload: evento.payload || {}
+                    });
+
+                await client.query(
+                    `
+                    UPDATE public.sync_eventos
+                    SET estado = 'aplicado',
+                        aplicado_at = NOW(),
+                        error = NULL
+                    WHERE id = $1
+                    `,
+                    [insertado.rows[0].id]
+                );
+
+                await client.query("COMMIT");
+
                 aceptados.push(eventId);
-            } else {
-                duplicados.push(eventId);
+                aplicados.push({
+                    eventId,
+                    ...resultadoAplicacion
+                });
+            } catch (error) {
+                await client.query("ROLLBACK");
+
+                await pool.query(
+                    `
+                    UPDATE public.sync_eventos
+                    SET estado = 'error',
+                        error = $3,
+                        aplicado_at = NULL
+                    WHERE negocio_id = $1
+                    AND event_id = $2
+                    `,
+                    [negocio.id, eventId, error.message]
+                );
+
+                errores.push({
+                    eventId,
+                    error: error.message
+                });
+            } finally {
+                client.release();
             }
         }
 
@@ -280,6 +335,7 @@ app.post("/sync/push", async (req, res) => {
             ok: true,
             aceptados,
             duplicados,
+            aplicados,
             errores
         });
     } catch (error) {
@@ -441,6 +497,227 @@ async function licenciaActual(negocio) {
     return {
         ...licencia,
         modo: calcularModoLicencia(licencia)
+    };
+}
+
+async function asegurarColumnasHistorialVentas(client = pool) {
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS metodo_pago TEXT NOT NULL DEFAULT 'efectivo'
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS pago_efectivo NUMERIC(12,2) NOT NULL DEFAULT 0
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS pago_tarjeta NUMERIC(12,2) NOT NULL DEFAULT 0
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS pago_transferencia NUMERIC(12,2) NOT NULL DEFAULT 0
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS pago_credito NUMERIC(12,2) NOT NULL DEFAULT 0
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS pago_recibido NUMERIC(12,2) NOT NULL DEFAULT 0
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS cambio NUMERIC(12,2) NOT NULL DEFAULT 0
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS pagos_json JSONB NOT NULL DEFAULT '{}'::jsonb
+    `);
+}
+
+function productosEvento(payload) {
+    return Array.isArray(payload?.productos)
+        ? payload.productos
+        : [];
+}
+
+async function descontarInventarioPorProductos(client, negocioId, productos = []) {
+    for (const producto of productos) {
+        const productoId =
+            Number(producto.id || producto.productoId || 0);
+        const cantidad =
+            Number(producto.cantidad || 1);
+
+        if (!productoId || !Number.isFinite(cantidad) || cantidad <= 0) {
+            continue;
+        }
+
+        await client.query(
+            `
+            UPDATE public.productos
+            SET stock = stock - $1
+            WHERE id = $2
+            AND negocio_id = $3
+            `,
+            [cantidad, productoId, negocioId]
+        );
+    }
+}
+
+async function aplicarVentaSync(client, negocio, payload) {
+    if (payload?.ventaId || payload?.historialId) {
+        return {
+            accion: "venta_ya_confirmada",
+            ventaId: payload.ventaId || null,
+            historialId: payload.historialId || null
+        };
+    }
+
+    const total =
+        Number(payload?.total || 0);
+
+    if (!Number.isFinite(total) || total <= 0) {
+        throw new Error("Venta offline sin total valido");
+    }
+
+    await asegurarColumnasHistorialVentas(client);
+
+    const pagosVenta =
+        payload?.pagos || {};
+    const metodoPago =
+        payload?.metodoPago || "efectivo";
+    const recibido =
+        Number(payload?.recibido || pagosVenta.efectivo || total);
+    const cambio =
+        Number(payload?.cambio || 0);
+
+    const ventaCreada = await client.query(
+        `
+        INSERT INTO public.ventas(negocio_id, total)
+        VALUES($1, $2)
+        RETURNING id, fecha
+        `,
+        [negocio.id, total]
+    );
+
+    const historialCreado = await client.query(
+        `
+        INSERT INTO public.historial_ventas
+            (negocio_id, total, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
+        RETURNING id, fecha
+        `,
+        [
+            negocio.id,
+            total,
+            metodoPago,
+            Number(pagosVenta.efectivo || (metodoPago === "efectivo" ? recibido : 0)),
+            Number(pagosVenta.tarjeta || 0),
+            Number(pagosVenta.transferencia || 0),
+            Number(pagosVenta.credito || 0),
+            recibido,
+            cambio,
+            JSON.stringify(pagosVenta)
+        ]
+    );
+
+    await descontarInventarioPorProductos(
+        client,
+        negocio.id,
+        productosEvento(payload)
+    );
+
+    return {
+        accion: "venta_aplicada",
+        ventaId: ventaCreada.rows[0]?.id || null,
+        historialId: historialCreado.rows[0]?.id || null,
+        fecha: historialCreado.rows[0]?.fecha || ventaCreada.rows[0]?.fecha || null
+    };
+}
+
+async function aplicarCreditoCargoSync(client, negocio, payload) {
+    if (payload?.movimientoId) {
+        return {
+            accion: "credito_ya_confirmado",
+            movimientoId: payload.movimientoId
+        };
+    }
+
+    const clienteId =
+        Number(payload?.clienteId || 0);
+    const total =
+        Number(payload?.total || payload?.monto || 0);
+
+    if (!clienteId) {
+        throw new Error("Credito offline sin clienteId");
+    }
+
+    if (!Number.isFinite(total) || total <= 0) {
+        throw new Error("Credito offline sin total valido");
+    }
+
+    const resultado = await client.query(
+        `
+        INSERT INTO public.movimientos_credito
+        (
+            negocio_id,
+            cliente_id,
+            tipo,
+            referencia,
+            concepto,
+            monto,
+            productos
+        )
+        SELECT $1, c.id, 'venta', $2, $3, $4, $5::jsonb
+        FROM public.clientes_credito c
+        WHERE c.id = $6
+        AND c.negocio_id = $1
+        RETURNING *
+        `,
+        [
+            negocio.id,
+            payload?.referencia || `CR-SYNC-${Date.now()}`,
+            payload?.concepto || "Venta a credito",
+            total,
+            JSON.stringify(productosEvento(payload)),
+            clienteId
+        ]
+    );
+
+    if (resultado.rows.length === 0) {
+        throw new Error("Cliente de credito no encontrado para este negocio");
+    }
+
+    await descontarInventarioPorProductos(
+        client,
+        negocio.id,
+        productosEvento(payload)
+    );
+
+    return {
+        accion: "credito_aplicado",
+        movimientoId: resultado.rows[0]?.id || null,
+        referencia: resultado.rows[0]?.referencia || null,
+        fecha: resultado.rows[0]?.fecha || null
+    };
+}
+
+async function aplicarEventoSync(client, negocio, evento) {
+    const tipo =
+        String(evento.tipo || "").trim();
+    const payload =
+        evento.payload || {};
+
+    if (tipo === "venta_creada") {
+        return aplicarVentaSync(client, negocio, payload);
+    }
+
+    if (tipo === "credito_cargo_creado") {
+        return aplicarCreditoCargoSync(client, negocio, payload);
+    }
+
+    return {
+        accion: "evento_guardado_sin_aplicar"
     };
 }
 
@@ -903,38 +1180,7 @@ app.post("/ventas", async (req, res) => {
     try {
         const negocio = await negocioActual(req);
 
-        await pool.query(`
-            ALTER TABLE public.historial_ventas
-            ADD COLUMN IF NOT EXISTS metodo_pago TEXT NOT NULL DEFAULT 'efectivo'
-        `);
-        await pool.query(`
-            ALTER TABLE public.historial_ventas
-            ADD COLUMN IF NOT EXISTS pago_efectivo NUMERIC(12,2) NOT NULL DEFAULT 0
-        `);
-        await pool.query(`
-            ALTER TABLE public.historial_ventas
-            ADD COLUMN IF NOT EXISTS pago_tarjeta NUMERIC(12,2) NOT NULL DEFAULT 0
-        `);
-        await pool.query(`
-            ALTER TABLE public.historial_ventas
-            ADD COLUMN IF NOT EXISTS pago_transferencia NUMERIC(12,2) NOT NULL DEFAULT 0
-        `);
-        await pool.query(`
-            ALTER TABLE public.historial_ventas
-            ADD COLUMN IF NOT EXISTS pago_credito NUMERIC(12,2) NOT NULL DEFAULT 0
-        `);
-        await pool.query(`
-            ALTER TABLE public.historial_ventas
-            ADD COLUMN IF NOT EXISTS pago_recibido NUMERIC(12,2) NOT NULL DEFAULT 0
-        `);
-        await pool.query(`
-            ALTER TABLE public.historial_ventas
-            ADD COLUMN IF NOT EXISTS cambio NUMERIC(12,2) NOT NULL DEFAULT 0
-        `);
-        await pool.query(`
-            ALTER TABLE public.historial_ventas
-            ADD COLUMN IF NOT EXISTS pagos_json JSONB NOT NULL DEFAULT '{}'::jsonb
-        `);
+        await asegurarColumnasHistorialVentas();
         const ventaCreada = await pool.query(
             `
             INSERT INTO public.ventas(negocio_id, total)

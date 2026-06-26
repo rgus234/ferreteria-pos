@@ -125,7 +125,18 @@ Eventos que se encolan localmente despues de que la nube confirma la operacion:
 - `venta_creada`: venta normal cobrada en punto de venta.
 - `credito_cargo_creado`: venta enviada a credito de un cliente.
 
-Esto da trazabilidad local y prepara la sincronizacion, pero todavia no significa venta offline completa. Para venta offline real falta que el servidor procese eventos creados sin internet y los aplique a `ventas`, `historial_ventas`, `movimientos_credito` e inventario cuando la PC vuelva a conectarse.
+Esto da trazabilidad local y prepara la sincronizacion, pero todavia no significa venta offline completa. Para venta offline real falta que el frontend permita concretar la venta localmente cuando falle internet y la mande despues a `/sync/push`.
+
+## Procesamiento de eventos en la nube
+
+`/sync/push` ya procesa eventos de venta:
+
+- Si `venta_creada` trae `ventaId` o `historialId`, se toma como una venta que ya fue confirmada por la nube y solo se guarda la traza.
+- Si `venta_creada` no trae esos IDs, se aplica como venta offline: crea `ventas`, crea `historial_ventas` y descuenta inventario.
+- Si `credito_cargo_creado` trae `movimientoId`, se toma como credito ya confirmado y solo se guarda la traza.
+- Si `credito_cargo_creado` no trae `movimientoId`, se aplica como cargo offline: crea `movimientos_credito` y descuenta inventario.
+
+La proteccion contra duplicados se hace con `event_id` unico por negocio.
 
 ## Reglas de licencia
 
