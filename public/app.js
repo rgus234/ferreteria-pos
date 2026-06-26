@@ -395,6 +395,63 @@ async function registrarCreditoOfflineDesktopPOS(payload) {
  };
 }
 
+async function registrarCambioCatalogoOfflineDesktopPOS(tipo, entidad, entidadId, payload = {}) {
+ if (!desktopNexoDisponible()) {
+ return {
+ ok: false,
+ offlineDisponible: false
+ };
+ }
+
+ const resultado =
+ await registrarEventoDesktopPOS(
+ tipo,
+ entidad,
+ entidadId || "",
+ {
+ ...payload,
+ modoRegistro: "offline"
+ }
+ );
+
+ return {
+ ...resultado,
+ offlineDisponible: true
+ };
+}
+
+async function guardarCatalogosLocalesDesktopPOS() {
+ if (!desktopCacheDisponible()) return;
+
+ try {
+ await window.nexoDesktop.saveCache({
+ cacheKey: [
+ negocioActivoSlug(),
+ "/productos",
+ ""
+ ].join("|"),
+ endpoint: "/productos",
+ payload: todosProductos
+ });
+
+ await window.nexoDesktop.saveCache({
+ cacheKey: [
+ negocioActivoSlug(),
+ "/creditos",
+ ""
+ ].join("|"),
+ endpoint: "/creditos",
+ payload: {
+ clientes: clientesCredito,
+ total: clientesCredito.reduce((suma, cliente) => suma + Number(cliente.saldo || 0), 0),
+ clientesConAdeudo: clientesCredito.filter(cliente => Number(cliente.saldo || 0) > 0).length
+ }
+ });
+ } catch (error) {
+ console.warn("No se pudo actualizar cache local de catalogos", error);
+ }
+}
+
 function descontarInventarioLocalPOS(productos = []) {
  if (!Array.isArray(todosProductos) || !Array.isArray(productos)) return;
 
@@ -6464,20 +6521,7 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  ? "PUT"
  : "POST";
 
- let respuesta;
-
- try {
- respuesta = await fetch(
- url,
- {
- method: metodo,
-
- headers: {
- "Content-Type":
- "application/json"
- },
-
- body: JSON.stringify({
+ const payloadProducto = {
  nombre,
  precio,
  stock,
@@ -6499,26 +6543,122 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  factorConversion,
  basculaDigital,
  codigosRelacionados
- })
+ };
+
+ let respuesta;
+ let productoGuardado = null;
+ let productoOffline = false;
+
+ try {
+ respuesta = await fetch(
+ url,
+ {
+ method: metodo,
+
+ headers: {
+ "Content-Type":
+ "application/json"
+ },
+
+ body: JSON.stringify(payloadProducto)
  }
  );
  } catch (error) {
+ const idLocal =
+ esEdicion
+ ? productoEditandoId
+ : -Date.now();
+
+ const offline =
+ await registrarCambioCatalogoOfflineDesktopPOS(
+ esEdicion ? "producto_actualizado" : "producto_creado",
+ "producto",
+ esEdicion ? productoEditandoId : "",
+ {
+ ...payloadProducto,
+ productoId: esEdicion ? productoEditandoId : null,
+ localId: idLocal,
+ errorConexion: error.message
+ }
+ );
+
+ if (!offline.offlineDisponible || !offline.ok) {
  await alertaPOS("No se pudo conectar con el servidor para guardar el producto.", "Producto no guardado", "peligro");
  return;
  }
 
- if (!respuesta.ok) {
+ productoGuardado = {
+ ...payloadProducto,
+ id: idLocal,
+ precio_publico: precioPublico || precio || 0,
+ precio_mayoreo: precioMayoreo || 0,
+ precio_distribuidor: precioDistribuidor || 0,
+ stock_minimo: stockMinimo || 3,
+ unidad_venta: unidadVenta,
+ tipo_producto: tipoProducto,
+ codigos_relacionados: codigosRelacionados,
+ pendienteSync: true
+ };
+ productoOffline = true;
+ }
+
+ if (!productoOffline && !respuesta.ok) {
  await alertaPOS("El servidor no pudo guardar el producto. Revisa que el codigo no este repetido y vuelve a intentar.", "Producto no guardado", "peligro");
  return;
  }
 
+ if (!productoGuardado) {
+ const datosGuardado =
+ await respuesta.json().catch(() => ({}));
+
+ productoGuardado =
+ datosGuardado.producto || {
+ ...payloadProducto,
+ id: datosGuardado.productoId || productoEditandoId,
+ precio_publico: precioPublico || precio || 0,
+ precio_mayoreo: precioMayoreo || 0,
+ precio_distribuidor: precioDistribuidor || 0,
+ stock_minimo: stockMinimo || 3,
+ unidad_venta: unidadVenta,
+ tipo_producto: tipoProducto,
+ codigos_relacionados: codigosRelacionados
+ };
+ }
+
  cerrarFormularioAgregar();
 
+ if (productoOffline) {
+ if (esEdicion) {
+ todosProductos =
+ todosProductos.map(producto =>
+ Number(producto.id) === Number(productoEditandoId)
+ ? {
+ ...producto,
+ ...productoGuardado
+ }
+ : producto
+ );
+ } else {
+ todosProductos = [
+ productoGuardado,
+ ...todosProductos
+ ];
+ }
+
+ mostrarProductos(todosProductos);
+ actualizarDashboard();
+ actualizarInventarioBajo();
+ actualizarDatalistCategorias();
+ await guardarCatalogosLocalesDesktopPOS();
+ } else {
  await cargarProductos();
+ }
 
  await alertaPOS(
- esEdicion ? "Producto actualizado correctamente." : "Producto agregado correctamente.",
- esEdicion ? "Producto actualizado" : "Producto agregado",
+ productoOffline
+ ? "Producto guardado offline. Se sincronizara cuando vuelva el internet."
+ : (esEdicion ? "Producto actualizado correctamente." : "Producto agregado correctamente."),
+ productoOffline ? "Producto offline guardado" : (esEdicion ? "Producto actualizado" : "Producto agregado"),
  "exito"
  );
 }
@@ -6651,6 +6791,8 @@ function editarProducto(
 
 async function eliminarProducto(id) {
 
+ try {
+ const respuesta =
  await fetch(
  `/eliminar-producto/${id}`,
  {
@@ -6658,7 +6800,45 @@ async function eliminarProducto(id) {
  }
  );
 
- cargarProductos();
+ if (!respuesta.ok) {
+ await alertaPOS("No se pudo eliminar el producto.", "Producto no eliminado", "peligro");
+ return;
+ }
+
+ await cargarProductos();
+ return;
+ } catch (error) {
+ const offline =
+ await registrarCambioCatalogoOfflineDesktopPOS(
+ "producto_eliminado",
+ "producto",
+ id,
+ {
+ productoId: id,
+ errorConexion: error.message
+ }
+ );
+
+ if (!offline.offlineDisponible || !offline.ok) {
+ await alertaPOS("No se pudo conectar con el servidor para eliminar el producto.", "Producto no eliminado", "peligro");
+ return;
+ }
+
+ todosProductos =
+ todosProductos.filter(producto => Number(producto.id) !== Number(id));
+
+ mostrarProductos(todosProductos);
+ actualizarDashboard();
+ actualizarInventarioBajo();
+ actualizarDatalistCategorias();
+ await guardarCatalogosLocalesDesktopPOS();
+
+ await alertaPOS(
+ "Producto dado de baja offline. Se sincronizara cuando vuelva el internet.",
+ "Producto offline",
+ "exito"
+ );
+ }
 }
 
 window.onload =
@@ -8416,7 +8596,17 @@ async function abrirNuevoClienteCredito() {
 
  if (!datos) return;
 
- const respuesta =
+ const payloadCliente = {
+ nombre: datos.nombre,
+ telefono: datos.telefono,
+ limiteCredito: datos.limiteCredito
+ };
+
+ let respuesta;
+ let clienteOffline = false;
+
+ try {
+ respuesta =
  await fetch(
  "/creditos/clientes",
  {
@@ -8425,20 +8615,63 @@ async function abrirNuevoClienteCredito() {
  "Content-Type":
  "application/json"
  },
- body: JSON.stringify({
- nombre: datos.nombre,
- telefono: datos.telefono,
- limiteCredito: datos.limiteCredito
- })
+ body: JSON.stringify(payloadCliente)
+ }
+ );
+ } catch (error) {
+ const idLocal =
+ -Date.now();
+
+ const offline =
+ await registrarCambioCatalogoOfflineDesktopPOS(
+ "cliente_credito_creado",
+ "cliente_credito",
+ "",
+ {
+ ...payloadCliente,
+ clienteId: null,
+ localId: idLocal,
+ errorConexion: error.message
  }
  );
 
- if (!respuesta.ok) {
+ if (!offline.offlineDisponible || !offline.ok) {
  alert("No se pudo crear el cliente");
  return;
  }
 
+ clientesCredito = [
+ {
+ id: idLocal,
+ nombre: payloadCliente.nombre,
+ telefono: payloadCliente.telefono,
+ limite_credito: payloadCliente.limiteCredito || 0,
+ saldo: 0,
+ created_at: new Date().toISOString(),
+ pendienteSync: true
+ },
+ ...clientesCredito
+ ];
+
+ clienteOffline = true;
+ }
+
+ if (!clienteOffline && !respuesta.ok) {
+ alert("No se pudo crear el cliente");
+ return;
+ }
+
+ if (clienteOffline) {
+ await guardarCatalogosLocalesDesktopPOS();
+ renderCreditos({
+ clientes: clientesCredito,
+ total: clientesCredito.reduce((suma, cliente) => suma + Number(cliente.saldo || 0), 0),
+ clientesConAdeudo: clientesCredito.filter(cliente => Number(cliente.saldo || 0) > 0).length
+ });
+ await alertaPOS("Cliente guardado offline. Se sincronizara cuando vuelva el internet.", "Cliente offline", "exito");
+ } else {
  await cargarCreditos();
+ }
 }
 
 async function registrarAbonoCredito() {
@@ -8724,7 +8957,11 @@ async function editarClienteCredito(id) {
 
  if (!datos) return;
 
- const respuesta =
+ let respuesta;
+ let clienteOffline = false;
+
+ try {
+ respuesta =
  await fetch(
  `/creditos/clientes/${id}`,
  {
@@ -8735,13 +8972,51 @@ async function editarClienteCredito(id) {
  body: JSON.stringify(datos)
  }
  );
+ } catch (error) {
+ const offline =
+ await registrarCambioCatalogoOfflineDesktopPOS(
+ "cliente_credito_actualizado",
+ "cliente_credito",
+ id,
+ {
+ ...datos,
+ clienteId: id,
+ errorConexion: error.message
+ }
+ );
 
- if (!respuesta.ok) {
+ if (!offline.offlineDisponible || !offline.ok) {
  alert("No se pudo editar el cliente");
  return;
  }
 
+ clientesCredito =
+ clientesCredito.map(item =>
+ Number(item.id) === Number(id)
+ ? {
+ ...item,
+ nombre: datos.nombre,
+ telefono: datos.telefono,
+ limite_credito: datos.limiteCredito,
+ pendienteSync: true
+ }
+ : item
+ );
+
+ clienteOffline = true;
+ }
+
+ if (!clienteOffline && !respuesta.ok) {
+ alert("No se pudo editar el cliente");
+ return;
+ }
+
+ if (clienteOffline) {
+ await guardarCatalogosLocalesDesktopPOS();
+ } else {
  await cargarCreditos();
+ }
+
  renderClientes();
 }
 
@@ -8763,20 +9038,51 @@ async function desactivarClienteCredito(id) {
 
  if (!confirmar) return;
 
- const respuesta =
+ let respuesta;
+ let clienteOffline = false;
+
+ try {
+ respuesta =
  await fetch(
  `/creditos/clientes/${id}`,
  {
  method: "DELETE"
  }
  );
+ } catch (error) {
+ const offline =
+ await registrarCambioCatalogoOfflineDesktopPOS(
+ "cliente_credito_eliminado",
+ "cliente_credito",
+ id,
+ {
+ clienteId: id,
+ errorConexion: error.message
+ }
+ );
 
- if (!respuesta.ok) {
+ if (!offline.offlineDisponible || !offline.ok) {
  alert("No se pudo dar de baja el cliente");
  return;
  }
 
+ clientesCredito =
+ clientesCredito.filter(item => Number(item.id) !== Number(id));
+
+ clienteOffline = true;
+ }
+
+ if (!clienteOffline && !respuesta.ok) {
+ alert("No se pudo dar de baja el cliente");
+ return;
+ }
+
+ if (clienteOffline) {
+ await guardarCatalogosLocalesDesktopPOS();
+ } else {
  await cargarCreditos();
+ }
+
  renderClientes();
 }
 

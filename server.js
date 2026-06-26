@@ -541,6 +541,41 @@ function productosEvento(payload) {
         : [];
 }
 
+function numeroSync(valor, fallback = 0) {
+    const numero =
+        Number(valor ?? fallback);
+
+    return Number.isFinite(numero)
+        ? numero
+        : fallback;
+}
+
+function datosProductoSync(payload = {}) {
+    return {
+        nombre: String(payload.nombre || "").trim(),
+        precio: numeroSync(payload.precio ?? payload.precioPublico, 0),
+        stock: numeroSync(payload.stock, 0),
+        codigo: normalizarCodigo(payload.codigo) || payload.codigo || "",
+        proveedor: payload.proveedor || "",
+        ubicacion: payload.ubicacion || "",
+        categoria: payload.categoria || "",
+        subcategoria: payload.subcategoria || "",
+        marca: payload.marca || "",
+        descripcion: payload.descripcion || "",
+        unidadVenta: payload.unidadVenta || payload.unidad_venta || "pieza",
+        precioDistribuidor: payload.precioDistribuidor ?? payload.precio_distribuidor ?? null,
+        precioMayoreo: payload.precioMayoreo ?? payload.precio_mayoreo ?? null,
+        precioPublico: payload.precioPublico ?? payload.precio_publico ?? payload.precio ?? null,
+        stockMinimo: payload.stockMinimo ?? payload.stock_minimo ?? 3,
+        altaRotacion: payload.altaRotacion ?? payload.alta_rotacion ?? "",
+        tipoProducto: payload.tipoProducto ?? payload.tipo_producto ?? "catalogo",
+        presentacionCompra: payload.presentacionCompra ?? payload.presentacion_compra ?? "",
+        factorConversion: payload.factorConversion ?? payload.factor_conversion ?? null,
+        basculaDigital: payload.basculaDigital ?? payload.bascula_digital ?? "no",
+        codigosRelacionados: payload.codigosRelacionados || payload.codigos_relacionados || []
+    };
+}
+
 async function descontarInventarioPorProductos(client, negocioId, productos = []) {
     for (const producto of productos) {
         const productoId =
@@ -562,6 +597,322 @@ async function descontarInventarioPorProductos(client, negocioId, productos = []
             [cantidad, productoId, negocioId]
         );
     }
+}
+
+async function guardarCodigosProductoClient(client, productoId, datos, negocioId) {
+    const codigos =
+        new Map();
+
+    const agregarCodigo = (codigo, tipo = "barra", proveedor = "") => {
+        const limpio =
+            normalizarCodigo(codigo);
+
+        if (!limpio) return;
+
+        const llave =
+            `${limpio}-${tipo}-${proveedor || ""}`.toLowerCase();
+
+        codigos.set(llave, {
+            codigo: limpio,
+            tipo,
+            proveedor: proveedor || ""
+        });
+    };
+
+    agregarCodigo(datos.codigo, "barra", datos.proveedor);
+
+    if (Array.isArray(datos.codigosRelacionados)) {
+        for (const item of datos.codigosRelacionados) {
+            if (typeof item === "string") {
+                agregarCodigo(item, "alterno", datos.proveedor);
+            } else {
+                agregarCodigo(
+                    item.codigo,
+                    item.tipo || "alterno",
+                    item.proveedor || datos.proveedor
+                );
+            }
+        }
+    } else if (typeof datos.codigosRelacionados === "string") {
+        datos.codigosRelacionados
+            .split(/[\n,; ]+/)
+            .forEach(codigo =>
+                agregarCodigo(codigo, "alterno", datos.proveedor)
+            );
+    }
+
+    await client.query(
+        `
+        DELETE FROM public.producto_codigos
+        WHERE producto_id = $1
+        AND negocio_id = $2
+        `,
+        [productoId, negocioId]
+    );
+
+    for (const item of codigos.values()) {
+        await client.query(
+            `
+            INSERT INTO public.producto_codigos
+                (negocio_id, producto_id, codigo, tipo, proveedor)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT DO NOTHING
+            `,
+            [
+                negocioId,
+                productoId,
+                item.codigo,
+                item.tipo,
+                item.proveedor
+            ]
+        );
+    }
+}
+
+async function aplicarProductoSync(client, negocio, tipo, payload = {}) {
+    const productoId =
+        Number(payload.productoId || payload.id || 0);
+
+    if (tipo === "producto_eliminado") {
+        if (!productoId) {
+            throw new Error("Producto offline sin productoId para eliminar");
+        }
+
+        await client.query(
+            `
+            DELETE FROM public.productos
+            WHERE id = $1
+            AND negocio_id = $2
+            `,
+            [productoId, negocio.id]
+        );
+
+        return {
+            accion: "producto_eliminado",
+            productoId
+        };
+    }
+
+    const datos =
+        datosProductoSync(payload);
+
+    if (!datos.nombre) {
+        throw new Error("Producto offline sin nombre");
+    }
+
+    if (tipo === "producto_actualizado" && productoId) {
+        const resultado = await client.query(
+            `
+            UPDATE public.productos
+            SET
+                nombre = $1,
+                precio = $2,
+                stock = $3,
+                codigo = $4,
+                proveedor = $5,
+                ubicacion = $6,
+                categoria = $7,
+                subcategoria = $8,
+                marca = $9,
+                descripcion = $10,
+                unidad_venta = $11,
+                precio_distribuidor = $12,
+                precio_mayoreo = $13,
+                precio_publico = $14,
+                stock_minimo = $15,
+                alta_rotacion = $16,
+                tipo_producto = $17,
+                presentacion_compra = $18,
+                factor_conversion = $19,
+                bascula_digital = $20
+            WHERE id = $21
+            AND negocio_id = $22
+            RETURNING id
+            `,
+            [
+                datos.nombre,
+                datos.precio,
+                datos.stock,
+                datos.codigo,
+                datos.proveedor,
+                datos.ubicacion,
+                datos.categoria,
+                datos.subcategoria,
+                datos.marca,
+                datos.descripcion,
+                datos.unidadVenta,
+                datos.precioDistribuidor,
+                datos.precioMayoreo,
+                datos.precioPublico,
+                datos.stockMinimo,
+                datos.altaRotacion,
+                datos.tipoProducto,
+                datos.presentacionCompra,
+                datos.factorConversion,
+                datos.basculaDigital,
+                productoId,
+                negocio.id
+            ]
+        );
+
+        if (resultado.rows.length === 0) {
+            throw new Error("Producto no encontrado para actualizar");
+        }
+
+        await guardarCodigosProductoClient(client, productoId, datos, negocio.id);
+
+        return {
+            accion: "producto_actualizado",
+            productoId
+        };
+    }
+
+    const resultado = await client.query(
+        `
+        INSERT INTO public.productos
+        (
+            negocio_id,
+            nombre,
+            precio,
+            stock,
+            codigo,
+            proveedor,
+            ubicacion,
+            categoria,
+            subcategoria,
+            marca,
+            descripcion,
+            unidad_venta,
+            precio_distribuidor,
+            precio_mayoreo,
+            precio_publico,
+            stock_minimo,
+            alta_rotacion,
+            tipo_producto,
+            presentacion_compra,
+            factor_conversion,
+            bascula_digital
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+        RETURNING id
+        `,
+        [
+            negocio.id,
+            datos.nombre,
+            datos.precio,
+            datos.stock,
+            datos.codigo,
+            datos.proveedor,
+            datos.ubicacion,
+            datos.categoria,
+            datos.subcategoria,
+            datos.marca,
+            datos.descripcion,
+            datos.unidadVenta,
+            datos.precioDistribuidor,
+            datos.precioMayoreo,
+            datos.precioPublico,
+            datos.stockMinimo,
+            datos.altaRotacion,
+            datos.tipoProducto,
+            datos.presentacionCompra,
+            datos.factorConversion,
+            datos.basculaDigital
+        ]
+    );
+
+    const creadoId =
+        resultado.rows[0]?.id || null;
+
+    await guardarCodigosProductoClient(client, creadoId, datos, negocio.id);
+
+    return {
+        accion: "producto_creado",
+        productoId: creadoId
+    };
+}
+
+async function aplicarClienteCreditoSync(client, negocio, tipo, payload = {}) {
+    const clienteId =
+        Number(payload.clienteId || payload.id || 0);
+
+    if (tipo === "cliente_credito_eliminado") {
+        if (!clienteId) {
+            throw new Error("Cliente offline sin clienteId para baja");
+        }
+
+        await client.query(
+            `
+            UPDATE public.clientes_credito
+            SET activo = false
+            WHERE id = $1
+            AND negocio_id = $2
+            `,
+            [clienteId, negocio.id]
+        );
+
+        return {
+            accion: "cliente_credito_eliminado",
+            clienteId
+        };
+    }
+
+    const nombre =
+        String(payload.nombre || "").trim();
+
+    if (!nombre) {
+        throw new Error("Cliente offline sin nombre");
+    }
+
+    if (tipo === "cliente_credito_actualizado" && clienteId) {
+        const resultado = await client.query(
+            `
+            UPDATE public.clientes_credito
+            SET nombre = $1,
+                telefono = $2,
+                limite_credito = $3
+            WHERE id = $4
+            AND negocio_id = $5
+            RETURNING id
+            `,
+            [
+                nombre,
+                payload.telefono || "",
+                numeroSync(payload.limiteCredito ?? payload.limite_credito, 0),
+                clienteId,
+                negocio.id
+            ]
+        );
+
+        if (resultado.rows.length === 0) {
+            throw new Error("Cliente no encontrado para actualizar");
+        }
+
+        return {
+            accion: "cliente_credito_actualizado",
+            clienteId
+        };
+    }
+
+    const resultado = await client.query(
+        `
+        INSERT INTO public.clientes_credito
+            (negocio_id, nombre, telefono, limite_credito)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id
+        `,
+        [
+            negocio.id,
+            nombre,
+            payload.telefono || null,
+            numeroSync(payload.limiteCredito ?? payload.limite_credito, 0)
+        ]
+    );
+
+    return {
+        accion: "cliente_credito_creado",
+        clienteId: resultado.rows[0]?.id || null
+    };
 }
 
 async function aplicarVentaSync(client, negocio, payload) {
@@ -714,6 +1065,22 @@ async function aplicarEventoSync(client, negocio, evento) {
 
     if (tipo === "credito_cargo_creado") {
         return aplicarCreditoCargoSync(client, negocio, payload);
+    }
+
+    if (
+        tipo === "producto_creado" ||
+        tipo === "producto_actualizado" ||
+        tipo === "producto_eliminado"
+    ) {
+        return aplicarProductoSync(client, negocio, tipo, payload);
+    }
+
+    if (
+        tipo === "cliente_credito_creado" ||
+        tipo === "cliente_credito_actualizado" ||
+        tipo === "cliente_credito_eliminado"
+    ) {
+        return aplicarClienteCreditoSync(client, negocio, tipo, payload);
     }
 
     return {
@@ -907,7 +1274,33 @@ RETURNING id
         }, negocio.id);
 
         res.json({
-            success: true
+            success: true,
+            productoId,
+            producto: {
+                id: productoId,
+                negocio_id: negocio.id,
+                nombre,
+                precio,
+                stock,
+                codigo: normalizarCodigo(codigo) || codigo || "",
+                proveedor: proveedor || "",
+                ubicacion: ubicacion || "",
+                categoria: categoria || "",
+                subcategoria: subcategoria || "",
+                marca: marca || "",
+                descripcion: descripcion || "",
+                unidad_venta: unidadVenta || "pieza",
+                precio_distribuidor: precioDistribuidor || null,
+                precio_mayoreo: precioMayoreo || null,
+                precio_publico: precioPublico || precio || null,
+                stock_minimo: stockMinimo || 3,
+                alta_rotacion: altaRotacion || "",
+                tipo_producto: tipoProducto || "catalogo",
+                presentacion_compra: presentacionCompra || "",
+                factor_conversion: factorConversion || null,
+                bascula_digital: basculaDigital || "no",
+                codigos_relacionados: codigosRelacionados || []
+            }
         });
 
     } catch (error) {
@@ -951,7 +1344,7 @@ app.put("/editar-producto/:id", async (req, res) => {
     try {
         const negocio = await negocioActual(req);
 
-        await pool.query(
+        const resultado = await pool.query(
             `
             UPDATE public.productos
             SET
@@ -977,6 +1370,7 @@ app.put("/editar-producto/:id", async (req, res) => {
                 bascula_digital = $20
             WHERE id = $21
             AND negocio_id = $22
+            RETURNING id
             `,
             [
                 nombre,
@@ -1004,6 +1398,13 @@ app.put("/editar-producto/:id", async (req, res) => {
             ]
         );
 
+        if (resultado.rows.length === 0) {
+            res.status(404).json({
+                error: "Producto no encontrado"
+            });
+            return;
+        }
+
         await guardarCodigosProducto(id, {
             codigo,
             proveedor,
@@ -1011,7 +1412,33 @@ app.put("/editar-producto/:id", async (req, res) => {
         }, negocio.id);
 
         res.json({
-            success: true
+            success: true,
+            productoId: Number(id),
+            producto: {
+                id: Number(id),
+                negocio_id: negocio.id,
+                nombre,
+                precio,
+                stock,
+                codigo: normalizarCodigo(codigo) || codigo || "",
+                proveedor: proveedor || "",
+                ubicacion: ubicacion || "",
+                categoria: categoria || "",
+                subcategoria: subcategoria || "",
+                marca: marca || "",
+                descripcion: descripcion || "",
+                unidad_venta: unidadVenta || "pieza",
+                precio_distribuidor: precioDistribuidor || null,
+                precio_mayoreo: precioMayoreo || null,
+                precio_publico: precioPublico || precio || null,
+                stock_minimo: stockMinimo || 3,
+                alta_rotacion: altaRotacion || "",
+                tipo_producto: tipoProducto || "catalogo",
+                presentacion_compra: presentacionCompra || "",
+                factor_conversion: factorConversion || null,
+                bascula_digital: basculaDigital || "no",
+                codigos_relacionados: codigosRelacionados || []
+            }
         });
 
     } catch (error) {
