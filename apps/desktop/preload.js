@@ -11,5 +11,6 @@ contextBridge.exposeInMainWorld("nexoDesktop", {
   syncStats: () => ipcRenderer.invoke("nexo:sync-stats"),
   localDataStats: () => ipcRenderer.invoke("nexo:local-data-stats"),
   saveCache: payload => ipcRenderer.invoke("nexo:cache-save", payload),
-  getCache: payload => ipcRenderer.invoke("nexo:cache-get", payload)
+  getCache: payload => ipcRenderer.invoke("nexo:cache-get", payload),
+  getStructuredCache: payload => ipcRenderer.invoke("nexo:structured-cache-get", payload)
 });

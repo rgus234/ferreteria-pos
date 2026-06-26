@@ -380,6 +380,23 @@ ipcMain.handle("nexo:cache-get", async (_event, payload) => {
   };
 });
 
+ipcMain.handle("nexo:structured-cache-get", async (_event, payload) => {
+  const config = await readConfig();
+
+  if (!payload?.endpoint) {
+    throw new Error("endpoint requerido");
+  }
+
+  const data =
+    localDb.getStructuredResource(config.negocioSlug, payload.endpoint);
+
+  return {
+    ok: Boolean(data),
+    endpoint: payload.endpoint,
+    data
+  };
+});
+
 ipcMain.handle("nexo:reset-activation", async () => {
   const config = await readConfig();
 

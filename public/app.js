@@ -92,6 +92,13 @@ function desktopCacheDisponible() {
  );
 }
 
+function desktopCacheEstructuradoDisponible() {
+ return Boolean(
+ window.nexoDesktop &&
+ typeof window.nexoDesktop.getStructuredCache === "function"
+ );
+}
+
 function recursoCacheableDesktop(destino, metodo) {
  if (String(metodo || "GET").toUpperCase() !== "GET") return false;
 
@@ -158,6 +165,44 @@ async function respuestaDesdeCacheDesktop(destino) {
  }
 }
 
+async function respuestaDesdeCacheEstructuradoDesktop(destino) {
+ if (!desktopCacheEstructuradoDisponible()) return null;
+
+ try {
+ const resultado =
+ await window.nexoDesktop.getStructuredCache({
+ endpoint: destino.pathname
+ });
+
+ if (!resultado?.ok || !resultado.data) return null;
+
+ return new Response(
+ JSON.stringify(resultado.data),
+ {
+ status: 200,
+ headers: {
+ "content-type": "application/json",
+ "x-nexo-cache": "desktop-structured"
+ }
+ }
+ );
+ } catch (error) {
+ console.warn("No se pudo leer cache estructurado local", error);
+ return null;
+ }
+}
+
+async function fallbackDesktopCache(destino, esCacheable) {
+ if (!esCacheable) return null;
+
+ const cache =
+ await respuestaDesdeCacheDesktop(destino);
+
+ if (cache) return cache;
+
+ return respuestaDesdeCacheEstructuradoDesktop(destino);
+}
+
 function instalarContextoNegocioFetch() {
  if (window.__nexoFetchNegocioInstalado) return;
 
@@ -211,9 +256,7 @@ function instalarContextoNegocioFetch() {
  return respuesta;
  } catch (error) {
  const cache =
- esCacheable
- ? await respuestaDesdeCacheDesktop(destino)
- : null;
+ await fallbackDesktopCache(destino, esCacheable);
 
  if (cache) return cache;
 
@@ -232,9 +275,7 @@ function instalarContextoNegocioFetch() {
  return respuesta;
  } catch (error) {
  const cache =
- esCacheable
- ? await respuestaDesdeCacheDesktop(destino)
- : null;
+ await fallbackDesktopCache(destino, esCacheable);
 
  if (cache) return cache;
 

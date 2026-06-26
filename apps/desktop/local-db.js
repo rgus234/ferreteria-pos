@@ -383,6 +383,14 @@ function getResourceCache(negocioSlug, cacheKey) {
   }
 }
 
+function parsePayload(payload, fallback = {}) {
+  try {
+    return JSON.parse(payload || "{}");
+  } catch (error) {
+    return fallback;
+  }
+}
+
 function numberValue(value) {
   const parsed = Number(value || 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -557,6 +565,77 @@ function localDataStats(negocioSlug) {
   };
 }
 
+function getProductosCache(negocioSlug, limit = 5000) {
+  return ensureDb()
+    .prepare(`
+      SELECT
+        producto_id AS productoId,
+        payload
+      FROM productos_cache
+      WHERE negocio_slug = ?
+      ORDER BY nombre ASC
+      LIMIT ?
+    `)
+    .all(negocioSlug, limit)
+    .map(row => {
+      const producto = parsePayload(row.payload, {});
+
+      return {
+        ...producto,
+        id: producto.id ?? row.productoId
+      };
+    });
+}
+
+function getClientesCreditoCache(negocioSlug, limit = 5000) {
+  const clientes = ensureDb()
+    .prepare(`
+      SELECT
+        cliente_id AS clienteId,
+        saldo,
+        payload
+      FROM clientes_credito_cache
+      WHERE negocio_slug = ?
+      ORDER BY saldo DESC, nombre ASC
+      LIMIT ?
+    `)
+    .all(negocioSlug, limit)
+    .map(row => {
+      const cliente = parsePayload(row.payload, {});
+
+      return {
+        ...cliente,
+        id: cliente.id ?? row.clienteId,
+        saldo: cliente.saldo ?? row.saldo
+      };
+    });
+
+  const total = clientes.reduce(
+    (suma, cliente) => suma + Number(cliente.saldo || 0),
+    0
+  );
+
+  return {
+    clientes,
+    total,
+    clientesConAdeudo: clientes.filter(cliente => Number(cliente.saldo || 0) > 0).length
+  };
+}
+
+function getStructuredResource(negocioSlug, endpoint) {
+  if (endpoint === "/productos") {
+    const productos = getProductosCache(negocioSlug);
+    return productos.length > 0 ? productos : null;
+  }
+
+  if (endpoint === "/creditos") {
+    const creditos = getClientesCreditoCache(negocioSlug);
+    return creditos.clientes.length > 0 ? creditos : null;
+  }
+
+  return null;
+}
+
 module.exports = {
   initLocalDatabase,
   saveSetting,
@@ -575,5 +654,8 @@ module.exports = {
   saveProductosCache,
   saveClientesCreditoCache,
   hydrateStructuredCache,
-  localDataStats
+  localDataStats,
+  getProductosCache,
+  getClientesCreditoCache,
+  getStructuredResource
 };
