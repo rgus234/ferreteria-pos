@@ -27,6 +27,15 @@ let paginaInventario = 1;
 let paginaInventarioBajo = 1;
 let paginaReporteVentas = 1;
 let categoriaModalActual = "";
+let estadoSyncDesktopPOS = {
+ disponible: false,
+ online: typeof navigator === "undefined" ? true : navigator.onLine,
+ pendiente: 0,
+ error: 0,
+ sincronizado: 0,
+ ultimaRevision: null,
+ sincronizando: false
+};
 const TAMANO_PAGINA_INVENTARIO = 10;
 const TAMANO_PAGINA_REPORTES = 8;
 
@@ -96,6 +105,14 @@ function desktopCacheEstructuradoDisponible() {
  return Boolean(
  window.nexoDesktop &&
  typeof window.nexoDesktop.getStructuredCache === "function"
+ );
+}
+
+function desktopSyncDisponiblePOS() {
+ return Boolean(
+ window.nexoDesktop &&
+ typeof window.nexoDesktop.syncStats === "function" &&
+ typeof window.nexoDesktop.syncPush === "function"
  );
 }
 
@@ -366,6 +383,8 @@ async function aplicarMappingsSyncFrontendPOS(resultadoSync) {
  if (cambioProductos || cambioClientes) {
  await guardarCatalogosLocalesDesktopPOS();
  }
+
+ refrescarEstadoSyncDesktopPOS({ silencioso: true });
 }
 
 async function registrarEventoDesktopPOS(tipo, entidad, entidadId, payload = {}) {
@@ -394,6 +413,8 @@ async function registrarEventoDesktopPOS(tipo, entidad, entidadId, payload = {})
  if (typeof window.nexoDesktop.syncPush === "function") {
  window.nexoDesktop.syncPush().then(aplicarMappingsSyncFrontendPOS).catch(error => {
  console.warn("No se pudo sincronizar evento desktop", error);
+ }).finally(() => {
+ refrescarEstadoSyncDesktopPOS({ silencioso: true });
  });
  }
 
@@ -404,6 +425,105 @@ async function registrarEventoDesktopPOS(tipo, entidad, entidadId, payload = {})
  ok: false,
  error: error.message
  };
+ }
+}
+
+function pintarEstadoSyncDesktopPOS() {
+ const chip = document.getElementById("chipSyncDesktopPOS");
+ if (!chip) return;
+
+ const pendiente = Number(estadoSyncDesktopPOS.pendiente || 0);
+ const errores = Number(estadoSyncDesktopPOS.error || 0);
+ const online = estadoSyncDesktopPOS.online !== false;
+
+ chip.classList.toggle("sync-offline", !online);
+ chip.classList.toggle("sync-pendiente", pendiente > 0);
+ chip.classList.toggle("sync-error", errores > 0);
+ chip.classList.toggle("sync-ok", online && pendiente === 0 && errores === 0);
+
+ const estado = !online
+ ? "Local"
+ : estadoSyncDesktopPOS.sincronizando
+ ? "Sincronizando"
+ : errores > 0
+ ? "Revisar sync"
+ : pendiente > 0
+ ? `${pendiente} pendiente${pendiente === 1 ? "" : "s"}`
+ : "Sincronizado";
+
+ const detalle = !online
+ ? "Sin internet: guardando en esta PC"
+ : errores > 0
+ ? `${errores} evento${errores === 1 ? "" : "s"} con error`
+ : pendiente > 0
+ ? "Se subira al volver la conexion"
+ : "Datos al dia";
+
+ chip.innerHTML = `<span class="sync-dot"></span><span>${estado}</span><small>${detalle}</small>`;
+ chip.title = detalle;
+}
+
+async function refrescarEstadoSyncDesktopPOS(opciones = {}) {
+ estadoSyncDesktopPOS.disponible = desktopSyncDisponiblePOS();
+ estadoSyncDesktopPOS.online = typeof navigator === "undefined" ? true : navigator.onLine;
+
+ if (!estadoSyncDesktopPOS.disponible) {
+  pintarEstadoSyncDesktopPOS();
+  return estadoSyncDesktopPOS;
+ }
+
+ try {
+  const resultado = await window.nexoDesktop.syncStats();
+  const stats = resultado?.stats || {};
+  estadoSyncDesktopPOS = {
+   ...estadoSyncDesktopPOS,
+   disponible: true,
+   online: typeof navigator === "undefined" ? true : navigator.onLine,
+   pendiente: Number(stats.pendiente || 0),
+   error: Number(stats.error || 0),
+   sincronizado: Number(stats.sincronizado || 0),
+   ultimaRevision: new Date().toISOString()
+  };
+ } catch (error) {
+  estadoSyncDesktopPOS = {
+   ...estadoSyncDesktopPOS,
+   disponible: true,
+   online: false,
+   ultimaRevision: new Date().toISOString()
+  };
+
+  if (!opciones.silencioso) {
+   console.warn("No se pudo leer estado de sync", error);
+  }
+ }
+
+ pintarEstadoSyncDesktopPOS();
+ return estadoSyncDesktopPOS;
+}
+
+async function sincronizarAhoraDesktopPOS() {
+ if (!desktopSyncDisponiblePOS()) return;
+
+ estadoSyncDesktopPOS.sincronizando = true;
+ pintarEstadoSyncDesktopPOS();
+
+ try {
+  const resultadoPush = await window.nexoDesktop.syncPush();
+  await aplicarMappingsSyncFrontendPOS(resultadoPush);
+
+  if (typeof window.nexoDesktop.syncPull === "function") {
+   await window.nexoDesktop.syncPull();
+  }
+
+  await refrescarEstadoSyncDesktopPOS({ silencioso: true });
+  alertaPOS("Sincronizacion lista", "Nexo POS reviso los pendientes de esta computadora.", "exito");
+ } catch (error) {
+  console.warn("No se pudo sincronizar ahora", error);
+  estadoSyncDesktopPOS.online = false;
+  alertaPOS("Sincronizacion pendiente", "Se seguira guardando localmente y se intentara despues.", "alerta");
+ } finally {
+  estadoSyncDesktopPOS.sincronizando = false;
+  await refrescarEstadoSyncDesktopPOS({ silencioso: true });
  }
 }
 
@@ -10110,7 +10230,49 @@ function usuarioActualTopbarPOS() {
  return {};
  }
 }
-function renderTopbarPOS() { const topbar = asegurarTopbarPOS(); if (!topbar) return; const notificaciones = notificacionesSistemaPOS(); const logoSistema = '<img src="nexo-pos-icon.jpg" alt="Nexo POS" class="nexo-pos-logo">'; const usuario = usuarioActualTopbarPOS(); const nombreUsuario = usuario?.nombre || "Usuario"; const negocio = negocioActivoSlug(); topbar.innerHTML = '<div class="topbar-title-block"><span class="topbar-eyebrow">Ferreteria Olimpico POS</span><strong id="topbarTituloPOS">' + contextoTopbarPOS.titulo + '</strong><small id="topbarSubtituloPOS">' + contextoTopbarPOS.subtitulo + '</small></div><div class="topbar-actions"><button type="button" class="topbar-action" onclick="abrirRecordatorioPOS()" title="Nuevo recordatorio">' + iconoUISVG("plus") + '<span>Recordatorio</span></button><button type="button" id="btnNotificacionesPOS" class="topbar-bell" onclick="toggleNotificacionesPOS()" title="Notificaciones">' + iconoUISVG("bell") + '<span id="badgeNotificacionesPOS" class="notification-badge">' + notificaciones.length + '</span></button><div class="topbar-product-menu"><button type="button" id="btnMenuNexoPOS" class="topbar-brand-pill nexo-brand-pill nexo-brand-button" onclick="toggleMenuNexoPOS()" aria-haspopup="true" aria-expanded="false"><div class="topbar-logo nexo-topbar-logo">' + logoSistema + '</div><div><strong>Nexo POS</strong><span>' + nombreUsuario + ' · ' + negocio + '</span></div><span class="nexo-menu-caret">⌄</span></button><div id="menuNexoPOS" class="nexo-menu-panel"><div class="nexo-menu-head"><strong>Nexo POS</strong><span>Negocio: ' + negocio + '</span></div><button type="button" onclick="abrirContactoDesarrolladorPOS()">' + iconoUISVG("users") + '<span>Contactar desarrollador</span></button><button type="button" class="nexo-menu-danger" onclick="cerrarSesionPOS()">' + iconoUISVG("alert") + '<span>Cerrar sesion</span></button></div></div></div><div id="panelNotificacionesPOS" class="notificaciones-panel" aria-live="polite"></div>'; renderNotificacionesPOS(); }
+function renderTopbarPOS() {
+ const topbar = asegurarTopbarPOS();
+ if (!topbar) return;
+
+ const notificaciones = notificacionesSistemaPOS();
+ const logoSistema = '<img src="nexo-pos-icon.jpg" alt="Nexo POS" class="nexo-pos-logo">';
+ const usuario = usuarioActualTopbarPOS();
+ const nombreUsuario = usuario?.nombre || "Usuario";
+ const negocio = negocioActivoSlug();
+ const syncDesktop = desktopSyncDisponiblePOS()
+ ? '<button type="button" id="btnSyncDesktopPOS" class="sync-desktop-chip" onclick="sincronizarAhoraDesktopPOS()" title="Sincronizar ahora"><span id="chipSyncDesktopPOS" class="sync-chip-inner"><span class="sync-dot"></span><span>Sync</span><small>Revisando</small></span></button>'
+ : "";
+
+ topbar.innerHTML =
+ '<div class="topbar-title-block"><span class="topbar-eyebrow">Ferreteria Olimpico POS</span><strong id="topbarTituloPOS">' +
+ contextoTopbarPOS.titulo +
+ '</strong><small id="topbarSubtituloPOS">' +
+ contextoTopbarPOS.subtitulo +
+ '</small></div><div class="topbar-actions">' +
+ syncDesktop +
+ '<button type="button" class="topbar-action" onclick="abrirRecordatorioPOS()" title="Nuevo recordatorio">' +
+ iconoUISVG("plus") +
+ '<span>Recordatorio</span></button><button type="button" id="btnNotificacionesPOS" class="topbar-bell" onclick="toggleNotificacionesPOS()" title="Notificaciones">' +
+ iconoUISVG("bell") +
+ '<span id="badgeNotificacionesPOS" class="notification-badge">' +
+ notificaciones.length +
+ '</span></button><div class="topbar-product-menu"><button type="button" id="btnMenuNexoPOS" class="topbar-brand-pill nexo-brand-pill nexo-brand-button" onclick="toggleMenuNexoPOS()" aria-haspopup="true" aria-expanded="false"><div class="topbar-logo nexo-topbar-logo">' +
+ logoSistema +
+ '</div><div><strong>Nexo POS</strong><span>' +
+ nombreUsuario +
+ ' · ' +
+ negocio +
+ '</span></div><span class="nexo-menu-caret">⌄</span></button><div id="menuNexoPOS" class="nexo-menu-panel"><div class="nexo-menu-head"><strong>Nexo POS</strong><span>Negocio: ' +
+ negocio +
+ '</span></div><button type="button" onclick="abrirContactoDesarrolladorPOS()">' +
+ iconoUISVG("users") +
+ '<span>Contactar desarrollador</span></button><button type="button" class="nexo-menu-danger" onclick="cerrarSesionPOS()">' +
+ iconoUISVG("alert") +
+ '<span>Cerrar sesion</span></button></div></div></div><div id="panelNotificacionesPOS" class="notificaciones-panel" aria-live="polite"></div>';
+
+ renderNotificacionesPOS();
+ refrescarEstadoSyncDesktopPOS({ silencioso: true });
+}
 function toggleMenuNexoPOS() { const menu = document.getElementById("menuNexoPOS"); const boton = document.getElementById("btnMenuNexoPOS"); if (!menu) return; const abierto = menu.classList.toggle("abierto"); if (boton) boton.setAttribute("aria-expanded", abierto ? "true" : "false"); cerrarNotificacionesPOS(); }
 function cerrarMenuNexoPOS() { document.getElementById("menuNexoPOS")?.classList.remove("abierto"); document.getElementById("btnMenuNexoPOS")?.setAttribute("aria-expanded", "false"); }
 async function cerrarSesionPOS() { cerrarMenuNexoPOS(); const confirmar = await confirmarPOS("Se cerrara la sesion actual y volveras al inicio de sesion.", "Cerrar sesion", "alerta"); if (!confirmar) return; localStorage.removeItem(SESION_POS_KEY); localStorage.removeItem("usuarioActualSistema"); usuarioActual = null; document.getElementById("sistema").style.display = "none"; document.getElementById("login").style.display = "flex"; document.getElementById("password").value = ""; const campoNegocio = document.getElementById("negocioLogin"); if (campoNegocio) campoNegocio.value = negocioActivoSlug(); inicializarLoginUsuarios(); setTimeout(() => document.getElementById("password")?.focus(), 80); }
@@ -10187,6 +10349,16 @@ function abrirContactoDesarrolladorPOS() {
 function cerrarContactoDesarrolladorPOS() { const modal = document.getElementById("modalContactoDesarrolladorPOS"); if (modal) modal.style.display = "none"; }
 function guardarContactoDesarrolladorPOS() { const contacto = { nombre: document.getElementById("contactoDevNombrePOS")?.value.trim() || "Desarrollador Nexo POS", telefono: document.getElementById("contactoDevTelefonoPOS")?.value.trim() || "", whatsapp: document.getElementById("contactoDevWhatsappPOS")?.value.trim() || "", correo: document.getElementById("contactoDevCorreoPOS")?.value.trim() || "" }; localStorage.setItem(CONTACTO_DESARROLLADOR_KEY, JSON.stringify(contacto)); cerrarContactoDesarrolladorPOS(); alertaPOS("Contacto guardado", "Los datos del desarrollador quedaron listos en Nexo POS.", "exito"); }
 function instalarAtajoDesarrolladorNexoPOS() { if (window.__atajoDevNexoPOS) return; window.__atajoDevNexoPOS = true; document.addEventListener("keydown", event => { const tecla = String(event.key || "").toLowerCase(); if (event.ctrlKey && event.shiftKey && tecla === "d") { event.preventDefault(); alternarModoDesarrolladorNexoPOS(); } }); }
+function instalarMonitorSyncDesktopPOS() {
+ if (window.__monitorSyncDesktopPOS) return;
+ window.__monitorSyncDesktopPOS = true;
+
+ const refrescar = () => refrescarEstadoSyncDesktopPOS({ silencioso: true });
+ window.addEventListener("online", refrescar);
+ window.addEventListener("offline", refrescar);
+ setInterval(refrescar, 30000);
+ refrescar();
+}
 function actualizarTopbarContexto(titulo, subtitulo, modulo) { contextoTopbarPOS = { titulo, subtitulo }; renderTopbarPOS(); if (modulo) actualizarModuloActivoPOS(modulo); }
 function renderNotificacionesPOS() {
  const panel = document.getElementById("panelNotificacionesPOS");
@@ -10261,7 +10433,7 @@ async function limpiarTodasNotificacionesPOS() {
  alertaPOS("Notificaciones limpiadas", "El centro quedo listo.", "exito");
 }
 function instalarWrappersShellPOS() { const wrappers = { mostrarInicio:["Inicio","Resumen operativo de ventas, creditos e inventario","inicio"], mostrarPuntoVenta:["Punto de venta","Venta rapida, cobro, credito y carrito ferretero","venta"], mostrarInventario:["Inventario","Productos, categorias, stock y precios de ferreteria","inventario"], mostrarCategoriasInventario:["Categorias","Organizacion ferretera por familias de producto","categorias"], mostrarInventarioBajo:["Inventario bajo","Alertas y sugerencias para reabastecer","inventario-bajo"], mostrarGraficas:["Reportes y ventas","Indicadores reales de operacion y caja","reportes"], mostrarClientes:["Clientes","Cuentas, historial y relacion comercial","clientes"], mostrarProveedores:["Proveedores","Distribuidores, contactos y catalogos","proveedores"], mostrarCatalogo:["Catalogo proveedor","Carga, mapeo y mantenimiento de listas","catalogo"], mostrarConfiguracion:["Configuracion","Empresa, usuarios, tickets y apariencia","configuracion"] }; Object.entries(wrappers).forEach(([nombre, contexto]) => { const original = window[nombre]; if (typeof original !== "function" || original.__shellPOS) return; const envuelta = function(...args) { const resultado = original.apply(this, args); setTimeout(() => { actualizarTopbarContexto(contexto[0], contexto[1], contexto[2]); cerrarNotificacionesPOS(); }, 20); return resultado; }; envuelta.__shellPOS = true; window[nombre] = envuelta; }); ["cargarProductos", "cargarCreditos"].forEach(nombre => { const original = window[nombre]; if (typeof original !== "function" || original.__notifyPOS) return; const envuelta = function(...args) { const resultado = original.apply(this, args); Promise.resolve(resultado).finally(() => setTimeout(() => { renderTopbarPOS(); renderNotificacionesPOS(); }, 30)); return resultado; }; envuelta.__notifyPOS = true; window[nombre] = envuelta; }); }
-function iniciarShellFerreteroPOS() { profesionalizarSidebarPOS(); setTimeout(profesionalizarSidebarPOS, 900); setTimeout(profesionalizarSidebarPOS, 1500); renderTopbarPOS(); instalarWrappersShellPOS(); instalarAtajoDesarrolladorNexoPOS(); actualizarModuloActivoPOS("inicio"); if (!window.__clickShellPOS) { window.__clickShellPOS = true; document.addEventListener("click", event => { const panel = document.getElementById("panelNotificacionesPOS"); const boton = document.getElementById("btnNotificacionesPOS"); const menuNexo = document.getElementById("menuNexoPOS"); const botonNexo = document.getElementById("btnMenuNexoPOS"); if (panel && boton && !panel.contains(event.target) && !boton.contains(event.target)) panel.classList.remove("abierto"); if (menuNexo && botonNexo && !menuNexo.contains(event.target) && !botonNexo.contains(event.target)) cerrarMenuNexoPOS(); }); } }
+function iniciarShellFerreteroPOS() { profesionalizarSidebarPOS(); setTimeout(profesionalizarSidebarPOS, 900); setTimeout(profesionalizarSidebarPOS, 1500); renderTopbarPOS(); instalarWrappersShellPOS(); instalarAtajoDesarrolladorNexoPOS(); instalarMonitorSyncDesktopPOS(); actualizarModuloActivoPOS("inicio"); if (!window.__clickShellPOS) { window.__clickShellPOS = true; document.addEventListener("click", event => { const panel = document.getElementById("panelNotificacionesPOS"); const boton = document.getElementById("btnNotificacionesPOS"); const menuNexo = document.getElementById("menuNexoPOS"); const botonNexo = document.getElementById("btnMenuNexoPOS"); if (panel && boton && !panel.contains(event.target) && !boton.contains(event.target)) panel.classList.remove("abierto"); if (menuNexo && botonNexo && !menuNexo.contains(event.target) && !botonNexo.contains(event.target)) cerrarMenuNexoPOS(); }); } }
 (function conectarShellFerreteroPOS() { const onloadOriginal = window.onload; window.onload = async function(...args) { if (typeof onloadOriginal === "function") await onloadOriginal.apply(this, args); iniciarShellFerreteroPOS(); }; if (document.readyState !== "loading") setTimeout(iniciarShellFerreteroPOS, 60); else document.addEventListener("DOMContentLoaded", () => setTimeout(iniciarShellFerreteroPOS, 60)); })();
 
 
