@@ -32,31 +32,31 @@
         <span>Vista operativa para administrar clientes, ingresos, soporte y despliegues.</span>
       </div>
       <div class="topbar-actions">
-        <button type="button">Nuevo cliente</button>
-        <button type="button" class="secondary">Exportar</button>
+        <button type="button" onclick="cargarAdminNexo()">Actualizar</button>
+        <button type="button" class="secondary" onclick="exportarClientesAdmin()">Exportar</button>
       </div>
     </header>
 
     <section class="metrics-grid" aria-label="Metricas generales">
       <article class="metric-card strong">
         <span>MRR estimado</span>
-        <strong>$1,197</strong>
-        <small>3 clientes activos x plan base</small>
+        <strong id="metricMRR">$0</strong>
+        <small id="metricMRRDetalle">Licencias activas</small>
       </article>
       <article class="metric-card">
         <span>Clientes activos</span>
-        <strong>3</strong>
-        <small>1 en produccion, 2 en prueba</small>
+        <strong id="metricClientes">0</strong>
+        <small id="metricClientesDetalle">Negocios registrados</small>
       </article>
       <article class="metric-card">
         <span>Pagos pendientes</span>
-        <strong>$399</strong>
-        <small>1 mensualidad por revisar</small>
+        <strong id="metricVencidas">0</strong>
+        <small>Licencias vencidas</small>
       </article>
       <article class="metric-card warning">
-        <span>Soporte abierto</span>
-        <strong>4</strong>
-        <small>2 altas, 2 normales</small>
+        <span>Sync pendiente</span>
+        <strong id="metricSync">0</strong>
+        <small id="metricSyncDetalle">Eventos por subir</small>
       </article>
     </section>
 
@@ -77,35 +77,14 @@
                 <th>Giro</th>
                 <th>Estado</th>
                 <th>Plan</th>
+                <th>Licencia</th>
                 <th>Ultimo uso</th>
-                <th>Version</th>
+                <th>Equipos</th>
+                <th></th>
               </tr>
             </thead>
-            <tbody>
-              <tr>
-                <td><strong>Ferreteria Olimpico</strong><span>Quetos</span></td>
-                <td>Ferreteria</td>
-                <td><em class="pill ok">Activo</em></td>
-                <td>Ferreteria Pro</td>
-                <td>Hoy</td>
-                <td>v0.8.4</td>
-              </tr>
-              <tr>
-                <td><strong>Cliente demo</strong><span>Prueba comercial</span></td>
-                <td>Ferreteria</td>
-                <td><em class="pill trial">Prueba</em></td>
-                <td>Demo</td>
-                <td>Ayer</td>
-                <td>v0.8.4</td>
-              </tr>
-              <tr>
-                <td><strong>Mostrador futuro</strong><span>Prospecto</span></td>
-                <td>Abarrotes</td>
-                <td><em class="pill lead">Prospecto</em></td>
-                <td>Sin plan</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
+            <tbody id="tablaNegociosAdmin">
+              <tr><td colspan="8">Cargando clientes...</td></tr>
             </tbody>
           </table>
         </div>
@@ -119,9 +98,9 @@
           </div>
         </div>
         <div class="money-list">
-          <div><span>Cobrado este mes</span><strong>$798</strong></div>
-          <div><span>Pendiente</span><strong>$399</strong></div>
-          <div><span>Proyectado</span><strong>$1,197</strong></div>
+          <div><span>MRR activo</span><strong id="ingresoMRR">$0</strong></div>
+          <div><span>Vencidas</span><strong id="ingresoVencidas">0</strong></div>
+          <div><span>Suspendidas</span><strong id="ingresoSuspendidas">0</strong></div>
         </div>
       </article>
 
@@ -191,11 +170,69 @@
         <div class="roadmap-list">
           <span>Multi-negocio con negocio_id</span>
           <span>Admin conectado a base real</span>
-          <span>Planes, pagos y cortes</span>
+          <span>Licencias editables</span>
           <span>Modo local + sincronizacion</span>
         </div>
       </article>
     </section>
   </main>
+
+  <div id="modalLicenciaAdmin" class="modal-admin" hidden>
+    <form class="modal-card-admin" id="formLicenciaAdmin">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Licencia</p>
+          <h2 id="licenciaTituloAdmin">Editar cliente</h2>
+        </div>
+        <button type="button" class="secondary" onclick="cerrarLicenciaAdmin()">Cerrar</button>
+      </div>
+      <div class="form-grid">
+        <label>Estado negocio
+          <select id="licNegocioEstado">
+            <option value="activo">Activo</option>
+            <option value="prueba">Prueba</option>
+            <option value="suspendido">Suspendido</option>
+            <option value="cancelado">Cancelado</option>
+          </select>
+        </label>
+        <label>Plan
+          <select id="licPlan">
+            <option value="demo">Demo</option>
+            <option value="ferreteria-base">Ferreteria Base</option>
+            <option value="ferreteria-pro">Ferreteria Pro</option>
+            <option value="ferreteria-premium">Ferreteria Premium</option>
+          </select>
+        </label>
+        <label>Estado licencia
+          <select id="licEstado">
+            <option value="activa">Activa</option>
+            <option value="vencida">Vencida</option>
+            <option value="suspendida">Suspendida</option>
+            <option value="cancelada">Cancelada</option>
+          </select>
+        </label>
+        <label>Mensualidad
+          <input id="licMonto" type="number" min="0" step="1" placeholder="399">
+        </label>
+        <label>Vence
+          <input id="licVence" type="date">
+        </label>
+        <label>Ultimo pago
+          <input id="licUltimoPago" type="date">
+        </label>
+        <label>Dias de gracia
+          <input id="licGracia" type="number" min="0" step="1" value="15">
+        </label>
+        <label class="full">Notas internas
+          <textarea id="licNotas" rows="3" placeholder="Contrato, forma de pago, pendientes..."></textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="secondary" onclick="cerrarLicenciaAdmin()">Cancelar</button>
+        <button type="submit">Guardar licencia</button>
+      </div>
+    </form>
+  </div>
+  <script src="./app.js"></script>
 </body>
 </html>

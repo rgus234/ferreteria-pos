@@ -103,6 +103,226 @@ app.get("/licencia/estado", async (req, res) => {
     }
 });
 
+app.get("/admin/api/resumen", async (_req, res) => {
+    try {
+        const negocios = await pool.query(`
+            SELECT
+                COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE estado = 'activo')::int AS activos,
+                COUNT(*) FILTER (WHERE estado = 'prueba')::int AS prueba,
+                COUNT(*) FILTER (WHERE estado IN ('suspendido', 'cancelado'))::int AS suspendidos
+            FROM public.negocios
+        `);
+
+        const licencias = await pool.query(`
+            SELECT
+                COALESCE(SUM(monto_mensual) FILTER (WHERE estado = 'activa'), 0)::numeric AS mrr,
+                COUNT(*) FILTER (WHERE estado = 'vencida')::int AS vencidas,
+                COUNT(*) FILTER (WHERE estado = 'suspendida')::int AS suspendidas
+            FROM public.licencias
+        `);
+
+        const dispositivos = await pool.query(`
+            SELECT
+                COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE ultimo_checkin_at > NOW() - INTERVAL '5 minutes')::int AS en_linea,
+                COALESCE(SUM(sync_pendientes), 0)::int AS sync_pendientes,
+                COALESCE(SUM(sync_errores), 0)::int AS sync_errores
+            FROM public.dispositivos
+        `);
+
+        res.json({
+            ok: true,
+            negocios: negocios.rows[0],
+            licencias: licencias.rows[0],
+            dispositivos: dispositivos.rows[0]
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
+app.get("/admin/api/negocios", async (_req, res) => {
+    try {
+        const resultado = await pool.query(`
+            SELECT
+                n.id,
+                n.slug,
+                n.nombre,
+                n.giro,
+                n.estado AS negocio_estado,
+                n.plan AS negocio_plan,
+                n.created_at,
+                l.estado AS licencia_estado,
+                l.plan AS licencia_plan,
+                l.fecha_inicio,
+                l.fecha_vencimiento,
+                l.gracia_dias,
+                l.ultimo_pago_at,
+                l.monto_mensual,
+                l.notas,
+                COUNT(d.id)::int AS dispositivos,
+                COUNT(d.id) FILTER (WHERE d.ultimo_checkin_at > NOW() - INTERVAL '5 minutes')::int AS dispositivos_en_linea,
+                MAX(d.ultimo_checkin_at) AS ultimo_uso,
+                COALESCE(SUM(d.sync_pendientes), 0)::int AS sync_pendientes,
+                COALESCE(SUM(d.sync_errores), 0)::int AS sync_errores
+            FROM public.negocios n
+            LEFT JOIN public.licencias l ON l.negocio_id = n.id
+            LEFT JOIN public.dispositivos d ON d.negocio_id = n.id
+            GROUP BY n.id, l.id
+            ORDER BY n.created_at DESC
+        `);
+
+        res.json({
+            ok: true,
+            negocios: resultado.rows.map(row => ({
+                ...row,
+                licencia_modo: calcularModoLicencia({
+                    estado: row.licencia_estado,
+                    fecha_vencimiento: row.fecha_vencimiento,
+                    gracia_dias: row.gracia_dias
+                })
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
+app.get("/admin/api/negocios/:id/dispositivos", async (req, res) => {
+    try {
+        const negocioId = Number(req.params.id);
+        const resultado = await pool.query(
+            `
+            SELECT
+                device_id,
+                nombre_equipo,
+                plataforma,
+                app_version,
+                estado,
+                sync_pendientes,
+                sync_errores,
+                sync_ultimo_error,
+                local_stats,
+                ultimo_checkin_at,
+                CASE
+                    WHEN ultimo_checkin_at > NOW() - INTERVAL '5 minutes' THEN true
+                    ELSE false
+                END AS en_linea
+            FROM public.dispositivos
+            WHERE negocio_id = $1
+            ORDER BY ultimo_checkin_at DESC NULLS LAST
+            `,
+            [negocioId]
+        );
+
+        res.json({
+            ok: true,
+            dispositivos: resultado.rows
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
+app.put("/admin/api/negocios/:id/licencia", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const negocioId = Number(req.params.id);
+        const {
+            negocioEstado,
+            plan,
+            licenciaEstado,
+            fechaVencimiento,
+            graciaDias,
+            ultimoPagoAt,
+            montoMensual,
+            notas
+        } = req.body || {};
+
+        await client.query("BEGIN");
+
+        const negocioActualizado = await client.query(
+            `
+            UPDATE public.negocios
+            SET estado = COALESCE($2, estado),
+                plan = COALESCE($3, plan)
+            WHERE id = $1
+            RETURNING *
+            `,
+            [
+                negocioId,
+                negocioEstado || null,
+                plan || null
+            ]
+        );
+
+        if (negocioActualizado.rows.length === 0) {
+            throw new Error("Negocio no encontrado");
+        }
+
+        const licencia = await client.query(
+            `
+            INSERT INTO public.licencias
+                (negocio_id, estado, plan, fecha_vencimiento, gracia_dias, ultimo_pago_at, monto_mensual, notas, updated_at)
+            VALUES
+                ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            ON CONFLICT (negocio_id)
+            DO UPDATE SET
+                estado = EXCLUDED.estado,
+                plan = EXCLUDED.plan,
+                fecha_vencimiento = EXCLUDED.fecha_vencimiento,
+                gracia_dias = EXCLUDED.gracia_dias,
+                ultimo_pago_at = EXCLUDED.ultimo_pago_at,
+                monto_mensual = EXCLUDED.monto_mensual,
+                notas = EXCLUDED.notas,
+                updated_at = NOW()
+            RETURNING *
+            `,
+            [
+                negocioId,
+                licenciaEstado || "activa",
+                plan || negocioActualizado.rows[0].plan || "demo",
+                fechaVencimiento || null,
+                Number.isFinite(Number(graciaDias)) ? Number(graciaDias) : 15,
+                ultimoPagoAt || null,
+                Number.isFinite(Number(montoMensual)) ? Number(montoMensual) : 0,
+                notas || null
+            ]
+        );
+
+        await client.query("COMMIT");
+
+        res.json({
+            ok: true,
+            negocio: negocioActualizado.rows[0],
+            licencia: {
+                ...licencia.rows[0],
+                modo: calcularModoLicencia(licencia.rows[0])
+            }
+        });
+    } catch (error) {
+        await client.query("ROLLBACK");
+
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    } finally {
+        client.release();
+    }
+});
+
 app.post("/dispositivos/activar", async (req, res) => {
     try {
         const negocio = await negocioActual(req);
@@ -2445,6 +2665,11 @@ async function inicializarCreditos() {
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             UNIQUE (negocio_id)
         )
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.licencias
+        ADD COLUMN IF NOT EXISTS monto_mensual NUMERIC(12,2) NOT NULL DEFAULT 0
     `);
 
     await pool.query(`

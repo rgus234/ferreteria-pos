@@ -51,6 +51,11 @@ const CONTACTO_DESARROLLADOR_DEFAULT = {
  whatsapp: "",
  correo: ""
 };
+let estadoLicenciaNexoPOS = {
+ modo: "normal",
+ estado: "activa",
+ plan: "demo"
+};
 
 function normalizarSlugNegocio(valor) {
  return String(valor || "ferreteria-olimpico")
@@ -114,6 +119,48 @@ function desktopSyncDisponiblePOS() {
  typeof window.nexoDesktop.syncStats === "function" &&
  typeof window.nexoDesktop.syncPush === "function"
  );
+}
+
+async function revisarLicenciaNexoPOS() {
+ try {
+  const respuesta = desktopSyncDisponiblePOS() && typeof window.nexoDesktop.licenseStatus === "function"
+  ? await window.nexoDesktop.licenseStatus()
+  : await fetch("/licencia/estado").then(res => res.json());
+
+  const licencia = respuesta?.licencia || respuesta?.cached?.payload || {};
+  estadoLicenciaNexoPOS = {
+   ...estadoLicenciaNexoPOS,
+   ...licencia,
+   modo: licencia.modo || "normal"
+  };
+
+  if (["gracia", "bloqueado"].includes(estadoLicenciaNexoPOS.modo)) {
+   const mensaje = estadoLicenciaNexoPOS.modo === "bloqueado"
+   ? "La licencia esta vencida. El POS queda en modo limitado hasta regularizar la suscripcion."
+   : "La licencia esta en periodo de gracia. El POS sigue funcionando, pero conviene regularizar el pago.";
+   alertaPOS(mensaje, "Licencia Nexo POS", estadoLicenciaNexoPOS.modo === "bloqueado" ? "alerta" : "info");
+  }
+
+  return estadoLicenciaNexoPOS;
+ } catch (error) {
+  console.warn("No se pudo revisar licencia", error);
+  return estadoLicenciaNexoPOS;
+ }
+}
+
+async function validarOperacionLicenciaNexoPOS(operacion = "esta accion") {
+ if (!estadoLicenciaNexoPOS || estadoLicenciaNexoPOS.modo === "normal") {
+  await revisarLicenciaNexoPOS();
+ }
+
+ if (estadoLicenciaNexoPOS.modo !== "bloqueado") return true;
+
+ await alertaPOS(
+  `No se puede continuar con ${operacion} porque la licencia esta en modo limitado. Tus datos siguen guardados.`,
+  "Licencia vencida",
+  "alerta"
+ );
+ return false;
 }
 
 function recursoCacheableDesktop(destino, metodo) {
@@ -2350,6 +2397,8 @@ async function entrarAlSistemaConUsuario(usuario) {
 
  aplicarSesionUsuario(usuario);
  actualizarBotonModo();
+
+ await revisarLicenciaNexoPOS();
 
  await cargarProductos();
 
@@ -5586,6 +5635,8 @@ function imprimirTicketPOS(ticket) {
 
 async function cobrar(total) {
 
+ if (!(await validarOperacionLicenciaNexoPOS("una venta"))) return;
+
  if (carrito.length === 0 || Number(total || 0) <= 0) {
  await alertaPOS("Agrega productos al carrito antes de cobrar.", "Carrito vacio", "alerta");
  return;
@@ -5965,6 +6016,8 @@ if (ventaOffline) {
 }
 
 async function cobrarCredito(total) {
+ if (!(await validarOperacionLicenciaNexoPOS("una venta a credito"))) return;
+
  if (carrito.length === 0 || total <= 0) {
  alert("Agrega productos al carrito.");
  return;
@@ -6586,6 +6639,8 @@ function cambiarModo() {
 }
 
 async function agregarProductoNuevo() {
+
+ if (!(await validarOperacionLicenciaNexoPOS("guardar productos"))) return;
 
  const nombre =
  document.getElementById(
@@ -8930,6 +8985,8 @@ async function registrarAbonoCredito() {
 }
 
 async function registrarCargoCredito() {
+ if (!(await validarOperacionLicenciaNexoPOS("un cargo a credito"))) return;
+
  if (!creditoActual) {
  alert(
  "Primero abre la cuenta de un cliente."

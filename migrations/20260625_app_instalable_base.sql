@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS public.licencias (
     UNIQUE (negocio_id)
 );
 
+ALTER TABLE public.licencias
+ADD COLUMN IF NOT EXISTS monto_mensual NUMERIC(12,2) NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS public.dispositivos (
     id SERIAL PRIMARY KEY,
     negocio_id INTEGER NOT NULL REFERENCES public.negocios(id) ON DELETE CASCADE,
