@@ -134,11 +134,11 @@ async function revisarLicenciaNexoPOS() {
    modo: licencia.modo || "normal"
   };
 
-  if (["gracia", "bloqueado"].includes(estadoLicenciaNexoPOS.modo)) {
-   const mensaje = estadoLicenciaNexoPOS.modo === "bloqueado"
+  if (["gracia", "limitado", "bloqueado"].includes(estadoLicenciaNexoPOS.modo)) {
+   const mensaje = ["limitado", "bloqueado"].includes(estadoLicenciaNexoPOS.modo)
    ? "La licencia esta vencida. El POS queda en modo limitado hasta regularizar la suscripcion."
    : "La licencia esta en periodo de gracia. El POS sigue funcionando, pero conviene regularizar el pago.";
-   alertaPOS(mensaje, "Licencia Nexo POS", estadoLicenciaNexoPOS.modo === "bloqueado" ? "alerta" : "info");
+   alertaPOS(mensaje, "Licencia Nexo POS", ["limitado", "bloqueado"].includes(estadoLicenciaNexoPOS.modo) ? "alerta" : "info");
   }
 
   return estadoLicenciaNexoPOS;
@@ -153,7 +153,7 @@ async function validarOperacionLicenciaNexoPOS(operacion = "esta accion") {
   await revisarLicenciaNexoPOS();
  }
 
- if (estadoLicenciaNexoPOS.modo !== "bloqueado") return true;
+ if (!["limitado", "bloqueado"].includes(estadoLicenciaNexoPOS.modo)) return true;
 
  await alertaPOS(
   `No se puede continuar con ${operacion} porque la licencia esta en modo limitado. Tus datos siguen guardados.`,

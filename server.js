@@ -103,6 +103,29 @@ app.get("/licencia/estado", async (req, res) => {
     }
 });
 
+function validarAdminKey(req, res, next) {
+    if (!config.adminKey) {
+        return res.status(503).json({
+            ok: false,
+            error: "ADMIN_KEY no configurado en el servidor"
+        });
+    }
+
+    const headerKey =
+        req.get("x-admin-key") || "";
+
+    if (headerKey !== config.adminKey) {
+        return res.status(401).json({
+            ok: false,
+            error: "Clave de administrador invalida"
+        });
+    }
+
+    next();
+}
+
+app.use("/admin/api", validarAdminKey);
+
 app.get("/admin/api/resumen", async (_req, res) => {
     try {
         const negocios = await pool.query(`
@@ -773,7 +796,9 @@ function calcularModoLicencia(licencia) {
         return "bloqueado";
     }
 
-    if (!licencia.fecha_vencimiento) return "normal";
+    if (!licencia.fecha_vencimiento) {
+        return licencia.estado === "vencida" ? "limitado" : "normal";
+    }
 
     const vence =
         new Date(licencia.fecha_vencimiento).getTime();

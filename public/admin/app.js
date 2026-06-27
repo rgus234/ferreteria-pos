@@ -1,5 +1,6 @@
 let negociosAdmin = [];
 let negocioEditandoAdmin = null;
+const ADMIN_KEY_STORAGE = "nexoAdminKey";
 
 const formatoDineroAdmin = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -33,15 +34,38 @@ function pillClaseAdmin(valor) {
   return "lead";
 }
 
+function escaparHTMLAdmin(valor) {
+  return String(valor ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function adminKeyActual() {
+  let key = sessionStorage.getItem(ADMIN_KEY_STORAGE) || "";
+  if (!key) {
+    key = prompt("Clave de administrador Nexo POS") || "";
+    if (key) sessionStorage.setItem(ADMIN_KEY_STORAGE, key);
+  }
+  return key;
+}
+
 async function apiAdmin(endpoint, options = {}) {
+  const adminKey = adminKeyActual();
   const respuesta = await fetch(endpoint, {
     ...options,
     headers: {
       "content-type": "application/json",
+      "x-admin-key": adminKey,
       ...(options.headers || {})
     }
   });
   const data = await respuesta.json().catch(() => ({}));
+  if (respuesta.status === 401 || respuesta.status === 503) {
+    sessionStorage.removeItem(ADMIN_KEY_STORAGE);
+  }
   if (!respuesta.ok || data.ok === false) {
     throw new Error(data.error || "Error de admin");
   }
@@ -84,14 +108,19 @@ function pintarNegociosAdmin() {
     const licencia = negocio.licencia_estado || "sin licencia";
     const ultimoUso = fechaCortaAdmin(negocio.ultimo_uso);
     const equipos = `${negocio.dispositivos_en_linea || 0}/${negocio.dispositivos || 0}`;
+    const nombre = escaparHTMLAdmin(negocio.nombre || negocio.slug);
+    const slug = escaparHTMLAdmin(negocio.slug);
+    const giro = escaparHTMLAdmin(negocio.giro || "-");
+    const estado = escaparHTMLAdmin(negocio.negocio_estado || "-");
+    const plan = escaparHTMLAdmin(negocio.licencia_plan || negocio.negocio_plan || "demo");
 
     return `
       <tr>
-        <td><strong>${negocio.nombre || negocio.slug}</strong><span>${negocio.slug}</span></td>
-        <td>${negocio.giro || "-"}</td>
-        <td><em class="pill ${pillClaseAdmin(negocio.negocio_estado)}">${negocio.negocio_estado || "-"}</em></td>
-        <td><strong>${negocio.licencia_plan || negocio.negocio_plan || "demo"}</strong><span>${formatoDineroAdmin.format(Number(negocio.monto_mensual || 0))}/mes</span></td>
-        <td><em class="pill ${pillClaseAdmin(modo)}">${modo}</em><span>${licencia}</span></td>
+        <td><strong>${nombre}</strong><span>${slug}</span></td>
+        <td>${giro}</td>
+        <td><em class="pill ${pillClaseAdmin(negocio.negocio_estado)}">${estado}</em></td>
+        <td><strong>${plan}</strong><span>${formatoDineroAdmin.format(Number(negocio.monto_mensual || 0))}/mes</span></td>
+        <td><em class="pill ${pillClaseAdmin(modo)}">${escaparHTMLAdmin(modo)}</em><span>${escaparHTMLAdmin(licencia)}</span></td>
         <td>${ultimoUso}</td>
         <td>${equipos}<span>${negocio.sync_pendientes || 0} pend. / ${negocio.sync_errores || 0} err.</span></td>
         <td><button type="button" onclick="abrirLicenciaAdmin(${negocio.id})">Editar</button></td>

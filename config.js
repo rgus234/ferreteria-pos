@@ -9,6 +9,7 @@ const config = {
     port: Number(process.env.PORT || 3000),
     databaseUrl: process.env.DATABASE_URL || "",
     pgSslMode: process.env.PGSSLMODE || "",
+    adminKey: process.env.ADMIN_KEY || "",
 };
 
 function validarConfigProduccion() {
