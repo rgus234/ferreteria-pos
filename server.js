@@ -2927,11 +2927,14 @@ async function inicializarCreditos() {
     await pool.query(
         `
         INSERT INTO public.app_versiones
-            (version, canal, plataforma, notas, obligatoria, publicada)
+            (version, canal, plataforma, url_descarga, archivo, notas, obligatoria, publicada)
         VALUES
-            ($1, 'stable', 'windows', 'Version base estable para primer cliente', false, true)
+            ($1, 'stable', 'windows', '/downloads/NexoPOS_Setup_' || $1 || '.exe', 'NexoPOS_Setup_' || $1 || '.exe', 'Version base estable para primer cliente', false, true)
         ON CONFLICT (version, canal, plataforma)
-        DO NOTHING
+        DO UPDATE SET
+            url_descarga = COALESCE(public.app_versiones.url_descarga, EXCLUDED.url_descarga),
+            archivo = COALESCE(public.app_versiones.archivo, EXCLUDED.archivo),
+            publicada = true
         `,
         [config.appVersion]
     );

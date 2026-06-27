@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const fs = require("fs/promises");
 const path = require("path");
 const crypto = require("crypto");
@@ -11,6 +12,13 @@ const CONFIG_FILE = "desktop-config.json";
 let mainWindow;
 let configCache;
 let checkinTimer;
+let updateTimer;
+let updateState = {
+  status: "idle",
+  updateAvailable: false,
+  currentVersion: app.getVersion(),
+  latestVersion: null
+};
 
 function configPath() {
   return path.join(app.getPath("userData"), CONFIG_FILE);
@@ -104,6 +112,83 @@ async function apiRequest(endpoint, options = {}) {
   return body;
 }
 
+function emitUpdateStatus(partial) {
+  updateState = {
+    ...updateState,
+    ...partial,
+    currentVersion: app.getVersion(),
+    updatedAt: new Date().toISOString()
+  };
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("nexo:update-status-changed", updateState);
+  }
+
+  return updateState;
+}
+
+function configureAutoUpdater() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowPrerelease = false;
+
+  autoUpdater.on("checking-for-update", () => {
+    emitUpdateStatus({
+      status: "checking",
+      message: "Buscando actualizaciones"
+    });
+  });
+
+  autoUpdater.on("update-available", info => {
+    emitUpdateStatus({
+      status: "available",
+      updateAvailable: true,
+      latestVersion: info?.version || null,
+      message: "Actualizacion disponible, descargando"
+    });
+  });
+
+  autoUpdater.on("update-not-available", info => {
+    emitUpdateStatus({
+      status: "current",
+      updateAvailable: false,
+      latestVersion: info?.version || app.getVersion(),
+      message: "Nexo POS esta actualizado"
+    });
+  });
+
+  autoUpdater.on("download-progress", progress => {
+    emitUpdateStatus({
+      status: "downloading",
+      updateAvailable: true,
+      downloadPercent: Math.round(progress?.percent || 0),
+      message: "Descargando actualizacion"
+    });
+  });
+
+  autoUpdater.on("update-downloaded", info => {
+    emitUpdateStatus({
+      status: "downloaded",
+      updateAvailable: true,
+      latestVersion: info?.version || null,
+      message: "Actualizacion descargada, reiniciando"
+    });
+
+    setTimeout(() => {
+      autoUpdater.quitAndInstall(false, true);
+    }, 5000);
+  });
+
+  autoUpdater.on("error", error => {
+    emitUpdateStatus({
+      status: "error",
+      updateAvailable: false,
+      error: error.message,
+      message: "No se pudo actualizar automaticamente"
+    });
+  });
+}
+
 async function checkForUpdateMetadata() {
   const config = await readConfig();
   const plataforma = "windows";
@@ -149,6 +234,61 @@ async function checkForUpdateMetadata() {
     });
 
     return updateInfo;
+  }
+}
+
+async function runAutoUpdateCheck(options = {}) {
+  const manual = Boolean(options.manual);
+  const metadata = await checkForUpdateMetadata();
+
+  emitUpdateStatus({
+    status: app.isPackaged ? "metadata" : "development",
+    updateAvailable: Boolean(metadata.updateAvailable),
+    latestVersion: metadata.latestVersion,
+    latest: metadata.latest,
+    message: app.isPackaged
+      ? "Metadata de version consultada"
+      : "Auto-update real solo corre en la app instalada"
+  });
+
+  if (!app.isPackaged) {
+    return {
+      ok: true,
+      packaged: false,
+      metadata,
+      state: updateState
+    };
+  }
+
+  try {
+    emitUpdateStatus({
+      status: "checking",
+      message: manual ? "Buscando actualizacion manual" : "Buscando actualizacion"
+    });
+
+    const result = await autoUpdater.checkForUpdates();
+
+    return {
+      ok: true,
+      packaged: true,
+      metadata,
+      updateInfo: result?.updateInfo || null,
+      state: updateState
+    };
+  } catch (error) {
+    emitUpdateStatus({
+      status: "error",
+      error: error.message,
+      message: "No se pudo consultar la actualizacion"
+    });
+
+    return {
+      ok: false,
+      packaged: true,
+      metadata,
+      error: error.message,
+      state: updateState
+    };
   }
 }
 
@@ -363,6 +503,9 @@ async function createWindow() {
   if (config.activatedAt) {
     await loadPosWindow();
     checkInDevice();
+    setTimeout(() => {
+      runAutoUpdateCheck().catch(() => {});
+    }, 15000);
   } else {
     await loadActivationWindow();
   }
@@ -377,6 +520,13 @@ function startBackgroundJobs() {
       await checkInDevice();
     }
   }, 60 * 1000);
+
+  updateTimer = setInterval(async () => {
+    const config = await readConfig();
+    if (config.activatedAt) {
+      await runAutoUpdateCheck();
+    }
+  }, 30 * 60 * 1000);
 }
 
 ipcMain.handle("nexo:get-config", async () => readConfig());
@@ -436,7 +586,25 @@ ipcMain.handle("nexo:license-status", async () => {
 
 ipcMain.handle("nexo:checkin", async () => checkInDevice());
 
-ipcMain.handle("nexo:update-status", async () => checkForUpdateMetadata());
+ipcMain.handle("nexo:update-status", async () => ({
+  ok: true,
+  state: updateState,
+  metadata: await checkForUpdateMetadata()
+}));
+
+ipcMain.handle("nexo:update-check", async () => runAutoUpdateCheck({ manual: true }));
+
+ipcMain.handle("nexo:update-install", async () => {
+  if (!app.isPackaged) {
+    return {
+      ok: false,
+      error: "La instalacion de updates solo funciona en la app empaquetada"
+    };
+  }
+
+  autoUpdater.quitAndInstall(false, true);
+  return { ok: true };
+});
 
 ipcMain.handle("nexo:queue-event", async (_event, payload) => {
   if (!payload?.tipo) {
@@ -555,11 +723,14 @@ ipcMain.handle("nexo:reset-activation", async () => {
 });
 
 app.whenReady().then(async () => {
+  configureAutoUpdater();
   await createWindow();
   startBackgroundJobs();
 });
 
 app.on("window-all-closed", () => {
+  if (checkinTimer) clearInterval(checkinTimer);
+  if (updateTimer) clearInterval(updateTimer);
   if (process.platform !== "darwin") {
     app.quit();
   }

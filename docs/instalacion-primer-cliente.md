@@ -90,6 +90,13 @@ cd apps/desktop
 npm run dist:win
 ```
 
+Desde la raiz tambien puedes ejecutar:
+
+```bash
+npm run desktop:dist
+npm run desktop:release
+```
+
 El instalador saldra en:
 
 ```text
@@ -115,6 +122,27 @@ npm run desktop:dist
 ```
 
 Nota: el instalador actual es funcional, pero todavia no esta firmado digitalmente. Windows puede mostrar aviso de seguridad la primera vez.
+
+## 6.1. Publicar archivos de actualizacion
+
+Antes del deploy, confirma que existen:
+
+```text
+public/downloads/NexoPOS_Setup_1.0.0.exe
+public/downloads/NexoPOS_Setup_1.0.0.exe.blockmap
+public/downloads/latest.yml
+public/downloads/release.json
+```
+
+Estos archivos se generan localmente, pero el instalador no se versiona en Git por tamano. Para que el auto-update funcione en produccion, publica esos archivos en el hosting de descargas configurado antes de entregar una nueva version.
+
+Despues del deploy, abre:
+
+```text
+https://ferreteria-pos.onrender.com/downloads/latest.yml
+```
+
+Debe responder el YAML de Electron con `version: 1.0.0`.
 
 ## 7. Activar en la computadora del cliente
 
@@ -143,6 +171,8 @@ Despues inicia sesion con el usuario creado en el POS.
 8. Presionar el chip de sync.
 9. Confirmar que pendientes quedan en cero.
 10. Confirmar en Render que `/health` sigue en `ok: true`.
+11. Confirmar que `/downloads/latest.yml` carga desde internet.
+12. Confirmar que `/updates/latest?canal=stable&plataforma=windows&currentVersion=0.9.0` devuelve `updateAvailable: true`.
 
 ## 9. Si algo falla
 

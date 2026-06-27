@@ -145,7 +145,7 @@ La proteccion contra duplicados se hace con `event_id` unico por negocio.
 - Despues del periodo de gracia, la app debe activar modo limitado.
 - La nube devuelve `modo: normal`, `gracia`, `limitado` o `bloqueado`.
 
-## Version instalada y actualizaciones
+## Version instalada y actualizaciones automaticas
 
 La app instalada reporta al servidor:
 
@@ -156,11 +156,22 @@ La app instalada reporta al servidor:
 - version mas nueva disponible
 - si hay actualizacion pendiente
 
-El endpoint `GET /updates/latest` compara la version instalada contra la ultima version publicada en `app_versiones`. En esta fase solo se consulta y se reporta la informacion. La descarga e instalacion automatica se deja para la siguiente fase con `electron-updater` o un mecanismo equivalente.
+El endpoint `GET /updates/latest` compara la version instalada contra la ultima version publicada en `app_versiones`.
+
+Ademas, la app usa `electron-updater` con proveedor generico:
+
+```text
+https://ferreteria-pos.onrender.com/downloads/
+```
+
+Flujo:
+
+1. La app instalada consulta `latest.yml`.
+2. Si existe una version mayor, descarga el instalador.
+3. Al terminar, reinicia e instala automaticamente.
+4. La base local SQLite permanece en `%APPDATA%\\Nexo POS`.
 
 ## Pendiente despues de esta fase
 
-- Auto-update firmado.
-- Publicar instaladores en un servidor de descargas.
-- Generar metadatos `latest.yml`.
-- Firmar instaladores para reducir alertas de Windows.
+- Comprar certificado Code Signing.
+- Generar instaladores firmados para reducir alertas de Windows.

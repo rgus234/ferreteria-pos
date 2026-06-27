@@ -1,0 +1,27 @@
+appId: com.nexopos.desktop
+productName: Nexo POS
+directories:
+  output: dist
+  buildResources: build
+files:
+  - main.js
+  - local-db.js
+  - preload.js
+  - renderer/**
+  - package.json
+win:
+  target: nsis
+  icon: build/icon.ico
+  artifactName: NexoPOS_Setup_${version}.${ext}
+  signExecutable: true
+publish:
+  - provider: generic
+    url: https://ferreteria-pos.onrender.com/downloads/
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Nexo POS
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico

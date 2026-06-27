@@ -1,6 +1,6 @@
 # Versionado y actualizaciones de Nexo POS
 
-Esta guia deja preparada la base para publicar instaladores de Windows y, en una fase posterior, activar actualizaciones automaticas.
+Esta guia documenta el flujo real para publicar instaladores de Windows y permitir actualizaciones automaticas con `electron-updater`.
 
 ## Version actual
 
@@ -16,6 +16,7 @@ Debe coincidir en:
 - `apps/desktop/package.json`
 - `render.yaml`
 - variable `APP_VERSION` en Render
+- `public/downloads/latest.yml`
 
 ## Regla de versionado
 
@@ -53,7 +54,26 @@ Salida esperada:
 
 ```text
 apps/desktop/dist/NexoPOS_Setup_1.0.0.exe
+apps/desktop/dist/NexoPOS_Setup_1.0.0.exe.blockmap
+apps/desktop/dist/latest.yml
 ```
+
+Despues prepara los archivos que se serviran desde la nube:
+
+```bash
+npm run desktop:release
+```
+
+Esto copia a:
+
+```text
+public/downloads/NexoPOS_Setup_1.0.0.exe
+public/downloads/NexoPOS_Setup_1.0.0.exe.blockmap
+public/downloads/latest.yml
+public/downloads/release.json
+```
+
+El instalador y los manifiestos generados no se suben a Git porque el `.exe` es pesado. Para publicar una version nueva, copia el contenido generado de `public/downloads/` al hosting que sirve `/downloads/`.
 
 ## Registrar una version para el panel
 
@@ -73,9 +93,26 @@ DO UPDATE SET
     publicada = EXCLUDED.publicada;
 ```
 
-## Que ya queda preparado
+## Auto-update
+
+La app instalada hace este flujo:
+
+1. Consulta `/updates/latest` para que el panel admin sepa si hay una version nueva.
+2. Si esta empaquetada como app de Windows, `electron-updater` consulta:
+
+```text
+https://ferreteria-pos.onrender.com/downloads/latest.yml
+```
+
+3. Si hay una version nueva, descarga automaticamente el instalador.
+4. Cuando termina la descarga, reinicia la app e instala la actualizacion.
+5. La base local queda en `%APPDATA%\\Nexo POS`, separada del codigo, por lo que no se borra al actualizar.
+
+## Que ya queda terminado
 
 - La app Windows consulta `GET /updates/latest`.
+- `electron-updater` descarga e instala nuevas versiones desde `/downloads/`.
+- Se genera `latest.yml` y `.blockmap`.
 - El servidor compara la version instalada contra la ultima publicada.
 - El dispositivo reporta al panel:
   - version instalada
@@ -86,16 +123,36 @@ DO UPDATE SET
   - fecha de instalacion
   - ultima conexion
   - ultima sincronizacion
+- El instalador usa icono personalizado desde `apps/desktop/build/icon.ico`.
 
-## Que falta para auto-update real
+## Firma digital
 
-1. Agregar `electron-updater`.
-2. Publicar instaladores y metadatos `latest.yml` en una URL estable.
-3. Configurar firma de codigo para Windows.
-4. Mostrar aviso visual en la app cuando `updateAvailable` sea true.
-5. Descargar update.
-6. Reiniciar la app al terminar.
-7. Probar que la base local SQLite no se borra entre versiones.
+El instalador actual se genera sin firma digital porque falta comprar/configurar el certificado.
+
+Para firmar en el futuro:
+
+1. Comprar certificado Code Signing para Windows.
+2. Configurar variables antes del build:
+
+```powershell
+$env:CSC_LINK='D:\ruta\certificado.pfx'
+$env:CSC_KEY_PASSWORD='password-del-certificado'
+```
+
+3. Generar instalador firmado:
+
+```bash
+cd apps/desktop
+npm run dist:win:signed
+```
+
+Mientras no haya certificado, usar:
+
+```bash
+npm run desktop:dist
+```
+
+Windows puede mostrar aviso de seguridad en instaladores sin firma. Eso no rompe la app, pero para venta comercial conviene firmar antes de escalar.
 
 ## Regla de seguridad
 
