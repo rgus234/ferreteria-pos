@@ -1,5 +1,6 @@
 let negociosAdmin = [];
 let negocioEditandoAdmin = null;
+let versionesAdmin = [];
 const ADMIN_KEY_STORAGE = "nexoAdminKey";
 
 const formatoDineroAdmin = new Intl.NumberFormat("es-MX", {
@@ -23,6 +24,18 @@ function fechaCortaAdmin(valor) {
     day: "2-digit",
     month: "short",
     year: "numeric"
+  });
+}
+
+function fechaHoraCortaAdmin(valor) {
+  if (!valor) return "-";
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return "-";
+  return fecha.toLocaleString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
   });
 }
 
@@ -99,7 +112,7 @@ function pintarNegociosAdmin() {
   if (!tabla) return;
 
   if (!negociosAdmin.length) {
-    tabla.innerHTML = '<tr><td colspan="8">Todavia no hay negocios registrados.</td></tr>';
+    tabla.innerHTML = '<tr><td colspan="12">Todavia no hay negocios registrados.</td></tr>';
     return;
   }
 
@@ -107,12 +120,24 @@ function pintarNegociosAdmin() {
     const modo = negocio.licencia_modo || "sin licencia";
     const licencia = negocio.licencia_estado || "sin licencia";
     const ultimoUso = fechaCortaAdmin(negocio.ultimo_uso);
+    const ultimaSync = fechaHoraCortaAdmin(negocio.ultima_sync);
+    const instalado = fechaCortaAdmin(negocio.instalado_at || negocio.created_at);
     const equipos = `${negocio.dispositivos_en_linea || 0}/${negocio.dispositivos || 0}`;
     const nombre = escaparHTMLAdmin(negocio.nombre || negocio.slug);
     const slug = escaparHTMLAdmin(negocio.slug);
     const giro = escaparHTMLAdmin(negocio.giro || "-");
     const estado = escaparHTMLAdmin(negocio.negocio_estado || "-");
     const plan = escaparHTMLAdmin(negocio.licencia_plan || negocio.negocio_plan || "demo");
+    const version = escaparHTMLAdmin(negocio.app_version || "-");
+    const latest = escaparHTMLAdmin(negocio.latest_version || "-");
+    const updatePill = negocio.update_available
+      ? '<em class="pill warning">Actualizar</em>'
+      : '<em class="pill ok">Al dia</em>';
+    const sistema = [
+      negocio.plataforma,
+      negocio.os_version,
+      negocio.arch
+    ].filter(Boolean).join(" ");
 
     return `
       <tr>
@@ -122,6 +147,10 @@ function pintarNegociosAdmin() {
         <td><strong>${plan}</strong><span>${formatoDineroAdmin.format(Number(negocio.monto_mensual || 0))}/mes</span></td>
         <td><em class="pill ${pillClaseAdmin(modo)}">${escaparHTMLAdmin(modo)}</em><span>${escaparHTMLAdmin(licencia)}</span></td>
         <td>${ultimoUso}</td>
+        <td>${ultimaSync}</td>
+        <td><strong>${version}</strong><span>Latest ${latest}</span>${updatePill}</td>
+        <td>${escaparHTMLAdmin(sistema || "-")}</td>
+        <td>${instalado}</td>
         <td>${equipos}<span>${negocio.sync_pendientes || 0} pend. / ${negocio.sync_errores || 0} err.</span></td>
         <td><button type="button" onclick="abrirLicenciaAdmin(${negocio.id})">Editar</button></td>
       </tr>
@@ -129,15 +158,41 @@ function pintarNegociosAdmin() {
   }).join("");
 }
 
+function pintarVersionesAdmin() {
+  const lista = document.getElementById("listaVersionesAdmin");
+  if (!lista) return;
+
+  if (!versionesAdmin.length) {
+    lista.innerHTML = "<li><strong>Sin versiones publicadas</strong><span>Cuando publiques un instalador, registralo en app_versiones.</span></li>";
+    return;
+  }
+
+  lista.innerHTML = versionesAdmin.map(version => {
+    const estado = version.publicada ? "Publicada" : "Borrador";
+    const obligatoria = version.obligatoria ? " - obligatoria" : "";
+    const canal = escaparHTMLAdmin(`${version.canal || "stable"} / ${version.plataforma || "windows"}`);
+    return `
+      <li>
+        <strong>v${escaparHTMLAdmin(version.version)} <em class="pill ${version.publicada ? "ok" : "lead"}">${estado}</em></strong>
+        <span>${canal}${obligatoria}</span>
+        <span>${escaparHTMLAdmin(version.notas || version.url_descarga || "Sin notas")}</span>
+      </li>
+    `;
+  }).join("");
+}
+
 async function cargarAdminNexo() {
-  const [resumen, negocios] = await Promise.all([
+  const [resumen, negocios, versiones] = await Promise.all([
     apiAdmin("/admin/api/resumen"),
-    apiAdmin("/admin/api/negocios")
+    apiAdmin("/admin/api/negocios"),
+    apiAdmin("/admin/api/versiones")
   ]);
 
   negociosAdmin = negocios.negocios || [];
+  versionesAdmin = versiones.versiones || [];
   pintarMetricasAdmin(resumen);
   pintarNegociosAdmin();
+  pintarVersionesAdmin();
 }
 
 function abrirLicenciaAdmin(id) {
@@ -200,7 +255,7 @@ document.addEventListener("DOMContentLoaded", () => {
   cargarAdminNexo().catch(error => {
     const tabla = document.getElementById("tablaNegociosAdmin");
     if (tabla) {
-      tabla.innerHTML = `<tr><td colspan="8">No se pudo cargar admin: ${error.message}</td></tr>`;
+      tabla.innerHTML = `<tr><td colspan="12">No se pudo cargar admin: ${error.message}</td></tr>`;
     }
   });
 });

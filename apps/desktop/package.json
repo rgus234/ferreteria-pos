@@ -1,14 +1,16 @@
 {
   "name": "nexo-pos-desktop",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Nexo POS para Windows",
+  "author": "Nexo POS",
   "main": "main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
     "check": "node --check main.js && node --check preload.js && node --check local-db.js && node --check renderer/activation.js",
     "rebuild": "electron-builder install-app-deps",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis",
+    "dist:win": "electron-builder --win nsis --publish never"
   },
   "build": {
     "appId": "com.nexopos.desktop",
@@ -25,8 +27,15 @@
     ],
     "win": {
       "target": "nsis",
-      "artifactName": "NexoPOS_Setup_${version}.${ext}"
+      "artifactName": "NexoPOS_Setup_${version}.${ext}",
+      "signAndEditExecutable": false
     },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://ferreteria-pos.onrender.com/downloads/"
+      }
+    ],
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,

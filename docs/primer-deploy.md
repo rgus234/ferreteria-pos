@@ -20,7 +20,7 @@ npm run dev
 5. Crear tag de version:
 
 ```bash
-git tag v0.1.0
+git tag v1.0.0
 ```
 
 6. Desplegar desde `main`.
@@ -43,7 +43,7 @@ Ramas remotas esperadas:
 
 Tag base:
 
-- `v0.1.0-preprod`
+- `v1.0.0-preprod`
 
 Para desplegar el primer cliente, conectar el proveedor de hosting a `main`, no a `dev`.
 
@@ -51,7 +51,7 @@ Para desplegar el primer cliente, conectar el proveedor de hosting a `main`, no 
 
 - `APP_NAME=Nexo POS`
 - `APP_ENV=production`
-- `APP_VERSION=0.1.0`
+- `APP_VERSION=1.0.0`
 - `DATABASE_URL=...`
 - `PGSSLMODE=require`
 

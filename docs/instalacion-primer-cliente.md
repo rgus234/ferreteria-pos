@@ -10,7 +10,7 @@ En Render, confirma variables:
 - `PGSSLMODE=require`
 - `APP_ENV=production`
 - `APP_NAME=Nexo POS`
-- `APP_VERSION=0.1.0`
+- `APP_VERSION=1.0.0`
 - `ADMIN_KEY` con una clave larga
 
 Despues haz deploy desde `main`.
@@ -78,6 +78,8 @@ En tu computadora:
 ```bash
 cd apps/desktop
 npm install
+npm run check
+npm run rebuild
 npm start
 ```
 
@@ -85,7 +87,7 @@ Para generar instalador:
 
 ```bash
 cd apps/desktop
-npm run dist
+npm run dist:win
 ```
 
 El instalador saldra en:
@@ -93,6 +95,26 @@ El instalador saldra en:
 ```text
 apps/desktop/dist/
 ```
+
+El nombre esperado para esta version es:
+
+```text
+apps/desktop/dist/NexoPOS_Setup_1.0.0.exe
+```
+
+Si tu disco `C:` esta lleno y npm falla con `ENOSPC`, usa cache temporal en `D:`:
+
+```powershell
+$env:LOCALAPPDATA='D:\Desarrollo\LocalAppData'
+$env:npm_config_cache='D:\Desarrollo\npm-cache'
+$env:ELECTRON_CACHE='D:\Desarrollo\electron-cache'
+$env:ELECTRON_BUILDER_CACHE='D:\Desarrollo\electron-builder-cache'
+$env:TEMP='D:\Desarrollo\tmp'
+$env:TMP='D:\Desarrollo\tmp'
+npm run desktop:dist
+```
+
+Nota: el instalador actual es funcional, pero todavia no esta firmado digitalmente. Windows puede mostrar aviso de seguridad la primera vez.
 
 ## 7. Activar en la computadora del cliente
 
@@ -109,12 +131,18 @@ Despues inicia sesion con el usuario creado en el POS.
 1. Crear un producto.
 2. Hacer una venta.
 3. Imprimir ticket.
-4. Abrir panel `/admin/` y confirmar que el equipo aparece.
+4. Abrir panel `/admin/` y confirmar que el equipo aparece con:
+   - version instalada
+   - ultima conexion
+   - ultima sync
+   - sistema operativo
+   - estado de licencia
 5. Desconectar internet.
-6. Hacer una venta offline.
+6. Navegar por inventario, ventas y clientes para validar cache local.
 7. Reconectar internet.
 8. Presionar el chip de sync.
 9. Confirmar que pendientes quedan en cero.
+10. Confirmar en Render que `/health` sigue en `ok: true`.
 
 ## 9. Si algo falla
 
@@ -123,3 +151,12 @@ Despues inicia sesion con el usuario creado en el POS.
 - Si no guarda datos: revisar `DATABASE_URL`.
 - Si la app desktop no abre: ejecutar `npm install` en `apps/desktop`.
 - Si sync queda con error: abrir el chip de sync y reintentar.
+
+## 10. Antes de salir del negocio
+
+- Hacer una venta real pequena y entregar ticket.
+- Validar que el ticket salga en tamano termico de la impresora del cliente.
+- Confirmar que el inventario bajo cambie si aplica.
+- Confirmar que el panel admin muestra ultima conexion reciente.
+- Confirmar que la licencia queda activa y con fecha de vencimiento correcta.
+- Anotar el nombre de la PC, usuario del POS y telefono del encargado.

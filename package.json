@@ -13,7 +13,9 @@
                     "check":  "node --check server.js && node --check public/app.js",
                     "check:env":  "node --env-file=.env scripts/check-env.js",
                     "migrate":  "node --env-file=.env scripts/migrate.js",
-                    "migrate:prod":  "node --env-file=.env.production scripts/migrate.js"
+                    "migrate:prod":  "node --env-file=.env.production scripts/migrate.js",
+                    "desktop:check":  "npm --prefix apps/desktop run check",
+                    "desktop:dist":  "npm --prefix apps/desktop run dist:win"
                 },
     "dependencies":  {
                          "express":  "^5.2.1",

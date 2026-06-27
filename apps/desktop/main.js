@@ -104,8 +104,57 @@ async function apiRequest(endpoint, options = {}) {
   return body;
 }
 
+async function checkForUpdateMetadata() {
+  const config = await readConfig();
+  const plataforma = "windows";
+  const currentVersion = app.getVersion();
+  const query = new URLSearchParams({
+    canal: "stable",
+    plataforma,
+    currentVersion
+  });
+
+  try {
+    const response = await apiRequest(`/updates/latest?${query.toString()}`, {
+      method: "GET",
+      headers: {
+        "x-app-version": currentVersion
+      }
+    });
+
+    const updateInfo = {
+      checkedAt: new Date().toISOString(),
+      updateAvailable: Boolean(response.updateAvailable),
+      currentVersion,
+      latestVersion: response.latest?.version || null,
+      latest: response.latest || null
+    };
+
+    await writeConfig({
+      lastUpdateCheck: updateInfo
+    });
+
+    return updateInfo;
+  } catch (error) {
+    const updateInfo = {
+      checkedAt: new Date().toISOString(),
+      updateAvailable: false,
+      currentVersion,
+      latestVersion: config.lastUpdateCheck?.latestVersion || null,
+      error: error.message
+    };
+
+    await writeConfig({
+      lastUpdateCheck: updateInfo
+    });
+
+    return updateInfo;
+  }
+}
+
 async function activateDevice() {
   const config = await readConfig();
+  const updateInfo = await checkForUpdateMetadata();
 
   return apiRequest("/dispositivos/activar", {
     method: "POST",
@@ -113,7 +162,10 @@ async function activateDevice() {
       deviceId: config.deviceId,
       nombreEquipo: config.deviceName,
       plataforma: "windows",
-      appVersion: app.getVersion()
+      appVersion: app.getVersion(),
+      osVersion: os.release(),
+      arch: os.arch(),
+      update: updateInfo
     })
   });
 }
@@ -122,12 +174,16 @@ async function checkInDevice() {
   const config = await readConfig();
   const syncStats = localDb.syncStats();
   const localStats = localDb.localDataStats(config.negocioSlug);
+  const updateInfo = await checkForUpdateMetadata();
 
   try {
     const response = await apiRequest("/dispositivos/checkin", {
       method: "POST",
       body: JSON.stringify({
         appVersion: app.getVersion(),
+        osVersion: os.release(),
+        arch: os.arch(),
+        update: updateInfo,
         sync: syncStats,
         localStats
       })
@@ -379,6 +435,8 @@ ipcMain.handle("nexo:license-status", async () => {
 });
 
 ipcMain.handle("nexo:checkin", async () => checkInDevice());
+
+ipcMain.handle("nexo:update-status", async () => checkForUpdateMetadata());
 
 ipcMain.handle("nexo:queue-event", async (_event, payload) => {
   if (!payload?.tipo) {

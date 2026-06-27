@@ -42,7 +42,7 @@ Flujo recomendado:
 3. Revisar sintaxis con `npm run check`.
 4. Hacer commit.
 5. Mezclar a `main` solo cuando este aprobado.
-6. Crear tag de release, por ejemplo `v0.1.0`.
+6. Crear tag de release, por ejemplo `v1.0.0`.
 7. Desplegar produccion desde `main`.
 
 ## Variables de entorno

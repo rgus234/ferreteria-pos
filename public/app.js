@@ -38,6 +38,7 @@ let estadoSyncDesktopPOS = {
 };
 const TAMANO_PAGINA_INVENTARIO = 10;
 const TAMANO_PAGINA_REPORTES = 8;
+const VERSION_NEXO_POS = "1.0.0";
 
 const CONFIG_NEGOCIO_KEY = "configuracionNegocioPOS";
 const TEMA_POS_KEY = "temaPOS";
@@ -10330,6 +10331,8 @@ function renderTopbarPOS() {
  negocio +
  '</span></div><span class="nexo-menu-caret">⌄</span></button><div id="menuNexoPOS" class="nexo-menu-panel"><div class="nexo-menu-head"><strong>Nexo POS</strong><span>Negocio: ' +
  negocio +
+ '</span><span>Version ' +
+ VERSION_NEXO_POS +
  '</span></div><button type="button" onclick="abrirContactoDesarrolladorPOS()">' +
  iconoUISVG("users") +
  '<span>Contactar desarrollador</span></button><button type="button" class="nexo-menu-danger" onclick="cerrarSesionPOS()">' +

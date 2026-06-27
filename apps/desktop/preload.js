@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("nexoDesktop", {
   activate: payload => ipcRenderer.invoke("nexo:activate", payload),
   licenseStatus: () => ipcRenderer.invoke("nexo:license-status"),
   checkIn: () => ipcRenderer.invoke("nexo:checkin"),
+  updateStatus: () => ipcRenderer.invoke("nexo:update-status"),
   resetActivation: () => ipcRenderer.invoke("nexo:reset-activation"),
   queueEvent: payload => ipcRenderer.invoke("nexo:queue-event", payload),
   syncPush: () => ipcRenderer.invoke("nexo:sync-push"),

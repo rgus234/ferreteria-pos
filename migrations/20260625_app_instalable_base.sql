@@ -45,6 +45,24 @@ ADD COLUMN IF NOT EXISTS sync_ultimo_error TEXT;
 ALTER TABLE public.dispositivos
 ADD COLUMN IF NOT EXISTS local_stats JSONB NOT NULL DEFAULT '{}'::jsonb;
 
+ALTER TABLE public.dispositivos
+ADD COLUMN IF NOT EXISTS os_version TEXT;
+
+ALTER TABLE public.dispositivos
+ADD COLUMN IF NOT EXISTS arch TEXT;
+
+ALTER TABLE public.dispositivos
+ADD COLUMN IF NOT EXISTS installed_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.dispositivos
+ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ;
+
+ALTER TABLE public.dispositivos
+ADD COLUMN IF NOT EXISTS update_latest_version TEXT;
+
+ALTER TABLE public.dispositivos
+ADD COLUMN IF NOT EXISTS update_available BOOLEAN NOT NULL DEFAULT false;
+
 CREATE TABLE IF NOT EXISTS public.sync_eventos (
     id BIGSERIAL PRIMARY KEY,
     negocio_id INTEGER NOT NULL REFERENCES public.negocios(id) ON DELETE CASCADE,
@@ -79,3 +97,12 @@ CREATE TABLE IF NOT EXISTS public.app_versiones (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (version, canal, plataforma)
 );
+
+ALTER TABLE public.app_versiones
+ADD COLUMN IF NOT EXISTS archivo TEXT;
+
+ALTER TABLE public.app_versiones
+ADD COLUMN IF NOT EXISTS sha512 TEXT;
+
+ALTER TABLE public.app_versiones
+ADD COLUMN IF NOT EXISTS tamano_bytes BIGINT;

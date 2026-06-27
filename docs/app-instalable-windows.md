@@ -55,7 +55,7 @@ npm run dist
 El instalador esperado queda como:
 
 ```text
-apps/desktop/dist/NexoPOS_Setup_0.1.0.exe
+apps/desktop/dist/NexoPOS_Setup_1.0.0.exe
 ```
 
 ## Nuevas piezas de backend
@@ -145,9 +145,22 @@ La proteccion contra duplicados se hace con `event_id` unico por negocio.
 - Despues del periodo de gracia, la app debe activar modo limitado.
 - La nube devuelve `modo: normal`, `gracia`, `limitado` o `bloqueado`.
 
+## Version instalada y actualizaciones
+
+La app instalada reporta al servidor:
+
+- version actual de Electron (`app.getVersion()`)
+- Windows / arquitectura
+- ultima conexion
+- ultima sincronizacion correcta
+- version mas nueva disponible
+- si hay actualizacion pendiente
+
+El endpoint `GET /updates/latest` compara la version instalada contra la ultima version publicada en `app_versiones`. En esta fase solo se consulta y se reporta la informacion. La descarga e instalacion automatica se deja para la siguiente fase con `electron-updater` o un mecanismo equivalente.
+
 ## Pendiente despues de esta fase
 
-- SQLite local.
-- Motor que aplique eventos a inventario/ventas/creditos.
 - Auto-update firmado.
-- Panel admin para editar licencias, pagos y versiones.
+- Publicar instaladores en un servidor de descargas.
+- Generar metadatos `latest.yml`.
+- Firmar instaladores para reducir alertas de Windows.

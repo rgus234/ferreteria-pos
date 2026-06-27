@@ -55,6 +55,26 @@ app.get("/version", (req, res) => {
     });
 });
 
+function compararVersiones(versionA, versionB) {
+    const partesA = String(versionA || "0.0.0").split(/[.-]/);
+    const partesB = String(versionB || "0.0.0").split(/[.-]/);
+    const largo = Math.max(partesA.length, partesB.length, 3);
+
+    for (let index = 0; index < largo; index += 1) {
+        const valorA = Number.parseInt(partesA[index] || "0", 10) || 0;
+        const valorB = Number.parseInt(partesB[index] || "0", 10) || 0;
+
+        if (valorA > valorB) return 1;
+        if (valorA < valorB) return -1;
+    }
+
+    return 0;
+}
+
+function versionEsMayor(versionNueva, versionActual) {
+    return compararVersiones(versionNueva, versionActual) > 0;
+}
+
 app.get("/negocio-actual", async (req, res) => {
     try {
         const negocio = await negocioActual(req);
@@ -190,6 +210,14 @@ app.get("/admin/api/negocios", async (_req, res) => {
                 COUNT(d.id)::int AS dispositivos,
                 COUNT(d.id) FILTER (WHERE d.ultimo_checkin_at > NOW() - INTERVAL '5 minutes')::int AS dispositivos_en_linea,
                 MAX(d.ultimo_checkin_at) AS ultimo_uso,
+                MAX(d.last_sync_at) AS ultima_sync,
+                MAX(d.created_at) AS instalado_at,
+                MAX(d.app_version) AS app_version,
+                MAX(d.update_latest_version) AS latest_version,
+                BOOL_OR(COALESCE(d.update_available, false)) AS update_available,
+                MAX(d.plataforma) AS plataforma,
+                MAX(d.os_version) AS os_version,
+                MAX(d.arch) AS arch,
                 COALESCE(SUM(d.sync_pendientes), 0)::int AS sync_pendientes,
                 COALESCE(SUM(d.sync_errores), 0)::int AS sync_errores
             FROM public.negocios n
@@ -233,6 +261,12 @@ app.get("/admin/api/negocios/:id/dispositivos", async (req, res) => {
                 sync_errores,
                 sync_ultimo_error,
                 local_stats,
+                os_version,
+                arch,
+                installed_at,
+                last_sync_at,
+                update_latest_version,
+                update_available,
                 ultimo_checkin_at,
                 CASE
                     WHEN ultimo_checkin_at > NOW() - INTERVAL '5 minutes' THEN true
@@ -248,6 +282,40 @@ app.get("/admin/api/negocios/:id/dispositivos", async (req, res) => {
         res.json({
             ok: true,
             dispositivos: resultado.rows
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
+app.get("/admin/api/versiones", async (_req, res) => {
+    try {
+        const resultado = await pool.query(`
+            SELECT
+                id,
+                version,
+                canal,
+                plataforma,
+                url_descarga,
+                notas,
+                obligatoria,
+                publicada,
+                archivo,
+                sha512,
+                tamano_bytes,
+                created_at
+            FROM public.app_versiones
+            ORDER BY created_at DESC, id DESC
+            LIMIT 20
+        `);
+
+        res.json({
+            ok: true,
+            currentServerVersion: config.appVersion,
+            versiones: resultado.rows
         });
     } catch (error) {
         res.status(500).json({
@@ -357,25 +425,37 @@ app.post("/dispositivos/activar", async (req, res) => {
             req.body?.plataforma || "windows";
         const appVersion =
             req.body?.appVersion || config.appVersion;
+        const osVersion =
+            req.body?.osVersion || null;
+        const arch =
+            req.body?.arch || null;
+        const updateLatestVersion =
+            req.body?.update?.latestVersion || null;
+        const updateAvailable =
+            Boolean(req.body?.update?.updateAvailable);
 
         const resultado =
         await pool.query(
             `
             INSERT INTO public.dispositivos
-                (negocio_id, device_id, nombre_equipo, plataforma, app_version, ultimo_checkin_at)
+                (negocio_id, device_id, nombre_equipo, plataforma, app_version, os_version, arch, installed_at, update_latest_version, update_available, ultimo_checkin_at)
             VALUES
-                ($1, $2, $3, $4, $5, NOW())
+                ($1, $2, $3, $4, $5, $6, $7, COALESCE((SELECT installed_at FROM public.dispositivos WHERE negocio_id = $1 AND device_id = $2), NOW()), $8, $9, NOW())
             ON CONFLICT (negocio_id, device_id)
             DO UPDATE SET
                 nombre_equipo = EXCLUDED.nombre_equipo,
                 plataforma = EXCLUDED.plataforma,
                 app_version = EXCLUDED.app_version,
+                os_version = COALESCE(EXCLUDED.os_version, public.dispositivos.os_version),
+                arch = COALESCE(EXCLUDED.arch, public.dispositivos.arch),
+                update_latest_version = COALESCE(EXCLUDED.update_latest_version, public.dispositivos.update_latest_version),
+                update_available = EXCLUDED.update_available,
                 estado = 'activo',
                 ultimo_checkin_at = NOW(),
                 updated_at = NOW()
             RETURNING *
             `,
-            [negocio.id, deviceId, nombreEquipo, plataforma, appVersion]
+            [negocio.id, deviceId, nombreEquipo, plataforma, appVersion, osVersion, arch, updateLatestVersion, updateAvailable]
         );
 
         res.json({
@@ -414,6 +494,16 @@ app.post("/dispositivos/checkin", async (req, res) => {
                 sync_errores = COALESCE($5, sync_errores),
                 sync_ultimo_error = COALESCE($6, sync_ultimo_error),
                 local_stats = COALESCE($7::jsonb, local_stats),
+                os_version = COALESCE($8, os_version),
+                arch = COALESCE($9, arch),
+                update_latest_version = COALESCE($10, update_latest_version),
+                update_available = COALESCE($11, update_available),
+                last_sync_at = CASE
+                    WHEN COALESCE($4, sync_pendientes) = 0
+                     AND COALESCE($5, sync_errores) = 0
+                    THEN NOW()
+                    ELSE last_sync_at
+                END,
                 ultimo_checkin_at = NOW(),
                 updated_at = NOW()
             WHERE negocio_id = $1
@@ -427,7 +517,11 @@ app.post("/dispositivos/checkin", async (req, res) => {
                 Number.isFinite(Number(req.body?.sync?.pendiente)) ? Number(req.body.sync.pendiente) : null,
                 Number.isFinite(Number(req.body?.sync?.error)) ? Number(req.body.sync.error) : null,
                 req.body?.sync?.ultimoError || null,
-                req.body?.localStats ? JSON.stringify(req.body.localStats) : null
+                req.body?.localStats ? JSON.stringify(req.body.localStats) : null,
+                req.body?.osVersion || null,
+                req.body?.arch || null,
+                req.body?.update?.latestVersion || null,
+                req.body?.update?.updateAvailable === undefined ? null : Boolean(req.body.update.updateAvailable)
             ]
         );
 
@@ -466,6 +560,12 @@ app.get("/dispositivos", async (req, res) => {
                 sync_errores,
                 sync_ultimo_error,
                 local_stats,
+                os_version,
+                arch,
+                installed_at,
+                last_sync_at,
+                update_latest_version,
+                update_available,
                 ultimo_checkin_at,
                 created_at,
                 updated_at,
@@ -737,6 +837,8 @@ app.get("/updates/latest", async (req, res) => {
             String(req.query.canal || "stable");
         const plataforma =
             String(req.query.plataforma || "windows");
+        const currentVersion =
+            String(req.query.currentVersion || req.get("x-app-version") || config.appVersion);
 
         const resultado =
         await pool.query(
@@ -755,11 +857,12 @@ app.get("/updates/latest", async (req, res) => {
         const version =
             resultado.rows[0] || null;
         const updateAvailable =
-            Boolean(version && version.version !== config.appVersion);
+            Boolean(version && versionEsMayor(version.version, currentVersion));
 
         res.json({
             ok: true,
             updateAvailable,
+            currentVersion,
             currentServerVersion: config.appVersion,
             latest: version
         });
@@ -2734,6 +2837,36 @@ async function inicializarCreditos() {
     `);
 
     await pool.query(`
+        ALTER TABLE public.dispositivos
+        ADD COLUMN IF NOT EXISTS os_version TEXT
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.dispositivos
+        ADD COLUMN IF NOT EXISTS arch TEXT
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.dispositivos
+        ADD COLUMN IF NOT EXISTS installed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.dispositivos
+        ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.dispositivos
+        ADD COLUMN IF NOT EXISTS update_latest_version TEXT
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.dispositivos
+        ADD COLUMN IF NOT EXISTS update_available BOOLEAN NOT NULL DEFAULT false
+    `);
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS public.sync_eventos (
             id BIGSERIAL PRIMARY KEY,
             negocio_id INTEGER NOT NULL REFERENCES public.negocios(id) ON DELETE CASCADE,
@@ -2775,6 +2908,33 @@ async function inicializarCreditos() {
             UNIQUE (version, canal, plataforma)
         )
     `);
+
+    await pool.query(`
+        ALTER TABLE public.app_versiones
+        ADD COLUMN IF NOT EXISTS archivo TEXT
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.app_versiones
+        ADD COLUMN IF NOT EXISTS sha512 TEXT
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.app_versiones
+        ADD COLUMN IF NOT EXISTS tamano_bytes BIGINT
+    `);
+
+    await pool.query(
+        `
+        INSERT INTO public.app_versiones
+            (version, canal, plataforma, notas, obligatoria, publicada)
+        VALUES
+            ($1, 'stable', 'windows', 'Version base estable para primer cliente', false, true)
+        ON CONFLICT (version, canal, plataforma)
+        DO NOTHING
+        `,
+        [config.appVersion]
+    );
 
     await pool.query(`
         CREATE TABLE IF NOT EXISTS public.productos (
