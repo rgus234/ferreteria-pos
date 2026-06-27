@@ -2,6 +2,7 @@ const form = document.getElementById("activationForm");
 const button = document.getElementById("activateButton");
 const statusMessage = document.getElementById("statusMessage");
 const apiBaseUrl = document.getElementById("apiBaseUrl");
+const licenseKey = document.getElementById("licenseKey");
 const negocioSlug = document.getElementById("negocioSlug");
 const deviceName = document.getElementById("deviceName");
 
@@ -24,9 +25,14 @@ async function loadDefaults() {
   const config = await window.nexoDesktop.getConfig();
 
   apiBaseUrl.value = config.apiBaseUrl || "https://ferreteria-pos.onrender.com";
+  licenseKey.value = config.licenseKey || "";
   negocioSlug.value = config.negocioSlug || "ferreteria-olimpico";
   deviceName.value = config.deviceName || "";
 }
+
+licenseKey.addEventListener("input", () => {
+  licenseKey.value = licenseKey.value.toUpperCase().replace(/[^A-Z0-9-]/g, "");
+});
 
 negocioSlug.addEventListener("input", () => {
   negocioSlug.value = normalizeSlug(negocioSlug.value);
@@ -41,6 +47,7 @@ form.addEventListener("submit", async event => {
   try {
     await window.nexoDesktop.activate({
       apiBaseUrl: apiBaseUrl.value,
+      licenseKey: licenseKey.value,
       negocioSlug: negocioSlug.value,
       deviceName: deviceName.value
     });

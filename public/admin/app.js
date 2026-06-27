@@ -119,6 +119,7 @@ function pintarNegociosAdmin() {
   tabla.innerHTML = negociosAdmin.map(negocio => {
     const modo = negocio.licencia_modo || "sin licencia";
     const licencia = negocio.licencia_estado || "sin licencia";
+    const licenciaKey = escaparHTMLAdmin(negocio.license_key || "-");
     const ultimoUso = fechaCortaAdmin(negocio.ultimo_uso);
     const ultimaSync = fechaHoraCortaAdmin(negocio.ultima_sync);
     const instalado = fechaCortaAdmin(negocio.instalado_at || negocio.created_at);
@@ -145,7 +146,7 @@ function pintarNegociosAdmin() {
         <td>${giro}</td>
         <td><em class="pill ${pillClaseAdmin(negocio.negocio_estado)}">${estado}</em></td>
         <td><strong>${plan}</strong><span>${formatoDineroAdmin.format(Number(negocio.monto_mensual || 0))}/mes</span></td>
-        <td><em class="pill ${pillClaseAdmin(modo)}">${escaparHTMLAdmin(modo)}</em><span>${escaparHTMLAdmin(licencia)}</span></td>
+        <td><em class="pill ${pillClaseAdmin(modo)}">${escaparHTMLAdmin(modo)}</em><span>${escaparHTMLAdmin(licencia)}</span><span>${licenciaKey}</span></td>
         <td>${ultimoUso}</td>
         <td>${ultimaSync}</td>
         <td><strong>${version}</strong><span>Latest ${latest}</span>${updatePill}</td>
@@ -208,6 +209,7 @@ function abrirLicenciaAdmin(id) {
   document.getElementById("licVence").value = fechaInputAdmin(negocio.fecha_vencimiento);
   document.getElementById("licUltimoPago").value = fechaInputAdmin(negocio.ultimo_pago_at);
   document.getElementById("licGracia").value = Number(negocio.gracia_dias || 15);
+  document.getElementById("licClave").value = negocio.license_key || "";
   document.getElementById("licNotas").value = negocio.notas || "";
   document.getElementById("modalLicenciaAdmin").hidden = false;
 }

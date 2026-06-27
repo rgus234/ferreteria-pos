@@ -6,7 +6,8 @@ const pool = require("./db");
 const {
     DEFAULT_NEGOCIO_SLUG,
     DEFAULT_NEGOCIO_NOMBRE,
-    asegurarNegocioActual
+    asegurarNegocioActual,
+    normalizarSlug
 } = require("./tenant");
 
 validarConfigProduccion();
@@ -75,6 +76,83 @@ function versionEsMayor(versionNueva, versionActual) {
     return compararVersiones(versionNueva, versionActual) > 0;
 }
 
+function limpiarTexto(valor, max = 160) {
+    return String(valor || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, max);
+}
+
+function normalizarLicencia(valor) {
+    return String(valor || "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9-]/g, "")
+        .replace(/-+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80);
+}
+
+function compactarLicencia(valor) {
+    return String(valor || "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+}
+
+function generarLicenciaKey() {
+    return [
+        "NXP",
+        crypto.randomBytes(3).toString("hex"),
+        crypto.randomBytes(3).toString("hex"),
+        crypto.randomBytes(3).toString("hex")
+    ].join("-").toUpperCase();
+}
+
+async function generarLicenciaUnica(client) {
+    for (let intento = 0; intento < 8; intento += 1) {
+        const licenciaKey = generarLicenciaKey();
+        const existe = await client.query(
+            "SELECT 1 FROM public.licencias WHERE license_key = $1 LIMIT 1",
+            [licenciaKey]
+        );
+
+        if (existe.rows.length === 0) {
+            return licenciaKey;
+        }
+    }
+
+    throw new Error("No se pudo generar una licencia unica");
+}
+
+async function buscarNegocioPorLicencia(client, licenseKey) {
+    const limpia = compactarLicencia(licenseKey);
+
+    if (!limpia) return null;
+
+    const resultado = await client.query(
+        `
+        SELECT
+            n.*,
+            l.id AS licencia_id,
+            l.estado AS licencia_estado,
+            l.plan AS licencia_plan,
+            l.fecha_inicio,
+            l.fecha_vencimiento,
+            l.gracia_dias,
+            l.ultimo_pago_at,
+            l.monto_mensual,
+            l.notas,
+            l.license_key
+        FROM public.licencias l
+        JOIN public.negocios n ON n.id = l.negocio_id
+        WHERE regexp_replace(upper(l.license_key), '[^A-Z0-9]', '', 'g') = $1
+        LIMIT 1
+        `,
+        [limpia]
+    );
+
+    return resultado.rows[0] || null;
+}
+
 app.get("/negocio-actual", async (req, res) => {
     try {
         const negocio = await negocioActual(req);
@@ -106,6 +184,7 @@ app.get("/licencia/estado", async (req, res) => {
                 plan: negocio.plan
             },
             licencia: {
+                licenseKey: licencia.license_key,
                 estado: licencia.estado,
                 plan: licencia.plan,
                 modo: licencia.modo,
@@ -120,6 +199,148 @@ app.get("/licencia/estado", async (req, res) => {
             ok: false,
             error: error.message
         });
+    }
+});
+
+app.post("/api/clientes/registro", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const nombreNegocio = limpiarTexto(req.body?.nombreNegocio || req.body?.negocio, 140);
+        const telefono = limpiarTexto(req.body?.telefono, 40);
+        const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+        const ciudad = limpiarTexto(req.body?.ciudad || req.body?.direccion, 180);
+        const nombreContacto = limpiarTexto(req.body?.nombreContacto || req.body?.nombre, 120);
+        const giro = limpiarTexto(req.body?.giro, 80) || "ferreteria";
+        const plan = limpiarTexto(req.body?.plan, 80) || "demo";
+
+        if (!nombreNegocio || !telefono) {
+            return res.status(400).json({
+                ok: false,
+                error: "Nombre del negocio y telefono son requeridos"
+            });
+        }
+
+        const slugBase = normalizarSlug(nombreNegocio);
+
+        await client.query("BEGIN");
+
+        let slug = slugBase;
+        let slugDisponible = false;
+        for (let intento = 2; intento <= 50; intento += 1) {
+            const existe = await client.query(
+                "SELECT 1 FROM public.negocios WHERE slug = $1 LIMIT 1",
+                [slug]
+            );
+
+            if (existe.rows.length === 0) {
+                slugDisponible = true;
+                break;
+            }
+
+            slug = `${slugBase}-${intento}`;
+        }
+
+        if (!slugDisponible) {
+            throw new Error("No se pudo generar un codigo unico para el negocio");
+        }
+
+        const negocio = await client.query(
+            `
+            INSERT INTO public.negocios
+                (slug, nombre, giro, estado, plan, telefono, correo, direccion, updated_at)
+            VALUES
+                ($1, $2, $3, 'prueba', $4, $5, $6, $7, NOW())
+            RETURNING *
+            `,
+            [slug, nombreNegocio, giro, plan, telefono, correo || null, ciudad || null]
+        );
+
+        const licenciaKey = await generarLicenciaUnica(client);
+        const venceEnDias = Number.isFinite(Number(req.body?.diasPrueba))
+            ? Math.max(1, Math.min(Number(req.body.diasPrueba), 90))
+            : 30;
+
+        const licencia = await client.query(
+            `
+            INSERT INTO public.licencias
+                (negocio_id, license_key, estado, plan, fecha_vencimiento, gracia_dias, monto_mensual, notas, updated_at)
+            VALUES
+                ($1, $2, 'activa', $3, NOW() + ($4::int * INTERVAL '1 day'), 15, 0, $5, NOW())
+            RETURNING *
+            `,
+            [
+                negocio.rows[0].id,
+                licenciaKey,
+                plan,
+                venceEnDias,
+                nombreContacto
+                    ? `Alta publica. Contacto: ${nombreContacto}`
+                    : "Alta publica"
+            ]
+        );
+
+        await client.query(
+            `
+            INSERT INTO public.usuarios (negocio_id, usuario, password, rol)
+            VALUES ($1, 'admin', '1234', 'Administrador')
+            ON CONFLICT DO NOTHING
+            `,
+            [negocio.rows[0].id]
+        );
+
+        const version = await client.query(
+            `
+            SELECT version, url_descarga, archivo
+            FROM public.app_versiones
+            WHERE canal = 'stable'
+            AND plataforma = 'windows'
+            AND publicada = true
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            `
+        );
+
+        await client.query("COMMIT");
+
+        const latest = version.rows[0] || null;
+
+        res.status(201).json({
+            ok: true,
+            negocio: {
+                id: negocio.rows[0].id,
+                slug: negocio.rows[0].slug,
+                nombre: negocio.rows[0].nombre,
+                estado: negocio.rows[0].estado,
+                plan: negocio.rows[0].plan
+            },
+            licencia: {
+                licenseKey: licencia.rows[0].license_key,
+                estado: licencia.rows[0].estado,
+                plan: licencia.rows[0].plan,
+                modo: calcularModoLicencia(licencia.rows[0]),
+                fechaVencimiento: licencia.rows[0].fecha_vencimiento,
+                graciaDias: licencia.rows[0].gracia_dias
+            },
+            instalador: {
+                version: latest?.version || config.appVersion,
+                url: latest?.url_descarga || "/downloads/NexoPOS_Setup_1.0.0.exe",
+                archivo: latest?.archivo || "NexoPOS_Setup_1.0.0.exe"
+            },
+            accesoInicial: {
+                usuario: "admin",
+                password: "1234"
+            }
+        });
+    } catch (error) {
+        await client.query("ROLLBACK");
+
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    } finally {
+        client.release();
     }
 });
 
@@ -206,6 +427,7 @@ app.get("/admin/api/negocios", async (_req, res) => {
                 l.gracia_dias,
                 l.ultimo_pago_at,
                 l.monto_mensual,
+                l.license_key,
                 l.notas,
                 COUNT(d.id)::int AS dispositivos,
                 COUNT(d.id) FILTER (WHERE d.ultimo_checkin_at > NOW() - INTERVAL '5 minutes')::int AS dispositivos_en_linea,
@@ -416,7 +638,47 @@ app.put("/admin/api/negocios/:id/licencia", async (req, res) => {
 
 app.post("/dispositivos/activar", async (req, res) => {
     try {
-        const negocio = await negocioActual(req);
+        const licenseKey =
+            normalizarLicencia(req.body?.licenseKey || req.body?.licencia || "");
+        let negocioActivacion = null;
+
+        if (licenseKey) {
+            const porLicencia =
+                await buscarNegocioPorLicencia(pool, licenseKey);
+
+            if (!porLicencia) {
+                return res.status(404).json({
+                    ok: false,
+                    error: "Licencia no encontrada"
+                });
+            }
+
+            negocioActivacion = {
+                id: porLicencia.id,
+                slug: porLicencia.slug,
+                nombre: porLicencia.nombre,
+                giro: porLicencia.giro,
+                estado: porLicencia.estado,
+                plan: porLicencia.plan
+            };
+        } else if (config.isProduction) {
+            return res.status(400).json({
+                ok: false,
+                error: "Licencia requerida para activar Nexo POS"
+            });
+        } else {
+            negocioActivacion = await negocioActual(req);
+        }
+
+        const licenciaActualizada = await licenciaActual(negocioActivacion);
+
+        if (["bloqueado"].includes(licenciaActualizada.modo)) {
+            return res.status(403).json({
+                ok: false,
+                error: "Licencia bloqueada. Contacta a soporte Nexo POS."
+            });
+        }
+
         const deviceId =
             obtenerDeviceId(req) || crypto.randomUUID();
         const nombreEquipo =
@@ -455,14 +717,24 @@ app.post("/dispositivos/activar", async (req, res) => {
                 updated_at = NOW()
             RETURNING *
             `,
-            [negocio.id, deviceId, nombreEquipo, plataforma, appVersion, osVersion, arch, updateLatestVersion, updateAvailable]
+            [negocioActivacion.id, deviceId, nombreEquipo, plataforma, appVersion, osVersion, arch, updateLatestVersion, updateAvailable]
+        );
+
+        await pool.query(
+            `
+            UPDATE public.licencias
+            SET activated_at = COALESCE(activated_at, NOW()),
+                updated_at = NOW()
+            WHERE negocio_id = $1
+            `,
+            [negocioActivacion.id]
         );
 
         res.json({
             ok: true,
-            negocio,
+            negocio: negocioActivacion,
             dispositivo: resultado.rows[0],
-            licencia: await licenciaActual(negocio)
+            licencia: await licenciaActual(negocioActivacion)
         });
     } catch (error) {
         res.status(500).json({
@@ -938,6 +1210,7 @@ async function licenciaActual(negocio) {
 
     return {
         ...licencia,
+        licenseKey: licencia.license_key,
         modo: calcularModoLicencia(licencia)
     };
 }
@@ -2801,6 +3074,30 @@ async function inicializarCreditos() {
     `);
 
     await pool.query(`
+        ALTER TABLE public.licencias
+        ADD COLUMN IF NOT EXISTS license_key TEXT
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.licencias
+        ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ
+    `);
+
+    await pool.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_licencias_license_key_unique
+        ON public.licencias (license_key)
+        WHERE license_key IS NOT NULL
+    `);
+
+    await pool.query(`
+        UPDATE public.licencias
+        SET license_key = 'NXP-' || upper(substr(md5(negocio_id::text || '-' || id::text || '-' || created_at::text), 1, 6)) || '-' ||
+                          upper(substr(md5(id::text || '-' || negocio_id::text), 1, 6)) || '-' ||
+                          upper(substr(md5(created_at::text || '-' || id::text), 1, 6))
+        WHERE license_key IS NULL
+    `);
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS public.dispositivos (
             id SERIAL PRIMARY KEY,
             negocio_id INTEGER NOT NULL REFERENCES public.negocios(id) ON DELETE CASCADE,
@@ -3067,7 +3364,7 @@ async function inicializarCreditos() {
                     JOIN pg_attribute att
                     ON att.attrelid = rel.oid
                     AND att.attnum = key.attnum
-                ) = ARRAY['usuario']
+                )::text[] = ARRAY['usuario']::text[]
             LOOP
                 EXECUTE format(
                     'ALTER TABLE public.usuarios DROP CONSTRAINT IF EXISTS %I',

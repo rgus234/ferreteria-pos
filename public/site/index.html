@@ -192,11 +192,13 @@
         <h2>Veamos si Nexo POS encaja con tu ferreteria.</h2>
         <p>Agenda una demostracion, resuelve dudas y revisa que plan conviene para tu negocio.</p>
       </div>
-      <form class="lead-form">
-        <label>Nombre del negocio<input type="text" placeholder="Ej. Ferreteria Olimpico"></label>
-        <label>Telefono<input type="tel" placeholder="Ej. 498 123 4567"></label>
-        <label>Ciudad<input type="text" placeholder="Ej. Rio Grande, Zac."></label>
-        <a class="btn primary" href="https://wa.me/524981234567?text=Hola,%20quiero%20una%20demo%20de%20Nexo%20POS" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+      <form class="lead-form" id="registroClienteForm">
+        <label>Nombre del negocio<input id="registroNegocio" type="text" placeholder="Ej. Ferreteria Olimpico" required></label>
+        <label>Telefono<input id="registroTelefono" type="tel" placeholder="Ej. 498 123 4567" required></label>
+        <label>Ciudad<input id="registroCiudad" type="text" placeholder="Ej. Rio Grande, Zac."></label>
+        <label>Contacto<input id="registroContacto" type="text" placeholder="Ej. Gustavo"></label>
+        <button class="btn primary" type="submit" id="registroSubmit">Solicitar licencia</button>
+        <div id="registroResultado" class="lead-result" aria-live="polite"></div>
       </form>
     </section>
   </main>
@@ -208,5 +210,64 @@
     </div>
     <span>Sistema comercial para punto de venta.</span>
   </footer>
+  <script>
+    const form = document.getElementById("registroClienteForm");
+    const button = document.getElementById("registroSubmit");
+    const result = document.getElementById("registroResultado");
+
+    function renderRegistro(message, isError = false) {
+      result.classList.toggle("error", isError);
+      result.innerHTML = message;
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    form?.addEventListener("submit", async event => {
+      event.preventDefault();
+      button.disabled = true;
+      renderRegistro("Creando cliente y licencia...");
+
+      try {
+        const response = await fetch("/api/clientes/registro", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            nombreNegocio: document.getElementById("registroNegocio").value,
+            telefono: document.getElementById("registroTelefono").value,
+            ciudad: document.getElementById("registroCiudad").value,
+            nombreContacto: document.getElementById("registroContacto").value,
+            giro: "ferreteria",
+            plan: "demo"
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.ok === false) {
+          throw new Error(data.error || "No se pudo generar la licencia.");
+        }
+
+        renderRegistro(`
+          <strong>Licencia creada</strong>
+          <span>Negocio: ${escapeHtml(data.negocio.nombre)}</span>
+          <span>Clave: <b>${escapeHtml(data.licencia.licenseKey)}</b></span>
+          <span>Usuario inicial: admin / 1234</span>
+          <a class="btn secondary" href="${escapeHtml(data.instalador.url)}" download>Descargar instalador</a>
+        `);
+        form.reset();
+      } catch (error) {
+        renderRegistro(error.message, true);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
 </body>
 </html>

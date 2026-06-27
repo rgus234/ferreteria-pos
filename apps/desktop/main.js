@@ -300,6 +300,7 @@ async function activateDevice() {
     method: "POST",
     body: JSON.stringify({
       deviceId: config.deviceId,
+      licenseKey: config.licenseKey || "",
       nombreEquipo: config.deviceName,
       plataforma: "windows",
       appVersion: app.getVersion(),
@@ -535,13 +536,24 @@ ipcMain.handle("nexo:activate", async (_event, payload) => {
   const config = await writeConfig({
     apiBaseUrl: payload.apiBaseUrl,
     negocioSlug: payload.negocioSlug,
-    deviceName: payload.deviceName
+    deviceName: payload.deviceName,
+    licenseKey: payload.licenseKey
   });
 
   const activation = await activateDevice();
+  const activatedSlug =
+    activation?.negocio?.slug || config.negocioSlug;
+  const activatedLicense =
+    activation?.licencia?.license_key ||
+    activation?.licencia?.licenseKey ||
+    config.licenseKey ||
+    payload.licenseKey ||
+    "";
 
   await writeConfig({
     ...config,
+    negocioSlug: activatedSlug,
+    licenseKey: activatedLicense,
     activatedAt: new Date().toISOString(),
     lastLicense: activation.licencia || null
   });

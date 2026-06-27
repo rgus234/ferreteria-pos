@@ -97,6 +97,17 @@ nav a:hover {
   font-weight: 950;
 }
 
+button.btn {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+button.btn:disabled {
+  cursor: wait;
+  opacity: .72;
+}
+
 .header-cta,
 .btn.primary {
   color: #fff;
@@ -502,6 +513,28 @@ cite {
   background: rgba(255,255,255,.76);
   font: inherit;
   font-weight: 750;
+}
+
+.lead-result {
+  display: grid;
+  gap: 6px;
+  min-height: 28px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.lead-result strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.lead-result b {
+  color: var(--blue);
+}
+
+.lead-result.error {
+  color: #b42318;
 }
 
 footer {

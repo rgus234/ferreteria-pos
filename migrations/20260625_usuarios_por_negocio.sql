@@ -26,7 +26,7 @@ BEGIN
             JOIN pg_attribute att
             ON att.attrelid = rel.oid
             AND att.attnum = key.attnum
-        ) = ARRAY['usuario']
+        )::text[] = ARRAY['usuario']::text[]
     LOOP
         EXECUTE format(
             'ALTER TABLE public.usuarios DROP CONSTRAINT IF EXISTS %I',

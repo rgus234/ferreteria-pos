@@ -15,6 +15,19 @@ En Render, confirma variables:
 
 Despues haz deploy desde `main`.
 
+## 1.1. Alta del cliente y licencia
+
+1. Abre la pagina publica de Nexo POS.
+2. Llena el formulario con nombre del negocio, telefono, ciudad y contacto.
+3. El sistema crea automaticamente:
+   - negocio en `public.negocios`
+   - licencia unica en `public.licencias`
+   - usuario inicial `admin / 1234`
+   - registro visible en `/admin/`
+4. Copia la clave tipo `NXP-XXXXXX-XXXXXX-XXXXXX`; esa clave activa el instalador en la computadora del cliente.
+
+Si necesitas copiarla despues, entra al panel `/admin/`, abre el cliente y revisa el campo `Clave de licencia`.
+
 ## 2. Probar que la nube esta viva
 
 Abrir:
@@ -44,6 +57,7 @@ Desde ahi puedes editar:
 - Estado del negocio.
 - Plan.
 - Estado de licencia.
+- Clave de licencia.
 - Mensualidad.
 - Fecha de vencimiento.
 - Ultimo pago.
@@ -149,10 +163,11 @@ Debe responder el YAML de Electron con `version: 1.0.0`.
 Al abrir la app instalada, captura:
 
 - URL servidor: `https://ferreteria-pos.onrender.com`
-- Negocio slug: el slug del cliente
+- Licencia Nexo POS: clave del cliente
+- Negocio slug: opcional; la licencia corrige el slug automaticamente
 - Nombre equipo: nombre de la computadora
 
-Despues inicia sesion con el usuario creado en el POS.
+Despues inicia sesion con `admin / 1234` o con el usuario que hayas configurado.
 
 ## 8. Prueba obligatoria en sitio
 

@@ -24,3 +24,9 @@ npm run migrate:prod
 ```
 
 El script registra migraciones aplicadas en `public.schema_migrations`.
+
+Migraciones actuales relevantes:
+
+- `20260624_multi_tenant_base.sql`: separa datos por negocio.
+- `20260625_app_instalable_base.sql`: licencias, dispositivos, sync y versiones.
+- `20260627_licencias_alta_clientes.sql`: claves unicas de licencia para activar instalaciones reales.
