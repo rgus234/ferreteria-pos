@@ -167,13 +167,25 @@ app.post("/dispositivos/checkin", async (req, res) => {
             UPDATE public.dispositivos
             SET
                 app_version = COALESCE($3, app_version),
+                sync_pendientes = COALESCE($4, sync_pendientes),
+                sync_errores = COALESCE($5, sync_errores),
+                sync_ultimo_error = COALESCE($6, sync_ultimo_error),
+                local_stats = COALESCE($7::jsonb, local_stats),
                 ultimo_checkin_at = NOW(),
                 updated_at = NOW()
             WHERE negocio_id = $1
             AND device_id = $2
             RETURNING *
             `,
-            [negocio.id, deviceId, req.body?.appVersion || null]
+            [
+                negocio.id,
+                deviceId,
+                req.body?.appVersion || null,
+                Number.isFinite(Number(req.body?.sync?.pendiente)) ? Number(req.body.sync.pendiente) : null,
+                Number.isFinite(Number(req.body?.sync?.error)) ? Number(req.body.sync.error) : null,
+                req.body?.sync?.ultimoError || null,
+                req.body?.localStats ? JSON.stringify(req.body.localStats) : null
+            ]
         );
 
         if (resultado.rows.length === 0) {
@@ -187,6 +199,49 @@ app.post("/dispositivos/checkin", async (req, res) => {
             ok: true,
             dispositivo: resultado.rows[0],
             licencia: await licenciaActual(negocio)
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
+app.get("/dispositivos", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const resultado = await pool.query(
+            `
+            SELECT
+                device_id,
+                nombre_equipo,
+                plataforma,
+                app_version,
+                estado,
+                sync_pendientes,
+                sync_errores,
+                sync_ultimo_error,
+                local_stats,
+                ultimo_checkin_at,
+                created_at,
+                updated_at,
+                CASE
+                    WHEN ultimo_checkin_at IS NULL THEN false
+                    WHEN ultimo_checkin_at > NOW() - INTERVAL '5 minutes' THEN true
+                    ELSE false
+                END AS en_linea
+            FROM public.dispositivos
+            WHERE negocio_id = $1
+            ORDER BY ultimo_checkin_at DESC NULLS LAST, created_at DESC
+            `,
+            [negocio.id]
+        );
+
+        res.json({
+            ok: true,
+            negocio,
+            dispositivos: resultado.rows
         });
     } catch (error) {
         res.status(500).json({
@@ -2406,6 +2461,26 @@ async function inicializarCreditos() {
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             UNIQUE (negocio_id, device_id)
         )
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.dispositivos
+        ADD COLUMN IF NOT EXISTS sync_pendientes INTEGER NOT NULL DEFAULT 0
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.dispositivos
+        ADD COLUMN IF NOT EXISTS sync_errores INTEGER NOT NULL DEFAULT 0
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.dispositivos
+        ADD COLUMN IF NOT EXISTS sync_ultimo_error TEXT
+    `);
+
+    await pool.query(`
+        ALTER TABLE public.dispositivos
+        ADD COLUMN IF NOT EXISTS local_stats JSONB NOT NULL DEFAULT '{}'::jsonb
     `);
 
     await pool.query(`

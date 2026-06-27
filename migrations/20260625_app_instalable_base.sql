@@ -30,6 +30,18 @@ CREATE TABLE IF NOT EXISTS public.dispositivos (
     UNIQUE (negocio_id, device_id)
 );
 
+ALTER TABLE public.dispositivos
+ADD COLUMN IF NOT EXISTS sync_pendientes INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE public.dispositivos
+ADD COLUMN IF NOT EXISTS sync_errores INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE public.dispositivos
+ADD COLUMN IF NOT EXISTS sync_ultimo_error TEXT;
+
+ALTER TABLE public.dispositivos
+ADD COLUMN IF NOT EXISTS local_stats JSONB NOT NULL DEFAULT '{}'::jsonb;
+
 CREATE TABLE IF NOT EXISTS public.sync_eventos (
     id BIGSERIAL PRIMARY KEY,
     negocio_id INTEGER NOT NULL REFERENCES public.negocios(id) ON DELETE CASCADE,

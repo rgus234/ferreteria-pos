@@ -454,7 +454,7 @@ function pintarEstadoSyncDesktopPOS() {
  const detalle = !online
  ? "Sin internet: guardando en esta PC"
  : errores > 0
- ? `${errores} evento${errores === 1 ? "" : "s"} con error`
+ ? (estadoSyncDesktopPOS.ultimoError || `${errores} evento${errores === 1 ? "" : "s"} con error`)
  : pendiente > 0
  ? "Se subira al volver la conexion"
  : "Datos al dia";
@@ -482,6 +482,7 @@ async function refrescarEstadoSyncDesktopPOS(opciones = {}) {
    pendiente: Number(stats.pendiente || 0),
    error: Number(stats.error || 0),
    sincronizado: Number(stats.sincronizado || 0),
+   ultimoError: stats.ultimoError || "",
    ultimaRevision: new Date().toISOString()
   };
  } catch (error) {
@@ -508,11 +509,19 @@ async function sincronizarAhoraDesktopPOS() {
  pintarEstadoSyncDesktopPOS();
 
  try {
-  const resultadoPush = await window.nexoDesktop.syncPush();
+  const hayErrores = Number(estadoSyncDesktopPOS.error || 0) > 0;
+  const puedeReintentar = hayErrores && typeof window.nexoDesktop.syncRetry === "function";
+  const resultadoPush = puedeReintentar
+  ? await window.nexoDesktop.syncRetry()
+  : await window.nexoDesktop.syncPush();
   await aplicarMappingsSyncFrontendPOS(resultadoPush);
 
   if (typeof window.nexoDesktop.syncPull === "function") {
    await window.nexoDesktop.syncPull();
+  }
+
+  if (typeof window.nexoDesktop.checkIn === "function") {
+   await window.nexoDesktop.checkIn().catch(() => null);
   }
 
   await refrescarEstadoSyncDesktopPOS({ silencioso: true });

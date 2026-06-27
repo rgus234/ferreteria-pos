@@ -297,7 +297,7 @@ function pendingEvents(limit = 100, negocioSlug = null) {
         entidad_id AS entidadId,
         payload
       FROM sync_outbox
-      WHERE estado IN ('pendiente', 'error')
+      WHERE estado = 'pendiente'
       ORDER BY created_at ASC
       LIMIT ?
     `)
@@ -307,6 +307,20 @@ function pendingEvents(limit = 100, negocioSlug = null) {
       payload: JSON.parse(row.payload)
     }))
     .map(event => resolveEventMappings(event, negocioSlug));
+}
+
+function retryFailedEvents(maxIntentos = 8) {
+  const result = ensureDb()
+    .prepare(`
+      UPDATE sync_outbox
+      SET estado = 'pendiente',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE estado = 'error'
+      AND intentos < ?
+    `)
+    .run(Number(maxIntentos || 8));
+
+  return result.changes || 0;
 }
 
 function markEventsSynced(eventIds) {
@@ -392,6 +406,22 @@ function syncStats() {
   rows.forEach(row => {
     stats[row.estado] = Number(row.total);
   });
+
+  const lastError = ensureDb()
+    .prepare(`
+      SELECT ultimo_error AS ultimoError,
+             updated_at AS updatedAt
+      FROM sync_outbox
+      WHERE estado = 'error'
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `)
+    .get();
+
+  if (lastError) {
+    stats.ultimoError = lastError.ultimoError;
+    stats.ultimoErrorAt = lastError.updatedAt;
+  }
 
   return stats;
 }
@@ -787,6 +817,7 @@ module.exports = {
   enqueueEvent,
   pendingEvents,
   resolveMappedId,
+  retryFailedEvents,
   markEventsSynced,
   markEventsFailed,
   saveInboundEvents,

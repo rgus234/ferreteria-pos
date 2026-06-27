@@ -10,6 +10,7 @@ const CONFIG_FILE = "desktop-config.json";
 
 let mainWindow;
 let configCache;
+let checkinTimer;
 
 function configPath() {
   return path.join(app.getPath("userData"), CONFIG_FILE);
@@ -54,13 +55,23 @@ async function readConfig() {
 }
 
 async function writeConfig(nextConfig) {
+  const currentConfig = configCache || {};
+  const apiBaseUrl =
+    nextConfig.apiBaseUrl !== undefined
+      ? nextConfig.apiBaseUrl
+      : currentConfig.apiBaseUrl;
+  const negocioSlug =
+    nextConfig.negocioSlug !== undefined
+      ? nextConfig.negocioSlug
+      : currentConfig.negocioSlug;
+
   configCache = {
-    ...configCache,
+    ...currentConfig,
     ...nextConfig,
-    deviceId: nextConfig.deviceId || configCache?.deviceId || crypto.randomUUID(),
-    apiBaseUrl: normalizeUrl(nextConfig.apiBaseUrl),
-    negocioSlug: normalizeSlug(nextConfig.negocioSlug),
-    deviceName: nextConfig.deviceName || os.hostname()
+    deviceId: nextConfig.deviceId || currentConfig.deviceId || crypto.randomUUID(),
+    apiBaseUrl: normalizeUrl(apiBaseUrl),
+    negocioSlug: normalizeSlug(negocioSlug),
+    deviceName: nextConfig.deviceName || currentConfig.deviceName || os.hostname()
   };
 
   await fs.mkdir(app.getPath("userData"), { recursive: true });
@@ -105,6 +116,53 @@ async function activateDevice() {
       appVersion: app.getVersion()
     })
   });
+}
+
+async function checkInDevice() {
+  const config = await readConfig();
+  const syncStats = localDb.syncStats();
+  const localStats = localDb.localDataStats(config.negocioSlug);
+
+  try {
+    const response = await apiRequest("/dispositivos/checkin", {
+      method: "POST",
+      body: JSON.stringify({
+        appVersion: app.getVersion(),
+        sync: syncStats,
+        localStats
+      })
+    });
+
+    if (response?.licencia) {
+      localDb.saveLicense(config.negocioSlug, response.licencia);
+      await writeConfig({
+        lastLicense: response.licencia,
+        lastLicenseCheckAt: new Date().toISOString(),
+        lastCheckinAt: new Date().toISOString()
+      });
+    } else {
+      await writeConfig({
+        lastCheckinAt: new Date().toISOString()
+      });
+    }
+
+    return {
+      ok: true,
+      ...response
+    };
+  } catch (error) {
+    await writeConfig({
+      lastCheckinError: error.message,
+      lastCheckinErrorAt: new Date().toISOString()
+    });
+
+    return {
+      ok: false,
+      offline: true,
+      error: error.message,
+      stats: syncStats
+    };
+  }
 }
 
 function saveActivationLocally(config, activation) {
@@ -182,6 +240,17 @@ async function syncPendingEvents() {
   }
 }
 
+async function retryFailedAndSync() {
+  const reactivados = localDb.retryFailedEvents();
+  const resultado = await syncPendingEvents();
+
+  return {
+    ...resultado,
+    reactivados,
+    stats: localDb.syncStats()
+  };
+}
+
 async function pullCloudEvents() {
   const response = await apiRequest("/sync/pull", {
     method: "GET"
@@ -237,9 +306,21 @@ async function createWindow() {
 
   if (config.activatedAt) {
     await loadPosWindow();
+    checkInDevice();
   } else {
     await loadActivationWindow();
   }
+}
+
+function startBackgroundJobs() {
+  if (checkinTimer) return;
+
+  checkinTimer = setInterval(async () => {
+    const config = await readConfig();
+    if (config.activatedAt) {
+      await checkInDevice();
+    }
+  }, 60 * 1000);
 }
 
 ipcMain.handle("nexo:get-config", async () => readConfig());
@@ -297,6 +378,8 @@ ipcMain.handle("nexo:license-status", async () => {
   }
 });
 
+ipcMain.handle("nexo:checkin", async () => checkInDevice());
+
 ipcMain.handle("nexo:queue-event", async (_event, payload) => {
   if (!payload?.tipo) {
     throw new Error("tipo de evento requerido");
@@ -321,6 +404,8 @@ ipcMain.handle("nexo:queue-event", async (_event, payload) => {
 });
 
 ipcMain.handle("nexo:sync-push", async () => syncPendingEvents());
+
+ipcMain.handle("nexo:sync-retry", async () => retryFailedAndSync());
 
 ipcMain.handle("nexo:sync-pull", async () => pullCloudEvents());
 
@@ -411,7 +496,10 @@ ipcMain.handle("nexo:reset-activation", async () => {
   return { ok: true };
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  await createWindow();
+  startBackgroundJobs();
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
