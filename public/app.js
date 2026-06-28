@@ -2231,7 +2231,7 @@ function configurarMenuPorModulos() {
  document.querySelectorAll(".sidebar button");
 
  botones.forEach(boton => {
- const moduloShell = moduloDesdeEtiquetaPOS(boton.dataset.navLabel || boton.textContent);
+ const moduloShell = boton.dataset.shellModule || moduloDesdeEtiquetaPOS(boton.dataset.navLabel || boton.textContent);
  const moduloPermiso = {
   inicio: "inicio",
   venta: "puntoVenta",
@@ -2252,9 +2252,9 @@ function configurarMenuPorModulos() {
   configuracion: "configuracion"
  }[moduloShell] || moduloShell;
 
- boton.dataset.modulo = moduloPermiso;
+ boton.dataset.permModulo = moduloPermiso;
 
- if (boton.dataset.modulo !== "configuracion" && !boton.dataset.ocultaConfig) {
+ if (moduloPermiso !== "configuracion" && !boton.dataset.ocultaConfig) {
  boton.dataset.ocultaConfig = "1";
  boton.addEventListener("click", () => {
  const pantalla =
@@ -2271,7 +2271,7 @@ function configurarMenuPorModulos() {
  document.querySelector(".btn-configuracion-sidebar");
 
  if (botonConfiguracion) {
- botonConfiguracion.dataset.modulo = "configuracion";
+ botonConfiguracion.dataset.permModulo = "configuracion";
  }
 }
 
@@ -2305,7 +2305,7 @@ function aplicarPermisosUsuario() {
  .querySelectorAll(".sidebar button[data-modulo]")
  .forEach(boton => {
  const modulo =
- boton.dataset.modulo;
+ boton.dataset.permModulo || boton.dataset.modulo;
 
  if (modulo === "configuracion") {
  boton.style.display = "";
@@ -10220,7 +10220,7 @@ function moduloDesdeEtiquetaPOS(etiqueta) { const texto = limpiarTextoUI(etiquet
 function iconoModuloPOS(modulo) { return { inicio:"home", venta:"cart", inventario:"inventory", productos:"inventory", categorias:"layers", "inventario-bajo":"alert", reportes:"chart", clientes:"users", proveedores:"truck", catalogo:"file", recepcion:"truck", caja:"zap", finanzas:"chart", pedidos:"file", ajustes:"settings", configuracion:"settings", dueno:"chart" }[modulo] || "zap"; }
 function datosSidebarPOS(boton) {
  const etiqueta = limpiarTextoUI(boton.dataset.navLabel || boton.textContent);
- const modulo = boton.dataset.modulo || boton.dataset.shellModule || moduloDesdeEtiquetaPOS(etiqueta);
+ const modulo = boton.dataset.shellModule || moduloDesdeEtiquetaPOS(etiqueta) || boton.dataset.modulo;
  return { etiqueta, modulo, clave: modulo || etiqueta.toLowerCase() };
 }
 function deduplicarSidebarPOS() {
@@ -10240,7 +10240,9 @@ function deduplicarSidebarPOS() {
 }
 function asegurarBotonSidebarPOS(modulo, etiqueta, handler) {
  const sidebar = document.querySelector(".sidebar");
- if (!sidebar || sidebar.querySelector(`[data-shell-module="${modulo}"],[data-modulo="${modulo}"]`)) return;
+ if (!sidebar) return;
+ const existe = Array.from(sidebar.querySelectorAll("button")).some(boton => datosSidebarPOS(boton).modulo === modulo);
+ if (existe) return;
  const boton = document.createElement("button");
  boton.type = "button";
  boton.dataset.modulo = modulo;
