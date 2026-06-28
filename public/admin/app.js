@@ -1,6 +1,7 @@
 let negociosAdmin = [];
 let negocioEditandoAdmin = null;
 let versionesAdmin = [];
+let resumenAdmin = null;
 const ADMIN_KEY_STORAGE = "nexoAdminKey";
 
 const formatoDineroAdmin = new Intl.NumberFormat("es-MX", {
@@ -20,30 +21,22 @@ function fechaCortaAdmin(valor) {
   if (!valor) return "-";
   const fecha = new Date(valor);
   if (Number.isNaN(fecha.getTime())) return "-";
-  return fecha.toLocaleDateString("es-MX", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric"
-  });
+  return fecha.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function fechaHoraCortaAdmin(valor) {
   if (!valor) return "-";
   const fecha = new Date(valor);
   if (Number.isNaN(fecha.getTime())) return "-";
-  return fecha.toLocaleString("es-MX", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  return fecha.toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function pillClaseAdmin(valor) {
   const texto = String(valor || "").toLowerCase();
   if (["activo", "activa", "normal"].includes(texto)) return "ok";
   if (["prueba", "gracia"].includes(texto)) return "trial";
-  if (["suspendido", "suspendida", "vencida"].includes(texto)) return "warning";
+  if (["limitado", "vencida"].includes(texto)) return "warning";
+  if (["bloqueado", "suspendido", "suspendida", "cancelada", "cancelado"].includes(texto)) return "danger";
   return "lead";
 }
 
@@ -57,16 +50,22 @@ function escaparHTMLAdmin(valor) {
 }
 
 function adminKeyActual() {
-  let key = sessionStorage.getItem(ADMIN_KEY_STORAGE) || "";
-  if (!key) {
-    key = prompt("Clave de administrador Nexo POS") || "";
-    if (key) sessionStorage.setItem(ADMIN_KEY_STORAGE, key);
-  }
-  return key;
+  return sessionStorage.getItem(ADMIN_KEY_STORAGE) || "";
+}
+
+function setAdminSesion(activa) {
+  document.body.classList.toggle("admin-authenticated", Boolean(activa));
+  const estado = document.getElementById("adminSesionEstado");
+  if (estado) estado.textContent = activa ? "Sesion activa" : "Sin sesion";
 }
 
 async function apiAdmin(endpoint, options = {}) {
   const adminKey = adminKeyActual();
+  if (!adminKey) {
+    setAdminSesion(false);
+    throw new Error("Captura la clave de administrador.");
+  }
+
   const respuesta = await fetch(endpoint, {
     ...options,
     headers: {
@@ -78,11 +77,23 @@ async function apiAdmin(endpoint, options = {}) {
   const data = await respuesta.json().catch(() => ({}));
   if (respuesta.status === 401 || respuesta.status === 503) {
     sessionStorage.removeItem(ADMIN_KEY_STORAGE);
+    setAdminSesion(false);
   }
   if (!respuesta.ok || data.ok === false) {
     throw new Error(data.error || "Error de admin");
   }
+  setAdminSesion(true);
   return data;
+}
+
+function mostrarVistaAdmin(vista) {
+  const target = vista || "resumen";
+  document.querySelectorAll(".admin-view").forEach(section => {
+    section.classList.toggle("active", section.id === `view-${target}`);
+  });
+  document.querySelectorAll(".admin-sidebar nav button").forEach(button => {
+    button.classList.toggle("active", button.dataset.view === target);
+  });
 }
 
 function pintarMetricasAdmin(resumen) {
@@ -99,7 +110,7 @@ function pintarMetricasAdmin(resumen) {
   document.getElementById("metricMRRDetalle").textContent = `${activos} activos, ${pruebas} en prueba`;
   document.getElementById("metricClientes").textContent = total;
   document.getElementById("metricClientesDetalle").textContent = `${activos} activos`;
-  document.getElementById("metricVencidas").textContent = vencidas;
+  document.getElementById("metricVencidas").textContent = vencidas + suspendidas;
   document.getElementById("metricSync").textContent = pendientes + errores;
   document.getElementById("metricSyncDetalle").textContent = `${pendientes} pendientes, ${errores} errores`;
   document.getElementById("ingresoMRR").textContent = formatoDineroAdmin.format(mrr);
@@ -107,56 +118,100 @@ function pintarMetricasAdmin(resumen) {
   document.getElementById("ingresoSuspendidas").textContent = suspendidas;
 }
 
-function pintarNegociosAdmin() {
-  const tabla = document.getElementById("tablaNegociosAdmin");
-  if (!tabla) return;
+function pintarResumenAdmin() {
+  const contenedor = document.getElementById("listaEstadoGeneral");
+  if (!contenedor) return;
+  const negocios = resumenAdmin?.negocios || {};
+  const licencias = resumenAdmin?.licencias || {};
+  const dispositivos = resumenAdmin?.dispositivos || {};
+  contenedor.innerHTML = [
+    ["Negocios activos", negocios.activos || 0],
+    ["Negocios en prueba", negocios.prueba || 0],
+    ["Licencias activas", licencias.activas || 0],
+    ["Licencias vencidas", licencias.vencidas || 0],
+    ["Equipos en linea", dispositivos.en_linea || 0],
+    ["Sync con errores", dispositivos.sync_errores || 0]
+  ].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
 
-  if (!negociosAdmin.length) {
-    tabla.innerHTML = '<tr><td colspan="12">Todavia no hay negocios registrados.</td></tr>';
+function negociosFiltradosAdmin() {
+  const texto = String(document.getElementById("filtroClientesAdmin")?.value || "").toLowerCase();
+  const estado = String(document.getElementById("filtroEstadoAdmin")?.value || "").toLowerCase();
+  return negociosAdmin.filter(negocio => {
+    const searchable = [
+      negocio.nombre,
+      negocio.slug,
+      negocio.giro,
+      negocio.negocio_estado,
+      negocio.licencia_estado,
+      negocio.licencia_modo,
+      negocio.licencia_plan,
+      negocio.license_key
+    ].join(" ").toLowerCase();
+    const matchTexto = !texto || searchable.includes(texto);
+    const matchEstado = !estado || searchable.includes(estado);
+    return matchTexto && matchEstado;
+  });
+}
+
+function pintarNegociosAdmin() {
+  const board = document.getElementById("clientesBoardAdmin");
+  if (!board) return;
+  const lista = negociosFiltradosAdmin();
+
+  if (!lista.length) {
+    board.innerHTML = '<div class="empty">No hay clientes con ese filtro.</div>';
     return;
   }
 
-  tabla.innerHTML = negociosAdmin.map(negocio => {
+  board.innerHTML = lista.map(negocio => {
     const modo = negocio.licencia_modo || "sin licencia";
     const licencia = negocio.licencia_estado || "sin licencia";
-    const licenciaKey = escaparHTMLAdmin(negocio.license_key || "-");
-    const ultimoUso = fechaCortaAdmin(negocio.ultimo_uso);
-    const ultimaSync = fechaHoraCortaAdmin(negocio.ultima_sync);
-    const instalado = fechaCortaAdmin(negocio.instalado_at || negocio.created_at);
+    const plan = negocio.licencia_plan || negocio.negocio_plan || "demo";
+    const monto = formatoDineroAdmin.format(Number(negocio.monto_mensual || 0));
     const equipos = `${negocio.dispositivos_en_linea || 0}/${negocio.dispositivos || 0}`;
-    const nombre = escaparHTMLAdmin(negocio.nombre || negocio.slug);
-    const slug = escaparHTMLAdmin(negocio.slug);
-    const giro = escaparHTMLAdmin(negocio.giro || "-");
-    const estado = escaparHTMLAdmin(negocio.negocio_estado || "-");
-    const plan = escaparHTMLAdmin(negocio.licencia_plan || negocio.negocio_plan || "demo");
-    const version = escaparHTMLAdmin(negocio.app_version || "-");
-    const latest = escaparHTMLAdmin(negocio.latest_version || "-");
-    const updatePill = negocio.update_available
-      ? '<em class="pill warning">Actualizar</em>'
-      : '<em class="pill ok">Al dia</em>';
-    const sistema = [
-      negocio.plataforma,
-      negocio.os_version,
-      negocio.arch
-    ].filter(Boolean).join(" ");
-
+    const sistema = [negocio.plataforma, negocio.os_version, negocio.arch].filter(Boolean).join(" ");
+    const update = negocio.update_available ? "Actualizacion pendiente" : "Al dia";
+    const updateClase = negocio.update_available ? "warning" : "ok";
     return `
-      <tr>
-        <td><strong>${nombre}</strong><span>${slug}</span></td>
-        <td>${giro}</td>
-        <td><em class="pill ${pillClaseAdmin(negocio.negocio_estado)}">${estado}</em></td>
-        <td><strong>${plan}</strong><span>${formatoDineroAdmin.format(Number(negocio.monto_mensual || 0))}/mes</span></td>
-        <td><em class="pill ${pillClaseAdmin(modo)}">${escaparHTMLAdmin(modo)}</em><span>${escaparHTMLAdmin(licencia)}</span><span>${licenciaKey}</span></td>
-        <td>${ultimoUso}</td>
-        <td>${ultimaSync}</td>
-        <td><strong>${version}</strong><span>Latest ${latest}</span>${updatePill}</td>
-        <td>${escaparHTMLAdmin(sistema || "-")}</td>
-        <td>${instalado}</td>
-        <td>${equipos}<span>${negocio.sync_pendientes || 0} pend. / ${negocio.sync_errores || 0} err.</span></td>
-        <td><button type="button" onclick="abrirLicenciaAdmin(${negocio.id})">Editar</button></td>
-      </tr>
+      <article class="client-card">
+        <div class="client-main">
+          <div>
+            <span class="eyebrow">${escaparHTMLAdmin(negocio.giro || "cliente")}</span>
+            <h3>${escaparHTMLAdmin(negocio.nombre || negocio.slug)}</h3>
+            <small>${escaparHTMLAdmin(negocio.slug || "")}</small>
+          </div>
+          <button type="button" onclick="abrirLicenciaAdmin(${Number(negocio.id)})">Editar licencia</button>
+        </div>
+        <div class="client-pills">
+          <em class="pill ${pillClaseAdmin(negocio.negocio_estado)}">${escaparHTMLAdmin(negocio.negocio_estado || "-")}</em>
+          <em class="pill ${pillClaseAdmin(modo)}">${escaparHTMLAdmin(modo)}</em>
+          <em class="pill ${updateClase}">${update}</em>
+        </div>
+        <div class="client-details">
+          <div><span>Plan</span><strong>${escaparHTMLAdmin(plan)}</strong><small>${monto}/mes</small></div>
+          <div><span>Licencia</span><strong>${escaparHTMLAdmin(negocio.license_key || "-")}</strong><small>${escaparHTMLAdmin(licencia)}</small></div>
+          <div><span>Ultima conexion</span><strong>${fechaHoraCortaAdmin(negocio.ultimo_uso)}</strong><small>${equipos} equipos</small></div>
+          <div><span>Ultima sync</span><strong>${fechaHoraCortaAdmin(negocio.ultima_sync)}</strong><small>${negocio.sync_pendientes || 0} pendientes / ${negocio.sync_errores || 0} errores</small></div>
+          <div><span>Version</span><strong>${escaparHTMLAdmin(negocio.app_version || "-")}</strong><small>Latest ${escaparHTMLAdmin(negocio.latest_version || "-")}</small></div>
+          <div><span>Sistema</span><strong>${escaparHTMLAdmin(sistema || "-")}</strong><small>Instalado ${fechaCortaAdmin(negocio.instalado_at || negocio.created_at)}</small></div>
+        </div>
+      </article>
     `;
   }).join("");
+}
+
+function pintarPlanesAdmin() {
+  const contenedor = document.getElementById("planesAdmin");
+  if (!contenedor) return;
+  const conteo = negociosAdmin.reduce((acc, negocio) => {
+    const plan = negocio.licencia_plan || negocio.negocio_plan || "demo";
+    acc[plan] = (acc[plan] || 0) + 1;
+    return acc;
+  }, {});
+  contenedor.innerHTML = Object.entries(conteo).length
+    ? Object.entries(conteo).map(([plan, total]) => `<div><span>${escaparHTMLAdmin(plan)}</span><strong>${total}</strong></div>`).join("")
+    : '<div><span>Sin planes</span><strong>0</strong></div>';
 }
 
 function pintarVersionesAdmin() {
@@ -189,10 +244,13 @@ async function cargarAdminNexo() {
     apiAdmin("/admin/api/versiones")
   ]);
 
+  resumenAdmin = resumen;
   negociosAdmin = negocios.negocios || [];
   versionesAdmin = versiones.versiones || [];
   pintarMetricasAdmin(resumen);
+  pintarResumenAdmin();
   pintarNegociosAdmin();
+  pintarPlanesAdmin();
   pintarVersionesAdmin();
 }
 
@@ -252,12 +310,46 @@ function exportarClientesAdmin() {
   URL.revokeObjectURL(url);
 }
 
+function cerrarSesionAdmin() {
+  sessionStorage.removeItem(ADMIN_KEY_STORAGE);
+  setAdminSesion(false);
+  document.getElementById("adminKeyInput")?.focus();
+}
+
 document.getElementById("formLicenciaAdmin")?.addEventListener("submit", guardarLicenciaAdmin);
+document.getElementById("filtroClientesAdmin")?.addEventListener("input", pintarNegociosAdmin);
+document.getElementById("filtroEstadoAdmin")?.addEventListener("change", pintarNegociosAdmin);
+document.querySelectorAll(".admin-sidebar nav button").forEach(button => {
+  button.addEventListener("click", () => mostrarVistaAdmin(button.dataset.view));
+});
+document.getElementById("adminLoginForm")?.addEventListener("submit", async event => {
+  event.preventDefault();
+  const input = document.getElementById("adminKeyInput");
+  const error = document.getElementById("adminLoginError");
+  const key = input?.value.trim() || "";
+  if (!key) {
+    error.textContent = "Escribe la clave de administrador.";
+    return;
+  }
+  sessionStorage.setItem(ADMIN_KEY_STORAGE, key);
+  error.textContent = "";
+  try {
+    await cargarAdminNexo();
+    setAdminSesion(true);
+  } catch (err) {
+    sessionStorage.removeItem(ADMIN_KEY_STORAGE);
+    setAdminSesion(false);
+    error.textContent = err.message || "Clave incorrecta.";
+  }
+});
+
 document.addEventListener("DOMContentLoaded", () => {
-  cargarAdminNexo().catch(error => {
-    const tabla = document.getElementById("tablaNegociosAdmin");
-    if (tabla) {
-      tabla.innerHTML = `<tr><td colspan="12">No se pudo cargar admin: ${error.message}</td></tr>`;
-    }
-  });
+  setAdminSesion(Boolean(adminKeyActual()));
+  if (adminKeyActual()) {
+    cargarAdminNexo().catch(error => {
+      setAdminSesion(false);
+      const errorBox = document.getElementById("adminLoginError");
+      if (errorBox) errorBox.textContent = error.message;
+    });
+  }
 });

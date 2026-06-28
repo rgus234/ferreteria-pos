@@ -2228,21 +2228,31 @@ function puedeEntrar(modulo) {
 
 function configurarMenuPorModulos() {
  const botones =
- document.querySelectorAll(".sidebar button:not(.btn-configuracion-sidebar)");
+ document.querySelectorAll(".sidebar button");
 
- const modulos = [
- "inicio",
- "puntoVenta",
- "inventario",
- "inventarioBajo",
- "reportes",
- "clientes",
- "proveedores",
- "catalogo"
- ];
+ botones.forEach(boton => {
+ const moduloShell = moduloDesdeEtiquetaPOS(boton.dataset.navLabel || boton.textContent);
+ const moduloPermiso = {
+  inicio: "inicio",
+  venta: "puntoVenta",
+  inventario: "inventario",
+  productos: "inventario",
+  categorias: "inventario",
+  "inventario-bajo": "inventarioBajo",
+  reportes: "reportes",
+  clientes: "clientes",
+  proveedores: "proveedores",
+  catalogo: "catalogo",
+  recepcion: "inventario",
+  caja: "reportes",
+  finanzas: "reportes",
+  pedidos: "proveedores",
+  ajustes: "inventario",
+  dueno: "reportes",
+  configuracion: "configuracion"
+ }[moduloShell] || moduloShell;
 
- botones.forEach((boton, indice) => {
- boton.dataset.modulo = modulos[indice] || "";
+ boton.dataset.modulo = moduloPermiso;
 
  if (boton.dataset.modulo !== "configuracion" && !boton.dataset.ocultaConfig) {
  boton.dataset.ocultaConfig = "1";
@@ -2298,12 +2308,12 @@ function aplicarPermisosUsuario() {
  boton.dataset.modulo;
 
  if (modulo === "configuracion") {
- boton.style.display = "block";
+ boton.style.display = "";
  return;
  }
 
  boton.style.display =
- puedeEntrar(modulo) ? "block" : "none";
+ puedeEntrar(modulo) ? "" : "none";
  });
 
  aplicarWidgetsDashboard();
@@ -10206,8 +10216,8 @@ function iconoUISVG(nombre) {
  return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + cuerpo + '</svg>';
 }
 function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g, '').replace(/\u00c3\u00a1/g, 'a').replace(/\u00c3\u00a9/g, 'e').replace(/\u00c3\u00ad/g, 'i').replace(/\u00c3\u00b3/g, 'o').replace(/\u00c3\u00ba/g, 'u').replace(/\u00c3\u00b1/g, 'n').replace(/\u00c3\u0161/g, 'U').replace(/\u00c3\u201a&middot;|\u00c3\u201a\u00c2\u00b7|\u00c2\u00b7|&middot;/g, '-').replace(/[\u00f0][^\s]*/g, '').replace(/\s+/g, ' ').trim(); }
-function moduloDesdeEtiquetaPOS(etiqueta) { const texto = limpiarTextoUI(etiqueta).toLowerCase(); if (texto.includes("inicio")) return "inicio"; if (texto.includes("punto")) return "venta"; if (texto === "inventario") return "inventario"; if (texto.includes("productos")) return "productos"; if (texto.includes("categorias")) return "categorias"; if (texto.includes("bajo")) return "inventario-bajo"; if (texto.includes("reporte") || texto.includes("ventas")) return "reportes"; if (texto.includes("clientes")) return "clientes"; if (texto.includes("proveedores")) return "proveedores"; if (texto.includes("catalogo")) return "catalogo"; if (texto.includes("configuracion")) return "configuracion"; if (texto.includes("dueno")) return "dueno"; return texto.replace(/[^a-z0-9]+/g, "-") || "modulo"; }
-function iconoModuloPOS(modulo) { return { inicio:"home", venta:"cart", inventario:"inventory", productos:"inventory", categorias:"layers", "inventario-bajo":"alert", reportes:"chart", clientes:"users", proveedores:"truck", catalogo:"file", configuracion:"settings", dueno:"chart" }[modulo] || "zap"; }
+function moduloDesdeEtiquetaPOS(etiqueta) { const texto = limpiarTextoUI(etiqueta).toLowerCase(); if (texto.includes("inicio")) return "inicio"; if (texto.includes("punto")) return "venta"; if (texto === "inventario") return "inventario"; if (texto.includes("productos")) return "productos"; if (texto.includes("categorias")) return "categorias"; if (texto.includes("bajo")) return "inventario-bajo"; if (texto.includes("reporte") || texto.includes("ventas")) return "reportes"; if (texto.includes("clientes")) return "clientes"; if (texto.includes("proveedores")) return "proveedores"; if (texto.includes("catalogo")) return "catalogo"; if (texto.includes("recepcion")) return "recepcion"; if (texto.includes("caja")) return "caja"; if (texto.includes("finanzas")) return "finanzas"; if (texto.includes("pedidos")) return "pedidos"; if (texto.includes("ajustes")) return "ajustes"; if (texto.includes("configuracion")) return "configuracion"; if (texto.includes("dueno")) return "dueno"; return texto.replace(/[^a-z0-9]+/g, "-") || "modulo"; }
+function iconoModuloPOS(modulo) { return { inicio:"home", venta:"cart", inventario:"inventory", productos:"inventory", categorias:"layers", "inventario-bajo":"alert", reportes:"chart", clientes:"users", proveedores:"truck", catalogo:"file", recepcion:"truck", caja:"zap", finanzas:"chart", pedidos:"file", ajustes:"settings", configuracion:"settings", dueno:"chart" }[modulo] || "zap"; }
 function datosSidebarPOS(boton) {
  const etiqueta = limpiarTextoUI(boton.dataset.navLabel || boton.textContent);
  const modulo = boton.dataset.modulo || boton.dataset.shellModule || moduloDesdeEtiquetaPOS(etiqueta);
@@ -10228,7 +10238,58 @@ function deduplicarSidebarPOS() {
   vistos.add(datos.clave);
  });
 }
+function asegurarBotonSidebarPOS(modulo, etiqueta, handler) {
+ const sidebar = document.querySelector(".sidebar");
+ if (!sidebar || sidebar.querySelector(`[data-shell-module="${modulo}"],[data-modulo="${modulo}"]`)) return;
+ const boton = document.createElement("button");
+ boton.type = "button";
+ boton.dataset.modulo = modulo;
+ boton.dataset.shellModule = modulo;
+ boton.dataset.navLabel = etiqueta;
+ boton.addEventListener("click", handler);
+ boton.innerHTML = iconoUISVG(iconoModuloPOS(modulo)) + '<span>' + etiqueta + '</span>';
+ sidebar.appendChild(boton);
+}
+function ordenarSidebarPOS() {
+ const sidebar = document.querySelector(".sidebar");
+ if (!sidebar) return;
+ const orden = [
+  "inicio",
+  "venta",
+  "inventario",
+  "inventario-bajo",
+  "reportes",
+  "clientes",
+  "proveedores",
+  "catalogo",
+  "recepcion",
+  "caja",
+  "finanzas",
+  "pedidos",
+  "ajustes",
+  "dueno",
+  "configuracion"
+ ];
+ const peso = boton => {
+  const index = orden.indexOf(datosSidebarPOS(boton).modulo);
+  return index === -1 ? 999 : index;
+ };
+ const botones = Array.from(sidebar.querySelectorAll(":scope > button"));
+ botones
+  .sort((a, b) => peso(a) - peso(b))
+  .forEach(boton => {
+   const modulo = datosSidebarPOS(boton).modulo;
+   const submenuInventario = document.getElementById("submenuInventario");
+   if (modulo === "inventario" && submenuInventario) {
+    sidebar.appendChild(boton);
+    sidebar.appendChild(submenuInventario);
+   } else {
+    sidebar.appendChild(boton);
+   }
+  });
+}
 function profesionalizarSidebarPOS() {
+ asegurarBotonSidebarPOS("catalogo", "Catalogo proveedor", () => mostrarCatalogo());
  deduplicarSidebarPOS();
  document.querySelectorAll(".sidebar button").forEach(boton => {
   const datos = datosSidebarPOS(boton);
@@ -10238,7 +10299,12 @@ function profesionalizarSidebarPOS() {
   boton.innerHTML = iconoUISVG(iconoModuloPOS(datos.modulo)) + '<span>' + datos.etiqueta + '</span>';
  });
  deduplicarSidebarPOS();
+ ordenarSidebarPOS();
 }
+window.repararSidebarNexoPOS = function() {
+ profesionalizarSidebarPOS();
+ aplicarPermisosUsuario();
+};
 function actualizarModuloActivoPOS(modulo) { document.querySelectorAll(".sidebar button").forEach(boton => boton.classList.toggle("activo", boton.dataset.shellModule === modulo)); }
 function recordatoriosPOSGuardados() { try { const datos = JSON.parse(localStorage.getItem(RECORDATORIOS_POS_KEY) || "[]"); return Array.isArray(datos) ? datos : []; } catch (error) { console.warn("No se pudieron leer recordatorios", error); return []; } }
 function guardarRecordatoriosPOS(recordatorios) { localStorage.setItem(RECORDATORIOS_POS_KEY, JSON.stringify(recordatorios)); renderNotificacionesPOS(); }
@@ -10502,7 +10568,7 @@ async function limpiarTodasNotificacionesPOS() {
  alertaPOS("Notificaciones limpiadas", "El centro quedo listo.", "exito");
 }
 function instalarWrappersShellPOS() { const wrappers = { mostrarInicio:["Inicio","Resumen operativo de ventas, creditos e inventario","inicio"], mostrarPuntoVenta:["Punto de venta","Venta rapida, cobro, credito y carrito ferretero","venta"], mostrarInventario:["Inventario","Productos, categorias, stock y precios de ferreteria","inventario"], mostrarCategoriasInventario:["Categorias","Organizacion ferretera por familias de producto","categorias"], mostrarInventarioBajo:["Inventario bajo","Alertas y sugerencias para reabastecer","inventario-bajo"], mostrarGraficas:["Reportes y ventas","Indicadores reales de operacion y caja","reportes"], mostrarClientes:["Clientes","Cuentas, historial y relacion comercial","clientes"], mostrarProveedores:["Proveedores","Distribuidores, contactos y catalogos","proveedores"], mostrarCatalogo:["Catalogo proveedor","Carga, mapeo y mantenimiento de listas","catalogo"], mostrarConfiguracion:["Configuracion","Empresa, usuarios, tickets y apariencia","configuracion"] }; Object.entries(wrappers).forEach(([nombre, contexto]) => { const original = window[nombre]; if (typeof original !== "function" || original.__shellPOS) return; const envuelta = function(...args) { const resultado = original.apply(this, args); setTimeout(() => { actualizarTopbarContexto(contexto[0], contexto[1], contexto[2]); cerrarNotificacionesPOS(); }, 20); return resultado; }; envuelta.__shellPOS = true; window[nombre] = envuelta; }); ["cargarProductos", "cargarCreditos"].forEach(nombre => { const original = window[nombre]; if (typeof original !== "function" || original.__notifyPOS) return; const envuelta = function(...args) { const resultado = original.apply(this, args); Promise.resolve(resultado).finally(() => setTimeout(() => { renderTopbarPOS(); renderNotificacionesPOS(); }, 30)); return resultado; }; envuelta.__notifyPOS = true; window[nombre] = envuelta; }); }
-function iniciarShellFerreteroPOS() { profesionalizarSidebarPOS(); setTimeout(profesionalizarSidebarPOS, 900); setTimeout(profesionalizarSidebarPOS, 1500); renderTopbarPOS(); instalarWrappersShellPOS(); instalarAtajoDesarrolladorNexoPOS(); instalarMonitorSyncDesktopPOS(); actualizarModuloActivoPOS("inicio"); if (!window.__clickShellPOS) { window.__clickShellPOS = true; document.addEventListener("click", event => { const panel = document.getElementById("panelNotificacionesPOS"); const boton = document.getElementById("btnNotificacionesPOS"); const menuNexo = document.getElementById("menuNexoPOS"); const botonNexo = document.getElementById("btnMenuNexoPOS"); if (panel && boton && !panel.contains(event.target) && !boton.contains(event.target)) panel.classList.remove("abierto"); if (menuNexo && botonNexo && !menuNexo.contains(event.target) && !botonNexo.contains(event.target)) cerrarMenuNexoPOS(); }); } }
+function iniciarShellFerreteroPOS() { profesionalizarSidebarPOS(); [900, 1500, 2600, 4200].forEach(ms => setTimeout(() => { if (typeof window.repararSidebarNexoPOS === "function") window.repararSidebarNexoPOS(); else profesionalizarSidebarPOS(); }, ms)); renderTopbarPOS(); instalarWrappersShellPOS(); instalarAtajoDesarrolladorNexoPOS(); instalarMonitorSyncDesktopPOS(); actualizarModuloActivoPOS("inicio"); if (!window.__clickShellPOS) { window.__clickShellPOS = true; document.addEventListener("click", event => { const panel = document.getElementById("panelNotificacionesPOS"); const boton = document.getElementById("btnNotificacionesPOS"); const menuNexo = document.getElementById("menuNexoPOS"); const botonNexo = document.getElementById("btnMenuNexoPOS"); if (panel && boton && !panel.contains(event.target) && !boton.contains(event.target)) panel.classList.remove("abierto"); if (menuNexo && botonNexo && !menuNexo.contains(event.target) && !botonNexo.contains(event.target)) cerrarMenuNexoPOS(); }); } }
 (function conectarShellFerreteroPOS() { const onloadOriginal = window.onload; window.onload = async function(...args) { if (typeof onloadOriginal === "function") await onloadOriginal.apply(this, args); iniciarShellFerreteroPOS(); }; if (document.readyState !== "loading") setTimeout(iniciarShellFerreteroPOS, 60); else document.addEventListener("DOMContentLoaded", () => setTimeout(iniciarShellFerreteroPOS, 60)); })();
 
 

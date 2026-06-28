@@ -50,7 +50,9 @@ Abrir:
 https://ferreteria-pos.onrender.com/admin/
 ```
 
-El navegador pedira la clave `ADMIN_KEY`.
+Nexo Admin pedira la clave `ADMIN_KEY`.
+Esa clave vive en Render, en Web Service > Environment.
+Si no la recuerdas, cambiala ahi; no se muestra dentro del panel por seguridad.
 
 Desde ahi puedes editar:
 

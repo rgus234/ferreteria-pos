@@ -4,36 +4,39 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Nexo POS Admin</title>
-  <meta name="description" content="Panel interno para administrar clientes, negocios, ingresos, soporte y versiones de Nexo POS.">
+  <meta name="description" content="Panel interno de clientes, licencias, ingresos, soporte y versiones de Nexo POS.">
   <link rel="icon" href="../nexo-pos-icon.jpg">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <aside class="admin-sidebar">
-    <a class="brand" href="#inicio" aria-label="Nexo POS Admin">
+    <a class="brand" href="#resumen" aria-label="Nexo POS Admin">
       <img src="../nexo-pos-icon.jpg" alt="Nexo POS">
       <span>Nexo Admin</span>
     </a>
     <nav aria-label="Panel interno">
-      <a href="#inicio" class="active">Resumen</a>
-      <a href="#clientes">Clientes</a>
-      <a href="#ingresos">Ingresos</a>
-      <a href="#soporte">Soporte</a>
-      <a href="#versiones">Versiones</a>
-      <a href="#roadmap">Roadmap</a>
+      <button type="button" class="active" data-view="resumen">Resumen</button>
+      <button type="button" data-view="clientes">Clientes y licencias</button>
+      <button type="button" data-view="ingresos">Ingresos</button>
+      <button type="button" data-view="soporte">Soporte</button>
+      <button type="button" data-view="versiones">Versiones</button>
     </nav>
+    <div class="admin-sidebar-footer">
+      <span id="adminSesionEstado">Sin sesion</span>
+      <button type="button" class="ghost" onclick="cerrarSesionAdmin()">Cambiar clave</button>
+    </div>
   </aside>
 
   <main class="admin-main">
-    <header id="inicio" class="topbar">
+    <header class="topbar">
       <div>
         <p class="eyebrow">Panel interno</p>
         <h1>Nexo POS Control</h1>
-        <span>Vista operativa para administrar clientes, ingresos, soporte y despliegues.</span>
+        <span>Administra clientes, licencias, ingresos, soporte y versiones desde un solo lugar.</span>
       </div>
       <div class="topbar-actions">
-        <button type="button" onclick="cargarAdminNexo()">Actualizar</button>
-        <button type="button" class="secondary" onclick="exportarClientesAdmin()">Exportar</button>
+        <button type="button" onclick="cargarAdminNexo()">Actualizar datos</button>
+        <button type="button" class="secondary" onclick="exportarClientesAdmin()">Exportar clientes</button>
       </div>
     </header>
 
@@ -44,140 +47,161 @@
         <small id="metricMRRDetalle">Licencias activas</small>
       </article>
       <article class="metric-card">
-        <span>Clientes activos</span>
+        <span>Clientes</span>
         <strong id="metricClientes">0</strong>
         <small id="metricClientesDetalle">Negocios registrados</small>
       </article>
-      <article class="metric-card">
+      <article class="metric-card warning">
         <span>Pagos pendientes</span>
         <strong id="metricVencidas">0</strong>
-        <small>Licencias vencidas</small>
+        <small>Licencias vencidas o suspendidas</small>
       </article>
-      <article class="metric-card warning">
+      <article class="metric-card sync">
         <span>Sync pendiente</span>
         <strong id="metricSync">0</strong>
         <small id="metricSyncDetalle">Eventos por subir</small>
       </article>
     </section>
 
-    <section class="admin-grid">
-      <article class="panel wide" id="clientes">
+    <section class="admin-view active" id="view-resumen">
+      <div class="admin-grid">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Operacion</p>
+              <h2>Estado general</h2>
+            </div>
+          </div>
+          <div class="status-list" id="listaEstadoGeneral">
+            <div><span>Cargando</span><strong>Consultando servidor...</strong></div>
+          </div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Acciones rapidas</p>
+              <h2>Administracion</h2>
+            </div>
+          </div>
+          <div class="quick-actions">
+            <button type="button" onclick="mostrarVistaAdmin('clientes')">Actualizar licencias</button>
+            <button type="button" onclick="mostrarVistaAdmin('versiones')">Ver versiones</button>
+            <button type="button" onclick="window.open('/site/', '_blank')">Abrir pagina comercial</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="admin-view" id="view-clientes">
+      <article class="panel wide">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Clientes</p>
+            <p class="eyebrow">Clientes y licencias</p>
             <h2>Negocios registrados</h2>
           </div>
-          <button type="button">Ver todos</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Negocio</th>
-                <th>Giro</th>
-                <th>Estado</th>
-                <th>Plan</th>
-                <th>Licencia</th>
-                <th>Ultimo uso</th>
-                <th>Ultima sync</th>
-                <th>Version</th>
-                <th>Sistema</th>
-                <th>Instalado</th>
-                <th>Equipos</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="tablaNegociosAdmin">
-              <tr><td colspan="12">Cargando clientes...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </article>
-
-      <article class="panel" id="ingresos">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Ingresos</p>
-            <h2>Mensualidades</h2>
+          <div class="panel-tools">
+            <input id="filtroClientesAdmin" type="search" placeholder="Buscar cliente, licencia o plan">
+            <select id="filtroEstadoAdmin">
+              <option value="">Todos</option>
+              <option value="activa">Activas</option>
+              <option value="gracia">Gracia</option>
+              <option value="limitado">Limitadas</option>
+              <option value="bloqueado">Bloqueadas</option>
+              <option value="prueba">Prueba</option>
+            </select>
           </div>
         </div>
-        <div class="money-list">
-          <div><span>MRR activo</span><strong id="ingresoMRR">$0</strong></div>
-          <div><span>Vencidas</span><strong id="ingresoVencidas">0</strong></div>
-          <div><span>Suspendidas</span><strong id="ingresoSuspendidas">0</strong></div>
+        <div class="clientes-board" id="clientesBoardAdmin">
+          <div class="empty">Cargando clientes...</div>
         </div>
       </article>
+    </section>
 
-      <article class="panel">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Embudo</p>
-            <h2>Ventas SaaS</h2>
+    <section class="admin-view" id="view-ingresos">
+      <div class="admin-grid">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Ingresos</p>
+              <h2>Mensualidades</h2>
+            </div>
           </div>
-        </div>
-        <div class="pipeline">
-          <div><span>Leads</span><strong>8</strong></div>
-          <div><span>Demos</span><strong>3</strong></div>
-          <div><span>Pruebas</span><strong>2</strong></div>
-          <div><span>Pagando</span><strong>1</strong></div>
-        </div>
-      </article>
+          <div class="money-list">
+            <div><span>MRR activo</span><strong id="ingresoMRR">$0</strong></div>
+            <div><span>Vencidas</span><strong id="ingresoVencidas">0</strong></div>
+            <div><span>Suspendidas</span><strong id="ingresoSuspendidas">0</strong></div>
+          </div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Planes</p>
+              <h2>Distribucion</h2>
+            </div>
+          </div>
+          <div class="pipeline" id="planesAdmin">
+            <div><span>Sin datos</span><strong>0</strong></div>
+          </div>
+        </article>
+      </div>
+    </section>
 
-      <article class="panel wide" id="soporte">
+    <section class="admin-view" id="view-soporte">
+      <article class="panel wide">
         <div class="panel-head">
           <div>
             <p class="eyebrow">Soporte</p>
-            <h2>Tickets pendientes</h2>
+            <h2>Prioridades operativas</h2>
           </div>
-          <button type="button">Crear ticket</button>
         </div>
         <div class="support-list">
           <div class="support-item high">
-            <strong>Impresion de ticket</strong>
-            <span>Ferreteria Olimpico - revisar tamano termico y formato.</span>
-            <em>Alta</em>
-          </div>
-          <div class="support-item high">
-            <strong>Recepcion de mercancia</strong>
-            <span>Ajustar flujo para XML/CSV y entrada de factura.</span>
+            <strong>Instalacion primer cliente</strong>
+            <span>Probar activacion, impresion, sync, licencia y respaldo.</span>
             <em>Alta</em>
           </div>
           <div class="support-item">
-            <strong>Panel movil</strong>
-            <span>Mejorar visualizacion en celular para dueno.</span>
+            <strong>Catalogos de proveedor</strong>
+            <span>Validar importacion y actualizacion de stock antes de cargar datos reales.</span>
+            <em>Normal</em>
+          </div>
+          <div class="support-item">
+            <strong>Panel movil del dueno</strong>
+            <span>Seguir puliendo responsive para consulta rapida.</span>
             <em>Normal</em>
           </div>
         </div>
       </article>
+    </section>
 
-      <article class="panel" id="versiones">
+    <section class="admin-view" id="view-versiones">
+      <article class="panel wide">
         <div class="panel-head">
           <div>
             <p class="eyebrow">Versiones</p>
-            <h2>Despliegues</h2>
+            <h2>Despliegues y actualizaciones</h2>
           </div>
         </div>
         <ol class="release-list" id="listaVersionesAdmin">
           <li><strong>Cargando...</strong><span>Consultando versiones publicadas.</span></li>
         </ol>
       </article>
-
-      <article class="panel" id="roadmap">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Roadmap</p>
-            <h2>Siguientes bloques</h2>
-          </div>
-        </div>
-        <div class="roadmap-list">
-          <span>Multi-negocio con negocio_id</span>
-          <span>Admin conectado a base real</span>
-          <span>Licencias editables</span>
-          <span>Modo local + sincronizacion</span>
-        </div>
-      </article>
     </section>
   </main>
+
+  <section id="adminLogin" class="admin-login">
+    <form class="login-card" id="adminLoginForm">
+      <img src="../nexo-pos-icon.jpg" alt="Nexo POS">
+      <p class="eyebrow">Acceso interno</p>
+      <h2>Entrar a Nexo Admin</h2>
+      <span>Usa la clave configurada en Render como <b>ADMIN_KEY</b>.</span>
+      <label>Clave de administrador
+        <input id="adminKeyInput" type="password" autocomplete="current-password" placeholder="Clave interna">
+      </label>
+      <button type="submit">Entrar al panel</button>
+      <small id="adminLoginError"></small>
+    </form>
+  </section>
 
   <div id="modalLicenciaAdmin" class="modal-admin" hidden>
     <form class="modal-card-admin" id="formLicenciaAdmin">
