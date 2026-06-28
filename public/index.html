@@ -542,9 +542,11 @@
  <p>Venta rapida, cobro y ticket</p>
  </div>
 
- <div class="cliente-pos">
- Cliente: <strong>Publico general</strong>
- </div>
+ <button type="button" class="cliente-pos cliente-pos-selector" onclick="abrirSelectorClientePOS()">
+ <span>Cliente</span>
+ <strong id="clienteVentaNombre">Publico general</strong>
+ <small id="clienteVentaResumen">Venta de mostrador</small>
+ </button>
  </div>
 
  <div class="pos-toolbar">
@@ -958,6 +960,16 @@
  </button>
  </div>
 
+ <div class="reportes-filtros">
+ <button type="button" class="activo" data-reporte-periodo="dia" onclick="cambiarPeriodoReporteVentas('dia')">Dia</button>
+ <button type="button" data-reporte-periodo="semana" onclick="cambiarPeriodoReporteVentas('semana')">Semana</button>
+ <button type="button" data-reporte-periodo="mes" onclick="cambiarPeriodoReporteVentas('mes')">Mes</button>
+ <button type="button" data-reporte-periodo="anio" onclick="cambiarPeriodoReporteVentas('anio')">Ano</button>
+ <label>Desde <input id="reporteDesde" type="date"></label>
+ <label>Hasta <input id="reporteHasta" type="date"></label>
+ <button type="button" onclick="cambiarPeriodoReporteVentas('rango')">Aplicar rango</button>
+ </div>
+
  <div class="reportes-resumen">
  <div>
  <span>Ventas totales</span>
@@ -987,6 +999,21 @@
  <h3>Ultimas ventas</h3>
  <div id="reporteUltimasVentas"></div>
  <div id="paginacionReporteVentas" class="paginacion-tabla"></div>
+ </div>
+ </div>
+
+ <div class="reportes-grid reportes-grid-secundario">
+ <div class="reportes-panel">
+ <h3>Metodos de pago</h3>
+ <div id="reporteMetodosPago" class="reporte-lista-compacta"></div>
+ </div>
+ <div class="reportes-panel">
+ <h3>Productos mas vendidos</h3>
+ <div id="reporteProductosVendidos" class="reporte-lista-compacta"></div>
+ </div>
+ <div class="reportes-panel">
+ <h3>Horarios con mayor venta</h3>
+ <div id="reporteHorasVenta" class="reporte-lista-compacta"></div>
  </div>
  </div>
 

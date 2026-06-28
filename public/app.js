@@ -11,6 +11,11 @@
 ];
 
 let carrito = [];
+let clienteVentaActual = null;
+let descuentoCarrito = {
+ tipo: "ninguno",
+ valor: 0
+};
 let grafica = null;
 let graficaReporteVentas = null;
 let graficaDashboardVentas = null;
@@ -971,6 +976,12 @@ const MODULOS_SISTEMA = [
  { clave: "clientes", nombre: "Clientes" },
  { clave: "proveedores", nombre: "Proveedores" },
  { clave: "catalogo", nombre: "Catalogo proveedor" },
+ { clave: "recepcion", nombre: "Recepcion" },
+ { clave: "caja", nombre: "Caja" },
+ { clave: "finanzas", nombre: "Finanzas" },
+ { clave: "pedidos", nombre: "Pedidos" },
+ { clave: "ajustes", nombre: "Ajustes" },
+ { clave: "dueno", nombre: "App dueno" },
  { clave: "configuracion", nombre: "Configuracion" }
 ];
 
@@ -2198,6 +2209,14 @@ function asegurarUsuariosSistema() {
  usuario.rol === "Administrador";
  actualizado = true;
  }
+
+ MODULOS_SISTEMA.forEach(modulo => {
+ if (usuario.permisos[modulo.clave] === undefined) {
+ usuario.permisos[modulo.clave] =
+ usuario.rol === "Administrador";
+ actualizado = true;
+ }
+ });
 
  if (!usuario.widgets) {
  usuario.widgets = widgetsTodos(true);
@@ -5287,11 +5306,211 @@ async function limpiarCarrito() {
  if (!confirmar) return;
 
  carrito = [];
+ descuentoCarrito = {
+ tipo: "ninguno",
+ valor: 0
+};
 
  actualizarCarrito();
 }
 
+function resumenCarritoPOS() {
+ const subtotal =
+ carrito.reduce((suma, producto) => {
+  const cantidad = Number(producto.cantidad || 1);
+  const precio = Number(producto.precio || 0);
+  return suma + cantidad * precio;
+ }, 0);
+
+ const valorDescuento =
+ Math.max(0, Number(descuentoCarrito.valor || 0));
+
+ const descuento =
+ descuentoCarrito.tipo === "porcentaje"
+ ? subtotal * Math.min(valorDescuento, 100) / 100
+ : descuentoCarrito.tipo === "monto"
+ ? Math.min(valorDescuento, subtotal)
+ : 0;
+
+ const total =
+ Math.max(0, subtotal - descuento);
+
+ return {
+ subtotal,
+ descuento,
+ total,
+ descuentoTipo: descuentoCarrito.tipo,
+ descuentoValor: valorDescuento
+ };
+}
+
+function actualizarDescuentoCarrito(tipo, valor) {
+ descuentoCarrito = {
+ tipo: tipo || "ninguno",
+ valor: Number(valor || 0)
+ };
+ actualizarCarrito();
+}
+
+function quitarDescuentoCarrito() {
+ descuentoCarrito = {
+ tipo: "ninguno",
+ valor: 0
+ };
+ actualizarCarrito();
+}
+
+function resumenClientePOS(cliente = clienteVentaActual) {
+ if (!cliente) {
+  return {
+   nombre: "Publico general",
+   detalle: "Venta de mostrador",
+   saldo: 0,
+   limite: 0,
+   disponible: 0
+  };
+ }
+
+ const saldo =
+ Number(cliente.saldo || 0);
+
+ const limite =
+ Number(cliente.limite_credito || cliente.limiteCredito || 0);
+
+ return {
+  nombre: cliente.nombre || "Cliente",
+  detalle: saldo > 0
+  ? `Saldo ${dinero(saldo)}`
+  : limite > 0
+  ? `Disponible ${dinero(Math.max(0, limite - saldo))}`
+  : "Sin adeudo",
+  saldo,
+  limite,
+  disponible: Math.max(0, limite - saldo)
+ };
+}
+
+function actualizarClientePOS() {
+ const nombre =
+ document.getElementById("clienteVentaNombre");
+
+ const resumen =
+ document.getElementById("clienteVentaResumen");
+
+ const datos =
+ resumenClientePOS();
+
+ if (nombre) nombre.textContent = datos.nombre;
+ if (resumen) resumen.textContent = datos.detalle;
+}
+
+function seleccionarClientePOS(id) {
+ const clienteId = Number(id || 0);
+ clienteVentaActual =
+ clienteId > 0
+ ? clientesCredito.find(cliente => Number(cliente.id) === clienteId) || null
+ : null;
+
+ actualizarClientePOS();
+ cerrarSelectorClientePOS();
+ actualizarCarrito();
+}
+
+async function crearClienteDesdePOS() {
+ cerrarSelectorClientePOS();
+ await abrirNuevoClienteCredito();
+ await intentarRefrescarNubePOS(() => cargarCreditos(), "clientes");
+ abrirSelectorClientePOS();
+}
+
+function cerrarSelectorClientePOS() {
+ const modal =
+ document.getElementById("modalClientePOS");
+
+ if (modal) modal.style.display = "none";
+}
+
+async function abrirSelectorClientePOS() {
+ let modal =
+ document.getElementById("modalClientePOS");
+
+ if (!modal) {
+  modal = document.createElement("div");
+  modal.id = "modalClientePOS";
+  modal.className = "modal-personalizado modal-cliente-pos";
+  document.body.appendChild(modal);
+ }
+
+ try {
+  await intentarRefrescarNubePOS(() => cargarCreditos(), "clientes");
+ } catch (error) {
+  console.warn("No se pudieron refrescar clientes", error);
+ }
+
+ const clientes =
+ [...clientesCredito].sort((a, b) =>
+ String(a.nombre || "").localeCompare(String(b.nombre || ""))
+ );
+
+ const frecuentes =
+ clientes.filter(cliente => Number(cliente.saldo || 0) > 0).slice(0, 4);
+
+ const filas =
+ clientes.length === 0
+ ? '<div class="cliente-pos-empty">No hay clientes registrados.</div>'
+ : clientes.map(cliente => {
+  const datos = resumenClientePOS(cliente);
+  const activo = clienteVentaActual && Number(clienteVentaActual.id) === Number(cliente.id);
+  return `
+  <button type="button" class="${activo ? "activo" : ""}" onclick="seleccionarClientePOS(${cliente.id})">
+   <strong>${cliente.nombre}</strong>
+   <span>Saldo ${dinero(datos.saldo)} · Disponible ${dinero(datos.disponible)}</span>
+  </button>
+  `;
+ }).join("");
+
+ modal.innerHTML = `
+ <div class="modal-card cliente-pos-card">
+  <div class="modal-card-header">
+   <div>
+    <span>Punto de venta</span>
+    <h3>Seleccionar cliente</h3>
+   </div>
+   <button type="button" onclick="cerrarSelectorClientePOS()">Cerrar</button>
+  </div>
+  <div class="cliente-pos-resumen-grid">
+   <button type="button" onclick="seleccionarClientePOS(0)">
+    <strong>Publico general</strong>
+    <span>Venta de mostrador sin credito</span>
+   </button>
+   <button type="button" onclick="crearClienteDesdePOS()">
+    <strong>Crear cliente nuevo</strong>
+    <span>Alta rapida desde el POS</span>
+   </button>
+  </div>
+  <div class="cliente-pos-bloque">
+   <h4>Clientes con credito</h4>
+   <div class="cliente-pos-lista">${filas}</div>
+  </div>
+  ${
+   frecuentes.length
+   ? `<div class="cliente-pos-bloque"><h4>Atencion frecuente</h4><div class="cliente-pos-chips">${
+    frecuentes.map(cliente => `<button onclick="seleccionarClientePOS(${cliente.id})">${cliente.nombre}</button>`).join("")
+   }</div></div>`
+   : ""
+  }
+ </div>
+ `;
+
+ modal.style.display = "flex";
+}
+
 function calcularCambio(total) {
+ const resumen =
+ resumenCarritoPOS();
+
+ const totalReal =
+ Number(total ?? resumen.total);
 
  const dinero =
  Number(
@@ -5301,7 +5520,7 @@ function calcularCambio(total) {
  );
 
  const cambio =
- dinero - total;
+ dinero - totalReal;
 
  const texto =
  document.getElementById(
@@ -5327,14 +5546,11 @@ function actualizarCarrito() {
 
  contenedor.innerHTML = "";
 
- let total = 0;
+ const resumen =
+ resumenCarritoPOS();
 
- carrito.forEach(producto => {
- const cantidad =
- Number(producto.cantidad || 1);
-
- total += Number(producto.precio || 0) * cantidad;
- });
+ const total =
+ resumen.total;
 
  let itemsHtml = "";
 
@@ -5407,7 +5623,37 @@ function actualizarCarrito() {
  <div class="resumen-cobro">
 
  <div class="resumen-linea">
- <span>Total</span>
+ <span>Subtotal</span>
+ <strong>$${resumen.subtotal.toFixed(2)}</strong>
+ </div>
+
+ <div class="resumen-descuento">
+ <label>
+ <span>Descuento</span>
+ <select onchange="actualizarDescuentoCarrito(this.value, document.getElementById('valorDescuentoCarrito')?.value || 0)">
+ <option value="ninguno" ${resumen.descuentoTipo === "ninguno" ? "selected" : ""}>Sin descuento</option>
+ <option value="porcentaje" ${resumen.descuentoTipo === "porcentaje" ? "selected" : ""}>Porcentaje</option>
+ <option value="monto" ${resumen.descuentoTipo === "monto" ? "selected" : ""}>Monto</option>
+ </select>
+ </label>
+ <input
+ id="valorDescuentoCarrito"
+ type="number"
+ min="0"
+ step="0.01"
+ value="${resumen.descuentoValor || ""}"
+ placeholder="0"
+ oninput="actualizarDescuentoCarrito(document.querySelector('.resumen-descuento select')?.value || 'ninguno', this.value)"
+ >
+ </div>
+
+ <div class="resumen-linea">
+ <span>Descuento aplicado</span>
+ <strong>-$${resumen.descuento.toFixed(2)}</strong>
+ </div>
+
+ <div class="resumen-linea total-final">
+ <span>Total final</span>
  <strong>$${total.toFixed(2)}</strong>
  </div>
 
@@ -5648,6 +5894,12 @@ async function cobrar(total) {
 
  if (!(await validarOperacionLicenciaNexoPOS("una venta"))) return;
 
+ const resumen =
+ resumenCarritoPOS();
+
+ total =
+ resumen.total;
+
  if (carrito.length === 0 || Number(total || 0) <= 0) {
  await alertaPOS("Agrega productos al carrito antes de cobrar.", "Carrito vacio", "alerta");
  return;
@@ -5691,6 +5943,11 @@ try {
 
  body: JSON.stringify({
  total,
+ subtotal: resumen.subtotal,
+ descuento: resumen.descuento,
+ descuentoTipo: resumen.descuentoTipo,
+ descuentoValor: resumen.descuentoValor,
+ clienteId: clienteVentaActual?.id || null,
  productos: productosVenta
  })
  }
@@ -5699,6 +5956,11 @@ try {
  const offline =
  await registrarVentaOfflineDesktopPOS({
  total,
+ subtotal: resumen.subtotal,
+ descuento: resumen.descuento,
+ descuentoTipo: resumen.descuentoTipo,
+ descuentoValor: resumen.descuentoValor,
+ clienteId: clienteVentaActual?.id || null,
  recibido: dinero,
  cambio,
  metodoPago: "efectivo",
@@ -5723,6 +5985,11 @@ try {
  const offline =
  await registrarVentaOfflineDesktopPOS({
  total,
+ subtotal: resumen.subtotal,
+ descuento: resumen.descuento,
+ descuentoTipo: resumen.descuentoTipo,
+ descuentoValor: resumen.descuentoValor,
+ clienteId: clienteVentaActual?.id || null,
  recibido: dinero,
  cambio,
  metodoPago: "efectivo",
@@ -5759,6 +6026,11 @@ try {
  ventaId: ventaRegistrada.ventaId || null,
  historialId: ventaRegistrada.historialId || null,
  total,
+ subtotal: resumen.subtotal,
+ descuento: resumen.descuento,
+ descuentoTipo: resumen.descuentoTipo,
+ descuentoValor: resumen.descuentoValor,
+ clienteId: clienteVentaActual?.id || null,
  recibido: dinero,
  cambio,
  metodoPago: "efectivo",
@@ -5858,13 +6130,19 @@ ticket += `
 
  <hr>
 
+ ${
+ resumen.descuento > 0
+ ? `<div style="display:flex;justify-content:space-between;"><span>SUBTOTAL</span><span>$${resumen.subtotal.toFixed(2)}</span></div><div style="display:flex;justify-content:space-between;"><span>DESCUENTO</span><span>-$${resumen.descuento.toFixed(2)}</span></div>`
+ : ""
+ }
+
  <div style="
  display:flex;
  justify-content:space-between;
  font-weight:bold;
  ">
  <span>TOTAL</span>
- <span>$${total}</span>
+ <span>$${total.toFixed(2)}</span>
  </div>
 
  <div style="
@@ -6000,8 +6278,14 @@ if (ventaOffline) {
 }
 
  carrito = [];
+ descuentoCarrito = {
+ tipo: "ninguno",
+ valor: 0
+};
+ clienteVentaActual = null;
 
  actualizarCarrito();
+ actualizarClientePOS();
 
  if (ventaOffline) {
   descontarInventarioLocalPOS(productosVenta);
@@ -6029,6 +6313,12 @@ if (ventaOffline) {
 async function cobrarCredito(total) {
  if (!(await validarOperacionLicenciaNexoPOS("una venta a credito"))) return;
 
+ const resumen =
+ resumenCarritoPOS();
+
+ total =
+ resumen.total;
+
  if (carrito.length === 0 || total <= 0) {
  alert("Agrega productos al carrito.");
  return;
@@ -6041,6 +6331,11 @@ async function cobrarCredito(total) {
  return;
  }
 
+ const clienteInicial =
+ clienteVentaActual && Number(clienteVentaActual.id)
+ ? clienteVentaActual
+ : null;
+
  const opciones =
  clientesCredito.map(cliente => ({
  nombre: String(cliente.id),
@@ -6049,6 +6344,12 @@ async function cobrarCredito(total) {
  }));
 
  const datos =
+ clienteInicial
+ ? {
+ clienteId: String(clienteInicial.id),
+ concepto: "Venta de productos"
+ }
+ :
  await abrirFormularioCredito({
  titulo: "Venta a credito",
  subtitulo: `Total ${dinero(total)}`,
@@ -6096,6 +6397,10 @@ async function cobrarCredito(total) {
  },
  body: JSON.stringify({
  monto: total,
+ subtotal: resumen.subtotal,
+ descuento: resumen.descuento,
+ descuentoTipo: resumen.descuentoTipo,
+ descuentoValor: resumen.descuentoValor,
  concepto: conceptoCredito,
  productos
  })
@@ -6107,6 +6412,10 @@ async function cobrarCredito(total) {
  clienteId,
  clienteNombre: clienteSeleccionado?.nombre || "",
  total,
+ subtotal: resumen.subtotal,
+ descuento: resumen.descuento,
+ descuentoTipo: resumen.descuentoTipo,
+ descuentoValor: resumen.descuentoValor,
  concepto: conceptoCredito,
  productos,
  errorConexion: error.message
@@ -6131,6 +6440,10 @@ async function cobrarCredito(total) {
  clienteId,
  clienteNombre: clienteSeleccionado?.nombre || "",
  total,
+ subtotal: resumen.subtotal,
+ descuento: resumen.descuento,
+ descuentoTipo: resumen.descuentoTipo,
+ descuentoValor: resumen.descuentoValor,
  concepto: conceptoCredito,
  productos,
  errorServidor: respuesta.status
@@ -6167,6 +6480,10 @@ async function cobrarCredito(total) {
  movimientoId: creditoRegistrado.movimiento?.id || null,
  referencia: creditoRegistrado.movimiento?.referencia || null,
  total,
+ subtotal: resumen.subtotal,
+ descuento: resumen.descuento,
+ descuentoTipo: resumen.descuentoTipo,
+ descuentoValor: resumen.descuentoValor,
  concepto: conceptoCredito,
  productos,
  fechaServidor: creditoRegistrado.movimiento?.fecha || null
@@ -6200,6 +6517,11 @@ async function cobrarCredito(total) {
 
  ticketCredito += `
  <hr>
+ ${
+ resumen.descuento > 0
+ ? `<div style="display:flex;justify-content:space-between;"><span>SUBTOTAL</span><span>${dinero(resumen.subtotal)}</span></div><div style="display:flex;justify-content:space-between;"><span>DESCUENTO</span><span>-${dinero(resumen.descuento)}</span></div>`
+ : ""
+ }
  <div style="display:flex;justify-content:space-between;font-weight:bold;">
  <span>TOTAL CREDITO</span>
  <span>${dinero(total)}</span>
@@ -6215,7 +6537,13 @@ async function cobrarCredito(total) {
  imprimirTicketPOS(ticketCredito);
 
  carrito = [];
+ descuentoCarrito = {
+ tipo: "ninguno",
+ valor: 0
+};
+ clienteVentaActual = null;
  actualizarCarrito();
+ actualizarClientePOS();
 
  if (creditoOffline) {
  descontarInventarioLocalPOS(productos);
@@ -7516,6 +7844,7 @@ function mostrarPuntoVenta() {
  "pantallaPuntoVenta"
  ).style.display = "block";
 
+ actualizarClientePOS();
  enfocarBusquedaVentaRapida(false);
 }
 
@@ -8035,7 +8364,7 @@ function cargarTablaInventario() {
  </button>
 
  <button title="Eliminar" onclick="eliminarProducto(${producto.id})">
- 
+ Eliminar
  </button>
  </td>
  </tr>
@@ -8327,6 +8656,13 @@ async function cargarCreditos() {
 
  clientesCredito =
  datos.clientes || [];
+
+ if (clienteVentaActual && Number(clienteVentaActual.id)) {
+  clienteVentaActual =
+  clientesCredito.find(cliente => Number(cliente.id) === Number(clienteVentaActual.id)) ||
+  clienteVentaActual;
+  actualizarClientePOS();
+ }
 
  const creditoPendiente =
  document.getElementById(
@@ -10049,9 +10385,38 @@ function mostrarGraficas() {
  cargarReportesVentas();
 }
 
+let periodoReporteVentas = "dia";
+
+function cambiarPeriodoReporteVentas(periodo) {
+ periodoReporteVentas = periodo || "dia";
+ paginaReporteVentas = 1;
+ document.querySelectorAll("[data-reporte-periodo]").forEach(boton => {
+  boton.classList.toggle("activo", boton.dataset.reportePeriodo === periodoReporteVentas);
+ });
+ cargarReportesVentas();
+}
+
 async function cargarReportesVentas() {
+ const params =
+ new URLSearchParams();
+
+ params.set("periodo", periodoReporteVentas || "dia");
+
+ if (periodoReporteVentas === "rango") {
+  const desde =
+  document.getElementById("reporteDesde")?.value || "";
+
+  const hasta =
+  document.getElementById("reporteHasta")?.value || "";
+
+  if (desde && hasta) {
+   params.set("desde", desde);
+   params.set("hasta", hasta);
+  }
+ }
+
  const respuesta =
- await fetch("/reportes/ventas");
+ await fetch("/reportes/ventas?" + params.toString());
 
  if (!respuesta.ok) {
  alert("No se pudieron cargar los reportes");
@@ -10084,6 +10449,47 @@ async function cargarReportesVentas() {
 
  renderGraficaReporteVentas(datos.porDia || []);
  renderUltimasVentasReporte(datos.ultimas || []);
+ renderListaReporteCompacta("reporteMetodosPago", datos.metodosPago || [], item => ({
+  titulo: item.metodo_pago || "efectivo",
+  detalle: `${item.transacciones || 0} transacciones`,
+  valor: dinero(item.total || 0)
+ }));
+ renderListaReporteCompacta("reporteProductosVendidos", datos.productosVendidos || [], item => ({
+  titulo: item.nombre || "Producto",
+  detalle: `${Number(item.cantidad || 0).toFixed(2)} vendidos`,
+  valor: dinero(item.total || 0)
+ }));
+ renderListaReporteCompacta("reporteHorasVenta", datos.porHora || [], item => ({
+  titulo: item.hora || "-",
+  detalle: `${item.transacciones || 0} ventas`,
+  valor: dinero(item.total || 0)
+ }));
+}
+
+function renderListaReporteCompacta(id, items, adaptador) {
+ const contenedor =
+ document.getElementById(id);
+
+ if (!contenedor) return;
+
+ if (!items.length) {
+  contenedor.innerHTML = '<div class="reporte-vacio">Sin datos para este periodo.</div>';
+  return;
+ }
+
+ contenedor.innerHTML =
+ items.map(item => {
+  const vista = adaptador(item);
+  return `
+  <div class="reporte-mini-row">
+   <div>
+    <strong>${vista.titulo}</strong>
+    <span>${vista.detalle}</span>
+   </div>
+   <b>${vista.valor}</b>
+  </div>
+  `;
+ }).join("");
 }
 
 function renderGraficaReporteVentas(ventasPorDia) {
@@ -10193,7 +10599,39 @@ function renderUltimasVentasReporte(ventas) {
 /* Shell profesional Ferreteria Olimpico */
 const RECORDATORIOS_POS_KEY = "recordatoriosFerreteriaPOS";
 const NOTIFICACIONES_DESCARTADAS_POS_KEY = "notificacionesDescartadasPOS";
-let contextoTopbarPOS = { titulo: "Inicio", subtitulo: "Resumen operativo de la ferreteria" };
+let contextoTopbarPOS = { titulo: "Inicio", subtitulo: "Resumen operativo de la ferreteria", modulo: "inicio" };
+
+const AYUDA_MODULOS_POS = {
+ inicio: "Muestra el resumen rapido del negocio: ventas, inventario bajo, creditos y alertas importantes.",
+ venta: "Aqui se hacen las ventas del dia. Puedes elegir cliente, agregar productos, aplicar descuentos, cobrar o mandar a credito.",
+ inventario: "Administra productos, precios, existencias, categorias y datos principales de mercancia.",
+ productos: "Lista operativa de productos para buscar, editar, eliminar o revisar existencias.",
+ categorias: "Organiza el inventario por familias para encontrar productos mas rapido.",
+ catalogo: "Carga listas de proveedor y actualiza productos desde catalogos externos.",
+ "inventario-bajo": "Revisa productos que necesitan compra, articulos criticos y posibles faltantes.",
+ recepcion: "Registra mercancia recibida de proveedor y actualiza inventario desde compras.",
+ ajustes: "Sirve para corregir existencias por conteo fisico, merma, entradas o salidas internas.",
+ reportes: "Analiza ventas, metodos de pago, productos vendidos, horarios fuertes y desempeno del negocio.",
+ caja: "Controla apertura, cierre, movimientos, ingresos, retiros y corte de caja.",
+ finanzas: "Resume ingresos, egresos, utilidad y flujo de efectivo.",
+ pedidos: "Ayuda a organizar pedidos pendientes y seguimiento de surtido.",
+ clientes: "Administra clientes, creditos, saldos, historial y datos de contacto.",
+ proveedores: "Guarda distribuidores, contactos y datos utiles para compras.",
+ dueno: "Panel pensado para que el propietario consulte el negocio desde una vista resumida.",
+ configuracion: "Ajusta datos del negocio, usuarios, permisos, tickets, soporte y apariencia."
+};
+
+function abrirAyudaModuloPOS() {
+ const modulo =
+ contextoTopbarPOS.modulo || "inicio";
+ const titulo =
+ contextoTopbarPOS.titulo || "Modulo";
+ const mensaje =
+ AYUDA_MODULOS_POS[modulo] ||
+ contextoTopbarPOS.subtitulo ||
+ "Este apartado concentra funciones operativas del POS.";
+ alertaPOS(mensaje, "Que hace: " + titulo, "info");
+}
 
 function iconoUISVG(nombre) {
  const iconos = {
@@ -10259,16 +10697,18 @@ function ordenarSidebarPOS() {
   "inicio",
   "venta",
   "inventario",
-  "inventario-bajo",
-  "reportes",
-  "clientes",
-  "proveedores",
+  "productos",
+  "categorias",
   "catalogo",
+  "inventario-bajo",
   "recepcion",
+  "ajustes",
+  "reportes",
   "caja",
   "finanzas",
   "pedidos",
-  "ajustes",
+  "clientes",
+  "proveedores",
   "dueno",
   "configuracion"
  ];
@@ -10385,6 +10825,7 @@ function renderTopbarPOS() {
  contextoTopbarPOS.subtitulo +
  '</small></div><div class="topbar-actions">' +
  syncDesktop +
+ '<button type="button" class="topbar-help" onclick="abrirAyudaModuloPOS()" title="Que hace este modulo">?</button>' +
  '<button type="button" class="topbar-action" onclick="abrirRecordatorioPOS()" title="Nuevo recordatorio">' +
  iconoUISVG("plus") +
  '<span>Recordatorio</span></button><button type="button" id="btnNotificacionesPOS" class="topbar-bell" onclick="toggleNotificacionesPOS()" title="Notificaciones">' +
@@ -10496,7 +10937,7 @@ function instalarMonitorSyncDesktopPOS() {
  setInterval(refrescar, 30000);
  refrescar();
 }
-function actualizarTopbarContexto(titulo, subtitulo, modulo) { contextoTopbarPOS = { titulo, subtitulo }; renderTopbarPOS(); if (modulo) actualizarModuloActivoPOS(modulo); }
+function actualizarTopbarContexto(titulo, subtitulo, modulo) { contextoTopbarPOS = { titulo, subtitulo, modulo: modulo || contextoTopbarPOS.modulo || "inicio" }; renderTopbarPOS(); if (modulo) actualizarModuloActivoPOS(modulo); }
 function renderNotificacionesPOS() {
  const panel = document.getElementById("panelNotificacionesPOS");
  const badge = document.getElementById("badgeNotificacionesPOS");
@@ -10688,7 +11129,7 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
    if (stock && !stock.value) stock.value = "1";
   }
 
-  if (tipoFinal === "granel") {
+ if (tipoFinal === "granel") {
    if (unidad && !["kg", "metro", "litro", "gramo"].includes(unidad.value)) unidad.value = "kg";
    if (bascula) bascula.value = "preparado";
    if (stock) stock.step = "0.001";
@@ -10698,9 +11139,62 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
   }
  };
 
+ function organizarFormularioProductoTabs() {
+  const form = document.querySelector("#modalAgregar .ficha-producto");
+  if (!form || form.dataset.tabsProducto === "1") return;
+
+  const grupos = [
+   ["basico", "Basico", ["nuevoCodigo", "nuevoNombre", "nuevoCodigoInterno", "nuevaCategoria", "nuevaSubcategoria", "nuevaMarca"]],
+   ["precios", "Precios", ["precioDistribuidor", "precioMayoreo", "nuevoPrecio", "precioPublico"]],
+   ["inventario", "Inventario", ["nuevoStock", "stockMinimo", "nuevoProveedor", "nuevaUbicacion", "altaRotacion"]],
+   ["unidades", "Unidades", ["unidadVenta", "presentacionCompra", "factorConversion", "basculaDigital"]],
+   ["codigos", "Codigos", ["codigosRelacionados"]],
+   ["avanzado", "Avanzado", ["nuevaDescripcion"]]
+  ];
+
+  const tabs = document.createElement("div");
+  tabs.className = "producto-tabs";
+  tabs.innerHTML = grupos.map((grupo, index) =>
+   '<button type="button" class="' + (index === 0 ? "activo" : "") + '" data-producto-tab="' + grupo[0] + '" onclick="cambiarTabProductoPOS(\'' + grupo[0] + '\')">' + grupo[1] + '</button>'
+  ).join("");
+
+  form.parentNode.insertBefore(tabs, form);
+
+  grupos.forEach((grupo, index) => {
+   const panel = document.createElement("div");
+   panel.className = "producto-tab-panel " + (index === 0 ? "activo" : "");
+   panel.dataset.productoPanel = grupo[0];
+
+   grupo[2].forEach(id => {
+    const campo = document.getElementById(id);
+    if (campo) panel.appendChild(campo);
+   });
+
+   form.appendChild(panel);
+  });
+
+  const ocultos = ["tipoProductoInventario"];
+  ocultos.forEach(id => {
+   const campo = document.getElementById(id);
+   if (campo) form.insertBefore(campo, form.firstChild);
+  });
+
+  form.dataset.tabsProducto = "1";
+ }
+
+ window.cambiarTabProductoPOS = function(tab) {
+  document.querySelectorAll(".producto-tabs button").forEach(boton => {
+   boton.classList.toggle("activo", boton.dataset.productoTab === tab);
+  });
+  document.querySelectorAll(".producto-tab-panel").forEach(panel => {
+   panel.classList.toggle("activo", panel.dataset.productoPanel === tab);
+  });
+ };
+
  const mostrarBase = window.mostrarFormularioAgregar;
  window.mostrarFormularioAgregar = function() {
   if (typeof mostrarBase === "function") mostrarBase();
+  organizarFormularioProductoTabs();
   mejorarTarjetasTipoProducto();
   actualizarAyudaTipoProducto(document.getElementById("tipoProductoInventario")?.value || "catalogo");
 
@@ -10728,7 +11222,11 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
   const contenedor = document.getElementById("carrito");
   if (!contenedor) return;
 
-  const total = carrito.reduce((suma, item) => suma + Number(item.precio || 0) * Number(item.cantidad || 0), 0);
+  const resumen = typeof resumenCarritoPOS === "function"
+   ? resumenCarritoPOS()
+   : { subtotal: carrito.reduce((suma, item) => suma + Number(item.precio || 0) * Number(item.cantidad || 0), 0), descuento: 0, total: 0, descuentoTipo: "ninguno", descuentoValor: 0 };
+  if (!Number.isFinite(Number(resumen.total))) resumen.total = Math.max(0, Number(resumen.subtotal || 0) - Number(resumen.descuento || 0));
+  const total = resumen.total;
   const itemsHtml = carrito.length === 0
    ? '<div class="carrito-vacio carrito-vacio-ferretero"><strong>Carrito vacio</strong><span>Escanea, busca o agrega productos para iniciar una venta.</span></div>'
    : carrito.map((p, index) => {
@@ -10774,7 +11272,19 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
   contenedor.innerHTML =
    '<div class="carrito-items">' +
    itemsHtml +
-   '</div><div class="resumen-cobro resumen-cobro-ferretero"><div class="resumen-linea total-ferretero"><span>Total</span><strong>' +
+   '</div><div class="resumen-cobro resumen-cobro-ferretero"><div class="resumen-linea"><span>Subtotal</span><strong>' +
+   dinero(resumen.subtotal) +
+   '</strong></div><div class="resumen-descuento"><label><span>Descuento</span><select onchange="actualizarDescuentoCarrito(this.value, document.getElementById(\'valorDescuentoCarrito\')?.value || 0)"><option value="ninguno" ' +
+   (resumen.descuentoTipo === "ninguno" ? "selected" : "") +
+   '>Sin descuento</option><option value="porcentaje" ' +
+   (resumen.descuentoTipo === "porcentaje" ? "selected" : "") +
+   '>Porcentaje</option><option value="monto" ' +
+   (resumen.descuentoTipo === "monto" ? "selected" : "") +
+   '>Monto</option></select></label><input id="valorDescuentoCarrito" type="number" min="0" step="0.01" value="' +
+   (resumen.descuentoValor || "") +
+   '" placeholder="0" onchange="actualizarDescuentoCarrito(document.querySelector(\'.resumen-descuento select\')?.value || \'ninguno\', this.value)"></div><div class="resumen-linea"><span>Descuento</span><strong>-' +
+   dinero(resumen.descuento) +
+   '</strong></div><div class="resumen-linea total-ferretero"><span>Total final</span><strong>' +
    dinero(total) +
    '</strong></div><label class="campo-recibido"><span>Recibido</span><input type="number" id="dinero" placeholder="0.00" oninput="calcularCambio(' +
    total +

@@ -1218,6 +1218,30 @@ async function licenciaActual(negocio) {
 async function asegurarColumnasHistorialVentas(client = pool) {
     await client.query(`
         ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS subtotal NUMERIC(12,2) NOT NULL DEFAULT 0
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS descuento NUMERIC(12,2) NOT NULL DEFAULT 0
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS descuento_tipo TEXT NOT NULL DEFAULT 'ninguno'
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS descuento_valor NUMERIC(12,2) NOT NULL DEFAULT 0
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS cliente_id INTEGER
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS productos JSONB NOT NULL DEFAULT '[]'::jsonb
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
         ADD COLUMN IF NOT EXISTS metodo_pago TEXT NOT NULL DEFAULT 'efectivo'
     `);
     await client.query(`
@@ -1247,6 +1271,25 @@ async function asegurarColumnasHistorialVentas(client = pool) {
     await client.query(`
         ALTER TABLE public.historial_ventas
         ADD COLUMN IF NOT EXISTS pagos_json JSONB NOT NULL DEFAULT '{}'::jsonb
+    `);
+}
+
+async function asegurarColumnasMovimientosCredito(client = pool) {
+    await client.query(`
+        ALTER TABLE public.movimientos_credito
+        ADD COLUMN IF NOT EXISTS subtotal NUMERIC(12,2) NOT NULL DEFAULT 0
+    `);
+    await client.query(`
+        ALTER TABLE public.movimientos_credito
+        ADD COLUMN IF NOT EXISTS descuento NUMERIC(12,2) NOT NULL DEFAULT 0
+    `);
+    await client.query(`
+        ALTER TABLE public.movimientos_credito
+        ADD COLUMN IF NOT EXISTS descuento_tipo TEXT NOT NULL DEFAULT 'ninguno'
+    `);
+    await client.query(`
+        ALTER TABLE public.movimientos_credito
+        ADD COLUMN IF NOT EXISTS descuento_valor NUMERIC(12,2) NOT NULL DEFAULT 0
     `);
 }
 
@@ -2307,6 +2350,11 @@ app.post("/ventas", async (req, res) => {
 
     const {
         total,
+        subtotal,
+        descuento,
+        descuentoTipo,
+        descuentoValor,
+        clienteId,
         productos,
         metodoPago,
         pagos,
@@ -2335,11 +2383,28 @@ app.post("/ventas", async (req, res) => {
         const historialCreado = await pool.query(
             `
             INSERT INTO public.historial_ventas
-                (negocio_id, total, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
+                (negocio_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json)
+            VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16::jsonb)
             RETURNING id, fecha
             `,
-            [negocio.id, total, metodoPago || "efectivo", pagoEfectivo, pagoTarjeta, pagoTransferencia, pagoCredito, Number(recibido || 0), Number(cambio || 0), JSON.stringify(pagosVenta)]
+            [
+                negocio.id,
+                total,
+                Number(subtotal ?? total ?? 0),
+                Number(descuento || 0),
+                descuentoTipo || "ninguno",
+                Number(descuentoValor || 0),
+                clienteId ? Number(clienteId) : null,
+                JSON.stringify(productos || []),
+                metodoPago || "efectivo",
+                pagoEfectivo,
+                pagoTarjeta,
+                pagoTransferencia,
+                pagoCredito,
+                Number(recibido || 0),
+                Number(cambio || 0),
+                JSON.stringify(pagosVenta)
+            ]
         );
 
         for (const producto of productos) {
@@ -2830,6 +2895,10 @@ app.post("/creditos/clientes/:id/cargos", async (req, res) => {
 
     const {
         monto,
+        subtotal,
+        descuento,
+        descuentoTipo,
+        descuentoValor,
         concepto,
         productos
     } = req.body;
@@ -2843,6 +2912,7 @@ app.post("/creditos/clientes/:id/cargos", async (req, res) => {
 
     try {
         const negocio = await negocioActual(req);
+        await asegurarColumnasMovimientosCredito();
         const resultado = await pool.query(`
             INSERT INTO public.movimientos_credito
             (
@@ -2852,11 +2922,15 @@ app.post("/creditos/clientes/:id/cargos", async (req, res) => {
                 referencia,
                 concepto,
                 monto,
+                subtotal,
+                descuento,
+                descuento_tipo,
+                descuento_valor,
                 productos
             )
-            SELECT $1, c.id, 'venta', $2, $3, $4, $5::jsonb
+            SELECT $1, c.id, 'venta', $2, $3, $4, $5, $6, $7, $8, $9::jsonb
             FROM public.clientes_credito c
-            WHERE c.id = $6
+            WHERE c.id = $10
             AND c.negocio_id = $1
             RETURNING *
         `, [
@@ -2864,6 +2938,10 @@ app.post("/creditos/clientes/:id/cargos", async (req, res) => {
             `CR-${Date.now()}`,
             concepto || "Venta a credito",
             monto,
+            Number(subtotal ?? monto ?? 0),
+            Number(descuento || 0),
+            descuentoTipo || "ninguno",
+            Number(descuentoValor || 0),
             JSON.stringify(productos || []),
             id
         ]);
@@ -2982,15 +3060,44 @@ app.get("/grafica-ventas", async (req, res) => {
 app.get("/reportes/ventas", async (req, res) => {
     try {
         const negocio = await negocioActual(req);
+        await asegurarColumnasHistorialVentas();
+        const periodo =
+            String(req.query.periodo || "mes");
+        const desde =
+            req.query.desde ? new Date(String(req.query.desde)) : null;
+        const hasta =
+            req.query.hasta ? new Date(String(req.query.hasta)) : null;
+        const usarRango =
+            desde && !Number.isNaN(desde.getTime()) &&
+            hasta && !Number.isNaN(hasta.getTime());
+
+        const filtroFecha =
+            usarRango
+                ? "AND fecha::date BETWEEN $2::date AND $3::date"
+                : periodo === "dia"
+                    ? "AND fecha >= CURRENT_DATE"
+                    : periodo === "semana"
+                        ? "AND fecha >= date_trunc('week', NOW())"
+                        : periodo === "anio"
+                            ? "AND fecha >= date_trunc('year', NOW())"
+                            : "AND fecha >= date_trunc('month', NOW())";
+
+        const params =
+            usarRango
+                ? [negocio.id, desde.toISOString().slice(0, 10), hasta.toISOString().slice(0, 10)]
+                : [negocio.id];
+
         const resumen = await pool.query(`
             SELECT
                 COALESCE(SUM(total), 0) AS total,
                 COUNT(*) AS transacciones,
                 COALESCE(AVG(total), 0) AS ticket_promedio,
-                COALESCE(MAX(total), 0) AS venta_mayor
+                COALESCE(MAX(total), 0) AS venta_mayor,
+                COALESCE(SUM(descuento), 0) AS descuento_total
             FROM public.historial_ventas
             WHERE negocio_id = $1
-        `, [negocio.id]);
+            ${filtroFecha}
+        `, params);
 
         const porDia = await pool.query(`
             SELECT
@@ -2999,22 +3106,61 @@ app.get("/reportes/ventas", async (req, res) => {
                 COUNT(*) AS transacciones
             FROM public.historial_ventas
             WHERE negocio_id = $1
+            ${filtroFecha}
             GROUP BY TO_CHAR(fecha, 'DD/MM'), DATE(fecha)
             ORDER BY DATE(fecha) ASC
             LIMIT 30
-        `, [negocio.id]);
+        `, params);
+
+        const metodosPago = await pool.query(`
+            SELECT metodo_pago, COALESCE(SUM(total), 0) AS total, COUNT(*) AS transacciones
+            FROM public.historial_ventas
+            WHERE negocio_id = $1
+            ${filtroFecha}
+            GROUP BY metodo_pago
+            ORDER BY total DESC
+        `, params);
+
+        const porHora = await pool.query(`
+            SELECT TO_CHAR(date_trunc('hour', fecha), 'HH24:00') AS hora,
+                   COALESCE(SUM(total), 0) AS total,
+                   COUNT(*) AS transacciones
+            FROM public.historial_ventas
+            WHERE negocio_id = $1
+            ${filtroFecha}
+            GROUP BY date_trunc('hour', fecha)
+            ORDER BY date_trunc('hour', fecha)
+        `, params);
+
+        const productosVendidos = await pool.query(`
+            SELECT
+                item->>'nombre' AS nombre,
+                COALESCE(SUM((item->>'cantidad')::numeric), 0) AS cantidad,
+                COALESCE(SUM((item->>'importe')::numeric), 0) AS total
+            FROM public.historial_ventas,
+                 LATERAL jsonb_array_elements(productos) AS item
+            WHERE negocio_id = $1
+            ${filtroFecha}
+            GROUP BY item->>'nombre'
+            ORDER BY total DESC
+            LIMIT 10
+        `, params);
 
         const ultimas = await pool.query(`
             SELECT *
             FROM public.historial_ventas
             WHERE negocio_id = $1
+            ${filtroFecha}
             ORDER BY fecha DESC
             LIMIT 12
-        `, [negocio.id]);
+        `, params);
 
         res.json({
             resumen: resumen.rows[0],
             porDia: porDia.rows,
+            metodosPago: metodosPago.rows,
+            porHora: porHora.rows,
+            productosVendidos: productosVendidos.rows,
             ultimas: ultimas.rows
         });
     } catch (error) {
@@ -3567,6 +3713,8 @@ async function inicializarCreditos() {
         ALTER TABLE public.movimientos_credito
         ADD COLUMN IF NOT EXISTS productos JSONB NOT NULL DEFAULT '[]'::jsonb
     `);
+
+    await asegurarColumnasMovimientosCredito();
 
     await pool.query(`
         CREATE TABLE IF NOT EXISTS public.proveedores (
