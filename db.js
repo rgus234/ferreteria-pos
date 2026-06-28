@@ -1,14 +1,20 @@
 const { Pool } = require("pg");
 const { config } = require("./config");
 
+const databaseUrl = config.databaseUrl || "";
+const databaseUrlLower = databaseUrl.toLowerCase();
+const pgSslMode = (config.pgSslMode || "").toLowerCase();
+
 const usaSsl =
-    config.pgSslMode === "require" ||
+    databaseUrlLower.includes("sslmode=require") ||
+    databaseUrlLower.includes("sslmode=verify") ||
     (
-        config.databaseUrl || ""
-    ).includes("sslmode=require");
+        pgSslMode === "require" &&
+        databaseUrlLower.includes(".render.com")
+    );
 
 const pool = new Pool({
-    connectionString: config.databaseUrl,
+    connectionString: databaseUrl,
     application_name: `${config.appName}-${config.appEnv}`,
     ssl: usaSsl
         ? {
