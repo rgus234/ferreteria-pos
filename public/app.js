@@ -1653,7 +1653,14 @@ function valorTicketFormulario(config = configuracionNegocio() || {}) {
  mostrarDireccionTicket: checkConfigCampo("configMostrarDireccionTicket", config.mostrarDireccionTicket !== false),
  mostrarTelefonoTicket: checkConfigCampo("configMostrarTelefonoTicket", config.mostrarTelefonoTicket !== false),
  mostrarCajeroTicket: checkConfigCampo("configMostrarCajeroTicket", config.mostrarCajeroTicket !== false),
- mostrarBarcodeTicket: checkConfigCampo("configMostrarBarcodeTicket", config.mostrarBarcodeTicket === true)
+ mostrarBarcodeTicket: checkConfigCampo("configMostrarBarcodeTicket", config.mostrarBarcodeTicket === true),
+ impresoraNombre: valorConfigCampo("configImpresoraNombre", config.impresoraNombre || "").trim(),
+ impresionSilenciosa: checkConfigCampo("configImpresionSilenciosa", config.impresionSilenciosa === true),
+ imprimirAutomatico: checkConfigCampo("configImprimirAutomatico", config.imprimirAutomatico !== false),
+ abrirCajonDespuesTicket: checkConfigCampo("configAbrirCajonDespuesTicket", config.abrirCajonDespuesTicket === true),
+ abrirCajonPrueba: checkConfigCampo("configAbrirCajonPrueba", config.abrirCajonPrueba === true),
+ cortarPapelTicket: checkConfigCampo("configCortarPapelTicket", config.cortarPapelTicket !== false),
+ ticketCopias: Math.max(1, Number(valorConfigCampo("configTicketCopias", config.ticketCopias || 1)) || 1)
  };
 }
 
@@ -1703,6 +1710,7 @@ function mostrarConfiguracion() {
  <button type="button" class="activo" data-config-tab="empresa" onclick="cambiarTabConfiguracion('empresa')">Empresa</button>
  <button type="button" data-config-tab="apariencia" onclick="cambiarTabConfiguracion('apariencia')">Apariencia</button>
  <button type="button" data-config-tab="ticket" onclick="cambiarTabConfiguracion('ticket')">Ticket</button>
+ <button type="button" data-config-tab="hardware" onclick="cambiarTabConfiguracion('hardware')">Hardware</button>
  <button type="button" data-config-tab="usuarios" onclick="cambiarTabConfiguracion('usuarios')">Usuarios</button>
  <button type="button" data-config-tab="sistema" onclick="cambiarTabConfiguracion('sistema')">Sistema</button>
  </div>
@@ -1825,6 +1833,45 @@ function mostrarConfiguracion() {
  </div>
  </div>
 
+ <div class="config-tab-panel" data-config-panel="hardware">
+ <section class="config-panel config-hardware-panel">
+ <div class="config-panel-head">
+ <div>
+ <h3>Impresora y cajon</h3>
+ <span>Preparado para impresora termica 80 mm y cajon conectado a la impresora.</span>
+ </div>
+ <button type="button" onclick="cargarImpresorasPOS()">Buscar impresoras</button>
+ </div>
+ <div class="config-form-grid">
+ <label>
+ <span>Impresora</span>
+ <select id="configImpresoraNombre">
+ <option value="">Predeterminada del sistema</option>
+ ${config.impresoraNombre ? `<option value="${config.impresoraNombre}" selected>${config.impresoraNombre}</option>` : ""}
+ </select>
+ </label>
+ <label>
+ <span>Copias del ticket</span>
+ <input id="configTicketCopias" type="number" min="1" max="3" value="${config.ticketCopias || 1}">
+ </label>
+ </div>
+ <div class="ticket-options-grid hardware-options-grid">
+ <label class="config-check"><input id="configImpresionSilenciosa" type="checkbox" ${config.impresionSilenciosa === true ? "checked" : ""}> Impresion silenciosa</label>
+ <label class="config-check"><input id="configImprimirAutomatico" type="checkbox" ${config.imprimirAutomatico === false ? "" : "checked"}> Imprimir al cobrar</label>
+ <label class="config-check"><input id="configAbrirCajonDespuesTicket" type="checkbox" ${config.abrirCajonDespuesTicket === true ? "checked" : ""}> Abrir cajon al imprimir</label>
+ <label class="config-check"><input id="configAbrirCajonPrueba" type="checkbox" ${config.abrirCajonPrueba === true ? "checked" : ""}> Abrir cajon en prueba</label>
+ <label class="config-check"><input id="configCortarPapelTicket" type="checkbox" ${config.cortarPapelTicket === false ? "" : "checked"}> Cortar papel</label>
+ </div>
+ <div class="config-actions-stack config-actions-row hardware-actions">
+ <button type="button" onclick="imprimirTicketPruebaPOS()">Impresion de prueba</button>
+ <button type="button" onclick="abrirCajonPruebaPOS()">Abrir cajon</button>
+ </div>
+ <div class="config-note" id="estadoHardwarePOS">
+ En navegador se abrira el dialogo de impresion. En la app de escritorio se puede imprimir directo y mandar pulso al cajon.
+ </div>
+ </section>
+ </div>
+
  <div class="config-tab-panel" data-config-panel="usuarios">
  <section class="config-panel">
  <h3>Usuarios y permisos</h3>
@@ -1893,6 +1940,7 @@ function mostrarConfiguracion() {
 
  pantalla.style.display = "block";
  renderVistaPreviaTicket();
+ cargarImpresorasPOS({ silencioso: true });
 }
 
 function renderVistaPreviaTicket() {
@@ -1967,6 +2015,156 @@ function renderVistaPreviaTicket() {
  ${barcode}
  </div>
  `;
+}
+
+function actualizarEstadoHardwarePOS(mensaje, tipo = "info") {
+ const estado =
+ document.getElementById("estadoHardwarePOS");
+
+ if (!estado) return;
+
+ estado.textContent = mensaje;
+ estado.dataset.estado = tipo;
+}
+
+async function cargarImpresorasPOS(opciones = {}) {
+ const select =
+ document.getElementById("configImpresoraNombre");
+
+ if (!select) return;
+
+ const actual =
+ select.value || configuracionNegocio()?.impresoraNombre || "";
+
+ if (!window.nexoDesktop || typeof window.nexoDesktop.listPrinters !== "function") {
+  if (!opciones.silencioso) {
+   actualizarEstadoHardwarePOS("Listado disponible solo en la app de escritorio. Se usara la impresora predeterminada del sistema.", "info");
+  }
+  return;
+ }
+
+ try {
+  const resultado =
+  await window.nexoDesktop.listPrinters();
+
+  const impresoras =
+  Array.isArray(resultado?.printers)
+  ? resultado.printers
+  : [];
+
+  select.innerHTML =
+  '<option value="">Predeterminada del sistema</option>' +
+  impresoras.map(impresora => {
+   const nombre =
+   String(impresora.name || "");
+
+   return `<option value="${nombre.replace(/"/g, "&quot;")}" ${nombre === actual ? "selected" : ""}>${nombre}${impresora.isDefault ? " (predeterminada)" : ""}</option>`;
+  }).join("");
+
+  if (actual && !impresoras.some(impresora => impresora.name === actual)) {
+   select.insertAdjacentHTML(
+   "beforeend",
+   `<option value="${actual.replace(/"/g, "&quot;")}" selected>${actual}</option>`
+   );
+  }
+
+  if (!opciones.silencioso) {
+   actualizarEstadoHardwarePOS(
+   impresoras.length
+   ? `Se encontraron ${impresoras.length} impresoras.`
+   : "No se encontraron impresoras instaladas.",
+   impresoras.length ? "exito" : "alerta"
+   );
+  }
+ } catch (error) {
+  console.warn("No se pudieron listar impresoras", error);
+  if (!opciones.silencioso) {
+   actualizarEstadoHardwarePOS("No se pudieron leer las impresoras instaladas.", "alerta");
+  }
+ }
+}
+
+function opcionesImpresionPOS(config = configuracionNegocio() || {}) {
+ return {
+  printerName: config.impresoraNombre || "",
+  silent: config.impresionSilenciosa === true,
+  copies: Math.max(1, Number(config.ticketCopias || 1) || 1),
+  openCashDrawer: config.abrirCajonDespuesTicket === true,
+  cutPaper: config.cortarPapelTicket !== false,
+  width: config.ticketAncho === "58" ? 58 : 80
+ };
+}
+
+function ticketPruebaPOS() {
+ const config =
+ valorTicketFormulario();
+
+ const fecha =
+ new Date().toLocaleString("es-MX");
+
+ return `
+ <div style="width:${config.ticketAncho === "58" ? 230 : 300}px;font-family:monospace;padding:20px;color:black;text-align:${config.ticketAlineacion || "center"};">
+ ${config.logo && config.mostrarLogoTicket ? `<img src="${config.logo}" style="width:58px;height:58px;object-fit:cover;border-radius:10px;margin-bottom:8px;">` : ""}
+ ${config.mostrarNombreTicket ? `<h2 style="margin:0;font-size:22px;text-transform:uppercase;">${config.ticketNombre || config.nombre || "Ferreteria Olimpico"}</h2>` : ""}
+ ${config.ticketSubtitulo ? `<div style="font-size:12px;">${config.ticketSubtitulo}</div>` : ""}
+ ${config.mostrarDireccionTicket && config.direccion ? `<div>${config.direccion}</div>` : ""}
+ ${config.mostrarTelefonoTicket && config.telefono ? `<div>Tel. ${config.telefono}</div>` : ""}
+ <div>${fecha}</div>
+ <hr>
+ <div style="text-align:left;font-weight:bold;">PRUEBA DE IMPRESION</div>
+ <div style="display:flex;justify-content:space-between;margin:6px 0;"><span>Ticket termico 80 mm</span><span>OK</span></div>
+ <div style="display:flex;justify-content:space-between;margin:6px 0;"><span>Conexion cajon</span><span>${config.abrirCajonPrueba ? "Pulso" : "Sin pulso"}</span></div>
+ <hr>
+ <div style="font-weight:bold;">${config.mensajeTicket || "Gracias por su compra"}</div>
+ ${config.notaTicket ? `<br><small>${config.notaTicket}</small>` : ""}
+ </div>
+ `;
+}
+
+async function imprimirTicketPruebaPOS() {
+ const config =
+ valorTicketFormulario();
+
+ const nuevaConfig = {
+  ...(configuracionNegocio() || {}),
+  ...config,
+  abrirCajonDespuesTicket: config.abrirCajonPrueba === true
+ };
+
+ localStorage.setItem(CONFIG_NEGOCIO_KEY, JSON.stringify(nuevaConfig));
+ aplicarConfiguracionNegocio(nuevaConfig);
+
+ const ok =
+ await imprimirTicketPOS(ticketPruebaPOS(), nuevaConfig);
+
+ actualizarEstadoHardwarePOS(
+ ok
+ ? "Prueba enviada a la impresora."
+ : "No se pudo enviar la prueba. Revisa la impresora seleccionada.",
+ ok ? "exito" : "alerta"
+ );
+}
+
+async function abrirCajonPruebaPOS() {
+ const config =
+ valorTicketFormulario();
+
+ if (window.nexoDesktop && typeof window.nexoDesktop.openCashDrawer === "function") {
+  const resultado =
+  await window.nexoDesktop.openCashDrawer({
+   printerName: config.impresoraNombre || ""
+  }).catch(error => ({ ok: false, error: error.message }));
+
+  actualizarEstadoHardwarePOS(
+  resultado?.ok
+  ? "Pulso enviado al cajon."
+  : (resultado?.error || "No se pudo abrir el cajon."),
+  resultado?.ok ? "exito" : "alerta"
+  );
+  return;
+ }
+
+ actualizarEstadoHardwarePOS("El pulso del cajon requiere la app de escritorio.", "alerta");
 }
 
 function guardarConfiguracionSistema() {
@@ -5761,10 +5959,10 @@ function productosCarritoAgrupados() {
  });
 }
 
-function imprimirTicketPOS(ticket) {
+async function imprimirTicketPOS(ticket, configOverride = null) {
  try {
   const negocio =
-  configuracionNegocio() || {};
+  configOverride || configuracionNegocio() || {};
 
   const anchoMm =
   negocio.ticketAncho === "58" ? 58 : 80;
@@ -5772,25 +5970,11 @@ function imprimirTicketPOS(ticket) {
   const anchoContenido =
   negocio.ticketAncho === "58" ? "52mm" : "72mm";
 
-  const iframe =
-  document.createElement("iframe");
+  if (negocio.imprimirAutomatico === false) {
+   return true;
+  }
 
-  iframe.title = "Ticket de venta";
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
-  iframe.style.opacity = "0";
-
-  document.body.appendChild(iframe);
-
-  const documento =
-  iframe.contentWindow.document;
-
-  documento.open();
-  documento.write(`
+  const htmlTicket = `
    <html>
    <head>
    <title>Ticket</title>
@@ -5871,12 +6055,56 @@ function imprimirTicketPOS(ticket) {
    </main>
    </body>
    </html>
-   `);
+  `;
+
+  if (
+   negocio.impresionSilenciosa === true &&
+   window.nexoDesktop &&
+   typeof window.nexoDesktop.printTicket === "function"
+  ) {
+   const resultado =
+   await window.nexoDesktop.printTicket({
+    html: htmlTicket,
+    ...opcionesImpresionPOS(negocio)
+   });
+
+   return Boolean(resultado?.ok);
+  }
+
+  const iframe =
+  document.createElement("iframe");
+
+  iframe.title = "Ticket de venta";
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+
+  document.body.appendChild(iframe);
+
+  const documento =
+  iframe.contentWindow.document;
+
+  documento.open();
+  documento.write(htmlTicket);
   documento.close();
 
   setTimeout(() => {
    iframe.contentWindow.focus();
    iframe.contentWindow.print();
+
+   if (
+    negocio.abrirCajonDespuesTicket === true &&
+    window.nexoDesktop &&
+    typeof window.nexoDesktop.openCashDrawer === "function"
+   ) {
+    window.nexoDesktop.openCashDrawer({
+     printerName: negocio.impresoraNombre || ""
+    }).catch(error => console.warn("No se pudo abrir cajon", error));
+   }
 
    setTimeout(() => {
     iframe.remove();
@@ -6259,7 +6487,7 @@ ticket = ticket.replace(
 );
 
 const ticketEnviado =
- imprimirTicketPOS(ticket);
+ await imprimirTicketPOS(ticket);
 
 if (!ticketEnviado) {
  await alertaPOS(
@@ -6534,7 +6762,7 @@ async function cobrarCredito(total) {
  </div>
  `;
 
- imprimirTicketPOS(ticketCredito);
+ await imprimirTicketPOS(ticketCredito);
 
  carrito = [];
  descuentoCarrito = {
@@ -11016,6 +11244,89 @@ function iniciarShellFerreteroPOS() { profesionalizarSidebarPOS(); [900, 1500, 2
 
 
 
+/* Captura global de lector USB */
+(function instalarScannerUsbPOS() {
+ if (window.__scannerUsbPOS) return;
+ window.__scannerUsbPOS = true;
+
+ let buffer = "";
+ let ultimoTiempo = 0;
+ let temporizador = null;
+
+ function puntoVentaVisible() {
+  const pantalla =
+  document.getElementById("pantallaPuntoVenta");
+
+  return pantalla && pantalla.style.display !== "none";
+ }
+
+ function modalOperativoAbierto() {
+  return Boolean(
+  document.querySelector('.modal-overlay[style*="flex"], .modal-personalizado[style*="flex"], .modal-form-credito[style*="flex"]')
+  );
+ }
+
+ function reiniciar() {
+  buffer = "";
+  ultimoTiempo = 0;
+  clearTimeout(temporizador);
+  temporizador = null;
+ }
+
+ function enviarCodigo() {
+  const codigo =
+  normalizarCodigo(buffer);
+
+  reiniciar();
+
+  if (!codigo || codigo.length < 4) return;
+
+  if (typeof procesarCodigoBarrasPos === "function") {
+   procesarCodigoBarrasPos(codigo);
+  }
+ }
+
+ document.addEventListener("keydown", event => {
+  if (!puntoVentaVisible() || modalOperativoAbierto()) return;
+
+  const objetivo =
+  event.target;
+
+  const escribiendo =
+  objetivo && ["INPUT", "TEXTAREA", "SELECT"].includes(objetivo.tagName);
+
+  if (escribiendo && objetivo.id !== "busqueda") return;
+
+  const ahora =
+  Date.now();
+
+  if (ahora - ultimoTiempo > 80) {
+   buffer = "";
+  }
+
+  ultimoTiempo = ahora;
+
+  if (event.key === "Enter") {
+   if (buffer.length >= 4) {
+    event.preventDefault();
+    enviarCodigo();
+   }
+   return;
+  }
+
+  if (/^[a-zA-Z0-9]$/.test(event.key)) {
+   buffer += event.key;
+   clearTimeout(temporizador);
+   temporizador = setTimeout(reiniciar, 140);
+
+   if (!escribiendo) {
+    event.preventDefault();
+   }
+  }
+ });
+})();
+
+
 /* Limpieza final de texto visible */
 function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g, '').replace(/\u00c3\u00a1/g, 'a').replace(/\u00c3\u00a9/g, 'e').replace(/\u00c3\u00ad/g, 'i').replace(/\u00c3\u00b3/g, 'o').replace(/\u00c3\u00ba/g, 'u').replace(/\u00c3\u00b1/g, 'n').replace(/\u00c3\u0161/g, 'U').replace(/\u00c3\u201a&middot;|\u00c3\u201a\u00c2\u00b7|\u00c2\u00b7|&middot;/g, '-').replace(/[\u00f0][^\s]*/g, '').replace(/\s+/g, ' ').trim(); }
 
@@ -11143,9 +11454,13 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
   const form = document.querySelector("#modalAgregar .ficha-producto");
   if (!form || form.dataset.tabsProducto === "1") return;
 
+  if (typeof asegurarEtiquetasFichaProducto === "function") {
+   asegurarEtiquetasFichaProducto();
+  }
+
   const grupos = [
    ["basico", "Basico", ["nuevoCodigo", "nuevoNombre", "nuevoCodigoInterno", "nuevaCategoria", "nuevaSubcategoria", "nuevaMarca"]],
-   ["precios", "Precios", ["precioDistribuidor", "precioMayoreo", "nuevoPrecio", "precioPublico"]],
+   ["precios", "Precios", ["tipoPrecioVenta", "precioDistribuidor", "precioMayoreo", "nuevoPrecio", "precioPublico"]],
    ["inventario", "Inventario", ["nuevoStock", "stockMinimo", "nuevoProveedor", "nuevaUbicacion", "altaRotacion"]],
    ["unidades", "Unidades", ["unidadVenta", "presentacionCompra", "factorConversion", "basculaDigital"]],
    ["codigos", "Codigos", ["codigosRelacionados"]],
@@ -11167,7 +11482,9 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
 
    grupo[2].forEach(id => {
     const campo = document.getElementById(id);
-    if (campo) panel.appendChild(campo);
+    const wrapper = campo?.closest(".campo-ficha");
+    if (wrapper) panel.appendChild(wrapper);
+    else if (campo) panel.appendChild(campo);
    });
 
    form.appendChild(panel);
@@ -11194,6 +11511,20 @@ function limpiarTextoUI(texto) { return String(texto || '').replace(/[\uFFFD]/g,
  const mostrarBase = window.mostrarFormularioAgregar;
  window.mostrarFormularioAgregar = function() {
   if (typeof mostrarBase === "function") mostrarBase();
+  if (typeof asegurarEtiquetasFichaProducto === "function") {
+   asegurarEtiquetasFichaProducto();
+  }
+  const modalAgregar =
+   document.getElementById("modalAgregar");
+
+  if (modalAgregar && modalAgregar.parentElement !== document.body) {
+   document.body.appendChild(modalAgregar);
+  }
+
+  if (modalAgregar) {
+   modalAgregar.style.display = "flex";
+  }
+
   organizarFormularioProductoTabs();
   mejorarTarjetasTipoProducto();
   actualizarAyudaTipoProducto(document.getElementById("tipoProductoInventario")?.value || "catalogo");

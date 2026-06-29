@@ -4,6 +4,7 @@ const fs = require("fs/promises");
 const path = require("path");
 const crypto = require("crypto");
 const os = require("os");
+const { execFile } = require("child_process");
 const localDb = require("./local-db");
 
 const DEFAULT_API_URL = "https://ferreteria-pos.onrender.com";
@@ -19,6 +20,21 @@ let updateState = {
   currentVersion: app.getVersion(),
   latestVersion: null
 };
+
+function execFileAsync(file, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, options, (error, stdout, stderr) => {
+      if (error) {
+        error.stdout = stdout;
+        error.stderr = stderr;
+        reject(error);
+        return;
+      }
+
+      resolve({ stdout, stderr });
+    });
+  });
+}
 
 function configPath() {
   return path.join(app.getPath("userData"), CONFIG_FILE);
@@ -473,6 +489,164 @@ async function loadActivationWindow() {
   await mainWindow.loadFile(path.join(__dirname, "renderer", "activation.html"));
 }
 
+async function getDefaultPrinterName() {
+  if (!mainWindow || mainWindow.isDestroyed()) return "";
+
+  const printers =
+    await mainWindow.webContents.getPrintersAsync();
+
+  return printers.find(printer => printer.isDefault)?.name || printers[0]?.name || "";
+}
+
+async function openCashDrawerRaw(options = {}) {
+  const printerName =
+    options.printerName || await getDefaultPrinterName();
+
+  if (!printerName) {
+    throw new Error("No hay impresora configurada para abrir el cajon");
+  }
+
+  const bytes = [
+    27, 112, 0, 25, 250,
+    ...(options.cutPaper ? [29, 86, 66, 0] : [])
+  ];
+
+  const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public class RawPrinterHelper {
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Ansi)]
+  public class DOCINFOA {
+    [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
+    [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
+    [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
+  }
+
+  [DllImport("winspool.Drv", EntryPoint="OpenPrinterA", SetLastError=true, CharSet=CharSet.Ansi, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+  public static extern bool OpenPrinter(string szPrinter, out IntPtr hPrinter, IntPtr pd);
+
+  [DllImport("winspool.Drv", EntryPoint="ClosePrinter", SetLastError=true, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+  public static extern bool ClosePrinter(IntPtr hPrinter);
+
+  [DllImport("winspool.Drv", EntryPoint="StartDocPrinterA", SetLastError=true, CharSet=CharSet.Ansi, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+  public static extern bool StartDocPrinter(IntPtr hPrinter, Int32 level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOA di);
+
+  [DllImport("winspool.Drv", EntryPoint="EndDocPrinter", SetLastError=true, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+  public static extern bool EndDocPrinter(IntPtr hPrinter);
+
+  [DllImport("winspool.Drv", EntryPoint="StartPagePrinter", SetLastError=true, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+  public static extern bool StartPagePrinter(IntPtr hPrinter);
+
+  [DllImport("winspool.Drv", EntryPoint="EndPagePrinter", SetLastError=true, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+  public static extern bool EndPagePrinter(IntPtr hPrinter);
+
+  [DllImport("winspool.Drv", EntryPoint="WritePrinter", SetLastError=true, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+  public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, Int32 dwCount, out Int32 dwWritten);
+}
+"@
+
+$printerName = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("${Buffer.from(printerName, "utf8").toString("base64")}"))
+$bytes = [byte[]](${bytes.join(",")})
+$handle = [IntPtr]::Zero
+if (-not [RawPrinterHelper]::OpenPrinter($printerName, [ref]$handle, [IntPtr]::Zero)) { throw "No se pudo abrir la impresora: $printerName" }
+$doc = New-Object RawPrinterHelper+DOCINFOA
+$doc.pDocName = "Nexo POS - cajon"
+$doc.pDataType = "RAW"
+$ptr = [Runtime.InteropServices.Marshal]::AllocCoTaskMem($bytes.Length)
+try {
+  [Runtime.InteropServices.Marshal]::Copy($bytes, 0, $ptr, $bytes.Length)
+  [void][RawPrinterHelper]::StartDocPrinter($handle, 1, $doc)
+  [void][RawPrinterHelper]::StartPagePrinter($handle)
+  $written = 0
+  [void][RawPrinterHelper]::WritePrinter($handle, $ptr, $bytes.Length, [ref]$written)
+  [void][RawPrinterHelper]::EndPagePrinter($handle)
+  [void][RawPrinterHelper]::EndDocPrinter($handle)
+} finally {
+  [Runtime.InteropServices.Marshal]::FreeCoTaskMem($ptr)
+  [void][RawPrinterHelper]::ClosePrinter($handle)
+}
+`;
+
+  await execFileAsync("powershell.exe", [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-EncodedCommand",
+    Buffer.from(script, "utf16le").toString("base64")
+  ], {
+    windowsHide: true,
+    timeout: 10000
+  });
+
+  return {
+    ok: true,
+    printerName
+  };
+}
+
+async function printTicketDesktop(payload = {}) {
+  const html =
+    String(payload.html || "");
+
+  if (!html.trim()) {
+    throw new Error("Ticket vacio");
+  }
+
+  const printerName =
+    payload.printerName || await getDefaultPrinterName();
+
+  const printWindow = new BrowserWindow({
+    show: false,
+    width: 420,
+    height: 720,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+
+  try {
+    await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+    await new Promise((resolve, reject) => {
+      printWindow.webContents.print({
+        silent: Boolean(payload.silent),
+        deviceName: printerName || undefined,
+        copies: Math.max(1, Number(payload.copies || 1) || 1),
+        printBackground: true,
+        margins: {
+          marginType: "none"
+        }
+      }, (success, failureReason) => {
+        if (!success) {
+          reject(new Error(failureReason || "No se pudo imprimir"));
+          return;
+        }
+
+        resolve();
+      });
+    });
+
+    if (payload.openCashDrawer || payload.cutPaper) {
+      await openCashDrawerRaw({
+        printerName,
+        cutPaper: Boolean(payload.cutPaper)
+      });
+    }
+
+    return {
+      ok: true,
+      printerName
+    };
+  } finally {
+    if (!printWindow.isDestroyed()) {
+      printWindow.close();
+    }
+  }
+}
+
 async function createWindow() {
   localDb.initLocalDatabase(app.getPath("userData"));
 
@@ -720,6 +894,33 @@ ipcMain.handle("nexo:structured-cache-get", async (_event, payload) => {
     data
   };
 });
+
+ipcMain.handle("nexo:list-printers", async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return {
+      ok: false,
+      printers: []
+    };
+  }
+
+  const printers =
+    await mainWindow.webContents.getPrintersAsync();
+
+  return {
+    ok: true,
+    printers: printers.map(printer => ({
+      name: printer.name,
+      displayName: printer.displayName || printer.name,
+      description: printer.description || "",
+      status: printer.status || 0,
+      isDefault: Boolean(printer.isDefault)
+    }))
+  };
+});
+
+ipcMain.handle("nexo:print-ticket", async (_event, payload) => printTicketDesktop(payload));
+
+ipcMain.handle("nexo:open-cash-drawer", async (_event, payload = {}) => openCashDrawerRaw(payload));
 
 ipcMain.handle("nexo:reset-activation", async () => {
   const config = await readConfig();

@@ -22,5 +22,8 @@ contextBridge.exposeInMainWorld("nexoDesktop", {
   localDataStats: () => ipcRenderer.invoke("nexo:local-data-stats"),
   saveCache: payload => ipcRenderer.invoke("nexo:cache-save", payload),
   getCache: payload => ipcRenderer.invoke("nexo:cache-get", payload),
-  getStructuredCache: payload => ipcRenderer.invoke("nexo:structured-cache-get", payload)
+  getStructuredCache: payload => ipcRenderer.invoke("nexo:structured-cache-get", payload),
+  listPrinters: () => ipcRenderer.invoke("nexo:list-printers"),
+  printTicket: payload => ipcRenderer.invoke("nexo:print-ticket", payload),
+  openCashDrawer: payload => ipcRenderer.invoke("nexo:open-cash-drawer", payload)
 });

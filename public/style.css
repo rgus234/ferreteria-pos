@@ -8866,6 +8866,407 @@ body.oscuro .cliente-pos-card button strong{
  }
 }
 
+/* Ajuste fino: modal centrado y campos proporcionados */
+#modalAgregar .modal-producto{
+ width:min(1040px,94vw) !important;
+ max-width:min(1040px,94vw) !important;
+ padding:22px 26px !important;
+}
+
+#modalAgregar .tipo-producto-selector,
+#modalAgregar .producto-tipo-ayuda,
+#modalAgregar .producto-tabs,
+#modalAgregar .formulario-producto.ficha-producto,
+#modalAgregar .modal-botones{
+ width:100% !important;
+ max-width:960px !important;
+ margin-left:auto !important;
+ margin-right:auto !important;
+}
+
+#modalAgregar .tipo-producto-selector{
+ grid-template-columns:repeat(4,minmax(190px,1fr)) !important;
+ justify-content:center !important;
+}
+
+#modalAgregar .tipo-producto-card{
+ max-width:230px !important;
+ justify-self:center !important;
+}
+
+#modalAgregar .producto-tipo-ayuda{
+ grid-template-columns:minmax(0,1fr) minmax(180px,auto) !important;
+}
+
+#modalAgregar .producto-tabs{
+ justify-content:center !important;
+}
+
+#modalAgregar .producto-tab-panel{
+ grid-template-columns:repeat(2,minmax(260px,420px)) !important;
+ justify-content:center !important;
+}
+
+#modalAgregar .campo-ficha{
+ width:100% !important;
+ max-width:420px !important;
+ justify-self:stretch !important;
+}
+
+#modalAgregar .campo-ficha:has(#nuevoNombre){
+ grid-column:auto !important;
+ max-width:420px !important;
+}
+
+#modalAgregar .campo-ficha:has(#nuevaDescripcion),
+#modalAgregar .campo-ficha:has(#codigosRelacionados){
+ grid-column:span 2 !important;
+ max-width:852px !important;
+}
+
+#modalAgregar .campo-ficha:has(#tipoPrecioVenta){
+ max-width:420px !important;
+}
+
+#modalAgregar .modal-botones{
+ grid-template-columns:repeat(2,minmax(220px,420px)) !important;
+ justify-content:center !important;
+ gap:12px !important;
+}
+
+#modalAgregar .modal-botones button{
+ min-height:44px !important;
+}
+
+@media(max-width:980px){
+ #modalAgregar .tipo-producto-selector{
+  grid-template-columns:repeat(2,minmax(190px,260px)) !important;
+ }
+
+ #modalAgregar .producto-tab-panel{
+  grid-template-columns:repeat(2,minmax(220px,1fr)) !important;
+ }
+}
+
+@media(max-width:680px){
+ #modalAgregar .tipo-producto-selector,
+ #modalAgregar .producto-tab-panel,
+ #modalAgregar .modal-botones,
+ #modalAgregar .producto-tipo-ayuda{
+  grid-template-columns:1fr !important;
+ }
+
+ #modalAgregar .tipo-producto-card,
+ #modalAgregar .campo-ficha,
+ #modalAgregar .campo-ficha:has(#nuevoNombre),
+ #modalAgregar .campo-ficha:has(#nuevaDescripcion),
+ #modalAgregar .campo-ficha:has(#codigosRelacionados){
+  max-width:none !important;
+  grid-column:auto !important;
+ }
+}
+
+/* Cierre visual final: centra Agregar producto sin estirar campos */
+#modalAgregar .modal-producto{
+ width:min(1040px,94vw) !important;
+ max-width:min(1040px,94vw) !important;
+}
+
+#modalAgregar .tipo-producto-selector,
+#modalAgregar .producto-tipo-ayuda,
+#modalAgregar .producto-tabs,
+#modalAgregar .formulario-producto.ficha-producto,
+#modalAgregar .modal-botones{
+ max-width:960px !important;
+ margin-left:auto !important;
+ margin-right:auto !important;
+}
+
+#modalAgregar .producto-tab-panel{
+ grid-template-columns:repeat(2,minmax(260px,420px)) !important;
+ justify-content:center !important;
+}
+
+#modalAgregar .campo-ficha,
+#modalAgregar .campo-ficha:has(#nuevoNombre),
+#modalAgregar .campo-ficha:has(#tipoPrecioVenta){
+ max-width:420px !important;
+ grid-column:auto !important;
+}
+
+#modalAgregar .campo-ficha:has(#nuevaDescripcion),
+#modalAgregar .campo-ficha:has(#codigosRelacionados){
+ max-width:852px !important;
+ grid-column:span 2 !important;
+}
+
+#modalAgregar .tipo-producto-card{
+ max-width:230px !important;
+ justify-self:center !important;
+}
+
+@media(max-width:680px){
+ #modalAgregar .producto-tab-panel,
+ #modalAgregar .modal-botones{
+  grid-template-columns:1fr !important;
+ }
+
+ #modalAgregar .campo-ficha,
+ #modalAgregar .campo-ficha:has(#nuevoNombre),
+ #modalAgregar .campo-ficha:has(#tipoPrecioVenta),
+ #modalAgregar .campo-ficha:has(#nuevaDescripcion),
+ #modalAgregar .campo-ficha:has(#codigosRelacionados){
+  max-width:none !important;
+  grid-column:auto !important;
+ }
+}
+
+/* Ajuste visual final: cobro con tarjetas Liquid Glass proporcionadas */
+.modal-metodo-pago{
+ padding:22px !important;
+}
+
+.modal-metodo-pago .metodo-pago-card{
+ width:min(820px,94vw) !important;
+ max-width:min(820px,94vw) !important;
+ padding:22px !important;
+ border-radius:24px !important;
+ background:var(--surface,rgba(255,255,255,.78)) !important;
+ border:1px solid var(--line-soft,rgba(15,23,42,.10)) !important;
+ color:var(--text-main,#101828) !important;
+ box-shadow:var(--shadow-soft,0 20px 55px rgba(15,23,42,.12)) !important;
+ backdrop-filter:blur(20px) saturate(1.16) !important;
+ -webkit-backdrop-filter:blur(20px) saturate(1.16) !important;
+}
+
+.modal-metodo-pago .metodo-pago-card .modal-card-header{
+ display:grid !important;
+ grid-template-columns:minmax(0,1fr) auto !important;
+ align-items:start !important;
+ gap:14px !important;
+ margin:0 0 14px !important;
+ padding:0 0 14px !important;
+ border-bottom:1px solid var(--line-soft,rgba(15,23,42,.10)) !important;
+}
+
+.modal-metodo-pago .metodo-pago-card .modal-card-header h3{
+ font-size:34px !important;
+ line-height:1 !important;
+ color:var(--text-main,#101828) !important;
+}
+
+.modal-metodo-pago .metodo-pago-label{
+ margin:0 0 8px !important;
+ color:var(--text-muted,#667085) !important;
+ font-size:12px !important;
+ line-height:1.15 !important;
+ font-weight:950 !important;
+}
+
+.modal-metodo-pago .metodo-pago-selector{
+ display:grid !important;
+ grid-template-columns:42px minmax(0,1fr) 42px !important;
+ align-items:stretch !important;
+ gap:10px !important;
+ margin:0 0 16px !important;
+ padding:10px !important;
+ border-radius:20px !important;
+ background:var(--surface-soft,rgba(255,255,255,.56)) !important;
+ border:1px solid var(--line-soft,rgba(15,23,42,.10)) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.65) !important;
+}
+
+.modal-metodo-pago .metodo-pago-opciones{
+ min-width:0 !important;
+ display:grid !important;
+ grid-template-columns:repeat(5,minmax(108px,1fr)) !important;
+ gap:8px !important;
+ align-items:stretch !important;
+ overflow:visible !important;
+}
+
+.modal-metodo-pago .metodo-pago-opciones button{
+ width:100% !important;
+ min-width:0 !important;
+ min-height:72px !important;
+ height:auto !important;
+ padding:11px 9px !important;
+ border-radius:16px !important;
+ display:flex !important;
+ flex-direction:column !important;
+ align-items:center !important;
+ justify-content:center !important;
+ gap:5px !important;
+ text-align:center !important;
+ white-space:normal !important;
+ overflow:hidden !important;
+ background:var(--surface-strong,rgba(255,255,255,.92)) !important;
+ color:var(--text-main,#101828) !important;
+ border:1px solid var(--line-soft,rgba(15,23,42,.10)) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.72),0 10px 22px rgba(15,23,42,.06) !important;
+ backdrop-filter:blur(14px) saturate(1.1) !important;
+ -webkit-backdrop-filter:blur(14px) saturate(1.1) !important;
+}
+
+.modal-metodo-pago .metodo-pago-opciones button strong{
+ max-width:100% !important;
+ color:var(--text-main,#101828) !important;
+ font-size:14px !important;
+ line-height:1.1 !important;
+ font-weight:950 !important;
+ overflow:hidden !important;
+ text-overflow:ellipsis !important;
+}
+
+.modal-metodo-pago .metodo-pago-opciones button span{
+ width:auto !important;
+ max-width:100% !important;
+ margin:0 !important;
+ padding:3px 7px !important;
+ border-radius:999px !important;
+ background:rgba(15,23,42,.04) !important;
+ color:var(--text-muted,#667085) !important;
+ font-size:10px !important;
+ line-height:1.1 !important;
+ font-weight:900 !important;
+ white-space:normal !important;
+ overflow-wrap:normal !important;
+ box-shadow:none !important;
+}
+
+.modal-metodo-pago .metodo-pago-opciones button.activo{
+ background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(255,255,255,.72)) !important;
+ border-color:color-mix(in srgb,var(--brand-color,#0d6efd) 42%,transparent) !important;
+ box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--brand-color,#0d6efd) 16%,transparent),0 14px 26px rgba(15,23,42,.10) !important;
+ transform:translateY(-1px) !important;
+}
+
+.modal-metodo-pago .metodo-pago-opciones button.activo span{
+ background:#fff !important;
+ color:var(--text-muted,#667085) !important;
+}
+
+.modal-metodo-pago .metodo-flecha,
+.modal-metodo-pago .metodo-pago-cerrar,
+.modal-metodo-pago .modal-actions-row button{
+ min-height:44px !important;
+ border-radius:16px !important;
+ background:var(--surface-strong,rgba(255,255,255,.92)) !important;
+ color:var(--text-main,#101828) !important;
+ border:1px solid var(--line-soft,rgba(15,23,42,.10)) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.72),0 10px 22px rgba(15,23,42,.08) !important;
+ backdrop-filter:blur(14px) saturate(1.1) !important;
+ -webkit-backdrop-filter:blur(14px) saturate(1.1) !important;
+}
+
+.modal-metodo-pago .metodo-flecha{
+ width:42px !important;
+ min-width:42px !important;
+ height:auto !important;
+ padding:0 !important;
+ font-size:16px !important;
+}
+
+.modal-metodo-pago .metodo-pago-cerrar{
+ padding:0 16px !important;
+ color:var(--brand-color,#0d6efd) !important;
+ font-size:13px !important;
+ font-weight:950 !important;
+}
+
+.modal-metodo-pago .modal-actions-row{
+ display:grid !important;
+ grid-template-columns:repeat(2,minmax(180px,1fr)) !important;
+ gap:12px !important;
+ margin-top:4px !important;
+}
+
+.modal-metodo-pago .modal-actions-row button{
+ width:100% !important;
+ min-height:50px !important;
+ padding:0 18px !important;
+ font-size:15px !important;
+ font-weight:950 !important;
+}
+
+.modal-metodo-pago .modal-actions-row .btn-principal{
+ background:linear-gradient(135deg,var(--brand-color,#0d6efd),color-mix(in srgb,var(--brand-color,#0d6efd) 76%,#020617)) !important;
+ color:#fff !important;
+ border-color:color-mix(in srgb,var(--brand-color,#0d6efd) 38%,transparent) !important;
+ box-shadow:0 14px 28px color-mix(in srgb,var(--brand-color,#0d6efd) 20%,transparent) !important;
+}
+
+.modal-metodo-pago .metodo-pago-mixto{
+ grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+ gap:10px !important;
+ margin-bottom:14px !important;
+}
+
+.modal-metodo-pago .metodo-pago-mixto input{
+ min-height:42px !important;
+ border-radius:14px !important;
+ background:var(--surface-soft,rgba(255,255,255,.56)) !important;
+ color:var(--text-main,#101828) !important;
+ border:1px solid var(--line-soft,rgba(15,23,42,.10)) !important;
+}
+
+body.oscuro .modal-metodo-pago .metodo-pago-card,
+body.oscuro .modal-metodo-pago .metodo-pago-selector,
+body.oscuro .modal-metodo-pago .metodo-pago-opciones button,
+body.oscuro .modal-metodo-pago .metodo-flecha,
+body.oscuro .modal-metodo-pago .metodo-pago-cerrar,
+body.oscuro .modal-metodo-pago .modal-actions-row button{
+ color:#f8fafc !important;
+ border-color:rgba(226,232,240,.16) !important;
+}
+
+body.oscuro .modal-metodo-pago .metodo-pago-opciones button strong,
+body.oscuro .modal-metodo-pago .metodo-pago-card .modal-card-header h3{
+ color:#f8fafc !important;
+}
+
+body.oscuro .modal-metodo-pago .metodo-pago-opciones button span{
+ background:rgba(226,232,240,.08) !important;
+ color:#cbd5e1 !important;
+}
+
+body.oscuro .modal-metodo-pago .metodo-pago-opciones button.activo{
+ background:linear-gradient(180deg,rgba(30,41,59,.96),rgba(15,23,42,.72)) !important;
+}
+
+body.oscuro .modal-metodo-pago .metodo-pago-opciones button.activo span{
+ background:rgba(15,23,42,.78) !important;
+ color:#dbeafe !important;
+}
+
+body.oscuro .modal-metodo-pago .metodo-pago-cerrar{
+ color:#93c5fd !important;
+}
+
+@media(max-width:760px){
+ .modal-metodo-pago .metodo-pago-card{
+  width:min(520px,94vw) !important;
+  padding:18px !important;
+ }
+
+ .modal-metodo-pago .metodo-pago-selector{
+  grid-template-columns:38px minmax(0,1fr) 38px !important;
+ }
+
+ .modal-metodo-pago .metodo-pago-opciones{
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+ }
+
+ .modal-metodo-pago .metodo-pago-opciones button{
+  min-height:68px !important;
+ }
+
+ .modal-metodo-pago .modal-actions-row,
+ .modal-metodo-pago .metodo-pago-mixto{
+  grid-template-columns:1fr !important;
+ }
+}
+
 .reportes-filtros{
  display:flex;
  flex-wrap:wrap;
@@ -8963,5 +9364,808 @@ body.oscuro .topbar-help{
 @media(max-width:980px){
  .reportes-grid-secundario{
   grid-template-columns:1fr;
+ }
+}
+
+/* Recuperacion visual Liquid Glass y controles tactiles */
+:root{
+ --surface:rgba(255,255,255,.78);
+ --surface-soft:rgba(255,255,255,.56);
+ --surface-strong:rgba(255,255,255,.92);
+ --line-soft:rgba(15,23,42,.10);
+ --text-main:#101828;
+ --text-muted:#667085;
+ --shadow-soft:0 20px 55px rgba(15,23,42,.12);
+ --glass-radius:18px;
+}
+
+body.oscuro{
+ --surface:rgba(15,23,42,.78);
+ --surface-soft:rgba(30,41,59,.58);
+ --surface-strong:rgba(15,23,42,.92);
+ --line-soft:rgba(226,232,240,.16);
+ --text-main:#f8fafc;
+ --text-muted:#cbd5e1;
+ --shadow-soft:0 22px 60px rgba(0,0,0,.34);
+}
+
+.contenido button:not(.sidebar button),
+.modal-producto button,
+.config-shell button,
+.pos-toolbar button,
+.productos.pos-grid .producto button,
+.item-carrito button,
+.fase4-shell button,
+.finanzas-shell button,
+.caja6-shell button,
+.modal-card button{
+ width:auto;
+ min-height:42px;
+ border-radius:14px;
+ padding:0 14px;
+ margin:0;
+ display:inline-flex;
+ align-items:center;
+ justify-content:center;
+ gap:8px;
+ font-size:14px;
+ line-height:1;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 10px 22px rgba(15,23,42,.08);
+}
+
+.caja,
+.producto,
+.modal-producto,
+.config-panel,
+.config-header,
+.clientes-shell,
+.proveedores-shell,
+.bajo-shell,
+.reportes-shell,
+.reportes-panel,
+.fase4-header,
+.fase4-panel,
+.fase4-card,
+.finanzas-header,
+.finanzas-panel,
+.finanzas-kpis div,
+.caja6-header,
+.caja6-panel,
+.caja6-kpis div,
+.caja6-status,
+.caja6-card,
+.caja7-metodos div{
+ border-radius:var(--glass-radius) !important;
+ border:1px solid var(--line-soft) !important;
+ background:var(--surface) !important;
+ color:var(--text-main) !important;
+ box-shadow:var(--shadow-soft) !important;
+ backdrop-filter:blur(18px) saturate(1.16);
+ -webkit-backdrop-filter:blur(18px) saturate(1.16);
+}
+
+.pos-header,
+.inventario-top,
+.categorias-header,
+.clientes-header,
+.proveedores-header,
+.bajo-header,
+.reportes-header,
+.fase4-header,
+.finanzas-header,
+.caja6-header{
+ border-radius:20px !important;
+}
+
+.pos-toolbar #busqueda,
+#buscarInventario,
+.buscador-con-limpiar input,
+.config-panel input,
+.config-panel select,
+.config-panel textarea,
+#modalAgregar .formulario-producto input,
+#modalAgregar .formulario-producto select,
+.campo-recibido input,
+.resumen-descuento input,
+.resumen-descuento select{
+ min-height:44px !important;
+ border-radius:14px !important;
+ background:var(--surface-soft) !important;
+ color:var(--text-main) !important;
+ border:1px solid var(--line-soft) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.62) !important;
+}
+
+.btn-tool,
+.buscador-con-limpiar button,
+.btn-limpiar,
+.btn-secundario,
+.config-actions-stack button:nth-child(2),
+.modal-botones button:first-child,
+.dialogo-pos-actions .dialogo-cancelar{
+ background:var(--surface-strong) !important;
+ color:var(--text-main) !important;
+ border:1px solid var(--line-soft) !important;
+}
+
+.btn-agregar,
+.btn-cobrar,
+.btn-credito-carrito,
+.btn-primario,
+.config-header button,
+.config-panel button:not(.btn-limpiar):not(.btn-secundario),
+.modal-botones button:last-child,
+.productos.pos-grid .producto button{
+ background:linear-gradient(135deg,var(--brand-color),color-mix(in srgb,var(--brand-color) 76%,#020617)) !important;
+ color:#fff !important;
+ border:1px solid color-mix(in srgb,var(--brand-color) 38%,transparent) !important;
+ box-shadow:0 14px 28px color-mix(in srgb,var(--brand-color) 20%,transparent) !important;
+}
+
+.btn-cobrar{
+ min-height:50px !important;
+ font-size:16px !important;
+}
+
+.btn-limpiar{
+ min-height:44px !important;
+}
+
+.pos-carrito-card{
+ min-height:0 !important;
+ height:calc(100vh - 320px) !important;
+ max-height:calc(100vh - 320px) !important;
+ overflow:hidden;
+}
+
+#carrito{
+ min-height:0;
+ overflow:hidden !important;
+}
+
+.carrito-items{
+ min-height:130px;
+ max-height:none;
+}
+
+.resumen-cobro{
+ border-radius:16px !important;
+ background:var(--surface-strong) !important;
+ border:1px solid var(--line-soft) !important;
+ padding:10px !important;
+ gap:7px !important;
+ flex-shrink:0;
+}
+
+.resumen-cobro .resumen-linea{
+ min-height:24px;
+}
+
+.resumen-cobro .resumen-linea strong{
+ font-size:16px !important;
+}
+
+.resumen-cobro .resumen-linea.total-final strong,
+.resumen-cobro .resumen-linea.total-ferretero strong{
+ font-size:21px !important;
+}
+
+.resumen-cobro .campo-recibido{
+ gap:4px;
+}
+
+.resumen-cobro .campo-recibido input,
+.resumen-cobro .resumen-descuento input,
+.resumen-cobro .resumen-descuento select{
+ min-height:36px !important;
+ padding:7px 10px !important;
+ font-size:14px !important;
+}
+
+.resumen-cobro .btn-cobrar{
+ min-height:44px !important;
+}
+
+.resumen-cobro .btn-credito-carrito,
+.resumen-cobro .btn-limpiar{
+ min-height:38px !important;
+}
+
+.item-carrito,
+.carrito-vacio,
+.reporte-mini-row,
+.reportes-resumen div,
+.clientes-resumen div,
+.proveedores-resumen div,
+.bajo-resumen div{
+ border-radius:16px !important;
+ background:var(--surface-soft) !important;
+ border:1px solid var(--line-soft) !important;
+ color:var(--text-main) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.65) !important;
+}
+
+#modalAgregar.modal-overlay{
+ padding:22px !important;
+ align-items:center !important;
+ justify-content:center !important;
+}
+
+#modalAgregar.modal-overlay[style*="block"],
+#modalAgregar.modal-overlay[style*="flex"]{
+ display:flex !important;
+}
+
+#modalAgregar .modal-producto{
+ width:min(1120px,96vw) !important;
+ max-height:calc(100vh - 44px) !important;
+ min-height:0 !important;
+ overflow:auto !important;
+ padding:24px !important;
+ border-radius:24px !important;
+}
+
+#modalAgregar .modal-header{
+ display:grid !important;
+ grid-template-columns:minmax(0,1fr) auto auto !important;
+ gap:10px !important;
+ align-items:center !important;
+ padding-bottom:16px !important;
+ border-bottom:1px solid var(--line-soft) !important;
+ margin-bottom:16px !important;
+}
+
+#modalAgregar .modal-header h2{
+ min-width:0;
+ overflow:hidden;
+ text-overflow:ellipsis;
+ white-space:nowrap;
+ font-size:26px !important;
+ color:var(--text-main) !important;
+}
+
+#modalAgregar .modal-header button{
+ min-height:40px !important;
+ border-radius:14px !important;
+}
+
+#modalAgregar .tipo-producto-selector{
+ grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+ gap:12px !important;
+}
+
+#modalAgregar .tipo-producto-card{
+ min-height:76px !important;
+ border-radius:18px !important;
+ background:var(--surface-soft) !important;
+ border:1px solid var(--line-soft) !important;
+ color:var(--text-main) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.7) !important;
+}
+
+.producto-tipo-ayuda{
+ display:grid;
+ grid-template-columns:minmax(0,1fr) auto;
+ gap:10px;
+ align-items:center;
+ margin:0 0 14px;
+ padding:12px 14px;
+ border:1px solid var(--line-soft);
+ border-radius:18px;
+ background:var(--surface-soft);
+ color:var(--text-main);
+}
+
+.producto-tipo-ayuda strong,
+.producto-tipo-ayuda span,
+.producto-tipo-ayuda small{
+ display:block;
+}
+
+.producto-tipo-ayuda span,
+.producto-tipo-ayuda small{
+ color:var(--text-muted) !important;
+ font-size:12px;
+ font-weight:800;
+}
+
+.producto-tabs{
+ padding:8px;
+ border:1px solid var(--line-soft);
+ border-radius:18px;
+ background:var(--surface-soft);
+}
+
+.producto-tabs button{
+ min-height:38px !important;
+ border-radius:13px !important;
+ background:transparent !important;
+ color:var(--text-muted) !important;
+ border:1px solid transparent !important;
+ box-shadow:none !important;
+}
+
+.producto-tabs button.activo{
+ background:linear-gradient(135deg,var(--brand-color),color-mix(in srgb,var(--brand-color) 74%,#020617)) !important;
+ color:#fff !important;
+ box-shadow:0 10px 22px color-mix(in srgb,var(--brand-color) 20%,transparent) !important;
+}
+
+.producto-tab-panel{
+ grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+ gap:12px !important;
+}
+
+.config-panel-head{
+ display:flex;
+ justify-content:space-between;
+ gap:14px;
+ align-items:flex-start;
+ margin-bottom:14px;
+}
+
+.config-panel-head h3{
+ margin:0 0 4px;
+}
+
+.config-panel-head span{
+ color:var(--text-muted) !important;
+ font-size:13px;
+ font-weight:800;
+}
+
+.hardware-actions{
+ justify-content:flex-start;
+}
+
+#estadoHardwarePOS[data-estado="exito"]{
+ border-color:rgba(22,163,74,.24);
+ color:#15803d;
+}
+
+#estadoHardwarePOS[data-estado="alerta"]{
+ border-color:rgba(245,158,11,.30);
+ color:#b45309;
+}
+
+@media(max-width:1180px){
+ .productos.pos-grid{
+  grid-template-columns:1fr !important;
+ }
+
+ .pos-carrito-card{
+  position:relative !important;
+  top:auto !important;
+  max-height:none;
+ }
+}
+
+@media(max-width:760px){
+ .contenido{
+  padding:14px !important;
+ }
+
+ #modalAgregar .tipo-producto-selector,
+ .producto-tab-panel,
+ .config-panel-head{
+  grid-template-columns:1fr !important;
+ }
+
+ #modalAgregar .modal-header{
+  grid-template-columns:1fr auto !important;
+ }
+
+ #modalAgregar .modal-header button:first-of-type{
+  grid-column:1 / -1;
+ }
+}
+
+/* Restauracion de consistencia POS: cliente, carrito y alta de producto */
+.cliente-pos-selector{
+ width:auto !important;
+ min-width:188px !important;
+ min-height:58px !important;
+ max-width:260px !important;
+ margin:0 !important;
+ padding:9px 13px !important;
+ display:flex !important;
+ flex-direction:column !important;
+ align-items:flex-start !important;
+ justify-content:center !important;
+ gap:2px !important;
+ border-radius:18px !important;
+ border:1px solid rgba(255,255,255,.78) !important;
+ background:rgba(255,255,255,.72) !important;
+ color:#0f172a !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 12px 28px rgba(15,23,42,.08) !important;
+ backdrop-filter:blur(14px) saturate(1.1) !important;
+ -webkit-backdrop-filter:blur(14px) saturate(1.1) !important;
+ text-align:left !important;
+}
+
+.cliente-pos-selector span,
+.cliente-pos-selector small{
+ color:#64748b !important;
+ font-size:12px !important;
+ line-height:1.1 !important;
+ font-weight:800 !important;
+}
+
+.cliente-pos-selector strong{
+ color:#0f172a !important;
+ font-size:15px !important;
+ line-height:1.15 !important;
+ font-weight:950 !important;
+ max-width:100%;
+ overflow:hidden;
+ text-overflow:ellipsis;
+ white-space:nowrap;
+}
+
+.pos-carrito-card{
+ height:calc(100vh - 300px) !important;
+ max-height:calc(100vh - 300px) !important;
+ padding:16px !important;
+ display:flex !important;
+ flex-direction:column !important;
+ gap:12px !important;
+ overflow:hidden !important;
+}
+
+.pos-carrito-card h2{
+ margin:0 !important;
+ flex:0 0 auto;
+}
+
+#carrito{
+ flex:1 1 auto !important;
+ min-height:0 !important;
+ display:flex !important;
+ flex-direction:column !important;
+ gap:10px !important;
+ overflow:hidden !important;
+}
+
+.carrito-items{
+ flex:1 1 auto !important;
+ min-height:96px !important;
+ overflow:auto !important;
+ display:grid !important;
+ align-content:start !important;
+ gap:10px !important;
+ padding:2px 6px 2px 0 !important;
+}
+
+.item-carrito-ferretero{
+ width:100% !important;
+ min-height:auto !important;
+ display:grid !important;
+ grid-template-columns:minmax(0,1fr) auto !important;
+ align-items:center !important;
+ gap:9px 10px !important;
+ padding:10px !important;
+ border-radius:16px !important;
+ background:var(--surface-soft,rgba(255,255,255,.56)) !important;
+ border:1px solid var(--line-soft,rgba(15,23,42,.10)) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.65) !important;
+}
+
+.item-carrito-ferretero .item-carrito-info{
+ min-width:0 !important;
+ display:flex !important;
+ align-items:center !important;
+ gap:9px !important;
+}
+
+.item-carrito-ferretero .item-icono{
+ width:34px !important;
+ height:34px !important;
+ flex:0 0 34px !important;
+ border-radius:12px !important;
+}
+
+.item-carrito-ferretero .item-carrito-info strong{
+ max-width:220px !important;
+ display:block !important;
+ color:var(--text-main,#101828) !important;
+ font-size:13px !important;
+ line-height:1.15 !important;
+ font-weight:950 !important;
+ overflow:hidden !important;
+ text-overflow:ellipsis !important;
+ white-space:nowrap !important;
+}
+
+.item-carrito-ferretero .item-carrito-info small{
+ display:block !important;
+ margin-top:3px !important;
+ color:var(--text-muted,#667085) !important;
+ font-size:11px !important;
+ line-height:1.15 !important;
+ font-weight:800 !important;
+}
+
+.item-cantidad-ferretera{
+ display:flex !important;
+ align-items:center !important;
+ justify-content:flex-end !important;
+ gap:6px !important;
+}
+
+.item-cantidad-ferretera button{
+ width:30px !important;
+ min-width:30px !important;
+ height:30px !important;
+ min-height:30px !important;
+ padding:0 !important;
+ border-radius:10px !important;
+}
+
+.item-cantidad-ferretera input{
+ width:74px !important;
+ height:32px !important;
+ min-height:32px !important;
+ padding:0 6px !important;
+ border-radius:10px !important;
+ text-align:center !important;
+ font-size:13px !important;
+ font-weight:900 !important;
+}
+
+.item-carrito-meta{
+ grid-column:1 / -1 !important;
+ display:flex !important;
+ justify-content:space-between !important;
+ gap:10px !important;
+ padding-top:2px !important;
+ color:var(--text-muted,#667085) !important;
+ font-size:12px !important;
+ font-weight:900 !important;
+}
+
+.item-carrito-meta strong{
+ color:var(--text-main,#101828) !important;
+ font-size:14px !important;
+}
+
+.resumen-cobro-ferretero{
+ flex:0 0 auto !important;
+ margin-top:0 !important;
+ padding:10px !important;
+ display:grid !important;
+ gap:7px !important;
+ border-radius:16px !important;
+ background:var(--surface-strong,rgba(255,255,255,.92)) !important;
+ border:1px solid var(--line-soft,rgba(15,23,42,.10)) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.65) !important;
+}
+
+.resumen-cobro-ferretero .total-ferretero strong{
+ font-size:20px !important;
+}
+
+#modalAgregar .modal-producto{
+ width:min(1120px,96vw) !important;
+ border-radius:24px !important;
+ background:var(--surface,rgba(255,255,255,.78)) !important;
+ border:1px solid var(--line-soft,rgba(15,23,42,.10)) !important;
+ color:var(--text-main,#101828) !important;
+ box-shadow:var(--shadow-soft,0 20px 55px rgba(15,23,42,.12)) !important;
+}
+
+#modalAgregar .formulario-producto.ficha-producto{
+ display:block !important;
+ margin:0 !important;
+}
+
+#modalAgregar .producto-tab-panel{
+ display:none !important;
+ grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+ gap:12px !important;
+ align-items:end !important;
+}
+
+#modalAgregar .producto-tab-panel.activo{
+ display:grid !important;
+}
+
+#modalAgregar .campo-ficha{
+ min-width:0 !important;
+ display:flex !important;
+ flex-direction:column !important;
+ gap:6px !important;
+ margin:0 !important;
+ color:var(--text-main,#101828) !important;
+}
+
+#modalAgregar .campo-ficha span{
+ display:block !important;
+ color:var(--text-muted,#667085) !important;
+ font-size:12px !important;
+ line-height:1.15 !important;
+ font-weight:900 !important;
+}
+
+#modalAgregar .campo-ficha input,
+#modalAgregar .campo-ficha select{
+ width:100% !important;
+ min-height:44px !important;
+ margin:0 !important;
+ padding:11px 12px !important;
+ border-radius:14px !important;
+ border:1px solid var(--line-soft,rgba(15,23,42,.10)) !important;
+ background:var(--surface-soft,rgba(255,255,255,.56)) !important;
+ color:var(--text-main,#101828) !important;
+ font-size:14px !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.62) !important;
+}
+
+#modalAgregar .campo-ficha:has(#nuevoNombre),
+#modalAgregar .campo-ficha:has(#nuevaDescripcion),
+#modalAgregar .campo-ficha:has(#codigosRelacionados){
+ grid-column:span 2 !important;
+}
+
+#modalAgregar .producto-tabs{
+ display:flex !important;
+ flex-wrap:wrap !important;
+ gap:8px !important;
+ margin:12px 0 !important;
+ padding:8px !important;
+ border-radius:18px !important;
+ background:var(--surface-soft,rgba(255,255,255,.56)) !important;
+ border:1px solid var(--line-soft,rgba(15,23,42,.10)) !important;
+}
+
+#modalAgregar .producto-tabs button{
+ min-height:38px !important;
+ border-radius:13px !important;
+ padding:0 12px !important;
+ background:transparent !important;
+ color:var(--text-muted,#667085) !important;
+ border:1px solid transparent !important;
+ box-shadow:none !important;
+}
+
+#modalAgregar .producto-tabs button.activo{
+ background:linear-gradient(135deg,var(--brand-color,#0d6efd),color-mix(in srgb,var(--brand-color,#0d6efd) 74%,#020617)) !important;
+ color:white !important;
+}
+
+#modalAgregar .tipo-producto-card,
+body.oscuro #modalAgregar .tipo-producto-card{
+ background:var(--surface-soft,rgba(255,255,255,.56)) !important;
+ color:var(--text-main,#101828) !important;
+ border-color:var(--line-soft,rgba(15,23,42,.10)) !important;
+}
+
+#modalAgregar .tipo-producto-card .tipo-producto-copy strong,
+body.oscuro #modalAgregar .tipo-producto-card .tipo-producto-copy strong{
+ color:var(--text-main,#101828) !important;
+}
+
+#modalAgregar .tipo-producto-card .tipo-producto-copy small,
+body.oscuro #modalAgregar .tipo-producto-card .tipo-producto-copy small{
+ color:var(--text-muted,#667085) !important;
+}
+
+body.oscuro .cliente-pos-selector{
+ background:rgba(15,23,42,.76) !important;
+ border-color:rgba(226,232,240,.14) !important;
+ color:#f8fafc !important;
+}
+
+body.oscuro .cliente-pos-selector strong,
+body.oscuro .item-carrito-ferretero .item-carrito-info strong,
+body.oscuro .item-carrito-meta strong{
+ color:#f8fafc !important;
+}
+
+body.oscuro .cliente-pos-selector span,
+body.oscuro .cliente-pos-selector small,
+body.oscuro .item-carrito-ferretero .item-carrito-info small,
+body.oscuro .item-carrito-meta{
+ color:#cbd5e1 !important;
+}
+
+body.oscuro #modalAgregar .campo-ficha input,
+body.oscuro #modalAgregar .campo-ficha select{
+ background:rgba(15,23,42,.76) !important;
+ color:#f8fafc !important;
+ border-color:rgba(226,232,240,.16) !important;
+}
+
+body.oscuro #modalAgregar .campo-ficha span{
+ color:#cbd5e1 !important;
+}
+
+@media(max-width:760px){
+ .cliente-pos-selector{
+  width:100% !important;
+  max-width:none !important;
+ }
+
+ #modalAgregar .producto-tab-panel,
+ #modalAgregar .campo-ficha:has(#nuevoNombre),
+ #modalAgregar .campo-ficha:has(#nuevaDescripcion),
+ #modalAgregar .campo-ficha:has(#codigosRelacionados){
+  grid-template-columns:1fr !important;
+  grid-column:auto !important;
+ }
+}
+
+/* Cierre visual final: cobro consistente en claro y oscuro */
+.modal-metodo-pago .metodo-pago-opciones button,
+body.oscuro .modal-metodo-pago .metodo-pago-opciones button{
+ background:var(--surface-strong,rgba(255,255,255,.92)) !important;
+ color:var(--text-main,#101828) !important;
+ border-color:var(--line-soft,rgba(15,23,42,.10)) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.72),0 10px 22px rgba(15,23,42,.06) !important;
+}
+
+body.oscuro .modal-metodo-pago .metodo-pago-opciones button{
+ background:rgba(15,23,42,.92) !important;
+ color:#f8fafc !important;
+ border-color:rgba(226,232,240,.16) !important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 10px 22px rgba(0,0,0,.18) !important;
+}
+
+body.oscuro .modal-metodo-pago .metodo-pago-opciones button.activo{
+ background:linear-gradient(180deg,rgba(30,41,59,.96),rgba(15,23,42,.72)) !important;
+ border-color:color-mix(in srgb,var(--brand-color,#0d6efd) 42%,transparent) !important;
+}
+
+/* Cierre visual final: centra Agregar producto sin estirar campos */
+#modalAgregar .modal-producto{
+ width:min(1040px,94vw) !important;
+ max-width:min(1040px,94vw) !important;
+}
+
+#modalAgregar .tipo-producto-selector,
+#modalAgregar .producto-tipo-ayuda,
+#modalAgregar .producto-tabs,
+#modalAgregar .formulario-producto.ficha-producto,
+#modalAgregar .modal-botones{
+ max-width:960px !important;
+ margin-left:auto !important;
+ margin-right:auto !important;
+}
+
+#modalAgregar .producto-tab-panel{
+ grid-template-columns:repeat(2,minmax(260px,420px)) !important;
+ justify-content:center !important;
+}
+
+#modalAgregar .campo-ficha,
+#modalAgregar .campo-ficha:has(#nuevoNombre),
+#modalAgregar .campo-ficha:has(#tipoPrecioVenta){
+ max-width:420px !important;
+ grid-column:auto !important;
+}
+
+#modalAgregar .campo-ficha:has(#nuevaDescripcion),
+#modalAgregar .campo-ficha:has(#codigosRelacionados){
+ max-width:852px !important;
+ grid-column:span 2 !important;
+}
+
+#modalAgregar .tipo-producto-card{
+ max-width:230px !important;
+ justify-self:center !important;
+}
+
+@media(max-width:680px){
+ #modalAgregar .producto-tab-panel,
+ #modalAgregar .modal-botones{
+  grid-template-columns:1fr !important;
+ }
+
+ #modalAgregar .campo-ficha,
+ #modalAgregar .campo-ficha:has(#nuevoNombre),
+ #modalAgregar .campo-ficha:has(#tipoPrecioVenta),
+ #modalAgregar .campo-ficha:has(#nuevaDescripcion),
+ #modalAgregar .campo-ficha:has(#codigosRelacionados){
+  max-width:none !important;
+  grid-column:auto !important;
  }
 }

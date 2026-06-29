@@ -35,6 +35,7 @@
         <span>Administra clientes, licencias, ingresos, soporte y versiones desde un solo lugar.</span>
       </div>
       <div class="topbar-actions">
+        <button type="button" onclick="abrirNuevoClienteAdmin()">Nuevo cliente</button>
         <button type="button" onclick="cargarAdminNexo()">Actualizar datos</button>
         <button type="button" class="secondary" onclick="exportarClientesAdmin()">Exportar clientes</button>
       </div>
@@ -84,6 +85,7 @@
             </div>
           </div>
           <div class="quick-actions">
+            <button type="button" onclick="abrirNuevoClienteAdmin()">Crear cliente real</button>
             <button type="button" onclick="mostrarVistaAdmin('clientes')">Actualizar licencias</button>
             <button type="button" onclick="mostrarVistaAdmin('versiones')">Ver versiones</button>
             <button type="button" onclick="window.open('/site/', '_blank')">Abrir pagina comercial</button>
@@ -202,6 +204,79 @@
       <small id="adminLoginError"></small>
     </form>
   </section>
+
+  <div id="modalNuevoClienteAdmin" class="modal-admin" hidden>
+    <form class="modal-card-admin" id="formNuevoClienteAdmin">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Nuevo cliente</p>
+          <h2>Crear cliente y licencia</h2>
+        </div>
+        <button type="button" class="secondary" onclick="cerrarNuevoClienteAdmin()">Cerrar</button>
+      </div>
+      <div class="form-grid">
+        <label>Nombre del negocio
+          <input id="nuevoClienteNombre" required placeholder="Ferreteria Olimpico">
+        </label>
+        <label>Codigo del negocio
+          <input id="nuevoClienteSlug" placeholder="ferreteria-olimpico">
+        </label>
+        <label>Telefono
+          <input id="nuevoClienteTelefono" placeholder="555 000 0000">
+        </label>
+        <label>Correo
+          <input id="nuevoClienteCorreo" type="email" placeholder="cliente@correo.com">
+        </label>
+        <label>Giro
+          <select id="nuevoClienteGiro">
+            <option value="ferreteria">Ferreteria</option>
+            <option value="abarrotes">Abarrotes</option>
+            <option value="general">General</option>
+          </select>
+        </label>
+        <label>Plan
+          <select id="nuevoClientePlan">
+            <option value="ferreteria-base">Ferreteria Base</option>
+            <option value="ferreteria-pro">Ferreteria Pro</option>
+            <option value="ferreteria-premium">Ferreteria Premium</option>
+            <option value="demo">Demo</option>
+          </select>
+        </label>
+        <label>Estado negocio
+          <select id="nuevoClienteEstado">
+            <option value="activo">Activo</option>
+            <option value="prueba">Prueba</option>
+          </select>
+        </label>
+        <label>Estado licencia
+          <select id="nuevoClienteLicEstado">
+            <option value="activa">Activa</option>
+            <option value="vencida">Vencida</option>
+            <option value="suspendida">Suspendida</option>
+          </select>
+        </label>
+        <label>Mensualidad
+          <input id="nuevoClienteMonto" type="number" min="0" step="1" placeholder="399">
+        </label>
+        <label>Vence
+          <input id="nuevoClienteVence" type="date">
+        </label>
+        <label>Dias de gracia
+          <input id="nuevoClienteGracia" type="number" min="0" step="1" value="15">
+        </label>
+        <label>Direccion / Ciudad
+          <input id="nuevoClienteDireccion" placeholder="Ciudad o direccion">
+        </label>
+        <label class="full">Notas internas
+          <textarea id="nuevoClienteNotas" rows="3" placeholder="Contrato, contacto, pendientes..."></textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="secondary" onclick="cerrarNuevoClienteAdmin()">Cancelar</button>
+        <button type="submit">Crear cliente</button>
+      </div>
+    </form>
+  </div>
 
   <div id="modalLicenciaAdmin" class="modal-admin" hidden>
     <form class="modal-card-admin" id="formLicenciaAdmin">

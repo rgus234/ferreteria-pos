@@ -54,6 +54,13 @@ button.ghost {
   border-color: rgba(255,255,255,.18);
 }
 
+button.danger {
+  color: var(--red);
+  border: 1px solid rgba(192,38,38,.18);
+  background: rgba(192,38,38,.08);
+  box-shadow: none;
+}
+
 input,
 select,
 textarea {
@@ -303,7 +310,7 @@ small,
 }
 
 .quick-actions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .client-card {
@@ -315,6 +322,13 @@ small,
   justify-content: space-between;
   gap: 14px;
   align-items: flex-start;
+}
+
+.client-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .client-main small {
@@ -532,6 +546,8 @@ small,
   .topbar-actions,
   .topbar-actions button,
   .panel-head button,
+  .client-actions,
+  .client-actions button,
   .client-main button {
     width: 100%;
   }

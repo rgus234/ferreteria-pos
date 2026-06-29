@@ -468,6 +468,129 @@ app.get("/admin/api/negocios", async (_req, res) => {
     }
 });
 
+app.post("/admin/api/negocios", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const nombre = limpiarTexto(req.body?.nombre, 140);
+        const slugSolicitado = normalizarSlug(req.body?.slug || nombre);
+        const giro = limpiarTexto(req.body?.giro, 80) || "ferreteria";
+        const plan = limpiarTexto(req.body?.plan, 80) || "ferreteria-base";
+        const estado = limpiarTexto(req.body?.estado, 40) || "activo";
+        const licenciaEstado = limpiarTexto(req.body?.licenciaEstado, 40) || "activa";
+        const telefono = limpiarTexto(req.body?.telefono, 40);
+        const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+        const direccion = limpiarTexto(req.body?.direccion, 180);
+        const montoMensual = Number.isFinite(Number(req.body?.montoMensual))
+            ? Number(req.body.montoMensual)
+            : 0;
+        const graciaDias = Number.isFinite(Number(req.body?.graciaDias))
+            ? Math.max(0, Number(req.body.graciaDias))
+            : 15;
+        const fechaVencimiento = req.body?.fechaVencimiento || null;
+        const notas = limpiarTexto(req.body?.notas, 500);
+
+        if (!nombre) {
+            return res.status(400).json({
+                ok: false,
+                error: "El nombre del cliente es requerido"
+            });
+        }
+
+        if (!slugSolicitado) {
+            return res.status(400).json({
+                ok: false,
+                error: "No se pudo generar el codigo del cliente"
+            });
+        }
+
+        await client.query("BEGIN");
+
+        const existe = await client.query(
+            "SELECT 1 FROM public.negocios WHERE slug = $1 LIMIT 1",
+            [slugSolicitado]
+        );
+
+        if (existe.rows.length > 0) {
+            throw new Error("Ya existe un cliente con ese codigo");
+        }
+
+        const negocio = await client.query(
+            `
+            INSERT INTO public.negocios
+                (slug, nombre, giro, estado, plan, telefono, correo, direccion, updated_at)
+            VALUES
+                ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            RETURNING *
+            `,
+            [
+                slugSolicitado,
+                nombre,
+                giro,
+                estado,
+                plan,
+                telefono || null,
+                correo || null,
+                direccion || null
+            ]
+        );
+
+        const licenciaKey = await generarLicenciaUnica(client);
+        const licencia = await client.query(
+            `
+            INSERT INTO public.licencias
+                (negocio_id, license_key, estado, plan, fecha_vencimiento, gracia_dias, monto_mensual, notas, updated_at)
+            VALUES
+                ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            RETURNING *
+            `,
+            [
+                negocio.rows[0].id,
+                licenciaKey,
+                licenciaEstado,
+                plan,
+                fechaVencimiento,
+                graciaDias,
+                montoMensual,
+                notas || "Alta desde panel admin"
+            ]
+        );
+
+        await client.query(
+            `
+            INSERT INTO public.usuarios (negocio_id, usuario, password, rol)
+            VALUES ($1, 'admin', '1234', 'Administrador')
+            ON CONFLICT DO NOTHING
+            `,
+            [negocio.rows[0].id]
+        );
+
+        await client.query("COMMIT");
+
+        res.status(201).json({
+            ok: true,
+            negocio: negocio.rows[0],
+            licencia: {
+                ...licencia.rows[0],
+                modo: calcularModoLicencia(licencia.rows[0])
+            },
+            accesoInicial: {
+                usuario: "admin",
+                password: "1234"
+            }
+        });
+    } catch (error) {
+        await client.query("ROLLBACK");
+
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    } finally {
+        client.release();
+    }
+});
+
 app.get("/admin/api/negocios/:id/dispositivos", async (req, res) => {
     try {
         const negocioId = Number(req.params.id);
@@ -510,6 +633,95 @@ app.get("/admin/api/negocios/:id/dispositivos", async (req, res) => {
             ok: false,
             error: error.message
         });
+    }
+});
+
+async function eliminarDatosNegocioAdmin(client, negocioId) {
+    const tablas = [
+        "pagos_proveedor",
+        "cuentas_pagar",
+        "gastos_operativos",
+        "movimientos_caja",
+        "turnos_caja",
+        "recepciones_mercancia_items",
+        "recepciones_mercancia",
+        "pedidos_proveedor_items",
+        "pedidos_proveedor",
+        "ajustes_inventario",
+        "movimientos_credito",
+        "clientes_credito",
+        "producto_codigos",
+        "productos",
+        "historial_ventas",
+        "ventas",
+        "proveedores",
+        "usuarios",
+        "sync_eventos",
+        "dispositivos",
+        "licencias"
+    ];
+
+    for (const tabla of tablas) {
+        await client.query(
+            `
+            DO $$
+            BEGIN
+                IF to_regclass('public.${tabla}') IS NOT NULL THEN
+                    DELETE FROM public.${tabla}
+                    WHERE negocio_id = ${Number(negocioId)};
+                END IF;
+            END $$
+            `
+        );
+    }
+}
+
+app.delete("/admin/api/negocios/:id", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const negocioId = Number(req.params.id);
+        const confirmarSlug = normalizarSlug(req.body?.confirmarSlug || "");
+
+        if (!Number.isFinite(negocioId) || negocioId <= 0) {
+            return res.status(400).json({
+                ok: false,
+                error: "Cliente invalido"
+            });
+        }
+
+        await client.query("BEGIN");
+
+        const negocio = await client.query(
+            "SELECT id, slug, nombre FROM public.negocios WHERE id = $1 FOR UPDATE",
+            [negocioId]
+        );
+
+        if (negocio.rows.length === 0) {
+            throw new Error("Cliente no encontrado");
+        }
+
+        if (confirmarSlug !== negocio.rows[0].slug) {
+            throw new Error("Para eliminar escribe exactamente el codigo del cliente");
+        }
+
+        await eliminarDatosNegocioAdmin(client, negocioId);
+        await client.query("DELETE FROM public.negocios WHERE id = $1", [negocioId]);
+        await client.query("COMMIT");
+
+        res.json({
+            ok: true,
+            eliminado: negocio.rows[0]
+        });
+    } catch (error) {
+        await client.query("ROLLBACK");
+
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    } finally {
+        client.release();
     }
 });
 

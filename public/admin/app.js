@@ -49,6 +49,16 @@ function escaparHTMLAdmin(valor) {
     .replace(/'/g, "&#039;");
 }
 
+function slugAdmin(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
 function adminKeyActual() {
   return sessionStorage.getItem(ADMIN_KEY_STORAGE) || "";
 }
@@ -181,7 +191,10 @@ function pintarNegociosAdmin() {
             <h3>${escaparHTMLAdmin(negocio.nombre || negocio.slug)}</h3>
             <small>${escaparHTMLAdmin(negocio.slug || "")}</small>
           </div>
-          <button type="button" onclick="abrirLicenciaAdmin(${Number(negocio.id)})">Editar licencia</button>
+          <div class="client-actions">
+            <button type="button" onclick="abrirLicenciaAdmin(${Number(negocio.id)})">Editar licencia</button>
+            <button type="button" class="danger" onclick="eliminarClienteAdmin(${Number(negocio.id)})">Eliminar</button>
+          </div>
         </div>
         <div class="client-pills">
           <em class="pill ${pillClaseAdmin(negocio.negocio_estado)}">${escaparHTMLAdmin(negocio.negocio_estado || "-")}</em>
@@ -254,6 +267,62 @@ async function cargarAdminNexo() {
   pintarVersionesAdmin();
 }
 
+function abrirNuevoClienteAdmin() {
+  const form = document.getElementById("formNuevoClienteAdmin");
+  form?.reset();
+  const vence = document.getElementById("nuevoClienteVence");
+  if (vence) {
+    const fecha = new Date();
+    fecha.setDate(fecha.getDate() + 30);
+    vence.value = fecha.toISOString().slice(0, 10);
+  }
+  document.getElementById("nuevoClienteGracia").value = 15;
+  document.getElementById("modalNuevoClienteAdmin").hidden = false;
+  setTimeout(() => document.getElementById("nuevoClienteNombre")?.focus(), 50);
+}
+
+function cerrarNuevoClienteAdmin() {
+  document.getElementById("modalNuevoClienteAdmin").hidden = true;
+}
+
+async function crearClienteAdmin(event) {
+  event.preventDefault();
+
+  const nombre = document.getElementById("nuevoClienteNombre")?.value.trim() || "";
+  const slugManual = document.getElementById("nuevoClienteSlug")?.value.trim() || "";
+
+  if (!nombre) {
+    alert("Escribe el nombre del cliente.");
+    return;
+  }
+
+  const respuesta = await apiAdmin("/admin/api/negocios", {
+    method: "POST",
+    body: JSON.stringify({
+      nombre,
+      slug: slugManual || slugAdmin(nombre),
+      telefono: document.getElementById("nuevoClienteTelefono")?.value.trim() || "",
+      correo: document.getElementById("nuevoClienteCorreo")?.value.trim() || "",
+      direccion: document.getElementById("nuevoClienteDireccion")?.value.trim() || "",
+      giro: document.getElementById("nuevoClienteGiro")?.value || "ferreteria",
+      plan: document.getElementById("nuevoClientePlan")?.value || "ferreteria-base",
+      estado: document.getElementById("nuevoClienteEstado")?.value || "activo",
+      licenciaEstado: document.getElementById("nuevoClienteLicEstado")?.value || "activa",
+      montoMensual: Number(document.getElementById("nuevoClienteMonto")?.value || 0),
+      fechaVencimiento: document.getElementById("nuevoClienteVence")?.value || null,
+      graciaDias: Number(document.getElementById("nuevoClienteGracia")?.value || 15),
+      notas: document.getElementById("nuevoClienteNotas")?.value.trim() || ""
+    })
+  });
+
+  cerrarNuevoClienteAdmin();
+  await cargarAdminNexo();
+
+  const clave = respuesta?.licencia?.license_key || respuesta?.licencia?.licenseKey || "";
+  alert(`Cliente creado. Licencia: ${clave}\\nAcceso POS inicial: admin / 1234`);
+  mostrarVistaAdmin("clientes");
+}
+
 function abrirLicenciaAdmin(id) {
   const negocio = negociosAdmin.find(item => Number(item.id) === Number(id));
   if (!negocio) return;
@@ -299,6 +368,26 @@ async function guardarLicenciaAdmin(event) {
   await cargarAdminNexo();
 }
 
+async function eliminarClienteAdmin(id) {
+  const negocio = negociosAdmin.find(item => Number(item.id) === Number(id));
+  if (!negocio) return;
+
+  const confirmar = prompt(
+    `Esto eliminara el cliente y sus datos relacionados.\\n\\nPara confirmar escribe exactamente:\\n${negocio.slug}`
+  );
+
+  if (confirmar === null) return;
+
+  await apiAdmin(`/admin/api/negocios/${Number(id)}`, {
+    method: "DELETE",
+    body: JSON.stringify({
+      confirmarSlug: confirmar
+    })
+  });
+
+  await cargarAdminNexo();
+}
+
 function exportarClientesAdmin() {
   const contenido = JSON.stringify(negociosAdmin, null, 2);
   const blob = new Blob([contenido], { type: "application/json" });
@@ -316,6 +405,16 @@ function cerrarSesionAdmin() {
   document.getElementById("adminKeyInput")?.focus();
 }
 
+document.getElementById("nuevoClienteNombre")?.addEventListener("input", event => {
+  const slugInput = document.getElementById("nuevoClienteSlug");
+  if (!slugInput || slugInput.dataset.editado === "true") return;
+  slugInput.value = slugAdmin(event.target.value);
+});
+document.getElementById("nuevoClienteSlug")?.addEventListener("input", event => {
+  event.target.dataset.editado = "true";
+  event.target.value = slugAdmin(event.target.value);
+});
+document.getElementById("formNuevoClienteAdmin")?.addEventListener("submit", crearClienteAdmin);
 document.getElementById("formLicenciaAdmin")?.addEventListener("submit", guardarLicenciaAdmin);
 document.getElementById("filtroClientesAdmin")?.addEventListener("input", pintarNegociosAdmin);
 document.getElementById("filtroEstadoAdmin")?.addEventListener("change", pintarNegociosAdmin);
