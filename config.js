@@ -1,10 +1,11 @@
 const APP_ENV = process.env.APP_ENV || process.env.NODE_ENV || "development";
 const IS_PRODUCTION = APP_ENV === "production";
+const packageJson = require("./package.json");
 
 const config = {
     appName: process.env.APP_NAME || "Nexo POS",
     appEnv: APP_ENV,
-    appVersion: process.env.APP_VERSION || "0.1.0-dev",
+    appVersion: process.env.APP_VERSION || packageJson.version || "1.0.0",
     isProduction: IS_PRODUCTION,
     port: Number(process.env.PORT || 3000),
     databaseUrl: process.env.DATABASE_URL || "",
