@@ -716,9 +716,29 @@ body.oscuro .inventario-resumen strong{
 }
 
 #pantallaInventario .inventario-top{
- grid-template-columns:minmax(240px,1fr) 150px 150px auto auto;
+ grid-template-columns:minmax(240px,1fr) 150px 150px auto auto auto;
  padding-bottom:14px;
  border-bottom:1px solid #eef2f7;
+}
+
+.btn-imprimir-codigos{
+ grid-column:auto;
+ align-self:end;
+ width:auto;
+ min-height:44px;
+ padding:0 16px;
+ white-space:nowrap;
+ border:1px solid #e4e7ec;
+ border-radius:8px;
+ background:#fff;
+ color:#344054;
+ font-weight:800;
+}
+
+body.oscuro .btn-imprimir-codigos{
+ background:#111827;
+ border-color:#243044;
+ color:#f8fafc;
 }
 
 #pantallaInventario .inventario-top::after{

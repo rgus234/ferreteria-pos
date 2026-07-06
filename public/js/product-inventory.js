@@ -2832,6 +2832,94 @@ function cargarTablaInventario() {
  actualizarTextoPaginacionInventario(productos.length, inicio, inicio + productosPagina.length);
  renderResumenInventario();
 }
+
+function imprimirCodigosBarrasInventario() {
+ const productos =
+ productosInventarioFiltrados();
+
+ if (!productos.length) {
+ alertaPOS("No hay productos para imprimir con los filtros actuales.", "Imprimir codigos", "info");
+ return;
+ }
+
+ if (typeof JsBarcode !== "function") {
+ alertaPOS("No se pudo cargar el generador de codigos de barras. Revisa tu conexion a internet e intenta de nuevo.", "Imprimir codigos", "alerta");
+ return;
+ }
+
+ const negocio =
+ configuracionNegocio() || {};
+
+ const etiquetas =
+ productos.map(producto => {
+ const codigo =
+ String(producto.codigo || "").trim();
+
+ if (!codigo) return "";
+
+ const svg =
+ document.createElementNS("http://www.w3.org/2000/svg", "svg");
+
+ try {
+ JsBarcode(svg, codigo, {
+ format: "CODE128",
+ width: 1.6,
+ height: 42,
+ fontSize: 12,
+ margin: 6,
+ displayValue: true
+ });
+ } catch (error) {
+ console.warn("No se pudo generar codigo de barras para", codigo, error);
+ return "";
+ }
+
+ return `
+ <div class="etiqueta-producto">
+ <strong>${escaparPOS(producto.nombre || "")}</strong>
+ <div class="etiqueta-barcode">${svg.outerHTML}</div>
+ <span>${dinero(producto.precio || 0)}</span>
+ </div>
+ `;
+ }).filter(Boolean).join("");
+
+ if (!etiquetas) {
+ alertaPOS("Ninguno de los productos filtrados tiene codigo asignado todavia.", "Imprimir codigos", "info");
+ return;
+ }
+
+ const ventana =
+ window.open("", "_blank", "width=900,height=720");
+
+ ventana.document.write(`
+ <html>
+ <head>
+ <title>Codigos de barras - ${escaparPOS(negocio.nombre || "")}</title>
+ <style>
+ body{font-family:Arial,sans-serif;color:#111827;padding:20px;}
+ h1{font-size:18px;margin:0 0 4px;}
+ p{margin:0 0 18px;color:#475467;font-size:12px;}
+ .hoja-etiquetas{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+ .etiqueta-producto{border:1px solid #d0d5dd;border-radius:8px;padding:10px;text-align:center;page-break-inside:avoid;}
+ .etiqueta-producto strong{display:block;font-size:12px;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+ .etiqueta-barcode svg{max-width:100%;}
+ .etiqueta-producto span{display:block;margin-top:4px;font-size:13px;font-weight:700;}
+ @media print{
+ .etiqueta-producto{break-inside:avoid;}
+ }
+ </style>
+ </head>
+ <body>
+ <h1>${escaparPOS(negocio.nombre || "Codigos de barras")}</h1>
+ <p>${new Date().toLocaleString("es-MX")} - ${productos.length} producto(s)</p>
+ <div class="hoja-etiquetas">${etiquetas}</div>
+ <script>window.print();</script>
+ </body>
+ </html>
+ `);
+ ventana.document.close();
+}
+
 function mostrarFormularioAgregar() {
  asegurarSelectorTipoPrecio();
  asegurarEtiquetasFichaProducto();

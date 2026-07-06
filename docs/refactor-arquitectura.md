@@ -1424,3 +1424,24 @@ Validacion:
 **Actualizacion:** el despliegue automatico de Render que se habia detenido (ver nota de la seccion anterior) ya fue reactivado manualmente por el usuario desde el panel de Render; confirmado antes de subir este cambio.
 
 Se agrego ademas el logo real de "Nexo POS" (`public/nexo-pos-logo.jpg`, el mismo archivo del mockup de referencia) como credito "Con la tecnologia de" al pie del panel izquierdo -- se dejo como credito secundario y no como la marca principal del login, porque la marca principal de esa pantalla sigue siendo la del negocio activo (`loginMarcaNegocio`, dinamica por cliente); reemplazarla por "Nexo POS" habria roto el sistema multi-negocio (cada cliente que use este POS vera su propio nombre/logo, no el de Nexo POS). Como el archivo es un JPG con fondo blanco solido (sin transparencia), se envolvio en una insignia blanca redondeada para que no se vea como un rectangulo desentonando con el fondo oscuro del login.
+
+### Imprimir codigos de barras reales para productos sin codigo de fabrica
+
+El usuario factura muchos articulos de ferreteria (conexiones de PVC, tornilleria) que no traen codigo de barras de fabrica -- hoy el sistema ya generaba un codigo interno de texto (ej. `GR-123456`) para estos casos, pero no habia forma de convertir ese codigo en un codigo de barras fisico imprimible para pegar en el producto o en una hoja de referencia y despues escanearlo con la pistola.
+
+Archivos actualizados:
+
+- `public/index.html` (boton nuevo "Imprimir codigos" en Inventario, libreria JsBarcode via CDN)
+- `public/js/product-inventory.js` (`imprimirCodigosBarrasInventario()`)
+- `public/css/components/inventory.css`
+
+Cambios:
+
+- Se agrego la libreria [JsBarcode](https://github.com/lindell/JsBarcode) via CDN (mismo patron que Chart.js, ya cargado asi en este proyecto) para generar codigos de barras reales en formato CODE128 (soporta letras, numeros y guiones, compatible con cualquier lector USB estandar en modo teclado).
+- Nuevo boton "Imprimir codigos" junto a "+ Agregar producto" en Inventario: genera una hoja imprimible (ventana nueva, mismo patron que `imprimirSugerenciaPedido()` en `low-stock.js`) con el nombre, precio y codigo de barras escaneable de **los productos que esten visibles con los filtros/busqueda activos en ese momento** -- si el usuario busca "codo" antes de imprimir, solo imprime los codos; si no filtra nada, imprime todo el inventario.
+- Los productos sin ningun codigo asignado se omiten de la hoja (no se puede generar un codigo de barras de la nada), y si absolutamente ninguno de los productos filtrados tiene codigo, se avisa con un mensaje en vez de imprimir una hoja vacia.
+
+Validacion:
+
+- `node --check` correcto en `public/js/product-inventory.js`.
+- Probado con productos de prueba **solo en memoria del navegador** (sin escribir nada a la base de datos real, que se acababa de vaciar para el cliente): se interceptó `window.open` para capturar el HTML generado en vez de abrir una ventana real, confirmando que genera exactamente una etiqueta por producto con codigo (2 de 2), que se salta correctamente el producto sin codigo, y que el SVG del codigo de barras se genera con contenido real (no vacio). Se confirmo tambien el mensaje de aviso cuando ningun producto filtrado tiene codigo.
