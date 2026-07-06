@@ -36,7 +36,11 @@ async function iniciarSesion() {
  return;
  }
 
+ if (document.getElementById("recordarSesionLogin")?.checked === false) {
+ localStorage.removeItem(SESION_POS_KEY);
+ } else {
  guardarSesionPersistente(usuario);
+ }
 
  await entrarAlSistemaConUsuario(usuario);
 }

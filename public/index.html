@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="css/layers/responsive-legacy.css?v=refactor-responsive-legacy-20260702-01">
   <link rel="stylesheet" href="css/layers/theme-runtime.css?v=refactor-theme-runtime-20260701-01">
   <link rel="stylesheet" href="css/layers/pos-restoration.css?v=refactor-pos-restoration-20260701-01">
-  <link rel="stylesheet" href="css/components/auth-login.css?v=refactor-auth-login-20260701-01">
+  <link rel="stylesheet" href="css/components/auth-login.css?v=login-redesign-20260707-01">
   <link rel="stylesheet" href="css/components/app-shell.css?v=pos-shell-redesign-20260702-02">
   <link rel="stylesheet" href="css/components/setup-wizard.css?v=refactor-setup-wizard-20260701-01">
   <link rel="stylesheet" href="css/components/config-settings.css?v=usuarios-rol-fix-20260706-01">
@@ -171,19 +171,84 @@
 
  <div class="login-box">
 
+ <div class="login-panel-marca">
+
  <div class="login-brand" id="loginMarcaNegocio"></div>
 
- <h1> Iniciar Sesion</h1>
+ <h2 class="login-eslogan-principal">Tu negocio, bajo control.</h2>
 
- <input id="usuario" placeholder="Usuario">
+ <ul class="login-features" id="loginFeaturesLista">
+ <li>
+ <span class="login-feature-icono azul" data-kpi-icon="cart"></span>
+ <div><strong>Ventas simplificadas</strong><span>Cobra rapido con carrito, credito y ticket.</span></div>
+ </li>
+ <li>
+ <span class="login-feature-icono verde" data-kpi-icon="inventory"></span>
+ <div><strong>Inventario en tiempo real</strong><span>Controla existencias y evita quedarte sin stock.</span></div>
+ </li>
+ <li>
+ <span class="login-feature-icono morado" data-kpi-icon="chart"></span>
+ <div><strong>Creditos y reportes claros</strong><span>Da seguimiento a clientes y ventas del dia.</span></div>
+ </li>
+ </ul>
 
- <input id="password" placeholder="Contrasena" type="password">
+ <div class="login-powered-by">
+ <span>Con la tecnologia de</span>
+ <img src="nexo-pos-logo.jpg" alt="Nexo POS">
+ </div>
 
+ </div>
+
+ <div class="login-panel-form">
+
+ <h1>Iniciar sesion</h1>
+ <p class="login-subtitulo">Ingresa tus credenciales para continuar</p>
+
+ <label class="login-campo">
+ <span>Usuario</span>
+ <div class="login-input-icono">
+ <span class="login-input-icono-svg" data-kpi-icon="user"></span>
+ <input id="usuario" placeholder="Escribe tu usuario" autocomplete="off">
+ </div>
+ </label>
+
+ <label class="login-campo">
+ <span>Contrasena</span>
+ <div class="login-input-icono">
+ <span class="login-input-icono-svg" data-kpi-icon="lock"></span>
+ <input id="password" placeholder="Escribe tu contrasena" type="password" autocomplete="off">
+ <button type="button" class="login-ver-password" onclick="alternarVerPasswordLogin()" data-kpi-icon="eye" aria-label="Mostrar contrasena"></button>
+ </div>
+ </label>
+
+ <label class="login-campo login-campo-negocio">
+ <span>Codigo del negocio</span>
  <input id="negocioLogin" placeholder="Codigo del negocio">
+ </label>
 
- <button onclick="iniciarSesion()">
+ <div class="login-opciones">
+ <label class="login-recordar">
+ <input type="checkbox" id="recordarSesionLogin" checked>
+ <span>Recordar sesion</span>
+ </label>
+ <button type="button" class="login-ayuda-link" onclick="abrirContactoDesarrolladorPOS()">
+ Necesitas ayuda para entrar?
+ </button>
+ </div>
+
+ <button class="login-boton-principal" onclick="iniciarSesion()">
  Entrar
  </button>
+
+ <div class="login-pie">
+ <span class="login-pie-seguro">
+ <span class="login-pie-icono" data-kpi-icon="shield"></span>
+ Conexion segura
+ </span>
+ <span id="loginVersionTexto"></span>
+ </div>
+
+ </div>
 
  </div>
 
@@ -1255,16 +1320,16 @@
 
   <script src="app.js?v=proveedores-redesign-20260705-01"></script>
   <script src="js/offline-sync.js?v=refactor-offline-sync-20260702-01"></script>
-  <script src="js/config-auth.js?v=usuarios-rol-fix-20260706-01"></script>
+  <script src="js/config-auth.js?v=login-redesign-20260707-01"></script>
   <script src="js/supplier-catalog.js?v=refactor-supplier-catalog-js-20260702-01"></script>
   <script src="js/product-inventory.js?v=categorias-redesign-20260703-01"></script>
 <script src="js/pos-sales.js?v=scanner-dedupe-fix-20260706-01"></script>
   <script src="js/sales-history-documents.js?v=nav-fix-20260704-01"></script>
   <script src="js/credit-customers.js?v=creditos-bugfix-20260705-01"></script>
   <script src="js/supplier-catalog-view.js?v=catalogo-bugfix-20260705-01"></script>
-  <script src="js/app-bootstrap.js?v=inicio-redesign-20260706-01"></script>
+  <script src="js/app-bootstrap.js?v=login-redesign-20260707-01"></script>
   <script src="js/reports.js?v=reportes-redesign-20260704-01"></script>
-  <script src="js/shell-topbar.js?v=notif-boton-ver-fix-20260706-01"></script>
+  <script src="js/shell-topbar.js?v=login-redesign-20260707-01"></script>
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/low-stock.js?v=lowstock-bugfix-20260705-01"></script>
 <script src="js/ferretero-flow.js?v=nav-fix-20260704-01"></script>

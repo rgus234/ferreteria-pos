@@ -456,7 +456,44 @@ function inicializarConfiguracionInicial() {
  negocioActivoSlug();
  }
 
+ if (typeof iconoUISVG === "function") {
+ document.querySelectorAll("#login [data-kpi-icon]").forEach(el => {
+ if (!el.innerHTML) el.innerHTML = iconoUISVG(el.dataset.kpiIcon);
+ });
+ }
+
+ const versionLogin =
+ document.getElementById("loginVersionTexto");
+
+ if (versionLogin && typeof VERSION_NEXO_POS !== "undefined") {
+ versionLogin.textContent =
+ `Version ${VERSION_NEXO_POS}`;
+ }
+
  return true;
+}
+
+function alternarVerPasswordLogin() {
+ const campo =
+ document.getElementById("password");
+
+ const boton =
+ document.querySelector(".login-ver-password");
+
+ if (!campo || !boton) return;
+
+ const mostrar =
+ campo.type === "password";
+
+ campo.type =
+ mostrar ? "text" : "password";
+
+ if (typeof iconoUISVG === "function") {
+ boton.innerHTML =
+ iconoUISVG(mostrar ? "eyeOff" : "eye");
+ }
+
+ boton.classList.toggle("activo", mostrar);
 }
 
 function cargarLogoConfiguracion(event) {

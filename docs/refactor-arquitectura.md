@@ -1392,3 +1392,35 @@ Validacion:
 
 - `node --check` correcto en `public/js/pos-sales.js`.
 - Probado en el servidor real (misma base de datos de produccion): dos llamadas seguidas a `procesarCodigoBarrasPos()` con el mismo codigo de un producto real (id 42) dejaron la cantidad en 1 (antes hubiera quedado en 2); una tercera llamada pasados 750ms si sumo una unidad mas, confirmando que un reescaneo deliberado del mismo producto sigue funcionando. Tabla de Inventario probada buscando "ence": el nombre ahora se recorta con "..." dentro de su columna sin invadir Categoria/Precio/Stock/Estado, verificado en modo claro y oscuro.
+
+### Rediseno de la pantalla de inicio de sesion
+
+El usuario mando una imagen de referencia (mockup de dos columnas: marca/beneficios a la izquierda, formulario a la derecha) y pidio que el login se viera asi.
+
+Archivos actualizados:
+
+- `public/index.html`
+- `public/css/components/auth-login.css` (reescrito completo)
+- `public/js/config-auth.js`
+- `public/js/app-bootstrap.js`
+- `public/js/shell-topbar.js` (se agregaron iconos `lock`, `user`, `eye`, `eyeOff` al diccionario `iconoUISVG()`)
+
+Contexto y honestidad de la implementacion (varios elementos de la referencia no tenian una funcion real detras, siguiendo el mismo criterio del resto del refactor):
+
+- El panel izquierdo (marca, eslogan, 3 beneficios con icono) reutiliza los datos reales del negocio (`loginMarcaNegocio`, ya poblado por `aplicarConfiguracionNegocio()`) en vez de un texto generico fijo; el eslogan grande ("Tu negocio, bajo control.") es copy nuevo pero generico y honesto (no promete nada que el sistema no haga).
+- El campo "Codigo del negocio" (real, ya autollenado con `negocioActivoSlug()`) se conservo pero con menor peso visual, en vez de quitarlo, porque sigue siendo necesario para el flujo de login.
+- La referencia traia "¿Olvidaste tu contraseña?" y "Iniciar con codigo" (QR): ninguno de los dos existe en este sistema (no hay recuperacion de contrasena por correo, ni login por QR). En vez de fabricar botones decorativos sin funcion, se reemplazo "¿Olvidaste tu contraseña?" por "¿Necesitas ayuda para entrar?", que abre el modal real de "Contacto del desarrollador" (`abrirContactoDesarrolladorPOS()`, ya usado en la barra superior) -- mismo proposito (ayuda cuando no puedes entrar), pero conectado a algo que si existe. "Iniciar con codigo" se omitio por completo.
+- "Recordar sesion" si se conecto a comportamiento real: antes, `iniciarSesion()` siempre llamaba `guardarSesionPersistente()` sin importar nada; ahora, si el checkbox (marcado por defecto, para no cambiar el comportamiento de nadie que no lo toque) esta desmarcado, se limpia la sesion guardada en vez de persistirla, asi que la proxima vez que se abra el POS pedira iniciar sesion de nuevo.
+- Se agrego un boton de mostrar/ocultar contrasena (`alternarVerPasswordLogin()`), funcional de verdad (cambia el `type` del input entre `password`/`text`).
+- El pie con "Conexion segura" y version usa el numero real de version (`VERSION_NEXO_POS`, la misma constante que ya se muestra en el pie del sidebar).
+
+Bug de CSS encontrado y corregido en el camino: varias reglas globales con `!important` en `theme-runtime.css` (`h1,h2,h3,h4{color:var(--text-main)!important}` y `button{background:var(--brand-color)!important;color:white!important}`, el mismo patron de "selector de etiqueta suelta con !important" ya encontrado varias veces esta sesion) forzaban el titulo "Iniciar sesion" a texto oscuro invisible sobre el fondo oscuro del login, y convertian el boton de mostrar/ocultar contraseña en una pastilla solida azul en vez de un icono discreto. Se agregaron los `!important` correspondientes en las clases nuevas y mas especificas del login para ganarles a esas reglas globales.
+
+Validacion:
+
+- `node --check` correcto en `public/js/config-auth.js`, `public/js/shell-topbar.js`, `public/js/app-bootstrap.js`.
+- Probado en el servidor real: inicio de sesion completo funcional (usuario real "Gustavo", PIN real), boton de mostrar/ocultar contraseña alterna el campo correctamente, "¿Necesitas ayuda para entrar?" abre el modal real de contacto al desarrollador, checkbox "Recordar sesion" probado en ambos estados. Verificado en escritorio (1440px, 920px) y tablet (768px).
+
+**Actualizacion:** el despliegue automatico de Render que se habia detenido (ver nota de la seccion anterior) ya fue reactivado manualmente por el usuario desde el panel de Render; confirmado antes de subir este cambio.
+
+Se agrego ademas el logo real de "Nexo POS" (`public/nexo-pos-logo.jpg`, el mismo archivo del mockup de referencia) como credito "Con la tecnologia de" al pie del panel izquierdo -- se dejo como credito secundario y no como la marca principal del login, porque la marca principal de esa pantalla sigue siendo la del negocio activo (`loginMarcaNegocio`, dinamica por cliente); reemplazarla por "Nexo POS" habria roto el sistema multi-negocio (cada cliente que use este POS vera su propio nombre/logo, no el de Nexo POS). Como el archivo es un JPG con fondo blanco solido (sin transparencia), se envolvio en una insignia blanca redondeada para que no se vea como un rectangulo desentonando con el fondo oscuro del login.
