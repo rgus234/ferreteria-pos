@@ -565,12 +565,26 @@ body.oscuro .credito-resumen-detalle strong {
   table-layout: fixed !important;
 }
 
+.movimientos-cliente .tabla-creditos th:nth-child(1),
+.movimientos-cliente .tabla-creditos td:nth-child(1) { width: 12% !important; }
+.movimientos-cliente .tabla-creditos th:nth-child(2),
+.movimientos-cliente .tabla-creditos td:nth-child(2) { width: 10% !important; }
+.movimientos-cliente .tabla-creditos th:nth-child(3),
+.movimientos-cliente .tabla-creditos td:nth-child(3) { width: 16% !important; }
+.movimientos-cliente .tabla-creditos th:nth-child(4),
+.movimientos-cliente .tabla-creditos td:nth-child(4) { width: 32% !important; }
+.movimientos-cliente .tabla-creditos th:nth-child(5),
+.movimientos-cliente .tabla-creditos td:nth-child(5) { width: 15% !important; }
+.movimientos-cliente .tabla-creditos th:nth-child(6),
+.movimientos-cliente .tabla-creditos td:nth-child(6) { width: 15% !important; }
+
 .tabla-creditos th,
 .tabla-creditos td {
   font-size: 13px !important;
-  line-height: 1.25 !important;
+  line-height: 1.4 !important;
   vertical-align: middle !important;
-  overflow-wrap: anywhere !important;
+  padding: 12px 10px !important;
+  overflow-wrap: break-word !important;
 }
 
 .detalle-venta-card {
@@ -1387,9 +1401,13 @@ body.oscuro .cliente-credito-texto strong{
 
 .credito-detalle-cuerpo{
  display:grid;
- grid-template-columns:1fr minmax(260px,320px);
+ grid-template-columns:1fr;
  gap:16px;
  align-items:start;
+}
+
+.credito-resumen-lateral-card{
+ max-width:420px;
 }
 
 .movimientos-pie{

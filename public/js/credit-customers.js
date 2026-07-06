@@ -219,6 +219,10 @@ async function mostrarCreditos() {
 
  document.getElementById("pantallaCreditos").style.display = "block";
 
+ if (typeof actualizarTopbarContexto === "function") {
+  actualizarTopbarContexto("Creditos", "Cuentas, saldos y pagos de clientes", "creditos");
+ }
+
  creditosTabActual = "todos";
  regresarListaCreditos();
 

@@ -1,3 +1,20 @@
+window.mostrarInventarioBajo = async function() {
+ if (typeof ocultarPantallasPrincipales === "function") ocultarPantallasPrincipales();
+
+ const pantalla = document.getElementById("pantallaInventarioBajo");
+ if (pantalla) pantalla.style.display = "block";
+
+ if (typeof actualizarTopbarContexto === "function") {
+  actualizarTopbarContexto("Inventario bajo", "Alertas y sugerencias para reabastecer", "inventario-bajo");
+ }
+
+ if (!Array.isArray(todosProductos) || !todosProductos.length) {
+  try { await cargarProductos(); } catch (error) { console.warn(error); }
+ }
+
+ renderInventarioBajo();
+};
+
 function productosBajoStock() {
  const texto =
  (document.getElementById("buscarInventarioBajo")?.value || "")

@@ -328,6 +328,21 @@ function camposProveedor(proveedor = {}) {
  ];
 }
 
+window.mostrarCatalogo = async function() {
+ if (typeof ocultarPantallasPrincipales === "function") ocultarPantallasPrincipales();
+
+ asegurarPantallaCatalogo();
+
+ const pantalla = document.getElementById("pantallaCatalogo");
+ if (pantalla) pantalla.style.display = "block";
+
+ if (typeof actualizarTopbarContexto === "function") {
+  actualizarTopbarContexto("Catalogo proveedor", "Carga, mapeo y mantenimiento de listas", "catalogo");
+ }
+
+ renderCatalogosProveedor();
+};
+
 function asegurarPantallaCatalogo() {
  const pantalla =
  document.getElementById("pantallaCatalogo");

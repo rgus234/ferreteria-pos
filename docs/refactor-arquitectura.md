@@ -1311,3 +1311,32 @@ Cambios (solo visuales):
 Validacion:
 
 - Probado en el servidor real recorriendo los 6 tabs (Empresa, Apariencia, Ticket, Hardware, Usuarios, Sistema): todos renderizan correctamente con el estilo plano nuevo, la vista previa del ticket sigue funcionando en vivo, la lista de usuarios reales (Gustavo/Administrador, Caja/Cajero) se ve correcta. Verificado en modo claro y oscuro. No se probo "Guardar cambios" para no alterar la configuracion real del negocio durante la prueba.
+
+### Correccion de 3 bugs reportados en produccion (Catalogo proveedor, Inventario bajo, Creditos)
+
+Reportados por el usuario tras su primera visita real al sitio ya desplegado en Render.
+
+Archivos actualizados:
+
+- `public/js/low-stock.js`
+- `public/js/supplier-catalog-view.js`
+- `public/js/credit-customers.js`
+- `public/css/components/pos-credit-modal.css`
+- `public/index.html` (cache-busting)
+
+**Bug 1 -- "Catalogo proveedor" e "Inventario bajo" no hacian nada al hacer clic.**
+
+Causa real: ambas funciones (`mostrarCatalogo`, `mostrarInventarioBajo`) se llamaban desde el sidebar, `fix-navegacion.js` y `shell-topbar.js` en varios lugares, pero **nunca estuvieron definidas en ningun archivo del proyecto** -- confirmado por busqueda exhaustiva. No es una regresion de esta sesion, es un bug preexistente y silencioso (nunca funcionaron). Se agrego `window.mostrarInventarioBajo` en `low-stock.js` (reutiliza `renderInventarioBajo()`/`productosBajoStock()` ya existentes) y `window.mostrarCatalogo` en `supplier-catalog-view.js` (reutiliza `asegurarPantallaCatalogo()`/`renderCatalogosProveedor()` ya existentes), siguiendo el mismo patron de las demas pantallas: `ocultarPantallasPrincipales()` + mostrar la pantalla + `actualizarTopbarContexto()`.
+
+**Bug 2 -- Al abrir Creditos, la barra superior y el sidebar seguian marcando "Ajustes" (la ultima pantalla abierta antes).**
+
+Causa real: `mostrarCreditos()` en `credit-customers.js` mostraba la pantalla de Creditos pero nunca llamaba a `actualizarTopbarContexto()`, la funcion que actualiza el titulo/subtitulo de la barra superior y el resaltado activo del sidebar (esta ultima internamente vía `actualizarModuloActivoPOS()`). El resto de pantallas de la app si la llaman; a esta se le habia quedado fuera. Se agrego la llamada correspondiente justo despues de mostrar la pantalla.
+
+**Bug 3 -- Tabla de "Movimientos" dentro del detalle de un cliente de credito se veia "muy apretada".**
+
+Causa real, distinta a lo que parecia a simple vista: no era solo un tema de relleno de celdas, sino que `.credito-detalle-cuerpo` repartia el panel de detalle en dos columnas lado a lado (tabla + tarjeta de resumen lateral con fecha de creacion, vencimiento, y botones de accion), y esa tarjeta lateral tomaba hasta 320px fijos de un contenedor que en un monitor tipico de 1440px de ancho solo tenia ~600px disponibles para todo el bloque -- dejando la tabla de 6 columnas en apenas ~220-270px reales de ancho. Se cambio `.credito-detalle-cuerpo` de dos columnas a una sola columna (la tabla ahora usa todo el ancho disponible del panel, ~550-600px, y la tarjeta de resumen queda debajo en vez de al lado), y se agregaron anchos de columna proporcionales (`Fecha 12% / Tipo 10% / Referencia 16% / Concepto 32% / Monto 15% / Saldo 15%`) mas relleno de celda (`12px 10px`) y `overflow-wrap: break-word` (en vez de `anywhere`, que rompia palabras a la mitad) solo dentro de `.movimientos-cliente .tabla-creditos`, sin afectar la tabla de "Pagos" que comparte la misma clase pero tiene solo 4 columnas.
+
+Validacion:
+
+- `node --check` correcto en los 3 archivos JS editados.
+- Probado en el servidor real (misma base de datos de produccion) iniciando sesion, navegando a Catalogo proveedor e Inventario bajo desde el sidebar (ambos abren correctamente y el sidebar/topbar reflejan la pantalla activa), y abriendo Creditos -> cliente real "diego" ($828.00, estado Excedido) para confirmar que el topbar/sidebar ya marcan "Creditos" y que la tabla de Movimientos se ve con columnas legibles y espaciado comodo. Verificado en modo claro y oscuro.
