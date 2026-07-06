@@ -4,58 +4,29 @@
  display:flex;
  justify-content:space-between;
  align-items:flex-start;
- margin-bottom:25px;
-}
-
-.dashboard-header h1{
- font-size:34px;
- margin-bottom:5px;
-}
-
-.dashboard-header p{
- opacity:.7;
-}
-
-#btnModoDashboard{
- width:auto;
- padding:12px 20px;
- border-radius:14px;
- margin-top:10px;
-width:auto;
-}
-body.oscuro #saludoUsuario{
- color:white;
-}
-
-body.oscuro #rolUsuario{
- color:#cbd5e1;
-}
-.dashboard-header{
- display:flex;
- justify-content:space-between;
- align-items:flex-start;
- margin-bottom:25px;
+ margin-bottom:22px;
 }
 
 .usuario-info h1{
- font-size:52px;
- font-weight:700;
- margin-bottom:5px;
+ font-size:32px;
+ font-weight:900;
+ margin-bottom:4px;
+ color:#101828;
 }
 
 .usuario-info p{
- font-size:18px;
- opacity:.8;
+ font-size:14px;
+ color:#667085;
 }
 
-#btnModoDashboard{
- width:auto;
- min-width:180px;
- padding:14px 22px;
+body.oscuro #saludoUsuario,
+body.oscuro .usuario-info h1{
+ color:#f8fafc;
 }
-body.oscuro .usuario-info h1,
+
+body.oscuro #rolUsuario,
 body.oscuro .usuario-info p{
- color:white;
+ color:#cbd5e1;
 }
 
 #pantallaInicio{
@@ -72,43 +43,63 @@ body.oscuro .usuario-info p{
 }
 
 #pantallaInicio .dashboard-top .caja.mini{
+ display:flex;
+ align-items:center;
+ gap:12px;
  min-height:88px;
- padding:13px 15px;
- border:1px solid rgba(15,23,42,.06);
+ padding:14px 16px;
+ border:1px solid rgba(15,23,42,.08);
  border-radius:14px;
- background:linear-gradient(180deg,#ffffff,#f8fafc);
- box-shadow:0 12px 26px rgba(15,23,42,.07);
+ background:#fff;
+}
+
+.kpi-icono{
+ width:42px;
+ height:42px;
+ min-width:42px;
+ display:grid;
+ place-items:center;
+ border-radius:12px;
+}
+
+.kpi-icono .ui-icon{
+ width:20px;
+ height:20px;
+}
+
+.kpi-azul{ background:#e7f0ff; color:#0d6efd; }
+.kpi-naranja{ background:#fff4e5; color:#f59e0b; }
+.kpi-verde{ background:#e7f9ef; color:#16a34a; }
+.kpi-morado{ background:#f2e8ff; color:#7c3aed; }
+
+.kpi-texto{
+ min-width:0;
 }
 
 #pantallaInicio .dashboard-top .caja.mini h3{
- margin:0 0 9px;
+ margin:0 0 4px;
  color:#64748b;
- font-size:13px;
+ font-size:12.5px;
  font-weight:800;
 }
 
 #pantallaInicio .dashboard-top .caja.mini p{
  color:#0f172a;
- font-size:26px;
+ font-size:22px;
  font-weight:900;
  line-height:1;
 }
 
 #pantallaInicio .dashboard-top .caja.mini small{
  display:block;
- margin-top:8px;
+ margin-top:6px;
  color:#64748b;
- font-size:12px;
+ font-size:11.5px;
 }
 
-#pantallaInicio .dashboard-top .caja.mini:nth-child(3) p,
 #ventasHoyMonto,
 .venta-dashboard-item strong{
  color:#16a34a;
-}
-
-#pantallaInicio .dashboard-top .caja.mini:nth-child(4) p{
- color:#0d6efd;
 }
 
 .dashboard-ventas-dia{
@@ -127,10 +118,9 @@ body.oscuro .usuario-info p{
 
 .dashboard-chart-card,
 .dashboard-pulso{
- border:1px solid rgba(15,23,42,.06);
+ border:1px solid rgba(15,23,42,.08);
  border-radius:16px;
  background:#fff;
- box-shadow:0 14px 32px rgba(15,23,42,.08);
 }
 
 .dashboard-chart-card{
@@ -211,10 +201,9 @@ body.oscuro .usuario-info p{
 .dashboard-main-grid > .caja,
 #pantallaInicio > .caja{
  padding:16px;
- border:1px solid rgba(15,23,42,.06);
+ border:1px solid rgba(15,23,42,.08);
  border-radius:16px;
  background:#fff;
- box-shadow:0 14px 32px rgba(15,23,42,.07);
 }
 
 .dashboard-main-grid > .caja + .caja,
@@ -250,25 +239,6 @@ body.oscuro .usuario-info p{
 .dashboard-side-card #inventarioBajo > div:nth-child(n+5),
 .dashboard-side-card #ultimasVentas > div:nth-child(n+5){
  display:none;
-}
-
-#inventarioBajo > div,
-.alerta-dashboard-item{
- display:flex;
- justify-content:space-between;
- align-items:center;
- gap:12px;
- padding:10px 12px;
- border-radius:10px;
- background:#fff7ed;
- color:#9a3412;
- font-size:14px;
-}
-
-#inventarioBajo > div strong,
-.alerta-dashboard-item strong{
- color:#b42318;
- white-space:nowrap;
 }
 
 .resumen-inventario{
@@ -351,12 +321,6 @@ body.oscuro .dashboard-pulso div,
 body.oscuro .resumen-inventario{
  background:#1f2937;
  border-color:#374151;
-}
-
-body.oscuro #inventarioBajo > div,
-body.oscuro .alerta-dashboard-item{
- background:#451a03;
- color:#fed7aa;
 }
 
 body.oscuro .venta-dashboard-item{

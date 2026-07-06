@@ -414,8 +414,8 @@ function renderNotificacionesPOS() {
   }
   const htmlItems = items.map(item => {
   const accion = item.recordatorio
-  ? '<button type="button" onclick="completarRecordatorioPOS(' + JSON.stringify(item.id) + ')">' + iconoUISVG("check") + '</button>'
-  : '<button type="button" onclick="ejecutarAccionNotificacionPOS(decodeURIComponent(' + JSON.stringify(encodeURIComponent(JSON.stringify(item.accion || {}))) + '))">Ver</button>';
+  ? '<button type="button" onclick="completarRecordatorioPOS(&quot;' + String(item.id).replace(/[^a-zA-Z0-9_-]/g, "") + '&quot;)">' + iconoUISVG("check") + '</button>'
+  : '<button type="button" onclick="ejecutarAccionNotificacionPOS(decodeURIComponent(&quot;' + encodeURIComponent(JSON.stringify(item.accion || {})) + '&quot;))">Ver</button>';
   return '<article class="notificacion-item prioridad-' + String(item.prioridad || "media").toLowerCase() + '"><div class="notificacion-icono">' + iconoUISVG(item.icono || "bell") + '</div><div><span>' + item.tipo + '</span><strong>' + item.titulo + '</strong><small>' + item.detalle + '</small></div>' + accion + '</article>';
   }).join("");
   panel.innerHTML = '<div class="notificaciones-head"><div><strong>Centro de notificaciones</strong><span>' + items.length + ' pendientes de operacion</span></div><div class="notificaciones-head-actions"><button type="button" onclick="abrirRecordatorioPOS()">Nuevo</button><button type="button" class="btn-limpiar-notificaciones" onclick="limpiarTodasNotificacionesPOS()">Limpiar</button></div></div><div class="notificaciones-lista">' + htmlItems + '</div>';

@@ -7,9 +7,9 @@
   overflow: auto;
   display: none;
   padding: 12px;
-  border: 1px solid var(--pos-line);
+  border: 1px solid var(--pos-line, rgba(15, 23, 42, .10));
   border-radius: 22px;
-  background: var(--pos-surface-strong);
+  background: var(--pos-surface-strong, #ffffff);
   box-shadow: 0 24px 70px rgba(15, 23, 42, .22);
 }
 
@@ -33,7 +33,7 @@
   gap: 12px;
   align-items: center;
   padding: 6px 6px 12px;
-  border-bottom: 1px solid var(--pos-line);
+  border-bottom: 1px solid var(--pos-line, rgba(15, 23, 42, .10));
 }
 
 .notificaciones-head strong,
@@ -43,13 +43,13 @@
 
 .notificaciones-head strong {
   font-size: 16px;
-  color: var(--pos-text);
+  color: var(--pos-text, #101828);
 }
 
 .notificaciones-head span {
   margin-top: 3px;
   font-size: 12px;
-  color: var(--pos-muted);
+  color: var(--pos-muted, #667085);
   font-weight: 750;
 }
 
@@ -97,7 +97,7 @@
   gap: 10px;
   align-items: center;
   padding: 12px;
-  border: 1px solid var(--pos-line);
+  border: 1px solid var(--pos-line, rgba(15, 23, 42, .10));
   border-radius: 16px;
   background: linear-gradient(135deg, rgba(248, 250, 252, .9), rgba(255, 255, 255, .78));
 }
@@ -141,13 +141,13 @@ body.oscuro .notificacion-icono {
 }
 
 .notificacion-item strong {
-  color: var(--pos-text);
+  color: var(--pos-text, #101828);
   font-size: 14px;
   margin-top: 2px;
 }
 
 .notificacion-item small {
-  color: var(--pos-muted);
+  color: var(--pos-muted, #667085);
   margin-top: 3px;
   font-weight: 750;
 }
@@ -158,7 +158,7 @@ body.oscuro .notificacion-icono {
 
 .notificaciones-empty {
   padding: 26px 10px 18px;
-  color: var(--pos-muted);
+  color: var(--pos-muted, #667085);
   text-align: center;
   font-weight: 800;
 }
@@ -166,9 +166,9 @@ body.oscuro .notificacion-icono {
 .recordatorio-card {
   width: min(520px, 94vw);
   border-radius: 22px;
-  border: 1px solid var(--pos-line);
-  background: var(--pos-surface-strong);
-  color: var(--pos-text);
+  border: 1px solid var(--pos-line, rgba(15, 23, 42, .10));
+  background: var(--pos-surface-strong, #ffffff);
+  color: var(--pos-text, #101828);
   box-shadow: 0 28px 80px rgba(15, 23, 42, .28);
 }
 
@@ -356,9 +356,9 @@ body.oscuro #recordatorioVistaHoraPOS {
 .contacto-dev-card {
   width: min(540px, 94vw);
   border-radius: 22px;
-  border: 1px solid var(--pos-line);
-  background: var(--pos-surface-strong);
-  color: var(--pos-text);
+  border: 1px solid var(--pos-line, rgba(15, 23, 42, .10));
+  background: var(--pos-surface-strong, #ffffff);
+  color: var(--pos-text, #101828);
   box-shadow: 0 28px 80px rgba(15, 23, 42, .28);
 }
 
@@ -507,7 +507,7 @@ body.oscuro #recordatorioVistaHoraPOS {
 }
 
 .contacto-dev-actions span {
-  color: var(--pos-muted);
+  color: var(--pos-muted, #667085);
 }
 
 .contacto-dev-editor,

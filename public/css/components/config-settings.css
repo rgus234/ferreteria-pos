@@ -710,6 +710,24 @@
   height: 18px;
 }
 
+.permisos-rol-select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  font-weight: 700;
+}
+
+.permisos-rol-nota {
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
 .permisos-acciones {
   padding-top: 16px;
   border-top: 1px solid #e5e7eb;
@@ -764,6 +782,16 @@ body.oscuro .usuario-rol-pill {
 body.oscuro .permisos-secciones section {
   background: #0f172a;
   border-color: #243044;
+}
+
+body.oscuro .permisos-rol-select {
+  background: #1f2937;
+  color: #f8fafc;
+  border-color: #374151;
+}
+
+body.oscuro .permisos-rol-nota {
+  color: #94a3b8;
 }
 
 body.oscuro .usuario-card-acciones button {

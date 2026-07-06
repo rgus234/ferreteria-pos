@@ -70,6 +70,12 @@ async function cargarProductos() {
 
 function actualizarDashboard() {
 
+ if (typeof iconoUISVG === "function") {
+ document.querySelectorAll("#pantallaInicio .kpi-icono").forEach(el => {
+ if (!el.innerHTML) el.innerHTML = iconoUISVG(el.dataset.kpiIcon);
+ });
+ }
+
  const total =
  document.getElementById(
  "totalProductos"

@@ -1340,3 +1340,36 @@ Validacion:
 
 - `node --check` correcto en los 3 archivos JS editados.
 - Probado en el servidor real (misma base de datos de produccion) iniciando sesion, navegando a Catalogo proveedor e Inventario bajo desde el sidebar (ambos abren correctamente y el sidebar/topbar reflejan la pantalla activa), y abriendo Creditos -> cliente real "diego" ($828.00, estado Excedido) para confirmar que el topbar/sidebar ya marcan "Creditos" y que la tabla de Movimientos se ve con columnas legibles y espaciado comodo. Verificado en modo claro y oscuro.
+
+### Notificaciones (contraste + boton "Ver"), cambio de rol de usuario, y rediseno de Inicio
+
+Reportados/solicitados por el usuario en una sola sesion de seguimiento tras usar el POS ya desplegado.
+
+Archivos actualizados:
+
+- `public/css/components/support-reminders.css`
+- `public/js/shell-topbar.js`
+- `public/js/config-auth.js`
+- `public/css/components/config-settings.css`
+- `public/index.html`
+- `public/js/app-bootstrap.js`
+- `public/css/components/dashboard.css`
+- `public/css/components/dashboard-alerts.css`
+
+**Notificaciones demasiado transparentes.** Causa real: `--pos-surface-strong`, `--pos-text`, `--pos-muted` y `--pos-line` se usaban sin valor de respaldo en `support-reminders.css` (panel de notificaciones, tarjetas de notificacion, modal de recordatorio, modal de contacto al desarrollador). Esas variables solo tienen valor dentro de `body.oscuro` (definidas en `app-shell.css`); en modo claro no resuelven a nada, asi que el panel quedaba con fondo transparente dejando ver el contenido de atras -- el mismo patron de bug ya encontrado varias veces esta sesion en otras pantallas. Se agrego el valor de respaldo correspondiente (`var(--pos-surface-strong, #ffffff)`, etc.) en cada uso dentro de este archivo.
+
+**Boton "Ver" de una notificacion no hacia nada.** Causa real, mas sutil que un simple mismatch de nombres: en `shell-topbar.js`, `renderNotificacionesPOS()` armaba el atributo `onclick` metiendo el resultado de `JSON.stringify(...)` (que envuelve el string en comillas dobles) dentro de un atributo HTML que tambien usaba comillas dobles (`onclick="..."`). Esas comillas dobles internas rompian el HTML del atributo a la mitad, dejando un `onclick` truncado e invalido -- el boton se veia normal pero al hacer clic no ejecutaba nada (ni se veia el error en consola, porque el atributo simplemente quedaba mal formado desde que se genera el HTML). Se corrigio reemplazando las comillas dobles crudas por la entidad HTML `&quot;` (que el navegador si decodifica correctamente dentro de un atributo sin romperlo), tanto para el boton "Ver" de alertas de inventario/credito como para el boton de check de recordatorios, que tenia exactamente el mismo problema.
+
+**No se podia cambiar el rol de un usuario ya creado (ej. a "Cajero"/Caja).** Causa real: el modal de "Permisos" (`abrirPermisosUsuario`/`guardarPermisosUsuario` en `config-auth.js`) solo editaba los checkboxes de modulos y tarjetas, nunca el campo `usuario.rol` -- el rol solo se definia una vez, al crear el usuario, y no existia ninguna forma de cambiarlo despues. Se agrego una seccion "Rol del usuario" (select Cajero/Inventario/Administrador) al inicio del modal de Permisos: al cambiar el select se recalculan automaticamente los checkboxes segun la plantilla de ese rol (`plantillaUsuario()`, ya existente) para que el administrador pueda revisar/ajustar antes de guardar, y al guardar se actualiza `usuario.rol` junto con sus permisos y widgets. El administrador principal (id `admin`) no puede cambiar su propio rol (se muestra una nota en vez del select), para evitar que el negocio se quede sin ningun usuario Administrador.
+
+**Rediseno de Inicio.** El usuario pidio rediseñar la pantalla de Inicio sin dar una referencia especifica ("usa tu criterio"). Se aplico el mismo lenguaje visual ya usado en el resto del POS esta sesion:
+- Se agregaron insignias de icono a color (mismo patron que las tarjetas de resumen de Creditos/Reportes) a las 4 tarjetas KPI (Productos, Inventario bajo, Ultimas ventas, Credito pendiente), inyectadas via `iconoUISVG()` desde `actualizarDashboard()` en vez de SVG crudo en el HTML.
+- Se quito el boton "Modo claro/oscuro" propio del dashboard (`#btnModoDashboard`), redundante con el toggle de tema que ya existe en la barra superior compartida desde el rediseno del shell; se confirmo que `actualizarBotonModo()` ya maneja su ausencia sin errores.
+- Se aplanaron las sombras pesadas (`box-shadow` de 14-32px) de las tarjetas del dashboard a solo borde, igual que Finanzas/Recepcion/Caja/Ajustes/Pedidos (todas esas pantallas ya usan cero `box-shadow`).
+- Se reescribio `dashboard-alerts.css`: el archivo tenia dos capas de reglas duplicadas literalmente tituladas "liquid glass" y "compactas finales" con `backdrop-filter: blur()` y fondos translucidos; se consolido en un solo set de reglas planas con fondo solido, sin blur, con su propia variante de modo oscuro.
+- Se elimino CSS muerto: `#inventarioBajo > div` / `.alerta-dashboard-item` (una clase que ya no genera ningun `mostrarInventarioBajo`/`actualizarInventarioBajo` desde que las alertas usan `.alerta-inventario-card`).
+
+Validacion:
+
+- `node --check` correcto en `public/js/shell-topbar.js`, `public/js/config-auth.js`, `public/js/app-bootstrap.js`.
+- Probado en el servidor real (misma base de datos de produccion): panel de notificaciones ahora con fondo solido y legible en claro/oscuro; boton "Ver" de la notificacion "Mirilla de seguridad de cromo" (producto real con stock bajo) confirmado -- abre Inventario bajo con el buscador ya filtrado a ese producto exacto; cambio de rol del usuario real "Caja" de Cajero a Administrador y de vuelta a Cajero, confirmando que los permisos/widgets se recalculan y persisten en `localStorage`; usuario "admin" confirmado sin opcion de cambiar de rol. Inicio verificado en escritorio (1440px), tablet (768px) y modo claro/oscuro -- las 4 tarjetas KPI con icono, la grafica de ventas del dia, las alertas de inventario y la lista de ultimas ventas siguen funcionando con datos reales.

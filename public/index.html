@@ -8,14 +8,14 @@
   <link rel="stylesheet" href="css/design-system.css?v=refactor-tokens-20260630-01">
   <link rel="stylesheet" href="style.css?v=nexo-contacto-atajo-20260623-01">
   <link rel="stylesheet" href="css/layers/legacy-layout.css?v=refactor-legacy-layout-20260701-01">
-  <link rel="stylesheet" href="css/components/dashboard.css?v=refactor-dashboard-20260702-01">
+  <link rel="stylesheet" href="css/components/dashboard.css?v=inicio-redesign-20260706-01">
   <link rel="stylesheet" href="css/layers/responsive-legacy.css?v=refactor-responsive-legacy-20260702-01">
   <link rel="stylesheet" href="css/layers/theme-runtime.css?v=refactor-theme-runtime-20260701-01">
   <link rel="stylesheet" href="css/layers/pos-restoration.css?v=refactor-pos-restoration-20260701-01">
   <link rel="stylesheet" href="css/components/auth-login.css?v=refactor-auth-login-20260701-01">
   <link rel="stylesheet" href="css/components/app-shell.css?v=pos-shell-redesign-20260702-02">
   <link rel="stylesheet" href="css/components/setup-wizard.css?v=refactor-setup-wizard-20260701-01">
-  <link rel="stylesheet" href="css/components/config-settings.css?v=config-minimal-20260705-01">
+  <link rel="stylesheet" href="css/components/config-settings.css?v=usuarios-rol-fix-20260706-01">
   <link rel="stylesheet" href="css/components/customers.css?v=refactor-customers-20260701-01">
   <link rel="stylesheet" href="css/components/suppliers.css?v=proveedores-redesign-20260705-01">
   <link rel="stylesheet" href="css/components/inventory.css?v=categorias-redesign-20260703-01">
@@ -29,14 +29,14 @@
   <link rel="stylesheet" href="css/components/system-dialogs.css?v=refactor-dialogs-20260701-01">
   <link rel="stylesheet" href="css/components/operational-tables.css?v=refactor-operational-tables-20260701-01">
   <link rel="stylesheet" href="css/components/pos-operational-polish.css?v=refactor-pos-polish-20260701-01">
-  <link rel="stylesheet" href="css/components/dashboard-alerts.css?v=refactor-dashboard-alerts-20260701-01">
+  <link rel="stylesheet" href="css/components/dashboard-alerts.css?v=inicio-redesign-20260706-01">
   <link rel="stylesheet" href="css/components/pos-cart.css?v=pos-shell-redesign-20260703-01">
   <link rel="stylesheet" href="css/components/pos-product-form.css?v=refactor-product-form-20260630-01">
   <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-bugfix-20260705-02">
   <link rel="stylesheet" href="css/components/sale-documents.css?v=refactor-sale-documents-20260630-01">
   <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=refactor-payment-modal-20260701-01">
   <link rel="stylesheet" href="css/components/low-stock-order.css?v=refactor-low-stock-order-20260701-01">
-  <link rel="stylesheet" href="css/components/support-reminders.css?v=refactor-support-reminders-20260701-01">
+  <link rel="stylesheet" href="css/components/support-reminders.css?v=notif-contraste-fix-20260706-01">
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
@@ -284,7 +284,6 @@
  <div id="pantallaInicio">
  <div class="dashboard-header">
 
-
  <div class="usuario-info">
 
  <h1 id="saludoUsuario">
@@ -297,55 +296,52 @@
 
  </div>
 
- <button id="btnModoDashboard" onclick="cambiarModo()">
- Modo claro
- </button>
-
  </div>
 
  <div class="dashboard-top">
 
  <div class="caja mini">
 
- <h3> Productos</h3>
+ <span class="kpi-icono kpi-azul" data-kpi-icon="inventory"></span>
 
- <p id="totalProductos">
- 0
- </p>
+ <div class="kpi-texto">
+ <h3>Productos</h3>
+ <p id="totalProductos">0</p>
+ </div>
 
  </div>
 
  <div class="caja mini">
 
- <h3> Inventario bajo</h3>
+ <span class="kpi-icono kpi-naranja" data-kpi-icon="alert"></span>
 
- <p id="totalBajos">
- 0
- </p>
+ <div class="kpi-texto">
+ <h3>Inventario bajo</h3>
+ <p id="totalBajos">0</p>
+ </div>
 
  </div>
 
  <div class="caja mini">
 
- <h3> Ultimas ventas</h3>
+ <span class="kpi-icono kpi-verde" data-kpi-icon="receipt"></span>
 
- <p id="conteoVentas">
- 0
- </p>
+ <div class="kpi-texto">
+ <h3>Ultimas ventas</h3>
+ <p id="conteoVentas">0</p>
+ </div>
 
  </div>
 
  <div class="caja mini" onclick="abrirCreditos()" style="cursor:pointer;">
 
- <h3> Credito pendiente</h3>
+ <span class="kpi-icono kpi-morado" data-kpi-icon="credit"></span>
 
- <p id="creditoPendiente">
- $0
- </p>
-
- <small id="clientesDeuda">
- 0 clientes
- </small>
+ <div class="kpi-texto">
+ <h3>Credito pendiente</h3>
+ <p id="creditoPendiente">$0</p>
+ <small id="clientesDeuda">0 clientes</small>
+ </div>
 
  </div>
 
@@ -1259,16 +1255,16 @@
 
   <script src="app.js?v=proveedores-redesign-20260705-01"></script>
   <script src="js/offline-sync.js?v=refactor-offline-sync-20260702-01"></script>
-  <script src="js/config-auth.js?v=nav-fix-20260704-01"></script>
+  <script src="js/config-auth.js?v=usuarios-rol-fix-20260706-01"></script>
   <script src="js/supplier-catalog.js?v=refactor-supplier-catalog-js-20260702-01"></script>
   <script src="js/product-inventory.js?v=categorias-redesign-20260703-01"></script>
 <script src="js/pos-sales.js?v=pos-metrics-fix-20260703-01"></script>
   <script src="js/sales-history-documents.js?v=nav-fix-20260704-01"></script>
   <script src="js/credit-customers.js?v=creditos-bugfix-20260705-01"></script>
   <script src="js/supplier-catalog-view.js?v=catalogo-bugfix-20260705-01"></script>
-  <script src="js/app-bootstrap.js?v=categorias-redesign-20260703-01"></script>
+  <script src="js/app-bootstrap.js?v=inicio-redesign-20260706-01"></script>
   <script src="js/reports.js?v=reportes-redesign-20260704-01"></script>
-  <script src="js/shell-topbar.js?v=caja-redesign-20260704-01"></script>
+  <script src="js/shell-topbar.js?v=notif-boton-ver-fix-20260706-01"></script>
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/low-stock.js?v=lowstock-bugfix-20260705-01"></script>
 <script src="js/ferretero-flow.js?v=nav-fix-20260704-01"></script>

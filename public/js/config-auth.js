@@ -2150,6 +2150,20 @@ function abrirPermisosUsuario(id) {
 
  <div class="permisos-secciones">
  <section>
+ <h3>Rol del usuario</h3>
+ ${
+ usuario.id === "admin"
+ ? `<p class="permisos-rol-nota">El administrador principal no puede cambiar de rol.</p>`
+ : `<select id="permisosRolSeleccionado" class="permisos-rol-select" onchange="actualizarChecksPorRolSeleccionado()">
+ <option value="Cajero" ${usuario.rol === "Cajero" ? "selected" : ""}>Cajero</option>
+ <option value="Inventario" ${usuario.rol === "Inventario" ? "selected" : ""}>Inventario</option>
+ <option value="Administrador" ${usuario.rol === "Administrador" ? "selected" : ""}>Administrador</option>
+ </select>
+ <p class="permisos-rol-nota">Al cambiar el rol se ajustan los modulos y tarjetas de abajo a los valores tipicos de ese rol. Puedes ajustarlos antes de guardar.</p>`
+ }
+ </section>
+
+ <section>
  <h3>Modulos del sistema</h3>
  ${MODULOS_SISTEMA.map(modulo => `
  <label class="permiso-check">
@@ -2190,6 +2204,27 @@ function abrirPermisosUsuario(id) {
  modal.style.display = "flex";
 }
 
+function actualizarChecksPorRolSeleccionado() {
+ const select =
+ document.getElementById("permisosRolSeleccionado");
+
+ const modal =
+ document.getElementById("modalPermisosUsuario");
+
+ if (!select || !modal) return;
+
+ const plantilla =
+ plantillaUsuario(select.value);
+
+ modal
+ .querySelectorAll("input[type='checkbox']")
+ .forEach(input => {
+ input.checked =
+ select.value === "Administrador" ||
+ plantilla[input.dataset.tipo]?.[input.dataset.clave] !== false;
+ });
+}
+
 function cerrarPermisosUsuario() {
  const modal =
  document.getElementById("modalPermisosUsuario");
@@ -2210,6 +2245,13 @@ function guardarPermisosUsuario(id) {
  document.getElementById("modalPermisosUsuario");
 
  if (!usuario || !modal) return;
+
+ const selectRol =
+ document.getElementById("permisosRolSeleccionado");
+
+ if (selectRol && selectRol.value) {
+ usuario.rol = selectRol.value;
+ }
 
  usuario.permisos = permisosTodos(false);
  usuario.widgets = widgetsTodos(false);
