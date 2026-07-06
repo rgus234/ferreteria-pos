@@ -1,0 +1,100 @@
+/* Compatibilidad Liquid Glass compartida. Los estilos de Punto de venta viven en components/pos-cart.css. */
+:root {
+  --surface: rgba(255, 255, 255, .78);
+  --surface-soft: rgba(255, 255, 255, .56);
+  --surface-strong: rgba(255, 255, 255, .92);
+  --line-soft: rgba(15, 23, 42, .10);
+  --text-main: #101828;
+  --text-muted: #667085;
+  --shadow-soft: 0 20px 55px rgba(15, 23, 42, .12);
+  --glass-radius: 18px;
+}
+
+body.oscuro {
+  --surface: rgba(15, 23, 42, .78);
+  --surface-soft: rgba(30, 41, 59, .58);
+  --surface-strong: rgba(15, 23, 42, .92);
+  --line-soft: rgba(226, 232, 240, .16);
+  --text-main: #f8fafc;
+  --text-muted: #cbd5e1;
+  --shadow-soft: 0 22px 60px rgba(0, 0, 0, .34);
+}
+
+.topbar-help {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(37, 99, 235, .18);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text-main);
+  font-weight: 950;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .10);
+  cursor: pointer;
+}
+
+.topbar-help:hover {
+  background: var(--surface-strong);
+  transform: translateY(-1px);
+}
+
+.cliente-pos-card {
+  width: min(760px, 94vw);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+.cliente-pos-resumen-grid,
+.cliente-pos-lista,
+.cliente-pos-chips {
+  display: grid;
+  gap: 10px;
+}
+
+.cliente-pos-resumen-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.cliente-pos-lista {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.cliente-pos-card button {
+  text-align: left;
+  border: 1px solid var(--line-soft);
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 12px;
+  color: var(--text-main);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+
+.cliente-pos-card button.activo {
+  border-color: color-mix(in srgb, var(--brand-color, #0d6efd) 38%, transparent);
+  background: color-mix(in srgb, var(--brand-color, #0d6efd) 12%, var(--surface-strong));
+}
+
+.cliente-pos-card button strong,
+.cliente-pos-card button span {
+  display: block;
+}
+
+.cliente-pos-card button span {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.cliente-pos-bloque h4 {
+  margin: 14px 0 8px;
+}
+
+.cliente-pos-chips {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+@media (max-width: 760px) {
+  .cliente-pos-resumen-grid {
+    grid-template-columns: 1fr;
+  }
+}

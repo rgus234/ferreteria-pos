@@ -1,0 +1,1313 @@
+# Refactor arquitectonico local
+
+Este documento guia la refactorizacion local del POS. La regla principal es no cambiar comportamiento ni publicar a produccion hasta que el resultado este aprobado.
+
+## Objetivo
+
+Reducir deuda tecnica acumulada sin perder:
+
+- Estilo Liquid Glass.
+- Modo claro y oscuro.
+- Flujo actual de ventas.
+- Inventario, historial, caja, tickets y configuracion.
+
+## Estado inicial medido
+
+- `public/style.css`: 12,836 lineas, 2,405 usos de `!important`, 228 selectores duplicados.
+- `public/app.js`: 12,908 lineas, 409 funciones, 115 `onclick` en strings HTML.
+- `server.js`: 4,436 lineas, 45 rutas HTTP y migraciones mezcladas con logica de negocio.
+- `public/index.html`: 1,078 lineas, 64 botones, 65 `onclick` inline.
+
+## Reglas de trabajo
+
+1. Crear respaldo antes de cada fase.
+2. Cambios pequenos y verificables.
+3. No eliminar funciones sin buscar referencias.
+4. No reescribir modulos completos de golpe.
+5. Consolidar primero tokens y componentes visuales.
+6. Probar despues de cada fase con `npm run check` y revision local.
+
+## Fases aprobables
+
+1. Seguridad y respaldo.
+2. Tokens de sistema de diseno.
+3. Limpieza CSS por componente.
+4. Componentes UI reutilizables.
+5. Modales y formularios.
+6. JavaScript compartido.
+7. Punto de venta.
+8. Inventario y Agregar producto.
+9. Historial, tickets y comprobantes.
+10. Caja, finanzas y reportes.
+11. Backend por dominios.
+12. Migraciones y base de datos.
+
+## Contrato visual
+
+Todo componente nuevo o migrado debe usar los tokens `--nexo-*` y conservar equivalentes para las variables historicas:
+
+- `--surface`
+- `--surface-soft`
+- `--surface-strong`
+- `--line-soft`
+- `--text-main`
+- `--text-muted`
+- `--shadow-soft`
+
+Esto permite migrar sin romper los selectores antiguos.
+
+## Componentes migrados
+
+### Punto de venta: carrito y productos destacados
+
+Archivo nuevo:
+
+- `public/css/components/pos-cart.css`
+
+Objetivo:
+
+- Sacar del final de `public/style.css` el bloque de cierre del carrito.
+- Centralizar reglas de carrito, cobro, productos destacados y ultimas ventas.
+- Mantener compatibilidad con el CSS historico usando carga posterior y tokens `--nexo-*`.
+
+Resultado de fase:
+
+- `public/style.css` bajo de 12,836 a 10,795 lineas.
+- Los usos de `!important` en `public/style.css` bajaron de 2,405 a 1,486.
+- El componente nuevo conserva reglas de compatibilidad mientras se termina de retirar CSS historico.
+
+Regla:
+
+- No agregar nuevos arreglos del carrito al final de `style.css`.
+- Cualquier ajuste visual del carrito debe ir en `public/css/components/pos-cart.css`.
+
+### Inventario: modal Agregar producto
+
+Archivo nuevo:
+
+- `public/css/components/pos-product-form.css`
+
+Objetivo:
+
+- Centralizar el estilo del modal Agregar producto.
+- Mantener el formulario por pestanas, tarjetas de tipo de producto y campos proporcionados.
+- Evitar nuevos cierres visuales de `#modalAgregar` al final de `style.css`.
+
+Regla:
+
+- Cualquier ajuste visual del modal Agregar producto debe ir en `public/css/components/pos-product-form.css`.
+
+Resultado de limpieza:
+
+- Respaldo: `backups/before-remove-add-product-legacy-css-20260630-222038`.
+- `public/style.css` bajo de 10,795 a 9,907 lineas.
+- Los usos de `!important` en `public/style.css` bajaron de 1,486 a 1,252.
+- `public/style.css` ya no contiene reglas especificas de `#modalAgregar`, `.producto-tab-panel`, `.campo-ficha`, `.ficha-producto` ni `.producto-tipo-ayuda`.
+- El componente `public/css/components/pos-product-form.css` queda como unica fuente visual del modal Agregar producto.
+- Validado localmente con `npm run check` y HTTP 200 en `/health`, la app y los CSS migrados.
+
+## Siguiente fase detectada: modales
+
+Hallazgos:
+
+- `public/style.css` todavia concentra reglas base de `.modal-overlay`, `.modal-producto`, `.modal-header` y `.modal-botones`.
+- `#modalCreditos .modal-producto` aparece en tres bloques separados.
+- Los modales de venta completada, detalle y nota tienen estilos propios cerca del final del archivo.
+- Las reglas globales de botones usan `.modal-producto button` y `.modal-botones`, por lo que se deben separar con cuidado para no cambiar todos los botones de golpe.
+
+Propuesta segura:
+
+1. Crear `public/css/components/modals.css` solo con tokens base de overlay, tarjeta, encabezado y acciones.
+2. Crear `public/css/components/pos-credit-modal.css` para `#modalCreditos`.
+3. Crear `public/css/components/sale-documents.css` para venta completada, detalle y nota.
+4. Quitar del CSS monolitico solo los bloques migrados y validar cada modal localmente.
+
+### Modales: creditos y comprobantes
+
+Archivos nuevos:
+
+- `public/css/components/pos-credit-modal.css`
+- `public/css/components/sale-documents.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-modals-20260630-230113`.
+- `public/style.css` bajo de 9,907 a 8,884 lineas.
+- Los usos de `!important` en `public/style.css` bajaron de 1,252 a 980.
+- Se migraron los bloques de `#modalCreditos`, clientes con credito, movimientos de cuenta, venta completada, detalle de venta, nota de venta e historial de comprobantes.
+- `public/style.css` conserva solo menciones globales de tema/tablas que afectan varios modulos; no debe recibir nuevos ajustes puntuales de creditos o comprobantes.
+
+Regla:
+
+- Ajustes visuales de creditos van en `public/css/components/pos-credit-modal.css`.
+- Ajustes visuales de tickets, detalle, nota y venta completada van en `public/css/components/sale-documents.css`.
+
+Validacion:
+
+- `npm run check` correcto.
+- HTTP 200 en `/health`, la app local, `pos-credit-modal.css` y `sale-documents.css`.
+
+### Modal de cobro / metodo de pago
+
+Archivo nuevo:
+
+- `public/css/components/pos-payment-modal.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-payment-modal-20260701-070821`.
+- `public/style.css` bajo de 8,884 a 8,334 lineas.
+- Los usos de `!important` en `public/style.css` bajaron de 980 a 807.
+- Se migraron las tres capas historicas del modal de metodo de pago: base, selector sin tarjetas azules y cierre visual Liquid Glass.
+- `public/style.css` ya no contiene reglas especificas de `.modal-metodo-pago`, `.metodo-pago-*` ni `.metodo-flecha`.
+
+Regla:
+
+- Ajustes visuales del cobro y selector de metodo de pago van en `public/css/components/pos-payment-modal.css`.
+- No mezclar estos ajustes con inventario bajo aunque compartan estructura de modal.
+
+Validacion:
+
+- `npm run check` correcto.
+- HTTP 200 en `/health`, la app local y `pos-payment-modal.css`.
+
+### Inventario bajo y sugerencia de pedido
+
+Archivo nuevo:
+
+- `public/css/components/low-stock-order.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-low-stock-modal-20260701-072147`.
+- `public/style.css` bajo de 8,334 a 8,069 lineas.
+- Los usos de `!important` en `public/style.css` bajaron de 807 a 794.
+- Se migraron las reglas de `modal-inventario-bajo`, `inventario-bajo-card`, detalle de inventario bajo, `modalSugerenciaPedido`, `modal-pedido-card`, `pedido-lista`, `pedido-item`, KPIs, tabla de pedido y prioridades.
+- `public/style.css` ya no contiene reglas especificas de pedido o modal de inventario bajo.
+
+Regla:
+
+- Ajustes visuales del flujo inventario bajo / sugerencia de pedido van en `public/css/components/low-stock-order.css`.
+- Las reglas de productos por categoria se mantienen fuera de este componente porque pertenecen al modulo de categorias.
+
+Validacion:
+
+- `npm run check` correcto.
+- HTTP 200 en `/health`, la app local y `low-stock-order.css`.
+
+### Contacto desarrollador, recordatorios y notificaciones
+
+Archivo nuevo:
+
+- `public/css/components/support-reminders.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-contact-reminders-20260701-072831`.
+- `public/style.css` bajo de 8,069 a 7,523 lineas.
+- Los usos de `!important` en `public/style.css` bajaron de 794 a 632.
+- Se migraron las reglas de panel de notificaciones, items de notificacion, modal de recordatorio, captura de fecha/hora y modal de contacto desarrollador.
+- `public/style.css` conserva solo contraste del shell principal y reglas globales compartidas.
+
+Regla:
+
+- Ajustes visuales de notificaciones, recordatorios y contacto desarrollador van en `public/css/components/support-reminders.css`.
+- No volver a agregar reglas puntuales de `#modalRecordatorioPOS` ni `#modalContactoDesarrolladorPOS` en `public/style.css`.
+
+Validacion:
+
+- `npm run check` correcto.
+- Balance de llaves correcto en `public/style.css` y `public/css/components/support-reminders.css`.
+- HTTP 200 en `/health` y `support-reminders.css`.
+- Navegador local carga la app con `support-reminders.css` activo y sin errores de consola.
+
+### Shell principal, sidebar y topbar
+
+Archivo nuevo:
+
+- `public/css/components/app-shell.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-app-shell-css-20260701-continue`.
+- `public/style.css` bajo de 7,523 a 6,806 lineas.
+- Los usos de `!important` en `public/style.css` bajaron de 632 a 455.
+- Se migraron layout principal, sidebar, marca del negocio, botones del menu, topbar, badge de notificaciones, menu Nexo POS y comportamiento de scroll fijo en escritorio.
+- `public/style.css` conserva reglas antiguas no extraidas que aun afectan modulos especificos; el shell visual final vive en `app-shell.css`.
+
+Regla:
+
+- Ajustes visuales de sidebar, topbar, layout base, marca del negocio y menu Nexo POS van en `public/css/components/app-shell.css`.
+- No agregar nuevos cierres visuales del shell en `public/style.css`.
+
+Validacion:
+
+- `npm run check` correcto.
+- Balance de llaves correcto en `public/style.css` y `public/css/components/app-shell.css`.
+- HTTP 200 en la app local y `app-shell.css`.
+- Navegador local carga `app-shell.css`, conserva layout/sidebar/topbar y no reporta errores de consola.
+
+### Configuracion inicial / setup wizard
+
+Archivo nuevo:
+
+- `public/css/components/setup-wizard.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-setup-wizard-css-20260701`.
+- `public/style.css` bajo de 6,806 a 6,510 lineas.
+- Se migraron la pantalla `#configuracionInicial`, panel de marca, pasos del asistente, preview de logo, grid de campos, acciones y responsive del setup inicial.
+- El archivo nuevo no usa `!important`; queda cargado despues del CSS base para conservar prioridad sobre reglas globales antiguas.
+
+Regla:
+
+- Ajustes visuales de la configuracion inicial van en `public/css/components/setup-wizard.css`.
+- No mezclar el setup inicial con la pantalla de Configuracion interna del POS; esa sera una fase separada.
+
+Validacion:
+
+- `npm run check` correcto.
+- Balance de llaves correcto en `public/style.css` y `public/css/components/setup-wizard.css`.
+- HTTP 200 en `setup-wizard.css`.
+- Navegador local carga `setup-wizard.css`, detecta `#configuracionInicial` y no reporta errores de consola.
+
+### Configuracion interna, tickets, hardware y usuarios
+
+Archivo nuevo:
+
+- `public/css/components/config-settings.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-config-settings-css-20260701`.
+- `public/style.css` bajo de 6,510 a 5,633 lineas.
+- Se migraron estilos de `#pantallaConfiguracion`, `config-shell`, header, paneles, tabs, formularios, preview de ticket, opciones 58/80 mm, hardware, estado de impresora, zona de peligro, usuarios y permisos.
+- `public/style.css` ya no contiene reglas especificas fuertes de configuracion; las menciones restantes de configuracion viven en `config-settings.css`.
+
+Regla:
+
+- Ajustes visuales de Configuracion interna, Ticket, Hardware y Usuarios van en `public/css/components/config-settings.css`.
+- No mezclar la Configuracion interna con `setup-wizard.css`, que solo cubre la configuracion inicial.
+
+Validacion:
+
+- `npm run check` correcto.
+- Balance de llaves correcto en `public/style.css` y `public/css/components/config-settings.css`.
+- HTTP 200 en `config-settings.css`.
+- Navegador local carga `config-settings.css`, detecta la pantalla de configuracion y no reporta errores de consola.
+
+### Recepcion de mercancia
+
+Archivo nuevo:
+
+- `public/css/components/receiving.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-recepcion-css-20260701`.
+- `public/style.css` bajo de 5,633 a 5,333 lineas.
+- Se migraron las reglas de Recepcion inteligente de mercancia: shell, header, carga de documentos, formulario, ayuda, KPIs, resumen del documento, preview, tabla, estados y responsive.
+- `public/style.css` ya no contiene reglas especificas de `recepcion-*` ni `btn-recepcion-confirmar`.
+
+Regla:
+
+- Ajustes visuales de Recepcion de mercancia van en `public/css/components/receiving.css`.
+- La logica de Recepcion permanece en `public/app.js`; esta fase solo separa estilos.
+
+Validacion:
+
+- `server.js` y `public/app.js` pasan `node --check`.
+- Balance de llaves correcto en `public/style.css`, `public/css/components/receiving.css` y `public/css/components/config-settings.css`.
+- HTTP 200 en la app local, `/health` y `receiving.css` usando el servidor local con `.env`.
+- La verificacion visual en navegador interno no se pudo completar por un cierre del controlador del navegador del entorno; no hubo errores de sintaxis ni de servidor.
+
+### Dialogos del sistema
+
+Archivo nuevo:
+
+- `public/css/components/system-dialogs.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-system-dialogs-css-20260701`.
+- `public/style.css` bajo de 5,333 a 5,207 lineas.
+- Se migraron los estilos de `alertaPOS` / dialogos del sistema: overlay, tarjeta, iconos por estado, cuerpo, input, acciones y modo oscuro.
+- Se movio tambien la regla final de `dialogo-cancelar` que estaba agrupada con botones secundarios para conservar la prioridad visual.
+- `public/style.css` ya no contiene selectores `dialogo-pos-*`.
+
+Regla:
+
+- Ajustes visuales de alertas, confirmaciones y prompts internos van en `public/css/components/system-dialogs.css`.
+- La logica de dialogos sigue en `public/app.js`; no cambiarla durante fases de CSS salvo que haya un bug funcional claro.
+
+Validacion:
+
+- `server.js` y `public/app.js` pasan `node --check`.
+- Balance de llaves correcto en `public/style.css`, `public/css/components/system-dialogs.css` y `public/css/components/receiving.css`.
+- HTTP 200 en `/health` y `system-dialogs.css`.
+
+Nota para siguiente fase:
+
+- `Catalogo proveedor` todavia no se debe mover de golpe: tiene base, diagnostico/importador y overrides de tema repartidos en distintas zonas de `public/style.css`. La extraccion debe hacerse con CSS final efectivo para no alterar el estilo Liquid Glass.
+
+### Catalogo proveedor
+
+Archivo nuevo:
+
+- `public/css/components/supplier-catalog.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-supplier-catalog-css-20260701`.
+- `public/style.css` bajo de 5,207 a 4,843 lineas.
+- Se migraron los bloques propios de Catalogo proveedor: pantalla, shell, header, boton subir, resumen, grid, paneles, items, vista de catalogo, diagnostico, acciones e importador comercial de catalogos.
+- Se dejaron en `public/style.css` las reglas compartidas de tema global que tambien afectan clientes, proveedores, inventario bajo y reportes.
+
+Regla:
+
+- Ajustes visuales propios de Catalogo proveedor van en `public/css/components/supplier-catalog.css`.
+- No mover todavia la capa global compartida hasta separar primero clientes/proveedores/reportes para no romper consistencia visual.
+
+Validacion:
+
+- `server.js` y `public/app.js` pasan `node --check`.
+- Balance de llaves correcto en `public/style.css` y `public/css/components/supplier-catalog.css`.
+- HTTP 200 en `/health` y `supplier-catalog.css`.
+
+### Paginacion y modales operativos
+
+Archivo nuevo:
+
+- `public/css/components/operational-tables.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-operational-tables-css-20260701`.
+- `public/style.css` bajo de 4,843 a 4,707 lineas.
+- Se migraron paginacion de tablas, modal de productos por categoria, filas/vacios de productos por categoria y `producto-mini-icon`.
+
+Regla:
+
+- Estilos reutilizables de paginacion, listas operativas y modal de productos por categoria van en `public/css/components/operational-tables.css`.
+- Mantener reglas globales compactas fuera de este archivo hasta ordenarlas en una fase de utilidades/base.
+
+Validacion:
+
+- `server.js` y `public/app.js` pasan `node --check`.
+- Balance de llaves correcto en `public/style.css`, `public/css/components/operational-tables.css` y `public/css/components/supplier-catalog.css`.
+- HTTP 200 en la app local, `/health` y `operational-tables.css`.
+
+### Pulido operativo POS / sync
+
+Archivo nuevo:
+
+- `public/css/components/pos-operational-polish.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-pos-polish-css-20260701`.
+- `public/style.css` bajo de 4,707 a 4,616 lineas.
+- Se migraron ajustes de filtro activo, vista de productos en lista y chip de sincronizacion de escritorio.
+- Se dejo separado de alertas/notificaciones para no mezclar POS operativo con centro de notificaciones.
+
+Regla:
+
+- Ajustes puntuales de busqueda/listado POS y estado de sync van en `public/css/components/pos-operational-polish.css`.
+- Alertas de inventario y centro de notificaciones se revisan en fases independientes.
+
+Validacion:
+
+- `server.js` y `public/app.js` pasan `node --check`.
+- Balance de llaves correcto en `public/style.css` y `public/css/components/pos-operational-polish.css`.
+- HTTP 200 en `/health` y `pos-operational-polish.css`.
+
+### Alertas de inventario en dashboard
+
+Archivo nuevo:
+
+- `public/css/components/dashboard-alerts.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-dashboard-alerts-css-20260701`.
+- `public/style.css` bajo de 4,616 a 4,355 lineas.
+- Se migraron las capas `Fase 8.5` y `Fase 8.6` de alertas de inventario Liquid Glass, incluyendo la version compacta final que mantiene la prioridad visual actual.
+- Se retiro de `public/style.css` un duplicado de acciones del centro de notificaciones.
+- El responsive de `notificaciones-head-actions` se reubico en `public/css/components/support-reminders.css`, que es el componente propietario de notificaciones.
+
+Regla:
+
+- Alertas del dashboard e inventario bajo compacto van en `public/css/components/dashboard-alerts.css`.
+- Notificaciones y recordatorios permanecen en `public/css/components/support-reminders.css`.
+
+Validacion:
+
+- `server.js` y `public/app.js` pasan `node --check`.
+- Balance de llaves correcto en `public/style.css`, `public/css/components/dashboard-alerts.css` y `public/css/components/support-reminders.css`.
+- HTTP 200 en `/health` y `dashboard-alerts.css`.
+
+### Login y cierre compacto de modales
+
+Archivos:
+
+- `public/css/components/auth-login.css`
+- `public/css/components/system-dialogs.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-login-modal-close-css-20260701`.
+- `public/style.css` bajo de 4,355 a 4,287 lineas.
+- Se migraron los ajustes finales de login legible a `auth-login.css`.
+- Se movio el estilo global de `button.modal-cerrar-x` a `system-dialogs.css`, porque pertenece a modales y controles de dialogo.
+
+Regla:
+
+- Ajustes de login/autenticacion van en `public/css/components/auth-login.css`.
+- Botones universales de cierre de modal van en `public/css/components/system-dialogs.css`.
+
+Validacion:
+
+- `server.js` y `public/app.js` pasan `node --check`.
+- Balance de llaves correcto en `public/style.css`, `public/css/components/auth-login.css` y `public/css/components/system-dialogs.css`.
+- HTTP 200 en `/health`, `auth-login.css` y `system-dialogs.css`.
+
+### Clientes
+
+Archivo nuevo:
+
+- `public/css/components/customers.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-customers-suppliers-reports-css-20260701`.
+- Se migraron pantalla de clientes, shell, encabezado, resumen, buscador, tabla, estados, acciones y modo oscuro.
+- Las reglas responsive y de tema global compartidas siguen temporalmente en `public/style.css`.
+
+Validacion:
+
+- Balance de llaves correcto en `public/css/components/customers.css`.
+- HTTP 200 en `customers.css`.
+
+### Proveedores
+
+Archivo nuevo:
+
+- `public/css/components/suppliers.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-customers-suppliers-reports-css-20260701`.
+- Se migraron pantalla de proveedores, shell, encabezado, resumen, buscador, tabla, contador de productos, acciones y modo oscuro.
+- Las reglas responsive y de tema global compartidas siguen temporalmente en `public/style.css`.
+
+Validacion:
+
+- Balance de llaves correcto en `public/css/components/suppliers.css`.
+- HTTP 200 en `suppliers.css`.
+
+### Reportes
+
+Archivo nuevo:
+
+- `public/css/components/reports.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-customers-suppliers-reports-css-20260701`.
+- Se migraron pantalla de reportes, resumen, paneles, ventas recientes, estados vacios, modo oscuro, filtros, grid secundario y lista compacta.
+- No se movio `topbar-help` porque pertenece al shell superior.
+
+Validacion:
+
+- Balance de llaves correcto en `public/css/components/reports.css`.
+- HTTP 200 en `reports.css`.
+
+### Inventario bajo - pantalla principal
+
+Archivo actualizado:
+
+- `public/css/components/low-stock-order.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-low-stock-screen-css-20260701`.
+- Se agrego al componente existente la pantalla principal de Inventario bajo: shell, header, resumen, toolbar, tabla, estados, acciones y modo oscuro.
+- El componente ahora agrupa pantalla, modal de detalle y sugerencia de pedido.
+
+Validacion:
+
+- Balance de llaves correcto en `public/css/components/low-stock-order.css`.
+- HTTP 200 en `low-stock-order.css`.
+
+### Credito desde carrito y detalle de venta legacy
+
+Archivo actualizado:
+
+- `public/css/components/pos-credit-modal.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-credit-sale-detail-css-20260701`.
+- Se movio el bloque `CREDITO DESDE CARRITO` al final de `pos-credit-modal.css` para conservar prioridad visual.
+- Incluye boton de credito, boton ver detalle, modal legacy de detalle de venta, resumen, tabla y modo oscuro.
+
+Validacion:
+
+- Balance de llaves correcto en `public/css/components/pos-credit-modal.css`.
+- HTTP 200 en `pos-credit-modal.css`.
+
+### Inventario principal y categorias
+
+Archivo nuevo:
+
+- `public/css/components/inventory.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-inventory-css-20260701`.
+- Se migraron Inventario principal, buscador, boton agregar, categorias, tarjetas de categoria, tabla de inventario, estados, acciones, modo oscuro y pulido final de columnas.
+- Se dejaron reglas antiguas iniciales y de tema compartido en `public/style.css` para una fase posterior de utilidades/base.
+
+Validacion:
+
+- Balance de llaves correcto en `public/css/components/inventory.css`.
+- HTTP 200 en `inventory.css`.
+
+### Login base
+
+Archivo actualizado:
+
+- `public/css/components/auth-login.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-auth-login-base-css-20260701`.
+- Se movieron los estilos base del login, `login-box`, marca de login y logo/fallback al componente de autenticacion.
+- `auth-login.css` ahora contiene base y ajustes finales del login.
+
+Validacion:
+
+- Balance de llaves correcto en `public/css/components/auth-login.css`.
+
+### Validacion acumulada de esta tanda
+
+- `public/style.css` bajo de 4,287 a 2,731 lineas.
+- `public/style.css` conserva 298 usos de `!important`; al inicio de la refactorizacion habia mas de 800.
+- `server.js` y `public/app.js` pasan `node --check`.
+- HTTP 200 en la app local y `/health`, con base conectada.
+
+### Separacion final de capas CSS legacy
+
+Archivos nuevos:
+
+- `public/css/layers/legacy-layout.css`
+- `public/css/layers/theme-runtime.css`
+- `public/css/layers/pos-restoration.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-style-layers-css-20260701`.
+- `public/style.css` bajo de 2,731 a 17 lineas.
+- `legacy-layout.css` conserva la capa antigua/base que aun mezcla dashboard, POS legacy, modales antiguos y responsive inicial.
+- `theme-runtime.css` conserva la capa global de tema, modo oscuro y variables efectivas que estaban despues de los modulos.
+- `pos-restoration.css` conserva la capa final de restauracion Liquid Glass, controles tactiles y ajustes de carrito/cliente/productos que ganaban prioridad visual.
+- Se mantuvo el mismo orden de carga original: `style.css` -> capas -> componentes.
+
+Regla:
+
+- `public/style.css` queda como base minima global.
+- Las capas `css/layers/*` son transitorias: sirven para no romper visualmente mientras se terminan de migrar reglas a componentes reales.
+- No agregar nuevas reglas a las capas legacy salvo que sea una correccion temporal documentada.
+
+Validacion:
+
+- Balance de llaves correcto en `public/style.css`, `legacy-layout.css`, `theme-runtime.css` y `pos-restoration.css`.
+- `server.js` y `public/app.js` pasan `node --check`.
+- HTTP 200 en la app local, `/health`, `legacy-layout.css`, `theme-runtime.css` y `pos-restoration.css`.
+
+### Extraccion de responsive legacy
+
+Archivo nuevo:
+
+- `public/css/layers/responsive-legacy.css`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-responsive-legacy-css-20260702`.
+- Se saco de `legacy-layout.css` el bloque responsive compartido de Inventario, Clientes, Proveedores, Catalogo, Inventario bajo, Reportes, Creditos y POS.
+- `legacy-layout.css` bajo a 533 lineas y queda enfocado en estilos antiguos/base que todavia requieren clasificacion.
+- `responsive-legacy.css` queda sin `!important`, como capa transitoria para reglas responsivas que cruzan varios modulos.
+
+Validacion:
+
+- Balance de llaves correcto en `legacy-layout.css` y `responsive-legacy.css`.
+- `server.js` y `public/app.js` pasan `node --check`.
+- HTTP 200 en `/health` y `responsive-legacy.css`.
+
+### Limpieza inicial de duplicados JavaScript
+
+Archivo actualizado:
+
+- `public/app.js`
+
+Resultado de fase:
+
+- Respaldos:
+  - `backups/before-refactor-config-duplicate-js-20260702`
+  - `backups/before-refactor-js-duplicate-functions-20260702`
+- Se eliminaron versiones legacy pisadas por funciones nuevas:
+  - `mostrarConfiguracion`
+  - `guardarConfiguracionSistema`
+  - `mostrarPuntoVenta`
+  - `mostrarGraficas`
+- Se elimino una copia repetida identica de `limpiarTextoUI`.
+- `public/app.js` bajo de 12,908 a 12,655 lineas.
+- Ya no quedan duplicados directos detectados por declaraciones `function nombre()`.
+
+Validacion:
+
+- `public/app.js` pasa `node --check`.
+- `/health` responde HTTP 200 con base conectada.
+
+Riesgo controlado:
+
+- Solo se retiraron funciones muertas que estaban siendo sobrescritas por declaraciones posteriores o duplicadas identicas.
+- No se cambio la funcion activa de Punto de venta, Configuracion, Reportes ni limpieza de texto.
+
+### Estado actual de deuda tecnica restante
+
+CSS:
+
+- `public/style.css` ya quedo como base minima de 17 lineas.
+- Las capas transitorias aun pendientes son:
+  - `public/css/layers/legacy-layout.css`
+  - `public/css/layers/theme-runtime.css`
+  - `public/css/layers/pos-restoration.css`
+  - `public/css/layers/responsive-legacy.css`
+- Los componentes con mayor cantidad de `!important` siguen siendo:
+  - `pos-restoration.css`
+  - `pos-payment-modal.css`
+  - `support-reminders.css`
+  - `app-shell.css`
+  - `pos-cart.css`
+  - `pos-credit-modal.css`
+
+JavaScript:
+
+- `public/app.js` sigue siendo el principal bloque de deuda tecnica: 12,655 lineas.
+- Ya no hay duplicados directos por declaracion `function nombre()`.
+- La separacion recomendable para siguientes fases es:
+  - configuracion y ticket
+  - catalogos/proveedores
+  - productos e inventario
+  - punto de venta/carrito/cobro
+  - historial/comprobantes
+  - creditos/caja
+  - shell/topbar/notificaciones
+
+Riesgo:
+
+- Extraer JavaScript por archivos requiere una fase especifica porque las funciones dependen de estado global compartido (`carrito`, `todosProductos`, `clientesCredito`, `usuarioActual`, configuracion, etc.).
+- Antes de mover logica conviene crear una capa pequena de utilidades compartidas para no duplicar estado.
+
+### Separacion inicial del cargador backend
+
+Archivo nuevo:
+
+- `server-modules.js`
+
+Archivo actualizado:
+
+- `server.js`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-refactor-server-modules-20260702`.
+- Se movio el cargador de modulos POS por fases fuera de `server.js`.
+- `server.js` ahora importa `cargarModulosPOS` y conserva el mismo orden de carga:
+  - fase4 compras/ajustes
+  - fase5 finanzas
+  - fase6 caja
+  - fase7 caja por metodo
+- No se modificaron rutas ni comportamiento de API.
+
+Validacion:
+
+- `server.js` pasa `node --check`.
+- `server-modules.js` pasa `node --check`.
+- App local `/` responde HTTP 200.
+- `/health` responde HTTP 200 con base conectada.
+- Se levanto una instancia temporal en `PORT=3101`, cargo `fase4`, `fase5`, `fase6` y `fase7`, respondio `/health` y se apago al terminar la prueba.
+
+Nota:
+
+- Durante la prueba temporal aparecio un warning de SSL de `pg-connection-string` relacionado con `sslmode=require`; no esta causado por esta refactorizacion.
+
+### Separacion inicial de JavaScript frontend por dominio
+
+Archivos nuevos:
+
+- `public/js/shell-topbar.js`
+- `public/js/scanner-usb.js`
+- `public/js/offline-sync.js`
+- `public/js/app-bootstrap.js`
+- `public/js/ferretero-flow.js`
+- `public/js/reports.js`
+- `public/js/config-auth.js`
+- `public/js/supplier-catalog.js`
+- `public/js/low-stock.js`
+- `public/js/product-inventory.js`
+- `public/js/pos-sales.js`
+- `public/js/sales-history-documents.js`
+- `public/js/credit-customers.js`
+- `public/js/supplier-catalog-view.js`
+
+Archivos actualizados:
+
+- `public/app.js`
+- `public/index.html`
+
+Resultado de fase:
+
+- Respaldos:
+  - `backups/before-refactor-shell-topbar-js-20260702`
+  - `backups/before-refactor-scanner-usb-js-20260702`
+  - `backups/before-refactor-ferretero-flow-js-20260702`
+- Se saco de `app.js` el shell/topbar, menu Nexo, contacto de desarrollador, recordatorios, notificaciones y wrappers de navegacion.
+- Se saco de `app.js` la captura global del lector USB.
+- Se saco de `app.js` el bloque de flujo ferretero de producto/carrito y mejoras operativas relacionadas.
+- Se saco de `app.js` el modulo de Reportes y ventas.
+- Se saco de `app.js` el bloque de configuracion, setup inicial, ticket/hardware, usuarios, permisos y login.
+- Se saco de `app.js` el importador de catalogos de proveedor: plantillas, mapeos, lectura CSV y guardado local.
+- Se saco de `app.js` Inventario bajo, modal de detalle y sugerencia de pedido.
+- Se saco de `app.js` Inventario/Formulario de producto: utilidades de producto/catalogo, alta, edicion, baja, categorias, listado y busqueda de inventario.
+- Se saco de `app.js` Punto de venta/carrito/cobro: lectura de codigo en POS, productos destacados, carrito, cliente de venta, descuentos, ticket, cobro efectivo y cobro a credito.
+- Se saco de `app.js` Historial/comprobantes: historial de ventas, pulso de ventas del dashboard, detalle de venta, reimpresion, nota de venta, ajuste documentado y modal de venta completada.
+- Se saco de `app.js` Creditos/clientes: listado de creditos, detalle de cuenta, movimientos, abonos/cargos, formulario reusable de credito y administracion de clientes.
+- Se saco de `app.js` Proveedores/vista de catalogo: CRUD de proveedores, pantalla de catalogos cargados, diagnostico de columnas, muestra de productos y limpieza de catalogos.
+- Se saco de `app.js` Offline/sync: contexto de negocio, cache desktop, licencia, cola de eventos offline, sincronizacion y refresco local.
+- Se saco de `app.js` Bootstrap: login, carga inicial de productos, resumen de dashboard, busqueda principal, `window.onload`, helper de dinero y enter para cobro.
+- `public/app.js` bajo de 12,655 a 76 lineas.
+- Se mantuvo carga con scripts clasicos para conservar compatibilidad con funciones globales usadas por `onclick`.
+
+Orden de carga:
+
+1. `app.js`
+2. `js/offline-sync.js`
+3. `js/config-auth.js`
+4. `js/supplier-catalog.js`
+5. `js/product-inventory.js`
+6. `js/pos-sales.js`
+7. `js/sales-history-documents.js`
+8. `js/credit-customers.js`
+9. `js/supplier-catalog-view.js`
+10. `js/app-bootstrap.js`
+11. `js/reports.js`
+12. `js/shell-topbar.js`
+13. `js/scanner-usb.js`
+14. `js/low-stock.js`
+15. `js/ferretero-flow.js`
+
+Validacion:
+
+- `public/app.js` pasa `node --check`.
+- `offline-sync.js`, `app-bootstrap.js`, `config-auth.js`, `supplier-catalog.js`, `supplier-catalog-view.js`, `product-inventory.js`, `pos-sales.js`, `sales-history-documents.js`, `credit-customers.js`, `low-stock.js`, `reports.js`, `shell-topbar.js`, `scanner-usb.js` y `ferretero-flow.js` pasan `node --check`.
+- HTTP 200 en app local `/`, `/health` y scripts nuevos.
+
+Nota:
+
+- El navegador interno no pudo usarse por permisos del entorno, asi que esta tanda queda validada por sintaxis y carga HTTP. La validacion visual/interactiva debe hacerse en la app local abierta.
+
+### Cierre local de la fase de limpieza
+
+Estado:
+
+- Refactor arquitectonico local completado para CSS, cargador backend y separacion principal de JavaScript frontend.
+- `public/app.js` quedo como base global minima de 76 lineas.
+- No se publicaron cambios ni se subio nada a produccion.
+- Las herramientas temporales usadas para extraccion fueron eliminadas.
+
+Validacion final local:
+
+- Todos los archivos `public/js/*.js` pasan `node --check`.
+- `public/app.js` pasa `node --check`.
+- `server.js` y `server-modules.js` pasan `node --check`.
+- App local `/` responde HTTP 200.
+- `/health` responde HTTP 200 con base de datos conectada.
+
+Pendiente antes de aprobar produccion:
+
+- Recorrido visual/manual en navegador de Punto de venta, Inventario, Agregar producto, Historial, Creditos, Caja, Reportes y Configuracion.
+- Prueba manual de modo claro y modo oscuro.
+- Prueba manual de venta, nota, reimpresion, credito y cierre de caja.
+
+### Rediseno visual: sidebar, topbar y Punto de venta segun referencia
+
+Archivos actualizados:
+
+- `public/css/components/app-shell.css`
+- `public/css/components/pos-cart.css`
+- `public/js/shell-topbar.js`
+- `public/js/config-auth.js`
+- `public/js/pos-sales.js`
+- `public/index.html`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-shell-redesign-20260702`.
+- Sidebar reescrito de tarjetas de vidrio sobre degradado azul a navy plano con filas icono+texto y estado activo en pildora azul solida, igual a la referencia entregada por el cliente.
+- Topbar reescrito: se quito la pildora "Nexo POS" y el boton de texto "Recordatorio", se agrego toggle de tema (llama a `cambiarModo()` ya existente), y se reemplazo por un bloque de usuario (avatar con iniciales, rol y negocio) que abre el mismo panel `#menuNexoPOS` de siempre.
+- Se agrego el boton "Creditos" al sidebar, conectado a la funcion ya existente `abrirCreditos()`.
+- Se movio `#modalCreditos` de estar anidado dentro de `#pantallaInicio` a ser hermano directo dentro de `.contenido`, porque al abrirlo desde el nuevo boton del sidebar en otra pantalla quedaba oculto por su contenedor padre. La logica y el contenido del modal no cambiaron, solo su ubicacion en el DOM.
+- Se reemplazaron los glifos unicode de la tira de categorias y de la fila de KPIs de Punto de venta por iconos SVG (ampliando el diccionario `iconoUISVG()`), y las placas de 2 letras de `iconoProducto()` por pictogramas.
+- Se agrego un pie de sidebar con version y estado de sync, reutilizando el chip de sync ya existente en `public/js/offline-sync.js`.
+- Se detecto y corrigio una regla global preexistente en `theme-runtime.css` (`button{background:var(--brand-color)!important}`) que forzaba fondo azul solido en botones de `pos-cart.css` que debian verse neutros/transparentes; se reforzaron esos selectores con `!important` siguiendo el mismo patron ya usado en el resto del archivo, sin tocar la regla global.
+
+Validacion:
+
+- `server.js`, `public/app.js`, `public/js/shell-topbar.js`, `public/js/config-auth.js` y `public/js/pos-sales.js` pasan `node --check`.
+- Verificado en navegador local (sesion real contra la base remota): Inicio, Punto de venta, Inventario y Configuracion cargan con el shell nuevo, el boton Creditos abre el modal correcto desde cualquier pantalla, y el toggle de tema alterna modo claro/oscuro correctamente.
+- Balance de etiquetas `<div>` verificado en `public/index.html` tras mover el modal de creditos.
+
+### Ajustes de Punto de venta: espaciado y vidrio en botones clave
+
+Archivos actualizados:
+
+- `public/css/components/pos-cart.css`
+- `public/index.html`
+
+Resultado de fase:
+
+- La tira de categorias paso de grid con auto-fit (se partia en dos filas y empujaba los productos) a una fila fija con scroll horizontal.
+- El grid de productos ahora limita la altura a una sola fila (3 productos), con "Ver todos" para el resto.
+- Se quito la seccion "Productos frecuentes" del Punto de venta (a pedido del cliente).
+- Se corrigio un `max-height:300px` heredado en `#carrito` que, combinado con `overflow:visible`, hacia que el resumen de cobro y los botones se salieran de la tarjeta del carrito al agregar varios productos.
+- Se agrego `flex-shrink:0` a `.pos-referencia` porque `.contenido` (flex column con `height:100vh`) estaba encogiendo la pantalla de Punto de venta y generando un scroll interno atrapado en vez de un scroll normal de pagina.
+- "Cobrar" y los botones "Agregar" de las tarjetas de producto pasaron de un degradado solido a vidrio real (`backdrop-filter: blur` + brillo interior), a pedido del cliente.
+
+Validacion:
+
+- Probado con productos reales en el carrito en 1440x900 y 1440x800: sin empalmes, sin scroll interno atrapado, KPIs visibles sin scroll de pagina.
+
+### Rediseno de Inventario / Productos segun referencia
+
+Archivos actualizados:
+
+- `public/css/components/inventory.css`
+- `public/index.html`
+- `public/js/product-inventory.js`
+- `public/js/app-bootstrap.js`
+- `public/js/shell-topbar.js`
+- `public/app.js`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-inventory-redesign-20260703`.
+- Se agrego una fila de 4 tarjetas de resumen (Total productos, Stock total, Valor inventario, Productos sin stock) calculadas en el cliente a partir de `todosProductos` (sin cambios en como se cargan o guardan los productos).
+- Se agregaron filtros por Categoria y Estado (dropdowns) ademas del buscador de texto que ya existia; "Estado" reutiliza el mismo calculo de `stock <= 0 / <= 5` que ya se usaba para pintar el badge.
+- La tabla ahora incluye columna Categoria y una miniatura por producto (mismo pictograma que ya se usa en Punto de venta), y las acciones pasaron de texto ("Editar"/"Eliminar") a iconos.
+- El pie de la tabla ahora muestra "Mostrando X a Y de Z productos" y un selector de productos por pagina (8/10/20/50); la paginacion compartida (`renderPaginacion`, tambien usada por Inventario bajo y Reportes) ahora recorta con "..." cuando hay muchas paginas, sin cambiar su comportamiento actual.
+- Se corrigio que la tabla de Inventario no se refrescaba sola despues de agregar/editar/eliminar un producto (solo se actualizaba al volver a entrar a la pantalla); ahora `cargarProductos()` refresca la tabla si esta visible.
+- El boton "+ Agregar producto" en Inventario ahora usa el mismo estilo de vidrio que "Cobrar" en Punto de venta.
+
+Nota de datos:
+
+- Varios productos en la base actual tienen `categoria` vacia o con codigos crudos (ej. "P668") en vez de nombres legibles, y algunos tienen stock negativo (ajustes o mermas sin resolver). Las tarjetas de resumen y el filtro de Categoria reflejan esos datos tal cual estan; no se inventaron ni corrigieron valores.
+
+Validacion:
+
+- `node --check` correcto en `server.js`, `app.js`, `product-inventory.js`, `app-bootstrap.js`, `shell-topbar.js`.
+- Probado en navegador local con datos reales: filtros por categoria/estado, cambio de tamano de pagina, y refresco automatico despues de filtrar funcionan correctamente en modo claro y oscuro.
+
+### Rediseno de Categorias: panel de dos columnas
+
+Archivos actualizados:
+
+- `public/css/components/inventory.css`
+- `public/index.html`
+- `public/js/product-inventory.js`
+- `public/js/shell-topbar.js`
+- `public/app.js`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-categorias-redesign-20260703`.
+- Se reemplazo la grilla de tarjetas + modal ("Ver productos") por un panel de dos columnas: lista de categorias a la izquierda (con buscador) y detalle de la categoria seleccionada a la derecha, con pestanas Productos / Informacion / Estadisticas.
+- La pestana Productos reutiliza el mismo patron de tabla, badges de estado, iconos de accion y paginacion ya construido para Inventario.
+- Se agrego `editarCategoriaInventario()` (no existia edicion de categorias, solo alta y baja); igual que borrar, renombrar no actualiza el campo `categoria` de los productos existentes (mismo comportamiento que ya tenia borrar).
+- Se quito el modal `#modalCategoriaProductos` y sus funciones asociadas (`abrirModalCategoriaProductos`, `cerrarModalCategoriaProductos`, `irInventarioDesdeCategoria`), reemplazadas por el panel de detalle inline.
+- Simplificaciones frente a la referencia: sin boton "Filtros" separado, sin alternador de vista cuadricula/lista y sin menu de tres puntos (se usan los mismos dos iconos editar/eliminar que en Inventario) porque no hay una accion adicional real que poner ahi.
+- Se detecto que el bug del boton global (`button{background:var(--brand-color)!important}` en `theme-runtime.css`) tambien afectaba `.btn-agregar` en Inventario -- el boton "+ Agregar producto" nunca habia mostrado el efecto de vidrio real. Ya quedo corregido junto con todos los botones nuevos de esta fase.
+
+Validacion:
+
+- `node --check` correcto en `server.js`, `app.js`, `product-inventory.js`, `shell-topbar.js`.
+- Probado en navegador local: seleccion de categoria, pestanas, tabla de productos por categoria, paginacion y modo oscuro funcionan correctamente.
+
+### Creditos: pantalla completa reemplaza el modal, con fecha de vencimiento real
+
+Archivos actualizados:
+
+- `server.js` (schema + endpoints)
+- `public/index.html`
+- `public/js/credit-customers.js`
+- `public/js/config-auth.js`
+- `public/js/supplier-catalog-view.js`
+- `public/js/shell-topbar.js`
+- `public/css/components/pos-credit-modal.css`
+
+Cambio de datos (aprobado explicitamente por el cliente antes de tocarlo):
+
+- Se agrego la columna `fecha_vencimiento DATE` (nullable) a `public.clientes_credito`, aplicada automaticamente al iniciar el servidor (mismo patron que ya usaba esta tabla para `negocio_id`). Sin este dato no habia forma honesta de mostrar "Vencido" / "Al dia", que la referencia visual pedia.
+- `GET /creditos` ahora tambien regresa `clientesVencidos`, `totalVencido` y `pagosEsteMes` (agregados calculados en el servidor). `POST` y `PUT` de `/creditos/clientes` aceptan `fechaVencimiento`.
+- Se encontro y corrigio un bug en el calculo de vencidos: `pg` regresa `fecha_vencimiento` como objeto `Date`, y comparar `String(fecha)` contra una fecha ISO nunca daba `true`. Se agrego una conversion explicita a ISO antes de comparar.
+
+Cambio de pantalla:
+
+- `#modalCreditos` (modal-overlay) se convirtio en `#pantallaCreditos`, una pantalla mas del sistema como Inventario o Categorias, con las dos entradas existentes (tarjeta "Credito pendiente" del dashboard y el boton "Creditos" del sidebar) apuntando a la misma funcion `abrirCreditos()`.
+- Se reutilizo toda la logica de render que ya funcionaba (`abrirCuentaCliente`, la tabla de movimientos con "ver mas", `registrarAbonoCredito`, `registrarCargoCredito`, `editarClienteCredito`, `desactivarClienteCredito`) sin tocarla; se agrego una funcion envoltura `abrirCuentaCreditoDetalle()` que llama a la original y encima pinta avatar, badge de estado y el resumen lateral nuevo.
+- Se cambio una sola linea de comportamiento: `abrirCuentaCliente()` ya no oculta la lista de clientes al abrir el detalle, para que la lista y el detalle queden visibles en dos columnas al mismo tiempo (layout persistente, como en la referencia) en vez de alternar entre lista y detalle.
+- Simplificaciones frente a la referencia: no hay boton "Filtros" ni "Exportar" separados (no hay logica de exportacion), y no se agrego el banner inferior de "rendimiento y optimizacion aplicada" porque eran afirmaciones de marketing sin nada real detras.
+
+Validacion:
+
+- `node --check` correcto en `server.js`, `credit-customers.js`, `config-auth.js`, `supplier-catalog-view.js`, `shell-topbar.js`.
+- Confirmado en el servidor real: la columna se agrego sin error, `PUT /creditos/clientes/:id` guarda `fechaVencimiento` y se refleja en el badge "Vencido" y en la tarjeta "Creditos vencidos".
+- Probado en navegador: ambas entradas (dashboard y sidebar) abren la misma pantalla, pestanas Todos/Vencidos/Al dia filtran correctamente, pestanas Movimientos/Informacion/Pagos del detalle funcionan, y modo oscuro se ve correcto.
+
+### Bug real: KPIs de Punto de venta reflejaban el carrito, no las ventas
+
+Reportado por el cliente: despues de completar una venta, "Ventas del dia" y "Ventas del mes" quedaban en $0.00 incluso despues de recargar la pagina.
+
+Causa raiz:
+
+- `actualizarMetricasPOS()` en `public/js/pos-sales.js` pintaba `#posVentasDia`, `#posVentasMes`, `#posProductosVendidos` y `#posTicketPromedio` con el TOTAL DEL CARRITO ACTUAL, no con ventas reales. Al vaciarse el carrito despues de cobrar, esas tarjetas volvian a $0.00 porque nunca estuvieron conectadas a datos historicos.
+- Esto no era una regresion de las fases anteriores: la funcion nunca calculo ventas reales, solo reflejaba el carrito en progreso (de ahi que subieran mientras se armaba la venta y se resetearan al cobrar).
+
+Arreglo:
+
+- `public/js/sales-history-documents.js`: nueva funcion `actualizarMetricasPOSReales(historial)` que calcula ventas de hoy, ventas del mes, productos vendidos hoy y ticket promedio a partir de `/historial` (mismos helpers que ya usaba el pulso de ventas del dashboard: `ventasDeFecha`, `fechaVenta`, `mismaFecha`), mas comparativas reales "vs ayer" / "vs mes anterior". Se llama dentro de `cargarHistorial()`, que ya se ejecuta al iniciar sesion, al cargar el POS y despues de cada venta.
+- `public/js/pos-sales.js`: se elimino el codigo de `actualizarMetricasPOS()` que sobreescribia esas 4 tarjetas con el total del carrito.
+- `public/index.html`: se agregaron ids a los subtitulos de las 4 tarjetas para mostrar la comparativa real en vez de texto fijo.
+
+Investigacion sobre "el ticket tardo mucho en aparecer":
+
+- Se reprodujo el flujo de cobro completo (Cobrar → modal de metodo de pago → Efectivo → confirmar). Se confirmo que cada cobro dispara una revalidacion de licencia (`GET /licencia/estado`) ademas del registro de la venta; es un candidato razonable a la demora si la conexion es lenta, pero no se pudo aislar como causa unica de forma remota.
+- No se toco la logica de licencia ni el flujo de metodo de pago (`fase7-pagos.js`) porque son reglas de negocio reales, no un tema de diseno. Si la demora persiste despues de este arreglo, hace falta revisarlo como tema aparte.
+
+Validacion:
+
+- `node --check` correcto en `sales-history-documents.js` y `pos-sales.js`.
+- Confirmado en el servidor real: con una venta ya registrada, las 4 tarjetas del POS muestran el monto real desde que se entra a la pantalla (no en $0.00), y agregar/quitar productos del carrito ya no las mueve.
+
+### Rediseno de Recepcion de mercancia
+
+Archivos actualizados:
+
+- `public/js/ferretero-flow.js`
+- `public/css/components/receiving.css`
+- `public/index.html`
+
+Resultado de fase:
+
+- Respaldo: `backups/before-recepcion-redesign-20260703`.
+- Se reescribio la plantilla de `asegurarPantallaRecepcion()` manteniendo todos los ids existentes (`archivoRecepcionMercancia`, `recepcionProveedor`, `recepcionFolio`, `recepcionFecha`, `recepcionTotalConceptos`, etc.) para que las funciones ya probadas (`leerArchivoRecepcionMercancia`, `confirmarRecepcionMercancia`, `conceptosDesdeXml`, `conceptosDesdeCsv`) siguieran funcionando sin cambios.
+- Encabezado nuevo con icono, descripcion y 3 insignias (formatos aceptados, vista previa, actualizacion automatica); son solo texto descriptivo del flujo que ya existe, no funciones nuevas.
+- Se agrego un selector "Tipo de documento" (Factura/Remision/Nota de credito/Otro) conectado al campo `estadoRecepcion.documento.tipo` que ya existia pero no tenia control en pantalla.
+- El diseno se reorganizo a dos columnas: columna principal (formulario del documento + tabla de vista previa) y una barra lateral fija de resumen (KPIs, total, banner de diferencias y acciones), como en la referencia.
+- Se agrego buscador de texto, filtro por categoria y boton "Solo diferencias" sobre la tabla de vista previa, ademas de paginacion (5 productos por pagina) reutilizando `renderPaginacion()` (la misma funcion compartida con Inventario/Categorias/Reportes, sin modificarla).
+- Se agrego deteccion real de diferencias de precio: `conceptosPreparados()` ahora compara el costo del archivo contra `precio_distribuidor`/`precio` del producto ya existente en inventario (cuando el concepto coincide con un producto) y marca `tieneDiferencia` si la diferencia es de un centavo o mas. El banner "N diferencias detectadas" (o "0 diferencias detectadas" en verde) y el boton "Solo diferencias" usan ese mismo calculo -- no hay datos inventados.
+- "Ver ejemplo de archivo" muestra en un dialogo los encabezados de CSV que el parser realmente reconoce (Codigo, Descripcion, Cantidad, Costo, Importe, Unidad, Folio, Fecha, Proveedor) en vez de un archivo de ejemplo descargable que no existe.
+- "Imprimir resumen" usa `window.print()` sobre la pantalla actual; no se construyo una plantilla de impresion separada porque no existe un endpoint ni formato de "estado de cuenta" para recepciones.
+- Se corrigio que `ocultarTodoRecepcion()` no incluia `"pantallaCreditos"` en su lista de pantallas a esconder (mismo patron de bug ya encontrado y corregido en `ocultarPantallasPrincipales`, `mostrarProveedores` y `mostrarClientes`).
+- Se detecto que las reglas de boton ya existentes en `receiving.css` (`.recepcion-header button`, `.btn-recepcion-confirmar`, `.recepcion-preview-head button`) no tenian `!important`, por lo que el bug global (`button{background:var(--brand-color)!important}` en `theme-runtime.css`) probablemente ya las afectaba desde que se crearon; se corrigieron junto con todos los botones nuevos de esta fase.
+
+Simplificaciones frente a la referencia:
+
+- No hay un dropdown de "Metodo de carga" real (arrastrar archivo vs conectar sistema externo); solo existe el flujo de subir un archivo XML/CSV, que es el unico que tiene logica real detras.
+- No se agrego lectura de XLSX ni PDF (ya existian avisos informativos para esos casos, se dejaron igual).
+
+Validacion:
+
+- `node --check` correcto en `server.js`, `app.js` y `ferretero-flow.js`.
+- Probado en el servidor real con un archivo CSV de prueba (5 conceptos, sin tocar el boton "Confirmar recepcion" para no escribir datos falsos en la base real): el contador de productos, las tarjetas de resumen, el banner de diferencias, el buscador y el boton "Solo diferencias" respondieron correctamente; texto de paginacion "Mostrando 1-5 de 5" correcto. Verificado en modo claro y oscuro.
+
+### Recepcion de mercancia: simplificacion minimalista
+
+El cliente reviso el diseno anterior y pidio "mas minimalista, no tan cargado con botones liquid glass". Se ajusto solo el nivel visual, sin tocar logica:
+
+- Encabezado: se quitaron las 3 insignias con caja/borde; queda solo icono + titulo + un parrafo.
+- Botones: se quitaron los degradados y sombras tipo "vidrio". "Confirmar recepcion" ahora es color solido plano sin sombra; "Cancelar" es un boton de borde simple; "Ver ejemplo de archivo" e "Imprimir resumen" pasaron de boton a enlace de texto.
+- Barra lateral de resumen: las tarjetas con borde por cada KPI se volvieron una lista separada por lineas delgadas; el "Total" dejo de ser un bloque de color y ahora es texto en negritas sobre una linea divisoria; el banner de diferencias es una sola linea de texto con un punto de color en vez de una tarjeta.
+- Se quito el boton "Vista previa de diferencias" (duplicaba el toggle "Solo diferencias" que ya existia en la barra de busqueda).
+
+Validacion: `node --check` correcto; probado en servidor real (carga de CSV, busqueda, banner de diferencias) en modo claro y oscuro, sin cambios de comportamiento.
+
+### Ajustes de inventario: wizard de 3 pasos con usuario y fecha reales
+
+Archivos actualizados:
+
+- `fase4-server.js` (schema + endpoints)
+- `public/fase4.js` (reescrito completo; logica de "Pedidos a proveedor" preservada sin cambios, solo reformateada)
+- `public/js/shell-topbar.js` (iconos nuevos)
+- `public/css/components/inventory-adjustments.css` (nuevo)
+- `public/css/components/system-dialogs.css` (fix de word-wrap)
+- `public/js/ferretero-flow.js` (fix de un bug relacionado encontrado de paso)
+- `public/index.html`, `public/app.js` (cache-busting)
+
+Contexto:
+
+- La pantalla "Ajustes" ya existia y su backend (`/ajustes-inventario`, tabla `ajustes_inventario`) ya era real y funcional -- estaba en `fase4-server.js`, cargado por `server-modules.js`. Lo unico que se redisenio fue el frontend: paso de un formulario de una sola pantalla a un wizard de 3 pasos (Tipo de ajuste -> Detalle -> Confirmacion) mas una bitacora en tabla, igual que la referencia.
+
+Cambio de datos (aprobado explicitamente por el cliente antes de tocarlo):
+
+- La referencia mostraba una columna "Usuario" y un campo "Fecha del ajuste" editable en la bitacora, pero la tabla `ajustes_inventario` no guardaba ninguno de los dos (usaba `created_at` del servidor unicamente). Se agregaron las columnas `usuario_nombre TEXT` y `fecha_ajuste DATE` (aditivo, con `IF NOT EXISTS`, mismo patron que `fecha_vencimiento` en Creditos). `POST /ajustes-inventario` ahora acepta y guarda `usuarioNombre` (tomado de `usuarioActual.nombre` en el cliente, el mismo dato que ya se muestra en la barra superior) y `fecha` (validada con regex `AAAA-MM-DD`, si no es valida usa la fecha del servidor).
+
+Cambio de pantalla:
+
+- El formulario simple (producto + tipo + cantidad + motivo + referencia, todo en un solo paso) se convirtio en un wizard: Paso 1 elige el tipo (Entrada/Salida/Conteo, tarjetas con icono y color) mas motivo (dropdown con opciones reales segun el tipo, con "Otro" para texto libre) y fecha; Paso 2 elige producto y cantidad (mas referencia opcional); Paso 3 muestra un resumen (stock actual, cantidad, stock resultante calculado en el cliente) antes de enviar al mismo endpoint real de siempre.
+- La bitacora ahora es una tabla (Fecha, Tipo, Motivo, Descripcion, Usuario, Cantidad, Ver detalle) en vez de tarjetas sueltas; "Descripcion" se genera con una frase corta a partir de tipo+motivo+producto (dato real, no inventado). "Ver todos los ajustes" expande el listado completo (hasta 80, limite que ya tenia el endpoint) sin pedir una pagina nueva al servidor.
+- Barra lateral: panel "Que es un ajuste" (texto explicativo fijo) y "Acciones rapidas" con enlaces reales a `mostrarInventario()` y `mostrarInventarioBajo()`.
+- Se corrigio que `iconoUISVG("sliders-horizontal")` e `iconoUISVG("clipboard-list")` (usados por el boton del sidebar) no existian en el diccionario de iconos y caian silenciosamente al icono generico "zap"; se reemplazaron por claves validas (`settings`, `file`).
+- Bug encontrado de paso: `alertaPOS(mensaje, titulo, tipo)` recibe el mensaje largo primero y el titulo corto despues (el titulo se pinta como encabezado grande, el mensaje como parrafo), pero varias llamadas nuevas en Recepcion y en este wizard tenian los argumentos invertidos; se corrigieron todas. Tambien se agrego `white-space:pre-line` a `.dialogo-pos-body p` en `system-dialogs.css` porque los saltos de linea (`\n`) dentro del mensaje no se estaban respetando.
+
+Simplificaciones frente a la referencia:
+
+- La bitacora sigue registrando un producto por ajuste (igual que el backend real de siempre); "Total de productos" de la referencia se muestra como "Cantidad" del unico producto ajustado, no como conteo de productos distintos (el backend no soporta ajustes con varias partidas en una sola operacion).
+
+Validacion:
+
+- `node --check` correcto en `fase4-server.js`, `public/fase4.js`, `public/js/shell-topbar.js`, `public/js/ferretero-flow.js`, `public/app.js`.
+- Probado en el servidor real: flujo completo Paso 1 -> 2 -> 3 -> confirmar. Primero con un producto con stock negativo (el backend rechazo correctamente el ajuste por dejar stock negativo, mensaje de error real). Luego con un ajuste de tipo Conteo, que se aplico con exito y aparecio en la bitacora con fecha, hora, tipo, motivo, descripcion y boton "Ver detalle" funcionando; "Usuario" mostro "Sin registrar" porque la prueba se hizo sin pasar por el login real de la interfaz (no hay usuario de sesion en ese caso), pero el campo esta conectado a `usuarioActual.nombre` para sesiones reales. Verificado en modo claro y oscuro.
+- Nota: la prueba en vivo dejo un registro real en la bitacora (ajuste de tipo Conteo) y cambio el stock de un producto de -17 a 8; el cliente confirmo dejarlo asi.
+
+### Bug nuevo descubierto: `button{width:100%}` global en `legacy-layout.css`
+
+Ademas del bug ya conocido de `button{background:var(--brand-color)!important}` en `theme-runtime.css`, se encontro un segundo bug del mismo tipo pero de ancho: `public/css/layers/legacy-layout.css` tiene una regla `button{width:100%; ...}` (sin `!important`, pero suficiente porque los botones nuevos no definian su propio `width`). Esto hacia que botones pensados como "pill" pequenos (toggle "Solo diferencias" en Recepcion, "Continuar"/"Atras" y el enlace "Como funcionan los ajustes" en Ajustes, los botones de periodo y "Exportar" en Reportes) se estiraran al 100% del contenedor. Se corrigio agregando `width:auto` explicito en cada boton nuevo afectado (`.btn-recepcion-diferencias`, `.ajustes-ayuda-link`, `.btn-ajuste-primario`, `.btn-ajuste-secundario`, `.btn-reporte-exportar`, `.reportes-filtros button`). El patron que ya funcionaba (botones dentro de una columna de grid/flex con ancho fijo, como `.btn-recepcion-confirmar`) no se vio afectado porque el contenedor ya limitaba su ancho.
+
+### Bug nuevo descubierto: tokens `--pos-*` solo existen en modo oscuro
+
+Se encontro que `--pos-text`, `--pos-muted`, `--pos-line`, `--pos-surface`, `--pos-surface-strong` y `--pos-shadow` solo estan definidos dentro de `body.oscuro` (`app-shell.css`); en modo claro esas variables no existen. El patron correcto -- ya usado en `fase4.js`/`fase6.js` originales -- es siempre dar un valor de respaldo, ej. `var(--pos-text,#172033)`. Los archivos nuevos de esta sesion (`receiving.css`, `inventory-adjustments.css`, `reports.css`) usaban las variables sin respaldo, lo que dejaba los paneles con fondo transparente y bordes oscuros en modo claro (visualmente parecian "casi bien" porque el color heredado por defecto es oscuro, pero sin el fondo blanco ni el borde gris suave que se buscaba). Se corrigieron las tres hojas agregando el valor de respaldo a las ~110 apariciones de `var(--pos-*)`.
+
+### Reportes / Ventas: comparativas reales y paneles nuevos
+
+Archivos actualizados:
+
+- `server.js` (endpoint `/reportes/ventas`)
+- `public/js/reports.js` (reescrito completo)
+- `public/index.html`
+- `public/app.js` (variable global `graficaMetodosPago`)
+- `public/css/components/reports.css` (reescrito completo)
+
+Contexto:
+
+- A diferencia de Ajustes, esta pantalla ya estaba completa y con datos reales (KPIs, grafica de ventas por dia, metodos de pago, productos mas vendidos, horarios, ultimas ventas con paginacion) -- confirmado leyendo `server.js` antes de tocar nada. Lo que la referencia pedia y no existia era: comparativa "vs periodo anterior" en las 4 tarjetas KPI, un cuarto KPI de "Productos vendidos" (antes solo estaba "Venta mayor"), un donut de metodos de pago, un desglose real de "Ventas por categoria" y un panel de "Resumen del periodo" (mejor/peor dia, dias transcurridos, crecimiento).
+
+Cambios reales de backend (aditivos, sin tocar los calculos que ya existian):
+
+- Se agrego `productos_vendidos` (suma de cantidad vendida) al `resumen`, calculado con el mismo patron `LATERAL jsonb_array_elements` que ya usaba `productosVendidos`.
+- Se agrego `ventasPorCategoria`: cruza cada producto vendido contra la tabla `productos` actual por `id` para tomar su `categoria` real (mismo criterio ya usado en Inventario/Categorias: refleja la categoria actual del producto, no la que tenia al momento de la venta). Productos sin categoria se agrupan como "Sin categoria" en vez de inventar una.
+- Se agrego `resumenAnterior`: mismo calculo que `resumen` pero para el periodo equivalente inmediatamente anterior (ayer si es "dia", semana pasada si es "semana", mes pasado si es "mes", ano pasado si es "ano", o un rango de la misma duracion inmediatamente antes si es un rango con fechas manuales). Con esto las 4 tarjetas KPI y "Crecimiento en ventas" muestran un porcentaje real, no inventado; si el periodo anterior no tuvo ventas se muestra "Nuevo" en vez de un porcentaje sin sentido (division por cero).
+
+Cambios de pantalla:
+
+- KPIs: se quito "Venta mayor" (no estaba en la referencia) y se agrego "Productos vendidos"; las 4 tarjetas ahora muestran una linea de tendencia real ("+12.5% vs periodo anterior", en rojo si baja, verde si sube).
+- La grafica de "Ventas por dia" cambio de barras a linea (mismo dato, solo tipo de grafica) para acercarse a la referencia.
+- "Metodos de pago" paso de lista compacta a donut (Chart.js) + leyenda con porcentaje real calculado del total del periodo.
+- Nuevo panel "Ventas por categoria": barras horizontales con porcentaje real; muestra las primeras 5 categorias con boton "Ver todas las categorias" (hasta 8, limite ya puesto en la consulta) que expande sin pedir datos nuevos al servidor.
+- Nuevo panel "Resumen del periodo": "Dias en el periodo" (calculado en el cliente segun el filtro activo), "Mejor dia de ventas" y "Peor dia de ventas" (tomados de los mismos datos de la grafica, sin consulta nueva), "Crecimiento en ventas" (mismo dato que la tarjeta KPI de Ventas totales).
+- Se agrego un boton "Exportar" real: genera un CSV en el navegador (resumen + ventas por dia + productos mas vendidos) a partir de los datos ya cargados, sin necesitar un endpoint nuevo.
+- Se dejaron "Productos mas vendidos" y "Horarios con mayor venta" (no estan en la referencia, pero ya eran reales y utiles) en una fila aparte debajo, para no competir visualmente con la fila que sí coincide con la referencia.
+
+Validacion:
+
+- `node --check` correcto en `server.js`, `public/js/reports.js`, `public/app.js`.
+- Probado en el servidor real con datos reales del ano (139 ventas, $41,163.83): las 4 tarjetas KPI, la grafica de linea, el donut de metodos de pago, las barras de categoria y el resumen del periodo (185 dias, mejor dia 28 de mayo, peor dia 3 de julio, "Nuevo vs periodo anterior" porque el ano anterior no tuvo ventas) mostraron datos correctos. Boton "Exportar" no genero errores. Verificado en modo claro y oscuro.
+
+### Caja: rediseno completo del turno y bitacora
+
+Archivos actualizados:
+
+- `fase6-server.js` (nuevo endpoint auxiliar)
+- `public/fase6.js` (reescrito completo)
+- `public/fase7-caja-ui.js` (simplificado)
+- `public/js/shell-topbar.js` (iconos nuevos, fix de icono roto)
+- `public/css/components/cash-register.css` (nuevo)
+- `public/app.js`, `public/index.html` (cache-busting)
+
+Contexto:
+
+- Backend ya real y completo: turno (abrir/cerrar), movimientos de caja (entrada/salida), resumen con desglose real por metodo de pago (efectivo/tarjeta/transferencia/credito, tomado de columnas ya existentes en `historial_ventas`), e historial de cortes. Se confirmo que `fase7-caja-ui.js` no era una pantalla aparte sino un overlay que pintaba ese mismo desglose por metodo cada 2 segundos sobre el HTML viejo de Caja.
+
+Cambio real de backend (aditivo):
+
+- Se agrego `resumenAyer` a `GET /caja/turno-activo`: ventas y ticket promedio del dia calendario anterior (no del turno), para poder mostrar el "vs ayer" real del ticket promedio en la referencia. No existia ningun calculo de "ticket promedio" antes; se deriva de `ventas / transacciones` ya reales.
+
+Cambio de pantalla:
+
+- El bloque "Turno abierto #id" se convirtio en una barra de "Sesion activa" con cronometro en vivo (`Tiempo abierta HH:MM:SS`, actualizado cada segundo desde `turno.abierto_at`, solo mientras la pantalla esta visible) y un boton "Cerrar sesion".
+- Las 4 tarjetas viejas (Ventas turno/Esperado efectivo/Entradas/Salidas) se reemplazaron por 5 tarjetas reales: Efectivo en caja, Tarjeta, Transferencia, Total ventas del dia, Ticket promedio (con comparativa real "vs ayer").
+- "Abrir turno" gano un campo "Motivo de apertura" (dropdown con opciones + "Otro"); como el backend solo tiene un campo `notas` libre, el motivo elegido se concatena al frente de las notas reales -- no se agrego columna nueva porque no hacia falta cambiar el esquema para esto.
+- "Cerrar turno" se convirtio en un modal (antes era un panel fijo siempre visible); reutiliza los mismos 4 campos reales (efectivo/tarjeta/transferencia/credito contado) y notas.
+- Nuevo modal "Ver historial de cajas" (botón en el encabezado) que lista los cortes reales (`GET /caja/cortes`) en una tabla con apertura, responsable, estado, ventas, esperado y diferencia.
+- "Movimientos recientes" ahora es una lista con icono por tipo (entrada/salida), con "Ver todos" que expande sin pedir datos nuevos al servidor (el endpoint ya regresaba hasta 80).
+- Acciones rapidas: "Ver reporte de ventas" (real, `mostrarGraficas()`), "Ver movimientos de caja" (hace scroll y expande la lista), "Hacer corte de caja" (abre el modal de cierre).
+- Se corrigio que el icono del boton "Caja" en el sidebar usaba la clave `"banknote"`, que no existe en el diccionario de iconos (caia silenciosamente al icono generico); se cambio a `"wallet"`.
+- Se simplifico `fase7-caja-ui.js`: ya no crea una caja de metodos de pago aparte ni hace polling cada 2 segundos (esos datos ahora se muestran directamente en las tarjetas KPI de Caja); solo queda como un alias de compatibilidad para que `pos-sales.js` (que llama `window.refrescarCaja7Metodos()` justo despues de cada venta) siga refrescando la pantalla de Caja en tiempo real.
+
+Simplificaciones frente a la referencia:
+
+- No existe un concepto real de "Devoluciones"; la fila correspondiente del "Corte de caja rapido" de la referencia se omitio en vez de inventarla.
+- "Categoria/Concepto" en el formulario de movimiento es un campo de texto con sugerencias (datalist), no una lista fija en el backend -- el campo real siempre fue texto libre.
+
+Validacion:
+
+- `node --check` correcto en `fase6-server.js`, `public/fase6.js`, `public/fase7-caja-ui.js`, `public/js/shell-topbar.js`, `public/app.js`.
+- Probado en el servidor real con un turno abierto real ya existente: las 5 tarjetas KPI mostraron datos reales, se registro un movimiento de entrada real ($50, "Cambio menudo") y aparecio de inmediato en "Movimientos recientes" y en "Turno en curso"; el modal de "Ver historial de cajas" mostro el corte real; el modal de "Cerrar sesion" se abrio y se cerro sin confirmar el cierre (para no terminar el turno real durante la prueba). Verificado en modo claro y oscuro.
+
+### Finanzas: ingresos reales, utilidad neta y cuentas por cobrar desde Creditos
+
+Archivos actualizados:
+
+- `fase5-server.js` (nuevos calculos y endpoints)
+- `public/fase5.js` (reescrito completo)
+- `public/css/components/finance.css` (nuevo)
+- `public/app.js`, `public/index.html` (cache-busting)
+
+Contexto:
+
+- Antes de tocar nada se confirmo que Finanzas solo llevaba gastos operativos, cuentas por pagar y pagos a proveedor -- nunca tocaba `historial_ventas`, por lo que no existia "Ingresos", "Utilidad neta" ni "Cuentas por cobrar". La referencia pedia las tres cosas.
+
+Cambios reales de backend (aditivos, ninguno cambia una tabla ni una regla de negocio existente):
+
+- `GET /finanzas/resumen` ahora acepta `periodo`/`desde`/`hasta` (mismo patron que Reportes) y agrega: `ingresos` (SUM real de `historial_ventas.total` en el periodo), `utilidad_neta` (ingresos - gastos), `balance_disponible` (utilidad neta menos cuentas por pagar pendientes -- formula documentada aqui, no es un saldo bancario real sino una aproximacion), `cuentas_por_cobrar` y `clientes_por_cobrar` (tomados de `clientes_credito` + `movimientos_credito`, el mismo calculo de saldo que ya usa la pantalla de Creditos), y `anterior` (ingresos/gastos/utilidad del periodo equivalente anterior, para las comparativas "vs periodo anterior").
+- Nuevo `GET /finanzas/resumen-por-dia`: ingresos y gastos agrupados por dia (para la grafica) y gastos agrupados por categoria (para el donut) -- mismo patron que ya se uso en Reportes para ventas por categoria.
+- Nuevo `GET /finanzas/cuentas-por-cobrar`: lista de clientes con saldo de credito pendiente (saldo > 0), con su `fecha_vencimiento` real, ordenados por vencimiento. Es una lectura de los mismos datos que usa Creditos, no una tabla ni un concepto nuevo.
+
+Cambio de pantalla:
+
+- 5 tarjetas KPI: Ingresos totales, Gastos totales y Utilidad neta ahora muestran comparativa real "vs periodo anterior" (mismo patron que Reportes); Cuentas por pagar muestra "N cuentas pendientes" (real); Balance disponible muestra el texto fijo "Despues de gastos y pagos" porque es una formula derivada, no una cifra de banco real.
+- Se agrego un filtro de periodo (Dia/Semana/Mes/Ano/rango, igual que Reportes) -- antes Finanzas solo mostraba "este mes" sin poder cambiarlo.
+- Nueva grafica "Resumen financiero" (linea: Ingresos/Gastos/Utilidad por dia) y nuevo donut "Gastos por categoria" (reutiliza las categorias reales que ya existian en el formulario de gastos: General/Renta/Servicios/Nomina/Flete/Mantenimiento).
+- "Cuentas por pagar" paso de tarjetas sueltas a tabla (Proveedor/Factura-Concepto/Vencimiento/Monto/Estado + boton Pagar), con "+ Nueva cuenta" que abre un modal (antes era un formulario siempre visible en la pantalla).
+- Nuevo panel "Cuentas por cobrar" (Cliente/Vencimiento/Monto/Estado), con un enlace "Ir a creditos" que navega a la pantalla real de Creditos en vez de duplicar su edicion aqui.
+- "Nuevo gasto" tambien paso a modal.
+- Acciones rapidas: "Registrar gasto" (abre el modal real), "Ver ventas del periodo" (real, `mostrarGraficas()`), "Pagar proveedor" (toma la primera cuenta pendiente real y reutiliza el flujo de pago ya existente), "Ver flujo de efectivo" (real, navega a Caja), "Generar reporte financiero" (exporta un CSV real generado en el navegador con los datos ya cargados, sin backend nuevo).
+- Se mantuvieron "Gastos recientes" y "Pagos a proveedores recientes" (ya reales, no estan en la referencia) como una fila secundaria debajo, para no perder funcionalidad existente.
+
+Simplificaciones frente a la referencia:
+
+- No existe "Registrar ingreso" como accion manual -- los ingresos solo pueden venir de ventas reales registradas en el POS, no se fabrico un formulario para capturar ingresos a mano.
+- "Balance disponible" es una formula derivada (utilidad neta - cuentas por pagar pendientes), documentada arriba; no representa un saldo bancario real porque este sistema no esta conectado a ninguna cuenta bancaria.
+
+Validacion:
+
+- `node --check` correcto en `fase5-server.js`, `public/fase5.js`, `public/app.js`.
+- Probado en el servidor real: las 5 tarjetas KPI, la grafica de linea y el donut de categorias respondieron con datos reales; "Cuentas por cobrar" mostro un cliente real con saldo vencido (mismo dato que ya se ve en Creditos). Se registro un gasto de prueba real ($15, "Prueba de diseno") para verificar el flujo de extremo a extremo -- la utilidad neta se recalculo correctamente a partir de ese gasto. Se probo "Pagar proveedor" (mostro correctamente que no hay cuentas pendientes) y "Exportar" (genero el CSV sin errores). Verificado en modo claro y oscuro.
+- Nota: la prueba en vivo dejo un gasto real registrado ($15.00, categoria General, concepto "Prueba de diseno - bolsas para mostrador") en la base de datos real; queda pendiente que el cliente confirme si lo deja o prefiere que se elimine manualmente (no hay endpoint de borrado de gastos).
+
+### Bug real: Finanzas reaparecia sola al navegar a otra pantalla
+
+Reportado por el cliente con capturas: al abrir Finanzas y luego hacer clic en Pedidos, Finanzas desaparecia un instante y luego volvia a aparecer encima de Pedidos.
+
+Causa raiz (no tenia nada que ver con los arreglos de diseno de esta sesion):
+
+- `public/fix-navegacion.js` es un parche ya existente que envuelve las funciones `mostrarX` de todas las pantallas para, ademas de esconder/mostrar la pantalla correspondiente al momento del clic, volver a forzar esa misma visibilidad una vez que la promesa de esa pantalla se resuelve (`setTimeout(() => show(id), 80)` para las pantallas "dinamicas": Recepcion, Pedidos, Ajustes, Caja, Finanzas).
+- Finanzas hace 6 peticiones seguidas (`resumen`, `resumen-por-dia`, `cuentas-pagar`, `cuentas-por-cobrar`, `gastos-operativos`, `pagos-proveedor`) antes de resolver su promesa. Si el usuario navegaba a otra pantalla (por ejemplo Pedidos) mientras esas peticiones todavia estaban en curso, la promesa de Finanzas terminaba *despues*, y el `setTimeout` disparaba `show("pantallaFinanzas")` sin saber que el usuario ya se habia movido a otra pantalla -- la traia de vuelta encima de lo que fuera que estuviera abierto en ese momento.
+- Esto ya era un riesgo latente desde que existian pantallas "dinamicas" con carga de datos lenta; se hizo mas facil de reproducir en esta sesion porque el nuevo Finanzas quedo con mas peticiones secuenciales que antes (antes solo cargaba resumen + cuentas + gastos).
+
+Arreglo:
+
+- Se agrego un "token de navegacion" en `fix-navegacion.js`: cada vez que se muestra cualquier pantalla (dinamica o de las de siempre) se marca un numero de turno nuevo. Los `setTimeout` retrasados (el "re-esconder" de 40ms y el "re-mostrar" de 80ms) ahora comprueban que el turno siga siendo el mismo antes de actuar; si el usuario ya navego a otra pantalla mientras tanto, se cancelan solos.
+
+Ademas, aprovechando que ya estaba revisando esto, se corrigio el mismo patron de bug de "lista de pantallas a esconder incompleta" (ya encontrado varias veces esta sesion) en los lugares que todavia le faltaban `pantallaCaja`/`pantallaFinanzas` (y en algunos casos tambien `pantallaRecepcionMercancia`/`pantallaPedidosProveedor`/`pantallaAjustesInventario`):
+
+- `public/js/config-auth.js`: `ocultarPantallasPrincipales()` (la funcion compartida que usan Inventario, Categorias, Punto de venta, Reportes, Configuracion) ahora incluye las 5 pantallas dinamicas.
+- `public/js/sales-history-documents.js`: `mostrarInicio()` ya no repite una lista de `.style.display="none"` a mano; ahora llama a `ocultarPantallasPrincipales()`.
+- `public/js/credit-customers.js`: `mostrarClientes()` -- mismo cambio.
+- `public/js/supplier-catalog-view.js`: `mostrarProveedores()` -- mismo cambio.
+- `public/fase4.js`: `ocultar()` (Pedidos/Ajustes) ahora incluye `pantallaCaja`/`pantallaFinanzas`.
+- `public/js/ferretero-flow.js`: `ocultarTodoRecepcion()` ahora incluye `pantallaPedidosProveedor`/`pantallaAjustesInventario`/`pantallaCaja`/`pantallaFinanzas`.
+
+Validacion:
+
+- `node --check` correcto en los 8 archivos tocados.
+- Se reprodujo la carrera exacta en el servidor real: se disparo `mostrarFinanzasPOS()` sin esperar su resolucion, se navego de inmediato a `mostrarPedidosProveedor()`, y se espero 1.8 segundos (mas que suficiente para que las 6 peticiones de Finanzas terminaran). Antes del arreglo, Finanzas volvia a aparecer; despues del arreglo, Pedidos se quedo visible y Finanzas permanecio oculta. Tambien se probaron las combinaciones Caja&harr;Clientes, Finanzas&harr;Proveedores, Ajustes&harr;Reportes, Reportes&harr;Inventario y Recepcion&harr;Inicio sin que ninguna pantalla quedara mal escondida.
+
+### Pedidos a proveedor: estadisticas reales y bitacora con estado
+
+Archivos actualizados:
+
+- `public/fase4.js` (seccion de Pedidos reescrita; Ajustes no se toco)
+- `public/css/components/purchase-orders.css` (nuevo)
+- `public/index.html`, `public/app.js` (cache-busting)
+
+Contexto:
+
+- El backend de Pedidos (`fase4-server.js`: `/pedidos-proveedor` GET/POST, `/pedidos-proveedor/:id`, `/pedidos-proveedor/:id/recepciones`) ya era real y completo desde antes de esta sesion; no se toco. Solo se redisenio el frontend y se agregaron calculos nuevos en el cliente a partir de los datos ya reales.
+
+Cambios:
+
+- El campo "Proveedor" paso de texto libre a un combo con sugerencias (datalist) poblado con `GET /proveedores` reales, sin perder la libertad de escribir un proveedor nuevo.
+- Se agrego una fila de 4 tarjetas de estadisticas (Pedidos este mes, Total compras, Pendientes, Recibidos hoy), calculadas en el cliente a partir de la lista de pedidos ya cargada -- ningun dato inventado ni endpoint nuevo.
+- La lista de "Pedidos recientes" ahora muestra un badge de estado real (Borrador/Enviado/Parcial/Recibido/Cancelado) y un boton "Ver todos" que expande sin pedir datos nuevos al servidor.
+- Se corrigieron 6 llamadas a `alertaPOS`/`confirmarPOS` con el orden de argumentos invertido (mismo bug de convencion `alertaPOS(mensaje, titulo, tipo)` ya corregido varias veces esta sesion en otras pantallas) que quedaban de la version original de este archivo.
+
+Validacion:
+
+- `node --check` correcto en `public/fase4.js`.
+- Probado en el servidor real: datalist de proveedores con datos reales, agregar producto a un pedido de prueba (sin guardarlo), tabla con "Total de productos" y "Total" correctos, boton "Recibir" con badge "Enviado" visible sobre un pedido real existente. Verificado en modo claro y oscuro.
+
+### Proveedores: filtro de estado real (Activo/Baja) y paginacion
+
+Archivos actualizados:
+
+- `server.js` (`GET /proveedores` acepta `?estado=`, nuevo `PUT /proveedores/:id/activar`)
+- `public/js/supplier-catalog-view.js`
+- `public/css/components/suppliers.css` (reescrito con tokens de diseno)
+- `public/index.html`, `public/app.js` (cache-busting)
+
+Contexto:
+
+- La pantalla ya tenia casi toda la estructura de la referencia (tarjetas de resumen, buscador, tabla) desde una fase anterior del refactor; lo que faltaba era el filtro "Estado: Activo / Baja" y la paginacion, ademas de que el estilo de botones seguia siendo solido/antiguo en vez del estilo de borde usado en el resto de pantallas rediseñadas esta sesion.
+
+Cambio real de backend (aditivo):
+
+- `GET /proveedores` antes SIEMPRE filtraba `activo = true`, por lo que los proveedores dados de baja no se podian ver ni reactivar desde la interfaz. Se agrego el parametro `?estado=activo|baja` para elegir cual lista pedir.
+- Se agrego `PUT /proveedores/:id/activar` (mismo patron que el soft-delete de `DELETE /proveedores/:id`, pero en sentido inverso) para poder reactivar un proveedor dado de baja.
+
+Cambios de pantalla:
+
+- Filtro "Estado: Activo | Baja" real, conectado al nuevo parametro del backend; al ver "Baja" las acciones cambian de Productos/Editar/Baja a un solo boton "Reactivar".
+- Paginacion real con `renderPaginacion()` (mismo helper compartido de Inventario/Categorias/Reportes/Ajustes) y texto "Mostrando X a Y de Z proveedores".
+- Botones de accion (Productos/Editar/Baja/Reactivar) cambiaron de relleno solido a estilo de borde (outline), igual que el resto de pantallas rediseñadas esta sesion.
+
+Validacion:
+
+- `node --check` correcto en `server.js`, `public/js/supplier-catalog-view.js`.
+- Probado en el servidor real: filtro "Baja" mostro correctamente "No hay proveedores para mostrar" (no hay ninguno dado de baja todavia); "Activo" siguio mostrando el proveedor real existente. Verificado en modo claro y oscuro.
+
+### Configuracion: rediseno visual minimalista (sin cambios de datos)
+
+Archivos actualizados:
+
+- `public/css/components/config-settings.css`
+- `public/index.html` (cache-busting)
+
+Contexto:
+
+- A diferencia de las otras dos pantallas, aqui NO se toco nada de logica ni de datos: los 6 tabs (Empresa, Apariencia, Ticket, Hardware, Usuarios, Sistema) ya eran completamente reales (todo se guarda en `localStorage` y se aplica de verdad: nombre/logo/color al sidebar y ticket, tema claro/oscuro, diseno de ticket con vista previa en vivo, impresora/cajon, usuarios y permisos, moneda/giro/duracion de sesion). Se confirmo con una investigacion dedicada antes de tocar nada.
+- La referencia del cliente muestra 4 campos que HOY NO EXISTEN en el sistema (ventas a credito, confirmacion para eliminar, control de inventario en tiempo real, redondeo de totales, respaldos) -- se decidio NO fabricarlos como toggles decorativos sin efecto real, siguiendo el mismo criterio de honestidad de todo el refactor. Tampoco se agregaron "color secundario/acento" ni "estilo de botones/menu" porque no existen ni se aplican en ningun lado.
+
+Cambios (solo visuales):
+
+- Encabezado: de una tarjeta con degradado azul y sombra pesada a un encabezado plano con borde inferior, igual que Ajustes/Recepcion/Caja/Finanzas/Pedidos/Proveedores.
+- Tabs: de píldoras con fondo difuminado (`backdrop-filter: blur`) y el tab activo en degradado, a una barra de pestañas plana con subrayado de color en la activa.
+- Tarjetas de cada tab: sombra pesada reducida a borde delgado.
+- Se quitaron los degradados de "Vista rapida" (Apariencia), la vista previa del ticket, y la zona de "Restablecer configuracion inicial".
+- Se confirmo que los tokens de color que usa esta pantalla (`--surface`, `--surface-soft`, `--line-soft`, `--text-main`, `--text-muted`, definidos en `design-system.css`/`theme-runtime.css`) SI tienen valores reales para modo claro y oscuro (a diferencia del bug de `--pos-*` encontrado antes en Recepcion/Ajustes/Reportes), asi que no hizo falta agregar valores de respaldo aqui.
+
+Validacion:
+
+- Probado en el servidor real recorriendo los 6 tabs (Empresa, Apariencia, Ticket, Hardware, Usuarios, Sistema): todos renderizan correctamente con el estilo plano nuevo, la vista previa del ticket sigue funcionando en vivo, la lista de usuarios reales (Gustavo/Administrador, Caja/Cajero) se ve correcta. Verificado en modo claro y oscuro. No se probo "Guardar cambios" para no alterar la configuracion real del negocio durante la prueba.

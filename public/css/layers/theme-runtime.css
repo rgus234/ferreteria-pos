@@ -1,0 +1,395 @@
+/* TEMA GLOBAL: MARCA + MODO OSCURO */
+
+:root{
+ --bg-app:#eef3f8;
+ --bg-app-soft:#f8fafc;
+ --surface:#ffffff;
+ --surface-soft:#f8fafc;
+ --surface-strong:#eef2f7;
+ --text-main:#0f172a;
+ --text-muted:#64748b;
+ --line-soft:#dbe3ef;
+ --shadow-soft:0 18px 42px rgba(15,23,42,.08);
+ --brand-soft:color-mix(in srgb, var(--brand-color) 12%, white);
+ --brand-mid:color-mix(in srgb, var(--brand-color) 72%, #0f172a);
+}
+
+body{
+ background:
+ radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--brand-color) 16%, transparent), transparent 32%),
+ linear-gradient(135deg, var(--brand-soft), #f7fafc 42%, #e9eef5);
+ color:var(--text-main);
+}
+
+body.oscuro{
+ --bg-app:#07111f;
+ --bg-app-soft:#0f172a;
+ --surface:#111827;
+ --surface-soft:#1f2937;
+ --surface-strong:#243044;
+ --text-main:#f8fafc;
+ --text-muted:#cbd5e1;
+ --line-soft:#334155;
+ --shadow-soft:none;
+ --brand-soft:color-mix(in srgb, var(--brand-color) 16%, #020617);
+ --brand-mid:color-mix(in srgb, var(--brand-color) 55%, #020617);
+ background:
+ radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--brand-color) 28%, transparent), transparent 34%),
+ linear-gradient(135deg, #020617, #07111f 48%, #0f172a);
+ color:var(--text-main);
+}
+
+.caja,
+.mini,
+.producto,
+.modal-producto,
+.form-credito-card,
+.dashboard-chart-card,
+.dashboard-pulso div,
+.dashboard-main-grid > .caja,
+#pantallaInicio > .caja,
+.setup-card,
+.clientes-shell,
+.proveedores-shell,
+.catalogo-shell,
+.bajo-shell,
+.reportes-shell,
+.reportes-panel,
+.catalogo-panel,
+.pos-carrito-card,
+.pos-historial-card,
+#pantallaInventario .caja,
+.detalle-venta-card,
+.detalle-venta-resumen div,
+.cliente-credito,
+.credito-resumen div,
+#detalleCliente .resumen-card,
+.movimientos-cliente{
+ background:var(--surface) !important;
+ color:var(--text-main) !important;
+ border-color:var(--line-soft) !important;
+ box-shadow:var(--shadow-soft) !important;
+}
+
+.dashboard-pulso{
+ background:transparent !important;
+ box-shadow:none !important;
+ border-color:transparent !important;
+}
+
+input,
+select,
+textarea,
+#busqueda,
+#buscarInventario,
+#buscarClientes,
+#buscarProveedores,
+#buscarInventarioBajo,
+.pos-toolbar #busqueda,
+.form-credito-campos input,
+.form-credito-campos select,
+.setup-grid input,
+.campo-recibido input{
+ background:var(--surface-soft) !important;
+ color:var(--text-main) !important;
+ border:1px solid var(--line-soft) !important;
+}
+
+input::placeholder,
+textarea::placeholder{
+ color:color-mix(in srgb, var(--text-muted) 76%, transparent) !important;
+}
+
+h1,h2,h3,h4,
+.pos-header h2,
+.pos-subheader h3,
+.clientes-header h2,
+.proveedores-header h2,
+.catalogo-header h2,
+.bajo-header h2,
+.reportes-header h2,
+.producto h2,
+.productos.pos-grid .producto h2,
+.tabla-inventario td:nth-child(2),
+.tabla-clientes td:first-child strong,
+.tabla-proveedores td:first-child strong,
+.catalogo-item strong,
+.vista-catalogo-header strong{
+ color:var(--text-main) !important;
+}
+
+p,small,span,
+.pos-header p,
+.pos-subheader span,
+.producto-stock,
+.producto p,
+.clientes-header p,
+.proveedores-header p,
+.catalogo-header p,
+.bajo-header p,
+.reportes-header p,
+.resumen-linea span,
+.campo-recibido span,
+.item-carrito-info small,
+.venta-dashboard-item span,
+.dashboard-card-head span,
+.dashboard-pulso span{
+ color:var(--text-muted);
+}
+
+button,
+.btn-agregar,
+.btn-primario,
+.btn-alerta,
+.btn-cobrar,
+.btn-credito-carrito,
+.btn-proveedor-nuevo,
+.btn-cliente-nuevo,
+.btn-bajo-inventario,
+.btn-reporte-actualizar,
+.btn-catalogo-subir,
+.productos.pos-grid .producto button,
+.acciones-clientes button,
+.acciones-proveedores button,
+.acciones-bajo button,
+.catalogo-item button,
+.modal-botones button,
+.formulario-producto button{
+ background:var(--brand-color) !important;
+ color:white !important;
+}
+
+.btn-limpiar,
+.btn-secundario,
+.acciones-clientes button:nth-child(3),
+.acciones-proveedores button:nth-child(3),
+.acciones-bajo button:nth-child(2),
+.catalogo-item button:last-child,
+.catalogo-panel-head button,
+.detalle-venta-header button,
+.form-credito-acciones .btn-secundario{
+ background:var(--surface-strong) !important;
+ color:var(--text-main) !important;
+}
+
+table,
+.tabla-inventario,
+.tabla-clientes,
+.tabla-proveedores,
+.tabla-bajo,
+.tabla-creditos,
+.tabla-detalle-venta,
+.vista-catalogo table{
+ background:var(--surface) !important;
+ color:var(--text-main) !important;
+}
+
+th,td,
+.tabla-inventario th,
+.tabla-inventario td,
+.tabla-clientes th,
+.tabla-clientes td,
+.tabla-proveedores th,
+.tabla-proveedores td,
+.tabla-bajo th,
+.tabla-bajo td,
+.tabla-creditos th,
+.tabla-creditos td,
+.tabla-detalle-venta th,
+.tabla-detalle-venta td,
+.vista-catalogo th,
+.vista-catalogo td{
+ background:transparent !important;
+ color:var(--text-main) !important;
+ border-color:var(--line-soft) !important;
+}
+
+tr:hover,
+.tabla-inventario tr:hover,
+.tabla-clientes tr:hover,
+.tabla-proveedores tr:hover,
+.tabla-bajo tr:hover{
+ background:color-mix(in srgb, var(--brand-color) 8%, transparent) !important;
+}
+
+.item-carrito,
+.carrito-vacio,
+.clientes-resumen div,
+.proveedores-resumen div,
+.catalogo-resumen div,
+.bajo-resumen div,
+.reportes-resumen div,
+.catalogo-vacio,
+.reporte-vacio,
+.credito-resumen-detalle .resumen-card,
+.resumen-inventario{
+ background:var(--surface-soft) !important;
+ color:var(--text-main) !important;
+ border-color:var(--line-soft) !important;
+}
+
+.producto-icono,
+.brand-logo-fallback,
+.setup-logo-preview{
+ background:color-mix(in srgb, var(--brand-color) 14%, var(--surface)) !important;
+ color:var(--brand-color) !important;
+}
+
+.brand-sidebar .brand-logo-fallback,
+.login-brand .brand-logo-fallback{
+ background:rgba(255,255,255,.16) !important;
+ color:white !important;
+}
+
+.estado-positivo,
+.venta-dashboard-item b{
+ background:color-mix(in srgb, #16a34a 18%, var(--surface)) !important;
+ color:#16a34a !important;
+}
+
+.venta-dashboard-item{
+ background:linear-gradient(180deg, color-mix(in srgb, #16a34a 10%, var(--surface)), var(--surface)) !important;
+ border-color:color-mix(in srgb, #16a34a 28%, var(--line-soft)) !important;
+}
+
+#inventarioBajo > div,
+.alerta-dashboard-item{
+ background:color-mix(in srgb, #f97316 14%, var(--surface)) !important;
+ color:var(--text-main) !important;
+}
+
+#inventarioBajo > div strong,
+.alerta-dashboard-item strong{
+ color:#ef4444 !important;
+}
+
+#pantallaInicio .dashboard-top .caja.mini,
+.dashboard-chart-card,
+.dashboard-main-grid > .caja{
+ background:
+ linear-gradient(180deg, color-mix(in srgb, var(--brand-color) 5%, var(--surface)), var(--surface)) !important;
+}
+
+/* AJUSTES FINOS DE TEMA */
+
+body.oscuro .pos-carrito-card .carrito-vacio,
+body.oscuro .pos-carrito-card .resumen-cobro,
+body.oscuro .pos-carrito-card .campo-recibido,
+body.oscuro .pos-carrito-card .resumen-linea,
+body.oscuro .pos-carrito-card .item-carrito,
+body.oscuro .pos-carrito-card .btn-limpiar{
+ background:color-mix(in srgb, var(--surface-soft) 82%, transparent) !important;
+ color:var(--text-main) !important;
+ border-color:var(--line-soft) !important;
+}
+
+body.oscuro .pos-carrito-card .campo-recibido input,
+body.oscuro .pos-carrito-card input,
+body.oscuro #dinero{
+ background:color-mix(in srgb, var(--surface) 92%, #020617) !important;
+ color:var(--text-main) !important;
+ border-color:var(--line-soft) !important;
+}
+
+body.oscuro .pos-carrito-card .carrito-vacio strong,
+body.oscuro .pos-carrito-card .resumen-linea strong,
+body.oscuro .pos-carrito-card .campo-recibido span,
+body.oscuro .pos-carrito-card .resumen-linea span{
+ color:var(--text-main) !important;
+}
+
+body.oscuro .pos-carrito-card .carrito-vacio span,
+body.oscuro .pos-carrito-card .carrito-vacio p{
+ color:var(--text-muted) !important;
+}
+
+body.oscuro .pos-carrito-card .resumen-cobro{
+ display:grid;
+ gap:10px;
+ padding:12px;
+ border:1px solid var(--line-soft) !important;
+ border-radius:12px;
+}
+
+body.oscuro #pantallaInventario .inventario-top,
+body.oscuro #pantallaInventario .acciones-inventario,
+body.oscuro #pantallaInventario .tabla-inventario thead,
+body.oscuro #pantallaInventario .tabla-inventario th{
+ background:color-mix(in srgb, var(--surface) 88%, #020617) !important;
+ color:var(--text-main) !important;
+ border-color:var(--line-soft) !important;
+}
+
+body.oscuro #pantallaInventario #buscarInventario,
+body.oscuro #pantallaInventario .inventario-top input,
+body.oscuro #pantallaInventario .inventario-top select{
+ background:color-mix(in srgb, var(--surface-soft) 88%, #020617) !important;
+ color:var(--text-main) !important;
+ border-color:var(--line-soft) !important;
+}
+
+body.oscuro #pantallaInventario #buscarInventario::placeholder{
+ color:var(--text-muted) !important;
+}
+
+body.oscuro #pantallaInventario .tabla-inventario tr,
+body.oscuro #pantallaInventario .tabla-inventario td{
+ background:transparent !important;
+ color:var(--text-main) !important;
+ border-color:var(--line-soft) !important;
+}
+
+body.oscuro #pantallaInventario .tabla-inventario tr:hover{
+ background:color-mix(in srgb, var(--brand-color) 10%, transparent) !important;
+}
+
+body.oscuro #pantallaCatalogo,
+body.oscuro #pantallaClientes,
+body.oscuro #pantallaProveedores,
+body.oscuro #pantallaInventarioBajo,
+body.oscuro #pantallaReportes,
+body.oscuro #pantallaConfiguracion{
+ color:var(--text-main) !important;
+}
+
+body.oscuro .catalogo-shell,
+body.oscuro .clientes-shell,
+body.oscuro .proveedores-shell,
+body.oscuro .bajo-shell,
+body.oscuro .reportes-shell,
+body.oscuro .catalogo-panel,
+body.oscuro .clientes-panel,
+body.oscuro .proveedores-panel,
+body.oscuro .bajo-panel,
+body.oscuro .reportes-panel,
+body.oscuro .vista-catalogo,
+body.oscuro .catalogo-item,
+body.oscuro .catalogo-resumen div,
+body.oscuro .clientes-resumen div,
+body.oscuro .proveedores-resumen div,
+body.oscuro .bajo-resumen div,
+body.oscuro .reportes-resumen div{
+ background:color-mix(in srgb, var(--surface) 90%, #020617) !important;
+ color:var(--text-main) !important;
+ border-color:var(--line-soft) !important;
+}
+
+body.oscuro .catalogo-shell input,
+body.oscuro .clientes-shell input,
+body.oscuro .proveedores-shell input,
+body.oscuro .bajo-shell input,
+body.oscuro .reportes-shell input{
+ background:color-mix(in srgb, var(--surface-soft) 88%, #020617) !important;
+ color:var(--text-main) !important;
+ border-color:var(--line-soft) !important;
+}
+
+body.oscuro .catalogo-shell input::placeholder,
+body.oscuro .clientes-shell input::placeholder,
+body.oscuro .proveedores-shell input::placeholder,
+body.oscuro .bajo-shell input::placeholder,
+body.oscuro .reportes-shell input::placeholder{
+ color:var(--text-muted) !important;
+}
+
+.modal-actions-row{display:flex;gap:10px;justify-content:flex-end;}button,input,select{font-family:inherit;}button{letter-spacing:0;}.caja,.producto-card,.cliente-credito,.catalogo-shell,.reportes-shell,.proveedores-shell,.clientes-shell{border-radius:var(--pos-radius) !important;}

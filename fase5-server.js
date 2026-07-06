@@ -109,10 +109,73 @@ module.exports = (app, pool) => {
         listo = true;
     }
 
+    function rangoFechasFinanzas(req) {
+        const periodo = String(req.query.periodo || "mes");
+        const desde = req.query.desde ? new Date(String(req.query.desde)) : null;
+        const hasta = req.query.hasta ? new Date(String(req.query.hasta)) : null;
+        const usarRango = desde && !Number.isNaN(desde.getTime()) && hasta && !Number.isNaN(hasta.getTime());
+
+        if (usarRango) {
+            return {
+                filtroCreatedAt: "AND created_at::date BETWEEN $2::date AND $3::date",
+                filtroFecha: "AND fecha::date BETWEEN $2::date AND $3::date",
+                params: [desde.toISOString().slice(0, 10), hasta.toISOString().slice(0, 10)]
+            };
+        }
+
+        const desdeSql = periodo === "dia"
+            ? "CURRENT_DATE"
+            : periodo === "semana"
+                ? "date_trunc('week', NOW())"
+                : periodo === "anio"
+                    ? "date_trunc('year', NOW())"
+                    : "date_trunc('month', NOW())";
+
+        return {
+            filtroCreatedAt: `AND created_at >= ${desdeSql}`,
+            filtroFecha: `AND fecha >= ${desdeSql}`,
+            params: []
+        };
+    }
+
+    function rangoFechasFinanzasAnterior(req) {
+        const periodo = String(req.query.periodo || "mes");
+        const desde = req.query.desde ? new Date(String(req.query.desde)) : null;
+        const hasta = req.query.hasta ? new Date(String(req.query.hasta)) : null;
+        const usarRango = desde && !Number.isNaN(desde.getTime()) && hasta && !Number.isNaN(hasta.getTime());
+
+        if (usarRango) {
+            const duracionDias = Math.max(1, Math.round((hasta.getTime() - desde.getTime()) / 86400000) + 1);
+            const anteriorHasta = new Date(desde.getTime() - 86400000);
+            const anteriorDesde = new Date(anteriorHasta.getTime() - (duracionDias - 1) * 86400000);
+            return {
+                filtroCreatedAt: "AND created_at::date BETWEEN $2::date AND $3::date",
+                filtroFecha: "AND fecha::date BETWEEN $2::date AND $3::date",
+                params: [anteriorDesde.toISOString().slice(0, 10), anteriorHasta.toISOString().slice(0, 10)]
+            };
+        }
+
+        const condicion = periodo === "dia"
+            ? "AND fecha >= CURRENT_DATE - INTERVAL '1 day' AND fecha < CURRENT_DATE"
+            : periodo === "semana"
+                ? "AND fecha >= date_trunc('week', NOW()) - INTERVAL '7 days' AND fecha < date_trunc('week', NOW())"
+                : periodo === "anio"
+                    ? "AND fecha >= date_trunc('year', NOW()) - INTERVAL '1 year' AND fecha < date_trunc('year', NOW())"
+                    : "AND fecha >= date_trunc('month', NOW()) - INTERVAL '1 month' AND fecha < date_trunc('month', NOW())";
+
+        return {
+            filtroCreatedAt: condicion.replace(/fecha/g, "created_at"),
+            filtroFecha: condicion,
+            params: []
+        };
+    }
+
     app.get("/finanzas/resumen", async (req, res) => {
         try {
             await asegurarFinanzas();
             const negocio = await negocioActual(req);
+            const { filtroCreatedAt, filtroFecha, params } = rangoFechasFinanzas(req);
+            const parametros = [negocio.id, ...params];
 
             const cuentas = await pool.query(`
                 SELECT
@@ -131,21 +194,173 @@ module.exports = (app, pool) => {
                 SELECT COALESCE(SUM(monto), 0) AS gastos_mes
                 FROM public.gastos_operativos
                 WHERE negocio_id = $1
-                AND created_at >= date_trunc('month', NOW())
-            `, [negocio.id]);
+                ${filtroCreatedAt}
+            `, parametros);
 
             const pagos = await pool.query(`
                 SELECT COALESCE(SUM(monto), 0) AS pagos_mes
                 FROM public.pagos_proveedor
                 WHERE negocio_id = $1
-                AND created_at >= date_trunc('month', NOW())
+                ${filtroCreatedAt}
+            `, parametros);
+
+            const ingresos = await pool.query(`
+                SELECT COALESCE(SUM(total), 0) AS ingresos
+                FROM public.historial_ventas
+                WHERE negocio_id = $1
+                ${filtroFecha}
+            `, parametros);
+
+            const { filtroCreatedAt: filtroCreatedAtAnterior, filtroFecha: filtroFechaAnterior, params: paramsAnterior } = rangoFechasFinanzasAnterior(req);
+            const parametrosAnterior = [negocio.id, ...paramsAnterior];
+
+            const ingresosAnterior = await pool.query(`
+                SELECT COALESCE(SUM(total), 0) AS ingresos
+                FROM public.historial_ventas
+                WHERE negocio_id = $1
+                ${filtroFechaAnterior}
+            `, parametrosAnterior);
+
+            const gastosAnterior = await pool.query(`
+                SELECT COALESCE(SUM(monto), 0) AS gastos
+                FROM public.gastos_operativos
+                WHERE negocio_id = $1
+                ${filtroCreatedAtAnterior}
+            `, parametrosAnterior);
+
+            const cuentasPorCobrar = await pool.query(`
+                SELECT
+                    COALESCE(SUM(saldo), 0) AS total,
+                    COUNT(*) AS clientes
+                FROM (
+                    SELECT
+                        COALESCE(SUM(CASE WHEN m.tipo = 'venta' THEN m.monto WHEN m.tipo = 'abono' THEN -m.monto ELSE 0 END), 0) AS saldo
+                    FROM public.clientes_credito c
+                    LEFT JOIN public.movimientos_credito m
+                        ON m.cliente_id = c.id
+                        AND m.negocio_id = c.negocio_id
+                    WHERE c.activo = true
+                    AND c.negocio_id = $1
+                    GROUP BY c.id
+                ) saldos
+                WHERE saldo > 0
             `, [negocio.id]);
+
+            const ingresosMonto = Number(ingresos.rows[0].ingresos || 0);
+            const gastosMonto = Number(gastos.rows[0].gastos_mes || 0);
+            const utilidadNeta = ingresosMonto - gastosMonto;
+            const porPagarMonto = Number(cuentas.rows[0].por_pagar || 0);
+            const ingresosAnteriorMonto = Number(ingresosAnterior.rows[0].ingresos || 0);
+            const gastosAnteriorMonto = Number(gastosAnterior.rows[0].gastos || 0);
 
             res.json({
                 ...cuentas.rows[0],
-                gastos_mes: gastos.rows[0].gastos_mes,
-                pagos_mes: pagos.rows[0].pagos_mes
+                ingresos: ingresosMonto,
+                gastos_mes: gastosMonto,
+                pagos_mes: pagos.rows[0].pagos_mes,
+                utilidad_neta: utilidadNeta,
+                balance_disponible: utilidadNeta - porPagarMonto,
+                cuentas_por_cobrar: Number(cuentasPorCobrar.rows[0].total || 0),
+                clientes_por_cobrar: Number(cuentasPorCobrar.rows[0].clientes || 0),
+                anterior: {
+                    ingresos: ingresosAnteriorMonto,
+                    gastos: gastosAnteriorMonto,
+                    utilidad_neta: ingresosAnteriorMonto - gastosAnteriorMonto
+                }
             });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.get("/finanzas/resumen-por-dia", async (req, res) => {
+        try {
+            await asegurarFinanzas();
+            const negocio = await negocioActual(req);
+            const { filtroCreatedAt, filtroFecha, params } = rangoFechasFinanzas(req);
+            const parametros = [negocio.id, ...params];
+
+            const ingresosPorDia = await pool.query(`
+                SELECT TO_CHAR(fecha, 'DD/MM') AS dia, DATE(fecha) AS fecha_orden, COALESCE(SUM(total), 0) AS total
+                FROM public.historial_ventas
+                WHERE negocio_id = $1
+                ${filtroFecha}
+                GROUP BY TO_CHAR(fecha, 'DD/MM'), DATE(fecha)
+                ORDER BY DATE(fecha) ASC
+                LIMIT 60
+            `, parametros);
+
+            const gastosPorDia = await pool.query(`
+                SELECT TO_CHAR(created_at, 'DD/MM') AS dia, DATE(created_at) AS fecha_orden, COALESCE(SUM(monto), 0) AS total
+                FROM public.gastos_operativos
+                WHERE negocio_id = $1
+                ${filtroCreatedAt}
+                GROUP BY TO_CHAR(created_at, 'DD/MM'), DATE(created_at)
+                ORDER BY DATE(created_at) ASC
+                LIMIT 60
+            `, parametros);
+
+            const gastosPorCategoria = await pool.query(`
+                SELECT COALESCE(NULLIF(categoria, ''), 'General') AS categoria, COALESCE(SUM(monto), 0) AS total
+                FROM public.gastos_operativos
+                WHERE negocio_id = $1
+                ${filtroCreatedAt}
+                GROUP BY 1
+                ORDER BY total DESC
+            `, parametros);
+
+            const dias = new Map();
+            ingresosPorDia.rows.forEach(fila => {
+                dias.set(fila.fecha_orden.toISOString().slice(0, 10), { dia: fila.dia, ingresos: Number(fila.total), gastos: 0 });
+            });
+            gastosPorDia.rows.forEach(fila => {
+                const clave = fila.fecha_orden.toISOString().slice(0, 10);
+                const existente = dias.get(clave) || { dia: fila.dia, ingresos: 0, gastos: 0 };
+                existente.gastos = Number(fila.total);
+                dias.set(clave, existente);
+            });
+
+            const porDia = [...dias.entries()]
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([, valor]) => ({
+                    dia: valor.dia,
+                    ingresos: valor.ingresos,
+                    gastos: valor.gastos,
+                    utilidad: valor.ingresos - valor.gastos
+                }));
+
+            res.json({
+                porDia,
+                gastosPorCategoria: gastosPorCategoria.rows
+            });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.get("/finanzas/cuentas-por-cobrar", async (req, res) => {
+        try {
+            const negocio = await negocioActual(req);
+
+            const resultado = await pool.query(`
+                SELECT
+                    c.id,
+                    c.nombre,
+                    c.fecha_vencimiento,
+                    COALESCE(SUM(CASE WHEN m.tipo = 'venta' THEN m.monto WHEN m.tipo = 'abono' THEN -m.monto ELSE 0 END), 0) AS saldo
+                FROM public.clientes_credito c
+                LEFT JOIN public.movimientos_credito m
+                    ON m.cliente_id = c.id
+                    AND m.negocio_id = c.negocio_id
+                WHERE c.activo = true
+                AND c.negocio_id = $1
+                GROUP BY c.id
+                HAVING COALESCE(SUM(CASE WHEN m.tipo = 'venta' THEN m.monto WHEN m.tipo = 'abono' THEN -m.monto ELSE 0 END), 0) > 0
+                ORDER BY COALESCE(c.fecha_vencimiento, CURRENT_DATE + 9999) ASC, saldo DESC
+                LIMIT 20
+            `, [negocio.id]);
+
+            res.json({ cuentas: resultado.rows });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }

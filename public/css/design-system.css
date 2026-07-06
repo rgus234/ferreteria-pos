@@ -1,0 +1,117 @@
+@layer nexo-tokens {
+ :root {
+  --nexo-brand: var(--brand-color, #0d6efd);
+  --nexo-brand-strong: color-mix(in srgb, var(--nexo-brand) 78%, #020617);
+  --nexo-brand-soft: color-mix(in srgb, var(--nexo-brand) 12%, #ffffff);
+
+  --nexo-bg: #f3f4f6;
+  --nexo-surface: rgba(255, 255, 255, .78);
+  --nexo-surface-soft: rgba(255, 255, 255, .56);
+  --nexo-surface-strong: rgba(255, 255, 255, .92);
+  --nexo-line: rgba(15, 23, 42, .10);
+  --nexo-text: #101828;
+  --nexo-text-muted: #667085;
+
+  --nexo-success: #16a34a;
+  --nexo-warning: #f59e0b;
+  --nexo-danger: #ef4444;
+  --nexo-info: #0ea5e9;
+
+  --nexo-radius-xs: 10px;
+  --nexo-radius-sm: 12px;
+  --nexo-radius-md: 16px;
+  --nexo-radius-lg: 20px;
+  --nexo-radius-xl: 24px;
+  --nexo-radius-pill: 999px;
+
+  --nexo-space-1: 4px;
+  --nexo-space-2: 8px;
+  --nexo-space-3: 12px;
+  --nexo-space-4: 16px;
+  --nexo-space-5: 20px;
+  --nexo-space-6: 24px;
+  --nexo-space-8: 32px;
+
+  --nexo-shadow-soft: 0 20px 55px rgba(15, 23, 42, .12);
+  --nexo-shadow-card: 0 14px 30px rgba(15, 23, 42, .07);
+  --nexo-shadow-brand: 0 14px 28px color-mix(in srgb, var(--nexo-brand) 20%, transparent);
+  --nexo-glass-blur: blur(18px) saturate(1.16);
+
+  --nexo-control-height-sm: 34px;
+  --nexo-control-height: 42px;
+  --nexo-control-height-lg: 50px;
+
+  --nexo-font-family: Arial, sans-serif;
+  --nexo-font-size-xs: 11px;
+  --nexo-font-size-sm: 12px;
+  --nexo-font-size-md: 14px;
+  --nexo-font-size-lg: 16px;
+  --nexo-font-size-xl: 20px;
+  --nexo-font-size-display: 32px;
+
+  --surface: var(--nexo-surface);
+  --surface-soft: var(--nexo-surface-soft);
+  --surface-strong: var(--nexo-surface-strong);
+  --line-soft: var(--nexo-line);
+  --text-main: var(--nexo-text);
+  --text-muted: var(--nexo-text-muted);
+  --shadow-soft: var(--nexo-shadow-soft);
+ }
+
+ body.oscuro {
+  --nexo-bg: #020617;
+  --nexo-surface: rgba(15, 23, 42, .78);
+  --nexo-surface-soft: rgba(30, 41, 59, .58);
+  --nexo-surface-strong: rgba(15, 23, 42, .92);
+  --nexo-line: rgba(226, 232, 240, .16);
+  --nexo-text: #f8fafc;
+  --nexo-text-muted: #cbd5e1;
+  --nexo-shadow-soft: 0 22px 60px rgba(0, 0, 0, .34);
+
+  --surface: var(--nexo-surface);
+  --surface-soft: var(--nexo-surface-soft);
+  --surface-strong: var(--nexo-surface-strong);
+  --line-soft: var(--nexo-line);
+  --text-main: var(--nexo-text);
+  --text-muted: var(--nexo-text-muted);
+  --shadow-soft: var(--nexo-shadow-soft);
+ }
+}
+
+@layer nexo-components {
+ .nexo-glass {
+  background: var(--nexo-surface);
+  border: 1px solid var(--nexo-line);
+  border-radius: var(--nexo-radius-lg);
+  box-shadow: var(--nexo-shadow-soft);
+  backdrop-filter: var(--nexo-glass-blur);
+  color: var(--nexo-text);
+ }
+
+ .nexo-button {
+  min-height: var(--nexo-control-height);
+  border: 1px solid var(--nexo-line);
+  border-radius: var(--nexo-radius-md);
+  background: var(--nexo-surface-strong);
+  color: var(--nexo-text);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+ }
+
+ .nexo-button-primary {
+  background: linear-gradient(135deg, var(--nexo-brand), var(--nexo-brand-strong));
+  border-color: color-mix(in srgb, var(--nexo-brand) 38%, transparent);
+  color: #fff;
+  box-shadow: var(--nexo-shadow-brand);
+ }
+
+ .nexo-field {
+  min-height: var(--nexo-control-height);
+  border: 1px solid var(--nexo-line);
+  border-radius: var(--nexo-radius-md);
+  background: var(--nexo-surface-soft);
+  color: var(--nexo-text);
+  font: inherit;
+ }
+}

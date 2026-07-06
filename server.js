@@ -9,6 +9,7 @@ const {
     asegurarNegocioActual,
     normalizarSlug
 } = require("./tenant");
+const { cargarModulosPOS } = require("./server-modules");
 
 validarConfigProduccion();
 
@@ -1429,6 +1430,15 @@ async function licenciaActual(negocio) {
 
 async function asegurarColumnasHistorialVentas(client = pool) {
     await client.query(`
+        CREATE TABLE IF NOT EXISTS public.folio_contadores (
+            negocio_id INTEGER NOT NULL REFERENCES public.negocios(id) ON DELETE CASCADE,
+            tipo TEXT NOT NULL,
+            ultimo_numero INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (negocio_id, tipo)
+        )
+    `);
+    await client.query(`
         ALTER TABLE public.historial_ventas
         ADD COLUMN IF NOT EXISTS subtotal NUMERIC(12,2) NOT NULL DEFAULT 0
     `);
@@ -1484,6 +1494,192 @@ async function asegurarColumnasHistorialVentas(client = pool) {
         ALTER TABLE public.historial_ventas
         ADD COLUMN IF NOT EXISTS pagos_json JSONB NOT NULL DEFAULT '{}'::jsonb
     `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS venta_id INTEGER
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS folio TEXT
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS folio_numero INTEGER
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS turno_id INTEGER
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS cajero_usuario TEXT
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS cajero_nombre TEXT
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS cliente_nombre TEXT
+    `);
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'completada'
+    `);
+    await client.query(`
+        ALTER TABLE public.ventas
+        ADD COLUMN IF NOT EXISTS folio TEXT
+    `);
+    await client.query(`
+        ALTER TABLE public.ventas
+        ADD COLUMN IF NOT EXISTS folio_numero INTEGER
+    `);
+    await client.query(`
+        ALTER TABLE public.ventas
+        ADD COLUMN IF NOT EXISTS turno_id INTEGER
+    `);
+    await client.query(`
+        ALTER TABLE public.ventas
+        ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'completada'
+    `);
+    await client.query(`
+        WITH maximos AS (
+            SELECT negocio_id, COALESCE(MAX(folio_numero), 0) AS base
+            FROM public.historial_ventas
+            WHERE folio_numero IS NOT NULL
+            GROUP BY negocio_id
+        ),
+        numeradas AS (
+            SELECT
+                h.id,
+                COALESCE(m.base, 0) +
+                ROW_NUMBER() OVER (PARTITION BY h.negocio_id ORDER BY h.fecha ASC, h.id ASC) AS numero
+            FROM public.historial_ventas h
+            LEFT JOIN maximos m ON m.negocio_id = h.negocio_id
+            WHERE h.folio IS NULL
+        )
+        UPDATE public.historial_ventas h
+        SET
+            folio_numero = numeradas.numero,
+            folio = 'V-' || LPAD(numeradas.numero::text, 6, '0')
+        FROM numeradas
+        WHERE h.id = numeradas.id
+    `);
+    await client.query(`
+        UPDATE public.ventas v
+        SET
+            folio = h.folio,
+            folio_numero = h.folio_numero
+        FROM public.historial_ventas h
+        WHERE h.venta_id = v.id
+        AND v.negocio_id = h.negocio_id
+        AND v.folio IS NULL
+    `);
+    await client.query(`
+        INSERT INTO public.folio_contadores (negocio_id, tipo, ultimo_numero, updated_at)
+        SELECT negocio_id, 'venta', COALESCE(MAX(folio_numero), 0), NOW()
+        FROM public.historial_ventas
+        GROUP BY negocio_id
+        ON CONFLICT (negocio_id, tipo)
+        DO UPDATE SET
+            ultimo_numero = GREATEST(public.folio_contadores.ultimo_numero, EXCLUDED.ultimo_numero),
+            updated_at = NOW()
+    `);
+    await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_historial_ventas_negocio_folio
+        ON public.historial_ventas (negocio_id, folio)
+        WHERE folio IS NOT NULL
+    `);
+    await client.query(`
+        CREATE TABLE IF NOT EXISTS public.comprobantes_venta (
+            id SERIAL PRIMARY KEY,
+            negocio_id INTEGER NOT NULL REFERENCES public.negocios(id) ON DELETE CASCADE,
+            venta_id INTEGER,
+            historial_id INTEGER NOT NULL REFERENCES public.historial_ventas(id) ON DELETE CASCADE,
+            folio TEXT NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'nota',
+            cliente_nombre TEXT,
+            obra TEXT,
+            observaciones TEXT,
+            subtotal_original NUMERIC(12,2) NOT NULL DEFAULT 0,
+            total_original NUMERIC(12,2) NOT NULL DEFAULT 0,
+            total_mostrado NUMERIC(12,2) NOT NULL DEFAULT 0,
+            motivo_ajuste TEXT,
+            autorizado_por TEXT,
+            creado_por TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+    await client.query(`
+        CREATE TABLE IF NOT EXISTS public.bitacora_comprobantes (
+            id SERIAL PRIMARY KEY,
+            negocio_id INTEGER NOT NULL REFERENCES public.negocios(id) ON DELETE CASCADE,
+            comprobante_id INTEGER REFERENCES public.comprobantes_venta(id) ON DELETE SET NULL,
+            historial_id INTEGER NOT NULL REFERENCES public.historial_ventas(id) ON DELETE CASCADE,
+            folio TEXT NOT NULL,
+            usuario_autorizo TEXT NOT NULL,
+            total_original NUMERIC(12,2) NOT NULL DEFAULT 0,
+            total_mostrado NUMERIC(12,2) NOT NULL DEFAULT 0,
+            motivo TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+}
+
+async function siguienteFolioVenta(client, negocioId) {
+    const resultado = await client.query(
+        `
+        INSERT INTO public.folio_contadores (negocio_id, tipo, ultimo_numero, updated_at)
+        VALUES ($1, 'venta', 1, NOW())
+        ON CONFLICT (negocio_id, tipo)
+        DO UPDATE SET
+            ultimo_numero = public.folio_contadores.ultimo_numero + 1,
+            updated_at = NOW()
+        RETURNING ultimo_numero
+        `,
+        [negocioId]
+    );
+
+    const numero = Number(resultado.rows[0]?.ultimo_numero || 1);
+    return {
+        numero,
+        folio: `V-${String(numero).padStart(6, "0")}`
+    };
+}
+
+async function turnoActivoVenta(client, negocioId) {
+    const resultado = await client.query(
+        `
+        SELECT id, usuario
+        FROM public.turnos_caja
+        WHERE negocio_id = $1
+        AND estado = 'abierto'
+        ORDER BY abierto_at DESC
+        LIMIT 1
+        `,
+        [negocioId]
+    );
+
+    return resultado.rows[0] || null;
+}
+
+async function validarPinAdministrador(client, negocioId, pin) {
+    const limpio = String(pin || "").trim();
+    if (!limpio) return null;
+
+    const resultado = await client.query(
+        `
+        SELECT usuario, rol
+        FROM public.usuarios
+        WHERE negocio_id = $1
+        AND password = $2
+        AND rol = 'Administrador'
+        LIMIT 1
+        `,
+        [negocioId, limpio]
+    );
+
+    return resultado.rows[0] || null;
 }
 
 async function asegurarColumnasMovimientosCredito(client = pool) {
@@ -1911,26 +2107,41 @@ async function aplicarVentaSync(client, negocio, payload) {
         Number(payload?.recibido || pagosVenta.efectivo || total);
     const cambio =
         Number(payload?.cambio || 0);
+    const folioVenta = await siguienteFolioVenta(client, negocio.id);
+    const turno = await turnoActivoVenta(client, negocio.id);
 
     const ventaCreada = await client.query(
         `
-        INSERT INTO public.ventas(negocio_id, total)
-        VALUES($1, $2)
-        RETURNING id, fecha
+        INSERT INTO public.ventas(negocio_id, total, folio, folio_numero, turno_id, estado)
+        VALUES($1, $2, $3, $4, $5, 'completada')
+        RETURNING id, fecha, folio
         `,
-        [negocio.id, total]
+        [negocio.id, total, folioVenta.folio, folioVenta.numero, turno?.id || null]
     );
 
     const historialCreado = await client.query(
         `
         INSERT INTO public.historial_ventas
-            (negocio_id, total, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
-        RETURNING id, fecha
+            (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada')
+        RETURNING id, fecha, folio
         `,
         [
             negocio.id,
+            ventaCreada.rows[0]?.id || null,
+            folioVenta.folio,
+            folioVenta.numero,
+            turno?.id || null,
             total,
+            numeroSync(payload?.subtotal, total),
+            numeroSync(payload?.descuento, 0),
+            payload?.descuentoTipo || "ninguno",
+            numeroSync(payload?.descuentoValor, 0),
+            payload?.clienteId ? Number(payload.clienteId) : null,
+            payload?.clienteNombre || null,
+            payload?.cajeroUsuario || null,
+            payload?.cajeroNombre || turno?.usuario || null,
+            JSON.stringify(productosEvento(payload)),
             metodoPago,
             Number(pagosVenta.efectivo || (metodoPago === "efectivo" ? recibido : 0)),
             Number(pagosVenta.tarjeta || 0),
@@ -1950,6 +2161,7 @@ async function aplicarVentaSync(client, negocio, payload) {
 
     return {
         accion: "venta_aplicada",
+        folio: folioVenta.folio,
         ventaId: ventaCreada.rows[0]?.id || null,
         historialId: historialCreado.rows[0]?.id || null,
         fecha: historialCreado.rows[0]?.fecha || ventaCreada.rows[0]?.fecha || null
@@ -2571,7 +2783,10 @@ app.post("/ventas", async (req, res) => {
         metodoPago,
         pagos,
         recibido,
-        cambio
+        cambio,
+        cajeroUsuario,
+        cajeroNombre,
+        clienteNombre
     } = req.body;
     const pagosVenta = pagos || {};
     const pagoEfectivo = Number(pagosVenta.efectivo || 0);
@@ -2579,34 +2794,47 @@ app.post("/ventas", async (req, res) => {
     const pagoTransferencia = Number(pagosVenta.transferencia || 0);
     const pagoCredito = Number(pagosVenta.credito || 0);
 
+    const client = await pool.connect();
+
     try {
         const negocio = await negocioActual(req);
 
-        await asegurarColumnasHistorialVentas();
-        const ventaCreada = await pool.query(
+        await asegurarColumnasHistorialVentas(client);
+        await client.query("BEGIN");
+
+        const folioVenta = await siguienteFolioVenta(client, negocio.id);
+        const turno = await turnoActivoVenta(client, negocio.id);
+        const ventaCreada = await client.query(
             `
-            INSERT INTO public.ventas(negocio_id, total)
-            VALUES($1, $2)
-            RETURNING id, fecha
+            INSERT INTO public.ventas(negocio_id, total, folio, folio_numero, turno_id, estado)
+            VALUES($1, $2, $3, $4, $5, 'completada')
+            RETURNING id, fecha, folio
             `,
-            [negocio.id, total]
+            [negocio.id, total, folioVenta.folio, folioVenta.numero, turno?.id || null]
         );
 
-        const historialCreado = await pool.query(
+        const historialCreado = await client.query(
             `
             INSERT INTO public.historial_ventas
-                (negocio_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16::jsonb)
-            RETURNING id, fecha
+                (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado)
+            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada')
+            RETURNING id, fecha, folio
             `,
             [
                 negocio.id,
-                total,
+                ventaCreada.rows[0]?.id || null,
+                folioVenta.folio,
+                folioVenta.numero,
+                turno?.id || null,
+                Number(total || 0),
                 Number(subtotal ?? total ?? 0),
                 Number(descuento || 0),
                 descuentoTipo || "ninguno",
                 Number(descuentoValor || 0),
                 clienteId ? Number(clienteId) : null,
+                clienteNombre || null,
+                cajeroUsuario || null,
+                cajeroNombre || turno?.usuario || null,
                 JSON.stringify(productos || []),
                 metodoPago || "efectivo",
                 pagoEfectivo,
@@ -2619,11 +2847,11 @@ app.post("/ventas", async (req, res) => {
             ]
         );
 
-        for (const producto of productos) {
+        for (const producto of productos || []) {
             const cantidad =
                 Number(producto.cantidad || 1);
 
-            await pool.query(
+            await client.query(
                 `
                 UPDATE public.productos
                 SET stock = stock - $1
@@ -2634,14 +2862,19 @@ app.post("/ventas", async (req, res) => {
             );
         }
 
+        await client.query("COMMIT");
+
         res.json({
             success: true,
+            folio: folioVenta.folio,
+            folioNumero: folioVenta.numero,
             ventaId: ventaCreada.rows[0]?.id || null,
             historialId: historialCreado.rows[0]?.id || null,
             fecha: historialCreado.rows[0]?.fecha || ventaCreada.rows[0]?.fecha || null
         });
 
     } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
 
         console.log("ERROR EN /ventas:", error);
 
@@ -2650,6 +2883,212 @@ app.post("/ventas", async (req, res) => {
             detail: error.detail || null,
             code: error.code || null
         });
+    } finally {
+        client.release();
+    }
+});
+
+async function obtenerDetalleVenta(client, negocioId, filtro, valor) {
+    await asegurarColumnasHistorialVentas(client);
+
+    const columna = filtro === "folio" ? "h.folio" : "h.id";
+    const resultado = await client.query(
+        `
+        SELECT
+            h.*,
+            COALESCE(h.cliente_nombre, c.nombre, 'Publico general') AS cliente_nombre_resuelto,
+            c.telefono AS cliente_telefono,
+            t.usuario AS turno_usuario,
+            v.id AS venta_id_resuelto
+        FROM public.historial_ventas h
+        LEFT JOIN public.clientes_credito c
+            ON c.id = h.cliente_id
+            AND c.negocio_id = h.negocio_id
+        LEFT JOIN public.turnos_caja t
+            ON t.id = h.turno_id
+            AND t.negocio_id = h.negocio_id
+        LEFT JOIN public.ventas v
+            ON v.id = h.venta_id
+            AND v.negocio_id = h.negocio_id
+        WHERE h.negocio_id = $1
+        AND ${columna} = $2
+        LIMIT 1
+        `,
+        [negocioId, valor]
+    );
+
+    if (!resultado.rows.length) return null;
+
+    const venta = resultado.rows[0];
+    const comprobantes = await client.query(
+        `
+        SELECT *
+        FROM public.comprobantes_venta
+        WHERE negocio_id = $1
+        AND historial_id = $2
+        ORDER BY created_at DESC
+        `,
+        [negocioId, venta.id]
+    );
+
+    const bitacora = await client.query(
+        `
+        SELECT *
+        FROM public.bitacora_comprobantes
+        WHERE negocio_id = $1
+        AND historial_id = $2
+        ORDER BY created_at DESC
+        `,
+        [negocioId, venta.id]
+    );
+
+    return {
+        ...venta,
+        cliente_nombre: venta.cliente_nombre_resuelto || venta.cliente_nombre || "Publico general",
+        venta_id: venta.venta_id || venta.venta_id_resuelto,
+        comprobantes: comprobantes.rows,
+        bitacora: bitacora.rows
+    };
+}
+
+app.get("/ventas/:id", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const venta = await obtenerDetalleVenta(pool, negocio.id, "id", Number(req.params.id));
+
+        if (!venta) {
+            res.status(404).json({ ok: false, error: "Venta no encontrada" });
+            return;
+        }
+
+        res.json({ ok: true, venta });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.get("/ventas/folio/:folio", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const venta = await obtenerDetalleVenta(pool, negocio.id, "folio", String(req.params.folio || ""));
+
+        if (!venta) {
+            res.status(404).json({ ok: false, error: "Venta no encontrada" });
+            return;
+        }
+
+        res.json({ ok: true, venta });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.post("/ventas/:id/comprobantes", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const negocio = await negocioActual(req);
+        const historialId = Number(req.params.id);
+        const {
+            tipo,
+            clienteNombre,
+            obra,
+            observaciones,
+            totalMostrado,
+            motivoAjuste,
+            adminPin,
+            usuarioAutoriza,
+            creadoPor,
+            autorizacionLocal
+        } = req.body || {};
+
+        await asegurarColumnasHistorialVentas(client);
+        await client.query("BEGIN");
+
+        const venta = await obtenerDetalleVenta(client, negocio.id, "id", historialId);
+        if (!venta) {
+            throw new Error("Venta no encontrada");
+        }
+
+        const original = Number(venta.total || 0);
+        const mostrado = Number.isFinite(Number(totalMostrado))
+            ? Number(totalMostrado)
+            : original;
+        const requiereAutorizacion = Math.abs(mostrado - original) >= 0.01;
+        let admin = null;
+
+        if (requiereAutorizacion) {
+            admin = await validarPinAdministrador(client, negocio.id, adminPin);
+            if (!admin && autorizacionLocal !== true) {
+                throw new Error("PIN de administrador invalido para ajustar la nota");
+            }
+            if (!String(motivoAjuste || "").trim()) {
+                throw new Error("Captura el motivo del ajuste");
+            }
+        }
+
+        const comprobante = await client.query(
+            `
+            INSERT INTO public.comprobantes_venta
+                (negocio_id, venta_id, historial_id, folio, tipo, cliente_nombre, obra, observaciones, subtotal_original, total_original, total_mostrado, motivo_ajuste, autorizado_por, creado_por)
+            VALUES
+                ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+            RETURNING *
+            `,
+            [
+                negocio.id,
+                venta.venta_id || null,
+                venta.id,
+                venta.folio || `V-${String(venta.id).padStart(6, "0")}`,
+                tipo || "nota",
+                limpiarTexto(clienteNombre || venta.cliente_nombre || "Publico general", 180),
+                limpiarTexto(obra, 180) || null,
+                limpiarTexto(observaciones, 500) || null,
+                Number(venta.subtotal || venta.total || 0),
+                original,
+                mostrado,
+                requiereAutorizacion ? limpiarTexto(motivoAjuste, 500) : null,
+                admin?.usuario || limpiarTexto(usuarioAutoriza, 120) || null,
+                limpiarTexto(creadoPor, 120) || null
+            ]
+        );
+
+        let bitacora = null;
+        if (requiereAutorizacion) {
+            const bit = await client.query(
+                `
+                INSERT INTO public.bitacora_comprobantes
+                    (negocio_id, comprobante_id, historial_id, folio, usuario_autorizo, total_original, total_mostrado, motivo)
+                VALUES
+                    ($1,$2,$3,$4,$5,$6,$7,$8)
+                RETURNING *
+                `,
+                [
+                    negocio.id,
+                    comprobante.rows[0].id,
+                    venta.id,
+                    venta.folio || comprobante.rows[0].folio,
+                    admin?.usuario || limpiarTexto(usuarioAutoriza, 120) || "Administrador",
+                    original,
+                    mostrado,
+                    limpiarTexto(motivoAjuste, 500)
+                ]
+            );
+            bitacora = bit.rows[0];
+        }
+
+        await client.query("COMMIT");
+
+        res.status(201).json({
+            ok: true,
+            comprobante: comprobante.rows[0],
+            bitacora
+        });
+    } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
+        res.status(500).json({ ok: false, error: error.message });
+    } finally {
+        client.release();
     }
 });
 
@@ -2662,6 +3101,7 @@ app.get("/creditos", async (req, res) => {
                 c.nombre,
                 c.telefono,
                 c.limite_credito,
+                c.fecha_vencimiento,
                 c.created_at,
                 COALESCE(
                     SUM(
@@ -2672,7 +3112,8 @@ app.get("/creditos", async (req, res) => {
                         END
                     ),
                     0
-                ) AS saldo
+                ) AS saldo,
+                MAX(m.fecha) AS ultimo_movimiento
             FROM public.clientes_credito c
             LEFT JOIN public.movimientos_credito m
                 ON m.cliente_id = c.id
@@ -2689,13 +3130,37 @@ app.get("/creditos", async (req, res) => {
             0
         );
 
+        const hoy = new Date().toISOString().slice(0, 10);
+
+        const fechaVencimientoISO = valor =>
+            valor instanceof Date
+                ? valor.toISOString().slice(0, 10)
+                : String(valor).slice(0, 10);
+
+        const vencidos = clientes.rows.filter(cliente =>
+            Number(cliente.saldo) > 0 &&
+            cliente.fecha_vencimiento &&
+            fechaVencimientoISO(cliente.fecha_vencimiento) < hoy
+        );
+
+        const pagosMes = await pool.query(`
+            SELECT COALESCE(SUM(m.monto), 0) AS total
+            FROM public.movimientos_credito m
+            WHERE m.negocio_id = $1
+            AND m.tipo = 'abono'
+            AND date_trunc('month', m.fecha) = date_trunc('month', CURRENT_DATE)
+        `, [negocio.id]);
+
         res.json({
             clientes: clientes.rows,
             total,
             clientesConAdeudo:
                 clientes.rows.filter(
                     cliente => Number(cliente.saldo) > 0
-                ).length
+                ).length,
+            clientesVencidos: vencidos.length,
+            totalVencido: vencidos.reduce((suma, cliente) => suma + Number(cliente.saldo), 0),
+            pagosEsteMes: Number(pagosMes.rows[0].total)
         });
     } catch (error) {
         console.log("ERROR EN /creditos:", error);
@@ -2765,7 +3230,8 @@ app.post("/creditos/clientes", async (req, res) => {
     const {
         nombre,
         telefono,
-        limiteCredito
+        limiteCredito,
+        fechaVencimiento
     } = req.body;
 
     if (!nombre) {
@@ -2783,15 +3249,17 @@ app.post("/creditos/clientes", async (req, res) => {
                 negocio_id,
                 nombre,
                 telefono,
-                limite_credito
+                limite_credito,
+                fecha_vencimiento
             )
-            VALUES ($1, $2, $3, $4)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING *
         `, [
             negocio.id,
             nombre,
             telefono || null,
-            limiteCredito || 0
+            limiteCredito || 0,
+            fechaVencimiento || null
         ]);
 
         res.json({
@@ -2811,7 +3279,8 @@ app.put("/creditos/clientes/:id", async (req, res) => {
     const {
         nombre,
         telefono,
-        limiteCredito
+        limiteCredito,
+        fechaVencimiento
     } = req.body;
 
     if (!nombre) {
@@ -2828,14 +3297,16 @@ app.put("/creditos/clientes/:id", async (req, res) => {
             SET
                 nombre = $1,
                 telefono = $2,
-                limite_credito = $3
-            WHERE id = $4
-            AND negocio_id = $5
+                limite_credito = $3,
+                fecha_vencimiento = $4
+            WHERE id = $5
+            AND negocio_id = $6
             RETURNING *
         `, [
             nombre,
             telefono || "",
             Number(limiteCredito || 0),
+            fechaVencimiento || null,
             id,
             negocio.id
         ]);
@@ -2890,6 +3361,7 @@ app.delete("/creditos/clientes/:id", async (req, res) => {
 app.get("/proveedores", async (req, res) => {
     try {
         const negocio = await negocioActual(req);
+        const activo = String(req.query.estado || "activo") !== "baja";
         const resultado = await pool.query(`
             SELECT
                 pr.*,
@@ -2898,11 +3370,11 @@ app.get("/proveedores", async (req, res) => {
             LEFT JOIN public.productos p
                 ON LOWER(COALESCE(p.proveedor, '')) = LOWER(pr.nombre)
                 AND p.negocio_id = pr.negocio_id
-            WHERE pr.activo = true
+            WHERE pr.activo = $2
             AND pr.negocio_id = $1
             GROUP BY pr.id
             ORDER BY pr.nombre ASC
-        `, [negocio.id]);
+        `, [negocio.id, activo]);
 
         res.json({
             proveedores: resultado.rows
@@ -3029,6 +3501,36 @@ app.delete("/proveedores/:id", async (req, res) => {
         const resultado = await pool.query(`
             UPDATE public.proveedores
             SET activo = false
+            WHERE id = $1
+            AND negocio_id = $2
+            RETURNING id
+        `, [id, negocio.id]);
+
+        if (resultado.rows.length === 0) {
+            res.status(404).json({
+                error: "Proveedor no encontrado"
+            });
+            return;
+        }
+
+        res.json({
+            success: true
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: error.message
+        });
+    }
+});
+
+app.put("/proveedores/:id/activar", async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const negocio = await negocioActual(req);
+        const resultado = await pool.query(`
+            UPDATE public.proveedores
+            SET activo = true
             WHERE id = $1
             AND negocio_id = $2
             RETURNING id
@@ -3241,6 +3743,7 @@ app.get("/dashboard", async (req, res) => {
 
 app.get("/historial", async (req, res) => {
     const negocio = await negocioActual(req);
+    await asegurarColumnasHistorialVentas();
 
     const historial =
     await pool.query(`
@@ -3298,6 +3801,29 @@ app.get("/reportes/ventas", async (req, res) => {
             usarRango
                 ? [negocio.id, desde.toISOString().slice(0, 10), hasta.toISOString().slice(0, 10)]
                 : [negocio.id];
+
+        let filtroFechaAnterior;
+        let paramsAnterior;
+
+        if (usarRango) {
+            const duracionDias = Math.max(1, Math.round((hasta.getTime() - desde.getTime()) / 86400000) + 1);
+            const anteriorHasta = new Date(desde.getTime() - 86400000);
+            const anteriorDesde = new Date(anteriorHasta.getTime() - (duracionDias - 1) * 86400000);
+            filtroFechaAnterior = "AND fecha::date BETWEEN $2::date AND $3::date";
+            paramsAnterior = [negocio.id, anteriorDesde.toISOString().slice(0, 10), anteriorHasta.toISOString().slice(0, 10)];
+        } else if (periodo === "dia") {
+            filtroFechaAnterior = "AND fecha >= CURRENT_DATE - INTERVAL '1 day' AND fecha < CURRENT_DATE";
+            paramsAnterior = [negocio.id];
+        } else if (periodo === "semana") {
+            filtroFechaAnterior = "AND fecha >= date_trunc('week', NOW()) - INTERVAL '7 days' AND fecha < date_trunc('week', NOW())";
+            paramsAnterior = [negocio.id];
+        } else if (periodo === "anio") {
+            filtroFechaAnterior = "AND fecha >= date_trunc('year', NOW()) - INTERVAL '1 year' AND fecha < date_trunc('year', NOW())";
+            paramsAnterior = [negocio.id];
+        } else {
+            filtroFechaAnterior = "AND fecha >= date_trunc('month', NOW()) - INTERVAL '1 month' AND fecha < date_trunc('month', NOW())";
+            paramsAnterior = [negocio.id];
+        }
 
         const resumen = await pool.query(`
             SELECT
@@ -3367,12 +3893,62 @@ app.get("/reportes/ventas", async (req, res) => {
             LIMIT 12
         `, params);
 
+        const productosVendidosTotal = await pool.query(`
+            SELECT COALESCE(SUM((item->>'cantidad')::numeric), 0) AS cantidad
+            FROM public.historial_ventas,
+                 LATERAL jsonb_array_elements(productos) AS item
+            WHERE negocio_id = $1
+            ${filtroFecha}
+        `, params);
+
+        const ventasPorCategoria = await pool.query(`
+            SELECT
+                COALESCE(NULLIF(p.categoria, ''), 'Sin categoria') AS categoria,
+                COALESCE(SUM((item->>'importe')::numeric), 0) AS total
+            FROM public.historial_ventas
+            CROSS JOIN LATERAL jsonb_array_elements(productos) AS item
+            LEFT JOIN public.productos p
+                ON p.id = NULLIF(item->>'id', '')::integer
+                AND p.negocio_id = historial_ventas.negocio_id
+            WHERE historial_ventas.negocio_id = $1
+            ${filtroFecha}
+            GROUP BY 1
+            ORDER BY total DESC
+            LIMIT 8
+        `, params);
+
+        const resumenAnterior = await pool.query(`
+            SELECT
+                COALESCE(SUM(total), 0) AS total,
+                COUNT(*) AS transacciones,
+                COALESCE(AVG(total), 0) AS ticket_promedio
+            FROM public.historial_ventas
+            WHERE negocio_id = $1
+            ${filtroFechaAnterior}
+        `, paramsAnterior);
+
+        const productosVendidosTotalAnterior = await pool.query(`
+            SELECT COALESCE(SUM((item->>'cantidad')::numeric), 0) AS cantidad
+            FROM public.historial_ventas,
+                 LATERAL jsonb_array_elements(productos) AS item
+            WHERE negocio_id = $1
+            ${filtroFechaAnterior}
+        `, paramsAnterior);
+
         res.json({
-            resumen: resumen.rows[0],
+            resumen: {
+                ...resumen.rows[0],
+                productos_vendidos: productosVendidosTotal.rows[0]?.cantidad || 0
+            },
+            resumenAnterior: {
+                ...resumenAnterior.rows[0],
+                productos_vendidos: productosVendidosTotalAnterior.rows[0]?.cantidad || 0
+            },
             porDia: porDia.rows,
             metodosPago: metodosPago.rows,
             porHora: porHora.rows,
             productosVendidos: productosVendidos.rows,
+            ventasPorCategoria: ventasPorCategoria.rows,
             ultimas: ultimas.rows
         });
     } catch (error) {
@@ -3584,7 +4160,7 @@ async function inicializarCreditos() {
         INSERT INTO public.app_versiones
             (version, canal, plataforma, url_descarga, archivo, notas, obligatoria, publicada)
         VALUES
-            ($1, 'stable', 'windows', '/downloads/NexoPOS_Setup_' || $1 || '.exe', 'NexoPOS_Setup_' || $1 || '.exe', 'Version base estable para primer cliente', false, true)
+            ($1, 'stable', 'windows', 'https://github.com/rgus234/ferreteria-pos/releases/download/v' || $1 || '/NexoPOS_Setup_' || $1 || '.exe', 'NexoPOS_Setup_' || $1 || '.exe', 'Version base estable para primer cliente', false, true)
         ON CONFLICT (version, canal, plataforma)
         DO UPDATE SET
             url_descarga = COALESCE(public.app_versiones.url_descarga, EXCLUDED.url_descarga),
@@ -3592,6 +4168,18 @@ async function inicializarCreditos() {
             publicada = true
         `,
         [config.appVersion]
+    );
+
+    // Version anterior a esta sesion apuntaba a /downloads/ (servido desde public/,
+    // que nunca llega a produccion porque el instalador supera el limite de Git).
+    // Se corrige para que apunte al release real en GitHub.
+    await pool.query(
+        `
+        UPDATE public.app_versiones
+        SET url_descarga = 'https://github.com/rgus234/ferreteria-pos/releases/download/v' || version || '/' || archivo
+        WHERE url_descarga LIKE '/downloads/%'
+        AND archivo IS NOT NULL
+        `
     );
 
     await pool.query(`
@@ -3892,6 +4480,11 @@ async function inicializarCreditos() {
     );
 
     await pool.query(`
+        ALTER TABLE public.clientes_credito
+        ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE
+    `);
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS public.movimientos_credito (
             id SERIAL PRIMARY KEY,
             negocio_id INTEGER REFERENCES public.negocios(id),
@@ -3956,26 +4549,10 @@ async function inicializarCreditos() {
         [DEFAULT_NEGOCIO_SLUG]
     );
 }
-function cargarModuloPOS(nombre, instalar) {
-    try {
-        instalar();
-        console.log(`Modulo POS cargado: ${nombre}`);
-    } catch (error) {
-        console.log(`Error cargando modulo POS ${nombre}:`, error);
-    }
-}
-
-cargarModuloPOS("fase4 compras/ajustes", () => {
-    require("./fase4-server")(app, pool, normalizarCodigo);
-});
-cargarModuloPOS("fase5 finanzas", () => {
-    require("./fase5-server")(app, pool);
-});
-cargarModuloPOS("fase6 caja", () => {
-    require("./fase6-server")(app, pool);
-});
-cargarModuloPOS("fase7 caja por metodo", () => {
-    require("./fase7-caja-server")(app, pool);
+cargarModulosPOS({
+    app,
+    pool,
+    normalizarCodigo,
 });
 
 

@@ -1,0 +1,122 @@
+@media(max-width:1200px){
+ .dashboard-top{
+ grid-template-columns:
+ repeat(2,1fr);
+ }
+
+ .productos{
+ grid-template-columns:1fr;
+ }
+}
+
+@media (max-width: 1020px){
+ #pantallaInventario{
+ padding:14px;
+ }
+
+ #pantallaInventario .caja{
+ overflow:auto;
+ }
+
+ #pantallaInventario .tabla-inventario{
+ min-width:760px;
+ }
+
+ .clientes-shell{
+ overflow:auto;
+ }
+
+ .tabla-clientes{
+ min-width:860px;
+ }
+
+ .proveedores-shell{
+ overflow:auto;
+ }
+
+ .tabla-proveedores{
+ min-width:900px;
+ }
+
+ .catalogo-grid{
+ grid-template-columns:1fr;
+ }
+
+ .bajo-shell{
+ overflow:auto;
+ }
+
+ .tabla-bajo{
+ min-width:860px;
+ }
+
+ .reportes-grid{
+ grid-template-columns:1fr;
+ }
+}
+
+@media (max-width: 860px){
+ #listaCreditos.creditos-layout,
+ #detalleCliente .cliente-header,
+ #detalleCliente .credito-resumen,
+ .acciones-credito,
+ .productos.pos-grid{
+ grid-template-columns:1fr;
+ }
+
+ .pos-carrito-card{
+ position:static;
+ height:auto;
+ }
+
+ .productos.pos-grid #productos{
+ max-height:none;
+ grid-template-columns:repeat(auto-fill,minmax(165px,1fr));
+ }
+
+ .inventario-top{
+ grid-template-columns:1fr;
+ }
+
+ .btn-agregar{
+ grid-column:1;
+ width:100%;
+ }
+
+ .clientes-header,
+ .clientes-resumen{
+ grid-template-columns:1fr;
+ display:grid;
+ }
+
+ .btn-cliente-nuevo,
+ #buscarClientes,
+ .btn-proveedor-nuevo,
+ #buscarProveedores,
+ .btn-catalogo-subir{
+ width:100%;
+ }
+
+ .proveedores-header,
+ .proveedores-resumen,
+ .catalogo-header,
+ .catalogo-resumen,
+ .bajo-header,
+ .bajo-resumen,
+ .bajo-toolbar,
+ .reportes-header,
+ .reportes-resumen{
+ grid-template-columns:1fr;
+ display:grid;
+ }
+
+ #buscarInventarioBajo,
+ .btn-bajo-pedido,
+ .btn-bajo-inventario{
+ width:100%;
+ }
+
+ #detalleCliente .cliente-info{
+ text-align:left;
+ }
+}

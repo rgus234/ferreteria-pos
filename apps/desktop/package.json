@@ -35,8 +35,9 @@
     },
     "publish": [
       {
-        "provider": "generic",
-        "url": "https://ferreteria-pos.onrender.com/downloads/"
+        "provider": "github",
+        "owner": "rgus234",
+        "repo": "ferreteria-pos"
       }
     ],
     "nsis": {

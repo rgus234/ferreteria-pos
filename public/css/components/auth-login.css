@@ -1,0 +1,138 @@
+#login{
+ width:100%;
+ height:100vh;
+ display:flex;
+ justify-content:center;
+ align-items:center;
+ background:
+ linear-gradient(
+ 135deg,
+ #0d1220,
+ #1c2233
+ );
+}
+
+.login-box{
+ background:#161d2d;
+ padding:40px;
+ border-radius:20px;
+ width:350px;
+ box-shadow:
+ 0 12px 30px rgba(0,0,0,.35);
+}
+
+.login-box h1{
+ color:white;
+ margin-bottom:22px;
+ font-size:28px;
+}
+
+.login-box input{
+ width:100%;
+ margin-bottom:12px;
+ padding:14px 16px;
+ border:none;
+ border-radius:12px;
+ background:#eef2ff;
+ color:#111827;
+}
+
+.login-box button{
+ width:100%;
+ margin-top:8px;
+ padding:14px;
+ border:none;
+ border-radius:12px;
+ background:var(--brand-color);
+ color:white;
+ font-weight:700;
+ cursor:pointer;
+}
+
+.login-brand{
+ display:none;
+ align-items:center;
+ gap:12px;
+ margin-bottom:18px;
+ padding-bottom:16px;
+ border-bottom:1px solid rgba(255,255,255,.1);
+ color:white;
+}
+
+.login-brand:not(:empty){
+ display:flex;
+}
+
+.login-brand-logo{
+ width:54px;
+ height:54px;
+ flex:0 0 54px;
+}
+
+.login-brand strong{
+ display:block;
+ font-size:18px;
+}
+
+.login-brand span{
+ color:#cbd5e1;
+ font-size:12px;
+}
+
+.brand-logo-img,
+.brand-logo-fallback{
+ width:100%;
+ height:100%;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ border-radius:14px;
+}
+
+.brand-logo-img{
+ object-fit:cover;
+}
+
+.brand-logo-fallback{
+ background:rgba(255,255,255,.16);
+ color:white;
+ font-weight:900;
+}
+
+/* Ajuste final - login legible y contacto de desarrollador */
+#login{
+ background:
+ radial-gradient(circle at 50% 20%, rgba(13,110,253,.18), transparent 34%),
+ linear-gradient(135deg,#07111f,#101b35 48%,#07111f) !important;
+}
+
+#login .login-box{
+ background:rgba(15,23,42,.94) !important;
+ border:1px solid rgba(255,255,255,.12) !important;
+ box-shadow:0 26px 70px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.08) !important;
+}
+
+#login .login-box h1{
+ color:#f8fafc !important;
+ opacity:1 !important;
+ text-shadow:0 2px 10px rgba(0,0,0,.32) !important;
+}
+
+#login .login-brand strong{
+ color:#ffffff !important;
+}
+
+#login .login-brand span{
+ color:#dbeafe !important;
+}
+
+#login .login-box input{
+ background:rgba(255,255,255,.96) !important;
+ color:#0f172a !important;
+ border:1px solid rgba(255,255,255,.72) !important;
+}
+
+#login .login-box input::placeholder{
+ color:#64748b !important;
+ opacity:1 !important;
+}

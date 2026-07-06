@@ -1,0 +1,671 @@
+.notificaciones-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 14px;
+  width: min(440px, calc(100vw - 34px));
+  max-height: 70vh;
+  overflow: auto;
+  display: none;
+  padding: 12px;
+  border: 1px solid var(--pos-line);
+  border-radius: 22px;
+  background: var(--pos-surface-strong);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .22);
+}
+
+.ui-icon {
+  pointer-events: none;
+}
+
+.notificaciones-panel.abierto {
+  display: block;
+  animation: posPanelIn .16s ease-out;
+}
+
+@keyframes posPanelIn {
+  from { opacity: 0; transform: translateY(-6px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.notificaciones-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 6px 12px;
+  border-bottom: 1px solid var(--pos-line);
+}
+
+.notificaciones-head strong,
+.notificaciones-head span {
+  display: block;
+}
+
+.notificaciones-head strong {
+  font-size: 16px;
+  color: var(--pos-text);
+}
+
+.notificaciones-head span {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--pos-muted);
+  font-weight: 750;
+}
+
+.notificaciones-head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.notificaciones-head-actions .btn-limpiar-notificaciones {
+  background: rgba(239, 68, 68, .10);
+  color: #b42318;
+  border: 1px solid rgba(239, 68, 68, .20);
+}
+
+.notificaciones-head button,
+.notificacion-item button,
+.recordatorio-card button {
+  border: 0;
+  border-radius: 12px;
+  background: var(--brand-color);
+  color: white;
+  padding: 9px 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.notificaciones-head button,
+.notificacion-item button {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--brand-color, #0d6efd), #0646a8) !important;
+}
+
+.notificaciones-lista {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.notificacion-item {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--pos-line);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(248, 250, 252, .9), rgba(255, 255, 255, .78));
+}
+
+body.oscuro .notificacion-item {
+  background: rgba(30, 41, 59, .7);
+}
+
+.notificacion-icono {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--brand-color) 12%, #fff);
+  color: var(--brand-color);
+}
+
+body.oscuro .notificacion-icono {
+  background: color-mix(in srgb, var(--brand-color) 24%, #0f172a);
+  color: #eaf2ff;
+}
+
+.notificacion-item .ui-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.notificacion-item span,
+.notificacion-item strong,
+.notificacion-item small {
+  display: block;
+}
+
+.notificacion-item span {
+  color: var(--brand-color);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.notificacion-item strong {
+  color: var(--pos-text);
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.notificacion-item small {
+  color: var(--pos-muted);
+  margin-top: 3px;
+  font-weight: 750;
+}
+
+.notificacion-item.prioridad-alta {
+  border-color: rgba(239, 68, 68, .35);
+}
+
+.notificaciones-empty {
+  padding: 26px 10px 18px;
+  color: var(--pos-muted);
+  text-align: center;
+  font-weight: 800;
+}
+
+.recordatorio-card {
+  width: min(520px, 94vw);
+  border-radius: 22px;
+  border: 1px solid var(--pos-line);
+  background: var(--pos-surface-strong);
+  color: var(--pos-text);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, .28);
+}
+
+#modalRecordatorioPOS.modal-personalizado {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  display: none;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px !important;
+  background: rgba(15, 23, 42, .42) !important;
+  backdrop-filter: blur(10px);
+  z-index: 9999 !important;
+  overflow: auto !important;
+}
+
+#modalRecordatorioPOS.modal-personalizado[style*="flex"] {
+  display: flex !important;
+}
+
+#modalRecordatorioPOS .recordatorio-card {
+  position: relative !important;
+  inset: auto !important;
+  margin: auto !important;
+  width: min(560px, 94vw) !important;
+  max-height: calc(100vh - 48px) !important;
+  overflow: auto !important;
+  padding: 24px !important;
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, .98) !important;
+  color: #111827 !important;
+  transform: none !important;
+}
+
+body.oscuro #modalRecordatorioPOS .recordatorio-card {
+  background: rgba(15, 23, 42, .98) !important;
+  color: #f8fafc !important;
+}
+
+#modalRecordatorioPOS .modal-card-header {
+  align-items: center !important;
+}
+
+#modalRecordatorioPOS .modal-card-header button {
+  min-width: 96px;
+  background: #eef2ff !important;
+  color: #0b2f6f !important;
+  border: 1px solid rgba(13, 110, 253, .18) !important;
+}
+
+body.oscuro #modalRecordatorioPOS .modal-card-header button {
+  background: rgba(30, 41, 59, .95) !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, .24) !important;
+}
+
+.recordatorio-form {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.recordatorio-form label,
+#modalRecordatorioPOS .recordatorio-form label {
+  display: grid;
+  gap: 7px;
+  color: #1f2937 !important;
+  font-size: 13px;
+  font-weight: 900 !important;
+}
+
+body.oscuro #modalRecordatorioPOS .recordatorio-form label {
+  color: #e5e7eb !important;
+}
+
+.recordatorio-form input,
+.recordatorio-form select,
+#modalRecordatorioPOS .recordatorio-form input,
+#modalRecordatorioPOS .recordatorio-form select {
+  min-height: 46px;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 13px;
+  padding: 0 13px;
+  background: #ffffff !important;
+  color: #111827 !important;
+  font-weight: 800;
+  box-shadow: inset 0 1px 0 rgba(15, 23, 42, .04);
+}
+
+body.oscuro .recordatorio-form input,
+body.oscuro .recordatorio-form select,
+body.oscuro #modalRecordatorioPOS .recordatorio-form input,
+body.oscuro #modalRecordatorioPOS .recordatorio-form select {
+  background: #111827 !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, .34) !important;
+}
+
+#modalRecordatorioPOS .modal-actions-row button {
+  min-height: 44px;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--brand-color, #0d6efd), #0646a8) !important;
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--brand-color, #0d6efd) 22%, transparent);
+}
+
+#modalRecordatorioPOS .modal-actions-row button:first-child {
+  background: #e5e7eb !important;
+  color: #111827 !important;
+  box-shadow: none;
+}
+
+body.oscuro #modalRecordatorioPOS .modal-actions-row button:first-child {
+  background: #334155 !important;
+  color: #f8fafc !important;
+}
+
+.recordatorio-fecha-grid {
+  display: grid;
+  grid-template-columns: 1fr 150px;
+  gap: 12px;
+}
+
+.recordatorio-hora-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(13, 110, 253, .05);
+}
+
+.recordatorio-hora-card > span {
+  color: var(--brand-color, #0d6efd);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.recordatorio-hora-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.recordatorio-hora-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--pos-muted, #667085);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.recordatorio-hora-grid select {
+  min-height: 44px;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 12px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, .78);
+  color: var(--pos-text, #101828);
+  font-weight: 900;
+}
+
+#recordatorioVistaHoraPOS {
+  display: block;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  color: #101828;
+  font-size: 14px;
+}
+
+body.oscuro .recordatorio-hora-card {
+  background: rgba(13, 110, 253, .12);
+}
+
+body.oscuro .recordatorio-hora-grid select,
+body.oscuro #recordatorioVistaHoraPOS {
+  background: rgba(15, 23, 42, .74);
+  color: #f8fafc;
+}
+
+.contacto-dev-card {
+  width: min(540px, 94vw);
+  border-radius: 22px;
+  border: 1px solid var(--pos-line);
+  background: var(--pos-surface-strong);
+  color: var(--pos-text);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, .28);
+}
+
+#modalContactoDesarrolladorPOS.modal-personalizado {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  display: none;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px !important;
+  background: rgba(15, 23, 42, .48) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  z-index: 10000 !important;
+  overflow: auto !important;
+}
+
+#modalContactoDesarrolladorPOS.modal-personalizado[style*="flex"] {
+  display: flex !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-card {
+  position: relative !important;
+  inset: auto !important;
+  margin: auto !important;
+  width: min(620px, 94vw) !important;
+  max-height: calc(100vh - 48px) !important;
+  overflow: auto !important;
+  padding: 0 !important;
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, .98) !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(255, 255, 255, .92) !important;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, .28) !important;
+  transform: none !important;
+}
+
+.contacto-dev-header,
+#modalContactoDesarrolladorPOS .contacto-dev-header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  padding: 22px 22px 16px !important;
+  border-bottom: 1px solid rgba(15, 23, 42, .08) !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-header span {
+  display: block !important;
+  color: var(--brand-color, #0d6efd) !important;
+  font-size: 12px !important;
+  font-weight: 950 !important;
+  letter-spacing: .14em !important;
+  text-transform: uppercase !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-header h3,
+#modalContactoDesarrolladorPOS .modal-card-header h3 {
+  margin: 5px 0 0 !important;
+  color: #0f172a !important;
+  font-size: 28px !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0 !important;
+  max-width: 360px !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-header button {
+  width: auto !important;
+  min-width: 86px !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(13, 110, 253, .18) !important;
+  background: rgba(13, 110, 253, .09) !important;
+  color: #0d3b8c !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+  font-weight: 950 !important;
+}
+
+.contacto-dev-resumen,
+#modalContactoDesarrolladorPOS .contacto-dev-resumen {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 18px 22px 12px !important;
+  padding: 14px !important;
+  border: 1px solid rgba(15, 23, 42, .08) !important;
+  border-radius: 18px;
+  background: rgba(248, 250, 252, .92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9) !important;
+}
+
+.contacto-dev-resumen img {
+  width: 58px;
+  height: 58px;
+  object-fit: cover;
+  border-radius: 16px;
+  background: white;
+}
+
+.contacto-dev-resumen strong,
+.contacto-dev-resumen span {
+  display: block;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-resumen strong,
+.contacto-dev-resumen strong {
+  color: #0f172a !important;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-resumen span,
+.contacto-dev-resumen span {
+  margin-top: 3px;
+  color: #64748b !important;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.contacto-dev-actions,
+#modalContactoDesarrolladorPOS .contacto-dev-actions {
+  display: grid;
+  gap: 8px;
+  margin: 0 22px 18px !important;
+}
+
+.contacto-dev-actions a,
+.contacto-dev-actions span,
+#modalContactoDesarrolladorPOS .contacto-dev-actions a,
+#modalContactoDesarrolladorPOS .contacto-dev-actions span {
+  display: flex;
+  align-items: center;
+  min-height: 44px !important;
+  padding: 0 12px;
+  border-radius: 14px !important;
+  background: rgba(13, 110, 253, .08) !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(13, 110, 253, .12) !important;
+  font-size: 14px !important;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.contacto-dev-actions span {
+  color: var(--pos-muted);
+}
+
+.contacto-dev-editor,
+#modalContactoDesarrolladorPOS .contacto-dev-editor {
+  margin: 0 22px 22px !important;
+  padding: 16px !important;
+  border-radius: 18px !important;
+  background: rgba(13, 110, 253, .045) !important;
+  border: 1px solid rgba(13, 110, 253, .12) !important;
+}
+
+.contacto-dev-editor-title,
+#modalContactoDesarrolladorPOS .contacto-dev-editor-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start !important;
+  margin: 0 0 12px !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.contacto-dev-editor-title strong,
+.contacto-dev-editor-title span {
+  display: block;
+}
+
+.contacto-dev-editor-title strong {
+  color: #0f172a;
+  font-weight: 950;
+}
+
+.contacto-dev-editor-title span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.contacto-dev-form,
+#modalContactoDesarrolladorPOS .contacto-dev-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px !important;
+  margin-bottom: 14px !important;
+}
+
+.contacto-dev-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--pos-muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.contacto-dev-form input,
+#modalContactoDesarrolladorPOS .contacto-dev-form input {
+  min-height: 42px !important;
+  border: 1px solid rgba(15, 23, 42, .10) !important;
+  border-radius: 13px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, .92) !important;
+  color: var(--pos-text);
+  font-weight: 800;
+}
+
+#modalContactoDesarrolladorPOS .modal-actions-row {
+  gap: 10px !important;
+}
+
+#modalContactoDesarrolladorPOS .modal-actions-row button {
+  min-height: 42px !important;
+  border-radius: 13px !important;
+  font-weight: 950 !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-final {
+  padding: 0 22px 22px !important;
+  justify-content: flex-end !important;
+}
+
+#modalContactoDesarrolladorPOS .contacto-dev-final .btn-principal {
+  min-width: 160px !important;
+}
+
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-card {
+  background: rgba(15, 23, 42, .98) !important;
+  border-color: rgba(226, 232, 240, .14) !important;
+}
+
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-header {
+  border-bottom-color: rgba(226, 232, 240, .12) !important;
+}
+
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-header h3,
+body.oscuro #modalContactoDesarrolladorPOS .modal-card-header h3,
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-resumen strong,
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-editor-title strong {
+  color: #f8fafc !important;
+}
+
+body.oscuro .contacto-dev-resumen,
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-resumen,
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-editor {
+  background: rgba(30, 41, 59, .72) !important;
+  border-color: rgba(226, 232, 240, .12) !important;
+}
+
+body.oscuro #modalContactoDesarrolladorPOS .contacto-dev-header button {
+  background: rgba(59, 130, 246, .18) !important;
+  color: #dbeafe !important;
+  border-color: rgba(147, 197, 253, .22) !important;
+}
+
+body.oscuro .contacto-dev-form input {
+  background: rgba(15, 23, 42, .72);
+  color: #f8fafc;
+}
+
+@media (max-width: 760px) {
+  .notificaciones-head-actions {
+    justify-content: stretch;
+  }
+
+  .notificaciones-head-actions button {
+    flex: 1;
+  }
+
+  .recordatorio-fecha-grid,
+  .recordatorio-hora-grid,
+  .contacto-dev-form,
+  #modalContactoDesarrolladorPOS .contacto-dev-form {
+    grid-template-columns: 1fr !important;
+  }
+
+  #modalContactoDesarrolladorPOS .contacto-dev-header {
+    padding: 18px 18px 14px !important;
+  }
+
+  #modalContactoDesarrolladorPOS .contacto-dev-header h3 {
+    font-size: 24px !important;
+  }
+
+  #modalContactoDesarrolladorPOS .contacto-dev-header button {
+    min-width: 72px !important;
+  }
+
+  #modalContactoDesarrolladorPOS .contacto-dev-resumen,
+  #modalContactoDesarrolladorPOS .contacto-dev-actions,
+  #modalContactoDesarrolladorPOS .contacto-dev-editor {
+    margin-left: 18px !important;
+    margin-right: 18px !important;
+  }
+
+  #modalContactoDesarrolladorPOS .modal-actions-row {
+    flex-direction: column !important;
+  }
+
+  #modalContactoDesarrolladorPOS .modal-actions-row button {
+    width: 100% !important;
+  }
+}

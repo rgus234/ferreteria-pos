@@ -182,6 +182,25 @@ module.exports = (app, pool) => {
         };
     }
 
+    async function resumenAyer(negocioId) {
+        const resultado = await pool.query(`
+            SELECT
+                COALESCE(SUM(total), 0) AS total,
+                COUNT(*) AS transacciones
+            FROM public.historial_ventas
+            WHERE negocio_id = $1
+            AND fecha >= CURRENT_DATE - INTERVAL '1 day'
+            AND fecha < CURRENT_DATE
+        `, [negocioId]);
+
+        const fila = resultado.rows[0];
+        return {
+            ventas: n(fila.total),
+            transacciones: Number(fila.transacciones || 0),
+            ticket_promedio: Number(fila.transacciones || 0) > 0 ? n(fila.total) / Number(fila.transacciones) : 0
+        };
+    }
+
     app.get("/caja/turno-activo", async (req, res) => {
         try {
             const negocio = await negocioActual(req);
@@ -189,7 +208,8 @@ module.exports = (app, pool) => {
 
             res.json({
                 turno,
-                resumen: turno ? await resumenTurno(turno) : null
+                resumen: turno ? await resumenTurno(turno) : null,
+                resumenAyer: await resumenAyer(negocio.id)
             });
         } catch (error) {
             res.status(500).json({ error: error.message });

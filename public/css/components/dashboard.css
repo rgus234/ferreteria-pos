@@ -1,0 +1,409 @@
+/* DASHBOARD PRINCIPAL */
+
+.dashboard-header{
+ display:flex;
+ justify-content:space-between;
+ align-items:flex-start;
+ margin-bottom:25px;
+}
+
+.dashboard-header h1{
+ font-size:34px;
+ margin-bottom:5px;
+}
+
+.dashboard-header p{
+ opacity:.7;
+}
+
+#btnModoDashboard{
+ width:auto;
+ padding:12px 20px;
+ border-radius:14px;
+ margin-top:10px;
+width:auto;
+}
+body.oscuro #saludoUsuario{
+ color:white;
+}
+
+body.oscuro #rolUsuario{
+ color:#cbd5e1;
+}
+.dashboard-header{
+ display:flex;
+ justify-content:space-between;
+ align-items:flex-start;
+ margin-bottom:25px;
+}
+
+.usuario-info h1{
+ font-size:52px;
+ font-weight:700;
+ margin-bottom:5px;
+}
+
+.usuario-info p{
+ font-size:18px;
+ opacity:.8;
+}
+
+#btnModoDashboard{
+ width:auto;
+ min-width:180px;
+ padding:14px 22px;
+}
+body.oscuro .usuario-info h1,
+body.oscuro .usuario-info p{
+ color:white;
+}
+
+#pantallaInicio{
+ max-width:1180px;
+ margin:0 auto;
+ width:100%;
+}
+
+#pantallaInicio .dashboard-top{
+ display:grid;
+ grid-template-columns:repeat(4,minmax(0,1fr));
+ gap:12px;
+ margin-bottom:12px;
+}
+
+#pantallaInicio .dashboard-top .caja.mini{
+ min-height:88px;
+ padding:13px 15px;
+ border:1px solid rgba(15,23,42,.06);
+ border-radius:14px;
+ background:linear-gradient(180deg,#ffffff,#f8fafc);
+ box-shadow:0 12px 26px rgba(15,23,42,.07);
+}
+
+#pantallaInicio .dashboard-top .caja.mini h3{
+ margin:0 0 9px;
+ color:#64748b;
+ font-size:13px;
+ font-weight:800;
+}
+
+#pantallaInicio .dashboard-top .caja.mini p{
+ color:#0f172a;
+ font-size:26px;
+ font-weight:900;
+ line-height:1;
+}
+
+#pantallaInicio .dashboard-top .caja.mini small{
+ display:block;
+ margin-top:8px;
+ color:#64748b;
+ font-size:12px;
+}
+
+#pantallaInicio .dashboard-top .caja.mini:nth-child(3) p,
+#ventasHoyMonto,
+.venta-dashboard-item strong{
+ color:#16a34a;
+}
+
+#pantallaInicio .dashboard-top .caja.mini:nth-child(4) p{
+ color:#0d6efd;
+}
+
+.dashboard-ventas-dia{
+ display:grid;
+ grid-template-columns:1fr;
+ gap:14px;
+ margin:0;
+}
+
+.dashboard-main-grid{
+ display:grid;
+ grid-template-columns:minmax(0,1.55fr) minmax(270px,.75fr);
+ gap:14px;
+ align-items:start;
+}
+
+.dashboard-chart-card,
+.dashboard-pulso{
+ border:1px solid rgba(15,23,42,.06);
+ border-radius:16px;
+ background:#fff;
+ box-shadow:0 14px 32px rgba(15,23,42,.08);
+}
+
+.dashboard-chart-card{
+ padding:18px;
+ min-height:300px;
+}
+
+.dashboard-card-head{
+ display:flex;
+ justify-content:space-between;
+ align-items:flex-start;
+ gap:12px;
+ margin-bottom:12px;
+}
+
+.dashboard-card-head span,
+.dashboard-pulso span{
+ color:#64748b;
+ font-size:13px;
+ font-weight:800;
+}
+
+.dashboard-card-head h2{
+ margin-top:4px;
+ font-size:34px;
+ line-height:1;
+}
+
+.estado-positivo,
+.estado-negativo{
+ display:inline-flex;
+ align-items:center;
+ min-height:30px;
+ padding:7px 10px;
+ border-radius:999px;
+ font-size:13px;
+}
+
+.estado-positivo{
+ background:#dcfce7;
+ color:#15803d;
+}
+
+.estado-negativo{
+ background:#fee2e2;
+ color:#b91c1c;
+}
+
+#graficaDashboardVentas{
+ width:100% !important;
+ height:220px !important;
+}
+
+.dashboard-pulso{
+ display:grid;
+ grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:10px;
+ padding:0;
+ border:none;
+ background:transparent;
+ box-shadow:none;
+}
+
+.dashboard-pulso div{
+ padding:16px;
+ border-radius:12px;
+ background:#f8fafc;
+ border:1px solid #eef2f7;
+}
+
+.dashboard-pulso strong{
+ display:block;
+ margin-top:8px;
+ color:#0f172a;
+ font-size:20px;
+}
+
+.dashboard-main-grid > .caja,
+#pantallaInicio > .caja{
+ padding:16px;
+ border:1px solid rgba(15,23,42,.06);
+ border-radius:16px;
+ background:#fff;
+ box-shadow:0 14px 32px rgba(15,23,42,.07);
+}
+
+.dashboard-main-grid > .caja + .caja,
+#pantallaInicio > .caja + .caja{
+ margin-top:0;
+}
+
+.dashboard-main-grid > .caja h2,
+#pantallaInicio > .caja h2{
+ margin-bottom:12px;
+ font-size:20px;
+}
+
+.dashboard-side-card{
+ min-height:0;
+}
+
+.dashboard-side-card .alertas-grid,
+#pantallaInicio .alertas-grid{
+ grid-template-columns:1fr;
+ gap:10px;
+}
+
+.dashboard-side-card .resumen-inventario{
+ display:none;
+}
+
+#inventarioBajo{
+ display:grid;
+ gap:8px;
+}
+
+.dashboard-side-card #inventarioBajo > div:nth-child(n+5),
+.dashboard-side-card #ultimasVentas > div:nth-child(n+5){
+ display:none;
+}
+
+#inventarioBajo > div,
+.alerta-dashboard-item{
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ gap:12px;
+ padding:10px 12px;
+ border-radius:10px;
+ background:#fff7ed;
+ color:#9a3412;
+ font-size:14px;
+}
+
+#inventarioBajo > div strong,
+.alerta-dashboard-item strong{
+ color:#b42318;
+ white-space:nowrap;
+}
+
+.resumen-inventario{
+ padding:16px;
+ border-radius:12px;
+ background:#f8fafc;
+ color:#0f172a;
+}
+
+.resumen-inventario p{
+ display:flex;
+ justify-content:space-between;
+ gap:12px;
+ margin:9px 0;
+ color:#475569;
+}
+
+.btn-alerta{
+ width:auto;
+ min-height:38px;
+ margin-top:12px;
+ padding:0 14px;
+ border:none;
+ border-radius:10px;
+ background:#0d6efd;
+ color:white;
+ font-weight:800;
+}
+
+#ultimasVentas{
+ display:grid;
+ grid-template-columns:1fr;
+ gap:10px;
+}
+
+.venta-dashboard-item{
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ gap:12px;
+ padding:12px;
+ border:1px solid #dcfce7;
+ border-radius:12px;
+ background:linear-gradient(180deg,#f0fdf4,#ffffff);
+}
+
+.venta-dashboard-item span{
+ display:block;
+ margin-top:3px;
+ color:#64748b;
+ font-size:12px;
+}
+
+.venta-dashboard-item b{
+ padding:5px 8px;
+ border-radius:999px;
+ background:#dcfce7;
+ color:#15803d;
+ font-size:12px;
+}
+
+body.oscuro #pantallaInicio .dashboard-top .caja.mini,
+body.oscuro .dashboard-chart-card,
+body.oscuro .dashboard-pulso,
+body.oscuro .dashboard-main-grid > .caja,
+body.oscuro #pantallaInicio > .caja{
+ background:#111827;
+ color:#f8fafc;
+ border-color:#243044;
+ box-shadow:none;
+}
+
+body.oscuro #pantallaInicio .dashboard-top .caja.mini p,
+body.oscuro .dashboard-pulso strong,
+body.oscuro .resumen-inventario{
+ color:#f8fafc;
+}
+
+body.oscuro .dashboard-pulso div,
+body.oscuro .resumen-inventario{
+ background:#1f2937;
+ border-color:#374151;
+}
+
+body.oscuro #inventarioBajo > div,
+body.oscuro .alerta-dashboard-item{
+ background:#451a03;
+ color:#fed7aa;
+}
+
+body.oscuro .venta-dashboard-item{
+ background:#052e16;
+ border-color:#14532d;
+}
+
+@media (max-width: 1050px){
+ #pantallaInicio .dashboard-top{
+ grid-template-columns:repeat(2,minmax(0,1fr));
+ }
+
+ .dashboard-main-grid,
+ .dashboard-ventas-dia,
+ #pantallaInicio .alertas-grid{
+ grid-template-columns:1fr;
+ }
+
+ .dashboard-pulso{
+ grid-template-columns:1fr;
+ }
+}
+.alertas-grid{
+ display:grid;
+ grid-template-columns:2.5fr 1.5fr;
+ gap:25px;
+}
+
+.resumen-inventario{
+ background:rgba(255,255,255,0.08);
+ color:inherit;
+ padding:20px;
+ border-radius:15px;
+}
+
+.resumen-inventario h3{
+ margin-bottom:15px;
+}
+
+.resumen-inventario p{
+ margin:10px 0;
+}
+
+.btn-alerta{
+ margin-top:15px;
+ padding:10px 15px;
+ border:none;
+ border-radius:10px;
+ cursor:pointer;
+}

@@ -90,8 +90,20 @@ module.exports = (app, pool, normalizarCodigo) => {
                 stock_nuevo NUMERIC(12,3) NOT NULL DEFAULT 0,
                 motivo TEXT NOT NULL DEFAULT '',
                 referencia TEXT NOT NULL DEFAULT '',
+                usuario_nombre TEXT NOT NULL DEFAULT '',
+                fecha_ajuste DATE NOT NULL DEFAULT CURRENT_DATE,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
+        `);
+
+        await pool.query(`
+            ALTER TABLE public.ajustes_inventario
+            ADD COLUMN IF NOT EXISTS usuario_nombre TEXT NOT NULL DEFAULT ''
+        `);
+
+        await pool.query(`
+            ALTER TABLE public.ajustes_inventario
+            ADD COLUMN IF NOT EXISTS fecha_ajuste DATE NOT NULL DEFAULT CURRENT_DATE
         `);
 
         const tablas = [
@@ -410,7 +422,7 @@ module.exports = (app, pool, normalizarCodigo) => {
                 SELECT *
                 FROM public.ajustes_inventario
                 WHERE negocio_id = $1
-                ORDER BY created_at DESC
+                ORDER BY fecha_ajuste DESC, created_at DESC
                 LIMIT 80
             `, [negocio.id]);
 
@@ -421,7 +433,7 @@ module.exports = (app, pool, normalizarCodigo) => {
     });
 
     app.post("/ajustes-inventario", async (req, res) => {
-        const { productoId, tipo, cantidad, motivo, referencia } = req.body;
+        const { productoId, tipo, cantidad, motivo, referencia, usuarioNombre, fecha } = req.body;
 
         if (!productoId || !["entrada", "salida", "conteo"].includes(tipo)) {
             res.status(400).json({ error: "Producto y tipo requeridos" });
@@ -429,6 +441,9 @@ module.exports = (app, pool, normalizarCodigo) => {
         }
 
         const cantidadAjuste = n(cantidad);
+        const fechaAjuste = /^\d{4}-\d{2}-\d{2}$/.test(fecha || "")
+            ? fecha
+            : new Date().toISOString().slice(0, 10);
         const client = await pool.connect();
 
         try {
@@ -473,8 +488,8 @@ module.exports = (app, pool, normalizarCodigo) => {
 
             const ajuste = await client.query(`
                 INSERT INTO public.ajustes_inventario
-                    (negocio_id, producto_id, producto_nombre, codigo, tipo, cantidad, stock_anterior, stock_nuevo, motivo, referencia)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                    (negocio_id, producto_id, producto_nombre, codigo, tipo, cantidad, stock_anterior, stock_nuevo, motivo, referencia, usuario_nombre, fecha_ajuste)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
                 RETURNING *
             `, [
                 negocio.id,
@@ -486,7 +501,9 @@ module.exports = (app, pool, normalizarCodigo) => {
                 actual,
                 nuevo,
                 motivo || "",
-                referencia || ""
+                referencia || "",
+                usuarioNombre || "",
+                fechaAjuste
             ]);
 
             await client.query("COMMIT");

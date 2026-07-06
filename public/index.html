@@ -5,7 +5,38 @@
  <meta charset="UTF-8">
  <title>Ferreteria Olimpico</title>
 
+  <link rel="stylesheet" href="css/design-system.css?v=refactor-tokens-20260630-01">
   <link rel="stylesheet" href="style.css?v=nexo-contacto-atajo-20260623-01">
+  <link rel="stylesheet" href="css/layers/legacy-layout.css?v=refactor-legacy-layout-20260701-01">
+  <link rel="stylesheet" href="css/components/dashboard.css?v=refactor-dashboard-20260702-01">
+  <link rel="stylesheet" href="css/layers/responsive-legacy.css?v=refactor-responsive-legacy-20260702-01">
+  <link rel="stylesheet" href="css/layers/theme-runtime.css?v=refactor-theme-runtime-20260701-01">
+  <link rel="stylesheet" href="css/layers/pos-restoration.css?v=refactor-pos-restoration-20260701-01">
+  <link rel="stylesheet" href="css/components/auth-login.css?v=refactor-auth-login-20260701-01">
+  <link rel="stylesheet" href="css/components/app-shell.css?v=pos-shell-redesign-20260702-02">
+  <link rel="stylesheet" href="css/components/setup-wizard.css?v=refactor-setup-wizard-20260701-01">
+  <link rel="stylesheet" href="css/components/config-settings.css?v=config-minimal-20260705-01">
+  <link rel="stylesheet" href="css/components/customers.css?v=refactor-customers-20260701-01">
+  <link rel="stylesheet" href="css/components/suppliers.css?v=proveedores-redesign-20260705-01">
+  <link rel="stylesheet" href="css/components/inventory.css?v=categorias-redesign-20260703-01">
+  <link rel="stylesheet" href="css/components/supplier-catalog.css?v=refactor-supplier-catalog-20260701-01">
+  <link rel="stylesheet" href="css/components/reports.css?v=reportes-redesign-20260704-01">
+  <link rel="stylesheet" href="css/components/receiving.css?v=recepcion-minimal-20260704-01">
+  <link rel="stylesheet" href="css/components/inventory-adjustments.css?v=ajustes-inventario-20260704-01">
+  <link rel="stylesheet" href="css/components/cash-register.css?v=caja-redesign-20260704-01">
+  <link rel="stylesheet" href="css/components/finance.css?v=finanzas-redesign-20260704-01">
+  <link rel="stylesheet" href="css/components/purchase-orders.css?v=pedidos-redesign-20260705-01">
+  <link rel="stylesheet" href="css/components/system-dialogs.css?v=refactor-dialogs-20260701-01">
+  <link rel="stylesheet" href="css/components/operational-tables.css?v=refactor-operational-tables-20260701-01">
+  <link rel="stylesheet" href="css/components/pos-operational-polish.css?v=refactor-pos-polish-20260701-01">
+  <link rel="stylesheet" href="css/components/dashboard-alerts.css?v=refactor-dashboard-alerts-20260701-01">
+  <link rel="stylesheet" href="css/components/pos-cart.css?v=pos-shell-redesign-20260703-01">
+  <link rel="stylesheet" href="css/components/pos-product-form.css?v=refactor-product-form-20260630-01">
+  <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-redesign-20260703-01">
+  <link rel="stylesheet" href="css/components/sale-documents.css?v=refactor-sale-documents-20260630-01">
+  <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=refactor-payment-modal-20260701-01">
+  <link rel="stylesheet" href="css/components/low-stock-order.css?v=refactor-low-stock-order-20260701-01">
+  <link rel="stylesheet" href="css/components/support-reminders.css?v=refactor-support-reminders-20260701-01">
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
@@ -201,6 +232,10 @@
  Clientes
  </button>
 
+ <button onclick="abrirCreditos()">
+ Creditos
+ </button>
+
  <button onclick="mostrarProveedores()">
  Proveedores
  </button>
@@ -313,177 +348,6 @@
  </small>
 
  </div>
- <div id="modalCreditos" class="modal-overlay" style="display:none;">
-
- <div class="modal-producto">
-
- <div class="modal-header">
-
- <h2> Creditos pendientes</h2>
- <button type="button" class="modal-cerrar-x" onclick="cerrarCreditos()" aria-label="Cerrar creditos">
- ×
- </button>
-
- </div>
-
- <div id="listaCreditos" class="creditos-layout">
-
- <div class="creditos-principales">
- <div class="cliente-credito">
- <h3>Cargando creditos...</h3>
- <p>Espera un momento.</p>
- </div>
- </div>
-
- <div class="credito-resumen">
-
- <div>
- <strong>$0</strong>
- <span>Credito total</span>
- </div>
-
- <div>
- <strong>0</strong>
- <span>Clientes con adeudo</span>
- </div>
-
- <div>
- <strong>0</strong>
- <span>Clientes registrados</span>
- </div>
-
- <div>
- <strong>0</strong>
- <span>Sin adeudo</span>
- </div>
-
- </div>
-<div class="ver-todos-container">
-
- <button class="btn-ver-todos" onclick="verTodosCreditos()">
- Ver todos los clientes
- </button>
-
- </div>
- <div class="modal-botones">
-
- <button onclick="abrirNuevoClienteCredito()">
- Nuevo cliente
- </button>
-
- <button onclick="cerrarCreditos()">
- Cerrar
- </button>
-
- </div>
- </div>
-
- <div id="detalleCliente" style="display:none;">
-
- <div class="cliente-header">
-
- <button onclick="regresarListaCreditos()" class="btn-regresar">
- Regresar Regresar
- </button>
-
- <div class="cliente-info">
- <h2> Arq. Juan Perez</h2>
- <p>Cliente desde: 12/03/2024</p>
- </div>
-
- <div class="limite-credito">
- <span>Limite de credito</span>
- <strong>$15,000</strong>
- </div>
-
- </div>
-<div class="credito-resumen">
-
- <div class="resumen-card">
- <span>Saldo pendiente</span>
- <strong class="rojo">$5,650</strong>
- </div>
-
- <div class="resumen-card">
- <span>Credito utilizado</span>
- <strong>$5,650</strong>
- </div>
-
- <div class="resumen-card">
- <span>Disponible</span>
- <strong class="verde">$9,350</strong>
- </div>
-
- <div class="resumen-card">
- <span>Estado</span>
- <strong class="amarillo"> Por vencer</strong>
- </div>
-
-</div>
-<div class="movimientos-cliente">
-
- <h3>Movimientos</h3>
-
- <table class="tabla-creditos">
-
- <thead>
- <tr>
- <th>Fecha</th>
- <th>Tipo</th>
- <th>Referencia</th>
- <th>Concepto</th>
- <th>Monto</th>
- <th>Saldo</th>
- </tr>
- </thead>
-
- <tbody>
-
- <tr>
- <td>15/06/2026</td>
- <td> Venta</td>
- <td>#00015</td>
- <td>Venta de productos</td>
- <td>$2,450</td>
- <td>$2,450</td>
- </tr>
-
- <tr>
- <td>18/06/2026</td>
- <td> Abono</td>
- <td>#A0003</td>
- <td>Pago parcial</td>
- <td>-$1,000</td>
- <td>$1,450</td>
- </tr>
-
- </tbody>
-
- </table>
-
-</div>
-<div class="acciones-credito">
-
- <button class="btn-abono" onclick="registrarAbonoCredito()">
- Registrar abono
- </button>
-
- <button class="btn-imprimir" onclick="window.print()">
- Imprimir estado de cuenta
- </button>
-
- <button class="btn-opciones" onclick="registrarCargoCredito()">
- Mas opciones 
- </button>
-
-</div>
- 
-
- </div>
-
- </div>
-
- </div>
 
  <div class="caja">
 
@@ -532,14 +396,255 @@
 
  </div>
 </div>
+
+ <div id="pantallaCreditos" style="display:none;">
+
+ <div class="creditos-resumen" id="resumenStatsCreditos"></div>
+
+ <div class="creditos-panel-row">
+
+ <div id="listaCreditos" class="creditos-layout">
+
+ <div class="creditos-lista-panel">
+
+ <div class="creditos-lista-toolbar">
+ <div class="buscador-con-limpiar">
+ <input id="buscarListaCreditos" type="text" placeholder="Buscar cliente, referencia..." oninput="renderCreditos(datosCreditosActuales || {})">
+ </div>
+ <button type="button" class="btn-agregar btn-nuevo-credito" onclick="abrirNuevoClienteCredito()">
+ + Nuevo credito
+ </button>
+ </div>
+
+ <div class="creditos-tabs" id="creditosTabs"></div>
+
+ <div class="creditos-principales">
+ <div class="cliente-credito">
+ <h3>Cargando creditos...</h3>
+ <p>Espera un momento.</p>
+ </div>
+ </div>
+
+ <div class="creditos-lista-footer">
+ <span id="creditosListaTexto"></span>
+ <button type="button" class="btn-actualizar-creditos" onclick="verTodosCreditos()">
+ Actualizar
+ </button>
+ </div>
+ </div>
+ </div>
+
+ <div id="detalleCliente" style="display:none;">
+
+ <div class="cliente-header">
+
+ <button onclick="regresarListaCreditos()" class="btn-regresar" aria-label="Regresar a la lista">
+ &larr;
+ </button>
+
+ <span class="cliente-avatar-grande" id="creditoDetalleAvatar"></span>
+
+ <div class="cliente-info">
+ <h2> Arq. Juan Perez</h2>
+ <p>Cliente desde: 12/03/2024 <span id="creditoDetalleCodigo"></span></p>
+ </div>
+
+ <span class="credito-badge" id="creditoDetalleBadge"></span>
+
+ <div class="cliente-header-acciones">
+ <button type="button" class="btn-credito-editar" onclick="editarClienteCredito(creditoActual.id)">Editar</button>
+ <button type="button" class="btn-credito-eliminar" onclick="desactivarClienteCredito(creditoActual.id)">Eliminar</button>
+ </div>
+
+ </div>
+
+ <div class="credito-resumen">
+
+ <div class="resumen-card">
+ <span>Saldo pendiente</span>
+ <strong class="rojo">$5,650</strong>
+ </div>
+
+ <div class="resumen-card">
+ <span>Credito utilizado</span>
+ <strong>$5,650</strong>
+ </div>
+
+ <div class="resumen-card">
+ <span>Disponible</span>
+ <strong class="verde">$9,350</strong>
+ </div>
+
+ <div class="resumen-card">
+ <span>Estado</span>
+ <strong class="amarillo"> Por vencer</strong>
+ </div>
+
+ </div>
+
+ <div class="limite-credito">
+ <span>Limite de credito</span>
+ <strong>$15,000</strong>
+ </div>
+
+ <div class="credito-detalle-tabs">
+ <button type="button" class="activo" data-tab="movimientos" onclick="mostrarTabDetalleCredito('movimientos')">Movimientos</button>
+ <button type="button" data-tab="info" onclick="mostrarTabDetalleCredito('info')">Informacion</button>
+ <button type="button" data-tab="pagos" onclick="mostrarTabDetalleCredito('pagos')">Pagos</button>
+ </div>
+
+ <div class="credito-tab-panel" data-tab-panel="movimientos">
+ <div class="credito-detalle-cuerpo">
+ <div class="movimientos-cliente">
+
+ <table class="tabla-creditos">
+
+ <thead>
+ <tr>
+ <th>Fecha</th>
+ <th>Tipo</th>
+ <th>Referencia</th>
+ <th>Concepto</th>
+ <th>Monto</th>
+ <th>Saldo</th>
+ </tr>
+ </thead>
+
+ <tbody></tbody>
+
+ </table>
+
+ <div class="movimientos-pie">
+ <span id="movimientosPaginacionTexto"></span>
+ </div>
+
+ </div>
+
+ <aside class="credito-resumen-lateral-card">
+ <h4>Resumen del credito</h4>
+ <div id="creditoResumenLateral"></div>
+
+ <div class="acciones-credito">
+
+ <button class="btn-abono" onclick="registrarAbonoCredito()">
+ Registrar pago
+ </button>
+
+ <button class="btn-ver-cliente" onclick="verDetallesClienteDesdeCreditos()">
+ Ver detalles del cliente
+ </button>
+
+ <button class="btn-imprimir" onclick="window.print()">
+ Imprimir estado de cuenta
+ </button>
+
+ </div>
+ </aside>
+ </div>
+ </div>
+
+ <div class="credito-tab-panel" data-tab-panel="info" style="display:none;">
+ <div class="categoria-info-grid" id="creditoInfoTab"></div>
+ </div>
+
+ <div class="credito-tab-panel" data-tab-panel="pagos" style="display:none;">
+ <table class="tabla-creditos">
+ <thead>
+ <tr>
+ <th>Fecha</th>
+ <th>Referencia</th>
+ <th>Concepto</th>
+ <th>Monto</th>
+ </tr>
+ </thead>
+ <tbody id="creditoPagosTabla"></tbody>
+ </table>
+ </div>
+
+ </div>
+
+ </div>
+
+ </div>
+
  <!-- PUNTO DE VENTA -->
 
- <div id="pantallaPuntoVenta" style="display:none;">
+ <div id="pantallaPuntoVenta" class="pos-referencia" style="display:none;">
 
- <div class="pos-header">
+ <div class="pos-reference-layout">
+ <main class="pos-products-panel">
+ <div class="pos-reference-toolbar">
+ <button type="button" class="pos-icon-button" onclick="toggleSubmenuInventario()" aria-label="Menu">
+ ☰
+ </button>
+
+ <div class="buscador-con-limpiar pos-reference-search">
+ <span class="pos-search-icon">⌕</span>
+ <input id="busqueda" type="text" placeholder="Buscar producto por nombre, codigo o codigo de barras..."
+ oninput="buscarProductos()" onkeydown="buscarCodigoEnter(event)">
+ <button type="button" onclick="limpiarBusquedaPos()" aria-label="Limpiar busqueda">
+ ×
+ </button>
+ </div>
+
+ <button type="button" class="pos-icon-button" onclick="enfocarBusquedaVentaRapida(true)" aria-label="Escanear codigo">
+ ▣
+ </button>
+ </div>
+
+ <section class="pos-category-strip" aria-label="Categorias de punto de venta">
+ <button type="button" class="active" onclick="filtrarProductosPOSCategoria('')">
+ <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+ Todos
+ </button>
+ <button type="button" onclick="filtrarProductosPOSCategoria('Herramientas')">
+ <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7.5a5.5 5.5 0 0 1-7.4 5.2L6 20.3 3.7 18l7.6-7.6A5.5 5.5 0 1 1 21 7.5Z"/></svg>
+ Herramientas
+ </button>
+ <button type="button" onclick="filtrarProductosPOSCategoria('Electricidad')">
+ <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>
+ Electricidad
+ </button>
+ <button type="button" onclick="filtrarProductosPOSCategoria('Plomeria')">
+ <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9Z"/><path d="M12 12v7a2 2 0 0 1-4 0"/></svg>
+ Plomeria
+ </button>
+ <button type="button" onclick="filtrarProductosPOSCategoria('Pintura')">
+ <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="12" height="6" rx="1.5"/><path d="M7 10v4h4"/><rect x="9" y="14" width="4" height="6" rx="1"/></svg>
+ Pintura
+ </button>
+ <button type="button" onclick="filtrarProductosPOSCategoria('Ferreteria')">
+ <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="8" width="20" height="12" rx="2"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M2 13h20"/></svg>
+ Ferreteria
+ </button>
+ <button type="button" onclick="filtrarProductosPOSCategoria('Jardineria')">
+ <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21c8 0 14-6 14-14V5h-2C9 5 5 11 5 19v2Z"/><path d="M5 21 19 7"/></svg>
+ Jardineria
+ </button>
+ <button type="button" onclick="toggleVistaProductosPOS()">
+ <svg class="ui-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+ Mas
+ </button>
+ </section>
+
+ <div class="pos-section-title">
+ <h3>Productos</h3>
  <div>
- <h2>Punto de venta</h2>
- <p>Venta rapida, cobro y ticket</p>
+ <button type="button" onclick="mostrarInventario()">Ver todos</button>
+ <button type="button" class="pos-grid-toggle" onclick="toggleVistaProductosPOS()">▦</button>
+ </div>
+ </div>
+
+ <div class="productos pos-grid">
+ <div id="productos"></div>
+ </div>
+ </main>
+
+ <aside class="lado pos-reference-side">
+ <div class="caja pos-carrito-card">
+ <div class="pos-cart-heading">
+ <h2>Carrito de venta</h2>
+ <button type="button" onclick="limpiarCarrito()">Vaciar carrito</button>
  </div>
 
  <button type="button" class="cliente-pos cliente-pos-selector" onclick="abrirSelectorClientePOS()">
@@ -547,67 +652,118 @@
  <strong id="clienteVentaNombre">Publico general</strong>
  <small id="clienteVentaResumen">Venta de mostrador</small>
  </button>
- </div>
-
- <div class="pos-toolbar">
- <div class="buscador-con-limpiar pos-buscador">
- <input id="busqueda" type="text" placeholder="Buscar producto: codigo, nombre o marca"
- oninput="buscarProductos()" onkeydown="buscarCodigoEnter(event)">
- <button type="button" onclick="limpiarBusquedaPos()">
- x
- </button>
- </div>
-
- <button type="button" class="btn-tool" onclick="toggleVistaProductosPOS()">Vista</button>
- <button type="button" class="btn-tool" onclick="enfocarFiltroPOS()">Filtro</button>
- </div>
-
- <div class="pos-subheader">
- <h3>Productos destacados</h3>
- <span>Los mas vendidos y de venta rapida</span>
- </div>
-
- <div class="productos pos-grid">
-
- <div id="productos"></div>
-
- <div class="lado">
-
- <div class="caja pos-carrito-card">
-
- <h2> Carrito</h2>
 
  <div id="carrito"></div>
-
  </div>
+ </aside>
+ </div>
+
+ <section class="pos-metrics-row">
+ <article class="pos-metric-blue">
+ <span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.5 11h10.8l2-7H7"/></svg></span>
+ <div>
+ <small>Ventas del dia</small>
+ <strong id="posVentasDia">$0.00</strong>
+ <em id="posVentasDiaTendencia">operacion actual</em>
+ </div>
+ </article>
+ <article class="pos-metric-green">
+ <span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg></span>
+ <div>
+ <small>Ventas del mes</small>
+ <strong id="posVentasMes">$0.00</strong>
+ <em id="posVentasMesTendencia">resumen local</em>
+ </div>
+ </article>
+ <article class="pos-metric-purple">
+ <span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="9" width="18" height="4" rx="1"/><path d="M12 9v12M4 13v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/><path d="M12 9c-1.4 0-4-.8-4-3a2 2 0 0 1 4-1 2 2 0 0 1 4 1c0 2.2-2.6 3-4 3Z"/></svg></span>
+ <div>
+ <small>Productos vendidos</small>
+ <strong id="posProductosVendidos">0</strong>
+ <em id="posProductosVendidosTendencia">hoy</em>
+ </div>
+ </article>
+ <article class="pos-metric-orange">
+ <span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2Z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg></span>
+ <div>
+ <small>Ticket promedio</small>
+ <strong id="posTicketPromedio">$0.00</strong>
+ <em id="posTicketPromedioTendencia">segun historial</em>
+ </div>
+ </article>
+ </section>
 
  <div class="caja pos-historial-card">
-
  <h2>Ultimas ventas</h2>
-
  <div id="historial"></div>
-
- </div>
-
- </div>
-
  </div>
 
  </div>
 
  <div id="pantallaInventario" style="display:none;">
 
+ <div class="inventario-resumen">
+ <article class="inventario-resumen-blue">
+ <span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+ <div>
+ <small>Total productos</small>
+ <strong id="resumenInventarioTotal">0</strong>
+ </div>
+ </article>
+ <article class="inventario-resumen-teal">
+ <span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7.5 12 3l8 4.5-8 4.5-8-4.5Z"/><path d="M4 7.5v9L12 21l8-4.5v-9"/><path d="M12 12v9"/></svg></span>
+ <div>
+ <small>Stock total</small>
+ <strong id="resumenInventarioStock">0</strong>
+ <em>Unidades disponibles</em>
+ </div>
+ </article>
+ <article class="inventario-resumen-orange">
+ <span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg></span>
+ <div>
+ <small>Valor inventario</small>
+ <strong id="resumenInventarioValor">$0.00</strong>
+ </div>
+ </article>
+ <article class="inventario-resumen-red">
+ <span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 4.2 2.7 17.4A2 2 0 0 0 4.4 20h15.2a2 2 0 0 0 1.7-2.6L13.7 4.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
+ <div>
+ <small>Productos sin stock</small>
+ <strong id="resumenInventarioSinStock">0</strong>
+ <em class="inventario-resumen-alerta">Requieren atencion</em>
+ </div>
+ </article>
+ </div>
+
  <div class="caja">
 
  <div class="inventario-top">
 
  <div class="buscador-con-limpiar">
- <input id="buscarInventario" type="text" placeholder="Buscar producto..."
- oninput="buscarInventario()">
+ <input id="buscarInventario" type="text" placeholder="Buscar por codigo, nombre o categoria..."
+ oninput="filtrarInventario()">
  <button type="button" onclick="limpiarBusquedaInventario()">
  x
  </button>
  </div>
+ <label class="inventario-filtro-campo">
+ <span>Categoria</span>
+ <select id="filtroInventarioCategoria" onchange="filtrarInventario()">
+ <option value="">Todas</option>
+ </select>
+ </label>
+ <label class="inventario-filtro-campo">
+ <span>Estado</span>
+ <select id="filtroInventarioEstado" onchange="filtrarInventario()">
+ <option value="">Todos</option>
+ <option value="ok">En stock</option>
+ <option value="bajo">Bajo</option>
+ <option value="sin-stock">Sin stock</option>
+ </select>
+ </label>
+ <button type="button" class="btn-limpiar-inventario" onclick="limpiarFiltrosInventario()">
+ Limpiar
+ </button>
  <button class="btn-agregar" onclick="mostrarFormularioAgregar()">
  + Agregar producto
  </button>
@@ -620,6 +776,7 @@
  <tr>
  <th>Codigo</th>
  <th>Producto</th>
+ <th>Categoria</th>
  <th>Precio</th>
  <th>Stock</th>
  <th>Estado</th>
@@ -633,7 +790,19 @@
  </tbody>
 
  </table>
+ <div class="inventario-paginacion-footer">
+ <span id="inventarioPaginacionTexto"></span>
  <div id="paginacionInventario" class="paginacion-tabla"></div>
+ <label class="inventario-filtro-campo inventario-tamano-pagina">
+ <span>Por pagina</span>
+ <select onchange="cambiarTamanoPaginaInventario(this.value)">
+ <option value="8">8</option>
+ <option value="10" selected>10</option>
+ <option value="20">20</option>
+ <option value="50">50</option>
+ </select>
+ </label>
+ </div>
  <div id="modalAgregar" class="modal-overlay" style="display:none;">
 
  <div class="modal-producto">
@@ -692,14 +861,16 @@
  <option value="litro">Litro</option>
  <option value="gramo">Gramo</option>
  <option value="caja">Caja</option>
+ <option value="bolsa">Bolsa</option>
  <option value="paquete">Paquete</option>
  <option value="tramo">Tramo</option>
+ <option value="rollo">Rollo</option>
  <option value="saco">Saco</option>
  <option value="bulto">Bulto</option>
  <option value="servicio">Servicio</option>
  </select>
- <input id="presentacionCompra" type="text" placeholder="Presentacion: caja, rollo, saco">
- <input id="factorConversion" type="number" step="0.001" placeholder="Factor conversion: ej. caja 100 piezas">
+ <input id="presentacionCompra" type="text" placeholder="Compra: caja, rollo, saco, bulto">
+ <input id="factorConversion" type="number" step="0.001" placeholder="Equivalencia: ej. caja 100 piezas">
  <input id="precioDistribuidor" type="number" step="0.01"
  placeholder=" Precio distribuidor" />
 
@@ -741,6 +912,10 @@
 
  <button onclick="cerrarFormularioAgregar()">
  Cancelar
+ </button>
+
+ <button type="button" onclick="agregarProductoNuevo({ continuar: true })">
+ Guardar y agregar otro
  </button>
 
  <button id="btnGuardarProducto" onclick="agregarProductoNuevo()">
@@ -807,34 +982,21 @@
  </div>
 
  <div id="pantallaCategoriasInventario" style="display:none;">
- <div class="categorias-shell">
- <div class="categorias-header">
- <div>
- <h2>Categorias</h2>
- <p>Organiza productos por area, familia o tipo de venta.</p>
- </div>
- <button class="btn-agregar" onclick="abrirFormularioCategoria()">
- + Nueva categoria
- </button>
- </div>
 
  <div class="categorias-resumen" id="resumenCategoriasInventario"></div>
 
- <div class="categorias-grid" id="listaCategoriasInventario"></div>
+ <div class="categorias-shell">
+ <aside class="categorias-lista-panel">
+ <div class="buscador-con-limpiar categorias-buscador">
+ <input id="buscarCategorias" type="text" placeholder="Buscar categoria..." oninput="buscarCategoriasInventario()">
  </div>
- </div>
+ <div class="categorias-lista" id="listaCategoriasInventario"></div>
+ <button class="btn-agregar categorias-btn-nueva" onclick="abrirFormularioCategoria()">
+ + Nueva categoria
+ </button>
+ </aside>
 
- <div id="modalCategoriaProductos" class="modal-overlay" style="display:none;">
- <div class="modal-producto modal-categoria-productos">
- <div class="modal-header">
- <h2 id="tituloCategoriaProductos">Categoria</h2>
- <button onclick="cerrarModalCategoriaProductos()">x</button>
- </div>
- <div id="listaProductosCategoria" class="lista-productos-categoria"></div>
- <div class="modal-botones">
- <button onclick="cerrarModalCategoriaProductos()">Regresar</button>
- <button onclick="irInventarioDesdeCategoria()">Ver en inventario</button>
- </div>
+ <section class="categoria-detalle-panel" id="detalleCategoriaInventario"></section>
  </div>
  </div>
 
@@ -943,6 +1105,18 @@
  </thead>
  <tbody id="tablaProveedores"></tbody>
  </table>
+
+ <div class="proveedores-pie">
+ <span id="proveedoresPaginacionTexto"></span>
+ <div class="proveedores-pie-derecha">
+ <div id="paginacionProveedores" class="paginacion-tabla"></div>
+ <div class="proveedores-estado-filtro">
+ <span>Estado:</span>
+ <button type="button" class="activo" data-proveedor-estado="activo" onclick="cambiarEstadoProveedores('activo')">Activo</button>
+ <button type="button" data-proveedor-estado="baja" onclick="cambiarEstadoProveedores('baja')">Baja</button>
+ </div>
+ </div>
+ </div>
  </div>
  </div>
  <div id="pantallaReportes" style="display:none;">
@@ -955,8 +1129,8 @@
  <p>Resumen real de ventas registradas en el sistema.</p>
  </div>
 
- <button class="btn-reporte-actualizar" onclick="cargarReportesVentas()">
- Actualizar
+ <button class="btn-reporte-exportar" onclick="exportarReporteVentasCSV()">
+ Exportar
  </button>
  </div>
 
@@ -968,24 +1142,29 @@
  <label>Desde <input id="reporteDesde" type="date"></label>
  <label>Hasta <input id="reporteHasta" type="date"></label>
  <button type="button" onclick="cambiarPeriodoReporteVentas('rango')">Aplicar rango</button>
+ <button type="button" class="btn-reporte-actualizar" onclick="cargarReportesVentas()">Actualizar</button>
  </div>
 
  <div class="reportes-resumen">
  <div>
  <span>Ventas totales</span>
  <strong id="reporteTotalVentas">$0.00</strong>
+ <em id="reporteTotalVentasTendencia" class="reporte-tendencia"></em>
  </div>
  <div>
  <span>Transacciones</span>
  <strong id="reporteTransacciones">0</strong>
+ <em id="reporteTransaccionesTendencia" class="reporte-tendencia"></em>
  </div>
  <div>
  <span>Ticket promedio</span>
  <strong id="reporteTicketPromedio">$0.00</strong>
+ <em id="reporteTicketPromedioTendencia" class="reporte-tendencia"></em>
  </div>
  <div>
- <span>Venta mayor</span>
- <strong id="reporteVentaMayor">$0.00</strong>
+ <span>Productos vendidos</span>
+ <strong id="reporteProductosVendidos">0</strong>
+ <em id="reporteProductosVendidosTendencia" class="reporte-tendencia"></em>
  </div>
  </div>
 
@@ -1005,11 +1184,26 @@
  <div class="reportes-grid reportes-grid-secundario">
  <div class="reportes-panel">
  <h3>Metodos de pago</h3>
- <div id="reporteMetodosPago" class="reporte-lista-compacta"></div>
+ <div class="reportes-donut-wrap">
+ <canvas id="graficaMetodosPago"></canvas>
+ </div>
+ <div id="reporteMetodosPagoLeyenda" class="reporte-metodos-leyenda"></div>
  </div>
  <div class="reportes-panel">
+ <h3>Ventas por categoria</h3>
+ <div id="reporteVentasPorCategoria" class="reporte-categorias-lista"></div>
+ <button type="button" class="reportes-ver-todas" id="btnVerTodasCategoriasReporte" onclick="toggleCategoriasReporte()" style="display:none;">Ver todas las categorias</button>
+ </div>
+ <div class="reportes-panel">
+ <h3>Resumen del periodo</h3>
+ <div id="reporteResumenPeriodo" class="reporte-resumen-periodo"></div>
+ </div>
+ </div>
+
+ <div class="reportes-grid reportes-grid-terciario">
+ <div class="reportes-panel">
  <h3>Productos mas vendidos</h3>
- <div id="reporteProductosVendidos" class="reporte-lista-compacta"></div>
+ <div id="reporteProductosVendidosLista" class="reporte-lista-compacta"></div>
  </div>
  <div class="reportes-panel">
  <h3>Horarios con mayor venta</h3>
@@ -1063,7 +1257,21 @@
  </div>
  </div>
 
-  <script src="app.js?v=pos-universal-20260621-13"></script>
+  <script src="app.js?v=proveedores-redesign-20260705-01"></script>
+  <script src="js/offline-sync.js?v=refactor-offline-sync-20260702-01"></script>
+  <script src="js/config-auth.js?v=nav-fix-20260704-01"></script>
+  <script src="js/supplier-catalog.js?v=refactor-supplier-catalog-js-20260702-01"></script>
+  <script src="js/product-inventory.js?v=categorias-redesign-20260703-01"></script>
+<script src="js/pos-sales.js?v=pos-metrics-fix-20260703-01"></script>
+  <script src="js/sales-history-documents.js?v=nav-fix-20260704-01"></script>
+  <script src="js/credit-customers.js?v=nav-fix-20260704-01"></script>
+  <script src="js/supplier-catalog-view.js?v=proveedores-redesign-20260705-01"></script>
+  <script src="js/app-bootstrap.js?v=categorias-redesign-20260703-01"></script>
+  <script src="js/reports.js?v=reportes-redesign-20260704-01"></script>
+  <script src="js/shell-topbar.js?v=caja-redesign-20260704-01"></script>
+  <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
+  <script src="js/low-stock.js?v=refactor-low-stock-js-20260702-01"></script>
+<script src="js/ferretero-flow.js?v=nav-fix-20260704-01"></script>
 
 </body>
 

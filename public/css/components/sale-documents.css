@@ -1,0 +1,276 @@
+.modal-venta-completada-pos,
+.modal-detalle-venta-pos,
+.modal-nota-venta-pos {
+  z-index: 12000 !important;
+  background: rgba(15, 23, 42, .52) !important;
+  backdrop-filter: blur(10px) saturate(1.08) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(1.08) !important;
+}
+
+.venta-completada-card-pos,
+.detalle-venta-card-pos,
+.nota-venta-card-pos {
+  background: var(--surface, rgba(255, 255, 255, .78)) !important;
+  color: var(--text-main, #101828) !important;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .10)) !important;
+  box-shadow: var(--shadow-soft, 0 20px 55px rgba(15, 23, 42, .12)) !important;
+}
+
+.modal-venta-completada-pos {
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 18px !important;
+}
+
+.venta-completada-card-pos {
+  width: min(520px, 94vw) !important;
+  padding: 22px !important;
+  border-radius: 24px !important;
+  backdrop-filter: blur(20px) saturate(1.16) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.16) !important;
+}
+
+.venta-completada-resumen-pos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 16px;
+}
+
+.venta-completada-resumen-pos div {
+  min-height: 74px;
+  padding: 12px;
+  border-radius: 18px;
+  background: var(--surface-soft, rgba(255, 255, 255, .56));
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .10));
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.venta-completada-resumen-pos span {
+  color: var(--text-muted, #667085) !important;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.venta-completada-resumen-pos strong {
+  color: var(--text-main, #101828) !important;
+  font-size: 22px;
+  font-weight: 950;
+}
+
+.venta-completada-card-pos .modal-actions-row {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.venta-historial-card-pos,
+.historial-vacio-pos {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 13px !important;
+  border-radius: 16px !important;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .10)) !important;
+  background: var(--surface-soft, rgba(255, 255, 255, .56)) !important;
+  color: var(--text-main, #101828) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .65) !important;
+}
+
+.venta-historial-card-pos div {
+  min-width: 0 !important;
+  display: grid !important;
+  gap: 3px !important;
+}
+
+.venta-historial-card-pos span,
+.venta-historial-card-pos small {
+  color: var(--text-muted, #667085) !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+.venta-historial-card-pos strong {
+  color: var(--text-main, #101828) !important;
+  font-size: 18px !important;
+  line-height: 1.1 !important;
+}
+
+.venta-historial-card-pos button {
+  flex: 0 0 auto !important;
+  min-width: 150px !important;
+  min-height: 38px !important;
+  border-radius: 13px !important;
+  padding: 0 13px !important;
+  background: var(--surface-strong, rgba(255, 255, 255, .92)) !important;
+  color: var(--text-main, #101828) !important;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .10)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .68), 0 10px 22px rgba(15, 23, 42, .06) !important;
+  white-space: normal !important;
+  line-height: 1.05 !important;
+}
+
+.modal-detalle-venta-pos,
+.modal-nota-venta-pos {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 22px !important;
+  background: rgba(15, 23, 42, .38) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+.detalle-venta-card-pos {
+  width: min(820px, 94vw) !important;
+  max-height: calc(100vh - 44px) !important;
+  overflow: auto !important;
+  border-radius: 24px !important;
+  padding: 22px !important;
+}
+
+.nota-venta-card-pos {
+  width: min(460px, 94vw) !important;
+  border-radius: 22px !important;
+  padding: 18px !important;
+  display: grid !important;
+  gap: 12px !important;
+}
+
+.nota-venta-card-pos label {
+  display: grid !important;
+  gap: 6px !important;
+  color: var(--text-muted, #667085) !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+.nota-venta-card-pos input,
+.nota-venta-card-pos textarea {
+  width: 100% !important;
+  min-height: 42px !important;
+  border-radius: 14px !important;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .10)) !important;
+  background: var(--surface-soft, rgba(255, 255, 255, .56)) !important;
+  color: var(--text-main, #101828) !important;
+  padding: 10px 12px !important;
+  font: inherit !important;
+}
+
+.nota-ajuste-pos {
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .10)) !important;
+  border-radius: 16px !important;
+  padding: 10px !important;
+  background: var(--surface-soft, rgba(255, 255, 255, .56)) !important;
+}
+
+.nota-ajuste-pos summary {
+  cursor: pointer !important;
+  color: var(--text-main, #101828) !important;
+  font-weight: 950 !important;
+}
+
+.detalle-venta-resumen-pos,
+.detalle-venta-totales-pos {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  margin: 12px 0 !important;
+}
+
+.detalle-venta-resumen-pos div,
+.detalle-venta-totales-pos div,
+.detalle-productos-pos div,
+.detalle-bitacora-pos {
+  border-radius: 16px !important;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .10)) !important;
+  background: var(--surface-soft, rgba(255, 255, 255, .56)) !important;
+  padding: 11px !important;
+}
+
+.detalle-venta-resumen-pos span,
+.detalle-venta-totales-pos span,
+.detalle-bitacora-pos span {
+  display: block !important;
+  color: var(--text-muted, #667085) !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+.detalle-productos-pos {
+  display: grid !important;
+  gap: 8px !important;
+  margin: 12px 0 !important;
+}
+
+.detalle-productos-pos div {
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.detalle-acciones-pos {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+  margin-top: 14px !important;
+}
+
+.detalle-acciones-pos button,
+.nota-venta-card-pos .modal-actions-row button {
+  min-height: 42px !important;
+  border-radius: 14px !important;
+}
+
+.detalle-acciones-pos button:disabled {
+  opacity: .55 !important;
+  cursor: not-allowed !important;
+}
+
+body.oscuro .venta-completada-card-pos,
+body.oscuro .detalle-venta-card-pos,
+body.oscuro .nota-venta-card-pos {
+  background: rgba(15, 23, 42, .94) !important;
+  color: #f8fafc !important;
+  border-color: rgba(226, 232, 240, .18) !important;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, .38) !important;
+}
+
+body.oscuro .venta-completada-resumen-pos div {
+  background: var(--surface-soft, rgba(30, 41, 59, .64)) !important;
+}
+
+body.oscuro .venta-historial-card-pos strong,
+body.oscuro .nota-ajuste-pos summary {
+  color: #f8fafc !important;
+}
+
+body.oscuro .nota-venta-card-pos input,
+body.oscuro .nota-venta-card-pos textarea {
+  background: rgba(15, 23, 42, .76) !important;
+  color: #f8fafc !important;
+  border-color: rgba(226, 232, 240, .16) !important;
+}
+
+@media (max-width: 760px) {
+  .venta-completada-card-pos .modal-actions-row,
+  .detalle-venta-resumen-pos,
+  .detalle-venta-totales-pos {
+    grid-template-columns: 1fr !important;
+  }
+
+  .venta-historial-card-pos,
+  .detalle-productos-pos div {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+
+  .detalle-acciones-pos button {
+    width: 100% !important;
+  }
+}
