@@ -54,7 +54,7 @@ const TAMANO_PAGINA_REPORTES = 8;
 const TAMANO_PAGINA_PROVEEDORES = 8;
 let paginaProveedoresActual = 1;
 let estadoProveedoresActual = "activo";
-const VERSION_NEXO_POS = "1.0.0";
+const VERSION_NEXO_POS = "1.0.1";
 
 const CONFIG_NEGOCIO_KEY = "configuracionNegocioPOS";
 const TEMA_POS_KEY = "temaPOS";

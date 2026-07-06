@@ -1,6 +1,6 @@
 {
   "name": "nexo-pos-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Nexo POS para Windows",
   "author": "Nexo POS",
   "main": "main.js",
