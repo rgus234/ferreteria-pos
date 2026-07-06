@@ -14,6 +14,20 @@ function procesarCodigoBarrasPos(codigoManual) {
  return;
  }
 
+ const ahora =
+ Date.now();
+
+ if (
+ window.__ultimoCodigoBarrasPOS === codigo &&
+ ahora - (window.__ultimoCodigoBarrasTiempoPOS || 0) < 700
+ ) {
+ input.value = "";
+ return;
+ }
+
+ window.__ultimoCodigoBarrasPOS = codigo;
+ window.__ultimoCodigoBarrasTiempoPOS = ahora;
+
  const producto =
  buscarProductoLocalPorCodigo(codigo);
 

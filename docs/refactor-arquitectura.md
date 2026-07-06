@@ -1373,3 +1373,22 @@ Validacion:
 
 - `node --check` correcto en `public/js/shell-topbar.js`, `public/js/config-auth.js`, `public/js/app-bootstrap.js`.
 - Probado en el servidor real (misma base de datos de produccion): panel de notificaciones ahora con fondo solido y legible en claro/oscuro; boton "Ver" de la notificacion "Mirilla de seguridad de cromo" (producto real con stock bajo) confirmado -- abre Inventario bajo con el buscador ya filtrado a ese producto exacto; cambio de rol del usuario real "Caja" de Cajero a Administrador y de vuelta a Cajero, confirmando que los permisos/widgets se recalculan y persisten en `localStorage`; usuario "admin" confirmado sin opcion de cambiar de rol. Inicio verificado en escritorio (1440px), tablet (768px) y modo claro/oscuro -- las 4 tarjetas KPI con icono, la grafica de ventas del dia, las alertas de inventario y la lista de ultimas ventas siguen funcionando con datos reales.
+
+### Escaner de codigo de barras duplicando cantidades, y tabla de Inventario con texto encimado
+
+Reportados por el usuario con capturas reales de su POS en produccion.
+
+Archivos actualizados:
+
+- `public/js/pos-sales.js`
+- `public/css/components/inventory.css`
+- `public/index.html`
+
+**Escaner USB sumaba de 2 en 2 (1, 3, 5, 7...) en vez de 1, 2, 3, 4.** Causa real: un codigo escaneado se procesa por **dos caminos independientes al mismo tiempo**. El primero es `scanner-usb.js`, que captura las teclas a nivel de `document` y al detectar Enter llama a `procesarCodigoBarrasPos()` de inmediato. El segundo es el buscador de productos (`#busqueda`): como el listener de `scanner-usb.js` deja pasar la escritura normal cuando el campo activo es justo `#busqueda` (para no bloquear busquedas manuales por teclado), cada tecla que el lector "escribe" ahi tambien dispara `buscarProductos()` -> `programarLecturaCodigoBarras()`, que agenda su **propia** llamada a `procesarCodigoBarrasPos()` 220ms despues. Resultado: el mismo codigo se procesaba dos veces (una al instante por el Enter, otra 220ms despues por el debounce del buscador), sumando el producto por partida doble. Coincide con lo que reporto el usuario: el primer escaneo del dia (antes de que `#busqueda` tuviera el foco) entraba una sola vez; desde el segundo escaneo en adelante (con el campo ya enfocado por el escaneo anterior) empezaba a duplicar. Se agrego una proteccion de 700ms en `procesarCodigoBarrasPos()`: si el mismo codigo ya se proceso hace menos de 700ms, la segunda llamada se ignora (sin bloquear un reescaneo real y deliberado del mismo producto mas tarde).
+
+**Tabla de Inventario: el nombre del producto se encimaba con las columnas de Categoria y Precio.** Se confirmo que era un bug real (no solo la foto borrosa) reproduciendolo en el navegador con el mismo producto ("Encendedor para cocina, de arco electrico, 23 cm, TRUPER"). Causa real: `.producto-inventario-celda` es un contenedor `display:flex` (icono + nombre), y el `<div>` que envuelve el nombre no tenia `min-width:0`. Por especificacion, un elemento flex no se encoge por debajo del ancho de su contenido a menos que se le indique `min-width:0` explicitamente; como el nombre tiene `white-space:nowrap`, el navegador lo dejaba con su ancho completo (385px medidos) sin importar que la celda de la tabla solo media 264px, desbordandose sobre las columnas siguientes en vez de recortarse con "...". Se agrego `min-width:0` al div contenedor. De paso se encontro y corrigio un bug de contraste en modo oscuro sin relacion con el reporte: el nombre del producto (`.producto-inventario-celda strong`) no tenia ninguna regla de color para `body.oscuro`, quedando en azul marino oscuro sobre fondo oscuro (illegible); se agrego el color claro correspondiente.
+
+Validacion:
+
+- `node --check` correcto en `public/js/pos-sales.js`.
+- Probado en el servidor real (misma base de datos de produccion): dos llamadas seguidas a `procesarCodigoBarrasPos()` con el mismo codigo de un producto real (id 42) dejaron la cantidad en 1 (antes hubiera quedado en 2); una tercera llamada pasados 750ms si sumo una unidad mas, confirmando que un reescaneo deliberado del mismo producto sigue funcionando. Tabla de Inventario probada buscando "ence": el nombre ahora se recorta con "..." dentro de su columna sin invadir Categoria/Precio/Stock/Estado, verificado en modo claro y oscuro.

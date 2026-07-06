@@ -842,6 +842,10 @@ body.oscuro .inventario-resumen strong{
  min-width:0;
 }
 
+.producto-inventario-celda > div{
+ min-width:0;
+}
+
 .producto-inventario-icono{
  width:40px;
  height:40px;
@@ -921,6 +925,14 @@ body.oscuro #pantallaInventario .tabla-inventario th{
 
 body.oscuro #pantallaInventario .tabla-inventario td:nth-child(2){
  color:#f8fafc !important;
+}
+
+body.oscuro .producto-inventario-celda strong{
+ color:#f8fafc;
+}
+
+body.oscuro .producto-inventario-celda small{
+ color:#94a3b8;
 }
 
 body.oscuro .producto-inventario-icono{
