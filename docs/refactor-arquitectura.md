@@ -1469,3 +1469,27 @@ Validacion:
 - Cajon: se simulo `window.nexoDesktop.openCashDrawer` con un contador y se confirmo que un ticket normal lo invoca una vez, y que un ticket con `{ abrirCajon: false }` no lo vuelve a invocar.
 - Estado de cuenta: se armaron datos de credito de prueba solo en memoria del navegador (sin tocar la base de datos real) y se confirmo que el calculo de saldo/limite/disponible/estado y el formato de movimientos es correcto; la impresion en si reutiliza `imprimirTicketPOS()`, ya validado en produccion para tickets de venta.
 - Importador Excel: se genero un `.xlsx` real en memoria con la propia libreria XLSX (2 productos de prueba) y se confirmo que `leerArchivoCatalogoComoCSV()` lo convierte a CSV legible correcto; se confirmo tambien que un `.csv` normal sigue leyendose sin cambios.
+
+### Catalogo de proveedor: nombres que salian como codigo, y productos mezclados entre si (bug de fondo, no de datos)
+
+El usuario reporto, ya usando un catalogo real de GAFI FERRETERO subido con el importador recien arreglado, dos problemas nuevos: (1) algunos productos al escanear su codigo no mostraban nombre, solo numeros parecidos al codigo de barras; (2) al escanear productos completamente distintos (un adhesivo Kolaloka, un disco de diamante), el sistema los reconocia a todos como "Tubo cobre flexible... Nacobre". Se investigaron ambos a fondo en vez de asumir que era un problema de los datos del proveedor.
+
+Archivos actualizados:
+
+- `public/js/product-inventory.js`
+- `public/js/supplier-catalog.js`
+
+**Nombres que salian como codigo.** La funcion que adivina el nombre de un producto cuando no hay una columna "nombre"/"descripcion" mapeada explicitamente elegia el texto mas largo de la fila que no pareciera un numero. El filtro que descartaba "esto parece un codigo" solo revisaba si el valor era 100% digitos; un codigo con separadores (ej. "7501-1026-30001", con guiones) no es 100% digitos, asi que se colaba como si fuera un nombre valido. Se agrego `pareceCodigoCatalogo()`, que quita cualquier caracter que no sea letra o numero y mide que proporcion de lo que queda son digitos -- si son 6 o mas digitos y representan 80% o mas del texto, se descarta como nombre.
+
+**Productos completamente distintos se mostraban como el mismo (causa real, no relacionada a nombres).** La causa de fondo: el catalogo completo se partia en "filas" con un simple `.split("\n")`, sin respetar comillas. Un archivo Excel real casi siempre tiene alguna celda con texto que incluye un salto de linea (ej. una descripcion larga con varias lineas dentro de una sola celda) -- cuando SheetJS convierte esa celda a CSV, la envuelve en comillas pero el salto de linea real sigue estando ahi adentro. Al partir por `\n` sin saber que ese salto de linea estaba protegido por comillas, una sola fila real se partia en dos o mas "filas" rotas, y **todas las filas siguientes del archivo quedaban corridas/desalineadas** de ahi en adelante. Esto explica que productos sin ninguna relacion aparente (un adhesivo y un disco de diamante) terminaran mostrando los datos de otra fila (tuberia de cobre) -- no era un problema del archivo de GAFI, era que el sistema literalmente perdia la cuenta de donde empezaba y terminaba cada fila apenas encontraba la primera celda con salto de linea.
+
+Se agrego `dividirLineasCatalogo(csv)`, un separador de filas que respeta comillas (misma tecnica que ya usaba `separarFilaCatalogo()` para separar columnas dentro de una fila, pero aplicada a nivel de filas completas), y se reemplazaron las 8 llamadas a `.split("\n")` repartidas en ambos archivos (deteccion de columnas, compactacion de catalogo, vista previa del mapeo, conteo de productos, y la busqueda real usada al escanear un codigo).
+
+Se aprovecho la misma investigacion para confirmar (a peticion del usuario) que catalogos de distintos proveedores **no se mezclan entre si** -- cada catalogo guardado tiene su propio `csv` y `mapeo` independientes, y la busqueda recorre cada catalogo por separado sin compartir estado entre ellos.
+
+Sobre el precio de GAFI que segun el usuario "sale 30% mas alto": se confirmo revisando el codigo que el sistema **no aplica ningun markup ni descuento oculto** -- toma el precio distribuidor/medio mayoreo/publico tal cual viene en las columnas del Excel del proveedor. La diferencia que percibe el usuario es porque su distribuidor le vende con su propia formula (descuento por volumen de compra + su propio margen) que no esta reflejada en el catalogo crudo de GAFI que le compartieron; quedo pendiente de decidir con el usuario si se agrega una funcion de ajuste de precio por catalogo/proveedor para este caso.
+
+Validacion:
+
+- `node --check` correcto en `public/js/product-inventory.js`, `public/js/supplier-catalog.js`.
+- Se confirmo con datos de prueba (solo en memoria del navegador, sin tocar la base de datos real) que `dividirLineasCatalogo()` mantiene una celda con salto de linea como una sola fila (3 lineas reales vs. 4 lineas rotas con el separador viejo), y que al buscar dos codigos de barras distintos en ese catalogo de prueba cada uno regresa su propio nombre y precio correctos, sin mezclarse. Se confirmo tambien con dos catalogos de proveedores distintos que cada uno regresa el producto y el nombre de proveedor correctos, y que un codigo inexistente regresa `null` en vez de una coincidencia falsa.

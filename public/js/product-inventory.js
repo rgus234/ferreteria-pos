@@ -80,6 +80,39 @@ function separarFilaCatalogo(linea) {
  return partes.map(limpiarTextoCatalogo);
 }
 
+function dividirLineasCatalogo(csv) {
+ const texto =
+ String(csv || "");
+
+ const lineas = [];
+ let actual = "";
+ let enComillas = false;
+
+ for (let i = 0; i < texto.length; i++) {
+ const caracter = texto[i];
+
+ if (caracter === '"') {
+ enComillas = !enComillas;
+ actual += caracter;
+ continue;
+ }
+
+ if (caracter === "\r") continue;
+
+ if (caracter === "\n" && !enComillas) {
+ lineas.push(actual);
+ actual = "";
+ continue;
+ }
+
+ actual += caracter;
+ }
+
+ if (actual) lineas.push(actual);
+
+ return lineas;
+}
+
 function normalizarEncabezadoCatalogo(valor) {
  return limpiarTextoCatalogo(valor)
  .toLowerCase()
@@ -270,8 +303,7 @@ function escaparCsvCatalogo(valor) {
 
 function esCatalogoCompacto(csv) {
  const primeraLinea =
- String(csv || "")
- .split("\n")
+ dividirLineasCatalogo(csv)
  .find(linea => linea.trim()) || "";
 
  return primeraLinea.includes("__pos_codigoBarras");
@@ -317,8 +349,7 @@ function valorCatalogoParaCompactar(datos, columnas, mapeo, campo) {
 function compactarCsvCatalogo(csv, mapeo = {}) {
  if (esCatalogoCompacto(csv)) {
  const lineasCompactas =
- String(csv || "")
- .split("\n")
+ dividirLineasCatalogo(csv)
  .map(linea => linea.trim())
  .filter(Boolean);
 
@@ -330,8 +361,7 @@ function compactarCsvCatalogo(csv, mapeo = {}) {
  }
 
  const lineas =
- String(csv || "")
- .split("\n")
+ dividirLineasCatalogo(csv)
  .map(linea => linea.trim())
  .filter(Boolean);
 
@@ -402,6 +432,18 @@ function esValorNumericoCatalogo(valor) {
  return limpio !== "" && !Number.isNaN(Number(limpio));
 }
 
+function pareceCodigoCatalogo(valor) {
+ const compacto =
+ String(valor || "").replace(/[^0-9a-zA-Z]/g, "");
+
+ if (!compacto) return false;
+
+ const digitos =
+ (compacto.match(/[0-9]/g) || []).length;
+
+ return digitos >= 6 && digitos / compacto.length >= 0.8;
+}
+
 function nombreProductoDesdeFilaCatalogo(datos, indiceCodigo) {
  const candidatos =
  datos
@@ -414,6 +456,8 @@ function nombreProductoDesdeFilaCatalogo(datos, indiceCodigo) {
  !esValorNumericoCatalogo(valor)
  &&
  !/^\d{6,}$/.test(normalizarCodigo(valor))
+ &&
+ !pareceCodigoCatalogo(valor)
  )
  .sort((a, b) => b.length - a.length);
 
@@ -750,8 +794,7 @@ function productoDesdeCatalogo(codigo) {
  catalogoProveedor.csv || "";
 
  const lineas =
- catalogoGuardado
- .split("\n")
+ dividirLineasCatalogo(catalogoGuardado)
  .map(linea => linea.trim())
  .filter(linea => linea);
 

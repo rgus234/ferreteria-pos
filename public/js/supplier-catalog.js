@@ -119,8 +119,7 @@ function normalizarNombreColumnaCatalogo(nombre) {
 
 function encabezadosCatalogo(csv) {
  const lineas =
- String(csv || "")
- .split("\n")
+ dividirLineasCatalogo(csv)
  .map(linea => linea.trim())
  .filter(Boolean);
 
@@ -165,8 +164,7 @@ function mapeoDetectadoCatalogo(csv, plantilla = null) {
  encabezadosCatalogo(csv);
 
  const lineas =
- String(csv || "")
- .split("\n")
+ dividirLineasCatalogo(csv)
  .map(linea => linea.trim())
  .filter(Boolean);
 
@@ -291,8 +289,7 @@ async function pedirNombreCatalogo(nombreArchivo) {
 }
 
 function contarProductosCatalogo(csv) {
- return String(csv || "")
- .split("\n")
+ return dividirLineasCatalogo(csv)
  .map(linea => linea.trim())
  .filter(linea => linea && linea.split(",").length > 2)
  .length;
@@ -487,8 +484,7 @@ async function abrirMapeoCatalogo({ proveedor, archivo, csv, plantilla }) {
 
 function productoPreviewConMapeo(csv, mapeo) {
  const lineas =
- String(csv || "")
- .split("\n")
+ dividirLineasCatalogo(csv)
  .map(linea => linea.trim())
  .filter(Boolean);
 
