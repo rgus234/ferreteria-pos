@@ -862,8 +862,11 @@ function productosCarritoAgrupados() {
  });
 }
 
-async function imprimirTicketPOS(ticket, configOverride = null) {
+async function imprimirTicketPOS(ticket, configOverride = null, opciones = {}) {
  try {
+  const abrirCajon =
+  opciones.abrirCajon !== false;
+
   const negocio =
   configOverride || configuracionNegocio() || {};
 
@@ -1000,6 +1003,7 @@ async function imprimirTicketPOS(ticket, configOverride = null) {
    iframe.contentWindow.print();
 
    if (
+    abrirCajon &&
     negocio.abrirCajonDespuesTicket === true &&
     window.nexoDesktop &&
     typeof window.nexoDesktop.openCashDrawer === "function"
@@ -1710,7 +1714,7 @@ async function cobrarCredito(total) {
  </div>
  `;
 
- await imprimirTicketPOS(ticketCredito);
+ await imprimirTicketPOS(ticketCredito, null, { abrirCajon: false });
 
  carrito = [];
  descuentoCarrito = {

@@ -1445,3 +1445,27 @@ Validacion:
 
 - `node --check` correcto en `public/js/product-inventory.js`.
 - Probado con productos de prueba **solo en memoria del navegador** (sin escribir nada a la base de datos real, que se acababa de vaciar para el cliente): se interceptó `window.open` para capturar el HTML generado en vez de abrir una ventana real, confirmando que genera exactamente una etiqueta por producto con codigo (2 de 2), que se salta correctamente el producto sin codigo, y que el SVG del codigo de barras se genera con contenido real (no vacio). Se confirmo tambien el mensaje de aviso cuando ningun producto filtrado tiene codigo.
+
+### Cajon en ventas a credito, estado de cuenta en formato de 58mm, e importador de catalogo Excel real
+
+Tres reportes del usuario ya con el POS en uso real en la ferreteria.
+
+Archivos actualizados:
+
+- `public/js/pos-sales.js`
+- `public/js/credit-customers.js`
+- `public/js/supplier-catalog.js`
+- `public/index.html` (boton de estado de cuenta, libreria SheetJS/xlsx via CDN, cache-busting)
+
+**El cajon de dinero se abria tambien al vender a credito.** Causa real: la logica de abrir el cajon (`window.nexoDesktop.openCashDrawer`) vivia **dentro** de `imprimirTicketPOS()`, la misma funcion que se usa para imprimir CUALQUIER ticket, sin distincion de si la venta fue en efectivo o a credito. Ya existia un precedente correcto para esto: `reimprimirTicketVentaPOS()` en `sales-history-documents.js` ya pasaba `abrirCajonDespuesTicket:false` al reimprimir una venta pasada, pero esa misma proteccion nunca se aplico al ticket de credito recien cobrado. Se agrego un tercer parametro `opciones.abrirCajon` (default `true`, no cambia el comportamiento de ninguna venta en efectivo existente) y se paso `{ abrirCajon: false }` en el punto donde se imprime el ticket de una venta a credito.
+
+**Estado de cuenta salia larguisimo en impresora de 58mm.** Causa real: el boton "Imprimir estado de cuenta" llamaba literalmente a `window.print()` sobre la pantalla completa del sistema (sidebar, barra superior, tarjeta de detalle del cliente tal cual se ve en escritorio) -- en una impresora termica de 58mm eso se imprime carril por carril, larguisimo y con la mayoria de las columnas vacias. Se escribio `imprimirEstadoCuentaCredito()`, que arma un ticket compacto (nombre del cliente, saldo pendiente, limite, disponible, estado y la lista de movimientos en una sola linea cada uno) y lo manda por `imprimirTicketPOS()` -- la misma plantilla angosta que ya usan los tickets de venta normales, respetando el ancho de papel configurado (58/80mm). Tambien se le paso `{ abrirCajon: false }` porque imprimir un estado de cuenta nunca deberia abrir el cajon.
+
+**El importador de catalogos de proveedor no podia leer archivos Excel reales.** El campo de subida ya aceptaba `.xlsx` (`accept=".xlsx,.csv"` en el input), pero el codigo que procesa el archivo siempre hacia `lector.readAsText(archivo)` sin importar la extension. Un `.xlsx` real es un archivo binario (un ZIP con XML adentro), asi que leerlo como texto plano produce basura ilegible -- exactamente lo que el usuario vio en la pantalla del "Importador inteligente" (el contenido crudo del ZIP, empezando con "PK..."). El parseo de CSV en si (`separarFilaCatalogo()`, deteccion de delimitador, manejo de comillas) ya era correcto y robusto; el problema era unicamente el paso de lectura del archivo. Se agrego la libreria [SheetJS/xlsx](https://github.com/SheetJS/sheetjs) via CDN y una funcion `leerArchivoCatalogoComoCSV(archivo)`: si el archivo termina en `.xlsx`/`.xls`, se lee como binario, se toma la primera hoja y se convierte a CSV real con `XLSX.utils.sheet_to_csv()` antes de entregarlo al resto del flujo (que no cambio nada, sigue esperando un string CSV como siempre). Los archivos `.csv` genuinos siguen leyendose exactamente igual que antes.
+
+Validacion:
+
+- `node --check` correcto en `public/js/pos-sales.js`, `public/js/credit-customers.js`, `public/js/supplier-catalog.js`.
+- Cajon: se simulo `window.nexoDesktop.openCashDrawer` con un contador y se confirmo que un ticket normal lo invoca una vez, y que un ticket con `{ abrirCajon: false }` no lo vuelve a invocar.
+- Estado de cuenta: se armaron datos de credito de prueba solo en memoria del navegador (sin tocar la base de datos real) y se confirmo que el calculo de saldo/limite/disponible/estado y el formato de movimientos es correcto; la impresion en si reutiliza `imprimirTicketPOS()`, ya validado en produccion para tickets de venta.
+- Importador Excel: se genero un `.xlsx` real en memoria con la propia libreria XLSX (2 productos de prueba) y se confirmo que `leerArchivoCatalogoComoCSV()` lo convierte a CSV legible correcto; se confirmo tambien que un `.csv` normal sigue leyendose sin cambios.

@@ -513,6 +513,84 @@ function regresarListaCreditos() {
  document.getElementById("detalleCliente").style.display = "none";
 }
 
+async function imprimirEstadoCuentaCredito() {
+ if (!creditoActual) {
+ await alertaPOS("Abre primero la cuenta de un cliente para imprimir su estado de cuenta.", "Estado de cuenta", "info");
+ return;
+ }
+
+ const negocio =
+ configuracionNegocio() || {};
+
+ const saldo =
+ Number(creditoActual.saldo || 0);
+
+ const limite =
+ Number(creditoActual.limite_credito || 0);
+
+ const disponible =
+ limite - saldo;
+
+ const estado =
+ saldo > limite && limite > 0
+ ? "Excedido"
+ : saldo > 0
+ ? "Por vencer"
+ : "Al corriente";
+
+ const movimientos =
+ window.movimientosCreditoActuales || [];
+
+ const filasMovimientos =
+ movimientos.map(movimiento => {
+ const monto =
+ Number(movimiento.monto || 0);
+
+ const fecha =
+ new Date(movimiento.fecha).toLocaleDateString("es-MX");
+
+ const tipo =
+ movimiento.tipo === "venta" ? "Venta" : "Abono";
+
+ const signo =
+ movimiento.tipo === "venta" ? "" : "-";
+
+ return `
+ <div style="display:flex;justify-content:space-between;font-size:11px;margin:3px 0;">
+ <span>${fecha} ${tipo}</span>
+ <span>${signo}${dinero(monto)}</span>
+ </div>
+ `;
+ }).join("");
+
+ const ticket = `
+ <div style="text-align:center;">
+ <h2>${escaparPOS(negocio.nombre || "Nexo POS")}</h2>
+ <div>Estado de cuenta</div>
+ </div>
+ <hr>
+ <div>Cliente: ${escaparPOS(creditoActual.nombre || "")}</div>
+ <div>Fecha: ${new Date().toLocaleDateString("es-MX")}</div>
+ <hr>
+ <div style="display:flex;justify-content:space-between;"><span>Saldo pendiente</span><span>${dinero(saldo)}</span></div>
+ <div style="display:flex;justify-content:space-between;"><span>Limite de credito</span><span>${dinero(limite)}</span></div>
+ <div style="display:flex;justify-content:space-between;"><span>Disponible</span><span>${dinero(disponible)}</span></div>
+ <div style="display:flex;justify-content:space-between;"><span>Estado</span><span>${estado}</span></div>
+ <hr>
+ <div style="font-weight:bold;">Movimientos</div>
+ ${filasMovimientos || "<div>Sin movimientos registrados</div>"}
+ <hr>
+ <div style="text-align:center;">Gracias por su preferencia</div>
+ `;
+
+ const enviado =
+ await imprimirTicketPOS(ticket, null, { abrirCajon: false });
+
+ if (!enviado) {
+ await alertaPOS("No se pudo enviar el estado de cuenta a la impresora.", "Estado de cuenta", "alerta");
+ }
+}
+
 function verDetalleVentaCredito(indice) {
  const movimiento =
  (window.movimientosCreditoActuales || [])[indice];

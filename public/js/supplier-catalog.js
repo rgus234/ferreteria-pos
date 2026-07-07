@@ -524,6 +524,49 @@ function productoPreviewConMapeo(csv, mapeo) {
  };
 }
 
+function esArchivoExcelCatalogo(archivo) {
+ return /\.(xlsx|xls)$/i.test(archivo?.name || "");
+}
+
+function leerArchivoCatalogoComoCSV(archivo) {
+ return new Promise((resolve, reject) => {
+ const lector = new FileReader();
+
+ lector.onerror = () =>
+ reject(lector.error || new Error("No se pudo leer el archivo"));
+
+ if (esArchivoExcelCatalogo(archivo)) {
+ if (typeof XLSX === "undefined") {
+ reject(new Error("No se pudo cargar el lector de Excel. Revisa tu conexion a internet e intenta de nuevo."));
+ return;
+ }
+
+ lector.onload = evento => {
+ try {
+ const libro =
+ XLSX.read(evento.target.result, { type: "array" });
+
+ const primeraHoja =
+ libro.SheetNames[0];
+
+ const csv =
+ XLSX.utils.sheet_to_csv(libro.Sheets[primeraHoja]);
+
+ resolve(csv);
+ } catch (error) {
+ reject(error);
+ }
+ };
+
+ lector.readAsArrayBuffer(archivo);
+ return;
+ }
+
+ lector.onload = evento => resolve(evento.target.result || "");
+ lector.readAsText(archivo);
+ });
+}
+
 function procesarArchivosCatalogo(archivos) {
  const listaArchivos =
  Array.from(archivos || []);
@@ -531,22 +574,31 @@ function procesarArchivosCatalogo(archivos) {
  if (listaArchivos.length === 0) return;
 
  const lecturas =
- listaArchivos.map(async archivo => new Promise(async resolve => {
- const lector = new FileReader();
+ listaArchivos.map(async archivo => {
+ let csv;
 
- lector.onload = async evento => {
- const csv =
- evento.target.result || "";
+ try {
+ csv = await leerArchivoCatalogoComoCSV(archivo);
+ } catch (error) {
+ console.warn("No se pudo leer el archivo de catalogo", archivo?.name, error);
+
+ alertaPOS(
+ `No se pudo leer "${archivo?.name || "el archivo"}". Verifica que sea un Excel (.xlsx) o CSV valido.`,
+ "Catalogo proveedor",
+ "alerta"
+ );
+
+ return null;
+ }
 
  const config =
  await abrirAsistenteCatalogo(archivo, csv);
 
  if (!config) {
- resolve(null);
- return;
+ return null;
  }
 
- resolve({
+ return {
  id: `${Date.now()}-${archivo.name}`,
  proveedor: config.proveedor,
  archivo: archivo.name,
@@ -555,11 +607,8 @@ function procesarArchivosCatalogo(archivos) {
  plantillaId: config.plantillaId || "",
  mapeo: config.mapeo || {},
  csv
- });
  };
-
- lector.readAsText(archivo);
- }));
+ });
 
  Promise.all(lecturas).then(nuevosCatalogos => {
  nuevosCatalogos =
