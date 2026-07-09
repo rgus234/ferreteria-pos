@@ -548,9 +548,9 @@ body.oscuro .pos-referencia {
 }
 
 .pos-referencia .btn-credito-carrito {
-  border: 1px solid color-mix(in srgb, var(--pos-sale-brand) 22%, transparent);
-  background: color-mix(in srgb, var(--pos-sale-brand) 10%, var(--pos-sale-card)) !important;
-  color: var(--pos-sale-brand) !important;
+  border: 1px solid var(--pos-sale-line);
+  background: var(--pos-sale-soft) !important;
+  color: var(--pos-sale-text) !important;
 }
 
 .pos-referencia .btn-limpiar {

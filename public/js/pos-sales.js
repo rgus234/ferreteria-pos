@@ -1407,24 +1407,29 @@ async function cobrarInternoPOS(total) {
  return;
  }
 
- const dinero =
+ const dineroInicial =
  Number(
- document.getElementById(
- "dinero"
- ).value || 0
+ document.getElementById("dinero")?.value || 0
  );
 
- if (dinero < total) {
- await alertaPOS(
- `Faltan ${(total - dinero).toFixed(2)} para completar la venta.`,
- "Dinero insuficiente",
- "alerta"
- );
+ const pago =
+ await pedirMetodoPagoPOS(total, {
+ metodoInicial: metodoPagoSeleccionado,
+ recibidoInicial: dineroInicial > 0 ? dineroInicial : total
+ });
+
+ if (!pago) return;
+
+ if (pago.accion === "credito") {
+ await cobrarCredito(total);
  return;
  }
 
+ const dinero =
+ pago.recibido;
+
 const cambio =
-dinero - total;
+pago.cambio;
 
 let respuesta;
 let ventaRegistrada = null;
@@ -1454,12 +1459,8 @@ try {
  cajeroUsuario: usuarioActual?.id || usuarioActual?.usuario || "",
  cajeroNombre: usuarioActual?.nombre || usuarioActual?.usuario || "Administrador",
  productos: productosVenta,
- metodoPago: metodoPagoSeleccionado,
- pagos: {
- efectivo: metodoPagoSeleccionado === "efectivo" ? dinero : 0,
- tarjeta: metodoPagoSeleccionado === "tarjeta" ? total : 0,
- transferencia: metodoPagoSeleccionado === "transferencia" ? total : 0
- }
+ metodoPago: pago.metodoPago,
+ pagos: pago.pagos
  })
  }
  );
@@ -1477,7 +1478,7 @@ try {
  cajeroNombre: usuarioActual?.nombre || usuarioActual?.usuario || "Administrador",
  recibido: dinero,
  cambio,
- metodoPago: metodoPagoSeleccionado,
+ metodoPago: pago.metodoPago,
  productos: productosVenta,
  errorConexion: error.message
  });
@@ -1509,7 +1510,7 @@ try {
  cajeroNombre: usuarioActual?.nombre || usuarioActual?.usuario || "Administrador",
  recibido: dinero,
  cambio,
- metodoPago: metodoPagoSeleccionado,
+ metodoPago: pago.metodoPago,
  productos: productosVenta,
  errorServidor: respuesta.status
  });
@@ -1553,7 +1554,7 @@ try {
  cajeroNombre: usuarioActual?.nombre || usuarioActual?.usuario || "Administrador",
  recibido: dinero,
  cambio,
- metodoPago: "efectivo",
+ metodoPago: pago.metodoPago,
  productos: productosVenta,
  fechaServidor: ventaRegistrada.fecha || null
  }
