@@ -350,7 +350,6 @@ async function aplicarMappingsSyncFrontendPOS(resultadoSync) {
  });
 
  if (cambioProductos) {
- mostrarProductos(todosProductos);
  actualizarDashboard();
  actualizarInventarioBajo();
  actualizarDatalistCategorias();
@@ -653,7 +652,6 @@ function descontarInventarioLocalPOS(productos = []) {
  );
  });
 
- mostrarProductos(todosProductos);
  actualizarDashboard();
  actualizarInventarioBajo();
  actualizarDatalistCategorias();

@@ -53,10 +53,6 @@ async function cargarProductos() {
  todosProductos =
  await respuesta.json();
 
- mostrarProductos(
- todosProductos
- );
-
  actualizarDashboard();
 
  actualizarInventarioBajo();
@@ -232,9 +228,11 @@ function buscarProductos() {
  .includes(texto)
  );
 
- mostrarProductos(
- filtrados
- );
+ if (!texto) {
+ if (typeof ocultarFlyoutBusquedaPOS === "function") ocultarFlyoutBusquedaPOS();
+ } else if (typeof mostrarFlyoutBusquedaPOS === "function") {
+ mostrarFlyoutBusquedaPOS(filtrados, { textoVacio: `Sin resultados para "${texto}"` });
+ }
 
  programarLecturaCodigoBarras(texto);
 }

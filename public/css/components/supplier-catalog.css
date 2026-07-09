@@ -260,6 +260,83 @@ body.oscuro .vista-catalogo th{
  color:#f8fafc;
 }
 
+.catalogo-buscador{
+ margin-bottom:10px;
+}
+
+.catalogo-buscador input{
+ width:100%;
+ min-height:40px;
+ margin:0;
+ padding:0 12px;
+ border:1px solid #d0d5dd;
+ border-radius:10px;
+ background:#fff;
+ color:#101828;
+ font-size:13px;
+}
+
+.tabla-busqueda-catalogo{
+ width:100%;
+ margin-bottom:14px;
+ border-collapse:collapse;
+ font-size:13px;
+}
+
+.tabla-busqueda-catalogo th,
+.tabla-busqueda-catalogo td{
+ padding:8px;
+ border-bottom:1px solid #eef2f7;
+ text-align:left;
+}
+
+.tabla-busqueda-catalogo th{
+ color:#475467;
+ font-weight:900;
+}
+
+.tabla-busqueda-catalogo td{
+ color:#344054;
+}
+
+.catalogo-busqueda-vacia{
+ margin-bottom:14px;
+ padding:12px;
+ border:1px solid #eef2f7;
+ border-radius:10px;
+ color:#667085;
+ font-size:13px;
+ text-align:center;
+}
+
+.catalogo-busqueda-nota{
+ display:block;
+ margin:-6px 0 14px;
+ color:#667085;
+ font-size:11px;
+}
+
+body.oscuro .catalogo-buscador input{
+ background:#111827;
+ color:#f8fafc;
+ border-color:#374151;
+}
+
+body.oscuro .tabla-busqueda-catalogo th,
+body.oscuro .tabla-busqueda-catalogo td{
+ border-color:#243044;
+}
+
+body.oscuro .tabla-busqueda-catalogo td,
+body.oscuro .tabla-busqueda-catalogo th{
+ color:#f8fafc;
+}
+
+body.oscuro .catalogo-busqueda-vacia{
+ border-color:#243044;
+ color:#cbd5e1;
+}
+
 /* CATALOGO PROVEEDOR - ACCIONES Y DIAGNOSTICO */
 
 .catalogo-actions{
@@ -361,3 +438,23 @@ body.oscuro .catalogo-mapeo-head,body.oscuro .catalogo-mapeo-preview,body.oscuro
 body.oscuro .catalogo-mapeo-head p,body.oscuro .catalogo-mapeo-grid label span,body.oscuro #previewMapeoCatalogo span,body.oscuro .catalogo-guardar-plantilla{color:#cbd5e1}
 body.oscuro .catalogo-mapeo-grid select,body.oscuro .catalogo-mapeo-preview,body.oscuro #previewMapeoCatalogo div{background:#111827;color:#f8fafc}
 body.oscuro #previewMapeoCatalogo strong{color:#fff}
+
+.modal-proveedor-catalogo{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.62);backdrop-filter:blur(10px)}
+.proveedor-catalogo-card{width:min(560px,94vw);background:#fff;color:#101828;border:1px solid #e4e7ec;border-radius:16px;padding:26px;box-shadow:0 24px 70px rgba(15,23,42,.32);text-align:center}
+.proveedor-catalogo-card h2{margin:0 0 6px;font-size:20px}
+.proveedor-catalogo-card p{margin:0 0 20px;color:#667085;font-size:13px}
+.proveedor-catalogo-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.proveedor-catalogo-tile{min-height:96px;display:grid;place-items:center;gap:8px;border:1px solid #e4e7ec;border-radius:14px;background:#f8fafc;color:#101828;font-weight:900;transition:border-color .16s ease,transform .16s ease,box-shadow .16s ease}
+.proveedor-catalogo-tile:hover{border-color:#0d6efd;transform:translateY(-2px);box-shadow:0 10px 22px rgba(15,23,42,.10)}
+.proveedor-catalogo-icono{width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:#0d6efd;color:#fff;font-size:18px;font-weight:950}
+.proveedor-catalogo-tile[data-proveedor="diprofer"] .proveedor-catalogo-icono{background:#2563eb}
+.proveedor-catalogo-tile[data-proveedor="gafi"] .proveedor-catalogo-icono{background:#ea580c}
+.proveedor-catalogo-tile[data-proveedor="truper"] .proveedor-catalogo-icono{background:#dc2626}
+.proveedor-catalogo-tile[data-proveedor="volteck"] .proveedor-catalogo-icono{background:#7c3aed}
+.proveedor-catalogo-otro{grid-column:1/-1}
+.proveedor-catalogo-otro .proveedor-catalogo-icono{background:#667085}
+.proveedor-catalogo-cancelar{width:100%;min-height:40px;margin-top:16px;border:1px solid #e4e7ec;border-radius:10px;background:#f8fafc;color:#667085;font-weight:800}
+body.oscuro .proveedor-catalogo-card{background:#0f172a;color:#f8fafc;border-color:rgba(148,163,184,.25)}
+body.oscuro .proveedor-catalogo-card p{color:#cbd5e1}
+body.oscuro .proveedor-catalogo-tile{background:#111827;color:#f8fafc;border-color:rgba(148,163,184,.25)}
+body.oscuro .proveedor-catalogo-cancelar{background:#111827;color:#cbd5e1;border-color:rgba(148,163,184,.25)}

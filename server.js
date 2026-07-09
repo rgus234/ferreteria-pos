@@ -2631,6 +2631,117 @@ app.put("/editar-producto/:id", async (req, res) => {
     }
 });
 
+app.get("/reglas-precios", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+
+        const resultado = await pool.query(
+            `
+            SELECT
+                proveedor,
+                margen_general,
+                redondeo,
+                margenes_categoria,
+                margenes_producto,
+                actualizado_at
+            FROM public.reglas_precios_proveedor
+            WHERE negocio_id = $1
+            ORDER BY proveedor ASC
+            `,
+            [negocio.id]
+        );
+
+        res.json({ reglas: resultado.rows });
+    } catch (error) {
+        console.log(error);
+
+        res.status(500).json({
+            error: "Error al leer reglas de precio"
+        });
+    }
+});
+
+app.get("/reglas-precios/:proveedor", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+
+        const resultado = await pool.query(
+            `
+            SELECT
+                proveedor,
+                margen_general,
+                redondeo,
+                margenes_categoria,
+                margenes_producto,
+                actualizado_at
+            FROM public.reglas_precios_proveedor
+            WHERE negocio_id = $1
+            AND proveedor = $2
+            `,
+            [negocio.id, req.params.proveedor]
+        );
+
+        res.json({ regla: resultado.rows[0] || null });
+    } catch (error) {
+        console.log(error);
+
+        res.status(500).json({
+            error: "Error al leer reglas de precio"
+        });
+    }
+});
+
+app.post("/reglas-precios", async (req, res) => {
+    const {
+        proveedor,
+        margenGeneral,
+        redondeo,
+        margenesCategoria,
+        margenesProducto
+    } = req.body;
+
+    if (!proveedor) {
+        res.status(400).json({ error: "Falta el proveedor" });
+        return;
+    }
+
+    try {
+        const negocio = await negocioActual(req);
+
+        const resultado = await pool.query(
+            `
+            INSERT INTO public.reglas_precios_proveedor
+                (negocio_id, proveedor, margen_general, redondeo, margenes_categoria, margenes_producto, actualizado_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            ON CONFLICT (negocio_id, proveedor)
+            DO UPDATE SET
+                margen_general = EXCLUDED.margen_general,
+                redondeo = EXCLUDED.redondeo,
+                margenes_categoria = EXCLUDED.margenes_categoria,
+                margenes_producto = EXCLUDED.margenes_producto,
+                actualizado_at = NOW()
+            RETURNING proveedor, margen_general, redondeo, margenes_categoria, margenes_producto, actualizado_at
+            `,
+            [
+                negocio.id,
+                proveedor,
+                margenGeneral === "" || margenGeneral === undefined ? null : margenGeneral,
+                redondeo || "ninguno",
+                JSON.stringify(margenesCategoria || {}),
+                JSON.stringify(margenesProducto || {})
+            ]
+        );
+
+        res.json({ success: true, regla: resultado.rows[0] });
+    } catch (error) {
+        console.log(error);
+
+        res.status(500).json({
+            error: "Error al guardar reglas de precio"
+        });
+    }
+});
+
 app.delete("/eliminar-producto/:id", async (req, res) => {
 
     const { id } = req.params;
@@ -4451,6 +4562,20 @@ async function inicializarCreditos() {
         FROM public.productos
         WHERE regexp_replace(COALESCE(codigo, ''), '[^a-zA-Z0-9]', '', 'g') <> ''
         ON CONFLICT DO NOTHING
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.reglas_precios_proveedor (
+            id SERIAL PRIMARY KEY,
+            negocio_id INTEGER NOT NULL REFERENCES public.negocios(id),
+            proveedor TEXT NOT NULL,
+            margen_general NUMERIC(6,2),
+            redondeo TEXT NOT NULL DEFAULT 'ninguno',
+            margenes_categoria JSONB NOT NULL DEFAULT '{}'::jsonb,
+            margenes_producto JSONB NOT NULL DEFAULT '{}'::jsonb,
+            actualizado_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(negocio_id, proveedor)
+        )
     `);
 
     await pool.query(`

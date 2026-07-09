@@ -137,6 +137,9 @@ function renderProveedores() {
  <button onclick="editarProveedor(${proveedor.id})">
  Editar
  </button>
+ <button onclick="mostrarReglasPrecios('${encodeURIComponent(proveedor.nombre)}')">
+ Precios
+ </button>
  <button class="btn-proveedor-baja" onclick="desactivarProveedor(${proveedor.id})">
  Baja
  </button>
@@ -393,6 +396,12 @@ function asegurarPantallaCatalogo() {
 
  <div class="catalogo-panel">
  <h3>Lectura del catalogo</h3>
+
+ <div class="catalogo-buscador">
+ <input type="text" id="buscarProductoCatalogoInput" placeholder="Buscar producto en el catalogo por nombre..." oninput="buscarYRenderizarProductosCatalogo(this.value)">
+ </div>
+ <div id="resultadosBusquedaCatalogo"></div>
+
  <div id="vistaCatalogoProveedor" class="vista-catalogo">
  Sube un catalogo para revisar columnas, precios detectados y productos de muestra.
  </div>
@@ -489,6 +498,9 @@ function renderCatalogosProveedor() {
  </div>
  <button onclick="renderVistaCatalogo(${index})">
  Ver
+ </button>
+ <button onclick="mostrarAplicarPrecios(${index})">
+ Precios
  </button>
  <button onclick="eliminarCatalogoProveedor(${index})">
  Baja
@@ -634,11 +646,149 @@ function diagnosticoCatalogo(catalogo) {
  };
 }
 
+let catalogoSeleccionadoIndice = null;
+
+function buscarProductosEnCatalogoGuardado(indice, texto, limite = 30) {
+ const catalogos =
+ catalogosGuardados();
+
+ const catalogo =
+ catalogos[indice];
+
+ if (!catalogo) return [];
+
+ const textoNormalizado =
+ normalizarTexto(texto || "");
+
+ if (!textoNormalizado) return [];
+
+ const lineas =
+ dividirLineasCatalogo(catalogo.csv || "")
+ .map(linea => linea.trim())
+ .filter(Boolean);
+
+ const mapaColumnas =
+ detectarColumnasCatalogo(lineas);
+
+ const columnas =
+ mapaColumnas.columnas || {};
+
+ const mapeoCatalogo =
+ catalogo.mapeo || {};
+
+ const resultados = [];
+
+ lineas.forEach((linea, indiceLinea) => {
+ if (indiceLinea === mapaColumnas.indice) return;
+ if (resultados.length >= limite) return;
+
+ const datos =
+ separarFilaCatalogo(linea);
+
+ const nombre =
+ valorMapeoCatalogo(datos, mapeoCatalogo, "nombre") ||
+ valorColumnaCatalogo(datos, columnas, "nombre") ||
+ nombreProductoDesdeFilaCatalogo(datos, columnas.codigo ?? 0);
+
+ if (!normalizarTexto(nombre).includes(textoNormalizado)) return;
+
+ const codigo =
+ normalizarCodigo(
+ valorMapeoCatalogo(datos, mapeoCatalogo, "codigoBarras") ||
+ valorMapeoCatalogo(datos, mapeoCatalogo, "claveProveedor") ||
+ valorMapeoCatalogo(datos, mapeoCatalogo, "codigoInterno") ||
+ valorColumnaCatalogo(datos, columnas, "codigo") ||
+ datos[0]
+ );
+
+ const marca =
+ valorMapeoCatalogo(datos, mapeoCatalogo, "marca") ||
+ valorColumnaCatalogo(datos, columnas, "marca") ||
+ detectarMarcaDesdeFilaCatalogo(datos);
+
+ const publico =
+ numeroCatalogo(
+ valorMapeoCatalogo(datos, mapeoCatalogo, "publico") ||
+ valorColumnaCatalogo(datos, columnas, "publico")
+ ) || "";
+
+ resultados.push({ codigo, nombre, marca, publico });
+ });
+
+ return resultados;
+}
+
+function buscarYRenderizarProductosCatalogo(texto) {
+ const contenedor =
+ document.getElementById("resultadosBusquedaCatalogo");
+
+ if (!contenedor) return;
+
+ const textoLimpio =
+ String(texto || "").trim();
+
+ if (!textoLimpio || catalogoSeleccionadoIndice === null) {
+ contenedor.innerHTML = "";
+ return;
+ }
+
+ const resultados =
+ buscarProductosEnCatalogoGuardado(catalogoSeleccionadoIndice, textoLimpio, 30);
+
+ if (!resultados.length) {
+ contenedor.innerHTML = `
+ <div class="catalogo-busqueda-vacia">
+ Sin resultados para "${escaparPOS(textoLimpio)}"
+ </div>
+ `;
+ return;
+ }
+
+ contenedor.innerHTML = `
+ <table class="tabla-busqueda-catalogo">
+ <thead>
+ <tr>
+ <th>Codigo</th>
+ <th>Producto</th>
+ <th>Marca</th>
+ <th>Publico</th>
+ </tr>
+ </thead>
+ <tbody>
+ ${resultados.map(producto => `
+ <tr>
+ <td><strong>${escaparPOS(producto.codigo || "-")}</strong></td>
+ <td>${escaparPOS(producto.nombre)}</td>
+ <td>${escaparPOS(producto.marca || "-")}</td>
+ <td>${producto.publico ? "$" + Number(producto.publico).toFixed(2) : "-"}</td>
+ </tr>
+ `).join("")}
+ </tbody>
+ </table>
+ <small class="catalogo-busqueda-nota">
+ Mostrando hasta 30 resultados. Copia el codigo y pegalo en "Agregar producto" para traer sus datos.
+ </small>
+ `;
+}
+
 function renderVistaCatalogo(indice) {
  const vista =
  document.getElementById("vistaCatalogoProveedor");
 
  if (!vista) return;
+
+ catalogoSeleccionadoIndice =
+ typeof indice === "number" ? indice : null;
+
+ const buscador =
+ document.getElementById("buscarProductoCatalogoInput");
+
+ if (buscador) buscador.value = "";
+
+ const resultadosBusqueda =
+ document.getElementById("resultadosBusquedaCatalogo");
+
+ if (resultadosBusqueda) resultadosBusqueda.innerHTML = "";
 
  const catalogos =
  catalogosGuardados();

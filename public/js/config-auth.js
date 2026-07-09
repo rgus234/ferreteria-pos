@@ -188,10 +188,8 @@ function dialogoPOS(opciones = {}) {
  { once: true }
  );
 
- setTimeout(() => {
  (input || modal.querySelector(".dialogo-aceptar"))?.focus();
  input?.select();
- }, 40);
  });
 }
 
@@ -661,7 +659,9 @@ function ocultarPantallasPrincipales() {
  "pantallaPedidosProveedor",
  "pantallaAjustesInventario",
  "pantallaCaja",
- "pantallaFinanzas"
+ "pantallaFinanzas",
+ "pantallaReglasPrecios",
+ "pantallaAplicarPrecios"
  ].forEach(id => {
  const pantalla =
  document.getElementById(id);

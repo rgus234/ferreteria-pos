@@ -201,6 +201,21 @@
   font-weight: 800 !important;
  }
 
+ #modalAgregar .btn-sugerencia-precio-proveedor {
+  width: 100% !important;
+  min-height: 36px !important;
+  margin-top: 2px !important;
+  padding: 0 12px !important;
+  border-radius: 12px !important;
+  border: 1px dashed var(--brand-color, #0d6efd) !important;
+  background: color-mix(in srgb, var(--brand-color, #0d6efd) 10%, transparent) !important;
+  color: var(--brand-color, #0d6efd) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  align-items: center !important;
+  justify-content: center !important;
+ }
+
  #modalAgregar .modal-botones {
   display: grid !important;
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;

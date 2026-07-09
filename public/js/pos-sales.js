@@ -72,66 +72,7 @@ function procesarCodigoBarrasPos(codigoManual) {
  }, 50);
 }
 
-function mostrarProductos(productos) {
-
- const contenedor =
- document.getElementById(
- "productos"
- );
-
- if (!contenedor) return;
-
- contenedor.innerHTML = "";
-
- const destacados =
- productos
- .slice()
- .sort((a, b) =>
- Number(b.stock || 0) -
- Number(a.stock || 0)
- )
- .slice(0, 8);
-
- destacados.forEach(producto => {
- const unidad =
- unidadProducto(producto);
- const codigo =
- producto.codigo || producto.codigo_barras || producto.codigoInterno || `PROD-${producto.id}`;
-
- contenedor.innerHTML += `
-
- <div class="producto">
-
- <div class="producto-icono">
- ${iconoProducto(producto.nombre)}
- </div>
-
- <h2 title="${escaparPOS(producto.nombre || "Producto")}">
- ${escaparPOS(producto.nombre || "Producto")}
- </h2>
-
- <span class="producto-codigo">${escaparPOS(codigo)}</span>
-
- <strong class="producto-precio">
- $${Number(producto.precio).toFixed(2)}
- </strong>
-
- <p class="producto-stock">
- Stock: ${escaparPOS(producto.stock)} ${escaparPOS(unidad)}
- </p>
-
- <button onclick="agregarProductoPorId(${Number(producto.id)})">
- Agregar
- </button>
-
- </div>
- `;
- });
-
- renderProductosFrecuentesPOS(destacados);
-}
-
-function filtrarProductosPOSCategoria(categoria = "") {
+function filtrarFlyoutPOSCategoria(categoria = "") {
  document
  .querySelectorAll(".pos-category-strip button")
  .forEach(boton => boton.classList.remove("active"));
@@ -146,39 +87,24 @@ function filtrarProductosPOSCategoria(categoria = "") {
 
  if (activo) activo.classList.add("active");
 
+ if (!categoria) {
+ if (typeof ocultarFlyoutBusquedaPOS === "function") ocultarFlyoutBusquedaPOS();
+ return;
+ }
+
  const texto =
- normalizarTexto(categoria || "");
+ normalizarTexto(categoria);
 
  const productos =
- !texto
- ? todosProductos
- : todosProductos.filter(producto =>
+ todosProductos.filter(producto =>
  normalizarTexto(producto.categoria || "").includes(texto) ||
  normalizarTexto(producto.subcategoria || "").includes(texto) ||
  normalizarTexto(producto.nombre || "").includes(texto)
  );
 
- mostrarProductos(productos.length ? productos : todosProductos);
-}
-
-function renderProductosFrecuentesPOS(productos = []) {
- const contenedor =
- document.getElementById("posFrecuentes");
-
- if (!contenedor) return;
-
- const frecuentes =
- productos.slice(0, 5);
-
- contenedor.innerHTML =
- frecuentes.length
- ? frecuentes.map(producto => `
- <button type="button" onclick="agregarProductoPorId(${Number(producto.id)})">
-  ${iconoProducto(producto.nombre)}
-  <span>${escaparPOS(producto.nombre || "Producto")}</span>
- </button>
- `).join("")
- : `<span class="pos-frequent-empty">Agrega productos para ver accesos rapidos.</span>`;
+ if (typeof mostrarFlyoutBusquedaPOS === "function") {
+ mostrarFlyoutBusquedaPOS(productos, { textoVacio: `Sin productos en "${categoria}"` });
+ }
 }
 
 function iconoProducto(nombre) {
@@ -237,17 +163,31 @@ function agregar(
  existente.cantidad =
  Number(existente.cantidad || 0) + pasoUnidad(unidad);
  } else {
+ const precioPublico =
+ Number(producto.precio_publico || producto.precio || precio || 0);
+
  carrito.push({
  id,
  nombre,
  precio: Number(precio || 0),
  cantidad: pasoUnidad(unidad),
  codigo: producto.codigo || "",
+ codigoInterno: typeof codigoInternoDeProducto === "function" ? codigoInternoDeProducto(producto) : (producto.codigo || ""),
  unidadVenta: unidad,
  proveedor: producto.proveedor || "",
+ marca: producto.marca || "",
+ categoria: producto.categoria || "",
+ stockDisponible: producto.stock !== undefined && producto.stock !== null ? Number(producto.stock) : null,
  tipoProducto: producto.tipo_producto || producto.tipoProducto || "",
- basculaDigital: producto.bascula_digital || producto.basculaDigital || "no"
+ basculaDigital: producto.bascula_digital || producto.basculaDigital || "no",
+ precioPublico,
+ precioMayoreo: Number(producto.precio_mayoreo || 0),
+ precioDistribuidor: Number(producto.precio_distribuidor || 0)
  });
+
+ if (nivelPrecioActual && nivelPrecioActual !== "publico") {
+ aplicarNivelPrecioAItem(carrito[carrito.length - 1], nivelPrecioActual);
+ }
  }
 
  actualizarCarrito();
@@ -307,6 +247,8 @@ async function limpiarCarrito() {
  tipo: "ninguno",
  valor: 0
 };
+ metodoPagoSeleccionado = "efectivo";
+ nivelPrecioActual = "mayoreo";
 
  actualizarCarrito();
 }
@@ -322,18 +264,27 @@ function resumenCarritoPOS() {
  const valorDescuento =
  Math.max(0, Number(descuentoCarrito.valor || 0));
 
- const descuento =
+ const descuentoBruto =
  descuentoCarrito.tipo === "porcentaje"
  ? subtotal * Math.min(valorDescuento, 100) / 100
  : descuentoCarrito.tipo === "monto"
  ? Math.min(valorDescuento, subtotal)
  : 0;
 
+ const redondearCentavos =
+ valor => Math.round((Number(valor) + Number.EPSILON) * 100) / 100;
+
+ const subtotalRedondeado =
+ redondearCentavos(subtotal);
+
+ const descuento =
+ redondearCentavos(descuentoBruto);
+
  const total =
- Math.max(0, subtotal - descuento);
+ redondearCentavos(Math.max(0, subtotalRedondeado - descuento));
 
  return {
- subtotal,
+ subtotal: subtotalRedondeado,
  descuento,
  total,
  descuentoTipo: descuentoCarrito.tipo,
@@ -355,6 +306,279 @@ function quitarDescuentoCarrito() {
  valor: 0
  };
  actualizarCarrito();
+}
+
+function aplicarNivelPrecioAItem(item, nivel) {
+ if (!item) return;
+
+ const candidato =
+ nivel === "mayoreo"
+ ? item.precioMayoreo
+ : nivel === "distribuidor"
+ ? item.precioDistribuidor
+ : item.precioPublico;
+
+ item.precio =
+ Number(candidato) > 0
+ ? Number(candidato)
+ : Number(item.precioPublico || item.precio || 0);
+}
+
+function recalcularPreciosPorNivel(nivel) {
+ nivelPrecioActual = nivel || "mayoreo";
+
+ carrito.forEach(item => {
+ aplicarNivelPrecioAItem(item, nivelPrecioActual);
+ });
+
+ actualizarCarrito();
+}
+
+async function cotizarVentaPOS() {
+ if (carrito.length === 0) {
+  await alertaPOS("Agrega productos al carrito antes de cotizar.", "Carrito vacio", "alerta");
+  return;
+ }
+
+ const resumen =
+ resumenCarritoPOS();
+
+ const negocio =
+ configuracionNegocio() || {};
+
+ const fecha =
+ new Date().toLocaleString("es-MX");
+
+ const cliente =
+ clienteVentaActual?.nombre || "Publico general";
+
+ let itemsHtml = "";
+
+ carrito.forEach(p => {
+  const importe =
+  Number(p.precio || 0) * Number(p.cantidad || 1);
+
+  itemsHtml += `
+  <div style="display:flex;justify-content:space-between;margin:6px 0;">
+  <span>
+  ${escaparPOS(p.nombre)}<br>
+  <small>${formatearCantidad(p.cantidad, p.unidadVenta)} x $${Number(p.precio || 0).toFixed(2)}</small>
+  </span>
+  <span>$${importe.toFixed(2)}</span>
+  </div>
+  `;
+ });
+
+ const ticket = `
+ <div style="width:300px;font-family:monospace;padding:20px;color:black;">
+ <div style="text-align:center;margin-bottom:12px;">
+ <h2 style="margin:0;font-size:20px;">${escaparPOS(negocio.ticketNombre || negocio.nombre || "Ferreteria")}</h2>
+ <div style="font-weight:bold;margin-top:6px;">COTIZACION</div>
+ <div style="font-size:11px;">No es un comprobante fiscal</div>
+ <div>${fecha}</div>
+ <div>Cliente: ${escaparPOS(cliente)}</div>
+ </div>
+ <hr>
+ ${itemsHtml}
+ <hr>
+ ${resumen.descuento > 0 ? `<div style="display:flex;justify-content:space-between;"><span>SUBTOTAL</span><span>$${resumen.subtotal.toFixed(2)}</span></div><div style="display:flex;justify-content:space-between;"><span>DESCUENTO</span><span>-$${resumen.descuento.toFixed(2)}</span></div>` : ""}
+ <div style="display:flex;justify-content:space-between;font-weight:bold;">
+ <span>TOTAL</span>
+ <span>$${resumen.total.toFixed(2)}</span>
+ </div>
+ <hr>
+ <div style="text-align:center;margin-top:12px;font-size:12px;">
+ Precios sujetos a cambio sin previo aviso
+ </div>
+ </div>
+ `;
+
+ const enviado =
+ await imprimirTicketPOS(ticket, null, { abrirCajon: false });
+
+ if (!enviado) {
+  await alertaPOS("No se pudo enviar la cotizacion a la impresora.", "Cotizacion", "alerta");
+ }
+}
+
+const VENTAS_EN_ESPERA_POS_KEY = "ventasEnEsperaFerreteriaPOS";
+
+function listarVentasEnEsperaPOS() {
+ try {
+  const datos =
+  JSON.parse(localStorage.getItem(VENTAS_EN_ESPERA_POS_KEY) || "[]");
+
+  return Array.isArray(datos) ? datos : [];
+ } catch (error) {
+  return [];
+ }
+}
+
+function guardarListaVentasEnEsperaPOS(lista) {
+ localStorage.setItem(VENTAS_EN_ESPERA_POS_KEY, JSON.stringify(lista || []));
+}
+
+function renderIndicadorVentasEnEsperaPOS() {
+ const pendientes =
+ listarVentasEnEsperaPOS();
+
+ if (!pendientes.length) return "";
+
+ return `
+ <button type="button" class="pos-ventas-espera-indicador" onclick="abrirVentasEnEsperaPOS()">
+ <span>Ventas en espera</span>
+ <strong>${pendientes.length}</strong>
+ </button>
+ `;
+}
+
+async function guardarVentaEnEspera() {
+ if (carrito.length === 0) {
+  await alertaPOS("Agrega productos al carrito antes de guardarlo en espera.", "Carrito vacio", "alerta");
+  return;
+ }
+
+ const etiqueta =
+ await pedirTextoPOS("Nombre o referencia para esta venta en espera:", "", "Guardar venta en espera");
+
+ if (etiqueta === null) return;
+
+ const lista =
+ listarVentasEnEsperaPOS();
+
+ lista.push({
+  id: Date.now(),
+  fecha: new Date().toISOString(),
+  etiqueta: etiqueta || "Venta en espera",
+  carrito: JSON.parse(JSON.stringify(carrito)),
+  cliente: clienteVentaActual,
+  descuentoCarrito: JSON.parse(JSON.stringify(descuentoCarrito)),
+  nivelPrecioActual,
+  metodoPagoSeleccionado
+ });
+
+ guardarListaVentasEnEsperaPOS(lista);
+
+ carrito = [];
+ descuentoCarrito = { tipo: "ninguno", valor: 0 };
+ clienteVentaActual = null;
+ metodoPagoSeleccionado = "efectivo";
+ nivelPrecioActual = "mayoreo";
+
+ actualizarCarrito();
+ actualizarClientePOS();
+
+ await alertaPOS("La venta quedo guardada en espera.", "Venta en espera", "exito");
+}
+
+async function abrirVentasEnEsperaPOS() {
+ let modal =
+ document.getElementById("modalVentasEnEsperaPOS");
+
+ if (!modal) {
+  modal = document.createElement("div");
+  modal.id = "modalVentasEnEsperaPOS";
+  modal.className = "modal-personalizado modal-ventas-espera-pos";
+  document.body.appendChild(modal);
+ }
+
+ renderModalVentasEnEsperaPOS(modal);
+
+ modal.style.display = "flex";
+}
+
+function cerrarVentasEnEsperaPOS() {
+ const modal =
+ document.getElementById("modalVentasEnEsperaPOS");
+
+ if (modal) modal.style.display = "none";
+}
+
+function renderModalVentasEnEsperaPOS(modal) {
+ const lista =
+ listarVentasEnEsperaPOS();
+
+ const filas =
+ lista.length === 0
+ ? `<div class="ventas-espera-vacio">No hay ventas guardadas en espera.</div>`
+ : lista.map(venta => {
+  const totalVenta =
+  (venta.carrito || []).reduce((suma, p) => suma + Number(p.precio || 0) * Number(p.cantidad || 1), 0);
+
+  return `
+  <div class="ventas-espera-item">
+   <div>
+    <strong>${escaparPOS(venta.etiqueta || "Venta en espera")}</strong>
+    <small>${escaparPOS(new Date(venta.fecha).toLocaleString("es-MX"))} &middot; $${totalVenta.toFixed(2)} &middot; ${(venta.carrito || []).length} producto(s)</small>
+   </div>
+   <div class="ventas-espera-acciones">
+    <button type="button" onclick="recuperarVentaEnEspera(${venta.id})">Recuperar</button>
+    <button type="button" class="btn-eliminar-espera" onclick="eliminarVentaEnEspera(${venta.id})">Eliminar</button>
+   </div>
+  </div>
+  `;
+ }).join("");
+
+ modal.innerHTML = `
+ <div class="modal-contenido-pos">
+  <div class="modal-header-pos">
+   <strong>Ventas en espera</strong>
+   <button type="button" onclick="cerrarVentasEnEsperaPOS()">Cerrar</button>
+  </div>
+  <div class="ventas-espera-lista">
+   ${filas}
+  </div>
+ </div>
+ `;
+}
+
+async function recuperarVentaEnEspera(id) {
+ const lista =
+ listarVentasEnEsperaPOS();
+
+ const venta =
+ lista.find(v => Number(v.id) === Number(id));
+
+ if (!venta) return;
+
+ if (carrito.length > 0) {
+  const confirmado =
+  await confirmarPOS(
+   "El carrito activo tiene productos. Al recuperar esta venta se reemplazara el carrito actual. Continuar?",
+   "Reemplazar carrito"
+  );
+
+  if (!confirmado) return;
+ }
+
+ carrito = JSON.parse(JSON.stringify(venta.carrito || []));
+ clienteVentaActual = venta.cliente || null;
+ descuentoCarrito = venta.descuentoCarrito || { tipo: "ninguno", valor: 0 };
+ nivelPrecioActual = venta.nivelPrecioActual || "mayoreo";
+ metodoPagoSeleccionado = venta.metodoPagoSeleccionado || "efectivo";
+
+ guardarListaVentasEnEsperaPOS(lista.filter(v => Number(v.id) !== Number(id)));
+
+ cerrarVentasEnEsperaPOS();
+ actualizarCarrito();
+ actualizarClientePOS();
+}
+
+async function eliminarVentaEnEspera(id) {
+ const confirmado =
+ await confirmarPOS("Eliminar esta venta guardada en espera?", "Eliminar venta en espera");
+
+ if (!confirmado) return;
+
+ const lista =
+ listarVentasEnEsperaPOS().filter(v => Number(v.id) !== Number(id));
+
+ guardarListaVentasEnEsperaPOS(lista);
+
+ const modal =
+ document.getElementById("modalVentasEnEsperaPOS");
+
+ if (modal) renderModalVentasEnEsperaPOS(modal);
 }
 
 function resumenClientePOS(cliente = clienteVentaActual) {
@@ -617,32 +841,46 @@ function actualizarCarrito() {
 }
 
 function renderCarritoReferenciaPOS() {
+ renderCarritoTablaPOS();
+ renderResumenCobroPOS();
+}
+
+function renderCarritoTablaPOS() {
 
  const contenedor =
  document.getElementById(
- "carrito"
+ "carritoTabla"
  );
 
  if (!contenedor) return;
 
- contenedor.innerHTML = "";
-
- const resumen =
- resumenCarritoPOS();
-
- const total =
- resumen.total;
-
- let itemsHtml = "";
+ let itemsHtml =
+ renderIndicadorVentasEnEsperaPOS();
 
  if (carrito.length === 0) {
- itemsHtml = `
- <div class="carrito-vacio pos-cart-empty">
- <strong>Carrito vacio</strong>
- <span>Busca, escanea o agrega productos para iniciar una venta.</span>
+ itemsHtml += `
+ <div class="carrito-vacio pos-cart-empty pos-cart-empty-state">
+ <span class="pos-cart-empty-icon">${typeof iconoUISVG === "function" ? iconoUISVG("cart") : ""}</span>
+ <strong>Escanea un codigo de barras</strong>
+ <span>o busca un producto para agregar a la venta</span>
  </div>
  `;
- }
+ } else {
+ itemsHtml += `
+ <table class="pos-cart-table">
+ <thead>
+ <tr>
+ <th>#</th>
+ <th>Codigo</th>
+ <th>Producto</th>
+ <th>Cantidad</th>
+ <th>Precio unitario</th>
+ <th>Total</th>
+ <th></th>
+ </tr>
+ </thead>
+ <tbody>
+ `;
 
  carrito.forEach((p, index) => {
  const unidad =
@@ -655,60 +893,141 @@ function renderCarritoReferenciaPOS() {
  Number(p.precio || 0) * cantidad;
 
  const codigo =
- p.codigo || `PROD-${p.id}`;
+ p.codigoInterno || p.codigo || `PROD-${p.id}`;
+
+ const etiquetas =
+ [
+ p.marca ? `<span>${escaparPOS(p.marca)}</span>` : "",
+ p.proveedor ? `<span>${escaparPOS(p.proveedor)}</span>` : "",
+ p.categoria ? `<span>${escaparPOS(p.categoria)}</span>` : "",
+ p.stockDisponible !== null && p.stockDisponible !== undefined ? `<span>Stock ${escaparPOS(p.stockDisponible)} ${escaparPOS(unidad)}</span>` : ""
+ ].filter(Boolean).join("");
 
  itemsHtml += `
-
- <article class="item-carrito pos-cart-item">
-
- <div class="item-carrito-info">
- <span class="item-icono">
- ${iconoProducto(p.nombre)}
- </span>
-
+ <tr class="pos-cart-row" data-id="${p.id}">
+ <td class="pos-cart-index">${index + 1}</td>
+ <td class="pos-cart-code">${escaparPOS(codigo)}</td>
+ <td class="pos-cart-product">
+ <span class="pos-cart-thumb item-icono">${iconoProducto(p.nombre)}</span>
  <div>
- <strong>${p.nombre}</strong>
- <small>${escaparPOS(codigo)} - $${Number(p.precio).toFixed(2)} por ${unidad}</small>
+ <strong>${escaparPOS(p.nombre)}</strong>
+ ${etiquetas ? `<div class="pos-cart-meta">${etiquetas}</div>` : ""}
  </div>
- </div>
-
+ </td>
+ <td class="pos-cart-qty">
  <div class="item-cantidad">
- <button onclick="quitarUnoCarrito(${p.id})">-</button>
+ <button onclick="quitarUnoConPulso(${p.id})">-</button>
  <input
  type="number"
  min="0"
  step="${esUnidadDecimal(unidad) ? "0.001" : "1"}"
  value="${cantidad}"
- onchange="cambiarCantidadCarrito(${index}, this.value)"
+ onchange="cambiarCantidadConPulso(${index}, this.value, ${p.id})"
  >
- <button onclick="sumarCantidadCarrito(${index})">+</button>
+ <button onclick="sumarCantidadConPulso(${index}, ${p.id})">+</button>
  </div>
-
- <button type="button" class="pos-cart-remove" onclick="eliminar(${index})" aria-label="Quitar producto">
- x
- </button>
-
  ${p.basculaDigital === "preparado" || esUnidadDecimal(unidad) ? `
  <button class="btn-bascula" onclick="capturarPesoManual(${index})">
  Bascula / peso
  </button>
  ` : ""}
-
- <strong class="item-total">
- $${importe.toFixed(2)}
- </strong>
-
- </article>
+ </td>
+ <td class="pos-cart-price">$${Number(p.precio).toFixed(2)}</td>
+ <td class="pos-cart-total"><strong>$${importe.toFixed(2)}</strong></td>
+ <td class="pos-cart-actions">
+ <button type="button" class="pos-cart-remove" onclick="eliminarConAnimacion(${index}, ${p.id})" aria-label="Quitar producto">
+ &times;
+ </button>
+ </td>
+ </tr>
  `;
  });
 
+ itemsHtml += `
+ </tbody>
+ </table>
+ `;
+ }
+
+ contenedor.innerHTML = `<div class="carrito-items">${itemsHtml}</div>`;
+}
+
+function pulsarCantidadCarritoPorId(id) {
+ const fila =
+ document.querySelector(`.pos-cart-row[data-id="${Number(id)}"]`);
+
+ if (!fila) return;
+
+ const input =
+ fila.querySelector(".item-cantidad input");
+
+ if (!input) return;
+
+ input.classList.add("pulso");
+ setTimeout(() => input.classList.remove("pulso"), 260);
+}
+
+function sumarCantidadConPulso(index, id) {
+ sumarCantidadCarrito(index);
+ pulsarCantidadCarritoPorId(id);
+}
+
+function quitarUnoConPulso(id) {
+ quitarUnoCarrito(id);
+ pulsarCantidadCarritoPorId(id);
+}
+
+function cambiarCantidadConPulso(index, valor, id) {
+ cambiarCantidadCarrito(index, valor);
+ pulsarCantidadCarritoPorId(id);
+}
+
+function eliminarConAnimacion(index, id) {
+ const fila =
+ document.querySelector(`.pos-cart-row[data-id="${Number(id)}"]`);
+
+ if (!fila) {
+ eliminar(index);
+ return;
+ }
+
+ fila.classList.add("saliendo");
+ setTimeout(() => eliminar(index), 150);
+}
+
+function renderResumenCobroPOS() {
+
+ const contenedor =
+ document.getElementById(
+ "resumenCobro"
+ );
+
+ if (!contenedor) return;
+
+ const resumen =
+ resumenCarritoPOS();
+
+ const total =
+ resumen.total;
+
  contenedor.innerHTML = `
 
- <div class="carrito-items">
- ${itemsHtml}
- </div>
-
  <div class="resumen-cobro">
+
+ <div class="resumen-precio-aplicado">
+ <span>Precio aplicado <em class="pos-shortcut-hint">F7</em></span>
+ <div class="precio-aplicado-opciones">
+ <button type="button" class="${nivelPrecioActual === "publico" ? "activo" : ""}" onclick="recalcularPreciosPorNivel('publico')">
+ Publico
+ </button>
+ <button type="button" class="${nivelPrecioActual === "mayoreo" ? "activo" : ""}" onclick="recalcularPreciosPorNivel('mayoreo')">
+ Medio mayoreo
+ </button>
+ <button type="button" class="${nivelPrecioActual === "distribuidor" ? "activo" : ""}" onclick="recalcularPreciosPorNivel('distribuidor')">
+ Mayoreo / distribuidor
+ </button>
+ </div>
+ </div>
 
  <button type="button" class="pos-discount-button" onclick="document.querySelector('.resumen-descuento')?.classList.toggle('abierto')">
  <span>Agregar descuento</span>
@@ -755,12 +1074,29 @@ function renderCarritoReferenciaPOS() {
  <strong>$${total.toFixed(2)}</strong>
  </div>
 
+ <div class="resumen-metodo-pago">
+ <span>Metodo de pago</span>
+ <div class="metodo-pago-opciones">
+ <button type="button" class="${metodoPagoSeleccionado === "efectivo" ? "activo" : ""}" onclick="seleccionarMetodoPagoPOS('efectivo', ${total})">
+ Efectivo
+ </button>
+ <button type="button" class="${metodoPagoSeleccionado === "tarjeta" ? "activo" : ""}" onclick="seleccionarMetodoPagoPOS('tarjeta', ${total})">
+ Tarjeta
+ </button>
+ <button type="button" class="${metodoPagoSeleccionado === "transferencia" ? "activo" : ""}" onclick="seleccionarMetodoPagoPOS('transferencia', ${total})">
+ Transferencia
+ </button>
+ </div>
+ </div>
+
  <label class="campo-recibido">
  <span>Recibido</span>
  <input
  type="number"
  id="dinero"
  placeholder="0.00"
+ value="${metodoPagoSeleccionado !== "efectivo" ? total.toFixed(2) : ""}"
+ ${metodoPagoSeleccionado !== "efectivo" ? "readonly" : ""}
  oninput="calcularCambio(${total})"
  onkeydown="cobrarConEnter(event, ${total})"
  >
@@ -773,20 +1109,39 @@ function renderCarritoReferenciaPOS() {
 
  <div class="carrito-acciones-cobro">
  <button class="btn-cobrar" onclick="cobrar(${total})">
- Cobrar <span>F9</span>
+ Cobrar <span>F8</span>
  </button>
 
+ <div class="carrito-acciones-secundarias">
  <button class="btn-credito-carrito" onclick="cobrarCredito(${total})">
  Credito
  </button>
 
- <button class="btn-limpiar" onclick="limpiarCarrito()">
- Limpiar
+ <button class="btn-cotizar-carrito" onclick="cotizarVentaPOS()">
+ Cotizar
  </button>
+
+ <button class="btn-guardar-carrito" onclick="guardarVentaEnEspera()">
+ Guardar
+ </button>
+
+ <button class="btn-limpiar" onclick="limpiarCarrito()">
+ Cancelar
+ </button>
+ </div>
  </div>
  </div>
  `;
 
+ if (metodoPagoSeleccionado !== "efectivo") {
+ calcularCambio(total);
+ }
+
+}
+
+function seleccionarMetodoPagoPOS(metodo, total) {
+ metodoPagoSeleccionado = metodo || "efectivo";
+ actualizarCarrito();
 }
 
 function cambiarCantidadCarrito(index, valor) {
@@ -1026,6 +1381,18 @@ async function imprimirTicketPOS(ticket, configOverride = null, opciones = {}) {
 }
 
 async function cobrar(total) {
+ if (window.__cobrandoEnCursoPOS) return;
+
+ window.__cobrandoEnCursoPOS = true;
+
+ try {
+ await cobrarInternoPOS(total);
+ } finally {
+ window.__cobrandoEnCursoPOS = false;
+ }
+}
+
+async function cobrarInternoPOS(total) {
 
  if (!(await validarOperacionLicenciaNexoPOS("una venta"))) return;
 
@@ -1086,7 +1453,13 @@ try {
  clienteNombre: resumenClientePOS().nombre,
  cajeroUsuario: usuarioActual?.id || usuarioActual?.usuario || "",
  cajeroNombre: usuarioActual?.nombre || usuarioActual?.usuario || "Administrador",
- productos: productosVenta
+ productos: productosVenta,
+ metodoPago: metodoPagoSeleccionado,
+ pagos: {
+ efectivo: metodoPagoSeleccionado === "efectivo" ? dinero : 0,
+ tarjeta: metodoPagoSeleccionado === "tarjeta" ? total : 0,
+ transferencia: metodoPagoSeleccionado === "transferencia" ? total : 0
+ }
  })
  }
  );
@@ -1104,7 +1477,7 @@ try {
  cajeroNombre: usuarioActual?.nombre || usuarioActual?.usuario || "Administrador",
  recibido: dinero,
  cambio,
- metodoPago: "efectivo",
+ metodoPago: metodoPagoSeleccionado,
  productos: productosVenta,
  errorConexion: error.message
  });
@@ -1136,7 +1509,7 @@ try {
  cajeroNombre: usuarioActual?.nombre || usuarioActual?.usuario || "Administrador",
  recibido: dinero,
  cambio,
- metodoPago: "efectivo",
+ metodoPago: metodoPagoSeleccionado,
  productos: productosVenta,
  errorServidor: respuesta.status
  });
@@ -1453,6 +1826,8 @@ if (ventaOffline) {
  valor: 0
 };
  clienteVentaActual = null;
+ metodoPagoSeleccionado = "efectivo";
+ nivelPrecioActual = "mayoreo";
 
  actualizarCarrito();
  actualizarClientePOS();
@@ -1491,6 +1866,18 @@ if (ventaOffline) {
 }
 
 async function cobrarCredito(total) {
+ if (window.__cobrandoEnCursoPOS) return;
+
+ window.__cobrandoEnCursoPOS = true;
+
+ try {
+ await cobrarCreditoInternoPOS(total);
+ } finally {
+ window.__cobrandoEnCursoPOS = false;
+ }
+}
+
+async function cobrarCreditoInternoPOS(total) {
  if (!(await validarOperacionLicenciaNexoPOS("una venta a credito"))) return;
 
  const resumen =
@@ -1722,6 +2109,8 @@ async function cobrarCredito(total) {
  valor: 0
 };
  clienteVentaActual = null;
+ metodoPagoSeleccionado = "efectivo";
+ nivelPrecioActual = "mayoreo";
  actualizarCarrito();
  actualizarClientePOS();
 

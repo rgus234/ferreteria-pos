@@ -444,6 +444,21 @@ function pareceCodigoCatalogo(valor) {
  return digitos >= 6 && digitos / compacto.length >= 0.8;
 }
 
+function codigoInternoDeProducto(producto) {
+ const alternos =
+ Array.isArray(producto?.codigos_relacionados)
+ ? producto.codigos_relacionados
+ : [];
+
+ const claveInterna =
+ alternos.find(item =>
+ item.tipo === "alterno" &&
+ /^[0-9]{4,7}$/.test(String(item.codigo || "").trim())
+ );
+
+ return claveInterna?.codigo || producto?.codigo || "";
+}
+
 function nombreProductoDesdeFilaCatalogo(datos, indiceCodigo) {
  const candidatos =
  datos
@@ -859,152 +874,20 @@ function productoDesdeCatalogo(codigo) {
  const columnas =
  mapaColumnas.columnas || {};
 
- const nombreColumna =
- valorMapeoCatalogo(datos, mapeoCatalogo, "nombre") ||
- valorColumnaCatalogo(datos, columnas, "nombre");
+ const parser =
+ typeof parserCatalogoProveedor === "function"
+ ? parserCatalogoProveedor(catalogoProveedor)
+ : { extraerProducto: extraerProductoGenericoCatalogo };
 
- const descripcionColumna =
- valorMapeoCatalogo(datos, mapeoCatalogo, "nombre") ||
- valorColumnaCatalogo(datos, columnas, "descripcion");
-
- const nombreLargo =
- nombreProductoDesdeFilaCatalogo(
- datos,
- indiceCodigoProducto
- );
-
- const nombreDetectado =
- [
- descripcionColumna,
- nombreLargo,
- nombreColumna
- ]
- .map(limpiarTextoCatalogo)
- .filter(Boolean)
- .sort((a, b) => b.length - a.length)[0] ||
- "Producto sin nombre";
-
- const medioMayoreoIva =
- numeroCatalogo(
- valorMapeoCatalogo(datos, mapeoCatalogo, "medioMayoreo") ||
- valorColumnaCatalogo(
+ return parser.extraerProducto({
  datos,
  columnas,
- "medioMayoreoIva"
- )
- );
-
- let medioMayoreo =
- medioMayoreoIva ||
- numeroCatalogo(
- valorColumnaCatalogo(
- datos,
- columnas,
- "medioMayoreo"
- )
- );
-
- const distribuidor =
- numeroCatalogo(
- valorMapeoCatalogo(datos, mapeoCatalogo, "costo") ||
- valorColumnaCatalogo(
- datos,
- columnas,
- "distribuidor"
- )
- );
-
- const publico =
- numeroCatalogo(
- valorMapeoCatalogo(datos, mapeoCatalogo, "publico") ||
- valorColumnaCatalogo(
- datos,
- columnas,
- "publico"
- )
- );
-
- if (
- medioMayoreo &&
- distribuidor &&
- medioMayoreo < distribuidor
- ) {
- medioMayoreo =
- publico && publico >= distribuidor
- ? publico
- : distribuidor;
- }
-
- return {
- codigo:
- normalizarCodigo(datos[indiceCodigoProducto]) ||
+ mapeoCatalogo,
+ indiceCodigoProducto,
  codigoNormalizado,
- nombre: nombreDetectado,
- descripcion:
- descripcionColumna ||
- nombreLargo ||
- nombreColumna,
- marca:
- valorMapeoCatalogo(datos, mapeoCatalogo, "marca") ||
- valorColumnaCatalogo(datos, columnas, "marca") ||
- detectarMarcaDesdeFilaCatalogo(datos) ||
- inferirMarcaPorCodigo(datos[indiceCodigoProducto]),
- categoria:
- valorMapeoCatalogo(datos, mapeoCatalogo, "categoria") ||
- valorColumnaCatalogo(datos, columnas, "categoria") ||
- "",
- unidadVenta:
- valorMapeoCatalogo(datos, mapeoCatalogo, "unidadVenta") ||
- "pieza",
- codigoInterno:
- valorMapeoCatalogo(datos, mapeoCatalogo, "codigoInterno") ||
- valorMapeoCatalogo(datos, mapeoCatalogo, "claveProveedor") ||
- valorColumnaCatalogo(datos, columnas, "codigoInterno") ||
- codigoInternoDesdeFilaCatalogo(
- datos,
- datos[indiceCodigoProducto]
- ),
- distribuidor,
- medioMayoreo,
- publico,
- proveedor:
- catalogoProveedor.proveedor ||
- localStorage.getItem("ultimoProveedorCatalogo") ||
- ultimoProveedorCatalogo(),
- stockMinimo:
- numeroCatalogo(
- valorColumnaCatalogo(
- datos,
- columnas,
- "stockMinimo"
- )
- ) || 3,
- altaRotacion:
- valorColumnaCatalogo(
- datos,
- columnas,
- "altaRotacion"
- ) || datos[12] || "",
- precioDetectado:
- medioMayoreoIva
- ? "medio mayoreo con IVA"
- : "medio mayoreo",
- codigosRelacionados:
- [
- ...datos
- .map(normalizarCodigo)
- .filter(item =>
- item &&
- item !== codigoNormalizado &&
- /^\d{3,14}$/.test(item)
- ),
- ...codigosAlternos.filter(item =>
- item && item !== codigoNormalizado
- )
- ].filter((item, indice, lista) =>
- lista.indexOf(item) === indice
- )
- };
+ codigosAlternos,
+ catalogoProveedor
+ });
  }
  }
  }
@@ -1016,7 +899,7 @@ function productoDesdeCatalogo(codigo) {
  ) || null;
 }
 
-function llenarFormularioConProductoCatalogo(producto) {
+async function llenarFormularioConProductoCatalogo(producto) {
  mostrarInventario();
  mostrarFormularioAgregar();
  asegurarSelectorTipoPrecio();
@@ -1129,6 +1012,8 @@ function llenarFormularioConProductoCatalogo(producto) {
  document.getElementById("altaRotacion").value =
  producto.altaRotacion || "";
 
+ await mostrarSugerenciaPrecioProveedor(producto);
+
  enfocarStockNuevoProducto();
 }
 
@@ -1177,6 +1062,82 @@ function asegurarSelectorTipoPrecio() {
  "afterend",
  selector
  );
+}
+
+function asegurarBotonSugerenciaPrecio() {
+ let boton =
+ document.getElementById("sugerenciaPrecioProveedor");
+
+ if (boton) return boton;
+
+ const referencia =
+ document.getElementById("tipoPrecioVenta") ||
+ document.getElementById("nuevoPrecio");
+
+ if (!referencia) return null;
+
+ boton =
+ document.createElement("button");
+
+ boton.type =
+ "button";
+
+ boton.id =
+ "sugerenciaPrecioProveedor";
+
+ boton.className =
+ "btn-sugerencia-precio-proveedor";
+
+ boton.style.display =
+ "none";
+
+ referencia.insertAdjacentElement("afterend", boton);
+
+ return boton;
+}
+
+async function mostrarSugerenciaPrecioProveedor(producto) {
+ const boton =
+ asegurarBotonSugerenciaPrecio();
+
+ if (!boton) return;
+
+ boton.style.display = "none";
+ boton.onclick = null;
+
+ if (!producto?.proveedor || typeof obtenerReglasPrecioProveedor !== "function") return;
+
+ let reglas = null;
+
+ try {
+ reglas = await obtenerReglasPrecioProveedor(producto.proveedor);
+ } catch (error) {
+ console.warn(error);
+ return;
+ }
+
+ if (!reglas) return;
+
+ const calculo =
+ calcularPrecioSugerido(reglas, {
+ publico: producto.publico || producto.medioMayoreo || producto.distribuidor || "",
+ categoria: producto.categoria || "",
+ codigo: producto.codigo || ""
+ });
+
+ if (!calculo) return;
+
+ boton.textContent =
+ `Usar precio sugerido: $${calculo.precioSugerido.toFixed(2)} (margen ${calculo.margen}%)`;
+
+ boton.style.display = "inline-flex";
+
+ boton.onclick = () => {
+ const campoPrecio =
+ document.getElementById("nuevoPrecio");
+
+ if (campoPrecio) campoPrecio.value = calculo.precioSugerido;
+ };
 }
 
 function asegurarEtiquetasFichaProducto() {
@@ -1611,7 +1572,6 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  ];
  }
 
- mostrarProductos(todosProductos);
  actualizarDashboard();
  actualizarInventarioBajo();
  actualizarDatalistCategorias();
@@ -1893,7 +1853,6 @@ async function eliminarProducto(id) {
  todosProductos =
  todosProductos.filter(producto => Number(producto.id) !== Number(id));
 
- mostrarProductos(todosProductos);
  actualizarDashboard();
  actualizarInventarioBajo();
  actualizarDatalistCategorias();
@@ -2967,6 +2926,13 @@ function mostrarFormularioAgregar() {
  asegurarSelectorTipoPrecio();
  asegurarEtiquetasFichaProducto();
  inicializarCampoCodigoProducto();
+
+ if (!productoEditandoId) {
+ const botonSugerencia =
+ asegurarBotonSugerenciaPrecio();
+
+ if (botonSugerencia) botonSugerencia.style.display = "none";
+ }
 
  document
  .getElementById("nuevoCodigo")

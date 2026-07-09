@@ -156,86 +156,13 @@ body.oscuro .pos-referencia {
 }
 
 .pos-products-panel,
-.pos-reference-side,
-.productos.pos-grid {
+.pos-reference-side {
   min-width: 0;
 }
 
 .pos-reference-side {
   position: sticky;
   top: 14px;
-}
-
-.pos-section-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.pos-section-title h3 {
-  margin: 0;
-  color: var(--pos-sale-text);
-  font-size: 16px;
-  line-height: 1.1;
-}
-
-.pos-section-title div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pos-section-title button {
-  min-height: 36px;
-  margin: 0;
-  padding: 0 12px;
-  border: 1px solid var(--pos-sale-line);
-  border-radius: 12px;
-  background: var(--pos-sale-card) !important;
-  color: var(--pos-sale-brand) !important;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.pos-section-title.compact {
-  margin-top: 10px;
-}
-
-.pos-referencia .productos.pos-grid {
-  display: block;
-}
-
-.pos-referencia .productos.pos-grid #productos {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(160px, 1fr));
-  gap: 14px;
-  max-height: 282px;
-  overflow: hidden;
-}
-
-.pos-referencia .productos.pos-grid .producto {
-  min-height: 282px;
-  padding: 16px;
-  display: grid;
-  grid-template-rows: 84px minmax(36px, auto) 16px 22px 20px 42px;
-  gap: 6px;
-  border: 1px solid var(--pos-sale-line);
-  border-radius: 16px;
-  background: var(--pos-sale-card);
-  box-shadow: var(--pos-sale-shadow);
-  overflow: hidden;
-}
-
-.pos-referencia .producto-icono {
-  width: 100%;
-  height: 84px;
-  margin: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 14px;
-  background: var(--pos-sale-soft);
 }
 
 .pos-referencia .producto-mini-icon {
@@ -250,54 +177,6 @@ body.oscuro .pos-referencia {
   font-weight: 950;
 }
 
-.pos-referencia .producto-icono .producto-mini-icon {
-  width: 56px;
-  height: 56px;
-  background: transparent;
-  font-size: 32px;
-}
-
-.pos-referencia .productos.pos-grid .producto h2 {
-  min-height: 0;
-  max-height: none;
-  margin: 0;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  color: var(--pos-sale-text);
-  font-size: 14px;
-  font-weight: 950;
-  line-height: 1.22;
-}
-
-.producto-codigo {
-  color: var(--pos-sale-muted);
-  font-size: 12px;
-  font-weight: 850;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.pos-referencia .producto-precio {
-  color: var(--pos-sale-brand);
-  font-size: 16px;
-  font-weight: 950;
-}
-
-.pos-referencia .producto-stock {
-  margin: 0;
-  color: var(--pos-sale-green);
-  font-size: 12px;
-  font-weight: 850;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pos-referencia .productos.pos-grid .producto button,
 .pos-referencia .btn-cobrar {
   min-height: 42px;
   margin: 0;
@@ -310,43 +189,6 @@ body.oscuro .pos-referencia {
   font-size: 14px;
   font-weight: 950;
   box-shadow: 0 14px 26px color-mix(in srgb, var(--pos-sale-brand) 28%, transparent), inset 0 1px 0 rgba(255, 255, 255, .4);
-}
-
-.pos-frequent-list {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  padding: 2px 0 4px;
-}
-
-.pos-frequent-list button {
-  min-width: 132px;
-  min-height: 50px;
-  margin: 0;
-  padding: 8px 12px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  border: 1px solid var(--pos-sale-line);
-  border-radius: 999px;
-  background: var(--pos-sale-card) !important;
-  color: var(--pos-sale-text) !important;
-  box-shadow: var(--pos-sale-shadow);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.pos-frequent-list .producto-mini-icon {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
-  border-radius: 50%;
-  font-size: 11px;
-}
-
-.pos-frequent-empty {
-  color: var(--pos-sale-muted);
-  font-size: 13px;
 }
 
 .pos-referencia .pos-carrito-card {
@@ -799,10 +641,6 @@ body.oscuro .pos-referencia {
     grid-template-columns: minmax(0, 1fr) minmax(380px, 420px);
     gap: 16px;
   }
-
-  .pos-referencia .productos.pos-grid #productos {
-    grid-template-columns: repeat(3, minmax(138px, 1fr));
-  }
 }
 
 @media (max-width: 1080px) {
@@ -815,7 +653,6 @@ body.oscuro .pos-referencia {
     top: auto;
   }
 
-  .pos-referencia .productos.pos-grid #productos,
   .pos-metrics-row {
     grid-template-columns: repeat(2, minmax(150px, 1fr));
   }
@@ -834,7 +671,6 @@ body.oscuro .pos-referencia {
     grid-template-columns: repeat(8, 94px);
   }
 
-  .pos-referencia .productos.pos-grid #productos,
   .pos-metrics-row {
     grid-template-columns: 1fr;
   }

@@ -16,6 +16,8 @@ let descuentoCarrito = {
  tipo: "ninguno",
  valor: 0
 };
+let metodoPagoSeleccionado = "efectivo";
+let nivelPrecioActual = "mayoreo";
 let grafica = null;
 let graficaReporteVentas = null;
 let graficaMetodosPago = null;
@@ -82,5 +84,4 @@ let estadoLicenciaNexoPOS = {
 (()=>{if(!window.__fase5Loader){window.__fase5Loader=true;const s=document.createElement("script");s.src="fase5.js?v=finanzas-redesign-20260704-01";document.body.appendChild(s);}})();
 (()=>{if(!window.__fixNavDynamicLoader){window.__fixNavDynamicLoader=true;const s=document.createElement("script");s.src="fix-navegacion.js?v=nav-fix-20260704-01";document.body.appendChild(s);}})();
 (()=>{if(!window.__fase6Loader){window.__fase6Loader=true;const s=document.createElement("script");s.src="fase6.js?v=caja-redesign-20260704-01";document.body.appendChild(s);}})();
-(()=>{if(!window.__fase7Loader){window.__fase7Loader=true;const s=document.createElement("script");s.src="fase7-pagos.js?v=20260621-4";document.body.appendChild(s);}})();
 (()=>{if(!window.__fase7CajaUILoader){window.__fase7CajaUILoader=true;const s=document.createElement("script");s.src="fase7-caja-ui.js?v=caja-redesign-20260704-01";document.body.appendChild(s);}})();

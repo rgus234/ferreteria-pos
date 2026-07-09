@@ -18,8 +18,9 @@
   <link rel="stylesheet" href="css/components/config-settings.css?v=usuarios-rol-fix-20260706-01">
   <link rel="stylesheet" href="css/components/customers.css?v=refactor-customers-20260701-01">
   <link rel="stylesheet" href="css/components/suppliers.css?v=proveedores-redesign-20260705-01">
+  <link rel="stylesheet" href="css/components/pricing-rules.css?v=reglas-precio-20260709-06">
   <link rel="stylesheet" href="css/components/inventory.css?v=imprimir-codigos-20260707-01">
-  <link rel="stylesheet" href="css/components/supplier-catalog.css?v=refactor-supplier-catalog-20260701-01">
+  <link rel="stylesheet" href="css/components/supplier-catalog.css?v=catalogo-buscador-20260709-01">
   <link rel="stylesheet" href="css/components/reports.css?v=reportes-redesign-20260704-01">
   <link rel="stylesheet" href="css/components/receiving.css?v=recepcion-minimal-20260704-01">
   <link rel="stylesheet" href="css/components/inventory-adjustments.css?v=ajustes-inventario-20260704-01">
@@ -30,8 +31,9 @@
   <link rel="stylesheet" href="css/components/operational-tables.css?v=refactor-operational-tables-20260701-01">
   <link rel="stylesheet" href="css/components/pos-operational-polish.css?v=refactor-pos-polish-20260701-01">
   <link rel="stylesheet" href="css/components/dashboard-alerts.css?v=inicio-redesign-20260706-01">
-  <link rel="stylesheet" href="css/components/pos-cart.css?v=pos-shell-redesign-20260703-01">
-  <link rel="stylesheet" href="css/components/pos-product-form.css?v=refactor-product-form-20260630-01">
+  <link rel="stylesheet" href="css/components/pos-cart.css?v=pos-flyout-redesign-20260708-03">
+  <link rel="stylesheet" href="css/components/pos-sale-redesign.css?v=fix-enter-cobro-20260709-02">
+  <link rel="stylesheet" href="css/components/pos-product-form.css?v=sugerencia-precio-20260709-01">
   <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-bugfix-20260705-02">
   <link rel="stylesheet" href="css/components/sale-documents.css?v=refactor-sale-documents-20260630-01">
   <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=refactor-payment-modal-20260701-01">
@@ -641,13 +643,16 @@
  ☰
  </button>
 
+ <div class="pos-search-wrap">
  <div class="buscador-con-limpiar pos-reference-search">
  <span class="pos-search-icon">⌕</span>
  <input id="busqueda" type="text" placeholder="Buscar producto por nombre, codigo o codigo de barras..."
- oninput="buscarProductos()" onkeydown="buscarCodigoEnter(event)">
+ oninput="buscarProductos()" onkeydown="buscarCodigoEnter(event)" autocomplete="off">
  <button type="button" onclick="limpiarBusquedaPos()" aria-label="Limpiar busqueda">
  ×
  </button>
+ </div>
+ <div id="posSearchFlyout" class="pos-search-flyout"></div>
  </div>
 
  <button type="button" class="pos-icon-button" onclick="enfocarBusquedaVentaRapida(true)" aria-label="Escanear codigo">
@@ -656,67 +661,53 @@
  </div>
 
  <section class="pos-category-strip" aria-label="Categorias de punto de venta">
- <button type="button" class="active" onclick="filtrarProductosPOSCategoria('')">
+ <button type="button" class="active" onclick="filtrarFlyoutPOSCategoria('')">
  <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
  Todos
  </button>
- <button type="button" onclick="filtrarProductosPOSCategoria('Herramientas')">
+ <button type="button" onclick="filtrarFlyoutPOSCategoria('Herramientas')">
  <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7.5a5.5 5.5 0 0 1-7.4 5.2L6 20.3 3.7 18l7.6-7.6A5.5 5.5 0 1 1 21 7.5Z"/></svg>
  Herramientas
  </button>
- <button type="button" onclick="filtrarProductosPOSCategoria('Electricidad')">
+ <button type="button" onclick="filtrarFlyoutPOSCategoria('Electricidad')">
  <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>
  Electricidad
  </button>
- <button type="button" onclick="filtrarProductosPOSCategoria('Plomeria')">
+ <button type="button" onclick="filtrarFlyoutPOSCategoria('Plomeria')">
  <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9Z"/><path d="M12 12v7a2 2 0 0 1-4 0"/></svg>
  Plomeria
  </button>
- <button type="button" onclick="filtrarProductosPOSCategoria('Pintura')">
+ <button type="button" onclick="filtrarFlyoutPOSCategoria('Pintura')">
  <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="12" height="6" rx="1.5"/><path d="M7 10v4h4"/><rect x="9" y="14" width="4" height="6" rx="1"/></svg>
  Pintura
  </button>
- <button type="button" onclick="filtrarProductosPOSCategoria('Ferreteria')">
+ <button type="button" onclick="filtrarFlyoutPOSCategoria('Ferreteria')">
  <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="8" width="20" height="12" rx="2"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M2 13h20"/></svg>
  Ferreteria
  </button>
- <button type="button" onclick="filtrarProductosPOSCategoria('Jardineria')">
+ <button type="button" onclick="filtrarFlyoutPOSCategoria('Jardineria')">
  <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21c8 0 14-6 14-14V5h-2C9 5 5 11 5 19v2Z"/><path d="M5 21 19 7"/></svg>
  Jardineria
  </button>
- <button type="button" onclick="toggleVistaProductosPOS()">
- <svg class="ui-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
- Mas
- </button>
  </section>
 
- <div class="pos-section-title">
- <h3>Productos</h3>
- <div>
- <button type="button" onclick="mostrarInventario()">Ver todos</button>
- <button type="button" class="pos-grid-toggle" onclick="toggleVistaProductosPOS()">▦</button>
- </div>
- </div>
-
- <div class="productos pos-grid">
- <div id="productos"></div>
- </div>
- </main>
-
- <aside class="lado pos-reference-side">
- <div class="caja pos-carrito-card">
- <div class="pos-cart-heading">
+ <div class="pos-cart-hero-heading">
  <h2>Carrito de venta</h2>
  <button type="button" onclick="limpiarCarrito()">Vaciar carrito</button>
  </div>
 
+ <div id="carritoTabla"></div>
+ </main>
+
+ <aside class="lado pos-reference-side">
+ <div class="caja pos-carrito-card">
  <button type="button" class="cliente-pos cliente-pos-selector" onclick="abrirSelectorClientePOS()">
  <span>Cliente</span>
  <strong id="clienteVentaNombre">Publico general</strong>
  <small id="clienteVentaResumen">Venta de mostrador</small>
  </button>
 
- <div id="carrito"></div>
+ <div id="resumenCobro"></div>
  </div>
  </aside>
  </div>
@@ -1323,19 +1314,26 @@
  </div>
  </div>
 
-  <script src="app.js?v=proveedores-redesign-20260705-01"></script>
-  <script src="js/offline-sync.js?v=refactor-offline-sync-20260702-01"></script>
-  <script src="js/config-auth.js?v=login-redesign-20260707-01"></script>
-  <script src="js/supplier-catalog.js?v=catalogo-lineas-fix-20260707-02"></script>
-  <script src="js/product-inventory.js?v=catalogo-lineas-fix-20260707-02"></script>
-<script src="js/pos-sales.js?v=estado-cuenta-cajon-fix-20260707-01"></script>
+  <script src="app.js?v=fix-enter-cobro-20260709-02"></script>
+  <script src="js/offline-sync.js?v=fix-mostrarproductos-20260709-01"></script>
+  <script src="js/config-auth.js?v=reglas-precio-20260709-02"></script>
+  <script src="js/catalog-provider-picker.js?v=catalog-adapters-20260708-01"></script>
+  <script src="js/supplier-catalog.js?v=fix-gafi-catalogo-20260709-02"></script>
+  <script src="js/pricing-rules.js?v=reglas-precio-20260709-02"></script>
+  <script src="js/catalog-parsers.js?v=fix-gafi-catalogo-20260709-01"></script>
+  <script src="js/product-inventory.js?v=sugerencia-precio-20260709-01"></script>
+<script src="js/pos-sales.js?v=fix-enter-cobro-20260709-02"></script>
+<script src="js/pos-search-flyout.js?v=pos-flyout-redesign-20260708-03"></script>
   <script src="js/sales-history-documents.js?v=nav-fix-20260704-01"></script>
   <script src="js/credit-customers.js?v=estado-cuenta-cajon-fix-20260707-01"></script>
-  <script src="js/supplier-catalog-view.js?v=catalogo-bugfix-20260705-01"></script>
-  <script src="js/app-bootstrap.js?v=login-redesign-20260707-01"></script>
+  <script src="js/supplier-catalog-view.js?v=reglas-precio-20260709-03"></script>
+  <script src="js/pricing-rules-view.js?v=reglas-precio-20260709-03"></script>
+  <script src="js/pricing-apply-view.js?v=reglas-precio-20260709-02"></script>
+  <script src="js/app-bootstrap.js?v=fix-mostrarproductos-20260709-01"></script>
   <script src="js/reports.js?v=reportes-redesign-20260704-01"></script>
   <script src="js/shell-topbar.js?v=login-redesign-20260707-01"></script>
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
+  <script src="js/pos-shortcuts.js?v=pos-flyout-redesign-20260708-03"></script>
   <script src="js/low-stock.js?v=lowstock-bugfix-20260705-01"></script>
 <script src="js/ferretero-flow.js?v=nav-fix-20260704-01"></script>
 

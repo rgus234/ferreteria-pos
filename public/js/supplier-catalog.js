@@ -64,6 +64,24 @@ function plantillasCatalogoBase() {
  marca: "Marca",
  categoria: "Descripcion SAT"
  }
+ },
+ {
+ id: "global-gafi-csv",
+ alcance: "global",
+ giro: "Ferreteria",
+ proveedor: "Gafi",
+ nombre: "Gafi CSV oficial",
+ mapeo: {
+ codigoInterno: "Corto",
+ claveProveedor: "Alterno",
+ nombre: "Articulo",
+ unidadVenta: "Unidad",
+ publico: "Precio Lista",
+ marca: "Marca",
+ categoria: "Familia",
+ costo: "",
+ codigoBarras: ""
+ }
  }
  ];
 }
@@ -296,25 +314,48 @@ function contarProductosCatalogo(csv) {
 }
 
 async function abrirAsistenteCatalogo(archivo, csv) {
+ const seleccion =
+ typeof abrirSelectorProveedorCatalogo === "function"
+ ? await abrirSelectorProveedorCatalogo()
+ : { parser: "generico" };
+
+ if (!seleccion) return null;
+
+ const parser =
+ seleccion.parser || "generico";
+
+ let proveedor =
+ seleccion.proveedor || "";
+
+ if (!proveedor) {
  const proveedorSugerido =
  nombreProveedorDesdeArchivo(archivo.name);
 
- const proveedor =
+ proveedor =
  await pedirTextoPOS(
  "Nombre del proveedor o distribuidor:",
  proveedorSugerido,
  "Catalogo proveedor"
  ) || proveedorSugerido;
+ }
 
  const plantilla =
  buscarPlantillaPorProveedor(proveedor);
 
- return abrirMapeoCatalogo({
+ const resultado =
+ await abrirMapeoCatalogo({
  proveedor,
  archivo: archivo.name,
  csv,
  plantilla
  });
+
+ if (!resultado) return null;
+
+ return {
+ ...resultado,
+ parser
+ };
 }
 
 function opcionesColumnasCatalogo(encabezados, valorActual) {
@@ -558,8 +599,17 @@ function leerArchivoCatalogoComoCSV(archivo) {
  return;
  }
 
- lector.onload = evento => resolve(evento.target.result || "");
- lector.readAsText(archivo);
+ lector.onload = evento => {
+ const buffer = evento.target.result;
+
+ try {
+ resolve(new TextDecoder("utf-8", { fatal: true }).decode(buffer));
+ } catch (error) {
+ resolve(new TextDecoder("windows-1252").decode(buffer));
+ }
+ };
+
+ lector.readAsArrayBuffer(archivo);
  });
 }
 
@@ -602,6 +652,7 @@ function procesarArchivosCatalogo(archivos) {
  productos: contarProductosCatalogo(csv),
  plantillaId: config.plantillaId || "",
  mapeo: config.mapeo || {},
+ parser: config.parser || "generico",
  csv
  };
  });
