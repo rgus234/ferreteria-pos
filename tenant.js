@@ -38,12 +38,36 @@ async function asegurarNegocioActual(pool, req) {
             ($1, $2, 'ferreteria', 'activo', 'demo')
         ON CONFLICT (slug)
         DO UPDATE SET updated_at = NOW()
-        RETURNING id, slug, nombre, giro, estado, plan
+        RETURNING id, slug, nombre, giro, estado, plan, (xmax = 0) AS fue_creado_ahora
         `,
         [slug, nombre]
     );
 
-    return resultado.rows[0];
+    const negocio = resultado.rows[0];
+
+    if (negocio.fue_creado_ahora) {
+        console.warn(`Auto-provisioning: nuevo negocio creado por codigo no reconocido: ${slug}`);
+
+        pool.query(
+            `
+            INSERT INTO public.tenant_auto_provision_log
+                (negocio_id, slug_recibido, ip, user_agent, headers)
+            VALUES
+                ($1, $2, $3, $4, $5)
+            `,
+            [
+                negocio.id,
+                slug,
+                req?.ip || null,
+                req?.get?.("user-agent") || null,
+                JSON.stringify(req?.headers || {})
+            ]
+        ).catch(error => console.warn("No se pudo registrar auto-provision log:", error.message));
+    }
+
+    delete negocio.fue_creado_ahora;
+
+    return negocio;
 }
 
 module.exports = {

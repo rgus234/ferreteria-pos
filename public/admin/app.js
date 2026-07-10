@@ -115,6 +115,7 @@ function pintarMetricasAdmin(resumen) {
   const suspendidas = Number(resumen?.licencias?.suspendidas || 0);
   const pendientes = Number(resumen?.dispositivos?.sync_pendientes || 0);
   const errores = Number(resumen?.dispositivos?.sync_errores || 0);
+  const fantasmas = Number(resumen?.negocios?.fantasmas || 0);
 
   document.getElementById("metricMRR").textContent = formatoDineroAdmin.format(mrr);
   document.getElementById("metricMRRDetalle").textContent = `${activos} activos, ${pruebas} en prueba`;
@@ -123,6 +124,7 @@ function pintarMetricasAdmin(resumen) {
   document.getElementById("metricVencidas").textContent = vencidas + suspendidas;
   document.getElementById("metricSync").textContent = pendientes + errores;
   document.getElementById("metricSyncDetalle").textContent = `${pendientes} pendientes, ${errores} errores`;
+  document.getElementById("metricFantasmas").textContent = fantasmas;
   document.getElementById("ingresoMRR").textContent = formatoDineroAdmin.format(mrr);
   document.getElementById("ingresoVencidas").textContent = vencidas;
   document.getElementById("ingresoSuspendidas").textContent = suspendidas;
@@ -137,6 +139,7 @@ function pintarResumenAdmin() {
   contenedor.innerHTML = [
     ["Negocios activos", negocios.activos || 0],
     ["Negocios en prueba", negocios.prueba || 0],
+    ["Cuentas fantasma", negocios.fantasmas || 0],
     ["Licencias activas", licencias.activas || 0],
     ["Licencias vencidas", licencias.vencidas || 0],
     ["Equipos en linea", dispositivos.en_linea || 0],
@@ -159,7 +162,7 @@ function negociosFiltradosAdmin() {
       negocio.license_key
     ].join(" ").toLowerCase();
     const matchTexto = !texto || searchable.includes(texto);
-    const matchEstado = !estado || searchable.includes(estado);
+    const matchEstado = !estado || (estado === "fantasma" ? Boolean(negocio.anomalia_fantasma) : searchable.includes(estado));
     return matchTexto && matchEstado;
   });
 }
@@ -183,23 +186,27 @@ function pintarNegociosAdmin() {
     const sistema = [negocio.plataforma, negocio.os_version, negocio.arch].filter(Boolean).join(" ");
     const update = negocio.update_available ? "Actualizacion pendiente" : "Al dia";
     const updateClase = negocio.update_available ? "warning" : "ok";
+    const esFantasma = Boolean(negocio.anomalia_fantasma);
     return `
-      <article class="client-card">
+      <article class="client-card${esFantasma ? " client-card-fantasma" : ""}">
         <div class="client-main">
           <div>
             <span class="eyebrow">${escaparHTMLAdmin(negocio.giro || "cliente")}</span>
             <h3>${escaparHTMLAdmin(negocio.nombre || negocio.slug)}</h3>
-            <small>${escaparHTMLAdmin(negocio.slug || "")}</small>
+            <small>${escaparHTMLAdmin(negocio.slug || "")}${negocio.dias_desde_creacion != null ? ` -- creado hace ${negocio.dias_desde_creacion} dia(s)` : ""}</small>
           </div>
           <div class="client-actions">
             <button type="button" onclick="abrirLicenciaAdmin(${Number(negocio.id)})">Editar licencia</button>
-            <button type="button" class="danger" onclick="eliminarClienteAdmin(${Number(negocio.id)})">Eliminar</button>
+            <button type="button" class="danger" onclick="eliminarClienteAdmin(${Number(negocio.id)})">${esFantasma ? "Revisar y eliminar" : "Eliminar"}</button>
           </div>
         </div>
         <div class="client-pills">
           <em class="pill ${pillClaseAdmin(negocio.negocio_estado)}">${escaparHTMLAdmin(negocio.negocio_estado || "-")}</em>
           <em class="pill ${pillClaseAdmin(modo)}">${escaparHTMLAdmin(modo)}</em>
           <em class="pill ${updateClase}">${update}</em>
+          ${esFantasma ? '<em class="pill danger">Cuenta fantasma</em>' : ""}
+          ${negocio.anomalia_posible_duplicado ? '<em class="pill warning">Posible duplicado</em>' : ""}
+          ${negocio.tuvo_auto_provision ? '<em class="pill warning">Creado por conexion no reconocida</em>' : ""}
         </div>
         <div class="client-details">
           <div><span>Plan</span><strong>${escaparHTMLAdmin(plan)}</strong><small>${monto}/mes</small></div>
@@ -217,7 +224,11 @@ function pintarNegociosAdmin() {
 function pintarPlanesAdmin() {
   const contenedor = document.getElementById("planesAdmin");
   if (!contenedor) return;
-  const conteo = negociosAdmin.reduce((acc, negocio) => {
+  const filtroEstado = document.getElementById("filtroPlanesEstadoAdmin")?.value || "";
+  const lista = filtroEstado
+    ? negociosAdmin.filter(negocio => negocio.licencia_estado === filtroEstado)
+    : negociosAdmin;
+  const conteo = lista.reduce((acc, negocio) => {
     const plan = negocio.licencia_plan || negocio.negocio_plan || "demo";
     acc[plan] = (acc[plan] || 0) + 1;
     return acc;
@@ -225,6 +236,44 @@ function pintarPlanesAdmin() {
   contenedor.innerHTML = Object.entries(conteo).length
     ? Object.entries(conteo).map(([plan, total]) => `<div><span>${escaparHTMLAdmin(plan)}</span><strong>${total}</strong></div>`).join("")
     : '<div><span>Sin planes</span><strong>0</strong></div>';
+}
+
+function pintarSoporteAdmin() {
+  const contenedor = document.getElementById("soporteAtencionAdmin");
+  if (!contenedor) return;
+
+  const pendientes = negociosAdmin
+    .filter(negocio => negocio.anomalia_fantasma || ["gracia", "limitado"].includes(negocio.licencia_modo))
+    .sort((a, b) => (a.anomalia_fantasma === b.anomalia_fantasma ? 0 : a.anomalia_fantasma ? -1 : 1));
+
+  if (!pendientes.length) {
+    contenedor.innerHTML = '<div class="empty">Sin clientes que necesiten atencion ahora mismo.</div>';
+    return;
+  }
+
+  contenedor.innerHTML = pendientes.map(negocio => {
+    if (negocio.anomalia_fantasma) {
+      return `
+        <div class="support-item high">
+          <strong>${escaparHTMLAdmin(negocio.nombre || negocio.slug)}</strong>
+          <span>Cuenta fantasma: sin telefono/correo/direccion y sin productos ni ventas. Revisar y probablemente eliminar.</span>
+          <em>Alta</em>
+        </div>
+      `;
+    }
+
+    const motivo = negocio.licencia_modo === "gracia"
+      ? "Licencia vencida, en periodo de gracia."
+      : "Licencia en modo limitado -- el cliente ya no puede operar con normalidad.";
+
+    return `
+      <div class="support-item">
+        <strong>${escaparHTMLAdmin(negocio.nombre || negocio.slug)}</strong>
+        <span>${motivo} Vence: ${fechaCortaAdmin(negocio.fecha_vencimiento)}</span>
+        <em>Normal</em>
+      </div>
+    `;
+  }).join("");
 }
 
 function pintarVersionesAdmin() {
@@ -250,6 +299,14 @@ function pintarVersionesAdmin() {
   }).join("");
 }
 
+async function actualizarDatosAdmin() {
+  try {
+    await cargarAdminNexo();
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudieron actualizar los datos.", "Error", "peligro");
+  }
+}
+
 async function cargarAdminNexo() {
   const [resumen, negocios, versiones] = await Promise.all([
     apiAdmin("/admin/api/resumen"),
@@ -264,6 +321,7 @@ async function cargarAdminNexo() {
   pintarResumenAdmin();
   pintarNegociosAdmin();
   pintarPlanesAdmin();
+  pintarSoporteAdmin();
   pintarVersionesAdmin();
 }
 
@@ -292,35 +350,39 @@ async function crearClienteAdmin(event) {
   const slugManual = document.getElementById("nuevoClienteSlug")?.value.trim() || "";
 
   if (!nombre) {
-    alert("Escribe el nombre del cliente.");
+    await alertaAdmin("Escribe el nombre del cliente.", "Falta el nombre", "alerta");
     return;
   }
 
-  const respuesta = await apiAdmin("/admin/api/negocios", {
-    method: "POST",
-    body: JSON.stringify({
-      nombre,
-      slug: slugManual || slugAdmin(nombre),
-      telefono: document.getElementById("nuevoClienteTelefono")?.value.trim() || "",
-      correo: document.getElementById("nuevoClienteCorreo")?.value.trim() || "",
-      direccion: document.getElementById("nuevoClienteDireccion")?.value.trim() || "",
-      giro: document.getElementById("nuevoClienteGiro")?.value || "ferreteria",
-      plan: document.getElementById("nuevoClientePlan")?.value || "ferreteria-base",
-      estado: document.getElementById("nuevoClienteEstado")?.value || "activo",
-      licenciaEstado: document.getElementById("nuevoClienteLicEstado")?.value || "activa",
-      montoMensual: Number(document.getElementById("nuevoClienteMonto")?.value || 0),
-      fechaVencimiento: document.getElementById("nuevoClienteVence")?.value || null,
-      graciaDias: Number(document.getElementById("nuevoClienteGracia")?.value || 15),
-      notas: document.getElementById("nuevoClienteNotas")?.value.trim() || ""
-    })
-  });
+  try {
+    const respuesta = await apiAdmin("/admin/api/negocios", {
+      method: "POST",
+      body: JSON.stringify({
+        nombre,
+        slug: slugManual || slugAdmin(nombre),
+        telefono: document.getElementById("nuevoClienteTelefono")?.value.trim() || "",
+        correo: document.getElementById("nuevoClienteCorreo")?.value.trim() || "",
+        direccion: document.getElementById("nuevoClienteDireccion")?.value.trim() || "",
+        giro: document.getElementById("nuevoClienteGiro")?.value || "ferreteria",
+        plan: document.getElementById("nuevoClientePlan")?.value || "ferreteria-base",
+        estado: document.getElementById("nuevoClienteEstado")?.value || "activo",
+        licenciaEstado: document.getElementById("nuevoClienteLicEstado")?.value || "activa",
+        montoMensual: Number(document.getElementById("nuevoClienteMonto")?.value || 0),
+        fechaVencimiento: document.getElementById("nuevoClienteVence")?.value || null,
+        graciaDias: Number(document.getElementById("nuevoClienteGracia")?.value || 15),
+        notas: document.getElementById("nuevoClienteNotas")?.value.trim() || ""
+      })
+    });
 
-  cerrarNuevoClienteAdmin();
-  await cargarAdminNexo();
+    cerrarNuevoClienteAdmin();
+    await cargarAdminNexo();
 
-  const clave = respuesta?.licencia?.license_key || respuesta?.licencia?.licenseKey || "";
-  alert(`Cliente creado. Licencia: ${clave}\\nAcceso POS inicial: admin / 1234`);
-  mostrarVistaAdmin("clientes");
+    const clave = respuesta?.licencia?.license_key || respuesta?.licencia?.licenseKey || "";
+    await alertaAdmin(`Licencia: ${clave}\nAcceso POS inicial: admin / 1234`, "Cliente creado", "exito");
+    mostrarVistaAdmin("clientes");
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo crear el cliente.", "Error", "peligro");
+  }
 }
 
 function abrirLicenciaAdmin(id) {
@@ -350,46 +412,124 @@ async function guardarLicenciaAdmin(event) {
   event.preventDefault();
   if (!negocioEditandoAdmin) return;
 
-  await apiAdmin(`/admin/api/negocios/${negocioEditandoAdmin.id}/licencia`, {
-    method: "PUT",
-    body: JSON.stringify({
-      negocioEstado: document.getElementById("licNegocioEstado").value,
-      plan: document.getElementById("licPlan").value,
-      licenciaEstado: document.getElementById("licEstado").value,
-      montoMensual: Number(document.getElementById("licMonto").value || 0),
-      fechaVencimiento: document.getElementById("licVence").value || null,
-      ultimoPagoAt: document.getElementById("licUltimoPago").value || null,
-      graciaDias: Number(document.getElementById("licGracia").value || 15),
-      notas: document.getElementById("licNotas").value.trim()
-    })
-  });
+  try {
+    await apiAdmin(`/admin/api/negocios/${negocioEditandoAdmin.id}/licencia`, {
+      method: "PUT",
+      body: JSON.stringify({
+        negocioEstado: document.getElementById("licNegocioEstado").value,
+        plan: document.getElementById("licPlan").value,
+        licenciaEstado: document.getElementById("licEstado").value,
+        montoMensual: Number(document.getElementById("licMonto").value || 0),
+        fechaVencimiento: document.getElementById("licVence").value || null,
+        ultimoPagoAt: document.getElementById("licUltimoPago").value || null,
+        graciaDias: Number(document.getElementById("licGracia").value || 15),
+        notas: document.getElementById("licNotas").value.trim()
+      })
+    });
 
-  cerrarLicenciaAdmin();
-  await cargarAdminNexo();
+    cerrarLicenciaAdmin();
+    await cargarAdminNexo();
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo guardar la licencia.", "Error", "peligro");
+  }
+}
+
+async function regenerarClaveAdmin() {
+  if (!negocioEditandoAdmin) return;
+
+  const confirmar = await confirmarAdmin(
+    "Esto invalida la clave actual -- el cliente necesitara la nueva clave para reactivar cualquier dispositivo nuevo. Los dispositivos ya activados no se ven afectados.",
+    "Regenerar clave de licencia",
+    "alerta"
+  );
+
+  if (!confirmar) return;
+
+  try {
+    const respuesta = await apiAdmin(`/admin/api/negocios/${negocioEditandoAdmin.id}/licencia/regenerar-clave`, {
+      method: "POST"
+    });
+
+    const campoClave = document.getElementById("licClave");
+    if (campoClave) campoClave.value = respuesta.licenseKey || "";
+
+    await cargarAdminNexo();
+    negocioEditandoAdmin = negociosAdmin.find(item => Number(item.id) === Number(negocioEditandoAdmin.id)) || negocioEditandoAdmin;
+
+    await alertaAdmin(`Nueva clave: ${respuesta.licenseKey}`, "Clave regenerada", "exito");
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo regenerar la clave.", "Error", "peligro");
+  }
+}
+
+async function renovarLicenciaAdmin(dias) {
+  if (!negocioEditandoAdmin) return;
+
+  const campoVence = document.getElementById("licVence");
+  const actual = campoVence?.value ? new Date(`${campoVence.value}T00:00:00`) : null;
+  const base = actual && actual.getTime() > Date.now() ? actual : new Date();
+  base.setDate(base.getDate() + Number(dias));
+  const nuevaFecha = base.toISOString().slice(0, 10);
+
+  if (campoVence) campoVence.value = nuevaFecha;
+
+  try {
+    await apiAdmin(`/admin/api/negocios/${negocioEditandoAdmin.id}/licencia`, {
+      method: "PUT",
+      body: JSON.stringify({
+        negocioEstado: document.getElementById("licNegocioEstado").value,
+        plan: document.getElementById("licPlan").value,
+        licenciaEstado: document.getElementById("licEstado").value,
+        montoMensual: Number(document.getElementById("licMonto").value || 0),
+        fechaVencimiento: nuevaFecha,
+        ultimoPagoAt: document.getElementById("licUltimoPago").value || null,
+        graciaDias: Number(document.getElementById("licGracia").value || 15),
+        notas: document.getElementById("licNotas").value.trim()
+      })
+    });
+
+    await cargarAdminNexo();
+    negocioEditandoAdmin = negociosAdmin.find(item => Number(item.id) === Number(negocioEditandoAdmin.id)) || negocioEditandoAdmin;
+    await alertaAdmin(`Licencia renovada +${dias} dias. Nueva fecha: ${nuevaFecha}`, "Licencia renovada", "exito");
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo renovar la licencia.", "Error", "peligro");
+  }
 }
 
 async function eliminarClienteAdmin(id) {
   const negocio = negociosAdmin.find(item => Number(item.id) === Number(id));
   if (!negocio) return;
 
-  const confirmar = prompt(
-    `Esto eliminara el cliente y sus datos relacionados.\\n\\nPara confirmar escribe exactamente:\\n${negocio.slug}`
+  const confirmar = await pedirTextoAdmin(
+    `Esto eliminara el cliente y sus datos relacionados.\nPara confirmar escribe exactamente:\n${negocio.slug}`,
+    "",
+    "Eliminar cliente"
   );
 
   if (confirmar === null) return;
 
-  await apiAdmin(`/admin/api/negocios/${Number(id)}`, {
-    method: "DELETE",
-    body: JSON.stringify({
-      confirmarSlug: confirmar
-    })
-  });
+  if (confirmar !== negocio.slug) {
+    await alertaAdmin("El texto no coincide con el codigo del cliente. No se elimino nada.", "Confirmacion invalida", "alerta");
+    return;
+  }
 
-  await cargarAdminNexo();
+  try {
+    await apiAdmin(`/admin/api/negocios/${Number(id)}`, {
+      method: "DELETE",
+      body: JSON.stringify({
+        confirmarSlug: confirmar
+      })
+    });
+
+    await cargarAdminNexo();
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo eliminar el cliente.", "Error", "peligro");
+  }
 }
 
 function exportarClientesAdmin() {
-  const contenido = JSON.stringify(negociosAdmin, null, 2);
+  const datos = negociosAdmin.map(({ license_key, ...resto }) => resto);
+  const contenido = JSON.stringify(datos, null, 2);
   const blob = new Blob([contenido], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

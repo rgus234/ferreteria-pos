@@ -17,7 +17,7 @@
     <nav aria-label="Panel interno">
       <button type="button" class="active" data-view="resumen">Resumen</button>
       <button type="button" data-view="clientes">Clientes y licencias</button>
-      <button type="button" data-view="ingresos">Ingresos</button>
+      <button type="button" data-view="ingresos">Ingresos y planes</button>
       <button type="button" data-view="soporte">Soporte</button>
       <button type="button" data-view="versiones">Versiones</button>
     </nav>
@@ -36,7 +36,7 @@
       </div>
       <div class="topbar-actions">
         <button type="button" onclick="abrirNuevoClienteAdmin()">Nuevo cliente</button>
-        <button type="button" onclick="cargarAdminNexo()">Actualizar datos</button>
+        <button type="button" onclick="actualizarDatosAdmin()">Actualizar datos</button>
         <button type="button" class="secondary" onclick="exportarClientesAdmin()">Exportar clientes</button>
       </div>
     </header>
@@ -61,6 +61,11 @@
         <span>Sync pendiente</span>
         <strong id="metricSync">0</strong>
         <small id="metricSyncDetalle">Eventos por subir</small>
+      </article>
+      <article class="metric-card danger">
+        <span>Cuentas fantasma</span>
+        <strong id="metricFantasmas">0</strong>
+        <small>Sin contacto ni actividad -- revisar</small>
       </article>
     </section>
 
@@ -110,6 +115,7 @@
               <option value="limitado">Limitadas</option>
               <option value="bloqueado">Bloqueadas</option>
               <option value="prueba">Prueba</option>
+              <option value="fantasma">Cuentas fantasma</option>
             </select>
           </div>
         </div>
@@ -140,6 +146,15 @@
               <p class="eyebrow">Planes</p>
               <h2>Distribucion</h2>
             </div>
+            <div class="panel-tools">
+              <select id="filtroPlanesEstadoAdmin" onchange="pintarPlanesAdmin()">
+                <option value="">Todas las licencias</option>
+                <option value="activa">Solo activas</option>
+                <option value="vencida">Solo vencidas</option>
+                <option value="suspendida">Solo suspendidas</option>
+                <option value="cancelada">Solo canceladas</option>
+              </select>
+            </div>
           </div>
           <div class="pipeline" id="planesAdmin">
             <div><span>Sin datos</span><strong>0</strong></div>
@@ -153,25 +168,11 @@
         <div class="panel-head">
           <div>
             <p class="eyebrow">Soporte</p>
-            <h2>Prioridades operativas</h2>
+            <h2>Clientes que necesitan atencion</h2>
           </div>
         </div>
-        <div class="support-list">
-          <div class="support-item high">
-            <strong>Instalacion primer cliente</strong>
-            <span>Probar activacion, impresion, sync, licencia y respaldo.</span>
-            <em>Alta</em>
-          </div>
-          <div class="support-item">
-            <strong>Catalogos de proveedor</strong>
-            <span>Validar importacion y actualizacion de stock antes de cargar datos reales.</span>
-            <em>Normal</em>
-          </div>
-          <div class="support-item">
-            <strong>Panel movil del dueno</strong>
-            <span>Seguir puliendo responsive para consulta rapida.</span>
-            <em>Normal</em>
-          </div>
+        <div class="support-list" id="soporteAtencionAdmin">
+          <div class="empty">Cargando...</div>
         </div>
       </article>
     </section>
@@ -246,6 +247,8 @@
           <select id="nuevoClienteEstado">
             <option value="activo">Activo</option>
             <option value="prueba">Prueba</option>
+            <option value="suspendido">Suspendido</option>
+            <option value="cancelado">Cancelado</option>
           </select>
         </label>
         <label>Estado licencia
@@ -253,6 +256,7 @@
             <option value="activa">Activa</option>
             <option value="vencida">Vencida</option>
             <option value="suspendida">Suspendida</option>
+            <option value="cancelada">Cancelada</option>
           </select>
         </label>
         <label>Mensualidad
@@ -317,6 +321,11 @@
         </label>
         <label>Vence
           <input id="licVence" type="date">
+          <span class="renovar-licencia-botones">
+            <button type="button" class="btn-renovar-licencia" onclick="renovarLicenciaAdmin(7)">+7 dias</button>
+            <button type="button" class="btn-renovar-licencia" onclick="renovarLicenciaAdmin(30)">+30 dias</button>
+            <button type="button" class="btn-renovar-licencia" onclick="renovarLicenciaAdmin(90)">+90 dias</button>
+          </span>
         </label>
         <label>Ultimo pago
           <input id="licUltimoPago" type="date">
@@ -325,7 +334,10 @@
           <input id="licGracia" type="number" min="0" step="1" value="15">
         </label>
         <label>Clave de licencia
-          <input id="licClave" readonly placeholder="Se genera automaticamente">
+          <span class="campo-con-boton">
+            <input id="licClave" readonly placeholder="Se genera automaticamente">
+            <button type="button" class="btn-renovar-licencia" onclick="regenerarClaveAdmin()">Regenerar</button>
+          </span>
         </label>
         <label class="full">Notas internas
           <textarea id="licNotas" rows="3" placeholder="Contrato, forma de pago, pendientes..."></textarea>
@@ -337,6 +349,7 @@
       </div>
     </form>
   </div>
+  <script src="./dialogo-admin.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

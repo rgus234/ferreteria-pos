@@ -10,6 +10,7 @@ const {
     normalizarSlug
 } = require("./tenant");
 const { cargarModulosPOS } = require("./server-modules");
+const { hashPassword, verificarPassword } = require("./password-utils");
 
 validarConfigProduccion();
 
@@ -237,6 +238,24 @@ app.get("/licencia/estado", async (req, res) => {
 });
 
 app.post("/api/clientes/registro", async (req, res) => {
+    if (limpiarTexto(req.body?.empresaWeb, 200)) {
+        return res.status(400).json({
+            ok: false,
+            error: "Solicitud invalida"
+        });
+    }
+
+    if (limitadorRegistroPublico.bloqueado(req.ip)) {
+        return res.status(429).json({
+            ok: false,
+            error: "Demasiadas solicitudes. Intenta de nuevo mas tarde."
+        });
+    }
+
+    // Cuenta cada intento (exito o error) contra el limite de 5/hora -- no se llama
+    // registrarExito() para este limitador, el tope aplica sin importar el resultado.
+    limitadorRegistroPublico.registrarFallo(req.ip);
+
     const client = await pool.connect();
 
     try {
@@ -316,11 +335,11 @@ app.post("/api/clientes/registro", async (req, res) => {
 
         await client.query(
             `
-            INSERT INTO public.usuarios (negocio_id, usuario, password, rol)
-            VALUES ($1, 'admin', '1234', 'Administrador')
+            INSERT INTO public.usuarios (negocio_id, usuario, password_hash, rol)
+            VALUES ($1, 'admin', $2, 'Administrador')
             ON CONFLICT DO NOTHING
             `,
-            [negocio.rows[0].id]
+            [negocio.rows[0].id, hashPassword("1234")]
         );
 
         const version = await client.query(
@@ -378,6 +397,33 @@ app.post("/api/clientes/registro", async (req, res) => {
     }
 });
 
+function crearLimitadorPorIp(maxIntentos, ventanaMs) {
+    const registro = new Map();
+
+    return {
+        bloqueado(ip) {
+            const entrada = registro.get(ip);
+            return Boolean(entrada?.bloqueadoHasta && entrada.bloqueadoHasta > Date.now());
+        },
+        registrarFallo(ip) {
+            const entrada = registro.get(ip) || { fallos: 0, bloqueadoHasta: 0 };
+            entrada.fallos += 1;
+
+            if (entrada.fallos >= maxIntentos) {
+                entrada.bloqueadoHasta = Date.now() + ventanaMs;
+            }
+
+            registro.set(ip, entrada);
+        },
+        registrarExito(ip) {
+            registro.delete(ip);
+        }
+    };
+}
+
+const limitadorAdminKey = crearLimitadorPorIp(8, 15 * 60 * 1000);
+const limitadorRegistroPublico = crearLimitadorPorIp(5, 60 * 60 * 1000);
+
 function validarAdminKey(req, res, next) {
     if (!config.adminKey) {
         return res.status(503).json({
@@ -386,16 +432,28 @@ function validarAdminKey(req, res, next) {
         });
     }
 
+    const ip = req.ip;
+
+    if (limitadorAdminKey.bloqueado(ip)) {
+        return res.status(429).json({
+            ok: false,
+            error: "Demasiados intentos fallidos. Intenta de nuevo mas tarde."
+        });
+    }
+
     const headerKey =
         req.get("x-admin-key") || "";
 
     if (headerKey !== config.adminKey) {
+        limitadorAdminKey.registrarFallo(ip);
+
         return res.status(401).json({
             ok: false,
             error: "Clave de administrador invalida"
         });
     }
 
+    limitadorAdminKey.registrarExito(ip);
     next();
 }
 
@@ -408,7 +466,12 @@ app.get("/admin/api/resumen", async (_req, res) => {
                 COUNT(*)::int AS total,
                 COUNT(*) FILTER (WHERE estado = 'activo')::int AS activos,
                 COUNT(*) FILTER (WHERE estado = 'prueba')::int AS prueba,
-                COUNT(*) FILTER (WHERE estado IN ('suspendido', 'cancelado'))::int AS suspendidos
+                COUNT(*) FILTER (WHERE estado IN ('suspendido', 'cancelado'))::int AS suspendidos,
+                COUNT(*) FILTER (
+                    WHERE telefono IS NULL AND correo IS NULL AND direccion IS NULL
+                    AND NOT EXISTS (SELECT 1 FROM public.productos p WHERE p.negocio_id = negocios.id)
+                    AND NOT EXISTS (SELECT 1 FROM public.ventas v WHERE v.negocio_id = negocios.id)
+                )::int AS fantasmas
             FROM public.negocios
         `);
 
@@ -453,6 +516,9 @@ app.get("/admin/api/negocios", async (_req, res) => {
                 n.giro,
                 n.estado AS negocio_estado,
                 n.plan AS negocio_plan,
+                n.telefono,
+                n.correo,
+                n.direccion,
                 n.created_at,
                 l.estado AS licencia_estado,
                 l.plan AS licencia_plan,
@@ -475,7 +541,20 @@ app.get("/admin/api/negocios", async (_req, res) => {
                 MAX(d.os_version) AS os_version,
                 MAX(d.arch) AS arch,
                 COALESCE(SUM(d.sync_pendientes), 0)::int AS sync_pendientes,
-                COALESCE(SUM(d.sync_errores), 0)::int AS sync_errores
+                COALESCE(SUM(d.sync_errores), 0)::int AS sync_errores,
+                (SELECT COUNT(*)::int FROM public.productos p WHERE p.negocio_id = n.id) AS productos_count,
+                (SELECT COUNT(*)::int FROM public.ventas v WHERE v.negocio_id = n.id) AS ventas_count,
+                (
+                    SELECT COUNT(*)::int
+                    FROM public.negocios n2
+                    WHERE n2.id <> n.id
+                    AND n.telefono IS NOT NULL AND n.telefono <> ''
+                    AND n2.telefono = n.telefono
+                ) AS duplicados_telefono,
+                EXISTS (
+                    SELECT 1 FROM public.tenant_auto_provision_log t
+                    WHERE t.negocio_id = n.id
+                ) AS tuvo_auto_provision
             FROM public.negocios n
             LEFT JOIN public.licencias l ON l.negocio_id = n.id
             LEFT JOIN public.dispositivos d ON d.negocio_id = n.id
@@ -485,14 +564,29 @@ app.get("/admin/api/negocios", async (_req, res) => {
 
         res.json({
             ok: true,
-            negocios: resultado.rows.map(row => ({
-                ...row,
-                licencia_modo: calcularModoLicencia({
-                    estado: row.licencia_estado,
-                    fecha_vencimiento: row.fecha_vencimiento,
-                    gracia_dias: row.gracia_dias
-                })
-            }))
+            negocios: resultado.rows.map(row => {
+                const sinDatosContacto =
+                    !row.telefono && !row.correo && !row.direccion;
+
+                const sinActividad =
+                    Number(row.productos_count) === 0 && Number(row.ventas_count) === 0;
+
+                return {
+                    ...row,
+                    licencia_modo: calcularModoLicencia({
+                        estado: row.licencia_estado,
+                        fecha_vencimiento: row.fecha_vencimiento,
+                        gracia_dias: row.gracia_dias
+                    }),
+                    anomalia_auto_provisionado: sinDatosContacto,
+                    anomalia_sin_actividad: sinActividad,
+                    anomalia_fantasma: sinDatosContacto && sinActividad,
+                    anomalia_posible_duplicado: Number(row.duplicados_telefono) > 0,
+                    dias_desde_creacion: row.created_at
+                        ? Math.max(0, Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86400000))
+                        : null
+                };
+            })
         });
     } catch (error) {
         res.status(500).json({
@@ -592,11 +686,11 @@ app.post("/admin/api/negocios", async (req, res) => {
 
         await client.query(
             `
-            INSERT INTO public.usuarios (negocio_id, usuario, password, rol)
-            VALUES ($1, 'admin', '1234', 'Administrador')
+            INSERT INTO public.usuarios (negocio_id, usuario, password_hash, rol)
+            VALUES ($1, 'admin', $2, 'Administrador')
             ON CONFLICT DO NOTHING
             `,
-            [negocio.rows[0].id]
+            [negocio.rows[0].id, hashPassword("1234")]
         );
 
         await client.query("COMMIT");
@@ -882,6 +976,55 @@ app.put("/admin/api/negocios/:id/licencia", async (req, res) => {
     }
 });
 
+app.post("/admin/api/negocios/:id/licencia/regenerar-clave", async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const negocioId = Number(req.params.id);
+
+        if (!Number.isFinite(negocioId) || negocioId <= 0) {
+            return res.status(400).json({
+                ok: false,
+                error: "Cliente invalido"
+            });
+        }
+
+        await client.query("BEGIN");
+
+        const nuevaClave = await generarLicenciaUnica(client);
+
+        const resultado = await client.query(
+            `
+            UPDATE public.licencias
+            SET license_key = $2, updated_at = NOW()
+            WHERE negocio_id = $1
+            RETURNING license_key
+            `,
+            [negocioId, nuevaClave]
+        );
+
+        if (resultado.rows.length === 0) {
+            throw new Error("El cliente no tiene una licencia registrada");
+        }
+
+        await client.query("COMMIT");
+
+        res.json({
+            ok: true,
+            licenseKey: resultado.rows[0].license_key
+        });
+    } catch (error) {
+        await client.query("ROLLBACK");
+
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    } finally {
+        client.release();
+    }
+});
+
 app.post("/dispositivos/activar", async (req, res) => {
     try {
         const licenseKey =
@@ -1136,6 +1279,15 @@ app.post("/sync/push", async (req, res) => {
             });
         }
 
+        const licenciaSync = await licenciaActual(negocio);
+        const licenciaBloqueada = ["limitado", "bloqueado"].includes(licenciaSync.modo);
+        const TIPOS_RESTRINGIDOS_LICENCIA = new Set([
+            "venta_creada",
+            "credito_cargo_creado",
+            "producto_creado",
+            "producto_actualizado"
+        ]);
+
         const aceptados = [];
         const duplicados = [];
         const errores = [];
@@ -1155,6 +1307,14 @@ app.post("/sync/push", async (req, res) => {
                 errores.push({
                     eventId,
                     error: "eventId y tipo son requeridos"
+                });
+                continue;
+            }
+
+            if (licenciaBloqueada && TIPOS_RESTRINGIDOS_LICENCIA.has(tipo)) {
+                errores.push({
+                    eventId,
+                    error: `Licencia en modo ${licenciaSync.modo}: operacion no permitida.`
                 });
                 continue;
             }
@@ -1459,6 +1619,22 @@ async function licenciaActual(negocio) {
         licenseKey: licencia.license_key,
         modo: calcularModoLicencia(licencia)
     };
+}
+
+async function exigirLicenciaActiva(res, negocio, operacion) {
+    const licencia = await licenciaActual(negocio);
+
+    if (["limitado", "bloqueado"].includes(licencia.modo)) {
+        res.status(402).json({
+            ok: false,
+            error: `No se puede continuar con ${operacion} porque la licencia esta en modo ${licencia.modo}.`,
+            licenciaModo: licencia.modo
+        });
+
+        return null;
+    }
+
+    return licencia;
 }
 
 async function asegurarColumnasHistorialVentas(client = pool) {
@@ -2427,6 +2603,8 @@ app.post("/agregar-producto", async (req, res) => {
     try {
         const negocio = await negocioActual(req);
 
+        if (!(await exigirLicenciaActiva(res, negocio, "agregar un producto"))) return;
+
         const resultado = await pool.query(
 `
 INSERT INTO public.productos
@@ -2558,6 +2736,8 @@ app.put("/editar-producto/:id", async (req, res) => {
 
     try {
         const negocio = await negocioActual(req);
+
+        if (!(await exigirLicenciaActiva(res, negocio, "guardar productos"))) return;
 
         const resultado = await pool.query(
             `
@@ -2895,15 +3075,35 @@ app.post("/login", async (req, res) => {
             SELECT *
             FROM public.usuarios
             WHERE usuario = $1
-            AND password = $2
-            AND negocio_id = $3
+            AND negocio_id = $2
             `,
-            [usuario, password, negocio.id]
+            [usuario, negocio.id]
         );
 
+        const fila =
+        resultado.rows[0];
+
+        let exito = false;
+
+        if (fila) {
+            if (fila.password_hash) {
+                exito = verificarPassword(password, fila.password_hash);
+            } else if (fila.password && String(password) === fila.password) {
+                exito = true;
+
+                await pool.query(
+                    `
+                    UPDATE public.usuarios
+                    SET password_hash = $1
+                    WHERE id = $2
+                    `,
+                    [hashPassword(password), fila.id]
+                );
+            }
+        }
+
         res.json({
-            success:
-            resultado.rows.length > 0
+            success: exito
         });
 
     } catch (error) {
@@ -2938,10 +3138,21 @@ app.post("/ventas", async (req, res) => {
     const pagoTransferencia = Number(pagosVenta.transferencia || 0);
     const pagoCredito = Number(pagosVenta.credito || 0);
 
+    let negocioVenta;
+
+    try {
+        negocioVenta = await negocioActual(req);
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+        return;
+    }
+
+    if (!(await exigirLicenciaActiva(res, negocioVenta, "una venta"))) return;
+
     const client = await pool.connect();
 
     try {
-        const negocio = await negocioActual(req);
+        const negocio = negocioVenta;
 
         await asegurarColumnasHistorialVentas(client);
         await client.query("BEGIN");
@@ -3770,6 +3981,9 @@ app.post("/creditos/clientes/:id/cargos", async (req, res) => {
 
     try {
         const negocio = await negocioActual(req);
+
+        if (!(await exigirLicenciaActiva(res, negocio, "un cargo a credito"))) return;
+
         await asegurarColumnasMovimientosCredito();
         const resultado = await pool.query(`
             INSERT INTO public.movimientos_credito
@@ -4412,8 +4626,8 @@ async function inicializarCreditos() {
 
     await pool.query(
         `
-        INSERT INTO public.usuarios (negocio_id, usuario, password, rol)
-        SELECT id, 'admin', '1234', 'Administrador'
+        INSERT INTO public.usuarios (negocio_id, usuario, password_hash, rol)
+        SELECT id, 'admin', $2, 'Administrador'
         FROM public.negocios
         WHERE slug = $1
         AND NOT EXISTS (
@@ -4423,7 +4637,7 @@ async function inicializarCreditos() {
             AND usuario = 'admin'
         )
         `,
-        [DEFAULT_NEGOCIO_SLUG]
+        [DEFAULT_NEGOCIO_SLUG, hashPassword("1234")]
     );
 
     await pool.query(
@@ -4713,8 +4927,34 @@ cargarModulosPOS({
     normalizarCodigo,
 });
 
+async function migrarPasswordsUsuariosPlano() {
+    const pendientes = await pool.query(
+        `
+        SELECT id, password
+        FROM public.usuarios
+        WHERE password_hash IS NULL
+        AND password IS NOT NULL
+        `
+    );
+
+    for (const fila of pendientes.rows) {
+        await pool.query(
+            `
+            UPDATE public.usuarios
+            SET password_hash = $1
+            WHERE id = $2
+            `,
+            [hashPassword(fila.password), fila.id]
+        );
+    }
+
+    if (pendientes.rows.length > 0) {
+        console.log(`Migradas ${pendientes.rows.length} contrasenas a hash`);
+    }
+}
 
 inicializarCreditos()
+    .then(() => migrarPasswordsUsuariosPlano())
     .then(() => {
         app.listen(PORT, () => {
             console.log(

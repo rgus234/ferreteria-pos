@@ -193,6 +193,7 @@
         <p>Agenda una demostracion, resuelve dudas y revisa que plan conviene para tu negocio.</p>
       </div>
       <form class="lead-form" id="registroClienteForm">
+        <input type="text" id="registroEmpresaWeb" name="empresaWeb" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
         <label>Nombre del negocio<input id="registroNegocio" type="text" placeholder="Ej. Ferreteria Olimpico" required></label>
         <label>Telefono<input id="registroTelefono" type="tel" placeholder="Ej. 498 123 4567" required></label>
         <label>Ciudad<input id="registroCiudad" type="text" placeholder="Ej. Rio Grande, Zac."></label>
@@ -243,6 +244,7 @@
             telefono: document.getElementById("registroTelefono").value,
             ciudad: document.getElementById("registroCiudad").value,
             nombreContacto: document.getElementById("registroContacto").value,
+            empresaWeb: document.getElementById("registroEmpresaWeb").value,
             giro: "ferreteria",
             plan: "demo"
           })
