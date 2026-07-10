@@ -375,9 +375,184 @@ function aplicarPreferenciaTema() {
  actualizarBotonModo();
 }
 
-function inicializarConfiguracionInicial() {
- const configuracion =
+function guardarConfiguracionNegocioDesdeServidor(negocio) {
+ const configuracionReconstruida = {
+ negocioSlug: negocio.slug,
+ nombre: negocio.nombre,
+ slogan: "",
+ telefono: negocio.telefono || "",
+ direccion: negocio.direccion || "",
+ color: "#0d6efd",
+ logo: null,
+ adminNombre: "",
+ fechaConfiguracion: new Date().toISOString()
+ };
+
+ localStorage.setItem(
+ CONFIG_NEGOCIO_KEY,
+ JSON.stringify(configuracionReconstruida)
+ );
+
+ guardarNegocioActivo(negocio.slug);
+
+ return configuracionReconstruida;
+}
+
+async function intentarReconexionAutomaticaNegocio() {
+ try {
+ if (!window.nexoDesktop || typeof window.nexoDesktop.getConfig !== "function") return false;
+
+ const configDesktop =
+ await window.nexoDesktop.getConfig();
+
+ if (!configDesktop?.activatedAt) return false;
+
+ const respuesta =
+ await fetch("/negocio-actual");
+
+ if (!respuesta.ok) return false;
+
+ const datos =
+ await respuesta.json();
+
+ const negocio =
+ datos?.negocio;
+
+ if (!datos?.ok || !negocio?.nombre || !negocio?.slug) return false;
+
+ guardarConfiguracionNegocioDesdeServidor(negocio);
+
+ return true;
+ } catch (error) {
+ console.warn("No se pudo reconectar automaticamente con el negocio activado", error);
+ return false;
+ }
+}
+
+async function abrirBuscarNegocioSetup() {
+ let modal =
+ document.getElementById("modalBuscarNegocioSetup");
+
+ if (!modal) {
+ modal = document.createElement("div");
+ modal.id = "modalBuscarNegocioSetup";
+ modal.className = "modal-personalizado modal-buscar-negocio";
+ document.body.appendChild(modal);
+ }
+
+ modal.innerHTML = `
+ <div class="modal-card buscar-negocio-card">
+ <div class="modal-card-header">
+ <div>
+ <span>Reconectar</span>
+ <h3>Busca tu negocio</h3>
+ </div>
+ <button type="button" onclick="cerrarBuscarNegocioSetup()">Cerrar</button>
+ </div>
+ <p class="buscar-negocio-ayuda">Escribe el nombre o telefono de tu negocio para reconectarte a tu cuenta existente en vez de crear una nueva.</p>
+ <input type="text" id="buscarNegocioSetupInput" placeholder="Nombre o telefono del negocio..." oninput="buscarNegocioSetup(this.value)">
+ <div id="resultadosBuscarNegocioSetup" class="buscar-negocio-resultados"></div>
+ </div>
+ `;
+
+ modal.style.display = "flex";
+
+ setTimeout(() => document.getElementById("buscarNegocioSetupInput")?.focus(), 50);
+}
+
+function cerrarBuscarNegocioSetup() {
+ const modal =
+ document.getElementById("modalBuscarNegocioSetup");
+
+ if (modal) modal.style.display = "none";
+}
+
+let temporizadorBusquedaNegocioSetup = null;
+
+function buscarNegocioSetup(texto) {
+ clearTimeout(temporizadorBusquedaNegocioSetup);
+
+ const contenedor =
+ document.getElementById("resultadosBuscarNegocioSetup");
+
+ if (!contenedor) return;
+
+ const limpio =
+ String(texto || "").trim();
+
+ if (limpio.length < 3) {
+ contenedor.innerHTML =
+ limpio ? `<div class="buscar-negocio-vacio">Escribe al menos 3 letras.</div>` : "";
+ return;
+ }
+
+ contenedor.innerHTML =
+ `<div class="buscar-negocio-vacio">Buscando...</div>`;
+
+ temporizadorBusquedaNegocioSetup = setTimeout(async () => {
+ try {
+ const respuesta =
+ await fetch(`/negocios/buscar?q=${encodeURIComponent(limpio)}`);
+
+ const datos =
+ await respuesta.json();
+
+ const negocios =
+ datos?.negocios || [];
+
+ if (!negocios.length) {
+ contenedor.innerHTML =
+ `<div class="buscar-negocio-vacio">Sin resultados para "${escaparPOS(limpio)}".</div>`;
+ return;
+ }
+
+ contenedor.innerHTML =
+ negocios.map(n => `
+ <button type="button" class="buscar-negocio-resultado" onclick="seleccionarNegocioEncontradoSetup('${encodeURIComponent(n.slug)}')">
+ ${escaparPOS(n.nombre)}
+ </button>
+ `).join("");
+ } catch (error) {
+ contenedor.innerHTML =
+ `<div class="buscar-negocio-vacio">No se pudo buscar. Revisa tu conexion.</div>`;
+ }
+ }, 300);
+}
+
+async function seleccionarNegocioEncontradoSetup(slugCodificado) {
+ const slug =
+ decodeURIComponent(slugCodificado);
+
+ guardarNegocioActivo(slug);
+
+ const respuesta =
+ await fetch("/negocio-actual");
+
+ const datos =
+ await respuesta.json().catch(() => null);
+
+ const negocio =
+ datos?.negocio;
+
+ if (!datos?.ok || !negocio) {
+ await alertaPOS("No se pudo conectar con ese negocio. Intenta de nuevo.", "Reconectar", "peligro");
+ return;
+ }
+
+ guardarConfiguracionNegocioDesdeServidor(negocio);
+
+ cerrarBuscarNegocioSetup();
+
+ await inicializarConfiguracionInicial();
+}
+
+async function inicializarConfiguracionInicial() {
+ let configuracion =
  configuracionNegocio();
+
+ if (!configuracion && await intentarReconexionAutomaticaNegocio()) {
+ configuracion = configuracionNegocio();
+ }
 
  if (!configuracion) {
  document.getElementById("configuracionInicial").style.display =

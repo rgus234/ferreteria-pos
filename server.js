@@ -170,6 +170,39 @@ app.get("/negocio-actual", async (req, res) => {
     }
 });
 
+app.get("/negocios/buscar", async (req, res) => {
+    const texto = String(req.query.q || "").trim();
+
+    if (texto.length < 3) {
+        res.json({ ok: true, negocios: [] });
+        return;
+    }
+
+    try {
+        const resultado = await pool.query(
+            `
+            SELECT slug, nombre
+            FROM public.negocios
+            WHERE nombre ILIKE $1
+            OR telefono ILIKE $1
+            ORDER BY nombre ASC
+            LIMIT 8
+            `,
+            [`%${texto}%`]
+        );
+
+        res.json({
+            ok: true,
+            negocios: resultado.rows
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
 app.get("/licencia/estado", async (req, res) => {
     try {
         const negocio = await negocioActual(req);

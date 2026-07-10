@@ -1689,3 +1689,32 @@ Validacion:
 - Modo oscuro del modal confirmado visualmente (fondo oscuro, texto claro, tarjetas legibles).
 - Se confirmo que Inventario, Creditos, Clientes y Caja siguen sin cambios.
 - No se hizo commit ni push -- pendiente de confirmacion explicita del usuario.
+
+### Reconexion automatica de negocio (arreglo de un incidente real en tienda)
+
+El cliente reporto que su computadora "se reinicio" y le pidio configurar el negocio desde cero, y que al terminar el asistente vio todo en ceros (0 productos, 0 ventas) -- con capturas de pantalla mostrando el asistente "Datos del negocio" y despues un dashboard vacio con "Bienvenido, Enrique".
+
+**Diagnostico (con la base de datos real, solo lectura primero).** Se encontraron 3 negocios en la tabla `negocios`: el real (`ferreteria-olimpico`, creado el 27 de junio, con todo el inventario y ventas reales intactas) y **dos negocios vacios "fantasma"** creados por el mismo bug en dos fechas distintas: `fereeteria-olimpico` (con un error de dedo, 7 de julio) y `ej-ferreteria-olimpico` (creado exactamente a la hora del reporte de hoy -- literalmente el texto de ejemplo "Ej. ferreteria olimpico" que aparece en gris dentro del formulario, no algo que el cliente haya escrito a proposito). Se confirmo que el dispositivo de escritorio del cliente (tabla `dispositivos`) **nunca perdio su activacion real** -- sigue registrado correctamente contra el negocio real, con un checkin reciente.
+
+**Causa raiz.** La app de escritorio guarda dos cosas por separado: (1) su activacion real (que licencia, que negocio), en un archivo de configuracion propio del proceso principal de Electron (`apps/desktop/main.js`, `readConfig()`/`writeConfig()`), que nunca se perdio; y (2) una "tarjeta de presentacion" del negocio (nombre, logo, telefono -- `configuracionNegocioPOS` en `localStorage`) que usa la parte web de la app, mas fragil, que aparentemente si se borro (la causa exacta -- actualizacion automatica, algo de Windows, etc. -- no se pudo confirmar sin acceso a la maquina del cliente). `inicializarConfiguracionInicial()` (`config-auth.js`) solo revisaba la tarjeta #2 (`configuracionNegocio()`) para decidir si mostrar el asistente de "negocio nuevo" -- **sin revisar nunca si la activacion #1 seguia intacta**, ni ofrecer una forma de reconectarse a una cuenta existente. Si quien llenaba el asistente no escribia el nombre exacto original, se creaba un negocio nuevo completamente separado y vacio.
+
+**Arreglo: reconexion automatica silenciosa + busqueda como respaldo.** Se agrego `intentarReconexionAutomaticaNegocio()` (`config-auth.js`), llamada por `inicializarConfiguracionInicial()` (ahora `async`) antes de mostrar el asistente: si la app corre dentro de la app de escritorio (`window.nexoDesktop` existe) y su configuracion real (`window.nexoDesktop.getConfig()`, la fuente #1, nunca perdida) tiene `activatedAt`, se pide `GET /negocio-actual` (ruta ya existente, resuelve el tenant por el slug que ya llega correcto en la URL `?negocio=` que la app de escritorio siempre manda) y se reconstruye la tarjeta de presentacion local a partir de la respuesta real del servidor -- sin pedirle nada a nadie, el asistente nunca aparece. Solo si de verdad no hay activacion previa (instalacion genuinamente nueva) se muestra el asistente, igual que antes.
+
+Como respaldo adicional (para el caso raro en que ni siquiera esto aplique, ej. usando el navegador normal en vez de la app de escritorio), se agrego un enlace "¿Ya tienes una cuenta? Busca tu negocio" en el asistente, que abre un buscador (`abrirBuscarNegocioSetup()`) contra una ruta nueva y publica `GET /negocios/buscar?q=texto` (busca por nombre o telefono, minimo 3 caracteres, maximo 8 resultados, solo regresa `{slug, nombre}` -- nunca claves de licencia ni otros datos sensibles) en vez de pedir el codigo tecnico del negocio (dificil de recordar). Seleccionar un resultado reconecta igual que el paso automatico y deja al usuario en la pantalla de login normal -- **no inicia sesion solo**, todavia necesita su usuario/PIN real para entrar, asi que buscar por nombre no es un hueco de seguridad por si mismo.
+
+**Limpieza.** Se borraron los 2 negocios fantasma vacios (confirmando primero que tenian 0 productos y 0 ventas) usando la ruta real de administrador (`DELETE /admin/api/negocios/:id`) contra produccion.
+
+**Hallazgo aparte, no resuelto todavia:** la lista de usuarios que pueden iniciar sesion en el POS (`usuariosSistema()`, nombres y PINs de los cajeros) tambien vive **solo** en `localStorage`, sin respaldo en el servidor -- si el mismo tipo de perdida de almacenamiento vuelve a pasar, los PINs del personal tambien se perderian (se regresaria al admin/cajero de plantilla por defecto). Esto quedo fuera del alcance de este arreglo puntual; se le informo al usuario como un riesgo relacionado pendiente de decidir si se ataca despues.
+
+Validacion:
+
+- `node --check` correcto en `config-auth.js`, `app-bootstrap.js` y `server.js`.
+- Ruta `GET /negocios/buscar` probada directo contra el servidor real: `q=fe` (2 letras) regresa vacio, `q=olimpico` encuentra exactamente el negocio real devolviendo solo `slug`/`nombre`, `q=` vacio regresa vacio.
+- Caso sin config local + sin contexto de escritorio: confirmado que el asistente se sigue mostrando normal (sin cambios de comportamiento para una instalacion nueva de verdad).
+- Caso sin config local + `window.nexoDesktop` simulado con `activatedAt` real: confirmado que el asistente **nunca aparece**, la app reconstruye la tarjeta del negocio real desde el servidor y muestra directo la pantalla de login con el nombre/logo correctos -- exactamente el escenario del incidente real, ahora resuelto solo.
+- Caso sin config local + `window.nexoDesktop` simulado sin activar (`activatedAt: null`): confirmado que el asistente se muestra normal (no se salta por error una instalacion realmente nueva).
+- Buscador de respaldo probado de principio a fin: buscar "Olimpico" encuentra el negocio real, seleccionarlo reconecta y deja al usuario en login (no logueado automaticamente).
+- Se encontro y corrigio de paso un bug de estilo ya conocido en la sesion (un boton nuevo se via forzado a azul solido y ancho completo por una regla global de `button{}` con `!important`) en los 3 botones nuevos de esta pantalla.
+- Modo oscuro del buscador de respaldo confirmado visualmente.
+- Se borraron los 2 negocios de prueba/fantasma de produccion tras confirmar que estaban vacios.
+- No se hizo commit ni push -- pendiente de confirmacion explicita del usuario.

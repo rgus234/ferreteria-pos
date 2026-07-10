@@ -95,6 +95,145 @@
   color: #0d6efd;
 }
 
+.setup-reconectar-link {
+  display: inline-flex !important;
+  width: auto !important;
+  margin-top: 24px;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: rgba(255, 255, 255, .82) !important;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.setup-reconectar-link:hover {
+  color: #fff !important;
+}
+
+.modal-buscar-negocio {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, .38);
+  backdrop-filter: blur(10px);
+}
+
+.modal-buscar-negocio .buscar-negocio-card {
+  width: min(480px, 94vw);
+  border-radius: 20px;
+  padding: 20px;
+  background: var(--surface, #fff);
+  color: var(--text-main, #101828);
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .10));
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .24);
+}
+
+.modal-buscar-negocio .modal-card-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.modal-buscar-negocio .modal-card-header span {
+  display: block;
+  color: var(--brand-color, #0d6efd);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.modal-buscar-negocio .modal-card-header h3 {
+  margin: 2px 0 0;
+  font-size: 20px;
+}
+
+.modal-buscar-negocio .modal-card-header button {
+  width: auto !important;
+  min-height: 32px;
+  border: 1px solid rgba(13, 110, 253, .18) !important;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: rgba(13, 110, 253, .08) !important;
+  color: var(--brand-color, #0d6efd) !important;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.buscar-negocio-ayuda {
+  margin: 0 0 12px;
+  color: var(--text-muted, #667085);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.modal-buscar-negocio input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .10));
+  background: var(--surface-soft, rgba(15, 23, 42, .04));
+  color: var(--text-main, #101828);
+  font-size: 14px;
+}
+
+.buscar-negocio-resultados {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.buscar-negocio-resultado {
+  width: 100% !important;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .10)) !important;
+  background: var(--surface-soft, rgba(15, 23, 42, .04)) !important;
+  color: var(--text-main, #101828) !important;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.buscar-negocio-resultado:hover {
+  border-color: rgba(13, 110, 253, .34) !important;
+  background: rgba(13, 110, 253, .08) !important;
+}
+
+.buscar-negocio-vacio {
+  padding: 12px;
+  border: 1px dashed var(--line-soft, rgba(15, 23, 42, .16));
+  border-radius: 10px;
+  color: var(--text-muted, #667085);
+  font-size: 13px;
+  text-align: center;
+}
+
+body.oscuro .modal-buscar-negocio .buscar-negocio-card,
+body.oscuro .modal-buscar-negocio input,
+body.oscuro .buscar-negocio-resultado {
+  background: rgba(15, 23, 42, .92);
+  border-color: rgba(226, 232, 240, .16);
+  color: #f8fafc;
+}
+
+body.oscuro .buscar-negocio-ayuda,
+body.oscuro .buscar-negocio-vacio {
+  color: #cbd5e1;
+}
+
 .setup-card {
   width: 100%;
   min-height: 540px;

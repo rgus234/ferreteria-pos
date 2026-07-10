@@ -1,6 +1,6 @@
 async function iniciarSesion() {
  if (!configuracionNegocio()) {
- inicializarConfiguracionInicial();
+ await inicializarConfiguracionInicial();
  return;
  }
 
@@ -242,7 +242,7 @@ window.onload =
 
  aplicarPreferenciaTema();
 
- if (inicializarConfiguracionInicial()) {
+ if (await inicializarConfiguracionInicial()) {
  inicializarLoginUsuarios();
  await intentarRestaurarSesion();
  }
