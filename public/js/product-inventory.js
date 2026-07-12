@@ -5,6 +5,27 @@ function normalizarCodigo(codigo) {
  .trim();
 }
 
+// Compara texto de busqueda contra un producto incluyendo sus codigos
+// alternos (codigo interno, clave de proveedor, etc. guardados en
+// codigos_relacionados) -- antes las busquedas solo revisaban el codigo
+// principal, asi que un producto sin codigo de barras real (ej. Gafi,
+// que solo trae clave interna) nunca aparecia buscando por esa clave.
+function productoCoincideConTexto(producto, texto) {
+ if (!texto) return true;
+
+ if (String(producto.nombre || "").toLowerCase().includes(texto)) return true;
+ if (String(producto.codigo || "").toLowerCase().includes(texto)) return true;
+ if (String(producto.categoria || "").toLowerCase().includes(texto)) return true;
+
+ if (Array.isArray(producto.codigos_relacionados)) {
+ return producto.codigos_relacionados.some(item =>
+ String(item?.codigo || "").toLowerCase().includes(texto)
+ );
+ }
+
+ return false;
+}
+
 function limpiarTextoCatalogo(valor) {
  return String(valor || "")
  .replace(/^=+/, "")
@@ -2772,11 +2793,9 @@ function productosInventarioFiltrados() {
  return todosProductos.filter(producto => {
  if (texto) {
   const coincide =
-  String(producto.codigo || "").toLowerCase().includes(texto) ||
-  String(producto.nombre || "").toLowerCase().includes(texto) ||
+  productoCoincideConTexto(producto, texto) ||
   String(producto.precio || "").toLowerCase().includes(texto) ||
-  String(producto.proveedor || "").toLowerCase().includes(texto) ||
-  String(producto.categoria || "").toLowerCase().includes(texto);
+  String(producto.proveedor || "").toLowerCase().includes(texto);
 
   if (!coincide) return false;
  }

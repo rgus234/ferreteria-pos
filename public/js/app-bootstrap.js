@@ -207,25 +207,7 @@ function buscarProductos() {
 
  const filtrados =
  todosProductos.filter(
- producto =>
-
- producto.nombre
- .toLowerCase()
- .includes(texto)
-
- ||
-
- String(
- producto.codigo || ""
- ).includes(texto)
-
- ||
-
- String(
- producto.categoria || ""
- )
- .toLowerCase()
- .includes(texto)
+ producto => productoCoincideConTexto(producto, texto)
  );
 
  if (!texto) {
