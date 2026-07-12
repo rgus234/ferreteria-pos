@@ -444,26 +444,37 @@ async function importarFotosProductoLote() {
  document.getElementById("archivoFotosProducto");
 
  const archivos =
- input?.files;
+ input?.files ? [...input.files] : [];
 
  const resultado =
  document.getElementById("resultadoImportarFotos");
 
- if (!archivos || archivos.length === 0) {
+ if (archivos.length === 0) {
  await alertaPOS("Selecciona uno o varios archivos .zip primero.", "Sin archivos", "alerta");
  return;
  }
 
+ // Se sube un .zip por peticion (no todos juntos): un lote grande junto
+ // pesa demasiado para una sola subida y el servidor/Render lo rechaza
+ // sin avisar bien. Uno por uno tambien deja ver el avance real.
+ const totales = {
+ zipsProcesados: 0,
+ fotosGuardadas: 0,
+ errores: []
+ };
+
+ for (let i = 0; i < archivos.length; i++) {
+ const archivo =
+ archivos[i];
+
  if (resultado) {
- resultado.textContent = "Subiendo e importando, esto puede tardar un momento...";
+ resultado.textContent = `Subiendo ${i + 1} de ${archivos.length}: ${archivo.name}...`;
  }
 
  const formData =
  new FormData();
 
- for (const archivo of archivos) {
  formData.append("zips", archivo);
- }
 
  try {
  const respuesta =
@@ -472,17 +483,38 @@ async function importarFotosProductoLote() {
  body: formData
  });
 
+ const contentType =
+ respuesta.headers.get("content-type") || "";
+
+ if (!contentType.includes("application/json")) {
+ throw new Error(`Respuesta invalida del servidor (status ${respuesta.status}). El archivo puede ser demasiado pesado.`);
+ }
+
  const datos =
  await respuesta.json();
 
  if (!datos.ok) {
- throw new Error(datos.error || "No se pudo importar el lote");
+ throw new Error(datos.error || "No se pudo importar este archivo");
+ }
+
+ totales.zipsProcesados += datos.zipsProcesados;
+ totales.fotosGuardadas += datos.fotosGuardadas;
+ totales.errores.push(...datos.errores);
+ } catch (error) {
+ totales.errores.push(`${archivo.name}: ${error.message || "No se pudo importar"}`);
  }
 
  if (resultado) {
  resultado.innerHTML = `
- <strong>${datos.fotosGuardadas} foto(s) guardada(s)</strong> de ${datos.zipsProcesados} archivo(s) procesado(s).
- ${datos.errores.length ? `<br><small>${escaparPOS(datos.errores.join(" | "))}</small>` : ""}
+ <strong>${totales.fotosGuardadas} foto(s) guardada(s)</strong> de ${totales.zipsProcesados} de ${archivos.length} archivo(s) procesados hasta ahora...
+ `;
+ }
+ }
+
+ if (resultado) {
+ resultado.innerHTML = `
+ <strong>${totales.fotosGuardadas} foto(s) guardada(s)</strong> de ${totales.zipsProcesados} de ${archivos.length} archivo(s) procesados.
+ ${totales.errores.length ? `<br><small>${escaparPOS(totales.errores.join(" | "))}</small>` : ""}
  `;
  }
 
@@ -490,11 +522,6 @@ async function importarFotosProductoLote() {
 
  if (typeof cargarProductos === "function") await cargarProductos();
  if (typeof cargarTablaInventario === "function") cargarTablaInventario();
- } catch (error) {
- if (resultado) resultado.textContent = "";
-
- await alertaPOS(error.message || "No se pudo importar el lote de fotos.", "Error al importar", "alerta");
- }
 }
 
 function abrirCargaCatalogo(modo = "nuevo") {

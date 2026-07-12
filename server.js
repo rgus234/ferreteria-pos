@@ -1618,8 +1618,26 @@ async function comprimirImagen(buffer, anchoMax = 320) {
 
 const uploadZipsFotosProducto = multer({
     dest: os.tmpdir(),
-    limits: { fileSize: 25 * 1024 * 1024, files: 30 }
+    limits: { fileSize: 60 * 1024 * 1024, files: 30 }
 });
+
+// Envuelve multer a mano (en vez de pasarlo directo como middleware) para
+// que cualquier error de subida (archivo muy pesado, multipart mal formado,
+// etc.) siempre regrese JSON -- si no, Express cae a su pagina de error en
+// HTML y el navegador truena con "Unexpected token '<'" al parsearla como
+// JSON.
+function manejarSubidaFotosProducto(req, res, next) {
+    uploadZipsFotosProducto.array("zips", 30)(req, res, error => {
+        if (error) {
+            res.status(400).json({
+                ok: false,
+                error: error.message || "No se pudo procesar el archivo subido"
+            });
+            return;
+        }
+        next();
+    });
+}
 
 async function procesarZipFotosProducto(rutaZip, negocioId) {
     const resumen = { fotosGuardadas: 0, errores: [] };
@@ -2780,7 +2798,7 @@ app.get("/productos", async (req, res) => {
     }
 });
 
-app.post("/fotos-producto/importar-lote", uploadZipsFotosProducto.array("zips", 30), async (req, res) => {
+app.post("/fotos-producto/importar-lote", manejarSubidaFotosProducto, async (req, res) => {
     const archivos = req.files || [];
 
     try {
