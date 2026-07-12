@@ -604,6 +604,15 @@ function pasoUnidad(unidad) {
  return esUnidadDecimal(unidad) ? 0.1 : 1;
 }
 
+function piezasSueltasInfoCelda(producto) {
+ if (!producto?.permite_venta_pieza) return "";
+
+ const piezas =
+ Number(producto.piezas_sueltas_stock || 0);
+
+ return `<br><small class="pieza-stock-info">+ ${piezas} piezas sueltas</small>`;
+}
+
 function formatearCantidad(cantidad, unidad = "pieza") {
  const numero =
  Number(cantidad || 0);
@@ -1152,6 +1161,9 @@ function asegurarEtiquetasFichaProducto() {
  unidadVenta: "Unidad base de venta",
  presentacionCompra: "Presentacion de compra",
  factorConversion: "Equivalencia de compra",
+ permiteVentaPieza: "Tambien se vende por pieza suelta",
+ piezasPorBolsa: "Piezas por bolsa/caja",
+ precioPieza: "Precio por pieza suelta",
  precioDistribuidor: "Precio proveedor / costo",
  precioMayoreo: "Precio medio mayoreo",
  precioPublico: "Precio publico",
@@ -1188,6 +1200,61 @@ function asegurarEtiquetasFichaProducto() {
  wrapper.appendChild(etiqueta);
  wrapper.appendChild(campo);
  });
+}
+
+function togglePiezaCamposProducto() {
+ const checkbox =
+ document.getElementById("permiteVentaPieza");
+
+ const activo =
+ Boolean(checkbox?.checked);
+
+ ["piezasPorBolsa", "precioPieza"].forEach(id => {
+ const campo =
+ document.getElementById(id);
+
+ const wrapper =
+ campo?.closest(".campo-ficha") || campo;
+
+ if (!wrapper) return;
+
+ if (activo) {
+ wrapper.style.removeProperty("display");
+ } else {
+ wrapper.style.setProperty("display", "none", "important");
+ }
+ });
+}
+
+function mostrarPiezasSueltasStockInfo(valor) {
+ const campo =
+ document.getElementById("piezasPorBolsa");
+
+ const wrapper =
+ campo?.closest(".campo-ficha");
+
+ if (!wrapper) return;
+
+ let info =
+ document.getElementById("piezasSueltasStockInfo");
+
+ const cantidad =
+ Number(valor || 0);
+
+ if (!cantidad) {
+ info?.remove();
+ return;
+ }
+
+ if (!info) {
+ info = document.createElement("small");
+ info.id = "piezasSueltasStockInfo";
+ info.className = "pieza-stock-info";
+ wrapper.appendChild(info);
+ }
+
+ info.textContent =
+ `Piezas sueltas actuales: ${cantidad}`;
 }
 
 function cambiarTipoPrecioVenta() {
@@ -1385,6 +1452,15 @@ document.getElementById("factorConversion")?.value || "";
 const basculaDigital =
 document.getElementById("basculaDigital")?.value || "no";
 
+const permiteVentaPieza =
+document.getElementById("permiteVentaPieza")?.checked || false;
+
+const piezasPorBolsa =
+document.getElementById("piezasPorBolsa")?.value || "";
+
+const precioPieza =
+document.getElementById("precioPieza")?.value || "";
+
 const codigosRelacionadosTexto =
 document.getElementById("codigosRelacionados")?.value || "";
 
@@ -1430,6 +1506,12 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  return;
  }
 
+ if (permiteVentaPieza && (piezasPorBolsa === "" || Number(piezasPorBolsa) <= 0 || precioPieza === "" || Number(precioPieza) < 0)) {
+ await alertaPOS("Para vender por pieza suelta, escribe cuantas piezas trae cada bolsa/caja y el precio por pieza.", "Faltan datos de pieza suelta", "alerta");
+ document.getElementById("piezasPorBolsa")?.focus();
+ return;
+ }
+
  const esEdicion =
  Boolean(productoEditandoId);
 
@@ -1464,7 +1546,10 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  presentacionCompra,
  factorConversion,
  basculaDigital,
- codigosRelacionados
+ codigosRelacionados,
+ permiteVentaPieza,
+ piezasPorBolsa,
+ precioPieza
  };
 
  let respuesta;
@@ -1787,6 +1872,18 @@ function editarProducto(
 
  document.getElementById("factorConversion").value =
  producto?.factor_conversion || "";
+
+ document.getElementById("permiteVentaPieza").checked =
+ Boolean(producto?.permite_venta_pieza);
+
+ document.getElementById("piezasPorBolsa").value =
+ producto?.piezas_por_bolsa || "";
+
+ document.getElementById("precioPieza").value =
+ producto?.precio_pieza || "";
+
+ togglePiezaCamposProducto();
+ mostrarPiezasSueltasStockInfo(producto?.piezas_sueltas_stock);
 
  document.getElementById("basculaDigital").value =
  producto?.bascula_digital || "no";
@@ -2241,7 +2338,7 @@ function renderProductosCategoriaTabla() {
  </div>
  </td>
  <td>$${Number(producto.precio).toFixed(2)}</td>
- <td>${producto.stock} ${unidad}</td>
+ <td>${producto.stock} ${unidad}${piezasSueltasInfoCelda(producto)}</td>
  <td><span class="estado-inventario ${estado.clase}">${estado.texto}</span></td>
  <td class="acciones-inventario">
  <button title="Editar" onclick="editarProducto(${producto.id})">${iconoUISVG("edit")}</button>
@@ -2809,7 +2906,7 @@ function cargarTablaInventario() {
  </td>
  <td>${escaparPOS(producto.categoria || "-")}</td>
  <td>$${Number(producto.precio).toFixed(2)}</td>
- <td>${producto.stock} ${unidad}</td>
+ <td>${producto.stock} ${unidad}${piezasSueltasInfoCelda(producto)}</td>
  <td>
  <span class="estado-inventario ${estado.clase}">
  ${estado.texto}
@@ -3028,6 +3125,11 @@ function cerrarFormularioAgregar() {
  document.getElementById("tipoProductoInventario").value = "catalogo";
  document.getElementById("presentacionCompra").value = "";
  document.getElementById("factorConversion").value = "";
+ document.getElementById("permiteVentaPieza").checked = false;
+ document.getElementById("piezasPorBolsa").value = "";
+ document.getElementById("precioPieza").value = "";
+ togglePiezaCamposProducto();
+ mostrarPiezasSueltasStockInfo(0);
  document.getElementById("basculaDigital").value = "no";
  seleccionarTipoProducto("catalogo");
 
@@ -3075,6 +3177,11 @@ function buscarEnCatalogo() {
  document.getElementById("altaRotacion").value = "";
  document.getElementById("presentacionCompra").value = "";
  document.getElementById("factorConversion").value = "";
+ document.getElementById("permiteVentaPieza").checked = false;
+ document.getElementById("piezasPorBolsa").value = "";
+ document.getElementById("precioPieza").value = "";
+ togglePiezaCamposProducto();
+ mostrarPiezasSueltasStockInfo(0);
  document.getElementById("basculaDigital").value = "no";
  return;
  }

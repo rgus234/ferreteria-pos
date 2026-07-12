@@ -1,4 +1,4 @@
-function procesarCodigoBarrasPos(codigoManual) {
+async function procesarCodigoBarrasPos(codigoManual) {
  const input =
  document.getElementById("busqueda");
 
@@ -55,12 +55,30 @@ function procesarCodigoBarrasPos(codigoManual) {
  return;
  }
 
+ if (producto.permite_venta_pieza) {
+ const eleccion =
+ await pedirModoVentaPOS(producto);
+
+ if (!eleccion) {
+ input.value = "";
+ return;
+ }
+
+ agregar(
+ producto.id,
+ producto.nombre,
+ precioVentaProducto(producto),
+ producto,
+ { modoVenta: eleccion.modo, cantidadInicial: eleccion.cantidad }
+ );
+ } else {
  agregar(
  producto.id,
  producto.nombre,
  precioVentaProducto(producto),
  producto
  );
+ }
 
  input.value = "";
  buscarProductos();
@@ -130,7 +148,7 @@ function iconoProducto(nombre) {
  return `<span class="producto-mini-icon" aria-hidden="true">${icono}</span>`;
 }
 
-function agregarProductoPorId(id) {
+function agregarProductoPorId(id, opciones = {}) {
  const producto =
  todosProductos.find(p => Number(p.id) === Number(id));
 
@@ -143,7 +161,8 @@ function agregarProductoPorId(id) {
  producto.id,
  producto.nombre,
  precioVentaProducto(producto),
- producto
+ producto,
+ opciones
  );
 }
 
@@ -151,33 +170,55 @@ function agregar(
  id,
  nombre,
  precio,
- producto = {}
+ producto = {},
+ opciones = {}
 ) {
+ const modoVenta =
+ opciones.modoVenta === "pieza" ? "pieza" : "bolsa";
+
  const unidad =
- unidadProducto(producto);
+ modoVenta === "pieza" ? "pieza" : unidadProducto(producto);
 
  const existente =
- carrito.find(item => Number(item.id) === Number(id));
+ carrito.find(item =>
+ Number(item.id) === Number(id) &&
+ (item.modoVenta || "bolsa") === modoVenta
+ );
 
  if (existente) {
  existente.cantidad =
- Number(existente.cantidad || 0) + pasoUnidad(unidad);
+ modoVenta === "pieza"
+ ? Number(existente.cantidad || 0) + Math.max(1, Number(opciones.cantidadInicial) || 1)
+ : Number(existente.cantidad || 0) + pasoUnidad(unidad);
  } else {
  const precioPublico =
  Number(producto.precio_publico || producto.precio || precio || 0);
 
+ const precioLinea =
+ modoVenta === "pieza"
+ ? Number(producto.precio_pieza || precio || 0)
+ : Number(precio || 0);
+
+ const cantidadInicial =
+ modoVenta === "pieza"
+ ? Math.max(1, Number(opciones.cantidadInicial) || 1)
+ : pasoUnidad(unidad);
+
  carrito.push({
  id,
- nombre,
- precio: Number(precio || 0),
- cantidad: pasoUnidad(unidad),
+ nombre: modoVenta === "pieza" ? `${nombre} (pieza suelta)` : nombre,
+ precio: precioLinea,
+ cantidad: cantidadInicial,
  codigo: producto.codigo || "",
  codigoInterno: typeof codigoInternoDeProducto === "function" ? codigoInternoDeProducto(producto) : (producto.codigo || ""),
  unidadVenta: unidad,
+ modoVenta,
  proveedor: producto.proveedor || "",
  marca: producto.marca || "",
  categoria: producto.categoria || "",
- stockDisponible: producto.stock !== undefined && producto.stock !== null ? Number(producto.stock) : null,
+ stockDisponible: modoVenta === "pieza"
+ ? Number(producto.piezas_sueltas_stock || 0)
+ : (producto.stock !== undefined && producto.stock !== null ? Number(producto.stock) : null),
  tipoProducto: producto.tipo_producto || producto.tipoProducto || "",
  basculaDigital: producto.bascula_digital || producto.basculaDigital || "no",
  precioPublico,
@@ -185,7 +226,7 @@ function agregar(
  precioDistribuidor: Number(producto.precio_distribuidor || 0)
  });
 
- if (nivelPrecioActual && nivelPrecioActual !== "publico") {
+ if (modoVenta !== "pieza" && nivelPrecioActual && nivelPrecioActual !== "publico") {
  aplicarNivelPrecioAItem(carrito[carrito.length - 1], nivelPrecioActual);
  }
  }
@@ -1212,6 +1253,7 @@ function productosCarritoAgrupados() {
  precio,
  cantidad,
  unidadVenta: producto.unidadVenta || "pieza",
+ modoVenta: producto.modoVenta || "bolsa",
  importe: cantidad * precio
  };
  });

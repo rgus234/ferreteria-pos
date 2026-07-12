@@ -631,15 +631,56 @@ body.oscuro .modal-metodo-pago .metodo-pago-opciones button.activo {
   font-weight: 700;
 }
 
+.modal-metodo-pago .metodo-pago-transferencia {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface-soft, rgba(255, 255, 255, .56));
+  border: 1px dashed var(--line-soft, rgba(15, 23, 42, .16));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-metodo-pago .metodo-pago-transferencia-titulo {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  color: var(--text-muted, #667085);
+  margin-bottom: 2px;
+}
+
+.modal-metodo-pago .metodo-pago-transferencia div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.modal-metodo-pago .metodo-pago-transferencia div span {
+  color: var(--text-muted, #667085);
+  font-weight: 700;
+}
+
+.modal-metodo-pago .metodo-pago-transferencia div strong {
+  font-size: 14px;
+  text-align: right;
+}
+
 body.oscuro .modal-metodo-pago .metodo-pago-efectivo-campos input,
 body.oscuro .modal-metodo-pago .metodo-pago-resumen-linea,
-body.oscuro .modal-metodo-pago .metodo-pago-nota {
+body.oscuro .modal-metodo-pago .metodo-pago-nota,
+body.oscuro .modal-metodo-pago .metodo-pago-transferencia {
   background: rgba(15, 23, 42, .78) !important;
   border-color: rgba(148, 163, 184, .20) !important;
   color: #f8fafc !important;
 }
 
 body.oscuro .modal-metodo-pago .metodo-pago-resumen-linea span,
-body.oscuro .modal-metodo-pago .metodo-pago-nota {
+body.oscuro .modal-metodo-pago .metodo-pago-nota,
+body.oscuro .modal-metodo-pago .metodo-pago-transferencia-titulo,
+body.oscuro .modal-metodo-pago .metodo-pago-transferencia div span {
   color: #cbd5e1 !important;
 }

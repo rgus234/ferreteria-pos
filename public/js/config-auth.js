@@ -972,6 +972,9 @@ function valorTicketFormulario(config = configuracionNegocio() || {}) {
  slogan: valorConfigCampo("configSloganNegocio", config.slogan || "").trim(),
  telefono: valorConfigCampo("configTelefonoNegocio", config.telefono || "").trim(),
  direccion: valorConfigCampo("configDireccionNegocio", config.direccion || "").trim(),
+ transferTitular: valorConfigCampo("configTransferTitular", config.transferTitular || "").trim(),
+ transferBanco: valorConfigCampo("configTransferBanco", config.transferBanco || "").trim(),
+ transferCuenta: valorConfigCampo("configTransferCuenta", config.transferCuenta || "").trim(),
  color: valorConfigCampo("configColorNegocio", config.color || "#0d6efd"),
  logo: logoConfiguracionTemporal !== null ? logoConfiguracionTemporal : config.logo,
  moneda: valorConfigCampo("configMoneda", config.moneda || "MXN").trim() || "MXN",
@@ -1080,6 +1083,25 @@ function mostrarConfiguracion() {
  <label>
  <span>Direccion</span>
  <input id="configDireccionNegocio" value="${config.direccion || ""}" oninput="renderVistaPreviaTicket()">
+ </label>
+ </div>
+ </section>
+
+ <section class="config-panel">
+ <h3>Datos para transferencia</h3>
+ <p class="config-panel-hint">Se muestran al cajero cuando el cliente paga por transferencia, para que sepa a que cuenta pedirle el deposito.</p>
+ <div class="config-form-grid">
+ <label>
+ <span>Titular de la cuenta</span>
+ <input id="configTransferTitular" value="${config.transferTitular || ""}">
+ </label>
+ <label>
+ <span>Banco</span>
+ <input id="configTransferBanco" value="${config.transferBanco || ""}">
+ </label>
+ <label>
+ <span>CLABE o numero de cuenta</span>
+ <input id="configTransferCuenta" value="${config.transferCuenta || ""}">
  </label>
  </div>
  </section>

@@ -188,6 +188,25 @@
   font-weight: 900 !important;
  }
 
+ #modalAgregar .campo-ficha .pieza-stock-info {
+  color: var(--nexo-text-muted) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  margin-top: 2px !important;
+ }
+
+ #modalAgregar .campo-ficha:has(#permiteVentaPieza) {
+  flex-direction: row !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+ }
+
+ #modalAgregar .campo-ficha:has(#permiteVentaPieza) input {
+  width: auto !important;
+  min-height: auto !important;
+ }
+
  #modalAgregar .campo-ficha input,
  #modalAgregar .campo-ficha select {
   width: 100% !important;

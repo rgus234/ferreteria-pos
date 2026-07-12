@@ -15,11 +15,11 @@
   <link rel="stylesheet" href="css/components/auth-login.css?v=reconexion-negocio-20260710-02">
   <link rel="stylesheet" href="css/components/app-shell.css?v=pos-shell-redesign-20260702-02">
   <link rel="stylesheet" href="css/components/setup-wizard.css?v=reconexion-negocio-20260710-01">
-  <link rel="stylesheet" href="css/components/config-settings.css?v=usuarios-rol-fix-20260706-01">
+  <link rel="stylesheet" href="css/components/config-settings.css?v=venta-pieza-20260711-01">
   <link rel="stylesheet" href="css/components/customers.css?v=refactor-customers-20260701-01">
   <link rel="stylesheet" href="css/components/suppliers.css?v=proveedores-redesign-20260705-01">
   <link rel="stylesheet" href="css/components/pricing-rules.css?v=reglas-precio-20260709-06">
-  <link rel="stylesheet" href="css/components/inventory.css?v=imprimir-codigos-20260707-01">
+  <link rel="stylesheet" href="css/components/inventory.css?v=venta-pieza-20260711-01">
   <link rel="stylesheet" href="css/components/supplier-catalog.css?v=catalogo-buscador-20260709-01">
   <link rel="stylesheet" href="css/components/reports.css?v=reportes-redesign-20260704-01">
   <link rel="stylesheet" href="css/components/receiving.css?v=recepcion-minimal-20260704-01">
@@ -33,10 +33,11 @@
   <link rel="stylesheet" href="css/components/dashboard-alerts.css?v=inicio-redesign-20260706-01">
   <link rel="stylesheet" href="css/components/pos-cart.css?v=btn-credito-neutro-20260709-01">
   <link rel="stylesheet" href="css/components/pos-sale-redesign.css?v=fix-enter-cobro-20260709-02">
-  <link rel="stylesheet" href="css/components/pos-product-form.css?v=sugerencia-precio-20260709-01">
+  <link rel="stylesheet" href="css/components/pos-product-form.css?v=venta-pieza-20260711-01">
   <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-bugfix-20260705-02">
   <link rel="stylesheet" href="css/components/sale-documents.css?v=refactor-sale-documents-20260630-01">
-  <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=modal-pago-20260709-01">
+  <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=venta-pieza-20260711-01">
+  <link rel="stylesheet" href="css/components/pos-piece-sale-modal.css?v=venta-pieza-20260711-01">
   <link rel="stylesheet" href="css/components/low-stock-order.css?v=refactor-low-stock-order-20260701-01">
   <link rel="stylesheet" href="css/components/support-reminders.css?v=notif-contraste-fix-20260706-01">
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -935,6 +936,9 @@
  </select>
  <input id="presentacionCompra" type="text" placeholder="Compra: caja, rollo, saco, bulto">
  <input id="factorConversion" type="number" step="0.001" placeholder="Equivalencia: ej. caja 100 piezas">
+ <input id="permiteVentaPieza" type="checkbox" onchange="togglePiezaCamposProducto()">
+ <input id="piezasPorBolsa" type="number" step="0.01" min="0" placeholder="Piezas por bolsa/caja">
+ <input id="precioPieza" type="number" step="0.01" min="0" placeholder="Precio por pieza suelta">
  <input id="precioDistribuidor" type="number" step="0.01"
  placeholder=" Precio distribuidor" />
 
@@ -1323,15 +1327,16 @@
 
   <script src="app.js?v=fix-enter-cobro-20260709-02"></script>
   <script src="js/offline-sync.js?v=fix-mostrarproductos-20260709-01"></script>
-  <script src="js/config-auth.js?v=reconexion-negocio-20260710-02"></script>
+  <script src="js/config-auth.js?v=venta-pieza-20260711-01"></script>
   <script src="js/catalog-provider-picker.js?v=catalog-adapters-20260708-01"></script>
   <script src="js/supplier-catalog.js?v=fix-gafi-catalogo-20260709-02"></script>
   <script src="js/pricing-rules.js?v=reglas-precio-20260709-02"></script>
   <script src="js/catalog-parsers.js?v=fix-gafi-catalogo-20260709-01"></script>
-  <script src="js/product-inventory.js?v=sugerencia-precio-20260709-01"></script>
-<script src="js/pos-payment-modal.js?v=modal-pago-20260709-01"></script>
-<script src="js/pos-sales.js?v=modal-pago-20260709-01"></script>
-<script src="js/pos-search-flyout.js?v=pos-flyout-redesign-20260708-03"></script>
+  <script src="js/product-inventory.js?v=venta-pieza-20260711-01"></script>
+<script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
+<script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
+<script src="js/pos-sales.js?v=venta-pieza-20260711-01"></script>
+<script src="js/pos-search-flyout.js?v=venta-pieza-20260711-01"></script>
   <script src="js/sales-history-documents.js?v=nav-fix-20260704-01"></script>
   <script src="js/credit-customers.js?v=estado-cuenta-cajon-fix-20260707-01"></script>
   <script src="js/supplier-catalog-view.js?v=reglas-precio-20260709-03"></script>
@@ -1343,7 +1348,7 @@
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/pos-shortcuts.js?v=pos-flyout-redesign-20260708-03"></script>
   <script src="js/low-stock.js?v=lowstock-bugfix-20260705-01"></script>
-<script src="js/ferretero-flow.js?v=nav-fix-20260704-01"></script>
+<script src="js/ferretero-flow.js?v=venta-pieza-20260711-01"></script>
 
 </body>
 

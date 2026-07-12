@@ -5,6 +5,26 @@
    sin monkeypatching. Reusa las clases CSS de pos-payment-modal.css (ya existian,
    dejadas del sistema viejo). */
 
+function renderNotaTransferencia(total) {
+ const config = (typeof configuracionNegocio === "function" ? configuracionNegocio() : null) || {};
+ const titular = (config.transferTitular || "").trim();
+ const banco = (config.transferBanco || "").trim();
+ const cuenta = (config.transferCuenta || "").trim();
+
+ if (!titular && !banco && !cuenta) {
+  return `<div class="metodo-pago-nota">Se registra el total (${dinero(total)}) como pagado por transferencia. Configura los datos de tu cuenta en Configuracion &gt; Empresa para que aparezcan aqui.</div>`;
+ }
+
+ return `
+ <div class="metodo-pago-transferencia">
+  <span class="metodo-pago-transferencia-titulo">Datos para la transferencia (${dinero(total)})</span>
+  ${titular ? `<div><span>Titular</span><strong>${titular}</strong></div>` : ""}
+  ${banco ? `<div><span>Banco</span><strong>${banco}</strong></div>` : ""}
+  ${cuenta ? `<div><span>CLABE / cuenta</span><strong>${cuenta}</strong></div>` : ""}
+ </div>
+ `;
+}
+
 async function pedirMetodoPagoPOS(total, opciones = {}) {
  const metodos = ["efectivo", "tarjeta", "transferencia", "credito", "mixto"];
 
@@ -160,6 +180,7 @@ async function pedirMetodoPagoPOS(total, opciones = {}) {
  const esEfectivo = metodo === "efectivo";
  const esMixto = metodo === "mixto";
  const esCredito = metodo === "credito";
+ const esTransferencia = metodo === "transferencia";
 
  const cambioEfectivo =
  Math.max(0, num(recibidoEfectivo) - total);
@@ -222,7 +243,8 @@ async function pedirMetodoPagoPOS(total, opciones = {}) {
  ` : ""}
 
  ${esCredito ? `<div class="metodo-pago-nota">Se abrira el flujo de credito al confirmar.</div>` : ""}
- ${!esEfectivo && !esMixto && !esCredito ? `<div class="metodo-pago-nota">Se registra el total (${dinero(total)}) como pagado por ${etiquetas[metodo].toLowerCase()}.</div>` : ""}
+ ${esTransferencia ? renderNotaTransferencia(total) : ""}
+ ${!esEfectivo && !esMixto && !esCredito && !esTransferencia ? `<div class="metodo-pago-nota">Se registra el total (${dinero(total)}) como pagado por ${etiquetas[metodo].toLowerCase()}.</div>` : ""}
 
  <div class="modal-actions-row">
  <button type="button" data-accion="cancelar">Cancelar</button>

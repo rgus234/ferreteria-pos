@@ -42,8 +42,22 @@
   `;
  }
 
- function agregarDesdeFlyoutPOS(id) {
-  agregarProductoPorId(id);
+ async function agregarDesdeFlyoutPOS(id) {
+  const producto =
+  typeof todosProductos !== "undefined"
+   ? todosProductos.find(p => Number(p.id) === Number(id))
+   : null;
+
+  if (producto?.permite_venta_pieza) {
+   const eleccion =
+   await pedirModoVentaPOS(producto);
+
+   if (!eleccion) return;
+
+   agregarProductoPorId(id, { modoVenta: eleccion.modo, cantidadInicial: eleccion.cantidad });
+  } else {
+   agregarProductoPorId(id);
+  }
 
   const campo =
   document.getElementById("busqueda");

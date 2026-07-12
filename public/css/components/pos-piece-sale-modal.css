@@ -1,0 +1,149 @@
+.modal-venta-pieza {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, .38);
+  backdrop-filter: blur(10px);
+}
+
+.venta-pieza-card {
+  width: min(560px, 94vw);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, .55);
+  background: rgba(255, 255, 255, .84);
+  color: var(--pos-text, #111827);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .24);
+  padding: 18px;
+  backdrop-filter: blur(18px) saturate(135%);
+}
+
+.venta-pieza-card .modal-card-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.venta-pieza-card .modal-card-header span {
+  display: block;
+  color: var(--brand-color, #0d6efd);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.venta-pieza-card .modal-card-header h3 {
+  margin: 2px 0 0;
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.venta-pieza-cerrar {
+  min-height: 30px;
+  border: 1px solid rgba(13, 110, 253, .18);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: rgba(13, 110, 253, .08);
+  color: var(--brand-color, #0d6efd);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.venta-pieza-opciones {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.venta-pieza-opciones button {
+  min-height: 84px;
+  padding: 14px;
+  text-align: center;
+  border: 1px solid rgba(15, 23, 42, .08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .58) !important;
+  color: #1f2937 !important;
+  width: auto !important;
+  cursor: pointer;
+  font-weight: 850;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease;
+}
+
+.venta-pieza-opciones button:hover {
+  border-color: rgba(13, 110, 253, .32);
+  background: rgba(255, 255, 255, .78) !important;
+  transform: translateY(-1px);
+}
+
+.venta-pieza-opciones button strong {
+  display: block;
+  font-size: 15px;
+  color: #1f2937 !important;
+}
+
+.venta-pieza-opciones button span {
+  display: block;
+  margin-top: 4px;
+  color: #667085 !important;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.venta-pieza-cantidad-label {
+  display: block;
+  margin-bottom: 16px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.venta-pieza-cantidad-label input {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, .14);
+  background: rgba(255, 255, 255, .68);
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 800;
+  text-transform: none;
+}
+
+body.oscuro .venta-pieza-card {
+  background: rgba(15, 23, 42, .92) !important;
+  border-color: rgba(148, 163, 184, .2) !important;
+  color: #f8fafc !important;
+}
+
+body.oscuro .venta-pieza-opciones button {
+  background: rgba(15, 23, 42, .78) !important;
+  border-color: rgba(148, 163, 184, .2) !important;
+  color: #f8fafc !important;
+}
+
+body.oscuro .venta-pieza-opciones button strong {
+  color: #f8fafc !important;
+}
+
+body.oscuro .venta-pieza-opciones button span {
+  color: #cbd5e1 !important;
+}
+
+body.oscuro .venta-pieza-cantidad-label {
+  color: #cbd5e1 !important;
+}
+
+body.oscuro .venta-pieza-cantidad-label input {
+  background: rgba(15, 23, 42, .78) !important;
+  border-color: rgba(148, 163, 184, .2) !important;
+  color: #f8fafc !important;
+}

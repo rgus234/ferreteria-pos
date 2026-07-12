@@ -955,6 +955,18 @@ body.oscuro .producto-inventario-celda small{
  color:#94a3b8;
 }
 
+.pieza-stock-info{
+ display:inline-block;
+ margin-top:2px;
+ color:#667085;
+ font-size:11px;
+ font-weight:700;
+}
+
+body.oscuro .pieza-stock-info{
+ color:#94a3b8;
+}
+
 body.oscuro .producto-inventario-icono{
  background:#1f2937;
 }

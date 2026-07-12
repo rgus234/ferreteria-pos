@@ -130,7 +130,7 @@
    ["basico", "Basico", ["nuevoCodigo", "nuevoNombre", "nuevoCodigoInterno", "nuevaCategoria", "nuevaSubcategoria", "nuevaMarca"]],
    ["precios", "Precios", ["tipoPrecioVenta", "precioDistribuidor", "precioMayoreo", "nuevoPrecio", "precioPublico"]],
    ["inventario", "Inventario", ["nuevoStock", "stockMinimo", "nuevoProveedor", "nuevaUbicacion", "altaRotacion"]],
-   ["unidades", "Unidades", ["unidadVenta", "presentacionCompra", "factorConversion", "basculaDigital"]],
+   ["unidades", "Unidades", ["unidadVenta", "presentacionCompra", "factorConversion", "basculaDigital", "permiteVentaPieza", "piezasPorBolsa", "precioPieza"]],
    ["codigos", "Codigos", ["codigosRelacionados"]],
    ["avanzado", "Avanzado", ["nuevaDescripcion"]]
   ];
@@ -194,6 +194,7 @@
   }
 
   organizarFormularioProductoTabs();
+  if (typeof togglePiezaCamposProducto === "function") togglePiezaCamposProducto();
   mejorarTarjetasTipoProducto();
   actualizarAyudaTipoProducto(document.getElementById("tipoProductoInventario")?.value || "catalogo");
 

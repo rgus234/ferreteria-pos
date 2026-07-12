@@ -1951,17 +1951,20 @@ function datosProductoSync(payload = {}) {
     };
 }
 
-async function descontarInventarioPorProductos(client, negocioId, productos = []) {
-    for (const producto of productos) {
-        const productoId =
-            Number(producto.id || producto.productoId || 0);
-        const cantidad =
-            Number(producto.cantidad || 1);
+async function descontarStockVentaProducto(client, negocioId, productoVenta = {}) {
+    const productoId =
+        Number(productoVenta.id || productoVenta.productoId || 0);
+    const cantidad =
+        Number(productoVenta.cantidad || 1);
 
-        if (!productoId || !Number.isFinite(cantidad) || cantidad <= 0) {
-            continue;
-        }
+    if (!productoId || !Number.isFinite(cantidad) || cantidad <= 0) {
+        return;
+    }
 
+    const modoVenta =
+        productoVenta.modoVenta === "pieza" ? "pieza" : "bolsa";
+
+    if (modoVenta !== "pieza") {
         await client.query(
             `
             UPDATE public.productos
@@ -1971,6 +1974,60 @@ async function descontarInventarioPorProductos(client, negocioId, productos = []
             `,
             [cantidad, productoId, negocioId]
         );
+        return;
+    }
+
+    // Venta por pieza suelta: si no alcanzan las piezas sueltas en existencia,
+    // se abren bolsas cerradas automaticamente (sin interrumpir al cajero) para
+    // completar la venta, hasta donde alcancen las bolsas disponibles.
+    const actual = await client.query(
+        `
+        SELECT stock, piezas_sueltas_stock, piezas_por_bolsa
+        FROM public.productos
+        WHERE id = $1
+        AND negocio_id = $2
+        `,
+        [productoId, negocioId]
+    );
+
+    const fila = actual.rows[0];
+
+    if (!fila) return;
+
+    const piezasActuales =
+        Number(fila.piezas_sueltas_stock || 0);
+    const bolsasActuales =
+        Number(fila.stock || 0);
+    const piezasPorBolsa =
+        Number(fila.piezas_por_bolsa || 0);
+
+    let nuevasBolsas = bolsasActuales;
+    let nuevasPiezas = piezasActuales - cantidad;
+
+    if (piezasActuales < cantidad && piezasPorBolsa > 0) {
+        const faltante = cantidad - piezasActuales;
+        const bolsasNecesarias = Math.ceil(faltante / piezasPorBolsa);
+        const bolsasAAbrir = Math.min(bolsasNecesarias, Math.max(0, bolsasActuales));
+
+        nuevasBolsas = bolsasActuales - bolsasAAbrir;
+        nuevasPiezas = piezasActuales + (bolsasAAbrir * piezasPorBolsa) - cantidad;
+    }
+
+    await client.query(
+        `
+        UPDATE public.productos
+        SET stock = $1,
+            piezas_sueltas_stock = $2
+        WHERE id = $3
+        AND negocio_id = $4
+        `,
+        [nuevasBolsas, nuevasPiezas, productoId, negocioId]
+    );
+}
+
+async function descontarInventarioPorProductos(client, negocioId, productos = []) {
+    for (const producto of productos) {
+        await descontarStockVentaProducto(client, negocioId, producto);
     }
 }
 
@@ -2598,7 +2655,10 @@ app.post("/agregar-producto", async (req, res) => {
     presentacionCompra,
     factorConversion,
     basculaDigital,
-    codigosRelacionados
+    codigosRelacionados,
+    permiteVentaPieza,
+    piezasPorBolsa,
+    precioPieza
 } = req.body;
     try {
         const negocio = await negocioActual(req);
@@ -2629,9 +2689,12 @@ INSERT INTO public.productos
   tipo_producto,
   presentacion_compra,
   factor_conversion,
-  bascula_digital
+  bascula_digital,
+  permite_venta_pieza,
+  piezas_por_bolsa,
+  precio_pieza
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
 RETURNING id
 `,
 [
@@ -2655,7 +2718,10 @@ RETURNING id
   tipoProducto || "catalogo",
   presentacionCompra || "",
   factorConversion || null,
-  basculaDigital || "no"
+  basculaDigital || "no",
+  permiteVentaPieza === true || permiteVentaPieza === "true",
+  piezasPorBolsa || null,
+  precioPieza || null
 ]
 );
 
@@ -2692,7 +2758,10 @@ RETURNING id
                 presentacion_compra: presentacionCompra || "",
                 factor_conversion: factorConversion || null,
                 bascula_digital: basculaDigital || "no",
-                codigos_relacionados: codigosRelacionados || []
+                codigos_relacionados: codigosRelacionados || [],
+                permite_venta_pieza: permiteVentaPieza === true || permiteVentaPieza === "true",
+                piezas_por_bolsa: piezasPorBolsa || null,
+                precio_pieza: precioPieza || null
             }
         });
 
@@ -2731,7 +2800,10 @@ app.put("/editar-producto/:id", async (req, res) => {
         presentacionCompra,
         factorConversion,
         basculaDigital,
-        codigosRelacionados
+        codigosRelacionados,
+        permiteVentaPieza,
+        piezasPorBolsa,
+        precioPieza
     } = req.body;
 
     try {
@@ -2762,9 +2834,12 @@ app.put("/editar-producto/:id", async (req, res) => {
                 tipo_producto = $17,
                 presentacion_compra = $18,
                 factor_conversion = $19,
-                bascula_digital = $20
-            WHERE id = $21
-            AND negocio_id = $22
+                bascula_digital = $20,
+                permite_venta_pieza = $21,
+                piezas_por_bolsa = $22,
+                precio_pieza = $23
+            WHERE id = $24
+            AND negocio_id = $25
             RETURNING id
             `,
             [
@@ -2788,6 +2863,9 @@ app.put("/editar-producto/:id", async (req, res) => {
                 presentacionCompra || "",
                 factorConversion || null,
                 basculaDigital || "no",
+                permiteVentaPieza === true || permiteVentaPieza === "true",
+                piezasPorBolsa || null,
+                precioPieza || null,
                 id,
                 negocio.id
             ]
@@ -2832,7 +2910,10 @@ app.put("/editar-producto/:id", async (req, res) => {
                 presentacion_compra: presentacionCompra || "",
                 factor_conversion: factorConversion || null,
                 bascula_digital: basculaDigital || "no",
-                codigos_relacionados: codigosRelacionados || []
+                codigos_relacionados: codigosRelacionados || [],
+                permite_venta_pieza: permiteVentaPieza === true || permiteVentaPieza === "true",
+                piezas_por_bolsa: piezasPorBolsa || null,
+                precio_pieza: precioPieza || null
             }
         });
 
@@ -3203,18 +3284,7 @@ app.post("/ventas", async (req, res) => {
         );
 
         for (const producto of productos || []) {
-            const cantidad =
-                Number(producto.cantidad || 1);
-
-            await client.query(
-                `
-                UPDATE public.productos
-                SET stock = stock - $1
-                WHERE id = $2
-                AND negocio_id = $3
-                `,
-                [cantidad, producto.id, negocio.id]
-            );
+            await descontarStockVentaProducto(client, negocio.id, producto);
         }
 
         await client.query("COMMIT");
@@ -4020,22 +4090,7 @@ app.post("/creditos/clientes/:id/cargos", async (req, res) => {
 
         if (Array.isArray(productos)) {
             for (const producto of productos) {
-                const cantidad =
-                    Number(producto.cantidad || 1);
-
-                await pool.query(
-                    `
-                    UPDATE public.productos
-                    SET stock = stock - $1
-                    WHERE id = $2
-                    AND negocio_id = $3
-                    `,
-                    [
-                        cantidad,
-                        producto.id,
-                        negocio.id
-                    ]
-                );
+                await descontarStockVentaProducto(pool, negocio.id, producto);
             }
         }
 
