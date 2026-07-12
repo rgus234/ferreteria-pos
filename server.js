@@ -2798,6 +2798,28 @@ app.get("/productos", async (req, res) => {
     }
 });
 
+app.get("/fotos-producto-resumen", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+
+        const resultado = await pool.query(
+            `SELECT COUNT(*)::int AS total, MAX(actualizado_at) AS ultima_actualizacion
+             FROM public.fotos_producto WHERE negocio_id = $1`,
+            [negocio.id]
+        );
+
+        const fila = resultado.rows[0] || { total: 0, ultima_actualizacion: null };
+
+        res.json({
+            ok: true,
+            total: fila.total || 0,
+            ultimaActualizacion: fila.ultima_actualizacion
+        });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
 app.post("/fotos-producto/importar-lote", manejarSubidaFotosProducto, async (req, res) => {
     const archivos = req.files || [];
 

@@ -344,7 +344,43 @@ window.mostrarCatalogo = async function() {
  }
 
  renderCatalogosProveedor();
+ cargarResumenFotosProducto();
 };
+
+// Muestra cuantas fotos de producto hay guardadas de forma permanente
+// (no solo el resultado de la ultima importacion en esta sesion) -- antes
+// no habia ninguna confirmacion visible de que las fotos ya subidas
+// siguieran ahi al volver a esta pantalla o recargar la pagina.
+async function cargarResumenFotosProducto() {
+ const contenedor =
+ document.getElementById("resumenFotosProducto");
+
+ if (!contenedor) return;
+
+ try {
+ const respuesta =
+ await fetch("/fotos-producto-resumen");
+
+ const datos =
+ await respuesta.json();
+
+ if (!datos.ok) throw new Error(datos.error || "No se pudo consultar");
+
+ if (!datos.total) {
+ contenedor.textContent = "Todavia no has importado fotos de producto.";
+ return;
+ }
+
+ const fecha =
+ datos.ultimaActualizacion
+ ? new Date(datos.ultimaActualizacion).toLocaleString("es-MX")
+ : "";
+
+ contenedor.innerHTML = `<strong>${datos.total}</strong> foto(s) de producto guardada(s)${fecha ? ` · ultima actualizacion: ${fecha}` : ""}`;
+ } catch (error) {
+ contenedor.textContent = "No se pudo consultar cuantas fotos hay guardadas.";
+ }
+}
 
 function asegurarPantallaCatalogo() {
  const pantalla =
@@ -418,6 +454,7 @@ function asegurarPantallaCatalogo() {
  sola por codigo con tus productos -- no importa si todavia no tienes
  dado de alta un producto, la foto se queda guardada esperando.
  </p>
+ <div id="resumenFotosProducto" class="catalogo-fotos-total">Consultando fotos guardadas...</div>
  <div class="catalogo-fotos-subir">
  <input type="file" id="archivoFotosProducto" multiple accept=".zip">
  <button type="button" class="btn-catalogo-subir" onclick="importarFotosProductoLote()">
@@ -519,6 +556,8 @@ async function importarFotosProductoLote() {
  }
 
  input.value = "";
+
+ await cargarResumenFotosProducto();
 
  if (typeof cargarProductos === "function") await cargarProductos();
  if (typeof cargarTablaInventario === "function") cargarTablaInventario();

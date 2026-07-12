@@ -121,6 +121,22 @@
  color:#101828;
 }
 
+.catalogo-fotos-total{
+ margin:0 0 12px;
+ padding:10px 12px;
+ border:1px solid #eef2f7;
+ border-radius:8px;
+ background:#f8fafc;
+ color:#101828;
+ font-size:13px;
+}
+
+body.oscuro .catalogo-fotos-total{
+ background:#1f2937 !important;
+ border-color:#374151 !important;
+ color:#f8fafc !important;
+}
+
 .catalogo-fotos-resultado small{
  color:#667085;
  font-weight:600;
