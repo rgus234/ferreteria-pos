@@ -836,7 +836,8 @@ function ocultarPantallasPrincipales() {
  "pantallaCaja",
  "pantallaFinanzas",
  "pantallaReglasPrecios",
- "pantallaAplicarPrecios"
+ "pantallaAplicarPrecios",
+ "pantallaCuenta"
  ].forEach(id => {
  const pantalla =
  document.getElementById(id);

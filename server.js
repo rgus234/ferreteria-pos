@@ -209,6 +209,11 @@ app.get("/licencia/estado", async (req, res) => {
         const negocio = await negocioActual(req);
         const licencia = await licenciaActual(negocio);
 
+        const correoActual = await pool.query(
+            `SELECT correo FROM public.negocios WHERE id = $1`,
+            [negocio.id]
+        );
+
         res.json({
             ok: true,
             negocio: {
@@ -216,7 +221,8 @@ app.get("/licencia/estado", async (req, res) => {
                 slug: negocio.slug,
                 nombre: negocio.nombre,
                 estado: negocio.estado,
-                plan: negocio.plan
+                plan: negocio.plan,
+                correo: correoActual.rows[0]?.correo || null
             },
             licencia: {
                 licenseKey: licencia.license_key,
@@ -228,6 +234,36 @@ app.get("/licencia/estado", async (req, res) => {
                 graciaDias: licencia.gracia_dias,
                 ultimoPagoAt: licencia.ultimo_pago_at
             }
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: error.message
+        });
+    }
+});
+
+app.put("/negocio-actual/correo", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const correo = String(req.body?.correo || "").trim();
+
+        if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
+            res.status(400).json({
+                ok: false,
+                error: "Correo invalido"
+            });
+            return;
+        }
+
+        await pool.query(
+            `UPDATE public.negocios SET correo = $1, updated_at = NOW() WHERE id = $2`,
+            [correo || null, negocio.id]
+        );
+
+        res.json({
+            ok: true,
+            correo: correo || null
         });
     } catch (error) {
         res.status(500).json({

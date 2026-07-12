@@ -21,7 +21,8 @@ const AYUDA_MODULOS_POS = {
  creditos: "Consulta creditos pendientes, abonos y el estado de cuenta de cada cliente.",
  proveedores: "Guarda distribuidores, contactos y datos utiles para compras.",
  dueno: "Panel pensado para que el propietario consulte el negocio desde una vista resumida.",
- configuracion: "Ajusta datos del negocio, usuarios, permisos, tickets, soporte y apariencia."
+ configuracion: "Ajusta datos del negocio, usuarios, permisos, tickets, soporte y apariencia.",
+ cuenta: "Muestra el plan, el estado de la suscripcion y el correo de contacto del negocio."
 };
 
 function abrirAyudaModuloPOS() {
@@ -90,7 +91,7 @@ function iconoUISVG(nombre) {
 }
 
 function moduloDesdeEtiquetaPOS(etiqueta) { const texto = limpiarTextoUI(etiqueta).toLowerCase(); if (texto.includes("inicio")) return "inicio"; if (texto.includes("punto")) return "venta"; if (texto === "inventario") return "inventario"; if (texto.includes("productos")) return "productos"; if (texto.includes("categorias")) return "categorias"; if (texto.includes("bajo")) return "inventario-bajo"; if (texto.includes("reporte") || texto.includes("ventas")) return "reportes"; if (texto.includes("credito")) return "creditos"; if (texto.includes("clientes")) return "clientes"; if (texto.includes("proveedores")) return "proveedores"; if (texto.includes("catalogo")) return "catalogo"; if (texto.includes("recepcion")) return "recepcion"; if (texto.includes("caja")) return "caja"; if (texto.includes("finanzas")) return "finanzas"; if (texto.includes("pedidos")) return "pedidos"; if (texto.includes("ajustes")) return "ajustes"; if (texto.includes("configuracion")) return "configuracion"; if (texto.includes("dueno")) return "dueno"; return texto.replace(/[^a-z0-9]+/g, "-") || "modulo"; }
-function iconoModuloPOS(modulo) { return { inicio:"home", venta:"cart", inventario:"inventory", productos:"inventory", categorias:"layers", "inventario-bajo":"alert", reportes:"chart", creditos:"credit", clientes:"users", proveedores:"truck", catalogo:"file", recepcion:"truck", caja:"zap", finanzas:"chart", pedidos:"file", ajustes:"settings", configuracion:"settings", dueno:"chart" }[modulo] || "zap"; }
+function iconoModuloPOS(modulo) { return { inicio:"home", venta:"cart", inventario:"inventory", productos:"inventory", categorias:"layers", "inventario-bajo":"alert", reportes:"chart", creditos:"credit", clientes:"users", proveedores:"truck", catalogo:"file", recepcion:"truck", caja:"zap", finanzas:"chart", pedidos:"file", ajustes:"settings", configuracion:"settings", dueno:"chart", cuenta:"wallet" }[modulo] || "zap"; }
 function datosSidebarPOS(boton) {
  const etiqueta = limpiarTextoUI(boton.dataset.navLabel || boton.textContent);
  const modulo = boton.dataset.shellModule || moduloDesdeEtiquetaPOS(etiqueta) || boton.dataset.modulo;
@@ -146,7 +147,8 @@ function ordenarSidebarPOS() {
   "creditos",
   "proveedores",
   "dueno",
-  "configuracion"
+  "configuracion",
+  "cuenta"
  ];
  const peso = boton => {
   const index = orden.indexOf(datosSidebarPOS(boton).modulo);

@@ -1771,3 +1771,94 @@ Validacion:
 - Modo oscuro confirmado visualmente en el bloque de datos de transferencia y en el modal de bolsa/pieza (antes y despues de la correccion del bug anterior).
 - Toda la base de datos compartida quedo limpia: negocio, usuario, producto, venta e historial de prueba fueron borrados explicitamente al terminar (confirmado por conteo en cero).
 - No se hizo commit ni push -- pendiente de confirmacion explicita del usuario.
+
+### Marca "Nexo POS" visible en la barra lateral y en el ticket impreso
+
+El usuario esta por comercializar el POS y pregunto donde deberia verse
+siempre la marca "Nexo POS" ya que ahorita solo aparecia una vez en el
+asistente de configuracion inicial y como franja "Con la tecnologia de"
+en el login. Se recomendo mantener el nombre/logo del negocio del
+cliente prominente (arriba a la izquierda, sin cambios) y agregar la
+marca Nexo de forma discreta pero constante en dos puntos que el cajero
+ve todo el dia: el pie de la barra lateral (`renderSidebarFooterPOS()`
+en `shell-topbar.js`, que ya mostraba "NEXO POS v1.0.1" pero sin logo)
+y el final del ticket impreso (`pos-sales.js`, despues de "Gracias por
+su compra"). Ambos cambios son puramente aditivos de texto/imagen, sin
+tocar ninguna logica de venta o inventario.
+
+Validacion: `node --check` correcto; probado end-to-end en un negocio
+sintetico (creado y borrado despues) que el badge aparece en la barra
+lateral con el icono correcto y que la plantilla del ticket incluye la
+linea nueva sin romper el resto del recibo.
+
+### Pantalla "Cuenta": suscripcion, plan y correo del negocio
+
+Surgio de una confusion real del usuario al ver nombres de cajero
+distintos ("Gustavo"/"Enrique") en dos computadoras del mismo negocio
+real y temer que algo se hubiera danado. Se confirmo por consulta
+directa a la base real que el negocio (Ferreteria Olimpico, 213
+productos, licencia activa hasta 28-jul-2026) estaba intacto -- los
+perfiles de cajero visibles en el login son **solo `localStorage` por
+computadora** (`usuariosSistema()`, hueco ya identificado en sesiones
+anteriores), sin relacion con los datos reales del negocio en el
+servidor. A partir de ahi, el usuario pidio una pantalla de "Cuenta"
+tipo centro de cuenta de cualquier app: plan, dias de suscripcion
+restantes y correo configurado.
+
+Hallazgo clave de la investigacion previa al plan: **no existia ningun
+round-trip al servidor para telefono/direccion desde Configuracion** --
+`guardarConfiguracionSistema()` solo escribe a `localStorage`, nunca
+llama al servidor. Por eso la pantalla de Cuenta se diseño para mostrar
+solo lo que de verdad vive en el servidor (identidad del negocio +
+licencia), y el correo se trato como un dato genuinamente nuevo y
+centralizado (a diferencia de telefono/direccion, que siguen siendo
+solo locales por instalacion, sin cambios).
+
+**Servidor** (`server.js`): `GET /licencia/estado` (ya existente) ahora
+tambien regresa `negocio.correo` (lectura extra a `negocios`, sin tocar
+el resto de la ruta). Ruta nueva `PUT /negocio-actual/correo` valida
+formato basico de correo y actualiza `negocios.correo` para el negocio
+resuelto por `negocioActual(req)`.
+
+**Frontend**: archivo nuevo `public/js/account-view.js` (mismo patron
+modular que `reports.js`) con `mostrarCuenta()` (fetch a
+`/licencia/estado`, arma 2 tarjetas: "Tu cuenta" y "Suscripcion") y
+`guardarCorreoCuenta()`. Reusa clases ya existentes (`.config-panel`
+de `config-settings.css`, `.caja` global) para no inventar look nuevo;
+solo se agrego `account-view.css` para el grid de 2 tarjetas y el pill
+de estado de licencia de 3 colores (verde=normal, amarillo=gracia,
+rojo=limitado/bloqueado, mismo lenguaje que `.estado-inventario`).
+Boton "Contactar para renovar" reusa `abrirContactoDesarrolladorPOS()`
+ya existente, sin mecanismo de contacto nuevo. Se agrego un boton
+"Cuenta" en la barra lateral junto a "Configuracion" (`data-shell-
+module="cuenta"`), y se enganchó en las 3 piezas del shell que ya
+gobiernan todos los demas modulos: el arreglo hardcodeado de
+`ocultarPantallasPrincipales()` (`config-auth.js`), y `AYUDA_MODULOS_
+POS`/`iconoModuloPOS()`/el arreglo `orden` de `ordenarSidebarPOS()`
+(`shell-topbar.js`).
+
+No se muestran telefono/direccion en esta pantalla a proposito (ver
+hallazgo arriba -- hoy estarian vacios/desincronizados del lado
+servidor y confundirian mas de lo que ayudarian). Siguen viviendo solo
+en Configuracion > Empresa, sin cambios.
+
+Validacion:
+
+- `node --check` correcto en `server.js`, `account-view.js` (nuevo),
+  `config-auth.js`, `shell-topbar.js`.
+- `PUT /negocio-actual/correo` probado contra un negocio de prueba real
+  (creado y borrado despues): correo invalido rechazado con 400, correo
+  valido guardado y confirmado por lectura posterior.
+- Prueba end-to-end completa en el navegador con un negocio 100%
+  sintetico (creado y borrado despues, nunca la cuenta real del
+  cliente): pantalla renderiza plan/estado/dias restantes correctos,
+  boton "Cuenta" aparece al final de la barra lateral junto a
+  Configuracion con su icono y resalta activo, guardar correo persiste
+  tras releer, y las 3 franjas de color de licencia (normal/gracia/
+  limitado) se probaron manipulando la fecha de vencimiento del
+  negocio de prueba -- las 3 se vieron correctas en claro y en oscuro.
+- Confirmado por lectura directa que el negocio real (Ferreteria
+  Olimpico) sigue exactamente igual que antes de este cambio (mismo
+  plan, mismo vencimiento, `correo: null` sin tocar).
+- No se hizo commit ni push -- pendiente de confirmacion explicita del
+  usuario.
