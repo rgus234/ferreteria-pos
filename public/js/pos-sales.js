@@ -1819,7 +1819,8 @@ const mensajeTicket =
 let extraTicket =
  `${mensajeTicket}
  ${negocio.notaTicket ? `<br><small>${negocio.notaTicket}</small>` : ""}
- ${negocio.mostrarBarcodeTicket ? `<div style="margin-top:10px;font-size:22px;letter-spacing:2px;">|||| ||| |||| || |||||</div>` : ""}`;
+ ${negocio.mostrarBarcodeTicket ? `<div style="margin-top:10px;font-size:22px;letter-spacing:2px;">|||| ||| |||| || |||||</div>` : ""}
+ <div style="margin-top:12px;font-size:9px;color:#999;">Con la tecnologia de Nexo POS</div>`;
 
 if (ventaOffline) {
  extraTicket += `<br><small style="font-weight:bold;">PENDIENTE DE SINCRONIZAR</small>`;
