@@ -1605,6 +1605,37 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  return;
  }
 
+ if (!productoEditandoId) {
+ const duplicado =
+ todosProductos.find(p => {
+ const candidatos = [
+ normalizarCodigo(p.codigo),
+ ...(Array.isArray(p.codigos_relacionados)
+ ? p.codigos_relacionados.map(item => normalizarCodigo(item.codigo))
+ : [])
+ ];
+
+ return candidatos.includes(codigoFinal);
+ });
+
+ if (duplicado) {
+ const irAEditar =
+ await dialogoPOS({
+ tipo: "alerta",
+ titulo: "Este producto ya existe",
+ mensaje: `Ya tienes "${duplicado.nombre}" en tu inventario con este codigo (stock actual: ${duplicado.stock}). ¿Editas ese producto en vez de crear uno nuevo?`,
+ mostrarCancelar: true,
+ textoAceptar: "Editar ese producto",
+ textoCancelar: "Crear uno nuevo de todos modos"
+ });
+
+ if (irAEditar) {
+ editarProducto(duplicado.id);
+ return;
+ }
+ }
+ }
+
  const esEdicion =
  Boolean(productoEditandoId);
 
