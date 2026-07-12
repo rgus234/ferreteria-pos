@@ -355,6 +355,9 @@ async function cargarResumenFotosProducto() {
  const contenedor =
  document.getElementById("resumenFotosProducto");
 
+ const botonVer =
+ document.getElementById("btnVerFotosImportadas");
+
  if (!contenedor) return;
 
  try {
@@ -368,6 +371,7 @@ async function cargarResumenFotosProducto() {
 
  if (!datos.total) {
  contenedor.textContent = "Todavia no has importado fotos de producto.";
+ if (botonVer) botonVer.style.display = "none";
  return;
  }
 
@@ -377,8 +381,96 @@ async function cargarResumenFotosProducto() {
  : "";
 
  contenedor.innerHTML = `<strong>${datos.total}</strong> foto(s) de producto guardada(s)${fecha ? ` · ultima actualizacion: ${fecha}` : ""}`;
+
+ if (botonVer) {
+ botonVer.style.display = "inline-flex";
+ botonVer.textContent = `Ver fotos importadas (${datos.total})`;
+ }
+
+ // Si la tabla ya estaba abierta (ej. justo despues de importar un
+ // lote nuevo), se refresca con los datos mas recientes.
+ const tabla =
+ document.getElementById("tablaFotosImportadas");
+
+ if (tabla && tabla.style.display !== "none") {
+ cargarTablaFotosImportadas();
+ }
  } catch (error) {
  contenedor.textContent = "No se pudo consultar cuantas fotos hay guardadas.";
+ if (botonVer) botonVer.style.display = "none";
+ }
+}
+
+async function alternarTablaFotosImportadas() {
+ const tabla =
+ document.getElementById("tablaFotosImportadas");
+
+ const boton =
+ document.getElementById("btnVerFotosImportadas");
+
+ if (!tabla) return;
+
+ const abrir =
+ tabla.style.display === "none";
+
+ tabla.style.display = abrir ? "block" : "none";
+
+ if (boton) {
+ boton.textContent = boton.textContent.replace(
+ abrir ? "Ver" : "Ocultar",
+ abrir ? "Ocultar" : "Ver"
+ );
+ }
+
+ if (abrir) await cargarTablaFotosImportadas();
+}
+
+async function cargarTablaFotosImportadas() {
+ const tabla =
+ document.getElementById("tablaFotosImportadas");
+
+ if (!tabla) return;
+
+ tabla.innerHTML = "Cargando fotos importadas...";
+
+ try {
+ const respuesta =
+ await fetch("/fotos-producto-lista");
+
+ const datos =
+ await respuesta.json();
+
+ if (!datos.ok) throw new Error(datos.error || "No se pudo consultar");
+
+ if (datos.fotos.length === 0) {
+ tabla.innerHTML = "Todavia no has importado fotos de producto.";
+ return;
+ }
+
+ tabla.innerHTML = `
+ <table class="tabla-fotos-importadas">
+ <thead>
+ <tr>
+ <th>Foto</th>
+ <th>Codigo</th>
+ <th>Producto</th>
+ <th>Actualizado</th>
+ </tr>
+ </thead>
+ <tbody>
+ ${datos.fotos.map(foto => `
+ <tr>
+ <td><img src="${foto.imagenUrl}" alt="" loading="lazy" class="tabla-fotos-importadas-thumb"></td>
+ <td>${escaparPOS(foto.codigo)}</td>
+ <td>${foto.producto ? escaparPOS(foto.producto) : "<span class=\"tabla-fotos-importadas-sin\">Sin producto dado de alta</span>"}</td>
+ <td>${new Date(foto.actualizadoAt).toLocaleString("es-MX")}</td>
+ </tr>
+ `).join("")}
+ </tbody>
+ </table>
+ `;
+ } catch (error) {
+ tabla.innerHTML = "No se pudo cargar la lista de fotos importadas.";
  }
 }
 
@@ -455,6 +547,10 @@ function asegurarPantallaCatalogo() {
  dado de alta un producto, la foto se queda guardada esperando.
  </p>
  <div id="resumenFotosProducto" class="catalogo-fotos-total">Consultando fotos guardadas...</div>
+ <button type="button" id="btnVerFotosImportadas" class="catalogo-fotos-toggle" onclick="alternarTablaFotosImportadas()" style="display:none;">
+ Ver fotos importadas
+ </button>
+ <div id="tablaFotosImportadas" class="catalogo-fotos-tabla-wrap" style="display:none;"></div>
  <div class="catalogo-fotos-subir">
  <input type="file" id="archivoFotosProducto" multiple accept=".zip">
  <button type="button" class="btn-catalogo-subir" onclick="importarFotosProductoLote()">

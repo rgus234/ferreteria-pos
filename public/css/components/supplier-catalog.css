@@ -137,6 +137,86 @@ body.oscuro .catalogo-fotos-total{
  color:#f8fafc !important;
 }
 
+.catalogo-fotos-toggle{
+ width:auto;
+ min-height:36px;
+ margin:0 0 12px;
+ padding:0 14px;
+ border:1px solid #d0d5dd;
+ border-radius:8px;
+ background:#f8fafc;
+ color:#344054;
+ font-size:12px;
+ font-weight:800;
+}
+
+body.oscuro .catalogo-fotos-toggle{
+ background:#111827 !important;
+ border-color:#374151 !important;
+ color:#f8fafc !important;
+}
+
+.catalogo-fotos-tabla-wrap{
+ margin-bottom:12px;
+ max-height:420px;
+ overflow-y:auto;
+ border:1px solid #eef2f7;
+ border-radius:8px;
+}
+
+body.oscuro .catalogo-fotos-tabla-wrap{
+ border-color:#374151 !important;
+}
+
+.tabla-fotos-importadas{
+ width:100%;
+ border-collapse:collapse;
+ font-size:13px;
+}
+
+.tabla-fotos-importadas th,
+.tabla-fotos-importadas td{
+ padding:8px 10px;
+ border-bottom:1px solid #eef2f7;
+ text-align:left;
+}
+
+.tabla-fotos-importadas th{
+ position:sticky;
+ top:0;
+ background:#f8fafc;
+ color:#475467;
+ font-weight:900;
+}
+
+.tabla-fotos-importadas td{
+ color:#344054;
+}
+
+.tabla-fotos-importadas-thumb{
+ width:40px;
+ height:40px;
+ border-radius:6px;
+ object-fit:cover;
+ background:#f2f4f7;
+}
+
+.tabla-fotos-importadas-sin{
+ color:#98a2b3;
+ font-style:italic;
+}
+
+body.oscuro .tabla-fotos-importadas th{
+ background:#1f2937 !important;
+ color:#cbd5e1 !important;
+}
+
+body.oscuro .tabla-fotos-importadas th,
+body.oscuro .tabla-fotos-importadas td{
+ border-color:#374151 !important;
+ color:#f8fafc !important;
+}
+
 .catalogo-fotos-resultado small{
  color:#667085;
  font-weight:600;

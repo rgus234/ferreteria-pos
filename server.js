@@ -2820,6 +2820,60 @@ app.get("/fotos-producto-resumen", async (req, res) => {
     }
 });
 
+app.get("/fotos-producto-lista", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+
+        const fotos = await pool.query(
+            `SELECT codigo, actualizado_at FROM public.fotos_producto
+             WHERE negocio_id = $1 ORDER BY actualizado_at DESC`,
+            [negocio.id]
+        );
+
+        const productos = await pool.query(
+            `
+            SELECT p.nombre, p.codigo,
+                COALESCE(
+                    json_agg(pc.codigo) FILTER (WHERE pc.id IS NOT NULL),
+                    '[]'::json
+                ) AS codigos_relacionados
+            FROM public.productos p
+            LEFT JOIN public.producto_codigos pc
+                ON pc.producto_id = p.id AND pc.negocio_id = p.negocio_id
+            WHERE p.negocio_id = $1
+            GROUP BY p.id
+            `,
+            [negocio.id]
+        );
+
+        const nombrePorCodigo = new Map();
+
+        productos.rows.forEach(producto => {
+            const candidatos = [
+                normalizarCodigoFoto(producto.codigo),
+                ...(Array.isArray(producto.codigos_relacionados)
+                    ? producto.codigos_relacionados.map(normalizarCodigoFoto)
+                    : [])
+            ];
+
+            candidatos.forEach(candidato => {
+                if (candidato) nombrePorCodigo.set(candidato, producto.nombre);
+            });
+        });
+
+        const lista = fotos.rows.map(fila => ({
+            codigo: fila.codigo,
+            actualizadoAt: fila.actualizado_at,
+            imagenUrl: `/fotos-producto/${fila.codigo}/principal?negocio=${negocio.slug}&v=${new Date(fila.actualizado_at).getTime()}`,
+            producto: nombrePorCodigo.get(fila.codigo) || null
+        }));
+
+        res.json({ ok: true, fotos: lista });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
 app.post("/fotos-producto/importar-lote", manejarSubidaFotosProducto, async (req, res) => {
     const archivos = req.files || [];
 
