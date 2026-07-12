@@ -1,6 +1,11 @@
 const express = require("express");
 const path = require("path");
 const crypto = require("crypto");
+const os = require("os");
+const fs = require("fs");
+const multer = require("multer");
+const AdmZip = require("adm-zip");
+const sharp = require("sharp");
 const { config, validarConfigProduccion } = require("./config");
 const pool = require("./db");
 const {
@@ -1598,6 +1603,109 @@ async function negocioActual(req) {
     return asegurarNegocioActual(pool, req);
 }
 
+function normalizarCodigoFoto(codigo) {
+    return String(codigo || "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+}
+
+async function comprimirImagen(buffer, anchoMax = 320) {
+    return sharp(buffer)
+        .resize({ width: anchoMax, withoutEnlargement: true })
+        .jpeg({ quality: 72 })
+        .toBuffer();
+}
+
+const uploadZipsFotosProducto = multer({
+    dest: os.tmpdir(),
+    limits: { fileSize: 25 * 1024 * 1024, files: 30 }
+});
+
+async function procesarZipFotosProducto(rutaZip, negocioId) {
+    const resumen = { fotosGuardadas: 0, errores: [] };
+
+    let zip;
+    try {
+        zip = new AdmZip(rutaZip);
+    } catch (error) {
+        resumen.errores.push(`Zip invalido: ${error.message}`);
+        return resumen;
+    }
+
+    const carpetas = new Map();
+
+    for (const entry of zip.getEntries()) {
+        if (entry.isDirectory) continue;
+
+        const partes = entry.entryName.split("/").filter(Boolean);
+        if (partes.length < 2) continue;
+
+        const carpeta = partes[0];
+        const nombreArchivo = partes[partes.length - 1];
+
+        if (!/\.(jpg|jpeg|png|webp)$/i.test(nombreArchivo)) continue;
+
+        if (!carpetas.has(carpeta)) carpetas.set(carpeta, []);
+        carpetas.get(carpeta).push({ nombreArchivo, entry });
+    }
+
+    for (const [, archivos] of carpetas) {
+        try {
+            const principal = archivos[0];
+            const resto = archivos.slice(1);
+
+            const codigoBase = principal.nombreArchivo
+                .replace(/\.(jpg|jpeg|png|webp)$/i, "")
+                .split("+")[0];
+
+            const codigo = normalizarCodigoFoto(codigoBase);
+
+            if (!codigo) continue;
+
+            const bufferPrincipal = await comprimirImagen(principal.entry.getData(), 320);
+
+            const upsert = await pool.query(
+                `
+                INSERT INTO public.fotos_producto (negocio_id, codigo, imagen_principal, imagen_principal_tipo, actualizado_at)
+                VALUES ($1, $2, $3, 'image/jpeg', NOW())
+                ON CONFLICT (negocio_id, codigo)
+                DO UPDATE SET imagen_principal = $3, imagen_principal_tipo = 'image/jpeg', actualizado_at = NOW()
+                RETURNING id
+                `,
+                [negocioId, codigo, bufferPrincipal]
+            );
+
+            const fotoProductoId = upsert.rows[0].id;
+
+            await pool.query(
+                `DELETE FROM public.fotos_producto_galeria WHERE foto_producto_id = $1`,
+                [fotoProductoId]
+            );
+
+            let orden = 0;
+            for (const item of resto) {
+                const bufferGaleria = await comprimirImagen(item.entry.getData(), 480);
+
+                await pool.query(
+                    `
+                    INSERT INTO public.fotos_producto_galeria (foto_producto_id, orden, imagen, tipo)
+                    VALUES ($1, $2, $3, 'image/jpeg')
+                    `,
+                    [fotoProductoId, orden, bufferGaleria]
+                );
+
+                orden += 1;
+            }
+
+            resumen.fotosGuardadas += 1;
+        } catch (error) {
+            resumen.errores.push(error.message);
+        }
+    }
+
+    return resumen;
+}
+
 function obtenerDeviceId(req) {
     return String(
         req.headers["x-device-id"] ||
@@ -2613,7 +2721,39 @@ app.get("/productos", async (req, res) => {
             [negocio.id]
         );
 
-        res.json(resultado.rows);
+        const fotos = await pool.query(
+            `SELECT codigo, actualizado_at FROM public.fotos_producto WHERE negocio_id = $1`,
+            [negocio.id]
+        );
+
+        const mapaFotos = new Map(
+            fotos.rows.map(fila => [fila.codigo, fila.actualizado_at])
+        );
+
+        const productosConFoto = resultado.rows.map(producto => {
+            const candidatos = [
+                normalizarCodigoFoto(producto.codigo),
+                ...(Array.isArray(producto.codigos_relacionados)
+                    ? producto.codigos_relacionados.map(item => normalizarCodigoFoto(item.codigo))
+                    : [])
+            ];
+
+            const codigoConFoto = candidatos.find(candidato => candidato && mapaFotos.has(candidato));
+
+            if (!codigoConFoto) {
+                return { ...producto, imagenUrl: null, fotoCodigo: null };
+            }
+
+            const version = new Date(mapaFotos.get(codigoConFoto)).getTime();
+
+            return {
+                ...producto,
+                imagenUrl: `/fotos-producto/${codigoConFoto}/principal?negocio=${negocio.slug}&v=${version}`,
+                fotoCodigo: codigoConFoto
+            };
+        });
+
+        res.json(productosConFoto);
 
     } catch (error) {
         console.log(error);
@@ -2623,6 +2763,152 @@ app.get("/productos", async (req, res) => {
             detail: error.detail || null,
             code: error.code || null
         });
+    }
+});
+
+app.post("/fotos-producto/importar-lote", uploadZipsFotosProducto.array("zips", 30), async (req, res) => {
+    const archivos = req.files || [];
+
+    try {
+        const negocio = await negocioActual(req);
+
+        if (archivos.length === 0) {
+            res.status(400).json({ ok: false, error: "No se recibio ningun archivo .zip" });
+            return;
+        }
+
+        const resumen = { zipsProcesados: 0, fotosGuardadas: 0, errores: [] };
+
+        for (const archivo of archivos) {
+            const resultadoZip = await procesarZipFotosProducto(archivo.path, negocio.id);
+            resumen.zipsProcesados += 1;
+            resumen.fotosGuardadas += resultadoZip.fotosGuardadas;
+            if (resultadoZip.errores.length) {
+                resumen.errores.push(`${archivo.originalname}: ${resultadoZip.errores.join("; ")}`);
+            }
+        }
+
+        res.json({ ok: true, ...resumen });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    } finally {
+        for (const archivo of archivos) {
+            fs.unlink(archivo.path, () => {});
+        }
+    }
+});
+
+app.post("/fotos-producto/:codigo/principal", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const codigo = normalizarCodigoFoto(req.params.codigo);
+        const imagenBase64 = String(req.body?.imagenBase64 || "");
+
+        if (!codigo || !imagenBase64) {
+            res.status(400).json({ ok: false, error: "Falta codigo o imagen" });
+            return;
+        }
+
+        const base64Limpio = imagenBase64.replace(/^data:image\/\w+;base64,/, "");
+        const bufferOriginal = Buffer.from(base64Limpio, "base64");
+        const bufferComprimido = await comprimirImagen(bufferOriginal, 320);
+
+        await pool.query(
+            `
+            INSERT INTO public.fotos_producto (negocio_id, codigo, imagen_principal, imagen_principal_tipo, actualizado_at)
+            VALUES ($1, $2, $3, 'image/jpeg', NOW())
+            ON CONFLICT (negocio_id, codigo)
+            DO UPDATE SET imagen_principal = $3, imagen_principal_tipo = 'image/jpeg', actualizado_at = NOW()
+            `,
+            [negocio.id, codigo, bufferComprimido]
+        );
+
+        res.json({ ok: true, codigo });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.get("/fotos-producto/:codigo/principal", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const codigo = normalizarCodigoFoto(req.params.codigo);
+
+        const resultado = await pool.query(
+            `SELECT imagen_principal, imagen_principal_tipo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = $2`,
+            [negocio.id, codigo]
+        );
+
+        const fila = resultado.rows[0];
+
+        if (!fila) {
+            res.status(404).end();
+            return;
+        }
+
+        res.set("Content-Type", fila.imagen_principal_tipo || "image/jpeg");
+        res.set("Cache-Control", "public, max-age=2592000, immutable");
+        res.send(fila.imagen_principal);
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.get("/fotos-producto/:codigo/galeria", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const codigo = normalizarCodigoFoto(req.params.codigo);
+
+        const resultado = await pool.query(
+            `
+            SELECT fg.id, fg.orden
+            FROM public.fotos_producto_galeria fg
+            JOIN public.fotos_producto fp ON fp.id = fg.foto_producto_id
+            WHERE fp.negocio_id = $1 AND fp.codigo = $2
+            ORDER BY fg.orden ASC
+            `,
+            [negocio.id, codigo]
+        );
+
+        res.json({
+            ok: true,
+            imagenes: resultado.rows.map(fila => ({
+                id: fila.id,
+                url: `/fotos-producto-galeria/${fila.id}?negocio=${negocio.slug}`
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.get("/fotos-producto-galeria/:id", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const id = Number(req.params.id);
+
+        const resultado = await pool.query(
+            `
+            SELECT fg.imagen, fg.tipo
+            FROM public.fotos_producto_galeria fg
+            JOIN public.fotos_producto fp ON fp.id = fg.foto_producto_id
+            WHERE fg.id = $1 AND fp.negocio_id = $2
+            `,
+            [id, negocio.id]
+        );
+
+        const fila = resultado.rows[0];
+
+        if (!fila) {
+            res.status(404).end();
+            return;
+        }
+
+        res.set("Content-Type", fila.tipo || "image/jpeg");
+        res.set("Cache-Control", "public, max-age=2592000, immutable");
+        res.send(fila.imagen);
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
     }
 });
 

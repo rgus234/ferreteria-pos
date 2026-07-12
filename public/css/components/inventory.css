@@ -875,6 +875,14 @@ body.oscuro .btn-imprimir-codigos{
  border-radius:10px;
  background:#f2f4f7;
  font-size:20px;
+ overflow:hidden;
+}
+
+.producto-inventario-icono-img{
+ width:100%;
+ height:100%;
+ object-fit:cover;
+ border-radius:inherit;
 }
 
 .producto-inventario-celda strong{

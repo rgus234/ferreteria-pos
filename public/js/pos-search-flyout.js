@@ -29,7 +29,7 @@
 
   return `
   <div class="pos-flyout-row" data-flyout-id="${Number(producto.id)}">
-   <span class="pos-flyout-thumb">${typeof iconoProducto === "function" ? iconoProducto(producto.nombre) : "🧰"}</span>
+   <span class="pos-flyout-thumb">${typeof miniaturaProducto === "function" ? miniaturaProducto(producto, "pos-flyout-thumb-img") : "🧰"}</span>
    <div class="pos-flyout-info">
     <strong>${escaparPOS(producto.nombre || "Producto")}</strong>
     <small>${escaparPOS(producto.marca || "")}${producto.marca ? " &middot; " : ""}Codigo ${escaparPOS(codigo)} &middot; Stock ${escaparPOS(producto.stock ?? 0)} ${escaparPOS(unidad)}</small>

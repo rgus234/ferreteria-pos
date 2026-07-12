@@ -1158,6 +1158,7 @@ function asegurarEtiquetasFichaProducto() {
  nuevaCategoria: "Categoria",
  nuevaSubcategoria: "Subcategoria",
  nuevaMarca: "Marca",
+ nuevaImagenProducto: "Foto del producto (opcional, se guarda al elegirla)",
  unidadVenta: "Unidad base de venta",
  presentacionCompra: "Presentacion de compra",
  factorConversion: "Equivalencia de compra",
@@ -1200,6 +1201,98 @@ function asegurarEtiquetasFichaProducto() {
  wrapper.appendChild(etiqueta);
  wrapper.appendChild(campo);
  });
+}
+
+function redimensionarImagenCanvas(archivo, anchoMax = 320) {
+ return new Promise((resolve, reject) => {
+ const lector =
+ new FileReader();
+
+ lector.onerror = () => reject(new Error("No se pudo leer el archivo"));
+
+ lector.onload = () => {
+ const img =
+ new Image();
+
+ img.onerror = () => reject(new Error("Archivo de imagen invalido"));
+
+ img.onload = () => {
+ const escala =
+ Math.min(1, anchoMax / img.width);
+
+ const canvas =
+ document.createElement("canvas");
+
+ canvas.width = Math.round(img.width * escala);
+ canvas.height = Math.round(img.height * escala);
+
+ const contexto =
+ canvas.getContext("2d");
+
+ contexto.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+ resolve(canvas.toDataURL("image/jpeg", 0.75));
+ };
+
+ img.src = lector.result;
+ };
+
+ lector.readAsDataURL(archivo);
+ });
+}
+
+async function subirImagenProductoManual() {
+ const input =
+ document.getElementById("nuevaImagenProducto");
+
+ const archivo =
+ input?.files?.[0];
+
+ if (!archivo) return;
+
+ const codigo =
+ normalizarCodigo(
+ document.getElementById("nuevoCodigo")?.value ||
+ document.getElementById("nuevoCodigoInterno")?.value ||
+ ""
+ );
+
+ if (!codigo) {
+ await alertaPOS(
+ "Este producto todavia no tiene codigo. Escribe primero el codigo de barras o el codigo interno.",
+ "Falta codigo",
+ "alerta"
+ );
+ input.value = "";
+ return;
+ }
+
+ try {
+ const imagenBase64 =
+ await redimensionarImagenCanvas(archivo, 320);
+
+ const respuesta =
+ await fetch(`/fotos-producto/${codigo}/principal`, {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ imagenBase64 })
+ });
+
+ const datos =
+ await respuesta.json();
+
+ if (!datos.ok) {
+ throw new Error(datos.error || "No se pudo guardar la foto");
+ }
+
+ await alertaPOS("Foto guardada correctamente.", "Listo", "exito");
+
+ if (typeof cargarProductos === "function") await cargarProductos();
+ } catch (error) {
+ await alertaPOS(error.message || "No se pudo subir la foto.", "Error", "alerta");
+ } finally {
+ input.value = "";
+ }
 }
 
 function togglePiezaCamposProducto() {
@@ -2333,7 +2426,7 @@ function renderProductosCategoriaTabla() {
  <td>${producto.codigo || "-"}</td>
  <td>
  <div class="producto-inventario-celda">
- <span class="producto-inventario-icono">${iconoProducto(producto.nombre)}</span>
+ <span class="producto-inventario-icono">${miniaturaProducto(producto, "producto-inventario-icono-img")}</span>
  <div><strong>${escaparPOS(producto.nombre || "")}</strong></div>
  </div>
  </td>
@@ -2341,6 +2434,7 @@ function renderProductosCategoriaTabla() {
  <td>${producto.stock} ${unidad}${piezasSueltasInfoCelda(producto)}</td>
  <td><span class="estado-inventario ${estado.clase}">${estado.texto}</span></td>
  <td class="acciones-inventario">
+ <button title="Ver detalles" onclick="verDetalleProducto(${producto.id})">${iconoUISVG("eye")}</button>
  <button title="Editar" onclick="editarProducto(${producto.id})">${iconoUISVG("edit")}</button>
  <button title="Eliminar" class="accion-peligro" onclick="eliminarProducto(${producto.id})">${iconoUISVG("trash")}</button>
  </td>
@@ -2897,7 +2991,7 @@ function cargarTablaInventario() {
  <td>${producto.codigo || "-"}</td>
  <td>
  <div class="producto-inventario-celda">
- <span class="producto-inventario-icono">${iconoProducto(producto.nombre)}</span>
+ <span class="producto-inventario-icono">${miniaturaProducto(producto, "producto-inventario-icono-img")}</span>
  <div>
  <strong>${escaparPOS(producto.nombre || "")}</strong>
  ${producto.subcategoria ? `<small>${escaparPOS(producto.subcategoria)}</small>` : ""}
@@ -2913,6 +3007,7 @@ function cargarTablaInventario() {
  </span>
  </td>
  <td class="acciones-inventario">
+ <button title="Ver detalles" onclick="verDetalleProducto(${producto.id})">${iconoUISVG("eye")}</button>
  <button title="Editar" onclick="editarProducto(${producto.id})">${iconoUISVG("edit")}</button>
  <button title="Eliminar" class="accion-peligro" onclick="eliminarProducto(${producto.id})">${iconoUISVG("trash")}</button>
  </td>

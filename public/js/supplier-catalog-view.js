@@ -407,6 +407,25 @@ function asegurarPantallaCatalogo() {
  </div>
  </div>
  </div>
+
+ <div class="catalogo-panel catalogo-fotos-panel">
+ <div class="catalogo-panel-head">
+ <h3>Importar fotos de producto</h3>
+ </div>
+ <p class="catalogo-fotos-ayuda">
+ Selecciona uno o varios archivos .zip del banco de fotos de tu proveedor
+ (ej. el Banco de Contenido Digital de Truper). Cada foto se empareja
+ sola por codigo con tus productos -- no importa si todavia no tienes
+ dado de alta un producto, la foto se queda guardada esperando.
+ </p>
+ <div class="catalogo-fotos-subir">
+ <input type="file" id="archivoFotosProducto" multiple accept=".zip">
+ <button type="button" class="btn-catalogo-subir" onclick="importarFotosProductoLote()">
+ Importar fotos
+ </button>
+ </div>
+ <div id="resultadoImportarFotos" class="catalogo-fotos-resultado"></div>
+ </div>
  </div>
  `;
 
@@ -418,6 +437,64 @@ function asegurarPantallaCatalogo() {
  procesarArchivosCatalogo(event.target.files);
  event.target.value = "";
  });
+}
+
+async function importarFotosProductoLote() {
+ const input =
+ document.getElementById("archivoFotosProducto");
+
+ const archivos =
+ input?.files;
+
+ const resultado =
+ document.getElementById("resultadoImportarFotos");
+
+ if (!archivos || archivos.length === 0) {
+ await alertaPOS("Selecciona uno o varios archivos .zip primero.", "Sin archivos", "alerta");
+ return;
+ }
+
+ if (resultado) {
+ resultado.textContent = "Subiendo e importando, esto puede tardar un momento...";
+ }
+
+ const formData =
+ new FormData();
+
+ for (const archivo of archivos) {
+ formData.append("zips", archivo);
+ }
+
+ try {
+ const respuesta =
+ await fetch("/fotos-producto/importar-lote", {
+ method: "POST",
+ body: formData
+ });
+
+ const datos =
+ await respuesta.json();
+
+ if (!datos.ok) {
+ throw new Error(datos.error || "No se pudo importar el lote");
+ }
+
+ if (resultado) {
+ resultado.innerHTML = `
+ <strong>${datos.fotosGuardadas} foto(s) guardada(s)</strong> de ${datos.zipsProcesados} archivo(s) procesado(s).
+ ${datos.errores.length ? `<br><small>${escaparPOS(datos.errores.join(" | "))}</small>` : ""}
+ `;
+ }
+
+ input.value = "";
+
+ if (typeof cargarProductos === "function") await cargarProductos();
+ if (typeof cargarTablaInventario === "function") cargarTablaInventario();
+ } catch (error) {
+ if (resultado) resultado.textContent = "";
+
+ await alertaPOS(error.message || "No se pudo importar el lote de fotos.", "Error al importar", "alerta");
+ }
 }
 
 function abrirCargaCatalogo(modo = "nuevo") {

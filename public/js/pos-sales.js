@@ -148,6 +148,21 @@ function iconoProducto(nombre) {
  return `<span class="producto-mini-icon" aria-hidden="true">${icono}</span>`;
 }
 
+function miniaturaProducto(producto, claseImg = "") {
+ if (producto?.imagenUrl) {
+ const nombreEscapado =
+ escaparPOS(producto?.nombre || "");
+
+ return `<img src="${producto.imagenUrl}" class="${claseImg}" alt="" loading="lazy" data-fallback-nombre="${nombreEscapado}" onerror="reemplazarImagenRotaPOS(this)">`;
+ }
+
+ return iconoProducto(producto?.nombre);
+}
+
+function reemplazarImagenRotaPOS(img) {
+ img.outerHTML = iconoProducto(img.dataset.fallbackNombre || "");
+}
+
 function agregarProductoPorId(id, opciones = {}) {
  const producto =
  todosProductos.find(p => Number(p.id) === Number(id));
@@ -223,7 +238,8 @@ function agregar(
  basculaDigital: producto.bascula_digital || producto.basculaDigital || "no",
  precioPublico,
  precioMayoreo: Number(producto.precio_mayoreo || 0),
- precioDistribuidor: Number(producto.precio_distribuidor || 0)
+ precioDistribuidor: Number(producto.precio_distribuidor || 0),
+ imagenUrl: producto.imagenUrl || null
  });
 
  if (modoVenta !== "pieza" && nivelPrecioActual && nivelPrecioActual !== "publico") {
@@ -949,7 +965,7 @@ function renderCarritoTablaPOS() {
  <td class="pos-cart-index">${index + 1}</td>
  <td class="pos-cart-code">${escaparPOS(codigo)}</td>
  <td class="pos-cart-product">
- <span class="pos-cart-thumb item-icono">${iconoProducto(p.nombre)}</span>
+ <span class="pos-cart-thumb item-icono">${miniaturaProducto(p, "pos-cart-thumb-img")}</span>
  <div>
  <strong>${escaparPOS(p.nombre)}</strong>
  ${etiquetas ? `<div class="pos-cart-meta">${etiquetas}</div>` : ""}

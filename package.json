@@ -1,25 +1,28 @@
-﻿{
-    "name":  "nexo-pos",
-    "version":  "1.0.1",
-    "description":  "Nexo POS - sistema comercial para punto de venta",
-    "main":  "server.js",
-    "engines":  {
-                    "node":  ">=22"
-                },
-    "scripts":  {
-                    "start":  "node server.js",
-                    "dev":  "node --env-file=.env server.js",
-                    "start:prod":  "node --env-file=.env.production server.js",
-                    "check":  "node --check server.js && node --check public/app.js",
-                    "check:env":  "node --env-file=.env scripts/check-env.js",
-                    "migrate":  "node --env-file=.env scripts/migrate.js",
-                    "migrate:prod":  "node --env-file=.env.production scripts/migrate.js",
-                    "desktop:check":  "npm --prefix apps/desktop run check",
-                    "desktop:dist":  "npm --prefix apps/desktop run dist:win",
-                    "desktop:release":  "node scripts/prepare-desktop-release.js"
-                },
-    "dependencies":  {
-                         "express":  "^5.2.1",
-                         "pg":  "^8.21.0"
-                     }
+{
+    "name": "nexo-pos",
+    "version": "1.0.1",
+    "description": "Nexo POS - sistema comercial para punto de venta",
+    "main": "server.js",
+    "engines": {
+        "node": ">=22"
+    },
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node --env-file=.env server.js",
+        "start:prod": "node --env-file=.env.production server.js",
+        "check": "node --check server.js && node --check public/app.js",
+        "check:env": "node --env-file=.env scripts/check-env.js",
+        "migrate": "node --env-file=.env scripts/migrate.js",
+        "migrate:prod": "node --env-file=.env.production scripts/migrate.js",
+        "desktop:check": "npm --prefix apps/desktop run check",
+        "desktop:dist": "npm --prefix apps/desktop run dist:win",
+        "desktop:release": "node scripts/prepare-desktop-release.js"
+    },
+    "dependencies": {
+        "adm-zip": "^0.6.0",
+        "express": "^5.2.1",
+        "multer": "^2.2.0",
+        "pg": "^8.21.0",
+        "sharp": "^0.35.3"
+    }
 }

@@ -127,7 +127,7 @@
   }
 
   const grupos = [
-   ["basico", "Basico", ["nuevoCodigo", "nuevoNombre", "nuevoCodigoInterno", "nuevaCategoria", "nuevaSubcategoria", "nuevaMarca"]],
+   ["basico", "Basico", ["nuevoCodigo", "nuevoNombre", "nuevoCodigoInterno", "nuevaCategoria", "nuevaSubcategoria", "nuevaMarca", "nuevaImagenProducto"]],
    ["precios", "Precios", ["tipoPrecioVenta", "precioDistribuidor", "precioMayoreo", "nuevoPrecio", "precioPublico"]],
    ["inventario", "Inventario", ["nuevoStock", "stockMinimo", "nuevoProveedor", "nuevaUbicacion", "altaRotacion"]],
    ["unidades", "Unidades", ["unidadVenta", "presentacionCompra", "factorConversion", "basculaDigital", "permiteVentaPieza", "piezasPorBolsa", "precioPieza"]],

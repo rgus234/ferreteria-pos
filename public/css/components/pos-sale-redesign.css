@@ -135,6 +135,13 @@ body.oscuro .pos-referencia .pos-reference-search {
   font-size: 17px;
 }
 
+.pos-flyout-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
 .pos-flyout-thumb .producto-mini-icon {
   width: 26px;
   height: 26px;
@@ -318,6 +325,13 @@ body.oscuro .pos-referencia .pos-reference-search {
   display: grid;
   place-items: center;
   overflow: hidden;
+}
+
+.pos-cart-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 11px;
 }
 
 .pos-cart-product strong {

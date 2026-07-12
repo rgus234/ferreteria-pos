@@ -95,6 +95,46 @@
  min-height:360px;
 }
 
+.catalogo-fotos-panel{
+ margin-top:16px;
+ min-height:auto;
+}
+
+.catalogo-fotos-ayuda{
+ color:#667085;
+ font-size:13px;
+ font-weight:600;
+ margin:0 0 12px;
+ max-width:640px;
+}
+
+.catalogo-fotos-subir{
+ display:flex;
+ flex-wrap:wrap;
+ align-items:center;
+ gap:10px;
+}
+
+.catalogo-fotos-resultado{
+ margin-top:10px;
+ font-size:13px;
+ color:#101828;
+}
+
+.catalogo-fotos-resultado small{
+ color:#667085;
+ font-weight:600;
+}
+
+body.oscuro .catalogo-fotos-ayuda,
+body.oscuro .catalogo-fotos-resultado small{
+ color:#94a3b8 !important;
+}
+
+body.oscuro .catalogo-fotos-resultado{
+ color:#f8fafc !important;
+}
+
 .catalogo-panel h3{
  margin:0 0 12px;
  color:#101828;

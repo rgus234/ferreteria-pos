@@ -1862,3 +1862,148 @@ Validacion:
   plan, mismo vencimiento, `correo: null` sin tocar).
 - No se hizo commit ni push -- pendiente de confirmacion explicita del
   usuario.
+
+### Fotos reales de producto: importacion por lote, galeria y "Ver detalles"
+
+El usuario esta por comercializar el POS y queria reemplazar el emoji
+generico que se muestra hoy por cada producto (`iconoProducto()`,
+adivinado por palabras clave en el nombre) por una foto real, pero le
+preocupaba subir 213 fotos una por una. Encontro que Truper (el
+fabricante detras de los productos que distribuye Diprofer, su
+proveedor real) tiene un "Banco de Contenido Digital" oficial con zips
+por pagina de catalogo, ya nombrados con la clave del producto. Se
+investigo un zip real que el usuario descargo (se abrieron varias fotos
+para confirmar): cada carpeta es un producto, el primer archivo en el
+orden fisico del zip (no alfabetico) es siempre la foto limpia en fondo
+blanco nombrada con la clave, y el resto son fotos secundarias (ficha
+comercial, beneficios, empaque individual con codigo de barras real,
+empaque multiple) -- material ideal para una galeria de detalle.
+
+Dado que el catalogo completo tiene ~500-600 paginas y es imposible
+saber de antemano cuales corresponden a productos ya dados de alta, se
+decidio con el usuario: subir el catalogo parejo sin filtrar (las fotos
+de codigos que no existen todavia como producto se quedan guardadas
+esperando a que se de de alta ese producto), subida de varios `.zip` a
+la vez (no uno por uno, no un archivo gigante combinado), y que volver
+a subir el mismo codigo despues (catalogo del siguiente año) simplemente
+reemplaza la foto anterior.
+
+Se investigo el codigo a fondo antes de planear (2 agentes de
+exploracion en paralelo) con hallazgos que definieron el diseño:
+ningun precedente de subir imagenes al servidor existia (el logo del
+negocio se queda 100% en `localStorage` del navegador, nunca se manda
+al servidor); el servidor no tenia ninguna paqueteria para manejar
+archivos/zips/imagenes (`multer`, `adm-zip`, `sharp` -- primeras
+dependencias nuevas del proyecto, confirmadas con el usuario); y Render
+(donde vive el servidor) no tiene disco persistente contratado, lo que
+descarto guardar archivos en el disco del servidor -- las fotos viven
+en Postgres (`BYTEA`).
+
+**Esquema** (`migrations/20260712_fotos_producto.sql`): tabla
+`fotos_producto` con clave `(negocio_id, codigo)` -- deliberadamente
+**no** `producto_id`, para que una foto pueda existir antes de que el
+producto se de de alta y se reuse igual cuando ya este creado. Tabla
+hija `fotos_producto_galeria` para las fotos secundarias.
+
+**Importacion por lote** (`POST /fotos-producto/importar-lote`,
+`server.js`): `multer` con `diskStorage` hacia una carpeta temporal
+del sistema (se procesa y se borra en el mismo request, nunca se
+espera que sobreviva un redeploy); por cada zip subido, por cada
+carpeta, `adm-zip` identifica el archivo limpio (primero en el orden
+del zip, sin sufijo `+`) como foto principal, la comprime con `sharp`
+(~320px, jpeg calidad media) y hace upsert en `fotos_producto` por
+codigo -- reemplazando si ya existia. El resto de fotos de la carpeta
+se guardan como galeria, tambien reemplazando la anterior.
+
+**Matching por codigo**: se probo contra datos reales que el codigo
+de barras de Diprofer (`productos.codigo`, ej. `7501206658505`) no es
+la clave Truper -- los codigos tipo `PAAPSES`/`48491` guardados como
+"alterno" en `producto_codigos` son mas cercanos a eso. Por seguridad,
+`GET /productos` compara el codigo de foto importado contra **tanto**
+`productos.codigo` **como** cualquier codigo alterno de
+`producto_codigos`, normalizando ambos lados igual (mayusculas, solo
+alfanumerico) para que un codigo con o sin guion siempre haga match.
+
+**Servir las imagenes**: `GET /fotos-producto/:codigo/principal` y
+`GET /fotos-producto-galeria/:id` transmiten el `BYTEA` directo con
+`Cache-Control` largo. `GET /productos` no carga bytes de imagen en la
+lista -- solo agrega un campo ligero `imagenUrl` (o `null`) calculado
+con un `LEFT JOIN` a una consulta chica de solo codigos, para no
+inflar la respuesta que se pide en cada carga de pantalla. **Hallazgo
+real durante las pruebas**: un `<img src="">` no pasa por el
+monkeypatch de `fetch()` que agrega el header `x-negocio-slug`, asi
+que las primeras pruebas devolvian 404 -- se corrigio agregando
+`?negocio=<slug>` a las URLs generadas (tenant.js ya soportaba ese
+query param como respaldo).
+
+**Mostrar la foto**: helper nuevo `miniaturaProducto(producto, clase)`
+(`pos-sales.js`, junto a `iconoProducto()`) que regresa la imagen real
+si existe o el emoji de siempre si no -- usado en el buscador flyout,
+el carrito y las 2 tablas de Inventario, sin tocar el resto de esos
+renders. **Bug real encontrado y corregido en el camino**: el primer
+intento de fallback (`onerror` intentando reconstruir el HTML del
+emoji como texto embebido en el propio atributo `onerror`) se rompia
+por comillas anidadas (el emoji trae sus propios atributos con
+comillas dobles dentro de un atributo HTML tambien delimitado por
+comillas dobles) -- se corrigio con un `data-fallback-nombre` mas una
+funcion `reemplazarImagenRotaPOS(img)` que hace el swap via DOM en vez
+de construir HTML como texto anidado.
+
+**Pantalla "Ver detalles"** (`product-details-view.js`, nueva --
+confirmado que no existia nada parecido antes, solo Editar/Eliminar):
+modal de solo lectura con toda la info del producto, la foto principal
+grande y la galeria en miniatura (clic para ampliar). Boton nuevo con
+icono `eye` (ya existia en `iconoUISVG()`) agregado junto a
+Editar/Eliminar en las 2 tablas de Inventario.
+
+**Importacion desde la pantalla** (dentro de "Catalogo proveedor", a
+peticion del usuario -- ya es donde se suben listas de precio de
+proveedor): selector de archivo con `multiple` para elegir varios
+`.zip` a la vez, boton "Importar fotos", resumen del resultado.
+Tambien: subida manual de una sola foto en el formulario de
+Agregar/editar producto, redimensionada del lado del navegador con
+`<canvas>` (mismo patron ya usado por el logo del negocio,
+`FileReader.readAsDataURL`) antes de mandarla, para no necesitar
+`multer` en ese camino.
+
+Validacion:
+
+- `node --check` correcto en `server.js`, `product-details-view.js`
+  (nuevo), `supplier-catalog-view.js`, `product-inventory.js`,
+  `pos-sales.js`, `pos-search-flyout.js`, `ferretero-flow.js`.
+- Las 3 dependencias nuevas (`multer`, `adm-zip`, `sharp`) confirmadas
+  cargando correctamente en este entorno antes de usarlas.
+- Migracion aplicada a la base real; ambas tablas confirmadas por
+  consulta.
+- Prueba end-to-end completa con el `.zip` REAL que el usuario
+  descargo de Truper, contra un negocio y productos 100% sinteticos
+  (creados y borrados despues, nunca la cuenta real del cliente):
+  importar por lote via la ruta real (12 fotos guardadas, 0 errores),
+  reimportar el mismo zip y confirmar reemplazo sin duplicar (mismo
+  conteo de filas antes/despues), foto principal servida con
+  `Content-Type`/`Cache-Control` correctos y ~4.9 KB (de ~380 KB
+  original), galeria completa accesible, subida manual individual
+  probada de punta a punta.
+- Prueba end-to-end en el navegador (no solo por consola): el mismo
+  `.zip` real subido haciendo clic en el boton real de la pantalla de
+  Catalogo proveedor (con un `DataTransfer` para simular la seleccion
+  de archivo), resultado visible en pantalla; foto real visible en
+  buscador, carrito e Inventario; producto sin foto sigue mostrando el
+  emoji exactamente igual que antes; "Ver detalles" probado con
+  producto con galeria y sin ninguna foto; subida manual de una foto
+  desde el formulario de producto probada con clic real en el campo.
+- Modo oscuro confirmado en el modal de "Ver detalles" (los 3 estados:
+  con foto, sin foto, con galeria abierta).
+- Confirmado por lectura directa y por `GET /productos` real que el
+  negocio real (Ferreteria Olimpico, 213 productos) sigue funcionando
+  exactamente igual, con `imagenUrl: null` en todos sus productos (su
+  catalogo es 100% Diprofer, sin fotos Truper importadas todavia) --
+  cero errores de servidor, mismo tiempo de respuesta razonable.
+- Se encontraron y limpiaron 2 negocios fantasma que el propio flujo
+  de pruebas de esta sesion genero sin querer (`asegurarNegocioActual`
+  auto-creando un negocio en blanco cuando quedo un slug de prueba
+  viejo en el navegador entre una fase y la siguiente) -- confirmados
+  con 0 productos/0 ventas antes de borrarlos, mismo criterio que el
+  incidente real de fantasmas documentado al inicio de esta sesion.
+- No se hizo commit ni push -- pendiente de confirmacion explicita del
+  usuario.
