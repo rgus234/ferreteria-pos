@@ -26,6 +26,63 @@ function productoCoincideConTexto(producto, texto) {
  return false;
 }
 
+// Busca en el inventario propio (no en el catalogo de referencia del
+// proveedor) un producto que ya tenga el codigo dado, sea como codigo
+// principal o como codigo alterno.
+function buscarProductoPorCodigo(codigoNormalizado) {
+ if (!codigoNormalizado) return null;
+
+ return todosProductos.find(p => {
+ const candidatos = [
+ normalizarCodigo(p.codigo),
+ ...(Array.isArray(p.codigos_relacionados)
+ ? p.codigos_relacionados.map(item => normalizarCodigo(item.codigo))
+ : [])
+ ];
+
+ return candidatos.includes(codigoNormalizado);
+ });
+}
+
+// Recuerda el ultimo codigo que el usuario ya confirmo que quiere
+// registrar de todos modos (aunque ya exista), para no repetirle la
+// misma alerta dos veces por el mismo codigo.
+let codigoDuplicadoConfirmado = null;
+
+// Se dispara al salir del campo de codigo de barras o codigo interno,
+// para avisar del duplicado desde el inicio en vez de hasta el final
+// del formulario (antes el usuario llenaba todo y hasta darle Guardar
+// se enteraba de que el producto ya existia).
+async function verificarCodigoDuplicadoEnVivo(inputId) {
+ if (productoEditandoId) return;
+
+ const valor =
+ normalizarCodigo(document.getElementById(inputId)?.value || "");
+
+ if (!valor || valor === codigoDuplicadoConfirmado) return;
+
+ const duplicado =
+ buscarProductoPorCodigo(valor);
+
+ if (!duplicado) return;
+
+ const irAEditar =
+ await dialogoPOS({
+ tipo: "alerta",
+ titulo: "Este producto ya existe",
+ mensaje: `Ya tienes "${duplicado.nombre}" en tu inventario con este codigo (stock actual: ${duplicado.stock}). ¿Editas ese producto en vez de crear uno nuevo?`,
+ mostrarCancelar: true,
+ textoAceptar: "Editar ese producto",
+ textoCancelar: "Continuar de todos modos"
+ });
+
+ if (irAEditar) {
+ editarProducto(duplicado.id);
+ } else {
+ codigoDuplicadoConfirmado = valor;
+ }
+}
+
 function limpiarTextoCatalogo(valor) {
  return String(valor || "")
  .replace(/^=+/, "")
@@ -1626,18 +1683,9 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  return;
  }
 
- if (!productoEditandoId) {
+ if (!productoEditandoId && codigoFinal !== codigoDuplicadoConfirmado) {
  const duplicado =
- todosProductos.find(p => {
- const candidatos = [
- normalizarCodigo(p.codigo),
- ...(Array.isArray(p.codigos_relacionados)
- ? p.codigos_relacionados.map(item => normalizarCodigo(item.codigo))
- : [])
- ];
-
- return candidatos.includes(codigoFinal);
- });
+ buscarProductoPorCodigo(codigoFinal);
 
  if (duplicado) {
  const irAEditar =
@@ -1654,6 +1702,8 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  editarProducto(duplicado.id);
  return;
  }
+
+ codigoDuplicadoConfirmado = codigoFinal;
  }
  }
 
@@ -1832,6 +1882,7 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
 
 function limpiarFormularioProductoParaSiguientePOS(contexto = {}) {
  productoEditandoId = null;
+ codigoDuplicadoConfirmado = null;
 
  const limpiar = [
   "nuevoCodigo",
@@ -2058,6 +2109,20 @@ function editarProducto(
 }
 
 async function eliminarProducto(id) {
+
+ const producto =
+ todosProductos.find(p => Number(p.id) === Number(id));
+
+ const confirmado =
+ await confirmarPOS(
+ producto
+ ? `¿Seguro que deseas eliminar "${producto.nombre}" del inventario? Esta accion no se puede deshacer.`
+ : "¿Seguro que deseas eliminar este producto del inventario? Esta accion no se puede deshacer.",
+ "Eliminar producto",
+ "peligro"
+ );
+
+ if (!confirmado) return;
 
  try {
  const respuesta =
@@ -3247,6 +3312,7 @@ function inicializarCampoCodigoProducto() {
 
 function cerrarFormularioAgregar() {
  productoEditandoId = null;
+ codigoDuplicadoConfirmado = null;
 
  document.getElementById("nuevoCodigo").value = "";
  delete document.getElementById("nuevoCodigo").dataset.codigoAutomatico;

@@ -53,6 +53,7 @@ async function verDetalleProducto(id) {
     <div><span>Categoria</span><strong>${escaparPOS(producto.categoria || "-")}</strong></div>
     <div><span>Subcategoria</span><strong>${escaparPOS(producto.subcategoria || "-")}</strong></div>
     <div><span>Proveedor</span><strong>${escaparPOS(producto.proveedor || "-")}</strong></div>
+    <div><span>Ubicacion</span><strong>${escaparPOS(producto.ubicacion || "-")}</strong></div>
     <div><span>Stock</span><strong>${escaparPOS(stockTexto)}</strong></div>
     <div><span>Precio publico</span><strong>$${Number(producto.precio_publico || producto.precio || 0).toFixed(2)}</strong></div>
     <div><span>Precio mayoreo</span><strong>$${Number(producto.precio_mayoreo || 0).toFixed(2)}</strong></div>

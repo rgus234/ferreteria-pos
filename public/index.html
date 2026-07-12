@@ -918,9 +918,9 @@
 
  <input id="tipoProductoInventario" type="hidden" value="catalogo">
  <input id="nuevoCodigo" placeholder=" Codigo de barras"
- oninput="buscarEnCatalogo()" />
+ oninput="buscarEnCatalogo()" onblur="verificarCodigoDuplicadoEnVivo('nuevoCodigo')" />
  <input id="nuevoNombre" placeholder="Nombre del producto">
- <input id="nuevoCodigoInterno" placeholder="Codigo interno / clave proveedor">
+ <input id="nuevoCodigoInterno" placeholder="Codigo interno / clave proveedor" onblur="verificarCodigoDuplicadoEnVivo('nuevoCodigoInterno')">
  <input id="codigosRelacionados" placeholder="Codigos alternos: caja, paquete, proveedor">
  <input id="nuevaCategoria" placeholder="Categoria" list="listaCategoriasProducto">
  <datalist id="listaCategoriasProducto"></datalist>
@@ -1340,7 +1340,7 @@
   <script src="js/supplier-catalog.js?v=fix-gafi-catalogo-20260709-02"></script>
   <script src="js/pricing-rules.js?v=reglas-precio-20260709-02"></script>
   <script src="js/catalog-parsers.js?v=fix-gafi-catalogo-20260709-01"></script>
-  <script src="js/product-inventory.js?v=buscar-codigo-alterno-20260712-01"></script>
+  <script src="js/product-inventory.js?v=alertas-tempranas-20260712-01"></script>
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-sales.js?v=fotos-producto-20260712-01"></script>
@@ -1354,7 +1354,7 @@
   <script src="js/reports.js?v=reportes-redesign-20260704-01"></script>
   <script src="js/shell-topbar.js?v=marca-nexo-20260711-01"></script>
   <script src="js/account-view.js?v=cuenta-20260712-01"></script>
-  <script src="js/product-details-view.js?v=fotos-producto-20260712-01"></script>
+  <script src="js/product-details-view.js?v=alertas-tempranas-20260712-01"></script>
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/pos-shortcuts.js?v=pos-flyout-redesign-20260708-03"></script>
   <script src="js/low-stock.js?v=lowstock-bugfix-20260705-01"></script>
