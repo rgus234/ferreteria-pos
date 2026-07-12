@@ -127,6 +127,156 @@
   color: var(--nexo-text) !important;
  }
 
+ #modalAgregar .proveedor-catalogo-seccion,
+ #modalAgregar .modo-captura-seccion {
+  width: 100% !important;
+  max-width: 960px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  margin-bottom: var(--nexo-space-3) !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-seccion {
+  display: grid !important;
+  grid-template-columns: 2fr 1fr !important;
+  gap: var(--nexo-space-3) !important;
+  align-items: stretch !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-selector-inline,
+ #modalAgregar .proveedor-catalogo-info,
+ #modalAgregar .modo-captura-seccion {
+  padding: 12px 14px !important;
+  border-radius: 18px !important;
+  background: var(--nexo-surface-soft) !important;
+  border: 1px solid var(--nexo-line) !important;
+  color: var(--nexo-text) !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-selector-inline > strong,
+ #modalAgregar .proveedor-catalogo-info > strong,
+ #modalAgregar .modo-captura-seccion > strong {
+  display: block !important;
+  font-size: 13px !important;
+  margin-bottom: 4px !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-ayuda {
+  display: block !important;
+  color: var(--nexo-text-muted) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  margin-bottom: var(--nexo-space-2) !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-selector-tiles {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-selector-tiles button {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-height: 40px !important;
+  padding: 0 10px !important;
+  border-radius: 13px !important;
+  background: var(--nexo-surface-strong) !important;
+  color: var(--nexo-text) !important;
+  border: 1px solid var(--nexo-line) !important;
+  font-size: 12px !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-selector-tiles button.activo {
+  border-color: color-mix(in srgb, var(--nexo-brand) 56%, var(--nexo-line)) !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--nexo-brand) 15%, var(--nexo-surface-strong)), var(--nexo-surface-strong)) !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-tile-icono {
+  width: 22px !important;
+  height: 22px !important;
+  flex: 0 0 22px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 8px !important;
+  background: color-mix(in srgb, var(--nexo-brand) 12%, var(--nexo-surface-soft)) !important;
+  color: var(--nexo-brand) !important;
+  font-weight: 900 !important;
+  font-size: 11px !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-info {
+  display: grid !important;
+  gap: 4px !important;
+  align-content: start !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-info-nombre {
+  font-weight: 900 !important;
+  font-size: 13px !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-info-regla {
+  color: var(--nexo-text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-info small {
+  color: var(--nexo-text-muted) !important;
+  font-size: 10px !important;
+ }
+
+ #modalAgregar .modo-captura-botones {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+ }
+
+ #modalAgregar .modo-captura-botones button {
+  min-height: 38px !important;
+  border-radius: 13px !important;
+  background: var(--nexo-surface-strong) !important;
+  color: var(--nexo-text-muted) !important;
+  border: 1px solid var(--nexo-line) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+ }
+
+ #modalAgregar .modo-captura-botones button.activo {
+  background: linear-gradient(135deg, var(--nexo-brand), var(--nexo-brand-strong)) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+ }
+
+ #modalAgregar .campo-ficha {
+  position: relative !important;
+ }
+
+ #modalAgregar .campo-ficha-badge-auto {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  background: color-mix(in srgb, #22c55e 18%, transparent) !important;
+  color: #16a34a !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+ }
+
+ @media (max-width: 900px) {
+  #modalAgregar .proveedor-catalogo-seccion {
+   grid-template-columns: 1fr !important;
+  }
+
+  #modalAgregar .proveedor-catalogo-selector-tiles,
+  #modalAgregar .modo-captura-botones {
+   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+ }
+
  #modalAgregar .producto-tabs {
   display: flex !important;
   gap: var(--nexo-space-2) !important;

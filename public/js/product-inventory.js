@@ -83,6 +83,162 @@ async function verificarCodigoDuplicadoEnVivo(inputId) {
  }
 }
 
+// Marca (o desmarca) un campo del formulario de producto como llenado
+// automaticamente desde el catalogo del proveedor, con una etiqueta
+// visual junto a su nombre.
+function marcarCampoAutocompletado(id, autocompletado) {
+ const campo =
+ document.getElementById(id);
+
+ const wrapper =
+ campo?.closest(".campo-ficha");
+
+ if (!wrapper) return;
+
+ let insignia =
+ wrapper.querySelector(".campo-ficha-badge-auto");
+
+ if (!autocompletado) {
+ insignia?.remove();
+ return;
+ }
+
+ if (!insignia) {
+ insignia = document.createElement("span");
+ insignia.className = "campo-ficha-badge-auto";
+ insignia.textContent = "Autocompletado";
+ wrapper.appendChild(insignia);
+ }
+}
+
+const PROVEEDORES_CATALOGO_PRODUCTO = [
+ { id: "diprofer", nombre: "Diprofer", modoCapturaPreferido: "barras" },
+ { id: "gafi", nombre: "Gafi", modoCapturaPreferido: "interno" },
+ { id: "truper", nombre: "Truper", modoCapturaPreferido: "barras" },
+ { id: "generico", nombre: "Otro proveedor", modoCapturaPreferido: "barras" }
+];
+
+let modoCapturaProductoActual = "barras";
+
+// Se dispara al elegir un proveedor en "Proveedor del catalogo": llena el
+// campo Proveedor, cambia el modo de captura preferido de ese proveedor
+// (ej. Gafi no tiene codigo de barras real, asi que prioriza codigo
+// interno) y muestra la regla de precio configurada para el, si existe.
+async function seleccionarProveedorCatalogoProducto(id) {
+ const info =
+ PROVEEDORES_CATALOGO_PRODUCTO.find(p => p.id === id);
+
+ if (!info) return;
+
+ document.querySelectorAll("#proveedorCatalogoSeccion [data-proveedor-catalogo]").forEach(boton => {
+ boton.classList.toggle("activo", boton.dataset.proveedorCatalogo === id);
+ });
+
+ const campoProveedor =
+ document.getElementById("nuevoProveedor");
+
+ if (campoProveedor) {
+ campoProveedor.value =
+ id === "generico" ? "" : info.nombre;
+ }
+
+ aplicarModoCapturaProducto(info.modoCapturaPreferido);
+
+ await actualizarInfoProveedorCatalogoProducto(info);
+}
+
+async function actualizarInfoProveedorCatalogoProducto(info) {
+ const panel =
+ document.getElementById("proveedorCatalogoInfo");
+
+ const nombreEl =
+ document.getElementById("proveedorCatalogoInfoNombre");
+
+ const reglaEl =
+ document.getElementById("proveedorCatalogoInfoRegla");
+
+ if (!panel || !nombreEl || !reglaEl) return;
+
+ nombreEl.textContent = info.nombre;
+ reglaEl.textContent = "Buscando regla de precio...";
+ panel.style.display = "grid";
+
+ if (info.id === "generico") {
+ reglaEl.textContent = "Sin regla de precio configurada";
+ return;
+ }
+
+ try {
+ const reglas =
+ typeof obtenerReglasPrecioProveedor === "function"
+ ? await obtenerReglasPrecioProveedor(info.nombre)
+ : null;
+
+ reglaEl.textContent =
+ reglas && reglas.margenGeneral !== null && reglas.margenGeneral !== undefined
+ ? `Regla de precio: +${reglas.margenGeneral}% editable`
+ : "Sin regla de precio configurada para este proveedor";
+ } catch (error) {
+ reglaEl.textContent = "Sin regla de precio configurada para este proveedor";
+ }
+}
+
+// Cambia cual campo (codigo de barras o codigo interno) es el principal:
+// lo pone primero, lo enfoca y ajusta las etiquetas para dejar claro cual
+// es opcional. "manual" no reordena, solo deja de asumir que hay codigo
+// de barras real.
+function aplicarModoCapturaProducto(modo) {
+ modoCapturaProductoActual = modo || "barras";
+
+ document.querySelectorAll("#modoCapturaSeccion [data-modo-captura]").forEach(boton => {
+ boton.classList.toggle("activo", boton.dataset.modoCaptura === modoCapturaProductoActual);
+ });
+
+ const campoCodigo =
+ document.getElementById("nuevoCodigo");
+
+ const campoCodigoInterno =
+ document.getElementById("nuevoCodigoInterno");
+
+ const wrapperCodigo =
+ campoCodigo?.closest(".campo-ficha");
+
+ const wrapperCodigoInterno =
+ campoCodigoInterno?.closest(".campo-ficha");
+
+ if (wrapperCodigo && wrapperCodigoInterno) {
+ wrapperCodigo.style.order =
+ modoCapturaProductoActual === "interno" ? "2" : "1";
+
+ wrapperCodigoInterno.style.order =
+ modoCapturaProductoActual === "interno" ? "1" : "2";
+ }
+
+ const etiquetaCodigo =
+ wrapperCodigo?.querySelector("span");
+
+ const etiquetaCodigoInterno =
+ wrapperCodigoInterno?.querySelector("span");
+
+ if (modoCapturaProductoActual === "interno") {
+ if (etiquetaCodigo) etiquetaCodigo.textContent = "Codigo de barras (opcional, si no tiene)";
+ if (etiquetaCodigoInterno) etiquetaCodigoInterno.textContent = "Codigo interno / clave proveedor (principal)";
+
+ if (campoCodigoInterno) {
+ campoCodigoInterno.placeholder = "Escanea o escribe la clave del proveedor";
+ setTimeout(() => campoCodigoInterno.focus(), 80);
+ }
+ } else if (modoCapturaProductoActual === "manual") {
+ if (etiquetaCodigo) etiquetaCodigo.textContent = "Codigo de barras (opcional)";
+ if (etiquetaCodigoInterno) etiquetaCodigoInterno.textContent = "Codigo interno / clave proveedor (opcional)";
+ } else {
+ if (etiquetaCodigo) etiquetaCodigo.textContent = "Codigo de barras";
+ if (etiquetaCodigoInterno) etiquetaCodigoInterno.textContent = "Codigo interno / clave proveedor";
+
+ if (campoCodigo) setTimeout(() => campoCodigo.focus(), 80);
+ }
+}
+
 function limpiarTextoCatalogo(valor) {
  return String(valor || "")
  .replace(/^=+/, "")
@@ -789,6 +945,22 @@ function seleccionarTipoProducto(tipo) {
  boton.dataset.tipoProducto === tipoFinal
  );
  });
+
+ const seccionProveedor =
+ document.getElementById("proveedorCatalogoSeccion");
+
+ const seccionModoCaptura =
+ document.getElementById("modoCapturaSeccion");
+
+ if (seccionProveedor) {
+ seccionProveedor.style.display =
+ tipoFinal === "catalogo" ? "grid" : "none";
+ }
+
+ if (seccionModoCaptura) {
+ seccionModoCaptura.style.display =
+ tipoFinal === "catalogo" ? "block" : "none";
+ }
 
  const codigo =
  document.getElementById("nuevoCodigo");
@@ -1883,6 +2055,7 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
 function limpiarFormularioProductoParaSiguientePOS(contexto = {}) {
  productoEditandoId = null;
  codigoDuplicadoConfirmado = null;
+ reiniciarProveedorCatalogoProducto();
 
  const limpiar = [
   "nuevoCodigo",
@@ -3310,9 +3483,29 @@ function inicializarCampoCodigoProducto() {
  });
 }
 
+// Regresa el selector de "Proveedor del catalogo" y el de "Modo de
+// captura" a su estado inicial (sin proveedor elegido, codigo de barras
+// como modo por defecto) al abrir o cerrar el formulario de producto.
+function reiniciarProveedorCatalogoProducto() {
+ document.querySelectorAll("#proveedorCatalogoSeccion [data-proveedor-catalogo]").forEach(boton => {
+ boton.classList.remove("activo");
+ });
+
+ const panelInfo =
+ document.getElementById("proveedorCatalogoInfo");
+
+ if (panelInfo) panelInfo.style.display = "none";
+
+ aplicarModoCapturaProducto("barras");
+
+ ["nuevoNombre", "nuevoCodigoInterno", "nuevaMarca", "nuevoProveedor", "nuevoCodigo"]
+ .forEach(id => marcarCampoAutocompletado(id, false));
+}
+
 function cerrarFormularioAgregar() {
  productoEditandoId = null;
  codigoDuplicadoConfirmado = null;
+ reiniciarProveedorCatalogoProducto();
 
  document.getElementById("nuevoCodigo").value = "";
  delete document.getElementById("nuevoCodigo").dataset.codigoAutomatico;
@@ -3364,15 +3557,7 @@ function cerrarFormularioAgregar() {
  "modalAgregar"
  ).style.display = "none";
 }
-function buscarEnCatalogo() {
- const codigo =
- normalizarCodigo(
- document
- .getElementById("nuevoCodigo")
- .value
- );
-
- if (!codigo) {
+function limpiarCamposCatalogoProducto() {
  document.getElementById("nuevoNombre").value = "";
  document.getElementById("precioDistribuidor").value = "";
  document.getElementById("precioMayoreo").value = "";
@@ -3394,34 +3579,29 @@ function buscarEnCatalogo() {
  togglePiezaCamposProducto();
  mostrarPiezasSueltasStockInfo(0);
  document.getElementById("basculaDigital").value = "no";
- return;
- }
+ ["nuevoNombre", "nuevoCodigoInterno", "nuevaMarca", "nuevoProveedor", "nuevoCodigo"]
+ .forEach(id => marcarCampoAutocompletado(id, false));
+}
 
- const producto =
- productoDesdeCatalogo(codigo);
-
- if (!producto) return;
-
+// Aplica un producto encontrado en el catalogo del proveedor al formulario.
+// origen indica que campo escribio el usuario (para no pisarle lo que acaba
+// de teclear) -- "barras" cuando vino de nuevoCodigo, "interno" cuando vino
+// de nuevoCodigoInterno (caso Gafi: catalogos sin codigo de barras real).
+function aplicarProductoCatalogoAlFormulario(producto, origen) {
  seleccionarTipoProducto("catalogo");
 
- document.getElementById(
- "nuevoNombre"
- ).value =
+ document.getElementById("nuevoNombre").value =
  producto.nombre || "";
 
- document.getElementById(
- "precioDistribuidor"
- ).value =
+ marcarCampoAutocompletado("nuevoNombre", Boolean(producto.nombre));
+
+ document.getElementById("precioDistribuidor").value =
  producto.distribuidor || "";
 
- document.getElementById(
- "precioMayoreo"
- ).value =
+ document.getElementById("precioMayoreo").value =
  producto.medioMayoreo || "";
 
- document.getElementById(
- "nuevoPrecio"
- ).value =
+ document.getElementById("nuevoPrecio").value =
  producto.medioMayoreo ||
  producto.publico ||
  producto.distribuidor ||
@@ -3461,8 +3641,19 @@ function buscarEnCatalogo() {
  ultimoProveedorCatalogo() ||
  "Diprofer";
 
+ marcarCampoAutocompletado("nuevoProveedor", Boolean(producto.proveedor));
+
+ if (origen !== "interno") {
  document.getElementById("nuevoCodigoInterno").value =
  producto.codigoInterno || "";
+
+ marcarCampoAutocompletado("nuevoCodigoInterno", Boolean(producto.codigoInterno));
+ } else if (origen !== "barras" && producto.codigoBarras) {
+ document.getElementById("nuevoCodigo").value =
+ producto.codigoBarras;
+
+ marcarCampoAutocompletado("nuevoCodigo", true);
+ }
 
  document.getElementById("codigosRelacionados").value =
  (producto.codigosRelacionados || [])
@@ -3473,6 +3664,8 @@ function buscarEnCatalogo() {
 
  document.getElementById("nuevaMarca").value =
  producto.marca || "";
+
+ marcarCampoAutocompletado("nuevaMarca", Boolean(producto.marca));
 
  document.getElementById("nuevaDescripcion").value =
  producto.descripcion || "";
@@ -3491,5 +3684,47 @@ function buscarEnCatalogo() {
  producto.altaRotacion || "";
 
  enfocarStockNuevoProducto();
+}
 
+function buscarEnCatalogo() {
+ const codigo =
+ normalizarCodigo(
+ document
+ .getElementById("nuevoCodigo")
+ .value
+ );
+
+ if (!codigo) {
+ limpiarCamposCatalogoProducto();
+ return;
+ }
+
+ const producto =
+ productoDesdeCatalogo(codigo);
+
+ if (!producto) return;
+
+ aplicarProductoCatalogoAlFormulario(producto, "barras");
+}
+
+// Version del buscador de catalogo que lee del campo de codigo interno /
+// clave de proveedor en vez del de codigo de barras -- para proveedores
+// como Gafi, cuyos productos no traen codigo de barras real y solo se
+// identifican por su clave interna.
+function buscarEnCatalogoPorCodigoInterno() {
+ const codigo =
+ normalizarCodigo(
+ document
+ .getElementById("nuevoCodigoInterno")
+ .value
+ );
+
+ if (!codigo) return;
+
+ const producto =
+ productoDesdeCatalogo(codigo);
+
+ if (!producto) return;
+
+ aplicarProductoCatalogoAlFormulario(producto, "interno");
 }
