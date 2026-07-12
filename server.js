@@ -1649,52 +1649,66 @@ async function procesarZipFotosProducto(rutaZip, negocioId) {
         carpetas.get(carpeta).push({ nombreArchivo, entry });
     }
 
-    for (const [, archivos] of carpetas) {
+    for (const [carpeta, archivos] of carpetas) {
         try {
             const principal = archivos[0];
             const resto = archivos.slice(1);
 
-            const codigoBase = principal.nombreArchivo
+            const codigoArchivo = principal.nombreArchivo
                 .replace(/\.(jpg|jpeg|png|webp)$/i, "")
                 .split("+")[0];
 
-            const codigo = normalizarCodigoFoto(codigoBase);
+            // El nombre de carpeta del zip suele ser el ID interno numerico de
+            // Truper para ese producto (ej. "14928"), distinto de la clave
+            // impresa en el empaque (ej. "ACES-4T-14") -- Diprofer a veces usa
+            // ese mismo numero como codigo real del producto, asi que se
+            // guarda la foto bajo los dos para que cualquiera de los dos
+            // haga match.
+            const codigos = [...new Set([
+                normalizarCodigoFoto(codigoArchivo),
+                normalizarCodigoFoto(carpeta)
+            ])].filter(Boolean);
 
-            if (!codigo) continue;
+            if (codigos.length === 0) continue;
 
             const bufferPrincipal = await comprimirImagen(principal.entry.getData(), 320);
+            const buffersGaleria = [];
 
-            const upsert = await pool.query(
-                `
-                INSERT INTO public.fotos_producto (negocio_id, codigo, imagen_principal, imagen_principal_tipo, actualizado_at)
-                VALUES ($1, $2, $3, 'image/jpeg', NOW())
-                ON CONFLICT (negocio_id, codigo)
-                DO UPDATE SET imagen_principal = $3, imagen_principal_tipo = 'image/jpeg', actualizado_at = NOW()
-                RETURNING id
-                `,
-                [negocioId, codigo, bufferPrincipal]
-            );
-
-            const fotoProductoId = upsert.rows[0].id;
-
-            await pool.query(
-                `DELETE FROM public.fotos_producto_galeria WHERE foto_producto_id = $1`,
-                [fotoProductoId]
-            );
-
-            let orden = 0;
             for (const item of resto) {
-                const bufferGaleria = await comprimirImagen(item.entry.getData(), 480);
+                buffersGaleria.push(await comprimirImagen(item.entry.getData(), 480));
+            }
 
-                await pool.query(
+            for (const codigo of codigos) {
+                const upsert = await pool.query(
                     `
-                    INSERT INTO public.fotos_producto_galeria (foto_producto_id, orden, imagen, tipo)
-                    VALUES ($1, $2, $3, 'image/jpeg')
+                    INSERT INTO public.fotos_producto (negocio_id, codigo, imagen_principal, imagen_principal_tipo, actualizado_at)
+                    VALUES ($1, $2, $3, 'image/jpeg', NOW())
+                    ON CONFLICT (negocio_id, codigo)
+                    DO UPDATE SET imagen_principal = $3, imagen_principal_tipo = 'image/jpeg', actualizado_at = NOW()
+                    RETURNING id
                     `,
-                    [fotoProductoId, orden, bufferGaleria]
+                    [negocioId, codigo, bufferPrincipal]
                 );
 
-                orden += 1;
+                const fotoProductoId = upsert.rows[0].id;
+
+                await pool.query(
+                    `DELETE FROM public.fotos_producto_galeria WHERE foto_producto_id = $1`,
+                    [fotoProductoId]
+                );
+
+                let orden = 0;
+                for (const bufferGaleria of buffersGaleria) {
+                    await pool.query(
+                        `
+                        INSERT INTO public.fotos_producto_galeria (foto_producto_id, orden, imagen, tipo)
+                        VALUES ($1, $2, $3, 'image/jpeg')
+                        `,
+                        [fotoProductoId, orden, bufferGaleria]
+                    );
+
+                    orden += 1;
+                }
             }
 
             resumen.fotosGuardadas += 1;
