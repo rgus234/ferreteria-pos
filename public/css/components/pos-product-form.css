@@ -254,7 +254,7 @@
   position: relative !important;
  }
 
- #modalAgregar .campo-ficha-badge-auto {
+ #modalAgregar .campo-ficha span.campo-ficha-badge-auto {
   position: absolute !important;
   top: 0 !important;
   right: 0 !important;
@@ -262,6 +262,18 @@
   border-radius: 999px !important;
   background: color-mix(in srgb, #22c55e 18%, transparent) !important;
   color: #16a34a !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+ }
+
+ #modalAgregar .campo-ficha span.campo-ficha-badge-imagen {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--nexo-brand) 18%, transparent) !important;
+  color: var(--nexo-brand) !important;
   font-size: 10px !important;
   font-weight: 900 !important;
  }

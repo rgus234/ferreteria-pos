@@ -3399,6 +3399,10 @@ app.get("/reglas-precios/:proveedor", async (req, res) => {
     try {
         const negocio = await negocioActual(req);
 
+        // Comparacion sin distinguir mayusculas/minusculas ni espacios --
+        // el mismo proveedor puede haberse escrito distinto en el catalogo
+        // subido ("Gafi") y en la pantalla de configurar precios ("GAFI"),
+        // y con comparacion exacta la regla ya guardada no se encontraba.
         const resultado = await pool.query(
             `
             SELECT
@@ -3410,7 +3414,7 @@ app.get("/reglas-precios/:proveedor", async (req, res) => {
                 actualizado_at
             FROM public.reglas_precios_proveedor
             WHERE negocio_id = $1
-            AND proveedor = $2
+            AND LOWER(TRIM(proveedor)) = LOWER(TRIM($2))
             `,
             [negocio.id, req.params.proveedor]
         );
@@ -3458,7 +3462,7 @@ app.post("/reglas-precios", async (req, res) => {
             `,
             [
                 negocio.id,
-                proveedor,
+                String(proveedor).trim(),
                 margenGeneral === "" || margenGeneral === undefined ? null : margenGeneral,
                 redondeo || "ninguno",
                 JSON.stringify(margenesCategoria || {}),

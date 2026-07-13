@@ -239,6 +239,35 @@ function aplicarModoCapturaProducto(modo) {
  }
 }
 
+// Avisa junto al campo de foto manual si el producto que se esta
+// editando ya tiene una imagen guardada (importada por lote o subida
+// antes) -- asi el usuario no tiene que adivinar ni abrir "Ver
+// detalles" para saber si ya tiene foto antes de decidir subir otra.
+function marcarImagenProductoEncontrada(tieneImagen) {
+ const campo =
+ document.getElementById("nuevaImagenProducto");
+
+ const wrapper =
+ campo?.closest(".campo-ficha");
+
+ if (!wrapper) return;
+
+ let insignia =
+ wrapper.querySelector(".campo-ficha-badge-imagen");
+
+ if (!tieneImagen) {
+ insignia?.remove();
+ return;
+ }
+
+ if (!insignia) {
+ insignia = document.createElement("span");
+ insignia.className = "campo-ficha-badge-imagen";
+ insignia.textContent = "Imagen encontrada";
+ wrapper.appendChild(insignia);
+ }
+}
+
 function limpiarTextoCatalogo(valor) {
  return String(valor || "")
  .replace(/^=+/, "")
@@ -1535,6 +1564,8 @@ async function subirImagenProductoManual() {
  throw new Error(datos.error || "No se pudo guardar la foto");
  }
 
+ marcarImagenProductoEncontrada(true);
+
  await alertaPOS("Foto guardada correctamente.", "Listo", "exito");
 
  if (typeof cargarProductos === "function") await cargarProductos();
@@ -2056,6 +2087,7 @@ function limpiarFormularioProductoParaSiguientePOS(contexto = {}) {
  productoEditandoId = null;
  codigoDuplicadoConfirmado = null;
  reiniciarProveedorCatalogoProducto();
+ marcarImagenProductoEncontrada(false);
 
  const limpiar = [
   "nuevoCodigo",
@@ -2171,6 +2203,8 @@ function editarProducto(
  productoEditandoId = id;
 
  mostrarFormularioAgregar();
+
+ marcarImagenProductoEncontrada(Boolean(producto?.imagenUrl));
 
  const tituloModal =
  document.getElementById("modalAgregarTitulo");
@@ -3459,8 +3493,18 @@ function mostrarFormularioAgregar() {
 }
 
 function inicializarCampoCodigoProducto() {
+ inicializarBusquedaCatalogoCampo("nuevoCodigo", buscarEnCatalogo);
+ inicializarBusquedaCatalogoCampo("nuevoCodigoInterno", buscarEnCatalogoPorCodigoInterno);
+}
+
+// Busca en el catalogo con una pequena pausa (en vez de en cada tecla) --
+// sobre todo pensado para cuando se escanea el codigo con una pistola, que
+// "teclea" muy rapido: sin la pausa, cada caracter del escaneo dispara una
+// busqueda completa en el catalogo y se siente lento/trabado mientras
+// escribe.
+function inicializarBusquedaCatalogoCampo(id, buscarFn) {
  const campo =
- document.getElementById("nuevoCodigo");
+ document.getElementById(id);
 
  if (!campo || campo.dataset.lectorListo === "1") return;
 
@@ -3469,16 +3513,16 @@ function inicializarCampoCodigoProducto() {
  const buscarConPausa = () => {
  clearTimeout(campo._temporizadorCatalogo);
  campo._temporizadorCatalogo =
- setTimeout(buscarEnCatalogo, 80);
+ setTimeout(buscarFn, 80);
  };
 
  campo.addEventListener("input", buscarConPausa);
- campo.addEventListener("change", buscarEnCatalogo);
+ campo.addEventListener("change", buscarFn);
  campo.addEventListener("paste", buscarConPausa);
  campo.addEventListener("keydown", event => {
  if (event.key === "Enter") {
  event.preventDefault();
- buscarEnCatalogo();
+ buscarFn();
  }
  });
 }
@@ -3506,6 +3550,7 @@ function cerrarFormularioAgregar() {
  productoEditandoId = null;
  codigoDuplicadoConfirmado = null;
  reiniciarProveedorCatalogoProducto();
+ marcarImagenProductoEncontrada(false);
 
  document.getElementById("nuevoCodigo").value = "";
  delete document.getElementById("nuevoCodigo").dataset.codigoAutomatico;

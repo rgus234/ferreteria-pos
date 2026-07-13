@@ -33,7 +33,7 @@
   <link rel="stylesheet" href="css/components/dashboard-alerts.css?v=inicio-redesign-20260706-01">
   <link rel="stylesheet" href="css/components/pos-cart.css?v=btn-credito-neutro-20260709-01">
   <link rel="stylesheet" href="css/components/pos-sale-redesign.css?v=fotos-cart-grande-20260712-01">
-  <link rel="stylesheet" href="css/components/pos-product-form.css?v=proveedor-catalogo-20260712-01">
+  <link rel="stylesheet" href="css/components/pos-product-form.css?v=pulido-lento-20260712-01">
   <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-bugfix-20260705-02">
   <link rel="stylesheet" href="css/components/sale-documents.css?v=refactor-sale-documents-20260630-01">
   <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=venta-pieza-20260711-01">
@@ -917,7 +917,6 @@
  <div id="proveedorCatalogoSeccion" class="proveedor-catalogo-seccion" style="display:none;">
  <div class="proveedor-catalogo-selector-inline">
  <strong>Proveedor del catalogo</strong>
- <span class="proveedor-catalogo-ayuda">Al elegir un proveedor, el formulario reordena los campos y activa la lectura correspondiente.</span>
  <div class="proveedor-catalogo-selector-tiles">
  <button type="button" data-proveedor-catalogo="diprofer" onclick="seleccionarProveedorCatalogoProducto('diprofer')">
  <span class="proveedor-catalogo-tile-icono">D</span><strong>Diprofer</strong>
@@ -934,10 +933,8 @@
  </div>
  </div>
  <div id="proveedorCatalogoInfo" class="proveedor-catalogo-info" style="display:none;">
- <strong>Lectura del catalogo activa</strong>
  <span id="proveedorCatalogoInfoNombre" class="proveedor-catalogo-info-nombre"></span>
  <span id="proveedorCatalogoInfoRegla" class="proveedor-catalogo-info-regla"></span>
- <small>Los campos marcados se autocompletaron desde el catalogo.</small>
  </div>
  </div>
 
@@ -954,9 +951,9 @@
 
  <input id="tipoProductoInventario" type="hidden" value="catalogo">
  <input id="nuevoCodigo" placeholder=" Codigo de barras"
- oninput="buscarEnCatalogo()" onblur="verificarCodigoDuplicadoEnVivo('nuevoCodigo')" />
+ onblur="verificarCodigoDuplicadoEnVivo('nuevoCodigo')" />
  <input id="nuevoNombre" placeholder="Nombre del producto">
- <input id="nuevoCodigoInterno" placeholder="Codigo interno / clave proveedor" oninput="buscarEnCatalogoPorCodigoInterno()" onblur="verificarCodigoDuplicadoEnVivo('nuevoCodigoInterno')">
+ <input id="nuevoCodigoInterno" placeholder="Codigo interno / clave proveedor" onblur="verificarCodigoDuplicadoEnVivo('nuevoCodigoInterno')">
  <input id="codigosRelacionados" placeholder="Codigos alternos: caja, paquete, proveedor">
  <input id="nuevaCategoria" placeholder="Categoria" list="listaCategoriasProducto">
  <datalist id="listaCategoriasProducto"></datalist>
@@ -1376,7 +1373,7 @@
   <script src="js/supplier-catalog.js?v=fix-gafi-catalogo-20260709-02"></script>
   <script src="js/pricing-rules.js?v=reglas-precio-20260709-02"></script>
   <script src="js/catalog-parsers.js?v=fix-gafi-catalogo-20260709-01"></script>
-  <script src="js/product-inventory.js?v=proveedor-catalogo-20260712-01"></script>
+  <script src="js/product-inventory.js?v=pulido-lento-20260712-01"></script>
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-sales.js?v=fotos-producto-20260712-01"></script>
