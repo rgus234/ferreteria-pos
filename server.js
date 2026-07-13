@@ -1616,9 +1616,15 @@ async function comprimirImagen(buffer, anchoMax = 320) {
         .toBuffer();
 }
 
+// Un zip de varias paginas del Banco de Contenido Digital de Truper (hasta
+// 5 paginas por descarga, cada una con varias fotos por producto en alta
+// resolucion) puede pesar bastante mas que un zip de una sola pagina --
+// 200MB de margen cubre eso comodo; las fotos igual se comprimen a ~320px
+// del lado del servidor antes de guardarse, asi que el tamano original de
+// subida no afecta lo que se guarda en la base de datos.
 const uploadZipsFotosProducto = multer({
     dest: os.tmpdir(),
-    limits: { fileSize: 60 * 1024 * 1024, files: 30 }
+    limits: { fileSize: 200 * 1024 * 1024, files: 30 }
 });
 
 // Envuelve multer a mano (en vez de pasarlo directo como middleware) para
@@ -1629,9 +1635,13 @@ const uploadZipsFotosProducto = multer({
 function manejarSubidaFotosProducto(req, res, next) {
     uploadZipsFotosProducto.array("zips", 30)(req, res, error => {
         if (error) {
+            const esMuyPesado = error.code === "LIMIT_FILE_SIZE";
+
             res.status(400).json({
                 ok: false,
-                error: error.message || "No se pudo procesar el archivo subido"
+                error: esMuyPesado
+                    ? "Este archivo pesa mas de 200MB. Descarga menos paginas juntas o en menor resolucion desde el Banco de Contenido Digital e intenta de nuevo."
+                    : (error.message || "No se pudo procesar el archivo subido")
             });
             return;
         }
