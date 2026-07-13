@@ -288,6 +288,31 @@ body.oscuro .catalogo-fotos-progreso{
  transition:width .25s ease;
 }
 
+/* Cuando el archivo ya termino de subir y solo falta que el servidor lo
+   procese (descomprimir + comprimir cada foto), la barra deja de avanzar
+   por bytes -- se pone a rayas en movimiento para que no se vea trabada
+   mientras se espera esa parte. */
+.catalogo-fotos-progreso-indeterminado .catalogo-fotos-progreso-barra{
+ width:100% !important;
+ background-image:linear-gradient(
+ 135deg,
+ color-mix(in srgb, var(--brand-color, #0d6efd) 85%, white) 25%,
+ var(--brand-color, #0d6efd) 25%,
+ var(--brand-color, #0d6efd) 50%,
+ color-mix(in srgb, var(--brand-color, #0d6efd) 85%, white) 50%,
+ color-mix(in srgb, var(--brand-color, #0d6efd) 85%, white) 75%,
+ var(--brand-color, #0d6efd) 75%,
+ var(--brand-color, #0d6efd) 100%
+ );
+ background-size:28px 28px;
+ animation:catalogoFotosProgresoRayas 1s linear infinite;
+}
+
+@keyframes catalogoFotosProgresoRayas{
+ from{ background-position:0 0; }
+ to{ background-position:28px 0; }
+}
+
 .catalogo-fotos-resultado small{
  color:#667085;
  font-weight:600;

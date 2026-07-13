@@ -633,16 +633,84 @@ function cancelarImportacionFotosProducto() {
  controladorImportacionFotos?.abort();
 }
 
-function actualizarProgresoImportarFotos(hechos, total) {
+function actualizarProgresoImportarFotos(fraccion) {
  const barra =
  document.getElementById("progresoImportarFotosBarra");
 
  if (!barra) return;
 
  const porcentaje =
- total > 0 ? Math.round((hechos / total) * 100) : 0;
+ Math.round(Math.min(1, Math.max(0, fraccion)) * 100);
 
  barra.style.width = `${porcentaje}%`;
+}
+
+function marcarProgresoImportarFotosIndeterminado(activo) {
+ const contenedor =
+ document.getElementById("progresoImportarFotos");
+
+ contenedor?.classList.toggle("catalogo-fotos-progreso-indeterminado", activo);
+}
+
+// Sube un zip usando XMLHttpRequest (en vez de fetch) porque es la unica
+// forma de escuchar el avance real de la subida (xhr.upload.progress) --
+// con fetch la barra no tenia forma de saber si un archivo grande ya iba
+// a la mitad o seguia en cero, y se sentia trabada con zips pesados.
+function subirZipFotosProducto(archivo, alAvanzar) {
+ return new Promise((resolve, reject) => {
+ const xhr =
+ new XMLHttpRequest();
+
+ controladorImportacionFotos = xhr;
+
+ xhr.upload.addEventListener("progress", event => {
+ if (event.lengthComputable) {
+ alAvanzar(event.loaded / event.total);
+ }
+ });
+
+ xhr.addEventListener("load", () => {
+ const contentType =
+ xhr.getResponseHeader("content-type") || "";
+
+ if (!contentType.includes("application/json")) {
+ reject(new Error(`Respuesta invalida del servidor (status ${xhr.status}). El archivo puede ser demasiado pesado.`));
+ return;
+ }
+
+ try {
+ const datos =
+ JSON.parse(xhr.responseText);
+
+ if (!datos.ok) {
+ reject(new Error(datos.error || "No se pudo importar este archivo"));
+ return;
+ }
+
+ resolve(datos);
+ } catch (error) {
+ reject(new Error("Respuesta invalida del servidor."));
+ }
+ });
+
+ xhr.addEventListener("error", () => {
+ reject(new Error("Error de conexion al subir el archivo."));
+ });
+
+ xhr.addEventListener("abort", () => {
+ const error = new Error("Importacion cancelada");
+ error.name = "AbortError";
+ reject(error);
+ });
+
+ const formData =
+ new FormData();
+
+ formData.append("zips", archivo);
+
+ xhr.open("POST", "/fotos-producto/importar-lote");
+ xhr.send(formData);
+ });
 }
 
 async function importarFotosProductoLote() {
@@ -674,7 +742,7 @@ async function importarFotosProductoLote() {
  if (botonImportar) botonImportar.style.display = "none";
  if (botonCancelar) botonCancelar.style.display = "inline-flex";
  if (progreso) progreso.style.display = "block";
- actualizarProgresoImportarFotos(0, archivos.length);
+ actualizarProgresoImportarFotos(0);
 
  // Se sube un .zip por peticion (no todos juntos): un lote grande junto
  // pesa demasiado para una sola subida y el servidor/Render lo rechaza
@@ -701,39 +769,27 @@ async function importarFotosProductoLote() {
  resultado.textContent = `Subiendo ${i + 1} de ${archivos.length}: ${archivo.name}...`;
  }
 
- const formData =
- new FormData();
-
- formData.append("zips", archivo);
-
- controladorImportacionFotos = new AbortController();
+ marcarProgresoImportarFotosIndeterminado(false);
 
  try {
- const respuesta =
- await fetch("/fotos-producto/importar-lote", {
- method: "POST",
- body: formData,
- signal: controladorImportacionFotos.signal
+ const datos =
+ await subirZipFotosProducto(archivo, fraccionArchivo => {
+ actualizarProgresoImportarFotos((i + fraccionArchivo) / archivos.length);
+
+ if (fraccionArchivo >= 1 && resultado) {
+ resultado.textContent = `${archivo.name} ya se subio, esperando que el servidor termine de procesarla (puede tardar si trae muchas fotos)...`;
+ marcarProgresoImportarFotosIndeterminado(true);
+ }
  });
 
- const contentType =
- respuesta.headers.get("content-type") || "";
-
- if (!contentType.includes("application/json")) {
- throw new Error(`Respuesta invalida del servidor (status ${respuesta.status}). El archivo puede ser demasiado pesado.`);
- }
-
- const datos =
- await respuesta.json();
-
- if (!datos.ok) {
- throw new Error(datos.error || "No se pudo importar este archivo");
- }
+ marcarProgresoImportarFotosIndeterminado(false);
 
  totales.zipsProcesados += datos.zipsProcesados;
  totales.fotosGuardadas += datos.fotosGuardadas;
  totales.errores.push(...datos.errores);
  } catch (error) {
+ marcarProgresoImportarFotosIndeterminado(false);
+
  if (error.name === "AbortError") {
  cancelado = true;
  break;
@@ -742,7 +798,7 @@ async function importarFotosProductoLote() {
  totales.errores.push(`${archivo.name}: ${error.message || "No se pudo importar"}`);
  }
 
- actualizarProgresoImportarFotos(i + 1, archivos.length);
+ actualizarProgresoImportarFotos((i + 1) / archivos.length);
 
  if (resultado) {
  resultado.innerHTML = `
