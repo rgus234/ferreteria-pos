@@ -2198,3 +2198,56 @@ async function cobrarCreditoInternoPOS(total) {
   enfocarBusquedaVentaRapida(true);
  }
 }
+
+// Ctrl+Shift+A: abrir el cajon del dinero a mano (sin vender), para cuando
+// no tienen la llave fisica del cajon. Pide confirmacion primero -- Enter
+// confirma, Escape cancela, igual que el resto de los dialogos del sistema.
+let cajonManualEnProceso = false;
+
+async function abrirCajonManualPOS() {
+ if (cajonManualEnProceso) return;
+
+ cajonManualEnProceso = true;
+
+ try {
+ const confirmado =
+ await confirmarPOS("¿Abrir el cajon del dinero?", "Abrir cajon", "info");
+
+ if (!confirmado) return;
+
+ if (!window.nexoDesktop || typeof window.nexoDesktop.openCashDrawer !== "function") {
+ await alertaPOS(
+ "Esta funcion solo esta disponible en la app de escritorio de Nexo POS, conectada a la impresora del cajon.",
+ "No disponible",
+ "alerta"
+ );
+ return;
+ }
+
+ const negocio =
+ configuracionNegocio() || {};
+
+ try {
+ await window.nexoDesktop.openCashDrawer({
+ printerName: negocio.impresoraNombre || ""
+ });
+ } catch (error) {
+ await alertaPOS(error.message || "No se pudo abrir el cajon.", "Error", "alerta");
+ }
+ } finally {
+ cajonManualEnProceso = false;
+ }
+}
+
+(function instalarAtajoAbrirCajonPOS() {
+ if (window.__atajoAbrirCajonPOS) return;
+ window.__atajoAbrirCajonPOS = true;
+
+ document.addEventListener("keydown", event => {
+ if (!event.ctrlKey || !event.shiftKey) return;
+ if (String(event.key || "").toLowerCase() !== "a") return;
+
+ event.preventDefault();
+ abrirCajonManualPOS();
+ });
+})();
