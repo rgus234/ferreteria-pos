@@ -156,11 +156,29 @@ body.oscuro .catalogo-fotos-toggle{
  color:#f8fafc !important;
 }
 
+.catalogo-fotos-buscador{
+ width:100%;
+ min-height:38px;
+ margin:0 0 10px;
+ padding:0 12px;
+ border:1px solid #d0d5dd;
+ border-radius:8px;
+ background:#fff;
+ color:#101828;
+ font-size:13px;
+}
+
+body.oscuro .catalogo-fotos-buscador{
+ background:#111827 !important;
+ border-color:#374151 !important;
+ color:#f8fafc !important;
+}
+
 .catalogo-fotos-tabla-wrap{
  margin-bottom:12px;
  max-height:420px;
  overflow-y:auto;
- border:1px solid #eef2f7;
+ border:1px solid #d0d5dd;
  border-radius:8px;
 }
 
@@ -176,15 +194,17 @@ body.oscuro .catalogo-fotos-tabla-wrap{
 
 .tabla-fotos-importadas th,
 .tabla-fotos-importadas td{
- padding:8px 10px;
- border-bottom:1px solid #eef2f7;
+ padding:10px 12px;
+ border-bottom:1px solid #e4e7ec;
  text-align:left;
+ vertical-align:middle;
+ white-space:nowrap;
 }
 
 .tabla-fotos-importadas th{
  position:sticky;
  top:0;
- background:#f8fafc;
+ background:#f2f4f7;
  color:#475467;
  font-weight:900;
 }
@@ -193,12 +213,21 @@ body.oscuro .catalogo-fotos-tabla-wrap{
  color:#344054;
 }
 
+.tabla-fotos-importadas td:nth-child(3){
+ white-space:normal;
+}
+
+.tabla-fotos-importadas tbody tr:nth-child(even){
+ background:#f8fafc;
+}
+
 .tabla-fotos-importadas-thumb{
+ display:block;
  width:40px;
  height:40px;
  border-radius:6px;
  object-fit:cover;
- background:#f2f4f7;
+ background:#e4e7ec;
 }
 
 .tabla-fotos-importadas-sin{
@@ -211,10 +240,52 @@ body.oscuro .tabla-fotos-importadas th{
  color:#cbd5e1 !important;
 }
 
+body.oscuro .tabla-fotos-importadas tbody tr:nth-child(even){
+ background:#182030 !important;
+}
+
 body.oscuro .tabla-fotos-importadas th,
 body.oscuro .tabla-fotos-importadas td{
  border-color:#374151 !important;
  color:#f8fafc !important;
+}
+
+.catalogo-fotos-cancelar{
+ width:auto;
+ min-height:44px;
+ margin:0;
+ padding:0 16px;
+ border:1px solid #fca5a5;
+ border-radius:8px;
+ background:#fef2f2;
+ color:#b91c1c;
+ font-weight:800;
+}
+
+body.oscuro .catalogo-fotos-cancelar{
+ background:#3f1d1d !important;
+ border-color:#7f1d1d !important;
+ color:#fca5a5 !important;
+}
+
+.catalogo-fotos-progreso{
+ width:100%;
+ height:8px;
+ margin-top:10px;
+ border-radius:999px;
+ background:#e4e7ec;
+ overflow:hidden;
+}
+
+body.oscuro .catalogo-fotos-progreso{
+ background:#374151 !important;
+}
+
+.catalogo-fotos-progreso-barra{
+ width:0%;
+ height:100%;
+ background:linear-gradient(90deg, var(--brand-color, #0d6efd), color-mix(in srgb, var(--brand-color, #0d6efd) 70%, white));
+ transition:width .25s ease;
 }
 
 .catalogo-fotos-resultado small{

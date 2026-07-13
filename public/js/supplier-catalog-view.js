@@ -408,12 +408,20 @@ async function alternarTablaFotosImportadas() {
  const boton =
  document.getElementById("btnVerFotosImportadas");
 
+ const buscador =
+ document.getElementById("buscarFotoImportadaInput");
+
  if (!tabla) return;
 
  const abrir =
  tabla.style.display === "none";
 
  tabla.style.display = abrir ? "block" : "none";
+
+ if (buscador) {
+ buscador.style.display = abrir ? "block" : "none";
+ if (!abrir) buscador.value = "";
+ }
 
  if (boton) {
  boton.textContent = boton.textContent.replace(
@@ -424,6 +432,11 @@ async function alternarTablaFotosImportadas() {
 
  if (abrir) await cargarTablaFotosImportadas();
 }
+
+// Se guarda la lista completa una vez traida del servidor para poder
+// filtrarla por codigo al instante mientras el usuario escribe, sin
+// tener que volver a pedirla al servidor en cada tecla.
+let fotosImportadasCache = [];
 
 async function cargarTablaFotosImportadas() {
  const tabla =
@@ -442,8 +455,42 @@ async function cargarTablaFotosImportadas() {
 
  if (!datos.ok) throw new Error(datos.error || "No se pudo consultar");
 
- if (datos.fotos.length === 0) {
- tabla.innerHTML = "Todavia no has importado fotos de producto.";
+ fotosImportadasCache = datos.fotos;
+
+ renderTablaFotosImportadas(fotosImportadasCache);
+ } catch (error) {
+ tabla.innerHTML = "No se pudo cargar la lista de fotos importadas.";
+ }
+}
+
+function filtrarTablaFotosImportadas(texto) {
+ const textoNormalizado =
+ String(texto || "").trim().toLowerCase();
+
+ if (!textoNormalizado) {
+ renderTablaFotosImportadas(fotosImportadasCache);
+ return;
+ }
+
+ const filtradas =
+ fotosImportadasCache.filter(foto =>
+ foto.codigo.toLowerCase().includes(textoNormalizado)
+ );
+
+ renderTablaFotosImportadas(filtradas, textoNormalizado);
+}
+
+function renderTablaFotosImportadas(fotos, textoBusqueda = "") {
+ const tabla =
+ document.getElementById("tablaFotosImportadas");
+
+ if (!tabla) return;
+
+ if (fotos.length === 0) {
+ tabla.innerHTML =
+ textoBusqueda
+ ? `Ningun codigo coincide con "${escaparPOS(textoBusqueda)}".`
+ : "Todavia no has importado fotos de producto.";
  return;
  }
 
@@ -458,7 +505,7 @@ async function cargarTablaFotosImportadas() {
  </tr>
  </thead>
  <tbody>
- ${datos.fotos.map(foto => `
+ ${fotos.map(foto => `
  <tr>
  <td><img src="${foto.imagenUrl}" alt="" loading="lazy" class="tabla-fotos-importadas-thumb"></td>
  <td>${escaparPOS(foto.codigo)}</td>
@@ -469,9 +516,6 @@ async function cargarTablaFotosImportadas() {
  </tbody>
  </table>
  `;
- } catch (error) {
- tabla.innerHTML = "No se pudo cargar la lista de fotos importadas.";
- }
 }
 
 function asegurarPantallaCatalogo() {
@@ -550,12 +594,19 @@ function asegurarPantallaCatalogo() {
  <button type="button" id="btnVerFotosImportadas" class="catalogo-fotos-toggle" onclick="alternarTablaFotosImportadas()" style="display:none;">
  Ver fotos importadas
  </button>
+ <input type="text" id="buscarFotoImportadaInput" class="catalogo-fotos-buscador" placeholder="Buscar por codigo..." oninput="filtrarTablaFotosImportadas(this.value)" style="display:none;">
  <div id="tablaFotosImportadas" class="catalogo-fotos-tabla-wrap" style="display:none;"></div>
  <div class="catalogo-fotos-subir">
  <input type="file" id="archivoFotosProducto" multiple accept=".zip">
- <button type="button" class="btn-catalogo-subir" onclick="importarFotosProductoLote()">
+ <button type="button" id="btnImportarFotos" class="btn-catalogo-subir" onclick="importarFotosProductoLote()">
  Importar fotos
  </button>
+ <button type="button" id="btnCancelarImportarFotos" class="catalogo-fotos-cancelar" onclick="cancelarImportacionFotosProducto()" style="display:none;">
+ Cancelar
+ </button>
+ </div>
+ <div id="progresoImportarFotos" class="catalogo-fotos-progreso" style="display:none;">
+ <div id="progresoImportarFotosBarra" class="catalogo-fotos-progreso-barra"></div>
  </div>
  <div id="resultadoImportarFotos" class="catalogo-fotos-resultado"></div>
  </div>
@@ -572,6 +623,28 @@ function asegurarPantallaCatalogo() {
  });
 }
 
+// Cancela la importacion de fotos en curso: aborta la subida que este
+// en vuelo en ese momento (no solo evita seguir con la siguiente).
+let cancelarImportacionFotosFlag = false;
+let controladorImportacionFotos = null;
+
+function cancelarImportacionFotosProducto() {
+ cancelarImportacionFotosFlag = true;
+ controladorImportacionFotos?.abort();
+}
+
+function actualizarProgresoImportarFotos(hechos, total) {
+ const barra =
+ document.getElementById("progresoImportarFotosBarra");
+
+ if (!barra) return;
+
+ const porcentaje =
+ total > 0 ? Math.round((hechos / total) * 100) : 0;
+
+ barra.style.width = `${porcentaje}%`;
+}
+
 async function importarFotosProductoLote() {
  const input =
  document.getElementById("archivoFotosProducto");
@@ -582,21 +655,45 @@ async function importarFotosProductoLote() {
  const resultado =
  document.getElementById("resultadoImportarFotos");
 
+ const botonImportar =
+ document.getElementById("btnImportarFotos");
+
+ const botonCancelar =
+ document.getElementById("btnCancelarImportarFotos");
+
+ const progreso =
+ document.getElementById("progresoImportarFotos");
+
  if (archivos.length === 0) {
  await alertaPOS("Selecciona uno o varios archivos .zip primero.", "Sin archivos", "alerta");
  return;
  }
 
+ cancelarImportacionFotosFlag = false;
+
+ if (botonImportar) botonImportar.style.display = "none";
+ if (botonCancelar) botonCancelar.style.display = "inline-flex";
+ if (progreso) progreso.style.display = "block";
+ actualizarProgresoImportarFotos(0, archivos.length);
+
  // Se sube un .zip por peticion (no todos juntos): un lote grande junto
  // pesa demasiado para una sola subida y el servidor/Render lo rechaza
- // sin avisar bien. Uno por uno tambien deja ver el avance real.
+ // sin avisar bien. Uno por uno tambien deja ver el avance real y poder
+ // cancelar entre archivo y archivo.
  const totales = {
  zipsProcesados: 0,
  fotosGuardadas: 0,
  errores: []
  };
 
+ let cancelado = false;
+
  for (let i = 0; i < archivos.length; i++) {
+ if (cancelarImportacionFotosFlag) {
+ cancelado = true;
+ break;
+ }
+
  const archivo =
  archivos[i];
 
@@ -609,11 +706,14 @@ async function importarFotosProductoLote() {
 
  formData.append("zips", archivo);
 
+ controladorImportacionFotos = new AbortController();
+
  try {
  const respuesta =
  await fetch("/fotos-producto/importar-lote", {
  method: "POST",
- body: formData
+ body: formData,
+ signal: controladorImportacionFotos.signal
  });
 
  const contentType =
@@ -634,8 +734,15 @@ async function importarFotosProductoLote() {
  totales.fotosGuardadas += datos.fotosGuardadas;
  totales.errores.push(...datos.errores);
  } catch (error) {
+ if (error.name === "AbortError") {
+ cancelado = true;
+ break;
+ }
+
  totales.errores.push(`${archivo.name}: ${error.message || "No se pudo importar"}`);
  }
+
+ actualizarProgresoImportarFotos(i + 1, archivos.length);
 
  if (resultado) {
  resultado.innerHTML = `
@@ -644,9 +751,15 @@ async function importarFotosProductoLote() {
  }
  }
 
+ controladorImportacionFotos = null;
+
+ if (botonImportar) botonImportar.style.display = "inline-flex";
+ if (botonCancelar) botonCancelar.style.display = "none";
+ if (progreso) progreso.style.display = "none";
+
  if (resultado) {
  resultado.innerHTML = `
- <strong>${totales.fotosGuardadas} foto(s) guardada(s)</strong> de ${totales.zipsProcesados} de ${archivos.length} archivo(s) procesados.
+ <strong>${totales.fotosGuardadas} foto(s) guardada(s)</strong> de ${totales.zipsProcesados} de ${archivos.length} archivo(s) procesados${cancelado ? " (importacion cancelada)" : ""}.
  ${totales.errores.length ? `<br><small>${escaparPOS(totales.errores.join(" | "))}</small>` : ""}
  `;
  }
