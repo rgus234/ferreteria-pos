@@ -33,7 +33,7 @@
   <link rel="stylesheet" href="css/components/dashboard-alerts.css?v=inicio-redesign-20260706-01">
   <link rel="stylesheet" href="css/components/pos-cart.css?v=btn-credito-neutro-20260709-01">
   <link rel="stylesheet" href="css/components/pos-sale-redesign.css?v=fotos-cart-grande-20260712-01">
-  <link rel="stylesheet" href="css/components/pos-product-form.css?v=pulido-lento-20260712-01">
+  <link rel="stylesheet" href="css/components/pos-product-form.css?v=margen-manual-20260713-01">
   <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-bugfix-20260705-02">
   <link rel="stylesheet" href="css/components/sale-documents.css?v=refactor-sale-documents-20260630-01">
   <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=venta-pieza-20260711-01">
@@ -935,6 +935,11 @@
  <div id="proveedorCatalogoInfo" class="proveedor-catalogo-info" style="display:none;">
  <span id="proveedorCatalogoInfoNombre" class="proveedor-catalogo-info-nombre"></span>
  <span id="proveedorCatalogoInfoRegla" class="proveedor-catalogo-info-regla"></span>
+ <label id="margenManualProveedorSeccion" class="margen-manual-proveedor" style="display:none;">
+ Margen a usar
+ <input type="number" id="margenManualProveedorInput" step="0.01" min="0" placeholder="%" oninput="recalcularPrecioConMargenManualProveedor(this.value)">
+ %
+ </label>
  </div>
  </div>
 
@@ -1372,8 +1377,8 @@
   <script src="js/catalog-provider-picker.js?v=catalog-adapters-20260708-01"></script>
   <script src="js/supplier-catalog.js?v=fix-gafi-catalogo-20260709-02"></script>
   <script src="js/pricing-rules.js?v=reglas-precio-20260709-02"></script>
-  <script src="js/catalog-parsers.js?v=fix-gafi-catalogo-20260709-01"></script>
-  <script src="js/product-inventory.js?v=pulido-lento-20260712-01"></script>
+  <script src="js/catalog-parsers.js?v=fix-nombre-longitud-20260713-01"></script>
+  <script src="js/product-inventory.js?v=margen-manual-20260713-01"></script>
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-sales.js?v=atajo-cajon-20260712-01"></script>

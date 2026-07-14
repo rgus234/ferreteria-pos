@@ -24,6 +24,12 @@ function extraerProductoGenericoCatalogo(ctx) {
  valorMapeoCatalogo(datos, mapeoCatalogo, "nombre") ||
  valorColumnaCatalogo(datos, columnas, "descripcion");
 
+ // "nombreLargo" adivina el nombre buscando el texto mas largo de toda
+ // la fila -- solo debe usarse como ultimo recurso cuando no hay ninguna
+ // columna de nombre/descripcion mapeada o detectada, porque si no puede
+ // ganarle a la columna real con cualquier otro texto largo de la fila
+ // (ej. el nombre del proveedor distribuidor, que en catalogos como el
+ // de Gafi suele ser mas largo que el nombre corto del producto).
  const nombreLargo =
  nombreProductoDesdeFilaCatalogo(
  datos,
@@ -33,12 +39,12 @@ function extraerProductoGenericoCatalogo(ctx) {
  const nombreDetectado =
  [
  descripcionColumna,
- nombreLargo,
  nombreColumna
  ]
  .map(limpiarTextoCatalogo)
  .filter(Boolean)
  .sort((a, b) => b.length - a.length)[0] ||
+ limpiarTextoCatalogo(nombreLargo) ||
  "Producto sin nombre";
 
  const medioMayoreoIva =

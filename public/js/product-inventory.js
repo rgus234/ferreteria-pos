@@ -147,6 +147,13 @@ async function seleccionarProveedorCatalogoProducto(id) {
  await actualizarInfoProveedorCatalogoProducto(info);
 }
 
+// Recuerda la ultima regla de precio consultada y el precio de lista del
+// producto que se acaba de encontrar en el catalogo, para que el campo de
+// "margen a usar" pueda recalcular el precio sugerido al vuelo sin tener
+// que ir a la pantalla de Precios por proveedor.
+let ultimaReglaProveedorCatalogo = null;
+let contextoPrecioListaCatalogoProducto = null;
+
 async function actualizarInfoProveedorCatalogoProducto(info) {
  const panel =
  document.getElementById("proveedorCatalogoInfo");
@@ -157,11 +164,18 @@ async function actualizarInfoProveedorCatalogoProducto(info) {
  const reglaEl =
  document.getElementById("proveedorCatalogoInfoRegla");
 
+ const margenSeccion =
+ document.getElementById("margenManualProveedorSeccion");
+
  if (!panel || !nombreEl || !reglaEl) return;
 
  nombreEl.textContent = info.nombre;
  reglaEl.textContent = "Buscando regla de precio...";
  panel.style.display = "grid";
+
+ ultimaReglaProveedorCatalogo = null;
+
+ if (margenSeccion) margenSeccion.style.display = "none";
 
  if (info.id === "generico") {
  reglaEl.textContent = "Sin regla de precio configurada";
@@ -171,16 +185,89 @@ async function actualizarInfoProveedorCatalogoProducto(info) {
  try {
  const reglas =
  typeof obtenerReglasPrecioProveedor === "function"
- ? await obtenerReglasPrecioProveedor(info.nombre)
+ ? await obtenerReglasPrecioProveedor(info.nombre, true)
  : null;
+
+ ultimaReglaProveedorCatalogo = reglas;
 
  reglaEl.textContent =
  reglas && reglas.margenGeneral !== null && reglas.margenGeneral !== undefined
  ? `Regla de precio: +${reglas.margenGeneral}% editable`
  : "Sin regla de precio configurada para este proveedor";
+
+ if (margenSeccion) margenSeccion.style.display = "flex";
+
+ actualizarInputMargenManualProveedor();
  } catch (error) {
  reglaEl.textContent = "Sin regla de precio configurada para este proveedor";
  }
+}
+
+// Pre-llena el campo de margen manual con el margen que ya le tocaria a
+// este producto (por producto > por categoria > general), para que el
+// usuario vea de entrada el mismo numero que calcularia el sistema y
+// solo lo cambie si de verdad quiere usar otro.
+function actualizarInputMargenManualProveedor() {
+ const input =
+ document.getElementById("margenManualProveedorInput");
+
+ if (!input || !ultimaReglaProveedorCatalogo) return;
+
+ const resuelto =
+ typeof resolverMargenProducto === "function"
+ ? resolverMargenProducto(ultimaReglaProveedorCatalogo, {
+ codigo: contextoPrecioListaCatalogoProducto?.codigo || "",
+ categoria: contextoPrecioListaCatalogoProducto?.categoria || ""
+ })
+ : null;
+
+ if (resuelto) input.value = resuelto.margen;
+}
+
+// Se dispara cuando el usuario cambia a mano el % de margen en el panel
+// de proveedor: recalcula el precio sugerido con ese porcentaje (en vez
+// del configurado) y actualiza el boton de "Usar precio sugerido" para
+// que siga siendo un clic aplicarlo -- el precio sigue siendo editable
+// despues, es un input normal.
+function recalcularPrecioConMargenManualProveedor(valorMargen) {
+ const boton =
+ typeof asegurarBotonSugerenciaPrecio === "function"
+ ? asegurarBotonSugerenciaPrecio()
+ : null;
+
+ if (!boton) return;
+
+ const margen =
+ Number(valorMargen);
+
+ const precioLista =
+ contextoPrecioListaCatalogoProducto?.precioLista || 0;
+
+ if (!precioLista || isNaN(margen)) {
+ boton.style.display = "none";
+ return;
+ }
+
+ const redondeo =
+ ultimaReglaProveedorCatalogo?.redondeo || "ninguno";
+
+ const bruto =
+ precioLista * (1 + margen / 100);
+
+ const sugerido =
+ typeof aplicarRedondeo === "function"
+ ? aplicarRedondeo(bruto, redondeo)
+ : Math.round(bruto * 100) / 100;
+
+ boton.textContent = `Usar precio sugerido: $${sugerido.toFixed(2)} (margen ${margen}%)`;
+ boton.style.display = "inline-flex";
+
+ boton.onclick = () => {
+ const campoPrecio =
+ document.getElementById("nuevoPrecio");
+
+ if (campoPrecio) campoPrecio.value = sugerido;
+ };
 }
 
 // Cambia cual campo (codigo de barras o codigo interno) es el principal:
@@ -3540,6 +3627,14 @@ function reiniciarProveedorCatalogoProducto() {
 
  if (panelInfo) panelInfo.style.display = "none";
 
+ const margenSeccion =
+ document.getElementById("margenManualProveedorSeccion");
+
+ if (margenSeccion) margenSeccion.style.display = "none";
+
+ ultimaReglaProveedorCatalogo = null;
+ contextoPrecioListaCatalogoProducto = null;
+
  aplicarModoCapturaProducto("barras");
 
  ["nuevoNombre", "nuevoCodigoInterno", "nuevaMarca", "nuevoProveedor", "nuevoCodigo"]
@@ -3632,7 +3727,7 @@ function limpiarCamposCatalogoProducto() {
 // origen indica que campo escribio el usuario (para no pisarle lo que acaba
 // de teclear) -- "barras" cuando vino de nuevoCodigo, "interno" cuando vino
 // de nuevoCodigoInterno (caso Gafi: catalogos sin codigo de barras real).
-function aplicarProductoCatalogoAlFormulario(producto, origen) {
+async function aplicarProductoCatalogoAlFormulario(producto, origen) {
  seleccionarTipoProducto("catalogo");
 
  document.getElementById("nuevoNombre").value =
@@ -3727,6 +3822,21 @@ function aplicarProductoCatalogoAlFormulario(producto, origen) {
  "altaRotacion"
  ).value =
  producto.altaRotacion || "";
+
+ // Guarda el precio de lista y la categoria de este match para que el
+ // campo de "margen a usar" del panel de proveedor (si esta visible)
+ // pueda recalcular el precio sugerido si el usuario decide usar un
+ // porcentaje distinto al configurado, sin tener que ir a la pantalla
+ // de Precios por proveedor.
+ contextoPrecioListaCatalogoProducto = {
+ precioLista: Number(producto.publico || producto.medioMayoreo || producto.distribuidor || 0),
+ categoria: producto.categoria || "",
+ codigo: producto.codigo || ""
+ };
+
+ await mostrarSugerenciaPrecioProveedor(producto);
+
+ actualizarInputMargenManualProveedor();
 
  enfocarStockNuevoProducto();
 }

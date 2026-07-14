@@ -228,6 +228,30 @@
   font-size: 10px !important;
  }
 
+ #modalAgregar .margen-manual-proveedor {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-top: 4px !important;
+  padding-top: 8px !important;
+  border-top: 1px dashed var(--nexo-line) !important;
+  color: var(--nexo-text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+ }
+
+ #modalAgregar .margen-manual-proveedor input {
+  width: 64px !important;
+  min-height: 32px !important;
+  padding: 0 8px !important;
+  border-radius: 10px !important;
+  background: var(--nexo-surface-strong) !important;
+  color: var(--nexo-text) !important;
+  border: 1px solid var(--nexo-line) !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+ }
+
  #modalAgregar .modo-captura-botones {
   display: grid !important;
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
