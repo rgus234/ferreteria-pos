@@ -2808,6 +2808,21 @@ app.get("/productos", async (req, res) => {
     }
 });
 
+app.get("/fotos-producto-existe/:codigo", async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+
+        const resultado = await pool.query(
+            `SELECT 1 FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = $2 LIMIT 1`,
+            [negocio.id, normalizarCodigoFoto(req.params.codigo)]
+        );
+
+        res.json({ ok: true, existe: resultado.rows.length > 0 });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
 app.get("/fotos-producto-resumen", async (req, res) => {
     try {
         const negocio = await negocioActual(req);

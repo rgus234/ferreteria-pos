@@ -59,7 +59,15 @@ async function verificarCodigoDuplicadoEnVivo(inputId) {
  const valor =
  normalizarCodigo(document.getElementById(inputId)?.value || "");
 
- if (!valor || valor === codigoDuplicadoConfirmado) return;
+ if (!valor) {
+ marcarImagenProductoEncontrada(false);
+ codigoImagenExistenteActual = null;
+ return;
+ }
+
+ verificarImagenExistenteParaCodigo(valor);
+
+ if (valor === codigoDuplicadoConfirmado) return;
 
  const duplicado =
  buscarProductoPorCodigo(valor);
@@ -352,6 +360,41 @@ function marcarImagenProductoEncontrada(tieneImagen) {
  insignia.className = "campo-ficha-badge-imagen";
  insignia.textContent = "Imagen encontrada";
  wrapper.appendChild(insignia);
+ }
+}
+
+// Recuerda para que codigo se confirmo que ya existe una foto guardada,
+// para poder preguntar "deseas reemplazarla" si el usuario elige otra
+// manualmente para ese mismo codigo.
+let codigoImagenExistenteActual = null;
+
+// Consulta si ya hay una foto guardada para este codigo aunque el
+// producto todavia no se haya dado de alta (las fotos importadas por
+// lote se guardan por codigo, esperando a que exista el producto) --
+// antes solo se detectaba al EDITAR un producto ya existente.
+async function verificarImagenExistenteParaCodigo(codigo) {
+ if (!codigo) {
+ codigoImagenExistenteActual = null;
+ marcarImagenProductoEncontrada(false);
+ codigoImagenExistenteActual = null;
+ return;
+ }
+
+ try {
+ const respuesta =
+ await fetch(`/fotos-producto-existe/${encodeURIComponent(codigo)}`);
+
+ const datos =
+ await respuesta.json();
+
+ const existe =
+ Boolean(datos.ok && datos.existe);
+
+ codigoImagenExistenteActual = existe ? codigo : null;
+
+ marcarImagenProductoEncontrada(existe);
+ } catch (error) {
+ // Silencioso -- no interrumpe el formulario si falla la consulta.
  }
 }
 
@@ -1633,6 +1676,20 @@ async function subirImagenProductoManual() {
  return;
  }
 
+ if (codigoImagenExistenteActual === codigo) {
+ const reemplazar =
+ await confirmarPOS(
+ "Este producto ya tiene una foto guardada. ¿Deseas reemplazarla por la que acabas de elegir?",
+ "Ya existe una foto",
+ "alerta"
+ );
+
+ if (!reemplazar) {
+ input.value = "";
+ return;
+ }
+ }
+
  try {
  const imagenBase64 =
  await redimensionarImagenCanvas(archivo, 320);
@@ -2175,6 +2232,7 @@ function limpiarFormularioProductoParaSiguientePOS(contexto = {}) {
  codigoDuplicadoConfirmado = null;
  reiniciarProveedorCatalogoProducto();
  marcarImagenProductoEncontrada(false);
+ codigoImagenExistenteActual = null;
 
  const limpiar = [
   "nuevoCodigo",
@@ -3646,6 +3704,7 @@ function cerrarFormularioAgregar() {
  codigoDuplicadoConfirmado = null;
  reiniciarProveedorCatalogoProducto();
  marcarImagenProductoEncontrada(false);
+ codigoImagenExistenteActual = null;
 
  document.getElementById("nuevoCodigo").value = "";
  delete document.getElementById("nuevoCodigo").dataset.codigoAutomatico;
@@ -3837,6 +3896,17 @@ async function aplicarProductoCatalogoAlFormulario(producto, origen) {
  await mostrarSugerenciaPrecioProveedor(producto);
 
  actualizarInputMargenManualProveedor();
+
+ // El match del catalogo puede traer el codigo en cualquiera de los
+ // dos campos segun el modo de captura -- se revisa el que quedo con
+ // valor para saber si ya existe una foto guardada esperando.
+ verificarImagenExistenteParaCodigo(
+ normalizarCodigo(
+ document.getElementById("nuevoCodigo")?.value ||
+ document.getElementById("nuevoCodigoInterno")?.value ||
+ ""
+ )
+ );
 
  enfocarStockNuevoProducto();
 }

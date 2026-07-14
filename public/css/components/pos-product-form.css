@@ -406,6 +406,12 @@
   font-weight: 800 !important;
  }
 
+ #modalAgregar .campo-ficha input[type="file"] {
+  display: flex !important;
+  align-items: center !important;
+  padding: 0 10px !important;
+ }
+
  #modalAgregar .btn-sugerencia-precio-proveedor {
   width: 100% !important;
   min-height: 36px !important;
