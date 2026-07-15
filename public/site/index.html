@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Nexo POS para Ferreterias</title>
   <meta name="description" content="Nexo POS es un sistema comercial para ferreterias con ventas, inventario, creditos, caja, reportes y recepcion de mercancia.">
-  <link rel="icon" href="../nexo-pos-icon.jpg">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="icon" href="/nexo-pos-icon.jpg">
+  <link rel="stylesheet" href="/site/styles.css">
 </head>
 <body>
   <header class="site-header">
     <a class="brand" href="#inicio" aria-label="Nexo POS">
-      <img src="../nexo-pos-icon.jpg" alt="Nexo POS">
+      <img src="/nexo-pos-icon.jpg" alt="Nexo POS">
       <span>Nexo POS</span>
     </a>
     <nav aria-label="Navegacion principal">
@@ -19,8 +19,12 @@
       <a href="#demo">Demo</a>
       <a href="#planes">Planes</a>
       <a href="#contacto">Contacto</a>
+      <a href="https://wa.me/524981234567?text=Hola,%20quiero%20una%20demo%20de%20Nexo%20POS" target="_blank" rel="noopener">WhatsApp</a>
     </nav>
-    <a class="header-cta" href="https://wa.me/524981234567?text=Hola,%20quiero%20una%20demo%20de%20Nexo%20POS" target="_blank" rel="noopener">WhatsApp</a>
+    <div class="header-actions">
+      <a class="header-login" href="https://app.nexoposoficial.com/?accion=iniciar-sesion">Iniciar sesion</a>
+      <a class="header-cta" href="https://app.nexoposoficial.com/">Comenzar gratis</a>
+    </div>
   </header>
 
   <main>
@@ -30,7 +34,7 @@
         <h1>Vende, controla inventario y cobra creditos desde un solo sistema.</h1>
         <p class="hero-copy">Un POS pensado para negocios ferreteros: codigos de barras, productos a granel, caja, clientes con credito, recepcion de mercancia y reportes para tomar decisiones.</p>
         <div class="hero-actions">
-          <a class="btn primary" href="https://wa.me/524981234567?text=Hola,%20quiero%20probar%20Nexo%20POS%20para%20mi%20ferreteria" target="_blank" rel="noopener">Solicitar demo</a>
+          <a class="btn primary" href="https://app.nexoposoficial.com/">Comenzar gratis</a>
           <a class="btn secondary" href="#demo">Ver recorrido</a>
         </div>
         <div class="hero-proof">
@@ -41,7 +45,7 @@
 
       <div class="product-preview" aria-label="Vista previa de Nexo POS">
         <div class="preview-top">
-          <img src="../nexo-pos-logo.jpg" alt="Nexo POS">
+          <img src="/nexo-pos-logo.jpg" alt="Nexo POS">
           <span>Panel operativo</span>
         </div>
         <div class="preview-grid">
@@ -196,6 +200,9 @@
         <input type="text" id="registroEmpresaWeb" name="empresaWeb" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
         <label>Nombre del negocio<input id="registroNegocio" type="text" placeholder="Ej. Ferreteria Olimpico" required></label>
         <label>Telefono<input id="registroTelefono" type="tel" placeholder="Ej. 498 123 4567" required></label>
+        <label>Correo<input id="registroCorreo" type="email" placeholder="Ej. dueno@tunegocio.com" required></label>
+        <label>Contrasena<input id="registroPassword" type="password" placeholder="Minimo 8 caracteres" minlength="8" required></label>
+        <label>Confirmar contrasena<input id="registroConfirmarPassword" type="password" placeholder="Repite tu contrasena" minlength="8" required></label>
         <label>Ciudad<input id="registroCiudad" type="text" placeholder="Ej. Rio Grande, Zac."></label>
         <label>Contacto<input id="registroContacto" type="text" placeholder="Ej. Gustavo"></label>
         <button class="btn primary" type="submit" id="registroSubmit">Solicitar licencia</button>
@@ -206,7 +213,7 @@
 
   <footer>
     <div class="brand">
-      <img src="../nexo-pos-icon.jpg" alt="Nexo POS">
+      <img src="/nexo-pos-icon.jpg" alt="Nexo POS">
       <span>Nexo POS</span>
     </div>
     <span>Sistema comercial para punto de venta.</span>
@@ -232,6 +239,15 @@
 
     form?.addEventListener("submit", async event => {
       event.preventDefault();
+
+      const password = document.getElementById("registroPassword").value;
+      const confirmarPassword = document.getElementById("registroConfirmarPassword").value;
+
+      if (password !== confirmarPassword) {
+        renderRegistro("Las contrasenas no coinciden.", true);
+        return;
+      }
+
       button.disabled = true;
       renderRegistro("Creando cliente y licencia...");
 
@@ -242,6 +258,9 @@
           body: JSON.stringify({
             nombreNegocio: document.getElementById("registroNegocio").value,
             telefono: document.getElementById("registroTelefono").value,
+            correo: document.getElementById("registroCorreo").value,
+            password,
+            confirmarPassword,
             ciudad: document.getElementById("registroCiudad").value,
             nombreContacto: document.getElementById("registroContacto").value,
             empresaWeb: document.getElementById("registroEmpresaWeb").value,
@@ -260,7 +279,7 @@
           <strong>Licencia creada</strong>
           <span>Negocio: ${escapeHtml(data.negocio.nombre)}</span>
           <span>Clave: <b>${escapeHtml(data.licencia.licenseKey)}</b></span>
-          <span>Usuario inicial: admin / 1234</span>
+          <span>Revisa tu correo (${escapeHtml(data.negocio.correo)}) para verificar tu cuenta.</span>
           <a class="btn secondary" href="${escapeHtml(data.instalador.url)}" download>Descargar instalador</a>
         `);
         form.reset();

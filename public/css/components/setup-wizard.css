@@ -234,6 +234,74 @@ body.oscuro .buscar-negocio-vacio {
   color: #cbd5e1;
 }
 
+.login-cuenta-campo {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--text-muted, #667085);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.login-cuenta-campo input {
+  margin-top: 6px;
+}
+
+.btn-login-cuenta {
+  width: 100% !important;
+  min-height: 46px;
+  margin-top: 4px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--brand-color, #0d6efd), color-mix(in srgb, var(--brand-color, #0d6efd) 72%, #020617)) !important;
+  color: #fff !important;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.login-cuenta-error {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(220, 38, 38, .10);
+  border: 1px solid rgba(220, 38, 38, .24);
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.buscar-negocio-enlaces {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  text-align: center;
+}
+
+.buscar-negocio-enlaces button {
+  width: auto !important;
+  min-height: auto !important;
+  padding: 4px 0 !important;
+  background: transparent !important;
+  border: none !important;
+  color: var(--brand-color, #0d6efd) !important;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+#buscarNegocioSetupSeccion {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft, rgba(15, 23, 42, .10));
+}
+
+body.oscuro .login-cuenta-campo {
+  color: #cbd5e1;
+}
+
+body.oscuro #buscarNegocioSetupSeccion {
+  border-top-color: rgba(226, 232, 240, .16);
+}
+
 .setup-card {
   width: 100%;
   min-height: 540px;

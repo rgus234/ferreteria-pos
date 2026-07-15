@@ -93,7 +93,8 @@ function dialogoPOS(opciones = {}) {
  mostrarCancelar = false,
  entrada = false,
  valorInicial = "",
- placeholder = ""
+ placeholder = "",
+ tipoEntrada = "text"
  } = opciones;
 
  return new Promise(resolve => {
@@ -129,7 +130,7 @@ function dialogoPOS(opciones = {}) {
  <p>${limpiar(mensaje)}</p>
  ${
  entrada
- ? `<input id="dialogoPOSInput" value="${limpiar(valorInicial)}" placeholder="${limpiar(placeholder)}">`
+ ? `<input id="dialogoPOSInput" type="${limpiar(tipoEntrada)}" value="${limpiar(valorInicial)}" placeholder="${limpiar(placeholder)}">`
  : ""
  }
  </div>
@@ -222,6 +223,19 @@ function pedirTextoPOS(mensaje, valorInicial = "", titulo = "Completar dato") {
  valorInicial,
  mostrarCancelar: true,
  textoAceptar: "Guardar",
+ textoCancelar: "Cancelar"
+ });
+}
+
+function pedirPasswordPOS(mensaje, titulo = "Completar dato") {
+ return dialogoPOS({
+ tipo: "info",
+ titulo,
+ mensaje,
+ entrada: true,
+ tipoEntrada: "password",
+ mostrarCancelar: true,
+ textoAceptar: "Continuar",
  textoCancelar: "Cancelar"
  });
 }
@@ -445,19 +459,266 @@ async function abrirBuscarNegocioSetup() {
  <div class="modal-card-header">
  <div>
  <span>Reconectar</span>
- <h3>Busca tu negocio</h3>
+ <h3>Inicia sesion</h3>
  </div>
  <button type="button" onclick="cerrarBuscarNegocioSetup()">Cerrar</button>
  </div>
- <p class="buscar-negocio-ayuda">Escribe el nombre o telefono de tu negocio para reconectarte a tu cuenta existente en vez de crear una nueva.</p>
+ <p class="buscar-negocio-ayuda">Entra con el correo y la contrasena de tu cuenta de Nexo POS.</p>
+
+ <div id="loginCuentaError" class="login-cuenta-error" style="display:none;"></div>
+
+ <label class="login-cuenta-campo">
+ Correo
+ <input type="email" id="loginCuentaCorreo" placeholder="tu@correo.com" autocomplete="username">
+ </label>
+ <label class="login-cuenta-campo">
+ Contrasena
+ <input type="password" id="loginCuentaPassword" placeholder="Tu contrasena" autocomplete="current-password">
+ </label>
+
+ <button type="button" class="btn-login-cuenta" id="btnLoginCuenta" onclick="iniciarSesionCuenta()">Entrar</button>
+
+ <div class="buscar-negocio-enlaces">
+ <button type="button" onclick="abrirOlvidePasswordCuenta()">¿Olvidaste tu contrasena?</button>
+ <button type="button" onclick="alternarBusquedaNegocioSetup()">No recuerdo mi correo, buscar por nombre o telefono</button>
+ </div>
+
+ <div id="buscarNegocioSetupSeccion" style="display:none;">
  <input type="text" id="buscarNegocioSetupInput" placeholder="Nombre o telefono del negocio..." oninput="buscarNegocioSetup(this.value)">
  <div id="resultadosBuscarNegocioSetup" class="buscar-negocio-resultados"></div>
+ </div>
  </div>
  `;
 
  modal.style.display = "flex";
 
+ setTimeout(() => document.getElementById("loginCuentaCorreo")?.focus(), 50);
+}
+
+function alternarBusquedaNegocioSetup() {
+ const seccion =
+ document.getElementById("buscarNegocioSetupSeccion");
+
+ if (!seccion) return;
+
+ const mostrar =
+ seccion.style.display === "none";
+
+ seccion.style.display = mostrar ? "block" : "none";
+
+ if (mostrar) {
  setTimeout(() => document.getElementById("buscarNegocioSetupInput")?.focus(), 50);
+ }
+}
+
+async function iniciarSesionCuenta() {
+ const correo =
+ document.getElementById("loginCuentaCorreo")?.value.trim();
+
+ const password =
+ document.getElementById("loginCuentaPassword")?.value || "";
+
+ const cajaError =
+ document.getElementById("loginCuentaError");
+
+ const boton =
+ document.getElementById("btnLoginCuenta");
+
+ if (cajaError) cajaError.style.display = "none";
+
+ if (!correo || !password) {
+ if (cajaError) {
+ cajaError.textContent = "Escribe tu correo y tu contrasena.";
+ cajaError.style.display = "block";
+ }
+ return;
+ }
+
+ if (boton) {
+ boton.disabled = true;
+ boton.textContent = "Entrando...";
+ }
+
+ try {
+ const respuesta =
+ await fetch("/cuenta/login", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ correo, password })
+ });
+
+ const datos =
+ await respuesta.json();
+
+ if (!datos.ok) {
+ if (cajaError) {
+ cajaError.textContent = datos.error || "No se pudo iniciar sesion.";
+ cajaError.style.display = "block";
+ }
+
+ if (datos.correoSinVerificar) {
+ const reenviar = await confirmarPOS(
+ "¿Quieres que te reenviemos el correo de verificacion?",
+ "Correo sin verificar"
+ );
+
+ if (reenviar) {
+ try {
+ await fetch("/cuenta/reenviar-verificacion", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ correo })
+ });
+ await alertaPOS("Te mandamos un nuevo correo de verificacion. Revisa tu bandeja de entrada.", "Listo", "exito");
+ } catch (error) {
+ await alertaPOS("No se pudo conectar. Revisa tu internet e intenta de nuevo.", "Sin conexion", "alerta");
+ }
+ }
+ }
+
+ return;
+ }
+
+ localStorage.setItem(CUENTA_SESION_TOKEN_KEY, datos.token);
+
+ guardarConfiguracionNegocioDesdeServidor(datos.negocio);
+
+ cerrarBuscarNegocioSetup();
+
+ await inicializarConfiguracionInicial();
+ } catch (error) {
+ if (cajaError) {
+ cajaError.textContent = "No se pudo conectar. Revisa tu internet e intenta de nuevo.";
+ cajaError.style.display = "block";
+ }
+ } finally {
+ if (boton) {
+ boton.disabled = false;
+ boton.textContent = "Entrar";
+ }
+ }
+}
+
+async function pedirCodigoRecuperacionCuenta(correo) {
+ try {
+ await fetch("/cuenta/olvide-password", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ correo })
+ });
+ return true;
+ } catch (error) {
+ await alertaPOS("No se pudo conectar. Revisa tu internet e intenta de nuevo.", "Sin conexion", "alerta");
+ return false;
+ }
+}
+
+async function abrirOlvidePasswordCuenta() {
+ const correoPrellenado =
+ document.getElementById("loginCuentaCorreo")?.value.trim() || "";
+
+ const correo = await pedirTextoPOS(
+ "Escribe el correo de tu cuenta. Te mandaremos un codigo de 6 digitos.",
+ correoPrellenado,
+ "Recuperar contrasena"
+ );
+
+ if (!correo) return;
+
+ const correoLimpio = correo.trim();
+
+ if (!(await pedirCodigoRecuperacionCuenta(correoLimpio))) return;
+
+ await alertaPOS(
+ "Si el correo esta registrado, te enviamos un codigo de 6 digitos. Revisa tu bandeja de entrada (y spam).",
+ "Revisa tu correo",
+ "exito"
+ );
+
+ let tokenRestablecimiento = null;
+
+ while (!tokenRestablecimiento) {
+ const codigo = await pedirTextoPOS(
+ "Escribe el codigo de 6 digitos que te enviamos por correo.",
+ "",
+ "Verificar codigo"
+ );
+
+ if (!codigo) return;
+
+ try {
+ const respuesta = await fetch("/cuenta/verificar-codigo-reset", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ correo: correoLimpio, codigo: codigo.trim() })
+ });
+
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ const reenviar = await confirmarPOS(
+ `${datos.error || "Codigo invalido o vencido."} ¿Quieres que te mandemos un codigo nuevo?`,
+ "No se pudo verificar"
+ );
+
+ if (reenviar) {
+ if (!(await pedirCodigoRecuperacionCuenta(correoLimpio))) return;
+ await alertaPOS("Te mandamos un codigo nuevo. Revisa tu correo.", "Codigo reenviado", "exito");
+ }
+
+ continue;
+ }
+
+ tokenRestablecimiento = datos.tokenRestablecimiento;
+ } catch (error) {
+ await alertaPOS("No se pudo conectar. Revisa tu internet e intenta de nuevo.", "Sin conexion", "alerta");
+ return;
+ }
+ }
+
+ while (true) {
+ const nuevaPassword = await pedirPasswordPOS(
+ "Escribe tu nueva contrasena (minimo 8 caracteres).",
+ "Nueva contrasena"
+ );
+
+ if (!nuevaPassword) return;
+
+ const confirmarPassword = await pedirPasswordPOS(
+ "Escribe de nuevo tu nueva contrasena para confirmarla.",
+ "Confirmar contrasena"
+ );
+
+ if (!confirmarPassword) return;
+
+ try {
+ const respuesta = await fetch("/cuenta/restablecer-password", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ tokenRestablecimiento, password: nuevaPassword, confirmarPassword })
+ });
+
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ await alertaPOS(datos.error || "No se pudo cambiar la contrasena.", "Intenta de nuevo", "alerta");
+ continue;
+ }
+
+ await alertaPOS("Tu contrasena se cambio correctamente. Ya puedes iniciar sesion con ella.", "Listo", "exito");
+
+ const campoCorreo = document.getElementById("loginCuentaCorreo");
+ const campoPassword = document.getElementById("loginCuentaPassword");
+
+ if (campoCorreo) campoCorreo.value = correo.trim();
+ if (campoPassword) campoPassword.value = "";
+
+ return;
+ } catch (error) {
+ await alertaPOS("No se pudo conectar. Revisa tu internet e intenta de nuevo.", "Sin conexion", "alerta");
+ return;
+ }
+ }
 }
 
 function cerrarBuscarNegocioSetup() {
@@ -570,6 +831,10 @@ async function inicializarConfiguracionInicial() {
   ?.focus();
 
   cambiarPasoSetup(0);
+
+  if (new URLSearchParams(window.location.search).get("accion") === "iniciar-sesion") {
+  abrirBuscarNegocioSetup();
+  }
   }, 50);
 
  const campoNombre =

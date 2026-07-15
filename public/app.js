@@ -62,6 +62,7 @@ const CONFIG_NEGOCIO_KEY = "configuracionNegocioPOS";
 const TEMA_POS_KEY = "temaPOS";
 const SESION_POS_KEY = "sesionUsuarioPOS";
 const NEGOCIO_ACTIVO_KEY = "negocioActivoNexoPOS";
+const CUENTA_SESION_TOKEN_KEY = "nexoCuentaSesionToken";
 const CONTACTO_DESARROLLADOR_KEY = "contactoDesarrolladorNexoPOS";
 const MODO_DESARROLLADOR_NEXO_KEY = "modoDesarrolladorNexoPOS";
 const CONTACTO_DESARROLLADOR_DEFAULT = {

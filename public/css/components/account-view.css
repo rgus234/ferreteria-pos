@@ -136,6 +136,129 @@ body.oscuro .cuenta-pill-limitado {
   color: #fca5a5 !important;
 }
 
+.cuenta-tarjeta-ancha {
+  grid-column: 1 / -1;
+}
+
+.cuenta-correo-badge {
+  display: inline-block;
+  margin: 4px 0 8px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.cuenta-correo-badge-ok {
+  background: rgba(22, 163, 74, .12);
+  color: #15803d;
+}
+
+.cuenta-correo-badge-pendiente {
+  background: rgba(217, 119, 6, .14);
+  color: #b45309;
+}
+
+.cuenta-link-boton {
+  display: inline-block;
+  width: auto !important;
+  margin-top: 10px;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  color: var(--brand-color, #0d6efd) !important;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cuenta-link-peligro {
+  color: #dc2626 !important;
+}
+
+.cuenta-subseccion-titulo {
+  margin: 20px 0 10px;
+  font-size: 13.5px;
+  color: var(--pos-text, #172033);
+}
+
+.cuenta-cambiar-password {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.cuenta-sesiones-lista {
+  display: grid;
+  gap: 8px;
+}
+
+.cuenta-sesion-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft, #dbe3ef);
+  border-radius: 12px;
+  background: var(--surface-strong, #f8fafc);
+}
+
+.cuenta-sesion-fila strong {
+  display: block;
+  font-size: 13.5px;
+  color: var(--pos-text, #172033);
+}
+
+.cuenta-sesion-fila span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted, #667085);
+}
+
+.cuenta-sesion-actual {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(13, 110, 253, .12);
+  color: #0d6efd;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+body.oscuro .cuenta-correo-badge-ok {
+  background: rgba(22, 163, 74, .22) !important;
+  color: #86efac !important;
+}
+
+body.oscuro .cuenta-correo-badge-pendiente {
+  background: rgba(217, 119, 6, .24) !important;
+  color: #fcd34d !important;
+}
+
+body.oscuro .cuenta-subseccion-titulo {
+  color: #f8fafc !important;
+}
+
+body.oscuro .cuenta-sesion-fila {
+  background: rgba(15, 23, 42, .55) !important;
+  border-color: rgba(148, 163, 184, .2) !important;
+}
+
+body.oscuro .cuenta-sesion-fila strong {
+  color: #f8fafc !important;
+}
+
+body.oscuro .cuenta-sesion-fila span {
+  color: #94a3b8 !important;
+}
+
 @media (max-width: 720px) {
   .cuenta-tarjetas {
     grid-template-columns: 1fr;

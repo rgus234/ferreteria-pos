@@ -19,3 +19,9 @@ services:
         sync: false
       - key: ADMIN_KEY
         sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        sync: false

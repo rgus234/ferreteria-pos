@@ -86,6 +86,22 @@ nav a:hover {
   background: rgba(16, 103, 232, .08);
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.header-login {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.header-login:hover {
+  color: var(--blue);
+}
+
 .header-cta,
 .btn {
   display: inline-flex;
@@ -560,6 +576,10 @@ footer {
     width: 100%;
     overflow-x: auto;
     justify-content: flex-start;
+  }
+
+  .header-actions {
+    margin-left: auto;
   }
 
   .hero,

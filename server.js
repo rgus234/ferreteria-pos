@@ -16,10 +16,23 @@ const {
 } = require("./tenant");
 const { cargarModulosPOS } = require("./server-modules");
 const { hashPassword, verificarPassword } = require("./password-utils");
+const {
+    enviarCorreoVerificacion,
+    enviarCorreoRecuperacion,
+    enviarCorreoActivacionCuenta
+} = require("./email");
 
 validarConfigProduccion();
 
 const app = express();
+
+// Detras del proxy de Render (y de Cloudflare si el dominio queda
+// proxiado ahi), la conexion TLS termina antes de llegar a este
+// proceso -- sin esto, req.protocol e req.ip siempre ven "http" y la
+// IP interna del proxy, sin importar que el visitante haya usado
+// https de verdad. Necesario para que los enlaces de correo
+// (urlBase) y el limitador de intentos por IP usen datos correctos.
+app.set("trust proxy", 1);
 
 const PORT = config.port;
 
@@ -28,7 +41,12 @@ app.use((req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();
 });
-app.use(express.static(path.join(__dirname, "public")));
+// index:false porque "/" se resuelve mas abajo segun el dominio
+// (nexoposoficial.com = landing comercial, cualquier otro host,
+// incluido app.nexoposoficial.com, = la app del POS).
+app.use(express.static(path.join(__dirname, "public"), { index: false }));
+
+const DOMINIOS_LANDING_COMERCIAL = new Set(["nexoposoficial.com", "www.nexoposoficial.com"]);
 
 app.get("/health", async (req, res) => {
     try {
@@ -88,6 +106,45 @@ function limpiarTexto(valor, max = 160) {
         .replace(/\s+/g, " ")
         .trim()
         .slice(0, max);
+}
+
+const REGEX_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Los tokens de sesion/verificacion/reset son de alta entropia (32
+// bytes al azar) -- a diferencia de una contrasena, no necesitan un
+// hash lento tipo scrypt, con SHA-256 basta para poder buscarlos por
+// su hash sin guardar el valor real en la base de datos.
+function generarTokenSeguro() {
+    return crypto.randomBytes(32).toString("hex");
+}
+
+function hashTokenSeguro(tokenPlano) {
+    return crypto.createHash("sha256").update(String(tokenPlano)).digest("hex");
+}
+
+function generarCodigoNumerico() {
+    return String(crypto.randomInt(100000, 1000000));
+}
+
+function urlBase(req) {
+    // APP_BASE_URL (si esta configurada) manda siempre -- asi los
+    // enlaces de correo usan el dominio propio aunque alguien entre
+    // por la URL vieja de Render.
+    return process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+}
+
+async function crearVerificacionCorreo(client, negocioId, correo) {
+    const tokenPlano = generarTokenSeguro();
+
+    await client.query(
+        `
+        INSERT INTO public.verificaciones_correo (negocio_id, correo, token_hash, expira_at)
+        VALUES ($1, $2, $3, NOW() + INTERVAL '24 hours')
+        `,
+        [negocioId, correo, hashTokenSeguro(tokenPlano)]
+    );
+
+    return tokenPlano;
 }
 
 function normalizarLicencia(valor) {
@@ -215,7 +272,7 @@ app.get("/licencia/estado", async (req, res) => {
         const licencia = await licenciaActual(negocio);
 
         const correoActual = await pool.query(
-            `SELECT correo FROM public.negocios WHERE id = $1`,
+            `SELECT correo, correo_verificado FROM public.negocios WHERE id = $1`,
             [negocio.id]
         );
 
@@ -227,7 +284,8 @@ app.get("/licencia/estado", async (req, res) => {
                 nombre: negocio.nombre,
                 estado: negocio.estado,
                 plan: negocio.plan,
-                correo: correoActual.rows[0]?.correo || null
+                correo: correoActual.rows[0]?.correo || null,
+                correoVerificado: correoActual.rows[0]?.correo_verificado || false
             },
             licencia: {
                 licenseKey: licencia.license_key,
@@ -248,6 +306,14 @@ app.get("/licencia/estado", async (req, res) => {
     }
 });
 
+// Ruta antigua, sin autenticacion, resuelta solo por el slug del
+// negocio (igual que las rutas operativas). Se deja viva unicamente
+// para negocios que todavia no tienen contrasena de cuenta (no han
+// migrado al login por correo) -- una vez que un negocio tiene
+// password_hash, cambiar su correo aqui sin autenticacion abriria un
+// robo de cuenta (cambiar el correo y despues usar "olvide mi
+// contrasena" con el correo nuevo). Los negocios ya migrados deben
+// usar PUT /cuenta/correo, protegida por sesion.
 app.put("/negocio-actual/correo", async (req, res) => {
     try {
         const negocio = await negocioActual(req);
@@ -257,6 +323,19 @@ app.put("/negocio-actual/correo", async (req, res) => {
             res.status(400).json({
                 ok: false,
                 error: "Correo invalido"
+            });
+            return;
+        }
+
+        const actual = await pool.query(
+            `SELECT password_hash FROM public.negocios WHERE id = $1`,
+            [negocio.id]
+        );
+
+        if (actual.rows[0]?.password_hash) {
+            res.status(403).json({
+                ok: false,
+                error: "Esta cuenta ya tiene contrasena. Inicia sesion y cambia tu correo desde Cuenta."
             });
             return;
         }
@@ -297,21 +376,59 @@ app.post("/api/clientes/registro", async (req, res) => {
     // registrarExito() para este limitador, el tope aplica sin importar el resultado.
     limitadorRegistroPublico.registrarFallo(req.ip);
 
+    const nombreNegocio = limpiarTexto(req.body?.nombreNegocio || req.body?.negocio, 140);
+    const telefono = limpiarTexto(req.body?.telefono, 40);
+    const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+    const password = String(req.body?.password || "");
+    const confirmarPassword = String(req.body?.confirmarPassword || "");
+    const ciudad = limpiarTexto(req.body?.ciudad || req.body?.direccion, 180);
+    const nombreContacto = limpiarTexto(req.body?.nombreContacto || req.body?.nombre, 120);
+    const giro = limpiarTexto(req.body?.giro, 80) || "ferreteria";
+    const plan = limpiarTexto(req.body?.plan, 80) || "demo";
+
+    // Validaciones que no necesitan tocar la base de datos se resuelven
+    // antes de pedir una conexion del pool -- asi un intento con datos
+    // invalidos no deja una conexion sin liberar.
+    if (!nombreNegocio || !telefono) {
+        return res.status(400).json({
+            ok: false,
+            error: "Nombre del negocio y telefono son requeridos"
+        });
+    }
+
+    if (!correo || !REGEX_CORREO.test(correo)) {
+        return res.status(400).json({
+            ok: false,
+            error: "Escribe un correo valido"
+        });
+    }
+
+    if (password.length < 8) {
+        return res.status(400).json({
+            ok: false,
+            error: "La contrasena debe tener al menos 8 caracteres"
+        });
+    }
+
+    if (password !== confirmarPassword) {
+        return res.status(400).json({
+            ok: false,
+            error: "Las contrasenas no coinciden"
+        });
+    }
+
     const client = await pool.connect();
 
     try {
-        const nombreNegocio = limpiarTexto(req.body?.nombreNegocio || req.body?.negocio, 140);
-        const telefono = limpiarTexto(req.body?.telefono, 40);
-        const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
-        const ciudad = limpiarTexto(req.body?.ciudad || req.body?.direccion, 180);
-        const nombreContacto = limpiarTexto(req.body?.nombreContacto || req.body?.nombre, 120);
-        const giro = limpiarTexto(req.body?.giro, 80) || "ferreteria";
-        const plan = limpiarTexto(req.body?.plan, 80) || "demo";
+        const correoExistente = await client.query(
+            "SELECT 1 FROM public.negocios WHERE LOWER(correo) = $1 LIMIT 1",
+            [correo]
+        );
 
-        if (!nombreNegocio || !telefono) {
-            return res.status(400).json({
+        if (correoExistente.rows.length > 0) {
+            return res.status(409).json({
                 ok: false,
-                error: "Nombre del negocio y telefono son requeridos"
+                error: "Ya existe una cuenta con ese correo"
             });
         }
 
@@ -342,12 +459,12 @@ app.post("/api/clientes/registro", async (req, res) => {
         const negocio = await client.query(
             `
             INSERT INTO public.negocios
-                (slug, nombre, giro, estado, plan, telefono, correo, direccion, updated_at)
+                (slug, nombre, giro, estado, plan, telefono, correo, password_hash, direccion, updated_at)
             VALUES
-                ($1, $2, $3, 'prueba', $4, $5, $6, $7, NOW())
+                ($1, $2, $3, 'prueba', $4, $5, $6, $7, $8, NOW())
             RETURNING *
             `,
-            [slug, nombreNegocio, giro, plan, telefono, correo || null, ciudad || null]
+            [slug, nombreNegocio, giro, plan, telefono, correo, hashPassword(password), ciudad || null]
         );
 
         const licenciaKey = await generarLicenciaUnica(client);
@@ -395,7 +512,18 @@ app.post("/api/clientes/registro", async (req, res) => {
             `
         );
 
+        const tokenVerificacion = await crearVerificacionCorreo(client, negocio.rows[0].id, correo);
+
         await client.query("COMMIT");
+
+        // El correo se manda ya fuera de la transaccion: si Resend falla,
+        // el negocio de todos modos quedo creado -- el usuario puede pedir
+        // que se lo reenvien desde /cuenta/reenviar-verificacion.
+        enviarCorreoVerificacion(
+            correo,
+            nombreNegocio,
+            `${urlBase(req)}/verificar-correo/${tokenVerificacion}`
+        ).catch(error => console.warn("No se pudo enviar el correo de verificacion", error.message));
 
         const latest = version.rows[0] || null;
 
@@ -406,7 +534,9 @@ app.post("/api/clientes/registro", async (req, res) => {
                 slug: negocio.rows[0].slug,
                 nombre: negocio.rows[0].nombre,
                 estado: negocio.rows[0].estado,
-                plan: negocio.rows[0].plan
+                plan: negocio.rows[0].plan,
+                correo,
+                correoVerificado: false
             },
             licencia: {
                 licenseKey: licencia.rows[0].license_key,
@@ -438,6 +568,677 @@ app.post("/api/clientes/registro", async (req, res) => {
     }
 });
 
+// Se abre desde el enlace del correo (fuera del SPA), asi que responde
+// una pagina HTML sencilla en vez de JSON.
+function paginaCorreoHtml(titulo, mensaje, exito) {
+    return `
+    <!doctype html>
+    <html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <title>${titulo} -- Nexo POS</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+    </head>
+    <body style="margin:0;background:#f4f5f7;font-family:Segoe UI,Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+        <div style="max-width:420px;margin:24px;background:#fff;border-radius:16px;padding:32px;text-align:center;border:1px solid #e4e7ec;">
+            <div style="width:56px;height:56px;border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:28px;background:${exito ? "#dcfce7" : "#fee2e2"};color:${exito ? "#16a34a" : "#dc2626"};">${exito ? "OK" : "!"}</div>
+            <h1 style="font-size:20px;margin:0 0 8px;color:#101828;">${titulo}</h1>
+            <p style="color:#667085;font-size:14px;line-height:1.5;margin:0;">${mensaje}</p>
+        </div>
+    </body>
+    </html>
+    `;
+}
+
+app.get("/verificar-correo/:token", async (req, res) => {
+    try {
+        const tokenHash = hashTokenSeguro(req.params.token);
+
+        const fila = await pool.query(
+            `
+            SELECT id, negocio_id, correo FROM public.verificaciones_correo
+            WHERE token_hash = $1 AND usado_at IS NULL AND expira_at > NOW()
+            LIMIT 1
+            `,
+            [tokenHash]
+        );
+
+        if (fila.rows.length === 0) {
+            res.status(400).send(paginaCorreoHtml(
+                "Enlace invalido o vencido",
+                "Pide que te reenvien el correo de verificacion desde la pantalla de Cuenta e intenta de nuevo.",
+                false
+            ));
+            return;
+        }
+
+        const verificacion = fila.rows[0];
+
+        await pool.query(
+            `UPDATE public.negocios SET correo_verificado = true, correo = $1, updated_at = NOW() WHERE id = $2`,
+            [verificacion.correo, verificacion.negocio_id]
+        );
+
+        await pool.query(
+            `UPDATE public.verificaciones_correo SET usado_at = NOW() WHERE id = $1`,
+            [verificacion.id]
+        );
+
+        res.send(paginaCorreoHtml(
+            "Correo verificado",
+            "Tu correo quedo confirmado. Ya puedes cerrar esta ventana e iniciar sesion en Nexo POS.",
+            true
+        ));
+    } catch (error) {
+        res.status(500).send(paginaCorreoHtml("No se pudo verificar", error.message, false));
+    }
+});
+
+// Pagina que se abre desde el correo de activacion de cuenta (Fase 7,
+// migracion de negocios que ya existian antes del login por correo).
+// El token en la URL ya es la prueba de que el dueno recibio el
+// correo -- por eso aqui se pide contrasena directo, sin pedir un
+// codigo aparte. Reusa /cuenta/restablecer-password tal cual, mismo
+// mecanismo que "olvide mi contrasena".
+app.get("/activar-cuenta/:token", async (req, res) => {
+    try {
+        const fila = await pool.query(
+            `
+            SELECT r.id, n.nombre, n.correo
+            FROM public.restablecimientos_password r
+            JOIN public.negocios n ON n.id = r.negocio_id
+            WHERE r.codigo_hash = $1 AND r.usado_at IS NULL AND r.expira_at > NOW()
+            LIMIT 1
+            `,
+            [hashTokenSeguro(req.params.token)]
+        );
+
+        if (fila.rows.length === 0) {
+            res.status(400).send(paginaCorreoHtml(
+                "Enlace invalido o vencido",
+                "Pide que te manden un nuevo correo de activacion e intenta de nuevo.",
+                false
+            ));
+            return;
+        }
+
+        const limpiar = valor => String(valor ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+
+        res.send(`
+        <!doctype html>
+        <html lang="es">
+        <head>
+            <meta charset="utf-8">
+            <title>Crea tu contrasena -- Nexo POS</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+        </head>
+        <body style="margin:0;background:#f4f5f7;font-family:Segoe UI,Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+            <div style="max-width:420px;margin:24px;width:100%;background:#fff;border-radius:16px;padding:32px;border:1px solid #e4e7ec;">
+                <h1 style="font-size:20px;margin:0 0 6px;color:#101828;">Crea tu contrasena</h1>
+                <p style="color:#667085;font-size:14px;margin:0 0 20px;">${limpiar(fila.rows[0].nombre)} -- ${limpiar(fila.rows[0].correo)}</p>
+                <div id="error" style="display:none;margin-bottom:14px;padding:10px 12px;border-radius:10px;background:#fee2e2;color:#dc2626;font-size:13px;"></div>
+                <input id="password" type="password" placeholder="Contrasena (minimo 8 caracteres)" style="width:100%;box-sizing:border-box;min-height:44px;padding:0 14px;margin-bottom:10px;border:1px solid #dbe3ef;border-radius:10px;font-size:14px;">
+                <input id="confirmar" type="password" placeholder="Confirmar contrasena" style="width:100%;box-sizing:border-box;min-height:44px;padding:0 14px;margin-bottom:16px;border:1px solid #dbe3ef;border-radius:10px;font-size:14px;">
+                <button id="btnActivar" style="width:100%;min-height:46px;border:0;border-radius:10px;background:#0d6efd;color:#fff;font-weight:700;font-size:15px;cursor:pointer;">Crear contrasena</button>
+            </div>
+            <script>
+                document.getElementById("btnActivar").addEventListener("click", async () => {
+                    const password = document.getElementById("password").value;
+                    const confirmarPassword = document.getElementById("confirmar").value;
+                    const cajaError = document.getElementById("error");
+                    cajaError.style.display = "none";
+                    try {
+                        const respuesta = await fetch("/cuenta/restablecer-password", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                tokenRestablecimiento: ${JSON.stringify(req.params.token)},
+                                password,
+                                confirmarPassword
+                            })
+                        });
+                        const datos = await respuesta.json();
+                        if (!datos.ok) {
+                            cajaError.textContent = datos.error || "No se pudo crear tu contrasena.";
+                            cajaError.style.display = "block";
+                            return;
+                        }
+                        document.body.innerHTML = '<div style="max-width:420px;margin:24px;width:100%;background:#fff;border-radius:16px;padding:32px;border:1px solid #e4e7ec;text-align:center;font-family:Segoe UI,Arial,sans-serif;"><h1 style="font-size:20px;color:#101828;">Listo</h1><p style="color:#667085;font-size:14px;">Tu contrasena quedo creada. Ya puedes cerrar esta ventana e iniciar sesion en Nexo POS con tu correo y tu nueva contrasena.</p></div>';
+                    } catch (error) {
+                        cajaError.textContent = "No se pudo conectar. Revisa tu internet e intenta de nuevo.";
+                        cajaError.style.display = "block";
+                    }
+                });
+            </script>
+        </body>
+        </html>
+        `);
+    } catch (error) {
+        res.status(500).send(paginaCorreoHtml("No se pudo cargar", error.message, false));
+    }
+});
+
+app.post("/cuenta/reenviar-verificacion", async (req, res) => {
+    if (limitadorReenviarVerificacion.bloqueado(req.ip)) {
+        return res.status(429).json({ ok: false, error: "Demasiadas solicitudes. Intenta de nuevo mas tarde." });
+    }
+
+    limitadorReenviarVerificacion.registrarFallo(req.ip);
+
+    const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+
+    if (!correo || !REGEX_CORREO.test(correo)) {
+        return res.status(400).json({ ok: false, error: "Escribe un correo valido" });
+    }
+
+    try {
+        const negocio = await pool.query(
+            "SELECT id, nombre, correo_verificado FROM public.negocios WHERE LOWER(correo) = $1 LIMIT 1",
+            [correo]
+        );
+
+        // Respuesta identica exista o no la cuenta / ya este verificada,
+        // para no revelar que correos estan registrados.
+        if (negocio.rows.length === 0 || negocio.rows[0].correo_verificado) {
+            res.json({ ok: true });
+            return;
+        }
+
+        const token = await crearVerificacionCorreo(pool, negocio.rows[0].id, correo);
+
+        await enviarCorreoVerificacion(correo, negocio.rows[0].nombre, `${urlBase(req)}/verificar-correo/${token}`);
+
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+// Middleware para las rutas de /cuenta/* que requieren haber iniciado
+// sesion con correo/contrasena -- separado por completo del PIN local
+// del cajero y de la resolucion de negocio por slug que usan las
+// rutas operativas del POS (esas no cambian).
+async function requerirSesionCuenta(req, res, next) {
+    const encabezado = req.headers.authorization || "";
+    const token = encabezado.startsWith("Bearer ") ? encabezado.slice(7).trim() : "";
+
+    if (!token) {
+        res.status(401).json({ ok: false, error: "Sesion requerida" });
+        return;
+    }
+
+    try {
+        const fila = await pool.query(
+            `
+            SELECT s.id AS sesion_id, n.id AS negocio_id, n.slug, n.nombre, n.correo, n.correo_verificado
+            FROM public.sesiones_cuenta s
+            JOIN public.negocios n ON n.id = s.negocio_id
+            WHERE s.token_hash = $1 AND s.revocado_at IS NULL
+            LIMIT 1
+            `,
+            [hashTokenSeguro(token)]
+        );
+
+        if (fila.rows.length === 0) {
+            res.status(401).json({ ok: false, error: "Sesion invalida o cerrada" });
+            return;
+        }
+
+        pool.query(
+            `UPDATE public.sesiones_cuenta SET ultimo_uso_at = NOW() WHERE id = $1`,
+            [fila.rows[0].sesion_id]
+        ).catch(() => {});
+
+        req.negocioAutenticado = fila.rows[0];
+        req.sesionCuentaId = fila.rows[0].sesion_id;
+        next();
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+}
+
+app.post("/cuenta/login", async (req, res) => {
+    const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+    const password = String(req.body?.password || "");
+
+    if (!correo || !password) {
+        res.status(400).json({ ok: false, error: "Correo y contrasena son requeridos" });
+        return;
+    }
+
+    if (limitadorLoginCuenta.bloqueado(req.ip) || limitadorLoginCuenta.bloqueado(correo)) {
+        res.status(429).json({ ok: false, error: "Demasiados intentos. Espera unos minutos e intenta de nuevo." });
+        return;
+    }
+
+    try {
+        const negocio = await pool.query(
+            "SELECT id, slug, nombre, correo, correo_verificado, password_hash FROM public.negocios WHERE LOWER(correo) = $1 LIMIT 1",
+            [correo]
+        );
+
+        const fila = negocio.rows[0] || null;
+        const valido = Boolean(fila && verificarPassword(password, fila.password_hash));
+
+        // Siempre queda registrado el intento, exista o no la cuenta --
+        // es la bitacora que alimenta "Ultimo acceso" en Cuenta.
+        await pool.query(
+            `INSERT INTO public.intentos_login (negocio_id, correo_intentado, ip, exito) VALUES ($1, $2, $3, $4)`,
+            [fila?.id || null, correo, req.ip, valido]
+        );
+
+        if (!valido) {
+            limitadorLoginCuenta.registrarFallo(req.ip);
+            limitadorLoginCuenta.registrarFallo(correo);
+            res.status(401).json({ ok: false, error: "Correo o contrasena incorrectos" });
+            return;
+        }
+
+        if (!fila.correo_verificado) {
+            // Contrasena correcta pero correo sin verificar todavia --
+            // no cuenta como fallo de contrasena para el limitador (son
+            // credenciales validas), pero tampoco se crea sesion.
+            res.status(403).json({
+                ok: false,
+                error: "Verifica tu correo antes de iniciar sesion. Revisa tu bandeja de entrada o pide que te reenviemos el correo.",
+                correoSinVerificar: true
+            });
+            return;
+        }
+
+        limitadorLoginCuenta.registrarExito(req.ip);
+        limitadorLoginCuenta.registrarExito(correo);
+
+        const tokenPlano = generarTokenSeguro();
+        const dispositivo = limpiarTexto(req.headers["user-agent"], 200) || "Dispositivo desconocido";
+
+        await pool.query(
+            `INSERT INTO public.sesiones_cuenta (negocio_id, token_hash, dispositivo, ip) VALUES ($1, $2, $3, $4)`,
+            [fila.id, hashTokenSeguro(tokenPlano), dispositivo, req.ip]
+        );
+
+        res.json({
+            ok: true,
+            token: tokenPlano,
+            negocio: {
+                slug: fila.slug,
+                nombre: fila.nombre,
+                correo: fila.correo,
+                correoVerificado: fila.correo_verificado
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.post("/cuenta/logout", requerirSesionCuenta, async (req, res) => {
+    try {
+        await pool.query(
+            `UPDATE public.sesiones_cuenta SET revocado_at = NOW() WHERE id = $1`,
+            [req.sesionCuentaId]
+        );
+
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.post("/cuenta/logout-todos", requerirSesionCuenta, async (req, res) => {
+    try {
+        await pool.query(
+            `UPDATE public.sesiones_cuenta SET revocado_at = NOW() WHERE negocio_id = $1 AND revocado_at IS NULL`,
+            [req.negocioAutenticado.negocio_id]
+        );
+
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.post("/cuenta/sesiones/:id/cerrar", requerirSesionCuenta, async (req, res) => {
+    try {
+        await pool.query(
+            `UPDATE public.sesiones_cuenta SET revocado_at = NOW() WHERE id = $1 AND negocio_id = $2`,
+            [Number(req.params.id), req.negocioAutenticado.negocio_id]
+        );
+
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.get("/cuenta/sesiones", requerirSesionCuenta, async (req, res) => {
+    try {
+        const filas = await pool.query(
+            `
+            SELECT id, dispositivo, ip, creado_at, ultimo_uso_at
+            FROM public.sesiones_cuenta
+            WHERE negocio_id = $1 AND revocado_at IS NULL
+            ORDER BY ultimo_uso_at DESC
+            `,
+            [req.negocioAutenticado.negocio_id]
+        );
+
+        res.json({
+            ok: true,
+            sesiones: filas.rows.map(fila => ({
+                id: fila.id,
+                dispositivo: fila.dispositivo,
+                ip: fila.ip,
+                creadoAt: fila.creado_at,
+                ultimoUsoAt: fila.ultimo_uso_at,
+                actual: fila.id === req.sesionCuentaId
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.get("/cuenta/ultimo-acceso", requerirSesionCuenta, async (req, res) => {
+    try {
+        const fila = await pool.query(
+            `
+            SELECT ip, creado_at FROM public.intentos_login
+            WHERE negocio_id = $1 AND exito = true
+            ORDER BY creado_at DESC
+            LIMIT 1 OFFSET 1
+            `,
+            [req.negocioAutenticado.negocio_id]
+        );
+
+        res.json({
+            ok: true,
+            ultimoAcceso: fila.rows[0]
+                ? { ip: fila.rows[0].ip, fecha: fila.rows[0].creado_at }
+                : null
+        });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.put("/cuenta/correo", requerirSesionCuenta, async (req, res) => {
+    const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+
+    if (!correo || !REGEX_CORREO.test(correo)) {
+        res.status(400).json({ ok: false, error: "Escribe un correo valido" });
+        return;
+    }
+
+    try {
+        const existente = await pool.query(
+            "SELECT id FROM public.negocios WHERE LOWER(correo) = $1 AND id != $2 LIMIT 1",
+            [correo, req.negocioAutenticado.negocio_id]
+        );
+
+        if (existente.rows.length > 0) {
+            res.status(409).json({ ok: false, error: "Ya existe una cuenta con ese correo" });
+            return;
+        }
+
+        await pool.query(
+            `UPDATE public.negocios SET correo = $1, correo_verificado = false, updated_at = NOW() WHERE id = $2`,
+            [correo, req.negocioAutenticado.negocio_id]
+        );
+
+        const token = await crearVerificacionCorreo(pool, req.negocioAutenticado.negocio_id, correo);
+
+        enviarCorreoVerificacion(
+            correo,
+            req.negocioAutenticado.nombre,
+            `${urlBase(req)}/verificar-correo/${token}`
+        ).catch(error => console.warn("No se pudo enviar el correo de verificacion", error.message));
+
+        res.json({ ok: true, correo, correoVerificado: false });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.put("/cuenta/password", requerirSesionCuenta, async (req, res) => {
+    const passwordActual = String(req.body?.passwordActual || "");
+    const passwordNueva = String(req.body?.passwordNueva || "");
+    const confirmarPasswordNueva = String(req.body?.confirmarPasswordNueva || "");
+
+    if (!passwordActual) {
+        res.status(400).json({ ok: false, error: "Escribe tu contrasena actual" });
+        return;
+    }
+
+    if (passwordNueva.length < 8) {
+        res.status(400).json({ ok: false, error: "La contrasena nueva debe tener al menos 8 caracteres" });
+        return;
+    }
+
+    if (passwordNueva !== confirmarPasswordNueva) {
+        res.status(400).json({ ok: false, error: "Las contrasenas nuevas no coinciden" });
+        return;
+    }
+
+    try {
+        const fila = await pool.query(
+            "SELECT password_hash FROM public.negocios WHERE id = $1 LIMIT 1",
+            [req.negocioAutenticado.negocio_id]
+        );
+
+        if (!verificarPassword(passwordActual, fila.rows[0]?.password_hash)) {
+            res.status(401).json({ ok: false, error: "Tu contrasena actual no es correcta" });
+            return;
+        }
+
+        await pool.query(
+            `UPDATE public.negocios SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+            [hashPassword(passwordNueva), req.negocioAutenticado.negocio_id]
+        );
+
+        // Cierra cualquier otra sesion activa -- la sesion actual se deja
+        // viva para que quien acaba de cambiar su contrasena no se quede
+        // fuera de su propia cuenta.
+        await pool.query(
+            `UPDATE public.sesiones_cuenta SET revocado_at = NOW() WHERE negocio_id = $1 AND revocado_at IS NULL AND id != $2`,
+            [req.negocioAutenticado.negocio_id, req.sesionCuentaId]
+        );
+
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.post("/cuenta/olvide-password", async (req, res) => {
+    const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+
+    if (!correo || !REGEX_CORREO.test(correo)) {
+        res.status(400).json({ ok: false, error: "Escribe un correo valido" });
+        return;
+    }
+
+    if (limitadorOlvidePassword.bloqueado(req.ip) || limitadorOlvidePassword.bloqueado(correo)) {
+        res.status(429).json({ ok: false, error: "Demasiadas solicitudes. Intenta de nuevo mas tarde." });
+        return;
+    }
+
+    limitadorOlvidePassword.registrarFallo(req.ip);
+    limitadorOlvidePassword.registrarFallo(correo);
+
+    try {
+        const negocio = await pool.query(
+            "SELECT id, nombre FROM public.negocios WHERE LOWER(correo) = $1 LIMIT 1",
+            [correo]
+        );
+
+        // Respuesta identica exista o no la cuenta, para no revelar
+        // que correos estan registrados.
+        if (negocio.rows.length === 0) {
+            res.json({ ok: true });
+            return;
+        }
+
+        const codigo = generarCodigoNumerico();
+
+        await pool.query(
+            `INSERT INTO public.restablecimientos_password (negocio_id, codigo_hash, expira_at)
+             VALUES ($1, $2, NOW() + INTERVAL '15 minutes')`,
+            [negocio.rows[0].id, hashTokenSeguro(codigo)]
+        );
+
+        await enviarCorreoRecuperacion(correo, negocio.rows[0].nombre, codigo);
+
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.post("/cuenta/verificar-codigo-reset", async (req, res) => {
+    const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+    const codigo = limpiarTexto(req.body?.codigo, 10);
+
+    if (!correo || !codigo) {
+        res.status(400).json({ ok: false, error: "Correo y codigo son requeridos" });
+        return;
+    }
+
+    if (limitadorVerificarCodigo.bloqueado(req.ip) || limitadorVerificarCodigo.bloqueado(correo)) {
+        res.status(429).json({ ok: false, error: "Demasiados intentos. Espera unos minutos e intenta de nuevo." });
+        return;
+    }
+
+    try {
+        const negocio = await pool.query(
+            "SELECT id FROM public.negocios WHERE LOWER(correo) = $1 LIMIT 1",
+            [correo]
+        );
+
+        if (negocio.rows.length === 0) {
+            limitadorVerificarCodigo.registrarFallo(req.ip);
+            limitadorVerificarCodigo.registrarFallo(correo);
+            res.status(400).json({ ok: false, error: "Codigo invalido o vencido" });
+            return;
+        }
+
+        const fila = await pool.query(
+            `
+            SELECT id, codigo_hash, intentos
+            FROM public.restablecimientos_password
+            WHERE negocio_id = $1 AND usado_at IS NULL AND expira_at > NOW()
+            ORDER BY creado_at DESC
+            LIMIT 1
+            `,
+            [negocio.rows[0].id]
+        );
+
+        if (fila.rows.length === 0) {
+            limitadorVerificarCodigo.registrarFallo(req.ip);
+            limitadorVerificarCodigo.registrarFallo(correo);
+            res.status(400).json({ ok: false, error: "Codigo invalido o vencido" });
+            return;
+        }
+
+        const solicitud = fila.rows[0];
+
+        if (solicitud.intentos >= 5) {
+            res.status(429).json({ ok: false, error: "Demasiados intentos. Solicita un codigo nuevo." });
+            return;
+        }
+
+        if (hashTokenSeguro(codigo) !== solicitud.codigo_hash) {
+            await pool.query(
+                `UPDATE public.restablecimientos_password SET intentos = intentos + 1 WHERE id = $1`,
+                [solicitud.id]
+            );
+            limitadorVerificarCodigo.registrarFallo(req.ip);
+            limitadorVerificarCodigo.registrarFallo(correo);
+            res.status(400).json({ ok: false, error: "Codigo invalido o vencido" });
+            return;
+        }
+
+        limitadorVerificarCodigo.registrarExito(req.ip);
+        limitadorVerificarCodigo.registrarExito(correo);
+
+        const tokenPlano = generarTokenSeguro();
+
+        await pool.query(
+            `UPDATE public.restablecimientos_password SET codigo_hash = $1 WHERE id = $2`,
+            [hashTokenSeguro(tokenPlano), solicitud.id]
+        );
+
+        res.json({ ok: true, tokenRestablecimiento: tokenPlano });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.post("/cuenta/restablecer-password", async (req, res) => {
+    const tokenRestablecimiento = limpiarTexto(req.body?.tokenRestablecimiento, 200);
+    const password = String(req.body?.password || "");
+    const confirmarPassword = String(req.body?.confirmarPassword || "");
+
+    if (!tokenRestablecimiento) {
+        res.status(400).json({ ok: false, error: "Solicitud invalida" });
+        return;
+    }
+
+    if (password.length < 8) {
+        res.status(400).json({ ok: false, error: "La contrasena debe tener al menos 8 caracteres" });
+        return;
+    }
+
+    if (password !== confirmarPassword) {
+        res.status(400).json({ ok: false, error: "Las contrasenas no coinciden" });
+        return;
+    }
+
+    try {
+        const fila = await pool.query(
+            `
+            SELECT id, negocio_id
+            FROM public.restablecimientos_password
+            WHERE codigo_hash = $1 AND usado_at IS NULL AND expira_at > NOW()
+            LIMIT 1
+            `,
+            [hashTokenSeguro(tokenRestablecimiento)]
+        );
+
+        if (fila.rows.length === 0) {
+            res.status(400).json({ ok: false, error: "Solicitud invalida o vencida" });
+            return;
+        }
+
+        const solicitud = fila.rows[0];
+
+        await pool.query(
+            `UPDATE public.negocios SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+            [hashPassword(password), solicitud.negocio_id]
+        );
+
+        await pool.query(
+            `UPDATE public.restablecimientos_password SET usado_at = NOW() WHERE id = $1`,
+            [solicitud.id]
+        );
+
+        // Si alguien recupero la contrasena, cualquier sesion robada
+        // anterior se cierra sola.
+        await pool.query(
+            `UPDATE public.sesiones_cuenta SET revocado_at = NOW() WHERE negocio_id = $1 AND revocado_at IS NULL`,
+            [solicitud.negocio_id]
+        );
+
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
 function crearLimitadorPorIp(maxIntentos, ventanaMs) {
     const registro = new Map();
 
@@ -464,6 +1265,10 @@ function crearLimitadorPorIp(maxIntentos, ventanaMs) {
 
 const limitadorAdminKey = crearLimitadorPorIp(8, 15 * 60 * 1000);
 const limitadorRegistroPublico = crearLimitadorPorIp(5, 60 * 60 * 1000);
+const limitadorReenviarVerificacion = crearLimitadorPorIp(5, 60 * 60 * 1000);
+const limitadorLoginCuenta = crearLimitadorPorIp(8, 15 * 60 * 1000);
+const limitadorOlvidePassword = crearLimitadorPorIp(5, 60 * 60 * 1000);
+const limitadorVerificarCodigo = crearLimitadorPorIp(8, 15 * 60 * 1000);
 
 function validarAdminKey(req, res, next) {
     if (!config.adminKey) {
@@ -2723,9 +3528,18 @@ async function aplicarEventoSync(client, negocio, evento) {
 }
 
 app.get("/", (req, res) => {
-    res.sendFile(
-        path.join(__dirname, "public", "index.html")
-    );
+    const host = (req.hostname || "").toLowerCase();
+
+    if (DOMINIOS_LANDING_COMERCIAL.has(host)) {
+        res.sendFile(path.join(__dirname, "public", "site", "index.html"));
+        return;
+    }
+
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.get(["/site", "/site/"], (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "site", "index.html"));
 });
 
 app.get("/dueno", (req, res) => {
