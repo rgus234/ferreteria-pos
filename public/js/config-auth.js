@@ -583,6 +583,16 @@ async function iniciarSesionCuenta() {
 
  guardarConfiguracionNegocioDesdeServidor(datos.negocio);
 
+ try {
+ await vincularDispositivoActual(datos.token);
+ } catch (error) {
+ await alertaPOS(
+ "Iniciaste sesion pero no se pudo vincular este equipo. Intenta de nuevo cuando tengas internet.",
+ "Aviso",
+ "alerta"
+ );
+ }
+
  cerrarBuscarNegocioSetup();
 
  await inicializarConfiguracionInicial();
@@ -908,7 +918,50 @@ async function inicializarConfiguracionInicial() {
  `Version ${VERSION_NEXO_POS}`;
  }
 
+ mostrarPantallaDeEntradaPOS();
+
  return true;
+}
+
+// Decide cual de las 3 pantallas dentro de #login mostrar: seleccion
+// de perfil (equipo ya vinculado), vincular equipo (tiene negocio
+// local pero nunca inicio sesion con correo/contrasena en esta
+// computadora), o el formulario clasico como respaldo si algo sale
+// mal cargando los perfiles.
+async function mostrarPantallaDeEntradaPOS() {
+ const panelVincular =
+ document.getElementById("loginVincularEquipo");
+
+ const panelPerfiles =
+ document.getElementById("loginSeleccionPerfil");
+
+ const panelClasico =
+ document.getElementById("loginFormularioClasico");
+
+ if (panelVincular) panelVincular.style.display = "none";
+ if (panelPerfiles) panelPerfiles.style.display = "none";
+ if (panelClasico) panelClasico.style.display = "none";
+
+ if (!dispositivoTokenActual()) {
+ if (panelVincular) panelVincular.style.display = "block";
+ return;
+ }
+
+ if (navigator.onLine) {
+ sincronizarEmpleadosDispositivo();
+ }
+
+ if (usuariosSistema().length === 0) {
+ // Vinculado pero sin empleados todavia sincronizados/creados --
+ // el formulario clasico sirve de respaldo hasta que haya al
+ // menos uno (o hasta que la sincronizacion en segundo plano
+ // termine).
+ if (panelClasico) panelClasico.style.display = "block";
+ return;
+ }
+
+ if (panelPerfiles) panelPerfiles.style.display = "block";
+ renderSeleccionPerfilPOS();
 }
 
 function alternarVerPasswordLogin() {
@@ -1967,7 +2020,51 @@ function plantillaUsuario(rol) {
  };
 }
 
+// Los empleados ya no viven solo en localStorage -- se administran en
+// el servidor (/cuenta/empleados/*) y cada equipo vinculado guarda
+// una copia sincronizada para poder entrar sin internet. Se mantiene
+// el nombre usuariosSistema() sin cambios porque el resto del codigo
+// (permisos, ventas, widgets) ya lo llama asi.
+function empleadosCache() {
+ try {
+ const datos =
+ JSON.parse(localStorage.getItem(EMPLEADOS_CACHE_KEY) || "null");
+
+ if (!datos || !Array.isArray(datos.empleados)) {
+ return { empleados: [], sincronizadoAt: null };
+ }
+
+ return datos;
+ } catch (error) {
+ return { empleados: [], sincronizadoAt: null };
+ }
+}
+
+function guardarEmpleadosCache(empleados) {
+ localStorage.setItem(
+ EMPLEADOS_CACHE_KEY,
+ JSON.stringify({ empleados, sincronizadoAt: Date.now() })
+ );
+}
+
 function usuariosSistema() {
+ return empleadosCache().empleados;
+}
+
+function dispositivoTokenActual() {
+ return localStorage.getItem(DISPOSITIVO_TOKEN_KEY);
+}
+
+function limpiarVinculacionDispositivo() {
+ localStorage.removeItem(DISPOSITIVO_TOKEN_KEY);
+ localStorage.removeItem(EMPLEADOS_CACHE_KEY);
+}
+
+// Copia de la lista de cajeros locales tal como vivia antes de este
+// cambio (localStorage plano, PIN en claro) -- se usa una sola vez,
+// al vincular el equipo, para migrarlos al servidor sin que nadie
+// tenga que volver a crearlos a mano.
+function leerCajerosLocalesLegado() {
  try {
  const usuarios =
  JSON.parse(localStorage.getItem("usuariosSistema") || "[]");
@@ -1978,77 +2075,229 @@ function usuariosSistema() {
  }
 }
 
-function guardarUsuariosSistema(usuarios) {
- localStorage.setItem(
- "usuariosSistema",
- JSON.stringify(usuarios)
+async function sincronizarEmpleadosDispositivo() {
+ const token =
+ dispositivoTokenActual();
+
+ if (!token) return false;
+
+ try {
+ const respuesta =
+ await fetch("/dispositivo/empleados", {
+ headers: { "x-dispositivo-token": token }
+ });
+
+ const datos =
+ await respuesta.json();
+
+ if (!datos.ok) return false;
+
+ guardarEmpleadosCache(datos.empleados);
+ return true;
+ } catch (error) {
+ return false;
+ }
+}
+
+async function vincularDispositivoActual(cuentaToken) {
+ const respuesta =
+ await fetch("/dispositivo/vincular", {
+ method: "POST",
+ headers: {
+ "Content-Type": "application/json",
+ Authorization: `Bearer ${cuentaToken}`
+ },
+ body: JSON.stringify({
+ nombreDispositivo: `${navigator.platform || "Equipo"} -- ${new Date().toLocaleDateString("es-MX")}`
+ })
+ });
+
+ const datos =
+ await respuesta.json();
+
+ if (!datos.ok) {
+ throw new Error(datos.error || "No se pudo vincular este equipo");
+ }
+
+ localStorage.setItem(DISPOSITIVO_TOKEN_KEY, datos.token);
+
+ const cajerosLocales =
+ leerCajerosLocalesLegado();
+
+ if (cajerosLocales.length > 0) {
+ try {
+ await fetch("/cuenta/empleados/importar-locales", {
+ method: "POST",
+ headers: {
+ "Content-Type": "application/json",
+ Authorization: `Bearer ${cuentaToken}`
+ },
+ body: JSON.stringify({
+ empleados: cajerosLocales.map(usuario => ({
+ nombre: usuario.nombre,
+ rol: usuario.rol,
+ pin: usuario.pin,
+ permisos: usuario.permisos,
+ widgets: usuario.widgets
+ }))
+ })
+ });
+ } catch (error) {
+ // La migracion es un extra -- si falla, el admin puede crear a
+ // sus empleados a mano desde la pantalla de Empleados.
+ }
+ }
+
+ await sincronizarEmpleadosDispositivo();
+}
+
+async function calcularVerificadorPinOfflineCliente(pin, saltHex, iteraciones) {
+ const saltBytes =
+ new Uint8Array((saltHex.match(/.{1,2}/g) || []).map(byte => parseInt(byte, 16)));
+
+ const materialClave =
+ await crypto.subtle.importKey(
+ "raw",
+ new TextEncoder().encode(String(pin)),
+ { name: "PBKDF2" },
+ false,
+ ["deriveBits"]
  );
+
+ const bits =
+ await crypto.subtle.deriveBits(
+ { name: "PBKDF2", salt: saltBytes, iterations: iteraciones, hash: "SHA-256" },
+ materialClave,
+ 32 * 8
+ );
+
+ return Array.from(new Uint8Array(bits))
+ .map(byte => byte.toString(16).padStart(2, "0"))
+ .join("");
+}
+
+async function verificarPinEmpleadoOffline(empleado, pin) {
+ if (!empleado?.pinOffline?.salt || !empleado?.pinOffline?.verificador) {
+ return false;
+ }
+
+ const calculado =
+ await calcularVerificadorPinOfflineCliente(
+ pin,
+ empleado.pinOffline.salt,
+ empleado.pinOffline.iteraciones || 100000
+ );
+
+ return calculado === empleado.pinOffline.verificador;
+}
+
+// Punto de entrada unico para revisar un PIN: intenta en linea primero
+// (mas rapido de invalidar si alguien cambio su PIN o fue dado de
+// baja), y si no hay conexion cae al verificador cacheado localmente.
+async function verificarPinEmpleado(empleadoId, pin) {
+ const token =
+ dispositivoTokenActual();
+
+ if (navigator.onLine && token) {
+ try {
+ const respuesta =
+ await fetch("/dispositivo/empleados/verificar-pin", {
+ method: "POST",
+ headers: {
+ "Content-Type": "application/json",
+ "x-dispositivo-token": token
+ },
+ body: JSON.stringify({ empleadoId, pin })
+ });
+
+ if (respuesta.status === 401) {
+ const datos = await respuesta.json();
+ return { ok: false, error: datos.error || "PIN incorrecto" };
+ }
+
+ if (respuesta.status === 429) {
+ const datos = await respuesta.json();
+ return { ok: false, error: datos.error || "Demasiados intentos" };
+ }
+
+ const datos =
+ await respuesta.json();
+
+ if (datos.ok) {
+ const cache = empleadosCache();
+ const indice = cache.empleados.findIndex(item => item.id === datos.empleado.id);
+
+ if (indice >= 0) cache.empleados[indice] = datos.empleado;
+ else cache.empleados.push(datos.empleado);
+
+ guardarEmpleadosCache(cache.empleados);
+ return { ok: true, empleado: datos.empleado };
+ }
+ } catch (error) {
+ // Sin conexion real pese a navigator.onLine -- sigue abajo con
+ // el verificador offline cacheado.
+ }
+ }
+
+ const empleado =
+ empleadosCache().empleados.find(item => item.id === Number(empleadoId));
+
+ if (!empleado) {
+ return { ok: false, error: "Este perfil no esta disponible sin internet todavia. Conectate para sincronizar." };
+ }
+
+ const valido =
+ await verificarPinEmpleadoOffline(empleado, pin);
+
+ if (!valido) {
+ return { ok: false, error: "PIN incorrecto" };
+ }
+
+ return { ok: true, empleado };
+}
+
+// Usado por pantallas que piden "PIN de administrador" como
+// confirmacion rapida (ej. ajustar el total de una nota de venta) sin
+// pasar por la pantalla completa de seleccion de perfil. Revisa contra
+// la cache local -- no necesita internet.
+async function buscarAdminPorPinLocal(pin) {
+ const candidatos =
+ usuariosSistema().filter(usuario => usuario.rol === "Administrador");
+
+ for (const candidato of candidatos) {
+ if (await verificarPinEmpleadoOffline(candidato, pin)) {
+ return candidato;
+ }
+ }
+
+ return null;
 }
 
 function asegurarUsuariosSistema() {
- let usuarios =
+ const usuarios =
  usuariosSistema();
-
- if (usuarios.length === 0) {
- const admin =
- plantillaUsuario("Administrador");
-
- const caja =
- plantillaUsuario("Cajero");
-
- usuarios = [
- {
- id: "admin",
- nombre: "Gustavo",
- rol: "Administrador",
- pin: "1234",
- permisos: admin.permisos,
- widgets: admin.widgets
- },
- {
- id: "caja",
- nombre: "Caja",
- rol: "Cajero",
- pin: "0000",
- permisos: caja.permisos,
- widgets: caja.widgets
- }
- ];
-
- guardarUsuariosSistema(usuarios);
- }
-
- let actualizado = false;
 
  usuarios.forEach(usuario => {
  if (!usuario.permisos) {
  usuario.permisos = permisosTodos(usuario.rol === "Administrador");
- actualizado = true;
  }
 
  if (usuario.permisos.configuracion === undefined) {
  usuario.permisos.configuracion =
  usuario.rol === "Administrador";
- actualizado = true;
  }
 
  MODULOS_SISTEMA.forEach(modulo => {
  if (usuario.permisos[modulo.clave] === undefined) {
  usuario.permisos[modulo.clave] =
  usuario.rol === "Administrador";
- actualizado = true;
  }
  });
 
  if (!usuario.widgets) {
  usuario.widgets = widgetsTodos(true);
- actualizado = true;
  }
  });
-
- if (actualizado) {
- guardarUsuariosSistema(usuarios);
- }
 
  return usuarios;
 }
@@ -2240,6 +2489,196 @@ function leerSesionPersistente() {
  }
 }
 
+async function abrirDesvincularEquipoPOS() {
+ const confirmar =
+ await confirmarPOS(
+ "Se va a desvincular este equipo del negocio. Vas a necesitar el correo y la contrasena del administrador para volver a usarlo (aqui mismo o con otro negocio).",
+ "Cambiar de negocio o desvincular equipo",
+ "peligro"
+ );
+
+ if (!confirmar) return;
+
+ const correo =
+ await pedirTextoPOS(
+ "Escribe el correo de la cuenta del administrador para confirmar.",
+ "",
+ "Confirmar identidad"
+ );
+
+ if (!correo) return;
+
+ const password =
+ await pedirPasswordPOS(
+ "Escribe la contrasena de esa cuenta.",
+ "Confirmar identidad"
+ );
+
+ if (!password) return;
+
+ const token =
+ dispositivoTokenActual();
+
+ try {
+ const respuesta =
+ await fetch("/dispositivo/desvincular", {
+ method: "POST",
+ headers: {
+ "Content-Type": "application/json",
+ "x-dispositivo-token": token || ""
+ },
+ body: JSON.stringify({ correo: correo.trim(), password })
+ });
+
+ const datos =
+ await respuesta.json();
+
+ if (!datos.ok) {
+ await alertaPOS(datos.error || "No se pudo desvincular el equipo.", "No se pudo confirmar", "alerta");
+ return;
+ }
+
+ localStorage.removeItem(CONFIG_NEGOCIO_KEY);
+ localStorage.removeItem(CUENTA_SESION_TOKEN_KEY);
+ localStorage.removeItem(SESION_POS_KEY);
+ localStorage.removeItem("usuarioActualSistema");
+ limpiarVinculacionDispositivo();
+
+ window.location.reload();
+ } catch (error) {
+ await alertaPOS("No se pudo conectar. Revisa tu internet e intenta de nuevo.", "Sin conexion", "alerta");
+ }
+}
+
+let empleadoSeleccionadoPinPOS = null;
+let bufferPinPerfilPOS = "";
+
+function renderSeleccionPerfilPOS() {
+ const grid =
+ document.getElementById("gridPerfilesPOS");
+
+ if (!grid) return;
+
+ const empleados =
+ usuariosSistema();
+
+ grid.innerHTML = empleados.map(empleado => `
+ <button type="button" class="perfil-tarjeta" onclick="abrirPinPerfilPOS(${empleado.id})">
+ <span class="perfil-avatar" style="background:${escaparPOS(empleado.colorAvatar || "#0d6efd")};">${escaparPOS(inicialesNegocio(empleado.nombre))}</span>
+ <strong>${escaparPOS(empleado.nombre)}</strong>
+ <span>${escaparPOS(empleado.rol || "")}</span>
+ </button>
+ `).join("");
+}
+
+function abrirPinPerfilPOS(empleadoId) {
+ const empleado =
+ usuariosSistema().find(item => item.id === Number(empleadoId));
+
+ if (!empleado) return;
+
+ empleadoSeleccionadoPinPOS = empleado;
+ bufferPinPerfilPOS = "";
+
+ document.getElementById("loginSeleccionPerfil").style.display = "none";
+ document.getElementById("loginPinPerfil").style.display = "block";
+
+ const avatar =
+ document.getElementById("pinPerfilAvatar");
+
+ if (avatar) {
+ avatar.style.background = empleado.colorAvatar || "#0d6efd";
+ avatar.textContent = inicialesNegocio(empleado.nombre);
+ }
+
+ const nombre = document.getElementById("pinPerfilNombre");
+ if (nombre) nombre.textContent = empleado.nombre;
+
+ const rol = document.getElementById("pinPerfilRol");
+ if (rol) rol.textContent = empleado.rol || "";
+
+ const error = document.getElementById("pinPerfilError");
+ if (error) error.style.display = "none";
+
+ renderPuntosPinPerfilPOS();
+}
+
+function cerrarPinPerfilPOS() {
+ empleadoSeleccionadoPinPOS = null;
+ bufferPinPerfilPOS = "";
+
+ document.getElementById("loginPinPerfil").style.display = "none";
+ document.getElementById("loginSeleccionPerfil").style.display = "block";
+}
+
+function renderPuntosPinPerfilPOS() {
+ const contenedor =
+ document.getElementById("pinPerfilPuntos");
+
+ if (!contenedor) return;
+
+ const max = 6;
+
+ contenedor.innerHTML = Array.from({ length: max }, (_, indice) => `
+ <span class="pin-perfil-punto ${indice < bufferPinPerfilPOS.length ? "lleno" : ""}"></span>
+ `).join("");
+
+ const boton =
+ document.getElementById("pinPerfilConfirmar");
+
+ if (boton) boton.disabled = bufferPinPerfilPOS.length < 4;
+}
+
+function tecleoPinPerfilPOS(digito) {
+ if (bufferPinPerfilPOS.length >= 6) return;
+
+ bufferPinPerfilPOS += digito;
+ renderPuntosPinPerfilPOS();
+
+ if (bufferPinPerfilPOS.length === 6) {
+ confirmarPinPerfilPOS();
+ }
+}
+
+function borrarPinPerfilPOS() {
+ bufferPinPerfilPOS = bufferPinPerfilPOS.slice(0, -1);
+ renderPuntosPinPerfilPOS();
+}
+
+async function confirmarPinPerfilPOS() {
+ if (!empleadoSeleccionadoPinPOS || bufferPinPerfilPOS.length < 4) return;
+
+ const boton =
+ document.getElementById("pinPerfilConfirmar");
+
+ const error =
+ document.getElementById("pinPerfilError");
+
+ if (error) error.style.display = "none";
+ if (boton) boton.disabled = true;
+
+ const resultado =
+ await verificarPinEmpleado(empleadoSeleccionadoPinPOS.id, bufferPinPerfilPOS);
+
+ if (!resultado.ok) {
+ if (error) {
+ error.textContent = resultado.error || "PIN incorrecto";
+ error.style.display = "block";
+ }
+
+ bufferPinPerfilPOS = "";
+ renderPuntosPinPerfilPOS();
+ return;
+ }
+
+ bufferPinPerfilPOS = "";
+ empleadoSeleccionadoPinPOS = null;
+
+ guardarSesionPersistente(resultado.empleado);
+
+ await entrarAlSistemaConUsuario(resultado.empleado);
+}
+
 async function entrarAlSistemaConUsuario(usuario) {
  document.getElementById("login").style.display =
  "none";
@@ -2399,22 +2838,25 @@ async function cambiarUsuarioActivo() {
  asegurarUsuariosSistema();
 
  const usuario =
- usuarios.find(item => item.id === selector.value);
+ usuarios.find(item => item.id === Number(selector.value));
 
  if (!usuario) return;
 
- const autorizado =
+ const usuarioVerificado =
  await pedirPinUsuario(usuario);
 
- if (!autorizado) {
+ if (!usuarioVerificado) {
  selector.value = usuarioActual.id;
  return;
  }
 
- aplicarSesionUsuario(usuario);
+ aplicarSesionUsuario(usuarioVerificado);
  mostrarInicio();
 }
 
+// Regresa el empleado (mas fresco, si hubo conexion) si el PIN es
+// correcto, o null si no. Usado por el selector rapido de usuario
+// dentro del sistema (no la pantalla de entrada).
 async function pedirPinUsuario(usuario) {
  const datos =
  await abrirFormularioCredito({
@@ -2430,14 +2872,17 @@ async function pedirPinUsuario(usuario) {
  ]
  });
 
- if (!datos) return false;
+ if (!datos) return null;
 
- if (String(datos.pin) !== String(usuario.pin)) {
- alert("PIN incorrecto");
- return false;
+ const resultado =
+ await verificarPinEmpleado(usuario.id, datos.pin);
+
+ if (!resultado.ok) {
+ await alertaPOS(resultado.error || "PIN incorrecto", "No se pudo verificar", "alerta");
+ return null;
  }
 
- return true;
+ return resultado.empleado;
 }
 
 function asegurarPanelUsuariosDashboard() {
@@ -2506,13 +2951,9 @@ function renderPanelUsuariosDashboard() {
  </div>
  <small>${resumenPermisosUsuario(usuario)}</small>
  <div class="usuario-card-acciones">
- <button type="button" onclick="abrirPermisosUsuario('${usuario.id}')">Permisos</button>
- <button type="button" onclick="cambiarPinUsuario('${usuario.id}')">PIN</button>
- ${
- usuario.id !== "admin"
- ? `<button type="button" onclick="eliminarUsuarioSistema('${usuario.id}')">Eliminar</button>`
- : ""
- }
+ <button type="button" onclick="abrirPermisosUsuario(${usuario.id})">Permisos</button>
+ <button type="button" onclick="cambiarPinUsuario(${usuario.id})">PIN</button>
+ <button type="button" onclick="eliminarUsuarioSistema(${usuario.id})">Eliminar</button>
  </div>
  </div>
  `).join("")}
@@ -2572,21 +3013,30 @@ async function abrirNuevoUsuarioSistema() {
  const plantilla =
  plantillaUsuario(datos.rol);
 
- const usuarios =
- asegurarUsuariosSistema();
-
- usuarios.push({
- id: `usuario-${Date.now()}`,
+ try {
+ const respuesta =
+ await cuentaFetchAutenticado("/cuenta/empleados", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({
  nombre: datos.nombre,
  rol: datos.rol,
  pin: datos.pin,
  permisos: plantilla.permisos,
  widgets: plantilla.widgets
+ })
  });
 
- guardarUsuariosSistema(usuarios);
+ if (!respuesta.ok) {
+ throw new Error(respuesta.error || "No se pudo crear el usuario");
+ }
+
+ await sincronizarEmpleadosDispositivo();
  renderSelectorUsuario();
  renderPanelUsuariosDashboard();
+ } catch (error) {
+ await alertaPOS(error.message || "No se pudo crear el usuario.", "Error", "alerta");
+ }
 }
 
 async function cambiarPinUsuario(id) {
@@ -2594,14 +3044,14 @@ async function cambiarPinUsuario(id) {
  asegurarUsuariosSistema();
 
  const usuario =
- usuarios.find(item => item.id === id);
+ usuarios.find(item => item.id === Number(id));
 
  if (!usuario) return;
 
  const datos =
  await abrirFormularioCredito({
  titulo: `Cambiar PIN de ${usuario.nombre}`,
- subtitulo: "Guarda un PIN nuevo para este usuario",
+ subtitulo: "Guarda un PIN nuevo para este usuario (4 a 6 digitos)",
  campos: [
  {
  nombre: "pin",
@@ -2614,9 +3064,23 @@ async function cambiarPinUsuario(id) {
 
  if (!datos) return;
 
- usuario.pin = datos.pin;
- guardarUsuariosSistema(usuarios);
+ try {
+ const respuesta =
+ await cuentaFetchAutenticado(`/cuenta/empleados/${usuario.id}`, {
+ method: "PUT",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ pin: datos.pin })
+ });
+
+ if (!respuesta.ok) {
+ throw new Error(respuesta.error || "No se pudo cambiar el PIN");
+ }
+
+ await sincronizarEmpleadosDispositivo();
  renderPanelUsuariosDashboard();
+ } catch (error) {
+ await alertaPOS(error.message || "No se pudo cambiar el PIN.", "Error", "alerta");
+ }
 }
 
 function abrirPermisosUsuario(id) {
@@ -2624,7 +3088,7 @@ function abrirPermisosUsuario(id) {
  asegurarUsuariosSistema();
 
  const usuario =
- usuarios.find(item => item.id === id);
+ usuarios.find(item => item.id === Number(id));
 
  if (!usuario) return;
 
@@ -2651,16 +3115,12 @@ function abrirPermisosUsuario(id) {
  <div class="permisos-secciones">
  <section>
  <h3>Rol del usuario</h3>
- ${
- usuario.id === "admin"
- ? `<p class="permisos-rol-nota">El administrador principal no puede cambiar de rol.</p>`
- : `<select id="permisosRolSeleccionado" class="permisos-rol-select" onchange="actualizarChecksPorRolSeleccionado()">
+ <select id="permisosRolSeleccionado" class="permisos-rol-select" onchange="actualizarChecksPorRolSeleccionado()">
  <option value="Cajero" ${usuario.rol === "Cajero" ? "selected" : ""}>Cajero</option>
  <option value="Inventario" ${usuario.rol === "Inventario" ? "selected" : ""}>Inventario</option>
  <option value="Administrador" ${usuario.rol === "Administrador" ? "selected" : ""}>Administrador</option>
  </select>
- <p class="permisos-rol-nota">Al cambiar el rol se ajustan los modulos y tarjetas de abajo a los valores tipicos de ese rol. Puedes ajustarlos antes de guardar.</p>`
- }
+ <p class="permisos-rol-nota">Al cambiar el rol se ajustan los modulos y tarjetas de abajo a los valores tipicos de ese rol. Puedes ajustarlos antes de guardar.</p>
  </section>
 
  <section>
@@ -2696,7 +3156,7 @@ function abrirPermisosUsuario(id) {
 
  <div class="permisos-acciones">
  <button type="button" onclick="cerrarPermisosUsuario()">Cancelar</button>
- <button type="button" onclick="guardarPermisosUsuario('${usuario.id}')">Guardar permisos</button>
+ <button type="button" onclick="guardarPermisosUsuario(${usuario.id})">Guardar permisos</button>
  </div>
  </div>
  `;
@@ -2734,12 +3194,12 @@ function cerrarPermisosUsuario() {
  }
 }
 
-function guardarPermisosUsuario(id) {
+async function guardarPermisosUsuario(id) {
  const usuarios =
  asegurarUsuariosSistema();
 
  const usuario =
- usuarios.find(item => item.id === id);
+ usuarios.find(item => item.id === Number(id));
 
  const modal =
  document.getElementById("modalPermisosUsuario");
@@ -2749,28 +3209,45 @@ function guardarPermisosUsuario(id) {
  const selectRol =
  document.getElementById("permisosRolSeleccionado");
 
- if (selectRol && selectRol.value) {
- usuario.rol = selectRol.value;
- }
+ const rol =
+ selectRol?.value || usuario.rol;
 
- usuario.permisos = permisosTodos(false);
- usuario.widgets = widgetsTodos(false);
+ const permisos =
+ permisosTodos(false);
+
+ const widgets =
+ widgetsTodos(false);
 
  modal
  .querySelectorAll("input[type='checkbox']")
  .forEach(input => {
- usuario[input.dataset.tipo][input.dataset.clave] =
+ (input.dataset.tipo === "widgets" ? widgets : permisos)[input.dataset.clave] =
  input.checked;
  });
 
- guardarUsuariosSistema(usuarios);
+ try {
+ const respuesta =
+ await cuentaFetchAutenticado(`/cuenta/empleados/${usuario.id}`, {
+ method: "PUT",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ rol, permisos, widgets })
+ });
+
+ if (!respuesta.ok) {
+ throw new Error(respuesta.error || "No se pudieron guardar los permisos");
+ }
+
+ await sincronizarEmpleadosDispositivo();
 
  if (usuarioActual?.id === usuario.id) {
- aplicarSesionUsuario(usuario);
+ aplicarSesionUsuario(respuesta.empleado);
  }
 
  cerrarPermisosUsuario();
  renderPanelUsuariosDashboard();
+ } catch (error) {
+ await alertaPOS(error.message || "No se pudieron guardar los permisos.", "Error", "alerta");
+ }
 }
 
 async function eliminarUsuarioSistema(id) {
@@ -2783,12 +3260,20 @@ async function eliminarUsuarioSistema(id) {
 
  if (!confirmar) return;
 
- const usuarios =
- asegurarUsuariosSistema().filter(usuario => usuario.id !== id);
+ try {
+ const respuesta =
+ await cuentaFetchAutenticado(`/cuenta/empleados/${Number(id)}`, { method: "DELETE" });
 
- guardarUsuariosSistema(usuarios);
+ if (!respuesta.ok) {
+ throw new Error(respuesta.error || "No se pudo eliminar el usuario");
+ }
+
+ await sincronizarEmpleadosDispositivo();
  renderSelectorUsuario();
  renderPanelUsuariosDashboard();
+ } catch (error) {
+ await alertaPOS(error.message || "No se pudo eliminar el usuario.", "Error", "alerta");
+ }
 }
 
 function inicializarLoginUsuarios() {

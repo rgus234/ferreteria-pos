@@ -242,9 +242,10 @@ async function cargarSeguridadCuenta() {
  if (!panel) return;
 
  try {
-  const [ultimoAccesoDatos, sesionesDatos] = await Promise.all([
+  const [ultimoAccesoDatos, sesionesDatos, dispositivosDatos] = await Promise.all([
    cuentaFetchAutenticado("/cuenta/ultimo-acceso"),
-   cuentaFetchAutenticado("/cuenta/sesiones")
+   cuentaFetchAutenticado("/cuenta/sesiones"),
+   cuentaFetchAutenticado("/cuenta/dispositivos")
   ]);
 
   if (!sesionesDatos.ok) {
@@ -271,6 +272,17 @@ async function cargarSeguridadCuenta() {
    </div>
   `).join("") || `<p class="cuenta-subtitulo" style="margin:0;">No hay sesiones activas.</p>`;
 
+  const dispositivosHtml =
+  (dispositivosDatos.ok ? dispositivosDatos.dispositivos : []).map(dispositivo => `
+   <div class="cuenta-sesion-fila">
+    <div>
+     <strong>${escaparPOS(dispositivo.nombre || "Equipo sin nombre")}</strong>
+     <span>Vinculado ${new Date(dispositivo.creadoAt).toLocaleDateString("es-MX")} -- ultima vez ${new Date(dispositivo.ultimoUsoAt).toLocaleString("es-MX")}</span>
+    </div>
+    <button type="button" class="cuenta-link-boton" onclick="desvincularDispositivoCuentaPOS(${dispositivo.id})">Desvincular</button>
+   </div>
+  `).join("") || `<p class="cuenta-subtitulo" style="margin:0;">No hay equipos vinculados a este negocio.</p>`;
+
   panel.innerHTML = `
    <h3>Seguridad</h3>
    <div class="cuenta-datos-grid">
@@ -288,6 +300,10 @@ async function cargarSeguridadCuenta() {
    <h4 class="cuenta-subseccion-titulo">Dispositivos con sesion iniciada</h4>
    <div class="cuenta-sesiones-lista">${sesionesHtml}</div>
    <button type="button" class="cuenta-link-boton cuenta-link-peligro" onclick="cerrarTodasSesionesCuenta()">Cerrar sesion en todos los dispositivos</button>
+
+   <h4 class="cuenta-subseccion-titulo">Equipos vinculados al negocio (cajas)</h4>
+   <p class="cuenta-subtitulo" style="margin:0 0 10px;">Computadoras que ya no piden correo y contrasena para entrar, solo el PIN del empleado.</p>
+   <div class="cuenta-sesiones-lista">${dispositivosHtml}</div>
   `;
  } catch (error) {
   panel.innerHTML = `
@@ -345,6 +361,25 @@ async function cerrarSesionCuentaPOS(id) {
 
  try {
   await cuentaFetchAutenticado(`/cuenta/sesiones/${id}/cerrar`, { method: "POST" });
+
+  cargarSeguridadCuenta();
+ } catch (error) {
+  await alertaPOS("No se pudo conectar. Revisa tu internet e intenta de nuevo.", "Sin conexion", "alerta");
+ }
+}
+
+async function desvincularDispositivoCuentaPOS(id) {
+ const confirmado =
+ await confirmarPOS(
+ "Esa computadora va a dejar de tener acceso -- va a pedir correo y contrasena de nuevo la proxima vez que se use.",
+ "Desvincular equipo",
+ "peligro"
+ );
+
+ if (!confirmado) return;
+
+ try {
+  await cuentaFetchAutenticado(`/cuenta/dispositivos/${id}/revocar`, { method: "POST" });
 
   cargarSeguridadCuenta();
  } catch (error) {

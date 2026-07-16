@@ -126,6 +126,39 @@ function generarCodigoNumerico() {
     return String(crypto.randomInt(100000, 1000000));
 }
 
+// El PIN de un empleado se guarda dos veces: pin_hash (scrypt, igual
+// que la contrasena de la cuenta) para verificar en linea, y un
+// verificador ligero (PBKDF2) para que el navegador pueda comparar el
+// PIN sin internet -- se calcula UNA sola vez, al momento de poner el
+// PIN (que es cuando el servidor todavia tiene el PIN en claro; un
+// hash scrypt no se puede "recalcular" despues porque es de un solo
+// sentido). PBKDF2 se eligio para el verificador offline porque el
+// navegador ya lo trae integrado (Web Crypto, sin libreria nueva) y,
+// a diferencia de un SHA-256 simple, es deliberadamente lento -- hace
+// que probar los ~1,000,000 PIN posibles fuera de linea sea costoso.
+const PIN_OFFLINE_ITERACIONES = 100000;
+const PIN_OFFLINE_KEYLEN = 32;
+
+function calcularVerificadorPinOffline(pin, saltHex) {
+    return crypto.pbkdf2Sync(
+        String(pin),
+        Buffer.from(saltHex, "hex"),
+        PIN_OFFLINE_ITERACIONES,
+        PIN_OFFLINE_KEYLEN,
+        "sha256"
+    ).toString("hex");
+}
+
+function generarVerificadorPinOffline(pin) {
+    const saltHex = crypto.randomBytes(16).toString("hex");
+
+    return {
+        salt: saltHex,
+        verificador: calcularVerificadorPinOffline(pin, saltHex),
+        iteraciones: PIN_OFFLINE_ITERACIONES
+    };
+}
+
 function urlBase(req) {
     // APP_BASE_URL (si esta configurada) manda siempre -- asi los
     // enlaces de correo usan el dominio propio aunque alguien entre
@@ -966,6 +999,437 @@ app.get("/cuenta/ultimo-acceso", requerirSesionCuenta, async (req, res) => {
     }
 });
 
+// Middleware para las rutas de /dispositivo/* -- token distinto del
+// de /cuenta/* a proposito: la sesion de cuenta es el login personal
+// del administrador (se puede cerrar sin afectar la caja), mientras
+// que el token de dispositivo representa que ESTA COMPUTADORA
+// pertenece al negocio y vive mucho mas tiempo (hasta que se
+// desvincule a mano). Header propio para no mezclarlos.
+async function requerirDispositivoVinculado(req, res, next) {
+    const token = limpiarTexto(req.headers["x-dispositivo-token"], 200);
+
+    if (!token) {
+        res.status(401).json({ ok: false, error: "Este equipo no esta vinculado" });
+        return;
+    }
+
+    try {
+        const fila = await pool.query(
+            `
+            SELECT d.id AS dispositivo_id, n.id AS negocio_id, n.slug, n.nombre
+            FROM public.dispositivos_vinculados d
+            JOIN public.negocios n ON n.id = d.negocio_id
+            WHERE d.token_hash = $1 AND d.revocado_at IS NULL
+            LIMIT 1
+            `,
+            [hashTokenSeguro(token)]
+        );
+
+        if (fila.rows.length === 0) {
+            res.status(401).json({ ok: false, error: "Este equipo no esta vinculado o fue desvinculado" });
+            return;
+        }
+
+        pool.query(
+            `UPDATE public.dispositivos_vinculados SET ultimo_uso_at = NOW() WHERE id = $1`,
+            [fila.rows[0].dispositivo_id]
+        ).catch(() => {});
+
+        req.negocioDispositivo = fila.rows[0];
+        req.dispositivoTokenPlano = token;
+        next();
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+}
+
+app.post("/dispositivo/vincular", requerirSesionCuenta, async (req, res) => {
+    const nombreDispositivo = limpiarTexto(req.body?.nombreDispositivo, 120) ||
+        limpiarTexto(req.headers["user-agent"], 200) ||
+        "Equipo sin nombre";
+
+    try {
+        const tokenPlano = generarTokenSeguro();
+
+        await pool.query(
+            `INSERT INTO public.dispositivos_vinculados (negocio_id, token_hash, nombre_dispositivo, vinculado_por_correo)
+             VALUES ($1, $2, $3, $4)`,
+            [req.negocioAutenticado.negocio_id, hashTokenSeguro(tokenPlano), nombreDispositivo, req.negocioAutenticado.correo]
+        );
+
+        res.json({ ok: true, token: tokenPlano });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.post("/dispositivo/desvincular", requerirDispositivoVinculado, async (req, res) => {
+    const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+    const password = String(req.body?.password || "");
+
+    if (!correo || !password) {
+        res.status(400).json({ ok: false, error: "Confirma tu correo y contrasena para desvincular este equipo" });
+        return;
+    }
+
+    try {
+        const negocio = await pool.query(
+            "SELECT id, password_hash FROM public.negocios WHERE id = $1 AND LOWER(correo) = $2 LIMIT 1",
+            [req.negocioDispositivo.negocio_id, correo]
+        );
+
+        if (negocio.rows.length === 0 || !verificarPassword(password, negocio.rows[0].password_hash)) {
+            res.status(401).json({ ok: false, error: "Correo o contrasena incorrectos" });
+            return;
+        }
+
+        await pool.query(
+            `UPDATE public.dispositivos_vinculados SET revocado_at = NOW() WHERE id = $1`,
+            [req.negocioDispositivo.dispositivo_id]
+        );
+
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.get("/cuenta/dispositivos", requerirSesionCuenta, async (req, res) => {
+    try {
+        const filas = await pool.query(
+            `
+            SELECT id, nombre_dispositivo, creado_at, ultimo_uso_at
+            FROM public.dispositivos_vinculados
+            WHERE negocio_id = $1 AND revocado_at IS NULL
+            ORDER BY ultimo_uso_at DESC
+            `,
+            [req.negocioAutenticado.negocio_id]
+        );
+
+        res.json({
+            ok: true,
+            dispositivos: filas.rows.map(fila => ({
+                id: fila.id,
+                nombre: fila.nombre_dispositivo,
+                creadoAt: fila.creado_at,
+                ultimoUsoAt: fila.ultimo_uso_at
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.post("/cuenta/dispositivos/:id/revocar", requerirSesionCuenta, async (req, res) => {
+    try {
+        await pool.query(
+            `
+            UPDATE public.dispositivos_vinculados SET revocado_at = NOW()
+            WHERE id = $1 AND negocio_id = $2
+            `,
+            [Number(req.params.id), req.negocioAutenticado.negocio_id]
+        );
+
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+const PALETA_AVATAR_EMPLEADO = [
+    "#0d6efd", "#7c3aed", "#dc2626", "#ea580c", "#16a34a",
+    "#0891b2", "#c026d3", "#4f46e5", "#0f766e", "#b45309"
+];
+
+function colorAvatarAleatorio() {
+    return PALETA_AVATAR_EMPLEADO[Math.floor(Math.random() * PALETA_AVATAR_EMPLEADO.length)];
+}
+
+function empleadoParaAdmin(fila) {
+    return {
+        id: fila.id,
+        nombre: fila.nombre,
+        rol: fila.rol,
+        colorAvatar: fila.color_avatar,
+        activo: fila.activo,
+        permisos: fila.permisos,
+        widgets: fila.widgets,
+        creadoAt: fila.creado_at
+    };
+}
+
+function empleadoParaDispositivo(fila) {
+    return {
+        id: fila.id,
+        nombre: fila.nombre,
+        rol: fila.rol,
+        colorAvatar: fila.color_avatar,
+        permisos: fila.permisos,
+        widgets: fila.widgets,
+        pinOffline: {
+            salt: fila.pin_salt_offline,
+            verificador: fila.pin_verificador_offline,
+            iteraciones: PIN_OFFLINE_ITERACIONES
+        }
+    };
+}
+
+function validarPin(pin) {
+    return /^[0-9]{4,6}$/.test(String(pin || ""));
+}
+
+app.get("/cuenta/empleados", requerirSesionCuenta, async (req, res) => {
+    try {
+        const filas = await pool.query(
+            `SELECT * FROM public.empleados WHERE negocio_id = $1 ORDER BY creado_at ASC`,
+            [req.negocioAutenticado.negocio_id]
+        );
+
+        res.json({ ok: true, empleados: filas.rows.map(empleadoParaAdmin) });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.post("/cuenta/empleados", requerirSesionCuenta, async (req, res) => {
+    const nombre = limpiarTexto(req.body?.nombre, 80);
+    const rol = limpiarTexto(req.body?.rol, 40) || "Cajero";
+    const pin = String(req.body?.pin || "");
+    const permisos = req.body?.permisos && typeof req.body.permisos === "object" ? req.body.permisos : {};
+    const widgets = req.body?.widgets && typeof req.body.widgets === "object" ? req.body.widgets : {};
+
+    if (!nombre) {
+        res.status(400).json({ ok: false, error: "Escribe el nombre del empleado" });
+        return;
+    }
+
+    if (!validarPin(pin)) {
+        res.status(400).json({ ok: false, error: "El PIN debe tener entre 4 y 6 digitos" });
+        return;
+    }
+
+    try {
+        const offline = generarVerificadorPinOffline(pin);
+
+        const fila = await pool.query(
+            `
+            INSERT INTO public.empleados
+                (negocio_id, nombre, rol, pin_hash, pin_verificador_offline, pin_salt_offline, color_avatar, permisos, widgets)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING *
+            `,
+            [
+                req.negocioAutenticado.negocio_id,
+                nombre,
+                rol,
+                hashPassword(pin),
+                offline.verificador,
+                offline.salt,
+                colorAvatarAleatorio(),
+                JSON.stringify(permisos),
+                JSON.stringify(widgets)
+            ]
+        );
+
+        res.status(201).json({ ok: true, empleado: empleadoParaAdmin(fila.rows[0]) });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.put("/cuenta/empleados/:id", requerirSesionCuenta, async (req, res) => {
+    const id = Number(req.params.id);
+
+    try {
+        const actual = await pool.query(
+            `SELECT * FROM public.empleados WHERE id = $1 AND negocio_id = $2 LIMIT 1`,
+            [id, req.negocioAutenticado.negocio_id]
+        );
+
+        if (actual.rows.length === 0) {
+            res.status(404).json({ ok: false, error: "Empleado no encontrado" });
+            return;
+        }
+
+        const fila = actual.rows[0];
+        const nombre = req.body?.nombre !== undefined ? limpiarTexto(req.body.nombre, 80) : fila.nombre;
+        const rol = req.body?.rol !== undefined ? (limpiarTexto(req.body.rol, 40) || fila.rol) : fila.rol;
+        const activo = req.body?.activo !== undefined ? Boolean(req.body.activo) : fila.activo;
+        const permisos = req.body?.permisos && typeof req.body.permisos === "object" ? req.body.permisos : fila.permisos;
+        const widgets = req.body?.widgets && typeof req.body.widgets === "object" ? req.body.widgets : fila.widgets;
+
+        if (!nombre) {
+            res.status(400).json({ ok: false, error: "Escribe el nombre del empleado" });
+            return;
+        }
+
+        let pinHash = fila.pin_hash;
+        let pinVerificador = fila.pin_verificador_offline;
+        let pinSalt = fila.pin_salt_offline;
+
+        if (req.body?.pin !== undefined && req.body.pin !== "") {
+            if (!validarPin(req.body.pin)) {
+                res.status(400).json({ ok: false, error: "El PIN debe tener entre 4 y 6 digitos" });
+                return;
+            }
+
+            pinHash = hashPassword(String(req.body.pin));
+
+            const offline = generarVerificadorPinOffline(String(req.body.pin));
+            pinVerificador = offline.verificador;
+            pinSalt = offline.salt;
+        }
+
+        const actualizado = await pool.query(
+            `
+            UPDATE public.empleados
+            SET nombre = $1, rol = $2, activo = $3, permisos = $4, widgets = $5,
+                pin_hash = $6, pin_verificador_offline = $7, pin_salt_offline = $8,
+                actualizado_at = NOW()
+            WHERE id = $9
+            RETURNING *
+            `,
+            [nombre, rol, activo, JSON.stringify(permisos), JSON.stringify(widgets), pinHash, pinVerificador, pinSalt, id]
+        );
+
+        res.json({ ok: true, empleado: empleadoParaAdmin(actualizado.rows[0]) });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.delete("/cuenta/empleados/:id", requerirSesionCuenta, async (req, res) => {
+    try {
+        const actualizado = await pool.query(
+            `
+            UPDATE public.empleados SET activo = false, actualizado_at = NOW()
+            WHERE id = $1 AND negocio_id = $2
+            RETURNING id
+            `,
+            [Number(req.params.id), req.negocioAutenticado.negocio_id]
+        );
+
+        if (actualizado.rows.length === 0) {
+            res.status(404).json({ ok: false, error: "Empleado no encontrado" });
+            return;
+        }
+
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.post("/cuenta/empleados/importar-locales", requerirSesionCuenta, async (req, res) => {
+    const empleadosLocales = Array.isArray(req.body?.empleados) ? req.body.empleados : [];
+
+    if (empleadosLocales.length === 0) {
+        res.json({ ok: true, importados: 0 });
+        return;
+    }
+
+    try {
+        const existentes = await pool.query(
+            `SELECT LOWER(nombre) AS nombre_lower FROM public.empleados WHERE negocio_id = $1`,
+            [req.negocioAutenticado.negocio_id]
+        );
+
+        const nombresExistentes = new Set(existentes.rows.map(fila => fila.nombre_lower));
+        let importados = 0;
+
+        for (const local of empleadosLocales) {
+            const nombre = limpiarTexto(local?.nombre, 80);
+            const pin = String(local?.pin || "");
+
+            if (!nombre || !validarPin(pin) || nombresExistentes.has(nombre.toLowerCase())) {
+                continue;
+            }
+
+            const offline = generarVerificadorPinOffline(pin);
+
+            await pool.query(
+                `
+                INSERT INTO public.empleados
+                    (negocio_id, nombre, rol, pin_hash, pin_verificador_offline, pin_salt_offline, color_avatar, permisos, widgets)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                `,
+                [
+                    req.negocioAutenticado.negocio_id,
+                    nombre,
+                    limpiarTexto(local?.rol, 40) || "Cajero",
+                    hashPassword(pin),
+                    offline.verificador,
+                    offline.salt,
+                    colorAvatarAleatorio(),
+                    JSON.stringify(local?.permisos && typeof local.permisos === "object" ? local.permisos : {}),
+                    JSON.stringify(local?.widgets && typeof local.widgets === "object" ? local.widgets : {})
+                ]
+            );
+
+            nombresExistentes.add(nombre.toLowerCase());
+            importados += 1;
+        }
+
+        res.json({ ok: true, importados });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.get("/dispositivo/empleados", requerirDispositivoVinculado, async (req, res) => {
+    try {
+        const filas = await pool.query(
+            `
+            SELECT * FROM public.empleados
+            WHERE negocio_id = $1 AND activo = true
+            ORDER BY creado_at ASC
+            `,
+            [req.negocioDispositivo.negocio_id]
+        );
+
+        res.json({ ok: true, empleados: filas.rows.map(empleadoParaDispositivo) });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
+app.post("/dispositivo/empleados/verificar-pin", requerirDispositivoVinculado, async (req, res) => {
+    const empleadoId = Number(req.body?.empleadoId);
+    const pin = String(req.body?.pin || "");
+
+    const clave = `${req.negocioDispositivo.dispositivo_id}:${empleadoId}`;
+
+    if (limitadorPinEmpleado.bloqueado(clave)) {
+        res.status(429).json({ ok: false, error: "Demasiados intentos. Espera unos minutos e intenta de nuevo." });
+        return;
+    }
+
+    try {
+        const fila = await pool.query(
+            `
+            SELECT * FROM public.empleados
+            WHERE id = $1 AND negocio_id = $2 AND activo = true
+            LIMIT 1
+            `,
+            [empleadoId, req.negocioDispositivo.negocio_id]
+        );
+
+        const valido = fila.rows.length > 0 && verificarPassword(pin, fila.rows[0].pin_hash);
+
+        if (!valido) {
+            limitadorPinEmpleado.registrarFallo(clave);
+            res.status(401).json({ ok: false, error: "PIN incorrecto" });
+            return;
+        }
+
+        limitadorPinEmpleado.registrarExito(clave);
+
+        res.json({ ok: true, empleado: empleadoParaDispositivo(fila.rows[0]) });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+});
+
 app.put("/cuenta/correo", requerirSesionCuenta, async (req, res) => {
     const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
 
@@ -1269,6 +1733,7 @@ const limitadorReenviarVerificacion = crearLimitadorPorIp(5, 60 * 60 * 1000);
 const limitadorLoginCuenta = crearLimitadorPorIp(8, 15 * 60 * 1000);
 const limitadorOlvidePassword = crearLimitadorPorIp(5, 60 * 60 * 1000);
 const limitadorVerificarCodigo = crearLimitadorPorIp(8, 15 * 60 * 1000);
+const limitadorPinEmpleado = crearLimitadorPorIp(6, 5 * 60 * 1000);
 
 function validarAdminKey(req, res, next) {
     if (!config.adminKey) {

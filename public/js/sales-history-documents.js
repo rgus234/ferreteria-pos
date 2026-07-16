@@ -592,10 +592,7 @@ async function generarNotaVentaPOS(id) {
 
   if (requiereAutorizacion) {
    const pin = document.getElementById("notaPinVentaPOS")?.value || "";
-   const admin = usuariosSistema().find(usuario =>
-    usuario.rol === "Administrador" &&
-    String(usuario.pin) === String(pin)
-   );
+   const admin = await buscarAdminPorPinLocal(pin);
 
    if (!admin) {
     await alertaPOS("PIN de administrador incorrecto.", "Ajuste de nota", "peligro");

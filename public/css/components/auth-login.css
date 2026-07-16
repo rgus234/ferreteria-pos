@@ -362,6 +362,179 @@
  height:13px;
 }
 
+.perfiles-grid{
+ display:grid;
+ grid-template-columns:repeat(auto-fill, minmax(120px, 1fr));
+ gap:14px;
+ max-height:44vh;
+ overflow-y:auto;
+ padding:4px 2px;
+}
+
+.perfil-tarjeta{
+ display:flex;
+ flex-direction:column;
+ align-items:center;
+ gap:8px;
+ width:100% !important;
+ min-height:0 !important;
+ padding:16px 10px !important;
+ border:1px solid rgba(255,255,255,.12) !important;
+ border-radius:16px;
+ background:rgba(255,255,255,.05) !important;
+ color:#f8fafc !important;
+ cursor:pointer;
+ transition:border-color .15s ease, background .15s ease, transform .15s ease;
+}
+
+.perfil-tarjeta:hover{
+ border-color:rgba(13,110,253,.55) !important;
+ background:rgba(13,110,253,.12) !important;
+ transform:translateY(-2px);
+}
+
+.perfil-avatar{
+ width:56px;
+ height:56px;
+ display:grid;
+ place-items:center;
+ border-radius:50%;
+ color:#ffffff;
+ font-size:19px;
+ font-weight:900;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.28);
+}
+
+.perfil-tarjeta strong{
+ font-size:13px;
+ font-weight:800;
+ text-align:center;
+ line-height:1.2;
+}
+
+.perfil-tarjeta span{
+ color:#94a3b8;
+ font-size:11px;
+}
+
+.login-opciones-perfiles{
+ justify-content:center;
+ gap:20px;
+ margin-top:18px;
+}
+
+#loginVincularEquipo .login-boton-principal{
+ margin-top:8px;
+}
+
+.pin-perfil-volver{
+ width:auto !important;
+ min-height:0 !important;
+ margin:0 0 18px !important;
+ padding:0 !important;
+ border:0 !important;
+ background:transparent !important;
+ color:#94a3b8 !important;
+ font-size:12.5px;
+ font-weight:700;
+ cursor:pointer;
+}
+
+.pin-perfil-volver:hover{
+ color:#f8fafc !important;
+}
+
+.pin-perfil-cabecera{
+ display:flex;
+ align-items:center;
+ gap:14px;
+ margin-bottom:20px;
+}
+
+.pin-perfil-cabecera strong{
+ display:block;
+ color:#f8fafc;
+ font-size:17px;
+}
+
+.pin-perfil-cabecera span{
+ display:block;
+ color:#94a3b8;
+ font-size:12.5px;
+ margin-top:2px;
+}
+
+.pin-perfil-puntos{
+ display:flex;
+ justify-content:center;
+ gap:12px;
+ margin:26px 0;
+}
+
+.pin-perfil-punto{
+ width:16px;
+ height:16px;
+ border-radius:50%;
+ border:1px solid rgba(255,255,255,.28);
+ background:transparent;
+ transition:background .12s ease, border-color .12s ease;
+}
+
+.pin-perfil-punto.lleno{
+ background:var(--brand-color, #0d6efd);
+ border-color:var(--brand-color, #0d6efd);
+}
+
+.pin-perfil-error{
+ margin:0 0 14px;
+ padding:10px 12px;
+ border-radius:10px;
+ background:rgba(220,38,38,.14);
+ border:1px solid rgba(220,38,38,.32);
+ color:#fca5a5;
+ font-size:13px;
+ font-weight:700;
+ text-align:center;
+}
+
+.pin-perfil-teclado{
+ display:grid;
+ grid-template-columns:repeat(3, 1fr);
+ gap:10px;
+ max-width:280px;
+ margin:0 auto;
+}
+
+.pin-perfil-teclado button{
+ min-height:56px !important;
+ border:1px solid rgba(255,255,255,.12) !important;
+ border-radius:14px;
+ background:rgba(255,255,255,.05) !important;
+ color:#f8fafc !important;
+ font-size:19px;
+ font-weight:800;
+ cursor:pointer;
+}
+
+.pin-perfil-teclado button:hover{
+ background:rgba(13,110,253,.16) !important;
+ border-color:rgba(13,110,253,.5) !important;
+}
+
+.pin-perfil-tecla-borrar{
+ font-size:16px !important;
+}
+
+.pin-perfil-tecla-confirmar{
+ background:linear-gradient(135deg, var(--brand-color, #0d6efd), #0646a8) !important;
+ border-color:transparent !important;
+}
+
+.pin-perfil-tecla-confirmar:disabled{
+ opacity:.4;
+ cursor:not-allowed;
+}
+
 @media (max-width: 760px){
  .login-box{
  flex-direction:column;

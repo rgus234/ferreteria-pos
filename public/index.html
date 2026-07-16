@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="css/layers/responsive-legacy.css?v=refactor-responsive-legacy-20260702-01">
   <link rel="stylesheet" href="css/layers/theme-runtime.css?v=refactor-theme-runtime-20260701-01">
   <link rel="stylesheet" href="css/layers/pos-restoration.css?v=refactor-pos-restoration-20260701-01">
-  <link rel="stylesheet" href="css/components/auth-login.css?v=reconexion-negocio-20260710-02">
+  <link rel="stylesheet" href="css/components/auth-login.css?v=dispositivos-empleados-20260716-01">
   <link rel="stylesheet" href="css/components/app-shell.css?v=marca-nexo-20260711-01">
   <link rel="stylesheet" href="css/components/setup-wizard.css?v=login-correo-20260714-01">
   <link rel="stylesheet" href="css/components/config-settings.css?v=venta-pieza-20260711-01">
@@ -215,6 +215,51 @@
 
  <div class="login-panel-form">
 
+ <div id="loginVincularEquipo" style="display:none;">
+ <h1>Vincula este equipo</h1>
+ <p class="login-subtitulo">Este equipo todavia no esta vinculado a tu negocio. Inicia sesion con el correo y la contrasena del administrador -- solo se pide una vez por equipo.</p>
+ <button class="login-boton-principal" onclick="abrirBuscarNegocioSetup()">Vincular con correo y contrasena</button>
+ </div>
+
+ <div id="loginSeleccionPerfil" style="display:none;">
+ <h1>¿Quien esta trabajando?</h1>
+ <p class="login-subtitulo">Elige tu perfil y escribe tu PIN para entrar.</p>
+ <div id="gridPerfilesPOS" class="perfiles-grid"></div>
+ <div class="login-opciones login-opciones-perfiles">
+ <button type="button" class="login-ayuda-link" onclick="abrirContactoDesarrolladorPOS()">Necesitas ayuda para entrar?</button>
+ <button type="button" class="login-ayuda-link" onclick="abrirDesvincularEquipoPOS()">Cambiar de negocio o desvincular equipo</button>
+ </div>
+ </div>
+
+ <div id="loginPinPerfil" style="display:none;">
+ <button type="button" class="pin-perfil-volver" onclick="cerrarPinPerfilPOS()">&larr; Elegir otro perfil</button>
+ <div class="pin-perfil-cabecera">
+ <div class="pin-perfil-avatar" id="pinPerfilAvatar"></div>
+ <div>
+ <strong id="pinPerfilNombre"></strong>
+ <span id="pinPerfilRol"></span>
+ </div>
+ </div>
+ <div class="pin-perfil-puntos" id="pinPerfilPuntos"></div>
+ <div id="pinPerfilError" class="pin-perfil-error" style="display:none;"></div>
+ <div class="pin-perfil-teclado">
+ <button type="button" onclick="tecleoPinPerfilPOS('1')">1</button>
+ <button type="button" onclick="tecleoPinPerfilPOS('2')">2</button>
+ <button type="button" onclick="tecleoPinPerfilPOS('3')">3</button>
+ <button type="button" onclick="tecleoPinPerfilPOS('4')">4</button>
+ <button type="button" onclick="tecleoPinPerfilPOS('5')">5</button>
+ <button type="button" onclick="tecleoPinPerfilPOS('6')">6</button>
+ <button type="button" onclick="tecleoPinPerfilPOS('7')">7</button>
+ <button type="button" onclick="tecleoPinPerfilPOS('8')">8</button>
+ <button type="button" onclick="tecleoPinPerfilPOS('9')">9</button>
+ <button type="button" class="pin-perfil-tecla-borrar" onclick="borrarPinPerfilPOS()">&#9003;</button>
+ <button type="button" onclick="tecleoPinPerfilPOS('0')">0</button>
+ <button type="button" id="pinPerfilConfirmar" class="pin-perfil-tecla-confirmar" onclick="confirmarPinPerfilPOS()" disabled>&#10003;</button>
+ </div>
+ </div>
+
+ <div id="loginFormularioClasico" style="display:none;">
+
  <h1>Iniciar sesion</h1>
  <p class="login-subtitulo">Ingresa tus credenciales para continuar</p>
 
@@ -253,6 +298,8 @@
  <button class="login-boton-principal" onclick="iniciarSesion()">
  Entrar
  </button>
+
+ </div>
 
  <div class="login-pie">
  <span class="login-pie-seguro">
@@ -1371,9 +1418,9 @@
  </div>
  </div>
 
-  <script src="app.js?v=login-correo-20260714-01"></script>
+  <script src="app.js?v=dispositivos-empleados-20260716-01"></script>
   <script src="js/offline-sync.js?v=fix-mostrarproductos-20260709-01"></script>
-  <script src="js/config-auth.js?v=subdominio-app-20260715-01"></script>
+  <script src="js/config-auth.js?v=dispositivos-empleados-20260716-01"></script>
   <script src="js/catalog-provider-picker.js?v=catalog-adapters-20260708-01"></script>
   <script src="js/supplier-catalog.js?v=fix-gafi-catalogo-20260709-02"></script>
   <script src="js/pricing-rules.js?v=reglas-precio-20260709-02"></script>
@@ -1383,7 +1430,7 @@
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-sales.js?v=atajo-cajon-20260712-01"></script>
 <script src="js/pos-search-flyout.js?v=fotos-producto-20260712-01"></script>
-  <script src="js/sales-history-documents.js?v=nav-fix-20260704-01"></script>
+  <script src="js/sales-history-documents.js?v=dispositivos-empleados-20260716-01"></script>
   <script src="js/credit-customers.js?v=estado-cuenta-cajon-fix-20260707-01"></script>
   <script src="js/supplier-catalog-view.js?v=xhr-progreso-real-20260712-01"></script>
   <script src="js/pricing-rules-view.js?v=reglas-precio-20260709-03"></script>
@@ -1391,7 +1438,7 @@
   <script src="js/app-bootstrap.js?v=buscar-codigo-alterno-20260712-01"></script>
   <script src="js/reports.js?v=reportes-redesign-20260704-01"></script>
   <script src="js/shell-topbar.js?v=marca-nexo-20260711-01"></script>
-  <script src="js/account-view.js?v=cuenta-seguridad-20260714-01"></script>
+  <script src="js/account-view.js?v=dispositivos-empleados-20260716-01"></script>
   <script src="js/product-details-view.js?v=alertas-tempranas-20260712-01"></script>
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/pos-shortcuts.js?v=pos-flyout-redesign-20260708-03"></script>

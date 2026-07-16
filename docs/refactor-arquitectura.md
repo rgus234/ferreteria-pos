@@ -2007,3 +2007,243 @@ Validacion:
   incidente real de fantasmas documentado al inicio de esta sesion.
 - No se hizo commit ni push -- pendiente de confirmacion explicita del
   usuario.
+
+### Autenticacion por correo/contrasena, correo transaccional con Resend, y dominio propio con app separada (2026-07-14 / 2026-07-15)
+
+El usuario pidio un rediseno completo de la autenticacion: el correo
+pasa de ser un dato de contacto libre a ser el identificador real de
+la cuenta del negocio, con registro verificado, login por
+correo/contrasena, recuperacion con codigo de 6 digitos, y un panel de
+seguridad con sesiones/dispositivos -- pensado desde el inicio para
+soportar mas adelante Stripe, empleados y multiples dispositivos, sin
+parchar el sistema actual.
+
+**Decision de arquitectura clave**: el modelo de tenant por slug
+existente (`negocioActual`/`asegurarNegocioActual`, usado por las ~36
+rutas operativas del POS) no se toco. La cuenta por correo es una
+puerta de entrada nueva y adicional: el login resuelve
+correo+contrasena y regresa el `slug` + un token de sesion, y el
+frontend guarda ese slug exactamente como ya lo hacia
+(`guardarNegocioActivo`). El PIN local del cajero
+(`iniciarSesion()`/`usuariosSistema()`, 100% `localStorage`) tampoco se
+toco.
+
+**Esquema nuevo** (`migrations/20260714_auth_correo.sql`): `negocios`
+gana `password_hash` y `correo_verificado`, mas un indice unico parcial
+sobre `LOWER(correo)`. Tablas nuevas: `verificaciones_correo`,
+`restablecimientos_password` (codigo de 6 digitos hasheado, con
+contador de intentos), `sesiones_cuenta` (token opaco
+`crypto.randomBytes(32)`, hasheado con SHA-256 -- no JWT, porque el
+usuario pidio poder listar y revocar sesiones individuales, algo que
+un JWT sin capa extra no permite) y `intentos_login` (bitacora real,
+alimenta "Ultimo acceso").
+
+**Servidor** (`server.js`): rutas nuevas bajo `/cuenta/*` -- `login`,
+`logout`, `logout-todos`, `sesiones` (listar/cerrar una), `correo`
+(protegida, revierifica al cambiar), `password` (protegida, revoca
+sesiones ajenas al cambiar, deja viva la actual), `olvide-password`,
+`verificar-codigo-reset`, `restablecer-password`,
+`reenviar-verificacion`. Middleware `requerirSesionCuenta` (header
+`Authorization: Bearer`) separado por completo del PIN local y de la
+resolucion por slug. `POST /cuenta/login` bloquea con 403 si el correo
+no esta verificado (sin contarlo como intento fallido para el
+limitador de fuerza bruta). Limitadores nuevos (`crearLimitadorPorIp`,
+reusado con claves de correo ademas de IP) en registro, login,
+reenviar verificacion, olvide-password y verificar-codigo. La ruta
+vieja y sin autenticacion `PUT /negocio-actual/correo` se dejo viva
+**solo** para negocios que todavia no tienen `password_hash` (no han
+migrado) -- en cuanto un negocio tiene contrasena, esa ruta regresa 403
+y obliga a usar `PUT /cuenta/correo` protegida, cerrando un hueco real
+de robo de cuenta (cambiar el correo sin autenticacion y despues pedir
+"olvide mi contrasena" con el correo nuevo).
+
+**Correo transaccional** (`email.js`, nuevo): cliente de Resend con 3
+plantillas (verificacion, recuperacion con codigo, activacion con
+enlace), diseño moderno con el logo de Nexo POS (URL publica fija
+`https://nexoposoficial.com/nexo-pos-logo.jpg`, un correo nunca puede
+cargar localhost). Envuelve cualquier error de envio sin tronar el
+registro/login. `GET /activar-cuenta/:token` (pagina HTML autonoma, sin
+depender de los assets de la SPA) deja crear la contrasena por primera
+vez a negocios migrados desde el correo de activacion, reusando
+`POST /cuenta/restablecer-password` tal cual.
+
+**Frontend**: `config-auth.js` -- `abrirBuscarNegocioSetup()`
+reescrito con login por correo/contrasena como opcion principal
+(busqueda por nombre/telefono queda como alternativa oculta),
+`abrirOlvidePasswordCuenta()` nuevo (3 pasos encadenados con
+`dialogoPOS`/`pedirTextoPOS`, mas `pedirPasswordPOS` nuevo con
+`type="password"`), con opcion de "reenviar codigo" en cada paso que
+falla. `account-view.js` ampliado: insignia de correo verificado/no
+verificado con boton de reenvio, seccion "Seguridad" (ultimo acceso,
+cambiar contrasena, lista de sesiones con cerrar individual/todas),
+todo con fallback a "inicia sesion" si no hay token de cuenta activo
+(negocios no migrados).
+
+**Dominio propio** (`nexoposoficial.com`, comprado en Cloudflare):
+`app.set("trust proxy", 1)` agregado (bug real preexistente, sin esto
+`req.protocol`/`req.ip` siempre veian el proxy, no el visitante real).
+`urlBase(req)` ahora prioriza `APP_BASE_URL` sobre el host de la
+peticion. La landing comercial ya existente (`public/site/`, antes solo
+accesible en `/site/`) se separo de la app: `express.static` con
+`index:false` mas una ruta `GET "/"` que decide por `req.hostname` --
+`nexoposoficial.com`/`www` sirve la landing (assets reescritos a rutas
+absolutas para no depender de en que URL se sirvan), cualquier otro
+host (incluido `app.nexoposoficial.com` y localhost) sirve la SPA sin
+ningun cambio. Un solo servicio de Render, dos dominios personalizados
+apuntando al mismo servicio. Landing gano botones "Comenzar gratis" e
+"Iniciar sesion" hacia `app.nexoposoficial.com` (el segundo con
+`?accion=iniciar-sesion`, que `inicializarConfiguracionInicial()`
+detecta para abrir el modal de login automaticamente).
+
+Script puntual `scripts/activar-cuenta-ferreteria-olimpico.js` (no es
+ruta publica) para migrar al cliente real -- genera el correo de
+activacion reusando el mismo mecanismo que "olvide mi contrasena".
+
+Validacion:
+
+- `node --check` correcto en `server.js`, `email.js`, `app.js`,
+  `config-auth.js`, `account-view.js`, y el script de activacion.
+- Cada fase se probo de punta a punta contra negocios sinteticos reales
+  (creados por las rutas HTTP reales, nunca insertados a mano salvo
+  para simular "ya recibi el codigo/enlace"), confirmados con 0
+  productos/0 ventas y borrados por ID explicito al terminar: registro
+  con validaciones, verificacion de correo (token de un solo uso),
+  login exitoso/fallido/bloqueado por intentos, sesiones
+  listadas/cerradas individualmente/cerradas todas, recuperacion de
+  contrasena completa (codigo incorrecto, codigo correcto, token
+  reusado rechazado, sesiones viejas revocadas), cambio de correo/
+  contrasena desde Cuenta, enlace de activacion tipo "negocio legado"
+  de punta a punta en el navegador.
+- Probado en el navegador real (no solo por consola) en cada fase:
+  modal de login, flujo de "olvide mi contrasena" de 3 pasos con
+  reenvio de codigo, panel de Seguridad completo, landing en el
+  dominio principal con los botones nuevos, apertura automatica del
+  modal de login vía `?accion=iniciar-sesion`.
+- Correo real confirmado llegando via Resend (dominio propio
+  verificado, SPF/DKIM configurados) a una cuenta real del usuario,
+  incluido el clic real al enlace de verificacion.
+- Confirmado con el dominio real en produccion: `nexoposoficial.com`
+  sirve la landing, `app.nexoposoficial.com` sirve la app, ambos con
+  `/health` en verde: `APP_BASE_URL` corregido en Render y verificado
+  de nuevo con un registro real hasta ver el enlace correcto en el
+  correo.
+- Fix de seguridad real detectado y corregido en esta misma sesion:
+  `PUT /negocio-actual/correo` (sin autenticacion) dejaba abierto un
+  robo de cuenta una vez que el correo se volvio la puerta de entrada
+  -- ahora se bloquea con 403 en cuanto el negocio tiene contrasena.
+- Migracion real ejecutada: Ferreteria Olimpico (el cliente real) 
+  recibio su correo de activacion en `quetoea@gmail.com` con el enlace
+  correcto de `app.nexoposoficial.com`, sin tocar ninguno de sus
+  productos/ventas/creditos existentes.
+- Se hizo commit y push a `main` con confirmacion explicita del usuario
+  en cada paso (subida del codigo, y por separado el envio del correo
+  real al cliente).
+
+### Vinculacion de equipo + empleados con PIN, offline (2026-07-16)
+
+Motivado por un incidente real: al probar el login nuevo de correo/
+contrasena en una computadora de Ferreteria Olimpico, la pantalla de
+PIN mostro "Enrique" (un cajero real que solo existia en esa
+computadora) y nadie sabia que PIN usar -- porque el cajero local
+(`iniciarSesion()`/`usuariosSistema()`, 100% `localStorage`, PIN en
+texto plano) nunca se sincronizaba entre computadoras del mismo
+negocio. El usuario pidio el patron de Square/Toast/Shopify POS: el
+administrador vincula el equipo una sola vez con correo+contrasena, y
+despues los empleados solo usan PIN, funcionando sin internet.
+
+**Arquitectura -- dos credenciales con vida distinta.** La sesion de
+cuenta (`sesiones_cuenta`, ya existia) sigue siendo el login personal
+del administrador. Se agrego un concepto nuevo y separado: el token de
+**dispositivo** (`dispositivos_vinculados`, migracion
+`20260715_dispositivos_empleados.sql`) representa que esa computadora
+fisica pertenece al negocio, vive indefinidamente (hasta desvincular a
+mano), y viaja en un header propio (`x-dispositivo-token`) para no
+mezclarse con el `Authorization: Bearer` de la cuenta. Separarlos
+importa: cerrar la sesion personal del dueno no debe tumbar la caja
+que un cajero esta usando en ese momento.
+
+**Empleados** (tabla nueva `empleados`, reemplaza `usuariosSistema()`
+como fuente de verdad): PIN hasheado con `hashPassword()` (scrypt, la
+misma funcion que ya protege la contrasena de la cuenta). Ademas del
+hash fuerte para verificar en linea, se guarda un **verificador
+offline** (PBKDF2, 100,000 iteraciones, calculado una sola vez cuando
+el PIN se pone en claro -- un hash scrypt no se puede "recalcular"
+despues, por eso no sirve para esto). El dispositivo ya vinculado lo
+descarga en cada sincronizacion y lo recalcula con Web Crypto
+(`crypto.subtle.deriveBits`, ya integrado en el navegador) para
+verificar el PIN sin conexion; confirmado por prueba directa que el
+resultado en el navegador es byte-por-byte igual al de Node.
+
+**Reuso real, no rediseno de cero:** `usuarioActual` (global en
+`app.js`) sigue siendo la unica fuente que lee el resto del sistema
+(permisos, ventas, widgets) -- el empleado sincronizado tiene la misma
+forma `{id, nombre, rol, permisos, widgets}`, asi que
+`puedeEntrar()`, `aplicarPermisosUsuario()` y el payload de ventas
+(`cajeroUsuario`/`cajeroNombre` en `pos-sales.js`) no se tocaron. La
+UI completa de administracion de usuarios que ya existia
+(`renderPanelUsuariosDashboard`, `abrirNuevoUsuarioSistema`,
+`cambiarPinUsuario`, `abrirPermisosUsuario`, `eliminarUsuarioSistema`)
+se reuso tal cual, solo se cambio que las funciones de guardar llamen
+a las rutas nuevas del servidor en vez de escribir directo a
+`localStorage`.
+
+**Rutas nuevas en `server.js`:** `POST /dispositivo/vincular`
+(protegida por `requerirSesionCuenta`, se llama justo despues de un
+login de cuenta exitoso), middleware `requerirDispositivoVinculado`,
+`POST /dispositivo/desvincular` (pide correo+contrasena de nuevo como
+confirmacion), `GET /dispositivo/empleados` (lista + verificador
+offline, para la cuadricula de perfiles y la cache local), `POST
+/dispositivo/empleados/verificar-pin` (rate-limitada por
+dispositivo+empleado), CRUD completo `/cuenta/empleados/*` (solo
+admin), `POST /cuenta/empleados/importar-locales` (migra automatico
+los cajeros que ya existian en `localStorage` la primera vez que se
+vincula esa computadora, sin perder su PIN), y `GET
+/cuenta/dispositivos` + `POST /cuenta/dispositivos/:id/revocar` para
+que el administrador vea y pueda desvincular equipos de forma remota
+desde el panel de Cuenta.
+
+**Frontend:** `iniciarSesionCuenta()` gana un paso extra tras el login
+exitoso -- vincula el equipo, migra los cajeros locales si los hay, y
+hace el primer `GET /dispositivo/empleados` para poblar la cache
+(`localStorage`, mismo patron que usa el resto del proyecto, sin
+IndexedDB nueva). La pantalla de login clasica (usuario/PIN en texto)
+se reemplazo por una cuadricula de avatares (iniciales + color) y un
+teclado numerico de PIN (4-6 digitos, boton de confirmar se habilita
+a partir de 4). Boton "Cambiar de negocio o desvincular equipo" (en la
+cuadricula de perfiles y en el panel de Cuenta) pide correo+contrasena
+de nuevo antes de desvincular, limpia todo el estado local, y regresa
+a la pantalla inicial.
+
+Validacion:
+
+- `node --check` correcto en `server.js`, `app.js`, `config-auth.js`,
+  `account-view.js`, `sales-history-documents.js`.
+- Probado de punta a punta en el navegador contra un negocio sintetico
+  real (creado y borrado despues por ID explicito, incluidas sus filas
+  de `empleados` y `dispositivos_vinculados`): vincular equipo con
+  correo/contrasena, migracion automatica de los cajeros locales
+  existentes (Gustavo/Caja) sin perder su PIN, cuadricula de perfiles
+  con avatares correctos, PIN correcto/incorrecto en linea, **PIN
+  verificado completamente offline** (con `navigator.onLine`
+  forzado a `false`, sin ningun request de red, calculo PBKDF2 100%
+  en el navegador), cambio rapido de perfil sin volver a pedir
+  credenciales, crear/editar permisos/eliminar empleados desde la UI
+  real (confirmado en la base de datos en cada paso), desvincular
+  equipo (confirmado `revocado_at` en el servidor, estado local
+  limpio, regreso a la pantalla inicial), y desvinculacion remota
+  desde el panel de Cuenta.
+- Se encontraron y corrigieron 2 bugs reales de sincronizacion de
+  cache del navegador durante las pruebas (no del codigo de la
+  funcionalidad en si): el servidor de desarrollo no se habia
+  reiniciado despues de agregar las rutas nuevas de dispositivos, y la
+  pestana del navegador tenia una version vieja de `config-auth.js`
+  en memoria de antes de una edicion -- ambos se resolvieron
+  reiniciando servidor/recargando pagina, confirmados con `.toString()`
+  de las funciones en vivo antes de seguir probando.
+- Confirmado por lectura directa que el negocio real (Ferreteria
+  Olimpico, 266 productos) sigue exactamente igual, con 0 filas en
+  `empleados`/`dispositivos_vinculados` (no ha pasado por este flujo
+  todavia, su cajero local sigue funcionando exactamente como antes
+  hasta que el administrador vincule alguna de sus computadoras).
+- No se hizo commit ni push -- pendiente de confirmacion explicita del
+  usuario.
