@@ -2247,3 +2247,47 @@ Validacion:
   hasta que el administrador vincule alguna de sus computadoras).
 - No se hizo commit ni push -- pendiente de confirmacion explicita del
   usuario.
+
+### Catalogo de funciones y planes -- arquitectura sin enforcement (2026-07-16)
+
+Preparacion de arquitectura para que, en el futuro, cualquier funcion
+del sistema se pueda asignar a un plan comercial (Basico/Plus/Pro)
+sin reescribir codigo. **No bloquea ni oculta nada hoy** -- el sistema
+sigue funcionando igual para todos los negocios.
+
+Migracion nueva `migrations/20260716_catalogo_funciones_planes.sql`:
+4 tablas nuevas y aditivas (`planes`, `categorias_funcion`,
+`catalogo_funciones`, `plan_funciones`), sin ninguna columna nueva en
+`negocios`/`licencias` y sin relacion obligatoria con ellas.
+Sembrada con el inventario completo ya acordado con el usuario: 3
+planes, 22 categorias, 46 funciones (37 activas, 2 en desarrollo, 9
+planeadas) y 138 filas `plan_funciones` con el mapeo y limites
+numericos por plan.
+
+Archivo nuevo `features.js`: capa de lectura de solo consulta
+(`listarPlanes()`, `listarCatalogoFunciones()`, `funcionesDelPlan()`).
+No se importa desde `server.js` ni desde ningun otro archivo todavia
+-- queda lista para cuando se decida construir el enforcement real o
+un panel de administracion de planes.
+
+Documento tecnico nuevo
+[`docs/arquitectura-planes-y-modulos.md`](arquitectura-planes-y-modulos.md):
+arquitectura propuesta, catalogo completo de funciones por categoria,
+plan de implementacion futuro para IA Nexo/Banco Global de
+Imagenes/API/Centro de Seguridad, matriz completa modulo x plan, y
+hallazgos de auditoria de codigo (duplicacion real en las dos rutas
+de insercion de venta, candidatos a division como `config-auth.js` y
+`product-inventory.js`, ausencia de pruebas automatizadas, fragilidad
+del cache-busting manual por fecha).
+
+Validacion:
+
+- `node --check features.js` correcto.
+- Confirmado por consulta directa de solo lectura: las 4 tablas
+  existen y contienen 3/22/46/138 filas respectivamente; la migracion
+  aparece en `schema_migrations`.
+- Confirmado que ningun archivo de comportamiento (`server.js`,
+  frontend) cambio durante esta tarea -- es puramente aditivo e
+  inerte.
+- No se hizo commit ni push -- pendiente de confirmacion explicita del
+  usuario.
