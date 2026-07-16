@@ -2291,3 +2291,55 @@ Validacion:
   inerte.
 - No se hizo commit ni push -- pendiente de confirmacion explicita del
   usuario.
+
+### Autenticacion real en las rutas operativas del POS (2026-07-16)
+
+Una auditoria de preparacion comercial encontro, y confirmo en vivo
+contra `app.nexoposoficial.com` con peticiones GET sin ningun header,
+que las rutas centrales del POS (`/productos`, `/creditos`,
+`/historial`, `/reportes/ventas`, `/dashboard`, `/ventas/:id`,
+`/proveedores`, `/negocio-actual`, `/sync/*`, `/fotos-producto-*`,
+`/reglas-precios*`, y las de `fase4/5/6-server.js`: pedidos a
+proveedor, ajustes de inventario, finanzas, cuentas por pagar, caja)
+resolvian el negocio de la peticion leyendo un slug sin autenticar que
+mandaba el propio cliente (`tenant.js`/`asegurarNegocioActual`) --
+cualquiera podia leer y modificar datos reales sin loguearse.
+
+**Arreglo:** middleware nuevo `requerirAccesoNegocio` (`server.js`,
+junto a `requerirDispositivoVinculado`/`requerirSesionCuenta`, con los
+que ahora comparte las consultas por token via
+`buscarNegocioPorTokenDispositivo`/`buscarNegocioPorTokenCuenta` en
+vez de duplicarlas). Aplicado a las 46 rutas de `server.js` y las 21
+de `fase4/5/6-server.js` que antes confiaban en el slug.
+`negocioActual(req)` (definida igual en los 4 archivos) ya resuelve el
+negocio a partir del token verificado por ese middleware, nunca del
+dato que manda el cliente. `public/app.js` gano un interceptor global
+de `fetch` que adjunta el token automaticamente a las ~52 llamadas
+existentes sin editarlas una por una, y limpia la vinculacion +
+regresa a la pantalla de entrada si el servidor responde que el equipo
+ya no esta vinculado.
+
+Fuera de alcance a proposito: `apps/desktop` (su `apiRequest` en
+`main.js` sigue mandando el slug viejo, sin evidencia de que este en
+uso activo por un cliente real) y `/dispositivos/activar` (bootstrap
+por licencia -- por definicion corre antes de que exista cualquier
+token, se protege con la licencia misma en produccion).
+
+Validacion:
+
+- `node --check` correcto en los 7 archivos tocados.
+- Probado con dos negocios sinteticos (creados y borrados por ID
+  explicito): sin token -> 401; token valido -> 200 con los datos
+  correctos del negocio del token; token valido + slug de *otro*
+  negocio en el header -> sigue devolviendo los datos del token, el
+  slug ya no tiene ningun efecto; token invalido/revocado -> 401 con
+  `equipoNoVinculado:true`. Rutas ya protegidas (`/dispositivo/*`)
+  sin regresiones.
+- Antes de desplegar se confirmo que Ferreteria Olimpico (el negocio
+  real) ya tenia un dispositivo vinculado y activo (el usuario lo
+  vinculo por su cuenta mientras se hacia este arreglo) -- el
+  despliegue no le corto el servicio.
+- Confirmado en produccion despues del despliegue: `GET /productos`,
+  `/creditos`, `/historial`, `/reportes/ventas`, `/dashboard` y
+  `/negocio-actual` sin token ahora devuelven `401` (antes daban `200`
+  con datos reales).
