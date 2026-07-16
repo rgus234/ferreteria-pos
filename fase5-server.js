@@ -1,6 +1,6 @@
-const { DEFAULT_NEGOCIO_SLUG, asegurarNegocioActual } = require("./tenant");
+const { DEFAULT_NEGOCIO_SLUG } = require("./tenant");
 
-module.exports = (app, pool) => {
+module.exports = (app, pool, requerirAccesoNegocio) => {
     let listo = false;
 
     const numero = valor => {
@@ -8,8 +8,30 @@ module.exports = (app, pool) => {
         return Number.isFinite(n) ? n : 0;
     };
 
+    // Resuelve el negocio a partir del token ya verificado por
+    // requerirAccesoNegocio (server.js) -- ya no confia en un slug sin
+    // autenticar. Misma forma de retorno que antes (id/slug/nombre/...).
     async function negocioActual(req) {
-        return asegurarNegocioActual(pool, req);
+        const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
+
+        if (!negocioId) {
+            const error = new Error("Este equipo no esta vinculado a ningun negocio");
+            error.httpStatus = 401;
+            throw error;
+        }
+
+        const resultado = await pool.query(
+            `SELECT id, slug, nombre, giro, estado, plan FROM public.negocios WHERE id = $1 LIMIT 1`,
+            [negocioId]
+        );
+
+        if (resultado.rows.length === 0) {
+            const error = new Error("Negocio no encontrado");
+            error.httpStatus = 404;
+            throw error;
+        }
+
+        return resultado.rows[0];
     }
 
     async function asegurarFinanzas() {
@@ -170,7 +192,7 @@ module.exports = (app, pool) => {
         };
     }
 
-    app.get("/finanzas/resumen", async (req, res) => {
+    app.get("/finanzas/resumen", requerirAccesoNegocio, async (req, res) => {
         try {
             await asegurarFinanzas();
             const negocio = await negocioActual(req);
@@ -273,7 +295,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.get("/finanzas/resumen-por-dia", async (req, res) => {
+    app.get("/finanzas/resumen-por-dia", requerirAccesoNegocio, async (req, res) => {
         try {
             await asegurarFinanzas();
             const negocio = await negocioActual(req);
@@ -338,7 +360,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.get("/finanzas/cuentas-por-cobrar", async (req, res) => {
+    app.get("/finanzas/cuentas-por-cobrar", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req);
 
@@ -366,7 +388,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.get("/cuentas-pagar", async (req, res) => {
+    app.get("/cuentas-pagar", requerirAccesoNegocio, async (req, res) => {
         try {
             await asegurarFinanzas();
             const negocio = await negocioActual(req);
@@ -392,7 +414,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.post("/cuentas-pagar", async (req, res) => {
+    app.post("/cuentas-pagar", requerirAccesoNegocio, async (req, res) => {
         const {
             proveedor,
             origenTipo,
@@ -438,7 +460,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.post("/cuentas-pagar/:id/pagos", async (req, res) => {
+    app.post("/cuentas-pagar/:id/pagos", requerirAccesoNegocio, async (req, res) => {
         const { monto, metodo, referencia, notas } = req.body;
         const pagoMonto = numero(monto);
 
@@ -520,7 +542,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.get("/pagos-proveedor", async (req, res) => {
+    app.get("/pagos-proveedor", requerirAccesoNegocio, async (req, res) => {
         try {
             await asegurarFinanzas();
             const negocio = await negocioActual(req);
@@ -539,7 +561,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.get("/gastos-operativos", async (req, res) => {
+    app.get("/gastos-operativos", requerirAccesoNegocio, async (req, res) => {
         try {
             await asegurarFinanzas();
             const negocio = await negocioActual(req);
@@ -558,7 +580,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.post("/gastos-operativos", async (req, res) => {
+    app.post("/gastos-operativos", requerirAccesoNegocio, async (req, res) => {
         const {
             categoria,
             concepto,

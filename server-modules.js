@@ -7,17 +7,17 @@ function cargarModuloPOS(nombre, instalar) {
     }
 }
 
-function cargarModulosPOS({ app, pool, normalizarCodigo }) {
+function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio }) {
     cargarModuloPOS("fase4 compras/ajustes", () => {
-        require("./fase4-server")(app, pool, normalizarCodigo);
+        require("./fase4-server")(app, pool, normalizarCodigo, requerirAccesoNegocio);
     });
 
     cargarModuloPOS("fase5 finanzas", () => {
-        require("./fase5-server")(app, pool);
+        require("./fase5-server")(app, pool, requerirAccesoNegocio);
     });
 
     cargarModuloPOS("fase6 caja", () => {
-        require("./fase6-server")(app, pool);
+        require("./fase6-server")(app, pool, requerirAccesoNegocio);
     });
 
     cargarModuloPOS("fase7 caja por metodo", () => {

@@ -1,6 +1,6 @@
-const { DEFAULT_NEGOCIO_SLUG, asegurarNegocioActual } = require("./tenant");
+const { DEFAULT_NEGOCIO_SLUG } = require("./tenant");
 
-module.exports = (app, pool, normalizarCodigo) => {
+module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
     let listo = false;
 
     const n = valor => {
@@ -8,8 +8,30 @@ module.exports = (app, pool, normalizarCodigo) => {
         return Number.isFinite(numero) ? numero : 0;
     };
 
+    // Resuelve el negocio a partir del token ya verificado por
+    // requerirAccesoNegocio (server.js) -- ya no confia en un slug sin
+    // autenticar. Misma forma de retorno que antes (id/slug/nombre/...).
     async function negocioActual(req) {
-        return asegurarNegocioActual(pool, req);
+        const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
+
+        if (!negocioId) {
+            const error = new Error("Este equipo no esta vinculado a ningun negocio");
+            error.httpStatus = 401;
+            throw error;
+        }
+
+        const resultado = await pool.query(
+            `SELECT id, slug, nombre, giro, estado, plan FROM public.negocios WHERE id = $1 LIMIT 1`,
+            [negocioId]
+        );
+
+        if (resultado.rows.length === 0) {
+            const error = new Error("Negocio no encontrado");
+            error.httpStatus = 404;
+            throw error;
+        }
+
+        return resultado.rows[0];
     }
 
     async function asegurar() {
@@ -177,7 +199,7 @@ module.exports = (app, pool, normalizarCodigo) => {
             : "enviado";
     }
 
-    app.get("/pedidos-proveedor", async (req, res) => {
+    app.get("/pedidos-proveedor", requerirAccesoNegocio, async (req, res) => {
         try {
             await asegurar();
             const negocio = await negocioActual(req);
@@ -203,7 +225,7 @@ module.exports = (app, pool, normalizarCodigo) => {
         }
     });
 
-    app.get("/pedidos-proveedor/:id", async (req, res) => {
+    app.get("/pedidos-proveedor/:id", requerirAccesoNegocio, async (req, res) => {
         try {
             await asegurar();
             const negocio = await negocioActual(req);
@@ -237,7 +259,7 @@ module.exports = (app, pool, normalizarCodigo) => {
         }
     });
 
-    app.post("/pedidos-proveedor", async (req, res) => {
+    app.post("/pedidos-proveedor", requerirAccesoNegocio, async (req, res) => {
         const { proveedor, estado: estadoPedido, notas, items } = req.body;
 
         if (!Array.isArray(items) || !items.length) {
@@ -299,7 +321,7 @@ module.exports = (app, pool, normalizarCodigo) => {
         }
     });
 
-    app.post("/pedidos-proveedor/:id/recepciones", async (req, res) => {
+    app.post("/pedidos-proveedor/:id/recepciones", requerirAccesoNegocio, async (req, res) => {
         const { proveedor, referencia, notas, items } = req.body;
 
         if (!Array.isArray(items) || !items.length) {
@@ -413,7 +435,7 @@ module.exports = (app, pool, normalizarCodigo) => {
         }
     });
 
-    app.get("/ajustes-inventario", async (req, res) => {
+    app.get("/ajustes-inventario", requerirAccesoNegocio, async (req, res) => {
         try {
             await asegurar();
             const negocio = await negocioActual(req);
@@ -432,7 +454,7 @@ module.exports = (app, pool, normalizarCodigo) => {
         }
     });
 
-    app.post("/ajustes-inventario", async (req, res) => {
+    app.post("/ajustes-inventario", requerirAccesoNegocio, async (req, res) => {
         const { productoId, tipo, cantidad, motivo, referencia, usuarioNombre, fecha } = req.body;
 
         if (!productoId || !["entrada", "salida", "conteo"].includes(tipo)) {

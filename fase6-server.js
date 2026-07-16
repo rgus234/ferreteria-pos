@@ -1,6 +1,6 @@
-const { DEFAULT_NEGOCIO_SLUG, asegurarNegocioActual } = require("./tenant");
+const { DEFAULT_NEGOCIO_SLUG } = require("./tenant");
 
-module.exports = (app, pool) => {
+module.exports = (app, pool, requerirAccesoNegocio) => {
     let listo = false;
 
     const n = valor => {
@@ -8,8 +8,30 @@ module.exports = (app, pool) => {
         return Number.isFinite(numero) ? numero : 0;
     };
 
+    // Resuelve el negocio a partir del token ya verificado por
+    // requerirAccesoNegocio (server.js) -- ya no confia en un slug sin
+    // autenticar. Misma forma de retorno que antes (id/slug/nombre/...).
     async function negocioActual(req) {
-        return asegurarNegocioActual(pool, req);
+        const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
+
+        if (!negocioId) {
+            const error = new Error("Este equipo no esta vinculado a ningun negocio");
+            error.httpStatus = 401;
+            throw error;
+        }
+
+        const resultado = await pool.query(
+            `SELECT id, slug, nombre, giro, estado, plan FROM public.negocios WHERE id = $1 LIMIT 1`,
+            [negocioId]
+        );
+
+        if (resultado.rows.length === 0) {
+            const error = new Error("Negocio no encontrado");
+            error.httpStatus = 404;
+            throw error;
+        }
+
+        return resultado.rows[0];
     }
 
     async function asegurar() {
@@ -201,7 +223,7 @@ module.exports = (app, pool) => {
         };
     }
 
-    app.get("/caja/turno-activo", async (req, res) => {
+    app.get("/caja/turno-activo", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req);
             const turno = await turnoAbierto(negocio.id);
@@ -216,7 +238,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.post("/caja/abrir", async (req, res) => {
+    app.post("/caja/abrir", requerirAccesoNegocio, async (req, res) => {
         const { usuario, fondoInicial, notas } = req.body;
 
         try {
@@ -250,7 +272,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.get("/caja/movimientos", async (req, res) => {
+    app.get("/caja/movimientos", requerirAccesoNegocio, async (req, res) => {
         try {
             await asegurar();
             const negocio = await negocioActual(req);
@@ -278,7 +300,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.post("/caja/movimientos", async (req, res) => {
+    app.post("/caja/movimientos", requerirAccesoNegocio, async (req, res) => {
         const { tipo, concepto, monto, metodo, referencia } = req.body;
 
         if (!["entrada", "salida"].includes(tipo) || n(monto) <= 0) {
@@ -320,7 +342,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.post("/caja/cerrar", async (req, res) => {
+    app.post("/caja/cerrar", requerirAccesoNegocio, async (req, res) => {
         const {
             efectivoContado,
             tarjetaContado,
@@ -404,7 +426,7 @@ module.exports = (app, pool) => {
         }
     });
 
-    app.get("/caja/cortes", async (req, res) => {
+    app.get("/caja/cortes", requerirAccesoNegocio, async (req, res) => {
         try {
             await asegurar();
             const negocio = await negocioActual(req);

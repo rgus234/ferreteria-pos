@@ -11,7 +11,6 @@ const pool = require("./db");
 const {
     DEFAULT_NEGOCIO_SLUG,
     DEFAULT_NEGOCIO_NOMBRE,
-    asegurarNegocioActual,
     normalizarSlug
 } = require("./tenant");
 const { cargarModulosPOS } = require("./server-modules");
@@ -250,7 +249,7 @@ async function buscarNegocioPorLicencia(client, licenseKey) {
     return resultado.rows[0] || null;
 }
 
-app.get("/negocio-actual", async (req, res) => {
+app.get("/negocio-actual", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
 
@@ -299,7 +298,7 @@ app.get("/negocios/buscar", async (req, res) => {
     }
 });
 
-app.get("/licencia/estado", async (req, res) => {
+app.get("/licencia/estado", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const licencia = await licenciaActual(negocio);
@@ -347,7 +346,7 @@ app.get("/licencia/estado", async (req, res) => {
 // robo de cuenta (cambiar el correo y despues usar "olvide mi
 // contrasena" con el correo nuevo). Los negocios ya migrados deben
 // usar PUT /cuenta/correo, protegida por sesion.
-app.put("/negocio-actual/correo", async (req, res) => {
+app.put("/negocio-actual/correo", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const correo = String(req.body?.correo || "").trim();
@@ -791,10 +790,57 @@ app.post("/cuenta/reenviar-verificacion", async (req, res) => {
     }
 });
 
+// Busquedas compartidas por token, reusadas por requerirSesionCuenta,
+// requerirDispositivoVinculado y requerirAccesoNegocio -- una sola
+// version de cada consulta en vez de repetirla en los tres.
+async function buscarNegocioPorTokenCuenta(token) {
+    const fila = await pool.query(
+        `
+        SELECT s.id AS sesion_id, n.id AS negocio_id, n.slug, n.nombre, n.correo, n.correo_verificado
+        FROM public.sesiones_cuenta s
+        JOIN public.negocios n ON n.id = s.negocio_id
+        WHERE s.token_hash = $1 AND s.revocado_at IS NULL
+        LIMIT 1
+        `,
+        [hashTokenSeguro(token)]
+    );
+
+    if (fila.rows.length === 0) return null;
+
+    pool.query(
+        `UPDATE public.sesiones_cuenta SET ultimo_uso_at = NOW() WHERE id = $1`,
+        [fila.rows[0].sesion_id]
+    ).catch(() => {});
+
+    return fila.rows[0];
+}
+
+async function buscarNegocioPorTokenDispositivo(token) {
+    const fila = await pool.query(
+        `
+        SELECT d.id AS dispositivo_id, n.id AS negocio_id, n.slug, n.nombre
+        FROM public.dispositivos_vinculados d
+        JOIN public.negocios n ON n.id = d.negocio_id
+        WHERE d.token_hash = $1 AND d.revocado_at IS NULL
+        LIMIT 1
+        `,
+        [hashTokenSeguro(token)]
+    );
+
+    if (fila.rows.length === 0) return null;
+
+    pool.query(
+        `UPDATE public.dispositivos_vinculados SET ultimo_uso_at = NOW() WHERE id = $1`,
+        [fila.rows[0].dispositivo_id]
+    ).catch(() => {});
+
+    return fila.rows[0];
+}
+
 // Middleware para las rutas de /cuenta/* que requieren haber iniciado
 // sesion con correo/contrasena -- separado por completo del PIN local
-// del cajero y de la resolucion de negocio por slug que usan las
-// rutas operativas del POS (esas no cambian).
+// del cajero y de la resolucion de negocio por token de dispositivo
+// que usan las rutas operativas del POS (ver requerirAccesoNegocio).
 async function requerirSesionCuenta(req, res, next) {
     const encabezado = req.headers.authorization || "";
     const token = encabezado.startsWith("Bearer ") ? encabezado.slice(7).trim() : "";
@@ -805,29 +851,15 @@ async function requerirSesionCuenta(req, res, next) {
     }
 
     try {
-        const fila = await pool.query(
-            `
-            SELECT s.id AS sesion_id, n.id AS negocio_id, n.slug, n.nombre, n.correo, n.correo_verificado
-            FROM public.sesiones_cuenta s
-            JOIN public.negocios n ON n.id = s.negocio_id
-            WHERE s.token_hash = $1 AND s.revocado_at IS NULL
-            LIMIT 1
-            `,
-            [hashTokenSeguro(token)]
-        );
+        const negocio = await buscarNegocioPorTokenCuenta(token);
 
-        if (fila.rows.length === 0) {
+        if (!negocio) {
             res.status(401).json({ ok: false, error: "Sesion invalida o cerrada" });
             return;
         }
 
-        pool.query(
-            `UPDATE public.sesiones_cuenta SET ultimo_uso_at = NOW() WHERE id = $1`,
-            [fila.rows[0].sesion_id]
-        ).catch(() => {});
-
-        req.negocioAutenticado = fila.rows[0];
-        req.sesionCuentaId = fila.rows[0].sesion_id;
+        req.negocioAutenticado = negocio;
+        req.sesionCuentaId = negocio.sesion_id;
         next();
     } catch (error) {
         res.status(500).json({ ok: false, error: error.message });
@@ -1014,30 +1046,70 @@ async function requerirDispositivoVinculado(req, res, next) {
     }
 
     try {
-        const fila = await pool.query(
-            `
-            SELECT d.id AS dispositivo_id, n.id AS negocio_id, n.slug, n.nombre
-            FROM public.dispositivos_vinculados d
-            JOIN public.negocios n ON n.id = d.negocio_id
-            WHERE d.token_hash = $1 AND d.revocado_at IS NULL
-            LIMIT 1
-            `,
-            [hashTokenSeguro(token)]
-        );
+        const negocio = await buscarNegocioPorTokenDispositivo(token);
 
-        if (fila.rows.length === 0) {
+        if (!negocio) {
             res.status(401).json({ ok: false, error: "Este equipo no esta vinculado o fue desvinculado" });
             return;
         }
 
-        pool.query(
-            `UPDATE public.dispositivos_vinculados SET ultimo_uso_at = NOW() WHERE id = $1`,
-            [fila.rows[0].dispositivo_id]
-        ).catch(() => {});
-
-        req.negocioDispositivo = fila.rows[0];
+        req.negocioDispositivo = negocio;
         req.dispositivoTokenPlano = token;
         next();
+    } catch (error) {
+        res.status(500).json({ ok: false, error: error.message });
+    }
+}
+
+// Middleware para las ~70 rutas operativas del POS (productos, ventas,
+// creditos, caja, reportes, etc.). Reemplaza la resolucion antigua por
+// slug sin autenticar (tenant.js/asegurarNegocioActual): acepta el
+// token de dispositivo (caso normal, la caja ya vinculada) o, si no
+// hay, la sesion de cuenta del dueno (util para probar/administrar).
+// Si ninguno es valido, la ruta nunca llega a tocar datos de ningun
+// negocio.
+async function requerirAccesoNegocio(req, res, next) {
+    const tokenDispositivo = limpiarTexto(req.headers["x-dispositivo-token"], 200);
+    const encabezadoAuth = req.headers.authorization || "";
+    const tokenCuenta = encabezadoAuth.startsWith("Bearer ") ? encabezadoAuth.slice(7).trim() : "";
+
+    if (!tokenDispositivo && !tokenCuenta) {
+        res.status(401).json({
+            ok: false,
+            error: "Este equipo no esta vinculado. Vincula el equipo con tu cuenta para continuar.",
+            equipoNoVinculado: true
+        });
+        return;
+    }
+
+    try {
+        if (tokenDispositivo) {
+            const negocio = await buscarNegocioPorTokenDispositivo(tokenDispositivo);
+
+            if (negocio) {
+                req.negocioDispositivo = negocio;
+                req.dispositivoTokenPlano = tokenDispositivo;
+                next();
+                return;
+            }
+        }
+
+        if (tokenCuenta) {
+            const negocio = await buscarNegocioPorTokenCuenta(tokenCuenta);
+
+            if (negocio) {
+                req.negocioAutenticado = negocio;
+                req.sesionCuentaId = negocio.sesion_id;
+                next();
+                return;
+            }
+        }
+
+        res.status(401).json({
+            ok: false,
+            error: "Este equipo no esta vinculado o fue desvinculado.",
+            equipoNoVinculado: true
+        });
     } catch (error) {
         res.status(500).json({ ok: false, error: error.message });
     }
@@ -2336,6 +2408,11 @@ app.post("/admin/api/negocios/:id/licencia/regenerar-clave", async (req, res) =>
     }
 });
 
+// Nota: esta ruta NO lleva requerirAccesoNegocio a proposito -- es el
+// bootstrap de activacion por licencia (usado por el instalador de
+// escritorio) para un equipo que todavia no tiene ningun token. En
+// produccion exige licenseKey (su propio credencial); el fallback sin
+// licencia solo aplica fuera de produccion.
 app.post("/dispositivos/activar", async (req, res) => {
     try {
         const licenseKey =
@@ -2444,7 +2521,7 @@ app.post("/dispositivos/activar", async (req, res) => {
     }
 });
 
-app.post("/dispositivos/checkin", async (req, res) => {
+app.post("/dispositivos/checkin", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const deviceId = obtenerDeviceId(req);
@@ -2517,7 +2594,7 @@ app.post("/dispositivos/checkin", async (req, res) => {
     }
 });
 
-app.get("/dispositivos", async (req, res) => {
+app.get("/dispositivos", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const resultado = await pool.query(
@@ -2566,7 +2643,7 @@ app.get("/dispositivos", async (req, res) => {
     }
 });
 
-app.post("/sync/push", async (req, res) => {
+app.post("/sync/push", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const deviceId = obtenerDeviceId(req);
@@ -2772,7 +2849,7 @@ app.post("/sync/push", async (req, res) => {
     }
 });
 
-app.get("/sync/pull", async (req, res) => {
+app.get("/sync/pull", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const deviceId = obtenerDeviceId(req);
@@ -2820,7 +2897,7 @@ app.get("/sync/pull", async (req, res) => {
     }
 });
 
-app.get("/updates/latest", async (req, res) => {
+app.get("/updates/latest", requerirAccesoNegocio, async (req, res) => {
     try {
         const canal =
             String(req.query.canal || "stable");
@@ -2869,8 +2946,32 @@ function normalizarCodigo(codigo) {
         .trim();
 }
 
+// Resuelve el negocio de la peticion a partir del token ya verificado
+// por requerirAccesoNegocio (dispositivo o cuenta) -- ya no confia en
+// ningun slug mandado por el cliente. Se re-consulta la fila completa
+// para conservar la misma forma que usaba el codigo existente
+// (negocio.id, .slug, .nombre, .estado, .plan).
 async function negocioActual(req) {
-    return asegurarNegocioActual(pool, req);
+    const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
+
+    if (!negocioId) {
+        const error = new Error("Este equipo no esta vinculado a ningun negocio");
+        error.httpStatus = 401;
+        throw error;
+    }
+
+    const resultado = await pool.query(
+        `SELECT id, slug, nombre, giro, estado, plan FROM public.negocios WHERE id = $1 LIMIT 1`,
+        [negocioId]
+    );
+
+    if (resultado.rows.length === 0) {
+        const error = new Error("Negocio no encontrado");
+        error.httpStatus = 404;
+        throw error;
+    }
+
+    return resultado.rows[0];
 }
 
 function normalizarCodigoFoto(codigo) {
@@ -4013,7 +4114,7 @@ app.get("/dueno", (req, res) => {
     );
 });
 
-app.get("/productos", async (req, res) => {
+app.get("/productos", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const resultado =
@@ -4087,7 +4188,7 @@ app.get("/productos", async (req, res) => {
     }
 });
 
-app.get("/fotos-producto-existe/:codigo", async (req, res) => {
+app.get("/fotos-producto-existe/:codigo", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
 
@@ -4102,7 +4203,7 @@ app.get("/fotos-producto-existe/:codigo", async (req, res) => {
     }
 });
 
-app.get("/fotos-producto-resumen", async (req, res) => {
+app.get("/fotos-producto-resumen", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
 
@@ -4124,7 +4225,7 @@ app.get("/fotos-producto-resumen", async (req, res) => {
     }
 });
 
-app.get("/fotos-producto-lista", async (req, res) => {
+app.get("/fotos-producto-lista", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
 
@@ -4178,7 +4279,7 @@ app.get("/fotos-producto-lista", async (req, res) => {
     }
 });
 
-app.post("/fotos-producto/importar-lote", manejarSubidaFotosProducto, async (req, res) => {
+app.post("/fotos-producto/importar-lote", requerirAccesoNegocio, manejarSubidaFotosProducto, async (req, res) => {
     const archivos = req.files || [];
 
     try {
@@ -4210,7 +4311,7 @@ app.post("/fotos-producto/importar-lote", manejarSubidaFotosProducto, async (req
     }
 });
 
-app.post("/fotos-producto/:codigo/principal", async (req, res) => {
+app.post("/fotos-producto/:codigo/principal", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const codigo = normalizarCodigoFoto(req.params.codigo);
@@ -4241,7 +4342,7 @@ app.post("/fotos-producto/:codigo/principal", async (req, res) => {
     }
 });
 
-app.get("/fotos-producto/:codigo/principal", async (req, res) => {
+app.get("/fotos-producto/:codigo/principal", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const codigo = normalizarCodigoFoto(req.params.codigo);
@@ -4266,7 +4367,7 @@ app.get("/fotos-producto/:codigo/principal", async (req, res) => {
     }
 });
 
-app.get("/fotos-producto/:codigo/galeria", async (req, res) => {
+app.get("/fotos-producto/:codigo/galeria", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const codigo = normalizarCodigoFoto(req.params.codigo);
@@ -4294,7 +4395,7 @@ app.get("/fotos-producto/:codigo/galeria", async (req, res) => {
     }
 });
 
-app.get("/fotos-producto-galeria/:id", async (req, res) => {
+app.get("/fotos-producto-galeria/:id", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const id = Number(req.params.id);
@@ -4324,7 +4425,7 @@ app.get("/fotos-producto-galeria/:id", async (req, res) => {
     }
 });
 
-app.get("/producto-codigo/:codigo", async (req, res) => {
+app.get("/producto-codigo/:codigo", requerirAccesoNegocio, async (req, res) => {
 
     const codigo = normalizarCodigo(req.params.codigo);
 
@@ -4366,7 +4467,7 @@ app.get("/producto-codigo/:codigo", async (req, res) => {
     }
 });
 
-app.post("/agregar-producto", async (req, res) => {
+app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
 
    const {
     nombre,
@@ -4509,7 +4610,7 @@ RETURNING id
     }
 });
 
-app.put("/editar-producto/:id", async (req, res) => {
+app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
 
     const { id } = req.params;
 
@@ -4659,7 +4760,7 @@ app.put("/editar-producto/:id", async (req, res) => {
     }
 });
 
-app.get("/reglas-precios", async (req, res) => {
+app.get("/reglas-precios", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
 
@@ -4689,7 +4790,7 @@ app.get("/reglas-precios", async (req, res) => {
     }
 });
 
-app.get("/reglas-precios/:proveedor", async (req, res) => {
+app.get("/reglas-precios/:proveedor", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
 
@@ -4723,7 +4824,7 @@ app.get("/reglas-precios/:proveedor", async (req, res) => {
     }
 });
 
-app.post("/reglas-precios", async (req, res) => {
+app.post("/reglas-precios", requerirAccesoNegocio, async (req, res) => {
     const {
         proveedor,
         margenGeneral,
@@ -4774,7 +4875,7 @@ app.post("/reglas-precios", async (req, res) => {
     }
 });
 
-app.delete("/eliminar-producto/:id", async (req, res) => {
+app.delete("/eliminar-producto/:id", requerirAccesoNegocio, async (req, res) => {
 
     const { id } = req.params;
 
@@ -4878,7 +4979,7 @@ async function guardarCodigosProducto(productoId, datos, negocioId) {
     }
 }
 
-app.post("/login", async (req, res) => {
+app.post("/login", requerirAccesoNegocio, async (req, res) => {
 
     const {
         usuario,
@@ -4933,7 +5034,7 @@ app.post("/login", async (req, res) => {
     }
 });
 
-app.post("/ventas", async (req, res) => {
+app.post("/ventas", requerirAccesoNegocio, async (req, res) => {
 
     const {
         total,
@@ -5114,7 +5215,7 @@ async function obtenerDetalleVenta(client, negocioId, filtro, valor) {
     };
 }
 
-app.get("/ventas/:id", async (req, res) => {
+app.get("/ventas/:id", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const venta = await obtenerDetalleVenta(pool, negocio.id, "id", Number(req.params.id));
@@ -5130,7 +5231,7 @@ app.get("/ventas/:id", async (req, res) => {
     }
 });
 
-app.get("/ventas/folio/:folio", async (req, res) => {
+app.get("/ventas/folio/:folio", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const venta = await obtenerDetalleVenta(pool, negocio.id, "folio", String(req.params.folio || ""));
@@ -5146,7 +5247,7 @@ app.get("/ventas/folio/:folio", async (req, res) => {
     }
 });
 
-app.post("/ventas/:id/comprobantes", async (req, res) => {
+app.post("/ventas/:id/comprobantes", requerirAccesoNegocio, async (req, res) => {
     const client = await pool.connect();
 
     try {
@@ -5255,7 +5356,7 @@ app.post("/ventas/:id/comprobantes", async (req, res) => {
     }
 });
 
-app.get("/creditos", async (req, res) => {
+app.get("/creditos", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const clientes = await pool.query(`
@@ -5336,7 +5437,7 @@ app.get("/creditos", async (req, res) => {
     }
 });
 
-app.get("/creditos/clientes/:id", async (req, res) => {
+app.get("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -5389,7 +5490,7 @@ app.get("/creditos/clientes/:id", async (req, res) => {
     }
 });
 
-app.post("/creditos/clientes", async (req, res) => {
+app.post("/creditos/clientes", requerirAccesoNegocio, async (req, res) => {
     const {
         nombre,
         telefono,
@@ -5436,7 +5537,7 @@ app.post("/creditos/clientes", async (req, res) => {
     }
 });
 
-app.put("/creditos/clientes/:id", async (req, res) => {
+app.put("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
     const { id } = req.params;
 
     const {
@@ -5491,7 +5592,7 @@ app.put("/creditos/clientes/:id", async (req, res) => {
     }
 });
 
-app.delete("/creditos/clientes/:id", async (req, res) => {
+app.delete("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -5521,7 +5622,7 @@ app.delete("/creditos/clientes/:id", async (req, res) => {
     }
 });
 
-app.get("/proveedores", async (req, res) => {
+app.get("/proveedores", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const activo = String(req.query.estado || "activo") !== "baja";
@@ -5549,7 +5650,7 @@ app.get("/proveedores", async (req, res) => {
     }
 });
 
-app.post("/proveedores", async (req, res) => {
+app.post("/proveedores", requerirAccesoNegocio, async (req, res) => {
     const {
         nombre,
         contacto,
@@ -5598,7 +5699,7 @@ app.post("/proveedores", async (req, res) => {
     }
 });
 
-app.put("/proveedores/:id", async (req, res) => {
+app.put("/proveedores/:id", requerirAccesoNegocio, async (req, res) => {
     const { id } = req.params;
 
     const {
@@ -5656,7 +5757,7 @@ app.put("/proveedores/:id", async (req, res) => {
     }
 });
 
-app.delete("/proveedores/:id", async (req, res) => {
+app.delete("/proveedores/:id", requerirAccesoNegocio, async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -5686,7 +5787,7 @@ app.delete("/proveedores/:id", async (req, res) => {
     }
 });
 
-app.put("/proveedores/:id/activar", async (req, res) => {
+app.put("/proveedores/:id/activar", requerirAccesoNegocio, async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -5716,7 +5817,7 @@ app.put("/proveedores/:id/activar", async (req, res) => {
     }
 });
 
-app.post("/creditos/clientes/:id/abonos", async (req, res) => {
+app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res) => {
     const { id } = req.params;
 
     const {
@@ -5767,7 +5868,7 @@ app.post("/creditos/clientes/:id/abonos", async (req, res) => {
     }
 });
 
-app.post("/creditos/clientes/:id/cargos", async (req, res) => {
+app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res) => {
     const { id } = req.params;
 
     const {
@@ -5843,7 +5944,7 @@ app.post("/creditos/clientes/:id/cargos", async (req, res) => {
     }
 });
 
-app.get("/dashboard", async (req, res) => {
+app.get("/dashboard", requerirAccesoNegocio, async (req, res) => {
 
     try {
         const negocio = await negocioActual(req);
@@ -5892,7 +5993,7 @@ app.get("/dashboard", async (req, res) => {
     }
 });
 
-app.get("/historial", async (req, res) => {
+app.get("/historial", requerirAccesoNegocio, async (req, res) => {
     const negocio = await negocioActual(req);
     await asegurarColumnasHistorialVentas();
 
@@ -5907,7 +6008,7 @@ app.get("/historial", async (req, res) => {
     res.json(historial.rows);
 });
 
-app.get("/grafica-ventas", async (req, res) => {
+app.get("/grafica-ventas", requerirAccesoNegocio, async (req, res) => {
     const negocio = await negocioActual(req);
 
     const resultado =
@@ -5923,7 +6024,7 @@ app.get("/grafica-ventas", async (req, res) => {
     res.json(resultado.rows);
 });
 
-app.get("/reportes/ventas", async (req, res) => {
+app.get("/reportes/ventas", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         await asegurarColumnasHistorialVentas();
@@ -6718,6 +6819,7 @@ cargarModulosPOS({
     app,
     pool,
     normalizarCodigo,
+    requerirAccesoNegocio,
 });
 
 async function migrarPasswordsUsuariosPlano() {
