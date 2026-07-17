@@ -150,7 +150,16 @@ function renderCuentaPOS(negocio, licencia) {
      <div><span>Dias de gracia</span><strong>${licencia.graciaDias ?? 0}</strong></div>
     </div>
     ${diasTexto ? `<p class="cuenta-dias-restantes">${diasTexto}</p>` : ""}
-    <button type="button" onclick="abrirContactoDesarrolladorPOS()">Contactar para renovar</button>
+    <div class="cuenta-suscripcion-acciones">
+     <select id="cuentaPlanSeleccionado">
+      <option value="basico" ${licencia.plan === "basico" ? "selected" : ""}>Basico</option>
+      <option value="plus" ${licencia.plan === "plus" ? "selected" : ""}>Plus</option>
+      <option value="pro" ${licencia.plan === "pro" ? "selected" : ""}>Pro</option>
+     </select>
+     <button type="button" class="btn-principal" onclick="iniciarSuscripcionCuenta()">${licencia.tieneStripe ? "Cambiar de plan" : "Suscribirme"}</button>
+     ${licencia.tieneStripe ? `<button type="button" onclick="abrirPortalSuscripcionCuenta()">Gestionar pago</button>` : ""}
+    </div>
+    <button type="button" class="cuenta-link-boton" onclick="abrirContactoDesarrolladorPOS()">Contactar para renovar manualmente</button>
    </section>
 
    <section class="config-panel cuenta-tarjeta cuenta-tarjeta-ancha" id="cuentaSeguridadPanel">
@@ -215,6 +224,46 @@ async function guardarCorreoCuenta() {
   mostrarCuenta();
  } catch (error) {
   await alertaPOS(error.message || "No se pudo guardar el correo.", "Error", "alerta");
+ }
+}
+
+async function iniciarSuscripcionCuenta() {
+ if (!cuentaSesionToken()) {
+  await alertaPOS("Inicia sesion con tu correo y contrasena para administrar tu suscripcion.", "Sesion requerida", "alerta");
+  return;
+ }
+
+ const plan =
+ document.getElementById("cuentaPlanSeleccionado")?.value || "basico";
+
+ try {
+  const datos = await cuentaFetchAutenticado("/suscripcion/checkout", {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ plan })
+  });
+
+  if (!datos.ok) {
+   throw new Error(datos.error || "No se pudo iniciar el pago");
+  }
+
+  window.location.href = datos.url;
+ } catch (error) {
+  await alertaPOS(error.message || "No se pudo iniciar el pago.", "Error", "alerta");
+ }
+}
+
+async function abrirPortalSuscripcionCuenta() {
+ try {
+  const datos = await cuentaFetchAutenticado("/suscripcion/portal", { method: "POST" });
+
+  if (!datos.ok) {
+   throw new Error(datos.error || "No se pudo abrir el portal de pago");
+  }
+
+  window.location.href = datos.url;
+ } catch (error) {
+  await alertaPOS(error.message || "No se pudo abrir el portal de pago.", "Error", "alerta");
  }
 }
 

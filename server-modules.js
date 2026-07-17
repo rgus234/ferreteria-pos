@@ -7,7 +7,7 @@ function cargarModuloPOS(nombre, instalar) {
     }
 }
 
-function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio }) {
+function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, requerirSesionCuenta }) {
     cargarModuloPOS("fase4 compras/ajustes", () => {
         require("./fase4-server")(app, pool, normalizarCodigo, requerirAccesoNegocio);
     });
@@ -22,6 +22,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio }
 
     cargarModuloPOS("fase7 caja por metodo", () => {
         require("./fase7-caja-server")(app, pool);
+    });
+
+    cargarModuloPOS("stripe suscripciones", () => {
+        require("./stripe-server")(app, pool, requerirSesionCuenta);
     });
 }
 

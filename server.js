@@ -35,7 +35,15 @@ app.set("trust proxy", 1);
 
 const PORT = config.port;
 
-app.use(express.json());
+// El verify callback guarda el body crudo en req.rawBody -- lo
+// necesita el webhook de Stripe para verificar la firma (stripe.
+// webhooks.constructEvent exige los bytes originales, no el JSON ya
+// parseado). El resto de las rutas sigue usando req.body como siempre.
+app.use(express.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf;
+    }
+}));
 app.use((req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();
@@ -327,7 +335,8 @@ app.get("/licencia/estado", requerirAccesoNegocio, async (req, res) => {
                 fechaInicio: licencia.fecha_inicio,
                 fechaVencimiento: licencia.fecha_vencimiento,
                 graciaDias: licencia.gracia_dias,
-                ultimoPagoAt: licencia.ultimo_pago_at
+                ultimoPagoAt: licencia.ultimo_pago_at,
+                tieneStripe: Boolean(licencia.stripe_customer_id)
             }
         });
     } catch (error) {
@@ -6828,6 +6837,7 @@ cargarModulosPOS({
     pool,
     normalizarCodigo,
     requerirAccesoNegocio,
+    requerirSesionCuenta,
 });
 
 async function migrarPasswordsUsuariosPlano() {

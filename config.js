@@ -11,6 +11,11 @@ const config = {
     databaseUrl: process.env.DATABASE_URL || "",
     pgSslMode: process.env.PGSSLMODE || "",
     adminKey: process.env.ADMIN_KEY || "",
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
+    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
+    stripePriceBasico: process.env.STRIPE_PRICE_BASICO || "",
+    stripePricePlus: process.env.STRIPE_PRICE_PLUS || "",
+    stripePricePro: process.env.STRIPE_PRICE_PRO || "",
 };
 
 function validarConfigProduccion() {

@@ -66,6 +66,17 @@
   flex: 1;
 }
 
+.cuenta-suscripcion-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.cuenta-suscripcion-acciones select {
+  min-width: 120px;
+}
+
 .cuenta-estado-pill {
   display: inline-block;
   padding: 6px 14px;
