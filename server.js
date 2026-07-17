@@ -4108,6 +4108,14 @@ app.get(["/site", "/site/"], (req, res) => {
     res.sendFile(path.join(__dirname, "public", "site", "index.html"));
 });
 
+app.get("/terminos", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "site", "terminos.html"));
+});
+
+app.get("/privacidad", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "site", "privacidad.html"));
+});
+
 app.get("/dueno", (req, res) => {
     res.sendFile(
         path.join(__dirname, "public", "dueno.html")

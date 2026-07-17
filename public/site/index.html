@@ -205,6 +205,10 @@
         <label>Confirmar contrasena<input id="registroConfirmarPassword" type="password" placeholder="Repite tu contrasena" minlength="8" required></label>
         <label>Ciudad<input id="registroCiudad" type="text" placeholder="Ej. Rio Grande, Zac."></label>
         <label>Contacto<input id="registroContacto" type="text" placeholder="Ej. Gustavo"></label>
+        <label class="lead-consent">
+          <input id="registroAceptaTerminos" type="checkbox" required>
+          <span>Acepto los <a href="/terminos" target="_blank" rel="noopener">Terminos de Servicio</a> y el <a href="/privacidad" target="_blank" rel="noopener">Aviso de Privacidad</a> de Nexo POS.</span>
+        </label>
         <button class="btn primary" type="submit" id="registroSubmit">Solicitar licencia</button>
         <div id="registroResultado" class="lead-result" aria-live="polite"></div>
       </form>
@@ -217,6 +221,10 @@
       <span>Nexo POS</span>
     </div>
     <span>Sistema comercial para punto de venta.</span>
+    <nav aria-label="Legal">
+      <a href="/terminos">Terminos</a>
+      <a href="/privacidad">Privacidad</a>
+    </nav>
   </footer>
   <script>
     const form = document.getElementById("registroClienteForm");
