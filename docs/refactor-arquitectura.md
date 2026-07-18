@@ -2407,3 +2407,54 @@ Validacion:
   muestran correctamente, sin errores en consola ni en la red.
 - Confirmado que `negocio_id = 1` (Ferreteria Olimpico) no cambio ni
   una columna durante las pruebas.
+
+### Nexo IA -- capa gratis (Nivel 1) y cache (IA-2a, 2026-07-18)
+
+El usuario compartio una vision mucho mas grande para Nexo IA (mascota,
+modulo de pantalla completa, "especialidades") pidiendo explicitamente
+optimizar el costo de operacion. Se le entrego como Artifact una
+arquitectura de 3 niveles (Nivel 1: directo a SQL, $0; Nivel 2:
+catalogo de herramientas con un modelo economico, todavia no
+construido; Nivel 3: analisis real con el modelo capaz) con un ajuste
+de seguridad explicito frente a lo pedido: no dejar que el modelo
+genere SQL libre (riesgo de inyeccion via el chat), sino ampliar el
+catalogo de herramientas parametrizadas cuando llegue ese nivel. El
+usuario delego cual construir primero; se eligio IA-2a por ser la base
+de la que depende el resto (un modulo de pantalla completa seria caro
+de operar sin esto).
+
+Cambios, todos dentro de `ia-server.js` -- el contrato de
+`POST /ia/chat` no cambia, el frontend no se toco:
+
+- `clasificarIntencionNivel1(mensaje)`: reglas por palabras clave (sin
+  IA) que reconocen las 4 preguntas mas comunes. Cualquier senal de
+  querer razonamiento ("por que", "recomienda", "compara"...) o una
+  pregunta que toque mas de un tema a la vez desactiva el atajo y
+  manda al modelo real.
+- `respuestaNivel1(herramienta, datos)`: plantillas de texto fijas
+  (sin IA) que arman la respuesta con los datos reales que ya regresa
+  `ejecutarHerramientaNexo` -- mismas herramientas de IA-1, reusadas
+  tal cual.
+- `CACHE_RESPUESTAS` (Map en memoria del proceso, TTL 90s): solo para
+  preguntas de Nivel 3 sin historial (primer mensaje de la
+  conversacion) que se repiten en una ventana corta.
+- El atajo de Nivel 1 y el cache solo se intentan cuando `historial`
+  viene vacio -- las preguntas de seguimiento siempre van al modelo
+  completo, para no perder contexto de conversacion.
+
+Validacion, contra un negocio sintetico (creado y borrado por ID
+explicito, con 1 producto de stock bajo y 1 venta de prueba):
+
+- "como van mis ventas?" y "que productos se estan agotando?" ->
+  `nivel: 1`, respuesta correcta con los datos reales, sin llamar a la
+  API de Anthropic.
+- "por que bajaron mis ventas esta semana?" -> `nivel: 3` (la senal de
+  analisis desactivo el atajo); el modelo comparo 7 vs 14 dias por su
+  cuenta y dio una observacion util (posible falta de captura de
+  tickets).
+- La misma pregunta repetida de inmediato -> `nivel: "3-cache"`,
+  respuesta identica, sin nueva llamada al modelo.
+- Una pregunta de seguimiento con `historial` no vacio -> siempre
+  `nivel: 3`, nunca cache ni Nivel 1.
+- `node --check ia-server.js` correcto. `negocio_id = 1` (Ferreteria
+  Olimpico) sin cambios.

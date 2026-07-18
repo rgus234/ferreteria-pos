@@ -89,6 +89,90 @@ const MAX_ITERACIONES_HERRAMIENTAS = 6;
 const MAX_HISTORIAL_ENTRADAS = 12;
 const MAX_CARACTERES_MENSAJE = 2000;
 
+// Nivel 1: preguntas comunes resueltas directo contra SQL, sin tocar
+// la API de Anthropic -- costo cero, respuesta instantanea. Solo se
+// intenta en el primer mensaje de una conversacion (sin historial):
+// las preguntas de seguimiento dependen de contexto que estas
+// plantillas fijas no pueden manejar bien.
+function clasificarIntencionNivel1(mensaje) {
+    const texto = mensaje.toLowerCase();
+
+    // Cualquier senal de que se quiere razonamiento/analisis manda
+    // siempre al modelo (Nivel 3), sin importar el tema.
+    const pideAnalisis = /(por qu[eé]|recomend|compara|explica|qu[eé] opinas|c[oó]mo puedo|sugerenc|estrategia|mejorar|an[aá]lisis|pron[oó]stico|tendencia)/.test(texto);
+    if (pideAnalisis) return null;
+
+    const patrones = [
+        { herramienta: "resumen_ventas", regex: /(c[oó]mo van (mis )?ventas|ventas de hoy|cu[aá]nto (he )?vend|total de ventas|resumen de ventas)/ },
+        { herramienta: "productos_stock_bajo", regex: /(stock bajo|productos? (por )?agot|se est[aá]n? agotando|inventario bajo|qu[eé] me falta)/ },
+        { herramienta: "productos_sin_movimiento", regex: /(sin movimiento|no se venden|casi no se venden|producto.* estancad)/ },
+        { herramienta: "resumen_creditos", regex: /(cr[eé]ditos? vencidos?|clientes? con adeudo|cu[aá]nto me deben|deudas? pendientes?)/ }
+    ];
+
+    const coincidencias = patrones.filter(p => p.regex.test(texto));
+
+    // Pregunta compuesta (toca mas de un tema a la vez) -- mejor que
+    // la sintetice el modelo en vez de una plantilla fija.
+    if (coincidencias.length !== 1) return null;
+
+    return coincidencias[0].herramienta;
+}
+
+function respuestaNivel1(herramienta, datos) {
+    switch (herramienta) {
+        case "resumen_ventas":
+            return datos.transacciones === 0
+                ? `En los ultimos ${datos.dias} dias no registraste ninguna venta.`
+                : `En los ultimos ${datos.dias} dias llevas ${datos.transacciones} venta(s) por un total de $${datos.total.toFixed(2)}, con un ticket promedio de $${datos.ticketPromedio.toFixed(2)}.`;
+
+        case "productos_stock_bajo": {
+            if (datos.productos.length === 0) {
+                return "Ahora mismo no tienes productos por debajo de su stock minimo. Todo bien por ese lado.";
+            }
+            const lista = datos.productos.slice(0, 5).map(p => `${p.nombre} (${p.stock} de ${p.stock_minimo})`).join(", ");
+            const extra = datos.productos.length > 5 ? ` y ${datos.productos.length - 5} mas` : "";
+            return `Tienes ${datos.productos.length} producto(s) con stock bajo: ${lista}${extra}.`;
+        }
+
+        case "productos_sin_movimiento": {
+            if (datos.productos.length === 0) {
+                return `No encontre productos sin ventas en los ultimos ${datos.dias} dias. Buena senal.`;
+            }
+            const lista = datos.productos.slice(0, 5).map(p => p.nombre).join(", ");
+            const extra = datos.productos.length > 5 ? ` y ${datos.productos.length - 5} mas` : "";
+            return `${datos.productos.length} producto(s) no han tenido ventas en los ultimos ${datos.dias} dias: ${lista}${extra}.`;
+        }
+
+        case "resumen_creditos":
+            return datos.clientesConAdeudo === 0
+                ? "No tienes clientes con credito pendiente ahora mismo."
+                : `Tienes ${datos.clientesConAdeudo} cliente(s) con saldo pendiente, de los cuales ${datos.clientesVencidos} estan vencidos por un total de $${datos.totalVencido.toFixed(2)}.`;
+
+        default:
+            return null;
+    }
+}
+
+// Cache corto para preguntas de Nivel 3 (las que si cuestan) que se
+// repiten en una ventana corta -- ej. abrir el chat, preguntar, cerrar
+// y volver a preguntar lo mismo 20 segundos despues. Solo aplica al
+// primer mensaje de una conversacion, igual que el Nivel 1. En
+// memoria del proceso -- suficiente mientras corra una sola instancia
+// del servidor.
+const CACHE_RESPUESTAS = new Map();
+const CACHE_TTL_MS = 90 * 1000;
+
+function claveCache(negocioId, mensaje) {
+    return `${negocioId}::${mensaje.toLowerCase().trim().replace(/\s+/g, " ")}`;
+}
+
+function limpiarCacheExpirado() {
+    const ahora = Date.now();
+    for (const [clave, entrada] of CACHE_RESPUESTAS) {
+        if (entrada.expiraEn <= ahora) CACHE_RESPUESTAS.delete(clave);
+    }
+}
+
 async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
     switch (nombre) {
         case "resumen_ventas": {
@@ -256,9 +340,32 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
         const historialCliente = Array.isArray(req.body?.historial) ? req.body.historial : [];
         const historialRecortado = historialCliente.slice(-MAX_HISTORIAL_ENTRADAS);
+        const esPrimerMensaje = historialRecortado.length === 0;
 
         try {
             const negocio = await negocioActual(req, pool);
+
+            if (esPrimerMensaje) {
+                const herramientaNivel1 = clasificarIntencionNivel1(mensaje);
+
+                if (herramientaNivel1) {
+                    const datos = await ejecutarHerramientaNexo(pool, negocio.id, herramientaNivel1, {});
+                    const respuesta = respuestaNivel1(herramientaNivel1, datos);
+
+                    if (respuesta) {
+                        res.json({ ok: true, respuesta, nivel: 1 });
+                        return;
+                    }
+                }
+
+                const clave = claveCache(negocio.id, mensaje);
+                const enCache = CACHE_RESPUESTAS.get(clave);
+
+                if (enCache && enCache.expiraEn > Date.now()) {
+                    res.json({ ok: true, respuesta: enCache.respuesta, nivel: "3-cache" });
+                    return;
+                }
+            }
 
             const mensajesIniciales = [
                 ...historialRecortado
@@ -269,7 +376,12 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             const respuesta = await chatNexoIA(pool, negocio.id, mensajesIniciales);
 
-            res.json({ ok: true, respuesta });
+            if (esPrimerMensaje) {
+                limpiarCacheExpirado();
+                CACHE_RESPUESTAS.set(claveCache(negocio.id, mensaje), { respuesta, expiraEn: Date.now() + CACHE_TTL_MS });
+            }
+
+            res.json({ ok: true, respuesta, nivel: 3 });
         } catch (error) {
             responderError(res, error);
         }
