@@ -2511,3 +2511,54 @@ explicito, con 1 producto de stock bajo y 1 venta de prueba):
 - Sin errores en consola del navegador durante toda la prueba.
 - `node --check` correcto en los 4 archivos JS tocados. `negocio_id = 1`
   (Ferreteria Olimpico) sin cambios.
+
+### Nexo IA -- personaje con expresiones (IA-2c, 2026-07-18)
+
+Ultima pieza del trio IA-2a/2b/2c de la hoja de ruta ya compartida.
+Cubre en concreto dos pedidos del prompt original del usuario: el
+punto rojo de alerta en el boton, y que el personaje tenga
+expresiones -- acotadas a 3 estados con disparador claro en datos
+reales (feliz/neutral, pensando, alerta) en vez de las 5 del moodboard
+original (se le aclaro antes que ese moodboard es referencia de
+direccion visual, no un asset listo para usar -- esto sigue siendo
+SVG/CSS, no ilustracion 3D encargada aparte).
+
+Cambio 100% frontend, sin tocar `ia-server.js` -- reusa
+`GET /ia/resumen-rapido` (de IA-2b, costo $0) para decidir el estado
+de alerta.
+
+`public/js/nexo-ia.js`: la constante fija `NEXO_IA_MARCA_SVG` se
+reemplazo por `nexoIaMarcaSVG(estado)`, que arma una de 3 variantes
+sobre la misma base (antena + cuerpo + ojos): `"feliz"` agrega una
+curva de sonrisa, `"pensando"` agrega 3 puntitos (indicador de
+procesando), `"alerta"` agrega un triangulo y aplica la clase
+`.nexo-ia-marca-alerta` (recolorea el marcador completo via CSS, no
+color fijo en el SVG -- respeta modo claro/oscuro). Nueva
+`nexoIaHayAlerta()` pide el resumen rapido una vez y regresa `true` si
+hay stock bajo o creditos vencidos (en caso de error de red regresa
+`false` -- una funcion decorativa nunca debe bloquear ni mostrar
+error). Se aplica en 3 lugares: la burbuja (marcador + punto rojo
+`.con-alerta` al cargar), la cabecera del popover (mismo criterio,
+reusando los datos ya obtenidos del resumen sin una segunda llamada),
+y la cabecera del modulo completo (`"pensando"` mientras
+`enviarMensajeNexoIA()` espera la respuesta, vuelve a `"feliz"` al
+terminar, via nueva `actualizarMarcaCabeceraNexoIA()`).
+
+CSS: `.con-alerta::after` en `#nexoIaBurbuja` dibuja el punto rojo
+(`var(--nexo-danger)`); `.nexo-ia-marca-alerta { color: var(--nexo-warning); }`
+en `nexo-ia.css` recolorea el marcador completo en los 3 lugares donde
+aparece.
+
+Validacion, contra un negocio sintetico con 1 producto de stock bajo
+(creado y borrado por ID explicito):
+
+- Burbuja: marcador de alerta (ambar) + punto rojo visibles,
+  confirmado por clase CSS y por captura de pantalla.
+- Popover: mismo marcador de alerta en la cabecera, resumen real
+  ("1 producto(s) con stock bajo").
+- Modulo completo: al enviar una pregunta, la cabecera cambia a
+  "pensando" (confirmado capturando el DOM a mitad del envio) y
+  regresa a "feliz" al recibir la respuesta.
+- Colores de alerta legibles contra el fondo de la burbuja.
+- Sin errores en consola. `negocio_id = 1` (Ferreteria Olimpico) sin
+  cambios.

@@ -22,6 +22,11 @@
  height: 40px;
  color: var(--nexo-brand);
  flex-shrink: 0;
+ transition: opacity .15s ease;
+}
+
+.nexo-ia-vista-cabecera .nexo-ia-marca-alerta {
+ color: var(--nexo-warning);
 }
 
 .nexo-ia-vista-cabecera h2 {

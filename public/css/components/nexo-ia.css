@@ -35,6 +35,22 @@
  height: 28px;
 }
 
+#nexoIaBurbuja.con-alerta::after {
+ content: "";
+ position: absolute;
+ top: 4px;
+ right: 4px;
+ width: 11px;
+ height: 11px;
+ border-radius: 50%;
+ background: var(--nexo-danger);
+ border: 2px solid var(--nexo-bg);
+}
+
+.nexo-ia-marca-alerta {
+ color: var(--nexo-warning);
+}
+
 #nexoIaPopover {
  position: fixed;
  right: 22px;

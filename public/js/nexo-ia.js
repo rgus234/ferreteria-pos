@@ -10,15 +10,47 @@
 let historialNexoIA = [];
 let nexoIaEnviando = false;
 
-const NEXO_IA_MARCA_SVG = `
- <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+/* Base compartida (antena + cuerpo + ojos) para las 3 expresiones de
+   Nexo -- feliz/neutral (default), pensando (mientras espera la
+   respuesta del modelo) y alerta (cuando el resumen rapido encuentra
+   stock bajo o creditos vencidos). El color de la alerta se aplica
+   por clase CSS (.nexo-ia-marca-alerta), no fijo en el SVG, para
+   respetar modo claro/oscuro. */
+function nexoIaMarcaSVG(estado) {
+ const cuerpoBase = `
   <circle cx="20" cy="7" r="2.4" fill="currentColor"/>
   <line x1="20" y1="9.4" x2="20" y2="14" stroke="currentColor" stroke-width="2"/>
   <rect x="6" y="14" width="28" height="22" rx="8" stroke="currentColor" stroke-width="2.2"/>
   <circle cx="15" cy="25" r="2.6" fill="currentColor"/>
   <circle cx="25" cy="25" r="2.6" fill="currentColor"/>
- </svg>
-`;
+ `;
+
+ const extra = {
+  pensando: '<circle cx="14" cy="31" r="1.1" fill="currentColor"/><circle cx="20" cy="31" r="1.1" fill="currentColor"/><circle cx="26" cy="31" r="1.1" fill="currentColor"/>',
+  alerta: '<path d="M20 28l2.6 4.6h-5.2L20 28Z" fill="currentColor"/>',
+  feliz: '<path d="M15 29c1.5 1.5 6.5 1.5 8 0" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>'
+ };
+
+ const clase = estado === "alerta" ? " nexo-ia-marca-alerta" : "";
+
+ return `
+  <svg class="nexo-ia-marca${clase}" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+   ${cuerpoBase}
+   ${extra[estado] || extra.feliz}
+  </svg>
+ `;
+}
+
+async function nexoIaHayAlerta() {
+ try {
+  const respuesta = await fetch("/ia/resumen-rapido");
+  const datos = await respuesta.json();
+  if (!respuesta.ok || !datos.ok) return false;
+  return datos.stockBajo.productos.length > 0 || datos.creditos.clientesVencidos > 0;
+ } catch (error) {
+  return false;
+ }
+}
 
 const PREGUNTAS_RAPIDAS_NEXO_IA = [
  "Como van mis ventas?",
@@ -39,7 +71,7 @@ function crearNexoIaUI() {
  burbuja.id = "nexoIaBurbuja";
  burbuja.type = "button";
  burbuja.title = "Nexo IA";
- burbuja.innerHTML = NEXO_IA_MARCA_SVG;
+ burbuja.innerHTML = nexoIaMarcaSVG("feliz");
  burbuja.addEventListener("click", alternarPopoverNexoIA);
 
  const popover = document.createElement("div");
@@ -69,7 +101,7 @@ async function cargarResumenRapidoNexoIA() {
 
  popover.innerHTML = `
   <div class="nexo-ia-popover-cabecera">
-   ${NEXO_IA_MARCA_SVG}
+   ${nexoIaMarcaSVG("feliz")}
    <div class="nexo-ia-popover-titulo">Nexo IA</div>
   </div>
   <p class="nexo-ia-popover-cargando">Revisando tu negocio...</p>
@@ -84,6 +116,10 @@ async function cargarResumenRapidoNexoIA() {
    renderAccesosPopoverNexoIA(popover);
    return;
   }
+
+  const hayAlerta = datos.stockBajo.productos.length > 0 || datos.creditos.clientesVencidos > 0;
+  const marca = popover.querySelector(".nexo-ia-popover-cabecera");
+  if (marca) marca.innerHTML = nexoIaMarcaSVG(hayAlerta ? "alerta" : "feliz") + '<div class="nexo-ia-popover-titulo">Nexo IA</div>';
 
   const filas = [
    `Ventas (7 dias): ${datos.ventas.transacciones} venta(s), $${Number(datos.ventas.total).toFixed(2)}`,
@@ -163,8 +199,8 @@ async function mostrarNexoIA() {
 
  pantalla.innerHTML = `
   <div class="caja nexo-ia-vista">
-   <div class="nexo-ia-vista-cabecera">
-    ${NEXO_IA_MARCA_SVG}
+   <div class="nexo-ia-vista-cabecera" id="nexoIaVistaCabecera">
+    ${nexoIaMarcaSVG("feliz")}
     <div>
      <h2>Nexo IA</h2>
      <p class="nexo-ia-vista-subtitulo">Pregunta lo que quieras saber de tu negocio</p>
@@ -195,6 +231,11 @@ async function mostrarNexoIA() {
  }
 }
 
+function actualizarMarcaCabeceraNexoIA(estado) {
+ const svgActual = document.querySelector("#nexoIaVistaCabecera svg");
+ if (svgActual) svgActual.outerHTML = nexoIaMarcaSVG(estado);
+}
+
 function agregarMensajeNexoIA(texto, clase) {
  const lista = document.getElementById("nexoIaMensajes");
  if (!lista) return null;
@@ -216,6 +257,7 @@ async function enviarMensajeNexoIA() {
  input.value = "";
  agregarMensajeNexoIA(mensaje, "usuario");
  const indicador = agregarMensajeNexoIA("Nexo esta pensando...", "pensando");
+ actualizarMarcaCabeceraNexoIA("pensando");
 
  nexoIaEnviando = true;
  const botonEnviar = document.getElementById("nexoIaEnviar");
@@ -247,13 +289,21 @@ async function enviarMensajeNexoIA() {
   nexoIaEnviando = false;
   const boton = document.getElementById("nexoIaEnviar");
   if (boton) boton.disabled = false;
+  actualizarMarcaCabeceraNexoIA("feliz");
  }
 }
 
-function actualizarVisibilidadNexoIA() {
+async function actualizarVisibilidadNexoIA() {
  const burbuja = document.getElementById("nexoIaBurbuja");
  if (!burbuja) return;
- burbuja.classList.toggle("visible", nexoIaEquipoVinculado());
+
+ const vinculado = nexoIaEquipoVinculado();
+ burbuja.classList.toggle("visible", vinculado);
+ if (!vinculado) return;
+
+ const hayAlerta = await nexoIaHayAlerta();
+ burbuja.innerHTML = nexoIaMarcaSVG(hayAlerta ? "alerta" : "feliz");
+ burbuja.classList.toggle("con-alerta", hayAlerta);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
