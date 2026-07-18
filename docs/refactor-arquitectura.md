@@ -2562,3 +2562,62 @@ Validacion, contra un negocio sintetico con 1 producto de stock bajo
 - Colores de alerta legibles contra el fondo de la burbuja.
 - Sin errores en consola. `negocio_id = 1` (Ferreteria Olimpico) sin
   cambios.
+
+### Nexo IA -- catalogo de herramientas ampliado, Nivel 2 (IA-3, 2026-07-18)
+
+Ultimo pendiente de la arquitectura de 3 niveles propuesta despues de
+IA-1: hasta ahora cualquier pregunta que no calzaba exacto en una
+plantilla de Nivel 1 iba completa a `claude-opus-4-8` (Nivel 3, el mas
+caro). IA-3 agrega el Nivel 2 intermedio: preguntas que no piden
+razonamiento pero tampoco calzan en una plantilla fija se resuelven
+con `claude-haiku-4-5` -- mismo mecanismo de tool-calling, mismo
+catalogo de herramientas, modelo mucho mas barato.
+
+`clasificarIntencionNivel1` se convirtio en `clasificarNivelPregunta`:
+regresa `{nivel:3}` si detecta senal de analisis (igual que antes),
+`{nivel:1, herramienta}` si hay una coincidencia exacta de plantilla,
+y ahora `{nivel:2}` para todo lo demas (antes esto ultimo caia directo
+a Nivel 3).
+
+Se agregaron 3 herramientas al catalogo compartido (usado por Nivel 2
+y Nivel 3 por igual -- no hacen falta dos catalogos distintos, solo
+mas herramientas y el modelo que cambia segun el nivel):
+`top_productos_vendidos` (reusa el patron de agregacion sobre
+`jsonb_array_elements` ya confirmado en IA-1), `comparar_ventas_periodos`
+(un solo `SELECT` con dos `FILTER` para el periodo actual y el
+anterior) y `buscar_producto` (busqueda por nombre/codigo con `ILIKE`
+parametrizado -- nunca SQL armado con el texto del usuario).
+
+**Correccion critica encontrada durante la investigacion, antes de
+escribir codigo**: `claude-haiku-4-5` no soporta el parametro
+`thinking: {type: "adaptive"}` que `chatNexoIA` ya mandaba fijo para
+Opus -- lo hubiera rechazado con un error 400 en cada pregunta de
+Nivel 2. `chatNexoIA` ahora recibe el modelo como parametro y solo
+agrega `thinking` cuando el modelo no es Haiku.
+
+El cache de IA-2a se generalizo para cubrir Nivel 2 y Nivel 3 por
+igual (guarda tambien el nivel de la respuesta cacheada, para que un
+"hit" reporte `"2-cache"` o `"3-cache"` segun corresponda). Las
+preguntas de seguimiento (con `historial`) siguen sin pasar por el
+clasificador -- van directo a Nivel 3, sin cambios, para no arriesgar
+coherencia de conversacion con un modelo mas chico a medio camino.
+
+Validacion, contra un negocio sintetico con 2 productos y 2 ventas de
+prueba (creado y borrado por ID explicito):
+
+- Nivel 1 exacto ("como van mis ventas?") -> `nivel: 1`, sin cambios.
+- Nivel 2 ("cuales son mis productos mas vendidos?") -> `nivel: 2`,
+  uso correcto de `top_productos_vendidos`, sin error de `thinking`,
+  datos reales exactos.
+- Nivel 2 con `buscar_producto` ("cuanto stock tengo de martillo?") ->
+  `nivel: 2`, stock correcto (12 unidades, coincide exacto).
+- Nivel 3 con senal de analisis ("por que se venden poco mis
+  productos?") -> `nivel: 3`, Opus comparo periodos por su cuenta y
+  dio una observacion honesta (pocos datos para concluir, sugiere
+  revisar captura de ventas).
+- Repetir la pregunta de Nivel 2 -> `nivel: "2-cache"`, respuesta
+  identica, sin nueva llamada al modelo.
+- Pregunta de seguimiento con `historial` -> siempre `nivel: 3`, aunque
+  la pregunta en si misma no tuviera senal de analisis.
+- `node --check ia-server.js` correcto. `negocio_id = 1` (Ferreteria
+  Olimpico) sin cambios.

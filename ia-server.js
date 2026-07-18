@@ -82,6 +82,40 @@ const HERRAMIENTAS_NEXO = [
         name: "resumen_creditos",
         description: "Devuelve cuantos clientes tienen saldo pendiente, cuantos estan vencidos y el monto total vencido en creditos del negocio.",
         input_schema: { type: "object", properties: {}, required: [] }
+    },
+    {
+        name: "top_productos_vendidos",
+        description: "Lista los productos con mas ingresos en los ultimos N dias, ordenados de mayor a menor. Usala para preguntas sobre cuales son los productos mas vendidos.",
+        input_schema: {
+            type: "object",
+            properties: {
+                dias: { type: "integer", description: "Dias hacia atras a incluir. Por defecto 30." },
+                limite: { type: "integer", description: "Cuantos productos regresar como maximo. Por defecto 5." }
+            },
+            required: []
+        }
+    },
+    {
+        name: "comparar_ventas_periodos",
+        description: "Compara el total vendido y el numero de transacciones de los ultimos N dias contra los N dias inmediatamente anteriores. Usala para preguntas directas de comparacion entre dos periodos iguales.",
+        input_schema: {
+            type: "object",
+            properties: {
+                dias: { type: "integer", description: "Tamano de cada periodo a comparar, en dias. Por defecto 7." }
+            },
+            required: []
+        }
+    },
+    {
+        name: "buscar_producto",
+        description: "Busca uno o varios productos por nombre o codigo y regresa su precio, stock y stock minimo. Usala cuando pregunten por un producto especifico.",
+        input_schema: {
+            type: "object",
+            properties: {
+                termino: { type: "string", description: "Nombre o codigo (completo o parcial) del producto a buscar." }
+            },
+            required: ["termino"]
+        }
     }
 ];
 
@@ -89,18 +123,23 @@ const MAX_ITERACIONES_HERRAMIENTAS = 6;
 const MAX_HISTORIAL_ENTRADAS = 12;
 const MAX_CARACTERES_MENSAJE = 2000;
 
-// Nivel 1: preguntas comunes resueltas directo contra SQL, sin tocar
-// la API de Anthropic -- costo cero, respuesta instantanea. Solo se
-// intenta en el primer mensaje de una conversacion (sin historial):
-// las preguntas de seguimiento dependen de contexto que estas
-// plantillas fijas no pueden manejar bien.
-function clasificarIntencionNivel1(mensaje) {
+// Clasificador de 3 niveles, solo para el primer mensaje de una
+// conversacion (sin historial) -- las preguntas de seguimiento
+// dependen de contexto que esto no puede evaluar bien, asi que
+// siempre van completas a Nivel 3.
+//
+// Nivel 1 ($0, sin IA): la pregunta calza exacta con una sola
+// plantilla fija, resuelta directo contra SQL.
+// Nivel 2 (claude-haiku-4-5): no pide razonamiento pero tampoco calza
+// en una plantilla exacta -- mismo tool-calling, modelo economico.
+// Nivel 3 (claude-opus-4-8): pide razonamiento/analisis explicito.
+function clasificarNivelPregunta(mensaje) {
     const texto = mensaje.toLowerCase();
 
     // Cualquier senal de que se quiere razonamiento/analisis manda
-    // siempre al modelo (Nivel 3), sin importar el tema.
+    // siempre al modelo capaz (Nivel 3), sin importar el tema.
     const pideAnalisis = /(por qu[eé]|recomend|compara|explica|qu[eé] opinas|c[oó]mo puedo|sugerenc|estrategia|mejorar|an[aá]lisis|pron[oó]stico|tendencia)/.test(texto);
-    if (pideAnalisis) return null;
+    if (pideAnalisis) return { nivel: 3 };
 
     const patrones = [
         { herramienta: "resumen_ventas", regex: /(c[oó]mo van (mis )?ventas|ventas de hoy|cu[aá]nto (he )?vend|total de ventas|resumen de ventas)/ },
@@ -111,11 +150,12 @@ function clasificarIntencionNivel1(mensaje) {
 
     const coincidencias = patrones.filter(p => p.regex.test(texto));
 
-    // Pregunta compuesta (toca mas de un tema a la vez) -- mejor que
-    // la sintetice el modelo en vez de una plantilla fija.
-    if (coincidencias.length !== 1) return null;
+    // Coincidencia exacta con un solo tema -> Nivel 1. Pregunta
+    // compuesta, sin coincidencia, o algo mas especifico (ej. un
+    // producto en particular, un top de ventas) -> Nivel 2.
+    if (coincidencias.length === 1) return { nivel: 1, herramienta: coincidencias[0].herramienta };
 
-    return coincidencias[0].herramienta;
+    return { nivel: 2 };
 }
 
 function respuestaNivel1(herramienta, datos) {
@@ -270,24 +310,110 @@ async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
             };
         }
 
+        case "top_productos_vendidos": {
+            const dias = Number.isFinite(Number(input?.dias)) && Number(input.dias) > 0 ? Number(input.dias) : 30;
+            const limite = Number.isFinite(Number(input?.limite)) && Number(input.limite) > 0 ? Math.min(Number(input.limite), 20) : 5;
+            const resultado = await pool.query(
+                `
+                SELECT
+                    item->>'nombre' AS nombre,
+                    COALESCE(SUM((item->>'cantidad')::numeric), 0) AS cantidad,
+                    COALESCE(SUM((item->>'importe')::numeric), 0) AS total
+                FROM public.historial_ventas,
+                     LATERAL jsonb_array_elements(productos) AS item
+                WHERE negocio_id = $1
+                AND fecha >= NOW() - ($2 || ' days')::interval
+                GROUP BY item->>'nombre'
+                ORDER BY total DESC
+                LIMIT $3
+                `,
+                [negocioId, dias, limite]
+            );
+
+            return {
+                dias,
+                productos: resultado.rows.map(fila => ({
+                    nombre: fila.nombre,
+                    cantidad: Number(fila.cantidad),
+                    total: Number(fila.total)
+                }))
+            };
+        }
+
+        case "comparar_ventas_periodos": {
+            const dias = Number.isFinite(Number(input?.dias)) && Number(input.dias) > 0 ? Number(input.dias) : 7;
+            const resultado = await pool.query(
+                `
+                SELECT
+                    COALESCE(SUM(total) FILTER (WHERE fecha >= NOW() - ($2 || ' days')::interval), 0) AS total_actual,
+                    COUNT(*) FILTER (WHERE fecha >= NOW() - ($2 || ' days')::interval) AS transacciones_actual,
+                    COALESCE(SUM(total) FILTER (
+                        WHERE fecha < NOW() - ($2 || ' days')::interval
+                        AND fecha >= NOW() - ($2 || ' days')::interval * 2
+                    ), 0) AS total_anterior,
+                    COUNT(*) FILTER (
+                        WHERE fecha < NOW() - ($2 || ' days')::interval
+                        AND fecha >= NOW() - ($2 || ' days')::interval * 2
+                    ) AS transacciones_anterior
+                FROM public.historial_ventas
+                WHERE negocio_id = $1
+                `,
+                [negocioId, dias]
+            );
+
+            const fila = resultado.rows[0];
+
+            return {
+                dias,
+                periodoActual: { total: Number(fila.total_actual), transacciones: Number(fila.transacciones_actual) },
+                periodoAnterior: { total: Number(fila.total_anterior), transacciones: Number(fila.transacciones_anterior) }
+            };
+        }
+
+        case "buscar_producto": {
+            const termino = String(input?.termino || "").trim();
+            if (!termino) return { productos: [] };
+
+            const resultado = await pool.query(
+                `
+                SELECT nombre, codigo, precio, stock, stock_minimo
+                FROM public.productos
+                WHERE negocio_id = $1
+                AND (nombre ILIKE $2 OR codigo ILIKE $2)
+                ORDER BY nombre ASC
+                LIMIT 10
+                `,
+                [negocioId, `%${termino}%`]
+            );
+
+            return { termino, productos: resultado.rows };
+        }
+
         default:
             return { error: `Herramienta desconocida: ${nombre}` };
     }
 }
 
-async function chatNexoIA(pool, negocioId, mensajes) {
+async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8") {
     const anthropic = obtenerAnthropic();
     let mensajesActuales = mensajes;
 
     for (let intento = 0; intento < MAX_ITERACIONES_HERRAMIENTAS; intento++) {
-        const respuesta = await anthropic.messages.create({
-            model: "claude-opus-4-8",
+        const parametros = {
+            model: modelo,
             max_tokens: 1024,
-            thinking: { type: "adaptive" },
             system: SYSTEM_PROMPT_NEXO,
             tools: HERRAMIENTAS_NEXO,
             messages: mensajesActuales
-        });
+        };
+
+        // claude-haiku-4-5 no soporta thinking adaptive -- lo rechaza
+        // con un error 400 si se lo mandamos.
+        if (modelo !== "claude-haiku-4-5") {
+            parametros.thinking = { type: "adaptive" };
+        }
+
+        const respuesta = await anthropic.messages.create(parametros);
 
         if (respuesta.stop_reason !== "tool_use") {
             return respuesta.content
@@ -363,13 +489,12 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
         try {
             const negocio = await negocioActual(req, pool);
+            const clasificacion = esPrimerMensaje ? clasificarNivelPregunta(mensaje) : { nivel: 3 };
 
             if (esPrimerMensaje) {
-                const herramientaNivel1 = clasificarIntencionNivel1(mensaje);
-
-                if (herramientaNivel1) {
-                    const datos = await ejecutarHerramientaNexo(pool, negocio.id, herramientaNivel1, {});
-                    const respuesta = respuestaNivel1(herramientaNivel1, datos);
+                if (clasificacion.nivel === 1) {
+                    const datos = await ejecutarHerramientaNexo(pool, negocio.id, clasificacion.herramienta, {});
+                    const respuesta = respuestaNivel1(clasificacion.herramienta, datos);
 
                     if (respuesta) {
                         res.json({ ok: true, respuesta, nivel: 1 });
@@ -381,7 +506,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 const enCache = CACHE_RESPUESTAS.get(clave);
 
                 if (enCache && enCache.expiraEn > Date.now()) {
-                    res.json({ ok: true, respuesta: enCache.respuesta, nivel: "3-cache" });
+                    res.json({ ok: true, respuesta: enCache.respuesta, nivel: `${enCache.nivel}-cache` });
                     return;
                 }
             }
@@ -393,14 +518,17 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 { role: "user", content: mensaje }
             ];
 
-            const respuesta = await chatNexoIA(pool, negocio.id, mensajesIniciales);
+            const nivelFinal = esPrimerMensaje && clasificacion.nivel === 2 ? 2 : 3;
+            const modeloElegido = nivelFinal === 2 ? "claude-haiku-4-5" : "claude-opus-4-8";
+
+            const respuesta = await chatNexoIA(pool, negocio.id, mensajesIniciales, modeloElegido);
 
             if (esPrimerMensaje) {
                 limpiarCacheExpirado();
-                CACHE_RESPUESTAS.set(claveCache(negocio.id, mensaje), { respuesta, expiraEn: Date.now() + CACHE_TTL_MS });
+                CACHE_RESPUESTAS.set(claveCache(negocio.id, mensaje), { respuesta, nivel: nivelFinal, expiraEn: Date.now() + CACHE_TTL_MS });
             }
 
-            res.json({ ok: true, respuesta, nivel: 3 });
+            res.json({ ok: true, respuesta, nivel: nivelFinal });
         } catch (error) {
             responderError(res, error);
         }
