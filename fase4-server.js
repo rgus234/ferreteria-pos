@@ -1,4 +1,5 @@
 const { DEFAULT_NEGOCIO_SLUG } = require("./tenant");
+const { responderError } = require("./error-utils");
 
 module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
     let listo = false;
@@ -221,7 +222,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
 
             res.json({ pedidos: resultado.rows });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -255,7 +256,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                 items: items.rows
             });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -315,7 +316,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
             res.json({ pedido: pedido.rows[0] });
         } catch (error) {
             await client.query("ROLLBACK");
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         } finally {
             client.release();
         }
@@ -429,7 +430,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
             res.json({ recepcion: recepcion.rows[0] });
         } catch (error) {
             await client.query("ROLLBACK");
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         } finally {
             client.release();
         }
@@ -450,7 +451,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
 
             res.json({ ajustes: resultado.rows });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -532,7 +533,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
             res.json({ ajuste: ajuste.rows[0] });
         } catch (error) {
             await client.query("ROLLBACK");
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         } finally {
             client.release();
         }

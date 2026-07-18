@@ -1,4 +1,5 @@
 const { DEFAULT_NEGOCIO_SLUG } = require("./tenant");
+const { responderError } = require("./error-utils");
 
 module.exports = (app, pool, requerirAccesoNegocio) => {
     let listo = false;
@@ -234,7 +235,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 resumenAyer: await resumenAyer(negocio.id)
             });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -268,7 +269,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             res.json({ turno: resultado.rows[0] });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -296,7 +297,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             res.json({ movimientos: resultado.rows });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -338,7 +339,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 resumen: await resumenTurno(turno)
             });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -420,7 +421,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             });
         } catch (error) {
             await client.query("ROLLBACK");
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         } finally {
             client.release();
         }
@@ -441,7 +442,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             res.json({ cortes: resultado.rows });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 };

@@ -1,4 +1,5 @@
 const { config } = require("./config");
+const { responderError } = require("./error-utils");
 
 // Cliente de Stripe inicializado de forma perezosa -- si todavia no
 // hay STRIPE_SECRET_KEY (caso normal mientras el usuario crea su
@@ -114,7 +115,7 @@ module.exports = (app, pool, requerirSesionCuenta) => {
 
             res.json({ ok: true, url: sesion.url });
         } catch (error) {
-            res.status(500).json({ ok: false, error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -148,7 +149,7 @@ module.exports = (app, pool, requerirSesionCuenta) => {
 
             res.json({ ok: true, url: sesion.url });
         } catch (error) {
-            res.status(500).json({ ok: false, error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -180,7 +181,7 @@ module.exports = (app, pool, requerirSesionCuenta) => {
                 stripeConfigurado: Boolean(obtenerStripe())
             });
         } catch (error) {
-            res.status(500).json({ ok: false, error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -225,7 +226,7 @@ module.exports = (app, pool, requerirSesionCuenta) => {
 
             res.json({ ok: true });
         } catch (error) {
-            res.status(500).json({ ok: false, error: error.message });
+            responderError(res, error);
         }
     });
 };

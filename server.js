@@ -1,4 +1,5 @@
 const express = require("express");
+const helmet = require("helmet");
 const path = require("path");
 const crypto = require("crypto");
 const os = require("os");
@@ -15,6 +16,7 @@ const {
 } = require("./tenant");
 const { cargarModulosPOS } = require("./server-modules");
 const { hashPassword, verificarPassword } = require("./password-utils");
+const { responderError } = require("./error-utils");
 const {
     enviarCorreoVerificacion,
     enviarCorreoRecuperacion,
@@ -44,6 +46,33 @@ app.use(express.json({
         req.rawBody = buf;
     }
 }));
+// CSP permite 'unsafe-inline' en script-src Y script-src-attr porque
+// el frontend usa onclick="..." inline en toda la app -- sin
+// scriptSrcAttr explicito, helmet le mete su propio default
+// (script-src-attr 'none'), que bloquea los onclick por separado de
+// script-src y rompe la aplicacion completa. El unico origen externo
+// real es cdn.jsdelivr.net (Chart.js, JsBarcode, xlsx).
+// crossOriginEmbedderPolicy desactivado porque este proyecto no
+// necesita aislamiento cross-origin y podria interferir con esa carga
+// sin necesidad.
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+            scriptSrcAttr: ["'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:"],
+            fontSrc: ["'self'", "data:"],
+            connectSrc: ["'self'"],
+            frameAncestors: ["'none'"],
+            baseUri: ["'self'"],
+            objectSrc: ["'none'"],
+            formAction: ["'self'"]
+        }
+    },
+    crossOriginEmbedderPolicy: false
+}));
 app.use((req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();
@@ -68,13 +97,15 @@ app.get("/health", async (req, res) => {
             timestamp: new Date().toISOString(),
         });
     } catch (error) {
+        console.error(error);
+
         res.status(503).json({
             ok: false,
             app: config.appName,
             env: config.appEnv,
             version: config.appVersion,
             database: "error",
-            error: error.message,
+            error: config.isProduction ? "No se pudo conectar a la base de datos" : error.message,
             timestamp: new Date().toISOString(),
         });
     }
@@ -266,10 +297,7 @@ app.get("/negocio-actual", requerirAccesoNegocio, async (req, res) => {
             negocio
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -299,10 +327,7 @@ app.get("/negocios/buscar", async (req, res) => {
             negocios: resultado.rows
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -340,10 +365,7 @@ app.get("/licencia/estado", requerirAccesoNegocio, async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -391,10 +413,7 @@ app.put("/negocio-actual/correo", requerirAccesoNegocio, async (req, res) => {
             correo: correo || null
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -600,10 +619,7 @@ app.post("/api/clientes/registro", async (req, res) => {
     } catch (error) {
         await client.query("ROLLBACK");
 
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     } finally {
         client.release();
     }
@@ -671,7 +687,8 @@ app.get("/verificar-correo/:token", async (req, res) => {
             true
         ));
     } catch (error) {
-        res.status(500).send(paginaCorreoHtml("No se pudo verificar", error.message, false));
+        console.error(error);
+        res.status(500).send(paginaCorreoHtml("No se pudo verificar", "Ocurrio un error inesperado. Intenta de nuevo o pide un nuevo enlace.", false));
     }
 });
 
@@ -759,7 +776,8 @@ app.get("/activar-cuenta/:token", async (req, res) => {
         </html>
         `);
     } catch (error) {
-        res.status(500).send(paginaCorreoHtml("No se pudo cargar", error.message, false));
+        console.error(error);
+        res.status(500).send(paginaCorreoHtml("No se pudo cargar", "Ocurrio un error inesperado. Intenta de nuevo o pide un nuevo enlace.", false));
     }
 });
 
@@ -795,7 +813,7 @@ app.post("/cuenta/reenviar-verificacion", async (req, res) => {
 
         res.json({ ok: true });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -871,7 +889,7 @@ async function requerirSesionCuenta(req, res, next) {
         req.sesionCuentaId = negocio.sesion_id;
         next();
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 }
 
@@ -946,7 +964,7 @@ app.post("/cuenta/login", async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -959,7 +977,7 @@ app.post("/cuenta/logout", requerirSesionCuenta, async (req, res) => {
 
         res.json({ ok: true });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -972,7 +990,7 @@ app.post("/cuenta/logout-todos", requerirSesionCuenta, async (req, res) => {
 
         res.json({ ok: true });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -985,7 +1003,7 @@ app.post("/cuenta/sesiones/:id/cerrar", requerirSesionCuenta, async (req, res) =
 
         res.json({ ok: true });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1013,7 +1031,7 @@ app.get("/cuenta/sesiones", requerirSesionCuenta, async (req, res) => {
             }))
         });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1036,7 +1054,7 @@ app.get("/cuenta/ultimo-acceso", requerirSesionCuenta, async (req, res) => {
                 : null
         });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1066,7 +1084,7 @@ async function requerirDispositivoVinculado(req, res, next) {
         req.dispositivoTokenPlano = token;
         next();
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 }
 
@@ -1120,7 +1138,7 @@ async function requerirAccesoNegocio(req, res, next) {
             equipoNoVinculado: true
         });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 }
 
@@ -1140,7 +1158,7 @@ app.post("/dispositivo/vincular", requerirSesionCuenta, async (req, res) => {
 
         res.json({ ok: true, token: tokenPlano });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1171,7 +1189,7 @@ app.post("/dispositivo/desvincular", requerirDispositivoVinculado, async (req, r
 
         res.json({ ok: true });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1197,7 +1215,7 @@ app.get("/cuenta/dispositivos", requerirSesionCuenta, async (req, res) => {
             }))
         });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1213,7 +1231,7 @@ app.post("/cuenta/dispositivos/:id/revocar", requerirSesionCuenta, async (req, r
 
         res.json({ ok: true });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1268,7 +1286,7 @@ app.get("/cuenta/empleados", requerirSesionCuenta, async (req, res) => {
 
         res.json({ ok: true, empleados: filas.rows.map(empleadoParaAdmin) });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1314,7 +1332,7 @@ app.post("/cuenta/empleados", requerirSesionCuenta, async (req, res) => {
 
         res.status(201).json({ ok: true, empleado: empleadoParaAdmin(fila.rows[0]) });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1375,7 +1393,7 @@ app.put("/cuenta/empleados/:id", requerirSesionCuenta, async (req, res) => {
 
         res.json({ ok: true, empleado: empleadoParaAdmin(actualizado.rows[0]) });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1397,7 +1415,7 @@ app.delete("/cuenta/empleados/:id", requerirSesionCuenta, async (req, res) => {
 
         res.json({ ok: true });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1453,7 +1471,7 @@ app.post("/cuenta/empleados/importar-locales", requerirSesionCuenta, async (req,
 
         res.json({ ok: true, importados });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1470,7 +1488,7 @@ app.get("/dispositivo/empleados", requerirDispositivoVinculado, async (req, res)
 
         res.json({ ok: true, empleados: filas.rows.map(empleadoParaDispositivo) });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1507,7 +1525,7 @@ app.post("/dispositivo/empleados/verificar-pin", requerirDispositivoVinculado, a
 
         res.json({ ok: true, empleado: empleadoParaDispositivo(fila.rows[0]) });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1545,7 +1563,7 @@ app.put("/cuenta/correo", requerirSesionCuenta, async (req, res) => {
 
         res.json({ ok: true, correo, correoVerificado: false });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1595,7 +1613,7 @@ app.put("/cuenta/password", requerirSesionCuenta, async (req, res) => {
 
         res.json({ ok: true });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1640,7 +1658,7 @@ app.post("/cuenta/olvide-password", async (req, res) => {
 
         res.json({ ok: true });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1719,7 +1737,7 @@ app.post("/cuenta/verificar-codigo-reset", async (req, res) => {
 
         res.json({ ok: true, tokenRestablecimiento: tokenPlano });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1780,7 +1798,7 @@ app.post("/cuenta/restablecer-password", async (req, res) => {
 
         res.json({ ok: true });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -1891,10 +1909,7 @@ app.get("/admin/api/resumen", async (_req, res) => {
             dispositivos: dispositivos.rows[0]
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -1981,10 +1996,7 @@ app.get("/admin/api/negocios", async (_req, res) => {
             })
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -2102,10 +2114,7 @@ app.post("/admin/api/negocios", async (req, res) => {
     } catch (error) {
         await client.query("ROLLBACK");
 
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     } finally {
         client.release();
     }
@@ -2149,10 +2158,7 @@ app.get("/admin/api/negocios/:id/dispositivos", async (req, res) => {
             dispositivos: resultado.rows
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -2236,10 +2242,7 @@ app.delete("/admin/api/negocios/:id", async (req, res) => {
     } catch (error) {
         await client.query("ROLLBACK");
 
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     } finally {
         client.release();
     }
@@ -2272,10 +2275,7 @@ app.get("/admin/api/versiones", async (_req, res) => {
             versiones: resultado.rows
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -2359,10 +2359,7 @@ app.put("/admin/api/negocios/:id/licencia", async (req, res) => {
     } catch (error) {
         await client.query("ROLLBACK");
 
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     } finally {
         client.release();
     }
@@ -2408,10 +2405,7 @@ app.post("/admin/api/negocios/:id/licencia/regenerar-clave", async (req, res) =>
     } catch (error) {
         await client.query("ROLLBACK");
 
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     } finally {
         client.release();
     }
@@ -2523,10 +2517,7 @@ app.post("/dispositivos/activar", async (req, res) => {
             licencia: await licenciaActual(negocioActivacion)
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -2596,10 +2587,7 @@ app.post("/dispositivos/checkin", requerirAccesoNegocio, async (req, res) => {
             licencia: await licenciaActual(negocio)
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -2645,10 +2633,7 @@ app.get("/dispositivos", requerirAccesoNegocio, async (req, res) => {
             dispositivos: resultado.rows
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -2851,10 +2836,7 @@ app.post("/sync/push", requerirAccesoNegocio, async (req, res) => {
             errores
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -2899,10 +2881,7 @@ app.get("/sync/pull", requerirAccesoNegocio, async (req, res) => {
             eventos: resultado.rows
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -2942,10 +2921,7 @@ app.get("/updates/latest", requerirAccesoNegocio, async (req, res) => {
             latest: version
         });
     } catch (error) {
-        res.status(500).json({
-            ok: false,
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -4195,13 +4171,7 @@ app.get("/productos", requerirAccesoNegocio, async (req, res) => {
         res.json(productosConFoto);
 
     } catch (error) {
-        console.log(error);
-
-        res.status(500).json({
-            error: error.message,
-            detail: error.detail || null,
-            code: error.code || null
-        });
+        responderError(res, error);
     }
 });
 
@@ -4216,7 +4186,7 @@ app.get("/fotos-producto-existe/:codigo", requerirAccesoNegocio, async (req, res
 
         res.json({ ok: true, existe: resultado.rows.length > 0 });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -4238,7 +4208,7 @@ app.get("/fotos-producto-resumen", requerirAccesoNegocio, async (req, res) => {
             ultimaActualizacion: fila.ultima_actualizacion
         });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -4292,7 +4262,7 @@ app.get("/fotos-producto-lista", requerirAccesoNegocio, async (req, res) => {
 
         res.json({ ok: true, fotos: lista });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -4320,7 +4290,7 @@ app.post("/fotos-producto/importar-lote", requerirAccesoNegocio, manejarSubidaFo
 
         res.json({ ok: true, ...resumen });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     } finally {
         for (const archivo of archivos) {
             fs.unlink(archivo.path, () => {});
@@ -4355,7 +4325,7 @@ app.post("/fotos-producto/:codigo/principal", requerirAccesoNegocio, async (req,
 
         res.json({ ok: true, codigo });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -4380,7 +4350,7 @@ app.get("/fotos-producto/:codigo/principal", requerirAccesoNegocio, async (req, 
         res.set("Cache-Control", "public, max-age=2592000, immutable");
         res.send(fila.imagen_principal);
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -4408,7 +4378,7 @@ app.get("/fotos-producto/:codigo/galeria", requerirAccesoNegocio, async (req, re
             }))
         });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -4438,7 +4408,7 @@ app.get("/fotos-producto-galeria/:id", requerirAccesoNegocio, async (req, res) =
         res.set("Cache-Control", "public, max-age=2592000, immutable");
         res.send(fila.imagen);
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -5080,7 +5050,7 @@ app.post("/ventas", requerirAccesoNegocio, async (req, res) => {
     try {
         negocioVenta = await negocioActual(req);
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
         return;
     }
 
@@ -5156,14 +5126,7 @@ app.post("/ventas", requerirAccesoNegocio, async (req, res) => {
 
     } catch (error) {
         await client.query("ROLLBACK").catch(() => {});
-
-        console.log("ERROR EN /ventas:", error);
-
-        res.status(500).json({
-            error: error.message,
-            detail: error.detail || null,
-            code: error.code || null
-        });
+        responderError(res, error);
     } finally {
         client.release();
     }
@@ -5244,7 +5207,7 @@ app.get("/ventas/:id", requerirAccesoNegocio, async (req, res) => {
 
         res.json({ ok: true, venta });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -5260,7 +5223,7 @@ app.get("/ventas/folio/:folio", requerirAccesoNegocio, async (req, res) => {
 
         res.json({ ok: true, venta });
     } catch (error) {
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     }
 });
 
@@ -5367,7 +5330,7 @@ app.post("/ventas/:id/comprobantes", requerirAccesoNegocio, async (req, res) => 
         });
     } catch (error) {
         await client.query("ROLLBACK").catch(() => {});
-        res.status(500).json({ ok: false, error: error.message });
+        responderError(res, error);
     } finally {
         client.release();
     }
@@ -5444,13 +5407,7 @@ app.get("/creditos", requerirAccesoNegocio, async (req, res) => {
             pagosEsteMes: Number(pagosMes.rows[0].total)
         });
     } catch (error) {
-        console.log("ERROR EN /creditos:", error);
-
-        res.status(500).json({
-            error: error.message,
-            detail: error.detail || null,
-            code: error.code || null
-        });
+        responderError(res, error);
     }
 });
 
@@ -5501,9 +5458,7 @@ app.get("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
             movimientos: movimientos.rows
         });
     } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -5548,9 +5503,7 @@ app.post("/creditos/clientes", requerirAccesoNegocio, async (req, res) => {
             cliente: resultado.rows[0]
         });
     } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -5603,9 +5556,7 @@ app.put("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
             cliente: resultado.rows[0]
         });
     } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -5633,9 +5584,7 @@ app.delete("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => 
             success: true
         });
     } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -5661,9 +5610,7 @@ app.get("/proveedores", requerirAccesoNegocio, async (req, res) => {
             proveedores: resultado.rows
         });
     } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -5710,9 +5657,7 @@ app.post("/proveedores", requerirAccesoNegocio, async (req, res) => {
             proveedor: resultado.rows[0]
         });
     } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -5768,9 +5713,7 @@ app.put("/proveedores/:id", requerirAccesoNegocio, async (req, res) => {
             proveedor: resultado.rows[0]
         });
     } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -5798,9 +5741,7 @@ app.delete("/proveedores/:id", requerirAccesoNegocio, async (req, res) => {
             success: true
         });
     } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -5828,9 +5769,7 @@ app.put("/proveedores/:id/activar", requerirAccesoNegocio, async (req, res) => {
             success: true
         });
     } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -5879,9 +5818,7 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res
             movimiento: resultado.rows[0]
         });
     } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -5955,9 +5892,7 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
             movimiento: resultado.rows[0]
         });
     } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 
@@ -6221,9 +6156,7 @@ app.get("/reportes/ventas", requerirAccesoNegocio, async (req, res) => {
             ultimas: ultimas.rows
         });
     } catch (error) {
-        res.status(500).json({
-            error: error.message
-        });
+        responderError(res, error);
     }
 });
 

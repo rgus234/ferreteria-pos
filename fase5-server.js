@@ -1,4 +1,5 @@
 const { DEFAULT_NEGOCIO_SLUG } = require("./tenant");
+const { responderError } = require("./error-utils");
 
 module.exports = (app, pool, requerirAccesoNegocio) => {
     let listo = false;
@@ -291,7 +292,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 }
             });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -356,7 +357,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 gastosPorCategoria: gastosPorCategoria.rows
             });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -384,7 +385,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             res.json({ cuentas: resultado.rows });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -410,7 +411,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             res.json({ cuentas: resultado.rows });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -456,7 +457,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             res.json({ cuenta: resultado.rows[0] });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -536,7 +537,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             res.json({ pago: pago.rows[0], saldo: nuevoSaldo, estado });
         } catch (error) {
             await client.query("ROLLBACK");
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         } finally {
             client.release();
         }
@@ -557,7 +558,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             res.json({ pagos: resultado.rows });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -576,7 +577,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             res.json({ gastos: resultado.rows });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 
@@ -620,7 +621,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             res.json({ gasto: resultado.rows[0] });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            responderError(res, error);
         }
     });
 };
