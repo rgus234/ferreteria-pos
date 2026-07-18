@@ -2343,3 +2343,67 @@ Validacion:
   `/creditos`, `/historial`, `/reportes/ventas`, `/dashboard` y
   `/negocio-actual` sin token ahora devuelven `401` (antes daban `200`
   con datos reales).
+
+### Nexo IA -- chat basico con datos reales (IA-1, 2026-07-18)
+
+Primera pieza construida de la vision de "Nexo IA" (mascota, chat
+proactivo, especialistas, aprendizaje del negocio) que el usuario
+planteo en detalle. Se le entrego primero una hoja de ruta de 6 fases
+(IA-0 a IA-5) explicando la decision central: Nexo IA no necesita un
+modelo entrenado por negocio -- necesita herramientas de solo lectura
+(*tool calling*) sobre las tablas que ya existen, y el modelo de
+lenguaje decide cual llamar segun la pregunta. El usuario confirmo
+empezar por IA-1 (chat basico) usando la API de Claude (Anthropic).
+
+Nuevo modulo `ia-server.js`, cargado por `server-modules.js` con el
+mismo patron que `stripe-server.js` -- no toca `server.js`. Expone
+`POST /ia/chat` (protegida por `requerirAccesoNegocio`, igual que el
+resto de las rutas operativas) con 4 herramientas de solo lectura,
+cada una scoped al `negocio.id` resuelto por el servidor (nunca por lo
+que mande el modelo):
+
+- `resumen_ventas`: total, transacciones y ticket promedio de
+  `historial_ventas` en los ultimos N dias.
+- `productos_stock_bajo`: productos con `stock <= stock_minimo`.
+- `productos_sin_movimiento`: productos sin ninguna venta en los
+  ultimos N dias (via `jsonb_array_elements` sobre
+  `historial_ventas.productos`, no el operador `@>`).
+- `resumen_creditos`: clientes con adeudo, vencidos y monto vencido --
+  misma agregacion por `movimientos_credito` que usa `GET /creditos`.
+
+El loop de tool-use es manual (maximo 6 iteraciones), modelo
+`claude-opus-4-8` con `thinking: adaptive`. Sin persistencia: el
+navegador guarda el historial de la conversacion en una variable JS y
+lo reenvia -- se pierde al recargar, aceptado a proposito para esta
+primera version (la proactividad y los resumenes cacheados son IA-2).
+Sin gating por plan: sigue la instruccion previa del usuario de no
+bloquear funciones por plan todavia.
+
+Frontend nuevo: `public/js/nexo-ia.js` + `public/css/components/nexo-ia.css`
+-- burbuja flotante fija (visible solo si el equipo tiene token de
+dispositivo o de cuenta) que abre un panel de chat simple. Usa el
+interceptor global de fetch (`app.js`) para la autenticacion, sin
+codigo adicional.
+
+Costo real: a diferencia de Stripe, la API de Claude no tiene "modo
+prueba" -- el usuario proporciono su propia API key de
+console.anthropic.com, guardada en `.env` (nunca commiteada). Se
+agrego `ANTHROPIC_API_KEY` a `config.js`, `.env.example`,
+`.env.production.example` y `render.yaml` con el mismo patron que las
+llaves de Stripe (`sync: false`, sin llave real en el repo).
+
+Validacion:
+
+- `node --check` correcto en `ia-server.js` y `public/js/nexo-ia.js`.
+- Probado con un negocio sintetico (creado y borrado por ID explicito,
+  con 2 productos, 1 venta y 1 cliente con credito vencido de prueba):
+  las 3 preguntas reales ("como van mis ventas", "que productos se
+  estan agotando", "tengo creditos vencidos") devolvieron respuestas
+  ancladas exactamente a los datos insertados -- sin numeros
+  inventados. El modelo combino correctamente `productos_stock_bajo` y
+  `productos_sin_movimiento` sin que se le pidiera explicitamente.
+- Verificado en el navegador: la burbuja aparece solo con token de
+  dispositivo, abre el panel, el mensaje del usuario y la respuesta se
+  muestran correctamente, sin errores en consola ni en la red.
+- Confirmado que `negocio_id = 1` (Ferreteria Olimpico) no cambio ni
+  una columna durante las pruebas.

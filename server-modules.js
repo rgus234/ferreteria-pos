@@ -27,6 +27,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("stripe suscripciones", () => {
         require("./stripe-server")(app, pool, requerirSesionCuenta);
     });
+
+    cargarModuloPOS("ia nexo", () => {
+        require("./ia-server")(app, pool, requerirAccesoNegocio);
+    });
 }
 
 module.exports = {

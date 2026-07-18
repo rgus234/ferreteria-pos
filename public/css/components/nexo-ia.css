@@ -1,0 +1,188 @@
+/* Burbuja flotante y panel de chat de Nexo IA. Usa los tokens de
+   design-system.css (--nexo-*) para verse consistente con el resto
+   del shell. */
+
+#nexoIaBurbuja {
+ position: fixed;
+ right: 22px;
+ bottom: 22px;
+ width: 56px;
+ height: 56px;
+ border-radius: var(--nexo-radius-pill);
+ background: var(--nexo-brand);
+ color: #fff;
+ border: none;
+ box-shadow: var(--nexo-shadow-brand);
+ display: none;
+ align-items: center;
+ justify-content: center;
+ cursor: pointer;
+ z-index: 1200;
+ transition: transform .15s ease;
+}
+
+#nexoIaBurbuja.visible {
+ display: flex;
+}
+
+#nexoIaBurbuja:hover {
+ transform: scale(1.05);
+}
+
+#nexoIaBurbuja svg {
+ width: 28px;
+ height: 28px;
+}
+
+#nexoIaPanel {
+ position: fixed;
+ right: 22px;
+ bottom: 90px;
+ width: 340px;
+ max-width: calc(100vw - 44px);
+ height: 460px;
+ max-height: calc(100vh - 130px);
+ background: var(--nexo-surface-strong);
+ backdrop-filter: var(--nexo-glass-blur);
+ border: 1px solid var(--nexo-line);
+ border-radius: var(--nexo-radius-lg);
+ box-shadow: var(--nexo-shadow-soft);
+ display: none;
+ flex-direction: column;
+ overflow: hidden;
+ z-index: 1200;
+ font-family: var(--nexo-font-family);
+}
+
+#nexoIaPanel.abierto {
+ display: flex;
+}
+
+.nexo-ia-cabecera {
+ display: flex;
+ align-items: center;
+ gap: var(--nexo-space-2);
+ padding: var(--nexo-space-3) var(--nexo-space-4);
+ background: var(--nexo-brand);
+ color: #fff;
+}
+
+.nexo-ia-cabecera svg {
+ width: 22px;
+ height: 22px;
+ flex-shrink: 0;
+}
+
+.nexo-ia-cabecera-titulo {
+ flex: 1;
+ font-weight: 600;
+ font-size: var(--nexo-font-size-md);
+}
+
+.nexo-ia-cerrar {
+ background: transparent;
+ border: none;
+ color: #fff;
+ font-size: 18px;
+ line-height: 1;
+ cursor: pointer;
+ padding: 4px 6px;
+ opacity: .85;
+}
+
+.nexo-ia-cerrar:hover {
+ opacity: 1;
+}
+
+.nexo-ia-mensajes {
+ flex: 1;
+ overflow-y: auto;
+ padding: var(--nexo-space-3);
+ display: flex;
+ flex-direction: column;
+ gap: var(--nexo-space-2);
+}
+
+.nexo-ia-mensaje {
+ max-width: 85%;
+ padding: 8px 12px;
+ border-radius: var(--nexo-radius-md);
+ font-size: var(--nexo-font-size-sm);
+ line-height: 1.4;
+ white-space: pre-wrap;
+ word-break: break-word;
+}
+
+.nexo-ia-mensaje.usuario {
+ align-self: flex-end;
+ background: var(--nexo-brand-soft);
+ color: var(--nexo-text);
+ border-bottom-right-radius: 4px;
+}
+
+.nexo-ia-mensaje.asistente {
+ align-self: flex-start;
+ background: var(--nexo-surface);
+ color: var(--nexo-text);
+ border-bottom-left-radius: 4px;
+}
+
+.nexo-ia-mensaje.pensando {
+ align-self: flex-start;
+ color: var(--nexo-text-muted);
+ font-style: italic;
+}
+
+.nexo-ia-mensaje.error {
+ align-self: center;
+ background: color-mix(in srgb, var(--nexo-danger) 12%, #fff);
+ color: var(--nexo-danger);
+}
+
+.nexo-ia-entrada {
+ display: flex;
+ gap: var(--nexo-space-2);
+ padding: var(--nexo-space-3);
+ border-top: 1px solid var(--nexo-line);
+}
+
+.nexo-ia-entrada textarea {
+ flex: 1;
+ resize: none;
+ height: 38px;
+ max-height: 90px;
+ padding: 8px 10px;
+ border-radius: var(--nexo-radius-sm);
+ border: 1px solid var(--nexo-line);
+ font-family: var(--nexo-font-family);
+ font-size: var(--nexo-font-size-sm);
+}
+
+.nexo-ia-entrada button {
+ border: none;
+ background: var(--nexo-brand);
+ color: #fff;
+ border-radius: var(--nexo-radius-sm);
+ padding: 0 var(--nexo-space-4);
+ cursor: pointer;
+ font-size: var(--nexo-font-size-sm);
+ font-weight: 600;
+}
+
+.nexo-ia-entrada button:disabled {
+ opacity: .6;
+ cursor: default;
+}
+
+@media (max-width: 480px) {
+ #nexoIaPanel {
+  right: 12px;
+  bottom: 82px;
+  width: calc(100vw - 24px);
+ }
+
+ #nexoIaBurbuja {
+  right: 12px;
+  bottom: 12px;
+ }
+}

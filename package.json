@@ -20,6 +20,7 @@
         "desktop:release": "node scripts/prepare-desktop-release.js"
     },
     "dependencies": {
+        "@anthropic-ai/sdk": "^0.112.3",
         "adm-zip": "^0.6.0",
         "express": "^5.2.1",
         "helmet": "^8.3.0",
