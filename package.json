@@ -12,6 +12,7 @@
         "start:prod": "node --env-file=.env.production server.js",
         "check": "node --check server.js && node --check public/app.js",
         "check:env": "node --env-file=.env scripts/check-env.js",
+        "test": "node --env-file=.env --test --test-concurrency=1",
         "migrate": "node --env-file=.env scripts/migrate.js",
         "migrate:prod": "node --env-file=.env.production scripts/migrate.js",
         "desktop:check": "npm --prefix apps/desktop run check",
