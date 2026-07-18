@@ -318,6 +318,25 @@ async function chatNexoIA(pool, negocioId, mensajes) {
 }
 
 module.exports = (app, pool, requerirAccesoNegocio) => {
+    // Resumen instantaneo para el popover de la burbuja -- mismas
+    // herramientas de Nivel 1, sin pasar por el clasificador ni el
+    // modelo. Costo $0, siempre en vivo (no necesita cache).
+    app.get("/ia/resumen-rapido", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+
+            const [ventas, stockBajo, creditos] = await Promise.all([
+                ejecutarHerramientaNexo(pool, negocio.id, "resumen_ventas", {}),
+                ejecutarHerramientaNexo(pool, negocio.id, "productos_stock_bajo", {}),
+                ejecutarHerramientaNexo(pool, negocio.id, "resumen_creditos", {})
+            ]);
+
+            res.json({ ok: true, ventas, stockBajo, creditos });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     app.post("/ia/chat", requerirAccesoNegocio, async (req, res) => {
         const anthropic = obtenerAnthropic();
 

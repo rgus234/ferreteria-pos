@@ -2458,3 +2458,56 @@ explicito, con 1 producto de stock bajo y 1 venta de prueba):
   `nivel: 3`, nunca cache ni Nivel 1.
 - `node --check ia-server.js` correcto. `negocio_id = 1` (Ferreteria
   Olimpico) sin cambios.
+
+### Nexo IA -- modulo de pantalla completa (IA-2b, 2026-07-18)
+
+El usuario delego cual construir despues entre el modulo de pantalla
+completa (IA-2b) y el personaje con expresiones (IA-2c). Se eligio
+IA-2b por ser la base estructural donde vive todo lo demas -- construir
+personalidad sobre la burbuja chica actual se habria tenido que rehacer
+despues. Cambio central pedido explicitamente por el usuario: **la
+burbuja deja de ser el chat**. Al hacer clic solo muestra un resumen
+rapido + preguntas rapidas + un boton "Abrir Nexo IA"; el chat completo
+vive en un modulo nuevo del shell, igual que Ventas o Reportes.
+
+Siguio el mismo patron usado para agregar la pantalla "Cuenta"
+(investigado con un agente Explore antes de escribir codigo): seccion
+estatica `pantallaNexoIA` junto a `pantallaCuenta`
+(`public/index.html`), agregada a `ocultarPantallasPrincipales()`
+(`public/js/config-auth.js`), boton de sidebar con
+`data-shell-module="nexo-ia"`, y en `shell-topbar.js` un icono nuevo
+(`sparkle`, mismo estilo de trazo que los demas), entrada en
+`AYUDA_MODULOS_POS`, mapeo en `iconoModuloPOS()` y orden en
+`ordenarSidebarPOS()`. A diferencia de `mostrarCuenta()` (que no
+actualiza el titulo del topbar -- gap detectado durante la
+investigacion), `mostrarNexoIA()` si llama
+`actualizarTopbarContexto()` explicitamente.
+
+Backend: nueva ruta `GET /ia/resumen-rapido` en `ia-server.js`, corre
+en paralelo las mismas 3 herramientas de Nivel 1 (`resumen_ventas`,
+`productos_stock_bajo`, `resumen_creditos`) sin pasar por el
+clasificador ni el modelo -- alimenta el popover al costo $0 de
+siempre.
+
+`public/js/nexo-ia.js` se reescribio: la burbuja abre un popover
+(`alternarPopoverNexoIA()`) con el resumen y 3 preguntas rapidas; el
+chat completo (`agregarMensajeNexoIA()`/`enviarMensajeNexoIA()`,
+reusadas de IA-1) se renderiza dentro de `mostrarNexoIA()`. Los
+mensajes de conversaciones anteriores (`historialNexoIA`) se vuelven a
+pintar al reabrir el modulo, para que no se sienta que el chat se
+reinicia al navegar a otra pantalla y volver.
+
+Validacion, contra un negocio sintetico (creado y borrado por ID
+explicito, con 1 producto de stock bajo y 1 venta de prueba):
+
+- `GET /ia/resumen-rapido` regresa los 3 bloques con datos reales.
+- En el navegador, con el token de dispositivo simulado: la burbuja
+  abre el popover (no el chat) con los datos reales; una pregunta
+  rapida cierra el popover, abre el modulo completo y la pregunta se
+  responde sola con el dato correcto ($350, 1 venta); el boton de
+  sidebar "Nexo IA" aparece con icono, se marca activo
+  (`.activo`) y el topbar cambia de titulo; `ocultarPantallasPrincipales()`
+  oculta correctamente `pantallaNexoIA` al navegar a otra pantalla.
+- Sin errores en consola del navegador durante toda la prueba.
+- `node --check` correcto en los 4 archivos JS tocados. `negocio_id = 1`
+  (Ferreteria Olimpico) sin cambios.

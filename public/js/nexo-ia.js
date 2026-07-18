@@ -1,8 +1,11 @@
-/* Burbuja flotante de Nexo IA (chat basico con datos reales, IA-1).
+/* Nexo IA (IA-2b): la burbuja flotante ya no es el chat -- es un
+   acceso rapido (resumen + recomendaciones + preguntas rapidas). El
+   chat completo vive en el modulo de pantalla completa
+   (#pantallaNexoIA), igual que Ventas, Inventario o Reportes.
    Sin persistencia: el historial vive solo en esta variable JS y se
-   pierde al recargar -- aceptado para esta primera version. El
-   interceptor global de fetch (app.js) ya agrega el header de auth
-   correcto a "/ia/chat", no hace falta nada especial aqui. */
+   pierde al recargar -- aceptado para esta version. El interceptor
+   global de fetch (app.js) ya agrega el header de auth correcto a
+   las rutas de /ia/*, no hace falta nada especial aqui. */
 
 let historialNexoIA = [];
 let nexoIaEnviando = false;
@@ -16,6 +19,12 @@ const NEXO_IA_MARCA_SVG = `
   <circle cx="25" cy="25" r="2.6" fill="currentColor"/>
  </svg>
 `;
+
+const PREGUNTAS_RAPIDAS_NEXO_IA = [
+ "Como van mis ventas?",
+ "Que productos se estan agotando?",
+ "Tengo creditos vencidos?"
+];
 
 function nexoIaEquipoVinculado() {
  const tokenDispositivo = localStorage.getItem("nexoDispositivoToken");
@@ -31,29 +40,144 @@ function crearNexoIaUI() {
  burbuja.type = "button";
  burbuja.title = "Nexo IA";
  burbuja.innerHTML = NEXO_IA_MARCA_SVG;
- burbuja.addEventListener("click", alternarPanelNexoIA);
+ burbuja.addEventListener("click", alternarPopoverNexoIA);
 
- const panel = document.createElement("div");
- panel.id = "nexoIaPanel";
- panel.innerHTML = `
-  <div class="nexo-ia-cabecera">
+ const popover = document.createElement("div");
+ popover.id = "nexoIaPopover";
+
+ document.body.appendChild(burbuja);
+ document.body.appendChild(popover);
+}
+
+function alternarPopoverNexoIA() {
+ const popover = document.getElementById("nexoIaPopover");
+ if (!popover) return;
+
+ const abriendo = !popover.classList.contains("abierto");
+ popover.classList.toggle("abierto", abriendo);
+
+ if (abriendo) cargarResumenRapidoNexoIA();
+}
+
+function cerrarPopoverNexoIA() {
+ document.getElementById("nexoIaPopover")?.classList.remove("abierto");
+}
+
+async function cargarResumenRapidoNexoIA() {
+ const popover = document.getElementById("nexoIaPopover");
+ if (!popover) return;
+
+ popover.innerHTML = `
+  <div class="nexo-ia-popover-cabecera">
    ${NEXO_IA_MARCA_SVG}
-   <div class="nexo-ia-cabecera-titulo">Nexo IA</div>
-   <button type="button" class="nexo-ia-cerrar" id="nexoIaCerrar" aria-label="Cerrar">&times;</button>
+   <div class="nexo-ia-popover-titulo">Nexo IA</div>
   </div>
-  <div class="nexo-ia-mensajes" id="nexoIaMensajes">
-   <div class="nexo-ia-mensaje asistente">Hola, soy Nexo. Preguntame como van tus ventas, tu inventario o tus creditos.</div>
-  </div>
-  <div class="nexo-ia-entrada">
-   <textarea id="nexoIaInput" placeholder="Escribe tu pregunta..." maxlength="2000"></textarea>
-   <button type="button" id="nexoIaEnviar">Enviar</button>
+  <p class="nexo-ia-popover-cargando">Revisando tu negocio...</p>
+ `;
+
+ try {
+  const respuesta = await fetch("/ia/resumen-rapido");
+  const datos = await respuesta.json();
+
+  if (!respuesta.ok || !datos.ok) {
+   popover.querySelector(".nexo-ia-popover-cargando").textContent = "No se pudo cargar el resumen ahora mismo.";
+   renderAccesosPopoverNexoIA(popover);
+   return;
+  }
+
+  const filas = [
+   `Ventas (7 dias): ${datos.ventas.transacciones} venta(s), $${Number(datos.ventas.total).toFixed(2)}`,
+   datos.stockBajo.productos.length === 0
+    ? "Inventario: sin productos en stock bajo"
+    : `Inventario: ${datos.stockBajo.productos.length} producto(s) con stock bajo`,
+   datos.creditos.clientesVencidos === 0
+    ? "Creditos: sin creditos vencidos"
+    : `Creditos: ${datos.creditos.clientesVencidos} vencido(s) por $${Number(datos.creditos.totalVencido).toFixed(2)}`
+  ];
+
+  popover.querySelector(".nexo-ia-popover-cargando").remove();
+
+  const resumen = document.createElement("div");
+  resumen.className = "nexo-ia-popover-resumen";
+  resumen.innerHTML = filas.map(fila => `<p>${fila}</p>`).join("");
+  popover.appendChild(resumen);
+
+  renderAccesosPopoverNexoIA(popover);
+ } catch (error) {
+  popover.querySelector(".nexo-ia-popover-cargando").textContent = "No se pudo conectar con Nexo ahora mismo.";
+  renderAccesosPopoverNexoIA(popover);
+ }
+}
+
+function renderAccesosPopoverNexoIA(popover) {
+ const preguntas = document.createElement("div");
+ preguntas.className = "nexo-ia-popover-preguntas";
+ preguntas.innerHTML = PREGUNTAS_RAPIDAS_NEXO_IA.map(
+  (pregunta, indice) => `<button type="button" data-pregunta-rapida="${indice}">${pregunta}</button>`
+ ).join("");
+ popover.appendChild(preguntas);
+
+ preguntas.querySelectorAll("[data-pregunta-rapida]").forEach(boton => {
+  boton.addEventListener("click", () => {
+   const pregunta = PREGUNTAS_RAPIDAS_NEXO_IA[Number(boton.dataset.preguntaRapida)];
+   cerrarPopoverNexoIA();
+   abrirNexoIAConPregunta(pregunta);
+  });
+ });
+
+ const abrir = document.createElement("button");
+ abrir.type = "button";
+ abrir.className = "nexo-ia-popover-abrir";
+ abrir.textContent = "Abrir Nexo IA";
+ abrir.addEventListener("click", () => {
+  cerrarPopoverNexoIA();
+  mostrarNexoIA();
+ });
+ popover.appendChild(abrir);
+}
+
+function abrirNexoIAConPregunta(pregunta) {
+ mostrarNexoIA();
+ const input = document.getElementById("nexoIaInput");
+ if (input) input.value = pregunta;
+ enviarMensajeNexoIA();
+}
+
+async function mostrarNexoIA() {
+ if (typeof ocultarPantallasPrincipales === "function") {
+  ocultarPantallasPrincipales();
+ }
+
+ const pantalla = document.getElementById("pantallaNexoIA");
+ if (!pantalla) return;
+
+ pantalla.style.display = "block";
+
+ if (typeof actualizarModuloActivoPOS === "function") {
+  actualizarModuloActivoPOS("nexo-ia");
+ }
+
+ if (typeof actualizarTopbarContexto === "function") {
+  actualizarTopbarContexto("Nexo IA", "Tu asistente para ventas, inventario y creditos", "nexo-ia");
+ }
+
+ pantalla.innerHTML = `
+  <div class="caja nexo-ia-vista">
+   <div class="nexo-ia-vista-cabecera">
+    ${NEXO_IA_MARCA_SVG}
+    <div>
+     <h2>Nexo IA</h2>
+     <p class="nexo-ia-vista-subtitulo">Pregunta lo que quieras saber de tu negocio</p>
+    </div>
+   </div>
+   <div class="nexo-ia-mensajes" id="nexoIaMensajes"></div>
+   <div class="nexo-ia-entrada">
+    <textarea id="nexoIaInput" placeholder="Escribe tu pregunta..." maxlength="2000"></textarea>
+    <button type="button" id="nexoIaEnviar">Enviar</button>
+   </div>
   </div>
  `;
 
- document.body.appendChild(burbuja);
- document.body.appendChild(panel);
-
- document.getElementById("nexoIaCerrar").addEventListener("click", alternarPanelNexoIA);
  document.getElementById("nexoIaEnviar").addEventListener("click", enviarMensajeNexoIA);
  document.getElementById("nexoIaInput").addEventListener("keydown", evento => {
   if (evento.key === "Enter" && !evento.shiftKey) {
@@ -61,14 +185,13 @@ function crearNexoIaUI() {
    enviarMensajeNexoIA();
   }
  });
-}
 
-function alternarPanelNexoIA() {
- const panel = document.getElementById("nexoIaPanel");
- if (!panel) return;
- panel.classList.toggle("abierto");
- if (panel.classList.contains("abierto")) {
-  document.getElementById("nexoIaInput")?.focus();
+ if (historialNexoIA.length === 0) {
+  agregarMensajeNexoIA("Hola, soy Nexo. Preguntame como van tus ventas, tu inventario o tus creditos.", "asistente");
+ } else {
+  historialNexoIA.forEach(entrada => {
+   agregarMensajeNexoIA(entrada.contenido, entrada.rol === "user" ? "usuario" : "asistente");
+  });
  }
 }
 
@@ -95,7 +218,8 @@ async function enviarMensajeNexoIA() {
  const indicador = agregarMensajeNexoIA("Nexo esta pensando...", "pensando");
 
  nexoIaEnviando = true;
- document.getElementById("nexoIaEnviar").disabled = true;
+ const botonEnviar = document.getElementById("nexoIaEnviar");
+ if (botonEnviar) botonEnviar.disabled = true;
 
  try {
   const respuesta = await fetch("/ia/chat", {
@@ -121,7 +245,8 @@ async function enviarMensajeNexoIA() {
   agregarMensajeNexoIA("No se pudo conectar con Nexo. Revisa tu conexion.", "error");
  } finally {
   nexoIaEnviando = false;
-  document.getElementById("nexoIaEnviar").disabled = false;
+  const boton = document.getElementById("nexoIaEnviar");
+  if (boton) boton.disabled = false;
  }
 }
 

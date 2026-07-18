@@ -1,6 +1,7 @@
-/* Burbuja flotante y panel de chat de Nexo IA. Usa los tokens de
-   design-system.css (--nexo-*) para verse consistente con el resto
-   del shell. */
+/* Burbuja flotante y popover de acceso rapido de Nexo IA (IA-2b). El
+   chat completo vive en el modulo de pantalla completa -- ver
+   nexo-ia-view.css. Usa los tokens de design-system.css (--nexo-*)
+   para verse consistente con el resto del shell. */
 
 #nexoIaBurbuja {
  position: fixed;
@@ -34,14 +35,12 @@
  height: 28px;
 }
 
-#nexoIaPanel {
+#nexoIaPopover {
  position: fixed;
  right: 22px;
  bottom: 90px;
- width: 340px;
+ width: 300px;
  max-width: calc(100vw - 44px);
- height: 460px;
- max-height: calc(100vh - 130px);
  background: var(--nexo-surface-strong);
  backdrop-filter: var(--nexo-glass-blur);
  border: 1px solid var(--nexo-line);
@@ -54,11 +53,11 @@
  font-family: var(--nexo-font-family);
 }
 
-#nexoIaPanel.abierto {
+#nexoIaPopover.abierto {
  display: flex;
 }
 
-.nexo-ia-cabecera {
+.nexo-ia-popover-cabecera {
  display: flex;
  align-items: center;
  gap: var(--nexo-space-2);
@@ -67,115 +66,73 @@
  color: #fff;
 }
 
-.nexo-ia-cabecera svg {
+.nexo-ia-popover-cabecera svg {
  width: 22px;
  height: 22px;
  flex-shrink: 0;
 }
 
-.nexo-ia-cabecera-titulo {
- flex: 1;
+.nexo-ia-popover-titulo {
  font-weight: 600;
  font-size: var(--nexo-font-size-md);
 }
 
-.nexo-ia-cerrar {
- background: transparent;
- border: none;
- color: #fff;
- font-size: 18px;
- line-height: 1;
- cursor: pointer;
- padding: 4px 6px;
- opacity: .85;
+.nexo-ia-popover-cargando {
+ padding: var(--nexo-space-4);
+ margin: 0;
+ font-size: var(--nexo-font-size-sm);
+ color: var(--nexo-text-muted);
 }
 
-.nexo-ia-cerrar:hover {
- opacity: 1;
-}
-
-.nexo-ia-mensajes {
- flex: 1;
- overflow-y: auto;
- padding: var(--nexo-space-3);
+.nexo-ia-popover-resumen {
+ padding: var(--nexo-space-3) var(--nexo-space-4);
  display: flex;
  flex-direction: column;
- gap: var(--nexo-space-2);
+ gap: 4px;
 }
 
-.nexo-ia-mensaje {
- max-width: 85%;
- padding: 8px 12px;
- border-radius: var(--nexo-radius-md);
+.nexo-ia-popover-resumen p {
+ margin: 0;
  font-size: var(--nexo-font-size-sm);
- line-height: 1.4;
- white-space: pre-wrap;
- word-break: break-word;
-}
-
-.nexo-ia-mensaje.usuario {
- align-self: flex-end;
- background: var(--nexo-brand-soft);
  color: var(--nexo-text);
- border-bottom-right-radius: 4px;
 }
 
-.nexo-ia-mensaje.asistente {
- align-self: flex-start;
+.nexo-ia-popover-preguntas {
+ display: flex;
+ flex-direction: column;
+ gap: 6px;
+ padding: 0 var(--nexo-space-4) var(--nexo-space-3);
+}
+
+.nexo-ia-popover-preguntas button {
+ text-align: left;
+ border: 1px solid var(--nexo-line);
  background: var(--nexo-surface);
  color: var(--nexo-text);
- border-bottom-left-radius: 4px;
-}
-
-.nexo-ia-mensaje.pensando {
- align-self: flex-start;
- color: var(--nexo-text-muted);
- font-style: italic;
-}
-
-.nexo-ia-mensaje.error {
- align-self: center;
- background: color-mix(in srgb, var(--nexo-danger) 12%, #fff);
- color: var(--nexo-danger);
-}
-
-.nexo-ia-entrada {
- display: flex;
- gap: var(--nexo-space-2);
- padding: var(--nexo-space-3);
- border-top: 1px solid var(--nexo-line);
-}
-
-.nexo-ia-entrada textarea {
- flex: 1;
- resize: none;
- height: 38px;
- max-height: 90px;
- padding: 8px 10px;
  border-radius: var(--nexo-radius-sm);
- border: 1px solid var(--nexo-line);
- font-family: var(--nexo-font-family);
+ padding: 6px 10px;
  font-size: var(--nexo-font-size-sm);
+ cursor: pointer;
 }
 
-.nexo-ia-entrada button {
+.nexo-ia-popover-preguntas button:hover {
+ background: var(--nexo-brand-soft);
+}
+
+.nexo-ia-popover-abrir {
+ margin: 0 var(--nexo-space-4) var(--nexo-space-4);
  border: none;
  background: var(--nexo-brand);
  color: #fff;
  border-radius: var(--nexo-radius-sm);
- padding: 0 var(--nexo-space-4);
- cursor: pointer;
+ padding: 10px;
  font-size: var(--nexo-font-size-sm);
  font-weight: 600;
-}
-
-.nexo-ia-entrada button:disabled {
- opacity: .6;
- cursor: default;
+ cursor: pointer;
 }
 
 @media (max-width: 480px) {
- #nexoIaPanel {
+ #nexoIaPopover {
   right: 12px;
   bottom: 82px;
   width: calc(100vw - 24px);
