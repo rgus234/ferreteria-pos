@@ -2687,3 +2687,115 @@ Validacion, contra negocios sinteticos (creados y borrados por ID):
   limite.
 - `node --check ia-server.js` y `node --check public/js/nexo-ia.js`
   correctos.
+
+### Nexo IA -- identidad visual del personaje (IA-5, 2026-07-19)
+
+Con la arquitectura de costos completa, el usuario pidio pasar al
+diseno visual de Nexo IA especificamente (burbuja, popover, modulo).
+La verificacion honesta en navegador encontro un bug real ademas del
+tema de estilo: `.nexo-ia-entrada button` (el boton "Enviar") no
+sobreescribia `width`, asi que heredaba `button { width:100% }` de una
+regla global vieja en `legacy-layout.css:122` -- el boton se comia casi
+toda la fila y el textarea de mensaje quedaba comprimido a ~25px,
+practicamente inusable. Se corrigio con `width:auto; flex-shrink:0;`
+en `.nexo-ia-entrada button`.
+
+Para el personaje, el usuario compartio de nuevo la hoja de marca de
+"Nexo" (robot blanco/plateado, aleta azul, ojos que brillan en cian,
+paleta `#2563FF`/`#00D4FF`/`#0D1117`/`#E6E9EF`/`#7C3AED`) y confirmo 3
+decisiones de alcance: solo personaje + chat (sin el dashboard de KPIs
+ni el medidor "IA utilizada X%" de la imagen, eso sigue fuera de
+alcance por la decision ya tomada en IA-4); el personaje usa colores
+fijos de marca en vez de adaptarse al color de marca configurable del
+negocio (`var(--nexo-brand)`); y se disenan los 5 estados de la imagen
+(feliz, pensando, analizando, alerta, celebrando) aunque solo 3 tengan
+disparador real hoy.
+
+`nexoIaMarcaSVG(estado)` (`public/js/nexo-ia.js`) se reescribio
+completo: silueta tipo domo con gradiente sutil de volumen, pantalla
+de cara oscura fija, aleta azul, y ojos con gradiente cian->azul. Es
+el primer uso de `linearGradient` en toda la app -- hasta ahora todos
+los SVG (el set de iconos de `shell-topbar.js` y el mascote anterior)
+usaban trazos planos de un solo color (`currentColor`), confirmado sin
+precedente por un agente de investigacion. Los `id` de gradiente
+llevan un sufijo unico por llamada (contador de modulo) para que no
+choquen cuando hay mas de una instancia del personaje visible a la vez
+(burbuja + popover + modulo simultaneos). La clase CSS
+`.nexo-ia-marca-alerta` (que recoloreaba via `currentColor` para
+respetar tema claro/oscuro) se elimino -- ya no hace falta, el color
+de alerta esta horneado directo en la variante `alerta` del SVG.
+
+Contenedores actualizados a la misma identidad: `#nexoIaBurbuja` y
+`.nexo-ia-popover-cabecera` pasan de `background: var(--nexo-brand)`
+(color de marca del negocio) a un gradiente fijo
+`linear-gradient(135deg, #2563ff, #7c3aed)`; el icono de la cabecera
+del modulo sube de 40px a 56px; la burbuja de mensaje del asistente
+gana un tinte cian sutil y un borde izquierdo de acento azul en vez de
+la caja blanca con borde gris generico de antes.
+
+Validacion:
+- `node --check public/js/nexo-ia.js` correcto.
+- En navegador (`preview_*`): boton "Enviar" e input con el ancho
+  correcto (79px / 490px) tras el fix. Los 5 estados del personaje se
+  ven distintos y reconocibles (feliz, pensando con puntos, analizando
+  con lupa, alerta con triangulo ambar, celebrando con destellos).
+  Confirmado en `colorScheme: dark` y `light` que el personaje se lee
+  bien en ambos temas de la app. Sin errores en consola. Sin IDs de
+  gradiente duplicados con burbuja + popover + modulo visibles a la
+  vez.
+- No se hace `git commit`/`push` sin confirmacion explicita.
+
+**Correccion sobre la marcha, mismo dia**: el usuario probo el SVG
+dibujado a mano y fue honesto -- "no se parece nada" al personaje real,
+"quiero que sea igual porque es la esencia de mi programa". Reconocido
+directamente: un SVG escrito a mano no puede replicar un render 3D con
+iluminacion real, sin importar cuanto se pula -- es un limite tecnico,
+no un tema de esfuerzo. El usuario compartio entonces una ilustracion
+real (6 poses en una sola lamina, generada con otra herramienta de IA
+de imagenes) y confirmo que si, hay que usarla.
+
+`nexoIaMarcaSVG(estado)` se reemplazo por completo: ya no dibuja nada,
+regresa un `<img>` apuntando a un archivo en `public/img/nexo-ia/`.
+La lamina se guardo con ayuda del usuario (se le abrio el explorador de
+Windows en la carpeta destino, `public/img/nexo-ia/`, porque las
+imagenes pegadas en el chat no quedan accesibles como archivo) y se
+recorto con `sharp` (ya era dependencia del proyecto, usado para fotos
+de producto): 6 recortes por celda de la cuadricula 3x2, con
+`.trim({ background: "#ffffff" })` para ajustar el marco al personaje y
+quitar el margen blanco sobrante, comprimidos a JPEG (~10-24 KB cada
+uno, contra ~150 KB del PNG intermedio). El estado `analizando` reusa
+el archivo de `pensando` (la lamina original combina ambos conceptos en
+una sola pose); la burbuja flotante usa un archivo dedicado
+(`icono-flotante.jpg`, con su propio circulo de fondo azul marino ya
+incluido en la imagen) en vez de los otros 5 estados, porque no tiene
+version de alerta propia -- el aviso de alerta en la burbuja se sigue
+resolviendo solo con el punto rojo (`.con-alerta`), sin swap de imagen.
+
+**Defecto detectado por el usuario**: la pose "feliz" de la lamina
+tiene un error de generacion de IA -- falta el brazo derecho completo
+(las otras 5 poses si muestran ambos brazos). No hay forma de
+corregirlo sin otra herramienta de generacion de imagenes -- mientras
+tanto, el estado `feliz` usa `neutral.jpg` como sustituto (tambien
+sonriente, con ambos brazos visibles), documentado en un comentario en
+el codigo para revertir cuando el usuario mande la version corregida.
+
+Como las imagenes tienen fondo blanco solido (no transparente -- quitar
+el fondo de forma automatica no es viable porque el cascaron del robot
+es tambien blanco/plateado, muy parecido en tono al fondo, asi que
+cualquier recorte por color arriesgaba perforar el propio personaje),
+se opto por enmarcarlas en un circulo con fondo blanco y sombra sutil
+en vez de perseguir transparencia real -- se lee como una foto/sticker
+enmarcado a proposito, no como un bug, tanto en modo claro como oscuro.
+
+Validacion adicional:
+- `node --check public/js/nexo-ia.js` correcto tras el reemplazo.
+- Los 2 selectores que buscaban `svg` por nombre de etiqueta
+  (`actualizarMarcaCabeceraNexoIA`, los `::selector svg` en los 2 CSS)
+  se actualizaron a `.nexo-ia-marca` (clase, ya no tag) -- confirmado
+  en navegador que el swap de estado en la cabecera del modulo (feliz
+  <-> pensando) sigue funcionando tras el cambio de `<svg>` a `<img>`.
+- Confirmado en navegador (zoom via `transform:scale` temporal solo
+  para inspeccion) que el personaje real se ve nitido y enmarcado
+  correctamente en burbuja, popover y modulo, en claro y oscuro, sin
+  errores de consola ni imagenes rotas (`img.complete` /
+  `naturalWidth` verificados por `preview_eval`).

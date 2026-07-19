@@ -10,7 +10,7 @@
  width: 56px;
  height: 56px;
  border-radius: var(--nexo-radius-pill);
- background: var(--nexo-brand);
+ background: linear-gradient(135deg, #2563ff, #7c3aed);
  color: #fff;
  border: none;
  box-shadow: var(--nexo-shadow-brand);
@@ -30,9 +30,11 @@
  transform: scale(1.05);
 }
 
-#nexoIaBurbuja svg {
- width: 28px;
- height: 28px;
+#nexoIaBurbuja .nexo-ia-marca {
+ width: 100%;
+ height: 100%;
+ border-radius: 50%;
+ object-fit: cover;
 }
 
 #nexoIaBurbuja.con-alerta::after {
@@ -45,10 +47,6 @@
  border-radius: 50%;
  background: var(--nexo-danger);
  border: 2px solid var(--nexo-bg);
-}
-
-.nexo-ia-marca-alerta {
- color: var(--nexo-warning);
 }
 
 #nexoIaPopover {
@@ -78,14 +76,19 @@
  align-items: center;
  gap: var(--nexo-space-2);
  padding: var(--nexo-space-3) var(--nexo-space-4);
- background: var(--nexo-brand);
+ background: linear-gradient(135deg, #2563ff, #7c3aed);
  color: #fff;
 }
 
-.nexo-ia-popover-cabecera svg {
- width: 22px;
- height: 22px;
+.nexo-ia-popover-cabecera .nexo-ia-marca {
+ width: 34px;
+ height: 34px;
+ border-radius: 50%;
+ object-fit: cover;
+ object-position: center 20%;
  flex-shrink: 0;
+ background: #fff;
+ box-shadow: 0 0 0 2px rgba(255, 255, 255, .35);
 }
 
 .nexo-ia-popover-titulo {
@@ -120,11 +123,18 @@
  padding: 0 var(--nexo-space-4) var(--nexo-space-3);
 }
 
+/* !important necesario: theme-runtime.css fuerza
+   background:var(--brand-color) !important en cualquier <button> para
+   que respete el color de marca configurable del negocio. Los botones
+   de Nexo IA usan a proposito la identidad fija del personaje (ver
+   IA-5), no el color de marca del negocio, asi que hay que ganarle a
+   esa regla global. */
 .nexo-ia-popover-preguntas button {
  text-align: left;
- border: 1px solid var(--nexo-line);
- background: var(--nexo-surface);
- color: var(--nexo-text);
+ border: 1px solid var(--nexo-line) !important;
+ background: var(--nexo-surface-soft) !important;
+ backdrop-filter: var(--nexo-glass-blur);
+ color: var(--nexo-text) !important;
  border-radius: var(--nexo-radius-sm);
  padding: 6px 10px;
  font-size: var(--nexo-font-size-sm);
@@ -132,19 +142,24 @@
 }
 
 .nexo-ia-popover-preguntas button:hover {
- background: var(--nexo-brand-soft);
+ background: color-mix(in srgb, #2563ff 16%, var(--nexo-surface-soft)) !important;
 }
 
 .nexo-ia-popover-abrir {
  margin: 0 var(--nexo-space-4) var(--nexo-space-4);
- border: none;
- background: var(--nexo-brand);
- color: #fff;
+ border: 1px solid color-mix(in srgb, #2563ff 45%, transparent) !important;
+ background: color-mix(in srgb, #2563ff 55%, transparent) !important;
+ backdrop-filter: var(--nexo-glass-blur);
+ color: #fff !important;
  border-radius: var(--nexo-radius-sm);
  padding: 10px;
  font-size: var(--nexo-font-size-sm);
  font-weight: 600;
  cursor: pointer;
+}
+
+.nexo-ia-popover-abrir:hover {
+ background: color-mix(in srgb, #2563ff 68%, transparent) !important;
 }
 
 @media (max-width: 480px) {

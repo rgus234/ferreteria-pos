@@ -10,35 +10,35 @@
 let historialNexoIA = [];
 let nexoIaEnviando = false;
 
-/* Base compartida (antena + cuerpo + ojos) para las 3 expresiones de
-   Nexo -- feliz/neutral (default), pensando (mientras espera la
-   respuesta del modelo) y alerta (cuando el resumen rapido encuentra
-   stock bajo o creditos vencidos). El color de la alerta se aplica
-   por clase CSS (.nexo-ia-marca-alerta), no fijo en el SVG, para
-   respetar modo claro/oscuro. */
+/* Personaje de Nexo (IA-5): ilustracion real (no SVG dibujado a mano)
+   recortada de la hoja de personaje que el usuario genero y guardo en
+   public/img/nexo-ia/. Cada estado es una foto/render distinto, no
+   una variante de color -- por eso aqui solo se elige el archivo, sin
+   logica de dibujo. NOTA: feliz.jpg tiene un defecto de generacion
+   (le falta el brazo derecho, senalado por el usuario) -- mientras no
+   haya una version corregida, el estado "feliz" usa neutral.jpg como
+   sustituto (tambien sonriente, con ambos brazos). "analizando" no
+   tiene pose propia en la hoja original (la referencia combina
+   pensando/analizando en una sola imagen) -- reusa pensando.jpg. */
+const NEXO_IMG_POR_ESTADO = {
+ feliz: "neutral.jpg",
+ pensando: "pensando.jpg",
+ analizando: "pensando.jpg",
+ alerta: "alerta.jpg",
+ celebrando: "celebrando.jpg"
+};
+
 function nexoIaMarcaSVG(estado) {
- const cuerpoBase = `
-  <circle cx="20" cy="7" r="2.4" fill="currentColor"/>
-  <line x1="20" y1="9.4" x2="20" y2="14" stroke="currentColor" stroke-width="2"/>
-  <rect x="6" y="14" width="28" height="22" rx="8" stroke="currentColor" stroke-width="2.2"/>
-  <circle cx="15" cy="25" r="2.6" fill="currentColor"/>
-  <circle cx="25" cy="25" r="2.6" fill="currentColor"/>
- `;
+ const archivo = NEXO_IMG_POR_ESTADO[estado] || NEXO_IMG_POR_ESTADO.feliz;
+ return `<img class="nexo-ia-marca" src="img/nexo-ia/${archivo}" alt="Nexo" />`;
+}
 
- const extra = {
-  pensando: '<circle cx="14" cy="31" r="1.1" fill="currentColor"/><circle cx="20" cy="31" r="1.1" fill="currentColor"/><circle cx="26" cy="31" r="1.1" fill="currentColor"/>',
-  alerta: '<path d="M20 28l2.6 4.6h-5.2L20 28Z" fill="currentColor"/>',
-  feliz: '<path d="M15 29c1.5 1.5 6.5 1.5 8 0" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>'
- };
-
- const clase = estado === "alerta" ? " nexo-ia-marca-alerta" : "";
-
- return `
-  <svg class="nexo-ia-marca${clase}" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-   ${cuerpoBase}
-   ${extra[estado] || extra.feliz}
-  </svg>
- `;
+/* La burbuja flotante usa su propio asset dedicado (icono-flotante.jpg
+   -- ya trae su circulo de fondo azul marino integrado en la imagen).
+   No tiene una version de "alerta" propia; el aviso de alerta en la
+   burbuja se sigue mostrando solo con el punto rojo (.con-alerta). */
+function nexoIaMarcaBurbujaSVG() {
+ return `<img class="nexo-ia-marca" src="img/nexo-ia/icono-flotante.jpg" alt="Nexo" />`;
 }
 
 async function nexoIaHayAlerta() {
@@ -71,7 +71,7 @@ function crearNexoIaUI() {
  burbuja.id = "nexoIaBurbuja";
  burbuja.type = "button";
  burbuja.title = "Nexo IA";
- burbuja.innerHTML = nexoIaMarcaSVG("feliz");
+ burbuja.innerHTML = nexoIaMarcaBurbujaSVG();
  burbuja.addEventListener("click", alternarPopoverNexoIA);
 
  const popover = document.createElement("div");
@@ -288,8 +288,8 @@ async function mostrarNexoIA() {
 }
 
 function actualizarMarcaCabeceraNexoIA(estado) {
- const svgActual = document.querySelector("#nexoIaVistaCabecera svg");
- if (svgActual) svgActual.outerHTML = nexoIaMarcaSVG(estado);
+ const actual = document.querySelector("#nexoIaVistaCabecera .nexo-ia-marca");
+ if (actual) actual.outerHTML = nexoIaMarcaSVG(estado);
 }
 
 function agregarMensajeNexoIA(texto, clase) {
@@ -358,7 +358,6 @@ async function actualizarVisibilidadNexoIA() {
  if (!vinculado) return;
 
  const hayAlerta = await nexoIaHayAlerta();
- burbuja.innerHTML = nexoIaMarcaSVG(hayAlerta ? "alerta" : "feliz");
  burbuja.classList.toggle("con-alerta", hayAlerta);
 }
 

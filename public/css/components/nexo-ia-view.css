@@ -17,16 +17,16 @@
  margin-bottom: var(--nexo-space-3);
 }
 
-.nexo-ia-vista-cabecera svg {
- width: 40px;
- height: 40px;
- color: var(--nexo-brand);
+.nexo-ia-vista-cabecera .nexo-ia-marca {
+ width: 64px;
+ height: 64px;
+ border-radius: 50%;
+ object-fit: cover;
+ object-position: center 20%;
  flex-shrink: 0;
+ background: #fff;
+ box-shadow: var(--nexo-shadow-card);
  transition: opacity .15s ease;
-}
-
-.nexo-ia-vista-cabecera .nexo-ia-marca-alerta {
- color: var(--nexo-warning);
 }
 
 .nexo-ia-vista-cabecera h2 {
@@ -67,8 +67,9 @@
 
 .nexo-ia-mensaje.asistente {
  align-self: flex-start;
- background: var(--nexo-surface);
+ background: color-mix(in srgb, #00d4ff 6%, var(--nexo-surface));
  color: var(--nexo-text);
+ border-left: 3px solid #2563ff;
  border-bottom-left-radius: 4px;
 }
 
@@ -104,6 +105,8 @@
 }
 
 .nexo-ia-entrada button {
+ width: auto;
+ flex-shrink: 0;
  border: none;
  background: var(--nexo-brand);
  color: #fff;
