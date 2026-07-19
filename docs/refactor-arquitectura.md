@@ -2799,3 +2799,25 @@ Validacion adicional:
   correctamente en burbuja, popover y modulo, en claro y oscuro, sin
   errores de consola ni imagenes rotas (`img.complete` /
   `naturalWidth` verificados por `preview_eval`).
+
+**Pendiente resuelto el mismo dia**: el usuario mando la pose "feliz"
+regenerada con ambos brazos visibles. Se proceso igual que las otras 5
+(`trim` + resize + compresion JPEG con `sharp`) y `NEXO_IMG_POR_ESTADO.feliz`
+volvio a apuntar a `feliz.jpg` (ya no usa `neutral.jpg` como sustituto).
+Confirmado en navegador que la cabecera del modulo muestra la version
+corregida, con ambos brazos, sin errores de consola.
+
+**Ajuste adicional, mismo dia**: el usuario senalo que los botones del
+popover (preguntas rapidas y "Abrir Nexo IA") se veian "solidos" en vez
+de seguir el estilo "liquid glass" (`.nexo-glass` en `design-system.css`)
+del resto de la app. La causa: `theme-runtime.css` fuerza
+`background:var(--brand-color) !important` en cualquier `<button>` para
+que respete el color de marca configurable del negocio -- como el
+personaje de Nexo usa a proposito colores fijos (no el color de marca
+del negocio, decision de la seccion "Diseno" arriba), hubo que igualar
+esa prioridad con `!important` en `.nexo-ia-popover-preguntas button` y
+`.nexo-ia-popover-abrir` para que el fondo translucido con
+`backdrop-filter: var(--nexo-glass-blur)` si se aplique. Confirmado en
+navegador (`getComputedStyle`) que el `background-color` paso de
+`rgb(13, 110, 253)` (solido, el `--brand-color` de fallback) a un color
+translucido real.

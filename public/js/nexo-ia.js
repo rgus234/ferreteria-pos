@@ -11,17 +11,14 @@ let historialNexoIA = [];
 let nexoIaEnviando = false;
 
 /* Personaje de Nexo (IA-5): ilustracion real (no SVG dibujado a mano)
-   recortada de la hoja de personaje que el usuario genero y guardo en
+   recortada de las imagenes que el usuario genero y guardo en
    public/img/nexo-ia/. Cada estado es una foto/render distinto, no
    una variante de color -- por eso aqui solo se elige el archivo, sin
-   logica de dibujo. NOTA: feliz.jpg tiene un defecto de generacion
-   (le falta el brazo derecho, senalado por el usuario) -- mientras no
-   haya una version corregida, el estado "feliz" usa neutral.jpg como
-   sustituto (tambien sonriente, con ambos brazos). "analizando" no
-   tiene pose propia en la hoja original (la referencia combina
-   pensando/analizando en una sola imagen) -- reusa pensando.jpg. */
+   logica de dibujo. "analizando" no tiene pose propia en la hoja
+   original (la referencia combina pensando/analizando en una sola
+   imagen) -- reusa pensando.jpg. */
 const NEXO_IMG_POR_ESTADO = {
- feliz: "neutral.jpg",
+ feliz: "feliz.jpg",
  pensando: "pensando.jpg",
  analizando: "pensando.jpg",
  alerta: "alerta.jpg",
