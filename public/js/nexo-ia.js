@@ -30,12 +30,15 @@ function nexoIaMarcaSVG(estado) {
  return `<img class="nexo-ia-marca" src="img/nexo-ia/${archivo}" alt="Nexo" />`;
 }
 
-/* La burbuja flotante usa su propio asset dedicado (icono-flotante.jpg
-   -- ya trae su circulo de fondo azul marino integrado en la imagen).
-   No tiene una version de "alerta" propia; el aviso de alerta en la
+/* La burbuja flotante usa feliz.jpg (recorte ajustado, sin margen) en
+   vez de icono-flotante.jpg -- ese archivo trae su propio circulo de
+   fondo azul marino horneado en la imagen, lo que dejaba al personaje
+   chico y con un aro azul de mas encima del degradado del boton. Sin
+   ese circulo, el personaje llena el boton circular directamente. No
+   tiene una version de "alerta" propia; el aviso de alerta en la
    burbuja se sigue mostrando solo con el punto rojo (.con-alerta). */
 function nexoIaMarcaBurbujaSVG() {
- return `<img class="nexo-ia-marca" src="img/nexo-ia/icono-flotante.jpg" alt="Nexo" />`;
+ return `<img class="nexo-ia-marca" src="img/nexo-ia/feliz.jpg" alt="Nexo" />`;
 }
 
 async function nexoIaHayAlerta() {

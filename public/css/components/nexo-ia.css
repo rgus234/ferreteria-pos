@@ -9,6 +9,9 @@
  bottom: 22px;
  width: 56px;
  height: 56px;
+ padding: 0;
+ margin: 0;
+ overflow: hidden;
  border-radius: var(--nexo-radius-pill);
  background: linear-gradient(135deg, #2563ff, #7c3aed);
  color: #fff;
@@ -35,6 +38,7 @@
  height: 100%;
  border-radius: 50%;
  object-fit: cover;
+ object-position: center 15%;
 }
 
 #nexoIaBurbuja.con-alerta::after {

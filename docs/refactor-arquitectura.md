@@ -2821,3 +2821,23 @@ esa prioridad con `!important` en `.nexo-ia-popover-preguntas button` y
 navegador (`getComputedStyle`) que el `background-color` paso de
 `rgb(13, 110, 253)` (solido, el `--brand-color` de fallback) a un color
 translucido real.
+
+**Ajuste final, mismo dia, reportado desde el equipo real (foto del
+laptop)**: la burbuja flotante se veia con un aro azul marino grueso
+alrededor de un personaje chico. Dos causas combinadas:
+
+1. `nexoIaMarcaBurbujaSVG()` usaba `icono-flotante.jpg`, que trae su
+   propio circulo de fondo azul marino horneado en la imagen (parte
+   del diseno original) -- se cambio para usar `feliz.jpg` (el mismo
+   recorte ajustado que usan popover/modulo, sin circulo de mas).
+2. Aun con el archivo correcto, el personaje salia chico: `#nexoIaBurbuja`
+   nunca declaraba su propio `padding`, asi que heredaba
+   `padding:12px` de la regla global `button{}` de `legacy-layout.css`
+   -- con `box-sizing:border-box`, eso dejaba solo 32px de los 56px
+   totales para la imagen (confirmado con `getBoundingClientRect`:
+   boton 56x56, imagen 32x32 antes del fix). Se agrego
+   `padding:0; margin:0; overflow:hidden;` a `#nexoIaBurbuja` para
+   recuperar el area completa -- la imagen ahora llena los 56x56px
+   reales, confirmado en navegador (imagen 56x56 tras el fix, punto
+   rojo de alerta sigue visible sin recortarse por el `overflow:hidden`
+   nuevo).
