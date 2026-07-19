@@ -2841,3 +2841,106 @@ alrededor de un personaje chico. Dos causas combinadas:
    reales, confirmado en navegador (imagen 56x56 tras el fix, punto
    rojo de alerta sigue visible sin recortarse por el `overflow:hidden`
    nuevo).
+
+### Nexo IA -- busqueda inteligente de productos en el POS (IA-6, 2026-07-19)
+
+El usuario propuso una funcion nueva -- potencial "estrella" del
+producto -- pensada explicitamente para costo bajo: un boton ON/OFF
+junto a la barra de busqueda del Punto de Venta. Apagado (default), la
+busqueda funciona identica a siempre. Encendido, si el cliente escribe
+una descripcion informal ("la pieza para unir tubo de media") en vez
+de un nombre real, el sistema intenta encontrar productos reales por
+busqueda local primero, y solo si eso falla le pide a la IA palabras
+clave -- nunca que invente productos -- y vuelve a buscar local con
+esas palabras.
+
+**Hallazgo de la investigacion, resuelto con el usuario via
+`AskUserQuestion`**: el "catalogo de proveedor" que el usuario penso
+como nivel intermedio del flujo NO es una tabla compartida -- es 100%
+`localStorage` del navegador, por dispositivo (`supplier-catalog.js`,
+`catalog-parsers.js`, `supplier-catalog-view.js`, sin rutas de
+servidor ni tabla en `migrations/`). El usuario confirmo: se revisa el
+catalogo local del dispositivo si existe; si no hay uno importado ahi,
+se salta directo a IA -- no se construyo un catalogo compartido nuevo.
+Tambien confirmo que la IA se dispara automaticamente tras una pausa
+de escritura (~700ms) sin resultados locales, no solo al presionar
+Enter.
+
+**Frontend**: la barra de busqueda del POS es 100% cliente
+(`GET /productos` una vez, filtro en memoria sobre `todosProductos`
+via `productoCoincideConTexto`, `app-bootstrap.js`). `buscarProductos()`
+gana una rama nueva: si el toggle esta activo y no hay match local,
+intenta el catalogo local guardado en este dispositivo
+(`buscarProductosEnCatalogoLocalPOS()`, nuevo en
+`public/js/pos-busqueda-ia.js`, envuelve
+`buscarProductosEnCatalogoGuardado()` ya existente) y, si tampoco hay
+nada ahi, programa la llamada a IA con debounce de 700ms
+(`programarBusquedaIA()`/`cancelarBusquedaIaPendiente()`, cancelado si
+el usuario sigue escribiendo o el texto ya no coincide con la
+respuesta cuando llega -- evita pisar resultados con una respuesta
+vieja). `mostrarFlyoutBusquedaPOS()` (`pos-search-flyout.js`) gano un
+`opciones.nota` opcional para el aviso "Nexo IA encontro estos
+productos relacionados", y `filaFlyout()` distingue productos del
+catalogo (`producto.__origenCatalogo`) para no ofrecer un boton
+"Agregar" sobre algo que no existe todavia en el inventario real (ver
+"Fuera de alcance").
+
+**Backend -- `POST /ia/buscar-inteligente`** (nuevo, `ia-server.js`):
+usa `claude-haiku-4-5` (mismo costo que Nivel 2, ya ilimitado para
+Plus/Pro/demo segun IA-4 -- no consume el cupo de 50/mes de Nivel 3),
+cache en memoria de 90s (`CACHE_BUSQUEDA_IA`, mismo patron que
+`CACHE_RESPUESTAS` de IA-2a) y el mismo corte por plan que el resto de
+Nexo IA (`licenciaDelNegocio().iaDisponible`, Basico sin acceso). Solo
+se manda la descripcion del cliente al modelo -- nunca la lista de
+productos ni el catalogo.
+
+**Bug real encontrado y corregido durante la verificacion**: el modelo
+a veces envuelve su respuesta JSON en fences de markdown
+(` ```json...``` `) a pesar de la instruccion explicita de no agregar
+texto extra, lo que rompia el parseo ingenuo original y producia
+palabras clave basura (`"```json"` literal como una de las
+"palabras clave"). Se corrigio extrayendo el primer arreglo `[...]`
+del texto con una expresion regular antes de `JSON.parse`, con un
+fallback mas robusto (limpia fences y comillas sueltas) si tampoco eso
+funciona.
+
+**Segundo bug real encontrado**: las palabras clave que regresa la IA
+son frases completas (`"codo media pulgada"`) que casi nunca aparecen
+como substring literal en el nombre real del producto (`"Codo PVC 1/2
+pulgada"` no contiene la frase exacta `"media pulgada"` en ese orden
+por el `"1/2"` en medio). Se corrigio en
+`buscarProductosLocalesPorPalabras()` (`pos-busqueda-ia.js`): en vez de
+buscar la frase completa, se parte cada frase en palabras sueltas
+(ignorando las de menos de 3 caracteres) y se busca cada palabra por
+separado con `productoCoincideConTexto` -- confirmado en navegador que
+"la pieza para unir tubo de media pulgada" ahora si encuentra "Codo
+PVC 1/2 pulgada".
+
+Validacion, contra un negocio sintetico con 2 productos de prueba
+("Codo PVC 1/2 pulgada", "Pegamento PVC azul 1/4L"):
+
+- Plan Plus: descripcion informal sin match local -> tras la pausa,
+  llama `/ia/buscar-inteligente`, encuentra ambos productos via
+  palabras sueltas, muestra la nota de Nexo IA, "Agregar" funciona y
+  el producto correcto llega al carrito (confirmado en navegador con
+  `preview_click` + captura de pantalla).
+- Repetir la misma descripcion -> respuesta de cache (451ms, sin
+  segunda llamada real a Anthropic).
+- Plan Basico: `disponible:false` sin llamar a `anthropic.messages.create`.
+- Descripcion vacia -> 400.
+- Toggle apagado: busqueda exacta ("pegamento") funciona identica a
+  antes, sin pasar por ninguna logica de IA.
+- Confirmado en `colorScheme: dark` que el boton (gradiente fijo
+  azul->morado) y el flyout se leen bien. Sin errores de consola.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
+
+## Fuera de alcance de IA-6 (explicito, documentado tambien en el plan)
+
+- Sin agregar al carrito directo desde resultados de catalogo de
+  proveedor -- esos productos no existen en el inventario real
+  todavia (sin `id`/`stock`), se muestran solo como referencia.
+- Sin memoria/aprendizaje de vocabulario entre busquedas, sin
+  preguntas de aclaracion -- explicitamente marcadas como iteracion
+  futura por el propio usuario.
+- Sin catalogo de proveedor compartido/centralizado -- sigue siendo
+  por dispositivo via `localStorage`, decision explicita del usuario.

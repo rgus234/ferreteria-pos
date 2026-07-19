@@ -213,6 +213,24 @@ function limpiarCacheExpirado() {
     }
 }
 
+// Cache separado para la busqueda inteligente del POS (IA-6) -- mismo
+// patron que CACHE_RESPUESTAS, Map aparte para no mezclar claves con
+// el chat. Cubre el caso de dos cajeros escribiendo la misma
+// descripcion informal en una ventana corta.
+const CACHE_BUSQUEDA_IA = new Map();
+const CACHE_BUSQUEDA_TTL_MS = 90 * 1000;
+
+function limpiarCacheBusquedaExpirado() {
+    const ahora = Date.now();
+    for (const [clave, entrada] of CACHE_BUSQUEDA_IA) {
+        if (entrada.expiraEn <= ahora) CACHE_BUSQUEDA_IA.delete(clave);
+    }
+}
+
+const SYSTEM_PROMPT_BUSQUEDA = `Ayudas a encontrar productos de ferreteria a partir de descripciones informales de clientes mexicanos que no conocen el nombre tecnico de lo que buscan.
+
+Responde UNICAMENTE con un JSON array de 2 a 5 palabras o frases cortas de busqueda en espanol (ej. ["codo pvc", "conexion tubo", "media pulgada"]). Nunca inventes nombres de productos especificos, marcas ni precios que el cliente no menciono -- solo sugiere terminos de busqueda razonables. No agregues texto fuera del JSON.`;
+
 // Limites de Nexo IA Nivel 3 (el unico nivel con costo real) por
 // plan. Basico usa limite 0 -- eso es lo que significa "sin acceso a
 // Nexo IA" (ni Nivel 1/2 tampoco, ver iaDisponible). demo se trata
@@ -511,6 +529,90 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             ]);
 
             res.json({ ok: true, acceso: { disponible: true }, ventas, stockBajo, creditos });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Busqueda inteligente del POS (IA-6): el cliente ya intento
+    // busqueda local (y catalogo local si tenia uno) y no encontro
+    // nada -- aqui solo se piden palabras clave, nunca productos
+    // inventados. Usa Haiku (mismo costo que Nivel 2, ya ilimitado
+    // para Plus/Pro/demo segun IA-4) -- no consume el cupo de
+    // Nivel 3. Solo se manda la descripcion del cliente al modelo,
+    // nunca la lista de productos ni el catalogo.
+    app.post("/ia/buscar-inteligente", requerirAccesoNegocio, async (req, res) => {
+        const anthropic = obtenerAnthropic();
+
+        if (!anthropic) {
+            res.status(503).json({ ok: false, error: "Nexo IA todavia no esta configurado en este servidor" });
+            return;
+        }
+
+        const descripcion = String(req.body?.descripcion || "").trim();
+
+        if (!descripcion) {
+            res.status(400).json({ ok: false, error: "Escribe una descripcion del producto" });
+            return;
+        }
+
+        if (descripcion.length > 200) {
+            res.status(400).json({ ok: false, error: "La descripcion es demasiado larga (maximo 200 caracteres)" });
+            return;
+        }
+
+        try {
+            const negocio = await negocioActual(req, pool);
+            const acceso = await licenciaDelNegocio(pool, negocio.id);
+
+            if (!acceso.iaDisponible) {
+                res.json({ ok: true, disponible: false });
+                return;
+            }
+
+            const clave = claveCache(negocio.id, descripcion);
+            const enCache = CACHE_BUSQUEDA_IA.get(clave);
+
+            if (enCache && enCache.expiraEn > Date.now()) {
+                res.json({ ok: true, disponible: true, keywords: enCache.keywords });
+                return;
+            }
+
+            const respuesta = await anthropic.messages.create({
+                model: "claude-haiku-4-5",
+                max_tokens: 150,
+                system: SYSTEM_PROMPT_BUSQUEDA,
+                messages: [{ role: "user", content: descripcion }]
+            });
+
+            const texto = respuesta.content
+                .filter(bloque => bloque.type === "text")
+                .map(bloque => bloque.text)
+                .join("")
+                .trim();
+
+            // El modelo a veces envuelve el JSON en fences de markdown
+            // (```json ... ```) a pesar de la instruccion de no
+            // agregar texto extra -- se extrae el primer arreglo
+            // [...] del texto en vez de asumir que el texto completo
+            // ya es JSON valido.
+            const coincidenciaArreglo = texto.match(/\[[\s\S]*\]/);
+            let keywords;
+            try {
+                keywords = JSON.parse(coincidenciaArreglo ? coincidenciaArreglo[0] : texto);
+            } catch (error) {
+                keywords = texto
+                    .replace(/```[a-z]*|```/gi, "")
+                    .split(/[,\n]/)
+                    .map(item => item.trim().replace(/^["'\[\]]+|["'\[\]]+$/g, ""))
+                    .filter(Boolean);
+            }
+            keywords = (Array.isArray(keywords) ? keywords : []).slice(0, 5);
+
+            limpiarCacheBusquedaExpirado();
+            CACHE_BUSQUEDA_IA.set(clave, { keywords, expiraEn: Date.now() + CACHE_BUSQUEDA_TTL_MS });
+
+            res.json({ ok: true, disponible: true, keywords });
         } catch (error) {
             responderError(res, error);
         }

@@ -203,17 +203,39 @@ function buscarProductos() {
  document.getElementById(
  "busqueda"
  ).value
- .toLowerCase();
+ .toLowerCase()
+ .trim();
 
  const filtrados =
  todosProductos.filter(
  producto => productoCoincideConTexto(producto, texto)
  );
 
+ if (typeof cancelarBusquedaIaPendiente === "function") cancelarBusquedaIaPendiente();
+
  if (!texto) {
  if (typeof ocultarFlyoutBusquedaPOS === "function") ocultarFlyoutBusquedaPOS();
+ } else if (filtrados.length > 0 || typeof busquedaIaActiva === "undefined" || !busquedaIaActiva) {
+ if (typeof mostrarFlyoutBusquedaPOS === "function") {
+  mostrarFlyoutBusquedaPOS(filtrados, { textoVacio: `Sin resultados para "${texto}"` });
+ }
+ } else {
+ // busquedaIaActiva && filtrados.length === 0: intenta el catalogo
+ // local (gratis, sincrono) antes de programar la llamada a IA.
+ const delCatalogo = typeof buscarProductosEnCatalogoLocalPOS === "function"
+  ? buscarProductosEnCatalogoLocalPOS(texto)
+  : [];
+
+ if (delCatalogo.length > 0 && typeof mostrarFlyoutBusquedaPOS === "function") {
+  mostrarFlyoutBusquedaPOS(delCatalogo, { textoVacio: "", nota: "Del catalogo de proveedor (todavia no en tu inventario)" });
+ } else if (typeof programarBusquedaIA === "function") {
+  if (typeof mostrarFlyoutBusquedaPOS === "function") {
+   mostrarFlyoutBusquedaPOS([], { textoVacio: "Buscando con Nexo IA..." });
+  }
+  programarBusquedaIA(texto);
  } else if (typeof mostrarFlyoutBusquedaPOS === "function") {
- mostrarFlyoutBusquedaPOS(filtrados, { textoVacio: `Sin resultados para "${texto}"` });
+  mostrarFlyoutBusquedaPOS(filtrados, { textoVacio: `Sin resultados para "${texto}"` });
+ }
  }
 
  programarLecturaCodigoBarras(texto);

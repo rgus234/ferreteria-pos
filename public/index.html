@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="css/components/dashboard-alerts.css?v=inicio-redesign-20260706-01">
   <link rel="stylesheet" href="css/components/pos-cart.css?v=btn-credito-neutro-20260709-01">
   <link rel="stylesheet" href="css/components/pos-sale-redesign.css?v=fotos-cart-grande-20260712-01">
+  <link rel="stylesheet" href="css/components/pos-busqueda-ia.css?v=busqueda-ia-20260719-01">
   <link rel="stylesheet" href="css/components/pos-product-form.css?v=imagen-encontrada-nuevo-20260713-01">
   <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-bugfix-20260705-02">
   <link rel="stylesheet" href="css/components/sale-documents.css?v=refactor-sale-documents-20260630-01">
@@ -717,6 +718,8 @@
  <span class="pos-search-icon">⌕</span>
  <input id="busqueda" type="text" placeholder="Buscar producto por nombre, codigo o codigo de barras..."
  oninput="buscarProductos()" onkeydown="buscarCodigoEnter(event)" autocomplete="off">
+ <button type="button" id="posBusquedaIaToggle" class="pos-busqueda-ia-toggle" onclick="alternarBusquedaIA()"
+ aria-pressed="false" title="Busqueda inteligente con Nexo IA"></button>
  <button type="button" onclick="limpiarBusquedaPos()" aria-label="Limpiar busqueda">
  ×
  </button>
@@ -1452,6 +1455,7 @@
   <script src="js/low-stock.js?v=lowstock-bugfix-20260705-01"></script>
 <script src="js/ferretero-flow.js?v=fotos-producto-20260712-01"></script>
 <script src="js/nexo-ia.js?v=ia-modulo-20260719-05"></script>
+<script src="js/pos-busqueda-ia.js?v=busqueda-ia-20260719-01"></script>
 
 </body>
 

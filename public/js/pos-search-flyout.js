@@ -27,6 +27,22 @@
   const codigo =
   producto.codigo || producto.codigo_barras || producto.codigoInterno || `PROD-${producto.id}`;
 
+  // Sugerencias del catalogo de proveedor (IA-6) no son productos
+  // reales del inventario todavia -- sin id util, sin boton de
+  // agregar (ver "Fuera de alcance" en el plan de IA-6).
+  if (producto.__origenCatalogo) {
+   return `
+   <div class="pos-flyout-row pos-flyout-row-catalogo">
+    <span class="pos-flyout-thumb">🧰</span>
+    <div class="pos-flyout-info">
+     <strong>${escaparPOS(producto.nombre || "Producto")}</strong>
+     <small>${escaparPOS(producto.marca || "")}${producto.marca ? " &middot; " : ""}Del catalogo de proveedor -- aun no esta en tu inventario</small>
+    </div>
+    <strong class="pos-flyout-precio">$${Number(producto.precio || 0).toFixed(2)}</strong>
+   </div>
+   `;
+  }
+
   return `
   <div class="pos-flyout-row" data-flyout-id="${Number(producto.id)}">
    <span class="pos-flyout-thumb">${typeof miniaturaProducto === "function" ? miniaturaProducto(producto, "pos-flyout-thumb-img") : "🧰"}</span>
@@ -92,8 +108,11 @@
   .sort((a, b) => Number(b.stock || 0) - Number(a.stock || 0))
   .slice(0, 8);
 
+  const nota =
+  opciones.nota ? `<div class="pos-flyout-nota">${escaparPOS(opciones.nota)}</div>` : "";
+
   contenedor.innerHTML =
-  destacados.map(filaFlyout).join("");
+  nota + destacados.map(filaFlyout).join("");
 
   contenedor.classList.add("abierto");
  }

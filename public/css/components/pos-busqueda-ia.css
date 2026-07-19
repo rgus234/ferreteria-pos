@@ -1,0 +1,57 @@
+/* Busqueda inteligente del POS (IA-6): boton ON/OFF junto al buscador
+   y estilos del flyout cuando muestra resultados de Nexo IA o del
+   catalogo de proveedor local. Colores fijos de marca Nexo (no
+   var(--pos-sale-brand)/--nexo-brand configurables del negocio),
+   consistente con la decision de identidad fija tomada en IA-5. */
+
+/* .pos-reference-search ya define su propio grid de 3 columnas en
+   pos-cart.css (icono, input, limpiar) -- se agrega una columna mas
+   para el boton de IA entre el input y el boton de limpiar. */
+.pos-reference-search {
+  grid-template-columns: 36px minmax(0, 1fr) 34px 38px;
+}
+
+.pos-busqueda-ia-toggle {
+  width: 34px !important;
+  height: 34px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--pos-sale-line, rgba(15, 23, 42, .16)) !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  color: var(--pos-sale-muted, #64748b) !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.pos-busqueda-ia-toggle .ui-icon {
+  width: 18px;
+  height: 18px;
+  color: inherit;
+}
+
+.pos-busqueda-ia-toggle:hover {
+  border-color: #2563ff !important;
+  color: #2563ff !important;
+}
+
+.pos-busqueda-ia-toggle.activo {
+  background: linear-gradient(135deg, #2563ff, #7c3aed) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+
+.pos-flyout-nota {
+  padding: 8px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #2563ff;
+}
+
+.pos-flyout-row-catalogo {
+  opacity: .82;
+  border-style: dashed;
+}
