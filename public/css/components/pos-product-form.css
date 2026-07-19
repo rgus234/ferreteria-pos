@@ -189,8 +189,11 @@
  }
 
  #modalAgregar .proveedor-catalogo-selector-tiles button.activo {
-  border-color: color-mix(in srgb, var(--nexo-brand) 56%, var(--nexo-line)) !important;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--nexo-brand) 15%, var(--nexo-surface-strong)), var(--nexo-surface-strong)) !important;
+  border-color: color-mix(in srgb, var(--nexo-brand) 56%, transparent) !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--nexo-brand) 55%, transparent), color-mix(in srgb, var(--nexo-brand) 35%, transparent)) !important;
+  backdrop-filter: blur(12px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.3) !important;
+  color: #fff !important;
  }
 
  #modalAgregar .proveedor-catalogo-tile-icono {
@@ -226,6 +229,16 @@
  #modalAgregar .proveedor-catalogo-info small {
   color: var(--nexo-text-muted) !important;
   font-size: 10px !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-selector-tiles button.activo .proveedor-catalogo-info-regla,
+ #modalAgregar .proveedor-catalogo-selector-tiles button.activo .proveedor-catalogo-info small {
+  color: rgba(255, 255, 255, .85) !important;
+ }
+
+ #modalAgregar .proveedor-catalogo-selector-tiles button.activo .proveedor-catalogo-tile-icono {
+  background: rgba(255, 255, 255, .22) !important;
+  color: #fff !important;
  }
 
  #modalAgregar .margen-manual-proveedor {
@@ -269,9 +282,11 @@
  }
 
  #modalAgregar .modo-captura-botones button.activo {
-  background: linear-gradient(135deg, var(--nexo-brand), var(--nexo-brand-strong)) !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--nexo-brand) 65%, transparent), color-mix(in srgb, var(--nexo-brand) 45%, transparent)) !important;
+  backdrop-filter: blur(12px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.3) !important;
   color: #fff !important;
-  border-color: transparent !important;
+  border-color: color-mix(in srgb, var(--nexo-brand) 45%, transparent) !important;
  }
 
  #modalAgregar .campo-ficha {
@@ -333,7 +348,9 @@
  }
 
  #modalAgregar .producto-tabs button.activo {
-  background: linear-gradient(135deg, var(--nexo-brand), var(--nexo-brand-strong)) !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--nexo-brand) 65%, transparent), color-mix(in srgb, var(--nexo-brand) 45%, transparent)) !important;
+  backdrop-filter: blur(12px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.3) !important;
   color: #fff !important;
   box-shadow: var(--nexo-shadow-brand) !important;
  }
@@ -439,10 +456,29 @@
   border-radius: 15px !important;
  }
 
- #modalAgregar .modal-botones button:nth-child(2) {
-  background: var(--nexo-surface-strong) !important;
+ #modalAgregar .modal-botones button:nth-child(1) {
+  background: color-mix(in srgb, var(--nexo-text) 8%, transparent) !important;
   color: var(--nexo-text) !important;
   border: 1px solid var(--nexo-line) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+ }
+
+ #modalAgregar .modal-botones button:nth-child(2) {
+  background: color-mix(in srgb, var(--nexo-surface-strong) 70%, transparent) !important;
+  color: var(--nexo-text) !important;
+  border: 1px solid var(--nexo-line) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+ }
+
+ #modalAgregar .modal-botones button:nth-child(3),
+ #modalAgregar #btnGuardarProducto {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--nexo-brand) 75%, transparent), color-mix(in srgb, var(--nexo-brand) 55%, transparent)) !important;
+  backdrop-filter: blur(12px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.3) !important;
+  color: #fff !important;
+  border: 1px solid color-mix(in srgb, var(--nexo-brand) 45%, transparent) !important;
  }
 
  @media (max-width: 900px) {

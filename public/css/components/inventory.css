@@ -739,18 +739,20 @@ body.oscuro .inventario-resumen strong{
  min-height:38px;
  padding:0 12px;
  white-space:nowrap;
- border:1px solid #e4e7ec;
+ border:1px solid #e4e7ec !important;
  border-radius:8px;
- background:#fff;
- color:#344054;
+ background:rgba(255,255,255,.6) !important;
+ backdrop-filter:blur(10px) !important;
+ -webkit-backdrop-filter:blur(10px) !important;
+ color:#344054 !important;
  font-size:13px;
  font-weight:800;
 }
 
 body.oscuro .btn-imprimir-codigos{
- background:#111827;
- border-color:#243044;
- color:#f8fafc;
+ background:rgba(17,24,39,.6) !important;
+ border-color:#243044 !important;
+ color:#f8fafc !important;
 }
 
 #pantallaInventario .inventario-top::after{
@@ -794,12 +796,20 @@ body.oscuro .btn-imprimir-codigos{
  min-height:38px;
  margin:0;
  padding:0 12px;
- border:1px solid #e4e7ec;
+ border:1px solid #e4e7ec !important;
  border-radius:8px;
- background:#fff;
- color:#344054;
+ background:rgba(255,255,255,.6) !important;
+ backdrop-filter:blur(10px) !important;
+ -webkit-backdrop-filter:blur(10px) !important;
+ color:#344054 !important;
  font-size:13px;
  font-weight:800;
+}
+
+body.oscuro .btn-limpiar-inventario{
+ background:rgba(17,24,39,.6) !important;
+ border-color:#243044 !important;
+ color:#f8fafc !important;
 }
 
 #pantallaInventario .btn-agregar,
@@ -1049,15 +1059,19 @@ body.oscuro .btn-limpiar-inventario{
  padding:0 10px;
  border:1px solid #e4e7ec;
  border-radius:8px;
- background:#fff !important;
+ background:rgba(255,255,255,.6) !important;
+ backdrop-filter:blur(8px) !important;
+ -webkit-backdrop-filter:blur(8px) !important;
  color:#344054 !important;
  font-size:13px;
  font-weight:700;
 }
 
 .paginacion-tabla button.activo{
- border-color:transparent;
- background:#0d6efd !important;
+ border-color:color-mix(in srgb, #0d6efd 45%, transparent) !important;
+ background:color-mix(in srgb, #0d6efd 65%, transparent) !important;
+ backdrop-filter:blur(10px) saturate(1.3) !important;
+ -webkit-backdrop-filter:blur(10px) saturate(1.3) !important;
  color:#fff !important;
 }
 
@@ -1068,7 +1082,7 @@ body.oscuro .btn-limpiar-inventario{
 }
 
 body.oscuro .paginacion-tabla button{
- background:#1f2937 !important;
+ background:rgba(31,41,55,.6) !important;
  color:#f8fafc !important;
  border-color:#374151;
 }

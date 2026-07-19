@@ -2944,3 +2944,85 @@ Validacion, contra un negocio sintetico con 2 productos de prueba
   futura por el propio usuario.
 - Sin catalogo de proveedor compartido/centralizado -- sigue siendo
   por dispositivo via `localStorage`, decision explicita del usuario.
+
+### Pase de diseno "liquid glass" -- botones solidos en toda la app (2026-07-19)
+
+Antes de generar material de marketing/tutoriales, el usuario pidio
+revisar la app pantalla por pantalla para que los botones sigan el
+estilo "liquid glass" (translucido + `backdrop-filter: blur`) ya
+usado en Nexo IA, en vez de fondos solidos. Confirmado el patron
+raiz: `public/css/layers/theme-runtime.css:140-160` tiene una regla
+global `button, .btn-agregar, .btn-primario, ..., .modal-botones button, .formulario-producto button { background:var(--brand-color) !important; }`
+que fuerza fondo solido en casi cualquier `<button>` de la app para
+respetar el color de marca del negocio -- **cualquier boton nuevo o
+sin su propio `!important` cae en esta regla y se ve solido**, sin
+importar lo que diga su CSS de componente.
+
+**Punto de venta** (`public/css/components/pos-cart.css`,
+`pos-sale-redesign.css`): el usuario senalo 4 casos con foto real del
+equipo -- "Efectivo/Tarjeta/Transferencia" seleccionado, "Cobrar", el
+boton "Agregar" del buscador, y el badge "F8" poco legible.
+- `.pos-referencia .metodo-pago-opciones button.activo`: paso de
+  `linear-gradient(135deg, var(--pos-sale-brand), color-mix(...78%, #020617))`
+  (dos colores opacos, sin transparencia real) a
+  `color-mix(in srgb, var(--pos-sale-brand) 62%, transparent)` +
+  `backdrop-filter`.
+- `.pos-referencia .btn-cobrar`: **ya tenia** `backdrop-filter`, pero
+  el fondo (`color-mix(...92%, white 8%)` a `...68%, #020617 32%)`)
+  era casi opaco -- el blur no tenia nada que mostrar. Se bajo a
+  75%/55% con `transparent` como segundo color para que el efecto de
+  verdad se note.
+- `.pos-flyout-agregar`: de `background: var(--pos-sale-brand) !important`
+  (solido, sin blur) al mismo patron glass.
+- `.pos-referencia .btn-cobrar span` (badge "F8"): subio de
+  `rgba(255,255,255,.18)` sin borde a `rgba(255,255,255,.3)` con
+  borde y `font-weight:900` para que se distinga de "Cobrar".
+
+**Inventario y sus modales** (formulario Agregar/Editar producto,
+"Detalles de producto", lista con paginacion) -- investigado con un
+agente Explore antes de tocar codigo, dado el numero de botones
+involucrados. Encontro 3 situaciones distintas del mismo bug:
+1. **Con `!important`, solo solido** (pestanas Basico/Precios/...,
+   tiles de proveedor Diprofer/Gafi/Truper, botones de modo de
+   captura, "Guardar y agregar otro", paginacion): se cambio el
+   `background` solido por el patron `color-mix(...transparent)` +
+   `backdrop-filter`, en `public/css/components/pos-product-form.css`
+   e `inventory.css`.
+2. **Sin `!important`, silenciosamente pisado por la regla global**
+   ("Cerrar" en Detalles de producto, "Limpiar" e "Imprimir codigos"
+   en Inventario): el CSS del componente YA declaraba un fondo
+   translucido correcto (ej. `.detalle-producto-cerrar` con
+   `rgba(13,110,253,.08)`), pero como no tenia `!important`,
+   `theme-runtime.css` lo pisaba por completo y el boton se veia
+   solido en el navegador pese a que el codigo fuente decia lo
+   contrario. Se agrego `!important` a estas reglas.
+3. **Sin ninguna regla local** ("Cancelar" y "Guardar producto" en el
+   formulario de producto): heredaban directo de
+   `theme-runtime.css`, sin ningun CSS de componente que los tocara.
+   Se agregaron reglas nuevas en `#modalAgregar .modal-botones button:nth-child(1)`
+   (Cancelar, glass neutro) y `:nth-child(3)`/`#btnGuardarProducto`
+   (Guardar producto, glass de marca).
+
+Para los tiles de proveedor activos (que ahora pasan a fondo azul
+glass) se agregaron tambien overrides de color para los textos hijos
+(`.proveedor-catalogo-info-regla`, el icono) que antes usaban colores
+oscuros fijos y hubieran quedado ilegibles sobre el nuevo fondo azul.
+
+Validacion, contra un negocio sintetico (creado y borrado por ID):
+- Punto de venta: "Efectivo" seleccionado y "Cobrar" muestran
+  transparencia real (confirmado en captura, no solo en el CSS
+  fuente), badge "F8" legible, boton "Agregar" del buscador con
+  blur. Confirmado en claro y oscuro.
+- Inventario: `.btn-imprimir-codigos` confirmado con
+  `backdrop-filter:blur(10px)` real via `getComputedStyle` (antes
+  esta declaracion se ignoraba por completo). Formulario de producto:
+  "Codigo de barras" (modo captura) y "Basico" (pestana) muestran el
+  gradiente glass claro en vez del azul solido anterior; los 3
+  botones de accion (Cancelar/Guardar y agregar otro/Guardar
+  producto) confirmados con `backdrop-filter` aplicado via inspeccion
+  de cada uno. Modal "Detalles de producto": `.detalle-producto-cerrar`
+  confirmado con `background` translucido real (antes se renderizaba
+  solido pese al codigo fuente).
+- Sin errores de consola en ningun paso.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
+- No se hace `git commit`/`push` sin confirmacion explicita.
