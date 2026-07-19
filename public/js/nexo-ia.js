@@ -45,7 +45,7 @@ async function nexoIaHayAlerta() {
  try {
   const respuesta = await fetch("/ia/resumen-rapido");
   const datos = await respuesta.json();
-  if (!respuesta.ok || !datos.ok) return false;
+  if (!respuesta.ok || !datos.ok || datos.acceso?.disponible === false) return false;
   return datos.stockBajo.productos.length > 0 || datos.creditos.clientesVencidos > 0;
  } catch (error) {
   return false;
@@ -117,6 +117,12 @@ async function cargarResumenRapidoNexoIA() {
    return;
   }
 
+  if (datos.acceso?.disponible === false) {
+   popover.querySelector(".nexo-ia-popover-cargando").remove();
+   renderUpsellPopoverNexoIA(popover);
+   return;
+  }
+
   const hayAlerta = datos.stockBajo.productos.length > 0 || datos.creditos.clientesVencidos > 0;
   const marca = popover.querySelector(".nexo-ia-popover-cabecera");
   if (marca) marca.innerHTML = nexoIaMarcaSVG(hayAlerta ? "alerta" : "feliz") + '<div class="nexo-ia-popover-titulo">Nexo IA</div>';
@@ -172,6 +178,23 @@ function renderAccesosPopoverNexoIA(popover) {
  popover.appendChild(abrir);
 }
 
+function renderUpsellPopoverNexoIA(popover) {
+ const aviso = document.createElement("div");
+ aviso.className = "nexo-ia-popover-resumen";
+ aviso.innerHTML = "<p>Nexo IA esta disponible desde el plan Plus. Mejora tu plan para empezar a usarme.</p>";
+ popover.appendChild(aviso);
+
+ const irACuenta = document.createElement("button");
+ irACuenta.type = "button";
+ irACuenta.className = "nexo-ia-popover-abrir";
+ irACuenta.textContent = "Ver planes";
+ irACuenta.addEventListener("click", () => {
+  cerrarPopoverNexoIA();
+  if (typeof mostrarCuenta === "function") mostrarCuenta();
+ });
+ popover.appendChild(irACuenta);
+}
+
 function abrirNexoIAConPregunta(pregunta) {
  mostrarNexoIA();
  const input = document.getElementById("nexoIaInput");
@@ -195,6 +218,39 @@ async function mostrarNexoIA() {
 
  if (typeof actualizarTopbarContexto === "function") {
   actualizarTopbarContexto("Nexo IA", "Tu asistente para ventas, inventario y creditos", "nexo-ia");
+ }
+
+ let disponible = true;
+ try {
+  const respuesta = await fetch("/ia/resumen-rapido");
+  const datos = await respuesta.json();
+  disponible = !(respuesta.ok && datos.ok && datos.acceso?.disponible === false);
+ } catch (error) {
+  disponible = true; // si falla la verificacion, se deja intentar -- el backend igual bloquea /ia/chat
+ }
+
+ if (!disponible) {
+  pantalla.innerHTML = `
+   <div class="caja nexo-ia-vista">
+    <div class="nexo-ia-vista-cabecera">
+     ${nexoIaMarcaSVG("feliz")}
+     <div>
+      <h2>Nexo IA</h2>
+      <p class="nexo-ia-vista-subtitulo">Disponible desde el plan Plus</p>
+     </div>
+    </div>
+    <div class="nexo-ia-mensajes">
+     <p>Con tu plan actual todavia no tienes acceso a Nexo IA. Mejora tu plan desde Cuenta para empezar a usarme.</p>
+    </div>
+    <div class="nexo-ia-entrada">
+     <button type="button" id="nexoIaIrACuenta">Ver planes</button>
+    </div>
+   </div>
+  `;
+  document.getElementById("nexoIaIrACuenta")?.addEventListener("click", () => {
+   if (typeof mostrarCuenta === "function") mostrarCuenta();
+  });
+  return;
  }
 
  pantalla.innerHTML = `

@@ -2621,3 +2621,69 @@ prueba (creado y borrado por ID explicito):
   la pregunta en si misma no tuviera senal de analisis.
 - `node --check ia-server.js` correcto. `negocio_id = 1` (Ferreteria
   Olimpico) sin cambios.
+
+### Nexo IA -- limites de uso por plan (IA-4, 2026-07-18)
+
+Cierra la hoja de ruta original de Nexo IA: protege el costo de
+operacion segun el plan del negocio, ya que Nivel 3 (`claude-opus-4-8`)
+es el unico nivel con costo real por llamada. Diseno confirmado con
+el usuario: Basico sin acceso a Nexo IA (ni Nivel 1/2/3); Plus con
+Nivel 1/2 ilimitados y Nivel 3 limitado a 50 preguntas de analisis por
+mes; Pro con todo ilimitado de cara al cliente, con un techo invisible
+de 500 preguntas Nivel 3/mes como red de seguridad anti-abuso. Al
+agotarse el cupo de Plus, el chat **no se bloquea**: la pregunta se
+resuelve con Nivel 2 (Haiku) en vez de Nivel 3 (Opus), con un aviso
+amable agregado al final de la respuesta.
+
+**Hallazgo durante la investigacion, resuelto con el usuario**:
+Ferreteria Olimpico (`negocio_id = 1`, el unico negocio real usando la
+app) tiene `licencias.plan = 'demo'` porque nunca se suscribio por
+Stripe. El usuario confirmo explicitamente tratar `demo` igual que
+`pro` (mismo techo invisible de 500/mes) para no cortarle Nexo IA a su
+propio negocio.
+
+Migracion `20260718_ia_uso.sql`: agrega `ia_nivel3_usos` (contador) y
+`ia_nivel3_periodo` (mes calendario `'YYYY-MM'` en que se conto ese
+contador) a `licencias`. Reinicio perezoso por mes calendario (no
+atado al ciclo de facturacion de Stripe -- simplicidad deliberada).
+
+`ia-server.js` gana `licenciaDelNegocio(pool, negocioId)` (repite el
+mismo upsert que `licenciaActual()` de `server.js`, igual que ya hacia
+`asegurarFilaLicencia` en `stripe-server.js` -- esas funciones viven en
+el scope de `server.js`, no exportadas) y `registrarUsoNivel3`. El
+handler `POST /ia/chat` corta temprano con `nivel: "sin-acceso"` si el
+plan no tiene cupo (Basico), y degrada Nivel 3 -> Nivel 2 con una nota
+si ya se agoto el cupo del mes. `GET /ia/resumen-rapido` expone
+`acceso.disponible` para que el frontend muestre un aviso en vez de
+correr las 3 herramientas de resumen sin necesidad.
+
+Frontend (`public/js/nexo-ia.js`): la burbuja se sigue mostrando para
+todos los planes (incluido Basico) -- verla y toparse con el upsell es
+como un negocio en Basico descubre que existe Nexo IA. El popover
+(`cargarResumenRapidoNexoIA`) y el modulo completo (`mostrarNexoIA`)
+revisan `acceso.disponible` y muestran un aviso + boton "Ver planes"
+(lleva a la pantalla Cuenta) en vez del chat cuando no hay acceso. El
+backend bloquea `/ia/chat` de forma independiente en cualquier caso.
+
+Validacion, contra negocios sinteticos (creados y borrados por ID):
+
+- Plan `basico`: `POST /ia/chat` responde `nivel: "sin-acceso"` sin
+  llamar ninguna herramienta ni al modelo; `GET /ia/resumen-rapido`
+  responde `acceso.disponible: false`; popover y modulo completo
+  muestran el aviso "Nexo IA esta disponible desde el plan Plus" con
+  boton "Ver planes" (confirmado en navegador).
+- Plan `plus` con cupo agotado (`ia_nivel3_usos = 50`): una pregunta
+  con senal de analisis responde `nivel: 2` (no 3), con la nota de
+  limite agregada al texto -- nunca un bloqueo duro.
+- Plan `plus` con cupo disponible (`usos = 49`): la misma pregunta
+  responde `nivel: 3` real, y el contador sube a 50 tras la llamada.
+- Plan `pro` y `demo` con `usos = 50`: NO degradan (usan el techo de
+  500, no el de 50) -- confirma que `demo` se trata igual que `pro`.
+- Reinicio de periodo: con `ia_nivel3_periodo` de un mes anterior y
+  `usos = 50`, la siguiente pregunta Nivel 3 cuenta como uso 1 (no
+  continua acumulando del mes viejo).
+- Confirmado que `negocio_id = 1` (Ferreteria Olimpico) sigue en
+  `plan = 'demo'` sin cambios tras la migracion, con Nexo IA sin
+  limite.
+- `node --check ia-server.js` y `node --check public/js/nexo-ia.js`
+  correctos.

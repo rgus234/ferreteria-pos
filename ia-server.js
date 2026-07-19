@@ -213,6 +213,53 @@ function limpiarCacheExpirado() {
     }
 }
 
+// Limites de Nexo IA Nivel 3 (el unico nivel con costo real) por
+// plan. Basico usa limite 0 -- eso es lo que significa "sin acceso a
+// Nexo IA" (ni Nivel 1/2 tampoco, ver iaDisponible). demo se trata
+// igual que pro (Ferreteria Olimpico, el negocio real, sigue en
+// "demo" porque nunca se suscribio por Stripe -- no se le puede
+// cortar el acceso que ya usa).
+const LIMITES_NIVEL3_POR_PLAN = { basico: 0, plus: 50, pro: 500, demo: 500 };
+
+async function licenciaDelNegocio(pool, negocioId) {
+    await pool.query(
+        `
+        INSERT INTO public.licencias (negocio_id, estado, plan, fecha_vencimiento, gracia_dias)
+        VALUES ($1, 'activa', 'demo', NOW() + INTERVAL '30 days', 15)
+        ON CONFLICT (negocio_id) DO NOTHING
+        `,
+        [negocioId]
+    );
+
+    const fila = await pool.query(
+        `
+        SELECT plan, ia_nivel3_usos, ia_nivel3_periodo, to_char(NOW(), 'YYYY-MM') AS periodo_actual
+        FROM public.licencias
+        WHERE negocio_id = $1
+        `,
+        [negocioId]
+    );
+
+    const licencia = fila.rows[0];
+    const usosVigentes = licencia.ia_nivel3_periodo === licencia.periodo_actual ? licencia.ia_nivel3_usos : 0;
+    const plan = (licencia.plan || "demo").toLowerCase();
+    const limite = LIMITES_NIVEL3_POR_PLAN[plan] ?? LIMITES_NIVEL3_POR_PLAN.plus;
+
+    return { plan, limite, usosVigentes, iaDisponible: limite > 0 };
+}
+
+async function registrarUsoNivel3(pool, negocioId) {
+    await pool.query(
+        `
+        UPDATE public.licencias
+        SET ia_nivel3_usos = CASE WHEN ia_nivel3_periodo = to_char(NOW(), 'YYYY-MM') THEN ia_nivel3_usos + 1 ELSE 1 END,
+            ia_nivel3_periodo = to_char(NOW(), 'YYYY-MM')
+        WHERE negocio_id = $1
+        `,
+        [negocioId]
+    );
+}
+
 async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
     switch (nombre) {
         case "resumen_ventas": {
@@ -450,6 +497,12 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
     app.get("/ia/resumen-rapido", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
+            const acceso = await licenciaDelNegocio(pool, negocio.id);
+
+            if (!acceso.iaDisponible) {
+                res.json({ ok: true, acceso: { disponible: false } });
+                return;
+            }
 
             const [ventas, stockBajo, creditos] = await Promise.all([
                 ejecutarHerramientaNexo(pool, negocio.id, "resumen_ventas", {}),
@@ -457,7 +510,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 ejecutarHerramientaNexo(pool, negocio.id, "resumen_creditos", {})
             ]);
 
-            res.json({ ok: true, ventas, stockBajo, creditos });
+            res.json({ ok: true, acceso: { disponible: true }, ventas, stockBajo, creditos });
         } catch (error) {
             responderError(res, error);
         }
@@ -489,6 +542,17 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
         try {
             const negocio = await negocioActual(req, pool);
+            const acceso = await licenciaDelNegocio(pool, negocio.id);
+
+            if (!acceso.iaDisponible) {
+                res.json({
+                    ok: true,
+                    respuesta: "Nexo IA esta disponible desde el plan Plus. Con tu plan actual todavia no tengo acceso a tus datos -- mejora tu plan desde Cuenta para empezar a usarme.",
+                    nivel: "sin-acceso"
+                });
+                return;
+            }
+
             const clasificacion = esPrimerMensaje ? clasificarNivelPregunta(mensaje) : { nivel: 3 };
 
             if (esPrimerMensaje) {
@@ -518,17 +582,33 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 { role: "user", content: mensaje }
             ];
 
-            const nivelFinal = esPrimerMensaje && clasificacion.nivel === 2 ? 2 : 3;
-            const modeloElegido = nivelFinal === 2 ? "claude-haiku-4-5" : "claude-opus-4-8";
+            let nivelFinal = esPrimerMensaje && clasificacion.nivel === 2 ? 2 : 3;
+            let modeloElegido = nivelFinal === 2 ? "claude-haiku-4-5" : "claude-opus-4-8";
+            let notaLimite = "";
+
+            // Nivel 3 es el unico que cuesta y el unico limitado por
+            // plan. Si ya se agoto el cupo del mes, nunca se bloquea
+            // el chat -- se degrada a Nivel 2 (Haiku) con un aviso.
+            if (nivelFinal === 3 && acceso.usosVigentes >= acceso.limite) {
+                nivelFinal = 2;
+                modeloElegido = "claude-haiku-4-5";
+                notaLimite = acceso.plan === "plus"
+                    ? "\n\n(Ya usaste tus preguntas de analisis profundo de este mes. Te respondo con el modo rapido -- si quieres analisis ilimitado, mejora a Pro.)"
+                    : "\n\n(Estas usando Nexo IA con mucha frecuencia este mes -- te respondo con el modo rapido por ahora.)";
+            }
 
             const respuesta = await chatNexoIA(pool, negocio.id, mensajesIniciales, modeloElegido);
+
+            if (nivelFinal === 3) {
+                await registrarUsoNivel3(pool, negocio.id);
+            }
 
             if (esPrimerMensaje) {
                 limpiarCacheExpirado();
                 CACHE_RESPUESTAS.set(claveCache(negocio.id, mensaje), { respuesta, nivel: nivelFinal, expiraEn: Date.now() + CACHE_TTL_MS });
             }
 
-            res.json({ ok: true, respuesta, nivel: nivelFinal });
+            res.json({ ok: true, respuesta: respuesta + notaLimite, nivel: nivelFinal });
         } catch (error) {
             responderError(res, error);
         }
