@@ -1142,6 +1142,81 @@ async function requerirAccesoNegocio(req, res, next) {
     }
 }
 
+// Las rutas que sirven imagenes no pueden exigir el header
+// Authorization/x-dispositivo-token -- un <img src="..."> nunca puede
+// mandar headers propios. En vez de meter el token de sesion completo
+// (valido para las ~70 rutas operativas) en la URL -- se veria en
+// logs del servidor y en el historial del navegador -- se firma un
+// token aparte, de un solo uso practico: solo sirve para ver LA foto
+// de ESE producto, expira en minutos, y no da acceso a nada mas.
+// El secreto vive solo en memoria (se regenera con cada arranque del
+// servidor) porque no hace falta que sobreviva un reinicio: las URLs
+// de imagen se regeneran cada vez que /productos responde.
+const SECRETO_TOKEN_IMAGEN = crypto.randomBytes(32);
+const DURACION_TOKEN_IMAGEN_MS = 15 * 60 * 1000;
+
+function firmarTokenImagen(negocioId, codigo) {
+    const expiraEn = Date.now() + DURACION_TOKEN_IMAGEN_MS;
+    const payload = `${negocioId}:${codigo}:${expiraEn}`;
+    const firma = crypto.createHmac("sha256", SECRETO_TOKEN_IMAGEN).update(payload).digest("hex");
+    return `${expiraEn}.${firma}`;
+}
+
+function verificarTokenImagen(token, negocioId, codigo) {
+    if (typeof token !== "string" || !token.includes(".")) return false;
+
+    const [expiraEnTexto, firma] = token.split(".");
+    const expiraEn = Number(expiraEnTexto);
+
+    if (!Number.isFinite(expiraEn) || Date.now() > expiraEn || !firma) return false;
+
+    const payload = `${negocioId}:${codigo}:${expiraEn}`;
+    const esperada = crypto.createHmac("sha256", SECRETO_TOKEN_IMAGEN).update(payload).digest("hex");
+    const bufferFirma = Buffer.from(firma);
+    const bufferEsperada = Buffer.from(esperada);
+
+    return bufferFirma.length === bufferEsperada.length && crypto.timingSafeEqual(bufferFirma, bufferEsperada);
+}
+
+// Variante de requerirAccesoNegocio solo para las rutas que sirven
+// imagenes: intenta primero el header normal (por si algun dia se
+// llaman por fetch), y si no hay header, cae al token de imagen
+// firmado en la URL (?negocio=slug&token=...). El resto de las ~70
+// rutas operativas siguen exigiendo el header, nunca la URL.
+async function requerirAccesoNegocioImagen(req, res, next) {
+    if (req.headers["x-dispositivo-token"] || req.headers.authorization) {
+        return requerirAccesoNegocio(req, res, next);
+    }
+
+    const slug = limpiarTexto(req.query?.negocio, 120);
+    const tokenImagen = limpiarTexto(req.query?.token, 200);
+    const codigo = limpiarTexto(req.params?.codigo || req.params?.id, 120);
+
+    if (!slug || !tokenImagen || !codigo) {
+        res.status(401).json({ ok: false, error: "Enlace de imagen invalido o vencido." });
+        return;
+    }
+
+    try {
+        const resultado = await pool.query(
+            `SELECT id FROM public.negocios WHERE slug = $1 LIMIT 1`,
+            [slug]
+        );
+
+        const negocio = resultado.rows[0];
+
+        if (!negocio || !verificarTokenImagen(tokenImagen, negocio.id, codigo)) {
+            res.status(401).json({ ok: false, error: "Enlace de imagen invalido o vencido." });
+            return;
+        }
+
+        req.negocioDispositivo = { negocio_id: negocio.id };
+        next();
+    } catch (error) {
+        responderError(res, error);
+    }
+}
+
 app.post("/dispositivo/vincular", requerirSesionCuenta, async (req, res) => {
     const nombreDispositivo = limpiarTexto(req.body?.nombreDispositivo, 120) ||
         limpiarTexto(req.headers["user-agent"], 200) ||
@@ -4163,7 +4238,7 @@ app.get("/productos", requerirAccesoNegocio, async (req, res) => {
 
             return {
                 ...producto,
-                imagenUrl: `/fotos-producto/${codigoConFoto}/principal?negocio=${negocio.slug}&v=${version}`,
+                imagenUrl: `/fotos-producto/${codigoConFoto}/principal?negocio=${negocio.slug}&v=${version}&token=${firmarTokenImagen(negocio.id, codigoConFoto)}`,
                 fotoCodigo: codigoConFoto
             };
         });
@@ -4256,7 +4331,7 @@ app.get("/fotos-producto-lista", requerirAccesoNegocio, async (req, res) => {
         const lista = fotos.rows.map(fila => ({
             codigo: fila.codigo,
             actualizadoAt: fila.actualizado_at,
-            imagenUrl: `/fotos-producto/${fila.codigo}/principal?negocio=${negocio.slug}&v=${new Date(fila.actualizado_at).getTime()}`,
+            imagenUrl: `/fotos-producto/${fila.codigo}/principal?negocio=${negocio.slug}&v=${new Date(fila.actualizado_at).getTime()}&token=${firmarTokenImagen(negocio.id, fila.codigo)}`,
             producto: nombrePorCodigo.get(fila.codigo) || null
         }));
 
@@ -4329,7 +4404,7 @@ app.post("/fotos-producto/:codigo/principal", requerirAccesoNegocio, async (req,
     }
 });
 
-app.get("/fotos-producto/:codigo/principal", requerirAccesoNegocio, async (req, res) => {
+app.get("/fotos-producto/:codigo/principal", requerirAccesoNegocioImagen, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const codigo = normalizarCodigoFoto(req.params.codigo);
@@ -4354,7 +4429,7 @@ app.get("/fotos-producto/:codigo/principal", requerirAccesoNegocio, async (req, 
     }
 });
 
-app.get("/fotos-producto/:codigo/galeria", requerirAccesoNegocio, async (req, res) => {
+app.get("/fotos-producto/:codigo/galeria", requerirAccesoNegocioImagen, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const codigo = normalizarCodigoFoto(req.params.codigo);
@@ -4374,7 +4449,7 @@ app.get("/fotos-producto/:codigo/galeria", requerirAccesoNegocio, async (req, re
             ok: true,
             imagenes: resultado.rows.map(fila => ({
                 id: fila.id,
-                url: `/fotos-producto-galeria/${fila.id}?negocio=${negocio.slug}`
+                url: `/fotos-producto-galeria/${fila.id}?negocio=${negocio.slug}&token=${firmarTokenImagen(negocio.id, String(fila.id))}`
             }))
         });
     } catch (error) {
@@ -4382,7 +4457,7 @@ app.get("/fotos-producto/:codigo/galeria", requerirAccesoNegocio, async (req, re
     }
 });
 
-app.get("/fotos-producto-galeria/:id", requerirAccesoNegocio, async (req, res) => {
+app.get("/fotos-producto-galeria/:id", requerirAccesoNegocioImagen, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const id = Number(req.params.id);

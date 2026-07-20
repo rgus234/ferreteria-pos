@@ -3301,3 +3301,96 @@ productos de prueba):
 - Sin errores de consola en ningun paso.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
 - No se hace `git commit`/`push` sin confirmacion explicita.
+
+# Fotos de producto en /dueno -- buscador con miniatura y vista grande (2026-07-20)
+
+El usuario pidio que al buscar en `/dueno` tambien aparecieran las
+fotos de los productos (ej. "cincho de 500"), y que al ver el detalle
+de un producto se pudiera ver la imagen grande junto con sus
+especificaciones -- para ensenarsela al cliente en persona (mismo
+escenario de ranchos sin señal). Las fotos ya estaban cargadas desde
+la Fase D de este proyecto.
+
+**Hallazgo critico antes de construir nada**: se confirmo, con una
+prueba directa (`fetch()` sin headers a la ruta de imagen -> 401), que
+**las fotos de producto nunca han podido cargar en ningun lado de la
+app**, ni siquiera en el POS de escritorio. La ruta que sirve la
+imagen (`/fotos-producto/:codigo/principal`) exige
+`requerirAccesoNegocio` (header `Authorization`/`x-dispositivo-token`),
+pero un `<img src="...">` nunca puede mandar headers propios -- ese
+camino de auth es fisicamente inalcanzable desde una etiqueta de
+imagen. El bug quedaba oculto porque `onerror="reemplazarImagenRotaPOS(this)"`
+cae a un icono generico, indistinguible de "todavia no se subio foto".
+Se confirmo con el usuario via `AskUserQuestion` antes de tocar el
+codigo de autenticacion compartido.
+
+**Primer intento de arreglo, rechazado por el clasificador de
+seguridad del entorno (correctamente)**: la primera version embebia
+el mismo token de sesion de larga duracion (valido para las ~70 rutas
+operativas) directo en la URL de la imagen. El clasificador bloqueo
+incluso `node --check` sobre ese cambio, senalando que eso se
+filtraria en logs del servidor y el historial del navegador -- un
+riesgo mucho mayor a lo que se le habia planteado al usuario. Se
+corrigio con un diseno mejor: un **token firmado (HMAC-SHA256) de un
+solo proposito**, valido solo para ver la foto de ESE producto
+especifico, expira en 15 minutos, y no da acceso a nada mas -- no es
+equivalente al token de sesion. El secreto de firma vive solo en
+memoria (`crypto.randomBytes(32)` al arrancar el servidor, no en una
+variable de entorno) porque no hace falta que sobreviva un reinicio:
+las URLs de imagen se regeneran cada vez que `/productos` responde.
+
+**`server.js`**: nuevas `firmarTokenImagen(negocioId, codigo)` /
+`verificarTokenImagen(token, negocioId, codigo)` y
+`requerirAccesoNegocioImagen` (intenta el header normal primero, si no
+hay cae al token firmado por query string `?negocio=slug&token=...`).
+Aplicado a las 3 rutas que sirven imagenes
+(`/fotos-producto/:codigo/principal`, `/fotos-producto/:codigo/galeria`,
+`/fotos-producto-galeria/:id`). Las 3 URLs que el servidor genera
+(en `GET /productos` y las 2 rutas de listado de fotos) ahora incluyen
+este token firmado -- arregla las fotos en **toda la app**, no solo en
+`/dueno` (mismo `imagenUrl` que ya consumen `pos-sales.js` y
+`product-details-view.js` sin cambios en esos archivos).
+
+**`public/dueno-offline.js`**: el catalogo cacheado (IndexedDB) ahora
+tambien guarda `imagenUrl`, `categoria`, `marca`, `descripcion` y
+`unidadVenta` de cada producto (ya venian en la respuesta de
+`/productos`, solo faltaba guardarlos).
+
+**`public/dueno.js`/`dueno.html`/`dueno.css`**: cada fila de resultado
+de busqueda gana una miniatura de 44px (o "Sin foto" si no hay);
+tocar la miniatura o el nombre abre un nuevo overlay de detalle
+(`verDetalleProductoDueno`) con la imagen grande, precio, y una lista
+de especificaciones (marca, stock, categoria, unidad de venta,
+descripcion -- solo se muestran las que el producto realmente tiene),
+mas un boton "Agregar al pedido" que lo manda directo al carrito de
+la cotizacion.
+
+**`public/dueno-sw.js`**: gana un segundo cache
+(`nexo-dueno-fotos-v1`) de solo fotos -- red primero, cae al cache si
+no hay conexion. Asi, las fotos que el dueño ya vio mientras tenia
+señal (por ejemplo, buscando antes de salir hacia el rancho) siguen
+disponibles para ensenarselas al cliente aunque ya no haya señal.
+
+Validacion, contra un negocio sintetico con una foto real subida
+directo a `fotos_producto` (imagen JPEG generada con `sharp`, codigo
+normalizado `CINCHO500`) y especificaciones reales en el producto:
+- La busqueda en `/dueno` encuentra el producto con `imagenUrl` y las
+  4 especificaciones cacheadas correctamente.
+- `fetch(imagenUrl)` regresa 200, `content-type: image/jpeg`, con los
+  bytes reales de la imagen.
+- Manipular el token en la URL (firma invalida) responde 401 --
+  confirma que el token esta criptograficamente verificado, no solo
+  presente.
+- La vista de detalle muestra imagen grande, nombre, precio, y las 5
+  especificaciones (Marca, Stock disponible, Categoria, Unidad de
+  venta, Descripcion) con los valores correctos.
+- "Agregar al pedido" desde el detalle agrega el producto al carrito
+  de la cotizacion y cierra el overlay.
+- Sin errores de consola en ningun paso (confirmado por
+  `read_console_messages`; las capturas visuales fallaron por un
+  problema de la herramienta de preview en esta sesion, no del
+  codigo -- se verifico todo a nivel de DOM/red en su lugar).
+- `node --check server.js` sin errores despues del arreglo de
+  autenticacion.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
+- No se hace `git commit`/`push` sin confirmacion explicita.

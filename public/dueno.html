@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Dueño POS">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=dueno-ventas-20260720-01">
+    <link rel="stylesheet" href="dueno.css?v=dueno-fotos-20260720-01">
 </head>
 
 <body>
@@ -194,8 +194,22 @@
 
     <div id="duenoToast" class="dueno-toast" style="display:none;"></div>
 
-    <script src="dueno-offline.js?v=dueno-ventas-20260720-01"></script>
-    <script src="dueno.js?v=dueno-ventas-20260720-01"></script>
+    <div id="duenoDetalleOverlay" class="dueno-detalle-overlay" style="display:none;" onclick="cerrarDetalleProductoDueno()">
+        <div class="dueno-detalle-caja" onclick="event.stopPropagation()">
+            <button type="button" class="dueno-detalle-cerrar" onclick="cerrarDetalleProductoDueno()">&times;</button>
+            <div id="duenoDetalleImagen" class="dueno-detalle-imagen"></div>
+            <div class="dueno-detalle-info">
+                <h2 id="duenoDetalleNombre"></h2>
+                <div id="duenoDetalleCodigo" class="dueno-detalle-codigo"></div>
+                <div id="duenoDetallePrecio" class="dueno-detalle-precio"></div>
+                <div id="duenoDetalleSpecs" class="dueno-detalle-specs"></div>
+                <button type="button" class="dueno-boton-primario" onclick="agregarDesdeDetalleDueno()">Agregar al pedido</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="dueno-offline.js?v=dueno-fotos-20260720-01"></script>
+    <script src="dueno.js?v=dueno-fotos-20260720-01"></script>
 </body>
 
 </html>

@@ -55,7 +55,12 @@ async function guardarCatalogoLocal(productos) {
                 nombre: producto.nombre || "",
                 codigo: producto.codigo || "",
                 precio: Number(producto.precio_publico ?? producto.precio ?? 0),
-                stock: Number(producto.stock || 0)
+                stock: Number(producto.stock || 0),
+                imagenUrl: producto.imagenUrl || null,
+                categoria: producto.categoria || "",
+                marca: producto.marca || "",
+                descripcion: producto.descripcion || "",
+                unidadVenta: producto.unidad_venta || ""
             });
         });
 

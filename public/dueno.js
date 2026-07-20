@@ -2,6 +2,7 @@ const DUENO_TOKEN_KEY = "nexoCuentaSesionToken";
 
 let duenoCarrito = [];
 let duenoUltimosResultados = [];
+let duenoProductoDetalleActual = null;
 
 function dinero(valor) {
     return Number(valor || 0).toLocaleString("es-MX", {
@@ -391,8 +392,13 @@ async function buscarProductoVentaDueno(texto) {
     contenedor.innerHTML =
         duenoUltimosResultados.length
             ? duenoUltimosResultados.map(producto => `
-                <div class="fila-dueno">
-                    <div>
+                <div class="fila-dueno fila-dueno-producto">
+                    <div class="dueno-miniatura" onclick="verDetalleProductoDueno(${producto.id})">
+                        ${producto.imagenUrl
+                            ? `<img src="${producto.imagenUrl}" alt="" loading="lazy">`
+                            : `<span class="dueno-miniatura-vacia">Sin foto</span>`}
+                    </div>
+                    <div onclick="verDetalleProductoDueno(${producto.id})">
                         <strong>${escaparDueno(producto.nombre)}</strong>
                         <span>${escaparDueno(producto.codigo || "Sin codigo")} · Stock ${producto.stock} · ${dinero(producto.precio)}</span>
                     </div>
@@ -400,6 +406,53 @@ async function buscarProductoVentaDueno(texto) {
                 </div>
             `).join("")
             : (texto.trim() ? `<div class="vacio">Sin resultados en tu catalogo guardado.</div>` : "");
+}
+
+function verDetalleProductoDueno(id) {
+    const producto =
+    duenoUltimosResultados.find(item => item.id === id);
+
+    if (!producto) return;
+
+    duenoProductoDetalleActual = producto;
+
+    document.getElementById("duenoDetalleImagen").innerHTML =
+        producto.imagenUrl
+            ? `<img src="${producto.imagenUrl}" alt="">`
+            : `<div class="dueno-detalle-sin-foto">Sin foto todavia</div>`;
+
+    document.getElementById("duenoDetalleNombre").textContent = producto.nombre;
+    document.getElementById("duenoDetalleCodigo").textContent = producto.codigo || "Sin codigo";
+    document.getElementById("duenoDetallePrecio").textContent = dinero(producto.precio);
+
+    const specs = [["Stock disponible", String(producto.stock)]];
+
+    if (producto.marca) specs.unshift(["Marca", producto.marca]);
+    if (producto.categoria) specs.push(["Categoria", producto.categoria]);
+    if (producto.unidadVenta) specs.push(["Unidad de venta", producto.unidadVenta]);
+    if (producto.descripcion) specs.push(["Descripcion", producto.descripcion]);
+
+    document.getElementById("duenoDetalleSpecs").innerHTML =
+        specs.map(([etiqueta, valor]) => `
+            <div class="dueno-detalle-spec">
+                <span>${escaparDueno(etiqueta)}</span>
+                <strong>${escaparDueno(valor)}</strong>
+            </div>
+        `).join("");
+
+    document.getElementById("duenoDetalleOverlay").style.display = "flex";
+}
+
+function cerrarDetalleProductoDueno() {
+    document.getElementById("duenoDetalleOverlay").style.display = "none";
+}
+
+function agregarDesdeDetalleDueno() {
+    if (!duenoProductoDetalleActual) return;
+
+    agregarAlCarritoDueno(duenoProductoDetalleActual.id);
+    cerrarDetalleProductoDueno();
+    mostrarToastDueno("Agregado al pedido.");
 }
 
 function agregarAlCarritoDueno(id) {
