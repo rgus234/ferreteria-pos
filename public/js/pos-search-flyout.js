@@ -97,7 +97,14 @@
   Array.isArray(productos) ? productos : [];
 
   if (!lista.length) {
-   contenedor.innerHTML = `<div class="pos-flyout-vacio">${escaparPOS(opciones.textoVacio || "Sin resultados")}</div>`;
+   contenedor.innerHTML = `
+   <div class="pos-flyout-vacio">${escaparPOS(opciones.textoVacio || "Sin resultados")}</div>
+   ${opciones.mostrarArticuloRapido ? `
+   <button type="button" class="pos-flyout-articulo-rapido" onclick="abrirModalArticuloRapidoPOS(document.getElementById('busqueda')?.value || '')">
+    + Agregar articulo rapido (sin codigo en el inventario)
+   </button>
+   ` : ""}
+   `;
    contenedor.classList.add("abierto");
    return;
   }

@@ -1,3 +1,7 @@
+// Contador para el id sintetico de los "articulos rapidos" (ver agregarArticuloRapido) --
+// siempre negativo para no colisionar nunca con un id real de producto (serial positivo).
+let contadorArticuloRapido = 0;
+
 async function procesarCodigoBarrasPos(codigoManual) {
  const input =
  document.getElementById("busqueda");
@@ -246,6 +250,41 @@ function agregar(
  aplicarNivelPrecioAItem(carrito[carrito.length - 1], nivelPrecioActual);
  }
  }
+
+ actualizarCarrito();
+}
+
+// Agrega un item que no existe como producto real en el inventario (sin
+// codigo, sin registro formal) -- id negativo unico para que el carrito lo
+// trate como cualquier otro renglon (cantidad +/-, quitar) sin colisionar
+// con productos reales. El servidor (descontarStockVentaProducto) ignora
+// cualquier id que no matchee un producto real, asi que nunca descuenta
+// inventario -- por diseno, no requiere logica especial en el backend.
+function agregarArticuloRapido(nombre, precio, cantidad) {
+ const idSintetico =
+ -(++contadorArticuloRapido);
+
+ carrito.push({
+ id: idSintetico,
+ nombre,
+ precio: Number(precio || 0),
+ cantidad: Number(cantidad || 1),
+ codigo: "Sin codigo",
+ codigoInterno: "Sin codigo",
+ unidadVenta: "pieza",
+ modoVenta: "bolsa",
+ proveedor: "",
+ marca: "",
+ categoria: "Articulo rapido",
+ stockDisponible: null,
+ tipoProducto: "",
+ basculaDigital: "no",
+ precioPublico: Number(precio || 0),
+ precioMayoreo: 0,
+ precioDistribuidor: 0,
+ imagenUrl: null,
+ articuloRapido: true
+ });
 
  actualizarCarrito();
 }

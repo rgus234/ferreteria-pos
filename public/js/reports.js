@@ -440,7 +440,10 @@ function renderUltimasVentasReporte(ventas) {
  <strong>${dinero(venta.total)}</strong>
  <span>${new Date(venta.fecha).toLocaleString("es-MX")}</span>
  </div>
+ <div class="reporte-venta-item-acciones">
  <b>#${venta.id}</b>
+ <button type="button" class="reporte-venta-detalle-btn" onclick="abrirDetalleVentaPOS(${Number(venta.id)})">Ver detalle</button>
+ </div>
  </div>
  `).join("");
 

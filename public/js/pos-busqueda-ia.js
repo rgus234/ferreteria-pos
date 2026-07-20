@@ -142,7 +142,7 @@ async function ejecutarBusquedaIA(texto) {
   const encontrados = buscarProductosLocalesPorPalabras(datos.keywords);
 
   if (encontrados.length === 0) {
-   mostrarFlyoutBusquedaPOS([], { textoVacio: `Nexo IA no encontro productos relacionados con "${texto}".` });
+   mostrarFlyoutBusquedaPOS([], { textoVacio: `Nexo IA no encontro productos relacionados con "${texto}".`, mostrarArticuloRapido: true });
   } else {
    mostrarFlyoutBusquedaPOS(encontrados, { textoVacio: "", nota: "Nexo IA encontro estos productos relacionados" });
   }

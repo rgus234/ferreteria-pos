@@ -139,6 +139,26 @@ body.oscuro .reporte-tendencia.negativa{ color:#fca5a5; }
  color:var(--brand-color,#0d6efd);
 }
 
+.reporte-venta-item-acciones{
+ display:flex;
+ align-items:center;
+ gap:10px;
+ flex-shrink:0;
+}
+
+.reporte-venta-detalle-btn{
+ min-height:28px;
+ width:auto !important;
+ padding:0 12px;
+ border:1px solid var(--brand-color,#0d6efd);
+ border-radius:8px;
+ background:transparent !important;
+ color:var(--brand-color,#0d6efd) !important;
+ font-size:11.5px;
+ font-weight:800;
+ white-space:nowrap;
+}
+
 .reporte-vacio{
  color:var(--pos-muted,#687386);
  border:1px dashed var(--pos-line,#dbe3ef);
@@ -351,6 +371,10 @@ body.oscuro .reporte-tendencia.negativa{ color:#fca5a5; }
 body.oscuro .reportes-panel h3,
 body.oscuro .reporte-venta-item strong{
  color:#f8fafc;
+}
+
+body.oscuro .reporte-venta-detalle-btn{
+ background:rgba(15,23,42,.4) !important;
 }
 
 @media (max-width:980px){

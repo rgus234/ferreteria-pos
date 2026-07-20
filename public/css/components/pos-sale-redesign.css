@@ -205,6 +205,25 @@ body.oscuro .pos-referencia .pos-reference-search {
   text-align: center;
 }
 
+.pos-flyout-articulo-rapido {
+  display: block;
+  width: calc(100% - 24px) !important;
+  margin: 0 12px 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--brand-color, #0d6efd);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--brand-color, #0d6efd) 8%, transparent) !important;
+  color: var(--brand-color, #0d6efd) !important;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-align: center;
+  cursor: pointer;
+}
+
+.pos-flyout-articulo-rapido:hover {
+  background: color-mix(in srgb, var(--brand-color, #0d6efd) 14%, transparent) !important;
+}
+
 /* Fase 2 - Carrito como tabla */
 
 .pos-referencia .carrito-items {

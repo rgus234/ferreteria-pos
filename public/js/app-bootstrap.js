@@ -217,7 +217,7 @@ function buscarProductos() {
  if (typeof ocultarFlyoutBusquedaPOS === "function") ocultarFlyoutBusquedaPOS();
  } else if (filtrados.length > 0 || typeof busquedaIaActiva === "undefined" || !busquedaIaActiva) {
  if (typeof mostrarFlyoutBusquedaPOS === "function") {
-  mostrarFlyoutBusquedaPOS(filtrados, { textoVacio: `Sin resultados para "${texto}"` });
+  mostrarFlyoutBusquedaPOS(filtrados, { textoVacio: `Sin resultados para "${texto}"`, mostrarArticuloRapido: true });
  }
  } else {
  // busquedaIaActiva && filtrados.length === 0: intenta el catalogo
@@ -234,7 +234,7 @@ function buscarProductos() {
   }
   programarBusquedaIA(texto);
  } else if (typeof mostrarFlyoutBusquedaPOS === "function") {
-  mostrarFlyoutBusquedaPOS(filtrados, { textoVacio: `Sin resultados para "${texto}"` });
+  mostrarFlyoutBusquedaPOS(filtrados, { textoVacio: `Sin resultados para "${texto}"`, mostrarArticuloRapido: true });
  }
  }
 

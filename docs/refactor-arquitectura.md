@@ -3605,3 +3605,67 @@ un producto con stock bajo para la alerta):
 - `node --check ia-server.js` sin errores.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
 - No se hace `git commit`/`push` sin confirmacion explicita.
+
+# Reimprimir venta desde Reportes + "articulo rapido" en el carrito (2026-07-20)
+
+El usuario reporto un caso real: un cliente pidio reimprimir un ticket ya
+cobrado, y no encontro donde hacerlo -- buscaba en Reportes -> Ventas ->
+"Ultimas ventas". Aparte, conto que su hermano agrego un producto sin
+codigo a una venta y termino cobrandolo aparte porque el producto no
+existia en el inventario.
+
+**Hallazgo central sobre el reimprimir**: la funcion **ya existia** --
+`abrirDetalleVentaPOS()`/`reimprimirTicketVentaPOS()`
+(`sales-history-documents.js`) llevan tiempo funcionando, pero solo
+estaban enganchadas en 2 de los **3** widgets "Ultimas ventas" que tiene
+la app (Inicio -- sin boton; Punto de Venta -- con boton; **Reportes --
+sin boton**). El usuario estaba viendo justo el unico que no lo tenia.
+Se agrego el mismo boton "Ver detalle" (reusando el modal existente, sin
+tocar backend) a `renderUltimasVentasReporte()` (`reports.js`), usando
+`venta.id` que ya coincide con `historial_ventas.id` (la misma columna
+que consume `GET /ventas/:id`).
+
+**"Articulo rapido"**: el problema real no era un bug de cobro -- es que
+no existia forma de agregar algo al ticket sin que primero fuera un
+producto real del inventario (codigo, formulario completo). Se agrego un
+item de carrito sintetico (`agregarArticuloRapido()`, `pos-sales.js`):
+solo nombre + precio + cantidad, con **id negativo unico**
+(`-(++contadorArticuloRapido)`) para no colisionar nunca con un id real
+de producto (serial positivo). Confirmado leyendo
+`descontarStockVentaProducto` (`server.js:3571`) que el `UPDATE
+productos... WHERE id = $2` simplemente no matchea ninguna fila con un
+id negativo -- **cero cambios de backend necesarios**, el articulo
+rapido nunca descuenta inventario por construccion, no por un caso
+especial agregado a proposito.
+
+Entrada nueva: boton "+ Agregar articulo rapido" dentro del buscador del
+POS, pero **solo cuando la busqueda genuinamente no encontro nada**
+(`opciones.mostrarArticuloRapido` en `mostrarFlyoutBusquedaPOS`,
+activado en los 2 call-sites de "sin resultados" en
+`app-bootstrap.js` y en el "Nexo IA no encontro nada" de
+`pos-busqueda-ia.js` -- nunca durante el estado transitorio "Buscando
+con Nexo IA..."). Al tocarlo se abre `pedirArticuloRapidoPOS()`
+(`pos-quick-item-modal.js`, nuevo archivo, mismo patron que
+`pedirModoVentaPOS`/`pos-piece-sale-modal.js`: promesa + modal
+reusable), prellenado con el texto ya buscado.
+
+Validacion, contra un negocio sintetico con un producto real de
+prueba (stock 20):
+- Reportes -> Ultimas ventas ahora muestra "Ver detalle" en cada fila
+  (`venta.id` correcto, confirmado via `cargarReportesVentas()`),
+  abre el mismo modal que ya funciona en Punto de Venta, con
+  "Reimprimir ticket" operativo.
+- Buscar algo que no existe en el catalogo muestra el boton contextual
+  "+ Agregar articulo rapido"; confirmar con precio $80 lo agrega al
+  carrito con id negativo, "Sin codigo", etiqueta "Articulo rapido".
+- Cobrar la venta (`POST /ventas` real) la registra correctamente
+  (folio real, historialId real) -- confirmado que el producto real de
+  prueba **mantiene su stock sin cambios** (20 antes y despues).
+- El detalle de la venta y el ticket reimpreso muestran el articulo
+  rapido con su nombre y precio correctos.
+- Cancelar el modal (Escape o boton Cancelar) no agrega nada al
+  carrito.
+- Sin errores de consola en ningun paso.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios, confirmado
+  directo en base tras la limpieza del negocio sintetico.
+- No se hace `git commit`/`push` sin confirmacion explicita.
