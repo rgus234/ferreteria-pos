@@ -3512,3 +3512,96 @@ plan Plus, una sesion activa, un equipo vinculado):
   ningun cliente de Stripe real.
 - No se hace `git commit`/`push` sin confirmacion explicita.
 - No se hace `git commit`/`push` sin confirmacion explicita.
+
+# App del Dueño -- rediseno total de la pestaña Más, drill-down estilo Ajustes (2026-07-20)
+
+El usuario pidio, con un brief de diseno muy detallado (Apple/Stripe/
+Notion/ChatGPT/Linear/Instagram/Arc Browser como referencia), pasar
+las 3 tarjetas apiladas de la pestaña Más (recien construida) a un
+patron de lista tipo Ajustes de iOS/Instagram: icono + titulo +
+descripcion + flecha, cada fila abriendo su propia sub-pantalla, con
+una tarjeta de "estado del negocio" arriba. Confirmado via
+`AskUserQuestion` que aplica a `/dueno` (movil), no a Configuracion de
+escritorio -- descarta Hardware (impresoras/escaner/basculas/terminal
+bancaria), que es cosa de terminal de caja, no de telefono.
+
+**Reality-check contra el brief** (grep directo, no asumido): no
+existe backup/exportar/importar (`0` resultados), no existe push
+notifications (`0` resultados), no existe 2FA (ya confirmado en la
+fase de Cuenta), no existe i18n. `demo` sigue sin ser un 4to plan
+seleccionable (sigue siendo el estado interno especial de
+`negocio_id=1`, decision ya tomada en Cuenta) -- se usan los 3 planes
+reales. El historial de pagos/facturas ya lo cubre el portal de
+Stripe existente, no se reconstruyo aparte.
+
+**Unico cambio de backend, pequeño y aditivo** -- `ia-server.js`,
+`GET /ia/resumen-rapido`: se agregaron `usosVigentes`/`limite`/`plan`
+al bloque `acceso` cuando `disponible:true` -- los valores ya se
+calculaban dentro de `licenciaDelNegocio()` para el enforcement de
+IA-4, solo faltaba exponerlos. `dueno.js` es el primer consumidor de
+este dato en cualquier UI.
+
+**Nuevo patron de navegacion en `dueno.html`/`dueno.js`**: `#duenoMas`
+paso de 3 `<article>` fijas a 2 niveles dentro del mismo panel --
+`#duenoMasNivel1` (tarjeta de estado + `#duenoMasCategorias`, lista de
+9 filas) y `#duenoMasSubpantalla` (contenedor generico, `position:
+fixed` con `transform: translateX()` para el efecto de deslizar desde
+la derecha estilo iOS, clase `.abierta` lo muestra). Las 9 categorias:
+6 funcionales (Cuenta, Plan y suscripcion, Nexo IA, Seguridad,
+Dispositivos, Ayuda) reusan casi 100% la logica ya escrita en la fase
+anterior (`guardarCorreoDueno`, `cambiarPlanDesdeMasDueno`,
+`cambiarPasswordDesdeMasDueno`, `cerrarSesionRemotaDesdeMasDueno`,
+`desvincularDispositivoDesdeMasDueno`), solo movida a funciones
+`renderSubpantallaX()` que pintan dentro de
+`#duenoMasSubpantallaContenido`; 3 quedan visibles pero marcadas
+"Proximamente" (Notificaciones, Respaldos, Apariencia) -- mismo patron
+ya usado para la pestaña Reportes, en vez de fingir una funcion que no
+existe.
+
+**Seguridad se separo de Dispositivos**: el brief pedia ambas como
+categorias distintas, y de hecho son 2 tablas distintas
+(`sesiones_cuenta` -- logins con correo/contraseña -- vs
+`dispositivos_vinculados` -- cajas con PIN) que antes vivian juntas
+dentro de una sola tarjeta "Seguridad".
+
+**Nexo IA**: nueva sub-pantalla con barra de progreso real
+(`usosVigentes`/`limite` del plan) y el mensaje de upsell existente
+para negocios sin acceso -- sin modelo/personalidad/voz/historial de
+prompts, ninguno de esos existe como funcion real, no se inventaron.
+
+**Un solo fetch por categoria, no por apertura**: `cargarPanelMasDueno()`
+pide las 4 rutas (`/licencia/estado`, `/cuenta/sesiones`,
+`/cuenta/dispositivos`, `/ia/resumen-rapido`) una sola vez al entrar a
+la pestaña y guarda todo en `duenoMasContexto`; abrir una categoria
+solo repinta con lo ya cargado. Tras una accion que muta datos (ej.
+guardar correo), `cargarPanelMasDueno()` se vuelve a llamar y, si hay
+una sub-pantalla abierta, se re-renderiza sola sin cerrarla.
+
+Validacion, contra un negocio sintetico nuevo (plan Plus,
+`ia_nivel3_usos=12` fijado a mano para probar la barra de consumo,
+un producto con stock bajo para la alerta):
+- Las 9 categorias se pintan (6 reales + 3 "Proximamente"); la
+  tarjeta de estado muestra plan real, "Nexo IA: Activa", conteo real
+  de dispositivos conectados (sesiones + equipos) y conteo real de
+  alertas de stock.
+- Cada sub-pantalla funcional carga datos reales via toque real
+  (`computer` tap, no solo JS) -- confirmado con capturas en
+  `preview_resize` movil (375x812): Cuenta, Plan y suscripcion,
+  Seguridad, Dispositivos, Ayuda.
+- Nexo IA muestra "12 de 50 preguntas... usadas este mes" con la
+  barra al 24%; forzando `disponible:false` en memoria confirma el
+  mensaje de upsell correcto.
+- Guardar un correo nuevo desde la sub-pantalla Cuenta llama
+  `PUT /cuenta/correo`, confirma, y la sub-pantalla se repinta sola
+  con el valor nuevo sin cerrarse.
+- Cambiar de pestaña (ej. a Inicio) y volver a Más cierra cualquier
+  sub-pantalla abierta y regresa al nivel 1.
+- Tocar una fila "Proximamente" muestra el toast correcto, sin
+  navegar a nada roto.
+- El Service Worker quedo en `nexo-dueno-shell-v6`
+  (`caches.keys()` confirma una sola entrada, la vieja `v5` se
+  purgo) -- sin repetir el bug de cache stale de la fase anterior.
+- Sin errores de consola en ningun paso.
+- `node --check ia-server.js` sin errores.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
+- No se hace `git commit`/`push` sin confirmacion explicita.

@@ -528,7 +528,11 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 ejecutarHerramientaNexo(pool, negocio.id, "resumen_creditos", {})
             ]);
 
-            res.json({ ok: true, acceso: { disponible: true }, ventas, stockBajo, creditos });
+            res.json({
+                ok: true,
+                acceso: { disponible: true, plan: acceso.plan, usosVigentes: acceso.usosVigentes, limite: acceso.limite },
+                ventas, stockBajo, creditos
+            });
         } catch (error) {
             responderError(res, error);
         }

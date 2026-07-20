@@ -831,6 +831,189 @@ button{
     font-size:13.5px;
 }
 
+/* ---------------- pestaña Más: tarjeta de estado + lista de categorias ---------------- */
+
+.dueno-status-card{
+    padding:18px 16px;
+    border-radius:22px;
+    margin-bottom:16px;
+    background:linear-gradient(135deg, var(--brand-soft), var(--surface) 75%);
+    box-shadow:var(--shadow);
+}
+
+.dueno-status-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:14px;
+}
+
+.dueno-status-head span{
+    display:block;
+    color:var(--muted);
+    font-size:11.5px;
+    font-weight:700;
+}
+
+.dueno-status-head h2{
+    margin:2px 0 0;
+    font-size:17px;
+}
+
+.dueno-status-lineas{
+    display:grid;
+    gap:8px;
+}
+
+.dueno-status-linea{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:9px 12px;
+    border-radius:12px;
+    background:rgba(255,255,255,.65);
+    font-size:12.5px;
+}
+
+.dueno-status-linea span{
+    color:var(--muted);
+    font-weight:700;
+}
+
+.dueno-status-linea strong{
+    font-weight:800;
+}
+
+.dueno-lista-categorias{
+    display:grid;
+    gap:8px;
+}
+
+.dueno-categoria-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:16px;
+    background:var(--surface);
+    box-shadow:var(--shadow);
+    text-align:left;
+}
+
+.dueno-categoria-row.proximamente{
+    opacity:.6;
+}
+
+.dueno-categoria-icono{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:38px;
+    height:38px;
+    flex-shrink:0;
+    border-radius:11px;
+    background:var(--brand-soft);
+    color:var(--brand);
+}
+
+.dueno-categoria-icono svg{
+    width:20px;
+    height:20px;
+}
+
+.dueno-categoria-icono-verde{ background:var(--green-soft); color:var(--green); }
+.dueno-categoria-icono-morado{ background:rgba(124,58,237,.14); color:#7c3aed; }
+.dueno-categoria-icono-ambar{ background:var(--amber-soft); color:#b45309; }
+.dueno-categoria-icono-rojo{ background:var(--red-soft); color:var(--red); }
+.dueno-categoria-icono-gris{ background:var(--surface-soft); color:var(--muted); }
+
+.dueno-categoria-texto{
+    min-width:0;
+    flex:1;
+}
+
+.dueno-categoria-texto strong{
+    display:block;
+    font-size:14px;
+}
+
+.dueno-categoria-texto span{
+    display:block;
+    margin-top:2px;
+    color:var(--muted);
+    font-size:11.5px;
+}
+
+.dueno-categoria-flecha{
+    flex-shrink:0;
+    color:var(--muted);
+}
+
+/* ---------------- pestaña Más: sub-pantalla deslizante ---------------- */
+
+.dueno-mas-subpantalla{
+    position:fixed;
+    inset:0;
+    z-index:15;
+    background:var(--bg);
+    transform:translateX(100%);
+    transition:transform .25s ease;
+    overflow-y:auto;
+}
+
+.dueno-mas-subpantalla.abierta{
+    transform:translateX(0);
+}
+
+.dueno-subpantalla-inner{
+    width:min(560px,100%);
+    margin:0 auto;
+    padding:calc(18px + env(safe-area-inset-top)) 16px calc(96px + env(safe-area-inset-bottom));
+}
+
+.dueno-subpantalla-header{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:18px;
+}
+
+.dueno-subpantalla-atras{
+    flex-shrink:0;
+    border:none;
+    border-radius:12px;
+    padding:8px 14px;
+    background:var(--surface);
+    box-shadow:var(--shadow);
+    color:var(--brand);
+    font-weight:800;
+    font-size:13.5px;
+}
+
+.dueno-subpantalla-header h2{
+    margin:0;
+    font-size:18px;
+}
+
+.dueno-barra-uso{
+    width:100%;
+    height:8px;
+    margin:8px 0 4px;
+    border-radius:999px;
+    background:var(--surface-soft);
+    overflow:hidden;
+}
+
+.dueno-barra-uso-relleno{
+    height:100%;
+    border-radius:999px;
+    background:var(--brand);
+}
+
 @media (min-width:560px){
     .dueno-app{
         padding-top:32px;

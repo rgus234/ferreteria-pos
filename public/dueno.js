@@ -371,6 +371,8 @@ function cambiarTabDueno(tab) {
     document.getElementById("duenoInventario").style.display = tab === "inventario" ? "block" : "none";
     document.getElementById("duenoMas").style.display = tab === "mas" ? "block" : "none";
 
+    if (tab !== "mas") cerrarSubpantallaMasDueno();
+
     if (tab === "ventas") cargarPanelVentasDueno();
     if (tab === "inventario") cargarPanelInventarioDueno();
     if (tab === "mas") cargarPanelMasDueno();
@@ -810,7 +812,7 @@ async function filtrarInventarioDueno() {
             : `<div class="vacio">Sin productos en tu catalogo guardado${texto.trim() || duenoInventarioCategoria ? " que coincidan" : ""}.</div>`;
 }
 
-// ---------------- pestaña Más: cuenta, plan, seguridad ----------------
+// ---------------- pestaña Más: navegacion tipo Ajustes ----------------
 
 function estadoLicenciaDuenoPOS(modo) {
     const mapa = {
@@ -823,55 +825,212 @@ function estadoLicenciaDuenoPOS(modo) {
     return mapa[modo] || mapa.normal;
 }
 
+// Datos de las 3 llamadas de red + el resumen de Nexo IA, cargados una
+// sola vez al entrar a la pestaña y reusados por cada sub-pantalla sin
+// volver a pedirlos -- se refresca solo al llamar cargarPanelMasDueno()
+// de nuevo (ej. tras guardar un cambio).
+let duenoMasContexto = {};
+let duenoMasCategoriaActiva = null;
+
 async function cargarPanelMasDueno() {
     try {
-        const [licenciaDatos, sesionesDatos, dispositivosDatos] =
+        const [licenciaDatos, sesionesDatos, dispositivosDatos, iaDatos] =
         await Promise.all([
             fetchAutenticado("/licencia/estado"),
             fetchAutenticado("/cuenta/sesiones"),
-            fetchAutenticado("/cuenta/dispositivos")
+            fetchAutenticado("/cuenta/dispositivos"),
+            fetchAutenticado("/ia/resumen-rapido")
         ]);
 
-        if (licenciaDatos?.ok) {
-            renderCuentaMasDueno(licenciaDatos.negocio, licenciaDatos.licencia);
-        }
+        duenoMasContexto = {
+            negocio: licenciaDatos?.negocio || {},
+            licencia: licenciaDatos?.licencia || {},
+            sesiones: sesionesDatos?.sesiones || [],
+            dispositivos: (dispositivosDatos?.ok ? dispositivosDatos.dispositivos : []) || [],
+            ia: iaDatos?.acceso || { disponible: false },
+            stockBajoCount: iaDatos?.stockBajo?.productos?.length || 0
+        };
 
-        renderSeguridadMasDueno(sesionesDatos, dispositivosDatos);
+        renderStatusCardMasDueno();
+        renderCategoriasMasDueno();
+
+        // Si hay una sub-pantalla abierta (ej. se acaba de guardar un
+        // cambio ahi mismo), se repinta con los datos frescos sin
+        // cerrarla.
+        if (duenoMasCategoriaActiva && RENDER_SUBPANTALLA_MAS_DUENO[duenoMasCategoriaActiva]) {
+            RENDER_SUBPANTALLA_MAS_DUENO[duenoMasCategoriaActiva]();
+        }
     } catch (error) {
         mostrarToastDueno("No se pudo cargar la configuracion.");
     }
 }
 
-function renderCuentaMasDueno(negocio, licencia) {
-    document.getElementById("duenoMasNegocio").textContent =
-        negocio.nombre || "Tu negocio";
-
-    document.getElementById("duenoMasDatos").innerHTML = `
-        <div><span>Negocio</span><strong>${escaparDueno(negocio.nombre || "")}</strong></div>
-        <div><span>Codigo</span><strong>${escaparDueno(negocio.slug || "")}</strong></div>
-    `;
-
-    document.getElementById("duenoMasCorreoInput").value = negocio.correo || "";
-
-    const badge =
-    document.getElementById("duenoMasCorreoBadge");
-
-    badge.textContent = negocio.correoVerificado ? "Verificado" : "No verificado";
-    badge.className = `dueno-badge ${negocio.correoVerificado ? "dueno-badge-ok" : "dueno-badge-pendiente"}`;
+function renderStatusCardMasDueno() {
+    const { negocio, licencia, sesiones, dispositivos, ia, stockBajoCount } = duenoMasContexto;
 
     const [textoEstado, claseEstado] =
     estadoLicenciaDuenoPOS(licencia.modo);
 
-    const pill =
-    document.getElementById("duenoMasPlanPill");
+    const nombresPlan = { basico: "Basico", plus: "Plus", pro: "Pro", demo: "Demo" };
 
-    pill.textContent = textoEstado;
-    pill.className = `dueno-pill ${claseEstado}`;
+    const totalDispositivos =
+    (sesiones?.length || 0) + (dispositivos?.length || 0);
 
-    const nombresPlan = { basico: "Basico", plus: "Plus", pro: "Pro" };
+    document.getElementById("duenoMasStatusCard").innerHTML = `
+        <div class="dueno-status-head">
+            <div>
+                <span>Estado del negocio</span>
+                <h2>${escaparDueno(negocio.nombre || "Tu negocio")}</h2>
+            </div>
+            <span class="dueno-pill ${claseEstado}">${textoEstado}</span>
+        </div>
+        <div class="dueno-status-lineas">
+            <div class="dueno-status-linea"><span>Plan actual</span><strong>${escaparDueno(nombresPlan[licencia.plan] || licencia.plan || "-")}</strong></div>
+            <div class="dueno-status-linea"><span>Nexo IA</span><strong>${ia?.disponible ? "Activa" : "No incluida"}</strong></div>
+            <div class="dueno-status-linea"><span>Dispositivos conectados</span><strong>${totalDispositivos}</strong></div>
+            <div class="dueno-status-linea"><span>Alertas de stock</span><strong>${stockBajoCount}</strong></div>
+        </div>
+    `;
+}
 
-    document.getElementById("duenoMasPlanNombre").textContent =
-        nombresPlan[licencia.plan] || licencia.plan || "-";
+function iconoCategoriaMasDueno(nombre) {
+    const iconos = {
+        usuario: '<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M4 20c1.5-4 5-6 8-6s6.5 2 8 6"/>',
+        tarjeta: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/>',
+        chispa: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/>',
+        candado: '<rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+        dispositivo: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/>',
+        ayuda: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1.3 1-1.3 2"/><path d="M12 17.2h.01"/>',
+        campana: '<path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 21a2 2 0 0 0 4 0"/>',
+        nube: '<path d="M7 18a4 4 0 0 1-1-7.9 5 5 0 0 1 9.6-1.8A4.5 4.5 0 0 1 17 18H7z"/>',
+        pincel: '<path d="M15 4l5 5-9.5 9.5a2 2 0 0 1-1.2.6l-3.6.4.4-3.6a2 2 0 0 1 .6-1.2L15 4z"/>',
+        flecha: '<path d="M9 6l6 6-6 6"/>'
+    };
+
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconos[nombre] || iconos.usuario}</svg>`;
+}
+
+// Categorias reales (con sub-pantalla funcional) primero; las que el
+// negocio todavia no tiene construidas quedan visibles pero marcadas
+// "proximamente" -- mismo patron ya usado en la pestaña Reportes, para
+// no fingir una funcion que no existe todavia.
+const CATEGORIAS_MAS_DUENO = [
+    { id: "cuenta", titulo: "Cuenta", desc: "Datos del negocio y correo", icono: "usuario", color: "" },
+    { id: "plan", titulo: "Plan y suscripcion", desc: "Tu plan, pagos y facturas", icono: "tarjeta", color: "verde" },
+    { id: "nexo-ia", titulo: "Nexo IA", desc: "Consumo y disponibilidad", icono: "chispa", color: "morado" },
+    { id: "seguridad", titulo: "Seguridad", desc: "Contraseña y sesiones", icono: "candado", color: "rojo" },
+    { id: "dispositivos", titulo: "Dispositivos", desc: "Cajas vinculadas a tu negocio", icono: "dispositivo", color: "" },
+    { id: "ayuda", titulo: "Ayuda", desc: "Contacto y version de la app", icono: "ayuda", color: "gris" },
+    { id: "notificaciones", titulo: "Notificaciones", desc: "Proximamente", icono: "campana", color: "gris", proximamente: true },
+    { id: "respaldos", titulo: "Respaldos", desc: "Proximamente", icono: "nube", color: "gris", proximamente: true },
+    { id: "apariencia", titulo: "Apariencia", desc: "Proximamente", icono: "pincel", color: "gris", proximamente: true }
+];
+
+function renderCategoriasMasDueno() {
+    document.getElementById("duenoMasCategorias").innerHTML =
+        CATEGORIAS_MAS_DUENO.map(categoria => `
+            <button type="button" class="dueno-categoria-row${categoria.proximamente ? " proximamente" : ""}"
+                onclick="${categoria.proximamente ? "proximamenteDueno()" : `abrirSubpantallaMasDueno('${categoria.id}')`}">
+                <span class="dueno-categoria-icono${categoria.color ? ` dueno-categoria-icono-${categoria.color}` : ""}">${iconoCategoriaMasDueno(categoria.icono)}</span>
+                <span class="dueno-categoria-texto">
+                    <strong>${escaparDueno(categoria.titulo)}</strong>
+                    <span>${escaparDueno(categoria.desc)}</span>
+                </span>
+                <span class="dueno-categoria-flecha">${iconoCategoriaMasDueno("flecha")}</span>
+            </button>
+        `).join("");
+}
+
+const RENDER_SUBPANTALLA_MAS_DUENO = {
+    cuenta: renderSubpantallaCuenta,
+    plan: renderSubpantallaPlan,
+    "nexo-ia": renderSubpantallaNexoIA,
+    seguridad: renderSubpantallaSeguridad,
+    dispositivos: renderSubpantallaDispositivos,
+    ayuda: renderSubpantallaAyuda
+};
+
+function abrirSubpantallaMasDueno(categoriaId) {
+    const categoria =
+    CATEGORIAS_MAS_DUENO.find(item => item.id === categoriaId);
+
+    const render =
+    RENDER_SUBPANTALLA_MAS_DUENO[categoriaId];
+
+    if (!categoria || !render) return;
+
+    duenoMasCategoriaActiva = categoriaId;
+    document.getElementById("duenoMasSubpantallaTitulo").textContent = categoria.titulo;
+    render();
+    document.getElementById("duenoMasSubpantalla").classList.add("abierta");
+}
+
+function cerrarSubpantallaMasDueno() {
+    duenoMasCategoriaActiva = null;
+    document.getElementById("duenoMasSubpantalla")?.classList.remove("abierta");
+}
+
+function htmlSesionesMasDueno(sesiones) {
+    return sesiones.length
+        ? sesiones.map(sesion => `
+            <div class="fila-dueno">
+                <div>
+                    <strong>${escaparDueno(sesion.dispositivo || "Dispositivo desconocido")}${sesion.actual ? " · Este telefono" : ""}</strong>
+                    <span>${escaparDueno(sesion.ip || "")} · ${fechaCorta(sesion.ultimoUsoAt)}</span>
+                </div>
+                ${sesion.actual
+                    ? ""
+                    : `<button type="button" class="dueno-link" onclick="cerrarSesionRemotaDesdeMasDueno(${sesion.id})">Cerrar</button>`}
+            </div>
+        `).join("")
+        : `<div class="vacio">No hay sesiones activas.</div>`;
+}
+
+function htmlDispositivosMasDueno(dispositivos) {
+    return dispositivos.length
+        ? dispositivos.map(dispositivo => `
+            <div class="fila-dueno">
+                <div>
+                    <strong>${escaparDueno(dispositivo.nombre || "Equipo sin nombre")}</strong>
+                    <span>Ultima vez ${fechaCorta(dispositivo.ultimoUsoAt)}</span>
+                </div>
+                <button type="button" class="dueno-link dueno-link-peligro" onclick="desvincularDispositivoDesdeMasDueno(${dispositivo.id})">Desvincular</button>
+            </div>
+        `).join("")
+        : `<div class="vacio">No hay equipos vinculados.</div>`;
+}
+
+function renderSubpantallaCuenta() {
+    const { negocio } = duenoMasContexto;
+
+    document.getElementById("duenoMasSubpantallaContenido").innerHTML = `
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Tu cuenta</span>
+                    <h2>${escaparDueno(negocio.nombre || "Tu negocio")}</h2>
+                </div>
+            </div>
+            <div class="dueno-datos-grid">
+                <div><span>Negocio</span><strong>${escaparDueno(negocio.nombre || "")}</strong></div>
+                <div><span>Codigo</span><strong>${escaparDueno(negocio.slug || "")}</strong></div>
+            </div>
+            <label class="dueno-campo">Correo
+                <span class="dueno-badge ${negocio.correoVerificado ? "dueno-badge-ok" : "dueno-badge-pendiente"}">${negocio.correoVerificado ? "Verificado" : "No verificado"}</span>
+                <input type="email" id="duenoMasCorreoInput" placeholder="correo@negocio.com" value="${escaparDueno(negocio.correo || "")}">
+            </label>
+            <button type="button" class="dueno-boton-primario" onclick="guardarCorreoDueno()">Guardar correo</button>
+        </article>
+    `;
+}
+
+function renderSubpantallaPlan() {
+    const { licencia } = duenoMasContexto;
+
+    const [textoEstado, claseEstado] =
+    estadoLicenciaDuenoPOS(licencia.modo);
+
+    const nombresPlan = { basico: "Basico", plus: "Plus", pro: "Pro", demo: "Demo" };
 
     const vencimiento =
     licencia.fechaVencimiento ? new Date(licencia.fechaVencimiento) : null;
@@ -881,52 +1040,135 @@ function renderCuentaMasDueno(negocio, licencia) {
             ? vencimiento.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })
             : "Sin definir";
 
-    document.getElementById("duenoMasPlanDatos").innerHTML = `
-        <div><span>Vence</span><strong>${fechaTexto}</strong></div>
-        <div><span>Dias de gracia</span><strong>${licencia.graciaDias ?? 0}</strong></div>
+    document.getElementById("duenoMasSubpantallaContenido").innerHTML = `
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Tu plan</span>
+                    <h2>${escaparDueno(nombresPlan[licencia.plan] || licencia.plan || "-")}</h2>
+                </div>
+                <span class="dueno-pill ${claseEstado}">${textoEstado}</span>
+            </div>
+            <div class="dueno-datos-grid">
+                <div><span>Vence</span><strong>${fechaTexto}</strong></div>
+                <div><span>Dias de gracia</span><strong>${licencia.graciaDias ?? 0}</strong></div>
+            </div>
+            <label class="dueno-campo">Cambiar a
+                <select id="duenoMasPlanSelect">
+                    <option value="basico" ${licencia.plan === "basico" ? "selected" : ""}>Basico</option>
+                    <option value="plus" ${licencia.plan === "plus" ? "selected" : ""}>Plus</option>
+                    <option value="pro" ${licencia.plan === "pro" ? "selected" : ""}>Pro</option>
+                </select>
+            </label>
+            <button type="button" class="dueno-boton-primario" onclick="cambiarPlanDesdeMasDueno()">${licencia.tieneStripe ? "Cambiar de plan" : "Suscribirme"}</button>
+            ${licencia.tieneStripe ? `
+                <button type="button" class="dueno-link" onclick="abrirPortalPagoDesdeMasDueno()" style="margin-top:10px;">Gestionar metodo de pago</button>
+                <br>
+                <button type="button" class="dueno-link" onclick="abrirPortalPagoDesdeMasDueno()" style="margin-top:6px;">Historial de pagos y facturas</button>
+            ` : ""}
+        </article>
     `;
-
-    document.getElementById("duenoMasPlanSelect").value = licencia.plan || "basico";
-
-    document.getElementById("duenoMasBotonPlan").textContent =
-        licencia.tieneStripe ? "Cambiar de plan" : "Suscribirme";
-
-    document.getElementById("duenoMasBotonPortal").style.display =
-        licencia.tieneStripe ? "inline" : "none";
 }
 
-function renderSeguridadMasDueno(sesionesDatos, dispositivosDatos) {
-    const sesiones = sesionesDatos?.sesiones || [];
+function renderSubpantallaNexoIA() {
+    const { ia } = duenoMasContexto;
+    const contenedor = document.getElementById("duenoMasSubpantallaContenido");
 
-    document.getElementById("duenoMasSesiones").innerHTML =
-        sesiones.length
-            ? sesiones.map(sesion => `
-                <div class="fila-dueno">
+    if (!ia?.disponible) {
+        contenedor.innerHTML = `
+            <article class="dueno-card">
+                <div class="card-head">
                     <div>
-                        <strong>${escaparDueno(sesion.dispositivo || "Dispositivo desconocido")}${sesion.actual ? " · Este telefono" : ""}</strong>
-                        <span>${escaparDueno(sesion.ip || "")} · ${fechaCorta(sesion.ultimoUsoAt)}</span>
+                        <span>Nexo IA</span>
+                        <h2>No incluida en tu plan</h2>
                     </div>
-                    ${sesion.actual
-                        ? ""
-                        : `<button type="button" class="dueno-link" onclick="cerrarSesionRemotaDesdeMasDueno(${sesion.id})">Cerrar</button>`}
                 </div>
-            `).join("")
-            : `<div class="vacio">No hay sesiones activas.</div>`;
+                <p class="dueno-estado">Nexo IA esta disponible desde el plan Plus. Mejora tu plan desde "Plan y suscripcion" para empezar a usarla.</p>
+            </article>
+        `;
+        return;
+    }
 
-    const dispositivos = (dispositivosDatos?.ok ? dispositivosDatos.dispositivos : []) || [];
+    const porcentaje =
+    ia.limite > 0 ? Math.min(100, Math.round((ia.usosVigentes / ia.limite) * 100)) : 0;
 
-    document.getElementById("duenoMasDispositivos").innerHTML =
-        dispositivos.length
-            ? dispositivos.map(dispositivo => `
-                <div class="fila-dueno">
-                    <div>
-                        <strong>${escaparDueno(dispositivo.nombre || "Equipo sin nombre")}</strong>
-                        <span>Ultima vez ${fechaCorta(dispositivo.ultimoUsoAt)}</span>
-                    </div>
-                    <button type="button" class="dueno-link dueno-link-peligro" onclick="desvincularDispositivoDesdeMasDueno(${dispositivo.id})">Desvincular</button>
+    const textoLimite =
+        ia.plan === "plus"
+            ? `${ia.usosVigentes} de ${ia.limite} preguntas de analisis profundo usadas este mes.`
+            : `${ia.usosVigentes} preguntas de analisis profundo este mes -- tu plan no tiene un limite practico.`;
+
+    contenedor.innerHTML = `
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Nexo IA</span>
+                    <h2>Disponible en tu plan</h2>
                 </div>
-            `).join("")
-            : `<div class="vacio">No hay equipos vinculados.</div>`;
+            </div>
+            <p class="dueno-estado">${escaparDueno(textoLimite)}</p>
+            <div class="dueno-barra-uso"><div class="dueno-barra-uso-relleno" style="width:${porcentaje}%;"></div></div>
+        </article>
+    `;
+}
+
+function renderSubpantallaSeguridad() {
+    document.getElementById("duenoMasSubpantallaContenido").innerHTML = `
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Seguridad</span>
+                    <h2>Contraseña y sesiones</h2>
+                </div>
+            </div>
+            <label class="dueno-campo">Contraseña actual
+                <input type="password" id="duenoMasPasswordActual" autocomplete="current-password">
+            </label>
+            <label class="dueno-campo">Contraseña nueva
+                <input type="password" id="duenoMasPasswordNueva" autocomplete="new-password">
+            </label>
+            <label class="dueno-campo">Confirmar contraseña nueva
+                <input type="password" id="duenoMasPasswordConfirmar" autocomplete="new-password">
+            </label>
+            <button type="button" class="dueno-boton-primario" onclick="cambiarPasswordDesdeMasDueno()">Cambiar contraseña</button>
+
+            <h4 class="dueno-subseccion">Sesiones con acceso</h4>
+            <div id="duenoMasSesiones" class="lista-compacta">${htmlSesionesMasDueno(duenoMasContexto.sesiones || [])}</div>
+            <button type="button" class="dueno-link dueno-link-peligro" onclick="cerrarTodasSesionesDesdeMasDueno()">Cerrar sesion en todos los dispositivos</button>
+        </article>
+
+        <button type="button" class="dueno-boton-cerrar-sesion" onclick="cerrarSesionDuenoApp()">Cerrar sesion en este telefono</button>
+    `;
+}
+
+function renderSubpantallaDispositivos() {
+    document.getElementById("duenoMasSubpantallaContenido").innerHTML = `
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Dispositivos</span>
+                    <h2>Cajas vinculadas</h2>
+                </div>
+            </div>
+            <div id="duenoMasDispositivos" class="lista-compacta">${htmlDispositivosMasDueno(duenoMasContexto.dispositivos || [])}</div>
+        </article>
+    `;
+}
+
+function renderSubpantallaAyuda() {
+    document.getElementById("duenoMasSubpantallaContenido").innerHTML = `
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Ayuda</span>
+                    <h2>Contacto y version</h2>
+                </div>
+            </div>
+            <a class="dueno-boton-primario" style="display:block;text-align:center;text-decoration:none;" href="https://wa.me/524981234567?text=Hola,%20necesito%20ayuda%20con%20Nexo%20POS" target="_blank" rel="noopener">Escribir por WhatsApp</a>
+            <div class="dueno-datos-grid" style="margin-top:12px;">
+                <div><span>App</span><strong>Nexo POS -- App del dueño</strong></div>
+            </div>
+        </article>
+    `;
 }
 
 async function guardarCorreoDueno() {

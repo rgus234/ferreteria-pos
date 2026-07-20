@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Dueño POS">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=dueno-mas-20260720-01">
+    <link rel="stylesheet" href="dueno.css?v=dueno-mas-rediseno-20260720-01">
 </head>
 
 <body>
@@ -188,77 +188,29 @@
     </main>
 
     <main id="duenoMas" class="dueno-app" style="display:none;">
-        <header class="dueno-header">
-            <div>
-                <p class="dueno-saludo">Configuracion</p>
-                <h1>Más</h1>
-                <p class="dueno-estado">Tu cuenta, tu plan y seguridad</p>
-            </div>
-        </header>
-
-        <article class="dueno-card">
-            <div class="card-head">
+        <div id="duenoMasNivel1">
+            <header class="dueno-header">
                 <div>
-                    <span>Tu cuenta</span>
-                    <h2 id="duenoMasNegocio">Tu negocio</h2>
+                    <p class="dueno-saludo">Configuracion</p>
+                    <h1>Más</h1>
+                    <p class="dueno-estado">Tu cuenta, tu plan y seguridad</p>
                 </div>
-            </div>
-            <div id="duenoMasDatos" class="dueno-datos-grid"></div>
-            <label class="dueno-campo">Correo
-                <span id="duenoMasCorreoBadge" class="dueno-badge"></span>
-                <input type="email" id="duenoMasCorreoInput" placeholder="correo@negocio.com">
-            </label>
-            <button type="button" class="dueno-boton-primario" onclick="guardarCorreoDueno()">Guardar correo</button>
-        </article>
+            </header>
 
-        <article class="dueno-card">
-            <div class="card-head">
-                <div>
-                    <span>Tu plan</span>
-                    <h2 id="duenoMasPlanNombre">-</h2>
+            <article class="dueno-status-card" id="duenoMasStatusCard"></article>
+
+            <div id="duenoMasCategorias" class="dueno-lista-categorias"></div>
+        </div>
+
+        <div id="duenoMasSubpantalla" class="dueno-mas-subpantalla">
+            <div class="dueno-subpantalla-inner">
+                <div class="dueno-subpantalla-header">
+                    <button type="button" class="dueno-subpantalla-atras" onclick="cerrarSubpantallaMasDueno()">&lsaquo; Atrás</button>
+                    <h2 id="duenoMasSubpantallaTitulo"></h2>
                 </div>
-                <span id="duenoMasPlanPill" class="dueno-pill"></span>
+                <div id="duenoMasSubpantallaContenido"></div>
             </div>
-            <div id="duenoMasPlanDatos" class="dueno-datos-grid"></div>
-            <label class="dueno-campo">Cambiar a
-                <select id="duenoMasPlanSelect">
-                    <option value="basico">Basico</option>
-                    <option value="plus">Plus</option>
-                    <option value="pro">Pro</option>
-                </select>
-            </label>
-            <button type="button" class="dueno-boton-primario" id="duenoMasBotonPlan" onclick="cambiarPlanDesdeMasDueno()">Cambiar de plan</button>
-            <button type="button" class="dueno-link" id="duenoMasBotonPortal" onclick="abrirPortalPagoDesdeMasDueno()" style="display:none;margin-top:10px;">Gestionar metodo de pago</button>
-        </article>
-
-        <article class="dueno-card dueno-card-wide">
-            <div class="card-head">
-                <div>
-                    <span>Seguridad</span>
-                    <h2>Contraseña y sesiones</h2>
-                </div>
-            </div>
-
-            <label class="dueno-campo">Contraseña actual
-                <input type="password" id="duenoMasPasswordActual" autocomplete="current-password">
-            </label>
-            <label class="dueno-campo">Contraseña nueva
-                <input type="password" id="duenoMasPasswordNueva" autocomplete="new-password">
-            </label>
-            <label class="dueno-campo">Confirmar contraseña nueva
-                <input type="password" id="duenoMasPasswordConfirmar" autocomplete="new-password">
-            </label>
-            <button type="button" class="dueno-boton-primario" onclick="cambiarPasswordDesdeMasDueno()">Cambiar contraseña</button>
-
-            <h4 class="dueno-subseccion">Sesiones con acceso</h4>
-            <div id="duenoMasSesiones" class="lista-compacta"></div>
-            <button type="button" class="dueno-link dueno-link-peligro" onclick="cerrarTodasSesionesDesdeMasDueno()">Cerrar sesion en todos los dispositivos</button>
-
-            <h4 class="dueno-subseccion">Cajas vinculadas</h4>
-            <div id="duenoMasDispositivos" class="lista-compacta"></div>
-        </article>
-
-        <button type="button" class="dueno-boton-cerrar-sesion" onclick="cerrarSesionDuenoApp()">Cerrar sesion en este telefono</button>
+        </div>
     </main>
 
     <nav id="duenoTabs" class="dueno-tabs" style="display:none;">
@@ -301,8 +253,8 @@
         </div>
     </div>
 
-    <script src="dueno-offline.js?v=dueno-mas-20260720-01"></script>
-    <script src="dueno.js?v=dueno-mas-20260720-01"></script>
+    <script src="dueno-offline.js?v=dueno-mas-rediseno-20260720-01"></script>
+    <script src="dueno.js?v=dueno-mas-rediseno-20260720-01"></script>
 </body>
 
 </html>
