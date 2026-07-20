@@ -189,7 +189,8 @@
 .detalle-bitacora-pos {
   border-radius: 16px !important;
   border: 1px solid var(--line-soft, rgba(15, 23, 42, .10)) !important;
-  background: var(--surface-soft, rgba(255, 255, 255, .56)) !important;
+  background: var(--surface-strong, rgba(255, 255, 255, .92)) !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, .05), inset 0 1px 0 rgba(255, 255, 255, .6) !important;
   padding: 11px !important;
 }
 
@@ -221,15 +222,60 @@
   margin-top: 14px !important;
 }
 
-.detalle-acciones-pos button,
+.detalle-acciones-pos button {
+  width: auto !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 16px !important;
+  border-radius: 13px !important;
+  border: 1px solid rgba(255, 255, 255, .5) !important;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, .4) 0%, rgba(255, 255, 255, 0) 45%),
+    var(--surface-strong, rgba(255, 255, 255, .92)) !important;
+  backdrop-filter: blur(14px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.3) !important;
+  color: var(--text-main, #101828) !important;
+  font-size: 12.5px !important;
+  font-weight: 900 !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, .06), inset 0 1px 0 rgba(255, 255, 255, .6) !important;
+}
+
+.detalle-acciones-pos .detalle-boton-primario {
+  border-color: rgba(255, 255, 255, .55) !important;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, .4) 0%, rgba(255, 255, 255, 0) 42%),
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-color, #0d6efd) 56%, transparent), color-mix(in srgb, var(--brand-color, #0d6efd) 30%, transparent)) !important;
+  color: #fff !important;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--brand-color, #0d6efd) 24%, transparent), inset 0 1px 0 rgba(255, 255, 255, .55) !important;
+}
+
 .nota-venta-card-pos .modal-actions-row button {
   min-height: 42px !important;
   border-radius: 14px !important;
 }
 
 .detalle-acciones-pos button:disabled {
-  opacity: .55 !important;
+  opacity: .5 !important;
   cursor: not-allowed !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+body.oscuro .detalle-acciones-pos button {
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, .08) 0%, rgba(255, 255, 255, 0) 45%),
+    rgba(30, 41, 59, .68) !important;
+  border-color: rgba(226, 232, 240, .2) !important;
+  color: #f8fafc !important;
+}
+
+body.oscuro .detalle-venta-resumen-pos div,
+body.oscuro .detalle-venta-totales-pos div,
+body.oscuro .detalle-productos-pos div,
+body.oscuro .detalle-bitacora-pos {
+  background: rgba(30, 41, 59, .68) !important;
+  border-color: rgba(226, 232, 240, .16) !important;
 }
 
 body.oscuro .venta-completada-card-pos,

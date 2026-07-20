@@ -3669,3 +3669,67 @@ prueba (stock 20):
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios, confirmado
   directo en base tras la limpieza del negocio sintetico.
 - No se hace `git commit`/`push` sin confirmacion explicita.
+
+# Pulido visual: vidrio mas translucido, modal Ver detalle y borde tipo Siri en busqueda IA (2026-07-21)
+
+El usuario mando capturas de su POS en produccion senalando 4 cosas: los
+botones Cobrar/Efectivo/Agregar se ven opacos y sin el estilo "liquid
+glass"; y el modal nuevo "Ver detalle" (de la fase anterior) se ve mal --
+botones muy largos apilados y tarjetas de producto opacas. Tambien pidio
+un borde animado tipo Siri/Apple Intelligence en el buscador cuando la
+busqueda con Nexo IA esta activa.
+
+**Cobrar/Efectivo/Agregar**: revisando el CSS, los 3 ya tenian gradiente +
+`backdrop-filter: blur()` desde el pase de "liquid glass" del 2026-07-19
+(`pos-cart.css`/`pos-sale-redesign.css`) -- no era un bug de codigo. Se
+reforzo de todas formas: se bajo el porcentaje de `color-mix` (mas
+transparencia, mas dependencia del blur) y se agrego una segunda capa de
+`background` con un brillo diagonal blanco (`linear-gradient(120deg,
+rgba(255,255,255,.35) 0%, rgba(255,255,255,0) 45%)`) superpuesta al
+gradiente de marca -- el mismo truco de "sheen" que usan los paneles de
+vidrio de iOS. Si en produccion se seguia viendo plano, es senal de cache
+de navegador con la version anterior del CSS -- los cache-busters se
+subieron de nuevo para forzar la descarga.
+
+**Bug real encontrado en el modal Ver detalle** (`sale-documents.css`):
+`.detalle-acciones-pos button` solo definia `min-height`/`border-radius`,
+sin `background` ni `width` propios -- por eso los 6 botones (Reimprimir
+ticket, Imprimir nota, Descargar PDF, WhatsApp, Correo, Factura CFDI)
+heredaban la regla global vieja `button { width:100%;
+background:var(--brand-color) !important }` (el mismo bug de
+"boton hereda ancho/color global" ya documentado varias veces esta sesion
+para otros modulos) -- de ahi que se vieran como barras solidas apiladas
+en vez de pildoras. Se corrigio dandoles `width:auto`, fondo de vidrio
+propio (neutro para las secundarias, gradiente de marca para "Reimprimir
+ticket" -- unica marcada `.detalle-boton-primario` en
+`sales-history-documents.js`), y se subio el contraste de las tarjetas de
+producto/resumen/totales de `--surface-soft` (.56 alpha, casi invisible
+sobre el fondo del modal) a `--surface-strong` (.92 alpha) con sombra
+interior sutil.
+
+**Borde tipo Siri**: `alternarBusquedaIA()` (`pos-busqueda-ia.js`) ahora
+agrega la clase `ia-activa` al contenedor `.pos-reference-search` (no
+solo al boton). Nueva regla en `pos-busqueda-ia.css`: un `::before`
+absoluto con `conic-gradient` (paleta fija de marca Nexo, la misma de
+IA-5: `#2563ff`/`#7c3aed`/`#00d4ff`) recortado a solo el anillo exterior
+via `mask-composite:exclude` (el centro queda hueco, no tapa el input) y
+girando lento (`4s linear infinite`) -- mismo efecto visual que el borde
+animado de Siri/Apple Intelligence.
+
+Validacion: dado que las capturas de pantalla del navegador fallaron de
+forma consistente en este entorno (imagen en blanco pese a que el DOM
+esta correcto -- problema de la herramienta, no del codigo, confirmado
+comparando contra el estado real del DOM), la verificacion se hizo
+leyendo estilos computados directo en el navegador contra un negocio
+sintetico con una venta de prueba:
+- `.btn-cobrar`/`.metodo-pago-opciones button.activo`/`.pos-flyout-agregar`:
+  `backgroundImage` confirma las 2 capas de gradiente (brillo + marca) y
+  `backdropFilter` confirma el blur.
+- Modal Ver detalle: `.detalle-boton-primario` mide 141px (no 100% del
+  modal), el resto de los botones 120px, con su propio gradiente/color de
+  fondo; las tarjetas de producto ahora usan `rgba(255,255,255,.92)`.
+- Buscador con IA activa: la clase `ia-activa` se aplica, el `::before`
+  tiene el `conic-gradient` correcto y `animationName: nexoSiriBorde`.
+- Sin errores de consola en ningun paso.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
+- No se hace `git commit`/`push` sin confirmacion explicita.

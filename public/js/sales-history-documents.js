@@ -464,7 +464,7 @@ function renderDetalleVentaPOS(venta) {
   </div>
   ${bitacora.length ? `<div class="detalle-bitacora-pos"><strong>Bitacora de notas</strong>${bitacora.map(item => `<span>${new Date(item.created_at).toLocaleString("es-MX")} · ${escaparPOS(item.usuario_autorizo)} autorizo ${dinero(item.total_original)} a ${dinero(item.total_mostrado)} · ${escaparPOS(item.motivo)}</span>`).join("")}</div>` : ""}
   <div class="detalle-acciones-pos">
-   <button type="button" onclick="reimprimirTicketVentaPOS(${Number(venta.id)})">Reimprimir ticket</button>
+   <button type="button" class="detalle-boton-primario" onclick="reimprimirTicketVentaPOS(${Number(venta.id)})">Reimprimir ticket</button>
    <button type="button" onclick="abrirNotaVentaPOS(${Number(venta.id)})">Imprimir nota</button>
    <button type="button" onclick="descargarPDFVentaPOS(${Number(venta.id)})">Descargar PDF</button>
    <button type="button" disabled>WhatsApp</button>

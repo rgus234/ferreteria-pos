@@ -44,6 +44,40 @@
   color: #fff !important;
 }
 
+/* Borde animado tipo Siri/Apple Intelligence cuando la busqueda con
+   Nexo IA esta activa -- anillo con mascara (el centro queda hueco
+   para no tapar el input) girando lento, paleta fija de marca Nexo
+   (#2563ff/#7c3aed/#00d4ff, misma paleta que el personaje de IA-5). */
+.pos-reference-search {
+  position: relative;
+}
+
+.pos-reference-search.ia-activa {
+  border-color: transparent !important;
+}
+
+.pos-reference-search.ia-activa::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: 2;
+  border-radius: 18px;
+  padding: 2px;
+  background: conic-gradient(from 0deg, #2563ff, #7c3aed, #00d4ff, #2563ff);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: nexoSiriBorde 4s linear infinite;
+}
+
+@keyframes nexoSiriBorde {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .pos-flyout-nota {
   padding: 8px 12px;
   font-size: 12.5px;

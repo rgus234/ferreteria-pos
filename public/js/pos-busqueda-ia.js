@@ -26,6 +26,9 @@ function alternarBusquedaIA() {
    : "Buscar producto por nombre, codigo o codigo de barras...";
  }
 
+ const barra = campo?.closest(".pos-reference-search");
+ if (barra) barra.classList.toggle("ia-activa", busquedaIaActiva);
+
  if (typeof buscarProductos === "function") buscarProductos();
 }
 
