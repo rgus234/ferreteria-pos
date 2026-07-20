@@ -3101,3 +3101,95 @@ de cuenta y dos sesiones de dispositivo forjadas directo en
   legibles) sin errores de consola.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
 - No se hace `git commit`/`push` sin confirmacion explicita.
+
+### App del Dueño -- Fase 1: rescate y rediseno de /dueno (2026-07-19)
+
+Tras un analisis tecnico de viabilidad (Artifact) sobre la vision del
+usuario de una "App del Dueño" mobile-first, se acordo empezar por el
+resumen ejecutivo, como experiencia web (sin App Store/Google Play
+todavia). El usuario pidio que se viera igual al mockup de referencia
+que compartio (10 pantallas de una app movil) -- esta fase construye
+solo la pantalla de Inicio.
+
+**Hallazgo central**: no hizo falta construir nada desde cero. Ya
+existia `public/dueno.html`/`dueno.js`/`dueno.css` -- una pagina
+standalone real (con `<meta name="viewport">` genuino, meta tags PWA,
+`env(safe-area-inset-*)`), alcanzable desde un boton real del sidebar
+y una ruta real en `server.js:4104-4108`, creada en un solo commit
+(`e06c8ff`) y nunca actualizada. **Estaba rota**: hacia `fetch` a
+`/productos`/`/historial`/`/creditos` sin ningun header de
+autenticacion, mientras esas 3 rutas ya requieren
+`requerirAccesoNegocio` desde la fase G de refactorizacion (posterior
+a cuando se creo `/dueno`). Abrir `/dueno` mostraba "No se pudo
+conectar con el POS" indefinidamente.
+
+**Autenticacion -- sin ninguna ruta nueva de backend**: se confirmo
+que `requerirAccesoNegocio` (`server.js:1098-1143`) ya acepta un token
+de sesion de cuenta (`Authorization: Bearer`, el mismo sistema
+correo+contrasena de `sesiones_cuenta` que usa Cuenta) ademas del
+token de dispositivo. `/dueno` se autentica igual que Cuenta --
+`POST /cuenta/login` (existente, sin cambios) -- en vez de vincular el
+telefono del dueño como una caja registradora. Es ademas la
+arquitectura correcta: un cajero cualquiera no puede abrir la app del
+dueño, solo quien tenga la contraseña real.
+
+**`public/dueno.html`**: reescrito con una pantalla de login (correo +
+contraseña, llama `POST /cuenta/login`, guarda el token en
+`nexoCuentaSesionToken` -- misma llave que usa `account-view.js`, asi
+que si el dueño ya inicio sesion en Cuenta en el mismo navegador,
+`/dueno` funciona sin pedir nada de nuevo), la pantalla de Inicio
+(saludo + Nexo, rejilla de 4 KPIs, alertas, ultimas ventas, creditos)
+y una barra de pestanas fija abajo (Inicio activa; Reportes/Ventas/
+Inventario/Mas deshabilitadas, muestran un toast "Proximamente" --
+fases futuras del roadmap).
+
+**`public/dueno.js`**: nuevo `fetchAutenticado()` que agrega el header
+`Authorization` y redirige al login si la respuesta es 401 (mismo
+patron que `cuentaFetchAutenticado()` de `account-view.js`, adaptado
+standalone). Nueva `iniciarSesionDueno()`. `renderVentas()` gano el
+calculo de "% vs ayer" (formula copiada tal cual de
+`sales-history-documents.js:155-166`, para que coincida con el
+dashboard de escritorio) y `productosVendidosHoy()` (suma `cantidad`
+de `venta.productos` de hoy). Nueva `renderSparklineSVG()`: un
+`<polyline>` SVG generado con JS puro sobre los mismos datos ya
+cargados -- sin agregar Chart.js a esta pagina, para mantenerla ligera
+en telefono. El resto de la logica de agregacion (stock bajo,
+creditos, ultimas ventas) ya existia y se conservo, solo restyled.
+
+**Decisiones resueltas con el usuario via `AskUserQuestion`** antes de
+construir: la tarjeta "Ganancia" del mockup no se puede calcular con
+datos reales (no existe costo por producto en el sistema) -- se
+reemplazo por "Productos vendidos" en vez de inventar el numero. La
+barra de pestanas se incluyo desde ya (con 4 pestanas deshabilitadas)
+para que se sienta como app completa desde el primer dia.
+
+**`public/dueno.css`**: reescrito de tema oscuro glassmorphism a tema
+claro (tarjetas blancas, acentos de color) para que coincida con el
+mockup -- se conservaron el `<meta name="viewport">` y
+`env(safe-area-inset-*)` que ya estaban correctos.
+
+Validacion, contra un negocio sintetico (correo/contraseña reales via
+`password-utils.js`, productos con distinto stock, ventas de hoy en 4
+horas distintas y una venta de ayer, un cliente con credito pendiente):
+- Login con correo/contraseña reales carga los datos correctos
+  (`POST /cuenta/login` y las 3 rutas de datos confirmadas 200 OK con
+  `preview_network`, sin `Authorization` no cargan -- confirmado 401
+  antes del login).
+- Los 4 KPIs coinciden exactamente con los datos insertados: $1,880.00
+  ventas de hoy, $470.00 ticket promedio, 8 productos vendidos, 4
+  transacciones, +527% vs ayer (formula verificada contra la venta de
+  ayer de $300).
+- Alertas importantes muestra "2 productos con stock critico"
+  (Varilla 3/8 con stock 0, Cemento gris con stock 2, ambos bajo su
+  `stock_minimo` de 5) -- el tercer producto de prueba (stock 22) no
+  aparece, correcto.
+- Creditos pendientes muestra "1 clientes", "$850.00", "Juan Herrera
+  $850.00" -- coincide con el movimiento de credito insertado.
+- Las 4 pestañas deshabilitadas muestran el toast "Proximamente" al
+  tocarlas.
+- Confirmado con `preview_resize` (preset `mobile`, 375x812) que
+  `/dueno` SI respeta un viewport movil real (a diferencia de la SPA
+  principal, que no tiene `<meta name="viewport">`).
+- Sin errores de consola en ningun paso.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
+- No se hace `git commit`/`push` sin confirmacion explicita.

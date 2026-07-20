@@ -4,41 +4,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#f6f7fb">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Dueño POS">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=dueno-pwa-20260615-1">
+    <link rel="stylesheet" href="dueno.css?v=dueno-resumen-20260719-01">
 </head>
 
 <body>
-    <main class="dueno-app">
-        <section class="dueno-hero">
+    <main id="duenoLogin" class="dueno-login">
+        <div class="dueno-login-caja">
+            <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-login-nexo">
+            <h1>Panel del dueño</h1>
+            <p>Entra con el correo y la contraseña de tu cuenta Nexo POS.</p>
+            <label>Correo
+                <input type="email" id="duenoLoginCorreo" autocomplete="username" placeholder="correo@negocio.com">
+            </label>
+            <label>Contraseña
+                <input type="password" id="duenoLoginPassword" autocomplete="current-password" placeholder="Tu contraseña">
+            </label>
+            <p id="duenoLoginError" class="dueno-login-error" style="display:none;"></p>
+            <button id="btnDuenoLogin" type="button" onclick="iniciarSesionDueno()">Entrar</button>
+        </div>
+    </main>
+
+    <main id="duenoApp" class="dueno-app" style="display:none;">
+        <header class="dueno-header">
+            <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-header-nexo">
             <div>
-                <span class="dueno-eyebrow">Panel del dueño</span>
-                <h1 id="duenoNegocio">Ferreteria Olimpico</h1>
-                <p id="duenoEstado">Conectando con el POS...</p>
+                <p id="duenoSaludo" class="dueno-saludo">Buenos días</p>
+                <h1 id="duenoNegocio">Tu negocio</h1>
+                <p id="duenoEstado" class="dueno-estado">Cargando...</p>
             </div>
-            <button id="btnActualizarDueno" type="button" onclick="cargarPanelDueno()">
-                Actualizar
-            </button>
-        </section>
+        </header>
 
         <section class="dueno-kpis">
             <article class="kpi kpi-ventas">
-                <span>Ventas hoy</span>
+                <span>Ventas de hoy</span>
                 <strong id="duenoVentasHoy">$0.00</strong>
                 <small id="duenoVentasEstado">Sin datos</small>
-            </article>
-            <article class="kpi">
-                <span>Transacciones</span>
-                <strong id="duenoTransacciones">0</strong>
-                <small>Tickets del dia</small>
+                <svg id="duenoSparkline" class="dueno-sparkline" viewBox="0 0 100 28" preserveAspectRatio="none"></svg>
             </article>
             <article class="kpi">
                 <span>Ticket promedio</span>
                 <strong id="duenoTicketPromedio">$0.00</strong>
-                <small>Venta promedio</small>
+                <small>Por venta</small>
+            </article>
+            <article class="kpi">
+                <span>Productos vendidos</span>
+                <strong id="duenoProductosVendidos">0</strong>
+                <small>Piezas de hoy</small>
+            </article>
+            <article class="kpi">
+                <span>Transacciones</span>
+                <strong id="duenoTransacciones">0</strong>
+                <small>Tickets de hoy</small>
             </article>
         </section>
 
@@ -46,7 +66,7 @@
             <article class="dueno-card">
                 <div class="card-head">
                     <div>
-                        <span>Inventario bajo</span>
+                        <span>Alertas importantes</span>
                         <h2 id="duenoInventarioBajo">0 productos</h2>
                     </div>
                     <b class="alert-dot"></b>
@@ -57,7 +77,7 @@
             <article class="dueno-card">
                 <div class="card-head">
                     <div>
-                        <span>Creditos pendientes</span>
+                        <span>Créditos pendientes</span>
                         <h2 id="duenoCreditosTotal">$0.00</h2>
                     </div>
                     <small id="duenoClientesCredito">0 clientes</small>
@@ -68,7 +88,7 @@
             <article class="dueno-card dueno-card-wide">
                 <div class="card-head">
                     <div>
-                        <span>Ultimas ventas</span>
+                        <span>Últimas ventas</span>
                         <h2>Movimiento reciente</h2>
                     </div>
                     <small id="duenoActualizado">Ahora</small>
@@ -78,7 +98,32 @@
         </section>
     </main>
 
-    <script src="dueno.js?v=dueno-pwa-20260615-1"></script>
+    <nav id="duenoTabs" class="dueno-tabs" style="display:none;">
+        <button type="button" class="activo" data-tab="inicio">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+            <span>Inicio</span>
+        </button>
+        <button type="button" data-tab="reportes" onclick="proximamenteDueno()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+            <span>Reportes</span>
+        </button>
+        <button type="button" data-tab="ventas" onclick="proximamenteDueno()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.4 12.2a1.6 1.6 0 0 0 1.6 1.3h9a1.6 1.6 0 0 0 1.6-1.3L21 7H6"/></svg>
+            <span>Ventas</span>
+        </button>
+        <button type="button" data-tab="inventario" onclick="proximamenteDueno()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+            <span>Inventario</span>
+        </button>
+        <button type="button" data-tab="mas" onclick="proximamenteDueno()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+            <span>Más</span>
+        </button>
+    </nav>
+
+    <div id="duenoToast" class="dueno-toast" style="display:none;"></div>
+
+    <script src="dueno.js?v=dueno-resumen-20260719-01"></script>
 </body>
 
 </html>
