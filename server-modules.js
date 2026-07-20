@@ -31,6 +31,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("ia nexo", () => {
         require("./ia-server")(app, pool, requerirAccesoNegocio);
     });
+
+    cargarModuloPOS("cotizaciones app del dueno", () => {
+        require("./cotizaciones-server")(app, pool, requerirSesionCuenta);
+    });
 }
 
 module.exports = {

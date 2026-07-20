@@ -170,38 +170,44 @@ button{
 
 .dueno-kpis{
     display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-template-columns:repeat(3,minmax(0,1fr));
     gap:10px;
     margin-bottom:14px;
 }
 
 .kpi{
     position:relative;
-    padding:16px;
-    border-radius:20px;
+    padding:14px 12px;
+    border-radius:18px;
     background:var(--surface);
     box-shadow:var(--shadow);
     overflow:hidden;
+    min-width:0;
 }
 
 .kpi-ventas{
     grid-column:1 / -1;
+    padding:16px;
     background:linear-gradient(135deg, var(--brand-soft), var(--surface) 70%);
 }
 
 .kpi span{
     display:block;
     color:var(--muted);
-    font-size:12px;
+    font-size:11px;
     font-weight:700;
+    line-height:1.25;
 }
 
 .kpi strong{
     display:block;
     margin:6px 0 3px;
-    font-size:26px;
+    font-size:19px;
     font-weight:800;
     letter-spacing:-.01em;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
 }
 
 .kpi-ventas strong{
@@ -235,7 +241,7 @@ button{
 
 .dueno-grid{
     display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-template-columns:1fr;
     gap:10px;
 }
 
@@ -303,9 +309,17 @@ button{
     background:var(--surface-soft);
 }
 
+.fila-dueno > div{
+    min-width:0;
+}
+
 .fila-dueno strong{
-    display:block;
+    display:-webkit-box;
+    -webkit-box-orient:vertical;
+    -webkit-line-clamp:2;
+    overflow:hidden;
     font-size:13px;
+    line-height:1.3;
 }
 
 .fila-dueno span{
@@ -330,6 +344,164 @@ button{
     text-align:center;
 }
 
+/* ---------------- ventas: subtabs, buscador, carrito, form ---------------- */
+
+.dueno-ventas-subtabs{
+    display:flex;
+    gap:6px;
+    padding:5px;
+    margin-bottom:14px;
+    border-radius:14px;
+    background:var(--surface-soft);
+}
+
+.dueno-ventas-subtabs button{
+    flex:1;
+    min-height:34px;
+    border:none;
+    border-radius:10px;
+    background:transparent;
+    color:var(--muted);
+    font-size:12.5px;
+    font-weight:700;
+}
+
+.dueno-ventas-subtabs button.activo{
+    background:var(--surface);
+    color:var(--brand);
+    box-shadow:0 4px 10px rgba(15,23,42,.08);
+}
+
+.dueno-subtab-panel{
+    display:none;
+}
+
+.dueno-subtab-panel.activo{
+    display:grid;
+    gap:10px;
+}
+
+#duenoBuscarProducto,
+.dueno-campo input,
+.dueno-campo textarea{
+    display:block;
+    width:100%;
+    padding:11px 13px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:var(--surface-soft);
+    color:var(--text);
+    font-family:inherit;
+    font-size:14px;
+}
+
+#duenoBuscarProducto:focus,
+.dueno-campo input:focus,
+.dueno-campo textarea:focus{
+    outline:2px solid var(--brand);
+    outline-offset:1px;
+}
+
+.dueno-campo{
+    display:block;
+    margin-bottom:10px;
+    font-size:12px;
+    font-weight:700;
+    color:var(--muted);
+}
+
+.dueno-campo input,
+.dueno-campo textarea{
+    margin-top:5px;
+    font-weight:400;
+    color:var(--text);
+}
+
+.dueno-campo textarea{
+    resize:vertical;
+}
+
+.dueno-boton-primario{
+    width:100%;
+    min-height:46px;
+    margin-top:4px;
+    border:none;
+    border-radius:14px;
+    background:var(--brand);
+    color:#fff;
+    font-weight:800;
+    font-size:14.5px;
+}
+
+.dueno-boton-agregar{
+    width:34px;
+    height:34px;
+    flex-shrink:0;
+    border:none;
+    border-radius:10px;
+    background:var(--brand);
+    color:#fff;
+    font-size:18px;
+    font-weight:800;
+    line-height:1;
+}
+
+.dueno-cantidad-control{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-shrink:0;
+}
+
+.dueno-cantidad-control button{
+    width:26px;
+    height:26px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--surface);
+    color:var(--text);
+    font-size:15px;
+    font-weight:700;
+    line-height:1;
+}
+
+.dueno-cantidad-control span{
+    min-width:16px;
+    text-align:center;
+    font-size:13px;
+    font-weight:700;
+}
+
+.fila-dueno-columna{
+    flex-direction:column;
+    align-items:stretch;
+}
+
+.dueno-fila-acciones{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-top:8px;
+}
+
+.dueno-fila-acciones b{
+    margin-right:auto;
+}
+
+.dueno-link{
+    border:none;
+    background:transparent;
+    color:var(--brand);
+    font-size:12px;
+    font-weight:800;
+    text-decoration:underline;
+    padding:0;
+}
+
+.dueno-link-peligro{
+    color:var(--red);
+}
+
 /* ---------------- tab bar ---------------- */
 
 .dueno-tabs{
@@ -347,6 +519,7 @@ button{
 }
 
 .dueno-tabs button{
+    position:relative;
     display:flex;
     flex-direction:column;
     align-items:center;
@@ -358,6 +531,23 @@ button{
     color:var(--muted);
     font-size:10.5px;
     font-weight:700;
+}
+
+.dueno-tab-badge{
+    position:absolute;
+    top:-2px;
+    right:22%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-width:16px;
+    height:16px;
+    padding:0 4px;
+    border-radius:999px;
+    background:var(--red);
+    color:#fff;
+    font-size:10px;
+    font-weight:800;
 }
 
 .dueno-tabs button svg{

@@ -3193,3 +3193,111 @@ horas distintas y una venta de ayer, un cliente con credito pendiente):
 - Sin errores de consola en ningun paso.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
 - No se hace `git commit`/`push` sin confirmacion explicita.
+
+### App del Dueño -- ajuste de espaciado con datos reales (2026-07-19)
+
+El usuario probo `/dueno` ya desplegado en produccion
+(`app.nexoposoficial.com`) con datos reales de Ferreteria Olimpico y
+mando capturas: con nombres de producto largos reales ("Bolsa con 50
+cinchos plasticos 40 lb, 200 x 3.5 mm, natural") y 217 alertas de
+stock critico, el layout de 2 columnas (`Alertas importantes` +
+`Creditos pendientes` lado a lado) se veia apretado/desparejo -- la
+tarjeta de alertas crecia mucho mas que la de creditos, dejando
+espacio vacio, y los nombres largos se aplastaban en ~155px de ancho.
+
+Se corrigio en `public/dueno.css`: `.dueno-grid` paso de 2 columnas a
+1 columna (todas las tarjetas a ancho completo, ~311px utiles en vez
+de ~155px), `.dueno-kpis` paso de 2 a 3 columnas (evita que
+"Transacciones" quede solo en su fila con espacio vacio a un lado),
+`.fila-dueno strong` gano `-webkit-line-clamp:2` como respaldo para
+nombres extremadamente largos, y `.kpi span`/`.kpi strong` se
+ajustaron (fuente mas chica, sin truncar con `nowrap` las etiquetas
+cortas como "Ticket promedio" que si caben en 2 lineas).
+
+Validado inyectando datos sinteticos con los mismos nombres largos
+reales de las capturas (`preview_eval` llamando `renderBajos()`
+directo) -- confirmado visualmente que ya no se aprietan ni se ven
+descuadradas las tarjetas.
+
+# App del Dueño -- Cotizaciones sin internet (activar pestaña Ventas) (2026-07-20)
+
+El dueño visita ranchos sin señal para tomar pedidos/cotizaciones.
+Se activo la pestaña "Ventas" de `/dueno` (antes solo mostraba
+"Proximamente") con: catalogo de productos cacheado localmente para
+buscar sin internet, un carrito simple para armar el pedido, datos de
+cliente en texto libre (sin exigir un `clientes_credito` formal), y
+una cola local que sincroniza sola al recuperar señal. Se confirmaron
+2 decisiones con el usuario via `AskUserQuestion`: la cotizacion
+sincronizada **no se vuelve venta automatica** (queda `pendiente` para
+que el dueño la revise a mano), y vive en `/dueno` (no en el POS
+principal).
+
+**Hallazgo central**: el sistema de sync offline que ya existia
+(`public/js/offline-sync.js` + `apps/desktop/local-db.js`,
+`/sync/push`/`/sync/pull`) no servia para esto -- esta 100% amarrado a
+`window.nexoDesktop` (solo Electron, `better-sqlite3` nativo via
+`contextBridge`/`ipcRenderer`, sin ninguna superficie compartida con
+un navegador de telefono), y ademas su modelo de confianza aplica los
+eventos de inmediato al reconectar (`aplicarEventoSync`,
+`server.js:4046-4079` -- una venta offline se vuelve venta real sin
+revision humana), justo lo opuesto a lo que se necesitaba aqui. El
+patron correcto ya existia en el codebase para "borrador revisado por
+un humano": `pedidos_proveedor` (`fase4-server.js:42-72`, tabla padre
++ items, `estado` con `CHECK`) -- se siguio el mismo molde para
+clientes en vez de proveedores.
+
+**Nuevo esquema** -- `migrations/20260720_cotizaciones_pendientes.sql`:
+tablas `cotizaciones_pendientes` (estado `pendiente`/`confirmada`/
+`descartada`, `event_id` unico por negocio para idempotencia de
+reintentos de sync) y `cotizaciones_pendientes_items`. Aplicada a la
+base real con confirmacion explicita.
+
+**Nuevo modulo backend** -- `cotizaciones-server.js` (wireado en
+`server-modules.js`), 3 rutas (`POST /dueno/cotizaciones`,
+`GET /dueno/cotizaciones?estado=`, `POST /dueno/cotizaciones/:id/estado`),
+**todas con `requerirSesionCuenta`** en vez de `requerirAccesoNegocio`
+-- se confirmo en la investigacion que `requerirAccesoNegocio` (que ya
+usa el resto de `/dueno`) acepta tambien el token de cualquier caja
+vinculada, no es exclusivo del dueño; `requerirSesionCuenta` exige
+*solo* el Bearer de la sesion de correo+contraseña.
+
+**Cache y cola offline** -- `public/dueno-offline.js` (nuevo,
+IndexedDB vanilla, sin libreria): almacen `catalogo` (se reescribe
+cada vez que `/dueno` carga `/productos` con exito estando en linea) y
+`cotizacionesLocales` (cola de pedidos armados sin conexion,
+`sincronizarCotizacionesPendientes()` los sube uno por uno al
+reconectar). **Nuevo Service Worker** -- `public/dueno-sw.js`
+(cache-first solo del cascaron estatico -- `dueno.html/css/js`, nunca
+de las llamadas a la API -- para que la pagina cargue aunque el dueño
+llegue al rancho con el navegador ya cerrado).
+
+**`public/dueno.html`/`dueno.js`/`dueno.css`**: pestaña Ventas con 2
+sub-secciones ("Nuevo pedido": buscador + carrito + datos de cliente;
+"Pendientes": cotizaciones ya sincronizadas con
+Confirmar/Descartar, mas las que siguen en la cola local marcadas "Sin
+sincronizar"), chip de estado de conexion, badge rojo en la pestaña
+con el numero de pedidos sin sincronizar.
+
+Validacion, contra un negocio sintetico (correo/contraseña reales,
+productos de prueba):
+- Buscar en el catalogo local encuentra el producto correcto
+  (confirmado offline-capable: la busqueda nunca llama al servidor).
+- Guardar un pedido **en linea** dispara `POST /dueno/cotizaciones`
+  200 de inmediato y aparece en Pendientes como "Pendiente de revisar".
+- "Confirmar" dispara `POST /dueno/cotizaciones/:id/estado` 200 y el
+  pedido desaparece del filtro `estado=pendiente`.
+- Forzando `navigator.onLine = false`: guardar un pedido **no** llama
+  al servidor -- se guarda en IndexedDB, aparece en Pendientes como
+  "Sin sincronizar", y el badge rojo en la pestaña Ventas muestra "1".
+- Al disparar el evento `online`, la cola se sincroniza sola
+  (`POST /dueno/cotizaciones` 200 automatico), el badge desaparece y
+  el pedido pasa a "Pendiente de revisar".
+- Una llamada con solo `x-dispositivo-token` (sin sesion de dueño) a
+  `/dueno/cotizaciones` responde 401 -- confirma que una caja
+  vinculada no puede crear ni ver cotizaciones.
+- El Service Worker se registra, queda `active`, y su cache
+  (`nexo-dueno-shell-v2`) contiene exactamente los 5 archivos del
+  cascaron esperados.
+- Sin errores de consola en ningun paso.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
+- No se hace `git commit`/`push` sin confirmacion explicita.

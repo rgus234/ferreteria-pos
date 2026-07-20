@@ -1,5 +1,8 @@
 const DUENO_TOKEN_KEY = "nexoCuentaSesionToken";
 
+let duenoCarrito = [];
+let duenoUltimosResultados = [];
+
 function dinero(valor) {
     return Number(valor || 0).toLocaleString("es-MX", {
         style: "currency",
@@ -18,12 +21,23 @@ function fechaCorta(valor) {
     });
 }
 
+function escaparDueno(texto) {
+    return String(texto || "").replace(/[&<>"']/g, caracter => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    }[caracter]));
+}
+
 function tokenGuardado() {
     return localStorage.getItem(DUENO_TOKEN_KEY);
 }
 
 function mostrarLoginDueno() {
     document.getElementById("duenoApp").style.display = "none";
+    document.getElementById("duenoVentas").style.display = "none";
     document.getElementById("duenoTabs").style.display = "none";
     document.getElementById("duenoLogin").style.display = "flex";
 }
@@ -34,12 +48,16 @@ function mostrarAppDueno() {
     document.getElementById("duenoTabs").style.display = "flex";
 }
 
-async function fetchAutenticado(url) {
+async function fetchAutenticado(url, opciones = {}) {
     const token = tokenGuardado();
 
     const respuesta =
     await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        ...opciones,
+        headers: {
+            ...(opciones.headers || {}),
+            Authorization: `Bearer ${token}`
+        }
     });
 
     if (respuesta.status === 401) {
@@ -48,11 +66,14 @@ async function fetchAutenticado(url) {
         throw new Error("Sesion expirada");
     }
 
+    const datos =
+    await respuesta.json().catch(() => null);
+
     if (!respuesta.ok) {
-        throw new Error(`No se pudo cargar ${url}`);
+        throw new Error(datos?.error || `No se pudo completar la solicitud a ${url}`);
     }
 
-    return respuesta.json();
+    return datos;
 }
 
 async function iniciarSesionDueno() {
@@ -112,17 +133,21 @@ async function iniciarSesionDueno() {
     }
 }
 
-function proximamenteDueno() {
+function mostrarToastDueno(mensaje) {
     const toast =
     document.getElementById("duenoToast");
 
-    toast.textContent = "Esta seccion llega en una proxima actualizacion.";
+    toast.textContent = mensaje;
     toast.style.display = "block";
 
     clearTimeout(window.__duenoToastTimer);
 
     window.__duenoToastTimer =
-    setTimeout(() => { toast.style.display = "none"; }, 2200);
+    setTimeout(() => { toast.style.display = "none"; }, 2400);
+}
+
+function proximamenteDueno() {
+    mostrarToastDueno("Esta seccion llega en una proxima actualizacion.");
 }
 
 function saludoHora() {
@@ -203,8 +228,8 @@ function renderBajos(productos) {
             ? bajos.slice(0, 5).map(producto => `
                 <div class="fila-dueno">
                     <div>
-                        <strong>${producto.nombre}</strong>
-                        <span>${producto.codigo || "Sin codigo"} · Stock ${producto.stock}</span>
+                        <strong>${escaparDueno(producto.nombre)}</strong>
+                        <span>${escaparDueno(producto.codigo || "Sin codigo")} · Stock ${producto.stock}</span>
                     </div>
                     <b>${dinero(producto.precio)}</b>
                 </div>
@@ -229,8 +254,8 @@ function renderCreditos(datos) {
                 .map(cliente => `
                     <div class="fila-dueno">
                         <div>
-                            <strong>${cliente.nombre}</strong>
-                            <span>${cliente.telefono || "Sin telefono"}</span>
+                            <strong>${escaparDueno(cliente.nombre)}</strong>
+                            <span>${escaparDueno(cliente.telefono || "Sin telefono")}</span>
                         </div>
                         <b>${dinero(cliente.saldo)}</b>
                     </div>
@@ -316,6 +341,7 @@ async function cargarPanelDueno() {
         renderVentas(historial);
         renderBajos(productos);
         renderCreditos(creditos);
+        guardarCatalogoLocal(productos);
 
         if (estado) estado.textContent = "Datos en tiempo real del POS";
 
@@ -329,6 +355,352 @@ async function cargarPanelDueno() {
             estado.textContent = "No se pudo conectar con el POS";
         }
     }
+}
+
+// ---------------- pestañas ----------------
+
+function cambiarTabDueno(tab) {
+    document.querySelectorAll(".dueno-tabs button").forEach(boton => {
+        boton.classList.toggle("activo", boton.dataset.tab === tab);
+    });
+
+    document.getElementById("duenoApp").style.display = tab === "inicio" ? "block" : "none";
+    document.getElementById("duenoVentas").style.display = tab === "ventas" ? "block" : "none";
+
+    if (tab === "ventas") cargarPanelVentasDueno();
+}
+
+function cambiarSubtabVentasDueno(subtab) {
+    document.querySelectorAll(".dueno-ventas-subtabs button").forEach(boton => {
+        boton.classList.toggle("activo", boton.dataset.subtab === subtab);
+    });
+
+    document.getElementById("duenoVentasNuevo").classList.toggle("activo", subtab === "nuevo");
+    document.getElementById("duenoVentasPendientes").classList.toggle("activo", subtab === "pendientes");
+}
+
+// ---------------- pestaña Ventas: nuevo pedido ----------------
+
+async function buscarProductoVentaDueno(texto) {
+    const contenedor =
+    document.getElementById("duenoResultadosBusqueda");
+
+    duenoUltimosResultados =
+    await buscarEnCatalogoLocal(texto);
+
+    contenedor.innerHTML =
+        duenoUltimosResultados.length
+            ? duenoUltimosResultados.map(producto => `
+                <div class="fila-dueno">
+                    <div>
+                        <strong>${escaparDueno(producto.nombre)}</strong>
+                        <span>${escaparDueno(producto.codigo || "Sin codigo")} · Stock ${producto.stock} · ${dinero(producto.precio)}</span>
+                    </div>
+                    <button type="button" class="dueno-boton-agregar" onclick="agregarAlCarritoDueno(${producto.id})">+</button>
+                </div>
+            `).join("")
+            : (texto.trim() ? `<div class="vacio">Sin resultados en tu catalogo guardado.</div>` : "");
+}
+
+function agregarAlCarritoDueno(id) {
+    const producto =
+    duenoUltimosResultados.find(item => item.id === id);
+
+    if (!producto) return;
+
+    const existente =
+    duenoCarrito.find(item => item.productoId === id);
+
+    if (existente) {
+        existente.cantidad += 1;
+    } else {
+        duenoCarrito.push({
+            productoId: producto.id,
+            codigo: producto.codigo,
+            nombre: producto.nombre,
+            precioUnitario: producto.precio,
+            cantidad: 1
+        });
+    }
+
+    renderCarritoDueno();
+}
+
+function cambiarCantidadCarritoDueno(id, delta) {
+    const item =
+    duenoCarrito.find(actual => actual.productoId === id);
+
+    if (!item) return;
+
+    item.cantidad = Math.max(0, item.cantidad + delta);
+
+    if (item.cantidad === 0) {
+        duenoCarrito = duenoCarrito.filter(actual => actual.productoId !== id);
+    }
+
+    renderCarritoDueno();
+}
+
+function renderCarritoDueno() {
+    const card =
+    document.getElementById("duenoCarritoCard");
+
+    const lista =
+    document.getElementById("duenoCarritoLista");
+
+    const totalEl =
+    document.getElementById("duenoCarritoTotal");
+
+    if (duenoCarrito.length === 0) {
+        card.style.display = "none";
+        return;
+    }
+
+    card.style.display = "block";
+
+    const total =
+    duenoCarrito.reduce((suma, item) => suma + item.precioUnitario * item.cantidad, 0);
+
+    totalEl.textContent = dinero(total);
+
+    lista.innerHTML =
+        duenoCarrito.map(item => `
+            <div class="fila-dueno">
+                <div>
+                    <strong>${escaparDueno(item.nombre)}</strong>
+                    <span>${dinero(item.precioUnitario)} c/u</span>
+                </div>
+                <div class="dueno-cantidad-control">
+                    <button type="button" onclick="cambiarCantidadCarritoDueno(${item.productoId}, -1)">&minus;</button>
+                    <span>${item.cantidad}</span>
+                    <button type="button" onclick="cambiarCantidadCarritoDueno(${item.productoId}, 1)">+</button>
+                </div>
+            </div>
+        `).join("");
+}
+
+function crearEventIdDueno() {
+    if (window.crypto?.randomUUID) return crypto.randomUUID();
+
+    return `dueno-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function limpiarFormularioPedidoDueno() {
+    duenoCarrito = [];
+    renderCarritoDueno();
+
+    document.getElementById("duenoClienteNombre").value = "";
+    document.getElementById("duenoClienteTelefono").value = "";
+    document.getElementById("duenoClienteNotas").value = "";
+    document.getElementById("duenoBuscarProducto").value = "";
+    document.getElementById("duenoResultadosBusqueda").innerHTML = "";
+}
+
+async function guardarPedidoDueno() {
+    const clienteNombre =
+    document.getElementById("duenoClienteNombre")?.value.trim();
+
+    const clienteTelefono =
+    document.getElementById("duenoClienteTelefono")?.value.trim() || "";
+
+    const notas =
+    document.getElementById("duenoClienteNotas")?.value.trim() || "";
+
+    if (!clienteNombre) {
+        mostrarToastDueno("Escribe el nombre del cliente.");
+        return;
+    }
+
+    if (duenoCarrito.length === 0) {
+        mostrarToastDueno("Agrega al menos un producto.");
+        return;
+    }
+
+    const cotizacion = {
+        eventId: crearEventIdDueno(),
+        clienteNombre,
+        clienteTelefono,
+        notas,
+        items: duenoCarrito.map(item => ({
+            productoId: item.productoId,
+            codigo: item.codigo,
+            nombre: item.nombre,
+            precioUnitario: item.precioUnitario,
+            cantidad: item.cantidad
+        })),
+        creadoEn: new Date().toISOString()
+    };
+
+    let sincronizada = false;
+
+    if (navigator.onLine) {
+        try {
+            const datos =
+            await fetchAutenticado("/dueno/cotizaciones", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(cotizacion)
+            });
+
+            sincronizada = Boolean(datos?.ok);
+        } catch (error) {
+            sincronizada = false;
+        }
+    }
+
+    if (!sincronizada) {
+        await guardarCotizacionLocal({ ...cotizacion, estadoSync: "pendiente" });
+    }
+
+    limpiarFormularioPedidoDueno();
+    mostrarToastDueno(sincronizada ? "Pedido guardado y enviado." : "Guardado en este telefono -- se sube solo cuando haya señal.");
+    cambiarSubtabVentasDueno("pendientes");
+    await cargarCotizacionesPendientesDueno();
+}
+
+// ---------------- pestaña Ventas: pendientes ----------------
+
+async function cargarCotizacionesPendientesDueno() {
+    const contenedor =
+    document.getElementById("duenoListaPendientes");
+
+    const locales =
+    await listarCotizacionesLocales();
+
+    let remotas = [];
+
+    if (navigator.onLine) {
+        try {
+            const datos =
+            await fetchAutenticado("/dueno/cotizaciones?estado=pendiente");
+
+            remotas = datos?.cotizaciones || [];
+        } catch (error) {
+            remotas = [];
+        }
+    }
+
+    const filasLocales =
+    locales.map(cotizacion => {
+        const total =
+        cotizacion.items.reduce((suma, item) => suma + item.precioUnitario * item.cantidad, 0);
+
+        return `
+            <div class="fila-dueno">
+                <div>
+                    <strong>${escaparDueno(cotizacion.clienteNombre)}</strong>
+                    <span>${cotizacion.items.length} producto(s) · Sin sincronizar</span>
+                </div>
+                <b>${dinero(total)}</b>
+            </div>
+        `;
+    }).join("");
+
+    const filasRemotas =
+    remotas.map(cotizacion => `
+        <div class="fila-dueno fila-dueno-columna">
+            <div>
+                <strong>${escaparDueno(cotizacion.clienteNombre)}</strong>
+                <span>${cotizacion.items.length} producto(s) · Pendiente de revisar</span>
+            </div>
+            <div class="dueno-fila-acciones">
+                <b>${dinero(cotizacion.totalEstimado)}</b>
+                <button type="button" class="dueno-link" onclick="confirmarCotizacionDueno(${cotizacion.id})">Confirmar</button>
+                <button type="button" class="dueno-link dueno-link-peligro" onclick="descartarCotizacionDueno(${cotizacion.id})">Descartar</button>
+            </div>
+        </div>
+    `).join("");
+
+    contenedor.innerHTML =
+        (filasLocales + filasRemotas) || `<div class="vacio">No hay cotizaciones pendientes.</div>`;
+
+    actualizarBadgeVentasDueno(locales.length);
+}
+
+async function actualizarEstadoCotizacionDueno(id, estado) {
+    try {
+        await fetchAutenticado(`/dueno/cotizaciones/${id}/estado`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ estado })
+        });
+
+        await cargarCotizacionesPendientesDueno();
+    } catch (error) {
+        mostrarToastDueno("No se pudo actualizar. Revisa tu conexion.");
+    }
+}
+
+function confirmarCotizacionDueno(id) {
+    actualizarEstadoCotizacionDueno(id, "confirmada");
+}
+
+function descartarCotizacionDueno(id) {
+    actualizarEstadoCotizacionDueno(id, "descartada");
+}
+
+function actualizarBadgeVentasDueno(pendientesLocales) {
+    const badge =
+    document.getElementById("duenoVentasBadge");
+
+    if (!badge) return;
+
+    if (pendientesLocales > 0) {
+        badge.textContent = pendientesLocales;
+        badge.style.display = "flex";
+    } else {
+        badge.style.display = "none";
+    }
+}
+
+function actualizarChipConexionDueno() {
+    const chip =
+    document.getElementById("duenoConexionEstado");
+
+    if (!chip) return;
+
+    chip.textContent =
+        navigator.onLine
+            ? "Conectado"
+            : "Sin conexion -- tus pedidos se guardan en este telefono";
+}
+
+async function sincronizarYRecargarDueno() {
+    if (!navigator.onLine) {
+        mostrarToastDueno("Sigues sin conexion.");
+        return;
+    }
+
+    const sincronizadas =
+    await sincronizarCotizacionesPendientes();
+
+    if (sincronizadas > 0) {
+        mostrarToastDueno(`${sincronizadas} pedido(s) sincronizado(s).`);
+    }
+
+    await cargarCotizacionesPendientesDueno();
+}
+
+function cargarPanelVentasDueno() {
+    actualizarChipConexionDueno();
+    cargarCotizacionesPendientesDueno();
+}
+
+window.addEventListener("online", () => {
+    actualizarChipConexionDueno();
+    sincronizarYRecargarDueno();
+});
+
+window.addEventListener("offline", actualizarChipConexionDueno);
+
+// ---------------- arranque ----------------
+
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/dueno-sw.js").catch(() => {
+        // Sin Service Worker el resto de la pagina sigue funcionando
+        // igual mientras haya conexion -- solo se pierde el arranque
+        // 100% offline con el navegador recien abierto.
+    });
 }
 
 window.addEventListener("load", () => {
