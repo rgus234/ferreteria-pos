@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Dueño POS">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=dueno-fotos-20260720-01">
+    <link rel="stylesheet" href="dueno.css?v=dueno-inventario-20260720-01">
 </head>
 
 <body>
@@ -168,6 +168,25 @@
         </section>
     </main>
 
+    <main id="duenoInventario" class="dueno-app" style="display:none;">
+        <header class="dueno-header">
+            <div>
+                <p class="dueno-saludo">Tu catalogo guardado</p>
+                <h1>Inventario</h1>
+                <p class="dueno-estado">Consulta rapida, aunque no haya señal</p>
+            </div>
+        </header>
+
+        <article class="dueno-card">
+            <input type="search" id="duenoInventarioBuscar" placeholder="Nombre o codigo..." oninput="filtrarInventarioDueno()">
+            <div id="duenoInventarioCategorias" class="dueno-chips-categorias"></div>
+        </article>
+
+        <article class="dueno-card dueno-card-wide">
+            <div id="duenoInventarioLista" class="lista-compacta"></div>
+        </article>
+    </main>
+
     <nav id="duenoTabs" class="dueno-tabs" style="display:none;">
         <button type="button" class="activo" data-tab="inicio" onclick="cambiarTabDueno('inicio')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
@@ -182,7 +201,7 @@
             <span>Ventas</span>
             <span id="duenoVentasBadge" class="dueno-tab-badge" style="display:none;"></span>
         </button>
-        <button type="button" data-tab="inventario" onclick="proximamenteDueno()">
+        <button type="button" data-tab="inventario" onclick="cambiarTabDueno('inventario')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
             <span>Inventario</span>
         </button>
@@ -208,8 +227,8 @@
         </div>
     </div>
 
-    <script src="dueno-offline.js?v=dueno-fotos-20260720-01"></script>
-    <script src="dueno.js?v=dueno-fotos-20260720-01"></script>
+    <script src="dueno-offline.js?v=dueno-inventario-20260720-01"></script>
+    <script src="dueno.js?v=dueno-inventario-20260720-01"></script>
 </body>
 
 </html>

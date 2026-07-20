@@ -93,6 +93,48 @@ async function buscarEnCatalogoLocal(texto) {
     }
 }
 
+async function listarCatalogoLocal({ texto = "", categoria = "" } = {}) {
+    try {
+        const db = await abrirDuenoDB();
+        const transaccion = db.transaction("catalogo", "readonly");
+        const tienda = transaccion.objectStore("catalogo");
+        const todos = await promesaSolicitud(tienda.getAll());
+
+        const textoLimpio = String(texto || "").trim().toLowerCase();
+
+        return todos
+            .filter(producto =>
+                (!textoLimpio ||
+                    producto.nombre.toLowerCase().includes(textoLimpio) ||
+                    producto.codigo.toLowerCase().includes(textoLimpio)) &&
+                (!categoria || producto.categoria === categoria)
+            )
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+            .slice(0, 60);
+    } catch (error) {
+        console.warn("No se pudo listar el catalogo local", error);
+        return [];
+    }
+}
+
+async function listarCategoriasCatalogoLocal() {
+    try {
+        const db = await abrirDuenoDB();
+        const transaccion = db.transaction("catalogo", "readonly");
+        const tienda = transaccion.objectStore("catalogo");
+        const todos = await promesaSolicitud(tienda.getAll());
+
+        const categorias = new Set(
+            todos.map(producto => producto.categoria).filter(Boolean)
+        );
+
+        return Array.from(categorias).sort((a, b) => a.localeCompare(b, "es"));
+    } catch (error) {
+        console.warn("No se pudieron listar las categorias del catalogo local", error);
+        return [];
+    }
+}
+
 async function guardarCotizacionLocal(cotizacion) {
     const db = await abrirDuenoDB();
     const transaccion = db.transaction("cotizacionesLocales", "readwrite");

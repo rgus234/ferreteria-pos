@@ -3393,4 +3393,47 @@ normalizado `CINCHO500`) y especificaciones reales en el producto:
 - `node --check server.js` sin errores despues del arreglo de
   autenticacion.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
+
+# App del Dueño -- pestaña Inventario (consulta offline del catalogo) (2026-07-20)
+
+Se activo la ultima pestaña que quedaba en "Proximamente" con
+contenido real de bajo esfuerzo: **Inventario** en `/dueno`, una
+lista/buscador de solo consulta sobre el mismo catalogo que ya se
+cacheaba para Ventas (nombre, codigo, precio, stock, foto,
+categoria/marca/descripcion/unidad) -- no hizo falta ningun dato
+nuevo ni ruta de servidor nueva, solo una forma distinta de mostrar
+lo que ya se guardaba en IndexedDB desde Fase 1.
+
+**`public/dueno-offline.js`**: `listarCatalogoLocal({texto, categoria})`
+(lista completa, opcionalmente filtrada por texto y/o categoria,
+ordenada alfabeticamente, limite 60) y `listarCategoriasCatalogoLocal()`
+(categorias distintas presentes en el catalogo cacheado, para armar
+los chips de filtro).
+
+**`public/dueno.js`/`dueno.html`/`dueno.css`**: nuevo panel
+`#duenoInventario` con buscador de texto + chips de categoria
+(construidos dinamicamente, con `addEventListener` en vez de `onclick`
+con el nombre de categoria embebido en el HTML -- evita problemas si
+una categoria trae comillas o caracteres especiales) + la lista de
+resultados. Cada fila reutiliza exactamente el mismo markup y la
+miniatura de foto que ya existia en Ventas, y tocar una fila reusa
+`verDetalleProductoDueno()` sin cambios -- incluido el boton "Agregar
+al pedido" del detalle, que sigue funcionando igual desde Inventario
+y manda el producto al mismo carrito compartido de Ventas. `cambiarTabDueno('inventario')`
+reemplaza el `proximamenteDueno()` que tenia antes ese boton de la
+barra inferior.
+
+Validacion, contra un negocio sintetico con 5 productos en 4
+categorias distintas:
+- La pestaña Inventario carga los 5 productos, ordenados
+  alfabeticamente, con los chips "Todas / Construccion / Ferreteria
+  general / Herramientas / Pinturas" correctos.
+- Tocar el chip "Herramientas" filtra a los 2 productos correctos.
+- Combinar chip de categoria + texto de busqueda ("martillo" dentro
+  de "Herramientas") filtra al unico producto correcto.
+- Abrir el detalle de un producto desde Inventario y tocar "Agregar
+  al pedido" lo agrega al carrito compartido de la pestaña Ventas.
+- Sin errores de consola.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
+- No se hace `git commit`/`push` sin confirmacion explicita.
 - No se hace `git commit`/`push` sin confirmacion explicita.

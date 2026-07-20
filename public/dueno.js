@@ -3,6 +3,7 @@ const DUENO_TOKEN_KEY = "nexoCuentaSesionToken";
 let duenoCarrito = [];
 let duenoUltimosResultados = [];
 let duenoProductoDetalleActual = null;
+let duenoInventarioCategoria = "";
 
 function dinero(valor) {
     return Number(valor || 0).toLocaleString("es-MX", {
@@ -367,8 +368,10 @@ function cambiarTabDueno(tab) {
 
     document.getElementById("duenoApp").style.display = tab === "inicio" ? "block" : "none";
     document.getElementById("duenoVentas").style.display = tab === "ventas" ? "block" : "none";
+    document.getElementById("duenoInventario").style.display = tab === "inventario" ? "block" : "none";
 
     if (tab === "ventas") cargarPanelVentasDueno();
+    if (tab === "inventario") cargarPanelInventarioDueno();
 }
 
 function cambiarSubtabVentasDueno(subtab) {
@@ -745,6 +748,65 @@ window.addEventListener("online", () => {
 });
 
 window.addEventListener("offline", actualizarChipConexionDueno);
+
+// ---------------- pestaña Inventario ----------------
+
+async function cargarPanelInventarioDueno() {
+    const contenedorChips =
+    document.getElementById("duenoInventarioCategorias");
+
+    const categorias =
+    await listarCategoriasCatalogoLocal();
+
+    contenedorChips.innerHTML =
+        `<button type="button" class="dueno-chip-categoria activo" data-categoria="">Todas</button>` +
+        categorias.map(categoria => `
+            <button type="button" class="dueno-chip-categoria" data-categoria="${escaparDueno(categoria)}">${escaparDueno(categoria)}</button>
+        `).join("");
+
+    contenedorChips.querySelectorAll("button").forEach(boton => {
+        boton.addEventListener("click", () => {
+            contenedorChips.querySelectorAll("button").forEach(otro => otro.classList.remove("activo"));
+            boton.classList.add("activo");
+            duenoInventarioCategoria = boton.dataset.categoria || "";
+            filtrarInventarioDueno();
+        });
+    });
+
+    duenoInventarioCategoria = "";
+
+    await filtrarInventarioDueno();
+}
+
+async function filtrarInventarioDueno() {
+    const contenedor =
+    document.getElementById("duenoInventarioLista");
+
+    const texto =
+    document.getElementById("duenoInventarioBuscar")?.value || "";
+
+    const resultados =
+    await listarCatalogoLocal({ texto, categoria: duenoInventarioCategoria });
+
+    duenoUltimosResultados = resultados;
+
+    contenedor.innerHTML =
+        resultados.length
+            ? resultados.map(producto => `
+                <div class="fila-dueno fila-dueno-producto">
+                    <div class="dueno-miniatura" onclick="verDetalleProductoDueno(${producto.id})">
+                        ${producto.imagenUrl
+                            ? `<img src="${producto.imagenUrl}" alt="" loading="lazy">`
+                            : `<span class="dueno-miniatura-vacia">Sin foto</span>`}
+                    </div>
+                    <div onclick="verDetalleProductoDueno(${producto.id})">
+                        <strong>${escaparDueno(producto.nombre)}</strong>
+                        <span>${escaparDueno(producto.codigo || "Sin codigo")} · Stock ${producto.stock} · ${dinero(producto.precio)}</span>
+                    </div>
+                </div>
+            `).join("")
+            : `<div class="vacio">Sin productos en tu catalogo guardado${texto.trim() || duenoInventarioCategoria ? " que coincidan" : ""}.</div>`;
+}
 
 // ---------------- arranque ----------------
 
