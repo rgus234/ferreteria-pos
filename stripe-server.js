@@ -151,13 +151,16 @@ module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
             }
 
             const base = urlBase(req);
+            // Whitelist estricta -- nunca se interpola el body del cliente
+            // directo en la URL de redireccion (evita open redirect).
+            const destino = req.body?.retorno === "/dueno" ? "/dueno" : "/";
 
             const sesion = await stripe.checkout.sessions.create({
                 mode: "subscription",
                 customer: stripeCustomerId,
                 line_items: [{ price: priceId, quantity: 1 }],
-                success_url: `${base}/?suscripcion=exito`,
-                cancel_url: `${base}/?suscripcion=cancelado`,
+                success_url: `${base}${destino}?suscripcion=exito`,
+                cancel_url: `${base}${destino}?suscripcion=cancelado`,
                 metadata: { negocio_id: String(negocioId), plan },
                 // Deja que el dueno escriba un codigo (ej. BIENVENIDA40)
                 // en el propio checkout de Stripe -- los codigos se
@@ -195,9 +198,11 @@ module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
                 return;
             }
 
+            const destino = req.body?.retorno === "/dueno" ? "/dueno" : "/";
+
             const sesion = await stripe.billingPortal.sessions.create({
                 customer: stripeCustomerId,
-                return_url: `${urlBase(req)}/`
+                return_url: `${urlBase(req)}${destino}`
             });
 
             res.json({ ok: true, url: sesion.url });

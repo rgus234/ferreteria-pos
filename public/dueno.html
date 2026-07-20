@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Dueño POS">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=dueno-inventario-20260720-01">
+    <link rel="stylesheet" href="dueno.css?v=dueno-mas-20260720-01">
 </head>
 
 <body>
@@ -187,6 +187,80 @@
         </article>
     </main>
 
+    <main id="duenoMas" class="dueno-app" style="display:none;">
+        <header class="dueno-header">
+            <div>
+                <p class="dueno-saludo">Configuracion</p>
+                <h1>Más</h1>
+                <p class="dueno-estado">Tu cuenta, tu plan y seguridad</p>
+            </div>
+        </header>
+
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Tu cuenta</span>
+                    <h2 id="duenoMasNegocio">Tu negocio</h2>
+                </div>
+            </div>
+            <div id="duenoMasDatos" class="dueno-datos-grid"></div>
+            <label class="dueno-campo">Correo
+                <span id="duenoMasCorreoBadge" class="dueno-badge"></span>
+                <input type="email" id="duenoMasCorreoInput" placeholder="correo@negocio.com">
+            </label>
+            <button type="button" class="dueno-boton-primario" onclick="guardarCorreoDueno()">Guardar correo</button>
+        </article>
+
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Tu plan</span>
+                    <h2 id="duenoMasPlanNombre">-</h2>
+                </div>
+                <span id="duenoMasPlanPill" class="dueno-pill"></span>
+            </div>
+            <div id="duenoMasPlanDatos" class="dueno-datos-grid"></div>
+            <label class="dueno-campo">Cambiar a
+                <select id="duenoMasPlanSelect">
+                    <option value="basico">Basico</option>
+                    <option value="plus">Plus</option>
+                    <option value="pro">Pro</option>
+                </select>
+            </label>
+            <button type="button" class="dueno-boton-primario" id="duenoMasBotonPlan" onclick="cambiarPlanDesdeMasDueno()">Cambiar de plan</button>
+            <button type="button" class="dueno-link" id="duenoMasBotonPortal" onclick="abrirPortalPagoDesdeMasDueno()" style="display:none;margin-top:10px;">Gestionar metodo de pago</button>
+        </article>
+
+        <article class="dueno-card dueno-card-wide">
+            <div class="card-head">
+                <div>
+                    <span>Seguridad</span>
+                    <h2>Contraseña y sesiones</h2>
+                </div>
+            </div>
+
+            <label class="dueno-campo">Contraseña actual
+                <input type="password" id="duenoMasPasswordActual" autocomplete="current-password">
+            </label>
+            <label class="dueno-campo">Contraseña nueva
+                <input type="password" id="duenoMasPasswordNueva" autocomplete="new-password">
+            </label>
+            <label class="dueno-campo">Confirmar contraseña nueva
+                <input type="password" id="duenoMasPasswordConfirmar" autocomplete="new-password">
+            </label>
+            <button type="button" class="dueno-boton-primario" onclick="cambiarPasswordDesdeMasDueno()">Cambiar contraseña</button>
+
+            <h4 class="dueno-subseccion">Sesiones con acceso</h4>
+            <div id="duenoMasSesiones" class="lista-compacta"></div>
+            <button type="button" class="dueno-link dueno-link-peligro" onclick="cerrarTodasSesionesDesdeMasDueno()">Cerrar sesion en todos los dispositivos</button>
+
+            <h4 class="dueno-subseccion">Cajas vinculadas</h4>
+            <div id="duenoMasDispositivos" class="lista-compacta"></div>
+        </article>
+
+        <button type="button" class="dueno-boton-cerrar-sesion" onclick="cerrarSesionDuenoApp()">Cerrar sesion en este telefono</button>
+    </main>
+
     <nav id="duenoTabs" class="dueno-tabs" style="display:none;">
         <button type="button" class="activo" data-tab="inicio" onclick="cambiarTabDueno('inicio')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
@@ -205,7 +279,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
             <span>Inventario</span>
         </button>
-        <button type="button" data-tab="mas" onclick="proximamenteDueno()">
+        <button type="button" data-tab="mas" onclick="cambiarTabDueno('mas')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
             <span>Más</span>
         </button>
@@ -227,8 +301,8 @@
         </div>
     </div>
 
-    <script src="dueno-offline.js?v=dueno-inventario-20260720-01"></script>
-    <script src="dueno.js?v=dueno-inventario-20260720-01"></script>
+    <script src="dueno-offline.js?v=dueno-mas-20260720-01"></script>
+    <script src="dueno.js?v=dueno-mas-20260720-01"></script>
 </body>
 
 </html>

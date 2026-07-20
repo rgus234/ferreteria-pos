@@ -369,9 +369,11 @@ function cambiarTabDueno(tab) {
     document.getElementById("duenoApp").style.display = tab === "inicio" ? "block" : "none";
     document.getElementById("duenoVentas").style.display = tab === "ventas" ? "block" : "none";
     document.getElementById("duenoInventario").style.display = tab === "inventario" ? "block" : "none";
+    document.getElementById("duenoMas").style.display = tab === "mas" ? "block" : "none";
 
     if (tab === "ventas") cargarPanelVentasDueno();
     if (tab === "inventario") cargarPanelInventarioDueno();
+    if (tab === "mas") cargarPanelMasDueno();
 }
 
 function cambiarSubtabVentasDueno(subtab) {
@@ -806,6 +808,280 @@ async function filtrarInventarioDueno() {
                 </div>
             `).join("")
             : `<div class="vacio">Sin productos en tu catalogo guardado${texto.trim() || duenoInventarioCategoria ? " que coincidan" : ""}.</div>`;
+}
+
+// ---------------- pestaña Más: cuenta, plan, seguridad ----------------
+
+function estadoLicenciaDuenoPOS(modo) {
+    const mapa = {
+        normal: ["Al corriente", "dueno-pill-normal"],
+        gracia: ["Periodo de gracia", "dueno-pill-gracia"],
+        limitado: ["Suscripcion vencida", "dueno-pill-limitado"],
+        bloqueado: ["Cuenta bloqueada", "dueno-pill-limitado"]
+    };
+
+    return mapa[modo] || mapa.normal;
+}
+
+async function cargarPanelMasDueno() {
+    try {
+        const [licenciaDatos, sesionesDatos, dispositivosDatos] =
+        await Promise.all([
+            fetchAutenticado("/licencia/estado"),
+            fetchAutenticado("/cuenta/sesiones"),
+            fetchAutenticado("/cuenta/dispositivos")
+        ]);
+
+        if (licenciaDatos?.ok) {
+            renderCuentaMasDueno(licenciaDatos.negocio, licenciaDatos.licencia);
+        }
+
+        renderSeguridadMasDueno(sesionesDatos, dispositivosDatos);
+    } catch (error) {
+        mostrarToastDueno("No se pudo cargar la configuracion.");
+    }
+}
+
+function renderCuentaMasDueno(negocio, licencia) {
+    document.getElementById("duenoMasNegocio").textContent =
+        negocio.nombre || "Tu negocio";
+
+    document.getElementById("duenoMasDatos").innerHTML = `
+        <div><span>Negocio</span><strong>${escaparDueno(negocio.nombre || "")}</strong></div>
+        <div><span>Codigo</span><strong>${escaparDueno(negocio.slug || "")}</strong></div>
+    `;
+
+    document.getElementById("duenoMasCorreoInput").value = negocio.correo || "";
+
+    const badge =
+    document.getElementById("duenoMasCorreoBadge");
+
+    badge.textContent = negocio.correoVerificado ? "Verificado" : "No verificado";
+    badge.className = `dueno-badge ${negocio.correoVerificado ? "dueno-badge-ok" : "dueno-badge-pendiente"}`;
+
+    const [textoEstado, claseEstado] =
+    estadoLicenciaDuenoPOS(licencia.modo);
+
+    const pill =
+    document.getElementById("duenoMasPlanPill");
+
+    pill.textContent = textoEstado;
+    pill.className = `dueno-pill ${claseEstado}`;
+
+    const nombresPlan = { basico: "Basico", plus: "Plus", pro: "Pro" };
+
+    document.getElementById("duenoMasPlanNombre").textContent =
+        nombresPlan[licencia.plan] || licencia.plan || "-";
+
+    const vencimiento =
+    licencia.fechaVencimiento ? new Date(licencia.fechaVencimiento) : null;
+
+    const fechaTexto =
+        vencimiento && !Number.isNaN(vencimiento.getTime())
+            ? vencimiento.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })
+            : "Sin definir";
+
+    document.getElementById("duenoMasPlanDatos").innerHTML = `
+        <div><span>Vence</span><strong>${fechaTexto}</strong></div>
+        <div><span>Dias de gracia</span><strong>${licencia.graciaDias ?? 0}</strong></div>
+    `;
+
+    document.getElementById("duenoMasPlanSelect").value = licencia.plan || "basico";
+
+    document.getElementById("duenoMasBotonPlan").textContent =
+        licencia.tieneStripe ? "Cambiar de plan" : "Suscribirme";
+
+    document.getElementById("duenoMasBotonPortal").style.display =
+        licencia.tieneStripe ? "inline" : "none";
+}
+
+function renderSeguridadMasDueno(sesionesDatos, dispositivosDatos) {
+    const sesiones = sesionesDatos?.sesiones || [];
+
+    document.getElementById("duenoMasSesiones").innerHTML =
+        sesiones.length
+            ? sesiones.map(sesion => `
+                <div class="fila-dueno">
+                    <div>
+                        <strong>${escaparDueno(sesion.dispositivo || "Dispositivo desconocido")}${sesion.actual ? " · Este telefono" : ""}</strong>
+                        <span>${escaparDueno(sesion.ip || "")} · ${fechaCorta(sesion.ultimoUsoAt)}</span>
+                    </div>
+                    ${sesion.actual
+                        ? ""
+                        : `<button type="button" class="dueno-link" onclick="cerrarSesionRemotaDesdeMasDueno(${sesion.id})">Cerrar</button>`}
+                </div>
+            `).join("")
+            : `<div class="vacio">No hay sesiones activas.</div>`;
+
+    const dispositivos = (dispositivosDatos?.ok ? dispositivosDatos.dispositivos : []) || [];
+
+    document.getElementById("duenoMasDispositivos").innerHTML =
+        dispositivos.length
+            ? dispositivos.map(dispositivo => `
+                <div class="fila-dueno">
+                    <div>
+                        <strong>${escaparDueno(dispositivo.nombre || "Equipo sin nombre")}</strong>
+                        <span>Ultima vez ${fechaCorta(dispositivo.ultimoUsoAt)}</span>
+                    </div>
+                    <button type="button" class="dueno-link dueno-link-peligro" onclick="desvincularDispositivoDesdeMasDueno(${dispositivo.id})">Desvincular</button>
+                </div>
+            `).join("")
+            : `<div class="vacio">No hay equipos vinculados.</div>`;
+}
+
+async function guardarCorreoDueno() {
+    const correo =
+    document.getElementById("duenoMasCorreoInput")?.value.trim();
+
+    if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
+        mostrarToastDueno("Escribe un correo valido.");
+        return;
+    }
+
+    try {
+        const datos =
+        await fetchAutenticado("/cuenta/correo", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ correo })
+        });
+
+        mostrarToastDueno(datos?.ok ? "Correo guardado." : (datos?.error || "No se pudo guardar el correo."));
+
+        if (datos?.ok) await cargarPanelMasDueno();
+    } catch (error) {
+        mostrarToastDueno("No se pudo conectar. Revisa tu internet.");
+    }
+}
+
+async function cambiarPlanDesdeMasDueno() {
+    const plan =
+    document.getElementById("duenoMasPlanSelect")?.value || "basico";
+
+    try {
+        const datos =
+        await fetchAutenticado("/suscripcion/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plan, retorno: "/dueno" })
+        });
+
+        if (datos?.ok && datos.url) {
+            window.location.href = datos.url;
+        } else {
+            mostrarToastDueno(datos?.error || "No se pudo iniciar el pago.");
+        }
+    } catch (error) {
+        mostrarToastDueno("No se pudo conectar. Revisa tu internet.");
+    }
+}
+
+async function abrirPortalPagoDesdeMasDueno() {
+    try {
+        const datos =
+        await fetchAutenticado("/suscripcion/portal", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ retorno: "/dueno" })
+        });
+
+        if (datos?.ok && datos.url) {
+            window.location.href = datos.url;
+        } else {
+            mostrarToastDueno(datos?.error || "No se pudo abrir el portal de pago.");
+        }
+    } catch (error) {
+        mostrarToastDueno("No se pudo conectar. Revisa tu internet.");
+    }
+}
+
+async function cambiarPasswordDesdeMasDueno() {
+    const passwordActual =
+    document.getElementById("duenoMasPasswordActual")?.value || "";
+
+    const passwordNueva =
+    document.getElementById("duenoMasPasswordNueva")?.value || "";
+
+    const passwordConfirmar =
+    document.getElementById("duenoMasPasswordConfirmar")?.value || "";
+
+    if (!passwordActual || !passwordNueva) {
+        mostrarToastDueno("Completa tu contraseña actual y la nueva.");
+        return;
+    }
+
+    if (passwordNueva !== passwordConfirmar) {
+        mostrarToastDueno("Las contraseñas nuevas no coinciden.");
+        return;
+    }
+
+    try {
+        const datos =
+        await fetchAutenticado("/cuenta/password", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ passwordActual, passwordNueva, confirmarPasswordNueva: passwordConfirmar })
+        });
+
+        if (datos?.ok) {
+            mostrarToastDueno("Contraseña actualizada.");
+            document.getElementById("duenoMasPasswordActual").value = "";
+            document.getElementById("duenoMasPasswordNueva").value = "";
+            document.getElementById("duenoMasPasswordConfirmar").value = "";
+        } else {
+            mostrarToastDueno(datos?.error || "No se pudo cambiar la contraseña.");
+        }
+    } catch (error) {
+        mostrarToastDueno("No se pudo conectar. Revisa tu internet.");
+    }
+}
+
+async function cerrarSesionRemotaDesdeMasDueno(id) {
+    if (!confirm("Se va a cerrar la sesion en ese dispositivo.")) return;
+
+    try {
+        await fetchAutenticado(`/cuenta/sesiones/${id}/cerrar`, { method: "POST" });
+        await cargarPanelMasDueno();
+    } catch (error) {
+        mostrarToastDueno("No se pudo conectar. Revisa tu internet.");
+    }
+}
+
+async function cerrarTodasSesionesDesdeMasDueno() {
+    if (!confirm("Se va a cerrar la sesion en todos tus dispositivos, incluido este telefono.")) return;
+
+    try {
+        await fetchAutenticado("/cuenta/logout-todos", { method: "POST" });
+    } catch (error) {
+        // Aunque falle la llamada, la sesion local ya no sirve de nada
+        // -- se limpia igual.
+    }
+
+    localStorage.removeItem(DUENO_TOKEN_KEY);
+    mostrarLoginDueno();
+}
+
+async function desvincularDispositivoDesdeMasDueno(id) {
+    if (!confirm("Esa caja va a dejar de tener acceso -- va a pedir correo y contraseña de nuevo.")) return;
+
+    try {
+        await fetchAutenticado(`/cuenta/dispositivos/${id}/revocar`, { method: "POST" });
+        await cargarPanelMasDueno();
+    } catch (error) {
+        mostrarToastDueno("No se pudo conectar. Revisa tu internet.");
+    }
+}
+
+function cerrarSesionDuenoApp() {
+    if (!confirm("Vas a cerrar sesion en este telefono. Tendras que volver a entrar con tu correo y contraseña.")) return;
+
+    fetch("/cuenta/logout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${tokenGuardado()}` }
+    }).catch(() => {});
+
+    localStorage.removeItem(DUENO_TOKEN_KEY);
+    mostrarLoginDueno();
 }
 
 // ---------------- arranque ----------------

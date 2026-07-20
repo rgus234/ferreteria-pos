@@ -3436,4 +3436,79 @@ categorias distintas:
 - Sin errores de consola.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
 - No se hace `git commit`/`push` sin confirmacion explicita.
+
+# App del Dueño -- pestaña Más (cuenta, plan y seguridad) (2026-07-20)
+
+Ultima pestaña de `/dueno` activada: **Más**, con la cuenta del
+negocio, el plan/suscripcion, y seguridad (contraseña, sesiones,
+equipos vinculados) -- version movil de la pantalla Cuenta del
+escritorio. **Cero rutas nuevas de backend**: `/dueno` ya se
+autentica con el mismo token de sesion de cuenta
+(`nexoCuentaSesionToken`) que usa `account-view.js`, asi que reusa
+exactamente las mismas rutas ya construidas (`/licencia/estado`,
+`/suscripcion/checkout`, `/suscripcion/portal`, `/cuenta/correo`,
+`/cuenta/password`, `/cuenta/sesiones`, `/cuenta/dispositivos`, etc.).
+
+**Unico cambio de backend, pequeño y aditivo** -- `stripe-server.js`:
+`POST /suscripcion/checkout` y `/suscripcion/portal` ahora aceptan un
+`retorno` opcional en el body (`{retorno:"/dueno"}`); si viene
+exactamente `"/dueno"` el `success_url`/`cancel_url`/`return_url` de
+Stripe regresan a `/dueno` en vez de la raiz `/` -- para que el dueño
+no termine en la pantalla de escritorio despues de pagar desde su
+telefono. Comparacion estricta contra un solo valor conocido (nunca
+se interpola el body del cliente directo en la URL), sin riesgo de
+open redirect. Sin `retorno`, el comportamiento es identico al de
+antes -- la pantalla Cuenta de escritorio no cambia.
+
+**`public/dueno.js`/`dueno.html`/`dueno.css`**: 3 tarjetas (Tu cuenta
+con correo editable y badge de verificacion; Tu plan con pill de
+estado, fecha de vencimiento, selector de plan y
+"Cambiar de plan"/"Gestionar pago"; Seguridad con cambio de
+contraseña, sesiones activas con "Cerrar", y equipos vinculados con
+"Desvincular") mas un boton "Cerrar sesion en este telefono" al
+final -- **la unica forma de cerrar sesion que existia en `/dueno`
+hasta ahora era borrar `localStorage` a mano**, un hueco real que
+quedo cerrado de paso. Las acciones destructivas (cerrar sesion
+remota, desvincular equipo, cerrar todas las sesiones, cerrar sesion
+del telefono) usan el `confirm()` nativo del navegador -- `/dueno` no
+tiene el sistema de dialogos de la SPA principal, y anadir uno solo
+para esto no se justificaba.
+
+**Bug real encontrado y corregido durante la verificacion** -- el
+Service Worker (`dueno-sw.js`): el `install` solo hacia
+`cache.open()+addAll()`, nunca borraba las entradas viejas dentro del
+mismo `CACHE_NAME` -- como el `fetch` usa `ignoreSearch:true` (para
+poder servir el cascaron offline aunque cambie de version), terminaba
+sirviendo de forma impredecible una copia **vieja** de `dueno.js` en
+vez de la mas reciente, sin importar cuantas veces se subiera el
+numero de version en la URL. Confirmado en vivo: `cargarPanelMasDueno`
+literalmente no existia (`ReferenceError`) hasta desregistrar el
+Service Worker y borrar el cache a mano. Se corrigio haciendo que
+`install` borre el cache completo (`caches.delete(CACHE_NAME)`) antes
+de rellenarlo -- asi cada actualizacion del propio Service Worker
+(que el navegador detecta solo con que cambien los bytes de
+`dueno-sw.js`) deja el cache siempre limpio, sin depender de acordarse
+de subir `CACHE_NAME` a mano en cada cambio.
+
+Validacion, contra un negocio sintetico (correo/contraseña reales,
+plan Plus, una sesion activa, un equipo vinculado):
+- Las 3 tarjetas cargan datos reales: negocio, correo con badge
+  "Verificado", pill "Al corriente", plan "Plus", fecha de
+  vencimiento, dias de gracia, "Suscribirme" (sin Stripe todavia) en
+  vez de "Cambiar de plan".
+- Guardar un correo nuevo llama `PUT /cuenta/correo` y confirma.
+- Cambiar contraseña llama `PUT /cuenta/password` y confirma.
+- "Cambiar de plan" genera una sesion de Stripe Checkout real (modo
+  prueba) con `retorno=/dueno` -- confirmado que la URL de retorno
+  quedo bien armada; no se completo el pago (no se ingreso ninguna
+  tarjeta).
+- Desvincular un equipo llama `POST /cuenta/dispositivos/:id/revocar`
+  y desaparece de la lista.
+- "Cerrar sesion en este telefono" limpia el token local y regresa a
+  la pantalla de login.
+- Sin errores de consola en ningun paso.
+- `node --check stripe-server.js` sin errores.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios; no se toco
+  ningun cliente de Stripe real.
+- No se hace `git commit`/`push` sin confirmacion explicita.
 - No se hace `git commit`/`push` sin confirmacion explicita.

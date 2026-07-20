@@ -16,6 +16,7 @@
     --red:#dc2626;
     --red-soft:#fdecec;
     --amber:#d97706;
+    --amber-soft:rgba(217,119,6,.14);
     --shadow:0 12px 30px rgba(15,23,42,.07);
 }
 
@@ -384,6 +385,7 @@ button{
 #duenoBuscarProducto,
 #duenoInventarioBuscar,
 .dueno-campo input,
+.dueno-campo select,
 .dueno-campo textarea{
     display:block;
     width:100%;
@@ -425,6 +427,7 @@ button{
 #duenoBuscarProducto:focus,
 #duenoInventarioBuscar:focus,
 .dueno-campo input:focus,
+.dueno-campo select:focus,
 .dueno-campo textarea:focus{
     outline:2px solid var(--brand);
     outline-offset:1px;
@@ -439,6 +442,7 @@ button{
 }
 
 .dueno-campo input,
+.dueno-campo select,
 .dueno-campo textarea{
     margin-top:5px;
     font-weight:400;
@@ -748,6 +752,83 @@ button{
     font-weight:700;
     box-shadow:0 10px 24px rgba(15,23,42,.25);
     white-space:nowrap;
+}
+
+/* ---------------- pestaña Más: cuenta, plan, seguridad ---------------- */
+
+.dueno-datos-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(110px,1fr));
+    gap:8px;
+    margin:12px 0;
+}
+
+.dueno-datos-grid div{
+    padding:10px 12px;
+    border-radius:12px;
+    background:var(--surface-soft);
+}
+
+.dueno-datos-grid span{
+    display:block;
+    color:var(--muted);
+    font-size:10.5px;
+    font-weight:700;
+    margin-bottom:3px;
+}
+
+.dueno-datos-grid strong{
+    display:block;
+    font-size:13.5px;
+    word-break:break-word;
+}
+
+.dueno-pill{
+    display:inline-block;
+    flex-shrink:0;
+    padding:4px 10px;
+    border-radius:999px;
+    font-size:10.5px;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.02em;
+    white-space:nowrap;
+}
+
+.dueno-pill-normal{ background:var(--green-soft); color:var(--green); }
+.dueno-pill-gracia{ background:var(--amber-soft); color:#b45309; }
+.dueno-pill-limitado{ background:var(--red-soft); color:var(--red); }
+
+.dueno-badge{
+    display:inline-block;
+    margin:4px 0 6px;
+    padding:2px 9px;
+    border-radius:999px;
+    font-size:10px;
+    font-weight:800;
+    text-transform:uppercase;
+}
+
+.dueno-badge-ok{ background:var(--green-soft); color:var(--green); }
+.dueno-badge-pendiente{ background:var(--amber-soft); color:#b45309; }
+
+.dueno-subseccion{
+    margin:18px 0 8px;
+    font-size:12.5px;
+    font-weight:800;
+    color:var(--text);
+}
+
+.dueno-boton-cerrar-sesion{
+    width:100%;
+    min-height:44px;
+    margin:6px 0 4px;
+    border:1px solid var(--red);
+    border-radius:14px;
+    background:transparent;
+    color:var(--red);
+    font-weight:800;
+    font-size:13.5px;
 }
 
 @media (min-width:560px){

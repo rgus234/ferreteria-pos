@@ -9,20 +9,30 @@
 // siempre van a la red; los datos y la cola offline viven en
 // IndexedDB (dueno-offline.js), no en este cache.
 
-const CACHE_NAME = "nexo-dueno-shell-v4";
+const CACHE_NAME = "nexo-dueno-shell-v5";
 const CACHE_FOTOS = "nexo-dueno-fotos-v1";
 
 const ARCHIVOS_CASCARON = [
     "/dueno",
-    "/dueno.css?v=dueno-inventario-20260720-01",
-    "/dueno.js?v=dueno-inventario-20260720-01",
-    "/dueno-offline.js?v=dueno-inventario-20260720-01",
+    "/dueno.css?v=dueno-mas-20260720-01",
+    "/dueno.js?v=dueno-mas-20260720-01",
+    "/dueno-offline.js?v=dueno-mas-20260720-01",
     "/img/nexo-ia/feliz.jpg"
 ];
 
+// Se borra el cache del cascaron ANTES de rellenarlo -- si solo se
+// hiciera cache.open()+addAll(), las entradas viejas (con query
+// strings de versiones anteriores) se quedaban ahi para siempre
+// dentro del mismo CACHE_NAME, y como el fetch de abajo usa
+// ignoreSearch:true para poder servir offline aunque cambie la
+// version, terminaba sirviendo -- de forma impredecible -- una copia
+// vieja de dueno.js en vez de la mas reciente. Bug real, encontrado
+// al verificar la pestaña Más.
 self.addEventListener("install", evento => {
     evento.waitUntil(
-        caches.open(CACHE_NAME).then(cache => cache.addAll(ARCHIVOS_CASCARON))
+        caches.delete(CACHE_NAME)
+            .then(() => caches.open(CACHE_NAME))
+            .then(cache => cache.addAll(ARCHIVOS_CASCARON))
     );
     self.skipWaiting();
 });
