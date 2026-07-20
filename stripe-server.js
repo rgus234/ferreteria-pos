@@ -1,5 +1,18 @@
 const { config } = require("./config");
 const { responderError } = require("./error-utils");
+const { listarPlanes, funcionesDelPlan } = require("./features");
+
+// Funciones del catalogo (migrations/20260716_catalogo_funciones_planes.sql)
+// que se destacan en la rejilla de planes de Cuenta -- curadas a mano,
+// solo las que ya estan "activo" (no "planeado"/"en_desarrollo", para
+// no anunciar algo que todavia no existe).
+const FUNCIONES_DESTACADAS = [
+    "multiusuario.empleados_pin",
+    "catalogo.importacion_listas",
+    "catalogo.reglas_precio",
+    "reportes.comparativas",
+    "finanzas.utilidad_neta"
+];
 
 // Cliente de Stripe inicializado de forma perezosa -- si todavia no
 // hay STRIPE_SECRET_KEY (caso normal mientras el usuario crea su
@@ -49,10 +62,50 @@ const PRECIO_POR_PLAN = () => ({
     pro: config.stripePricePro
 });
 
-module.exports = (app, pool, requerirSesionCuenta) => {
+module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
     // Todas las rutas de aqui abajo usan la sesion de cuenta del
     // dueno (correo+contrasena), no el token de dispositivo -- solo
     // el dueno administra la suscripcion, no cualquier caja vinculada.
+    // La excepcion es /suscripcion/planes (ver abajo): es catalogo
+    // publico, se ve aunque se entre por una caja vinculada sin sesion
+    // de dueno.
+
+    app.get("/suscripcion/planes", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const stripe = obtenerStripe();
+            const precios = PRECIO_POR_PLAN();
+            const planes = await listarPlanes();
+
+            const resultado = await Promise.all(planes.map(async plan => {
+                const funciones = await funcionesDelPlan(plan.clave);
+                const destacadas = funciones.filter(f => FUNCIONES_DESTACADAS.includes(f.clave));
+
+                let precio = null;
+
+                if (stripe && precios[plan.clave]) {
+                    try {
+                        const precioStripe = await stripe.prices.retrieve(precios[plan.clave]);
+                        precio = { montoCentavos: precioStripe.unit_amount, moneda: precioStripe.currency };
+                    } catch {
+                        // Precio no disponible (price ID invalido o Stripe sin
+                        // configurar del todo) -- se omite, nunca se inventa.
+                    }
+                }
+
+                return {
+                    clave: plan.clave,
+                    nombre: plan.nombre,
+                    descripcion: plan.descripcion,
+                    funciones: destacadas,
+                    precio
+                };
+            }));
+
+            res.json({ ok: true, planes: resultado });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
 
     app.post("/suscripcion/checkout", requerirSesionCuenta, async (req, res) => {
         const stripe = obtenerStripe();

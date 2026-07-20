@@ -25,7 +25,7 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     });
 
     cargarModuloPOS("stripe suscripciones", () => {
-        require("./stripe-server")(app, pool, requerirSesionCuenta);
+        require("./stripe-server")(app, pool, requerirSesionCuenta, requerirAccesoNegocio);
     });
 
     cargarModuloPOS("ia nexo", () => {

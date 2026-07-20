@@ -5,7 +5,12 @@
    protegidas por el token de sesion que guarda iniciarSesionCuenta()
    -- si el negocio nunca inicio sesion con correo/contrasena (por
    ejemplo, negocios creados antes de este sistema) esa seccion
-   invita a iniciar sesion en vez de fallar. */
+   invita a iniciar sesion en vez de fallar.
+
+   Layout con pestanas (Resumen/Suscripcion/Seguridad/Dispositivos),
+   mismo patron que .producto-tabs en ferretero-flow.js: los 4
+   paneles se pintan de una sola vez en el DOM, cambiar de pestana
+   solo alterna visibilidad -- sin refetch. */
 
 function cuentaSesionToken() {
  return localStorage.getItem(CUENTA_SESION_TOKEN_KEY);
@@ -23,6 +28,54 @@ async function cuentaFetchAutenticado(url, opciones = {}) {
  });
 
  return respuesta.json();
+}
+
+window.cambiarTabCuentaPOS = function(tab) {
+ document.querySelectorAll(".cuenta-tabs button").forEach(boton => {
+  boton.classList.toggle("activo", boton.dataset.cuentaTab === tab);
+ });
+ document.querySelectorAll(".cuenta-tab-panel").forEach(panel => {
+  panel.classList.toggle("activo", panel.dataset.cuentaPanel === tab);
+ });
+};
+
+// Parser minimo de User-Agent (sin dependencia nueva) -- solo para
+// mostrar "Windows - Chrome" en vez del string crudo. Nunca intenta
+// sacar ubicacion geografica (no hay geoip en el proyecto).
+function parsearUserAgentPOS(ua) {
+ if (!ua) return "Dispositivo desconocido";
+
+ const so =
+ /windows/i.test(ua) ? "Windows" :
+ /mac os/i.test(ua) ? "macOS" :
+ /android/i.test(ua) ? "Android" :
+ /iphone|ipad/i.test(ua) ? "iOS" :
+ /linux/i.test(ua) ? "Linux" :
+ "Otro sistema";
+
+ const navegador =
+ /edg\//i.test(ua) ? "Edge" :
+ /chrome\//i.test(ua) ? "Chrome" :
+ /firefox\//i.test(ua) ? "Firefox" :
+ /safari\//i.test(ua) ? "Safari" :
+ "Navegador";
+
+ return `${so} - ${navegador}`;
+}
+
+function tiempoRelativoPOS(fechaIso) {
+ if (!fechaIso) return "Sin registro";
+
+ const minutos =
+ Math.round((Date.now() - new Date(fechaIso).getTime()) / 60000);
+
+ if (minutos < 2) return "Activo ahora";
+ if (minutos < 60) return `Hace ${minutos} min`;
+
+ const horas = Math.round(minutos / 60);
+ if (horas < 24) return `Hace ${horas} h`;
+
+ return `Hace ${Math.round(horas / 24)} dia(s)`;
 }
 
 async function mostrarCuenta() {
@@ -118,67 +171,173 @@ function renderCuentaPOS(negocio, licencia) {
   <h2>Cuenta</h2>
   <p class="cuenta-subtitulo">Datos de tu negocio, seguridad de tu cuenta y estado de tu suscripcion Nexo POS.</p>
 
-  <div class="cuenta-tarjetas">
-   <section class="config-panel cuenta-tarjeta">
-    <h3>Tu cuenta</h3>
-    <div class="cuenta-datos-grid">
-     <div><span>Negocio</span><strong>${escaparPOS(negocio.nombre || "")}</strong></div>
-     <div><span>Codigo del negocio</span><strong>${escaparPOS(negocio.slug || "")}</strong></div>
-    </div>
-    <label class="cuenta-correo-label">Correo de la cuenta
-     <span class="cuenta-correo-badge ${negocio.correoVerificado ? "cuenta-correo-badge-ok" : "cuenta-correo-badge-pendiente"}">
-      ${negocio.correoVerificado ? "Verificado" : "No verificado"}
-     </span>
-     <div class="cuenta-correo-fila">
-      <input type="email" id="cuentaCorreoInput" value="${escaparPOS(negocio.correo || "")}" placeholder="correo@negocio.com">
-      <button type="button" class="btn-principal" onclick="guardarCorreoCuenta()">Guardar</button>
+  <div class="cuenta-tabs">
+   <button type="button" class="activo" data-cuenta-tab="resumen" onclick="cambiarTabCuentaPOS('resumen')">Resumen</button>
+   <button type="button" data-cuenta-tab="suscripcion" onclick="cambiarTabCuentaPOS('suscripcion')">Suscripcion</button>
+   <button type="button" data-cuenta-tab="seguridad" onclick="cambiarTabCuentaPOS('seguridad')">Seguridad</button>
+   <button type="button" data-cuenta-tab="dispositivos" onclick="cambiarTabCuentaPOS('dispositivos')">Dispositivos</button>
+  </div>
+
+  <div class="cuenta-tab-panel activo" data-cuenta-panel="resumen">
+   <div class="cuenta-tarjetas">
+    <section class="config-panel cuenta-tarjeta">
+     <h3>Tu cuenta</h3>
+     <div class="cuenta-datos-grid">
+      <div><span>Negocio</span><strong>${escaparPOS(negocio.nombre || "")}</strong></div>
+      <div><span>Codigo del negocio</span><strong>${escaparPOS(negocio.slug || "")}</strong></div>
      </div>
-    </label>
-    ${
-     negocio.correo && !negocio.correoVerificado
-     ? `<button type="button" class="cuenta-link-boton" onclick="reenviarVerificacionCuenta('${escaparPOS(negocio.correo)}')">Reenviar correo de verificacion</button>`
-     : ""
-    }
-   </section>
+     <label class="cuenta-correo-label">Correo de la cuenta
+      <span class="cuenta-correo-badge ${negocio.correoVerificado ? "cuenta-correo-badge-ok" : "cuenta-correo-badge-pendiente"}">
+       ${negocio.correoVerificado ? "Verificado" : "No verificado"}
+      </span>
+      <div class="cuenta-correo-fila">
+       <input type="email" id="cuentaCorreoInput" value="${escaparPOS(negocio.correo || "")}" placeholder="correo@negocio.com">
+       <button type="button" class="btn-principal" onclick="guardarCorreoCuenta()">Guardar</button>
+      </div>
+     </label>
+     ${
+      negocio.correo && !negocio.correoVerificado
+      ? `<button type="button" class="cuenta-link-boton" onclick="reenviarVerificacionCuenta('${escaparPOS(negocio.correo)}')">Reenviar correo de verificacion</button>`
+      : ""
+     }
+    </section>
 
-   <section class="config-panel cuenta-tarjeta">
-    <h3>Suscripcion</h3>
-    <div class="cuenta-estado-pill ${claseEstado}">${textoEstado}</div>
-    <div class="cuenta-datos-grid">
-     <div><span>Plan</span><strong>${escaparPOS(licencia.plan || "-")}</strong></div>
-     <div><span>Vence</span><strong>${fechaTexto}</strong></div>
-     <div><span>Dias de gracia</span><strong>${licencia.graciaDias ?? 0}</strong></div>
+    <section class="config-panel cuenta-tarjeta">
+     <h3>Suscripcion</h3>
+     <div class="cuenta-estado-pill ${claseEstado}">${textoEstado}</div>
+     <div class="cuenta-datos-grid">
+      <div><span>Plan</span><strong>${escaparPOS(licencia.plan || "-")}</strong></div>
+      <div><span>Vence</span><strong>${fechaTexto}</strong></div>
+      <div><span>Dias de gracia</span><strong>${licencia.graciaDias ?? 0}</strong></div>
+     </div>
+     ${diasTexto ? `<p class="cuenta-dias-restantes">${diasTexto}</p>` : ""}
+     <div class="cuenta-suscripcion-acciones">
+      <button type="button" class="btn-principal" onclick="cambiarTabCuentaPOS('suscripcion')">${licencia.tieneStripe ? "Cambiar de plan" : "Ver planes"}</button>
+      ${licencia.tieneStripe ? `<button type="button" onclick="abrirPortalSuscripcionCuenta()">Gestionar pago</button>` : ""}
+     </div>
+    </section>
+   </div>
+  </div>
+
+  <div class="cuenta-tab-panel" data-cuenta-panel="suscripcion">
+   <section class="config-panel cuenta-tarjeta cuenta-tarjeta-ancha">
+    <h3>Elige tu plan</h3>
+    <p class="cuenta-subtitulo">Cambia de plan en cualquier momento -- el cambio se refleja en tu proximo cobro.</p>
+    <div class="cuenta-plan-grid" id="cuentaPlanGrid">
+     <p class="cuenta-subtitulo" style="margin:0;">Cargando planes...</p>
     </div>
-    ${diasTexto ? `<p class="cuenta-dias-restantes">${diasTexto}</p>` : ""}
     <div class="cuenta-suscripcion-acciones">
-     <select id="cuentaPlanSeleccionado">
-      <option value="basico" ${licencia.plan === "basico" ? "selected" : ""}>Basico</option>
-      <option value="plus" ${licencia.plan === "plus" ? "selected" : ""}>Plus</option>
-      <option value="pro" ${licencia.plan === "pro" ? "selected" : ""}>Pro</option>
-     </select>
-     <button type="button" class="btn-principal" onclick="iniciarSuscripcionCuenta()">${licencia.tieneStripe ? "Cambiar de plan" : "Suscribirme"}</button>
-     ${licencia.tieneStripe ? `<button type="button" onclick="abrirPortalSuscripcionCuenta()">Gestionar pago</button>` : ""}
+     ${licencia.tieneStripe ? `<button type="button" onclick="abrirPortalSuscripcionCuenta()">Gestionar pago y facturas</button>` : ""}
+     <button type="button" class="cuenta-link-boton" onclick="abrirContactoDesarrolladorPOS()">Contactar para renovar manualmente</button>
     </div>
-    <button type="button" class="cuenta-link-boton" onclick="abrirContactoDesarrolladorPOS()">Contactar para renovar manualmente</button>
    </section>
+  </div>
 
-   <section class="config-panel cuenta-tarjeta cuenta-tarjeta-ancha" id="cuentaSeguridadPanel">
-    <h3>Seguridad</h3>
+  <div class="cuenta-tab-panel" data-cuenta-panel="seguridad">
+   <section class="config-panel cuenta-tarjeta cuenta-tarjeta-ancha" id="cuentaPasswordPanel">
     ${
      tieneSesionCuenta
-     ? `<p class="cuenta-subtitulo" style="margin:0 0 14px;">Cargando informacion de seguridad...</p>`
+     ? `<h3>Seguridad</h3><p class="cuenta-subtitulo" style="margin:0 0 14px;">Cargando informacion de seguridad...</p>`
      : `
-     <p class="cuenta-subtitulo" style="margin:0 0 14px;">Inicia sesion con el correo y la contrasena de tu cuenta para administrar tu contrasena y ver tus dispositivos con sesion iniciada.</p>
+     <h3>Seguridad</h3>
+     <p class="cuenta-subtitulo" style="margin:0 0 14px;">Inicia sesion con el correo y la contrasena de tu cuenta para administrar tu contrasena.</p>
      <button type="button" class="btn-principal" onclick="abrirBuscarNegocioSetup()">Iniciar sesion</button>
      `
     }
    </section>
+  </div>
+
+  <div class="cuenta-tab-panel" data-cuenta-panel="dispositivos">
+   <section class="config-panel cuenta-tarjeta cuenta-tarjeta-ancha" id="cuentaDispositivosPanel">
+    ${
+     tieneSesionCuenta
+     ? `<h3>Dispositivos</h3><p class="cuenta-subtitulo" style="margin:0 0 14px;">Cargando dispositivos...</p>`
+     : `
+     <h3>Dispositivos</h3>
+     <p class="cuenta-subtitulo" style="margin:0 0 14px;">Inicia sesion con el correo y la contrasena de tu cuenta para ver tus dispositivos con sesion iniciada.</p>
+     <button type="button" class="btn-principal" onclick="abrirBuscarNegocioSetup()">Iniciar sesion</button>
+     `
+    }
+   </section>
+  </div>
+
+  <div class="cuenta-banners">
+   <div class="cuenta-banner cuenta-banner-protegida">
+    <strong>Tu cuenta esta protegida</strong>
+    <span>Tu contrasena esta cifrada y puedes cerrar la sesion de cualquier dispositivo cuando quieras desde la pestana Dispositivos.</span>
+   </div>
+   <div class="cuenta-banner cuenta-banner-ayuda">
+    <strong>Necesitas ayuda?</strong>
+    <span>Escribenos si tienes dudas sobre tu cuenta, tu plan o tu facturacion.</span>
+    <button type="button" class="cuenta-link-boton" onclick="abrirContactoDesarrolladorPOS()">Contactar</button>
+   </div>
   </div>
  </div>
  `;
 
  if (tieneSesionCuenta) {
   cargarSeguridadCuenta();
+ }
+
+ cargarComparativaPlanes(licencia);
+}
+
+async function cargarComparativaPlanes(licencia) {
+ const contenedor =
+ document.getElementById("cuentaPlanGrid");
+
+ if (!contenedor) return;
+
+ const NEXO_IA_POR_PLAN = {
+  basico: "Sin Nexo IA",
+  plus: "Nexo IA -- 50 preguntas de analisis al mes",
+  pro: "Nexo IA ilimitada"
+ };
+
+ try {
+  const respuesta =
+  await fetch("/suscripcion/planes");
+
+  const datos =
+  await respuesta.json();
+
+  if (!datos.ok) {
+   throw new Error(datos.error || "No se pudieron cargar los planes");
+  }
+
+  contenedor.innerHTML = datos.planes.map(plan => {
+   const esActual = plan.clave === licencia.plan;
+   const esPopular = plan.clave === "plus";
+
+   const precioTexto =
+   plan.precio
+   ? `<span class="cuenta-plan-precio-monto">$${Math.round(plan.precio.montoCentavos / 100)}</span><span class="cuenta-plan-precio-periodo">/mes</span>`
+   : `<span class="cuenta-plan-precio-monto">Bajo pedido</span>`;
+
+   const featuresHtml =
+   plan.funciones.map(funcion => {
+    const texto =
+    funcion.limite_numerico
+    ? `${escaparPOS(funcion.nombre)} (hasta ${funcion.limite_numerico})`
+    : escaparPOS(funcion.nombre);
+
+    return `<li class="${funcion.incluido ? "cuenta-plan-feature-si" : "cuenta-plan-feature-no"}">${texto}</li>`;
+   }).join("") +
+   `<li class="cuenta-plan-feature-si">${escaparPOS(NEXO_IA_POR_PLAN[plan.clave] || "")}</li>`;
+
+   return `
+   <div class="cuenta-plan-card ${esPopular ? "cuenta-plan-card-popular" : ""}">
+    ${esPopular ? `<span class="cuenta-plan-badge">Mas popular</span>` : ""}
+    <h4>${escaparPOS(plan.nombre)}</h4>
+    <div class="cuenta-plan-precio">${precioTexto}</div>
+    <p class="cuenta-subtitulo" style="margin:0 0 12px;">${escaparPOS(plan.descripcion || "")}</p>
+    <ul class="cuenta-plan-features">${featuresHtml}</ul>
+    <button type="button" class="cuenta-plan-boton ${esActual ? "cuenta-plan-boton-actual" : "cuenta-plan-boton-elegir"}" ${esActual ? "disabled" : ""} onclick="iniciarSuscripcionCuenta('${plan.clave}')">${esActual ? "Plan actual" : "Elegir plan"}</button>
+   </div>
+   `;
+  }).join("");
+ } catch (error) {
+  contenedor.innerHTML = `<p class="cuenta-subtitulo" style="margin:0;">No se pudieron cargar los planes. Intenta de nuevo.</p>`;
  }
 }
 
@@ -227,14 +386,11 @@ async function guardarCorreoCuenta() {
  }
 }
 
-async function iniciarSuscripcionCuenta() {
+async function iniciarSuscripcionCuenta(plan) {
  if (!cuentaSesionToken()) {
   await alertaPOS("Inicia sesion con tu correo y contrasena para administrar tu suscripcion.", "Sesion requerida", "alerta");
   return;
  }
-
- const plan =
- document.getElementById("cuentaPlanSeleccionado")?.value || "basico";
 
  try {
   const datos = await cuentaFetchAutenticado("/suscripcion/checkout", {
@@ -285,10 +441,13 @@ async function reenviarVerificacionCuenta(correo) {
 }
 
 async function cargarSeguridadCuenta() {
- const panel =
- document.getElementById("cuentaSeguridadPanel");
+ const panelPassword =
+ document.getElementById("cuentaPasswordPanel");
 
- if (!panel) return;
+ const panelDispositivos =
+ document.getElementById("cuentaDispositivosPanel");
+
+ if (!panelPassword || !panelDispositivos) return;
 
  try {
   const [ultimoAccesoDatos, sesionesDatos, dispositivosDatos] = await Promise.all([
@@ -306,12 +465,27 @@ async function cargarSeguridadCuenta() {
   ? `${new Date(ultimoAccesoDatos.ultimoAcceso.fecha).toLocaleString("es-MX")} -- ${escaparPOS(ultimoAccesoDatos.ultimoAcceso.ip || "")}`
   : "Esta es la primera vez que inicias sesion.";
 
+  panelPassword.innerHTML = `
+   <h3>Seguridad</h3>
+   <div class="cuenta-datos-grid">
+    <div><span>Ultimo acceso</span><strong>${ultimoTexto}</strong></div>
+   </div>
+
+   <h4 class="cuenta-subseccion-titulo">Cambiar contrasena</h4>
+   <div class="cuenta-cambiar-password">
+    <input type="password" id="cuentaPasswordActual" placeholder="Contrasena actual" autocomplete="current-password">
+    <input type="password" id="cuentaPasswordNueva" placeholder="Contrasena nueva" autocomplete="new-password">
+    <input type="password" id="cuentaPasswordConfirmar" placeholder="Confirmar contrasena nueva" autocomplete="new-password">
+    <button type="button" class="btn-principal" onclick="cambiarPasswordCuenta()">Cambiar contrasena</button>
+   </div>
+  `;
+
   const sesionesHtml =
   sesionesDatos.sesiones.map(sesion => `
    <div class="cuenta-sesion-fila">
     <div>
-     <strong>${escaparPOS(sesion.dispositivo || "Dispositivo desconocido")}${sesion.actual ? " <span class=\"cuenta-sesion-actual\">Este dispositivo</span>" : ""}</strong>
-     <span>${escaparPOS(sesion.ip || "")} -- ultima vez ${new Date(sesion.ultimoUsoAt).toLocaleString("es-MX")}</span>
+     <strong>${escaparPOS(parsearUserAgentPOS(sesion.dispositivo))}${sesion.actual ? " <span class=\"cuenta-sesion-actual\">Este dispositivo</span>" : ""}</strong>
+     <span>${escaparPOS(sesion.ip || "")} -- ${tiempoRelativoPOS(sesion.ultimoUsoAt)}</span>
     </div>
     ${
      sesion.actual
@@ -326,27 +500,14 @@ async function cargarSeguridadCuenta() {
    <div class="cuenta-sesion-fila">
     <div>
      <strong>${escaparPOS(dispositivo.nombre || "Equipo sin nombre")}</strong>
-     <span>Vinculado ${new Date(dispositivo.creadoAt).toLocaleDateString("es-MX")} -- ultima vez ${new Date(dispositivo.ultimoUsoAt).toLocaleString("es-MX")}</span>
+     <span>Vinculado ${new Date(dispositivo.creadoAt).toLocaleDateString("es-MX")} -- ${tiempoRelativoPOS(dispositivo.ultimoUsoAt)}</span>
     </div>
     <button type="button" class="cuenta-link-boton" onclick="desvincularDispositivoCuentaPOS(${dispositivo.id})">Desvincular</button>
    </div>
   `).join("") || `<p class="cuenta-subtitulo" style="margin:0;">No hay equipos vinculados a este negocio.</p>`;
 
-  panel.innerHTML = `
-   <h3>Seguridad</h3>
-   <div class="cuenta-datos-grid">
-    <div><span>Ultimo acceso</span><strong>${ultimoTexto}</strong></div>
-   </div>
-
-   <h4 class="cuenta-subseccion-titulo">Cambiar contrasena</h4>
-   <div class="cuenta-cambiar-password">
-    <input type="password" id="cuentaPasswordActual" placeholder="Contrasena actual" autocomplete="current-password">
-    <input type="password" id="cuentaPasswordNueva" placeholder="Contrasena nueva" autocomplete="new-password">
-    <input type="password" id="cuentaPasswordConfirmar" placeholder="Confirmar contrasena nueva" autocomplete="new-password">
-    <button type="button" class="btn-principal" onclick="cambiarPasswordCuenta()">Cambiar contrasena</button>
-   </div>
-
-   <h4 class="cuenta-subseccion-titulo">Dispositivos con sesion iniciada</h4>
+  panelDispositivos.innerHTML = `
+   <h3>Dispositivos con sesion iniciada</h3>
    <div class="cuenta-sesiones-lista">${sesionesHtml}</div>
    <button type="button" class="cuenta-link-boton cuenta-link-peligro" onclick="cerrarTodasSesionesCuenta()">Cerrar sesion en todos los dispositivos</button>
 
@@ -355,8 +516,13 @@ async function cargarSeguridadCuenta() {
    <div class="cuenta-sesiones-lista">${dispositivosHtml}</div>
   `;
  } catch (error) {
-  panel.innerHTML = `
+  panelPassword.innerHTML = `
    <h3>Seguridad</h3>
+   <p class="cuenta-subtitulo" style="margin:0;">No se pudo cargar la seguridad de tu cuenta. Intenta de nuevo.</p>
+  `;
+
+  panelDispositivos.innerHTML = `
+   <h3>Dispositivos</h3>
    <p class="cuenta-subtitulo" style="margin:0;">No se pudo cargar la seguridad de tu cuenta. Intenta de nuevo.</p>
   `;
  }

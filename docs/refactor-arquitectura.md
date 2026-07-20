@@ -3025,4 +3025,79 @@ Validacion, contra un negocio sintetico (creado y borrado por ID):
   solido pese al codigo fuente).
 - Sin errores de consola en ningun paso.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
+
+### Cuenta: rediseno con pestanas, planes reales y dispositivos (2026-07-19)
+
+El usuario compartio un mockup pulido de "Mi cuenta" (pestanas
+Resumen/Suscripcion/Seguridad/Dispositivos/Facturacion/Preferencias,
+rejilla de tarjetas de plan con checklist, tarjeta de seguridad con
+2FA, tarjeta de dispositivos con SO/navegador/ubicacion) y pidio que
+la pantalla real se viera asi. Investigacion con 3 agentes en
+paralelo encontro que el mockup mezcla funcionalidad real con relleno
+generico: solo existen 3 planes reales (no 4), no existe 2FA en
+ningun lado del codigo (ni tabla, ni libreria TOTP, ni ruta), y los
+dispositivos solo guardan el `User-Agent` crudo y la IP -- sin
+SO/navegador parseado ni ubicacion geografica. Resuelto con el usuario
+via `AskUserQuestion`: pestanas reales (Resumen/Suscripcion/
+Seguridad/Dispositivos, sin Facturacion ni Preferencias propias), solo
+los 3 planes reales, 2FA omitido por completo esta pasada.
+
+**Hallazgo que cambio el diseno para bien**: `catalogo_funciones`/
+`plan_funciones` (`migrations/20260716_catalogo_funciones_planes.sql`)
+es una tabla real ya sembrada con datos curados por plan, con una capa
+de lectura ya escrita (`features.js`) que nunca se habia consumido
+desde ningun lado ("preparacion de arquitectura, no un cambio de
+comportamiento"). Este cambio es su primer consumidor real.
+
+**`public/js/account-view.js`**: `renderCuentaPOS()` reescrito a un
+layout con pestanas (`cuenta-tabs`/`cuenta-tab-panel`, mismo patron
+que `.producto-tabs` de `ferretero-flow.js` -- los 4 paneles se pintan
+de una vez, cambiar de pestana solo alterna `.activo`, sin refetch).
+`cargarSeguridadCuenta()` ahora pinta 2 paneles (Seguridad y
+Dispositivos) desde el mismo `Promise.all` que ya existia.
+`iniciarSuscripcionCuenta()` paso de leer un `<select>` a recibir el
+plan como argumento desde cada tarjeta. Nuevas funciones:
+`cargarComparativaPlanes()` (pinta la rejilla de 3 planes desde
+`/suscripcion/planes`), `parsearUserAgentPOS()` (regex minimo, sin
+libreria nueva, "Windows - Chrome") y `tiempoRelativoPOS()` ("Activo
+ahora"/"Hace 3 dia(s)") aplicados solo a `sesiones_cuenta` (cuyo campo
+`dispositivo` siempre es un User-Agent crudo) -- no a
+`dispositivos_vinculados.nombre`, que puede ser una etiqueta puesta a
+mano por el dueno.
+
+**`stripe-server.js`**: nueva `GET /suscripcion/planes` (protegida por
+`requerirAccesoNegocio`, no `requerirSesionCuenta` -- se ve sin sesion
+de dueno, igual que el resto del resumen de cuenta). Combina
+`listarPlanes()`/`funcionesDelPlan()` de `features.js` con un precio
+real por plan via `stripe.prices.retrieve()` (nunca un numero
+hardcodeado; si Stripe no esta configurado o el price ID falla,
+`precio:null` y el frontend muestra "Bajo pedido" en vez de inventar
+una cifra). `server-modules.js` actualizado para pasarle tambien
+`requerirAccesoNegocio` al modulo.
+
+**Bug real encontrado y corregido durante la verificacion**: mismo
+patron recurrente de esta sesion -- `.cuenta-tabs button` heredaba
+`width:100%` de la regla global legacy de `button{}`, apilando los 4
+botones de pestana en vez de ponerlos en fila. Se agrego
+`width:auto !important; flex:0 0 auto;`.
+
+Validacion, contra un negocio sintetico en plan Plus (con una sesion
+de cuenta y dos sesiones de dispositivo forjadas directo en
+`sesiones_cuenta` para poblar la lista):
+- Las 4 pestanas cambian de panel sin refetch.
+- `GET /suscripcion/planes` devuelve los 3 planes con precios reales
+  de Stripe ($199/$499/$799 en el entorno de pruebas), el checklist
+  correcto por plan (ej. Basico sin "Utilidad neta real"/"Reportes con
+  comparativas", Plus con "Empleados con PIN (hasta 8)"), la insignia
+  "Mas popular" en Plus, y "Plan actual" deshabilitado en la tarjeta
+  del plan real del negocio (Plus) vs. "Elegir plan" en las otras dos.
+- Clic en "Elegir plan" dispara `POST /suscripcion/checkout` con el
+  plan correcto (confirmado 200 OK con `preview_network`).
+- Pestana Dispositivos muestra "Windows - Chrome"/"Activo ahora" para
+  la sesion actual y "macOS - Safari"/"Hace 3 dia(s)" para la sesion
+  vieja, mas "equipo-pruebas-automatizadas" en la lista de equipos
+  vinculados -- sin ubicacion geografica en ningun renglon.
+- Confirmado en modo oscuro (tarjetas de plan, pestanas y banners
+  legibles) sin errores de consola.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
 - No se hace `git commit`/`push` sin confirmacion explicita.
