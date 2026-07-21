@@ -4097,5 +4097,71 @@ recargando, sin cambios de codigo. Sin errores de consola en ningun
 paso.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios; negocio sintetico
   borrado al terminar.
+- Commiteado y pusheado a `origin/main` con confirmacion explicita del
+  usuario (`04fdf1f`).
+
+# App del Dueño -- manifest.json y preparacion tecnica para Play Store (Fase 5, cierre del camino a Google Play, 2026-07-21)
+
+Quinta y ultima fase del plan: dejar el lado web de `/dueno` listo
+para empezar el empaquetado como app de Android (TWA), sin poder
+ejecutar el empaquetado en si en este entorno.
+
+**Nuevo `public/manifest.json`**: `name`/`short_name` con la marca ya
+usada en toda la app, `start_url`/`scope` apuntando a `/dueno`
+(el manifest instala solo la mini-app del dueño, no la SPA principal
+de escritorio), `display: "standalone"`, `background_color`/
+`theme_color: "#f6f7fb"` -- **mismo valor exacto** que el
+`<meta name="theme-color">` que `dueno.html` ya traia desde la Fase 1
+original, para no tener 2 colores distintos entre la meta tag y el
+manifest. `icons` apunta al unico asset cuadrado de marca real del
+proyecto, `/nexo-pos-icon.jpg` (1254x1254, confirmado con `file`
+antes de usarlo). Servido automaticamente por el `express.static`
+generico que ya cubre todo `public/` (`server.js:83`) -- no hizo falta
+ninguna ruta nueva.
+
+`dueno.html` gano `<link rel="manifest">`, `<link rel="apple-touch-icon">`
+y `<link rel="icon">`, los 3 apuntando al mismo archivo. `dueno-sw.js`
+agrego `manifest.json` y `nexo-pos-icon.jpg` a `ARCHIVOS_CASCARON`
+(disponibles offline igual que el resto del cascaron) y subio
+`CACHE_NAME` a `v11`.
+
+## Limites honestos de esta fase (documentados, no resueltos aqui)
+
+- **Iconos en una sola resolucion**: este entorno no tiene
+  herramientas de edicion de imagen instaladas -- el manifest declara
+  el unico archivo disponible (ya cuadrado, alta resolucion) y el
+  navegador/Android lo escala al instalar. Funciona para publicar,
+  pero **lo ideal es que un diseñador genere PNGs reales en 192x192 y
+  512x512** despues, para mejor nitidez en la ficha de Play Store y en
+  el icono instalado.
+- **El empaquetado TWA en si** (generar el `.aab` con Bubblewrap o
+  Android Studio, subir `assetlinks.json` al dominio para verificar la
+  relacion app-sitio, crear la ficha en Play Console, pasar la
+  revision de Google) -- requiere herramientas de Android y acceso a
+  la cuenta de Play Console del usuario, fuera de lo que se puede
+  ejecutar en este entorno. El lado web queda 100% listo; el
+  empaquetado se hace aparte, guiado paso a paso cuando el usuario
+  este listo para esa parte.
+- **Politica de privacidad** (Play Store la exige) -- no se redacto
+  aqui, es contenido legal/de negocio que el usuario debe revisar o
+  aprobar directamente, no algo que se genere unilateralmente.
+
+Con esto cierran las 5 fases del plan "Camino a Google Play": Reportes,
+chat de Nexo IA, onboarding + animaciones, preparacion visual de
+biometria, y manifest.json.
+
+Validado en el navegador:
+- `GET /manifest.json` responde 200 con `content-type:
+  application/json` y el JSON exacto esperado (confirmado por
+  contenido, no solo status).
+- Desde `/dueno`, `document.querySelector('link[rel="manifest"]')`
+  encuentra el link y un `fetch()` a esa URL exacta regresa el mismo
+  JSON valido -- confirma que el navegador puede resolverlo tal como
+  esta enlazado.
+- El icono (`/nexo-pos-icon.jpg`) carga 200 en las requests de la
+  pagina.
+- Sin errores de consola en ningun paso.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios -- esta fase no
+  requirio ningun negocio sintetico (sin llamadas a datos reales).
 - Pendiente de confirmacion explicita del usuario para
   `git commit`/`push`.
