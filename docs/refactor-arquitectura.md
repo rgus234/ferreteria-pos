@@ -3733,3 +3733,69 @@ sintetico con una venta de prueba:
 - Sin errores de consola en ningun paso.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
 - No se hace `git commit`/`push` sin confirmacion explicita.
+
+# Correccion de 3 bugs reales del pulido visual anterior (2026-07-21)
+
+El usuario probo el pulido visual anterior en produccion y mando capturas:
+"Quedo todo mal". Investigando cada captura, resultaron ser 3 bugs reales
+de CSS -- no gusto/opinion -- mas una peticion de clonar una referencia
+visual exacta para el modal.
+
+**Bug 1 -- borde Siri roto**: el primer intento uso `mask-composite` para
+dejar hueco el centro del anillo. El navegador del usuario lo renderizaba
+mal: el circulo salia relleno, girando *encima* del texto de busqueda en
+vez de solo alrededor del borde. Se reemplazo por la tecnica de doble
+`background-clip` (`padding-box` + `border-box`, dos capas de
+`background-image`: un relleno solido clip a padding-box y el
+`conic-gradient` clip a border-box) -- mucho mas vieja y estable que
+`mask-composite`, sin necesitar mascaras. Ademas se encontro que la
+primera version ni siquiera aplicaba en el navegador de pruebas local:
+`.pos-referencia .pos-reference-search { background: ... !important; }`
+(ya existente en `pos-sale-redesign.css`, misma especificidad de 2
+clases) le ganaba a mi declaracion por no llevar `!important` -- se
+corrigio agregando `!important` a las 3 declaraciones de fondo.
+
+**Bug 2 -- boton huerfano estirado en el modal Ver detalle**: los 6
+botones de accion usaban `flex:1 1 auto` en una fila con `flex-wrap` --
+cuando el sexto boton ("Factura CFDI") no cabia en la primera linea y
+bajaba solo a la segunda, el `flex-grow` lo estiraba para llenar todo el
+ancho disponible el solo (711px de ancho vs ~120px de los demas). Se
+cambio a CSS Grid con `repeat(6, minmax(0,1fr))` -- ancho fijo e igual
+para los 6 siempre, sin importar cuantos quepan por fila.
+
+**Peticion -- clonar el modal Ver detalle**: el usuario mando una imagen
+de referencia (una tarjeta de transaccion tipo Stripe/Notion: header
+compacto con icono+folio+boton de copiar, badge verde "Completada",
+"Imprimir ticket" fantasma + "Cerrar" solido chico arriba a la derecha,
+4 tarjetas de info con icono, lista de productos con insignia numerada
+azul, fila de 5 tarjetas de totales, y 6 botones fantasma con icono
+abajo en una sola fila). Se reescribio `renderDetalleVentaPOS()`
+(`sales-history-documents.js`) para clonar esa estructura exacta, con un
+set nuevo de iconos SVG inline (`iconoDetalleVentaPOS()`, mismo estilo
+de trazo que el resto de la app) y una funcion `copiarFolioVentaPOS()`
+(usa `navigator.clipboard`, sin necesitar un sistema de toast nuevo --
+el icono del boton cambia a un check por 1.2s como confirmacion). El
+boton "Reimprimir ticket" dejo de tener tratamiento especial de "primario"
+en la fila inferior (ya no aplica, siguiendo la referencia -- el unico
+acento de color fuerte en todo el modal es "Cerrar").
+
+**Cobrar/Efectivo/Agregar reforzados de nuevo**: bajado aun mas el
+porcentaje de `color-mix` (mas transparencia), gradiente vertical en vez
+de diagonal (imita el brillo especular de un boton de iOS), `text-shadow`
+para mantener legible el texto sobre un fondo mas transparente, y un
+`box-shadow` con anillo interior ademas del brillo superior -- el
+`backdrop-filter` solo blur no se notaba sobre fondos planos, asi que
+el "look de vidrio" ahora depende menos de el y mas del brillo/sombra.
+
+Validacion contra un negocio sintetico con una venta de 2 productos:
+- Confirmado con `document.styleSheets`/`getComputedStyle` que la regla
+  vieja con `!important` ya no le gana a la nueva del borde Siri
+  (`backgroundClip: "padding-box, border-box"`, `tieneConic: true`,
+  `animando: true`).
+- Los 6 botones del modal miden exactamente 112x56px cada uno (antes: el
+  ultimo media 711px de ancho).
+- Captura de pantalla real (la herramienta esta vez si funciono) confirma
+  que el modal se ve igual a la referencia mandada.
+- Sin errores de consola en ningun paso.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
+- No se hace `git commit`/`push` sin confirmacion explicita.

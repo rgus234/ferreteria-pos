@@ -424,6 +424,35 @@ async function abrirDetalleVentaPOS(id) {
  renderDetalleVentaPOS(datos.venta);
 }
 
+function iconoDetalleVentaPOS(nombre) {
+ const trazos = {
+  recibo: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+  copiar: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  candado_check: '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.2l2.3 2.3 4.7-4.8"/>',
+  calendario: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+  usuario: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.4-3.6 4.4-5.5 7-5.5s5.6 1.9 7 5.5"/>',
+  tarjeta: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>',
+  impresora: '<path d="M7 8V4h10v4"/><rect x="5" y="8" width="14" height="8" rx="1.5"/><path d="M7 16h10v5H7z"/>',
+  documento: '<path d="M8 3h6l4 4v14H8Z"/><path d="M14 3v4h4"/><path d="M10.5 12h5M10.5 15.5h5"/>',
+  descargar: '<path d="M12 4v11"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/>',
+  chat: '<path d="M4 19v-3.4A7.6 7.6 0 1 1 8.6 20L4 19Z"/>',
+  correo: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 6.5 8 6 8-6"/>'
+ };
+
+ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${trazos[nombre] || trazos.documento}</svg>`;
+}
+
+function copiarFolioVentaPOS(folio) {
+ navigator.clipboard?.writeText(folio).catch(() => {});
+
+ const boton = document.querySelector(".detalle-copiar-folio-pos");
+ if (!boton) return;
+
+ boton.innerHTML = iconoDetalleVentaPOS("check");
+ setTimeout(() => { boton.innerHTML = iconoDetalleVentaPOS("copiar"); }, 1200);
+}
+
 function renderDetalleVentaPOS(venta) {
  let modal = document.getElementById("modalDetalleVentaPOS");
  if (!modal) {
@@ -436,40 +465,67 @@ function renderDetalleVentaPOS(venta) {
  const productos = productosVentaPOS(venta);
  const folio = venta.folio || `V-${String(venta.id || 0).padStart(6, "0")}`;
  const bitacora = Array.isArray(venta.bitacora) ? venta.bitacora : [];
+ const id = Number(venta.id);
 
  modal.innerHTML = `
  <div class="modal-card detalle-venta-card-pos">
-  <div class="modal-card-header">
-   <div>
-    <span>${escaparPOS(folio)}</span>
-    <h3>${dinero(venta.total || 0)}</h3>
+  <div class="detalle-venta-header-pos">
+   <div class="detalle-venta-titulo-pos">
+    <span class="detalle-venta-icono-pos">${iconoDetalleVentaPOS("recibo")}</span>
+    <div>
+     <span>Transaccion</span>
+     <h3>${escaparPOS(folio)} <button type="button" class="detalle-copiar-folio-pos" onclick="copiarFolioVentaPOS('${escaparPOS(folio)}')" title="Copiar folio">${iconoDetalleVentaPOS("copiar")}</button></h3>
+    </div>
    </div>
-   <button type="button" onclick="cerrarDetalleVentaPOS()">Cerrar</button>
+   <div class="detalle-venta-header-acciones-pos">
+    <button type="button" class="detalle-boton-fantasma-pos" onclick="reimprimirTicketVentaPOS(${id})">${iconoDetalleVentaPOS("impresora")} Imprimir ticket</button>
+    <button type="button" class="detalle-boton-cerrar-pos" onclick="cerrarDetalleVentaPOS()">Cerrar</button>
+   </div>
   </div>
+
+  <div class="detalle-venta-total-linea-pos">
+   <div>
+    <span>Total de la venta</span>
+    <strong>${dinero(venta.total || 0)} <small>MXN</small></strong>
+   </div>
+   <span class="detalle-venta-estado-pos">${iconoDetalleVentaPOS("check")} Completada</span>
+  </div>
+
   <div class="detalle-venta-resumen-pos">
-   <div><span>Fecha</span><strong>${escaparPOS(new Date(venta.fecha).toLocaleString("es-MX"))}</strong></div>
-   <div><span>Cliente</span><strong>${escaparPOS(venta.cliente_nombre || "Publico general")}</strong></div>
-   <div><span>Cajero</span><strong>${escaparPOS(venta.cajero_nombre || venta.turno_usuario || "Administrador")}</strong></div>
-   <div><span>Metodo</span><strong>${escaparPOS(venta.metodo_pago || "efectivo")}</strong></div>
+   <div><span class="detalle-mini-icono-pos">${iconoDetalleVentaPOS("calendario")}</span><div><span>Fecha</span><strong>${escaparPOS(new Date(venta.fecha).toLocaleString("es-MX"))}</strong></div></div>
+   <div><span class="detalle-mini-icono-pos">${iconoDetalleVentaPOS("usuario")}</span><div><span>Cliente</span><strong>${escaparPOS(venta.cliente_nombre || "Publico general")}</strong></div></div>
+   <div><span class="detalle-mini-icono-pos">${iconoDetalleVentaPOS("usuario")}</span><div><span>Cajero</span><strong>${escaparPOS(venta.cajero_nombre || venta.turno_usuario || "Administrador")}</strong></div></div>
+   <div><span class="detalle-mini-icono-pos">${iconoDetalleVentaPOS("tarjeta")}</span><div><span>Metodo</span><strong>${escaparPOS(venta.metodo_pago || "efectivo")}</strong></div></div>
   </div>
+
+  <h4 class="detalle-venta-subtitulo-pos">Productos vendidos</h4>
   <div class="detalle-productos-pos">
-   ${productos.map(producto => `<div><span>${escaparPOS(producto.nombre || "Producto")} · ${formatearCantidad(producto.cantidad || 1, producto.unidadVenta || "pieza")}</span><strong>${dinero(producto.importe || Number(producto.precio || 0) * Number(producto.cantidad || 1))}</strong></div>`).join("")}
+   ${productos.map((producto, indice) => `
+    <div>
+     <span class="detalle-producto-num-pos">${indice + 1}</span>
+     <span>${escaparPOS(producto.nombre || "Producto")} · ${formatearCantidad(producto.cantidad || 1, producto.unidadVenta || "pieza")}</span>
+     <strong>${dinero(producto.importe || Number(producto.precio || 0) * Number(producto.cantidad || 1))}</strong>
+    </div>
+   `).join("")}
   </div>
+
   <div class="detalle-venta-totales-pos">
    <div><span>Subtotal</span><strong>${dinero(venta.subtotal || venta.total || 0)}</strong></div>
    <div><span>Descuento</span><strong>-${dinero(venta.descuento || 0)}</strong></div>
-   <div><span>Total</span><strong>${dinero(venta.total || 0)}</strong></div>
+   <div class="detalle-total-destacado-pos"><span>Total</span><strong>${dinero(venta.total || 0)}</strong></div>
    <div><span>Recibido</span><strong>${dinero(venta.pago_recibido || 0)}</strong></div>
-   <div><span>Cambio</span><strong>${dinero(venta.cambio || 0)}</strong></div>
+   <div class="detalle-cambio-pos"><span>Cambio</span><strong>${dinero(venta.cambio || 0)}</strong></div>
   </div>
+
   ${bitacora.length ? `<div class="detalle-bitacora-pos"><strong>Bitacora de notas</strong>${bitacora.map(item => `<span>${new Date(item.created_at).toLocaleString("es-MX")} · ${escaparPOS(item.usuario_autorizo)} autorizo ${dinero(item.total_original)} a ${dinero(item.total_mostrado)} · ${escaparPOS(item.motivo)}</span>`).join("")}</div>` : ""}
+
   <div class="detalle-acciones-pos">
-   <button type="button" class="detalle-boton-primario" onclick="reimprimirTicketVentaPOS(${Number(venta.id)})">Reimprimir ticket</button>
-   <button type="button" onclick="abrirNotaVentaPOS(${Number(venta.id)})">Imprimir nota</button>
-   <button type="button" onclick="descargarPDFVentaPOS(${Number(venta.id)})">Descargar PDF</button>
-   <button type="button" disabled>WhatsApp</button>
-   <button type="button" disabled>Correo</button>
-   <button type="button" disabled>Factura CFDI</button>
+   <button type="button" onclick="reimprimirTicketVentaPOS(${id})">${iconoDetalleVentaPOS("impresora")} Reimprimir ticket</button>
+   <button type="button" onclick="abrirNotaVentaPOS(${id})">${iconoDetalleVentaPOS("documento")} Imprimir nota</button>
+   <button type="button" onclick="descargarPDFVentaPOS(${id})">${iconoDetalleVentaPOS("descargar")} Descargar PDF</button>
+   <button type="button" disabled>${iconoDetalleVentaPOS("chat")} WhatsApp</button>
+   <button type="button" disabled>${iconoDetalleVentaPOS("correo")} Correo</button>
+   <button type="button" disabled>${iconoDetalleVentaPOS("documento")} Factura CFDI</button>
   </div>
  </div>`;
 

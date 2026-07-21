@@ -188,17 +188,21 @@ body.oscuro .pos-referencia .pos-reference-search {
   min-height: 32px;
   margin: 0;
   padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, .5) !important;
+  border: 1px solid rgba(255, 255, 255, .65) !important;
   border-radius: 10px;
   background:
-    linear-gradient(120deg, rgba(255, 255, 255, .38) 0%, rgba(255, 255, 255, 0) 50%),
-    color-mix(in srgb, var(--pos-sale-brand, #0d6efd) 42%, transparent) !important;
-  backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    linear-gradient(180deg, rgba(255, 255, 255, .42) 0%, rgba(255, 255, 255, 0) 45%),
+    color-mix(in srgb, var(--pos-sale-brand, #0d6efd) 34%, transparent) !important;
+  backdrop-filter: blur(16px) saturate(1.7);
+  -webkit-backdrop-filter: blur(16px) saturate(1.7);
   color: #fff !important;
   font-size: 11.5px;
   font-weight: 900;
-  box-shadow: 0 6px 14px color-mix(in srgb, var(--pos-sale-brand, #0d6efd) 18%, transparent), inset 0 1px 0 rgba(255, 255, 255, .4);
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--pos-sale-brand, #0d6efd) 40%, transparent);
+  box-shadow:
+    0 8px 16px color-mix(in srgb, var(--pos-sale-brand, #0d6efd) 20%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--pos-sale-brand, #0d6efd) 20%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, .45);
 }
 
 .pos-flyout-vacio {
@@ -435,14 +439,18 @@ body.oscuro .pos-referencia .pos-reference-search {
 }
 
 .pos-referencia .metodo-pago-opciones button.activo {
-  border-color: rgba(255, 255, 255, .5) !important;
+  border-color: rgba(255, 255, 255, .65) !important;
   background:
-    linear-gradient(120deg, rgba(255, 255, 255, .34) 0%, rgba(255, 255, 255, 0) 45%),
-    linear-gradient(135deg, color-mix(in srgb, var(--pos-sale-brand) 48%, transparent), color-mix(in srgb, var(--pos-sale-brand) 26%, transparent)) !important;
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    linear-gradient(180deg, rgba(255, 255, 255, .48) 0%, rgba(255, 255, 255, 0) 38%),
+    linear-gradient(135deg, color-mix(in srgb, var(--pos-sale-brand) 42%, transparent), color-mix(in srgb, var(--pos-sale-brand) 20%, transparent)) !important;
+  backdrop-filter: blur(20px) saturate(1.7);
+  -webkit-backdrop-filter: blur(20px) saturate(1.7);
   color: #fff !important;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--pos-sale-brand) 20%, transparent), inset 0 1px 0 rgba(255, 255, 255, .4);
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--pos-sale-brand) 40%, transparent);
+  box-shadow:
+    0 10px 20px color-mix(in srgb, var(--pos-sale-brand) 24%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--pos-sale-brand) 22%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, .55);
 }
 
 .pos-referencia .campo-recibido input[readonly] {

@@ -45,36 +45,33 @@
 }
 
 /* Borde animado tipo Siri/Apple Intelligence cuando la busqueda con
-   Nexo IA esta activa -- anillo con mascara (el centro queda hueco
-   para no tapar el input) girando lento, paleta fija de marca Nexo
-   (#2563ff/#7c3aed/#00d4ff, misma paleta que el personaje de IA-5). */
-.pos-reference-search {
-  position: relative;
+   Nexo IA esta activa -- paleta fija de marca Nexo
+   (#2563ff/#7c3aed/#00d4ff, misma paleta que el personaje de IA-5),
+   girando alrededor del borde sin tocar el centro (nunca tapa el
+   input). Tecnica de doble background-clip (padding-box + border-box)
+   en vez de mask-composite -- ese primer intento se veia bien en
+   Chrome/local pero fallaba en el navegador real del usuario (el
+   circulo salia relleno en vez de solo el anillo); background-clip
+   es mucho mas viejo y estable, sin necesitar mascaras. */
+@property --nexo-siri-angulo {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
 }
 
 .pos-reference-search.ia-activa {
-  border-color: transparent !important;
+  border: 2px solid transparent !important;
+  background-origin: border-box !important;
+  background-clip: padding-box, border-box !important;
+  background-image:
+    linear-gradient(var(--pos-sale-bg-solida, var(--pos-sale-card, #fff)), var(--pos-sale-bg-solida, var(--pos-sale-card, #fff))),
+    conic-gradient(from var(--nexo-siri-angulo, 0deg), #2563ff, #7c3aed, #00d4ff, #2563ff) !important;
+  animation: nexoSiriGiro 3.5s linear infinite;
 }
 
-.pos-reference-search.ia-activa::before {
-  content: "";
-  position: absolute;
-  inset: -2px;
-  z-index: 2;
-  border-radius: 18px;
-  padding: 2px;
-  background: conic-gradient(from 0deg, #2563ff, #7c3aed, #00d4ff, #2563ff);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
-  animation: nexoSiriBorde 4s linear infinite;
-}
-
-@keyframes nexoSiriBorde {
+@keyframes nexoSiriGiro {
   to {
-    transform: rotate(360deg);
+    --nexo-siri-angulo: 360deg;
   }
 }
 
