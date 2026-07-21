@@ -4163,5 +4163,5 @@ Validado en el navegador:
 - Sin errores de consola en ningun paso.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios -- esta fase no
   requirio ningun negocio sintetico (sin llamadas a datos reales).
-- Pendiente de confirmacion explicita del usuario para
-  `git commit`/`push`.
+- Commiteado y pusheado a `origin/main` con confirmacion explicita del
+  usuario (`a0940e6`).
