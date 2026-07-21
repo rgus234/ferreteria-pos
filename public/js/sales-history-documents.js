@@ -570,30 +570,51 @@ async function abrirNotaVentaPOS(id) {
   document.body.appendChild(modal);
  }
 
+ const folio = venta.folio || `V-${String(venta.id || 0).padStart(6, "0")}`;
+
  modal.innerHTML = `
  <div class="modal-card nota-venta-card-pos">
-  <div class="modal-card-header">
-   <div>
-    <span>${escaparPOS(venta.folio || "Nota")}</span>
-    <h3>Nota de venta</h3>
+  <div class="detalle-venta-header-pos">
+   <div class="detalle-venta-titulo-pos">
+    <span class="detalle-venta-icono-pos">${iconoDetalleVentaPOS("documento")}</span>
+    <div>
+     <span>${escaparPOS(folio)}</span>
+     <h3>Nota de venta</h3>
+    </div>
    </div>
-   <button type="button" onclick="cerrarNotaVentaPOS()">Cerrar</button>
+   <button type="button" class="detalle-boton-cerrar-pos" onclick="cerrarNotaVentaPOS()">Cerrar</button>
   </div>
-  <label>Cliente<input id="notaClienteVentaPOS" value="${escaparPOS(venta.cliente_nombre || "Publico general")}"></label>
-  <label>Obra o trabajo<input id="notaObraVentaPOS" placeholder="Opcional"></label>
-  <label>Observaciones<textarea id="notaObsVentaPOS" rows="3" placeholder="Opcional"></textarea></label>
+
+  <label class="nota-campo-pos">Cliente<input id="notaClienteVentaPOS" value="${escaparPOS(venta.cliente_nombre || "Publico general")}"></label>
+  <label class="nota-campo-pos">Obra o trabajo<input id="notaObraVentaPOS" placeholder="Opcional"></label>
+  <label class="nota-campo-pos">Observaciones<textarea id="notaObsVentaPOS" rows="2" placeholder="Opcional"></textarea></label>
+
   <details class="nota-ajuste-pos">
    <summary>Ajustar solo importe mostrado</summary>
-   <label>Total mostrado<input id="notaTotalVentaPOS" type="number" step="0.01" value="${Number(venta.total || 0).toFixed(2)}"></label>
-   <label>Motivo<input id="notaMotivoVentaPOS" placeholder="Requerido si cambia el total"></label>
-   <label>PIN administrador<input id="notaPinVentaPOS" type="password" placeholder="Requerido si cambia el total"></label>
+   <label class="nota-campo-pos">Total mostrado<input id="notaTotalVentaPOS" type="number" step="0.01" value="${Number(venta.total || 0).toFixed(2)}"></label>
+   <label class="nota-campo-pos">Motivo<input id="notaMotivoVentaPOS" placeholder="Requerido si cambia el total"></label>
+   <label class="nota-campo-pos">PIN administrador<input id="notaPinVentaPOS" type="password" placeholder="Requerido si cambia el total"></label>
   </details>
-  <div class="modal-actions-row">
+
+  <div class="nota-impresora-pos">
+   <span>Imprimir en</span>
+   <div class="nota-impresora-opciones-pos">
+    <button type="button" class="activo" data-imp="termica" onclick="elegirImpresoraNotaPOS(this)">Termica 58/80mm</button>
+    <button type="button" data-imp="grande" onclick="elegirImpresoraNotaPOS(this)">Impresora grande</button>
+   </div>
+  </div>
+
+  <div class="modal-actions-row nota-acciones-pos">
    <button type="button" onclick="cerrarNotaVentaPOS()">Cancelar</button>
    <button type="button" class="btn-principal" onclick="generarNotaVentaPOS(${Number(venta.id)})">Imprimir nota</button>
   </div>
  </div>`;
  modal.style.display = "flex";
+}
+
+function elegirImpresoraNotaPOS(boton) {
+ document.querySelectorAll(".nota-impresora-opciones-pos button").forEach(b => b.classList.remove("activo"));
+ boton.classList.add("activo");
 }
 
 function cerrarNotaVentaPOS() {
@@ -639,6 +660,7 @@ function cerrarVentaCompletadaPOS() {
 
 async function generarNotaVentaPOS(id) {
  try {
+  const impresora = document.querySelector(".nota-impresora-opciones-pos button.activo")?.dataset.imp || "termica";
   const venta = await obtenerVentaDetallePOS(id);
   const totalMostrado = Number(document.getElementById("notaTotalVentaPOS")?.value || venta.total || 0);
   const totalOriginal = Number(venta.total || 0);
@@ -687,18 +709,152 @@ async function generarNotaVentaPOS(id) {
   if (!respuesta.ok || !datos.ok) throw new Error(datos.error || "No se pudo generar la nota");
 
   cerrarNotaVentaPOS();
-  await imprimirTicketPOS(htmlTicketDesdeVentaPOS(venta, {
-   tipo: "nota",
-   clienteNombre: payload.clienteNombre,
-   obra: payload.obra,
-   observaciones: payload.observaciones,
-   totalMostrado
-  }), {
-   ...(configuracionNegocio() || {}),
-   abrirCajonDespuesTicket: false
-  });
+
+  if (impresora === "grande") {
+   await imprimirDocumentoGrandePOS(htmlNotaGrandeDesdeVentaPOS(venta, {
+    clienteNombre: payload.clienteNombre,
+    obra: payload.obra,
+    observaciones: payload.observaciones,
+    totalMostrado
+   }), "Nota de venta");
+  } else {
+   await imprimirTicketPOS(htmlTicketDesdeVentaPOS(venta, {
+    tipo: "nota",
+    clienteNombre: payload.clienteNombre,
+    obra: payload.obra,
+    observaciones: payload.observaciones,
+    totalMostrado
+   }), {
+    ...(configuracionNegocio() || {}),
+    abrirCajonDespuesTicket: false
+   });
+  }
+
   await abrirDetalleVentaPOS(id);
  } catch (error) {
   await alertaPOS(error.message, "Nota de venta", "peligro");
  }
+}
+
+// Version de la nota pensada para una impresora normal (carta/A4) en
+// vez de la tira termica de 58/80mm -- misma informacion que
+// htmlTicketDesdeVentaPOS, pero como documento formal con tabla de
+// productos, para entregarsela al cliente como cotizacion/nota
+// completa en una sola hoja en vez de una tira larga.
+function htmlNotaGrandeDesdeVentaPOS(venta, opciones = {}) {
+ const config = configuracionNegocio() || {};
+ const productos = productosVentaPOS(venta);
+ const folio = venta.folio || `V-${String(venta.id || 0).padStart(6, "0")}`;
+ const fecha = venta.fecha ? new Date(venta.fecha).toLocaleString("es-MX") : new Date().toLocaleString("es-MX");
+ const total = Number(opciones.totalMostrado ?? venta.total ?? 0);
+ const cliente = opciones.clienteNombre || venta.cliente_nombre || "Publico general";
+ const obra = opciones.obra || "";
+ const observaciones = opciones.observaciones || "";
+
+ const filas = productos.map(producto => {
+  const cantidad = Number(producto.cantidad || 1);
+  const precio = Number(producto.precio || 0);
+  const importe = Number(producto.importe || cantidad * precio);
+  return `
+   <tr>
+    <td style="padding:7px 6px;border-bottom:1px solid #e5e7eb;">${escaparPOS(producto.nombre || "Producto")}</td>
+    <td style="padding:7px 6px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;">${formatearCantidad(cantidad, producto.unidadVenta || "pieza")}</td>
+    <td style="padding:7px 6px;border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap;">$${precio.toFixed(2)}</td>
+    <td style="padding:7px 6px;border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap;">$${importe.toFixed(2)}</td>
+   </tr>`;
+ }).join("");
+
+ return `
+ <div style="font-family:Arial, Helvetica, sans-serif;color:#111827;max-width:720px;margin:0 auto;">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #111827;padding-bottom:14px;margin-bottom:18px;">
+   <div>
+    ${config.logo && config.mostrarLogoTicket !== false ? `<img src="${config.logo}" style="width:46px;height:46px;object-fit:cover;border-radius:8px;margin-bottom:6px;">` : ""}
+    ${config.mostrarNombreTicket === false ? "" : `<div style="font-size:21px;font-weight:bold;">${escaparPOS(config.ticketNombre || config.nombre || "Ferreteria Olimpico")}</div>`}
+    ${config.mostrarDireccionTicket !== false && config.direccion ? `<div style="font-size:12px;color:#4b5563;">${escaparPOS(config.direccion)}</div>` : ""}
+    ${config.mostrarTelefonoTicket !== false && config.telefono ? `<div style="font-size:12px;color:#4b5563;">Tel. ${escaparPOS(config.telefono)}</div>` : ""}
+   </div>
+   <div style="text-align:right;flex-shrink:0;">
+    <div style="font-size:19px;font-weight:bold;letter-spacing:.03em;">NOTA DE VENTA</div>
+    <div style="font-size:13px;color:#4b5563;">Folio ${escaparPOS(folio)}</div>
+    <div style="font-size:13px;color:#4b5563;">${escaparPOS(fecha)}</div>
+   </div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:20px;margin-bottom:16px;font-size:13px;">
+   <div><strong>Cliente:</strong> ${escaparPOS(cliente)}</div>
+   ${obra ? `<div><strong>Obra o trabajo:</strong> ${escaparPOS(obra)}</div>` : ""}
+   <div><strong>Atendio:</strong> ${escaparPOS(venta.cajero_nombre || usuarioActual?.nombre || "Administrador")}</div>
+  </div>
+
+  <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+   <thead>
+    <tr style="border-bottom:2px solid #111827;">
+     <th style="padding:6px;text-align:left;">Producto</th>
+     <th style="padding:6px;text-align:center;">Cantidad</th>
+     <th style="padding:6px;text-align:right;">Precio</th>
+     <th style="padding:6px;text-align:right;">Importe</th>
+    </tr>
+   </thead>
+   <tbody>${filas}</tbody>
+  </table>
+
+  <div style="display:flex;justify-content:flex-end;margin-bottom:18px;">
+   <div style="width:260px;font-size:13px;">
+    ${Number(venta.descuento || 0) > 0 ? `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Subtotal</span><span>${dinero(venta.subtotal || 0)}</span></div><div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Descuento</span><span>-${dinero(venta.descuento || 0)}</span></div>` : ""}
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid #111827;font-weight:bold;font-size:16px;"><span>Total</span><span>${dinero(total)}</span></div>
+   </div>
+  </div>
+
+  ${observaciones ? `<div style="font-size:13px;margin-bottom:18px;"><strong>Observaciones</strong><br>${escaparPOS(observaciones)}</div>` : ""}
+
+  <div style="font-size:12px;color:#4b5563;border-top:1px solid #d1d5db;padding-top:10px;">${escaparPOS(config.mensajeTicket || "Gracias por su compra")}</div>
+ </div>`;
+}
+
+// Mismo mecanismo de impresion que imprimirTicketPOS (iframe oculto,
+// focus + print) pero sin forzar un @page de 58/80mm -- deja que el
+// dialogo de impresion del navegador use la impresora normal que el
+// usuario elija, con tamaño de hoja estandar (carta/A4).
+async function imprimirDocumentoGrandePOS(contenidoHtml, tituloDocumento = "Documento") {
+ const iframe = document.createElement("iframe");
+ iframe.title = tituloDocumento;
+ iframe.style.position = "fixed";
+ iframe.style.right = "0";
+ iframe.style.bottom = "0";
+ iframe.style.width = "0";
+ iframe.style.height = "0";
+ iframe.style.border = "0";
+ iframe.style.opacity = "0";
+
+ document.body.appendChild(iframe);
+
+ const documento = iframe.contentWindow.document;
+
+ documento.open();
+ documento.write(`
+  <html>
+  <head>
+   <title>${escaparPOS(tituloDocumento)}</title>
+   <style>
+    @page { margin: 18mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; background: #fff; }
+   </style>
+  </head>
+  <body>${contenidoHtml}</body>
+  </html>
+ `);
+ documento.close();
+
+ return new Promise(resolve => {
+  setTimeout(() => {
+   iframe.contentWindow.focus();
+   iframe.contentWindow.print();
+
+   setTimeout(() => {
+    iframe.remove();
+    resolve(true);
+   }, 1200);
+  }, 180);
+ });
 }

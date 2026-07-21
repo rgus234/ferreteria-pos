@@ -295,9 +295,9 @@
 }
 
 .nota-venta-card-pos {
-  width: min(460px, 94vw) !important;
+  width: min(480px, 94vw) !important;
   border-radius: 22px !important;
-  padding: 18px !important;
+  padding: 20px 22px !important;
   display: grid !important;
   gap: 12px !important;
 }
@@ -314,17 +314,18 @@
 .nota-venta-card-pos textarea {
   width: 100% !important;
   min-height: 42px !important;
-  border-radius: 14px !important;
-  border: 1px solid var(--line-soft, rgba(15, 23, 42, .10)) !important;
-  background: var(--surface-soft, rgba(255, 255, 255, .56)) !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .16)) !important;
+  background: var(--surface-strong, rgba(255, 255, 255, .92)) !important;
   color: var(--text-main, #101828) !important;
   padding: 10px 12px !important;
   font: inherit !important;
+  font-size: 14px !important;
 }
 
 .nota-ajuste-pos {
-  border: 1px solid var(--line-soft, rgba(15, 23, 42, .10)) !important;
-  border-radius: 16px !important;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .12)) !important;
+  border-radius: 14px !important;
   padding: 10px !important;
   background: var(--surface-soft, rgba(255, 255, 255, .56)) !important;
 }
@@ -333,14 +334,76 @@
   cursor: pointer !important;
   color: var(--text-main, #101828) !important;
   font-weight: 950 !important;
+  font-size: 12.5px !important;
+}
+
+.nota-impresora-pos {
+  display: grid !important;
+  gap: 6px !important;
+}
+
+.nota-impresora-pos > span {
+  color: var(--text-muted, #667085) !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+.nota-impresora-opciones-pos {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+.nota-impresora-opciones-pos button {
+  width: 100% !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .14)) !important;
+  background: var(--surface-strong, rgba(255, 255, 255, .92)) !important;
+  color: var(--text-main, #101828) !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+.nota-impresora-opciones-pos button.activo {
+  border-color: color-mix(in srgb, var(--brand-color, #0d6efd) 55%, black 8%) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand-color, #0d6efd) 92%, white 8%), color-mix(in srgb, var(--brand-color, #0d6efd) 86%, black 14%)) !important;
+  color: #fff !important;
+}
+
+.nota-acciones-pos {
+  justify-content: stretch !important;
+}
+
+.nota-acciones-pos button {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  min-height: 44px !important;
+  margin: 0 !important;
+  border-radius: 13px !important;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .14)) !important;
+  background: var(--surface-strong, rgba(255, 255, 255, .92)) !important;
+  color: var(--text-main, #101828) !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+}
+
+.nota-acciones-pos .btn-principal {
+  border-color: color-mix(in srgb, var(--brand-color, #0d6efd) 55%, black 8%) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand-color, #0d6efd) 92%, white 8%), color-mix(in srgb, var(--brand-color, #0d6efd) 86%, black 14%)) !important;
+  color: #fff !important;
 }
 
 .detalle-venta-resumen-pos,
 .detalle-venta-totales-pos {
   display: grid !important;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   gap: 8px !important;
   margin: 0 0 14px !important;
+}
+
+.detalle-venta-resumen-pos {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 }
 
 .detalle-venta-totales-pos {
@@ -506,11 +569,6 @@
   flex-shrink: 0 !important;
 }
 
-.nota-venta-card-pos .modal-actions-row button {
-  min-height: 42px !important;
-  border-radius: 14px !important;
-}
-
 .detalle-acciones-pos button:disabled {
   opacity: .5 !important;
   cursor: not-allowed !important;
@@ -565,6 +623,13 @@ body.oscuro .nota-venta-card-pos textarea {
   background: rgba(15, 23, 42, .76) !important;
   color: #f8fafc !important;
   border-color: rgba(226, 232, 240, .16) !important;
+}
+
+body.oscuro .nota-impresora-opciones-pos button,
+body.oscuro .nota-acciones-pos button {
+  background: rgba(30, 41, 59, .68) !important;
+  border-color: rgba(226, 232, 240, .2) !important;
+  color: #f8fafc !important;
 }
 
 @media (max-width: 760px) {

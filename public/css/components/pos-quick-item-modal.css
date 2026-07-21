@@ -93,6 +93,35 @@
   gap: 12px;
 }
 
+.articulo-rapido-card .modal-actions-row {
+  margin-top: 4px;
+}
+
+.articulo-rapido-card .modal-actions-row button {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  min-height: 44px !important;
+  margin: 0 !important;
+  border-radius: 13px !important;
+  border: 1px solid rgba(15, 23, 42, .14) !important;
+  background: rgba(255, 255, 255, .92) !important;
+  color: #0f172a !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+}
+
+.articulo-rapido-card .modal-actions-row .btn-principal {
+  border-color: color-mix(in srgb, var(--brand-color, #0d6efd) 55%, black 8%) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand-color, #0d6efd) 92%, white 8%), color-mix(in srgb, var(--brand-color, #0d6efd) 86%, black 14%)) !important;
+  color: #fff !important;
+}
+
+body.oscuro .articulo-rapido-card .modal-actions-row button {
+  background: rgba(30, 41, 59, .68) !important;
+  border-color: rgba(148, 163, 184, .2) !important;
+  color: #f8fafc !important;
+}
+
 body.oscuro .articulo-rapido-card {
   background: rgba(15, 23, 42, .92) !important;
   border-color: rgba(148, 163, 184, .2) !important;

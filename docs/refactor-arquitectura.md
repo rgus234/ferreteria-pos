@@ -3799,3 +3799,72 @@ Validacion contra un negocio sintetico con una venta de 2 productos:
 - Sin errores de consola en ningun paso.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
 - No se hace `git commit`/`push` sin confirmacion explicita.
+
+# Vidrio mas rico (no mas transparente), tarjetas a 2 columnas y rediseno del modal Nota de venta (2026-07-21)
+
+Nueva tanda de capturas del usuario: los botones Cobrar/Efectivo/Agregar
+seguian viendose "transparentes... como sobrepuestos", las tarjetas de
+Fecha/Cliente/Cajero/Metodo en Ver detalle seguian truncando texto a 4
+columnas, y el modal "Nota de venta" (nunca tocado en las pasadas
+anteriores) resulto tener exactamente el mismo bug de siempre: boton
+Cerrar y Cancelar/Imprimir nota heredando el `button{width:100%,
+background:brand}` legacy, e inputs con fondo casi invisible.
+
+**Correccion de rumbo en el vidrio**: las 2 pasadas anteriores bajaron
+la opacidad cada vez mas, asumiendo que "mas transparente = mas vidrio".
+Eso fue el error -- sobre un fondo plano (blanco/gris claro), un color
+muy transparente simplemente se ve palido y despegado, no glassy. Se
+invirtio la logica: base mucho mas opaca/saturada (92%/86% del color de
+marca, gradiente vertical claro-a-oscuro tipo boton glossy de iOS) +
+un brillo blanco definido solo arriba + `text-shadow` + sombra con
+mas profundidad. El `backdrop-filter` se mantiene pero deja de ser el
+mecanismo principal del efecto -- el blur no se nota sobre fondos
+sin nada de color detras que distorsionar.
+
+**Tarjetas de Ver detalle**: `.detalle-venta-resumen-pos` paso de 4
+columnas fijas a 2 (2 arriba, 2 abajo) de forma permanente, no solo en
+mobile -- con datos reales ("Publico general", fechas largas) 4
+columnas en un modal de 760px no alcanzaba.
+
+**Modal Nota de venta -- reescrito por completo** (nunca se habia
+tocado en las 2 pasadas anteriores del pulido visual): mismo lenguaje
+visual ya establecido en Ver detalle (header con icono+folio+boton
+"Cerrar" chico via `.detalle-boton-cerrar-pos`, reusando
+`iconoDetalleVentaPOS()`), inputs con fondo solido `--surface-strong`
+en vez del `--surface-soft` casi invisible de antes, y los botones
+Cancelar/Imprimir nota ahora ocupan cada uno la mitad del ancho
+(`.nota-acciones-pos`, `flex:1 1 0`) en vez de barras completas
+apiladas. Se aplico el mismo arreglo preventivo al modal de "articulo
+rapido" (`pos-quick-item-modal.css`), que tenia el mismo bug latente
+sin haber sido reportado todavia.
+
+**Opcion de impresora al imprimir la nota** (pedido nuevo del
+usuario): el sistema de tickets (`imprimirTicketPOS`) siempre fuerza
+un `@page` de 58 o 80mm -- solo sirve para impresora termica, nunca
+existio una opcion de "impresora normal". Se agrego un selector
+Termica/Impresora grande dentro del modal (`elegirImpresoraNotaPOS`).
+"Termica" sigue el camino de siempre sin cambios. "Impresora grande"
+usa 2 funciones nuevas: `htmlNotaGrandeDesdeVentaPOS()` (mismo
+contenido -- folio, fecha, cliente, obra, tabla de productos con
+cantidad/precio/importe, totales, observaciones -- pero como
+documento formal de una sola hoja, con tabla real en vez de filas
+flex angostas) e `imprimirDocumentoGrandePOS()` (mismo mecanismo de
+iframe oculto que `imprimirTicketPOS`, pero sin forzar ancho de
+pagina -- deja que el dialogo de impresion del navegador use tamaño
+de hoja normal y cualquier impresora que el usuario elija ahi).
+
+Validacion contra un negocio sintetico con una venta de prueba:
+- `.btn-cobrar`/`.metodo-pago-opciones button.activo`: `backgroundImage`
+  confirma el gradiente rico (92%/86% de opacidad de marca, no 22-46%
+  como antes).
+- `.detalle-venta-resumen-pos` renderiza 4 tarjetas de 351px cada una
+  (2 columnas reales) con el texto completo sin truncar ("Publico
+  general", fecha completa).
+- Modal Nota de venta: boton Cerrar mide 68px (no 100% del modal),
+  inputs con `background-color: rgba(255,255,255,.92)` (visible), el
+  selector de impresora cambia de activo correctamente al hacer clic,
+  y `htmlNotaGrandeDesdeVentaPOS()` genera el documento completo con
+  tabla, folio, obra y total verificados por contenido.
+- Sin errores de consola en ningun paso.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
+- No se hace `git commit`/`push` sin confirmacion explicita.
