@@ -4249,3 +4249,28 @@ reales, no solo el feliz):
   borrado al terminar.
 - Commiteado y pusheado a `origin/main` con confirmacion explicita del
   usuario (`695d7bb`).
+
+# App del Dueño -- iconos reales en multiples resoluciones (2026-07-21)
+
+La Fase 5 (`manifest.json`) habia documentado como limitacion que no
+se podian generar iconos PNG en 192x192/512x512 "por falta de
+herramientas de edicion de imagen en este entorno" -- una revision
+posterior encontro que **eso era incorrecto**: `sharp` ya esta
+instalado como dependencia del proyecto (usado para fotos de producto,
+Fase D). Se genero `public/icons/nexo-pos-icon-192.png` y
+`nexo-pos-icon-512.png` a partir de `nexo-pos-icon.jpg` (1254x1254),
+ambos sin canal alpha (`hasAlpha:false`, confirmado con `sharp
+.metadata()`) -- requisito de Play Store para el icono de la ficha
+(no debe tener transparencia).
+
+`public/manifest.json` gano los 2 iconos nuevos como primeras
+entradas (mismo `purpose:"any"`), conservando el JPEG original de
+1254x1254 como tercera opcion de respaldo. `dueno.html` cambio
+`apple-touch-icon`/`icon` a apuntar al PNG de 192px (mas apropiado que
+el JPEG grande para esos usos). `dueno-sw.js` agrego ambos PNGs a
+`ARCHIVOS_CASCARON` (`CACHE_NAME` a `v13`).
+
+Validado: `GET /manifest.json` y ambos PNGs responden 200; el JSON del
+manifest referencia las rutas correctas; sin errores de consola.
+`negocio_id = 1` sin cambios (fase sin datos de negocio). Pendiente de
+confirmacion explicita del usuario para `git commit`/`push`.
