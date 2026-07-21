@@ -3868,3 +3868,69 @@ Validacion contra un negocio sintetico con una venta de prueba:
 - Sin errores de consola en ningun paso.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios.
 - No se hace `git commit`/`push` sin confirmacion explicita.
+
+# App del Dueño -- pestaña Reportes (Fase 1 del camino a Google Play, 2026-07-21)
+
+El usuario obtuvo cuenta de desarrollador de Google Play y pidio dejar
+`/dueno` lo mas completa posible antes de publicarla. Se definio un
+plan de 5 fases (Reportes, chat de Nexo IA, onboarding/animaciones,
+preparacion visual de biometria, `manifest.json`); esta entrada cubre
+la Fase 1: activar la pestaña "Reportes" (antes solo mostraba
+"Proximamente").
+
+**Sin backend nuevo**: `GET /reportes/ventas` (`server.js:6054`) ya
+existia (usado por escritorio) y ya estaba protegido por
+`requerirAccesoNegocio` -- se reutilizo tal cual, sin ninguna ruta
+nueva.
+
+**Frontend** (`public/dueno.html`/`dueno.js`/`dueno.css`): nuevo panel
+`#duenoReportes` con chips de periodo (Hoy/Semana/Mes/Año), 4 tarjetas
+KPI (total, transacciones, ticket promedio, productos vendidos) con
+tendencia `+X% vs periodo anterior`, lista de metodos de pago con
+barra de porcentaje, lista de productos mas vendidos, y ultimas ventas
+del periodo con boton "Reimprimir".
+
+`renderSparklineSVG` (antes hardcodeada a 12 cortes de hora fijos para
+la pestaña Inicio) se separo en una funcion generica
+`dibujarSparklineSVG(svgId, valores)` que acepta un arreglo de
+cualquier tamaño -- reutilizada tanto por el sparkline horario de
+Inicio como por la nueva grafica "Total de ventas" de Reportes
+(alimentada por `porDia`, hasta 30 puntos), sin agregar Chart.js (la
+pagina debe seguir ligera en telefono, decision ya tomada en la Fase 1
+original de `/dueno`).
+
+**Reimprimir desde Reportes**: `/dueno` no carga
+`sales-history-documents.js` (es standalone) ni tiene acceso a
+impresora termica via Electron, asi que se construyo una version
+minima propia (`reimprimirVentaReporteDueno()` +
+`abrirTicketImpresionDueno()`): trae la venta via `GET /ventas/:id`
+(ya existente), arma un ticket HTML simple y lo abre en una pestaña
+nueva llamando `window.print()` -- usa el dialogo de impresion nativo
+del navegador (funciona igual en escritorio y movil), sin depender de
+ningun mecanismo de impresora de escritorio.
+
+Cache-busters de `dueno.html`/`dueno.js`/`dueno.css` subidos a
+`dueno-reportes-20260720-01`; `dueno-sw.js` actualizado
+(`ARCHIVOS_CASCARON` + `CACHE_NAME` a `v7`).
+
+Validado contra un negocio sintetico (creado y borrado por ID, plan
+Plus, con ventas de prueba en distintos dias/metodos de pago):
+- `GET /reportes/ventas?periodo=mes` regreso `total:945.00`,
+  `transacciones:4`, coincidiendo exactamente con lo pintado en las 4
+  tarjetas KPI y con las tendencias `+100% vs periodo anterior`.
+- Cambiar de chip (Mes -> Hoy) recalculo correctamente a 2
+  transacciones / $410 sin recargar la pagina, y el chip activo se
+  actualizo.
+- Metodos de pago (Transferencia/Efectivo/Tarjeta) se pintaron
+  ordenados por total, con barras proporcionales al maximo.
+- "Ultimas ventas" listo las 4 ventas de prueba con boton Reimprimir
+  correctamente enlazado a cada ID; se probo `reimprimirVentaReporteDueno()`
+  interceptando `window.open` y se confirmo que genera un HTML de
+  ticket valido con folio, fecha, cliente y total.
+- Verificado en `preview_resize` (mobile, 375x812): sin cortes ni
+  encimados.
+- Sin errores de consola en ningun paso.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios; negocio sintetico
+  borrado al terminar.
+- No se hizo `git commit`/`push` -- pendiente de confirmacion
+  explicita del usuario.

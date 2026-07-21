@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Dueño POS">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=dueno-mas-rediseno-20260720-01">
+    <link rel="stylesheet" href="dueno.css?v=dueno-reportes-20260720-01">
 </head>
 
 <body>
@@ -94,6 +94,79 @@
                     <small id="duenoActualizado">Ahora</small>
                 </div>
                 <div id="duenoUltimasVentas" class="lista-ventas"></div>
+            </article>
+        </section>
+    </main>
+
+    <main id="duenoReportes" class="dueno-app" style="display:none;">
+        <header class="dueno-header">
+            <div>
+                <p class="dueno-saludo">Tu negocio en numeros</p>
+                <h1>Reportes</h1>
+                <p id="duenoReportesEstado" class="dueno-estado">Cargando...</p>
+            </div>
+        </header>
+
+        <div class="dueno-chips-periodo">
+            <button type="button" class="dueno-chip-periodo" data-periodo="dia" onclick="cargarPanelReportesDueno('dia')">Hoy</button>
+            <button type="button" class="dueno-chip-periodo" data-periodo="semana" onclick="cargarPanelReportesDueno('semana')">Semana</button>
+            <button type="button" class="dueno-chip-periodo activo" data-periodo="mes" onclick="cargarPanelReportesDueno('mes')">Mes</button>
+            <button type="button" class="dueno-chip-periodo" data-periodo="anio" onclick="cargarPanelReportesDueno('anio')">Año</button>
+        </div>
+
+        <section class="dueno-kpis">
+            <article class="kpi kpi-ventas">
+                <span>Total de ventas</span>
+                <strong id="duenoReporteTotal">$0.00</strong>
+                <small id="duenoReporteTotalTendencia">Sin datos</small>
+                <svg id="duenoReporteSparkline" class="dueno-sparkline" viewBox="0 0 100 28" preserveAspectRatio="none"></svg>
+            </article>
+            <article class="kpi">
+                <span>Transacciones</span>
+                <strong id="duenoReporteTransacciones">0</strong>
+                <small id="duenoReporteTransaccionesTendencia">Sin datos</small>
+            </article>
+            <article class="kpi">
+                <span>Ticket promedio</span>
+                <strong id="duenoReporteTicket">$0.00</strong>
+                <small id="duenoReporteTicketTendencia">Sin datos</small>
+            </article>
+            <article class="kpi">
+                <span>Productos vendidos</span>
+                <strong id="duenoReporteProductos">0</strong>
+                <small id="duenoReporteProductosTendencia">Sin datos</small>
+            </article>
+        </section>
+
+        <section class="dueno-grid">
+            <article class="dueno-card">
+                <div class="card-head">
+                    <div>
+                        <span>Metodos de pago</span>
+                        <h2>Como te pagan</h2>
+                    </div>
+                </div>
+                <div id="duenoReporteMetodos" class="lista-compacta"></div>
+            </article>
+
+            <article class="dueno-card">
+                <div class="card-head">
+                    <div>
+                        <span>Productos mas vendidos</span>
+                        <h2>Top del periodo</h2>
+                    </div>
+                </div>
+                <div id="duenoReporteProductosLista" class="lista-compacta"></div>
+            </article>
+
+            <article class="dueno-card dueno-card-wide">
+                <div class="card-head">
+                    <div>
+                        <span>Ultimas ventas</span>
+                        <h2>Movimiento del periodo</h2>
+                    </div>
+                </div>
+                <div id="duenoReporteUltimas" class="lista-compacta"></div>
             </article>
         </section>
     </main>
@@ -218,7 +291,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
             <span>Inicio</span>
         </button>
-        <button type="button" data-tab="reportes" onclick="proximamenteDueno()">
+        <button type="button" data-tab="reportes" onclick="cambiarTabDueno('reportes')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
             <span>Reportes</span>
         </button>
@@ -253,8 +326,8 @@
         </div>
     </div>
 
-    <script src="dueno-offline.js?v=dueno-mas-rediseno-20260720-01"></script>
-    <script src="dueno.js?v=dueno-mas-rediseno-20260720-01"></script>
+    <script src="dueno-offline.js?v=dueno-reportes-20260720-01"></script>
+    <script src="dueno.js?v=dueno-reportes-20260720-01"></script>
 </body>
 
 </html>

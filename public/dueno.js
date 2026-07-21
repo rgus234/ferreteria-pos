@@ -180,16 +180,39 @@ function productosVendidosHoy(ventasHoyArr) {
     }, 0);
 }
 
-// Mismos 12 cortes horarios (8:00-19:00) que ya usa el dashboard de
-// escritorio (renderGraficaDashboardVentas en sales-history-documents.js)
-// -- aqui se dibuja como un sparkline SVG chico en vez de un chart
-// completo de Chart.js, para mantener esta pagina ligera en telefono.
-function renderSparklineSVG(ventasHoyArr) {
+// Dibuja un sparkline SVG chico a partir de cualquier arreglo de
+// valores numericos (sin depender de Chart.js -- decision ya tomada
+// para mantener esta pagina ligera en telefono). Reusada tanto por
+// el sparkline horario de Inicio (12 cortes fijos) como por la
+// grafica "Ventas por dia" de Reportes (hasta 30 puntos).
+function dibujarSparklineSVG(svgId, valores) {
     const svg =
-    document.getElementById("duenoSparkline");
+    document.getElementById(svgId);
 
     if (!svg) return;
 
+    if (valores.length < 2) {
+        svg.innerHTML = "";
+        return;
+    }
+
+    const max =
+    Math.max(...valores, 1);
+
+    const puntos =
+    valores.map((valor, indice) => {
+        const x = (indice / (valores.length - 1)) * 100;
+        const y = 26 - (valor / max) * 24;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+
+    svg.innerHTML =
+    `<polyline points="${puntos}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+
+// Mismos 12 cortes horarios (8:00-19:00) que ya usa el dashboard de
+// escritorio (renderGraficaDashboardVentas en sales-history-documents.js).
+function renderSparklineSVG(ventasHoyArr) {
     const porHora =
     new Array(12).fill(0);
 
@@ -202,18 +225,7 @@ function renderSparklineSVG(ventasHoyArr) {
         }
     });
 
-    const max =
-    Math.max(...porHora, 1);
-
-    const puntos =
-    porHora.map((valor, indice) => {
-        const x = (indice / (porHora.length - 1)) * 100;
-        const y = 26 - (valor / max) * 24;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(" ");
-
-    svg.innerHTML =
-    `<polyline points="${puntos}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+    dibujarSparklineSVG("duenoSparkline", porHora);
 }
 
 function renderBajos(productos) {
@@ -367,12 +379,14 @@ function cambiarTabDueno(tab) {
     });
 
     document.getElementById("duenoApp").style.display = tab === "inicio" ? "block" : "none";
+    document.getElementById("duenoReportes").style.display = tab === "reportes" ? "block" : "none";
     document.getElementById("duenoVentas").style.display = tab === "ventas" ? "block" : "none";
     document.getElementById("duenoInventario").style.display = tab === "inventario" ? "block" : "none";
     document.getElementById("duenoMas").style.display = tab === "mas" ? "block" : "none";
 
     if (tab !== "mas") cerrarSubpantallaMasDueno();
 
+    if (tab === "reportes") cargarPanelReportesDueno();
     if (tab === "ventas") cargarPanelVentasDueno();
     if (tab === "inventario") cargarPanelInventarioDueno();
     if (tab === "mas") cargarPanelMasDueno();
@@ -752,6 +766,210 @@ window.addEventListener("online", () => {
 });
 
 window.addEventListener("offline", actualizarChipConexionDueno);
+
+// ---------------- pestaña Reportes ----------------
+
+let duenoReportePeriodo = "mes";
+
+function calcularTendenciaDueno(actual, anterior) {
+    if (anterior > 0) return ((actual - anterior) / anterior) * 100;
+    return actual > 0 ? 100 : 0;
+}
+
+async function cargarPanelReportesDueno(periodo) {
+    if (periodo) duenoReportePeriodo = periodo;
+
+    document.querySelectorAll(".dueno-chip-periodo").forEach(boton => {
+        boton.classList.toggle("activo", boton.dataset.periodo === duenoReportePeriodo);
+    });
+
+    const estado =
+    document.getElementById("duenoReportesEstado");
+
+    if (estado) estado.textContent = "Actualizando...";
+
+    try {
+        const datos =
+        await fetchAutenticado(`/reportes/ventas?periodo=${duenoReportePeriodo}`);
+
+        renderReportesDueno(datos);
+
+        if (estado) estado.textContent = "Datos en tiempo real del POS";
+    } catch (error) {
+        if (estado) estado.textContent = "No se pudo cargar el reporte.";
+    }
+}
+
+function renderReportesDueno(datos) {
+    const resumen = datos.resumen || {};
+    const anterior = datos.resumenAnterior || {};
+
+    const tendenciaTotal = calcularTendenciaDueno(Number(resumen.total || 0), Number(anterior.total || 0));
+    const tendenciaTransacciones = calcularTendenciaDueno(Number(resumen.transacciones || 0), Number(anterior.transacciones || 0));
+    const tendenciaTicket = calcularTendenciaDueno(Number(resumen.ticket_promedio || 0), Number(anterior.ticket_promedio || 0));
+    const tendenciaProductos = calcularTendenciaDueno(Number(resumen.productos_vendidos || 0), Number(anterior.productos_vendidos || 0));
+
+    document.getElementById("duenoReporteTotal").textContent = dinero(resumen.total || 0);
+    document.getElementById("duenoReporteTransacciones").textContent = resumen.transacciones || 0;
+    document.getElementById("duenoReporteTicket").textContent = dinero(resumen.ticket_promedio || 0);
+    document.getElementById("duenoReporteProductos").textContent = resumen.productos_vendidos || 0;
+
+    pintarTendenciaDueno("duenoReporteTotalTendencia", tendenciaTotal);
+    pintarTendenciaDueno("duenoReporteTransaccionesTendencia", tendenciaTransacciones);
+    pintarTendenciaDueno("duenoReporteTicketTendencia", tendenciaTicket);
+    pintarTendenciaDueno("duenoReporteProductosTendencia", tendenciaProductos);
+
+    const porDia = datos.porDia || [];
+    dibujarSparklineSVG("duenoReporteSparkline", porDia.map(fila => Number(fila.total || 0)));
+
+    renderMetodosPagoDueno(datos.metodosPago || []);
+    renderProductosVendidosDueno(datos.productosVendidos || []);
+    renderUltimasVentasReporteDueno(datos.ultimas || []);
+}
+
+function pintarTendenciaDueno(id, valor) {
+    const elemento =
+    document.getElementById(id);
+
+    if (!elemento) return;
+
+    elemento.textContent = `${valor >= 0 ? "+" : ""}${valor.toFixed(0)}% vs periodo anterior`;
+    elemento.className = valor >= 0 ? "dueno-estado-positivo" : "dueno-estado-negativo";
+}
+
+function renderMetodosPagoDueno(metodos) {
+    const contenedor =
+    document.getElementById("duenoReporteMetodos");
+
+    if (!metodos.length) {
+        contenedor.innerHTML = `<div class="vacio">Sin ventas en este periodo.</div>`;
+        return;
+    }
+
+    const max =
+    Math.max(...metodos.map(metodo => Number(metodo.total || 0)), 1);
+
+    const nombresMetodo = { efectivo: "Efectivo", tarjeta: "Tarjeta", transferencia: "Transferencia" };
+
+    contenedor.innerHTML =
+        metodos.map(metodo => `
+            <div class="dueno-barra-item">
+                <div class="dueno-barra-item-cabeza">
+                    <span>${escaparDueno(nombresMetodo[metodo.metodo_pago] || metodo.metodo_pago || "Otro")}</span>
+                    <b>${dinero(metodo.total)}</b>
+                </div>
+                <div class="dueno-barra-uso"><div class="dueno-barra-uso-relleno" style="width:${(Number(metodo.total || 0) / max * 100).toFixed(0)}%;"></div></div>
+            </div>
+        `).join("");
+}
+
+function renderProductosVendidosDueno(productos) {
+    const contenedor =
+    document.getElementById("duenoReporteProductosLista");
+
+    contenedor.innerHTML =
+        productos.length
+            ? productos.slice(0, 6).map(producto => `
+                <div class="fila-dueno">
+                    <div>
+                        <strong>${escaparDueno(producto.nombre || "Producto")}</strong>
+                        <span>${Number(producto.cantidad || 0)} vendidos</span>
+                    </div>
+                    <b>${dinero(producto.total)}</b>
+                </div>
+            `).join("")
+            : `<div class="vacio">Sin productos vendidos en este periodo.</div>`;
+}
+
+function renderUltimasVentasReporteDueno(ventas) {
+    const contenedor =
+    document.getElementById("duenoReporteUltimas");
+
+    contenedor.innerHTML =
+        ventas.length
+            ? ventas.map(venta => `
+                <div class="fila-dueno fila-dueno-columna">
+                    <div>
+                        <strong>${escaparDueno(venta.folio || `V-${String(venta.id || 0).padStart(6, "0")}`)}</strong>
+                        <span>${fechaCorta(venta.fecha)} · ${escaparDueno(venta.cliente_nombre || "Publico general")}</span>
+                    </div>
+                    <div class="dueno-fila-acciones">
+                        <b>${dinero(venta.total)}</b>
+                        <button type="button" class="dueno-link" onclick="reimprimirVentaReporteDueno(${venta.id})">Reimprimir</button>
+                    </div>
+                </div>
+            `).join("")
+            : `<div class="vacio">Sin ventas registradas en este periodo.</div>`;
+}
+
+async function reimprimirVentaReporteDueno(id) {
+    try {
+        const datos =
+        await fetchAutenticado(`/ventas/${Number(id)}`);
+
+        if (!datos?.venta) {
+            mostrarToastDueno("No se pudo cargar la venta.");
+            return;
+        }
+
+        abrirTicketImpresionDueno(datos.venta);
+    } catch (error) {
+        mostrarToastDueno("No se pudo conectar. Revisa tu internet.");
+    }
+}
+
+function abrirTicketImpresionDueno(venta) {
+    const productos =
+    Array.isArray(venta.productos) ? venta.productos : [];
+
+    const folio =
+    venta.folio || `V-${String(venta.id || 0).padStart(6, "0")}`;
+
+    const filas =
+    productos.map(item => `
+        <div style="display:flex;justify-content:space-between;gap:8px;">
+            <span>${Number(item.cantidad || 1)}x ${escaparDueno(item.nombre || "Producto")}</span>
+            <span>${dinero(item.importe || Number(item.precio || 0) * Number(item.cantidad || 1))}</span>
+        </div>
+    `).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>${escaparDueno(folio)}</title>
+<style>
+body{font-family:monospace;font-size:13px;padding:16px;max-width:320px;margin:0 auto;color:#000;}
+hr{border:none;border-top:1px dashed #000;margin:10px 0;}
+h2{margin:0 0 4px;font-size:16px;text-align:center;}
+p{margin:2px 0;}
+</style>
+</head>
+<body>
+<h2>${escaparDueno(folio)}</h2>
+<p>${new Date(venta.fecha).toLocaleString("es-MX")}</p>
+<p>Cliente: ${escaparDueno(venta.cliente_nombre || "Publico general")}</p>
+<hr>
+${filas}
+<hr>
+<div style="display:flex;justify-content:space-between;font-weight:bold;"><span>TOTAL</span><span>${dinero(venta.total || 0)}</span></div>
+<p>Metodo: ${escaparDueno(venta.metodo_pago || "efectivo")}</p>
+</body>
+</html>`;
+
+    const ventana =
+    window.open("", "_blank");
+
+    if (!ventana) {
+        mostrarToastDueno("Permite ventanas emergentes para reimprimir.");
+        return;
+    }
+
+    ventana.document.write(html);
+    ventana.document.close();
+    ventana.focus();
+    ventana.print();
+}
 
 // ---------------- pestaña Inventario ----------------
 
