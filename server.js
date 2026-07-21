@@ -82,6 +82,13 @@ app.use((req, res, next) => {
 // incluido app.nexoposoficial.com, = la app del POS).
 app.use(express.static(path.join(__dirname, "public"), { index: false }));
 
+// express.static ignora por defecto cualquier carpeta que empiece con
+// "." (dotfiles:"ignore") -- Digital Asset Links (verificacion del
+// TWA de /dueno en Play Store) exige servir publicamente
+// /.well-known/assetlinks.json, asi que se habilita dotfiles solo
+// para esa carpeta puntual, sin tocar la politica del resto de public/.
+app.use("/.well-known", express.static(path.join(__dirname, "public", ".well-known"), { dotfiles: "allow" }));
+
 const DOMINIOS_LANDING_COMERCIAL = new Set(["nexoposoficial.com", "www.nexoposoficial.com"]);
 
 app.get("/health", async (req, res) => {

@@ -4272,5 +4272,36 @@ el JPEG grande para esos usos). `dueno-sw.js` agrego ambos PNGs a
 
 Validado: `GET /manifest.json` y ambos PNGs responden 200; el JSON del
 manifest referencia las rutas correctas; sin errores de consola.
-`negocio_id = 1` sin cambios (fase sin datos de negocio). Pendiente de
-confirmacion explicita del usuario para `git commit`/`push`.
+`negocio_id = 1` sin cambios (fase sin datos de negocio). Commiteado y
+pusheado a `origin/main` con confirmacion explicita del usuario
+(`c99182e`).
+
+# App del Dueño -- ruta para Digital Asset Links (assetlinks.json), preparacion para empaquetado TWA (2026-07-21)
+
+Preparacion para el siguiente paso manual (empaquetar `/dueno` como
+TWA con Bubblewrap e instalarlo en un Android prestado). Play Store
+exige servir `/.well-known/assetlinks.json` publicamente para
+verificar la relacion app-sitio (sin eso, el TWA muestra la barra de
+URL del navegador como cualquier pagina web).
+
+**Hallazgo antes de que fuera un problema silencioso**: `express.static`
+(`server.js:83`) usa la config por defecto, que incluye
+`dotfiles:"ignore"` -- cualquier carpeta que empiece con `.` (incluida
+`.well-known`) se ignora y responde 404, aunque el archivo exista en
+`public/`. Se agrego una segunda linea de `express.static` acotada
+solo a `/.well-known` con `dotfiles:"allow"` (`server.js:83-89`), sin
+tocar la politica del resto de `public/`.
+
+Se creo `public/.well-known/assetlinks.json` con la estructura
+estandar de Digital Asset Links, `package_name` puesto en
+`com.nexoposoficial.dueno` (sugerido, a confirmar cuando el usuario
+corra `bubblewrap init`) y un placeholder explicito en
+`sha256_cert_fingerprints` (`"REEMPLAZAR_CON_EL_SHA256_REAL_DE_BUBBLEWRAP"`)
+-- el fingerprint real solo existe despues de generar/usar la llave de
+firma durante el empaquetado, paso que el usuario hace en su propia
+maquina (fuera de este entorno).
+
+Validado: `GET /.well-known/assetlinks.json` responde 200 con el JSON
+esperado; `node --check server.js` sin errores; sin errores de
+consola. `negocio_id = 1` sin cambios. Pendiente de confirmacion
+explicita del usuario para `git commit`/`push`.
