@@ -4165,3 +4165,87 @@ Validado en el navegador:
   requirio ningun negocio sintetico (sin llamadas a datos reales).
 - Commiteado y pusheado a `origin/main` con confirmacion explicita del
   usuario (`a0940e6`).
+
+# App del Dueño -- modo oscuro real en /dueno (2026-07-21)
+
+Ya cerrado el "Camino a Google Play", el usuario dijo "sabes que falta
+modo oscuro en toda la app". Se investigo antes de asumir: el POS de
+escritorio **ya tiene** modo oscuro funcional (boton en la topbar,
+`cambiarModo()` en `sales-history-documents.js:315`, persistido en
+`localStorage` con `TEMA_POS_KEY`, `body.oscuro` en 31 archivos CSS).
+Se confirmo con el usuario via `AskUserQuestion` que el pedido era
+especificamente para `/dueno` -- ahi si faltaba de verdad (tema claro
+unico desde la Fase 1 original, "Apariencia" en Mas era un placeholder
+"Proximamente" sin construir).
+
+**Auditoria antes de escribir codigo** (agente Explore, grep
+exhaustivo de `dueno.css`/`dueno.html`/`dueno.js`): confirmo que el
+sistema de variables CSS ya existente (`:root` en `dueno.css:5-21`)
+alimenta casi todas las reglas -- permitiendo re-tematizar la mayor
+parte de la app con un solo bloque `:root.oscuro{...}` que redefine
+los tokens, sin tocar componente por componente. La auditoria tambien
+encontro las excepciones reales que no iban a "simplemente funcionar":
+`.dueno-status-linea` (fondo blanco translucido fijo), `.dueno-pill-gracia`/
+`.dueno-badge-pendiente`/`.dueno-categoria-icono-ambar` (texto ambar
+oscuro fijo, tuneado solo para el tinte claro), `.dueno-categoria-icono-morado`
+(sin variable de respaldo), y un hallazgo propio (no del agente):
+`#duenoToast` usaba `background:var(--text)`, que se invierte entre
+temas -- en oscuro habria terminado con fondo claro y texto blanco
+encima, ilegible.
+
+**Diseño**: `:root.oscuro` en `dueno.css` redefine `--bg` (`#0b1220`,
+reusando el mismo valor que tenia esta pagina antes de la Fase 1,
+cuando era tema oscuro glassmorphism -- continuidad de marca, no
+coincidencia), `--surface`, `--surface-soft`, `--line`, `--text`,
+`--muted`, `--brand-soft` y los pares `--green`/`--red`/`--amber` (mas
+brillantes para verse bien sobre fondo oscuro). `--brand` se mantiene
+fijo (`#2563ff`) en ambos temas, mismo criterio ya usado en el modo
+oscuro de escritorio y en la identidad visual de Nexo IA (IA-5) -- el
+color de marca no se retematiza. El toast se desacoplo de `--text`
+(fondo fijo `#111827` en los dos temas, es un snackbar flotante, no
+una superficie de la pagina).
+
+Para evitar el flash de tema claro al recargar con oscuro activado, se
+agrego un script sincrono en el `<head>` de `dueno.html` (justo
+despues de la meta `theme-color`) que lee `localStorage` y aplica la
+clase `oscuro` a `<html>` **antes** de que exista `<body>` -- por eso
+la clase vive en `:root`/`<html>`, no en `<body>` como en escritorio.
+
+Se reuso el componente de switch ya construido en la Fase 4
+(biometria, `.dueno-toggle-fila`/`.dueno-toggle-switch`) agregandole
+la variante `.activo` que le faltaba (esa fase solo necesitaba el
+estado deshabilitado). La categoria "Apariencia" en Mas -- que ya
+existia como placeholder -- se volvio funcional: se le quito
+`proximamente:true`, se le agrego `renderSubpantallaApariencia()` a
+`RENDER_SUBPANTALLA_MAS_DUENO`, y el toggle llama `cambiarTemaDueno()`
+(persiste en `localStorage["nexoDuenoTema"]`, actualiza tambien la
+meta `theme-color` para que la barra de estado del sistema combine
+cuando la PWA este instalada).
+
+Cache-busters subidos a `dueno-modo-oscuro-20260721-01`; `dueno-sw.js`
+actualizado (`CACHE_NAME` a `v12`).
+
+Validado en el navegador contra un negocio sintetico (creado y
+borrado por ID, plan Plus en periodo de gracia y un producto con
+stock critico -- a proposito, para poder ver los estados ambar
+reales, no solo el feliz):
+- Activar el toggle en Mas -> Apariencia retematiza al instante las 5
+  pestañas (Inicio, Reportes, Ventas, Inventario, Mas), el chat de
+  Nexo IA (cabecera y burbuja de marca sin cambios, a proposito) y la
+  pantalla de login -- confirmado visualmente pantalla por pantalla.
+- La pill "PERIODO DE GRACIA" y la alerta de stock critico -- los 2
+  casos reales que usan el ambar hardcodeado -- se leen bien en
+  oscuro tras el fix puntual.
+- El toast confirmado por `getComputedStyle` con el fondo fijo
+  `rgb(17,24,39)` en ambos temas.
+- El tema persiste tras recargar (`localStorage`) y **sin flash** de
+  claro al recargar ya en oscuro, incluida la pantalla de login antes
+  de iniciar sesion (la clase vive en `<html>`, no depende del estado
+  de autenticacion).
+- Alternar de vuelta a claro revierte todo correctamente.
+- Verificado en `preview_resize` (mobile, 375x812).
+- Sin errores de consola en ningun paso.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios; negocio sintetico
+  borrado al terminar.
+- Pendiente de confirmacion explicita del usuario para
+  `git commit`/`push`.

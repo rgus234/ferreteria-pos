@@ -1,6 +1,7 @@
 const DUENO_TOKEN_KEY = "nexoCuentaSesionToken";
 const DUENO_ONBOARDING_KEY = "nexoDuenoOnboardingVisto";
 const DUENO_ONBOARDING_TOTAL_SLIDES = 5;
+const DUENO_TEMA_KEY = "nexoDuenoTema";
 
 let duenoCarrito = [];
 let duenoUltimosResultados = [];
@@ -1158,9 +1159,9 @@ const CATEGORIAS_MAS_DUENO = [
     { id: "seguridad", titulo: "Seguridad", desc: "Contraseña y sesiones", icono: "candado", color: "rojo" },
     { id: "dispositivos", titulo: "Dispositivos", desc: "Cajas vinculadas a tu negocio", icono: "dispositivo", color: "" },
     { id: "ayuda", titulo: "Ayuda", desc: "Contacto y version de la app", icono: "ayuda", color: "gris" },
+    { id: "apariencia", titulo: "Apariencia", desc: "Tema claro u oscuro", icono: "pincel", color: "" },
     { id: "notificaciones", titulo: "Notificaciones", desc: "Proximamente", icono: "campana", color: "gris", proximamente: true },
-    { id: "respaldos", titulo: "Respaldos", desc: "Proximamente", icono: "nube", color: "gris", proximamente: true },
-    { id: "apariencia", titulo: "Apariencia", desc: "Proximamente", icono: "pincel", color: "gris", proximamente: true }
+    { id: "respaldos", titulo: "Respaldos", desc: "Proximamente", icono: "nube", color: "gris", proximamente: true }
 ];
 
 function renderCategoriasMasDueno() {
@@ -1184,7 +1185,8 @@ const RENDER_SUBPANTALLA_MAS_DUENO = {
     "nexo-ia": renderSubpantallaNexoIA,
     seguridad: renderSubpantallaSeguridad,
     dispositivos: renderSubpantallaDispositivos,
-    ayuda: renderSubpantallaAyuda
+    ayuda: renderSubpantallaAyuda,
+    apariencia: renderSubpantallaApariencia
 };
 
 function abrirSubpantallaMasDueno(categoriaId) {
@@ -1414,6 +1416,51 @@ function renderSubpantallaAyuda() {
             <a class="dueno-boton-primario" style="display:block;text-align:center;text-decoration:none;" href="https://wa.me/524981234567?text=Hola,%20necesito%20ayuda%20con%20Nexo%20POS" target="_blank" rel="noopener">Escribir por WhatsApp</a>
             <div class="dueno-datos-grid" style="margin-top:12px;">
                 <div><span>App</span><strong>Nexo POS -- App del dueño</strong></div>
+            </div>
+        </article>
+    `;
+}
+
+function aplicarTemaDueno() {
+    const oscuro =
+    localStorage.getItem(DUENO_TEMA_KEY) === "oscuro";
+
+    document.documentElement.classList.toggle("oscuro", oscuro);
+}
+
+function cambiarTemaDueno() {
+    const activo =
+    !document.documentElement.classList.contains("oscuro");
+
+    document.documentElement.classList.toggle("oscuro", activo);
+    localStorage.setItem(DUENO_TEMA_KEY, activo ? "oscuro" : "claro");
+
+    const meta =
+    document.querySelector('meta[name="theme-color"]');
+
+    if (meta) meta.setAttribute("content", activo ? "#0b1220" : "#f6f7fb");
+
+    renderSubpantallaApariencia();
+}
+
+function renderSubpantallaApariencia() {
+    const activo =
+    document.documentElement.classList.contains("oscuro");
+
+    document.getElementById("duenoMasSubpantallaContenido").innerHTML = `
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Apariencia</span>
+                    <h2>Tema de la app</h2>
+                </div>
+            </div>
+            <div class="dueno-toggle-fila" onclick="cambiarTemaDueno()">
+                <div>
+                    <strong>Modo oscuro</strong>
+                    <span>${activo ? "Activado" : "Usa el tema claro por defecto"}</span>
+                </div>
+                <span class="dueno-toggle-switch${activo ? " activo" : ""}"></span>
             </div>
         </article>
     `;
@@ -1741,6 +1788,8 @@ if ("serviceWorker" in navigator) {
 }
 
 window.addEventListener("load", () => {
+    aplicarTemaDueno();
+
     document.getElementById("duenoSaludo").textContent = saludoHora();
 
     [

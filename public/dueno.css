@@ -20,6 +20,44 @@
     --shadow:0 12px 30px rgba(15,23,42,.07);
 }
 
+/* Modo oscuro -- redefine los tokens estructurales, el color de marca
+   (--brand) se mantiene fijo en ambos temas a proposito, mismo
+   criterio ya usado en el modo oscuro de escritorio. --bg reusa el
+   mismo valor que tenia esta pagina antes de la Fase 1 (cuando era
+   tema oscuro glassmorphism). */
+:root.oscuro{
+    --bg:#0b1220;
+    --surface:#182233;
+    --surface-soft:#111a28;
+    --line:rgba(148,163,184,.18);
+    --text:#f1f5f9;
+    --muted:#94a3b8;
+    --brand-soft:rgba(37,99,255,.18);
+    --green:#34d399;
+    --green-soft:rgba(52,211,153,.16);
+    --red:#f87171;
+    --red-soft:rgba(248,113,113,.18);
+    --amber:#fbbf24;
+    --amber-soft:rgba(251,191,36,.16);
+}
+
+/* Ajustes puntuales para reglas que no dependen de las variables de
+   arriba (colores fijos tuneados solo para el tema claro). */
+:root.oscuro .dueno-status-linea{
+    background:rgba(255,255,255,.06);
+}
+
+:root.oscuro .dueno-pill-gracia,
+:root.oscuro .dueno-badge-pendiente,
+:root.oscuro .dueno-categoria-icono-ambar{
+    color:#fbbf24;
+}
+
+:root.oscuro .dueno-categoria-icono-morado{
+    background:rgba(167,139,250,.18);
+    color:#a78bfa;
+}
+
 body{
     margin:0;
     min-height:100vh;
@@ -875,7 +913,11 @@ button{
     z-index:30;
     padding:10px 16px;
     border-radius:999px;
-    background:var(--text);
+    /* Fijo, desacoplado de --text a proposito -- si usara var(--text)
+       se invertiria con el tema (texto claro sobre fondo claro en
+       modo oscuro) porque este es un snackbar flotante, no una
+       superficie de la pagina. */
+    background:#111827;
     color:#fff;
     font-size:12.5px;
     font-weight:700;
@@ -1217,6 +1259,7 @@ button{
     border-radius:999px;
     background:var(--surface-soft);
     border:1px solid var(--line);
+    transition:background .15s ease, border-color .15s ease;
 }
 
 .dueno-toggle-switch::after{
@@ -1229,10 +1272,21 @@ button{
     border-radius:50%;
     background:var(--surface);
     box-shadow:0 1px 3px rgba(15,23,42,.25);
+    transition:left .15s ease, background .15s ease;
 }
 
 .dueno-toggle-deshabilitado{
     opacity:.55;
+}
+
+.dueno-toggle-switch.activo{
+    background:var(--brand);
+    border-color:var(--brand);
+}
+
+.dueno-toggle-switch.activo::after{
+    left:22px;
+    background:#fff;
 }
 
 .dueno-boton-cerrar-sesion{

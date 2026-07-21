@@ -5,13 +5,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f6f7fb">
+    <script>
+    (function(){
+        try{
+            if (localStorage.getItem("nexoDuenoTema") === "oscuro") {
+                document.documentElement.classList.add("oscuro");
+                var m = document.querySelector('meta[name="theme-color"]');
+                if (m) m.setAttribute("content", "#0b1220");
+            }
+        } catch(e){}
+    })();
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Dueño POS">
     <link rel="manifest" href="manifest.json?v=dueno-manifest-20260721-01">
     <link rel="apple-touch-icon" href="nexo-pos-icon.jpg">
     <link rel="icon" href="nexo-pos-icon.jpg">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=dueno-manifest-20260721-01">
+    <link rel="stylesheet" href="dueno.css?v=dueno-modo-oscuro-20260721-01">
 </head>
 
 <body>
@@ -391,8 +402,8 @@
         </div>
     </div>
 
-    <script src="dueno-offline.js?v=dueno-manifest-20260721-01"></script>
-    <script src="dueno.js?v=dueno-manifest-20260721-01"></script>
+    <script src="dueno-offline.js?v=dueno-modo-oscuro-20260721-01"></script>
+    <script src="dueno.js?v=dueno-modo-oscuro-20260721-01"></script>
 </body>
 
 </html>
