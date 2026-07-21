@@ -4,6 +4,8 @@ let duenoCarrito = [];
 let duenoUltimosResultados = [];
 let duenoProductoDetalleActual = null;
 let duenoInventarioCategoria = "";
+let duenoNexoHistorial = [];
+let duenoNexoEnviando = false;
 
 function dinero(valor) {
     return Number(valor || 0).toLocaleString("es-MX", {
@@ -42,12 +44,19 @@ function mostrarLoginDueno() {
     document.getElementById("duenoVentas").style.display = "none";
     document.getElementById("duenoTabs").style.display = "none";
     document.getElementById("duenoLogin").style.display = "flex";
+    document.getElementById("duenoNexoBurbuja").style.display = "none";
+
+    duenoNexoHistorial = [];
+    const mensajesNexo = document.getElementById("duenoNexoMensajes");
+    if (mensajesNexo) mensajesNexo.innerHTML = "";
+    cerrarNexoChatDueno();
 }
 
 function mostrarAppDueno() {
     document.getElementById("duenoLogin").style.display = "none";
     document.getElementById("duenoApp").style.display = "block";
     document.getElementById("duenoTabs").style.display = "flex";
+    document.getElementById("duenoNexoBurbuja").style.display = "flex";
 }
 
 async function fetchAutenticado(url, opciones = {}) {
@@ -126,6 +135,7 @@ async function iniciarSesionDueno() {
 
         mostrarAppDueno();
         cargarPanelDueno();
+        actualizarNexoBurbujaDueno();
     } catch (error) {
         cajaError.textContent = "No se pudo conectar. Revisa tu internet e intenta de nuevo.";
         cajaError.style.display = "block";
@@ -383,6 +393,11 @@ function cambiarTabDueno(tab) {
     document.getElementById("duenoVentas").style.display = tab === "ventas" ? "block" : "none";
     document.getElementById("duenoInventario").style.display = tab === "inventario" ? "block" : "none";
     document.getElementById("duenoMas").style.display = tab === "mas" ? "block" : "none";
+
+    const burbujaNexo =
+    document.getElementById("duenoNexoBurbuja");
+
+    if (burbujaNexo) burbujaNexo.style.display = tab === "reportes" ? "none" : "flex";
 
     if (tab !== "mas") cerrarSubpantallaMasDueno();
 
@@ -1544,6 +1559,116 @@ function cerrarSesionDuenoApp() {
     mostrarLoginDueno();
 }
 
+// ---------------- Nexo IA: burbuja flotante + chat ----------------
+
+async function actualizarNexoBurbujaDueno() {
+    const burbuja =
+    document.getElementById("duenoNexoBurbuja");
+
+    if (!burbuja) return;
+
+    try {
+        const datos =
+        await fetchAutenticado("/ia/resumen-rapido");
+
+        const hayAlerta =
+            Boolean(datos?.stockBajo?.productos?.length) ||
+            Boolean(datos?.creditos?.clientesVencidos);
+
+        burbuja.classList.toggle("con-alerta", hayAlerta);
+    } catch (error) {
+        // Decorativo -- si falla, la burbuja se queda sin el punto de
+        // alerta, nunca bloquea ni muestra error.
+    }
+}
+
+function abrirNexoChatDueno() {
+    document.getElementById("duenoNexoChatOverlay").style.display = "flex";
+
+    if (duenoNexoHistorial.length === 0) {
+        agregarMensajeNexoDueno("Hola, soy Nexo. Preguntame como van tus ventas, tu inventario o tus creditos.", "asistente");
+    }
+
+    document.getElementById("duenoNexoInput")?.focus();
+}
+
+function cerrarNexoChatDueno() {
+    document.getElementById("duenoNexoChatOverlay").style.display = "none";
+}
+
+function agregarMensajeNexoDueno(texto, clase) {
+    const lista =
+    document.getElementById("duenoNexoMensajes");
+
+    if (!lista) return null;
+
+    const burbuja =
+    document.createElement("div");
+
+    burbuja.className = `dueno-nexo-mensaje ${clase}`;
+    burbuja.textContent = texto;
+    lista.appendChild(burbuja);
+    lista.scrollTop = lista.scrollHeight;
+
+    return burbuja;
+}
+
+async function enviarMensajeNexoDueno() {
+    if (duenoNexoEnviando) return;
+
+    const input =
+    document.getElementById("duenoNexoInput");
+
+    const mensaje =
+    (input?.value || "").trim();
+
+    if (!mensaje) return;
+
+    input.value = "";
+    agregarMensajeNexoDueno(mensaje, "usuario");
+
+    const indicador =
+    agregarMensajeNexoDueno("Nexo esta pensando...", "pensando");
+
+    duenoNexoEnviando = true;
+
+    const boton =
+    document.getElementById("duenoNexoEnviar");
+
+    if (boton) boton.disabled = true;
+
+    try {
+        const datos =
+        await fetchAutenticado("/ia/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mensaje, historial: duenoNexoHistorial })
+        });
+
+        indicador?.remove();
+
+        if (!datos?.ok) {
+            agregarMensajeNexoDueno(datos?.error || "Nexo no pudo responder. Intenta de nuevo.", "error");
+            return;
+        }
+
+        agregarMensajeNexoDueno(datos.respuesta, "asistente");
+        duenoNexoHistorial.push({ rol: "user", contenido: mensaje });
+        duenoNexoHistorial.push({ rol: "assistant", contenido: datos.respuesta });
+        duenoNexoHistorial = duenoNexoHistorial.slice(-12);
+    } catch (error) {
+        indicador?.remove();
+        agregarMensajeNexoDueno("No se pudo conectar con Nexo. Revisa tu conexion.", "error");
+    } finally {
+        duenoNexoEnviando = false;
+
+        const botonFinal =
+        document.getElementById("duenoNexoEnviar");
+
+        if (botonFinal) botonFinal.disabled = false;
+    }
+}
+
 // ---------------- arranque ----------------
 
 if ("serviceWorker" in navigator) {
@@ -1569,7 +1694,9 @@ window.addEventListener("load", () => {
     if (tokenGuardado()) {
         mostrarAppDueno();
         cargarPanelDueno();
+        actualizarNexoBurbujaDueno();
         setInterval(cargarPanelDueno, 60000);
+        setInterval(actualizarNexoBurbujaDueno, 60000);
     } else {
         mostrarLoginDueno();
     }

@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Dueño POS">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=dueno-reportes-20260720-01">
+    <link rel="stylesheet" href="dueno.css?v=dueno-nexo-chat-20260721-01">
 </head>
 
 <body>
@@ -312,6 +312,28 @@
 
     <div id="duenoToast" class="dueno-toast" style="display:none;"></div>
 
+    <button type="button" id="duenoNexoBurbuja" class="dueno-nexo-burbuja" style="display:none;" onclick="abrirNexoChatDueno()">
+        <img src="img/nexo-ia/feliz.jpg" alt="Nexo">
+    </button>
+
+    <div id="duenoNexoChatOverlay" class="dueno-nexo-overlay" style="display:none;">
+        <div class="dueno-nexo-header">
+            <div class="dueno-nexo-header-titulo">
+                <img src="img/nexo-ia/feliz.jpg" alt="Nexo">
+                <div>
+                    <strong>Nexo IA</strong>
+                    <span>Tu asistente para ventas, inventario y creditos</span>
+                </div>
+            </div>
+            <button type="button" class="dueno-nexo-cerrar" onclick="cerrarNexoChatDueno()">&times;</button>
+        </div>
+        <div id="duenoNexoMensajes" class="dueno-nexo-mensajes"></div>
+        <div class="dueno-nexo-entrada">
+            <input type="text" id="duenoNexoInput" placeholder="Escribe tu pregunta..." maxlength="2000" onkeydown="if(event.key==='Enter') enviarMensajeNexoDueno()">
+            <button type="button" id="duenoNexoEnviar" onclick="enviarMensajeNexoDueno()">Enviar</button>
+        </div>
+    </div>
+
     <div id="duenoDetalleOverlay" class="dueno-detalle-overlay" style="display:none;" onclick="cerrarDetalleProductoDueno()">
         <div class="dueno-detalle-caja" onclick="event.stopPropagation()">
             <button type="button" class="dueno-detalle-cerrar" onclick="cerrarDetalleProductoDueno()">&times;</button>
@@ -326,8 +348,8 @@
         </div>
     </div>
 
-    <script src="dueno-offline.js?v=dueno-reportes-20260720-01"></script>
-    <script src="dueno.js?v=dueno-reportes-20260720-01"></script>
+    <script src="dueno-offline.js?v=dueno-nexo-chat-20260721-01"></script>
+    <script src="dueno.js?v=dueno-nexo-chat-20260721-01"></script>
 </body>
 
 </html>

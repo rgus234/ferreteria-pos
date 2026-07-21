@@ -801,6 +801,200 @@ button{
     color:var(--text);
 }
 
+/* ---------------- Nexo IA: burbuja y chat ---------------- */
+
+.dueno-nexo-burbuja{
+    position:fixed;
+    right:16px;
+    bottom:calc(78px + env(safe-area-inset-bottom));
+    z-index:25;
+    width:52px;
+    height:52px;
+    padding:0;
+    border:none;
+    border-radius:50%;
+    background:linear-gradient(135deg, #2563ff, #7c3aed);
+    box-shadow:0 10px 24px rgba(37,99,255,.35);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    overflow:visible;
+}
+
+.dueno-nexo-burbuja img{
+    width:44px;
+    height:44px;
+    border-radius:50%;
+    object-fit:cover;
+    object-position:center 15%;
+}
+
+.dueno-nexo-burbuja.con-alerta::after{
+    content:"";
+    position:absolute;
+    top:2px;
+    right:2px;
+    width:13px;
+    height:13px;
+    border-radius:50%;
+    background:var(--red);
+    border:2px solid var(--surface);
+}
+
+@media (min-width:560px){
+    .dueno-nexo-burbuja{
+        bottom:96px;
+    }
+}
+
+.dueno-nexo-overlay{
+    position:fixed;
+    inset:0;
+    z-index:45;
+    display:flex;
+    flex-direction:column;
+    background:var(--bg);
+}
+
+.dueno-nexo-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:calc(14px + env(safe-area-inset-top)) 16px 14px;
+    background:linear-gradient(135deg, #2563ff, #7c3aed);
+    color:#fff;
+}
+
+.dueno-nexo-header-titulo{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    min-width:0;
+}
+
+.dueno-nexo-header-titulo img{
+    width:36px;
+    height:36px;
+    border-radius:50%;
+    object-fit:cover;
+    object-position:center 15%;
+    flex-shrink:0;
+}
+
+.dueno-nexo-header-titulo strong{
+    display:block;
+    font-size:15px;
+}
+
+.dueno-nexo-header-titulo span{
+    display:block;
+    margin-top:1px;
+    font-size:11px;
+    opacity:.85;
+}
+
+.dueno-nexo-cerrar{
+    flex-shrink:0;
+    width:30px;
+    height:30px;
+    border:none;
+    border-radius:50%;
+    background:rgba(255,255,255,.18);
+    color:#fff;
+    font-size:18px;
+    line-height:1;
+}
+
+.dueno-nexo-mensajes{
+    flex:1;
+    overflow-y:auto;
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.dueno-nexo-mensaje{
+    max-width:82%;
+    padding:10px 13px;
+    border-radius:16px;
+    font-size:13.5px;
+    line-height:1.4;
+    white-space:pre-wrap;
+}
+
+.dueno-nexo-mensaje.usuario{
+    align-self:flex-end;
+    background:var(--brand);
+    color:#fff;
+    border-bottom-right-radius:4px;
+}
+
+.dueno-nexo-mensaje.asistente{
+    align-self:flex-start;
+    background:color-mix(in srgb, #00d4ff 6%, var(--surface));
+    border-left:3px solid var(--brand);
+    color:var(--text);
+    border-bottom-left-radius:4px;
+}
+
+.dueno-nexo-mensaje.pensando{
+    align-self:flex-start;
+    background:var(--surface-soft);
+    color:var(--muted);
+    font-style:italic;
+    border-bottom-left-radius:4px;
+}
+
+.dueno-nexo-mensaje.error{
+    align-self:flex-start;
+    background:var(--red-soft);
+    color:var(--red);
+    border-bottom-left-radius:4px;
+}
+
+.dueno-nexo-entrada{
+    display:flex;
+    gap:8px;
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+    background:var(--surface);
+    border-top:1px solid var(--line);
+}
+
+.dueno-nexo-entrada input{
+    flex:1;
+    min-width:0;
+    padding:11px 13px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:var(--surface-soft);
+    color:var(--text);
+    font-family:inherit;
+    font-size:14px;
+}
+
+.dueno-nexo-entrada input:focus{
+    outline:2px solid var(--brand);
+    outline-offset:1px;
+}
+
+.dueno-nexo-entrada button{
+    flex-shrink:0;
+    min-height:42px;
+    padding:0 16px;
+    border:none;
+    border-radius:12px;
+    background:var(--brand);
+    color:#fff;
+    font-weight:800;
+    font-size:13.5px;
+}
+
+.dueno-nexo-entrada button:disabled{
+    opacity:.6;
+}
+
 /* ---------------- pestaña Más: cuenta, plan, seguridad ---------------- */
 
 .dueno-datos-grid{

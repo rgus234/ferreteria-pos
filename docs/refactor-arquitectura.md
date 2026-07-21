@@ -3932,5 +3932,68 @@ Plus, con ventas de prueba en distintos dias/metodos de pago):
 - Sin errores de consola en ningun paso.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios; negocio sintetico
   borrado al terminar.
-- No se hizo `git commit`/`push` -- pendiente de confirmacion
-  explicita del usuario.
+- Commiteado y pusheado a `origin/main` con confirmacion explicita del
+  usuario (`dd55365`).
+
+# App del Dueño -- chat de Nexo IA (Fase 2 del camino a Google Play, 2026-07-21)
+
+Segunda fase del plan "Camino a Google Play": hasta ahora `/dueno`
+solo mostraba el consumo de Nexo IA (Mas -> Nexo IA), sin forma de
+platicar con el desde el telefono -- ese era el hueco real senalado en
+la investigacion previa. Para que tenga presencia de "argumento de
+venta" (motivo explicito del usuario para incluir Nexo IA en la app
+publicada), se agrego como burbuja flotante visible en Inicio, Ventas,
+Inventario y Mas (no en Reportes, para no encimarse con las tarjetas
+de datos), igual que en escritorio.
+
+**Sin backend nuevo**: `POST /ia/chat` (`ia-server.js:625`) ya existia,
+ya protegido por `requerirAccesoNegocio`, y su contrato de
+`nivel:"sin-acceso"` ya venia con el texto de upsell horneado en
+`respuesta` a HTTP 200 -- el cliente no necesito ninguna logica
+especial para el caso "plan sin IA", solo pintarlo como mensaje normal
+del asistente.
+
+**Frontend** (`public/dueno.html`/`dueno.js`/`dueno.css`): burbuja
+fija `#duenoNexoBurbuja` (gradiente de marca fijo `#2563ff`->`#7c3aed`,
+foto de Nexo, punto rojo de alerta si hay stock critico o creditos
+vencidos -- reusa `GET /ia/resumen-rapido`, ya usado en Mas). Al
+tocarla abre `#duenoNexoChatOverlay`, un overlay de pantalla completa
+(mismo patron que `#duenoDetalleOverlay`): lista de mensajes + input +
+boton "Enviar" (no `textarea`+Enter como escritorio -- en movil un
+boton dedicado es mas natural, mismo patron que el resto de `/dueno`).
+`duenoNexoHistorial` vive en memoria (se pierde al recargar, igual que
+escritorio), recortado a 12 entradas; se limpia al cerrar sesion
+(`mostrarLoginDueno()`) para no dejar conversacion de un negocio
+visible si otro dueño inicia sesion en el mismo telefono. Limite de
+2000 caracteres en el input (`maxlength`, mismo tope que valida el
+servidor). Mensajes siempre en texto plano (`textContent`, nunca HTML
+-- el system prompt de Nexo ya esta escrito para no usar markdown).
+
+La logica de envio (`enviarMensajeNexoDueno()`) replica el patron ya
+probado de escritorio (`public/js/nexo-ia.js`): pinta el mensaje del
+usuario, un indicador "Nexo esta pensando...", llama
+`fetchAutenticado("/ia/chat", ...)`, reemplaza el indicador por la
+respuesta real, y reactiva el input en el `finally`.
+
+Cache-busters subidos a `dueno-nexo-chat-20260721-01`; `dueno-sw.js`
+actualizado (`CACHE_NAME` a `v8`).
+
+Validado contra un negocio sintetico (creado y borrado por ID, con una
+venta de prueba real):
+- En plan Plus: la pregunta "como van mis ventas" respondio
+  instantaneo (Nivel 1, sin llamar al modelo) con el dato exacto de la
+  venta de prueba ($1250.00, 1 venta) -- confirmado por contenido, no
+  solo por status 200.
+- Bajando el mismo negocio a plan Basico (`UPDATE licencias SET
+  plan='basico'`) y repitiendo la pregunta: la respuesta cambio
+  automaticamente al mensaje de upsell ("Nexo IA esta disponible desde
+  el plan Plus...") sin ningun cambio de codigo en el cliente --
+  confirma que el gating vive 100% en el servidor.
+- La burbuja se oculta correctamente en la pestaña Reportes y
+  reaparece en las demas (`cambiarTabDueno`).
+- Sin errores de consola en ninguno de los 2 intercambios; ambas
+  llamadas a `POST /ia/chat` regresaron 200.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios; negocio sintetico
+  borrado al terminar.
+- Pendiente de confirmacion explicita del usuario para
+  `git commit`/`push`.
