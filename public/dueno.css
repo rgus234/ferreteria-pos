@@ -124,6 +124,135 @@ button{
     opacity:.6;
 }
 
+/* ---------------- onboarding (primera vez) ---------------- */
+
+.dueno-onboarding{
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+    overflow:hidden;
+}
+
+.dueno-onboarding-slides{
+    display:flex;
+    flex:1;
+    transition:transform .35s ease;
+}
+
+.dueno-onboarding-slide{
+    flex:0 0 100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:16px;
+    padding:32px 28px calc(28px + env(safe-area-inset-top));
+    text-align:center;
+}
+
+.dueno-onboarding-img{
+    width:104px;
+    height:104px;
+    border-radius:50%;
+    object-fit:cover;
+    object-position:center 15%;
+    box-shadow:0 12px 28px rgba(37,99,255,.28);
+}
+
+.dueno-onboarding-icono{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:104px;
+    height:104px;
+    border-radius:50%;
+    background:linear-gradient(135deg, var(--brand-soft), var(--surface));
+    color:var(--brand);
+    box-shadow:var(--shadow);
+}
+
+.dueno-onboarding-icono svg{
+    width:46px;
+    height:46px;
+}
+
+.dueno-onboarding-slide h1{
+    margin:6px 0 0;
+    font-size:22px;
+}
+
+.dueno-onboarding-slide p{
+    margin:0;
+    max-width:320px;
+    color:var(--muted);
+    font-size:14px;
+    line-height:1.5;
+}
+
+.dueno-onboarding-footer{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+    padding:0 24px calc(32px + env(safe-area-inset-bottom));
+}
+
+.dueno-onboarding-dots{
+    display:flex;
+    gap:7px;
+}
+
+.dueno-onboarding-dot{
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:var(--line);
+    transition:background .2s ease, width .2s ease;
+}
+
+.dueno-onboarding-dot.activo{
+    width:20px;
+    border-radius:4px;
+    background:var(--brand);
+}
+
+.dueno-onboarding-footer button{
+    width:100%;
+    max-width:320px;
+    min-height:48px;
+    border:none;
+    border-radius:14px;
+    background:var(--brand);
+    color:#fff;
+    font-weight:800;
+    font-size:15px;
+}
+
+/* ---------------- animaciones ---------------- */
+
+@keyframes duenoFadeIn{
+    from{ opacity:0; transform:translateY(6px); }
+    to{ opacity:1; transform:translateY(0); }
+}
+
+.dueno-app{
+    animation:duenoFadeIn .28s ease;
+}
+
+@keyframes duenoKpiIn{
+    from{ opacity:0; transform:translateY(10px); }
+    to{ opacity:1; transform:translateY(0); }
+}
+
+.dueno-kpis .kpi{
+    animation:duenoKpiIn .35s ease backwards;
+}
+
+.dueno-kpis .kpi:nth-child(1){ animation-delay:.02s; }
+.dueno-kpis .kpi:nth-child(2){ animation-delay:.08s; }
+.dueno-kpis .kpi:nth-child(3){ animation-delay:.14s; }
+.dueno-kpis .kpi:nth-child(4){ animation-delay:.2s; }
+
 /* ---------------- app shell ---------------- */
 
 .dueno-app{

@@ -3995,5 +3995,58 @@ venta de prueba real):
   llamadas a `POST /ia/chat` regresaron 200.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios; negocio sintetico
   borrado al terminar.
+- Commiteado y pusheado a `origin/main` con confirmacion explicita del
+  usuario (`9478609`).
+
+# App del Dueño -- onboarding + animaciones (Fase 3 del camino a Google Play, 2026-07-21)
+
+Tercera fase: tutorial de bienvenida estilo iPhone (pedido explicito
+del usuario) y un pase de animaciones modesto en toda `/dueno`.
+
+**Onboarding** (`#duenoOnboarding`, nuevo): 5 diapositivas (Tu negocio
+en tu bolsillo, Inicio en tiempo real, Ventas sin internet, Nexo IA
+como asistente, Reportes al alcance) con puntos de progreso y boton
+"Siguiente"/"Comenzar" en la ultima. Se muestra **antes del login,
+solo la primera vez**: `DUENO_ONBOARDING_KEY =
+"nexoDuenoOnboardingVisto"` en `localStorage`, revisado en el
+`window.addEventListener("load", ...)` -- si hay token guardado
+(usuario ya autenticado en este telefono) se marca el flag de una vez
+sin mostrar nada, para que nunca le aparezca a alguien que ya usa la
+app; si no hay token y el flag no existe, se muestra el onboarding; en
+cualquier otro caso, login directo. Al tocar "Comenzar" se marca el
+flag y se muestra el login. Sin gestos de swipe -- solo el boton,
+alcance modesto tal como se definio en el plan.
+
+**Animaciones**: `@keyframes duenoFadeIn` aplicado por clase a
+`.dueno-app` (compartida por los 5 paneles principales -- Inicio,
+Reportes, Ventas, Inventario, Mas) -- como los navegadores reinician
+las animaciones CSS cuando un elemento pasa de `display:none` a
+visible, cada cambio de pestaña en `cambiarTabDueno()` la reproduce
+sola, sin JS adicional. `@keyframes duenoKpiIn` con
+`animation-delay` incremental (`.02s`/`.08s`/`.14s`/`.2s`) en las 4
+tarjetas de `.dueno-kpis`, reutilizado tanto en Inicio como en
+Reportes. El deslizado de diapositivas del onboarding usa
+`transform:translateX()` con `transition:transform .35s ease` sobre
+el contenedor de slides -- mismo mecanismo ya usado para las
+sub-pantallas de Mas.
+
+Cache-busters subidos a `dueno-onboarding-20260721-01`; `dueno-sw.js`
+actualizado (`CACHE_NAME` a `v9`).
+
+Validado en el navegador:
+- Con `localStorage` limpio: `/dueno` muestra el onboarding (no el
+  login), las 5 diapositivas avanzan correctamente con el deslizado
+  horizontal, los puntos de progreso se actualizan, y el boton cambia
+  a "Comenzar" en la ultima diapositiva.
+- Al completar el onboarding: se guarda el flag, se oculta el
+  onboarding y aparece el login. Recargando la pagina despues (mismo
+  `localStorage`) confirma que **no vuelve a aparecer** -- va directo
+  al login.
+- `getComputedStyle` confirmo `animationName` correcto
+  (`duenoFadeIn`/`duenoKpiIn`) en los elementos esperados tras entrar
+  a la app.
+- Sin errores de consola en ningun paso.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios -- esta fase no
+  requirio ningun negocio sintetico (sin llamadas a datos reales).
 - Pendiente de confirmacion explicita del usuario para
   `git commit`/`push`.

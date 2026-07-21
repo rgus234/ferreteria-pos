@@ -1,4 +1,6 @@
 const DUENO_TOKEN_KEY = "nexoCuentaSesionToken";
+const DUENO_ONBOARDING_KEY = "nexoDuenoOnboardingVisto";
+const DUENO_ONBOARDING_TOTAL_SLIDES = 5;
 
 let duenoCarrito = [];
 let duenoUltimosResultados = [];
@@ -6,6 +8,7 @@ let duenoProductoDetalleActual = null;
 let duenoInventarioCategoria = "";
 let duenoNexoHistorial = [];
 let duenoNexoEnviando = false;
+let duenoOnboardingSlideActual = 0;
 
 function dinero(valor) {
     return Number(valor || 0).toLocaleString("es-MX", {
@@ -40,6 +43,7 @@ function tokenGuardado() {
 }
 
 function mostrarLoginDueno() {
+    document.getElementById("duenoOnboarding").style.display = "none";
     document.getElementById("duenoApp").style.display = "none";
     document.getElementById("duenoVentas").style.display = "none";
     document.getElementById("duenoTabs").style.display = "none";
@@ -1559,6 +1563,52 @@ function cerrarSesionDuenoApp() {
     mostrarLoginDueno();
 }
 
+// ---------------- Onboarding (primera vez) ----------------
+
+function mostrarOnboardingDueno() {
+    document.getElementById("duenoLogin").style.display = "none";
+    document.getElementById("duenoOnboarding").style.display = "flex";
+
+    duenoOnboardingSlideActual = 0;
+    renderDotsOnboardingDueno();
+    actualizarSlideOnboardingDueno();
+}
+
+function renderDotsOnboardingDueno() {
+    document.getElementById("duenoOnboardingDots").innerHTML =
+        Array.from({ length: DUENO_ONBOARDING_TOTAL_SLIDES }, (valor, indice) =>
+            `<span class="dueno-onboarding-dot${indice === duenoOnboardingSlideActual ? " activo" : ""}"></span>`
+        ).join("");
+}
+
+function actualizarSlideOnboardingDueno() {
+    document.getElementById("duenoOnboardingSlides").style.transform =
+        `translateX(-${duenoOnboardingSlideActual * 100}%)`;
+
+    document.querySelectorAll(".dueno-onboarding-dot").forEach((punto, indice) => {
+        punto.classList.toggle("activo", indice === duenoOnboardingSlideActual);
+    });
+
+    document.getElementById("duenoOnboardingBoton").textContent =
+        duenoOnboardingSlideActual === DUENO_ONBOARDING_TOTAL_SLIDES - 1 ? "Comenzar" : "Siguiente";
+}
+
+function siguienteDiapositivaOnboardingDueno() {
+    if (duenoOnboardingSlideActual < DUENO_ONBOARDING_TOTAL_SLIDES - 1) {
+        duenoOnboardingSlideActual += 1;
+        actualizarSlideOnboardingDueno();
+        return;
+    }
+
+    completarOnboardingDueno();
+}
+
+function completarOnboardingDueno() {
+    localStorage.setItem(DUENO_ONBOARDING_KEY, "1");
+    document.getElementById("duenoOnboarding").style.display = "none";
+    mostrarLoginDueno();
+}
+
 // ---------------- Nexo IA: burbuja flotante + chat ----------------
 
 async function actualizarNexoBurbujaDueno() {
@@ -1692,11 +1742,14 @@ window.addEventListener("load", () => {
     });
 
     if (tokenGuardado()) {
+        localStorage.setItem(DUENO_ONBOARDING_KEY, "1");
         mostrarAppDueno();
         cargarPanelDueno();
         actualizarNexoBurbujaDueno();
         setInterval(cargarPanelDueno, 60000);
         setInterval(actualizarNexoBurbujaDueno, 60000);
+    } else if (!localStorage.getItem(DUENO_ONBOARDING_KEY)) {
+        mostrarOnboardingDueno();
     } else {
         mostrarLoginDueno();
     }

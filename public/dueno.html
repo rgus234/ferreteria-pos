@@ -8,10 +8,50 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Dueño POS">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=dueno-nexo-chat-20260721-01">
+    <link rel="stylesheet" href="dueno.css?v=dueno-onboarding-20260721-01">
 </head>
 
 <body>
+    <main id="duenoOnboarding" class="dueno-onboarding" style="display:none;">
+        <div class="dueno-onboarding-slides" id="duenoOnboardingSlides">
+            <section class="dueno-onboarding-slide">
+                <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-onboarding-img">
+                <h1>Tu negocio en tu bolsillo</h1>
+                <p>Revisa ventas, inventario y creditos desde tu telefono, donde sea que estes.</p>
+            </section>
+            <section class="dueno-onboarding-slide">
+                <div class="dueno-onboarding-icono">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+                </div>
+                <h1>Inicio en tiempo real</h1>
+                <p>Ventas de hoy, alertas de stock critico y creditos pendientes, siempre actualizados.</p>
+            </section>
+            <section class="dueno-onboarding-slide">
+                <div class="dueno-onboarding-icono">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.4 12.2a1.6 1.6 0 0 0 1.6 1.3h9a1.6 1.6 0 0 0 1.6-1.3L21 7H6"/></svg>
+                </div>
+                <h1>Ventas sin internet</h1>
+                <p>Arma cotizaciones aunque no haya señal -- se guardan en tu telefono y se suben solas cuando vuelva la conexion.</p>
+            </section>
+            <section class="dueno-onboarding-slide">
+                <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-onboarding-img">
+                <h1>Nexo IA, tu asistente</h1>
+                <p>Preguntale como van tus ventas, tu inventario o tus creditos, y te responde al instante.</p>
+            </section>
+            <section class="dueno-onboarding-slide">
+                <div class="dueno-onboarding-icono">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+                </div>
+                <h1>Reportes al alcance</h1>
+                <p>Compara tus ventas contra el periodo anterior y ve que se vende mas, todo desde el celular.</p>
+            </section>
+        </div>
+        <div class="dueno-onboarding-footer">
+            <div class="dueno-onboarding-dots" id="duenoOnboardingDots"></div>
+            <button type="button" id="duenoOnboardingBoton" onclick="siguienteDiapositivaOnboardingDueno()">Siguiente</button>
+        </div>
+    </main>
+
     <main id="duenoLogin" class="dueno-login">
         <div class="dueno-login-caja">
             <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-login-nexo">
@@ -348,8 +388,8 @@
         </div>
     </div>
 
-    <script src="dueno-offline.js?v=dueno-nexo-chat-20260721-01"></script>
-    <script src="dueno.js?v=dueno-nexo-chat-20260721-01"></script>
+    <script src="dueno-offline.js?v=dueno-onboarding-20260721-01"></script>
+    <script src="dueno.js?v=dueno-onboarding-20260721-01"></script>
 </body>
 
 </html>
