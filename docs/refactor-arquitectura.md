@@ -4048,5 +4048,54 @@ Validado en el navegador:
 - Sin errores de consola en ningun paso.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios -- esta fase no
   requirio ningun negocio sintetico (sin llamadas a datos reales).
+- Commiteado y pusheado a `origin/main` con confirmacion explicita del
+  usuario (`4cd109a`).
+
+# App del Dueño -- preparacion visual de huella/Face ID (Fase 4 del camino a Google Play, 2026-07-21)
+
+Cuarta fase: el usuario pidio explicitamente "dejarla preparada" para
+login con huella/Face ID mas adelante. WebAuthn real (registro de
+credencial, `challenge`/verificacion en servidor, tabla nueva) es una
+pieza de seguridad completa aparte -- construir solo la mitad (ej. un
+boton que aparente funcionar sin backend real) violaria el principio
+ya aplicado toda la sesion de no dejar features de seguridad a medias.
+Por eso esta fase es **solo la preparacion visual**, no el feature.
+
+En Mas -> Seguridad se agrego una fila "Desbloqueo con huella / Face
+ID" con un switch visualmente deshabilitado (`.dueno-toggle-switch
+.dueno-toggle-deshabilitado`, opacidad reducida) y una etiqueta
+"PROXIMAMENTE" (mismo `.dueno-badge-pendiente` ya usado para el correo
+sin verificar en Cuenta). Tocarla llama `proximamenteDueno()` -- mismo
+toast ya usado en toda la app para secciones sin construir, sin fingir
+que el toggle hace algo.
+
+Cache-busters subidos a `dueno-bio-toggle-20260721-01`; `dueno-sw.js`
+actualizado (`CACHE_NAME` a `v10`).
+
+**Nota tecnica para cuando se construya de verdad** (documentado aqui
+en prosa, no en codigo, tal como se definio en el plan): haria falta
+una tabla nueva de credenciales WebAuthn (`credential_id`,
+`public_key`, `counter`, `negocio_id`), dos rutas nuevas
+(`POST /webauthn/registro` para generar y verificar el `challenge` de
+registro, `POST /webauthn/verificar` para el login), y la libreria
+`@simplewebauthn/server` en el backend (el navegador ya trae
+`navigator.credentials` nativo, sin libreria de cliente). WebAuthn
+exige HTTPS -- ya se cumple via Render, no es un bloqueante.
+
+Validado en el navegador con un negocio sintetico (creado y borrado
+por ID): la fila aparece en Mas -> Seguridad con el switch apagado y
+visualmente deshabilitado, la etiqueta "PROXIMAMENTE" se lee bien, y
+tocarla dispara el toast esperado sin navegar a nada roto. Durante
+esta verificacion se detecto que el Service Worker de una sesion de
+pruebas anterior seguia controlando la pestaña con una version vieja
+en cache (`ignoreSearch:true` sirviendo el `dueno.js` viejo pese al
+cache-buster nuevo) -- no es un bug nuevo de esta fase, es la
+naturaleza esperada del ciclo de vida de un Service Worker (la nueva
+version instala pero no tomó control hasta un reinicio limpio de
+pestaña); se resolvio desregistrando el Service Worker de prueba y
+recargando, sin cambios de codigo. Sin errores de consola en ningun
+paso.
+- `negocio_id = 1` (Ferreteria Olimpico) sin cambios; negocio sintetico
+  borrado al terminar.
 - Pendiente de confirmacion explicita del usuario para
   `git commit`/`push`.

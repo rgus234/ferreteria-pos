@@ -1373,6 +1373,17 @@ function renderSubpantallaSeguridad() {
             <button type="button" class="dueno-link dueno-link-peligro" onclick="cerrarTodasSesionesDesdeMasDueno()">Cerrar sesion en todos los dispositivos</button>
         </article>
 
+        <article class="dueno-card">
+            <div class="dueno-toggle-fila" onclick="proximamenteDueno()">
+                <div>
+                    <strong>Desbloqueo con huella / Face ID</strong>
+                    <span>Entra a la app sin escribir tu contraseña</span>
+                </div>
+                <span class="dueno-toggle-switch dueno-toggle-deshabilitado"></span>
+            </div>
+            <span class="dueno-badge dueno-badge-pendiente">Proximamente</span>
+        </article>
+
         <button type="button" class="dueno-boton-cerrar-sesion" onclick="cerrarSesionDuenoApp()">Cerrar sesion en este telefono</button>
     `;
 }
