@@ -4247,5 +4247,5 @@ reales, no solo el feliz):
 - Sin errores de consola en ningun paso.
 - `negocio_id = 1` (Ferreteria Olimpico) sin cambios; negocio sintetico
   borrado al terminar.
-- Pendiente de confirmacion explicita del usuario para
-  `git commit`/`push`.
+- Commiteado y pusheado a `origin/main` con confirmacion explicita del
+  usuario (`695d7bb`).
