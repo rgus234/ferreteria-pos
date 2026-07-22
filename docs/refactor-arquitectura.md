@@ -4303,5 +4303,22 @@ maquina (fuera de este entorno).
 
 Validado: `GET /.well-known/assetlinks.json` responde 200 con el JSON
 esperado; `node --check server.js` sin errores; sin errores de
-consola. `negocio_id = 1` sin cambios. Pendiente de confirmacion
-explicita del usuario para `git commit`/`push`.
+consola. `negocio_id = 1` sin cambios. Commiteado y pusheado a
+`origin/main` con confirmacion explicita del usuario (`f6dd2c7`).
+
+**Actualizacion con datos reales (mismo dia)**: el usuario empaqueto
+`/dueno` como TWA con Bubblewrap en su propia maquina (guiado paso a
+paso -- instalacion de Node/JDK/Android SDK, movidos de `.bubblewrap`
+y `.gradle` de `C:` a `D:` por falta de espacio en disco, arreglo de
+un `config.json` corrupto por BOM de PowerShell). El `package_name`
+real resulto `com.nexoposoficial.app.twa` (default de Bubblewrap
+segun el dominio, distinto al `com.nexoposoficial.dueno` sugerido
+originalmente) y el `sha256_cert_fingerprints` real se extrajo con
+`keytool -list -v` sobre `android.keystore` (contraseña tecleada por
+el usuario, nunca compartida ni manejada por el asistente). Se
+reemplazaron ambos valores en `public/.well-known/assetlinks.json`
+por los reales. Primera instalacion de prueba en un Android prestado
+confirmo la app funcionando (onboarding, datos reales) mostrando
+todavia la barra de Chrome Custom Tabs -- esperado, se resuelve en la
+proxima apertura una vez que Google verifique el Digital Asset Link
+ya publicado con los valores correctos.

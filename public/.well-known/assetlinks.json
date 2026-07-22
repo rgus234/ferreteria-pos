@@ -3,9 +3,9 @@
         "relation": ["delegate_permission/common.handle_all_urls"],
         "target": {
             "namespace": "android_app",
-            "package_name": "com.nexoposoficial.dueno",
+            "package_name": "com.nexoposoficial.app.twa",
             "sha256_cert_fingerprints": [
-                "REEMPLAZAR_CON_EL_SHA256_REAL_DE_BUBBLEWRAP"
+                "C8:CF:BE:F5:20:88:17:30:89:6F:02:31:79:FF:FE:6B:B1:36:4E:C8:D0:F9:D6:B8:49:36:E0:4D:A2:64:E6:98"
             ]
         }
     }
