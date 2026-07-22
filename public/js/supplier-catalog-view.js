@@ -174,12 +174,12 @@ async function reactivarProveedor(id) {
  renderProveedores();
 }
 
-async function abrirNuevoProveedor() {
+async function abrirNuevoProveedor(prellenado = {}) {
  const datos =
  await abrirFormularioCredito({
  titulo: "Nuevo proveedor",
- subtitulo: "Registra datos de contacto y surtido",
- campos: camposProveedor()
+ subtitulo: prellenado.nombre ? "Nexo prellenó estos datos -- revisalos antes de guardar" : "Registra datos de contacto y surtido",
+ campos: camposProveedor(prellenado)
  });
 
  if (!datos) return;

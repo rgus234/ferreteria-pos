@@ -50,6 +50,26 @@ Reglas estrictas:
 - Responde siempre en texto plano, sin markdown (nada de asteriscos, guiones de lista ni encabezados) -- el chat donde apareces no interpreta formato.
 - No das consejos legales, fiscales ni financieros formales -- solo observaciones practicas sobre el negocio.`;
 
+// Modulos a los que Nexo AI puede navegar por conversacion (herramienta
+// abrir_modulo). Es un subconjunto deliberado de AYUDA_MODULOS_POS
+// (shell-topbar.js, frontend) -- solo los modulos que tienen una
+// funcion mostrarX() clara y directa en el sidebar. El dispatcher
+// real vive en el frontend (nexo-ia.js); aqui solo se valida que la
+// clave exista, para no dejar que el modelo invente una.
+const MODULOS_NAVEGABLES = {
+    inicio: "Resumen operativo del negocio",
+    venta: "Pantalla de venta / punto de venta",
+    inventario: "Inventario y productos",
+    categorias: "Categorias del inventario",
+    "inventario-bajo": "Productos con existencia baja",
+    reportes: "Reportes y graficas de ventas",
+    clientes: "Clientes y creditos",
+    proveedores: "Proveedores",
+    catalogo: "Catalogo de proveedor / importacion de listas",
+    configuracion: "Configuracion del negocio",
+    cuenta: "Cuenta, plan y suscripcion"
+};
+
 const HERRAMIENTAS_NEXO = [
     {
         name: "resumen_ventas",
@@ -104,6 +124,40 @@ const HERRAMIENTAS_NEXO = [
                 dias: { type: "integer", description: "Tamano de cada periodo a comparar, en dias. Por defecto 7." }
             },
             required: []
+        }
+    },
+    {
+        name: "abrir_modulo",
+        description: "Navega la pantalla del usuario a otra seccion del sistema cuando pide ver o ir a algo (ej. \"muestrame ventas\", \"quiero agregar un producto\", \"llevame a reportes\"). Solo llamala cuando la intencion de navegar sea clara. No la uses para responder preguntas de datos -- para eso usa las otras herramientas.",
+        input_schema: {
+            type: "object",
+            properties: {
+                modulo: {
+                    type: "string",
+                    enum: Object.keys(MODULOS_NAVEGABLES),
+                    description: "Clave exacta del modulo al que navegar."
+                }
+            },
+            required: ["modulo"]
+        }
+    },
+    {
+        name: "preparar_creacion",
+        description: "Cuando el usuario pide agregar/crear un cliente de credito, un proveedor o un producto, usa esta herramienta para estructurar los datos que menciono en la conversacion. Esta herramienta NUNCA crea el registro en la base de datos -- solo normaliza los datos para que el sistema abra el formulario correspondiente ya prellenado, y el usuario decide si guardarlo o corregirlo. Solo llena los campos que el usuario realmente menciono, no inventes datos que no dijo.",
+        input_schema: {
+            type: "object",
+            properties: {
+                tipo: { type: "string", enum: ["cliente_credito", "proveedor", "producto"], description: "Que tipo de registro se quiere crear." },
+                nombre: { type: "string", description: "Nombre del cliente, proveedor o producto." },
+                telefono: { type: "string" },
+                correo: { type: "string" },
+                contacto: { type: "string", description: "Nombre de la persona de contacto (solo proveedor)." },
+                limiteCredito: { type: "number", description: "Limite de credito (solo cliente_credito)." },
+                precio: { type: "number", description: "Precio de venta (solo producto)." },
+                stock: { type: "number", description: "Existencia inicial (solo producto)." },
+                codigo: { type: "string", description: "Codigo del producto (solo producto)." }
+            },
+            required: ["tipo", "nombre"]
         }
     },
     {
@@ -276,6 +330,38 @@ async function registrarUsoNivel3(pool, negocioId) {
         `,
         [negocioId]
     );
+}
+
+// Memoria minima (Nexo AI v2): registra que modulos se abrieron por
+// conversacion y arma un resumen de una linea para el system prompt.
+// Nunca crece sin limite -- solo se leen los 3 modulos con mas
+// aperturas, nunca el objeto completo.
+async function registrarAperturaModulo(pool, negocioId, modulo) {
+    await pool.query(
+        `
+        UPDATE public.licencias
+        SET ia_memoria = jsonb_set(
+            ia_memoria,
+            ARRAY['modulosAbiertos', $2],
+            to_jsonb(COALESCE((ia_memoria #>> ARRAY['modulosAbiertos', $2])::int, 0) + 1)
+        )
+        WHERE negocio_id = $1
+        `,
+        [negocioId, modulo]
+    );
+}
+
+async function resumenMemoriaNexo(pool, negocioId) {
+    const fila = await pool.query(`SELECT ia_memoria FROM public.licencias WHERE negocio_id = $1`, [negocioId]);
+    const modulosAbiertos = fila.rows[0]?.ia_memoria?.modulosAbiertos || {};
+    const top = Object.entries(modulosAbiertos)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([modulo]) => modulo);
+
+    if (top.length === 0) return "";
+
+    return `Este negocio suele consultar seguido: ${top.join(", ")}. Puedes tenerlo en cuenta, pero no lo menciones explicitamente salvo que venga al caso.`;
 }
 
 async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
@@ -454,20 +540,63 @@ async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
             return { termino, productos: resultado.rows };
         }
 
+        case "preparar_creacion": {
+            const tipo = String(input?.tipo || "");
+
+            if (!["cliente_credito", "proveedor", "producto"].includes(tipo)) {
+                return { ok: false, error: "Ese tipo de registro no existe." };
+            }
+
+            const nombre = String(input?.nombre || "").trim();
+            if (!nombre) return { ok: false, error: "Hace falta al menos un nombre." };
+
+            const numero = valor => (Number.isFinite(Number(valor)) ? Number(valor) : 0);
+
+            return {
+                ok: true,
+                tipo,
+                datos: {
+                    nombre,
+                    telefono: String(input?.telefono || "").trim(),
+                    correo: String(input?.correo || "").trim(),
+                    contacto: String(input?.contacto || "").trim(),
+                    limiteCredito: numero(input?.limiteCredito),
+                    precio: numero(input?.precio),
+                    stock: numero(input?.stock),
+                    codigo: String(input?.codigo || "").trim()
+                }
+            };
+        }
+
+        case "abrir_modulo": {
+            const modulo = String(input?.modulo || "");
+
+            if (!MODULOS_NAVEGABLES[modulo]) {
+                return { ok: false, error: "Ese modulo no existe o no se puede abrir asi." };
+            }
+
+            await registrarAperturaModulo(pool, negocioId, modulo).catch(() => {});
+
+            return { ok: true, modulo };
+        }
+
         default:
             return { error: `Herramienta desconocida: ${nombre}` };
     }
 }
 
-async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8") {
+async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8", memoriaExtra = "") {
     const anthropic = obtenerAnthropic();
     let mensajesActuales = mensajes;
+    let accion = null;
+    let celebrar = false;
+    const systemPrompt = memoriaExtra ? `${SYSTEM_PROMPT_NEXO}\n\n${memoriaExtra}` : SYSTEM_PROMPT_NEXO;
 
     for (let intento = 0; intento < MAX_ITERACIONES_HERRAMIENTAS; intento++) {
         const parametros = {
             model: modelo,
             max_tokens: 1024,
-            system: SYSTEM_PROMPT_NEXO,
+            system: systemPrompt,
             tools: HERRAMIENTAS_NEXO,
             messages: mensajesActuales
         };
@@ -481,11 +610,13 @@ async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8")
         const respuesta = await anthropic.messages.create(parametros);
 
         if (respuesta.stop_reason !== "tool_use") {
-            return respuesta.content
+            const texto = respuesta.content
                 .filter(bloque => bloque.type === "text")
                 .map(bloque => bloque.text)
                 .join("\n")
                 .trim();
+
+            return { texto, accion, celebrar };
         }
 
         mensajesActuales = [...mensajesActuales, { role: "assistant", content: respuesta.content }];
@@ -495,6 +626,28 @@ async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8")
 
         for (const bloque of bloquesHerramienta) {
             const resultado = await ejecutarHerramientaNexo(pool, negocioId, bloque.name, bloque.input);
+
+            // La navegacion (y, mas adelante, preparar_creacion) es la
+            // unica herramienta con un efecto visible en el frontend --
+            // se guarda la ultima para regresarla junto con el texto.
+            // Nunca se ejecuta nada por su cuenta aqui, solo se reporta.
+            if (bloque.name === "abrir_modulo" && resultado?.ok) {
+                accion = { tipo: "abrir_modulo", modulo: resultado.modulo };
+            }
+
+            if (bloque.name === "preparar_creacion" && resultado?.ok) {
+                accion = { tipo: "preparar_creacion", datosCreacion: { tipo: resultado.tipo, datos: resultado.datos } };
+            }
+
+            // Wire del estado "celebrando" (IA-5 lo dejo construido sin
+            // disparador): un periodo de ventas notablemente mejor que
+            // el anterior es la senal mas honesta que ya se calcula sin
+            // costo extra -- no se inventa una llamada nueva al modelo.
+            if (bloque.name === "comparar_ventas_periodos" && resultado?.periodoAnterior?.total > 0) {
+                const crecimiento = (resultado.periodoActual.total - resultado.periodoAnterior.total) / resultado.periodoAnterior.total;
+                if (crecimiento >= 0.2) celebrar = true;
+            }
+
             resultados.push({
                 type: "tool_result",
                 tool_use_id: bloque.id,
@@ -505,7 +658,7 @@ async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8")
         mensajesActuales = [...mensajesActuales, { role: "user", content: resultados }];
     }
 
-    return "Estoy tardando mas de lo normal analizando tu negocio. Intenta de nuevo en un momento.";
+    return { texto: "Estoy tardando mas de lo normal analizando tu negocio. Intenta de nuevo en un momento.", accion: null, celebrar: false };
 }
 
 module.exports = (app, pool, requerirAccesoNegocio) => {
@@ -703,7 +856,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     : "\n\n(Estas usando Nexo IA con mucha frecuencia este mes -- te respondo con el modo rapido por ahora.)";
             }
 
-            const respuesta = await chatNexoIA(pool, negocio.id, mensajesIniciales, modeloElegido);
+            const memoriaExtra = esPrimerMensaje ? await resumenMemoriaNexo(pool, negocio.id) : "";
+            const { texto: respuesta, accion, celebrar } = await chatNexoIA(pool, negocio.id, mensajesIniciales, modeloElegido, memoriaExtra);
 
             if (nivelFinal === 3) {
                 await registrarUsoNivel3(pool, negocio.id);
@@ -714,7 +868,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 CACHE_RESPUESTAS.set(claveCache(negocio.id, mensaje), { respuesta, nivel: nivelFinal, expiraEn: Date.now() + CACHE_TTL_MS });
             }
 
-            res.json({ ok: true, respuesta: respuesta + notaLimite, nivel: nivelFinal });
+            res.json({ ok: true, respuesta: respuesta + notaLimite, nivel: nivelFinal, accion, celebrar });
         } catch (error) {
             responderError(res, error);
         }

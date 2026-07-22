@@ -15,7 +15,8 @@
   <link rel="stylesheet" href="css/components/auth-login.css?v=dispositivos-empleados-20260716-01">
   <link rel="stylesheet" href="css/components/app-shell.css?v=marca-nexo-20260711-01">
   <link rel="stylesheet" href="css/components/setup-wizard.css?v=login-correo-20260714-01">
-  <link rel="stylesheet" href="css/components/nexo-ia.css?v=ia-modulo-20260719-05">
+  <link rel="stylesheet" href="css/components/nexo-ia.css?v=nexo-ai-v2-20260722-01">
+  <link rel="stylesheet" href="css/components/nexo-tour.css?v=nexo-ai-v2-20260722-01">
   <link rel="stylesheet" href="css/components/nexo-ia-view.css?v=ia-modulo-20260719-02">
   <link rel="stylesheet" href="css/components/config-settings.css?v=venta-pieza-20260711-01">
   <link rel="stylesheet" href="css/components/customers.css?v=refactor-customers-20260701-01">
@@ -329,11 +330,11 @@
  FERRETERIA OLIMPICO
  </h1>
 
- <button onclick="mostrarInicio()">
+ <button data-shell-module="inicio" onclick="mostrarInicio()">
  Inicio / Dashboard
  </button>
 
- <button onclick="mostrarPuntoVenta()">
+ <button data-shell-module="venta" onclick="mostrarPuntoVenta()">
  Punto de venta
  </button>
 
@@ -342,23 +343,23 @@
  </button>
 
  <div id="submenuInventario" class="submenu-sidebar">
- <button onclick="mostrarInventario()">
+ <button data-shell-module="inventario" onclick="mostrarInventario()">
  Productos
  </button>
- <button onclick="mostrarCategoriasInventario()">
+ <button data-shell-module="categorias" onclick="mostrarCategoriasInventario()">
  Categorias
  </button>
  </div>
 
- <button onclick="mostrarInventarioBajo()">
+ <button data-shell-module="inventario-bajo" onclick="mostrarInventarioBajo()">
  Inventario bajo
  </button>
 
- <button onclick="mostrarGraficas()">
+ <button data-shell-module="reportes" onclick="mostrarGraficas()">
  Reportes / Ventas
  </button>
 
- <button onclick="mostrarClientes()">
+ <button data-shell-module="clientes" onclick="mostrarClientes()">
  Clientes
  </button>
 
@@ -366,15 +367,15 @@
  Creditos
  </button>
 
- <button onclick="mostrarProveedores()">
+ <button data-shell-module="proveedores" onclick="mostrarProveedores()">
  Proveedores
  </button>
- <button onclick="mostrarCatalogo()">
+ <button data-shell-module="catalogo" onclick="mostrarCatalogo()">
  Catalogo proveedor
  </button>
 
 
- <button class="btn-configuracion-sidebar" data-modulo="configuracion" onclick="mostrarConfiguracion()">
+ <button class="btn-configuracion-sidebar" data-modulo="configuracion" data-shell-module="configuracion" onclick="mostrarConfiguracion()">
  Configuracion
  </button>
 
@@ -1456,7 +1457,8 @@
   <script src="js/pos-shortcuts.js?v=pos-flyout-redesign-20260708-03"></script>
   <script src="js/low-stock.js?v=lowstock-bugfix-20260705-01"></script>
 <script src="js/ferretero-flow.js?v=fotos-producto-20260712-01"></script>
-<script src="js/nexo-ia.js?v=ia-modulo-20260719-05"></script>
+<script src="js/nexo-tour.js?v=nexo-ai-v2-20260722-01"></script>
+<script src="js/nexo-ia.js?v=nexo-ai-v2-20260722-01"></script>
 <script src="js/pos-busqueda-ia.js?v=borde-siri-20260721-01"></script>
 
 </body>

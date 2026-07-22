@@ -827,29 +827,31 @@ function guardarFormularioCredito() {
  resolver(datos);
 }
 
-async function abrirNuevoClienteCredito() {
+async function abrirNuevoClienteCredito(prellenado = {}) {
  const datos =
  await abrirFormularioCredito({
  titulo: "Nuevo cliente",
- subtitulo: "Agrega una cuenta de credito",
+ subtitulo: prellenado.nombre ? "Nexo prellenó estos datos -- revisalos antes de guardar" : "Agrega una cuenta de credito",
  campos: [
  {
  nombre: "nombre",
  etiqueta: "Nombre del cliente",
  placeholder: "Ej. Constructora Lopez",
+ valor: prellenado.nombre || "",
  requerido: true
  },
  {
  nombre: "telefono",
  etiqueta: "Telefono",
- placeholder: "Ej. 498 000 0000"
+ placeholder: "Ej. 498 000 0000",
+ valor: prellenado.telefono || ""
  },
  {
  nombre: "limiteCredito",
  etiqueta: "Limite de credito",
  tipo: "number",
  placeholder: "0",
- valor: "0",
+ valor: String(prellenado.limiteCredito || 0),
  min: 0
  },
  {

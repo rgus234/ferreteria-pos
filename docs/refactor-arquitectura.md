@@ -4322,3 +4322,70 @@ confirmo la app funcionando (onboarding, datos reales) mostrando
 todavia la barra de Chrome Custom Tabs -- esperado, se resuelve en la
 proxima apertura una vez que Google verifique el Digital Asset Link
 ya publicado con los valores correctos.
+
+## Nexo AI v2 -- memoria, navegacion, acciones prellenadas, tours (2026-07-22)
+
+MVP de la expansion de Nexo IA pedida por el usuario (brief extenso de
+"Nexo" gratis + "Nexo AI" con IA). Se investigo con 3 agentes Explore
+en paralelo y se confirmaron 2 decisiones de alcance con el usuario
+via `AskUserQuestion`: las acciones de creacion solo abren el
+formulario prellenado (nunca escriben en la base de datos por su
+cuenta) y "Nexo" gratis se construye completo (mascota + tours con
+spotlight), no solo extendiendo el onboarding de `/dueno` ya existente.
+
+- **Memoria** (`ia-server.js`): columna `licencias.ia_memoria` JSONB
+  (`migrations/20260722_ia_memoria.sql`, default
+  `{"modulosAbiertos": {}}`). `registrarAperturaModulo()` incrementa
+  un contador por modulo; `resumenMemoriaNexo()` arma una linea con
+  los 3 modulos mas consultados y se inyecta al `system` prompt solo
+  en el primer mensaje de cada conversacion -- nunca crece sin limite.
+- **Navegacion por conversacion**: nueva herramienta `abrir_modulo`
+  (solo lectura, valida contra `MODULOS_NAVEGABLES`, 11 modulos con
+  una funcion `mostrarX()` clara). `chatNexoIA()` ahora regresa
+  `{texto, accion, celebrar}` en vez de solo texto; el frontend
+  (`nexo-ia.js`, `NEXO_ACCIONES_MODULO`) navega DESPUES de mostrar la
+  respuesta, y si el modulo no esta mapeado no navega ni truena.
+- **Acciones -- preparar creacion**: nueva herramienta
+  `preparar_creacion` (cliente_credito/proveedor/producto) que NUNCA
+  escribe en la base de datos -- solo normaliza los datos que el
+  modelo extrajo. El frontend reusa las funciones que YA guardan
+  (`abrirNuevoClienteCredito`, `abrirNuevoProveedor`, extendidas con
+  un parametro `prellenado` opcional; producto usa el modal existente
+  `mostrarFormularioAgregar()` con valores puestos encima) -- el
+  usuario siempre ve y confirma el formulario antes de guardar.
+  Venta y cotizacion quedan fuera del MVP (mayor riesgo/sin modal
+  limpio), documentado como v1.0 futuro.
+- **Proactividad barata**: sin llamada nueva a la IA -- se reusa
+  `GET /ia/resumen-rapido` (ya gratis) para armar un texto corto de
+  plantilla fija en el `title` de la burbuja (`resumenProactivoNexoIA`),
+  visible sin abrir el popover ni el chat.
+- **Nexo (gratis) -- tours con spotlight**: nuevo `nexo-tour.js`/
+  `nexo-tour.css` (overlay + recorte + globo, sin libreria nueva).
+  Se dispara automaticamente la primera vez que se entra a un modulo
+  (delegado por clic en el sidebar via nuevos atributos
+  `data-shell-module` en `index.html`, ya que las pantallas viejas
+  nunca llamaban a `actualizarModuloActivoPOS`) y manualmente desde
+  el panel de ayuda que ahora ve el plan Basico al tocar la burbuja
+  (antes solo mostraba upsell). Misma burbuja para todos los planes --
+  se descarto duplicar burbuja/mascota, decision propia justificada
+  con el usuario en el plan para que se sienta un solo asistente.
+- **Estado `celebrando`**: quedo construido sin disparador desde IA-5.
+  Ahora se activa cuando `comparar_ventas_periodos` muestra un
+  crecimiento >= 20% contra el periodo anterior.
+
+**Verificado**: `node --check` en todos los archivos tocados.
+Migracion aplicada contra la base real (confirmacion explicita del
+usuario). Contra un negocio sintetico en plan Pro (via API directa
+con `curl`, sin usar el navegador compartido para evitar cualquier
+riesgo sobre la sesion real de Ferreteria Olimpico que seguia abierta
+en esa pestana): "llevame a reportes" regreso
+`accion:{tipo:"abrir_modulo",modulo:"reportes"}` y confirmo
+`ia_memoria.modulosAbiertos.reportes = 1` en la base; "agrega un
+proveedor..." regreso `accion:{tipo:"preparar_creacion",...}` con los
+datos extraidos correctamente y se confirmo que **cero** filas se
+escribieron en `proveedores` (la garantia central del diseno). Sin
+errores de consola al cargar el shell completo con los scripts
+nuevos. `negocio_id = 1` sin cambios.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.

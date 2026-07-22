@@ -10,6 +10,96 @@
 let historialNexoIA = [];
 let nexoIaEnviando = false;
 
+/* Nexo AI v2 -- navegacion por conversacion: mapa deliberadamente
+   acotado a los modulos con una funcion mostrarX() clara y directa
+   en el sidebar (mismo subconjunto que MODULOS_NAVEGABLES en
+   ia-server.js -- si el backend regresa una clave que no esta aqui,
+   no se navega y no truena, se queda solo en la respuesta de texto). */
+const NEXO_ACCIONES_MODULO = {
+ inicio: () => mostrarInicio(),
+ venta: () => mostrarPuntoVenta(),
+ inventario: () => mostrarInventario(),
+ categorias: () => mostrarCategoriasInventario(),
+ "inventario-bajo": () => mostrarInventarioBajo(),
+ reportes: () => mostrarGraficas(),
+ clientes: () => mostrarClientes(),
+ proveedores: () => mostrarProveedores(),
+ catalogo: () => mostrarCatalogo(),
+ configuracion: () => mostrarConfiguracion(),
+ cuenta: () => mostrarCuenta()
+};
+
+function ejecutarAccionNexoIA(accion) {
+ if (!accion) return;
+
+ try {
+  if (accion.tipo === "abrir_modulo") {
+   const abrir = NEXO_ACCIONES_MODULO[accion.modulo];
+   if (typeof abrir === "function") abrir();
+   return;
+  }
+
+  if (accion.tipo === "preparar_creacion") {
+   ejecutarPreparacionCreacionNexoIA(accion.datosCreacion);
+  }
+ } catch (error) {
+  console.error("Nexo AI: no se pudo ejecutar la accion", accion, error);
+ }
+}
+
+/* Nexo AI v2 -- "preparar creacion": la IA nunca escribe en la base de
+   datos, solo estructura los datos que el usuario menciono. Aqui se
+   reusan las funciones que YA abren el formulario/guardan el registro
+   (abrirNuevoClienteCredito, abrirNuevoProveedor -- ambas extendidas
+   para aceptar un prellenado opcional) -- el usuario siempre ve el
+   formulario antes de que se guarde nada. */
+function ejecutarPreparacionCreacionNexoIA(datosCreacion) {
+ if (!datosCreacion) return;
+ const { tipo, datos } = datosCreacion;
+
+ if (tipo === "cliente_credito") {
+  mostrarClientes();
+  setTimeout(() => abrirNuevoClienteCredito(datos), 150);
+  return;
+ }
+
+ if (tipo === "proveedor") {
+  mostrarProveedores();
+  setTimeout(() => abrirNuevoProveedor(datos), 150);
+  return;
+ }
+
+ if (tipo === "producto") {
+  mostrarInventario();
+  setTimeout(() => abrirProductoPrellenadoNexoIA(datos), 150);
+ }
+}
+
+/* Producto no tiene una funcion "abrir con prellenado" propia --
+   mostrarFormularioAgregar() abre el modal de siempre (el mismo que
+   usa Inventario), aqui solo se le ponen valores encima antes de que
+   el usuario lo vea. Nunca llama a agregarProductoNuevo() -- eso solo
+   pasa si el usuario le da clic a Guardar el mismo. */
+function abrirProductoPrellenadoNexoIA(datos) {
+ mostrarFormularioAgregar();
+
+ setTimeout(() => {
+  const valores = {
+   nuevoNombre: datos.nombre || "",
+   nuevoCodigo: datos.codigo || "",
+   nuevoPrecio: datos.precio ? String(datos.precio) : "",
+   nuevoStock: datos.stock ? String(datos.stock) : ""
+  };
+
+  for (const [id, valor] of Object.entries(valores)) {
+   const campo = document.getElementById(id);
+   if (campo) campo.value = valor;
+  }
+
+  document.getElementById("nuevoNombre")?.focus();
+ }, 120);
+}
+
 /* Personaje de Nexo (IA-5): ilustracion real (no SVG dibujado a mano)
    recortada de las imagenes que el usuario genero y guardo en
    public/img/nexo-ia/. Cada estado es una foto/render distinto, no
@@ -41,15 +131,35 @@ function nexoIaMarcaBurbujaSVG() {
  return `<img class="nexo-ia-marca" src="img/nexo-ia/feliz.jpg" alt="Nexo" />`;
 }
 
-async function nexoIaHayAlerta() {
+async function nexoIaDatosProactivos() {
  try {
   const respuesta = await fetch("/ia/resumen-rapido");
   const datos = await respuesta.json();
-  if (!respuesta.ok || !datos.ok || datos.acceso?.disponible === false) return false;
-  return datos.stockBajo.productos.length > 0 || datos.creditos.clientesVencidos > 0;
+  if (!respuesta.ok || !datos.ok || datos.acceso?.disponible === false) return null;
+  return datos;
  } catch (error) {
-  return false;
+  return null;
  }
+}
+
+/* Nexo AI v2 -- proactividad barata: mismo dato que ya trae el
+   punto rojo (.con-alerta), solo se le arma una frase corta de
+   plantilla fija (sin IA, $0) para que se pueda leer sin abrir el
+   popover ni el chat -- va en el title/tooltip de la burbuja. */
+function resumenProactivoNexoIA(datos) {
+ if (!datos) return { hayAlerta: false, texto: "" };
+
+ const stockBajo = datos.stockBajo.productos.length;
+ const vencidos = datos.creditos.clientesVencidos;
+ const hayAlerta = stockBajo > 0 || vencidos > 0;
+
+ if (!hayAlerta) return { hayAlerta: false, texto: "" };
+
+ const partes = [];
+ if (stockBajo > 0) partes.push(`${stockBajo} producto(s) por agotarse`);
+ if (vencidos > 0) partes.push(`${vencidos} credito(s) vencido(s)`);
+
+ return { hayAlerta: true, texto: `Nexo IA: ${partes.join(" y ")}` };
 }
 
 const PREGUNTAS_RAPIDAS_NEXO_IA = [
@@ -178,10 +288,30 @@ function renderAccesosPopoverNexoIA(popover) {
  popover.appendChild(abrir);
 }
 
+/* Nexo AI v2 -- panel de ayuda ligero para planes sin IA (Basico):
+   en vez de solo un aviso de upsell, se le da algo util de una vez
+   (tour guiado de la seccion actual, sin IA, gratis para todos los
+   planes) y el upsell queda como una linea discreta, no el bloque
+   principal. */
 function renderUpsellPopoverNexoIA(popover) {
+ const ayuda = document.createElement("div");
+ ayuda.className = "nexo-ia-popover-resumen";
+ ayuda.innerHTML = "<p>Nexo puede guiarte por esta seccion aunque tu plan no incluya IA.</p>";
+ popover.appendChild(ayuda);
+
+ const verTour = document.createElement("button");
+ verTour.type = "button";
+ verTour.className = "nexo-ia-popover-abrir";
+ verTour.textContent = "Ver tour de esta seccion";
+ verTour.addEventListener("click", () => {
+  cerrarPopoverNexoIA();
+  if (typeof nexoIaTourManual === "function") nexoIaTourManual();
+ });
+ popover.appendChild(verTour);
+
  const aviso = document.createElement("div");
  aviso.className = "nexo-ia-popover-resumen";
- aviso.innerHTML = "<p>Nexo IA esta disponible desde el plan Plus. Mejora tu plan para empezar a usarme.</p>";
+ aviso.innerHTML = "<p>Nexo IA (con inteligencia artificial) esta disponible desde el plan Plus.</p>";
  popover.appendChild(aviso);
 
  const irACuenta = document.createElement("button");
@@ -338,6 +468,17 @@ async function enviarMensajeNexoIA() {
   historialNexoIA.push({ rol: "user", contenido: mensaje });
   historialNexoIA.push({ rol: "assistant", contenido: datos.respuesta });
   historialNexoIA = historialNexoIA.slice(-12);
+
+  // Se navega DESPUES de mostrar el texto, para que el usuario vea
+  // primero que Nexo entendio antes de que la pantalla cambie.
+  if (datos.accion) setTimeout(() => ejecutarAccionNexoIA(datos.accion), 400);
+
+  // El "finally" de abajo siempre deja la marca en "feliz" -- esto
+  // corre despues y la reemplaza brevemente por "celebrando".
+  if (datos.celebrar) {
+   setTimeout(() => actualizarMarcaCabeceraNexoIA("celebrando"), 50);
+   setTimeout(() => actualizarMarcaCabeceraNexoIA("feliz"), 2200);
+  }
  } catch (error) {
   indicador?.remove();
   agregarMensajeNexoIA("No se pudo conectar con Nexo. Revisa tu conexion.", "error");
@@ -357,8 +498,10 @@ async function actualizarVisibilidadNexoIA() {
  burbuja.classList.toggle("visible", vinculado);
  if (!vinculado) return;
 
- const hayAlerta = await nexoIaHayAlerta();
+ const datos = await nexoIaDatosProactivos();
+ const { hayAlerta, texto } = resumenProactivoNexoIA(datos);
  burbuja.classList.toggle("con-alerta", hayAlerta);
+ burbuja.title = hayAlerta ? texto : "Nexo IA";
 }
 
 document.addEventListener("DOMContentLoaded", () => {

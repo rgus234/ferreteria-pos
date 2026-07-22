@@ -26,6 +26,25 @@ const AYUDA_MODULOS_POS = {
  "nexo-ia": "Tu asistente de negocio: preguntale por tus ventas, tu inventario o tus creditos."
 };
 
+/* Nexo AI v2 -- hook de tours automaticos: las pantallas mas viejas
+   (Inicio, Inventario, Reportes, Clientes...) nunca llamaron a
+   actualizarModuloActivoPOS -- solo alternan su propio display. En
+   vez de tocar cada mostrarX() una por una, se escucha el clic en el
+   sidebar (que si tiene data-shell-module en todos los botones
+   relevantes) y se dispara el tour desde ahi, delegado. */
+document.addEventListener("DOMContentLoaded", () => {
+ const sidebar = document.querySelector(".sidebar");
+ if (!sidebar) return;
+
+ sidebar.addEventListener("click", event => {
+  const boton = event.target.closest("button[data-shell-module]");
+  if (!boton) return;
+  if (typeof nexoIaTourAutoModulo === "function") {
+   setTimeout(() => nexoIaTourAutoModulo(boton.dataset.shellModule), 250);
+  }
+ });
+});
+
 function abrirAyudaModuloPOS() {
  const modulo =
  contextoTopbarPOS.modulo || "inicio";
@@ -189,7 +208,7 @@ window.repararSidebarNexoPOS = function() {
  aplicarPermisosUsuario();
  renderSidebarFooterPOS();
 };
-function actualizarModuloActivoPOS(modulo) { document.querySelectorAll(".sidebar button").forEach(boton => boton.classList.toggle("activo", boton.dataset.shellModule === modulo)); }
+function actualizarModuloActivoPOS(modulo) { document.querySelectorAll(".sidebar button").forEach(boton => boton.classList.toggle("activo", boton.dataset.shellModule === modulo)); if (typeof nexoIaTourAutoModulo === "function") nexoIaTourAutoModulo(modulo); }
 function recordatoriosPOSGuardados() { try { const datos = JSON.parse(localStorage.getItem(RECORDATORIOS_POS_KEY) || "[]"); return Array.isArray(datos) ? datos : []; } catch (error) { console.warn("No se pudieron leer recordatorios", error); return []; } }
 function guardarRecordatoriosPOS(recordatorios) { localStorage.setItem(RECORDATORIOS_POS_KEY, JSON.stringify(recordatorios)); renderNotificacionesPOS(); }
 function notificacionesDescartadasPOS() { try { const datos = JSON.parse(localStorage.getItem(NOTIFICACIONES_DESCARTADAS_POS_KEY) || "[]"); return Array.isArray(datos) ? datos : []; } catch (error) { console.warn("No se pudieron leer notificaciones descartadas", error); return []; } }
