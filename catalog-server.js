@@ -74,7 +74,10 @@ async function vincularCatalogoProductos(pool, negocioId, catalogoId) {
         [catalogoId, negocioId]
     );
 
-    for (const fila of candidatos.rows) {
+    // Bulk update en lotes -- con catalogos de miles de filas, un
+    // UPDATE por fila (miles de round-trips secuenciales) es lo que
+    // hacia que subir un catalogo grande se sintiera colgado.
+    const actualizaciones = candidatos.rows.map(fila => {
         const similitud = Number(fila.similitud);
         let estado = "sin_vincular";
         let productoId = null;
@@ -90,9 +93,29 @@ async function vincularCatalogoProductos(pool, negocioId, catalogoId) {
             porcentaje = Math.round(similitud * 100);
         }
 
+        return { id: fila.catalogo_producto_id, productoId, estado, porcentaje };
+    });
+
+    const TAMANO_LOTE_VINCULACION = 500;
+    for (let inicio = 0; inicio < actualizaciones.length; inicio += TAMANO_LOTE_VINCULACION) {
+        const lote = actualizaciones.slice(inicio, inicio + TAMANO_LOTE_VINCULACION);
+        const valoresSQL = [];
+        const parametros = [];
+
+        lote.forEach((fila, indice) => {
+            const base = indice * 4;
+            valoresSQL.push(`($${base + 1}::int,$${base + 2}::int,$${base + 3}::text,$${base + 4}::numeric)`);
+            parametros.push(fila.id, fila.productoId, fila.estado, fila.porcentaje);
+        });
+
         await pool.query(
-            `UPDATE public.catalogo_productos SET producto_id = $2, estado = $3, porcentaje_coincidencia = $4, updated_at = NOW() WHERE id = $1`,
-            [fila.catalogo_producto_id, productoId, estado, porcentaje]
+            `
+            UPDATE public.catalogo_productos AS cp
+            SET producto_id = v.producto_id, estado = v.estado, porcentaje_coincidencia = v.porcentaje, updated_at = NOW()
+            FROM (VALUES ${valoresSQL.join(",")}) AS v(id, producto_id, estado, porcentaje)
+            WHERE cp.id = v.id
+            `,
+            parametros
         );
     }
 
@@ -166,11 +189,12 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
     // Sube (o re-sube) un catalogo ya parseado por catalog-parsers.js en
     // el cliente -- este endpoint solo recibe el arreglo final, nunca
-    // procesa el archivo original. Body grande permitido solo aqui
-    // (catalogos de miles de filas), sin tocar el limite global de la app.
+    // procesa el archivo original. El limite de tamano de body (25mb,
+    // para catalogos de miles de filas) se fija en el middleware
+    // global de server.js -- uno puesto solo aqui nunca alcanzaria a
+    // aplicarse, porque express.json() global ya corre antes.
     app.post(
         "/catalogo-proveedor/:proveedor/subir",
-        require("express").json({ limit: "25mb" }),
         requerirAccesoNegocio,
         async (req, res) => {
             const proveedor = String(req.params.proveedor || "").trim();
@@ -197,29 +221,66 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 );
                 const catalogoId = catalogo.rows[0].id;
 
+                // Filas validas y ya normalizadas -- se preparan todas
+                // en JS primero para poder subirlas en lotes (varios
+                // cientos de filas por INSERT) en vez de un
+                // round-trip a la base por fila, que con catalogos de
+                // miles de productos se vuelve lentisimo o hasta
+                // agota el tiempo de espera de la peticion HTTP.
+                const filas = productos
+                    .map(p => ({
+                        codigoProveedor: String(p.codigo || "").trim(),
+                        nombre: String(p.nombre || ""),
+                        descripcion: String(p.descripcion || ""),
+                        marca: String(p.marca || ""),
+                        categoria: String(p.categoria || ""),
+                        codigoInterno: String(p.codigoInterno || ""),
+                        distribuidor: Number.isFinite(Number(p.distribuidor)) ? Number(p.distribuidor) : null,
+                        medioMayoreo: Number.isFinite(Number(p.medioMayoreo)) ? Number(p.medioMayoreo) : null,
+                        precioPublico: Number.isFinite(Number(p.publico)) ? Number(p.publico) : null
+                    }))
+                    .filter(f => f.codigoProveedor);
+
+                const existentes = await cliente.query(
+                    `SELECT codigo_proveedor, precio_publico FROM public.catalogo_productos WHERE catalogo_id = $1`,
+                    [catalogoId]
+                );
+                const precioAnteriorPorCodigo = new Map(existentes.rows.map(r => [r.codigo_proveedor, r.precio_publico]));
+
                 let nuevos = 0;
                 let cambiosPrecio = 0;
 
-                for (const p of productos) {
-                    const codigoProveedor = String(p.codigo || "").trim();
-                    if (!codigoProveedor) continue;
+                for (const fila of filas) {
+                    if (!precioAnteriorPorCodigo.has(fila.codigoProveedor)) {
+                        nuevos++;
+                    } else {
+                        const anterior = precioAnteriorPorCodigo.get(fila.codigoProveedor);
+                        if (anterior !== null && fila.precioPublico !== null && Number(anterior) !== fila.precioPublico) cambiosPrecio++;
+                    }
+                }
 
-                    const precioPublico = Number.isFinite(Number(p.publico)) ? Number(p.publico) : null;
+                const TAMANO_LOTE = 400;
+                for (let inicio = 0; inicio < filas.length; inicio += TAMANO_LOTE) {
+                    const lote = filas.slice(inicio, inicio + TAMANO_LOTE);
+                    const columnasPorFila = 9; // codigoProveedor..precioPublico (negocio_id/catalogo_id van fijos en $1/$2, precio_publico_anterior es NULL literal)
+                    const valoresSQL = [];
+                    const parametros = [];
 
-                    const anterior = await cliente.query(
-                        `SELECT precio_publico FROM public.catalogo_productos WHERE catalogo_id = $1 AND codigo_proveedor = $2`,
-                        [catalogoId, codigoProveedor]
-                    );
-                    const precioAnterior = anterior.rows[0]?.precio_publico ?? null;
-                    if (anterior.rows.length === 0) nuevos++;
-                    else if (precioAnterior !== null && precioPublico !== null && Number(precioAnterior) !== precioPublico) cambiosPrecio++;
+                    lote.forEach((fila, indice) => {
+                        const base = indice * columnasPorFila;
+                        valoresSQL.push(`($1,$2,$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},NULL)`);
+                        parametros.push(
+                            fila.codigoProveedor, fila.nombre, fila.descripcion, fila.marca, fila.categoria,
+                            fila.codigoInterno, fila.distribuidor, fila.medioMayoreo, fila.precioPublico
+                        );
+                    });
 
                     await cliente.query(
                         `
                         INSERT INTO public.catalogo_productos
                             (negocio_id, catalogo_id, codigo_proveedor, nombre_proveedor, descripcion, marca, categoria,
                              codigo_interno, precio_distribuidor, precio_medio_mayoreo, precio_publico, precio_publico_anterior)
-                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                        VALUES ${valoresSQL.join(",")}
                         ON CONFLICT (catalogo_id, codigo_proveedor) DO UPDATE SET
                             nombre_proveedor = EXCLUDED.nombre_proveedor,
                             descripcion = EXCLUDED.descripcion,
@@ -232,14 +293,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                             precio_publico = EXCLUDED.precio_publico,
                             updated_at = NOW()
                         `,
-                        [
-                            negocio.id, catalogoId, codigoProveedor, String(p.nombre || ""), String(p.descripcion || ""),
-                            String(p.marca || ""), String(p.categoria || ""), String(p.codigoInterno || ""),
-                            Number.isFinite(Number(p.distribuidor)) ? Number(p.distribuidor) : null,
-                            Number.isFinite(Number(p.medioMayoreo)) ? Number(p.medioMayoreo) : null,
-                            precioPublico,
-                            null
-                        ]
+                        [negocio.id, catalogoId, ...parametros]
                     );
                 }
 

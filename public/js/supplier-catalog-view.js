@@ -943,7 +943,16 @@ function productosCompletosDesdeCatalogo(catalogo) {
 
 async function subirCatalogoAlServidor(catalogo) {
  const productos = productosCompletosDesdeCatalogo(catalogo);
- if (productos.length === 0) return;
+
+ if (productos.length === 0) {
+  console.error("productosCompletosDesdeCatalogo() no extrajo ningun producto valido de", catalogo.proveedor, catalogo);
+  alertaPOS(
+   `No se pudo leer ningun producto del catalogo de "${catalogo.proveedor}" para vincularlo -- revisa que el archivo tenga las columnas de codigo y nombre bien detectadas (puedes verlo en "Lectura del catalogo" mas abajo si sigue disponible).`,
+   "Catalogo proveedor",
+   "alerta"
+  );
+  return;
+ }
 
  try {
   const respuesta = await fetch(`/catalogo-proveedor/${encodeURIComponent(catalogo.proveedor)}/subir`, {
@@ -954,12 +963,14 @@ async function subirCatalogoAlServidor(catalogo) {
   const datos = await respuesta.json();
   if (!respuesta.ok || !datos.ok) {
    console.error("No se pudo subir el catalogo al servidor", datos);
+   alertaPOS(datos.error || `No se pudo subir el catalogo de "${catalogo.proveedor}" al servidor.`, "Catalogo proveedor", "alerta");
    return;
   }
   mostrarInsightCatalogo(datos.insight);
   cargarCatalogosServidor();
  } catch (error) {
   console.error("No se pudo subir el catalogo al servidor", error);
+  alertaPOS(`No se pudo subir el catalogo de "${catalogo.proveedor}" al servidor: ${error.message}`, "Catalogo proveedor", "alerta");
  }
 }
 

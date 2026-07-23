@@ -143,16 +143,17 @@
 .catalogo-proveedor-info span{ font-size:12px; color:var(--nexo-muted,#667085); }
 
 .catalogo-proveedor-baja{
- border:none;
- background:transparent;
- color:var(--nexo-muted,#98a2b3);
+ width:auto !important;
+ border:none !important;
+ background:transparent !important;
+ color:var(--nexo-muted,#98a2b3) !important;
  font-size:16px;
  line-height:1;
  cursor:pointer;
- padding:4px 6px;
+ padding:4px 6px !important;
  border-radius:6px;
 }
-.catalogo-proveedor-baja:hover{ background:var(--nexo-danger-soft,#fee2e2); color:var(--nexo-danger,#ef4444); }
+.catalogo-proveedor-baja:hover{ background:var(--nexo-danger-soft,#fee2e2) !important; color:var(--nexo-danger,#ef4444) !important; }
 
 .catalogo-filtros{
  display:flex;
@@ -160,19 +161,26 @@
  gap:8px;
  margin-bottom:12px;
 }
+/* legacy-layout.css define un `button{width:100%;background:linear-
+   gradient(...)}` global, reforzado con !important en theme-runtime.css
+   -- sin estos !important los chips salian como botones azules gigantes
+   apilados en vez de pildoras chicas en fila (bug real reportado por
+   el usuario en produccion). */
 .catalogo-filtros button{
- border:1px solid var(--nexo-line,#e4e7ec);
- background:var(--nexo-surface,#fff);
- color:var(--nexo-text,#344054);
- border-radius:999px;
- padding:6px 14px;
- font-size:12.5px;
- font-weight:700;
+ width:auto !important;
+ display:inline-flex !important;
+ border:1px solid var(--nexo-line,#e4e7ec) !important;
+ background:var(--nexo-surface,#fff) !important;
+ color:var(--nexo-text,#344054) !important;
+ border-radius:999px !important;
+ padding:6px 14px !important;
+ font-size:12.5px !important;
+ font-weight:700 !important;
  cursor:pointer;
 }
 .catalogo-filtros button.activo{
  background:var(--nexo-brand,#0d6efd) !important;
- border-color:var(--nexo-brand,#0d6efd);
+ border-color:var(--nexo-brand,#0d6efd) !important;
  color:#fff !important;
 }
 
@@ -221,10 +229,13 @@
  color:var(--nexo-muted,#667085);
 }
 .catalogo-paginacion button{
- border:1px solid var(--nexo-line,#e4e7ec);
- background:var(--nexo-surface,#fff);
- border-radius:8px;
- padding:6px 12px;
+ width:auto !important;
+ border:1px solid var(--nexo-line,#e4e7ec) !important;
+ background:var(--nexo-surface,#fff) !important;
+ color:var(--nexo-text,#344054) !important;
+ border-radius:8px !important;
+ padding:6px 12px !important;
+ font-weight:600;
  cursor:pointer;
 }
 .catalogo-paginacion button:disabled{ opacity:.4; cursor:default; }

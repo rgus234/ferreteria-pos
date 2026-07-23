@@ -41,7 +41,14 @@ const PORT = config.port;
 // necesita el webhook de Stripe para verificar la firma (stripe.
 // webhooks.constructEvent exige los bytes originales, no el JSON ya
 // parseado). El resto de las rutas sigue usando req.body como siempre.
+// Limite subido de los 100kb default de Express a 25mb -- un catalogo
+// de proveedor completo (miles de productos) serializado facilmente
+// supera 100kb; este middleware global corre ANTES que cualquier
+// limite puesto a nivel de ruta (ese nunca alcanza a aplicarse si el
+// global ya rechazo el body), asi que el limite real tiene que fijarse
+// aqui.
 app.use(express.json({
+    limit: "25mb",
     verify: (req, res, buf) => {
         req.rawBody = buf;
     }

@@ -4464,5 +4464,52 @@ forma de leer el localStorage de un navegador especifico desde aqui.
 Una vez desplegado, hay que volver a subirlos para que el motor de
 vinculacion los procese.
 
+### Correcciones tras probar contra produccion (mismo dia)
+
+El usuario probo el modulo ya en produccion (`app.nexoposoficial.com`)
+y reporto 2 problemas reales con captura de pantalla:
+
+1. **Los chips de filtro se veian como botones azules gigantes
+   apilados**, no como pildoras chicas en fila. Causa: `legacy-layout.css`
+   define un `button{width:100%;background:linear-gradient(...)}`
+   global, reforzado con `!important` en `theme-runtime.css` -- el
+   mismo problema ya documentado y resuelto antes esta sesion para
+   otros botones nuevos (IA-5, POS, Inventario), pero se me olvido
+   aplicar el mismo patron a `.catalogo-filtros button`,
+   `.catalogo-paginacion button` y `.catalogo-proveedor-baja`. Se
+   corrigio agregando `!important` a `width`, `background`, `color`,
+   `padding` y `border-radius` en esos selectores.
+2. **Subio un catalogo real y no aparecio nada**, sin ningun error
+   visible. Se investigo y se encontraron 2 causas reales, ambas
+   corregidas:
+   - `subirCatalogoAlServidor()` fallaba en silencio (solo
+     `console.error`, nunca un aviso visible) -- se agrego
+     `alertaPOS(...)` en los 3 casos de falla (0 productos parseados,
+     respuesta no-ok del servidor, error de red).
+   - **La causa raiz real**: el `express.json()` global de `server.js`
+     no tenia limite explicito (el default de Express es 100kb). Un
+     catalogo real de miles de productos serializado facilmente supera
+     eso. El limite de 25mb que se le puso a la ruta
+     `/catalogo-proveedor/:proveedor/subir` nunca llegaba a aplicarse,
+     porque el middleware global ya corre antes y ya rechaza/trunca el
+     body. Se subio el limite a 25mb en el middleware global (unico
+     lugar donde realmente importa) y se quito el limite redundante de
+     la ruta.
+3. **Bug de rendimiento encontrado durante la verificacion de la
+   correccion anterior** (no reportado por el usuario, se encontro al
+   probar con un catalogo simulado de 3000 productos): tanto la subida
+   como el algoritmo de vinculacion hacian un `UPDATE`/`INSERT` por
+   fila dentro de un loop secuencial -- miles de round-trips a la base
+   por catalogo, tardando varios minutos y arriesgando que la peticion
+   HTTP truene por tiempo de espera. Se reescribieron ambos pasos para
+   subir/actualizar en lotes de hasta 400-500 filas por consulta
+   (`INSERT ... VALUES (...),(...),...` y
+   `UPDATE ... FROM (VALUES ...) AS v`). Verificado: 3000 productos
+   bajan de varios minutos (sin completar) a **~15 segundos**.
+
+Verificado de nuevo end-to-end con el catalogo simulado de 3000
+productos: subida completa, conteo de "nuevos" correcto (3000/3000 en
+una subida limpia), sin errores de consola, `node --check` limpio.
+
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
