@@ -119,26 +119,21 @@
 
 /* BOTONES */
 
+/* Base neutra: cualquier boton sin clase/estilo propio se ve como
+   una pildora discreta (superficie del tema, sin azul forzado, sin
+   full-width). Los componentes que si quieren un boton de accion
+   azul lo declaran explicitamente via .btn-primario/.btn-agregar/etc
+   -- este selector global ya no debe ganarles la pelea con !important
+   (ver theme-runtime.css). */
 button{
- width:100%;
- padding:12px;
+ padding:10px 16px;
  border:none;
- background:
- linear-gradient(
- 90deg,
- #2563eb,
- #3b82f6
- );
-
- color:white;
-
+ background:var(--surface-strong, #f1f5f9);
+ color:var(--text-main, #101828);
  border-radius:12px;
-
- margin-top:8px;
-
  cursor:pointer;
-
- font-weight:bold;
+ font-weight:600;
+ font-family:inherit;
 }
 
 /* CAJAS */

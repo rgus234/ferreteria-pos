@@ -4571,6 +4571,61 @@ lectura salvo que el usuario confirme lo contrario.
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
 
+## Boton global: eliminar la causa raiz del azul/full-width forzado (2026-07-23)
+
+El usuario reporto (con captura) que los botones del formulario
+"Agregar producto" (tiles de proveedor Diprofer/Gafi/Truper, el
+selector "Modo de captura", las pestañas Basico/Precios/...) se veian
+opacos/planos, sin el vidrio translucido del resto de la app. Pidio
+explicitamente dejar de parchar boton por boton y eliminar la regla
+global que los hacia "grandes y feos" de raiz -- el mismo problema que
+esta sesion ya habia documentado y vuelto a resolver manualmente varias
+veces (IA-5, POS, Inventario, Cuenta, Catalogo).
+
+**Causa raiz encontrada**: dos selectores verdaderamente globales
+(`button`, sin ninguna clase) competian con el CSS propio de cada
+componente:
+
+1. `legacy-layout.css`: `button{ width:100%; background:linear-gradient(90deg,#2563eb,#3b82f6); ... }`
+   -- cualquier `<button>` sin estilo propio nacia grande, azul y a
+   todo el ancho.
+2. `theme-runtime.css`: `button, .btn-agregar, .btn-primario, ...{ background:var(--brand-color) !important; color:white !important; }`
+   -- el `button` suelto (primero en la lista) repintaba de azul
+   solido con `!important` **cualquier** boton de la app, incluidos
+   los que ya tenian su propio vidrio/translucidez bien diseñado (los
+   tiles de proveedor, las pestañas del formulario, el toggle de modo
+   de captura) -- de ahi que cada pantalla nueva tuviera que pelear
+   con `!important` propio para verse bien.
+
+**Arreglo**: se quito el selector `button` suelto de ambas reglas.
+`legacy-layout.css` ahora da una base neutra y discreta (superficie
+del tema, sin azul forzado, sin `width:100%`) en vez del gradiente
+grande -- botones sin clase propia se ven como una pildora limpia, no
+como un boton de accion gigante. `theme-runtime.css` conserva intacta
+la lista de clases explicitas (`.btn-agregar`, `.btn-primario`,
+`.btn-cobrar`, `.acciones-clientes button`, `.modal-botones button`,
+etc.) -- esos SI deben seguir azules a proposito, son botones de
+accion real, no el fallback global.
+
+Verificado contra el negocio sintetico 17408 (creado/limpiado, sin
+tocar `negocio_id = 1`): se abrio el modal de "Agregar producto" real
+y se leyeron los estilos computados de sus botones -- los tiles de
+proveedor y los botones Cancelar/Guardar ahora muestran el fondo
+blanco translucido (`rgba(255,255,255,.92)`, `color(srgb 1 1 1 / .64)`)
+del vidrio propio del componente en vez del azul solido forzado; las
+pestañas del formulario y el toggle de modo de captura usan su propio
+estado activo (antes bloqueado por el `!important` global). Se
+confirmo por separado que los botones que SI deben ser azules
+(`.btn-alerta` "Ver inventario bajo", dialogos de confirmacion) lo
+siguen siendo -- las clases explicitas no se tocaron. Sin errores de
+consola. La verificacion visual completa (captura de pantalla) no se
+pudo completar por una falla del panel de navegador del entorno de
+este turno (no relacionada con el cambio); se verifico via estilos
+computados en el DOM real en su lugar.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.
+
 ## Catalogo de proveedor -- plantillas por proveedor: limpieza + IA de mapeo (2026-07-23)
 
 Tras el rediseno del modulo (fase anterior), el usuario senalo que el
