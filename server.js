@@ -6860,6 +6860,7 @@ cargarModulosPOS({
     normalizarCodigo,
     requerirAccesoNegocio,
     requerirSesionCuenta,
+    firmarTokenImagen,
 });
 
 async function migrarPasswordsUsuariosPlano() {

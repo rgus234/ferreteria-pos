@@ -4511,5 +4511,62 @@ Verificado de nuevo end-to-end con el catalogo simulado de 3000
 productos: subida completa, conteo de "nuevos" correcto (3000/3000 en
 una subida limpia), sin errores de consola, `node --check` limpio.
 
+### Segunda ronda de correcciones (mismo dia, mismo negocio real)
+
+El usuario probo de nuevo ya con el fix anterior desplegado y reporto
+3 problemas mas, con capturas del catalogo real "Diprofer" de
+Ferreteria Olimpico (15,387 productos):
+
+1. **Un producto vinculado ("Aceite semi-sintetico...") mostraba "Sin
+   foto" aunque el usuario cree que ya tenia foto subida.** Causa
+   real: un `<img src>` no puede mandar el header `Authorization` --
+   toda la app ya resuelve esto en otros lugares (galeria de
+   producto, busqueda) firmando un token en la propia URL
+   (`firmarTokenImagen`, `server.js`) y pasandolo como
+   `?negocio=<slug>&token=<firma>`. El panel de vista previa del
+   catalogo armaba el `src` directo con el codigo, sin token -- toda
+   peticion de imagen fallaba con 401 y caia al estado "Sin foto",
+   sin importar si la foto existia. Se agrego `firmarTokenImagen` como
+   parametro nuevo de `catalog-server.js` (threaded desde `server.js`
+   -> `server-modules.js`), la ruta de detalle ahora regresa
+   `imagenUrl` ya armada con el token, y el frontend la usa tal cual.
+   Verificado con una foto real subida + un catalogo vinculado a ese
+   producto: la URL responde 200 con `image/jpeg` sin ningun header.
+2. **"Vinculados: 0" / "Con conflicto: 0" en el dashboard, a pesar de
+   que filtrar por "Vinculados" si mostraba filas reales vinculadas.**
+   Se investigo directo contra la base real (solo lectura): el
+   catalogo "Diprofer" del negocio real (id 8) en realidad **si tiene
+   los contadores correctos** (`total_productos: 15387,
+   productos_vinculados: 1358`) -- no era un bug de datos. Lo que
+   paso es que el algoritmo de coincidencia (Paso 2, comparar cada
+   fila del catalogo contra el inventario completo) tardaba tanto con
+   15 mil filas que el usuario vio la pantalla con los contadores
+   todavia en su valor inicial (0) mientras el proceso seguia
+   corriendo de fondo en el servidor -- el mismo problema de fondo que
+   el bug de rendimiento ya documentado arriba, solo que esta vez con
+   datos reales en vez del catalogo simulado. Se corrigio la consulta
+   para usar el operador `%` de `pg_trgm` (que si aprovecha el indice
+   GIN ya creado en la Fase CAT1) en vez de llamar `similarity()`
+   directo en el `ORDER BY` -- acota los candidatos por indice antes
+   de ordenar, en vez de comparar cada fila contra todo el inventario.
+   Verificado: 3000 filas de catalogo contra 200 productos reales de
+   prueba, ~22 segundos (antes, sin indice, no llegaba a terminar en
+   varios minutos).
+3. **La lista de productos del catalogo se extendia hasta abajo de la
+   pagina** en vez de quedarse en un area fija con scroll interno
+   (unico problema puramente visual de los 3). Se agrego
+   `max-height:600px; overflow-y:auto` a `.catalogo-lista-productos`
+   -- mismo patron que ya tenian el sidebar de proveedores y el panel
+   de vista previa, que a este se le habia olvidado aplicar.
+
+**Nota importante**: la base de datos local de desarrollo y la de
+produccion son la misma instancia de Postgres (Render) -- no hay
+entorno de staging separado. Todo lo verificado en esta sesion con
+`node --env-file=.env server.js` corre contra los datos reales de
+Ferreteria Olimpico; las pruebas propias siempre usan negocios
+sinteticos con ID conocido, creados y borrados/limpiados al terminar,
+y cualquier lectura contra `negocio_id = 1` es explicitamente de solo
+lectura salvo que el usuario confirme lo contrario.
+
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.

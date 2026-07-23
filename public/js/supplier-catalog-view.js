@@ -1192,8 +1192,13 @@ function renderPanelPreviaCatalogo(p) {
  // Existencia e imagen del proveedor: ningun catalogo los manda hoy
  // -- se muestran como estado vacio explicito, nunca inventados
  // (decision tomada con el usuario).
- const fotoHTML = p.producto_codigo
-  ? `<img class="catalogo-previa-foto" src="/fotos-producto/${encodeURIComponent(p.producto_codigo)}/principal" alt="${p.nombre_proveedor}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'catalogo-previa-foto-vacia',textContent:'Sin foto'}))">`
+ // Un <img src> no manda el header Authorization -- el backend ya
+ // regresa la URL con un token firmado incluido (imagenUrl) cuando
+ // el producto vinculado tiene foto, mismo patron que el resto de la
+ // app (server.js, firmarTokenImagen). Sin imagenUrl, no hay foto que
+ // mostrar -- estado vacio explicito, no se inventa.
+ const fotoHTML = p.imagenUrl
+  ? `<img class="catalogo-previa-foto" src="${p.imagenUrl}" alt="${p.nombre_proveedor}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'catalogo-previa-foto-vacia',textContent:'Sin foto'}))">`
   : `<div class="catalogo-previa-foto-vacia">Sin foto</div>`;
 
  const coincidenciaHTML = p.producto_id

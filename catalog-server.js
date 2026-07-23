@@ -9,7 +9,7 @@ async function negocioActual(req, pool) {
         throw error;
     }
 
-    const resultado = await pool.query(`SELECT id FROM public.negocios WHERE id = $1 LIMIT 1`, [negocioId]);
+    const resultado = await pool.query(`SELECT id, slug FROM public.negocios WHERE id = $1 LIMIT 1`, [negocioId]);
 
     if (resultado.rows.length === 0) {
         const error = new Error("Negocio no encontrado");
@@ -54,7 +54,17 @@ async function vincularCatalogoProductos(pool, negocioId, catalogoId) {
     );
 
     // Paso 2: para lo que sigue sin vincular (y no es manual), buscar
-    // el mejor candidato por similitud de nombre con pg_trgm.
+    // el mejor candidato por similitud de nombre con pg_trgm. El
+    // operador `%` (a diferencia de llamar similarity() directo en el
+    // ORDER BY) SI usa el indice GIN de productos.nombre para acotar
+    // los candidatos antes de ordenar -- sin esto, cada fila del
+    // catalogo compara contra TODO el inventario (lento y hasta
+    // agotaba el tiempo de espera con catalogos de miles de filas,
+    // bug real encontrado al probar con el catalogo de Diprofer del
+    // negocio real). El umbral por defecto de `%` (0.3) es mas laxo
+    // que UMBRAL_COINCIDENCIA_PARCIAL (0.45) a proposito -- deja pasar
+    // algunos candidatos de mas, pero esos se clasifican igual como
+    // sin_vincular abajo, sin riesgo de perder un match real.
     const candidatos = await pool.query(
         `
         SELECT cp.id AS catalogo_producto_id, mejor.producto_id, mejor.similitud
@@ -62,7 +72,7 @@ async function vincularCatalogoProductos(pool, negocioId, catalogoId) {
         JOIN LATERAL (
             SELECT p.id AS producto_id, similarity(p.nombre, cp.nombre_proveedor) AS similitud
             FROM public.productos p
-            WHERE p.negocio_id = $2
+            WHERE p.negocio_id = $2 AND p.nombre % cp.nombre_proveedor
             ORDER BY similitud DESC
             LIMIT 1
         ) mejor ON true
@@ -166,7 +176,7 @@ async function actualizarContadoresCatalogo(pool, negocioId, catalogoId) {
     );
 }
 
-module.exports = (app, pool, requerirAccesoNegocio) => {
+module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
     // Sidebar + header contextual: lista de catalogos del negocio con
     // sus contadores ya calculados (nunca se cuentan en el cliente).
     app.get("/catalogo-proveedor", requerirAccesoNegocio, async (req, res) => {
@@ -381,7 +391,18 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 [req.params.catalogoProductoId, req.params.id, negocio.id]
             );
             if (resultado.rows.length === 0) { res.status(404).json({ ok: false, error: "No encontrado" }); return; }
-            res.json({ ok: true, producto: resultado.rows[0] });
+
+            const producto = resultado.rows[0];
+
+            // Un <img src> no puede mandar el header Authorization --
+            // por eso las fotos de producto en toda la app se sirven
+            // con un token firmado en la URL (mismo patron ya usado
+            // en /productos y /fotos-producto-lista, server.js).
+            if (producto.producto_codigo && typeof firmarTokenImagen === "function") {
+                producto.imagenUrl = `/fotos-producto/${encodeURIComponent(producto.producto_codigo)}/principal?negocio=${negocio.slug}&token=${firmarTokenImagen(negocio.id, producto.producto_codigo)}`;
+            }
+
+            res.json({ ok: true, producto });
         } catch (error) {
             responderError(res, error);
         }

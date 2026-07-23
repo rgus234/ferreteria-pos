@@ -7,7 +7,7 @@ function cargarModuloPOS(nombre, instalar) {
     }
 }
 
-function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, requerirSesionCuenta }) {
+function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, requerirSesionCuenta, firmarTokenImagen }) {
     cargarModuloPOS("fase4 compras/ajustes", () => {
         require("./fase4-server")(app, pool, normalizarCodigo, requerirAccesoNegocio);
     });
@@ -37,7 +37,7 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     });
 
     cargarModuloPOS("catalogo de proveedor", () => {
-        require("./catalog-server")(app, pool, requerirAccesoNegocio);
+        require("./catalog-server")(app, pool, requerirAccesoNegocio, firmarTokenImagen);
     });
 }
 
