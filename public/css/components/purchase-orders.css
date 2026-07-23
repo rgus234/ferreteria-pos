@@ -261,3 +261,118 @@
  .pedido-form-proveedor,
  .pedido-add-row{ grid-template-columns:1fr; }
 }
+
+/* Modal de recepcion de pedido -- comparar contra factura */
+.modal-recepcion-pedido{
+ width:760px;
+ max-width:95%;
+ max-height:88vh;
+ overflow-y:auto;
+ padding:22px;
+ border-radius:16px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ background:var(--pos-surface-strong,#fff);
+ box-shadow:0 18px 44px rgba(15,23,42,.28);
+}
+.modal-recepcion-pedido .modal-header h2{ font-size:18px; }
+
+.recepcion-pedido-archivo{
+ display:flex;
+ align-items:center;
+ gap:10px;
+ min-height:44px;
+ padding:0 14px;
+ margin-bottom:6px;
+ border:1px dashed var(--pos-line,#dbe3ef);
+ border-radius:10px;
+ color:var(--pos-muted,#687386);
+ font-size:13px;
+ font-weight:700;
+ cursor:pointer;
+}
+.recepcion-pedido-archivo svg{ width:16px; height:16px; flex:0 0 auto; }
+.recepcion-pedido-archivo input[type="file"]{ display:none; }
+.recepcion-pedido-archivo-nombre{
+ display:block;
+ margin:0 0 14px 2px;
+ color:var(--pos-muted,#687386);
+ font-size:12px;
+ font-weight:700;
+}
+
+.recepcion-pedido-aviso{
+ display:flex;
+ align-items:center;
+ gap:8px;
+ padding:10px 12px;
+ margin-bottom:14px;
+ border-radius:10px;
+ background:rgba(245,158,11,.14);
+ color:#92400e;
+ font-size:12px;
+ font-weight:700;
+}
+.recepcion-pedido-aviso svg{ width:15px; height:15px; flex:0 0 auto; }
+
+.recepcion-pedido-tabla{ width:100%; border-collapse:collapse; margin-bottom:14px; }
+.recepcion-pedido-tabla th,
+.recepcion-pedido-tabla td{ padding:9px 8px; border-bottom:1px solid var(--pos-line,#dbe3ef); text-align:left; font-size:13px; }
+.recepcion-pedido-tabla th{ color:var(--pos-muted,#687386); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+.recepcion-pedido-tabla td{ color:var(--pos-text,#172033); font-weight:600; }
+.recepcion-pedido-tabla td small{ display:block; margin-top:2px; color:var(--pos-muted,#687386); font-size:11px; font-weight:600; }
+.recepcion-pedido-tabla input{
+ width:90px;
+ min-height:32px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:8px;
+ padding:0 8px;
+ background:var(--pos-surface-strong,#fff);
+ color:var(--pos-text,#172033);
+ font-weight:700;
+}
+
+.recepcion-pedido-badge{
+ display:inline-flex;
+ align-items:center;
+ min-height:22px;
+ border-radius:7px;
+ padding:0 9px;
+ font-size:11px;
+ font-weight:700;
+ white-space:nowrap;
+}
+.recepcion-pedido-badge.sin-recibir{ background:rgba(148,163,184,.16); color:#475569; }
+.recepcion-pedido-badge.parcial{ background:rgba(245,158,11,.14); color:#92400e; }
+.recepcion-pedido-badge.completo{ background:rgba(16,185,129,.14); color:#047857; }
+
+.recepcion-pedido-extras{
+ padding:12px 14px;
+ margin-bottom:14px;
+ border:1px dashed rgba(245,158,11,.45);
+ border-radius:10px;
+ background:rgba(245,158,11,.08);
+}
+.recepcion-pedido-extras strong{
+ display:flex;
+ align-items:center;
+ gap:6px;
+ color:#92400e;
+ font-size:13px;
+ font-weight:800;
+}
+.recepcion-pedido-extras strong svg{ width:15px; height:15px; }
+.recepcion-pedido-extras p{ margin:6px 0; color:var(--pos-muted,#687386); font-size:12px; font-weight:600; }
+.recepcion-pedido-extras ul{ margin:0; padding-left:18px; }
+.recepcion-pedido-extras li{ color:var(--pos-text,#172033); font-size:12px; font-weight:600; }
+
+.modal-recepcion-pedido-acciones{
+ display:flex;
+ justify-content:flex-end;
+ gap:10px;
+ padding-top:10px;
+ border-top:1px solid var(--pos-line,#dbe3ef);
+}
+
+@media (max-width:600px){
+ .recepcion-pedido-tabla{ display:block; overflow-x:auto; }
+}

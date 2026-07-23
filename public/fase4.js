@@ -3,6 +3,7 @@
  window.__fase4PedidosAjustes = true;
 
  const estado = { items: [], pedidos: [], proveedoresCache: [], verTodosPedidos: false };
+ const estadoRecepcionPedido = { pedidoId: null, proveedor: "", items: [], extras: [], totalFactura: null, totalPedido: 0, archivoNombre: "" };
 
  const MOTIVOS_AJUSTE = {
   entrada: ["Compra adicional", "Devolucion de cliente", "Producto no registrado en la compra", "Otro"],
@@ -480,30 +481,218 @@
    const datos = await respuesta.json();
    if (!respuesta.ok) throw new Error(datos.error || "Pedido no encontrado");
 
-   const pendientes = (datos.items || []).map(i => ({
-    pedidoItemId: i.id,
-    productoId: i.producto_id,
-    codigo: i.codigo,
-    nombre: i.nombre,
-    proveedor: i.proveedor,
-    cantidad: Math.max(0, num(i.cantidad) - num(i.recibido)),
-    costo: num(i.costo),
-    unidad: i.unidad
-   })).filter(i => num(i.cantidad) > 0);
+   const items = (datos.items || []).map(i => {
+    const pendiente = Math.max(0, num(i.cantidad) - num(i.recibido));
+    return {
+     pedidoItemId: i.id,
+     productoId: i.producto_id,
+     codigo: i.codigo || "",
+     nombre: i.nombre,
+     proveedor: i.proveedor,
+     cantidadPedida: num(i.cantidad),
+     yaRecibido: num(i.recibido),
+     pendiente,
+     recibidoAhora: pendiente,
+     costo: num(i.costo),
+     unidad: i.unidad
+    };
+   }).filter(i => i.pendiente > 0);
 
-   if (!pendientes.length) return alertaPOS("No hay partidas pendientes.", "Pedido completo", "info");
+   if (!items.length) return alertaPOS("No hay partidas pendientes.", "Pedido completo", "info");
 
-   const ok = await confirmarPOS("Se sumaran al inventario las cantidades pendientes.", "Recibir pedido #" + id);
-   if (!ok) return;
+   estadoRecepcionPedido.pedidoId = id;
+   estadoRecepcionPedido.proveedor = datos.pedido.proveedor || "";
+   estadoRecepcionPedido.items = items;
+   estadoRecepcionPedido.extras = [];
+   estadoRecepcionPedido.totalFactura = null;
+   estadoRecepcionPedido.totalPedido = num(datos.pedido.total_estimado);
+   estadoRecepcionPedido.archivoNombre = "";
 
-   const respuestaRecepcion = await fetch("/pedidos-proveedor/" + id + "/recepciones", {
+   mostrarModalRecepcionPedido();
+  } catch (error) {
+   alertaPOS(error.message, "No se pudo abrir la recepcion", "peligro");
+  }
+ };
+
+ window.cerrarModalRecepcionPedido = () => {
+  document.getElementById("modalRecepcionPedido")?.remove();
+ };
+
+ function codigoRecepcionLimpio(valor) {
+  return typeof facturaParserCodigoLimpio === "function"
+   ? facturaParserCodigoLimpio(valor)
+   : String(valor || "").replace(/[^a-zA-Z0-9]/g, "").trim();
+ }
+
+ function estadoPartidaRecepcion(item) {
+  if (num(item.recibidoAhora) <= 0) return { clase: "sin-recibir", texto: "Sin recibir" };
+  if (num(item.recibidoAhora) >= item.pendiente) return { clase: "completo", texto: "Completo" };
+  return { clase: "parcial", texto: "Parcial" };
+ }
+
+ function mostrarModalRecepcionPedido() {
+  window.cerrarModalRecepcionPedido();
+
+  const overlay = document.createElement("div");
+  overlay.id = "modalRecepcionPedido";
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+   <div class="modal-recepcion-pedido">
+    <div class="modal-header">
+     <h2>Recibir pedido #${esc(estadoRecepcionPedido.pedidoId)} - ${esc(estadoRecepcionPedido.proveedor || "Sin proveedor")}</h2>
+     <button type="button" class="modal-cerrar-x" onclick="cerrarModalRecepcionPedido()">&times;</button>
+    </div>
+    <label class="recepcion-pedido-archivo">
+     ${icono("file")}
+     <span>Subir factura del proveedor (XML CFDI o CSV) para prellenar cantidades -- opcional</span>
+     <input type="file" accept=".xml,.csv,.txt" onchange="procesarArchivoRecepcionPedido(this.files[0])">
+    </label>
+    <span id="recepcionPedidoArchivoNombre" class="recepcion-pedido-archivo-nombre"></span>
+    <div id="recepcionPedidoAviso"></div>
+    <div id="recepcionPedidoTabla"></div>
+    <div id="recepcionPedidoExtras"></div>
+    <div class="modal-recepcion-pedido-acciones">
+     <button type="button" class="btn-pedido-secundario" onclick="cerrarModalRecepcionPedido()">Cancelar</button>
+     <button type="button" class="btn-pedido-primario" onclick="confirmarRecepcionPedidoModal()">${icono("check")} Confirmar recepcion</button>
+    </div>
+   </div>
+  `;
+  document.body.appendChild(overlay);
+  renderModalRecepcionPedido();
+ }
+
+ function renderModalRecepcionPedido() {
+  const tabla = document.getElementById("recepcionPedidoTabla");
+  if (!tabla) return;
+
+  tabla.innerHTML = `
+   <table class="recepcion-pedido-tabla">
+    <thead><tr><th>Producto</th><th>Pedido</th><th>Ya recibido</th><th>Recibido ahora</th><th>Estado</th></tr></thead>
+    <tbody>
+     ${estadoRecepcionPedido.items.map((item, indice) => {
+      const ep = estadoPartidaRecepcion(item);
+      return `<tr>
+       <td><strong>${esc(item.nombre)}</strong><small>${esc(item.codigo || "Sin codigo")}</small></td>
+       <td>${num(item.cantidadPedida)} ${esc(item.unidad || "")}</td>
+       <td>${num(item.yaRecibido)}</td>
+       <td><input type="number" step="0.001" min="0" value="${num(item.recibidoAhora)}" onchange="actualizarRecibidoAhoraPedido(${indice}, this.value)"></td>
+       <td><span class="recepcion-pedido-badge ${ep.clase}">${ep.texto}</span></td>
+      </tr>`;
+     }).join("")}
+    </tbody>
+   </table>
+  `;
+
+  const extras = document.getElementById("recepcionPedidoExtras");
+  if (extras) {
+   extras.innerHTML = estadoRecepcionPedido.extras.length ? `
+    <div class="recepcion-pedido-extras">
+     <strong>${icono("alert")} En la factura pero no en el pedido</strong>
+     <p>Estos productos vinieron en la factura pero no coinciden con ninguna partida de este pedido -- no se aplican automaticamente, revisalos por separado.</p>
+     <ul>${estadoRecepcionPedido.extras.map(e => `<li>${esc(e.descripcion)} -- ${num(e.cantidad)} ${esc(e.unidad || "")}</li>`).join("")}</ul>
+    </div>
+   ` : "";
+  }
+
+  const aviso = document.getElementById("recepcionPedidoAviso");
+  if (aviso) {
+   const diferenciaTotal = estadoRecepcionPedido.totalFactura !== null
+    ? Math.abs(estadoRecepcionPedido.totalFactura - estadoRecepcionPedido.totalPedido)
+    : 0;
+   aviso.innerHTML = estadoRecepcionPedido.totalFactura !== null && diferenciaTotal > Math.max(1, estadoRecepcionPedido.totalPedido * 0.02) ? `
+    <div class="recepcion-pedido-aviso">
+     ${icono("alert")} El total de la factura (${money(estadoRecepcionPedido.totalFactura)}) no coincide con el total del pedido (${money(estadoRecepcionPedido.totalPedido)}).
+    </div>
+   ` : "";
+  }
+ }
+
+ window.actualizarRecibidoAhoraPedido = (indice, valor) => {
+  const item = estadoRecepcionPedido.items[indice];
+  if (!item) return;
+  item.recibidoAhora = Math.max(0, num(valor));
+  renderModalRecepcionPedido();
+ };
+
+ window.procesarArchivoRecepcionPedido = async archivo => {
+  if (!archivo) return;
+  estadoRecepcionPedido.archivoNombre = archivo.name;
+  const nombreEl = document.getElementById("recepcionPedidoArchivoNombre");
+  if (nombreEl) nombreEl.textContent = archivo.name;
+
+  const extension = archivo.name.toLowerCase().split(".").pop();
+  if (!["xml", "csv", "txt"].includes(extension)) {
+   alertaPOS("Usa un archivo XML CFDI o CSV para prellenar cantidades. Puedes seguir capturando a mano.", "Formato no soportado", "info");
+   return;
+  }
+
+  try {
+   const texto = await archivo.text();
+   const resultado = extension === "xml" ? parsearFacturaXmlCfdi(texto) : parsearFacturaCsv(texto);
+
+   if (!resultado.conceptos.length) throw new Error("El archivo no tiene productos reconocibles");
+
+   estadoRecepcionPedido.totalFactura = resultado.documento.total || null;
+
+   const usados = new Set();
+   estadoRecepcionPedido.items.forEach(item => {
+    const codigoItem = codigoRecepcionLimpio(item.codigo);
+    const nombreItem = String(item.nombre || "").toLowerCase().trim();
+
+    const indiceConcepto = resultado.conceptos.findIndex((concepto, indice) => {
+     if (usados.has(indice)) return false;
+     const codigoConcepto = codigoRecepcionLimpio(concepto.codigo);
+     if (codigoItem && codigoConcepto && codigoItem === codigoConcepto) return true;
+     return nombreItem && String(concepto.descripcion || "").toLowerCase().trim() === nombreItem;
+    });
+
+    if (indiceConcepto >= 0) {
+     usados.add(indiceConcepto);
+     item.recibidoAhora = Math.max(0, num(resultado.conceptos[indiceConcepto].cantidad));
+    }
+   });
+
+   estadoRecepcionPedido.extras = resultado.conceptos.filter((_, indice) => !usados.has(indice));
+
+   renderModalRecepcionPedido();
+   alertaPOS("Factura leida. Revisa las cantidades antes de confirmar.", "Archivo analizado", "exito");
+  } catch (error) {
+   console.error(error);
+   alertaPOS("No se pudo leer el archivo. Puedes seguir capturando las cantidades a mano.", "No se pudo leer", "error");
+  }
+ };
+
+ window.confirmarRecepcionPedidoModal = async () => {
+  const items = estadoRecepcionPedido.items
+   .filter(item => num(item.recibidoAhora) > 0)
+   .map(item => ({
+    pedidoItemId: item.pedidoItemId,
+    productoId: item.productoId,
+    codigo: item.codigo,
+    nombre: item.nombre,
+    cantidad: num(item.recibidoAhora),
+    costo: item.costo
+   }));
+
+  if (!items.length) return alertaPOS("Captura al menos una cantidad recibida.", "Nada que confirmar", "info");
+
+  const ok = await confirmarPOS("Se sumaran al inventario las cantidades capturadas.", "Confirmar recepcion de pedido #" + estadoRecepcionPedido.pedidoId);
+  if (!ok) return;
+
+  try {
+   const respuesta = await fetch("/pedidos-proveedor/" + estadoRecepcionPedido.pedidoId + "/recepciones", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ proveedor: datos.pedido.proveedor, referencia: "Pedido #" + id, items: pendientes })
+    body: JSON.stringify({
+     proveedor: estadoRecepcionPedido.proveedor,
+     referencia: "Pedido #" + estadoRecepcionPedido.pedidoId,
+     items
+    })
    });
-   const datosRecepcion = await respuestaRecepcion.json();
-   if (!respuestaRecepcion.ok) throw new Error(datosRecepcion.error || "No se pudo recibir");
+   const datos = await respuesta.json();
+   if (!respuesta.ok) throw new Error(datos.error || "No se pudo recibir");
 
+   window.cerrarModalRecepcionPedido();
    await cargarProductos();
    await cargarPedidosProveedor();
    alertaPOS("Inventario actualizado.", "Recepcion aplicada", "exito");

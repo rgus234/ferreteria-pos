@@ -4692,3 +4692,83 @@ prueba. `node --check` limpio en `catalog-server.js`, `ia-server.js`,
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+## Pedidos a proveedor -- recepcion real contra factura XML CFDI (2026-07-23)
+
+El usuario pregunto que se podria mejorar del modulo "Pedidos"
+("no encuentro mucha eficiencia o tal vez no se como se usa").
+Investigando se encontro que el modulo si existe y funciona completo
+(`public/fase4.js`, cargado dinamicamente desde `public/app.js`, con
+backend real en `fase4-server.js`) -- el unico punto roto era
+`abrirRecepcionPedido()`: mostraba un `confirm()` generico y, al
+aceptar, marcaba automaticamente el 100% de lo pendiente como
+recibido, sin capturar cantidades reales ni comparar contra ninguna
+factura. Se le pregunto al usuario que significaba "subir la factura"
+y aclaro que se referia al XML CFDI (comprobante fiscal digital
+mexicano). Se encontro que el parseo de XML CFDI (y CSV) ya estaba
+construido en la pantalla independiente "Recepcion de mercancia"
+(`ferretero-flow.js`), solo que comparaba contra el inventario
+completo, nunca contra un pedido especifico.
+
+**Cambios**:
+- Nuevo `public/js/factura-parser.js`: se extrajo el parseo de XML
+  CFDI/CSV (antes privado dentro de la IIFE de Recepcion de
+  mercancia) a funciones globales puras (`parsearFacturaXmlCfdi`,
+  `parsearFacturaCsv`) que regresan `{documento, conceptos}` sin tocar
+  DOM ni estado -- reusable por cualquier pantalla.
+- `ferretero-flow.js`: `leerArchivoRecepcionMercancia` ahora llama a
+  las funciones compartidas en vez de su copia privada -- mismo
+  comportamiento, verificado sin regresion.
+- `fase4.js`: `abrirRecepcionPedido()` ahora abre un modal real
+  (`mostrarModalRecepcionPedido`) con una tabla editable
+  (Pedido/Ya recibido/Recibido ahora/Estado), un campo opcional para
+  subir el XML CFDI o CSV de la factura (que prellena "Recibido
+  ahora" emparejando conceptos contra las partidas del pedido por
+  codigo o nombre), una lista de "En la factura pero no en el pedido"
+  para items sin match (informativo, nunca crea/edita productos
+  automaticamente), y un aviso si el total de la factura no cuadra
+  con el total estimado del pedido. Al confirmar, sigue llamando la
+  misma ruta `POST /pedidos-proveedor/:id/recepciones` de siempre,
+  ahora con las cantidades reales capturadas en vez del pendiente
+  completo -- sin cambios de backend.
+- CSS nuevo en `purchase-orders.css` para el modal, reusando los
+  mismos tokens (`--pos-line`, `--pos-surface-strong`, etc.) del resto
+  del archivo.
+
+**Bugs encontrados y corregidos durante la verificacion** (no
+reportados por el usuario, se encontraron probando con un negocio
+sintetico):
+- El helper compartido `esc()`/`limpiarTextoUI` convierte `0` en
+  cadena vacia (`texto || ''` es falsy para el numero 0) -- la columna
+  "Ya recibido" se veia en blanco en vez de "0" para pedidos nuevos.
+  Se corrigio mostrando los valores numericos sin pasarlos por `esc()`
+  (los numeros no necesitan escape HTML).
+- El parseo de XML CFDI concatenaba dos consultas
+  (`getElementsByTagNameNS("*","Concepto")` y
+  `getElementsByTagName("cfdi:Concepto")`) que encuentran los MISMOS
+  nodos en cualquier XML con namespace bien declarado -- cada concepto
+  de la factura se duplicaba. Este bug ya existia en el codigo
+  original de Recepcion de mercancia (se copio tal cual al extraerlo);
+  se corrigio en `factura-parser.js` usando la consulta por namespace
+  como principal y el fallback solo si esa no encuentra nada -- arregla
+  ambas pantallas a la vez.
+
+Verificado contra el negocio sintetico 17408 (creado/limpiado, sin
+tocar `negocio_id = 1`): se creo un pedido real con una partida (10
+piezas), se recibio manualmente una cantidad parcial (6 -- confirmado
+que el stock solo subio 6, no las 10 pendientes, y el pedido quedo en
+estado `parcial`); se volvio a abrir "Recibir" y confirmo que ahora
+solo mostraba el pendiente real (4); se subio un XML CFDI de prueba
+con 2 conceptos (uno coincidiendo por codigo con la partida del
+pedido, otro sin relacion) y se confirmo que prellenaba la cantidad
+detectada, mostraba el item sin relacion solo como aviso (sin tocar
+inventario), y que el aviso de total no coincidente se mostraba
+correctamente. Se completo la recepcion y el pedido quedo en estado
+`recibido` con el stock exactamente en +10 sobre el original. Se
+confirmo por separado que "Recepcion de mercancia" (independiente de
+pedidos) sigue funcionando igual tras la extraccion del parser, sin
+duplicar conceptos. `node --check` limpio en los 4 archivos JS
+tocados. Sin errores de consola nuevos.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.

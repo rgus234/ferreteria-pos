@@ -135,7 +135,7 @@ let estadoLicenciaNexoPOS = {
 
 
 
-(()=>{if(!window.__fase4Loader){window.__fase4Loader=true;const s=document.createElement("script");s.src="fase4.js?v=pedidos-redesign-20260705-01";document.body.appendChild(s);}})();
+(()=>{if(!window.__fase4Loader){window.__fase4Loader=true;const s=document.createElement("script");s.src="fase4.js?v=pedidos-recepcion-xml-20260723-02";document.body.appendChild(s);}})();
 (()=>{if(!window.__fase5Loader){window.__fase5Loader=true;const s=document.createElement("script");s.src="fase5.js?v=finanzas-redesign-20260704-01";document.body.appendChild(s);}})();
 (()=>{if(!window.__fixNavDynamicLoader){window.__fixNavDynamicLoader=true;const s=document.createElement("script");s.src="fix-navegacion.js?v=nav-fix-20260704-01";document.body.appendChild(s);}})();
 (()=>{if(!window.__fase6Loader){window.__fase6Loader=true;const s=document.createElement("script");s.src="fase6.js?v=caja-redesign-20260704-01";document.body.appendChild(s);}})();

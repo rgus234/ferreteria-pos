@@ -692,107 +692,7 @@
    if (fecha && datos.fecha !== undefined) fecha.value = datos.fecha || "";
   }
 
-  function conceptosDesdeXml(texto) {
-   const doc = new DOMParser().parseFromString(texto, "text/xml");
-   const error = doc.querySelector("parsererror");
-   if (error) throw new Error("XML invalido");
-
-   const comprobante = doc.getElementsByTagNameNS("*", "Comprobante")[0] || doc.getElementsByTagName("cfdi:Comprobante")[0] || doc.documentElement;
-   const emisor = doc.getElementsByTagNameNS("*", "Emisor")[0] || doc.getElementsByTagName("cfdi:Emisor")[0];
-   const proveedor = emisor?.getAttribute("Nombre") || emisor?.getAttribute("Rfc") || "";
-   if (proveedor && !estadoRecepcion.proveedor) {
-    estadoRecepcion.proveedor = proveedor;
-   const input = document.getElementById("recepcionProveedor");
-    if (input) input.value = proveedor;
-   }
-
-   const impuestos = doc.getElementsByTagNameNS("*", "Impuestos")[0] || doc.getElementsByTagName("cfdi:Impuestos")[0];
-   const fechaXml = comprobante?.getAttribute("Fecha") || "";
-   aplicarDocumentoRecepcion({
-    tipo: "Factura",
-    folio: comprobante?.getAttribute("Folio") || comprobante?.getAttribute("Serie") || estadoRecepcion.documento.folio || "",
-    fecha: fechaXml ? fechaXml.slice(0, 10) : estadoRecepcion.documento.fecha,
-    subtotal: numero(comprobante?.getAttribute("SubTotal") || 0),
-    iva: numero(impuestos?.getAttribute("TotalImpuestosTrasladados") || 0),
-    total: numero(comprobante?.getAttribute("Total") || 0)
-   });
-
-  const nodos = [
-   ...doc.getElementsByTagNameNS("*", "Concepto"),
-   ...doc.getElementsByTagName("cfdi:Concepto")
-  ];
-
-  return nodos.map(nodo => ({
-   codigo: codigoLimpio(nodo.getAttribute("NoIdentificacion") || nodo.getAttribute("ClaveProdServ") || ""),
-   descripcion: nodo.getAttribute("Descripcion") || "Producto sin descripcion",
-   cantidad: numero(nodo.getAttribute("Cantidad") || 1),
-   costo: numero(nodo.getAttribute("ValorUnitario") || 0),
-   importe: numero(nodo.getAttribute("Importe") || 0),
-   unidad: nodo.getAttribute("Unidad") || nodo.getAttribute("ClaveUnidad") || "pieza"
-  })).filter(item => item.descripcion || item.codigo);
- }
-
- function separarCsvLinea(linea) {
-  const partes = [];
-  let actual = "";
-  let comillas = false;
-  for (const char of linea) {
-   if (char === '"') { comillas = !comillas; continue; }
-   if ((char === "," || char === ";") && !comillas) {
-    partes.push(actual.trim());
-    actual = "";
-   } else {
-    actual += char;
-   }
-  }
-  partes.push(actual.trim());
-  return partes;
- }
-
- function indicePorEncabezado(headers, patrones) {
-  return headers.findIndex(h => patrones.some(p => p.test(h)));
- }
-
-  function conceptosDesdeCsv(texto) {
-  const lineas = texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  if (!lineas.length) return [];
-  const headersRaw = separarCsvLinea(lineas[0]);
-  const headers = headersRaw.map(h => h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-  const idxCodigo = indicePorEncabezado(headers, [/codigo/, /clave/, /sku/, /no.?ident/]);
-  const idxDesc = indicePorEncabezado(headers, [/descripcion/, /producto/, /nombre/, /concepto/]);
-  const idxCant = indicePorEncabezado(headers, [/cantidad/, /cant/, /existencia/]);
-  const idxCosto = indicePorEncabezado(headers, [/valor.?unit/, /costo/, /precio/, /unitario/]);
-   const idxImporte = indicePorEncabezado(headers, [/importe/, /total/]);
-   const idxUnidad = indicePorEncabezado(headers, [/unidad/, /medida/]);
-   const idxFolio = indicePorEncabezado(headers, [/folio/, /factura/, /documento/]);
-   const idxFecha = indicePorEncabezado(headers, [/fecha/]);
-   const idxProveedor = indicePorEncabezado(headers, [/proveedor/, /emisor/]);
-
-   const primera = separarCsvLinea(lineas[1] || "");
-   if (idxProveedor >= 0 && primera[idxProveedor] && !estadoRecepcion.proveedor) {
-    estadoRecepcion.proveedor = primera[idxProveedor];
-    const input = document.getElementById("recepcionProveedor");
-    if (input) input.value = primera[idxProveedor];
-   }
-   aplicarDocumentoRecepcion({
-    folio: idxFolio >= 0 ? primera[idxFolio] || estadoRecepcion.documento.folio : estadoRecepcion.documento.folio,
-    fecha: idxFecha >= 0 ? primera[idxFecha] || estadoRecepcion.documento.fecha : estadoRecepcion.documento.fecha
-   });
-
-  return lineas.slice(1).map(linea => {
-   const cols = separarCsvLinea(linea);
-   return {
-    codigo: codigoLimpio(cols[idxCodigo] || ""),
-    descripcion: cols[idxDesc] || cols[1] || "Producto sin descripcion",
-    cantidad: numero(cols[idxCant] || 1),
-    costo: numero(cols[idxCosto] || 0),
-    importe: numero(cols[idxImporte] || 0),
-    unidad: cols[idxUnidad] || "pieza"
-   };
-  }).filter(item => item.descripcion || item.codigo);
- }
-
- window.leerArchivoRecepcionMercancia = async function(archivo) {
+  window.leerArchivoRecepcionMercancia = async function(archivo) {
   if (!archivo) return;
   estadoRecepcion.archivo = archivo;
   const nombre = document.getElementById("recepcionArchivoNombre");
@@ -815,7 +715,16 @@
 
   const texto = await archivo.text();
   try {
-   estadoRecepcion.conceptos = extension === "xml" ? conceptosDesdeXml(texto) : conceptosDesdeCsv(texto);
+   const resultado = extension === "xml" ? parsearFacturaXmlCfdi(texto) : parsearFacturaCsv(texto);
+
+   if (resultado.documento.proveedor && !estadoRecepcion.proveedor) {
+    estadoRecepcion.proveedor = resultado.documento.proveedor;
+    const input = document.getElementById("recepcionProveedor");
+    if (input) input.value = resultado.documento.proveedor;
+   }
+   aplicarDocumentoRecepcion(resultado.documento);
+
+   estadoRecepcion.conceptos = resultado.conceptos;
    if (!estadoRecepcion.conceptos.length) throw new Error("Sin conceptos");
    renderRecepcionMercancia();
    alertaPOS("Archivo analizado", "Revisa la vista previa antes de confirmar inventario.", "success");
