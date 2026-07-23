@@ -506,4 +506,67 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
             responderError(res, error);
         }
     });
+
+    // Plantillas de mapeo de columnas por proveedor -- antes vivian
+    // solo en localStorage (por navegador, no por negocio). El
+    // cliente ya normaliza el nombre del proveedor con la misma
+    // funcion que usa para todo lo demas (normalizarEncabezadoCatalogo)
+    // y la manda explicita; el servidor solo guarda/compara ese valor.
+    app.get("/catalogo-proveedor/plantillas", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const resultado = await pool.query(
+                `SELECT proveedor, proveedor_normalizado, parser, mapeo, updated_at FROM public.plantillas_catalogo WHERE negocio_id = $1 ORDER BY proveedor ASC`,
+                [negocio.id]
+            );
+            res.json({ ok: true, plantillas: resultado.rows });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.post("/catalogo-proveedor/plantillas", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const proveedor = String(req.body?.proveedor || "").trim();
+            const proveedorNormalizado = String(req.body?.proveedorNormalizado || "").trim();
+            const parser = String(req.body?.parser || "generico").trim();
+            const mapeo = req.body?.mapeo && typeof req.body.mapeo === "object" ? req.body.mapeo : {};
+
+            if (!proveedor || !proveedorNormalizado) {
+                res.status(400).json({ ok: false, error: "Falta el nombre del proveedor" });
+                return;
+            }
+
+            await pool.query(
+                `
+                INSERT INTO public.plantillas_catalogo (negocio_id, proveedor, proveedor_normalizado, parser, mapeo)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (negocio_id, proveedor_normalizado) DO UPDATE SET
+                    proveedor = EXCLUDED.proveedor,
+                    parser = EXCLUDED.parser,
+                    mapeo = EXCLUDED.mapeo,
+                    updated_at = NOW()
+                `,
+                [negocio.id, proveedor, proveedorNormalizado, parser, JSON.stringify(mapeo)]
+            );
+
+            res.json({ ok: true });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.delete("/catalogo-proveedor/plantillas/:proveedorNormalizado", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            await pool.query(
+                `DELETE FROM public.plantillas_catalogo WHERE negocio_id = $1 AND proveedor_normalizado = $2`,
+                [negocio.id, req.params.proveedorNormalizado]
+            );
+            res.json({ ok: true });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
 };

@@ -4570,3 +4570,70 @@ lectura salvo que el usuario confirme lo contrario.
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+## Catalogo de proveedor -- plantillas por proveedor: limpieza + IA de mapeo (2026-07-23)
+
+Tras el rediseno del modulo (fase anterior), el usuario senalo que el
+sistema de "plantillas" por proveedor se sentia como "mucho
+revolcadero" y pidio limpiarlo y dejarlo lo mejor posible. Investigacion
+previa (agente Explore) confirmo que los "5 parsers" de
+`catalog-parsers.js` son en realidad un solo motor generico
+(`extraerProductoGenericoCatalogo`) con un unico override real (el
+fallback de marca de Truper) -- la complejidad de verdad estaba en dos
+lugares: las plantillas vivian solo en `localStorage` (por dispositivo,
+no por negocio, no en el servidor) y el asistente de mapeo nunca se
+saltaba, aunque ya existiera una plantilla identica guardada -- se
+reconfirmaba a mano en cada subida.
+
+**Plantillas al servidor**: nueva tabla `plantillas_catalogo`
+(`negocio_id, proveedor, proveedor_normalizado, parser, mapeo JSONB`,
+`UNIQUE(negocio_id, proveedor_normalizado)`) y 3 rutas nuevas en
+`catalog-server.js` (`GET/POST/DELETE /catalogo-proveedor/plantillas`).
+`supplier-catalog.js` dejo de leer/escribir `localStorage` directo:
+`guardarPlantillaCatalogo`/`buscarPlantillaPorProveedor`/
+`todasPlantillasCatalogo` ahora son async y llaman al servidor (server
+gana sobre los 2 defaults incorporados -- Truper/Gafi -- que se quedan
+como fallback si el negocio no tiene nada guardado). Si el navegador
+tenia plantillas viejas en `localStorage`, se suben una sola vez en
+silencio (`migrarPlantillasLocalesAlServidorSiHaceFalta`, guardado por
+flag) sin borrar el original -- red de seguridad.
+
+**Saltar el modal cuando ya hay plantilla**: `abrirAsistenteCatalogo`
+ahora busca la plantilla del proveedor antes de abrir el modal completo
+-- si existe, muestra un banner corto ("Usar plantilla" / "Ajustar
+mapeo") y arma el resultado directo via `mapeoDetectadoCatalogo()`
+(helper ya existente), sin abrir el modal salvo que el usuario pida
+ajustarlo.
+
+**IA sugiere el mapeo para formatos nuevos**: nueva ruta
+`POST /ia/sugerir-mapeo-catalogo` en `ia-server.js`, mismo patron de
+costo que el resto de Nexo IA (`claude-haiku-4-5`, cache en memoria,
+gateado por `licenciaDelNegocio().iaDisponible` -- Basico responde
+`{ok:true, disponible:false}` sin llamar al modelo). El modelo solo ve
+encabezados + hasta 5 filas de muestra, nunca el catalogo completo, y
+su respuesta se filtra: solo se acepta un campo si el valor sugerido es
+literalmente uno de los headers que mando el cliente (nunca se confia
+en que el modelo no invente un encabezado). Cuando no hay plantilla
+guardada y el plan tiene IA, el modal de mapeo se abre prellenado con
+la sugerencia en vez de vacio -- el humano sigue revisando y
+confirmando, la IA nunca guarda nada por su cuenta.
+
+**Limpieza de codigo**: `catalog-parsers.js` gano un comentario extenso
+explicando que es 1 motor + overrides opcionales, no 5 parsers
+distintos, para que quien lo toque despues no reescriba logica que ya
+funciona.
+
+Verificado end-to-end contra el negocio sintetico 17408 (plan Pro):
+plantilla se guarda y persiste consultando el servidor directo (sin
+depender de localStorage); `/ia/sugerir-mapeo-catalogo` con headers
+estilo Truper regreso un mapeo completo y correcto (los 9 campos
+mapeados a su encabezado exacto); forzando el mismo negocio a plan
+Basico, la misma ruta respondio `{ok:true, disponible:false}` sin
+tocar el modelo (confirmado, luego se restauro el plan a Pro). Datos de
+prueba (plantilla "ProveedorTest") limpiados al terminar. `negocio_id
+= 1` (Ferreteria Olimpico) confirmado sin cambios durante toda la
+prueba. `node --check` limpio en `catalog-server.js`, `ia-server.js`,
+`public/js/supplier-catalog.js`, `public/js/catalog-parsers.js`.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.

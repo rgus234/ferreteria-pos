@@ -44,6 +44,37 @@ function catalogosGuardados() {
  }
 }
 
+async function sugerirMapeoCatalogoConIA(csv) {
+ try {
+  const encabezados = encabezadosCatalogo(csv).map(col => col.nombre);
+  if (encabezados.length === 0) return null;
+
+  const lineas = dividirLineasCatalogo(csv).map(l => l.trim()).filter(Boolean);
+  const mapa = detectarColumnasCatalogo(lineas);
+  const indiceEncabezado = mapa.indice >= 0 ? mapa.indice : 0;
+  const filasMuestra = lineas
+   .filter((linea, indice) => indice !== indiceEncabezado)
+   .slice(0, 5)
+   .map(linea => separarFilaCatalogo(linea));
+
+  const respuesta = await fetch("/ia/sugerir-mapeo-catalogo", {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ headers: encabezados, filasMuestra })
+  });
+  const datos = await respuesta.json();
+
+  if (!respuesta.ok || !datos.ok || !datos.disponible || !datos.mapeo || Object.keys(datos.mapeo).length === 0) {
+   return null;
+  }
+
+  return { mapeo: datos.mapeo };
+ } catch (error) {
+  console.warn("No se pudo obtener sugerencia de mapeo de la IA", error);
+  return null;
+ }
+}
+
 function plantillasCatalogoBase() {
  return [
  {
@@ -51,6 +82,7 @@ function plantillasCatalogoBase() {
  alcance: "global",
  giro: "Ferreteria",
  proveedor: "Truper",
+ parser: "truper",
  nombre: "Truper CSV oficial",
  mapeo: {
  codigoInterno: "codigo",
@@ -70,6 +102,7 @@ function plantillasCatalogoBase() {
  alcance: "global",
  giro: "Ferreteria",
  proveedor: "Gafi",
+ parser: "gafi",
  nombre: "Gafi CSV oficial",
  mapeo: {
  codigoInterno: "Corto",
@@ -86,7 +119,13 @@ function plantillasCatalogoBase() {
  ];
 }
 
-function plantillasCatalogoUsuario() {
+// Plantillas de mapeo por proveedor -- movidas de localStorage (por
+// navegador, no por negocio, se perdian al limpiar datos o cambiar de
+// equipo) al servidor (/catalogo-proveedor/plantillas), consistente
+// con que los catalogos mismos ya viven ahi. plantillasCatalogoBase()
+// (los 2 defaults incorporados, Truper/Gafi) se queda igual, sigue
+// siendo codigo puro sin llamada de red.
+function plantillasCatalogoUsuarioLocal() {
  try {
  return JSON.parse(
  localStorage.getItem("plantillasCatalogo") || "[]"
@@ -96,39 +135,83 @@ function plantillasCatalogoUsuario() {
  }
 }
 
-function todasPlantillasCatalogo() {
- return [
- ...plantillasCatalogoBase(),
- ...plantillasCatalogoUsuario()
- ];
+// Sube una sola vez lo que ya estaba guardado en este navegador, para
+// no perder configuraciones ya hechas -- no borra el localStorage
+// (red de seguridad barata), solo marca que ya se migro.
+async function migrarPlantillasLocalesAlServidorSiHaceFalta() {
+ if (localStorage.getItem("plantillasCatalogoMigradas") === "1") return;
+
+ const locales = plantillasCatalogoUsuarioLocal();
+ localStorage.setItem("plantillasCatalogoMigradas", "1");
+ if (locales.length === 0) return;
+
+ for (const plantilla of locales) {
+  try {
+   await fetch("/catalogo-proveedor/plantillas", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+     proveedor: plantilla.proveedor,
+     proveedorNormalizado: normalizarEncabezadoCatalogo(plantilla.proveedor),
+     parser: plantilla.parser || "generico",
+     mapeo: plantilla.mapeo || {}
+    })
+   });
+  } catch (error) {
+   console.warn("No se pudo migrar una plantilla local al servidor", plantilla.proveedor, error);
+  }
+ }
 }
 
-function guardarPlantillaCatalogo(plantilla) {
- const actuales =
- plantillasCatalogoUsuario();
+async function plantillasCatalogoUsuario() {
+ await migrarPlantillasLocalesAlServidorSiHaceFalta();
 
- const id =
- plantilla.id ||
- `plantilla-${Date.now()}`;
+ try {
+  const respuesta = await fetch("/catalogo-proveedor/plantillas");
+  const datos = await respuesta.json();
+  if (!respuesta.ok || !datos.ok) return [];
+  return datos.plantillas.map(p => ({
+   id: `servidor-${p.proveedor_normalizado}`,
+   proveedor: p.proveedor,
+   parser: p.parser,
+   mapeo: p.mapeo,
+   alcance: "privada"
+  }));
+ } catch (error) {
+  console.warn("No se pudieron cargar las plantillas del servidor", error);
+  return [];
+ }
+}
 
- const nueva = {
- ...plantilla,
- id,
- alcance: "privada",
- fecha: new Date().toISOString()
- };
+async function todasPlantillasCatalogo() {
+ const delServidor = await plantillasCatalogoUsuario();
+ // Un default incorporado (Truper/Gafi) solo se usa si el negocio no
+ // tiene ya su propia plantilla guardada para ese proveedor -- lo
+ // guardado por el usuario siempre gana.
+ const normalizadosDelServidor = new Set(delServidor.map(p => normalizarEncabezadoCatalogo(p.proveedor)));
+ const defaults = plantillasCatalogoBase().filter(p => !normalizadosDelServidor.has(normalizarEncabezadoCatalogo(p.proveedor)));
+ return [...defaults, ...delServidor];
+}
 
- const actualizadas = [
- nueva,
- ...actuales.filter(item => item.id !== id)
- ];
+async function guardarPlantillaCatalogo(plantilla) {
+ const proveedorNormalizado = normalizarEncabezadoCatalogo(plantilla.proveedor);
 
- localStorage.setItem(
- "plantillasCatalogo",
- JSON.stringify(actualizadas)
- );
+ try {
+  await fetch("/catalogo-proveedor/plantillas", {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({
+    proveedor: plantilla.proveedor,
+    proveedorNormalizado,
+    parser: plantilla.parser || "generico",
+    mapeo: plantilla.mapeo || {}
+   })
+  });
+ } catch (error) {
+  console.warn("No se pudo guardar la plantilla en el servidor", error);
+ }
 
- return nueva;
+ return { ...plantilla, id: `servidor-${proveedorNormalizado}`, alcance: "privada" };
 }
 
 function normalizarNombreColumnaCatalogo(nombre) {
@@ -154,11 +237,13 @@ function encabezadosCatalogo(csv) {
  }));
 }
 
-function buscarPlantillaPorProveedor(proveedor) {
+async function buscarPlantillaPorProveedor(proveedor) {
  const texto =
  normalizarEncabezadoCatalogo(proveedor);
 
- return todasPlantillasCatalogo().find(plantilla =>
+ const todas = await todasPlantillasCatalogo();
+
+ return todas.find(plantilla =>
  normalizarEncabezadoCatalogo(plantilla.proveedor) === texto
  ) || null;
 }
@@ -340,15 +425,54 @@ async function abrirAsistenteCatalogo(archivo, csv) {
  }
 
  const plantilla =
- buscarPlantillaPorProveedor(proveedor);
+ await buscarPlantillaPorProveedor(proveedor);
 
- const resultado =
+ // Si ya hay una plantilla guardada para este proveedor, no se abre
+ // el modal completo de mapeo -- eso es lo que el usuario reporto
+ // como "revolcadero" (reconfirmar a mano, cada subida, algo que ya
+ // se configuro antes). Se ofrece un banner corto en su lugar; "Ajustar
+ // mapeo" sigue cayendo al modal completo, prellenado, igual que hoy.
+ let resultado = null;
+
+ if (plantilla) {
+ const usarPlantilla =
+ await dialogoPOS({
+ titulo: "Plantilla encontrada",
+ mensaje: `Ya tienes una plantilla guardada para "${proveedor}". ¿La usamos para este catalogo?`,
+ tipo: "info",
+ mostrarCancelar: true,
+ textoAceptar: "Usar plantilla",
+ textoCancelar: "Ajustar mapeo"
+ });
+
+ if (usarPlantilla) {
+ resultado = {
+ proveedor,
+ plantillaId: plantilla.id,
+ mapeo: mapeoDetectadoCatalogo(csv, plantilla)
+ };
+ }
+ }
+
+ if (!resultado) {
+ // Sin plantilla guardada -- formato nuevo/no reconocido. En vez de
+ // que el usuario parta de un mapeo vacio o mal detectado, se le
+ // pide a la IA (Haiku, barata, cacheada por encabezados) una
+ // sugerencia -- el modal se abre PRELLENADO con eso, el usuario
+ // sigue revisando y confirmando exactamente igual que hoy. En
+ // planes sin IA (o si la llamada falla) simplemente cae al
+ // comportamiento de siempre, sin bloquear el flujo.
+ const plantillaSugeridaPorIA =
+ !plantilla ? await sugerirMapeoCatalogoConIA(csv) : null;
+
+ resultado =
  await abrirMapeoCatalogo({
  proveedor,
  archivo: archivo.name,
  csv,
- plantilla
+ plantilla: plantilla || plantillaSugeridaPorIA
  });
+ }
 
  if (!resultado) return null;
 
@@ -486,7 +610,7 @@ async function abrirMapeoCatalogo({ proveedor, archivo, csv, plantilla }) {
  .addEventListener("click", () => cerrar(null));
 
  html.querySelector("#confirmarMapeoCatalogo")
- .addEventListener("click", () => {
+ .addEventListener("click", async () => {
  const mapeoFinal =
  leerMapeo();
 
@@ -503,13 +627,9 @@ async function abrirMapeoCatalogo({ proveedor, archivo, csv, plantilla }) {
  });
 
  plantillaGuardada =
- guardarPlantillaCatalogo({
- id: plantilla?.alcance === "privada"
- ? plantilla.id
- : `privada-${normalizarEncabezadoCatalogo(proveedor)}-${Date.now()}`,
+ await guardarPlantillaCatalogo({
  proveedor,
- nombre: `${proveedor} - plantilla`,
- giro: "General",
+ parser: plantilla?.parser || "generico",
  mapeo: nombresMapeo
  });
  }

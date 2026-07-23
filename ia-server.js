@@ -285,6 +285,26 @@ const SYSTEM_PROMPT_BUSQUEDA = `Ayudas a encontrar productos de ferreteria a par
 
 Responde UNICAMENTE con un JSON array de 2 a 5 palabras o frases cortas de busqueda en espanol (ej. ["codo pvc", "conexion tubo", "media pulgada"]). Nunca inventes nombres de productos especificos, marcas ni precios que el cliente no menciono -- solo sugiere terminos de busqueda razonables. No agregues texto fuera del JSON.`;
 
+// Cache aparte para las sugerencias de mapeo de catalogo -- mismo
+// formato de archivo (mismos encabezados) da la misma sugerencia, sin
+// volver a llamar al modelo.
+const CACHE_MAPEO_CATALOGO = new Map();
+
+function limpiarCacheMapeoExpirado() {
+    const ahora = Date.now();
+    for (const [clave, entrada] of CACHE_MAPEO_CATALOGO) {
+        if (entrada.expiraEn <= ahora) CACHE_MAPEO_CATALOGO.delete(clave);
+    }
+}
+
+const CAMPOS_MAPEO_CATALOGO = ["codigoBarras", "codigoInterno", "claveProveedor", "nombre", "unidadVenta", "costo", "medioMayoreo", "publico", "marca", "categoria"];
+
+const SYSTEM_PROMPT_MAPEO_CATALOGO = `Ayudas a mapear las columnas de un catalogo de productos de ferreteria (CSV de un proveedor) a los campos que el sistema necesita.
+
+Los campos posibles son exactamente: ${CAMPOS_MAPEO_CATALOGO.join(", ")}.
+
+Se te dan los encabezados reales del archivo y unas filas de muestra. Responde UNICAMENTE con un JSON (objeto plano, sin texto extra) donde cada llave es uno de los campos de la lista y el valor es el encabezado EXACTO (copiado tal cual, sin modificar) que corresponde a ese campo. Si un campo no tiene una columna que le corresponda claramente, omite esa llave -- nunca inventes un encabezado que no este en la lista dada, nunca adivines si no hay evidencia razonable.`;
+
 // Limites de Nexo IA Nivel 3 (el unico nivel con costo real) por
 // plan. Basico usa limite 0 -- eso es lo que significa "sin acceso a
 // Nexo IA" (ni Nivel 1/2 tampoco, ver iaDisponible). demo se trata
@@ -770,6 +790,89 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             CACHE_BUSQUEDA_IA.set(clave, { keywords, expiraEn: Date.now() + CACHE_BUSQUEDA_TTL_MS });
 
             res.json({ ok: true, disponible: true, keywords });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Sugerencia de mapeo de columnas para catalogos de proveedor
+    // nuevos (sin plantilla guardada) -- mismo patron de costo que
+    // /ia/buscar-inteligente: Haiku, cache, gateado por acceso.iaDisponible.
+    // Nunca guarda nada por su cuenta -- el frontend solo prellena el
+    // modal de mapeo existente, el usuario sigue revisando y
+    // confirmando antes de que se use.
+    app.post("/ia/sugerir-mapeo-catalogo", requerirAccesoNegocio, async (req, res) => {
+        const anthropic = obtenerAnthropic();
+
+        if (!anthropic) {
+            res.status(503).json({ ok: false, error: "Nexo IA todavia no esta configurado en este servidor" });
+            return;
+        }
+
+        const headers = Array.isArray(req.body?.headers) ? req.body.headers.map(h => String(h)).slice(0, 60) : [];
+        const filasMuestra = Array.isArray(req.body?.filasMuestra) ? req.body.filasMuestra.slice(0, 5) : [];
+
+        if (headers.length === 0) {
+            res.status(400).json({ ok: false, error: "Faltan los encabezados del catalogo" });
+            return;
+        }
+
+        try {
+            const negocio = await negocioActual(req, pool);
+            const acceso = await licenciaDelNegocio(pool, negocio.id);
+
+            if (!acceso.iaDisponible) {
+                res.json({ ok: true, disponible: false });
+                return;
+            }
+
+            const clave = claveCache(negocio.id, headers.join("|"));
+            const enCache = CACHE_MAPEO_CATALOGO.get(clave);
+
+            if (enCache && enCache.expiraEn > Date.now()) {
+                res.json({ ok: true, disponible: true, mapeo: enCache.mapeo });
+                return;
+            }
+
+            const mensajeUsuario = `Encabezados: ${JSON.stringify(headers)}\n\nFilas de muestra:\n${filasMuestra.map(fila => JSON.stringify(fila)).join("\n")}`;
+
+            const respuesta = await anthropic.messages.create({
+                model: "claude-haiku-4-5",
+                max_tokens: 300,
+                system: SYSTEM_PROMPT_MAPEO_CATALOGO,
+                messages: [{ role: "user", content: mensajeUsuario }]
+            });
+
+            const texto = respuesta.content
+                .filter(bloque => bloque.type === "text")
+                .map(bloque => bloque.text)
+                .join("")
+                .trim();
+
+            const coincidenciaObjeto = texto.match(/\{[\s\S]*\}/);
+            let mapeoSugerido = {};
+            try {
+                mapeoSugerido = JSON.parse(coincidenciaObjeto ? coincidenciaObjeto[0] : texto);
+            } catch (error) {
+                mapeoSugerido = {};
+            }
+
+            // Nunca se confia ciegamente en el JSON del modelo -- solo
+            // se aceptan campos conocidos cuyo valor sea un encabezado
+            // que de verdad existe en el archivo (el modelo no puede
+            // inventar una columna que no se le dio).
+            const mapeo = {};
+            for (const campo of CAMPOS_MAPEO_CATALOGO) {
+                const encabezado = mapeoSugerido?.[campo];
+                if (typeof encabezado === "string" && headers.includes(encabezado)) {
+                    mapeo[campo] = encabezado;
+                }
+            }
+
+            limpiarCacheMapeoExpirado();
+            CACHE_MAPEO_CATALOGO.set(clave, { mapeo, expiraEn: Date.now() + CACHE_BUSQUEDA_TTL_MS });
+
+            res.json({ ok: true, disponible: true, mapeo });
         } catch (error) {
             responderError(res, error);
         }

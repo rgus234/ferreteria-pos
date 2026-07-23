@@ -3,7 +3,19 @@
    devolver el mismo objeto de producto que antes armaba productoDesdeCatalogo()
    inline. catalogo.parser identifica cual usar; si no existe (catalogos ya
    guardados antes de esta arquitectura) se usa "generico", que reproduce
-   exactamente el comportamiento de siempre. */
+   exactamente el comportamiento de siempre.
+
+   IMPORTANTE para quien toque este archivo despues: en la practica esto es
+   UN SOLO motor de extraccion (extraerProductoGenericoCatalogo) mas overrides
+   opcionales de post-proceso por proveedor -- hoy solo Truper tiene uno real
+   (un fallback de una linea para la marca). Diprofer/Gafi/Volteck son wrappers
+   identicos al generico, con id/label propios solo para que el selector de
+   proveedor (catalog-provider-picker.js) y las plantillas de mapeo de
+   columnas (plantillas_catalogo en el servidor, ver catalog-server.js) puedan
+   identificarlos. La complejidad real de "cada proveedor es diferente" vive
+   en esas plantillas (que columna del CSV es cual campo), NO aqui -- antes de
+   agregar un parser nuevo con logica propia, confirma que el problema no se
+   resuelve con una plantilla nueva/ajustada en su lugar. */
 
 function extraerProductoGenericoCatalogo(ctx) {
  const {
