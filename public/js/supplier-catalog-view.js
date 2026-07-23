@@ -529,14 +529,14 @@ function asegurarPantallaCatalogo() {
  <div class="catalogo-header">
  <div>
  <h2>Catalogo proveedor</h2>
- <p>Actualiza listas de precios y conecta codigos de barras con inventario.</p>
+ <p id="catalogoHeaderContextual">Gestiona, vincula y mantiene los catalogos de tus proveedores.</p>
  </div>
  <div class="catalogo-actions">
+ <button type="button" class="btn-catalogo-actualizar" onclick="reVincularCatalogoActual()">
+ Actualizar vinculacion
+ </button>
  <button type="button" class="btn-catalogo-subir" onclick="abrirCargaCatalogo('nuevo')">
  Subir catalogo nuevo
- </button>
- <button type="button" class="btn-catalogo-actualizar" onclick="abrirCargaCatalogo('actualizar')">
- Actualizar catalogo
  </button>
  <input type="file" id="archivoCatalogoVista" multiple accept=".xlsx,.csv" hidden>
  </div>
@@ -552,30 +552,58 @@ function asegurarPantallaCatalogo() {
  <strong id="catalogosProductos">0</strong>
  </div>
  <div>
+ <span>Vinculados</span>
+ <strong id="catalogosVinculados">0</strong>
+ </div>
+ <div>
+ <span>Con conflicto</span>
+ <strong id="catalogosConflicto">0</strong>
+ </div>
+ <div>
+ <span>Fotografias</span>
+ <strong id="catalogosFotos">0</strong>
+ </div>
+ <div>
  <span>Ultima actualizacion</span>
  <strong id="catalogosUltima">Sin datos</strong>
  </div>
  </div>
 
- <div class="catalogo-grid">
- <div class="catalogo-panel">
+ <p id="catalogoInsight" class="catalogo-insight" style="display:none;"></p>
+
+ <div class="catalogo-grid3">
+ <div class="catalogo-panel catalogo-panel-sidebar">
  <div class="catalogo-panel-head">
- <h3>Catalogos por proveedor</h3>
+ <h3>Proveedores</h3>
  <button onclick="limpiarCatalogosProveedor()">Limpiar</button>
  </div>
  <div id="listaCatalogosProveedor"></div>
  </div>
 
- <div class="catalogo-panel">
- <h3>Lectura del catalogo</h3>
-
- <div class="catalogo-buscador">
- <input type="text" id="buscarProductoCatalogoInput" placeholder="Buscar producto en el catalogo por nombre..." oninput="buscarYRenderizarProductosCatalogo(this.value)">
+ <div class="catalogo-panel catalogo-panel-productos">
+ <div class="catalogo-filtros" id="catalogoFiltros">
+ <button type="button" class="activo" data-estado="" onclick="cambiarFiltroCatalogo('')">Todos</button>
+ <button type="button" data-estado="vinculado" onclick="cambiarFiltroCatalogo('vinculado')">Vinculados</button>
+ <button type="button" data-estado="sin_vincular" onclick="cambiarFiltroCatalogo('sin_vincular')">Sin vincular</button>
+ <button type="button" data-estado="coincidencia_parcial" onclick="cambiarFiltroCatalogo('coincidencia_parcial')">Coincidencia parcial</button>
+ <button type="button" data-estado="conflicto" onclick="cambiarFiltroCatalogo('conflicto')">Con conflicto</button>
  </div>
- <div id="resultadosBusquedaCatalogo"></div>
+ <div class="catalogo-buscador">
+ <input type="text" id="buscarProductoCatalogoInput" placeholder="Buscar por codigo o nombre del producto..." oninput="buscarProductosCatalogoServidor(this.value)">
+ </div>
+ <div id="catalogoListaProductos" class="catalogo-lista-productos">
+ <div class="catalogo-diagnostico-vacio">
+ <strong>Sin catalogo seleccionado</strong>
+ <span>Sube un catalogo o selecciona un proveedor de la izquierda.</span>
+ </div>
+ </div>
+ <div id="catalogoPaginacion" class="catalogo-paginacion"></div>
+ </div>
 
- <div id="vistaCatalogoProveedor" class="vista-catalogo">
- Sube un catalogo para revisar columnas, precios detectados y productos de muestra.
+ <div class="catalogo-panel catalogo-panel-previa" id="catalogoPanelPrevia">
+ <div class="catalogo-diagnostico-vacio">
+ <strong>Vista previa</strong>
+ <span>Selecciona un producto para ver su informacion.</span>
  </div>
  </div>
  </div>
@@ -841,82 +869,408 @@ function abrirCargaCatalogo(modo = "nuevo") {
  input.click();
 }
 
+// Se conserva el nombre (procesarArchivosCatalogo la llama tal cual)
+// pero ahora delega al sidebar real -- el conteo de "vinculados" solo
+// existe en el servidor (catalog-server.js), asi que las tarjetas KPI
+// y la lista de proveedores se llenan desde ahi, no de localStorage.
 function renderCatalogosProveedor() {
- const catalogos =
- catalogosGuardados();
+ cargarCatalogosServidor();
+}
 
- const totalProductos =
- catalogos.reduce(
- (total, item) =>
- total + Number(item.productos || 0),
- 0
- );
+/* ---------- Rediseno: motor de vinculacion real (Fase CAT4/CAT5) ---------- */
 
- const ultimaFecha =
- catalogos
- .map(item => item.fecha)
- .filter(Boolean)
- .sort()
- .at(-1);
+let catalogoActivoId = null;
+let catalogoActivoProveedor = "";
+let filtroEstadoCatalogo = "";
+let busquedaCatalogoServidor = "";
+let paginaCatalogoActual = 1;
+let productoCatalogoSeleccionadoId = null;
+let temporizadorBusquedaCatalogo = null;
 
- const totalEl =
- document.getElementById("catalogosTotal");
+const ETIQUETA_ESTADO_CATALOGO = {
+ vinculado: "Vinculado",
+ coincidencia_parcial: "Coincidencia parcial",
+ sin_vincular: "Sin vincular",
+ conflicto: "Con conflicto"
+};
 
- const productosEl =
- document.getElementById("catalogosProductos");
+function badgeEstadoCatalogoHTML(estado) {
+ const etiqueta = ETIQUETA_ESTADO_CATALOGO[estado] || "Sin vincular";
+ return `<span class="catalogo-badge catalogo-badge-${estado || "sin_vincular"}">${etiqueta}</span>`;
+}
 
- const ultimaEl =
- document.getElementById("catalogosUltima");
+// Parsea el CSV completo de un catalogo usando el mismo parser por
+// proveedor que ya usa la busqueda por codigo de barras
+// (catalog-parsers.js) -- no se reinventa la extraccion de columnas,
+// solo se corre para TODAS las filas en vez de una sola.
+function productosCompletosDesdeCatalogo(catalogo) {
+ const lineas = String(catalogo.csv || "").split("\n").map(l => l.trim()).filter(Boolean);
+ if (lineas.length === 0) return [];
 
- if (totalEl) totalEl.textContent = catalogos.length;
- if (productosEl) productosEl.textContent = totalProductos;
- if (ultimaEl) {
- ultimaEl.textContent =
- ultimaFecha
- ? new Date(ultimaFecha).toLocaleDateString("es-MX")
- : "Sin datos";
+ const mapaColumnas = detectarColumnasCatalogo(lineas);
+ const columnas = mapaColumnas.columnas || {};
+ const mapeoCatalogo = catalogo.mapeo || {};
+ const parser = typeof parserCatalogoProveedor === "function"
+  ? parserCatalogoProveedor(catalogo)
+  : { extraerProducto: extraerProductoGenericoCatalogo };
+
+ const indiceCodigoProducto = columnas.codigo ?? 0;
+
+ return lineas
+  .filter((linea, indice) => indice !== mapaColumnas.indice)
+  .map(linea => {
+   const datos = separarFilaCatalogo(linea);
+   const codigoNormalizado = normalizarCodigo(
+    valorColumnaCatalogo(datos, columnas, "codigo") ||
+    valorMapeoCatalogo(datos, mapeoCatalogo, "codigoBarras") ||
+    valorMapeoCatalogo(datos, mapeoCatalogo, "codigoInterno") ||
+    datos[indiceCodigoProducto]
+   );
+   const codigosAlternos = String(valorMapeoCatalogo(datos, mapeoCatalogo, "codigosAlternos") || "")
+    .split("|").map(normalizarCodigo).filter(Boolean);
+
+   try {
+    return parser.extraerProducto({
+     datos, columnas, mapeoCatalogo, indiceCodigoProducto,
+     codigoNormalizado, codigosAlternos, catalogoProveedor: catalogo
+    });
+   } catch (error) {
+    return null;
+   }
+  })
+  .filter(producto => producto && producto.codigo && producto.nombre);
+}
+
+async function subirCatalogoAlServidor(catalogo) {
+ const productos = productosCompletosDesdeCatalogo(catalogo);
+ if (productos.length === 0) return;
+
+ try {
+  const respuesta = await fetch(`/catalogo-proveedor/${encodeURIComponent(catalogo.proveedor)}/subir`, {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ productos })
+  });
+  const datos = await respuesta.json();
+  if (!respuesta.ok || !datos.ok) {
+   console.error("No se pudo subir el catalogo al servidor", datos);
+   return;
+  }
+  mostrarInsightCatalogo(datos.insight);
+  cargarCatalogosServidor();
+ } catch (error) {
+  console.error("No se pudo subir el catalogo al servidor", error);
  }
+}
 
- const lista =
- document.getElementById("listaCatalogosProveedor");
+function mostrarInsightCatalogo(insight) {
+ const el = document.getElementById("catalogoInsight");
+ if (!el || !insight) return;
+ const partes = [];
+ if (insight.coincidenciasAutomaticas) partes.push(`${insight.coincidenciasAutomaticas} coincidencias automaticas`);
+ if (insight.cambiosPrecio) partes.push(`${insight.cambiosPrecio} cambios de precio`);
+ if (insight.nuevos) partes.push(`${insight.nuevos} productos nuevos`);
+ if (partes.length === 0) { el.style.display = "none"; return; }
+ el.textContent = `Nexo encontro ${partes.join(", ")}.`;
+ el.style.display = "block";
+}
 
+async function cargarCatalogosServidor() {
+ try {
+  const respuesta = await fetch("/catalogo-proveedor");
+  const datos = await respuesta.json();
+  if (!respuesta.ok || !datos.ok) return;
+  renderResumenCatalogos(datos.catalogos);
+  renderSidebarCatalogos(datos.catalogos);
+ } catch (error) {
+  console.error("No se pudieron cargar los catalogos", error);
+ }
+}
+
+async function renderResumenCatalogos(catalogos) {
+ const totalProductos = catalogos.reduce((t, c) => t + Number(c.total_productos || 0), 0);
+ const vinculados = catalogos.reduce((t, c) => t + Number(c.productos_vinculados || 0), 0);
+ const conflictos = catalogos.reduce((t, c) => t + Number(c.productos_conflicto || 0), 0);
+ const ultima = catalogos.map(c => c.updated_at).filter(Boolean).sort().at(-1);
+
+ document.getElementById("catalogosTotal").textContent = catalogos.length;
+ document.getElementById("catalogosProductos").textContent = totalProductos;
+ document.getElementById("catalogosVinculados").textContent = vinculados;
+ document.getElementById("catalogosConflicto").textContent = conflictos;
+ document.getElementById("catalogosUltima").textContent = ultima ? tiempoRelativoPOS(ultima) : "Sin datos";
+
+ try {
+  const respuestaFotos = await fetch("/fotos-producto-resumen");
+  const datosFotos = await respuestaFotos.json();
+  if (respuestaFotos.ok && datosFotos.ok) {
+   document.getElementById("catalogosFotos").textContent = datosFotos.total || 0;
+  }
+ } catch (error) { /* la tarjeta se queda en 0, no es critico */ }
+}
+
+function renderSidebarCatalogos(catalogos) {
+ const lista = document.getElementById("listaCatalogosProveedor");
  if (!lista) return;
 
  if (catalogos.length === 0) {
- lista.innerHTML = `
- <div class="catalogo-vacio">
- Todavia no hay catalogos cargados.
- </div>
- `;
- renderVistaCatalogo(null);
- return;
+  lista.innerHTML = `<div class="catalogo-vacio">Todavia no hay catalogos cargados.</div>`;
+  return;
  }
 
- lista.innerHTML =
- catalogos.map((catalogo, index) => `
- <div class="catalogo-item">
- <div>
- <strong>${catalogo.proveedor}</strong>
- <span>${catalogo.archivo}</span>
- <small>${catalogo.plantillaId ? "Plantilla aplicada" : "Sin plantilla guardada"}</small>
- </div>
- <div class="catalogo-item-meta">
- <b>${catalogo.productos || 0}</b>
- <span>productos</span>
- </div>
- <button onclick="renderVistaCatalogo(${index})">
- Ver
- </button>
- <button onclick="mostrarAplicarPrecios(${index})">
- Precios
- </button>
- <button onclick="eliminarCatalogoProveedor(${index})">
- Baja
- </button>
- </div>
+ lista.innerHTML = catalogos.map(catalogo => `
+  <div class="catalogo-proveedor-item${catalogo.id === catalogoActivoId ? " activo" : ""}" onclick="seleccionarCatalogoProveedor(${catalogo.id}, '${escaparAtributoCatalogo(catalogo.proveedor)}')">
+   <span class="catalogo-proveedor-punto ${Number(catalogo.productos_conflicto) > 0 ? "ambar" : "verde"}"></span>
+   <div class="catalogo-proveedor-info">
+    <strong>${catalogo.proveedor}</strong>
+    <span>${catalogo.total_productos} productos · ${tiempoRelativoPOS(catalogo.updated_at)}</span>
+   </div>
+   <button type="button" class="catalogo-proveedor-baja" onclick="event.stopPropagation(); bajaCatalogoServidor(${catalogo.id})" title="Dar de baja">×</button>
+  </div>
  `).join("");
 
- renderVistaCatalogo(0);
+ if (!catalogoActivoId && catalogos.length > 0) {
+  seleccionarCatalogoProveedor(catalogos[0].id, catalogos[0].proveedor);
+ }
+}
+
+function escaparAtributoCatalogo(texto) {
+ return String(texto || "").replace(/'/g, "\\'");
+}
+
+function seleccionarCatalogoProveedor(id, proveedor) {
+ catalogoActivoId = id;
+ catalogoActivoProveedor = proveedor;
+ filtroEstadoCatalogo = "";
+ paginaCatalogoActual = 1;
+ productoCatalogoSeleccionadoId = null;
+
+ document.querySelectorAll(".catalogo-proveedor-item").forEach(el => el.classList.remove("activo"));
+ document.querySelectorAll(`#catalogoFiltros button`).forEach(b => b.classList.toggle("activo", b.dataset.estado === ""));
+
+ const header = document.getElementById("catalogoHeaderContextual");
+ if (header) header.textContent = `${proveedor} · cargando...`;
+
+ cargarCatalogosServidor().then(() => {
+  const item = [...document.querySelectorAll(".catalogo-proveedor-item")].find(el => el.querySelector("strong")?.textContent === proveedor);
+  item?.classList.add("activo");
+ });
+
+ cargarProductosCatalogoServidor();
+
+ fetch("/catalogo-proveedor").then(r => r.json()).then(datos => {
+  const catalogo = datos.catalogos?.find(c => c.id === id);
+  if (catalogo && header) {
+   header.textContent = `${catalogo.proveedor} · ${catalogo.total_productos} productos · ${catalogo.productos_vinculados} vinculados · ${catalogo.productos_conflicto} con conflicto · Actualizado ${tiempoRelativoPOS(catalogo.updated_at)}`;
+  }
+ }).catch(() => {});
+}
+
+function cambiarFiltroCatalogo(estado) {
+ filtroEstadoCatalogo = estado;
+ paginaCatalogoActual = 1;
+ document.querySelectorAll("#catalogoFiltros button").forEach(b => b.classList.toggle("activo", b.dataset.estado === estado));
+ cargarProductosCatalogoServidor();
+}
+
+function buscarProductosCatalogoServidor(texto) {
+ busquedaCatalogoServidor = texto;
+ paginaCatalogoActual = 1;
+ clearTimeout(temporizadorBusquedaCatalogo);
+ temporizadorBusquedaCatalogo = setTimeout(() => cargarProductosCatalogoServidor(), 250);
+}
+
+async function cargarProductosCatalogoServidor() {
+ const contenedor = document.getElementById("catalogoListaProductos");
+ if (!contenedor || !catalogoActivoId) return;
+
+ const parametros = new URLSearchParams({ pagina: String(paginaCatalogoActual) });
+ if (filtroEstadoCatalogo) parametros.set("estado", filtroEstadoCatalogo);
+ if (busquedaCatalogoServidor) parametros.set("buscar", busquedaCatalogoServidor);
+
+ try {
+  const respuesta = await fetch(`/catalogo-proveedor/${catalogoActivoId}/productos?${parametros}`);
+  const datos = await respuesta.json();
+  if (!respuesta.ok || !datos.ok) return;
+  renderListaProductosCatalogo(datos);
+ } catch (error) {
+  console.error("No se pudieron cargar los productos del catalogo", error);
+ }
+}
+
+function renderListaProductosCatalogo(datos) {
+ const contenedor = document.getElementById("catalogoListaProductos");
+ if (!contenedor) return;
+
+ if (datos.productos.length === 0) {
+  contenedor.innerHTML = `<div class="catalogo-diagnostico-vacio"><strong>Sin resultados</strong><span>Prueba con otro filtro o busqueda.</span></div>`;
+  document.getElementById("catalogoPaginacion").innerHTML = "";
+  return;
+ }
+
+ contenedor.innerHTML = datos.productos.map(p => `
+  <div class="catalogo-fila-producto${p.id === productoCatalogoSeleccionadoId ? " activo" : ""}" onclick="seleccionarProductoCatalogo(${p.id})">
+   <div class="catalogo-fila-codigo">${p.codigo_proveedor}</div>
+   <div class="catalogo-fila-nombre">
+    <strong>${p.nombre_proveedor}</strong>
+    <span>${p.producto_nombre ? "→ " + p.producto_nombre : "Sin vincular en Nexo POS"}</span>
+   </div>
+   ${badgeEstadoCatalogoHTML(p.estado)}
+  </div>
+ `).join("");
+
+ const totalPaginas = Math.max(1, Math.ceil(datos.total / datos.porPagina));
+ const paginacion = document.getElementById("catalogoPaginacion");
+ if (paginacion) {
+  paginacion.innerHTML = totalPaginas > 1
+   ? `<button ${paginaCatalogoActual <= 1 ? "disabled" : ""} onclick="irPaginaCatalogo(${paginaCatalogoActual - 1})">Anterior</button>
+      <span>Pagina ${paginaCatalogoActual} de ${totalPaginas}</span>
+      <button ${paginaCatalogoActual >= totalPaginas ? "disabled" : ""} onclick="irPaginaCatalogo(${paginaCatalogoActual + 1})">Siguiente</button>`
+   : "";
+ }
+}
+
+function irPaginaCatalogo(pagina) {
+ paginaCatalogoActual = pagina;
+ cargarProductosCatalogoServidor();
+}
+
+async function bajaCatalogoServidor(id) {
+ const confirmar = await dialogoPOS({ titulo: "Dar de baja catalogo", mensaje: "Se eliminaran todos sus productos y vinculaciones. Esta accion no se puede deshacer.", mostrarCancelar: true, textoAceptar: "Dar de baja" });
+ if (!confirmar) return;
+ await fetch(`/catalogo-proveedor/${id}`, { method: "DELETE" });
+ if (catalogoActivoId === id) { catalogoActivoId = null; }
+ cargarCatalogosServidor();
+}
+
+async function reVincularCatalogoActual() {
+ if (!catalogoActivoId) { alertaPOS("Selecciona un proveedor primero.", "Catalogo proveedor", "info"); return; }
+ await fetch(`/catalogo-proveedor/${catalogoActivoId}/re-vincular`, { method: "POST" });
+ cargarCatalogosServidor();
+ cargarProductosCatalogoServidor();
+ if (productoCatalogoSeleccionadoId) seleccionarProductoCatalogo(productoCatalogoSeleccionadoId);
+}
+
+/* ---------- Panel de vista previa (columna derecha) ---------- */
+
+async function seleccionarProductoCatalogo(catalogoProductoId) {
+ productoCatalogoSeleccionadoId = catalogoProductoId;
+ document.querySelectorAll(".catalogo-fila-producto").forEach(el => el.classList.remove("activo"));
+
+ const panel = document.getElementById("catalogoPanelPrevia");
+ if (panel) panel.innerHTML = `<div class="catalogo-diagnostico-vacio"><strong>Cargando...</strong></div>`;
+
+ try {
+  const respuesta = await fetch(`/catalogo-proveedor/${catalogoActivoId}/productos/${catalogoProductoId}`);
+  const datos = await respuesta.json();
+  if (!respuesta.ok || !datos.ok) return;
+  renderPanelPreviaCatalogo(datos.producto);
+  cargarProductosCatalogoServidor();
+ } catch (error) {
+  console.error("No se pudo cargar el producto del catalogo", error);
+ }
+}
+
+function formatoMonedaCatalogo(valor) {
+ return valor === null || valor === undefined ? "No disponible" : `$${Number(valor).toFixed(2)}`;
+}
+
+function renderPanelPreviaCatalogo(p) {
+ const panel = document.getElementById("catalogoPanelPrevia");
+ if (!panel) return;
+
+ // Existencia e imagen del proveedor: ningun catalogo los manda hoy
+ // -- se muestran como estado vacio explicito, nunca inventados
+ // (decision tomada con el usuario).
+ const fotoHTML = p.producto_codigo
+  ? `<img class="catalogo-previa-foto" src="/fotos-producto/${encodeURIComponent(p.producto_codigo)}/principal" alt="${p.nombre_proveedor}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'catalogo-previa-foto-vacia',textContent:'Sin foto'}))">`
+  : `<div class="catalogo-previa-foto-vacia">Sin foto</div>`;
+
+ const coincidenciaHTML = p.producto_id
+  ? `
+   <div class="catalogo-previa-match">
+    <span class="catalogo-previa-match-ok">Producto encontrado</span>
+    <span>${p.porcentaje_coincidencia ?? 100}% de coincidencia</span>
+   </div>
+   <dl class="catalogo-previa-datos">
+    <dt>Producto en Nexo</dt><dd>${p.producto_nombre}</dd>
+    <dt>Precio actual</dt><dd>${formatoMonedaCatalogo(p.producto_precio)}</dd>
+    <dt>Existencia</dt><dd>${p.producto_stock ?? 0} pzas</dd>
+   </dl>
+   <button type="button" class="btn-catalogo-subir" onclick="verProductoDesdeCatalogo(${p.producto_id})">Ver producto en Nexo POS</button>
+  `
+  : `
+   <div class="catalogo-previa-match catalogo-previa-match-pendiente">Sin vincular todavia</div>
+   <button type="button" class="btn-catalogo-subir" onclick="abrirVinculacionManualCatalogo(${p.id})">Vincular con un producto existente</button>
+   <button type="button" class="btn-catalogo-actualizar" onclick="crearProductoDesdeCatalogoActual(${p.id})">Crear producto nuevo</button>
+  `;
+
+ panel.innerHTML = `
+  ${fotoHTML}
+  <h4 class="catalogo-previa-titulo">Informacion del proveedor</h4>
+  <dl class="catalogo-previa-datos">
+   <dt>Codigo proveedor</dt><dd>${p.codigo_proveedor}</dd>
+   <dt>Producto</dt><dd>${p.nombre_proveedor}</dd>
+   <dt>Marca</dt><dd>${p.marca || "No disponible"}</dd>
+   <dt>Precio publico</dt><dd>${formatoMonedaCatalogo(p.precio_publico)}</dd>
+   <dt>Existencia del proveedor</dt><dd>No disponible</dd>
+  </dl>
+  <h4 class="catalogo-previa-titulo">Coincidencia en Nexo POS</h4>
+  ${coincidenciaHTML}
+ `;
+}
+
+function verProductoDesdeCatalogo(productoId) {
+ if (typeof verDetalleProducto === "function") verDetalleProducto(productoId);
+}
+
+async function abrirVinculacionManualCatalogo(catalogoProductoId) {
+ const codigo = await dialogoPOS({
+  titulo: "Vincular manualmente",
+  mensaje: "Escribe el codigo del producto de Nexo POS con el que quieres vincular esta fila del catalogo.",
+  entrada: true,
+  mostrarCancelar: true,
+  textoAceptar: "Buscar"
+ });
+ if (!codigo) return;
+
+ try {
+  const respuesta = await fetch(`/productos?codigo=${encodeURIComponent(codigo)}`);
+  const datos = await respuesta.json();
+  const producto = Array.isArray(datos) ? datos.find(x => x.codigo === codigo) : null;
+  if (!producto) { alertaPOS("No se encontro ningun producto con ese codigo.", "Catalogo proveedor", "alerta"); return; }
+
+  await fetch(`/catalogo-proveedor/${catalogoActivoId}/productos/${catalogoProductoId}/vincular`, {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ productoId: producto.id })
+  });
+
+  seleccionarProductoCatalogo(catalogoProductoId);
+  cargarCatalogosServidor();
+ } catch (error) {
+  alertaPOS("No se pudo vincular el producto.", "Catalogo proveedor", "alerta");
+ }
+}
+
+async function crearProductoDesdeCatalogoActual(catalogoProductoId) {
+ const confirmar = await dialogoPOS({
+  titulo: "Crear producto nuevo",
+  mensaje: "Se creara un producto en tu inventario con los datos de esta fila del catalogo (sin existencia -- la agregas despues).",
+  mostrarCancelar: true,
+  textoAceptar: "Crear"
+ });
+ if (!confirmar) return;
+
+ try {
+  const respuesta = await fetch(`/catalogo-proveedor/${catalogoActivoId}/productos/${catalogoProductoId}/crear-producto`, { method: "POST" });
+  const datos = await respuesta.json();
+  if (!respuesta.ok || !datos.ok) { alertaPOS(datos.error || "No se pudo crear el producto.", "Catalogo proveedor", "alerta"); return; }
+
+  seleccionarProductoCatalogo(catalogoProductoId);
+  cargarCatalogosServidor();
+ } catch (error) {
+  alertaPOS("No se pudo crear el producto.", "Catalogo proveedor", "alerta");
+ }
 }
 
 function productosDesdeCsvCatalogo(csv, limite = 12, mapeoCatalogo = {}) {

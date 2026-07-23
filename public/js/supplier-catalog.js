@@ -685,6 +685,16 @@ function procesarArchivosCatalogo(archivos) {
  "ultimoProveedorCatalogo",
  nuevosCatalogos[0]?.proveedor || ""
  );
+
+ // Ademas de guardarse local (para el asistente/diagnostico ya
+ // existente), cada catalogo nuevo se sube al servidor para que el
+ // motor de vinculacion real (catalog-server.js) lo procese.
+ nuevosCatalogos.forEach(catalogo => {
+  if (typeof subirCatalogoAlServidor === "function") {
+   subirCatalogoAlServidor(catalogo);
+  }
+ });
+
  renderCatalogosProveedor();
 
  alertaPOS(

@@ -35,6 +35,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("cotizaciones app del dueno", () => {
         require("./cotizaciones-server")(app, pool, requerirSesionCuenta);
     });
+
+    cargarModuloPOS("catalogo de proveedor", () => {
+        require("./catalog-server")(app, pool, requerirAccesoNegocio);
+    });
 }
 
 module.exports = {

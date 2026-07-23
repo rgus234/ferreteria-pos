@@ -4389,3 +4389,80 @@ nuevos. `negocio_id = 1` sin cambios.
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+## Catalogo de proveedor -- rediseno + motor de vinculacion real (2026-07-22)
+
+El usuario pidio un rediseno completo del modulo "Catalogo de
+proveedor" con un brief de diseno detallado (referencia visual estilo
+Notion/Linear/Stripe Dashboard/Airtable) y una captura que asumia un
+sistema de "vinculacion" (vinculado/sin vincular/conflicto/coincidencia
+parcial) ya funcionando. Se investigo primero con 3 agentes Explore en
+paralelo y se confirmo que **ese sistema no existia en ningun lado**
+-- los catalogos vivian 100% en `localStorage` del navegador, sin
+tabla en base de datos ni algoritmo de coincidencia. Se resolvieron 2
+decisiones con el usuario via `AskUserQuestion`: construir el motor de
+vinculacion real de una vez (no diferirlo), y mostrar estados vacios
+explicitos ("Existencia: no disponible", "Sin foto") para los campos
+que ningun proveedor manda hoy, en vez de omitirlos o inventarlos.
+
+- **Backend nuevo** (`catalog-server.js`, migracion
+  `20260722b_catalogo_proveedor.sql`): tablas `catalogos_proveedor` y
+  `catalogo_productos` (estado con CHECK
+  vinculado/coincidencia_parcial/sin_vincular/conflicto,
+  `precio_publico_anterior` para detectar cambios de precio). Motor de
+  vinculacion en `vincularCatalogoProductos()`: match exacto por
+  codigo, luego similitud de nombre con `pg_trgm` (umbrales 0.70/0.45),
+  y deteccion de conflicto cuando una vinculacion **manual** pierde su
+  producto (por FK `ON DELETE SET NULL` o por referencia colgante) --
+  nunca se sobreescribe una vinculacion manual en automatico. Rutas:
+  subir/listar/detalle/vincular/crear-producto/re-vincular/baja, todas
+  bajo `requerirAccesoNegocio`, registradas en `server-modules.js`.
+- **Frontend** (`supplier-catalog-view.js`, reescrito por dentro; la
+  funcion de entrada `asegurarPantallaCatalogo()` se mantiene):
+  layout de 3 columnas (proveedores / productos con filtros y
+  paginado real contra el servidor / vista previa), header contextual
+  por proveedor, dashboard de 6 tarjetas, badges tipo pill por estado,
+  insight de texto fijo ("Nexo encontro N coincidencias...") sin
+  ninguna llamada a IA. El parseo de CSV completo reusa el mismo
+  parser por proveedor que ya usaba la busqueda por codigo de barras
+  (`catalog-parsers.js`, `productosCompletosDesdeCatalogo()`), no se
+  reescribe la extraccion de columnas. `supplier-catalog.js` sube cada
+  catalogo nuevo al servidor justo despues de guardarlo local (que se
+  conserva, para el asistente de mapeo de columnas ya existente).
+- **CSS** (`supplier-catalog.css`): las piezas nuevas usan los tokens
+  `--nexo-*` ya existentes en el resto de la app (con fallback en
+  hex identico al patron ya usado en `dashboard.css` para las
+  variables que no tienen aun `-soft`/`-strong` definidos) -- dark
+  mode gratis, sin overrides nuevos.
+
+**Bug encontrado y corregido durante la verificacion real**: la
+deteccion de "conflicto" originalmente solo buscaba una fila con
+`producto_id` apuntando a un producto ya borrado -- pero la FK
+`ON DELETE SET NULL` ya pone ese campo en `NULL` en el momento del
+borrado, asi que la condicion nunca se cumplia (la fila se quedaba
+como "vinculado" con `producto_id: null`, un estado inconsistente).
+Se corrigio agregando el caso `producto_id IS NULL AND estado =
+'vinculado'` a la deteccion.
+
+**Verificado con curl directo contra el negocio sintetico 17408**
+(sin usar el navegador compartido, que seguia con sesion real de
+Ferreteria Olimpico abierta): subida de catalogo con 3 casos (codigo
+exacto -> vinculado 100%, nombre parecido -> coincidencia_parcial
+68%, sin relacion -> sin_vincular); "Crear producto" desde una fila
+sin vincular crea el producto real y lo vincula; re-subida detecta
+cambio de precio (`cambiosPrecio` en el insight) y **no** sobreescribe
+una vinculacion manual; borrar el producto vinculado + re-vincular
+marca `conflicto` correctamente (tras el fix); filtro por estado y
+paginacion funcionan; baja de catalogo borra en cascada. `node --check`
+limpio en todos los archivos. `negocio_id = 1` confirmado sin catalogos
+(cero filas en `catalogos_proveedor`).
+
+**Aviso pendiente para el usuario, antes de publicar**: los catalogos
+que Ferreteria Olimpico ya tiene guardados en su navegador
+(`localStorage`) no se migran automaticamente al servidor -- no hay
+forma de leer el localStorage de un navegador especifico desde aqui.
+Una vez desplegado, hay que volver a subirlos para que el motor de
+vinculacion los procese.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.
