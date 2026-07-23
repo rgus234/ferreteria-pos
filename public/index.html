@@ -34,8 +34,8 @@
   <link rel="stylesheet" href="css/components/operational-tables.css?v=refactor-operational-tables-20260701-01">
   <link rel="stylesheet" href="css/components/pos-operational-polish.css?v=refactor-pos-polish-20260701-01">
   <link rel="stylesheet" href="css/components/dashboard-alerts.css?v=inicio-redesign-20260706-01">
-  <link rel="stylesheet" href="css/components/pos-cart.css?v=liquid-glass-v3-20260721-01">
-  <link rel="stylesheet" href="css/components/pos-sale-redesign.css?v=liquid-glass-v3-20260721-01">
+  <link rel="stylesheet" href="css/components/pos-cart.css?v=carrito-flat-minimal-20260723-01">
+  <link rel="stylesheet" href="css/components/pos-sale-redesign.css?v=carrito-flat-minimal-20260723-01">
   <link rel="stylesheet" href="css/components/pos-quick-item-modal.css?v=botones-fix-20260721-01">
   <link rel="stylesheet" href="css/components/pos-busqueda-ia.css?v=borde-siri-fix2-20260721-01">
   <link rel="stylesheet" href="css/components/pos-product-form.css?v=liquid-glass-inv-20260719-01">
@@ -776,9 +776,15 @@
  <aside class="lado pos-reference-side">
  <div class="caja pos-carrito-card">
  <button type="button" class="cliente-pos cliente-pos-selector" onclick="abrirSelectorClientePOS()">
+ <span class="cliente-pos-icono">
+ <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.5-7 8-7s8 3 8 7"/></svg>
+ </span>
+ <span class="cliente-pos-datos">
  <span>Cliente</span>
  <strong id="clienteVentaNombre">Publico general</strong>
  <small id="clienteVentaResumen">Venta de mostrador</small>
+ </span>
+ <span class="cliente-pos-cambiar">Cambiar</span>
  </button>
 
  <div id="resumenCobro"></div>

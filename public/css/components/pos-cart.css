@@ -1,16 +1,16 @@
 /* Punto de venta: layout tactil, carrito y tarjetas de producto */
 .pos-referencia {
   --pos-sale-bg: var(--nexo-bg, #f6f8fb);
-  --pos-sale-card: var(--nexo-surface-strong, rgba(255, 255, 255, .86));
-  --pos-sale-soft: var(--nexo-surface-soft, rgba(248, 250, 252, .78));
-  --pos-sale-line: var(--nexo-line, rgba(15, 23, 42, .10));
+  --pos-sale-card: #ffffff;
+  --pos-sale-soft: #f5f7fa;
+  --pos-sale-line: rgba(15, 23, 42, .08);
   --pos-sale-text: var(--nexo-text, #101828);
   --pos-sale-muted: var(--nexo-text-muted, #667085);
   --pos-sale-brand: var(--brand-color, #0d6efd);
   --pos-sale-green: #16a34a;
   --pos-sale-danger: #dc2626;
   --pos-sale-radius: 18px;
-  --pos-sale-shadow: var(--nexo-shadow-card, 0 16px 38px rgba(15, 23, 42, .08));
+  --pos-sale-shadow: 0 1px 2px rgba(15, 23, 42, .04);
   color: var(--pos-sale-text);
   min-width: 0;
   overflow-x: hidden;
@@ -19,12 +19,12 @@
 
 body.oscuro .pos-referencia {
   --pos-sale-bg: #07111f;
-  --pos-sale-card: rgba(15, 23, 42, .82);
-  --pos-sale-soft: rgba(30, 41, 59, .62);
-  --pos-sale-line: rgba(226, 232, 240, .16);
+  --pos-sale-card: #101c31;
+  --pos-sale-soft: #16233b;
+  --pos-sale-line: rgba(226, 232, 240, .14);
   --pos-sale-text: #f8fafc;
   --pos-sale-muted: #cbd5e1;
-  --pos-sale-shadow: 0 18px 42px rgba(0, 0, 0, .28);
+  --pos-sale-shadow: 0 1px 2px rgba(0, 0, 0, .2);
 }
 
 .pos-reference-toolbar {
@@ -142,9 +142,9 @@ body.oscuro .pos-referencia {
 }
 
 .pos-category-strip button.active {
-  background: linear-gradient(180deg, var(--pos-sale-brand), color-mix(in srgb, var(--pos-sale-brand) 78%, #020617));
+  background: var(--pos-sale-brand) !important;
   color: #fff;
-  box-shadow: 0 12px 24px color-mix(in srgb, var(--pos-sale-brand) 22%, transparent);
+  box-shadow: none;
 }
 
 .pos-reference-layout {
@@ -178,23 +178,16 @@ body.oscuro .pos-referencia {
 }
 
 .pos-referencia .btn-cobrar {
-  min-height: 42px;
+  min-height: 48px;
   margin: 0;
-  border: 1px solid color-mix(in srgb, var(--pos-sale-brand) 55%, black 8%) !important;
-  border-radius: 13px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, .55) 0%, rgba(255, 255, 255, 0) 48%),
-    linear-gradient(180deg, color-mix(in srgb, var(--pos-sale-brand) 92%, white 8%), color-mix(in srgb, var(--pos-sale-brand) 86%, black 14%)) !important;
-  backdrop-filter: blur(14px) saturate(1.3);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border: 0 !important;
+  border-radius: 16px;
+  background: var(--pos-sale-brand) !important;
   color: #fff !important;
-  font-size: 14px;
-  font-weight: 950;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, .22);
-  box-shadow:
-    0 12px 22px color-mix(in srgb, var(--pos-sale-brand) 35%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, .65),
-    inset 0 -1px 0 rgba(0, 0, 0, .14);
+  font-size: 15px;
+  font-weight: 850;
+  text-shadow: none;
+  box-shadow: none;
 }
 
 .pos-referencia .pos-carrito-card {
@@ -239,21 +232,46 @@ body.oscuro .pos-referencia {
 .pos-referencia .cliente-pos-selector {
   width: 100%;
   min-width: 0;
-  margin: 0;
-  padding: 8px 10px;
-  display: grid;
-  gap: 2px;
-  border: 1px solid var(--pos-sale-line);
-  border-radius: 14px;
-  background: var(--pos-sale-soft) !important;
+  margin: 0 0 4px;
+  padding: 4px 4px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-bottom: 1px solid var(--pos-sale-line);
+  border-radius: 0;
+  background: transparent !important;
   color: var(--pos-sale-text) !important;
   text-align: left;
 }
 
-.pos-referencia .cliente-pos-selector span,
-.pos-referencia .cliente-pos-selector small {
+.pos-referencia .cliente-pos-icono {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, #7c3aed 12%, var(--pos-sale-card));
+  color: #7c3aed;
+}
+
+.pos-referencia .cliente-pos-icono .ui-icon {
+  width: 19px;
+  height: 19px;
+}
+
+.pos-referencia .cliente-pos-datos {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 1px;
+}
+
+.pos-referencia .cliente-pos-selector .cliente-pos-datos span,
+.pos-referencia .cliente-pos-selector .cliente-pos-datos small {
   color: var(--pos-sale-muted);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 800;
 }
 
@@ -264,6 +282,13 @@ body.oscuro .pos-referencia {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pos-referencia .cliente-pos-cambiar {
+  flex: 0 0 auto;
+  color: var(--pos-sale-brand);
+  font-size: 12.5px;
+  font-weight: 900;
 }
 
 .pos-referencia #carrito {
@@ -556,15 +581,17 @@ body.oscuro .pos-referencia {
 }
 
 .pos-referencia .btn-credito-carrito {
-  border: 1px solid var(--pos-sale-line);
-  background: var(--pos-sale-soft) !important;
-  color: var(--pos-sale-text) !important;
+  border: 0;
+  background: transparent !important;
+  color: var(--pos-sale-muted) !important;
+  font-size: 12px;
 }
 
 .pos-referencia .btn-limpiar {
-  border: 1px solid var(--pos-sale-line);
-  background: var(--pos-sale-soft) !important;
-  color: var(--pos-sale-text) !important;
+  border: 0;
+  background: transparent !important;
+  color: var(--pos-sale-danger) !important;
+  font-size: 12px;
 }
 
 .pos-metrics-row {
