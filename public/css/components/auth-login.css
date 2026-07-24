@@ -6,31 +6,33 @@
  align-items:center;
  padding:24px;
  background:
- radial-gradient(circle at 50% 20%, rgba(13,110,253,.18), transparent 34%),
- linear-gradient(135deg,#07111f,#101b35 48%,#07111f);
+ radial-gradient(circle at 8% 92%, rgba(13,110,253,.10), transparent 40%),
+ radial-gradient(circle at 92% 8%, rgba(13,110,253,.08), transparent 42%),
+ #f4f7fc;
 }
 
 .login-box{
  display:flex;
- width:min(920px, 96vw);
+ width:min(980px, 96vw);
  max-height:92vh;
  overflow:auto;
  border-radius:24px;
- background:rgba(15,23,42,.94);
- border:1px solid rgba(255,255,255,.12);
- box-shadow:0 26px 70px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.08);
+ background:#ffffff;
+ border:1px solid rgba(15,23,42,.06);
+ box-shadow:0 26px 70px rgba(15,23,42,.14);
 }
 
 .login-panel-marca{
- flex:0 0 42%;
+ flex:0 0 44%;
  min-width:0;
  padding:40px 36px;
- background:linear-gradient(160deg, rgba(13,110,253,.16), transparent 60%);
- border-right:1px solid rgba(255,255,255,.08);
+ background:transparent;
+ border-right:1px solid rgba(15,23,42,.06);
  display:flex;
  flex-direction:column;
  justify-content:center;
- gap:26px;
+ gap:20px;
+ position:relative;
 }
 
 .login-brand{
@@ -38,8 +40,8 @@
  align-items:center;
  gap:12px;
  padding-bottom:18px;
- border-bottom:1px solid rgba(255,255,255,.1);
- color:white;
+ border-bottom:1px solid rgba(15,23,42,.08);
+ color:#101828;
 }
 
 .login-brand:not(:empty){
@@ -55,11 +57,11 @@
 .login-brand strong{
  display:block;
  font-size:18px;
- color:#ffffff;
+ color:#101828;
 }
 
 .login-brand span{
- color:#dbeafe;
+ color:#64748b;
  font-size:12px;
 }
 
@@ -67,11 +69,11 @@
  display:inline-flex !important;
  width:auto !important;
  max-width:max-content !important;
- margin:-8px 0 18px !important;
+ margin:-8px 0 6px !important;
  padding:0 !important;
  border:0 !important;
  background:transparent !important;
- color:rgba(255,255,255,.5) !important;
+ color:#94a3b8 !important;
  font-size:11px;
  font-weight:800;
  text-decoration:underline;
@@ -79,7 +81,7 @@
 }
 
 #login .login-cambiar-negocio-link:hover{
- color:rgba(255,255,255,.85) !important;
+ color:#475569 !important;
 }
 
 .brand-logo-img,
@@ -97,25 +99,37 @@
 }
 
 .brand-logo-fallback{
- background:rgba(255,255,255,.16);
- color:white;
+ background:rgba(13,110,253,.12);
+ color:var(--brand-color, #0d6efd);
  font-weight:900;
 }
 
 .login-eslogan-principal{
- color:#f8fafc !important;
- font-size:26px;
+ color:#101828 !important;
+ font-size:32px;
  font-weight:900;
  line-height:1.2;
  margin:0;
 }
 
+.login-eslogan-acento{
+ color:var(--brand-color, #0d6efd);
+}
+
+.login-eslogan-sub{
+ margin:0;
+ color:#64748b;
+ font-size:14px;
+ line-height:1.5;
+ max-width:38ch;
+}
+
 .login-features{
  list-style:none;
- margin:0;
+ margin:6px 0 0;
  padding:0;
  display:grid;
- gap:16px;
+ gap:14px;
 }
 
 .login-features li{
@@ -138,21 +152,21 @@
  height:18px;
 }
 
-.login-feature-icono.azul{ background:rgba(13,110,253,.18); color:#7cb0ff; }
-.login-feature-icono.verde{ background:rgba(22,163,74,.18); color:#4ade80; }
-.login-feature-icono.morado{ background:rgba(124,58,237,.18); color:#c4b5fd; }
+.login-feature-icono.azul{ background:#0d6efd; color:#fff; }
+.login-feature-icono.verde{ background:#16a34a; color:#fff; }
+.login-feature-icono.morado{ background:#7c3aed; color:#fff; }
 
 .login-features li strong{
  display:block;
- color:#f8fafc;
- font-size:14px;
+ color:#101828;
+ font-size:13.5px;
  font-weight:800;
 }
 
 .login-features li span{
  display:block;
- color:#94a3b8;
- font-size:12.5px;
+ color:#64748b;
+ font-size:12px;
  margin-top:2px;
 }
 
@@ -160,13 +174,13 @@
  display:flex;
  align-items:center;
  gap:8px;
- margin-top:6px;
- padding-top:20px;
- border-top:1px solid rgba(255,255,255,.08);
+ margin-top:2px;
+ padding-top:16px;
+ border-top:1px solid rgba(15,23,42,.06);
 }
 
 .login-powered-by span{
- color:#64748b;
+ color:#94a3b8;
  font-size:11px;
  font-weight:700;
 }
@@ -175,27 +189,58 @@
  width:78px;
  height:auto;
  display:block;
- border-radius:5px;
- background:#ffffff;
- padding:3px 5px;
+}
+
+.login-personaje{
+ align-self:flex-end;
+ width:min(220px, 62%);
+ height:auto;
+ margin-top:-8px;
+ pointer-events:none;
+ user-select:none;
 }
 
 .login-panel-form{
  flex:1;
  min-width:0;
- padding:40px 36px;
+ padding:40px 40px;
+}
+
+.login-form-logo{
+ width:56px;
+ height:56px;
+ margin:0 auto 16px;
+ display:grid;
+ place-items:center;
+ border-radius:16px;
+ background:#f0f5ff;
+}
+
+.login-form-logo img{
+ width:36px;
+ height:36px;
+ object-fit:contain;
+ border-radius:8px;
+}
+
+.login-form-titulo{
+ text-align:center;
+}
+
+.login-subtitulo-centrada{
+ text-align:center;
 }
 
 .login-panel-form h1{
- color:#f8fafc !important;
- font-size:28px;
+ color:#101828 !important;
+ font-size:24px;
  margin:0 0 6px;
  opacity:1;
- text-shadow:0 2px 10px rgba(0,0,0,.32);
+ text-shadow:none;
 }
 
 .login-subtitulo{
- color:#94a3b8;
+ color:#64748b;
  font-size:13px;
  margin:0 0 22px;
 }
@@ -208,7 +253,7 @@
 .login-campo > span{
  display:block;
  margin-bottom:6px;
- color:#cbd5e1;
+ color:#475569;
  font-size:12.5px;
  font-weight:700;
 }
@@ -224,7 +269,7 @@
  left:14px;
  display:grid;
  place-items:center;
- color:#64748b;
+ color:#94a3b8;
  pointer-events:none;
 }
 
@@ -237,15 +282,22 @@
  width:100%;
  margin:0;
  padding:12px 42px 12px 40px;
- border:1px solid rgba(255,255,255,.14);
- border-radius:10px;
- background:rgba(255,255,255,.06);
- color:#f8fafc;
+ border:1px solid #e2e8f0;
+ border-radius:12px;
+ background:#f8fafc;
+ color:#101828;
 }
 
 .login-input-icono input::placeholder{
- color:#64748b;
+ color:#94a3b8;
  opacity:1;
+}
+
+.login-input-icono input:focus{
+ outline:none;
+ border-color:var(--brand-color, #0d6efd);
+ background:#ffffff;
+ box-shadow:0 0 0 3px color-mix(in srgb, var(--brand-color, #0d6efd) 14%, transparent);
 }
 
 .login-ver-password{
@@ -258,7 +310,7 @@
  border:0;
  border-radius:8px;
  background:transparent !important;
- color:#64748b !important;
+ color:#94a3b8 !important;
  cursor:pointer;
 }
 
@@ -268,7 +320,7 @@
 }
 
 .login-ver-password.activo{
- color:#7cb0ff !important;
+ color:var(--brand-color, #0d6efd) !important;
 }
 
 .login-campo-negocio{
@@ -279,15 +331,15 @@
  width:100%;
  margin:0;
  padding:10px 12px;
- border:1px solid rgba(255,255,255,.10);
- border-radius:8px;
- background:rgba(255,255,255,.04);
- color:#cbd5e1;
+ border:1px solid #e2e8f0;
+ border-radius:10px;
+ background:#f8fafc;
+ color:#334155;
  font-size:12.5px;
 }
 
 .login-campo-negocio input::placeholder{
- color:#64748b;
+ color:#94a3b8;
 }
 
 .login-opciones{
@@ -302,7 +354,7 @@
  display:flex;
  align-items:center;
  gap:8px;
- color:#cbd5e1;
+ color:#475569;
  font-size:12.5px;
  cursor:pointer;
 }
@@ -320,7 +372,7 @@
  padding:0;
  border:0;
  background:transparent !important;
- color:#7cb0ff !important;
+ color:var(--brand-color, #0d6efd) !important;
  font-size:12.5px;
  font-weight:700;
  cursor:pointer;
@@ -332,11 +384,45 @@
  margin:0;
  padding:14px;
  border:0;
- border-radius:10px;
- background:linear-gradient(135deg, var(--brand-color, #0d6efd), #0646a8) !important;
+ border-radius:14px;
+ background:var(--brand-color, #0d6efd) !important;
  color:#ffffff !important;
  font-weight:800;
  cursor:pointer;
+}
+
+.login-divisor{
+ display:flex;
+ align-items:center;
+ gap:12px;
+ margin:18px 0;
+ color:#94a3b8;
+ font-size:12px;
+ font-weight:700;
+}
+
+.login-divisor::before,
+.login-divisor::after{
+ content:"";
+ flex:1;
+ height:1px;
+ background:#e2e8f0;
+}
+
+.login-boton-secundario{
+ width:100%;
+ margin:0;
+ padding:13px;
+ border:1px solid #e2e8f0 !important;
+ border-radius:14px;
+ background:#f8fafc !important;
+ color:#334155 !important;
+ font-weight:800;
+ cursor:pointer;
+}
+
+.login-boton-secundario:hover{
+ background:#f1f5f9 !important;
 }
 
 .login-pie{
@@ -346,8 +432,8 @@
  gap:12px;
  margin-top:20px;
  padding-top:16px;
- border-top:1px solid rgba(255,255,255,.08);
- color:#64748b;
+ border-top:1px solid rgba(15,23,42,.06);
+ color:#94a3b8;
  font-size:11.5px;
 }
 
@@ -379,17 +465,17 @@
  width:100% !important;
  min-height:0 !important;
  padding:16px 10px !important;
- border:1px solid rgba(255,255,255,.12) !important;
+ border:1px solid #e2e8f0 !important;
  border-radius:16px;
- background:rgba(255,255,255,.05) !important;
- color:#f8fafc !important;
+ background:#f8fafc !important;
+ color:#101828 !important;
  cursor:pointer;
  transition:border-color .15s ease, background .15s ease, transform .15s ease;
 }
 
 .perfil-tarjeta:hover{
- border-color:rgba(13,110,253,.55) !important;
- background:rgba(13,110,253,.12) !important;
+ border-color:var(--brand-color, #0d6efd) !important;
+ background:color-mix(in srgb, var(--brand-color, #0d6efd) 8%, #f8fafc) !important;
  transform:translateY(-2px);
 }
 
@@ -413,7 +499,7 @@
 }
 
 .perfil-tarjeta span{
- color:#94a3b8;
+ color:#64748b;
  font-size:11px;
 }
 
@@ -434,64 +520,98 @@
  padding:0 !important;
  border:0 !important;
  background:transparent !important;
- color:#94a3b8 !important;
+ color:#64748b !important;
  font-size:12.5px;
  font-weight:700;
  cursor:pointer;
 }
 
 .pin-perfil-volver:hover{
- color:#f8fafc !important;
+ color:#101828 !important;
 }
 
 .pin-perfil-cabecera{
  display:flex;
  align-items:center;
  gap:14px;
- margin-bottom:20px;
+ margin-bottom:12px;
 }
 
 .pin-perfil-cabecera strong{
  display:block;
- color:#f8fafc;
+ color:#101828;
  font-size:17px;
 }
 
 .pin-perfil-cabecera span{
  display:block;
- color:#94a3b8;
+ color:#64748b;
  font-size:12.5px;
  margin-top:2px;
+}
+
+.pin-perfil-saludo{
+ display:flex;
+ align-items:center;
+ gap:12px;
+ margin:0 0 22px;
+ padding:12px 14px;
+ border-radius:16px;
+ background:#f0f5ff;
+}
+
+.pin-perfil-saludo img{
+ width:40px;
+ height:40px;
+ object-fit:contain;
+ flex:0 0 40px;
+}
+
+.pin-perfil-saludo strong{
+ display:block;
+ color:#101828;
+ font-size:13px;
+}
+
+.pin-perfil-saludo span{
+ display:block;
+ color:#64748b;
+ font-size:12px;
+ margin-top:1px;
 }
 
 .pin-perfil-puntos{
  display:flex;
  justify-content:center;
- gap:12px;
- margin:26px 0;
+ gap:10px;
+ margin:22px 0;
 }
 
-.pin-perfil-punto{
- width:16px;
- height:16px;
- border-radius:50%;
- border:1px solid rgba(255,255,255,.28);
- background:transparent;
- transition:background .12s ease, border-color .12s ease;
+.pin-perfil-casilla{
+ width:44px;
+ height:52px;
+ display:grid;
+ place-items:center;
+ border-radius:12px;
+ border:1.5px solid #e2e8f0;
+ background:#f8fafc;
+ font-size:22px;
+ color:#101828;
+ transition:border-color .12s ease, background .12s ease;
 }
 
-.pin-perfil-punto.lleno{
- background:var(--brand-color, #0d6efd);
+.pin-perfil-casilla.llena{
  border-color:var(--brand-color, #0d6efd);
+ background:color-mix(in srgb, var(--brand-color, #0d6efd) 6%, #ffffff);
 }
 
 .pin-perfil-error{
  margin:0 0 14px;
  padding:10px 12px;
  border-radius:10px;
- background:rgba(220,38,38,.14);
- border:1px solid rgba(220,38,38,.32);
- color:#fca5a5;
+ background:rgba(220,38,38,.08);
+ border:1px solid rgba(220,38,38,.24);
+ color:#dc2626;
  font-size:13px;
  font-weight:700;
  text-align:center;
@@ -507,27 +627,29 @@
 
 .pin-perfil-teclado button{
  min-height:56px !important;
- border:1px solid rgba(255,255,255,.12) !important;
+ border:1px solid #e2e8f0 !important;
  border-radius:14px;
- background:rgba(255,255,255,.05) !important;
- color:#f8fafc !important;
+ background:#f8fafc !important;
+ color:#101828 !important;
  font-size:19px;
  font-weight:800;
  cursor:pointer;
 }
 
 .pin-perfil-teclado button:hover{
- background:rgba(13,110,253,.16) !important;
- border-color:rgba(13,110,253,.5) !important;
+ background:color-mix(in srgb, var(--brand-color, #0d6efd) 8%, #f8fafc) !important;
+ border-color:var(--brand-color, #0d6efd) !important;
 }
 
 .pin-perfil-tecla-borrar{
  font-size:16px !important;
+ background:#eef2f7 !important;
 }
 
 .pin-perfil-tecla-confirmar{
- background:linear-gradient(135deg, var(--brand-color, #0d6efd), #0646a8) !important;
- border-color:transparent !important;
+ background:color-mix(in srgb, var(--brand-color, #0d6efd) 14%, #f8fafc) !important;
+ border-color:color-mix(in srgb, var(--brand-color, #0d6efd) 45%, transparent) !important;
+ color:var(--brand-color, #0d6efd) !important;
 }
 
 .pin-perfil-tecla-confirmar:disabled{
@@ -544,8 +666,14 @@
  .login-panel-marca{
  flex:none;
  border-right:0;
- border-bottom:1px solid rgba(255,255,255,.08);
+ border-bottom:1px solid rgba(15,23,42,.06);
  padding:32px 28px;
+ }
+
+ .login-personaje{
+ width:min(160px, 46%);
+ margin:0 auto;
+ align-self:center;
  }
 
  .login-panel-form{

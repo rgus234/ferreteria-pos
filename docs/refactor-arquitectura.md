@@ -4571,6 +4571,63 @@ lectura salvo que el usuario confirme lo contrario.
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
 
+## Pantalla de login -- tema claro con logo y personaje Nexo (2026-07-24)
+
+El usuario mando dos imagenes de referencia (login con usuario/
+contrasena, y pantalla de "Codigo de acceso" con PIN) pidiendo que el
+login se vea asi, "te mando mi logo y el personaje". Verificado antes
+de tocar nada: el logo (`nexo-pos-logo.jpg`) y el personaje (el robot
+de `img/nexo-ia/feliz.jpg`) de la referencia **ya son los mismos
+archivos que ya existian en el proyecto** -- cero assets nuevos, la
+referencia es un mockup armado con piezas reales.
+
+La estructura de `#login` (panel de marca + panel de formulario, 3
+pantallas: vincular equipo, seleccion de perfil, PIN, formulario
+clasico) ya era casi identica a la referencia -- incluido el
+encabezado exacto "Tu negocio, bajo control." Lo que faltaba era
+100% visual: el tema era oscuro fijo, sin ningun personaje.
+
+**Cambio**: reescritura completa de `public/css/components/auth-login.css`
+a tema claro (fondo blanco con blobs radiales sutiles, tarjeta blanca,
+inputs claros), sin tocar ninguna funcion de autenticacion. Se agrego
+el `<img class="login-personaje">` (el robot) al panel izquierdo, una
+insignia circular del logo arriba del formulario clasico, y una
+burbuja de saludo "¡Hola! Soy Nexo" en la pantalla de PIN -- las 3
+son elementos puramente decorativos, cero JS nuevo salvo lo minimo
+para pintarlos.
+
+**PIN de acceso**: la pantalla ya existia funcionalmente
+(`renderPuntosPinPerfilPOS()`, `config-auth.js`, PIN de 4-6 digitos) --
+solo cambio el HTML que genera cada digito, de un punto relleno a una
+casilla cuadrada. **Decision de seguridad confirmada con el usuario**:
+la casilla NO muestra el digito tecleado (solo un punto/asterisco
+dentro), a diferencia de la referencia que lo mostraba en texto plano
+-- un cajero tecleando su PIN frente al mostrador no deberia ser
+legible para cualquiera parado enfrente.
+
+**"Codigo de acceso rapido"**: boton nuevo en el formulario clasico
+que lleva a la pantalla de seleccion de perfil ya existente
+(`mostrarSeleccionPerfilDesdeClasico()`, nueva funcion de ~10 lineas
+que solo alterna que `<div>` esta visible y llama
+`renderSeleccionPerfilPOS()` ya existente) -- sin inventar ningun flujo
+de seguridad nuevo. Se muestra solo si el dispositivo ya tiene
+perfiles de empleados sincronizados (`usuariosSistema().length > 0`);
+en un dispositivo nuevo sin perfiles todavia, el boton se oculta (no
+hay a donde ir).
+
+Verificado contra el negocio sintetico 17408 (dispositivo + perfil de
+prueba, limpiados al terminar): las 3 pantallas confirmadas
+visualmente (vincular equipo, formulario clasico con logo+bienvenida,
+seleccion de perfil, PIN con casillas y burbuja de saludo). Login por
+PIN probado de principio a fin (6 digitos reales, entro correctamente
+al dashboard). Confirmado que las casillas de PIN muestran solo un
+punto, nunca el digito. Sin errores de consola. `node --check` limpio
+en `config-auth.js`. `negocio_id = 1` sin tocar durante toda la
+prueba.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.
+
 ## Sistema de avisos -- toasts no bloqueantes + modal restilizado (2026-07-23)
 
 El usuario mando dos imagenes de referencia (una guia de diseno de 3

@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="css/layers/responsive-legacy.css?v=refactor-responsive-legacy-20260702-01">
   <link rel="stylesheet" href="css/layers/theme-runtime.css?v=refactor-theme-runtime-20260701-01">
   <link rel="stylesheet" href="css/layers/pos-restoration.css?v=refactor-pos-restoration-20260701-01">
-  <link rel="stylesheet" href="css/components/auth-login.css?v=dispositivos-empleados-20260716-01">
+  <link rel="stylesheet" href="css/components/auth-login.css?v=login-nexo-personaje-20260724-01">
   <link rel="stylesheet" href="css/components/app-shell.css?v=marca-nexo-20260711-01">
   <link rel="stylesheet" href="css/components/setup-wizard.css?v=login-correo-20260714-01">
   <link rel="stylesheet" href="css/components/nexo-ia.css?v=nexo-ai-v2-20260722-01">
@@ -195,7 +195,9 @@
  ¿No es tu negocio? Cambiar
  </button>
 
- <h2 class="login-eslogan-principal">Tu negocio, bajo control.</h2>
+ <h2 class="login-eslogan-principal">Tu negocio, <span class="login-eslogan-acento">bajo control.</span></h2>
+
+ <p class="login-eslogan-sub">El sistema POS inteligente que te ayuda a vender mas, administrar mejor y crecer cada dia.</p>
 
  <ul class="login-features" id="loginFeaturesLista">
  <li>
@@ -216,6 +218,8 @@
  <span>Con la tecnologia de</span>
  <img src="nexo-pos-logo.jpg" alt="Nexo POS">
  </div>
+
+ <img class="login-personaje" src="img/nexo-ia/feliz.jpg" alt="Nexo">
 
  </div>
 
@@ -246,6 +250,13 @@
  <span id="pinPerfilRol"></span>
  </div>
  </div>
+ <div class="pin-perfil-saludo">
+ <img src="img/nexo-ia/feliz.jpg" alt="Nexo">
+ <div>
+ <strong>¡Hola! Soy Nexo</strong>
+ <span>Ingresa tu codigo de acceso para continuar.</span>
+ </div>
+ </div>
  <div class="pin-perfil-puntos" id="pinPerfilPuntos"></div>
  <div id="pinPerfilError" class="pin-perfil-error" style="display:none;"></div>
  <div class="pin-perfil-teclado">
@@ -266,8 +277,12 @@
 
  <div id="loginFormularioClasico" style="display:none;">
 
- <h1>Iniciar sesion</h1>
- <p class="login-subtitulo">Ingresa tus credenciales para continuar</p>
+ <div class="login-form-logo">
+ <img src="nexo-pos-icon.jpg" alt="Nexo POS">
+ </div>
+
+ <h1 class="login-form-titulo">¡Bienvenido de nuevo!</h1>
+ <p class="login-subtitulo login-subtitulo-centrada">Inicia sesion para continuar</p>
 
  <label class="login-campo">
  <span>Usuario</span>
@@ -303,6 +318,14 @@
 
  <button class="login-boton-principal" onclick="iniciarSesion()">
  Entrar
+ </button>
+
+ <div id="loginDivisorAcceso" class="login-divisor" style="display:none;">
+ <span>o continua con</span>
+ </div>
+
+ <button type="button" id="loginBotonAccesoRapido" class="login-boton-secundario" style="display:none;" onclick="mostrarSeleccionPerfilDesdeClasico()">
+ Codigo de acceso rapido
  </button>
 
  </div>

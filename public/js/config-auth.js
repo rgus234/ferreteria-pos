@@ -947,7 +947,19 @@ async function mostrarPantallaDeEntradaPOS() {
  sincronizarEmpleadosDispositivo();
  }
 
- if (usuariosSistema().length === 0) {
+ const hayPerfilesSincronizados =
+ usuariosSistema().length > 0;
+
+ const divisorAcceso =
+ document.getElementById("loginDivisorAcceso");
+
+ const botonAccesoRapido =
+ document.getElementById("loginBotonAccesoRapido");
+
+ if (divisorAcceso) divisorAcceso.style.display = hayPerfilesSincronizados ? "flex" : "none";
+ if (botonAccesoRapido) botonAccesoRapido.style.display = hayPerfilesSincronizados ? "block" : "none";
+
+ if (!hayPerfilesSincronizados) {
  // Vinculado pero sin empleados todavia sincronizados/creados --
  // el formulario clasico sirve de respaldo hasta que haya al
  // menos uno (o hasta que la sincronizacion en segundo plano
@@ -957,6 +969,19 @@ async function mostrarPantallaDeEntradaPOS() {
  }
 
  if (panelPerfiles) panelPerfiles.style.display = "block";
+ renderSeleccionPerfilPOS();
+}
+
+function mostrarSeleccionPerfilDesdeClasico() {
+ const panelClasico =
+ document.getElementById("loginFormularioClasico");
+
+ const panelPerfiles =
+ document.getElementById("loginSeleccionPerfil");
+
+ if (panelClasico) panelClasico.style.display = "none";
+ if (panelPerfiles) panelPerfiles.style.display = "block";
+
  renderSeleccionPerfilPOS();
 }
 
@@ -2617,7 +2642,7 @@ function renderPuntosPinPerfilPOS() {
  const max = 6;
 
  contenedor.innerHTML = Array.from({ length: max }, (_, indice) => `
- <span class="pin-perfil-punto ${indice < bufferPinPerfilPOS.length ? "lleno" : ""}"></span>
+ <span class="pin-perfil-casilla ${indice < bufferPinPerfilPOS.length ? "llena" : ""}">${indice < bufferPinPerfilPOS.length ? "&bull;" : ""}</span>
  `).join("");
 
  const boton =
