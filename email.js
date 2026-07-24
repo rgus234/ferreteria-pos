@@ -93,7 +93,7 @@ function avisoHtml(texto) {
     return `<p style="margin:20px 0 0;color:#98a2b3;font-size:12.5px;line-height:1.5;">${texto}</p>`;
 }
 
-async function enviarCorreo({ correo, asunto, html }) {
+async function enviarCorreo({ correo, asunto, html, attachments = [] }) {
     const cliente = obtenerClienteResend();
 
     if (!cliente) {
@@ -106,7 +106,8 @@ async function enviarCorreo({ correo, asunto, html }) {
             from: `Nexo POS <${remitente}>`,
             to: correo,
             subject: asunto,
-            html
+            html,
+            ...(attachments.length > 0 ? { attachments } : {})
         });
 
         if (resultado.error) {
@@ -175,8 +176,18 @@ function enviarCorreoActivacionCuenta(correo, nombreNegocio, enlace) {
     });
 }
 
+function enviarCorreoRespaldo(correo, { asunto, mensajeHtml, attachments = [] }) {
+    return enviarCorreo({
+        correo,
+        asunto,
+        html: envolverPlantilla("Respaldo automatico", asunto, mensajeHtml),
+        attachments
+    });
+}
+
 module.exports = {
     enviarCorreoVerificacion,
     enviarCorreoRecuperacion,
-    enviarCorreoActivacionCuenta
+    enviarCorreoActivacionCuenta,
+    enviarCorreoRespaldo
 };

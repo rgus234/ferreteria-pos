@@ -4888,3 +4888,86 @@ tocados. Sin errores de consola nuevos.
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+## 2026-07-24 -- Respaldos automaticos de la base de datos
+
+**Contexto.** Auditoria de "que le falta a Nexo POS para estar listo
+para el comercio" encontro que no existia ningun mecanismo de
+respaldo de base de datos -- confirmado con grep exhaustivo (sin
+script, sin Render Cron Job, sin referencia en `render.yaml`), y con
+`terminos.html` ya admitiendo por escrito la falta de "politica formal
+de respaldos". Riesgo mas grave detectado en toda la auditoria, dado
+que hay un negocio real (Ferreteria Olimpico, `negocio_id = 1`) con
+ventas/creditos/clientes reales sin ningun plan de recuperacion.
+
+**Diseno.** El esquema ya vive versionado en `migrations/*.sql`, asi
+que solo hace falta respaldar la data. Nuevo modulo `backup-server.js`
+(registrado en `server-modules.js`): dumpea 44 tablas (`SELECT *` por
+tabla) a un JSON, comprime con `zlib.gzipSync` (sin `pg_dump` -- no
+esta disponible en el runtime de Render) y lo manda por correo (via
+Resend, ya configurado, con soporte de adjuntos agregado a `email.js`)
+al operador de la plataforma (`RESPALDO_EMAIL_DESTINO`, nueva
+variable de entorno). Corre una vez al dia via un `setInterval` en
+proceso (revisa cada hora si ya corrio hoy contra la nueva tabla
+`respaldos_automaticos`, sin agregar un Render Cron Job de pago
+aparte). Rutas manuales bajo `/admin/api/respaldos/ejecutar` (dispara
+un respaldo ahora) y `/admin/api/respaldos/historial` (bitacora),
+ambas ya protegidas por el `validarAdminKey` existente. Script de
+restauracion manual `scripts/restaurar-backup.js` (nunca automatico),
+usando `ALTER TABLE ... DISABLE/ENABLE TRIGGER ALL` para saltar el
+orden de dependencias entre tablas al insertar (no `SET
+session_replication_role` -- Render no da privilegio de superusuario
+para eso).
+
+**Hallazgo critico durante la verificacion (cambio de alcance real,
+no solo un bug menor):** `fotos_producto`/`fotos_producto_galeria`
+guardan las imagenes de producto como `bytea` directo en la columna
+(~160MB de los 189MB totales de la base). `JSON.stringify` de un
+`Buffer` de Node lo serializa como arreglo de numeros (no base64),
+inflandolo ~4-5x -- la primera corrida real tardo 21 minutos y
+trueno con `Invalid string length` (limite de V8 para un string). Se
+corrigio en dos partes: (1) un serializador/revividor propio que
+convierte `Buffer` a base64 en vez de dejar que `JSON.stringify` lo
+haga mal, y (2) **se excluyeron `fotos_producto`/`fotos_producto_galeria`
+del respaldo automatico** -- aunque ya no truenan, su volumen (~160MB)
+nunca cabria en un correo. El mecanismo cubre la data transaccional
+real (ventas, creditos, clientes, productos, etc., 44 tablas); las
+fotos quedan fuera hasta que se resuelva un respaldo aparte con
+almacenamiento externo -- limitacion documentada a proposito, no un
+descuido.
+
+**Otro bug encontrado y corregido durante la prueba de restauracion**
+(no visible hasta probar con datos reales): el driver `pg` serializa
+arreglos JS como arreglos nativos de Postgres (`{a,b,c}`), no como
+JSON -- rompia la restauracion de columnas `jsonb` cuyo valor es un
+arreglo (ej. `historial_ventas.productos`, el carrito de cada venta).
+Se confirmo que no existe ninguna columna de tipo `ARRAY` nativo en
+todo el esquema, asi que `scripts/restaurar-backup.js` ahora convierte
+explicitamente cualquier arreglo/objeto (que no sea `Buffer`) a texto
+JSON antes de insertar.
+
+**Verificacion real, no solo con negocio sintetico para la parte de
+generacion:**
+- Respaldo real corrido contra la base de produccion (solo lectura):
+  44 tablas, ~645KB comprimido, ~22 segundos. Correo con el adjunto
+  `.json.gz` confirmado recibido via Resend (`ok:true` con id de
+  mensaje real).
+- Prueba de restauracion: como este entorno no tiene una base de
+  Postgres separada disponible (sin Docker, sin instancia local) y
+  correr el script destructivo contra produccion esta descartado por
+  diseno, se agrego un parametro opcional `RESPALDO_SCHEMA_DESTINO`
+  (default `"public"`, sin cambiar el comportamiento normal) que
+  permite apuntar la restauracion a un esquema aislado. Se creo un
+  negocio sintetico (`id 17466`, con producto y cliente de credito de
+  prueba), se genero un respaldo real que lo incluia, se clono la
+  estructura de las 44 tablas a un esquema nuevo
+  (`CREATE TABLE x (LIKE public.x INCLUDING ALL)`, sin datos, sin
+  cruce de llaves foraneas con `public`), se restauro ahi con el
+  script real sin modificar, y se confirmo que los datos del negocio
+  sintetico -- incluida la columna jsonb-arreglo -- coinciden
+  exactamente con el original. Esquema de prueba y negocio sintetico
+  eliminados despues. `negocio_id = 1` confirmado sin cambios durante
+  toda la prueba.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.

@@ -17,6 +17,7 @@ const config = {
     stripePricePlus: process.env.STRIPE_PRICE_PLUS || "",
     stripePricePro: process.env.STRIPE_PRICE_PRO || "",
     anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
+    respaldoEmailDestino: process.env.RESPALDO_EMAIL_DESTINO || "",
 };
 
 function validarConfigProduccion() {

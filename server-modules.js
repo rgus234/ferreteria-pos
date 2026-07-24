@@ -39,6 +39,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("catalogo de proveedor", () => {
         require("./catalog-server")(app, pool, requerirAccesoNegocio, firmarTokenImagen);
     });
+
+    cargarModuloPOS("respaldos automaticos", () => {
+        require("./backup-server")(app, pool);
+    });
 }
 
 module.exports = {
