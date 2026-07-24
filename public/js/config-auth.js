@@ -133,7 +133,6 @@ function dialogoPOS(opciones = {}) {
  ? `<input id="dialogoPOSInput" type="${limpiar(tipoEntrada)}" value="${limpiar(valorInicial)}" placeholder="${limpiar(placeholder)}">`
  : ""
  }
- </div>
  <div class="dialogo-pos-actions">
  ${
  mostrarCancelar
@@ -141,6 +140,7 @@ function dialogoPOS(opciones = {}) {
  : ""
  }
  <button type="button" class="dialogo-aceptar">${textoAceptar}</button>
+ </div>
  </div>
  </div>
  `;
@@ -195,12 +195,8 @@ function dialogoPOS(opciones = {}) {
 }
 
 function alertaPOS(mensaje, titulo = "Aviso", tipo = "info") {
- return dialogoPOS({
- tipo,
- titulo,
- mensaje,
- textoAceptar: "Entendido"
- });
+ mostrarToastPOS(mensaje, { titulo, tipo });
+ return Promise.resolve(true);
 }
 
 function confirmarPOS(mensaje, titulo = "Confirmar", tipo = "alerta") {

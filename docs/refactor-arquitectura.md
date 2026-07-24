@@ -4571,6 +4571,65 @@ lectura salvo que el usuario confirme lo contrario.
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
 
+## Sistema de avisos -- toasts no bloqueantes + modal restilizado (2026-07-23)
+
+El usuario mando dos imagenes de referencia (una guia de diseno de 3
+niveles -- Toasts/Alertas-Banners/Modales -- y un mockup del POS real
+con el stack de toasts arriba a la derecha) pidiendo "que todos los
+avisos sean asi". Investigacion (2 agentes) confirmo que hoy **no
+existe ningun sistema de toast** -- absolutamente todo aviso, incluidas
+confirmaciones triviales, pasa por un modal bloqueante
+(`dialogoPOS`/`alertaPOS`, `config-auth.js:86-245`).
+
+**Hallazgo que bajo el riesgo del cambio a casi cero**: `alertaPOS`
+(118 sitios de uso) nunca tiene boton de cancelar -- por definicion
+nunca es una decision real, solo "enterado". `confirmarPOS`/
+`pedirTextoPOS`/`pedirPasswordPOS` (40+ sitios) siempre representan una
+decision o piden un dato. Los 7 usos directos de `dialogoPOS(...)`
+fuera de esos wrappers tambien pasan `mostrarCancelar:true` (revisados
+uno por uno). Esa clasificacion ya existia implicita en el codigo, solo
+que todo se renderizaba igual.
+
+**Cambio**: `alertaPOS` cambio de implementacion (no de firma) -- en
+vez de abrir `dialogoPOS`, llama a una funcion nueva
+`mostrarToastPOS(mensaje, {titulo, tipo})` (nuevo
+`public/js/toast-pos.js` + `public/css/components/toast-pos.css`) que
+dibuja una tarjeta no bloqueante en una pila fija arriba a la derecha
+(`z-index:14000`, por encima de todo overlay existente). **Los 118
+sitios que llaman `alertaPOS` no se tocaron** -- cero riesgo de mal
+clasificar caso por caso. Si el toast se autocierra (~3.5s) o se queda
+fijo hasta cerrarse con la X depende del `tipo`: `exito`/`info` se
+autocierran (solo informan), `alerta`/`peligro` se quedan fijos (deben
+verse, no exigen accion inmediata) -- mismo componente visual en ambos
+casos. `window.alert(...)` nativo (ya redirigido a `alertaPOS`) se
+volvio toast automaticamente, sin cambios.
+
+`confirmarPOS`/`pedirTextoPOS`/`pedirPasswordPOS` (decision o dato
+real) siguen siendo modal, solo se restilizo `system-dialogs.css` +
+el template de `dialogoPOS` para que el icono quede grande y centrado
+arriba (64px, circular) en vez de a un lado, igual que el nivel 3 de
+la referencia -- sin tocar ninguno de sus sitios de uso. Los colores
+de `dialogo-peligro/-alerta/-exito` (antes hex fijo) se conectaron a
+`var(--nexo-danger/-warning/-success)`.
+
+Verificado contra el negocio sintetico 17408: los 4 `tipo` de toast
+(colores, iconos, autocierre vs persistente) confirmados via estilos
+computados del DOM real; el modal restilizado (`confirmarPOS` para
+"Cerrar sesion") confirmado con icono circular centrado y boton rojo
+para `tipo:"peligro"`; modo oscuro confirmado (fondo/texto invertidos
+via los tokens `--nexo-*`, sin CSS nuevo especial para dark). Sin
+errores de consola. `node --check` limpio en `toast-pos.js` y
+`config-auth.js`.
+
+**Fuera de alcance (explicito)**: `public/dueno.js`/`.dueno-toast`
+(portal aislado del dueno, ya tiene su propio toast simple) y
+`public/admin/dialogo-admin.js` (clon independiente del patron para el
+panel de Admin) -- ninguno comparte codigo con el POS principal, no se
+tocaron.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.
+
 ## Boton global: eliminar la causa raiz del azul/full-width forzado (2026-07-23)
 
 El usuario reporto (con captura) que los botones del formulario

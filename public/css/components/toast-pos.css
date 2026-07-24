@@ -1,0 +1,155 @@
+/* Toasts no bloqueantes -- ver public/js/toast-pos.js */
+
+.toast-pos-stack {
+ position: fixed;
+ top: 18px;
+ right: 18px;
+ z-index: 14000;
+ display: flex;
+ flex-direction: column;
+ gap: 10px;
+ width: min(380px, calc(100vw - 36px));
+ pointer-events: none;
+}
+
+.toast-pos-card {
+ display: grid;
+ grid-template-columns: 34px 1fr auto;
+ gap: 10px;
+ align-items: start;
+ padding: 12px;
+ border-radius: var(--nexo-radius-md);
+ border: 1px solid var(--nexo-line);
+ background: var(--nexo-surface-strong);
+ backdrop-filter: var(--nexo-glass-blur);
+ -webkit-backdrop-filter: var(--nexo-glass-blur);
+ box-shadow: var(--nexo-shadow-card);
+ border-left: 4px solid var(--nexo-info);
+ pointer-events: auto;
+ animation: toastPosIn .18s ease-out;
+}
+
+.toast-pos-card.saliendo {
+ animation: toastPosOut .16s ease-in forwards;
+}
+
+.toast-pos-icon {
+ width: 30px;
+ height: 30px;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ border-radius: 50%;
+ background: color-mix(in srgb, var(--nexo-info) 16%, transparent);
+ color: var(--nexo-info);
+ font-weight: 900;
+ font-size: 12px;
+}
+
+.toast-exito {
+ border-left-color: var(--nexo-success);
+}
+
+.toast-exito .toast-pos-icon {
+ background: color-mix(in srgb, var(--nexo-success) 16%, transparent);
+ color: var(--nexo-success);
+}
+
+.toast-alerta {
+ border-left-color: var(--nexo-warning);
+}
+
+.toast-alerta .toast-pos-icon {
+ background: color-mix(in srgb, var(--nexo-warning) 18%, transparent);
+ color: var(--nexo-warning);
+}
+
+.toast-peligro {
+ border-left-color: var(--nexo-danger);
+}
+
+.toast-peligro .toast-pos-icon {
+ background: color-mix(in srgb, var(--nexo-danger) 16%, transparent);
+ color: var(--nexo-danger);
+}
+
+.toast-pos-body {
+ min-width: 0;
+}
+
+.toast-pos-body strong {
+ display: block;
+ color: var(--nexo-text);
+ font-size: 13.5px;
+ font-weight: 900;
+}
+
+.toast-pos-body p {
+ margin: 2px 0 0;
+ color: var(--nexo-text-muted);
+ font-size: 12.5px;
+ line-height: 1.4;
+}
+
+.toast-pos-accion {
+ display: inline-block;
+ margin-top: 6px;
+ color: var(--nexo-brand);
+ font-size: 12.5px;
+ font-weight: 900;
+ text-decoration: none;
+}
+
+.toast-pos-accion:hover {
+ text-decoration: underline;
+}
+
+.toast-pos-cerrar {
+ width: 22px !important;
+ height: 22px !important;
+ min-width: 22px !important;
+ min-height: 22px !important;
+ padding: 0 !important;
+ border: 0 !important;
+ border-radius: 8px !important;
+ background: transparent !important;
+ color: var(--nexo-text-muted) !important;
+ font-size: 16px;
+ line-height: 1;
+ cursor: pointer;
+}
+
+.toast-pos-cerrar:hover {
+ background: var(--nexo-surface-soft) !important;
+}
+
+@keyframes toastPosIn {
+ from {
+  opacity: 0;
+  transform: translateX(14px);
+ }
+ to {
+  opacity: 1;
+  transform: translateX(0);
+ }
+}
+
+@keyframes toastPosOut {
+ from {
+  opacity: 1;
+  transform: translateX(0);
+ }
+ to {
+  opacity: 0;
+  transform: translateX(14px);
+ }
+}
+
+@media (max-width: 520px) {
+ .toast-pos-stack {
+  top: 10px;
+  right: 10px;
+  left: 10px;
+  width: auto;
+ }
+}
