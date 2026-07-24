@@ -1,6 +1,7 @@
 const { config } = require("./config");
 const { responderError } = require("./error-utils");
 const { listarPlanes, funcionesDelPlan } = require("./features");
+const { enviarCorreoPagoFallido } = require("./email");
 
 // Funciones del catalogo (migrations/20260716_catalogo_funciones_planes.sql)
 // que se destacan en la rejilla de planes de Cuenta -- curadas a mano,
@@ -331,9 +332,41 @@ async function procesarEventoStripe(pool, stripe, evento) {
         }
 
         case "invoice.payment_failed": {
+            const factura = evento.data.object;
+
+            const licenciaRow = await pool.query(
+                `SELECT negocio_id, gracia_dias FROM public.licencias WHERE stripe_customer_id = $1`,
+                [factura.customer]
+            );
+
+            if (licenciaRow.rows.length > 0) {
+                const { negocio_id, gracia_dias } = licenciaRow.rows[0];
+                const negocioRow = await pool.query(
+                    `SELECT correo, nombre FROM public.negocios WHERE id = $1`,
+                    [negocio_id]
+                );
+                const negocio = negocioRow.rows[0];
+
+                if (negocio?.correo) {
+                    const montoTexto = factura.amount_due != null
+                        ? `$${(factura.amount_due / 100).toFixed(2)} ${(factura.currency || "mxn").toUpperCase()}`
+                        : null;
+                    const fechaReintento = factura.next_payment_attempt
+                        ? new Date(factura.next_payment_attempt * 1000).toLocaleDateString("es-MX", { day: "numeric", month: "long" })
+                        : null;
+
+                    await enviarCorreoPagoFallido(negocio.correo, negocio.nombre, {
+                        montoTexto,
+                        fechaReintento,
+                        enlacePago: factura.hosted_invoice_url || null,
+                        graciaDias: gracia_dias
+                    });
+                }
+            }
+
             // No se toca fecha_vencimiento -- el periodo de gracia
-            // que ya existia en el sistema de licencias se encarga de
-            // avisar sin cortar el servicio de golpe.
+            // que ya existia en el sistema de licencias sigue siendo
+            // lo unico que controla el acceso; esto solo notifica.
             break;
         }
 
@@ -381,3 +414,5 @@ function planPorPriceId(priceId) {
     const entrada = Object.entries(mapa).find(([, valor]) => valor === priceId);
     return entrada ? entrada[0] : null;
 }
+
+module.exports.procesarEventoStripe = procesarEventoStripe;

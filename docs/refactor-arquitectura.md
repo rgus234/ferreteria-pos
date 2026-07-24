@@ -4971,3 +4971,39 @@ generacion:**
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+## 2026-07-24 -- Aviso de pago fallido (Stripe invoice.payment_failed)
+
+**Contexto.** Segunda parte de la auditoria de "listo para el
+comercio": el webhook `invoice.payment_failed` de Stripe era un
+`break` vacio (`stripe-server.js`) -- el periodo de gracia
+(`licencias.gracia_dias`) ya evita cortar el acceso de golpe, pero
+nadie le avisaba al dueno que su pago fallo hasta que el acceso
+empezaba a degradarse dias despues.
+
+**Diseno.** Nueva `enviarCorreoPagoFallido(correo, nombreNegocio,
+{montoTexto, fechaReintento, enlacePago, graciaDias})` en `email.js`
+(mismo patron que las demas funciones del modulo). El caso
+`invoice.payment_failed` en `stripe-server.js` ahora resuelve
+`negocio_id`/`gracia_dias` por `stripe_customer_id` y el correo desde
+`negocios.correo`, arma el mensaje con datos reales del payload de
+Stripe (`amount_due`, `next_payment_attempt`, `hosted_invoice_url` --
+la pagina de pago de esa factura especifica, sin necesitar login) y
+lo envia. **Cero cambios a la logica de acceso/gracia** -- sigue
+siendo puramente informativo, `fecha_vencimiento` no se toca.
+
+**Verificacion real:** se agrego una exportacion de
+`procesarEventoStripe` (antes solo interna al modulo) para poder
+probarlo sin depender de un webhook real de Stripe. Contra un negocio
+sintetico (`id 17472`, con `stripe_customer_id` de prueba y correo
+real de prueba) se construyeron eventos falsos con la forma exacta
+que manda Stripe y se corrieron por el mismo codigo que ejecutaria el
+webhook real: caso con `next_payment_attempt` (avisa fecha de
+reintento), caso sin el (pide actualizar metodo de pago), y caso de
+un `stripe_customer_id` sin negocio asociado (no debe tronar -- no
+tronó). Los 2 correos reales llegaron via Resend (`ok:true` con id de
+mensaje). Negocio sintetico y su licencia eliminados despues;
+`negocio_id = 1` confirmado sin cambios.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.

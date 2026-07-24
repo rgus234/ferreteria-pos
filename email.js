@@ -185,9 +185,33 @@ function enviarCorreoRespaldo(correo, { asunto, mensajeHtml, attachments = [] })
     });
 }
 
+function enviarCorreoPagoFallido(correo, nombreNegocio, { montoTexto, fechaReintento, enlacePago, graciaDias }) {
+    return enviarCorreo({
+        correo,
+        asunto: "Hubo un problema con tu pago en Nexo POS",
+        html: envolverPlantilla(
+            "Pago fallido",
+            `Hola, ${nombreNegocio}`,
+            `
+            <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">
+                No pudimos procesar tu pago${montoTexto ? ` de ${montoTexto}` : ""} de la suscripcion a Nexo POS.
+            </p>
+            <p style="margin:12px 0 0;color:#344054;font-size:15px;line-height:1.6;">
+                ${fechaReintento
+                    ? `Vamos a intentar cobrarlo de nuevo el ${fechaReintento}.`
+                    : "Actualiza tu metodo de pago para seguir usando Nexo POS sin interrupciones."}
+            </p>
+            ${enlacePago ? botonHtml("Pagar ahora", enlacePago) : ""}
+            ${avisoHtml(`Tu acceso sigue activo por ahora (tienes ${graciaDias || 15} dias de gracia antes de que se limiten funciones). Si ya corregiste tu metodo de pago, puedes ignorar este correo.`)}
+            `
+        )
+    });
+}
+
 module.exports = {
     enviarCorreoVerificacion,
     enviarCorreoRecuperacion,
     enviarCorreoActivacionCuenta,
-    enviarCorreoRespaldo
+    enviarCorreoRespaldo,
+    enviarCorreoPagoFallido
 };
