@@ -5090,3 +5090,100 @@ importar cuantas lineas ocupe el titular.
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+## 2026-07-25 -- Fix: registro real ya no manda a iniciar sesion + prueba con IA topada
+
+**Contexto.** El usuario reporto que "Comenzar gratis" siempre lo
+mandaba a iniciar sesion en vez de a crear una cuenta nueva.
+
+**Causa raiz.** Los 10 botones "Comenzar gratis" del sitio publico (5
+paginas) apuntaban directo a `https://app.nexoposoficial.com/` -- la
+app del POS, que si el equipo no esta vinculado muestra "Vincula este
+equipo" (pide correo/contrasena de una cuenta que un cliente nuevo no
+tiene) y nunca ofrece crear una cuenta. El formulario de alta real ya
+existia en `#contacto` de `index.html`, simplemente nada lo enlazaba.
+
+**Fix.** Los 10 botones ahora apuntan a `#contacto` (mismo dominio) o
+`/#contacto` (paginas separadas).
+
+**Hallazgo relacionado.** Al investigar, se confirmo que el registro
+publico tambien mandaba `plan:"demo"` a mano en el `fetch` del
+formulario -- el mismo plan interno que usa Ferreteria Olimpico
+(500 preguntas de IA Nivel 3 al mes, sin tope real). Charlando sobre
+estrategia de adquisicion, el usuario penso en 40% de descuento por 3
+meses para todos; se le explico el riesgo del "salto de precio" al
+mes 4 y se le propuso en su lugar un descuento **de por vida solo
+para los primeros N clientes** (cohorte, no tiempo) -- lo eligio, y
+pidio ademas seguir mejorando el panel de Admin ("descuidado"), en
+concreto: mas completo (licencias, consumo de IA, si pierde dinero,
+estado de clientes), mejor diseno, y arreglar la lentitud percibida.
+
+**Diseno.**
+- `server.js`: el registro publico ahora usa un plan real y
+  dedicado, `"prueba"` (antes `"demo"`), separado del legado de
+  Ferreteria Olimpico. Mismo acceso completo a todo el sistema, pero
+  Nexo IA topada a **30 preguntas/mes** (antes 500) y sin busqueda
+  web -- para no exponer costo real de API a cuentas que no han
+  pagado. `ia-server.js`: `LIMITES_NIVEL3_POR_PLAN.prueba = 30`.
+- **Descuento de fundadores**: implementado 100% con un Coupon +
+  Promotion Code de Stripe (`duration:"forever"`,
+  `max_redemptions:N`) -- sin columnas nuevas en la base de datos,
+  Stripe ya lleva la cuenta de usos contra el cupo.
+  `stripe-server.js`: `cuponFundadorVigente()` consulta el codigo
+  `FUNDADOR40`; `POST /suscripcion/checkout` lo aplica automaticamente
+  (`discounts: [{promotion_code}]`) si existe y tiene cupo, sin que el
+  cliente escriba nada -- si no existe, se mantiene el comportamiento
+  anterior (`allow_promotion_codes: true`, codigo manual). Nuevas
+  rutas de Admin `GET`/`POST /admin/api/descuento-fundadores` para
+  crear el cupon una sola vez y ver cuantos quedan.
+- **Bug real corregido en Admin**: los selects de plan
+  (`nuevoClientePlan`, `licPlan`) usaban claves inventadas
+  (`ferreteria-base/pro/premium`) que Stripe/Nexo IA/features.js
+  nunca reconocieron -- unificados a las 5 claves reales
+  (`basico`/`plus`/`pro`/`prueba`/`demo`).
+- **Consumo de IA + costo estimado**: `GET /admin/api/resumen` suma
+  `ia_nivel3_usos` del mes actual de todos los negocios y calcula un
+  rango de costo estimado en MXN (constante documentada, basada en
+  precio publico de Opus 4.8 y un tamano tipico de llamada -- nunca
+  presentado como cifra exacta). Nueva tarjeta en el dashboard y en
+  "Estado general".
+- **Eficiencia de `/admin/api/negocios`**: la subconsulta
+  correlacionada de telefonos duplicados (O(n) por fila) se reemplazo
+  por una CTE de una sola pasada. Se agregaron indices faltantes en
+  `productos.negocio_id`, `ventas.negocio_id`, `dispositivos.negocio_id`
+  (migracion `20260725_indices_admin.sql`).
+- **Rediseno visual**: `admin/index.html` ahora linkea
+  `design-system.css` (tokens `--nexo-*`, ya usado en el resto de la
+  app); `admin/styles.css` remapea sus variables locales
+  (`--ink`, `--blue`, `--surface`, etc.) a esos tokens compartidos en
+  vez de valores sueltos propios, y varios radios pasan a la escala
+  `--nexo-radius-*` -- mismo criterio de "refresco de superficie" ya
+  usado en Catalogo de proveedor (CAT6) y Cuenta, sin reescribir la
+  estructura de secciones/tarjetas existente.
+
+**Verificacion real:**
+- Registro real (mismo body que manda el formulario, sin campo
+  `plan`) confirma `plan:"prueba"` en negocio y licencia; Ferreteria
+  Olimpico sigue en `plan:"demo"`.
+- Cupon de fundadores creado contra Stripe test mode
+  (`POST /admin/api/descuento-fundadores {cupo:3}` -> `FUNDADOR40`,
+  40%, cupo 3). Un segundo intento de creacion responde 409. Un
+  checkout real de un negocio sintetico (correo verificado a mano
+  para la prueba) confirma en la sesion de Stripe
+  `discounts:[{promotion_code}]` con el cupon de 40% `duration:forever`
+  aplicado automaticamente, `allow_promotion_codes: null`.
+- `GET /admin/api/resumen` responde `ia:{usosNivel3Mes, costoEstimadoMxn}`
+  con datos reales del mes. `GET /admin/api/negocios` (query
+  reescrita) responde correctamente para 11 negocios reales, con
+  `duplicados_telefono` booleano funcionando igual que antes.
+- Tiempos medidos contra la base real: 0.1-0.8s por endpoint --
+  conclusion: la lentitud reportada no viene de estas consultas
+  (Render esta en plan "starter", no se duerme); no se encontro una
+  causa de fondo mas alla del codigo ineficiente ya corregido.
+- Panel de Admin revisado visualmente (Resumen, Clientes, Ingresos)
+  con el nuevo diseno, sin errores de consola.
+- Negocios sinteticos y el cupon de prueba limpiados despues;
+  `negocio_id = 1` confirmado sin cambios en cada paso.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.

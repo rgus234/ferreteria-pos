@@ -6,6 +6,7 @@
   <title>Nexo POS Admin</title>
   <meta name="description" content="Panel interno de clientes, licencias, ingresos, soporte y versiones de Nexo POS.">
   <link rel="icon" href="../nexo-pos-icon.jpg">
+  <link rel="stylesheet" href="../css/design-system.css">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -66,6 +67,11 @@
         <span>Cuentas fantasma</span>
         <strong id="metricFantasmas">0</strong>
         <small>Sin contacto ni actividad -- revisar</small>
+      </article>
+      <article class="metric-card">
+        <span>Nexo IA este mes</span>
+        <strong id="metricIAUsos">0</strong>
+        <small id="metricIACosto">Costo estimado: $0 - $0 MXN (aproximado)</small>
       </article>
     </section>
 
@@ -160,6 +166,17 @@
             <div><span>Sin datos</span><strong>0</strong></div>
           </div>
         </article>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Adquisicion</p>
+              <h2>Descuento de fundadores</h2>
+            </div>
+          </div>
+          <div id="descuentoFundadorAdmin">
+            <p class="hint">Cargando...</p>
+          </div>
+        </article>
       </div>
     </section>
 
@@ -237,10 +254,11 @@
         </label>
         <label>Plan
           <select id="nuevoClientePlan">
-            <option value="ferreteria-base">Ferreteria Base</option>
-            <option value="ferreteria-pro">Ferreteria Pro</option>
-            <option value="ferreteria-premium">Ferreteria Premium</option>
-            <option value="demo">Demo</option>
+            <option value="basico">Basico</option>
+            <option value="plus">Plus</option>
+            <option value="pro">Pro</option>
+            <option value="prueba">Prueba gratis</option>
+            <option value="demo">Demo interno</option>
           </select>
         </label>
         <label>Estado negocio
@@ -302,10 +320,11 @@
         </label>
         <label>Plan
           <select id="licPlan">
-            <option value="demo">Demo</option>
-            <option value="ferreteria-base">Ferreteria Base</option>
-            <option value="ferreteria-pro">Ferreteria Pro</option>
-            <option value="ferreteria-premium">Ferreteria Premium</option>
+            <option value="basico">Basico</option>
+            <option value="plus">Plus</option>
+            <option value="pro">Pro</option>
+            <option value="prueba">Prueba gratis</option>
+            <option value="demo">Demo interno</option>
           </select>
         </label>
         <label>Estado licencia

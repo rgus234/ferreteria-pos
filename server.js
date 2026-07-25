@@ -2001,6 +2001,15 @@ function validarAdminKey(req, res, next) {
 
 app.use("/admin/api", validarAdminKey);
 
+// Estimado de costo por pregunta de analisis profundo (Nivel 3,
+// claude-opus-4-8 con thinking adaptativo -- ver ia-server.js). No se
+// guarda el conteo real de tokens por llamada, asi que esto es una
+// aproximacion declarada, nunca una cifra exacta: ~4,000 tokens de
+// entrada + ~1,500 de salida/razonamiento (typical de una respuesta
+// con 1-2 llamadas a herramientas), a $5/$25 por millon de tokens
+// (precio publico de Opus 4.8) y ~18 MXN por USD.
+const COSTO_ESTIMADO_MXN_POR_PREGUNTA_NIVEL3 = { min: 1, max: 3 };
+
 app.get("/admin/api/resumen", async (_req, res) => {
     try {
         const negocios = await pool.query(`
@@ -2034,11 +2043,25 @@ app.get("/admin/api/resumen", async (_req, res) => {
             FROM public.dispositivos
         `);
 
+        const ia = await pool.query(`
+            SELECT COALESCE(SUM(ia_nivel3_usos) FILTER (WHERE ia_nivel3_periodo = to_char(NOW(), 'YYYY-MM')), 0)::int AS usos_nivel3_mes
+            FROM public.licencias
+        `);
+
+        const usosNivel3Mes = ia.rows[0].usos_nivel3_mes;
+
         res.json({
             ok: true,
             negocios: negocios.rows[0],
             licencias: licencias.rows[0],
-            dispositivos: dispositivos.rows[0]
+            dispositivos: dispositivos.rows[0],
+            ia: {
+                usosNivel3Mes,
+                costoEstimadoMxn: {
+                    min: Math.round(usosNivel3Mes * COSTO_ESTIMADO_MXN_POR_PREGUNTA_NIVEL3.min),
+                    max: Math.round(usosNivel3Mes * COSTO_ESTIMADO_MXN_POR_PREGUNTA_NIVEL3.max)
+                }
+            }
         });
     } catch (error) {
         responderError(res, error);
@@ -2048,6 +2071,13 @@ app.get("/admin/api/resumen", async (_req, res) => {
 app.get("/admin/api/negocios", async (_req, res) => {
     try {
         const resultado = await pool.query(`
+            WITH telefonos_duplicados AS (
+                SELECT telefono
+                FROM public.negocios
+                WHERE telefono IS NOT NULL AND telefono <> ''
+                GROUP BY telefono
+                HAVING COUNT(*) > 1
+            )
             SELECT
                 n.id,
                 n.slug,
@@ -2083,13 +2113,7 @@ app.get("/admin/api/negocios", async (_req, res) => {
                 COALESCE(SUM(d.sync_errores), 0)::int AS sync_errores,
                 (SELECT COUNT(*)::int FROM public.productos p WHERE p.negocio_id = n.id) AS productos_count,
                 (SELECT COUNT(*)::int FROM public.ventas v WHERE v.negocio_id = n.id) AS ventas_count,
-                (
-                    SELECT COUNT(*)::int
-                    FROM public.negocios n2
-                    WHERE n2.id <> n.id
-                    AND n.telefono IS NOT NULL AND n.telefono <> ''
-                    AND n2.telefono = n.telefono
-                ) AS duplicados_telefono,
+                (td.telefono IS NOT NULL) AS duplicados_telefono,
                 EXISTS (
                     SELECT 1 FROM public.tenant_auto_provision_log t
                     WHERE t.negocio_id = n.id
@@ -2097,7 +2121,8 @@ app.get("/admin/api/negocios", async (_req, res) => {
             FROM public.negocios n
             LEFT JOIN public.licencias l ON l.negocio_id = n.id
             LEFT JOIN public.dispositivos d ON d.negocio_id = n.id
-            GROUP BY n.id, l.id
+            LEFT JOIN telefonos_duplicados td ON td.telefono = n.telefono
+            GROUP BY n.id, l.id, td.telefono
             ORDER BY n.created_at DESC
         `);
 

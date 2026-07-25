@@ -63,6 +63,29 @@ const PRECIO_POR_PLAN = () => ({
     pro: config.stripePricePro
 });
 
+// Descuento de fundadores: los primeros N negocios que se suscriben
+// se quedan con 40% de descuento de por vida (no solo unos meses).
+// Se implementa 100% con un Coupon + Promotion Code de Stripe
+// (duration:"forever", max_redemptions:N) -- Stripe ya lleva la
+// cuenta de cuantas veces se uso contra el cupo, no hace falta
+// ninguna columna nueva en la base de datos. Se crea una sola vez
+// desde Admin (ver rutas mas abajo); cambiar el cupo despues de
+// creado requiere el dashboard de Stripe (la API no permite editar
+// max_redemptions de un promotion code ya creado).
+const CODIGO_DESCUENTO_FUNDADOR = "FUNDADOR40";
+
+async function cuponFundadorVigente(stripe) {
+    const lista = await stripe.promotionCodes.list({ code: CODIGO_DESCUENTO_FUNDADOR, limit: 1 });
+    const promo = lista.data[0];
+    if (!promo) return null;
+
+    const restantes = Number.isFinite(promo.max_redemptions)
+        ? promo.max_redemptions - promo.times_redeemed
+        : null;
+
+    return { ...promo, restantes };
+}
+
 module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
     // Todas las rutas de aqui abajo usan la sesion de cuenta del
     // dueno (correo+contrasena), no el token de dispositivo -- solo
@@ -156,6 +179,14 @@ module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
             // directo en la URL de redireccion (evita open redirect).
             const destino = req.body?.retorno === "/dueno" ? "/dueno" : "/";
 
+            // Si el cupon de fundadores existe y todavia tiene cupo, se
+            // aplica automaticamente (el cliente no tiene que escribir
+            // nada) -- Stripe no permite combinar "discounts" con
+            // "allow_promotion_codes" en la misma sesion, asi que solo
+            // se ofrece el campo manual cuando no aplica el automatico.
+            const cuponFundador = await cuponFundadorVigente(stripe).catch(() => null);
+            const hayCupoFundador = cuponFundador?.active && (cuponFundador.restantes === null || cuponFundador.restantes > 0);
+
             const sesion = await stripe.checkout.sessions.create({
                 mode: "subscription",
                 customer: stripeCustomerId,
@@ -163,11 +194,13 @@ module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
                 success_url: `${base}${destino}?suscripcion=exito`,
                 cancel_url: `${base}${destino}?suscripcion=cancelado`,
                 metadata: { negocio_id: String(negocioId), plan },
-                // Deja que el dueno escriba un codigo (ej. BIENVENIDA40)
-                // en el propio checkout de Stripe -- los codigos se
-                // crean y desactivan desde el dashboard de Stripe, sin
-                // tocar este codigo.
-                allow_promotion_codes: true
+                ...(hayCupoFundador
+                    ? { discounts: [{ promotion_code: cuponFundador.id }] }
+                    // Deja que el dueno escriba un codigo (ej. BIENVENIDA40)
+                    // en el propio checkout de Stripe -- los codigos se
+                    // crean y desactivan desde el dashboard de Stripe, sin
+                    // tocar este codigo.
+                    : { allow_promotion_codes: true })
             });
 
             res.json({ ok: true, url: sesion.url });
@@ -238,6 +271,96 @@ module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
                     tieneStripe: Boolean(licencia.stripe_customer_id)
                 },
                 stripeConfigurado: Boolean(obtenerStripe())
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Rutas de Admin para el descuento de fundadores -- viven bajo
+    // /admin/api, ya protegido por validarAdminKey en server.js
+    // (el middleware se registra antes de que este modulo cargue sus
+    // rutas, asi que aplica igual sin importar en que archivo vivan).
+    app.get("/admin/api/descuento-fundadores", async (_req, res) => {
+        const stripe = obtenerStripe();
+
+        if (!stripe) {
+            res.status(503).json({ ok: false, error: "Stripe todavia no esta configurado en este servidor" });
+            return;
+        }
+
+        try {
+            const cupon = await cuponFundadorVigente(stripe);
+
+            if (!cupon) {
+                res.json({ ok: true, existe: false });
+                return;
+            }
+
+            res.json({
+                ok: true,
+                existe: true,
+                codigo: cupon.code,
+                porcentaje: cupon.coupon?.percent_off ?? null,
+                cupo: cupon.max_redemptions,
+                usados: cupon.times_redeemed,
+                restantes: cupon.restantes,
+                activo: cupon.active
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.post("/admin/api/descuento-fundadores", async (req, res) => {
+        const stripe = obtenerStripe();
+
+        if (!stripe) {
+            res.status(503).json({ ok: false, error: "Stripe todavia no esta configurado en este servidor" });
+            return;
+        }
+
+        const cupo = Number(req.body?.cupo);
+
+        if (!Number.isInteger(cupo) || cupo < 1 || cupo > 1000) {
+            res.status(400).json({ ok: false, error: "El cupo debe ser un numero entero entre 1 y 1000" });
+            return;
+        }
+
+        try {
+            const existente = await cuponFundadorVigente(stripe);
+
+            if (existente) {
+                res.status(409).json({
+                    ok: false,
+                    error: "Ya existe un cupon de fundadores -- desactivalo desde el dashboard de Stripe si quieres crear uno nuevo con otro cupo."
+                });
+                return;
+            }
+
+            const coupon = await stripe.coupons.create({
+                percent_off: 40,
+                duration: "forever",
+                name: "Cliente fundador"
+            });
+
+            await stripe.promotionCodes.create({
+                coupon: coupon.id,
+                code: CODIGO_DESCUENTO_FUNDADOR,
+                max_redemptions: cupo
+            });
+
+            const creado = await cuponFundadorVigente(stripe);
+
+            res.json({
+                ok: true,
+                existe: true,
+                codigo: creado.code,
+                porcentaje: creado.coupon?.percent_off ?? null,
+                cupo: creado.max_redemptions,
+                usados: creado.times_redeemed,
+                restantes: creado.restantes,
+                activo: creado.active
             });
         } catch (error) {
             responderError(res, error);

@@ -104,6 +104,7 @@ function mostrarVistaAdmin(vista) {
   document.querySelectorAll(".admin-sidebar nav button").forEach(button => {
     button.classList.toggle("active", button.dataset.view === target);
   });
+  if (target === "ingresos") cargarDescuentoFundadoresAdmin();
 }
 
 function pintarMetricasAdmin(resumen) {
@@ -116,6 +117,9 @@ function pintarMetricasAdmin(resumen) {
   const pendientes = Number(resumen?.dispositivos?.sync_pendientes || 0);
   const errores = Number(resumen?.dispositivos?.sync_errores || 0);
   const fantasmas = Number(resumen?.negocios?.fantasmas || 0);
+  const iaUsos = Number(resumen?.ia?.usosNivel3Mes || 0);
+  const iaCostoMin = Number(resumen?.ia?.costoEstimadoMxn?.min || 0);
+  const iaCostoMax = Number(resumen?.ia?.costoEstimadoMxn?.max || 0);
 
   document.getElementById("metricMRR").textContent = formatoDineroAdmin.format(mrr);
   document.getElementById("metricMRRDetalle").textContent = `${activos} activos, ${pruebas} en prueba`;
@@ -125,6 +129,8 @@ function pintarMetricasAdmin(resumen) {
   document.getElementById("metricSync").textContent = pendientes + errores;
   document.getElementById("metricSyncDetalle").textContent = `${pendientes} pendientes, ${errores} errores`;
   document.getElementById("metricFantasmas").textContent = fantasmas;
+  document.getElementById("metricIAUsos").textContent = `${iaUsos} preguntas`;
+  document.getElementById("metricIACosto").textContent = `Costo estimado: ${formatoDineroAdmin.format(iaCostoMin)} - ${formatoDineroAdmin.format(iaCostoMax)} MXN (aproximado)`;
   document.getElementById("ingresoMRR").textContent = formatoDineroAdmin.format(mrr);
   document.getElementById("ingresoVencidas").textContent = vencidas;
   document.getElementById("ingresoSuspendidas").textContent = suspendidas;
@@ -136,6 +142,7 @@ function pintarResumenAdmin() {
   const negocios = resumenAdmin?.negocios || {};
   const licencias = resumenAdmin?.licencias || {};
   const dispositivos = resumenAdmin?.dispositivos || {};
+  const ia = resumenAdmin?.ia || {};
   contenedor.innerHTML = [
     ["Negocios activos", negocios.activos || 0],
     ["Negocios en prueba", negocios.prueba || 0],
@@ -143,7 +150,8 @@ function pintarResumenAdmin() {
     ["Licencias activas", licencias.activas || 0],
     ["Licencias vencidas", licencias.vencidas || 0],
     ["Equipos en linea", dispositivos.en_linea || 0],
-    ["Sync con errores", dispositivos.sync_errores || 0]
+    ["Sync con errores", dispositivos.sync_errores || 0],
+    ["Preguntas de Nexo IA este mes", ia.usosNivel3Mes || 0]
   ].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
 }
 
@@ -236,6 +244,65 @@ function pintarPlanesAdmin() {
   contenedor.innerHTML = Object.entries(conteo).length
     ? Object.entries(conteo).map(([plan, total]) => `<div><span>${escaparHTMLAdmin(plan)}</span><strong>${total}</strong></div>`).join("")
     : '<div><span>Sin planes</span><strong>0</strong></div>';
+}
+
+async function cargarDescuentoFundadoresAdmin() {
+  const contenedor = document.getElementById("descuentoFundadorAdmin");
+  if (!contenedor) return;
+
+  try {
+    const data = await apiAdmin("/admin/api/descuento-fundadores");
+    pintarDescuentoFundadoresAdmin(data);
+  } catch (error) {
+    contenedor.innerHTML = `<p class="hint">${escaparHTMLAdmin(error.message || "No se pudo cargar el descuento de fundadores.")}</p>`;
+  }
+}
+
+function pintarDescuentoFundadoresAdmin(data) {
+  const contenedor = document.getElementById("descuentoFundadorAdmin");
+  if (!contenedor) return;
+
+  if (!data.existe) {
+    contenedor.innerHTML = `
+      <p class="hint">Los primeros clientes que contraten un plan se quedan con 40% de descuento de por vida. Crea el cupon una sola vez -- el cupo no se puede cambiar despues (usa el dashboard de Stripe para eso).</p>
+      <label>Cupo de clientes fundadores
+        <input type="number" id="descuentoFundadorCupo" min="1" max="1000" step="1" value="50">
+      </label>
+      <button type="button" onclick="crearDescuentoFundadoresAdmin()">Crear cupon 40% de por vida</button>
+    `;
+    return;
+  }
+
+  const restantes = data.restantes ?? "-";
+  contenedor.innerHTML = `
+    <div class="money-list">
+      <div><span>Codigo</span><strong>${escaparHTMLAdmin(data.codigo)}</strong></div>
+      <div><span>Descuento</span><strong>${escaparHTMLAdmin(data.porcentaje)}% de por vida</strong></div>
+      <div><span>Usados / cupo</span><strong>${escaparHTMLAdmin(data.usados)} / ${escaparHTMLAdmin(data.cupo)}</strong></div>
+      <div><span>Restantes</span><strong>${escaparHTMLAdmin(restantes)}</strong></div>
+    </div>
+    <p class="hint">Se aplica solo al primer pago de cada negocio -- ${data.activo ? "activo, sin que el cliente escriba nada en el checkout." : "cupon desactivado desde Stripe."}</p>
+  `;
+}
+
+async function crearDescuentoFundadoresAdmin() {
+  const cupo = Number(document.getElementById("descuentoFundadorCupo")?.value || 0);
+
+  if (!Number.isInteger(cupo) || cupo < 1) {
+    await alertaAdmin("Escribe un cupo valido (numero entero, minimo 1).", "Falta el cupo", "alerta");
+    return;
+  }
+
+  try {
+    const data = await apiAdmin("/admin/api/descuento-fundadores", {
+      method: "POST",
+      body: JSON.stringify({ cupo })
+    });
+    pintarDescuentoFundadoresAdmin(data);
+    await alertaAdmin(`Cupon ${data.codigo} creado con cupo para ${data.cupo} clientes.`, "Descuento de fundadores", "exito");
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo crear el cupon.", "Error", "peligro");
+  }
 }
 
 function pintarSoporteAdmin() {
@@ -364,7 +431,7 @@ async function crearClienteAdmin(event) {
         correo: document.getElementById("nuevoClienteCorreo")?.value.trim() || "",
         direccion: document.getElementById("nuevoClienteDireccion")?.value.trim() || "",
         giro: document.getElementById("nuevoClienteGiro")?.value || "ferreteria",
-        plan: document.getElementById("nuevoClientePlan")?.value || "ferreteria-base",
+        plan: document.getElementById("nuevoClientePlan")?.value || "basico",
         estado: document.getElementById("nuevoClienteEstado")?.value || "activo",
         licenciaEstado: document.getElementById("nuevoClienteLicEstado")?.value || "activa",
         montoMensual: Number(document.getElementById("nuevoClienteMonto")?.value || 0),
