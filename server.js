@@ -4225,6 +4225,10 @@ app.get(["/site", "/site/"], (req, res) => {
     res.sendFile(path.join(__dirname, "public", "site", "index.html"));
 });
 
+app.get("/nexo-ia", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "site", "nexo-ia.html"));
+});
+
 app.get("/terminos", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "site", "terminos.html"));
 });
