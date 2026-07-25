@@ -320,8 +320,14 @@ Se te dan los encabezados reales del archivo y unas filas de muestra. Responde U
 // Nexo IA" (ni Nivel 1/2 tampoco, ver iaDisponible). demo se trata
 // igual que pro (Ferreteria Olimpico, el negocio real, sigue en
 // "demo" porque nunca se suscribio por Stripe -- no se le puede
-// cortar el acceso que ya usa).
-const LIMITES_NIVEL3_POR_PLAN = { basico: 0, plus: 50, pro: 500, demo: 500 };
+// cortar el acceso que ya usa). "prueba" es el plan real que recibe
+// todo registro nuevo desde la pagina publica (ver server.js,
+// POST /api/clientes/registro) -- acceso completo a todas las
+// funciones del sistema durante los 15 dias de prueba, pero con
+// Nexo IA topada bajo para no exponer costo real de API a cuentas
+// que todavia no pagan nada; nunca recibe busqueda web (ver
+// permitirBusquedaWeb mas abajo, solo revisa pro/demo).
+const LIMITES_NIVEL3_POR_PLAN = { basico: 0, plus: 50, pro: 500, demo: 500, prueba: 30 };
 
 async function licenciaDelNegocio(pool, negocioId) {
     await pool.query(
@@ -966,9 +972,13 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             if (nivelFinal === 3 && acceso.usosVigentes >= acceso.limite) {
                 nivelFinal = 2;
                 modeloElegido = "claude-haiku-4-5";
-                notaLimite = acceso.plan === "plus"
-                    ? "\n\n(Ya usaste tus preguntas de analisis profundo de este mes. Te respondo con el modo rapido -- si quieres analisis ilimitado, mejora a Pro.)"
-                    : "\n\n(Estas usando Nexo IA con mucha frecuencia este mes -- te respondo con el modo rapido por ahora.)";
+                if (acceso.plan === "plus") {
+                    notaLimite = "\n\n(Ya usaste tus preguntas de analisis profundo de este mes. Te respondo con el modo rapido -- si quieres analisis ilimitado, mejora a Pro.)";
+                } else if (acceso.plan === "prueba") {
+                    notaLimite = "\n\n(Ya usaste tus preguntas de analisis profundo de la prueba este mes. Te respondo con el modo rapido -- al contratar un plan tendras mas analisis disponible.)";
+                } else {
+                    notaLimite = "\n\n(Estas usando Nexo IA con mucha frecuencia este mes -- te respondo con el modo rapido por ahora.)";
+                }
             }
 
             const memoriaExtra = esPrimerMensaje ? await resumenMemoriaNexo(pool, negocio.id) : "";

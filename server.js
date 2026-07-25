@@ -459,7 +459,7 @@ app.post("/api/clientes/registro", async (req, res) => {
     const ciudad = limpiarTexto(req.body?.ciudad || req.body?.direccion, 180);
     const nombreContacto = limpiarTexto(req.body?.nombreContacto || req.body?.nombre, 120);
     const giro = limpiarTexto(req.body?.giro, 80) || "ferreteria";
-    const plan = limpiarTexto(req.body?.plan, 80) || "demo";
+    const plan = limpiarTexto(req.body?.plan, 80) || "prueba";
 
     // Validaciones que no necesitan tocar la base de datos se resuelven
     // antes de pedir una conexion del pool -- asi un intento con datos

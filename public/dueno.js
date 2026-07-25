@@ -1332,9 +1332,9 @@ function renderSubpantallaNexoIA() {
     ia.limite > 0 ? Math.min(100, Math.round((ia.usosVigentes / ia.limite) * 100)) : 0;
 
     const textoLimite =
-        ia.plan === "plus"
-            ? `${ia.usosVigentes} de ${ia.limite} preguntas de analisis profundo usadas este mes.`
-            : `${ia.usosVigentes} preguntas de analisis profundo este mes -- tu plan no tiene un limite practico.`;
+        ia.plan === "pro" || ia.plan === "demo"
+            ? `${ia.usosVigentes} preguntas de analisis profundo este mes -- tu plan no tiene un limite practico.`
+            : `${ia.usosVigentes} de ${ia.limite} preguntas de analisis profundo usadas este mes.`;
 
     contenedor.innerHTML = `
         <article class="dueno-card">
