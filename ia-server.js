@@ -50,6 +50,16 @@ Reglas estrictas:
 - Responde siempre en texto plano, sin markdown (nada de asteriscos, guiones de lista ni encabezados) -- el chat donde apareces no interpreta formato.
 - No das consejos legales, fiscales ni financieros formales -- solo observaciones practicas sobre el negocio.`;
 
+// Solo se agrega al system prompt cuando el negocio tiene busqueda web
+// habilitada (plan Pro/demo, ver chatNexoIA) -- Basico y Plus nunca ven
+// esta linea ni la herramienta correspondiente.
+const NOTA_BUSQUEDA_WEB_NEXO = "\n\nAdemas de tus herramientas de datos internos, puedes buscar informacion actual en internet cuando sea util para dar consejos de negocio (tendencias, precios de referencia, mejores practicas para ferreterias). Usa la busqueda con criterio, no para cada pregunta.";
+
+// Herramienta de servidor (ejecutada por Anthropic, no por este
+// backend) -- max_uses acota el costo por pregunta ademas del limite
+// mensual de Nivel 3 que ya existe.
+const HERRAMIENTA_BUSQUEDA_WEB = { type: "web_search_20260209", name: "web_search", max_uses: 3 };
+
 // Modulos a los que Nexo AI puede navegar por conversacion (herramienta
 // abrir_modulo). Es un subconjunto deliberado de AYUDA_MODULOS_POS
 // (shell-topbar.js, frontend) -- solo los modulos que tienen una
@@ -605,19 +615,21 @@ async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
     }
 }
 
-async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8", memoriaExtra = "") {
+async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8", memoriaExtra = "", permitirBusquedaWeb = false) {
     const anthropic = obtenerAnthropic();
     let mensajesActuales = mensajes;
     let accion = null;
     let celebrar = false;
-    const systemPrompt = memoriaExtra ? `${SYSTEM_PROMPT_NEXO}\n\n${memoriaExtra}` : SYSTEM_PROMPT_NEXO;
+    let systemPrompt = memoriaExtra ? `${SYSTEM_PROMPT_NEXO}\n\n${memoriaExtra}` : SYSTEM_PROMPT_NEXO;
+    if (permitirBusquedaWeb) systemPrompt += NOTA_BUSQUEDA_WEB_NEXO;
+    const tools = permitirBusquedaWeb ? [...HERRAMIENTAS_NEXO, HERRAMIENTA_BUSQUEDA_WEB] : HERRAMIENTAS_NEXO;
 
     for (let intento = 0; intento < MAX_ITERACIONES_HERRAMIENTAS; intento++) {
         const parametros = {
             model: modelo,
             max_tokens: 1024,
             system: systemPrompt,
-            tools: HERRAMIENTAS_NEXO,
+            tools,
             messages: mensajesActuales
         };
 
@@ -960,7 +972,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             }
 
             const memoriaExtra = esPrimerMensaje ? await resumenMemoriaNexo(pool, negocio.id) : "";
-            const { texto: respuesta, accion, celebrar } = await chatNexoIA(pool, negocio.id, mensajesIniciales, modeloElegido, memoriaExtra);
+            const permitirBusquedaWeb = acceso.plan === "pro" || acceso.plan === "demo";
+            const { texto: respuesta, accion, celebrar } = await chatNexoIA(pool, negocio.id, mensajesIniciales, modeloElegido, memoriaExtra, permitirBusquedaWeb);
 
             if (nivelFinal === 3) {
                 await registrarUsoNivel3(pool, negocio.id);

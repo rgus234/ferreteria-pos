@@ -17,6 +17,7 @@ const {
 const { cargarModulosPOS } = require("./server-modules");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
+const { listarPlanes, listarCatalogoFunciones, funcionesDelPlan } = require("./features");
 const {
     enviarCorreoVerificacion,
     enviarCorreoRecuperacion,
@@ -544,7 +545,7 @@ app.post("/api/clientes/registro", async (req, res) => {
         const licenciaKey = await generarLicenciaUnica(client);
         const venceEnDias = Number.isFinite(Number(req.body?.diasPrueba))
             ? Math.max(1, Math.min(Number(req.body.diasPrueba), 90))
-            : 30;
+            : 15;
 
         const licencia = await client.query(
             `
@@ -636,6 +637,48 @@ app.post("/api/clientes/registro", async (req, res) => {
         responderError(res, error);
     } finally {
         client.release();
+    }
+});
+
+// Mismos numeros reales que LIMITES_NIVEL3_POR_PLAN en ia-server.js --
+// se repiten aqui (no se importa el modulo completo) porque esta ruta
+// es publica y solo necesita esta constante, no el resto de ia-server.js.
+const LIMITES_NIVEL3_POR_PLAN_PUBLICO = { basico: 0, plus: 50, pro: 500 };
+
+// Comparativa de planes para la pagina publica -- sin autenticacion,
+// solo lectura, alimenta el modal "Ver detalles" de cada plan.
+app.get("/api/planes-publico", async (_req, res) => {
+    try {
+        const planes = await listarPlanes();
+        const catalogo = await listarCatalogoFunciones();
+        const catalogoActivo = catalogo.filter(f => f.estado === "activo");
+
+        const resultado = await Promise.all(planes.map(async plan => {
+            const funciones = await funcionesDelPlan(plan.clave);
+            const porCategoria = {};
+
+            for (const f of catalogoActivo) {
+                const entrada = funciones.find(x => x.clave === f.clave);
+                if (!porCategoria[f.categoria_nombre]) porCategoria[f.categoria_nombre] = [];
+                porCategoria[f.categoria_nombre].push({
+                    nombre: f.nombre,
+                    incluido: entrada?.incluido || false,
+                    limite: entrada?.limite_numerico ?? null
+                });
+            }
+
+            return {
+                clave: plan.clave,
+                nombre: plan.nombre,
+                descripcion: plan.descripcion,
+                categorias: Object.entries(porCategoria).map(([nombre, funciones]) => ({ nombre, funciones })),
+                nexoIA: { limiteNivel3: LIMITES_NIVEL3_POR_PLAN_PUBLICO[plan.clave] ?? 0 }
+            };
+        }));
+
+        res.json({ ok: true, planes: resultado });
+    } catch (error) {
+        responderError(res, error);
     }
 });
 

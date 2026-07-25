@@ -12,6 +12,7 @@
   <header class="site-header">
     <a class="brand" href="#inicio" aria-label="Nexo POS">
       <img src="/nexo-pos-icon.jpg" alt="Nexo POS">
+      <img class="brand-mascota" src="/img/nexo-ia/feliz.jpg" alt="" aria-hidden="true">
       <span>Nexo POS</span>
     </a>
     <nav aria-label="Navegacion principal">
@@ -41,6 +42,8 @@
           <span>Enfoque inicial</span>
           <strong>Ferreterias, materiales y mostrador</strong>
         </div>
+
+        <img class="hero-mascota" src="/img/nexo-ia/feliz.jpg" alt="Nexo, el asistente de Nexo POS">
       </div>
 
       <div class="product-preview" aria-label="Vista previa de Nexo POS">
@@ -150,7 +153,10 @@
             <li>1 equipo vinculado, hasta 2 perfiles con PIN</li>
             <li>Manuales y ayuda integrada</li>
           </ul>
-          <a class="plan-cta" href="https://app.nexoposoficial.com/">Comenzar gratis</a>
+          <div class="plan-acciones">
+            <a class="plan-cta" href="https://app.nexoposoficial.com/">Comenzar gratis</a>
+            <button type="button" class="plan-detalles-btn" data-plan="basico">Ver detalles</button>
+          </div>
         </article>
         <article class="featured">
           <span class="plan-badge">Mas elegido</span>
@@ -166,7 +172,10 @@
             <li>Recepcion de mercancia por XML CFDI o CSV</li>
             <li>Reportes con comparativas</li>
           </ul>
-          <a class="plan-cta" href="https://app.nexoposoficial.com/">Comenzar gratis</a>
+          <div class="plan-acciones">
+            <a class="plan-cta" href="https://app.nexoposoficial.com/">Comenzar gratis</a>
+            <button type="button" class="plan-detalles-btn" data-plan="plus">Ver detalles</button>
+          </div>
         </article>
         <article>
           <h3>Pro</h3>
@@ -181,10 +190,24 @@
             <li>Banco Global de Imagenes</li>
             <li>Respaldos automaticos y soporte prioritario</li>
           </ul>
-          <a class="plan-cta" href="https://app.nexoposoficial.com/">Comenzar gratis</a>
+          <div class="plan-acciones">
+            <a class="plan-cta" href="https://app.nexoposoficial.com/">Comenzar gratis</a>
+            <button type="button" class="plan-detalles-btn" data-plan="pro">Ver detalles</button>
+          </div>
         </article>
       </div>
     </section>
+
+    <div class="plan-modal-overlay" id="planModalOverlay" aria-hidden="true">
+      <div class="plan-modal-card" role="dialog" aria-modal="true" aria-labelledby="planModalTitulo">
+        <button type="button" class="plan-modal-cerrar" id="planModalCerrar" aria-label="Cerrar">&times;</button>
+        <h3 id="planModalTitulo">Plan</h3>
+        <p id="planModalDescripcion" class="plan-modal-descripcion"></p>
+        <div id="planModalContenido" class="plan-modal-contenido">
+          <p>Cargando...</p>
+        </div>
+      </div>
+    </div>
 
     <section class="growth">
       <div>
@@ -325,6 +348,90 @@
       } finally {
         button.disabled = false;
       }
+    });
+
+    // Modal "Ver detalles" por plan -- datos reales desde /api/planes-publico
+    let planesPublicoCache = null;
+
+    const planModalOverlay = document.getElementById("planModalOverlay");
+    const planModalTitulo = document.getElementById("planModalTitulo");
+    const planModalDescripcion = document.getElementById("planModalDescripcion");
+    const planModalContenido = document.getElementById("planModalContenido");
+
+    const TEXTO_IA_POR_LIMITE = {
+      0: "Nexo IA no incluida en este plan.",
+      50: "Nexo IA -- hasta 50 preguntas de análisis al mes.",
+      500: "Nexo IA -- análisis más profundo (hasta 500 preguntas al mes) y puede buscar en internet para darte consejos y contexto actualizado de tu giro."
+    };
+
+    async function cargarPlanesPublico() {
+      if (planesPublicoCache) return planesPublicoCache;
+      const response = await fetch("/api/planes-publico");
+      const data = await response.json();
+      if (!data.ok) throw new Error("No se pudo cargar la informacion de planes.");
+      planesPublicoCache = data.planes;
+      return planesPublicoCache;
+    }
+
+    function renderPlanModal(plan) {
+      planModalTitulo.textContent = plan.nombre;
+      planModalDescripcion.textContent = plan.descripcion || "";
+
+      const categoriasHtml = plan.categorias.map(cat => `
+        <div class="plan-modal-categoria">
+          <h4>${escapeHtml(cat.nombre)}</h4>
+          <ul>
+            ${cat.funciones.map(f => `
+              <li class="${f.incluido ? "incluido" : "no-incluido"}">
+                <span class="plan-modal-icono">${f.incluido ? "✓" : "✕"}</span>
+                <span>${escapeHtml(f.nombre)}${f.incluido && f.limite ? ` -- hasta ${f.limite}` : ""}</span>
+              </li>
+            `).join("")}
+          </ul>
+        </div>
+      `).join("");
+
+      const textoIA = TEXTO_IA_POR_LIMITE[plan.nexoIA?.limiteNivel3] || "";
+
+      planModalContenido.innerHTML = `
+        ${categoriasHtml}
+        <div class="plan-modal-categoria plan-modal-ia">
+          <h4>Nexo IA</h4>
+          <p>${escapeHtml(textoIA)}</p>
+        </div>
+      `;
+    }
+
+    async function abrirPlanModal(clave) {
+      planModalOverlay.classList.add("abierto");
+      planModalOverlay.setAttribute("aria-hidden", "false");
+      planModalContenido.innerHTML = "<p>Cargando...</p>";
+
+      try {
+        const planes = await cargarPlanesPublico();
+        const plan = planes.find(p => p.clave === clave);
+        if (!plan) throw new Error("Plan no encontrado.");
+        renderPlanModal(plan);
+      } catch (error) {
+        planModalContenido.innerHTML = `<p>${escapeHtml(error.message)}</p>`;
+      }
+    }
+
+    function cerrarPlanModal() {
+      planModalOverlay.classList.remove("abierto");
+      planModalOverlay.setAttribute("aria-hidden", "true");
+    }
+
+    document.querySelectorAll(".plan-detalles-btn").forEach(btn => {
+      btn.addEventListener("click", () => abrirPlanModal(btn.dataset.plan));
+    });
+
+    document.getElementById("planModalCerrar")?.addEventListener("click", cerrarPlanModal);
+    planModalOverlay?.addEventListener("click", event => {
+      if (event.target === planModalOverlay) cerrarPlanModal();
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape") cerrarPlanModal();
     });
   </script>
 </body>

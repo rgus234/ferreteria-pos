@@ -5007,3 +5007,86 @@ mensaje). Negocio sintetico y su licencia eliminados despues;
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+## 2026-07-25 -- Pagina publica: comparativa real de planes, mascota Nexo, prueba de 15 dias y busqueda web en Pro
+
+**Contexto.** El usuario ya habia actualizado el resto del contenido
+de `nexoposoficial.com` y queria dejar muy claro que incluye cada
+plan (Basico/Plus/Pro), con un "Ver detalles" real por plan, dejar
+claro que Plus tiene Nexo IA limitada y Pro es "mas inteligente" (no
+ilimitado) via busqueda web, poner a la mascota de Nexo en la pagina,
+y documentar/ajustar la prueba gratis (confirmo cambiarla a 15 dias).
+
+**Diseno.**
+- `server.js`: `venceEnDias` default cambia de 30 a 15
+  (`diasPrueba` sigue existiendo para casos especiales, tope 1-90).
+  Nueva ruta publica `GET /api/planes-publico` (sin
+  `requerirAccesoNegocio` -- un visitante anonimo no tiene sesion),
+  que arma la comparativa real desde `features.js`
+  (`listarPlanes`/`listarCatalogoFunciones`/`funcionesDelPlan`) mas la
+  fila de Nexo IA a mano usando los mismos numeros reales de
+  `LIMITES_NIVEL3_POR_PLAN` que ya usa `ia-server.js`.
+- `public/site/terminos.html`: seccion 4 documenta la prueba de 15
+  dias (sin tarjeta al registrarse), los 15 dias de gracia posteriores
+  (acceso normal), y que los datos nunca se borran al vencer.
+- `public/site/index.html`/`styles.css`: mascota (`img/nexo-ia/feliz.jpg`,
+  ya existente, sin assets nuevos) chica y estatica en el header,
+  grande y rotando lentamente (`animation: girarMascota 12s linear
+  infinite`) en el hero. Boton "Ver detalles" por plan abre un modal
+  (`plan-modal-overlay`) que hace `fetch("/api/planes-publico")` una
+  vez y pinta el checklist real por categoria + la fila de Nexo IA con
+  el texto correcto por plan (Basico: no incluida; Plus: hasta 50
+  preguntas/mes; Pro: analisis mas profundo, hasta 500/mes, mas
+  busqueda web).
+- `ia-server.js`: nueva herramienta de servidor
+  `HERRAMIENTA_BUSQUEDA_WEB = {type:"web_search_20260209", name:
+  "web_search", max_uses:3}`. `chatNexoIA` gana un parametro
+  `permitirBusquedaWeb` que, cuando es `true`, agrega esa herramienta
+  al arreglo `tools` y una nota al `system` prompt explicando la
+  capacidad nueva. El handler `POST /ia/chat` calcula
+  `permitirBusquedaWeb = acceso.plan === "pro" || acceso.plan ===
+  "demo"` -- Basico y Plus nunca la reciben, ni siquiera declarada.
+
+**Bug encontrado y corregido durante la verificacion visual (fuera
+del alcance original pero necesario):** el H1 del hero
+(`clamp(46px,7vw,84px)`) envuelve a varias lineas en anchos de
+escritorio comunes, haciendo que `.hero-content` sea mucho mas alto
+de lo esperado. La mascota, anclada con `position:absolute` al fondo
+de `.hero` completo (contenedor de la seccion), terminaba encimada
+sobre el texto de "Enfoque inicial / Ferreterias, materiales y
+mostrador". Se corrigio anclando la mascota a `.hero-content` (no a
+`.hero`) con un `padding-bottom` reservado especificamente para ella
+-- la mascota ahora siempre queda despues de todo el texto, sin
+importar cuantas lineas ocupe el titular.
+
+**Verificacion real:**
+- `node --check server.js`, `node --check ia-server.js` sin errores.
+- `POST /api/clientes/registro` real: `fechaVencimiento` quedo a 15
+  dias exactos de la fecha de registro (confirmado con un negocio de
+  prueba, `id 17486`, eliminado despues).
+- `GET /api/planes-publico` probado en el navegador (sin sesion):
+  responde 200 con los 3 planes reales; el modal "Ver detalles" los
+  renderiza correctamente (confirmado via `dispatchEvent` de un click
+  real, ademas de invocacion directa) con el checklist completo y la
+  fila de Nexo IA correcta por plan.
+- Mascota confirmada sin superposicion tras el fix (verificado con
+  `getBoundingClientRect()` de la mascota contra `.hero-proof`: sin
+  interseccion).
+- Busqueda web en Nexo IA: contra 2 negocios sinteticos (`id 17480`
+  Pro, `id 17481` Plus, eliminados despues) se les hizo la misma
+  pregunta que requeria informacion externa
+  ("recomiendame una estrategia... buscando en internet las
+  tendencias actuales"). El negocio Plus respondio, igual que antes
+  del cambio, que no puede buscar en internet. El negocio Pro si uso
+  la herramienta -- la respuesta menciono explicitamente haber
+  consultado el mercado y haber agotado el cupo de busqueda, con
+  informacion de tendencias reales (herramienta inalambrica,
+  plataformas de bateria) que no viene de ninguna herramienta interna
+  del sistema. Confirmado ademas por log temporal (removido despues
+  de la prueba) que el arreglo `tools` mandado a la API incluye
+  `web_search` solo cuando el plan es pro/demo.
+- `negocio_id = 1` (Ferreteria Olimpico) confirmado sin cambios en
+  cada prueba.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.
