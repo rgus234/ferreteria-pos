@@ -1326,7 +1326,10 @@ async function imprimirTicketPOS(ticket, configOverride = null, opciones = {}) {
   negocio.ticketAncho === "58" ? 58 : 80;
 
   const anchoContenido =
-  negocio.ticketAncho === "58" ? "48mm" : "72mm";
+  negocio.ticketAncho === "58" ? "44mm" : "72mm";
+
+  const margenContenido =
+  negocio.ticketAncho === "58" ? "0" : "0 auto";
 
   if (negocio.imprimirAutomatico === false) {
    return true;
@@ -1373,7 +1376,7 @@ async function imprimirTicketPOS(ticket, configOverride = null, opciones = {}) {
     width: ${anchoContenido} !important;
     max-width: ${anchoContenido} !important;
     padding: 0 !important;
-    margin: 0 auto !important;
+    margin: ${margenContenido} !important;
    }
 
    .ticket-print-page h1,
