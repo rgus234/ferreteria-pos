@@ -35,6 +35,23 @@ async function mostrarBuscarTicket() {
  document.getElementById("buscarTicketFolioInput")?.focus();
 }
 
+// Algunos lectores de codigo de barras USB mandan mal el guion del
+// folio (ej. "V°000052" en vez de "V-000052") cuando su idioma de
+// teclado configurado no coincide con el de Windows -- en vez de
+// depender de que ese ajuste este bien hecho, se reconstruye el
+// folio a partir de los digitos escaneados (el formato siempre es
+// "V-" + 6 digitos), tolerando cualquier caracter raro en medio.
+function normalizarFolioBuscado(texto) {
+ const limpio = String(texto || "").trim();
+ const digitos = limpio.match(/\d+/);
+
+ if (digitos) {
+  return "V-" + digitos[0].padStart(6, "0");
+ }
+
+ return limpio;
+}
+
 async function buscarTicketPorFolio(evento) {
  evento.preventDefault();
 
@@ -42,7 +59,7 @@ async function buscarTicketPorFolio(evento) {
  document.getElementById("buscarTicketFolioInput");
 
  const folio =
- String(input?.value || "").trim();
+ normalizarFolioBuscado(input?.value);
 
  const resultado =
  document.getElementById("buscarTicketResultado");
