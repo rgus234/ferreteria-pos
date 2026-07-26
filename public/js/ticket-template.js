@@ -195,12 +195,14 @@ function construirTicketVentaHTML(datos, config = {}, opciones = {}) {
 
    JsBarcode(svg, String(datos.folio), {
     format: "CODE128",
-    width: 1.4,
-    height: 40,
-    fontSize: 12,
+    width: 1.05,
+    height: 36,
+    fontSize: 11,
     margin: 4,
     displayValue: true
    });
+
+   svg.setAttribute("style", "max-width:100%;height:auto;");
 
    codigoBarrasHtml = `<div style="margin-top:10px;text-align:center;">${svg.outerHTML}</div>`;
   } catch (error) {

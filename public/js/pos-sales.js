@@ -1392,6 +1392,11 @@ async function imprimirTicketPOS(ticket, configOverride = null, opciones = {}) {
     max-height: 16mm !important;
    }
 
+   .ticket-print-page svg {
+    max-width: 100% !important;
+    height: auto !important;
+   }
+
    .ticket-print-page hr {
     border: 0;
     border-top: 1px dashed #000;
