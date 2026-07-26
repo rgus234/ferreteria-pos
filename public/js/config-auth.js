@@ -1177,7 +1177,8 @@ function ocultarPantallasPrincipales() {
  "pantallaReglasPrecios",
  "pantallaAplicarPrecios",
  "pantallaCuenta",
- "pantallaNexoIA"
+ "pantallaNexoIA",
+ "pantallaBuscarTicket"
  ].forEach(id => {
  const pantalla =
  document.getElementById(id);
@@ -1334,6 +1335,13 @@ function valorTicketFormulario(config = configuracionNegocio() || {}) {
  mostrarTelefonoTicket: checkConfigCampo("configMostrarTelefonoTicket", config.mostrarTelefonoTicket !== false),
  mostrarCajeroTicket: checkConfigCampo("configMostrarCajeroTicket", config.mostrarCajeroTicket !== false),
  mostrarBarcodeTicket: checkConfigCampo("configMostrarBarcodeTicket", config.mostrarBarcodeTicket === true),
+ sitioWebNegocio: valorConfigCampo("configSitioWebNegocio", config.sitioWebNegocio || "").trim(),
+ mostrarSitioWebTicket: checkConfigCampo("configMostrarSitioWebTicket", config.mostrarSitioWebTicket !== false),
+ facebookNegocio: valorConfigCampo("configFacebookNegocio", config.facebookNegocio || "").trim(),
+ instagramNegocio: valorConfigCampo("configInstagramNegocio", config.instagramNegocio || "").trim(),
+ whatsappNegocio: valorConfigCampo("configWhatsappNegocio", config.whatsappNegocio || "").trim(),
+ mostrarRedesTicket: checkConfigCampo("configMostrarRedesTicket", config.mostrarRedesTicket === true),
+ mostrarIvaTicket: checkConfigCampo("configMostrarIvaTicket", config.mostrarIvaTicket === true),
  impresoraNombre: valorConfigCampo("configImpresoraNombre", config.impresoraNombre || "").trim(),
  impresionSilenciosa: checkConfigCampo("configImpresionSilenciosa", config.impresionSilenciosa === true),
  imprimirAutomatico: checkConfigCampo("configImprimirAutomatico", config.imprimirAutomatico !== false),
@@ -1510,6 +1518,22 @@ function mostrarConfiguracion() {
  <span>Nota extra</span>
  <input id="configNotaTicket" value="${config.notaTicket || ""}" placeholder="Cambios solo con ticket, garantia, etc." oninput="renderVistaPreviaTicket()">
  </label>
+ <label>
+ <span>Sitio web</span>
+ <input id="configSitioWebNegocio" value="${config.sitioWebNegocio || ""}" placeholder="www.tunegocio.com" oninput="renderVistaPreviaTicket()">
+ </label>
+ <label>
+ <span>Facebook</span>
+ <input id="configFacebookNegocio" value="${config.facebookNegocio || ""}" placeholder="@tunegocio" oninput="renderVistaPreviaTicket()">
+ </label>
+ <label>
+ <span>Instagram</span>
+ <input id="configInstagramNegocio" value="${config.instagramNegocio || ""}" placeholder="@tunegocio" oninput="renderVistaPreviaTicket()">
+ </label>
+ <label>
+ <span>WhatsApp</span>
+ <input id="configWhatsappNegocio" value="${config.whatsappNegocio || ""}" placeholder="55 1234 5678" oninput="renderVistaPreviaTicket()">
+ </label>
  </div>
 
  <div class="ticket-options-grid">
@@ -1518,8 +1542,12 @@ function mostrarConfiguracion() {
  <label class="config-check"><input id="configMostrarDireccionTicket" type="checkbox" ${config.mostrarDireccionTicket === false ? "" : "checked"} onchange="renderVistaPreviaTicket()"> Direccion</label>
  <label class="config-check"><input id="configMostrarTelefonoTicket" type="checkbox" ${config.mostrarTelefonoTicket === false ? "" : "checked"} onchange="renderVistaPreviaTicket()"> Telefono</label>
  <label class="config-check"><input id="configMostrarCajeroTicket" type="checkbox" ${config.mostrarCajeroTicket === false ? "" : "checked"} onchange="renderVistaPreviaTicket()"> Cajero</label>
+ <label class="config-check"><input id="configMostrarSitioWebTicket" type="checkbox" ${config.mostrarSitioWebTicket === false ? "" : "checked"} onchange="renderVistaPreviaTicket()"> Sitio web</label>
+ <label class="config-check"><input id="configMostrarRedesTicket" type="checkbox" ${config.mostrarRedesTicket === true ? "checked" : ""} onchange="renderVistaPreviaTicket()"> Redes sociales</label>
  <label class="config-check"><input id="configMostrarBarcodeTicket" type="checkbox" ${config.mostrarBarcodeTicket === true ? "checked" : ""} onchange="renderVistaPreviaTicket()"> Codigo de barras</label>
+ <label class="config-check"><input id="configMostrarIvaTicket" type="checkbox" ${config.mostrarIvaTicket === true ? "checked" : ""} onchange="renderVistaPreviaTicket()"> Desglosar IVA (informativo)</label>
  </div>
+ <p class="config-ayuda-texto">El desglose de IVA es solo informativo: muestra cuanto del total ya cobrado corresponde a impuesto (asumiendo que tus precios ya lo incluyen). No cambia lo que le cobras al cliente.</p>
  </section>
 
  <aside class="config-panel ticket-preview-panel">
@@ -1654,64 +1682,30 @@ function renderVistaPreviaTicket() {
  const anchoClase =
  config.ticketAncho === "58" ? "ticket-58" : "ticket-80";
 
- const logo =
- config.logo && config.mostrarLogoTicket
- ? `<img src="${config.logo}" alt="Logo">`
- : "";
-
- const nombre =
- config.mostrarNombreTicket
- ? `<h4>${config.ticketNombre || config.nombre || "Ferreteria Olimpico"}</h4>`
- : "";
-
- const subtitulo =
- config.ticketSubtitulo
- ? `<p>${config.ticketSubtitulo}</p>`
- : "";
-
- const direccion =
- config.mostrarDireccionTicket && config.direccion
- ? `<p>${config.direccion}</p>`
- : "";
-
- const telefono =
- config.mostrarTelefonoTicket && config.telefono
- ? `<p>Tel. ${config.telefono}</p>`
- : "";
-
- const cajero =
- config.mostrarCajeroTicket
- ? `<p>Cajero: ${usuarioActual?.nombre || "Administrador"}</p>`
- : "";
-
- const barcode =
- config.mostrarBarcodeTicket
- ? `<div class="ticket-barcode">|||| ||| |||| || |||||</div>`
- : "";
+ const datosEjemplo = {
+  folio: "V-000123",
+  fecha: new Date().toLocaleString("es-MX"),
+  cajero: usuarioActual?.nombre || "Administrador",
+  cliente: "Publico general",
+  productos: [
+   { nombre: "Martillo una", cantidad: 1, unidadVenta: "pieza", precio: 120, importe: 120 },
+   { nombre: "Tornillo 1/2 x 50", cantidad: 1, unidadVenta: "pieza", precio: 50, importe: 50 },
+   { nombre: "Pintura blanca", cantidad: 1, unidadVenta: "pieza", precio: 250, importe: 250 }
+  ],
+  subtotal: 420,
+  descuento: 0,
+  total: 420,
+  metodoPago: "efectivo",
+  recibido: 500,
+  cambio: 80
+ };
 
  preview.className =
  `ticket-preview ${anchoClase}`;
 
  preview.innerHTML = `
- <div class="ticket-paper" style="text-align:${config.ticketAlineacion || "center"}">
- ${logo ? `<div class="ticket-logo">${logo}</div>` : ""}
- ${nombre}
- ${subtitulo}
- ${direccion}
- ${telefono}
- ${cajero}
- <div class="ticket-rule"></div>
- <div class="ticket-row"><span>Martillo una</span><strong>$120.00</strong></div>
- <div class="ticket-row"><span>Tornillo 1/2 x 50</span><strong>$50.00</strong></div>
- <div class="ticket-row"><span>Pintura blanca</span><strong>$250.00</strong></div>
- <div class="ticket-rule"></div>
- <div class="ticket-row total"><span>TOTAL</span><strong>$420.00</strong></div>
- <div class="ticket-row"><span>Recibido</span><strong>$500.00</strong></div>
- <div class="ticket-row cambio"><span>Cambio</span><strong>$80.00</strong></div>
- <div class="ticket-rule"></div>
- <strong>${config.mensajeTicket || "Gracias por su compra"}</strong>
- ${config.notaTicket ? `<p>${config.notaTicket}</p>` : ""}
- ${barcode}
+ <div class="ticket-paper">
+  ${construirTicketVentaHTML(datosEjemplo, config, { tipo: "venta" })}
  </div>
  `;
 }

@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="css/components/nexo-ia.css?v=nexo-ai-v2-20260722-01">
   <link rel="stylesheet" href="css/components/nexo-tour.css?v=nexo-ai-v2-20260722-01">
   <link rel="stylesheet" href="css/components/nexo-ia-view.css?v=ia-modulo-20260719-02">
-  <link rel="stylesheet" href="css/components/config-settings.css?v=venta-pieza-20260711-01">
+  <link rel="stylesheet" href="css/components/config-settings.css?v=ticket-rediseno-20260726-01">
   <link rel="stylesheet" href="css/components/customers.css?v=refactor-customers-20260701-01">
   <link rel="stylesheet" href="css/components/suppliers.css?v=proveedores-redesign-20260705-01">
   <link rel="stylesheet" href="css/components/pricing-rules.css?v=reglas-precio-20260709-06">
@@ -48,6 +48,7 @@
   <link rel="stylesheet" href="css/components/product-details-view.css?v=liquid-glass-inv-20260719-01">
   <link rel="stylesheet" href="css/components/low-stock-order.css?v=refactor-low-stock-order-20260701-01">
   <link rel="stylesheet" href="css/components/support-reminders.css?v=notif-contraste-fix-20260706-01">
+  <link rel="stylesheet" href="css/components/ticket-lookup-view.css?v=ticket-rediseno-20260726-01">
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -411,6 +412,10 @@
  Nexo IA
  </button>
 
+ <button data-shell-module="buscar-ticket" onclick="mostrarBuscarTicket()">
+ Buscar ticket
+ </button>
+
  <button class="btn-dueno-sidebar" onclick="window.open('/dueno', '_blank')">
  App del dueño
  </button>
@@ -422,6 +427,7 @@
  <section id="pantallaConfiguracion" style="display:none;"></section>
  <section id="pantallaCuenta" style="display:none;"></section>
  <section id="pantallaNexoIA" style="display:none;"></section>
+ <section id="pantallaBuscarTicket" style="display:none;"></section>
 
  <section id="pantallaCatalogo" style="display:none;">
 
@@ -1074,6 +1080,8 @@
  <input id="permiteVentaPieza" type="checkbox" onchange="togglePiezaCamposProducto()">
  <input id="piezasPorBolsa" type="number" step="0.01" min="0" placeholder="Piezas por bolsa/caja">
  <input id="precioPieza" type="number" step="0.01" min="0" placeholder="Precio por pieza suelta">
+ <input id="nuevaTieneGarantia" type="checkbox" onchange="toggleGarantiaCamposProducto()">
+ <input id="nuevoGarantiaDetalle" type="text" placeholder="ej. 3 meses contra defectos de fabrica">
  <input id="precioDistribuidor" type="number" step="0.01"
  placeholder=" Precio distribuidor" />
 
@@ -1463,26 +1471,28 @@
   <script src="app.js?v=auth-negocio-20260716-01"></script>
   <script src="js/offline-sync.js?v=fix-mostrarproductos-20260709-01"></script>
   <script src="js/toast-pos.js?v=toast-pos-20260723-01"></script>
-  <script src="js/config-auth.js?v=ia-modulo-20260718-01"></script>
+  <script src="js/config-auth.js?v=ticket-rediseno-20260726-01"></script>
+  <script src="js/ticket-template.js?v=ticket-rediseno-20260726-01"></script>
   <script src="js/catalog-provider-picker.js?v=catalog-adapters-20260708-01"></script>
   <script src="js/supplier-catalog.js?v=plantillas-servidor-ia-20260723-01"></script>
   <script src="js/pricing-rules.js?v=reglas-precio-20260709-02"></script>
   <script src="js/catalog-parsers.js?v=plantillas-servidor-ia-20260723-01"></script>
-  <script src="js/product-inventory.js?v=imagen-encontrada-nuevo-20260713-01"></script>
+  <script src="js/product-inventory.js?v=ticket-rediseno-20260726-01"></script>
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-quick-item-modal.js?v=articulo-rapido-20260720-01"></script>
-<script src="js/pos-sales.js?v=ticket-58mm-fix-20260726-06"></script>
+<script src="js/pos-sales.js?v=ticket-rediseno-20260726-01"></script>
 <script src="js/pos-search-flyout.js?v=articulo-rapido-20260720-01"></script>
-  <script src="js/sales-history-documents.js?v=nota-venta-rediseno-20260721-01"></script>
+  <script src="js/sales-history-documents.js?v=ticket-rediseno-20260726-01"></script>
   <script src="js/credit-customers.js?v=estado-cuenta-cajon-fix-20260707-01"></script>
   <script src="js/supplier-catalog-view.js?v=catalogo-vinculacion-20260722-01"></script>
   <script src="js/pricing-rules-view.js?v=reglas-precio-20260709-03"></script>
   <script src="js/pricing-apply-view.js?v=reglas-precio-20260709-02"></script>
   <script src="js/app-bootstrap.js?v=articulo-rapido-20260720-01"></script>
   <script src="js/reports.js?v=venta-detalle-reportes-20260720-01"></script>
-  <script src="js/shell-topbar.js?v=ia-modulo-20260718-01"></script>
+  <script src="js/shell-topbar.js?v=ticket-rediseno-20260726-01"></script>
   <script src="js/account-view.js?v=cuenta-rediseno-20260719-01"></script>
+  <script src="js/ticket-lookup-view.js?v=ticket-rediseno-20260726-01"></script>
   <script src="js/product-details-view.js?v=alertas-tempranas-20260712-01"></script>
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/pos-shortcuts.js?v=pos-flyout-redesign-20260708-03"></script>

@@ -1684,210 +1684,20 @@ const folioTicket =
 const negocio =
  configuracionNegocio() || {};
 
-let ticket = `
-
-<div style="
- width:300px;
- font-family:monospace;
- padding:20px;
- color:black;
-">
-
- <div style="
- text-align:center;
- margin-bottom:12px;
- ">
-
- <h2 style="
- margin:0;
- font-size:22px;
- ">
- FERRETERIA
- </h2>
-
- <h2 style="
- margin:0;
- font-size:22px;
- ">
- OLIMPICO
- </h2>
-
- <div>
- Rio Grande, Zac.
- </div>
-
- <div>
- ${fecha}
- </div>
- ${folioTicket ? `<div><strong>Folio ${folioTicket}</strong></div>` : ""}
-
- </div>
-
- <hr>
-
-`;
-
-productosVenta.forEach(p => {
-
- ticket += `
-
- <div style="
- display:flex;
- justify-content:space-between;
- margin:6px 0;
- ">
-
- <span>
- ${p.nombre}<br>
- <small>${formatearCantidad(p.cantidad, p.unidadVenta)} x $${p.precio.toFixed(2)}</small>
- </span>
-
- <span>
- $${p.importe.toFixed(2)}
- </span>
-
- </div>
- `;
-});
-
-ticket += `
-
- <hr>
-
- ${
- resumen.descuento > 0
- ? `<div style="display:flex;justify-content:space-between;"><span>SUBTOTAL</span><span>$${resumen.subtotal.toFixed(2)}</span></div><div style="display:flex;justify-content:space-between;"><span>DESCUENTO</span><span>-$${resumen.descuento.toFixed(2)}</span></div>`
- : ""
- }
-
- <div style="
- display:flex;
- justify-content:space-between;
- font-weight:bold;
- ">
- <span>TOTAL</span>
- <span>$${total.toFixed(2)}</span>
- </div>
-
- <div style="
- display:flex;
- justify-content:space-between;
- ">
- <span>RECIBIDO</span>
- <span>${dinero(montoRecibido)}</span>
- </div>
-
- <div style="
- display:flex;
- justify-content:space-between;
- ">
- <span>CAMBIO</span>
- <span>${dinero(cambio)}</span>
- </div>
-
- <hr>
-
- <div style="
- text-align:center;
- margin-top:12px;
- font-size:14px;
- ">
-
- Gracias por su compra 
-
- </div>
-
-</div>
-`;
-
-if (negocio.nombre) {
- const separadorTicket =
- ticket.indexOf("<hr>");
-
- const desdeDetalle =
- separadorTicket >= 0
- ? ticket.slice(separadorTicket)
- : ticket;
-
- const anchoTicket =
- negocio.ticketAncho === "58" ? 230 : 300;
-
- const alineacionTicket =
- negocio.ticketAlineacion || "center";
-
- const logoTicket =
- negocio.logo && negocio.mostrarLogoTicket !== false
- ? `<img src="${negocio.logo}" style="width:58px;height:58px;object-fit:cover;border-radius:10px;margin-bottom:8px;">`
- : "";
-
- const nombreTicket =
- negocio.mostrarNombreTicket === false
- ? ""
- : `<h2 style="margin:0;font-size:22px;text-transform:uppercase;">${negocio.ticketNombre || negocio.nombre}</h2>`;
-
- const subtituloTicket =
- negocio.ticketSubtitulo
- ? `<div style="font-size:12px;">${negocio.ticketSubtitulo}</div>`
- : "";
-
- const direccionTicket =
- negocio.mostrarDireccionTicket === false || !negocio.direccion
- ? ""
- : `<div>${negocio.direccion}</div>`;
-
- const telefonoTicket =
- negocio.mostrarTelefonoTicket === false || !negocio.telefono
- ? ""
- : `<div>Tel. ${negocio.telefono}</div>`;
-
-const cajeroTicket =
- negocio.mostrarCajeroTicket === false
- ? ""
- : `<div>Cajero: ${usuarioActual?.nombre || "Administrador"}</div>`;
-
- const folioPersonalizado =
- folioTicket
- ? `<div><strong>Folio ${folioTicket}</strong></div>`
- : "";
-
- ticket = `
- <div style="
- width:${anchoTicket}px;
- font-family:monospace;
- padding:20px;
- color:black;
- ">
- <div style="text-align:${alineacionTicket};margin-bottom:12px;">
- ${logoTicket}
- ${nombreTicket}
- ${subtituloTicket}
- ${direccionTicket}
- ${telefonoTicket}
- ${cajeroTicket}
- <div>${fecha}</div>
- ${folioPersonalizado}
- </div>
- ${desdeDetalle}
- `;
-}
-
-const mensajeTicket =
- negocio.mensajeTicket || "Gracias por su compra";
-
-let extraTicket =
- `${mensajeTicket}
- ${negocio.notaTicket ? `<br><small>${negocio.notaTicket}</small>` : ""}
- ${negocio.mostrarBarcodeTicket ? `<div style="margin-top:10px;font-size:22px;letter-spacing:2px;">|||| ||| |||| || |||||</div>` : ""}
- <div style="margin-top:12px;font-size:9px;color:#999;">Con la tecnologia de Nexo POS</div>`;
-
-if (ventaOffline) {
- extraTicket += `<br><small style="font-weight:bold;">PENDIENTE DE SINCRONIZAR</small>`;
-}
-
-ticket = ticket.replace(
- "Gracias por su compra",
- extraTicket
-);
+const ticket = construirTicketVentaHTML({
+ folio: folioTicket,
+ fecha,
+ cajero: usuarioActual?.nombre || "Administrador",
+ cliente: resumenClientePOS().nombre,
+ productos: productosVenta,
+ subtotal: resumen.subtotal,
+ descuento: resumen.descuento,
+ total,
+ metodoPago: pago.metodoPago,
+ recibido: montoRecibido,
+ cambio,
+ ventaOffline
+}, negocio, { tipo: "venta" });
 
 const ticketEnviado =
  await imprimirTicketPOS(ticket);
@@ -2163,45 +1973,15 @@ async function cobrarCreditoInternoPOS(total) {
  const fechaCredito =
  new Date().toLocaleString("es-MX");
 
- let ticketCredito = `
- <div style="width:300px;font-family:monospace;padding:20px;color:black;">
- <div style="text-align:center;margin-bottom:12px;">
- <h2 style="margin:0;font-size:20px;">${(configuracionNegocio()?.ticketNombre || configuracionNegocio()?.nombre || "Ferreteria").toUpperCase()}</h2>
- <div>VENTA A CREDITO</div>
- ${creditoOffline ? `<div style="font-weight:bold;font-size:12px;">PENDIENTE DE SINCRONIZAR</div>` : ""}
- <div>${fechaCredito}</div>
- <div>Cliente: ${clienteSeleccionado?.nombre || "Cliente"}</div>
- </div>
- <hr>
- `;
-
- productos.forEach(producto => {
-  ticketCredito += `
-  <div style="display:flex;justify-content:space-between;margin:6px 0;">
-  <span>${producto.nombre}<br><small>${formatearCantidad(producto.cantidad, producto.unidadVenta)} x ${dinero(producto.precio || 0)}</small></span>
-  <span>${dinero(producto.importe || 0)}</span>
-  </div>
-  `;
- });
-
- ticketCredito += `
- <hr>
- ${
- resumen.descuento > 0
- ? `<div style="display:flex;justify-content:space-between;"><span>SUBTOTAL</span><span>${dinero(resumen.subtotal)}</span></div><div style="display:flex;justify-content:space-between;"><span>DESCUENTO</span><span>-${dinero(resumen.descuento)}</span></div>`
- : ""
- }
- <div style="display:flex;justify-content:space-between;font-weight:bold;">
- <span>TOTAL CREDITO</span>
- <span>${dinero(total)}</span>
- </div>
- <div style="text-align:center;margin-top:12px;font-size:13px;">
- Firma / recibido
- <br><br>
- ______________________
- </div>
- </div>
- `;
+ const ticketCredito = construirTicketVentaHTML({
+  fecha: fechaCredito,
+  cliente: clienteSeleccionado?.nombre || "Cliente",
+  productos,
+  subtotal: resumen.subtotal,
+  descuento: resumen.descuento,
+  total,
+  ventaOffline: creditoOffline
+ }, configuracionNegocio() || {}, { tipo: "credito" });
 
  await imprimirTicketPOS(ticketCredito, null, { abrirCajon: false });
 

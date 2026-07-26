@@ -280,6 +280,12 @@
   background: var(--surface-soft, #f8fafc);
 }
 
+.config-ayuda-texto {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-muted, #64748b);
+}
+
 .ticket-preview-panel {
   position: sticky;
   top: 86px;
@@ -316,66 +322,6 @@
 
 .ticket-preview.ticket-58 .ticket-paper {
   width: 230px;
-}
-
-.ticket-logo {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 8px;
-}
-
-.ticket-logo img {
-  width: 58px;
-  height: 58px;
-  object-fit: cover;
-  border-radius: 10px;
-}
-
-.ticket-paper h4 {
-  margin: 0 0 4px;
-  color: #111827 !important;
-  font-size: 18px;
-  text-transform: uppercase;
-}
-
-.ticket-paper p {
-  margin: 3px 0;
-  color: #374151 !important;
-  font-size: 12px;
-}
-
-.ticket-rule {
-  height: 1px;
-  margin: 12px 0;
-  border-top: 1px dashed #9ca3af;
-}
-
-.ticket-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 7px 0;
-  color: #111827;
-  font-size: 12px;
-}
-
-.ticket-row.total {
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.ticket-row.cambio strong {
-  color: #16a34a;
-}
-
-.ticket-barcode {
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px dashed #cbd5e1;
-  color: #111827;
-  font-size: 24px;
-  letter-spacing: 2px;
-  text-align: center;
 }
 
 .config-note {

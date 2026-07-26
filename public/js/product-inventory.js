@@ -1574,6 +1574,8 @@ function asegurarEtiquetasFichaProducto() {
  permiteVentaPieza: "Tambien se vende por pieza suelta",
  piezasPorBolsa: "Piezas por bolsa/caja",
  precioPieza: "Precio por pieza suelta",
+ nuevaTieneGarantia: "Tiene garantia",
+ nuevoGarantiaDetalle: "Detalle de la garantia",
  precioDistribuidor: "Precio proveedor / costo",
  precioMayoreo: "Precio medio mayoreo",
  precioPublico: "Precio publico",
@@ -1742,6 +1744,28 @@ function togglePiezaCamposProducto() {
  wrapper.style.setProperty("display", "none", "important");
  }
  });
+}
+
+function toggleGarantiaCamposProducto() {
+ const checkbox =
+ document.getElementById("nuevaTieneGarantia");
+
+ const activo =
+ Boolean(checkbox?.checked);
+
+ const campo =
+ document.getElementById("nuevoGarantiaDetalle");
+
+ const wrapper =
+ campo?.closest(".campo-ficha") || campo;
+
+ if (!wrapper) return;
+
+ if (activo) {
+  wrapper.style.removeProperty("display");
+ } else {
+  wrapper.style.setProperty("display", "none", "important");
+ }
 }
 
 function mostrarPiezasSueltasStockInfo(valor) {
@@ -1979,6 +2003,12 @@ document.getElementById("piezasPorBolsa")?.value || "";
 const precioPieza =
 document.getElementById("precioPieza")?.value || "";
 
+const tieneGarantia =
+document.getElementById("nuevaTieneGarantia")?.checked || false;
+
+const garantiaDetalle =
+document.getElementById("nuevoGarantiaDetalle")?.value || "";
+
 const codigosRelacionadosTexto =
 document.getElementById("codigosRelacionados")?.value || "";
 
@@ -2091,7 +2121,9 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  codigosRelacionados,
  permiteVentaPieza,
  piezasPorBolsa,
- precioPieza
+ precioPieza,
+ tieneGarantia,
+ garantiaDetalle
  };
 
  let respuesta;
@@ -2432,6 +2464,14 @@ function editarProducto(
 
  togglePiezaCamposProducto();
  mostrarPiezasSueltasStockInfo(producto?.piezas_sueltas_stock);
+
+ document.getElementById("nuevaTieneGarantia").checked =
+ Boolean(producto?.tiene_garantia);
+
+ document.getElementById("nuevoGarantiaDetalle").value =
+ producto?.garantia_detalle || "";
+
+ toggleGarantiaCamposProducto();
 
  document.getElementById("basculaDigital").value =
  producto?.bascula_digital || "no";
@@ -3732,6 +3772,9 @@ function cerrarFormularioAgregar() {
  document.getElementById("piezasPorBolsa").value = "";
  document.getElementById("precioPieza").value = "";
  togglePiezaCamposProducto();
+ document.getElementById("nuevaTieneGarantia").checked = false;
+ document.getElementById("nuevoGarantiaDetalle").value = "";
+ toggleGarantiaCamposProducto();
  mostrarPiezasSueltasStockInfo(0);
  document.getElementById("basculaDigital").value = "no";
  seleccionarTipoProducto("catalogo");
@@ -3776,6 +3819,9 @@ function limpiarCamposCatalogoProducto() {
  document.getElementById("piezasPorBolsa").value = "";
  document.getElementById("precioPieza").value = "";
  togglePiezaCamposProducto();
+ document.getElementById("nuevaTieneGarantia").checked = false;
+ document.getElementById("nuevoGarantiaDetalle").value = "";
+ toggleGarantiaCamposProducto();
  mostrarPiezasSueltasStockInfo(0);
  document.getElementById("basculaDigital").value = "no";
  ["nuevoNombre", "nuevoCodigoInterno", "nuevaMarca", "nuevoProveedor", "nuevoCodigo"]

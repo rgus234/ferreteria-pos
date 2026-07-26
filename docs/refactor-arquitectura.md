@@ -5187,3 +5187,87 @@ estado de clientes), mejor diseno, y arreglar la lentitud percibida.
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+## 2026-07-26 -- Rediseno completo del ticket de venta + garantia por producto + Buscar ticket
+
+Tras varias correcciones puntuales al ticket de 58mm (ancho, alineacion
+izquierda, decimales de punto flotante en RECIBIDO/CAMBIO -- ver commits
+`fed1a33`..`36253d8` del mismo dia), el usuario mando una imagen de
+referencia de un ticket bien diseñado y pidio un rediseno completo,
+configurable desde Configuracion, mas garantia por producto y una
+forma de consultarla escaneando el folio del ticket (aclaro
+explicitamente que esto se maneja desde la computadora del negocio,
+no desde el celular del cliente -- se descarto una pagina publica).
+
+**Consolidacion de 4 constructores de ticket en uno solo**
+(`public/js/ticket-template.js`, funcion `construirTicketVentaHTML(datos, config, opciones)`):
+antes existian 4 plantillas de HTML divergentes -- ticket de venta en
+efectivo (con un fallback hardcodeado y un split fragil por `<hr>`),
+ticket de venta a credito (completamente separado), reimpresion desde
+historial (le faltaban codigo de barras/nota/pie de Nexo POS) y la
+vista previa de Configuracion (su propia plantilla con datos de
+ejemplo fijos). Las 4 ahora llaman a la misma funcion, con
+`opciones.tipo` (`"venta" | "credito" | "nota"`) controlando las
+diferencias reales (insignia, si se muestran recibido/cambio, si se
+agrega la linea de firma).
+
+**Diseno nuevo**: logo, nombre, eslogan, insignia de tipo de
+documento, folio/fecha/cajero/cliente/obra, tabla real de productos
+(en vez de un solo `flex` suelto), subtotal/descuento, **IVA
+informativo** (opcional, `config.mostrarIvaTicket`, calculado como
+`total - total/1.16` -- nunca cambia el total cobrado, decision
+confirmada con el usuario), total, metodo de pago + monto pagado +
+cambio, mensaje/nota/observaciones, direccion/telefono/**sitio web
+nuevo**, **redes sociales nuevas** (Facebook/Instagram/WhatsApp,
+`config.mostrarRedesTicket`), **codigo de barras real** (antes era un
+string decorativo fijo `|||| ||| ||||`; ahora usa `JsBarcode` --ya
+cargado por CDN y ya usado en `imprimirCodigosBarrasInventario`--
+codificando el folio real), pie fijo no configurable "Con la
+tecnologia de Nexo POS".
+
+**Garantia por producto** (migracion `20260726_producto_garantia.sql`,
+columnas `productos.tiene_garantia`/`garantia_detalle`): nuevo
+checkbox + campo de texto libre en el formulario de producto (mismo
+patron que `permiteVentaPieza`/`togglePiezaCamposProducto`), agregado
+a `POST /agregar-producto` y `PUT /editar-producto/:id`.
+
+**Buscar ticket** (`public/js/ticket-lookup-view.js`, nueva pantalla
+en el POS, protegida por el mismo `requerirAccesoNegocio` de siempre
+-- no se construyo ninguna ruta publica): un `<input>` autoenfocado
+recibe el folio (tecleado o escaneado con el mismo lector de codigo
+de barras USB que ya usan, sin tocar `scanner-usb.js`), llama a
+`GET /ventas/folio/:folio` (ya existente) y muestra folio/fecha/
+cajero/cliente/metodo de pago/total + cada producto con su estado de
+garantia. `obtenerDetalleVenta` (server.js) se extendio para cruzar
+cada entrada de `historial_ventas.productos` (JSONB) contra
+`productos.tiene_garantia`/`garantia_detalle` por `id` antes de
+responder -- beneficia tambien a la reimpresion (`/ventas/:id`), que
+usa la misma funcion.
+
+**Verificacion real:**
+- Migracion aplicada contra la base real (solo agrega 2 columnas con
+  default, sin tocar filas existentes).
+- Negocio sintetico (id 17543, borrado al terminar) con 2 productos
+  de prueba (uno con garantia "3 meses contra defectos de fabrica",
+  otro sin) y una venta real via `POST /ventas`.
+- `GET /ventas/folio/V-000001` confirmado devolviendo cada producto
+  con `tieneGarantia`/`garantiaDetalle` correctos.
+- `construirTicketVentaHTML` probado directo en el navegador real
+  (misma runtime que usa la app): barcode SVG generado, IVA informativo
+  calculado correctamente ($116 total -> $16.00 de IVA), redes
+  sociales condicionales, variante `credito` (con firma, sin recibido/
+  cambio) y `nota` (sin recibido/cambio) correctas.
+- Pantalla "Buscar ticket" renderizada con datos reales de la venta
+  de prueba, mostrando "Con garantia -- 3 meses contra defectos de
+  fabrica" y "Sin garantia" correctamente por producto.
+- Vista previa de Configuracion usa ahora la misma plantilla (ya no
+  hay drift entre lo que se ve ahi y lo que realmente se imprime); se
+  elimino el CSS muerto de la plantilla anterior
+  (`.ticket-logo`/`.ticket-row`/`.ticket-rule`/`.ticket-barcode`).
+- `node --check` limpio en `server.js` y en todos los `.js` de
+  frontend tocados. Sin errores de consola durante las pruebas.
+- Negocio sintetico limpiado despues; `negocio_id = 1` (Ferreteria
+  Olimpico) confirmado sin cambios.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.

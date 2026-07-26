@@ -366,50 +366,26 @@ function renderVentaHistorialPOS(venta) {
 function htmlTicketDesdeVentaPOS(venta, opciones = {}) {
  const config = configuracionNegocio() || {};
  const productos = productosVentaPOS(venta);
- const ancho = config.ticketAncho === "58" ? 230 : 300;
  const folio = venta.folio || `V-${String(venta.id || 0).padStart(6, "0")}`;
  const fecha = venta.fecha ? new Date(venta.fecha).toLocaleString("es-MX") : new Date().toLocaleString("es-MX");
- const titulo = opciones.tipo === "nota" ? "NOTA DE VENTA" : "TICKET";
  const total = Number(opciones.totalMostrado ?? venta.total ?? 0);
  const cliente = opciones.clienteNombre || venta.cliente_nombre || "Publico general";
- const obra = opciones.obra || "";
- const observaciones = opciones.observaciones || "";
 
- const filas = productos.map(producto => {
-  const cantidad = Number(producto.cantidad || 1);
-  const precio = Number(producto.precio || 0);
-  const importe = Number(producto.importe || cantidad * precio);
-  return `
-  <div style="display:flex;justify-content:space-between;gap:8px;margin:6px 0;text-align:left;">
-   <span>${escaparPOS(producto.nombre || "Producto")}<br><small>${formatearCantidad(cantidad, producto.unidadVenta || "pieza")} x $${precio.toFixed(2)}</small></span>
-   <span>$${importe.toFixed(2)}</span>
-  </div>`;
- }).join("");
-
- return `
- <div style="width:${ancho}px;font-family:monospace;padding:18px;color:#000;text-align:${config.ticketAlineacion || "center"};">
-  ${config.logo && config.mostrarLogoTicket !== false ? `<img src="${config.logo}" style="width:54px;height:54px;object-fit:cover;border-radius:10px;margin-bottom:8px;">` : ""}
-  ${config.mostrarNombreTicket === false ? "" : `<h2 style="margin:0;font-size:20px;text-transform:uppercase;">${escaparPOS(config.ticketNombre || config.nombre || "Ferreteria Olimpico")}</h2>`}
-  ${config.ticketSubtitulo ? `<div style="font-size:12px;">${escaparPOS(config.ticketSubtitulo)}</div>` : ""}
-  ${config.mostrarDireccionTicket !== false && config.direccion ? `<div>${escaparPOS(config.direccion)}</div>` : ""}
-  ${config.mostrarTelefonoTicket !== false && config.telefono ? `<div>Tel. ${escaparPOS(config.telefono)}</div>` : ""}
-  <hr>
-  <div style="font-weight:bold;">${titulo}</div>
-  <div><strong>Folio ${escaparPOS(folio)}</strong></div>
-  <div>${escaparPOS(fecha)}</div>
-  <div>Cajero: ${escaparPOS(venta.cajero_nombre || usuarioActual?.nombre || "Administrador")}</div>
-  <div>Cliente: ${escaparPOS(cliente)}</div>
-  ${obra ? `<div>Obra: ${escaparPOS(obra)}</div>` : ""}
-  <hr>
-  ${filas}
-  <hr>
-  ${Number(venta.descuento || 0) > 0 ? `<div style="display:flex;justify-content:space-between;"><span>SUBTOTAL</span><span>${dinero(venta.subtotal || 0)}</span></div><div style="display:flex;justify-content:space-between;"><span>DESCUENTO</span><span>-${dinero(venta.descuento || 0)}</span></div>` : ""}
-  <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;"><span>TOTAL</span><span>${dinero(total)}</span></div>
-  ${opciones.tipo === "nota" ? "" : `<div style="display:flex;justify-content:space-between;"><span>RECIBIDO</span><span>${dinero(venta.pago_recibido || 0)}</span></div><div style="display:flex;justify-content:space-between;"><span>CAMBIO</span><span>${dinero(venta.cambio || 0)}</span></div>`}
-  ${observaciones ? `<hr><div style="text-align:left;"><strong>Observaciones</strong><br>${escaparPOS(observaciones)}</div>` : ""}
-  <hr>
-  <div style="font-weight:bold;">${escaparPOS(config.mensajeTicket || "Gracias por su compra")}</div>
- </div>`;
+ return construirTicketVentaHTML({
+  folio,
+  fecha,
+  cajero: venta.cajero_nombre || usuarioActual?.nombre || "Administrador",
+  cliente,
+  obra: opciones.obra || "",
+  observaciones: opciones.observaciones || "",
+  productos,
+  subtotal: venta.subtotal,
+  descuento: venta.descuento,
+  total,
+  metodoPago: venta.metodo_pago || venta.metodoPago,
+  recibido: venta.pago_recibido,
+  cambio: venta.cambio
+ }, config, { tipo: opciones.tipo === "nota" ? "nota" : "venta" });
 }
 
 async function abrirDetalleVentaPOS(id) {

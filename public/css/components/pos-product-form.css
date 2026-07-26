@@ -398,14 +398,16 @@
   margin-top: 2px !important;
  }
 
- #modalAgregar .campo-ficha:has(#permiteVentaPieza) {
+ #modalAgregar .campo-ficha:has(#permiteVentaPieza),
+ #modalAgregar .campo-ficha:has(#nuevaTieneGarantia) {
   flex-direction: row !important;
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
  }
 
- #modalAgregar .campo-ficha:has(#permiteVentaPieza) input {
+ #modalAgregar .campo-ficha:has(#permiteVentaPieza) input,
+ #modalAgregar .campo-ficha:has(#nuevaTieneGarantia) input {
   width: auto !important;
   min-height: auto !important;
  }

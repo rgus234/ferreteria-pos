@@ -4641,7 +4641,9 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
     codigosRelacionados,
     permiteVentaPieza,
     piezasPorBolsa,
-    precioPieza
+    precioPieza,
+    tieneGarantia,
+    garantiaDetalle
 } = req.body;
     try {
         const negocio = await negocioActual(req);
@@ -4675,9 +4677,11 @@ INSERT INTO public.productos
   bascula_digital,
   permite_venta_pieza,
   piezas_por_bolsa,
-  precio_pieza
+  precio_pieza,
+  tiene_garantia,
+  garantia_detalle
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
 RETURNING id
 `,
 [
@@ -4704,7 +4708,9 @@ RETURNING id
   basculaDigital || "no",
   permiteVentaPieza === true || permiteVentaPieza === "true",
   piezasPorBolsa || null,
-  precioPieza || null
+  precioPieza || null,
+  tieneGarantia === true || tieneGarantia === "true",
+  garantiaDetalle || ""
 ]
 );
 
@@ -4744,7 +4750,9 @@ RETURNING id
                 codigos_relacionados: codigosRelacionados || [],
                 permite_venta_pieza: permiteVentaPieza === true || permiteVentaPieza === "true",
                 piezas_por_bolsa: piezasPorBolsa || null,
-                precio_pieza: precioPieza || null
+                precio_pieza: precioPieza || null,
+                tiene_garantia: tieneGarantia === true || tieneGarantia === "true",
+                garantia_detalle: garantiaDetalle || ""
             }
         });
 
@@ -4786,7 +4794,9 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         codigosRelacionados,
         permiteVentaPieza,
         piezasPorBolsa,
-        precioPieza
+        precioPieza,
+        tieneGarantia,
+        garantiaDetalle
     } = req.body;
 
     try {
@@ -4820,9 +4830,11 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 bascula_digital = $20,
                 permite_venta_pieza = $21,
                 piezas_por_bolsa = $22,
-                precio_pieza = $23
-            WHERE id = $24
-            AND negocio_id = $25
+                precio_pieza = $23,
+                tiene_garantia = $24,
+                garantia_detalle = $25
+            WHERE id = $26
+            AND negocio_id = $27
             RETURNING id
             `,
             [
@@ -4849,6 +4861,8 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 permiteVentaPieza === true || permiteVentaPieza === "true",
                 piezasPorBolsa || null,
                 precioPieza || null,
+                tieneGarantia === true || tieneGarantia === "true",
+                garantiaDetalle || "",
                 id,
                 negocio.id
             ]
@@ -4896,7 +4910,9 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 codigos_relacionados: codigosRelacionados || [],
                 permite_venta_pieza: permiteVentaPieza === true || permiteVentaPieza === "true",
                 piezas_por_bolsa: piezasPorBolsa || null,
-                precio_pieza: precioPieza || null
+                precio_pieza: precioPieza || null,
+                tiene_garantia: tieneGarantia === true || tieneGarantia === "true",
+                garantia_detalle: garantiaDetalle || ""
             }
         });
 
@@ -5347,8 +5363,37 @@ async function obtenerDetalleVenta(client, negocioId, filtro, valor) {
         [negocioId, venta.id]
     );
 
+    const productosVenta = Array.isArray(venta.productos) ? venta.productos : [];
+    const idsProductos = [...new Set(
+        productosVenta.map(item => Number(item?.id)).filter(id => Number.isInteger(id))
+    )];
+
+    let garantiaPorId = new Map();
+    if (idsProductos.length > 0) {
+        const garantias = await client.query(
+            `
+            SELECT id, tiene_garantia, garantia_detalle
+            FROM public.productos
+            WHERE negocio_id = $1
+            AND id = ANY($2)
+            `,
+            [negocioId, idsProductos]
+        );
+        garantiaPorId = new Map(garantias.rows.map(row => [row.id, row]));
+    }
+
+    const productosConGarantia = productosVenta.map(item => {
+        const garantia = garantiaPorId.get(Number(item?.id));
+        return {
+            ...item,
+            tieneGarantia: garantia?.tiene_garantia === true,
+            garantiaDetalle: garantia?.garantia_detalle || ""
+        };
+    });
+
     return {
         ...venta,
+        productos: productosConGarantia,
         cliente_nombre: venta.cliente_nombre_resuelto || venta.cliente_nombre || "Publico general",
         venta_id: venta.venta_id || venta.venta_id_resuelto,
         comprobantes: comprobantes.rows,
