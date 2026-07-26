@@ -193,13 +193,24 @@ function construirTicketVentaHTML(datos, config = {}, opciones = {}) {
    const svg =
    document.createElementNS("http://www.w3.org/2000/svg", "svg");
 
-   JsBarcode(svg, String(datos.folio), {
+   // Se codifica solo la parte numerica del folio (ej. "000057" en
+   // vez de "V-000057") -- JsBarcode usa el modo numerico de CODE128
+   // (2 digitos por caracter de codigo) cuando el valor es puramente
+   // numerico, quedando mucho mas compacto que el modo alfanumerico.
+   // Eso deja barras mas anchas (mejor lectura con el escaner) sin
+   // salirse del ancho seguro del ticket. El texto abajo del codigo
+   // sigue mostrando el folio completo con la "V-" para referencia.
+   const soloDigitos =
+   String(datos.folio || "").replace(/\D/g, "") || String(datos.folio || "");
+
+   JsBarcode(svg, soloDigitos, {
     format: "CODE128",
-    width: 1.05,
-    height: 36,
-    fontSize: 11,
+    width: 2,
+    height: 40,
+    fontSize: 12,
     margin: 4,
-    displayValue: true
+    displayValue: true,
+    text: String(datos.folio || "")
    });
 
    svg.setAttribute("style", "max-width:100%;height:auto;");
