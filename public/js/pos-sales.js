@@ -1338,7 +1338,7 @@ async function imprimirTicketPOS(ticket, configOverride = null, opciones = {}) {
    <title>Ticket</title>
    <style>
    @page {
-    size: ${anchoMm}mm ${altoPagina};
+    size: ${anchoMm}mm auto;
     margin: 0;
    }
 
