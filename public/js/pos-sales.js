@@ -1326,7 +1326,7 @@ async function imprimirTicketPOS(ticket, configOverride = null, opciones = {}) {
   negocio.ticketAncho === "58" ? 58 : 80;
 
   const anchoContenido =
-  negocio.ticketAncho === "58" ? "52mm" : "72mm";
+  negocio.ticketAncho === "58" ? "48mm" : "72mm";
 
   if (negocio.imprimirAutomatico === false) {
    return true;
