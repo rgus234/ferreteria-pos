@@ -1525,7 +1525,7 @@ async function cobrarInternoPOS(total) {
  return;
  }
 
- const dinero =
+ const montoRecibido =
  pago.recibido;
 
 const cambio =
@@ -1576,7 +1576,7 @@ try {
  clienteNombre: resumenClientePOS().nombre,
  cajeroUsuario: usuarioActual?.id || usuarioActual?.usuario || "",
  cajeroNombre: usuarioActual?.nombre || usuarioActual?.usuario || "Administrador",
- recibido: dinero,
+ recibido: montoRecibido,
  cambio,
  metodoPago: pago.metodoPago,
  productos: productosVenta,
@@ -1608,7 +1608,7 @@ try {
  clienteNombre: resumenClientePOS().nombre,
  cajeroUsuario: usuarioActual?.id || usuarioActual?.usuario || "",
  cajeroNombre: usuarioActual?.nombre || usuarioActual?.usuario || "Administrador",
- recibido: dinero,
+ recibido: montoRecibido,
  cambio,
  metodoPago: pago.metodoPago,
  productos: productosVenta,
@@ -1652,7 +1652,7 @@ try {
  clienteNombre: resumenClientePOS().nombre,
  cajeroUsuario: usuarioActual?.id || usuarioActual?.usuario || "",
  cajeroNombre: usuarioActual?.nombre || usuarioActual?.usuario || "Administrador",
- recibido: dinero,
+ recibido: montoRecibido,
  cambio,
  metodoPago: pago.metodoPago,
  productos: productosVenta,
@@ -1670,8 +1670,8 @@ if (cambioTexto) {
 
  cambioTexto.textContent =
  ventaOffline
- ? ` Venta offline guardada | Cambio: $${cambio}`
- : ` Venta realizada | Cambio: $${cambio}`;
+ ? ` Venta offline guardada | Cambio: ${dinero(cambio)}`
+ : ` Venta realizada | Cambio: ${dinero(cambio)}`;
 }
 const fecha =
  new Date()
@@ -1774,7 +1774,7 @@ ticket += `
  justify-content:space-between;
  ">
  <span>RECIBIDO</span>
- <span>$${dinero}</span>
+ <span>${dinero(montoRecibido)}</span>
  </div>
 
  <div style="
@@ -1782,7 +1782,7 @@ ticket += `
  justify-content:space-between;
  ">
  <span>CAMBIO</span>
- <span>$${cambio}</span>
+ <span>${dinero(cambio)}</span>
  </div>
 
  <hr>
@@ -1916,7 +1916,7 @@ if (ventaOffline) {
    id: ventaDetalleId,
    folio: ventaRegistrada.folio,
    total,
-   recibido: dinero,
+   recibido: montoRecibido,
    cambio,
    fecha: ventaRegistrada.fecha || new Date().toISOString()
   });
@@ -1957,7 +1957,7 @@ if (ventaOffline) {
    id: ventaDetalleId,
    folio: ventaRegistrada.folio,
    total,
-   recibido: dinero,
+   recibido: montoRecibido,
    cambio
   });
  }
