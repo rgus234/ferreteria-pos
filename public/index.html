@@ -39,7 +39,7 @@
   <link rel="stylesheet" href="css/components/pos-sale-redesign.css?v=carrito-flat-minimal-20260723-01">
   <link rel="stylesheet" href="css/components/pos-quick-item-modal.css?v=botones-fix-20260721-01">
   <link rel="stylesheet" href="css/components/pos-busqueda-ia.css?v=borde-siri-fix2-20260721-01">
-  <link rel="stylesheet" href="css/components/pos-product-form.css?v=liquid-glass-inv-20260719-01">
+  <link rel="stylesheet" href="css/components/pos-product-form.css?v=agregar-producto-pantalla-20260727-01">
   <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-bugfix-20260705-02">
   <link rel="stylesheet" href="css/components/sale-documents.css?v=nota-venta-rediseno-20260721-01">
   <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=venta-pieza-20260711-01">
@@ -370,6 +370,9 @@
  <div id="submenuInventario" class="submenu-sidebar">
  <button data-shell-module="inventario" onclick="mostrarInventario()">
  Productos
+ </button>
+ <button data-shell-module="agregar-producto" onclick="mostrarFormularioAgregar()">
+ Agregar producto
  </button>
  <button data-shell-module="categorias" onclick="mostrarCategoriasInventario()">
  Categorias
@@ -970,20 +973,31 @@
  </select>
  </label>
  </div>
- <div id="modalAgregar" class="modal-overlay" style="display:none;">
 
- <div class="modal-producto">
+ </div>
+ </div>
 
- <div class="modal-header">
+ <section id="modalAgregar" class="pantalla-producto-form" style="display:none;">
 
- <h2 id="modalAgregarTitulo">+ Nuevo producto</h2>
- <button onclick="abrirActualizarCatalogo()">
- Actualizar catalogo
- </button>
- <button type="button" class="modal-cerrar-x" onclick="cerrarFormularioAgregar()" aria-label="Cerrar formulario">
- ×
- </button>
+ <div class="producto-form-shell">
 
+ <div class="producto-form-breadcrumb">
+ <button type="button" onclick="cerrarFormularioAgregar()">Productos</button>
+ <span>›</span>
+ <span id="productoFormBreadcrumbActual">Agregar producto</span>
+ </div>
+
+ <div class="producto-form-header">
+ <div class="producto-form-header-titulo">
+ <h1 id="modalAgregarTitulo">Agregar producto</h1>
+ <p>Completa la informacion de tu producto -- lo que llenes aqui es lo que se ve en el POS, el ticket y los reportes.</p>
+ </div>
+ <div class="producto-form-header-acciones">
+ <button type="button" onclick="abrirActualizarCatalogo()">Actualizar catalogo</button>
+ <button type="button" onclick="cerrarFormularioAgregar()">Cancelar</button>
+ <button type="button" onclick="agregarProductoNuevo({ continuar: true })">Guardar y agregar otro</button>
+ <button type="button" id="btnGuardarProducto" onclick="agregarProductoNuevo()">Guardar producto</button>
+ </div>
  </div>
 
  <div class="tipo-producto-selector">
@@ -1047,19 +1061,26 @@
  </div>
  </div>
 
- <div class="formulario-producto ficha-producto">
+ <div class="producto-form-grid">
+
+ <div class="producto-form-principal formulario-producto ficha-producto">
 
  <input id="tipoProductoInventario" type="hidden" value="catalogo">
+
+ <section class="producto-form-seccion" data-seccion="basica">
+ <div class="producto-form-seccion-header">
+ <span class="producto-form-numero">1</span>
+ <h2>Informacion basica</h2>
+ </div>
+ <div class="producto-form-campos">
  <input id="nuevoCodigo" placeholder=" Codigo de barras"
  onblur="verificarCodigoDuplicadoEnVivo('nuevoCodigo')" />
- <input id="nuevoNombre" placeholder="Nombre del producto">
  <input id="nuevoCodigoInterno" placeholder="Codigo interno / clave proveedor" onblur="verificarCodigoDuplicadoEnVivo('nuevoCodigoInterno')">
  <input id="codigosRelacionados" placeholder="Codigos alternos: caja, paquete, proveedor">
+ <input id="nuevoNombre" placeholder="Nombre del producto">
  <input id="nuevaCategoria" placeholder="Categoria" list="listaCategoriasProducto">
  <datalist id="listaCategoriasProducto"></datalist>
- <input id="nuevaSubcategoria" placeholder="Subcategoria">
  <input id="nuevaMarca" placeholder="Marca">
- <input id="nuevaImagenProducto" type="file" accept="image/*" onchange="subirImagenProductoManual()">
  <select id="unidadVenta">
  <option value="pieza">Pieza</option>
  <option value="metro">Metro</option>
@@ -1075,71 +1096,106 @@
  <option value="bulto">Bulto</option>
  <option value="servicio">Servicio</option>
  </select>
+ <input id="nuevaDescripcion" class="campo-descripcion-input campo-ficha-ancho" placeholder="Descripcion / notas">
+ </div>
+ </section>
+
+ <section class="producto-form-seccion" data-seccion="precios">
+ <div class="producto-form-seccion-header">
+ <span class="producto-form-numero">2</span>
+ <h2>Precios</h2>
+ </div>
+ <div class="producto-form-campos">
+ <input id="precioDistribuidor" type="number" step="0.01"
+ placeholder=" Precio distribuidor" />
+ <input id="precioMayoreo" type="number" step="0.01" placeholder=" Precio medio mayoreo" />
+ <input id="nuevoPrecio" type="number" step="0.01" placeholder="Precio publico">
+ <input id="precioPublico" type="number" step="0.01" placeholder="Precio publico">
+ </div>
+ </section>
+
+ <section class="producto-form-seccion" data-seccion="inventario">
+ <div class="producto-form-seccion-header">
+ <span class="producto-form-numero">3</span>
+ <h2>Inventario</h2>
+ </div>
+ <div class="producto-form-campos">
+ <input id="nuevoStock" type="number" step="0.001" placeholder="Stock actual">
+ <input id="stockMinimo" type="number" step="0.001" value="3" placeholder="Stock minimo">
+ <input id="nuevoStockMaximo" type="number" step="0.001" min="0" placeholder="Stock maximo (opcional)">
  <input id="presentacionCompra" type="text" placeholder="Compra: caja, rollo, saco, bulto">
  <input id="factorConversion" type="number" step="0.001" placeholder="Equivalencia: ej. caja 100 piezas">
  <input id="permiteVentaPieza" type="checkbox" onchange="togglePiezaCamposProducto()">
  <input id="piezasPorBolsa" type="number" step="0.01" min="0" placeholder="Piezas por bolsa/caja">
  <input id="precioPieza" type="number" step="0.01" min="0" placeholder="Precio por pieza suelta">
- <input id="nuevaTieneGarantia" type="checkbox" onchange="toggleGarantiaCamposProducto()">
- <input id="nuevoGarantiaDetalle" type="text" placeholder="ej. 3 meses contra defectos de fabrica">
- <input id="precioDistribuidor" type="number" step="0.01"
- placeholder=" Precio distribuidor" />
-
- <input id="precioMayoreo" type="number" step="0.01" placeholder=" Precio medio mayoreo" />
- <input id="nuevoPrecio" type="number" step="0.01" placeholder="Precio publico">
-
- <input id="precioPublico" type="number" step="0.01" placeholder="Precio publico">
-
- <input id="nuevoStock" type="number" step="0.001" placeholder="Stock actual">
-
- <input id="stockMinimo" type="number" step="0.001" value="3" placeholder="Stock minimo">
- <input id="nuevoProveedor" type="text" placeholder="Proveedor">
-
- <input id="nuevaUbicacion" type="text" placeholder="Ubicacion">
  <select id="basculaDigital">
  <option value="no">Bascula digital: no</option>
  <option value="preparado">Preparar para bascula</option>
  </select>
- <input id="nuevaDescripcion" class="campo-descripcion-input" placeholder="Descripcion / notas">
-
  <select id="altaRotacion">
-
- <option value="">
- Se vende rapido?
- </option>
-
- <option value="si">
- Si
- </option>
-
- <option value="no">
- No
- </option>
-
+ <option value="">Se vende rapido?</option>
+ <option value="si">Si</option>
+ <option value="no">No</option>
  </select>
+ <input id="nuevoProveedor" type="text" placeholder="Proveedor">
+ <input id="nuevaUbicacion" type="text" placeholder="Ubicacion">
+ </div>
+ </section>
+
+ <section class="producto-form-seccion" data-seccion="adicional">
+ <div class="producto-form-seccion-header">
+ <span class="producto-form-numero">4</span>
+ <h2>Informacion adicional</h2>
+ </div>
+ <div class="producto-form-campos">
+ <div class="campo-ficha producto-chip-campo campo-ficha-ancho">
+ <span>Subcategorias</span>
+ <div class="producto-chip-input" id="nuevaSubcategoriaChipInput">
+ <div class="producto-chip-lista" id="nuevaSubcategoriaChipLista"></div>
+ <input type="text" id="nuevaSubcategoriaTexto" placeholder="Escribe y presiona Enter" autocomplete="off">
+ </div>
+ <input type="hidden" id="nuevaSubcategoria">
+ </div>
+ <input id="nuevaTieneGarantia" type="checkbox" onchange="toggleGarantiaCamposProducto()">
+ <input id="nuevoGarantiaDetalle" type="text" placeholder="ej. 3 meses contra defectos de fabrica">
+ <input id="nuevoPeso" type="number" step="0.001" min="0" placeholder="Peso (kg, opcional)">
+ <input id="nuevoLargoCm" type="number" step="0.01" min="0" placeholder="Largo (cm, opcional)">
+ <input id="nuevoAnchoCm" type="number" step="0.01" min="0" placeholder="Ancho (cm, opcional)">
+ <input id="nuevoAltoCm" type="number" step="0.01" min="0" placeholder="Alto (cm, opcional)">
+ <input id="nuevasNotasInternas" type="text" placeholder="Notas internas (solo tu equipo las ve)" class="campo-ficha-ancho">
+ </div>
+ </section>
+
  </div>
 
- <div class="modal-botones">
+ <aside class="producto-form-lateral">
+ <div class="producto-form-imagen-panel">
+ <div id="productoFormImagenPreview" class="producto-form-imagen-preview">
+ <span>Sin foto</span>
+ </div>
+ <input id="nuevaImagenProducto" type="file" accept="image/*" onchange="previsualizarImagenProductoFormulario(this); subirImagenProductoManual()">
+ </div>
+ <div class="producto-form-tip">
+ <img src="img/nexo-ia/feliz.jpg" alt="Nexo">
+ <div>
+ <strong>Consejo de Nexo</strong>
+ <p>Una foto real y una buena descripcion ayudan a que tus productos se vendan mas rapido.</p>
+ </div>
+ </div>
+ </aside>
 
- <button onclick="cerrarFormularioAgregar()">
- Cancelar
- </button>
+ </div>
 
- <button type="button" onclick="agregarProductoNuevo({ continuar: true })">
- Guardar y agregar otro
- </button>
-
- <button id="btnGuardarProducto" onclick="agregarProductoNuevo()">
- Guardar producto
- </button>
-
+ <div class="producto-form-footer-callouts">
+ <div><strong>Escanea o busca</strong><span>Captura por codigo de barras o clave interna</span></div>
+ <div><strong>Precios inteligentes</strong><span>Distribuidor, mayoreo y publico en un mismo lugar</span></div>
+ <div><strong>Control de inventario</strong><span>Stock minimo y maximo para no quedarte sin producto</span></div>
+ <div><strong>Ubicacion en tienda</strong><span>Encuentra el producto mas rapido al surtir o vender</span></div>
  </div>
 
  </div>
 
- </div>
- </div>
- </div>
+ </section>
 
  <div id="pantallaClientes" style="display:none;">
 
@@ -1471,13 +1527,13 @@
   <script src="app.js?v=auth-negocio-20260716-01"></script>
   <script src="js/offline-sync.js?v=fix-mostrarproductos-20260709-01"></script>
   <script src="js/toast-pos.js?v=toast-pos-20260723-01"></script>
-  <script src="js/config-auth.js?v=ticket-rediseno-20260726-01"></script>
+  <script src="js/config-auth.js?v=agregar-producto-pantalla-20260727-01"></script>
   <script src="js/ticket-template.js?v=barcode-numerico-20260726-01"></script>
   <script src="js/catalog-provider-picker.js?v=catalog-adapters-20260708-01"></script>
   <script src="js/supplier-catalog.js?v=plantillas-servidor-ia-20260723-01"></script>
   <script src="js/pricing-rules.js?v=reglas-precio-20260709-02"></script>
   <script src="js/catalog-parsers.js?v=plantillas-servidor-ia-20260723-01"></script>
-  <script src="js/product-inventory.js?v=ticket-rediseno-20260726-01"></script>
+  <script src="js/product-inventory.js?v=agregar-producto-pantalla-20260727-01"></script>
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-quick-item-modal.js?v=articulo-rapido-20260720-01"></script>
@@ -1490,7 +1546,7 @@
   <script src="js/pricing-apply-view.js?v=reglas-precio-20260709-02"></script>
   <script src="js/app-bootstrap.js?v=articulo-rapido-20260720-01"></script>
   <script src="js/reports.js?v=venta-detalle-reportes-20260720-01"></script>
-  <script src="js/shell-topbar.js?v=ticket-rediseno-20260726-01"></script>
+  <script src="js/shell-topbar.js?v=agregar-producto-pantalla-20260727-01"></script>
   <script src="js/account-view.js?v=cuenta-rediseno-20260719-01"></script>
   <script src="js/ticket-lookup-view.js?v=ticket-folio-normalizado-20260726-01"></script>
   <script src="js/product-details-view.js?v=alertas-tempranas-20260712-01"></script>
@@ -1498,7 +1554,7 @@
   <script src="js/pos-shortcuts.js?v=pos-flyout-redesign-20260708-03"></script>
   <script src="js/low-stock.js?v=lowstock-bugfix-20260705-01"></script>
 <script src="js/factura-parser.js?v=pedidos-recepcion-xml-20260723-02"></script>
-<script src="js/ferretero-flow.js?v=pedidos-recepcion-xml-20260723-01"></script>
+<script src="js/ferretero-flow.js?v=agregar-producto-pantalla-20260727-01"></script>
 <script src="js/nexo-tour.js?v=nexo-ai-v2-20260722-01"></script>
 <script src="js/nexo-ia.js?v=nexo-ai-v2-20260722-01"></script>
 <script src="js/pos-busqueda-ia.js?v=borde-siri-20260721-01"></script>

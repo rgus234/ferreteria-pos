@@ -19,6 +19,7 @@ const NEXO_ACCIONES_MODULO = {
  inicio: () => mostrarInicio(),
  venta: () => mostrarPuntoVenta(),
  inventario: () => mostrarInventario(),
+ "agregar-producto": () => mostrarFormularioAgregar(),
  categorias: () => mostrarCategoriasInventario(),
  "inventario-bajo": () => mostrarInventarioBajo(),
  reportes: () => mostrarGraficas(),

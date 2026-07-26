@@ -1,72 +1,117 @@
 @layer nexo-product-form {
- #modalAgregar.modal-overlay {
-  align-items: center !important;
-  justify-content: center !important;
+ #modalAgregar.pantalla-producto-form {
   padding: var(--nexo-space-4) !important;
- }
-
- #modalAgregar.modal-overlay[style*="block"],
- #modalAgregar.modal-overlay[style*="flex"] {
-  display: flex !important;
- }
-
- #modalAgregar .modal-producto {
-  width: min(1040px, 94vw) !important;
-  max-width: min(1040px, 94vw) !important;
-  max-height: min(88vh, 820px) !important;
   overflow: auto !important;
-  border-radius: var(--nexo-radius-xl) !important;
-  background: var(--nexo-surface) !important;
-  border: 1px solid var(--nexo-line) !important;
-  color: var(--nexo-text) !important;
-  box-shadow: var(--nexo-shadow-soft) !important;
-  backdrop-filter: var(--nexo-glass-blur) !important;
  }
 
- #modalAgregar .modal-header {
-  display: grid !important;
-  grid-template-columns: 1fr auto auto !important;
-  gap: var(--nexo-space-3) !important;
+ #modalAgregar .producto-form-shell {
+  width: 100% !important;
+  max-width: 1200px !important;
+  margin: 0 auto !important;
+ }
+
+ #modalAgregar .producto-form-breadcrumb {
+  display: flex !important;
   align-items: center !important;
-  padding-bottom: var(--nexo-space-4) !important;
-  margin-bottom: var(--nexo-space-4) !important;
-  border-bottom: 1px solid var(--nexo-line) !important;
+  gap: 8px !important;
+  margin-bottom: var(--nexo-space-3) !important;
+  color: var(--nexo-text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
  }
 
- #modalAgregar .modal-header h2 {
+ #modalAgregar .producto-form-breadcrumb button {
+  min-height: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--nexo-text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 2px !important;
+ }
+
+ #modalAgregar .producto-form-header {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: var(--nexo-space-3) !important;
+  margin-bottom: var(--nexo-space-4) !important;
+ }
+
+ #modalAgregar .producto-form-header-titulo h1 {
   margin: 0 !important;
   color: var(--nexo-text) !important;
-  font-size: 30px !important;
-  line-height: 1.05 !important;
+  font-size: 28px !important;
+  line-height: 1.15 !important;
  }
 
- #modalAgregar .modal-header button {
+ #modalAgregar .producto-form-header-titulo p {
+  margin: 4px 0 0 !important;
+  color: var(--nexo-text-muted) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  max-width: 520px !important;
+ }
+
+ #modalAgregar .producto-form-header-acciones {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: var(--nexo-space-2) !important;
+ }
+
+ #modalAgregar .producto-form-header-acciones button {
   min-height: var(--nexo-control-height) !important;
+  padding: 0 16px !important;
   border-radius: var(--nexo-radius-md) !important;
+  white-space: nowrap !important;
+ }
+
+ #modalAgregar .producto-form-header-acciones button:nth-child(1) {
+  background: color-mix(in srgb, var(--nexo-text) 8%, transparent) !important;
+  color: var(--nexo-text) !important;
+  border: 1px solid var(--nexo-line) !important;
+ }
+
+ #modalAgregar .producto-form-header-acciones button:nth-child(2) {
+  background: transparent !important;
+  color: var(--nexo-text-muted) !important;
+  border: 1px solid var(--nexo-line) !important;
+ }
+
+ #modalAgregar .producto-form-header-acciones button:nth-child(3) {
+  background: color-mix(in srgb, var(--nexo-surface-strong) 70%, transparent) !important;
+  color: var(--nexo-text) !important;
+  border: 1px solid var(--nexo-line) !important;
+ }
+
+ #modalAgregar .producto-form-header-acciones button:nth-child(4),
+ #modalAgregar #btnGuardarProducto {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--nexo-brand) 75%, transparent), color-mix(in srgb, var(--nexo-brand) 55%, transparent)) !important;
+  backdrop-filter: blur(12px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.3) !important;
+  color: #fff !important;
+  border: 1px solid color-mix(in srgb, var(--nexo-brand) 45%, transparent) !important;
  }
 
  #modalAgregar .tipo-producto-selector,
  #modalAgregar .producto-tipo-ayuda,
- #modalAgregar .producto-tabs,
- #modalAgregar .formulario-producto.ficha-producto,
- #modalAgregar .modal-botones {
-  width: 100% !important;
-  max-width: 960px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
+ #modalAgregar .proveedor-catalogo-seccion,
+ #modalAgregar .modo-captura-seccion {
+  margin-bottom: var(--nexo-space-3) !important;
  }
 
  #modalAgregar .tipo-producto-selector {
   display: grid !important;
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   gap: var(--nexo-space-3) !important;
-  margin-bottom: var(--nexo-space-3) !important;
  }
 
  #modalAgregar .tipo-producto-card {
   min-height: 68px !important;
-  max-width: 230px !important;
-  justify-self: center !important;
   display: flex !important;
   align-items: center !important;
   justify-content: flex-start !important;
@@ -119,21 +164,11 @@
  }
 
  #modalAgregar .producto-tipo-ayuda {
-  margin-bottom: var(--nexo-space-3) !important;
   padding: 12px 14px !important;
   border-radius: 18px !important;
   background: var(--nexo-surface-soft) !important;
   border: 1px solid var(--nexo-line) !important;
   color: var(--nexo-text) !important;
- }
-
- #modalAgregar .proveedor-catalogo-seccion,
- #modalAgregar .modo-captura-seccion {
-  width: 100% !important;
-  max-width: 960px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-  margin-bottom: var(--nexo-space-3) !important;
  }
 
  #modalAgregar .proveedor-catalogo-seccion {
@@ -159,14 +194,6 @@
   display: block !important;
   font-size: 13px !important;
   margin-bottom: 4px !important;
- }
-
- #modalAgregar .proveedor-catalogo-ayuda {
-  display: block !important;
-  color: var(--nexo-text-muted) !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  margin-bottom: var(--nexo-space-2) !important;
  }
 
  #modalAgregar .proveedor-catalogo-selector-tiles {
@@ -289,100 +316,71 @@
   border-color: color-mix(in srgb, var(--nexo-brand) 45%, transparent) !important;
  }
 
- #modalAgregar .campo-ficha {
-  position: relative !important;
+ /* Grid principal: secciones numeradas a la izquierda, panel de imagen
+    y consejo a la derecha -- colapsa a 1 columna en pantallas chicas. */
+ #modalAgregar .producto-form-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 2fr) 340px !important;
+  gap: var(--nexo-space-4) !important;
+  align-items: start !important;
  }
 
- #modalAgregar .campo-ficha span.campo-ficha-badge-auto {
-  position: absolute !important;
-  top: 0 !important;
-  right: 0 !important;
-  padding: 2px 8px !important;
-  border-radius: 999px !important;
-  background: color-mix(in srgb, #22c55e 18%, transparent) !important;
-  color: #16a34a !important;
-  font-size: 10px !important;
-  font-weight: 900 !important;
- }
-
- #modalAgregar .campo-ficha span.campo-ficha-badge-imagen {
-  position: absolute !important;
-  top: 0 !important;
-  right: 0 !important;
-  padding: 2px 8px !important;
-  border-radius: 999px !important;
-  background: color-mix(in srgb, var(--nexo-brand) 18%, transparent) !important;
-  color: var(--nexo-brand) !important;
-  font-size: 10px !important;
-  font-weight: 900 !important;
- }
-
- @media (max-width: 900px) {
-  #modalAgregar .proveedor-catalogo-seccion {
-   grid-template-columns: 1fr !important;
-  }
-
-  #modalAgregar .proveedor-catalogo-selector-tiles,
-  #modalAgregar .modo-captura-botones {
-   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
- }
-
- #modalAgregar .producto-tabs {
-  display: flex !important;
-  gap: var(--nexo-space-2) !important;
-  padding: var(--nexo-space-2) !important;
-  margin-bottom: var(--nexo-space-3) !important;
-  border-radius: 18px !important;
-  background: var(--nexo-surface-soft) !important;
-  border: 1px solid var(--nexo-line) !important;
- }
-
- #modalAgregar .producto-tabs button {
-  min-height: 38px !important;
-  border-radius: 13px !important;
-  background: transparent !important;
-  color: var(--nexo-text-muted) !important;
-  border: 1px solid transparent !important;
-  box-shadow: none !important;
- }
-
- #modalAgregar .producto-tabs button.activo {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--nexo-brand) 65%, transparent), color-mix(in srgb, var(--nexo-brand) 45%, transparent)) !important;
-  backdrop-filter: blur(12px) saturate(1.3) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(1.3) !important;
-  color: #fff !important;
-  box-shadow: var(--nexo-shadow-brand) !important;
- }
-
- #modalAgregar .formulario-producto.ficha-producto {
+ #modalAgregar .producto-form-principal {
   display: block !important;
   margin-top: 0 !important;
  }
 
- #modalAgregar .producto-tab-panel {
-  display: none !important;
-  grid-template-columns: repeat(2, minmax(260px, 420px)) !important;
-  justify-content: center !important;
+ #modalAgregar .producto-form-seccion {
+  margin-bottom: var(--nexo-space-3) !important;
+  padding: var(--nexo-space-4) !important;
+  border-radius: var(--nexo-radius-xl) !important;
+  background: var(--nexo-surface) !important;
+  border: 1px solid var(--nexo-line) !important;
+  box-shadow: var(--nexo-shadow-soft) !important;
+ }
+
+ #modalAgregar .producto-form-seccion-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin-bottom: var(--nexo-space-3) !important;
+ }
+
+ #modalAgregar .producto-form-numero {
+  width: 26px !important;
+  height: 26px !important;
+  flex: 0 0 26px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--nexo-brand) 75%, transparent), color-mix(in srgb, var(--nexo-brand) 55%, transparent)) !important;
+  color: #fff !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+ }
+
+ #modalAgregar .producto-form-seccion-header h2 {
+  margin: 0 !important;
+  color: var(--nexo-text) !important;
+  font-size: 16px !important;
+ }
+
+ #modalAgregar .producto-form-campos {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: var(--nexo-space-3) !important;
   align-items: end !important;
  }
 
- #modalAgregar .producto-tab-panel.activo {
-  display: grid !important;
+ #modalAgregar .campo-ficha-ancho,
+ #modalAgregar .campo-ficha:has(.campo-ficha-ancho) {
+  grid-column: span 2 !important;
  }
 
  #modalAgregar .campo-ficha {
-  max-width: 420px !important;
+  max-width: none !important;
   display: grid !important;
   gap: 6px !important;
-  grid-column: auto !important;
- }
-
- #modalAgregar .campo-ficha:has(#nuevaDescripcion),
- #modalAgregar .campo-ficha:has(#codigosRelacionados) {
-  max-width: 852px !important;
-  grid-column: span 2 !important;
  }
 
  #modalAgregar .campo-ficha span {
@@ -425,13 +423,8 @@
   font-weight: 800 !important;
  }
 
- #modalAgregar .campo-ficha input[type="file"] {
-  display: flex !important;
-  align-items: center !important;
-  padding: 0 10px !important;
- }
-
  #modalAgregar .btn-sugerencia-precio-proveedor {
+  grid-column: span 2 !important;
   width: 100% !important;
   min-height: 36px !important;
   margin-top: 2px !important;
@@ -446,61 +439,254 @@
   justify-content: center !important;
  }
 
- #modalAgregar .modal-botones {
+ #modalAgregar .campo-ficha span.campo-ficha-badge-auto,
+ #modalAgregar .campo-ficha span.campo-ficha-badge-imagen {
+  display: inline-block !important;
+  width: fit-content !important;
+  margin-top: -2px !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+ }
+
+ #modalAgregar .campo-ficha span.campo-ficha-badge-auto {
+  background: color-mix(in srgb, #22c55e 18%, transparent) !important;
+  color: #16a34a !important;
+ }
+
+ #modalAgregar .campo-ficha span.campo-ficha-badge-imagen {
+  background: color-mix(in srgb, var(--nexo-brand) 18%, transparent) !important;
+  color: var(--nexo-brand) !important;
+ }
+
+ /* Subcategorias -- pastillas sobre el mismo campo oculto de siempre */
+ #modalAgregar .producto-chip-campo {
+  gap: 6px !important;
+ }
+
+ #modalAgregar .producto-chip-input {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+  min-height: 44px !important;
+  padding: 6px 10px !important;
+  border-radius: 15px !important;
+  background: var(--nexo-surface-soft) !important;
+  border: 1px solid var(--nexo-line) !important;
+ }
+
+ #modalAgregar .producto-chip-lista {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+ }
+
+ #modalAgregar .producto-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 4px 6px 4px 10px !important;
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--nexo-brand) 14%, var(--nexo-surface-strong)) !important;
+  color: var(--nexo-text) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+ }
+
+ #modalAgregar .producto-chip button {
+  min-height: auto !important;
+  width: 18px !important;
+  height: 18px !important;
+  padding: 0 !important;
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  place-items: center !important;
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--nexo-text) 12%, transparent) !important;
+  color: var(--nexo-text) !important;
+  border: none !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+ }
+
+ #modalAgregar .producto-chip-input input {
+  flex: 1 1 120px !important;
+  min-width: 100px !important;
+  min-height: 28px !important;
+  padding: 0 4px !important;
+  border: none !important;
+  background: transparent !important;
+  color: var(--nexo-text) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+ }
+
+ #modalAgregar .producto-chip-input input:focus {
+  outline: none !important;
+ }
+
+ /* Panel lateral: imagen + consejo de Nexo */
+ #modalAgregar .producto-form-lateral {
+  position: sticky !important;
+  top: var(--nexo-space-4) !important;
+  display: grid !important;
+  gap: var(--nexo-space-3) !important;
+ }
+
+ #modalAgregar .producto-form-imagen-panel {
+  padding: var(--nexo-space-3) !important;
+  border-radius: var(--nexo-radius-xl) !important;
+  background: var(--nexo-surface) !important;
+  border: 1px solid var(--nexo-line) !important;
+  box-shadow: var(--nexo-shadow-soft) !important;
+ }
+
+ #modalAgregar .producto-form-imagen-preview {
+  width: 100% !important;
+  aspect-ratio: 1 / 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: var(--nexo-radius-lg) !important;
+  background: var(--nexo-surface-soft) !important;
+  border: 1px dashed var(--nexo-line) !important;
+  overflow: hidden !important;
+  margin-bottom: var(--nexo-space-3) !important;
+ }
+
+ #modalAgregar .producto-form-imagen-preview img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+ }
+
+ #modalAgregar .producto-form-imagen-preview span {
+  color: var(--nexo-text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+ }
+
+ #modalAgregar .producto-form-imagen-panel .campo-ficha {
+  gap: 4px !important;
+ }
+
+ #modalAgregar .producto-form-imagen-panel .campo-ficha input[type="file"] {
+  width: 100% !important;
+  min-height: 40px !important;
+  padding: 8px 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  font-size: 12px !important;
+ }
+
+ #modalAgregar .producto-form-tip {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  padding: var(--nexo-space-3) !important;
+  border-radius: var(--nexo-radius-xl) !important;
+  background: color-mix(in srgb, var(--nexo-brand) 8%, var(--nexo-surface)) !important;
+  border: 1px solid color-mix(in srgb, var(--nexo-brand) 25%, var(--nexo-line)) !important;
+ }
+
+ #modalAgregar .producto-form-tip img {
+  width: 34px !important;
+  height: 34px !important;
+  flex: 0 0 34px !important;
+  border-radius: 999px !important;
+  object-fit: cover !important;
+ }
+
+ #modalAgregar .producto-form-tip strong {
+  display: block !important;
+  color: var(--nexo-text) !important;
+  font-size: 12px !important;
+  margin-bottom: 2px !important;
+ }
+
+ #modalAgregar .producto-form-tip p {
+  margin: 0 !important;
+  color: var(--nexo-text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+ }
+
+ /* Franja de caracteristicas reales, al final de la pantalla */
+ #modalAgregar .producto-form-footer-callouts {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   gap: var(--nexo-space-3) !important;
   margin-top: var(--nexo-space-4) !important;
- }
-
- #modalAgregar .modal-botones button {
-  min-height: 46px !important;
-  border-radius: 15px !important;
- }
-
- #modalAgregar .modal-botones button:nth-child(1) {
-  background: color-mix(in srgb, var(--nexo-text) 8%, transparent) !important;
-  color: var(--nexo-text) !important;
+  padding: var(--nexo-space-4) !important;
+  border-radius: var(--nexo-radius-xl) !important;
+  background: var(--nexo-surface-soft) !important;
   border: 1px solid var(--nexo-line) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
  }
 
- #modalAgregar .modal-botones button:nth-child(2) {
-  background: color-mix(in srgb, var(--nexo-surface-strong) 70%, transparent) !important;
+ #modalAgregar .producto-form-footer-callouts strong {
+  display: block !important;
   color: var(--nexo-text) !important;
-  border: 1px solid var(--nexo-line) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
+  font-size: 13px !important;
+  margin-bottom: 2px !important;
  }
 
- #modalAgregar .modal-botones button:nth-child(3),
- #modalAgregar #btnGuardarProducto {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--nexo-brand) 75%, transparent), color-mix(in srgb, var(--nexo-brand) 55%, transparent)) !important;
-  backdrop-filter: blur(12px) saturate(1.3) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(1.3) !important;
-  color: #fff !important;
-  border: 1px solid color-mix(in srgb, var(--nexo-brand) 45%, transparent) !important;
+ #modalAgregar .producto-form-footer-callouts span {
+  color: var(--nexo-text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+ }
+
+ @media (max-width: 1080px) {
+  #modalAgregar .producto-form-grid {
+   grid-template-columns: 1fr !important;
+  }
+
+  #modalAgregar .producto-form-lateral {
+   position: static !important;
+  }
  }
 
  @media (max-width: 900px) {
   #modalAgregar .tipo-producto-selector {
    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
- }
 
- @media (max-width: 680px) {
-  #modalAgregar .modal-header,
-  #modalAgregar .tipo-producto-selector,
-  #modalAgregar .producto-tab-panel,
-  #modalAgregar .modal-botones {
+  #modalAgregar .proveedor-catalogo-seccion {
    grid-template-columns: 1fr !important;
   }
 
-  #modalAgregar .campo-ficha,
-  #modalAgregar .campo-ficha:has(#nuevaDescripcion),
-  #modalAgregar .campo-ficha:has(#codigosRelacionados) {
-   max-width: none !important;
+  #modalAgregar .proveedor-catalogo-selector-tiles,
+  #modalAgregar .modo-captura-botones {
+   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  #modalAgregar .producto-form-footer-callouts {
+   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+ }
+
+ @media (max-width: 680px) {
+  #modalAgregar .producto-form-header,
+  #modalAgregar .tipo-producto-selector,
+  #modalAgregar .producto-form-campos,
+  #modalAgregar .producto-form-footer-callouts {
+   grid-template-columns: 1fr !important;
+  }
+
+  #modalAgregar .producto-form-header-acciones {
+   width: 100% !important;
+  }
+
+  #modalAgregar .producto-form-header-acciones button {
+   flex: 1 1 auto !important;
+  }
+
+  #modalAgregar .campo-ficha-ancho,
+  #modalAgregar .campo-ficha:has(.campo-ficha-ancho),
+  #modalAgregar .btn-sugerencia-precio-proveedor {
    grid-column: auto !important;
   }
  }

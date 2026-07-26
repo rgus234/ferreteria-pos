@@ -1565,7 +1565,6 @@ function asegurarEtiquetasFichaProducto() {
  nuevoCodigoInterno: "Codigo interno / clave proveedor",
  codigosRelacionados: "Codigos alternos",
  nuevaCategoria: "Categoria",
- nuevaSubcategoria: "Subcategoria",
  nuevaMarca: "Marca",
  nuevaImagenProducto: "Foto del producto (opcional, se guarda al elegirla)",
  unidadVenta: "Unidad base de venta",
@@ -1583,11 +1582,17 @@ function asegurarEtiquetasFichaProducto() {
  tipoPrecioVenta: "Tipo de precio",
  nuevoStock: "Stock actual",
  stockMinimo: "Stock minimo",
+ nuevoStockMaximo: "Stock maximo",
  nuevoProveedor: "Proveedor principal",
  nuevaUbicacion: "Ubicacion",
  basculaDigital: "Bascula digital",
  nuevaDescripcion: "Descripcion / notas",
- altaRotacion: "Alta rotacion"
+ altaRotacion: "Alta rotacion",
+ nuevoPeso: "Peso",
+ nuevoLargoCm: "Largo",
+ nuevoAnchoCm: "Ancho",
+ nuevoAltoCm: "Alto",
+ nuevasNotasInternas: "Notas internas"
  };
 
  Object.entries(etiquetas).forEach(([id, texto]) => {
@@ -1612,6 +1617,136 @@ function asegurarEtiquetasFichaProducto() {
  wrapper.appendChild(etiqueta);
  wrapper.appendChild(campo);
  });
+}
+
+// Subcategorias como "pastillas" -- el input real sigue siendo el mismo
+// <input type="hidden" id="nuevaSubcategoria"> de siempre (texto separado
+// por comas), asi que agregarProductoNuevo/editarProducto no cambian: solo
+// se le agrega esta capa visual encima para escribir/quitar etiquetas.
+function asegurarChipsSubcategoria() {
+ const textoInput =
+ document.getElementById("nuevaSubcategoriaTexto");
+
+ if (!textoInput || textoInput.dataset.chipsListo === "1") return;
+
+ textoInput.dataset.chipsListo = "1";
+
+ textoInput.addEventListener("keydown", evento => {
+ if (evento.key === "Enter" || evento.key === ",") {
+ evento.preventDefault();
+ agregarChipSubcategoria(textoInput.value);
+ } else if (evento.key === "Backspace" && !textoInput.value) {
+ quitarUltimoChipSubcategoria();
+ }
+ });
+
+ textoInput.addEventListener("blur", () => {
+ if (textoInput.value.trim()) agregarChipSubcategoria(textoInput.value);
+ });
+}
+
+function chipsSubcategoriaActuales() {
+ const oculto =
+ document.getElementById("nuevaSubcategoria");
+
+ return String(oculto?.value || "")
+ .split(",")
+ .map(texto => texto.trim())
+ .filter(Boolean);
+}
+
+function renderChipsSubcategoria(chips) {
+ const lista =
+ document.getElementById("nuevaSubcategoriaChipLista");
+
+ if (!lista) return;
+
+ lista.innerHTML =
+ chips.map((chip, indice) => `
+ <span class="producto-chip">
+ ${escaparPOS(chip)}
+ <button type="button" onclick="quitarChipSubcategoria(${indice})" aria-label="Quitar ${escaparPOS(chip)}">×</button>
+ </span>
+ `).join("");
+}
+
+function guardarChipsSubcategoria(chips) {
+ const oculto =
+ document.getElementById("nuevaSubcategoria");
+
+ if (oculto) oculto.value = chips.join(", ");
+
+ renderChipsSubcategoria(chips);
+}
+
+function agregarChipSubcategoria(texto) {
+ const limpio =
+ String(texto || "").replace(/,/g, "").trim();
+
+ const textoInput =
+ document.getElementById("nuevaSubcategoriaTexto");
+
+ if (textoInput) textoInput.value = "";
+
+ if (!limpio) return;
+
+ const chips =
+ chipsSubcategoriaActuales();
+
+ if (chips.some(chip => chip.toLowerCase() === limpio.toLowerCase())) return;
+
+ chips.push(limpio);
+ guardarChipsSubcategoria(chips);
+}
+
+function quitarChipSubcategoria(indice) {
+ const chips =
+ chipsSubcategoriaActuales();
+
+ chips.splice(indice, 1);
+ guardarChipsSubcategoria(chips);
+}
+
+function quitarUltimoChipSubcategoria() {
+ const chips =
+ chipsSubcategoriaActuales();
+
+ chips.pop();
+ guardarChipsSubcategoria(chips);
+}
+
+// Vista previa de la imagen del producto en el panel lateral -- se llama
+// antes de subirImagenProductoManual() para mostrar de inmediato el
+// archivo elegido, sin esperar a que termine de subirse.
+function previsualizarImagenProductoFormulario(input) {
+ const panel =
+ document.getElementById("productoFormImagenPreview");
+
+ const archivo =
+ input?.files?.[0];
+
+ if (!panel || !archivo) return;
+
+ const lector =
+ new FileReader();
+
+ lector.onload = () => {
+ panel.innerHTML = `<img src="${lector.result}" alt="Vista previa">`;
+ };
+
+ lector.readAsDataURL(archivo);
+}
+
+function mostrarImagenPreviewProducto(url) {
+ const panel =
+ document.getElementById("productoFormImagenPreview");
+
+ if (!panel) return;
+
+ panel.innerHTML =
+ url
+ ? `<img src="${url}" alt="Foto del producto">`
+ : `<span>Sin foto</span>`;
 }
 
 function redimensionarImagenCanvas(archivo, anchoMax = 320) {
@@ -2012,6 +2147,24 @@ document.getElementById("nuevoGarantiaDetalle")?.value || "";
 const codigosRelacionadosTexto =
 document.getElementById("codigosRelacionados")?.value || "";
 
+const stockMaximo =
+document.getElementById("nuevoStockMaximo")?.value || "";
+
+const peso =
+document.getElementById("nuevoPeso")?.value || "";
+
+const largoCm =
+document.getElementById("nuevoLargoCm")?.value || "";
+
+const anchoCm =
+document.getElementById("nuevoAnchoCm")?.value || "";
+
+const altoCm =
+document.getElementById("nuevoAltoCm")?.value || "";
+
+const notasInternas =
+document.getElementById("nuevasNotasInternas")?.value || "";
+
 const codigoFinal =
 normalizarCodigo(codigo) ||
 (
@@ -2123,7 +2276,13 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  piezasPorBolsa,
  precioPieza,
  tieneGarantia,
- garantiaDetalle
+ garantiaDetalle,
+ stockMaximo,
+ peso,
+ largoCm,
+ anchoCm,
+ altoCm,
+ notasInternas
  };
 
  let respuesta;
@@ -2277,7 +2436,13 @@ function limpiarFormularioProductoParaSiguientePOS(contexto = {}) {
   "precioMayoreo",
   "nuevoPrecio",
   "precioPublico",
-  "nuevoStock"
+  "nuevoStock",
+  "nuevoStockMaximo",
+  "nuevoPeso",
+  "nuevoLargoCm",
+  "nuevoAnchoCm",
+  "nuevoAltoCm",
+  "nuevasNotasInternas"
  ];
 
  limpiar.forEach(id => {
@@ -2289,6 +2454,8 @@ function limpiarFormularioProductoParaSiguientePOS(contexto = {}) {
    delete campo.dataset.codigoAutomatico;
   }
  });
+
+ mostrarImagenPreviewProducto("");
 
  const valoresConservados = {
   nuevaCategoria: contexto.categoria || "",
@@ -2305,6 +2472,8 @@ function limpiarFormularioProductoParaSiguientePOS(contexto = {}) {
 
   if (campo) campo.value = valor;
  });
+
+ renderChipsSubcategoria(chipsSubcategoriaActuales());
 
  const stockMinimo =
  document.getElementById("stockMinimo");
@@ -2331,14 +2500,15 @@ function limpiarFormularioProductoParaSiguientePOS(contexto = {}) {
  const tituloModal =
  document.getElementById("modalAgregarTitulo");
 
- if (tituloModal) tituloModal.textContent = "+ Nuevo producto";
+ if (tituloModal) tituloModal.textContent = "Agregar producto";
+
+ const breadcrumbActual =
+ document.getElementById("productoFormBreadcrumbActual");
+
+ if (breadcrumbActual) breadcrumbActual.textContent = "Agregar producto";
 
  if (typeof seleccionarTipoProducto === "function") {
   seleccionarTipoProducto(contexto.tipoProducto || "catalogo");
- }
-
- if (typeof cambiarTabProductoPOS === "function") {
-  cambiarTabProductoPOS("basico");
  }
 
  setTimeout(() => {
@@ -2382,6 +2552,7 @@ function editarProducto(
  mostrarFormularioAgregar();
 
  marcarImagenProductoEncontrada(Boolean(producto?.imagenUrl));
+ mostrarImagenPreviewProducto(producto?.imagenUrl || "");
 
  const tituloModal =
  document.getElementById("modalAgregarTitulo");
@@ -2430,6 +2601,8 @@ function editarProducto(
 
  document.getElementById("nuevaSubcategoria").value =
  producto?.subcategoria || "";
+
+ renderChipsSubcategoria(chipsSubcategoriaActuales());
 
  document.getElementById("nuevaMarca").value =
  producto?.marca || "";
@@ -2490,6 +2663,24 @@ function editarProducto(
 
  document.getElementById("stockMinimo").value =
  producto?.stock_minimo || 3;
+
+ document.getElementById("nuevoStockMaximo").value =
+ producto?.stock_maximo || "";
+
+ document.getElementById("nuevoPeso").value =
+ producto?.peso || "";
+
+ document.getElementById("nuevoLargoCm").value =
+ producto?.largo_cm || "";
+
+ document.getElementById("nuevoAnchoCm").value =
+ producto?.ancho_cm || "";
+
+ document.getElementById("nuevoAltoCm").value =
+ producto?.alto_cm || "";
+
+ document.getElementById("nuevasNotasInternas").value =
+ producto?.notas_internas || "";
 
  document.getElementById("altaRotacion").value =
  producto?.alta_rotacion || "";
@@ -3622,8 +3813,13 @@ function imprimirCodigosBarrasInventario() {
 }
 
 function mostrarFormularioAgregar() {
+ if (typeof ocultarPantallasPrincipales === "function") {
+ ocultarPantallasPrincipales();
+ }
+
  asegurarSelectorTipoPrecio();
  asegurarEtiquetasFichaProducto();
+ asegurarChipsSubcategoria();
  inicializarCampoCodigoProducto();
 
  if (!productoEditandoId) {
@@ -3664,9 +3860,29 @@ function mostrarFormularioAgregar() {
  }
  }
 
+ const breadcrumbActual =
+ document.getElementById("productoFormBreadcrumbActual");
+
+ if (breadcrumbActual) {
+ breadcrumbActual.textContent =
+ productoEditandoId ? "Editar producto" : "Agregar producto";
+ }
+
  document.getElementById(
  "modalAgregar"
- ).style.display = "flex";
+ ).style.display = "block";
+
+ if (typeof actualizarModuloActivoPOS === "function") {
+ actualizarModuloActivoPOS("agregar-producto");
+ }
+
+ if (typeof actualizarTopbarContexto === "function") {
+ actualizarTopbarContexto(
+ productoEditandoId ? "Editar producto" : "Agregar producto",
+ "Completa la informacion de tu producto",
+ "agregar-producto"
+ );
+ }
 
  setTimeout(() => {
  const campoCodigo =
@@ -3761,6 +3977,7 @@ function cerrarFormularioAgregar() {
  document.getElementById("codigosRelacionados").value = "";
  document.getElementById("nuevaCategoria").value = "";
  document.getElementById("nuevaSubcategoria").value = "";
+ renderChipsSubcategoria([]);
  document.getElementById("nuevaMarca").value = "";
  document.getElementById("nuevaDescripcion").value = "";
  document.getElementById("unidadVenta").value = "pieza";
@@ -3777,6 +3994,13 @@ function cerrarFormularioAgregar() {
  toggleGarantiaCamposProducto();
  mostrarPiezasSueltasStockInfo(0);
  document.getElementById("basculaDigital").value = "no";
+ document.getElementById("nuevoStockMaximo").value = "";
+ document.getElementById("nuevoPeso").value = "";
+ document.getElementById("nuevoLargoCm").value = "";
+ document.getElementById("nuevoAnchoCm").value = "";
+ document.getElementById("nuevoAltoCm").value = "";
+ document.getElementById("nuevasNotasInternas").value = "";
+ mostrarImagenPreviewProducto("");
  seleccionarTipoProducto("catalogo");
 
  const tituloModal =
@@ -3795,9 +4019,11 @@ function cerrarFormularioAgregar() {
  "Guardar producto";
  }
 
- document.getElementById(
- "modalAgregar"
- ).style.display = "none";
+ if (typeof mostrarInventario === "function") {
+ mostrarInventario();
+ } else {
+ document.getElementById("modalAgregar").style.display = "none";
+ }
 }
 function limpiarCamposCatalogoProducto() {
  document.getElementById("nuevoNombre").value = "";

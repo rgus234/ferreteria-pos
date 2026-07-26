@@ -5271,3 +5271,100 @@ usa la misma funcion.
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+## 2026-07-27 -- Rediseno de "Agregar producto": de modal a pantalla completa
+
+El formulario de alta/edicion de producto (27+ campos) vivia en un
+`<div id="modalAgregar" class="modal-overlay">` -- una ventana
+flotante centrada. Se convirtio en una pantalla completa dentro del
+mismo shell del POS (mismo patron que Cuenta/Nexo IA/Buscar ticket:
+`ocultarPantallasPrincipales()`, `actualizarModuloActivoPOS()`,
+`actualizarTopbarContexto()`), reorganizada en 4 secciones numeradas
+(Informacion basica, Precios, Inventario, Informacion adicional) con
+un panel lateral de imagen + tarjeta de consejo, siguiendo una
+referencia visual que el usuario compartio de otra app.
+
+**Decision de bajo riesgo**: se conservo el mismo `id="modalAgregar"`
+y los mismos nombres de funcion (`mostrarFormularioAgregar()`,
+`cerrarFormularioAgregar()`, `agregarProductoNuevo()`,
+`editarProducto()`) -- solo cambio *que hacen* internamente (abrir/
+cerrar una seccion de pagina en vez de un overlay), no *como se
+llaman*. Esto evito tocar los ~6 sitios que ya invocan estas
+funciones (boton "+ Nuevo producto" de Inventario, `editarProducto`
+en la tabla, el adaptador de Nexo AI `preparar_creacion`, el flujo de
+"¿editas el duplicado?" dentro del propio submit).
+
+**Bug estructural encontrado y corregido de paso**: el markup
+original de `#modalAgregar` nunca fue realmente un hermano de nivel
+superior de las demas pantallas -- estaba anidado dentro de
+`#pantallaInventario` > `.caja` (el modal solo "escapaba"
+visualmente porque `ferretero-flow.js` hacia
+`document.body.appendChild(modalAgregar)` cada vez que se abria, mas
+`position:fixed`). Al retirar ese hack (ya no aplica para una seccion
+de pagina normal), se descubrio que **`#pantallaClientes` y todo lo
+que le seguia originalmente en el archivo tambien estaba atrapado
+dentro de `#pantallaInventario`** -- un bug latente preexistente
+(cuando Inventario se ocultaba, Clientes quedaba con
+`display:none` heredado sin que nadie lo notara porque nunca se
+probo "abrir Clientes justo despues de haber estado en Inventario" de
+forma aislada). Se corrigio cerrando `.caja`/`#pantallaInventario`
+justo antes de la nueva seccion `#modalAgregar`, dejando ambas
+pantallas como hermanas reales -- arregla el bug de raiz en vez de
+reintroducir el hack de reubicacion.
+
+**Campos nuevos** (decididos con el usuario via `AskUserQuestion`):
+`stock_maximo`, `peso`, `largo_cm`, `ancho_cm`, `alto_cm`,
+`notas_internas` -- 6 columnas nuevas en `productos`
+(`migrations/20260727_producto_campos_adicionales.sql`, aditiva,
+aplicada) mas su lectura/escritura en `POST /agregar-producto` y
+`PUT /editar-producto/:id`. **No** se agrego "Precio con IVA
+calculado" (el usuario no lo selecciono).
+
+**Subcategorias -- de texto libre a "pastillas"**: el campo real
+sigue siendo el mismo `<input type="hidden" id="nuevaSubcategoria">`
+(texto separado por comas) -- se le agrego una capa visual de chips
+encima (`asegurarChipsSubcategoria`/`agregarChipSubcategoria`/
+`quitarChipSubcategoria`, `product-inventory.js`) sin tocar el
+formato de dato guardado ni el submit.
+
+**Retirado**: el sistema de sub-pestanas dinamico
+(`organizarFormularioProductoTabs`/`cambiarTabProductoPOS` en
+`ferretero-flow.js`, que reagrupaba los mismos campos en 6 pestanas
+"Basico/Precios/Inventario/Unidades/Codigos/Avanzado" via JS en cada
+apertura) -- quedo superado por las 4 secciones estaticas nuevas; se
+elimino junto con el CSS asociado (`.producto-tabs`/
+`.producto-tab-panel` en `pos-product-form.css`, que **no estaba
+realmente muerto** como se penso al planear -- lo generaba esa
+funcion dinamicamente, se confirmo al investigar el archivo que la
+usaba).
+
+**Verificacion real** (negocio sintetico id 17553, borrado al
+terminar):
+- Migracion aplicada contra la base real.
+- Producto creado con: garantia + detalle, venta por pieza +
+  piezas/precio, 2 subcategorias como chips, los 6 campos nuevos
+  llenos -- confirmado en la base que todo se guardo con los valores
+  correctos (`stock_maximo:20, peso:1.5, largo_cm:30, ancho_cm:10,
+  alto_cm:8, notas_internas` y `subcategoria:"Herramienta electrica,
+  Taladros"`).
+- `editarProducto()` sobre ese mismo producto: los 6 campos nuevos y
+  las pastillas de subcategoria se prellenaron correctamente desde
+  los datos guardados.
+- "Guardar producto" navega de regreso a Inventario (via
+  `mostrarInventario()`, que ya hace `ocultarPantallasPrincipales()`
+  internamente).
+- Sidebar: nuevo boton "Agregar producto" dentro de
+  `#submenuInventario`, con icono/etiqueta generados por el mismo
+  mecanismo que ya usan "Productos"/"Categorias".
+- Modo oscuro revisado visualmente (captura de pantalla): secciones,
+  panel de imagen y franja final legibles.
+- Consola sin errores relacionados (los unicos warnings presentes
+  eran de `cargarHistorial` en Inicio, preexistentes y no relacionados
+  a este cambio).
+- `node --check` limpio en `server.js` y en todos los `.js` de
+  frontend tocados.
+- Negocio sintetico limpiado despues; `negocio_id = 1` (Ferreteria
+  Olimpico) confirmado sin cambios en toda la prueba.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.

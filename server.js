@@ -4643,7 +4643,13 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
     piezasPorBolsa,
     precioPieza,
     tieneGarantia,
-    garantiaDetalle
+    garantiaDetalle,
+    stockMaximo,
+    peso,
+    largoCm,
+    anchoCm,
+    altoCm,
+    notasInternas
 } = req.body;
     try {
         const negocio = await negocioActual(req);
@@ -4679,9 +4685,15 @@ INSERT INTO public.productos
   piezas_por_bolsa,
   precio_pieza,
   tiene_garantia,
-  garantia_detalle
+  garantia_detalle,
+  stock_maximo,
+  peso,
+  largo_cm,
+  ancho_cm,
+  alto_cm,
+  notas_internas
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)
 RETURNING id
 `,
 [
@@ -4710,7 +4722,13 @@ RETURNING id
   piezasPorBolsa || null,
   precioPieza || null,
   tieneGarantia === true || tieneGarantia === "true",
-  garantiaDetalle || ""
+  garantiaDetalle || "",
+  stockMaximo || null,
+  peso || null,
+  largoCm || null,
+  anchoCm || null,
+  altoCm || null,
+  notasInternas || ""
 ]
 );
 
@@ -4752,7 +4770,13 @@ RETURNING id
                 piezas_por_bolsa: piezasPorBolsa || null,
                 precio_pieza: precioPieza || null,
                 tiene_garantia: tieneGarantia === true || tieneGarantia === "true",
-                garantia_detalle: garantiaDetalle || ""
+                garantia_detalle: garantiaDetalle || "",
+                stock_maximo: stockMaximo || null,
+                peso: peso || null,
+                largo_cm: largoCm || null,
+                ancho_cm: anchoCm || null,
+                alto_cm: altoCm || null,
+                notas_internas: notasInternas || ""
             }
         });
 
@@ -4796,7 +4820,13 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         piezasPorBolsa,
         precioPieza,
         tieneGarantia,
-        garantiaDetalle
+        garantiaDetalle,
+        stockMaximo,
+        peso,
+        largoCm,
+        anchoCm,
+        altoCm,
+        notasInternas
     } = req.body;
 
     try {
@@ -4832,9 +4862,15 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 piezas_por_bolsa = $22,
                 precio_pieza = $23,
                 tiene_garantia = $24,
-                garantia_detalle = $25
-            WHERE id = $26
-            AND negocio_id = $27
+                garantia_detalle = $25,
+                stock_maximo = $26,
+                peso = $27,
+                largo_cm = $28,
+                ancho_cm = $29,
+                alto_cm = $30,
+                notas_internas = $31
+            WHERE id = $32
+            AND negocio_id = $33
             RETURNING id
             `,
             [
@@ -4863,6 +4899,12 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 precioPieza || null,
                 tieneGarantia === true || tieneGarantia === "true",
                 garantiaDetalle || "",
+                stockMaximo || null,
+                peso || null,
+                largoCm || null,
+                anchoCm || null,
+                altoCm || null,
+                notasInternas || "",
                 id,
                 negocio.id
             ]
@@ -4912,7 +4954,13 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 piezas_por_bolsa: piezasPorBolsa || null,
                 precio_pieza: precioPieza || null,
                 tiene_garantia: tieneGarantia === true || tieneGarantia === "true",
-                garantia_detalle: garantiaDetalle || ""
+                garantia_detalle: garantiaDetalle || "",
+                stock_maximo: stockMaximo || null,
+                peso: peso || null,
+                largo_cm: largoCm || null,
+                ancho_cm: anchoCm || null,
+                alto_cm: altoCm || null,
+                notas_internas: notasInternas || ""
             }
         });
 

@@ -118,82 +118,13 @@
   }
  };
 
- function organizarFormularioProductoTabs() {
-  const form = document.querySelector("#modalAgregar .ficha-producto");
-  if (!form || form.dataset.tabsProducto === "1") return;
-
-  if (typeof asegurarEtiquetasFichaProducto === "function") {
-   asegurarEtiquetasFichaProducto();
-  }
-
-  const grupos = [
-   ["basico", "Basico", ["nuevoCodigo", "nuevoNombre", "nuevoCodigoInterno", "nuevaCategoria", "nuevaSubcategoria", "nuevaMarca", "nuevaImagenProducto"]],
-   ["precios", "Precios", ["tipoPrecioVenta", "precioDistribuidor", "precioMayoreo", "nuevoPrecio", "precioPublico"]],
-   ["inventario", "Inventario", ["nuevoStock", "stockMinimo", "nuevoProveedor", "nuevaUbicacion", "altaRotacion"]],
-   ["unidades", "Unidades", ["unidadVenta", "presentacionCompra", "factorConversion", "basculaDigital", "permiteVentaPieza", "piezasPorBolsa", "precioPieza"]],
-   ["codigos", "Codigos", ["codigosRelacionados"]],
-   ["avanzado", "Avanzado", ["nuevaDescripcion"]]
-  ];
-
-  const tabs = document.createElement("div");
-  tabs.className = "producto-tabs";
-  tabs.innerHTML = grupos.map((grupo, index) =>
-   '<button type="button" class="' + (index === 0 ? "activo" : "") + '" data-producto-tab="' + grupo[0] + '" onclick="cambiarTabProductoPOS(\'' + grupo[0] + '\')">' + grupo[1] + '</button>'
-  ).join("");
-
-  form.parentNode.insertBefore(tabs, form);
-
-  grupos.forEach((grupo, index) => {
-   const panel = document.createElement("div");
-   panel.className = "producto-tab-panel " + (index === 0 ? "activo" : "");
-   panel.dataset.productoPanel = grupo[0];
-
-   grupo[2].forEach(id => {
-    const campo = document.getElementById(id);
-    const wrapper = campo?.closest(".campo-ficha");
-    if (wrapper) panel.appendChild(wrapper);
-    else if (campo) panel.appendChild(campo);
-   });
-
-   form.appendChild(panel);
-  });
-
-  const ocultos = ["tipoProductoInventario"];
-  ocultos.forEach(id => {
-   const campo = document.getElementById(id);
-   if (campo) form.insertBefore(campo, form.firstChild);
-  });
-
-  form.dataset.tabsProducto = "1";
- }
-
- window.cambiarTabProductoPOS = function(tab) {
-  document.querySelectorAll(".producto-tabs button").forEach(boton => {
-   boton.classList.toggle("activo", boton.dataset.productoTab === tab);
-  });
-  document.querySelectorAll(".producto-tab-panel").forEach(panel => {
-   panel.classList.toggle("activo", panel.dataset.productoPanel === tab);
-  });
- };
-
  const mostrarBase = window.mostrarFormularioAgregar;
  window.mostrarFormularioAgregar = function() {
   if (typeof mostrarBase === "function") mostrarBase();
   if (typeof asegurarEtiquetasFichaProducto === "function") {
    asegurarEtiquetasFichaProducto();
   }
-  const modalAgregar =
-   document.getElementById("modalAgregar");
 
-  if (modalAgregar && modalAgregar.parentElement !== document.body) {
-   document.body.appendChild(modalAgregar);
-  }
-
-  if (modalAgregar) {
-   modalAgregar.style.display = "flex";
-  }
-
-  organizarFormularioProductoTabs();
   if (typeof togglePiezaCamposProducto === "function") togglePiezaCamposProducto();
   mejorarTarjetasTipoProducto();
   actualizarAyudaTipoProducto(document.getElementById("tipoProductoInventario")?.value || "catalogo");

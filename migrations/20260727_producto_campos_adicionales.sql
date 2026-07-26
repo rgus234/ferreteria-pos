@@ -1,0 +1,6 @@
+ALTER TABLE public.productos ADD COLUMN IF NOT EXISTS stock_maximo NUMERIC(12,2);
+ALTER TABLE public.productos ADD COLUMN IF NOT EXISTS peso NUMERIC(10,3);
+ALTER TABLE public.productos ADD COLUMN IF NOT EXISTS largo_cm NUMERIC(10,2);
+ALTER TABLE public.productos ADD COLUMN IF NOT EXISTS ancho_cm NUMERIC(10,2);
+ALTER TABLE public.productos ADD COLUMN IF NOT EXISTS alto_cm NUMERIC(10,2);
+ALTER TABLE public.productos ADD COLUMN IF NOT EXISTS notas_internas TEXT NOT NULL DEFAULT '';

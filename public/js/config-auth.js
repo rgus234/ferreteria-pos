@@ -1178,7 +1178,8 @@ function ocultarPantallasPrincipales() {
  "pantallaAplicarPrecios",
  "pantallaCuenta",
  "pantallaNexoIA",
- "pantallaBuscarTicket"
+ "pantallaBuscarTicket",
+ "modalAgregar"
  ].forEach(id => {
  const pantalla =
  document.getElementById(id);
