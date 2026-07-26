@@ -1,0 +1,1 @@
+ALTER TABLE public.productos ADD COLUMN IF NOT EXISTS admite_cambios BOOLEAN NOT NULL DEFAULT true;

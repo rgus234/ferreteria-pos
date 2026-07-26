@@ -5368,3 +5368,81 @@ terminar):
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+## 2026-07-27 -- Cambiar producto: devoluciones/cambios anclados en Buscar ticket
+
+El usuario conto un caso real: un cliente compro una placa armada y
+regreso a cambiarla por otro producto, y Nexo IA no tenia forma real
+de ayudar (la unica pantalla que existia, "Ver detalle de venta", es
+de solo lectura). Se construyo desde cero un flujo de cambio de
+producto, anclado en "Buscar ticket" (la pantalla ya construida la
+sesion anterior) -- se investigo primero (2 agentes en paralelo) y se
+confirmo que no existia ninguna funcionalidad de devoluciones/cambios
+previa en el codigo (el unico rastro era un texto libre "Devolucion
+de cliente" en el asistente de Ajustes de inventario, sin liga a
+ninguna venta).
+
+**Dos decisiones de negocio confirmadas con el usuario**: (1) todo
+producto admite cambios por defecto -- la casilla nueva en Agregar/
+Editar producto es "No admite cambios" (la excepcion, ej. algo
+cortado a la medida), asi no hay que revisar el inventario existente
+uno por uno; (2) el ticket se actualiza para reflejar el cambio (la
+proxima vez que se busque ese folio, se ve la composicion final de la
+venta), y por separado queda un registro de auditoria con el detalle
+exacto de que se cambio, cuando y quien.
+
+**Backend**: nueva columna `productos.admite_cambios` (default
+`true`, `migrations/20260728_producto_admite_cambios.sql`) y nueva
+tabla `cambios_producto` (`migrations/20260728_cambios_producto.sql`,
+folio + producto devuelto/nuevo + cantidades + precios + diferencia +
+usuario, con FK a `historial_ventas`). `obtenerDetalleVenta`
+(server.js) se extendio para exponer `admiteCambios` por producto
+(mismo patron ya usado para `tieneGarantia`) y la lista de `cambios`
+de esa venta.
+
+Nueva ruta `POST /ventas/:id/cambios` (server.js), mismo patron de
+transaccion + `SELECT ... FOR UPDATE` que ya usaba
+`POST /ajustes-inventario` (el unico precedente en el codigo de
+bloquear una fila de `productos` antes de tocar su stock): bloquea
+los dos productos, valida que el devuelto admita cambios y que el
+nuevo tenga stock suficiente, ajusta el stock de ambos (suma al
+devuelto, resta al nuevo), recalcula `historial_ventas.productos`
+(JSONB) y `total` para reflejar la composicion final, e inserta el
+registro de auditoria -- todo o nada, con `ROLLBACK` si cualquier
+validacion falla (confirmado que un intento fallido por stock
+insuficiente no deja el producto devuelto a medio ajustar).
+
+**Frontend**: `ticket-lookup-view.js` gano un boton "Cambiar este
+producto" por fila (solo si `admiteCambios !== false`), y una funcion
+`abrirCambioProductoPOS()` -- modal de 2 pasos (buscar/elegir
+reemplazo con cantidad, luego confirmar con la diferencia de precio
+ya calculada: "Cobrar $X mas" / "Regresar $X de cambio" / "Sin
+diferencia"), siguiendo el mismo patron de `pedirModoVentaPOS`
+(variable `paso` interna + funcion `render()` que reconstruye el
+modal). El buscador de reemplazo reusa `productoCoincideConTexto()` y
+`todosProductos` (sin tocar `pos-search-flyout.js`, que esta
+amarrado a agregar al carrito, no a elegir un reemplazo). Al
+confirmar, se refresca el mismo folio para mostrar la composicion
+nueva mas una nota "Cambiado: X por Y -- fecha".
+
+**Verificacion real** (negocio sintetico, borrado al terminar):
+- Venta real de un producto (`POST /ventas`) -> boton de cambio
+  visible en Buscar ticket.
+- Cambio ejecutado (producto mas barato por uno mas caro): stock del
+  devuelto sube, stock del nuevo baja, `cambios_producto` con el
+  registro correcto, ticket actualizado (total y lista de productos),
+  nota de "Cambiado: ..." visible al re-buscar el folio.
+- Rechazo por stock insuficiente del producto nuevo: `ROLLBACK`
+  confirmado (stock del otro producto de la prueba no se alteroo).
+- Rechazo por producto marcado "No admite cambios": mensaje claro, y
+  el boton de cambio ni siquiera aparece en el ticket de esa venta.
+- Checkbox "No admite cambios" en Agregar/Editar producto: prellenado
+  correcto al editar, y un producto nuevo sin tocar el checkbox se
+  guarda con `admite_cambios: true` por defecto.
+- Modo oscuro revisado visualmente (modal legible).
+- `node --check` limpio en `server.js` y `ticket-lookup-view.js`.
+- Negocio sintetico limpiado despues; `negocio_id = 1` (Ferreteria
+  Olimpico) confirmado sin cambios en toda la prueba.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.

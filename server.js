@@ -4649,7 +4649,8 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
     largoCm,
     anchoCm,
     altoCm,
-    notasInternas
+    notasInternas,
+    admiteCambios
 } = req.body;
     try {
         const negocio = await negocioActual(req);
@@ -4691,9 +4692,10 @@ INSERT INTO public.productos
   largo_cm,
   ancho_cm,
   alto_cm,
-  notas_internas
+  notas_internas,
+  admite_cambios
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)
 RETURNING id
 `,
 [
@@ -4728,7 +4730,8 @@ RETURNING id
   largoCm || null,
   anchoCm || null,
   altoCm || null,
-  notasInternas || ""
+  notasInternas || "",
+  admiteCambios !== false && admiteCambios !== "false"
 ]
 );
 
@@ -4776,7 +4779,8 @@ RETURNING id
                 largo_cm: largoCm || null,
                 ancho_cm: anchoCm || null,
                 alto_cm: altoCm || null,
-                notas_internas: notasInternas || ""
+                notas_internas: notasInternas || "",
+                admite_cambios: admiteCambios !== false && admiteCambios !== "false"
             }
         });
 
@@ -4826,7 +4830,8 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         largoCm,
         anchoCm,
         altoCm,
-        notasInternas
+        notasInternas,
+        admiteCambios
     } = req.body;
 
     try {
@@ -4868,9 +4873,10 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 largo_cm = $28,
                 ancho_cm = $29,
                 alto_cm = $30,
-                notas_internas = $31
-            WHERE id = $32
-            AND negocio_id = $33
+                notas_internas = $31,
+                admite_cambios = $32
+            WHERE id = $33
+            AND negocio_id = $34
             RETURNING id
             `,
             [
@@ -4905,6 +4911,7 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 anchoCm || null,
                 altoCm || null,
                 notasInternas || "",
+                admiteCambios !== false && admiteCambios !== "false",
                 id,
                 negocio.id
             ]
@@ -4960,7 +4967,8 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 largo_cm: largoCm || null,
                 ancho_cm: anchoCm || null,
                 alto_cm: altoCm || null,
-                notas_internas: notasInternas || ""
+                notas_internas: notasInternas || "",
+                admite_cambios: admiteCambios !== false && admiteCambios !== "false"
             }
         });
 
@@ -5411,6 +5419,17 @@ async function obtenerDetalleVenta(client, negocioId, filtro, valor) {
         [negocioId, venta.id]
     );
 
+    const cambios = await client.query(
+        `
+        SELECT *
+        FROM public.cambios_producto
+        WHERE negocio_id = $1
+        AND historial_id = $2
+        ORDER BY created_at DESC
+        `,
+        [negocioId, venta.id]
+    );
+
     const productosVenta = Array.isArray(venta.productos) ? venta.productos : [];
     const idsProductos = [...new Set(
         productosVenta.map(item => Number(item?.id)).filter(id => Number.isInteger(id))
@@ -5420,7 +5439,7 @@ async function obtenerDetalleVenta(client, negocioId, filtro, valor) {
     if (idsProductos.length > 0) {
         const garantias = await client.query(
             `
-            SELECT id, tiene_garantia, garantia_detalle
+            SELECT id, tiene_garantia, garantia_detalle, admite_cambios
             FROM public.productos
             WHERE negocio_id = $1
             AND id = ANY($2)
@@ -5435,7 +5454,8 @@ async function obtenerDetalleVenta(client, negocioId, filtro, valor) {
         return {
             ...item,
             tieneGarantia: garantia?.tiene_garantia === true,
-            garantiaDetalle: garantia?.garantia_detalle || ""
+            garantiaDetalle: garantia?.garantia_detalle || "",
+            admiteCambios: garantia?.admite_cambios !== false
         };
     });
 
@@ -5445,7 +5465,8 @@ async function obtenerDetalleVenta(client, negocioId, filtro, valor) {
         cliente_nombre: venta.cliente_nombre_resuelto || venta.cliente_nombre || "Publico general",
         venta_id: venta.venta_id || venta.venta_id_resuelto,
         comprobantes: comprobantes.rows,
-        bitacora: bitacora.rows
+        bitacora: bitacora.rows,
+        cambios: cambios.rows
     };
 }
 
@@ -5478,6 +5499,176 @@ app.get("/ventas/folio/:folio", requerirAccesoNegocio, async (req, res) => {
         res.json({ ok: true, venta });
     } catch (error) {
         responderError(res, error);
+    }
+});
+
+// Cambia un producto de una venta ya hecha por otro -- regresa el
+// stock del producto devuelto, descuenta el del nuevo, y deja un
+// registro de auditoria (cambios_producto) con la diferencia de
+// precio. El ticket (historial_ventas.productos/total) se actualiza
+// para reflejar la composicion final de la venta -- decision tomada
+// con el usuario, para que "Buscar ticket" siempre muestre el estado
+// actual, no el original congelado.
+app.post("/ventas/:id/cambios", requerirAccesoNegocio, async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const negocio = await negocioActual(req);
+        const historialId = Number(req.params.id);
+
+        const {
+            productoDevueltoId,
+            cantidadDevuelta,
+            productoNuevoId,
+            cantidadNueva,
+            usuarioNombre
+        } = req.body;
+
+        const idDevuelto = Number(productoDevueltoId);
+        const idNuevo = Number(productoNuevoId);
+        const cantDevuelta = Number(cantidadDevuelta);
+        const cantNueva = Number(cantidadNueva);
+
+        if (!Number.isInteger(idDevuelto) || !Number.isInteger(idNuevo) || !(cantDevuelta > 0) || !(cantNueva > 0)) {
+            res.status(400).json({ ok: false, error: "Datos de cambio incompletos" });
+            return;
+        }
+
+        await client.query("BEGIN");
+
+        const ventaRow = await client.query(
+            `SELECT id, folio, total, productos FROM public.historial_ventas WHERE id = $1 AND negocio_id = $2`,
+            [historialId, negocio.id]
+        );
+
+        if (!ventaRow.rows.length) {
+            await client.query("ROLLBACK");
+            res.status(404).json({ ok: false, error: "Venta no encontrada" });
+            return;
+        }
+
+        const venta = ventaRow.rows[0];
+        const productosVenta = Array.isArray(venta.productos) ? venta.productos : [];
+        const lineaDevuelta = productosVenta.find(item => Number(item?.id) === idDevuelto);
+
+        if (!lineaDevuelta) {
+            await client.query("ROLLBACK");
+            res.status(400).json({ ok: false, error: "Ese producto no forma parte de esta venta" });
+            return;
+        }
+
+        const devuelto = await client.query(
+            `SELECT id, nombre, stock, admite_cambios FROM public.productos WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
+            [idDevuelto, negocio.id]
+        );
+
+        if (!devuelto.rows.length) {
+            await client.query("ROLLBACK");
+            res.status(404).json({ ok: false, error: "Producto devuelto no encontrado" });
+            return;
+        }
+
+        if (devuelto.rows[0].admite_cambios === false) {
+            await client.query("ROLLBACK");
+            res.status(400).json({ ok: false, error: "Este producto no admite cambios" });
+            return;
+        }
+
+        const nuevo = await client.query(
+            `SELECT id, nombre, stock, precio FROM public.productos WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
+            [idNuevo, negocio.id]
+        );
+
+        if (!nuevo.rows.length) {
+            await client.query("ROLLBACK");
+            res.status(404).json({ ok: false, error: "Producto nuevo no encontrado" });
+            return;
+        }
+
+        if (Number(nuevo.rows[0].stock) < cantNueva) {
+            await client.query("ROLLBACK");
+            res.status(400).json({ ok: false, error: "No hay suficiente stock del producto nuevo" });
+            return;
+        }
+
+        const precioDevuelto = Number(lineaDevuelta.precio || 0);
+        const precioNuevo = Number(nuevo.rows[0].precio || 0);
+        const diferencia = Number(((precioNuevo * cantNueva) - (precioDevuelto * cantDevuelta)).toFixed(2));
+
+        await client.query(
+            `UPDATE public.productos SET stock = stock + $1 WHERE id = $2 AND negocio_id = $3`,
+            [cantDevuelta, idDevuelto, negocio.id]
+        );
+
+        await client.query(
+            `UPDATE public.productos SET stock = stock - $1 WHERE id = $2 AND negocio_id = $3`,
+            [cantNueva, idNuevo, negocio.id]
+        );
+
+        const restanteDevuelto = Number(lineaDevuelta.cantidad || 0) - cantDevuelta;
+        let productosActualizados = productosVenta.filter(item => Number(item?.id) !== idDevuelto);
+
+        if (restanteDevuelto > 0) {
+            productosActualizados.push({
+                ...lineaDevuelta,
+                cantidad: restanteDevuelto,
+                importe: Number((precioDevuelto * restanteDevuelto).toFixed(2))
+            });
+        }
+
+        const lineaNuevaExistente = productosActualizados.find(item => Number(item?.id) === idNuevo);
+
+        if (lineaNuevaExistente) {
+            lineaNuevaExistente.cantidad = Number(lineaNuevaExistente.cantidad || 0) + cantNueva;
+            lineaNuevaExistente.importe = Number((precioNuevo * lineaNuevaExistente.cantidad).toFixed(2));
+        } else {
+            productosActualizados.push({
+                id: idNuevo,
+                nombre: nuevo.rows[0].nombre,
+                cantidad: cantNueva,
+                precio: precioNuevo,
+                importe: Number((precioNuevo * cantNueva).toFixed(2)),
+                unidadVenta: lineaDevuelta.unidadVenta || "pieza"
+            });
+        }
+
+        await client.query(
+            `UPDATE public.historial_ventas SET productos = $1, total = total + $2 WHERE id = $3`,
+            [JSON.stringify(productosActualizados), diferencia, historialId]
+        );
+
+        const cambioInsertado = await client.query(
+            `
+            INSERT INTO public.cambios_producto
+            (negocio_id, historial_id, folio, producto_devuelto_id, producto_devuelto_nombre, cantidad_devuelta, precio_devuelto, producto_nuevo_id, producto_nuevo_nombre, cantidad_nueva, precio_nuevo, diferencia, usuario_nombre)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+            RETURNING *
+            `,
+            [
+                negocio.id,
+                historialId,
+                venta.folio,
+                idDevuelto,
+                devuelto.rows[0].nombre,
+                cantDevuelta,
+                precioDevuelto,
+                idNuevo,
+                nuevo.rows[0].nombre,
+                cantNueva,
+                precioNuevo,
+                diferencia,
+                usuarioNombre || ""
+            ]
+        );
+
+        await client.query("COMMIT");
+
+        res.json({ ok: true, cambio: cambioInsertado.rows[0], diferencia, folio: venta.folio });
+    } catch (error) {
+        await client.query("ROLLBACK");
+        responderError(res, error);
+    } finally {
+        client.release();
     }
 });
 

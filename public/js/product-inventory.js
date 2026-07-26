@@ -1575,6 +1575,7 @@ function asegurarEtiquetasFichaProducto() {
  precioPieza: "Precio por pieza suelta",
  nuevaTieneGarantia: "Tiene garantia",
  nuevoGarantiaDetalle: "Detalle de la garantia",
+ nuevaNoAdmiteCambios: "No admite cambios (ej. cortado a la medida)",
  precioDistribuidor: "Precio proveedor / costo",
  precioMayoreo: "Precio medio mayoreo",
  precioPublico: "Precio publico",
@@ -2165,6 +2166,9 @@ document.getElementById("nuevoAltoCm")?.value || "";
 const notasInternas =
 document.getElementById("nuevasNotasInternas")?.value || "";
 
+const admiteCambios =
+!(document.getElementById("nuevaNoAdmiteCambios")?.checked || false);
+
 const codigoFinal =
 normalizarCodigo(codigo) ||
 (
@@ -2282,7 +2286,8 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  largoCm,
  anchoCm,
  altoCm,
- notasInternas
+ notasInternas,
+ admiteCambios
  };
 
  let respuesta;
@@ -2681,6 +2686,9 @@ function editarProducto(
 
  document.getElementById("nuevasNotasInternas").value =
  producto?.notas_internas || "";
+
+ document.getElementById("nuevaNoAdmiteCambios").checked =
+ producto?.admite_cambios === false;
 
  document.getElementById("altaRotacion").value =
  producto?.alta_rotacion || "";
@@ -4000,6 +4008,7 @@ function cerrarFormularioAgregar() {
  document.getElementById("nuevoAnchoCm").value = "";
  document.getElementById("nuevoAltoCm").value = "";
  document.getElementById("nuevasNotasInternas").value = "";
+ document.getElementById("nuevaNoAdmiteCambios").checked = false;
  mostrarImagenPreviewProducto("");
  seleccionarTipoProducto("catalogo");
 

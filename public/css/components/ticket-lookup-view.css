@@ -103,3 +103,170 @@ body.oscuro .buscar-ticket-cabecera,
 body.oscuro .buscar-ticket-form input {
   border-color: var(--line-soft) !important;
 }
+
+.buscar-ticket-producto {
+  flex-wrap: wrap;
+}
+
+.buscar-ticket-btn-cambio {
+  flex-shrink: 0;
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  color: var(--brand-color, #0d6efd) !important;
+  border: 1px solid var(--brand-color, #0d6efd) !important;
+  font-size: 12px !important;
+  font-weight: 700;
+}
+
+.buscar-ticket-cambios {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-soft, #dbe3ef);
+}
+
+.buscar-ticket-cambio-fila {
+  margin: 0 0 4px;
+  color: var(--text-muted, #64748b);
+  font-size: 13px;
+}
+
+/* Modal de cambio de producto -- mismo idioma visual de los demas
+   modales personalizados (overlay + tarjeta centrada). */
+#modalCambioProductoPOS.modal-cambio-producto {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, .45);
+  backdrop-filter: blur(6px);
+}
+
+.modal-cambio-producto-caja {
+  width: min(440px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, .28);
+}
+
+.modal-cambio-producto-caja h3 {
+  margin: 0 0 12px;
+}
+
+.cambio-producto-original {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+}
+
+.cambio-producto-campo {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+}
+
+.cambio-producto-campo input {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  margin-top: 4px;
+  padding: 0 12px;
+  border: 1px solid var(--line-soft, #dbe3ef);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--text, #0f172a);
+  background: var(--surface, #fff);
+}
+
+.cambio-producto-resultados {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  margin-bottom: 12px;
+  overflow: auto;
+}
+
+.cambio-producto-resultado {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft, #dbe3ef);
+  border-radius: 10px;
+  background: var(--surface-soft, #f8fafc);
+  color: var(--text, #0f172a);
+  text-align: left;
+  font-size: 13px;
+}
+
+.cambio-producto-resultado small {
+  color: var(--text-muted, #64748b);
+}
+
+.cambio-producto-vacio {
+  margin: 0;
+  color: var(--text-muted, #64748b);
+  font-size: 13px;
+}
+
+.cambio-producto-elegido {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-soft, #f8fafc);
+}
+
+.cambio-producto-resumen {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-soft, #f8fafc);
+}
+
+.cambio-producto-resumen > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cambio-producto-diferencia {
+  padding-top: 8px;
+  border-top: 1px dashed var(--line-soft, #dbe3ef);
+  font-weight: 800;
+  text-align: center;
+}
+
+.modal-cambio-producto-botones {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.modal-cambio-producto-botones button {
+  min-height: 42px;
+}
+
+body.oscuro .modal-cambio-producto-caja,
+body.oscuro .cambio-producto-campo input,
+body.oscuro .cambio-producto-resultado,
+body.oscuro .cambio-producto-elegido,
+body.oscuro .cambio-producto-resumen {
+  background: var(--surface, #111827) !important;
+  color: var(--text, #f1f5f9) !important;
+  border-color: var(--line-soft, #334155) !important;
+}

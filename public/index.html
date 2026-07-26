@@ -39,7 +39,7 @@
   <link rel="stylesheet" href="css/components/pos-sale-redesign.css?v=carrito-flat-minimal-20260723-01">
   <link rel="stylesheet" href="css/components/pos-quick-item-modal.css?v=botones-fix-20260721-01">
   <link rel="stylesheet" href="css/components/pos-busqueda-ia.css?v=borde-siri-fix2-20260721-01">
-  <link rel="stylesheet" href="css/components/pos-product-form.css?v=agregar-producto-pantalla-20260727-01">
+  <link rel="stylesheet" href="css/components/pos-product-form.css?v=cambiar-producto-20260728-01">
   <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-bugfix-20260705-02">
   <link rel="stylesheet" href="css/components/sale-documents.css?v=nota-venta-rediseno-20260721-01">
   <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=venta-pieza-20260711-01">
@@ -48,7 +48,7 @@
   <link rel="stylesheet" href="css/components/product-details-view.css?v=liquid-glass-inv-20260719-01">
   <link rel="stylesheet" href="css/components/low-stock-order.css?v=refactor-low-stock-order-20260701-01">
   <link rel="stylesheet" href="css/components/support-reminders.css?v=notif-contraste-fix-20260706-01">
-  <link rel="stylesheet" href="css/components/ticket-lookup-view.css?v=ticket-rediseno-20260726-01">
+  <link rel="stylesheet" href="css/components/ticket-lookup-view.css?v=cambiar-producto-20260728-01">
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -1158,6 +1158,7 @@
  </div>
  <input id="nuevaTieneGarantia" type="checkbox" onchange="toggleGarantiaCamposProducto()">
  <input id="nuevoGarantiaDetalle" type="text" placeholder="ej. 3 meses contra defectos de fabrica">
+ <input id="nuevaNoAdmiteCambios" type="checkbox">
  <input id="nuevoPeso" type="number" step="0.001" min="0" placeholder="Peso (kg, opcional)">
  <input id="nuevoLargoCm" type="number" step="0.01" min="0" placeholder="Largo (cm, opcional)">
  <input id="nuevoAnchoCm" type="number" step="0.01" min="0" placeholder="Ancho (cm, opcional)">
@@ -1533,7 +1534,7 @@
   <script src="js/supplier-catalog.js?v=plantillas-servidor-ia-20260723-01"></script>
   <script src="js/pricing-rules.js?v=reglas-precio-20260709-02"></script>
   <script src="js/catalog-parsers.js?v=plantillas-servidor-ia-20260723-01"></script>
-  <script src="js/product-inventory.js?v=agregar-producto-pantalla-20260727-01"></script>
+  <script src="js/product-inventory.js?v=cambiar-producto-20260728-01"></script>
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-quick-item-modal.js?v=articulo-rapido-20260720-01"></script>
@@ -1548,7 +1549,7 @@
   <script src="js/reports.js?v=venta-detalle-reportes-20260720-01"></script>
   <script src="js/shell-topbar.js?v=agregar-producto-pantalla-20260727-01"></script>
   <script src="js/account-view.js?v=cuenta-rediseno-20260719-01"></script>
-  <script src="js/ticket-lookup-view.js?v=ticket-folio-normalizado-20260726-01"></script>
+  <script src="js/ticket-lookup-view.js?v=cambiar-producto-20260728-01"></script>
   <script src="js/product-details-view.js?v=alertas-tempranas-20260712-01"></script>
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/pos-shortcuts.js?v=pos-flyout-redesign-20260708-03"></script>
