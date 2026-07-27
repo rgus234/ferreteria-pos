@@ -47,6 +47,10 @@
  }
 
  function ocultar() {
+  if (typeof ocultarPantallasPrincipales === "function") {
+   ocultarPantallasPrincipales();
+   return;
+  }
   [
    "pantallaInicio", "pantallaPuntoVenta", "pantallaInventario", "pantallaCategoriasInventario",
    "pantallaCatalogo", "pantallaClientes", "pantallaCreditos", "pantallaProveedores", "pantallaInventarioBajo",

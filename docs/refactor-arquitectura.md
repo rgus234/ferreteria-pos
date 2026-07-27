@@ -5446,3 +5446,78 @@ nueva mas una nota "Cambiado: X por Y -- fecha".
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+## 2026-07-28 -- Fix: pantallas no se ocultaban al navegar (Buscar ticket quedaba visible sobre Finanzas y otras)
+
+**Reporte real del usuario**: mando una foto del celular mostrando la
+produccion (ferreteria-pos.onrender.com) con la caja de busqueda de
+"Buscar ticket" seguia visible arriba de Finanzas despues de navegar
+a esa pantalla. Pidio revisar eso y confirmar que el cambio de
+producto (fase anterior) esta bien conectado a Finanzas y a todo lo
+demas.
+
+**Causa raiz**: `ocultarPantallasPrincipales()` (config-auth.js) es
+la funcion "fuente de verdad" que oculta todas las pantallas
+principales al navegar, pero **4 archivos tenian su propia copia
+duplicada** con un arreglo fijo de ids de pantalla, en vez de usar
+esa funcion compartida: `public/fase4.js` (funcion `ocultar()`,
+usada por Pedidos a proveedor y Ajustes de inventario),
+`public/fase5.js` (`ocultarPantallasFinanzas()`, usada por
+Finanzas), `public/fase6.js` (`hide()`, usada por Caja), y
+`public/js/ferretero-flow.js` (`ocultarTodoRecepcion()`, usada por
+Recepcion de mercancia). Ninguno de esos 4 arreglos se actualizo
+cuando se agregaron pantallas nuevas en sesiones recientes
+(`pantallaCuenta`, `pantallaNexoIA`, `pantallaBuscarTicket`,
+`modalAgregar`) -- asi que, por ejemplo, entrar a Finanzas desde
+Buscar ticket dejaba `pantallaBuscarTicket` visible por debajo,
+porque `ocultarPantallasFinanzas()` nunca sabia que esa pantalla
+existia.
+
+**Fix aplicado (root-cause, no parche)**: en vez de agregar los 4 ids
+faltantes a cada uno de los 4 arreglos duplicados (perpetuaria el
+mismo problema la proxima vez que se agregue una pantalla), las 4
+funciones ahora delegan a `ocultarPantallasPrincipales()` cuando
+existe (confirmado que ya es un superconjunto estricto de las 4
+listas locales), dejando el arreglo local solo como respaldo si esa
+funcion no estuviera disponible por alguna razon:
+
+```js
+function ocultar() { // (o el nombre local de cada archivo)
+    if (typeof ocultarPantallasPrincipales === "function") {
+        ocultarPantallasPrincipales();
+        return;
+    }
+    [ /* arreglo original, sin cambios, solo como respaldo */ ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = "none";
+    });
+}
+```
+
+`public/fix-navegacion.js` (modulo aparte que envuelve las funciones
+`mostrarX` para resolver una carrera de tiempos async) se reviso pero
+no se toco -- resuelve un problema distinto (timing), no el de ids
+faltantes, y ya se beneficia automaticamente de que las funciones que
+envuelve ahora oculten todo correctamente.
+
+**Verificacion real** (negocio sintetico, borrado al terminar):
+probadas 5 combinaciones de navegacion via JS directo en el
+navegador (`mostrarX(); await mostrarYPOS(); document.getElementById(...).style.display`):
+Buscar ticket -> Finanzas, Cuenta -> Caja, Agregar producto -> Ajustes
+de inventario, Nexo IA -> Pedidos proveedor, y Buscar ticket ->
+Recepcion de mercancia -- en los 5 casos la pantalla de origen quedo
+correctamente en `"none"` tras navegar (antes del fix se habria
+quedado en `"block"`). Sin errores de consola durante la prueba.
+
+**Conexion de "Cambiar producto" con Finanzas/Reportes -- confirmado
+por lectura de codigo, no solo suposicion**: tanto Finanzas
+(fase5-server.js) como `/reportes/ventas` (server.js) calculan sus
+totales con `SUM(total) ... FROM historial_ventas` en vivo, sin
+ninguna cache ni copia intermedia. Como `POST /ventas/:id/cambios`
+actualiza `historial_ventas.total` directamente, cualquier cambio de
+producto se refleja automaticamente en Finanzas y Reportes la
+siguiente vez que se consulten -- no hace falta ningun paso adicional
+de sincronizacion.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.
