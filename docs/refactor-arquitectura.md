@@ -5756,5 +5756,51 @@ editando en vez de crear uno nuevo (confirmado reproduciendolo contra
 el negocio sintetico). Es un bug preexistente, no introducido por este
 refactor -- se dejo anotado para atenderlo en una sesion dedicada.
 
-Pendiente de confirmacion explicita del usuario antes de
-`git commit`/`push`.
+## 2026-07-28 -- Fix: guardado silencioso sobre el producto equivocado
+
+Corregido el bug documentado arriba. En vez de reordenar
+`editarProducto()`/`mostrarFormularioAgregar()` (riesgoso: ese orden
+es lo que hoy hace que el titulo, breadcrumb y topbar muestren
+"Editar producto" correctamente durante una edicion), se agrego una
+funcion nueva y dedicada en `public/js/product-inventory.js`:
+
+```js
+function abrirFormularioAgregarProductoNuevo() {
+ productoEditandoId = null;
+ mostrarFormularioAgregar();
+}
+```
+
+Se identificaron **5 puntos de entrada reales** que significan
+"producto nuevo" (no solo los 2 que se sospechaban originalmente) y
+se redirigieron todos a la funcion nueva: el link del sidebar y el
+boton "+ Agregar producto" de Inventario (`public/index.html`), el
+dispatcher de navegacion por voz de Nexo IA y el prellenado de
+producto por IA (`public/js/nexo-ia.js`, fases NEXO2/NEXO3), y el
+flujo de "codigo de catalogo sin match en inventario durante una
+venta" (`llenarFormularioConProductoCatalogo()` en
+`product-inventory.js`, alimentado desde `pos-sales.js`). El unico
+llamador que **no** se toco es `editarProducto()`, que sigue llamando
+`mostrarFormularioAgregar()` directo (sin pasar por la funcion nueva)
+porque necesita que `productoEditandoId` seguido puesto.
+
+**Verificacion end-to-end** (negocio sintetico 17566, nunca
+`negocio_id = 1`): se reprodujo el bug exacto -- `editarProducto(741)`
+seguido de navegar a Inventario sin cancelar, despues
+`abrirFormularioAgregarProductoNuevo()` con datos distintos y guardar
+-- y se confirmo que crea un producto nuevo (id 752, total de
+productos subio de 12 a 13) dejando el producto 741 completamente
+intacto (mismo nombre, mismo stock). De paso, el guardado disparo
+correctamente el dialogo existente de "codigo duplicado" (porque el
+campo `nuevoCodigo` seguia con el valor del producto que se estaba
+editando -- comportamiento de `mostrarFormularioAgregar()` sin cambios,
+fuera de alcance de este fix) -- se confirmo que ese dialogo real
+sigue funcionando y no fue bypaseado por el fix. Tambien se verificado
+sin regresion: editar un producto y guardar directo sigue actualizando
+el producto correcto (sin crear uno nuevo), y agregar un producto
+nuevo normal (codigo unico) sigue creando el registro correctamente.
+`node --check` limpio en `product-inventory.js` y `nexo-ia.js`. Sin
+errores de consola en todo el recorrido. Datos de prueba borrados
+despues de verificar.
+
+Confirmado por el usuario, subido a `main`.

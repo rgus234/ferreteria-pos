@@ -1322,7 +1322,7 @@ function productoDesdeCatalogo(codigo) {
 // este flujo es que ya sabemos que se esta agregando 1 pieza.
 async function llenarFormularioConProductoCatalogo(producto) {
  mostrarInventario();
- mostrarFormularioAgregar();
+ abrirFormularioAgregarProductoNuevo();
 
  await aplicarProductoCatalogoAlFormulario(producto, "barras");
 
@@ -3637,6 +3637,22 @@ function imprimirCodigosBarrasInventario() {
  </html>
  `);
  ventana.document.close();
+}
+
+// Abre el formulario para un producto NUEVO -- a diferencia de llamar
+// mostrarFormularioAgregar() directo, esto garantiza que no quede un
+// productoEditandoId de una edicion anterior sin confirmar. Bug real:
+// abrir "Editar producto", navegar a otra pantalla sin darle
+// Cancelar, y despues abrir "Agregar producto" de nuevo guardaba
+// encima del producto que se estaba editando en vez de crear uno
+// nuevo. Todo punto de entrada que significa "producto nuevo" debe
+// pasar por aqui en vez de llamar mostrarFormularioAgregar() directo
+// -- editarProducto() sigue llamando mostrarFormularioAgregar() sin
+// pasar por esta funcion, ya que necesita que productoEditandoId siga
+// puesto.
+function abrirFormularioAgregarProductoNuevo() {
+ productoEditandoId = null;
+ mostrarFormularioAgregar();
 }
 
 function mostrarFormularioAgregar() {

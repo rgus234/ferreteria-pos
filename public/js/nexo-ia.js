@@ -19,7 +19,7 @@ const NEXO_ACCIONES_MODULO = {
  inicio: () => mostrarInicio(),
  venta: () => mostrarPuntoVenta(),
  inventario: () => mostrarInventario(),
- "agregar-producto": () => mostrarFormularioAgregar(),
+ "agregar-producto": () => abrirFormularioAgregarProductoNuevo(),
  categorias: () => mostrarCategoriasInventario(),
  "inventario-bajo": () => mostrarInventarioBajo(),
  reportes: () => mostrarGraficas(),
@@ -82,7 +82,7 @@ function ejecutarPreparacionCreacionNexoIA(datosCreacion) {
    el usuario lo vea. Nunca llama a agregarProductoNuevo() -- eso solo
    pasa si el usuario le da clic a Guardar el mismo. */
 function abrirProductoPrellenadoNexoIA(datos) {
- mostrarFormularioAgregar();
+ abrirFormularioAgregarProductoNuevo();
 
  setTimeout(() => {
   const valores = {
