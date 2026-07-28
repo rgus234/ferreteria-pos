@@ -90,11 +90,12 @@
 
  #modalAgregar .producto-form-header-acciones button:nth-child(4),
  #modalAgregar #btnGuardarProducto {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--nexo-brand) 75%, transparent), color-mix(in srgb, var(--nexo-brand) 55%, transparent)) !important;
-  backdrop-filter: blur(12px) saturate(1.3) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(1.3) !important;
+  background: var(--nexo-brand) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   color: #fff !important;
-  border: 1px solid color-mix(in srgb, var(--nexo-brand) 45%, transparent) !important;
+  border: 1px solid var(--nexo-brand) !important;
+  font-weight: 800 !important;
  }
 
  #modalAgregar .tipo-producto-selector,
@@ -111,13 +112,13 @@
  }
 
  #modalAgregar .tipo-producto-card {
-  min-height: 52px !important;
+  min-height: 38px !important;
   display: flex !important;
   align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 10px !important;
-  padding: 8px 12px !important;
-  border-radius: 14px !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 6px 10px !important;
+  border-radius: 12px !important;
   background: var(--nexo-surface-strong) !important;
   color: var(--nexo-text) !important;
   border: 1px solid var(--nexo-line) !important;
@@ -131,41 +132,38 @@
  }
 
  #modalAgregar .tipo-producto-icon {
-  width: 30px !important;
-  height: 30px !important;
-  flex: 0 0 30px !important;
+  width: 24px !important;
+  height: 24px !important;
+  flex: 0 0 24px !important;
   display: grid !important;
   place-items: center !important;
-  border-radius: 11px !important;
+  border-radius: 9px !important;
   background: color-mix(in srgb, var(--nexo-brand) 10%, var(--nexo-surface-soft)) !important;
   color: var(--nexo-brand) !important;
  }
 
  #modalAgregar .tipo-producto-icon svg {
-  width: 16px !important;
-  height: 16px !important;
+  width: 14px !important;
+  height: 14px !important;
  }
 
  #modalAgregar .tipo-producto-copy {
   min-width: 0 !important;
   display: grid !important;
-  gap: 1px !important;
+  gap: 0 !important;
  }
 
  #modalAgregar .tipo-producto-copy strong {
   color: var(--nexo-text) !important;
-  font-size: 13px !important;
+  font-size: 12px !important;
   line-height: 1.1 !important;
  }
 
+ /* Subtitulo de la tarjeta -- se oculta para que el control quede
+    en una sola linea compacta (el nombre del tipo ya es suficiente). */
  #modalAgregar .tipo-producto-copy small,
  #modalAgregar .tipo-producto-card span {
-  overflow: hidden !important;
-  color: var(--nexo-text-muted) !important;
-  font-size: 11px !important;
-  font-weight: 800 !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
+  display: none !important;
  }
 
  #modalAgregar .producto-tipo-ayuda {
@@ -177,44 +175,58 @@
   font-size: 12px !important;
  }
 
+ /* Fila de proveedor: la columna angosta (proveedor-catalogo-info) solo
+    ocupa espacio cuando ya hay un proveedor elegido (display:none por
+    defecto) -- por eso una sola columna alcanza para el estado normal. */
  #modalAgregar .proveedor-catalogo-seccion {
-  display: grid !important;
-  grid-template-columns: 2fr 1fr !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
   gap: var(--nexo-space-2) !important;
-  align-items: stretch !important;
  }
 
  #modalAgregar .proveedor-catalogo-selector-inline,
  #modalAgregar .proveedor-catalogo-info,
  #modalAgregar .modo-captura-seccion {
-  padding: 8px 12px !important;
-  border-radius: 14px !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 6px 10px !important;
+  border-radius: 12px !important;
   background: var(--nexo-surface-soft) !important;
   border: 1px solid var(--nexo-line) !important;
   color: var(--nexo-text) !important;
  }
 
+ #modalAgregar .proveedor-catalogo-selector-inline {
+  flex: 1 1 auto !important;
+ }
+
  #modalAgregar .proveedor-catalogo-selector-inline > strong,
  #modalAgregar .proveedor-catalogo-info > strong,
  #modalAgregar .modo-captura-seccion > strong {
-  display: block !important;
-  font-size: 12px !important;
-  margin-bottom: 4px !important;
+  flex: 0 0 auto !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  color: var(--nexo-text-muted) !important;
+  white-space: nowrap !important;
  }
 
  #modalAgregar .proveedor-catalogo-selector-tiles {
-  display: grid !important;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
   gap: 6px !important;
+  flex: 1 1 auto !important;
  }
 
  #modalAgregar .proveedor-catalogo-selector-tiles button {
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
-  min-height: 34px !important;
+  gap: 6px !important;
+  min-height: 30px !important;
   padding: 0 10px !important;
-  border-radius: 11px !important;
+  border-radius: 10px !important;
   background: var(--nexo-surface-strong) !important;
   color: var(--nexo-text) !important;
   border: 1px solid var(--nexo-line) !important;
@@ -299,14 +311,16 @@
  }
 
  #modalAgregar .modo-captura-botones {
-  display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  gap: 8px !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+  flex: 1 1 auto !important;
  }
 
  #modalAgregar .modo-captura-botones button {
-  min-height: 32px !important;
-  border-radius: 11px !important;
+  min-height: 30px !important;
+  padding: 0 12px !important;
+  border-radius: 10px !important;
   background: var(--nexo-surface-strong) !important;
   color: var(--nexo-text-muted) !important;
   border: 1px solid var(--nexo-line) !important;
@@ -371,16 +385,24 @@
   font-size: 16px !important;
  }
 
+ /* 3 columnas en Informacion basica/Inventario -- densidad mayor para
+    que el formulario quepa en menos alto sin perder campos reales.
+    Precios se sobreescribe a 4 columnas (una fila) mas abajo; la
+    columna lateral (340px) sigue forzada a 1 columna aparte. */
  #modalAgregar .producto-form-campos {
   display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: var(--nexo-space-3) !important;
   align-items: end !important;
  }
 
+ #modalAgregar [data-seccion="precios"] .producto-form-campos {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+ }
+
  #modalAgregar .campo-ficha-ancho,
  #modalAgregar .campo-ficha:has(.campo-ficha-ancho) {
-  grid-column: span 2 !important;
+  grid-column: 1 / -1 !important;
  }
 
  #modalAgregar .campo-ficha {
@@ -699,11 +721,17 @@
   }
 
   #modalAgregar .proveedor-catalogo-seccion {
-   grid-template-columns: 1fr !important;
+   flex-direction: column !important;
+   align-items: stretch !important;
   }
 
-  #modalAgregar .proveedor-catalogo-selector-tiles,
-  #modalAgregar .modo-captura-botones {
+  #modalAgregar .proveedor-catalogo-selector-inline,
+  #modalAgregar .modo-captura-seccion {
+   flex-direction: column !important;
+   align-items: stretch !important;
+  }
+
+  #modalAgregar [data-seccion="precios"] .producto-form-campos {
    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
@@ -716,6 +744,7 @@
   #modalAgregar .producto-form-header,
   #modalAgregar .tipo-producto-selector,
   #modalAgregar .producto-form-campos,
+  #modalAgregar [data-seccion="precios"] .producto-form-campos,
   #modalAgregar .producto-form-footer-callouts {
    grid-template-columns: 1fr !important;
   }
