@@ -43,6 +43,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("respaldos automaticos", () => {
         require("./backup-server")(app, pool);
     });
+
+    cargarModuloPOS("banco de imagenes global", () => {
+        require("./banco-imagenes-server")(app, pool, requerirAccesoNegocio);
+    });
 }
 
 module.exports = {

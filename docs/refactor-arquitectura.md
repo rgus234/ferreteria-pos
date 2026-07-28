@@ -5804,3 +5804,92 @@ errores de consola en todo el recorrido. Datos de prueba borrados
 despues de verificar.
 
 Confirmado por el usuario, subido a `main`.
+
+## 2026-07-28 -- Banco de imagenes global ("Banco de Nexo"), Pro-only
+
+El usuario planteo la necesidad de un "banco de fotos" (ya anunciado
+implicitamente como beneficio del plan Pro) y aclaro el dato clave que
+cambio el diseño: los bancos de fotos de proveedores como Truper ya
+vienen como ZIP estructurado por codigo de producto -- exactamente el
+mismo formato que ya sabe leer `procesarZipFotosProducto`
+(`server.js`, usado hoy por Catalogo de proveedor). En vez de inventar
+un mecanismo de subida nuevo, se reutilizo ese motor de parseo casi
+literal en un modulo nuevo y **negocio-less**.
+
+**Esquema nuevo** (`migrations/20260729_banco_imagenes_producto.sql`,
+aplicada contra la base real): `banco_imagenes_producto` (`UNIQUE` en
+`codigo` directo, sin `negocio_id` -- una sola imagen por codigo,
+compartida entre todos los negocios Pro) + `banco_imagenes_producto_galeria`.
+La misma migracion activa (`estado='activo'`) la fila
+`banco_imagenes.compartido` en `catalogo_funciones`, que ya existia
+sembrada desde `20260716_catalogo_funciones_planes.sql` marcada
+`planeado` -- el nombre de la tabla y el gating por plan ya estaban
+decididos antes de esta fase.
+
+**`banco-imagenes-server.js`** (modulo nuevo, registrado en
+`server-modules.js`): copia local de `comprimirImagen`/
+`normalizarCodigoFoto`, `procesarZipBancoImagenes` (casi identico a
+`procesarZipFotosProducto` pero sin `negocio_id`, deriva hasta 2
+codigos por carpeta igual que el original), y un par de firma
+HMAC independiente (`firmarTokenBancoImagen`/`verificarTokenBancoImagen`,
+secreto propio en memoria) -- deliberadamente **no** se reutilizo el
+esquema de token de `fotos_producto` porque ese lleva el `negocio_id`
+horneado en el HMAC y aqui no hay negocio dueño de la imagen. Rutas de
+Admin (`/admin/api/banco-imagenes/*`, protegidas globalmente por
+`validarAdminKey`): importar por lote, listar/buscar paginado, borrar,
+servir miniatura. Rutas de negocio (Pro/demo, verificado contra
+`licencias.plan` igual que ya hace `ia-server.js` para la busqueda
+web): `GET /banco-imagenes-existe/:codigo` (falla cerrado a
+`existe:false` para planes sin acceso, sin filtrar si el banco tiene
+algo), `GET /banco-imagenes/:codigo/principal` (solo token, sin
+`requerirAccesoNegocio` porque un `<img src>` no manda headers),
+`POST /banco-imagenes/:codigo/usar` (revalida el plan del lado del
+servidor, copia la imagen + galeria a la `fotos_producto` propia del
+negocio via el mismo patron upsert-y-reemplaza-galeria).
+
+**Panel de Admin**: sexta vista "Banco de imagenes" (`public/admin/index.html`/`app.js`/`styles.css`)
+con subida de ZIP con progreso real (XHR crudo, mismo patron que
+`subirZipFotosProducto` de Catalogo proveedor, con
+`x-admin-key` seteado a mano porque el panel de Admin no tiene token
+de dispositivo/sesion), buscador con debounce, grilla con miniaturas
+autenticadas (`fetch` + blob + `URL.createObjectURL`, ya que
+`<img src>` no puede llevar el header de Admin), y borrado con
+confirmacion.
+
+**"Agregar producto"**: nueva insignia morada (deliberadamente
+distinta del verde de "ya tienes esta foto", para no confundir las
+dos fuentes) "Imagen encontrada en el banco de Nexo" + boton "Usar
+esta imagen", que aparece solo si el negocio no tiene ya su propia
+foto para ese codigo. Al hacer clic, copia la imagen a la ficha del
+negocio y refresca la insignia verde real + la vista previa. Durante
+la verificacion en navegador se detecto que la insignia morada solo
+se ocultaba "en el siguiente ciclo" (la proxima vez que se revisara el
+codigo) en vez de inmediatamente -- se corrigio agregando
+`marcarBadgeBancoImagenes(null)` justo despues de la copia exitosa en
+`usarImagenBancoNexo()`, para que desaparezca al instante.
+
+**Verificacion end-to-end** (2 negocios sinteticos, nunca
+`negocio_id = 1`): migracion aplicada y confirmada contra la base
+real. Un ZIP de prueba real (carpeta con codigo, 3 fotos) subido via
+Admin -- confirmado que ambos codigos derivados (nombre de carpeta +
+nombre de archivo) quedaron en `banco_imagenes_producto` con su
+galeria completa, que el listado/busqueda/miniatura de Admin
+funcionan (peticion con `x-admin-key`, sin 401), y que borrar quita la
+fila. Con un negocio sintetico en plan `pro`: `GET /banco-imagenes-existe/:codigo`
+regresa `existe:true` con una URL firmada que sirve la imagen real;
+`POST /banco-imagenes/:codigo/usar` copia correctamente a
+`fotos_producto`/`fotos_producto_galeria` del negocio (confirmado en
+base). En el navegador, contra el mismo negocio: la insignia morada
+aparece al escribir el codigo, el boton "Usar esta imagen" copia la
+foto y la insignia verde real + vista previa (imagen real, no un
+placeholder) aparecen de inmediato. Con un segundo negocio sintetico
+en plan `basico`: `GET /banco-imagenes-existe/:codigo` regresa
+`existe:false` (sin filtrar contenido del banco), y
+`POST /banco-imagenes/:codigo/usar` llamado directo (sin pasar por la
+UI) se rechaza con `403` -- el chequeo de plan no depende de que el
+boton este oculto. Sin errores de consola en Admin ni en "Agregar
+producto". `node --check` limpio en los 4 archivos `.js` tocados.
+Datos de prueba (negocios sinteticos, filas del banco, fotos copiadas)
+borrados despues de verificar.
+
+Pendiente de confirmacion del usuario para `git add`/`commit`.

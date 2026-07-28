@@ -105,6 +105,7 @@ function mostrarVistaAdmin(vista) {
     button.classList.toggle("active", button.dataset.view === target);
   });
   if (target === "ingresos") cargarDescuentoFundadoresAdmin();
+  if (target === "fotos") cargarBancoImagenesAdmin();
 }
 
 function pintarMetricasAdmin(resumen) {
@@ -303,6 +304,183 @@ async function crearDescuentoFundadoresAdmin() {
   } catch (error) {
     await alertaAdmin(error.message || "No se pudo crear el cupon.", "Error", "peligro");
   }
+}
+
+let bancoImagenesPaginaActual = 1;
+let bancoImagenesBuscarActual = "";
+let bancoImagenesBuscarTimeout = null;
+
+async function cargarBancoImagenesAdmin(pagina = 1) {
+  const contenedor = document.getElementById("grillaBancoImagenes");
+  if (!contenedor) return;
+
+  bancoImagenesPaginaActual = pagina;
+
+  try {
+    const params = new URLSearchParams({ pagina: String(pagina) });
+    if (bancoImagenesBuscarActual) params.set("buscar", bancoImagenesBuscarActual);
+    const data = await apiAdmin(`/admin/api/banco-imagenes?${params.toString()}`);
+    pintarGrillaBancoImagenesAdmin(data);
+  } catch (error) {
+    contenedor.innerHTML = `<div class="empty">${escaparHTMLAdmin(error.message || "No se pudo cargar el banco de imagenes.")}</div>`;
+  }
+}
+
+function buscarBancoImagenesAdmin(texto) {
+  clearTimeout(bancoImagenesBuscarTimeout);
+  bancoImagenesBuscarTimeout = setTimeout(() => {
+    bancoImagenesBuscarActual = String(texto || "").trim();
+    cargarBancoImagenesAdmin(1);
+  }, 250);
+}
+
+function pintarGrillaBancoImagenesAdmin(data) {
+  const contenedor = document.getElementById("grillaBancoImagenes");
+  const paginacion = document.getElementById("paginacionBancoImagenes");
+  if (!contenedor) return;
+
+  if (!data.items.length) {
+    contenedor.innerHTML = `<div class="empty">Sin imagenes todavia -- sube un .zip arriba para empezar.</div>`;
+    if (paginacion) paginacion.innerHTML = "";
+    return;
+  }
+
+  contenedor.innerHTML = data.items.map(item => `
+    <article class="banco-imagenes-item" data-codigo="${escaparHTMLAdmin(item.codigo)}">
+      <div class="banco-imagenes-thumb" id="thumb-${escaparHTMLAdmin(item.codigo)}">
+        <span class="empty">Cargando...</span>
+      </div>
+      <div class="banco-imagenes-info">
+        <strong>${escaparHTMLAdmin(item.codigo)}</strong>
+        <span>${escaparHTMLAdmin(item.marca || "Sin marca")}</span>
+        <small>${item.totalGaleria} foto(s) de galeria -- ${fechaCortaAdmin(item.actualizadoAt)}</small>
+      </div>
+      <button type="button" class="ghost" onclick="eliminarBancoImagenAdmin('${escaparHTMLAdmin(item.codigo)}')">Eliminar</button>
+    </article>
+  `).join("");
+
+  data.items.forEach(item => cargarThumbnailBancoImagenAdmin(item.codigo));
+
+  const totalPaginas = Math.max(1, Math.ceil(data.total / data.porPagina));
+  if (paginacion) {
+    paginacion.innerHTML = totalPaginas > 1
+      ? `
+        <button type="button" ${data.pagina <= 1 ? "disabled" : ""} onclick="cargarBancoImagenesAdmin(${data.pagina - 1})">Anterior</button>
+        <span>Pagina ${data.pagina} de ${totalPaginas}</span>
+        <button type="button" ${data.pagina >= totalPaginas ? "disabled" : ""} onclick="cargarBancoImagenesAdmin(${data.pagina + 1})">Siguiente</button>
+      `
+      : "";
+  }
+}
+
+// <img src> no puede llevar el header x-admin-key -- se pide la imagen
+// como blob autenticado y se convierte a un object URL, mismo recurso ya
+// usado para exportar clientes a JSON (exportarClientesAdmin), aplicado
+// aqui a bytes de imagen en vez de JSON.
+async function cargarThumbnailBancoImagenAdmin(codigo) {
+  const contenedor = document.getElementById(`thumb-${codigo}`);
+  if (!contenedor) return;
+
+  try {
+    const respuesta = await fetch(`/admin/api/banco-imagenes/${encodeURIComponent(codigo)}/principal`, {
+      headers: { "x-admin-key": adminKeyActual() }
+    });
+    if (!respuesta.ok) throw new Error("No se pudo cargar la miniatura");
+    const blob = await respuesta.blob();
+    const url = URL.createObjectURL(blob);
+    contenedor.innerHTML = `<img src="${url}" alt="${escaparHTMLAdmin(codigo)}">`;
+  } catch (error) {
+    contenedor.innerHTML = `<span class="empty">Sin imagen</span>`;
+  }
+}
+
+async function eliminarBancoImagenAdmin(codigo) {
+  const confirmar = await confirmarAdmin(`¿Eliminar la imagen del codigo ${codigo} del banco de Nexo? Esto no afecta las fichas de producto donde ya se haya usado.`, "Eliminar del banco", "alerta");
+  if (!confirmar) return;
+
+  try {
+    await apiAdmin(`/admin/api/banco-imagenes/${encodeURIComponent(codigo)}`, { method: "DELETE" });
+    await cargarBancoImagenesAdmin(bancoImagenesPaginaActual);
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo eliminar la imagen.", "Error", "peligro");
+  }
+}
+
+// apiAdmin() fuerza content-type: application/json y no soporta
+// FormData -- aqui hace falta XMLHttpRequest crudo (para poder mostrar
+// avance real) con el header x-admin-key puesto a mano, mismo patron ya
+// usado en supplier-catalog-view.js para el importador por-negocio.
+function subirZipBancoImagenesAdmin(archivo, marca, alAvanzar) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener("progress", event => {
+      if (event.lengthComputable) alAvanzar(event.loaded / event.total);
+    });
+
+    xhr.addEventListener("load", () => {
+      try {
+        const datos = JSON.parse(xhr.responseText);
+        if (!datos.ok) {
+          reject(new Error(datos.error || "No se pudo importar este archivo"));
+          return;
+        }
+        resolve(datos);
+      } catch (error) {
+        reject(new Error(`Respuesta invalida del servidor (status ${xhr.status}).`));
+      }
+    });
+
+    xhr.addEventListener("error", () => reject(new Error("Error de conexion al subir el archivo.")));
+
+    const formData = new FormData();
+    formData.append("zips", archivo);
+    if (marca) formData.append("marca", marca);
+
+    xhr.open("POST", "/admin/api/banco-imagenes/importar-lote");
+    xhr.setRequestHeader("x-admin-key", adminKeyActual());
+    xhr.send(formData);
+  });
+}
+
+async function importarBancoImagenesLote() {
+  const input = document.getElementById("archivoBancoImagenes");
+  const archivos = input?.files ? [...input.files] : [];
+  const marca = document.getElementById("marcaBancoImagenes")?.value.trim() || "";
+  const progreso = document.getElementById("progresoBancoImagenes");
+
+  if (archivos.length === 0) {
+    await alertaAdmin("Selecciona uno o varios archivos .zip primero.", "Sin archivos", "alerta");
+    return;
+  }
+
+  const totales = { zipsProcesados: 0, fotosGuardadas: 0, errores: [] };
+
+  for (let i = 0; i < archivos.length; i++) {
+    const archivo = archivos[i];
+    if (progreso) progreso.textContent = `Subiendo ${i + 1} de ${archivos.length}: ${archivo.name}...`;
+
+    try {
+      const datos = await subirZipBancoImagenesAdmin(archivo, marca, fraccion => {
+        if (progreso) progreso.textContent = `Subiendo ${i + 1} de ${archivos.length}: ${archivo.name} (${Math.round(fraccion * 100)}%)`;
+      });
+      totales.zipsProcesados += datos.zipsProcesados;
+      totales.fotosGuardadas += datos.fotosGuardadas;
+      totales.errores.push(...datos.errores);
+    } catch (error) {
+      totales.errores.push(`${archivo.name}: ${error.message || "No se pudo importar"}`);
+    }
+  }
+
+  if (progreso) {
+    progreso.innerHTML = `
+      <strong>${totales.fotosGuardadas} foto(s) guardada(s)</strong> de ${totales.zipsProcesados} archivo(s) procesados.
+      ${totales.errores.length ? `<br><small>${escaparHTMLAdmin(totales.errores.join(" | "))}</small>` : ""}
+    `;
+  }
+
+  if (input) input.value = "";
+  await cargarBancoImagenesAdmin(1);
 }
 
 function pintarSoporteAdmin() {

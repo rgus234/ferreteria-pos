@@ -65,7 +65,7 @@ async function verificarCodigoDuplicadoEnVivo(inputId) {
  return;
  }
 
- verificarImagenExistenteParaCodigo(valor);
+ verificarImagenExistenteParaCodigo(valor).then(() => verificarBancoImagenesParaCodigo(valor));
 
  if (valor === codigoDuplicadoConfirmado) return;
 
@@ -363,6 +363,38 @@ function marcarImagenProductoEncontrada(tieneImagen) {
  }
 }
 
+// Insignia distinta (morada, no verde) para "hay una foto en el banco
+// compartido de Nexo, pero todavia no es tuya" -- separada a proposito
+// de marcarImagenProductoEncontrada() para no confundir "ya tienes esta
+// foto" con "puedes usar esta otra". Solo se muestra cuando el negocio
+// no tiene ya su propia foto para ese codigo (ver verificarBancoImagenesParaCodigo).
+function marcarBadgeBancoImagenes(imagenUrl) {
+ const campo =
+ document.getElementById("nuevaImagenProducto");
+
+ const wrapper =
+ campo?.closest(".campo-ficha");
+
+ if (!wrapper) return;
+
+ let insignia =
+ wrapper.querySelector(".campo-ficha-badge-banco");
+
+ if (!imagenUrl) {
+ insignia?.remove();
+ return;
+ }
+
+ if (!insignia) {
+ insignia = document.createElement("span");
+ insignia.className = "campo-ficha-badge-banco";
+ insignia.innerHTML =
+ 'Imagen encontrada en el banco de Nexo ' +
+ '<button type="button" onclick="usarImagenBancoNexo()">Usar esta imagen</button>';
+ wrapper.appendChild(insignia);
+ }
+}
+
 // Recuerda para que codigo se confirmo que ya existe una foto guardada,
 // para poder preguntar "deseas reemplazarla" si el usuario elige otra
 // manualmente para ese mismo codigo.
@@ -396,6 +428,70 @@ async function verificarImagenExistenteParaCodigo(codigo) {
  mostrarImagenPreviewProducto(existe ? datos.imagenUrl : "");
  } catch (error) {
  // Silencioso -- no interrumpe el formulario si falla la consulta.
+ }
+}
+
+// Codigo para el que el banco compartido de Nexo tiene una foto que
+// este negocio todavia no copio a su propia ficha.
+let codigoBancoImagenesActual = null;
+
+// Banco de Nexo (Pro-only, ver banco-imagenes-server.js) -- solo tiene
+// sentido avisar cuando el negocio NO tiene ya su propia foto para este
+// codigo. El servidor decide si el plan alcanza (nunca se filtra plan
+// del lado del cliente): un negocio sin Pro simplemente recibe
+// existe:false, sin revelar si el banco tiene algo o no.
+async function verificarBancoImagenesParaCodigo(codigo) {
+ if (!codigo || codigoImagenExistenteActual === codigo) {
+ marcarBadgeBancoImagenes(null);
+ codigoBancoImagenesActual = null;
+ return;
+ }
+
+ try {
+ const respuesta =
+ await fetch(`/banco-imagenes-existe/${encodeURIComponent(codigo)}`);
+
+ const datos =
+ await respuesta.json();
+
+ const existe =
+ Boolean(datos.ok && datos.existe);
+
+ codigoBancoImagenesActual = existe ? codigo : null;
+
+ marcarBadgeBancoImagenes(existe ? datos.imagenUrl : null);
+ } catch (error) {
+ // Silencioso -- no interrumpe el formulario si falla la consulta.
+ }
+}
+
+// Copia la foto del banco compartido a la ficha propia del negocio.
+// Sin dialogo de confirmacion extra -- es una accion de bajo riesgo y
+// facil de repetir/reemplazar despues.
+async function usarImagenBancoNexo() {
+ if (!codigoBancoImagenesActual) return;
+
+ const codigo = codigoBancoImagenesActual;
+
+ try {
+ const respuesta =
+ await fetch(`/banco-imagenes/${encodeURIComponent(codigo)}/usar`, {
+ method: "POST"
+ });
+
+ const datos =
+ await respuesta.json();
+
+ if (!datos.ok) {
+ await alertaPOS(datos.error || "No se pudo copiar la imagen del banco.", "Error", "alerta");
+ return;
+ }
+
+ codigoBancoImagenesActual = null;
+ marcarBadgeBancoImagenes(null);
+ await verificarImagenExistenteParaCodigo(codigo);
+ } catch (error) {
+ await alertaPOS("No se pudo copiar la imagen del banco.", "Error", "alerta");
  }
 }
 

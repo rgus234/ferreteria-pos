@@ -722,3 +722,114 @@ small,
 .campo-con-boton .btn-renovar-licencia {
   flex: 0 0 auto;
 }
+
+/* Banco de imagenes global -- carga masiva de zips + galeria buscable */
+.banco-imagenes-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.banco-imagenes-upload label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.banco-imagenes-upload input[type="file"] {
+  min-width: 260px;
+}
+
+.banco-imagenes-upload input {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+}
+
+.banco-imagenes-progreso {
+  flex: 1 1 100%;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.banco-imagenes-buscador {
+  margin-bottom: 14px;
+}
+
+.banco-imagenes-buscador input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+}
+
+.banco-imagenes-grilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.banco-imagenes-item {
+  border: 1px solid var(--line);
+  border-radius: var(--nexo-radius-md);
+  background: var(--surface-strong);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.banco-imagenes-thumb {
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.banco-imagenes-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.banco-imagenes-info {
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.banco-imagenes-info strong {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.banco-imagenes-info span {
+  color: var(--muted);
+}
+
+.banco-imagenes-info small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.banco-imagenes-paginacion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
