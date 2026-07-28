@@ -1,0 +1,130 @@
+.modal-galeria-banco-nexo {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(15, 23, 42, .38);
+    backdrop-filter: blur(10px);
+}
+
+.galeria-banco-nexo-card {
+    width: min(640px, 94vw);
+    max-height: 90vh;
+    overflow: auto;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, .55);
+    background: rgba(255, 255, 255, .92);
+    color: var(--pos-text, #111827);
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .24);
+    padding: 18px;
+    backdrop-filter: blur(18px) saturate(135%);
+}
+
+.galeria-banco-nexo-card .modal-card-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: start;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.galeria-banco-nexo-card .modal-card-header span {
+    display: block;
+    color: #9333ea;
+    font-size: 11px;
+    font-weight: 950;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.galeria-banco-nexo-card .modal-card-header h3 {
+    margin: 2px 0 0;
+    font-size: 20px;
+}
+
+.galeria-banco-nexo-cerrar {
+    min-height: 30px;
+    border: 1px solid color-mix(in srgb, #9333ea 35%, transparent);
+    border-radius: 8px;
+    padding: 0 12px;
+    background: color-mix(in srgb, #9333ea 14%, transparent);
+    color: #9333ea;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.galeria-banco-nexo-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.galeria-banco-nexo-item {
+    position: relative;
+    padding: 0;
+    border: 1px solid rgba(15, 23, 42, .1);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #fff;
+}
+
+.galeria-banco-nexo-item img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    display: block;
+}
+
+.galeria-banco-nexo-item small {
+    position: absolute;
+    left: 4px;
+    bottom: 4px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, .55);
+    color: #fff;
+    font-size: 9px;
+}
+
+.galeria-banco-nexo-item-actual {
+    cursor: default;
+    opacity: .55;
+}
+
+.galeria-banco-nexo-tag {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #9333ea;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 900;
+}
+
+.galeria-banco-nexo-cargando {
+    opacity: .5;
+    pointer-events: none;
+}
+
+@media (max-width: 480px) {
+    .galeria-banco-nexo-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+body.oscuro .galeria-banco-nexo-card {
+    background: rgba(15, 23, 42, .92) !important;
+    border-color: rgba(148, 163, 184, .2) !important;
+    color: #f8fafc !important;
+}
+
+body.oscuro .galeria-banco-nexo-item {
+    border-color: rgba(148, 163, 184, .2) !important;
+    background: rgba(15, 23, 42, .55) !important;
+}

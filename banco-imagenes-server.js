@@ -41,10 +41,12 @@ function normalizarCodigoFoto(codigo) {
 }
 
 async function comprimirImagen(buffer, anchoMax = 320) {
-    return sharp(buffer)
+    const { data, info } = await sharp(buffer)
         .resize({ width: anchoMax, withoutEnlargement: true })
         .jpeg({ quality: 72 })
-        .toBuffer();
+        .toBuffer({ resolveWithObject: true });
+
+    return { buffer: data, ancho: info.width, alto: info.height };
 }
 
 // Lee plan directo de licencias (no de negocios) -- es la fuente que de
@@ -166,7 +168,7 @@ async function procesarZipBancoImagenes(pool, rutaZip, marca) {
 
             if (codigos.length === 0) continue;
 
-            const bufferPrincipal = await comprimirImagen(principal.entry.getData(), 320);
+            const principalComprimida = await comprimirImagen(principal.entry.getData(), 320);
             const buffersGaleria = [];
 
             for (const item of resto) {
@@ -176,17 +178,20 @@ async function procesarZipBancoImagenes(pool, rutaZip, marca) {
             for (const codigo of codigos) {
                 const upsert = await pool.query(
                     `
-                    INSERT INTO public.banco_imagenes_producto (codigo, marca, imagen_principal, imagen_principal_tipo, actualizado_at)
-                    VALUES ($1, $2, $3, 'image/jpeg', NOW())
+                    INSERT INTO public.banco_imagenes_producto
+                        (codigo, marca, imagen_principal, imagen_principal_tipo, imagen_principal_ancho, imagen_principal_alto, actualizado_at)
+                    VALUES ($1, $2, $3, 'image/jpeg', $4, $5, NOW())
                     ON CONFLICT (codigo)
                     DO UPDATE SET
                         marca = COALESCE($2, public.banco_imagenes_producto.marca),
                         imagen_principal = $3,
                         imagen_principal_tipo = 'image/jpeg',
+                        imagen_principal_ancho = $4,
+                        imagen_principal_alto = $5,
                         actualizado_at = NOW()
                     RETURNING id
                     `,
-                    [codigo, marca, bufferPrincipal]
+                    [codigo, marca, principalComprimida.buffer, principalComprimida.ancho, principalComprimida.alto]
                 );
 
                 const bancoImagenId = upsert.rows[0].id;
@@ -197,13 +202,13 @@ async function procesarZipBancoImagenes(pool, rutaZip, marca) {
                 );
 
                 let orden = 0;
-                for (const bufferGaleria of buffersGaleria) {
+                for (const item of buffersGaleria) {
                     await pool.query(
                         `
-                        INSERT INTO public.banco_imagenes_producto_galeria (banco_imagen_id, orden, imagen, tipo)
-                        VALUES ($1, $2, $3, 'image/jpeg')
+                        INSERT INTO public.banco_imagenes_producto_galeria (banco_imagen_id, orden, imagen, tipo, ancho, alto)
+                        VALUES ($1, $2, $3, 'image/jpeg', $4, $5)
                         `,
-                        [bancoImagenId, orden, bufferGaleria]
+                        [bancoImagenId, orden, item.buffer, item.ancho, item.alto]
                     );
 
                     orden += 1;
@@ -346,7 +351,12 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             const codigo = normalizarCodigoFoto(req.params.codigo);
 
             const resultado = await pool.query(
-                `SELECT actualizado_at FROM public.banco_imagenes_producto WHERE codigo = $1`,
+                `
+                SELECT b.marca, b.actualizado_at, b.imagen_principal_ancho, b.imagen_principal_alto,
+                    (SELECT COUNT(*) FROM public.banco_imagenes_producto_galeria g WHERE g.banco_imagen_id = b.id) AS total_galeria
+                FROM public.banco_imagenes_producto b
+                WHERE b.codigo = $1
+                `,
                 [codigo]
             );
 
@@ -361,8 +371,102 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             res.json({
                 ok: true,
                 existe: true,
-                imagenUrl: `/banco-imagenes/${codigo}/principal?v=${version}&token=${firmarTokenBancoImagen(codigo)}`
+                imagenUrl: `/banco-imagenes/${codigo}/principal?v=${version}&token=${firmarTokenBancoImagen(codigo)}`,
+                marca: fila.marca,
+                ancho: fila.imagen_principal_ancho,
+                alto: fila.imagen_principal_alto,
+                totalFotos: 1 + Number(fila.total_galeria)
             });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Datos completos de la galeria para el modal "Ver galeria" -- Pro-gated
+    // igual que /banco-imagenes-existe, cada foto lleva su propia URL
+    // firmada (mismo truco de firmarTokenBancoImagen que ya usa la
+    // principal, aqui firmando el id de la fila de galeria como string).
+    app.get("/banco-imagenes/:codigo/galeria", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const permitido = await planPermiteBancoImagenes(pool, negocio.id);
+
+            if (!permitido) {
+                res.status(403).json({ ok: false, error: "Esta funcion esta disponible desde el plan Pro." });
+                return;
+            }
+
+            const codigo = normalizarCodigoFoto(req.params.codigo);
+
+            const banco = await pool.query(
+                `SELECT id, marca, imagen_principal_ancho, imagen_principal_alto, actualizado_at
+                 FROM public.banco_imagenes_producto WHERE codigo = $1`,
+                [codigo]
+            );
+
+            const filaBanco = banco.rows[0];
+
+            if (!filaBanco) {
+                res.status(404).json({ ok: false, error: "No hay una imagen en el banco para este codigo." });
+                return;
+            }
+
+            const galeria = await pool.query(
+                `SELECT id, orden, ancho, alto FROM public.banco_imagenes_producto_galeria WHERE banco_imagen_id = $1 ORDER BY orden ASC`,
+                [filaBanco.id]
+            );
+
+            const version = new Date(filaBanco.actualizado_at).getTime();
+
+            res.json({
+                ok: true,
+                marca: filaBanco.marca,
+                totalFotos: 1 + galeria.rows.length,
+                principal: {
+                    ancho: filaBanco.imagen_principal_ancho,
+                    alto: filaBanco.imagen_principal_alto,
+                    url: `/banco-imagenes/${codigo}/principal?v=${version}&token=${firmarTokenBancoImagen(codigo)}`
+                },
+                galeria: galeria.rows.map(fila => ({
+                    id: fila.id,
+                    ancho: fila.ancho,
+                    alto: fila.alto,
+                    url: `/banco-imagenes-galeria/${fila.id}?token=${firmarTokenBancoImagen(String(fila.id))}`
+                }))
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Bytes crudos de una foto de galeria del banco -- mismo criterio que
+    // /banco-imagenes/:codigo/principal: solo token, sin requerirAccesoNegocio
+    // (un <img src> no puede llevar headers).
+    app.get("/banco-imagenes-galeria/:id", async (req, res) => {
+        try {
+            const id = Number(req.params.id);
+            const token = String(req.query.token || "");
+
+            if (!Number.isFinite(id) || !verificarTokenBancoImagen(token, String(id))) {
+                res.status(401).end();
+                return;
+            }
+
+            const resultado = await pool.query(
+                `SELECT imagen, tipo FROM public.banco_imagenes_producto_galeria WHERE id = $1`,
+                [id]
+            );
+
+            const fila = resultado.rows[0];
+
+            if (!fila) {
+                res.status(404).end();
+                return;
+            }
+
+            res.set("Content-Type", fila.tipo || "image/jpeg");
+            res.set("Cache-Control", "public, max-age=2592000, immutable");
+            res.send(fila.imagen);
         } catch (error) {
             responderError(res, error);
         }
@@ -412,6 +516,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             }
 
             const codigo = normalizarCodigoFoto(req.params.codigo);
+            const galeriaIdSeleccionado = req.body?.galeriaId != null ? Number(req.body.galeriaId) : null;
 
             const banco = await pool.query(
                 `SELECT id, imagen_principal, imagen_principal_tipo FROM public.banco_imagenes_producto WHERE codigo = $1`,
@@ -426,9 +531,34 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             }
 
             const galeria = await pool.query(
-                `SELECT imagen, tipo FROM public.banco_imagenes_producto_galeria WHERE banco_imagen_id = $1 ORDER BY orden ASC`,
+                `SELECT id, imagen, tipo FROM public.banco_imagenes_producto_galeria WHERE banco_imagen_id = $1 ORDER BY orden ASC`,
                 [filaBanco.id]
             );
+
+            let nuevoPrincipal = { imagen: filaBanco.imagen_principal, tipo: filaBanco.imagen_principal_tipo };
+            let filasParaGaleria = galeria.rows;
+
+            // galeriaId opcional (viene de "Ver galeria"): promueve esa foto
+            // a principal. Se busca DENTRO de la galeria ya cargada de este
+            // mismo banco_imagen_id -- nunca un WHERE id=$1 suelto sobre toda
+            // la tabla, para que no se pueda mandar el id de la foto de OTRO
+            // producto del banco.
+            if (galeriaIdSeleccionado != null) {
+                const indice = galeria.rows.findIndex(fila => fila.id === galeriaIdSeleccionado);
+
+                if (indice === -1) {
+                    res.status(400).json({ ok: false, error: "La foto elegida ya no esta disponible en el banco." });
+                    return;
+                }
+
+                const elegida = galeria.rows[indice];
+                nuevoPrincipal = { imagen: elegida.imagen, tipo: elegida.tipo };
+
+                filasParaGaleria = [
+                    { imagen: filaBanco.imagen_principal, tipo: filaBanco.imagen_principal_tipo },
+                    ...galeria.rows.filter((_, i) => i !== indice)
+                ];
+            }
 
             const upsert = await pool.query(
                 `
@@ -438,7 +568,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 DO UPDATE SET imagen_principal = $3, imagen_principal_tipo = $4, actualizado_at = NOW()
                 RETURNING id
                 `,
-                [negocio.id, codigo, filaBanco.imagen_principal, filaBanco.imagen_principal_tipo]
+                [negocio.id, codigo, nuevoPrincipal.imagen, nuevoPrincipal.tipo]
             );
 
             const fotoProductoId = upsert.rows[0].id;
@@ -449,7 +579,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             );
 
             let orden = 0;
-            for (const item of galeria.rows) {
+            for (const item of filasParaGaleria) {
                 await pool.query(
                     `
                     INSERT INTO public.fotos_producto_galeria (foto_producto_id, orden, imagen, tipo)

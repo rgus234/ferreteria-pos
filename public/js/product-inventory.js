@@ -363,36 +363,59 @@ function marcarImagenProductoEncontrada(tieneImagen) {
  }
 }
 
-// Insignia distinta (morada, no verde) para "hay una foto en el banco
-// compartido de Nexo, pero todavia no es tuya" -- separada a proposito
-// de marcarImagenProductoEncontrada() para no confundir "ya tienes esta
-// foto" con "puedes usar esta otra". Solo se muestra cuando el negocio
-// no tiene ya su propia foto para ese codigo (ver verificarBancoImagenesParaCodigo).
-function marcarBadgeBancoImagenes(imagenUrl) {
+// Tarjeta premium (no una simple insignia) para "hay una foto en el banco
+// compartido de Nexo, pero todavia no es tuya" -- morada a proposito para
+// no confundirse con la insignia verde "ya tienes esta foto". Se inserta
+// como HERMANA del <label class="campo-ficha"> que envuelve
+// #nuevaImagenProducto (creado dinamicamente por asegurarEtiquetasFichaProducto),
+// NUNCA dentro -- ese label esta implicitamente asociado al input de
+// archivo, y una <img> clicable ahi dentro dispararia el selector de
+// archivos del sistema operativo por accidente.
+function renderTarjetaBancoImagenes(datos) {
  const campo =
  document.getElementById("nuevaImagenProducto");
 
- const wrapper =
+ const wrapperLabel =
  campo?.closest(".campo-ficha");
 
- if (!wrapper) return;
+ if (!wrapperLabel) return;
 
- let insignia =
- wrapper.querySelector(".campo-ficha-badge-banco");
+ let tarjeta =
+ document.getElementById("tarjetaBancoImagenesNexo");
 
- if (!imagenUrl) {
- insignia?.remove();
+ if (!datos) {
+ tarjeta?.remove();
  return;
  }
 
- if (!insignia) {
- insignia = document.createElement("span");
- insignia.className = "campo-ficha-badge-banco";
- insignia.innerHTML =
- 'Imagen encontrada en el banco de Nexo ' +
- '<button type="button" onclick="usarImagenBancoNexo()">Usar esta imagen</button>';
- wrapper.appendChild(insignia);
+ if (!tarjeta) {
+ tarjeta = document.createElement("div");
+ tarjeta.id = "tarjetaBancoImagenesNexo";
+ tarjeta.className = "tarjeta-banco-imagenes";
+ wrapperLabel.insertAdjacentElement("afterend", tarjeta);
  }
+
+ const resolucion =
+ datos.ancho && datos.alto ? `${datos.ancho}×${datos.alto} px` : null;
+
+ const totalFotos =
+ Number(datos.totalFotos) || 1;
+
+ tarjeta.innerHTML = `
+ <span class="tarjeta-banco-imagenes-kicker">Banco de Nexo</span>
+ <div class="tarjeta-banco-imagenes-cuerpo">
+ <img src="${datos.imagenUrl}" alt="Foto encontrada en el banco de Nexo">
+ <div class="tarjeta-banco-imagenes-datos">
+ ${resolucion ? `<span>${resolucion}</span>` : ""}
+ ${datos.marca ? `<span>${escaparPOS(datos.marca)}</span>` : ""}
+ <span>${totalFotos} foto${totalFotos === 1 ? "" : "s"} disponible${totalFotos === 1 ? "" : "s"}</span>
+ </div>
+ </div>
+ <div class="tarjeta-banco-imagenes-acciones">
+ <button type="button" class="tarjeta-banco-imagenes-usar" onclick="usarImagenBancoNexo()">Usar esta imagen</button>
+ ${totalFotos > 1 ? `<button type="button" class="tarjeta-banco-imagenes-galeria" onclick="abrirGaleriaBancoImagenesPOS()">Ver galeria</button>` : ""}
+ </div>
+ `;
 }
 
 // Recuerda para que codigo se confirmo que ya existe una foto guardada,
@@ -431,9 +454,10 @@ async function verificarImagenExistenteParaCodigo(codigo) {
  }
 }
 
-// Codigo para el que el banco compartido de Nexo tiene una foto que
-// este negocio todavia no copio a su propia ficha.
-let codigoBancoImagenesActual = null;
+// Datos del banco compartido de Nexo para el codigo actual (codigo,
+// imagenUrl, marca, ancho, alto, totalFotos) -- este negocio todavia no
+// copio esa foto a su propia ficha.
+let datosBancoImagenesActual = null;
 
 // Banco de Nexo (Pro-only, ver banco-imagenes-server.js) -- solo tiene
 // sentido avisar cuando el negocio NO tiene ya su propia foto para este
@@ -442,8 +466,8 @@ let codigoBancoImagenesActual = null;
 // existe:false, sin revelar si el banco tiene algo o no.
 async function verificarBancoImagenesParaCodigo(codigo) {
  if (!codigo || codigoImagenExistenteActual === codigo) {
- marcarBadgeBancoImagenes(null);
- codigoBancoImagenesActual = null;
+ renderTarjetaBancoImagenes(null);
+ datosBancoImagenesActual = null;
  return;
  }
 
@@ -457,9 +481,9 @@ async function verificarBancoImagenesParaCodigo(codigo) {
  const existe =
  Boolean(datos.ok && datos.existe);
 
- codigoBancoImagenesActual = existe ? codigo : null;
+ datosBancoImagenesActual = existe ? { codigo, ...datos } : null;
 
- marcarBadgeBancoImagenes(existe ? datos.imagenUrl : null);
+ renderTarjetaBancoImagenes(existe ? datos : null);
  } catch (error) {
  // Silencioso -- no interrumpe el formulario si falla la consulta.
  }
@@ -467,16 +491,21 @@ async function verificarBancoImagenesParaCodigo(codigo) {
 
 // Copia la foto del banco compartido a la ficha propia del negocio.
 // Sin dialogo de confirmacion extra -- es una accion de bajo riesgo y
-// facil de repetir/reemplazar despues.
-async function usarImagenBancoNexo() {
- if (!codigoBancoImagenesActual) return;
+// facil de repetir/reemplazar despues. galeriaId opcional: si se pasa
+// (desde la galeria de seleccion), /usar promueve esa foto a principal
+// en vez de copiar la principal actual tal cual. Regresa true/false para
+// que quien llame (ej. la galeria) sepa si debe cerrarse.
+async function usarImagenBancoNexo(galeriaId = null) {
+ if (!datosBancoImagenesActual) return false;
 
- const codigo = codigoBancoImagenesActual;
+ const codigo = datosBancoImagenesActual.codigo;
 
  try {
  const respuesta =
  await fetch(`/banco-imagenes/${encodeURIComponent(codigo)}/usar`, {
- method: "POST"
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify(galeriaId ? { galeriaId } : {})
  });
 
  const datos =
@@ -484,15 +513,121 @@ async function usarImagenBancoNexo() {
 
  if (!datos.ok) {
  await alertaPOS(datos.error || "No se pudo copiar la imagen del banco.", "Error", "alerta");
+ return false;
+ }
+
+ datosBancoImagenesActual = null;
+ renderTarjetaBancoImagenes(null);
+ await verificarImagenExistenteParaCodigo(codigo);
+ return true;
+ } catch (error) {
+ await alertaPOS("No se pudo copiar la imagen del banco.", "Error", "alerta");
+ return false;
+ }
+}
+
+// Galeria del banco de Nexo para elegir cual foto se vuelve la principal --
+// mismo esqueleto que pedirModoVentaPOS (pos-piece-sale-modal.js): modal
+// creado/reusado por id, cerrar() con guardia de doble-cierre, Escape para
+// cancelar. A diferencia de esos modales, cada miniatura ejecuta la accion
+// de inmediato al hacer clic (mismo criterio de bajo riesgo ya usado para
+// "Usar esta imagen": sin dialogo de confirmacion extra).
+async function abrirGaleriaBancoImagenesPOS() {
+ if (!datosBancoImagenesActual) return;
+
+ const codigo = datosBancoImagenesActual.codigo;
+
+ let datosGaleria;
+ try {
+ const respuesta =
+ await fetch(`/banco-imagenes/${encodeURIComponent(codigo)}/galeria`);
+ datosGaleria = await respuesta.json();
+ } catch (error) {
+ await alertaPOS("No se pudo cargar la galeria del banco.", "Error", "alerta");
  return;
  }
 
- codigoBancoImagenesActual = null;
- marcarBadgeBancoImagenes(null);
- await verificarImagenExistenteParaCodigo(codigo);
- } catch (error) {
- await alertaPOS("No se pudo copiar la imagen del banco.", "Error", "alerta");
+ if (!datosGaleria?.ok) {
+ await alertaPOS(datosGaleria?.error || "No se pudo cargar la galeria del banco.", "Error", "alerta");
+ return;
  }
+
+ let modal =
+ document.getElementById("modalGaleriaBancoImagenesPOS");
+
+ if (!modal) {
+ modal = document.createElement("div");
+ modal.id = "modalGaleriaBancoImagenesPOS";
+ modal.className = "modal-personalizado modal-galeria-banco-nexo";
+ document.body.appendChild(modal);
+ }
+
+ let cerrado = false;
+
+ const cerrar = () => {
+ if (cerrado) return;
+ cerrado = true;
+ modal.style.display = "none";
+ modal.innerHTML = "";
+ document.removeEventListener("keydown", manejarTecladoGaleriaBancoNexo, true);
+ };
+
+ const elegir = async (galeriaId, boton) => {
+ boton.disabled = true;
+ boton.classList.add("galeria-banco-nexo-cargando");
+ const ok = await usarImagenBancoNexo(galeriaId);
+ if (ok) {
+ cerrar();
+ } else {
+ boton.disabled = false;
+ boton.classList.remove("galeria-banco-nexo-cargando");
+ }
+ };
+
+ const todasLasFotos = [
+ { esPrincipal: true, ...datosGaleria.principal },
+ ...datosGaleria.galeria.map(item => ({ esPrincipal: false, ...item }))
+ ];
+
+ modal.innerHTML = `
+ <div class="modal-card galeria-banco-nexo-card">
+ <div class="modal-card-header">
+ <div>
+ <span>Banco de Nexo</span>
+ <h3>Elige la foto principal</h3>
+ </div>
+ <button type="button" class="galeria-banco-nexo-cerrar" data-accion="cerrar">Cerrar</button>
+ </div>
+ <div class="galeria-banco-nexo-grid">
+ ${todasLasFotos.map(foto => `
+ <button type="button"
+ class="galeria-banco-nexo-item${foto.esPrincipal ? " galeria-banco-nexo-item-actual" : ""}"
+ ${foto.esPrincipal ? "disabled" : `data-galeria-id="${foto.id}"`}>
+ <img src="${foto.url}" alt="">
+ ${foto.esPrincipal ? `<span class="galeria-banco-nexo-tag">Principal actual</span>` : ""}
+ ${foto.ancho && foto.alto ? `<small>${foto.ancho}×${foto.alto}</small>` : ""}
+ </button>
+ `).join("")}
+ </div>
+ </div>
+ `;
+
+ modal.style.display = "flex";
+
+ modal.querySelector("[data-accion='cerrar']").onclick = () => cerrar();
+
+ modal.querySelectorAll("[data-galeria-id]").forEach(boton => {
+ boton.onclick = () => elegir(Number(boton.dataset.galeriaId), boton);
+ });
+
+ function manejarTecladoGaleriaBancoNexo(event) {
+ if (event.key === "Escape") {
+ event.preventDefault();
+ cerrar();
+ }
+ }
+
+ document.addEventListener("keydown", manejarTecladoGaleriaBancoNexo, true);
 }
 
 function limpiarTextoCatalogo(valor) {

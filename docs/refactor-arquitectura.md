@@ -5893,3 +5893,87 @@ Datos de prueba (negocios sinteticos, filas del banco, fotos copiadas)
 borrados despues de verificar.
 
 Pendiente de confirmacion del usuario para `git add`/`commit`.
+
+## 2026-07-28 -- Banco de Nexo: tarjeta premium + galeria para elegir portada
+
+El usuario probo la explicacion de como funciona el Banco de Nexo y dio
+una critica directa: la insignia morada chica se sentia "tecnica y
+escondida", no como algo que un software premium mostraria. Pidio una
+tarjeta elegante (vista previa grande, resolucion, marca, cuantas fotos
+hay) con boton principal "Usar esta imagen" y boton secundario "Ver
+galeria" para elegir cual foto es la principal cuando hay varias.
+Tambien propuso sugerir descripcion/categoria/unidad -- se investigo y
+se confirmo que no existe ninguna fuente de datos compartida entre
+negocios con esa informacion por codigo (`catalogo_productos` es
+estrictamente por-negocio), y el usuario eligio explicitamente diferir
+esa parte (requeriria que el, como admin, curara tambien un CSV por
+cada lote de fotos).
+
+**Migracion** (`migrations/20260730_banco_imagenes_dimensiones.sql`,
+aplicada): 4 columnas nulas nuevas (`imagen_principal_ancho/alto` en
+`banco_imagenes_producto`, `ancho/alto` en `_galeria`).
+
+**Backend** (`banco-imagenes-server.js`): `comprimirImagen` ahora
+regresa `{buffer, ancho, alto}` via `sharp(...).toBuffer({resolveWithObject:true})`
+en vez de solo el buffer; `procesarZipBancoImagenes` guarda las
+dimensiones. `GET /banco-imagenes-existe/:codigo` gana `marca`/`ancho`/`alto`/`totalFotos`.
+Nueva `GET /banco-imagenes/:codigo/galeria` (Pro-gated) y nueva
+`GET /banco-imagenes-galeria/:id` (bytes crudos, solo token) para el
+modal de seleccion. `POST /banco-imagenes/:codigo/usar` gana un
+`galeriaId` opcional -- busca la foto elegida **dentro de la galeria
+ya cargada de ese mismo `banco_imagen_id`** (nunca un `WHERE id=$1`
+suelto sobre toda la tabla, para que no se pueda mandar el id de la
+foto de otro producto), la promueve a principal, y mete la principal
+original + el resto en la galeria del negocio.
+
+**Frontend** (`public/js/product-inventory.js`): se reemplazo
+`marcarBadgeBancoImagenes` (insignia chica) por
+`renderTarjetaBancoImagenes` (tarjeta con miniatura 76x76, resolucion,
+marca, conteo, 2 botones). **Hallazgo importante verificado a mano**:
+`asegurarEtiquetasFichaProducto()` envuelve `#nuevaImagenProducto` en
+un `<label class="campo-ficha">` real -- la tarjeta se inserta como
+**hermana** de ese label (`insertAdjacentElement("afterend", ...)`),
+nunca dentro, porque una `<img>` clicable dentro de un `<label>` de un
+`<input type="file">` dispararia el selector de archivos del sistema
+operativo por accidente. Nueva `abrirGaleriaBancoImagenesPOS()`
+(mismo esqueleto que `pedirModoVentaPOS`/`abrirCambioProductoPOS`):
+grid de miniaturas donde la principal actual se ve deshabilitada
+("Principal actual") y las demas, al hacer clic, llaman
+`usarImagenBancoNexo(galeriaId)` y cierran el modal si sale bien.
+
+**CSS**: `.campo-ficha-badge-banco` reemplazado por
+`.tarjeta-banco-imagenes` en `pos-product-form.css` (tokens
+`--nexo-radius-lg`/`--nexo-glass-blur`/`--nexo-shadow-card`, acento
+morado `#9333ea` conservado). Nuevo
+`banco-imagenes-galeria-modal.css` para el modal de galeria, con
+bloque `body.oscuro`.
+
+**Verificacion end-to-end** (negocios sinteticos, nunca
+`negocio_id = 1`): migracion aplicada y confirmada. Backend probado
+con script directo (fetch/curl): dimensiones capturadas correctamente
+(320x240 principal, 480x360 galeria en compresion), `GET /banco-imagenes-existe/:codigo`
+trae `marca`/`ancho`/`alto`/`totalFotos:3` correctos,
+`GET /banco-imagenes/:codigo/galeria` trae URLs firmadas que sirven
+bytes reales, `POST /usar` con `galeriaId` promovio **exactamente** la
+foto elegida (confirmado comparando bytes) dejando la principal
+original en la galeria del negocio en orden 0. Negocio Basico
+rechazado con 403 en ambas rutas nuevas llamadas directo. Suplantacion
+entre productos (mandar el `galeriaId` de OTRO codigo del banco)
+rechazada con 400. Caso de 1 sola foto confirma `totalFotos:1`.
+
+En navegador real: se escribio un codigo con 3 fotos en "Agregar
+producto" -- aparecio la tarjeta morada con vista previa grande,
+"320×320 px", marca "Urrea", "3 fotos disponibles", y el boton "Ver
+galeria" (ausente en el caso de 1 foto, verificado por separado). Se
+abrio la galeria: 3 miniaturas con sus resoluciones reales, la
+principal marcada "Principal actual" y deshabilitada. Se eligio una
+foto distinta (400×600) -- el modal cerro, la tarjeta desaparecio de
+inmediato, y la vista previa real mostro exactamente esa foto
+(`naturalWidth/naturalHeight` confirmados 400x600 en el navegador).
+Modo oscuro verificado -- la tarjeta hereda los tokens sin reglas
+extra. Sin errores de consola en todo el recorrido. `node --check`
+limpio en los 2 archivos `.js` tocados. Datos de prueba (negocios
+sinteticos, filas del banco, fotos copiadas) borrados despues de
+verificar.
+
+Pendiente de confirmacion del usuario para `git add`/`commit`.

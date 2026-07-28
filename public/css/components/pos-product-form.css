@@ -510,32 +510,88 @@
   color: var(--nexo-brand) !important;
  }
 
- /* Banco de Nexo -- morado a proposito, para no confundirse con la
-    insignia verde de "ya tienes esta foto" (campo-ficha-badge-imagen). */
- #modalAgregar .campo-ficha span.campo-ficha-badge-banco {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  width: fit-content !important;
-  margin-top: -2px !important;
-  padding: 3px 8px 3px 10px !important;
-  border-radius: 999px !important;
-  font-size: 10px !important;
-  font-weight: 900 !important;
-  background: color-mix(in srgb, #a855f7 18%, transparent) !important;
-  color: #9333ea !important;
+ /* Banco de Nexo -- tarjeta premium (no una insignia), morada a proposito
+    para no confundirse con la insignia verde "ya tienes esta foto". Vive
+    como HERMANA del label.campo-ficha del input de archivo (ver
+    renderTarjetaBancoImagenes en product-inventory.js), nunca dentro --
+    ese label esta implicitamente asociado al <input type="file">. */
+ #modalAgregar .tarjeta-banco-imagenes {
+  display: grid !important;
+  gap: 10px !important;
+  margin-top: var(--nexo-space-3) !important;
+  padding: var(--nexo-space-3) !important;
+  border-radius: var(--nexo-radius-lg) !important;
+  background: color-mix(in srgb, #9333ea 7%, var(--nexo-surface-strong)) !important;
+  border: 1px solid color-mix(in srgb, #9333ea 32%, var(--nexo-line)) !important;
+  box-shadow: var(--nexo-shadow-card) !important;
+  backdrop-filter: var(--nexo-glass-blur) !important;
  }
 
- #modalAgregar .campo-ficha span.campo-ficha-badge-banco button {
-  min-height: auto !important;
-  border: none !important;
-  border-radius: 999px !important;
-  padding: 3px 8px !important;
-  font-size: 10px !important;
-  font-weight: 900 !important;
-  cursor: pointer !important;
+ #modalAgregar .tarjeta-banco-imagenes-kicker {
+  width: fit-content !important;
+  padding: 3px 10px !important;
+  border-radius: var(--nexo-radius-pill) !important;
   background: #9333ea !important;
   color: #fff !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  letter-spacing: .04em !important;
+  text-transform: uppercase !important;
+ }
+
+ #modalAgregar .tarjeta-banco-imagenes-cuerpo {
+  display: grid !important;
+  grid-template-columns: 76px 1fr !important;
+  gap: 12px !important;
+  align-items: center !important;
+ }
+
+ #modalAgregar .tarjeta-banco-imagenes-cuerpo img {
+  width: 76px !important;
+  height: 76px !important;
+  object-fit: cover !important;
+  border-radius: var(--nexo-radius-md) !important;
+  border: 1px solid color-mix(in srgb, #9333ea 25%, var(--nexo-line)) !important;
+ }
+
+ #modalAgregar .tarjeta-banco-imagenes-datos {
+  display: grid !important;
+  gap: 2px !important;
+ }
+
+ #modalAgregar .tarjeta-banco-imagenes-datos span {
+  color: var(--nexo-text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+ }
+
+ #modalAgregar .tarjeta-banco-imagenes-acciones {
+  display: flex !important;
+  gap: 8px !important;
+ }
+
+ #modalAgregar .tarjeta-banco-imagenes-usar,
+ #modalAgregar .tarjeta-banco-imagenes-galeria {
+  min-height: 34px !important;
+  border-radius: var(--nexo-radius-pill) !important;
+  padding: 0 14px !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+  border: none !important;
+ }
+
+ #modalAgregar .tarjeta-banco-imagenes-usar {
+  flex: 1 1 auto !important;
+  background: linear-gradient(135deg, #a855f7, #9333ea) !important;
+  color: #fff !important;
+  box-shadow: var(--nexo-shadow-brand) !important;
+ }
+
+ #modalAgregar .tarjeta-banco-imagenes-galeria {
+  background: color-mix(in srgb, #9333ea 14%, transparent) !important;
+  color: #9333ea !important;
+  border: 1px solid color-mix(in srgb, #9333ea 30%, transparent) !important;
  }
 
  /* Subcategorias -- pastillas sobre el mismo campo oculto de siempre */
