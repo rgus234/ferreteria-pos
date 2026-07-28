@@ -1109,8 +1109,11 @@
  <input id="precioDistribuidor" type="number" step="0.01"
  placeholder=" Precio distribuidor" />
  <input id="precioMayoreo" type="number" step="0.01" placeholder=" Precio medio mayoreo" />
- <input id="nuevoPrecio" type="number" step="0.01" placeholder="Precio publico">
  <input id="precioPublico" type="number" step="0.01" placeholder="Precio publico">
+ <div class="campo-ficha-precio-carrito">
+ <input id="nuevoPrecio" type="number" step="0.01" placeholder="Precio del carrito">
+ <button type="button" id="sugerenciaPrecioProveedor" class="btn-sugerencia-precio-proveedor" style="display:none;"></button>
+ </div>
  </div>
  </section>
 
@@ -1138,11 +1141,31 @@
  <option value="no">No</option>
  </select>
  <input id="nuevoProveedor" type="text" placeholder="Proveedor">
+ <div class="campo-ficha-ubicacion">
  <input id="nuevaUbicacion" type="text" placeholder="Ubicacion">
+ <span class="producto-form-mapa-nota">Ver en mapa de tienda</span>
+ </div>
  </div>
  </section>
 
- <section class="producto-form-seccion" data-seccion="adicional">
+ </div>
+
+ <aside class="producto-form-lateral">
+ <div class="producto-form-imagen-panel">
+ <div id="productoFormImagenPreview" class="producto-form-imagen-preview">
+ <span>Sin foto</span>
+ </div>
+ <input id="nuevaImagenProducto" type="file" accept="image/*" onchange="previsualizarImagenProductoFormulario(this); subirImagenProductoManual()">
+ </div>
+ <div class="producto-form-tip">
+ <img src="img/nexo-ia/feliz.jpg" alt="Nexo">
+ <div>
+ <strong>Consejo de Nexo</strong>
+ <p>Una foto real y una buena descripcion ayudan a que tus productos se vendan mas rapido.</p>
+ </div>
+ </div>
+
+ <section class="producto-form-seccion producto-form-seccion-lateral" data-seccion="adicional">
  <div class="producto-form-seccion-header">
  <span class="producto-form-numero">4</span>
  <h2>Informacion adicional</h2>
@@ -1166,32 +1189,15 @@
  <input id="nuevasNotasInternas" type="text" placeholder="Notas internas (solo tu equipo las ve)" class="campo-ficha-ancho">
  </div>
  </section>
-
- </div>
-
- <aside class="producto-form-lateral">
- <div class="producto-form-imagen-panel">
- <div id="productoFormImagenPreview" class="producto-form-imagen-preview">
- <span>Sin foto</span>
- </div>
- <input id="nuevaImagenProducto" type="file" accept="image/*" onchange="previsualizarImagenProductoFormulario(this); subirImagenProductoManual()">
- </div>
- <div class="producto-form-tip">
- <img src="img/nexo-ia/feliz.jpg" alt="Nexo">
- <div>
- <strong>Consejo de Nexo</strong>
- <p>Una foto real y una buena descripcion ayudan a que tus productos se vendan mas rapido.</p>
- </div>
- </div>
  </aside>
 
  </div>
 
  <div class="producto-form-footer-callouts">
- <div><strong>Escanea o busca</strong><span>Captura por codigo de barras o clave interna</span></div>
- <div><strong>Precios inteligentes</strong><span>Distribuidor, mayoreo y publico en un mismo lugar</span></div>
- <div><strong>Control de inventario</strong><span>Stock minimo y maximo para no quedarte sin producto</span></div>
- <div><strong>Ubicacion en tienda</strong><span>Encuentra el producto mas rapido al surtir o vender</span></div>
+ <div><strong>Escanea o busca</strong><span>Agrega productos rapidamente escaneando el codigo de barras</span></div>
+ <div><strong>Precios inteligentes</strong><span>Maneja multiples precios para cada tipo de cliente</span></div>
+ <div><strong>Control de inventario</strong><span>Define minimos y maximos para mejorar el control de stock</span></div>
+ <div><strong>Ubicacion inteligente</strong><span>Asigna ubicaciones y encuentra los productos facilmente</span></div>
  </div>
 
  </div>

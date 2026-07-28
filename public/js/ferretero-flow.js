@@ -41,31 +41,6 @@
   return ayuda;
  }
 
- function mejorarTarjetasTipoProducto() {
-  const defs = {
-   catalogo: ["barcode", "Con codigo", "Escaner o catalogo"],
-   manual: ["inventory", "Sin codigo", "Generar interno"],
-   granel: ["scale", "Granel", "Kg, metro o litro"],
-   servicio: ["settings", "Servicio", "Mano de obra"]
-  };
-
-  document.querySelectorAll("#modalAgregar .tipo-producto-card").forEach(boton => {
-   const tipo = boton.dataset.tipoProducto || "catalogo";
-   const def = defs[tipo];
-   if (!def || boton.dataset.ferreteroUi === "1") return;
-
-   boton.dataset.ferreteroUi = "1";
-   boton.innerHTML =
-    '<span class="tipo-producto-icon">' +
-    (typeof iconoUISVG === "function" ? iconoUISVG(def[0]) : "") +
-    '</span><span class="tipo-producto-copy"><strong>' +
-    def[1] +
-    "</strong><small>" +
-    def[2] +
-    "</small></span>";
-  });
- }
-
  function actualizarAyudaTipoProducto(tipo) {
   const ayuda = asegurarAyudaTipoProducto();
   if (!ayuda) return;
@@ -86,7 +61,6 @@
   const tipoFinal = tipo || "catalogo";
   if (typeof seleccionarBase === "function") seleccionarBase(tipoFinal);
 
-  mejorarTarjetasTipoProducto();
   actualizarAyudaTipoProducto(tipoFinal);
 
   const codigo = document.getElementById("nuevoCodigo");
@@ -126,7 +100,6 @@
   }
 
   if (typeof togglePiezaCamposProducto === "function") togglePiezaCamposProducto();
-  mejorarTarjetasTipoProducto();
   actualizarAyudaTipoProducto(document.getElementById("tipoProductoInventario")?.value || "catalogo");
 
   setTimeout(() => {
@@ -286,7 +259,6 @@
  });
 
  setTimeout(() => {
-  mejorarTarjetasTipoProducto();
   actualizarAyudaTipoProducto(document.getElementById("tipoProductoInventario")?.value || "catalogo");
   if (Array.isArray(carrito)) window.actualizarCarrito();
  }, 300);

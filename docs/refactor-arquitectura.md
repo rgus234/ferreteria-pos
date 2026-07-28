@@ -5660,3 +5660,101 @@ historico para moviles de Mexico).
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+## 2026-07-27 -- Limpieza y reconstruccion controlada de "Agregar producto"
+
+Auditoria completa (3 agentes en paralelo, sin modificar nada) seguida
+de una reconstruccion en etapas de `#modalAgregar`, pedida por el
+usuario porque el formulario habia acumulado demasiados parches en
+sesiones sucesivas. Hallazgo central de la auditoria: el 95% del
+codigo era real y estaba vivo (no era "codigo muerto por todos
+lados") -- el problema real era **dos sistemas de precio coexistiendo**
+(un `<select id="tipoPrecioVenta">` inyectado por JS, obsoleto desde
+que se agregaron los 3 campos explicitos de precio) y una jerarquia
+visual sin comprimir para el nuevo layout de 2 columnas.
+
+**Etapa 1 -- retirar el sistema viejo de precios**
+(`public/js/product-inventory.js`): eliminadas
+`asegurarSelectorTipoPrecio()` y `cambiarTipoPrecioVenta()` completas;
+`asegurarBotonSugerenciaPrecio()` simplificada a
+`return document.getElementById("sugerenciaPrecioProveedor")` (el
+boton ahora es un elemento estatico del HTML en vez de inyectado);
+retiradas las escrituras dobles a `nuevoPrecio.dataset.*` dentro de
+`aplicarProductoCatalogoAlFormulario()`; corregido de paso un bug
+preexistente en `productoDesdeCatalogo()` (`return catalogo.find(...)`
+con `catalogo` nunca declarado -- `ReferenceError` en el camino comun
+de "codigo sin match"). Se encontro y consolido, no listada en el plan
+original pero del mismo patron exacto, una segunda implementacion casi
+identica en `llenarFormularioConProductoCatalogo()` (usada por el
+escaneo durante una venta, `pos-sales.js`) -- ahora delega a
+`aplicarProductoCatalogoAlFormulario()` en vez de duplicar ~90 lineas.
+
+**Etapa 2 -- reescritura de `public/index.html:980-1205`**: header,
+breadcrumb y el bloque de tipo-producto/proveedor/modo-captura quedan
+byte-identicos (se decidio comprimirlos solo por CSS, ver Etapa 3, no
+reestructurar su HTML -- riesgo mas bajo). Cambios reales: "2. Precios"
+envuelve `nuevoPrecio` + el boton de sugerencia (ahora estatico) en un
+wrapper `.campo-ficha-precio-carrito`; "3. Inventario" envuelve
+`nuevaUbicacion` con una nota informativa no clickeable
+`.producto-form-mapa-nota` ("Ver en mapa de tienda" -- no existe backend
+de mapa, se documento como informativo, no un enlace falso); la seccion
+"4. Informacion adicional" se **mueve completa** de la columna
+izquierda a la columna lateral derecha (dentro de `<aside
+class="producto-form-lateral">`, despues del panel de imagen y la
+tarjeta "Consejo de Nexo"), con clase adicional
+`producto-form-seccion-lateral`. Los 34 ids de campo y todos los
+`onclick`/`onchange` quedan exactamente iguales.
+
+**Etapa 3 -- `public/css/components/pos-product-form.css`**: se
+compacto visualmente el bloque de tipo-producto/proveedor/modo-captura
+(alturas y paddings reducidos ~25%, sin tocar su HTML/logica) y se
+agregaron reglas nuevas para los wrappers de la Etapa 2
+(`.campo-ficha-precio-carrito`, `.campo-ficha-ubicacion`,
+`.producto-form-mapa-nota`) mas una regla para que
+`.producto-form-seccion-lateral` use su grid interno a 1 columna (la
+columna lateral es angosta, 340px, un grid de 2 columnas ahi se veria
+apretado).
+
+**Etapa 4 -- `public/js/ferretero-flow.js`**: se retiro solo
+`mejorarTarjetasTipoProducto()` (funcion puramente cosmetica que
+reescribia el `innerHTML` de las tarjetas con un icono SVG) y sus 3
+sitios de llamada -- la decision original del plan hablaba de "2 sitios"
+pero se encontro un tercero en el `setTimeout` de arranque del modulo,
+tambien retirado. Se confirmo que el HTML estatico de las tarjetas ya
+trae texto real (`<strong>`/`<span>`) sin depender de esta funcion --
+solo se pierde el icono decorativo, cero perdida de funcionalidad. Se
+preservo integro el resto del archivo, incluyendo
+`asegurarAyudaTipoProducto()`/`actualizarAyudaTipoProducto()` (la caja
+de ayuda contextual con contenido real por tipo de producto) y toda la
+logica de auto-generacion de codigo/defaults por tipo.
+
+**Verificacion end-to-end** (negocio sintetico 17566, nunca
+`negocio_id = 1`): confirmado via consola del navegador que
+`seleccionarTipoProducto('manual'|'granel'|'servicio')` sigue generando
+codigo interno automatico, forzando unidad/bascula de granel, y
+mostrando el texto de ayuda contextual correcto por tipo;
+`aplicarProductoCatalogoAlFormulario()` llena correctamente los campos
+ahora anidados en los wrappers nuevos; `editarProducto(id)` carga los
+34 campos en el layout nuevo; el toggle de garantia sigue mostrando/
+ocultando su campo condicional en la nueva ubicacion lateral; guardar
+un producto nuevo via UI (`agregarProductoNuevo()`) persiste
+correctamente contra `/agregar-producto`; `node --check server.js`
+limpio (sin cambios de backend esperados). Sin errores de consola en
+todo el recorrido. El breakpoint de 2 columnas (1080px) y el de
+tarjetas de tipo de producto a 2x2 (900px) se verificaron reales en el
+navegador: el layout colapsa correctamente por debajo de esos anchos.
+
+**Hallazgo fuera de alcance, marcado para una sesion aparte** (no se
+corrigio en esta pasada porque no es parte de la reconstruccion visual
+y toca logica de estado que el plan explicitamente pidio no tocar):
+`mostrarFormularioAgregar()` nunca resetea la variable global
+`productoEditandoId` (solo `cerrarFormularioAgregar()` lo hace). Si un
+usuario abre "Editar producto", navega a otra pantalla sin darle
+Cancelar, y despues abre "+ Agregar producto" de nuevo, el siguiente
+guardado silenciosamente sobreescribe el producto que se estaba
+editando en vez de crear uno nuevo (confirmado reproduciendolo contra
+el negocio sintetico). Es un bug preexistente, no introducido por este
+refactor -- se dejo anotado para atenderlo en una sesion dedicada.
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.

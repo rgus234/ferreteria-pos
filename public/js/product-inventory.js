@@ -1310,129 +1310,24 @@ function productoDesdeCatalogo(codigo) {
  }
  }
 
- return catalogo.find(
- item =>
- normalizarCodigo(item.codigo) ===
- codigoNormalizado
- ) || null;
+ return null;
 }
 
+// Punto de entrada cuando se escanea un codigo durante una venta y no
+// hay match en el inventario real, pero si en el catalogo del
+// proveedor (ver pos-sales.js:procesarCodigoBarrasPos) -- delega todo
+// el llenado de campos a aplicarProductoCatalogoAlFormulario (la misma
+// funcion que usa el autocompletado dentro de Agregar producto) para
+// no mantener dos copias de la misma logica; lo unico distinto en
+// este flujo es que ya sabemos que se esta agregando 1 pieza.
 async function llenarFormularioConProductoCatalogo(producto) {
  mostrarInventario();
  mostrarFormularioAgregar();
- asegurarSelectorTipoPrecio();
- seleccionarTipoProducto("catalogo");
 
- if (!producto.proveedor) {
- producto.proveedor =
- localStorage.getItem("ultimoProveedorCatalogo") ||
- ultimoProveedorCatalogo() ||
- "Diprofer" ||
- "";
- }
+ await aplicarProductoCatalogoAlFormulario(producto, "barras");
 
- document.getElementById("nuevoCodigo").value =
- producto.codigo || "";
-
- document.getElementById("nuevoCodigo").setAttribute(
- "autocomplete",
- "off"
- );
-
- document.getElementById("nuevoStock").setAttribute(
- "autocomplete",
- "off"
- );
-
- document.getElementById("nuevoNombre").value =
- producto.nombre || "";
-
- document.getElementById("precioDistribuidor").value =
- producto.distribuidor || "";
-
- document.getElementById("precioMayoreo").value =
- producto.medioMayoreo || "";
-
- document.getElementById("precioPublico").value =
- producto.publico || "";
-
- const precioVenta =
- document.getElementById("nuevoPrecio");
-
- precioVenta.dataset.distribuidor =
- producto.distribuidor || "";
-
- precioVenta.dataset.medioMayoreo =
- producto.medioMayoreo || "";
-
- precioVenta.dataset.publico =
- producto.publico || "";
-
- precioVenta.dataset.precioDetectado =
- producto.precioDetectado || "medio mayoreo";
-
- document.getElementById("tipoPrecioVenta").value =
- "medioMayoreo";
-
- const opcionMedioMayoreo =
- document.querySelector("#tipoPrecioVenta option[value='medioMayoreo']");
-
- if (opcionMedioMayoreo) {
- opcionMedioMayoreo.textContent =
- producto.precioDetectado === "medio mayoreo con IVA"
- ? "Medio mayoreo con IVA"
- : "Medio mayoreo";
- }
-
- precioVenta.value =
- producto.medioMayoreo ||
- producto.publico ||
- producto.distribuidor ||
- "";
-
- document.getElementById("nuevoStock").value =
- "1";
-
- document.getElementById("nuevoProveedor").value =
- producto.proveedor || "";
-
- document.getElementById("nuevoCodigoInterno").value =
- producto.codigoInterno || "";
-
- document.getElementById("codigosRelacionados").value =
- (producto.codigosRelacionados || [])
- .join(", ");
-
- document.getElementById("nuevaCategoria").value =
- producto.categoria || "";
-
- document.getElementById("nuevaMarca").value =
- producto.marca || "";
-
- document.getElementById("nuevaDescripcion").value =
- producto.descripcion || "";
-
- document.getElementById("unidadVenta").value =
- producto.unidadVenta || "pieza";
-
- document.getElementById("presentacionCompra").value =
- producto.presentacionCompra || "";
-
- document.getElementById("factorConversion").value =
- producto.factorConversion || "";
-
- document.getElementById("basculaDigital").value =
- producto.basculaDigital || "no";
-
- document.getElementById("stockMinimo").value =
- producto.stockMinimo || 3;
-
- document.getElementById("altaRotacion").value =
- producto.altaRotacion || "";
-
- await mostrarSugerenciaPrecioProveedor(producto);
-
- enfocarStockNuevoProducto();
+ document.getElementById("nuevoStock").value = "1";
+ document.getElementById("nuevoStock").setAttribute("autocomplete", "off");
 }
 
 function enfocarStockNuevoProducto() {
@@ -1451,67 +1346,13 @@ function enfocarStockNuevoProducto() {
  });
 }
 
-function asegurarSelectorTipoPrecio() {
- if (document.getElementById("tipoPrecioVenta")) return;
-
- const precio =
- document.getElementById("nuevoPrecio");
-
- if (!precio) return;
-
- const selector =
- document.createElement("select");
-
- selector.id =
- "tipoPrecioVenta";
-
- selector.innerHTML = `
- <option value="medioMayoreo">Medio mayoreo</option>
- <option value="publico">Publico</option>
- <option value="distribuidor">Mayoreo / distribuidor</option>
- `;
-
- selector.addEventListener(
- "change",
- cambiarTipoPrecioVenta
- );
-
- precio.insertAdjacentElement(
- "afterend",
- selector
- );
-}
-
+// El boton vive como elemento estatico en index.html (seccion
+// Precios) -- ya no se crea/inserta por JS, solo se busca. Se
+// mantiene esta funcion (en vez de usar getElementById directo en
+// cada sitio que la llama) porque varios lugares del archivo la
+// invocan como "dame el boton, ya sea que exista o no".
 function asegurarBotonSugerenciaPrecio() {
- let boton =
- document.getElementById("sugerenciaPrecioProveedor");
-
- if (boton) return boton;
-
- const referencia =
- document.getElementById("tipoPrecioVenta") ||
- document.getElementById("nuevoPrecio");
-
- if (!referencia) return null;
-
- boton =
- document.createElement("button");
-
- boton.type =
- "button";
-
- boton.id =
- "sugerenciaPrecioProveedor";
-
- boton.className =
- "btn-sugerencia-precio-proveedor";
-
- boton.style.display =
- "none";
-
- referencia.insertAdjacentElement("afterend", boton);
-
- return boton;
+ return document.getElementById("sugerenciaPrecioProveedor");
 }
 
 async function mostrarSugerenciaPrecioProveedor(producto) {
@@ -1580,7 +1421,6 @@ function asegurarEtiquetasFichaProducto() {
  precioMayoreo: "Precio medio mayoreo",
  precioPublico: "Precio publico",
  nuevoPrecio: "Precio que usara el carrito",
- tipoPrecioVenta: "Tipo de precio",
  nuevoStock: "Stock actual",
  stockMinimo: "Stock minimo",
  nuevoStockMaximo: "Stock maximo",
@@ -1933,27 +1773,6 @@ function mostrarPiezasSueltasStockInfo(valor) {
 
  info.textContent =
  `Piezas sueltas actuales: ${cantidad}`;
-}
-
-function cambiarTipoPrecioVenta() {
- const precio =
- document.getElementById("nuevoPrecio");
-
- const selector =
- document.getElementById("tipoPrecioVenta");
-
- if (!precio || !selector) return;
-
- const mapa = {
- distribuidor: precio.dataset.distribuidor,
- medioMayoreo: precio.dataset.medioMayoreo,
- publico: precio.dataset.publico
- };
-
- precio.value =
- mapa[selector.value] ||
- precio.value ||
- "";
 }
 
 function enfocarCampoStockAhora() {
@@ -3825,7 +3644,6 @@ function mostrarFormularioAgregar() {
  ocultarPantallasPrincipales();
  }
 
- asegurarSelectorTipoPrecio();
  asegurarEtiquetasFichaProducto();
  asegurarChipsSubcategoria();
  inicializarCampoCodigoProducto();
@@ -4089,31 +3907,6 @@ async function aplicarProductoCatalogoAlFormulario(producto, origen) {
 
  document.getElementById("precioPublico").value =
  producto.publico || "";
-
- document.getElementById("nuevoPrecio").dataset.distribuidor =
- producto.distribuidor || "";
-
- document.getElementById("nuevoPrecio").dataset.medioMayoreo =
- producto.medioMayoreo || "";
-
- document.getElementById("nuevoPrecio").dataset.publico =
- producto.publico || "";
-
- document.getElementById("nuevoPrecio").dataset.precioDetectado =
- producto.precioDetectado || "medio mayoreo";
-
- document.getElementById("tipoPrecioVenta").value =
- "medioMayoreo";
-
- const opcionMedioMayoreo =
- document.querySelector("#tipoPrecioVenta option[value='medioMayoreo']");
-
- if (opcionMedioMayoreo) {
- opcionMedioMayoreo.textContent =
- producto.precioDetectado === "medio mayoreo con IVA"
- ? "Medio mayoreo con IVA"
- : "Medio mayoreo";
- }
 
  document.getElementById("nuevoProveedor").value =
  producto.proveedor ||
