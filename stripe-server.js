@@ -75,8 +75,15 @@ const PRECIO_POR_PLAN = () => ({
 const CODIGO_DESCUENTO_FUNDADOR = "FUNDADOR40";
 
 async function cuponFundadorVigente(stripe) {
-    const lista = await stripe.promotionCodes.list({ code: CODIGO_DESCUENTO_FUNDADOR, limit: 1 });
-    const promo = lista.data[0];
+    // Se busca primero uno activo explicitamente -- si en algun
+    // momento existe mas de un promotion code con este mismo texto
+    // (ej. uno viejo desactivado al cambiar el cupo), no depende del
+    // orden en que Stripe los regrese.
+    const activos = await stripe.promotionCodes.list({ code: CODIGO_DESCUENTO_FUNDADOR, active: true, limit: 1 });
+    const cualquiera = activos.data.length
+        ? activos
+        : await stripe.promotionCodes.list({ code: CODIGO_DESCUENTO_FUNDADOR, limit: 1 });
+    const promo = cualquiera.data[0];
     if (!promo) return null;
 
     const restantes = Number.isFinite(promo.max_redemptions)
@@ -362,6 +369,32 @@ module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
                 restantes: creado.restantes,
                 activo: creado.active
             });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Publica, sin autenticacion -- alimenta el banner de "lugares
+    // fundador" del sitio de marketing. Expone SOLO el subconjunto
+    // seguro (activo/restantes), nunca el codigo real, el cupo total
+    // ni el objeto crudo de Stripe -- eso sigue siendo admin-only.
+    app.get("/api/fundador-publico", async (_req, res) => {
+        const stripe = obtenerStripe();
+
+        if (!stripe) {
+            res.json({ ok: true, activo: false, restantes: null });
+            return;
+        }
+
+        try {
+            const cupon = await cuponFundadorVigente(stripe);
+
+            if (!cupon) {
+                res.json({ ok: true, activo: false, restantes: null });
+                return;
+            }
+
+            res.json({ ok: true, activo: cupon.active, restantes: cupon.restantes });
         } catch (error) {
             responderError(res, error);
         }

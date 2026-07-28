@@ -21,11 +21,11 @@
       <a href="#demo">Demo</a>
       <a href="#planes">Planes</a>
       <a href="#contacto">Contacto</a>
-      <a href="https://wa.me/524981234567?text=Hola,%20quiero%20una%20demo%20de%20Nexo%20POS" target="_blank" rel="noopener">WhatsApp</a>
+      <a href="https://wa.me/524424950495?text=Hola%2C%20vi%20NEXO%20POS%20y%20quiero%20recibir%20informaci%C3%B3n%20para%20mi%20negocio." target="_blank" rel="noopener">WhatsApp</a>
     </nav>
     <div class="header-actions">
       <a class="header-login" href="https://app.nexoposoficial.com/?accion=iniciar-sesion">Iniciar sesion</a>
-      <a class="header-cta" href="#contacto">Comenzar gratis</a>
+      <a class="header-cta" href="#contacto" data-panel="cuenta">Comenzar gratis</a>
     </div>
   </header>
 
@@ -36,7 +36,7 @@
         <h1>Vende, controla inventario y cobra creditos desde un solo sistema.</h1>
         <p class="hero-copy">Un POS pensado para negocios ferreteros: codigos de barras, productos a granel, caja, clientes con credito, recepcion de mercancia y reportes para tomar decisiones.</p>
         <div class="hero-actions">
-          <a class="btn primary" href="#contacto">Comenzar gratis</a>
+          <a class="btn primary" href="#contacto" data-panel="cuenta">Comenzar gratis</a>
           <a class="btn secondary" href="#demo">Ver recorrido</a>
         </div>
         <div class="hero-proof">
@@ -142,14 +142,14 @@
     <section id="demo" class="demo-section">
       <div class="demo-copy">
         <p class="eyebrow">Video demo</p>
-        <h2>Un recorrido claro para ensenar como trabaja Nexo POS.</h2>
-        <p>Este espacio queda listo para conectar tu video de demostracion: venta rapida, credito, recepcion de mercancia, inventario bajo y reportes.</p>
-        <a class="btn primary" href="#contacto">Agendar demostracion</a>
+        <h2>Conoce a Nexo en menos de 2 minutos.</h2>
+        <p>Un recorrido rapido por venta, credito, recepcion de mercancia, inventario bajo y reportes -- protagonizado por Nexo, el asistente del sistema.</p>
+        <a class="btn primary" href="#contacto" data-panel="info">Agendar demostracion</a>
       </div>
-      <div class="video-shell" aria-label="Video demo pendiente">
+      <div class="video-shell" aria-label="Video demo pendiente" data-video-estado="proximamente" data-video-id="">
         <div class="play-button">▶</div>
         <strong>Demo Nexo POS</strong>
-        <span>Venta, inventario y credito en accion</span>
+        <span>Muy pronto -- venta, inventario y credito en accion</span>
       </div>
     </section>
 
@@ -158,10 +158,25 @@
         <p class="eyebrow">Planes</p>
         <h2>Tres planes que crecen con tu ferreteria.</h2>
       </div>
-      <p class="pricing-note">Los tres planes estan disponibles hoy en modo demo sin costo mientras terminamos de definir los precios de lanzamiento. Escribenos por <a href="https://wa.me/524981234567?text=Hola,%20quiero%20saber%20mas%20de%20los%20planes%20de%20Nexo%20POS" target="_blank" rel="noopener">WhatsApp</a> si quieres ser de los primeros en contratar uno cuando abran.</p>
+
+      <div class="pricing-promo">
+        <img src="/img/nexo-ia/alerta.jpg" alt="" aria-hidden="true">
+        <div class="pricing-promo-texto">
+          <p class="pricing-promo-eyebrow">🔥 Precio fundador</p>
+          <h3>40% de descuento para siempre</h3>
+          <p id="fundadorSpotsTexto">Limitado a los primeros 10 negocios.</p>
+        </div>
+      </div>
+
       <div class="plans">
         <article>
           <h3>Basico</h3>
+          <div class="plan-precio">
+            <span class="plan-precio-antes">$199/mes</span>
+            <strong class="plan-precio-fundador">$119.40/mes</strong>
+            <span class="plan-precio-ahorro">Ahorras $79.60 cada mes</span>
+          </div>
+          <p class="plan-precio-nota">40% de por vida para los primeros 10 negocios.</p>
           <p class="plan-target">Negocio de una caja: el dueno y, cuando mucho, un cajero.</p>
           <strong>Arranca y vende</strong>
           <ul>
@@ -174,13 +189,19 @@
             <li>Manuales y ayuda integrada</li>
           </ul>
           <div class="plan-acciones">
-            <a class="plan-cta" href="#contacto">Comenzar gratis</a>
+            <a class="plan-cta" href="#contacto" data-panel="cuenta">Comenzar gratis</a>
             <button type="button" class="plan-detalles-btn" data-plan="basico">Ver detalles</button>
           </div>
         </article>
         <article class="featured">
           <span class="plan-badge">Mas elegido</span>
           <h3>Plus</h3>
+          <div class="plan-precio">
+            <span class="plan-precio-antes">$499/mes</span>
+            <strong class="plan-precio-fundador">$299.40/mes</strong>
+            <span class="plan-precio-ahorro">Ahorras $199.60 cada mes</span>
+          </div>
+          <p class="plan-precio-nota">40% de por vida para los primeros 10 negocios.</p>
           <p class="plan-target">2 a 5 puntos de cobro, ya recibes catalogos digitales de tus proveedores.</p>
           <strong>Deja de capturar a mano</strong>
           <ul>
@@ -191,14 +212,21 @@
             <li>Fotos de producto por lote</li>
             <li>Recepcion de mercancia por XML CFDI o CSV</li>
             <li>Reportes con comparativas</li>
+            <li>Nexo IA: analisis limitado (hasta 50 preguntas al mes)</li>
           </ul>
           <div class="plan-acciones">
-            <a class="plan-cta" href="#contacto">Comenzar gratis</a>
+            <a class="plan-cta" href="#contacto" data-panel="cuenta">Comenzar gratis</a>
             <button type="button" class="plan-detalles-btn" data-plan="plus">Ver detalles</button>
           </div>
         </article>
         <article>
           <h3>Pro</h3>
+          <div class="plan-precio">
+            <span class="plan-precio-antes">$799/mes</span>
+            <strong class="plan-precio-fundador">$479.40/mes</strong>
+            <span class="plan-precio-ahorro">Ahorras $319.60 cada mes</span>
+          </div>
+          <p class="plan-precio-nota">40% de por vida para los primeros 10 negocios.</p>
           <p class="plan-target">Negocio establecido, varias sucursales o alto volumen.</p>
           <strong>Automatizacion e inteligencia</strong>
           <ul>
@@ -206,12 +234,12 @@
             <li>Empleados y equipos ilimitados</li>
             <li>Finanzas avanzadas y dashboard ejecutivo</li>
             <li>Centro de Seguridad unificado</li>
-            <li>IA Nexo: precios sugeridos y deteccion de duplicados</li>
+            <li>Nexo IA: mayor cupo de analisis (hasta 500 preguntas al mes) y busqueda en internet</li>
             <li>Banco Global de Imagenes</li>
             <li>Respaldos automaticos y soporte prioritario</li>
           </ul>
           <div class="plan-acciones">
-            <a class="plan-cta" href="#contacto">Comenzar gratis</a>
+            <a class="plan-cta" href="#contacto" data-panel="cuenta">Comenzar gratis</a>
             <button type="button" class="plan-detalles-btn" data-plan="pro">Ver detalles</button>
           </div>
         </article>
@@ -263,27 +291,54 @@
     </section>
 
     <section id="contacto" class="contact">
-      <div>
-        <p class="eyebrow">Solicita una demo</p>
+      <div class="contact-intro">
+        <p class="eyebrow">Hablemos</p>
         <h2>Veamos si Nexo POS encaja con tu ferreteria.</h2>
-        <p>Agenda una demostracion, resuelve dudas y revisa que plan conviene para tu negocio.</p>
+        <p>Sin compromiso: pide informacion, agenda una demostracion o empieza tu prueba gratis cuando estes listo.</p>
+        <a class="contact-whatsapp" href="https://wa.me/524424950495?text=Hola%2C%20vi%20NEXO%20POS%20y%20quiero%20recibir%20informaci%C3%B3n%20para%20mi%20negocio." target="_blank" rel="noopener">
+          <span>¿Prefieres WhatsApp?</span>
+          <strong>Escribenos directo</strong>
+        </a>
       </div>
-      <form class="lead-form" id="registroClienteForm">
-        <input type="text" id="registroEmpresaWeb" name="empresaWeb" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
-        <label>Nombre del negocio<input id="registroNegocio" type="text" placeholder="Ej. Ferreteria Olimpico" required></label>
-        <label>Telefono<input id="registroTelefono" type="tel" placeholder="Ej. 498 123 4567" required></label>
-        <label>Correo<input id="registroCorreo" type="email" placeholder="Ej. dueno@tunegocio.com" required></label>
-        <label>Contrasena<input id="registroPassword" type="password" placeholder="Minimo 8 caracteres" minlength="8" required></label>
-        <label>Confirmar contrasena<input id="registroConfirmarPassword" type="password" placeholder="Repite tu contrasena" minlength="8" required></label>
-        <label>Ciudad<input id="registroCiudad" type="text" placeholder="Ej. Rio Grande, Zac."></label>
-        <label>Contacto<input id="registroContacto" type="text" placeholder="Ej. Gustavo"></label>
-        <label class="lead-consent">
-          <input id="registroAceptaTerminos" type="checkbox" required>
-          <span>Acepto los <a href="/terminos" target="_blank" rel="noopener">Terminos de Servicio</a> y el <a href="/privacidad" target="_blank" rel="noopener">Aviso de Privacidad</a> de Nexo POS.</span>
-        </label>
-        <button class="btn primary" type="submit" id="registroSubmit">Solicitar licencia</button>
-        <div id="registroResultado" class="lead-result" aria-live="polite"></div>
-      </form>
+
+      <div class="contact-panel-wrap">
+        <div class="contact-tabs" role="tablist">
+          <button type="button" class="contact-tab active" data-tab="info" role="tab" aria-selected="true">Quiero informacion</button>
+          <button type="button" class="contact-tab" data-tab="cuenta" role="tab" aria-selected="false">Ya quiero crear mi cuenta</button>
+        </div>
+
+        <div class="contact-panel" id="panelInfo" role="tabpanel">
+          <form class="lead-form" id="contactoLeadForm">
+            <input type="text" id="contactoEmpresaWeb" name="empresaWeb" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
+            <label>Tu nombre<input id="contactoNombre" type="text" placeholder="Ej. Gustavo" required></label>
+            <label>Negocio<input id="contactoNegocio" type="text" placeholder="Ej. Ferreteria Olimpico"></label>
+            <label>Telefono<input id="contactoTelefono" type="tel" placeholder="Ej. 442 123 4567"></label>
+            <label>Correo<input id="contactoCorreo" type="email" placeholder="Ej. dueno@tunegocio.com"></label>
+            <label>Mensaje (opcional)<input id="contactoMensaje" type="text" placeholder="Cuentanos que necesitas"></label>
+            <button class="btn primary" type="submit" id="contactoSubmit">Enviar</button>
+            <div id="contactoResultado" class="lead-result" aria-live="polite"></div>
+          </form>
+        </div>
+
+        <div class="contact-panel" id="panelCuenta" role="tabpanel" hidden>
+          <form class="lead-form" id="registroClienteForm">
+            <input type="text" id="registroEmpresaWeb" name="empresaWeb" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
+            <label>Nombre del negocio<input id="registroNegocio" type="text" placeholder="Ej. Ferreteria Olimpico" required></label>
+            <label>Telefono<input id="registroTelefono" type="tel" placeholder="Ej. 498 123 4567" required></label>
+            <label>Correo<input id="registroCorreo" type="email" placeholder="Ej. dueno@tunegocio.com" required></label>
+            <label>Contrasena<input id="registroPassword" type="password" placeholder="Minimo 8 caracteres" minlength="8" required></label>
+            <label>Confirmar contrasena<input id="registroConfirmarPassword" type="password" placeholder="Repite tu contrasena" minlength="8" required></label>
+            <label>Ciudad<input id="registroCiudad" type="text" placeholder="Ej. Rio Grande, Zac."></label>
+            <label>Contacto<input id="registroContacto" type="text" placeholder="Ej. Gustavo"></label>
+            <label class="lead-consent">
+              <input id="registroAceptaTerminos" type="checkbox" required>
+              <span>Acepto los <a href="/terminos" target="_blank" rel="noopener">Terminos de Servicio</a> y el <a href="/privacidad" target="_blank" rel="noopener">Aviso de Privacidad</a> de Nexo POS.</span>
+            </label>
+            <button class="btn primary" type="submit" id="registroSubmit">Solicitar licencia</button>
+            <div id="registroResultado" class="lead-result" aria-live="polite"></div>
+          </form>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -452,6 +507,110 @@
     document.addEventListener("keydown", event => {
       if (event.key === "Escape") cerrarPlanModal();
     });
+
+    // Pestanas de #contacto: "Quiero informacion" (default) vs "Ya
+    // quiero crear mi cuenta" -- activarPanelContacto() se llama tanto
+    // desde los botones de pestana como desde cualquier CTA con
+    // data-panel="cuenta"/"info" antes de que el navegador haga el
+    // scroll nativo del href="#contacto".
+    function activarPanelContacto(panel) {
+      const esInfo = panel !== "cuenta";
+
+      document.querySelectorAll(".contact-tab").forEach(tab => {
+        const activa = tab.dataset.tab === (esInfo ? "info" : "cuenta");
+        tab.classList.toggle("active", activa);
+        tab.setAttribute("aria-selected", String(activa));
+      });
+
+      document.getElementById("panelInfo").hidden = !esInfo;
+      document.getElementById("panelCuenta").hidden = esInfo;
+    }
+
+    document.querySelectorAll(".contact-tab").forEach(tab => {
+      tab.addEventListener("click", () => activarPanelContacto(tab.dataset.tab));
+    });
+
+    document.querySelectorAll("[data-panel]").forEach(el => {
+      el.addEventListener("click", () => activarPanelContacto(el.dataset.panel));
+    });
+
+    // Formulario "Quiero informacion" -- nunca pide contrasena, postea
+    // a /api/contacto-landing (lead, sin crear cuenta).
+    const contactoForm = document.getElementById("contactoLeadForm");
+    const contactoButton = document.getElementById("contactoSubmit");
+    const contactoResultado = document.getElementById("contactoResultado");
+
+    function renderContacto(message, isError = false) {
+      contactoResultado.classList.toggle("error", isError);
+      contactoResultado.innerHTML = message;
+    }
+
+    contactoForm?.addEventListener("submit", async event => {
+      event.preventDefault();
+
+      contactoButton.disabled = true;
+      renderContacto("Enviando...");
+
+      try {
+        const response = await fetch("/api/contacto-landing", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            nombre: document.getElementById("contactoNombre").value,
+            negocio: document.getElementById("contactoNegocio").value,
+            telefono: document.getElementById("contactoTelefono").value,
+            correo: document.getElementById("contactoCorreo").value,
+            mensaje: document.getElementById("contactoMensaje").value,
+            empresaWeb: document.getElementById("contactoEmpresaWeb").value
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.ok === false) {
+          throw new Error(data.error || "No se pudo enviar tu mensaje.");
+        }
+
+        renderContacto("<strong>Listo</strong><span>Recibimos tus datos, te contactaremos pronto.</span>");
+        contactoForm.reset();
+      } catch (error) {
+        renderContacto(error.message, true);
+      } finally {
+        contactoButton.disabled = false;
+      }
+    });
+
+    // Banner de "lugares fundador" -- el HTML ya trae el texto
+    // estatico de respaldo ("Limitado a los primeros 10 negocios.");
+    // solo se sobrescribe si /api/fundador-publico responde con un
+    // numero real. Si falla, tarda, o no hay cupon activo, el texto
+    // estatico se queda tal cual (nunca se inventa un numero).
+    (async function cargarFundadorPublico() {
+      const span = document.getElementById("fundadorSpotsTexto");
+      if (!span) return;
+
+      try {
+        const response = await fetch("/api/fundador-publico");
+        const data = await response.json();
+
+        if (data.ok && data.activo && typeof data.restantes === "number") {
+          span.textContent = data.restantes > 0
+            ? `Quedan ${data.restantes} de 10 lugares con precio fundador.`
+            : "Los 10 lugares de precio fundador ya se ocuparon.";
+        }
+      } catch (error) {
+        // Sin conexion o el endpoint fallo -- se deja el texto
+        // estatico que ya trae el HTML, nunca un numero inventado.
+      }
+    })();
+
+    // Llegar con ?panel=cuenta (ej. desde el CTA "Comenzar gratis" de
+    // /nexo-ia, una pagina distinta) abre directo la pestana de
+    // cuenta -- mismo efecto que hacer clic en un CTA con
+    // data-panel="cuenta" dentro de esta misma pagina.
+    if (new URLSearchParams(window.location.search).get("panel") === "cuenta") {
+      activarPanelContacto("cuenta");
+    }
   </script>
 </body>
 </html>

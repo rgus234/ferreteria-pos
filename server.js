@@ -21,7 +21,8 @@ const { listarPlanes, listarCatalogoFunciones, funcionesDelPlan } = require("./f
 const {
     enviarCorreoVerificacion,
     enviarCorreoRecuperacion,
-    enviarCorreoActivacionCuenta
+    enviarCorreoActivacionCuenta,
+    enviarCorreoLeadLanding
 } = require("./email");
 
 validarConfigProduccion();
@@ -637,6 +638,63 @@ app.post("/api/clientes/registro", async (req, res) => {
         responderError(res, error);
     } finally {
         client.release();
+    }
+});
+
+// Formulario de "quiero informacion" del sitio publico -- a
+// diferencia de /api/clientes/registro, NUNCA pide contrasena ni crea
+// una cuenta. Solo guarda el lead y avisa por correo; el dueno le da
+// seguimiento a mano (WhatsApp, llamada, etc.).
+app.post("/api/contacto-landing", async (req, res) => {
+    if (limpiarTexto(req.body?.empresaWeb, 200)) {
+        res.status(400).json({ ok: false, error: "Solicitud invalida" });
+        return;
+    }
+
+    if (limitadorContactoLanding.bloqueado(req.ip)) {
+        res.status(429).json({
+            ok: false,
+            error: "Demasiadas solicitudes. Intenta de nuevo mas tarde."
+        });
+        return;
+    }
+
+    limitadorContactoLanding.registrarFallo(req.ip);
+
+    const nombre = limpiarTexto(req.body?.nombre, 140);
+    const negocio = limpiarTexto(req.body?.negocio, 140);
+    const telefono = limpiarTexto(req.body?.telefono, 40);
+    const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+    const mensaje = limpiarTexto(req.body?.mensaje, 500);
+
+    if (!nombre) {
+        res.status(400).json({ ok: false, error: "Escribe tu nombre" });
+        return;
+    }
+
+    if (!telefono && !correo) {
+        res.status(400).json({ ok: false, error: "Deja un telefono o un correo para contactarte" });
+        return;
+    }
+
+    if (correo && !REGEX_CORREO.test(correo)) {
+        res.status(400).json({ ok: false, error: "Escribe un correo valido" });
+        return;
+    }
+
+    try {
+        await pool.query(
+            `INSERT INTO public.contactos_landing (nombre, negocio, telefono, correo, mensaje, ip)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [nombre, negocio, telefono, correo, mensaje, req.ip]
+        );
+
+        enviarCorreoLeadLanding({ nombre, negocio, telefono, correo, mensaje })
+            .catch(error => console.warn("No se pudo enviar el aviso de lead", error.message));
+
+        res.status(201).json({ ok: true });
+    } catch (error) {
+        responderError(res, error);
     }
 });
 
@@ -1960,6 +2018,7 @@ function crearLimitadorPorIp(maxIntentos, ventanaMs) {
 
 const limitadorAdminKey = crearLimitadorPorIp(8, 15 * 60 * 1000);
 const limitadorRegistroPublico = crearLimitadorPorIp(5, 60 * 60 * 1000);
+const limitadorContactoLanding = crearLimitadorPorIp(5, 60 * 60 * 1000);
 const limitadorReenviarVerificacion = crearLimitadorPorIp(5, 60 * 60 * 1000);
 const limitadorLoginCuenta = crearLimitadorPorIp(8, 15 * 60 * 1000);
 const limitadorOlvidePassword = crearLimitadorPorIp(5, 60 * 60 * 1000);
@@ -2063,6 +2122,25 @@ app.get("/admin/api/resumen", async (_req, res) => {
                 }
             }
         });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+// Leads del formulario "quiero informacion" del sitio publico --
+// solo lectura, protegida por validarAdminKey (montada mas arriba
+// sobre todo el prefijo /admin/api). Sin UI propia todavia; se
+// consulta con la admin key hasta que se justifique una pantalla.
+app.get("/admin/api/contactos-landing", async (_req, res) => {
+    try {
+        const resultado = await pool.query(`
+            SELECT id, nombre, negocio, telefono, correo, mensaje, atendido, created_at
+            FROM public.contactos_landing
+            ORDER BY created_at DESC
+            LIMIT 200
+        `);
+
+        res.json({ ok: true, contactos: resultado.rows });
     } catch (error) {
         responderError(res, error);
     }

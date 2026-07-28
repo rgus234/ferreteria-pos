@@ -208,10 +208,47 @@ function enviarCorreoPagoFallido(correo, nombreNegocio, { montoTexto, fechaReint
     });
 }
 
+const CORREO_NOTIFICACIONES_LEADS = process.env.LEADS_NOTIFICATION_EMAIL || "nexoposoficial@gmail.com";
+
+// El lead viene de un formulario publico sin autenticacion -- se
+// escapa antes de interpolarlo en el HTML del correo para que nadie
+// pueda inyectar un enlace/marcado falso en un correo que parece
+// venir de Nexo POS.
+function escaparHtmlCorreo(valor) {
+    return String(valor || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function enviarCorreoLeadLanding({ nombre, negocio, telefono, correo, mensaje }) {
+    return enviarCorreo({
+        correo: CORREO_NOTIFICACIONES_LEADS,
+        asunto: `Nuevo contacto desde el sitio -- ${escaparHtmlCorreo(nombre)}`,
+        html: envolverPlantilla(
+            "Nuevo lead",
+            "Alguien pidio informacion en nexoposoficial.com",
+            `
+            <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 18px;">
+                <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Nombre:</strong> ${escaparHtmlCorreo(nombre) || "-"}</td></tr>
+                <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Negocio:</strong> ${escaparHtmlCorreo(negocio) || "-"}</td></tr>
+                <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Telefono:</strong> ${escaparHtmlCorreo(telefono) || "-"}</td></tr>
+                <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Correo:</strong> ${escaparHtmlCorreo(correo) || "-"}</td></tr>
+                <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Mensaje:</strong> ${escaparHtmlCorreo(mensaje) || "(sin mensaje)"}</td></tr>
+            </table>
+            ${avisoHtml("Este lead tambien quedo guardado en la tabla contactos_landing.")}
+            `
+        )
+    });
+}
+
 module.exports = {
     enviarCorreoVerificacion,
     enviarCorreoRecuperacion,
     enviarCorreoActivacionCuenta,
     enviarCorreoRespaldo,
-    enviarCorreoPagoFallido
+    enviarCorreoPagoFallido,
+    enviarCorreoLeadLanding
 };

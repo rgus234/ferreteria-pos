@@ -5521,3 +5521,142 @@ de sincronizacion.
 
 Pendiente de confirmacion explicita del usuario antes de
 `git commit`/`push`.
+
+# Rediseno del sitio publico -- recorrido folleto/QR, precios reales, promo de fundadores, Nexo IA y formulario de contacto separado (2026-07-28)
+
+El usuario va a repartir tripticos fisicos en ferreterias con un QR
+hacia `nexoposoficial.com`, y pidio un diagnostico completo antes de
+tocar codigo. Se investigo con 3 agentes en paralelo (frontend del
+sitio, backend de precios/promo, capacidades reales de Nexo IA), se
+presento un plan y se implemento tras su aprobacion.
+
+**Hallazgo critico durante Fase 0 (antes de fijar copy de precios)**:
+se escribio `scripts/verificar-precios-stripe.js` (de solo lectura,
+llama `stripe.prices.retrieve` sobre los 3 price IDs configurados) y
+se corrio contra Stripe real -- los precios que el usuario pidio
+publicar ($299/$599/$799) **no coincidian** con lo configurado hoy en
+Stripe ($199/$499/$799 -- Pro si coincidia). Se le pregunto
+explicitamente cual era el correcto en vez de adivinar; confirmo que
+los precios reales son **$199/$499/$799 MXN**. Todo el copy de precios
+y el calculo de la promo de fundadores (40% de descuento) se hizo con
+estos numeros reales, no los que se habian pedido originalmente.
+
+**Backend nuevo**:
+- `migrations/20260728_contactos_landing.sql` -- tabla
+  `contactos_landing` (nombre, negocio, telefono, correo, mensaje, ip,
+  atendido, created_at) para leads del sitio publico, sin FK a
+  `negocios` (todavia no tienen cuenta).
+- `POST /api/contacto-landing` (server.js, junto a
+  `/api/clientes/registro`) -- formulario de "quiero informacion",
+  **nunca pide contrasena**, mismo patron de honeypot + rate-limit
+  (5/hora/IP, limitador propio `limitadorContactoLanding` separado del
+  de registro) que ya usaba el registro. Inserta el lead y dispara
+  (sin esperar) un correo de aviso a `nexoposoficial@gmail.com`.
+- `GET /api/fundador-publico` (stripe-server.js, publica, sin auth) --
+  reusa `cuponFundadorVigente()` ya existente y expone **solo**
+  `{activo, restantes}`, nunca el codigo real ni el cupo total (esos
+  siguen exclusivos de `/admin/api/descuento-fundadores`). Si Stripe
+  no esta configurado o el cupon no existe, responde `activo:false,
+  restantes:null` con 200 (nunca error) para que el frontend tenga un
+  solo camino de manejo.
+- `GET /admin/api/contactos-landing` (protegida por `validarAdminKey`
+  ya montada) -- lista los ultimos 200 leads, solo lectura, sin UI
+  propia todavia.
+- `email.js` gano `enviarCorreoLeadLanding()` (mismo patron que las
+  demas) con un escape HTML nuevo (`escaparHtmlCorreo`) para los 5
+  campos del lead -- es contenido de un formulario publico sin
+  autenticacion, se escapa antes de interpolarlo en el correo para que
+  nadie pueda inyectar un enlace falso en un correo que parece venir
+  de Nexo POS.
+
+**Verificado en vivo contra Stripe real** (sin tocar nada, solo
+lectura): el cupon `FUNDADOR40` **ya existe** con cupo 10 y 0 usados
+-- `/api/fundador-publico` respondio `{activo:true, restantes:10}` de
+inmediato, asi que el banner de precio fundador ya muestra el numero
+real desde el dia uno, no el texto estatico de respaldo.
+
+**Frontend -- `public/site/index.html`**:
+- Numero de WhatsApp corregido en las 2 ocurrencias
+  (`524981234567` → `524424950495`, el numero real del usuario,
+  442 495 0495), con el texto de mensaje que pidio.
+- Seccion demo: copy actualizado ("Conoce a Nexo en menos de 2
+  minutos"), `.video-shell` gano atributos `data-video-estado`/
+  `data-video-id` reservados para cuando exista el video real -- sin
+  insertar ningun embed falso.
+- Seccion de precios: se elimino la nota obsoleta ("modo demo sin
+  costo mientras definimos precios de lanzamiento"). Se agrego una
+  banda `.pricing-promo` (mismo gradiente oscuro que ya usaba
+  `.demo-section`) con el mascota `alerta.jpg` (sin usar hasta ahora
+  en el sitio publico) y el banner "40% de descuento para siempre".
+  Cada tarjeta de plan gano precio tachado + precio fundador + ahorro
+  mensual exacto (Basico $199→$119.40, Plus $499→$299.40, Pro
+  $799→$479.40).
+- **Overclaim corregido**: la tarjeta Pro decia *"IA Nexo: precios
+  sugeridos y deteccion de duplicados"* como si ya estuviera incluido
+  -- pero esas 2 funciones estan marcadas `estado:'planeado'` (no
+  `activo`) en `catalogo_funciones`, por eso nunca aparecian en el
+  modal real "Ver detalles". Se reemplazo por lo que Pro si tiene hoy
+  (mayor cupo de Nexo IA + busqueda web).
+- Seccion `#contacto` separada en 2 pestanas: "Quiero informacion"
+  (nueva, sin contrasena, postea a `/api/contacto-landing`, activa por
+  defecto) y "Ya quiero crear mi cuenta" (el `#registroClienteForm`
+  original, **mismos ids intactos**, sin tocar su JS ni el endpoint
+  `/api/clientes/registro`). Los CTA "Comenzar gratis" del sitio ganan
+  `data-panel="cuenta"` para abrir directo esa pestana.
+- Tarjeta de WhatsApp visible arriba de las pestanas.
+
+**Frontend -- `public/site/nexo-ia.html`**: la grilla de 6 tarjetas se
+reestructuro en los 4 pilares que pidio el usuario (ANALIZA/
+RECOMIENDA/OPTIMIZA/PROTEGE), mapeados 1:1 a herramientas reales ya
+verificadas (resumen_ventas/top_productos/comparar_periodos,
+busqueda web solo Pro, abrir_modulo + preparar_creacion con la
+aclaracion explicita de que nunca guarda solo, alertas de stock bajo/
+creditos vencidos). Sin ninguna etiqueta "Proximamente" -- los 4
+pilares mapean completo a funciones reales, no se prometio nada que
+no exista. La grilla de planes (50/500 preguntas) ya era correcta, no
+se toco.
+
+**Cross-page**: los CTA de `nexo-ia.html` usan
+`href="/?panel=cuenta#contacto"`; `index.html` lee `?panel=cuenta` al
+cargar y activa la pestana de cuenta -- mismo efecto que un clic
+same-page con `data-panel="cuenta"`.
+
+**Verificacion real hecha** (servidor local temporal en :3999, negocio
+real de Ferreteria Olimpico sin tocar -- todas las pruebas fueron
+contra rutas publicas sin negocio_id):
+- Backend: `POST /api/contacto-landing` valido → `201` + fila real +
+  correo intentado; honeypot → `400` sin escribir; 6/hora → `429`;
+  `GET /api/fundador-publico` nunca expone codigo/cupo, solo
+  activo/restantes; `GET /admin/api/contactos-landing` sin key → `401`,
+  con key → lista el lead real.
+- Frontend en escritorio (1440px) y movil real (375px): banda de
+  precios, banner de fundadores con el numero real, pestanas de
+  contacto (confirmado que el formulario de cuenta reubicado sigue
+  posteando a `/api/clientes/registro` sin cambios), envio real del
+  formulario de informacion de punta a punta via UI, modal "Ver
+  detalles" (`/api/planes-publico`) sin cambios, pilares de Nexo IA en
+  `/nexo-ia`. Sin errores de consola en ningun punto.
+- Los 2 leads de prueba se borraron de `contactos_landing` despues de
+  verificar.
+- `node --check` limpio en `server.js`, `stripe-server.js`, `email.js`
+  y `scripts/verificar-precios-stripe.js`.
+
+**Fuera de alcance (documentado explicitamente)**: automatizacion real
+de WhatsApp Business API (el menu interactivo que describio el
+usuario) -- requiere infraestructura que no existe hoy, se dejo solo
+el enlace `wa.me` con texto prellenado. UI de administracion para los
+leads (solo la ruta de lectura). Testimonios genericos y el mockup de
+cifras del hero -- no se tocaron, no fueron pedidos, quedan anotados
+como una mejora de confianza a futuro. Ninguna logica de
+checkout/webhook/licencia se toco -- el auto-aplicado del cupon de
+fundadores en `POST /suscripcion/checkout` sigue exactamente igual.
+
+**Pendiente de verificar por el usuario, no verificable desde este
+entorno**: el formato exacto del numero de WhatsApp en el enlace
+`wa.me/524424950495` -- probarlo en un telefono real con WhatsApp
+instalado antes de imprimir el triptico; si abre un chat incorrecto,
+el formato alterno a probar es `wa.me/5214424950495` (prefijo `521`
+historico para moviles de Mexico).
+
+Pendiente de confirmacion explicita del usuario antes de
+`git commit`/`push`.
