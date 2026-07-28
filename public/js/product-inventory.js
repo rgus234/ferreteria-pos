@@ -393,6 +393,7 @@ async function verificarImagenExistenteParaCodigo(codigo) {
  codigoImagenExistenteActual = existe ? codigo : null;
 
  marcarImagenProductoEncontrada(existe);
+ mostrarImagenPreviewProducto(existe ? datos.imagenUrl : "");
  } catch (error) {
  // Silencioso -- no interrumpe el formulario si falla la consulta.
  }

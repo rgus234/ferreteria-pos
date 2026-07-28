@@ -4417,13 +4417,25 @@ app.get("/productos", requerirAccesoNegocio, async (req, res) => {
 app.get("/fotos-producto-existe/:codigo", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
+        const codigo = normalizarCodigoFoto(req.params.codigo);
 
         const resultado = await pool.query(
-            `SELECT 1 FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = $2 LIMIT 1`,
-            [negocio.id, normalizarCodigoFoto(req.params.codigo)]
+            `SELECT actualizado_at FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = $2 LIMIT 1`,
+            [negocio.id, codigo]
         );
 
-        res.json({ ok: true, existe: resultado.rows.length > 0 });
+        const fila = resultado.rows[0];
+        if (!fila) {
+            res.json({ ok: true, existe: false });
+            return;
+        }
+
+        const version = new Date(fila.actualizado_at).getTime();
+        res.json({
+            ok: true,
+            existe: true,
+            imagenUrl: `/fotos-producto/${codigo}/principal?negocio=${negocio.slug}&v=${version}&token=${firmarTokenImagen(negocio.id, codigo)}`
+        });
     } catch (error) {
         responderError(res, error);
     }
