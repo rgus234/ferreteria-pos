@@ -105,7 +105,7 @@ function mostrarVistaAdmin(vista) {
     button.classList.toggle("active", button.dataset.view === target);
   });
   if (target === "ingresos") cargarDescuentoFundadoresAdmin();
-  if (target === "fotos") cargarBancoImagenesAdmin();
+  if (target === "fotos") abrirVistaBancoImagenesAdmin();
 }
 
 function pintarMetricasAdmin(resumen) {
@@ -306,19 +306,163 @@ async function crearDescuentoFundadoresAdmin() {
   }
 }
 
+// ==========================================================================
+// Banco de imagenes global -- rediseno premium: tiles de proveedor,
+// metricas, importacion masiva con cola en el navegador, grilla con
+// panel de detalle, solicitudes de fotografia.
+// ==========================================================================
+
 let bancoImagenesPaginaActual = 1;
 let bancoImagenesBuscarActual = "";
 let bancoImagenesBuscarTimeout = null;
+let bancoImagenesMarcaFiltro = "";
+let bancoImagenesOrdenActual = "recientes";
+let bancoImagenesCodigoSeleccionado = null;
+let bancoImagenesTabDetalleActual = "info";
+let bancoImagenesObserverThumbs = null;
+
+const BANCO_IMAGENES_COLORES = {
+  diprofer: "#2563eb", gafi: "#ea580c", truper: "#dc2626", volteck: "#7c3aed",
+  urrea: "#0f766e", pretul: "#b45309", foy: "#be185d"
+};
+const BANCO_IMAGENES_PALETA_RESPALDO = ["#0d6efd", "#7c3aed", "#0f766e", "#b45309", "#be185d", "#0891b2", "#4338ca", "#15803d"];
+
+function colorParaMarcaBanco(marca) {
+  const clave = String(marca || "").trim().toLowerCase();
+  if (!clave) return "#667085";
+  if (BANCO_IMAGENES_COLORES[clave]) return BANCO_IMAGENES_COLORES[clave];
+  let hash = 0;
+  for (let i = 0; i < clave.length; i++) hash = (hash * 31 + clave.charCodeAt(i)) >>> 0;
+  return BANCO_IMAGENES_PALETA_RESPALDO[hash % BANCO_IMAGENES_PALETA_RESPALDO.length];
+}
+
+function formatoBytesAdmin(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+// ---- Tiles de proveedor + franja de metricas ----
+
+async function cargarResumenBancoImagenes() {
+  try {
+    const data = await apiAdmin("/admin/api/banco-imagenes/resumen");
+    pintarTilesBancoImagenes(data);
+    pintarMetricasBancoImagenes(data);
+    pintarFiltroMarcaBancoImagenes(data.marcas || []);
+  } catch (error) {
+    const tiles = document.getElementById("tilesBancoImagenes");
+    if (tiles) tiles.innerHTML = `<div class="empty">${escaparHTMLAdmin(error.message || "No se pudo cargar el resumen.")}</div>`;
+  }
+}
+
+function pintarTilesBancoImagenes(data) {
+  const contenedor = document.getElementById("tilesBancoImagenes");
+  if (!contenedor) return;
+
+  const marcas = data.marcas || [];
+
+  if (!marcas.length) {
+    contenedor.innerHTML = `<div class="empty">Sin proveedores todavia -- importa un .zip para empezar.</div>`;
+    return;
+  }
+
+  const tileTodos = `
+    <div class="banco-imagenes-tile${bancoImagenesMarcaFiltro === "" ? " activo" : ""}" style="--tile-color:#0d6efd" onclick="seleccionarTileBancoImagenes('')">
+      <div class="banco-imagenes-tile-icono">∗</div>
+      <div>
+        <strong>Ver todos los proveedores</strong>
+        <span>${data.totalCodigos} imagenes</span>
+      </div>
+    </div>
+  `;
+
+  const tilesMarca = marcas.map(m => {
+    const color = colorParaMarcaBanco(m.marca);
+    const activo = bancoImagenesMarcaFiltro === m.marca ? " activo" : "";
+    const inicial = m.marca === "Sin marca" ? "?" : m.marca.trim().charAt(0).toUpperCase();
+    return `
+      <div class="banco-imagenes-tile${activo}" style="--tile-color:${color}" onclick="seleccionarTileBancoImagenes('${escaparHTMLAdmin(m.marca).replace(/'/g, "\\'")}')">
+        <div class="banco-imagenes-tile-icono">${escaparHTMLAdmin(inicial)}</div>
+        <div>
+          <strong>${escaparHTMLAdmin(m.marca)}</strong>
+          <span>${m.totalCodigos} imagenes</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  contenedor.innerHTML = tileTodos + tilesMarca;
+}
+
+function seleccionarTileBancoImagenes(marca) {
+  bancoImagenesMarcaFiltro = marca;
+  const select = document.getElementById("filtroMarcaBancoImagenes");
+  if (select) select.value = marca;
+  cargarResumenBancoImagenes();
+  cargarBancoImagenesAdmin(1);
+}
+
+function pintarFiltroMarcaBancoImagenes(marcas) {
+  const select = document.getElementById("filtroMarcaBancoImagenes");
+  if (!select) return;
+  const actual = select.value;
+  select.innerHTML = `<option value="">Todas las marcas</option>` + marcas.map(m =>
+    `<option value="${escaparHTMLAdmin(m.marca)}">${escaparHTMLAdmin(m.marca)} (${m.totalCodigos})</option>`
+  ).join("");
+  select.value = actual || "";
+}
+
+function pintarMetricasBancoImagenes(data) {
+  const contenedor = document.getElementById("metricasBancoImagenes");
+  if (!contenedor) return;
+
+  contenedor.innerHTML = `
+    <article class="metric-card strong">
+      <span>Imagenes totales</span>
+      <strong>${data.totalCodigos}</strong>
+      <small>Codigos con foto principal</small>
+    </article>
+    <article class="metric-card">
+      <span>Fotos totales</span>
+      <strong>${data.totalFotos}</strong>
+      <small>Incluye galeria</small>
+    </article>
+    <article class="metric-card sync">
+      <span>Marcas</span>
+      <strong>${data.totalMarcas}</strong>
+      <small>Proveedores distintos</small>
+    </article>
+    <article class="metric-card">
+      <span>Almacenamiento</span>
+      <strong>${formatoBytesAdmin(data.tamanoTotalBytes)}</strong>
+      <small>Bytes reales en base de datos</small>
+    </article>
+    <article class="metric-card warning">
+      <span>Ultima actualizacion</span>
+      <strong style="font-size:16px;">${data.actualizadoRecienteAt ? fechaHoraCortaAdmin(data.actualizadoRecienteAt) : "-"}</strong>
+      <small>Import mas reciente</small>
+    </article>
+  `;
+}
+
+// ---- Grilla + buscador + orden ----
 
 async function cargarBancoImagenesAdmin(pagina = 1) {
   const contenedor = document.getElementById("grillaBancoImagenes");
   if (!contenedor) return;
 
   bancoImagenesPaginaActual = pagina;
+  bancoImagenesOrdenActual = document.getElementById("ordenBancoImagenes")?.value || "recientes";
+  const marcaSelect = document.getElementById("filtroMarcaBancoImagenes")?.value || "";
+  if (marcaSelect !== bancoImagenesMarcaFiltro) bancoImagenesMarcaFiltro = marcaSelect;
 
   try {
-    const params = new URLSearchParams({ pagina: String(pagina) });
+    const params = new URLSearchParams({ pagina: String(pagina), orden: bancoImagenesOrdenActual });
     if (bancoImagenesBuscarActual) params.set("buscar", bancoImagenesBuscarActual);
+    if (bancoImagenesMarcaFiltro) params.set("marca", bancoImagenesMarcaFiltro);
     const data = await apiAdmin(`/admin/api/banco-imagenes?${params.toString()}`);
     pintarGrillaBancoImagenesAdmin(data);
   } catch (error) {
@@ -339,6 +483,11 @@ function pintarGrillaBancoImagenesAdmin(data) {
   const paginacion = document.getElementById("paginacionBancoImagenes");
   if (!contenedor) return;
 
+  if (bancoImagenesObserverThumbs) {
+    bancoImagenesObserverThumbs.disconnect();
+    bancoImagenesObserverThumbs = null;
+  }
+
   if (!data.items.length) {
     contenedor.innerHTML = `<div class="empty">Sin imagenes todavia -- sube un .zip arriba para empezar.</div>`;
     if (paginacion) paginacion.innerHTML = "";
@@ -346,28 +495,40 @@ function pintarGrillaBancoImagenesAdmin(data) {
   }
 
   contenedor.innerHTML = data.items.map(item => `
-    <article class="banco-imagenes-item" data-codigo="${escaparHTMLAdmin(item.codigo)}">
-      <div class="banco-imagenes-thumb" id="thumb-${escaparHTMLAdmin(item.codigo)}">
-        <span class="empty">Cargando...</span>
+    <article class="banco-imagenes-item${bancoImagenesCodigoSeleccionado === item.codigo ? " seleccionado" : ""}" data-codigo="${escaparHTMLAdmin(item.codigo)}" onclick="abrirDetalleBancoImagenAdmin('${escaparHTMLAdmin(item.codigo).replace(/'/g, "\\'")}')">
+      <div class="banco-imagenes-thumb" id="thumb-${escaparHTMLAdmin(item.codigo)}" data-codigo="${escaparHTMLAdmin(item.codigo)}">
+        <span class="empty">···</span>
+        <span class="banco-imagenes-punto" title="Disponible"></span>
+        <span class="banco-imagenes-badge-fotos">${1 + item.totalGaleria} foto${item.totalGaleria === 0 ? "" : "s"}</span>
       </div>
       <div class="banco-imagenes-info">
         <strong>${escaparHTMLAdmin(item.codigo)}</strong>
-        <span>${escaparHTMLAdmin(item.marca || "Sin marca")}</span>
-        <small>${item.totalGaleria} foto(s) de galeria -- ${fechaCortaAdmin(item.actualizadoAt)}</small>
+        <span>${escaparHTMLAdmin(item.marca || "Sin marca")}${item.ancho && item.alto ? ` · ${item.ancho}×${item.alto}` : ""}</span>
+        <small>${formatoBytesAdmin(item.tamanoBytes)} · ${fechaCortaAdmin(item.actualizadoAt)}</small>
       </div>
-      <button type="button" class="ghost" onclick="eliminarBancoImagenAdmin('${escaparHTMLAdmin(item.codigo)}')">Eliminar</button>
     </article>
   `).join("");
 
-  data.items.forEach(item => cargarThumbnailBancoImagenAdmin(item.codigo));
+  // Miniaturas perezosas -- solo se piden cuando la tarjeta entra en
+  // pantalla, en vez de disparar todas las peticiones de una vez.
+  bancoImagenesObserverThumbs = new IntersectionObserver(entradas => {
+    entradas.forEach(entrada => {
+      if (!entrada.isIntersecting) return;
+      const codigo = entrada.target.dataset.codigo;
+      bancoImagenesObserverThumbs.unobserve(entrada.target);
+      cargarThumbnailBancoImagenAdmin(codigo);
+    });
+  }, { rootMargin: "200px" });
+
+  contenedor.querySelectorAll(".banco-imagenes-thumb").forEach(el => bancoImagenesObserverThumbs.observe(el));
 
   const totalPaginas = Math.max(1, Math.ceil(data.total / data.porPagina));
   if (paginacion) {
     paginacion.innerHTML = totalPaginas > 1
       ? `
-        <button type="button" ${data.pagina <= 1 ? "disabled" : ""} onclick="cargarBancoImagenesAdmin(${data.pagina - 1})">Anterior</button>
+        <button type="button" class="ghost" ${data.pagina <= 1 ? "disabled" : ""} onclick="cargarBancoImagenesAdmin(${data.pagina - 1})">Anterior</button>
         <span>Pagina ${data.pagina} de ${totalPaginas}</span>
-        <button type="button" ${data.pagina >= totalPaginas ? "disabled" : ""} onclick="cargarBancoImagenesAdmin(${data.pagina + 1})">Siguiente</button>
+        <button type="button" class="ghost" ${data.pagina >= totalPaginas ? "disabled" : ""} onclick="cargarBancoImagenesAdmin(${data.pagina + 1})">Siguiente</button>
       `
       : "";
   }
@@ -388,9 +549,13 @@ async function cargarThumbnailBancoImagenAdmin(codigo) {
     if (!respuesta.ok) throw new Error("No se pudo cargar la miniatura");
     const blob = await respuesta.blob();
     const url = URL.createObjectURL(blob);
-    contenedor.innerHTML = `<img src="${url}" alt="${escaparHTMLAdmin(codigo)}">`;
+    const img = document.createElement("img");
+    img.src = url;
+    img.alt = codigo;
+    contenedor.querySelector("span.empty")?.replaceWith(img);
   } catch (error) {
-    contenedor.innerHTML = `<span class="empty">Sin imagen</span>`;
+    const marcador = contenedor.querySelector("span.empty");
+    if (marcador) marcador.textContent = "Sin imagen";
   }
 }
 
@@ -400,12 +565,171 @@ async function eliminarBancoImagenAdmin(codigo) {
 
   try {
     await apiAdmin(`/admin/api/banco-imagenes/${encodeURIComponent(codigo)}`, { method: "DELETE" });
-    await cargarBancoImagenesAdmin(bancoImagenesPaginaActual);
+    if (bancoImagenesCodigoSeleccionado === codigo) {
+      bancoImagenesCodigoSeleccionado = null;
+      const panel = document.getElementById("panelDetalleBancoImagenes");
+      if (panel) panel.innerHTML = `<div class="banco-imagenes-detalle-vacio">Selecciona una imagen para ver su detalle</div>`;
+    }
+    await Promise.all([cargarBancoImagenesAdmin(bancoImagenesPaginaActual), cargarResumenBancoImagenes()]);
   } catch (error) {
     await alertaAdmin(error.message || "No se pudo eliminar la imagen.", "Error", "peligro");
   }
 }
 
+async function descargarImagenBancoAdmin(codigo) {
+  try {
+    const respuesta = await fetch(`/admin/api/banco-imagenes/${encodeURIComponent(codigo)}/principal`, {
+      headers: { "x-admin-key": adminKeyActual() }
+    });
+    if (!respuesta.ok) throw new Error("No se pudo descargar la imagen");
+    const blob = await respuesta.blob();
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement("a");
+    enlace.href = url;
+    enlace.download = `${codigo}.jpg`;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo descargar la imagen.", "Error", "peligro");
+  }
+}
+
+function reemplazarImagenBancoAdmin(codigo) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".zip";
+  input.onchange = async () => {
+    const archivo = input.files?.[0];
+    if (!archivo) return;
+    try {
+      await subirZipBancoImagenesAdmin(archivo, "", () => {});
+      await Promise.all([cargarBancoImagenesAdmin(bancoImagenesPaginaActual), cargarResumenBancoImagenes()]);
+      await abrirDetalleBancoImagenAdmin(codigo);
+      await alertaAdmin("Imagen reemplazada -- se importo el ZIP y se actualizo el codigo si venia incluido.", "Listo", "exito");
+    } catch (error) {
+      await alertaAdmin(error.message || "No se pudo reemplazar la imagen.", "Error", "peligro");
+    }
+  };
+  input.click();
+}
+
+// ---- Panel de detalle (pestanas Informacion / Usos / Historial) ----
+
+async function abrirDetalleBancoImagenAdmin(codigo) {
+  bancoImagenesCodigoSeleccionado = codigo;
+  bancoImagenesTabDetalleActual = "info";
+
+  document.querySelectorAll(".banco-imagenes-item").forEach(el => {
+    el.classList.toggle("seleccionado", el.dataset.codigo === codigo);
+  });
+
+  const panel = document.getElementById("panelDetalleBancoImagenes");
+  if (!panel) return;
+  panel.innerHTML = `<div class="banco-imagenes-detalle-vacio">Cargando...</div>`;
+
+  try {
+    const data = await apiAdmin(`/admin/api/banco-imagenes/${encodeURIComponent(codigo)}/detalle`);
+    await pintarPanelDetalleBancoImagenes(data);
+  } catch (error) {
+    panel.innerHTML = `<div class="banco-imagenes-detalle-vacio">${escaparHTMLAdmin(error.message || "No se pudo cargar el detalle.")}</div>`;
+  }
+}
+
+async function pintarPanelDetalleBancoImagenes(data) {
+  const panel = document.getElementById("panelDetalleBancoImagenes");
+  if (!panel) return;
+
+  const codigo = data.codigo;
+
+  panel.innerHTML = `
+    <div class="banco-imagenes-detalle-preview" id="detallePreviewBanco"><span class="empty">Cargando...</span></div>
+    <div class="banco-imagenes-detalle-tiras" id="detalleTirasBanco"></div>
+    <div class="banco-imagenes-detalle-codigo">${escaparHTMLAdmin(codigo)}</div>
+    <div class="banco-imagenes-detalle-tabs">
+      <button type="button" class="activo" data-tab="info" onclick="cambiarTabDetalleBancoImagenes('info')">Informacion</button>
+      <button type="button" data-tab="usos" onclick="cambiarTabDetalleBancoImagenes('usos')">Usos (${data.usos})</button>
+      <button type="button" data-tab="historial" onclick="cambiarTabDetalleBancoImagenes('historial')">Historial</button>
+    </div>
+    <div class="banco-imagenes-detalle-tabpanel activo" data-tab-panel="info">
+      <div class="banco-imagenes-detalle-campo"><span>Marca</span><span>${escaparHTMLAdmin(data.marca || "Sin marca")}</span></div>
+      <div class="banco-imagenes-detalle-campo"><span>Resolucion</span><span>${data.principal.ancho && data.principal.alto ? `${data.principal.ancho}×${data.principal.alto} px` : "-"}</span></div>
+      <div class="banco-imagenes-detalle-campo"><span>Tamano</span><span>${formatoBytesAdmin(data.principal.tamanoBytes)}</span></div>
+      <div class="banco-imagenes-detalle-campo"><span>Fotos de galeria</span><span>${data.galeria.length}</span></div>
+      <div class="banco-imagenes-detalle-campo"><span>Fuente (ZIP)</span><span>${escaparHTMLAdmin(data.origen || "-")}</span></div>
+      <div class="banco-imagenes-detalle-campo"><span>Creado</span><span>${fechaHoraCortaAdmin(data.creadoAt)}</span></div>
+      <div class="banco-imagenes-detalle-campo"><span>Actualizado</span><span>${fechaHoraCortaAdmin(data.actualizadoAt)}</span></div>
+    </div>
+    <div class="banco-imagenes-detalle-tabpanel" data-tab-panel="usos">
+      <div class="banco-imagenes-detalle-campo"><span>Total de usos</span><span>${data.usos}</span></div>
+      <p class="hint" style="font-size:12px;color:var(--muted);">Cuantas veces un negocio Pro copio esta foto (o una de su galeria) a su propia ficha de producto.</p>
+    </div>
+    <div class="banco-imagenes-detalle-tabpanel" data-tab-panel="historial">
+      ${data.historial.length ? data.historial.map(fila => `
+        <div class="banco-imagenes-detalle-historial-fila">
+          <strong>${escaparHTMLAdmin(fila.negocioNombre)}</strong>
+          <span>${fechaHoraCortaAdmin(fila.fecha)}${fila.fotoGaleria ? " · foto de galeria" : " · foto principal"}</span>
+        </div>
+      `).join("") : `<p class="hint" style="font-size:12px;color:var(--muted);">Sin usos todavia.</p>`}
+    </div>
+    <div class="banco-imagenes-detalle-acciones">
+      <button type="button" class="secondary" onclick="descargarImagenBancoAdmin('${escaparHTMLAdmin(codigo).replace(/'/g, "\\'")}')">Descargar</button>
+      <button type="button" class="secondary" onclick="reemplazarImagenBancoAdmin('${escaparHTMLAdmin(codigo).replace(/'/g, "\\'")}')">Reemplazar</button>
+      <button type="button" class="danger" onclick="eliminarBancoImagenAdmin('${escaparHTMLAdmin(codigo).replace(/'/g, "\\'")}')">Eliminar</button>
+    </div>
+  `;
+
+  // Vista previa grande + tira de miniaturas -- mismo patron de blob
+  // autenticado que las miniaturas de la grilla.
+  const todasLasFotos = [{ esPrincipal: true, url: `/admin/api/banco-imagenes/${encodeURIComponent(codigo)}/principal` }]
+    .concat(data.galeria.map(g => ({ esPrincipal: false, id: g.id, url: `/admin/api/banco-imagenes/${encodeURIComponent(codigo)}/galeria/${g.id}` })));
+
+  const previewEl = document.getElementById("detallePreviewBanco");
+  const tirasEl = document.getElementById("detalleTirasBanco");
+
+  const urlsBlob = await Promise.all(todasLasFotos.map(async foto => {
+    try {
+      const respuesta = await fetch(foto.url, { headers: { "x-admin-key": adminKeyActual() } });
+      if (!respuesta.ok) return null;
+      const blob = await respuesta.blob();
+      return URL.createObjectURL(blob);
+    } catch {
+      return null;
+    }
+  }));
+
+  if (previewEl) {
+    previewEl.innerHTML = urlsBlob[0] ? `<img src="${urlsBlob[0]}" alt="${escaparHTMLAdmin(codigo)}">` : `<span class="empty">Sin imagen</span>`;
+  }
+
+  if (tirasEl && todasLasFotos.length > 1) {
+    tirasEl.innerHTML = todasLasFotos.map((foto, i) =>
+      `<button type="button" class="${i === 0 ? "activo" : ""}" data-indice="${i}" onclick="cambiarPreviewDetalleBancoImagenes(${i}, this)">${urlsBlob[i] ? `<img src="${urlsBlob[i]}">` : ""}</button>`
+    ).join("");
+    tirasEl.dataset.urls = JSON.stringify(urlsBlob);
+  }
+}
+
+function cambiarPreviewDetalleBancoImagenes(indice, boton) {
+  const tirasEl = document.getElementById("detalleTirasBanco");
+  const previewEl = document.getElementById("detallePreviewBanco");
+  if (!tirasEl || !previewEl) return;
+  const urls = JSON.parse(tirasEl.dataset.urls || "[]");
+  if (!urls[indice]) return;
+  previewEl.innerHTML = `<img src="${urls[indice]}" alt="">`;
+  tirasEl.querySelectorAll("button").forEach(b => b.classList.toggle("activo", b === boton));
+}
+
+function cambiarTabDetalleBancoImagenes(tab) {
+  bancoImagenesTabDetalleActual = tab;
+  const panel = document.getElementById("panelDetalleBancoImagenes");
+  if (!panel) return;
+  panel.querySelectorAll("[data-tab]").forEach(b => b.classList.toggle("activo", b.dataset.tab === tab));
+  panel.querySelectorAll("[data-tab-panel]").forEach(p => p.classList.toggle("activo", p.dataset.tabPanel === tab));
+}
+
+// ---- Subida individual (compartida por la cola y por "Reemplazar") ----
 // apiAdmin() fuerza content-type: application/json y no soporta
 // FormData -- aqui hace falta XMLHttpRequest crudo (para poder mostrar
 // avance real) con el header x-admin-key puesto a mano, mismo patron ya
@@ -443,44 +767,331 @@ function subirZipBancoImagenesAdmin(archivo, marca, alAvanzar) {
   });
 }
 
-async function importarBancoImagenesLote() {
-  const input = document.getElementById("archivoBancoImagenes");
-  const archivos = input?.files ? [...input.files] : [];
-  const marca = document.getElementById("marcaBancoImagenes")?.value.trim() || "";
-  const progreso = document.getElementById("progresoBancoImagenes");
+// ---- Importacion masiva: cola secuencial en el navegador ----
+// Render (plan starter) no tiene disco persistente ni un servicio worker
+// separado, asi que en vez de una cola real del lado del servidor, el
+// navegador sostiene los archivos seleccionados/arrastrados y los manda
+// uno por uno via el mismo endpoint de siempre -- decision confirmada con
+// el usuario. Cerrar la pestana a la mitad simplemente detiene ahi.
 
-  if (archivos.length === 0) {
-    await alertaAdmin("Selecciona uno o varios archivos .zip primero.", "Sin archivos", "alerta");
+let bancoImagenesArchivosCola = [];
+let colaImportacionBanco = null;
+
+function agregarArchivosColaBancoImagenes(fileList) {
+  const nuevos = [...(fileList || [])].filter(archivo => /\.zip$/i.test(archivo.name));
+  const yaEstan = new Set(bancoImagenesArchivosCola.map(a => `${a.name}:${a.size}`));
+  nuevos.forEach(archivo => {
+    const clave = `${archivo.name}:${archivo.size}`;
+    if (!yaEstan.has(clave)) {
+      bancoImagenesArchivosCola.push(archivo);
+      yaEstan.add(clave);
+    }
+  });
+  pintarListaArchivosBancoImagenes();
+}
+
+function quitarArchivoColaBancoImagenes(indice) {
+  bancoImagenesArchivosCola.splice(indice, 1);
+  pintarListaArchivosBancoImagenes();
+}
+
+function limpiarColaArchivosBancoImagenes() {
+  bancoImagenesArchivosCola = [];
+  pintarListaArchivosBancoImagenes();
+}
+
+function pintarListaArchivosBancoImagenes() {
+  const contenedor = document.getElementById("listaArchivosBancoImagenes");
+  if (!contenedor) return;
+
+  if (!bancoImagenesArchivosCola.length) {
+    contenedor.innerHTML = "";
     return;
   }
 
-  const totales = { zipsProcesados: 0, fotosGuardadas: 0, errores: [] };
+  const filas = bancoImagenesArchivosCola.map((archivo, i) => `
+    <div class="banco-imagenes-lista-archivo">
+      <span>${escaparHTMLAdmin(archivo.name)}</span>
+      <small>${formatoBytesAdmin(archivo.size)}</small>
+      <button type="button" class="ghost" style="min-height:26px;padding:0 8px;" onclick="quitarArchivoColaBancoImagenes(${i})">Quitar</button>
+    </div>
+  `).join("");
 
-  for (let i = 0; i < archivos.length; i++) {
-    const archivo = archivos[i];
-    if (progreso) progreso.textContent = `Subiendo ${i + 1} de ${archivos.length}: ${archivo.name}...`;
+  contenedor.innerHTML = filas + `
+    <div class="banco-imagenes-lista-archivo" style="background:transparent;border:none;">
+      <span><strong>${bancoImagenesArchivosCola.length} archivo(s) listo(s)</strong></span>
+      <button type="button" class="ghost" onclick="limpiarColaArchivosBancoImagenes()">Limpiar todo</button>
+      <button type="button" onclick="iniciarImportacionMasivaBanco()">Importar ${bancoImagenesArchivosCola.length} ZIP(s)</button>
+    </div>
+  `;
+}
 
-    try {
-      const datos = await subirZipBancoImagenesAdmin(archivo, marca, fraccion => {
-        if (progreso) progreso.textContent = `Subiendo ${i + 1} de ${archivos.length}: ${archivo.name} (${Math.round(fraccion * 100)}%)`;
-      });
-      totales.zipsProcesados += datos.zipsProcesados;
-      totales.fotosGuardadas += datos.fotosGuardadas;
-      totales.errores.push(...datos.errores);
-    } catch (error) {
-      totales.errores.push(`${archivo.name}: ${error.message || "No se pudo importar"}`);
-    }
+function estadoInicialColaImportacionBanco(archivos) {
+  return {
+    archivos,
+    indice: 0,
+    pausado: false,
+    cancelado: false,
+    resumen: { zipsProcesados: 0, fotosGuardadas: 0, solicitudesResueltas: 0, errores: [] }
+  };
+}
+
+async function iniciarImportacionMasivaBanco() {
+  if (!bancoImagenesArchivosCola.length) return;
+  const marca = document.getElementById("marcaBancoImagenes")?.value.trim() || "";
+
+  colaImportacionBanco = estadoInicialColaImportacionBanco(bancoImagenesArchivosCola);
+  bancoImagenesArchivosCola = [];
+  pintarListaArchivosBancoImagenes();
+
+  document.getElementById("importActivoBancoImagenes").style.display = "grid";
+  pintarProgresoImportacionBanco("Subiendo", null);
+  await procesarSiguienteZipBanco(marca);
+}
+
+async function procesarSiguienteZipBanco(marca) {
+  const cola = colaImportacionBanco;
+  if (!cola) return;
+
+  if (cola.cancelado || cola.pausado) {
+    pintarProgresoImportacionBanco(cola.pausado ? "Pausado" : "Cancelado", null);
+    return;
   }
 
-  if (progreso) {
-    progreso.innerHTML = `
-      <strong>${totales.fotosGuardadas} foto(s) guardada(s)</strong> de ${totales.zipsProcesados} archivo(s) procesados.
-      ${totales.errores.length ? `<br><small>${escaparHTMLAdmin(totales.errores.join(" | "))}</small>` : ""}
+  if (cola.indice >= cola.archivos.length) {
+    await mostrarResumenFinalImportacionBanco(cola.resumen);
+    return;
+  }
+
+  const archivo = cola.archivos[cola.indice];
+  pintarProgresoImportacionBanco("Subiendo", archivo.name, 0);
+
+  try {
+    const datos = await subirZipBancoImagenesAdmin(archivo, marca, fraccion => {
+      pintarProgresoImportacionBanco("Subiendo", archivo.name, fraccion);
+    });
+    pintarProgresoImportacionBanco("Procesando en el servidor...", archivo.name, 1);
+    cola.resumen.zipsProcesados += datos.zipsProcesados;
+    cola.resumen.fotosGuardadas += datos.fotosGuardadas;
+    cola.resumen.solicitudesResueltas += datos.solicitudesResueltas || 0;
+    if (datos.errores?.length) {
+      cola.resumen.errores.push(...datos.errores.map(e => `${archivo.name}: ${e}`));
+    }
+  } catch (error) {
+    // Un ZIP fallido no detiene el lote -- se agrega al reporte y sigue.
+    cola.resumen.errores.push(`${archivo.name}: ${error.message || "No se pudo importar"}`);
+  }
+
+  cola.indice += 1;
+  await procesarSiguienteZipBanco(marca);
+}
+
+function pintarProgresoImportacionBanco(estado, nombreArchivo, fraccion) {
+  const cola = colaImportacionBanco;
+  const contenedor = document.getElementById("importActivoBancoImagenes");
+  if (!contenedor || !cola) return;
+
+  const total = cola.archivos.length;
+  const hecho = cola.indice;
+  const porcentaje = total ? Math.round((hecho / total) * 100) : 0;
+  const pct = fraccion != null ? Math.round(fraccion * 100) : null;
+
+  contenedor.innerHTML = `
+    <div class="banco-imagenes-import-cabecera">
+      <div>
+        <strong>Importacion masiva ${cola.pausado ? "(pausada)" : cola.cancelado ? "(cancelada)" : "en progreso"}</strong>
+        <span>ZIP ${Math.min(hecho + 1, total)} de ${total} -- ${escaparHTMLAdmin(estado)}${nombreArchivo ? `: ${escaparHTMLAdmin(nombreArchivo)}` : ""}${pct != null ? ` (${pct}%)` : ""}</span>
+      </div>
+      <div class="banco-imagenes-import-acciones">
+        ${!cola.cancelado && !cola.pausado ? `<button type="button" class="secondary" onclick="pausarImportacionBanco()">Pausar</button>` : ""}
+        ${cola.pausado ? `<button type="button" onclick="reanudarImportacionBanco()">Reanudar</button>` : ""}
+        ${!cola.cancelado ? `<button type="button" class="danger" onclick="cancelarImportacionBanco()">Cancelar</button>` : ""}
+      </div>
+    </div>
+    <div class="banco-imagenes-import-barra"><div class="banco-imagenes-import-barra-relleno" style="width:${porcentaje}%"></div></div>
+    <div class="banco-imagenes-import-conteos">
+      <div><span>Procesados</span><strong>${cola.resumen.zipsProcesados}</strong></div>
+      <div><span>Imagenes nuevas</span><strong>${cola.resumen.fotosGuardadas}</strong></div>
+      <div><span>Solicitudes resueltas</span><strong>${cola.resumen.solicitudesResueltas}</strong></div>
+      <div class="errores"><span>Errores</span><strong>${cola.resumen.errores.length}</strong></div>
+    </div>
+  `;
+}
+
+function pausarImportacionBanco() {
+  if (colaImportacionBanco) colaImportacionBanco.pausado = true;
+  pintarProgresoImportacionBanco("Pausado", null);
+}
+
+async function reanudarImportacionBanco() {
+  if (!colaImportacionBanco) return;
+  colaImportacionBanco.pausado = false;
+  const marca = document.getElementById("marcaBancoImagenes")?.value.trim() || "";
+  await procesarSiguienteZipBanco(marca);
+}
+
+function cancelarImportacionBanco() {
+  if (colaImportacionBanco) colaImportacionBanco.cancelado = true;
+  pintarProgresoImportacionBanco("Cancelado", null);
+}
+
+async function mostrarResumenFinalImportacionBanco(resumen) {
+  const contenedor = document.getElementById("importActivoBancoImagenes");
+  if (contenedor) {
+    contenedor.innerHTML = `
+      <div class="banco-imagenes-import-cabecera">
+        <div>
+          <strong>Importacion terminada</strong>
+          <span>${resumen.zipsProcesados} ZIP(s) procesados -- ${resumen.fotosGuardadas} imagen(es) nuevas o actualizadas</span>
+        </div>
+        <div class="banco-imagenes-import-acciones">
+          ${resumen.errores.length ? `<button type="button" class="secondary" onclick="descargarReporteErroresBanco()">Descargar reporte de errores</button>` : ""}
+          <button type="button" class="ghost" onclick="document.getElementById('importActivoBancoImagenes').style.display='none'">Cerrar</button>
+        </div>
+      </div>
+      <div class="banco-imagenes-import-conteos">
+        <div><span>Procesados</span><strong>${resumen.zipsProcesados}</strong></div>
+        <div><span>Imagenes nuevas</span><strong>${resumen.fotosGuardadas}</strong></div>
+        <div><span>Solicitudes resueltas</span><strong>${resumen.solicitudesResueltas}</strong></div>
+        <div class="errores"><span>Errores</span><strong>${resumen.errores.length}</strong></div>
+      </div>
+      ${resumen.errores.length ? `<div class="banco-imagenes-import-errores-detalle">${resumen.errores.map(e => `<div>${escaparHTMLAdmin(e)}</div>`).join("")}</div>` : ""}
     `;
   }
 
-  if (input) input.value = "";
-  await cargarBancoImagenesAdmin(1);
+  window.bancoImagenesUltimoResumenErrores = resumen.errores;
+  await Promise.all([cargarBancoImagenesAdmin(1), cargarResumenBancoImagenes()]);
+}
+
+function descargarReporteErroresBanco() {
+  const errores = window.bancoImagenesUltimoResumenErrores || [];
+  const contenido = errores.join("\n");
+  const blob = new Blob([contenido], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = `banco-imagenes-errores-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function inicializarDropzoneBancoImagenes() {
+  const zona = document.getElementById("dropzoneBancoImagenes");
+  if (!zona || zona.dataset.listo === "1") return;
+  zona.dataset.listo = "1";
+
+  if ("webkitdirectory" in document.createElement("input")) {
+    const labelCarpeta = document.getElementById("labelCarpetaBancoImagenes");
+    if (labelCarpeta) labelCarpeta.style.display = "inline-flex";
+  }
+
+  zona.addEventListener("dragover", event => {
+    event.preventDefault();
+    zona.classList.add("arrastrando");
+  });
+  zona.addEventListener("dragleave", () => zona.classList.remove("arrastrando"));
+  zona.addEventListener("drop", event => {
+    event.preventDefault();
+    zona.classList.remove("arrastrando");
+    agregarArchivosColaBancoImagenes(event.dataTransfer?.files);
+  });
+}
+
+// ---- Solicitudes de fotografia ----
+
+let bancoImagenesSolicitudesPagina = 1;
+
+async function cargarSolicitudesBancoImagenes(pagina = 1) {
+  const contenedor = document.getElementById("tablaSolicitudesBancoImagenes");
+  if (!contenedor) return;
+
+  bancoImagenesSolicitudesPagina = pagina;
+  const estado = document.getElementById("filtroEstadoSolicitudesBanco")?.value || "pendiente";
+
+  try {
+    const data = await apiAdmin(`/admin/api/banco-imagenes/solicitudes?estado=${estado}&pagina=${pagina}`);
+    pintarTablaSolicitudesBancoImagenes(data, estado);
+  } catch (error) {
+    contenedor.innerHTML = `<div class="empty">${escaparHTMLAdmin(error.message || "No se pudo cargar solicitudes.")}</div>`;
+  }
+}
+
+function pintarTablaSolicitudesBancoImagenes(data, estado) {
+  const contenedor = document.getElementById("tablaSolicitudesBancoImagenes");
+  const paginacion = document.getElementById("paginacionSolicitudesBancoImagenes");
+  if (!contenedor) return;
+
+  if (!data.items.length) {
+    contenedor.innerHTML = `<div class="empty">Sin solicitudes ${estado === "pendiente" ? "pendientes" : "resueltas"}.</div>`;
+    if (paginacion) paginacion.innerHTML = "";
+    return;
+  }
+
+  contenedor.innerHTML = data.items.map(fila => `
+    <div class="banco-imagenes-solicitud-fila">
+      <strong>${escaparHTMLAdmin(fila.codigo)}</strong>
+      <span>${escaparHTMLAdmin(fila.marca || "-")}</span>
+      <span>${escaparHTMLAdmin(fila.negocioNombre)}</span>
+      <span>${fechaHoraCortaAdmin(fila.createdAt)}</span>
+      ${fila.estado === "pendiente" ? `<button type="button" class="ghost" onclick="descartarSolicitudBancoImagenes(${fila.id})">Descartar</button>` : `<span class="pill ok">Resuelta</span>`}
+    </div>
+  `).join("");
+
+  const totalPaginas = Math.max(1, Math.ceil(data.total / data.porPagina));
+  if (paginacion) {
+    paginacion.innerHTML = totalPaginas > 1
+      ? `
+        <button type="button" class="ghost" ${data.pagina <= 1 ? "disabled" : ""} onclick="cargarSolicitudesBancoImagenes(${data.pagina - 1})">Anterior</button>
+        <span>Pagina ${data.pagina} de ${totalPaginas}</span>
+        <button type="button" class="ghost" ${data.pagina >= totalPaginas ? "disabled" : ""} onclick="cargarSolicitudesBancoImagenes(${data.pagina + 1})">Siguiente</button>
+      `
+      : "";
+  }
+}
+
+async function descartarSolicitudBancoImagenes(id) {
+  const confirmar = await confirmarAdmin("¿Descartar esta solicitud sin agregar foto? Util para productos descontinuados.", "Descartar solicitud", "alerta");
+  if (!confirmar) return;
+
+  try {
+    await apiAdmin(`/admin/api/banco-imagenes/solicitudes/${id}/descartar`, { method: "PATCH" });
+    await Promise.all([cargarSolicitudesBancoImagenes(bancoImagenesSolicitudesPagina), cargarConteoSolicitudesBancoImagenes()]);
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo descartar la solicitud.", "Error", "peligro");
+  }
+}
+
+async function cargarConteoSolicitudesBancoImagenes() {
+  try {
+    const data = await apiAdmin("/admin/api/banco-imagenes/solicitudes/conteo");
+    pintarBadgeSolicitudesBancoImagenes(data.pendientes);
+  } catch (error) {
+    // Silencioso -- el badge simplemente no aparece si falla.
+  }
+}
+
+function pintarBadgeSolicitudesBancoImagenes(pendientes) {
+  const badge = document.getElementById("badgeBancoImagenesAdmin");
+  const pill = document.getElementById("pillSolicitudesPendientesBanco");
+
+  if (badge) {
+    badge.textContent = pendientes > 99 ? "99+" : String(pendientes);
+    badge.style.display = pendientes > 0 ? "inline-flex" : "none";
+  }
+
+  if (pill) {
+    pill.textContent = `Solicitudes pendientes ${pendientes}`;
+    pill.classList.toggle("visible", pendientes > 0);
+  }
+}
+
+function abrirVistaBancoImagenesAdmin() {
+  inicializarDropzoneBancoImagenes();
+  cargarResumenBancoImagenes();
+  cargarBancoImagenesAdmin(1);
+  cargarSolicitudesBancoImagenes(1);
 }
 
 function pintarSoporteAdmin() {
@@ -568,6 +1179,7 @@ async function cargarAdminNexo() {
   pintarPlanesAdmin();
   pintarSoporteAdmin();
   pintarVersionesAdmin();
+  cargarConteoSolicitudesBancoImagenes();
 }
 
 function abrirNuevoClienteAdmin() {

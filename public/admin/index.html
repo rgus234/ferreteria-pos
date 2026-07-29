@@ -21,7 +21,10 @@
       <button type="button" data-view="ingresos">Ingresos y planes</button>
       <button type="button" data-view="soporte">Soporte</button>
       <button type="button" data-view="versiones">Versiones</button>
-      <button type="button" data-view="fotos">Banco de imagenes</button>
+      <button type="button" data-view="fotos" style="position:relative;">
+        Banco de imagenes
+        <span id="badgeBancoImagenesAdmin" class="notification-badge" style="display:none;"></span>
+      </button>
     </nav>
     <div class="admin-sidebar-footer">
       <span id="adminSesionEstado">Sin sesion</span>
@@ -210,30 +213,84 @@
     </section>
 
     <section class="admin-view" id="view-fotos">
+      <div class="banco-imagenes-header">
+        <div>
+          <p class="eyebrow">Banco de Nexo</p>
+          <h2>Banco de imagenes (Pro)</h2>
+          <span>Administra y organiza todas las imagenes del catalogo global de Nexo POS</span>
+        </div>
+        <span id="pillSolicitudesPendientesBanco" class="banco-imagenes-pill-solicitudes" style="display:none;" onclick="document.getElementById('view-fotos').querySelector('.banco-imagenes-solicitudes-panel').scrollIntoView({behavior:'smooth'})"></span>
+      </div>
+
+      <div class="banco-imagenes-tiles" id="tilesBancoImagenes">
+        <div class="empty">Cargando proveedores...</div>
+      </div>
+
+      <div class="banco-imagenes-metrics" id="metricasBancoImagenes"></div>
+
+      <div class="banco-imagenes-import-activo" id="importActivoBancoImagenes" style="display:none;"></div>
+
       <article class="panel wide">
+        <div class="banco-imagenes-upload" id="zonaSubidaBancoImagenes">
+          <div class="banco-imagenes-dropzone" id="dropzoneBancoImagenes">
+            <strong>Arrastra tus archivos .zip aqui</strong>
+            <span>o selecciona archivos, o una carpeta completa si tu navegador lo permite</span>
+            <div class="banco-imagenes-upload-botones">
+              <label class="banco-imagenes-upload-boton">
+                Seleccionar archivos .zip
+                <input type="file" id="archivoBancoImagenes" accept=".zip" multiple hidden onchange="agregarArchivosColaBancoImagenes(this.files)">
+              </label>
+              <label class="banco-imagenes-upload-boton secundario" id="labelCarpetaBancoImagenes" style="display:none;">
+                Seleccionar carpeta
+                <input type="file" id="carpetaBancoImagenes" webkitdirectory multiple hidden onchange="agregarArchivosColaBancoImagenes(this.files)">
+              </label>
+              <input type="text" id="marcaBancoImagenes" placeholder="Marca (opcional, ej. Truper)">
+            </div>
+          </div>
+          <div id="listaArchivosBancoImagenes" class="banco-imagenes-lista-archivos"></div>
+        </div>
+
+        <div class="banco-imagenes-toolbar">
+          <input type="text" id="buscarBancoImagenes" placeholder="Buscar por codigo, marca..." oninput="buscarBancoImagenesAdmin(this.value)">
+          <select id="filtroMarcaBancoImagenes" onchange="cargarBancoImagenesAdmin(1)">
+            <option value="">Todas las marcas</option>
+          </select>
+          <select id="ordenBancoImagenes" onchange="cargarBancoImagenesAdmin(1)">
+            <option value="recientes">Mas recientes</option>
+            <option value="codigo">Codigo</option>
+            <option value="marca">Marca</option>
+          </select>
+        </div>
+
+        <div class="banco-imagenes-cuerpo">
+          <div class="banco-imagenes-grilla" id="grillaBancoImagenes">
+            <div class="empty">Cargando...</div>
+          </div>
+          <aside class="banco-imagenes-detalle" id="panelDetalleBancoImagenes">
+            <div class="banco-imagenes-detalle-vacio">Selecciona una imagen para ver su detalle</div>
+          </aside>
+        </div>
+
+        <div class="banco-imagenes-paginacion" id="paginacionBancoImagenes"></div>
+      </article>
+
+      <article class="panel wide banco-imagenes-solicitudes-panel">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Banco de Nexo</p>
-            <h2>Banco de imagenes (Pro)</h2>
+            <p class="eyebrow">Solicitudes</p>
+            <h2>Solicitudes de imagenes</h2>
+          </div>
+          <div class="panel-tools">
+            <select id="filtroEstadoSolicitudesBanco" onchange="cargarSolicitudesBancoImagenes(1)">
+              <option value="pendiente">Pendientes</option>
+              <option value="resuelta">Resueltas</option>
+            </select>
           </div>
         </div>
-        <div class="banco-imagenes-upload">
-          <label>Archivos .zip (Banco de Contenido Digital del proveedor)
-            <input type="file" id="archivoBancoImagenes" accept=".zip" multiple>
-          </label>
-          <label>Marca (opcional)
-            <input type="text" id="marcaBancoImagenes" placeholder="Ej. Truper, Diprofer">
-          </label>
-          <button type="button" onclick="importarBancoImagenesLote()">Importar</button>
-          <div id="progresoBancoImagenes" class="banco-imagenes-progreso"></div>
-        </div>
-        <div class="banco-imagenes-buscador">
-          <input type="text" id="buscarBancoImagenes" placeholder="Buscar por codigo o marca..." oninput="buscarBancoImagenesAdmin(this.value)">
-        </div>
-        <div class="banco-imagenes-grilla" id="grillaBancoImagenes">
+        <div class="banco-imagenes-solicitudes-tabla" id="tablaSolicitudesBancoImagenes">
           <div class="empty">Cargando...</div>
         </div>
-        <div class="banco-imagenes-paginacion" id="paginacionBancoImagenes"></div>
+        <div class="banco-imagenes-paginacion" id="paginacionSolicitudesBancoImagenes"></div>
       </article>
     </section>
   </main>

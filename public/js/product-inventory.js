@@ -467,6 +467,7 @@ let datosBancoImagenesActual = null;
 async function verificarBancoImagenesParaCodigo(codigo) {
  if (!codigo || codigoImagenExistenteActual === codigo) {
  renderTarjetaBancoImagenes(null);
+ renderTarjetaSolicitarFotoBanco(null);
  datosBancoImagenesActual = null;
  return;
  }
@@ -483,9 +484,105 @@ async function verificarBancoImagenesParaCodigo(codigo) {
 
  datosBancoImagenesActual = existe ? { codigo, ...datos } : null;
 
- renderTarjetaBancoImagenes(existe ? datos : null);
+ if (existe) {
+ renderTarjetaSolicitarFotoBanco(null);
+ renderTarjetaBancoImagenes(datos);
+ } else {
+ renderTarjetaBancoImagenes(null);
+ renderTarjetaSolicitarFotoBanco(codigo);
+ }
  } catch (error) {
  // Silencioso -- no interrumpe el formulario si falla la consulta.
+ }
+}
+
+// Estado vacio "no encontramos imagenes" -- solo tiene sentido cuando el
+// negocio no tiene ya su propia foto NI hay match en el banco compartido.
+// Mismo mecanismo de insercion segura que renderTarjetaBancoImagenes:
+// hermana del <label class="campo-ficha">, nunca dentro.
+function renderTarjetaSolicitarFotoBanco(codigo) {
+ const campo =
+ document.getElementById("nuevaImagenProducto");
+
+ const wrapperLabel =
+ campo?.closest(".campo-ficha");
+
+ if (!wrapperLabel) return;
+
+ let tarjeta =
+ document.getElementById("tarjetaSolicitarFotoBanco");
+
+ if (!codigo) {
+ tarjeta?.remove();
+ return;
+ }
+
+ if (!tarjeta) {
+ tarjeta = document.createElement("div");
+ tarjeta.id = "tarjetaSolicitarFotoBanco";
+ tarjeta.className = "tarjeta-solicitar-foto-banco";
+ wrapperLabel.insertAdjacentElement("afterend", tarjeta);
+ }
+
+ tarjeta.innerHTML = `
+ <span>No encontramos imagenes para este producto.</span>
+ <button type="button" onclick="solicitarFotoBancoNexo('${String(codigo).replace(/'/g, "\\'")}')">Solicitar fotografia</button>
+ `;
+}
+
+// Registra la solicitud en el banco compartido -- el boton siempre se
+// muestra sin importar el plan (el servidor decide, nunca el cliente,
+// mismo criterio que el resto del Banco de Nexo). Se resuelve sola
+// cuando el admin importe un ZIP con este codigo.
+async function solicitarFotoBancoNexo(codigo) {
+ const boton =
+ document.querySelector("#tarjetaSolicitarFotoBanco button");
+
+ if (boton) {
+ boton.disabled = true;
+ boton.textContent = "Solicitando...";
+ }
+
+ try {
+ const marca =
+ document.getElementById("nuevaMarca")?.value.trim() || "";
+
+ const respuesta =
+ await fetch(`/banco-imagenes/solicitar/${encodeURIComponent(codigo)}`, {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify(marca ? { marca } : {})
+ });
+
+ if (respuesta.status === 403) {
+ // Plan sin acceso -- el servidor decide, no se revela nada del
+ // lado del cliente, solo se deja el boton como estaba.
+ if (boton) {
+ boton.disabled = false;
+ boton.textContent = "Solicitar fotografia";
+ }
+ return;
+ }
+
+ const datos =
+ await respuesta.json();
+
+ if (!datos.ok) {
+ if (boton) {
+ boton.disabled = false;
+ boton.textContent = "Solicitar fotografia";
+ }
+ return;
+ }
+
+ if (boton) {
+ boton.textContent = "Fotografia solicitada";
+ }
+ } catch (error) {
+ if (boton) {
+ boton.disabled = false;
+ boton.textContent = "Solicitar fotografia";
+ }
  }
 }
 

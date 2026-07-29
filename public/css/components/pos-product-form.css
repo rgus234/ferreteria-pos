@@ -594,6 +594,46 @@
   border: 1px solid color-mix(in srgb, #9333ea 30%, transparent) !important;
  }
 
+ /* Estado vacio "no encontramos imagenes" -- tono neutro a proposito,
+    para no confundirse con la tarjeta morada (banco) ni la insignia
+    verde (ya tienes esta foto). Mismo mecanismo de insercion (hermana
+    del label.campo-ficha) que .tarjeta-banco-imagenes. */
+ #modalAgregar .tarjeta-solicitar-foto-banco {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin-top: var(--nexo-space-3) !important;
+  padding: 10px 12px !important;
+  border-radius: var(--nexo-radius-md) !important;
+  background: var(--nexo-surface-soft) !important;
+  border: 1px solid var(--nexo-line) !important;
+ }
+
+ #modalAgregar .tarjeta-solicitar-foto-banco span {
+  color: var(--nexo-text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+ }
+
+ #modalAgregar .tarjeta-solicitar-foto-banco button {
+  flex: 0 0 auto !important;
+  min-height: 32px !important;
+  border-radius: var(--nexo-radius-pill) !important;
+  padding: 0 14px !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+  border: 1px solid var(--nexo-line) !important;
+  background: var(--nexo-surface-strong) !important;
+  color: var(--nexo-text) !important;
+ }
+
+ #modalAgregar .tarjeta-solicitar-foto-banco button:disabled {
+  opacity: .6 !important;
+  cursor: default !important;
+ }
+
  /* Subcategorias -- pastillas sobre el mismo campo oculto de siempre */
  #modalAgregar .producto-chip-campo {
   gap: 6px !important;

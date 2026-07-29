@@ -124,8 +124,8 @@ function manejarSubidaBancoImagenes(req, res, next) {
 // = galeria, hasta 2 codigos derivados por carpeta (nombre de archivo +
 // nombre de carpeta, por el caso conocido de Diprofer reusando el ID
 // numerico de Truper).
-async function procesarZipBancoImagenes(pool, rutaZip, marca) {
-    const resumen = { fotosGuardadas: 0, errores: [] };
+async function procesarZipBancoImagenes(pool, rutaZip, marca, origen) {
+    const resumen = { fotosGuardadas: 0, solicitudesResueltas: 0, errores: [] };
 
     let zip;
     try {
@@ -179,8 +179,8 @@ async function procesarZipBancoImagenes(pool, rutaZip, marca) {
                 const upsert = await pool.query(
                     `
                     INSERT INTO public.banco_imagenes_producto
-                        (codigo, marca, imagen_principal, imagen_principal_tipo, imagen_principal_ancho, imagen_principal_alto, actualizado_at)
-                    VALUES ($1, $2, $3, 'image/jpeg', $4, $5, NOW())
+                        (codigo, marca, imagen_principal, imagen_principal_tipo, imagen_principal_ancho, imagen_principal_alto, origen, actualizado_at)
+                    VALUES ($1, $2, $3, 'image/jpeg', $4, $5, $6, NOW())
                     ON CONFLICT (codigo)
                     DO UPDATE SET
                         marca = COALESCE($2, public.banco_imagenes_producto.marca),
@@ -188,13 +188,29 @@ async function procesarZipBancoImagenes(pool, rutaZip, marca) {
                         imagen_principal_tipo = 'image/jpeg',
                         imagen_principal_ancho = $4,
                         imagen_principal_alto = $5,
+                        origen = COALESCE($6, public.banco_imagenes_producto.origen),
                         actualizado_at = NOW()
                     RETURNING id
                     `,
-                    [codigo, marca, principalComprimida.buffer, principalComprimida.ancho, principalComprimida.alto]
+                    [codigo, marca, principalComprimida.buffer, principalComprimida.ancho, principalComprimida.alto, origen || null]
                 );
 
                 const bancoImagenId = upsert.rows[0].id;
+
+                // Si algun negocio Pro habia pedido esta foto, se marca
+                // resuelta -- el indice unico parcial en (codigo, negocio_id)
+                // WHERE estado='pendiente' asegura que esto solo toque
+                // solicitudes activas, sin duplicar resoluciones.
+                const resueltas = await pool.query(
+                    `
+                    UPDATE public.banco_imagenes_solicitudes
+                    SET estado = 'resuelta', banco_imagen_id = $1, resuelta_at = NOW()
+                    WHERE codigo = $2 AND estado = 'pendiente'
+                    RETURNING id
+                    `,
+                    [bancoImagenId, codigo]
+                );
+                resumen.solicitudesResueltas += resueltas.rows.length;
 
                 await pool.query(
                     `DELETE FROM public.banco_imagenes_producto_galeria WHERE banco_imagen_id = $1`,
@@ -239,12 +255,13 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             }
 
             const marca = String(req.body?.marca || "").trim() || null;
-            const resumen = { zipsProcesados: 0, fotosGuardadas: 0, errores: [] };
+            const resumen = { zipsProcesados: 0, fotosGuardadas: 0, solicitudesResueltas: 0, errores: [] };
 
             for (const archivo of archivos) {
-                const resultadoZip = await procesarZipBancoImagenes(pool, archivo.path, marca);
+                const resultadoZip = await procesarZipBancoImagenes(pool, archivo.path, marca, archivo.originalname);
                 resumen.zipsProcesados += 1;
                 resumen.fotosGuardadas += resultadoZip.fotosGuardadas;
+                resumen.solicitudesResueltas += resultadoZip.solicitudesResueltas;
                 if (resultadoZip.errores.length) {
                     resumen.errores.push(`${archivo.originalname}: ${resultadoZip.errores.join("; ")}`);
                 }
@@ -263,26 +280,41 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
     app.get("/admin/api/banco-imagenes", async (req, res) => {
         try {
             const buscar = String(req.query.buscar || "").trim();
+            const marcaFiltro = String(req.query.marca || "").trim();
             const pagina = Math.max(1, Number(req.query.pagina) || 1);
             const porPagina = 40;
             const offset = (pagina - 1) * porPagina;
             const filtro = buscar ? `%${buscar}%` : null;
 
+            const ordenSQL = {
+                recientes: "b.actualizado_at DESC",
+                codigo: "b.codigo ASC",
+                marca: "b.marca ASC NULLS LAST, b.codigo ASC"
+            }[req.query.orden] || "b.actualizado_at DESC";
+
             const filas = await pool.query(
                 `
                 SELECT b.codigo, b.marca, b.origen, b.actualizado_at,
-                    (SELECT COUNT(*) FROM public.banco_imagenes_producto_galeria g WHERE g.banco_imagen_id = b.id) AS total_galeria
+                    b.imagen_principal_ancho, b.imagen_principal_alto,
+                    octet_length(b.imagen_principal) AS tamano_principal,
+                    (SELECT COUNT(*) FROM public.banco_imagenes_producto_galeria g WHERE g.banco_imagen_id = b.id) AS total_galeria,
+                    (SELECT COALESCE(SUM(octet_length(g.imagen)), 0) FROM public.banco_imagenes_producto_galeria g WHERE g.banco_imagen_id = b.id) AS tamano_galeria
                 FROM public.banco_imagenes_producto b
-                WHERE $1::text IS NULL OR b.codigo ILIKE $1 OR b.marca ILIKE $1
-                ORDER BY b.actualizado_at DESC
+                WHERE ($1::text IS NULL OR b.codigo ILIKE $1 OR b.marca ILIKE $1)
+                    AND ($4::text IS NULL OR b.marca = $4)
+                ORDER BY ${ordenSQL}
                 LIMIT $2 OFFSET $3
                 `,
-                [filtro, porPagina, offset]
+                [filtro, porPagina, offset, marcaFiltro || null]
             );
 
             const total = await pool.query(
-                `SELECT COUNT(*)::int AS total FROM public.banco_imagenes_producto b WHERE $1::text IS NULL OR b.codigo ILIKE $1 OR b.marca ILIKE $1`,
-                [filtro]
+                `
+                SELECT COUNT(*)::int AS total FROM public.banco_imagenes_producto b
+                WHERE ($1::text IS NULL OR b.codigo ILIKE $1 OR b.marca ILIKE $1)
+                    AND ($2::text IS NULL OR b.marca = $2)
+                `,
+                [filtro, marcaFiltro || null]
             );
 
             res.json({
@@ -292,7 +324,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     marca: fila.marca,
                     origen: fila.origen,
                     actualizadoAt: fila.actualizado_at,
-                    totalGaleria: Number(fila.total_galeria)
+                    ancho: fila.imagen_principal_ancho,
+                    alto: fila.imagen_principal_alto,
+                    totalGaleria: Number(fila.total_galeria),
+                    tamanoBytes: Number(fila.tamano_principal || 0) + Number(fila.tamano_galeria || 0)
                 })),
                 total: total.rows[0].total,
                 pagina,
@@ -303,10 +338,254 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
+    // Totales globales + tiles de proveedor (agrupados por marca, dinamico
+    // -- marca es texto libre, no un catalogo fijo de proveedores).
+    app.get("/admin/api/banco-imagenes/resumen", async (req, res) => {
+        try {
+            const totales = await pool.query(`
+                SELECT COUNT(*)::int AS total_codigos,
+                    COALESCE(SUM(octet_length(imagen_principal)), 0)::bigint AS tamano_principal,
+                    COUNT(DISTINCT marca)::int AS total_marcas,
+                    MAX(actualizado_at) AS actualizado_reciente
+                FROM public.banco_imagenes_producto
+            `);
+
+            const galeriaTotales = await pool.query(`
+                SELECT COUNT(*)::int AS total_galeria,
+                    COALESCE(SUM(octet_length(imagen)), 0)::bigint AS tamano_galeria
+                FROM public.banco_imagenes_producto_galeria
+            `);
+
+            const porMarca = await pool.query(`
+                SELECT COALESCE(b.marca, 'Sin marca') AS marca,
+                    COUNT(*)::int AS total_codigos,
+                    COUNT(g.id)::int AS total_galeria,
+                    MAX(b.actualizado_at) AS actualizado_at
+                FROM public.banco_imagenes_producto b
+                LEFT JOIN public.banco_imagenes_producto_galeria g ON g.banco_imagen_id = b.id
+                GROUP BY COALESCE(b.marca, 'Sin marca')
+                ORDER BY total_codigos DESC
+            `);
+
+            const t = totales.rows[0];
+            const g = galeriaTotales.rows[0];
+
+            res.json({
+                ok: true,
+                totalCodigos: t.total_codigos,
+                totalFotos: t.total_codigos + g.total_galeria,
+                totalMarcas: t.total_marcas,
+                tamanoTotalBytes: Number(t.tamano_principal) + Number(g.tamano_galeria),
+                actualizadoRecienteAt: t.actualizado_reciente,
+                marcas: porMarca.rows.map(fila => ({
+                    marca: fila.marca,
+                    totalCodigos: fila.total_codigos,
+                    totalFotos: fila.total_codigos + fila.total_galeria
+                }))
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Metadata completa de un codigo + conteo de usos + historial reciente
+    // -- alimenta el panel de detalle del Admin (pestanas Informacion/Usos/Historial).
+    app.get("/admin/api/banco-imagenes/:codigo/detalle", async (req, res) => {
+        try {
+            const codigo = normalizarCodigoFoto(req.params.codigo);
+
+            const banco = await pool.query(
+                `
+                SELECT id, codigo, marca, origen, creado_at, actualizado_at,
+                    imagen_principal_ancho, imagen_principal_alto, octet_length(imagen_principal) AS tamano_principal
+                FROM public.banco_imagenes_producto WHERE codigo = $1
+                `,
+                [codigo]
+            );
+
+            const filaBanco = banco.rows[0];
+
+            if (!filaBanco) {
+                res.status(404).json({ ok: false, error: "No hay una imagen en el banco para este codigo." });
+                return;
+            }
+
+            const galeria = await pool.query(
+                `SELECT id, orden, ancho, alto, octet_length(imagen) AS tamano
+                 FROM public.banco_imagenes_producto_galeria WHERE banco_imagen_id = $1 ORDER BY orden ASC`,
+                [filaBanco.id]
+            );
+
+            const usos = await pool.query(
+                `SELECT COUNT(*)::int AS total FROM public.banco_imagenes_uso WHERE banco_imagen_id = $1`,
+                [filaBanco.id]
+            );
+
+            const historial = await pool.query(
+                `
+                SELECT u.created_at, u.galeria_id, n.nombre AS negocio_nombre
+                FROM public.banco_imagenes_uso u
+                JOIN public.negocios n ON n.id = u.negocio_id
+                WHERE u.banco_imagen_id = $1
+                ORDER BY u.created_at DESC
+                LIMIT 50
+                `,
+                [filaBanco.id]
+            );
+
+            res.json({
+                ok: true,
+                codigo: filaBanco.codigo,
+                marca: filaBanco.marca,
+                origen: filaBanco.origen,
+                creadoAt: filaBanco.creado_at,
+                actualizadoAt: filaBanco.actualizado_at,
+                principal: {
+                    ancho: filaBanco.imagen_principal_ancho,
+                    alto: filaBanco.imagen_principal_alto,
+                    tamanoBytes: Number(filaBanco.tamano_principal || 0)
+                },
+                galeria: galeria.rows.map(fila => ({
+                    id: fila.id,
+                    ancho: fila.ancho,
+                    alto: fila.alto,
+                    tamanoBytes: Number(fila.tamano || 0)
+                })),
+                usos: usos.rows[0].total,
+                historial: historial.rows.map(fila => ({
+                    fecha: fila.created_at,
+                    negocioNombre: fila.negocio_nombre,
+                    fotoGaleria: fila.galeria_id != null
+                }))
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Bytes crudos de una foto de galeria para el panel de detalle de Admin
+    // -- mismo chequeo anti-suplantacion que /usar (el id debe pertenecer
+    // al banco_imagen_id resuelto desde :codigo).
+    app.get("/admin/api/banco-imagenes/:codigo/galeria/:id", async (req, res) => {
+        try {
+            const codigo = normalizarCodigoFoto(req.params.codigo);
+            const id = Number(req.params.id);
+
+            const resultado = await pool.query(
+                `
+                SELECT g.imagen, g.tipo
+                FROM public.banco_imagenes_producto_galeria g
+                JOIN public.banco_imagenes_producto b ON b.id = g.banco_imagen_id
+                WHERE g.id = $1 AND b.codigo = $2
+                `,
+                [id, codigo]
+            );
+
+            const fila = resultado.rows[0];
+
+            if (!fila) {
+                res.status(404).end();
+                return;
+            }
+
+            res.set("Content-Type", fila.tipo || "image/jpeg");
+            res.send(fila.imagen);
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     app.delete("/admin/api/banco-imagenes/:codigo", async (req, res) => {
         try {
             const codigo = normalizarCodigoFoto(req.params.codigo);
             await pool.query(`DELETE FROM public.banco_imagenes_producto WHERE codigo = $1`, [codigo]);
+            res.json({ ok: true });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Solicitudes de fotografia pendientes/resueltas -- lista paginada
+    // para la tabla del panel de Admin, con el nombre real del negocio
+    // (JOIN en el momento, sin denormalizar en la tabla de solicitudes).
+    app.get("/admin/api/banco-imagenes/solicitudes", async (req, res) => {
+        try {
+            const estado = ["pendiente", "resuelta"].includes(req.query.estado) ? req.query.estado : "pendiente";
+            const pagina = Math.max(1, Number(req.query.pagina) || 1);
+            const porPagina = 30;
+            const offset = (pagina - 1) * porPagina;
+
+            const filas = await pool.query(
+                `
+                SELECT s.id, s.codigo, s.marca, s.estado, s.created_at, s.resuelta_at,
+                    n.id AS negocio_id, n.nombre AS negocio_nombre
+                FROM public.banco_imagenes_solicitudes s
+                JOIN public.negocios n ON n.id = s.negocio_id
+                WHERE s.estado = $1
+                ORDER BY s.created_at DESC
+                LIMIT $2 OFFSET $3
+                `,
+                [estado, porPagina, offset]
+            );
+
+            const total = await pool.query(
+                `SELECT COUNT(*)::int AS total FROM public.banco_imagenes_solicitudes WHERE estado = $1`,
+                [estado]
+            );
+
+            res.json({
+                ok: true,
+                items: filas.rows.map(fila => ({
+                    id: fila.id,
+                    codigo: fila.codigo,
+                    marca: fila.marca,
+                    estado: fila.estado,
+                    createdAt: fila.created_at,
+                    resueltaAt: fila.resuelta_at,
+                    negocioId: fila.negocio_id,
+                    negocioNombre: fila.negocio_nombre
+                })),
+                total: total.rows[0].total,
+                pagina,
+                porPagina
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Conteo de pendientes -- alimenta el badge del nav lateral y el pill
+    // del encabezado, sin cargar el listado completo.
+    app.get("/admin/api/banco-imagenes/solicitudes/conteo", async (req, res) => {
+        try {
+            const resultado = await pool.query(
+                `SELECT COUNT(*)::int AS total FROM public.banco_imagenes_solicitudes WHERE estado = 'pendiente'`
+            );
+            res.json({ ok: true, pendientes: resultado.rows[0].total });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Descartar una solicitud sin foto (ej. producto descontinuado) -- la
+    // resolucion automatica via ZIP sigue siendo el camino normal, esto es
+    // solo para limpiar pedidos que nunca se van a poder cumplir.
+    app.patch("/admin/api/banco-imagenes/solicitudes/:id/descartar", async (req, res) => {
+        try {
+            const id = Number(req.params.id);
+            const resultado = await pool.query(
+                `
+                UPDATE public.banco_imagenes_solicitudes
+                SET estado = 'resuelta', banco_imagen_id = NULL, resuelta_at = NOW()
+                WHERE id = $1 AND estado = 'pendiente'
+                RETURNING id
+                `,
+                [id]
+            );
+            if (resultado.rows.length === 0) {
+                res.status(404).json({ ok: false, error: "Solicitud no encontrada o ya resuelta." });
+                return;
+            }
             res.json({ ok: true });
         } catch (error) {
             responderError(res, error);
@@ -377,6 +656,45 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 alto: fila.imagen_principal_alto,
                 totalFotos: 1 + Number(fila.total_galeria)
             });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Registra que un negocio Pro no encontro foto para este codigo y la
+    // pidio -- se resuelve sola cuando el admin importe un ZIP que trae
+    // ese codigo (ver procesarZipBancoImagenes). El boton siempre se
+    // muestra del lado del cliente; el servidor decide el plan aqui,
+    // mismo criterio fail-closed que el resto de este modulo.
+    app.post("/banco-imagenes/solicitar/:codigo", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const permitido = await planPermiteBancoImagenes(pool, negocio.id);
+
+            if (!permitido) {
+                res.status(403).json({ ok: false, error: "Esta funcion esta disponible desde el plan Pro." });
+                return;
+            }
+
+            const codigo = normalizarCodigoFoto(req.params.codigo);
+            if (!codigo) {
+                res.status(400).json({ ok: false, error: "Codigo invalido." });
+                return;
+            }
+
+            const marca = String(req.body?.marca || "").trim() || null;
+
+            const insertado = await pool.query(
+                `
+                INSERT INTO public.banco_imagenes_solicitudes (codigo, marca, negocio_id)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (codigo, negocio_id) WHERE estado = 'pendiente' DO NOTHING
+                RETURNING id
+                `,
+                [codigo, marca, negocio.id]
+            );
+
+            res.json({ ok: true, creada: insertado.rows.length > 0 });
         } catch (error) {
             responderError(res, error);
         }
@@ -590,6 +908,14 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
                 orden += 1;
             }
+
+            // Log de solo apendizado -- alimenta "Usos (N)" e "Historial"
+            // en el panel de detalle de Admin.
+            await pool.query(
+                `INSERT INTO public.banco_imagenes_uso (banco_imagen_id, negocio_id, galeria_id)
+                 VALUES ($1, $2, $3)`,
+                [filaBanco.id, negocio.id, galeriaIdSeleccionado]
+            );
 
             res.json({ ok: true, codigo });
         } catch (error) {

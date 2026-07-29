@@ -5977,3 +5977,112 @@ sinteticos, filas del banco, fotos copiadas) borrados despues de
 verificar.
 
 Pendiente de confirmacion del usuario para `git add`/`commit`.
+
+## 2026-07-29 -- Banco de Nexo: rediseno premium Admin, importacion masiva y solicitudes de fotografia
+
+El usuario mando una imagen de referencia (estilo Notion/Linear) y
+pidio 3 cosas grandes: (1) rediseno visual completo del panel Admin
+"Banco de imagenes" -- se sentia como herramienta interna, no como
+activo premium; (2) importacion masiva real (Diprofer puede mandar
+~500-600 ZIPs, no se puede forzar uno por uno); (3) sistema de
+solicitud de fotografia -- cuando un negocio Pro no encuentra imagen,
+puede pedirla, y se resuelve sola cuando el admin importa un ZIP con
+ese codigo. Se investigo con 3 agentes Explore en paralelo (patrones
+visuales reutilizables, arquitectura de importacion + limites reales
+de Render, viabilidad de solicitudes) y se resolvio con el usuario,
+via `AskUserQuestion`, la decision de arquitectura mas grande: sin
+disco persistente ni servicio worker en Render (plan `starter`), se
+descarto una cola real del lado del servidor a favor de que el
+**navegador** sostenga los archivos seleccionados/arrastrados y los
+mande uno por uno automaticamente (mismo mecanismo que ya evita el
+limite de tiempo de Render). Costo aceptado explicitamente: cerrar la
+pestana de Admin a medio lote detiene la importacion ahi.
+
+**Migraciones** (`migrations/20260731_banco_imagenes_solicitudes.sql`,
+`_uso.sql`, `_trgm.sql`, aplicadas): `banco_imagenes_solicitudes`
+(mismo patron que `cotizaciones_pendientes` -- `estado` con `CHECK`,
+`negocio_id` FK, indice unico parcial en `(codigo, negocio_id) WHERE
+estado='pendiente'` para que el `ON CONFLICT` sea idempotente);
+`banco_imagenes_uso` (log de solo apendizado, mismo patron que
+`cambios_producto`, alimenta "Usos"+"Historial"); indices `pg_trgm`
+en `codigo`/`marca` para busqueda rapida a escala.
+
+**Backend** (`banco-imagenes-server.js`): `procesarZipBancoImagenes`
+gana un 4to parametro `origen` (nombre del ZIP, guardado en la
+columna que ya existia sin usar) y un gancho de resolucion justo
+despues del UPSERT (`UPDATE ... WHERE codigo=$1 AND estado='pendiente'`)
+-- se ejecuta una vez por codigo derivado, dentro del mismo loop que
+ya existia. `POST /usar` gana un INSERT en `banco_imagenes_uso`. 7
+rutas nuevas/extendidas: `POST /banco-imagenes/solicitar/:codigo`
+(consumer, mismo gating fail-closed que el resto -- el boton siempre
+se muestra, el servidor decide el plan), `GET/PATCH` de solicitudes
+para Admin (listar/conteo/descartar), `GET /admin/api/banco-imagenes/resumen`
+(tiles dinamicos por marca + 5 metricas), `GET /admin/api/banco-imagenes/:codigo/detalle`
+(metadata + usos + historial), `GET /admin/api/banco-imagenes/:codigo/galeria/:id`
+(bytes de galeria para el panel, mismo chequeo anti-suplantacion que
+`/usar`), y `GET /admin/api/banco-imagenes` extendida (ancho/alto/tamano,
+filtro por marca, orden).
+
+**Admin** (`public/admin/index.html`/`app.js`/`styles.css`, rediseno
+casi completo de la vista "Banco de imagenes"): tiles de proveedor
+dinamicos (agrupados por `marca` real, con color fijo para
+Diprofer/Gafi/Truper/Volteck/Urrea/Pretul/Foy y una funcion hash a
+color de respaldo para cualquier otra marca, ya que `marca` es texto
+libre); franja de 5 metricas; zona de carga con drag-and-drop +
+seleccion de carpeta (`webkitdirectory`, con deteccion de soporte) +
+cola de importacion secuencial en el navegador (pausa/reanudar/cancelar,
+sigue aunque un ZIP falle, resumen final + reporte de errores
+descargable como CSV armado en el cliente); grilla con miniaturas
+perezosas (`IntersectionObserver`, en vez de pedir todas de una vez);
+panel de detalle lateral con pestanas Informacion/Usos/Historial
+(implementacion minima, sin libreria -- no existia ningun patron de
+tabs en el repo); tabla de solicitudes pendientes/resueltas con
+boton "Descartar". Badge de solicitudes pendientes en el nav lateral
+(`.notification-badge`, copiado del patron ya usado en el POS) y pill
+en el encabezado, alimentados desde `cargarAdminNexo()`.
+
+**Consumidor** (`public/js/product-inventory.js`): nueva
+`renderTarjetaSolicitarFotoBanco(codigo)` -- estado vacio "No
+encontramos imagenes para este producto" + boton "Solicitar
+fotografia", mismo mecanismo de insercion segura ya establecido
+(hermana del `<label class="campo-ficha">`, nunca dentro). El boton
+siempre se muestra sin importar el plan; el servidor decide.
+
+**Verificacion end-to-end** (negocios sinteticos, nunca
+`negocio_id = 1`): las 3 migraciones aplicadas y confirmadas.
+Backend probado con script directo: solicitud creada (idempotente en
+repeticion), negocio Basico rechazado con 403, aparece en Admin con
+el nombre real del negocio (via JOIN), conteo correcto para el badge,
+**importar un ZIP con el mismo codigo resuelve la solicitud sola**
+(`estado`, `banco_imagen_id`, `resuelta_at` confirmados en base),
+`origen` guarda el nombre real del ZIP, resumen trae marcas dinamicas
+con conteos reales, detalle trae usos/historial correctos tras un
+`/usar` real, galeria con id inexistente responde 404 (anti-suplantacion),
+lista extendida trae ancho/alto/tamano/filtro por marca, descartar
+solicitud funciona, y un ZIP corrupto no tumba la ruta (responde 200
+con el error listado, confirmando que la logica de continuar-tras-error
+ya es correcta del lado del servidor). En navegador real: el panel
+Admin redisenado carga con datos reales (tiles, metricas, grilla,
+badges de fotos), el panel de detalle abre con las 3 pestanas
+funcionando y la vista previa + tira de miniaturas cargando bytes
+reales; del lado del negocio, la tarjeta neutra "Solicitar fotografia"
+aparece para un codigo sin match, el clic la registra de verdad en la
+base (confirmado por consulta directa) y el boton cambia a
+"Fotografia solicitada" deshabilitado. Sin errores de consola en
+ningun paso. `node --check` limpio en los 3 archivos `.js` tocados.
+
+**Limpieza de datos**: se encontraron y borraron restos de pruebas de
+fases anteriores de esta misma conversacion que no se habian limpiado
+por completo (codigos derivados "hermanos" de ZIPs de prueba, ej.
+`APRINCIPAL`/`GALERIA` con marca `MarcaGaleria`, `FOTO`/`1PRINCIPAL`
+con marca `Urrea` de pruebas con `_prueba.zip`) -- mismo patron de
+"codigo derivado extra que se escapa de la limpieza" ya detectado una
+vez antes en la fase anterior. **Se dejo sin tocar, a proposito, un
+bloque de 24 filas reales con marca "Diprofer"** (codigos con forma de
+producto real, ej. `WT400CA`, `101977`) por no tener certeza de si son
+datos de prueba de una fase anterior a esta conversacion o contenido
+real que el usuario ya empezo a curar -- pendiente de que el usuario
+confirme si se borran o se quedan.
+
+Todos los negocios sinteticos y datos de prueba de esta fase borrados
+al terminar. Pendiente de confirmacion del usuario para `git add`/`commit`.
