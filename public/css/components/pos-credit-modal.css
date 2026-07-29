@@ -1483,6 +1483,13 @@ body.oscuro .cliente-credito-texto strong{
  color:#0d6efd !important;
 }
 
+.btn-whatsapp-recordatorio{
+ width:100% !important;
+ background:#25d366 !important;
+ color:#fff !important;
+ border-color:color-mix(in srgb, #25d366 38%, transparent) !important;
+}
+
 body.oscuro #detalleCliente{
  background:#111827;
  border-color:#243044;

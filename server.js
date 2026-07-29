@@ -17,6 +17,7 @@ const {
 const { cargarModulosPOS } = require("./server-modules");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
+const { calcularAntiguedadCredito } = require("./credit-aging");
 const { listarPlanes, listarCatalogoFunciones, funcionesDelPlan } = require("./features");
 const {
     enviarCorreoVerificacion,
@@ -4242,9 +4243,10 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
             referencia,
             concepto,
             monto,
-            productos
+            productos,
+            fecha_vencimiento
         )
-        SELECT $1, c.id, 'venta', $2, $3, $4, $5::jsonb
+        SELECT $1, c.id, 'venta', $2, $3, $4, $5::jsonb, NOW() + INTERVAL '15 days'
         FROM public.clientes_credito c
         WHERE c.id = $6
         AND c.negocio_id = $1
@@ -5909,18 +5911,32 @@ app.get("/creditos", requerirAccesoNegocio, async (req, res) => {
             0
         );
 
-        const hoy = new Date().toISOString().slice(0, 10);
+        const movimientosTodos = await pool.query(`
+            SELECT cliente_id, tipo, monto, fecha, fecha_vencimiento
+            FROM public.movimientos_credito
+            WHERE negocio_id = $1
+            ORDER BY cliente_id, fecha ASC, id ASC
+        `, [negocio.id]);
 
-        const fechaVencimientoISO = valor =>
-            valor instanceof Date
-                ? valor.toISOString().slice(0, 10)
-                : String(valor).slice(0, 10);
+        const movimientosPorCliente = new Map();
+        for (const mov of movimientosTodos.rows) {
+            if (!movimientosPorCliente.has(mov.cliente_id)) {
+                movimientosPorCliente.set(mov.cliente_id, []);
+            }
+            movimientosPorCliente.get(mov.cliente_id).push(mov);
+        }
 
-        const vencidos = clientes.rows.filter(cliente =>
-            Number(cliente.saldo) > 0 &&
-            cliente.fecha_vencimiento &&
-            fechaVencimientoISO(cliente.fecha_vencimiento) < hoy
-        );
+        const filasConAntiguedad = clientes.rows.map(cliente => {
+            const aging = calcularAntiguedadCredito(movimientosPorCliente.get(cliente.id) || []);
+            return {
+                ...cliente,
+                vencido: aging.vencido,
+                totalVencido: aging.totalVencido,
+                diasVencidoMax: aging.diasVencidoMax
+            };
+        });
+
+        const vencidos = filasConAntiguedad.filter(cliente => cliente.vencido);
 
         const pagosMes = await pool.query(`
             SELECT COALESCE(SUM(m.monto), 0) AS total
@@ -5931,14 +5947,14 @@ app.get("/creditos", requerirAccesoNegocio, async (req, res) => {
         `, [negocio.id]);
 
         res.json({
-            clientes: clientes.rows,
+            clientes: filasConAntiguedad,
             total,
             clientesConAdeudo:
-                clientes.rows.filter(
+                filasConAntiguedad.filter(
                     cliente => Number(cliente.saldo) > 0
                 ).length,
             clientesVencidos: vencidos.length,
-            totalVencido: vencidos.reduce((suma, cliente) => suma + Number(cliente.saldo), 0),
+            totalVencido: vencidos.reduce((suma, cliente) => suma + cliente.totalVencido, 0),
             pagosEsteMes: Number(pagosMes.rows[0].total)
         });
     } catch (error) {
@@ -5988,9 +6004,16 @@ app.get("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
             ORDER BY fecha ASC, id ASC
         `, [id, negocio.id]);
 
+        const aging = calcularAntiguedadCredito(movimientos.rows);
+
         res.json({
-            cliente: cliente.rows[0],
-            movimientos: movimientos.rows
+            cliente: {
+                ...cliente.rows[0],
+                vencido: aging.vencido,
+                totalVencido: aging.totalVencido
+            },
+            movimientos: movimientos.rows,
+            aging
         });
     } catch (error) {
         responderError(res, error);
@@ -6396,9 +6419,11 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
                 descuento,
                 descuento_tipo,
                 descuento_valor,
-                productos
+                productos,
+                fecha_vencimiento
             )
-            SELECT $1, c.id, 'venta', $2, $3, $4, $5, $6, $7, $8, $9::jsonb
+            SELECT $1, c.id, 'venta', $2, $3, $4, $5, $6, $7, $8, $9::jsonb,
+                   NOW() + INTERVAL '15 days'
             FROM public.clientes_credito c
             WHERE c.id = $10
             AND c.negocio_id = $1

@@ -6086,3 +6086,88 @@ confirme si se borran o se quedan.
 
 Todos los negocios sinteticos y datos de prueba de esta fase borrados
 al terminar. Pendiente de confirmacion del usuario para `git add`/`commit`.
+
+## 2026-07-29 -- Fix: CSP bloqueaba las miniaturas del Banco de imagenes
+
+El usuario reporto que las miniaturas del Banco de imagenes (panel
+Admin, fase anterior) no cargaban -- casillas en blanco, sin el texto
+"..." ni "Sin imagen". Se investigo bajando los bytes reales de la
+base de datos: las fotos estaban correctas (fotos de producto reales,
+JPEG validos). El problema era 100% del navegador: la CSP de helmet
+(`server.js`) solo permitia `img-src 'self' data:`, y las miniaturas
+se cargan via `URL.createObjectURL(blob)` (fetch autenticado con
+`x-admin-key` + conversion a blob, ya que un `<img src>` no puede
+llevar headers) -- eso genera URLs `blob:`, que la CSP bloqueaba en
+silencio. Se agrego `blob:` a `imgSrc`
+(`server.js:74`). Verificado en navegador local: la miniatura carga
+sola en cuanto entra en pantalla (confirma tambien que el
+`IntersectionObserver` de carga perezosa sigue funcionando).
+Comiteado y pusheado (`2f31278`).
+
+## 2026-07-29 -- Vencimiento por venta de credito + recordatorio manual por WhatsApp
+
+El usuario propuso que Nexo ayude con creditos: cada venta a credito
+con su propio plazo de 15 dias (no un solo vencimiento por cliente
+como hoy), y un boton para mandar un recordatorio por WhatsApp cuando
+una compra especifica ya vencio. Se acoto el alcance en conversacion:
+sin integracion real de WhatsApp Business API (cuesta dinero, requiere
+verificacion de negocio), sin verificacion de numero de telefono
+(tambien cuesta dinero y no aporta si el dueño manda el mensaje el
+mismo desde su WhatsApp), solo Plan Pro/demo, y el boton solo aparece
+cuando ya vencio -- nada de avisos automaticos en el momento de la
+compra ni "5 dias antes".
+
+**Decision de arquitectura** (confirmada con el usuario via
+`AskUserQuestion`): en vez de reusar el vencimiento manual existente
+por cliente (`clientes_credito.fecha_vencimiento`), se construyo
+vencimiento **por venta individual** con un motor de antiguedad de
+cartera (FIFO) -- mas fiel a la idea original, aunque mas grande de
+construir.
+
+**Backend**: migracion `20260729_movimientos_credito_vencimiento.sql`
+agrega `movimientos_credito.fecha_vencimiento` (con backfill de las
+filas `venta` existentes, `fecha + 15 dias`). Nuevo modulo puro
+`credit-aging.js` (`calcularAntiguedadCredito`, estilo motor de
+calculo puro como `pricing-rules.js`): dado el historial de
+movimientos de un cliente, aplica los abonos en cascada FIFO contra
+las ventas mas antiguas primero, y determina cuales ventas siguen sin
+pagarse y cuales de esas ya vencieron. `GET /creditos` y
+`GET /creditos/clientes/:id` (`server.js`) ahora corren este motor en
+vez del viejo chequeo de fecha unica por cliente. Las 2 rutas que
+crean una venta a credito (`POST /creditos/clientes/:id/cargos` y el
+manejador de sincronizacion offline) fijan `fecha_vencimiento = NOW() + INTERVAL '15 days'`
+al insertar.
+
+**Frontend** (`public/js/credit-customers.js`): `clienteCreditoVencido()`
+pasa a ser un passthrough al campo `vencido` que ya regresa el
+servidor. El panel de detalle del cliente muestra la compra vencida
+mas antigua + dias de atraso + total vencido (cuando aplica). Boton
+nuevo "Recordar por WhatsApp" (gateado a plan `pro`/`demo` via el
+global `estadoLicenciaNexoPOS` ya poblado en el login, sin fetch
+extra), visible solo si hay algo vencido -- abre
+`wa.me/<telefono>?text=<mensaje>` con el saldo vencido, fecha y dias
+de atraso, para que el dueño lo mande el mismo con un toque. Se
+retiro el campo manual "Fecha de vencimiento (opcional)" de los
+formularios de Nuevo/Editar cliente (quedaba compitiendo visualmente
+con el vencimiento automatico nuevo); la columna
+`clientes_credito.fecha_vencimiento` se deja intacta en la base, solo
+se dejo de leer para el calculo de vencido.
+
+**Verificacion**: 7 pruebas puras nuevas
+(`tests/credit-aging.test.js`, sin servidor/BD) cubriendo FIFO
+simple, abono parcial, abono que cruza dos ventas, vencimiento futuro,
+sin movimientos, y abono registrado antes de cualquier venta. 1 prueba
+de integracion nueva en `tests/creditos.test.js` (servidor real +
+negocio sintetico): 3 cargos con edades simuladas distintas
+(`UPDATE` directo de `fecha`/`fecha_vencimiento`), abono parcial que
+solo cubre la venta mas antigua, confirma que `GET /creditos/clientes/:id`
+y `GET /creditos` traen exactamente la venta correcta como vencida con
+el monto restante correcto. Suite completa (13 pruebas) verde. En
+navegador (negocio sintetico plan `demo`, borrado al terminar): se
+confirmo con datos reales que el resumen lateral, el boton de
+WhatsApp y el mensaje generado (decodificado del link `wa.me`) traen
+los numeros correctos, y que el boton no aparece en plan `basico`.
+`negocio_id = 1` sin cambios de escritura (la migracion si aplico el
+backfill a sus filas existentes, con confirmacion explicita del
+usuario antes de correrla). Pendiente de confirmacion del usuario
+para `git add`/`commit`.

@@ -14,11 +14,7 @@ function inicialesClienteCredito(nombre) {
 }
 
 function clienteCreditoVencido(cliente) {
- const saldo = Number(cliente.saldo || 0);
-
- if (saldo <= 0 || !cliente.fecha_vencimiento) return false;
-
- return String(cliente.fecha_vencimiento).slice(0, 10) < new Date().toISOString().slice(0, 10);
+ return Boolean(cliente?.vencido);
 }
 
 async function cargarCreditos() {
@@ -193,7 +189,7 @@ function renderCreditos(datos) {
  <span class="cliente-credito-texto">
  <strong>${escaparPOS(cliente.nombre || "Cliente")}</strong>
  <small>CR-${String(cliente.id).padStart(6, "0")}</small>
- ${cliente.fecha_vencimiento ? `<small>Vence: ${new Date(cliente.fecha_vencimiento).toLocaleDateString("es-MX")}</small>` : ""}
+ ${cliente.vencido ? `<small class="rojo">Vencido: ${dinero(cliente.totalVencido)}</small>` : ""}
  </span>
  <span class="cliente-credito-derecha">
  <strong>${dinero(cliente.saldo)}</strong>
@@ -290,20 +286,21 @@ function renderCreditoDetalleExtra() {
  : "Sin movimientos registrados";
  }
 
- const dias = creditoActual.fecha_vencimiento
- ? Math.round((new Date(creditoActual.fecha_vencimiento) - new Date()) / 86400000)
- : null;
+ const aging = window.creditoAgingActual;
 
  const resumenLateral = document.getElementById("creditoResumenLateral");
  if (resumenLateral) {
  resumenLateral.innerHTML = `
  <div><span>Fecha de creacion</span><strong>${new Date(creditoActual.created_at).toLocaleDateString("es-MX")}</strong></div>
  <div><span>Ultimo movimiento</span><strong>${ultimoMovimiento ? new Date(ultimoMovimiento).toLocaleDateString("es-MX") : "Sin movimientos"}</strong></div>
- <div><span>Vencimiento</span><strong>${creditoActual.fecha_vencimiento ? new Date(creditoActual.fecha_vencimiento).toLocaleDateString("es-MX") : "Sin fecha"}</strong></div>
- ${dias !== null ? `<div><span>Dias para vencer</span><strong class="${dias < 0 ? "rojo" : ""}">${dias < 0 ? Math.abs(dias) + " dias vencido" : dias + " dias"}</strong></div>` : ""}
+ ${aging && aging.ventaVencidaMasAntigua ? `
+ <div><span>Compra vencida mas antigua</span><strong>${new Date(aging.ventaVencidaMasAntigua.fechaVencimiento).toLocaleDateString("es-MX")}</strong></div>
+ <div><span>Dias de atraso</span><strong class="rojo">${aging.ventaVencidaMasAntigua.diasVencido} dias</strong></div>
+ ` : ""}
  <div><span>Limite de credito</span><strong>${dinero(limite)}</strong></div>
  <div><span>Credito utilizado</span><strong>${dinero(saldo)}</strong></div>
  <div><span>Saldo pendiente</span><strong class="${saldo > 0 ? "rojo" : "verde"}">${dinero(saldo)}</strong></div>
+ ${aging && aging.vencido ? `<div><span>Total vencido</span><strong class="rojo">${dinero(aging.totalVencido)}</strong></div>` : ""}
  `;
  }
 
@@ -313,8 +310,15 @@ function renderCreditoDetalleExtra() {
  <div><span>Nombre</span><strong>${escaparPOS(creditoActual.nombre || "")}</strong></div>
  <div><span>Telefono</span><strong>${escaparPOS(creditoActual.telefono || "Sin registrar")}</strong></div>
  <div><span>Cliente desde</span><strong>${new Date(creditoActual.created_at).toLocaleDateString("es-MX")}</strong></div>
- <div><span>Fecha de vencimiento</span><strong>${creditoActual.fecha_vencimiento ? new Date(creditoActual.fecha_vencimiento).toLocaleDateString("es-MX") : "Sin fecha"}</strong></div>
  `;
+ }
+
+ const accionWhatsapp = document.getElementById("creditoAccionWhatsapp");
+ if (accionWhatsapp) {
+ const planPermitido = ["pro", "demo"].includes(estadoLicenciaNexoPOS?.plan);
+ accionWhatsapp.innerHTML = (planPermitido && aging && aging.vencido)
+ ? `<button class="btn-whatsapp-recordatorio" type="button" onclick="enviarRecordatorioCreditoWhatsApp()">Recordar por WhatsApp</button>`
+ : "";
  }
 
  const pagosTab = document.getElementById("creditoPagosTabla");
@@ -435,6 +439,9 @@ async function abrirCuentaCliente(id) {
  window.movimientosCreditoActuales =
  datos.movimientos || [];
 
+ window.creditoAgingActual =
+ datos.aging || null;
+
  cuerpo.innerHTML =
  datos.movimientos.map((movimiento, indice) => {
  const monto =
@@ -511,6 +518,42 @@ function mostrarMasMovimientosCredito() {
 function regresarListaCreditos() {
  document.getElementById("listaCreditos").style.display = "grid";
  document.getElementById("detalleCliente").style.display = "none";
+}
+
+function normalizarTelefonoWhatsApp(telefono) {
+ const digitos = String(telefono || "").replace(/\D/g, "");
+ if (!digitos) return null;
+ if (digitos.length === 10) return `52${digitos}`;
+ return digitos.length >= 10 ? digitos : null;
+}
+
+function enviarRecordatorioCreditoWhatsApp() {
+ if (!creditoActual) return;
+
+ const aging = window.creditoAgingActual;
+ if (!aging || !aging.vencido) {
+ alertaPOS("Este cliente no tiene compras vencidas.", "Recordatorio por WhatsApp", "info");
+ return;
+ }
+
+ const telefono = normalizarTelefonoWhatsApp(creditoActual.telefono);
+ if (!telefono) {
+ alertaPOS("Este cliente no tiene un telefono registrado. Agregalo desde 'Editar cliente'.", "Recordatorio por WhatsApp", "alerta");
+ return;
+ }
+
+ const negocio = configuracionNegocio() || {};
+ const masAntigua = aging.ventaVencidaMasAntigua;
+ const fechaTexto = masAntigua ? new Date(masAntigua.fechaVencimiento).toLocaleDateString("es-MX") : "";
+ const dias = masAntigua ? masAntigua.diasVencido : 0;
+
+ const mensaje =
+ `Hola ${creditoActual.nombre || ""}, te saluda ${negocio.nombre || "Nexo POS"}. ` +
+ `Tienes un saldo vencido de ${dinero(aging.totalVencido)}` +
+ (fechaTexto ? ` de una compra con vencimiento el ${fechaTexto} (${dias} dia${dias === 1 ? "" : "s"} de atraso)` : "") +
+ `. Te agradecemos tu pago a la brevedad. Cualquier duda, contactanos.`;
+
+ window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
 }
 
 async function imprimirEstadoCuentaCredito() {
@@ -853,11 +896,6 @@ async function abrirNuevoClienteCredito(prellenado = {}) {
  placeholder: "0",
  valor: String(prellenado.limiteCredito || 0),
  min: 0
- },
- {
- nombre: "fechaVencimiento",
- etiqueta: "Fecha de vencimiento (opcional)",
- tipo: "date"
  }
  ]
  });
@@ -867,8 +905,7 @@ async function abrirNuevoClienteCredito(prellenado = {}) {
  const payloadCliente = {
  nombre: datos.nombre,
  telefono: datos.telefono,
- limiteCredito: datos.limiteCredito,
- fechaVencimiento: datos.fechaVencimiento || null
+ limiteCredito: datos.limiteCredito
  };
 
  let respuesta;
@@ -1216,12 +1253,6 @@ async function editarClienteCredito(id) {
  etiqueta: "Limite de credito",
  tipo: "number",
  valor: cliente.limite_credito || 0
- },
- {
- nombre: "fechaVencimiento",
- etiqueta: "Fecha de vencimiento (opcional)",
- tipo: "date",
- valor: cliente.fecha_vencimiento ? String(cliente.fecha_vencimiento).slice(0, 10) : ""
  }
  ]
  });

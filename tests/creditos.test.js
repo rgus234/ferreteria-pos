@@ -66,6 +66,62 @@ test("cliente con credito: un cargo y un abono dejan el saldo correcto", async (
     assert.equal(Number(datosFinales.cliente.saldo), 180, "saldo debe ser 300 de cargo menos 120 de abono");
 });
 
+test("antiguedad por venta: solo la compra vencida y no pagada aparece como vencida", async () => {
+    const creado = await fetch(`${BASE_URL}/creditos/clientes`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ nombre: "Cliente antiguedad", telefono: "4980000000", limiteCredito: 5000 })
+    });
+    const clienteId = (await creado.json()).cliente.id;
+
+    async function crearCargo(monto) {
+        const respuesta = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/cargos`, {
+            method: "POST",
+            headers: headers(),
+            body: JSON.stringify({ monto, concepto: "Compra de prueba" })
+        });
+        return (await respuesta.json()).movimiento.id;
+    }
+
+    const ventaVencidaId = await crearCargo(500);
+    const ventaNoVencidaId = await crearCargo(300);
+    await crearCargo(200); // venta fresca, ni siquiera cerca de vencer
+
+    // Adelantar la antiguedad a mano: la primera ya vencio hace 5 dias,
+    // la segunda todavia le quedan 5 dias.
+    await pool.query(
+        `UPDATE public.movimientos_credito SET fecha = NOW() - INTERVAL '20 days', fecha_vencimiento = NOW() - INTERVAL '5 days' WHERE id = $1`,
+        [ventaVencidaId]
+    );
+    await pool.query(
+        `UPDATE public.movimientos_credito SET fecha = NOW() - INTERVAL '10 days', fecha_vencimiento = NOW() + INTERVAL '5 days' WHERE id = $1`,
+        [ventaNoVencidaId]
+    );
+
+    // Abono parcial que solo cubre parte de la venta ya vencida.
+    await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/abonos`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ monto: 200, concepto: "Abono parcial" })
+    });
+
+    const detalle = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}`, { headers: headers() });
+    const datosDetalle = await detalle.json();
+
+    assert.equal(datosDetalle.cliente.vencido, true);
+    assert.equal(datosDetalle.aging.ventasVencidas.length, 1, "solo la venta mas antigua sigue vencida");
+    assert.equal(datosDetalle.aging.ventasVencidas[0].id, ventaVencidaId);
+    assert.equal(datosDetalle.aging.totalVencido, 300, "500 originales menos 200 de abono");
+
+    const lista = await fetch(`${BASE_URL}/creditos`, { headers: headers() });
+    const datosLista = await lista.json();
+    const filaCliente = datosLista.clientes.find(c => Number(c.id) === Number(clienteId));
+
+    assert.equal(filaCliente.vencido, true);
+    assert.equal(filaCliente.totalVencido, 300);
+    assert.ok(datosLista.clientesVencidos >= 1);
+});
+
 test("un abono con monto invalido se rechaza", async () => {
     const creado = await fetch(`${BASE_URL}/creditos/clientes`, {
         method: "POST",
