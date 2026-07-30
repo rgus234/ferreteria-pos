@@ -476,6 +476,11 @@ async function abrirCuentaCliente(id) {
  ? `<br><button class="btn-ver-detalle-venta" onclick="verDetalleVentaCredito(${indice})">Ver detalle</button>`
  : ""
  }
+ ${
+ movimiento.tipo === "venta" && movimiento.historial_id && productosMovimiento.length > 0
+ ? `<button class="btn-ver-detalle-venta btn-editar-compra-credito" onclick="editarCompraCreditoPOS(${indice})">Editar compra</button>`
+ : ""
+ }
  </td>
  <td>${
  movimiento.tipo === "venta"
@@ -631,6 +636,103 @@ async function imprimirEstadoCuentaCredito() {
 
  if (!enviado) {
  await alertaPOS("No se pudo enviar el estado de cuenta a la impresora.", "Estado de cuenta", "alerta");
+ }
+}
+
+// Deja editar una compra a credito (cambiar un producto por otro) --
+// solo disponible para compras nuevas que ya tienen folio real
+// (movimiento.historial_id). Pide PIN de administrador primero, y
+// reusa el modal de 2 pasos "Cambiar producto" que ya existe en
+// Buscar ticket (ticket-lookup-view.js) en vez de duplicar esa logica.
+async function editarCompraCreditoPOS(indice) {
+ const movimiento =
+ (window.movimientosCreditoActuales || [])[indice];
+
+ if (!movimiento || !movimiento.historial_id) return;
+
+ const pin =
+ await pedirPasswordPOS(
+ "Ingresa el PIN de un administrador para editar esta compra.",
+ "Editar compra"
+ );
+
+ if (pin === null || pin === undefined) return;
+
+ const admin =
+ await buscarAdminPorPinLocal(pin);
+
+ if (!admin) {
+ await alertaPOS("PIN de administrador incorrecto.", "Editar compra", "peligro");
+ return;
+ }
+
+ let datos;
+
+ try {
+ const respuesta =
+ await fetch(`/ventas/${movimiento.historial_id}`);
+
+ datos =
+ await respuesta.json();
+
+ if (!respuesta.ok || !datos.ok || !datos.venta) {
+ throw new Error("respuesta invalida");
+ }
+ } catch (error) {
+ await alertaPOS("No se pudo cargar la compra.", "Editar compra", "peligro");
+ return;
+ }
+
+ const productos =
+ Array.isArray(datos.venta.productos) ? datos.venta.productos : [];
+
+ const productosConCambio =
+ productos.filter(producto => producto.admiteCambios !== false && producto.id);
+
+ if (!productosConCambio.length) {
+ await alertaPOS("Esta compra no tiene productos que se puedan cambiar.", "Editar compra", "info");
+ return;
+ }
+
+ // El modal de "Cambiar producto" (ticket-lookup-view.js) depende de
+ // esta variable de modulo -- se puede asignar directo (sin "window.")
+ // porque ambos archivos son scripts clasicos que comparten el mismo
+ // scope global lexico.
+ ventaActualBuscarTicket = datos.venta;
+
+ let productoElegidoId =
+ productosConCambio.length === 1 ? Number(productosConCambio[0].id) : null;
+
+ if (!productoElegidoId) {
+  const eleccion =
+  await abrirFormularioCredito({
+  titulo: "Elige el producto a cambiar",
+  subtitulo: datos.venta.folio || "",
+  campos: [
+  {
+  nombre: "productoId",
+  etiqueta: "Producto",
+  tipo: "select",
+  opciones: productosConCambio.map(producto => ({
+  valor: producto.id,
+  etiqueta: `${producto.nombre} x ${producto.cantidad}`
+  }))
+  }
+  ]
+  });
+
+  if (!eleccion) return;
+
+  productoElegidoId = Number(eleccion.productoId);
+ }
+
+ if (typeof abrirCambioProductoPOS !== "function") return;
+
+ const resultado =
+ await abrirCambioProductoPOS(productoElegidoId, pin);
+
+ if (resultado && creditoActual?.id) {
+  await abrirCuentaCliente(creditoActual.id);
  }
 }
 

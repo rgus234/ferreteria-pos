@@ -6171,3 +6171,110 @@ los numeros correctos, y que el boton no aparece en plan `basico`.
 backfill a sus filas existentes, con confirmacion explicita del
 usuario antes de correrla). Pendiente de confirmacion del usuario
 para `git add`/`commit`.
+
+## 2026-07-30 -- Fix de seguridad: PIN de administrador en "Ajustar importe de nota" era falsificable
+
+Investigando una idea del usuario para extender "Cambiar producto" a
+ventas a credito, se encontro (no fue lo que se pidio arreglar, se
+detecto de paso) que el candado de PIN de administrador en
+"Ver detalles -- Imprimir nota -- Ajustar solo importe mostrado"
+(`POST /ventas/:id/comprobantes`) estaba roto del lado del servidor:
+`validarPinAdministrador()` comparaba contra `usuarios.password`, una
+columna vieja que nunca se llena (los usuarios se crean con
+`password_hash`) -- esa consulta nunca podia encontrar coincidencia.
+Como la ruta, al no encontrar `admin`, caia en un `autorizacionLocal !== true`
+que confiaba ciegamente en un booleano mandado por el propio cliente,
+cualquiera que llamara la ruta directo (sin pasar por la UI) podia
+mandar `autorizacionLocal:true` con cualquier PIN (o vacio) y el
+servidor lo aceptaba igual.
+
+**Fix**: `validarPinAdministrador()` ahora consulta `empleados`
+(`rol = 'Administrador'`, `activo = true`) y verifica el PIN contra
+`pin_hash` con `verificarPassword()` (`password-utils.js`) -- el mismo
+sistema real que ya usa `/dispositivo/empleados/verificar-pin`. Se
+elimino por completo el atajo `autorizacionLocal` (tanto el parametro
+en el body como el `if`): el PIN real ya viaja en `adminPin` en cada
+llamada a esta ruta, asi que el servidor puede y debe validarlo el
+mismo siempre que la peticion lo alcance -- no hace falta un atajo de
+"confia en mi" para ningun caso de uso real (esta ruta no forma parte
+de la cola de sincronizacion offline). `autorizado_por` ahora tambien
+queda con el nombre real del empleado verificado en vez del texto
+libre que mandaba el cliente.
+
+**Verificacion**: contra un empleado y un dispositivo de prueba
+temporales en el negocio sintetico 17566 (borrados al terminar) --
+PIN correcto autoriza y guarda `autorizado_por` con el nombre real del
+empleado; PIN incorrecto se rechaza; intento de bypass mandando
+`autorizacionLocal:true` con PIN vacio tambien se rechaza (antes
+pasaba). `node --check server.js` limpio. `negocio_id = 1` sin tocar.
+Pendiente de confirmacion del usuario para `git add`/`commit`.
+
+## 2026-07-30 -- Editar compra a credito (cambiar producto), folio real y conteo solo al liquidar
+
+El usuario conto un caso real: un cliente compro algo a credito y
+regreso a cambiarlo por otro producto. Investigando se encontro que
+las compras a credito (tanto desde el carrito del POS como el cargo
+manual en Creditos) nunca pasaban por `historial_ventas` -- sin
+folio, sin aparecer en "Buscar ticket", sin forma de usar "Cambiar
+producto" (ya construido para ventas de contado). El usuario tambien
+confirmo que una venta a credito debe contar en "Ventas totales" de
+Reportes **solo hasta que se liquide por completo**, no al momento de
+la compra.
+
+**Migracion** (`migrations/20260730_creditos_folio_liquidacion.sql`):
+`movimientos_credito` gana `historial_id` (FK a `historial_ventas`,
+`ON DELETE SET NULL`) y `liquidado_at` (TIMESTAMPTZ, monotono -- una
+vez que se pone, nunca se quita, para que un cambio de producto
+posterior no "des-cuente" retroactivamente un reporte ya cerrado).
+Sin backfill: las compras a credito ya existentes (incluidas las
+reales de Ferreteria Olimpico) se quedan sin `historial_id`, exactamente
+su comportamiento actual -- cero regresion.
+
+**Backend**:
+- `POST /creditos/clientes/:id/cargos` y su gemelo offline
+  `aplicarCreditoCargoSync` ahora son transaccionales: generan un
+  folio real (`siguienteFolioVenta`), insertan en `historial_ventas`
+  (`metodo_pago:'credito'`), y ligan `movimientos_credito.historial_id`
+  a esa fila. El descuento de stock duplicado que ya tenia esta ruta
+  se elimino (ahora ocurre una sola vez, via el mismo flujo compartido
+  que usa `POST /ventas`).
+- `marcarVentasLiquidadasCliente(client, negocioId, clienteId)`
+  (nueva, hoisted): tras cada abono o cambio de producto, corre
+  `calcularAntiguedadCredito()` (motor FIFO ya existente de la fase
+  de vencimiento por venta) y marca `liquidado_at = NOW()` en las
+  ventas que ya no tienen saldo pendiente.
+- `POST /ventas/:id/cambios` ("Cambiar producto"): si la venta esta
+  ligada a un cargo de credito (`movimientos_credito.historial_id`),
+  ahora exige `adminPin` y lo valida con `validarPinAdministrador()`
+  (el mismo fix de seguridad de la entrada anterior) antes de tocar
+  nada. Al aplicar el cambio, ajusta `movimientos_credito.monto` con
+  la diferencia y vuelve a correr `marcarVentasLiquidadasCliente`. Una
+  venta de contado normal (sin credito ligado) sigue sin pedir PIN.
+- `GET /reportes/ventas`: las ~9 consultas comparten un fragmento
+  `NOT EXISTS (SELECT 1 FROM movimientos_credito mc WHERE mc.historial_id
+  = historial_ventas.id AND mc.liquidado_at IS NULL)` -- una venta de
+  contado (sin fila que la ligue) sigue contando igual que siempre.
+
+**Frontend**: en el detalle de un cliente en Creditos, cada movimiento
+`tipo='venta'` con `historial_id` y productos gana un boton "Editar
+compra" (`credit-customers.js`, `editarCompraCreditoPOS`) que pide el
+PIN localmente (`buscarAdminPorPinLocal`), deja elegir el producto si
+la compra tiene mas de uno, y reusa el modal de 2 pasos ya construido
+de "Cambiar producto" (`abrirCambioProductoPOS`, `ticket-lookup-view.js`),
+que ahora ademas exige marcar una casilla ("confirmo que revise el
+producto devuelto") antes de habilitar "Confirmar cambio" -- aplica a
+cualquier cambio, no solo a credito. Compras viejas sin `historial_id`
+no muestran el boton (nada que editar todavia ahi).
+
+**Verificacion**: 6 pruebas nuevas en `tests/creditos-editar-compra.test.js`
+(negocio sintetico, `node --test`) cubriendo: folio real + stock
+descontado una sola vez + encontrable por folio; PIN incorrecto
+rechazado sin tocar stock ni deuda; PIN correcto ajusta stock de ambos
+productos + `cambios_producto` + `movimientos_credito.monto` + saldo
+del cliente; una venta a credito no cuenta en Reportes hasta que un
+abono la satura (y si cuenta despues); una venta de contado normal
+sigue contando sin regresion; una compra vieja sin `historial_id` no
+trae folio. Los 19 tests de la suite completa (`npm test`) pasan sin
+regresiones. `node --check server.js` limpio. `negocio_id = 1` sin
+tocar en ningun momento. Pendiente de confirmacion del usuario para
+`git add`/`commit`.

@@ -3654,19 +3654,22 @@ async function validarPinAdministrador(client, negocioId, pin) {
     const limpio = String(pin || "").trim();
     if (!limpio) return null;
 
+    // usuarios.password es una columna vieja sin uso real (los usuarios
+    // se crean con password_hash) -- el PIN de administrador real vive en
+    // empleados.pin_hash (mismo sistema que /dispositivo/empleados/verificar-pin).
     const resultado = await client.query(
         `
-        SELECT usuario, rol
-        FROM public.usuarios
+        SELECT id, nombre AS usuario, rol, pin_hash
+        FROM public.empleados
         WHERE negocio_id = $1
-        AND password = $2
+        AND activo = true
         AND rol = 'Administrador'
-        LIMIT 1
         `,
-        [negocioId, limpio]
+        [negocioId]
     );
 
-    return resultado.rows[0] || null;
+    const admin = resultado.rows.find(fila => verificarPassword(limpio, fila.pin_hash));
+    return admin ? { usuario: admin.usuario, rol: admin.rol } : null;
 }
 
 async function asegurarColumnasMovimientosCredito(client = pool) {
@@ -4233,6 +4236,47 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
         throw new Error("Credito offline sin total valido");
     }
 
+    const clienteFila = await client.query(
+        `SELECT id, nombre FROM public.clientes_credito WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
+        [clienteId, negocio.id]
+    );
+
+    if (!clienteFila.rows.length) {
+        throw new Error("Cliente de credito no encontrado para este negocio");
+    }
+
+    const cliente = clienteFila.rows[0];
+    const productos = productosEvento(payload);
+
+    // Mismo tratamiento que aplicarVentaSync -- folio real en
+    // historial_ventas (metodo_pago='credito') ligado por historial_id,
+    // asi una compra a credito hecha sin internet tambien puede usar
+    // "Buscar ticket" y "Cambiar producto" despues.
+    await asegurarColumnasHistorialVentas(client);
+    const folioVenta = await siguienteFolioVenta(client, negocio.id);
+
+    const historialCreado = await client.query(
+        `
+        INSERT INTO public.historial_ventas
+            (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada')
+        RETURNING id, fecha, folio
+        `,
+        [
+            negocio.id,
+            folioVenta.folio,
+            folioVenta.numero,
+            total,
+            numeroSync(payload?.subtotal, total),
+            numeroSync(payload?.descuento, 0),
+            payload?.descuentoTipo || "ninguno",
+            numeroSync(payload?.descuentoValor, 0),
+            cliente.id,
+            cliente.nombre,
+            JSON.stringify(productos)
+        ]
+    );
+
     const resultado = await client.query(
         `
         INSERT INTO public.movimientos_credito
@@ -4244,39 +4288,36 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
             concepto,
             monto,
             productos,
-            fecha_vencimiento
+            fecha_vencimiento,
+            historial_id
         )
-        SELECT $1, c.id, 'venta', $2, $3, $4, $5::jsonb, NOW() + INTERVAL '15 days'
-        FROM public.clientes_credito c
-        WHERE c.id = $6
-        AND c.negocio_id = $1
+        VALUES ($1, $2, 'venta', $3, $4, $5, $6::jsonb, NOW() + INTERVAL '15 days', $7)
         RETURNING *
         `,
         [
             negocio.id,
+            cliente.id,
             payload?.referencia || `CR-SYNC-${Date.now()}`,
             payload?.concepto || "Venta a credito",
             total,
-            JSON.stringify(productosEvento(payload)),
-            clienteId
+            JSON.stringify(productos),
+            historialCreado.rows[0].id
         ]
     );
-
-    if (resultado.rows.length === 0) {
-        throw new Error("Cliente de credito no encontrado para este negocio");
-    }
 
     await descontarInventarioPorProductos(
         client,
         negocio.id,
-        productosEvento(payload)
+        productos
     );
 
     return {
         accion: "credito_aplicado",
         movimientoId: resultado.rows[0]?.id || null,
         referencia: resultado.rows[0]?.referencia || null,
-        fecha: resultado.rows[0]?.fecha || null
+        fecha: resultado.rows[0]?.fecha || null,
+        folio: folioVenta.folio,
+        historialId: historialCreado.rows[0]?.id || null
     };
 }
 
@@ -5613,7 +5654,8 @@ app.post("/ventas/:id/cambios", requerirAccesoNegocio, async (req, res) => {
             cantidadDevuelta,
             productoNuevoId,
             cantidadNueva,
-            usuarioNombre
+            usuarioNombre,
+            adminPin
         } = req.body;
 
         const idDevuelto = Number(productoDevueltoId);
@@ -5640,6 +5682,25 @@ app.post("/ventas/:id/cambios", requerirAccesoNegocio, async (req, res) => {
         }
 
         const venta = ventaRow.rows[0];
+
+        // Si esta venta es una compra a credito (ligada via historial_id),
+        // cambiar el producto tambien cambia lo que el cliente debe --
+        // se exige el PIN de un administrador antes de tocar nada, mismo
+        // criterio ya usado en el ajuste de importe de nota.
+        const creditoLigado = await client.query(
+            `SELECT id, cliente_id, monto FROM public.movimientos_credito WHERE historial_id = $1 FOR UPDATE`,
+            [historialId]
+        );
+
+        if (creditoLigado.rows.length) {
+            const admin = await validarPinAdministrador(client, negocio.id, adminPin);
+            if (!admin) {
+                await client.query("ROLLBACK");
+                res.status(400).json({ ok: false, error: "PIN de administrador invalido para editar esta compra" });
+                return;
+            }
+        }
+
         const productosVenta = Array.isArray(venta.productos) ? venta.productos : [];
         const lineaDevuelta = productosVenta.find(item => Number(item?.id) === idDevuelto);
 
@@ -5729,6 +5790,15 @@ app.post("/ventas/:id/cambios", requerirAccesoNegocio, async (req, res) => {
             [JSON.stringify(productosActualizados), diferencia, historialId]
         );
 
+        if (creditoLigado.rows.length) {
+            const credito = creditoLigado.rows[0];
+            await client.query(
+                `UPDATE public.movimientos_credito SET monto = monto + $1 WHERE id = $2`,
+                [diferencia, credito.id]
+            );
+            await marcarVentasLiquidadasCliente(client, negocio.id, credito.cliente_id);
+        }
+
         const cambioInsertado = await client.query(
             `
             INSERT INTO public.cambios_producto
@@ -5779,8 +5849,7 @@ app.post("/ventas/:id/comprobantes", requerirAccesoNegocio, async (req, res) => 
             motivoAjuste,
             adminPin,
             usuarioAutoriza,
-            creadoPor,
-            autorizacionLocal
+            creadoPor
         } = req.body || {};
 
         await asegurarColumnasHistorialVentas(client);
@@ -5800,7 +5869,7 @@ app.post("/ventas/:id/comprobantes", requerirAccesoNegocio, async (req, res) => 
 
         if (requiereAutorizacion) {
             admin = await validarPinAdministrador(client, negocio.id, adminPin);
-            if (!admin && autorizacionLocal !== true) {
+            if (!admin) {
                 throw new Error("PIN de administrador invalido para ajustar la nota");
             }
             if (!String(motivoAjuste || "").trim()) {
@@ -6331,6 +6400,42 @@ app.put("/proveedores/:id/activar", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
+async function marcarVentasLiquidadasCliente(client, negocioId, clienteId) {
+    // Tras un abono (o un cambio de producto que reduce lo que se debe),
+    // vuelve a correr el motor de antiguedad FIFO y marca liquidado_at
+    // en las ventas ligadas a folio (historial_id) que ya quedaron
+    // saldadas del todo -- eso es lo que hace que Reportes empiece a
+    // contarlas. Monotono: nunca se le quita liquidado_at a una venta
+    // que ya lo tenia.
+    const movimientos = await client.query(
+        `
+        SELECT id, tipo, monto, fecha, fecha_vencimiento, historial_id
+        FROM public.movimientos_credito
+        WHERE negocio_id = $1 AND cliente_id = $2
+        `,
+        [negocioId, clienteId]
+    );
+
+    const aging = calcularAntiguedadCredito(movimientos.rows);
+    const pendientesIds = new Set(aging.ventasPendientes.map(v => Number(v.id)));
+
+    const idsALiquidar = movimientos.rows
+        .filter(m => m.tipo === "venta" && m.historial_id && !pendientesIds.has(Number(m.id)))
+        .map(m => m.id);
+
+    if (idsALiquidar.length > 0) {
+        await client.query(
+            `
+            UPDATE public.movimientos_credito
+            SET liquidado_at = NOW()
+            WHERE id = ANY($1::int[])
+            AND liquidado_at IS NULL
+            `,
+            [idsALiquidar]
+        );
+    }
+}
+
 app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res) => {
     const { id } = req.params;
 
@@ -6346,9 +6451,13 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res
         return;
     }
 
+    const client = await pool.connect();
+
     try {
         const negocio = await negocioActual(req);
-        const resultado = await pool.query(`
+        await client.query("BEGIN");
+
+        const resultado = await client.query(`
             INSERT INTO public.movimientos_credito
             (
                 negocio_id,
@@ -6371,12 +6480,23 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res
             id
         ]);
 
+        if (!resultado.rows.length) {
+            throw new Error("Cliente de credito no encontrado");
+        }
+
+        await marcarVentasLiquidadasCliente(client, negocio.id, Number(id));
+
+        await client.query("COMMIT");
+
         res.json({
             success: true,
             movimiento: resultado.rows[0]
         });
     } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
         responderError(res, error);
+    } finally {
+        client.release();
     }
 });
 
@@ -6400,13 +6520,70 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
         return;
     }
 
+    let negocio;
     try {
-        const negocio = await negocioActual(req);
+        negocio = await negocioActual(req);
+    } catch (error) {
+        responderError(res, error);
+        return;
+    }
 
-        if (!(await exigirLicenciaActiva(res, negocio, "un cargo a credito"))) return;
+    if (!(await exigirLicenciaActiva(res, negocio, "un cargo a credito"))) return;
 
-        await asegurarColumnasMovimientosCredito();
-        const resultado = await pool.query(`
+    // Cada compra a credito nueva gana un folio real en historial_ventas
+    // (metodo_pago='credito') -- eso es lo que le permite despues usar
+    // "Buscar ticket" y "Cambiar producto" igual que una venta de
+    // contado. movimientos_credito.historial_id queda ligado a esa
+    // fila para poder rastrear cuando se liquida por completo.
+    const client = await pool.connect();
+
+    try {
+        await asegurarColumnasHistorialVentas(client);
+        await asegurarColumnasMovimientosCredito(client);
+        await client.query("BEGIN");
+
+        const clienteFila = await client.query(
+            `
+            SELECT id, nombre
+            FROM public.clientes_credito
+            WHERE id = $1 AND negocio_id = $2
+            FOR UPDATE
+            `,
+            [id, negocio.id]
+        );
+
+        if (!clienteFila.rows.length) {
+            throw new Error("Cliente de credito no encontrado");
+        }
+
+        const cliente = clienteFila.rows[0];
+        const folioVenta = await siguienteFolioVenta(client, negocio.id);
+        const montoNum = Number(monto);
+
+        const historialCreado = await client.query(
+            `
+            INSERT INTO public.historial_ventas
+                (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada')
+            RETURNING id, fecha, folio
+            `,
+            [
+                negocio.id,
+                folioVenta.folio,
+                folioVenta.numero,
+                montoNum,
+                Number(subtotal ?? monto ?? 0),
+                Number(descuento || 0),
+                descuentoTipo || "ninguno",
+                Number(descuentoValor || 0),
+                cliente.id,
+                cliente.nombre,
+                JSON.stringify(productos || [])
+            ]
+        );
+
+        const resultado = await client.query(
+            `
             INSERT INTO public.movimientos_credito
             (
                 negocio_id,
@@ -6420,39 +6597,44 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
                 descuento_tipo,
                 descuento_valor,
                 productos,
-                fecha_vencimiento
+                fecha_vencimiento,
+                historial_id
             )
-            SELECT $1, c.id, 'venta', $2, $3, $4, $5, $6, $7, $8, $9::jsonb,
-                   NOW() + INTERVAL '15 days'
-            FROM public.clientes_credito c
-            WHERE c.id = $10
-            AND c.negocio_id = $1
+            VALUES ($1, $2, 'venta', $3, $4, $5, $6, $7, $8, $9, $10::jsonb, NOW() + INTERVAL '15 days', $11)
             RETURNING *
-        `, [
-            negocio.id,
-            `CR-${Date.now()}`,
-            concepto || "Venta a credito",
-            monto,
-            Number(subtotal ?? monto ?? 0),
-            Number(descuento || 0),
-            descuentoTipo || "ninguno",
-            Number(descuentoValor || 0),
-            JSON.stringify(productos || []),
-            id
-        ]);
+            `,
+            [
+                negocio.id,
+                cliente.id,
+                `CR-${Date.now()}`,
+                concepto || "Venta a credito",
+                montoNum,
+                Number(subtotal ?? monto ?? 0),
+                Number(descuento || 0),
+                descuentoTipo || "ninguno",
+                Number(descuentoValor || 0),
+                JSON.stringify(productos || []),
+                historialCreado.rows[0].id
+            ]
+        );
 
-        if (Array.isArray(productos)) {
-            for (const producto of productos) {
-                await descontarStockVentaProducto(pool, negocio.id, producto);
-            }
+        for (const producto of productos || []) {
+            await descontarStockVentaProducto(client, negocio.id, producto);
         }
+
+        await client.query("COMMIT");
 
         res.json({
             success: true,
-            movimiento: resultado.rows[0]
+            movimiento: resultado.rows[0],
+            folio: folioVenta.folio,
+            historialId: historialCreado.rows[0].id
         });
     } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
         responderError(res, error);
+    } finally {
+        client.release();
     }
 });
 
@@ -6550,8 +6732,20 @@ app.get("/reportes/ventas", requerirAccesoNegocio, async (req, res) => {
             desde && !Number.isNaN(desde.getTime()) &&
             hasta && !Number.isNaN(hasta.getTime());
 
+        // Una compra a credito ligada (historial_id) solo cuenta aqui una
+        // vez que ya se liquido por completo -- mientras tenga saldo
+        // pendiente, no se cuenta como "venta" en Reportes (decision
+        // confirmada con el usuario).
+        const FILTRO_CREDITO_LIQUIDADO = `
+            AND NOT EXISTS (
+                SELECT 1 FROM public.movimientos_credito mc
+                WHERE mc.historial_id = historial_ventas.id
+                AND mc.liquidado_at IS NULL
+            )
+        `;
+
         const filtroFecha =
-            usarRango
+            (usarRango
                 ? "AND fecha::date BETWEEN $2::date AND $3::date"
                 : periodo === "dia"
                     ? "AND fecha >= CURRENT_DATE"
@@ -6559,7 +6753,8 @@ app.get("/reportes/ventas", requerirAccesoNegocio, async (req, res) => {
                         ? "AND fecha >= date_trunc('week', NOW())"
                         : periodo === "anio"
                             ? "AND fecha >= date_trunc('year', NOW())"
-                            : "AND fecha >= date_trunc('month', NOW())";
+                            : "AND fecha >= date_trunc('month', NOW())"
+            ) + FILTRO_CREDITO_LIQUIDADO;
 
         const params =
             usarRango
@@ -6588,6 +6783,8 @@ app.get("/reportes/ventas", requerirAccesoNegocio, async (req, res) => {
             filtroFechaAnterior = "AND fecha >= date_trunc('month', NOW()) - INTERVAL '1 month' AND fecha < date_trunc('month', NOW())";
             paramsAnterior = [negocio.id];
         }
+
+        filtroFechaAnterior += FILTRO_CREDITO_LIQUIDADO;
 
         const resumen = await pool.query(`
             SELECT

@@ -251,6 +251,24 @@ body.oscuro .buscar-ticket-form input {
   text-align: center;
 }
 
+.cambio-producto-revision {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-soft, #f7f9fc);
+  border: 1px solid var(--line-soft, #dbe3ef);
+  font-size: 13px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.cambio-producto-revision input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
 .modal-cambio-producto-botones {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -261,11 +279,17 @@ body.oscuro .buscar-ticket-form input {
   min-height: 42px;
 }
 
+.modal-cambio-producto-botones button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 body.oscuro .modal-cambio-producto-caja,
 body.oscuro .cambio-producto-campo input,
 body.oscuro .cambio-producto-resultado,
 body.oscuro .cambio-producto-elegido,
-body.oscuro .cambio-producto-resumen {
+body.oscuro .cambio-producto-resumen,
+body.oscuro .cambio-producto-revision {
   background: var(--surface, #111827) !important;
   color: var(--text, #f1f5f9) !important;
   border-color: var(--line-soft, #334155) !important;

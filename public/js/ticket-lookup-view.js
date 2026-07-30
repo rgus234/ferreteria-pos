@@ -167,7 +167,7 @@ function renderResultadoBuscarTicket(venta) {
 // (buscar/elegir reemplazo, luego confirmar con la diferencia de
 // precio ya calculada), mismo patron de modal con "paso" interno que
 // ya usa pedirModoVentaPOS (public/js/pos-piece-sale-modal.js).
-function abrirCambioProductoPOS(productoId) {
+function abrirCambioProductoPOS(productoId, adminPinAutorizado = null) {
  const venta = ventaActualBuscarTicket;
 
  if (!venta) return;
@@ -184,6 +184,7 @@ function abrirCambioProductoPOS(productoId) {
   let cantidadDevuelta = Number(lineaOriginal.cantidad) || 1;
   let cantidadNueva = 1;
   let productoSeleccionado = null;
+  let productoRevisado = false;
 
   let modal =
   document.getElementById("modalCambioProductoPOS");
@@ -251,6 +252,7 @@ function abrirCambioProductoPOS(productoId) {
      if (accion === "continuar") {
       cantidadDevuelta = Number(document.getElementById("cambioProductoCantidadDevuelta")?.value) || cantidadDevuelta;
       cantidadNueva = Number(document.getElementById("cambioProductoCantidadNueva")?.value) || cantidadNueva;
+      productoRevisado = false;
       paso = "confirmar";
       render();
       return;
@@ -288,6 +290,17 @@ function abrirCambioProductoPOS(productoId) {
     });
     buscarInput.focus();
    }
+
+   const checkRevision =
+   document.getElementById("cambioProductoRevisado");
+
+   if (checkRevision) {
+    checkRevision.onchange = () => {
+     productoRevisado = checkRevision.checked;
+     const botonConfirmar = modal.querySelector('[data-accion="confirmar"]');
+     if (botonConfirmar) botonConfirmar.disabled = !productoRevisado;
+    };
+   }
   }
 
   async function confirmarCambio() {
@@ -300,7 +313,8 @@ function abrirCambioProductoPOS(productoId) {
       cantidadDevuelta,
       productoNuevoId: productoSeleccionado.id,
       cantidadNueva,
-      usuarioNombre: (typeof usuarioActual !== "undefined" && usuarioActual?.nombre) || ""
+      usuarioNombre: (typeof usuarioActual !== "undefined" && usuarioActual?.nombre) || "",
+      adminPin: adminPinAutorizado || ""
      })
     });
 
@@ -386,9 +400,13 @@ function abrirCambioProductoPOS(productoId) {
        <div><span>Se entrega</span><strong>${escaparPOS(productoSeleccionado.nombre)} x ${cantidadNueva}</strong></div>
        <div class="cambio-producto-diferencia">${textoDiferencia}</div>
       </div>
+      <label class="cambio-producto-revision">
+       <input type="checkbox" id="cambioProductoRevisado" ${productoRevisado ? "checked" : ""}>
+       Confirmo que revise el producto devuelto y esta en condiciones de reventa
+      </label>
       <div class="modal-cambio-producto-botones">
        <button type="button" data-accion="volver">Volver</button>
-       <button type="button" data-accion="confirmar">Confirmar cambio</button>
+       <button type="button" data-accion="confirmar" ${productoRevisado ? "" : "disabled"}>Confirmar cambio</button>
       </div>
      </div>
     `;

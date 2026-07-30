@@ -512,6 +512,12 @@ body.oscuro .credito-resumen-detalle strong {
   line-height: 1 !important;
 }
 
+.btn-editar-compra-credito {
+  margin-left: 6px !important;
+  background: linear-gradient(135deg, #7c3aed, color-mix(in srgb, #7c3aed 76%, #020617)) !important;
+  border-color: color-mix(in srgb, #7c3aed 38%, transparent) !important;
+}
+
 .btn-ver-mas-creditos {
   width: 100% !important;
   margin-top: 12px !important;
