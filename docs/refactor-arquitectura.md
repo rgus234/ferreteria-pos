@@ -6339,3 +6339,61 @@ limpios. Negocio de prueba borrado al terminar. `negocio_id = 1` sin
 tocar. La cuenta real de "ferreteria Diaz" quedo con el perfil que el
 usuario ya eligio, sin cambios adicionales. Pendiente de confirmacion
 del usuario para `git add`/`commit`.
+
+## 2026-07-30 -- Tutorial de bienvenida + tours guiados (Venta y Agregar producto)
+
+El usuario probo el POS por primera vez tras el fix de "primer login"
+de esta misma sesion y se encontro con la pantalla vacia, sin ninguna
+guia. Pidio un onboarding tipo "te van llevando paso a paso, le picas
+aqui" que resalte lo mas importante: buscar/vender en Punto de venta,
+y llenar Agregar producto.
+
+**Motor de tours ya existia** (`public/js/nexo-tour.js`,
+`nexoSpotlight`/`nexoTour`) pero solo soportaba 1 paso por modulo. Se
+generalizo `nexoIaTourPasos(modulo)` a un mapa `PASOS_TOUR_POR_MODULO`
+con arreglos completos de pasos -- los 5 modulos existentes
+(inventario/reportes/clientes/catalogo/inventario-bajo) migraron sin
+cambio de comportamiento, y se agregaron `venta` (4 pasos: buscar,
+carrito, cliente, Cobrar) y `agregar-producto` (5 pasos: info basica,
+precios, inventario, imagen/Banco de Nexo, guardar).
+
+**Bienvenida nueva** (`public/js/nexo-onboarding.js` +
+`public/css/components/nexo-onboarding.css` + markup en
+`index.html`): carrusel de 5 diapositivas con el personaje de Nexo,
+boton "Saltar" visible desde la primera diapositiva (a diferencia del
+carrusel de `/dueno` que no lo tenia), "Comenzar" en la ultima. Se
+dispara una sola vez (`localStorage.nexoOnboardingBienvenidaVisto`)
+justo despues de `entrarAlSistemaConUsuario()` dentro de
+`crearPerfilAdministradorInicial()` -- el unico momento que distingue
+"negocio realmente nuevo" de "login de rutina" (a diferencia del
+choque general de login, que corre en cada recarga). Al completar el
+carrusel (no al saltarlo), navega a Punto de venta
+(`mostrarPuntoVenta()`, se descubrio en pruebas que el landing real es
+Inicio, no Venta) y arranca el tour de Venta de inmediato; el tour de
+Agregar producto se dispara solo la primera vez que esa pantalla se
+abre, via el mecanismo generico ya existente.
+
+**Producto Truper de referencia**: el usuario pidio dejar siempre un
+producto Truper con foto real y datos completos en el catalogo de
+Ferreteria Olimpico, usando el Banco de Nexo si hacia falta. Se
+verifico en vivo (solo lectura) antes de escribir nada: el Banco de
+Nexo (`banco_imagenes_producto`, 2242 filas) solo tiene fotos de
+**Diprofer**, ninguna de Truper. Pero Ferreteria Olimpico **ya tiene**
+2 productos Truper reales con foto propia -- se eligio el producto id
+722 ("Camara para llanta de 16', para carretilla TRUPER", codigo
+`CM`, stock 3, precios completos, sin problema de mojibake) como
+referencia -- no hizo falta escribir nada en `negocio_id = 1`.
+
+**Verificacion**: contra 2 negocios sinteticos (17683, 17684, creados
+y borrados por ID via registro real + `POST /api/clientes/registro`).
+`node --check` limpio en los 3 archivos JS tocados/nuevos. Flujo
+completo probado en navegador: bienvenida aparece una sola vez,
+"Saltar" funciona, "Comenzar" navega a Venta y arranca su tour de 4
+pasos (cada uno confirmado con `getBoundingClientRect()` real sobre
+`#busqueda`, `.pos-cart-hero-heading`, `.cliente-pos-selector`,
+`.btn-cobrar`), el tour de Agregar producto se dispara solo al abrir
+esa pantalla por primera vez (5 pasos, cada uno confirmado sobre el
+encabezado real de cada seccion + imagen + boton guardar), y ninguna
+bandera se repite en una segunda visita. `negocio_id = 1` sin cambios
+de escritura durante toda la prueba. Pendiente de confirmacion del
+usuario para `git add`/`commit`.

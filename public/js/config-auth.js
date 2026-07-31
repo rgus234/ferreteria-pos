@@ -1087,6 +1087,10 @@ async function crearPerfilAdministradorInicial() {
  guardarSesionPersistente(usuarioCreado);
 
  await entrarAlSistemaConUsuario(usuarioCreado);
+
+ if (typeof mostrarBienvenidaNexoOnboarding === "function") {
+ mostrarBienvenidaNexoOnboarding();
+ }
  } catch (error) {
  mostrarErrorCrearPerfil("No se pudo conectar. Revisa tu internet e intenta de nuevo.");
  } finally {

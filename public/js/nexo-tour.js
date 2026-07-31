@@ -61,20 +61,37 @@ async function nexoTour(pasos) {
    tour (no los 19 -- Inicio y Venta ya son evidentes por si solos). */
 const NEXO_TOUR_VISTO_PREFIJO = "nexoTourVisto_";
 
+const PASOS_TOUR_POR_MODULO = {
+ inventario: [{ selector: '[data-shell-module="inventario"]', texto: null }],
+ reportes: [{ selector: '[data-shell-module="reportes"]', texto: null }],
+ clientes: [{ selector: '[data-shell-module="clientes"]', texto: null }],
+ catalogo: [{ selector: '[data-shell-module="catalogo"]', texto: null }],
+ "inventario-bajo": [{ selector: '[data-shell-module="inventario-bajo"]', texto: null }],
+
+ venta: [
+  { selector: "#busqueda", texto: "Aqui escribes el nombre, el codigo o escaneas el producto que buscas." },
+  { selector: ".pos-cart-hero-heading", texto: "Cada producto que agregues aparece aqui, en el carrito de la venta." },
+  { selector: ".cliente-pos-selector", texto: "Por defecto la venta es 'Publico general' -- toca aqui si quieres asignarla a un cliente con credito." },
+  { selector: "#resumenCobro .btn-cobrar", texto: "Cuando termines, toca Cobrar (o la tecla F8) para cerrar la venta." }
+ ],
+
+ "agregar-producto": [
+  { selector: 'section[data-seccion="basica"] h2', texto: "Aqui va lo basico: codigo de barras, nombre, categoria y marca del producto." },
+  { selector: 'section[data-seccion="precios"] h2', texto: "Estos son tus precios. 'Precio del carrito' es el que de verdad se cobra en una venta." },
+  { selector: 'section[data-seccion="inventario"] h2', texto: "Aqui llevas el stock: cuanto tienes, cuando avisarte que ya es poco, y donde esta ubicado." },
+  { selector: "#nuevaImagenProducto", texto: "Sube una foto del producto. Si el codigo ya tiene foto en el Banco de Nexo, aparece sola aqui y solo tienes que confirmarla." },
+  { selector: "#btnGuardarProducto", texto: "Cuando termines, guarda el producto -- ya queda listo para venderse." }
+ ]
+};
+
 function nexoIaTourPasos(modulo) {
- const mapaSelector = {
-  inventario: '[data-shell-module="inventario"]',
-  reportes: '[data-shell-module="reportes"]',
-  clientes: '[data-shell-module="clientes"]',
-  catalogo: '[data-shell-module="catalogo"]',
-  "inventario-bajo": '[data-shell-module="inventario-bajo"]'
- };
+ const pasos = PASOS_TOUR_POR_MODULO[modulo];
+ if (!pasos) return null;
 
- const selector = mapaSelector[modulo];
- if (!selector) return null;
-
- const texto = (typeof AYUDA_MODULOS_POS !== "undefined" && AYUDA_MODULOS_POS[modulo]) || "Explora esta seccion del sistema.";
- return [{ selector, texto }];
+ return pasos.map(paso => ({
+  selector: paso.selector,
+  texto: paso.texto || (typeof AYUDA_MODULOS_POS !== "undefined" && AYUDA_MODULOS_POS[modulo]) || "Explora esta seccion del sistema."
+ }));
 }
 
 function nexoIaTourAutoModulo(modulo) {

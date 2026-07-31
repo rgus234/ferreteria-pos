@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="css/components/setup-wizard.css?v=login-correo-20260714-01">
   <link rel="stylesheet" href="css/components/nexo-ia.css?v=nexo-ai-v2-20260722-01">
   <link rel="stylesheet" href="css/components/nexo-tour.css?v=nexo-ai-v2-20260722-01">
+  <link rel="stylesheet" href="css/components/nexo-onboarding.css?v=bienvenida-20260730-01">
   <link rel="stylesheet" href="css/components/nexo-ia-view.css?v=ia-modulo-20260719-02">
   <link rel="stylesheet" href="css/components/config-settings.css?v=ticket-rediseno-20260726-01">
   <link rel="stylesheet" href="css/components/customers.css?v=refactor-customers-20260701-01">
@@ -385,6 +386,47 @@
 
  </div>
 
+ </div>
+
+ <div id="nexoOnboardingBienvenida" class="nexo-onboarding" style="display:none;">
+ <button type="button" class="nexo-onboarding-saltar" onclick="saltarBienvenidaNexoOnboarding()">Saltar</button>
+ <div class="nexo-onboarding-slides" id="nexoOnboardingSlides">
+ <section class="nexo-onboarding-slide">
+ <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="nexo-onboarding-img">
+ <h1>¡Bienvenido a Nexo POS!</h1>
+ <p>Vamos a comenzar -- en unos segundos conoces lo mas importante para empezar a vender.</p>
+ </section>
+ <section class="nexo-onboarding-slide">
+ <div class="nexo-onboarding-icono">
+ <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.5 11h10.8l2-7H7"/></svg>
+ </div>
+ <h1>Aqui vendes</h1>
+ <p>En Punto de venta eliges cliente, agregas productos, aplicas descuentos y cobras o mandas a credito.</p>
+ </section>
+ <section class="nexo-onboarding-slide">
+ <div class="nexo-onboarding-icono">
+ <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+ </div>
+ <h1>Aqui registras tus productos</h1>
+ <p>Registra un producto nuevo: informacion basica, precios, inventario y datos adicionales.</p>
+ </section>
+ <section class="nexo-onboarding-slide">
+ <div class="nexo-onboarding-icono">
+ <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+ </div>
+ <h1>Creditos y reportes</h1>
+ <p>Consulta creditos pendientes y el estado de cuenta de cada cliente, y analiza tus ventas cuando quieras.</p>
+ </section>
+ <section class="nexo-onboarding-slide">
+ <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="nexo-onboarding-img">
+ <h1>Nexo IA, tu asistente</h1>
+ <p>Preguntale por tus ventas, tu inventario o tus creditos cuando lo necesites.</p>
+ </section>
+ </div>
+ <div class="nexo-onboarding-footer">
+ <div class="nexo-onboarding-dots" id="nexoOnboardingDots"></div>
+ <button type="button" id="nexoOnboardingBoton" onclick="siguienteDiapositivaBienvenidaNexo()">Siguiente</button>
+ </div>
  </div>
 
  <div id="sistema" style="display:none;">
@@ -1578,7 +1620,7 @@
   <script src="app.js?v=auth-negocio-20260716-01"></script>
   <script src="js/offline-sync.js?v=fix-mostrarproductos-20260709-01"></script>
   <script src="js/toast-pos.js?v=toast-pos-20260723-01"></script>
-  <script src="js/config-auth.js?v=crear-perfil-inicial-20260730-01"></script>
+  <script src="js/config-auth.js?v=bienvenida-20260730-01"></script>
   <script src="js/ticket-template.js?v=barcode-numerico-20260726-01"></script>
   <script src="js/catalog-provider-picker.js?v=catalog-adapters-20260708-01"></script>
   <script src="js/supplier-catalog.js?v=plantillas-servidor-ia-20260723-01"></script>
@@ -1606,7 +1648,8 @@
   <script src="js/low-stock.js?v=lowstock-bugfix-20260705-01"></script>
 <script src="js/factura-parser.js?v=pedidos-recepcion-xml-20260723-02"></script>
 <script src="js/ferretero-flow.js?v=agregar-producto-pantalla-20260727-01"></script>
-<script src="js/nexo-tour.js?v=nexo-ai-v2-20260722-01"></script>
+<script src="js/nexo-tour.js?v=bienvenida-20260730-01"></script>
+<script src="js/nexo-onboarding.js?v=bienvenida-20260730-01"></script>
 <script src="js/nexo-ia.js?v=nexo-ai-v2-20260722-01"></script>
 <script src="js/pos-busqueda-ia.js?v=borde-siri-20260721-01"></script>
 

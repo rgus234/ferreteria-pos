@@ -1,0 +1,124 @@
+.nexo-onboarding {
+ position: fixed;
+ inset: 0;
+ z-index: 9600;
+ display: flex;
+ flex-direction: column;
+ background: var(--nexo-surface-strong, #fff);
+ overflow: hidden;
+ animation: nexoOnboardingFade .2s ease;
+}
+
+.nexo-onboarding-saltar {
+ position: absolute;
+ top: 20px;
+ right: 24px;
+ z-index: 1;
+ background: transparent;
+ color: var(--nexo-text-muted, #667085);
+ border: none;
+ padding: 6px 12px;
+ font-size: 13px;
+ cursor: pointer;
+}
+
+.nexo-onboarding-slides {
+ display: flex;
+ flex: 1;
+ transition: transform .35s ease;
+}
+
+.nexo-onboarding-slide {
+ flex: 0 0 100%;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ justify-content: center;
+ gap: 18px;
+ padding: 40px 28px;
+ text-align: center;
+}
+
+.nexo-onboarding-img {
+ width: 128px;
+ height: 128px;
+ border-radius: 50%;
+ object-fit: cover;
+ object-position: center 15%;
+ box-shadow: var(--nexo-shadow-brand, 0 14px 28px rgba(13, 110, 253, .2));
+}
+
+.nexo-onboarding-icono {
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ width: 128px;
+ height: 128px;
+ border-radius: 50%;
+ background: var(--nexo-brand-soft, #e7f0ff);
+ color: var(--nexo-brand, #0d6efd);
+ box-shadow: var(--nexo-shadow-card, 0 14px 30px rgba(15, 23, 42, .07));
+}
+
+.nexo-onboarding-icono svg {
+ width: 54px;
+ height: 54px;
+}
+
+.nexo-onboarding-slide h1 {
+ margin: 8px 0 0;
+ font-size: 26px;
+ color: var(--nexo-text, #101828);
+}
+
+.nexo-onboarding-slide p {
+ margin: 0;
+ max-width: 420px;
+ color: var(--nexo-text-muted, #667085);
+ font-size: 15px;
+ line-height: 1.55;
+}
+
+.nexo-onboarding-footer {
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ gap: 18px;
+ padding: 0 24px 44px;
+}
+
+.nexo-onboarding-dots {
+ display: flex;
+ gap: 7px;
+}
+
+.nexo-onboarding-dot {
+ width: 7px;
+ height: 7px;
+ border-radius: 50%;
+ background: var(--nexo-line, #e4e7ec);
+ transition: background .2s ease, width .2s ease;
+}
+
+.nexo-onboarding-dot.activo {
+ width: 22px;
+ border-radius: 4px;
+ background: var(--nexo-brand, #0d6efd);
+}
+
+.nexo-onboarding-footer button {
+ min-width: 220px;
+ min-height: 46px;
+ border: none;
+ border-radius: var(--nexo-radius-pill, 999px);
+ background: var(--nexo-brand, #0d6efd) !important;
+ color: #fff !important;
+ font-weight: 700;
+ font-size: 15px;
+ cursor: pointer;
+}
+
+@keyframes nexoOnboardingFade {
+ from { opacity: 0; }
+ to { opacity: 1; }
+}
