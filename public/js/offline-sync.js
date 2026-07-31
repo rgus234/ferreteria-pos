@@ -72,6 +72,7 @@ async function revisarLicenciaNexoPOS() {
   estadoLicenciaNexoPOS = {
    ...estadoLicenciaNexoPOS,
    ...licencia,
+   horaCierre: respuesta?.negocio?.horaCierre ?? estadoLicenciaNexoPOS.horaCierre ?? null,
    modo: licencia.modo || "normal"
   };
 

@@ -354,7 +354,7 @@ app.get("/licencia/estado", requerirAccesoNegocio, async (req, res) => {
         const licencia = await licenciaActual(negocio);
 
         const correoActual = await pool.query(
-            `SELECT correo, correo_verificado FROM public.negocios WHERE id = $1`,
+            `SELECT correo, correo_verificado, hora_cierre FROM public.negocios WHERE id = $1`,
             [negocio.id]
         );
 
@@ -367,7 +367,8 @@ app.get("/licencia/estado", requerirAccesoNegocio, async (req, res) => {
                 estado: negocio.estado,
                 plan: negocio.plan,
                 correo: correoActual.rows[0]?.correo || null,
-                correoVerificado: correoActual.rows[0]?.correo_verificado || false
+                correoVerificado: correoActual.rows[0]?.correo_verificado || false,
+                horaCierre: correoActual.rows[0]?.hora_cierre || null
             },
             licencia: {
                 licenseKey: licencia.license_key,
@@ -428,6 +429,38 @@ app.put("/negocio-actual/correo", requerirAccesoNegocio, async (req, res) => {
         res.json({
             ok: true,
             correo: correo || null
+        });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+// Hora de cierre habitual del negocio -- alimenta el recordatorio de
+// "no olvides cerrar la caja" en el POS. Cualquier equipo o sesion de
+// cuenta ya autenticada puede ajustarla (no es un dato sensible como
+// el correo de acceso), mismo criterio que el resto de datos
+// operativos del negocio.
+app.put("/negocio-actual/hora-cierre", requerirAccesoNegocio, async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const horaCierre = String(req.body?.horaCierre || "").trim();
+
+        if (horaCierre && !/^([01]\d|2[0-3]):[0-5]\d$/.test(horaCierre)) {
+            res.status(400).json({
+                ok: false,
+                error: "Hora invalida. Usa el formato HH:MM."
+            });
+            return;
+        }
+
+        await pool.query(
+            `UPDATE public.negocios SET hora_cierre = $1, updated_at = NOW() WHERE id = $2`,
+            [horaCierre || null, negocio.id]
+        );
+
+        res.json({
+            ok: true,
+            horaCierre: horaCierre || null
         });
     } catch (error) {
         responderError(res, error);

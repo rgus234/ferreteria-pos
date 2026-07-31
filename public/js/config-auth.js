@@ -2839,6 +2839,9 @@ async function entrarAlSistemaConUsuario(usuario) {
  });
 
  aplicarWidgetsDashboard();
+
+ if (typeof revisarAperturaCajaPOS === "function") revisarAperturaCajaPOS();
+ if (typeof iniciarRecordatorioCierreCajaPOS === "function") iniciarRecordatorioCierreCajaPOS();
 }
 
 async function intentarRestaurarSesion() {

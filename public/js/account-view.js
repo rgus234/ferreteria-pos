@@ -200,6 +200,13 @@ function renderCuentaPOS(negocio, licencia) {
       ? `<button type="button" class="cuenta-link-boton" onclick="reenviarVerificacionCuenta('${escaparPOS(negocio.correo)}')">Reenviar correo de verificacion</button>`
       : ""
      }
+     <label class="cuenta-correo-label" style="margin-top:16px;">Hora de cierre habitual
+      <span class="cuenta-subtitulo" style="margin:2px 0 8px;display:block;">Si la dejas, el POS te avisa cuando ya paso esta hora y la caja sigue abierta.</span>
+      <div class="cuenta-correo-fila">
+       <input type="time" id="cuentaHoraCierreInput" value="${escaparPOS(negocio.horaCierre || "")}">
+       <button type="button" class="btn-principal" onclick="guardarHoraCierreCuenta()">Guardar</button>
+      </div>
+     </label>
     </section>
 
     <section class="config-panel cuenta-tarjeta">
@@ -423,6 +430,38 @@ async function guardarCorreoCuenta() {
   mostrarCuenta();
  } catch (error) {
   await alertaPOS(error.message || "No se pudo guardar el correo.", "Error", "alerta");
+ }
+}
+
+async function guardarHoraCierreCuenta() {
+ const input =
+ document.getElementById("cuentaHoraCierreInput");
+
+ const horaCierre =
+ (input?.value || "").trim();
+
+ try {
+  const respuesta =
+  await fetch("/negocio-actual/hora-cierre", {
+   method: "PUT",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ horaCierre })
+  });
+
+  const datos =
+  await respuesta.json();
+
+  if (!datos.ok) {
+   throw new Error(datos.error || "No se pudo guardar la hora de cierre");
+  }
+
+  if (typeof estadoLicenciaNexoPOS !== "undefined") {
+   estadoLicenciaNexoPOS.horaCierre = datos.horaCierre;
+  }
+
+  await alertaPOS("Hora de cierre guardada correctamente.", "Cuenta actualizada", "exito");
+ } catch (error) {
+  await alertaPOS(error.message || "No se pudo guardar la hora de cierre.", "Error", "alerta");
  }
 }
 
