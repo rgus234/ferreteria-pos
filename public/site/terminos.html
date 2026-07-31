@@ -8,6 +8,7 @@
   <meta name="robots" content="noindex">
   <link rel="icon" href="/nexo-pos-icon.jpg">
   <link rel="stylesheet" href="/site/styles.css">
+  <script src="/site/site-nav.js" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -15,14 +16,19 @@
       <img src="/nexo-pos-icon.jpg" alt="Nexo POS">
       <span>Nexo POS</span>
     </a>
-    <nav aria-label="Navegacion principal">
-      <a href="/#funciones">Funciones</a>
-      <a href="/#planes">Planes</a>
-      <a href="/#contacto">Contacto</a>
-    </nav>
-    <div class="header-actions">
-      <a class="header-login" href="https://app.nexoposoficial.com/?accion=iniciar-sesion">Iniciar sesion</a>
-      <a class="header-cta" href="/#contacto">Comenzar gratis</a>
+    <button type="button" class="nav-toggle" id="navToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="mobileMenu">
+      <span></span>
+    </button>
+    <div class="mobile-menu" id="mobileMenu">
+      <nav aria-label="Navegacion principal">
+        <a href="/#funciones">Funciones</a>
+        <a href="/#planes">Planes</a>
+        <a href="/#contacto">Contacto</a>
+      </nav>
+      <div class="header-actions">
+        <a class="header-login" href="https://app.nexoposoficial.com/?accion=iniciar-sesion">Iniciar sesion</a>
+        <a class="header-cta" href="/#contacto">Comenzar gratis</a>
+      </div>
     </div>
   </header>
 

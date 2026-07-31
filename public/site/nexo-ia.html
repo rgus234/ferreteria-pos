@@ -7,6 +7,7 @@
   <meta name="description" content="Conoce a Nexo, el asistente de inteligencia artificial de Nexo POS: analiza tus ventas, vigila tu inventario, cuida tus creditos y busca en internet en el plan Pro.">
   <link rel="icon" href="/nexo-pos-icon.jpg">
   <link rel="stylesheet" href="/site/styles.css">
+  <script src="/site/site-nav.js" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -15,17 +16,22 @@
       <img class="brand-mascota" src="/img/nexo-ia/feliz.jpg" alt="" aria-hidden="true">
       <span>Nexo POS</span>
     </a>
-    <nav aria-label="Navegacion principal">
-      <a href="/#funciones">Funciones</a>
-      <a href="/nexo-ia">Nexo IA</a>
-      <a href="/#demo">Demo</a>
-      <a href="/#planes">Planes</a>
-      <a href="/#contacto">Contacto</a>
-      <a href="https://wa.me/524424950495?text=Hola%2C%20vi%20NEXO%20POS%20y%20quiero%20recibir%20informaci%C3%B3n%20para%20mi%20negocio." target="_blank" rel="noopener">WhatsApp</a>
-    </nav>
-    <div class="header-actions">
-      <a class="header-login" href="https://app.nexoposoficial.com/?accion=iniciar-sesion">Iniciar sesion</a>
-      <a class="header-cta" href="/?panel=cuenta#contacto">Comenzar gratis</a>
+    <button type="button" class="nav-toggle" id="navToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="mobileMenu">
+      <span></span>
+    </button>
+    <div class="mobile-menu" id="mobileMenu">
+      <nav aria-label="Navegacion principal">
+        <a href="/#funciones">Funciones</a>
+        <a href="/nexo-ia">Nexo IA</a>
+        <a href="/#demo">Demo</a>
+        <a href="/#planes">Planes</a>
+        <a href="/#contacto">Contacto</a>
+        <a href="https://wa.me/524424950495?text=Hola%2C%20vi%20NEXO%20POS%20y%20quiero%20recibir%20informaci%C3%B3n%20para%20mi%20negocio." target="_blank" rel="noopener">WhatsApp</a>
+      </nav>
+      <div class="header-actions">
+        <a class="header-login" href="https://app.nexoposoficial.com/?accion=iniciar-sesion">Iniciar sesion</a>
+        <a class="header-cta" href="/?panel=cuenta#contacto">Comenzar gratis</a>
+      </div>
     </div>
   </header>
 
