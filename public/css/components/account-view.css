@@ -78,6 +78,37 @@
   border-left: 3px solid var(--brand-color, #0d6efd);
 }
 
+.cuenta-fundador-promo {
+  align-items: center;
+  gap: 14px;
+  margin: 4px 0 16px;
+  padding: 14px 18px;
+  border-radius: var(--nexo-radius-lg, 20px);
+  background: linear-gradient(135deg, rgba(20, 32, 51, .95), rgba(15, 49, 90, .9));
+  box-shadow: var(--nexo-shadow-card, 0 14px 30px rgba(15, 23, 42, .2));
+}
+
+.cuenta-fundador-promo-icono {
+  font-size: 26px;
+  flex: none;
+}
+
+.cuenta-fundador-promo-eyebrow {
+  margin: 0 0 2px;
+  color: #fbbf24;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.cuenta-fundador-promo-texto {
+  margin: 0;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .cuenta-plan-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(200px, 1fr));
@@ -121,6 +152,10 @@
 }
 
 .cuenta-plan-precio {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
   margin-bottom: 6px;
 }
 
@@ -131,9 +166,27 @@
 }
 
 .cuenta-plan-precio-periodo {
-  margin-left: 3px;
+  margin-left: -3px;
   font-size: 12px;
   color: var(--text-muted, #667085);
+}
+
+.cuenta-plan-precio-antes {
+  color: var(--text-muted, #667085);
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: line-through;
+}
+
+.cuenta-plan-precio-fundador {
+  color: var(--nexo-brand, #0d6efd);
+}
+
+.cuenta-plan-precio-ahorro {
+  flex-basis: 100%;
+  color: #16a34a;
+  font-size: 11.5px;
+  font-weight: 800;
 }
 
 .cuenta-plan-features {
@@ -174,26 +227,46 @@
   color: #dc2626;
 }
 
-.cuenta-plan-boton {
+/* .config-panel button (config-settings.css) es un selector
+   generico de mayor especificidad (clase+elemento) que ya fuerza
+   fondo azul solido y radio de 10px a cualquier boton dentro de un
+   "config-panel" -- la seccion "Elige tu plan" reusa esa clase por su
+   estilo de tarjeta, asi que estos botones necesitan quedar anclados
+   bajo .cuenta-plan-card para ganarle la especificidad de raiz, en
+   vez de apilar mas !important encima. */
+.cuenta-plan-card .cuenta-plan-boton {
   width: 100%;
-  padding: 10px;
-  border: none !important;
-  border-radius: 12px;
+  padding: 11px;
+  border-radius: var(--nexo-radius-pill, 999px) !important;
   font-size: 13px;
   font-weight: 800;
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
 }
 
-.cuenta-plan-boton-elegir {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--brand-color, #0d6efd) 85%, transparent), color-mix(in srgb, var(--brand-color, #0d6efd) 65%, transparent)) !important;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+.cuenta-plan-card .cuenta-plan-boton-elegir {
+  border: 1px solid color-mix(in srgb, var(--nexo-brand, #0d6efd) 45%, transparent) !important;
+  background: linear-gradient(135deg, var(--nexo-brand, #0d6efd), var(--nexo-brand-strong, #073f9a)) !important;
   color: #fff !important;
+  box-shadow: var(--nexo-shadow-brand, 0 10px 22px rgba(13, 110, 253, .28));
   cursor: pointer;
 }
 
-.cuenta-plan-boton-actual {
-  background: color-mix(in srgb, var(--text-muted, #667085) 18%, transparent) !important;
+.cuenta-plan-card .cuenta-plan-boton-elegir:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--nexo-brand, #0d6efd) 35%, transparent);
+}
+
+.cuenta-plan-card .cuenta-plan-boton-elegir:active {
+  transform: translateY(0);
+  filter: brightness(.97);
+}
+
+.cuenta-plan-card .cuenta-plan-boton-actual {
+  border: 1px solid var(--line-soft, #dbe3ef) !important;
+  background: transparent !important;
   color: var(--text-muted, #667085) !important;
+  box-shadow: none;
   cursor: default;
 }
 

@@ -223,6 +223,7 @@ function renderCuentaPOS(negocio, licencia) {
    <section class="config-panel cuenta-tarjeta cuenta-tarjeta-ancha">
     <h3>Elige tu plan</h3>
     <p class="cuenta-subtitulo">Cambia de plan en cualquier momento -- el cambio se refleja en tu proximo cobro.</p>
+    <div class="cuenta-fundador-promo" id="cuentaFundadorPromo" style="display:none;"></div>
     <div class="cuenta-plan-grid" id="cuentaPlanGrid">
      <p class="cuenta-subtitulo" style="margin:0;">Cargando planes...</p>
     </div>
@@ -294,6 +295,33 @@ async function cargarComparativaPlanes(licencia) {
   pro: "Nexo IA ilimitada"
  };
 
+ // Descuento de fundadores: ruta publica, sin autenticacion, ya usada
+ // por el sitio de marketing -- solo expone activo/restantes, nunca
+ // el codigo real. Si falla o no hay cupon vigente, la comparativa se
+ // ve exactamente igual que antes (nunca se inventa un numero).
+ const fundador = await fetch("/api/fundador-publico")
+  .then(respuesta => respuesta.json())
+  .catch(() => ({ ok: false }));
+
+ const hayDescuentoFundador =
+ Boolean(fundador.ok && fundador.activo && (fundador.restantes === null || fundador.restantes > 0));
+
+ const bannerFundador =
+ document.getElementById("cuentaFundadorPromo");
+
+ if (bannerFundador) {
+  bannerFundador.innerHTML = hayDescuentoFundador
+  ? `
+   <span class="cuenta-fundador-promo-icono">🔥</span>
+   <div>
+    <p class="cuenta-fundador-promo-eyebrow">Precio fundador</p>
+    <p class="cuenta-fundador-promo-texto">40% de descuento para siempre -- ${typeof fundador.restantes === "number" ? `quedan ${fundador.restantes} de 10 lugares` : "cupo limitado"}.</p>
+   </div>
+  `
+  : "";
+  bannerFundador.style.display = hayDescuentoFundador ? "flex" : "none";
+ }
+
  try {
   const respuesta =
   await fetch("/suscripcion/planes");
@@ -309,10 +337,22 @@ async function cargarComparativaPlanes(licencia) {
    const esActual = plan.clave === licencia.plan;
    const esPopular = plan.clave === "plus";
 
-   const precioTexto =
-   plan.precio
-   ? `<span class="cuenta-plan-precio-monto">$${Math.round(plan.precio.montoCentavos / 100)}</span><span class="cuenta-plan-precio-periodo">/mes</span>`
-   : `<span class="cuenta-plan-precio-monto">Bajo pedido</span>`;
+   let precioTexto;
+
+   if (plan.precio && hayDescuentoFundador) {
+    const montoNormal = Math.round(plan.precio.montoCentavos / 100);
+    const montoFundador = Math.round(plan.precio.montoCentavos * 0.6 / 100);
+
+    precioTexto = `
+     <span class="cuenta-plan-precio-antes">$${montoNormal}</span>
+     <span class="cuenta-plan-precio-monto cuenta-plan-precio-fundador">$${montoFundador}</span><span class="cuenta-plan-precio-periodo">/mes</span>
+     <span class="cuenta-plan-precio-ahorro">Ahorras $${montoNormal - montoFundador}/mes para siempre</span>
+    `;
+   } else if (plan.precio) {
+    precioTexto = `<span class="cuenta-plan-precio-monto">$${Math.round(plan.precio.montoCentavos / 100)}</span><span class="cuenta-plan-precio-periodo">/mes</span>`;
+   } else {
+    precioTexto = `<span class="cuenta-plan-precio-monto">Bajo pedido</span>`;
+   }
 
    const featuresHtml =
    plan.funciones.map(funcion => {
