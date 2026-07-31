@@ -7,12 +7,11 @@ const os = require("os");
 const { execFile } = require("child_process");
 const localDb = require("./local-db");
 
-const DEFAULT_API_URL = "https://ferreteria-pos.onrender.com";
+const DEFAULT_API_URL = "https://app.nexoposoficial.com";
 const CONFIG_FILE = "desktop-config.json";
 
 let mainWindow;
 let configCache;
-let checkinTimer;
 let updateTimer;
 let updateState = {
   status: "idle",
@@ -308,91 +307,6 @@ async function runAutoUpdateCheck(options = {}) {
   }
 }
 
-async function activateDevice() {
-  const config = await readConfig();
-  const updateInfo = await checkForUpdateMetadata();
-
-  return apiRequest("/dispositivos/activar", {
-    method: "POST",
-    body: JSON.stringify({
-      deviceId: config.deviceId,
-      licenseKey: config.licenseKey || "",
-      nombreEquipo: config.deviceName,
-      plataforma: "windows",
-      appVersion: app.getVersion(),
-      osVersion: os.release(),
-      arch: os.arch(),
-      update: updateInfo
-    })
-  });
-}
-
-async function checkInDevice() {
-  const config = await readConfig();
-  const syncStats = localDb.syncStats();
-  const localStats = localDb.localDataStats(config.negocioSlug);
-  const updateInfo = await checkForUpdateMetadata();
-
-  try {
-    const response = await apiRequest("/dispositivos/checkin", {
-      method: "POST",
-      body: JSON.stringify({
-        appVersion: app.getVersion(),
-        osVersion: os.release(),
-        arch: os.arch(),
-        update: updateInfo,
-        sync: syncStats,
-        localStats
-      })
-    });
-
-    if (response?.licencia) {
-      localDb.saveLicense(config.negocioSlug, response.licencia);
-      await writeConfig({
-        lastLicense: response.licencia,
-        lastLicenseCheckAt: new Date().toISOString(),
-        lastCheckinAt: new Date().toISOString()
-      });
-    } else {
-      await writeConfig({
-        lastCheckinAt: new Date().toISOString()
-      });
-    }
-
-    return {
-      ok: true,
-      ...response
-    };
-  } catch (error) {
-    await writeConfig({
-      lastCheckinError: error.message,
-      lastCheckinErrorAt: new Date().toISOString()
-    });
-
-    return {
-      ok: false,
-      offline: true,
-      error: error.message,
-      stats: syncStats
-    };
-  }
-}
-
-function saveActivationLocally(config, activation) {
-  localDb.saveDeviceState({
-    deviceId: config.deviceId,
-    negocioSlug: config.negocioSlug,
-    deviceName: config.deviceName,
-    apiBaseUrl: config.apiBaseUrl,
-    activatedAt: config.activatedAt || new Date().toISOString(),
-    appVersion: app.getVersion()
-  });
-
-  if (activation?.licencia) {
-    localDb.saveLicense(config.negocioSlug, activation.licencia);
-  }
-}
-
 async function syncPendingEvents() {
   const config = await readConfig();
   const eventos = localDb.pendingEvents(100, config.negocioSlug);
@@ -479,14 +393,7 @@ async function pullCloudEvents() {
 
 async function loadPosWindow() {
   const config = await readConfig();
-  const url =
-    `${config.apiBaseUrl}/?desktop=1&negocio=${encodeURIComponent(config.negocioSlug)}`;
-
-  await mainWindow.loadURL(url);
-}
-
-async function loadActivationWindow() {
-  await mainWindow.loadFile(path.join(__dirname, "renderer", "activation.html"));
+  await mainWindow.loadURL(`${config.apiBaseUrl}/?desktop=1`);
 }
 
 async function getDefaultPrinterName() {
@@ -688,104 +595,21 @@ async function createWindow() {
     return { action: "deny" };
   });
 
-  const config = await readConfig();
-
-  if (config.activatedAt) {
-    await loadPosWindow();
-    checkInDevice();
-    setTimeout(() => {
-      runAutoUpdateCheck().catch(() => {});
-    }, 15000);
-  } else {
-    await loadActivationWindow();
-  }
+  await loadPosWindow();
+  setTimeout(() => {
+    runAutoUpdateCheck().catch(() => {});
+  }, 15000);
 }
 
 function startBackgroundJobs() {
-  if (checkinTimer) return;
-
-  checkinTimer = setInterval(async () => {
-    const config = await readConfig();
-    if (config.activatedAt) {
-      await checkInDevice();
-    }
-  }, 60 * 1000);
+  if (updateTimer) return;
 
   updateTimer = setInterval(async () => {
-    const config = await readConfig();
-    if (config.activatedAt) {
-      await runAutoUpdateCheck();
-    }
+    await runAutoUpdateCheck();
   }, 30 * 60 * 1000);
 }
 
 ipcMain.handle("nexo:get-config", async () => readConfig());
-
-ipcMain.handle("nexo:activate", async (_event, payload) => {
-  const config = await writeConfig({
-    apiBaseUrl: payload.apiBaseUrl,
-    negocioSlug: payload.negocioSlug,
-    deviceName: payload.deviceName,
-    licenseKey: payload.licenseKey
-  });
-
-  const activation = await activateDevice();
-  const activatedSlug =
-    activation?.negocio?.slug || config.negocioSlug;
-  const activatedLicense =
-    activation?.licencia?.license_key ||
-    activation?.licencia?.licenseKey ||
-    config.licenseKey ||
-    payload.licenseKey ||
-    "";
-
-  await writeConfig({
-    ...config,
-    negocioSlug: activatedSlug,
-    licenseKey: activatedLicense,
-    activatedAt: new Date().toISOString(),
-    lastLicense: activation.licencia || null
-  });
-
-  saveActivationLocally(await readConfig(), activation);
-
-  await loadPosWindow();
-
-  return {
-    ok: true,
-    config: await readConfig(),
-    activation
-  };
-});
-
-ipcMain.handle("nexo:license-status", async () => {
-  const config = await readConfig();
-
-  try {
-    const status = await apiRequest("/licencia/estado");
-
-    localDb.saveLicense(config.negocioSlug, status.licencia);
-
-    await writeConfig({
-      lastLicense: status.licencia,
-      lastLicenseCheckAt: new Date().toISOString()
-    });
-
-    return {
-      ...status,
-      offline: false
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      offline: true,
-      error: error.message,
-      cached: localDb.lastLicense(config.negocioSlug)
-    };
-  }
-});
-
-ipcMain.handle("nexo:checkin", async () => checkInDevice());
 
 ipcMain.handle("nexo:update-status", async () => ({
   ok: true,
@@ -937,19 +761,6 @@ ipcMain.handle("nexo:print-ticket", async (_event, payload) => printTicketDeskto
 
 ipcMain.handle("nexo:open-cash-drawer", async (_event, payload = {}) => openCashDrawerRaw(payload));
 
-ipcMain.handle("nexo:reset-activation", async () => {
-  const config = await readConfig();
-
-  await writeConfig({
-    ...config,
-    activatedAt: null
-  });
-
-  await loadActivationWindow();
-
-  return { ok: true };
-});
-
 app.whenReady().then(async () => {
   configureAutoUpdater();
   await createWindow();
@@ -957,7 +768,6 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
-  if (checkinTimer) clearInterval(checkinTimer);
   if (updateTimer) clearInterval(updateTimer);
   if (process.platform !== "darwin") {
     app.quit();

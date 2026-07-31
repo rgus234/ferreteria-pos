@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.js && node --check preload.js && node --check local-db.js && node --check renderer/activation.js",
+    "check": "node --check main.js && node --check preload.js && node --check local-db.js",
     "rebuild": "electron-builder install-app-deps",
     "dist": "electron-builder --win nsis",
     "dist:win": "electron-builder --win nsis --publish never",
