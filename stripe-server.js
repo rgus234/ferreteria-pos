@@ -93,6 +93,18 @@ async function cuponFundadorVigente(stripe) {
     return { ...promo, restantes };
 }
 
+// Cupon privado restringido a un cliente especifico (ej. "Cliente
+// fundador" con precio simbolico, creado a mano en el dashboard de
+// Stripe con "Limit to specific customer"). Si existe, gana sobre el
+// cupon publico de fundadores -- de lo contrario el checkout aplicaria
+// siempre FUNDADOR40 automatico y nunca dejaria escribir el codigo
+// propio (discounts y allow_promotion_codes son mutuamente excluyentes).
+async function cuponClienteVigente(stripe, stripeCustomerId) {
+    if (!stripeCustomerId) return null;
+    const activos = await stripe.promotionCodes.list({ customer: stripeCustomerId, active: true, limit: 1 });
+    return activos.data[0] || null;
+}
+
 module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
     // Todas las rutas de aqui abajo usan la sesion de cuenta del
     // dueno (correo+contrasena), no el token de dispositivo -- solo
@@ -186,13 +198,18 @@ module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
             // directo en la URL de redireccion (evita open redirect).
             const destino = req.body?.retorno === "/dueno" ? "/dueno" : "/";
 
-            // Si el cupon de fundadores existe y todavia tiene cupo, se
+            // Si este cliente tiene un cupon privado propio (restringido a
+            // su stripe_customer_id, ej. un precio simbolico para un caso
+            // especial), gana sobre el cupon publico de fundadores. Si no,
+            // y el cupon de fundadores existe y todavia tiene cupo, se
             // aplica automaticamente (el cliente no tiene que escribir
             // nada) -- Stripe no permite combinar "discounts" con
             // "allow_promotion_codes" en la misma sesion, asi que solo
-            // se ofrece el campo manual cuando no aplica el automatico.
-            const cuponFundador = await cuponFundadorVigente(stripe).catch(() => null);
+            // se ofrece el campo manual cuando ninguno de los dos aplica.
+            const cuponCliente = await cuponClienteVigente(stripe, stripeCustomerId).catch(() => null);
+            const cuponFundador = cuponCliente ? null : await cuponFundadorVigente(stripe).catch(() => null);
             const hayCupoFundador = cuponFundador?.active && (cuponFundador.restantes === null || cuponFundador.restantes > 0);
+            const promoAAplicar = cuponCliente || (hayCupoFundador ? cuponFundador : null);
 
             const sesion = await stripe.checkout.sessions.create({
                 mode: "subscription",
@@ -201,8 +218,8 @@ module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
                 success_url: `${base}${destino}?suscripcion=exito`,
                 cancel_url: `${base}${destino}?suscripcion=cancelado`,
                 metadata: { negocio_id: String(negocioId), plan },
-                ...(hayCupoFundador
-                    ? { discounts: [{ promotion_code: cuponFundador.id }] }
+                ...(promoAAplicar
+                    ? { discounts: [{ promotion_code: promoAAplicar.id }] }
                     // Deja que el dueno escriba un codigo (ej. BIENVENIDA40)
                     // en el propio checkout de Stripe -- los codigos se
                     // crean y desactivan desde el dashboard de Stripe, sin
