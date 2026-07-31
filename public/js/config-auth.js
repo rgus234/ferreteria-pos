@@ -934,9 +934,13 @@ async function mostrarPantallaDeEntradaPOS() {
  const panelClasico =
  document.getElementById("loginFormularioClasico");
 
+ const panelCrearPerfilInicial =
+ document.getElementById("loginCrearPerfilInicial");
+
  if (panelVincular) panelVincular.style.display = "none";
  if (panelPerfiles) panelPerfiles.style.display = "none";
  if (panelClasico) panelClasico.style.display = "none";
+ if (panelCrearPerfilInicial) panelCrearPerfilInicial.style.display = "none";
 
  if (!dispositivoTokenActual()) {
  if (panelVincular) panelVincular.style.display = "block";
@@ -960,11 +964,19 @@ async function mostrarPantallaDeEntradaPOS() {
  if (botonAccesoRapido) botonAccesoRapido.style.display = hayPerfilesSincronizados ? "block" : "none";
 
  if (!hayPerfilesSincronizados) {
- // Vinculado pero sin empleados todavia sincronizados/creados --
- // el formulario clasico sirve de respaldo hasta que haya al
- // menos uno (o hasta que la sincronizacion en segundo plano
- // termine).
- if (panelClasico) panelClasico.style.display = "block";
+ // Vinculado pero todavia sin ningun empleado creado -- en vez de
+ // caer al formulario clasico (que no tiene con que comparar, sin
+ // importar que se escriba), se deja crear el primer perfil de
+ // Administrador aqui mismo, con nombre y PIN elegidos por el
+ // dueño. Requiere sesion de cuenta (correo/contrasena) vigente,
+ // que es justo lo que ya se acaba de usar para vincular el
+ // equipo -- si por alguna razon ya no es valida, el propio boton
+ // lo detecta y regresa a pedir correo/contrasena de nuevo.
+ if (cuentaSesionToken() && panelCrearPerfilInicial) {
+ panelCrearPerfilInicial.style.display = "block";
+ } else if (panelClasico) {
+ panelClasico.style.display = "block";
+ }
  return;
  }
 
@@ -983,6 +995,106 @@ function mostrarSeleccionPerfilDesdeClasico() {
  if (panelPerfiles) panelPerfiles.style.display = "block";
 
  renderSeleccionPerfilPOS();
+}
+
+// Primer perfil de Administrador de un negocio recien vinculado, sin
+// ningun empleado todavia (misma ruta /cuenta/empleados que ya usa la
+// pantalla Configuracion -- Usuarios, mismo criterio de plantilla de
+// permisos segun rol). El nombre y el PIN los elige el dueño aqui
+// mismo, nunca un valor por defecto.
+async function crearPerfilAdministradorInicial() {
+ const cajaError =
+ document.getElementById("crearPerfilInicialError");
+
+ const boton =
+ document.getElementById("botonCrearPerfilInicial");
+
+ function mostrarErrorCrearPerfil(mensaje) {
+ if (!cajaError) return;
+ cajaError.textContent = mensaje;
+ cajaError.style.display = "block";
+ }
+
+ if (cajaError) cajaError.style.display = "none";
+
+ const nombre =
+ document.getElementById("crearPerfilInicialNombre")?.value.trim();
+
+ const pin =
+ document.getElementById("crearPerfilInicialPin")?.value.trim();
+
+ const pinConfirmar =
+ document.getElementById("crearPerfilInicialPinConfirmar")?.value.trim();
+
+ if (!nombre) {
+ mostrarErrorCrearPerfil("Escribe tu nombre.");
+ return;
+ }
+
+ if (!/^[0-9]{4,6}$/.test(pin || "")) {
+ mostrarErrorCrearPerfil("El PIN debe tener entre 4 y 6 digitos.");
+ return;
+ }
+
+ if (pin !== pinConfirmar) {
+ mostrarErrorCrearPerfil("Los dos PIN no coinciden.");
+ return;
+ }
+
+ if (!cuentaSesionToken()) {
+ mostrarErrorCrearPerfil("Tu sesion expiro. Vuelve a entrar con tu correo y contrasena.");
+ await mostrarPantallaDeEntradaPOS();
+ return;
+ }
+
+ if (boton) {
+ boton.disabled = true;
+ boton.textContent = "Creando...";
+ }
+
+ try {
+ const plantilla =
+ plantillaUsuario("Administrador");
+
+ const respuesta =
+ await cuentaFetchAutenticado("/cuenta/empleados", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({
+ nombre,
+ rol: "Administrador",
+ pin,
+ permisos: plantilla.permisos,
+ widgets: plantilla.widgets
+ })
+ });
+
+ if (!respuesta.ok) {
+ mostrarErrorCrearPerfil(respuesta.error || "No se pudo crear tu perfil.");
+ return;
+ }
+
+ await sincronizarEmpleadosDispositivo();
+
+ const usuarioCreado =
+ usuariosSistema().find(item => item.id === respuesta.empleado.id);
+
+ if (!usuarioCreado) {
+ mostrarErrorCrearPerfil("Tu perfil se creo, pero no se pudo entrar automaticamente. Recarga la pagina e intenta de nuevo.");
+ return;
+ }
+
+ guardarSesionPersistente(usuarioCreado);
+
+ await entrarAlSistemaConUsuario(usuarioCreado);
+ } catch (error) {
+ mostrarErrorCrearPerfil("No se pudo conectar. Revisa tu internet e intenta de nuevo.");
+ } finally {
+ if (boton) {
+ boton.disabled = false;
+ boton.textContent = "Crear mi perfil y entrar";
+ }
+ }
 }
 
 function alternarVerPasswordLogin() {

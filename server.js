@@ -568,14 +568,12 @@ app.post("/api/clientes/registro", async (req, res) => {
             ]
         );
 
-        await client.query(
-            `
-            INSERT INTO public.usuarios (negocio_id, usuario, password_hash, rol)
-            VALUES ($1, 'admin', $2, 'Administrador')
-            ON CONFLICT DO NOTHING
-            `,
-            [negocio.rows[0].id, hashPassword("1234")]
-        );
+        // No se crea ningun perfil de empleado aqui a proposito -- el
+        // dueño lo crea el mismo (nombre + PIN que el elige) en su
+        // primer inicio de sesion con correo/contrasena, via el nuevo
+        // paso "Crea tu perfil de administrador" en el login
+        // (mostrarPantallaDeEntradaPOS() en config-auth.js). Asi nadie
+        // arranca con un PIN por defecto adivinable.
 
         const version = await client.query(
             `
@@ -627,10 +625,6 @@ app.post("/api/clientes/registro", async (req, res) => {
                 version: latest?.version || config.appVersion,
                 url: latest?.url_descarga || "/downloads/NexoPOS_Setup_1.0.0.exe",
                 archivo: latest?.archivo || "NexoPOS_Setup_1.0.0.exe"
-            },
-            accesoInicial: {
-                usuario: "admin",
-                password: "1234"
             }
         });
     } catch (error) {
@@ -2324,14 +2318,13 @@ app.post("/admin/api/negocios", async (req, res) => {
             ]
         );
 
-        await client.query(
-            `
-            INSERT INTO public.usuarios (negocio_id, usuario, password_hash, rol)
-            VALUES ($1, 'admin', $2, 'Administrador')
-            ON CONFLICT DO NOTHING
-            `,
-            [negocio.rows[0].id, hashPassword("1234")]
-        );
+        // Nota: los negocios creados desde Admin no traen correo/
+        // password_hash (ese INSERT no los pide), asi que hoy no
+        // pueden usar /cuenta/login -- el flujo de "Crea tu perfil de
+        // administrador" del login (que depende de una sesion de
+        // cuenta) no aplica todavia a clientes dados de alta por aqui.
+        // Sin cambios de alcance en esta pasada: se documenta como
+        // pendiente en vez de dejar un PIN por defecto adivinable.
 
         await client.query("COMMIT");
 
@@ -2341,10 +2334,6 @@ app.post("/admin/api/negocios", async (req, res) => {
             licencia: {
                 ...licencia.rows[0],
                 modo: calcularModoLicencia(licencia.rows[0])
-            },
-            accesoInicial: {
-                usuario: "admin",
-                password: "1234"
             }
         });
     } catch (error) {

@@ -895,6 +895,20 @@ cite {
   color: #b42318;
 }
 
+.registro-acceso-inicial {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  margin: 4px 0;
+  border-radius: 10px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+
+.registro-acceso-inicial strong {
+  font-size: 13px;
+}
+
 .contact-intro {
   display: grid;
   gap: 14px;

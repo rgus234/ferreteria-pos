@@ -414,6 +414,11 @@
           <span>Negocio: ${escapeHtml(data.negocio.nombre)}</span>
           <span>Clave: <b>${escapeHtml(data.licencia.licenseKey)}</b></span>
           <span>Revisa tu correo (${escapeHtml(data.negocio.correo)}) para verificar tu cuenta.</span>
+          <div class="registro-acceso-inicial">
+            <strong>Para entrar por primera vez:</strong>
+            <span>Abre la app y entra con el correo y la contrasena que acabas de crear.</span>
+            <span>Ahi mismo eliges el nombre y el PIN de tu primer usuario administrador.</span>
+          </div>
           <a class="btn secondary" href="${escapeHtml(data.instalador.url)}" download>Descargar instalador</a>
         `);
         form.reset();

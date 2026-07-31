@@ -332,6 +332,47 @@
 
  </div>
 
+ <div id="loginCrearPerfilInicial" style="display:none;">
+
+ <div class="login-form-logo">
+ <img src="nexo-pos-icon.jpg" alt="Nexo POS">
+ </div>
+
+ <h1 class="login-form-titulo">Crea tu perfil de administrador</h1>
+ <p class="login-subtitulo login-subtitulo-centrada">Este es tu primer inicio de sesion. Elige tu nombre y un PIN para entrar a diario -- podras agregar mas usuarios despues, desde Configuracion.</p>
+
+ <div id="crearPerfilInicialError" class="login-cuenta-error" style="display:none;"></div>
+
+ <label class="login-campo">
+ <span>Tu nombre</span>
+ <div class="login-input-icono">
+ <span class="login-input-icono-svg" data-kpi-icon="user"></span>
+ <input id="crearPerfilInicialNombre" placeholder="Ej. Gustavo" autocomplete="off">
+ </div>
+ </label>
+
+ <label class="login-campo">
+ <span>PIN (4 a 6 digitos)</span>
+ <div class="login-input-icono">
+ <span class="login-input-icono-svg" data-kpi-icon="lock"></span>
+ <input id="crearPerfilInicialPin" placeholder="Elige tu PIN" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+ </div>
+ </label>
+
+ <label class="login-campo">
+ <span>Confirma tu PIN</span>
+ <div class="login-input-icono">
+ <span class="login-input-icono-svg" data-kpi-icon="lock"></span>
+ <input id="crearPerfilInicialPinConfirmar" placeholder="Repite tu PIN" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+ </div>
+ </label>
+
+ <button class="login-boton-principal" id="botonCrearPerfilInicial" onclick="crearPerfilAdministradorInicial()">
+ Crear mi perfil y entrar
+ </button>
+
+ </div>
+
  <div class="login-pie">
  <span class="login-pie-seguro">
  <span class="login-pie-icono" data-kpi-icon="shield"></span>
@@ -1537,7 +1578,7 @@
   <script src="app.js?v=auth-negocio-20260716-01"></script>
   <script src="js/offline-sync.js?v=fix-mostrarproductos-20260709-01"></script>
   <script src="js/toast-pos.js?v=toast-pos-20260723-01"></script>
-  <script src="js/config-auth.js?v=agregar-producto-pantalla-20260727-01"></script>
+  <script src="js/config-auth.js?v=crear-perfil-inicial-20260730-01"></script>
   <script src="js/ticket-template.js?v=barcode-numerico-20260726-01"></script>
   <script src="js/catalog-provider-picker.js?v=catalog-adapters-20260708-01"></script>
   <script src="js/supplier-catalog.js?v=plantillas-servidor-ia-20260723-01"></script>

@@ -6278,3 +6278,64 @@ trae folio. Los 19 tests de la suite completa (`npm test`) pasan sin
 regresiones. `node --check server.js` limpio. `negocio_id = 1` sin
 tocar en ningun momento. Pendiente de confirmacion del usuario para
 `git add`/`commit`.
+
+## 2026-07-30 -- Fix critico: un negocio nuevo no podia entrar nunca al sistema
+
+Detectado en vivo por el usuario al registrar un negocio real
+("ferreteria Diaz") para probar una suscripcion de verdad: despues de
+registrarse y de vincular el equipo con correo/contrasena, la pantalla
+de "Usuario/Contrasena/Codigo del negocio" rechazaba cualquier
+combinacion. Causa raiz: `POST /api/clientes/registro` (y el alta de
+clientes desde Admin, `POST /admin/api/negocios`) solo insertaban en
+`usuarios`, una tabla vieja sin uso real -- la pantalla de login del
+POS (`iniciarSesion()`, `app-bootstrap.js`) siempre busco por nombre+PIN
+en `empleados`, la tabla nueva sincronizada por dispositivo. Sin ese
+fix, **ningun negocio nuevo (incluidos los que se registren pagando)
+hubiera podido entrar jamas** -- se solucionono en dos pasos.
+
+**Paso 1 (unblock inmediato)**: se creo a mano el perfil real de
+Administrador del usuario ("Gustavo", PIN elegido por el) en
+`empleados` para el negocio real, replicando exactamente el hashing
+que ya usa `POST /cuenta/empleados` (`hashPassword` + 
+`generarVerificadorPinOffline`).
+
+**Paso 2 (arreglo de raiz + mejor experiencia)**: en vez de que el
+registro cree un empleado con un PIN por defecto adivinable (que fue
+el primer intento, revertido), se conecto la pantalla de login con el
+CRUD de empleados que ya existia y ya funcionaba (Configuracion --
+Usuarios, `POST /cuenta/empleados`, con plantillas de permisos por
+rol) para que el propio dueño cree su primer perfil la primera vez que
+entra:
+
+- `mostrarPantallaDeEntradaPOS()` (`config-auth.js`): cuando el equipo
+  ya esta vinculado (token de dispositivo) pero `empleados` sigue
+  vacio, ya no cae al formulario clasico (que no tenia con que
+  comparar) -- muestra el nuevo panel `#loginCrearPerfilInicial`
+  (nombre + PIN + confirmar PIN) si hay una sesion de cuenta vigente
+  (`cuentaSesionToken()`), o pide correo/contrasena de nuevo si no.
+- Nueva `crearPerfilAdministradorInicial()`: valida el PIN (4-6
+  digitos, coincide con la confirmacion), llama
+  `POST /cuenta/empleados` con la plantilla de permisos de
+  "Administrador" (permisos y widgets completos), sincroniza el cache
+  local y entra directo al sistema con `entrarAlSistemaConUsuario()`
+  -- sin volver a pedir el PIN que se acaba de escribir.
+- `POST /api/clientes/registro` y `POST /admin/api/negocios` ya no
+  insertan ningun empleado por defecto -- el `accesoInicial` con
+  usuario/PIN fijo se elimino de ambas respuestas (el segundo, alta
+  desde Admin, se documenta como pendiente: esos negocios no tienen
+  correo/password_hash todavia, asi que el flujo de correo/contrasena
+  no les aplica hoy).
+- `public/site/index.html`: el mensaje de "Licencia creada" ya no
+  muestra un PIN fijo -- indica entrar con correo/contrasena y crear
+  el perfil ahi mismo.
+
+**Verificacion**: flujo completo simulado por HTTP contra un negocio
+sintetico -- registro, verificacion de correo, `POST /cuenta/login`,
+`POST /dispositivo/vincular`, confirmado `GET /dispositivo/empleados`
+vacio, `POST /cuenta/empleados` crea el perfil, y
+`GET /dispositivo/empleados` ya lo refleja con su verificador de PIN
+offline. `node --check server.js` y `node --check config-auth.js`
+limpios. Negocio de prueba borrado al terminar. `negocio_id = 1` sin
+tocar. La cuenta real de "ferreteria Diaz" quedo con el perfil que el
+usuario ya eligio, sin cambios adicionales. Pendiente de confirmacion
+del usuario para `git add`/`commit`.
