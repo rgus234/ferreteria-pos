@@ -17,6 +17,7 @@ const {
 const { cargarModulosPOS } = require("./server-modules");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
+const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
 const { calcularAntiguedadCredito } = require("./credit-aging");
 const { listarPlanes, listarCatalogoFunciones, funcionesDelPlan } = require("./features");
 const {
@@ -1366,6 +1367,25 @@ app.post("/dispositivo/vincular", requerirSesionCuenta, async (req, res) => {
         "Equipo sin nombre";
 
     try {
+        const { limite } = await funcionDelPlan(req.negocioAutenticado.negocio_id, "dispositivos.vincular");
+
+        if (limite !== null) {
+            const vinculados = await pool.query(
+                `SELECT COUNT(*) FROM public.dispositivos_vinculados WHERE negocio_id = $1 AND revocado_at IS NULL`,
+                [req.negocioAutenticado.negocio_id]
+            );
+
+            if (Number(vinculados.rows[0].count) >= limite) {
+                res.status(403).json({
+                    ok: false,
+                    error: `Tu plan permite hasta ${limite} equipo(s) vinculado(s). Mejora tu plan desde Cuenta para vincular mas.`,
+                    requiereUpgrade: true,
+                    funcion: "dispositivos.vincular"
+                });
+                return;
+            }
+        }
+
         const tokenPlano = generarTokenSeguro();
 
         await pool.query(
@@ -1437,7 +1457,7 @@ app.get("/cuenta/dispositivos", requerirSesionCuenta, async (req, res) => {
     }
 });
 
-app.post("/cuenta/dispositivos/:id/revocar", requerirSesionCuenta, async (req, res) => {
+app.post("/cuenta/dispositivos/:id/revocar", requerirSesionCuenta, requerirFuncionPlan("dispositivos.revocacion_remota", "Revocar un equipo a distancia esta disponible desde el plan Plus."), async (req, res) => {
     try {
         await pool.query(
             `
@@ -1526,6 +1546,28 @@ app.post("/cuenta/empleados", requerirSesionCuenta, async (req, res) => {
     }
 
     try {
+        const empleadosPin = await funcionDelPlan(req.negocioAutenticado.negocio_id, "multiusuario.empleados_pin");
+
+        if (empleadosPin.limite !== null) {
+            const activos = await pool.query(
+                `SELECT COUNT(*) FROM public.empleados WHERE negocio_id = $1 AND activo = true`,
+                [req.negocioAutenticado.negocio_id]
+            );
+
+            if (Number(activos.rows[0].count) >= empleadosPin.limite) {
+                res.status(403).json({
+                    ok: false,
+                    error: `Tu plan permite hasta ${empleadosPin.limite} empleado(s) con PIN. Mejora tu plan desde Cuenta para agregar mas.`,
+                    requiereUpgrade: true,
+                    funcion: "multiusuario.empleados_pin"
+                });
+                return;
+            }
+        }
+
+        const permisosGranulares = await funcionDelPlan(req.negocioAutenticado.negocio_id, "multiusuario.permisos_granulares");
+        const permisosAGuardar = permisosGranulares.incluido ? permisos : {};
+
         const offline = generarVerificadorPinOffline(pin);
 
         const fila = await pool.query(
@@ -1543,7 +1585,7 @@ app.post("/cuenta/empleados", requerirSesionCuenta, async (req, res) => {
                 offline.verificador,
                 offline.salt,
                 colorAvatarAleatorio(),
-                JSON.stringify(permisos),
+                JSON.stringify(permisosAGuardar),
                 JSON.stringify(widgets)
             ]
         );
@@ -1572,8 +1614,13 @@ app.put("/cuenta/empleados/:id", requerirSesionCuenta, async (req, res) => {
         const nombre = req.body?.nombre !== undefined ? limpiarTexto(req.body.nombre, 80) : fila.nombre;
         const rol = req.body?.rol !== undefined ? (limpiarTexto(req.body.rol, 40) || fila.rol) : fila.rol;
         const activo = req.body?.activo !== undefined ? Boolean(req.body.activo) : fila.activo;
-        const permisos = req.body?.permisos && typeof req.body.permisos === "object" ? req.body.permisos : fila.permisos;
         const widgets = req.body?.widgets && typeof req.body.widgets === "object" ? req.body.widgets : fila.widgets;
+
+        let permisos = req.body?.permisos && typeof req.body.permisos === "object" ? req.body.permisos : fila.permisos;
+        if (req.body?.permisos !== undefined) {
+            const permisosGranulares = await funcionDelPlan(req.negocioAutenticado.negocio_id, "multiusuario.permisos_granulares");
+            if (!permisosGranulares.incluido) permisos = fila.permisos;
+        }
 
         if (!nombre) {
             res.status(400).json({ ok: false, error: "Escribe el nombre del empleado" });
@@ -4582,7 +4629,7 @@ app.get("/fotos-producto-lista", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
-app.post("/fotos-producto/importar-lote", requerirAccesoNegocio, manejarSubidaFotosProducto, async (req, res) => {
+app.post("/fotos-producto/importar-lote", requerirAccesoNegocio, requerirFuncionPlan("catalogo.fotos_lote", "Importar fotos por lote esta disponible desde el plan Plus."), manejarSubidaFotosProducto, async (req, res) => {
     const archivos = req.files || [];
 
     try {
@@ -5199,7 +5246,7 @@ app.get("/reglas-precios/:proveedor", requerirAccesoNegocio, async (req, res) =>
     }
 });
 
-app.post("/reglas-precios", requerirAccesoNegocio, async (req, res) => {
+app.post("/reglas-precios", requerirAccesoNegocio, requerirFuncionPlan("catalogo.reglas_precio", "Las reglas de precio automaticas estan disponibles desde el plan Plus."), async (req, res) => {
     const {
         proveedor,
         margenGeneral,
@@ -6900,33 +6947,44 @@ app.get("/reportes/ventas", requerirAccesoNegocio, async (req, res) => {
             LIMIT 8
         `, params);
 
-        const resumenAnterior = await pool.query(`
-            SELECT
-                COALESCE(SUM(total), 0) AS total,
-                COUNT(*) AS transacciones,
-                COALESCE(AVG(total), 0) AS ticket_promedio
-            FROM public.historial_ventas
-            WHERE negocio_id = $1
-            ${filtroFechaAnterior}
-        `, paramsAnterior);
+        // "reportes.comparativas" es uno de los diferenciadores reales
+        // Basico vs Plus -- en vez de bloquear toda la ruta (los demas
+        // bloques son basicos, incluidos en todos los planes), se omite
+        // solo el bloque de comparacion contra el periodo anterior.
+        const comparativas = await funcionDelPlan(negocio.id, "reportes.comparativas");
 
-        const productosVendidosTotalAnterior = await pool.query(`
-            SELECT COALESCE(SUM((item->>'cantidad')::numeric), 0) AS cantidad
-            FROM public.historial_ventas,
-                 LATERAL jsonb_array_elements(productos) AS item
-            WHERE negocio_id = $1
-            ${filtroFechaAnterior}
-        `, paramsAnterior);
+        let resumenAnterior = null;
+        if (comparativas.incluido) {
+            const resumenAnteriorFila = await pool.query(`
+                SELECT
+                    COALESCE(SUM(total), 0) AS total,
+                    COUNT(*) AS transacciones,
+                    COALESCE(AVG(total), 0) AS ticket_promedio
+                FROM public.historial_ventas
+                WHERE negocio_id = $1
+                ${filtroFechaAnterior}
+            `, paramsAnterior);
+
+            const productosVendidosTotalAnterior = await pool.query(`
+                SELECT COALESCE(SUM((item->>'cantidad')::numeric), 0) AS cantidad
+                FROM public.historial_ventas,
+                     LATERAL jsonb_array_elements(productos) AS item
+                WHERE negocio_id = $1
+                ${filtroFechaAnterior}
+            `, paramsAnterior);
+
+            resumenAnterior = {
+                ...resumenAnteriorFila.rows[0],
+                productos_vendidos: productosVendidosTotalAnterior.rows[0]?.cantidad || 0
+            };
+        }
 
         res.json({
             resumen: {
                 ...resumen.rows[0],
                 productos_vendidos: productosVendidosTotal.rows[0]?.cantidad || 0
             },
-            resumenAnterior: {
-                ...resumenAnterior.rows[0],
-                productos_vendidos: productosVendidosTotalAnterior.rows[0]?.cantidad || 0
-            },
+            resumenAnterior,
             porDia: porDia.rows,
             metodosPago: metodosPago.rows,
             porHora: porHora.rows,

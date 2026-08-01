@@ -565,6 +565,12 @@
  }
 
  window.mostrarRecepcionMercancia = async function() {
+  if (estadoLicenciaNexoPOS?.plan === "basico") {
+   if (typeof alertaPOS === "function") {
+    alertaPOS("La recepcion de mercancia por factura XML/CSV esta disponible desde el plan Plus.", "Funcion no incluida", "info");
+   }
+   return;
+  }
   asegurarPantallaRecepcion();
   instalarBotonRecepcion();
   ocultarTodoRecepcion();
@@ -601,6 +607,7 @@
 
   window.leerArchivoRecepcionMercancia = async function(archivo) {
   if (!archivo) return;
+  if (estadoLicenciaNexoPOS?.plan === "basico") return;
   estadoRecepcion.archivo = archivo;
   const nombre = document.getElementById("recepcionArchivoNombre");
   if (nombre) nombre.textContent = archivo.name;

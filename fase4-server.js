@@ -1,7 +1,12 @@
 const { DEFAULT_NEGOCIO_SLUG } = require("./tenant");
 const { responderError } = require("./error-utils");
+const { requerirFuncionPlan } = require("./plan-enforcement");
 
 module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
+    const requerirPedidosProveedor = requerirFuncionPlan(
+        "pedidos.estadisticas",
+        "El modulo de Pedidos a proveedor esta disponible desde el plan Plus."
+    );
     let listo = false;
 
     const n = valor => {
@@ -200,7 +205,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
             : "enviado";
     }
 
-    app.get("/pedidos-proveedor", requerirAccesoNegocio, async (req, res) => {
+    app.get("/pedidos-proveedor", requerirAccesoNegocio, requerirPedidosProveedor, async (req, res) => {
         try {
             await asegurar();
             const negocio = await negocioActual(req);
@@ -226,7 +231,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
         }
     });
 
-    app.get("/pedidos-proveedor/:id", requerirAccesoNegocio, async (req, res) => {
+    app.get("/pedidos-proveedor/:id", requerirAccesoNegocio, requerirPedidosProveedor, async (req, res) => {
         try {
             await asegurar();
             const negocio = await negocioActual(req);
@@ -260,7 +265,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
         }
     });
 
-    app.post("/pedidos-proveedor", requerirAccesoNegocio, async (req, res) => {
+    app.post("/pedidos-proveedor", requerirAccesoNegocio, requerirPedidosProveedor, async (req, res) => {
         const { proveedor, estado: estadoPedido, notas, items } = req.body;
 
         if (!Array.isArray(items) || !items.length) {
@@ -322,7 +327,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
         }
     });
 
-    app.post("/pedidos-proveedor/:id/recepciones", requerirAccesoNegocio, async (req, res) => {
+    app.post("/pedidos-proveedor/:id/recepciones", requerirAccesoNegocio, requerirPedidosProveedor, async (req, res) => {
         const { proveedor, referencia, notas, items } = req.body;
 
         if (!Array.isArray(items) || !items.length) {

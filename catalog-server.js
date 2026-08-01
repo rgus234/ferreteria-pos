@@ -1,4 +1,5 @@
 const { responderError } = require("./error-utils");
+const { requerirFuncionPlan } = require("./plan-enforcement");
 
 async function negocioActual(req, pool) {
     const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -206,6 +207,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
     app.post(
         "/catalogo-proveedor/:proveedor/subir",
         requerirAccesoNegocio,
+        requerirFuncionPlan("catalogo.importacion_listas", "Importar listas de proveedor esta disponible desde el plan Plus."),
         async (req, res) => {
             const proveedor = String(req.params.proveedor || "").trim();
             const productos = Array.isArray(req.body?.productos) ? req.body.productos : [];
