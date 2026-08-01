@@ -22,6 +22,7 @@ const { calcularAntiguedadCredito } = require("./credit-aging");
 const { listarPlanes, listarCatalogoFunciones, funcionesDelPlan } = require("./features");
 const {
     enviarCorreoVerificacion,
+    enviarCorreoBienvenida,
     enviarCorreoRecuperacion,
     enviarCorreoActivacionCuenta,
     enviarCorreoLeadLanding
@@ -797,8 +798,10 @@ app.get("/verificar-correo/:token", async (req, res) => {
 
         const fila = await pool.query(
             `
-            SELECT id, negocio_id, correo FROM public.verificaciones_correo
-            WHERE token_hash = $1 AND usado_at IS NULL AND expira_at > NOW()
+            SELECT v.id, v.negocio_id, v.correo, n.nombre AS negocio_nombre
+            FROM public.verificaciones_correo v
+            JOIN public.negocios n ON n.id = v.negocio_id
+            WHERE v.token_hash = $1 AND v.usado_at IS NULL AND v.expira_at > NOW()
             LIMIT 1
             `,
             [tokenHash]
@@ -824,6 +827,8 @@ app.get("/verificar-correo/:token", async (req, res) => {
             `UPDATE public.verificaciones_correo SET usado_at = NOW() WHERE id = $1`,
             [verificacion.id]
         );
+
+        enviarCorreoBienvenida(verificacion.correo, verificacion.negocio_nombre, `${urlBase(req)}/`).catch(() => {});
 
         res.send(paginaCorreoHtml(
             "Correo verificado",

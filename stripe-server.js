@@ -1,7 +1,9 @@
 const { config } = require("./config");
 const { responderError } = require("./error-utils");
 const { listarPlanes, funcionesDelPlan } = require("./features");
-const { enviarCorreoPagoFallido } = require("./email");
+const { enviarCorreoPagoFallido, enviarCorreoPagoConfirmado } = require("./email");
+
+const NOMBRE_PLAN_LEGIBLE = { basico: "Basico", plus: "Plus", pro: "Pro" };
 
 // Funciones del catalogo (migrations/20260716_catalogo_funciones_planes.sql)
 // que se destacan en la rejilla de planes de Cuenta -- curadas a mano,
@@ -487,7 +489,7 @@ async function procesarEventoStripe(pool, stripe, evento) {
             const priceId = factura.lines?.data?.[0]?.price?.id || null;
             const plan = priceId ? planPorPriceId(priceId) : null;
 
-            await pool.query(
+            const licenciaRow = await pool.query(
                 `
                 UPDATE public.licencias
                 SET estado = 'activa',
@@ -497,9 +499,28 @@ async function procesarEventoStripe(pool, stripe, evento) {
                     plan = COALESCE($3, plan),
                     updated_at = NOW()
                 WHERE stripe_customer_id = $1
+                RETURNING negocio_id, plan
                 `,
                 [factura.customer, priceId, plan]
             );
+
+            if (licenciaRow.rows.length > 0) {
+                const negocioRow = await pool.query(
+                    `SELECT correo, nombre FROM public.negocios WHERE id = $1`,
+                    [licenciaRow.rows[0].negocio_id]
+                );
+                const negocio = negocioRow.rows[0];
+
+                if (negocio?.correo) {
+                    const montoTexto = factura.amount_paid != null
+                        ? `$${(factura.amount_paid / 100).toFixed(2)} ${(factura.currency || "mxn").toUpperCase()}`
+                        : "-";
+                    const fechaTexto = new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
+                    const planTexto = NOMBRE_PLAN_LEGIBLE[licenciaRow.rows[0].plan] || licenciaRow.rows[0].plan || "-";
+
+                    await enviarCorreoPagoConfirmado(negocio.correo, negocio.nombre, { planTexto, montoTexto, fechaTexto });
+                }
+            }
 
             break;
         }
