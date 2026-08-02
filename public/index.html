@@ -52,6 +52,7 @@
   <link rel="stylesheet" href="css/components/support-reminders.css?v=notif-contraste-fix-20260706-01">
   <link rel="stylesheet" href="css/components/ticket-lookup-view.css?v=creditos-editar-compra-20260730-01">
   <link rel="stylesheet" href="css/components/encargos-clientes.css?v=encargos-20260803-01">
+  <link rel="stylesheet" href="css/components/sitio-web-view.css?v=sitio-web-20260804-01">
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -508,6 +509,10 @@
  Encargos
  </button>
 
+ <button data-shell-module="sitio-web" onclick="mostrarSitioWeb()">
+ Sitio web
+ </button>
+
  <button class="btn-dueno-sidebar" onclick="window.open('/dueno', '_blank')">
  App del dueño
  </button>
@@ -521,6 +526,7 @@
  <section id="pantallaNexoIA" style="display:none;"></section>
  <section id="pantallaBuscarTicket" style="display:none;"></section>
  <section id="pantallaEncargos" style="display:none;"></section>
+ <section id="pantallaSitioWeb" style="display:none;"></section>
 
  <section id="pantallaCatalogo" style="display:none;">
 
@@ -1620,6 +1626,7 @@
   <script src="js/account-view.js?v=recordatorio-caja-20260731-01"></script>
   <script src="js/ticket-lookup-view.js?v=creditos-editar-compra-20260730-01"></script>
  <script src="js/encargos-clientes.js?v=encargos-20260803-01"></script>
+ <script src="js/sitio-web-view.js?v=sitio-web-20260804-01"></script>
   <script src="js/product-details-view.js?v=alertas-tempranas-20260712-01"></script>
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/pos-shortcuts.js?v=pos-flyout-redesign-20260708-03"></script>

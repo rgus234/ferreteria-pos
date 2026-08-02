@@ -26,7 +26,8 @@ const AYUDA_MODULOS_POS = {
  cuenta: "Muestra el plan, el estado de la suscripcion y el correo de contacto del negocio.",
  "nexo-ia": "Tu asistente de negocio: preguntale por tus ventas, tu inventario o tus creditos.",
  "buscar-ticket": "Escanea o teclea el folio de un ticket para ver la venta y que productos tienen garantia.",
- encargos: "Registra lo que un cliente pidio encargar con el proveedor, con anticipo y fecha estimada de entrega."
+ encargos: "Registra lo que un cliente pidio encargar con el proveedor, con anticipo y fecha estimada de entrega.",
+ "sitio-web": "Activa y personaliza la pagina publica de tu negocio -- logo, portada, descripcion, horario y contacto."
 };
 
 /* Nexo AI v2 -- hook de tours automaticos: las pantallas mas viejas
@@ -108,14 +109,15 @@ function iconoUISVG(nombre) {
  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/>',
  eyeOff: '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/>',
- sparkle: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="M12 8l1.6 3.4L17 13l-3.4 1.6L12 18l-1.6-3.4L7 13l3.4-1.6Z"/>'
+ sparkle: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="M12 8l1.6 3.4L17 13l-3.4 1.6L12 18l-1.6-3.4L7 13l3.4-1.6Z"/>',
+ globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z"/>'
  };
  const cuerpo = iconos[nombre] || iconos.zap;
  return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + cuerpo + '</svg>';
 }
 
 function moduloDesdeEtiquetaPOS(etiqueta) { const texto = limpiarTextoUI(etiqueta).toLowerCase(); if (texto.includes("inicio")) return "inicio"; if (texto.includes("punto")) return "venta"; if (texto === "inventario") return "inventario"; if (texto.includes("productos")) return "productos"; if (texto.includes("categorias")) return "categorias"; if (texto.includes("bajo")) return "inventario-bajo"; if (texto.includes("reporte") || texto.includes("ventas")) return "reportes"; if (texto.includes("credito")) return "creditos"; if (texto.includes("clientes")) return "clientes"; if (texto.includes("proveedores")) return "proveedores"; if (texto.includes("catalogo")) return "catalogo"; if (texto.includes("recepcion")) return "recepcion"; if (texto.includes("caja")) return "caja"; if (texto.includes("finanzas")) return "finanzas"; if (texto.includes("pedidos")) return "pedidos"; if (texto.includes("ajustes")) return "ajustes"; if (texto.includes("configuracion")) return "configuracion"; if (texto.includes("dueno")) return "dueno"; return texto.replace(/[^a-z0-9]+/g, "-") || "modulo"; }
-function iconoModuloPOS(modulo) { return { inicio:"home", venta:"cart", inventario:"inventory", productos:"inventory", "agregar-producto":"plus", categorias:"layers", "inventario-bajo":"alert", reportes:"chart", creditos:"credit", clientes:"users", proveedores:"truck", catalogo:"file", recepcion:"truck", caja:"zap", finanzas:"chart", pedidos:"file", ajustes:"settings", configuracion:"settings", dueno:"chart", cuenta:"wallet", "nexo-ia":"sparkle", "buscar-ticket":"file", encargos:"clipboard" }[modulo] || "zap"; }
+function iconoModuloPOS(modulo) { return { inicio:"home", venta:"cart", inventario:"inventory", productos:"inventory", "agregar-producto":"plus", categorias:"layers", "inventario-bajo":"alert", reportes:"chart", creditos:"credit", clientes:"users", proveedores:"truck", catalogo:"file", recepcion:"truck", caja:"zap", finanzas:"chart", pedidos:"file", ajustes:"settings", configuracion:"settings", dueno:"chart", cuenta:"wallet", "nexo-ia":"sparkle", "buscar-ticket":"file", encargos:"clipboard", "sitio-web":"globe" }[modulo] || "zap"; }
 function datosSidebarPOS(boton) {
  const etiqueta = limpiarTextoUI(boton.dataset.navLabel || boton.textContent);
  const modulo = boton.dataset.shellModule || moduloDesdeEtiquetaPOS(etiqueta) || boton.dataset.modulo;
@@ -176,7 +178,8 @@ function ordenarSidebarPOS() {
   "cuenta",
   "nexo-ia",
   "buscar-ticket",
-  "encargos"
+  "encargos",
+  "sitio-web"
  ];
  const peso = boton => {
   const index = orden.indexOf(datosSidebarPOS(boton).modulo);

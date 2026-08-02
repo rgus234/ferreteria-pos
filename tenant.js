@@ -4,6 +4,12 @@ const DEFAULT_NEGOCIO_SLUG =
 const DEFAULT_NEGOCIO_NOMBRE =
     process.env.DEFAULT_NEGOCIO_NOMBRE || "Ferreteria Olimpico";
 
+// El slug tambien es el subdominio publico de cada negocio
+// ({slug}.nexoposoficial.com, ver public-site-server.js) -- estas
+// palabras quedan reservadas para que un negocio nunca termine con un
+// slug que choque con un subdominio propio del sistema.
+const SUBDOMINIOS_RESERVADOS = new Set(["app", "www", "admin", "mail", "ftp", "api"]);
+
 function normalizarSlug(valor) {
     return String(valor || DEFAULT_NEGOCIO_SLUG)
         .normalize("NFD")
@@ -73,6 +79,7 @@ async function asegurarNegocioActual(pool, req) {
 module.exports = {
     DEFAULT_NEGOCIO_SLUG,
     DEFAULT_NEGOCIO_NOMBRE,
+    SUBDOMINIOS_RESERVADOS,
     normalizarSlug,
     obtenerSlugNegocio,
     asegurarNegocioActual

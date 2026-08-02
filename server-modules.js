@@ -51,6 +51,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("encargos de clientes", () => {
         require("./encargos-server")(app, pool, requerirAccesoNegocio);
     });
+
+    cargarModuloPOS("sitio web del negocio", () => {
+        require("./public-site-server").registrarRutas(app, pool, requerirAccesoNegocio);
+    });
 }
 
 module.exports = {

@@ -12,9 +12,11 @@ const pool = require("./db");
 const {
     DEFAULT_NEGOCIO_SLUG,
     DEFAULT_NEGOCIO_NOMBRE,
+    SUBDOMINIOS_RESERVADOS,
     normalizarSlug
 } = require("./tenant");
 const { cargarModulosPOS } = require("./server-modules");
+const { servirSitioNegocio } = require("./public-site-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
@@ -102,6 +104,20 @@ app.use(express.static(path.join(__dirname, "public"), { index: false }));
 app.use("/.well-known", express.static(path.join(__dirname, "public", ".well-known"), { dotfiles: "allow" }));
 
 const DOMINIOS_LANDING_COMERCIAL = new Set(["nexoposoficial.com", "www.nexoposoficial.com"]);
+
+// Cada negocio tiene su propio sitio publico en {slug}.nexoposoficial.com
+// (ver public-site-server.js) -- estos subdominios quedan reservados
+// para no chocar con un slug real (tambien reforzado en tenant.js,
+// SUBDOMINIOS_RESERVADOS, al momento de generar el slug de un negocio).
+const DOMINIO_RAIZ_NEXO = "nexoposoficial.com";
+
+function slugDesdeSubdominio(host) {
+    const sufijo = `.${DOMINIO_RAIZ_NEXO}`;
+    if (!host || !host.endsWith(sufijo)) return null;
+    const sub = host.slice(0, -sufijo.length);
+    if (!sub || sub.includes(".") || SUBDOMINIOS_RESERVADOS.has(sub)) return null;
+    return sub;
+}
 
 app.get("/health", async (req, res) => {
     try {
@@ -606,7 +622,7 @@ app.post("/api/clientes/registro", async (req, res) => {
                 [slug]
             );
 
-            if (existe.rows.length === 0) {
+            if (existe.rows.length === 0 && !SUBDOMINIOS_RESERVADOS.has(slug)) {
                 slugDisponible = true;
                 break;
             }
@@ -2398,6 +2414,13 @@ app.post("/admin/api/negocios", async (req, res) => {
             return res.status(400).json({
                 ok: false,
                 error: "No se pudo generar el codigo del cliente"
+            });
+        }
+
+        if (SUBDOMINIOS_RESERVADOS.has(slugSolicitado)) {
+            return res.status(400).json({
+                ok: false,
+                error: `El codigo "${slugSolicitado}" esta reservado por el sistema -- elige otro.`
             });
         }
 
@@ -4480,11 +4503,17 @@ async function aplicarEventoSync(client, negocio, evento) {
     };
 }
 
-app.get("/", (req, res) => {
+app.get("/", async (req, res) => {
     const host = (req.hostname || "").toLowerCase();
 
     if (DOMINIOS_LANDING_COMERCIAL.has(host)) {
         res.sendFile(path.join(__dirname, "public", "site", "index.html"));
+        return;
+    }
+
+    const slugTenant = slugDesdeSubdominio(host);
+    if (slugTenant) {
+        await servirSitioNegocio(pool, req, res, slugTenant);
         return;
     }
 

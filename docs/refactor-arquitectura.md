@@ -6397,3 +6397,111 @@ encabezado real de cada seccion + imagen + boton guardar), y ninguna
 bandera se repite en una segunda visita. `negocio_id = 1` sin cambios
 de escritura durante toda la prueba. Pendiente de confirmacion del
 usuario para `git add`/`commit`.
+
+## 2026-08-04 -- Sitio web por negocio, Fase 1: subdominio + pagina informativa
+
+El usuario planteo la vision de que cada negocio tenga su propio sitio
+publico automatico en `{slug}.nexoposoficial.com`, alimentado por sus
+propios datos, sin diseñar nada por cliente. Se presento primero un
+analisis de arquitectura (sin codigo, respetando que pidio
+explicitamente no tratarlo como prompt de implementacion), confirmando
+2 decisiones via `AskUserQuestion`: el sitio es beneficio de
+**Plus/Pro** (`demo` tratado igual que `pro`, mismo criterio que Nexo
+IA/Banco de Nexo) y se renderiza **en servidor** (no el patron SPA de
+`/site`/`/dueno`), para que Google indexe el contenido y compartir el
+link por WhatsApp muestre una vista previa real.
+
+Esta Fase 1 cubre solo una pagina informativa (logo, nombre, color,
+descripcion, portada, horario, telefono, WhatsApp, redes sociales,
+direccion) -- sin catalogo ni formularios publicos todavia.
+
+**Resolucion de subdominio** (`server.js`): el handler `GET /` ya
+distinguia landing comercial vs. la app del POS por hostname exacto
+(`DOMINIOS_LANDING_COMERCIAL`) -- se le agrego un tercer caso,
+`slugDesdeSubdominio(host)`, que extrae el subdominio y lo rechaza si
+es un subdominio reservado del sistema (`app`, `www`, `admin`, `mail`,
+`ftp`, `api`) o si contiene un punto extra. Estos mismos reservados
+viven en `tenant.js` (`SUBDOMINIOS_RESERVADOS`, junto a
+`normalizarSlug`) y se aplican tambien en los 2 puntos donde se genera
+un slug nuevo para un negocio (registro publico y alta desde Admin) --
+un negocio nunca puede terminar con un slug reservado, se le agrega el
+mismo sufijo numerico que ya usa la desambiguacion de slugs duplicados.
+
+**`public-site-server.js`** (nuevo modulo): expone
+`servirSitioNegocio(pool, req, res, slug)` (llamada directo desde el
+`GET /` de `server.js`, ya que ese handler decide entre landing/POS/
+sitio de negocio) y `registrarRutas(app, pool, requerirAccesoNegocio)`
+con las 2 rutas autenticadas de configuracion
+(`GET`/`PUT /negocio-actual/sitio-web`), registradas en
+`server-modules.js` igual que cualquier otro modulo. El chequeo de
+plan usa `funcionDelPlan(negocioId, "sitio_web.pagina")` de
+`plan-enforcement.js` directo (no el middleware `requerirFuncionPlan`,
+que depende de un token -- el visitante publico no tiene uno). Sin
+fila en `sitio_web_config`, `activo=false`, o plan sin la funcion ->
+`404` generico, sin distinguir el motivo (mismo criterio "fail closed"
+que Banco de Nexo). El HTML se arma con funciones JS puras
+(`renderizarPaginaNegocio`), mismo idioma que `envolverPlantilla` de
+`email.js` (template literals, sin libreria de plantillas nueva), con
+meta tags Open Graph reales (titulo/descripcion/imagen/url) y escape
+de HTML (`escaparHtml`, copiado del patron de `escaparHtmlCorreo`) en
+todo dato que viene de la base.
+
+**Migracion** (`20260804_sitio_web.sql`): tabla nueva
+`sitio_web_config` (1:1 con `negocios`, `negocio_id` como PK directa)
++ siembra de una funcion nueva en el catalogo (`sitio_web.pagina`,
+categoria `sitio_web`), incluida en `plus`/`pro`, no en `basico` --
+mismo patron `INSERT ... ON CONFLICT DO NOTHING` que el seed original
+de `catalogo_funciones`/`plan_funciones`.
+
+**Bug encontrado y corregido antes de que llegara a produccion**: el
+primer borrador de `PUT /negocio-actual/sitio-web` trataba
+`portada` ausente del body igual que `portada: null` (la borraba) --
+como el formulario nuevo solo manda `portada` cuando el usuario de
+verdad sube/quita una imagen, cada guardado del resto de los campos
+habria borrado la portada ya guardada. Se corrigio distinguiendo
+"la clave no vino" (`Object.prototype.hasOwnProperty`) de "vino en
+null/vacio" via un flag `tocaPortada` mandado a la consulta SQL
+(`CASE WHEN $9 THEN $4 ELSE sitio_web_config.portada END`) -- se
+verifico el caso real (guardar sin portada, dos veces seguidas, con
+una portada ya guardada) antes de dar la fase por cerrada.
+
+**Pantalla "Sitio web" en el POS**: mismo patron de pantalla ya
+establecido (Cuenta/Encargos/Nexo IA) -- seccion estatica, boton de
+sidebar, entradas en `ocultarPantallasPrincipales()`/
+`AYUDA_MODULOS_POS`/`iconoModuloPOS` (icono `globe` nuevo, agregado al
+set de `iconoUISVG`)/`ordenarSidebarPOS`. `public/js/sitio-web-view.js`
+muestra upsell si el plan no incluye la funcion (dato real devuelto
+por el servidor, no solo inferido del plan en el cliente), o el
+formulario completo si aplica -- reusa los botones/inputs ya
+estilizados de `encargos-clientes.css` donde encaja, con
+`sitio-web-view.css` nuevo solo para lo especifico de esta pantalla.
+
+**Verificacion**: `node --check` limpio en los 7 archivos `.js`
+tocados/nuevos. Migracion aplicada contra la base real con
+confirmacion explicita -- confirmado `sitio_web_config` con sus 9
+columnas y `plan_funciones` sembrado correctamente
+(`basico:incluido=false`, `plus/pro:incluido=true`). Verificacion
+funcional completa contra un negocio sintetico (17795, creado y
+borrado por SQL directo, nunca `negocio_id = 1`) corriendo el servidor
+localmente y falsificando el header `Host` (sin necesitar DNS real
+todavia): sitio real con plan Plus + activo -> HTML correcto con
+meta tags Open Graph, WhatsApp (`wa.me`) armado bien, redes sociales
+solo las que tienen valor, y un payload XSS de prueba en la
+descripcion (`<script>alert(1)</script>`) escapado correctamente tanto
+en el meta tag como en el cuerpo. Plan Basico -> `404`; `activo=false`
+-> `404`; slug inexistente -> `404`; subdominios reservados
+(`app.`/`admin.`) y el dominio raiz -> sirven exactamente lo mismo que
+antes de este cambio, sin regresion. Rutas autenticadas
+(`GET`/`PUT /negocio-actual/sitio-web`) probadas con un token de
+dispositivo real (insertado por SQL con el mismo hash SHA-256 que usa
+`hashTokenSeguro`): guardar y recuperar datos funciona, `PUT` con plan
+Basico responde `403` con `requiereUpgrade:true`. Guard de subdominio
+reservado verificado contra el modulo real (`normalizarSlug("Admin")`
++ `SUBDOMINIOS_RESERVADOS` -> `admin-2`, nunca `admin`). Negocio
+sintetico borrado por completo al terminar (`dispositivos_vinculados`,
+`sitio_web_config`, `licencias`, `negocios`), confirmado `0` filas
+restantes. Pendiente de infraestructura fuera de este entorno: DNS
+wildcard `*.nexoposoficial.com` + dominio personalizado wildcard en
+Render, antes de que esto funcione con trafico real (ya funciona
+completo en el codigo, probado localmente). Pendiente de confirmacion
+del usuario para `git add`/`commit`.

@@ -1304,6 +1304,7 @@ function ocultarPantallasPrincipales() {
  "pantallaNexoIA",
  "pantallaBuscarTicket",
  "pantallaEncargos",
+ "pantallaSitioWeb",
  "modalAgregar"
  ].forEach(id => {
  const pantalla =
