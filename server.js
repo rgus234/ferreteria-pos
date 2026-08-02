@@ -6026,6 +6026,7 @@ app.get("/creditos", requerirAccesoNegocio, async (req, res) => {
                 c.telefono,
                 c.limite_credito,
                 c.fecha_vencimiento,
+                c.nivel_precio_preferido,
                 c.created_at,
                 COALESCE(
                     SUM(
@@ -6168,7 +6169,8 @@ app.post("/creditos/clientes", requerirAccesoNegocio, async (req, res) => {
         nombre,
         telefono,
         limiteCredito,
-        fechaVencimiento
+        fechaVencimiento,
+        nivelPrecioPreferido
     } = req.body;
 
     if (!nombre) {
@@ -6187,16 +6189,18 @@ app.post("/creditos/clientes", requerirAccesoNegocio, async (req, res) => {
                 nombre,
                 telefono,
                 limite_credito,
-                fecha_vencimiento
+                fecha_vencimiento,
+                nivel_precio_preferido
             )
-            VALUES ($1, $2, $3, $4, $5)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING *
         `, [
             negocio.id,
             nombre,
             telefono || null,
             limiteCredito || 0,
-            fechaVencimiento || null
+            fechaVencimiento || null,
+            nivelPrecioPreferido || null
         ]);
 
         res.json({
@@ -6215,7 +6219,8 @@ app.put("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
         nombre,
         telefono,
         limiteCredito,
-        fechaVencimiento
+        fechaVencimiento,
+        nivelPrecioPreferido
     } = req.body;
 
     if (!nombre) {
@@ -6233,15 +6238,17 @@ app.put("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
                 nombre = $1,
                 telefono = $2,
                 limite_credito = $3,
-                fecha_vencimiento = $4
-            WHERE id = $5
-            AND negocio_id = $6
+                fecha_vencimiento = $4,
+                nivel_precio_preferido = $5
+            WHERE id = $6
+            AND negocio_id = $7
             RETURNING *
         `, [
             nombre,
             telefono || "",
             Number(limiteCredito || 0),
             fechaVencimiento || null,
+            nivelPrecioPreferido || null,
             id,
             negocio.id
         ]);

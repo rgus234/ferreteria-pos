@@ -213,6 +213,7 @@ window.repararSidebarNexoPOS = function() {
  renderSidebarFooterPOS();
 };
 function actualizarModuloActivoPOS(modulo) { document.querySelectorAll(".sidebar button").forEach(boton => boton.classList.toggle("activo", boton.dataset.shellModule === modulo)); if (typeof nexoIaTourAutoModulo === "function") nexoIaTourAutoModulo(modulo); }
+function toggleSidebarPOS() { document.body.classList.toggle("sidebar-oculta"); }
 function recordatoriosPOSGuardados() { try { const datos = JSON.parse(localStorage.getItem(RECORDATORIOS_POS_KEY) || "[]"); return Array.isArray(datos) ? datos : []; } catch (error) { console.warn("No se pudieron leer recordatorios", error); return []; } }
 function guardarRecordatoriosPOS(recordatorios) { localStorage.setItem(RECORDATORIOS_POS_KEY, JSON.stringify(recordatorios)); renderNotificacionesPOS(); }
 function notificacionesDescartadasPOS() { try { const datos = JSON.parse(localStorage.getItem(NOTIFICACIONES_DESCARTADAS_POS_KEY) || "[]"); return Array.isArray(datos) ? datos : []; } catch (error) { console.warn("No se pudieron leer notificaciones descartadas", error); return []; } }

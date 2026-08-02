@@ -94,41 +94,6 @@ async function procesarCodigoBarrasPos(codigoManual) {
  }, 50);
 }
 
-function filtrarFlyoutPOSCategoria(categoria = "") {
- document
- .querySelectorAll(".pos-category-strip button")
- .forEach(boton => boton.classList.remove("active"));
-
- const botones =
- [...document.querySelectorAll(".pos-category-strip button")];
-
- const activo =
- categoria
- ? botones.find(boton => boton.textContent.toLowerCase().includes(String(categoria).toLowerCase()))
- : botones[0];
-
- if (activo) activo.classList.add("active");
-
- if (!categoria) {
- if (typeof ocultarFlyoutBusquedaPOS === "function") ocultarFlyoutBusquedaPOS();
- return;
- }
-
- const texto =
- normalizarTexto(categoria);
-
- const productos =
- todosProductos.filter(producto =>
- normalizarTexto(producto.categoria || "").includes(texto) ||
- normalizarTexto(producto.subcategoria || "").includes(texto) ||
- normalizarTexto(producto.nombre || "").includes(texto)
- );
-
- if (typeof mostrarFlyoutBusquedaPOS === "function") {
- mostrarFlyoutBusquedaPOS(productos, { textoVacio: `Sin productos en "${categoria}"` });
- }
-}
-
 function iconoProducto(nombre) {
  const texto =
  String(nombre || "").toLowerCase();
@@ -730,7 +695,16 @@ function seleccionarClientePOS(id) {
 
  actualizarClientePOS();
  cerrarSelectorClientePOS();
+
+ const nivelPreferido = clienteVentaActual?.nivel_precio_preferido;
+
+ if (nivelPreferido) {
+ recalcularPreciosPorNivel(nivelPreferido);
+ } else if (clienteId === 0) {
+ recalcularPreciosPorNivel("publico");
+ } else {
  actualizarCarrito();
+ }
 }
 
 async function crearClienteDesdePOS() {

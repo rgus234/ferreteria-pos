@@ -830,7 +830,7 @@
  <div class="pos-reference-layout">
  <main class="pos-products-panel">
  <div class="pos-reference-toolbar">
- <button type="button" class="pos-icon-button" onclick="toggleSubmenuInventario()" aria-label="Menu">
+ <button type="button" class="pos-icon-button" onclick="toggleSidebarPOS()" aria-label="Ocultar o mostrar el menu lateral" title="Ocultar/mostrar menu">
  ☰
  </button>
 
@@ -853,36 +853,6 @@
  </button>
  </div>
 
- <section class="pos-category-strip" aria-label="Categorias de punto de venta">
- <button type="button" class="active" onclick="filtrarFlyoutPOSCategoria('')">
- <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
- Todos
- </button>
- <button type="button" onclick="filtrarFlyoutPOSCategoria('Herramientas')">
- <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7.5a5.5 5.5 0 0 1-7.4 5.2L6 20.3 3.7 18l7.6-7.6A5.5 5.5 0 1 1 21 7.5Z"/></svg>
- Herramientas
- </button>
- <button type="button" onclick="filtrarFlyoutPOSCategoria('Electricidad')">
- <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>
- Electricidad
- </button>
- <button type="button" onclick="filtrarFlyoutPOSCategoria('Plomeria')">
- <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9Z"/><path d="M12 12v7a2 2 0 0 1-4 0"/></svg>
- Plomeria
- </button>
- <button type="button" onclick="filtrarFlyoutPOSCategoria('Pintura')">
- <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="12" height="6" rx="1.5"/><path d="M7 10v4h4"/><rect x="9" y="14" width="4" height="6" rx="1"/></svg>
- Pintura
- </button>
- <button type="button" onclick="filtrarFlyoutPOSCategoria('Ferreteria')">
- <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="8" width="20" height="12" rx="2"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M2 13h20"/></svg>
- Ferreteria
- </button>
- <button type="button" onclick="filtrarFlyoutPOSCategoria('Jardineria')">
- <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21c8 0 14-6 14-14V5h-2C9 5 5 11 5 19v2Z"/><path d="M5 21 19 7"/></svg>
- Jardineria
- </button>
- </section>
 
  <div class="pos-cart-hero-heading">
  <h2>Carrito de venta</h2>

@@ -94,59 +94,6 @@ body.oscuro .pos-referencia {
   color: var(--pos-sale-muted) !important;
 }
 
-.pos-category-strip {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 6px;
-  margin-bottom: 10px;
-  padding: 6px;
-  border: 1px solid var(--pos-sale-line);
-  border-radius: 18px;
-  background: var(--pos-sale-card);
-  box-shadow: var(--pos-sale-shadow);
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.pos-category-strip button {
-  min-height: 46px;
-  min-width: 64px;
-  flex: 1 1 0;
-  margin: 0;
-  padding: 6px 6px;
-  display: grid;
-  place-items: center;
-  gap: 3px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: transparent !important;
-  color: var(--pos-sale-text) !important;
-  font-size: 11px;
-  font-weight: 850;
-  white-space: nowrap;
-}
-
-.pos-category-strip button span {
-  font-size: 17px;
-  line-height: 1;
-}
-
-.pos-category-strip button .ui-icon {
-  width: 19px;
-  height: 19px;
-  color: var(--pos-sale-muted);
-}
-
-.pos-category-strip button.active .ui-icon {
-  color: #fff;
-}
-
-.pos-category-strip button.active {
-  background: var(--pos-sale-brand) !important;
-  color: #fff;
-  box-shadow: none;
-}
-
 .pos-reference-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(400px, 440px);
@@ -700,10 +647,6 @@ body.oscuro .pos-referencia {
 
   .pos-icon-button {
     display: none;
-  }
-
-  .pos-category-strip {
-    grid-template-columns: repeat(8, 94px);
   }
 
   .pos-metrics-row {

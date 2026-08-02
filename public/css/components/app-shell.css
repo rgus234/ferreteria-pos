@@ -116,6 +116,17 @@ body.oscuro .sidebar {
   background: #070c16;
 }
 
+/* Modo enfoque: oculta el sidebar para dar mas espacio a la venta,
+   activado con el boton de menu (Punto de venta) -- vuelve a mostrarse
+   al pulsar de nuevo, sin persistir entre recargas. */
+body.sidebar-oculta .sidebar {
+  display: none !important;
+}
+
+body.sidebar-oculta .layout {
+  grid-template-columns: 1fr !important;
+}
+
 .brand-sidebar {
   display: flex;
   align-items: center;

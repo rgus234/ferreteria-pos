@@ -862,7 +862,7 @@ function abrirFormularioCredito(configuracion) {
  campo.tipo === "select"
  ? `<select id="creditoCampo_${campo.nombre}" ${campo.requerido ? "required" : ""}>
  ${(campo.opciones || []).map(opcion => `
- <option value="${opcion.valor}">
+ <option value="${opcion.valor}" ${String(opcion.valor) === String(campo.valor ?? "") ? "selected" : ""}>
  ${opcion.etiqueta}
  </option>
  `).join("")}
@@ -998,6 +998,18 @@ async function abrirNuevoClienteCredito(prellenado = {}) {
  placeholder: "0",
  valor: String(prellenado.limiteCredito || 0),
  min: 0
+ },
+ {
+ nombre: "nivelPrecioPreferido",
+ etiqueta: "Precio con el que siempre compra",
+ tipo: "select",
+ valor: "",
+ opciones: [
+ { valor: "", etiqueta: "Sin preferencia -- usar el precio activo en el POS" },
+ { valor: "publico", etiqueta: "Publico" },
+ { valor: "mayoreo", etiqueta: "Medio mayoreo" },
+ { valor: "distribuidor", etiqueta: "Mayoreo / distribuidor" }
+ ]
  }
  ]
  });
@@ -1007,7 +1019,8 @@ async function abrirNuevoClienteCredito(prellenado = {}) {
  const payloadCliente = {
  nombre: datos.nombre,
  telefono: datos.telefono,
- limiteCredito: datos.limiteCredito
+ limiteCredito: datos.limiteCredito,
+ nivelPrecioPreferido: datos.nivelPrecioPreferido || null
  };
 
  let respuesta;
@@ -1355,6 +1368,18 @@ async function editarClienteCredito(id) {
  etiqueta: "Limite de credito",
  tipo: "number",
  valor: cliente.limite_credito || 0
+ },
+ {
+ nombre: "nivelPrecioPreferido",
+ etiqueta: "Precio con el que siempre compra",
+ tipo: "select",
+ valor: cliente.nivel_precio_preferido || "",
+ opciones: [
+ { valor: "", etiqueta: "Sin preferencia -- usar el precio activo en el POS" },
+ { valor: "publico", etiqueta: "Publico" },
+ { valor: "mayoreo", etiqueta: "Medio mayoreo" },
+ { valor: "distribuidor", etiqueta: "Mayoreo / distribuidor" }
+ ]
  }
  ]
  });
