@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("nexoDesktop", {
   getConfig: () => ipcRenderer.invoke("nexo:get-config"),
+  saveDeviceLink: payload => ipcRenderer.invoke("nexo:save-device-link", payload),
+  clearDeviceLink: () => ipcRenderer.invoke("nexo:clear-device-link"),
   updateStatus: () => ipcRenderer.invoke("nexo:update-status"),
   updateCheck: () => ipcRenderer.invoke("nexo:update-check"),
   updateInstall: () => ipcRenderer.invoke("nexo:update-install"),

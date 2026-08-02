@@ -1,0 +1,3 @@
+ALTER TABLE public.negocios
+    ADD COLUMN IF NOT EXISTS logo TEXT,
+    ADD COLUMN IF NOT EXISTS color TEXT;

@@ -611,6 +611,32 @@ function startBackgroundJobs() {
 
 ipcMain.handle("nexo:get-config", async () => readConfig());
 
+// Guarda el token de dispositivo y el negocio vinculado en disco (fuera
+// del localStorage del navegador embebido) para que, si ese almacenamiento
+// se pierde (perfil de Chromium corrupto, limpieza de disco, etc.), la app
+// pueda reconectarse sola en vez de mandar al usuario al asistente de
+// "negocio nuevo" -- ver intentarReconexionAutomaticaNegocio() en
+// config-auth.js, que depende de que activatedAt quede guardado aqui.
+ipcMain.handle("nexo:save-device-link", async (_event, payload = {}) => {
+  const dispositivoToken = String(payload.dispositivoToken || "").trim();
+  if (!dispositivoToken) {
+    throw new Error("dispositivoToken requerido");
+  }
+
+  return writeConfig({
+    dispositivoToken,
+    negocioSlug: payload.negocioSlug || undefined,
+    activatedAt: new Date().toISOString()
+  });
+});
+
+ipcMain.handle("nexo:clear-device-link", async () => {
+  return writeConfig({
+    dispositivoToken: null,
+    activatedAt: null
+  });
+});
+
 ipcMain.handle("nexo:update-status", async () => ({
   ok: true,
   state: updateState,

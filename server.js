@@ -469,6 +469,56 @@ app.put("/negocio-actual/hora-cierre", requerirAccesoNegocio, async (req, res) =
     }
 });
 
+// Logo y color de marca -- antes solo vivian en localStorage del
+// dispositivo (se perdian si ese almacenamiento se corrompia o se
+// limpiaba, sin forma de recuperarlos). Guardarlos aqui permite que
+// intentarReconexionAutomaticaNegocio() (config-auth.js) los traiga de
+// vuelta igual que el resto de la configuracion del negocio.
+app.put("/negocio-actual/marca", requerirAccesoNegocio, async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const color = String(req.body?.color || "").trim();
+        const logo = req.body?.logo === null || req.body?.logo === "" ? null : String(req.body?.logo || "");
+
+        if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+            res.status(400).json({
+                ok: false,
+                error: "Color invalido"
+            });
+            return;
+        }
+
+        if (logo && !/^data:image\/(png|jpe?g|webp|gif|svg\+xml);base64,/.test(logo)) {
+            res.status(400).json({
+                ok: false,
+                error: "El logo debe ser una imagen valida"
+            });
+            return;
+        }
+
+        if (logo && logo.length > 3 * 1024 * 1024) {
+            res.status(400).json({
+                ok: false,
+                error: "El logo es demasiado grande. Usa una imagen mas chica."
+            });
+            return;
+        }
+
+        await pool.query(
+            `UPDATE public.negocios SET color = $1, logo = $2, updated_at = NOW() WHERE id = $3`,
+            [color || null, logo, negocio.id]
+        );
+
+        res.json({
+            ok: true,
+            color: color || null,
+            logo: logo || null
+        });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
 app.post("/api/clientes/registro", async (req, res) => {
     if (limpiarTexto(req.body?.empresaWeb, 200)) {
         return res.status(400).json({
@@ -3256,7 +3306,7 @@ async function negocioActual(req) {
     }
 
     const resultado = await pool.query(
-        `SELECT id, slug, nombre, giro, estado, plan FROM public.negocios WHERE id = $1 LIMIT 1`,
+        `SELECT id, slug, nombre, giro, estado, plan, telefono, direccion, logo, color FROM public.negocios WHERE id = $1 LIMIT 1`,
         [negocioId]
     );
 

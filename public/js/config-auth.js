@@ -392,8 +392,8 @@ function guardarConfiguracionNegocioDesdeServidor(negocio) {
  slogan: "",
  telefono: negocio.telefono || "",
  direccion: negocio.direccion || "",
- color: "#0d6efd",
- logo: null,
+ color: negocio.color || "#0d6efd",
+ logo: negocio.logo || null,
  adminNombre: "",
  fechaConfiguracion: new Date().toISOString()
  };
@@ -415,10 +415,17 @@ async function intentarReconexionAutomaticaNegocio() {
  const configDesktop =
  await window.nexoDesktop.getConfig();
 
- if (!configDesktop?.activatedAt) return false;
+ if (!configDesktop?.activatedAt || !configDesktop?.dispositivoToken) return false;
 
+ // El token del dispositivo se manda explicito aqui (en vez de dejar que
+ // el interceptor global de fetch lo tome de localStorage) porque este
+ // camino existe justo para cuando localStorage esta vacio -- el token
+ // guardado en disco por Electron (apps/desktop/main.js) es la unica
+ // copia que puede quedar viva en ese caso.
  const respuesta =
- await fetch("/negocio-actual");
+ await fetch("/negocio-actual", {
+ headers: { "x-dispositivo-token": configDesktop.dispositivoToken }
+ });
 
  if (!respuesta.ok) return false;
 
@@ -431,6 +438,7 @@ async function intentarReconexionAutomaticaNegocio() {
  if (!datos?.ok || !negocio?.nombre || !negocio?.slug) return false;
 
  guardarConfiguracionNegocioDesdeServidor(negocio);
+ localStorage.setItem(DISPOSITIVO_TOKEN_KEY, configDesktop.dispositivoToken);
 
  return true;
  } catch (error) {
@@ -2012,6 +2020,19 @@ function guardarConfiguracionSistema() {
  aplicarConfiguracionNegocio(nuevaConfig);
  mostrarConfiguracion();
  alert("Configuracion guardada");
+
+ // Respaldo en el servidor -- si el localStorage de este equipo se
+ // llega a perder, intentarReconexionAutomaticaNegocio() puede traer
+ // de vuelta el logo/color reales en vez de dejarlos en blanco. No
+ // bloquea el guardado local si falla (ej. sin internet).
+ fetch("/negocio-actual/marca", {
+ method: "PUT",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({
+ color: nuevaConfig.color || "",
+ logo: nuevaConfig.logo || null
+ })
+ }).catch(() => {});
 }
 
 async function restablecerConfiguracionInicial() {
@@ -2192,6 +2213,10 @@ function dispositivoTokenActual() {
 function limpiarVinculacionDispositivo() {
  localStorage.removeItem(DISPOSITIVO_TOKEN_KEY);
  localStorage.removeItem(EMPLEADOS_CACHE_KEY);
+
+ if (window.nexoDesktop?.clearDeviceLink) {
+ window.nexoDesktop.clearDeviceLink().catch(() => {});
+ }
 }
 
 // Copia de la lista de cajeros locales tal como vivia antes de este
@@ -2254,6 +2279,18 @@ async function vincularDispositivoActual(cuentaToken) {
  }
 
  localStorage.setItem(DISPOSITIVO_TOKEN_KEY, datos.token);
+
+ if (window.nexoDesktop?.saveDeviceLink) {
+ try {
+ await window.nexoDesktop.saveDeviceLink({
+ dispositivoToken: datos.token,
+ negocioSlug: configuracionNegocio()?.negocioSlug || ""
+ });
+ } catch (error) {
+ // Guardado local del token ya funciono -- esto solo respalda
+ // la reconexion automatica si algun dia se pierde localStorage.
+ }
+ }
 
  const cajerosLocales =
  leerCajerosLocalesLegado();
