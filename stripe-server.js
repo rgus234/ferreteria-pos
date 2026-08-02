@@ -180,6 +180,17 @@ module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
 
             let stripeCustomerId = filaLicencia.rows[0]?.stripe_customer_id || null;
 
+            if (stripeCustomerId) {
+                // El id guardado pudo haberse creado bajo una llave de Stripe
+                // distinta (test vs live son namespaces separados) -- se
+                // valida que exista en el modo actual antes de reusarlo.
+                try {
+                    await stripe.customers.retrieve(stripeCustomerId);
+                } catch (error) {
+                    stripeCustomerId = null;
+                }
+            }
+
             if (!stripeCustomerId) {
                 const cliente = await stripe.customers.create({
                     email: req.negocioAutenticado.correo || undefined,
