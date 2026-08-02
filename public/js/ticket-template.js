@@ -126,8 +126,21 @@ function construirTicketVentaHTML(datos, config = {}, opciones = {}) {
  };
 
  const pagoHtml =
- tipo === "credito" || tipo === "nota"
+ tipo === "nota"
  ? ""
+ : tipo === "credito"
+ ? (Number(datos.abonoInmediato || 0) > 0
+ ? `
+  <div style="display:flex;justify-content:space-between;">
+   <span>PAGO DE CONTADO</span>
+   <span>${dinero(datos.abonoInmediato)}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;font-weight:bold;">
+   <span>QUEDA A CREDITO</span>
+   <span>${dinero(Number(datos.total || 0) - Number(datos.abonoInmediato || 0))}</span>
+  </div>
+ `
+ : "")
  : `
   <div style="display:flex;justify-content:space-between;">
    <span>PAGO</span>

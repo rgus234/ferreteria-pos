@@ -1802,27 +1802,29 @@ async function cobrarCreditoInternoPOS(total) {
  }));
 
  const datos =
- clienteInicial
- ? {
- clienteId: String(clienteInicial.id),
- concepto: "Venta de productos"
- }
- :
  await abrirFormularioCredito({
  titulo: "Venta a credito",
- subtitulo: `Total ${dinero(total)}`,
+ subtitulo: clienteInicial ? clienteInicial.nombre : `Total ${dinero(total)}`,
  campos: [
- {
+ ...(clienteInicial ? [] : [{
  nombre: "clienteId",
  etiqueta: "Cliente",
  tipo: "select",
  opciones,
  requerido: true
- },
+ }]),
  {
  nombre: "concepto",
  etiqueta: "Concepto",
  valor: "Venta de productos"
+ },
+ {
+ nombre: "montoPagado",
+ etiqueta: `Pago de contado ahora (total ${dinero(total)})`,
+ tipo: "number",
+ placeholder: "0",
+ valor: "0",
+ min: 0
  }
  ]
  });
@@ -1830,10 +1832,13 @@ async function cobrarCreditoInternoPOS(total) {
  if (!datos) return;
 
  const clienteId =
- Number(datos.clienteId);
+ clienteInicial ? Number(clienteInicial.id) : Number(datos.clienteId);
 
  const clienteSeleccionado =
- clientesCredito.find(cliente => Number(cliente.id) === clienteId);
+ clienteInicial || clientesCredito.find(cliente => Number(cliente.id) === clienteId);
+
+ const montoPagadoAhora =
+ Math.max(0, Math.min(Number(datos.montoPagado || 0), total));
 
  const productos =
  productosCarritoAgrupados();
@@ -1949,6 +1954,37 @@ async function cobrarCreditoInternoPOS(total) {
  );
  }
 
+ // Cobro mixto: si dejo pago de contado al momento de la venta a
+ // credito, se registra como abono aparte justo despues del cargo --
+ // mismo efecto que hacerlo en 2 pasos desde Creditos, pero en un
+ // solo flujo. Si esta venta se registro offline, el abono se omite
+ // aqui (no hay endpoint offline para esto todavia) -- se puede
+ // registrar despues desde Creditos cuando vuelva la conexion.
+ if (!creditoOffline && montoPagadoAhora > 0) {
+ try {
+ const respuestaAbono =
+ await fetch(
+ `/creditos/clientes/${clienteId}/abonos`,
+ {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({
+ monto: montoPagadoAhora,
+ concepto: "Pago al momento de la venta"
+ })
+ }
+ );
+
+ if (!respuestaAbono.ok) throw new Error("respuesta no exitosa");
+ } catch (error) {
+ alertaPOS(
+ `La venta a credito se registro, pero no se pudo guardar el pago de ${dinero(montoPagadoAhora)}. Registralo a mano desde Creditos.`,
+ "Pago no guardado",
+ "alerta"
+ );
+ }
+ }
+
  const fechaCredito =
  new Date().toLocaleString("es-MX");
 
@@ -1959,6 +1995,7 @@ async function cobrarCreditoInternoPOS(total) {
   subtotal: resumen.subtotal,
   descuento: resumen.descuento,
   total,
+  abonoInmediato: !creditoOffline ? montoPagadoAhora : 0,
   ventaOffline: creditoOffline
  }, configuracionNegocio() || {}, { tipo: "credito" });
 
