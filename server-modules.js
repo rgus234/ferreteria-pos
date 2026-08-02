@@ -47,6 +47,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("banco de imagenes global", () => {
         require("./banco-imagenes-server")(app, pool, requerirAccesoNegocio);
     });
+
+    cargarModuloPOS("encargos de clientes", () => {
+        require("./encargos-server")(app, pool, requerirAccesoNegocio);
+    });
 }
 
 module.exports = {

@@ -49,7 +49,8 @@ function mostrarToastPOS(mensaje, opciones = {}) {
  titulo = "Aviso",
  tipo = "info",
  autoDismiss = null,
- accion = null
+ accion = null,
+ sinCerrar = false
  } = typeof opciones === "string"
  ? { titulo: opciones }
  : opciones;
@@ -77,7 +78,7 @@ function mostrarToastPOS(mensaje, opciones = {}) {
  : ""
  }
  </div>
- <button type="button" class="toast-pos-cerrar" aria-label="Cerrar">&times;</button>
+ ${sinCerrar ? "" : `<button type="button" class="toast-pos-cerrar" aria-label="Cerrar">&times;</button>`}
  `;
 
  contenedor.appendChild(tarjeta);
@@ -95,7 +96,9 @@ function mostrarToastPOS(mensaje, opciones = {}) {
  }
 
  const cierreAutomatico =
- autoDismiss !== null
+ sinCerrar
+ ? null
+ : autoDismiss !== null
  ? autoDismiss
  : (tipo === "exito" || tipo === "info")
  ? TOAST_POS_AUTOCIERRE_MS

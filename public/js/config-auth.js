@@ -1295,6 +1295,7 @@ function ocultarPantallasPrincipales() {
  "pantallaCuenta",
  "pantallaNexoIA",
  "pantallaBuscarTicket",
+ "pantallaEncargos",
  "modalAgregar"
  ].forEach(id => {
  const pantalla =
@@ -2842,6 +2843,7 @@ async function entrarAlSistemaConUsuario(usuario) {
 
  if (typeof revisarAperturaCajaPOS === "function") revisarAperturaCajaPOS();
  if (typeof iniciarRecordatorioCierreCajaPOS === "function") iniciarRecordatorioCierreCajaPOS();
+ if (typeof revisarEncargosVencidosPOS === "function") revisarEncargosVencidosPOS();
 }
 
 async function intentarRestaurarSesion() {

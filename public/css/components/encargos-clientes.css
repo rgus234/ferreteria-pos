@@ -1,0 +1,246 @@
+/* Encargos de clientes */
+.encargos-shell{
+ display:grid;
+ gap:16px;
+ color:var(--pos-text,#172033);
+}
+.encargos-header{
+ padding-bottom:12px;
+ border-bottom:1px solid var(--pos-line,#dbe3ef);
+}
+.encargos-header h2{ margin:0; font-size:22px; font-weight:800; letter-spacing:-.02em; }
+.encargos-header p{ margin:4px 0 0; color:var(--pos-muted,#687386); font-weight:600; font-size:13px; }
+
+.encargos-grid{
+ display:grid;
+ grid-template-columns:1.2fr 1fr;
+ gap:16px;
+ align-items:start;
+}
+.encargos-panel{
+ padding:16px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:14px;
+ background:var(--pos-surface-strong,#fff);
+}
+.encargos-panel h3{ margin:0 0 12px; font-size:15px; font-weight:800; }
+.encargos-panel-titulo-fila{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+.encargos-panel-titulo-fila h3{ margin:0; }
+
+.encargo-form-cliente,
+.encargo-form-fila{
+ display:grid;
+ grid-template-columns:1fr 1fr;
+ gap:12px;
+ margin-bottom:12px;
+}
+.encargo-form-notas{ display:grid; gap:5px; margin-bottom:14px; color:var(--pos-muted,#687386); font-size:12px; font-weight:700; }
+
+.encargo-form-cliente label,
+.encargo-form-fila label,
+.encargo-add-row label{
+ display:grid;
+ gap:5px;
+ color:var(--pos-muted,#687386);
+ font-size:12px;
+ font-weight:700;
+}
+.encargo-form-cliente input,
+.encargo-form-fila input,
+.encargo-form-notas input,
+.encargo-add-row input{
+ min-height:38px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:10px;
+ padding:0 10px;
+ background:var(--pos-surface,#f8fafc);
+ color:var(--pos-text,#172033);
+ font-size:13px;
+}
+
+.encargo-add-row{
+ display:grid;
+ grid-template-columns:2fr .8fr .9fr auto;
+ gap:10px;
+ align-items:end;
+ margin-bottom:12px;
+}
+
+.btn-encargo-agregar,
+.btn-encargo-primario{
+ min-height:38px;
+ border:0;
+ border-radius:10px;
+ padding:0 16px;
+ background:var(--brand-color,#0d6efd) !important;
+ color:#fff !important;
+ font-weight:800;
+ font-size:13px;
+ cursor:pointer;
+ white-space:nowrap;
+}
+.btn-encargo-secundario{
+ min-height:38px;
+ border:1px solid var(--pos-line,#dbe3ef) !important;
+ border-radius:10px;
+ padding:0 16px;
+ background:transparent !important;
+ color:var(--pos-text,#172033) !important;
+ font-weight:700;
+ font-size:13px;
+ cursor:pointer;
+}
+.btn-encargo-quitar{
+ min-height:28px;
+ border:0;
+ border-radius:8px;
+ padding:0 10px;
+ background:rgba(220,38,38,.12) !important;
+ color:#dc2626 !important;
+ font-weight:700;
+ font-size:11px;
+ cursor:pointer;
+}
+.encargo-btn-full{ width:100%; min-height:44px; margin-top:6px; }
+
+.encargo-items-vacio{ color:var(--pos-muted,#687386); font-size:13px; margin:8px 0; }
+
+.encargo-tabla-items{
+ width:100%;
+ border-collapse:collapse;
+ margin-bottom:10px;
+ font-size:13px;
+}
+.encargo-tabla-items th{
+ text-align:left;
+ padding:6px 8px;
+ color:var(--pos-muted,#687386);
+ font-size:11px;
+ text-transform:uppercase;
+ letter-spacing:.04em;
+ border-bottom:1px solid var(--pos-line,#dbe3ef);
+}
+.encargo-tabla-items td{
+ padding:8px;
+ border-bottom:1px solid var(--pos-line,#dbe3ef);
+}
+
+.encargos-filtros{ display:flex; gap:6px; flex-wrap:wrap; }
+.encargos-filtros button{
+ min-height:32px;
+ border:1px solid var(--pos-line,#dbe3ef) !important;
+ border-radius:999px;
+ padding:0 12px;
+ background:transparent !important;
+ color:var(--pos-muted,#687386) !important;
+ font-weight:700;
+ font-size:12px;
+ cursor:pointer;
+}
+.encargos-filtros button.activo{
+ background:var(--brand-color,#0d6efd) !important;
+ color:#fff !important;
+ border-color:transparent !important;
+}
+
+.encargos-lista{ display:grid; gap:10px; max-height:560px; overflow-y:auto; }
+.encargo-card{
+ display:grid;
+ gap:4px;
+ padding:12px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:12px;
+ background:var(--pos-surface,#f8fafc);
+ cursor:pointer;
+}
+.encargo-card:hover{ border-color:var(--brand-color,#0d6efd); }
+.encargo-card-cabecera{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.encargo-card-cabecera strong{ font-size:14px; }
+.encargo-card-detalle{ color:var(--pos-muted,#687386); font-size:12px; }
+
+.encargo-badge{
+ display:inline-flex;
+ align-items:center;
+ padding:2px 10px;
+ border-radius:999px;
+ font-size:11px;
+ font-weight:800;
+ white-space:nowrap;
+}
+.encargo-badge.estado-pendiente{ background:rgba(217,119,6,.14); color:#b45309; }
+.encargo-badge.estado-listo{ background:rgba(37,99,235,.14); color:#1d4ed8; }
+.encargo-badge.estado-entregado{ background:rgba(22,163,74,.14); color:#15803d; }
+.encargo-badge.estado-cancelado{ background:rgba(100,116,139,.14); color:#475569; }
+
+.modal-detalle-encargo{
+ position:fixed;
+ inset:0;
+ z-index:9999;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ padding:18px;
+ background:rgba(15,23,42,.38);
+ backdrop-filter:blur(10px);
+}
+.encargo-detalle-card{
+ width:min(640px,94vw);
+ max-height:calc(100vh - 48px);
+ overflow:auto;
+ border-radius:16px;
+ border:1px solid rgba(255,255,255,.55);
+ background:var(--pos-surface-strong,#fff);
+ box-shadow:0 24px 70px rgba(15,23,42,.24);
+ padding:18px;
+ backdrop-filter:blur(18px) saturate(135%);
+ color:var(--pos-text,#172033);
+}
+.encargo-detalle-card .modal-card-header{
+ display:grid;
+ grid-template-columns:1fr auto;
+ align-items:start;
+ gap:14px;
+ margin-bottom:14px;
+}
+.encargo-detalle-card .modal-card-header span{
+ display:block;
+ color:var(--brand-color,#0d6efd);
+ font-size:11px;
+ font-weight:950;
+ letter-spacing:.08em;
+ text-transform:uppercase;
+}
+.encargo-detalle-card .modal-card-header h3{ margin:2px 0 0; font-size:20px; }
+.encargo-detalle-card .modal-card-header button{
+ min-height:32px;
+ border:1px solid var(--pos-line,#dbe3ef) !important;
+ border-radius:8px;
+ padding:0 12px;
+ background:transparent !important;
+ color:var(--pos-text,#172033) !important;
+ font-weight:700;
+ font-size:12px;
+ cursor:pointer;
+}
+
+.encargo-detalle-info{
+ display:grid;
+ gap:4px;
+ margin-bottom:14px;
+ padding:10px 12px;
+ border-radius:10px;
+ background:var(--pos-surface,#f8fafc);
+ color:var(--pos-muted,#687386);
+ font-size:12px;
+}
+.encargo-detalle-total{ text-align:right; font-size:13px; color:var(--pos-muted,#687386); }
+.encargo-detalle-acciones{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+
+@media (max-width:900px){
+ .encargos-grid{ grid-template-columns:1fr; }
+ .encargo-form-cliente,
+ .encargo-form-fila{ grid-template-columns:1fr; }
+ .encargo-add-row{ grid-template-columns:1fr; }
+}
+
+body.oscuro .encargo-card:hover{ border-color:var(--brand-color,#0d6efd); }

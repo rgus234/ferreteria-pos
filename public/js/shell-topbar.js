@@ -25,7 +25,8 @@ const AYUDA_MODULOS_POS = {
  configuracion: "Ajusta datos del negocio, usuarios, permisos, tickets, soporte y apariencia.",
  cuenta: "Muestra el plan, el estado de la suscripcion y el correo de contacto del negocio.",
  "nexo-ia": "Tu asistente de negocio: preguntale por tus ventas, tu inventario o tus creditos.",
- "buscar-ticket": "Escanea o teclea el folio de un ticket para ver la venta y que productos tienen garantia."
+ "buscar-ticket": "Escanea o teclea el folio de un ticket para ver la venta y que productos tienen garantia.",
+ encargos: "Registra lo que un cliente pidio encargar con el proveedor, con anticipo y fecha estimada de entrega."
 };
 
 /* Nexo AI v2 -- hook de tours automaticos: las pantallas mas viejas
@@ -114,7 +115,7 @@ function iconoUISVG(nombre) {
 }
 
 function moduloDesdeEtiquetaPOS(etiqueta) { const texto = limpiarTextoUI(etiqueta).toLowerCase(); if (texto.includes("inicio")) return "inicio"; if (texto.includes("punto")) return "venta"; if (texto === "inventario") return "inventario"; if (texto.includes("productos")) return "productos"; if (texto.includes("categorias")) return "categorias"; if (texto.includes("bajo")) return "inventario-bajo"; if (texto.includes("reporte") || texto.includes("ventas")) return "reportes"; if (texto.includes("credito")) return "creditos"; if (texto.includes("clientes")) return "clientes"; if (texto.includes("proveedores")) return "proveedores"; if (texto.includes("catalogo")) return "catalogo"; if (texto.includes("recepcion")) return "recepcion"; if (texto.includes("caja")) return "caja"; if (texto.includes("finanzas")) return "finanzas"; if (texto.includes("pedidos")) return "pedidos"; if (texto.includes("ajustes")) return "ajustes"; if (texto.includes("configuracion")) return "configuracion"; if (texto.includes("dueno")) return "dueno"; return texto.replace(/[^a-z0-9]+/g, "-") || "modulo"; }
-function iconoModuloPOS(modulo) { return { inicio:"home", venta:"cart", inventario:"inventory", productos:"inventory", "agregar-producto":"plus", categorias:"layers", "inventario-bajo":"alert", reportes:"chart", creditos:"credit", clientes:"users", proveedores:"truck", catalogo:"file", recepcion:"truck", caja:"zap", finanzas:"chart", pedidos:"file", ajustes:"settings", configuracion:"settings", dueno:"chart", cuenta:"wallet", "nexo-ia":"sparkle", "buscar-ticket":"file" }[modulo] || "zap"; }
+function iconoModuloPOS(modulo) { return { inicio:"home", venta:"cart", inventario:"inventory", productos:"inventory", "agregar-producto":"plus", categorias:"layers", "inventario-bajo":"alert", reportes:"chart", creditos:"credit", clientes:"users", proveedores:"truck", catalogo:"file", recepcion:"truck", caja:"zap", finanzas:"chart", pedidos:"file", ajustes:"settings", configuracion:"settings", dueno:"chart", cuenta:"wallet", "nexo-ia":"sparkle", "buscar-ticket":"file", encargos:"clipboard" }[modulo] || "zap"; }
 function datosSidebarPOS(boton) {
  const etiqueta = limpiarTextoUI(boton.dataset.navLabel || boton.textContent);
  const modulo = boton.dataset.shellModule || moduloDesdeEtiquetaPOS(etiqueta) || boton.dataset.modulo;
@@ -174,7 +175,8 @@ function ordenarSidebarPOS() {
   "configuracion",
   "cuenta",
   "nexo-ia",
-  "buscar-ticket"
+  "buscar-ticket",
+  "encargos"
  ];
  const peso = boton => {
   const index = orden.indexOf(datosSidebarPOS(boton).modulo);

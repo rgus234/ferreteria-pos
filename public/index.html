@@ -51,6 +51,7 @@
   <link rel="stylesheet" href="css/components/low-stock-order.css?v=refactor-low-stock-order-20260701-01">
   <link rel="stylesheet" href="css/components/support-reminders.css?v=notif-contraste-fix-20260706-01">
   <link rel="stylesheet" href="css/components/ticket-lookup-view.css?v=creditos-editar-compra-20260730-01">
+  <link rel="stylesheet" href="css/components/encargos-clientes.css?v=encargos-20260803-01">
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -503,6 +504,10 @@
  Buscar ticket
  </button>
 
+ <button data-shell-module="encargos" onclick="mostrarEncargos()">
+ Encargos
+ </button>
+
  <button class="btn-dueno-sidebar" onclick="window.open('/dueno', '_blank')">
  App del dueño
  </button>
@@ -515,6 +520,7 @@
  <section id="pantallaCuenta" style="display:none;"></section>
  <section id="pantallaNexoIA" style="display:none;"></section>
  <section id="pantallaBuscarTicket" style="display:none;"></section>
+ <section id="pantallaEncargos" style="display:none;"></section>
 
  <section id="pantallaCatalogo" style="display:none;">
 
@@ -1613,6 +1619,7 @@
   <script src="js/shell-topbar.js?v=agregar-producto-pantalla-20260727-01"></script>
   <script src="js/account-view.js?v=recordatorio-caja-20260731-01"></script>
   <script src="js/ticket-lookup-view.js?v=creditos-editar-compra-20260730-01"></script>
+ <script src="js/encargos-clientes.js?v=encargos-20260803-01"></script>
   <script src="js/product-details-view.js?v=alertas-tempranas-20260712-01"></script>
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/pos-shortcuts.js?v=pos-flyout-redesign-20260708-03"></script>
