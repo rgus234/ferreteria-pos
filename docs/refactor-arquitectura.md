@@ -6505,3 +6505,76 @@ wildcard `*.nexoposoficial.com` + dominio personalizado wildcard en
 Render, antes de que esto funcione con trafico real (ya funciona
 completo en el codigo, probado localmente). Pendiente de confirmacion
 del usuario para `git add`/`commit`.
+
+## 2026-08-05 -- Sitio web por negocio, Fase 2: catalogo publico conectado al inventario
+
+Con la Fase 1 ya en produccion (DNS/SSL verificados en vivo), se
+construyo el catalogo publico: cualquier visitante de
+`{slug}.nexoposoficial.com/catalogo` puede buscar productos por
+nombre/codigo/marca, filtrar por categoria/marca, paginar, y ver una
+pagina de detalle por producto -- todo gateado a Plus/Pro (mismo
+`funcionDelPlan("sitio_web.pagina")` de la Fase 1) y con 2 toggles
+nuevos ("Mostrar precios al publico", "Mostrar existencias al
+publico") que controlan si esos datos siquiera se piden a la base
+(nunca solo ocultos por CSS).
+
+**Migracion** (`migrations/20260805_sitio_web_catalogo.sql`):
+`sitio_web_config.mostrar_precios`/`mostrar_existencias`
+(`BOOLEAN NOT NULL DEFAULT false`, opt-in).
+
+**`public-site-server.js`**: refactor a piezas compartidas --
+`resolverSitioPublico(pool, slug)` (unico punto de verdad de
+negocio+plan+config, usado por las 3 paginas publicas),
+`estilosBaseTenant(color)` (bloque `<style>` compartido, extendido con
+clases de grilla/tarjeta/filtros/paginacion/detalle) y
+`encabezadoTenantHtml(datos, paginaActiva)` (header con nav
+Inicio/Catalogo). Dos funciones nuevas exportadas:
+`servirCatalogoNegocio(pool, req, res, slug, firmarTokenImagen)`
+(busqueda con el operador `%` de `pg_trgm` sobre `nombre` + `ILIKE`
+sobre `codigo`/`marca`, filtros de categoria/marca via `SELECT
+DISTINCT` real, paginacion `LIMIT 24` con `COUNT(*) OVER()` en la
+misma query, columnas de precio/stock omitidas del SQL por completo
+cuando el toggle esta apagado) y
+`servirProductoNegocio(pool, req, res, slug, codigo, firmarTokenImagen)`
+(detalle con foto grande, precio/existencia condicionales, aviso de
+garantia si `tiene_garantia`, boton WhatsApp con el nombre del
+producto prellenado). Las fotos reusan tal cual la infraestructura ya
+existente de `fotos_producto` + `firmarTokenImagen` (pasado desde
+`server.js`, que ya lo tiene en scope) -- sin esquema de firma nuevo.
+`renderizarPaginaNegocio` (Fase 1) gano el boton "Ver catalogo".
+
+**`server.js`**: 2 rutas nuevas, mismo patron que la Fase 1
+(`slugDesdeSubdominio` + `servirXNegocio`):
+`GET /catalogo` y `GET /catalogo/:codigo`.
+
+**Rutas de configuracion** (`GET`/`PUT /negocio-actual/sitio-web`,
+Fase 1): ganaron `mostrarPrecios`/`mostrarExistencias`.
+`public/js/sitio-web-view.js` gano los 2 toggles nuevos en el
+formulario, mismo patron visual que "Sitio activado".
+
+**Verificacion**: `node --check` limpio en `server.js` y
+`public-site-server.js`. Migracion aplicada contra la base real con
+confirmacion explicita, confirmadas las 2 columnas nuevas. Contra un
+negocio sintetico (17799, plan Pro, creado y borrado por SQL directo,
+nunca `negocio_id = 1`) con 30 productos de prueba (variados: con
+categoria/marca, uno con `stock = 0`), corriendo el servidor
+localmente contra la base real y falsificando el header `Host`:
+`mostrar_precios`/`mostrar_existencias` en `false` -> confirmado en el
+HTML crudo que esos campos nunca aparecen (no solo ocultos); activados
+-> precio (`$X.XX`) y existencia exacta aparecen correctamente,
+incluido `stock = 0` -> "Agotado". Busqueda con typo leve ("martilo"
+-> "Martillo Truper 16oz", prueba real de `pg_trgm`), por codigo
+exacto y por marca -- los 3 casos encontraron el producto esperado.
+Filtro de categoria devolvio solo el producto correcto; los `<select>`
+de categoria/marca salieron de los productos reales del negocio (4
+categorias, 4 marcas), no de una lista fija. Paginacion con 30
+productos -- pagina 1 con 24, pagina 2 con 6, "Pagina 1 de 2"/"Pagina 2
+de 2" correctos. Plan Basico -> `/catalogo` y `/` responden `404`
+ambos (mismo gate que ya protegia la Fase 1). Codigo de producto
+inexistente -> `404`. Estaticos (`/site/styles.css`) y la pagina de
+inicio (con el boton "Ver catalogo" nuevo) siguen funcionando igual
+bajo el subdominio de negocio -- sin regresion de la Fase 1. Negocio
+sintetico y sus 30 productos borrados por completo al terminar,
+confirmado `0` filas restantes y `negocio_id = 1` (Ferreteria
+Olimpico) sin cambios de licencia/plan durante toda la prueba.
+Pendiente de confirmacion del usuario para `git add`/`commit`.

@@ -82,6 +82,16 @@ function renderSitioWebFormulario(pantalla, datos) {
  <span>Sitio activado (visible al publico)</span>
  </label>
 
+ <label class="sitio-web-toggle">
+ <input type="checkbox" id="sitioWebMostrarPrecios" ${datos.mostrarPrecios ? "checked" : ""}>
+ <span>Mostrar precios al publico</span>
+ </label>
+
+ <label class="sitio-web-toggle">
+ <input type="checkbox" id="sitioWebMostrarExistencias" ${datos.mostrarExistencias ? "checked" : ""}>
+ <span>Mostrar existencias al publico</span>
+ </label>
+
  <label>
  <span>Descripcion</span>
  <textarea id="sitioWebDescripcion" rows="3" maxlength="2000" placeholder="Cuentale a tus clientes que vendes y que te hace diferente.">${datos.descripcion || ""}</textarea>
@@ -153,6 +163,8 @@ function cargarPortadaSitioWeb(evento) {
 async function guardarSitioWeb() {
  const payload = {
  activo: document.getElementById("sitioWebActivo")?.checked || false,
+ mostrarPrecios: document.getElementById("sitioWebMostrarPrecios")?.checked || false,
+ mostrarExistencias: document.getElementById("sitioWebMostrarExistencias")?.checked || false,
  descripcion: document.getElementById("sitioWebDescripcion")?.value || "",
  horarioTexto: document.getElementById("sitioWebHorario")?.value || "",
  whatsapp: document.getElementById("sitioWebWhatsapp")?.value || "",

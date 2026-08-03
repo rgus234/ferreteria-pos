@@ -16,7 +16,7 @@ const {
     normalizarSlug
 } = require("./tenant");
 const { cargarModulosPOS } = require("./server-modules");
-const { servirSitioNegocio } = require("./public-site-server");
+const { servirSitioNegocio, servirCatalogoNegocio, servirProductoNegocio } = require("./public-site-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
@@ -4518,6 +4518,18 @@ app.get("/", async (req, res) => {
     }
 
     res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.get("/catalogo", async (req, res) => {
+    const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
+    if (!slugTenant) { res.status(404).send("No encontrado"); return; }
+    await servirCatalogoNegocio(pool, req, res, slugTenant, firmarTokenImagen);
+});
+
+app.get("/catalogo/:codigo", async (req, res) => {
+    const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
+    if (!slugTenant) { res.status(404).send("No encontrado"); return; }
+    await servirProductoNegocio(pool, req, res, slugTenant, req.params.codigo, firmarTokenImagen);
 });
 
 app.get(["/site", "/site/"], (req, res) => {
