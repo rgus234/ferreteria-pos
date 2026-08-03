@@ -46,6 +46,7 @@ async function mostrarSitioWeb() {
 
  renderSitioWebFormulario(pantalla, datos);
  cargarPedidosPublicosSitioWeb();
+ cargarSolicitudesCreditoSitioWeb();
  } catch (error) {
  pantalla.innerHTML = `<div class="sitio-web-shell"><p>No se pudo cargar la configuracion del sitio. Revisa tu conexion.</p></div>`;
  }
@@ -93,6 +94,12 @@ function renderSitioWebFormulario(pantalla, datos) {
  <span>Mostrar existencias al publico</span>
  </label>
 
+ <label class="sitio-web-toggle">
+ <input type="checkbox" id="sitioWebAceptarCredito" ${datos.aceptarSolicitudesCredito ? "checked" : ""}>
+ <span>Aceptar solicitudes de credito (incluye fotos de identificacion)</span>
+ </label>
+ <p class="sitio-web-nota">Al activarlo, tus clientes podran pedirte credito desde tu sitio, incluyendo subir su identificacion oficial. Revisalas en "Solicitudes de credito" mas abajo.</p>
+
  <label>
  <span>Descripcion</span>
  <textarea id="sitioWebDescripcion" rows="3" maxlength="2000" placeholder="Cuentale a tus clientes que vendes y que te hace diferente.">${datos.descripcion || ""}</textarea>
@@ -132,6 +139,11 @@ function renderSitioWebFormulario(pantalla, datos) {
  <div class="sitio-web-panel">
  <h3 class="sitio-web-panel-titulo">Pedidos recibidos</h3>
  <div id="sitioWebPedidosLista"><p>Cargando...</p></div>
+ </div>
+
+ <div class="sitio-web-panel">
+ <h3 class="sitio-web-panel-titulo">Solicitudes de credito</h3>
+ <div id="sitioWebSolicitudesCreditoLista"><p>Cargando...</p></div>
  </div>
  </div>
  `;
@@ -213,6 +225,135 @@ async function actualizarEstadoPedidoPublico(id, estado) {
  }
 }
 
+async function cargarSolicitudesCreditoSitioWeb() {
+ const contenedor =
+ document.getElementById("sitioWebSolicitudesCreditoLista");
+
+ if (!contenedor) return;
+
+ try {
+ const respuesta = await fetch("/negocio-actual/solicitudes-credito");
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ contenedor.innerHTML = `<p>No se pudieron cargar las solicitudes.</p>`;
+ return;
+ }
+
+ renderListaSolicitudesCredito(datos.solicitudes || []);
+ } catch (error) {
+ contenedor.innerHTML = `<p>No se pudieron cargar las solicitudes. Revisa tu conexion.</p>`;
+ }
+}
+
+function renderListaSolicitudesCredito(solicitudes) {
+ const contenedor =
+ document.getElementById("sitioWebSolicitudesCreditoLista");
+
+ if (!contenedor) return;
+
+ if (!solicitudes.length) {
+ contenedor.innerHTML = `<p>Todavia no has recibido solicitudes.</p>`;
+ return;
+ }
+
+ const escapar =
+ typeof escaparPOS === "function" ? escaparPOS : texto => String(texto || "");
+
+ contenedor.innerHTML = solicitudes.map(s => `
+ <div class="sitio-web-pedido-item">
+ <div class="sitio-web-pedido-cabecera">
+ <strong>${escapar(s.nombre)}</strong>
+ <span class="sitio-web-pedido-badge ${s.estado}">${s.estado}</span>
+ </div>
+ <div class="sitio-web-pedido-cliente">
+ ${escapar(s.telefono)}
+ ${s.correo ? ` &middot; ${escapar(s.correo)}` : ""}
+ ${s.direccion ? ` &middot; ${escapar(s.direccion)}` : ""}
+ </div>
+ ${s.montoSolicitado !== null ? `<div class="sitio-web-pedido-mensaje">Monto solicitado: $${Number(s.montoSolicitado).toFixed(2)}</div>` : ""}
+ ${s.comentario ? `<div class="sitio-web-pedido-mensaje">${escapar(s.comentario)}</div>` : ""}
+ ${(s.tieneIneFrente || s.tieneIneReverso) ? `
+ <div class="sitio-web-ine-fotos">
+ ${s.tieneIneFrente ? `<img class="sitio-web-ine-thumb" id="ineFrenteImg${s.id}" alt="INE frente">` : ""}
+ ${s.tieneIneReverso ? `<img class="sitio-web-ine-thumb" id="ineReversoImg${s.id}" alt="INE reverso">` : ""}
+ </div>` : ""}
+ <div class="sitio-web-pedido-acciones">
+ ${s.estado !== "aprobado" ? `<button type="button" class="btn-encargo-secundario" onclick="actualizarEstadoSolicitudCredito(${s.id}, 'aprobado')">Aprobar</button>` : ""}
+ ${s.estado !== "rechazado" ? `<button type="button" class="btn-encargo-secundario" onclick="actualizarEstadoSolicitudCredito(${s.id}, 'rechazado')">Rechazar</button>` : ""}
+ <button type="button" class="btn-encargo-secundario" onclick="eliminarSolicitudCredito(${s.id})">Eliminar solicitud</button>
+ </div>
+ ${s.estado === "aprobado" ? `<div class="sitio-web-nota">Crea el cliente desde Creditos &rarr; Nuevo cliente.</div>` : ""}
+ </div>
+ `).join("");
+
+ solicitudes.forEach(s => {
+ if (s.tieneIneFrente) cargarMiniaturaIne(s.id, "ine-frente", `ineFrenteImg${s.id}`);
+ if (s.tieneIneReverso) cargarMiniaturaIne(s.id, "ine-reverso", `ineReversoImg${s.id}`);
+ });
+}
+
+// Las fotos de identificacion nunca se sirven por un <img src>
+// directo a la ruta (esa ruta solo acepta sesion real, sin token en
+// la URL) -- se piden por fetch (el interceptor global ya manda el
+// header de auth), se convierten a blob, y esa URL local se asigna
+// al <img>.
+async function cargarMiniaturaIne(id, lado, idImagen) {
+ try {
+ const respuesta = await fetch(`/negocio-actual/solicitudes-credito/${id}/${lado}`);
+ if (!respuesta.ok) return;
+
+ const blob = await respuesta.blob();
+ const url = URL.createObjectURL(blob);
+ const img = document.getElementById(idImagen);
+
+ if (img) img.src = url;
+ } catch (error) { /* silencioso, mismo criterio que el resto de miniaturas */ }
+}
+
+async function actualizarEstadoSolicitudCredito(id, estado) {
+ try {
+ const respuesta = await fetch(`/negocio-actual/solicitudes-credito/${id}`, {
+ method: "PATCH",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ estado })
+ });
+
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ if (typeof alertaPOS === "function") alertaPOS(datos.error || "No se pudo actualizar la solicitud.", "Sitio web", "alerta");
+ return;
+ }
+
+ cargarSolicitudesCreditoSitioWeb();
+ } catch (error) {
+ if (typeof alertaPOS === "function") alertaPOS("No se pudo actualizar la solicitud. Revisa tu conexion.", "Sitio web", "alerta");
+ }
+}
+
+async function eliminarSolicitudCredito(id) {
+ if (typeof confirmarPOS === "function") {
+ const confirmado = await confirmarPOS("Esto borra la solicitud y sus fotos de identificacion de forma permanente. ¿Continuar?", "Eliminar solicitud", "peligro");
+ if (!confirmado) return;
+ }
+
+ try {
+ const respuesta = await fetch(`/negocio-actual/solicitudes-credito/${id}`, { method: "DELETE" });
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ if (typeof alertaPOS === "function") alertaPOS(datos.error || "No se pudo eliminar la solicitud.", "Sitio web", "alerta");
+ return;
+ }
+
+ if (typeof alertaPOS === "function") alertaPOS("Solicitud eliminada.", "Sitio web", "exito");
+ cargarSolicitudesCreditoSitioWeb();
+ } catch (error) {
+ if (typeof alertaPOS === "function") alertaPOS("No se pudo eliminar la solicitud. Revisa tu conexion.", "Sitio web", "alerta");
+ }
+}
+
 function copiarUrlSitioWeb(url) {
  navigator.clipboard?.writeText(url).then(() => {
  if (typeof alertaPOS === "function") alertaPOS("Enlace copiado.", "Sitio web", "exito");
@@ -247,6 +388,7 @@ async function guardarSitioWeb() {
  activo: document.getElementById("sitioWebActivo")?.checked || false,
  mostrarPrecios: document.getElementById("sitioWebMostrarPrecios")?.checked || false,
  mostrarExistencias: document.getElementById("sitioWebMostrarExistencias")?.checked || false,
+ aceptarSolicitudesCredito: document.getElementById("sitioWebAceptarCredito")?.checked || false,
  descripcion: document.getElementById("sitioWebDescripcion")?.value || "",
  horarioTexto: document.getElementById("sitioWebHorario")?.value || "",
  whatsapp: document.getElementById("sitioWebWhatsapp")?.value || "",

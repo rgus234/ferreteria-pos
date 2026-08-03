@@ -467,6 +467,52 @@ function enviarCorreoPedidoPublico(correo, nombreNegocio, { productoNombre, cant
     });
 }
 
+// La solicitud viene del formulario publico de credito (sin sesion).
+// A proposito NUNCA incluye las fotos de identificacion en el correo
+// -- correo no es un canal seguro para documentos sensibles, se avisa
+// que se revisen dentro del panel de Nexo POS.
+function enviarCorreoSolicitudCreditoPublica(correo, nombreNegocio, { clienteNombre, clienteTelefono, clienteCorreo, direccion, montoSolicitado, comentario, tieneDocumentos }) {
+    const telefonoLimpio = String(clienteTelefono || "").replace(/\D/g, "");
+    const clienteSeguro = escaparHtmlCorreo(clienteNombre);
+    const montoTexto = montoSolicitado ? `$${Number(montoSolicitado).toFixed(2)}` : "No especificado";
+
+    return enviarCorreo({
+        correo,
+        asunto: `Nueva solicitud de credito -- ${clienteSeguro}`,
+        html: envolverPlantilla({
+            etiqueta: "Nueva solicitud de credito",
+            titulo: "Nueva solicitud de credito desde tu sitio web",
+            saludo: `Hola, ${nombreNegocio}`,
+            robot: "neutral",
+            cuerpoHtml: `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 6px;">
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Nombre:</strong> ${clienteSeguro || "-"}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Telefono:</strong> ${escaparHtmlCorreo(clienteTelefono) || "-"}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Correo:</strong> ${escaparHtmlCorreo(clienteCorreo) || "-"}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Direccion:</strong> ${escaparHtmlCorreo(direccion) || "-"}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Monto solicitado:</strong> ${montoTexto}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Comentario:</strong> ${escaparHtmlCorreo(comentario) || "(sin comentario)"}</td></tr>
+                </table>
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 4px;">
+                    <tr>
+                        ${telefonoLimpio ? `
+                        <td style="padding-right:10px;border-radius:12px;background:#16a34a;">
+                            <a href="https://wa.me/52${telefonoLimpio}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:800;font-size:14px;border-radius:12px;">Responder por WhatsApp</a>
+                        </td>` : ""}
+                        ${clienteCorreo ? `
+                        <td style="border-radius:12px;background:linear-gradient(135deg,#0d6efd,#0b5ed7);">
+                            <a href="mailto:${escaparHtmlCorreo(clienteCorreo)}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:800;font-size:14px;border-radius:12px;">Responder por correo</a>
+                        </td>` : ""}
+                    </tr>
+                </table>
+                ${avisoHtml(tieneDocumentos
+                    ? "El cliente adjunto su identificacion oficial. Por seguridad, no se envia por correo -- revisala desde tu panel de Nexo POS, en Sitio web > Solicitudes de credito."
+                    : "El cliente no adjunto identificacion. Puedes revisar el detalle completo desde tu panel de Nexo POS, en Sitio web > Solicitudes de credito.")}
+            `
+        })
+    });
+}
+
 module.exports = {
     enviarCorreoVerificacion,
     enviarCorreoBienvenida,
@@ -476,5 +522,6 @@ module.exports = {
     enviarCorreoPagoFallido,
     enviarCorreoPagoConfirmado,
     enviarCorreoLeadLanding,
-    enviarCorreoPedidoPublico
+    enviarCorreoPedidoPublico,
+    enviarCorreoSolicitudCreditoPublica
 };

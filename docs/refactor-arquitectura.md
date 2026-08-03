@@ -6663,3 +6663,101 @@ borrados por completo al terminar, confirmado `0` filas restantes y
 `negocio_id = 1` (Ferreteria Olimpico) sin cambios de licencia/plan
 durante toda la prueba.
 Pendiente de confirmacion del usuario para `git add`/`commit`.
+
+## 2026-08-07 -- Sitio web por negocio, Fase 4: solicitud de credito publica (con INE)
+
+Ultima pieza del roadmap original: un visitante puede solicitar
+credito desde `{slug}.nexoposoficial.com/solicitud-credito` --
+nombre, telefono/correo, direccion, monto solicitado, comentario y,
+opcionalmente, fotos de su identificacion oficial (INE frente/reverso).
+Al tratarse de un dato personal sensible (LFPDPPP), el usuario eligio
+explicitamente incluir las fotos (via `AskUserQuestion`, tras
+presentarle el riesgo real: sin cifrado adicional, requiere
+consentimiento expreso), y por eso la fase se diseño **opt-in por
+negocio** (`sitio_web_config.aceptar_solicitudes_credito`, default
+`false`) en vez de activarse sola con el plan.
+
+**Investigacion previa** (2 agentes Explore): `clientes_credito` no
+tiene direccion/correo/foto y el otorgamiento de credito es 100%
+manual hoy (sin estado de aprobacion) -- se confirmo que la unica
+forma correcta era una tabla nueva, `solicitudes_credito`
+(`migrations/20260807_solicitudes_credito.sql`), replicando el mismo
+patron ya probado en `pedidos_publicos` (honeypot, limitador de IP
+local, `registrarFallo` incondicional sin `registrarExito`, redirect
+303 con `?estado=`). Para las fotos, se descarto el patron TEXT/base64
+de `portada`/`logo` a favor del patron ya usado en
+`POST /fotos-producto/:codigo/principal` (comprimir con `sharp` antes
+de guardar como `BYTEA` -- 25-33% mas compacto, y sharp descarta EXIF
+al reencodar, relevante porque una foto de INE tomada con celular
+puede traer geolocalizacion). Se confirmo tambien que el mecanismo de
+token-en-URL de `firmarTokenImagen` (usado para fotos de producto) no
+debia reusarse aqui -- documentos sensibles se sirven solo por sesion
+real (`requerirAccesoNegocio`), sin el fallback de token en la URL que
+ese mecanismo ofrece para paginas publicas.
+
+**Backend**: `public-site-server.js` gano
+`comprimirImagenIdentificacion` (sharp, resize a 1600px de ancho,
+mayor que los 320px de fotos de producto para mantener el documento
+legible), `servirSolicitudCreditoNegocio` (formulario con 2
+`<input type="file">` nativos, `enctype="multipart/form-data"`, sin
+JS) y `recibirSolicitudCreditoPublica` (fotos opcionales; si viene
+alguna, exige el checkbox de consentimiento marcado). `server.js` gano
+`multer({storage: memoryStorage()})` (nunca disco) + 2 rutas nuevas,
+con un wrapper que convierte cualquier error de multer (ej. archivo
+demasiado grande) en el mismo redirect `?estado=error` en vez de la
+pagina de error generica de Express. Rutas autenticadas nuevas:
+`GET /negocio-actual/solicitudes-credito` (lista sin bytes de fotos),
+`GET .../ine-frente` y `.../ine-reverso` (bytes crudos, solo sesion,
+sin fallback de token-URL), `PATCH` (aprobado/rechazado/pendiente) y
+`DELETE` (borra fila + fotos por completo -- es la accion real detras
+del texto nuevo en `/privacidad` que promete que el negocio puede
+eliminarlas). `email.js` gano `enviarCorreoSolicitudCreditoPublica`
+-- nunca adjunta las fotos, solo avisa que hay que revisarlas en el
+panel.
+
+**Frontend**: `sitio-web-view.js` gano el toggle "Aceptar solicitudes
+de credito" y una seccion "Solicitudes de credito" que reusa el mismo
+patron de blob-fetch ya usado en el panel de Admin de Banco de Nexo
+(`fetch` con el header de auth ya inyectado por el interceptor global
+-> `.blob()` -> `URL.createObjectURL()`) para mostrar las miniaturas
+de INE, ya que un `<img src>` normal no puede mandar el header de
+sesion. "Eliminar solicitud" pide confirmacion via `confirmarPOS`
+(accion destructiva sobre datos sensibles).
+
+**`public/site/privacidad.html`**: nueva seccion 5 ("Solicitudes de
+credito publicas y documentos de identificacion"), honesta sobre que
+no hay cifrado adicional especifico para estos archivos y que el
+negocio decide activarlas, revisarlas y eliminarlas; renumeradas las
+secciones 5-12 -> 6-13 y actualizada la fecha de "Ultima actualizacion".
+
+**Verificacion**: `node --check` limpio en los 4 archivos `.js`
+tocados/nuevos. Confirmado `sharp`/`multer` resuelven como
+dependencias. Migracion aplicada con confirmacion explicita,
+confirmadas las 17 columnas de `solicitudes_credito` y la columna
+nueva en `sitio_web_config`. Contra un negocio sintetico (17811, plan
+Pro, creado y borrado por SQL directo, nunca `negocio_id = 1`),
+corriendo el servidor localmente contra la base real con `curl -F`
+(multipart real): solicitud solo-contacto (sin fotos) guardada sin
+exigir consentimiento; solicitud con 2 fotos JPEG de prueba (2000x1200,
+14.3KB c/u) guardada con compresion real confirmada (9.3KB c/u tras
+`sharp`) y `consentimiento_datos_sensibles=true`; fotos sin marcar el
+checkbox -> `?estado=error` sin fila nueva; sin nombre, sin
+telefono/correo, y honeypot lleno -> mismos rechazos sin fila nueva.
+Rate limiter: confirmado que una solicitud con datos **validos** fue
+rechazada por el limitador tras 5 intentos previos (sin fila nueva
+pese a ser valida) -- se aplico la misma correccion ya aprendida en la
+Fase 3 (nunca llamar `registrarExito`), verificado correcto desde el
+primer intento en esta fase. Rutas autenticadas probadas con un token
+de dispositivo real: listar (sin bytes de fotos en el JSON), pedir una
+foto sin sesion -> `401` (sin fallback de token-URL, a diferencia de
+fotos de producto), pedir la misma foto con sesion -> `200` con el
+JPEG comprimido correcto; aprobar (`PATCH`, fija `revisada_at`) y
+eliminar (`DELETE`, confirmado `0` filas despues) funcionan. Plan
+Basico -> `404` en `GET` y `POST` de `/solicitud-credito`, igual que
+el resto del sitio. `/privacidad` confirmado con la seccion 5 nueva y
+la seccion 13 (antes 12) al final, numeracion continua sin huecos.
+Negocio sintetico y todos sus datos (config, dispositivo de prueba,
+solicitudes con fotos) borrados por completo al terminar, confirmado
+`0` filas restantes y `negocio_id = 1` (Ferreteria Olimpico) sin
+cambios de licencia/plan durante toda la prueba.
+Pendiente de confirmacion del usuario para `git add`/`commit`.

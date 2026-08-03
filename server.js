@@ -16,7 +16,14 @@ const {
     normalizarSlug
 } = require("./tenant");
 const { cargarModulosPOS } = require("./server-modules");
-const { servirSitioNegocio, servirCatalogoNegocio, servirProductoNegocio, recibirPedidoPublico } = require("./public-site-server");
+const {
+    servirSitioNegocio,
+    servirCatalogoNegocio,
+    servirProductoNegocio,
+    recibirPedidoPublico,
+    servirSolicitudCreditoNegocio,
+    recibirSolicitudCreditoPublica
+} = require("./public-site-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
@@ -4542,6 +4549,39 @@ app.post("/catalogo/:codigo/pedido", async (req, res) => {
     const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
     if (!slugTenant) { res.status(404).send("No encontrado"); return; }
     await recibirPedidoPublico(pool, req, res, slugTenant, req.params.codigo);
+});
+
+app.get("/solicitud-credito", async (req, res) => {
+    const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
+    if (!slugTenant) { res.status(404).send("No encontrado"); return; }
+    await servirSolicitudCreditoNegocio(pool, req, res, slugTenant);
+});
+
+// El formulario publico "Solicitar credito" sube 1-2 fotos de
+// identificacion via multipart/form-data (input type="file" nativo,
+// sin JS) -- multer las guarda en memoria (nunca disco) para que
+// public-site-server.js las comprima con sharp antes de persistirlas.
+const uploadSolicitudCredito = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 8 * 1024 * 1024, files: 2 }
+});
+
+app.post("/solicitud-credito", (req, res) => {
+    uploadSolicitudCredito.fields([{ name: "ineFrente", maxCount: 1 }, { name: "ineReverso", maxCount: 1 }])(req, res, async (error) => {
+        const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
+        if (!slugTenant) { res.status(404).send("No encontrado"); return; }
+
+        // Un error de multer (ej. archivo demasiado grande) no debe
+        // mostrar la pagina de error HTML generica de Express -- se
+        // trata igual que cualquier otra validacion fallida del
+        // formulario publico, con el mismo redirect.
+        if (error) {
+            res.redirect(303, "/solicitud-credito?estado=error");
+            return;
+        }
+
+        await recibirSolicitudCreditoPublica(pool, req, res, slugTenant);
+    });
 });
 
 app.get(["/site", "/site/"], (req, res) => {

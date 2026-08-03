@@ -15,8 +15,9 @@
 //     server.js (no se pueden mover ahi porque esos handlers deciden
 //     entre landing comercial / POS / sitio de negocio segun el host).
 
+const sharp = require("sharp");
 const { funcionDelPlan } = require("./plan-enforcement");
-const { enviarCorreoPedidoPublico } = require("./email");
+const { enviarCorreoPedidoPublico, enviarCorreoSolicitudCreditoPublica } = require("./email");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
 const TAMANO_MAXIMO_PORTADA = 3 * 1024 * 1024;
@@ -49,6 +50,19 @@ function crearLimitadorPorIp(maxIntentos, ventanaMs) {
 }
 
 const limitadorPedidoPublico = crearLimitadorPorIp(5, 60 * 60 * 1000);
+const limitadorSolicitudCredito = crearLimitadorPorIp(5, 60 * 60 * 1000);
+
+// Comprime una foto de identificacion antes de guardarla como BYTEA.
+// Ancho mayor que el usado para fotos de producto (320px) para que el
+// documento siga siendo legible; sharp descarta metadatos EXIF al
+// re-codificar (sin llamar .withMetadata()), lo cual es deseable aqui
+// porque una foto tomada con celular puede traer geolocalizacion.
+async function comprimirImagenIdentificacion(buffer) {
+    return sharp(buffer)
+        .resize({ width: 1600, withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+}
 
 function escaparHtml(valor) {
     return String(valor || "")
@@ -100,7 +114,7 @@ async function resolverSitioPublico(pool, slug) {
         SELECT
             n.id, n.slug, n.nombre, n.telefono, n.direccion, n.logo, n.color, n.estado, n.correo,
             c.activo, c.descripcion, c.portada, c.horario_texto, c.whatsapp, c.facebook, c.instagram,
-            c.mostrar_precios, c.mostrar_existencias
+            c.mostrar_precios, c.mostrar_existencias, c.aceptar_solicitudes_credito
         FROM public.negocios n
         LEFT JOIN public.sitio_web_config c ON c.negocio_id = n.id
         WHERE n.slug = $1
@@ -140,7 +154,8 @@ async function resolverSitioPublico(pool, slug) {
             facebook: fila.facebook,
             instagram: fila.instagram,
             mostrarPrecios: fila.mostrar_precios,
-            mostrarExistencias: fila.mostrar_existencias
+            mostrarExistencias: fila.mostrar_existencias,
+            aceptarSolicitudesCredito: fila.aceptar_solicitudes_credito
         }
     };
 }
@@ -214,11 +229,15 @@ function estilosBaseTenant(color) {
 .tenant-pedido-form textarea{ resize:vertical; min-height:70px; }
 .tenant-pedido-form .tenant-pedido-honeypot{ position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
 .tenant-pedido-form button{ padding:12px 22px; border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; cursor:pointer; justify-self:start; }
+.tenant-pedido-form input[type="file"]{ font-size:13px; color:var(--muted); }
+.tenant-pedido-form .tenant-consentimiento{ flex-direction:row; align-items:flex-start; gap:8px; font-weight:400; font-size:13px; color:var(--muted); }
+.tenant-pedido-form .tenant-consentimiento input{ width:16px; height:16px; margin-top:2px; flex-shrink:0; }
+.tenant-pedido-form .tenant-consentimiento a{ color:var(--blue); }
 @media (max-width:720px){ .tenant-detalle-grid{ grid-template-columns:1fr; } }
 `;
 }
 
-function encabezadoTenantHtml(datos, paginaActiva) {
+function encabezadoTenantHtml(datos, paginaActiva, mostrarCredito) {
     const nombre = escaparHtml(datos.nombre);
     return `<header class="tenant-header">
 <div class="tenant-header-marca">
@@ -228,6 +247,7 @@ ${datos.logo ? `<img src="${escaparHtml(datos.logo)}" alt="Logo ${nombre}">` : "
 <nav class="tenant-nav">
 <a href="/" class="${paginaActiva === "inicio" ? "activo" : ""}">Inicio</a>
 <a href="/catalogo" class="${paginaActiva === "catalogo" ? "activo" : ""}">Catalogo</a>
+${mostrarCredito ? `<a href="/solicitud-credito" class="${paginaActiva === "credito" ? "activo" : ""}">Credito</a>` : ""}
 </nav>
 </header>`;
 }
@@ -275,12 +295,12 @@ ${imagenMeta ? `<meta property="og:image" content="${escaparHtml(imagenMeta)}">`
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(datos, "inicio")}
+${encabezadoTenantHtml(datos, "inicio", datos.aceptarSolicitudesCredito)}
 <div class="tenant-portada">${datos.portada ? `<img src="${escaparHtml(datos.portada)}" alt="">` : ""}</div>
 <main class="tenant-main tenant-main-angosto">
 ${descripcion ? `<p>${descripcion}</p>` : ""}
 ${datosFilas ? `<div class="tenant-datos">${datosFilas}</div>` : ""}
-<div class="tenant-acciones">${whatsappHtml}<a class="tenant-boton-secundario" href="/catalogo">Ver catalogo</a></div>
+<div class="tenant-acciones">${whatsappHtml}<a class="tenant-boton-secundario" href="/catalogo">Ver catalogo</a>${datos.aceptarSolicitudesCredito ? `<a class="tenant-boton-secundario" href="/solicitud-credito">Solicitar credito</a>` : ""}</div>
 ${redesHtml ? `<div class="tenant-redes">${redesHtml}</div>` : ""}
 </main>
 <footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
@@ -309,7 +329,8 @@ async function servirSitioNegocio(pool, req, res, slug) {
             horarioTexto: sitio.config.horarioTexto,
             whatsapp: sitio.config.whatsapp,
             facebook: sitio.config.facebook,
-            instagram: sitio.config.instagram
+            instagram: sitio.config.instagram,
+            aceptarSolicitudesCredito: sitio.config.aceptarSolicitudesCredito
         });
 
         res.set("Content-Type", "text/html; charset=utf-8").send(html);
@@ -467,7 +488,7 @@ ${pagina < totalPaginas ? `<a href="/catalogo${construirQueryString({ buscar, ca
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(sitio.negocio, "catalogo")}
+${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito)}
 <main class="tenant-main">
 <h1 class="tenant-catalogo-titulo">Catalogo de productos</h1>
 <form class="tenant-filtros" method="GET" action="/catalogo">
@@ -574,7 +595,7 @@ ${fotoUrl ? `<meta property="og:image" content="${fotoUrl}">` : ""}
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(sitio.negocio, "catalogo")}
+${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito)}
 <main class="tenant-main">
 <a class="tenant-volver" href="/catalogo">&larr; Volver al catalogo</a>
 ${bannerPedidoHtml}
@@ -693,6 +714,168 @@ async function recibirPedidoPublico(pool, req, res, slug, codigo) {
     }
 }
 
+async function servirSolicitudCreditoNegocio(pool, req, res, slug) {
+    try {
+        const sitio = await resolverSitioPublico(pool, slug);
+
+        if (!sitio || !sitio.config.aceptarSolicitudesCredito) {
+            res.status(404).send("No encontrado");
+            return;
+        }
+
+        const color = colorSeguro(sitio.negocio.color);
+        const nombre = escaparHtml(sitio.negocio.nombre);
+
+        const estadoSolicitud = paramTexto(req.query.estado, 20);
+        const bannerHtml = estadoSolicitud === "enviado"
+            ? `<div class="tenant-pedido-banner exito">Listo -- tu solicitud fue enviada. El negocio te contactara pronto.</div>`
+            : estadoSolicitud === "error"
+                ? `<div class="tenant-pedido-banner error">No pudimos enviar tu solicitud. Revisa tus datos e intenta de nuevo.</div>`
+                : "";
+
+        const html = `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solicitar credito -- ${nombre}</title>
+<meta name="description" content="Solicita credito en ${nombre}.">
+<link rel="icon" href="/nexo-pos-icon.jpg">
+<link rel="stylesheet" href="/site/styles.css">
+<style>${estilosBaseTenant(color)}</style>
+</head>
+<body>
+${encabezadoTenantHtml(sitio.negocio, "credito", true)}
+<main class="tenant-main tenant-main-angosto">
+<h1 class="tenant-catalogo-titulo">Solicitar credito</h1>
+<p>Llena tus datos y, si quieres agilizar la revision, adjunta tu identificacion oficial. El negocio revisa tu solicitud y te contacta.</p>
+${bannerHtml}
+<form class="tenant-pedido-form" method="POST" action="/solicitud-credito" enctype="multipart/form-data">
+<div class="tenant-pedido-honeypot" aria-hidden="true"><label>No llenar<input type="text" name="sitioExtra" tabindex="-1" autocomplete="off"></label></div>
+<label>Nombre completo<input type="text" name="nombre" maxlength="140" required></label>
+<label>Telefono<input type="text" name="telefono" maxlength="40" placeholder="10 digitos"></label>
+<label>Correo (opcional)<input type="text" name="correo" maxlength="140"></label>
+<label>Direccion (opcional)<input type="text" name="direccion" maxlength="300"></label>
+<label>Monto de credito que solicitas (opcional)<input type="number" name="montoSolicitado" min="0" step="0.01"></label>
+<label>Comentario (opcional)<textarea name="comentario" maxlength="500"></textarea></label>
+<label>Identificacion oficial -- frente (opcional)<input type="file" name="ineFrente" accept="image/*"></label>
+<label>Identificacion oficial -- reverso (opcional)<input type="file" name="ineReverso" accept="image/*"></label>
+<label class="tenant-consentimiento"><input type="checkbox" name="consentimiento"> Acepto que mi identificacion oficial, si la adjunto, sea tratada conforme al <a href="/privacidad" target="_blank" rel="noopener">aviso de privacidad</a>.</label>
+<button type="submit">Enviar solicitud</button>
+</form>
+</main>
+<footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+</body>
+</html>`;
+
+        res.set("Content-Type", "text/html; charset=utf-8").send(html);
+    } catch (error) {
+        console.warn("Error sirviendo solicitud de credito:", error.message);
+        res.status(500).send("Error");
+    }
+}
+
+// Recibe el formulario publico "Solicitar credito" -- mismo criterio
+// que recibirPedidoPublico (honeypot, limitador de IP, redirect con
+// ?estado=enviado|error, nunca JSON). Las fotos de INE llegan por
+// multer (multipart/form-data, ver server.js) en req.files, nunca en
+// req.body -- son opcionales, y si vienen exigen el checkbox de
+// consentimiento marcado.
+async function recibirSolicitudCreditoPublica(pool, req, res, slug) {
+    const volverConError = () => res.redirect(303, `/solicitud-credito?estado=error`);
+
+    try {
+        const sitio = await resolverSitioPublico(pool, slug);
+
+        if (!sitio || !sitio.config.aceptarSolicitudesCredito) {
+            res.status(404).send("No encontrado");
+            return;
+        }
+
+        if (paramTexto(req.body?.sitioExtra, 200)) {
+            volverConError();
+            return;
+        }
+
+        if (limitadorSolicitudCredito.bloqueado(req.ip)) {
+            volverConError();
+            return;
+        }
+
+        limitadorSolicitudCredito.registrarFallo(req.ip);
+
+        const nombre = paramTexto(req.body?.nombre, 140);
+        const telefono = paramTexto(req.body?.telefono, 40);
+        const correo = paramTexto(req.body?.correo, 140).toLowerCase();
+        const direccion = paramTexto(req.body?.direccion, 300);
+        const comentario = paramTexto(req.body?.comentario, 500);
+        const montoSolicitadoTexto = paramTexto(req.body?.montoSolicitado, 20);
+        const montoSolicitado = montoSolicitadoTexto ? Math.max(0, Number(montoSolicitadoTexto) || 0) : null;
+
+        if (!nombre) {
+            volverConError();
+            return;
+        }
+
+        if (!telefono && !correo) {
+            volverConError();
+            return;
+        }
+
+        if (correo && !REGEX_CORREO.test(correo)) {
+            volverConError();
+            return;
+        }
+
+        const archivoFrente = req.files?.ineFrente?.[0];
+        const archivoReverso = req.files?.ineReverso?.[0];
+        const tieneDocumentos = Boolean(archivoFrente || archivoReverso);
+        const consentimiento = req.body?.consentimiento === "on";
+
+        if (tieneDocumentos && !consentimiento) {
+            volverConError();
+            return;
+        }
+
+        let ineFrenteBuffer = null;
+        let ineReversoBuffer = null;
+
+        try {
+            if (archivoFrente) ineFrenteBuffer = await comprimirImagenIdentificacion(archivoFrente.buffer);
+            if (archivoReverso) ineReversoBuffer = await comprimirImagenIdentificacion(archivoReverso.buffer);
+        } catch (error) {
+            volverConError();
+            return;
+        }
+
+        await pool.query(
+            `
+            INSERT INTO public.solicitudes_credito
+                (negocio_id, nombre, telefono, correo, direccion, monto_solicitado, comentario, ine_frente, ine_reverso, consentimiento_datos_sensibles, ip)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            `,
+            [sitio.negocio.id, nombre, telefono, correo, direccion, montoSolicitado, comentario, ineFrenteBuffer, ineReversoBuffer, tieneDocumentos && consentimiento, req.ip]
+        );
+
+        if (sitio.negocio.correo) {
+            enviarCorreoSolicitudCreditoPublica(sitio.negocio.correo, sitio.negocio.nombre, {
+                clienteNombre: nombre,
+                clienteTelefono: telefono,
+                clienteCorreo: correo,
+                direccion,
+                montoSolicitado,
+                comentario,
+                tieneDocumentos
+            }).catch(error => console.warn("No se pudo enviar el aviso de solicitud de credito:", error.message));
+        }
+
+        res.redirect(303, `/solicitud-credito?estado=enviado`);
+    } catch (error) {
+        console.warn("Error recibiendo solicitud de credito:", error.message);
+        volverConError();
+    }
+}
+
 function registrarRutas(app, pool, requerirAccesoNegocio) {
     app.get("/negocio-actual/sitio-web", requerirAccesoNegocio, async (req, res) => {
         try {
@@ -700,14 +883,14 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const acceso = await funcionDelPlan(negocio.id, CLAVE_FUNCION_SITIO_WEB);
 
             const resultado = await pool.query(
-                `SELECT activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias FROM public.sitio_web_config WHERE negocio_id = $1`,
+                `SELECT activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito FROM public.sitio_web_config WHERE negocio_id = $1`,
                 [negocio.id]
             );
 
             const config = resultado.rows[0] || {
                 activo: false, descripcion: "", portada: null,
                 horario_texto: "", whatsapp: "", facebook: "", instagram: "",
-                mostrar_precios: false, mostrar_existencias: false
+                mostrar_precios: false, mostrar_existencias: false, aceptar_solicitudes_credito: false
             };
 
             res.json({
@@ -723,7 +906,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 facebook: config.facebook,
                 instagram: config.instagram,
                 mostrarPrecios: config.mostrar_precios,
-                mostrarExistencias: config.mostrar_existencias
+                mostrarExistencias: config.mostrar_existencias,
+                aceptarSolicitudesCredito: config.aceptar_solicitudes_credito
             });
         } catch (error) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
@@ -752,6 +936,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const instagram = String(req.body?.instagram || "").slice(0, 300);
             const mostrarPrecios = Boolean(req.body?.mostrarPrecios);
             const mostrarExistencias = Boolean(req.body?.mostrarExistencias);
+            const aceptarSolicitudesCredito = Boolean(req.body?.aceptarSolicitudesCredito);
 
             // "portada" solo viene en el body cuando el usuario de verdad
             // subio/quito una imagen (ver sitio-web-view.js) -- si la clave
@@ -775,15 +960,15 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             await pool.query(
                 `
                 INSERT INTO public.sitio_web_config
-                    (negocio_id, activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $11, NOW())
+                    (negocio_id, activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $11, $12, NOW())
                 ON CONFLICT (negocio_id) DO UPDATE SET
                     activo = $2, descripcion = $3,
                     portada = CASE WHEN $9 THEN $4 ELSE sitio_web_config.portada END,
                     horario_texto = $5, whatsapp = $6, facebook = $7, instagram = $8,
-                    mostrar_precios = $10, mostrar_existencias = $11, updated_at = NOW()
+                    mostrar_precios = $10, mostrar_existencias = $11, aceptar_solicitudes_credito = $12, updated_at = NOW()
                 `,
-                [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias]
+                [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias, aceptarSolicitudesCredito]
             );
 
             res.json({ ok: true });
@@ -852,6 +1037,132 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
         }
     });
+
+    // Igual que pedidos-publicos: ver/gestionar solicitudes ya
+    // recibidas no se gatea por plan. Nunca se manda el binario de
+    // las fotos en el listado JSON -- solo si existen, se piden por
+    // separado con las rutas de abajo.
+    app.get("/negocio-actual/solicitudes-credito", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+
+            const resultado = await pool.query(
+                `
+                SELECT id, nombre, telefono, correo, direccion, monto_solicitado, comentario, estado,
+                    (ine_frente IS NOT NULL) AS tiene_ine_frente,
+                    (ine_reverso IS NOT NULL) AS tiene_ine_reverso,
+                    created_at
+                FROM public.solicitudes_credito
+                WHERE negocio_id = $1
+                ORDER BY created_at DESC
+                LIMIT 50
+                `,
+                [negocio.id]
+            );
+
+            res.json({
+                ok: true,
+                solicitudes: resultado.rows.map(fila => ({
+                    id: fila.id,
+                    nombre: fila.nombre,
+                    telefono: fila.telefono,
+                    correo: fila.correo,
+                    direccion: fila.direccion,
+                    montoSolicitado: fila.monto_solicitado !== null ? Number(fila.monto_solicitado) : null,
+                    comentario: fila.comentario,
+                    estado: fila.estado,
+                    tieneIneFrente: fila.tiene_ine_frente,
+                    tieneIneReverso: fila.tiene_ine_reverso,
+                    createdAt: fila.created_at
+                }))
+            });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
+    // Sin fallback de token-en-URL (a diferencia de las fotos de
+    // producto) -- documentos de identidad solo se sirven con sesion
+    // real, nunca por un token que pueda quedar en el historial del
+    // navegador o en logs.
+    async function servirFotoIdentificacion(req, res, pool, columnaImagen, columnaTipo) {
+        try {
+            const negocio = await negocioActual(req, pool);
+
+            const resultado = await pool.query(
+                `SELECT ${columnaImagen} AS imagen, ${columnaTipo} AS tipo FROM public.solicitudes_credito WHERE id = $1 AND negocio_id = $2`,
+                [req.params.id, negocio.id]
+            );
+
+            const fila = resultado.rows[0];
+
+            if (!fila || !fila.imagen) {
+                res.status(404).json({ ok: false, error: "No encontrado" });
+                return;
+            }
+
+            res.set("Content-Type", fila.tipo || "image/jpeg");
+            res.set("Cache-Control", "no-store");
+            res.send(fila.imagen);
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    }
+
+    app.get("/negocio-actual/solicitudes-credito/:id/ine-frente", requerirAccesoNegocio, (req, res) => {
+        servirFotoIdentificacion(req, res, pool, "ine_frente", "ine_frente_tipo");
+    });
+
+    app.get("/negocio-actual/solicitudes-credito/:id/ine-reverso", requerirAccesoNegocio, (req, res) => {
+        servirFotoIdentificacion(req, res, pool, "ine_reverso", "ine_reverso_tipo");
+    });
+
+    app.patch("/negocio-actual/solicitudes-credito/:id", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const estado = String(req.body?.estado || "");
+
+            if (!["pendiente", "aprobado", "rechazado"].includes(estado)) {
+                res.status(400).json({ ok: false, error: "Estado invalido" });
+                return;
+            }
+
+            await pool.query(
+                `UPDATE public.solicitudes_credito SET estado = $1, revisada_at = CASE WHEN $1 <> 'pendiente' THEN NOW() ELSE revisada_at END WHERE id = $2 AND negocio_id = $3`,
+                [estado, req.params.id, negocio.id]
+            );
+
+            res.json({ ok: true });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
+    // Borrado real (fila + fotos incluidas) -- es la accion detras del
+    // texto de /privacidad que dice que el negocio decide cuanto
+    // tiempo conservar estos documentos.
+    app.delete("/negocio-actual/solicitudes-credito/:id", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+
+            await pool.query(
+                `DELETE FROM public.solicitudes_credito WHERE id = $1 AND negocio_id = $2`,
+                [req.params.id, negocio.id]
+            );
+
+            res.json({ ok: true });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
 }
 
-module.exports = { registrarRutas, servirSitioNegocio, servirCatalogoNegocio, servirProductoNegocio, recibirPedidoPublico };
+module.exports = {
+    registrarRutas,
+    servirSitioNegocio,
+    servirCatalogoNegocio,
+    servirProductoNegocio,
+    recibirPedidoPublico,
+    servirSolicitudCreditoNegocio,
+    recibirSolicitudCreditoPublica
+};

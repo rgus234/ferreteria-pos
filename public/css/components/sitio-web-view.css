@@ -124,3 +124,23 @@
 .sitio-web-pedido-cliente{ font-size:13px; color:var(--pos-muted,#687386); }
 .sitio-web-pedido-mensaje{ font-size:13px; color:var(--pos-text,#172033); }
 .sitio-web-pedido-acciones{ display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+
+.sitio-web-nota{
+ font-size:12px;
+ color:var(--pos-muted,#687386);
+ margin:0;
+}
+
+.sitio-web-ine-fotos{
+ display:flex;
+ gap:8px;
+ flex-wrap:wrap;
+}
+.sitio-web-ine-thumb{
+ width:96px;
+ height:64px;
+ object-fit:cover;
+ border-radius:8px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ background:var(--pos-surface,#f8fafc);
+}
