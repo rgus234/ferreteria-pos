@@ -100,7 +100,7 @@ ${imagenMeta ? `<meta property="og:image" content="${escaparHtml(imagenMeta)}">`
 .tenant-header{ display:flex; align-items:center; gap:12px; padding:20px clamp(20px,5vw,64px); }
 .tenant-header img{ width:44px; height:44px; border-radius:12px; object-fit:cover; }
 .tenant-header strong{ font-size:19px; }
-.tenant-portada{ margin:0 clamp(20px,5vw,64px); border-radius:20px; min-height:220px; overflow:hidden; background:linear-gradient(135deg, ${color}, var(--ink)); display:flex; align-items:flex-end; }
+.tenant-portada{ margin:0 clamp(20px,5vw,64px); border-radius:20px; height:clamp(160px,30vw,260px); overflow:hidden; background:linear-gradient(135deg, ${color}, var(--ink)); }
 .tenant-portada img{ width:100%; height:100%; object-fit:cover; display:block; }
 .tenant-main{ max-width:820px; margin:0 auto; padding:32px clamp(20px,5vw,64px) 64px; }
 .tenant-main p{ color:var(--muted); font-size:16px; line-height:1.7; }
