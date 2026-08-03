@@ -423,6 +423,50 @@ function enviarCorreoLeadLanding({ nombre, negocio, telefono, correo, mensaje })
     });
 }
 
+// El pedido viene del formulario publico del catalogo (sin sesion) --
+// mismo criterio de escape que enviarCorreoLeadLanding. A diferencia
+// de esa funcion, el destinatario es el correo del propio negocio
+// (dinamico), no una constante fija de notificaciones internas.
+function enviarCorreoPedidoPublico(correo, nombreNegocio, { productoNombre, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, urlProducto }) {
+    const telefonoLimpio = String(clienteTelefono || "").replace(/\D/g, "");
+    const productoSeguro = escaparHtmlCorreo(productoNombre);
+    const clienteSeguro = escaparHtmlCorreo(clienteNombre);
+
+    return enviarCorreo({
+        correo,
+        asunto: `Nuevo pedido desde tu sitio web -- ${productoSeguro}`,
+        html: envolverPlantilla({
+            etiqueta: "Nuevo pedido",
+            titulo: "Nuevo pedido desde tu sitio web",
+            saludo: `Hola, ${nombreNegocio}`,
+            robot: "celebrando",
+            cuerpoHtml: `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 6px;">
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Producto:</strong> ${productoSeguro}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Cantidad:</strong> ${escaparHtmlCorreo(cantidad)}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Cliente:</strong> ${clienteSeguro || "-"}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Telefono:</strong> ${escaparHtmlCorreo(clienteTelefono) || "-"}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Correo:</strong> ${escaparHtmlCorreo(clienteCorreo) || "-"}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Mensaje:</strong> ${escaparHtmlCorreo(mensaje) || "(sin mensaje)"}</td></tr>
+                </table>
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 4px;">
+                    <tr>
+                        ${telefonoLimpio ? `
+                        <td style="padding-right:10px;border-radius:12px;background:#16a34a;">
+                            <a href="https://wa.me/52${telefonoLimpio}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:800;font-size:14px;border-radius:12px;">Responder por WhatsApp</a>
+                        </td>` : ""}
+                        ${clienteCorreo ? `
+                        <td style="border-radius:12px;background:linear-gradient(135deg,#0d6efd,#0b5ed7);">
+                            <a href="mailto:${escaparHtmlCorreo(clienteCorreo)}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:800;font-size:14px;border-radius:12px;">Responder por correo</a>
+                        </td>` : ""}
+                    </tr>
+                </table>
+                ${avisoHtml(`Este pedido tambien quedo guardado en tu sitio web. ${urlProducto ? `Ver producto: ${escaparHtmlCorreo(urlProducto)}` : ""}`)}
+            `
+        })
+    });
+}
+
 module.exports = {
     enviarCorreoVerificacion,
     enviarCorreoBienvenida,
@@ -431,5 +475,6 @@ module.exports = {
     enviarCorreoRespaldo,
     enviarCorreoPagoFallido,
     enviarCorreoPagoConfirmado,
-    enviarCorreoLeadLanding
+    enviarCorreoLeadLanding,
+    enviarCorreoPedidoPublico
 };

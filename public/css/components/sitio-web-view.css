@@ -81,3 +81,46 @@
  display:block;
  border-radius:12px;
 }
+
+.sitio-web-panel-titulo{
+ margin:0;
+ font-size:15px;
+ font-weight:800;
+ color:var(--pos-text,#172033);
+}
+
+.sitio-web-pedido-item{
+ display:grid;
+ gap:6px;
+ padding:12px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:12px;
+ background:var(--pos-surface,#f8fafc);
+}
+.sitio-web-pedido-item + .sitio-web-pedido-item{ margin-top:10px; }
+
+.sitio-web-pedido-cabecera{
+ display:flex;
+ align-items:center;
+ justify-content:space-between;
+ gap:8px;
+ flex-wrap:wrap;
+}
+.sitio-web-pedido-cabecera strong{ font-size:14px; }
+
+.sitio-web-pedido-badge{
+ padding:3px 10px;
+ border-radius:999px;
+ font-size:11px;
+ font-weight:700;
+ text-transform:capitalize;
+ background:#eef2f7;
+ color:#687386;
+}
+.sitio-web-pedido-badge.pendiente{ background:rgba(245,158,11,.15); color:#b45309; }
+.sitio-web-pedido-badge.atendido{ background:rgba(24,184,143,.15); color:#0e9973; }
+.sitio-web-pedido-badge.descartado{ background:rgba(226,67,77,.12); color:#e2434d; }
+
+.sitio-web-pedido-cliente{ font-size:13px; color:var(--pos-muted,#687386); }
+.sitio-web-pedido-mensaje{ font-size:13px; color:var(--pos-text,#172033); }
+.sitio-web-pedido-acciones{ display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }

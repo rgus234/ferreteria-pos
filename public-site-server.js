@@ -16,10 +16,39 @@
 //     entre landing comercial / POS / sitio de negocio segun el host).
 
 const { funcionDelPlan } = require("./plan-enforcement");
+const { enviarCorreoPedidoPublico } = require("./email");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
 const TAMANO_MAXIMO_PORTADA = 3 * 1024 * 1024;
 const PRODUCTOS_POR_PAGINA_CATALOGO = 24;
+const REGEX_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Copia local del mismo limitador en memoria que ya usa server.js
+// (crearLimitadorPorIp) -- mismo criterio de helpers chicos duplicados
+// por archivo ya seguido en este modulo (escaparHtml,
+// normalizarTelefonoWhatsApp), en vez de importar server.js aqui.
+function crearLimitadorPorIp(maxIntentos, ventanaMs) {
+    const registro = new Map();
+    return {
+        bloqueado(ip) {
+            const entrada = registro.get(ip);
+            return Boolean(entrada?.bloqueadoHasta && entrada.bloqueadoHasta > Date.now());
+        },
+        registrarFallo(ip) {
+            const entrada = registro.get(ip) || { fallos: 0, bloqueadoHasta: 0 };
+            entrada.fallos += 1;
+            if (entrada.fallos >= maxIntentos) {
+                entrada.bloqueadoHasta = Date.now() + ventanaMs;
+            }
+            registro.set(ip, entrada);
+        },
+        registrarExito(ip) {
+            registro.delete(ip);
+        }
+    };
+}
+
+const limitadorPedidoPublico = crearLimitadorPorIp(5, 60 * 60 * 1000);
 
 function escaparHtml(valor) {
     return String(valor || "")
@@ -69,7 +98,7 @@ async function resolverSitioPublico(pool, slug) {
     const resultado = await pool.query(
         `
         SELECT
-            n.id, n.slug, n.nombre, n.telefono, n.direccion, n.logo, n.color, n.estado,
+            n.id, n.slug, n.nombre, n.telefono, n.direccion, n.logo, n.color, n.estado, n.correo,
             c.activo, c.descripcion, c.portada, c.horario_texto, c.whatsapp, c.facebook, c.instagram,
             c.mostrar_precios, c.mostrar_existencias
         FROM public.negocios n
@@ -100,7 +129,8 @@ async function resolverSitioPublico(pool, slug) {
             telefono: fila.telefono,
             direccion: fila.direccion,
             logo: fila.logo,
-            color: fila.color
+            color: fila.color,
+            correo: fila.correo
         },
         config: {
             descripcion: fila.descripcion,
@@ -174,6 +204,16 @@ function estilosBaseTenant(color) {
 .tenant-detalle-precio{ font-size:26px; font-weight:800; color:var(--blue); margin:10px 0; }
 .tenant-detalle-garantia{ margin-top:16px; padding:14px; border-radius:14px; background:var(--glass); border:1px solid var(--line); font-size:13px; color:var(--muted); }
 .tenant-volver{ display:inline-block; margin-bottom:20px; color:var(--muted); font-weight:600; }
+.tenant-pedido-banner{ margin-bottom:20px; padding:14px 18px; border-radius:14px; font-size:14px; font-weight:600; }
+.tenant-pedido-banner.exito{ background:rgba(24,184,143,.14); color:var(--mint); border:1px solid rgba(24,184,143,.3); }
+.tenant-pedido-banner.error{ background:rgba(226,67,77,.12); color:#e2434d; border:1px solid rgba(226,67,77,.3); }
+.tenant-pedido-form{ margin-top:28px; padding:20px; border-radius:16px; border:1px solid var(--line); background:var(--glass); display:grid; gap:12px; }
+.tenant-pedido-form h2{ margin:0 0 4px; font-size:17px; }
+.tenant-pedido-form label{ display:grid; gap:6px; font-size:13px; color:var(--muted); font-weight:600; }
+.tenant-pedido-form input[type="text"], .tenant-pedido-form input[type="number"], .tenant-pedido-form textarea{ padding:10px 14px; border-radius:12px; border:1px solid var(--line); background:var(--paper); color:var(--ink); font-size:14px; font-family:inherit; }
+.tenant-pedido-form textarea{ resize:vertical; min-height:70px; }
+.tenant-pedido-form .tenant-pedido-honeypot{ position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+.tenant-pedido-form button{ padding:12px 22px; border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; cursor:pointer; justify-self:start; }
 @media (max-width:720px){ .tenant-detalle-grid{ grid-template-columns:1fr; } }
 `;
 }
@@ -500,6 +540,25 @@ async function servirProductoNegocio(pool, req, res, slug, codigo, firmarTokenIm
             ? `<a class="tenant-boton-whatsapp" href="https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, me interesa "${producto.nombre}" que vi en su catalogo.`)}" target="_blank" rel="noopener">Preguntar por WhatsApp</a>`
             : "";
 
+        const estadoPedido = paramTexto(req.query.pedido, 20);
+        const bannerPedidoHtml = estadoPedido === "enviado"
+            ? `<div class="tenant-pedido-banner exito">Listo -- tu pedido fue enviado. El negocio te contactara pronto.</div>`
+            : estadoPedido === "error"
+                ? `<div class="tenant-pedido-banner error">No pudimos enviar tu pedido. Revisa tus datos e intenta de nuevo.</div>`
+                : "";
+
+        const formularioPedidoHtml = `
+<form class="tenant-pedido-form" method="POST" action="/catalogo/${encodeURIComponent(producto.codigo)}/pedido">
+<h2>Pedir este producto</h2>
+<div class="tenant-pedido-honeypot" aria-hidden="true"><label>No llenar<input type="text" name="sitioExtra" tabindex="-1" autocomplete="off"></label></div>
+<label>Cantidad<input type="number" name="cantidad" min="1" step="1" value="1" required></label>
+<label>Tu nombre<input type="text" name="clienteNombre" maxlength="140" required></label>
+<label>Telefono<input type="text" name="clienteTelefono" maxlength="40" placeholder="10 digitos"></label>
+<label>Correo (opcional)<input type="text" name="clienteCorreo" maxlength="140"></label>
+<label>Mensaje (opcional)<textarea name="mensaje" maxlength="500"></textarea></label>
+<button type="submit">Enviar pedido</button>
+</form>`;
+
         const html = `<!doctype html>
 <html lang="es">
 <head>
@@ -518,6 +577,7 @@ ${fotoUrl ? `<meta property="og:image" content="${fotoUrl}">` : ""}
 ${encabezadoTenantHtml(sitio.negocio, "catalogo")}
 <main class="tenant-main">
 <a class="tenant-volver" href="/catalogo">&larr; Volver al catalogo</a>
+${bannerPedidoHtml}
 <div class="tenant-detalle-grid">
 <div class="tenant-detalle-foto">${fotoUrl ? `<img src="${fotoUrl}" alt="${nombreProducto}">` : `<span class="tenant-detalle-foto-vacia">Sin foto</span>`}</div>
 <div>
@@ -530,6 +590,7 @@ ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto 
 <div class="tenant-acciones">${whatsappHtml}</div>
 </div>
 </div>
+${formularioPedidoHtml}
 </main>
 <footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
 </body>
@@ -539,6 +600,96 @@ ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto 
     } catch (error) {
         console.warn("Error sirviendo producto de negocio:", error.message);
         res.status(500).send("Error");
+    }
+}
+
+// Recibe el formulario publico "Pedir este producto" (<form
+// method="POST">, sin fetch/JSON) de la pagina de detalle. Nunca
+// responde JSON -- siempre redirige de vuelta a la pagina del
+// producto con ?pedido=enviado|error, mismo criterio "HTML servido
+// por el servidor" del resto del sitio publico.
+async function recibirPedidoPublico(pool, req, res, slug, codigo) {
+    const volverConError = () => res.redirect(303, `/catalogo/${encodeURIComponent(codigo)}?pedido=error`);
+
+    try {
+        const sitio = await resolverSitioPublico(pool, slug);
+
+        if (!sitio) {
+            res.status(404).send("No encontrado");
+            return;
+        }
+
+        // Honeypot -- campo oculto que un visitante real nunca llena.
+        if (paramTexto(req.body?.sitioExtra, 200)) {
+            volverConError();
+            return;
+        }
+
+        if (limitadorPedidoPublico.bloqueado(req.ip)) {
+            volverConError();
+            return;
+        }
+
+        limitadorPedidoPublico.registrarFallo(req.ip);
+
+        const productoRes = await pool.query(
+            `SELECT nombre FROM public.productos WHERE negocio_id = $1 AND codigo = $2 LIMIT 1`,
+            [sitio.negocio.id, codigo]
+        );
+
+        const producto = productoRes.rows[0];
+
+        if (!producto) {
+            res.status(404).send("No encontrado");
+            return;
+        }
+
+        const cantidad = Math.min(9999, Math.max(1, parseInt(req.body?.cantidad, 10) || 1));
+        const clienteNombre = paramTexto(req.body?.clienteNombre, 140);
+        const clienteTelefono = paramTexto(req.body?.clienteTelefono, 40);
+        const clienteCorreo = paramTexto(req.body?.clienteCorreo, 140).toLowerCase();
+        const mensaje = paramTexto(req.body?.mensaje, 500);
+
+        if (!clienteNombre) {
+            volverConError();
+            return;
+        }
+
+        if (!clienteTelefono && !clienteCorreo) {
+            volverConError();
+            return;
+        }
+
+        if (clienteCorreo && !REGEX_CORREO.test(clienteCorreo)) {
+            volverConError();
+            return;
+        }
+
+        await pool.query(
+            `
+            INSERT INTO public.pedidos_publicos
+                (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            `,
+            [sitio.negocio.id, codigo, producto.nombre, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip]
+        );
+
+        if (sitio.negocio.correo) {
+            enviarCorreoPedidoPublico(sitio.negocio.correo, sitio.negocio.nombre, {
+                productoNombre: producto.nombre,
+                cantidad,
+                clienteNombre,
+                clienteTelefono,
+                clienteCorreo,
+                mensaje,
+                urlProducto: `https://${slug}.nexoposoficial.com/catalogo/${encodeURIComponent(codigo)}`
+            }).catch(error => console.warn("No se pudo enviar el aviso de pedido publico:", error.message));
+        }
+
+        res.redirect(303, `/catalogo/${encodeURIComponent(codigo)}?pedido=enviado`);
+    } catch (error) {
+        console.warn("Error recibiendo pedido publico:", error.message);
+        volverConError();
     }
 }
 
@@ -640,6 +791,67 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
         }
     });
+
+    // Ver los pedidos ya recibidos no se gatea por plan -- un pedido
+    // que ya llego debe seguir siendo legible aunque el plan baje
+    // despues (mismo criterio ya usado con datos historicos de
+    // Creditos).
+    app.get("/negocio-actual/pedidos-publicos", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+
+            const resultado = await pool.query(
+                `
+                SELECT id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono,
+                    cliente_correo, mensaje, estado, created_at
+                FROM public.pedidos_publicos
+                WHERE negocio_id = $1
+                ORDER BY created_at DESC
+                LIMIT 50
+                `,
+                [negocio.id]
+            );
+
+            res.json({
+                ok: true,
+                pedidos: resultado.rows.map(fila => ({
+                    id: fila.id,
+                    productoCodigo: fila.producto_codigo,
+                    productoNombre: fila.producto_nombre,
+                    cantidad: Number(fila.cantidad),
+                    clienteNombre: fila.cliente_nombre,
+                    clienteTelefono: fila.cliente_telefono,
+                    clienteCorreo: fila.cliente_correo,
+                    mensaje: fila.mensaje,
+                    estado: fila.estado,
+                    createdAt: fila.created_at
+                }))
+            });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
+    app.patch("/negocio-actual/pedidos-publicos/:id", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const estado = String(req.body?.estado || "");
+
+            if (!["atendido", "descartado", "pendiente"].includes(estado)) {
+                res.status(400).json({ ok: false, error: "Estado invalido" });
+                return;
+            }
+
+            await pool.query(
+                `UPDATE public.pedidos_publicos SET estado = $1 WHERE id = $2 AND negocio_id = $3`,
+                [estado, req.params.id, negocio.id]
+            );
+
+            res.json({ ok: true });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
 }
 
-module.exports = { registrarRutas, servirSitioNegocio, servirCatalogoNegocio, servirProductoNegocio };
+module.exports = { registrarRutas, servirSitioNegocio, servirCatalogoNegocio, servirProductoNegocio, recibirPedidoPublico };

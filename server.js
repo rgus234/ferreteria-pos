@@ -16,7 +16,7 @@ const {
     normalizarSlug
 } = require("./tenant");
 const { cargarModulosPOS } = require("./server-modules");
-const { servirSitioNegocio, servirCatalogoNegocio, servirProductoNegocio } = require("./public-site-server");
+const { servirSitioNegocio, servirCatalogoNegocio, servirProductoNegocio, recibirPedidoPublico } = require("./public-site-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
@@ -60,6 +60,12 @@ app.use(express.json({
         req.rawBody = buf;
     }
 }));
+// El formulario publico "Pedir este producto" (sitio web por
+// negocio, Fase 3) es un <form method="POST"> real (sin fetch/JSON,
+// mismo criterio de "JS solo para interactividad minima" del resto
+// del sitio publico) -- llega como application/x-www-form-urlencoded,
+// que express.json() no parsea.
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 // CSP permite 'unsafe-inline' en script-src Y script-src-attr porque
 // el frontend usa onclick="..." inline en toda la app -- sin
 // scriptSrcAttr explicito, helmet le mete su propio default
@@ -4530,6 +4536,12 @@ app.get("/catalogo/:codigo", async (req, res) => {
     const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
     if (!slugTenant) { res.status(404).send("No encontrado"); return; }
     await servirProductoNegocio(pool, req, res, slugTenant, req.params.codigo, firmarTokenImagen);
+});
+
+app.post("/catalogo/:codigo/pedido", async (req, res) => {
+    const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
+    if (!slugTenant) { res.status(404).send("No encontrado"); return; }
+    await recibirPedidoPublico(pool, req, res, slugTenant, req.params.codigo);
 });
 
 app.get(["/site", "/site/"], (req, res) => {

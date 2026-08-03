@@ -45,6 +45,7 @@ async function mostrarSitioWeb() {
  }
 
  renderSitioWebFormulario(pantalla, datos);
+ cargarPedidosPublicosSitioWeb();
  } catch (error) {
  pantalla.innerHTML = `<div class="sitio-web-shell"><p>No se pudo cargar la configuracion del sitio. Revisa tu conexion.</p></div>`;
  }
@@ -127,8 +128,89 @@ function renderSitioWebFormulario(pantalla, datos) {
 
  <button type="button" class="btn-encargo-primario encargo-btn-full" onclick="guardarSitioWeb()">Guardar</button>
  </div>
+
+ <div class="sitio-web-panel">
+ <h3 class="sitio-web-panel-titulo">Pedidos recibidos</h3>
+ <div id="sitioWebPedidosLista"><p>Cargando...</p></div>
+ </div>
  </div>
  `;
+}
+
+async function cargarPedidosPublicosSitioWeb() {
+ const contenedor =
+ document.getElementById("sitioWebPedidosLista");
+
+ if (!contenedor) return;
+
+ try {
+ const respuesta = await fetch("/negocio-actual/pedidos-publicos");
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ contenedor.innerHTML = `<p>No se pudieron cargar los pedidos.</p>`;
+ return;
+ }
+
+ renderListaPedidosPublicos(datos.pedidos || []);
+ } catch (error) {
+ contenedor.innerHTML = `<p>No se pudieron cargar los pedidos. Revisa tu conexion.</p>`;
+ }
+}
+
+function renderListaPedidosPublicos(pedidos) {
+ const contenedor =
+ document.getElementById("sitioWebPedidosLista");
+
+ if (!contenedor) return;
+
+ if (!pedidos.length) {
+ contenedor.innerHTML = `<p>Todavia no has recibido pedidos.</p>`;
+ return;
+ }
+
+ const escapar =
+ typeof escaparPOS === "function" ? escaparPOS : texto => String(texto || "");
+
+ contenedor.innerHTML = pedidos.map(pedido => `
+ <div class="sitio-web-pedido-item">
+ <div class="sitio-web-pedido-cabecera">
+ <strong>${escapar(pedido.productoNombre)} &times; ${pedido.cantidad}</strong>
+ <span class="sitio-web-pedido-badge ${pedido.estado}">${pedido.estado}</span>
+ </div>
+ <div class="sitio-web-pedido-cliente">
+ ${escapar(pedido.clienteNombre)}
+ ${pedido.clienteTelefono ? ` &middot; ${escapar(pedido.clienteTelefono)}` : ""}
+ ${pedido.clienteCorreo ? ` &middot; ${escapar(pedido.clienteCorreo)}` : ""}
+ </div>
+ ${pedido.mensaje ? `<div class="sitio-web-pedido-mensaje">${escapar(pedido.mensaje)}</div>` : ""}
+ <div class="sitio-web-pedido-acciones">
+ ${pedido.estado !== "atendido" ? `<button type="button" class="btn-encargo-secundario" onclick="actualizarEstadoPedidoPublico(${pedido.id}, 'atendido')">Marcar atendido</button>` : ""}
+ ${pedido.estado !== "descartado" ? `<button type="button" class="btn-encargo-secundario" onclick="actualizarEstadoPedidoPublico(${pedido.id}, 'descartado')">Descartar</button>` : ""}
+ </div>
+ </div>
+ `).join("");
+}
+
+async function actualizarEstadoPedidoPublico(id, estado) {
+ try {
+ const respuesta = await fetch(`/negocio-actual/pedidos-publicos/${id}`, {
+ method: "PATCH",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ estado })
+ });
+
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ if (typeof alertaPOS === "function") alertaPOS(datos.error || "No se pudo actualizar el pedido.", "Sitio web", "alerta");
+ return;
+ }
+
+ cargarPedidosPublicosSitioWeb();
+ } catch (error) {
+ if (typeof alertaPOS === "function") alertaPOS("No se pudo actualizar el pedido. Revisa tu conexion.", "Sitio web", "alerta");
+ }
 }
 
 function copiarUrlSitioWeb(url) {

@@ -6578,3 +6578,88 @@ sintetico y sus 30 productos borrados por completo al terminar,
 confirmado `0` filas restantes y `negocio_id = 1` (Ferreteria
 Olimpico) sin cambios de licencia/plan durante toda la prueba.
 Pendiente de confirmacion del usuario para `git add`/`commit`.
+
+## 2026-08-06 -- Sitio web por negocio, Fase 3: pedir producto sin carrito ni pago en linea
+
+Con el catalogo publico ya en produccion (Fase 2), se agrego la forma
+real de "pedir" un producto sin cuenta ni pago en linea: cada pagina
+de detalle (`/catalogo/:codigo`) gano un `<form method="POST">`
+"Pedir este producto" (cantidad, nombre, telefono, correo opcional,
+mensaje) que llega directo al negocio -- un producto a la vez
+(decision confirmada con el usuario via `AskUserQuestion`, en vez de
+una lista de pedido acumulada en el navegador).
+
+**Investigacion previa** (2 agentes Explore): se confirmo que ni
+`cotizaciones_pendientes` (construida para que el dueño tome
+cotizaciones offline desde `/dueno`, exige `requerirSesionCuenta`) ni
+`encargos_clientes` (100% interna, el empleado la llena en el
+mostrador) sirven para un pedido publico anonimo -- se construyo una
+tabla nueva, `pedidos_publicos`
+(`migrations/20260806_pedidos_publicos.sql`: `negocio_id,
+producto_codigo, producto_nombre, cantidad, cliente_nombre,
+cliente_telefono, cliente_correo, mensaje, ip, estado` con
+`CHECK IN ('pendiente','atendido','descartado')`).
+
+**Backend** (`public-site-server.js`): `resolverSitioPublico` gano
+`n.correo` en el `SELECT` (para saber a donde avisar). Nueva
+`recibirPedidoPublico(pool, req, res, slug, codigo)`: honeypot
+(`sitioExtra`) + limitador local (`crearLimitadorPorIp(5,
+60*60*1000)`, copia del patron de `server.js`, **sin** llamar
+`registrarExito` -- ver "Bug encontrado y corregido" abajo), valida
+producto real + nombre + (telefono o correo), inserta y dispara (sin
+`await`) `enviarCorreoPedidoPublico` (nueva en `email.js`, mismo
+molde que `enviarCorreoLeadLanding` pero con destinatario dinamico,
+`negocio.correo`, en vez de la constante fija de leads). Siempre
+responde con un `redirect(303)` de vuelta a la pagina del producto
+con `?pedido=enviado|error` -- nunca JSON, ya que el formulario es
+`<form method="POST">` puro (se agrego `express.urlencoded()` global
+en `server.js`, que no existia). Nuevas rutas autenticadas
+`GET`/`PATCH /negocio-actual/pedidos-publicos` (sin gate de plan --
+un pedido ya recibido se conserva legible aunque el plan baje
+despues, mismo criterio que Creditos). Nueva ruta publica
+`POST /catalogo/:codigo/pedido` en `server.js`.
+
+**Frontend**: `public/js/sitio-web-view.js` gano una seccion "Pedidos
+recibidos" dentro de la pantalla "Sitio web" -- lista con
+producto/cantidad/cliente/mensaje/estado, botones "Marcar
+atendido"/"Descartar" (`escaparPOS` para el texto libre del
+visitante).
+
+**Bug encontrado y corregido durante la verificacion**: la primera
+version de `recibirPedidoPublico` llamaba
+`limitadorPedidoPublico.registrarExito(ip)` en cada pedido guardado
+con exito -- eso **reseteaba el contador del limitador en cada envio
+valido**, anulando el rate-limit por completo (solo los intentos
+invalidos se acumulaban). El patron real ya establecido en
+`POST /api/contacto-landing` nunca llama `registrarExito`: cuenta
+todo intento que pase el honeypot, valido o no. Se quito la llamada;
+verificado despues que 5 envios validos seguidos + un 6to se
+bloquean correctamente.
+
+**Verificacion**: `node --check` limpio en los 4 archivos tocados.
+Migracion aplicada con confirmacion explicita, confirmadas las 12
+columnas de `pedidos_publicos`. Contra un negocio sintetico (17806,
+plan Pro, creado y borrado por SQL directo, nunca `negocio_id = 1`)
+con 2 productos de prueba (uno con `stock = 0`), corriendo el
+servidor localmente contra la base real: formulario visible siempre
+(incluido en el producto agotado); pedido valido -> `303` a
+`?pedido=enviado`, fila real guardada, banner de exito visible;
+validaciones (sin nombre, sin telefono ni correo) -> `?pedido=error`
+sin fila nueva; honeypot lleno -> mismo error sin fila nueva; codigo
+inexistente -> `404`; XSS en `clienteNombre`
+(`<script>alert(1)</script>`) guardado tal cual en la base (correcto,
+JSON crudo no necesita escape) y confirmado que el correo intentado
+se maneja sin tronar el servidor (`RESEND_API_KEY` real configurada
+localmente, Resend rechazo el envio a un dominio de prueba falso,
+`console.warn` sin afectar la respuesta al cliente). Rutas
+autenticadas (`GET`/`PATCH /negocio-actual/pedidos-publicos`)
+probadas con un token de dispositivo real (mismo patron SHA-256 de
+`hashTokenSeguro`): listar y marcar "atendido" funcionan. Rate
+limiter: 5 envios validos seguidos + 6to bloqueado (tras corregir el
+bug de arriba). Plan Basico -> `POST /catalogo/:codigo/pedido`
+responde `404` igual que el resto del sitio. Negocio sintetico y
+todos sus datos (productos, config, dispositivo de prueba, pedidos)
+borrados por completo al terminar, confirmado `0` filas restantes y
+`negocio_id = 1` (Ferreteria Olimpico) sin cambios de licencia/plan
+durante toda la prueba.
+Pendiente de confirmacion del usuario para `git add`/`commit`.
