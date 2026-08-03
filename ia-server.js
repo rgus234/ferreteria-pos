@@ -621,6 +621,26 @@ async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
     }
 }
 
+// La API de Claude a veces responde con un error transitorio
+// (529 "overloaded_error", 429 "rate_limit_error", o un 500/502/503
+// de infraestructura) que se resuelve solo con un reintento -- sin
+// esto, cualquier hipo momentaneo de Anthropic se ve en el chat como
+// "Nexo no pudo responder", cuando la siguiente pregunta (o la misma,
+// tecleada de nuevo) normalmente ya funciona. Reintenta hasta 2 veces
+// con backoff corto antes de dejar que el error suba.
+async function crearMensajeConReintento(anthropic, parametros) {
+    const maxIntentos = 3;
+    for (let intento = 1; intento <= maxIntentos; intento++) {
+        try {
+            return await anthropic.messages.create(parametros);
+        } catch (error) {
+            const reintentable = error.status === 429 || error.status === 529 || (error.status >= 500 && error.status < 600);
+            if (!reintentable || intento === maxIntentos) throw error;
+            await new Promise(resolver => setTimeout(resolver, 600 * intento));
+        }
+    }
+}
+
 async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8", memoriaExtra = "", permitirBusquedaWeb = false) {
     const anthropic = obtenerAnthropic();
     let mensajesActuales = mensajes;
@@ -645,7 +665,7 @@ async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8",
             parametros.thinking = { type: "adaptive" };
         }
 
-        const respuesta = await anthropic.messages.create(parametros);
+        const respuesta = await crearMensajeConReintento(anthropic, parametros);
 
         if (respuesta.stop_reason !== "tool_use") {
             const texto = respuesta.content
