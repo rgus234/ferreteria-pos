@@ -6937,3 +6937,65 @@ se corrigio a buscar el `<div class="tenant-promo-banner">` real.
 Suite automatizada completa (`npm test`, 19 casos) sigue en verde.
 Migracion aplicada con confirmacion explicita. Pendiente de
 confirmacion del usuario para `git add`/`commit`.
+
+## 2026-08-10 -- Sitio web por negocio, Fase 8: rediseno visual premium
+
+El usuario pidio "un buen diseño tipo como el que te mande" (de nuevo
+`fixferreterias.com`) para todo el sitio publico. Confirmado con
+`AskUserQuestion`: alcance completo (inicio, catalogo, ficha,
+portal, credito), estilo propio de Nexo, sin copiar el look de la
+referencia. **100% CSS/markup, cero cambios de backend/rutas/esquema.**
+
+Se investigo (agente Explore) que `estilosBaseTenant` ya hereda los
+tokens de `public/site/styles.css` (cada pagina tenant enlaza esa hoja
+antes de su `<style>` inline, solo redefine `--blue`/`--blue-dark`) --
+el rediseno reuso esos mismos tokens y 3 patrones ya pulidos de ese
+archivo (header sticky con vidrio `.site-header`, grid de tarjetas
+`.benefits`, pill `.plan-badge`, chip de vidrio `.hero-proof`) en vez
+de inventar un lenguaje visual nuevo o tocar `design-system.css`
+(el sitio tenant nunca lo ha cargado).
+
+**Cambios**: header sticky con `backdrop-filter` + nav en pastilla;
+inicio con eyebrow real (`negocios.giro`, columna agregada al SELECT
+de `resolverSitioPublico`), chips de contacto con SVG inline
+(pin/telefono/reloj, sin asset externo), franja de catalogo con
+conteo real de productos (`SELECT COUNT(*)` nuevo en
+`servirSitioNegocio`, oculta si el negocio no tiene productos --
+nunca "0 productos"); catalogo con subtitulo real y pills de
+categoria (generadas desde la consulta de categorias ya existente,
+sin query nueva); ficha de producto envuelta en tarjeta
+`.tenant-detalle-card` con precio mas grande; sistema de 2 botones
+(`.tenant-btn-primario` gradiente / `.tenant-btn-secundario` outline)
+aplicado en las 5 paginas; badges de existencia a formato pill.
+
+**Bug evitado durante la implementacion (no llego a produccion)**: al
+combinar `.tenant-btn-carrito` (ya usada por el JS del carrito, Fase
+7) con la nueva `.tenant-btn-primario` en el mismo boton, el orden de
+declaracion en el CSS hacia que `.tenant-btn-carrito` (definida mas
+abajo) ganara sobre `.tenant-btn-primario` para las propiedades en
+comun, dejando el boton "Agregar al carrito" con el look secundario
+en vez del primario. Se corrigio con un selector combinado
+`.tenant-btn-carrito.tenant-btn-primario` (mayor especificidad,
+gana sin importar el orden de declaracion) en vez de reordenar el
+CSS (mas fragil a futuros cambios).
+
+**Decision durante la implementacion**: el plan proponia envolver el
+portal de cliente y la solicitud de credito en una tarjeta
+`.tenant-form-card` nueva -- se revirtio al notar que
+`.tenant-pedido-form` (usada por ambos formularios) ya tiene su
+propio tratamiento de tarjeta (fondo vidrio, borde, radio), asi que
+envolverla otra vez habria creado una "tarjeta dentro de tarjeta"
+visualmente incorrecta. Se elimino la clase `.tenant-form-card` sin
+usar en vez de dejar codigo muerto.
+
+**Verificacion**: `node --check` en ambos archivos tocados; se
+re-corrio `scripts/verificar-carrito-promo.js` **sin modificarlo** --
+28/28 casos siguen pasando (confirma que ningun id/clase que usa el
+JS de Fase 6/7 se rompio); script adicional de un solo uso (fuera del
+repo, en el scratchpad de la sesion) confirmo contra un negocio
+sintetico que el eyebrow, los chips, la franja de catalogo (con
+conteo real), el subtitulo del catalogo, la tarjeta de detalle y el
+boton primario combinado aparecen correctamente en el HTML servido.
+Suite automatizada completa (`npm test`, 19 casos) sin regresiones.
+Sin migracion en esta fase. Pendiente de confirmacion del usuario
+para `git add`/`commit`.

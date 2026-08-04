@@ -148,7 +148,7 @@ async function resolverSitioPublico(pool, slug) {
     const resultado = await pool.query(
         `
         SELECT
-            n.id, n.slug, n.nombre, n.telefono, n.direccion, n.logo, n.color, n.estado, n.correo,
+            n.id, n.slug, n.nombre, n.telefono, n.direccion, n.logo, n.color, n.estado, n.correo, n.giro,
             c.activo, c.descripcion, c.portada, c.horario_texto, c.whatsapp, c.facebook, c.instagram,
             c.mostrar_precios, c.mostrar_existencias, c.aceptar_solicitudes_credito,
             c.promocion_activa, c.promocion_titulo, c.promocion_texto, c.promocion_enlace
@@ -181,7 +181,8 @@ async function resolverSitioPublico(pool, slug) {
             direccion: fila.direccion,
             logo: fila.logo,
             color: fila.color,
-            correo: fila.correo
+            correo: fila.correo,
+            giro: fila.giro
         },
         config: {
             descripcion: fila.descripcion,
@@ -225,52 +226,64 @@ function estilosBaseTenant(color) {
     const colorFinal = colorSeguro(color);
     return `
 :root{ --blue:${colorFinal}; --blue-dark:${colorFinal}; }
-.tenant-header{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:20px clamp(20px,5vw,64px); }
+.tenant-header{ position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:16px clamp(20px,5vw,64px); background:rgba(247,249,252,.78); backdrop-filter:blur(22px) saturate(160%); border-bottom:1px solid var(--line); }
 .tenant-header-marca{ display:flex; align-items:center; gap:12px; }
 .tenant-header-marca img{ width:44px; height:44px; border-radius:12px; object-fit:cover; }
 .tenant-header-marca strong{ font-size:19px; }
-.tenant-nav{ display:flex; gap:22px; }
-.tenant-nav a{ color:var(--muted); font-weight:600; font-size:14px; }
-.tenant-nav a.activo{ color:var(--blue); }
-.tenant-portada{ margin:0 clamp(20px,5vw,64px); border-radius:20px; height:clamp(160px,30vw,260px); overflow:hidden; background:linear-gradient(135deg, ${colorFinal}, var(--ink)); }
+.tenant-nav{ display:flex; align-items:center; gap:4px; padding:6px; border-radius:999px; background:var(--glass); border:1px solid var(--line); }
+.tenant-nav a{ padding:8px 16px; border-radius:999px; color:var(--muted); font-weight:600; font-size:14px; }
+.tenant-nav a.activo{ background:var(--blue); color:#fff; }
+.tenant-eyebrow{ display:inline-block; margin-bottom:10px; color:var(--blue); font-weight:800; font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+.tenant-portada{ position:relative; margin:0 clamp(20px,5vw,64px); border-radius:20px; height:clamp(160px,30vw,260px); overflow:hidden; background:linear-gradient(135deg, ${colorFinal}, var(--ink)); }
 .tenant-portada img{ width:100%; height:100%; object-fit:cover; display:block; }
+.tenant-portada::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg, transparent 40%, rgba(0,0,0,.28)); pointer-events:none; }
 .tenant-main{ max-width:1080px; margin:0 auto; padding:32px clamp(20px,5vw,64px) 64px; }
 .tenant-main-angosto{ max-width:820px; }
 .tenant-main p{ color:var(--muted); font-size:16px; line-height:1.7; }
-.tenant-datos{ display:grid; gap:14px; margin:28px 0; padding:20px; border:1px solid var(--line); border-radius:16px; background:var(--glass); }
-.tenant-datos div{ display:flex; justify-content:space-between; gap:16px; font-size:14px; }
-.tenant-datos strong{ color:var(--ink); }
-.tenant-datos span{ color:var(--muted); text-align:right; }
+.tenant-chips{ display:flex; flex-wrap:wrap; gap:10px; margin:28px 0; }
+.tenant-chip{ display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border:1px solid var(--line); border-radius:18px; background:rgba(255,255,255,.66); font-size:13px; color:var(--ink); font-weight:600; }
+.tenant-chip svg{ flex-shrink:0; color:var(--blue); }
+.tenant-catalogo-franja{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; margin:8px 0 28px; padding:22px 26px; border-radius:26px; background:linear-gradient(135deg, rgba(20,32,51,.95), rgba(15,49,90,.9)); color:#fff; box-shadow:var(--shadow); }
+.tenant-catalogo-franja strong{ font-size:20px; display:block; }
+.tenant-catalogo-franja span{ font-size:13px; opacity:.82; }
 .tenant-acciones{ display:flex; flex-wrap:wrap; gap:12px; margin-top:24px; }
+.tenant-btn-primario{ display:inline-flex; align-items:center; justify-content:center; padding:13px 26px; border:none; border-radius:999px; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; font-weight:800; font-size:14px; cursor:pointer; box-shadow:0 14px 28px rgba(16,103,232,.28); }
+.tenant-btn-secundario{ display:inline-flex; align-items:center; justify-content:center; padding:13px 26px; border-radius:999px; background:var(--glass); border:1px solid var(--line); color:var(--ink); font-weight:700; font-size:14px; cursor:pointer; }
 .tenant-boton-whatsapp{ display:inline-flex; align-items:center; padding:12px 22px; border-radius:999px; background:var(--mint); color:#fff; font-weight:700; }
 .tenant-boton-secundario{ display:inline-flex; align-items:center; padding:12px 22px; border-radius:999px; background:var(--glass); border:1px solid var(--line); color:var(--ink); font-weight:700; }
 .tenant-redes{ display:flex; gap:16px; margin-top:8px; }
 .tenant-redes a{ color:var(--blue); font-weight:600; }
-.tenant-footer{ text-align:center; padding:32px; color:var(--muted); font-size:13px; }
+.tenant-footer{ text-align:center; padding:32px; color:var(--muted); font-size:13px; border-top:1px solid var(--line); margin-top:24px; }
 .tenant-filtros{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:24px; }
 .tenant-filtros input[type="text"], .tenant-filtros select{ padding:10px 14px; border-radius:12px; border:1px solid var(--line); background:var(--paper); color:var(--ink); font-size:14px; }
 .tenant-filtros input[type="text"]{ flex:1; min-width:200px; }
 .tenant-filtros button{ padding:10px 20px; border-radius:12px; border:none; background:var(--blue); color:#fff; font-weight:700; cursor:pointer; }
-.tenant-catalogo-titulo{ margin:0 0 20px; font-size:22px; }
+.tenant-catalogo-titulo{ margin:0 0 4px; font-size:26px; }
+.tenant-catalogo-subtitulo{ margin:0 0 20px; color:var(--muted); font-size:14px; }
+.tenant-categoria-pills{ display:flex; gap:10px; overflow-x:auto; padding-bottom:6px; margin-bottom:18px; }
+.tenant-categoria-pill{ flex-shrink:0; padding:9px 18px; border-radius:999px; border:1px solid var(--line); background:var(--glass); color:var(--ink); font-weight:600; font-size:13px; white-space:nowrap; }
+.tenant-categoria-pill.activo{ background:var(--blue); border-color:var(--blue); color:#fff; }
 .tenant-catalogo-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:18px; }
-.tenant-producto-card{ display:block; border:1px solid var(--line); border-radius:16px; overflow:hidden; background:var(--glass); color:inherit; }
+.tenant-producto-card{ display:flex; flex-direction:column; border:1px solid var(--line); border-radius:18px; overflow:hidden; background:var(--glass); color:inherit; box-shadow:0 10px 24px rgba(20,32,51,.05); transition:box-shadow .16s ease, transform .16s ease; }
+.tenant-producto-card:hover{ box-shadow:0 18px 40px rgba(20,32,51,.12); transform:translateY(-2px); }
 .tenant-producto-foto{ aspect-ratio:1/1; background:var(--paper); display:flex; align-items:center; justify-content:center; overflow:hidden; }
 .tenant-producto-foto img{ width:100%; height:100%; object-fit:cover; display:block; }
 .tenant-producto-foto-vacia{ color:var(--muted); font-size:12px; }
 .tenant-producto-info{ padding:14px; display:grid; gap:6px; }
 .tenant-producto-nombre{ font-size:14px; font-weight:700; color:var(--ink); }
 .tenant-producto-precio{ font-size:15px; font-weight:800; color:var(--blue); }
-.tenant-producto-existencia{ font-size:12px; color:var(--mint); font-weight:600; }
-.tenant-producto-existencia.agotado{ color:#e2434d; }
+.tenant-producto-existencia{ display:inline-flex; align-items:center; width:fit-content; padding:3px 10px; border-radius:999px; font-size:11px; color:var(--mint); font-weight:700; background:rgba(24,184,143,.14); }
+.tenant-producto-existencia.agotado{ color:#e2434d; background:rgba(226,67,77,.12); }
 .tenant-catalogo-vacio{ padding:48px 0; text-align:center; color:var(--muted); }
 .tenant-paginacion{ display:flex; justify-content:center; gap:12px; margin-top:32px; }
 .tenant-paginacion a{ padding:10px 18px; border-radius:12px; border:1px solid var(--line); color:var(--ink); font-weight:600; }
 .tenant-paginacion span{ padding:10px 18px; color:var(--muted); }
+.tenant-detalle-card{ border-radius:26px; background:var(--glass); box-shadow:var(--shadow); padding:28px; }
 .tenant-detalle-grid{ display:grid; grid-template-columns:minmax(0,360px) 1fr; gap:36px; }
 .tenant-detalle-foto{ aspect-ratio:1/1; border-radius:20px; overflow:hidden; background:var(--paper); display:flex; align-items:center; justify-content:center; }
 .tenant-detalle-foto img{ width:100%; height:100%; object-fit:cover; display:block; }
 .tenant-detalle-foto-vacia{ color:var(--muted); }
-.tenant-detalle-precio{ font-size:26px; font-weight:800; color:var(--blue); margin:10px 0; }
+.tenant-detalle-precio{ font-size:34px; font-weight:800; color:var(--blue); margin:10px 0; }
 .tenant-detalle-garantia{ margin-top:16px; padding:14px; border-radius:14px; background:var(--glass); border:1px solid var(--line); font-size:13px; color:var(--muted); }
 .tenant-volver{ display:inline-block; margin-bottom:20px; color:var(--muted); font-weight:600; }
 .tenant-pedido-banner{ margin-bottom:20px; padding:14px 18px; border-radius:14px; font-size:14px; font-weight:600; }
@@ -310,6 +323,7 @@ function estilosBaseTenant(color) {
 .tenant-carrito-boton-nav{ display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
 .tenant-carrito-contador{ display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 4px; border-radius:999px; background:rgba(255,255,255,.28); font-size:11px; font-weight:800; }
 .tenant-btn-carrito{ margin-top:10px; padding:10px 18px; border-radius:999px; border:1px solid var(--line); background:var(--glass); color:var(--ink); font-weight:700; font-size:13px; cursor:pointer; align-self:start; }
+.tenant-btn-carrito.tenant-btn-primario{ margin-top:0; padding:13px 26px; border:none; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; font-size:14px; box-shadow:0 14px 28px rgba(16,103,232,.28); }
 .tenant-producto-card{ display:flex; flex-direction:column; }
 .tenant-producto-card .tenant-btn-carrito{ margin:0 14px 14px; }
 .tenant-carrito-overlay{ position:fixed; inset:0; z-index:9500; background:rgba(13,23,42,.55); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; padding:20px; }
@@ -322,7 +336,13 @@ function estilosBaseTenant(color) {
 #tenantCarritoForm input[type="text"], #tenantCarritoForm textarea{ padding:10px 14px; border-radius:12px; border:1px solid var(--line); background:var(--paper); color:var(--ink); font-size:14px; font-family:inherit; }
 #tenantCarritoForm textarea{ resize:vertical; min-height:60px; }
 #tenantCarritoForm button[type="submit"]{ padding:12px 22px; border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; cursor:pointer; justify-self:start; }
-@media (max-width:720px){ .tenant-detalle-grid{ grid-template-columns:1fr; } .tenant-portal-tabla{ display:block; overflow-x:auto; } }
+@media (max-width:720px){
+    .tenant-detalle-grid{ grid-template-columns:1fr; }
+    .tenant-portal-tabla{ display:block; overflow-x:auto; }
+    .tenant-nav{ overflow-x:auto; max-width:100%; }
+    .tenant-catalogo-franja{ flex-direction:column; align-items:flex-start; }
+    .tenant-detalle-card{ padding:20px; border-radius:20px; }
+}
 `;
 }
 
@@ -343,19 +363,25 @@ ${mostrarCarrito ? `<button type="button" class="tenant-carrito-boton-nav" id="t
 </header>`;
 }
 
+const ICONO_TENANT_PIN = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
+const ICONO_TENANT_TELEFONO = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"></path></svg>`;
+const ICONO_TENANT_RELOJ = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+
 function renderizarPaginaNegocio(datos) {
     const nombre = escaparHtml(datos.nombre);
     const descripcion = escaparHtml(datos.descripcion);
     const direccion = escaparHtml(datos.direccion);
     const telefono = escaparHtml(datos.telefono);
     const horarioTexto = escaparHtml(datos.horarioTexto);
+    const giro = escaparHtml(datos.giro);
     const color = colorSeguro(datos.color);
     const urlPublica = `https://${datos.slug}.nexoposoficial.com`;
     const imagenMeta = datos.portada || datos.logo || "";
+    const totalProductos = Number(datos.totalProductos) || 0;
 
     const whatsappNumero = normalizarTelefonoWhatsApp(datos.whatsapp);
     const whatsappHtml = whatsappNumero
-        ? `<a class="tenant-boton-whatsapp" href="https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, vi ${datos.nombre} en su pagina y quiero mas informacion.`)}" target="_blank" rel="noopener">Escribir por WhatsApp</a>`
+        ? `<a class="tenant-btn-secundario" href="https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, vi ${datos.nombre} en su pagina y quiero mas informacion.`)}" target="_blank" rel="noopener">Escribir por WhatsApp</a>`
         : "";
 
     const redesHtml = [
@@ -363,11 +389,15 @@ function renderizarPaginaNegocio(datos) {
         datos.instagram ? `<a href="${escaparHtml(datos.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ""
     ].filter(Boolean).join("");
 
-    const datosFilas = [
-        direccion ? `<div><strong>Direccion</strong><span>${direccion}</span></div>` : "",
-        telefono ? `<div><strong>Telefono</strong><span>${telefono}</span></div>` : "",
-        horarioTexto ? `<div><strong>Horario</strong><span>${horarioTexto}</span></div>` : ""
+    const chips = [
+        direccion ? `<span class="tenant-chip">${ICONO_TENANT_PIN}${direccion}</span>` : "",
+        telefono ? `<span class="tenant-chip">${ICONO_TENANT_TELEFONO}${telefono}</span>` : "",
+        horarioTexto ? `<span class="tenant-chip">${ICONO_TENANT_RELOJ}${horarioTexto}</span>` : ""
     ].filter(Boolean).join("");
+
+    const franjaCatalogoHtml = totalProductos > 0
+        ? `<div class="tenant-catalogo-franja"><div><strong>${totalProductos} producto${totalProductos === 1 ? "" : "s"} en catalogo</strong><span>Consulta precios y existencias en linea</span></div><a class="tenant-btn-primario" href="/catalogo">Ver catalogo</a></div>`
+        : "";
 
     return `<!doctype html>
 <html lang="es">
@@ -390,10 +420,12 @@ ${encabezadoTenantHtml(datos, "inicio", datos.aceptarSolicitudesCredito)}
 ${bannerPromocionHtml(datos)}
 <div class="tenant-portada">${datos.portada ? `<img src="${escaparHtml(datos.portada)}" alt="">` : ""}</div>
 <main class="tenant-main tenant-main-angosto">
+${giro ? `<span class="tenant-eyebrow">${giro}</span>` : ""}
 ${descripcion ? `<p>${descripcion}</p>` : ""}
-${datosFilas ? `<div class="tenant-datos">${datosFilas}</div>` : ""}
-<div class="tenant-acciones">${whatsappHtml}<a class="tenant-boton-secundario" href="/catalogo">Ver catalogo</a>${datos.aceptarSolicitudesCredito ? `<a class="tenant-boton-secundario" href="/solicitud-credito">Solicitar credito</a>` : ""}</div>
+${chips ? `<div class="tenant-chips">${chips}</div>` : ""}
+<div class="tenant-acciones">${whatsappHtml}<a class="tenant-btn-secundario" href="/catalogo">Ver catalogo</a>${datos.aceptarSolicitudesCredito ? `<a class="tenant-btn-secundario" href="/solicitud-credito">Solicitar credito</a>` : ""}</div>
 ${redesHtml ? `<div class="tenant-redes">${redesHtml}</div>` : ""}
+${franjaCatalogoHtml}
 </main>
 <footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
 </body>
@@ -409,6 +441,11 @@ async function servirSitioNegocio(pool, req, res, slug) {
             return;
         }
 
+        const conteoProductos = await pool.query(
+            `SELECT COUNT(*) AS total FROM public.productos WHERE negocio_id = $1`,
+            [sitio.negocio.id]
+        );
+
         const html = renderizarPaginaNegocio({
             slug: sitio.negocio.slug,
             nombre: sitio.negocio.nombre,
@@ -416,6 +453,7 @@ async function servirSitioNegocio(pool, req, res, slug) {
             direccion: sitio.negocio.direccion,
             logo: sitio.negocio.logo,
             color: sitio.negocio.color,
+            giro: sitio.negocio.giro,
             descripcion: sitio.config.descripcion,
             portada: sitio.config.portada,
             horarioTexto: sitio.config.horarioTexto,
@@ -426,7 +464,8 @@ async function servirSitioNegocio(pool, req, res, slug) {
             promocionActiva: sitio.config.promocionActiva,
             promocionTitulo: sitio.config.promocionTitulo,
             promocionTexto: sitio.config.promocionTexto,
-            promocionEnlace: sitio.config.promocionEnlace
+            promocionEnlace: sitio.config.promocionEnlace,
+            totalProductos: Number(conteoProductos.rows[0].total)
         });
 
         res.set("Content-Type", "text/html; charset=utf-8").send(html);
@@ -563,6 +602,13 @@ ${existenciaHtml}
             `<option value="${escaparHtml(f.categoria)}"${f.categoria === categoria ? " selected" : ""}>${escaparHtml(f.categoria)}</option>`
         ).join("");
 
+        const pillsCategoriaHtml = categoriasRes.rows.length
+            ? `<div class="tenant-categoria-pills">
+<a class="tenant-categoria-pill${categoria ? "" : " activo"}" href="/catalogo${construirQueryString({ buscar, marca })}">Todas</a>
+${categoriasRes.rows.map(f => `<a class="tenant-categoria-pill${f.categoria === categoria ? " activo" : ""}" href="/catalogo${construirQueryString({ buscar, categoria: f.categoria, marca })}">${escaparHtml(f.categoria)}</a>`).join("")}
+</div>`
+            : "";
+
         const opcionesMarca = marcasRes.rows.map(f =>
             `<option value="${escaparHtml(f.marca)}"${f.marca === marca ? " selected" : ""}>${escaparHtml(f.marca)}</option>`
         ).join("");
@@ -591,6 +637,8 @@ ${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitude
 ${bannerPromocionHtml(sitio.config)}
 <main class="tenant-main">
 <h1 class="tenant-catalogo-titulo">Catalogo de productos</h1>
+<p class="tenant-catalogo-subtitulo">${total} producto${total === 1 ? "" : "s"} disponible${total === 1 ? "" : "s"}</p>
+${pillsCategoriaHtml}
 <form class="tenant-filtros" method="GET" action="/catalogo">
 <input type="text" name="buscar" placeholder="Buscar por nombre, codigo o marca" value="${escaparHtml(buscar)}">
 <select name="categoria"><option value="">Todas las categorias</option>${opcionesCategoria}</select>
@@ -660,7 +708,7 @@ async function servirProductoNegocio(pool, req, res, slug, codigo, firmarTokenIm
 
         const whatsappNumero = normalizarTelefonoWhatsApp(sitio.config.whatsapp);
         const whatsappHtml = whatsappNumero
-            ? `<a class="tenant-boton-whatsapp" href="https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, me interesa "${producto.nombre}" que vi en su catalogo.`)}" target="_blank" rel="noopener">Preguntar por WhatsApp</a>`
+            ? `<a class="tenant-btn-secundario" href="https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, me interesa "${producto.nombre}" que vi en su catalogo.`)}" target="_blank" rel="noopener">Preguntar por WhatsApp</a>`
             : "";
 
         const estadoPedido = paramTexto(req.query.pedido, 20);
@@ -702,6 +750,7 @@ ${bannerPromocionHtml(sitio.config)}
 <main class="tenant-main">
 <a class="tenant-volver" href="/catalogo">&larr; Volver al catalogo</a>
 ${bannerPedidoHtml}
+<div class="tenant-detalle-card">
 <div class="tenant-detalle-grid">
 <div class="tenant-detalle-foto">${fotoUrl ? `<img src="${fotoUrl}" alt="${nombreProducto}">` : `<span class="tenant-detalle-foto-vacia">Sin foto</span>`}</div>
 <div>
@@ -711,7 +760,8 @@ ${precio !== null && Number.isFinite(precio) ? `<div class="tenant-detalle-preci
 ${stock !== null ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>` : ""}
 ${producto.descripcion ? `<p>${escaparHtml(producto.descripcion)}</p>` : ""}
 ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto tiene garantia${producto.garantia_detalle ? `: ${escaparHtml(producto.garantia_detalle)}` : "."}</div>` : ""}
-<div class="tenant-acciones">${whatsappHtml}<button type="button" class="tenant-btn-carrito" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button></div>
+<div class="tenant-acciones">${whatsappHtml}<button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button></div>
+</div>
 </div>
 </div>
 ${formularioPedidoHtml}
