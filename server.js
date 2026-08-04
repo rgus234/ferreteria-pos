@@ -4542,7 +4542,7 @@ app.get("/", async (req, res) => {
 
     const slugTenant = slugDesdeSubdominio(host);
     if (slugTenant) {
-        await servirSitioNegocio(pool, req, res, slugTenant);
+        await servirSitioNegocio(pool, req, res, slugTenant, firmarTokenImagen);
         return;
     }
 
@@ -5034,7 +5034,9 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
     anchoCm,
     altoCm,
     notasInternas,
-    admiteCambios
+    admiteCambios,
+    destacado,
+    precioOferta
 } = req.body;
     try {
         const negocio = await negocioActual(req);
@@ -5077,9 +5079,11 @@ INSERT INTO public.productos
   ancho_cm,
   alto_cm,
   notas_internas,
-  admite_cambios
+  admite_cambios,
+  destacado,
+  precio_oferta
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)
 RETURNING id
 `,
 [
@@ -5115,7 +5119,9 @@ RETURNING id
   anchoCm || null,
   altoCm || null,
   notasInternas || "",
-  admiteCambios !== false && admiteCambios !== "false"
+  admiteCambios !== false && admiteCambios !== "false",
+  destacado === true || destacado === "true",
+  precioOferta || null
 ]
 );
 
@@ -5164,7 +5170,9 @@ RETURNING id
                 ancho_cm: anchoCm || null,
                 alto_cm: altoCm || null,
                 notas_internas: notasInternas || "",
-                admite_cambios: admiteCambios !== false && admiteCambios !== "false"
+                admite_cambios: admiteCambios !== false && admiteCambios !== "false",
+                destacado: destacado === true || destacado === "true",
+                precio_oferta: precioOferta || null
             }
         });
 
@@ -5215,7 +5223,9 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         anchoCm,
         altoCm,
         notasInternas,
-        admiteCambios
+        admiteCambios,
+        destacado,
+        precioOferta
     } = req.body;
 
     try {
@@ -5258,9 +5268,11 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 ancho_cm = $29,
                 alto_cm = $30,
                 notas_internas = $31,
-                admite_cambios = $32
-            WHERE id = $33
-            AND negocio_id = $34
+                admite_cambios = $32,
+                destacado = $33,
+                precio_oferta = $34
+            WHERE id = $35
+            AND negocio_id = $36
             RETURNING id
             `,
             [
@@ -5296,6 +5308,8 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 altoCm || null,
                 notasInternas || "",
                 admiteCambios !== false && admiteCambios !== "false",
+                destacado === true || destacado === "true",
+                precioOferta || null,
                 id,
                 negocio.id
             ]
@@ -5352,7 +5366,9 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 ancho_cm: anchoCm || null,
                 alto_cm: altoCm || null,
                 notas_internas: notasInternas || "",
-                admite_cambios: admiteCambios !== false && admiteCambios !== "false"
+                admite_cambios: admiteCambios !== false && admiteCambios !== "false",
+                destacado: destacado === true || destacado === "true",
+                precio_oferta: precioOferta || null
             }
         });
 

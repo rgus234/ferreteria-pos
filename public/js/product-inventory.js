@@ -1746,6 +1746,8 @@ function asegurarEtiquetasFichaProducto() {
  nuevaTieneGarantia: "Tiene garantia",
  nuevoGarantiaDetalle: "Detalle de la garantia",
  nuevaNoAdmiteCambios: "No admite cambios (ej. cortado a la medida)",
+ nuevoDestacado: "Destacado en el sitio web",
+ nuevoPrecioOferta: "Precio de oferta para el sitio web (opcional)",
  precioDistribuidor: "Precio proveedor / costo",
  precioMayoreo: "Precio medio mayoreo",
  precioPublico: "Precio publico",
@@ -2317,6 +2319,12 @@ document.getElementById("nuevasNotasInternas")?.value || "";
 const admiteCambios =
 !(document.getElementById("nuevaNoAdmiteCambios")?.checked || false);
 
+const destacado =
+document.getElementById("nuevoDestacado")?.checked || false;
+
+const precioOferta =
+document.getElementById("nuevoPrecioOferta")?.value || "";
+
 const codigoFinal =
 normalizarCodigo(codigo) ||
 (
@@ -2435,7 +2443,9 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  anchoCm,
  altoCm,
  notasInternas,
- admiteCambios
+ admiteCambios,
+ destacado,
+ precioOferta
  };
 
  let respuesta;
@@ -2837,6 +2847,12 @@ function editarProducto(
 
  document.getElementById("nuevaNoAdmiteCambios").checked =
  producto?.admite_cambios === false;
+
+ document.getElementById("nuevoDestacado").checked =
+ Boolean(producto?.destacado);
+
+ document.getElementById("nuevoPrecioOferta").value =
+ producto?.precio_oferta || "";
 
  document.getElementById("altaRotacion").value =
  producto?.alta_rotacion || "";

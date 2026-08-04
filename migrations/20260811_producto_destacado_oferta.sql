@@ -1,0 +1,3 @@
+ALTER TABLE public.productos
+    ADD COLUMN IF NOT EXISTS destacado BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS precio_oferta NUMERIC(12,2);

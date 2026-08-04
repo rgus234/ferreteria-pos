@@ -219,6 +219,65 @@ function colorSeguro(color) {
     return /^#[0-9a-fA-F]{6}$/.test(color || "") ? color : "#1067e8";
 }
 
+// Precio con oferta (Fase 9): compartido por catalogo, destacados y
+// ficha de producto -- un solo lugar de logica en vez de repetir el
+// calculo "tachado si hay oferta real" en 3 sitios. Sin oferta valida
+// (vacia, mayor o igual al precio normal), se ve igual que hoy.
+function precioOfertaHtml(precioNormal, precioOferta) {
+    const normal = Number(precioNormal);
+    if (!Number.isFinite(normal)) return "";
+    const oferta = Number(precioOferta);
+    if (Number.isFinite(oferta) && oferta > 0 && oferta < normal) {
+        return `<span class="tenant-precio-tachado">$${normal.toFixed(2)}</span><span class="tenant-precio-oferta">$${oferta.toFixed(2)}</span><span class="tenant-badge-oferta">Oferta</span>`;
+    }
+    return `<span class="tenant-producto-precio">$${normal.toFixed(2)}</span>`;
+}
+
+// Iconos de categoria (Fase 9): diccionario chico de palabras clave
+// para las categorias reales del negocio -- nunca se inventan
+// categorias, solo se elige el icono mas cercano; sin match, icono
+// generico de caja.
+const ICONOS_CATEGORIA_TENANT = [
+    { patron: /herramient/, svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>` },
+    { patron: /construc|albañ|cemento|block|acero|ladrillo|varilla/, svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M5 21V7l7-4 7 4v14"></path><path d="M9 21v-6h6v6"></path></svg>` },
+    { patron: /electric|foco|lampara|cable/, svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 11 14 11 22 21 10 13 10 13 2"></polygon></svg>` },
+    { patron: /plomer|tuber|agua|valvula|grifo/, svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c4 5 6 8.5 6 12a6 6 0 0 1-12 0c0-3.5 2-7 6-12Z"></path></svg>` },
+    { patron: /pintura|barniz|brocha/, svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 3 21 6l-9.5 9.5-4-4L18 3Z"></path><path d="M7 12 4 21l9-3"></path></svg>` },
+    { patron: /segur|proteccion|casco|guante/, svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 4 8.5 9 10 5-1.5 9-5 9-10V6l-9-4Z"></path></svg>` },
+    { patron: /jardin|planta|riego|pasto/, svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13c0-4 4-9 7-11 3 2 7 7 7 11a7 7 0 0 1-7 7Z"></path></svg>` },
+    { patron: /limpieza|escoba|detergente/, svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 21 9-9"></path><path d="M12.5 4.5c1.5-1.5 4-1.5 5.5 0s1.5 4 0 5.5L9 19l-5.5 1.5L5 15l9-9Z"></path></svg>` }
+];
+const ICONO_CATEGORIA_GENERICO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>`;
+
+function iconoCategoriaTenant(nombre) {
+    const texto = String(nombre || "").toLowerCase();
+    const match = ICONOS_CATEGORIA_TENANT.find(entry => entry.patron.test(texto));
+    return match ? match.svg : ICONO_CATEGORIA_GENERICO;
+}
+
+// Tarjeta de producto compartida (Fase 9) -- catalogo y destacados
+// del inicio usan exactamente el mismo markup/clases (incluido el
+// boton de carrito de Fase 7), solo cambia de donde vienen los datos.
+function tarjetaProductoTenantHtml({ codigo, nombre, fotoUrl, precio, precioOferta, stock }) {
+    const nombreSeguro = escaparHtml(nombre);
+    const existenciaHtml = stock !== null && stock !== undefined
+        ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>`
+        : "";
+    const precioHtml = precio !== null && precio !== undefined ? precioOfertaHtml(precio, precioOferta) : "";
+
+    return `<div class="tenant-producto-card">
+<a href="/catalogo/${encodeURIComponent(codigo)}">
+<div class="tenant-producto-foto">${fotoUrl ? `<img src="${fotoUrl}" alt="${nombreSeguro}">` : `<span class="tenant-producto-foto-vacia">Sin foto</span>`}</div>
+<div class="tenant-producto-info">
+<span class="tenant-producto-nombre">${nombreSeguro}</span>
+${precioHtml}
+${existenciaHtml}
+</div>
+</a>
+<button type="button" class="tenant-btn-carrito" data-codigo="${escaparHtml(codigo)}" data-nombre="${nombreSeguro}">Agregar al carrito</button>
+</div>`;
+}
+
 // Bloque <style> compartido por las 3 paginas publicas (info, catalogo,
 // detalle) -- un solo lugar para los tokens de color/nav/footer y para
 // las clases nuevas de grilla/tarjeta/filtros/paginacion de la Fase 2.
@@ -234,9 +293,42 @@ function estilosBaseTenant(color) {
 .tenant-nav a{ padding:8px 16px; border-radius:999px; color:var(--muted); font-weight:600; font-size:14px; }
 .tenant-nav a.activo{ background:var(--blue); color:#fff; }
 .tenant-eyebrow{ display:inline-block; margin-bottom:10px; color:var(--blue); font-weight:800; font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
-.tenant-portada{ position:relative; margin:0 clamp(20px,5vw,64px); border-radius:20px; height:clamp(160px,30vw,260px); overflow:hidden; background:linear-gradient(135deg, ${colorFinal}, var(--ink)); }
-.tenant-portada img{ width:100%; height:100%; object-fit:cover; display:block; }
-.tenant-portada::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg, transparent 40%, rgba(0,0,0,.28)); pointer-events:none; }
+.tenant-buscador-header{ display:flex; align-items:center; gap:6px; flex:1; min-width:160px; max-width:360px; padding:4px 4px 4px 14px; border-radius:999px; background:var(--glass); border:1px solid var(--line); }
+.tenant-buscador-header input{ flex:1; border:none; background:transparent; color:var(--ink); font-size:14px; padding:6px 0; }
+.tenant-buscador-header input:focus{ outline:none; }
+.tenant-buscador-header button{ display:flex; align-items:center; justify-content:center; width:34px; height:34px; border:none; border-radius:999px; background:var(--blue); color:#fff; cursor:pointer; flex-shrink:0; }
+.tenant-hero-2col{ display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,.8fr); gap:0; align-items:stretch; background:var(--ink); }
+.tenant-hero-panel{ padding:clamp(36px,6vw,72px) clamp(20px,5vw,64px); color:#fff; display:flex; flex-direction:column; justify-content:center; }
+.tenant-hero-panel h1{ margin:0 0 14px; font-size:clamp(28px,4vw,42px); line-height:1.15; }
+.tenant-hero-panel p{ color:rgba(255,255,255,.78); max-width:520px; }
+.tenant-eyebrow-claro{ color:#8fc0ff; }
+.tenant-btn-secundario-oscuro{ background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.28); color:#fff; }
+.tenant-hero-portada{ position:relative; min-height:220px; background:linear-gradient(135deg, ${colorFinal}, #0a1626); overflow:hidden; }
+.tenant-hero-portada img{ width:100%; height:100%; object-fit:cover; display:block; position:absolute; inset:0; }
+.tenant-beneficios{ background:var(--paper); border-bottom:1px solid var(--line); padding:16px clamp(20px,5vw,64px); }
+.tenant-beneficios-lista{ display:flex; flex-wrap:wrap; gap:12px 28px; max-width:1080px; margin:0 auto; justify-content:center; }
+.tenant-beneficio{ display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:var(--ink); }
+.tenant-beneficio svg{ color:var(--mint); flex-shrink:0; }
+.tenant-seccion-home{ margin:36px 0; }
+.tenant-seccion-home h2{ margin:0 0 18px; font-size:20px; }
+.tenant-seccion-home-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+.tenant-seccion-home-header h2{ margin:0; }
+.tenant-seccion-home-header a{ color:var(--blue); font-weight:700; font-size:13px; }
+.tenant-categorias-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:14px; }
+.tenant-categoria-tile{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:18px 10px; border-radius:16px; border:1px solid var(--line); background:var(--glass); color:var(--ink); text-align:center; font-size:12px; font-weight:700; transition:box-shadow .16s ease, transform .16s ease; }
+.tenant-categoria-tile:hover{ box-shadow:0 14px 28px rgba(20,32,51,.1); transform:translateY(-2px); }
+.tenant-categoria-tile svg{ width:26px; height:26px; color:var(--blue); }
+.tenant-promos-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.tenant-promo-bloque{ display:flex; flex-direction:column; gap:6px; padding:24px; border-radius:20px; color:#fff; }
+.tenant-promo-bloque strong{ font-size:16px; }
+.tenant-promo-bloque span{ font-size:13px; opacity:.9; }
+.tenant-promo-ofertas{ background:linear-gradient(135deg, var(--blue), var(--blue-dark)); }
+.tenant-promo-cotizacion{ background:var(--glass); border:1px solid var(--line); color:var(--ink); }
+.tenant-promo-cotizacion span{ color:var(--muted); opacity:1; }
+.tenant-promo-ayuda{ background:var(--mint); }
+.tenant-precio-tachado{ font-size:12px; color:var(--muted); text-decoration:line-through; margin-right:6px; }
+.tenant-precio-oferta{ font-size:15px; font-weight:800; color:#e2434d; }
+.tenant-badge-oferta{ display:inline-block; margin-left:6px; padding:2px 8px; border-radius:999px; background:#e2434d; color:#fff; font-size:10px; font-weight:800; text-transform:uppercase; }
 .tenant-main{ max-width:1080px; margin:0 auto; padding:32px clamp(20px,5vw,64px) 64px; }
 .tenant-main-angosto{ max-width:820px; }
 .tenant-main p{ color:var(--muted); font-size:16px; line-height:1.7; }
@@ -340,11 +432,18 @@ function estilosBaseTenant(color) {
     .tenant-detalle-grid{ grid-template-columns:1fr; }
     .tenant-portal-tabla{ display:block; overflow-x:auto; }
     .tenant-nav{ overflow-x:auto; max-width:100%; }
+    .tenant-buscador-header{ order:3; max-width:none; flex-basis:100%; }
     .tenant-catalogo-franja{ flex-direction:column; align-items:flex-start; }
     .tenant-detalle-card{ padding:20px; border-radius:20px; }
+    .tenant-hero-2col{ grid-template-columns:1fr; }
+    .tenant-hero-portada{ min-height:160px; order:-1; }
+    .tenant-promos-grid{ grid-template-columns:1fr; }
+    .tenant-categorias-grid{ grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); }
 }
 `;
 }
+
+const ICONO_TENANT_BUSQUEDA = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`;
 
 function encabezadoTenantHtml(datos, paginaActiva, mostrarCredito, mostrarCarrito) {
     const nombre = escaparHtml(datos.nombre);
@@ -353,9 +452,14 @@ function encabezadoTenantHtml(datos, paginaActiva, mostrarCredito, mostrarCarrit
 ${datos.logo ? `<img src="${escaparHtml(datos.logo)}" alt="Logo ${nombre}">` : ""}
 <strong>${nombre}</strong>
 </div>
+<form class="tenant-buscador-header" method="GET" action="/catalogo" role="search">
+<input type="text" name="buscar" placeholder="Buscar productos, marcas o categorias...">
+<button type="submit" aria-label="Buscar">${ICONO_TENANT_BUSQUEDA}</button>
+</form>
 <nav class="tenant-nav">
 <a href="/" class="${paginaActiva === "inicio" ? "activo" : ""}">Inicio</a>
 <a href="/catalogo" class="${paginaActiva === "catalogo" ? "activo" : ""}">Catalogo</a>
+<a href="/catalogo?ofertas=1">Ofertas</a>
 ${mostrarCredito ? `<a href="/solicitud-credito" class="${paginaActiva === "credito" ? "activo" : ""}">Credito</a>` : ""}
 <a href="/portal-cliente" class="${paginaActiva === "portal" ? "activo" : ""}">Mi cuenta</a>
 ${mostrarCarrito ? `<button type="button" class="tenant-carrito-boton-nav" id="tenantCarritoAbrirBoton" aria-label="Ver carrito">Carrito<span id="carritoContador" class="tenant-carrito-contador">0</span></button>` : ""}
@@ -366,6 +470,58 @@ ${mostrarCarrito ? `<button type="button" class="tenant-carrito-boton-nav" id="t
 const ICONO_TENANT_PIN = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
 const ICONO_TENANT_TELEFONO = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"></path></svg>`;
 const ICONO_TENANT_RELOJ = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+
+// Franja de beneficios (Fase 9) -- solo afirmaciones verdaderas: 2
+// siempre reales (atencion directa, pedidos en linea ya construidos) +
+// 2 condicionales segun lo que el negocio de verdad tiene configurado.
+// Nunca "envios"/"pagos seguros" -- eso no existe en la plataforma.
+const ICONO_TENANT_BENEFICIO = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+function beneficiosTenantHtml(datos) {
+    const items = [
+        "Atencion personalizada",
+        "Pedidos y cotizaciones en linea"
+    ];
+    if (datos.aceptarSolicitudesCredito) items.push("Credito disponible");
+    if (datos.promocionActiva) items.push("Promociones vigentes");
+
+    return `<div class="tenant-beneficios"><div class="tenant-beneficios-lista">${items.map(texto => `<span class="tenant-beneficio">${ICONO_TENANT_BENEFICIO}${escaparHtml(texto)}</span>`).join("")}</div></div>`;
+}
+
+// Grilla de categorias reales (Fase 9) -- solo las categorias que el
+// negocio de verdad tiene etiquetadas, nunca una lista fija. Vacia si
+// el negocio no tiene ninguna categoria etiquetada.
+function categoriasTenantHtml(categorias) {
+    if (!categorias || !categorias.length) return "";
+    const tiles = categorias.map(c => `<a class="tenant-categoria-tile" href="/catalogo?categoria=${encodeURIComponent(c.categoria)}">${iconoCategoriaTenant(c.categoria)}<span>${escaparHtml(c.categoria)}</span></a>`).join("");
+    return `<section class="tenant-seccion-home"><h2>Categorias</h2><div class="tenant-categorias-grid">${tiles}</div></section>`;
+}
+
+// 3 bloques de promocion (Fase 9), cada uno condicional a datos
+// reales -- si ninguno aplica, la seccion completa no se pinta.
+function promosTenantHtml(datos) {
+    const bloques = [];
+
+    if (datos.promocionActiva || datos.existeOferta) {
+        bloques.push(`<a class="tenant-promo-bloque tenant-promo-ofertas" href="/catalogo?ofertas=1"><strong>Ofertas que no puedes dejar pasar</strong><span>Consulta los productos con precio especial</span></a>`);
+    }
+
+    const whatsappNumero = normalizarTelefonoWhatsApp(datos.whatsapp);
+    if (whatsappNumero) {
+        bloques.push(`<a class="tenant-promo-bloque tenant-promo-cotizacion" href="https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, tengo un proyecto grande y quiero pedir una cotizacion a ${datos.nombre}.`)}" target="_blank" rel="noopener"><strong>Tienes un proyecto grande?</strong><span>Solicitar cotizacion por WhatsApp</span></a>`);
+        bloques.push(`<a class="tenant-promo-bloque tenant-promo-ayuda" href="https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, necesito ayuda con un producto de ${datos.nombre}.`)}" target="_blank" rel="noopener"><strong>Necesitas ayuda?</strong><span>Escribenos por WhatsApp</span></a>`);
+    }
+
+    if (!bloques.length) return "";
+    return `<section class="tenant-seccion-home"><div class="tenant-promos-grid">${bloques.join("")}</div></section>`;
+}
+
+// Productos destacados (Fase 9) -- solo si el dueno marco al menos
+// uno a mano, nunca un fallback automatico a "productos recientes".
+function destacadosTenantHtml(destacados) {
+    if (!destacados || !destacados.length) return "";
+    const tarjetas = destacados.map(p => tarjetaProductoTenantHtml(p)).join("");
+    return `<section class="tenant-seccion-home"><div class="tenant-seccion-home-header"><h2>Productos destacados</h2><a href="/catalogo">Ver todos</a></div><div class="tenant-catalogo-grid">${tarjetas}</div></section>`;
+}
 
 function renderizarPaginaNegocio(datos) {
     const nombre = escaparHtml(datos.nombre);
@@ -399,6 +555,8 @@ function renderizarPaginaNegocio(datos) {
         ? `<div class="tenant-catalogo-franja"><div><strong>${totalProductos} producto${totalProductos === 1 ? "" : "s"} en catalogo</strong><span>Consulta precios y existencias en linea</span></div><a class="tenant-btn-primario" href="/catalogo">Ver catalogo</a></div>`
         : "";
 
+    const mostrarBotonOfertasHero = datos.promocionActiva || datos.existeOferta;
+
     return `<!doctype html>
 <html lang="es">
 <head>
@@ -416,23 +574,38 @@ ${imagenMeta ? `<meta property="og:image" content="${escaparHtml(imagenMeta)}">`
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(datos, "inicio", datos.aceptarSolicitudesCredito)}
+${encabezadoTenantHtml(datos, "inicio", datos.aceptarSolicitudesCredito, true)}
 ${bannerPromocionHtml(datos)}
-<div class="tenant-portada">${datos.portada ? `<img src="${escaparHtml(datos.portada)}" alt="">` : ""}</div>
-<main class="tenant-main tenant-main-angosto">
-${giro ? `<span class="tenant-eyebrow">${giro}</span>` : ""}
+<section class="tenant-hero-2col">
+<div class="tenant-hero-panel">
+${giro ? `<span class="tenant-eyebrow tenant-eyebrow-claro">${giro}</span>` : ""}
+<h1>${nombre}</h1>
 ${descripcion ? `<p>${descripcion}</p>` : ""}
+<div class="tenant-acciones">
+<a class="tenant-btn-primario" href="/catalogo">Ver catalogo</a>
+${mostrarBotonOfertasHero ? `<a class="tenant-btn-secundario tenant-btn-secundario-oscuro" href="/catalogo?ofertas=1">Ver ofertas</a>` : ""}
+</div>
+</div>
+<div class="tenant-hero-portada">${datos.portada ? `<img src="${escaparHtml(datos.portada)}" alt="">` : ""}</div>
+</section>
+${beneficiosTenantHtml(datos)}
+<main class="tenant-main tenant-main-angosto">
 ${chips ? `<div class="tenant-chips">${chips}</div>` : ""}
-<div class="tenant-acciones">${whatsappHtml}<a class="tenant-btn-secundario" href="/catalogo">Ver catalogo</a>${datos.aceptarSolicitudesCredito ? `<a class="tenant-btn-secundario" href="/solicitud-credito">Solicitar credito</a>` : ""}</div>
+${whatsappHtml || datos.aceptarSolicitudesCredito ? `<div class="tenant-acciones">${whatsappHtml}${datos.aceptarSolicitudesCredito ? `<a class="tenant-btn-secundario" href="/solicitud-credito">Solicitar credito</a>` : ""}</div>` : ""}
 ${redesHtml ? `<div class="tenant-redes">${redesHtml}</div>` : ""}
+${categoriasTenantHtml(datos.categorias)}
+${promosTenantHtml(datos)}
+${destacadosTenantHtml(datos.destacados)}
 ${franjaCatalogoHtml}
 </main>
 <footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+${modalCarritoTenantHtml(datos.slug)}
+<script>${scriptCarritoTenantHtml(datos.slug)}</script>
 </body>
 </html>`;
 }
 
-async function servirSitioNegocio(pool, req, res, slug) {
+async function servirSitioNegocio(pool, req, res, slug, firmarTokenImagen) {
     try {
         const sitio = await resolverSitioPublico(pool, slug);
 
@@ -443,6 +616,74 @@ async function servirSitioNegocio(pool, req, res, slug) {
 
         const conteoProductos = await pool.query(
             `SELECT COUNT(*) AS total FROM public.productos WHERE negocio_id = $1`,
+            [sitio.negocio.id]
+        );
+
+        // Top 10 categorias reales del negocio (nunca una lista fija) --
+        // alimenta la grilla de categorias del inicio.
+        const categoriasRes = await pool.query(
+            `
+            SELECT categoria, COUNT(*) AS total
+            FROM public.productos
+            WHERE negocio_id = $1 AND categoria IS NOT NULL AND categoria <> ''
+            GROUP BY categoria
+            ORDER BY COUNT(*) DESC
+            LIMIT 10
+            `,
+            [sitio.negocio.id]
+        );
+
+        // Productos destacados (Fase 9) -- solo los que el dueno marco
+        // a mano, nunca un fallback automatico. Mismas columnas
+        // condicionales de precio/existencia que el catalogo.
+        const columnasDestacados = [
+            "codigo", "nombre",
+            sitio.config.mostrarPrecios ? "COALESCE(precio_publico, precio) AS precio" : null,
+            sitio.config.mostrarPrecios ? "precio_oferta" : null,
+            sitio.config.mostrarExistencias ? "stock" : null
+        ].filter(Boolean);
+        const destacadosRes = await pool.query(
+            `
+            SELECT ${columnasDestacados.join(", ")}
+            FROM public.productos
+            WHERE negocio_id = $1 AND destacado = true
+            ORDER BY nombre
+            LIMIT 8
+            `,
+            [sitio.negocio.id]
+        );
+
+        let fotosDestacadosSet = new Set();
+        if (destacadosRes.rows.length) {
+            const fotosDestacadosRes = await pool.query(
+                `SELECT codigo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2)`,
+                [sitio.negocio.id, destacadosRes.rows.map(p => p.codigo)]
+            );
+            fotosDestacadosSet = new Set(fotosDestacadosRes.rows.map(f => f.codigo));
+        }
+
+        const destacados = destacadosRes.rows.map(p => ({
+            codigo: p.codigo,
+            nombre: p.nombre,
+            fotoUrl: fotosDestacadosSet.has(p.codigo)
+                ? `/fotos-producto/${encodeURIComponent(p.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, p.codigo)}`
+                : "",
+            precio: p.precio ?? null,
+            precioOferta: p.precio_oferta ?? null,
+            stock: p.stock !== undefined && p.stock !== null ? Number(p.stock) : null
+        }));
+
+        // Existe al menos 1 oferta real vigente -- decide si el bloque
+        // "Ofertas" se pinta aunque no haya promocion manual activa.
+        const existeOfertaRes = await pool.query(
+            `
+            SELECT EXISTS(
+                SELECT 1 FROM public.productos
+                WHERE negocio_id = $1
+                AND precio_oferta IS NOT NULL
+                AND precio_oferta < COALESCE(precio_publico, precio)
+            ) AS existe
+            `,
             [sitio.negocio.id]
         );
 
@@ -465,7 +706,10 @@ async function servirSitioNegocio(pool, req, res, slug) {
             promocionTitulo: sitio.config.promocionTitulo,
             promocionTexto: sitio.config.promocionTexto,
             promocionEnlace: sitio.config.promocionEnlace,
-            totalProductos: Number(conteoProductos.rows[0].total)
+            totalProductos: Number(conteoProductos.rows[0].total),
+            categorias: categoriasRes.rows,
+            destacados,
+            existeOferta: existeOfertaRes.rows[0].existe
         });
 
         res.set("Content-Type", "text/html; charset=utf-8").send(html);
@@ -498,11 +742,16 @@ async function servirCatalogoNegocio(pool, req, res, slug, firmarTokenImagen) {
         const buscar = paramTexto(req.query.buscar, 120);
         const categoria = paramTexto(req.query.categoria, 120);
         const marca = paramTexto(req.query.marca, 120);
+        const ofertas = req.query.ofertas === "1" && sitio.config.mostrarPrecios;
         const pagina = Math.max(1, parseInt(req.query.pagina, 10) || 1);
         const offset = (pagina - 1) * PRODUCTOS_POR_PAGINA_CATALOGO;
 
         const valores = [sitio.negocio.id];
         const condiciones = ["p.negocio_id = $1"];
+
+        if (ofertas) {
+            condiciones.push(`p.precio_oferta IS NOT NULL AND p.precio_oferta < COALESCE(p.precio_publico, p.precio)`);
+        }
 
         if (buscar) {
             valores.push(buscar);
@@ -524,6 +773,7 @@ async function servirCatalogoNegocio(pool, req, res, slug, firmarTokenImagen) {
 
         const columnasExtra = [
             sitio.config.mostrarPrecios ? "COALESCE(p.precio_publico, p.precio) AS precio" : null,
+            sitio.config.mostrarPrecios ? "p.precio_oferta" : null,
             sitio.config.mostrarExistencias ? "p.stock" : null
         ].filter(Boolean);
 
@@ -571,31 +821,16 @@ async function servirCatalogoNegocio(pool, req, res, slug, firmarTokenImagen) {
         const nombre = escaparHtml(sitio.negocio.nombre);
 
         const tarjetasHtml = productos.length
-            ? productos.map(p => {
-                const tieneFoto = fotosPorCodigo.has(p.codigo);
-                const fotoUrl = tieneFoto
+            ? productos.map(p => tarjetaProductoTenantHtml({
+                codigo: p.codigo,
+                nombre: p.nombre,
+                fotoUrl: fotosPorCodigo.has(p.codigo)
                     ? `/fotos-producto/${encodeURIComponent(p.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, p.codigo)}`
-                    : "";
-                const stock = p.stock !== undefined && p.stock !== null ? Number(p.stock) : null;
-                const existenciaHtml = stock !== null
-                    ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>`
-                    : "";
-                const precioHtml = p.precio !== undefined && p.precio !== null
-                    ? `<span class="tenant-producto-precio">$${Number(p.precio).toFixed(2)}</span>`
-                    : "";
-
-                return `<div class="tenant-producto-card">
-<a href="/catalogo/${encodeURIComponent(p.codigo)}">
-<div class="tenant-producto-foto">${fotoUrl ? `<img src="${fotoUrl}" alt="${escaparHtml(p.nombre)}">` : `<span class="tenant-producto-foto-vacia">Sin foto</span>`}</div>
-<div class="tenant-producto-info">
-<span class="tenant-producto-nombre">${escaparHtml(p.nombre)}</span>
-${precioHtml}
-${existenciaHtml}
-</div>
-</a>
-<button type="button" class="tenant-btn-carrito" data-codigo="${escaparHtml(p.codigo)}" data-nombre="${escaparHtml(p.nombre)}">Agregar al carrito</button>
-</div>`;
-            }).join("")
+                    : "",
+                precio: p.precio ?? null,
+                precioOferta: p.precio_oferta ?? null,
+                stock: p.stock !== undefined && p.stock !== null ? Number(p.stock) : null
+            })).join("")
             : "";
 
         const opcionesCategoria = categoriasRes.rows.map(f =>
@@ -673,7 +908,7 @@ async function servirProductoNegocio(pool, req, res, slug, codigo, firmarTokenIm
 
         const productoRes = await pool.query(
             `
-            SELECT id, codigo, nombre, categoria, marca, descripcion, precio, precio_publico, stock,
+            SELECT id, codigo, nombre, categoria, marca, descripcion, precio, precio_publico, precio_oferta, stock,
                 tiene_garantia, garantia_detalle
             FROM public.productos
             WHERE negocio_id = $1 AND codigo = $2
@@ -756,7 +991,7 @@ ${bannerPedidoHtml}
 <div>
 <h1>${nombreProducto}</h1>
 ${producto.marca ? `<p>${escaparHtml(producto.marca)}${producto.categoria ? ` &middot; ${escaparHtml(producto.categoria)}` : ""}</p>` : (producto.categoria ? `<p>${escaparHtml(producto.categoria)}</p>` : "")}
-${precio !== null && Number.isFinite(precio) ? `<div class="tenant-detalle-precio">$${precio.toFixed(2)}</div>` : ""}
+${precio !== null && Number.isFinite(precio) ? `<div class="tenant-detalle-precio">${precioOfertaHtml(precio, producto.precio_oferta)}</div>` : ""}
 ${stock !== null ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>` : ""}
 ${producto.descripcion ? `<p>${escaparHtml(producto.descripcion)}</p>` : ""}
 ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto tiene garantia${producto.garantia_detalle ? `: ${escaparHtml(producto.garantia_detalle)}` : "."}</div>` : ""}

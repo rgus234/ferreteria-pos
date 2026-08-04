@@ -6999,3 +6999,111 @@ boton primario combinado aparecen correctamente en el HTML servido.
 Suite automatizada completa (`npm test`, 19 casos) sin regresiones.
 Sin migracion en esta fase. Pendiente de confirmacion del usuario
 para `git add`/`commit`.
+
+## 2026-08-11 -- Sitio web por negocio, Fase 9: home tipo tienda en linea (destacados, ofertas, categorias)
+
+El usuario mando una imagen de referencia de una tienda en linea
+completa (utilidades, buscador en el header, hero de 2 columnas,
+franja de beneficios, grilla de categorias con icono, 3 bloques de
+promocion, "Productos destacados" con precio tachado) y pidio que
+**todos** los sitios de negocio usen la misma plantilla -- solo
+nombre/portada/promociones se personalizan por negocio, el resto ya
+esta construido desde fases previas. Dos piezas del mockup no
+existian como dato real (destacados, precio de oferta) -- se
+resolvieron con el usuario via `AskUserQuestion`, eligiendo en ambos
+casos la version real y manual (nunca un fallback automatico):
+toggle "Producto destacado" + campo "Precio de oferta" en Agregar/
+Editar producto.
+
+**Migracion** (`migrations/20260811_producto_destacado_oferta.sql`):
+`productos.destacado BOOLEAN NOT NULL DEFAULT false` +
+`productos.precio_oferta NUMERIC(12,2)` nullable. Aplicada con
+confirmacion explicita.
+
+**`server.js`**: `destacado`/`precioOferta` agregados a los 4 puntos
+de siempre en `POST /agregar-producto` y `PUT /editar-producto/:id`
+(destructuracion, columnas/valores del INSERT, SET/params del
+UPDATE, objeto de respuesta) -- mismo patron que `tiene_garantia`/
+`admite_cambios`.
+
+**`public/index.html` + `product-inventory.js`**: 2 campos nuevos en
+"Informacion adicional" (checkbox `nuevoDestacado`, numero
+`nuevoPrecioOferta`), con su entrada en el mapa de etiquetas, lectura
+en `agregarProductoNuevo()` y prellenado en `editarProducto()`.
+
+**`public-site-server.js`** -- el grueso de la fase:
+- `precioOfertaHtml(precioNormal, precioOferta)`: unico lugar que
+  decide si un precio se ve tachado (oferta valida y menor al
+  normal) -- usado por catalogo, destacados del inicio y ficha de
+  producto, sin duplicar el calculo.
+- `iconoCategoriaTenant(nombre)`: diccionario de 8 palabras clave ->
+  SVG (herramientas/construccion/electrico/plomeria/pintura/
+  seguridad/jardin/limpieza) + icono generico de respaldo -- nunca
+  una lista de categorias inventada, solo las reales del negocio.
+- `tarjetaProductoTenantHtml(...)`: tarjeta de producto compartida
+  (catalogo, destacados, boton de carrito incluido) -- reemplazo del
+  HTML inline que antes vivia solo en `servirCatalogoNegocio`.
+- `encabezadoTenantHtml`: gana un `<form>` de busqueda real (GET a
+  `/catalogo?buscar=`, funcional de verdad) y un link "Ofertas" en el
+  nav.
+- `servirCatalogoNegocio`: soporta `?ofertas=1` (condicion SQL
+  `precio_oferta IS NOT NULL AND precio_oferta < COALESCE(precio_publico, precio)`,
+  solo si `mostrarPrecios`) y selecciona `p.precio_oferta` junto al
+  precio normal; las tarjetas ahora se arman con la funcion
+  compartida.
+- `servirProductoNegocio`: agrega `precio_oferta` a su SELECT y usa
+  `precioOfertaHtml` en vez del precio plano.
+- `servirSitioNegocio`: 3 consultas nuevas -- top 10 categorias
+  reales con conteo, hasta 8 productos `destacado=true` (mismas
+  columnas condicionales de precio/existencia que el catalogo), y un
+  `EXISTS` de oferta vigente (decide si el bloque "Ofertas" se pinta
+  aunque no haya promocion manual activa).
+- `renderizarPaginaNegocio`: hero de 2 columnas (panel oscuro con
+  eyebrow=giro real, `<h1>`=nombre real, `<p>`=descripcion real --
+  **nunca un tagline inventado**; panel derecho=portada o gradiente),
+  franja de beneficios dinamica (2 items siempre reales + "Credito
+  disponible"/"Promociones vigentes" solo si aplican), grilla de
+  categorias (solo si el negocio tiene >=1 categoria real), 3 bloques
+  de promocion condicionales (Ofertas si hay promocion o alguna
+  oferta real vigente; Cotizacion y Ayuda solo si hay WhatsApp
+  configurado -- si ninguno aplica, la seccion completa no se pinta),
+  "Productos destacados" (solo si el dueno marco al menos uno, sin
+  fallback automatico). El inicio ahora carga el modal+script del
+  carrito (antes solo catalogo/detalle), ya que los destacados
+  pueden llevar boton "Agregar al carrito".
+- CSS nuevo en `estilosBaseTenant`: `.tenant-buscador-header`,
+  `.tenant-hero-2col/-panel/-portada`, `.tenant-beneficios`,
+  `.tenant-seccion-home`, `.tenant-categorias-grid`,
+  `.tenant-promos-grid` (+ 3 variantes de color), `.tenant-precio-
+  tachado/-oferta`, `.tenant-badge-oferta`, mas reglas responsive
+  nuevas en el `@media (max-width:720px)` ya existente. Se retiro
+  `.tenant-portada` (reemplazada por `.tenant-hero-portada`, ya sin
+  uso).
+
+**Bug de prueba encontrado y corregido (no llego a produccion)**: el
+script de verificacion inicial buscaba las clases de los bloques de
+promocion por substring simple (`"tenant-promo-bloque"`), lo cual
+tambien matchea la regla CSS `.tenant-promo-bloque{...}` siempre
+presente en el `<style>` -- mismo patron de falso positivo ya
+documentado en la Fase 7. Se corrigio buscando el atributo completo
+(`'class="tenant-promo-bloque tenant-promo-ofertas"'`), igual que ya
+se hizo entonces.
+
+**Verificacion**: `node --check` en `server.js` y
+`public-site-server.js`. Migracion aplicada con confirmacion
+explicita (`destacado`/`precio_oferta` confirmados en `productos`).
+Nuevo `scripts/verificar-home-tienda.js` (22 casos) contra un negocio
+sintetico: sin destacados/ofertas/whatsapp -> sin secciones de promo
+ni destacados; producto destacado con oferta real se ve tachado;
+producto con oferta invalida (mayor al precio) nunca se ve tachado en
+catalogo ni cuenta en `?ofertas=1`; buscador del header filtra de
+verdad contra `/catalogo?buscar=`; al activar whatsapp/credito/promo
+la franja de beneficios y los 3 bloques de promocion aparecen
+completos con el numero de WhatsApp normalizado en los enlaces --
+**22/22 pasaron**. Regresion: `scripts/verificar-carrito-promo.js`
+sin modificar, **28/28 siguen pasando** (el carrito/portal/promo de
+Fases 6/7 no se rompio). Suite automatizada completa (`npm test`,
+19 casos) sin regresiones. Confirmado que `negocio_id = 1` (Ferreteria
+Olimpico) no se toco durante ninguna prueba (0 filas con slug
+`test-auto-%` al terminar). Pendiente de confirmacion del usuario
+para `git add`/`commit`.
