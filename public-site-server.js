@@ -18,8 +18,8 @@
 const sharp = require("sharp");
 const crypto = require("crypto");
 const { funcionDelPlan } = require("./plan-enforcement");
-const { enviarCorreoPedidoPublico, enviarCorreoSolicitudCreditoPublica } = require("./email");
-const { verificarPassword } = require("./password-utils");
+const { enviarCorreoPedidoPublico, enviarCorreoPedidoCarritoPublico, enviarCorreoSolicitudCreditoPublica } = require("./email");
+const { hashPassword, verificarPassword } = require("./password-utils");
 const { calcularAntiguedadCredito } = require("./credit-aging");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
@@ -54,6 +54,23 @@ function crearLimitadorPorIp(maxIntentos, ventanaMs) {
 
 const limitadorPedidoPublico = crearLimitadorPorIp(5, 60 * 60 * 1000);
 const limitadorSolicitudCredito = crearLimitadorPorIp(5, 60 * 60 * 1000);
+
+const MAX_ITEMS_CARRITO = 30;
+
+// Mismo alfabeto/longitud que ya usa server.js para generar el codigo
+// de acceso que el dueno reparte a mano desde Creditos (sin 0/O/1/I,
+// 32^8 combinaciones) -- copiado local a este archivo, no importado,
+// mismo criterio de helpers chicos duplicados por archivo ya seguido
+// aqui. Se usa cuando el carrito publico crea una "cuenta ligera" para
+// un visitante nuevo (ver recibirPedidoCarritoPublico).
+const ALFABETO_CODIGO_ACCESO_CLIENTE = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function generarCodigoAccesoCliente() {
+    let codigo = "";
+    for (let i = 0; i < 8; i++) {
+        codigo += ALFABETO_CODIGO_ACCESO_CLIENTE[crypto.randomInt(ALFABETO_CODIGO_ACCESO_CLIENTE.length)];
+    }
+    return codigo;
+}
 
 // Portal de cliente final (Fase 6): un limitador por IP y otro
 // separado por telefono+negocio -- este segundo evita que alguien
@@ -133,7 +150,8 @@ async function resolverSitioPublico(pool, slug) {
         SELECT
             n.id, n.slug, n.nombre, n.telefono, n.direccion, n.logo, n.color, n.estado, n.correo,
             c.activo, c.descripcion, c.portada, c.horario_texto, c.whatsapp, c.facebook, c.instagram,
-            c.mostrar_precios, c.mostrar_existencias, c.aceptar_solicitudes_credito
+            c.mostrar_precios, c.mostrar_existencias, c.aceptar_solicitudes_credito,
+            c.promocion_activa, c.promocion_titulo, c.promocion_texto, c.promocion_enlace
         FROM public.negocios n
         LEFT JOIN public.sitio_web_config c ON c.negocio_id = n.id
         WHERE n.slug = $1
@@ -174,9 +192,26 @@ async function resolverSitioPublico(pool, slug) {
             instagram: fila.instagram,
             mostrarPrecios: fila.mostrar_precios,
             mostrarExistencias: fila.mostrar_existencias,
-            aceptarSolicitudesCredito: fila.aceptar_solicitudes_credito
+            aceptarSolicitudesCredito: fila.aceptar_solicitudes_credito,
+            promocionActiva: fila.promocion_activa,
+            promocionTitulo: fila.promocion_titulo,
+            promocionTexto: fila.promocion_texto,
+            promocionEnlace: fila.promocion_enlace
         }
     };
+}
+
+// Banner de promocion compartido por inicio/catalogo/detalle -- vacio
+// si no hay promocion activa o le falta titulo/texto (nunca se
+// muestra un banner a medio llenar). Todo dato viene escapado.
+function bannerPromocionHtml(config) {
+    if (!config.promocionActiva || !config.promocionTitulo || !config.promocionTexto) {
+        return "";
+    }
+    const enlaceHtml = config.promocionEnlace
+        ? `<a href="${escaparHtml(config.promocionEnlace)}">Ver mas</a>`
+        : "";
+    return `<div class="tenant-promo-banner"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${enlaceHtml}</div>`;
 }
 
 function colorSeguro(color) {
@@ -268,11 +303,30 @@ function estilosBaseTenant(color) {
 .tenant-portal-badge.atendido{ background:rgba(24,184,143,.15); color:var(--mint); }
 .tenant-portal-badge.descartado{ background:rgba(226,67,77,.12); color:#e2434d; }
 .tenant-portal-saludo{ font-size:20px; margin:0 0 6px; }
+.tenant-promo-banner{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; padding:14px clamp(20px,5vw,64px); background:linear-gradient(135deg, ${colorFinal}, var(--ink)); color:#fff; }
+.tenant-promo-banner strong{ font-size:14px; }
+.tenant-promo-banner span{ font-size:13px; opacity:.92; }
+.tenant-promo-banner a{ color:#fff; font-weight:700; text-decoration:underline; font-size:13px; margin-left:auto; }
+.tenant-carrito-boton-nav{ display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
+.tenant-carrito-contador{ display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 4px; border-radius:999px; background:rgba(255,255,255,.28); font-size:11px; font-weight:800; }
+.tenant-btn-carrito{ margin-top:10px; padding:10px 18px; border-radius:999px; border:1px solid var(--line); background:var(--glass); color:var(--ink); font-weight:700; font-size:13px; cursor:pointer; align-self:start; }
+.tenant-producto-card{ display:flex; flex-direction:column; }
+.tenant-producto-card .tenant-btn-carrito{ margin:0 14px 14px; }
+.tenant-carrito-overlay{ position:fixed; inset:0; z-index:9500; background:rgba(13,23,42,.55); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; padding:20px; }
+.tenant-carrito-modal{ width:min(520px,92vw); max-height:86vh; overflow-y:auto; background:var(--paper); border-radius:20px; padding:24px; box-shadow:0 30px 60px rgba(13,23,42,.35); display:grid; gap:14px; }
+.tenant-carrito-modal-header{ display:flex; align-items:center; justify-content:space-between; }
+.tenant-carrito-modal-header h2{ margin:0; font-size:19px; }
+.tenant-carrito-modal-header button{ border:none; background:transparent; font-size:24px; line-height:1; cursor:pointer; color:var(--muted); }
+#tenantCarritoForm{ display:grid; gap:12px; }
+#tenantCarritoForm label{ display:grid; gap:6px; font-size:13px; color:var(--muted); font-weight:600; }
+#tenantCarritoForm input[type="text"], #tenantCarritoForm textarea{ padding:10px 14px; border-radius:12px; border:1px solid var(--line); background:var(--paper); color:var(--ink); font-size:14px; font-family:inherit; }
+#tenantCarritoForm textarea{ resize:vertical; min-height:60px; }
+#tenantCarritoForm button[type="submit"]{ padding:12px 22px; border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; cursor:pointer; justify-self:start; }
 @media (max-width:720px){ .tenant-detalle-grid{ grid-template-columns:1fr; } .tenant-portal-tabla{ display:block; overflow-x:auto; } }
 `;
 }
 
-function encabezadoTenantHtml(datos, paginaActiva, mostrarCredito) {
+function encabezadoTenantHtml(datos, paginaActiva, mostrarCredito, mostrarCarrito) {
     const nombre = escaparHtml(datos.nombre);
     return `<header class="tenant-header">
 <div class="tenant-header-marca">
@@ -284,6 +338,7 @@ ${datos.logo ? `<img src="${escaparHtml(datos.logo)}" alt="Logo ${nombre}">` : "
 <a href="/catalogo" class="${paginaActiva === "catalogo" ? "activo" : ""}">Catalogo</a>
 ${mostrarCredito ? `<a href="/solicitud-credito" class="${paginaActiva === "credito" ? "activo" : ""}">Credito</a>` : ""}
 <a href="/portal-cliente" class="${paginaActiva === "portal" ? "activo" : ""}">Mi cuenta</a>
+${mostrarCarrito ? `<button type="button" class="tenant-carrito-boton-nav" id="tenantCarritoAbrirBoton" aria-label="Ver carrito">Carrito<span id="carritoContador" class="tenant-carrito-contador">0</span></button>` : ""}
 </nav>
 </header>`;
 }
@@ -332,6 +387,7 @@ ${imagenMeta ? `<meta property="og:image" content="${escaparHtml(imagenMeta)}">`
 </head>
 <body>
 ${encabezadoTenantHtml(datos, "inicio", datos.aceptarSolicitudesCredito)}
+${bannerPromocionHtml(datos)}
 <div class="tenant-portada">${datos.portada ? `<img src="${escaparHtml(datos.portada)}" alt="">` : ""}</div>
 <main class="tenant-main tenant-main-angosto">
 ${descripcion ? `<p>${descripcion}</p>` : ""}
@@ -366,7 +422,11 @@ async function servirSitioNegocio(pool, req, res, slug) {
             whatsapp: sitio.config.whatsapp,
             facebook: sitio.config.facebook,
             instagram: sitio.config.instagram,
-            aceptarSolicitudesCredito: sitio.config.aceptarSolicitudesCredito
+            aceptarSolicitudesCredito: sitio.config.aceptarSolicitudesCredito,
+            promocionActiva: sitio.config.promocionActiva,
+            promocionTitulo: sitio.config.promocionTitulo,
+            promocionTexto: sitio.config.promocionTexto,
+            promocionEnlace: sitio.config.promocionEnlace
         });
 
         res.set("Content-Type", "text/html; charset=utf-8").send(html);
@@ -485,14 +545,17 @@ async function servirCatalogoNegocio(pool, req, res, slug, firmarTokenImagen) {
                     ? `<span class="tenant-producto-precio">$${Number(p.precio).toFixed(2)}</span>`
                     : "";
 
-                return `<a class="tenant-producto-card" href="/catalogo/${encodeURIComponent(p.codigo)}">
+                return `<div class="tenant-producto-card">
+<a href="/catalogo/${encodeURIComponent(p.codigo)}">
 <div class="tenant-producto-foto">${fotoUrl ? `<img src="${fotoUrl}" alt="${escaparHtml(p.nombre)}">` : `<span class="tenant-producto-foto-vacia">Sin foto</span>`}</div>
 <div class="tenant-producto-info">
 <span class="tenant-producto-nombre">${escaparHtml(p.nombre)}</span>
 ${precioHtml}
 ${existenciaHtml}
 </div>
-</a>`;
+</a>
+<button type="button" class="tenant-btn-carrito" data-codigo="${escaparHtml(p.codigo)}" data-nombre="${escaparHtml(p.nombre)}">Agregar al carrito</button>
+</div>`;
             }).join("")
             : "";
 
@@ -524,7 +587,8 @@ ${pagina < totalPaginas ? `<a href="/catalogo${construirQueryString({ buscar, ca
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito)}
+${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true)}
+${bannerPromocionHtml(sitio.config)}
 <main class="tenant-main">
 <h1 class="tenant-catalogo-titulo">Catalogo de productos</h1>
 <form class="tenant-filtros" method="GET" action="/catalogo">
@@ -538,6 +602,8 @@ ${productos.length
     : `<div class="tenant-catalogo-vacio">No encontramos productos con esos filtros.</div>`}
 </main>
 <footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+${modalCarritoTenantHtml(slug)}
+<script>${scriptCarritoTenantHtml(slug)}</script>
 </body>
 </html>`;
 
@@ -631,7 +697,8 @@ ${fotoUrl ? `<meta property="og:image" content="${fotoUrl}">` : ""}
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito)}
+${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true)}
+${bannerPromocionHtml(sitio.config)}
 <main class="tenant-main">
 <a class="tenant-volver" href="/catalogo">&larr; Volver al catalogo</a>
 ${bannerPedidoHtml}
@@ -644,12 +711,14 @@ ${precio !== null && Number.isFinite(precio) ? `<div class="tenant-detalle-preci
 ${stock !== null ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>` : ""}
 ${producto.descripcion ? `<p>${escaparHtml(producto.descripcion)}</p>` : ""}
 ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto tiene garantia${producto.garantia_detalle ? `: ${escaparHtml(producto.garantia_detalle)}` : "."}</div>` : ""}
-<div class="tenant-acciones">${whatsappHtml}</div>
+<div class="tenant-acciones">${whatsappHtml}<button type="button" class="tenant-btn-carrito" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button></div>
 </div>
 </div>
 ${formularioPedidoHtml}
 </main>
 <footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+${modalCarritoTenantHtml(slug)}
+<script>${scriptCarritoTenantHtml(slug)}</script>
 </body>
 </html>`;
 
@@ -748,6 +817,397 @@ async function recibirPedidoPublico(pool, req, res, slug, codigo) {
         console.warn("Error recibiendo pedido publico:", error.message);
         volverConError();
     }
+}
+
+// Carrito multi-producto (Fase 7): lista armada en el navegador
+// (localStorage), enviada como UN solo pedido con varias filas en
+// pedidos_publicos compartiendo grupo_id. Llamada por fetch/JSON (no
+// un <form> plano) -- mismo precedente ya aceptado en el portal de
+// cliente para paginas que si necesitan JS.
+async function recibirPedidoCarritoPublico(pool, req, res, slug) {
+    try {
+        const sitio = await resolverSitioPublico(pool, slug);
+
+        if (!sitio) {
+            res.status(404).json({ ok: false, error: "No encontrado" });
+            return;
+        }
+
+        if (paramTexto(req.body?.sitioExtra, 200)) {
+            res.json({ ok: false, error: "No se pudo enviar el pedido." });
+            return;
+        }
+
+        if (limitadorPedidoPublico.bloqueado(req.ip)) {
+            res.json({ ok: false, error: "Demasiados intentos. Intenta mas tarde." });
+            return;
+        }
+
+        limitadorPedidoPublico.registrarFallo(req.ip);
+
+        const itemsBody = Array.isArray(req.body?.items) ? req.body.items : [];
+
+        if (itemsBody.length === 0 || itemsBody.length > MAX_ITEMS_CARRITO) {
+            res.json({ ok: false, error: `El carrito debe tener entre 1 y ${MAX_ITEMS_CARRITO} productos.` });
+            return;
+        }
+
+        const clienteNombre = paramTexto(req.body?.clienteNombre, 140);
+        const clienteTelefono = paramTexto(req.body?.clienteTelefono, 40);
+        const clienteCorreo = paramTexto(req.body?.clienteCorreo, 140).toLowerCase();
+        const mensaje = paramTexto(req.body?.mensaje, 500);
+
+        if (!clienteNombre) {
+            res.json({ ok: false, error: "Escribe tu nombre." });
+            return;
+        }
+
+        if (!clienteTelefono && !clienteCorreo) {
+            res.json({ ok: false, error: "Deja un telefono o un correo para contactarte." });
+            return;
+        }
+
+        if (clienteCorreo && !REGEX_CORREO.test(clienteCorreo)) {
+            res.json({ ok: false, error: "El correo no es valido." });
+            return;
+        }
+
+        const codigos = itemsBody.map(item => paramTexto(item?.codigo, 80)).filter(Boolean);
+
+        if (codigos.length !== itemsBody.length || new Set(codigos).size !== codigos.length) {
+            res.json({ ok: false, error: "Hay un producto invalido o repetido en el carrito." });
+            return;
+        }
+
+        const client = await pool.connect();
+        let grupoId = null;
+        let cuentaCreada = false;
+        let codigoAcceso = null;
+        let itemsParaCorreo = [];
+
+        try {
+            await client.query("BEGIN");
+
+            const productosRes = await client.query(
+                `SELECT codigo, nombre FROM public.productos WHERE negocio_id = $1 AND codigo = ANY($2)`,
+                [sitio.negocio.id, codigos]
+            );
+            const nombresPorCodigo = new Map(productosRes.rows.map(p => [p.codigo, p.nombre]));
+
+            if (nombresPorCodigo.size !== codigos.length) {
+                await client.query("ROLLBACK");
+                res.json({ ok: false, error: "Uno de los productos ya no esta disponible." });
+                return;
+            }
+
+            grupoId = crypto.randomUUID();
+
+            for (const item of itemsBody) {
+                const codigo = paramTexto(item?.codigo, 80);
+                const cantidad = Math.min(9999, Math.max(1, parseInt(item?.cantidad, 10) || 1));
+                const nombreProducto = nombresPorCodigo.get(codigo);
+
+                await client.query(
+                    `
+                    INSERT INTO public.pedidos_publicos
+                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    `,
+                    [sitio.negocio.id, codigo, nombreProducto, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId]
+                );
+
+                itemsParaCorreo.push({ nombre: nombreProducto, cantidad });
+            }
+
+            // Cuenta ligera (Fase 7): solo si hay telefono valido y NO
+            // existe ya ninguna fila de clientes_credito para ese
+            // telefono en este negocio -- ni cliente real del dueno, ni
+            // visitante previo. Nunca se pisa/activa una cuenta ya
+            // existente desde este formulario publico -- cierra el
+            // riesgo de que alguien reclame el portal de otro cliente
+            // solo escribiendo su telefono.
+            const digitosTelefono = clienteTelefono.replace(/\D/g, "");
+            if (digitosTelefono.length >= 10) {
+                const existente = await client.query(
+                    `SELECT id FROM public.clientes_credito WHERE negocio_id = $1 AND telefono = $2`,
+                    [sitio.negocio.id, clienteTelefono]
+                );
+
+                if (existente.rows.length === 0) {
+                    codigoAcceso = generarCodigoAccesoCliente();
+                    await client.query(
+                        `
+                        INSERT INTO public.clientes_credito
+                            (negocio_id, nombre, telefono, limite_credito, es_visitante_sitio, codigo_acceso_hash, codigo_acceso_generado_at)
+                        VALUES ($1, $2, $3, 0, true, $4, NOW())
+                        `,
+                        [sitio.negocio.id, clienteNombre, clienteTelefono, hashPassword(codigoAcceso)]
+                    );
+                    cuentaCreada = true;
+                }
+            }
+
+            await client.query("COMMIT");
+        } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+        } finally {
+            client.release();
+        }
+
+        if (sitio.negocio.correo) {
+            enviarCorreoPedidoCarritoPublico(sitio.negocio.correo, sitio.negocio.nombre, {
+                items: itemsParaCorreo,
+                clienteNombre,
+                clienteTelefono,
+                clienteCorreo,
+                mensaje,
+                urlCatalogo: `https://${slug}.nexoposoficial.com/catalogo`
+            }).catch(error => console.warn("No se pudo enviar el aviso de pedido de carrito:", error.message));
+        }
+
+        res.json({
+            ok: true,
+            cuenta: cuentaCreada ? { creada: true, codigo: codigoAcceso } : { creada: false }
+        });
+    } catch (error) {
+        console.warn("Error recibiendo pedido de carrito publico:", error.message);
+        res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+    }
+}
+
+// Modal del carrito (mismo esqueleto que el resto de modales
+// personalizados del proyecto: crear/reusar por id, cerrar con
+// Escape/backdrop). Markup identico para cualquier negocio -- el
+// contenido real se pinta despues via JS con textContent.
+function modalCarritoTenantHtml() {
+    return `
+<div id="tenantCarritoOverlay" class="tenant-carrito-overlay" style="display:none;">
+<div class="tenant-carrito-modal">
+<div class="tenant-carrito-modal-header">
+<h2>Tu carrito</h2>
+<button type="button" id="tenantCarritoCerrarBoton" aria-label="Cerrar">&times;</button>
+</div>
+<div id="tenantCarritoListaVacia" class="tenant-portal-vacio">Todavia no agregas productos.</div>
+<table class="tenant-portal-tabla" id="tenantCarritoTabla" style="display:none;">
+<thead><tr><th>Producto</th><th>Cantidad</th><th></th></tr></thead>
+<tbody id="tenantCarritoItems"></tbody>
+</table>
+<form id="tenantCarritoForm" style="display:none;">
+<div class="tenant-pedido-honeypot" aria-hidden="true"><label>No llenar<input type="text" id="tenantCarritoHoneypot" tabindex="-1" autocomplete="off"></label></div>
+<label>Tu nombre<input type="text" id="tenantCarritoNombre" maxlength="140" required></label>
+<label>Telefono<input type="text" id="tenantCarritoTelefono" maxlength="40" placeholder="10 digitos"></label>
+<label>Correo (opcional)<input type="text" id="tenantCarritoCorreo" maxlength="140"></label>
+<label>Mensaje (opcional)<textarea id="tenantCarritoMensaje" maxlength="500"></textarea></label>
+<p id="tenantCarritoAviso" style="color:#e2434d; font-size:13px; margin:0;"></p>
+<button type="submit">Enviar pedido</button>
+</form>
+<div id="tenantCarritoExito" style="display:none;"></div>
+</div>
+</div>`;
+}
+
+// Script del carrito (Fase 7) -- estado en localStorage
+// (nexoCarrito_{slug}, namespaced por si varios negocios comparten
+// navegador, mismo criterio que el token del portal de cliente).
+// Todo dato del servidor se pinta con textContent, nunca innerHTML
+// con el valor crudo.
+function scriptCarritoTenantHtml(slug) {
+    return `
+const CARRITO_CLAVE = "nexoCarrito_${slug}";
+
+function carritoElemento(id){ return document.getElementById(id); }
+
+function carritoLeer(){
+    try {
+        const datos = JSON.parse(localStorage.getItem(CARRITO_CLAVE) || "[]");
+        return Array.isArray(datos) ? datos : [];
+    } catch (error) { return []; }
+}
+
+function carritoGuardar(items){
+    localStorage.setItem(CARRITO_CLAVE, JSON.stringify(items));
+    carritoActualizarBadge();
+}
+
+function carritoActualizarBadge(){
+    const badge = carritoElemento("carritoContador");
+    if (!badge) return;
+    const total = carritoLeer().reduce(function(suma, item){ return suma + (Number(item.cantidad) || 0); }, 0);
+    badge.textContent = String(total);
+}
+
+function carritoAgregar(codigo, nombre){
+    const items = carritoLeer();
+    const existente = items.find(function(item){ return item.codigo === codigo; });
+    if (existente) {
+        existente.cantidad = (Number(existente.cantidad) || 0) + 1;
+    } else {
+        items.push({ codigo: codigo, nombre: nombre, cantidad: 1 });
+    }
+    carritoGuardar(items);
+}
+
+function carritoQuitar(codigo){
+    carritoGuardar(carritoLeer().filter(function(item){ return item.codigo !== codigo; }));
+    carritoPintar();
+}
+
+function carritoCambiarCantidad(codigo, cantidad){
+    const items = carritoLeer();
+    const item = items.find(function(item){ return item.codigo === codigo; });
+    if (!item) return;
+    item.cantidad = Math.min(9999, Math.max(1, parseInt(cantidad, 10) || 1));
+    carritoGuardar(items);
+}
+
+function carritoPintar(){
+    const items = carritoLeer();
+    const vacio = carritoElemento("tenantCarritoListaVacia");
+    const tabla = carritoElemento("tenantCarritoTabla");
+    const form = carritoElemento("tenantCarritoForm");
+    const cuerpo = carritoElemento("tenantCarritoItems");
+    carritoElemento("tenantCarritoExito").style.display = "none";
+
+    if (items.length === 0) {
+        vacio.style.display = "";
+        tabla.style.display = "none";
+        form.style.display = "none";
+        return;
+    }
+
+    vacio.style.display = "none";
+    tabla.style.display = "";
+    form.style.display = "grid";
+
+    cuerpo.innerHTML = "";
+    items.forEach(function(item){
+        const fila = document.createElement("tr");
+
+        const celdaNombre = document.createElement("td");
+        celdaNombre.textContent = item.nombre || item.codigo;
+
+        const celdaCantidad = document.createElement("td");
+        const inputCantidad = document.createElement("input");
+        inputCantidad.type = "number";
+        inputCantidad.min = "1";
+        inputCantidad.value = item.cantidad;
+        inputCantidad.style.width = "64px";
+        inputCantidad.addEventListener("change", function(){ carritoCambiarCantidad(item.codigo, inputCantidad.value); });
+        celdaCantidad.appendChild(inputCantidad);
+
+        const celdaQuitar = document.createElement("td");
+        const botonQuitar = document.createElement("button");
+        botonQuitar.type = "button";
+        botonQuitar.textContent = "Quitar";
+        botonQuitar.addEventListener("click", function(){ carritoQuitar(item.codigo); });
+        celdaQuitar.appendChild(botonQuitar);
+
+        fila.appendChild(celdaNombre);
+        fila.appendChild(celdaCantidad);
+        fila.appendChild(celdaQuitar);
+        cuerpo.appendChild(fila);
+    });
+}
+
+function carritoAbrir(){
+    carritoPintar();
+    carritoElemento("tenantCarritoOverlay").style.display = "flex";
+}
+
+function carritoCerrar(){
+    carritoElemento("tenantCarritoOverlay").style.display = "none";
+}
+
+async function carritoEnviar(evento){
+    evento.preventDefault();
+    const aviso = carritoElemento("tenantCarritoAviso");
+    aviso.textContent = "";
+
+    const body = {
+        items: carritoLeer().map(function(item){ return { codigo: item.codigo, cantidad: item.cantidad }; }),
+        clienteNombre: carritoElemento("tenantCarritoNombre").value.trim(),
+        clienteTelefono: carritoElemento("tenantCarritoTelefono").value.trim(),
+        clienteCorreo: carritoElemento("tenantCarritoCorreo").value.trim(),
+        mensaje: carritoElemento("tenantCarritoMensaje").value.trim(),
+        sitioExtra: carritoElemento("tenantCarritoHoneypot").value
+    };
+
+    try {
+        const respuesta = await fetch("/catalogo/pedido-carrito", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        });
+        const datos = await respuesta.json();
+
+        if (!datos.ok) {
+            aviso.textContent = datos.error || "No se pudo enviar el pedido.";
+            return;
+        }
+
+        carritoGuardar([]);
+        carritoElemento("tenantCarritoTabla").style.display = "none";
+        carritoElemento("tenantCarritoForm").style.display = "none";
+        carritoElemento("tenantCarritoListaVacia").style.display = "none";
+
+        const exito = carritoElemento("tenantCarritoExito");
+        exito.innerHTML = "";
+        const mensajeExito = document.createElement("p");
+        mensajeExito.textContent = "Listo -- tu pedido fue enviado. El negocio te contactara pronto.";
+        exito.appendChild(mensajeExito);
+
+        if (datos.cuenta && datos.cuenta.creada) {
+            const cajaCodigo = document.createElement("div");
+            cajaCodigo.className = "tenant-portal-saldo";
+            const titulo = document.createElement("p");
+            titulo.textContent = "Guarda este codigo -- no se vuelve a mostrar:";
+            const codigo = document.createElement("div");
+            codigo.className = "tenant-portal-saldo-monto";
+            codigo.textContent = datos.cuenta.codigo;
+            const ayuda = document.createElement("p");
+            ayuda.style.fontSize = "13px";
+            ayuda.textContent = "Con tu telefono y este codigo puedes entrar a 'Mi cuenta' para ver tus pedidos despues.";
+            cajaCodigo.appendChild(titulo);
+            cajaCodigo.appendChild(codigo);
+            cajaCodigo.appendChild(ayuda);
+            exito.appendChild(cajaCodigo);
+        } else {
+            const avisoCuenta = document.createElement("p");
+            avisoCuenta.style.fontSize = "13px";
+            avisoCuenta.style.color = "var(--muted)";
+            avisoCuenta.textContent = "Si ya tienes una cuenta con este telefono, entra a 'Mi cuenta' para ver tus pedidos.";
+            exito.appendChild(avisoCuenta);
+        }
+
+        exito.style.display = "";
+    } catch (error) {
+        aviso.textContent = "No se pudo conectar. Intenta de nuevo.";
+    }
+}
+
+document.addEventListener("click", function(evento){
+    const boton = evento.target.closest(".tenant-btn-carrito");
+    if (boton) {
+        carritoAgregar(boton.getAttribute("data-codigo"), boton.getAttribute("data-nombre"));
+        boton.textContent = "Agregado";
+        setTimeout(function(){ boton.textContent = "Agregar al carrito"; }, 1200);
+        return;
+    }
+    if (evento.target.id === "tenantCarritoAbrirBoton") { carritoAbrir(); return; }
+    if (evento.target.id === "tenantCarritoCerrarBoton") { carritoCerrar(); return; }
+    if (evento.target.id === "tenantCarritoOverlay") { carritoCerrar(); return; }
+});
+
+document.addEventListener("keydown", function(evento){
+    if (evento.key === "Escape") carritoCerrar();
+});
+
+const formularioCarrito = document.getElementById("tenantCarritoForm");
+if (formularioCarrito) formularioCarrito.addEventListener("submit", carritoEnviar);
+
+carritoActualizarBadge();
+`;
 }
 
 async function servirSolicitudCreditoNegocio(pool, req, res, slug) {
@@ -1060,15 +1520,25 @@ async function mostrarPortalCliente(){
         elemento("portalClienteCuenta").style.display = "";
         escaparTexto(elemento("portalClienteSaludo"), "Hola, " + (datos.cliente.nombre || ""));
 
+        // Cuenta ligera (creada sola desde el carrito, sin limite de
+        // credito ni movimientos): se oculta la tarjeta de saldo por
+        // completo en vez de mostrar "$0.00 disponible", que confundiria
+        // a un visitante que nunca pidio credito.
+        const tieneCredito = (datos.movimientos && datos.movimientos.length > 0) || Number(datos.cliente.limite_credito) > 0;
         const tarjetaSaldo = elemento("portalClienteSaldoTarjeta");
-        tarjetaSaldo.classList.toggle("vencido", Boolean(datos.aging.vencido));
-        escaparTexto(elemento("portalClienteSaldoMonto"), dinero(datos.cliente.saldo));
-        const avisoVencido = elemento("portalClienteSaldoAviso");
-        if (datos.aging.vencido) {
-            avisoVencido.style.display = "";
-            escaparTexto(avisoVencido, "Tienes " + dinero(datos.aging.totalVencido) + " vencido.");
+        if (!tieneCredito) {
+            tarjetaSaldo.style.display = "none";
         } else {
-            avisoVencido.style.display = "none";
+            tarjetaSaldo.style.display = "";
+            tarjetaSaldo.classList.toggle("vencido", Boolean(datos.aging.vencido));
+            escaparTexto(elemento("portalClienteSaldoMonto"), dinero(datos.cliente.saldo));
+            const avisoVencido = elemento("portalClienteSaldoAviso");
+            if (datos.aging.vencido) {
+                avisoVencido.style.display = "";
+                escaparTexto(avisoVencido, "Tienes " + dinero(datos.aging.totalVencido) + " vencido.");
+            } else {
+                avisoVencido.style.display = "none";
+            }
         }
 
         pintarMovimientos(datos.movimientos);
@@ -1323,14 +1793,15 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const acceso = await funcionDelPlan(negocio.id, CLAVE_FUNCION_SITIO_WEB);
 
             const resultado = await pool.query(
-                `SELECT activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito FROM public.sitio_web_config WHERE negocio_id = $1`,
+                `SELECT activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace FROM public.sitio_web_config WHERE negocio_id = $1`,
                 [negocio.id]
             );
 
             const config = resultado.rows[0] || {
                 activo: false, descripcion: "", portada: null,
                 horario_texto: "", whatsapp: "", facebook: "", instagram: "",
-                mostrar_precios: false, mostrar_existencias: false, aceptar_solicitudes_credito: false
+                mostrar_precios: false, mostrar_existencias: false, aceptar_solicitudes_credito: false,
+                promocion_activa: false, promocion_titulo: "", promocion_texto: "", promocion_enlace: ""
             };
 
             res.json({
@@ -1347,7 +1818,11 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 instagram: config.instagram,
                 mostrarPrecios: config.mostrar_precios,
                 mostrarExistencias: config.mostrar_existencias,
-                aceptarSolicitudesCredito: config.aceptar_solicitudes_credito
+                aceptarSolicitudesCredito: config.aceptar_solicitudes_credito,
+                promocionActiva: config.promocion_activa,
+                promocionTitulo: config.promocion_titulo,
+                promocionTexto: config.promocion_texto,
+                promocionEnlace: config.promocion_enlace
             });
         } catch (error) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
@@ -1377,6 +1852,10 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const mostrarPrecios = Boolean(req.body?.mostrarPrecios);
             const mostrarExistencias = Boolean(req.body?.mostrarExistencias);
             const aceptarSolicitudesCredito = Boolean(req.body?.aceptarSolicitudesCredito);
+            const promocionActiva = Boolean(req.body?.promocionActiva);
+            const promocionTitulo = String(req.body?.promocionTitulo || "").slice(0, 140);
+            const promocionTexto = String(req.body?.promocionTexto || "").slice(0, 500);
+            const promocionEnlace = String(req.body?.promocionEnlace || "").slice(0, 300);
 
             // "portada" solo viene en el body cuando el usuario de verdad
             // subio/quito una imagen (ver sitio-web-view.js) -- si la clave
@@ -1400,15 +1879,17 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             await pool.query(
                 `
                 INSERT INTO public.sitio_web_config
-                    (negocio_id, activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $11, $12, NOW())
+                    (negocio_id, activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $11, $12, $13, $14, $15, $16, NOW())
                 ON CONFLICT (negocio_id) DO UPDATE SET
                     activo = $2, descripcion = $3,
                     portada = CASE WHEN $9 THEN $4 ELSE sitio_web_config.portada END,
                     horario_texto = $5, whatsapp = $6, facebook = $7, instagram = $8,
-                    mostrar_precios = $10, mostrar_existencias = $11, aceptar_solicitudes_credito = $12, updated_at = NOW()
+                    mostrar_precios = $10, mostrar_existencias = $11, aceptar_solicitudes_credito = $12,
+                    promocion_activa = $13, promocion_titulo = $14, promocion_texto = $15, promocion_enlace = $16,
+                    updated_at = NOW()
                 `,
-                [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias, aceptarSolicitudesCredito]
+                [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias, aceptarSolicitudesCredito, promocionActiva, promocionTitulo, promocionTexto, promocionEnlace]
             );
 
             res.json({ ok: true });
@@ -1603,6 +2084,7 @@ module.exports = {
     servirCatalogoNegocio,
     servirProductoNegocio,
     recibirPedidoPublico,
+    recibirPedidoCarritoPublico,
     servirSolicitudCreditoNegocio,
     recibirSolicitudCreditoPublica,
     servirPortalClienteNegocio,

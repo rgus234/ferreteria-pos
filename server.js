@@ -21,6 +21,7 @@ const {
     servirCatalogoNegocio,
     servirProductoNegocio,
     recibirPedidoPublico,
+    recibirPedidoCarritoPublico,
     servirSolicitudCreditoNegocio,
     recibirSolicitudCreditoPublica,
     servirPortalClienteNegocio,
@@ -4566,6 +4567,12 @@ app.post("/catalogo/:codigo/pedido", async (req, res) => {
     await recibirPedidoPublico(pool, req, res, slugTenant, req.params.codigo);
 });
 
+app.post("/catalogo/pedido-carrito", async (req, res) => {
+    const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
+    if (!slugTenant) { res.status(404).json({ ok: false, error: "No encontrado" }); return; }
+    await recibirPedidoCarritoPublico(pool, req, res, slugTenant);
+});
+
 app.get("/solicitud-credito", async (req, res) => {
     const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
     if (!slugTenant) { res.status(404).send("No encontrado"); return; }
@@ -6215,6 +6222,7 @@ app.get("/creditos", requerirAccesoNegocio, async (req, res) => {
                 AND m.negocio_id = c.negocio_id
             WHERE c.activo = true
             AND c.negocio_id = $1
+            AND c.es_visitante_sitio = false
             GROUP BY c.id
             ORDER BY saldo DESC, c.nombre ASC
         `, [negocio.id]);

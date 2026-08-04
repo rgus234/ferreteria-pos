@@ -6848,3 +6848,92 @@ automatizada completa (`npm test`, 19 casos) sigue en verde tras el
 cambio de la consulta en `GET /creditos/clientes/:id` -- sin
 regresiones. Migracion aplicada con confirmacion explicita.
 Pendiente de confirmacion del usuario para `git add`/`commit`.
+
+## 2026-08-10 -- Sitio web por negocio, Fase 7: carrito ligero, cuenta automatica y promociones
+
+El usuario comparto `fixferreterias.com` (Magento, carrito real +
+pago en linea + cuenta con correo/contraseña) y pidio ese tipo de
+funcionalidad en el sitio publico "con mi estilo de nexo". Esto
+chocaba con una decision explicita y repetida en Fase 2/3 de este
+mismo proyecto ("sin carrito real ni pago en linea"). Se le explico la
+tension (un carrito con pago real convertiria a Nexo POS en procesador
+de pagos por cada negocio -- Stripe Connect, KYC, reembolsos) y se
+resolvio con 2 `AskUserQuestion`: **carrito = lista de pedido sin
+pago** (varios productos, un solo envio, revision manual del dueno) y
+**cuenta = reusar el portal de cliente ya construido** (Fase 6,
+telefono + codigo), abierto tambien a visitantes del sitio publico.
+
+**Migracion** (`migrations/20260810_carrito_promo_cuenta_ligera.sql`):
+`pedidos_publicos.grupo_id` (TEXT, agrupa varias filas de un mismo
+carrito -- generado en JS con `crypto.randomUUID()`, sin depender de
+`pgcrypto`), `clientes_credito.es_visitante_sitio` (BOOLEAN, distingue
+una cuenta auto-creada desde el carrito de un cliente de credito real
+dado de alta por el dueno), y 4 columnas de promocion en
+`sitio_web_config` (`promocion_activa/titulo/texto/enlace`).
+
+**Carrito** (`public-site-server.js`): nueva
+`recibirPedidoCarritoPublico` -- transaccional (`pool.connect()`,
+hasta 30 items), resuelve cada `codigo` contra `productos` (nunca
+confia en el nombre que manda el cliente), inserta una fila por item
+en `pedidos_publicos` compartiendo `grupo_id`. El formulario de
+un-solo-producto de Fase 3 se deja intacto, sin tocarlo. Nueva
+`scriptCarritoTenantHtml`/`modalCarritoTenantHtml` -- misma logica que
+el portal de cliente: pagina sin JS por defecto, esta si lo necesita
+(persistir la lista entre paginas via `localStorage`, namespaced por
+slug). `encabezadoTenantHtml` gana un 4to parametro `mostrarCarrito`
+(boton+badge en el nav, solo en catalogo y detalle de producto).
+`servirCatalogoNegocio` restructura la tarjeta de producto (de
+`<a>` completo a `<div>` con `<a>` + `<button>` hermano, para poder
+meter el boton "Agregar al carrito" sin anidar interactivos).
+
+**Cuenta ligera (guard de seguridad, no solo feature)**: al enviar un
+carrito con telefono, si **no existe ninguna fila** `clientes_credito`
+para ese `(negocio_id, telefono)` -- ni cliente real del dueno, ni
+visitante previo -- se crea una fila nueva (`limite_credito:0,
+es_visitante_sitio:true`) con un codigo de acceso generado solo
+(mismo alfabeto/formato que Fase 6, `hashPassword` igual que el
+resto del proyecto), devuelto **una sola vez** en el JSON de
+respuesta (nunca en la URL). Si ya existe una fila para ese telefono
+(cliente real o visitante repetido), el pedido se guarda igual pero
+**nunca** se genera/activa un codigo nuevo -- cierra el riesgo de que
+alguien reclame el portal de un cliente real solo escribiendo su
+telefono en el formulario publico. `scriptPortalClienteHtml` oculta
+la tarjeta de saldo cuando la cuenta no tiene movimientos ni limite
+de credito (una cuenta ligera nunca ve "$0.00 disponible").
+`GET /creditos` (POS del dueno) gana `AND c.es_visitante_sitio = false`
+para que estas cuentas no ensucien la lista real de clientes de
+credito.
+
+**Promociones**: `resolverSitioPublico`/`GET`/`PUT
+/negocio-actual/sitio-web` ganan las 4 columnas nuevas; un banner
+(`bannerPromocionHtml`, todo escapado) aparece en inicio/catalogo/
+detalle cuando `promocion_activa` y titulo/texto no estan vacios --
+nunca en solicitud-credito ni portal-cliente. Nueva seccion
+"Promocion" en `sitio-web-view.js` (toggle+titulo+texto+enlace, mismo
+patron que los demas toggles del sitio).
+
+**Correo nuevo**: `enviarCorreoPedidoCarritoPublico` (`email.js`) --
+mismo molde que `enviarCorreoPedidoPublico`, pero lista todos los
+items del `grupo_id` y se manda una sola vez por carrito (no una vez
+por item, para no llenar el correo del negocio).
+
+**Verificacion**: 28 casos contra un negocio sintetico (plan `demo`,
+tratado igual que Pro), nunca `negocio_id = 1` -- script en
+`scripts/verificar-carrito-promo.js`. Cubre: catalogo trae boton y
+badge de carrito; carrito de 2 items crea cuenta ligera con codigo
+valido y 2 filas con el mismo `grupo_id`; login con esa cuenta ve
+"Tus pedidos" sin tarjeta de credito; repetir con el mismo telefono
+no crea una segunda cuenta; un telefono de un cliente de credito real
+**nunca** recibe un codigo nuevo desde el carrito publico (el pedido
+si se guarda); `GET /creditos` excluye las cuentas ligeras pero
+incluye al cliente real; el formulario de un-solo-producto sigue
+funcionando sin regresion; banner de promocion aparece/desaparece
+segun el toggle, con XSS escapado; carrito con 31 items o un codigo
+inexistente se rechaza. Bug de prueba encontrado y corregido durante
+la verificacion (no del producto): el primer intento de comprobar
+"el banner desaparece" comparaba la subcadena `tenant-promo-banner`,
+que tambien aparece en la regla CSS del `<style>` (siempre presente) --
+se corrigio a buscar el `<div class="tenant-promo-banner">` real.
+Suite automatizada completa (`npm test`, 19 casos) sigue en verde.
+Migracion aplicada con confirmacion explicita. Pendiente de
+confirmacion del usuario para `git add`/`commit`.

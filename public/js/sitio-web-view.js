@@ -100,6 +100,26 @@ function renderSitioWebFormulario(pantalla, datos) {
  </label>
  <p class="sitio-web-nota">Al activarlo, tus clientes podran pedirte credito desde tu sitio, incluyendo subir su identificacion oficial. Revisalas en "Solicitudes de credito" mas abajo.</p>
 
+ <label class="sitio-web-toggle">
+ <input type="checkbox" id="sitioWebPromocionActiva" ${datos.promocionActiva ? "checked" : ""}>
+ <span>Promocion activa (aviso en la parte superior del sitio)</span>
+ </label>
+
+ <label>
+ <span>Titulo de la promocion</span>
+ <input type="text" id="sitioWebPromocionTitulo" maxlength="140" placeholder="Ej. Descuento de temporada" value="${datos.promocionTitulo || ""}">
+ </label>
+
+ <label>
+ <span>Texto de la promocion</span>
+ <textarea id="sitioWebPromocionTexto" rows="2" maxlength="500" placeholder="Ej. 10% de descuento en herramienta electrica esta semana.">${datos.promocionTexto || ""}</textarea>
+ </label>
+
+ <label>
+ <span>Enlace (opcional)</span>
+ <input type="text" id="sitioWebPromocionEnlace" maxlength="300" placeholder="Ej. https://tu-sitio.nexoposoficial.com/catalogo" value="${datos.promocionEnlace || ""}">
+ </label>
+
  <label>
  <span>Descripcion</span>
  <textarea id="sitioWebDescripcion" rows="3" maxlength="2000" placeholder="Cuentale a tus clientes que vendes y que te hace diferente.">${datos.descripcion || ""}</textarea>
@@ -389,6 +409,10 @@ async function guardarSitioWeb() {
  mostrarPrecios: document.getElementById("sitioWebMostrarPrecios")?.checked || false,
  mostrarExistencias: document.getElementById("sitioWebMostrarExistencias")?.checked || false,
  aceptarSolicitudesCredito: document.getElementById("sitioWebAceptarCredito")?.checked || false,
+ promocionActiva: document.getElementById("sitioWebPromocionActiva")?.checked || false,
+ promocionTitulo: document.getElementById("sitioWebPromocionTitulo")?.value || "",
+ promocionTexto: document.getElementById("sitioWebPromocionTexto")?.value || "",
+ promocionEnlace: document.getElementById("sitioWebPromocionEnlace")?.value || "",
  descripcion: document.getElementById("sitioWebDescripcion")?.value || "",
  horarioTexto: document.getElementById("sitioWebHorario")?.value || "",
  whatsapp: document.getElementById("sitioWebWhatsapp")?.value || "",
