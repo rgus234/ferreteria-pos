@@ -321,6 +321,14 @@ function renderCreditoDetalleExtra() {
  : "";
  }
 
+ const accionPortal = document.getElementById("creditoAccionPortal");
+ if (accionPortal) {
+ accionPortal.innerHTML = creditoActual.codigoAccesoActivo
+ ? `<button class="btn-portal-cliente" type="button" onclick="activarPortalCliente()">Regenerar codigo de acceso</button>
+ <button class="btn-portal-cliente-desactivar" type="button" onclick="desactivarPortalCliente()">Desactivar portal</button>`
+ : `<button class="btn-portal-cliente" type="button" onclick="activarPortalCliente()">Activar portal del cliente</button>`;
+ }
+
  const pagosTab = document.getElementById("creditoPagosTabla");
  if (pagosTab) {
  const pagos = (window.movimientosCreditoActuales || []).filter(mov => mov.tipo === "abono");
@@ -559,6 +567,66 @@ function enviarRecordatorioCreditoWhatsApp() {
  `. Te agradecemos tu pago a la brevedad. Cualquier duda, contactanos.`;
 
  window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+}
+
+// Portal de cliente final (Fase 6 del sitio web por negocio) -- el
+// codigo se genera en el servidor y se regresa en texto plano UNA
+// sola vez en esta respuesta; nunca se puede volver a consultar
+// despues. El dueno lo comparte el mismo con el cliente (de palabra,
+// WhatsApp, impreso), mismo criterio que el recordatorio de arriba.
+async function activarPortalCliente() {
+ if (!creditoActual) return;
+
+ try {
+ const respuesta = await fetch(`/creditos/clientes/${creditoActual.id}/codigo-acceso`, { method: "POST" });
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ await alertaPOS(datos.error || "No se pudo generar el codigo de acceso.", "Portal del cliente", "alerta");
+ return;
+ }
+
+ navigator.clipboard?.writeText(datos.codigo).catch(() => {});
+
+ await dialogoPOS({
+ tipo: "exito",
+ titulo: "Portal activado",
+ mensaje: `Codigo para ${creditoActual.nombre}: ${datos.codigo}. Compartelo tu mismo (de palabra, WhatsApp, impreso) para que pueda entrar a su area en tu sitio web -- este codigo solo se muestra una vez. Ya se copio a tu portapapeles.`,
+ textoAceptar: "Entendido"
+ });
+
+ creditoActual.codigoAccesoActivo = true;
+ renderCreditoDetalleExtra();
+ } catch (error) {
+ await alertaPOS("No se pudo generar el codigo de acceso. Intenta de nuevo.", "Portal del cliente", "alerta");
+ }
+}
+
+async function desactivarPortalCliente() {
+ if (!creditoActual) return;
+
+ const confirmar = await confirmarPOS(
+ `Desactivar el portal de ${creditoActual.nombre}? Ya no podra iniciar sesion con su codigo actual.`,
+ "Desactivar portal",
+ "alerta"
+ );
+ if (!confirmar) return;
+
+ try {
+ const respuesta = await fetch(`/creditos/clientes/${creditoActual.id}/codigo-acceso/revocar`, { method: "POST" });
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ await alertaPOS(datos.error || "No se pudo desactivar el portal.", "Portal del cliente", "alerta");
+ return;
+ }
+
+ creditoActual.codigoAccesoActivo = false;
+ renderCreditoDetalleExtra();
+ alertaPOS("Portal desactivado.", "Portal del cliente", "exito");
+ } catch (error) {
+ await alertaPOS("No se pudo desactivar el portal. Intenta de nuevo.", "Portal del cliente", "alerta");
+ }
 }
 
 async function imprimirEstadoCuentaCredito() {

@@ -6760,4 +6760,91 @@ Negocio sintetico y todos sus datos (config, dispositivo de prueba,
 solicitudes con fotos) borrados por completo al terminar, confirmado
 `0` filas restantes y `negocio_id = 1` (Ferreteria Olimpico) sin
 cambios de licencia/plan durante toda la prueba.
+
+## 2026-08-08 -- Sitio web por negocio, Fase 6: area de cliente (portal de credito)
+
+Ultima pieza del roadmap original de "sitio web por negocio" -- que el
+cliente final del negocio (no el dueno) pueda entrar a su propia area
+en `{slug}.nexoposoficial.com` y ver su cuenta de credito y sus
+pedidos hechos por "Pedir este producto" (Fase 3). El usuario eligio
+explicitamente esta pieza sobre la otra pendiente (dominio propio del
+cliente), y resolvio 2 decisiones de alcance: login por telefono +
+codigo de acceso que el dueno genera y comparte el mismo (nunca
+correo/SMS automatizado -- no existe ese canal en el proyecto hoy), y
+que el portal muestre credito + pedidos (no solo credito).
+
+**Esquema** (`migrations/20260808_portal_cliente_credito.sql`):
+`clientes_credito` gana `codigo_acceso_hash`/`codigo_acceso_generado_at`
+(ambos NULL por default -- portal desactivado para todo cliente
+existente, incluidos los reales de Ferreteria Olimpico). Tabla nueva
+`sesiones_cliente_credito` (id, cliente_id FK CASCADE, token_hash
+UNIQUE, ip, creado_at, ultimo_uso_at, revocado_at) -- mismo patron que
+`sesiones_cuenta` del dueno, pero scoped a un cliente individual en
+vez de a un negocio completo.
+
+**Backend, lado dueno** (`server.js`, junto a las rutas ya existentes
+de `/creditos/clientes/:id`): `POST /creditos/clientes/:id/codigo-acceso`
+genera un codigo de 8 caracteres (alfabeto sin `0/O/1/I`, legible a
+mano), lo hashea con `hashPassword` (mismo modulo que el PIN de
+empleados), lo regresa en texto plano **una sola vez**, y revoca
+cualquier sesion de cliente activa previa. `POST .../codigo-acceso/revocar`
+desactiva el portal por completo. `GET /creditos/clientes/:id` ya no
+regresa `c.*` (evita exponer el hash al cliente) -- ahora selecciona
+columnas explicitas mas `codigoAccesoActivo` (booleano derivado).
+
+**Backend, lado publico** (`public-site-server.js`): dos limitadores
+nuevos (`crearLimitadorPorIp` generico, uno por IP y otro por
+`negocioId:telefono` para frenar fuerza bruta distribuida contra un
+cliente especifico). `servirPortalClienteNegocio` sirve una sola
+pagina HTML con `<script>` inline -- a diferencia de los formularios
+de Fase 3/4 (HTML puro sin JS), esta pagina necesita JavaScript
+porque persiste la sesion en `localStorage` (mismo criterio ya usado
+en `/dueno` para el dueno). `iniciarSesionClientePublico` valida
+telefono+codigo contra `clientes_credito` (honeypot + ambos
+limitadores primero, mensaje generico siempre). `requerirSesionClienteCredito`
+es un middleware nuevo con su propio header `x-cliente-token`
+(nunca `x-dispositivo-token` ni `Authorization: Bearer`, para no
+colisionar con `requerirAccesoNegocio`). `GET /portal-cliente/estado`
+reusa la misma consulta + `calcularAntiguedadCredito` (`credit-aging.js`)
+que ya usa el panel del dueno, mas un `SELECT` a `pedidos_publicos`
+filtrado por el mismo telefono de la sesion (cruce en vivo, sin
+columna `cliente_id` nueva en esa tabla -- decision explicita para no
+tocar el flujo de pedidos ya en produccion).
+
+**Frontend POS** (`credit-customers.js`): nueva seccion "Portal del
+cliente" en el detalle de cada cliente -- botones
+Activar/Regenerar/Desactivar, el codigo se muestra una sola vez en un
+dialogo con copiado automatico al portapapeles.
+
+**Bug real encontrado en la verificacion (no en el diseño, en la
+implementacion)**: la consulta de `GET /portal-cliente/estado`
+olvidaba seleccionar `fecha_vencimiento` de `movimientos_credito` --
+`credit-aging.js` recibia esa columna como `undefined`, asi que
+ninguna venta se marcaba nunca como vencida (`vencido:false` siempre,
+sin importar los datos reales). Corregido agregando la columna a la
+consulta.
+
+**Verificacion**: 26 casos contra 2 negocios sinteticos (uno Plus/Pro,
+uno Basico), nunca `negocio_id = 1` -- script en
+`scripts/verificar-portal-cliente.js` (nota tecnica: el script
+original vivia en `tests/` con sufijo `.test.js`, pero `node --test`
+lo descubre automaticamente por convencion de carpeta+sufijo y lo
+ejecutaria en cada `npm test` con efectos reales sobre la base de
+produccion -- se movio a `scripts/` para que quede opt-in, corrido
+solo a mano). Cubre: pagina de login sirve HTML real; login sin
+codigo activado falla; activar sin telefono se rechaza; codigo
+generado tiene el formato esperado; login con codigo incorrecto
+falla; login correcto entrega token; `/estado` refleja saldo, aging
+(vencido + antiguedad) y pedidos correctos comparados contra los
+datos insertados a mano; JSON nunca ejecuta HTML (el payload con
+`<script>`/`<b>` en nombre/concepto se sirve como texto plano);
+`/estado` sin token responde 401; logout revoca la sesion; regenerar
+codigo invalida el codigo y las sesiones anteriores; desactivar
+portal bloquea el login aunque el telefono sea correcto; plan Basico
+responde 404 en login y en la pagina; honeypot bloquea envios con
+datos correctos; rate limiting no truena tras intentos repetidos;
+`negocio_id = 1` sin ninguna fila de prueba al terminar. Suite
+automatizada completa (`npm test`, 19 casos) sigue en verde tras el
+cambio de la consulta en `GET /creditos/clientes/:id` -- sin
+regresiones. Migracion aplicada con confirmacion explicita.
 Pendiente de confirmacion del usuario para `git add`/`commit`.

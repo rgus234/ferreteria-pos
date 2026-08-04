@@ -16,8 +16,11 @@
 //     entre landing comercial / POS / sitio de negocio segun el host).
 
 const sharp = require("sharp");
+const crypto = require("crypto");
 const { funcionDelPlan } = require("./plan-enforcement");
 const { enviarCorreoPedidoPublico, enviarCorreoSolicitudCreditoPublica } = require("./email");
+const { verificarPassword } = require("./password-utils");
+const { calcularAntiguedadCredito } = require("./credit-aging");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
 const TAMANO_MAXIMO_PORTADA = 3 * 1024 * 1024;
@@ -51,6 +54,22 @@ function crearLimitadorPorIp(maxIntentos, ventanaMs) {
 
 const limitadorPedidoPublico = crearLimitadorPorIp(5, 60 * 60 * 1000);
 const limitadorSolicitudCredito = crearLimitadorPorIp(5, 60 * 60 * 1000);
+
+// Portal de cliente final (Fase 6): un limitador por IP y otro
+// separado por telefono+negocio -- este segundo evita que alguien
+// reparta intentos entre varias IPs para adivinar el codigo de UN
+// cliente en particular (el helper es generico, la "IP" que recibe
+// aqui es en realidad la clave `${negocioId}:${telefono}`).
+const limitadorLoginClientePublico = crearLimitadorPorIp(8, 15 * 60 * 1000);
+const limitadorLoginClientePorTelefono = crearLimitadorPorIp(10, 60 * 60 * 1000);
+
+function generarTokenSesionCliente() {
+    return crypto.randomBytes(32).toString("hex");
+}
+
+function hashTokenSesionCliente(tokenPlano) {
+    return crypto.createHash("sha256").update(String(tokenPlano)).digest("hex");
+}
 
 // Comprime una foto de identificacion antes de guardarla como BYTEA.
 // Ancho mayor que el usado para fotos de producto (320px) para que el
@@ -233,7 +252,23 @@ function estilosBaseTenant(color) {
 .tenant-pedido-form .tenant-consentimiento{ flex-direction:row; align-items:flex-start; gap:8px; font-weight:400; font-size:13px; color:var(--muted); }
 .tenant-pedido-form .tenant-consentimiento input{ width:16px; height:16px; margin-top:2px; flex-shrink:0; }
 .tenant-pedido-form .tenant-consentimiento a{ color:var(--blue); }
-@media (max-width:720px){ .tenant-detalle-grid{ grid-template-columns:1fr; } }
+.tenant-portal-saldo{ padding:24px; border-radius:18px; background:var(--glass); border:1px solid var(--line); margin:24px 0; text-align:center; }
+.tenant-portal-saldo-monto{ font-size:32px; font-weight:800; color:var(--blue); }
+.tenant-portal-saldo.vencido{ border-color:rgba(226,67,77,.35); background:rgba(226,67,77,.08); }
+.tenant-portal-saldo-aviso{ margin-top:8px; color:#e2434d; font-weight:700; font-size:14px; }
+.tenant-portal-seccion{ margin-top:32px; }
+.tenant-portal-seccion h2{ font-size:17px; margin:0 0 14px; }
+.tenant-portal-tabla{ width:100%; border-collapse:collapse; font-size:13px; }
+.tenant-portal-tabla th{ text-align:left; padding:8px 10px; color:var(--muted); font-weight:600; border-bottom:1px solid var(--line); }
+.tenant-portal-tabla td{ padding:10px; border-bottom:1px solid var(--line); color:var(--ink); }
+.tenant-portal-vacio{ color:var(--muted); font-size:14px; padding:16px 0; }
+.tenant-portal-logout{ margin-top:28px; padding:10px 20px; border-radius:999px; border:1px solid var(--line); background:var(--glass); color:var(--ink); font-weight:700; cursor:pointer; }
+.tenant-portal-badge{ padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; text-transform:capitalize; background:var(--glass); color:var(--muted); }
+.tenant-portal-badge.pendiente{ background:rgba(245,158,11,.15); color:#b45309; }
+.tenant-portal-badge.atendido{ background:rgba(24,184,143,.15); color:var(--mint); }
+.tenant-portal-badge.descartado{ background:rgba(226,67,77,.12); color:#e2434d; }
+.tenant-portal-saludo{ font-size:20px; margin:0 0 6px; }
+@media (max-width:720px){ .tenant-detalle-grid{ grid-template-columns:1fr; } .tenant-portal-tabla{ display:block; overflow-x:auto; } }
 `;
 }
 
@@ -248,6 +283,7 @@ ${datos.logo ? `<img src="${escaparHtml(datos.logo)}" alt="Logo ${nombre}">` : "
 <a href="/" class="${paginaActiva === "inicio" ? "activo" : ""}">Inicio</a>
 <a href="/catalogo" class="${paginaActiva === "catalogo" ? "activo" : ""}">Catalogo</a>
 ${mostrarCredito ? `<a href="/solicitud-credito" class="${paginaActiva === "credito" ? "activo" : ""}">Credito</a>` : ""}
+<a href="/portal-cliente" class="${paginaActiva === "portal" ? "activo" : ""}">Mi cuenta</a>
 </nav>
 </header>`;
 }
@@ -876,7 +912,411 @@ async function recibirSolicitudCreditoPublica(pool, req, res, slug) {
     }
 }
 
+// Portal de cliente final (Fase 6 del sitio web por negocio). A
+// diferencia de los formularios de Fase 3/4 (HTML puro, sin JS), esta
+// pagina si necesita JavaScript porque tiene que persistir una sesion
+// entre visitas (localStorage) -- mismo criterio ya usado en /dueno
+// para la sesion del propio dueno, aplicado aqui al cliente final.
+// El script es identico para cualquier negocio (no interpola ningun
+// dato del servidor dentro de si mismo); todo dato real llega despues
+// via fetch() y se inserta siempre con textContent, nunca innerHTML
+// con el valor crudo.
+function scriptPortalClienteHtml() {
+    return `
+const CLAVE_TOKEN = "nexoPortalClienteToken";
+
+function elemento(id){ return document.getElementById(id); }
+
+function escaparTexto(nodo, texto){ nodo.textContent = texto == null ? "" : String(texto); }
+
+function dinero(valor){
+    const numero = Number(valor) || 0;
+    return "$" + numero.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fechaCorta(iso){
+    if (!iso) return "";
+    try { return new Date(iso).toLocaleDateString("es-MX"); } catch (e) { return ""; }
+}
+
+async function iniciarSesionPortalCliente(evento){
+    evento.preventDefault();
+    const telefono = elemento("portalClienteTelefono").value.trim();
+    const codigo = elemento("portalClienteCodigo").value.trim();
+    const sitioExtra = elemento("portalClienteHoneypot").value;
+    const aviso = elemento("portalClienteAviso");
+    aviso.textContent = "";
+
+    try {
+        const respuesta = await fetch("/portal-cliente/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ telefono, codigo, sitioExtra })
+        });
+        const datos = await respuesta.json();
+        if (!datos.ok) {
+            aviso.textContent = datos.error || "Telefono o codigo incorrectos.";
+            return;
+        }
+        localStorage.setItem(CLAVE_TOKEN, datos.token);
+        mostrarPortalCliente();
+    } catch (error) {
+        aviso.textContent = "No se pudo conectar. Intenta de nuevo.";
+    }
+}
+
+async function cerrarSesionPortalCliente(){
+    const token = localStorage.getItem(CLAVE_TOKEN);
+    if (token) {
+        try {
+            await fetch("/portal-cliente/logout", { method: "POST", headers: { "x-cliente-token": token } });
+        } catch (error) { /* silencioso -- igual se limpia el token local */ }
+    }
+    localStorage.removeItem(CLAVE_TOKEN);
+    mostrarFormularioLoginCliente();
+}
+
+function mostrarFormularioLoginCliente(){
+    elemento("portalClienteLogin").style.display = "";
+    elemento("portalClienteCuenta").style.display = "none";
+}
+
+const BADGE_PEDIDO = { pendiente: "Pendiente", atendido: "Atendido", descartado: "Descartado" };
+
+function pintarMovimientos(movimientos){
+    const cuerpo = elemento("portalClienteMovimientos");
+    cuerpo.innerHTML = "";
+    if (!movimientos || movimientos.length === 0) {
+        const fila = document.createElement("tr");
+        const celda = document.createElement("td");
+        celda.colSpan = 4;
+        celda.className = "tenant-portal-vacio";
+        celda.textContent = "Todavia no tienes movimientos.";
+        fila.appendChild(celda);
+        cuerpo.appendChild(fila);
+        return;
+    }
+    movimientos.slice().reverse().forEach(function(mov){
+        const fila = document.createElement("tr");
+        const celdas = [fechaCorta(mov.fecha), mov.tipo === "venta" ? "Compra" : "Abono", mov.concepto || "", dinero(mov.monto)];
+        celdas.forEach(function(texto){
+            const celda = document.createElement("td");
+            escaparTexto(celda, texto);
+            fila.appendChild(celda);
+        });
+        cuerpo.appendChild(fila);
+    });
+}
+
+function pintarPedidos(pedidos){
+    const cuerpo = elemento("portalClientePedidos");
+    cuerpo.innerHTML = "";
+    if (!pedidos || pedidos.length === 0) {
+        const fila = document.createElement("tr");
+        const celda = document.createElement("td");
+        celda.colSpan = 4;
+        celda.className = "tenant-portal-vacio";
+        celda.textContent = "No has hecho pedidos en el sitio todavia.";
+        fila.appendChild(celda);
+        cuerpo.appendChild(fila);
+        return;
+    }
+    pedidos.forEach(function(pedido){
+        const fila = document.createElement("tr");
+        const celdaProducto = document.createElement("td");
+        escaparTexto(celdaProducto, pedido.producto_nombre);
+        const celdaCantidad = document.createElement("td");
+        escaparTexto(celdaCantidad, pedido.cantidad);
+        const celdaFecha = document.createElement("td");
+        escaparTexto(celdaFecha, fechaCorta(pedido.created_at));
+        const celdaEstado = document.createElement("td");
+        const badge = document.createElement("span");
+        badge.className = "tenant-portal-badge " + (pedido.estado || "pendiente");
+        badge.textContent = BADGE_PEDIDO[pedido.estado] || pedido.estado;
+        celdaEstado.appendChild(badge);
+        fila.appendChild(celdaProducto);
+        fila.appendChild(celdaCantidad);
+        fila.appendChild(celdaFecha);
+        fila.appendChild(celdaEstado);
+        cuerpo.appendChild(fila);
+    });
+}
+
+async function mostrarPortalCliente(){
+    const token = localStorage.getItem(CLAVE_TOKEN);
+    if (!token) { mostrarFormularioLoginCliente(); return; }
+
+    try {
+        const respuesta = await fetch("/portal-cliente/estado", { headers: { "x-cliente-token": token } });
+        if (respuesta.status === 401) {
+            localStorage.removeItem(CLAVE_TOKEN);
+            mostrarFormularioLoginCliente();
+            return;
+        }
+        const datos = await respuesta.json();
+        if (!datos.ok) { mostrarFormularioLoginCliente(); return; }
+
+        elemento("portalClienteLogin").style.display = "none";
+        elemento("portalClienteCuenta").style.display = "";
+        escaparTexto(elemento("portalClienteSaludo"), "Hola, " + (datos.cliente.nombre || ""));
+
+        const tarjetaSaldo = elemento("portalClienteSaldoTarjeta");
+        tarjetaSaldo.classList.toggle("vencido", Boolean(datos.aging.vencido));
+        escaparTexto(elemento("portalClienteSaldoMonto"), dinero(datos.cliente.saldo));
+        const avisoVencido = elemento("portalClienteSaldoAviso");
+        if (datos.aging.vencido) {
+            avisoVencido.style.display = "";
+            escaparTexto(avisoVencido, "Tienes " + dinero(datos.aging.totalVencido) + " vencido.");
+        } else {
+            avisoVencido.style.display = "none";
+        }
+
+        pintarMovimientos(datos.movimientos);
+        pintarPedidos(datos.pedidos);
+    } catch (error) {
+        mostrarFormularioLoginCliente();
+    }
+}
+
+document.getElementById("portalClienteLoginForm").addEventListener("submit", iniciarSesionPortalCliente);
+document.getElementById("portalClienteLogoutBoton").addEventListener("click", cerrarSesionPortalCliente);
+mostrarPortalCliente();
+`;
+}
+
+async function servirPortalClienteNegocio(pool, req, res, slug) {
+    try {
+        const sitio = await resolverSitioPublico(pool, slug);
+
+        if (!sitio) {
+            res.status(404).send("No encontrado");
+            return;
+        }
+
+        const color = colorSeguro(sitio.negocio.color);
+        const nombre = escaparHtml(sitio.negocio.nombre);
+
+        const html = `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mi cuenta -- ${nombre}</title>
+<meta name="description" content="Consulta tu credito y pedidos en ${nombre}.">
+<link rel="icon" href="/nexo-pos-icon.jpg">
+<link rel="stylesheet" href="/site/styles.css">
+<style>${estilosBaseTenant(color)}</style>
+</head>
+<body>
+${encabezadoTenantHtml(sitio.negocio, "portal", sitio.config.aceptarSolicitudesCredito)}
+<main class="tenant-main tenant-main-angosto">
+<div id="portalClienteLogin">
+<h1 class="tenant-catalogo-titulo">Mi cuenta</h1>
+<p>Entra con el telefono y el codigo de acceso que te dio el negocio.</p>
+<form class="tenant-pedido-form" id="portalClienteLoginForm">
+<div class="tenant-pedido-honeypot" aria-hidden="true"><label>No llenar<input type="text" id="portalClienteHoneypot" tabindex="-1" autocomplete="off"></label></div>
+<label>Telefono<input type="text" id="portalClienteTelefono" maxlength="40" required></label>
+<label>Codigo de acceso<input type="text" id="portalClienteCodigo" maxlength="16" required style="text-transform:uppercase;"></label>
+<p id="portalClienteAviso" style="color:#e2434d; font-size:13px; margin:0;"></p>
+<button type="submit">Entrar</button>
+</form>
+</div>
+<div id="portalClienteCuenta" style="display:none;">
+<h1 class="tenant-portal-saludo" id="portalClienteSaludo"></h1>
+<div class="tenant-portal-saldo" id="portalClienteSaldoTarjeta">
+<div class="tenant-portal-saldo-monto" id="portalClienteSaldoMonto"></div>
+<div style="color:var(--muted); font-size:13px;">Saldo actual</div>
+<div class="tenant-portal-saldo-aviso" id="portalClienteSaldoAviso" style="display:none;"></div>
+</div>
+<div class="tenant-portal-seccion">
+<h2>Tus movimientos</h2>
+<table class="tenant-portal-tabla">
+<thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th></tr></thead>
+<tbody id="portalClienteMovimientos"></tbody>
+</table>
+</div>
+<div class="tenant-portal-seccion">
+<h2>Tus pedidos</h2>
+<table class="tenant-portal-tabla">
+<thead><tr><th>Producto</th><th>Cantidad</th><th>Fecha</th><th>Estado</th></tr></thead>
+<tbody id="portalClientePedidos"></tbody>
+</table>
+</div>
+<button type="button" class="tenant-portal-logout" id="portalClienteLogoutBoton">Cerrar sesion</button>
+</div>
+</main>
+<footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+<script>${scriptPortalClienteHtml()}</script>
+</body>
+</html>`;
+
+        res.set("Content-Type", "text/html; charset=utf-8").send(html);
+    } catch (error) {
+        console.warn("Error sirviendo el portal de cliente:", error.message);
+        res.status(500).send("Error");
+    }
+}
+
+// Login del portal de cliente -- honeypot + doble limitador (IP y
+// negocio+telefono, ver comentario junto a los limitadores arriba)
+// antes de tocar la base de datos. Nunca revela si el telefono existe
+// o no -- mismo mensaje generico en cualquier caso de fallo.
+async function iniciarSesionClientePublico(pool, req, res, slug) {
+    try {
+        const sitio = await resolverSitioPublico(pool, slug);
+
+        if (!sitio) {
+            res.status(404).json({ ok: false, error: "No encontrado" });
+            return;
+        }
+
+        if (paramTexto(req.body?.sitioExtra, 200)) {
+            res.json({ ok: false, error: "Telefono o codigo incorrectos" });
+            return;
+        }
+
+        const telefono = paramTexto(req.body?.telefono, 40);
+        const codigo = paramTexto(req.body?.codigo, 16).toUpperCase();
+        const claveTelefono = `${sitio.negocio.id}:${telefono}`;
+
+        if (!telefono || !codigo || limitadorLoginClientePublico.bloqueado(req.ip) || limitadorLoginClientePorTelefono.bloqueado(claveTelefono)) {
+            limitadorLoginClientePublico.registrarFallo(req.ip);
+            res.json({ ok: false, error: "Telefono o codigo incorrectos" });
+            return;
+        }
+
+        const cliente = await pool.query(
+            `SELECT id, nombre, telefono, codigo_acceso_hash FROM public.clientes_credito
+             WHERE negocio_id = $1 AND telefono = $2 AND activo = true AND codigo_acceso_hash IS NOT NULL`,
+            [sitio.negocio.id, telefono]
+        );
+
+        const fila = cliente.rows[0];
+        if (!fila || !verificarPassword(codigo, fila.codigo_acceso_hash)) {
+            limitadorLoginClientePublico.registrarFallo(req.ip);
+            limitadorLoginClientePorTelefono.registrarFallo(claveTelefono);
+            res.json({ ok: false, error: "Telefono o codigo incorrectos" });
+            return;
+        }
+
+        const token = generarTokenSesionCliente();
+        await pool.query(
+            `INSERT INTO public.sesiones_cliente_credito (cliente_id, token_hash, ip) VALUES ($1, $2, $3)`,
+            [fila.id, hashTokenSesionCliente(token), req.ip]
+        );
+
+        res.json({ ok: true, token, nombre: fila.nombre });
+    } catch (error) {
+        console.warn("Error en login de portal de cliente:", error.message);
+        res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+    }
+}
+
+// Middleware de sesion del portal de cliente -- header propio
+// (x-cliente-token), distinto de x-dispositivo-token y del
+// Authorization: Bearer del dueno, para que requerirAccesoNegocio
+// nunca intente resolver un token de cliente contra sus propias
+// tablas (ver investigacion en el plan).
+function requerirSesionClienteCredito(pool) {
+    return async (req, res, next) => {
+        const token = req.headers["x-cliente-token"];
+
+        if (!token) {
+            res.status(401).json({ ok: false, error: "Sesion invalida, inicia sesion de nuevo" });
+            return;
+        }
+
+        try {
+            const sesion = await pool.query(
+                `SELECT s.id AS sesion_id, c.id, c.negocio_id, c.nombre, c.telefono
+                 FROM public.sesiones_cliente_credito s
+                 JOIN public.clientes_credito c ON c.id = s.cliente_id
+                 WHERE s.token_hash = $1 AND s.revocado_at IS NULL`,
+                [hashTokenSesionCliente(token)]
+            );
+
+            if (sesion.rows.length === 0) {
+                res.status(401).json({ ok: false, error: "Sesion invalida, inicia sesion de nuevo" });
+                return;
+            }
+
+            const fila = sesion.rows[0];
+            await pool.query(`UPDATE public.sesiones_cliente_credito SET ultimo_uso_at = NOW() WHERE id = $1`, [fila.sesion_id]);
+
+            req.clienteCredito = { id: fila.id, negocioId: fila.negocio_id, nombre: fila.nombre, telefono: fila.telefono };
+            req.clienteCreditoTokenHash = hashTokenSesionCliente(token);
+            next();
+        } catch (error) {
+            console.warn("Error validando sesion de cliente:", error.message);
+            res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+        }
+    };
+}
+
+async function estadoPortalCliente(pool, req, res) {
+    try {
+        const clienteId = req.clienteCredito.id;
+        const negocioId = req.clienteCredito.negocioId;
+
+        const cliente = await pool.query(`
+            SELECT
+                c.id, c.nombre, c.telefono, c.limite_credito, c.fecha_vencimiento,
+                COALESCE(SUM(CASE WHEN m.tipo = 'venta' THEN m.monto WHEN m.tipo = 'abono' THEN -m.monto ELSE 0 END), 0) AS saldo
+            FROM public.clientes_credito c
+            LEFT JOIN public.movimientos_credito m ON m.cliente_id = c.id AND m.negocio_id = c.negocio_id
+            WHERE c.id = $1 AND c.negocio_id = $2
+            GROUP BY c.id
+        `, [clienteId, negocioId]);
+
+        if (cliente.rows.length === 0) {
+            res.status(404).json({ ok: false, error: "Cuenta no encontrada" });
+            return;
+        }
+
+        const movimientos = await pool.query(
+            `SELECT tipo, concepto, monto, fecha, fecha_vencimiento FROM public.movimientos_credito
+             WHERE cliente_id = $1 AND negocio_id = $2 ORDER BY fecha ASC, id ASC`,
+            [clienteId, negocioId]
+        );
+
+        const aging = calcularAntiguedadCredito(movimientos.rows);
+
+        const pedidos = await pool.query(
+            `SELECT producto_nombre, cantidad, estado, created_at FROM public.pedidos_publicos
+             WHERE negocio_id = $1 AND cliente_telefono = $2 ORDER BY created_at DESC LIMIT 50`,
+            [negocioId, req.clienteCredito.telefono]
+        );
+
+        res.json({
+            ok: true,
+            cliente: { ...cliente.rows[0], vencido: aging.vencido, totalVencido: aging.totalVencido },
+            movimientos: movimientos.rows,
+            aging,
+            pedidos: pedidos.rows
+        });
+    } catch (error) {
+        console.warn("Error sirviendo estado de portal de cliente:", error.message);
+        res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+    }
+}
+
+async function cerrarSesionPortalCliente(pool, req, res) {
+    try {
+        await pool.query(
+            `UPDATE public.sesiones_cliente_credito SET revocado_at = NOW() WHERE token_hash = $1`,
+            [req.clienteCreditoTokenHash]
+        );
+        res.json({ ok: true });
+    } catch (error) {
+        console.warn("Error cerrando sesion de portal de cliente:", error.message);
+        res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+    }
+}
+
 function registrarRutas(app, pool, requerirAccesoNegocio) {
+    app.get("/portal-cliente/estado", requerirSesionClienteCredito(pool), (req, res) => estadoPortalCliente(pool, req, res));
+    app.post("/portal-cliente/logout", requerirSesionClienteCredito(pool), (req, res) => cerrarSesionPortalCliente(pool, req, res));
+
     app.get("/negocio-actual/sitio-web", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
@@ -1164,5 +1604,7 @@ module.exports = {
     servirProductoNegocio,
     recibirPedidoPublico,
     servirSolicitudCreditoNegocio,
-    recibirSolicitudCreditoPublica
+    recibirSolicitudCreditoPublica,
+    servirPortalClienteNegocio,
+    iniciarSesionClientePublico
 };

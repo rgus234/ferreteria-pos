@@ -1496,6 +1496,18 @@ body.oscuro .cliente-credito-texto strong{
  border-color:color-mix(in srgb, #25d366 38%, transparent) !important;
 }
 
+.btn-portal-cliente{
+ width:100% !important;
+ background:#eaf1ff !important;
+ color:#0d6efd !important;
+}
+
+.btn-portal-cliente-desactivar{
+ width:100% !important;
+ background:#f1f5f9 !important;
+ color:#64748b !important;
+}
+
 body.oscuro #detalleCliente{
  background:#111827;
  border-color:#243044;

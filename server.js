@@ -22,7 +22,9 @@ const {
     servirProductoNegocio,
     recibirPedidoPublico,
     servirSolicitudCreditoNegocio,
-    recibirSolicitudCreditoPublica
+    recibirSolicitudCreditoPublica,
+    servirPortalClienteNegocio,
+    iniciarSesionClientePublico
 } = require("./public-site-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
@@ -210,6 +212,19 @@ function hashTokenSeguro(tokenPlano) {
 
 function generarCodigoNumerico() {
     return String(crypto.randomInt(100000, 1000000));
+}
+
+// Codigo de acceso del portal de cliente final (Fase 6 del sitio web
+// por negocio) -- sin 0/O/1/I para que se pueda leer/escribir a mano
+// sin confusion. 32^8 combinaciones, resistente a fuerza bruta aunque
+// se comparta de palabra.
+const ALFABETO_CODIGO_ACCESO_CLIENTE = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function generarCodigoAccesoCliente() {
+    let codigo = "";
+    for (let i = 0; i < 8; i++) {
+        codigo += ALFABETO_CODIGO_ACCESO_CLIENTE[crypto.randomInt(ALFABETO_CODIGO_ACCESO_CLIENTE.length)];
+    }
+    return codigo;
 }
 
 // El PIN de un empleado se guarda dos veces: pin_hash (scrypt, igual
@@ -4584,6 +4599,18 @@ app.post("/solicitud-credito", (req, res) => {
     });
 });
 
+app.get("/portal-cliente", async (req, res) => {
+    const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
+    if (!slugTenant) { res.status(404).send("No encontrado"); return; }
+    await servirPortalClienteNegocio(pool, req, res, slugTenant);
+});
+
+app.post("/portal-cliente/login", async (req, res) => {
+    const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
+    if (!slugTenant) { res.status(404).send("No encontrado"); return; }
+    await iniciarSesionClientePublico(pool, req, res, slugTenant);
+});
+
 app.get(["/site", "/site/"], (req, res) => {
     res.sendFile(path.join(__dirname, "public", "site", "index.html"));
 });
@@ -6256,7 +6283,9 @@ app.get("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
         const negocio = await negocioActual(req);
         const cliente = await pool.query(`
             SELECT
-                c.*,
+                c.id, c.negocio_id, c.nombre, c.telefono, c.limite_credito, c.activo,
+                c.created_at, c.fecha_vencimiento, c.nivel_precio_preferido,
+                (c.codigo_acceso_hash IS NOT NULL) AS "codigoAccesoActivo",
                 COALESCE(
                     SUM(
                         CASE
@@ -6302,6 +6331,95 @@ app.get("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
             movimientos: movimientos.rows,
             aging
         });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+// Portal de cliente final (Fase 6 del sitio web por negocio): el
+// dueno genera un codigo de acceso y se lo comparte el mismo al
+// cliente (de palabra, WhatsApp, impreso) -- nunca se envia por
+// correo/SMS desde aqui. El codigo solo se regresa una vez, en texto
+// plano, en la respuesta de esta ruta; nunca se puede volver a
+// consultar despues.
+app.post("/creditos/clientes/:id/codigo-acceso", requerirAccesoNegocio, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const negocio = await negocioActual(req);
+        const cliente = await pool.query(
+            `SELECT id, telefono FROM public.clientes_credito WHERE id = $1 AND negocio_id = $2`,
+            [id, negocio.id]
+        );
+
+        if (cliente.rows.length === 0) {
+            res.status(404).json({ error: "Cliente no encontrado" });
+            return;
+        }
+
+        const telefono = (cliente.rows[0].telefono || "").trim();
+        if (!telefono) {
+            res.status(400).json({ error: "El cliente necesita telefono registrado para activar su portal" });
+            return;
+        }
+
+        const duplicado = await pool.query(
+            `SELECT id FROM public.clientes_credito
+             WHERE negocio_id = $1 AND telefono = $2 AND id <> $3
+             AND activo = true AND codigo_acceso_hash IS NOT NULL`,
+            [negocio.id, telefono, id]
+        );
+        if (duplicado.rows.length > 0) {
+            res.status(400).json({ error: "Ya existe otro cliente activo con este mismo telefono y portal activado -- corrige el telefono duplicado antes de continuar" });
+            return;
+        }
+
+        const codigo = generarCodigoAccesoCliente();
+        const codigoHash = hashPassword(codigo);
+
+        await pool.query(
+            `UPDATE public.clientes_credito
+             SET codigo_acceso_hash = $1, codigo_acceso_generado_at = NOW()
+             WHERE id = $2 AND negocio_id = $3`,
+            [codigoHash, id, negocio.id]
+        );
+        await pool.query(
+            `UPDATE public.sesiones_cliente_credito SET revocado_at = NOW()
+             WHERE cliente_id = $1 AND revocado_at IS NULL`,
+            [id]
+        );
+
+        res.json({ ok: true, codigo });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+app.post("/creditos/clientes/:id/codigo-acceso/revocar", requerirAccesoNegocio, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const negocio = await negocioActual(req);
+        const resultado = await pool.query(
+            `UPDATE public.clientes_credito
+             SET codigo_acceso_hash = NULL, codigo_acceso_generado_at = NULL
+             WHERE id = $1 AND negocio_id = $2
+             RETURNING id`,
+            [id, negocio.id]
+        );
+
+        if (resultado.rows.length === 0) {
+            res.status(404).json({ error: "Cliente no encontrado" });
+            return;
+        }
+
+        await pool.query(
+            `UPDATE public.sesiones_cliente_credito SET revocado_at = NOW()
+             WHERE cliente_id = $1 AND revocado_at IS NULL`,
+            [id]
+        );
+
+        res.json({ ok: true });
     } catch (error) {
         responderError(res, error);
     }
