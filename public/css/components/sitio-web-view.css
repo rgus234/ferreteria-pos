@@ -120,10 +120,26 @@
 .sitio-web-pedido-badge.pendiente{ background:rgba(245,158,11,.15); color:#b45309; }
 .sitio-web-pedido-badge.atendido{ background:rgba(24,184,143,.15); color:#0e9973; }
 .sitio-web-pedido-badge.descartado{ background:rgba(226,67,77,.12); color:#e2434d; }
+.sitio-web-pedido-badge.cotizado{ background:rgba(37,99,235,.14); color:#1d4ed8; }
+
+.sitio-web-pedido-tipo{
+ padding:3px 10px;
+ border-radius:999px;
+ font-size:11px;
+ font-weight:700;
+ background:#eef2f7;
+ color:#687386;
+}
+.sitio-web-pedido-tipo.cotizacion{ background:rgba(147,51,234,.14); color:#7e22ce; }
 
 .sitio-web-pedido-cliente{ font-size:13px; color:var(--pos-muted,#687386); }
 .sitio-web-pedido-mensaje{ font-size:13px; color:var(--pos-text,#172033); }
+.sitio-web-pedido-precio{ font-size:15px; font-weight:800; color:#1d4ed8; }
 .sitio-web-pedido-acciones{ display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+
+.sitio-web-cotizacion-form{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.sitio-web-cotizacion-form input[type="number"]{ width:110px; padding:8px 10px; border-radius:8px; border:1px solid var(--pos-line,#dbe3ef); }
+.sitio-web-cotizacion-form input[type="text"]{ flex:1; min-width:160px; padding:8px 10px; border-radius:8px; border:1px solid var(--pos-line,#dbe3ef); }
 
 .sitio-web-nota{
  font-size:12px;

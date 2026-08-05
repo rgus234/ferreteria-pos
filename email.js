@@ -514,6 +514,41 @@ function enviarCorreoPedidoCarritoPublico(correo, nombreNegocio, { items, client
     });
 }
 
+// Primer correo del proyecto que va del negocio HACIA el cliente
+// final (todos los demas van al dueno) -- se dispara cuando el
+// negocio responde una solicitud de cotizacion publica con un precio
+// (Fase 10 del sitio web por negocio). Mismo molde que
+// enviarCorreoPedidoCarritoPublico, pero el boton final lleva al
+// portal del cliente en vez de a "responder por WhatsApp/correo".
+function enviarCorreoCotizacionRespondida(correo, nombreNegocio, { items, precioCotizado, nota, urlPortal }) {
+    const nombreSeguro = escaparHtmlCorreo(nombreNegocio);
+    const filasItems = (items || [])
+        .map(item => `<tr><td style="padding:4px 0;color:#344054;font-size:14px;">${escaparHtmlCorreo(item.nombre)} &times; ${escaparHtmlCorreo(item.cantidad)}</td></tr>`)
+        .join("");
+
+    return enviarCorreo({
+        correo,
+        asunto: `${nombreSeguro} ya tiene un precio para tu cotizacion`,
+        html: envolverPlantilla({
+            etiqueta: "Cotizacion respondida",
+            titulo: "Ya tienes un precio para tu cotizacion",
+            saludo: `Hola`,
+            robot: "celebrando",
+            cuerpoHtml: `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 10px;">
+                    ${filasItems}
+                </table>
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 6px;">
+                    <tr><td style="padding:6px 0;color:#344054;font-size:22px;font-weight:800;">$${Number(precioCotizado).toFixed(2)}</td></tr>
+                    ${nota ? `<tr><td style="padding:6px 0;color:#344054;font-size:14px;"><strong>Nota de ${nombreSeguro}:</strong> ${escaparHtmlCorreo(nota)}</td></tr>` : ""}
+                </table>
+                ${urlPortal ? botonHtml("Ver mi cotizacion", urlPortal) : ""}
+                ${avisoHtml(`Este precio te lo dio ${nombreSeguro} directamente. Si tienes dudas, contactalos por telefono o WhatsApp.`)}
+            `
+        })
+    });
+}
+
 // La solicitud viene del formulario publico de credito (sin sesion).
 // A proposito NUNCA incluye las fotos de identificacion en el correo
 // -- correo no es un canal seguro para documentos sensibles, se avisa
@@ -571,5 +606,6 @@ module.exports = {
     enviarCorreoLeadLanding,
     enviarCorreoPedidoPublico,
     enviarCorreoPedidoCarritoPublico,
-    enviarCorreoSolicitudCreditoPublica
+    enviarCorreoSolicitudCreditoPublica,
+    enviarCorreoCotizacionRespondida
 };

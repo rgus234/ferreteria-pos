@@ -190,6 +190,21 @@ async function cargarPedidosPublicosSitioWeb() {
  }
 }
 
+// Cotizaciones (Fase 10): un carrito puede llegar como varias filas
+// de pedidos_publicos que comparten grupoId -- se agrupan aqui para
+// pintar una sola tarjeta por solicitud, no una por producto.
+// gruposPedidosPublicosActuales guarda {principal, items} por id
+// representativo, para que mostrarFormularioCotizacion/
+// abrirWhatsAppCotizacion no tengan que volver a pedir el listado.
+let gruposPedidosPublicosActuales = {};
+
+function normalizarTelefonoWhatsApp(telefono) {
+ const digitos = String(telefono || "").replace(/\D/g, "");
+ if (!digitos) return null;
+ if (digitos.length === 10) return `52${digitos}`;
+ return digitos.length >= 10 ? digitos : null;
+}
+
 function renderListaPedidosPublicos(pedidos) {
  const contenedor =
  document.getElementById("sitioWebPedidosLista");
@@ -204,24 +219,131 @@ function renderListaPedidosPublicos(pedidos) {
  const escapar =
  typeof escaparPOS === "function" ? escaparPOS : texto => String(texto || "");
 
- contenedor.innerHTML = pedidos.map(pedido => `
+ const gruposMap = new Map();
+ pedidos.forEach(pedido => {
+ const clave = pedido.grupoId || `solo-${pedido.id}`;
+ if (!gruposMap.has(clave)) gruposMap.set(clave, []);
+ gruposMap.get(clave).push(pedido);
+ });
+
+ gruposPedidosPublicosActuales = {};
+
+ contenedor.innerHTML = Array.from(gruposMap.values()).map(grupo => {
+ const principal = grupo[0];
+ const id = principal.id;
+ gruposPedidosPublicosActuales[id] = { principal, items: grupo };
+
+ const itemsTexto = grupo.map(p => `${escapar(p.productoNombre)} &times; ${p.cantidad}`).join(", ");
+ const esCotizacion = principal.tipo === "cotizacion";
+
+ return `
  <div class="sitio-web-pedido-item">
  <div class="sitio-web-pedido-cabecera">
- <strong>${escapar(pedido.productoNombre)} &times; ${pedido.cantidad}</strong>
- <span class="sitio-web-pedido-badge ${pedido.estado}">${pedido.estado}</span>
+ <strong>${itemsTexto}</strong>
+ <span class="sitio-web-pedido-tipo ${esCotizacion ? "cotizacion" : "pedido"}">${esCotizacion ? "Cotizacion" : "Pedido"}</span>
+ <span class="sitio-web-pedido-badge ${principal.estado}">${principal.estado}</span>
  </div>
  <div class="sitio-web-pedido-cliente">
- ${escapar(pedido.clienteNombre)}
- ${pedido.clienteTelefono ? ` &middot; ${escapar(pedido.clienteTelefono)}` : ""}
- ${pedido.clienteCorreo ? ` &middot; ${escapar(pedido.clienteCorreo)}` : ""}
+ ${escapar(principal.clienteNombre)}
+ ${principal.clienteTelefono ? ` &middot; ${escapar(principal.clienteTelefono)}` : ""}
+ ${principal.clienteCorreo ? ` &middot; ${escapar(principal.clienteCorreo)}` : ""}
  </div>
- ${pedido.mensaje ? `<div class="sitio-web-pedido-mensaje">${escapar(pedido.mensaje)}</div>` : ""}
- <div class="sitio-web-pedido-acciones">
- ${pedido.estado !== "atendido" ? `<button type="button" class="btn-encargo-secundario" onclick="actualizarEstadoPedidoPublico(${pedido.id}, 'atendido')">Marcar atendido</button>` : ""}
- ${pedido.estado !== "descartado" ? `<button type="button" class="btn-encargo-secundario" onclick="actualizarEstadoPedidoPublico(${pedido.id}, 'descartado')">Descartar</button>` : ""}
+ ${principal.mensaje ? `<div class="sitio-web-pedido-mensaje">${escapar(principal.mensaje)}</div>` : ""}
+ ${principal.estado === "cotizado" ? `
+ <div class="sitio-web-pedido-precio">Precio cotizado: $${Number(principal.precioCotizado).toFixed(2)}</div>
+ ${principal.notaNegocio ? `<div class="sitio-web-pedido-mensaje">${escapar(principal.notaNegocio)}</div>` : ""}
+ ` : ""}
+ <div class="sitio-web-pedido-acciones" id="sitioWebPedidoAcciones${id}">
+ ${accionesPedidoPublicoHtml(principal, id)}
  </div>
  </div>
- `).join("");
+ `;
+ }).join("");
+}
+
+function accionesPedidoPublicoHtml(pedido, id) {
+ if (pedido.tipo === "cotizacion") {
+ if (pedido.estado === "cotizado") {
+ return `<button type="button" class="btn-encargo-secundario" onclick="abrirWhatsAppCotizacion(${id})">Recordar por WhatsApp</button>`;
+ }
+ return `
+ ${pedido.estado !== "atendido" ? `<button type="button" class="btn-encargo-secundario" onclick="actualizarEstadoPedidoPublico(${id}, 'atendido')">Marcar atendido</button>` : ""}
+ ${pedido.estado !== "descartado" ? `<button type="button" class="btn-encargo-secundario" onclick="actualizarEstadoPedidoPublico(${id}, 'descartado')">Descartar</button>` : ""}
+ <button type="button" class="btn-encargo-primario" onclick="mostrarFormularioCotizacion(${id})">Responder con precio</button>
+ `;
+ }
+
+ return `
+ ${pedido.estado !== "atendido" ? `<button type="button" class="btn-encargo-secundario" onclick="actualizarEstadoPedidoPublico(${id}, 'atendido')">Marcar atendido</button>` : ""}
+ ${pedido.estado !== "descartado" ? `<button type="button" class="btn-encargo-secundario" onclick="actualizarEstadoPedidoPublico(${id}, 'descartado')">Descartar</button>` : ""}
+ `;
+}
+
+function mostrarFormularioCotizacion(id) {
+ const contenedor =
+ document.getElementById(`sitioWebPedidoAcciones${id}`);
+
+ if (!contenedor) return;
+
+ contenedor.innerHTML = `
+ <div class="sitio-web-cotizacion-form">
+ <input type="number" id="sitioWebCotizacionPrecio${id}" min="0.01" step="0.01" placeholder="Precio">
+ <input type="text" id="sitioWebCotizacionNota${id}" maxlength="500" placeholder="Nota (opcional)">
+ <button type="button" class="btn-encargo-primario" onclick="guardarCotizacion(${id})">Guardar cotizacion</button>
+ <button type="button" class="btn-encargo-secundario" onclick="cargarPedidosPublicosSitioWeb()">Cancelar</button>
+ </div>
+ `;
+}
+
+async function guardarCotizacion(id) {
+ const precioInput = document.getElementById(`sitioWebCotizacionPrecio${id}`);
+ const notaInput = document.getElementById(`sitioWebCotizacionNota${id}`);
+ const precioCotizado = Number(precioInput ? precioInput.value : NaN);
+
+ if (!Number.isFinite(precioCotizado) || precioCotizado <= 0) {
+ if (typeof alertaPOS === "function") alertaPOS("Escribe un precio valido.", "Cotizacion", "alerta");
+ return;
+ }
+
+ try {
+ const respuesta = await fetch(`/negocio-actual/pedidos-publicos/${id}`, {
+ method: "PATCH",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ estado: "cotizado", precioCotizado, nota: notaInput ? notaInput.value.trim() : "" })
+ });
+
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ if (typeof alertaPOS === "function") alertaPOS(datos.error || "No se pudo guardar la cotizacion.", "Cotizacion", "alerta");
+ return;
+ }
+
+ cargarPedidosPublicosSitioWeb();
+ } catch (error) {
+ if (typeof alertaPOS === "function") alertaPOS("No se pudo guardar la cotizacion. Revisa tu conexion.", "Cotizacion", "alerta");
+ }
+}
+
+function abrirWhatsAppCotizacion(id) {
+ const grupo = gruposPedidosPublicosActuales[id];
+ if (!grupo) return;
+
+ const { principal, items } = grupo;
+ const telefono = normalizarTelefonoWhatsApp(principal.clienteTelefono);
+
+ if (!telefono) {
+ if (typeof alertaPOS === "function") alertaPOS("Este cliente no dejo un telefono valido.", "Cotizacion", "alerta");
+ return;
+ }
+
+ const listaProductos = items.map(item => `${item.productoNombre} x${item.cantidad}`).join(", ");
+ const mensaje =
+ `Hola ${principal.clienteNombre || ""}, tu cotizacion de ${listaProductos} quedo en $${Number(principal.precioCotizado).toFixed(2)}` +
+ (principal.notaNegocio ? `. ${principal.notaNegocio}` : "") +
+ `. Cualquier duda, contactanos.`;
+
+ window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
 }
 
 async function actualizarEstadoPedidoPublico(id, estado) {

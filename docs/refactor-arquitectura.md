@@ -7107,3 +7107,75 @@ Fases 6/7 no se rompio). Suite automatizada completa (`npm test`,
 Olimpico) no se toco durante ninguna prueba (0 filas con slug
 `test-auto-%` al terminar). Pendiente de confirmacion del usuario
 para `git add`/`commit`.
+
+## 2026-08-12 -- Sitio web por negocio, Fase 10: Cotizaciones desde el carrito
+
+El usuario mando una lista larga de ideas para "profesionalizar" el
+sitio publico (carrito con checkout completo, pago en linea, puntos,
+chat IA publico, busqueda por foto, etc.). Se le dio una lectura
+completa: que cortar (pago en linea/checkout real -- ya descartado 3
+veces en este proyecto), que ya esta construido (Fases 1-9), y que es
+nuevo de bajo riesgo. Delego en mi cual construir primero -- se eligio
+**Cotizaciones desde el carrito**: resuelve la tension real de todo el
+wishlist (un "checkout" que se siente real) sin abrir la puerta de
+pagos en linea, reusando casi entero el carrito de Fase 7.
+
+Dos decisiones confirmadas con el usuario via `AskUserQuestion`: (1)
+**dos flujos separados** -- el carrito gana un segundo boton
+"Solicitar cotizacion" junto a "Enviar pedido" (no uno unificado), y
+(2) aviso al cliente por **2 canales**: correo automatico (si dejo
+correo) + boton de WhatsApp manual en el POS (nunca automatizado).
+
+**Migracion** (`migrations/20260812_cotizaciones_publicas.sql`):
+`pedidos_publicos` gana `tipo TEXT DEFAULT 'pedido' CHECK IN
+('pedido','cotizacion')`, `precio_cotizado NUMERIC`, `nota_negocio
+TEXT`, `respondido_at TIMESTAMPTZ`; el CHECK de `estado` se extiende
+con `'cotizado'`. Filas viejas quedan `tipo='pedido'` por defecto --
+ningun pedido historico se reclasifica solo.
+
+**Backend** (`public-site-server.js`): `recibirPedidoCarritoPublico`
+lee `req.body.tipo` (`pedido`/`cotizacion`) y lo persiste por item,
+reusando identico el resto del flujo (honeypot, rate limiter,
+validaciones, cuenta ligera). `GET /negocio-actual/pedidos-publicos`
+expone `grupoId/tipo/precioCotizado/notaNegocio/respondidoAt`. `PATCH
+/negocio-actual/pedidos-publicos/:id` gana el estado `cotizado`:
+rechaza si la fila no es `tipo='cotizacion'` o si el precio no es un
+numero > 0, y aplica el `UPDATE` a **todas** las filas del mismo
+`grupo_id` (o solo la fila si no hay grupo) -- mismo criterio
+denormalizado que ya usaba esta tabla. Dispara `enviarCorreoCotizacionRespondida`
+(nueva en `email.js`, **primer correo del proyecto que va del negocio
+hacia el cliente** -- todos los demas van al dueno) si hay
+`cliente_correo`.
+
+**Frontend POS** (`sitio-web-view.js`): `renderListaPedidosPublicos`
+se reescribio para **agrupar por `grupoId`** (hueco que ya existia
+desde Fase 7 -- un carrito de 3 productos se pintaba como 3 tarjetas
+sueltas sin relacion visible; ni el GET del POS ni el del portal de
+cliente agrupaban, aunque `grupo_id` ya se escribia). Cada grupo
+`tipo='cotizacion'` gana un boton "Responder con precio" (mini-form
+inline de precio + nota) y, una vez cotizado, "Recordar por WhatsApp"
+(enlace `wa.me` prellenado, mismo patron que el recordatorio de
+creditos vencidos -- se agrego una copia local de
+`normalizarTelefonoWhatsApp` a este archivo).
+
+**Frontend publico**: el carrito (`modalCarritoTenantHtml`) gana un
+segundo boton `data-tipo="cotizacion"`; `carritoEnviar` lee
+`evento.submitter.dataset.tipo` para saber cual se aprieto y bifurca
+el mensaje de exito. El portal de cliente (`pintarPedidos`) agrupa
+igual por `grupo_id` y muestra el precio cotizado + nota cuando
+aplica.
+
+**Verificacion**: `node --check` en los 4 archivos tocados. Migracion
+aplicada con confirmacion explicita (columnas + CHECK confirmados).
+Nuevo `scripts/verificar-cotizaciones.js` (19 casos: tipo persistido
+correctamente en ambos flujos, agrupacion por `grupo_id`, rechazo de
+precio invalido/cero/negativo/no-numerico, rechazo de cotizar un
+pedido `tipo='pedido'`, respuesta exitosa actualiza todo el grupo,
+respuesta trae datos para armar el WhatsApp, regresion de
+atendido/descartado en pedidos normales) -- **19/19 pasaron**.
+Regresion: `scripts/verificar-carrito-promo.js` (Fase 7) sin
+modificar, **28/28 sigue pasando**; `scripts/verificar-home-tienda.js`
+(Fase 9) sin modificar, **22/22 sigue pasando**. Suite automatizada
+completa (`npm test`, 19/19) sin regresiones. Confirmado `negocio_id
+= 1` sin contaminacion cruzada durante toda la prueba. Pendiente de
+confirmacion del usuario para `git add`/`commit`.

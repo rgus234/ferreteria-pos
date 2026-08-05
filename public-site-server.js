@@ -18,7 +18,7 @@
 const sharp = require("sharp");
 const crypto = require("crypto");
 const { funcionDelPlan } = require("./plan-enforcement");
-const { enviarCorreoPedidoPublico, enviarCorreoPedidoCarritoPublico, enviarCorreoSolicitudCreditoPublica } = require("./email");
+const { enviarCorreoPedidoPublico, enviarCorreoPedidoCarritoPublico, enviarCorreoSolicitudCreditoPublica, enviarCorreoCotizacionRespondida } = require("./email");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { calcularAntiguedadCredito } = require("./credit-aging");
 
@@ -407,6 +407,7 @@ function estilosBaseTenant(color) {
 .tenant-portal-badge.pendiente{ background:rgba(245,158,11,.15); color:#b45309; }
 .tenant-portal-badge.atendido{ background:rgba(24,184,143,.15); color:var(--mint); }
 .tenant-portal-badge.descartado{ background:rgba(226,67,77,.12); color:#e2434d; }
+.tenant-portal-badge.cotizado{ background:rgba(37,99,235,.14); color:#1d4ed8; }
 .tenant-portal-saludo{ font-size:20px; margin:0 0 6px; }
 .tenant-promo-banner{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; padding:14px clamp(20px,5vw,64px); background:linear-gradient(135deg, ${colorFinal}, var(--ink)); color:#fff; }
 .tenant-promo-banner strong{ font-size:14px; }
@@ -428,6 +429,8 @@ function estilosBaseTenant(color) {
 #tenantCarritoForm input[type="text"], #tenantCarritoForm textarea{ padding:10px 14px; border-radius:12px; border:1px solid var(--line); background:var(--paper); color:var(--ink); font-size:14px; font-family:inherit; }
 #tenantCarritoForm textarea{ resize:vertical; min-height:60px; }
 #tenantCarritoForm button[type="submit"]{ padding:12px 22px; border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; cursor:pointer; justify-self:start; }
+.tenant-carrito-botones{ display:flex; gap:10px; flex-wrap:wrap; }
+#tenantCarritoForm button.tenant-btn-cotizacion{ background:var(--glass); border:1px solid var(--line); color:var(--ink); }
 @media (max-width:720px){
     .tenant-detalle-grid{ grid-template-columns:1fr; }
     .tenant-portal-tabla{ display:block; overflow-x:auto; }
@@ -1141,6 +1144,7 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
         const clienteTelefono = paramTexto(req.body?.clienteTelefono, 40);
         const clienteCorreo = paramTexto(req.body?.clienteCorreo, 140).toLowerCase();
         const mensaje = paramTexto(req.body?.mensaje, 500);
+        const tipo = req.body?.tipo === "cotizacion" ? "cotizacion" : "pedido";
 
         if (!clienteNombre) {
             res.json({ ok: false, error: "Escribe tu nombre." });
@@ -1195,10 +1199,10 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
                 await client.query(
                     `
                     INSERT INTO public.pedidos_publicos
-                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id, tipo)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                     `,
-                    [sitio.negocio.id, codigo, nombreProducto, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId]
+                    [sitio.negocio.id, codigo, nombreProducto, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId, tipo]
                 );
 
                 itemsParaCorreo.push({ nombre: nombreProducto, cantidad });
@@ -1285,7 +1289,10 @@ function modalCarritoTenantHtml() {
 <label>Correo (opcional)<input type="text" id="tenantCarritoCorreo" maxlength="140"></label>
 <label>Mensaje (opcional)<textarea id="tenantCarritoMensaje" maxlength="500"></textarea></label>
 <p id="tenantCarritoAviso" style="color:#e2434d; font-size:13px; margin:0;"></p>
-<button type="submit">Enviar pedido</button>
+<div class="tenant-carrito-botones">
+<button type="submit" data-tipo="pedido">Enviar pedido</button>
+<button type="submit" class="tenant-btn-cotizacion" data-tipo="cotizacion">Solicitar cotizacion</button>
+</div>
 </form>
 <div id="tenantCarritoExito" style="display:none;"></div>
 </div>
@@ -1409,13 +1416,16 @@ async function carritoEnviar(evento){
     const aviso = carritoElemento("tenantCarritoAviso");
     aviso.textContent = "";
 
+    const tipo = evento.submitter && evento.submitter.dataset && evento.submitter.dataset.tipo === "cotizacion" ? "cotizacion" : "pedido";
+
     const body = {
         items: carritoLeer().map(function(item){ return { codigo: item.codigo, cantidad: item.cantidad }; }),
         clienteNombre: carritoElemento("tenantCarritoNombre").value.trim(),
         clienteTelefono: carritoElemento("tenantCarritoTelefono").value.trim(),
         clienteCorreo: carritoElemento("tenantCarritoCorreo").value.trim(),
         mensaje: carritoElemento("tenantCarritoMensaje").value.trim(),
-        sitioExtra: carritoElemento("tenantCarritoHoneypot").value
+        sitioExtra: carritoElemento("tenantCarritoHoneypot").value,
+        tipo: tipo
     };
 
     try {
@@ -1439,7 +1449,9 @@ async function carritoEnviar(evento){
         const exito = carritoElemento("tenantCarritoExito");
         exito.innerHTML = "";
         const mensajeExito = document.createElement("p");
-        mensajeExito.textContent = "Listo -- tu pedido fue enviado. El negocio te contactara pronto.";
+        mensajeExito.textContent = tipo === "cotizacion"
+            ? "Listo -- tu solicitud de cotizacion fue enviada. El negocio te va a contactar con un precio."
+            : "Listo -- tu pedido fue enviado. El negocio te contactara pronto.";
         exito.appendChild(mensajeExito);
 
         if (datos.cuenta && datos.cuenta.creada) {
@@ -1726,7 +1738,7 @@ function mostrarFormularioLoginCliente(){
     elemento("portalClienteCuenta").style.display = "none";
 }
 
-const BADGE_PEDIDO = { pendiente: "Pendiente", atendido: "Atendido", descartado: "Descartado" };
+const BADGE_PEDIDO = { pendiente: "Pendiente", atendido: "Atendido", descartado: "Descartado", cotizado: "Cotizado" };
 
 function pintarMovimientos(movimientos){
     const cuerpo = elemento("portalClienteMovimientos");
@@ -1759,30 +1771,54 @@ function pintarPedidos(pedidos){
     if (!pedidos || pedidos.length === 0) {
         const fila = document.createElement("tr");
         const celda = document.createElement("td");
-        celda.colSpan = 4;
+        celda.colSpan = 5;
         celda.className = "tenant-portal-vacio";
         celda.textContent = "No has hecho pedidos en el sitio todavia.";
         fila.appendChild(celda);
         cuerpo.appendChild(fila);
         return;
     }
+
+    // Un carrito (Fase 7) llega como varias filas que comparten
+    // grupo_id -- se agrupan aqui para pintar una sola fila por
+    // solicitud, no una por producto (mismo criterio ya usado del
+    // lado del POS en sitio-web-view.js).
+    const gruposMap = new Map();
     pedidos.forEach(function(pedido){
+        const clave = pedido.grupo_id || ("solo-" + pedido.producto_nombre + pedido.created_at);
+        if (!gruposMap.has(clave)) gruposMap.set(clave, []);
+        gruposMap.get(clave).push(pedido);
+    });
+
+    Array.from(gruposMap.values()).forEach(function(grupo){
+        const principal = grupo[0];
         const fila = document.createElement("tr");
+
         const celdaProducto = document.createElement("td");
-        escaparTexto(celdaProducto, pedido.producto_nombre);
+        escaparTexto(celdaProducto, grupo.map(function(p){ return p.producto_nombre + " x" + p.cantidad; }).join(", "));
+
         const celdaCantidad = document.createElement("td");
-        escaparTexto(celdaCantidad, pedido.cantidad);
+        escaparTexto(celdaCantidad, grupo.length);
+
         const celdaFecha = document.createElement("td");
-        escaparTexto(celdaFecha, fechaCorta(pedido.created_at));
+        escaparTexto(celdaFecha, fechaCorta(principal.created_at));
+
         const celdaEstado = document.createElement("td");
         const badge = document.createElement("span");
-        badge.className = "tenant-portal-badge " + (pedido.estado || "pendiente");
-        badge.textContent = BADGE_PEDIDO[pedido.estado] || pedido.estado;
+        badge.className = "tenant-portal-badge " + (principal.estado || "pendiente");
+        badge.textContent = BADGE_PEDIDO[principal.estado] || principal.estado;
         celdaEstado.appendChild(badge);
+
+        const celdaPrecio = document.createElement("td");
+        if (principal.tipo === "cotizacion" && principal.estado === "cotizado") {
+            escaparTexto(celdaPrecio, "$" + Number(principal.precio_cotizado).toFixed(2) + (principal.nota_negocio ? " -- " + principal.nota_negocio : ""));
+        }
+
         fila.appendChild(celdaProducto);
         fila.appendChild(celdaCantidad);
         fila.appendChild(celdaFecha);
         fila.appendChild(celdaEstado);
+        fila.appendChild(celdaPrecio);
         cuerpo.appendChild(fila);
     });
 }
@@ -1893,7 +1929,7 @@ ${encabezadoTenantHtml(sitio.negocio, "portal", sitio.config.aceptarSolicitudesC
 <div class="tenant-portal-seccion">
 <h2>Tus pedidos</h2>
 <table class="tenant-portal-tabla">
-<thead><tr><th>Producto</th><th>Cantidad</th><th>Fecha</th><th>Estado</th></tr></thead>
+<thead><tr><th>Producto</th><th>Items</th><th>Fecha</th><th>Estado</th><th>Precio</th></tr></thead>
 <tbody id="portalClientePedidos"></tbody>
 </table>
 </div>
@@ -2037,7 +2073,7 @@ async function estadoPortalCliente(pool, req, res) {
         const aging = calcularAntiguedadCredito(movimientos.rows);
 
         const pedidos = await pool.query(
-            `SELECT producto_nombre, cantidad, estado, created_at FROM public.pedidos_publicos
+            `SELECT producto_nombre, cantidad, estado, created_at, grupo_id, tipo, precio_cotizado, nota_negocio FROM public.pedidos_publicos
              WHERE negocio_id = $1 AND cliente_telefono = $2 ORDER BY created_at DESC LIMIT 50`,
             [negocioId, req.clienteCredito.telefono]
         );
@@ -2194,7 +2230,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const resultado = await pool.query(
                 `
                 SELECT id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono,
-                    cliente_correo, mensaje, estado, created_at
+                    cliente_correo, mensaje, estado, created_at, grupo_id, tipo, precio_cotizado, nota_negocio, respondido_at
                 FROM public.pedidos_publicos
                 WHERE negocio_id = $1
                 ORDER BY created_at DESC
@@ -2215,7 +2251,12 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                     clienteCorreo: fila.cliente_correo,
                     mensaje: fila.mensaje,
                     estado: fila.estado,
-                    createdAt: fila.created_at
+                    createdAt: fila.created_at,
+                    grupoId: fila.grupo_id,
+                    tipo: fila.tipo,
+                    precioCotizado: fila.precio_cotizado !== null ? Number(fila.precio_cotizado) : null,
+                    notaNegocio: fila.nota_negocio,
+                    respondidoAt: fila.respondido_at
                 }))
             });
         } catch (error) {
@@ -2228,8 +2269,68 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const negocio = await negocioActual(req, pool);
             const estado = String(req.body?.estado || "");
 
-            if (!["atendido", "descartado", "pendiente"].includes(estado)) {
+            if (!["atendido", "descartado", "pendiente", "cotizado"].includes(estado)) {
                 res.status(400).json({ ok: false, error: "Estado invalido" });
+                return;
+            }
+
+            const filaActual = await pool.query(
+                `SELECT id, grupo_id, tipo, cliente_telefono, cliente_correo FROM public.pedidos_publicos WHERE id = $1 AND negocio_id = $2`,
+                [req.params.id, negocio.id]
+            );
+
+            if (filaActual.rows.length === 0) {
+                res.status(404).json({ ok: false, error: "Pedido no encontrado" });
+                return;
+            }
+
+            const fila = filaActual.rows[0];
+
+            if (estado === "cotizado") {
+                if (fila.tipo !== "cotizacion") {
+                    res.status(400).json({ ok: false, error: "Solo se puede cotizar una solicitud de cotizacion" });
+                    return;
+                }
+
+                const precioCotizado = Number(req.body?.precioCotizado);
+                if (!Number.isFinite(precioCotizado) || precioCotizado <= 0) {
+                    res.status(400).json({ ok: false, error: "El precio cotizado no es valido" });
+                    return;
+                }
+
+                const nota = paramTexto(req.body?.nota, 500);
+
+                const filtro = fila.grupo_id
+                    ? { texto: "grupo_id = $4", valor: fila.grupo_id }
+                    : { texto: "id = $4", valor: req.params.id };
+
+                await pool.query(
+                    `UPDATE public.pedidos_publicos SET estado = 'cotizado', precio_cotizado = $1, nota_negocio = $2, respondido_at = NOW() WHERE negocio_id = $3 AND ${filtro.texto}`,
+                    [precioCotizado, nota, negocio.id, filtro.valor]
+                );
+
+                const itemsGrupo = await pool.query(
+                    fila.grupo_id
+                        ? `SELECT producto_nombre, cantidad FROM public.pedidos_publicos WHERE negocio_id = $1 AND grupo_id = $2`
+                        : `SELECT producto_nombre, cantidad FROM public.pedidos_publicos WHERE negocio_id = $1 AND id = $2`,
+                    [negocio.id, fila.grupo_id || req.params.id]
+                );
+
+                if (fila.cliente_correo) {
+                    enviarCorreoCotizacionRespondida(fila.cliente_correo, negocio.nombre, {
+                        items: itemsGrupo.rows.map(i => ({ nombre: i.producto_nombre, cantidad: Number(i.cantidad) })),
+                        precioCotizado,
+                        nota,
+                        urlPortal: `https://${negocio.slug}.nexoposoficial.com/portal-cliente`
+                    }).catch(error => console.warn("No se pudo enviar el aviso de cotizacion respondida:", error.message));
+                }
+
+                res.json({
+                    ok: true,
+                    clienteTelefono: fila.cliente_telefono,
+                    precioCotizado,
+                    items: itemsGrupo.rows.map(i => ({ nombre: i.producto_nombre, cantidad: Number(i.cantidad) }))
+                });
                 return;
             }
 
