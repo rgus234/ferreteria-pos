@@ -249,6 +249,12 @@ const ICONOS_CATEGORIA_TENANT = [
 ];
 const ICONO_CATEGORIA_GENERICO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>`;
 
+// Icono de favorito (Fase 11) -- un solo SVG de trazo, mismo estilo
+// que el resto de iconos de este archivo. El estado "activo" (ya
+// guardado) se controla por CSS (fill:currentColor en .activo), no
+// con un segundo SVG.
+const ICONO_TENANT_FAVORITO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg>`;
+
 function iconoCategoriaTenant(nombre) {
     const texto = String(nombre || "").toLowerCase();
     const match = ICONOS_CATEGORIA_TENANT.find(entry => entry.patron.test(texto));
@@ -266,6 +272,7 @@ function tarjetaProductoTenantHtml({ codigo, nombre, fotoUrl, precio, precioOfer
     const precioHtml = precio !== null && precio !== undefined ? precioOfertaHtml(precio, precioOferta) : "";
 
     return `<div class="tenant-producto-card">
+<button type="button" class="tenant-btn-favorito" data-codigo="${escaparHtml(codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}</button>
 <a href="/catalogo/${encodeURIComponent(codigo)}">
 <div class="tenant-producto-foto">${fotoUrl ? `<img src="${fotoUrl}" alt="${nombreSeguro}">` : `<span class="tenant-producto-foto-vacia">Sin foto</span>`}</div>
 <div class="tenant-producto-info">
@@ -356,7 +363,7 @@ function estilosBaseTenant(color) {
 .tenant-categoria-pill{ flex-shrink:0; padding:9px 18px; border-radius:999px; border:1px solid var(--line); background:var(--glass); color:var(--ink); font-weight:600; font-size:13px; white-space:nowrap; }
 .tenant-categoria-pill.activo{ background:var(--blue); border-color:var(--blue); color:#fff; }
 .tenant-catalogo-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:18px; }
-.tenant-producto-card{ display:flex; flex-direction:column; border:1px solid var(--line); border-radius:18px; overflow:hidden; background:var(--glass); color:inherit; box-shadow:0 10px 24px rgba(20,32,51,.05); transition:box-shadow .16s ease, transform .16s ease; }
+.tenant-producto-card{ position:relative; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:18px; overflow:hidden; background:var(--glass); color:inherit; box-shadow:0 10px 24px rgba(20,32,51,.05); transition:box-shadow .16s ease, transform .16s ease; }
 .tenant-producto-card:hover{ box-shadow:0 18px 40px rgba(20,32,51,.12); transform:translateY(-2px); }
 .tenant-producto-foto{ aspect-ratio:1/1; background:var(--paper); display:flex; align-items:center; justify-content:center; overflow:hidden; }
 .tenant-producto-foto img{ width:100%; height:100%; object-fit:cover; display:block; }
@@ -419,6 +426,18 @@ function estilosBaseTenant(color) {
 .tenant-btn-carrito.tenant-btn-primario{ margin-top:0; padding:13px 26px; border:none; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; font-size:14px; box-shadow:0 14px 28px rgba(16,103,232,.28); }
 .tenant-producto-card{ display:flex; flex-direction:column; }
 .tenant-producto-card .tenant-btn-carrito{ margin:0 14px 14px; }
+.tenant-btn-favorito{ position:absolute; top:10px; right:10px; z-index:2; display:flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0; border-radius:999px; border:none; background:rgba(255,255,255,.85); backdrop-filter:blur(4px); color:var(--ink); cursor:pointer; box-shadow:0 4px 12px rgba(20,32,51,.12); transition:color .15s ease, transform .15s ease; }
+.tenant-btn-favorito svg{ width:18px; height:18px; }
+.tenant-btn-favorito:hover{ transform:scale(1.06); }
+.tenant-btn-favorito.activo{ color:#e2434d; }
+.tenant-btn-favorito.activo svg{ fill:currentColor; }
+.tenant-btn-favorito-linea{ position:static; width:auto; height:auto; display:inline-flex; align-items:center; gap:8px; padding:13px 26px; border-radius:999px; background:var(--glass); border:1px solid var(--line); color:var(--ink); font-weight:700; font-size:14px; box-shadow:none; backdrop-filter:none; }
+.tenant-btn-favorito-linea svg{ width:18px; height:18px; }
+.tenant-btn-favorito-linea.activo{ border-color:rgba(226,67,77,.35); background:rgba(226,67,77,.08); }
+.tenant-favoritos-vacio{ padding:48px 0 8px; color:var(--muted); font-size:15px; text-align:center; }
+#favoritosLista{ text-align:center; }
+#favoritosLista > a{ color:var(--blue); font-weight:700; }
+#favoritosLista .tenant-catalogo-grid{ text-align:left; }
 .tenant-carrito-overlay{ position:fixed; inset:0; z-index:9500; background:rgba(13,23,42,.55); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; padding:20px; }
 .tenant-carrito-modal{ width:min(520px,92vw); max-height:86vh; overflow-y:auto; background:var(--paper); border-radius:20px; padding:24px; box-shadow:0 30px 60px rgba(13,23,42,.35); display:grid; gap:14px; }
 .tenant-carrito-modal-header{ display:flex; align-items:center; justify-content:space-between; }
@@ -448,7 +467,7 @@ function estilosBaseTenant(color) {
 
 const ICONO_TENANT_BUSQUEDA = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`;
 
-function encabezadoTenantHtml(datos, paginaActiva, mostrarCredito, mostrarCarrito) {
+function encabezadoTenantHtml(datos, paginaActiva, mostrarCredito, mostrarCarrito, mostrarFavoritos) {
     const nombre = escaparHtml(datos.nombre);
     return `<header class="tenant-header">
 <div class="tenant-header-marca">
@@ -465,6 +484,7 @@ ${datos.logo ? `<img src="${escaparHtml(datos.logo)}" alt="Logo ${nombre}">` : "
 <a href="/catalogo?ofertas=1">Ofertas</a>
 ${mostrarCredito ? `<a href="/solicitud-credito" class="${paginaActiva === "credito" ? "activo" : ""}">Credito</a>` : ""}
 <a href="/portal-cliente" class="${paginaActiva === "portal" ? "activo" : ""}">Mi cuenta</a>
+${mostrarFavoritos ? `<a href="/favoritos" class="${paginaActiva === "favoritos" ? "activo" : ""}">Favoritos<span id="favoritosContador" class="tenant-carrito-contador">0</span></a>` : ""}
 ${mostrarCarrito ? `<button type="button" class="tenant-carrito-boton-nav" id="tenantCarritoAbrirBoton" aria-label="Ver carrito">Carrito<span id="carritoContador" class="tenant-carrito-contador">0</span></button>` : ""}
 </nav>
 </header>`;
@@ -577,7 +597,7 @@ ${imagenMeta ? `<meta property="og:image" content="${escaparHtml(imagenMeta)}">`
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(datos, "inicio", datos.aceptarSolicitudesCredito, true)}
+${encabezadoTenantHtml(datos, "inicio", datos.aceptarSolicitudesCredito, true, true)}
 ${bannerPromocionHtml(datos)}
 <section class="tenant-hero-2col">
 <div class="tenant-hero-panel">
@@ -604,6 +624,7 @@ ${franjaCatalogoHtml}
 <footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
 ${modalCarritoTenantHtml(datos.slug)}
 <script>${scriptCarritoTenantHtml(datos.slug)}</script>
+<script>${scriptFavoritosTenantHtml(datos.slug)}</script>
 </body>
 </html>`;
 }
@@ -731,6 +752,74 @@ function construirQueryString(params) {
         .filter(([, valor]) => valor !== undefined && valor !== null && valor !== "")
         .map(([clave, valor]) => `${encodeURIComponent(clave)}=${encodeURIComponent(valor)}`);
     return partes.length ? `?${partes.join("&")}` : "";
+}
+
+// Favoritos (Fase 11): traduce codigos guardados en localStorage del
+// navegador a datos frescos de producto -- nunca se guarda nada en el
+// servidor, este endpoint es de solo lectura. Mismo gate de
+// mostrarPrecios/mostrarExistencias que ya usa el catalogo, para
+// nunca filtrar precio/stock si el negocio los tiene apagados.
+async function favoritosJson(pool, req, res, slug, firmarTokenImagen) {
+    try {
+        const sitio = await resolverSitioPublico(pool, slug);
+
+        if (!sitio) {
+            res.status(404).json({ ok: false, error: "No encontrado" });
+            return;
+        }
+
+        const codigos = paramTexto(req.query.codigos, 2000)
+            .split(",")
+            .map(c => c.trim())
+            .filter(Boolean)
+            .slice(0, 60);
+
+        if (!codigos.length) {
+            res.json({ ok: true, productos: [] });
+            return;
+        }
+
+        const columnasExtra = [
+            sitio.config.mostrarPrecios ? "COALESCE(precio_publico, precio) AS precio" : null,
+            sitio.config.mostrarPrecios ? "precio_oferta" : null,
+            sitio.config.mostrarExistencias ? "stock" : null
+        ].filter(Boolean);
+
+        const filas = await pool.query(
+            `
+            SELECT codigo, nombre${columnasExtra.length ? ", " + columnasExtra.join(", ") : ""}
+            FROM public.productos
+            WHERE negocio_id = $1 AND codigo = ANY($2)
+            `,
+            [sitio.negocio.id, codigos]
+        );
+
+        let fotosPorCodigo = new Set();
+        if (filas.rows.length) {
+            const fotos = await pool.query(
+                `SELECT codigo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2)`,
+                [sitio.negocio.id, filas.rows.map(p => p.codigo)]
+            );
+            fotosPorCodigo = new Set(fotos.rows.map(f => f.codigo));
+        }
+
+        res.json({
+            ok: true,
+            productos: filas.rows.map(p => ({
+                codigo: p.codigo,
+                nombre: p.nombre,
+                fotoUrl: fotosPorCodigo.has(p.codigo)
+                    ? `/fotos-producto/${encodeURIComponent(p.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, p.codigo)}`
+                    : "",
+                precio: p.precio ?? null,
+                precioOferta: p.precio_oferta ?? null,
+                stock: p.stock !== undefined && p.stock !== null ? Number(p.stock) : null
+            }))
+        });
+    } catch (error) {
+        console.warn("Error sirviendo favoritos:", error.message);
+        res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+    }
 }
 
 async function servirCatalogoNegocio(pool, req, res, slug, firmarTokenImagen) {
@@ -871,7 +960,7 @@ ${pagina < totalPaginas ? `<a href="/catalogo${construirQueryString({ buscar, ca
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true)}
+${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true, true)}
 ${bannerPromocionHtml(sitio.config)}
 <main class="tenant-main">
 <h1 class="tenant-catalogo-titulo">Catalogo de productos</h1>
@@ -890,12 +979,61 @@ ${productos.length
 <footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
 ${modalCarritoTenantHtml(slug)}
 <script>${scriptCarritoTenantHtml(slug)}</script>
+<script>${scriptFavoritosTenantHtml(slug)}</script>
 </body>
 </html>`;
 
         res.set("Content-Type", "text/html; charset=utf-8").send(html);
     } catch (error) {
         console.warn("Error sirviendo catalogo de negocio:", error.message);
+        res.status(500).send("Error");
+    }
+}
+
+// Pagina de favoritos (Fase 11) -- el servidor no sabe que hay
+// guardado en localStorage del navegador, asi que solo pinta el
+// esqueleto (header/footer/estilos) con un contenedor vacio; el
+// script de favoritos lo llena al cargar via fetch a favoritosJson.
+async function servirFavoritosNegocio(pool, req, res, slug) {
+    try {
+        const sitio = await resolverSitioPublico(pool, slug);
+
+        if (!sitio) {
+            res.status(404).send("No encontrado");
+            return;
+        }
+
+        const color = colorSeguro(sitio.negocio.color);
+        const nombre = escaparHtml(sitio.negocio.nombre);
+
+        const html = `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Favoritos -- ${nombre}</title>
+<meta name="description" content="Tus productos favoritos en ${nombre}.">
+<link rel="icon" href="/nexo-pos-icon.jpg">
+<link rel="stylesheet" href="/site/styles.css">
+<style>${estilosBaseTenant(color)}</style>
+</head>
+<body>
+${encabezadoTenantHtml(sitio.negocio, "favoritos", sitio.config.aceptarSolicitudesCredito, true, true)}
+${bannerPromocionHtml(sitio.config)}
+<main class="tenant-main">
+<h1 class="tenant-catalogo-titulo">Tus favoritos</h1>
+<div id="favoritosLista"><p class="tenant-favoritos-vacio">Cargando...</p></div>
+</main>
+<footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+${modalCarritoTenantHtml(slug)}
+<script>${scriptCarritoTenantHtml(slug)}</script>
+<script>${scriptFavoritosTenantHtml(slug)}</script>
+</body>
+</html>`;
+
+        res.set("Content-Type", "text/html; charset=utf-8").send(html);
+    } catch (error) {
+        console.warn("Error sirviendo favoritos de negocio:", error.message);
         res.status(500).send("Error");
     }
 }
@@ -983,7 +1121,7 @@ ${fotoUrl ? `<meta property="og:image" content="${fotoUrl}">` : ""}
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true)}
+${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true, true)}
 ${bannerPromocionHtml(sitio.config)}
 <main class="tenant-main">
 <a class="tenant-volver" href="/catalogo">&larr; Volver al catalogo</a>
@@ -998,7 +1136,7 @@ ${precio !== null && Number.isFinite(precio) ? `<div class="tenant-detalle-preci
 ${stock !== null ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>` : ""}
 ${producto.descripcion ? `<p>${escaparHtml(producto.descripcion)}</p>` : ""}
 ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto tiene garantia${producto.garantia_detalle ? `: ${escaparHtml(producto.garantia_detalle)}` : "."}</div>` : ""}
-<div class="tenant-acciones">${whatsappHtml}<button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button></div>
+<div class="tenant-acciones">${whatsappHtml}<button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button><button type="button" class="tenant-btn-favorito tenant-btn-favorito-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}<span>Favorito</span></button></div>
 </div>
 </div>
 </div>
@@ -1007,6 +1145,7 @@ ${formularioPedidoHtml}
 <footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
 ${modalCarritoTenantHtml(slug)}
 <script>${scriptCarritoTenantHtml(slug)}</script>
+<script>${scriptFavoritosTenantHtml(slug)}</script>
 </body>
 </html>`;
 
@@ -1504,6 +1643,232 @@ const formularioCarrito = document.getElementById("tenantCarritoForm");
 if (formularioCarrito) formularioCarrito.addEventListener("submit", carritoEnviar);
 
 carritoActualizarBadge();
+`;
+}
+
+// Script de favoritos (Fase 11) -- mismo patron que el carrito
+// (localStorage namespaced por slug, cada script inline con su propio
+// document.addEventListener("click", ...), sin compartir el listener
+// del carrito). Solo guarda codigos (string[]) en localStorage -- los
+// datos frescos siempre se piden al servidor via favoritosJson. Todo
+// dato que viene del servidor se pinta con createElement/textContent,
+// nunca innerHTML con el valor crudo (mismo criterio que el resto del
+// archivo).
+function scriptFavoritosTenantHtml(slug) {
+    return `
+const FAVORITOS_CLAVE = "nexoFavoritos_${slug}";
+
+function favoritosElemento(id){ return document.getElementById(id); }
+
+function favoritosLeer(){
+    try {
+        const datos = JSON.parse(localStorage.getItem(FAVORITOS_CLAVE) || "[]");
+        return Array.isArray(datos) ? datos : [];
+    } catch (error) { return []; }
+}
+
+function favoritosGuardar(codigos){
+    localStorage.setItem(FAVORITOS_CLAVE, JSON.stringify(codigos));
+    favoritosActualizarBadge();
+}
+
+function favoritosActualizarBadge(){
+    const badge = favoritosElemento("favoritosContador");
+    if (!badge) return;
+    badge.textContent = String(favoritosLeer().length);
+}
+
+function favoritosToggle(codigo){
+    const codigos = favoritosLeer();
+    const indice = codigos.indexOf(codigo);
+    if (indice === -1) {
+        codigos.push(codigo);
+        favoritosGuardar(codigos);
+        return true;
+    }
+    codigos.splice(indice, 1);
+    favoritosGuardar(codigos);
+    return false;
+}
+
+function favoritosMarcarBotones(){
+    const guardados = favoritosLeer();
+    document.querySelectorAll(".tenant-btn-favorito").forEach(function(boton){
+        boton.classList.toggle("activo", guardados.indexOf(boton.getAttribute("data-codigo")) !== -1);
+    });
+}
+
+function favoritosPrecioNodo(precio, precioOferta){
+    const contenedor = document.createDocumentFragment();
+    const normal = Number(precio);
+    if (!isFinite(normal)) return contenedor;
+    const oferta = Number(precioOferta);
+    if (isFinite(oferta) && oferta > 0 && oferta < normal) {
+        const tachado = document.createElement("span");
+        tachado.className = "tenant-precio-tachado";
+        tachado.textContent = "$" + normal.toFixed(2);
+        const ofertaSpan = document.createElement("span");
+        ofertaSpan.className = "tenant-precio-oferta";
+        ofertaSpan.textContent = "$" + oferta.toFixed(2);
+        const badge = document.createElement("span");
+        badge.className = "tenant-badge-oferta";
+        badge.textContent = "Oferta";
+        contenedor.appendChild(tachado);
+        contenedor.appendChild(ofertaSpan);
+        contenedor.appendChild(badge);
+    } else {
+        const precioSpan = document.createElement("span");
+        precioSpan.className = "tenant-producto-precio";
+        precioSpan.textContent = "$" + normal.toFixed(2);
+        contenedor.appendChild(precioSpan);
+    }
+    return contenedor;
+}
+
+function favoritosCrearTarjeta(producto){
+    const card = document.createElement("div");
+    card.className = "tenant-producto-card";
+
+    const botonFav = document.createElement("button");
+    botonFav.type = "button";
+    botonFav.className = "tenant-btn-favorito activo";
+    botonFav.setAttribute("data-codigo", producto.codigo);
+    botonFav.setAttribute("aria-label", "Quitar de favoritos");
+    botonFav.innerHTML = ${JSON.stringify(ICONO_TENANT_FAVORITO)};
+    card.appendChild(botonFav);
+
+    const enlace = document.createElement("a");
+    enlace.href = "/catalogo/" + encodeURIComponent(producto.codigo);
+
+    const foto = document.createElement("div");
+    foto.className = "tenant-producto-foto";
+    if (producto.fotoUrl) {
+        const img = document.createElement("img");
+        img.src = producto.fotoUrl;
+        img.alt = producto.nombre || "";
+        foto.appendChild(img);
+    } else {
+        const vacio = document.createElement("span");
+        vacio.className = "tenant-producto-foto-vacia";
+        vacio.textContent = "Sin foto";
+        foto.appendChild(vacio);
+    }
+    enlace.appendChild(foto);
+
+    const info = document.createElement("div");
+    info.className = "tenant-producto-info";
+
+    const nombreSpan = document.createElement("span");
+    nombreSpan.className = "tenant-producto-nombre";
+    nombreSpan.textContent = producto.nombre;
+    info.appendChild(nombreSpan);
+
+    if (producto.precio !== null && producto.precio !== undefined) {
+        info.appendChild(favoritosPrecioNodo(producto.precio, producto.precioOferta));
+    }
+
+    if (producto.stock !== null && producto.stock !== undefined) {
+        const existencia = document.createElement("span");
+        existencia.className = "tenant-producto-existencia" + (producto.stock <= 0 ? " agotado" : "");
+        existencia.textContent = producto.stock <= 0 ? "Agotado" : (producto.stock + " disponibles");
+        info.appendChild(existencia);
+    }
+
+    enlace.appendChild(info);
+    card.appendChild(enlace);
+
+    const botonCarrito = document.createElement("button");
+    botonCarrito.type = "button";
+    botonCarrito.className = "tenant-btn-carrito";
+    botonCarrito.setAttribute("data-codigo", producto.codigo);
+    botonCarrito.setAttribute("data-nombre", producto.nombre || "");
+    botonCarrito.textContent = "Agregar al carrito";
+    card.appendChild(botonCarrito);
+
+    return card;
+}
+
+function favoritosPintarVacio(contenedor){
+    contenedor.innerHTML = "";
+    const vacio = document.createElement("p");
+    vacio.className = "tenant-favoritos-vacio";
+    vacio.textContent = "Todavia no tienes favoritos.";
+    const link = document.createElement("a");
+    link.href = "/catalogo";
+    link.textContent = "Ver catalogo";
+    contenedor.appendChild(vacio);
+    contenedor.appendChild(link);
+}
+
+async function favoritosCargarLista(){
+    const contenedor = favoritosElemento("favoritosLista");
+    if (!contenedor) return;
+
+    const codigos = favoritosLeer();
+    if (codigos.length === 0) {
+        favoritosPintarVacio(contenedor);
+        return;
+    }
+
+    try {
+        const respuesta = await fetch("/catalogo/favoritos-json?codigos=" + encodeURIComponent(codigos.join(",")));
+        const datos = await respuesta.json();
+
+        if (!datos.ok) {
+            contenedor.textContent = "No se pudieron cargar tus favoritos.";
+            return;
+        }
+
+        const productos = datos.productos || [];
+
+        // Auto-limpieza: un codigo guardado que ya no regreso (producto
+        // borrado) se quita de localStorage, nunca se muestra roto.
+        if (productos.length !== codigos.length) {
+            favoritosGuardar(productos.map(function(p){ return p.codigo; }));
+        }
+
+        if (productos.length === 0) {
+            favoritosPintarVacio(contenedor);
+            return;
+        }
+
+        const grid = document.createElement("div");
+        grid.className = "tenant-catalogo-grid";
+        productos.forEach(function(producto){ grid.appendChild(favoritosCrearTarjeta(producto)); });
+        contenedor.innerHTML = "";
+        contenedor.appendChild(grid);
+    } catch (error) {
+        contenedor.textContent = "No se pudieron cargar tus favoritos. Revisa tu conexion.";
+    }
+}
+
+document.addEventListener("click", function(evento){
+    const boton = evento.target.closest(".tenant-btn-favorito");
+    if (!boton) return;
+
+    const codigo = boton.getAttribute("data-codigo");
+    const agregado = favoritosToggle(codigo);
+    boton.classList.toggle("activo", agregado);
+
+    if (!agregado) {
+        const enPaginaFavoritos = favoritosElemento("favoritosLista");
+        if (enPaginaFavoritos) {
+            const tarjeta = boton.closest(".tenant-producto-card");
+            if (tarjeta) {
+                tarjeta.style.transition = "opacity .2s ease";
+                tarjeta.style.opacity = "0";
+                setTimeout(function(){
+                    tarjeta.remove();
+                    if (favoritosLeer().length === 0) favoritosPintarVacio(enPaginaFavoritos);
+                }, 200);
+            }
+        }
+    }
+});
+
+favoritosMarcarBotones();
+favoritosActualizarBadge();
+favoritosCargarLista();
 `;
 }
 
@@ -2474,5 +2839,7 @@ module.exports = {
     servirSolicitudCreditoNegocio,
     recibirSolicitudCreditoPublica,
     servirPortalClienteNegocio,
-    iniciarSesionClientePublico
+    iniciarSesionClientePublico,
+    servirFavoritosNegocio,
+    favoritosJson
 };

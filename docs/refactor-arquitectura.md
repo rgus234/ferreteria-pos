@@ -7179,3 +7179,63 @@ modificar, **28/28 sigue pasando**; `scripts/verificar-home-tienda.js`
 completa (`npm test`, 19/19) sin regresiones. Confirmado `negocio_id
 = 1` sin contaminacion cruzada durante toda la prueba. Pendiente de
 confirmacion del usuario para `git add`/`commit`.
+
+## 2026-08-05 -- Sitio web por negocio, Fase 11: Favoritos
+
+Tras cerrar Fase 10, el usuario delego de nuevo cual construir
+despues ("tu sigue con lo que creas mejor"). Se eligio **Favoritos**:
+un boton de corazon en cada tarjeta de producto (catalogo, destacados
+del inicio, ficha de detalle) que guarda el producto en una lista
+personal, mas una pagina `/favoritos` para verla completa. 100% del
+lado del navegador (`localStorage`, mismo patron namespaced por slug
+que ya usa el carrito de Fase 7) -- **sin migracion, sin tabla nueva**;
+el unico trabajo de servidor es un endpoint de solo lectura
+(`favoritosJson`) que traduce codigos guardados a datos frescos de
+producto.
+
+`ICONO_TENANT_FAVORITO` es un solo SVG de trazo (mismo estilo que los
+demas iconos del archivo); el estado "ya es favorito" se controla por
+CSS (`.activo` en el boton pone `fill:currentColor`), sin un segundo
+SVG. El boton se inserta como **hermano** del `<a>` en
+`tarjetaProductoTenantHtml` (nunca anidado -- mismo criterio ya
+documentado desde Fase 7/8), con `position:absolute` sobre la foto;
+`.tenant-producto-card` gano `position:relative` para anclarlo. La
+ficha de detalle gana una variante en linea (`.tenant-btn-favorito-linea`,
+icono + texto "Favorito") dentro de `.tenant-acciones`.
+`encabezadoTenantHtml` gano un 5to parametro `mostrarFavoritos` y el
+link "Favoritos" con badge de contador (`#favoritosContador`), en las
+mismas 3+1 paginas donde ya vive el carrito.
+
+`scriptFavoritosTenantHtml(slug)` es un script nuevo e independiente
+(su propio `document.addEventListener("click", ...)`, no comparte el
+listener del carrito) con `FAVORITOS_CLAVE = "nexoFavoritos_${slug}"`,
+toggle con feedback visual inmediato, y -- solo en `/favoritos` -- un
+`fetch` a `/catalogo/favoritos-json` al cargar que pinta las tarjetas
+reales via `createElement`/`textContent` (nunca `innerHTML` con datos
+del servidor) y auto-limpia `localStorage` de codigos que ya no
+regresaron (producto borrado). `favoritosJson` aplica el mismo gate
+`mostrarPrecios`/`mostrarExistencias` que ya usa el catalogo.
+
+**Bug encontrado y corregido durante la verificacion**: la ruta nueva
+`GET /catalogo/favoritos-json` se registro en `server.js` **despues**
+de `GET /catalogo/:codigo` -- Express matchea rutas en orden de
+registro, asi que `:codigo` capturaba literalmente `"favoritos-json"`
+y la peticion caia en `servirProductoNegocio` (404 "No encontrado")
+en vez de `favoritosJson`. Se movio la ruta fija antes de la ruta con
+parametro, con un comentario explicando por que el orden importa aqui
+-- mismo tipo de gotcha ya documentado para otras rutas de este
+proyecto.
+
+**Verificacion**: `node --check` en `server.js` y
+`public-site-server.js`. Nuevo `scripts/verificar-favoritos.js` (12
+casos: favoritos-json con precios/existencias reales, con los toggles
+apagados no se exponen, codigo borrado se omite sin tronar, sin
+codigos regresa vacio, `/favoritos` sirve el esqueleto con el script
+y el contador en el header, el catalogo sigue trayendo el boton de
+favorito por tarjeta, plan Basico responde 404 en ambas rutas nuevas)
+-- **12/12 pasaron**. Regresion: `scripts/verificar-carrito-promo.js`
+(Fase 7) sin modificar, **28/28 sigue pasando**. Suite automatizada
+completa (`npm test`, 19/19) sin regresiones. Confirmado `negocio_id
+= 1` sin contaminacion cruzada durante toda la prueba. Sin migracion
+en esta fase. Pendiente de confirmacion del usuario para
+`git add`/`commit`.

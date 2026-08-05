@@ -25,7 +25,9 @@ const {
     servirSolicitudCreditoNegocio,
     recibirSolicitudCreditoPublica,
     servirPortalClienteNegocio,
-    iniciarSesionClientePublico
+    iniciarSesionClientePublico,
+    servirFavoritosNegocio,
+    favoritosJson
 } = require("./public-site-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
@@ -4555,6 +4557,15 @@ app.get("/catalogo", async (req, res) => {
     await servirCatalogoNegocio(pool, req, res, slugTenant, firmarTokenImagen);
 });
 
+// Debe registrarse ANTES de "/catalogo/:codigo" -- Express matchea
+// rutas en orden de registro, y ":codigo" capturaria literalmente
+// "favoritos-json" si esta ruta fija se registrara despues.
+app.get("/catalogo/favoritos-json", async (req, res) => {
+    const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
+    if (!slugTenant) { res.status(404).json({ ok: false, error: "No encontrado" }); return; }
+    await favoritosJson(pool, req, res, slugTenant, firmarTokenImagen);
+});
+
 app.get("/catalogo/:codigo", async (req, res) => {
     const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
     if (!slugTenant) { res.status(404).send("No encontrado"); return; }
@@ -4571,6 +4582,12 @@ app.post("/catalogo/pedido-carrito", async (req, res) => {
     const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
     if (!slugTenant) { res.status(404).json({ ok: false, error: "No encontrado" }); return; }
     await recibirPedidoCarritoPublico(pool, req, res, slugTenant);
+});
+
+app.get("/favoritos", async (req, res) => {
+    const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
+    if (!slugTenant) { res.status(404).send("No encontrado"); return; }
+    await servirFavoritosNegocio(pool, req, res, slugTenant);
 });
 
 app.get("/solicitud-credito", async (req, res) => {
