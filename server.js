@@ -27,7 +27,9 @@ const {
     servirPortalClienteNegocio,
     iniciarSesionClientePublico,
     servirFavoritosNegocio,
-    favoritosJson
+    favoritosJson,
+    servirComparadorNegocio,
+    comparadorJson
 } = require("./public-site-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
@@ -4566,6 +4568,14 @@ app.get("/catalogo/favoritos-json", async (req, res) => {
     await favoritosJson(pool, req, res, slugTenant, firmarTokenImagen);
 });
 
+// Debe registrarse ANTES de "/catalogo/:codigo", mismo motivo que
+// favoritos-json (Express matchea en orden de registro).
+app.get("/catalogo/comparador-json", async (req, res) => {
+    const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
+    if (!slugTenant) { res.status(404).json({ ok: false, error: "No encontrado" }); return; }
+    await comparadorJson(pool, req, res, slugTenant, firmarTokenImagen);
+});
+
 app.get("/catalogo/:codigo", async (req, res) => {
     const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
     if (!slugTenant) { res.status(404).send("No encontrado"); return; }
@@ -4588,6 +4598,12 @@ app.get("/favoritos", async (req, res) => {
     const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
     if (!slugTenant) { res.status(404).send("No encontrado"); return; }
     await servirFavoritosNegocio(pool, req, res, slugTenant);
+});
+
+app.get("/comparar", async (req, res) => {
+    const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
+    if (!slugTenant) { res.status(404).send("No encontrado"); return; }
+    await servirComparadorNegocio(pool, req, res, slugTenant);
 });
 
 app.get("/solicitud-credito", async (req, res) => {

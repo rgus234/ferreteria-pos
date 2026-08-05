@@ -7239,3 +7239,69 @@ completa (`npm test`, 19/19) sin regresiones. Confirmado `negocio_id
 = 1` sin contaminacion cruzada durante toda la prueba. Sin migracion
 en esta fase. Pendiente de confirmacion del usuario para
 `git add`/`commit`.
+
+## 2026-08-05 -- Sitio web por negocio, Fase 12: Comparador de productos
+
+Tras cerrar Fase 11 (Favoritos), el usuario delego de nuevo cual
+construir despues ("sigue con lo siguiente tu sabes"). Se eligio
+**Comparador de productos**: el cliente marca 2 a 4 productos desde
+el catalogo, los destacados del inicio o la ficha de detalle, y los
+ve lado a lado en una pagina `/comparar` (precio, existencia,
+categoria, marca, unidad de venta, garantia). Se diseno como un
+espejo casi exacto de Favoritos -- **100% en el navegador**
+(`localStorage` namespaced por slug, mismo patron que carrito y
+favoritos), **sin migracion, sin tabla nueva**; el unico trabajo de
+servidor es `comparadorJson`, un endpoint de solo lectura que traduce
+codigos guardados a datos frescos.
+
+`ICONO_TENANT_COMPARAR` es un SVG nuevo (dos rectangulos superpuestos,
+mismo estilo de trazo que el resto de iconos del archivo) -- no
+existia ningun icono de "comparar/capas" previamente. El boton se
+inserta como **hermano** del `<a>` en `tarjetaProductoTenantHtml`
+(mismo criterio ya documentado desde Fase 7/8), anclado en la esquina
+opuesta al de favoritos (`top:10px; left:10px`) para no encimarse. La
+ficha de detalle gana una variante en linea
+(`.tenant-btn-comparar-linea`). `encabezadoTenantHtml` gano un 6to
+parametro `mostrarComparador` con el mismo patron de nav link + badge
+(`#comparadorContador`) que ya usa favoritos.
+
+`comparadorJson` copia el esqueleto de `favoritosJson` pero agrega
+`categoria, marca, unidad_venta, tiene_garantia, garantia_detalle`
+**siempre** al `SELECT` (sin gate -- solo precio/stock respetan
+`mostrarPrecios`/`mostrarExistencias`, igual que antes) y tope de 4
+codigos en vez de 60 (un comparador nunca necesita mas). No se
+reutilizo `favoritosJson` tal cual para no mezclar responsabilidades
+de 2 features distintas en un solo endpoint.
+
+`scriptComparadorTenantHtml(slug)` es un script independiente (su
+propio `document.addEventListener("click", ...)`, no comparte
+listener con carrito ni favoritos) con `COMPARADOR_CLAVE` y
+`COMPARADOR_MAXIMO = 4` -- al intentar agregar un 5to producto se
+rechaza con `alert()` nativo (unica dependencia cero ya coherente con
+el criterio de "JS minimo" del sitio publico, sin sistema de toasts
+ahi). La pagina `/comparar` construye una tabla comparativa
+(`.tenant-comparador-tabla`, columnas con scroll horizontal en vez de
+una grilla) via `createElement`/`textContent`, con estado "Selecciona
+al menos 2 productos" cuando hay 0 o 1 codigo guardado (antes o
+despues de la auto-limpieza de codigos borrados, mismo criterio de
+Fase 11).
+
+**Verificacion**: `node --check` en `server.js` y
+`public-site-server.js`. Nuevo `scripts/verificar-comparador.js` (12
+casos: comparador-json con atributos de comparacion + precios/
+existencias reales, con los toggles apagados los atributos de
+comparacion siguen presentes pero precio/stock no, codigo borrado se
+omite, sin codigos regresa vacio, `/comparar` sirve el esqueleto con
+el contador en el header, el catalogo sigue trayendo AMBOS botones
+-favorito y comparar- por tarjeta, la ficha de detalle incluye el
+boton en linea, plan Basico responde 404 en ambas rutas nuevas) --
+**12/12 pasaron, todos a la primera corrida** (la disciplina de
+registrar la ruta fija `/catalogo/comparador-json` antes de
+`/catalogo/:codigo`, aprendida del bug de Fase 11, se aplico
+correctamente desde el inicio). Regresion:
+`scripts/verificar-favoritos.js` (Fase 11) sin modificar, **12/12
+sigue pasando**; `scripts/verificar-carrito-promo.js` (Fase 7) sin
+modificar, **28/28 sigue pasando**. Suite automatizada completa
+(`npm test`, 19/19) sin regresiones. Confirmado `negocio_id = 1` sin
+contaminacion cruzada durante toda la prueba. Sin migracion en esta
+fase. Pendiente de confirmacion del usuario para `git add`/`commit`.

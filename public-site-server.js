@@ -255,6 +255,12 @@ const ICONO_CATEGORIA_GENERICO = `<svg viewBox="0 0 24 24" fill="none" stroke="c
 // con un segundo SVG.
 const ICONO_TENANT_FAVORITO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg>`;
 
+// Icono de comparar (Fase 12) -- dos rectangulos superpuestos, mismo
+// estilo de trazo que el resto de iconos de este archivo. El estado
+// "activo" (ya seleccionado para comparar) se controla por CSS, igual
+// que el de favoritos.
+const ICONO_TENANT_COMPARAR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="12" height="12" rx="2"></rect><rect x="9" y="9" width="12" height="12" rx="2"></rect></svg>`;
+
 function iconoCategoriaTenant(nombre) {
     const texto = String(nombre || "").toLowerCase();
     const match = ICONOS_CATEGORIA_TENANT.find(entry => entry.patron.test(texto));
@@ -273,6 +279,7 @@ function tarjetaProductoTenantHtml({ codigo, nombre, fotoUrl, precio, precioOfer
 
     return `<div class="tenant-producto-card">
 <button type="button" class="tenant-btn-favorito" data-codigo="${escaparHtml(codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}</button>
+<button type="button" class="tenant-btn-comparar" data-codigo="${escaparHtml(codigo)}" aria-label="Agregar a comparar">${ICONO_TENANT_COMPARAR}</button>
 <a href="/catalogo/${encodeURIComponent(codigo)}">
 <div class="tenant-producto-foto">${fotoUrl ? `<img src="${fotoUrl}" alt="${nombreSeguro}">` : `<span class="tenant-producto-foto-vacia">Sin foto</span>`}</div>
 <div class="tenant-producto-info">
@@ -438,6 +445,24 @@ function estilosBaseTenant(color) {
 #favoritosLista{ text-align:center; }
 #favoritosLista > a{ color:var(--blue); font-weight:700; }
 #favoritosLista .tenant-catalogo-grid{ text-align:left; }
+.tenant-btn-comparar{ position:absolute; top:10px; left:10px; z-index:2; display:flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0; border-radius:999px; border:none; background:rgba(255,255,255,.85); backdrop-filter:blur(4px); color:var(--ink); cursor:pointer; box-shadow:0 4px 12px rgba(20,32,51,.12); transition:color .15s ease, transform .15s ease; }
+.tenant-btn-comparar svg{ width:18px; height:18px; }
+.tenant-btn-comparar:hover{ transform:scale(1.06); }
+.tenant-btn-comparar.activo{ color:var(--blue); }
+.tenant-btn-comparar.activo svg{ fill:rgba(16,103,232,.18); }
+.tenant-btn-comparar-linea{ position:static; width:auto; height:auto; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:13px 26px; border-radius:999px; background:var(--glass); border:1px solid var(--line); color:var(--ink); font-weight:700; font-size:14px; box-shadow:none; backdrop-filter:none; }
+.tenant-btn-comparar-linea svg{ width:18px; height:18px; }
+.tenant-btn-comparar-linea.activo{ border-color:rgba(16,103,232,.35); background:rgba(16,103,232,.08); }
+.tenant-comparador-tabla{ display:flex; gap:16px; overflow-x:auto; padding-bottom:8px; }
+.tenant-comparador-columna{ display:flex; flex-direction:column; gap:10px; min-width:220px; flex:0 0 220px; padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--glass); box-shadow:0 10px 24px rgba(20,32,51,.05); }
+.tenant-comparador-columna .tenant-producto-foto{ border-radius:12px; }
+.tenant-comparador-atributos{ display:grid; gap:0; margin:4px 0; }
+.tenant-comparador-atributo{ display:flex; justify-content:space-between; gap:10px; font-size:13px; padding:8px 0; border-top:1px solid var(--line); }
+.tenant-comparador-atributo-etiqueta{ color:var(--muted); font-weight:600; }
+.tenant-comparador-vacio{ padding:48px 0 8px; color:var(--muted); font-size:15px; text-align:center; }
+#comparadorTabla{ text-align:center; }
+#comparadorTabla > a{ color:var(--blue); font-weight:700; }
+#comparadorTabla .tenant-comparador-tabla{ text-align:left; }
 .tenant-carrito-overlay{ position:fixed; inset:0; z-index:9500; background:rgba(13,23,42,.55); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; padding:20px; }
 .tenant-carrito-modal{ width:min(520px,92vw); max-height:86vh; overflow-y:auto; background:var(--paper); border-radius:20px; padding:24px; box-shadow:0 30px 60px rgba(13,23,42,.35); display:grid; gap:14px; }
 .tenant-carrito-modal-header{ display:flex; align-items:center; justify-content:space-between; }
@@ -467,7 +492,7 @@ function estilosBaseTenant(color) {
 
 const ICONO_TENANT_BUSQUEDA = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`;
 
-function encabezadoTenantHtml(datos, paginaActiva, mostrarCredito, mostrarCarrito, mostrarFavoritos) {
+function encabezadoTenantHtml(datos, paginaActiva, mostrarCredito, mostrarCarrito, mostrarFavoritos, mostrarComparador) {
     const nombre = escaparHtml(datos.nombre);
     return `<header class="tenant-header">
 <div class="tenant-header-marca">
@@ -485,6 +510,7 @@ ${datos.logo ? `<img src="${escaparHtml(datos.logo)}" alt="Logo ${nombre}">` : "
 ${mostrarCredito ? `<a href="/solicitud-credito" class="${paginaActiva === "credito" ? "activo" : ""}">Credito</a>` : ""}
 <a href="/portal-cliente" class="${paginaActiva === "portal" ? "activo" : ""}">Mi cuenta</a>
 ${mostrarFavoritos ? `<a href="/favoritos" class="${paginaActiva === "favoritos" ? "activo" : ""}">Favoritos<span id="favoritosContador" class="tenant-carrito-contador">0</span></a>` : ""}
+${mostrarComparador ? `<a href="/comparar" class="${paginaActiva === "comparar" ? "activo" : ""}">Comparar<span id="comparadorContador" class="tenant-carrito-contador">0</span></a>` : ""}
 ${mostrarCarrito ? `<button type="button" class="tenant-carrito-boton-nav" id="tenantCarritoAbrirBoton" aria-label="Ver carrito">Carrito<span id="carritoContador" class="tenant-carrito-contador">0</span></button>` : ""}
 </nav>
 </header>`;
@@ -597,7 +623,7 @@ ${imagenMeta ? `<meta property="og:image" content="${escaparHtml(imagenMeta)}">`
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(datos, "inicio", datos.aceptarSolicitudesCredito, true, true)}
+${encabezadoTenantHtml(datos, "inicio", datos.aceptarSolicitudesCredito, true, true, true)}
 ${bannerPromocionHtml(datos)}
 <section class="tenant-hero-2col">
 <div class="tenant-hero-panel">
@@ -625,6 +651,7 @@ ${franjaCatalogoHtml}
 ${modalCarritoTenantHtml(datos.slug)}
 <script>${scriptCarritoTenantHtml(datos.slug)}</script>
 <script>${scriptFavoritosTenantHtml(datos.slug)}</script>
+<script>${scriptComparadorTenantHtml(datos.slug)}</script>
 </body>
 </html>`;
 }
@@ -822,6 +849,79 @@ async function favoritosJson(pool, req, res, slug, firmarTokenImagen) {
     }
 }
 
+// Comparador (Fase 12): mismo esqueleto que favoritosJson -- solo
+// lectura, traduce codigos guardados en localStorage a datos frescos.
+// A diferencia de favoritos, categoria/marca/unidad_venta/garantia se
+// exponen siempre (nunca son datos sensibles de precio/existencia,
+// no necesitan el gate de mostrarPrecios/mostrarExistencias).
+async function comparadorJson(pool, req, res, slug, firmarTokenImagen) {
+    try {
+        const sitio = await resolverSitioPublico(pool, slug);
+
+        if (!sitio) {
+            res.status(404).json({ ok: false, error: "No encontrado" });
+            return;
+        }
+
+        const codigos = paramTexto(req.query.codigos, 2000)
+            .split(",")
+            .map(c => c.trim())
+            .filter(Boolean)
+            .slice(0, 4);
+
+        if (!codigos.length) {
+            res.json({ ok: true, productos: [] });
+            return;
+        }
+
+        const columnasExtra = [
+            sitio.config.mostrarPrecios ? "COALESCE(precio_publico, precio) AS precio" : null,
+            sitio.config.mostrarPrecios ? "precio_oferta" : null,
+            sitio.config.mostrarExistencias ? "stock" : null
+        ].filter(Boolean);
+
+        const filas = await pool.query(
+            `
+            SELECT codigo, nombre, categoria, marca, unidad_venta, tiene_garantia, garantia_detalle${columnasExtra.length ? ", " + columnasExtra.join(", ") : ""}
+            FROM public.productos
+            WHERE negocio_id = $1 AND codigo = ANY($2)
+            `,
+            [sitio.negocio.id, codigos]
+        );
+
+        let fotosPorCodigo = new Set();
+        if (filas.rows.length) {
+            const fotos = await pool.query(
+                `SELECT codigo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2)`,
+                [sitio.negocio.id, filas.rows.map(p => p.codigo)]
+            );
+            fotosPorCodigo = new Set(fotos.rows.map(f => f.codigo));
+        }
+
+        res.json({
+            ok: true,
+            productos: filas.rows.map(p => ({
+                codigo: p.codigo,
+                nombre: p.nombre,
+                fotoUrl: fotosPorCodigo.has(p.codigo)
+                    ? `/fotos-producto/${encodeURIComponent(p.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, p.codigo)}`
+                    : "",
+                precio: p.precio ?? null,
+                precioOferta: p.precio_oferta ?? null,
+                stock: p.stock !== undefined && p.stock !== null ? Number(p.stock) : null,
+                categoria: p.categoria || "",
+                marca: p.marca || "",
+                unidadVenta: p.unidad_venta || "",
+                tieneGarantia: Boolean(p.tiene_garantia),
+                garantiaDetalle: p.garantia_detalle || ""
+            }))
+        });
+    } catch (error) {
+        console.warn("Error sirviendo comparador:", error.message);
+        res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+    }
+}
+
 async function servirCatalogoNegocio(pool, req, res, slug, firmarTokenImagen) {
     try {
         const sitio = await resolverSitioPublico(pool, slug);
@@ -960,7 +1060,7 @@ ${pagina < totalPaginas ? `<a href="/catalogo${construirQueryString({ buscar, ca
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true, true)}
+${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true, true, true)}
 ${bannerPromocionHtml(sitio.config)}
 <main class="tenant-main">
 <h1 class="tenant-catalogo-titulo">Catalogo de productos</h1>
@@ -980,6 +1080,7 @@ ${productos.length
 ${modalCarritoTenantHtml(slug)}
 <script>${scriptCarritoTenantHtml(slug)}</script>
 <script>${scriptFavoritosTenantHtml(slug)}</script>
+<script>${scriptComparadorTenantHtml(slug)}</script>
 </body>
 </html>`;
 
@@ -1018,7 +1119,7 @@ async function servirFavoritosNegocio(pool, req, res, slug) {
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(sitio.negocio, "favoritos", sitio.config.aceptarSolicitudesCredito, true, true)}
+${encabezadoTenantHtml(sitio.negocio, "favoritos", sitio.config.aceptarSolicitudesCredito, true, true, true)}
 ${bannerPromocionHtml(sitio.config)}
 <main class="tenant-main">
 <h1 class="tenant-catalogo-titulo">Tus favoritos</h1>
@@ -1028,12 +1129,61 @@ ${bannerPromocionHtml(sitio.config)}
 ${modalCarritoTenantHtml(slug)}
 <script>${scriptCarritoTenantHtml(slug)}</script>
 <script>${scriptFavoritosTenantHtml(slug)}</script>
+<script>${scriptComparadorTenantHtml(slug)}</script>
 </body>
 </html>`;
 
         res.set("Content-Type", "text/html; charset=utf-8").send(html);
     } catch (error) {
         console.warn("Error sirviendo favoritos de negocio:", error.message);
+        res.status(500).send("Error");
+    }
+}
+
+// Pagina de comparador (Fase 12) -- mismo criterio que favoritos: el
+// servidor no sabe que hay en localStorage, solo pinta el esqueleto y
+// el script de comparador lo llena via fetch a comparadorJson.
+async function servirComparadorNegocio(pool, req, res, slug) {
+    try {
+        const sitio = await resolverSitioPublico(pool, slug);
+
+        if (!sitio) {
+            res.status(404).send("No encontrado");
+            return;
+        }
+
+        const color = colorSeguro(sitio.negocio.color);
+        const nombre = escaparHtml(sitio.negocio.nombre);
+
+        const html = `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparar productos -- ${nombre}</title>
+<meta name="description" content="Compara productos de ${nombre}.">
+<link rel="icon" href="/nexo-pos-icon.jpg">
+<link rel="stylesheet" href="/site/styles.css">
+<style>${estilosBaseTenant(color)}</style>
+</head>
+<body>
+${encabezadoTenantHtml(sitio.negocio, "comparar", sitio.config.aceptarSolicitudesCredito, true, true, true)}
+${bannerPromocionHtml(sitio.config)}
+<main class="tenant-main">
+<h1 class="tenant-catalogo-titulo">Comparar productos</h1>
+<div id="comparadorTabla"><p class="tenant-comparador-vacio">Cargando...</p></div>
+</main>
+<footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+${modalCarritoTenantHtml(slug)}
+<script>${scriptCarritoTenantHtml(slug)}</script>
+<script>${scriptFavoritosTenantHtml(slug)}</script>
+<script>${scriptComparadorTenantHtml(slug)}</script>
+</body>
+</html>`;
+
+        res.set("Content-Type", "text/html; charset=utf-8").send(html);
+    } catch (error) {
+        console.warn("Error sirviendo comparador de negocio:", error.message);
         res.status(500).send("Error");
     }
 }
@@ -1121,7 +1271,7 @@ ${fotoUrl ? `<meta property="og:image" content="${fotoUrl}">` : ""}
 <style>${estilosBaseTenant(color)}</style>
 </head>
 <body>
-${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true, true)}
+${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true, true, true)}
 ${bannerPromocionHtml(sitio.config)}
 <main class="tenant-main">
 <a class="tenant-volver" href="/catalogo">&larr; Volver al catalogo</a>
@@ -1136,7 +1286,7 @@ ${precio !== null && Number.isFinite(precio) ? `<div class="tenant-detalle-preci
 ${stock !== null ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>` : ""}
 ${producto.descripcion ? `<p>${escaparHtml(producto.descripcion)}</p>` : ""}
 ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto tiene garantia${producto.garantia_detalle ? `: ${escaparHtml(producto.garantia_detalle)}` : "."}</div>` : ""}
-<div class="tenant-acciones">${whatsappHtml}<button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button><button type="button" class="tenant-btn-favorito tenant-btn-favorito-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}<span>Favorito</span></button></div>
+<div class="tenant-acciones">${whatsappHtml}<button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button><button type="button" class="tenant-btn-favorito tenant-btn-favorito-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}<span>Favorito</span></button><button type="button" class="tenant-btn-comparar tenant-btn-comparar-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Agregar a comparar">${ICONO_TENANT_COMPARAR}<span>Comparar</span></button></div>
 </div>
 </div>
 </div>
@@ -1146,6 +1296,7 @@ ${formularioPedidoHtml}
 ${modalCarritoTenantHtml(slug)}
 <script>${scriptCarritoTenantHtml(slug)}</script>
 <script>${scriptFavoritosTenantHtml(slug)}</script>
+<script>${scriptComparadorTenantHtml(slug)}</script>
 </body>
 </html>`;
 
@@ -1869,6 +2020,242 @@ document.addEventListener("click", function(evento){
 favoritosMarcarBotones();
 favoritosActualizarBadge();
 favoritosCargarLista();
+`;
+}
+
+// Script de comparador (Fase 12) -- mismo molde que favoritos
+// (localStorage namespaced por slug, su propio
+// document.addEventListener("click", ...), sin compartir listener con
+// carrito ni favoritos). Solo guarda codigos (string[], tope 4) --
+// los datos frescos siempre se piden a comparadorJson.
+function scriptComparadorTenantHtml(slug) {
+    return `
+const COMPARADOR_CLAVE = "nexoComparador_${slug}";
+const COMPARADOR_MAXIMO = 4;
+
+function comparadorElemento(id){ return document.getElementById(id); }
+
+function comparadorLeer(){
+    try {
+        const datos = JSON.parse(localStorage.getItem(COMPARADOR_CLAVE) || "[]");
+        return Array.isArray(datos) ? datos : [];
+    } catch (error) { return []; }
+}
+
+function comparadorGuardar(codigos){
+    localStorage.setItem(COMPARADOR_CLAVE, JSON.stringify(codigos));
+    comparadorActualizarBadge();
+}
+
+function comparadorActualizarBadge(){
+    const badge = comparadorElemento("comparadorContador");
+    if (!badge) return;
+    badge.textContent = String(comparadorLeer().length);
+}
+
+function comparadorToggle(codigo){
+    const codigos = comparadorLeer();
+    const indice = codigos.indexOf(codigo);
+    if (indice !== -1) {
+        codigos.splice(indice, 1);
+        comparadorGuardar(codigos);
+        return false;
+    }
+    if (codigos.length >= COMPARADOR_MAXIMO) {
+        alert("Puedes comparar hasta " + COMPARADOR_MAXIMO + " productos a la vez.");
+        return false;
+    }
+    codigos.push(codigo);
+    comparadorGuardar(codigos);
+    return true;
+}
+
+function comparadorMarcarBotones(){
+    const guardados = comparadorLeer();
+    document.querySelectorAll(".tenant-btn-comparar").forEach(function(boton){
+        boton.classList.toggle("activo", guardados.indexOf(boton.getAttribute("data-codigo")) !== -1);
+    });
+}
+
+function comparadorPrecioNodo(precio, precioOferta){
+    const contenedor = document.createDocumentFragment();
+    const normal = Number(precio);
+    if (!isFinite(normal)) return contenedor;
+    const oferta = Number(precioOferta);
+    if (isFinite(oferta) && oferta > 0 && oferta < normal) {
+        const tachado = document.createElement("span");
+        tachado.className = "tenant-precio-tachado";
+        tachado.textContent = "$" + normal.toFixed(2);
+        const ofertaSpan = document.createElement("span");
+        ofertaSpan.className = "tenant-precio-oferta";
+        ofertaSpan.textContent = "$" + oferta.toFixed(2);
+        contenedor.appendChild(tachado);
+        contenedor.appendChild(ofertaSpan);
+    } else {
+        const precioSpan = document.createElement("span");
+        precioSpan.className = "tenant-producto-precio";
+        precioSpan.textContent = "$" + normal.toFixed(2);
+        contenedor.appendChild(precioSpan);
+    }
+    return contenedor;
+}
+
+function comparadorAtributoFila(etiqueta, valor){
+    const fila = document.createElement("div");
+    fila.className = "tenant-comparador-atributo";
+    const etiquetaSpan = document.createElement("span");
+    etiquetaSpan.className = "tenant-comparador-atributo-etiqueta";
+    etiquetaSpan.textContent = etiqueta;
+    const valorSpan = document.createElement("span");
+    valorSpan.textContent = valor;
+    fila.appendChild(etiquetaSpan);
+    fila.appendChild(valorSpan);
+    return fila;
+}
+
+function comparadorCrearColumna(producto){
+    const columna = document.createElement("div");
+    columna.className = "tenant-comparador-columna";
+
+    const foto = document.createElement("div");
+    foto.className = "tenant-producto-foto";
+    if (producto.fotoUrl) {
+        const img = document.createElement("img");
+        img.src = producto.fotoUrl;
+        img.alt = producto.nombre || "";
+        foto.appendChild(img);
+    } else {
+        const vacio = document.createElement("span");
+        vacio.className = "tenant-producto-foto-vacia";
+        vacio.textContent = "Sin foto";
+        foto.appendChild(vacio);
+    }
+    columna.appendChild(foto);
+
+    const nombreSpan = document.createElement("span");
+    nombreSpan.className = "tenant-producto-nombre";
+    nombreSpan.textContent = producto.nombre;
+    columna.appendChild(nombreSpan);
+
+    if (producto.precio !== null && producto.precio !== undefined) {
+        columna.appendChild(comparadorPrecioNodo(producto.precio, producto.precioOferta));
+    }
+
+    if (producto.stock !== null && producto.stock !== undefined) {
+        const existencia = document.createElement("span");
+        existencia.className = "tenant-producto-existencia" + (producto.stock <= 0 ? " agotado" : "");
+        existencia.textContent = producto.stock <= 0 ? "Agotado" : (producto.stock + " disponibles");
+        columna.appendChild(existencia);
+    }
+
+    const atributos = document.createElement("div");
+    atributos.className = "tenant-comparador-atributos";
+    atributos.appendChild(comparadorAtributoFila("Categoria", producto.categoria || "Sin categoria"));
+    atributos.appendChild(comparadorAtributoFila("Marca", producto.marca || "Sin marca"));
+    atributos.appendChild(comparadorAtributoFila("Unidad", producto.unidadVenta || "Pieza"));
+    atributos.appendChild(comparadorAtributoFila("Garantia", producto.tieneGarantia ? (producto.garantiaDetalle || "Si") : "Sin garantia"));
+    columna.appendChild(atributos);
+
+    const botonCarrito = document.createElement("button");
+    botonCarrito.type = "button";
+    botonCarrito.className = "tenant-btn-carrito";
+    botonCarrito.setAttribute("data-codigo", producto.codigo);
+    botonCarrito.setAttribute("data-nombre", producto.nombre || "");
+    botonCarrito.textContent = "Agregar al carrito";
+    columna.appendChild(botonCarrito);
+
+    const botonQuitar = document.createElement("button");
+    botonQuitar.type = "button";
+    botonQuitar.className = "tenant-btn-comparar tenant-btn-comparar-linea activo";
+    botonQuitar.setAttribute("data-codigo", producto.codigo);
+    botonQuitar.setAttribute("aria-label", "Quitar de comparar");
+    botonQuitar.textContent = "Quitar";
+    columna.appendChild(botonQuitar);
+
+    return columna;
+}
+
+function comparadorPintarInsuficiente(contenedor){
+    contenedor.innerHTML = "";
+    const vacio = document.createElement("p");
+    vacio.className = "tenant-comparador-vacio";
+    vacio.textContent = "Selecciona al menos 2 productos para comparar.";
+    const link = document.createElement("a");
+    link.href = "/catalogo";
+    link.textContent = "Ver catalogo";
+    contenedor.appendChild(vacio);
+    contenedor.appendChild(link);
+}
+
+async function comparadorCargarTabla(){
+    const contenedor = comparadorElemento("comparadorTabla");
+    if (!contenedor) return;
+
+    const codigos = comparadorLeer();
+    if (codigos.length < 2) {
+        comparadorPintarInsuficiente(contenedor);
+        return;
+    }
+
+    try {
+        const respuesta = await fetch("/catalogo/comparador-json?codigos=" + encodeURIComponent(codigos.join(",")));
+        const datos = await respuesta.json();
+
+        if (!datos.ok) {
+            contenedor.textContent = "No se pudo cargar la comparacion.";
+            return;
+        }
+
+        const productos = datos.productos || [];
+
+        // Auto-limpieza: un codigo guardado que ya no regreso (producto
+        // borrado) se quita de localStorage, mismo criterio de Fase 11.
+        if (productos.length !== codigos.length) {
+            comparadorGuardar(productos.map(function(p){ return p.codigo; }));
+        }
+
+        if (productos.length < 2) {
+            comparadorPintarInsuficiente(contenedor);
+            return;
+        }
+
+        const tabla = document.createElement("div");
+        tabla.className = "tenant-comparador-tabla";
+        productos.forEach(function(producto){ tabla.appendChild(comparadorCrearColumna(producto)); });
+        contenedor.innerHTML = "";
+        contenedor.appendChild(tabla);
+    } catch (error) {
+        contenedor.textContent = "No se pudo cargar la comparacion. Revisa tu conexion.";
+    }
+}
+
+document.addEventListener("click", function(evento){
+    const boton = evento.target.closest(".tenant-btn-comparar");
+    if (!boton) return;
+
+    const codigo = boton.getAttribute("data-codigo");
+    const agregado = comparadorToggle(codigo);
+    boton.classList.toggle("activo", agregado);
+
+    if (!agregado) {
+        const enPaginaComparador = comparadorElemento("comparadorTabla");
+        if (enPaginaComparador) {
+            const columna = boton.closest(".tenant-comparador-columna");
+            if (columna) {
+                columna.style.transition = "opacity .2s ease";
+                columna.style.opacity = "0";
+                setTimeout(function(){
+                    columna.remove();
+                    if (comparadorLeer().length < 2) comparadorPintarInsuficiente(enPaginaComparador);
+                }, 200);
+            }
+        }
+    }
+});
+
+comparadorMarcarBotones();
+comparadorActualizarBadge();
+comparadorCargarTabla();
 `;
 }
 
@@ -2841,5 +3228,7 @@ module.exports = {
     servirPortalClienteNegocio,
     iniciarSesionClientePublico,
     servirFavoritosNegocio,
-    favoritosJson
+    favoritosJson,
+    servirComparadorNegocio,
+    comparadorJson
 };
