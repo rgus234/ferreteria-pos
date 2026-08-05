@@ -17,6 +17,16 @@
    agregar un parser nuevo con logica propia, confirma que el problema no se
    resuelve con una plantilla nueva/ajustada en su lugar. */
 
+// Un valor tipo "P559", "A12", "GRP-04" es casi siempre un codigo interno
+// de familia/linea del proveedor, nunca un nombre real de categoria en
+// espanol -- se descarta en vez de mostrarlo como si fuera una categoria
+// real (mismo criterio de "nunca aceptar datos basura" ya usado en el
+// resto del proyecto). Se aplica sin importar si el valor vino de una
+// plantilla curada o de la heuristica generica de columnas.
+function pareceCodigoInternoCatalogo(texto) {
+    return /^[a-z]{1,4}[-_]?\d{2,6}$/i.test(String(texto || "").trim());
+}
+
 function extraerProductoGenericoCatalogo(ctx) {
  const {
  datos,
@@ -124,10 +134,13 @@ function extraerProductoGenericoCatalogo(ctx) {
  valorColumnaCatalogo(datos, columnas, "marca") ||
  detectarMarcaDesdeFilaCatalogo(datos) ||
  inferirMarcaPorCodigo(datos[indiceCodigoProducto]),
- categoria:
+ categoria: (() => {
+ const valorCategoria =
  valorMapeoCatalogo(datos, mapeoCatalogo, "categoria") ||
  valorColumnaCatalogo(datos, columnas, "categoria") ||
- "",
+ "";
+ return pareceCodigoInternoCatalogo(valorCategoria) ? "" : valorCategoria;
+ })(),
  unidadVenta:
  valorMapeoCatalogo(datos, mapeoCatalogo, "unidadVenta") ||
  "pieza",

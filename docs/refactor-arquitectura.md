@@ -7305,3 +7305,64 @@ modificar, **28/28 sigue pasando**. Suite automatizada completa
 (`npm test`, 19/19) sin regresiones. Confirmado `negocio_id = 1` sin
 contaminacion cruzada durante toda la prueba. Sin migracion en esta
 fase. Pendiente de confirmacion del usuario para `git add`/`commit`.
+
+---
+
+# Limpieza de categorias -- codigos de Diprofer colados como "categoria" (2026-08-05)
+
+El usuario reporto que en su negocio real (Ferreteria Olimpico) aparecen
+"categorias" sin sentido tipo "P559"/"P476" en el sitio publico, colados
+desde el catalogo de Diprofer. Causa raiz: Diprofer no tiene plantilla
+curada de importacion (a diferencia de Truper/Gafi), asi que cae en la
+heuristica generica de deteccion de columnas
+(`detectarColumnasCatalogo`, `product-inventory.js`), que confundio la
+columna de codigo interno de familia con la de categoria -- el motor
+compartido `extraerProductoGenericoCatalogo` (`catalog-parsers.js`)
+copiaba ese valor tal cual, sin ninguna limpieza semantica.
+
+**Root-cause fix**: nueva funcion `pareceCodigoInternoCatalogo(texto)`
+en `catalog-parsers.js` (regex `^[a-z]{1,4}[-_]?\d{2,6}$`, ej.
+"P559"/"A12"/"GRP-04") aplicada al valor final de `categoria` en
+`extraerProductoGenericoCatalogo` -- si el valor detectado parece un
+codigo interno en vez de un nombre real, se descarta (categoria vacia
+en vez de basura). Se aplica sin importar si el valor vino de una
+plantilla curada o de la heuristica generica, cubriendo ambos caminos
+de importacion (subida a `catalog-server.js` y autocompletado local en
+"Agregar producto") porque ambos usan el mismo motor compartido.
+
+**Propagacion real del rename**: la pantalla Inventario -> Categorias
+ya existia pero era pura metadata de `localStorage`, desconectada de
+los productos reales -- `editarCategoriaInventario()` solo renombraba
+la etiqueta local, nunca tocaba `productos.categoria`. Se agrego
+`PATCH /productos/categoria-masiva` (`server.js`, scoped por
+`negocio_id`, `categoriaAnterior` requerido, `categoriaNueva` puede ser
+vacio a proposito para "vaciar" una categoria) y se conecto
+`editarCategoriaInventario()` a esa ruta real antes de guardar en
+localStorage, con `cargarProductos()` para refrescar `todosProductos`
+sin recargar la pagina. Ahora renombrar una categoria en Inventario
+tambien actualiza los productos reales del negocio.
+
+**Limpieza de los datos ya existentes en negocio_id = 1**: consulta de
+solo lectura confirmo 65 categorias con patron de codigo interno (top:
+P559 con 21 productos, P476 con 10, P482 con 7), afectando 157
+productos, **100% del proveedor Diprofer**. Se mostro el resultado
+completo al usuario, quien confirmo explicitamente ("Si, córrela") --
+se corrio entonces `UPDATE productos SET categoria = '' WHERE
+negocio_id = 1 AND categoria ~ '^[A-Za-z]{1,4}[-_]?[0-9]{2,6}$'` (script
+de un solo uso, borrado despues de correr). 157 productos actualizados,
+0 restantes con el patron, confirmado que solo se escribio en
+`negocio_id = 1`. Efecto inmediato: la grilla de categorias del inicio
+y las pills del catalogo del sitio publico dejan de mostrar los codigos
+basura sin ningun cambio de codigo adicional (las consultas ya excluyen
+`categoria = ''`).
+
+**Verificacion**: `node --check` en `server.js`, `catalog-parsers.js`,
+`product-inventory.js`. Nuevo `scripts/verificar-categoria-masiva.js`
+(8 casos contra negocio sintetico: rename real actualiza ambos
+productos, `categoriaNueva` vacio vacia la categoria a proposito,
+`categoriaAnterior` vacio rechazado 400, sin token rechazado 401, guard
+del parser clasifica correctamente codigos vs nombres reales) --
+**8/8 pasaron**. `npm test` completo sin regresiones. Confirmado que
+solo `negocio_id = 1` se toco durante la limpieza real, con
+confirmacion explicita del usuario antes de escribir. Pendiente de
+confirmacion del usuario para `git add`/`commit`.

@@ -5413,6 +5413,29 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
+app.patch("/productos/categoria-masiva", requerirAccesoNegocio, async (req, res) => {
+    const categoriaAnterior = String(req.body?.categoriaAnterior || "").trim().slice(0, 120);
+    const categoriaNueva = String(req.body?.categoriaNueva || "").trim().slice(0, 120);
+
+    if (!categoriaAnterior) {
+        res.status(400).json({ ok: false, error: "Falta la categoria a reemplazar" });
+        return;
+    }
+
+    try {
+        const negocio = await negocioActual(req);
+
+        const resultado = await pool.query(
+            `UPDATE public.productos SET categoria = $1 WHERE negocio_id = $2 AND categoria = $3 RETURNING id`,
+            [categoriaNueva, negocio.id, categoriaAnterior]
+        );
+
+        res.json({ ok: true, actualizados: resultado.rows.length });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
 app.get("/reglas-precios", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);

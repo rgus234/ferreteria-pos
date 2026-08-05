@@ -3491,11 +3491,42 @@ async function editarCategoriaInventario(id) {
  return;
  }
 
- categoria.nombre = nombre.trim();
+ const nombreNuevo = nombre.trim();
+ let actualizados = 0;
+
+ try {
+ const respuesta = await fetch("/productos/categoria-masiva", {
+ method: "PATCH",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ categoriaAnterior: categoria.nombre, categoriaNueva: nombreNuevo })
+ });
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ alertaPOS("No se pudo actualizar la categoria en tus productos.", "Categorias", "alerta");
+ return;
+ }
+
+ actualizados = datos.actualizados || 0;
+ } catch (error) {
+ alertaPOS("No se pudo actualizar la categoria en tus productos.", "Categorias", "alerta");
+ return;
+ }
+
+ categoria.nombre = nombreNuevo;
  guardarCategoriasInventario(categorias);
+
+ if (actualizados > 0) {
+ await cargarProductos();
+ }
+
  renderResumenCategorias();
  renderListaCategorias();
  renderDetalleCategoria();
+
+ if (actualizados > 0) {
+ alertaPOS(`Se actualizaron ${actualizados} producto(s).`, "Categorias", "exito");
+ }
 }
 
 async function eliminarCategoriaInventario(id) {
