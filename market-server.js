@@ -223,12 +223,12 @@ async function heroProductoMarket(pool, idsPermitidos, firmarTokenImagen) {
 // (p.id DESC, proxy real de recencia -- productos no tiene columna de
 // fecha de creacion) alimenta "Explora productos"/"Nuevos"; se ignora
 // si hay texto de busqueda (la relevancia del texto manda).
-async function buscarProductosMarket(pool, { buscar = "", categoria = "", marcas = [], precioMin = null, precioMax = null, pagina = 1, orden = "relevancia" } = {}, firmarTokenImagen) {
+async function buscarProductosMarket(pool, { buscar = "", categoria = "", marcas = [], precioMin = null, precioMax = null, pagina = 1, orden = "relevancia", limite = PRODUCTOS_POR_PAGINA_MARKET } = {}, firmarTokenImagen) {
     const tiendas = await tiendasPermitidasMarket(pool);
     if (tiendas.length === 0) return { productos: [], total: 0 };
 
     const idsPermitidos = tiendas.map(t => t.id);
-    const offset = Math.max(0, (pagina - 1) * PRODUCTOS_POR_PAGINA_MARKET);
+    const offset = Math.max(0, (pagina - 1) * limite);
 
     const condiciones = ["p.negocio_id = ANY($1::int[])"];
     const parametros = [idsPermitidos];
@@ -242,7 +242,14 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", marcas
         const indiceBuscar = parametros.length;
         parametros.push(`%${buscar}%`);
         const indiceIlike = parametros.length;
-        condiciones.push(`(p.nombre % $${indiceBuscar} OR p.codigo ILIKE $${indiceIlike} OR p.marca ILIKE $${indiceIlike})`);
+        // p.nombre % (similitud pg_trgm) por si solo, contra nombres largos
+        // ("Dado punta corta bristol M12, cuadro 1/2', TRUPER"), diluye el
+        // puntaje de una palabra corta bajo el umbral por defecto y no
+        // encuentra nada aunque la palabra si este ahi -- se agrega ILIKE
+        // sobre el nombre tambien para garantizar coincidencia literal
+        // real ("bomba" siempre encuentra "Bomba..."), la similitud sigue
+        // aportando tolerancia a errores de escritura y el orden de relevancia.
+        condiciones.push(`(p.nombre % $${indiceBuscar} OR p.nombre ILIKE $${indiceIlike} OR p.codigo ILIKE $${indiceIlike} OR p.marca ILIKE $${indiceIlike})`);
         if (orden === "relevancia") ordenSql = `similarity(p.nombre, $${indiceBuscar}) DESC`;
     }
 
@@ -268,7 +275,7 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", marcas
         condiciones.push(`(NOT c.mostrar_precios OR COALESCE(p.precio_oferta, p.precio_publico, p.precio) <= $${parametros.length})`);
     }
 
-    parametros.push(PRODUCTOS_POR_PAGINA_MARKET);
+    parametros.push(limite);
     const indiceLimit = parametros.length;
     parametros.push(offset);
     const indiceOffset = parametros.length;
@@ -314,7 +321,10 @@ async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "" 
         const indiceBuscar = parametros.length;
         parametros.push(`%${buscar}%`);
         const indiceIlike = parametros.length;
-        condiciones.push(`(p.nombre % $${indiceBuscar} OR p.codigo ILIKE $${indiceIlike} OR p.marca ILIKE $${indiceIlike})`);
+        // Mismo fix que buscarProductosMarket: ILIKE sobre nombre
+        // garantiza match literal aunque pg_trgm diluya palabras cortas
+        // contra nombres largos.
+        condiciones.push(`(p.nombre % $${indiceBuscar} OR p.nombre ILIKE $${indiceIlike} OR p.codigo ILIKE $${indiceIlike} OR p.marca ILIKE $${indiceIlike})`);
     }
 
     if (categoria) {
@@ -415,6 +425,24 @@ async function buscarMarketJson(pool, req, res, firmarTokenImagen) {
     }
 }
 
+// GET /market/sugerencias-json?buscar= -- version ligera de la busqueda
+// para el buscador en vivo (conforme se escribe): mismo motor real de
+// busqueda cruzada (pg_trgm sobre nombre + ILIKE sobre codigo/marca,
+// SIN IA), pero sin calcular facetas (serian trabajo de sobra en cada
+// tecla) y con un limite chico. "bomba" encuentra todo tipo de bombas
+// por el mismo indice de similitud que ya usa la busqueda completa.
+async function sugerenciasMarketJson(pool, req, res, firmarTokenImagen) {
+    try {
+        const buscar = String(req.query?.buscar || "").trim().slice(0, 120);
+        if (!buscar) { res.json({ ok: true, productos: [] }); return; }
+
+        const { productos } = await buscarProductosMarket(pool, { buscar, limite: 8 }, firmarTokenImagen);
+        res.json({ ok: true, productos });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: "No se pudieron cargar sugerencias." });
+    }
+}
+
 // POST /market/favoritos-json -- favoritos de Market son 100% cliente
 // (localStorage, cruzan tiendas a proposito, ver marketFavoritosLeer
 // en el script del inicio). Recibe los pares {slug,codigo} guardados
@@ -469,11 +497,26 @@ const ESTILOS_MARKET = `
 .market-header-top{ display:flex; align-items:center; gap:18px; padding:14px clamp(18px,4vw,48px); max-width:1400px; margin:0 auto; }
 .market-logo{ display:inline-flex; align-items:center; gap:10px; font-weight:950; font-size:18px; flex:0 0 auto; color:#fff; }
 .market-logo img{ width:38px; height:38px; border-radius:11px; object-fit:cover; }
-.market-search-bar{ flex:1; display:flex; min-width:0; border:1px solid rgba(255,255,255,.14); border-radius:999px; overflow:hidden; background:#fff; box-shadow:0 10px 26px rgba(4,8,16,.32); }
+.market-search-wrap{ position:relative; flex:1; min-width:0; }
+.market-search-bar{ display:flex; width:100%; min-width:0; border:1px solid rgba(255,255,255,.14); border-radius:999px; overflow:hidden; background:#fff; box-shadow:0 10px 26px rgba(4,8,16,.32); }
 .market-search-bar select{ border:none; background:var(--paper); padding:0 14px; font:inherit; font-size:13px; color:var(--muted); max-width:170px; border-right:1px solid var(--line); }
 .market-search-bar input{ flex:1; min-width:0; border:none; padding:12px 14px; font:inherit; outline:none; }
 .market-search-bar button{ border:none; background:var(--blue); color:#fff; padding:0 20px; cursor:pointer; display:flex; align-items:center; }
 .market-search-bar button svg{ width:18px; height:18px; }
+.market-sugerencias{ position:absolute; top:calc(100% + 10px); left:0; right:0; background:#fff; border-radius:18px; box-shadow:0 22px 50px rgba(4,8,16,.28); overflow:hidden; z-index:40; }
+.market-sugerencia-item{ display:flex; align-items:center; gap:12px; padding:10px 14px; color:var(--ink); border-bottom:1px solid var(--line); }
+.market-sugerencia-item:last-of-type{ border-bottom:none; }
+.market-sugerencia-item:hover{ background:var(--paper); }
+.market-sugerencia-foto{ width:42px; height:42px; flex:0 0 auto; border-radius:10px; background:var(--paper); display:flex; align-items:center; justify-content:center; overflow:hidden; color:var(--muted); }
+.market-sugerencia-foto img{ width:100%; height:100%; object-fit:cover; }
+.market-sugerencia-foto svg{ width:20px; height:20px; }
+.market-sugerencia-texto{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.market-sugerencia-texto strong{ font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.market-sugerencia-texto small{ color:var(--muted); font-size:12px; }
+.market-sugerencia-precio{ flex:0 0 auto; font-weight:900; color:var(--blue-dark); font-size:13.5px; }
+.market-sugerencias-vacio{ padding:16px 14px; color:var(--muted); font-size:13px; margin:0; text-align:center; }
+.market-sugerencias-vertodo{ display:block; width:100%; border:none; background:var(--paper); color:var(--blue); font-weight:700; font-size:13px; padding:12px 14px; cursor:pointer; text-align:center; }
+.market-sugerencias-vertodo:hover{ background:var(--glass); }
 .market-header-acciones{ display:flex; align-items:center; gap:16px; flex:0 0 auto; }
 .market-header-link{ display:inline-flex; align-items:center; gap:6px; font-weight:700; font-size:13.5px; white-space:nowrap; position:relative; color:rgba(255,255,255,.86); }
 .market-header-link:hover{ color:#fff; }
@@ -625,11 +668,14 @@ function paginaMarketHtml() {
 <img src="/nexo-pos-icon.jpg" alt="Nexo">
 <span>Nexo Market</span>
 </a>
-<form class="market-search-bar" id="marketBuscadorForm">
+<div class="market-search-wrap">
+<form class="market-search-bar" id="marketBuscadorForm" autocomplete="off">
 <select id="marketCategoriaSelect"><option value="">Todas las categorias</option></select>
-<input type="text" id="marketBuscarInput" placeholder="Buscar productos, marcas o categorias..." maxlength="120">
+<input type="text" id="marketBuscarInput" placeholder="Buscar productos, marcas o categorias..." maxlength="120" autocomplete="off">
 <button type="submit" aria-label="Buscar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.35-4.35"></path></svg></button>
 </form>
+<div class="market-sugerencias" id="marketSugerencias" hidden></div>
+</div>
 <div class="market-header-acciones">
 <a class="market-header-link" href="#" id="marketFavoritosLink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg><span>Favoritos</span><span class="market-favoritos-contador" id="marketFavoritosContador">0</span></a>
 <div class="market-header-sesion" id="marketSesion"><a class="market-header-link" href="/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Inicia sesion</span></a></div>
@@ -1253,10 +1299,81 @@ document.getElementById("marketNavNuevos").addEventListener("click", function(ev
 
 document.getElementById("marketBuscadorForm").addEventListener("submit", function(evento) {
     evento.preventDefault();
+    marketOcultarSugerencias();
     var texto = document.getElementById("marketBuscarInput").value.trim();
     var categoria = document.getElementById("marketCategoriaSelect").value;
     if (!texto && !categoria) { marketMostrarInicio(); return; }
     marketMostrarBusqueda({ buscar: texto, categoria: categoria });
+});
+
+// Buscador en vivo (sin IA): mientras se escribe, se consulta el mismo
+// motor real de busqueda cruzada (pg_trgm sobre nombre + ILIKE sobre
+// codigo/marca) que ya usa la busqueda completa -- "bomba" encuentra
+// todo tipo de bombas por similitud real, no por un modelo de lenguaje.
+var marketSugerenciasTimeout = null;
+var marketSugerenciasTextoVigente = "";
+
+function marketOcultarSugerencias() {
+    var panel = document.getElementById("marketSugerencias");
+    panel.hidden = true;
+    panel.innerHTML = "";
+}
+
+function marketSugerenciaItemHtml(p) {
+    var fotoHtml = p.fotoUrl
+        ? '<img src="' + p.fotoUrl + '" alt="" loading="lazy">'
+        : ICONO_FOTO_GENERICA;
+    var precioMostrado = (p.precioOferta !== null && p.precioOferta !== undefined) ? p.precioOferta : p.precio;
+    var precioHtml = (precioMostrado !== null && precioMostrado !== undefined)
+        ? '<span class="market-sugerencia-precio">$' + Number(precioMostrado).toFixed(2) + '</span>' : '';
+
+    return '<a class="market-sugerencia-item" href="https://' + escapeHtml(p.slug) + '.nexoposoficial.com/catalogo/' + encodeURIComponent(p.codigo) + '">' +
+        '<span class="market-sugerencia-foto">' + fotoHtml + '</span>' +
+        '<span class="market-sugerencia-texto"><strong>' + escapeHtml(p.nombre) + '</strong><small>' + escapeHtml(p.tienda) + '</small></span>' +
+        precioHtml + '</a>';
+}
+
+async function marketBuscarSugerencias(texto) {
+    marketSugerenciasTextoVigente = texto;
+    var datos = await marketLlamar("/market/sugerencias-json?buscar=" + encodeURIComponent(texto));
+    // El usuario pudo seguir escribiendo mientras esperabamos la
+    // respuesta -- solo se pinta si el texto sigue siendo el vigente.
+    if (marketSugerenciasTextoVigente !== texto) return;
+
+    var panel = document.getElementById("marketSugerencias");
+    if (!datos.ok || datos.productos.length === 0) {
+        panel.innerHTML = '<p class="market-sugerencias-vacio">No encontramos productos para "' + escapeHtml(texto) + '".</p>';
+        panel.hidden = false;
+        return;
+    }
+    panel.innerHTML = datos.productos.map(marketSugerenciaItemHtml).join('') +
+        '<button type="button" class="market-sugerencias-vertodo" id="marketVerTodoSugerencias">Ver todos los resultados para "' + escapeHtml(texto) + '"</button>';
+    panel.hidden = false;
+}
+
+document.getElementById("marketBuscarInput").addEventListener("input", function(evento) {
+    var texto = evento.target.value.trim();
+    clearTimeout(marketSugerenciasTimeout);
+    if (texto.length < 2) { marketOcultarSugerencias(); return; }
+    marketSugerenciasTimeout = setTimeout(function() { marketBuscarSugerencias(texto); }, 280);
+});
+
+document.getElementById("marketBuscarInput").addEventListener("keydown", function(evento) {
+    if (evento.key === "Escape") marketOcultarSugerencias();
+});
+
+document.addEventListener("click", function(evento) {
+    var verTodo = evento.target.closest("#marketVerTodoSugerencias");
+    if (verTodo) {
+        var texto = document.getElementById("marketBuscarInput").value.trim();
+        var categoria = document.getElementById("marketCategoriaSelect").value;
+        marketOcultarSugerencias();
+        marketMostrarBusqueda({ buscar: texto, categoria: categoria });
+        return;
+    }
+    if (!evento.target.closest(".market-search-wrap")) {
+        marketOcultarSugerencias();
+    }
 });
 
 marketCargarSesion();
@@ -1271,4 +1388,4 @@ async function servirMarketPagina(req, res) {
     res.send(paginaMarketHtml());
 }
 
-module.exports = { servirMarketPagina, buscarMarketJson, inicioMarketJson, favoritosMarketJson, tiendasPermitidasMarket };
+module.exports = { servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, tiendasPermitidasMarket };
