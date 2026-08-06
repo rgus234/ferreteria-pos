@@ -21,6 +21,7 @@ const { funcionDelPlan } = require("./plan-enforcement");
 const { enviarCorreoPedidoPublico, enviarCorreoPedidoCarritoPublico, enviarCorreoSolicitudCreditoPublica, enviarCorreoCotizacionRespondida } = require("./email");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { calcularAntiguedadCredito } = require("./credit-aging");
+const { crearRequerirSesionPersona } = require("./personas-server");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
 const TAMANO_MAXIMO_PORTADA = 3 * 1024 * 1024;
@@ -647,7 +648,7 @@ ${promosTenantHtml(datos)}
 ${destacadosTenantHtml(datos.destacados)}
 ${franjaCatalogoHtml}
 </main>
-<footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+<footer class="tenant-footer">Con la tecnologia de Nexo</footer>
 ${modalCarritoTenantHtml(datos.slug)}
 <script>${scriptCarritoTenantHtml(datos.slug)}</script>
 <script>${scriptFavoritosTenantHtml(datos.slug)}</script>
@@ -1076,7 +1077,7 @@ ${productos.length
     ? `<div class="tenant-catalogo-grid">${tarjetasHtml}</div>${paginacionHtml}`
     : `<div class="tenant-catalogo-vacio">No encontramos productos con esos filtros.</div>`}
 </main>
-<footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+<footer class="tenant-footer">Con la tecnologia de Nexo</footer>
 ${modalCarritoTenantHtml(slug)}
 <script>${scriptCarritoTenantHtml(slug)}</script>
 <script>${scriptFavoritosTenantHtml(slug)}</script>
@@ -1125,7 +1126,7 @@ ${bannerPromocionHtml(sitio.config)}
 <h1 class="tenant-catalogo-titulo">Tus favoritos</h1>
 <div id="favoritosLista"><p class="tenant-favoritos-vacio">Cargando...</p></div>
 </main>
-<footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+<footer class="tenant-footer">Con la tecnologia de Nexo</footer>
 ${modalCarritoTenantHtml(slug)}
 <script>${scriptCarritoTenantHtml(slug)}</script>
 <script>${scriptFavoritosTenantHtml(slug)}</script>
@@ -1173,7 +1174,7 @@ ${bannerPromocionHtml(sitio.config)}
 <h1 class="tenant-catalogo-titulo">Comparar productos</h1>
 <div id="comparadorTabla"><p class="tenant-comparador-vacio">Cargando...</p></div>
 </main>
-<footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+<footer class="tenant-footer">Con la tecnologia de Nexo</footer>
 ${modalCarritoTenantHtml(slug)}
 <script>${scriptCarritoTenantHtml(slug)}</script>
 <script>${scriptFavoritosTenantHtml(slug)}</script>
@@ -1292,7 +1293,7 @@ ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto 
 </div>
 ${formularioPedidoHtml}
 </main>
-<footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+<footer class="tenant-footer">Con la tecnologia de Nexo</footer>
 ${modalCarritoTenantHtml(slug)}
 <script>${scriptCarritoTenantHtml(slug)}</script>
 <script>${scriptFavoritosTenantHtml(slug)}</script>
@@ -2309,7 +2310,7 @@ ${bannerHtml}
 <button type="submit">Enviar solicitud</button>
 </form>
 </main>
-<footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+<footer class="tenant-footer">Con la tecnologia de Nexo</footer>
 </body>
 </html>`;
 
@@ -2616,13 +2617,52 @@ async function mostrarPortalCliente(){
 
         pintarMovimientos(datos.movimientos);
         pintarPedidos(datos.pedidos);
+
+        // Lado "Comprar" de la identidad Nexo unificada: solo se ofrece
+        // vincular si todavia no lo esta -- la vinculacion en si requiere
+        // que ademas haya una sesion de persona activa (cookie de
+        // .nexoposoficial.com), que el servidor valida por su cuenta.
+        const botonVincular = elemento("portalClienteVincularBoton");
+        if (botonVincular) {
+            botonVincular.style.display = datos.cliente.persona_id ? "none" : "";
+        }
     } catch (error) {
         mostrarFormularioLoginCliente();
     }
 }
 
+async function vincularPersonaPortalCliente(){
+    const token = localStorage.getItem(CLAVE_TOKEN);
+    if (!token) return;
+
+    try {
+        const respuesta = await fetch("/portal-cliente/vincular-persona", {
+            method: "POST",
+            headers: { "x-cliente-token": token },
+            credentials: "include"
+        });
+        const datos = await respuesta.json();
+
+        if (!datos.ok) {
+            if (String(datos.error || "").includes("Inicia sesion")) {
+                alert("Primero inicia sesion en tu cuenta Nexo personal (nexoposoficial.com/mi-cuenta), y luego regresa aqui a vincular.");
+                window.open("https://nexoposoficial.com/mi-cuenta", "_blank");
+                return;
+            }
+            alert(datos.error || "No se pudo vincular.");
+            return;
+        }
+
+        alert("Tu cuenta quedo vinculada a tu cuenta Nexo personal.");
+        mostrarPortalCliente();
+    } catch (error) {
+        alert("No se pudo conectar. Intenta de nuevo.");
+    }
+}
+
 document.getElementById("portalClienteLoginForm").addEventListener("submit", iniciarSesionPortalCliente);
 document.getElementById("portalClienteLogoutBoton").addEventListener("click", cerrarSesionPortalCliente);
+document.getElementById("portalClienteVincularBoton").addEventListener("click", vincularPersonaPortalCliente);
 mostrarPortalCliente();
 `;
 }
@@ -2685,10 +2725,11 @@ ${encabezadoTenantHtml(sitio.negocio, "portal", sitio.config.aceptarSolicitudesC
 <tbody id="portalClientePedidos"></tbody>
 </table>
 </div>
+<button type="button" class="tenant-portal-logout" id="portalClienteVincularBoton" style="display:none;">Vincular con mi cuenta Nexo</button>
 <button type="button" class="tenant-portal-logout" id="portalClienteLogoutBoton">Cerrar sesion</button>
 </div>
 </main>
-<footer class="tenant-footer">Con la tecnologia de Nexo POS</footer>
+<footer class="tenant-footer">Con la tecnologia de Nexo</footer>
 <script>${scriptPortalClienteHtml()}</script>
 </body>
 </html>`;
@@ -2803,7 +2844,7 @@ async function estadoPortalCliente(pool, req, res) {
 
         const cliente = await pool.query(`
             SELECT
-                c.id, c.nombre, c.telefono, c.limite_credito, c.fecha_vencimiento,
+                c.id, c.nombre, c.telefono, c.limite_credito, c.fecha_vencimiento, c.persona_id,
                 COALESCE(SUM(CASE WHEN m.tipo = 'venta' THEN m.monto WHEN m.tipo = 'abono' THEN -m.monto ELSE 0 END), 0) AS saldo
             FROM public.clientes_credito c
             LEFT JOIN public.movimientos_credito m ON m.cliente_id = c.id AND m.negocio_id = c.negocio_id
@@ -2859,6 +2900,56 @@ async function cerrarSesionPortalCliente(pool, req, res) {
 function registrarRutas(app, pool, requerirAccesoNegocio) {
     app.get("/portal-cliente/estado", requerirSesionClienteCredito(pool), (req, res) => estadoPortalCliente(pool, req, res));
     app.post("/portal-cliente/logout", requerirSesionClienteCredito(pool), (req, res) => cerrarSesionPortalCliente(pool, req, res));
+
+    // Lado "Comprar" de la identidad Nexo unificada: vincula la fila
+    // clientes_credito con la que ya se inicio sesion (telefono+codigo
+    // de este negocio) a la persona ya logueada -- ambos lados ya
+    // probaron su identidad por separado, no se pide nada extra.
+    app.post(
+        "/portal-cliente/vincular-persona",
+        requerirSesionClienteCredito(pool),
+        crearRequerirSesionPersona(pool),
+        async (req, res) => {
+            try {
+                const actual = await pool.query(
+                    `SELECT persona_id FROM public.clientes_credito WHERE id = $1`,
+                    [req.clienteCredito.id]
+                );
+
+                if (actual.rows[0]?.persona_id) {
+                    res.status(409).json({ ok: false, error: "Esta cuenta ya esta vinculada a una cuenta Nexo" });
+                    return;
+                }
+
+                await pool.query(
+                    `UPDATE public.clientes_credito SET persona_id = $1 WHERE id = $2`,
+                    [req.persona.id, req.clienteCredito.id]
+                );
+
+                res.json({ ok: true });
+            } catch (error) {
+                console.warn("Error vinculando cliente de credito a persona:", error.message);
+                res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+            }
+        }
+    );
+
+    app.get("/personas/negocios-cliente", crearRequerirSesionPersona(pool), async (req, res) => {
+        try {
+            const resultado = await pool.query(
+                `SELECT n.id, n.slug, n.nombre
+                 FROM public.clientes_credito c
+                 JOIN public.negocios n ON n.id = c.negocio_id
+                 WHERE c.persona_id = $1 AND c.activo = true
+                 ORDER BY n.nombre`,
+                [req.persona.id]
+            );
+            res.json({ ok: true, negocios: resultado.rows });
+        } catch (error) {
+            console.warn("Error listando negocios donde la persona es cliente:", error.message);
+            res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+        }
+    });
 
     app.get("/negocio-actual/sitio-web", requerirAccesoNegocio, async (req, res) => {
         try {

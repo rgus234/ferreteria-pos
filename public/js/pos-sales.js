@@ -2055,7 +2055,7 @@ async function abrirCajonManualPOS() {
 
  if (!window.nexoDesktop || typeof window.nexoDesktop.openCashDrawer !== "function") {
  await alertaPOS(
- "Esta funcion solo esta disponible en la app de escritorio de Nexo POS, conectada a la impresora del cajon.",
+ "Esta funcion solo esta disponible en la app de escritorio de Nexo, conectada a la impresora del cajon.",
  "No disponible",
  "alerta"
  );

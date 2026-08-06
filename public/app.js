@@ -120,7 +120,7 @@ const MODO_DESARROLLADOR_NEXO_KEY = "modoDesarrolladorNexoPOS";
     };
 })();
 const CONTACTO_DESARROLLADOR_DEFAULT = {
- nombre: "Soporte Nexo POS",
+ nombre: "Soporte Nexo",
  telefono: "",
  whatsapp: "",
  correo: ""

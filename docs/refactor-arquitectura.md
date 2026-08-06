@@ -7366,3 +7366,84 @@ del parser clasifica correctamente codigos vs nombres reales) --
 solo `negocio_id = 1` se toco durante la limpieza real, con
 confirmacion explicita del usuario antes de escribir. Pendiente de
 confirmacion del usuario para `git add`/`commit`.
+
+---
+
+# Nexo -- identidad unificada (capa de "persona" ligera, selector Comprar/Administrar) (2026-08-06)
+
+El usuario compartio una vision grande de convertir el producto en un
+ecosistema ("Nexo Market"): una sola cuenta que sirva tanto para
+comprar (buscar productos entre todas las ferreterias, estilo Amazon)
+como para administrar el negocio propio, con cada ferreteria
+conservando su portal. Se le explico que eso es un pivote de
+plataforma (meses de trabajo -- requiere emparejar productos entre
+catalogos de negocios distintos, geolocalizacion real, y un modelo de
+identidad nuevo). El usuario eligio, via `AskUserQuestion`, el primer
+paso mas chico: **solo unificar identidad**, sin construir todavia el
+buscador cruzado.
+
+Investigando el modelo de auth actual (2 agentes Explore) se confirmo
+que tanto el login del dueño (`negocios.correo/password_hash`) como el
+del cliente/comprador (`clientes_credito` por negocio) estan acoplados
+1:1 a un negocio a nivel de esquema -- no solo de interfaz. Se le
+presento al usuario el fork real: migrar el login existente del dueño
+(alto riesgo, toca las ~70 rutas protegidas y el login real de
+Ferreteria Olimpico) vs. una **capa de persona ligera** que NO toca
+nada del login actual. El usuario eligio la capa ligera.
+
+**Diseño implementado**: tabla nueva `personas` (login global
+correo/telefono + password, `migrations/20260813_personas.sql`) +
+`sesiones_persona` (mismo patron `token_hash` que `sesiones_cuenta`) +
+2 columnas nullable de vinculo (`negocios.persona_id`,
+`clientes_credito.persona_id`). **Primera vez que el proyecto usa
+cookies** -- justificado explicitamente: una sesion de persona debe
+"viajar" entre `nexoposoficial.com` y cualquier `{slug}.nexoposoficial.com`
+sin repetir login, y `localStorage` esta aislado por subdominio; se
+usa una cookie `httpOnly` con `domain: '.nexoposoficial.com'`, parseada
+a mano (`parsearCookies`) sin agregar `cookie-parser` como dependencia.
+
+Modulo nuevo `personas-server.js`: registro/login/logout de persona,
+y el mecanismo clave -- `POST /personas/negocios/:id/entrar` mintea un
+`sesiones_cuenta` real (mismo INSERT exacto que ya usa
+`POST /cuenta/login`) para un negocio ya vinculado, sin que el
+dueño vuelva a escribir su contraseña. Esto significa que **ninguna de
+las ~70 rutas protegidas existentes cambio** -- el token resultante es
+indistinguible en la base de datos de uno creado por el login normal.
+Lado "Comprar": `POST /portal-cliente/vincular-persona` en
+`public-site-server.js` liga la fila `clientes_credito` (telefono+
+codigo de ese negocio) a la persona ya logueada, y
+`GET /personas/negocios-cliente` lista las ferreterias donde ya es
+cliente. Ambos lados de vinculacion exigen **las dos sesiones
+simultaneas** (negocio/cliente ya autenticado + persona ya logueada) --
+nunca se pide re-probar una contraseña que ya se probo por separado.
+
+Frontend nuevo: `public/site/mi-cuenta.html` (login/registro de
+persona + 2 listas: "Negocios que administras" / "Ferreterias donde
+eres cliente", reusa `styles.css`/`.contact-tabs` ya existentes).
+Enganches: boton "Vincular con tu cuenta Nexo personal" en Cuenta
+(POS) y en `/portal-cliente`; enlace "Modo Comprar" en la topbar del
+POS (icono `bag`, visible solo si `negocio.vinculadoAPersona`).
+
+**Rebranding "Nexo POS" -> "Nexo"**: grep exhaustivo de la cadena
+literal en todo el proyecto (marketing site, login, footer del sitio
+tenant, correos transaccionales, ticket impreso, panel Admin, app
+`/dueno`, app de escritorio Electron) y reemplazo uniforme -- ~110
+ocurrencias en 19 archivos, todas texto visible al usuario (nunca
+identificadores internos, ni la sub-marca "Nexo IA").
+
+**Verificacion**: `node --check` en los 10 archivos de servidor
+tocados. Migracion aplicada con confirmacion explicita (columnas
+nullable, `negocio_id = 1` verificado sin tocar). Nuevo
+`scripts/verificar-personas.js` (17 casos: registro, duplicado
+rechazado, login/login fallido, `/personas/estado` con y sin sesion,
+vinculacion de negocio requiere ambas sesiones + rechaza duplicado,
+`GET /personas/negocios` lista correctamente, entrar a un negocio
+vinculado mintea un token real que funciona en una ruta protegida
+existente, `vinculadoAPersona` se refleja en `/licencia/estado`,
+`/personas/negocios-cliente` vacio sin vinculos, logout revoca la
+sesion) -- **17/17 pasaron**, script borrado tras usar. `npm test`
+completo (19/19) sin regresion. Verificacion visual de
+`mi-cuenta.html` en navegador (tabs Iniciar sesion/Crear cuenta
+funcionan, sin errores de consola mas alla del 401 esperado antes de
+loguearse). Pendiente de confirmacion del usuario para
+`git add`/`commit`.

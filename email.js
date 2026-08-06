@@ -62,9 +62,9 @@ function envolverPlantilla({ etiqueta, titulo, saludo = "", cuerpoHtml, robot = 
                                 <table role="presentation" cellpadding="0" cellspacing="0">
                                     <tr>
                                         <td style="padding-right:10px;">
-                                            <img src="${DOMINIO_PUBLICO}/nexo-pos-logo.jpg" width="30" height="30" alt="Nexo POS" style="display:block;border-radius:8px;">
+                                            <img src="${DOMINIO_PUBLICO}/nexo-pos-logo.jpg" width="30" height="30" alt="Nexo" style="display:block;border-radius:8px;">
                                         </td>
-                                        <td style="font-size:15px;font-weight:800;color:#0f172a;letter-spacing:.2px;">NEXO POS</td>
+                                        <td style="font-size:15px;font-weight:800;color:#0f172a;letter-spacing:.2px;">NEXO</td>
                                     </tr>
                                 </table>
                             </td>
@@ -99,7 +99,7 @@ function envolverPlantilla({ etiqueta, titulo, saludo = "", cuerpoHtml, robot = 
                                             </div>
                                         </td>
                                         <td valign="top" align="right">
-                                            <div style="color:#e2e8f0;font-size:13px;font-weight:800;">NEXO POS</div>
+                                            <div style="color:#e2e8f0;font-size:13px;font-weight:800;">NEXO</div>
                                             <div style="color:#64748b;font-size:11.5px;margin-top:4px;">© 2026 Todos los derechos reservados.</div>
                                         </td>
                                     </tr>
@@ -185,7 +185,7 @@ async function enviarCorreo({ correo, asunto, html, attachments = [] }) {
 
     try {
         const resultado = await cliente.emails.send({
-            from: `Nexo POS <${remitente}>`,
+            from: `Nexo <${remitente}>`,
             to: correo,
             subject: asunto,
             html,
@@ -207,14 +207,14 @@ async function enviarCorreo({ correo, asunto, html, attachments = [] }) {
 function enviarCorreoVerificacion(correo, nombreNegocio, enlace) {
     return enviarCorreo({
         correo,
-        asunto: "Confirma tu correo en Nexo POS",
+        asunto: "Confirma tu correo en Nexo",
         html: envolverPlantilla({
             etiqueta: "Verificacion de cuenta",
             titulo: "Confirma tu correo para activar tu cuenta",
             saludo: `Hola, ${nombreNegocio} 👋`,
             robot: "feliz",
             cuerpoHtml: `
-                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Gracias por crear tu cuenta en Nexo POS. Solo falta confirmar tu correo electronico para que puedas comenzar.</p>
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Gracias por crear tu cuenta en Nexo. Solo falta confirmar tu correo electronico para que puedas comenzar.</p>
                 ${botonHtml("Confirmar mi correo", enlace)}
                 ${avisoHtml("Este enlace vence en 24 horas.")}
             `,
@@ -225,14 +225,14 @@ function enviarCorreoVerificacion(correo, nombreNegocio, enlace) {
 
 // Se dispara justo despues de que el correo se confirma con exito
 // (server.js, GET /verificar-correo/:token) -- es la primera vez que
-// el negocio recibe algo de Nexo POS con la cuenta ya activa.
+// el negocio recibe algo de Nexo con la cuenta ya activa.
 function enviarCorreoBienvenida(correo, nombreNegocio, enlace) {
     return enviarCorreo({
         correo,
-        asunto: "¡Bienvenido a Nexo POS!",
+        asunto: "¡Bienvenido a Nexo!",
         html: envolverPlantilla({
             etiqueta: "Cuenta activa",
-            titulo: "¡Bienvenido a Nexo POS! 🎉",
+            titulo: "¡Bienvenido a Nexo! 🎉",
             saludo: `Hola, ${nombreNegocio}`,
             robot: "celebrando",
             cuerpoHtml: `
@@ -259,7 +259,7 @@ function enviarCorreoRecuperacion(correo, nombreNegocio, codigo) {
             saludo: `Hola, ${nombreNegocio}`,
             robot: "alerta",
             cuerpoHtml: `
-                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Recibimos una solicitud para restablecer la contrasena de tu cuenta. Escribe este codigo dentro de Nexo POS para continuar:</p>
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Recibimos una solicitud para restablecer la contrasena de tu cuenta. Escribe este codigo dentro de Nexo para continuar:</p>
                 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:18px 0 4px;">
                     <tr>
                         <td style="padding:16px 24px;border-radius:14px;background:#eef4ff;border:1px solid #dbe7ff;">
@@ -283,9 +283,9 @@ function enviarCorreoActivacionCuenta(correo, nombreNegocio, enlace) {
             saludo: `Hola, ${nombreNegocio}`,
             robot: "feliz",
             cuerpoHtml: `
-                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Nexo POS ahora usa tu correo y una contrasena para iniciar sesion, en vez del codigo del negocio. Crea tu contrasena para seguir entrando a tu cuenta con normalidad.</p>
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Nexo ahora usa tu correo y una contrasena para iniciar sesion, en vez del codigo del negocio. Crea tu contrasena para seguir entrando a tu cuenta con normalidad.</p>
                 ${botonHtml("Crear mi contrasena", enlace)}
-                ${avisoHtml("Este enlace vence en 24 horas. Si tienes dudas, contacta a soporte de Nexo POS.")}
+                ${avisoHtml("Este enlace vence en 24 horas. Si tienes dudas, contacta a soporte de Nexo.")}
             `
         })
     });
@@ -308,7 +308,7 @@ function enviarCorreoRespaldo(correo, { asunto, mensajeHtml, attachments = [] })
 function enviarCorreoPagoFallido(correo, nombreNegocio, { montoTexto, fechaReintento, enlacePago, graciaDias }) {
     return enviarCorreo({
         correo,
-        asunto: "Hubo un problema con tu pago en Nexo POS",
+        asunto: "Hubo un problema con tu pago en Nexo",
         html: envolverPlantilla({
             etiqueta: "Pago fallido",
             titulo: "Hubo un problema con tu pago",
@@ -316,12 +316,12 @@ function enviarCorreoPagoFallido(correo, nombreNegocio, { montoTexto, fechaReint
             robot: "alerta",
             cuerpoHtml: `
                 <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">
-                    No pudimos procesar tu pago${montoTexto ? ` de ${montoTexto}` : ""} de la suscripcion a Nexo POS.
+                    No pudimos procesar tu pago${montoTexto ? ` de ${montoTexto}` : ""} de la suscripcion a Nexo.
                 </p>
                 <p style="margin:12px 0 0;color:#344054;font-size:15px;line-height:1.6;">
                     ${fechaReintento
                         ? `Vamos a intentar cobrarlo de nuevo el ${fechaReintento}.`
-                        : "Actualiza tu metodo de pago para seguir usando Nexo POS sin interrupciones."}
+                        : "Actualiza tu metodo de pago para seguir usando Nexo sin interrupciones."}
                 </p>
                 ${enlacePago ? botonHtml("Pagar ahora", enlacePago) : ""}
                 ${avisoHtml(`Tu acceso sigue activo por ahora (tienes ${graciaDias || 15} dias de gracia antes de que se limiten funciones). Si ya corregiste tu metodo de pago, puedes ignorar este correo.`)}
@@ -350,14 +350,14 @@ function enviarCorreoPagoConfirmado(correo, nombreNegocio, { planTexto, montoTex
 
     return enviarCorreo({
         correo,
-        asunto: "¡Pago confirmado! Gracias por tu suscripcion a Nexo POS",
+        asunto: "¡Pago confirmado! Gracias por tu suscripcion a Nexo",
         html: envolverPlantilla({
             etiqueta: "Pago confirmado",
             titulo: "¡Pago confirmado! ✅",
             saludo: `Hola, ${nombreNegocio}`,
             robot: "celebrando",
             cuerpoHtml: `
-                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Hemos recibido tu pago correctamente. Gracias por confiar en Nexo POS.</p>
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Hemos recibido tu pago correctamente. Gracias por confiar en Nexo.</p>
             `,
             cajaHtml: `
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #eef2f7;border-radius:14px;padding:6px 18px;">
@@ -375,7 +375,7 @@ const CORREO_NOTIFICACIONES_LEADS = process.env.LEADS_NOTIFICATION_EMAIL || "nex
 // El lead viene de un formulario publico sin autenticacion -- se
 // escapa antes de interpolarlo en el HTML del correo para que nadie
 // pueda inyectar un enlace/marcado falso en un correo que parece
-// venir de Nexo POS.
+// venir de Nexo.
 function escaparHtmlCorreo(valor) {
     return String(valor || "")
         .replace(/&/g, "&amp;")
@@ -552,7 +552,7 @@ function enviarCorreoCotizacionRespondida(correo, nombreNegocio, { items, precio
 // La solicitud viene del formulario publico de credito (sin sesion).
 // A proposito NUNCA incluye las fotos de identificacion en el correo
 // -- correo no es un canal seguro para documentos sensibles, se avisa
-// que se revisen dentro del panel de Nexo POS.
+// que se revisen dentro del panel de Nexo.
 function enviarCorreoSolicitudCreditoPublica(correo, nombreNegocio, { clienteNombre, clienteTelefono, clienteCorreo, direccion, montoSolicitado, comentario, tieneDocumentos }) {
     const telefonoLimpio = String(clienteTelefono || "").replace(/\D/g, "");
     const clienteSeguro = escaparHtmlCorreo(clienteNombre);
@@ -588,8 +588,8 @@ function enviarCorreoSolicitudCreditoPublica(correo, nombreNegocio, { clienteNom
                     </tr>
                 </table>
                 ${avisoHtml(tieneDocumentos
-                    ? "El cliente adjunto su identificacion oficial. Por seguridad, no se envia por correo -- revisala desde tu panel de Nexo POS, en Sitio web > Solicitudes de credito."
-                    : "El cliente no adjunto identificacion. Puedes revisar el detalle completo desde tu panel de Nexo POS, en Sitio web > Solicitudes de credito.")}
+                    ? "El cliente adjunto su identificacion oficial. Por seguridad, no se envia por correo -- revisala desde tu panel de Nexo, en Sitio web > Solicitudes de credito."
+                    : "El cliente no adjunto identificacion. Puedes revisar el detalle completo desde tu panel de Nexo, en Sitio web > Solicitudes de credito.")}
             `
         })
     });

@@ -168,7 +168,7 @@ function configureAutoUpdater() {
       status: "current",
       updateAvailable: false,
       latestVersion: info?.version || app.getVersion(),
-      message: "Nexo POS esta actualizado"
+      message: "Nexo esta actualizado"
     });
   });
 
@@ -459,7 +459,7 @@ $bytes = [byte[]](${bytes.join(",")})
 $handle = [IntPtr]::Zero
 if (-not [RawPrinterHelper]::OpenPrinter($printerName, [ref]$handle, [IntPtr]::Zero)) { throw "No se pudo abrir la impresora: $printerName" }
 $doc = New-Object RawPrinterHelper+DOCINFOA
-$doc.pDocName = "Nexo POS - cajon"
+$doc.pDocName = "Nexo - cajon"
 $doc.pDataType = "RAW"
 $ptr = [Runtime.InteropServices.Marshal]::AllocCoTaskMem($bytes.Length)
 try {
@@ -562,7 +562,7 @@ async function createWindow() {
     height: 820,
     minWidth: 1024,
     minHeight: 700,
-    title: "Nexo POS",
+    title: "Nexo",
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

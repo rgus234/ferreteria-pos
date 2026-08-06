@@ -1123,7 +1123,7 @@ function renderListaProductosCatalogo(datos) {
    <div class="catalogo-fila-codigo">${p.codigo_proveedor}</div>
    <div class="catalogo-fila-nombre">
     <strong>${p.nombre_proveedor}</strong>
-    <span>${p.producto_nombre ? "→ " + p.producto_nombre : "Sin vincular en Nexo POS"}</span>
+    <span>${p.producto_nombre ? "→ " + p.producto_nombre : "Sin vincular en Nexo"}</span>
    </div>
    ${badgeEstadoCatalogoHTML(p.estado)}
   </div>
@@ -1212,7 +1212,7 @@ function renderPanelPreviaCatalogo(p) {
     <dt>Precio actual</dt><dd>${formatoMonedaCatalogo(p.producto_precio)}</dd>
     <dt>Existencia</dt><dd>${p.producto_stock ?? 0} pzas</dd>
    </dl>
-   <button type="button" class="btn-catalogo-subir" onclick="verProductoDesdeCatalogo(${p.producto_id})">Ver producto en Nexo POS</button>
+   <button type="button" class="btn-catalogo-subir" onclick="verProductoDesdeCatalogo(${p.producto_id})">Ver producto en Nexo</button>
   `
   : `
    <div class="catalogo-previa-match catalogo-previa-match-pendiente">Sin vincular todavia</div>
@@ -1230,7 +1230,7 @@ function renderPanelPreviaCatalogo(p) {
    <dt>Precio publico</dt><dd>${formatoMonedaCatalogo(p.precio_publico)}</dd>
    <dt>Existencia del proveedor</dt><dd>No disponible</dd>
   </dl>
-  <h4 class="catalogo-previa-titulo">Coincidencia en Nexo POS</h4>
+  <h4 class="catalogo-previa-titulo">Coincidencia en Nexo</h4>
   ${coincidenciaHTML}
  `;
 }
@@ -1242,7 +1242,7 @@ function verProductoDesdeCatalogo(productoId) {
 async function abrirVinculacionManualCatalogo(catalogoProductoId) {
  const codigo = await dialogoPOS({
   titulo: "Vincular manualmente",
-  mensaje: "Escribe el codigo del producto de Nexo POS con el que quieres vincular esta fila del catalogo.",
+  mensaje: "Escribe el codigo del producto de Nexo con el que quieres vincular esta fila del catalogo.",
   entrada: true,
   mostrarCancelar: true,
   textoAceptar: "Buscar"

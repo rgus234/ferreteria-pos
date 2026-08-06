@@ -313,6 +313,9 @@ function renderTopbarPOS() {
  '<span id="badgeNotificacionesPOS" class="notification-badge">' +
  notificaciones.length +
  '</span></button><button type="button" class="topbar-icon-btn topbar-help" onclick="abrirAyudaModuloPOS()" title="Que hace este modulo">?</button>' +
+ (typeof estadoLicenciaNexoPOS !== "undefined" && estadoLicenciaNexoPOS?.vinculadoAPersona
+ ? '<a href="https://nexoposoficial.com/mi-cuenta" target="_blank" rel="noopener" class="topbar-icon-btn" title="Modo Comprar -- tu cuenta Nexo personal">' + iconoUISVG("bag") + '</a>'
+ : "") +
  '<div class="topbar-product-menu"><button type="button" id="btnMenuNexoPOS" class="topbar-user-trigger" onclick="toggleMenuNexoPOS()" aria-haspopup="true" aria-expanded="false"><span class="topbar-user-avatar">' +
  inicialesUsuarioPOS(nombreUsuario) +
  '</span><span class="topbar-user-text"><strong>' +
@@ -325,7 +328,7 @@ function renderTopbarPOS() {
  rolUsuario +
  ' · ' +
  negocio +
- '</span><span>Nexo POS · Version ' +
+ '</span><span>Nexo · Version ' +
  VERSION_NEXO_POS +
  '</span></div><button type="button" onclick="abrirContactoDesarrolladorPOS()">' +
  iconoUISVG("users") +
@@ -348,7 +351,7 @@ function renderSidebarFooterPOS() {
   const syncHtml = typeof desktopSyncDisponiblePOS === "function" && desktopSyncDisponiblePOS()
    ? '<button type="button" id="btnSyncDesktopPOS" class="sync-desktop-chip" onclick="sincronizarAhoraDesktopPOS()" title="Sincronizar ahora"><span id="chipSyncDesktopPOS" class="sync-chip-inner"><span class="sync-dot"></span><span>Sync</span><small>Revisando</small></span></button>'
    : "";
-  footer.innerHTML = '<div class="sidebar-powered-by"><span>Con la tecnologia de</span><img src="nexo-pos-icon.jpg" alt="Nexo POS"></div><span class="sidebar-footer-version">NEXO POS v' + version + '</span>' + syncHtml;
+  footer.innerHTML = '<div class="sidebar-powered-by"><span>Con la tecnologia de</span><img src="nexo-pos-icon.jpg" alt="Nexo"></div><span class="sidebar-footer-version">NEXO v' + version + '</span>' + syncHtml;
  }
  sidebar.appendChild(footer);
 }
@@ -408,15 +411,15 @@ function abrirContactoDesarrolladorPOS() {
  <div class="modal-card contacto-dev-card ${dev ? "modo-dev" : "modo-cliente"}">
  <div class="contacto-dev-header">
  <div>
- <span>Nexo POS</span>
+ <span>Nexo</span>
  <h3>Contacto del desarrollador</h3>
  </div>
  <button type="button" class="modal-cerrar-x" onclick="cerrarContactoDesarrolladorPOS()" aria-label="Cerrar contacto">×</button>
  </div>
  <div class="contacto-dev-resumen">
- <img src="nexo-pos-icon.jpg" alt="Nexo POS">
+ <img src="nexo-pos-icon.jpg" alt="Nexo">
  <div>
- <strong>${contacto.nombre || "Soporte Nexo POS"}</strong>
+ <strong>${contacto.nombre || "Soporte Nexo"}</strong>
  <span>Soporte, cambios y mejoras del sistema</span>
  </div>
  </div>
@@ -426,7 +429,7 @@ function abrirContactoDesarrolladorPOS() {
  modal.style.display = "flex";
 }
 function cerrarContactoDesarrolladorPOS() { const modal = document.getElementById("modalContactoDesarrolladorPOS"); if (modal) modal.style.display = "none"; }
-function guardarContactoDesarrolladorPOS() { const contacto = { nombre: document.getElementById("contactoDevNombrePOS")?.value.trim() || "Desarrollador Nexo POS", telefono: document.getElementById("contactoDevTelefonoPOS")?.value.trim() || "", whatsapp: document.getElementById("contactoDevWhatsappPOS")?.value.trim() || "", correo: document.getElementById("contactoDevCorreoPOS")?.value.trim() || "" }; localStorage.setItem(CONTACTO_DESARROLLADOR_KEY, JSON.stringify(contacto)); cerrarContactoDesarrolladorPOS(); alertaPOS("Contacto guardado", "Los datos del desarrollador quedaron listos en Nexo POS.", "exito"); }
+function guardarContactoDesarrolladorPOS() { const contacto = { nombre: document.getElementById("contactoDevNombrePOS")?.value.trim() || "Desarrollador Nexo", telefono: document.getElementById("contactoDevTelefonoPOS")?.value.trim() || "", whatsapp: document.getElementById("contactoDevWhatsappPOS")?.value.trim() || "", correo: document.getElementById("contactoDevCorreoPOS")?.value.trim() || "" }; localStorage.setItem(CONTACTO_DESARROLLADOR_KEY, JSON.stringify(contacto)); cerrarContactoDesarrolladorPOS(); alertaPOS("Contacto guardado", "Los datos del desarrollador quedaron listos en Nexo.", "exito"); }
 function instalarAtajoDesarrolladorNexoPOS() { if (window.__atajoDevNexoPOS) return; window.__atajoDevNexoPOS = true; document.addEventListener("keydown", event => { const tecla = String(event.key || "").toLowerCase(); if (event.ctrlKey && event.shiftKey && tecla === "d") { event.preventDefault(); alternarModoDesarrolladorNexoPOS(); } }); }
 function instalarMonitorSyncDesktopPOS() {
  if (window.__monitorSyncDesktopPOS) return;

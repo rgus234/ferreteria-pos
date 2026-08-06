@@ -28,7 +28,7 @@ for (const file of requiredFiles) {
 const installerPath = path.join(downloadsDir, `NexoPOS_Setup_${version}.exe`);
 const blockmapPath = path.join(downloadsDir, `NexoPOS_Setup_${version}.exe.blockmap`);
 const manifest = {
-  app: "Nexo POS",
+  app: "Nexo",
   platform: "windows",
   channel: "stable",
   version,

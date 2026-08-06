@@ -3,7 +3,7 @@ const IS_PRODUCTION = APP_ENV === "production";
 const packageJson = require("./package.json");
 
 const config = {
-    appName: process.env.APP_NAME || "Nexo POS",
+    appName: process.env.APP_NAME || "Nexo",
     appEnv: APP_ENV,
     appVersion: process.env.APP_VERSION || packageJson.version || "1.0.0",
     isProduction: IS_PRODUCTION,

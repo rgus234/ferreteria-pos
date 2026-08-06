@@ -467,7 +467,7 @@ async function abrirBuscarNegocioSetup() {
  </div>
  <button type="button" onclick="cerrarBuscarNegocioSetup()">Cerrar</button>
  </div>
- <p class="buscar-negocio-ayuda">Entra con el correo y la contrasena de tu cuenta de Nexo POS.</p>
+ <p class="buscar-negocio-ayuda">Entra con el correo y la contrasena de tu cuenta de Nexo.</p>
 
  <div id="loginCuentaError" class="login-cuenta-error" style="display:none;"></div>
 
@@ -868,7 +868,7 @@ async function inicializarConfiguracionInicial() {
   preview.innerHTML =
   campoNombre.value.trim()
   ? inicialesNegocio(campoNombre.value)
-  : `<img src="nexo-pos-icon.jpg" alt="Nexo POS">`;
+  : `<img src="nexo-pos-icon.jpg" alt="Nexo">`;
   }
  });
 

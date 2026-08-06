@@ -113,7 +113,7 @@ async function ejecutarRespaldoDiario(pool) {
 
             if (config.respaldoEmailDestino) {
                 await enviarCorreoRespaldo(config.respaldoEmailDestino, {
-                    asunto: `Respaldo de Nexo POS del ${fecha} crecio demasiado para enviarse por correo`,
+                    asunto: `Respaldo de Nexo del ${fecha} crecio demasiado para enviarse por correo`,
                     mensajeHtml: `<p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">El respaldo de hoy ocupa ${(bytes / 1024 / 1024).toFixed(1)}MB comprimido, por encima de lo que se puede mandar por correo. Hace falta mover el mecanismo de respaldo a almacenamiento externo (S3/Backblaze). El respaldo NO se genero como archivo esta vez.</p>`
                 });
             }
@@ -130,7 +130,7 @@ async function ejecutarRespaldoDiario(pool) {
 
         if (config.respaldoEmailDestino) {
             await enviarCorreoRespaldo(config.respaldoEmailDestino, {
-                asunto: `Respaldo automatico de Nexo POS -- ${fecha}`,
+                asunto: `Respaldo automatico de Nexo -- ${fecha}`,
                 mensajeHtml: `
                     <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Respaldo diario de la base de datos completa (${tablas} tablas, ${(bytes / 1024 / 1024).toFixed(2)}MB comprimido).</p>
                     <p style="margin:12px 0 0;color:#344054;font-size:15px;line-height:1.6;">Guarda este correo o descarga el adjunto a un lugar seguro. Para restaurarlo, usa <code>scripts/restaurar-backup.js</code>.</p>
@@ -154,7 +154,7 @@ async function ejecutarRespaldoDiario(pool) {
 
         if (config.respaldoEmailDestino) {
             await enviarCorreoRespaldo(config.respaldoEmailDestino, {
-                asunto: "El respaldo automatico de Nexo POS de hoy fallo",
+                asunto: "El respaldo automatico de Nexo de hoy fallo",
                 mensajeHtml: `<p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">El respaldo automatico de hoy no se pudo completar. Error: <code>${error.message}</code></p>`
             }).catch(() => {});
         }

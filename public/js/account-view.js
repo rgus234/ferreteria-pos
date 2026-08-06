@@ -169,7 +169,7 @@ function renderCuentaPOS(negocio, licencia) {
  pantalla.innerHTML = `
  <div class="caja cuenta-shell">
   <h2>Cuenta</h2>
-  <p class="cuenta-subtitulo">Datos de tu negocio, seguridad de tu cuenta y estado de tu suscripcion Nexo POS.</p>
+  <p class="cuenta-subtitulo">Datos de tu negocio, seguridad de tu cuenta y estado de tu suscripcion Nexo.</p>
 
   <div class="cuenta-tabs">
    <button type="button" class="activo" data-cuenta-tab="resumen" onclick="cambiarTabCuentaPOS('resumen')">Resumen</button>
@@ -200,6 +200,14 @@ function renderCuentaPOS(negocio, licencia) {
       ? `<button type="button" class="cuenta-link-boton" onclick="reenviarVerificacionCuenta('${escaparPOS(negocio.correo)}')">Reenviar correo de verificacion</button>`
       : ""
      }
+     <label class="cuenta-correo-label" style="margin-top:16px;">Cuenta Nexo personal
+      <span class="cuenta-subtitulo" style="margin:2px 0 8px;display:block;">Vincula este negocio a tu cuenta Nexo para entrar sin volver a escribir esta contrasena, y para poder cambiar a Modo Comprar.</span>
+      ${
+       negocio.vinculadoAPersona
+       ? `<span class="cuenta-correo-badge cuenta-correo-badge-ok">Vinculado</span>`
+       : `<button type="button" class="btn-principal" onclick="vincularCuentaNexoPersonal()">Vincular con tu cuenta Nexo personal</button>`
+      }
+     </label>
      <label class="cuenta-correo-label" style="margin-top:16px;">Hora de cierre habitual
       <span class="cuenta-subtitulo" style="margin:2px 0 8px;display:block;">Si la dejas, el POS te avisa cuando ya paso esta hora y la caja sigue abierta.</span>
       <div class="cuenta-correo-fila">
@@ -462,6 +470,37 @@ async function guardarHoraCierreCuenta() {
   await alertaPOS("Hora de cierre guardada correctamente.", "Cuenta actualizada", "exito");
  } catch (error) {
   await alertaPOS(error.message || "No se pudo guardar la hora de cierre.", "Error", "alerta");
+ }
+}
+
+async function vincularCuentaNexoPersonal() {
+ try {
+  // fetch() plano (no cuentaFetchAutenticado) -- el interceptor global
+  // ya manda el token correcto (dispositivo o cuenta, el que exista),
+  // igual que cualquier otra ruta protegida por requerirAccesoNegocio.
+  const respuesta =
+  await fetch("/negocio-actual/vincular-persona", { method: "POST" });
+
+  const datos =
+  await respuesta.json();
+
+  if (!datos.ok) {
+   if (String(datos.error || "").includes("Inicia sesion")) {
+    await alertaPOS(
+    "Primero inicia sesion en tu cuenta Nexo personal desde nexoposoficial.com/mi-cuenta (se abre en una pestana nueva), y luego regresa aqui a vincular.",
+    "Cuenta Nexo",
+    "info"
+    );
+    window.open("https://nexoposoficial.com/mi-cuenta", "_blank");
+    return;
+   }
+   throw new Error(datos.error || "No se pudo vincular");
+  }
+
+  await alertaPOS("Tu negocio quedo vinculado a tu cuenta Nexo personal.", "Listo", "exito");
+  mostrarCuenta();
+ } catch (error) {
+  await alertaPOS(error.message || "No se pudo vincular.", "Error", "alerta");
  }
 }
 

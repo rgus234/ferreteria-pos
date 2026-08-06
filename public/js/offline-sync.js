@@ -73,6 +73,7 @@ async function revisarLicenciaNexoPOS() {
    ...estadoLicenciaNexoPOS,
    ...licencia,
    horaCierre: respuesta?.negocio?.horaCierre ?? estadoLicenciaNexoPOS.horaCierre ?? null,
+   vinculadoAPersona: respuesta?.negocio?.vinculadoAPersona ?? estadoLicenciaNexoPOS.vinculadoAPersona ?? false,
    modo: licencia.modo || "normal"
   };
 
@@ -80,7 +81,7 @@ async function revisarLicenciaNexoPOS() {
    const mensaje = ["limitado", "bloqueado"].includes(estadoLicenciaNexoPOS.modo)
    ? "La licencia esta vencida. El POS queda en modo limitado hasta regularizar la suscripcion."
    : "La licencia esta en periodo de gracia. El POS sigue funcionando, pero conviene regularizar el pago.";
-   alertaPOS(mensaje, "Licencia Nexo POS", ["limitado", "bloqueado"].includes(estadoLicenciaNexoPOS.modo) ? "alerta" : "info");
+   alertaPOS(mensaje, "Licencia Nexo", ["limitado", "bloqueado"].includes(estadoLicenciaNexoPOS.modo) ? "alerta" : "info");
   }
 
   return estadoLicenciaNexoPOS;
@@ -513,7 +514,7 @@ async function sincronizarAhoraDesktopPOS() {
   }
 
   await refrescarEstadoSyncDesktopPOS({ silencioso: true });
-  alertaPOS("Sincronizacion lista", "Nexo POS reviso los pendientes de esta computadora.", "exito");
+  alertaPOS("Sincronizacion lista", "Nexo reviso los pendientes de esta computadora.", "exito");
  } catch (error) {
   console.warn("No se pudo sincronizar ahora", error);
   estadoSyncDesktopPOS.online = false;

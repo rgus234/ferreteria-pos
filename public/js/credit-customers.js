@@ -561,7 +561,7 @@ function enviarRecordatorioCreditoWhatsApp() {
  const dias = masAntigua ? masAntigua.diasVencido : 0;
 
  const mensaje =
- `Hola ${creditoActual.nombre || ""}, te saluda ${negocio.nombre || "Nexo POS"}. ` +
+ `Hola ${creditoActual.nombre || ""}, te saluda ${negocio.nombre || "Nexo"}. ` +
  `Tienes un saldo vencido de ${dinero(aging.totalVencido)}` +
  (fechaTexto ? ` de una compra con vencimiento el ${fechaTexto} (${dias} dia${dias === 1 ? "" : "s"} de atraso)` : "") +
  `. Te agradecemos tu pago a la brevedad. Cualquier duda, contactanos.`;
@@ -681,7 +681,7 @@ async function imprimirEstadoCuentaCredito() {
 
  const ticket = `
  <div style="text-align:center;">
- <h2>${escaparPOS(negocio.nombre || "Nexo POS")}</h2>
+ <h2>${escaparPOS(negocio.nombre || "Nexo")}</h2>
  <div>Estado de cuenta</div>
  </div>
  <hr>

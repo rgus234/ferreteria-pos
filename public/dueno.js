@@ -1415,7 +1415,7 @@ function renderSubpantallaAyuda() {
             </div>
             <a class="dueno-boton-primario" style="display:block;text-align:center;text-decoration:none;" href="https://wa.me/524981234567?text=Hola,%20necesito%20ayuda%20con%20Nexo%20POS" target="_blank" rel="noopener">Escribir por WhatsApp</a>
             <div class="dueno-datos-grid" style="margin-top:12px;">
-                <div><span>App</span><strong>Nexo POS -- App del dueño</strong></div>
+                <div><span>App</span><strong>Nexo -- App del dueño</strong></div>
             </div>
         </article>
     `;

@@ -405,7 +405,7 @@ app.get("/licencia/estado", requerirAccesoNegocio, async (req, res) => {
         const licencia = await licenciaActual(negocio);
 
         const correoActual = await pool.query(
-            `SELECT correo, correo_verificado, hora_cierre FROM public.negocios WHERE id = $1`,
+            `SELECT correo, correo_verificado, hora_cierre, persona_id FROM public.negocios WHERE id = $1`,
             [negocio.id]
         );
 
@@ -419,7 +419,8 @@ app.get("/licencia/estado", requerirAccesoNegocio, async (req, res) => {
                 plan: negocio.plan,
                 correo: correoActual.rows[0]?.correo || null,
                 correoVerificado: correoActual.rows[0]?.correo_verificado || false,
-                horaCierre: correoActual.rows[0]?.hora_cierre || null
+                horaCierre: correoActual.rows[0]?.hora_cierre || null,
+                vinculadoAPersona: Boolean(correoActual.rows[0]?.persona_id)
             },
             licencia: {
                 licenseKey: licencia.license_key,
@@ -877,7 +878,7 @@ function paginaCorreoHtml(titulo, mensaje, exito) {
     <html lang="es">
     <head>
         <meta charset="utf-8">
-        <title>${titulo} -- Nexo POS</title>
+        <title>${titulo} -- Nexo</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
     </head>
     <body style="margin:0;background:#f4f5f7;font-family:Segoe UI,Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;">
@@ -931,7 +932,7 @@ app.get("/verificar-correo/:token", async (req, res) => {
 
         res.send(paginaCorreoHtml(
             "Correo verificado",
-            "Tu correo quedo confirmado. Ya puedes cerrar esta ventana e iniciar sesion en Nexo POS.",
+            "Tu correo quedo confirmado. Ya puedes cerrar esta ventana e iniciar sesion en Nexo.",
             true
         ));
     } catch (error) {
@@ -979,7 +980,7 @@ app.get("/activar-cuenta/:token", async (req, res) => {
         <html lang="es">
         <head>
             <meta charset="utf-8">
-            <title>Crea tu contrasena -- Nexo POS</title>
+            <title>Crea tu contrasena -- Nexo</title>
             <meta name="viewport" content="width=device-width, initial-scale=1">
         </head>
         <body style="margin:0;background:#f4f5f7;font-family:Segoe UI,Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;">
@@ -1013,7 +1014,7 @@ app.get("/activar-cuenta/:token", async (req, res) => {
                             cajaError.style.display = "block";
                             return;
                         }
-                        document.body.innerHTML = '<div style="max-width:420px;margin:24px;width:100%;background:#fff;border-radius:16px;padding:32px;border:1px solid #e4e7ec;text-align:center;font-family:Segoe UI,Arial,sans-serif;"><h1 style="font-size:20px;color:#101828;">Listo</h1><p style="color:#667085;font-size:14px;">Tu contrasena quedo creada. Ya puedes cerrar esta ventana e iniciar sesion en Nexo POS con tu correo y tu nueva contrasena.</p></div>';
+                        document.body.innerHTML = '<div style="max-width:420px;margin:24px;width:100%;background:#fff;border-radius:16px;padding:32px;border:1px solid #e4e7ec;text-align:center;font-family:Segoe UI,Arial,sans-serif;"><h1 style="font-size:20px;color:#101828;">Listo</h1><p style="color:#667085;font-size:14px;">Tu contrasena quedo creada. Ya puedes cerrar esta ventana e iniciar sesion en Nexo con tu correo y tu nueva contrasena.</p></div>';
                     } catch (error) {
                         cajaError.textContent = "No se pudo conectar. Revisa tu internet e intenta de nuevo.";
                         cajaError.style.display = "block";
@@ -2860,7 +2861,7 @@ app.post("/dispositivos/activar", async (req, res) => {
         } else if (config.isProduction) {
             return res.status(400).json({
                 ok: false,
-                error: "Licencia requerida para activar Nexo POS"
+                error: "Licencia requerida para activar Nexo"
             });
         } else {
             negocioActivacion = await negocioActual(req);
@@ -2871,7 +2872,7 @@ app.post("/dispositivos/activar", async (req, res) => {
         if (["bloqueado"].includes(licenciaActualizada.modo)) {
             return res.status(403).json({
                 ok: false,
-                error: "Licencia bloqueada. Contacta a soporte Nexo POS."
+                error: "Licencia bloqueada. Contacta a soporte Nexo."
             });
         }
 
@@ -4665,6 +4666,10 @@ app.get("/terminos", (req, res) => {
 
 app.get("/privacidad", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "site", "privacidad.html"));
+});
+
+app.get("/mi-cuenta", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "site", "mi-cuenta.html"));
 });
 
 app.get("/dueno", (req, res) => {

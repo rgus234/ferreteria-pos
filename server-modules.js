@@ -55,6 +55,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("sitio web del negocio", () => {
         require("./public-site-server").registrarRutas(app, pool, requerirAccesoNegocio);
     });
+
+    cargarModuloPOS("personas (identidad Nexo unificada)", () => {
+        require("./personas-server").registrarRutas(app, pool, requerirAccesoNegocio);
+    });
 }
 
 module.exports = {

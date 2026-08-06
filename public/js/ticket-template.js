@@ -287,7 +287,7 @@ function construirTicketVentaHTML(datos, config = {}, opciones = {}) {
 
   ${codigoBarrasHtml}
 
-  <div style="margin-top:12px;font-size:9px;color:#999;text-align:center;">Con la tecnologia de Nexo POS</div>
+  <div style="margin-top:12px;font-size:9px;color:#999;text-align:center;">Con la tecnologia de Nexo</div>
  </div>
  `;
 }

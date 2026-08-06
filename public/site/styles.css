@@ -1106,6 +1106,27 @@ cite {
   display: none;
 }
 
+.cuenta-nexo-lista {
+  display: grid;
+  gap: 12px;
+}
+
+.cuenta-nexo-tarjeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 18px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.cuenta-nexo-tarjeta span {
+  font-weight: 800;
+}
+
 footer {
   min-height: 110px;
   display: flex;
