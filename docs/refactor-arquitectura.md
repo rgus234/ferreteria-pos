@@ -7447,3 +7447,75 @@ completo (19/19) sin regresion. Verificacion visual de
 funcionan, sin errores de consola mas alla del 401 esperado antes de
 loguearse). Pendiente de confirmacion del usuario para
 `git add`/`commit`.
+
+## 2026-08-05 -- Nexo Market: buscador cruzado de productos entre ferreterias
+
+Primera pieza real de "Nexo Market" -- el usuario reitero su vision
+completa de plataforma (buscar "Nexo" en internet y llegar a un
+ecosistema con Nexo POS + Nexo Market bajo una sola marca), eligio
+explicitamente **Nexo Market de verdad** (buscador cruzado real, no
+solo una pagina que enlace a lo ya construido) en vez de un mockup
+visual. Se investigo con 2 agentes Explore en paralelo antes de
+disenar: la busqueda cruzada resulto trivial de construir (reusa el
+mismo patron `pg_trgm`/`ILIKE` que ya usa `servirCatalogoNegocio`,
+mas el indice `idx_productos_nombre_trgm` que ya es global, sin
+sistema nuevo de "emparejar el mismo producto entre negocios" --
+cada resultado es un producto real de un negocio real, modelo
+Amazon). La geolocalizacion real, en cambio, no tiene ninguna base
+hoy (sin columnas lat/lng, sin libreria de mapas, `direccion` es
+texto libre y casi vacio) -- el usuario confirmo via `AskUserQuestion`
+**sin mapa por ahora**, ubicacion como texto plano, mapa real diferido
+a cuando haya varios negocios activos.
+
+**Conflicto de arquitectura resuelto antes de planear**: la vision del
+usuario proponia rutas por negocio (`nexoposoficial.com/olimpico`),
+lo cual choca con la arquitectura de subdominios ya en produccion con
+DNS wildcard configurado (`{slug}.nexoposoficial.com`, Fases 1-12 de
+"Sitio web por negocio"). Se mantienen los subdominios intactos;
+`/market` vive en el dominio corporativo y enlaza hacia afuera a cada
+subdominio, mismo mecanismo que ya usa `mi-cuenta.html`.
+
+**Diseno implementado**: modulo nuevo `market-server.js` --
+`tiendasPermitidasMarket(pool)` (cache de 60s, reusa `funcionDelPlan`
+de `plan-enforcement.js` tal cual, mismo gate que ya usa cada sitio de
+negocio), `servirMarketPagina` (HTML server-rendered, estilo
+`public/site/styles.css`) y `buscarMarketJson` (sin `buscar` ->
+directorio de tiendas; con `buscar` -> productos cruzados via
+`negocio_id = ANY($1::int[])` + `pg_trgm`, respetando
+`mostrar_precios`/`mostrar_existencias` **por fila**, nunca un toggle
+global). Cada resultado enlaza a
+`https://{slug}.nexoposoficial.com/catalogo/{codigo}` -- sin fotos
+(no necesarias, ya que se sale al catalogo real de cada tienda).
+
+Identidad compartida: `/market` reusa `GET /personas/estado` (cookie
+`nexo_persona_token` ya construida en la fase de identidad unificada)
+para saludar a la persona logueada, sin sistema de sesion nuevo.
+
+Rutas alias en `server.js` (solo en `DOMINIOS_LANDING_COMERCIAL`):
+`/login` -> redirect a `/mi-cuenta`, `/app` -> redirect a
+`app.nexoposoficial.com` -- honran el mental model de rutas del
+usuario sin reescribir nada, ambos destinos ya existian. Nav de
+`public/site/index.html` gana un link "Nexo Market" -> `/market`, sin
+tocar el resto del contenido de venta del software.
+
+**Verificacion**: `node --check` en `market-server.js`/`server.js`.
+Script temporal (`scripts/verificar-market-temporal.js`, 14/14 casos:
+directorio con 2 tiendas sinteticas, busqueda cruzada trae resultados
+de ambas, gating de precio/existencia por fila, `/login`/`/app` solo
+en dominio corporativo y 404 en subdominios, `/market` 404 en
+subdominio de negocio) -- borrado tras usar. Verificacion visual en
+navegador: directorio muestra Ferreteria Olimpico (unico negocio real
+con sitio activo hoy), busqueda real de "tornillo" contra su
+inventario real trae resultados correctos con precio/existencia/link
+de salida, responsive en 375px sin errores de consola. Confirmado
+`negocio_id = 1` sin ningun cambio de escritura durante toda la
+prueba -- Market es de solo lectura sobre datos existentes.
+
+**Nota honesta para el usuario**: hoy Nexo Market tiene un solo
+vendedor real activo (Ferreteria Olimpico) -- el "cruce" entre varias
+ferreterias no se puede probar con datos reales hasta que mas
+negocios activen su sitio publico (plan Plus/Pro + toggle "Sitio
+activado"). La infraestructura ya esta lista para eso, sin cambios
+adicionales cuando llegue mas de un negocio real.
+
+Pendiente de confirmacion del usuario para `git add`/`commit`.

@@ -31,6 +31,7 @@ const {
     servirComparadorNegocio,
     comparadorJson
 } = require("./public-site-server");
+const { servirMarketPagina, buscarMarketJson } = require("./market-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
@@ -4654,6 +4655,34 @@ app.post("/portal-cliente/login", async (req, res) => {
 
 app.get(["/site", "/site/"], (req, res) => {
     res.sendFile(path.join(__dirname, "public", "site", "index.html"));
+});
+
+// Nexo Market -- buscador cruzado, vive en el dominio corporativo (no
+// en un subdominio de negocio). Se guarda explicitamente que NO sea un
+// subdominio de tenant para no interferir con las rutas propias de
+// cada negocio si alguien llegara a visitar {slug}.nexoposoficial.com/market.
+app.get("/market", (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    servirMarketPagina(req, res);
+});
+
+app.get("/market/buscar-json", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false }); return; }
+    await buscarMarketJson(pool, req, res);
+});
+
+// Alias amigables en el dominio corporativo -- honran el mental model
+// de rutas del usuario ("nexoposoficial.com/login", "/app") sin
+// reescribir nada: ambos destinos ya existen y funcionan
+// (mi-cuenta.html y app.nexoposoficial.com).
+app.get("/login", (req, res) => {
+    if (!DOMINIOS_LANDING_COMERCIAL.has((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    res.redirect(302, "/mi-cuenta");
+});
+
+app.get("/app", (req, res) => {
+    if (!DOMINIOS_LANDING_COMERCIAL.has((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    res.redirect(302, "https://app.nexoposoficial.com");
 });
 
 app.get("/nexo-ia", (req, res) => {
