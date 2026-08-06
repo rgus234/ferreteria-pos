@@ -7618,3 +7618,102 @@ borrado por completo al terminar, `negocio_id=1` y la tabla `personas`
 real sin contaminacion confirmado por consulta directa.
 
 Pendiente de confirmacion del usuario para `git add`/`commit`.
+
+## 2026-08-06 -- Nexo Market v3: inicio tipo Amazon/Mercado Libre (mockup real) + fotos reales de producto
+
+Tercera pasada sobre Nexo Market: el usuario mando un mockup detallado
+(marca propia "Nexo Market", inspirado en Amazon/Mercado Libre pero sin
+copiar esa marca) pidiendo que el inicio se viera exactamente asi --
+navbar con buscador+categoria+favoritos+cuenta, hero de 2 columnas con
+foto de producto, tira de categorias, picker "Cuentanos a que te
+dedicas", carruseles de producto, grilla de categorias, sidebar con
+"Ferreterias cerca de ti" (mapa+distancia+estrellas), "Oferta del dia"
+con cronometro, "Paga con Credito Nexo", franja de sellos de confianza
+(incluye "Envio rapido").
+
+**Decisiones del usuario via `AskUserQuestion`** sobre las piezas sin
+dato real detras (estrellas/reseñas, mapa con distancia, cronometro):
+"dejar el hueco visible con un aviso honesto" en vez de inventar el
+dato o quitar la seccion. Sobre el boton "Agregar al carrito" (implica
+carrito cruzado entre tiendas): mantener "Ver en tienda" -- decision
+de arquitectura ya establecida desde v1.
+
+**Hallazgo que definio el nivel de pulido posible**: revisando el
+propio v2 se confirmo que ninguna tarjeta de producto mostraba foto --
+un vacio real. El mecanismo de URL firmada (`firmarTokenImagen`/`GET
+/fotos-producto/:codigo/principal?negocio=&token=`, `server.js:1408`)
+ya es cross-tenant por diseño (payload `negocioId:codigo:expiraEn`,
+sin depender de sesion), asi que se extendio para Market sin construir
+nada nuevo del lado de almacenamiento. **Verificacion honesta en vivo**
+tras implementar: aunque `fotos_producto` tiene 1,808 filas para
+`negocio_id=1`, solo **3 productos reales de los 570 actuales**
+(`CM`, `14928`, `16856`) tienen un match real via
+`fotos_producto.codigo = productos.codigo` -- la mayoria de esas 1,808
+filas son huerfanas de codigos que ya no existen en el inventario
+actual (probablemente de una importacion vieja). El codigo se
+comporta correctamente ante esto (fallback honesto a icono generico
+por producto, nunca una foto inventada) -- confirmado en el propio
+navegador: el producto de hero (codigo `CM`) cargo su foto real con
+`200 OK`, y los 24 productos de "Explora productos" (que no
+coincidieron con esos 3 codigos) mostraron el icono generico
+correctamente, sin fallar.
+
+**Diseño**: `market-server.js` reescrito integramente --
+- Backend: `mapearFilasProducto(rows, firmarTokenImagen)` gana
+  `fotoUrl` (via `LEFT JOIN fotos_producto`); nueva
+  `heroProductoMarket` (1 producto real con foto, `ORDER BY RANDOM()`,
+  `null` si ninguno existe); `buscarProductosMarket` gana `orden`
+  (`"recientes"` -> `p.id DESC`, proxy real de recencia ya que
+  `productos` no tiene columna de fecha de creacion);
+  `tiendasPermitidasMarket` gana `aceptaCredito` (de
+  `sitio_web_config.aceptar_solicitudes_credito`); nueva `POST
+  /market/favoritos-json` (favoritos de Market son 100% cliente,
+  `localStorage["nexoMarketFavoritos"]`, **sin scope de slug** a
+  diferencia de los favoritos por tienda -- una lista que cruza
+  tiendas a proposito, guarda pares `{slug,codigo}`).
+- Frontend: navbar de 2 filas, hero con foto real o gradiente de
+  respaldo, tira de categorias agrandada (tiles, mismo componente
+  reusado en 2 posiciones), picker de oficio inline (sin sesion ->
+  redirige a `/mi-cuenta?oficio=X&tab=registro`, `mi-cuenta.html` lee
+  esos query params y preselecciona pestaña+select; con sesion sin
+  oficio -> `PATCH /personas/oficio` directo), carruseles horizontales
+  con flechas y corazon de favorito por tarjeta, sidebar honesto
+  (tiendas sin mapa/distancia con aviso "proximamente", oferta del dia
+  real o aviso "sin ofertas activas", credito Nexo con copy que aclara
+  que es por tienda, nunca una cuenta unificada), franja de sellos de
+  confianza reescrita a afirmaciones verificables (se omitio "Envio
+  rapido" -- sin sistema de entrega en todo el proyecto -- y "Enviar a
+  [direccion]" del navbar, ninguna es un hueco a rellenar, son
+  funciones inexistentes).
+
+**Bug encontrado y corregido durante verificacion visual**: a 375px,
+`.market-layout`/`.market-hero` (CSS grid) no respetaban su
+`@media (max-width:980px){ grid-template-columns:1fr; }` -- el
+`getComputedStyle` real mostraba una sola columna de 5122px de ancho,
+causando overflow horizontal de toda la pagina. Causa: los
+carruseles horizontales (`overflow-x:auto`) dentro de las celdas del
+grid tienen `min-width:auto` por defecto en items de grid/flex, que se
+resuelve al ancho de contenido maximo (~5000px de tarjetas) en vez de
+encogerse al tamaño del track -- un gotcha clasico de CSS Grid.
+Arreglado agregando `min-width:0` a `.market-hero > *`,
+`.market-layout` y `.market-contenido`/`.market-sidebar`. Confirmado
+en el navegador: `document.body.scrollWidth === document.documentElement.clientWidth`
+exacto (375px) tras el fix, con las columnas realmente colapsando a
+`1fr`.
+
+**Verificacion**: `node --check` en `server.js`/`market-server.js`.
+`npm test` completo 19/19 sin regresion (dos corridas, antes y despues
+del fix de overflow). Verificacion en vivo contra Ferreteria Olimpico
+(negocio_id=1, **solo lectura**) via `preview_start`: `/market/inicio-json`
+y `/market/buscar-json?orden=recientes` responden 200 con datos reales,
+foto real del hero cargada con 200 OK, categorias/precios/existencias
+reales, sidebar de tiendas y credito reflejando datos reales, "Oferta
+del dia" mostrando el aviso honesto (0 ofertas reales hoy). Favoritos
+probados end-to-end en el navegador: click en el corazon actualiza
+`localStorage`+contador+estado visual, y la vista de Favoritos trae
+datos frescos via `POST /market/favoritos-json`. Redirect de oficio
+probado: `/mi-cuenta?oficio=jardin&tab=registro` preselecciona
+correctamente la pestaña de registro y el `<select>`. Confirmado
+`negocio_id=1` sin ningun cambio de escritura durante toda la prueba.
+
+Pendiente de confirmacion del usuario para `git add`/`commit`.

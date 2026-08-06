@@ -248,6 +248,33 @@
       window.location.reload();
     });
 
+    // Nexo Market puede mandar un visitante aqui con ?oficio=X&tab=registro
+    // (picker de oficio inline en el inicio de Market, sin sesion) --
+    // se preselecciona la pestana y el select para que no tenga que
+    // volver a elegir el oficio que ya toco.
+    (function preseleccionarDesdeMarket() {
+      const parametros = new URLSearchParams(window.location.search);
+      const oficio = parametros.get("oficio");
+      const tab = parametros.get("tab");
+
+      if (tab === "registro") {
+        document.querySelectorAll("#cuentaNexoLogin .contact-tab").forEach(t => {
+          const esRegistro = t.dataset.tab === "registro";
+          t.classList.toggle("active", esRegistro);
+          t.setAttribute("aria-selected", esRegistro ? "true" : "false");
+        });
+        document.getElementById("panelLogin").hidden = true;
+        document.getElementById("panelRegistro").hidden = false;
+      }
+
+      if (oficio) {
+        const select = document.getElementById("registroOficioPersona");
+        if (select && Array.from(select.options).some(o => o.value === oficio)) {
+          select.value = oficio;
+        }
+      }
+    })();
+
     cuentaNexoMostrarPanel();
   </script>
 </body>

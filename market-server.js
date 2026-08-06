@@ -9,11 +9,17 @@
 // gate de plan (funcionDelPlan) que ya usa el sitio de cada negocio,
 // sin inventar un sistema nuevo.
 //
-// v2 (rediseno tipo marketplace): agrega personalizacion por oficio
-// (categoria coincide con el oficio de la persona logueada, nunca un
-// query param del cliente -- siempre la sesion del servidor) y
+// v2 (rediseno tipo marketplace): personalizacion por oficio (siempre
+// desde la sesion del servidor, nunca un query param del cliente) +
 // secciones reales de categorias/ofertas -- cada seccion solo se pinta
 // si tiene contenido real, nunca un placeholder inventado.
+//
+// v3 (mockup tipo Amazon/Mercado Libre, marca propia): fotos reales de
+// producto (reusa firmarTokenImagen tal cual, cross-tenant por diseño
+// desde siempre), hero con foto real, picker de oficio inline, tira de
+// categorias mas grande, carruseles, favoritos cruzados entre tiendas
+// (100% cliente), y sidebar honesto donde no hay dato real (mapa,
+// cronometro de oferta -- se avisa, nunca se inventa ni se oculta).
 
 const { funcionDelPlan } = require("./plan-enforcement");
 const { crearResolverSesionPersonaOpcional } = require("./personas-server");
@@ -46,7 +52,7 @@ async function tiendasPermitidasMarket(pool) {
     }
 
     const candidatas = await pool.query(`
-        SELECT n.id, n.slug, n.nombre, n.giro, n.direccion
+        SELECT n.id, n.slug, n.nombre, n.giro, n.direccion, c.aceptar_solicitudes_credito AS acepta_credito
         FROM public.negocios n
         JOIN public.sitio_web_config c ON c.negocio_id = n.id
         WHERE n.estado = 'activo' AND c.activo = true
@@ -56,7 +62,16 @@ async function tiendasPermitidasMarket(pool) {
     const permitidas = [];
     for (const negocio of candidatas.rows) {
         const acceso = await funcionDelPlan(negocio.id, CLAVE_FUNCION_SITIO_WEB);
-        if (acceso.incluido) permitidas.push(negocio);
+        if (acceso.incluido) {
+            permitidas.push({
+                id: negocio.id,
+                slug: negocio.slug,
+                nombre: negocio.nombre,
+                giro: negocio.giro,
+                direccion: negocio.direccion,
+                aceptaCredito: Boolean(negocio.acepta_credito)
+            });
+        }
     }
 
     cacheTiendas = { negocios: permitidas, expiraEn: Date.now() + CACHE_TIENDAS_TTL_MS };
@@ -92,10 +107,13 @@ async function categoriasMarket(pool) {
     return categorias;
 }
 
-// Mismo shape de fila -> objeto de producto usado por las 3 consultas
-// de productos de este archivo (buscar, recomendados, ofertas) -- un
-// solo lugar que decide como se mapea, sin duplicar 3 veces.
-function mapearFilasProducto(rows) {
+// Mismo shape de fila -> objeto de producto usado por las 4 consultas
+// de productos de este archivo (buscar, recomendados, ofertas,
+// favoritos) -- un solo lugar que decide como se mapea, sin duplicar.
+// fotoUrl reusa firmarTokenImagen tal cual (server.js), el mismo
+// mecanismo cross-tenant que ya sirven las fotos de cada sitio tenant
+// -- sin foto real, fotoUrl queda en null, nunca se inventa una.
+function mapearFilasProducto(rows, firmarTokenImagen) {
     return rows.map(fila => ({
         codigo: fila.codigo,
         nombre: fila.nombre,
@@ -106,7 +124,10 @@ function mapearFilasProducto(rows) {
         direccion: fila.direccion,
         precio: fila.precio !== null && fila.precio !== undefined ? Number(fila.precio) : null,
         precioOferta: fila.precio_oferta !== null && fila.precio_oferta !== undefined ? Number(fila.precio_oferta) : null,
-        stock: fila.stock !== null && fila.stock !== undefined ? Number(fila.stock) : null
+        stock: fila.stock !== null && fila.stock !== undefined ? Number(fila.stock) : null,
+        fotoUrl: (fila.foto_actualizado_at && typeof firmarTokenImagen === "function")
+            ? `/fotos-producto/${encodeURIComponent(fila.codigo)}/principal?negocio=${encodeURIComponent(fila.slug)}&v=${new Date(fila.foto_actualizado_at).getTime()}&token=${firmarTokenImagen(fila.negocio_id, fila.codigo)}`
+            : null
     }));
 }
 
@@ -116,42 +137,46 @@ function mapearFilasProducto(rows) {
 // proyecto, ej. destacadosTenantHtml). El patron regex del oficio se
 // manda como texto al operador ~* de Postgres (case-insensitive,
 // mismo criterio que el regex de JS).
-async function recomendadosMarket(pool, idsPermitidos, claveOficio) {
+async function recomendadosMarket(pool, idsPermitidos, claveOficio, firmarTokenImagen) {
     if (!claveOficio || idsPermitidos.length === 0) return [];
 
     const oficio = OFICIOS_PERSONA.find(o => o.clave === claveOficio);
     if (!oficio || !oficio.patron) return [];
 
     const resultado = await pool.query(
-        `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.slug, n.nombre AS tienda, n.direccion,
+        `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
                 CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
                 CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
-                CASE WHEN c.mostrar_existencias THEN p.stock END AS stock
+                CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
+                fp.actualizado_at AS foto_actualizado_at
          FROM public.productos p
          JOIN public.negocios n ON n.id = p.negocio_id
          JOIN public.sitio_web_config c ON c.negocio_id = n.id
+         LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
          WHERE p.negocio_id = ANY($1::int[]) AND p.categoria ~* $2
          LIMIT 12`,
         [idsPermitidos, oficio.patron.source]
     );
 
-    return mapearFilasProducto(resultado.rows);
+    return mapearFilasProducto(resultado.rows, firmarTokenImagen);
 }
 
 // Mismo criterio de "oferta real" que ya usa servirCatalogoNegocio en
-// public-site-server.js -- sin ofertas reales, regresa [] y la
-// seccion simplemente no se pinta (nunca inventado).
-async function ofertasMarket(pool, idsPermitidos) {
+// public-site-server.js -- sin ofertas reales, regresa [] (el sidebar
+// pinta un aviso honesto en vez de una tarjeta inventada).
+async function ofertasMarket(pool, idsPermitidos, firmarTokenImagen) {
     if (idsPermitidos.length === 0) return [];
 
     const resultado = await pool.query(
-        `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.slug, n.nombre AS tienda, n.direccion,
+        `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
                 CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
                 CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
-                CASE WHEN c.mostrar_existencias THEN p.stock END AS stock
+                CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
+                fp.actualizado_at AS foto_actualizado_at
          FROM public.productos p
          JOIN public.negocios n ON n.id = p.negocio_id
          JOIN public.sitio_web_config c ON c.negocio_id = n.id
+         LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
          WHERE p.negocio_id = ANY($1::int[])
            AND p.precio_oferta IS NOT NULL
            AND p.precio_oferta < COALESCE(p.precio_publico, p.precio)
@@ -159,56 +184,46 @@ async function ofertasMarket(pool, idsPermitidos) {
         [idsPermitidos]
     );
 
-    return mapearFilasProducto(resultado.rows);
+    return mapearFilasProducto(resultado.rows, firmarTokenImagen);
 }
 
-function tarjetaTiendaMarketHtml(negocio) {
-    const direccionHtml = negocio.direccion
-        ? `<span class="market-tienda-direccion">${escaparHtml(negocio.direccion)}</span>`
-        : "";
-    return `<div class="market-tienda-card">
-<strong>${escaparHtml(negocio.nombre)}</strong>
-${negocio.giro ? `<span class="market-tienda-giro">${escaparHtml(negocio.giro)}</span>` : ""}
-${direccionHtml}
-<a class="btn secondary" href="https://${escaparHtml(negocio.slug)}.nexoposoficial.com">Ver tienda</a>
-</div>`;
-}
+// Un producto real con foto para la imagen grande del hero -- rota al
+// azar entre lo que de verdad existe. Si ningun negocio permitido
+// tiene ningun producto con foto, regresa null y el hero cae a un
+// fondo de gradiente (mismo fallback que ya usan los sitios tenant
+// sin portada) en vez de una imagen inventada.
+async function heroProductoMarket(pool, idsPermitidos, firmarTokenImagen) {
+    if (idsPermitidos.length === 0 || typeof firmarTokenImagen !== "function") return null;
 
-// Tarjeta de producto densa (v2) -- precio de oferta tachado + precio
-// nuevo + badge cuando aplica, mismo criterio (nunca inventado) que
-// el resto del proyecto: sin precioOferta valido, solo se ve el
-// precio normal, igual que antes.
-function tarjetaProductoMarketHtml(producto) {
-    const tieneOferta = producto.precioOferta !== null && producto.precioOferta !== undefined
-        && producto.precio !== null && producto.precio !== undefined
-        && producto.precioOferta < producto.precio;
+    const resultado = await pool.query(
+        `SELECT p.codigo, p.nombre, n.id AS negocio_id, n.slug, n.nombre AS tienda, fp.actualizado_at AS foto_actualizado_at
+         FROM public.productos p
+         JOIN public.negocios n ON n.id = p.negocio_id
+         JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
+         WHERE p.negocio_id = ANY($1::int[])
+         ORDER BY RANDOM()
+         LIMIT 1`,
+        [idsPermitidos]
+    );
 
-    let precioHtml = "";
-    if (tieneOferta) {
-        precioHtml = `<span class="market-producto-precio-tachado">$${Number(producto.precio).toFixed(2)}</span><span class="market-precio-actual">$${Number(producto.precioOferta).toFixed(2)}</span><span class="market-producto-badge-oferta">Oferta</span>`;
-    } else if (producto.precio !== null && producto.precio !== undefined) {
-        precioHtml = `<span class="market-precio-actual">$${Number(producto.precio).toFixed(2)}</span>`;
-    }
+    if (resultado.rows.length === 0) return null;
+    const fila = resultado.rows[0];
 
-    const existenciaHtml = producto.stock !== null && producto.stock !== undefined
-        ? `<span class="market-producto-existencia${producto.stock <= 0 ? " agotado" : ""}">${producto.stock <= 0 ? "Agotado" : `${producto.stock} disponibles`}</span>`
-        : "";
-
-    return `<div class="market-producto-card">
-<span class="market-producto-nombre">${escaparHtml(producto.nombre)}</span>
-<span class="market-producto-precios">${precioHtml}</span>
-${existenciaHtml}
-<span class="market-producto-tienda">${escaparHtml(producto.tienda)}${producto.direccion ? ` &middot; ${escaparHtml(producto.direccion)}` : ""}</span>
-<a class="btn primary" href="https://${escaparHtml(producto.slug)}.nexoposoficial.com/catalogo/${encodeURIComponent(producto.codigo)}">Ver en ${escaparHtml(producto.tienda)}</a>
-</div>`;
+    return {
+        codigo: fila.codigo,
+        nombre: fila.nombre,
+        tienda: fila.tienda,
+        fotoUrl: `/fotos-producto/${encodeURIComponent(fila.codigo)}/principal?negocio=${encodeURIComponent(fila.slug)}&v=${new Date(fila.foto_actualizado_at).getTime()}&token=${firmarTokenImagen(fila.negocio_id, fila.codigo)}`
+    };
 }
 
 // Busqueda/exploracion -- WHERE condicional (mismo patron que
 // servirCatalogoNegocio): sin buscar ni categoria, lista todo
-// paginado; con cualquiera de los dos, filtra. Ya no exige texto de
-// busqueda para correr (alimenta tanto el buscador como "explorar
-// por categoria" desde un chip del inicio).
-async function buscarProductosMarket(pool, { buscar = "", categoria = "", pagina = 1 } = {}) {
+// paginado; con cualquiera de los dos, filtra. orden="recientes"
+// (p.id DESC, proxy real de recencia -- productos no tiene columna de
+// fecha de creacion) alimenta "Explora productos"/"Nuevos"; se ignora
+// si hay texto de busqueda (la relevancia del texto manda).
+async function buscarProductosMarket(pool, { buscar = "", categoria = "", pagina = 1, orden = "relevancia" } = {}, firmarTokenImagen) {
     const tiendas = await tiendasPermitidasMarket(pool);
     if (tiendas.length === 0) return { productos: [], total: 0 };
 
@@ -217,7 +232,7 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", pagina
 
     const condiciones = ["p.negocio_id = ANY($1::int[])"];
     const parametros = [idsPermitidos];
-    let orden = "p.nombre ASC";
+    let ordenSql = orden === "recientes" ? "p.id DESC" : "p.nombre ASC";
 
     if (buscar) {
         parametros.push(buscar);
@@ -225,7 +240,7 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", pagina
         parametros.push(`%${buscar}%`);
         const indiceIlike = parametros.length;
         condiciones.push(`(p.nombre % $${indiceBuscar} OR p.codigo ILIKE $${indiceIlike} OR p.marca ILIKE $${indiceIlike})`);
-        orden = `similarity(p.nombre, $${indiceBuscar}) DESC`;
+        ordenSql = `similarity(p.nombre, $${indiceBuscar}) DESC`;
     }
 
     if (categoria) {
@@ -240,32 +255,34 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", pagina
 
     const resultado = await pool.query(
         `
-        SELECT p.codigo, p.nombre, p.categoria, p.marca, n.slug, n.nombre AS tienda, n.direccion,
+        SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
                CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
                CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
+               fp.actualizado_at AS foto_actualizado_at,
                COUNT(*) OVER() AS total
         FROM public.productos p
         JOIN public.negocios n ON n.id = p.negocio_id
         JOIN public.sitio_web_config c ON c.negocio_id = n.id
+        LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
         WHERE ${condiciones.join(" AND ")}
-        ORDER BY ${orden}
+        ORDER BY ${ordenSql}
         LIMIT $${indiceLimit} OFFSET $${indiceOffset}
         `,
         parametros
     );
 
     return {
-        productos: mapearFilasProducto(resultado.rows),
+        productos: mapearFilasProducto(resultado.rows, firmarTokenImagen),
         total: resultado.rows.length > 0 ? Number(resultado.rows[0].total) : 0
     };
 }
 
-// GET /market/inicio-json -- secciones del inicio (categorias,
-// recomendados por oficio, ofertas reales, directorio de tiendas).
-// La personalizacion se resuelve SIEMPRE desde la sesion del servidor
+// GET /market/inicio-json -- secciones del inicio (hero, categorias,
+// recomendados por oficio, ofertas reales, directorio de tiendas). La
+// personalizacion se resuelve SIEMPRE desde la sesion del servidor
 // (cookie de persona), nunca desde un query param del cliente.
-async function inicioMarketJson(pool, req, res) {
+async function inicioMarketJson(pool, req, res, firmarTokenImagen) {
     try {
         const resolverSesionOpcional = crearResolverSesionPersonaOpcional(pool);
         await new Promise(continuar => resolverSesionOpcional(req, res, continuar));
@@ -274,60 +291,199 @@ async function inicioMarketJson(pool, req, res) {
         const idsPermitidos = tiendas.map(t => t.id);
         const claveOficio = req.persona?.oficio || null;
 
-        const [categorias, recomendados, ofertas] = await Promise.all([
+        const [categorias, recomendados, ofertas, hero] = await Promise.all([
             categoriasMarket(pool),
-            recomendadosMarket(pool, idsPermitidos, claveOficio),
-            ofertasMarket(pool, idsPermitidos)
+            recomendadosMarket(pool, idsPermitidos, claveOficio, firmarTokenImagen),
+            ofertasMarket(pool, idsPermitidos, firmarTokenImagen),
+            heroProductoMarket(pool, idsPermitidos, firmarTokenImagen)
         ]);
 
-        res.json({ ok: true, categorias, recomendados, ofertas, tiendas });
+        res.json({
+            ok: true,
+            hero,
+            categorias,
+            recomendados,
+            ofertas,
+            tiendas,
+            persona: req.persona ? { oficio: req.persona.oficio || null } : null
+        });
     } catch (error) {
         res.status(500).json({ ok: false, error: "No se pudo cargar el inicio de Nexo Market." });
     }
 }
 
-// GET /market/buscar-json?buscar=&categoria=&pagina= -- siempre
+// GET /market/buscar-json?buscar=&categoria=&pagina=&orden= -- siempre
 // productos paginados, ya no regresa el directorio de tiendas (se
 // movio a inicio-json).
-async function buscarMarketJson(pool, req, res) {
+async function buscarMarketJson(pool, req, res, firmarTokenImagen) {
     try {
         const buscar = String(req.query?.buscar || "").trim().slice(0, 120);
         const categoria = String(req.query?.categoria || "").trim().slice(0, 120);
         const pagina = Math.max(1, parseInt(req.query?.pagina, 10) || 1);
+        const orden = req.query?.orden === "recientes" ? "recientes" : "relevancia";
 
-        const { productos, total } = await buscarProductosMarket(pool, { buscar, categoria, pagina });
+        const { productos, total } = await buscarProductosMarket(pool, { buscar, categoria, pagina, orden }, firmarTokenImagen);
         res.json({ ok: true, productos, total, pagina });
     } catch (error) {
         res.status(500).json({ ok: false, error: "No se pudo completar la busqueda." });
     }
 }
 
+// POST /market/favoritos-json -- favoritos de Market son 100% cliente
+// (localStorage, cruzan tiendas a proposito, ver marketFavoritosLeer
+// en el script del inicio). Recibe los pares {slug,codigo} guardados
+// y regresa datos frescos (precio/stock/foto actuales); un slug fuera
+// de las tiendas permitidas o un codigo que ya no existe simplemente
+// no aparece en la respuesta, nunca un error.
+async function favoritosMarketJson(pool, req, res, firmarTokenImagen) {
+    try {
+        const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 60) : [];
+        if (items.length === 0) { res.json({ ok: true, productos: [] }); return; }
+
+        const tiendas = await tiendasPermitidasMarket(pool);
+        const idPorSlug = new Map(tiendas.map(t => [t.slug, t.id]));
+
+        const paresValidos = items.filter(it =>
+            it && typeof it.slug === "string" && typeof it.codigo === "string" && idPorSlug.has(it.slug)
+        );
+
+        if (paresValidos.length === 0) { res.json({ ok: true, productos: [] }); return; }
+
+        const negociosIds = [...new Set(paresValidos.map(p => idPorSlug.get(p.slug)))];
+        const codigos = [...new Set(paresValidos.map(p => p.codigo))];
+
+        const resultado = await pool.query(
+            `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
+                    CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+                    CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
+                    CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
+                    fp.actualizado_at AS foto_actualizado_at
+             FROM public.productos p
+             JOIN public.negocios n ON n.id = p.negocio_id
+             JOIN public.sitio_web_config c ON c.negocio_id = n.id
+             LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
+             WHERE p.negocio_id = ANY($1::int[]) AND p.codigo = ANY($2::text[])`,
+            [negociosIds, codigos]
+        );
+
+        // El filtro de arriba es por negocio_id+codigo -- si el mismo
+        // codigo existe en 2 tiendas distintas puede traer de mas, se
+        // recorta aqui a exactamente los pares slug+codigo pedidos.
+        const pedidos = new Set(paresValidos.map(p => `${p.slug}:${p.codigo}`));
+        const filas = resultado.rows.filter(f => pedidos.has(`${f.slug}:${f.codigo}`));
+
+        res.json({ ok: true, productos: mapearFilasProducto(filas, firmarTokenImagen) });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: "No se pudieron cargar tus favoritos." });
+    }
+}
+
 const ESTILOS_MARKET = `
-.market-header-sesion{ display:flex; align-items:center; gap:12px; font-weight:700; }
-.market-buscador{ display:flex; gap:10px; max-width:640px; margin:0 auto 28px; }
-.market-buscador input{ flex:1; padding:14px 18px; border-radius:999px; border:1px solid var(--line); background:var(--glass); font:inherit; }
-.market-buscador button{ border-radius:999px; }
-.market-categorias-tira{ display:flex; gap:10px; overflow-x:auto; padding:4px 2px 20px; margin-bottom:8px; }
-.market-categoria-chip{ display:flex; align-items:center; gap:8px; flex:0 0 auto; padding:9px 16px; border-radius:999px; border:1px solid var(--line); background:var(--glass); color:var(--ink); font:inherit; font-weight:700; font-size:13.5px; cursor:pointer; white-space:nowrap; }
-.market-categoria-chip:hover{ border-color:var(--blue); color:var(--blue); }
-.market-categoria-chip svg{ width:16px; height:16px; flex:0 0 auto; }
+.market-header{ position:sticky; top:0; z-index:30; background:rgba(247,249,252,.86); backdrop-filter:blur(22px) saturate(160%); border-bottom:1px solid rgba(255,255,255,.6); }
+.market-header-top{ display:flex; align-items:center; gap:18px; padding:14px clamp(18px,4vw,48px); max-width:1400px; margin:0 auto; }
+.market-logo{ display:inline-flex; align-items:center; gap:10px; font-weight:950; font-size:18px; flex:0 0 auto; }
+.market-logo img{ width:38px; height:38px; border-radius:11px; object-fit:cover; }
+.market-search-bar{ flex:1; display:flex; min-width:0; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:#fff; }
+.market-search-bar select{ border:none; background:var(--paper); padding:0 14px; font:inherit; font-size:13px; color:var(--muted); max-width:170px; border-right:1px solid var(--line); }
+.market-search-bar input{ flex:1; min-width:0; border:none; padding:12px 14px; font:inherit; outline:none; }
+.market-search-bar button{ border:none; background:var(--blue); color:#fff; padding:0 20px; cursor:pointer; display:flex; align-items:center; }
+.market-search-bar button svg{ width:18px; height:18px; }
+.market-header-acciones{ display:flex; align-items:center; gap:16px; flex:0 0 auto; }
+.market-header-link{ display:inline-flex; align-items:center; gap:6px; font-weight:700; font-size:13.5px; white-space:nowrap; position:relative; }
+.market-header-link svg{ width:19px; height:19px; }
+.market-favoritos-contador{ background:var(--blue); color:#fff; font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; min-width:16px; text-align:center; }
+.market-header-nav{ display:flex; gap:20px; padding:8px clamp(18px,4vw,48px) 12px; max-width:1400px; margin:0 auto; overflow-x:auto; border-top:1px solid rgba(20,32,51,.06); }
+.market-header-nav a{ font-size:13.5px; font-weight:700; color:var(--muted); white-space:nowrap; }
+.market-header-nav a:hover{ color:var(--blue); }
+.market-hero{ display:grid; grid-template-columns:1.1fr .9fr; gap:32px; align-items:center; max-width:1400px; margin:28px auto; padding:0 clamp(18px,4vw,48px); min-width:0; }
+.market-hero > *{ min-width:0; }
+.market-hero-texto h1{ font-size:clamp(28px,3.4vw,42px); margin:0 0 12px; line-height:1.1; }
+.market-hero-texto p{ color:var(--muted); font-size:15.5px; max-width:520px; margin:0 0 18px; }
+.market-hero-chips{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:22px; }
+.market-hero-chips span{ background:var(--glass); border:1px solid var(--line); border-radius:999px; padding:7px 14px; font-size:12.5px; font-weight:700; }
+.market-hero-acciones{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+.market-hero-como{ font-weight:700; font-size:13.5px; text-decoration:underline; }
+.market-hero-imagen{ position:relative; border-radius:26px; overflow:hidden; min-height:280px; box-shadow:var(--shadow); background:linear-gradient(135deg,var(--ink),var(--blue-dark)); display:flex; align-items:flex-end; }
+.market-hero-imagen img{ width:100%; height:100%; object-fit:cover; position:absolute; inset:0; }
+.market-hero-imagen-tienda{ position:relative; z-index:1; margin:16px; padding:6px 14px; background:rgba(20,32,51,.66); color:#fff; border-radius:999px; font-size:12px; font-weight:700; }
+.market-anchor{ display:block; scroll-margin-top:130px; }
+.market-layout{ display:grid; grid-template-columns:1fr 320px; gap:32px; max-width:1400px; margin:0 auto; padding:0 clamp(18px,4vw,48px) 60px; align-items:start; min-width:0; }
+.market-contenido, .market-sidebar{ min-width:0; }
+.market-sidebar{ position:sticky; top:150px; display:grid; gap:18px; }
+.market-sidebar-card{ background:var(--glass); border:1px solid rgba(255,255,255,.72); border-radius:20px; padding:18px; box-shadow:0 18px 48px rgba(20,32,51,.08); }
+.market-sidebar-card h4{ margin:0 0 12px; font-size:15px; }
+.market-vacio-chico{ color:var(--muted); font-size:13px; margin:0; }
+.market-tienda-fila{ display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px; }
+.market-tienda-fila:last-child{ border-bottom:none; }
+.market-tienda-fila-numero{ color:var(--muted); font-weight:800; width:16px; }
+.market-tienda-fila-nombre{ font-weight:700; flex:1; }
+.market-tienda-fila-giro{ color:var(--muted); font-size:12px; }
+.market-oferta-nombre{ display:block; font-size:14px; margin-bottom:8px; }
+.market-oferta-precios{ display:flex; align-items:baseline; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+.market-credito-lista{ list-style:none; margin:8px 0 0; padding:0; display:grid; gap:8px; }
+.market-credito-lista a{ font-weight:700; font-size:13.5px; }
+.market-categorias-tira, .market-categorias-grid{ display:flex; gap:14px; overflow-x:auto; padding:6px 2px 22px; }
+.market-categorias-grid{ flex-wrap:wrap; overflow-x:visible; }
+.market-categoria-tile{ display:flex; flex-direction:column; align-items:center; gap:8px; flex:0 0 auto; width:104px; padding:14px 8px; border-radius:16px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+.market-categoria-tile:hover{ border-color:var(--blue); }
+.market-categoria-tile-icono{ width:38px; height:38px; display:flex; align-items:center; justify-content:center; border-radius:12px; background:var(--paper); color:var(--blue); }
+.market-categoria-tile-icono svg{ width:20px; height:20px; }
+.market-categoria-tile-label{ font-size:12px; font-weight:700; text-align:center; line-height:1.25; }
+.market-oficio{ margin:0 0 32px; padding:20px; border-radius:20px; background:var(--glass); border:1px solid var(--line); }
+.market-oficio h3{ margin:0 0 4px; font-size:17px; }
+.market-oficio p{ margin:0 0 14px; color:var(--muted); font-size:13.5px; }
+.market-oficio-chips{ display:flex; flex-wrap:wrap; gap:10px; }
+.market-oficio-chip{ display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:999px; border:1px solid var(--line); background:#fff; font:inherit; font-weight:700; font-size:13px; cursor:pointer; }
+.market-oficio-chip:hover{ border-color:var(--blue); color:var(--blue); }
+.market-oficio-chip svg{ width:16px; height:16px; }
 .market-seccion{ margin:0 0 36px; }
-.market-seccion-header{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; }
+.market-seccion-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
 .market-seccion-header h3{ margin:0; font-size:19px; }
-.market-tiendas-grid, .market-productos-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; }
-.market-tienda-card, .market-producto-card{ display:grid; gap:8px; align-content:start; padding:18px; border:1px solid rgba(255,255,255,.72); border-radius:20px; background:var(--glass); box-shadow:0 18px 48px rgba(20,32,51,.08); }
+.market-carousel-flechas{ display:flex; gap:8px; }
+.market-carousel-flecha{ width:32px; height:32px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; font-size:15px; }
+.market-carousel-flecha:hover{ border-color:var(--blue); color:var(--blue); }
+.market-tiendas-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; }
+.market-productos-grid{ display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x proximity; padding-bottom:6px; }
+.market-tienda-card, .market-producto-card{ display:grid; gap:8px; align-content:start; padding:16px; border:1px solid rgba(255,255,255,.72); border-radius:18px; background:#fff; box-shadow:0 14px 36px rgba(20,32,51,.07); }
+.market-producto-card{ position:relative; flex:0 0 200px; scroll-snap-align:start; }
+.market-tiendas-grid .market-tienda-card{ background:var(--glass); }
 .market-tienda-giro{ color:var(--muted); font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
 .market-tienda-direccion{ color:var(--muted); font-size:13.5px; }
-.market-producto-nombre{ font-weight:800; font-size:15px; line-height:1.3; }
+.market-producto-foto{ width:100%; aspect-ratio:1/1; border-radius:12px; background:var(--paper); display:flex; align-items:center; justify-content:center; overflow:hidden; color:var(--muted); }
+.market-producto-foto img{ width:100%; height:100%; object-fit:cover; }
+.market-producto-foto svg{ width:34px; height:34px; }
+.market-producto-favorito{ position:absolute; top:10px; right:10px; width:32px; height:32px; border-radius:999px; border:none; background:rgba(255,255,255,.9); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; color:var(--ink); cursor:pointer; }
+.market-producto-favorito svg{ width:16px; height:16px; }
+.market-producto-favorito.activo{ color:#e2434d; }
+.market-producto-favorito.activo svg{ fill:currentColor; }
+.market-producto-nombre{ font-weight:800; font-size:14.5px; line-height:1.3; min-height:38px; }
 .market-producto-precios{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
 .market-precio-actual{ color:var(--blue-dark); font-weight:900; font-size:17px; }
 .market-producto-precio-tachado{ color:var(--muted); text-decoration:line-through; font-size:13.5px; }
 .market-producto-badge-oferta{ background:var(--amber); color:#fff; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; padding:2px 8px; border-radius:999px; }
 .market-producto-existencia{ color:var(--mint); font-size:13px; font-weight:700; }
 .market-producto-existencia.agotado{ color:#c0392b; }
-.market-producto-tienda{ color:var(--muted); font-size:13px; }
+.market-producto-tienda{ color:var(--muted); font-size:12.5px; }
+.market-como{ max-width:1400px; margin:0 auto 60px; padding:0 clamp(18px,4vw,48px); }
+.market-como h3{ font-size:19px; margin:0 0 18px; }
+.market-como-pasos{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+.market-como-pasos > div{ background:var(--glass); border:1px solid var(--line); border-radius:16px; padding:16px; }
+.market-como-pasos strong{ display:block; margin-bottom:6px; }
+.market-como-pasos span{ color:var(--muted); font-size:13.5px; }
+.market-badges{ display:flex; flex-wrap:wrap; gap:24px; justify-content:center; padding:26px clamp(18px,4vw,48px); border-top:1px solid var(--line); max-width:1400px; margin:0 auto; }
+.market-badges span{ display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; color:var(--muted); }
 .market-vacio{ text-align:center; color:var(--muted); padding:40px 0; }
-@media (max-width:560px){ .market-buscador{ flex-direction:column; } }
+@media (max-width:980px){
+  .market-hero{ grid-template-columns:1fr; }
+  .market-hero-imagen{ min-height:200px; }
+  .market-layout{ grid-template-columns:1fr; }
+  .market-sidebar{ position:static; }
+  .market-como-pasos{ grid-template-columns:1fr; }
+}
+@media (max-width:560px){
+  .market-search-bar select{ display:none; }
+  .market-header-acciones .market-header-link span{ display:none; }
+}
 `;
 
 function paginaMarketHtml() {
@@ -336,37 +492,111 @@ function paginaMarketHtml() {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nexo Market -- busca productos entre ferreterias</title>
-<meta name="description" content="Busca productos entre varias ferreterias Nexo, compara precio y disponibilidad, y entra directo al catalogo de la tienda que elijas.">
+<title>Nexo Market -- todo para construir, instalar y reparar</title>
+<meta name="description" content="Busca productos entre varias ferreterias Nexo, compara precio y disponibilidad, y compra directo con la tienda que elijas.">
 <link rel="icon" href="/nexo-pos-icon.jpg">
 <link rel="stylesheet" href="/site/styles.css">
 <style>${ESTILOS_MARKET}</style>
 </head>
 <body>
-<header class="site-header">
-<a class="brand" href="/site" aria-label="Nexo">
+<header class="market-header">
+<div class="market-header-top">
+<a class="market-logo" href="/market" aria-label="Nexo Market">
 <img src="/nexo-pos-icon.jpg" alt="Nexo">
 <span>Nexo Market</span>
 </a>
-<div class="market-header-sesion" id="marketSesion">
-<a class="btn secondary" href="/mi-cuenta">Iniciar sesion</a>
+<form class="market-search-bar" id="marketBuscadorForm">
+<select id="marketCategoriaSelect"><option value="">Todas las categorias</option></select>
+<input type="text" id="marketBuscarInput" placeholder="Buscar productos, marcas o categorias..." maxlength="120">
+<button type="submit" aria-label="Buscar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.35-4.35"></path></svg></button>
+</form>
+<div class="market-header-acciones">
+<a class="market-header-link" href="#" id="marketFavoritosLink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg><span>Favoritos</span><span class="market-favoritos-contador" id="marketFavoritosContador">0</span></a>
+<div class="market-header-sesion" id="marketSesion"><a class="market-header-link" href="/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Inicia sesion</span></a></div>
 </div>
+</div>
+<nav class="market-header-nav">
+<a href="#marketOfertas">Ofertas</a>
+<a href="#marketExplora">Explora</a>
+<a href="#" id="marketNavNuevos">Nuevos</a>
+<a href="#marketTiendas">Ferreterias</a>
+<a href="#marketCredito">Credito Nexo</a>
+<a href="/site#contacto">Ayuda</a>
+<a href="/site#planes">Vende en Nexo</a>
+</nav>
 </header>
 
-<main class="contact" style="padding-top:48px;">
-<div class="contact-intro" style="text-align:center;">
-<p class="eyebrow">Nexo Market</p>
-<h2>Encuentra productos en las ferreterias Nexo.</h2>
-<p>Busca por nombre, codigo o marca -- cada resultado te lleva directo al catalogo real de la tienda.</p>
+<main>
+<section class="market-hero">
+<div class="market-hero-texto">
+<h1>Todo para construir, instalar y reparar.</h1>
+<p>Busca en varias ferreterias Nexo, compara precio y disponibilidad, y compra directo con la tienda.</p>
+<div class="market-hero-chips">
+<span>Compara precios</span>
+<span>Elige tu ferreteria</span>
+<span>Compra directo con la tienda</span>
 </div>
+<div class="market-hero-acciones">
+<a class="btn primary" href="#marketTiendas">Ver ferreterias Nexo</a>
+<a class="market-hero-como" href="#marketComoFunciona">Como funciona</a>
+</div>
+</div>
+<div class="market-hero-imagen" id="marketHeroImagen"></div>
+</section>
 
-<form class="market-buscador" id="marketBuscadorForm">
-<input type="text" id="marketBuscarInput" placeholder="Ej. taladro, codo pvc 1/2, Truper..." maxlength="120">
-<button class="btn primary" type="submit">Buscar</button>
-</form>
+<div class="market-layout">
+<div class="market-contenido">
+<div id="marketCategoriasTop"></div>
 
+<section class="market-oficio" id="marketOficio" hidden>
+<h3>Cuentanos a que te dedicas</h3>
+<p>Elegir tu oficio nos ayuda a recomendarte lo que realmente necesitas.</p>
+<div class="market-oficio-chips" id="marketOficioChips"></div>
+</section>
+
+<span class="market-anchor" id="marketOfertas"></span>
+<span class="market-anchor" id="marketExplora"></span>
 <div id="marketInicio"><p class="market-vacio">Cargando...</p></div>
 <div id="marketResultadosBusqueda" hidden></div>
+
+<section class="market-seccion">
+<div class="market-seccion-header"><h3>Explora por categoria</h3></div>
+<div id="marketExploraCategorias"></div>
+</section>
+
+<section id="marketComoFunciona" class="market-como">
+<h3>Como funciona</h3>
+<div class="market-como-pasos">
+<div><strong>1. Busca</strong><span>Encuentra productos en varias ferreterias Nexo a la vez.</span></div>
+<div><strong>2. Compara</strong><span>Revisa precio y existencia real de cada tienda.</span></div>
+<div><strong>3. Compra</strong><span>Termina tu compra directo en el catalogo de la tienda.</span></div>
+</div>
+</section>
+</div>
+
+<aside class="market-sidebar">
+<div class="market-sidebar-card">
+<h4 id="marketTiendas">Ferreterias Nexo</h4>
+<p class="market-vacio-chico">Mapa de ubicaciones: proximamente.</p>
+<div id="marketTiendasLista"></div>
+</div>
+<div class="market-sidebar-card">
+<h4>Oferta del dia</h4>
+<div id="marketSidebarOfertaContenido"><p class="market-vacio-chico">Cargando...</p></div>
+</div>
+<div class="market-sidebar-card">
+<h4 id="marketCredito">Paga con Credito Nexo</h4>
+<div id="marketSidebarCreditoContenido"><p class="market-vacio-chico">Cargando...</p></div>
+</div>
+</aside>
+</div>
+
+<div class="market-badges">
+<span>Precios reales de cada tienda</span>
+<span>Compra directo con la tienda</span>
+<span>Solo ferreterias activas en Nexo</span>
+<span>Soporte Nexo</span>
+</div>
 </main>
 
 <footer>
@@ -388,8 +618,8 @@ function escapeHtml(texto) {
         .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-async function marketLlamar(ruta) {
-    const respuesta = await fetch(ruta, { credentials: "include" });
+async function marketLlamar(ruta, opciones) {
+    const respuesta = await fetch(ruta, Object.assign({ credentials: "include" }, opciones || {}));
     return respuesta.json();
 }
 
@@ -397,14 +627,25 @@ async function marketCargarSesion() {
     const estado = await marketLlamar("/personas/estado");
     if (!estado.ok) return;
     document.getElementById("marketSesion").innerHTML =
-        '<a class="btn secondary" href="/mi-cuenta">Hola, ' + escapeHtml(estado.persona.nombre) + '</a>';
+        '<a class="market-header-link" href="/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Hola, ' + escapeHtml(estado.persona.nombre) + '</span></a>';
 }
+
+var ICONO_CORAZON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg>';
+var ICONO_FOTO_GENERICA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg>';
 
 function marketTarjetaTienda(t) {
     return '<div class="market-tienda-card"><strong>' + escapeHtml(t.nombre) + '</strong>' +
         (t.giro ? '<span class="market-tienda-giro">' + escapeHtml(t.giro) + '</span>' : '') +
         (t.direccion ? '<span class="market-tienda-direccion">' + escapeHtml(t.direccion) + '</span>' : '') +
         '<a class="btn secondary" href="https://' + escapeHtml(t.slug) + '.nexoposoficial.com">Ver tienda</a></div>';
+}
+
+function marketTarjetaTiendaSidebar(t, indice) {
+    return '<a class="market-tienda-fila" href="https://' + escapeHtml(t.slug) + '.nexoposoficial.com">' +
+        '<span class="market-tienda-fila-numero">' + (indice + 1) + '</span>' +
+        '<span class="market-tienda-fila-nombre">' + escapeHtml(t.nombre) + '</span>' +
+        (t.giro ? '<span class="market-tienda-fila-giro">' + escapeHtml(t.giro) + '</span>' : '') +
+        '</a>';
 }
 
 function marketTarjetaProducto(p) {
@@ -423,10 +664,17 @@ function marketTarjetaProducto(p) {
     const existenciaHtml = p.stock !== null && p.stock !== undefined
         ? '<span class="market-producto-existencia' + (p.stock <= 0 ? ' agotado' : '') + '">' + (p.stock <= 0 ? 'Agotado' : p.stock + ' disponibles') + '</span>' : '';
 
-    return '<div class="market-producto-card"><span class="market-producto-nombre">' + escapeHtml(p.nombre) + '</span>' +
+    const fotoHtml = p.fotoUrl
+        ? '<img src="' + p.fotoUrl + '" alt="' + escapeHtml(p.nombre) + '" loading="lazy">'
+        : ICONO_FOTO_GENERICA;
+
+    return '<div class="market-producto-card">' +
+        '<button type="button" class="market-producto-favorito" data-slug="' + escapeHtml(p.slug) + '" data-codigo="' + escapeHtml(p.codigo) + '" aria-label="Guardar en favoritos">' + ICONO_CORAZON + '</button>' +
+        '<a href="https://' + escapeHtml(p.slug) + '.nexoposoficial.com/catalogo/' + encodeURIComponent(p.codigo) + '" class="market-producto-foto">' + fotoHtml + '</a>' +
+        '<span class="market-producto-nombre">' + escapeHtml(p.nombre) + '</span>' +
         '<span class="market-producto-precios">' + precioHtml + '</span>' +
         existenciaHtml +
-        '<span class="market-producto-tienda">' + escapeHtml(p.tienda) + (p.direccion ? ' &middot; ' + escapeHtml(p.direccion) : '') + '</span>' +
+        '<span class="market-producto-tienda">' + escapeHtml(p.tienda) + '</span>' +
         '<a class="btn primary" href="https://' + escapeHtml(p.slug) + '.nexoposoficial.com/catalogo/' + encodeURIComponent(p.codigo) + '">Ver en ' + escapeHtml(p.tienda) + '</a></div>';
 }
 
@@ -437,7 +685,9 @@ function marketGridProductos(productos) {
 
 function marketSeccion(titulo, contenidoHtml) {
     if (!contenidoHtml) return '';
-    return '<section class="market-seccion"><div class="market-seccion-header"><h3>' + escapeHtml(titulo) + '</h3></div>' + contenidoHtml + '</section>';
+    return '<section class="market-seccion"><div class="market-seccion-header"><h3>' + escapeHtml(titulo) + '</h3>' +
+        '<div class="market-carousel-flechas"><button type="button" class="market-carousel-flecha izquierda" aria-label="Anterior">&larr;</button><button type="button" class="market-carousel-flecha derecha" aria-label="Siguiente">&rarr;</button></div></div>' +
+        contenidoHtml + '</section>';
 }
 
 var MARKET_ICONOS_CATEGORIA = [
@@ -457,12 +707,144 @@ function marketIconoCategoria(nombre) {
     return match ? match.svg : MARKET_ICONO_GENERICO;
 }
 
-function marketTiraCategorias(categorias) {
+function marketCategoriaTileHtml(cat) {
+    return '<button type="button" class="market-categoria-tile" data-categoria="' + escapeHtml(cat) + '">' +
+        '<span class="market-categoria-tile-icono">' + marketIconoCategoria(cat) + '</span>' +
+        '<span class="market-categoria-tile-label">' + escapeHtml(cat) + '</span></button>';
+}
+
+function marketCategoriasHtml(categorias) {
     if (!categorias || categorias.length === 0) return '';
-    var chips = categorias.map(function(cat) {
-        return '<button type="button" class="market-categoria-chip" data-categoria="' + escapeHtml(cat) + '">' + marketIconoCategoria(cat) + '<span>' + escapeHtml(cat) + '</span></button>';
+    return categorias.map(marketCategoriaTileHtml).join('');
+}
+
+function marketPintarSelectCategorias(categorias) {
+    var select = document.getElementById("marketCategoriaSelect");
+    var actual = select.value;
+    select.innerHTML = '<option value="">Todas las categorias</option>' +
+        (categorias || []).map(function(c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
+    select.value = actual;
+}
+
+function marketPintarHero(hero) {
+    var contenedor = document.getElementById("marketHeroImagen");
+    if (hero && hero.fotoUrl) {
+        contenedor.innerHTML = '<img src="' + hero.fotoUrl + '" alt="' + escapeHtml(hero.nombre) + '">' +
+            '<span class="market-hero-imagen-tienda">' + escapeHtml(hero.tienda) + '</span>';
+    } else {
+        contenedor.innerHTML = '';
+    }
+}
+
+var MARKET_OFICIOS = [
+    { clave: "herramientas", etiqueta: "Herramientas" },
+    { clave: "construccion", etiqueta: "Construccion" },
+    { clave: "electrico", etiqueta: "Electrico" },
+    { clave: "plomeria", etiqueta: "Plomeria" },
+    { clave: "pintura", etiqueta: "Pintura" },
+    { clave: "seguridad", etiqueta: "Seguridad" },
+    { clave: "jardin", etiqueta: "Jardin" },
+    { clave: "limpieza", etiqueta: "Limpieza" },
+    { clave: "otro", etiqueta: "Otro oficio" }
+];
+
+var marketPersonaActual = null;
+
+function marketPintarOficioPicker() {
+    var seccion = document.getElementById("marketOficio");
+    if (marketPersonaActual && marketPersonaActual.oficio) {
+        seccion.hidden = true;
+        return;
+    }
+    seccion.hidden = false;
+    document.getElementById("marketOficioChips").innerHTML = MARKET_OFICIOS.map(function(o) {
+        return '<button type="button" class="market-oficio-chip" data-oficio="' + o.clave + '">' + marketIconoCategoria(o.etiqueta) + '<span>' + escapeHtml(o.etiqueta) + '</span></button>';
     }).join('');
-    return '<div class="market-categorias-tira">' + chips + '</div>';
+}
+
+async function marketElegirOficio(clave) {
+    if (!marketPersonaActual) {
+        window.location.href = "/mi-cuenta?oficio=" + encodeURIComponent(clave) + "&tab=registro";
+        return;
+    }
+    var datos = await marketLlamar("/personas/oficio", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oficio: clave })
+    });
+    if (datos.ok) {
+        marketPersonaActual = { oficio: datos.oficio };
+        marketCargarInicio();
+    }
+}
+
+function marketPintarOfertaDelDia(ofertas) {
+    var contenedor = document.getElementById("marketSidebarOfertaContenido");
+    if (!ofertas || ofertas.length === 0) {
+        contenedor.innerHTML = '<p class="market-vacio-chico">Sin ofertas activas por ahora.</p>';
+        return;
+    }
+    var p = ofertas[0];
+    var descuento = (p.precio && p.precioOferta) ? Math.round((1 - (p.precioOferta / p.precio)) * 100) : null;
+    contenedor.innerHTML =
+        '<strong class="market-oferta-nombre">' + escapeHtml(p.nombre) + '</strong>' +
+        '<div class="market-oferta-precios">' +
+            '<span class="market-precio-actual">$' + Number(p.precioOferta).toFixed(2) + '</span>' +
+            '<span class="market-producto-precio-tachado">$' + Number(p.precio).toFixed(2) + '</span>' +
+            (descuento ? '<span class="market-producto-badge-oferta">-' + descuento + '%</span>' : '') +
+        '</div>' +
+        '<a class="btn primary" href="https://' + escapeHtml(p.slug) + '.nexoposoficial.com/catalogo/' + encodeURIComponent(p.codigo) + '">Ver oferta</a>';
+}
+
+function marketPintarCreditoNexo(tiendas) {
+    var contenedor = document.getElementById("marketSidebarCreditoContenido");
+    var conCredito = (tiendas || []).filter(function(t) { return t.aceptaCredito; });
+    if (conCredito.length === 0) {
+        contenedor.innerHTML = '<p class="market-vacio-chico">Ninguna ferreteria Nexo acepta solicitudes de credito por ahora.</p>';
+        return;
+    }
+    contenedor.innerHTML = '<p class="market-vacio-chico">Estas ferreterias aceptan solicitudes de credito directo en su tienda:</p>' +
+        '<ul class="market-credito-lista">' + conCredito.map(function(t) {
+            return '<li><a href="https://' + escapeHtml(t.slug) + '.nexoposoficial.com/solicitud-credito">' + escapeHtml(t.nombre) + '</a></li>';
+        }).join('') + '</ul>';
+}
+
+var MARKET_FAVORITOS_CLAVE = "nexoMarketFavoritos";
+
+function marketFavoritosLeer() {
+    try {
+        var datos = JSON.parse(localStorage.getItem(MARKET_FAVORITOS_CLAVE) || "[]");
+        return Array.isArray(datos) ? datos : [];
+    } catch (e) { return []; }
+}
+
+function marketFavoritosGuardar(lista) {
+    localStorage.setItem(MARKET_FAVORITOS_CLAVE, JSON.stringify(lista));
+    marketFavoritosActualizarContador();
+}
+
+function marketFavoritosActualizarContador() {
+    var badge = document.getElementById("marketFavoritosContador");
+    if (badge) badge.textContent = String(marketFavoritosLeer().length);
+}
+
+function marketEsFavorito(slug, codigo) {
+    return marketFavoritosLeer().some(function(f) { return f.slug === slug && f.codigo === codigo; });
+}
+
+function marketToggleFavorito(slug, codigo, boton) {
+    var lista = marketFavoritosLeer();
+    var indice = lista.findIndex(function(f) { return f.slug === slug && f.codigo === codigo; });
+    var quedoActivo = indice === -1;
+    if (quedoActivo) { lista.push({ slug: slug, codigo: codigo }); } else { lista.splice(indice, 1); }
+    marketFavoritosGuardar(lista);
+    if (boton) boton.classList.toggle("activo", quedoActivo);
+}
+
+function marketMarcarFavoritosBotones() {
+    document.querySelectorAll(".market-producto-favorito").forEach(function(boton) {
+        boton.classList.toggle("activo", marketEsFavorito(boton.dataset.slug, boton.dataset.codigo));
+    });
 }
 
 function marketMostrarInicio() {
@@ -475,68 +857,142 @@ function marketMostrarResultados() {
     document.getElementById("marketResultadosBusqueda").hidden = false;
 }
 
+async function marketMostrarBusqueda(opciones) {
+    opciones = opciones || {};
+    marketMostrarResultados();
+    var contenedor = document.getElementById("marketResultadosBusqueda");
+    contenedor.innerHTML = '<p class="market-vacio">Buscando...</p>';
+
+    var params = [];
+    if (opciones.buscar) params.push("buscar=" + encodeURIComponent(opciones.buscar));
+    if (opciones.categoria) params.push("categoria=" + encodeURIComponent(opciones.categoria));
+    if (opciones.orden) params.push("orden=" + encodeURIComponent(opciones.orden));
+
+    var datos = await marketLlamar("/market/buscar-json" + (params.length ? "?" + params.join("&") : ""));
+
+    if (!datos.ok || datos.productos.length === 0) {
+        contenedor.innerHTML = '<p class="market-vacio">No encontramos productos' + (opciones.buscar ? ' para "' + escapeHtml(opciones.buscar) + '"' : '') + '.</p>';
+        return;
+    }
+    contenedor.innerHTML = marketGridProductos(datos.productos);
+    marketMarcarFavoritosBotones();
+}
+
+async function marketMostrarVistaFavoritos() {
+    marketMostrarResultados();
+    var contenedor = document.getElementById("marketResultadosBusqueda");
+    var lista = marketFavoritosLeer();
+    if (lista.length === 0) {
+        contenedor.innerHTML = '<p class="market-vacio">Todavia no tienes favoritos. Toca el corazon de un producto para guardarlo.</p>';
+        return;
+    }
+    contenedor.innerHTML = '<p class="market-vacio">Cargando tus favoritos...</p>';
+    var datos = await marketLlamar("/market/favoritos-json", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: lista })
+    });
+    if (!datos.ok || datos.productos.length === 0) {
+        contenedor.innerHTML = '<p class="market-vacio">No encontramos tus favoritos guardados.</p>';
+        return;
+    }
+    contenedor.innerHTML = marketGridProductos(datos.productos);
+    marketMarcarFavoritosBotones();
+}
+
 async function marketCargarInicio() {
-    const contenedor = document.getElementById("marketInicio");
-    const datos = await marketLlamar("/market/inicio-json");
+    var contenedor = document.getElementById("marketInicio");
+    var resultados = await Promise.all([
+        marketLlamar("/market/inicio-json"),
+        marketLlamar("/market/buscar-json?orden=recientes")
+    ]);
+    var datos = resultados[0];
+    var explora = resultados[1];
 
     if (!datos.ok) {
         contenedor.innerHTML = '<p class="market-vacio">No se pudo cargar Nexo Market.</p>';
         return;
     }
 
-    let html = "";
-    html += marketTiraCategorias(datos.categorias);
+    marketPersonaActual = datos.persona;
+    marketPintarHero(datos.hero);
+    marketPintarSelectCategorias(datos.categorias);
+    marketPintarOficioPicker();
+
+    document.getElementById("marketCategoriasTop").innerHTML = marketCategoriasHtml(datos.categorias)
+        ? '<div class="market-categorias-tira">' + marketCategoriasHtml(datos.categorias) + '</div>' : '';
+    document.getElementById("marketExploraCategorias").innerHTML = marketCategoriasHtml(datos.categorias)
+        ? '<div class="market-categorias-grid">' + marketCategoriasHtml(datos.categorias) + '</div>'
+        : '<p class="market-vacio">Todavia no hay categorias para mostrar.</p>';
+
+    var html = "";
     html += marketSeccion("Recomendado para ti", marketGridProductos(datos.recomendados));
     html += marketSeccion("Ofertas", marketGridProductos(datos.ofertas));
-    if (datos.tiendas && datos.tiendas.length > 0) {
-        html += marketSeccion("Tiendas Nexo", '<div class="market-tiendas-grid">' + datos.tiendas.map(marketTarjetaTienda).join("") + '</div>');
-    }
+    html += marketSeccion("Explora productos", explora.ok ? marketGridProductos(explora.productos) : "");
+    contenedor.innerHTML = html || '<p class="market-vacio">Todavia no hay productos para mostrar aqui.</p>';
 
-    contenedor.innerHTML = html || '<p class="market-vacio">Todavia no hay tiendas Nexo activas para mostrar aqui.</p>';
+    document.getElementById("marketTiendasLista").innerHTML = (datos.tiendas && datos.tiendas.length > 0)
+        ? datos.tiendas.map(marketTarjetaTiendaSidebar).join("")
+        : '<p class="market-vacio-chico">Todavia no hay tiendas Nexo activas.</p>';
 
-    document.querySelectorAll(".market-categoria-chip").forEach(chip => {
-        chip.addEventListener("click", () => {
-            document.getElementById("marketBuscarInput").value = "";
-            marketBuscarPorCategoria(chip.dataset.categoria);
-        });
-    });
+    marketPintarOfertaDelDia(datos.ofertas);
+    marketPintarCreditoNexo(datos.tiendas);
+
+    marketFavoritosActualizarContador();
+    marketMarcarFavoritosBotones();
 }
 
-async function marketBuscar(texto) {
-    if (!texto) { marketMostrarInicio(); return; }
-
-    marketMostrarResultados();
-    const contenedor = document.getElementById("marketResultadosBusqueda");
-    contenedor.innerHTML = '<p class="market-vacio">Buscando...</p>';
-
-    const datos = await marketLlamar("/market/buscar-json?buscar=" + encodeURIComponent(texto));
-
-    if (!datos.ok || datos.productos.length === 0) {
-        contenedor.innerHTML = '<p class="market-vacio">No encontramos productos para "' + escapeHtml(texto) + '".</p>';
+document.addEventListener("click", function(evento) {
+    var tile = evento.target.closest(".market-categoria-tile");
+    if (tile) {
+        document.getElementById("marketBuscarInput").value = "";
+        document.getElementById("marketCategoriaSelect").value = tile.dataset.categoria;
+        marketMostrarBusqueda({ categoria: tile.dataset.categoria });
         return;
     }
 
-    contenedor.innerHTML = marketGridProductos(datos.productos);
-}
-
-async function marketBuscarPorCategoria(categoria) {
-    marketMostrarResultados();
-    const contenedor = document.getElementById("marketResultadosBusqueda");
-    contenedor.innerHTML = '<p class="market-vacio">Buscando...</p>';
-
-    const datos = await marketLlamar("/market/buscar-json?categoria=" + encodeURIComponent(categoria));
-
-    if (!datos.ok || datos.productos.length === 0) {
-        contenedor.innerHTML = '<p class="market-vacio">No encontramos productos en "' + escapeHtml(categoria) + '".</p>';
+    var oficioBtn = evento.target.closest(".market-oficio-chip");
+    if (oficioBtn) {
+        marketElegirOficio(oficioBtn.dataset.oficio);
         return;
     }
 
-    contenedor.innerHTML = marketGridProductos(datos.productos);
-}
+    var favBtn = evento.target.closest(".market-producto-favorito");
+    if (favBtn) {
+        evento.preventDefault();
+        marketToggleFavorito(favBtn.dataset.slug, favBtn.dataset.codigo, favBtn);
+        return;
+    }
 
-document.getElementById("marketBuscadorForm").addEventListener("submit", evento => {
+    var flecha = evento.target.closest(".market-carousel-flecha");
+    if (flecha) {
+        var seccion = flecha.closest(".market-seccion");
+        var carrusel = seccion ? seccion.querySelector(".market-productos-grid") : null;
+        if (carrusel) carrusel.scrollBy({ left: flecha.classList.contains("izquierda") ? -320 : 320, behavior: "smooth" });
+        return;
+    }
+});
+
+document.getElementById("marketFavoritosLink").addEventListener("click", function(evento) {
     evento.preventDefault();
-    marketBuscar(document.getElementById("marketBuscarInput").value.trim());
+    document.getElementById("marketBuscarInput").value = "";
+    document.getElementById("marketCategoriaSelect").value = "";
+    marketMostrarVistaFavoritos();
+});
+
+document.getElementById("marketNavNuevos").addEventListener("click", function(evento) {
+    evento.preventDefault();
+    document.getElementById("marketBuscarInput").value = "";
+    document.getElementById("marketCategoriaSelect").value = "";
+    marketMostrarBusqueda({ orden: "recientes" });
+});
+
+document.getElementById("marketBuscadorForm").addEventListener("submit", function(evento) {
+    evento.preventDefault();
+    var texto = document.getElementById("marketBuscarInput").value.trim();
+    var categoria = document.getElementById("marketCategoriaSelect").value;
+    if (!texto && !categoria) { marketMostrarInicio(); return; }
+    marketMostrarBusqueda({ buscar: texto, categoria: categoria });
 });
 
 marketCargarSesion();
@@ -551,4 +1007,4 @@ async function servirMarketPagina(req, res) {
     res.send(paginaMarketHtml());
 }
 
-module.exports = { servirMarketPagina, buscarMarketJson, inicioMarketJson, tiendasPermitidasMarket };
+module.exports = { servirMarketPagina, buscarMarketJson, inicioMarketJson, favoritosMarketJson, tiendasPermitidasMarket };

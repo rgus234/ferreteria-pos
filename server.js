@@ -31,7 +31,7 @@ const {
     servirComparadorNegocio,
     comparadorJson
 } = require("./public-site-server");
-const { servirMarketPagina, buscarMarketJson, inicioMarketJson } = require("./market-server");
+const { servirMarketPagina, buscarMarketJson, inicioMarketJson, favoritosMarketJson } = require("./market-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
@@ -4668,12 +4668,17 @@ app.get("/market", (req, res) => {
 
 app.get("/market/buscar-json", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false }); return; }
-    await buscarMarketJson(pool, req, res);
+    await buscarMarketJson(pool, req, res, firmarTokenImagen);
 });
 
 app.get("/market/inicio-json", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false }); return; }
-    await inicioMarketJson(pool, req, res);
+    await inicioMarketJson(pool, req, res, firmarTokenImagen);
+});
+
+app.post("/market/favoritos-json", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false }); return; }
+    await favoritosMarketJson(pool, req, res, firmarTokenImagen);
 });
 
 // Alias amigables en el dominio corporativo -- honran el mental model
