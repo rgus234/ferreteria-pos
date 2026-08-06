@@ -393,9 +393,9 @@ const ESTILOS_MARKET = `
 .market-header-link:hover{ color:#fff; }
 .market-header-link svg{ width:19px; height:19px; }
 .market-favoritos-contador{ background:var(--blue); color:#fff; font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; min-width:16px; text-align:center; }
-.market-header-nav{ display:flex; gap:20px; padding:8px clamp(18px,4vw,48px) 12px; max-width:1400px; margin:0 auto; overflow-x:auto; border-top:1px solid rgba(255,255,255,.08); }
-.market-header-nav a{ font-size:13.5px; font-weight:700; color:rgba(255,255,255,.68); white-space:nowrap; }
-.market-header-nav a:hover{ color:#fff; }
+.market-header-nav{ display:flex; gap:22px; padding:6px clamp(18px,4vw,48px) 13px; max-width:1400px; margin:0 auto; overflow-x:auto; }
+.market-header-nav a{ font-size:13.5px; font-weight:700; color:#fff; white-space:nowrap; opacity:.88; padding-bottom:2px; border-bottom:2px solid transparent; }
+.market-header-nav a:hover{ opacity:1; border-bottom-color:rgba(255,255,255,.6); }
 .market-hero{ display:grid; grid-template-columns:1.1fr .9fr; gap:32px; align-items:center; max-width:1400px; margin:28px auto; padding:0 clamp(18px,4vw,48px); min-width:0; }
 .market-hero > *{ min-width:0; }
 .market-hero-texto h1{ font-size:clamp(28px,3.4vw,42px); margin:0 0 12px; line-height:1.1; }
