@@ -46,6 +46,20 @@
             <label>Correo (opcional si dejas telefono)<input id="registroCorreoPersona" type="email" placeholder="Ej. tu@correo.com"></label>
             <label>Telefono (opcional si dejas correo)<input id="registroTelefonoPersona" type="tel" placeholder="Ej. 4421234567"></label>
             <label>Contrasena<input id="registroPasswordPersona" type="password" placeholder="Minimo 8 caracteres" minlength="8" required></label>
+            <label>¿A que te dedicas? (opcional)
+              <select id="registroOficioPersona">
+                <option value="">Prefiero no decirlo</option>
+                <option value="herramientas">Herramientas</option>
+                <option value="construccion">Construccion</option>
+                <option value="electrico">Electrico</option>
+                <option value="plomeria">Plomeria</option>
+                <option value="pintura">Pintura</option>
+                <option value="seguridad">Seguridad</option>
+                <option value="jardin">Jardin</option>
+                <option value="limpieza">Limpieza</option>
+                <option value="otro">Otro</option>
+              </select>
+            </label>
             <button class="btn primary" type="submit" id="registroSubmitPersona">Crear mi cuenta Nexo</button>
             <div id="registroResultadoPersona" class="lead-result" aria-live="polite"></div>
           </form>
@@ -61,6 +75,24 @@
       </div>
 
       <div style="width:100%;display:grid;gap:28px;">
+        <div>
+          <h3 style="margin:0 0 12px;">Tu oficio o interes</h3>
+          <label style="max-width:320px;display:block;">Nos ayuda a mostrarte productos relacionados en Nexo Market
+            <select id="cuentaNexoOficio">
+              <option value="">Prefiero no decirlo</option>
+              <option value="herramientas">Herramientas</option>
+              <option value="construccion">Construccion</option>
+              <option value="electrico">Electrico</option>
+              <option value="plomeria">Plomeria</option>
+              <option value="pintura">Pintura</option>
+              <option value="seguridad">Seguridad</option>
+              <option value="jardin">Jardin</option>
+              <option value="limpieza">Limpieza</option>
+              <option value="otro">Otro</option>
+            </select>
+          </label>
+          <div id="cuentaNexoOficioResultado" class="lead-result" aria-live="polite"></div>
+        </div>
         <div>
           <h3 style="margin:0 0 12px;">Negocios que administras</h3>
           <div id="cuentaNexoListaAdmin" class="cuenta-nexo-lista"></div>
@@ -118,6 +150,7 @@
       document.getElementById("cuentaNexoLogin").style.display = "none";
       document.getElementById("cuentaNexoPanel").style.display = "";
       document.getElementById("cuentaNexoSaludo").textContent = `Hola, ${estado.persona.nombre}`;
+      document.getElementById("cuentaNexoOficio").value = estado.persona.oficio || "";
 
       const [administrados, clientes] = await Promise.all([
         cuentaNexoLlamar("/personas/negocios"),
@@ -161,6 +194,16 @@
       return true;
     }
 
+    document.getElementById("cuentaNexoOficio").addEventListener("change", async evento => {
+      const resultado = document.getElementById("cuentaNexoOficioResultado");
+      resultado.textContent = "Guardando...";
+      const datos = await cuentaNexoLlamar("/personas/oficio", {
+        method: "PATCH",
+        body: JSON.stringify({ oficio: evento.target.value })
+      });
+      resultado.textContent = datos.ok ? "Guardado." : (datos.error || "No se pudo guardar.");
+    });
+
     document.getElementById("cuentaNexoLoginForm").addEventListener("submit", async evento => {
       evento.preventDefault();
       const resultado = document.getElementById("loginResultado");
@@ -190,7 +233,8 @@
           nombre: document.getElementById("registroNombre").value,
           correo: document.getElementById("registroCorreoPersona").value,
           telefono: document.getElementById("registroTelefonoPersona").value,
-          password: document.getElementById("registroPasswordPersona").value
+          password: document.getElementById("registroPasswordPersona").value,
+          oficio: document.getElementById("registroOficioPersona").value
         })
       });
 

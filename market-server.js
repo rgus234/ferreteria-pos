@@ -8,8 +8,16 @@
 // entre negocios distintos. Reusa el mismo indice pg_trgm y el mismo
 // gate de plan (funcionDelPlan) que ya usa el sitio de cada negocio,
 // sin inventar un sistema nuevo.
+//
+// v2 (rediseno tipo marketplace): agrega personalizacion por oficio
+// (categoria coincide con el oficio de la persona logueada, nunca un
+// query param del cliente -- siempre la sesion del servidor) y
+// secciones reales de categorias/ofertas -- cada seccion solo se pinta
+// si tiene contenido real, nunca un placeholder inventado.
 
 const { funcionDelPlan } = require("./plan-enforcement");
+const { crearResolverSesionPersonaOpcional } = require("./personas-server");
+const { OFICIOS_PERSONA } = require("./oficios-persona");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
 const PRODUCTOS_POR_PAGINA_MARKET = 24;
@@ -55,6 +63,105 @@ async function tiendasPermitidasMarket(pool) {
     return permitidas;
 }
 
+// Cache corto de las categorias mas pobladas cruzando todas las
+// tiendas permitidas -- mismo TTL/criterio que cacheTiendas.
+let cacheCategorias = { categorias: null, expiraEn: 0 };
+const CACHE_CATEGORIAS_TTL_MS = 60 * 1000;
+
+async function categoriasMarket(pool) {
+    if (cacheCategorias.categorias && cacheCategorias.expiraEn > Date.now()) {
+        return cacheCategorias.categorias;
+    }
+
+    const tiendas = await tiendasPermitidasMarket(pool);
+    if (tiendas.length === 0) return [];
+
+    const idsPermitidos = tiendas.map(t => t.id);
+    const resultado = await pool.query(
+        `SELECT categoria, COUNT(*) AS total
+         FROM public.productos
+         WHERE negocio_id = ANY($1::int[]) AND categoria <> ''
+         GROUP BY categoria
+         ORDER BY COUNT(*) DESC
+         LIMIT 12`,
+        [idsPermitidos]
+    );
+
+    const categorias = resultado.rows.map(f => f.categoria);
+    cacheCategorias = { categorias, expiraEn: Date.now() + CACHE_CATEGORIAS_TTL_MS };
+    return categorias;
+}
+
+// Mismo shape de fila -> objeto de producto usado por las 3 consultas
+// de productos de este archivo (buscar, recomendados, ofertas) -- un
+// solo lugar que decide como se mapea, sin duplicar 3 veces.
+function mapearFilasProducto(rows) {
+    return rows.map(fila => ({
+        codigo: fila.codigo,
+        nombre: fila.nombre,
+        categoria: fila.categoria,
+        marca: fila.marca,
+        slug: fila.slug,
+        tienda: fila.tienda,
+        direccion: fila.direccion,
+        precio: fila.precio !== null && fila.precio !== undefined ? Number(fila.precio) : null,
+        precioOferta: fila.precio_oferta !== null && fila.precio_oferta !== undefined ? Number(fila.precio_oferta) : null,
+        stock: fila.stock !== null && fila.stock !== undefined ? Number(fila.stock) : null
+    }));
+}
+
+// Personalizacion por oficio -- si la persona no tiene sesion o no
+// eligio oficio (o eligio "otro"), regresa [] sin consultar (mismo
+// criterio de "nunca inventar/rellenar" ya usado en el resto del
+// proyecto, ej. destacadosTenantHtml). El patron regex del oficio se
+// manda como texto al operador ~* de Postgres (case-insensitive,
+// mismo criterio que el regex de JS).
+async function recomendadosMarket(pool, idsPermitidos, claveOficio) {
+    if (!claveOficio || idsPermitidos.length === 0) return [];
+
+    const oficio = OFICIOS_PERSONA.find(o => o.clave === claveOficio);
+    if (!oficio || !oficio.patron) return [];
+
+    const resultado = await pool.query(
+        `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.slug, n.nombre AS tienda, n.direccion,
+                CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+                CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
+                CASE WHEN c.mostrar_existencias THEN p.stock END AS stock
+         FROM public.productos p
+         JOIN public.negocios n ON n.id = p.negocio_id
+         JOIN public.sitio_web_config c ON c.negocio_id = n.id
+         WHERE p.negocio_id = ANY($1::int[]) AND p.categoria ~* $2
+         LIMIT 12`,
+        [idsPermitidos, oficio.patron.source]
+    );
+
+    return mapearFilasProducto(resultado.rows);
+}
+
+// Mismo criterio de "oferta real" que ya usa servirCatalogoNegocio en
+// public-site-server.js -- sin ofertas reales, regresa [] y la
+// seccion simplemente no se pinta (nunca inventado).
+async function ofertasMarket(pool, idsPermitidos) {
+    if (idsPermitidos.length === 0) return [];
+
+    const resultado = await pool.query(
+        `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.slug, n.nombre AS tienda, n.direccion,
+                CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+                CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
+                CASE WHEN c.mostrar_existencias THEN p.stock END AS stock
+         FROM public.productos p
+         JOIN public.negocios n ON n.id = p.negocio_id
+         JOIN public.sitio_web_config c ON c.negocio_id = n.id
+         WHERE p.negocio_id = ANY($1::int[])
+           AND p.precio_oferta IS NOT NULL
+           AND p.precio_oferta < COALESCE(p.precio_publico, p.precio)
+         LIMIT 12`,
+        [idsPermitidos]
+    );
+
+    return mapearFilasProducto(resultado.rows);
+}
+
 function tarjetaTiendaMarketHtml(negocio) {
     const direccionHtml = negocio.direccion
         ? `<span class="market-tienda-direccion">${escaparHtml(negocio.direccion)}</span>`
@@ -67,78 +174,128 @@ ${direccionHtml}
 </div>`;
 }
 
+// Tarjeta de producto densa (v2) -- precio de oferta tachado + precio
+// nuevo + badge cuando aplica, mismo criterio (nunca inventado) que
+// el resto del proyecto: sin precioOferta valido, solo se ve el
+// precio normal, igual que antes.
 function tarjetaProductoMarketHtml(producto) {
-    const precioHtml = producto.precio !== null && producto.precio !== undefined
-        ? `<span class="market-producto-precio">$${Number(producto.precio).toFixed(2)}</span>`
-        : "";
+    const tieneOferta = producto.precioOferta !== null && producto.precioOferta !== undefined
+        && producto.precio !== null && producto.precio !== undefined
+        && producto.precioOferta < producto.precio;
+
+    let precioHtml = "";
+    if (tieneOferta) {
+        precioHtml = `<span class="market-producto-precio-tachado">$${Number(producto.precio).toFixed(2)}</span><span class="market-precio-actual">$${Number(producto.precioOferta).toFixed(2)}</span><span class="market-producto-badge-oferta">Oferta</span>`;
+    } else if (producto.precio !== null && producto.precio !== undefined) {
+        precioHtml = `<span class="market-precio-actual">$${Number(producto.precio).toFixed(2)}</span>`;
+    }
+
     const existenciaHtml = producto.stock !== null && producto.stock !== undefined
         ? `<span class="market-producto-existencia${producto.stock <= 0 ? " agotado" : ""}">${producto.stock <= 0 ? "Agotado" : `${producto.stock} disponibles`}</span>`
         : "";
 
     return `<div class="market-producto-card">
 <span class="market-producto-nombre">${escaparHtml(producto.nombre)}</span>
-${precioHtml}
+<span class="market-producto-precios">${precioHtml}</span>
 ${existenciaHtml}
 <span class="market-producto-tienda">${escaparHtml(producto.tienda)}${producto.direccion ? ` &middot; ${escaparHtml(producto.direccion)}` : ""}</span>
 <a class="btn primary" href="https://${escaparHtml(producto.slug)}.nexoposoficial.com/catalogo/${encodeURIComponent(producto.codigo)}">Ver en ${escaparHtml(producto.tienda)}</a>
 </div>`;
 }
 
-async function buscarProductosMarket(pool, buscar, pagina) {
+// Busqueda/exploracion -- WHERE condicional (mismo patron que
+// servirCatalogoNegocio): sin buscar ni categoria, lista todo
+// paginado; con cualquiera de los dos, filtra. Ya no exige texto de
+// busqueda para correr (alimenta tanto el buscador como "explorar
+// por categoria" desde un chip del inicio).
+async function buscarProductosMarket(pool, { buscar = "", categoria = "", pagina = 1 } = {}) {
     const tiendas = await tiendasPermitidasMarket(pool);
     if (tiendas.length === 0) return { productos: [], total: 0 };
 
     const idsPermitidos = tiendas.map(t => t.id);
     const offset = Math.max(0, (pagina - 1) * PRODUCTOS_POR_PAGINA_MARKET);
-    const textoIlike = `%${buscar}%`;
+
+    const condiciones = ["p.negocio_id = ANY($1::int[])"];
+    const parametros = [idsPermitidos];
+    let orden = "p.nombre ASC";
+
+    if (buscar) {
+        parametros.push(buscar);
+        const indiceBuscar = parametros.length;
+        parametros.push(`%${buscar}%`);
+        const indiceIlike = parametros.length;
+        condiciones.push(`(p.nombre % $${indiceBuscar} OR p.codigo ILIKE $${indiceIlike} OR p.marca ILIKE $${indiceIlike})`);
+        orden = `similarity(p.nombre, $${indiceBuscar}) DESC`;
+    }
+
+    if (categoria) {
+        parametros.push(categoria);
+        condiciones.push(`p.categoria = $${parametros.length}`);
+    }
+
+    parametros.push(PRODUCTOS_POR_PAGINA_MARKET);
+    const indiceLimit = parametros.length;
+    parametros.push(offset);
+    const indiceOffset = parametros.length;
 
     const resultado = await pool.query(
         `
         SELECT p.codigo, p.nombre, p.categoria, p.marca, n.slug, n.nombre AS tienda, n.direccion,
                CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+               CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
                COUNT(*) OVER() AS total
         FROM public.productos p
         JOIN public.negocios n ON n.id = p.negocio_id
         JOIN public.sitio_web_config c ON c.negocio_id = n.id
-        WHERE p.negocio_id = ANY($1::int[])
-          AND (p.nombre % $2 OR p.codigo ILIKE $3 OR p.marca ILIKE $3)
-        ORDER BY similarity(p.nombre, $2) DESC
-        LIMIT $4 OFFSET $5
+        WHERE ${condiciones.join(" AND ")}
+        ORDER BY ${orden}
+        LIMIT $${indiceLimit} OFFSET $${indiceOffset}
         `,
-        [idsPermitidos, buscar, textoIlike, PRODUCTOS_POR_PAGINA_MARKET, offset]
+        parametros
     );
 
     return {
-        productos: resultado.rows.map(fila => ({
-            codigo: fila.codigo,
-            nombre: fila.nombre,
-            categoria: fila.categoria,
-            marca: fila.marca,
-            slug: fila.slug,
-            tienda: fila.tienda,
-            direccion: fila.direccion,
-            precio: fila.precio !== null ? Number(fila.precio) : null,
-            stock: fila.stock !== null ? Number(fila.stock) : null
-        })),
+        productos: mapearFilasProducto(resultado.rows),
         total: resultado.rows.length > 0 ? Number(resultado.rows[0].total) : 0
     };
 }
 
-// JSON consumido por el buscador de /market -- sin buscar, regresa el
-// directorio de tiendas; con buscar, regresa productos cruzados.
+// GET /market/inicio-json -- secciones del inicio (categorias,
+// recomendados por oficio, ofertas reales, directorio de tiendas).
+// La personalizacion se resuelve SIEMPRE desde la sesion del servidor
+// (cookie de persona), nunca desde un query param del cliente.
+async function inicioMarketJson(pool, req, res) {
+    try {
+        const resolverSesionOpcional = crearResolverSesionPersonaOpcional(pool);
+        await new Promise(continuar => resolverSesionOpcional(req, res, continuar));
+
+        const tiendas = await tiendasPermitidasMarket(pool);
+        const idsPermitidos = tiendas.map(t => t.id);
+        const claveOficio = req.persona?.oficio || null;
+
+        const [categorias, recomendados, ofertas] = await Promise.all([
+            categoriasMarket(pool),
+            recomendadosMarket(pool, idsPermitidos, claveOficio),
+            ofertasMarket(pool, idsPermitidos)
+        ]);
+
+        res.json({ ok: true, categorias, recomendados, ofertas, tiendas });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: "No se pudo cargar el inicio de Nexo Market." });
+    }
+}
+
+// GET /market/buscar-json?buscar=&categoria=&pagina= -- siempre
+// productos paginados, ya no regresa el directorio de tiendas (se
+// movio a inicio-json).
 async function buscarMarketJson(pool, req, res) {
     try {
         const buscar = String(req.query?.buscar || "").trim().slice(0, 120);
+        const categoria = String(req.query?.categoria || "").trim().slice(0, 120);
         const pagina = Math.max(1, parseInt(req.query?.pagina, 10) || 1);
 
-        if (!buscar) {
-            const tiendas = await tiendasPermitidasMarket(pool);
-            res.json({ ok: true, tiendas });
-            return;
-        }
-
-        const { productos, total } = await buscarProductosMarket(pool, buscar, pagina);
+        const { productos, total } = await buscarProductosMarket(pool, { buscar, categoria, pagina });
         res.json({ ok: true, productos, total, pagina });
     } catch (error) {
         res.status(500).json({ ok: false, error: "No se pudo completar la busqueda." });
@@ -147,15 +304,25 @@ async function buscarMarketJson(pool, req, res) {
 
 const ESTILOS_MARKET = `
 .market-header-sesion{ display:flex; align-items:center; gap:12px; font-weight:700; }
-.market-buscador{ display:flex; gap:10px; max-width:640px; margin:0 auto 32px; }
+.market-buscador{ display:flex; gap:10px; max-width:640px; margin:0 auto 28px; }
 .market-buscador input{ flex:1; padding:14px 18px; border-radius:999px; border:1px solid var(--line); background:var(--glass); font:inherit; }
 .market-buscador button{ border-radius:999px; }
-.market-tiendas-grid, .market-productos-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:16px; }
-.market-tienda-card, .market-producto-card{ display:grid; gap:8px; align-content:start; padding:20px; border:1px solid rgba(255,255,255,.72); border-radius:22px; background:var(--glass); box-shadow:0 18px 48px rgba(20,32,51,.08); }
+.market-categorias-tira{ display:flex; gap:10px; overflow-x:auto; padding:4px 2px 20px; margin-bottom:8px; }
+.market-categoria-chip{ display:flex; align-items:center; gap:8px; flex:0 0 auto; padding:9px 16px; border-radius:999px; border:1px solid var(--line); background:var(--glass); color:var(--ink); font:inherit; font-weight:700; font-size:13.5px; cursor:pointer; white-space:nowrap; }
+.market-categoria-chip:hover{ border-color:var(--blue); color:var(--blue); }
+.market-categoria-chip svg{ width:16px; height:16px; flex:0 0 auto; }
+.market-seccion{ margin:0 0 36px; }
+.market-seccion-header{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; }
+.market-seccion-header h3{ margin:0; font-size:19px; }
+.market-tiendas-grid, .market-productos-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; }
+.market-tienda-card, .market-producto-card{ display:grid; gap:8px; align-content:start; padding:18px; border:1px solid rgba(255,255,255,.72); border-radius:20px; background:var(--glass); box-shadow:0 18px 48px rgba(20,32,51,.08); }
 .market-tienda-giro{ color:var(--muted); font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
 .market-tienda-direccion{ color:var(--muted); font-size:13.5px; }
-.market-producto-nombre{ font-weight:800; font-size:16px; }
-.market-producto-precio{ font-weight:900; color:var(--blue); font-size:18px; }
+.market-producto-nombre{ font-weight:800; font-size:15px; line-height:1.3; }
+.market-producto-precios{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.market-precio-actual{ color:var(--blue-dark); font-weight:900; font-size:17px; }
+.market-producto-precio-tachado{ color:var(--muted); text-decoration:line-through; font-size:13.5px; }
+.market-producto-badge-oferta{ background:var(--amber); color:#fff; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; padding:2px 8px; border-radius:999px; }
 .market-producto-existencia{ color:var(--mint); font-size:13px; font-weight:700; }
 .market-producto-existencia.agotado{ color:#c0392b; }
 .market-producto-tienda{ color:var(--muted); font-size:13px; }
@@ -198,7 +365,8 @@ function paginaMarketHtml() {
 <button class="btn primary" type="submit">Buscar</button>
 </form>
 
-<div id="marketResultados"><p class="market-vacio">Cargando...</p></div>
+<div id="marketInicio"><p class="market-vacio">Cargando...</p></div>
+<div id="marketResultadosBusqueda" hidden></div>
 </main>
 
 <footer>
@@ -240,37 +408,130 @@ function marketTarjetaTienda(t) {
 }
 
 function marketTarjetaProducto(p) {
-    const precioHtml = p.precio !== null && p.precio !== undefined
-        ? '<span class="market-producto-precio">$' + Number(p.precio).toFixed(2) + '</span>' : '';
+    const tieneOferta = p.precioOferta !== null && p.precioOferta !== undefined
+        && p.precio !== null && p.precio !== undefined && p.precioOferta < p.precio;
+
+    let precioHtml = '';
+    if (tieneOferta) {
+        precioHtml = '<span class="market-producto-precio-tachado">$' + Number(p.precio).toFixed(2) + '</span>' +
+            '<span class="market-precio-actual">$' + Number(p.precioOferta).toFixed(2) + '</span>' +
+            '<span class="market-producto-badge-oferta">Oferta</span>';
+    } else if (p.precio !== null && p.precio !== undefined) {
+        precioHtml = '<span class="market-precio-actual">$' + Number(p.precio).toFixed(2) + '</span>';
+    }
+
     const existenciaHtml = p.stock !== null && p.stock !== undefined
         ? '<span class="market-producto-existencia' + (p.stock <= 0 ? ' agotado' : '') + '">' + (p.stock <= 0 ? 'Agotado' : p.stock + ' disponibles') + '</span>' : '';
+
     return '<div class="market-producto-card"><span class="market-producto-nombre">' + escapeHtml(p.nombre) + '</span>' +
-        precioHtml + existenciaHtml +
+        '<span class="market-producto-precios">' + precioHtml + '</span>' +
+        existenciaHtml +
         '<span class="market-producto-tienda">' + escapeHtml(p.tienda) + (p.direccion ? ' &middot; ' + escapeHtml(p.direccion) : '') + '</span>' +
         '<a class="btn primary" href="https://' + escapeHtml(p.slug) + '.nexoposoficial.com/catalogo/' + encodeURIComponent(p.codigo) + '">Ver en ' + escapeHtml(p.tienda) + '</a></div>';
 }
 
+function marketGridProductos(productos) {
+    if (!productos || productos.length === 0) return '';
+    return '<div class="market-productos-grid">' + productos.map(marketTarjetaProducto).join('') + '</div>';
+}
+
+function marketSeccion(titulo, contenidoHtml) {
+    if (!contenidoHtml) return '';
+    return '<section class="market-seccion"><div class="market-seccion-header"><h3>' + escapeHtml(titulo) + '</h3></div>' + contenidoHtml + '</section>';
+}
+
+var MARKET_ICONOS_CATEGORIA = [
+    { patron: /herramient/i, svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>' },
+    { patron: /construc|alba|cemento|block|acero|ladrillo|varilla/i, svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M5 21V7l7-4 7 4v14"></path><path d="M9 21v-6h6v6"></path></svg>' },
+    { patron: /electric|foco|lampara|cable/i, svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 11 14 11 22 21 10 13 10 13 2"></polygon></svg>' },
+    { patron: /plomer|tuber|agua|valvula|grifo/i, svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c4 5 6 8.5 6 12a6 6 0 0 1-12 0c0-3.5 2-7 6-12Z"></path></svg>' },
+    { patron: /pintura|barniz|brocha/i, svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 3 21 6l-9.5 9.5-4-4L18 3Z"></path><path d="M7 12 4 21l9-3"></path></svg>' },
+    { patron: /segur|proteccion|casco|guante/i, svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 4 8.5 9 10 5-1.5 9-5 9-10V6l-9-4Z"></path></svg>' },
+    { patron: /jardin|planta|riego|pasto/i, svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13c0-4 4-9 7-11 3 2 7 7 7 11a7 7 0 0 1-7 7Z"></path></svg>' },
+    { patron: /limpieza|escoba|detergente/i, svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 21 9-9"></path><path d="M12.5 4.5c1.5-1.5 4-1.5 5.5 0s1.5 4 0 5.5L9 19l-5.5 1.5L5 15l9-9Z"></path></svg>' }
+];
+var MARKET_ICONO_GENERICO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>';
+
+function marketIconoCategoria(nombre) {
+    var match = MARKET_ICONOS_CATEGORIA.find(function(e) { return e.patron.test(nombre); });
+    return match ? match.svg : MARKET_ICONO_GENERICO;
+}
+
+function marketTiraCategorias(categorias) {
+    if (!categorias || categorias.length === 0) return '';
+    var chips = categorias.map(function(cat) {
+        return '<button type="button" class="market-categoria-chip" data-categoria="' + escapeHtml(cat) + '">' + marketIconoCategoria(cat) + '<span>' + escapeHtml(cat) + '</span></button>';
+    }).join('');
+    return '<div class="market-categorias-tira">' + chips + '</div>';
+}
+
+function marketMostrarInicio() {
+    document.getElementById("marketInicio").style.display = "";
+    document.getElementById("marketResultadosBusqueda").hidden = true;
+}
+
+function marketMostrarResultados() {
+    document.getElementById("marketInicio").style.display = "none";
+    document.getElementById("marketResultadosBusqueda").hidden = false;
+}
+
+async function marketCargarInicio() {
+    const contenedor = document.getElementById("marketInicio");
+    const datos = await marketLlamar("/market/inicio-json");
+
+    if (!datos.ok) {
+        contenedor.innerHTML = '<p class="market-vacio">No se pudo cargar Nexo Market.</p>';
+        return;
+    }
+
+    let html = "";
+    html += marketTiraCategorias(datos.categorias);
+    html += marketSeccion("Recomendado para ti", marketGridProductos(datos.recomendados));
+    html += marketSeccion("Ofertas", marketGridProductos(datos.ofertas));
+    if (datos.tiendas && datos.tiendas.length > 0) {
+        html += marketSeccion("Tiendas Nexo", '<div class="market-tiendas-grid">' + datos.tiendas.map(marketTarjetaTienda).join("") + '</div>');
+    }
+
+    contenedor.innerHTML = html || '<p class="market-vacio">Todavia no hay tiendas Nexo activas para mostrar aqui.</p>';
+
+    document.querySelectorAll(".market-categoria-chip").forEach(chip => {
+        chip.addEventListener("click", () => {
+            document.getElementById("marketBuscarInput").value = "";
+            marketBuscarPorCategoria(chip.dataset.categoria);
+        });
+    });
+}
+
 async function marketBuscar(texto) {
-    const contenedor = document.getElementById("marketResultados");
+    if (!texto) { marketMostrarInicio(); return; }
+
+    marketMostrarResultados();
+    const contenedor = document.getElementById("marketResultadosBusqueda");
     contenedor.innerHTML = '<p class="market-vacio">Buscando...</p>';
 
     const datos = await marketLlamar("/market/buscar-json?buscar=" + encodeURIComponent(texto));
-
-    if (!texto) {
-        if (!datos.ok || datos.tiendas.length === 0) {
-            contenedor.innerHTML = '<p class="market-vacio">Todavia no hay tiendas Nexo activas para mostrar aqui.</p>';
-            return;
-        }
-        contenedor.innerHTML = '<div class="market-tiendas-grid">' + datos.tiendas.map(marketTarjetaTienda).join('') + '</div>';
-        return;
-    }
 
     if (!datos.ok || datos.productos.length === 0) {
         contenedor.innerHTML = '<p class="market-vacio">No encontramos productos para "' + escapeHtml(texto) + '".</p>';
         return;
     }
 
-    contenedor.innerHTML = '<div class="market-productos-grid">' + datos.productos.map(marketTarjetaProducto).join('') + '</div>';
+    contenedor.innerHTML = marketGridProductos(datos.productos);
+}
+
+async function marketBuscarPorCategoria(categoria) {
+    marketMostrarResultados();
+    const contenedor = document.getElementById("marketResultadosBusqueda");
+    contenedor.innerHTML = '<p class="market-vacio">Buscando...</p>';
+
+    const datos = await marketLlamar("/market/buscar-json?categoria=" + encodeURIComponent(categoria));
+
+    if (!datos.ok || datos.productos.length === 0) {
+        contenedor.innerHTML = '<p class="market-vacio">No encontramos productos en "' + escapeHtml(categoria) + '".</p>';
+        return;
+    }
+
+    contenedor.innerHTML = marketGridProductos(datos.productos);
 }
 
 document.getElementById("marketBuscadorForm").addEventListener("submit", evento => {
@@ -279,7 +540,7 @@ document.getElementById("marketBuscadorForm").addEventListener("submit", evento 
 });
 
 marketCargarSesion();
-marketBuscar("");
+marketCargarInicio();
 </script>
 </body>
 </html>`;
@@ -290,4 +551,4 @@ async function servirMarketPagina(req, res) {
     res.send(paginaMarketHtml());
 }
 
-module.exports = { servirMarketPagina, buscarMarketJson, tiendasPermitidasMarket };
+module.exports = { servirMarketPagina, buscarMarketJson, inicioMarketJson, tiendasPermitidasMarket };

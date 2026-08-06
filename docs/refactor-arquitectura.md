@@ -7519,3 +7519,102 @@ activado"). La infraestructura ya esta lista para eso, sin cambios
 adicionales cuando llegue mas de un negocio real.
 
 Pendiente de confirmacion del usuario para `git add`/`commit`.
+
+## 2026-08-06 -- Nexo Market v2: rediseno tipo marketplace real + personalizacion por oficio
+
+Segunda pasada sobre Nexo Market: el usuario probo la v1 (buscador +
+directorio de tiendas) y sintio que "se siente como una pagina
+normal", no un marketplace de verdad -- mando capturas reales de
+Amazon.com.mx (desktop y movil) como referencia de **layout unicamente**
+(grid denso de tarjetas, secciones de recomendados/ofertas, tira de
+categorias con icono), pidiendo el mismo espiritu pero con el estilo
+visual propio de Nexo. Ademas pidio algo nuevo: preguntar el
+oficio/interes de la persona al crear su cuenta Nexo, para mostrarle
+productos relacionados a su trabajo en el inicio de Market.
+
+**Hallazgo critico que definio el diseno**: consulta real contra
+produccion confirmo que `negocio_id=1` (el unico negocio con sitio
+activo hoy, 570 productos) tiene **0 productos con `destacado=true`
+y 0 con `precio_oferta` real** -- una seccion tipo "Ofertas" clasica
+estaria vacia con datos reales. Por eso las nuevas secciones de Market
+se disenaron para que cada una aparezca **solo si trae contenido real**
+(mismo criterio ya usado en `destacadosTenantHtml` de un sitio
+individual): "Recomendado para ti" depende de que la persona tenga
+oficio Y existan productos con esa categoria; "Ofertas" depende de que
+exista al menos un `precio_oferta` real vigente en cualquier tienda
+permitida. Ninguna de las dos se rellena con contenido inventado si
+esta vacia.
+
+**Taxonomia compartida (`oficios-persona.js`, nuevo archivo)**: 9
+oficios (`herramientas/construccion/electrico/plomeria/pintura/
+seguridad/jardin/limpieza/otro`) con `{clave, etiqueta, patron}`,
+reusando exactamente los mismos 8 regex que ya vivian hardcodeados
+dentro de `ICONOS_CATEGORIA_TENANT` en `public-site-server.js`. Ese
+archivo se refactorizo para construir su tabla de iconos a partir de
+`OFICIOS_PERSONA` (filtrando "otro") en vez de duplicar los regex --
+mismo comportamiento exacto, verificado con `npm test` (19/19) sin
+regresion.
+
+**Migracion `20260814_personas_oficio.sql`**: `personas.oficio TEXT`
+nullable + `CHECK` contra las 9 claves validas. Aplicada con
+confirmacion explicita del usuario.
+
+**`personas-server.js`**: se extrajo `buscarPersonaPorToken(pool, token)`
+compartida (ahora trae `oficio`) de la que ya cuelgan
+`crearRequerirSesionPersona` (401 si no hay sesion, sin cambios de
+comportamiento) y la nueva `crearResolverSesionPersonaOpcional` (nunca
+401 -- deja `req.persona = null` si no hay sesion valida, usada por
+Market para personalizar tanto a visitantes anonimos como a personas
+logueadas sin duplicar codigo). `POST /personas/registro` acepta
+`oficio` opcional (ignorado en silencio si no es una clave valida, no
+tumba el alta). `POST /personas/login` regresa `oficio` en el objeto
+`persona`. Nueva `PATCH /personas/oficio` (requiere sesion) para
+editarlo despues, `400` si la clave no es valida.
+
+**`mi-cuenta.html`**: `<select>` de oficio (9 opciones + "prefiero no
+decirlo") en el formulario de registro, y otro editable en el panel
+logueado que hace `PATCH /personas/oficio` en `change` y muestra
+confirmacion.
+
+**`market-server.js` (rediseno completo)**: contrato nuevo, no
+retrocompatible con la v1 a proposito --
+- `GET /market/inicio-json` (nueva): resuelve la persona via
+  `crearResolverSesionPersonaOpcional` -- **la personalizacion nunca
+  viene de un query param del cliente, siempre de la sesion del
+  servidor**. Responde `{categorias, recomendados, ofertas, tiendas}`,
+  cada arreglo puede venir vacio.
+- `GET /market/buscar-json` **pierde la rama vieja** "sin `buscar` ->
+  regresa `{tiendas}`" -- ahora siempre corre `buscarProductosMarket`
+  (reescrita con `WHERE` condicional al estilo `servirCatalogoNegocio`,
+  soporta `categoria` ademas de `buscar`, o ninguno de los dos para
+  "explorar todo") y responde `{productos, total, pagina}`.
+- 3 queries nuevas: `categoriasMarket` (top-12 por conteo cruzando
+  todas las tiendas permitidas, cache 60s), `recomendadosMarket`
+  (filtra por `categoria ~* patron.source` del oficio de la persona,
+  `[]` sin oficio o con "otro"), `ofertasMarket` (mismo criterio de
+  oferta real que `servirCatalogoNegocio`).
+- HTML/CSS: grid mas denso (`minmax(180px,1fr)`, antes 240px), tira de
+  categorias con icono (scroll horizontal), secciones con header +
+  grid, badge/tachado de oferta en la tarjeta de producto. Toda la
+  pagina sigue siendo render 100% client-side (el shell HTML es
+  estatico, `marketCargarInicio()` pinta desde `/market/inicio-json`
+  tras cargar) -- mismo patron ya establecido en v1, solo con mas
+  secciones.
+
+**Verificacion**: `node --check` en los 7 archivos tocados/nuevos.
+`npm test` completo 19/19 sin regresion (confirma que el refactor de
+`ICONOS_CATEGORIA_TENANT` no cambio el comportamiento de los sitios
+tenant). Nuevo `tests/helpers/persona-prueba.js`
+(`crearPersonaPrueba`, `mintearSesionPruebaPersona`,
+`borrarPersonaPrueba`) y `scripts/verificar-market-rediseno.js`
+(20/20 casos reales contra 2 negocios sinteticos + 1 persona
+sintetica: sin sesion `recomendados` siempre vacio, con oficio="jardin"
+`recomendados` incluye el producto de esa categoria y excluye el de
+otra, logueado sin oficio sigue vacio, `PATCH /personas/oficio`
+rechaza claves invalidas con 400 y refleja el cambio en el siguiente
+login, `buscar-json?categoria=` filtra correctamente, el contrato
+viejo de `buscar-json` sin filtros confirmado roto a proposito) --
+borrado por completo al terminar, `negocio_id=1` y la tabla `personas`
+real sin contaminacion confirmado por consulta directa.
+
+Pendiente de confirmacion del usuario para `git add`/`commit`.

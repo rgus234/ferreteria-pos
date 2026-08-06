@@ -7,7 +7,9 @@ const crypto = require("crypto");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { config } = require("./config");
+const { OFICIOS_PERSONA } = require("./oficios-persona");
 
+const CLAVES_OFICIO_VALIDAS = new Set(OFICIOS_PERSONA.map(o => o.clave));
 const DOMINIO_RAIZ_NEXO = "nexoposoficial.com";
 const REGEX_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NOMBRE_COOKIE_PERSONA = "nexo_persona_token";
@@ -87,6 +89,32 @@ function tokenDeSesionPersona(req) {
     return cookies[NOMBRE_COOKIE_PERSONA] || req.headers["x-persona-token"] || null;
 }
 
+// Compartido por crearRequerirSesionPersona (obligatorio, 401 si no
+// hay sesion) y crearResolverSesionPersonaOpcional (nunca 401) -- una
+// sola consulta, un solo lugar que decide que columnas trae una
+// persona resuelta por token.
+async function buscarPersonaPorToken(pool, token) {
+    if (!token) return null;
+
+    const resultado = await pool.query(
+        `SELECT p.id, p.nombre, p.correo, p.telefono, p.oficio
+         FROM public.sesiones_persona s
+         JOIN public.personas p ON p.id = s.persona_id
+         WHERE s.token_hash = $1 AND s.revocado_at IS NULL
+         LIMIT 1`,
+        [hashTokenSeguro(token)]
+    );
+
+    if (resultado.rows.length === 0) return null;
+
+    pool.query(
+        `UPDATE public.sesiones_persona SET ultimo_uso_at = NOW() WHERE token_hash = $1`,
+        [hashTokenSeguro(token)]
+    ).catch(() => {});
+
+    return resultado.rows[0];
+}
+
 // Reusable desde otros modulos (ej. public-site-server.js para
 // /portal-cliente/vincular-persona) -- cada modulo que la necesite
 // llama crearRequerirSesionPersona(pool) con su propio pool inyectado,
@@ -102,30 +130,36 @@ function crearRequerirSesionPersona(pool) {
         }
 
         try {
-            const resultado = await pool.query(
-                `SELECT p.id, p.nombre, p.correo, p.telefono
-                 FROM public.sesiones_persona s
-                 JOIN public.personas p ON p.id = s.persona_id
-                 WHERE s.token_hash = $1 AND s.revocado_at IS NULL
-                 LIMIT 1`,
-                [hashTokenSeguro(token)]
-            );
+            const persona = await buscarPersonaPorToken(pool, token);
 
-            if (resultado.rows.length === 0) {
+            if (!persona) {
                 res.status(401).json({ ok: false, error: "Sesion invalida, inicia sesion de nuevo" });
                 return;
             }
 
-            pool.query(
-                `UPDATE public.sesiones_persona SET ultimo_uso_at = NOW() WHERE token_hash = $1`,
-                [hashTokenSeguro(token)]
-            ).catch(() => {});
-
-            req.persona = resultado.rows[0];
+            req.persona = persona;
             next();
         } catch (error) {
             responderError(res, error);
         }
+    };
+}
+
+// Version "opcional" para superficies que sirven tanto a visitantes
+// anonimos como a personas logueadas (ej. Nexo Market) -- nunca
+// responde 401, solo deja req.persona en null si no hay sesion
+// valida, y sigue al siguiente handler de todas formas.
+function crearResolverSesionPersonaOpcional(pool) {
+    return async function resolverSesionPersonaOpcional(req, res, next) {
+        const token = tokenDeSesionPersona(req);
+
+        try {
+            req.persona = token ? await buscarPersonaPorToken(pool, token) : null;
+        } catch (error) {
+            req.persona = null;
+        }
+
+        next();
     };
 }
 
@@ -150,6 +184,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
         const correo = limpiarTexto(req.body?.correo, 140).toLowerCase() || null;
         const telefono = limpiarTexto(req.body?.telefono, 20) || null;
         const password = String(req.body?.password || "");
+        const oficioBruto = limpiarTexto(req.body?.oficio, 20);
+        const oficio = CLAVES_OFICIO_VALIDAS.has(oficioBruto) ? oficioBruto : null;
 
         if (!nombre || !password || password.length < 8) {
             res.status(400).json({ ok: false, error: "Nombre y una contrasena de al menos 8 caracteres son requeridos" });
@@ -184,8 +220,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             }
 
             const nueva = await pool.query(
-                `INSERT INTO public.personas (nombre, correo, telefono, password_hash) VALUES ($1, $2, $3, $4) RETURNING id, nombre, correo, telefono`,
-                [nombre, correo, telefono, hashPassword(password)]
+                `INSERT INTO public.personas (nombre, correo, telefono, password_hash, oficio) VALUES ($1, $2, $3, $4, $5) RETURNING id, nombre, correo, telefono, oficio`,
+                [nombre, correo, telefono, hashPassword(password), oficio]
             );
 
             const persona = nueva.rows[0];
@@ -213,7 +249,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
 
         try {
             const fila = await pool.query(
-                `SELECT id, nombre, correo, telefono, password_hash FROM public.personas WHERE LOWER(correo) = $1 OR telefono = $1 LIMIT 1`,
+                `SELECT id, nombre, correo, telefono, password_hash, oficio FROM public.personas WHERE LOWER(correo) = $1 OR telefono = $1 LIMIT 1`,
                 [identificador]
             );
 
@@ -235,7 +271,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             res.json({
                 ok: true,
                 token,
-                persona: { id: persona.id, nombre: persona.nombre, correo: persona.correo, telefono: persona.telefono }
+                persona: { id: persona.id, nombre: persona.nombre, correo: persona.correo, telefono: persona.telefono, oficio: persona.oficio }
             });
         } catch (error) {
             responderError(res, error);
@@ -304,6 +340,27 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
         }
     });
 
+    app.patch("/personas/oficio", requerirSesionPersona, async (req, res) => {
+        const oficioBruto = limpiarTexto(req.body?.oficio, 20);
+        const oficio = oficioBruto ? oficioBruto : null;
+
+        if (oficio && !CLAVES_OFICIO_VALIDAS.has(oficio)) {
+            res.status(400).json({ ok: false, error: "Oficio invalido" });
+            return;
+        }
+
+        try {
+            const resultado = await pool.query(
+                `UPDATE public.personas SET oficio = $1 WHERE id = $2 RETURNING oficio`,
+                [oficio, req.persona.id]
+            );
+
+            res.json({ ok: true, oficio: resultado.rows[0].oficio });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     // Vincular el negocio con el que ya se inicio sesion (requerirAccesoNegocio,
     // sesion real de dueño) a la persona ya logueada -- ambos lados ya
     // probaron su identidad por separado, no se pide contrasena de nuevo.
@@ -327,4 +384,4 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
     });
 }
 
-module.exports = { registrarRutas, crearRequerirSesionPersona };
+module.exports = { registrarRutas, crearRequerirSesionPersona, crearResolverSesionPersonaOpcional };
