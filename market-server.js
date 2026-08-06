@@ -379,22 +379,23 @@ async function favoritosMarketJson(pool, req, res, firmarTokenImagen) {
 }
 
 const ESTILOS_MARKET = `
-.market-header{ position:sticky; top:0; z-index:30; background:rgba(247,249,252,.86); backdrop-filter:blur(22px) saturate(160%); border-bottom:1px solid rgba(255,255,255,.6); }
+.market-header{ position:sticky; top:0; z-index:30; background:linear-gradient(180deg,#101826,#0b1220); border-bottom:1px solid rgba(255,255,255,.08); box-shadow:0 10px 30px rgba(6,10,18,.28); }
 .market-header-top{ display:flex; align-items:center; gap:18px; padding:14px clamp(18px,4vw,48px); max-width:1400px; margin:0 auto; }
-.market-logo{ display:inline-flex; align-items:center; gap:10px; font-weight:950; font-size:18px; flex:0 0 auto; }
+.market-logo{ display:inline-flex; align-items:center; gap:10px; font-weight:950; font-size:18px; flex:0 0 auto; color:#fff; }
 .market-logo img{ width:38px; height:38px; border-radius:11px; object-fit:cover; }
-.market-search-bar{ flex:1; display:flex; min-width:0; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:#fff; }
+.market-search-bar{ flex:1; display:flex; min-width:0; border:1px solid rgba(255,255,255,.14); border-radius:999px; overflow:hidden; background:#fff; box-shadow:0 10px 26px rgba(4,8,16,.32); }
 .market-search-bar select{ border:none; background:var(--paper); padding:0 14px; font:inherit; font-size:13px; color:var(--muted); max-width:170px; border-right:1px solid var(--line); }
 .market-search-bar input{ flex:1; min-width:0; border:none; padding:12px 14px; font:inherit; outline:none; }
 .market-search-bar button{ border:none; background:var(--blue); color:#fff; padding:0 20px; cursor:pointer; display:flex; align-items:center; }
 .market-search-bar button svg{ width:18px; height:18px; }
 .market-header-acciones{ display:flex; align-items:center; gap:16px; flex:0 0 auto; }
-.market-header-link{ display:inline-flex; align-items:center; gap:6px; font-weight:700; font-size:13.5px; white-space:nowrap; position:relative; }
+.market-header-link{ display:inline-flex; align-items:center; gap:6px; font-weight:700; font-size:13.5px; white-space:nowrap; position:relative; color:rgba(255,255,255,.86); }
+.market-header-link:hover{ color:#fff; }
 .market-header-link svg{ width:19px; height:19px; }
 .market-favoritos-contador{ background:var(--blue); color:#fff; font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; min-width:16px; text-align:center; }
-.market-header-nav{ display:flex; gap:20px; padding:8px clamp(18px,4vw,48px) 12px; max-width:1400px; margin:0 auto; overflow-x:auto; border-top:1px solid rgba(20,32,51,.06); }
-.market-header-nav a{ font-size:13.5px; font-weight:700; color:var(--muted); white-space:nowrap; }
-.market-header-nav a:hover{ color:var(--blue); }
+.market-header-nav{ display:flex; gap:20px; padding:8px clamp(18px,4vw,48px) 12px; max-width:1400px; margin:0 auto; overflow-x:auto; border-top:1px solid rgba(255,255,255,.08); }
+.market-header-nav a{ font-size:13.5px; font-weight:700; color:rgba(255,255,255,.68); white-space:nowrap; }
+.market-header-nav a:hover{ color:#fff; }
 .market-hero{ display:grid; grid-template-columns:1.1fr .9fr; gap:32px; align-items:center; max-width:1400px; margin:28px auto; padding:0 clamp(18px,4vw,48px); min-width:0; }
 .market-hero > *{ min-width:0; }
 .market-hero-texto h1{ font-size:clamp(28px,3.4vw,42px); margin:0 0 12px; line-height:1.1; }
@@ -410,7 +411,7 @@ const ESTILOS_MARKET = `
 .market-layout{ display:grid; grid-template-columns:1fr 320px; gap:32px; max-width:1400px; margin:0 auto; padding:0 clamp(18px,4vw,48px) 60px; align-items:start; min-width:0; }
 .market-contenido, .market-sidebar{ min-width:0; }
 .market-sidebar{ position:sticky; top:150px; display:grid; gap:18px; }
-.market-sidebar-card{ background:var(--glass); border:1px solid rgba(255,255,255,.72); border-radius:20px; padding:18px; box-shadow:0 18px 48px rgba(20,32,51,.08); }
+.market-sidebar-card{ background:#fff; border:1px solid var(--line); border-radius:20px; padding:18px; box-shadow:0 18px 48px rgba(20,32,51,.1); }
 .market-sidebar-card h4{ margin:0 0 12px; font-size:15px; }
 .market-vacio-chico{ color:var(--muted); font-size:13px; margin:0; }
 .market-tienda-fila{ display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px; }
@@ -444,8 +445,9 @@ const ESTILOS_MARKET = `
 .market-carousel-flecha:hover{ border-color:var(--blue); color:var(--blue); }
 .market-tiendas-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; }
 .market-productos-grid{ display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x proximity; padding-bottom:6px; }
-.market-tienda-card, .market-producto-card{ display:grid; gap:8px; align-content:start; padding:16px; border:1px solid rgba(255,255,255,.72); border-radius:18px; background:#fff; box-shadow:0 14px 36px rgba(20,32,51,.07); }
+.market-tienda-card, .market-producto-card{ display:grid; gap:8px; align-content:start; padding:16px; border:1px solid var(--line); border-radius:18px; background:#fff; box-shadow:0 14px 36px rgba(20,32,51,.08); transition:transform .16s ease, box-shadow .16s ease; }
 .market-producto-card{ position:relative; flex:0 0 200px; scroll-snap-align:start; }
+.market-producto-card:hover{ transform:translateY(-3px); box-shadow:0 20px 44px rgba(20,32,51,.14); }
 .market-tiendas-grid .market-tienda-card{ background:var(--glass); }
 .market-tienda-giro{ color:var(--muted); font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
 .market-tienda-direccion{ color:var(--muted); font-size:13.5px; }
