@@ -63,7 +63,7 @@ function tarjetaTiendaMarketHtml(negocio) {
 <strong>${escaparHtml(negocio.nombre)}</strong>
 ${negocio.giro ? `<span class="market-tienda-giro">${escaparHtml(negocio.giro)}</span>` : ""}
 ${direccionHtml}
-<a class="btn secondary" href="https://${escaparHtml(negocio.slug)}.nexoposoficial.com" target="_blank" rel="noopener">Ver tienda</a>
+<a class="btn secondary" href="https://${escaparHtml(negocio.slug)}.nexoposoficial.com">Ver tienda</a>
 </div>`;
 }
 
@@ -80,7 +80,7 @@ function tarjetaProductoMarketHtml(producto) {
 ${precioHtml}
 ${existenciaHtml}
 <span class="market-producto-tienda">${escaparHtml(producto.tienda)}${producto.direccion ? ` &middot; ${escaparHtml(producto.direccion)}` : ""}</span>
-<a class="btn primary" href="https://${escaparHtml(producto.slug)}.nexoposoficial.com/catalogo/${encodeURIComponent(producto.codigo)}" target="_blank" rel="noopener">Ver en ${escaparHtml(producto.tienda)}</a>
+<a class="btn primary" href="https://${escaparHtml(producto.slug)}.nexoposoficial.com/catalogo/${encodeURIComponent(producto.codigo)}">Ver en ${escaparHtml(producto.tienda)}</a>
 </div>`;
 }
 
@@ -236,7 +236,7 @@ function marketTarjetaTienda(t) {
     return '<div class="market-tienda-card"><strong>' + escapeHtml(t.nombre) + '</strong>' +
         (t.giro ? '<span class="market-tienda-giro">' + escapeHtml(t.giro) + '</span>' : '') +
         (t.direccion ? '<span class="market-tienda-direccion">' + escapeHtml(t.direccion) + '</span>' : '') +
-        '<a class="btn secondary" href="https://' + escapeHtml(t.slug) + '.nexoposoficial.com" target="_blank" rel="noopener">Ver tienda</a></div>';
+        '<a class="btn secondary" href="https://' + escapeHtml(t.slug) + '.nexoposoficial.com">Ver tienda</a></div>';
 }
 
 function marketTarjetaProducto(p) {
@@ -247,7 +247,7 @@ function marketTarjetaProducto(p) {
     return '<div class="market-producto-card"><span class="market-producto-nombre">' + escapeHtml(p.nombre) + '</span>' +
         precioHtml + existenciaHtml +
         '<span class="market-producto-tienda">' + escapeHtml(p.tienda) + (p.direccion ? ' &middot; ' + escapeHtml(p.direccion) : '') + '</span>' +
-        '<a class="btn primary" href="https://' + escapeHtml(p.slug) + '.nexoposoficial.com/catalogo/' + encodeURIComponent(p.codigo) + '" target="_blank" rel="noopener">Ver en ' + escapeHtml(p.tienda) + '</a></div>';
+        '<a class="btn primary" href="https://' + escapeHtml(p.slug) + '.nexoposoficial.com/catalogo/' + encodeURIComponent(p.codigo) + '">Ver en ' + escapeHtml(p.tienda) + '</a></div>';
 }
 
 async function marketBuscar(texto) {
