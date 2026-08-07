@@ -648,6 +648,8 @@ const ESTILOS_MARKET = `
 @media (max-width:560px){
   .market-search-bar select{ display:none; }
   .market-header-acciones .market-header-link span{ display:none; }
+  .market-header-top{ gap:10px; }
+  .market-logo span{ display:none; }
 }
 `;
 
