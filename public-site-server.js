@@ -396,17 +396,27 @@ ${selectorRaiz}{ --blue:${colorFinal}; --blue-dark:${colorFinal}; }
 .tenant-paginacion{ display:flex; justify-content:center; gap:12px; margin-top:32px; }
 .tenant-paginacion a{ padding:10px 18px; border-radius:12px; border:1px solid var(--line); color:var(--ink); font-weight:600; }
 .tenant-paginacion span{ padding:10px 18px; color:var(--muted); }
-.tenant-detalle-card{ border-radius:26px; background:var(--glass); box-shadow:var(--shadow); padding:28px; }
-.tenant-detalle-grid{ display:grid; grid-template-columns:minmax(0,360px) 1fr; gap:36px; }
-.tenant-detalle-foto{ aspect-ratio:1/1; border-radius:20px; overflow:hidden; background:var(--paper); display:flex; align-items:center; justify-content:center; }
+.tenant-detalle-card{ border-radius:26px; background:var(--glass); box-shadow:var(--shadow); padding:24px; }
+.tenant-detalle-grid{ display:grid; grid-template-columns:minmax(0,280px) 1fr minmax(240px,280px); gap:28px; align-items:start; }
+.tenant-detalle-foto{ aspect-ratio:1/1; max-width:280px; border-radius:18px; overflow:hidden; background:var(--paper); display:flex; align-items:center; justify-content:center; }
 .tenant-detalle-foto img{ width:100%; height:100%; object-fit:cover; display:block; }
 .tenant-detalle-foto-vacia{ color:var(--muted); }
-.tenant-detalle-precio{ font-size:34px; font-weight:800; color:var(--blue); margin:10px 0; }
-.tenant-detalle-garantia{ margin-top:16px; padding:14px; border-radius:14px; background:var(--glass); border:1px solid var(--line); font-size:13px; color:var(--muted); }
-.tenant-detalle-miniaturas{ display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
-.tenant-detalle-miniatura{ width:64px; height:64px; border-radius:12px; overflow:hidden; border:2px solid transparent; background:var(--paper); cursor:pointer; padding:0; }
+.tenant-detalle-badge-destacado{ display:inline-block; margin-bottom:8px; padding:5px 12px; border-radius:999px; background:var(--amber); color:#fff; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; }
+.tenant-detalle-titulo{ font-size:21px; line-height:1.3; margin:0 0 6px; }
+.tenant-detalle-marca{ font-size:12.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; font-weight:700; margin:0 0 10px; }
+.tenant-detalle-descripcion{ font-size:13.5px; line-height:1.6; color:var(--muted); margin:12px 0; }
+.tenant-detalle-precio{ font-size:26px; font-weight:800; color:var(--blue); margin:8px 0; }
+.tenant-detalle-garantia{ margin-top:14px; padding:12px 14px; border-radius:14px; background:var(--glass); border:1px solid var(--line); font-size:12.5px; color:var(--muted); }
+.tenant-detalle-miniaturas{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.tenant-detalle-miniatura{ width:52px; height:52px; border-radius:10px; overflow:hidden; border:2px solid transparent; background:var(--paper); cursor:pointer; padding:0; }
 .tenant-detalle-miniatura img{ width:100%; height:100%; object-fit:cover; display:block; }
 .tenant-detalle-miniatura.activa{ border-color:var(--blue); }
+.tenant-detalle-comprabox{ display:grid; gap:10px; align-content:start; padding:18px; border:1px solid var(--line); border-radius:16px; background:#fff; }
+.tenant-detalle-comprabox .tenant-acciones{ margin-top:0; flex-direction:column; align-items:stretch; }
+.tenant-detalle-comprabox .tenant-btn-primario, .tenant-detalle-comprabox .tenant-btn-secundario{ width:100%; }
+.tenant-detalle-comprabox-linea{ display:flex; gap:8px; font-size:12.5px; color:var(--muted); padding-top:10px; border-top:1px solid var(--line); }
+.tenant-detalle-comprabox-linea:first-of-type{ border-top:none; padding-top:0; }
+.tenant-detalle-comprabox-linea strong{ color:var(--ink); font-weight:700; }
 .tenant-breadcrumb{ margin:0 0 18px; font-size:13px; color:var(--muted); }
 .tenant-breadcrumb a{ color:var(--muted); }
 .tenant-breadcrumb a:hover{ color:var(--blue); }
@@ -497,6 +507,10 @@ ${selectorRaiz}{ --blue:${colorFinal}; --blue-dark:${colorFinal}; }
 #tenantCarritoForm button[type="submit"]{ padding:12px 22px; border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; cursor:pointer; justify-self:start; }
 .tenant-carrito-botones{ display:flex; gap:10px; flex-wrap:wrap; }
 #tenantCarritoForm button.tenant-btn-cotizacion{ background:var(--glass); border:1px solid var(--line); color:var(--ink); }
+@media (max-width:960px){
+    .tenant-detalle-grid{ grid-template-columns:minmax(0,240px) 1fr; }
+    .tenant-detalle-comprabox{ grid-column:1 / -1; }
+}
 @media (max-width:720px){
     .tenant-detalle-grid{ grid-template-columns:1fr; }
     .tenant-portal-tabla{ display:block; overflow-x:auto; }
@@ -1284,7 +1298,7 @@ async function cargarProductoTenant(pool, sitio, slug, codigo, firmarTokenImagen
     const productoRes = await pool.query(
         `
         SELECT id, codigo, nombre, categoria, marca, descripcion, precio, precio_publico, precio_oferta, stock,
-            tiene_garantia, garantia_detalle
+            tiene_garantia, garantia_detalle, destacado
         FROM public.productos
         WHERE negocio_id = $1 AND codigo = $2
         LIMIT 1
@@ -1409,9 +1423,6 @@ function vistaProductoTenantHtml({ sitio, datos, basePath = "", estadoPedido = "
         : "";
 
     const whatsappNumero = normalizarTelefonoWhatsApp(sitio.config.whatsapp);
-    const whatsappHtml = whatsappNumero
-        ? `<a class="tenant-btn-secundario" href="https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, me interesa "${producto.nombre}" que vi en su catalogo.`)}" target="_blank" rel="noopener">Preguntar por WhatsApp</a>`
-        : "";
 
     const bannerPedidoHtml = estadoPedido === "enviado"
         ? `<div class="tenant-pedido-banner exito">Listo -- tu pedido fue enviado. El negocio te contactara pronto.</div>`
@@ -1443,6 +1454,21 @@ function vistaProductoTenantHtml({ sitio, datos, basePath = "", estadoPedido = "
         ? `<button type="button" class="tenant-btn-favorito tenant-btn-favorito-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}<span>Favorito</span></button><button type="button" class="tenant-btn-comparar tenant-btn-comparar-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Agregar a comparar">${ICONO_TENANT_COMPARAR}<span>Comparar</span></button>`
         : "";
 
+    // Columna de compra (Amazon-style): solo datos reales -- a quien se
+    // le compra y donde recoger son datos del negocio, nunca inventamos
+    // tiempos de entrega ni "envio gratis" (no existe logistica de envio
+    // en la plataforma). El badge "Destacado" solo aparece si el dueno
+    // ya marco el producto como tal (mismo dato que alimenta la seccion
+    // de destacados del inicio).
+    const badgeDestacadoHtml = producto.destacado ? `<span class="tenant-detalle-badge-destacado">Destacado</span>` : "";
+    const nombreTienda = escaparHtml(sitio.negocio.nombre);
+    const direccionTienda = escaparHtml(sitio.negocio.direccion || "");
+    const compraboxLineasHtml = [
+        `<div class="tenant-detalle-comprabox-linea">Vendido por <strong>${nombreTienda}</strong></div>`,
+        direccionTienda ? `<div class="tenant-detalle-comprabox-linea">Recoge en tienda: <strong>${direccionTienda}</strong></div>` : "",
+        whatsappNumero ? `<div class="tenant-detalle-comprabox-linea">&iquest;Dudas sobre el producto? <a href="https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, me interesa "${producto.nombre}" que vi en su catalogo.`)}" target="_blank" rel="noopener">Contactanos por WhatsApp</a></div>` : ""
+    ].filter(Boolean).join("");
+
     return `${breadcrumbHtml}
 ${bannerPedidoHtml}
 <div class="tenant-detalle-card">
@@ -1452,13 +1478,17 @@ ${bannerPedidoHtml}
 ${miniaturasHtml}
 </div>
 <div>
-<h1>${nombreProducto}</h1>
-${producto.marca ? `<p>${escaparHtml(producto.marca)}${producto.categoria ? ` &middot; ${escaparHtml(producto.categoria)}` : ""}</p>` : (producto.categoria ? `<p>${escaparHtml(producto.categoria)}</p>` : "")}
+${badgeDestacadoHtml}
+<h1 class="tenant-detalle-titulo">${nombreProducto}</h1>
+${producto.marca || producto.categoria ? `<p class="tenant-detalle-marca">${producto.marca ? escaparHtml(producto.marca) : ""}${producto.marca && producto.categoria ? " &middot; " : ""}${producto.categoria ? escaparHtml(producto.categoria) : ""}</p>` : ""}
 ${precio !== null && Number.isFinite(precio) ? `<div class="tenant-detalle-precio">${precioOfertaHtml(precio, producto.precio_oferta)}</div>` : ""}
 ${stock !== null ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>` : ""}
-${producto.descripcion ? `<p>${escaparHtml(producto.descripcion)}</p>` : ""}
+${producto.descripcion ? `<p class="tenant-detalle-descripcion">${escaparHtml(producto.descripcion)}</p>` : ""}
 ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto tiene garantia${producto.garantia_detalle ? `: ${escaparHtml(producto.garantia_detalle)}` : "."}</div>` : ""}
-<div class="tenant-acciones">${whatsappHtml}<button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button><button type="button" class="tenant-btn-secundario" onclick="document.getElementById('tenantPedidoRapido').hidden=false;document.getElementById('tenantPedidoRapido').scrollIntoView({behavior:'smooth',block:'start'});">Comprar ahora</button>${favoritoCompararLineaHtml}</div>
+</div>
+<div class="tenant-detalle-comprabox">
+<div class="tenant-acciones"><button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button><button type="button" class="tenant-btn-secundario" onclick="document.getElementById('tenantPedidoRapido').hidden=false;document.getElementById('tenantPedidoRapido').scrollIntoView({behavior:'smooth',block:'start'});">Comprar ahora</button>${favoritoCompararLineaHtml}</div>
+${compraboxLineasHtml}
 </div>
 </div>
 </div>
