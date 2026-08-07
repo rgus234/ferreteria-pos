@@ -17,6 +17,11 @@
 
 const sharp = require("sharp");
 const crypto = require("crypto");
+const {
+    normalizarCodigoFoto: normalizarCodigoBancoImagen,
+    planPermiteBancoImagenes,
+    firmarTokenBancoImagen
+} = require("./banco-imagenes-server");
 const { funcionDelPlan } = require("./plan-enforcement");
 const { enviarCorreoPedidoPublico, enviarCorreoPedidoCarritoPublico, enviarCorreoSolicitudCreditoPublica, enviarCorreoCotizacionRespondida } = require("./email");
 const { hashPassword, verificarPassword } = require("./password-utils");
@@ -397,8 +402,9 @@ ${selectorRaiz}{ --blue:${colorFinal}; --blue-dark:${colorFinal}; }
 .tenant-paginacion a{ padding:10px 18px; border-radius:12px; border:1px solid var(--line); color:var(--ink); font-weight:600; }
 .tenant-paginacion span{ padding:10px 18px; color:var(--muted); }
 .tenant-detalle-card{ border-radius:26px; background:var(--glass); box-shadow:var(--shadow); padding:24px; }
-.tenant-detalle-grid{ display:grid; grid-template-columns:minmax(0,280px) 1fr minmax(240px,280px); gap:28px; align-items:start; }
-.tenant-detalle-foto{ aspect-ratio:1/1; max-width:280px; border-radius:18px; overflow:hidden; background:var(--paper); display:flex; align-items:center; justify-content:center; }
+.tenant-detalle-grid{ display:grid; grid-template-columns:minmax(0,320px) 1fr minmax(240px,280px); gap:28px; align-items:start; }
+.tenant-detalle-galeria{ display:flex; gap:8px; align-items:flex-start; }
+.tenant-detalle-foto{ flex:1; min-width:0; aspect-ratio:1/1; border-radius:18px; overflow:hidden; background:var(--paper); display:flex; align-items:center; justify-content:center; }
 .tenant-detalle-foto img{ width:100%; height:100%; object-fit:cover; display:block; }
 .tenant-detalle-foto-vacia{ color:var(--muted); }
 .tenant-detalle-badge-destacado{ display:inline-block; margin-bottom:8px; padding:5px 12px; border-radius:999px; background:var(--amber); color:#fff; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; }
@@ -407,8 +413,8 @@ ${selectorRaiz}{ --blue:${colorFinal}; --blue-dark:${colorFinal}; }
 .tenant-detalle-descripcion{ font-size:13.5px; line-height:1.6; color:var(--muted); margin:12px 0; }
 .tenant-detalle-precio{ font-size:26px; font-weight:800; color:var(--blue); margin:8px 0; }
 .tenant-detalle-garantia{ margin-top:14px; padding:12px 14px; border-radius:14px; background:var(--glass); border:1px solid var(--line); font-size:12.5px; color:var(--muted); }
-.tenant-detalle-miniaturas{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
-.tenant-detalle-miniatura{ width:52px; height:52px; border-radius:10px; overflow:hidden; border:2px solid transparent; background:var(--paper); cursor:pointer; padding:0; }
+.tenant-detalle-miniaturas{ display:flex; flex-direction:column; gap:8px; flex:0 0 auto; max-height:280px; overflow-y:auto; }
+.tenant-detalle-miniatura{ width:48px; height:48px; flex-shrink:0; border-radius:10px; overflow:hidden; border:2px solid transparent; background:var(--paper); cursor:pointer; padding:0; }
 .tenant-detalle-miniatura img{ width:100%; height:100%; object-fit:cover; display:block; }
 .tenant-detalle-miniatura.activa{ border-color:var(--blue); }
 .tenant-detalle-comprabox{ display:grid; gap:10px; align-content:start; padding:18px; border:1px solid var(--line); border-radius:16px; background:#fff; }
@@ -1336,7 +1342,44 @@ async function cargarProductoTenant(pool, sitio, slug, codigo, firmarTokenImagen
     const galeriaUrls = galeriaRes.rows.map(fila =>
         `/fotos-producto-galeria/${fila.id}?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, String(fila.id))}`
     );
-    const imagenesProducto = fotoUrl ? [fotoUrl, ...galeriaUrls] : galeriaUrls;
+    let imagenesProducto = fotoUrl ? [fotoUrl, ...galeriaUrls] : galeriaUrls;
+
+    // Banco de Nexo (banco global de fotos reales por codigo, Pro-only,
+    // ver banco-imagenes-server.js): si la tienda todavia no tiene su
+    // propia galeria para este codigo, se completa con las fotos reales
+    // del banco -- nunca reemplaza lo que el dueno ya subio, solo llena
+    // el hueco cuando no hay nada propio. Mismo gate de plan que ya usa
+    // "Usar esta imagen" en Agregar producto.
+    if (galeriaUrls.length === 0) {
+        const puedeBancoImagenes = await planPermiteBancoImagenes(pool, sitio.negocio.id);
+        if (puedeBancoImagenes) {
+            const codigoBanco = normalizarCodigoBancoImagen(producto.codigo);
+            const bancoRes = await pool.query(
+                `SELECT id, actualizado_at FROM public.banco_imagenes_producto WHERE codigo = $1`,
+                [codigoBanco]
+            );
+            const filaBanco = bancoRes.rows[0];
+
+            if (filaBanco) {
+                const version = new Date(filaBanco.actualizado_at).getTime();
+                const bancoGaleriaRes = await pool.query(
+                    `SELECT id FROM public.banco_imagenes_producto_galeria WHERE banco_imagen_id = $1 ORDER BY orden ASC`,
+                    [filaBanco.id]
+                );
+                const bancoGaleriaUrls = bancoGaleriaRes.rows.map(fila =>
+                    `/banco-imagenes-galeria/${fila.id}?token=${firmarTokenBancoImagen(String(fila.id))}`
+                );
+                const bancoUrls = [
+                    `/banco-imagenes/${encodeURIComponent(codigoBanco)}/principal?v=${version}&token=${firmarTokenBancoImagen(codigoBanco)}`,
+                    ...bancoGaleriaUrls
+                ];
+                // La foto principal que la tienda ya subio (si tiene) se
+                // queda primero -- el banco solo aporta vistas
+                // adicionales, nunca la reemplaza.
+                imagenesProducto = fotoUrl ? [fotoUrl, ...bancoUrls] : bancoUrls;
+            }
+        }
+    }
 
     // Productos que puedes complementar -- otros productos reales de
     // la MISMA tienda que comparten categoria o marca con este, nunca
@@ -1473,9 +1516,9 @@ function vistaProductoTenantHtml({ sitio, datos, basePath = "", estadoPedido = "
 ${bannerPedidoHtml}
 <div class="tenant-detalle-card">
 <div class="tenant-detalle-grid">
-<div>
-<div class="tenant-detalle-foto">${fotoUrl || galeriaUrls.length ? `<img id="tenantDetalleFotoActual" src="${imagenesProducto[0]}" alt="${nombreProducto}">` : `<span class="tenant-detalle-foto-vacia">Sin foto</span>`}</div>
+<div class="tenant-detalle-galeria">
 ${miniaturasHtml}
+<div class="tenant-detalle-foto">${imagenesProducto.length ? `<img id="tenantDetalleFotoActual" src="${imagenesProducto[0]}" alt="${nombreProducto}">` : `<span class="tenant-detalle-foto-vacia">Sin foto</span>`}</div>
 </div>
 <div>
 ${badgeDestacadoHtml}

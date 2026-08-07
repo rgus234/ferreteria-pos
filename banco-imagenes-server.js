@@ -240,7 +240,7 @@ async function procesarZipBancoImagenes(pool, rutaZip, marca, origen) {
     return resumen;
 }
 
-module.exports = (app, pool, requerirAccesoNegocio) => {
+function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
     // ---- Rutas de Admin -- protegidas globalmente por validarAdminKey,
     // montado en server.js sobre todo el prefijo /admin/api antes de que
     // cargarModulosPOS() cargue este modulo. ----
@@ -922,4 +922,18 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             responderError(res, error);
         }
     });
-};
+}
+
+// server-modules.js sigue llamando esto directo como funcion
+// (require("./banco-imagenes-server")(app, pool, requerirAccesoNegocio)) --
+// los helpers se cuelgan como propiedades de esa misma funcion en vez de
+// cambiar la forma del export, para no tocar ese call site. Los usa
+// public-site-server.js (ficha de producto publica) para mostrar fotos
+// reales del Banco de Nexo cuando la tienda no tiene su propia galeria
+// para ese codigo -- mismo gate de plan Pro y mismo firmado de token que
+// ya usan las rutas de este archivo.
+registrarRutasBancoImagenes.normalizarCodigoFoto = normalizarCodigoFoto;
+registrarRutasBancoImagenes.planPermiteBancoImagenes = planPermiteBancoImagenes;
+registrarRutasBancoImagenes.firmarTokenBancoImagen = firmarTokenBancoImagen;
+
+module.exports = registrarRutasBancoImagenes;
