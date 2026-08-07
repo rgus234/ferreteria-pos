@@ -8,7 +8,15 @@ const DEFAULT_NEGOCIO_NOMBRE =
 // ({slug}.nexoposoficial.com, ver public-site-server.js) -- estas
 // palabras quedan reservadas para que un negocio nunca termine con un
 // slug que choque con un subdominio propio del sistema.
-const SUBDOMINIOS_RESERVADOS = new Set(["app", "www", "admin", "mail", "ftp", "api"]);
+const SUBDOMINIOS_RESERVADOS = new Set([
+    "app", "www", "admin", "mail", "ftp", "api",
+    // Rutas propias de Nexo Market embebido en nexoposoficial.com
+    // (ver market-server.js / market-tienda-server.js) -- un negocio
+    // nunca debe terminar con un slug que choque con una de estas.
+    "market", "catalogo", "buscar-json", "sugerencias-json", "inicio-json",
+    "favoritos-json", "comparador-json", "pedido-carrito", "solicitud-credito",
+    "portal-cliente", "site", "login", "mi-cuenta"
+]);
 
 function normalizarSlug(valor) {
     return String(valor || DEFAULT_NEGOCIO_SLUG)

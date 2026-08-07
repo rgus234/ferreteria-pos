@@ -651,20 +651,28 @@ const ESTILOS_MARKET = `
 }
 `;
 
-function paginaMarketHtml() {
-    return `<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nexo Market -- todo para construir, instalar y reparar</title>
-<meta name="description" content="Busca productos entre varias ferreterias Nexo, compara precio y disponibilidad, y compra directo con la tienda que elijas.">
-<link rel="icon" href="/nexo-pos-icon.jpg">
-<link rel="stylesheet" href="/site/styles.css">
-<style>${ESTILOS_MARKET}</style>
-</head>
-<body>
-<header class="market-header">
+// Header + nav de Nexo Market (Fase 1 "Market embebido") -- extraido tal
+// cual del markup que antes vivia pegado dentro de paginaMarketHtml(),
+// parametrizado para poder reusarse desde una pagina de tienda dentro de
+// /market/{slug}/... sin duplicar el markup:
+//   - baseAnclas: prefijo para los anchors internos (#marketOfertas, etc)
+//     -- vacio en /market (se queda igual), "/market" cuando este header
+//     se pinta dentro de una pagina de tienda (para que el anchor navegue
+//     de vuelta a /market#... en vez de intentar hacer scroll en una
+//     pagina que no tiene esas secciones).
+//   - slugTienda/nombreTienda: cuando slugTienda es truthy, se agrega el
+//     boton de carrito real (mismos ids que ya usa encabezadoTenantHtml
+//     en public-site-server.js: tenantCarritoAbrirBoton/carritoContador)
+//     dentro de .market-header-acciones -- es la unica diferencia de
+//     markup entre la tienda A y la tienda B (ver verificacion de la
+//     Fase 1: el resto del bloque <header class="market-header"> debe
+//     ser string-identico entre tiendas).
+function marketHeaderHtml({ slugTienda = null, nombreTienda = "", baseAnclas = "" } = {}) {
+    const carritoBotonHtml = slugTienda
+        ? `<button type="button" class="tenant-carrito-boton-nav" id="tenantCarritoAbrirBoton" data-slug-tienda="${escaparHtml(slugTienda)}" aria-label="Ver carrito de ${escaparHtml(nombreTienda)}">Carrito<span id="carritoContador" class="tenant-carrito-contador">0</span></button>`
+        : "";
+
+    return `<header class="market-header">
 <div class="market-header-top">
 <a class="market-logo" href="/market" aria-label="Nexo Market">
 <img src="/nexo-pos-icon.jpg" alt="Nexo">
@@ -680,19 +688,184 @@ function paginaMarketHtml() {
 </div>
 <div class="market-header-acciones">
 <a class="market-header-link" href="#" id="marketFavoritosLink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg><span>Favoritos</span><span class="market-favoritos-contador" id="marketFavoritosContador">0</span></a>
-<div class="market-header-sesion" id="marketSesion"><a class="market-header-link" href="/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Inicia sesion</span></a></div>
+<div class="market-header-sesion" id="marketSesion"><a class="market-header-link" href="/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Inicia sesion</span></a></div>${carritoBotonHtml}
 </div>
 </div>
 <nav class="market-header-nav">
-<a href="#marketOfertas">Ofertas</a>
-<a href="#marketExplora">Explora</a>
+<a href="${baseAnclas}#marketOfertas">Ofertas</a>
+<a href="${baseAnclas}#marketExplora">Explora</a>
 <a href="#" id="marketNavNuevos">Nuevos</a>
-<a href="#marketTiendas">Ferreterias</a>
-<a href="#marketCredito">Credito Nexo</a>
+<a href="${baseAnclas}#marketTiendas">Ferreterias</a>
+<a href="${baseAnclas}#marketCredito">Credito Nexo</a>
 <a href="/site#contacto">Ayuda</a>
 <a href="/site#planes">Vende en Nexo</a>
 </nav>
-</header>
+</header>`;
+}
+
+// Footer de Nexo Market -- extraido tal cual, sin parametros (identico
+// en cualquier pagina de la familia Market).
+function marketFooterHtml() {
+    return `<footer>
+<div class="brand">
+<img src="/nexo-pos-icon.jpg" alt="Nexo">
+<span>Nexo</span>
+</div>
+<span>Sistema comercial para punto de venta.</span>
+<nav aria-label="Legal">
+<a href="/terminos">Terminos</a>
+<a href="/privacidad">Privacidad</a>
+</nav>
+</footer>`;
+}
+
+// Script minimo de la barra fija de Market (sesion + buscador con
+// sugerencias en vivo + link de favoritos) -- pensado para reusarse tal
+// cual dentro de una pagina de tienda (/market/{slug}/...), donde NO se
+// carga el script grande de abajo (marketCargarInicio, marketMostrarBusqueda,
+// etc., que son exclusivos de /market). /market NO consume esta funcion
+// -- su propio script (mas abajo, sin tocar) ya resuelve lo mismo en
+// pagina, por eso queda intacto byte a byte en el refactor de esta fase.
+//
+// navegarABusqueda=true (paginas de tienda): enviar el buscador o tocar
+// Favoritos navega a /market?buscar=...|/market?vista=favoritos -- no
+// hay pantalla de resultados propia ahi todavia (Fase 1, fuera de
+// alcance). navegarABusqueda=false: intenta usar las funciones del
+// script grande si existen (mismo criterio defensivo, en caso de reuso
+// futuro), sin asumir que existen.
+function scriptMarketHeaderHtml({ navegarABusqueda = false } = {}) {
+    const irABusquedaJs = navegarABusqueda
+        ? "marketHeaderIrABusqueda(texto, categoria);"
+        : "if (typeof marketMostrarBusqueda === \"function\") { if (!texto && !categoria) { if (typeof marketMostrarInicio === \"function\") marketMostrarInicio(); } else { marketMostrarBusqueda({ buscar: texto, categoria: categoria }); } }";
+    const verTodoJs = navegarABusqueda
+        ? "marketHeaderIrABusqueda(texto, categoria);"
+        : "if (typeof marketMostrarBusqueda === \"function\") { marketMostrarBusqueda({ buscar: texto, categoria: categoria }); }";
+    const favoritosJs = navegarABusqueda
+        ? "location.href = \"/market?vista=favoritos\";"
+        : "document.getElementById(\"marketBuscarInput\").value = \"\"; document.getElementById(\"marketCategoriaSelect\").value = \"\"; if (typeof marketMostrarVistaFavoritos === \"function\") marketMostrarVistaFavoritos();";
+
+    return `
+function marketHeaderEscapeHtml(texto) {
+    return String(texto == null ? "" : texto)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+async function marketHeaderLlamar(ruta, opciones) {
+    const respuesta = await fetch(ruta, Object.assign({ credentials: "include" }, opciones || {}));
+    return respuesta.json();
+}
+
+async function marketHeaderCargarSesion() {
+    const estado = await marketHeaderLlamar("/personas/estado");
+    if (!estado.ok) return;
+    document.getElementById("marketSesion").innerHTML =
+        '<a class="market-header-link" href="/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Hola, ' + marketHeaderEscapeHtml(estado.persona.nombre) + '</span></a>';
+}
+marketHeaderCargarSesion();
+
+function marketHeaderIrABusqueda(texto, categoria) {
+    var params = [];
+    if (texto) params.push("buscar=" + encodeURIComponent(texto));
+    if (categoria) params.push("categoria=" + encodeURIComponent(categoria));
+    location.href = "/market" + (params.length ? "?" + params.join("&") : "");
+}
+
+var ICONO_FOTO_GENERICA_HEADER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg>';
+
+function marketHeaderSugerenciaItemHtml(p) {
+    var fotoHtml = p.fotoUrl
+        ? '<img src="' + p.fotoUrl + '" alt="" loading="lazy">'
+        : ICONO_FOTO_GENERICA_HEADER;
+    var precioMostrado = (p.precioOferta !== null && p.precioOferta !== undefined) ? p.precioOferta : p.precio;
+    var precioHtml = (precioMostrado !== null && precioMostrado !== undefined)
+        ? '<span class="market-sugerencia-precio">$' + Number(precioMostrado).toFixed(2) + '</span>' : '';
+
+    return '<a class="market-sugerencia-item" href="/market/' + encodeURIComponent(p.slug) + '/catalogo/' + encodeURIComponent(p.codigo) + '">' +
+        '<span class="market-sugerencia-foto">' + fotoHtml + '</span>' +
+        '<span class="market-sugerencia-texto"><strong>' + marketHeaderEscapeHtml(p.nombre) + '</strong><small>' + marketHeaderEscapeHtml(p.tienda) + '</small></span>' +
+        precioHtml + '</a>';
+}
+
+var marketHeaderSugerenciasTimeout = null;
+var marketHeaderSugerenciasTextoVigente = "";
+
+function marketHeaderOcultarSugerencias() {
+    var panel = document.getElementById("marketSugerencias");
+    panel.hidden = true;
+    panel.innerHTML = "";
+}
+
+async function marketHeaderBuscarSugerencias(texto) {
+    marketHeaderSugerenciasTextoVigente = texto;
+    var datos = await marketHeaderLlamar("/market/sugerencias-json?buscar=" + encodeURIComponent(texto));
+    if (marketHeaderSugerenciasTextoVigente !== texto) return;
+
+    var panel = document.getElementById("marketSugerencias");
+    if (!datos.ok || datos.productos.length === 0) {
+        panel.innerHTML = '<p class="market-sugerencias-vacio">No encontramos productos para "' + marketHeaderEscapeHtml(texto) + '".</p>';
+        panel.hidden = false;
+        return;
+    }
+    panel.innerHTML = datos.productos.map(marketHeaderSugerenciaItemHtml).join('') +
+        '<button type="button" class="market-sugerencias-vertodo" id="marketHeaderVerTodoSugerencias">Ver todos los resultados para "' + marketHeaderEscapeHtml(texto) + '"</button>';
+    panel.hidden = false;
+}
+
+document.getElementById("marketBuscarInput").addEventListener("input", function(evento) {
+    var texto = evento.target.value.trim();
+    clearTimeout(marketHeaderSugerenciasTimeout);
+    if (texto.length < 2) { marketHeaderOcultarSugerencias(); return; }
+    marketHeaderSugerenciasTimeout = setTimeout(function() { marketHeaderBuscarSugerencias(texto); }, 280);
+});
+
+document.getElementById("marketBuscarInput").addEventListener("keydown", function(evento) {
+    if (evento.key === "Escape") marketHeaderOcultarSugerencias();
+});
+
+document.addEventListener("click", function(evento) {
+    var verTodo = evento.target.closest("#marketHeaderVerTodoSugerencias");
+    if (verTodo) {
+        var texto = document.getElementById("marketBuscarInput").value.trim();
+        var categoria = document.getElementById("marketCategoriaSelect").value;
+        marketHeaderOcultarSugerencias();
+        ${verTodoJs}
+        return;
+    }
+    if (!evento.target.closest(".market-search-wrap")) {
+        marketHeaderOcultarSugerencias();
+    }
+});
+
+document.getElementById("marketBuscadorForm").addEventListener("submit", function(evento) {
+    evento.preventDefault();
+    marketHeaderOcultarSugerencias();
+    var texto = document.getElementById("marketBuscarInput").value.trim();
+    var categoria = document.getElementById("marketCategoriaSelect").value;
+    ${irABusquedaJs}
+});
+
+document.getElementById("marketFavoritosLink").addEventListener("click", function(evento) {
+    evento.preventDefault();
+    ${favoritosJs}
+});
+`;
+}
+
+function paginaMarketHtml() {
+    return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexo Market -- todo para construir, instalar y reparar</title>
+<meta name="description" content="Busca productos entre varias ferreterias Nexo, compara precio y disponibilidad, y compra directo con la tienda que elijas.">
+<link rel="icon" href="/nexo-pos-icon.jpg">
+<link rel="stylesheet" href="/site/styles.css">
+<style>${ESTILOS_MARKET}</style>
+</head>
+<body>
+${marketHeaderHtml({})}
 
 <main>
 <section class="market-hero">
@@ -767,17 +940,7 @@ function paginaMarketHtml() {
 </div>
 </main>
 
-<footer>
-<div class="brand">
-<img src="/nexo-pos-icon.jpg" alt="Nexo">
-<span>Nexo</span>
-</div>
-<span>Sistema comercial para punto de venta.</span>
-<nav aria-label="Legal">
-<a href="/terminos">Terminos</a>
-<a href="/privacidad">Privacidad</a>
-</nav>
-</footer>
+${marketFooterHtml()}
 
 <script>
 function escapeHtml(texto) {
@@ -805,11 +968,11 @@ function marketTarjetaTienda(t) {
     return '<div class="market-tienda-card"><strong>' + escapeHtml(t.nombre) + '</strong>' +
         (t.giro ? '<span class="market-tienda-giro">' + escapeHtml(t.giro) + '</span>' : '') +
         (t.direccion ? '<span class="market-tienda-direccion">' + escapeHtml(t.direccion) + '</span>' : '') +
-        '<a class="btn secondary" href="https://' + escapeHtml(t.slug) + '.nexoposoficial.com">Ver tienda</a></div>';
+        '<a class="btn secondary" href="/market/' + encodeURIComponent(t.slug) + '">Ver tienda</a></div>';
 }
 
 function marketTarjetaTiendaSidebar(t, indice) {
-    return '<a class="market-tienda-fila" href="https://' + escapeHtml(t.slug) + '.nexoposoficial.com">' +
+    return '<a class="market-tienda-fila" href="/market/' + encodeURIComponent(t.slug) + '">' +
         '<span class="market-tienda-fila-numero">' + (indice + 1) + '</span>' +
         '<span class="market-tienda-fila-nombre">' + escapeHtml(t.nombre) + '</span>' +
         (t.giro ? '<span class="market-tienda-fila-giro">' + escapeHtml(t.giro) + '</span>' : '') +
@@ -838,12 +1001,12 @@ function marketTarjetaProducto(p) {
 
     return '<div class="market-producto-card">' +
         '<button type="button" class="market-producto-favorito" data-slug="' + escapeHtml(p.slug) + '" data-codigo="' + escapeHtml(p.codigo) + '" aria-label="Guardar en favoritos">' + ICONO_CORAZON + '</button>' +
-        '<a href="https://' + escapeHtml(p.slug) + '.nexoposoficial.com/catalogo/' + encodeURIComponent(p.codigo) + '" class="market-producto-foto">' + fotoHtml + '</a>' +
+        '<a href="/market/' + encodeURIComponent(p.slug) + '/catalogo/' + encodeURIComponent(p.codigo) + '" class="market-producto-foto">' + fotoHtml + '</a>' +
         '<span class="market-producto-nombre">' + escapeHtml(p.nombre) + '</span>' +
         '<span class="market-producto-precios">' + precioHtml + '</span>' +
         existenciaHtml +
         '<span class="market-producto-tienda">' + escapeHtml(p.tienda) + '</span>' +
-        '<a class="btn primary" href="https://' + escapeHtml(p.slug) + '.nexoposoficial.com/catalogo/' + encodeURIComponent(p.codigo) + '">Ver en ' + escapeHtml(p.tienda) + '</a></div>';
+        '<a class="btn primary" href="/market/' + encodeURIComponent(p.slug) + '/catalogo/' + encodeURIComponent(p.codigo) + '">Ver en ' + escapeHtml(p.tienda) + '</a></div>';
 }
 
 function marketGridProductos(productos) {
@@ -961,7 +1124,7 @@ function marketPintarOfertaDelDia(ofertas) {
             '<span class="market-producto-precio-tachado">$' + Number(p.precio).toFixed(2) + '</span>' +
             (descuento ? '<span class="market-producto-badge-oferta">-' + descuento + '%</span>' : '') +
         '</div>' +
-        '<a class="btn primary" href="https://' + escapeHtml(p.slug) + '.nexoposoficial.com/catalogo/' + encodeURIComponent(p.codigo) + '">Ver oferta</a>';
+        '<a class="btn primary" href="/market/' + encodeURIComponent(p.slug) + '/catalogo/' + encodeURIComponent(p.codigo) + '">Ver oferta</a>';
 }
 
 function marketPintarCreditoNexo(tiendas) {
@@ -1337,7 +1500,7 @@ function marketSugerenciaItemHtml(p) {
     var precioHtml = (precioMostrado !== null && precioMostrado !== undefined)
         ? '<span class="market-sugerencia-precio">$' + Number(precioMostrado).toFixed(2) + '</span>' : '';
 
-    return '<a class="market-sugerencia-item" href="https://' + escapeHtml(p.slug) + '.nexoposoficial.com/catalogo/' + encodeURIComponent(p.codigo) + '">' +
+    return '<a class="market-sugerencia-item" href="/market/' + encodeURIComponent(p.slug) + '/catalogo/' + encodeURIComponent(p.codigo) + '">' +
         '<span class="market-sugerencia-foto">' + fotoHtml + '</span>' +
         '<span class="market-sugerencia-texto"><strong>' + escapeHtml(p.nombre) + '</strong><small>' + escapeHtml(p.tienda) + '</small></span>' +
         precioHtml + '</a>';
@@ -1388,6 +1551,23 @@ document.addEventListener("click", function(evento) {
 
 marketCargarSesion();
 marketCargarInicio();
+
+// Bootstrap de deep-link (Fase 1 "Market embebido"): el buscador de la
+// barra fija sigue siendo el mismo en cualquier pagina de tienda bajo
+// /market/{slug}/..., pero ahi no existe pantalla de resultados propia
+// todavia -- enviar una busqueda desde ahi navega de vuelta a
+// /market?buscar=...|?categoria=...|?vista=favoritos (ver scriptMarketHeaderHtml).
+// Esto hace que esa navegacion aterrice ya con los resultados abiertos.
+var marketParamsIniciales = new URLSearchParams(location.search);
+if (marketParamsIniciales.get("vista") === "favoritos") {
+    marketMostrarVistaFavoritos();
+} else if (marketParamsIniciales.get("buscar") || marketParamsIniciales.get("categoria")) {
+    var marketBuscarInicial = marketParamsIniciales.get("buscar") || "";
+    var marketCategoriaInicial = marketParamsIniciales.get("categoria") || "";
+    document.getElementById("marketBuscarInput").value = marketBuscarInicial;
+    document.getElementById("marketCategoriaSelect").value = marketCategoriaInicial;
+    marketMostrarBusqueda({ buscar: marketBuscarInicial, categoria: marketCategoriaInicial });
+}
 </script>
 </body>
 </html>`;
@@ -1398,4 +1578,7 @@ async function servirMarketPagina(req, res) {
     res.send(paginaMarketHtml());
 }
 
-module.exports = { servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, tiendasPermitidasMarket };
+module.exports = {
+    servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, tiendasPermitidasMarket,
+    ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml
+};

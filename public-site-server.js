@@ -278,17 +278,21 @@ function iconoCategoriaTenant(nombre) {
 // Tarjeta de producto compartida (Fase 9) -- catalogo y destacados
 // del inicio usan exactamente el mismo markup/clases (incluido el
 // boton de carrito de Fase 7), solo cambia de donde vienen los datos.
-function tarjetaProductoTenantHtml({ codigo, nombre, fotoUrl, precio, precioOferta, stock }) {
+function tarjetaProductoTenantHtml({ codigo, nombre, fotoUrl, precio, precioOferta, stock, basePath = "", mostrarFavorito = !basePath, mostrarComparar = !basePath }) {
     const nombreSeguro = escaparHtml(nombre);
     const existenciaHtml = stock !== null && stock !== undefined
         ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>`
         : "";
     const precioHtml = precio !== null && precio !== undefined ? precioOfertaHtml(precio, precioOferta) : "";
+    const favoritoBtnHtml = mostrarFavorito
+        ? `<button type="button" class="tenant-btn-favorito" data-codigo="${escaparHtml(codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}</button>\n`
+        : "";
+    const compararBtnHtml = mostrarComparar
+        ? `<button type="button" class="tenant-btn-comparar" data-codigo="${escaparHtml(codigo)}" aria-label="Agregar a comparar">${ICONO_TENANT_COMPARAR}</button>\n`
+        : "";
 
     return `<div class="tenant-producto-card">
-<button type="button" class="tenant-btn-favorito" data-codigo="${escaparHtml(codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}</button>
-<button type="button" class="tenant-btn-comparar" data-codigo="${escaparHtml(codigo)}" aria-label="Agregar a comparar">${ICONO_TENANT_COMPARAR}</button>
-<a href="/catalogo/${encodeURIComponent(codigo)}">
+${favoritoBtnHtml}${compararBtnHtml}<a href="${basePath}/catalogo/${encodeURIComponent(codigo)}">
 <div class="tenant-producto-foto">${fotoUrl ? `<img src="${fotoUrl}" alt="${nombreSeguro}">` : `<span class="tenant-producto-foto-vacia">Sin foto</span>`}</div>
 <div class="tenant-producto-info">
 <span class="tenant-producto-nombre">${nombreSeguro}</span>
@@ -303,10 +307,10 @@ ${existenciaHtml}
 // Bloque <style> compartido por las 3 paginas publicas (info, catalogo,
 // detalle) -- un solo lugar para los tokens de color/nav/footer y para
 // las clases nuevas de grilla/tarjeta/filtros/paginacion de la Fase 2.
-function estilosBaseTenant(color) {
+function estilosBaseTenant(color, selectorRaiz = ":root") {
     const colorFinal = colorSeguro(color);
     return `
-:root{ --blue:${colorFinal}; --blue-dark:${colorFinal}; }
+${selectorRaiz}{ --blue:${colorFinal}; --blue-dark:${colorFinal}; }
 .tenant-header{ position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:16px clamp(20px,5vw,64px); background:rgba(247,249,252,.78); backdrop-filter:blur(22px) saturate(160%); border-bottom:1px solid var(--line); }
 .tenant-header-marca{ display:flex; align-items:center; gap:12px; }
 .tenant-header-marca img{ width:44px; height:44px; border-radius:12px; object-fit:cover; }
@@ -557,9 +561,9 @@ function beneficiosTenantHtml(datos) {
 // Grilla de categorias reales (Fase 9) -- solo las categorias que el
 // negocio de verdad tiene etiquetadas, nunca una lista fija. Vacia si
 // el negocio no tiene ninguna categoria etiquetada.
-function categoriasTenantHtml(categorias) {
+function categoriasTenantHtml(categorias, basePath = "") {
     if (!categorias || !categorias.length) return "";
-    const tiles = categorias.map(c => `<a class="tenant-categoria-tile" href="/catalogo?categoria=${encodeURIComponent(c.categoria)}">${iconoCategoriaTenant(c.categoria)}<span>${escaparHtml(c.categoria)}</span></a>`).join("");
+    const tiles = categorias.map(c => `<a class="tenant-categoria-tile" href="${basePath}/catalogo?categoria=${encodeURIComponent(c.categoria)}">${iconoCategoriaTenant(c.categoria)}<span>${escaparHtml(c.categoria)}</span></a>`).join("");
     return `<section class="tenant-seccion-home"><h2>Categorias</h2><div class="tenant-categorias-grid">${tiles}</div></section>`;
 }
 
@@ -584,10 +588,10 @@ function promosTenantHtml(datos) {
 
 // Productos destacados (Fase 9) -- solo si el dueno marco al menos
 // uno a mano, nunca un fallback automatico a "productos recientes".
-function destacadosTenantHtml(destacados) {
+function destacadosTenantHtml(destacados, basePath = "") {
     if (!destacados || !destacados.length) return "";
-    const tarjetas = destacados.map(p => tarjetaProductoTenantHtml(p)).join("");
-    return `<section class="tenant-seccion-home"><div class="tenant-seccion-home-header"><h2>Productos destacados</h2><a href="/catalogo">Ver todos</a></div><div class="tenant-catalogo-grid">${tarjetas}</div></section>`;
+    const tarjetas = destacados.map(p => tarjetaProductoTenantHtml({ ...p, basePath })).join("");
+    return `<section class="tenant-seccion-home"><div class="tenant-seccion-home-header"><h2>Productos destacados</h2><a href="${basePath}/catalogo">Ver todos</a></div><div class="tenant-catalogo-grid">${tarjetas}</div></section>`;
 }
 
 function renderizarPaginaNegocio(datos) {
@@ -674,6 +678,94 @@ ${modalCarritoTenantHtml(datos.slug)}
 </html>`;
 }
 
+// Carga de datos del inicio de un negocio (Fase 1 "Market embebido"):
+// separado de renderizarPaginaNegocio para poder reusarse desde
+// market-tienda-server.js (inicio de una tienda dentro de
+// /market/{slug}/...) sin duplicar las 4 consultas ni la logica de
+// "solo lo real, nunca inventado" que ya tenian (destacados marcados a
+// mano, oferta vigente real, categorias con al menos 1 producto).
+async function cargarInicioTenant(pool, sitio, slug, firmarTokenImagen) {
+    const conteoProductos = await pool.query(
+        `SELECT COUNT(*) AS total FROM public.productos WHERE negocio_id = $1`,
+        [sitio.negocio.id]
+    );
+
+    // Top 10 categorias reales del negocio (nunca una lista fija) --
+    // alimenta la grilla de categorias del inicio.
+    const categoriasRes = await pool.query(
+        `
+        SELECT categoria, COUNT(*) AS total
+        FROM public.productos
+        WHERE negocio_id = $1 AND categoria IS NOT NULL AND categoria <> ''
+        GROUP BY categoria
+        ORDER BY COUNT(*) DESC
+        LIMIT 10
+        `,
+        [sitio.negocio.id]
+    );
+
+    // Productos destacados (Fase 9) -- solo los que el dueno marco
+    // a mano, nunca un fallback automatico. Mismas columnas
+    // condicionales de precio/existencia que el catalogo.
+    const columnasDestacados = [
+        "codigo", "nombre",
+        sitio.config.mostrarPrecios ? "COALESCE(precio_publico, precio) AS precio" : null,
+        sitio.config.mostrarPrecios ? "precio_oferta" : null,
+        sitio.config.mostrarExistencias ? "stock" : null
+    ].filter(Boolean);
+    const destacadosRes = await pool.query(
+        `
+        SELECT ${columnasDestacados.join(", ")}
+        FROM public.productos
+        WHERE negocio_id = $1 AND destacado = true
+        ORDER BY nombre
+        LIMIT 8
+        `,
+        [sitio.negocio.id]
+    );
+
+    let fotosDestacadosSet = new Set();
+    if (destacadosRes.rows.length) {
+        const fotosDestacadosRes = await pool.query(
+            `SELECT codigo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2)`,
+            [sitio.negocio.id, destacadosRes.rows.map(p => p.codigo)]
+        );
+        fotosDestacadosSet = new Set(fotosDestacadosRes.rows.map(f => f.codigo));
+    }
+
+    const destacados = destacadosRes.rows.map(p => ({
+        codigo: p.codigo,
+        nombre: p.nombre,
+        fotoUrl: fotosDestacadosSet.has(p.codigo)
+            ? `/fotos-producto/${encodeURIComponent(p.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, p.codigo)}`
+            : "",
+        precio: p.precio ?? null,
+        precioOferta: p.precio_oferta ?? null,
+        stock: p.stock !== undefined && p.stock !== null ? Number(p.stock) : null
+    }));
+
+    // Existe al menos 1 oferta real vigente -- decide si el bloque
+    // "Ofertas" se pinta aunque no haya promocion manual activa.
+    const existeOfertaRes = await pool.query(
+        `
+        SELECT EXISTS(
+            SELECT 1 FROM public.productos
+            WHERE negocio_id = $1
+            AND precio_oferta IS NOT NULL
+            AND precio_oferta < COALESCE(precio_publico, precio)
+        ) AS existe
+        `,
+        [sitio.negocio.id]
+    );
+
+    return {
+        totalProductos: Number(conteoProductos.rows[0].total),
+        categorias: categoriasRes.rows,
+        destacados,
+        existeOferta: existeOfertaRes.rows[0].existe
+    };
+}
+
 async function servirSitioNegocio(pool, req, res, slug, firmarTokenImagen) {
     try {
         const sitio = await resolverSitioPublico(pool, slug);
@@ -683,78 +775,7 @@ async function servirSitioNegocio(pool, req, res, slug, firmarTokenImagen) {
             return;
         }
 
-        const conteoProductos = await pool.query(
-            `SELECT COUNT(*) AS total FROM public.productos WHERE negocio_id = $1`,
-            [sitio.negocio.id]
-        );
-
-        // Top 10 categorias reales del negocio (nunca una lista fija) --
-        // alimenta la grilla de categorias del inicio.
-        const categoriasRes = await pool.query(
-            `
-            SELECT categoria, COUNT(*) AS total
-            FROM public.productos
-            WHERE negocio_id = $1 AND categoria IS NOT NULL AND categoria <> ''
-            GROUP BY categoria
-            ORDER BY COUNT(*) DESC
-            LIMIT 10
-            `,
-            [sitio.negocio.id]
-        );
-
-        // Productos destacados (Fase 9) -- solo los que el dueno marco
-        // a mano, nunca un fallback automatico. Mismas columnas
-        // condicionales de precio/existencia que el catalogo.
-        const columnasDestacados = [
-            "codigo", "nombre",
-            sitio.config.mostrarPrecios ? "COALESCE(precio_publico, precio) AS precio" : null,
-            sitio.config.mostrarPrecios ? "precio_oferta" : null,
-            sitio.config.mostrarExistencias ? "stock" : null
-        ].filter(Boolean);
-        const destacadosRes = await pool.query(
-            `
-            SELECT ${columnasDestacados.join(", ")}
-            FROM public.productos
-            WHERE negocio_id = $1 AND destacado = true
-            ORDER BY nombre
-            LIMIT 8
-            `,
-            [sitio.negocio.id]
-        );
-
-        let fotosDestacadosSet = new Set();
-        if (destacadosRes.rows.length) {
-            const fotosDestacadosRes = await pool.query(
-                `SELECT codigo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2)`,
-                [sitio.negocio.id, destacadosRes.rows.map(p => p.codigo)]
-            );
-            fotosDestacadosSet = new Set(fotosDestacadosRes.rows.map(f => f.codigo));
-        }
-
-        const destacados = destacadosRes.rows.map(p => ({
-            codigo: p.codigo,
-            nombre: p.nombre,
-            fotoUrl: fotosDestacadosSet.has(p.codigo)
-                ? `/fotos-producto/${encodeURIComponent(p.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, p.codigo)}`
-                : "",
-            precio: p.precio ?? null,
-            precioOferta: p.precio_oferta ?? null,
-            stock: p.stock !== undefined && p.stock !== null ? Number(p.stock) : null
-        }));
-
-        // Existe al menos 1 oferta real vigente -- decide si el bloque
-        // "Ofertas" se pinta aunque no haya promocion manual activa.
-        const existeOfertaRes = await pool.query(
-            `
-            SELECT EXISTS(
-                SELECT 1 FROM public.productos
-                WHERE negocio_id = $1
-                AND precio_oferta IS NOT NULL
-                AND precio_oferta < COALESCE(precio_publico, precio)
-            ) AS existe
-            `,
-            [sitio.negocio.id]
-        );
+        const datos = await cargarInicioTenant(pool, sitio, slug, firmarTokenImagen);
 
         const html = renderizarPaginaNegocio({
             slug: sitio.negocio.slug,
@@ -775,10 +796,10 @@ async function servirSitioNegocio(pool, req, res, slug, firmarTokenImagen) {
             promocionTitulo: sitio.config.promocionTitulo,
             promocionTexto: sitio.config.promocionTexto,
             promocionEnlace: sitio.config.promocionEnlace,
-            totalProductos: Number(conteoProductos.rows[0].total),
-            categorias: categoriasRes.rows,
-            destacados,
-            existeOferta: existeOfertaRes.rows[0].existe
+            totalProductos: datos.totalProductos,
+            categorias: datos.categorias,
+            destacados: datos.destacados,
+            existeOferta: datos.existeOferta
         });
 
         res.set("Content-Type", "text/html; charset=utf-8").send(html);
@@ -940,6 +961,167 @@ async function comparadorJson(pool, req, res, slug, firmarTokenImagen) {
     }
 }
 
+// Carga de datos del catalogo (Fase 1 "Market embebido") -- separada de
+// vistaCatalogoTenantHtml (mas abajo) para poder reusarse desde
+// market-tienda-server.js sin duplicar la busqueda/paginacion/facetas.
+// filtros = { buscar, categoria, marca, ofertas, pagina } -- ya
+// parseados por quien llama (mismo shape que antes leia servirCatalogoNegocio
+// de req.query, ahora explicito para que el llamador decida de donde
+// vienen: query string en ambos casos, subdominio o Market).
+async function cargarCatalogoTenant(pool, sitio, slug, filtros, firmarTokenImagen) {
+    const buscar = filtros?.buscar || "";
+    const categoria = filtros?.categoria || "";
+    const marca = filtros?.marca || "";
+    const ofertas = Boolean(filtros?.ofertas);
+    const pagina = Math.max(1, filtros?.pagina || 1);
+    const offset = (pagina - 1) * PRODUCTOS_POR_PAGINA_CATALOGO;
+
+    const valores = [sitio.negocio.id];
+    const condiciones = ["p.negocio_id = $1"];
+
+    if (ofertas) {
+        condiciones.push(`p.precio_oferta IS NOT NULL AND p.precio_oferta < COALESCE(p.precio_publico, p.precio)`);
+    }
+
+    if (buscar) {
+        valores.push(buscar);
+        const indiceTrgm = valores.length;
+        valores.push(`%${buscar}%`);
+        const indiceIlike = valores.length;
+        condiciones.push(`(p.nombre % $${indiceTrgm} OR p.codigo ILIKE $${indiceIlike} OR p.marca ILIKE $${indiceIlike})`);
+    }
+
+    if (categoria) {
+        valores.push(categoria);
+        condiciones.push(`p.categoria = $${valores.length}`);
+    }
+
+    if (marca) {
+        valores.push(marca);
+        condiciones.push(`p.marca = $${valores.length}`);
+    }
+
+    const columnasExtra = [
+        sitio.config.mostrarPrecios ? "COALESCE(p.precio_publico, p.precio) AS precio" : null,
+        sitio.config.mostrarPrecios ? "p.precio_oferta" : null,
+        sitio.config.mostrarExistencias ? "p.stock" : null
+    ].filter(Boolean);
+
+    valores.push(PRODUCTOS_POR_PAGINA_CATALOGO, offset);
+
+    const filas = await pool.query(
+        `
+        SELECT p.id, p.codigo, p.nombre, p.categoria, p.marca,
+            ${columnasExtra.length ? columnasExtra.join(", ") + "," : ""}
+            COUNT(*) OVER() AS total
+        FROM public.productos p
+        WHERE ${condiciones.join(" AND ")}
+        ORDER BY p.nombre ASC
+        LIMIT $${valores.length - 1} OFFSET $${valores.length}
+        `,
+        valores
+    );
+
+    const filasProductos = filas.rows;
+    const total = filasProductos.length ? Number(filasProductos[0].total) : 0;
+    const totalPaginas = Math.max(1, Math.ceil(total / PRODUCTOS_POR_PAGINA_CATALOGO));
+
+    let fotosPorCodigo = new Set();
+    if (filasProductos.length) {
+        const codigos = filasProductos.map(p => p.codigo);
+        const fotos = await pool.query(
+            `SELECT codigo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2)`,
+            [sitio.negocio.id, codigos]
+        );
+        fotosPorCodigo = new Set(fotos.rows.map(f => f.codigo));
+    }
+
+    const [categoriasRes, marcasRes] = await Promise.all([
+        pool.query(
+            `SELECT DISTINCT categoria FROM public.productos WHERE negocio_id = $1 AND categoria IS NOT NULL AND categoria <> '' ORDER BY categoria`,
+            [sitio.negocio.id]
+        ),
+        pool.query(
+            `SELECT DISTINCT marca FROM public.productos WHERE negocio_id = $1 AND marca IS NOT NULL AND marca <> '' ORDER BY marca`,
+            [sitio.negocio.id]
+        )
+    ]);
+
+    const productos = filasProductos.map(p => ({
+        codigo: p.codigo,
+        nombre: p.nombre,
+        fotoUrl: fotosPorCodigo.has(p.codigo)
+            ? `/fotos-producto/${encodeURIComponent(p.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, p.codigo)}`
+            : "",
+        precio: p.precio ?? null,
+        precioOferta: p.precio_oferta ?? null,
+        stock: p.stock !== undefined && p.stock !== null ? Number(p.stock) : null
+    }));
+
+    return {
+        productos,
+        total,
+        totalPaginas,
+        categorias: categoriasRes.rows,
+        marcas: marcasRes.rows
+    };
+}
+
+// Vista del catalogo (Fase 1 "Market embebido") -- arma solo el
+// contenido de <main> (titulo, pills de categoria, filtros, grid/vacio,
+// paginacion), sin el shell (head/header/footer/scripts) para poder
+// reusarse dentro de la pagina de tienda embebida en Market
+// (market-tienda-server.js), donde el shell es el de Market, no el del
+// tenant. basePath="" (subdominio, valor por defecto) reproduce
+// exactamente el mismo HTML de antes del refactor.
+function vistaCatalogoTenantHtml({ sitio, datos, filtros, basePath = "" }) {
+    const buscar = filtros?.buscar || "";
+    const categoria = filtros?.categoria || "";
+    const marca = filtros?.marca || "";
+    const pagina = Math.max(1, filtros?.pagina || 1);
+    const { productos, total, totalPaginas, categorias, marcas } = datos;
+
+    const tarjetasHtml = productos.length
+        ? productos.map(p => tarjetaProductoTenantHtml({ ...p, basePath })).join("")
+        : "";
+
+    const opcionesCategoria = categorias.map(f =>
+        `<option value="${escaparHtml(f.categoria)}"${f.categoria === categoria ? " selected" : ""}>${escaparHtml(f.categoria)}</option>`
+    ).join("");
+
+    const pillsCategoriaHtml = categorias.length
+        ? `<div class="tenant-categoria-pills">
+<a class="tenant-categoria-pill${categoria ? "" : " activo"}" href="${basePath}/catalogo${construirQueryString({ buscar, marca })}">Todas</a>
+${categorias.map(f => `<a class="tenant-categoria-pill${f.categoria === categoria ? " activo" : ""}" href="${basePath}/catalogo${construirQueryString({ buscar, categoria: f.categoria, marca })}">${escaparHtml(f.categoria)}</a>`).join("")}
+</div>`
+        : "";
+
+    const opcionesMarca = marcas.map(f =>
+        `<option value="${escaparHtml(f.marca)}"${f.marca === marca ? " selected" : ""}>${escaparHtml(f.marca)}</option>`
+    ).join("");
+
+    const paginacionHtml = totalPaginas > 1
+        ? `<div class="tenant-paginacion">
+${pagina > 1 ? `<a href="${basePath}/catalogo${construirQueryString({ buscar, categoria, marca, pagina: pagina - 1 })}">Anterior</a>` : ""}
+<span>Pagina ${pagina} de ${totalPaginas}</span>
+${pagina < totalPaginas ? `<a href="${basePath}/catalogo${construirQueryString({ buscar, categoria, marca, pagina: pagina + 1 })}">Siguiente</a>` : ""}
+</div>`
+        : "";
+
+    return `<h1 class="tenant-catalogo-titulo">Catalogo de productos</h1>
+<p class="tenant-catalogo-subtitulo">${total} producto${total === 1 ? "" : "s"} disponible${total === 1 ? "" : "s"}</p>
+${pillsCategoriaHtml}
+<form class="tenant-filtros" method="GET" action="${basePath}/catalogo">
+<input type="text" name="buscar" placeholder="Buscar por nombre, codigo o marca" value="${escaparHtml(buscar)}">
+<select name="categoria"><option value="">Todas las categorias</option>${opcionesCategoria}</select>
+<select name="marca"><option value="">Todas las marcas</option>${opcionesMarca}</select>
+<button type="submit">Buscar</button>
+</form>
+${productos.length
+    ? `<div class="tenant-catalogo-grid">${tarjetasHtml}</div>${paginacionHtml}`
+    : `<div class="tenant-catalogo-vacio">No encontramos productos con esos filtros.</div>`}`;
+}
+
 async function servirCatalogoNegocio(pool, req, res, slug, firmarTokenImagen) {
     try {
         const sitio = await resolverSitioPublico(pool, slug);
@@ -949,122 +1131,19 @@ async function servirCatalogoNegocio(pool, req, res, slug, firmarTokenImagen) {
             return;
         }
 
-        const buscar = paramTexto(req.query.buscar, 120);
-        const categoria = paramTexto(req.query.categoria, 120);
-        const marca = paramTexto(req.query.marca, 120);
-        const ofertas = req.query.ofertas === "1" && sitio.config.mostrarPrecios;
-        const pagina = Math.max(1, parseInt(req.query.pagina, 10) || 1);
-        const offset = (pagina - 1) * PRODUCTOS_POR_PAGINA_CATALOGO;
+        const filtros = {
+            buscar: paramTexto(req.query.buscar, 120),
+            categoria: paramTexto(req.query.categoria, 120),
+            marca: paramTexto(req.query.marca, 120),
+            ofertas: req.query.ofertas === "1" && sitio.config.mostrarPrecios,
+            pagina: Math.max(1, parseInt(req.query.pagina, 10) || 1)
+        };
 
-        const valores = [sitio.negocio.id];
-        const condiciones = ["p.negocio_id = $1"];
-
-        if (ofertas) {
-            condiciones.push(`p.precio_oferta IS NOT NULL AND p.precio_oferta < COALESCE(p.precio_publico, p.precio)`);
-        }
-
-        if (buscar) {
-            valores.push(buscar);
-            const indiceTrgm = valores.length;
-            valores.push(`%${buscar}%`);
-            const indiceIlike = valores.length;
-            condiciones.push(`(p.nombre % $${indiceTrgm} OR p.codigo ILIKE $${indiceIlike} OR p.marca ILIKE $${indiceIlike})`);
-        }
-
-        if (categoria) {
-            valores.push(categoria);
-            condiciones.push(`p.categoria = $${valores.length}`);
-        }
-
-        if (marca) {
-            valores.push(marca);
-            condiciones.push(`p.marca = $${valores.length}`);
-        }
-
-        const columnasExtra = [
-            sitio.config.mostrarPrecios ? "COALESCE(p.precio_publico, p.precio) AS precio" : null,
-            sitio.config.mostrarPrecios ? "p.precio_oferta" : null,
-            sitio.config.mostrarExistencias ? "p.stock" : null
-        ].filter(Boolean);
-
-        valores.push(PRODUCTOS_POR_PAGINA_CATALOGO, offset);
-
-        const filas = await pool.query(
-            `
-            SELECT p.id, p.codigo, p.nombre, p.categoria, p.marca,
-                ${columnasExtra.length ? columnasExtra.join(", ") + "," : ""}
-                COUNT(*) OVER() AS total
-            FROM public.productos p
-            WHERE ${condiciones.join(" AND ")}
-            ORDER BY p.nombre ASC
-            LIMIT $${valores.length - 1} OFFSET $${valores.length}
-            `,
-            valores
-        );
-
-        const productos = filas.rows;
-        const total = productos.length ? Number(productos[0].total) : 0;
-        const totalPaginas = Math.max(1, Math.ceil(total / PRODUCTOS_POR_PAGINA_CATALOGO));
-
-        let fotosPorCodigo = new Set();
-        if (productos.length) {
-            const codigos = productos.map(p => p.codigo);
-            const fotos = await pool.query(
-                `SELECT codigo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2)`,
-                [sitio.negocio.id, codigos]
-            );
-            fotosPorCodigo = new Set(fotos.rows.map(f => f.codigo));
-        }
-
-        const [categoriasRes, marcasRes] = await Promise.all([
-            pool.query(
-                `SELECT DISTINCT categoria FROM public.productos WHERE negocio_id = $1 AND categoria IS NOT NULL AND categoria <> '' ORDER BY categoria`,
-                [sitio.negocio.id]
-            ),
-            pool.query(
-                `SELECT DISTINCT marca FROM public.productos WHERE negocio_id = $1 AND marca IS NOT NULL AND marca <> '' ORDER BY marca`,
-                [sitio.negocio.id]
-            )
-        ]);
+        const datos = await cargarCatalogoTenant(pool, sitio, slug, filtros, firmarTokenImagen);
+        const contenidoHtml = vistaCatalogoTenantHtml({ sitio, datos, filtros, basePath: "" });
 
         const color = colorSeguro(sitio.negocio.color);
         const nombre = escaparHtml(sitio.negocio.nombre);
-
-        const tarjetasHtml = productos.length
-            ? productos.map(p => tarjetaProductoTenantHtml({
-                codigo: p.codigo,
-                nombre: p.nombre,
-                fotoUrl: fotosPorCodigo.has(p.codigo)
-                    ? `/fotos-producto/${encodeURIComponent(p.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, p.codigo)}`
-                    : "",
-                precio: p.precio ?? null,
-                precioOferta: p.precio_oferta ?? null,
-                stock: p.stock !== undefined && p.stock !== null ? Number(p.stock) : null
-            })).join("")
-            : "";
-
-        const opcionesCategoria = categoriasRes.rows.map(f =>
-            `<option value="${escaparHtml(f.categoria)}"${f.categoria === categoria ? " selected" : ""}>${escaparHtml(f.categoria)}</option>`
-        ).join("");
-
-        const pillsCategoriaHtml = categoriasRes.rows.length
-            ? `<div class="tenant-categoria-pills">
-<a class="tenant-categoria-pill${categoria ? "" : " activo"}" href="/catalogo${construirQueryString({ buscar, marca })}">Todas</a>
-${categoriasRes.rows.map(f => `<a class="tenant-categoria-pill${f.categoria === categoria ? " activo" : ""}" href="/catalogo${construirQueryString({ buscar, categoria: f.categoria, marca })}">${escaparHtml(f.categoria)}</a>`).join("")}
-</div>`
-            : "";
-
-        const opcionesMarca = marcasRes.rows.map(f =>
-            `<option value="${escaparHtml(f.marca)}"${f.marca === marca ? " selected" : ""}>${escaparHtml(f.marca)}</option>`
-        ).join("");
-
-        const paginacionHtml = totalPaginas > 1
-            ? `<div class="tenant-paginacion">
-${pagina > 1 ? `<a href="/catalogo${construirQueryString({ buscar, categoria, marca, pagina: pagina - 1 })}">Anterior</a>` : ""}
-<span>Pagina ${pagina} de ${totalPaginas}</span>
-${pagina < totalPaginas ? `<a href="/catalogo${construirQueryString({ buscar, categoria, marca, pagina: pagina + 1 })}">Siguiente</a>` : ""}
-</div>`
-            : "";
 
         const html = `<!doctype html>
 <html lang="es">
@@ -1081,18 +1160,7 @@ ${pagina < totalPaginas ? `<a href="/catalogo${construirQueryString({ buscar, ca
 ${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true, true, true)}
 ${bannerPromocionHtml(sitio.config)}
 <main class="tenant-main">
-<h1 class="tenant-catalogo-titulo">Catalogo de productos</h1>
-<p class="tenant-catalogo-subtitulo">${total} producto${total === 1 ? "" : "s"} disponible${total === 1 ? "" : "s"}</p>
-${pillsCategoriaHtml}
-<form class="tenant-filtros" method="GET" action="/catalogo">
-<input type="text" name="buscar" placeholder="Buscar por nombre, codigo o marca" value="${escaparHtml(buscar)}">
-<select name="categoria"><option value="">Todas las categorias</option>${opcionesCategoria}</select>
-<select name="marca"><option value="">Todas las marcas</option>${opcionesMarca}</select>
-<button type="submit">Buscar</button>
-</form>
-${productos.length
-    ? `<div class="tenant-catalogo-grid">${tarjetasHtml}</div>${paginacionHtml}`
-    : `<div class="tenant-catalogo-vacio">No encontramos productos con esos filtros.</div>`}
+${contenidoHtml}
 </main>
 <footer class="tenant-footer">Con la tecnologia de Nexo</footer>
 ${modalCarritoTenantHtml(slug)}
@@ -1206,86 +1274,153 @@ ${modalCarritoTenantHtml(slug)}
     }
 }
 
-async function servirProductoNegocio(pool, req, res, slug, codigo, firmarTokenImagen) {
-    try {
-        const sitio = await resolverSitioPublico(pool, slug);
+// Carga de datos de la ficha de producto (Fase 1 "Market embebido") --
+// separada de vistaProductoTenantHtml para poder reusarse desde
+// market-tienda-server.js sin duplicar galeria/complementarios/garantia
+// (funcionalidad agregada en la sesion anterior, que esta funcion
+// preserva tal cual). Regresa null si el producto no existe en esta
+// tienda (el llamador decide como responder el 404).
+async function cargarProductoTenant(pool, sitio, slug, codigo, firmarTokenImagen) {
+    const productoRes = await pool.query(
+        `
+        SELECT id, codigo, nombre, categoria, marca, descripcion, precio, precio_publico, precio_oferta, stock,
+            tiene_garantia, garantia_detalle
+        FROM public.productos
+        WHERE negocio_id = $1 AND codigo = $2
+        LIMIT 1
+        `,
+        [sitio.negocio.id, codigo]
+    );
 
-        if (!sitio) {
-            res.status(404).send("No encontrado");
-            return;
+    const producto = productoRes.rows[0];
+
+    if (!producto) return null;
+
+    const fotoRes = await pool.query(
+        `SELECT codigo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = $2`,
+        [sitio.negocio.id, producto.codigo]
+    );
+    const tieneFoto = fotoRes.rows.length > 0;
+    const fotoUrl = tieneFoto
+        ? `/fotos-producto/${encodeURIComponent(producto.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, producto.codigo)}`
+        : "";
+
+    // Galeria propia del negocio (fotos_producto_galeria) -- fotos
+    // adicionales reales que el dueno ya subio para este producto,
+    // nunca imagenes inventadas. La principal (arriba) siempre va
+    // primero en la tira de miniaturas si existe.
+    const galeriaRes = await pool.query(
+        `
+        SELECT fg.id
+        FROM public.fotos_producto_galeria fg
+        JOIN public.fotos_producto fp ON fp.id = fg.foto_producto_id
+        WHERE fp.negocio_id = $1 AND fp.codigo = $2
+        ORDER BY fg.orden ASC
+        `,
+        [sitio.negocio.id, producto.codigo]
+    );
+    const galeriaUrls = galeriaRes.rows.map(fila =>
+        `/fotos-producto-galeria/${fila.id}?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, String(fila.id))}`
+    );
+    const imagenesProducto = fotoUrl ? [fotoUrl, ...galeriaUrls] : galeriaUrls;
+
+    // Productos que puedes complementar -- otros productos reales de
+    // la MISMA tienda que comparten categoria o marca con este, nunca
+    // un emparejamiento inventado de "accesorios compatibles". Si no
+    // hay ninguno real, la lista queda vacia.
+    let complementarios = [];
+    if (producto.categoria || producto.marca) {
+        const condicionesComp = ["p.negocio_id = $1", "p.codigo <> $2"];
+        const valoresComp = [sitio.negocio.id, producto.codigo];
+        const subcondiciones = [];
+        if (producto.categoria) {
+            valoresComp.push(producto.categoria);
+            subcondiciones.push(`p.categoria = $${valoresComp.length}`);
         }
-
-        const productoRes = await pool.query(
-            `
-            SELECT id, codigo, nombre, categoria, marca, descripcion, precio, precio_publico, precio_oferta, stock,
-                tiene_garantia, garantia_detalle
-            FROM public.productos
-            WHERE negocio_id = $1 AND codigo = $2
-            LIMIT 1
-            `,
-            [sitio.negocio.id, codigo]
-        );
-
-        const producto = productoRes.rows[0];
-
-        if (!producto) {
-            res.status(404).send("No encontrado");
-            return;
+        if (producto.marca) {
+            valoresComp.push(producto.marca);
+            subcondiciones.push(`p.marca = $${valoresComp.length}`);
         }
+        condicionesComp.push(`(${subcondiciones.join(" OR ")})`);
 
-        const fotoRes = await pool.query(
-            `SELECT codigo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = $2`,
-            [sitio.negocio.id, producto.codigo]
-        );
-        const tieneFoto = fotoRes.rows.length > 0;
-        const fotoUrl = tieneFoto
-            ? `/fotos-producto/${encodeURIComponent(producto.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, producto.codigo)}`
-            : "";
+        const columnasExtraComp = [
+            sitio.config.mostrarPrecios ? "COALESCE(p.precio_publico, p.precio) AS precio" : null,
+            sitio.config.mostrarPrecios ? "p.precio_oferta" : null,
+            sitio.config.mostrarExistencias ? "p.stock" : null
+        ].filter(Boolean);
 
-        // Galeria propia del negocio (fotos_producto_galeria) -- fotos
-        // adicionales reales que el dueno ya subio para este producto,
-        // nunca imagenes inventadas. La principal (arriba) siempre va
-        // primero en la tira de miniaturas si existe.
-        const galeriaRes = await pool.query(
+        const complementariosRes = await pool.query(
             `
-            SELECT fg.id
-            FROM public.fotos_producto_galeria fg
-            JOIN public.fotos_producto fp ON fp.id = fg.foto_producto_id
-            WHERE fp.negocio_id = $1 AND fp.codigo = $2
-            ORDER BY fg.orden ASC
+            SELECT p.codigo, p.nombre
+                ${columnasExtraComp.length ? ", " + columnasExtraComp.join(", ") : ""}
+            FROM public.productos p
+            WHERE ${condicionesComp.join(" AND ")}
+            ORDER BY p.nombre ASC
+            LIMIT 12
             `,
-            [sitio.negocio.id, producto.codigo]
+            valoresComp
         );
-        const galeriaUrls = galeriaRes.rows.map(fila =>
-            `/fotos-producto-galeria/${fila.id}?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, String(fila.id))}`
-        );
-        const imagenesProducto = fotoUrl ? [fotoUrl, ...galeriaUrls] : galeriaUrls;
-        const miniaturasHtml = imagenesProducto.length > 1
-            ? `<div class="tenant-detalle-miniaturas">${imagenesProducto.map((url, indice) => `<button type="button" class="tenant-detalle-miniatura${indice === 0 ? " activa" : ""}" onclick="document.getElementById('tenantDetalleFotoActual').src='${url}';this.parentElement.querySelectorAll('.tenant-detalle-miniatura').forEach(b=>b.classList.remove('activa'));this.classList.add('activa');"><img src="${url}" alt=""></button>`).join("")}</div>`
+
+        if (complementariosRes.rows.length) {
+            const codigosComp = complementariosRes.rows.map(p => p.codigo);
+            const fotosComp = await pool.query(
+                `SELECT codigo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2)`,
+                [sitio.negocio.id, codigosComp]
+            );
+            const fotosPorCodigoComp = new Set(fotosComp.rows.map(f => f.codigo));
+
+            complementarios = complementariosRes.rows.map(p => ({
+                codigo: p.codigo,
+                nombre: p.nombre,
+                fotoUrl: fotosPorCodigoComp.has(p.codigo)
+                    ? `/fotos-producto/${encodeURIComponent(p.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, p.codigo)}`
+                    : "",
+                precio: p.precio ?? null,
+                precioOferta: p.precio_oferta ?? null,
+                stock: p.stock !== undefined && p.stock !== null ? Number(p.stock) : null
+            }));
+        }
+    }
+
+    const precio = sitio.config.mostrarPrecios
+        ? Number(producto.precio_publico ?? producto.precio)
+        : null;
+    const stock = sitio.config.mostrarExistencias ? Number(producto.stock) : null;
+
+    return { producto, fotoUrl, galeriaUrls, imagenesProducto, complementarios, precio, stock };
+}
+
+// Vista de la ficha de producto (Fase 1 "Market embebido") -- arma solo
+// el contenido de <main> (breadcrumb, banner de pedido, galeria,
+// datos/acciones, garantia, pedido rapido, complementarios), sin el
+// shell, para reusarse dentro de la pagina de tienda embebida en
+// Market. basePath="" (default) reproduce el HTML de antes del
+// refactor byte a byte. Cuando basePath es truthy (dentro de Market),
+// los botones de favorito/comparar de la ficha se ocultan -- sus
+// scripts (scriptFavoritosTenantHtml/scriptComparadorTenantHtml) no se
+// cargan todavia ahi (fuera de alcance de esta fase), mismo criterio
+// que tarjetaProductoTenantHtml.
+function vistaProductoTenantHtml({ sitio, datos, basePath = "", estadoPedido = "" }) {
+    const { producto, fotoUrl, galeriaUrls, imagenesProducto, complementarios, precio, stock } = datos;
+    const nombreProducto = escaparHtml(producto.nombre);
+
+    const miniaturasHtml = imagenesProducto.length > 1
+        ? `<div class="tenant-detalle-miniaturas">${imagenesProducto.map((url, indice) => `<button type="button" class="tenant-detalle-miniatura${indice === 0 ? " activa" : ""}" onclick="document.getElementById('tenantDetalleFotoActual').src='${url}';this.parentElement.querySelectorAll('.tenant-detalle-miniatura').forEach(b=>b.classList.remove('activa'));this.classList.add('activa');"><img src="${url}" alt=""></button>`).join("")}</div>`
+        : "";
+
+    const whatsappNumero = normalizarTelefonoWhatsApp(sitio.config.whatsapp);
+    const whatsappHtml = whatsappNumero
+        ? `<a class="tenant-btn-secundario" href="https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, me interesa "${producto.nombre}" que vi en su catalogo.`)}" target="_blank" rel="noopener">Preguntar por WhatsApp</a>`
+        : "";
+
+    const bannerPedidoHtml = estadoPedido === "enviado"
+        ? `<div class="tenant-pedido-banner exito">Listo -- tu pedido fue enviado. El negocio te contactara pronto.</div>`
+        : estadoPedido === "error"
+            ? `<div class="tenant-pedido-banner error">No pudimos enviar tu pedido. Revisa tus datos e intenta de nuevo.</div>`
             : "";
 
-        const color = colorSeguro(sitio.negocio.color);
-        const nombre = escaparHtml(sitio.negocio.nombre);
-        const nombreProducto = escaparHtml(producto.nombre);
-        const precio = sitio.config.mostrarPrecios
-            ? Number(producto.precio_publico ?? producto.precio)
-            : null;
-        const stock = sitio.config.mostrarExistencias ? Number(producto.stock) : null;
-
-        const whatsappNumero = normalizarTelefonoWhatsApp(sitio.config.whatsapp);
-        const whatsappHtml = whatsappNumero
-            ? `<a class="tenant-btn-secundario" href="https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, me interesa "${producto.nombre}" que vi en su catalogo.`)}" target="_blank" rel="noopener">Preguntar por WhatsApp</a>`
-            : "";
-
-        const estadoPedido = paramTexto(req.query.pedido, 20);
-        const bannerPedidoHtml = estadoPedido === "enviado"
-            ? `<div class="tenant-pedido-banner exito">Listo -- tu pedido fue enviado. El negocio te contactara pronto.</div>`
-            : estadoPedido === "error"
-                ? `<div class="tenant-pedido-banner error">No pudimos enviar tu pedido. Revisa tus datos e intenta de nuevo.</div>`
-                : "";
-
-        const formularioPedidoHtml = `
-<form class="tenant-pedido-form" method="POST" action="/catalogo/${encodeURIComponent(producto.codigo)}/pedido">
+    const formularioPedidoHtml = `
+<form class="tenant-pedido-form" method="POST" action="${basePath}/catalogo/${encodeURIComponent(producto.codigo)}/pedido">
 <h2>Pedir este producto</h2>
 <div class="tenant-pedido-honeypot" aria-hidden="true"><label>No llenar<input type="text" name="sitioExtra" tabindex="-1" autocomplete="off"></label></div>
 <label>Cantidad<input type="number" name="cantidad" min="1" step="1" value="1" required></label>
@@ -1296,87 +1431,19 @@ async function servirProductoNegocio(pool, req, res, slug, codigo, firmarTokenIm
 <button type="submit">Enviar pedido</button>
 </form>`;
 
-        // Productos que puedes complementar -- otros productos reales de
-        // la MISMA tienda que comparten categoria o marca con este, nunca
-        // un emparejamiento inventado de "accesorios compatibles". Si no
-        // hay ninguno real, la seccion completa no se pinta.
-        let complementariosHtml = "";
-        if (producto.categoria || producto.marca) {
-            const condicionesComp = ["p.negocio_id = $1", "p.codigo <> $2"];
-            const valoresComp = [sitio.negocio.id, producto.codigo];
-            const subcondiciones = [];
-            if (producto.categoria) {
-                valoresComp.push(producto.categoria);
-                subcondiciones.push(`p.categoria = $${valoresComp.length}`);
-            }
-            if (producto.marca) {
-                valoresComp.push(producto.marca);
-                subcondiciones.push(`p.marca = $${valoresComp.length}`);
-            }
-            condicionesComp.push(`(${subcondiciones.join(" OR ")})`);
+    let complementariosHtml = "";
+    if (complementarios.length) {
+        const tarjetasComp = complementarios.map(p => tarjetaProductoTenantHtml({ ...p, basePath })).join("");
+        complementariosHtml = `<section class="tenant-seccion-home"><div class="tenant-seccion-home-header"><h2>Productos que puedes complementar</h2></div><div class="tenant-complementarios-fila">${tarjetasComp}</div></section>`;
+    }
 
-            const columnasExtraComp = [
-                sitio.config.mostrarPrecios ? "COALESCE(p.precio_publico, p.precio) AS precio" : null,
-                sitio.config.mostrarPrecios ? "p.precio_oferta" : null,
-                sitio.config.mostrarExistencias ? "p.stock" : null
-            ].filter(Boolean);
+    const breadcrumbHtml = `<nav class="tenant-breadcrumb"><a href="${basePath || "/"}">Inicio</a>${producto.categoria ? ` &rsaquo; <a href="${basePath}/catalogo?categoria=${encodeURIComponent(producto.categoria)}">${escaparHtml(producto.categoria)}</a>` : ""} &rsaquo; ${nombreProducto}</nav>`;
 
-            const complementariosRes = await pool.query(
-                `
-                SELECT p.codigo, p.nombre
-                    ${columnasExtraComp.length ? ", " + columnasExtraComp.join(", ") : ""}
-                FROM public.productos p
-                WHERE ${condicionesComp.join(" AND ")}
-                ORDER BY p.nombre ASC
-                LIMIT 12
-                `,
-                valoresComp
-            );
+    const favoritoCompararLineaHtml = !basePath
+        ? `<button type="button" class="tenant-btn-favorito tenant-btn-favorito-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}<span>Favorito</span></button><button type="button" class="tenant-btn-comparar tenant-btn-comparar-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Agregar a comparar">${ICONO_TENANT_COMPARAR}<span>Comparar</span></button>`
+        : "";
 
-            if (complementariosRes.rows.length) {
-                const codigosComp = complementariosRes.rows.map(p => p.codigo);
-                const fotosComp = await pool.query(
-                    `SELECT codigo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2)`,
-                    [sitio.negocio.id, codigosComp]
-                );
-                const fotosPorCodigoComp = new Set(fotosComp.rows.map(f => f.codigo));
-
-                const tarjetasComp = complementariosRes.rows.map(p => tarjetaProductoTenantHtml({
-                    codigo: p.codigo,
-                    nombre: p.nombre,
-                    fotoUrl: fotosPorCodigoComp.has(p.codigo)
-                        ? `/fotos-producto/${encodeURIComponent(p.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, p.codigo)}`
-                        : "",
-                    precio: p.precio ?? null,
-                    precioOferta: p.precio_oferta ?? null,
-                    stock: p.stock !== undefined && p.stock !== null ? Number(p.stock) : null
-                })).join("");
-
-                complementariosHtml = `<section class="tenant-seccion-home"><div class="tenant-seccion-home-header"><h2>Productos que puedes complementar</h2></div><div class="tenant-complementarios-fila">${tarjetasComp}</div></section>`;
-            }
-        }
-
-        const breadcrumbHtml = `<nav class="tenant-breadcrumb"><a href="/">Inicio</a>${producto.categoria ? ` &rsaquo; <a href="/catalogo?categoria=${encodeURIComponent(producto.categoria)}">${escaparHtml(producto.categoria)}</a>` : ""} &rsaquo; ${nombreProducto}</nav>`;
-
-        const html = `<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${nombreProducto} -- ${nombre}</title>
-<meta name="description" content="${nombreProducto} disponible en ${nombre}.">
-<meta property="og:title" content="${nombreProducto}">
-<meta property="og:description" content="Disponible en ${nombre}.">
-${fotoUrl ? `<meta property="og:image" content="${fotoUrl}">` : ""}
-<link rel="icon" href="/nexo-pos-icon.jpg">
-<link rel="stylesheet" href="/site/styles.css">
-<style>${estilosBaseTenant(color)}</style>
-</head>
-<body>
-${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true, true, true)}
-${bannerPromocionHtml(sitio.config)}
-<main class="tenant-main">
-${breadcrumbHtml}
+    return `${breadcrumbHtml}
 ${bannerPedidoHtml}
 <div class="tenant-detalle-card">
 <div class="tenant-detalle-grid">
@@ -1391,13 +1458,57 @@ ${precio !== null && Number.isFinite(precio) ? `<div class="tenant-detalle-preci
 ${stock !== null ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>` : ""}
 ${producto.descripcion ? `<p>${escaparHtml(producto.descripcion)}</p>` : ""}
 ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto tiene garantia${producto.garantia_detalle ? `: ${escaparHtml(producto.garantia_detalle)}` : "."}</div>` : ""}
-<div class="tenant-acciones">${whatsappHtml}<button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button><button type="button" class="tenant-btn-secundario" onclick="document.getElementById('tenantPedidoRapido').hidden=false;document.getElementById('tenantPedidoRapido').scrollIntoView({behavior:'smooth',block:'start'});">Comprar ahora</button><button type="button" class="tenant-btn-favorito tenant-btn-favorito-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}<span>Favorito</span></button><button type="button" class="tenant-btn-comparar tenant-btn-comparar-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Agregar a comparar">${ICONO_TENANT_COMPARAR}<span>Comparar</span></button></div>
+<div class="tenant-acciones">${whatsappHtml}<button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button><button type="button" class="tenant-btn-secundario" onclick="document.getElementById('tenantPedidoRapido').hidden=false;document.getElementById('tenantPedidoRapido').scrollIntoView({behavior:'smooth',block:'start'});">Comprar ahora</button>${favoritoCompararLineaHtml}</div>
 </div>
 </div>
 </div>
 ${beneficiosTenantHtml(sitio.config)}
 <div id="tenantPedidoRapido" class="tenant-pedido-rapido" hidden>${formularioPedidoHtml}</div>
-${complementariosHtml}
+${complementariosHtml}`;
+}
+
+async function servirProductoNegocio(pool, req, res, slug, codigo, firmarTokenImagen) {
+    try {
+        const sitio = await resolverSitioPublico(pool, slug);
+
+        if (!sitio) {
+            res.status(404).send("No encontrado");
+            return;
+        }
+
+        const datos = await cargarProductoTenant(pool, sitio, slug, codigo, firmarTokenImagen);
+
+        if (!datos) {
+            res.status(404).send("No encontrado");
+            return;
+        }
+
+        const color = colorSeguro(sitio.negocio.color);
+        const nombre = escaparHtml(sitio.negocio.nombre);
+        const nombreProducto = escaparHtml(datos.producto.nombre);
+        const estadoPedido = paramTexto(req.query.pedido, 20);
+
+        const contenidoHtml = vistaProductoTenantHtml({ sitio, datos, basePath: "", estadoPedido });
+
+        const html = `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${nombreProducto} -- ${nombre}</title>
+<meta name="description" content="${nombreProducto} disponible en ${nombre}.">
+<meta property="og:title" content="${nombreProducto}">
+<meta property="og:description" content="Disponible en ${nombre}.">
+${datos.fotoUrl ? `<meta property="og:image" content="${datos.fotoUrl}">` : ""}
+<link rel="icon" href="/nexo-pos-icon.jpg">
+<link rel="stylesheet" href="/site/styles.css">
+<style>${estilosBaseTenant(color)}</style>
+</head>
+<body>
+${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true, true, true)}
+${bannerPromocionHtml(sitio.config)}
+<main class="tenant-main">
+${contenidoHtml}
 </main>
 <footer class="tenant-footer">Con la tecnologia de Nexo</footer>
 ${modalCarritoTenantHtml(slug)}
@@ -1419,8 +1530,8 @@ ${modalCarritoTenantHtml(slug)}
 // responde JSON -- siempre redirige de vuelta a la pagina del
 // producto con ?pedido=enviado|error, mismo criterio "HTML servido
 // por el servidor" del resto del sitio publico.
-async function recibirPedidoPublico(pool, req, res, slug, codigo) {
-    const volverConError = () => res.redirect(303, `/catalogo/${encodeURIComponent(codigo)}?pedido=error`);
+async function recibirPedidoPublico(pool, req, res, slug, codigo, basePath = "") {
+    const volverConError = () => res.redirect(303, `${basePath}/catalogo/${encodeURIComponent(codigo)}?pedido=error`);
 
     try {
         const sitio = await resolverSitioPublico(pool, slug);
@@ -1497,7 +1608,7 @@ async function recibirPedidoPublico(pool, req, res, slug, codigo) {
             }).catch(error => console.warn("No se pudo enviar el aviso de pedido publico:", error.message));
         }
 
-        res.redirect(303, `/catalogo/${encodeURIComponent(codigo)}?pedido=enviado`);
+        res.redirect(303, `${basePath}/catalogo/${encodeURIComponent(codigo)}?pedido=enviado`);
     } catch (error) {
         console.warn("Error recibiendo pedido publico:", error.message);
         volverConError();
@@ -1701,7 +1812,7 @@ function modalCarritoTenantHtml() {
 // navegador, mismo criterio que el token del portal de cliente).
 // Todo dato del servidor se pinta con textContent, nunca innerHTML
 // con el valor crudo.
-function scriptCarritoTenantHtml(slug) {
+function scriptCarritoTenantHtml(slug, basePath = "") {
     return `
 const CARRITO_CLAVE = "nexoCarrito_${slug}";
 
@@ -1826,7 +1937,7 @@ async function carritoEnviar(evento){
     };
 
     try {
-        const respuesta = await fetch("/catalogo/pedido-carrito", {
+        const respuesta = await fetch("${basePath}/catalogo/pedido-carrito", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body)
@@ -3427,5 +3538,21 @@ module.exports = {
     servirFavoritosNegocio,
     favoritosJson,
     servirComparadorNegocio,
-    comparadorJson
+    comparadorJson,
+    // Fase 1 "Market embebido" -- la costura entre Market y el sitio de
+    // cada tienda (market-tienda-server.js) reusa estas piezas de datos
+    // y de vista en vez de duplicarlas.
+    resolverSitioPublico,
+    cargarInicioTenant,
+    cargarCatalogoTenant,
+    cargarProductoTenant,
+    vistaCatalogoTenantHtml,
+    vistaProductoTenantHtml,
+    categoriasTenantHtml,
+    destacadosTenantHtml,
+    beneficiosTenantHtml,
+    bannerPromocionHtml,
+    estilosBaseTenant,
+    scriptCarritoTenantHtml,
+    modalCarritoTenantHtml
 };

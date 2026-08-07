@@ -32,6 +32,7 @@ const {
     comparadorJson
 } = require("./public-site-server");
 const { servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson } = require("./market-server");
+const { servirInicioTiendaMarket, servirCatalogoTiendaMarket, servirProductoTiendaMarket } = require("./market-tienda-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
@@ -4684,6 +4685,43 @@ app.get("/market/inicio-json", async (req, res) => {
 app.post("/market/favoritos-json", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false }); return; }
     await favoritosMarketJson(pool, req, res, firmarTokenImagen);
+});
+
+// Nexo Market -- "Fase 1 Market embebido": ver una tienda especifica
+// SIN salir de nexoposoficial.com (nunca saltar al subdominio de la
+// tienda como flujo principal; el subdominio se queda como acceso
+// directo para compartir). Mismo guard invertido que las 5 rutas de
+// arriba -- si alguien visitara {slug}.nexoposoficial.com/market/algo,
+// no debe interferir con las rutas propias de esa tienda.
+//
+// CRITICO: "GET /market/:slug" debe registrarse DESPUES de las 4 rutas
+// fijas "/market/*-json" de arriba -- si se registrara antes, ":slug"
+// capturaria literalmente "buscar-json" (Express matchea en orden de
+// registro) y rompe el home de Market. "GET /market" (mas arriba, sin
+// tocar) tampoco puede quedar despues de esta ruta por el mismo motivo.
+app.get("/market/:slug", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirInicioTiendaMarket(pool, req, res, req.params.slug, firmarTokenImagen);
+});
+
+app.get("/market/:slug/catalogo", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirCatalogoTiendaMarket(pool, req, res, req.params.slug, firmarTokenImagen);
+});
+
+app.get("/market/:slug/catalogo/:codigo", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirProductoTiendaMarket(pool, req, res, req.params.slug, req.params.codigo, firmarTokenImagen);
+});
+
+app.post("/market/:slug/catalogo/pedido-carrito", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false, error: "No encontrado" }); return; }
+    await recibirPedidoCarritoPublico(pool, req, res, req.params.slug);
+});
+
+app.post("/market/:slug/catalogo/:codigo/pedido", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await recibirPedidoPublico(pool, req, res, req.params.slug, req.params.codigo, `/market/${encodeURIComponent(req.params.slug)}`);
 });
 
 // Alias amigables en el dominio corporativo -- honran el mental model
