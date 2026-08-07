@@ -399,6 +399,16 @@ function estilosBaseTenant(color) {
 .tenant-detalle-foto-vacia{ color:var(--muted); }
 .tenant-detalle-precio{ font-size:34px; font-weight:800; color:var(--blue); margin:10px 0; }
 .tenant-detalle-garantia{ margin-top:16px; padding:14px; border-radius:14px; background:var(--glass); border:1px solid var(--line); font-size:13px; color:var(--muted); }
+.tenant-detalle-miniaturas{ display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+.tenant-detalle-miniatura{ width:64px; height:64px; border-radius:12px; overflow:hidden; border:2px solid transparent; background:var(--paper); cursor:pointer; padding:0; }
+.tenant-detalle-miniatura img{ width:100%; height:100%; object-fit:cover; display:block; }
+.tenant-detalle-miniatura.activa{ border-color:var(--blue); }
+.tenant-breadcrumb{ margin:0 0 18px; font-size:13px; color:var(--muted); }
+.tenant-breadcrumb a{ color:var(--muted); }
+.tenant-breadcrumb a:hover{ color:var(--blue); }
+.tenant-pedido-rapido{ margin-top:18px; }
+.tenant-complementarios-fila{ display:flex; gap:16px; overflow-x:auto; padding-bottom:8px; }
+.tenant-complementarios-fila .tenant-producto-card{ flex:0 0 200px; }
 .tenant-volver{ display:inline-block; margin-bottom:20px; color:var(--muted); font-weight:600; }
 .tenant-pedido-banner{ margin-bottom:20px; padding:14px 18px; border-radius:14px; font-size:14px; font-weight:600; }
 .tenant-pedido-banner.exito{ background:rgba(24,184,143,.14); color:var(--mint); border:1px solid rgba(24,184,143,.3); }
@@ -1232,6 +1242,28 @@ async function servirProductoNegocio(pool, req, res, slug, codigo, firmarTokenIm
             ? `/fotos-producto/${encodeURIComponent(producto.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, producto.codigo)}`
             : "";
 
+        // Galeria propia del negocio (fotos_producto_galeria) -- fotos
+        // adicionales reales que el dueno ya subio para este producto,
+        // nunca imagenes inventadas. La principal (arriba) siempre va
+        // primero en la tira de miniaturas si existe.
+        const galeriaRes = await pool.query(
+            `
+            SELECT fg.id
+            FROM public.fotos_producto_galeria fg
+            JOIN public.fotos_producto fp ON fp.id = fg.foto_producto_id
+            WHERE fp.negocio_id = $1 AND fp.codigo = $2
+            ORDER BY fg.orden ASC
+            `,
+            [sitio.negocio.id, producto.codigo]
+        );
+        const galeriaUrls = galeriaRes.rows.map(fila =>
+            `/fotos-producto-galeria/${fila.id}?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, String(fila.id))}`
+        );
+        const imagenesProducto = fotoUrl ? [fotoUrl, ...galeriaUrls] : galeriaUrls;
+        const miniaturasHtml = imagenesProducto.length > 1
+            ? `<div class="tenant-detalle-miniaturas">${imagenesProducto.map((url, indice) => `<button type="button" class="tenant-detalle-miniatura${indice === 0 ? " activa" : ""}" onclick="document.getElementById('tenantDetalleFotoActual').src='${url}';this.parentElement.querySelectorAll('.tenant-detalle-miniatura').forEach(b=>b.classList.remove('activa'));this.classList.add('activa');"><img src="${url}" alt=""></button>`).join("")}</div>`
+            : "";
+
         const color = colorSeguro(sitio.negocio.color);
         const nombre = escaparHtml(sitio.negocio.nombre);
         const nombreProducto = escaparHtml(producto.nombre);
@@ -1264,6 +1296,68 @@ async function servirProductoNegocio(pool, req, res, slug, codigo, firmarTokenIm
 <button type="submit">Enviar pedido</button>
 </form>`;
 
+        // Productos que puedes complementar -- otros productos reales de
+        // la MISMA tienda que comparten categoria o marca con este, nunca
+        // un emparejamiento inventado de "accesorios compatibles". Si no
+        // hay ninguno real, la seccion completa no se pinta.
+        let complementariosHtml = "";
+        if (producto.categoria || producto.marca) {
+            const condicionesComp = ["p.negocio_id = $1", "p.codigo <> $2"];
+            const valoresComp = [sitio.negocio.id, producto.codigo];
+            const subcondiciones = [];
+            if (producto.categoria) {
+                valoresComp.push(producto.categoria);
+                subcondiciones.push(`p.categoria = $${valoresComp.length}`);
+            }
+            if (producto.marca) {
+                valoresComp.push(producto.marca);
+                subcondiciones.push(`p.marca = $${valoresComp.length}`);
+            }
+            condicionesComp.push(`(${subcondiciones.join(" OR ")})`);
+
+            const columnasExtraComp = [
+                sitio.config.mostrarPrecios ? "COALESCE(p.precio_publico, p.precio) AS precio" : null,
+                sitio.config.mostrarPrecios ? "p.precio_oferta" : null,
+                sitio.config.mostrarExistencias ? "p.stock" : null
+            ].filter(Boolean);
+
+            const complementariosRes = await pool.query(
+                `
+                SELECT p.codigo, p.nombre
+                    ${columnasExtraComp.length ? ", " + columnasExtraComp.join(", ") : ""}
+                FROM public.productos p
+                WHERE ${condicionesComp.join(" AND ")}
+                ORDER BY p.nombre ASC
+                LIMIT 12
+                `,
+                valoresComp
+            );
+
+            if (complementariosRes.rows.length) {
+                const codigosComp = complementariosRes.rows.map(p => p.codigo);
+                const fotosComp = await pool.query(
+                    `SELECT codigo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2)`,
+                    [sitio.negocio.id, codigosComp]
+                );
+                const fotosPorCodigoComp = new Set(fotosComp.rows.map(f => f.codigo));
+
+                const tarjetasComp = complementariosRes.rows.map(p => tarjetaProductoTenantHtml({
+                    codigo: p.codigo,
+                    nombre: p.nombre,
+                    fotoUrl: fotosPorCodigoComp.has(p.codigo)
+                        ? `/fotos-producto/${encodeURIComponent(p.codigo)}/principal?negocio=${encodeURIComponent(slug)}&token=${firmarTokenImagen(sitio.negocio.id, p.codigo)}`
+                        : "",
+                    precio: p.precio ?? null,
+                    precioOferta: p.precio_oferta ?? null,
+                    stock: p.stock !== undefined && p.stock !== null ? Number(p.stock) : null
+                })).join("");
+
+                complementariosHtml = `<section class="tenant-seccion-home"><div class="tenant-seccion-home-header"><h2>Productos que puedes complementar</h2></div><div class="tenant-complementarios-fila">${tarjetasComp}</div></section>`;
+            }
+        }
+
+        const breadcrumbHtml = `<nav class="tenant-breadcrumb"><a href="/">Inicio</a>${producto.categoria ? ` &rsaquo; <a href="/catalogo?categoria=${encodeURIComponent(producto.categoria)}">${escaparHtml(producto.categoria)}</a>` : ""} &rsaquo; ${nombreProducto}</nav>`;
+
         const html = `<!doctype html>
 <html lang="es">
 <head>
@@ -1282,11 +1376,14 @@ ${fotoUrl ? `<meta property="og:image" content="${fotoUrl}">` : ""}
 ${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true, true, true)}
 ${bannerPromocionHtml(sitio.config)}
 <main class="tenant-main">
-<a class="tenant-volver" href="/catalogo">&larr; Volver al catalogo</a>
+${breadcrumbHtml}
 ${bannerPedidoHtml}
 <div class="tenant-detalle-card">
 <div class="tenant-detalle-grid">
-<div class="tenant-detalle-foto">${fotoUrl ? `<img src="${fotoUrl}" alt="${nombreProducto}">` : `<span class="tenant-detalle-foto-vacia">Sin foto</span>`}</div>
+<div>
+<div class="tenant-detalle-foto">${fotoUrl || galeriaUrls.length ? `<img id="tenantDetalleFotoActual" src="${imagenesProducto[0]}" alt="${nombreProducto}">` : `<span class="tenant-detalle-foto-vacia">Sin foto</span>`}</div>
+${miniaturasHtml}
+</div>
 <div>
 <h1>${nombreProducto}</h1>
 ${producto.marca ? `<p>${escaparHtml(producto.marca)}${producto.categoria ? ` &middot; ${escaparHtml(producto.categoria)}` : ""}</p>` : (producto.categoria ? `<p>${escaparHtml(producto.categoria)}</p>` : "")}
@@ -1294,11 +1391,13 @@ ${precio !== null && Number.isFinite(precio) ? `<div class="tenant-detalle-preci
 ${stock !== null ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>` : ""}
 ${producto.descripcion ? `<p>${escaparHtml(producto.descripcion)}</p>` : ""}
 ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto tiene garantia${producto.garantia_detalle ? `: ${escaparHtml(producto.garantia_detalle)}` : "."}</div>` : ""}
-<div class="tenant-acciones">${whatsappHtml}<button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button><button type="button" class="tenant-btn-favorito tenant-btn-favorito-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}<span>Favorito</span></button><button type="button" class="tenant-btn-comparar tenant-btn-comparar-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Agregar a comparar">${ICONO_TENANT_COMPARAR}<span>Comparar</span></button></div>
+<div class="tenant-acciones">${whatsappHtml}<button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button><button type="button" class="tenant-btn-secundario" onclick="document.getElementById('tenantPedidoRapido').hidden=false;document.getElementById('tenantPedidoRapido').scrollIntoView({behavior:'smooth',block:'start'});">Comprar ahora</button><button type="button" class="tenant-btn-favorito tenant-btn-favorito-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}<span>Favorito</span></button><button type="button" class="tenant-btn-comparar tenant-btn-comparar-linea" data-codigo="${escaparHtml(producto.codigo)}" aria-label="Agregar a comparar">${ICONO_TENANT_COMPARAR}<span>Comparar</span></button></div>
 </div>
 </div>
 </div>
-${formularioPedidoHtml}
+${beneficiosTenantHtml(sitio.config)}
+<div id="tenantPedidoRapido" class="tenant-pedido-rapido" hidden>${formularioPedidoHtml}</div>
+${complementariosHtml}
 </main>
 <footer class="tenant-footer">Con la tecnologia de Nexo</footer>
 ${modalCarritoTenantHtml(slug)}
