@@ -494,7 +494,7 @@ async function favoritosMarketJson(pool, req, res, firmarTokenImagen) {
 
 const ESTILOS_MARKET = `
 .market-header{ position:sticky; top:0; z-index:30; background:linear-gradient(180deg,#101826,#0b1220); border-bottom:1px solid rgba(255,255,255,.08); box-shadow:0 10px 30px rgba(6,10,18,.28); }
-.market-header-top{ display:flex; align-items:center; gap:18px; padding:14px clamp(18px,4vw,48px); max-width:1400px; margin:0 auto; }
+.market-header-top{ display:flex; align-items:center; gap:18px; padding:14px clamp(18px,4vw,48px); max-width:1680px; margin:0 auto; }
 .market-logo{ display:inline-flex; align-items:center; gap:10px; font-weight:950; font-size:18px; flex:0 0 auto; color:#fff; }
 .market-logo img{ width:38px; height:38px; border-radius:11px; object-fit:cover; }
 .market-search-wrap{ position:relative; flex:1; min-width:0; }
@@ -522,10 +522,10 @@ const ESTILOS_MARKET = `
 .market-header-link:hover{ color:#fff; }
 .market-header-link svg{ width:19px; height:19px; }
 .market-favoritos-contador{ background:var(--blue); color:#fff; font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; min-width:16px; text-align:center; }
-.market-header-nav{ display:flex; gap:22px; padding:6px clamp(18px,4vw,48px) 13px; max-width:1400px; margin:0 auto; overflow-x:auto; }
+.market-header-nav{ display:flex; gap:22px; padding:6px clamp(18px,4vw,48px) 13px; max-width:1680px; margin:0 auto; overflow-x:auto; background:transparent; border:none; border-radius:0; }
 .market-header-nav a{ font-size:13.5px; font-weight:700; color:#fff; white-space:nowrap; opacity:.88; padding-bottom:2px; border-bottom:2px solid transparent; }
 .market-header-nav a:hover{ opacity:1; border-bottom-color:rgba(255,255,255,.6); }
-.market-hero{ display:grid; grid-template-columns:1.1fr .9fr; gap:32px; align-items:center; max-width:1400px; margin:28px auto; padding:0 clamp(18px,4vw,48px); min-width:0; }
+.market-hero{ display:grid; grid-template-columns:1.1fr .9fr; gap:32px; align-items:center; max-width:1680px; margin:28px auto; padding:0 clamp(18px,4vw,48px); min-width:0; }
 .market-hero > *{ min-width:0; }
 .market-hero-texto h1{ font-size:clamp(28px,3.4vw,42px); margin:0 0 12px; line-height:1.1; }
 .market-hero-texto p{ color:var(--muted); font-size:15.5px; max-width:520px; margin:0 0 18px; }
@@ -537,7 +537,9 @@ const ESTILOS_MARKET = `
 .market-hero-imagen img{ width:100%; height:100%; object-fit:cover; position:absolute; inset:0; }
 .market-hero-imagen-tienda{ position:relative; z-index:1; margin:16px; padding:6px 14px; background:rgba(20,32,51,.66); color:#fff; border-radius:999px; font-size:12px; font-weight:700; }
 .market-anchor{ display:block; scroll-margin-top:130px; }
-.market-layout{ display:grid; grid-template-columns:1fr 320px; gap:32px; max-width:1400px; margin:0 auto; padding:0 clamp(18px,4vw,48px) 60px; align-items:start; min-width:0; }
+#marketInicio, #marketResultadosBusqueda{ animation:marketPantallaFade .28s ease; }
+@keyframes marketPantallaFade{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:translateY(0); } }
+.market-layout{ display:grid; grid-template-columns:1fr 320px; gap:32px; max-width:1680px; margin:0 auto; padding:0 clamp(18px,4vw,48px) 60px; align-items:start; min-width:0; }
 .market-contenido, .market-sidebar{ min-width:0; }
 .market-sidebar{ position:sticky; top:150px; display:grid; gap:18px; }
 .market-sidebar-card{ background:#fff; border:1px solid var(--line); border-radius:20px; padding:18px; box-shadow:0 18px 48px rgba(20,32,51,.1); }
@@ -595,13 +597,13 @@ const ESTILOS_MARKET = `
 .market-producto-existencia{ color:var(--mint); font-size:13px; font-weight:700; }
 .market-producto-existencia.agotado{ color:#c0392b; }
 .market-producto-tienda{ color:var(--muted); font-size:12.5px; }
-.market-como{ max-width:1400px; margin:0 auto 60px; padding:0 clamp(18px,4vw,48px); }
+.market-como{ max-width:1680px; margin:0 auto 60px; padding:0 clamp(18px,4vw,48px); }
 .market-como h3{ font-size:19px; margin:0 0 18px; }
 .market-como-pasos{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
 .market-como-pasos > div{ background:var(--glass); border:1px solid var(--line); border-radius:16px; padding:16px; }
 .market-como-pasos strong{ display:block; margin-bottom:6px; }
 .market-como-pasos span{ color:var(--muted); font-size:13.5px; }
-.market-badges{ display:flex; flex-wrap:wrap; gap:24px; justify-content:center; padding:26px clamp(18px,4vw,48px); border-top:1px solid var(--line); max-width:1400px; margin:0 auto; }
+.market-badges{ display:flex; flex-wrap:wrap; gap:24px; justify-content:center; padding:26px clamp(18px,4vw,48px); border-top:1px solid var(--line); max-width:1680px; margin:0 auto; }
 .market-badges span{ display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; color:var(--muted); }
 .market-vacio{ text-align:center; color:var(--muted); padding:40px 0; }
 .market-resultados-layout{ display:grid; grid-template-columns:220px minmax(0,1fr); gap:28px; align-items:start; min-width:0; }
@@ -712,9 +714,9 @@ function paginaMarketHtml() {
 
 <div class="market-layout">
 <div class="market-contenido">
-<div id="marketCategoriasTop"></div>
+<div id="marketCategoriasTop" class="market-oculto-en-busqueda"></div>
 
-<section class="market-oficio" id="marketOficio" hidden>
+<section class="market-oficio market-oculto-en-busqueda" id="marketOficio" hidden>
 <h3>Cuentanos a que te dedicas</h3>
 <p>Elegir tu oficio nos ayuda a recomendarte lo que realmente necesitas.</p>
 <div class="market-oficio-chips" id="marketOficioChips"></div>
@@ -725,12 +727,12 @@ function paginaMarketHtml() {
 <div id="marketInicio"><p class="market-vacio">Cargando...</p></div>
 <div id="marketResultadosBusqueda" hidden></div>
 
-<section class="market-seccion">
+<section class="market-seccion market-oculto-en-busqueda" id="marketSeccionExplora">
 <div class="market-seccion-header"><h3>Explora por categoria</h3></div>
 <div id="marketExploraCategorias"></div>
 </section>
 
-<section id="marketComoFunciona" class="market-como">
+<section id="marketComoFunciona" class="market-como market-oculto-en-busqueda">
 <h3>Como funciona</h3>
 <div class="market-como-pasos">
 <div><strong>1. Busca</strong><span>Encuentra productos en varias ferreterias Nexo a la vez.</span></div>
@@ -1016,11 +1018,19 @@ function marketMarcarFavoritosBotones() {
 function marketMostrarInicio() {
     document.getElementById("marketInicio").style.display = "";
     document.getElementById("marketResultadosBusqueda").hidden = true;
+    document.querySelectorAll(".market-oculto-en-busqueda").forEach(function(el) { el.style.display = ""; });
+    window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function marketMostrarResultados() {
     document.getElementById("marketInicio").style.display = "none";
     document.getElementById("marketResultadosBusqueda").hidden = false;
+    // Se ocultan las secciones de inicio (Cuentanos a que te dedicas, tira de
+    // categorias, Explora por categoria, Como funciona) para que la busqueda
+    // se sienta como una pantalla propia, no como contenido pegado debajo
+    // del inicio -- mismo espiritu que "cambiar de pagina".
+    document.querySelectorAll(".market-oculto-en-busqueda").forEach(function(el) { el.style.display = "none"; });
+    window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 var marketFiltrosActuales = { buscar: "", categoria: "", marcas: [], precioMin: null, precioMax: null, orden: "relevancia", pagina: 1 };
