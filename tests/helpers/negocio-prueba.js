@@ -72,7 +72,9 @@ async function borrarNegocioPrueba(negocioId) {
         "dispositivos_vinculados",
         "sesiones_cuenta",
         "licencias",
-        "ia_conversaciones"
+        "ia_conversaciones",
+        "pedidos_publicos",
+        "sitio_web_config"
     ];
 
     for (const tabla of tablasHijas) {

@@ -608,10 +608,10 @@ function promosTenantHtml(datos) {
 
 // Productos destacados (Fase 9) -- solo si el dueno marco al menos
 // uno a mano, nunca un fallback automatico a "productos recientes".
-function destacadosTenantHtml(destacados, basePath = "") {
+function destacadosTenantHtml(destacados, basePath = "", titulo = "Productos destacados") {
     if (!destacados || !destacados.length) return "";
     const tarjetas = destacados.map(p => tarjetaProductoTenantHtml({ ...p, basePath })).join("");
-    return `<section class="tenant-seccion-home"><div class="tenant-seccion-home-header"><h2>Productos destacados</h2><a href="${basePath}/catalogo">Ver todos</a></div><div class="tenant-catalogo-grid">${tarjetas}</div></section>`;
+    return `<section class="tenant-seccion-home"><div class="tenant-seccion-home-header"><h2>${escaparHtml(titulo)}</h2><a href="${basePath}/catalogo">Ver todos</a></div><div class="tenant-catalogo-grid">${tarjetas}</div></section>`;
 }
 
 function renderizarPaginaNegocio(datos) {
@@ -2717,10 +2717,128 @@ async function recibirSolicitudCreditoPublica(pool, req, res, slug) {
 // pagina si necesita JavaScript porque tiene que persistir una sesion
 // entre visitas (localStorage) -- mismo criterio ya usado en /dueno
 // para la sesion del propio dueno, aplicado aqui al cliente final.
+// Iconos del menu lateral del portal de cliente -- mismo estilo
+// feather (stroke, 24x24) que ICONO_TENANT_FAVORITO/COMPARAR arriba.
+const ICONO_PORTAL_RESUMEN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>`;
+const ICONO_PORTAL_PEDIDOS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><path d="M3 6h18"></path><path d="M16 10a4 4 0 0 1-8 0"></path></svg>`;
+const ICONO_PORTAL_CREDITO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>`;
+const ICONO_PORTAL_DIRECCION = ICONO_TENANT_PIN;
+const ICONO_PORTAL_PAGO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>`;
+const ICONO_PORTAL_FACTURA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>`;
+const ICONO_PORTAL_DEVOLUCION = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>`;
+const ICONO_PORTAL_NOTIFICACION = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>`;
+const ICONO_PORTAL_USUARIO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+const ICONO_PORTAL_SEGURIDAD = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path></svg>`;
+const ICONO_PORTAL_AYUDA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+const ICONO_PORTAL_SALIR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>`;
+const ICONO_PORTAL_TIENDA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"></path><path d="M3 9a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0"></path><path d="M4 9v10h16V9"></path></svg>`;
+
+// Rediseno "Mi cuenta" (portal de cliente) estilo marketplace: menu
+// lateral fijo + tarjetas de resumen/credito/pedidos. Bloque de estilo
+// aparte (no dentro de estilosBaseTenant) porque estas clases solo las
+// usa esta pagina -- no engordar el CSS de catalogo/inicio/detalle con
+// reglas que nunca van a usar.
+function estilosPortalClienteHtml() {
+    return `
+.portal-shell{ display:grid; grid-template-columns:236px 1fr; gap:28px; align-items:start; }
+.portal-sidebar{ position:sticky; top:88px; display:flex; flex-direction:column; gap:2px; padding:16px 12px; border-radius:20px; background:var(--glass); border:1px solid var(--line); }
+.portal-sidebar-titulo{ margin:14px 10px 6px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+.portal-sidebar-titulo:first-child{ margin-top:2px; }
+.portal-sidebar a, .portal-sidebar-proximamente{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; font-size:13.5px; font-weight:600; color:var(--ink); }
+.portal-sidebar a svg, .portal-sidebar-proximamente svg{ width:17px; height:17px; flex-shrink:0; color:var(--muted); }
+.portal-sidebar a:hover{ background:rgba(16,103,232,.08); }
+.portal-sidebar a.activo{ background:var(--blue); color:#fff; }
+.portal-sidebar a.activo svg{ color:#fff; }
+.portal-sidebar-proximamente{ color:var(--muted); cursor:default; opacity:.62; }
+.portal-sidebar-proximamente span.etiqueta{ margin-left:auto; padding:2px 7px; border-radius:999px; background:var(--paper); font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; }
+.portal-sidebar-salir{ margin-top:10px; padding-top:12px; border-top:1px solid var(--line); }
+.portal-sidebar-salir button{ width:100%; display:flex; align-items:center; gap:10px; padding:10px 12px; border:none; background:transparent; border-radius:12px; font-size:13.5px; font-weight:700; color:#e2434d; cursor:pointer; text-align:left; }
+.portal-sidebar-salir button:hover{ background:rgba(226,67,77,.08); }
+.portal-header-card{ display:flex; flex-wrap:wrap; gap:20px; justify-content:space-between; padding:26px 28px; border-radius:24px; background:linear-gradient(135deg, var(--ink), #1c2c47); color:#fff; box-shadow:var(--shadow); }
+.portal-header-saludo{ font-size:23px; margin:0 0 6px; }
+.portal-header-badge{ display:inline-block; padding:4px 12px; border-radius:999px; background:rgba(255,255,255,.14); font-size:12px; font-weight:700; }
+.portal-header-negocio{ display:grid; gap:10px; min-width:220px; align-content:start; }
+.portal-header-negocio-eyebrow{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:rgba(255,255,255,.62); font-weight:700; }
+.portal-header-negocio-nombre{ font-size:17px; font-weight:800; }
+.portal-header-negocio-fila{ display:flex; justify-content:space-between; gap:16px; font-size:12px; color:rgba(255,255,255,.72); }
+.portal-header-negocio-fila strong{ color:#fff; font-weight:700; }
+.portal-header-cambiar{ padding:9px 16px; border-radius:999px; border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-weight:700; font-size:12.5px; cursor:pointer; align-self:start; }
+.portal-header-cambiar-lista{ display:none; position:absolute; margin-top:44px; z-index:10; min-width:220px; padding:8px; border-radius:14px; background:#fff; box-shadow:0 20px 44px rgba(20,32,51,.22); }
+.portal-header-cambiar-lista.abierta{ display:block; }
+.portal-header-cambiar-lista a{ display:block; padding:9px 12px; border-radius:10px; font-size:13px; font-weight:600; color:var(--ink); }
+.portal-header-cambiar-lista a:hover{ background:var(--paper); }
+.portal-header-cambiar-lista a.actual{ color:var(--blue); font-weight:800; }
+.portal-stats-grid{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:20px 0; }
+.portal-stat-card{ padding:18px; border-radius:18px; background:var(--glass); border:1px solid var(--line); }
+.portal-stat-card.proximamente{ opacity:.6; }
+.portal-stat-card-titulo{ display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:var(--muted); margin-bottom:8px; }
+.portal-stat-card-titulo svg{ width:15px; height:15px; }
+.portal-stat-card-valor{ font-size:23px; font-weight:800; color:var(--ink); }
+.portal-stat-card-sub{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+.portal-stat-card-sub a{ color:var(--blue); font-weight:700; }
+.portal-grid-2{ display:grid; grid-template-columns:1.3fr 1fr; gap:20px; align-items:start; margin:32px 0; }
+.portal-card{ padding:22px 24px; border-radius:22px; background:var(--glass); border:1px solid var(--line); box-shadow:0 10px 24px rgba(20,32,51,.05); }
+.portal-card-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.portal-card-header h2{ margin:0; font-size:16.5px; }
+.portal-card-header a{ font-size:12.5px; font-weight:700; color:var(--blue); }
+.portal-pedido-fila{ display:flex; align-items:center; gap:14px; padding:12px 0; border-top:1px solid var(--line); }
+.portal-pedido-fila:first-child{ border-top:none; padding-top:0; }
+.portal-pedido-icono{ width:40px; height:40px; flex-shrink:0; border-radius:12px; background:var(--paper); display:flex; align-items:center; justify-content:center; color:var(--blue); }
+.portal-pedido-icono svg{ width:18px; height:18px; }
+.portal-pedido-info{ flex:1; min-width:0; }
+.portal-pedido-nombre{ font-size:13.5px; font-weight:700; color:var(--ink); }
+.portal-pedido-fecha{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+.portal-pedido-precio{ font-size:13px; font-weight:700; color:var(--ink); white-space:nowrap; text-align:right; }
+.portal-credito-gauge-wrap{ display:flex; align-items:center; gap:18px; }
+.portal-credito-gauge{ position:relative; width:104px; height:104px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.portal-credito-gauge::before{ content:""; position:absolute; inset:11px; border-radius:50%; background:var(--paper); }
+.portal-credito-gauge-texto{ position:relative; font-size:12px; font-weight:800; color:var(--ink); text-align:center; line-height:1.2; }
+.portal-credito-lineas{ display:grid; gap:8px; flex:1; }
+.portal-credito-linea{ display:flex; justify-content:space-between; font-size:12.5px; color:var(--muted); }
+.portal-credito-linea strong{ color:var(--ink); font-weight:700; }
+.portal-credito-estado{ display:inline-flex; align-items:center; gap:6px; margin-top:14px; padding:6px 12px; border-radius:999px; font-size:12px; font-weight:700; background:rgba(24,184,143,.14); color:var(--mint); }
+.portal-credito-estado.vencido{ background:rgba(226,67,77,.12); color:#e2434d; }
+.portal-credito-acciones{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+.portal-credito-acciones a, .portal-credito-acciones button{ flex:1; min-width:130px; text-align:center; padding:10px 14px; border-radius:12px; font-size:12.5px; font-weight:700; cursor:pointer; }
+.portal-credito-vacio{ color:var(--muted); font-size:13.5px; }
+.portal-tiendas-lista{ display:grid; gap:10px; }
+.portal-tienda-fila{ display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:14px; background:var(--paper); }
+.portal-tienda-fila svg{ width:18px; height:18px; color:var(--blue); flex-shrink:0; }
+.portal-tienda-fila strong{ font-size:13px; }
+.portal-tienda-actual{ border:1px solid rgba(16,103,232,.3); background:rgba(16,103,232,.06); }
+.portal-tienda-fila a{ margin-left:auto; font-size:12px; font-weight:700; color:var(--blue); }
+.portal-accesos-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+.portal-acceso-tile{ display:flex; flex-direction:column; gap:8px; padding:16px; border-radius:16px; background:var(--glass); border:1px solid var(--line); font-size:12.5px; font-weight:700; color:var(--ink); }
+.portal-acceso-tile svg{ width:20px; height:20px; color:var(--blue); }
+.portal-acceso-tile.proximamente{ opacity:.55; }
+.portal-acceso-tile.proximamente svg{ color:var(--muted); }
+.portal-acceso-tile span.etiqueta{ align-self:start; padding:2px 8px; border-radius:999px; background:var(--paper); font-size:9.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); }
+.portal-seguridad-card{ display:grid; gap:10px; font-size:13px; color:var(--muted); line-height:1.6; }
+.portal-seguridad-card strong{ color:var(--ink); }
+.portal-datos-fila{ display:flex; justify-content:space-between; padding:10px 0; border-top:1px solid var(--line); font-size:13px; }
+.portal-datos-fila:first-child{ border-top:none; }
+.portal-datos-fila span:first-child{ color:var(--muted); }
+.portal-datos-fila span:last-child{ font-weight:700; color:var(--ink); }
+@media (max-width:960px){
+    .portal-shell{ grid-template-columns:1fr; }
+    .portal-sidebar{ position:static; flex-direction:row; overflow-x:auto; gap:6px; padding:10px; }
+    .portal-sidebar-titulo{ display:none; }
+    .portal-sidebar a, .portal-sidebar-proximamente{ flex-shrink:0; white-space:nowrap; }
+    .portal-sidebar-salir{ border-top:none; margin-top:0; padding-top:0; }
+    .portal-grid-2{ grid-template-columns:1fr; }
+    .portal-stats-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .portal-header-card{ flex-direction:column; }
+}
+`;
+}
+
 // El script es identico para cualquier negocio (no interpola ningun
 // dato del servidor dentro de si mismo); todo dato real llega despues
 // via fetch() y se inserta siempre con textContent, nunca innerHTML
-// con el valor crudo.
+// con el valor crudo. Unica excepcion deliberada: lee `window.NEXO_PORTAL`
+// (slug/nombre/whatsapp del negocio -- configuracion publica del sitio,
+// nunca dato de un cliente), que servirPortalClienteNegocio() define en
+// un <script> aparte, chico y sin logica, antes de cargar este bloque.
 function scriptPortalClienteHtml() {
     return `
 const CLAVE_TOKEN = "nexoPortalClienteToken";
@@ -2782,6 +2900,7 @@ function mostrarFormularioLoginCliente(){
 }
 
 const BADGE_PEDIDO = { pendiente: "Pendiente", atendido: "Atendido", descartado: "Descartado", cotizado: "Cotizado" };
+const ICONO_PEDIDO_JS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><path d="M3 6h18"></path><path d="M16 10a4 4 0 0 1-8 0"></path></svg>';
 
 function pintarMovimientos(movimientos){
     const cuerpo = elemento("portalClienteMovimientos");
@@ -2808,63 +2927,229 @@ function pintarMovimientos(movimientos){
     });
 }
 
-function pintarPedidos(pedidos){
-    const cuerpo = elemento("portalClientePedidos");
-    cuerpo.innerHTML = "";
-    if (!pedidos || pedidos.length === 0) {
-        const fila = document.createElement("tr");
-        const celda = document.createElement("td");
-        celda.colSpan = 5;
-        celda.className = "tenant-portal-vacio";
-        celda.textContent = "No has hecho pedidos en el sitio todavia.";
-        fila.appendChild(celda);
-        cuerpo.appendChild(fila);
-        return;
-    }
-
-    // Un carrito (Fase 7) llega como varias filas que comparten
-    // grupo_id -- se agrupan aqui para pintar una sola fila por
-    // solicitud, no una por producto (mismo criterio ya usado del
-    // lado del POS en sitio-web-view.js).
+// Un carrito (Fase 7) llega como varias filas que comparten grupo_id --
+// se agrupan aqui para pintar una sola tarjeta por solicitud, no una
+// por producto (mismo criterio ya usado del lado del POS en
+// sitio-web-view.js). Regresa el arreglo de grupos para que quien
+// llama tambien pueda usar el conteo real (tarjeta "Mis pedidos").
+function agruparPedidos(pedidos){
     const gruposMap = new Map();
-    pedidos.forEach(function(pedido){
+    (pedidos || []).forEach(function(pedido){
         const clave = pedido.grupo_id || ("solo-" + pedido.producto_nombre + pedido.created_at);
         if (!gruposMap.has(clave)) gruposMap.set(clave, []);
         gruposMap.get(clave).push(pedido);
     });
+    return Array.from(gruposMap.values());
+}
 
-    Array.from(gruposMap.values()).forEach(function(grupo){
+function pintarPedidos(pedidos){
+    const contenedor = elemento("portalClientePedidosLista");
+    contenedor.innerHTML = "";
+
+    const grupos = agruparPedidos(pedidos);
+    escaparTexto(elemento("portalStatPedidosValor"), String(grupos.length));
+    const comprasHeader = elemento("portalHeaderComprasValor");
+    if (comprasHeader) escaparTexto(comprasHeader, String(grupos.length));
+
+    if (!grupos.length) {
+        const vacio = document.createElement("p");
+        vacio.className = "tenant-portal-vacio";
+        vacio.textContent = "No has hecho pedidos en el sitio todavia.";
+        contenedor.appendChild(vacio);
+        return;
+    }
+
+    grupos.forEach(function(grupo){
         const principal = grupo[0];
-        const fila = document.createElement("tr");
 
-        const celdaProducto = document.createElement("td");
-        escaparTexto(celdaProducto, grupo.map(function(p){ return p.producto_nombre + " x" + p.cantidad; }).join(", "));
+        const fila = document.createElement("div");
+        fila.className = "portal-pedido-fila";
 
-        const celdaCantidad = document.createElement("td");
-        escaparTexto(celdaCantidad, grupo.length);
+        const icono = document.createElement("div");
+        icono.className = "portal-pedido-icono";
+        icono.innerHTML = ICONO_PEDIDO_JS;
 
-        const celdaFecha = document.createElement("td");
-        escaparTexto(celdaFecha, fechaCorta(principal.created_at));
+        const info = document.createElement("div");
+        info.className = "portal-pedido-info";
 
-        const celdaEstado = document.createElement("td");
+        const nombre = document.createElement("div");
+        nombre.className = "portal-pedido-nombre";
+        escaparTexto(nombre, grupo.map(function(p){ return p.producto_nombre + " x" + p.cantidad; }).join(", "));
+
+        const fecha = document.createElement("div");
+        fecha.className = "portal-pedido-fecha";
+        fecha.textContent = fechaCorta(principal.created_at) + " -- ";
         const badge = document.createElement("span");
         badge.className = "tenant-portal-badge " + (principal.estado || "pendiente");
         badge.textContent = BADGE_PEDIDO[principal.estado] || principal.estado;
-        celdaEstado.appendChild(badge);
+        fecha.appendChild(badge);
 
-        const celdaPrecio = document.createElement("td");
+        info.appendChild(nombre);
+        info.appendChild(fecha);
+
+        const precio = document.createElement("div");
+        precio.className = "portal-pedido-precio";
         if (principal.tipo === "cotizacion" && principal.estado === "cotizado") {
-            escaparTexto(celdaPrecio, "$" + Number(principal.precio_cotizado).toFixed(2) + (principal.nota_negocio ? " -- " + principal.nota_negocio : ""));
+            escaparTexto(precio, dinero(principal.precio_cotizado));
         }
 
-        fila.appendChild(celdaProducto);
-        fila.appendChild(celdaCantidad);
-        fila.appendChild(celdaFecha);
-        fila.appendChild(celdaEstado);
-        fila.appendChild(celdaPrecio);
-        cuerpo.appendChild(fila);
+        fila.appendChild(icono);
+        fila.appendChild(info);
+        fila.appendChild(precio);
+        contenedor.appendChild(fila);
     });
 }
+
+// Fecha de vencimiento real mas proxima entre las ventas pendientes que
+// TODAVIA no vencen -- es el unico dato de "siguiente pago" que existe
+// de verdad en el sistema (no hay concepto de pago minimo/mensualidad).
+function proximoPagoReal(aging){
+    if (!aging || !aging.ventasPendientes) return null;
+    const ahora = Date.now();
+    const futuras = aging.ventasPendientes.filter(function(v){
+        return v.fechaVencimiento && new Date(v.fechaVencimiento).getTime() >= ahora;
+    });
+    if (!futuras.length) return null;
+    futuras.sort(function(a, b){ return new Date(a.fechaVencimiento) - new Date(b.fechaVencimiento); });
+    return futuras[0].fechaVencimiento;
+}
+
+function pintarCredito(cliente, aging){
+    // Cuenta ligera (creada sola desde el carrito, sin limite de
+    // credito ni movimientos): se oculta la tarjeta de credito por
+    // completo en vez de mostrar "$0.00 disponible", que confundiria
+    // a un visitante que nunca pidio credito.
+    const tieneCredito = (aging.ventasPendientes && aging.ventasPendientes.length > 0) || Number(cliente.limite_credito) > 0 || Number(cliente.saldo) > 0;
+
+    const contenido = elemento("portalClienteCreditoContenido");
+    const vacio = elemento("portalClienteCreditoVacio");
+
+    if (!tieneCredito) {
+        contenido.style.display = "none";
+        vacio.style.display = "";
+        escaparTexto(elemento("portalStatCreditoValor"), "--");
+        return;
+    }
+
+    contenido.style.display = "";
+    vacio.style.display = "none";
+
+    const limite = Number(cliente.limite_credito) || 0;
+    const usado = Number(cliente.saldo) || 0;
+    const disponible = Math.max(0, limite - usado);
+    const pct = limite > 0 ? Math.min(100, Math.round((usado / limite) * 100)) : 0;
+
+    escaparTexto(elemento("portalStatCreditoValor"), dinero(disponible));
+
+    elemento("portalClienteCreditoGauge").style.background = "conic-gradient(var(--blue) " + pct + "%, rgba(20,32,51,.12) 0)";
+    escaparTexto(elemento("portalClienteCreditoGaugeTexto"), dinero(disponible));
+    escaparTexto(elemento("portalClienteCreditoLimite"), dinero(limite));
+    escaparTexto(elemento("portalClienteCreditoUsado"), dinero(usado));
+    escaparTexto(elemento("portalClienteCreditoDisponible"), dinero(disponible));
+
+    const proximo = proximoPagoReal(aging);
+    escaparTexto(elemento("portalClienteCreditoProximo"), proximo ? fechaCorta(proximo) : "Sin pagos pendientes");
+
+    const estado = elemento("portalClienteCreditoEstado");
+    estado.classList.toggle("vencido", Boolean(aging.vencido));
+    escaparTexto(estado, aging.vencido ? "Vencido -- " + dinero(aging.totalVencido) : "Al corriente");
+
+    const whatsappBtn = elemento("portalClienteCreditoWhatsapp");
+    if (whatsappBtn) {
+        const numero = (window.NEXO_PORTAL && window.NEXO_PORTAL.whatsapp) || "";
+        if (numero) {
+            whatsappBtn.style.display = "";
+            whatsappBtn.href = "https://wa.me/" + numero + "?text=" + encodeURIComponent("Hola, quiero abonar a mi credito.");
+        } else {
+            whatsappBtn.style.display = "none";
+        }
+    }
+}
+
+function contarFavoritos(){
+    try {
+        const slug = (window.NEXO_PORTAL && window.NEXO_PORTAL.slug) || location.hostname.split(".")[0];
+        const guardado = localStorage.getItem("nexoFavoritos_" + slug);
+        const lista = guardado ? JSON.parse(guardado) : [];
+        return Array.isArray(lista) ? lista.length : 0;
+    } catch (error) {
+        return 0;
+    }
+}
+
+// "Cambiar de ferreteria" / tarjeta "Tus ferreterias": solo tiene
+// datos reales que mostrar si el cliente ya vinculo su cuenta Nexo
+// personal (persona_id) -- sin eso, solo existe la tienda actual, y
+// eso es exactamente lo que se pinta (nada inventado).
+async function cargarTiendasVinculadas(personaId){
+    const listaTiendas = elemento("portalClienteTiendasLista");
+    const listaCambiar = elemento("portalClienteCambiarLista");
+    const botonCambiar = elemento("portalClienteCambiarBtn");
+    const negocioActual = (window.NEXO_PORTAL && window.NEXO_PORTAL.nombreNegocio) || "";
+    const slugActual = (window.NEXO_PORTAL && window.NEXO_PORTAL.slug) || "";
+
+    if (!personaId) {
+        listaTiendas.innerHTML = "";
+        const fila = document.createElement("div");
+        fila.className = "portal-tienda-fila portal-tienda-actual";
+        const nombreEl = document.createElement("strong");
+        nombreEl.textContent = negocioActual;
+        fila.appendChild(nombreEl);
+        listaTiendas.appendChild(fila);
+        if (botonCambiar) botonCambiar.style.display = "none";
+        return;
+    }
+
+    try {
+        const respuesta = await fetch("/personas/negocios-cliente", { credentials: "include" });
+        const datos = await respuesta.json();
+        if (!datos.ok || !Array.isArray(datos.negocios)) return;
+
+        listaTiendas.innerHTML = "";
+        listaCambiar.innerHTML = "";
+
+        datos.negocios.forEach(function(negocio){
+            const esActual = negocio.slug === slugActual;
+
+            const filaTienda = document.createElement("div");
+            filaTienda.className = "portal-tienda-fila" + (esActual ? " portal-tienda-actual" : "");
+            const nombreEl = document.createElement("strong");
+            nombreEl.textContent = negocio.nombre;
+            filaTienda.appendChild(nombreEl);
+            if (!esActual) {
+                const link = document.createElement("a");
+                link.href = "https://" + negocio.slug + ".nexoposoficial.com/portal-cliente";
+                link.textContent = "Entrar";
+                filaTienda.appendChild(link);
+            }
+            listaTiendas.appendChild(filaTienda);
+
+            const opcion = document.createElement("a");
+            opcion.href = "https://" + negocio.slug + ".nexoposoficial.com/portal-cliente";
+            if (esActual) opcion.className = "actual";
+            opcion.textContent = negocio.nombre + (esActual ? " (actual)" : "");
+            listaCambiar.appendChild(opcion);
+        });
+
+        if (botonCambiar) botonCambiar.style.display = datos.negocios.length > 1 ? "" : "none";
+    } catch (error) {
+        // silencioso -- si falla, la tienda actual ya quedo pintada
+        // arriba en el header, no se rompe la pagina por esto.
+    }
+}
+
+function alternarCambiarFerreteria(){
+    const lista = elemento("portalClienteCambiarLista");
+    if (lista) lista.classList.toggle("abierta");
+}
+
+document.addEventListener("click", function(evento){
+    const lista = elemento("portalClienteCambiarLista");
+    const boton = elemento("portalClienteCambiarBtn");
+    if (!lista || !lista.classList.contains("abierta")) return;
+    if (evento.target === boton || lista.contains(evento.target)) return;
+    lista.classList.remove("abierta");
+});
 
 async function mostrarPortalCliente(){
     const token = localStorage.getItem(CLAVE_TOKEN);
@@ -2883,30 +3168,14 @@ async function mostrarPortalCliente(){
         elemento("portalClienteLogin").style.display = "none";
         elemento("portalClienteCuenta").style.display = "";
         escaparTexto(elemento("portalClienteSaludo"), "Hola, " + (datos.cliente.nombre || ""));
-
-        // Cuenta ligera (creada sola desde el carrito, sin limite de
-        // credito ni movimientos): se oculta la tarjeta de saldo por
-        // completo en vez de mostrar "$0.00 disponible", que confundiria
-        // a un visitante que nunca pidio credito.
-        const tieneCredito = (datos.movimientos && datos.movimientos.length > 0) || Number(datos.cliente.limite_credito) > 0;
-        const tarjetaSaldo = elemento("portalClienteSaldoTarjeta");
-        if (!tieneCredito) {
-            tarjetaSaldo.style.display = "none";
-        } else {
-            tarjetaSaldo.style.display = "";
-            tarjetaSaldo.classList.toggle("vencido", Boolean(datos.aging.vencido));
-            escaparTexto(elemento("portalClienteSaldoMonto"), dinero(datos.cliente.saldo));
-            const avisoVencido = elemento("portalClienteSaldoAviso");
-            if (datos.aging.vencido) {
-                avisoVencido.style.display = "";
-                escaparTexto(avisoVencido, "Tienes " + dinero(datos.aging.totalVencido) + " vencido.");
-            } else {
-                avisoVencido.style.display = "none";
-            }
-        }
+        escaparTexto(elemento("portalStatFavoritosValor"), String(contarFavoritos()));
+        escaparTexto(elemento("portalClienteDatosNombre"), datos.cliente.nombre || "");
+        escaparTexto(elemento("portalClienteDatosTelefono"), datos.cliente.telefono || "");
 
         pintarMovimientos(datos.movimientos);
         pintarPedidos(datos.pedidos);
+        pintarCredito(datos.cliente, datos.aging);
+        cargarTiendasVinculadas(datos.cliente.persona_id);
 
         // Lado "Comprar" de la identidad Nexo unificada: solo se ofrece
         // vincular si todavia no lo esta -- la vinculacion en si requiere
@@ -2953,11 +3222,13 @@ async function vincularPersonaPortalCliente(){
 document.getElementById("portalClienteLoginForm").addEventListener("submit", iniciarSesionPortalCliente);
 document.getElementById("portalClienteLogoutBoton").addEventListener("click", cerrarSesionPortalCliente);
 document.getElementById("portalClienteVincularBoton").addEventListener("click", vincularPersonaPortalCliente);
+const botonCambiarFerreteriaInicial = document.getElementById("portalClienteCambiarBtn");
+if (botonCambiarFerreteriaInicial) botonCambiarFerreteriaInicial.addEventListener("click", alternarCambiarFerreteria);
 mostrarPortalCliente();
 `;
 }
 
-async function servirPortalClienteNegocio(pool, req, res, slug) {
+async function servirPortalClienteNegocio(pool, req, res, slug, firmarTokenImagen) {
     try {
         const sitio = await resolverSitioPublico(pool, slug);
 
@@ -2968,6 +3239,31 @@ async function servirPortalClienteNegocio(pool, req, res, slug) {
 
         const color = colorSeguro(sitio.negocio.color);
         const nombre = escaparHtml(sitio.negocio.nombre);
+        const whatsappNumero = normalizarTelefonoWhatsApp(sitio.config.whatsapp);
+
+        // Productos destacados (Fase 9, mismos datos que el Inicio de
+        // esta tienda) -- se reusa cargarInicioTenant en vez de repetir
+        // la consulta; si el dueno no marco ninguno a mano, la seccion
+        // simplemente no se pinta (destacadosTenantHtml ya maneja eso).
+        const datosInicio = await cargarInicioTenant(pool, sitio, slug, firmarTokenImagen);
+
+        // Configuracion publica del negocio (nunca dato de un cliente)
+        // para que el script del portal no tenga que adivinar el slug
+        // desde el hostname ni pedir el nombre por separado. Escapado
+        // de "</" para que no se pueda cerrar el <script> desde datos
+        // del negocio (nombre, etc.).
+        const configPortalJson = JSON.stringify({
+            slug: sitio.negocio.slug,
+            nombreNegocio: sitio.negocio.nombre,
+            whatsapp: whatsappNumero || ""
+        }).replace(/<\//g, "<\\/");
+
+        const sidebarProximamente = (icono, etiqueta) => `<span class="portal-sidebar-proximamente">${icono}${etiqueta}<span class="etiqueta">Pronto</span></span>`;
+        const accesoProximamente = (icono, etiqueta) => `<span class="portal-acceso-tile proximamente">${icono}${etiqueta}<span class="etiqueta">Pronto</span></span>`;
+
+        const ayudaWhatsappHref = whatsappNumero
+            ? `https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, necesito ayuda con mi cuenta en ${sitio.negocio.nombre}.`)}`
+            : "";
 
         const html = `<!doctype html>
 <html lang="es">
@@ -2979,13 +3275,14 @@ async function servirPortalClienteNegocio(pool, req, res, slug) {
 <link rel="icon" href="/nexo-pos-icon.jpg">
 <link rel="stylesheet" href="/site/styles.css">
 <style>${estilosBaseTenant(color)}</style>
+<style>${estilosPortalClienteHtml()}</style>
 </head>
 <body>
 ${encabezadoTenantHtml(sitio.negocio, "portal", sitio.config.aceptarSolicitudesCredito)}
-<main class="tenant-main tenant-main-angosto">
-<div id="portalClienteLogin">
+<main class="tenant-main">
+<div id="portalClienteLogin" class="tenant-main-angosto" style="margin:0 auto;">
 <h1 class="tenant-catalogo-titulo">Mi cuenta</h1>
-<p>Entra con el telefono y el codigo de acceso que te dio el negocio.</p>
+<p>Entra con el telefono y el codigo de acceso que te dio ${nombre}.</p>
 <form class="tenant-pedido-form" id="portalClienteLoginForm">
 <div class="tenant-pedido-honeypot" aria-hidden="true"><label>No llenar<input type="text" id="portalClienteHoneypot" tabindex="-1" autocomplete="off"></label></div>
 <label>Telefono<input type="text" id="portalClienteTelefono" maxlength="40" required></label>
@@ -2995,31 +3292,137 @@ ${encabezadoTenantHtml(sitio.negocio, "portal", sitio.config.aceptarSolicitudesC
 </form>
 </div>
 <div id="portalClienteCuenta" style="display:none;">
-<h1 class="tenant-portal-saludo" id="portalClienteSaludo"></h1>
-<div class="tenant-portal-saldo" id="portalClienteSaldoTarjeta">
-<div class="tenant-portal-saldo-monto" id="portalClienteSaldoMonto"></div>
-<div style="color:var(--muted); font-size:13px;">Saldo actual</div>
-<div class="tenant-portal-saldo-aviso" id="portalClienteSaldoAviso" style="display:none;"></div>
+<div class="portal-shell">
+<aside class="portal-sidebar">
+<div class="portal-sidebar-titulo">Tu cuenta</div>
+<a href="#resumen" class="activo">${ICONO_PORTAL_RESUMEN}Resumen</a>
+<a href="#pedidos">${ICONO_PORTAL_PEDIDOS}Mis pedidos</a>
+<a href="/favoritos">${ICONO_TENANT_FAVORITO}Favoritos</a>
+<a href="#credito">${ICONO_PORTAL_CREDITO}Mi credito</a>
+<div class="portal-sidebar-titulo">Mi informacion</div>
+<a href="#datos">${ICONO_PORTAL_USUARIO}Datos personales</a>
+<a href="#seguridad">${ICONO_PORTAL_SEGURIDAD}Acceso y seguridad</a>
+<div class="portal-sidebar-titulo">Proximamente</div>
+${sidebarProximamente(ICONO_PORTAL_DIRECCION, "Direcciones")}
+${sidebarProximamente(ICONO_PORTAL_PAGO, "Metodos de pago")}
+${sidebarProximamente(ICONO_PORTAL_FACTURA, "Facturas")}
+${sidebarProximamente(ICONO_PORTAL_DEVOLUCION, "Devoluciones")}
+${sidebarProximamente(ICONO_PORTAL_NOTIFICACION, "Notificaciones")}
+<div class="portal-sidebar-titulo">Ayuda</div>
+${ayudaWhatsappHref
+        ? `<a href="${ayudaWhatsappHref}" target="_blank" rel="noopener">${ICONO_PORTAL_AYUDA}Ayuda y soporte</a>`
+        : sidebarProximamente(ICONO_PORTAL_AYUDA, "Ayuda y soporte")}
+<div class="portal-sidebar-salir">
+<button type="button" id="portalClienteLogoutBoton">${ICONO_PORTAL_SALIR}Cerrar sesion</button>
 </div>
-<div class="tenant-portal-seccion">
-<h2>Tus movimientos</h2>
+</aside>
+<div>
+<div class="portal-header-card" id="resumen">
+<div>
+<h1 class="portal-header-saludo" id="portalClienteSaludo"></h1>
+<span class="portal-header-badge">Cliente de ${nombre}</span>
+</div>
+<div class="portal-header-negocio">
+<span class="portal-header-negocio-eyebrow">Tu ferreteria</span>
+<span class="portal-header-negocio-nombre">${nombre}</span>
+<div class="portal-header-negocio-fila"><span>Compras realizadas</span><strong id="portalHeaderComprasValor">0</strong></div>
+<button type="button" class="portal-header-cambiar" id="portalClienteCambiarBtn" style="display:none;">Cambiar de ferreteria</button>
+<button type="button" class="portal-header-cambiar tenant-btn-secundario-oscuro" id="portalClienteVincularBoton" style="display:none;">Vincular con mi cuenta Nexo</button>
+<div class="portal-header-cambiar-lista" id="portalClienteCambiarLista"></div>
+</div>
+</div>
+<div class="portal-stats-grid">
+<div class="portal-stat-card">
+<div class="portal-stat-card-titulo">${ICONO_PORTAL_PEDIDOS}Mis pedidos</div>
+<div class="portal-stat-card-valor" id="portalStatPedidosValor">0</div>
+<div class="portal-stat-card-sub"><a href="#pedidos">Ver pedidos</a></div>
+</div>
+<div class="portal-stat-card">
+<div class="portal-stat-card-titulo">${ICONO_TENANT_FAVORITO}Favoritos</div>
+<div class="portal-stat-card-valor" id="portalStatFavoritosValor">0</div>
+<div class="portal-stat-card-sub"><a href="/favoritos">Ver favoritos</a></div>
+</div>
+<div class="portal-stat-card">
+<div class="portal-stat-card-titulo">${ICONO_PORTAL_CREDITO}Credito disponible</div>
+<div class="portal-stat-card-valor" id="portalStatCreditoValor">--</div>
+<div class="portal-stat-card-sub"><a href="#credito">Ver credito</a></div>
+</div>
+<div class="portal-stat-card proximamente">
+<div class="portal-stat-card-titulo">${ICONO_PORTAL_DIRECCION}Direcciones</div>
+<div class="portal-stat-card-valor">0</div>
+<div class="portal-stat-card-sub">Proximamente</div>
+</div>
+</div>
+<div class="portal-grid-2">
+<div class="portal-card" id="pedidos">
+<div class="portal-card-header"><h2>Pedidos recientes</h2></div>
+<div id="portalClientePedidosLista"></div>
+</div>
+<div class="portal-card" id="credito">
+<div class="portal-card-header"><h2>Mi credito ${nombre}</h2></div>
+<p class="portal-credito-vacio" id="portalClienteCreditoVacio" style="display:none;">Todavia no tienes movimientos de credito con nosotros.</p>
+<div id="portalClienteCreditoContenido">
+<div class="portal-credito-gauge-wrap">
+<div class="portal-credito-gauge" id="portalClienteCreditoGauge"><span class="portal-credito-gauge-texto" id="portalClienteCreditoGaugeTexto"></span></div>
+<div class="portal-credito-lineas">
+<div class="portal-credito-linea"><span>Limite</span><strong id="portalClienteCreditoLimite"></strong></div>
+<div class="portal-credito-linea"><span>Usado</span><strong id="portalClienteCreditoUsado"></strong></div>
+<div class="portal-credito-linea"><span>Disponible</span><strong id="portalClienteCreditoDisponible"></strong></div>
+<div class="portal-credito-linea"><span>Proximo pago</span><strong id="portalClienteCreditoProximo"></strong></div>
+</div>
+</div>
+<span class="portal-credito-estado" id="portalClienteCreditoEstado"></span>
+<div class="portal-credito-acciones">
+<a href="#" class="tenant-btn-secundario" id="portalClienteCreditoWhatsapp" target="_blank" rel="noopener" style="display:none;">Pagar por WhatsApp</a>
+<a href="#historial" class="tenant-btn-secundario">Ver movimientos</a>
+</div>
+</div>
+</div>
+</div>
+${destacadosTenantHtml(datosInicio.destacados, "", `Productos destacados de ${sitio.negocio.nombre}`)}
+<div class="portal-card" id="tiendas">
+<div class="portal-card-header"><h2>Tus ferreterias</h2></div>
+<div class="portal-tiendas-lista" id="portalClienteTiendasLista"></div>
+</div>
+<div class="portal-card" id="accesos" style="margin-top:24px;">
+<div class="portal-card-header"><h2>Accesos rapidos</h2></div>
+<div class="portal-accesos-grid">
+<a class="portal-acceso-tile" href="/favoritos">${ICONO_TENANT_FAVORITO}Favoritos</a>
+${ayudaWhatsappHref
+        ? `<a class="portal-acceso-tile" href="${ayudaWhatsappHref}" target="_blank" rel="noopener">${ICONO_PORTAL_AYUDA}Ayuda y soporte</a>`
+        : accesoProximamente(ICONO_PORTAL_AYUDA, "Ayuda y soporte")}
+${accesoProximamente(ICONO_PORTAL_FACTURA, "Facturas")}
+${accesoProximamente(ICONO_PORTAL_DEVOLUCION, "Devoluciones")}
+${accesoProximamente(ICONO_PORTAL_PAGO, "Metodos de pago")}
+${accesoProximamente(ICONO_PORTAL_NOTIFICACION, "Notificaciones")}
+</div>
+</div>
+<div class="portal-card" id="datos" style="margin-top:24px;">
+<div class="portal-card-header"><h2>Datos personales</h2></div>
+<div class="portal-datos-fila"><span>Nombre</span><span id="portalClienteDatosNombre"></span></div>
+<div class="portal-datos-fila"><span>Telefono</span><span id="portalClienteDatosTelefono"></span></div>
+<p style="color:var(--muted); font-size:12.5px; margin-top:14px;">Para actualizar tus datos, contacta directamente a ${nombre}.</p>
+</div>
+<div class="portal-card" id="seguridad" style="margin-top:24px;">
+<div class="portal-card-header"><h2>Acceso y seguridad</h2></div>
+<div class="portal-seguridad-card">
+<p>Entras a tu cuenta con tu <strong>telefono</strong> y un <strong>codigo de acceso</strong> que te da ${nombre} -- no usamos contrasena tradicional.</p>
+<p>Si perdiste tu codigo o quieres uno nuevo, pidelo directamente en la ferreteria.</p>
+</div>
+</div>
+<div class="portal-card" id="historial" style="margin-top:24px;">
+<div class="portal-card-header"><h2>Historial de movimientos</h2></div>
 <table class="tenant-portal-tabla">
 <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th></tr></thead>
 <tbody id="portalClienteMovimientos"></tbody>
 </table>
 </div>
-<div class="tenant-portal-seccion">
-<h2>Tus pedidos</h2>
-<table class="tenant-portal-tabla">
-<thead><tr><th>Producto</th><th>Items</th><th>Fecha</th><th>Estado</th><th>Precio</th></tr></thead>
-<tbody id="portalClientePedidos"></tbody>
-</table>
 </div>
-<button type="button" class="tenant-portal-logout" id="portalClienteVincularBoton" style="display:none;">Vincular con mi cuenta Nexo</button>
-<button type="button" class="tenant-portal-logout" id="portalClienteLogoutBoton">Cerrar sesion</button>
+</div>
 </div>
 </main>
 <footer class="tenant-footer">Con la tecnologia de Nexo</footer>
+<script>window.NEXO_PORTAL = ${configPortalJson};</script>
 <script>${scriptPortalClienteHtml()}</script>
 </body>
 </html>`;

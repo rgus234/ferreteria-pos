@@ -4645,7 +4645,7 @@ app.post("/solicitud-credito", (req, res) => {
 app.get("/portal-cliente", async (req, res) => {
     const slugTenant = slugDesdeSubdominio((req.hostname || "").toLowerCase());
     if (!slugTenant) { res.status(404).send("No encontrado"); return; }
-    await servirPortalClienteNegocio(pool, req, res, slugTenant);
+    await servirPortalClienteNegocio(pool, req, res, slugTenant, firmarTokenImagen);
 });
 
 app.post("/portal-cliente/login", async (req, res) => {
