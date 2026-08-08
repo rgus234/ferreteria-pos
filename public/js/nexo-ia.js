@@ -2,13 +2,19 @@
    acceso rapido (resumen + recomendaciones + preguntas rapidas). El
    chat completo vive en el modulo de pantalla completa
    (#pantallaNexoIA), igual que Ventas, Inventario o Reportes.
-   Sin persistencia: el historial vive solo en esta variable JS y se
-   pierde al recargar -- aceptado para esta version. El interceptor
-   global de fetch (app.js) ya agrega el header de auth correcto a
-   las rutas de /ia/*, no hace falta nada especial aqui. */
+   Conversaciones persistentes (Nexo AI v2): el historial real vive en
+   la base de datos (ia_conversaciones/ia_mensajes, ver ia-server.js)
+   -- historialNexoIA es solo un espejo en memoria de la conversacion
+   activa para no tener que volver a pedirla en cada mensaje.
+   conversacionActualId se guarda en localStorage para sobrevivir a
+   recargar la pagina. El interceptor global de fetch (app.js) ya
+   agrega el header de auth correcto a las rutas de /ia/*, no hace
+   falta nada especial aqui. */
 
 let historialNexoIA = [];
+let conversacionActualNexoIA = null;
 let nexoIaEnviando = false;
+const NEXO_IA_CONVERSACION_STORAGE_KEY = "nexoConversacionActualId";
 
 /* Nexo AI v2 -- navegacion por conversacion: mapa deliberadamente
    acotado a los modulos con una funcion mostrarX() clara y directa
@@ -388,9 +394,13 @@ async function mostrarNexoIA() {
   <div class="caja nexo-ia-vista">
    <div class="nexo-ia-vista-cabecera" id="nexoIaVistaCabecera">
     ${nexoIaMarcaSVG("feliz")}
-    <div>
+    <div class="nexo-ia-vista-titulo-grupo">
      <h2>Nexo IA</h2>
      <p class="nexo-ia-vista-subtitulo">Pregunta lo que quieras saber de tu negocio</p>
+    </div>
+    <div class="nexo-ia-vista-acciones">
+     <button type="button" id="nexoIaVerConversaciones">Conversaciones</button>
+     <button type="button" id="nexoIaNuevaConversacion">+ Nueva</button>
     </div>
    </div>
    <div class="nexo-ia-mensajes" id="nexoIaMensajes"></div>
@@ -408,13 +418,175 @@ async function mostrarNexoIA() {
    enviarMensajeNexoIA();
   }
  });
+ document.getElementById("nexoIaVerConversaciones").addEventListener("click", abrirConversacionesNexoIA);
+ document.getElementById("nexoIaNuevaConversacion").addEventListener("click", nuevaConversacionNexoIA);
+
+ await cargarConversacionGuardadaNexoIA();
+}
+
+/* Pinta el historial actual (en memoria) en #nexoIaMensajes desde
+   cero -- usada tanto al restaurar una conversacion guardada como al
+   cambiar de conversacion desde el panel. */
+function renderHistorialNexoIA() {
+ const lista = document.getElementById("nexoIaMensajes");
+ if (lista) lista.innerHTML = "";
 
  if (historialNexoIA.length === 0) {
   agregarMensajeNexoIA("Hola, soy Nexo. Preguntame como van tus ventas, tu inventario o tus creditos.", "asistente");
- } else {
-  historialNexoIA.forEach(entrada => {
-   agregarMensajeNexoIA(entrada.contenido, entrada.rol === "user" ? "usuario" : "asistente");
+  return;
+ }
+
+ historialNexoIA.forEach(entrada => {
+  agregarMensajeNexoIA(entrada.contenido, entrada.rol === "user" ? "usuario" : "asistente");
+ });
+}
+
+/* Al abrir la pantalla de Nexo IA, restaura la ultima conversacion
+   activa (guardada en localStorage) pidiendo sus mensajes reales al
+   servidor -- si ya no existe o no es de este negocio, el servidor
+   responde 404 y aqui simplemente se empieza de cero, sin tronar. */
+async function cargarConversacionGuardadaNexoIA() {
+ const idGuardado = Number(localStorage.getItem(NEXO_IA_CONVERSACION_STORAGE_KEY));
+
+ if (!Number.isFinite(idGuardado) || idGuardado <= 0) {
+  conversacionActualNexoIA = null;
+  historialNexoIA = [];
+  renderHistorialNexoIA();
+  return;
+ }
+
+ try {
+  const respuesta = await fetch(`/ia/conversaciones/${idGuardado}/mensajes`);
+  const datos = await respuesta.json();
+
+  if (!respuesta.ok || !datos.ok) {
+   localStorage.removeItem(NEXO_IA_CONVERSACION_STORAGE_KEY);
+   conversacionActualNexoIA = null;
+   historialNexoIA = [];
+   renderHistorialNexoIA();
+   return;
+  }
+
+  conversacionActualNexoIA = idGuardado;
+  historialNexoIA = Array.isArray(datos.mensajes) ? datos.mensajes : [];
+  renderHistorialNexoIA();
+ } catch (error) {
+  conversacionActualNexoIA = null;
+  historialNexoIA = [];
+  renderHistorialNexoIA();
+ }
+}
+
+function nuevaConversacionNexoIA() {
+ conversacionActualNexoIA = null;
+ historialNexoIA = [];
+ localStorage.removeItem(NEXO_IA_CONVERSACION_STORAGE_KEY);
+ renderHistorialNexoIA();
+ document.getElementById("nexoIaInput")?.focus();
+}
+
+async function seleccionarConversacionNexoIA(id) {
+ try {
+  const respuesta = await fetch(`/ia/conversaciones/${id}/mensajes`);
+  const datos = await respuesta.json();
+  if (!respuesta.ok || !datos.ok) return;
+
+  conversacionActualNexoIA = id;
+  historialNexoIA = Array.isArray(datos.mensajes) ? datos.mensajes : [];
+  localStorage.setItem(NEXO_IA_CONVERSACION_STORAGE_KEY, String(id));
+  renderHistorialNexoIA();
+ } catch (error) {
+  // Silencioso -- si falla, el usuario simplemente se queda en la
+  // conversacion que ya tenia abierta.
+ }
+}
+
+/* Panel de conversaciones guardadas: mismo patron que
+   pedirPesoPOS/pedirModoVentaPOS (pos-weight-modal.js) para el modal,
+   pero sin Promise -- aqui no se espera una respuesta, solo se
+   navega a la conversacion elegida o se cierra. */
+async function abrirConversacionesNexoIA() {
+ let modal = document.getElementById("modalConversacionesNexo");
+ if (!modal) {
+  modal = document.createElement("div");
+  modal.id = "modalConversacionesNexo";
+  modal.className = "modal-personalizado modal-conversaciones-nexo";
+  document.body.appendChild(modal);
+ }
+
+ modal.innerHTML = `
+  <div class="conversaciones-nexo-card">
+   <div class="modal-card-header">
+    <div>
+     <span>Nexo IA</span>
+     <h3>Conversaciones</h3>
+    </div>
+    <button type="button" class="conversaciones-nexo-cerrar" data-accion="cerrar">Cerrar</button>
+   </div>
+   <button type="button" class="conversaciones-nexo-nueva" data-accion="nueva">+ Nueva conversacion</button>
+   <p class="conversaciones-nexo-cargando">Cargando...</p>
+  </div>
+ `;
+ modal.style.display = "flex";
+
+ const cerrar = () => {
+  modal.style.display = "none";
+  modal.innerHTML = "";
+  document.removeEventListener("keydown", manejarTeclado, true);
+ };
+
+ function manejarTeclado(event) {
+  if (event.key === "Escape") cerrar();
+ }
+ document.addEventListener("keydown", manejarTeclado, true);
+
+ modal.querySelector("[data-accion='cerrar']").onclick = cerrar;
+ modal.querySelector("[data-accion='nueva']").onclick = () => {
+  cerrar();
+  nuevaConversacionNexoIA();
+ };
+ modal.onclick = event => {
+  if (event.target === modal) cerrar();
+ };
+
+ try {
+  const respuesta = await fetch("/ia/conversaciones");
+  const datos = await respuesta.json();
+  const cargando = modal.querySelector(".conversaciones-nexo-cargando");
+
+  if (!respuesta.ok || !datos.ok) {
+   if (cargando) cargando.textContent = "No se pudieron cargar tus conversaciones.";
+   return;
+  }
+
+  const lista = Array.isArray(datos.conversaciones) ? datos.conversaciones : [];
+
+  if (lista.length === 0) {
+   if (cargando) cargando.textContent = "Todavia no tienes conversaciones guardadas.";
+   return;
+  }
+
+  cargando?.remove();
+
+  const contenedor = document.createElement("div");
+  contenedor.className = "conversaciones-nexo-lista";
+  contenedor.innerHTML = lista.map(conversacion => `
+   <button type="button" class="conversaciones-nexo-item${Number(conversacion.id) === conversacionActualNexoIA ? " activa" : ""}" data-id="${Number(conversacion.id)}">
+    <span class="conversaciones-nexo-item-titulo">${escaparPOS(conversacion.titulo || "Conversacion")}</span>
+    <span class="conversaciones-nexo-item-fecha">${new Date(conversacion.actualizadoEn).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}</span>
+   </button>
+  `).join("");
+  modal.querySelector(".conversaciones-nexo-card").appendChild(contenedor);
+
+  contenedor.querySelectorAll("[data-id]").forEach(boton => {
+   boton.addEventListener("click", () => {
+    cerrar();
+    seleccionarConversacionNexoIA(Number(boton.dataset.id));
+   });
   });
+ } catch (error) {
+  const cargando = modal.querySelector(".conversaciones-nexo-cargando");
+  if (cargando) cargando.textContent = "No se pudo conectar con Nexo ahora mismo.";
  }
 }
 
@@ -454,7 +626,7 @@ async function enviarMensajeNexoIA() {
   const respuesta = await fetch("/ia/chat", {
    method: "POST",
    headers: { "Content-Type": "application/json" },
-   body: JSON.stringify({ mensaje, historial: historialNexoIA })
+   body: JSON.stringify({ mensaje, conversacionId: conversacionActualNexoIA })
   });
 
   const datos = await respuesta.json();
@@ -468,7 +640,11 @@ async function enviarMensajeNexoIA() {
   agregarMensajeNexoIA(datos.respuesta, "asistente");
   historialNexoIA.push({ rol: "user", contenido: mensaje });
   historialNexoIA.push({ rol: "assistant", contenido: datos.respuesta });
-  historialNexoIA = historialNexoIA.slice(-12);
+
+  if (datos.conversacionId) {
+   conversacionActualNexoIA = datos.conversacionId;
+   localStorage.setItem(NEXO_IA_CONVERSACION_STORAGE_KEY, String(datos.conversacionId));
+  }
 
   // Se navega DESPUES de mostrar el texto, para que el usuario vea
   // primero que Nexo entendio antes de que la pantalla cambie.

@@ -39,6 +39,40 @@
  font-size: var(--nexo-font-size-sm);
 }
 
+.nexo-ia-vista-titulo-grupo {
+ flex: 1;
+ min-width: 0;
+}
+
+.nexo-ia-vista-acciones {
+ display: flex;
+ gap: var(--nexo-space-2);
+ flex-shrink: 0;
+}
+
+.nexo-ia-vista-acciones button {
+ border: 1px solid var(--nexo-line);
+ background: var(--nexo-surface);
+ color: var(--nexo-text);
+ border-radius: var(--nexo-radius-sm);
+ padding: 6px 12px;
+ font-size: var(--nexo-font-size-sm);
+ font-weight: 700;
+ cursor: pointer;
+ white-space: nowrap;
+}
+
+.nexo-ia-vista-acciones button:hover {
+ background: var(--nexo-brand-soft);
+}
+
+@media (max-width: 560px) {
+ .nexo-ia-vista-acciones button {
+  padding: 6px 8px;
+  font-size: 11px;
+ }
+}
+
 .nexo-ia-mensajes {
  flex: 1;
  overflow-y: auto;

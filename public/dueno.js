@@ -8,6 +8,7 @@ let duenoUltimosResultados = [];
 let duenoProductoDetalleActual = null;
 let duenoInventarioCategoria = "";
 let duenoNexoHistorial = [];
+let duenoNexoConversacionId = null;
 let duenoNexoEnviando = false;
 let duenoOnboardingSlideActual = 0;
 
@@ -52,6 +53,7 @@ function mostrarLoginDueno() {
     document.getElementById("duenoNexoBurbuja").style.display = "none";
 
     duenoNexoHistorial = [];
+    duenoNexoConversacionId = null;
     const mensajesNexo = document.getElementById("duenoNexoMensajes");
     if (mensajesNexo) mensajesNexo.innerHTML = "";
     cerrarNexoChatDueno();
@@ -1691,7 +1693,14 @@ async function actualizarNexoBurbujaDueno() {
 }
 
 function abrirNexoChatDueno() {
-    document.getElementById("duenoNexoChatOverlay").style.display = "flex";
+    const overlay = document.getElementById("duenoNexoChatOverlay");
+
+    // Si ya esta abierto (doble tap en la burbuja, comun en celular),
+    // no hacer nada -- sin este guard, el saludo se agregaba dos veces
+    // porque duenoNexoHistorial seguia vacio en ambas llamadas.
+    if (overlay.style.display === "flex") return;
+
+    overlay.style.display = "flex";
 
     if (duenoNexoHistorial.length === 0) {
         agregarMensajeNexoDueno("Hola, soy Nexo. Preguntame como van tus ventas, tu inventario o tus creditos.", "asistente");
@@ -1750,7 +1759,7 @@ async function enviarMensajeNexoDueno() {
         await fetchAutenticado("/ia/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mensaje, historial: duenoNexoHistorial })
+            body: JSON.stringify({ mensaje, conversacionId: duenoNexoConversacionId })
         });
 
         indicador?.remove();
@@ -1763,10 +1772,20 @@ async function enviarMensajeNexoDueno() {
         agregarMensajeNexoDueno(datos.respuesta, "asistente");
         duenoNexoHistorial.push({ rol: "user", contenido: mensaje });
         duenoNexoHistorial.push({ rol: "assistant", contenido: datos.respuesta });
-        duenoNexoHistorial = duenoNexoHistorial.slice(-12);
+        if (datos.conversacionId) duenoNexoConversacionId = datos.conversacionId;
     } catch (error) {
         indicador?.remove();
-        agregarMensajeNexoDueno("No se pudo conectar con Nexo. Revisa tu conexion.", "error");
+
+        // fetchAutenticado lanza errores con mensaje util (sesion
+        // expirada, error real del servidor) -- solo un TypeError real
+        // de fetch() (sin conexion, DNS, etc.) amerita el mensaje
+        // generico. Mostrar siempre el mismo texto ocultaba la causa
+        // real (ej. un 500 del servidor se veia identico a "sin senal").
+        const esFalloDeRed = error instanceof TypeError;
+        agregarMensajeNexoDueno(
+            esFalloDeRed ? "No se pudo conectar con Nexo. Revisa tu conexion." : (error.message || "Nexo no pudo responder. Intenta de nuevo."),
+            "error"
+        );
     } finally {
         duenoNexoEnviando = false;
 

@@ -356,6 +356,60 @@ async function licenciaDelNegocio(pool, negocioId) {
     return { plan, limite, usosVigentes, iaDisponible: limite > 0 };
 }
 
+// Conversaciones persistentes de Nexo IA (historial que sobrevive a
+// recargar la pagina, con "nueva conversacion"). Ortogonal a la
+// "memoria de habitos" (ia_memoria en licencias, ver
+// registrarAperturaModulo/resumenMemoriaNexo mas abajo) -- esto es el
+// contenido de los chats, aquello es un contador de modulos abiertos.
+const TITULO_CONVERSACION_MAX = 60;
+
+function tituloDesdeMensaje(mensaje) {
+    const limpio = mensaje.replace(/\s+/g, " ").trim();
+    return limpio.length > TITULO_CONVERSACION_MAX
+        ? `${limpio.slice(0, TITULO_CONVERSACION_MAX - 1)}…`
+        : limpio;
+}
+
+async function crearConversacion(pool, negocioId, primerMensaje) {
+    const resultado = await pool.query(
+        `INSERT INTO public.ia_conversaciones (negocio_id, titulo) VALUES ($1, $2) RETURNING id`,
+        [negocioId, tituloDesdeMensaje(primerMensaje)]
+    );
+    return resultado.rows[0].id;
+}
+
+// Toda conversacion se valida contra el negocio que la pide antes de
+// leerla/usarla -- nunca se confia en un id de conversacion ajeno,
+// mismo criterio fail-closed que negocioActual().
+async function conversacionDelNegocio(pool, negocioId, conversacionId) {
+    const resultado = await pool.query(
+        `SELECT id FROM public.ia_conversaciones WHERE id = $1 AND negocio_id = $2 LIMIT 1`,
+        [conversacionId, negocioId]
+    );
+    return resultado.rows.length > 0;
+}
+
+async function cargarMensajesConversacion(pool, conversacionId) {
+    const resultado = await pool.query(
+        `SELECT rol, contenido FROM public.ia_mensajes WHERE conversacion_id = $1 ORDER BY creado_en ASC, id ASC`,
+        [conversacionId]
+    );
+    return resultado.rows;
+}
+
+async function guardarMensaje(pool, conversacionId, rol, contenido) {
+    await pool.query(
+        `INSERT INTO public.ia_mensajes (conversacion_id, rol, contenido) VALUES ($1, $2, $3)`,
+        [conversacionId, rol, contenido]
+    );
+    await pool.query(`UPDATE public.ia_conversaciones SET actualizado_en = NOW() WHERE id = $1`, [conversacionId]);
+}
+
+async function asegurarConversacion(pool, negocioId, conversacionId, primerMensaje) {
+    if (conversacionId) return conversacionId;
+    return crearConversacion(pool, negocioId, primerMensaje);
+}
+
 async function registrarUsoNivel3(pool, negocioId) {
     await pool.query(
         `
@@ -916,6 +970,73 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
+    // Lista de conversaciones guardadas del negocio, mas recientes
+    // primero -- para el panel de "Conversaciones" del frontend.
+    app.get("/ia/conversaciones", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const resultado = await pool.query(
+                `SELECT id, titulo, actualizado_en FROM public.ia_conversaciones WHERE negocio_id = $1 ORDER BY actualizado_en DESC LIMIT 50`,
+                [negocio.id]
+            );
+
+            res.json({
+                ok: true,
+                conversaciones: resultado.rows.map(fila => ({ id: fila.id, titulo: fila.titulo, actualizadoEn: fila.actualizado_en }))
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.get("/ia/conversaciones/:id/mensajes", requerirAccesoNegocio, async (req, res) => {
+        const conversacionId = Number(req.params.id);
+
+        if (!Number.isFinite(conversacionId) || conversacionId <= 0) {
+            res.status(400).json({ ok: false, error: "Id de conversacion invalido" });
+            return;
+        }
+
+        try {
+            const negocio = await negocioActual(req, pool);
+            const pertenece = await conversacionDelNegocio(pool, negocio.id, conversacionId);
+
+            if (!pertenece) {
+                res.status(404).json({ ok: false, error: "Conversacion no encontrada" });
+                return;
+            }
+
+            const mensajes = await cargarMensajesConversacion(pool, conversacionId);
+            res.json({ ok: true, mensajes: mensajes.map(m => ({ rol: m.rol, contenido: m.contenido })) });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.delete("/ia/conversaciones/:id", requerirAccesoNegocio, async (req, res) => {
+        const conversacionId = Number(req.params.id);
+
+        if (!Number.isFinite(conversacionId) || conversacionId <= 0) {
+            res.status(400).json({ ok: false, error: "Id de conversacion invalido" });
+            return;
+        }
+
+        try {
+            const negocio = await negocioActual(req, pool);
+            const pertenece = await conversacionDelNegocio(pool, negocio.id, conversacionId);
+
+            if (!pertenece) {
+                res.status(404).json({ ok: false, error: "Conversacion no encontrada" });
+                return;
+            }
+
+            await pool.query(`DELETE FROM public.ia_conversaciones WHERE id = $1`, [conversacionId]);
+            res.json({ ok: true });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     app.post("/ia/chat", requerirAccesoNegocio, async (req, res) => {
         const anthropic = obtenerAnthropic();
 
@@ -936,9 +1057,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             return;
         }
 
-        const historialCliente = Array.isArray(req.body?.historial) ? req.body.historial : [];
-        const historialRecortado = historialCliente.slice(-MAX_HISTORIAL_ENTRADAS);
-        const esPrimerMensaje = historialRecortado.length === 0;
+        const conversacionIdCliente =
+            Number.isFinite(Number(req.body?.conversacionId)) && Number(req.body.conversacionId) > 0
+                ? Number(req.body.conversacionId)
+                : null;
 
         try {
             const negocio = await negocioActual(req, pool);
@@ -953,6 +1075,27 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 return;
             }
 
+            // El historial siempre se lee de la base de datos, nunca del
+            // cliente -- asi la conversacion sobrevive a recargar la
+            // pagina y no se puede falsificar mandando un historial
+            // distinto. Un conversacionId que no pertenece a este
+            // negocio (o que ya no existe) se trata como "sin
+            // conversacion" en vez de dar error -- el chat simplemente
+            // empieza una nueva.
+            let conversacionId = null;
+            let historialDB = [];
+
+            if (conversacionIdCliente) {
+                const pertenece = await conversacionDelNegocio(pool, negocio.id, conversacionIdCliente);
+                if (pertenece) {
+                    conversacionId = conversacionIdCliente;
+                    historialDB = await cargarMensajesConversacion(pool, conversacionId);
+                }
+            }
+
+            const historialRecortado = historialDB.slice(-MAX_HISTORIAL_ENTRADAS);
+            const esPrimerMensaje = historialRecortado.length === 0;
+
             const clasificacion = esPrimerMensaje ? clasificarNivelPregunta(mensaje) : { nivel: 3 };
 
             if (esPrimerMensaje) {
@@ -961,7 +1104,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     const respuesta = respuestaNivel1(clasificacion.herramienta, datos);
 
                     if (respuesta) {
-                        res.json({ ok: true, respuesta, nivel: 1 });
+                        const idConversacion = await asegurarConversacion(pool, negocio.id, conversacionId, mensaje);
+                        await guardarMensaje(pool, idConversacion, "user", mensaje);
+                        await guardarMensaje(pool, idConversacion, "assistant", respuesta);
+                        res.json({ ok: true, respuesta, nivel: 1, conversacionId: idConversacion });
                         return;
                     }
                 }
@@ -970,15 +1116,16 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 const enCache = CACHE_RESPUESTAS.get(clave);
 
                 if (enCache && enCache.expiraEn > Date.now()) {
-                    res.json({ ok: true, respuesta: enCache.respuesta, nivel: `${enCache.nivel}-cache` });
+                    const idConversacion = await asegurarConversacion(pool, negocio.id, conversacionId, mensaje);
+                    await guardarMensaje(pool, idConversacion, "user", mensaje);
+                    await guardarMensaje(pool, idConversacion, "assistant", enCache.respuesta);
+                    res.json({ ok: true, respuesta: enCache.respuesta, nivel: `${enCache.nivel}-cache`, conversacionId: idConversacion });
                     return;
                 }
             }
 
             const mensajesIniciales = [
-                ...historialRecortado
-                    .filter(entrada => entrada && (entrada.rol === "user" || entrada.rol === "assistant") && entrada.contenido)
-                    .map(entrada => ({ role: entrada.rol, content: String(entrada.contenido) })),
+                ...historialRecortado.map(entrada => ({ role: entrada.rol, content: entrada.contenido })),
                 { role: "user", content: mensaje }
             ];
 
@@ -1014,7 +1161,11 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 CACHE_RESPUESTAS.set(claveCache(negocio.id, mensaje), { respuesta, nivel: nivelFinal, expiraEn: Date.now() + CACHE_TTL_MS });
             }
 
-            res.json({ ok: true, respuesta: respuesta + notaLimite, nivel: nivelFinal, accion, celebrar });
+            const idConversacion = await asegurarConversacion(pool, negocio.id, conversacionId, mensaje);
+            await guardarMensaje(pool, idConversacion, "user", mensaje);
+            await guardarMensaje(pool, idConversacion, "assistant", respuesta);
+
+            res.json({ ok: true, respuesta: respuesta + notaLimite, nivel: nivelFinal, accion, celebrar, conversacionId: idConversacion });
         } catch (error) {
             responderError(res, error);
         }

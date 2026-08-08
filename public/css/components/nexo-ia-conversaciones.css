@@ -1,0 +1,147 @@
+.modal-conversaciones-nexo {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, .38);
+  backdrop-filter: blur(10px);
+}
+
+.conversaciones-nexo-card {
+  width: min(420px, 94vw);
+  max-height: min(560px, 82vh);
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, .55);
+  background: rgba(255, 255, 255, .92);
+  color: var(--pos-text, #111827);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .24);
+  padding: 18px;
+  backdrop-filter: blur(18px) saturate(135%);
+}
+
+.conversaciones-nexo-card .modal-card-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.conversaciones-nexo-card .modal-card-header span {
+  display: block;
+  color: var(--brand-color, #0d6efd);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.conversaciones-nexo-card .modal-card-header h3 {
+  margin: 2px 0 0;
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.conversaciones-nexo-cerrar {
+  min-height: 30px;
+  border: 1px solid rgba(13, 110, 253, .18);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: rgba(13, 110, 253, .08);
+  color: var(--brand-color, #0d6efd);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.conversaciones-nexo-nueva {
+  margin-bottom: 12px;
+  border: 1px dashed rgba(13, 110, 253, .35);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(13, 110, 253, .06);
+  color: var(--brand-color, #0d6efd);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: left;
+}
+
+.conversaciones-nexo-cargando {
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.conversaciones-nexo-lista {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.conversaciones-nexo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba(15, 23, 42, .1);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, .6);
+  color: #0f172a;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.conversaciones-nexo-item:hover {
+  background: rgba(13, 110, 253, .08);
+}
+
+.conversaciones-nexo-item.activa {
+  border-color: var(--brand-color, #0d6efd);
+  background: rgba(13, 110, 253, .1);
+}
+
+.conversaciones-nexo-item-titulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.conversaciones-nexo-item-fecha {
+  flex-shrink: 0;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+body.oscuro .conversaciones-nexo-card {
+  background: rgba(15, 23, 42, .92) !important;
+  border-color: rgba(148, 163, 184, .2) !important;
+  color: #f8fafc !important;
+}
+
+body.oscuro .conversaciones-nexo-cargando {
+  color: #cbd5e1 !important;
+}
+
+body.oscuro .conversaciones-nexo-item {
+  background: rgba(15, 23, 42, .5) !important;
+  border-color: rgba(148, 163, 184, .18) !important;
+  color: #f8fafc !important;
+}
+
+body.oscuro .conversaciones-nexo-item-fecha {
+  color: #cbd5e1 !important;
+}
