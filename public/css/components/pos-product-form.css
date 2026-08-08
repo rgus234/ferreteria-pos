@@ -489,6 +489,13 @@
   cursor: default !important;
  }
 
+ #modalAgregar .precio-carrito-ayuda {
+  display: none;
+  color: var(--brand-color, #0d6efd) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+ }
+
  #modalAgregar .campo-ficha span.campo-ficha-badge-auto,
  #modalAgregar .campo-ficha span.campo-ficha-badge-imagen {
   display: inline-block !important;

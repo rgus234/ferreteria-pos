@@ -46,6 +46,7 @@
   <link rel="stylesheet" href="css/components/sale-documents.css?v=nota-venta-rediseno-20260721-01">
   <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=venta-pieza-20260711-01">
   <link rel="stylesheet" href="css/components/pos-piece-sale-modal.css?v=venta-pieza-20260711-01">
+  <link rel="stylesheet" href="css/components/pos-weight-modal.css?v=peso-carrito-20260817-01">
   <link rel="stylesheet" href="css/components/account-view.css?v=fundador-botones-20260730-01">
   <link rel="stylesheet" href="css/components/product-details-view.css?v=liquid-glass-inv-20260719-01">
   <link rel="stylesheet" href="css/components/low-stock-order.css?v=refactor-low-stock-order-20260701-01">
@@ -1151,7 +1152,7 @@
  <input id="nuevaCategoria" placeholder="Categoria" list="listaCategoriasProducto">
  <datalist id="listaCategoriasProducto"></datalist>
  <input id="nuevaMarca" placeholder="Marca">
- <select id="unidadVenta">
+ <select id="unidadVenta" onchange="actualizarAyudaPrecioProducto()">
  <option value="pieza">Pieza</option>
  <option value="metro">Metro</option>
  <option value="kg">Kilo</option>
@@ -1181,8 +1182,9 @@
  <input id="precioMayoreo" type="number" step="0.01" placeholder=" Precio medio mayoreo" />
  <input id="precioPublico" type="number" step="0.01" placeholder="Precio publico">
  <div class="campo-ficha-precio-carrito">
- <input id="nuevoPrecio" type="number" step="0.01" placeholder="Precio del carrito">
+ <input id="nuevoPrecio" type="number" step="0.01" placeholder="Precio del carrito" oninput="actualizarAyudaPrecioProducto()">
  <button type="button" id="sugerenciaPrecioProveedor" class="btn-sugerencia-precio-proveedor" style="display:none;"></button>
+ <span id="precioCarritoAyuda" class="precio-carrito-ayuda"></span>
  </div>
  </div>
  </section>
@@ -1202,8 +1204,8 @@
  <input id="piezasPorBolsa" type="number" step="0.01" min="0" placeholder="Piezas por bolsa/caja">
  <input id="precioPieza" type="number" step="0.01" min="0" placeholder="Precio por pieza suelta">
  <select id="basculaDigital">
- <option value="no">Bascula digital: no</option>
- <option value="preparado">Preparar para bascula</option>
+ <option value="no">Boton de peso manual: automatico en kg/litro/metro</option>
+ <option value="preparado">Boton de peso manual: tambien en esta unidad</option>
  </select>
  <select id="altaRotacion">
  <option value="">Se vende rapido?</option>
@@ -1616,6 +1618,7 @@
   <script src="js/product-inventory.js?v=banco-imagenes-solicitar-20260731-01"></script>
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
+<script src="js/pos-weight-modal.js?v=peso-carrito-20260817-01"></script>
 <script src="js/pos-quick-item-modal.js?v=articulo-rapido-20260720-01"></script>
 <script src="js/pos-sales.js?v=cobro-mixto-20260802-01"></script>
 <script src="js/pos-search-flyout.js?v=articulo-rapido-20260720-01"></script>

@@ -2053,6 +2053,61 @@ function togglePiezaCamposProducto() {
  });
 }
 
+// Etiquetas/ejemplo para cada unidad decimal -- mismo criterio de
+// esUnidadDecimal(unidad) (linea 1315), pero con texto legible para el
+// dueno. Alimenta actualizarAyudaPrecioProducto() para dejar claro,
+// SIN necesidad de bascula fisica, que el campo "Precio del carrito"
+// se cobra por esta unidad y ya multiplica por lo que se capture a
+// mano en el carrito (ver capturarPesoManual en pos-sales.js).
+const ETIQUETAS_UNIDAD_DECIMAL_PRECIO = {
+ kg: { singular: "kilogramo", plural: "kilogramos", abrev: "kg", ejemplo: 2.5 },
+ kilo: { singular: "kilogramo", plural: "kilogramos", abrev: "kg", ejemplo: 2.5 },
+ gramo: { singular: "gramo", plural: "gramos", abrev: "g", ejemplo: 500 },
+ metro: { singular: "metro", plural: "metros", abrev: "m", ejemplo: 3 },
+ litro: { singular: "litro", plural: "litros", abrev: "L", ejemplo: 2.5 }
+};
+
+function actualizarAyudaPrecioProducto() {
+ const unidad =
+ String(document.getElementById("unidadVenta")?.value || "pieza").toLowerCase();
+
+ const campoPrecio =
+ document.getElementById("nuevoPrecio");
+
+ const ayuda =
+ document.getElementById("precioCarritoAyuda");
+
+ if (!campoPrecio || !ayuda) return;
+
+ const etiqueta =
+ ETIQUETAS_UNIDAD_DECIMAL_PRECIO[unidad];
+
+ if (!etiqueta) {
+ campoPrecio.placeholder = "Precio del carrito";
+ ayuda.textContent = "";
+ ayuda.style.display = "none";
+ return;
+ }
+
+ campoPrecio.placeholder = `Precio por ${etiqueta.singular}`;
+
+ const precio =
+ Number(campoPrecio.value);
+
+ ayuda.style.display = "";
+
+ if (Number.isFinite(precio) && precio > 0) {
+ const total =
+ (precio * etiqueta.ejemplo).toFixed(2);
+
+ ayuda.textContent =
+ `Ej: ${etiqueta.ejemplo} ${etiqueta.abrev} = $${total}`;
+ } else {
+ ayuda.textContent =
+ `Se cobrara por ${etiqueta.plural} capturados a mano en el carrito`;
+ }
+}
+
 function toggleGarantiaCamposProducto() {
  const checkbox =
  document.getElementById("nuevaTieneGarantia");
@@ -2814,6 +2869,8 @@ function editarProducto(
 
  document.getElementById("unidadVenta").value =
  producto?.unidad_venta || "pieza";
+
+ actualizarAyudaPrecioProducto();
 
  document.getElementById("precioDistribuidor").value =
  producto?.precio_distribuidor || "";
@@ -4212,6 +4269,7 @@ function cerrarFormularioAgregar() {
  toggleGarantiaCamposProducto();
  mostrarPiezasSueltasStockInfo(0);
  document.getElementById("basculaDigital").value = "no";
+ actualizarAyudaPrecioProducto();
  document.getElementById("nuevoStockMaximo").value = "";
  document.getElementById("nuevoPeso").value = "";
  document.getElementById("nuevoLargoCm").value = "";
@@ -4269,6 +4327,7 @@ function limpiarCamposCatalogoProducto() {
  toggleGarantiaCamposProducto();
  mostrarPiezasSueltasStockInfo(0);
  document.getElementById("basculaDigital").value = "no";
+ actualizarAyudaPrecioProducto();
  ["nuevoNombre", "nuevoCodigoInterno", "nuevaMarca", "nuevoProveedor", "nuevoCodigo"]
  .forEach(id => marcarCampoAutocompletado(id, false));
 }

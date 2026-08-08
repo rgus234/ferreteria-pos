@@ -6,7 +6,7 @@
  const tipoInfo = {
   catalogo: ["Producto con codigo", "Escanea el codigo de barras o escribe la clave. Si existe en catalogos, se llena nombre, proveedor, marca y precios.", "Al encontrarlo, el cursor salta directo a Stock actual."],
   manual: ["Producto sin codigo", "Para articulos genericos o sueltos. El sistema genera un codigo interno automatico para venderlo y controlarlo.", "Ideal para escobas genericas, piezas sin etiqueta o producto local."],
-  granel: ["Venta a granel", "Preparado para kilo, metro, litro o tramo. El carrito acepta cantidades decimales y queda listo para bascula digital.", "Ideal para cable, clavos, manguera, cadena, tubo o liquidos."],
+  granel: ["Venta a granel", "Preparado para kilo, metro, litro o tramo. Al agregarlo al carrito, el sistema pregunta cuanto lleva y calcula el precio solo -- no hace falta bascula digital.", "Ideal para cable, clavos, manguera, cadena, tubo o liquidos."],
   servicio: ["Servicio", "Para mano de obra, cortes, ajustes, instalacion o cargos sin inventario fisico.", "Se cobra desde el POS sin depender de stock real."]
  };
 
@@ -86,7 +86,7 @@
    if (unidad && !["kg", "metro", "litro", "gramo"].includes(unidad.value)) unidad.value = "kg";
    if (bascula) bascula.value = "preparado";
    if (stock) stock.step = "0.001";
-   if (precio) precio.placeholder = "Precio por unidad de venta";
+   if (typeof actualizarAyudaPrecioProducto === "function") actualizarAyudaPrecioProducto();
   } else if (stock) {
    stock.step = esUnidadDecimal(unidad?.value) ? "0.001" : "1";
   }
@@ -211,7 +211,7 @@
      "</strong></div>" +
      botones +
      (p.basculaDigital === "preparado" || decimal
-      ? '<button class="btn-bascula" onclick="capturarPesoManual(' + index + ')">Capturar ' + seguro(unidad) + " / bascula</button>"
+      ? '<button class="btn-bascula" onclick="capturarPesoManual(' + index + ')">Corregir ' + seguro(unidad) + "</button>"
       : "") +
      "</article>";
    }).join("");

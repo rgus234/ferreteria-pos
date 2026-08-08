@@ -71,6 +71,13 @@
    if (!eleccion) return;
 
    agregarProductoPorId(id, { modoVenta: eleccion.modo, cantidadInicial: eleccion.cantidad });
+  } else if (producto && esUnidadDecimal(unidadProducto(producto))) {
+   const cantidad =
+   await pedirPesoPOS(producto);
+
+   if (!cantidad) return;
+
+   agregarProductoPorId(id, { cantidadInicial: cantidad });
   } else {
    agregarProductoPorId(id);
   }

@@ -75,6 +75,22 @@ async function procesarCodigoBarrasPos(codigoManual) {
  producto,
  { modoVenta: eleccion.modo, cantidadInicial: eleccion.cantidad }
  );
+ } else if (esUnidadDecimal(unidadProducto(producto))) {
+ const cantidad =
+ await pedirPesoPOS(producto);
+
+ if (!cantidad) {
+ input.value = "";
+ return;
+ }
+
+ agregar(
+ producto.id,
+ producto.nombre,
+ precioVentaProducto(producto),
+ producto,
+ { cantidadInicial: cantidad }
+ );
  } else {
  agregar(
  producto.id,
@@ -169,11 +185,16 @@ function agregar(
  (item.modoVenta || "bolsa") === modoVenta
  );
 
+ const cantidadCapturada =
+ opciones.cantidadInicial != null && Number(opciones.cantidadInicial) > 0
+ ? Number(opciones.cantidadInicial)
+ : null;
+
  if (existente) {
  existente.cantidad =
  modoVenta === "pieza"
- ? Number(existente.cantidad || 0) + Math.max(1, Number(opciones.cantidadInicial) || 1)
- : Number(existente.cantidad || 0) + pasoUnidad(unidad);
+ ? Number(existente.cantidad || 0) + Math.max(1, cantidadCapturada || 1)
+ : Number(existente.cantidad || 0) + (cantidadCapturada || pasoUnidad(unidad));
  } else {
  const precioPublico =
  Number(producto.precio_publico || producto.precio || precio || 0);
@@ -185,8 +206,8 @@ function agregar(
 
  const cantidadInicial =
  modoVenta === "pieza"
- ? Math.max(1, Number(opciones.cantidadInicial) || 1)
- : pasoUnidad(unidad);
+ ? Math.max(1, cantidadCapturada || 1)
+ : (cantidadCapturada || pasoUnidad(unidad));
 
  carrito.push({
  id,
@@ -998,7 +1019,7 @@ function renderCarritoTablaPOS() {
  </div>
  ${p.basculaDigital === "preparado" || esUnidadDecimal(unidad) ? `
  <button class="btn-bascula" onclick="capturarPesoManual(${index})">
- Bascula / peso
+ Corregir peso
  </button>
  ` : ""}
  </td>
@@ -1259,7 +1280,7 @@ async function capturarPesoManual(index) {
  await pedirTextoPOS(
  `Cantidad en ${producto.unidadVenta || "unidad"}:`,
  String(producto.cantidad || 1),
- "Bascula / cantidad"
+ "Corregir peso / cantidad"
  );
 
  if (valor === null) return;
