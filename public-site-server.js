@@ -26,7 +26,7 @@ const { funcionDelPlan } = require("./plan-enforcement");
 const { enviarCorreoPedidoPublico, enviarCorreoPedidoCarritoPublico, enviarCorreoSolicitudCreditoPublica, enviarCorreoCotizacionRespondida } = require("./email");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { calcularAntiguedadCredito } = require("./credit-aging");
-const { crearRequerirSesionPersona } = require("./personas-server");
+const { crearRequerirSesionPersona, crearResolverSesionPersonaOpcional } = require("./personas-server");
 const { OFICIOS_PERSONA } = require("./oficios-persona");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
@@ -1614,6 +1614,9 @@ async function recibirPedidoPublico(pool, req, res, slug, codigo, basePath = "")
             return;
         }
 
+        const resolverPersonaOpcional = crearResolverSesionPersonaOpcional(pool);
+        await new Promise(continuar => resolverPersonaOpcional(req, res, continuar));
+
         // Honeypot -- campo oculto que un visitante real nunca llena.
         if (paramTexto(req.body?.sitioExtra, 200)) {
             volverConError();
@@ -1663,10 +1666,10 @@ async function recibirPedidoPublico(pool, req, res, slug, codigo, basePath = "")
         await pool.query(
             `
             INSERT INTO public.pedidos_publicos
-                (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, persona_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             `,
-            [sitio.negocio.id, codigo, producto.nombre, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip]
+            [sitio.negocio.id, codigo, producto.nombre, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, req.persona ? req.persona.id : null]
         );
 
         if (sitio.negocio.correo) {
@@ -1701,6 +1704,9 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
             res.status(404).json({ ok: false, error: "No encontrado" });
             return;
         }
+
+        const resolverPersonaOpcional = crearResolverSesionPersonaOpcional(pool);
+        await new Promise(continuar => resolverPersonaOpcional(req, res, continuar));
 
         if (paramTexto(req.body?.sitioExtra, 200)) {
             res.json({ ok: false, error: "No se pudo enviar el pedido." });
@@ -1780,10 +1786,10 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
                 await client.query(
                     `
                     INSERT INTO public.pedidos_publicos
-                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id, tipo)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id, tipo, persona_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                     `,
-                    [sitio.negocio.id, codigo, nombreProducto, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId, tipo]
+                    [sitio.negocio.id, codigo, nombreProducto, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId, tipo, req.persona ? req.persona.id : null]
                 );
 
                 itemsParaCorreo.push({ nombre: nombreProducto, cantidad });
@@ -3644,6 +3650,72 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
         }
     });
 
+    // Pedidos que esta persona hizo (con sesion activa) en cualquier
+    // tienda, sin importar si es o no cliente de credito ahi -- basta
+    // con que pedidos_publicos.persona_id haya quedado guardado al
+    // crear el pedido (ver recibirPedidoPublico/recibirPedidoCarritoPublico).
+    app.get("/personas/mis-pedidos", crearRequerirSesionPersona(pool), async (req, res) => {
+        try {
+            const resultado = await pool.query(
+                `SELECT pp.id, pp.negocio_id, n.slug, n.nombre AS tienda, pp.producto_codigo, pp.producto_nombre,
+                        pp.cantidad, pp.estado, pp.created_at, pp.grupo_id, pp.tipo, pp.precio_cotizado, pp.nota_negocio
+                 FROM public.pedidos_publicos pp
+                 JOIN public.negocios n ON n.id = pp.negocio_id
+                 WHERE pp.persona_id = $1
+                 ORDER BY pp.created_at DESC
+                 LIMIT 200`,
+                [req.persona.id]
+            );
+            res.json({ ok: true, pedidos: resultado.rows });
+        } catch (error) {
+            console.warn("Error listando pedidos de la persona:", error.message);
+            res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+        }
+    });
+
+    // Credito agregado entre tiendas -- solo cuenta las tiendas donde
+    // el cliente de credito ya vinculo esta persona
+    // (clientes_credito.persona_id, mismo criterio que negocios-cliente
+    // arriba). Reusa calcularAntiguedadCredito (credit-aging.js), el
+    // mismo motor que ya usa /portal-cliente/estado por tienda -- aqui
+    // solo se corre una vez por cada tienda vinculada.
+    app.get("/personas/mi-credito", crearRequerirSesionPersona(pool), async (req, res) => {
+        try {
+            const negociosRes = await pool.query(
+                `SELECT c.id AS cliente_id, c.negocio_id, c.limite_credito, n.slug, n.nombre
+                 FROM public.clientes_credito c
+                 JOIN public.negocios n ON n.id = c.negocio_id
+                 WHERE c.persona_id = $1 AND c.activo = true
+                 ORDER BY n.nombre`,
+                [req.persona.id]
+            );
+
+            const creditos = [];
+            for (const fila of negociosRes.rows) {
+                const movimientos = await pool.query(
+                    `SELECT tipo, concepto, monto, fecha, fecha_vencimiento
+                     FROM public.movimientos_credito
+                     WHERE cliente_id = $1 AND negocio_id = $2
+                     ORDER BY fecha ASC, id ASC`,
+                    [fila.cliente_id, fila.negocio_id]
+                );
+                const aging = calcularAntiguedadCredito(movimientos.rows);
+                creditos.push({
+                    negocio: { slug: fila.slug, nombre: fila.nombre },
+                    limiteCredito: Number(fila.limite_credito),
+                    saldo: aging.saldo,
+                    vencido: aging.vencido,
+                    totalVencido: aging.totalVencido
+                });
+            }
+
+            res.json({ ok: true, creditos });
+        } catch (error) {
+            console.warn("Error calculando credito agregado de la persona:", error.message);
+            res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+        }
+    });
+
     app.get("/negocio-actual/sitio-web", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
@@ -4030,5 +4102,19 @@ module.exports = {
     bannerPromocionHtml,
     estilosBaseTenant,
     scriptCarritoTenantHtml,
-    modalCarritoTenantHtml
+    modalCarritoTenantHtml,
+    // Nexo Market -- /market/mi-cuenta (market-cuenta-server.js) reusa
+    // el mismo lenguaje visual "tipo Amazon" ya validado en
+    // /portal-cliente en vez de duplicar el CSS/iconos.
+    estilosPortalClienteHtml,
+    ICONO_PORTAL_RESUMEN,
+    ICONO_PORTAL_PEDIDOS,
+    ICONO_PORTAL_CREDITO,
+    ICONO_PORTAL_DIRECCION,
+    ICONO_PORTAL_USUARIO,
+    ICONO_PORTAL_SEGURIDAD,
+    ICONO_PORTAL_AYUDA,
+    ICONO_PORTAL_SALIR,
+    ICONO_PORTAL_TIENDA,
+    ICONO_TENANT_FAVORITO
 };

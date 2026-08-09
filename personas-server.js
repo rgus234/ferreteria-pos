@@ -361,6 +361,34 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
         }
     });
 
+    // Cambio de contrasena de autoservicio -- a diferencia de
+    // vincular-persona (que cruza dos sesiones ya probadas), aqui solo
+    // hay una sesion, por eso si se repite la contrasena actual.
+    app.patch("/personas/password", requerirSesionPersona, async (req, res) => {
+        const passwordActual = String(req.body?.passwordActual || "");
+        const passwordNueva = String(req.body?.passwordNueva || "");
+
+        if (!passwordNueva || passwordNueva.length < 8) {
+            res.status(400).json({ ok: false, error: "La nueva contrasena debe tener al menos 8 caracteres" });
+            return;
+        }
+
+        try {
+            const fila = await pool.query(`SELECT password_hash FROM public.personas WHERE id = $1`, [req.persona.id]);
+
+            if (!verificarPassword(passwordActual, fila.rows[0]?.password_hash)) {
+                res.status(401).json({ ok: false, error: "Tu contrasena actual no es correcta" });
+                return;
+            }
+
+            await pool.query(`UPDATE public.personas SET password_hash = $1 WHERE id = $2`, [hashPassword(passwordNueva), req.persona.id]);
+
+            res.json({ ok: true });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     // Vincular el negocio con el que ya se inicio sesion (requerirAccesoNegocio,
     // sesion real de dueño) a la persona ya logueada -- ambos lados ya
     // probaron su identidad por separado, no se pide contrasena de nuevo.

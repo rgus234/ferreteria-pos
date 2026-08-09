@@ -31,8 +31,10 @@ const {
     servirComparadorNegocio,
     comparadorJson
 } = require("./public-site-server");
-const { servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson } = require("./market-server");
+const { servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, carritoTiendasMarketJson } = require("./market-server");
 const { servirInicioTiendaMarket, servirCatalogoTiendaMarket, servirProductoTiendaMarket } = require("./market-tienda-server");
+const { servirCuentaMarket } = require("./market-cuenta-server");
+const { servirCarritoMarket, servirCheckoutMarket } = require("./market-carrito-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
@@ -4667,6 +4669,15 @@ app.get("/market", (req, res) => {
     servirMarketPagina(req, res);
 });
 
+// Alias de "/market" con su propia URL -- misma pagina (paginaMarketHtml
+// ya lee ?buscar=/?categoria=/?vista=favoritos del lado cliente sin
+// importar el pathname), asi el buscador y "Favoritos" navegan a un
+// link real en vez de solo cambiar el query string de /market.
+app.get("/market/buscar", (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    servirMarketPagina(req, res);
+});
+
 app.get("/market/buscar-json", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false }); return; }
     await buscarMarketJson(pool, req, res, firmarTokenImagen);
@@ -4687,33 +4698,89 @@ app.post("/market/favoritos-json", async (req, res) => {
     await favoritosMarketJson(pool, req, res, firmarTokenImagen);
 });
 
-// Nexo Market -- "Fase 1 Market embebido": ver una tienda especifica
-// SIN salir de nexoposoficial.com (nunca saltar al subdominio de la
-// tienda como flujo principal; el subdominio se queda como acceso
-// directo para compartir). Mismo guard invertido que las 5 rutas de
-// arriba -- si alguien visitara {slug}.nexoposoficial.com/market/algo,
-// no debe interferir con las rutas propias de esa tienda.
+app.post("/market/carrito-tiendas-json", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false }); return; }
+    await carritoTiendasMarketJson(pool, req, res);
+});
+
+app.get("/market/carrito", (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    servirCarritoMarket(req, res);
+});
+
+app.get("/market/checkout", (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    servirCheckoutMarket(req, res);
+});
+
+// Identidad del comprador dentro de Market (Fase "arquitectura de
+// navegacion del comprador", ver plan) -- ruta fija, debe quedar
+// registrada ANTES de "GET /market/:slug" (mas abajo) o Express la
+// capturaria como si "mi-cuenta" fuera un slug de tienda.
+app.get("/market/mi-cuenta", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirCuentaMarket(pool, req, res);
+});
+
+// Nexo Market -- ver una tienda especifica SIN salir de
+// nexoposoficial.com (nunca saltar al subdominio de la tienda como
+// flujo principal; el subdominio se queda como acceso directo para
+// compartir). Mismo guard invertido que las rutas de arriba -- si
+// alguien visitara {slug}.nexoposoficial.com/market/algo, no debe
+// interferir con las rutas propias de esa tienda.
 //
-// CRITICO: "GET /market/:slug" debe registrarse DESPUES de las 4 rutas
-// fijas "/market/*-json" de arriba -- si se registrara antes, ":slug"
-// capturaria literalmente "buscar-json" (Express matchea en orden de
-// registro) y rompe el home de Market. "GET /market" (mas arriba, sin
-// tocar) tampoco puede quedar despues de esta ruta por el mismo motivo.
-app.get("/market/:slug", async (req, res) => {
+// Prefijo "/market/ferreteria/{slug}/..." (antes "/market/{slug}/...",
+// ver seccion de compatibilidad mas abajo) -- honesto sobre que
+// "ferreteria" es la tienda, distinto de "/market/mi-cuenta" y
+// "/market/carrito", que son fijos y ya quedaron registrados arriba.
+// El alias "/producto/{codigo}" (en vez de "/catalogo/{codigo}") usa
+// el mismo handler -- no se renombra el sufijo interno porque
+// vistaProductoTenantHtml/recibirPedidoPublico/etc. son las MISMAS
+// funciones que usa el subdominio propio de cada tienda
+// ({slug}.nexoposoficial.com/catalogo/{codigo}), fuera de alcance de
+// este cambio.
+app.get("/market/ferreteria/:slug", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
     await servirInicioTiendaMarket(pool, req, res, req.params.slug, firmarTokenImagen);
 });
 
-app.get("/market/:slug/catalogo", async (req, res) => {
+app.get("/market/ferreteria/:slug/catalogo", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
     await servirCatalogoTiendaMarket(pool, req, res, req.params.slug, firmarTokenImagen);
 });
 
-app.get("/market/:slug/catalogo/:codigo", async (req, res) => {
+app.get("/market/ferreteria/:slug/catalogo/:codigo", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
     await servirProductoTiendaMarket(pool, req, res, req.params.slug, req.params.codigo, firmarTokenImagen);
 });
 
+app.get("/market/ferreteria/:slug/producto/:codigo", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirProductoTiendaMarket(pool, req, res, req.params.slug, req.params.codigo, firmarTokenImagen);
+});
+
+app.post("/market/ferreteria/:slug/catalogo/pedido-carrito", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false, error: "No encontrado" }); return; }
+    await recibirPedidoCarritoPublico(pool, req, res, req.params.slug);
+});
+
+app.post("/market/ferreteria/:slug/catalogo/:codigo/pedido", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await recibirPedidoPublico(pool, req, res, req.params.slug, req.params.codigo, `/market/ferreteria/${encodeURIComponent(req.params.slug)}`);
+});
+
+// Compatibilidad con el prefijo viejo "/market/{slug}/..." (antes de
+// mover a "/market/ferreteria/{slug}/..."). Los GET redirigen 301; los
+// POST NO se redirigen (cambiaria metodo/body en clientes viejos) --
+// se registran aparte, apuntando al mismo handler, durante una ventana
+// de gracia. Retirar en una limpieza posterior una vez confirmado por
+// logs que ya no reciben trafico.
+//
+// CRITICO: deben quedar DESPUES de "/market/ferreteria/..." (arriba) y
+// de las rutas fijas "/market/*-json"/"/market/mi-cuenta"/"/market/carrito"/
+// "/market/checkout" (mas arriba) -- si "/market/:slug" se registrara
+// antes, ":slug" capturaria literalmente "ferreteria", "buscar-json",
+// "mi-cuenta", etc. (Express matchea en orden de registro).
 app.post("/market/:slug/catalogo/pedido-carrito", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false, error: "No encontrado" }); return; }
     await recibirPedidoCarritoPublico(pool, req, res, req.params.slug);
@@ -4721,16 +4788,29 @@ app.post("/market/:slug/catalogo/pedido-carrito", async (req, res) => {
 
 app.post("/market/:slug/catalogo/:codigo/pedido", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
-    await recibirPedidoPublico(pool, req, res, req.params.slug, req.params.codigo, `/market/${encodeURIComponent(req.params.slug)}`);
+    await recibirPedidoPublico(pool, req, res, req.params.slug, req.params.codigo, `/market/ferreteria/${encodeURIComponent(req.params.slug)}`);
 });
+
+function redirigirMarketTiendaLegacy(sufijo) {
+    return (req, res) => {
+        if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+        const indiceQuery = req.originalUrl.indexOf("?");
+        const queryString = indiceQuery >= 0 ? req.originalUrl.slice(indiceQuery) : "";
+        res.redirect(301, `/market/ferreteria/${encodeURIComponent(req.params.slug)}${sufijo(req.params)}${queryString}`);
+    };
+}
+
+app.get("/market/:slug", redirigirMarketTiendaLegacy(() => ""));
+app.get("/market/:slug/catalogo", redirigirMarketTiendaLegacy(() => "/catalogo"));
+app.get("/market/:slug/catalogo/:codigo", redirigirMarketTiendaLegacy(p => `/catalogo/${encodeURIComponent(p.codigo)}`));
 
 // Alias amigables en el dominio corporativo -- honran el mental model
 // de rutas del usuario ("nexoposoficial.com/login", "/app") sin
 // reescribir nada: ambos destinos ya existen y funcionan
-// (mi-cuenta.html y app.nexoposoficial.com).
+// (/market/mi-cuenta y app.nexoposoficial.com).
 app.get("/login", (req, res) => {
     if (!DOMINIOS_LANDING_COMERCIAL.has((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
-    res.redirect(302, "/mi-cuenta");
+    res.redirect(302, "/market/mi-cuenta");
 });
 
 app.get("/app", (req, res) => {
@@ -4750,8 +4830,14 @@ app.get("/privacidad", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "site", "privacidad.html"));
 });
 
+// La identidad del comprador ahora vive dentro de Nexo Market (ver
+// "GET /market/mi-cuenta" arriba) -- este alias solo existe para no
+// romper enlaces viejos (el picker de oficio de Market ya apunta
+// directo a /market/mi-cuenta, sin pasar por aqui).
 app.get("/mi-cuenta", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "site", "mi-cuenta.html"));
+    const indiceQuery = req.originalUrl.indexOf("?");
+    const queryString = indiceQuery >= 0 ? req.originalUrl.slice(indiceQuery) : "";
+    res.redirect(301, "/market/mi-cuenta" + queryString);
 });
 
 app.get("/dueno", (req, res) => {

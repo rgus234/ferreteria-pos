@@ -492,6 +492,32 @@ async function favoritosMarketJson(pool, req, res, firmarTokenImagen) {
     }
 }
 
+// /market/carrito lee el carrito de cada tienda desde localStorage
+// (nexoCarrito_{slug}, uno por tienda visitada) -- esta ruta le
+// entrega al cliente el nombre/estado real de cada slug encontrado en
+// vez de confiar en lo que haya quedado guardado ahi, mismo criterio
+// que favoritosMarketJson.
+async function carritoTiendasMarketJson(pool, req, res) {
+    try {
+        const slugs = Array.isArray(req.body?.slugs) ? req.body.slugs.slice(0, 20) : [];
+        if (slugs.length === 0) { res.json({ ok: true, tiendas: [] }); return; }
+
+        const tiendas = await tiendasPermitidasMarket(pool);
+        const porSlug = new Map(tiendas.map(t => [t.slug, t]));
+
+        const resultado = slugs
+            .filter(slug => typeof slug === "string" && porSlug.has(slug))
+            .map(slug => {
+                const t = porSlug.get(slug);
+                return { slug: t.slug, nombre: t.nombre };
+            });
+
+        res.json({ ok: true, tiendas: resultado });
+    } catch (error) {
+        res.status(500).json({ ok: false, error: "No se pudieron cargar tus tiendas." });
+    }
+}
+
 const ESTILOS_MARKET = `
 .market-header{ position:sticky; top:0; z-index:30; background:linear-gradient(180deg,#101826,#0b1220); border-bottom:1px solid rgba(255,255,255,.08); box-shadow:0 10px 30px rgba(6,10,18,.28); }
 .market-header-top{ display:flex; align-items:center; gap:18px; padding:14px clamp(18px,4vw,48px); max-width:1680px; margin:0 auto; }
@@ -690,7 +716,8 @@ function marketHeaderHtml({ slugTienda = null, nombreTienda = "", baseAnclas = "
 </div>
 <div class="market-header-acciones">
 <a class="market-header-link" href="#" id="marketFavoritosLink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg><span>Favoritos</span><span class="market-favoritos-contador" id="marketFavoritosContador">0</span></a>
-<div class="market-header-sesion" id="marketSesion"><a class="market-header-link" href="/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Inicia sesion</span></a></div>${carritoBotonHtml}
+<a class="market-header-link" href="/market/carrito"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg><span>Carrito</span></a>
+<div class="market-header-sesion" id="marketSesion"><a class="market-header-link" href="/market/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Inicia sesion</span></a></div>${carritoBotonHtml}
 </div>
 </div>
 <nav class="market-header-nav">
@@ -743,7 +770,7 @@ function scriptMarketHeaderHtml({ navegarABusqueda = false } = {}) {
         ? "marketHeaderIrABusqueda(texto, categoria);"
         : "if (typeof marketMostrarBusqueda === \"function\") { marketMostrarBusqueda({ buscar: texto, categoria: categoria }); }";
     const favoritosJs = navegarABusqueda
-        ? "location.href = \"/market?vista=favoritos\";"
+        ? "location.href = \"/market/buscar?vista=favoritos\";"
         : "document.getElementById(\"marketBuscarInput\").value = \"\"; document.getElementById(\"marketCategoriaSelect\").value = \"\"; if (typeof marketMostrarVistaFavoritos === \"function\") marketMostrarVistaFavoritos();";
 
     return `
@@ -762,7 +789,7 @@ async function marketHeaderCargarSesion() {
     const estado = await marketHeaderLlamar("/personas/estado");
     if (!estado.ok) return;
     document.getElementById("marketSesion").innerHTML =
-        '<a class="market-header-link" href="/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Hola, ' + marketHeaderEscapeHtml(estado.persona.nombre) + '</span></a>';
+        '<a class="market-header-link" href="/market/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Hola, ' + marketHeaderEscapeHtml(estado.persona.nombre) + '</span></a>';
 }
 marketHeaderCargarSesion();
 
@@ -770,7 +797,7 @@ function marketHeaderIrABusqueda(texto, categoria) {
     var params = [];
     if (texto) params.push("buscar=" + encodeURIComponent(texto));
     if (categoria) params.push("categoria=" + encodeURIComponent(categoria));
-    location.href = "/market" + (params.length ? "?" + params.join("&") : "");
+    location.href = "/market/buscar" + (params.length ? "?" + params.join("&") : "");
 }
 
 var ICONO_FOTO_GENERICA_HEADER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg>';
@@ -960,7 +987,7 @@ async function marketCargarSesion() {
     const estado = await marketLlamar("/personas/estado");
     if (!estado.ok) return;
     document.getElementById("marketSesion").innerHTML =
-        '<a class="market-header-link" href="/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Hola, ' + escapeHtml(estado.persona.nombre) + '</span></a>';
+        '<a class="market-header-link" href="/market/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Hola, ' + escapeHtml(estado.persona.nombre) + '</span></a>';
 }
 
 var ICONO_CORAZON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg>';
@@ -1097,7 +1124,7 @@ function marketPintarOficioPicker() {
 
 async function marketElegirOficio(clave) {
     if (!marketPersonaActual) {
-        window.location.href = "/mi-cuenta?oficio=" + encodeURIComponent(clave) + "&tab=registro";
+        window.location.href = "/market/mi-cuenta?oficio=" + encodeURIComponent(clave) + "&tab=registro";
         return;
     }
     var datos = await marketLlamar("/personas/oficio", {
@@ -1582,5 +1609,6 @@ async function servirMarketPagina(req, res) {
 
 module.exports = {
     servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, tiendasPermitidasMarket,
+    carritoTiendasMarketJson,
     ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml
 };
