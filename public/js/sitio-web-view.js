@@ -5,6 +5,7 @@
 // el servidor ya decidio.
 
 let sitioWebPortadaTemporal = undefined;
+let sitioWebSlugActual = "";
 
 async function mostrarSitioWeb() {
  if (typeof ocultarPantallasPrincipales === "function") {
@@ -65,6 +66,7 @@ function renderSitioWebUpsell(pantalla) {
 }
 
 function renderSitioWebFormulario(pantalla, datos) {
+ sitioWebSlugActual = datos.slug || "";
  pantalla.innerHTML = `
  <div class="sitio-web-shell">
  <div class="sitio-web-url-card">
@@ -119,6 +121,15 @@ function renderSitioWebFormulario(pantalla, datos) {
  <span>Enlace (opcional)</span>
  <input type="text" id="sitioWebPromocionEnlace" maxlength="300" placeholder="Ej. https://tu-sitio.nexoposoficial.com/catalogo" value="${datos.promocionEnlace || ""}">
  </label>
+
+ <label>
+ <span>Imagen de la promocion (opcional)</span>
+ <input type="file" id="sitioWebPromocionImagenInput" accept="image/*" onchange="subirPromocionImagenSitioWeb(event)">
+ </label>
+ <div id="sitioWebPromocionImagenPreview" class="sitio-web-portada-preview">
+ ${datos.promocionTieneImagen ? `<img src="/sitio-web-promocion-imagen?negocio=${encodeURIComponent(datos.slug)}&v=${Date.now()}" alt="Imagen de la promocion">` : ""}
+ </div>
+ <p class="sitio-web-nota" id="sitioWebPromocionImagenEstado" style="display:none;"></p>
 
  <label>
  <span>Descripcion</span>
@@ -524,6 +535,56 @@ function cargarPortadaSitioWeb(evento) {
  };
 
  lector.readAsDataURL(archivo);
+}
+
+// Imagen de la promocion (Fase "Ofertas destacadas", ver plan) -- a
+// diferencia de la portada (que viaja como base64 dentro del mismo
+// PUT de guardarSitioWeb), esta se sube aparte de inmediato via
+// multipart/form-data: el servidor la recorta con sharp, no tiene
+// sentido guardarla como base64 sin procesar.
+async function subirPromocionImagenSitioWeb(evento) {
+ const archivo =
+ evento.target.files?.[0];
+
+ if (!archivo) return;
+
+ const estado =
+ document.getElementById("sitioWebPromocionImagenEstado");
+
+ if (estado) {
+ estado.style.display = "";
+ estado.textContent = "Subiendo imagen...";
+ }
+
+ try {
+ const formulario = new FormData();
+ formulario.append("imagen", archivo);
+
+ const respuesta = await fetch("/negocio-actual/sitio-web/promocion-imagen", {
+ method: "POST",
+ body: formulario
+ });
+
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ if (estado) estado.textContent = datos.error || "No se pudo subir la imagen.";
+ if (typeof alertaPOS === "function") alertaPOS(datos.error || "No se pudo subir la imagen.", "Sitio web", "alerta");
+ return;
+ }
+
+ const preview =
+ document.getElementById("sitioWebPromocionImagenPreview");
+
+ if (preview) {
+ preview.innerHTML = `<img src="/sitio-web-promocion-imagen?negocio=${encodeURIComponent(sitioWebSlugActual)}&v=${Date.now()}" alt="Imagen de la promocion">`;
+ }
+
+ if (estado) estado.style.display = "none";
+ if (typeof alertaPOS === "function") alertaPOS("Imagen de la promocion actualizada.", "Sitio web", "exito");
+ } catch (error) {
+ if (estado) estado.textContent = "No se pudo subir la imagen. Revisa tu conexion.";
+ }
 }
 
 async function guardarSitioWeb() {

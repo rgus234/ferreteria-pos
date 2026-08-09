@@ -16,6 +16,7 @@
 //     entre landing comercial / POS / sitio de negocio segun el host).
 
 const sharp = require("sharp");
+const multer = require("multer");
 const crypto = require("crypto");
 const {
     normalizarCodigoFoto: normalizarCodigoBancoImagen,
@@ -158,7 +159,8 @@ async function resolverSitioPublico(pool, slug) {
             n.id, n.slug, n.nombre, n.telefono, n.direccion, n.logo, n.color, n.estado, n.correo, n.giro,
             c.activo, c.descripcion, c.portada, c.horario_texto, c.whatsapp, c.facebook, c.instagram,
             c.mostrar_precios, c.mostrar_existencias, c.aceptar_solicitudes_credito,
-            c.promocion_activa, c.promocion_titulo, c.promocion_texto, c.promocion_enlace
+            c.promocion_activa, c.promocion_titulo, c.promocion_texto, c.promocion_enlace,
+            (c.promocion_imagen IS NOT NULL) AS promocion_tiene_imagen, c.promocion_imagen_actualizado_at
         FROM public.negocios n
         LEFT JOIN public.sitio_web_config c ON c.negocio_id = n.id
         WHERE n.slug = $1
@@ -204,22 +206,31 @@ async function resolverSitioPublico(pool, slug) {
             promocionActiva: fila.promocion_activa,
             promocionTitulo: fila.promocion_titulo,
             promocionTexto: fila.promocion_texto,
-            promocionEnlace: fila.promocion_enlace
+            promocionEnlace: fila.promocion_enlace,
+            promocionTieneImagen: fila.promocion_tiene_imagen,
+            promocionImagenActualizadoAt: fila.promocion_imagen_actualizado_at
         }
     };
 }
 
 // Banner de promocion compartido por inicio/catalogo/detalle -- vacio
 // si no hay promocion activa o le falta titulo/texto (nunca se
-// muestra un banner a medio llenar). Todo dato viene escapado.
-function bannerPromocionHtml(config) {
+// muestra un banner a medio llenar). Todo dato viene escapado. La
+// imagen es opcional (Fase "Ofertas destacadas", ver plan) -- slug
+// hace falta para construir la URL publica de la imagen, ya que
+// promocion_imagen vive en sitio_web_config (por negocio), no en un
+// archivo con URL propia.
+function bannerPromocionHtml(config, slug) {
     if (!config.promocionActiva || !config.promocionTitulo || !config.promocionTexto) {
         return "";
     }
     const enlaceHtml = config.promocionEnlace
         ? `<a href="${escaparHtml(config.promocionEnlace)}">Ver mas</a>`
         : "";
-    return `<div class="tenant-promo-banner"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${enlaceHtml}</div>`;
+    const imagenHtml = config.promocionTieneImagen
+        ? `<img class="tenant-promo-banner-img" src="/sitio-web-promocion-imagen?negocio=${encodeURIComponent(slug)}&v=${config.promocionImagenActualizadoAt ? new Date(config.promocionImagenActualizadoAt).getTime() : 0}" alt="" loading="lazy">`
+        : "";
+    return `<div class="tenant-promo-banner${config.promocionTieneImagen ? " con-imagen" : ""}">${imagenHtml}<div class="tenant-promo-banner-texto"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${enlaceHtml}</div></div>`;
 }
 
 function colorSeguro(color) {
@@ -465,6 +476,13 @@ ${selectorRaiz}{ --blue:${colorFinal}; --blue-dark:${colorFinal}; }
 .tenant-promo-banner strong{ font-size:14px; }
 .tenant-promo-banner span{ font-size:13px; opacity:.92; }
 .tenant-promo-banner a{ color:#fff; font-weight:700; text-decoration:underline; font-size:13px; margin-left:auto; }
+.tenant-promo-banner-texto{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; flex:1; min-width:0; }
+.tenant-promo-banner.con-imagen{ padding:0; overflow:hidden; }
+.tenant-promo-banner.con-imagen .tenant-promo-banner-texto{ padding:14px clamp(16px,4vw,48px); }
+.tenant-promo-banner-img{ width:120px; height:80px; object-fit:cover; flex:0 0 auto; }
+@media (max-width:520px){
+  .tenant-promo-banner-img{ width:84px; height:64px; }
+}
 .tenant-carrito-boton-nav{ display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
 .tenant-carrito-contador{ display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 4px; border-radius:999px; background:rgba(255,255,255,.28); font-size:11px; font-weight:800; }
 .tenant-btn-carrito{ margin-top:10px; padding:10px 18px; border-radius:999px; border:1px solid var(--line); background:var(--glass); color:var(--ink); font-weight:700; font-size:13px; cursor:pointer; align-self:start; }
@@ -666,7 +684,7 @@ ${imagenMeta ? `<meta property="og:image" content="${escaparHtml(imagenMeta)}">`
 </head>
 <body>
 ${encabezadoTenantHtml(datos, "inicio", datos.aceptarSolicitudesCredito, true, true, true)}
-${bannerPromocionHtml(datos)}
+${bannerPromocionHtml(datos, datos.slug)}
 <section class="tenant-hero-2col">
 <div class="tenant-hero-panel">
 ${giro ? `<span class="tenant-eyebrow tenant-eyebrow-claro">${giro}</span>` : ""}
@@ -1178,7 +1196,7 @@ async function servirCatalogoNegocio(pool, req, res, slug, firmarTokenImagen) {
 </head>
 <body>
 ${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true, true, true)}
-${bannerPromocionHtml(sitio.config)}
+${bannerPromocionHtml(sitio.config, sitio.negocio.slug)}
 <main class="tenant-main">
 ${contenidoHtml}
 </main>
@@ -1226,7 +1244,7 @@ async function servirFavoritosNegocio(pool, req, res, slug) {
 </head>
 <body>
 ${encabezadoTenantHtml(sitio.negocio, "favoritos", sitio.config.aceptarSolicitudesCredito, true, true, true)}
-${bannerPromocionHtml(sitio.config)}
+${bannerPromocionHtml(sitio.config, sitio.negocio.slug)}
 <main class="tenant-main">
 <h1 class="tenant-catalogo-titulo">Tus favoritos</h1>
 <div id="favoritosLista"><p class="tenant-favoritos-vacio">Cargando...</p></div>
@@ -1274,7 +1292,7 @@ async function servirComparadorNegocio(pool, req, res, slug) {
 </head>
 <body>
 ${encabezadoTenantHtml(sitio.negocio, "comparar", sitio.config.aceptarSolicitudesCredito, true, true, true)}
-${bannerPromocionHtml(sitio.config)}
+${bannerPromocionHtml(sitio.config, sitio.negocio.slug)}
 <main class="tenant-main">
 <h1 class="tenant-catalogo-titulo">Comparar productos</h1>
 <div id="comparadorTabla"><p class="tenant-comparador-vacio">Cargando...</p></div>
@@ -1579,7 +1597,7 @@ ${datos.fotoUrl ? `<meta property="og:image" content="${datos.fotoUrl}">` : ""}
 </head>
 <body>
 ${encabezadoTenantHtml(sitio.negocio, "catalogo", sitio.config.aceptarSolicitudesCredito, true, true, true)}
-${bannerPromocionHtml(sitio.config)}
+${bannerPromocionHtml(sitio.config, sitio.negocio.slug)}
 <main class="tenant-main">
 ${contenidoHtml}
 </main>
@@ -3788,7 +3806,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const acceso = await funcionDelPlan(negocio.id, CLAVE_FUNCION_SITIO_WEB);
 
             const resultado = await pool.query(
-                `SELECT activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace FROM public.sitio_web_config WHERE negocio_id = $1`,
+                `SELECT activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, (promocion_imagen IS NOT NULL) AS promocion_tiene_imagen FROM public.sitio_web_config WHERE negocio_id = $1`,
                 [negocio.id]
             );
 
@@ -3796,7 +3814,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 activo: false, descripcion: "", portada: null,
                 horario_texto: "", whatsapp: "", facebook: "", instagram: "",
                 mostrar_precios: false, mostrar_existencias: false, aceptar_solicitudes_credito: false,
-                promocion_activa: false, promocion_titulo: "", promocion_texto: "", promocion_enlace: ""
+                promocion_activa: false, promocion_titulo: "", promocion_texto: "", promocion_enlace: "", promocion_tiene_imagen: false
             };
 
             res.json({
@@ -3817,7 +3835,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 promocionActiva: config.promocion_activa,
                 promocionTitulo: config.promocion_titulo,
                 promocionTexto: config.promocion_texto,
-                promocionEnlace: config.promocion_enlace
+                promocionEnlace: config.promocion_enlace,
+                promocionTieneImagen: config.promocion_tiene_imagen
             });
         } catch (error) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
@@ -3890,6 +3909,83 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             res.json({ ok: true });
         } catch (error) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
+    // Imagen del banner de "Promocion" (Fase "Ofertas destacadas", ver
+    // plan) -- subida aparte del PUT de arriba porque necesita
+    // multipart/form-data, no JSON. Mismo recorte que banners-market-server.js
+    // (sube cualquier foto, el servidor la deja lista en una proporcion
+    // fija) -- funcion copiada, no importada, es de 6 lineas y cruzar
+    // modulos por eso no vale la pena.
+    const uploadPromocionImagen = multer({
+        storage: multer.memoryStorage(),
+        limits: { fileSize: 8 * 1024 * 1024, files: 1 }
+    });
+
+    async function procesarImagenPromocion(buffer) {
+        return sharp(buffer)
+            .resize({ width: 1200, height: 500, fit: "cover" })
+            .jpeg({ quality: 78 })
+            .toBuffer();
+    }
+
+    app.post("/negocio-actual/sitio-web/promocion-imagen", requerirAccesoNegocio, (req, res) => {
+        uploadPromocionImagen.single("imagen")(req, res, async error => {
+            if (error) {
+                res.status(400).json({
+                    ok: false,
+                    error: error.code === "LIMIT_FILE_SIZE"
+                        ? "La imagen pesa mas de 8MB. Usa una mas chica e intenta de nuevo."
+                        : (error.message || "No se pudo procesar la imagen")
+                });
+                return;
+            }
+
+            try {
+                if (!req.file) { res.status(400).json({ ok: false, error: "No se recibio ninguna imagen" }); return; }
+
+                const negocio = await negocioActual(req, pool);
+                const imagen = await procesarImagenPromocion(req.file.buffer);
+
+                await pool.query(
+                    `INSERT INTO public.sitio_web_config (negocio_id, promocion_imagen, promocion_imagen_actualizado_at, updated_at)
+                     VALUES ($1, $2, NOW(), NOW())
+                     ON CONFLICT (negocio_id) DO UPDATE SET
+                        promocion_imagen = $2, promocion_imagen_actualizado_at = NOW(), updated_at = NOW()`,
+                    [negocio.id, imagen]
+                );
+
+                res.json({ ok: true });
+            } catch (error2) {
+                res.status(error2.httpStatus || 500).json({ ok: false, error: error2.message });
+            }
+        });
+    });
+
+    // Publica, sin token -- mismo criterio que los banners de Nexo
+    // Market (banners-market-server.js): es contenido de marketing que
+    // el propio negocio decidio hacer publico al activar su promocion.
+    app.get("/sitio-web-promocion-imagen", async (req, res) => {
+        try {
+            const slug = String(req.query.negocio || "").trim();
+            if (!slug) { res.status(404).end(); return; }
+
+            const resultado = await pool.query(
+                `SELECT c.promocion_imagen
+                 FROM public.sitio_web_config c
+                 JOIN public.negocios n ON n.id = c.negocio_id
+                 WHERE n.slug = $1`,
+                [slug]
+            );
+
+            const fila = resultado.rows[0];
+            if (!fila || !fila.promocion_imagen) { res.status(404).end(); return; }
+
+            res.set("Content-Type", "image/jpeg");
+            res.send(fila.promocion_imagen);
+        } catch (error) {
+            res.status(500).end();
         }
     });
 

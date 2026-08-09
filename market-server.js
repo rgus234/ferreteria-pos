@@ -601,6 +601,26 @@ const ESTILOS_MARKET = `
 .market-header-nav{ display:flex; gap:22px; padding:6px clamp(18px,4vw,48px) 13px; max-width:1680px; margin:0 auto; overflow-x:auto; background:transparent; border:none; border-radius:0; }
 .market-header-nav a{ font-size:13.5px; font-weight:700; color:#fff; white-space:nowrap; opacity:.88; padding-bottom:2px; border-bottom:2px solid transparent; }
 .market-header-nav a:hover{ opacity:1; border-bottom-color:rgba(255,255,255,.6); }
+.market-banners-scope{ max-width:1680px; margin:24px auto 0; padding:0 clamp(18px,4vw,48px); }
+.market-banners-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:18px; }
+.market-banner-card{ position:relative; display:block; min-height:180px; border-radius:18px; overflow:hidden; color:#fff; box-shadow:0 16px 40px rgba(20,32,51,.14); }
+.market-banner-card img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.market-banner-overlay{ position:relative; height:100%; min-height:180px; display:flex; flex-direction:column; justify-content:center; gap:8px; padding:24px clamp(20px,4vw,36px); background:linear-gradient(120deg, rgba(0,0,0,.62), rgba(0,0,0,.18) 70%); }
+.market-banner-card.tema-azul .market-banner-overlay{ background:linear-gradient(120deg, rgba(7,63,154,.82), rgba(16,103,232,.35)); }
+.market-banner-card.tema-negro .market-banner-overlay{ background:linear-gradient(120deg, rgba(11,18,32,.86), rgba(31,41,55,.4)); }
+.market-banner-card.tema-rojo .market-banner-overlay{ background:linear-gradient(120deg, rgba(127,29,29,.82), rgba(220,38,38,.35)); }
+.market-banner-card.tema-verde .market-banner-overlay{ background:linear-gradient(120deg, rgba(20,83,45,.82), rgba(22,163,74,.35)); }
+.market-banner-card.tema-morado .market-banner-overlay{ background:linear-gradient(120deg, rgba(76,29,149,.82), rgba(124,58,237,.35)); }
+.market-banner-card.tema-naranja .market-banner-overlay{ background:linear-gradient(120deg, rgba(154,52,18,.82), rgba(249,115,22,.35)); }
+.market-banner-overlay h3{ margin:0; font-size:22px; line-height:1.2; }
+.market-banner-overlay p{ margin:0; font-size:13.5px; opacity:.92; max-width:320px; }
+.market-banner-btn{ display:inline-flex; width:fit-content; margin-top:6px; }
+.market-ofertas-dia-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; overflow-x:visible; }
+.market-oferta-agregar-carrito{ width:100%; border:none; font-size:12.5px; }
+.market-oferta-agregar-carrito:disabled{ opacity:.55; cursor:not-allowed; }
+@media (max-width:640px){
+  .market-banners-grid{ grid-template-columns:1fr; }
+}
 .market-hero{ display:grid; grid-template-columns:1.1fr .9fr; gap:32px; align-items:center; max-width:1680px; margin:28px auto; padding:0 clamp(18px,4vw,48px); min-width:0; }
 .market-hero > *{ min-width:0; }
 .market-hero-texto h1{ font-size:clamp(28px,3.4vw,42px); margin:0 0 12px; line-height:1.1; }
@@ -947,6 +967,7 @@ function paginaMarketHtml() {
 ${marketHeaderHtml({})}
 
 <main>
+<div class="market-banners-scope" id="marketBannersDestacados"></div>
 <section class="market-hero">
 <div class="market-hero-texto">
 <h1>Todo para construir, instalar y reparar.</h1>
@@ -1091,6 +1112,101 @@ function marketTarjetaProducto(p) {
 function marketGridProductos(productos) {
     if (!productos || productos.length === 0) return '';
     return '<div class="market-productos-grid">' + productos.map(marketTarjetaProducto).join('') + '</div>';
+}
+
+// Banners de Nexo Market (Fase "Ofertas destacadas", ver plan) --
+// promos generales del marketplace creadas en /admin, nunca ligadas a
+// una tienda. Sin banners activos, la seccion no se pinta (nunca un
+// placeholder inventado).
+function marketBannerTarjetaHtml(b) {
+    var fondoHtml = b.tieneImagen
+        ? '<img src="/banners-market/' + b.id + '/imagen?v=' + encodeURIComponent(b.actualizadoAt || '') + '" alt="" loading="lazy">'
+        : '';
+    return '<a class="market-banner-card tema-' + escapeHtml(b.temaColor) + '" href="' + escapeHtml(b.enlace) + '">' +
+        fondoHtml +
+        '<div class="market-banner-overlay">' +
+        '<h3>' + escapeHtml(b.titulo) + '</h3>' +
+        (b.subtitulo ? '<p>' + escapeHtml(b.subtitulo) + '</p>' : '') +
+        '<span class="btn primary market-banner-btn">' + escapeHtml(b.textoBoton) + '</span>' +
+        '</div></a>';
+}
+
+function marketBannersHtml(banners) {
+    if (!banners || banners.length === 0) return '';
+    return '<div class="market-banners-grid">' + banners.map(marketBannerTarjetaHtml).join('') + '</div>';
+}
+
+// "Ofertas del dia" (Fase "Ofertas destacadas", ver plan) -- mismos
+// datos reales de ofertasMarket() que ya usaba el carrusel generico,
+// pero en grid dedicado con el badge de descuento -XX% (mismo calculo
+// que ya usa marketPintarOfertaDelDia mas abajo) y un boton real
+// "Agregar al carrito" que escribe directo a nexoCarrito_{slug}, mismo
+// formato que ya usa carritoAgregar en public-site-server.js. Sin
+// estrellas ni conteo de resenas -- no existen en ningun lado del
+// sistema.
+function marketTarjetaOfertaDelDia(p) {
+    var tieneOferta = p.precioOferta !== null && p.precioOferta !== undefined
+        && p.precio !== null && p.precio !== undefined && p.precioOferta < p.precio;
+
+    var precioHtml = '';
+    if (tieneOferta) {
+        var descuento = Math.round((1 - (p.precioOferta / p.precio)) * 100);
+        precioHtml = '<span class="market-precio-actual">$' + Number(p.precioOferta).toFixed(2) + '</span>' +
+            '<span class="market-producto-precio-tachado">$' + Number(p.precio).toFixed(2) + '</span>' +
+            (descuento > 0 ? '<span class="market-producto-badge-oferta">-' + descuento + '%</span>' : '');
+    } else if (p.precio !== null && p.precio !== undefined) {
+        precioHtml = '<span class="market-precio-actual">$' + Number(p.precio).toFixed(2) + '</span>';
+    }
+
+    var agotado = p.stock !== null && p.stock !== undefined && p.stock <= 0;
+    var existenciaHtml = p.stock !== null && p.stock !== undefined
+        ? '<span class="market-producto-existencia' + (agotado ? ' agotado' : '') + '">' + (agotado ? 'Agotado' : p.stock + ' disponibles') + '</span>' : '';
+
+    var link = '/market/ferreteria/' + encodeURIComponent(p.slug) + '/catalogo/' + encodeURIComponent(p.codigo);
+    var fotoHtml = p.fotoUrl
+        ? '<img src="' + p.fotoUrl + '" alt="' + escapeHtml(p.nombre) + '" loading="lazy">'
+        : ICONO_FOTO_GENERICA;
+
+    return '<div class="market-producto-card">' +
+        '<a href="' + link + '" class="market-producto-foto">' + fotoHtml + '</a>' +
+        '<span class="market-producto-nombre">' + escapeHtml(p.nombre) + '</span>' +
+        '<span class="market-producto-precios">' + precioHtml + '</span>' +
+        existenciaHtml +
+        '<span class="market-producto-tienda">' + escapeHtml(p.tienda) + '</span>' +
+        '<button type="button" class="btn primary market-oferta-agregar-carrito" data-slug="' + escapeHtml(p.slug) + '" data-codigo="' + escapeHtml(p.codigo) + '" data-nombre="' + escapeHtml(p.nombre) + '"' + (agotado ? ' disabled' : '') + '>Agregar al carrito</button>' +
+        '</div>';
+}
+
+function marketGridOfertasDelDia(productos) {
+    if (!productos || productos.length === 0) return '';
+    return '<div class="market-productos-grid market-ofertas-dia-grid">' + productos.map(marketTarjetaOfertaDelDia).join('') + '</div>';
+}
+
+function marketAgregarOfertaAlCarrito(boton) {
+    var slug = boton.dataset.slug;
+    var codigo = boton.dataset.codigo;
+    var nombre = boton.dataset.nombre;
+    var clave = "nexoCarrito_" + slug;
+
+    var items = [];
+    try { items = JSON.parse(localStorage.getItem(clave) || "[]"); } catch (error) { items = []; }
+
+    var existente = items.find(function(it) { return it.codigo === codigo; });
+    if (existente) {
+        existente.cantidad = (Number(existente.cantidad) || 0) + 1;
+    } else {
+        items.push({ codigo: codigo, nombre: nombre, cantidad: 1 });
+    }
+
+    localStorage.setItem(clave, JSON.stringify(items));
+
+    var textoOriginal = boton.textContent;
+    boton.textContent = "Agregado";
+    boton.disabled = true;
+    setTimeout(function() {
+        boton.textContent = textoOriginal;
+        boton.disabled = false;
+    }, 1400);
 }
 
 function marketSeccion(titulo, contenidoHtml) {
@@ -1413,15 +1529,20 @@ async function marketCargarInicio() {
     var contenedor = document.getElementById("marketInicio");
     var resultados = await Promise.all([
         marketLlamar("/market/inicio-json"),
-        marketLlamar("/market/buscar-json?orden=recientes")
+        marketLlamar("/market/buscar-json?orden=recientes"),
+        marketLlamar("/market/banners-json")
     ]);
     var datos = resultados[0];
     var explora = resultados[1];
+    var banners = resultados[2];
 
     if (!datos.ok) {
         contenedor.innerHTML = '<p class="market-vacio">No se pudo cargar Nexo Market.</p>';
         return;
     }
+
+    document.getElementById("marketBannersDestacados").innerHTML =
+        (banners.ok && banners.banners) ? marketBannersHtml(banners.banners) : "";
 
     marketPersonaActual = datos.persona;
     marketPintarHero(datos.hero);
@@ -1436,7 +1557,7 @@ async function marketCargarInicio() {
 
     var html = "";
     html += marketSeccion("Recomendado para ti", marketGridProductos(datos.recomendados));
-    html += marketSeccion("Ofertas", marketGridProductos(datos.ofertas));
+    html += marketSeccion("Ofertas del dia", marketGridOfertasDelDia(datos.ofertas));
     html += marketSeccion("Explora productos", explora.ok ? marketGridProductos(explora.productos) : "");
     contenedor.innerHTML = html || '<p class="market-vacio">Todavia no hay productos para mostrar aqui.</p>';
 
@@ -1452,6 +1573,13 @@ async function marketCargarInicio() {
 }
 
 document.addEventListener("click", function(evento) {
+    var botonAgregar = evento.target.closest(".market-oferta-agregar-carrito");
+    if (botonAgregar) {
+        evento.preventDefault();
+        if (!botonAgregar.disabled) marketAgregarOfertaAlCarrito(botonAgregar);
+        return;
+    }
+
     var tile = evento.target.closest(".market-categoria-tile");
     if (tile) {
         document.getElementById("marketBuscarInput").value = "";

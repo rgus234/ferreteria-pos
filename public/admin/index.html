@@ -25,6 +25,7 @@
         Banco de imagenes
         <span id="badgeBancoImagenesAdmin" class="notification-badge" style="display:none;"></span>
       </button>
+      <button type="button" data-view="ofertas-market">Ofertas Market</button>
     </nav>
     <div class="admin-sidebar-footer">
       <span id="adminSesionEstado">Sin sesion</span>
@@ -291,6 +292,71 @@
           <div class="empty">Cargando...</div>
         </div>
         <div class="banco-imagenes-paginacion" id="paginacionSolicitudesBancoImagenes"></div>
+      </article>
+    </section>
+
+    <section class="admin-view" id="view-ofertas-market">
+      <div class="panel-head" style="margin-bottom:20px;">
+        <div>
+          <p class="eyebrow">Nexo Market</p>
+          <h2>Ofertas destacadas</h2>
+          <span>Banners generales del marketplace (no ligados a una tienda) -- se ven en la portada de Nexo Market. Cada dueno de ferreteria administra el suyo propio desde "Sitio web" en su POS.</span>
+        </div>
+      </div>
+
+      <article class="panel wide">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow" id="formBannerMarketEyebrow">Nuevo banner</p>
+            <h2 id="formBannerMarketTitulo">Crear banner</h2>
+          </div>
+          <button type="button" class="secondary" id="botonCancelarEdicionBannerMarket" style="display:none;" onclick="cancelarEdicionBannerMarketAdmin()">Cancelar edicion</button>
+        </div>
+        <form class="form-grid" id="formBannerMarket" onsubmit="guardarBannerMarketAdmin(event)">
+          <label>Titulo
+            <input id="bannerMarketTitulo" required maxlength="140" placeholder="Ej. Hasta 50% en herramientas">
+          </label>
+          <label>Subtitulo
+            <input id="bannerMarketSubtitulo" maxlength="200" placeholder="Ej. Las mejores marcas al mejor precio">
+          </label>
+          <label>Texto del boton
+            <input id="bannerMarketTextoBoton" maxlength="40" placeholder="Ver ofertas">
+          </label>
+          <label>Enlace
+            <input id="bannerMarketEnlace" maxlength="300" placeholder="/market?categoria=herramientas">
+          </label>
+          <label>Color
+            <select id="bannerMarketTemaColor">
+              <option value="azul">Azul</option>
+              <option value="negro">Negro</option>
+              <option value="rojo">Rojo</option>
+              <option value="verde">Verde</option>
+              <option value="morado">Morado</option>
+              <option value="naranja">Naranja</option>
+            </select>
+          </label>
+          <label>Orden
+            <input id="bannerMarketOrden" type="number" step="1" value="0">
+          </label>
+          <label class="full">Imagen (se recorta automaticamente a 1200x500)
+            <input type="file" id="bannerMarketImagenInput" accept="image/*" onchange="previsualizarImagenBannerMarketAdmin(event)">
+          </label>
+          <div class="full" id="bannerMarketImagenPreview"></div>
+          <label style="flex-direction:row; align-items:center; gap:8px;">
+            <input type="checkbox" id="bannerMarketActivo" checked style="width:auto;">
+            <span>Banner activo (visible en Nexo Market)</span>
+          </label>
+          <div class="modal-actions full">
+            <button type="submit">Guardar banner</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="panel wide">
+        <div class="panel-head"><div><p class="eyebrow">Banners</p><h2>Banners existentes</h2></div></div>
+        <div class="banner-market-lista" id="listaBannersMarketAdmin">
+          <div class="empty">Cargando...</div>
+        </div>
       </article>
     </section>
   </main>

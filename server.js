@@ -4800,6 +4800,17 @@ function redirigirMarketTiendaLegacy(sufijo) {
     };
 }
 
+// Banners de Nexo Market (Fase "Ofertas destacadas", ver plan) --
+// registrado aqui (no en cargarModulosPOS, que corre hasta el final
+// del archivo) porque "/market/banners-json" es una ruta fija que debe
+// quedar ANTES de "GET /market/:slug" (justo abajo) o Express la
+// capturaria como si "banners-json" fuera un slug de tienda -- mismo
+// motivo ya documentado para "/market/mi-cuenta" y "/market/carrito".
+// Las rutas de /admin/api/banners-market y /banners-market/:id/imagen
+// que registra este mismo modulo no tienen ese conflicto (prefijos
+// distintos), se quedan aqui tambien para no partir el modulo en dos.
+require("./banners-market-server")(app, pool);
+
 app.get("/market/:slug", redirigirMarketTiendaLegacy(() => ""));
 app.get("/market/:slug/catalogo", redirigirMarketTiendaLegacy(() => "/catalogo"));
 app.get("/market/:slug/catalogo/:codigo", redirigirMarketTiendaLegacy(p => `/catalogo/${encodeURIComponent(p.codigo)}`));

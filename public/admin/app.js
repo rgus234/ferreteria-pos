@@ -106,6 +106,7 @@ function mostrarVistaAdmin(vista) {
   });
   if (target === "ingresos") cargarDescuentoFundadoresAdmin();
   if (target === "fotos") abrirVistaBancoImagenesAdmin();
+  if (target === "ofertas-market") cargarBannersMarketAdmin();
 }
 
 function pintarMetricasAdmin(resumen) {
@@ -1400,6 +1401,149 @@ function cerrarSesionAdmin() {
   sessionStorage.removeItem(ADMIN_KEY_STORAGE);
   setAdminSesion(false);
   document.getElementById("adminKeyInput")?.focus();
+}
+
+// Ofertas destacadas de Nexo Market (Fase "Ofertas destacadas", ver
+// plan): banners generales del marketplace, creados por el equipo de
+// Nexo, nunca ligados a una tienda. editandoBannerMarketId != null
+// mientras el formulario esta en modo edicion; el archivo elegido en
+// el input de imagen (si lo hay) se sube tal cual con FormData -- el
+// servidor la recorta con sharp, no se toca aqui.
+let bannersMarketAdmin = [];
+let editandoBannerMarketId = null;
+
+async function cargarBannersMarketAdmin() {
+  const lista = document.getElementById("listaBannersMarketAdmin");
+  if (lista) lista.innerHTML = '<div class="empty">Cargando...</div>';
+  try {
+    const datos = await apiAdmin("/admin/api/banners-market");
+    bannersMarketAdmin = datos.banners || [];
+    pintarBannersMarketAdmin();
+  } catch (error) {
+    if (lista) lista.innerHTML = `<div class="empty">${error.message || "No se pudieron cargar los banners."}</div>`;
+  }
+}
+
+function pintarBannersMarketAdmin() {
+  const lista = document.getElementById("listaBannersMarketAdmin");
+  if (!lista) return;
+
+  if (bannersMarketAdmin.length === 0) {
+    lista.innerHTML = '<div class="empty">Todavia no hay banners. Crea el primero arriba.</div>';
+    return;
+  }
+
+  lista.innerHTML = bannersMarketAdmin.map(banner => `
+    <div class="banner-market-item${banner.activo ? "" : " inactivo"}">
+      <div class="banner-market-item-miniatura">
+        ${banner.tieneImagen ? `<img src="/banners-market/${banner.id}/imagen" alt="">` : ""}
+      </div>
+      <div class="banner-market-item-info">
+        <strong>${escaparAdmin(banner.titulo)}</strong>
+        <span>${escaparAdmin(banner.subtitulo || "")}</span>
+        <span class="banner-market-item-meta">Orden ${banner.orden} -- ${banner.activo ? "Activo" : "Inactivo"} -- Tema ${escaparAdmin(banner.temaColor)}</span>
+      </div>
+      <div class="banner-market-item-acciones">
+        <button type="button" class="secondary" onclick="editarBannerMarketAdmin(${banner.id})">Editar</button>
+        <button type="button" class="secondary" onclick="eliminarBannerMarketAdmin(${banner.id})">Eliminar</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function escaparAdmin(texto) {
+  return String(texto == null ? "" : texto)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function editarBannerMarketAdmin(id) {
+  const banner = bannersMarketAdmin.find(b => b.id === id);
+  if (!banner) return;
+
+  editandoBannerMarketId = id;
+  document.getElementById("bannerMarketTitulo").value = banner.titulo || "";
+  document.getElementById("bannerMarketSubtitulo").value = banner.subtitulo || "";
+  document.getElementById("bannerMarketTextoBoton").value = banner.textoBoton || "";
+  document.getElementById("bannerMarketEnlace").value = banner.enlace || "";
+  document.getElementById("bannerMarketTemaColor").value = banner.temaColor || "azul";
+  document.getElementById("bannerMarketOrden").value = banner.orden || 0;
+  document.getElementById("bannerMarketActivo").checked = Boolean(banner.activo);
+  document.getElementById("bannerMarketImagenInput").value = "";
+  document.getElementById("bannerMarketImagenPreview").innerHTML = banner.tieneImagen
+    ? `<img src="/banners-market/${banner.id}/imagen" alt="" style="max-width:220px; border-radius:10px;">`
+    : "";
+
+  document.getElementById("formBannerMarketEyebrow").textContent = "Editar banner";
+  document.getElementById("formBannerMarketTitulo").textContent = banner.titulo;
+  document.getElementById("botonCancelarEdicionBannerMarket").style.display = "";
+  document.getElementById("view-ofertas-market").scrollIntoView({ behavior: "smooth" });
+}
+
+function cancelarEdicionBannerMarketAdmin() {
+  editandoBannerMarketId = null;
+  document.getElementById("formBannerMarket").reset();
+  document.getElementById("bannerMarketImagenPreview").innerHTML = "";
+  document.getElementById("formBannerMarketEyebrow").textContent = "Nuevo banner";
+  document.getElementById("formBannerMarketTitulo").textContent = "Crear banner";
+  document.getElementById("botonCancelarEdicionBannerMarket").style.display = "none";
+}
+
+function previsualizarImagenBannerMarketAdmin(evento) {
+  const archivo = evento.target.files?.[0];
+  const preview = document.getElementById("bannerMarketImagenPreview");
+  if (!archivo || !preview) return;
+
+  const lector = new FileReader();
+  lector.onload = e => {
+    preview.innerHTML = `<img src="${e.target.result}" alt="" style="max-width:220px; border-radius:10px;">`;
+  };
+  lector.readAsDataURL(archivo);
+}
+
+async function guardarBannerMarketAdmin(evento) {
+  evento.preventDefault();
+
+  const formulario = new FormData();
+  formulario.append("titulo", document.getElementById("bannerMarketTitulo").value.trim());
+  formulario.append("subtitulo", document.getElementById("bannerMarketSubtitulo").value.trim());
+  formulario.append("textoBoton", document.getElementById("bannerMarketTextoBoton").value.trim());
+  formulario.append("enlace", document.getElementById("bannerMarketEnlace").value.trim());
+  formulario.append("temaColor", document.getElementById("bannerMarketTemaColor").value);
+  formulario.append("orden", document.getElementById("bannerMarketOrden").value || "0");
+  formulario.append("activo", document.getElementById("bannerMarketActivo").checked ? "true" : "false");
+
+  const archivo = document.getElementById("bannerMarketImagenInput").files?.[0];
+  if (archivo) formulario.append("imagen", archivo);
+
+  const url = editandoBannerMarketId
+    ? `/admin/api/banners-market/${editandoBannerMarketId}`
+    : "/admin/api/banners-market";
+
+  try {
+    const respuesta = await fetch(url, {
+      method: editandoBannerMarketId ? "PATCH" : "POST",
+      headers: { "x-admin-key": adminKeyActual() },
+      body: formulario
+    });
+    const datos = await respuesta.json();
+    if (!datos.ok) throw new Error(datos.error || "No se pudo guardar el banner.");
+
+    cancelarEdicionBannerMarketAdmin();
+    await cargarBannersMarketAdmin();
+  } catch (error) {
+    alertaAdmin(error.message || "No se pudo guardar el banner.", "Ofertas Market", "alerta");
+  }
+}
+
+async function eliminarBannerMarketAdmin(id) {
+  const confirmado = await confirmarAdmin("¿Eliminar este banner? Esta accion no se puede deshacer.", "Eliminar banner");
+  if (!confirmado) return;
+  try {
+    await apiAdmin(`/admin/api/banners-market/${id}`, { method: "DELETE" });
+    await cargarBannersMarketAdmin();
+  } catch (error) {
+    alertaAdmin(error.message || "No se pudo eliminar el banner.", "Ofertas Market", "alerta");
+  }
 }
 
 document.getElementById("nuevoClienteNombre")?.addEventListener("input", event => {
