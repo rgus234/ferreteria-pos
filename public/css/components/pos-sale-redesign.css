@@ -340,14 +340,14 @@ body.oscuro .pos-referencia .pos-reference-search {
 }
 
 .pos-cart-thumb {
-  width: 60px !important;
-  height: 60px !important;
-  flex: 0 0 60px !important;
+  width: clamp(60px, 6vw, 112px);
+  height: clamp(60px, 6vw, 112px);
+  flex: 0 0 clamp(60px, 6vw, 112px);
   margin-top: 2px;
   display: grid;
   place-items: center;
   overflow: hidden;
-  border-radius: 14px !important;
+  border-radius: 14px;
 }
 
 .pos-cart-thumb-img {
@@ -355,6 +355,10 @@ body.oscuro .pos-referencia .pos-reference-search {
   height: 100%;
   object-fit: cover;
   border-radius: 14px;
+}
+
+.pos-thumb-ampliable {
+  cursor: zoom-in;
 }
 
 .pos-cart-product strong {

@@ -48,6 +48,7 @@
   <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=venta-pieza-20260711-01">
   <link rel="stylesheet" href="css/components/pos-piece-sale-modal.css?v=venta-pieza-20260711-01">
   <link rel="stylesheet" href="css/components/pos-weight-modal.css?v=peso-carrito-20260817-01">
+  <link rel="stylesheet" href="css/components/pos-image-zoom.css?v=zoom-carrito-20260809-01">
   <link rel="stylesheet" href="css/components/account-view.css?v=fundador-botones-20260730-01">
   <link rel="stylesheet" href="css/components/product-details-view.css?v=liquid-glass-inv-20260719-01">
   <link rel="stylesheet" href="css/components/low-stock-order.css?v=refactor-low-stock-order-20260701-01">
@@ -55,6 +56,7 @@
   <link rel="stylesheet" href="css/components/ticket-lookup-view.css?v=creditos-editar-compra-20260730-01">
   <link rel="stylesheet" href="css/components/encargos-clientes.css?v=encargos-20260803-01">
   <link rel="stylesheet" href="css/components/sitio-web-view.css?v=sitio-web-20260807-01">
+  <link rel="stylesheet" href="css/components/market-admin-view.css?v=market-admin-20260817-01">
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -515,6 +517,10 @@
  Sitio web
  </button>
 
+ <button data-shell-module="market-admin" onclick="mostrarMarketAdmin()">
+ Nexo Market
+ </button>
+
  <button class="btn-dueno-sidebar" onclick="window.open('/dueno', '_blank')">
  App del dueño
  </button>
@@ -529,6 +535,7 @@
  <section id="pantallaBuscarTicket" style="display:none;"></section>
  <section id="pantallaEncargos" style="display:none;"></section>
  <section id="pantallaSitioWeb" style="display:none;"></section>
+ <section id="pantallaMarketAdmin" style="display:none;"></section>
 
  <section id="pantallaCatalogo" style="display:none;">
 
@@ -1620,6 +1627,7 @@
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-weight-modal.js?v=peso-carrito-20260817-01"></script>
+<script src="js/pos-image-zoom.js?v=zoom-carrito-20260809-01"></script>
 <script src="js/pos-quick-item-modal.js?v=articulo-rapido-20260720-01"></script>
 <script src="js/pos-sales.js?v=cobro-mixto-20260802-01"></script>
 <script src="js/pos-search-flyout.js?v=articulo-rapido-20260720-01"></script>
@@ -1635,6 +1643,7 @@
   <script src="js/ticket-lookup-view.js?v=creditos-editar-compra-20260730-01"></script>
  <script src="js/encargos-clientes.js?v=encargos-20260803-01"></script>
  <script src="js/sitio-web-view.js?v=sitio-web-20260807-01"></script>
+ <script src="js/market-admin-view.js?v=market-admin-20260817-01"></script>
   <script src="js/product-details-view.js?v=alertas-tempranas-20260712-01"></script>
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/pos-shortcuts.js?v=pos-flyout-redesign-20260708-03"></script>

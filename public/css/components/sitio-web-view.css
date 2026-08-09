@@ -132,6 +132,16 @@
 }
 .sitio-web-pedido-tipo.cotizacion{ background:rgba(147,51,234,.14); color:#7e22ce; }
 
+.sitio-web-pedido-origen{
+ padding:3px 10px;
+ border-radius:999px;
+ font-size:11px;
+ font-weight:700;
+ background:#eef2f7;
+ color:#687386;
+}
+.sitio-web-pedido-origen.market{ background:rgba(16,103,232,.14); color:#1067e8; }
+
 .sitio-web-pedido-cliente{ font-size:13px; color:var(--pos-muted,#687386); }
 .sitio-web-pedido-mensaje{ font-size:13px; color:var(--pos-text,#172033); }
 .sitio-web-pedido-precio{ font-size:15px; font-weight:800; color:#1d4ed8; }

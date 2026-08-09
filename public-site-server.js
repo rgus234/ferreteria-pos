@@ -1614,6 +1614,11 @@ async function recibirPedidoPublico(pool, req, res, slug, codigo, basePath = "")
             return;
         }
 
+        // Nexo Market (Fase 2 admin) -- distingue de donde vino el
+        // pedido para poder mostrarlo por separado en el modulo
+        // "Nexo Market" del POS, sin duplicar la lista de pedidos.
+        const origen = req.originalUrl.startsWith("/market/") ? "market" : "sitio";
+
         const resolverPersonaOpcional = crearResolverSesionPersonaOpcional(pool);
         await new Promise(continuar => resolverPersonaOpcional(req, res, continuar));
 
@@ -1666,10 +1671,10 @@ async function recibirPedidoPublico(pool, req, res, slug, codigo, basePath = "")
         await pool.query(
             `
             INSERT INTO public.pedidos_publicos
-                (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, persona_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, persona_id, origen)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             `,
-            [sitio.negocio.id, codigo, producto.nombre, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, req.persona ? req.persona.id : null]
+            [sitio.negocio.id, codigo, producto.nombre, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, req.persona ? req.persona.id : null, origen]
         );
 
         if (sitio.negocio.correo) {
@@ -1704,6 +1709,8 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
             res.status(404).json({ ok: false, error: "No encontrado" });
             return;
         }
+
+        const origen = req.originalUrl.startsWith("/market/") ? "market" : "sitio";
 
         const resolverPersonaOpcional = crearResolverSesionPersonaOpcional(pool);
         await new Promise(continuar => resolverPersonaOpcional(req, res, continuar));
@@ -1786,10 +1793,10 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
                 await client.query(
                     `
                     INSERT INTO public.pedidos_publicos
-                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id, tipo, persona_id)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id, tipo, persona_id, origen)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                     `,
-                    [sitio.negocio.id, codigo, nombreProducto, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId, tipo, req.persona ? req.persona.id : null]
+                    [sitio.negocio.id, codigo, nombreProducto, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId, tipo, req.persona ? req.persona.id : null, origen]
                 );
 
                 itemsParaCorreo.push({ nombre: nombreProducto, cantidad });
@@ -3716,6 +3723,65 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
         }
     });
 
+    // Modulo "Nexo Market" del POS (Fase 2) -- resumen de solo lectura,
+    // reusa el mismo gate de plan que Sitio web (misma clave de
+    // funcion) y el mismo campo sitio_web_config.activo (es el mismo
+    // switch que ya controla la visibilidad en Market, no se duplica).
+    app.get("/negocio-actual/market-resumen", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const acceso = await funcionDelPlan(negocio.id, CLAVE_FUNCION_SITIO_WEB);
+
+            const config = await pool.query(`SELECT activo FROM public.sitio_web_config WHERE negocio_id = $1`, [negocio.id]);
+            const destacados = await pool.query(
+                `SELECT count(*) FROM public.productos WHERE negocio_id = $1 AND (destacado = true OR precio_oferta IS NOT NULL)`,
+                [negocio.id]
+            );
+            const pedidosMarket = await pool.query(
+                `SELECT count(*) FROM public.pedidos_publicos WHERE negocio_id = $1 AND origen = 'market' AND created_at > NOW() - INTERVAL '30 days'`,
+                [negocio.id]
+            );
+
+            res.json({
+                ok: true,
+                incluido: acceso.incluido,
+                visible: Boolean(config.rows[0]?.activo) && acceso.incluido,
+                urlMarket: `https://nexoposoficial.com/market/ferreteria/${negocio.slug}`,
+                totalDestacadosOfertas: Number(destacados.rows[0].count),
+                pedidosMarket30Dias: Number(pedidosMarket.rows[0].count)
+            });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
+    app.get("/negocio-actual/productos-destacados", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+
+            const resultado = await pool.query(
+                `SELECT codigo, nombre, precio, precio_oferta, destacado, stock FROM public.productos
+                 WHERE negocio_id = $1 AND (destacado = true OR precio_oferta IS NOT NULL)
+                 ORDER BY nombre`,
+                [negocio.id]
+            );
+
+            res.json({
+                ok: true,
+                productos: resultado.rows.map(p => ({
+                    codigo: p.codigo,
+                    nombre: p.nombre,
+                    precio: Number(p.precio),
+                    precioOferta: p.precio_oferta !== null ? Number(p.precio_oferta) : null,
+                    destacado: p.destacado,
+                    stock: p.stock !== null ? Number(p.stock) : null
+                }))
+            });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
     app.get("/negocio-actual/sitio-web", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
@@ -3838,7 +3904,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const resultado = await pool.query(
                 `
                 SELECT id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono,
-                    cliente_correo, mensaje, estado, created_at, grupo_id, tipo, precio_cotizado, nota_negocio, respondido_at
+                    cliente_correo, mensaje, estado, created_at, grupo_id, tipo, precio_cotizado, nota_negocio, respondido_at, origen
                 FROM public.pedidos_publicos
                 WHERE negocio_id = $1
                 ORDER BY created_at DESC
@@ -3864,7 +3930,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                     tipo: fila.tipo,
                     precioCotizado: fila.precio_cotizado !== null ? Number(fila.precio_cotizado) : null,
                     notaNegocio: fila.nota_negocio,
-                    respondidoAt: fila.respondido_at
+                    respondidoAt: fila.respondido_at,
+                    origen: fila.origen
                 }))
             });
         } catch (error) {

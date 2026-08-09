@@ -242,6 +242,7 @@ function renderListaPedidosPublicos(pedidos) {
  <strong>${itemsTexto}</strong>
  <span class="sitio-web-pedido-tipo ${esCotizacion ? "cotizacion" : "pedido"}">${esCotizacion ? "Cotizacion" : "Pedido"}</span>
  <span class="sitio-web-pedido-badge ${principal.estado}">${principal.estado}</span>
+ ${principal.origen === "market" ? `<span class="sitio-web-pedido-origen market">Nexo Market</span>` : ""}
  </div>
  <div class="sitio-web-pedido-cliente">
  ${escapar(principal.clienteNombre)}

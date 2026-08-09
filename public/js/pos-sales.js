@@ -133,12 +133,15 @@ function iconoProducto(nombre) {
  return `<span class="producto-mini-icon" aria-hidden="true">${icono}</span>`;
 }
 
-function miniaturaProducto(producto, claseImg = "") {
+function miniaturaProducto(producto, claseImg = "", opciones = {}) {
  if (producto?.imagenUrl) {
  const nombreEscapado =
  escaparPOS(producto?.nombre || "");
 
- return `<img src="${producto.imagenUrl}" class="${claseImg}" alt="" loading="lazy" data-fallback-nombre="${nombreEscapado}" onerror="reemplazarImagenRotaPOS(this)">`;
+ const claseAmpliable = opciones.ampliable ? " pos-thumb-ampliable" : "";
+ const clickAmpliar = opciones.ampliable ? ` onclick="ampliarImagenProductoPOS(this)"` : "";
+
+ return `<img src="${producto.imagenUrl}" class="${claseImg}${claseAmpliable}" alt="" loading="lazy" data-fallback-nombre="${nombreEscapado}" onerror="reemplazarImagenRotaPOS(this)"${clickAmpliar}>`;
  }
 
  return iconoProducto(producto?.nombre);
@@ -999,7 +1002,7 @@ function renderCarritoTablaPOS() {
  <td class="pos-cart-index">${index + 1}</td>
  <td class="pos-cart-code">${escaparPOS(codigo)}</td>
  <td class="pos-cart-product">
- <span class="pos-cart-thumb item-icono">${miniaturaProducto(p, "pos-cart-thumb-img")}</span>
+ <span class="pos-cart-thumb item-icono">${miniaturaProducto(p, "pos-cart-thumb-img", { ampliable: true })}</span>
  <div>
  <strong>${escaparPOS(p.nombre)}</strong>
  ${etiquetas ? `<div class="pos-cart-meta">${etiquetas}</div>` : ""}
