@@ -493,28 +493,78 @@ async function favoritosMarketJson(pool, req, res, firmarTokenImagen) {
 }
 
 // /market/carrito lee el carrito de cada tienda desde localStorage
-// (nexoCarrito_{slug}, uno por tienda visitada) -- esta ruta le
-// entrega al cliente el nombre/estado real de cada slug encontrado en
-// vez de confiar en lo que haya quedado guardado ahi, mismo criterio
-// que favoritosMarketJson.
-async function carritoTiendasMarketJson(pool, req, res) {
+// (nexoCarrito_{slug}, uno por tienda visitada, items {codigo,nombre,cantidad}
+// sin precio/foto) -- esta ruta resuelve esos pares slug+codigo contra
+// datos reales (precio, oferta, existencia, foto), mismo patron cruzado
+// entre tiendas que favoritosMarketJson (misma query, mismo filtro final
+// por pares exactos para no confundir un codigo que coincide en 2
+// tiendas distintas). "cantidad" no se valida contra nada -- no existe
+// tabla de carrito en el servidor, sigue siendo 100% localStorage, solo
+// se hace eco de vuelta pegada a cada producto ya resuelto.
+async function carritoProductosMarketJson(pool, req, res, firmarTokenImagen) {
     try {
-        const slugs = Array.isArray(req.body?.slugs) ? req.body.slugs.slice(0, 20) : [];
-        if (slugs.length === 0) { res.json({ ok: true, tiendas: [] }); return; }
+        const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 60) : [];
+        if (items.length === 0) { res.json({ ok: true, productos: [], relacionados: [] }); return; }
 
         const tiendas = await tiendasPermitidasMarket(pool);
-        const porSlug = new Map(tiendas.map(t => [t.slug, t]));
+        const idPorSlug = new Map(tiendas.map(t => [t.slug, t.id]));
 
-        const resultado = slugs
-            .filter(slug => typeof slug === "string" && porSlug.has(slug))
-            .map(slug => {
-                const t = porSlug.get(slug);
-                return { slug: t.slug, nombre: t.nombre };
-            });
+        const paresValidos = items.filter(it =>
+            it && typeof it.slug === "string" && typeof it.codigo === "string" && idPorSlug.has(it.slug)
+        );
 
-        res.json({ ok: true, tiendas: resultado });
+        if (paresValidos.length === 0) { res.json({ ok: true, productos: [], relacionados: [] }); return; }
+
+        const negociosIds = [...new Set(paresValidos.map(p => idPorSlug.get(p.slug)))];
+        const codigos = [...new Set(paresValidos.map(p => p.codigo))];
+
+        const resultado = await pool.query(
+            `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
+                    CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+                    CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
+                    CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
+                    fp.actualizado_at AS foto_actualizado_at
+             FROM public.productos p
+             JOIN public.negocios n ON n.id = p.negocio_id
+             JOIN public.sitio_web_config c ON c.negocio_id = n.id
+             LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
+             WHERE p.negocio_id = ANY($1::int[]) AND p.codigo = ANY($2::text[])`,
+            [negociosIds, codigos]
+        );
+
+        const cantidadPorPar = new Map(paresValidos.map(p => [`${p.slug}:${p.codigo}`, Math.min(9999, Math.max(1, parseInt(p.cantidad, 10) || 1))]));
+        const filas = resultado.rows.filter(f => cantidadPorPar.has(`${f.slug}:${f.codigo}`));
+
+        const productos = mapearFilasProducto(filas, firmarTokenImagen).map(p => ({
+            ...p,
+            cantidad: cantidadPorPar.get(`${p.slug}:${p.codigo}`)
+        }));
+
+        const categorias = [...new Set(productos.map(p => p.categoria).filter(Boolean))];
+        let relacionados = [];
+
+        if (categorias.length > 0) {
+            const codigosExcluir = productos.map(p => p.codigo);
+            const filasRelacionadas = await pool.query(
+                `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
+                        CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+                        CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
+                        CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
+                        fp.actualizado_at AS foto_actualizado_at
+                 FROM public.productos p
+                 JOIN public.negocios n ON n.id = p.negocio_id
+                 JOIN public.sitio_web_config c ON c.negocio_id = n.id
+                 LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
+                 WHERE p.negocio_id = ANY($1::int[]) AND p.categoria = ANY($2::text[]) AND p.codigo <> ALL($3::text[])
+                 LIMIT 8`,
+                [[...idPorSlug.values()], categorias, codigosExcluir]
+            );
+            relacionados = mapearFilasProducto(filasRelacionadas.rows, firmarTokenImagen);
+        }
+
+        res.json({ ok: true, productos, relacionados });
     } catch (error) {
-        res.status(500).json({ ok: false, error: "No se pudieron cargar tus tiendas." });
+        res.status(500).json({ ok: false, error: "No se pudieron cargar los productos de tu carrito." });
     }
 }
 
@@ -1609,6 +1659,6 @@ async function servirMarketPagina(req, res) {
 
 module.exports = {
     servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, tiendasPermitidasMarket,
-    carritoTiendasMarketJson,
+    carritoProductosMarketJson,
     ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml
 };

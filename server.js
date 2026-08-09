@@ -31,7 +31,7 @@ const {
     servirComparadorNegocio,
     comparadorJson
 } = require("./public-site-server");
-const { servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, carritoTiendasMarketJson } = require("./market-server");
+const { servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, carritoProductosMarketJson } = require("./market-server");
 const { servirInicioTiendaMarket, servirCatalogoTiendaMarket, servirProductoTiendaMarket } = require("./market-tienda-server");
 const { servirCuentaMarket } = require("./market-cuenta-server");
 const { servirCarritoMarket, servirCheckoutMarket } = require("./market-carrito-server");
@@ -4698,9 +4698,9 @@ app.post("/market/favoritos-json", async (req, res) => {
     await favoritosMarketJson(pool, req, res, firmarTokenImagen);
 });
 
-app.post("/market/carrito-tiendas-json", async (req, res) => {
+app.post("/market/carrito-productos-json", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false }); return; }
-    await carritoTiendasMarketJson(pool, req, res);
+    await carritoProductosMarketJson(pool, req, res, firmarTokenImagen);
 });
 
 app.get("/market/carrito", (req, res) => {
