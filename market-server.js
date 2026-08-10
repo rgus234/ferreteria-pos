@@ -601,8 +601,10 @@ const ESTILOS_MARKET = `
 .market-header-link svg{ width:19px; height:19px; }
 .market-favoritos-contador{ background:var(--blue); color:#fff; font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; min-width:16px; text-align:center; }
 .market-header-nav{ display:flex; gap:22px; padding:6px clamp(18px,4vw,48px) 13px; max-width:1680px; margin:0 auto; overflow-x:auto; background:transparent; border:none; border-radius:0; }
-.market-header-nav a{ font-size:13.5px; font-weight:700; color:#fff; white-space:nowrap; opacity:.88; padding-bottom:2px; border-bottom:2px solid transparent; }
-.market-header-nav a:hover{ opacity:1; border-bottom-color:rgba(255,255,255,.6); }
+.market-header-nav a{ font-size:13.5px; font-weight:700; color:#fff; white-space:nowrap; opacity:.88; padding-bottom:2px; border-bottom:2px solid transparent; background:none; border-radius:0; }
+.market-header-nav a:hover,
+.market-header-nav a:focus,
+.market-header-nav a:active{ opacity:1; border-bottom-color:rgba(255,255,255,.6); color:#fff; background:none; }
 .market-banners-scope{ max-width:1680px; margin:24px auto 0; padding:0 clamp(18px,4vw,48px); }
 .market-banners-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:18px; }
 .market-banner-card{ position:relative; display:block; min-height:180px; border-radius:18px; overflow:hidden; color:#fff; box-shadow:0 16px 40px rgba(20,32,51,.14); }
