@@ -52,7 +52,7 @@ async function tiendasPermitidasMarket(pool) {
     }
 
     const candidatas = await pool.query(`
-        SELECT n.id, n.slug, n.nombre, n.giro, n.direccion, c.aceptar_solicitudes_credito AS acepta_credito
+        SELECT n.id, n.slug, n.nombre, n.giro, n.direccion, n.direccion_lat, n.direccion_lng, c.aceptar_solicitudes_credito AS acepta_credito
         FROM public.negocios n
         JOIN public.sitio_web_config c ON c.negocio_id = n.id
         WHERE n.estado = 'activo' AND c.activo = true
@@ -69,6 +69,8 @@ async function tiendasPermitidasMarket(pool) {
                 nombre: negocio.nombre,
                 giro: negocio.giro,
                 direccion: negocio.direccion,
+                lat: negocio.direccion_lat,
+                lng: negocio.direccion_lng,
                 aceptaCredito: Boolean(negocio.acepta_credito)
             });
         }
@@ -640,6 +642,7 @@ const ESTILOS_MARKET = `
 .market-sidebar{ position:sticky; top:150px; display:grid; gap:18px; }
 .market-sidebar-card{ background:#fff; border:1px solid var(--line); border-radius:20px; padding:18px; box-shadow:0 18px 48px rgba(20,32,51,.1); }
 .market-sidebar-card h4{ margin:0 0 12px; font-size:15px; }
+.market-mapa-tiendas{ height:220px; border-radius:16px; overflow:hidden; margin-bottom:14px; border:1px solid var(--line); }
 .market-vacio-chico{ color:var(--muted); font-size:13px; margin:0; }
 .market-tienda-fila{ display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px; }
 .market-tienda-fila:last-child{ border-bottom:none; }
@@ -961,6 +964,7 @@ function paginaMarketHtml() {
 <meta name="description" content="Busca productos entre varias ferreterias Nexo, compara precio y disponibilidad, y compra directo con la tienda que elijas.">
 <link rel="icon" href="/nexo-pos-icon.jpg">
 <link rel="stylesheet" href="/site/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <style>${ESTILOS_MARKET}</style>
 </head>
 <body>
@@ -1018,7 +1022,7 @@ ${marketHeaderHtml({})}
 <aside class="market-sidebar">
 <div class="market-sidebar-card">
 <h4 id="marketTiendas">Ferreterias Nexo</h4>
-<p class="market-vacio-chico">Mapa de ubicaciones: proximamente.</p>
+<div id="marketMapaTiendas" class="market-mapa-tiendas" hidden></div>
 <div id="marketTiendasLista"></div>
 </div>
 <div class="market-sidebar-card">
@@ -1042,6 +1046,7 @@ ${marketHeaderHtml({})}
 
 ${marketFooterHtml()}
 
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 function escapeHtml(texto) {
     return String(texto == null ? "" : texto)
@@ -1077,6 +1082,49 @@ function marketTarjetaTiendaSidebar(t, indice) {
         '<span class="market-tienda-fila-nombre">' + escapeHtml(t.nombre) + '</span>' +
         (t.giro ? '<span class="market-tienda-fila-giro">' + escapeHtml(t.giro) + '</span>' : '') +
         '</a>';
+}
+
+var marketMapaTiendasInstancia = null;
+
+// Mapa real de tiendas con coordenadas (ver plan) -- gratis, sin API
+// key, con Leaflet + tiles de OpenStreetMap. Solo pinta tiendas que ya
+// geocodificaron su direccion real desde "Sitio web" en el POS -- nunca
+// un pin inventado. Sin ninguna coordenada real, el contenedor se queda
+// oculto y la lista de texto de siempre sigue funcionando igual.
+function marketPintarMapaTiendas(tiendas) {
+    var contenedor = document.getElementById("marketMapaTiendas");
+    if (!contenedor || typeof L === "undefined") return;
+
+    var conUbicacion = (tiendas || []).filter(function(t) {
+        return typeof t.lat === "number" && typeof t.lng === "number" && !isNaN(t.lat) && !isNaN(t.lng);
+    });
+
+    if (conUbicacion.length === 0) {
+        contenedor.hidden = true;
+        return;
+    }
+
+    contenedor.hidden = false;
+
+    if (!marketMapaTiendasInstancia) {
+        marketMapaTiendasInstancia = L.map("marketMapaTiendas", { scrollWheelZoom: false });
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap contributors",
+            maxZoom: 19
+        }).addTo(marketMapaTiendasInstancia);
+    }
+
+    var marcadores = conUbicacion.map(function(t) {
+        var marcador = L.marker([t.lat, t.lng]).addTo(marketMapaTiendasInstancia);
+        marcador.bindPopup('<strong>' + escapeHtml(t.nombre) + '</strong><br><a href="/market/' + encodeURIComponent(t.slug) + '">Ver tienda</a>');
+        return marcador;
+    });
+
+    if (marcadores.length === 1) {
+        marketMapaTiendasInstancia.setView([conUbicacion[0].lat, conUbicacion[0].lng], 14);
+    } else {
+        marketMapaTiendasInstancia.fitBounds(L.featureGroup(marcadores).getBounds().pad(0.2));
+    }
 }
 
 function marketTarjetaProducto(p) {
@@ -1565,6 +1613,7 @@ async function marketCargarInicio() {
         ? datos.tiendas.map(marketTarjetaTiendaSidebar).join("")
         : '<p class="market-vacio-chico">Todavia no hay tiendas Nexo activas.</p>';
 
+    marketPintarMapaTiendas(datos.tiendas);
     marketPintarOfertaDelDia(datos.ofertas);
     marketPintarCreditoNexo(datos.tiendas);
 

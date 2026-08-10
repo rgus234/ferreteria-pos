@@ -29,6 +29,7 @@ const { hashPassword, verificarPassword } = require("./password-utils");
 const { calcularAntiguedadCredito } = require("./credit-aging");
 const { crearRequerirSesionPersona, crearResolverSesionPersonaOpcional } = require("./personas-server");
 const { OFICIOS_PERSONA } = require("./oficios-persona");
+const { geocodificarDireccion } = require("./geocodificacion");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
 const TAMANO_MAXIMO_PORTADA = 3 * 1024 * 1024;
@@ -134,7 +135,7 @@ async function negocioActual(req, pool) {
     }
 
     const resultado = await pool.query(
-        `SELECT id, slug, nombre FROM public.negocios WHERE id = $1 LIMIT 1`,
+        `SELECT id, slug, nombre, direccion, direccion_lat, direccion_lng FROM public.negocios WHERE id = $1 LIMIT 1`,
         [negocioId]
     );
 
@@ -3825,6 +3826,9 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 activo: config.activo,
                 descripcion: config.descripcion,
                 portada: config.portada,
+                direccion: negocio.direccion || "",
+                direccionLat: negocio.direccion_lat,
+                direccionLng: negocio.direccion_lng,
                 horarioTexto: config.horario_texto,
                 whatsapp: config.whatsapp,
                 facebook: config.facebook,
@@ -3871,6 +3875,36 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const promocionTexto = String(req.body?.promocionTexto || "").slice(0, 500);
             const promocionEnlace = String(req.body?.promocionEnlace || "").slice(0, 300);
 
+            // Direccion real de la tienda (mapa de Nexo Market, ver plan).
+            // Se guarda en negocios.direccion -- la misma columna que ya
+            // leen las queries de Market -- solo se vuelve a geocodificar
+            // si de verdad cambio, para no gastar llamadas de mas al
+            // servicio gratis de geocodificacion.
+            const tocaDireccion = Object.prototype.hasOwnProperty.call(req.body || {}, "direccion");
+            const direccion = tocaDireccion ? String(req.body.direccion || "").trim().slice(0, 180) : null;
+            let direccionUbicada = null;
+
+            if (tocaDireccion && direccion !== (negocio.direccion || "")) {
+                let lat = null;
+                let lng = null;
+
+                if (direccion) {
+                    const coords = await geocodificarDireccion(direccion);
+                    if (coords) {
+                        lat = coords.lat;
+                        lng = coords.lng;
+                        direccionUbicada = true;
+                    } else {
+                        direccionUbicada = false;
+                    }
+                }
+
+                await pool.query(
+                    `UPDATE public.negocios SET direccion = $1, direccion_lat = $2, direccion_lng = $3, direccion_geocodificada_en = NOW() WHERE id = $4`,
+                    [direccion || null, lat, lng, negocio.id]
+                );
+            }
+
             // "portada" solo viene en el body cuando el usuario de verdad
             // subio/quito una imagen (ver sitio-web-view.js) -- si la clave
             // no viene, se conserva la que ya estaba guardada en vez de
@@ -3906,7 +3940,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias, aceptarSolicitudesCredito, promocionActiva, promocionTitulo, promocionTexto, promocionEnlace]
             );
 
-            res.json({ ok: true });
+            res.json({ ok: true, direccionUbicada });
         } catch (error) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
         }

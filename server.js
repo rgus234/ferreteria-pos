@@ -88,8 +88,10 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 // el frontend usa onclick="..." inline en toda la app -- sin
 // scriptSrcAttr explicito, helmet le mete su propio default
 // (script-src-attr 'none'), que bloquea los onclick por separado de
-// script-src y rompe la aplicacion completa. El unico origen externo
-// real es cdn.jsdelivr.net (Chart.js, JsBarcode, xlsx).
+// script-src y rompe la aplicacion completa. El origen externo confiado
+// es cdn.jsdelivr.net (Chart.js, JsBarcode, xlsx, Leaflet); imgSrc
+// tambien permite *.tile.openstreetmap.org para los tiles del mapa de
+// tiendas de Nexo Market (ver plan "Mapa real de tiendas").
 // crossOriginEmbedderPolicy desactivado porque este proyecto no
 // necesita aislamiento cross-origin y podria interferir con esa carga
 // sin necesidad.
@@ -99,8 +101,8 @@ app.use(helmet({
             defaultSrc: ["'self'"],
             scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
             scriptSrcAttr: ["'unsafe-inline'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", "data:", "blob:"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+            imgSrc: ["'self'", "data:", "blob:", "https://cdn.jsdelivr.net", "https://*.tile.openstreetmap.org"],
             fontSrc: ["'self'", "data:"],
             connectSrc: ["'self'"],
             frameAncestors: ["'none'"],

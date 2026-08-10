@@ -150,6 +150,11 @@ function renderSitioWebFormulario(pantalla, datos) {
  </label>
 
  <label>
+ <span>Direccion (aparece en el mapa de Nexo Market)</span>
+ <input type="text" id="sitioWebDireccion" maxlength="180" placeholder="Calle, numero, colonia, ciudad" value="${datos.direccion || ""}">
+ </label>
+
+ <label>
  <span>WhatsApp</span>
  <input type="text" id="sitioWebWhatsapp" maxlength="40" placeholder="10 digitos" value="${datos.whatsapp || ""}">
  </label>
@@ -598,6 +603,7 @@ async function guardarSitioWeb() {
  promocionTexto: document.getElementById("sitioWebPromocionTexto")?.value || "",
  promocionEnlace: document.getElementById("sitioWebPromocionEnlace")?.value || "",
  descripcion: document.getElementById("sitioWebDescripcion")?.value || "",
+ direccion: document.getElementById("sitioWebDireccion")?.value || "",
  horarioTexto: document.getElementById("sitioWebHorario")?.value || "",
  whatsapp: document.getElementById("sitioWebWhatsapp")?.value || "",
  facebook: document.getElementById("sitioWebFacebook")?.value || "",
@@ -622,7 +628,11 @@ async function guardarSitioWeb() {
  return;
  }
 
- if (typeof alertaPOS === "function") alertaPOS("Sitio web actualizado.", "Sitio web", "exito");
+ if (datos.direccionUbicada === false) {
+ if (typeof alertaPOS === "function") alertaPOS("Sitio web actualizado, pero no pudimos ubicar esa direccion en el mapa. Revisa que tenga calle, colonia y ciudad.", "Sitio web", "alerta");
+ } else if (typeof alertaPOS === "function") {
+ alertaPOS("Sitio web actualizado.", "Sitio web", "exito");
+ }
  mostrarSitioWeb();
  } catch (error) {
  if (typeof alertaPOS === "function") alertaPOS("No se pudo guardar. Revisa tu conexion.", "Sitio web", "alerta");
