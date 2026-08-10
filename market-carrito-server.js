@@ -194,6 +194,24 @@ function marketCarritoTarjetaTiendaHtml(slug, items) {
         '</div>';
 }
 
+// Texto honesto de politica de envio segun lo que el dueno declaro en
+// Sitio web -- todos los productos de una misma tienda comparten el
+// mismo envioModo (viene del JOIN a sitio_web_config, no de
+// productos), asi que tomar el primer item es seguro. Mismo criterio
+// que lineaEnvioHtml en public-site-server.js, copiado en vez de
+// importado por ser una funcion chica (ver plan "Politica de envio
+// por tienda").
+function marketCarritoNotaEnvioHtml(item) {
+    if (item.envioModo === 'solo_recoleccion') {
+        return 'Esta tienda solo entrega en su local -- no hace envios.';
+    }
+    if (item.envioModo === 'tarifa_fija' && item.envioTarifa !== null && item.envioTarifa !== undefined) {
+        const notas = item.envioNotas ? ' ' + marketCarritoEscapar(item.envioNotas) : '';
+        return 'Envio con costo fijo: ' + marketCarritoFormatoDinero(item.envioTarifa) + '.' + notas;
+    }
+    return 'El envio se coordina directamente con la tienda.';
+}
+
 function marketCarritoResumenTiendaHtml(slug, items) {
     const tienda = items[0].tienda;
     const conPrecio = items.every(function(p) { return p.precio !== null && p.precio !== undefined; });
@@ -215,7 +233,7 @@ function marketCarritoResumenTiendaHtml(slug, items) {
     return '<div class="market-carrito-resumen" data-tienda-resumen="' + marketCarritoEscapar(slug) + '">' +
         '<h3>' + marketCarritoEscapar(tienda) + '</h3>' +
         cuerpo +
-        '<p class="market-carrito-resumen-nota">El envio o la entrega se coordina directamente con la tienda.</p>' +
+        '<p class="market-carrito-resumen-nota">' + marketCarritoNotaEnvioHtml(items[0]) + '</p>' +
         '<a class="btn primary" href="/market/checkout?tienda=' + encodeURIComponent(slug) + '">Continuar pedido</a>' +
         '</div>';
 }

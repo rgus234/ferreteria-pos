@@ -161,7 +161,8 @@ async function resolverSitioPublico(pool, slug) {
             c.activo, c.descripcion, c.portada, c.horario_texto, c.whatsapp, c.facebook, c.instagram,
             c.mostrar_precios, c.mostrar_existencias, c.aceptar_solicitudes_credito,
             c.promocion_activa, c.promocion_titulo, c.promocion_texto, c.promocion_enlace,
-            (c.promocion_imagen IS NOT NULL) AS promocion_tiene_imagen, c.promocion_imagen_actualizado_at
+            (c.promocion_imagen IS NOT NULL) AS promocion_tiene_imagen, c.promocion_imagen_actualizado_at,
+            c.envio_modo, c.envio_tarifa, c.envio_notas
         FROM public.negocios n
         LEFT JOIN public.sitio_web_config c ON c.negocio_id = n.id
         WHERE n.slug = $1
@@ -209,7 +210,10 @@ async function resolverSitioPublico(pool, slug) {
             promocionTexto: fila.promocion_texto,
             promocionEnlace: fila.promocion_enlace,
             promocionTieneImagen: fila.promocion_tiene_imagen,
-            promocionImagenActualizadoAt: fila.promocion_imagen_actualizado_at
+            promocionImagenActualizadoAt: fila.promocion_imagen_actualizado_at,
+            envioModo: fila.envio_modo,
+            envioTarifa: fila.envio_tarifa !== null ? Number(fila.envio_tarifa) : null,
+            envioNotas: fila.envio_notas
         }
     };
 }
@@ -232,6 +236,22 @@ function bannerPromocionHtml(config, slug) {
         ? `<img class="tenant-promo-banner-img" src="/sitio-web-promocion-imagen?negocio=${encodeURIComponent(slug)}&v=${config.promocionImagenActualizadoAt ? new Date(config.promocionImagenActualizadoAt).getTime() : 0}" alt="" loading="lazy">`
         : "";
     return `<div class="tenant-promo-banner${config.promocionTieneImagen ? " con-imagen" : ""}">${imagenHtml}<div class="tenant-promo-banner-texto"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${enlaceHtml}</div></div>`;
+}
+
+// Texto honesto de politica de envio segun lo que el dueno declaro en
+// Sitio web -- nunca se inventa logistica que la tienda no ofrece (ver
+// plan "Politica de envio por tienda"). Mismo criterio en
+// market-carrito-server.js (marketCarritoNotaEnvioHtml), copiado en
+// vez de importado por ser una funcion chica.
+function lineaEnvioHtml(config) {
+    if (config.envioModo === "solo_recoleccion") {
+        return "Esta tienda solo entrega en su local -- no hace envios.";
+    }
+    if (config.envioModo === "tarifa_fija" && config.envioTarifa !== null) {
+        const notas = config.envioNotas ? ` ${escaparHtml(config.envioNotas)}` : "";
+        return `Envio con costo fijo: $${config.envioTarifa.toFixed(2)}.${notas}`;
+    }
+    return "El envio se coordina directamente con la tienda.";
 }
 
 function colorSeguro(color) {
@@ -1528,6 +1548,7 @@ function vistaProductoTenantHtml({ sitio, datos, basePath = "", estadoPedido = "
     const compraboxLineasHtml = [
         `<div class="tenant-detalle-comprabox-linea">Vendido por <strong>${nombreTienda}</strong></div>`,
         direccionTienda ? `<div class="tenant-detalle-comprabox-linea">Recoge en tienda: <strong>${direccionTienda}</strong></div>` : "",
+        `<div class="tenant-detalle-comprabox-linea">${lineaEnvioHtml(sitio.config)}</div>`,
         whatsappNumero ? `<div class="tenant-detalle-comprabox-linea">&iquest;Dudas sobre el producto? <a href="https://wa.me/${whatsappNumero}?text=${encodeURIComponent(`Hola, me interesa "${producto.nombre}" que vi en su catalogo.`)}" target="_blank" rel="noopener">Contactanos por WhatsApp</a></div>` : ""
     ].filter(Boolean).join("");
 
@@ -3807,7 +3828,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const acceso = await funcionDelPlan(negocio.id, CLAVE_FUNCION_SITIO_WEB);
 
             const resultado = await pool.query(
-                `SELECT activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, (promocion_imagen IS NOT NULL) AS promocion_tiene_imagen FROM public.sitio_web_config WHERE negocio_id = $1`,
+                `SELECT activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, (promocion_imagen IS NOT NULL) AS promocion_tiene_imagen, envio_modo, envio_tarifa, envio_notas FROM public.sitio_web_config WHERE negocio_id = $1`,
                 [negocio.id]
             );
 
@@ -3815,7 +3836,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 activo: false, descripcion: "", portada: null,
                 horario_texto: "", whatsapp: "", facebook: "", instagram: "",
                 mostrar_precios: false, mostrar_existencias: false, aceptar_solicitudes_credito: false,
-                promocion_activa: false, promocion_titulo: "", promocion_texto: "", promocion_enlace: "", promocion_tiene_imagen: false
+                promocion_activa: false, promocion_titulo: "", promocion_texto: "", promocion_enlace: "", promocion_tiene_imagen: false,
+                envio_modo: "a_coordinar", envio_tarifa: null, envio_notas: ""
             };
 
             res.json({
@@ -3840,7 +3862,10 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 promocionTitulo: config.promocion_titulo,
                 promocionTexto: config.promocion_texto,
                 promocionEnlace: config.promocion_enlace,
-                promocionTieneImagen: config.promocion_tiene_imagen
+                promocionTieneImagen: config.promocion_tiene_imagen,
+                envioModo: config.envio_modo,
+                envioTarifa: config.envio_tarifa !== null ? Number(config.envio_tarifa) : null,
+                envioNotas: config.envio_notas
             });
         } catch (error) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
@@ -3874,6 +3899,20 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const promocionTitulo = String(req.body?.promocionTitulo || "").slice(0, 140);
             const promocionTexto = String(req.body?.promocionTexto || "").slice(0, 500);
             const promocionEnlace = String(req.body?.promocionEnlace || "").slice(0, 300);
+
+            // Politica de envio por tienda (Fase 1, sin pagos -- ver
+            // plan): 3 modos honestos, nunca se inventa logistica que
+            // la tienda no ofrece. La tarifa solo tiene sentido con
+            // tarifa_fija -- en cualquier otro modo se guarda null para
+            // que no quede una tarifa huerfana de un modo distinto.
+            const MODOS_ENVIO_VALIDOS = ["a_coordinar", "solo_recoleccion", "tarifa_fija"];
+            const envioModoBody = String(req.body?.envioModo || "");
+            const envioModo = MODOS_ENVIO_VALIDOS.includes(envioModoBody) ? envioModoBody : "a_coordinar";
+            const envioTarifaBody = Number(req.body?.envioTarifa);
+            const envioTarifa = envioModo === "tarifa_fija" && Number.isFinite(envioTarifaBody) && envioTarifaBody >= 0
+                ? envioTarifaBody
+                : null;
+            const envioNotas = String(req.body?.envioNotas || "").slice(0, 300);
 
             // Direccion real de la tienda (mapa de Nexo Market, ver plan).
             // Se guarda en negocios.direccion -- la misma columna que ya
@@ -3927,17 +3966,18 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             await pool.query(
                 `
                 INSERT INTO public.sitio_web_config
-                    (negocio_id, activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $11, $12, $13, $14, $15, $16, NOW())
+                    (negocio_id, activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, envio_modo, envio_tarifa, envio_notas, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
                 ON CONFLICT (negocio_id) DO UPDATE SET
                     activo = $2, descripcion = $3,
                     portada = CASE WHEN $9 THEN $4 ELSE sitio_web_config.portada END,
                     horario_texto = $5, whatsapp = $6, facebook = $7, instagram = $8,
                     mostrar_precios = $10, mostrar_existencias = $11, aceptar_solicitudes_credito = $12,
                     promocion_activa = $13, promocion_titulo = $14, promocion_texto = $15, promocion_enlace = $16,
+                    envio_modo = $17, envio_tarifa = $18, envio_notas = $19,
                     updated_at = NOW()
                 `,
-                [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias, aceptarSolicitudesCredito, promocionActiva, promocionTitulo, promocionTexto, promocionEnlace]
+                [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias, aceptarSolicitudesCredito, promocionActiva, promocionTitulo, promocionTexto, promocionEnlace, envioModo, envioTarifa, envioNotas]
             );
 
             res.json({ ok: true, direccionUbicada });

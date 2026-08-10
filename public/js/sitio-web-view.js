@@ -132,6 +132,25 @@ function renderSitioWebFormulario(pantalla, datos) {
  <p class="sitio-web-nota" id="sitioWebPromocionImagenEstado" style="display:none;"></p>
 
  <label>
+ <span>Politica de envio</span>
+ <select id="sitioWebEnvioModo" onchange="actualizarVisibilidadTarifaEnvioSitioWeb()">
+ <option value="a_coordinar" ${!datos.envioModo || datos.envioModo === "a_coordinar" ? "selected" : ""}>Se coordina con cada cliente</option>
+ <option value="solo_recoleccion" ${datos.envioModo === "solo_recoleccion" ? "selected" : ""}>Solo recoleccion en tienda</option>
+ <option value="tarifa_fija" ${datos.envioModo === "tarifa_fija" ? "selected" : ""}>Entrego con costo fijo</option>
+ </select>
+ </label>
+
+ <label id="sitioWebEnvioTarifaCampo" style="${datos.envioModo === "tarifa_fija" ? "" : "display:none;"}">
+ <span>Costo de envio (pesos)</span>
+ <input type="number" id="sitioWebEnvioTarifa" min="0" step="0.01" value="${datos.envioTarifa !== null && datos.envioTarifa !== undefined ? datos.envioTarifa : ""}">
+ </label>
+
+ <label>
+ <span>Notas de envio (opcional)</span>
+ <textarea id="sitioWebEnvioNotas" rows="2" maxlength="300" placeholder="Zona de entrega, tiempo estimado, minimo de compra...">${datos.envioNotas || ""}</textarea>
+ </label>
+
+ <label>
  <span>Descripcion</span>
  <textarea id="sitioWebDescripcion" rows="3" maxlength="2000" placeholder="Cuentale a tus clientes que vendes y que te hace diferente.">${datos.descripcion || ""}</textarea>
  </label>
@@ -592,7 +611,17 @@ async function subirPromocionImagenSitioWeb(evento) {
  }
 }
 
+// Politica de envio por tienda (Fase 1, sin pagos -- ver plan): la
+// tarifa solo aplica en el modo "tarifa_fija", el campo se muestra u
+// oculta segun el select en vez de dejarlo siempre visible.
+function actualizarVisibilidadTarifaEnvioSitioWeb() {
+ const modo = document.getElementById("sitioWebEnvioModo")?.value;
+ const campo = document.getElementById("sitioWebEnvioTarifaCampo");
+ if (campo) campo.style.display = modo === "tarifa_fija" ? "" : "none";
+}
+
 async function guardarSitioWeb() {
+ const envioModo = document.getElementById("sitioWebEnvioModo")?.value || "a_coordinar";
  const payload = {
  activo: document.getElementById("sitioWebActivo")?.checked || false,
  mostrarPrecios: document.getElementById("sitioWebMostrarPrecios")?.checked || false,
@@ -602,6 +631,9 @@ async function guardarSitioWeb() {
  promocionTitulo: document.getElementById("sitioWebPromocionTitulo")?.value || "",
  promocionTexto: document.getElementById("sitioWebPromocionTexto")?.value || "",
  promocionEnlace: document.getElementById("sitioWebPromocionEnlace")?.value || "",
+ envioModo: envioModo,
+ envioTarifa: envioModo === "tarifa_fija" ? (parseFloat(document.getElementById("sitioWebEnvioTarifa")?.value) || 0) : null,
+ envioNotas: document.getElementById("sitioWebEnvioNotas")?.value || "",
  descripcion: document.getElementById("sitioWebDescripcion")?.value || "",
  direccion: document.getElementById("sitioWebDireccion")?.value || "",
  horarioTexto: document.getElementById("sitioWebHorario")?.value || "",

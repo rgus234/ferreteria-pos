@@ -129,7 +129,10 @@ function mapearFilasProducto(rows, firmarTokenImagen) {
         stock: fila.stock !== null && fila.stock !== undefined ? Number(fila.stock) : null,
         fotoUrl: (fila.foto_actualizado_at && typeof firmarTokenImagen === "function")
             ? `/fotos-producto/${encodeURIComponent(fila.codigo)}/principal?negocio=${encodeURIComponent(fila.slug)}&v=${new Date(fila.foto_actualizado_at).getTime()}&token=${firmarTokenImagen(fila.negocio_id, fila.codigo)}`
-            : null
+            : null,
+        envioModo: fila.envio_modo,
+        envioTarifa: fila.envio_tarifa !== null && fila.envio_tarifa !== undefined ? Number(fila.envio_tarifa) : null,
+        envioNotas: fila.envio_notas
     }));
 }
 
@@ -150,7 +153,7 @@ async function recomendadosMarket(pool, idsPermitidos, claveOficio, firmarTokenI
                 CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
                 CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                 CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
-                fp.actualizado_at AS foto_actualizado_at
+                fp.actualizado_at AS foto_actualizado_at, c.envio_modo, c.envio_tarifa, c.envio_notas
          FROM public.productos p
          JOIN public.negocios n ON n.id = p.negocio_id
          JOIN public.sitio_web_config c ON c.negocio_id = n.id
@@ -174,7 +177,7 @@ async function ofertasMarket(pool, idsPermitidos, firmarTokenImagen) {
                 CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
                 CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                 CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
-                fp.actualizado_at AS foto_actualizado_at
+                fp.actualizado_at AS foto_actualizado_at, c.envio_modo, c.envio_tarifa, c.envio_notas
          FROM public.productos p
          JOIN public.negocios n ON n.id = p.negocio_id
          JOIN public.sitio_web_config c ON c.negocio_id = n.id
@@ -289,6 +292,7 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", marcas
                CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
                fp.actualizado_at AS foto_actualizado_at,
+               c.envio_modo, c.envio_tarifa, c.envio_notas,
                COUNT(*) OVER() AS total
         FROM public.productos p
         JOIN public.negocios n ON n.id = p.negocio_id
@@ -473,7 +477,7 @@ async function favoritosMarketJson(pool, req, res, firmarTokenImagen) {
                     CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
                     CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                     CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
-                    fp.actualizado_at AS foto_actualizado_at
+                    fp.actualizado_at AS foto_actualizado_at, c.envio_modo, c.envio_tarifa, c.envio_notas
              FROM public.productos p
              JOIN public.negocios n ON n.id = p.negocio_id
              JOIN public.sitio_web_config c ON c.negocio_id = n.id
@@ -525,7 +529,7 @@ async function carritoProductosMarketJson(pool, req, res, firmarTokenImagen) {
                     CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
                     CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                     CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
-                    fp.actualizado_at AS foto_actualizado_at
+                    fp.actualizado_at AS foto_actualizado_at, c.envio_modo, c.envio_tarifa, c.envio_notas
              FROM public.productos p
              JOIN public.negocios n ON n.id = p.negocio_id
              JOIN public.sitio_web_config c ON c.negocio_id = n.id
@@ -552,7 +556,7 @@ async function carritoProductosMarketJson(pool, req, res, firmarTokenImagen) {
                         CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
                         CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                         CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
-                        fp.actualizado_at AS foto_actualizado_at
+                        fp.actualizado_at AS foto_actualizado_at, c.envio_modo, c.envio_tarifa, c.envio_notas
                  FROM public.productos p
                  JOIN public.negocios n ON n.id = p.negocio_id
                  JOIN public.sitio_web_config c ON c.negocio_id = n.id
