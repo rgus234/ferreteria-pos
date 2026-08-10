@@ -4859,6 +4859,14 @@ app.get("/dueno", (req, res) => {
     );
 });
 
+// express.static corre con { index: false } (evita que "/" sirva
+// public/index.html automaticamente, ya que "/" tiene resolucion de
+// subdominio propia) -- ese mismo ajuste tambien bloqueaba el indice
+// automatico de "/admin", dejando la URL real del panel sin ruta.
+app.get(["/admin", "/admin/"], (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "admin", "index.html"));
+});
+
 app.get("/productos", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
