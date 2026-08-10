@@ -649,6 +649,9 @@ const ESTILOS_MARKET = `
 .market-tienda-fila-numero{ color:var(--muted); font-weight:800; width:16px; }
 .market-tienda-fila-nombre{ font-weight:700; flex:1; }
 .market-tienda-fila-giro{ color:var(--muted); font-size:12px; }
+.market-tienda-fila-distancia{ background:var(--paper); color:var(--blue); font-weight:700; font-size:11.5px; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+.market-ubicacion-boton{ display:block; width:100%; border:1px solid var(--line); background:#fff; color:var(--blue); font-weight:700; font-size:12.5px; padding:9px 10px; border-radius:12px; cursor:pointer; margin-bottom:10px; }
+.market-ubicacion-boton:hover{ border-color:var(--blue); }
 .market-oferta-nombre{ display:block; font-size:14px; margin-bottom:8px; }
 .market-oferta-precios{ display:flex; align-items:baseline; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
 .market-credito-lista{ list-style:none; margin:8px 0 0; padding:0; display:grid; gap:8px; }
@@ -1023,6 +1026,8 @@ ${marketHeaderHtml({})}
 <div class="market-sidebar-card">
 <h4 id="marketTiendas">Ferreterias Nexo</h4>
 <div id="marketMapaTiendas" class="market-mapa-tiendas" hidden></div>
+<button type="button" id="marketUbicacionBoton" class="market-ubicacion-boton" onclick="marketSolicitarUbicacion()">Usar mi ubicacion para ver que tan cerca estan</button>
+<p id="marketUbicacionEstado" class="market-vacio-chico" hidden></p>
 <div id="marketTiendasLista"></div>
 </div>
 <div class="market-sidebar-card">
@@ -1081,7 +1086,69 @@ function marketTarjetaTiendaSidebar(t, indice) {
         '<span class="market-tienda-fila-numero">' + (indice + 1) + '</span>' +
         '<span class="market-tienda-fila-nombre">' + escapeHtml(t.nombre) + '</span>' +
         (t.giro ? '<span class="market-tienda-fila-giro">' + escapeHtml(t.giro) + '</span>' : '') +
+        (typeof t.distanciaKm === "number" ? '<span class="market-tienda-fila-distancia">a ' + t.distanciaKm + ' km</span>' : '') +
         '</a>';
+}
+
+// Distancia del usuario a cada tienda (ver ejemplo confirmado con el
+// usuario): linea recta (formula de Haversine), calculada 100% en el
+// navegador con la ubicacion que el propio navegador reporta -- nunca
+// se manda al servidor. Sin permiso, o sin coordenadas reales de la
+// tienda, no se muestra ninguna distancia -- nunca una inventada.
+var marketUbicacionUsuario = null;
+var marketUltimasTiendas = [];
+
+function marketDistanciaKm(lat1, lng1, lat2, lng2) {
+    var R = 6371;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLng = (lng2 - lng1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c * 10) / 10;
+}
+
+function marketPintarListaTiendasSidebar(tiendas) {
+    marketUltimasTiendas = tiendas || [];
+    var conUbicacion = [];
+    var sinCoordenadas = [];
+
+    marketUltimasTiendas.forEach(function(t) {
+        if (marketUbicacionUsuario && typeof t.lat === "number" && typeof t.lng === "number") {
+            var copia = Object.assign({}, t);
+            copia.distanciaKm = marketDistanciaKm(marketUbicacionUsuario.lat, marketUbicacionUsuario.lng, t.lat, t.lng);
+            conUbicacion.push(copia);
+        } else {
+            sinCoordenadas.push(t);
+        }
+    });
+
+    conUbicacion.sort(function(a, b) { return a.distanciaKm - b.distanciaKm; });
+    var ordenadas = conUbicacion.concat(sinCoordenadas);
+
+    document.getElementById("marketTiendasLista").innerHTML = ordenadas.length > 0
+        ? ordenadas.map(marketTarjetaTiendaSidebar).join("")
+        : '<p class="market-vacio-chico">Todavia no hay tiendas Nexo activas.</p>';
+
+    var boton = document.getElementById("marketUbicacionBoton");
+    if (boton) boton.hidden = Boolean(marketUbicacionUsuario);
+}
+
+function marketSolicitarUbicacion() {
+    var estado = document.getElementById("marketUbicacionEstado");
+    if (!navigator.geolocation) {
+        if (estado) { estado.hidden = false; estado.textContent = "Tu navegador no permite compartir ubicacion."; }
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(function(posicion) {
+        marketUbicacionUsuario = { lat: posicion.coords.latitude, lng: posicion.coords.longitude };
+        if (estado) estado.hidden = true;
+        marketPintarListaTiendasSidebar(marketUltimasTiendas);
+    }, function() {
+        if (estado) { estado.hidden = false; estado.textContent = "No pudimos usar tu ubicacion. Revisa el permiso del navegador."; }
+    });
 }
 
 var marketMapaTiendasInstancia = null;
@@ -1609,10 +1676,7 @@ async function marketCargarInicio() {
     html += marketSeccion("Explora productos", explora.ok ? marketGridProductos(explora.productos) : "");
     contenedor.innerHTML = html || '<p class="market-vacio">Todavia no hay productos para mostrar aqui.</p>';
 
-    document.getElementById("marketTiendasLista").innerHTML = (datos.tiendas && datos.tiendas.length > 0)
-        ? datos.tiendas.map(marketTarjetaTiendaSidebar).join("")
-        : '<p class="market-vacio-chico">Todavia no hay tiendas Nexo activas.</p>';
-
+    marketPintarListaTiendasSidebar(datos.tiendas);
     marketPintarMapaTiendas(datos.tiendas);
     marketPintarOfertaDelDia(datos.ofertas);
     marketPintarCreditoNexo(datos.tiendas);
