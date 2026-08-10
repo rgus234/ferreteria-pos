@@ -462,7 +462,11 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
                 RETURNING id
                 `,
                 [
-                    negocio.id, cp.nombre_proveedor, cp.precio_publico || 0,
+                    // Precio de venta: medio mayoreo por regla del
+                    // negocio (ver ruta aplicar-precio-mayoreo arriba);
+                    // precio_publico solo como respaldo si el catalogo
+                    // no trae medio mayoreo para esta fila.
+                    negocio.id, cp.nombre_proveedor, cp.precio_medio_mayoreo || cp.precio_publico || 0,
                     cp.codigo_interno || cp.codigo_proveedor, "", cp.categoria, cp.marca, cp.descripcion,
                     cp.precio_distribuidor, cp.precio_medio_mayoreo, cp.precio_publico
                 ]
@@ -494,6 +498,65 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
                 [req.params.id, negocio.id]
             );
             res.json({ ok: true, resumen: resumen.rows[0] });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Precio medio mayoreo -> precio de venta real (regla del negocio:
+    // se vende siempre al medio mayoreo del proveedor). Solo mira filas
+    // de ESTE catalogo (catalogo_id) que ya estan vinculadas a un
+    // producto -- nunca toca productos de otro proveedor, aunque
+    // compartan codigo o nombre. Vista previa de solo lectura antes de
+    // aplicar, para que el dueno vea cuantos productos cambiarian y
+    // por cuanto antes de confirmar.
+    app.get("/catalogo-proveedor/:id/vista-previa-precio-mayoreo", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const resultado = await pool.query(
+                `
+                SELECT p.id AS producto_id, p.nombre, p.precio AS precio_actual, cp.precio_medio_mayoreo AS precio_nuevo
+                FROM public.catalogo_productos cp
+                JOIN public.productos p ON p.id = cp.producto_id
+                WHERE cp.catalogo_id = $1 AND cp.negocio_id = $2
+                  AND cp.producto_id IS NOT NULL
+                  AND cp.precio_medio_mayoreo IS NOT NULL
+                  AND cp.precio_medio_mayoreo <> p.precio
+                ORDER BY p.nombre ASC
+                `,
+                [req.params.id, negocio.id]
+            );
+            res.json({
+                ok: true,
+                cambios: resultado.rows.map(f => ({
+                    productoId: f.producto_id,
+                    nombre: f.nombre,
+                    precioActual: Number(f.precio_actual),
+                    precioNuevo: Number(f.precio_nuevo)
+                }))
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.post("/catalogo-proveedor/:id/aplicar-precio-mayoreo", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const resultado = await pool.query(
+                `
+                UPDATE public.productos p
+                SET precio = cp.precio_medio_mayoreo
+                FROM public.catalogo_productos cp
+                WHERE cp.catalogo_id = $1 AND cp.negocio_id = $2
+                  AND cp.producto_id = p.id
+                  AND p.negocio_id = $2
+                  AND cp.precio_medio_mayoreo IS NOT NULL
+                  AND cp.precio_medio_mayoreo <> p.precio
+                `,
+                [req.params.id, negocio.id]
+            );
+            res.json({ ok: true, actualizados: resultado.rowCount });
         } catch (error) {
             responderError(res, error);
         }
