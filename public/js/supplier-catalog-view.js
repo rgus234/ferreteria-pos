@@ -536,7 +536,7 @@ function asegurarPantallaCatalogo() {
  Actualizar vinculacion
  </button>
  <button type="button" class="btn-catalogo-actualizar" onclick="aplicarPrecioMedioMayoreoCatalogoActual()">
- Actualizar precios (medio mayoreo)
+ Actualizar precios y datos
  </button>
  <button type="button" class="btn-catalogo-subir" onclick="abrirCargaCatalogo('nuevo')">
  Subir catalogo nuevo
@@ -1164,11 +1164,25 @@ async function reVincularCatalogoActual() {
  if (productoCatalogoSeleccionadoId) seleccionarProductoCatalogo(productoCatalogoSeleccionadoId);
 }
 
+// Un cambio de la vista previa describe un producto -- arma el texto
+// campo por campo (solo los que de verdad cambian) para la fila del
+// dialogo de confirmacion.
+function describirCambioCatalogo(c) {
+ const partes = [];
+ if (c.campos.includes("precio")) partes.push(`precio ${formatoMonedaCatalogo(c.precioActual)} -> ${formatoMonedaCatalogo(c.precioNuevo)}`);
+ if (c.campos.includes("nombre")) partes.push(`nombre "${c.nombre}" -> "${c.nombreNuevo}"`);
+ if (c.campos.includes("categoria")) partes.push(`categoria "${c.categoriaActual || "(sin categoria)"}" -> "${c.categoriaNuevo}"`);
+ if (c.campos.includes("marca")) partes.push(`marca "${c.marcaActual || "(sin marca)"}" -> "${c.marcaNuevo}"`);
+ return `${c.nombre}: ${partes.join(", ")}`;
+}
+
 // Regla del negocio: se vende siempre al precio medio mayoreo del
-// proveedor de este catalogo (confirmado con el usuario) -- solo
-// toca productos ya vinculados a ESTE catalogo, nunca los de otro
-// proveedor. Siempre pide confirmacion mostrando cuantos cambiarian
-// antes de escribir nada.
+// proveedor de este catalogo, y el nombre/categoria/marca del
+// catalogo se reflejan en el inventario cuando el proveedor trae un
+// valor (confirmado con el usuario, con el riesgo explicito de pisar
+// ajustes manuales que el dueno ya hizo). Solo toca productos ya
+// vinculados a ESTE catalogo, nunca los de otro proveedor. Siempre
+// pide confirmacion mostrando que cambiaria antes de escribir nada.
 async function aplicarPrecioMedioMayoreoCatalogoActual() {
  if (!catalogoActivoId) { alertaPOS("Selecciona un proveedor primero.", "Catalogo proveedor", "info"); return; }
 
@@ -1178,23 +1192,23 @@ async function aplicarPrecioMedioMayoreoCatalogoActual() {
   vistaPrevia = await respuesta.json();
   if (!respuesta.ok || !vistaPrevia.ok) throw new Error(vistaPrevia.error || "");
  } catch (error) {
-  alertaPOS("No se pudo calcular la vista previa de precios.", "Catalogo proveedor", "alerta");
+  alertaPOS("No se pudo calcular la vista previa de precios y datos.", "Catalogo proveedor", "alerta");
   return;
  }
 
  const cambios = vistaPrevia.cambios || [];
  if (cambios.length === 0) {
-  alertaPOS(`Los precios de ${catalogoActivoProveedor} ya estan al dia -- ningun producto vinculado tiene un precio distinto al medio mayoreo.`, "Catalogo proveedor", "info");
+  alertaPOS(`Los precios y datos de ${catalogoActivoProveedor} ya estan al dia -- ningun producto vinculado tiene diferencias con el catalogo.`, "Catalogo proveedor", "info");
   return;
  }
 
- const ejemplos = cambios.slice(0, 5).map(c => `${c.nombre}: ${formatoMonedaCatalogo(c.precioActual)} -> ${formatoMonedaCatalogo(c.precioNuevo)}`).join("\n");
+ const ejemplos = cambios.slice(0, 5).map(describirCambioCatalogo).join("\n");
  const mas = cambios.length > 5 ? `\n...y ${cambios.length - 5} mas.` : "";
  const confirmar = await dialogoPOS({
-  titulo: "Actualizar precios al medio mayoreo",
-  mensaje: `Se actualizaran ${cambios.length} producto(s) de ${catalogoActivoProveedor} al precio medio mayoreo del catalogo:\n\n${ejemplos}${mas}\n\nSolo se tocan productos de este proveedor. Esta accion no se puede deshacer.`,
+  titulo: "Actualizar precios y datos",
+  mensaje: `Se actualizaran ${cambios.length} producto(s) de ${catalogoActivoProveedor} con el precio medio mayoreo y los datos del catalogo:\n\n${ejemplos}${mas}\n\nSolo se tocan productos de este proveedor. Esta accion no se puede deshacer.`,
   mostrarCancelar: true,
-  textoAceptar: "Actualizar precios"
+  textoAceptar: "Actualizar"
  });
  if (!confirmar) return;
 
@@ -1202,7 +1216,7 @@ async function aplicarPrecioMedioMayoreoCatalogoActual() {
   const respuesta = await fetch(`/catalogo-proveedor/${catalogoActivoId}/aplicar-precio-mayoreo`, { method: "POST" });
   const datos = await respuesta.json();
   if (!respuesta.ok || !datos.ok) throw new Error(datos.error || "");
-  alertaPOS(`Se actualizaron ${datos.actualizados} producto(s) al precio medio mayoreo.`, "Catalogo proveedor", "exito");
+  alertaPOS(`Se actualizaron ${datos.actualizados} producto(s).`, "Catalogo proveedor", "exito");
   cargarCatalogosServidor();
   cargarProductosCatalogoServidor();
   if (productoCatalogoSeleccionadoId) seleccionarProductoCatalogo(productoCatalogoSeleccionadoId);

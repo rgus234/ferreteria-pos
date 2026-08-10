@@ -503,37 +503,67 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
         }
     });
 
-    // Precio medio mayoreo -> precio de venta real (regla del negocio:
-    // se vende siempre al medio mayoreo del proveedor). Solo mira filas
-    // de ESTE catalogo (catalogo_id) que ya estan vinculadas a un
-    // producto -- nunca toca productos de otro proveedor, aunque
-    // compartan codigo o nombre. Vista previa de solo lectura antes de
-    // aplicar, para que el dueno vea cuantos productos cambiarian y
-    // por cuanto antes de confirmar.
+    // Sincronizar precio (medio mayoreo -- regla del negocio: se vende
+    // siempre al medio mayoreo del proveedor) y datos de referencia
+    // (nombre, categoria, marca) del catalogo hacia el inventario real.
+    // Solo mira filas de ESTE catalogo (catalogo_id) que ya estan
+    // vinculadas a un producto -- nunca toca productos de otro
+    // proveedor, aunque compartan codigo o nombre. Nombre/categoria/marca
+    // solo se pisan cuando el catalogo trae un valor no vacio -- una
+    // columna vacia en el archivo del proveedor nunca borra un dato que
+    // el dueno ya tenia. Vista previa de solo lectura antes de aplicar,
+    // para que el dueno vea cuantos productos cambiarian y en que antes
+    // de confirmar (decision explicita del usuario: con confirmacion,
+    // nunca automatico).
+    const CONDICION_CAMBIOS_CATALOGO = `
+        cp.precio_medio_mayoreo IS NOT NULL AND (
+            cp.precio_medio_mayoreo <> p.precio
+            OR (NULLIF(cp.nombre_proveedor, '') IS NOT NULL AND cp.nombre_proveedor <> p.nombre)
+            OR (NULLIF(cp.categoria, '') IS NOT NULL AND cp.categoria <> p.categoria)
+            OR (NULLIF(cp.marca, '') IS NOT NULL AND cp.marca <> p.marca)
+        )
+    `;
+
     app.get("/catalogo-proveedor/:id/vista-previa-precio-mayoreo", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
             const resultado = await pool.query(
                 `
-                SELECT p.id AS producto_id, p.nombre, p.precio AS precio_actual, cp.precio_medio_mayoreo AS precio_nuevo
+                SELECT p.id AS producto_id,
+                       p.nombre AS nombre_actual, cp.nombre_proveedor AS nombre_nuevo,
+                       p.precio AS precio_actual, cp.precio_medio_mayoreo AS precio_nuevo,
+                       p.categoria AS categoria_actual, cp.categoria AS categoria_nuevo,
+                       p.marca AS marca_actual, cp.marca AS marca_nuevo
                 FROM public.catalogo_productos cp
                 JOIN public.productos p ON p.id = cp.producto_id
                 WHERE cp.catalogo_id = $1 AND cp.negocio_id = $2
                   AND cp.producto_id IS NOT NULL
-                  AND cp.precio_medio_mayoreo IS NOT NULL
-                  AND cp.precio_medio_mayoreo <> p.precio
+                  AND ${CONDICION_CAMBIOS_CATALOGO}
                 ORDER BY p.nombre ASC
                 `,
                 [req.params.id, negocio.id]
             );
             res.json({
                 ok: true,
-                cambios: resultado.rows.map(f => ({
-                    productoId: f.producto_id,
-                    nombre: f.nombre,
-                    precioActual: Number(f.precio_actual),
-                    precioNuevo: Number(f.precio_nuevo)
-                }))
+                cambios: resultado.rows.map(f => {
+                    const campos = [];
+                    if (Number(f.precio_nuevo) !== Number(f.precio_actual)) campos.push("precio");
+                    if (f.nombre_nuevo && f.nombre_nuevo !== f.nombre_actual) campos.push("nombre");
+                    if (f.categoria_nuevo && f.categoria_nuevo !== f.categoria_actual) campos.push("categoria");
+                    if (f.marca_nuevo && f.marca_nuevo !== f.marca_actual) campos.push("marca");
+                    return {
+                        productoId: f.producto_id,
+                        nombre: f.nombre_actual,
+                        precioActual: Number(f.precio_actual),
+                        precioNuevo: Number(f.precio_nuevo),
+                        nombreNuevo: f.nombre_nuevo || null,
+                        categoriaActual: f.categoria_actual,
+                        categoriaNuevo: f.categoria_nuevo || null,
+                        marcaActual: f.marca_actual,
+                        marcaNuevo: f.marca_nuevo || null,
+                        campos
+                    };
+                })
             });
         } catch (error) {
             responderError(res, error);
@@ -546,13 +576,15 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
             const resultado = await pool.query(
                 `
                 UPDATE public.productos p
-                SET precio = cp.precio_medio_mayoreo
+                SET precio = cp.precio_medio_mayoreo,
+                    nombre = COALESCE(NULLIF(cp.nombre_proveedor, ''), p.nombre),
+                    categoria = COALESCE(NULLIF(cp.categoria, ''), p.categoria),
+                    marca = COALESCE(NULLIF(cp.marca, ''), p.marca)
                 FROM public.catalogo_productos cp
                 WHERE cp.catalogo_id = $1 AND cp.negocio_id = $2
                   AND cp.producto_id = p.id
                   AND p.negocio_id = $2
-                  AND cp.precio_medio_mayoreo IS NOT NULL
-                  AND cp.precio_medio_mayoreo <> p.precio
+                  AND ${CONDICION_CAMBIOS_CATALOGO}
                 `,
                 [req.params.id, negocio.id]
             );

@@ -53,38 +53,57 @@ function llamar(metodo, ruta, { json, headers = {} } = {}) {
             [negocio.negocioId]
         );
 
-        // Producto real de Diprofer, ya en inventario con un precio viejo.
+        // Producto real de Diprofer, ya en inventario con un precio,
+        // categoria y marca viejos.
         await pool.query(
-            `INSERT INTO public.productos (negocio_id, codigo, nombre, precio, stock, proveedor) VALUES ($1, 'DIP-001', 'Producto Diprofer viejo', 50, 5, 'Diprofer')`,
+            `INSERT INTO public.productos (negocio_id, codigo, nombre, precio, stock, proveedor, categoria, marca) VALUES ($1, 'DIP-001', 'Producto Diprofer viejo', 50, 5, 'Diprofer', 'Electrico', 'VOLTECK')`,
             [negocio.negocioId]
         );
 
-        // Subir catalogo de Diprofer con 2 filas: una que coincide por
-        // codigo con DIP-001 (debe vincularse automatico), otra nueva.
+        // Producto vinculado sin categoria/marca en el catalogo -- para
+        // confirmar que una columna vacia en el archivo del proveedor
+        // NUNCA borra un dato que el dueno ya tenia.
+        await pool.query(
+            `INSERT INTO public.productos (negocio_id, codigo, nombre, precio, stock, proveedor, categoria, marca) VALUES ($1, 'DIP-003', 'Producto Diprofer con datos propios', 20, 5, 'Diprofer', 'Plomeria', 'Trupencia')`,
+            [negocio.negocioId]
+        );
+
+        // Subir catalogo de Diprofer con 3 filas: DIP-001 coincide por
+        // codigo (categoria/marca nuevas), DIP-002 es nueva, DIP-003
+        // coincide por codigo pero sin categoria/marca en el archivo.
         const subir = await llamar("POST", "/catalogo-proveedor/Diprofer/subir", {
             headers: auth,
             json: {
                 productos: [
-                    { codigo: "DIP-001", codigoInterno: "DIP-001", nombre: "Producto Diprofer viejo", medioMayoreo: 65, publico: 80 },
-                    { codigo: "DIP-002", nombre: "Taladro percutor inalambrico 18V", medioMayoreo: 40, publico: 55 }
+                    { codigo: "DIP-001", codigoInterno: "DIP-001", nombre: "Producto Diprofer viejo", categoria: "Herramientas", marca: "Diprofer", medioMayoreo: 65, publico: 80 },
+                    { codigo: "DIP-002", nombre: "Taladro percutor inalambrico 18V", medioMayoreo: 40, publico: 55 },
+                    { codigo: "DIP-003", codigoInterno: "DIP-003", nombre: "Producto Diprofer con datos propios", medioMayoreo: 25, publico: 30 }
                 ]
             }
         });
         log("Subir catalogo Diprofer -> 200", subir.status === 200 && subir.datos?.ok === true, subir.datos);
         const catalogoId = subir.datos?.catalogoId;
 
-        // Vista previa: debe mostrar exactamente 1 cambio (DIP-001, 50 -> 65).
+        // Vista previa: 2 cambios (DIP-001 con precio+categoria+marca, DIP-003 solo precio).
         const vistaPrevia = await llamar("GET", `/catalogo-proveedor/${catalogoId}/vista-previa-precio-mayoreo`, { headers: auth });
         const cambios = vistaPrevia.datos?.cambios || [];
-        log("Vista previa trae exactamente 1 cambio (solo el vinculado)", cambios.length === 1 && cambios[0].precioActual === 50 && cambios[0].precioNuevo === 65, cambios);
+        const cambioDip1 = cambios.find(c => c.nombre === "Producto Diprofer viejo");
+        const cambioDip3 = cambios.find(c => c.nombre === "Producto Diprofer con datos propios");
+        log("Vista previa trae 2 cambios (DIP-001 y DIP-003)", cambios.length === 2, cambios);
+        log("DIP-001 cambia precio+categoria+marca", cambioDip1?.campos?.sort().join(",") === "categoria,marca,precio", cambioDip1);
+        log("DIP-003 solo cambia precio (sin categoria/marca en el archivo)", cambioDip3?.campos?.sort().join(",") === "precio", cambioDip3);
 
         // Aplicar.
         const aplicar = await llamar("POST", `/catalogo-proveedor/${catalogoId}/aplicar-precio-mayoreo`, { headers: auth });
-        log("Aplicar -> actualizados = 1", aplicar.datos?.ok === true && aplicar.datos?.actualizados === 1, aplicar.datos);
+        log("Aplicar -> actualizados = 2", aplicar.datos?.ok === true && aplicar.datos?.actualizados === 2, aplicar.datos);
 
-        // Confirmar en base: DIP-001 quedo en 65, el de otro proveedor sigue en 100.
-        const filaDip = await pool.query("SELECT precio FROM public.productos WHERE negocio_id = $1 AND codigo = 'DIP-001'", [negocio.negocioId]);
-        log("DIP-001 quedo en precio 65", Number(filaDip.rows[0]?.precio) === 65, filaDip.rows[0]);
+        // Confirmar en base: DIP-001 quedo en 65 con categoria/marca nuevas.
+        const filaDip = await pool.query("SELECT precio, categoria, marca FROM public.productos WHERE negocio_id = $1 AND codigo = 'DIP-001'", [negocio.negocioId]);
+        log("DIP-001 quedo en precio 65, categoria Herramientas, marca Diprofer", Number(filaDip.rows[0]?.precio) === 65 && filaDip.rows[0]?.categoria === "Herramientas" && filaDip.rows[0]?.marca === "Diprofer", filaDip.rows[0]);
+
+        // DIP-003: precio cambio pero categoria/marca originales se conservaron.
+        const filaDip3 = await pool.query("SELECT precio, categoria, marca FROM public.productos WHERE negocio_id = $1 AND codigo = 'DIP-003'", [negocio.negocioId]);
+        log("DIP-003 quedo en precio 25 pero conservo categoria/marca propias (Plomeria/Trupencia)", Number(filaDip3.rows[0]?.precio) === 25 && filaDip3.rows[0]?.categoria === "Plomeria" && filaDip3.rows[0]?.marca === "Trupencia", filaDip3.rows[0]);
 
         const filaOtro = await pool.query("SELECT precio FROM public.productos WHERE negocio_id = $1 AND codigo = 'OTRO-001'", [negocio.negocioId]);
         log("Producto de otro proveedor NO se toco (sigue en 100)", Number(filaOtro.rows[0]?.precio) === 100, filaOtro.rows[0]);
