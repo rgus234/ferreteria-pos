@@ -1887,6 +1887,242 @@ function quitarUltimoChipSubcategoria() {
  guardarChipsSubcategoria(chips);
 }
 
+// Catalogo canonico de categorias de Nexo (ver categorias-nexo.js en el
+// servidor) -- solo aplica al giro ferreteria; otros giros siguen
+// usando el campo de texto libre de siempre (#nuevaCategoria visible +
+// datalist). #nuevaCategoria sigue siendo el campo real que se manda al
+// guardar -- los selects de departamento/subcategoria solo le asignan
+// el valor, para no tocar el resto del formulario ni el envio.
+let categoriasNexoArbol = null;
+let categoriasNexoCargando = null;
+
+function giroNegocioEsFerreteria() {
+ const config =
+ typeof configuracionNegocio === "function" ? configuracionNegocio() || {} : {};
+
+ return (config.giroNegocio || "ferreteria") === "ferreteria";
+}
+
+async function cargarCategoriasNexo() {
+ const campo = document.getElementById("categoriaNexoCampo");
+ const campoLibre = document.getElementById("nuevaCategoria");
+
+ if (!giroNegocioEsFerreteria()) {
+  if (campo) campo.hidden = true;
+  if (campoLibre) campoLibre.style.display = "";
+  return;
+ }
+
+ if (campo) campo.hidden = false;
+ if (campoLibre) campoLibre.style.display = "none";
+
+ if (!categoriasNexoArbol) {
+  if (!categoriasNexoCargando) {
+   categoriasNexoCargando = fetch("/categorias-nexo")
+    .then(respuesta => respuesta.json())
+    .then(datos => (datos.ok ? datos.departamentos : []))
+    .catch(() => []);
+  }
+
+  categoriasNexoArbol = await categoriasNexoCargando;
+
+  const select =
+   document.getElementById("categoriaNexoDepartamento");
+
+  if (select) {
+   select.innerHTML =
+    '<option value="">Categoria (Nexo)...</option>' +
+    categoriasNexoArbol
+     .map(grupo => `<option value="${escaparPOS(grupo.departamento)}">${escaparPOS(grupo.departamento)}</option>`)
+     .join("");
+  }
+ }
+
+ verificarDisponibilidadIACategoriaNexo();
+}
+
+// Mismo criterio de deteccion ya usado para el boton de Nexo IA en
+// otras pantallas (fetch a /ia/resumen-rapido, acceso.disponible) --
+// si no hay cupo/plan, el boton simplemente no aparece, sin bloquear
+// el selector manual.
+async function verificarDisponibilidadIACategoriaNexo() {
+ const boton =
+  document.getElementById("detectarCategoriaIABtn");
+
+ if (!boton) return;
+
+ try {
+  const respuesta = await fetch("/ia/resumen-rapido");
+  const datos = await respuesta.json();
+  boton.hidden = !(respuesta.ok && datos.ok && datos.acceso?.disponible !== false);
+ } catch (error) {
+  boton.hidden = true;
+ }
+}
+
+function alCambiarDepartamentoCategoriaNexo() {
+ const departamento =
+  document.getElementById("categoriaNexoDepartamento")?.value || "";
+
+ const selectSub =
+  document.getElementById("categoriaNexoSubcategoria");
+
+ if (!selectSub) return;
+
+ const grupo =
+  (categoriasNexoArbol || []).find(d => d.departamento === departamento);
+
+ const subcategorias =
+  grupo?.subcategorias || [];
+
+ selectSub.innerHTML =
+  '<option value="">Subcategoria...</option>' +
+  subcategorias
+   .map(s => `<option value="${s.id}">${escaparPOS(s.nombre)}</option>`)
+   .join("");
+
+ selectSub.disabled = subcategorias.length === 0;
+
+ const campoLibre =
+  document.getElementById("nuevaCategoria");
+
+ if (campoLibre) campoLibre.value = departamento;
+
+ const campoId =
+  document.getElementById("categoriaNexoId");
+
+ if (campoId) campoId.value = "";
+}
+
+function reiniciarCategoriaNexoCampo() {
+ const selectDep =
+  document.getElementById("categoriaNexoDepartamento");
+
+ if (selectDep) selectDep.value = "";
+
+ const selectSub =
+  document.getElementById("categoriaNexoSubcategoria");
+
+ if (selectSub) {
+  selectSub.innerHTML = '<option value="">Subcategoria...</option>';
+  selectSub.disabled = true;
+ }
+
+ const campoId =
+  document.getElementById("categoriaNexoId");
+
+ if (campoId) campoId.value = "";
+}
+
+function alElegirSubcategoriaCategoriaNexo() {
+ const selectSub =
+  document.getElementById("categoriaNexoSubcategoria");
+
+ const opcion =
+  selectSub?.selectedOptions?.[0];
+
+ if (!opcion || !opcion.value) return;
+
+ const campoId =
+  document.getElementById("categoriaNexoId");
+
+ if (campoId) campoId.value = opcion.value;
+
+ agregarChipSubcategoria(opcion.textContent);
+}
+
+// Preselecciona los selects cuando se edita un producto que ya tiene
+// categoria_nexo_id guardada (deteccion previa o eleccion manual
+// anterior) -- productos viejos sin ese dato simplemente arrancan sin
+// seleccion, conservando su texto libre tal cual.
+async function preseleccionarCategoriaNexoProducto(producto) {
+ if (!producto?.categoria_nexo_id) return;
+ if (categoriasNexoCargando) await categoriasNexoCargando;
+
+ const grupo =
+  (categoriasNexoArbol || []).find(d =>
+   d.subcategorias.some(s => Number(s.id) === Number(producto.categoria_nexo_id))
+  );
+
+ if (!grupo) return;
+
+ const selectDep =
+  document.getElementById("categoriaNexoDepartamento");
+
+ if (selectDep) selectDep.value = grupo.departamento;
+
+ alCambiarDepartamentoCategoriaNexo();
+
+ const selectSub =
+  document.getElementById("categoriaNexoSubcategoria");
+
+ if (selectSub) selectSub.value = String(producto.categoria_nexo_id);
+
+ alElegirSubcategoriaCategoriaNexo();
+}
+
+async function detectarCategoriaConIA() {
+ const nombre =
+  document.getElementById("nuevoNombre")?.value?.trim() || "";
+
+ if (!nombre) {
+  alertaPOS("Escribe primero el nombre del producto.", "Falta el nombre", "alerta");
+  return;
+ }
+
+ const marca =
+  document.getElementById("nuevaMarca")?.value?.trim() || "";
+
+ const boton =
+  document.getElementById("detectarCategoriaIABtn");
+
+ if (boton) {
+  boton.disabled = true;
+  boton.textContent = "Detectando...";
+ }
+
+ try {
+  const respuesta = await fetch("/ia/sugerir-categoria-nexo", {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ nombre, marca })
+  });
+
+  const datos = await respuesta.json();
+
+  if (!respuesta.ok || !datos.ok || !datos.disponible) {
+   alertaPOS("Nexo IA no esta disponible en tu plan por ahora.", "Sin IA", "alerta");
+   return;
+  }
+
+  if (!datos.categoriaNexoId) {
+   alertaPOS("No encontramos una categoria clara para ese nombre -- eligela a mano.", "Sin coincidencia", "info");
+   return;
+  }
+
+  const selectDep =
+   document.getElementById("categoriaNexoDepartamento");
+
+  if (selectDep) selectDep.value = datos.departamento;
+
+  alCambiarDepartamentoCategoriaNexo();
+
+  const selectSub =
+   document.getElementById("categoriaNexoSubcategoria");
+
+  if (selectSub) selectSub.value = String(datos.categoriaNexoId);
+
+  alElegirSubcategoriaCategoriaNexo();
+ } catch (error) {
+  alertaPOS("No se pudo consultar Nexo IA ahora mismo.", "Error", "alerta");
+ } finally {
+  if (boton) {
+   boton.disabled = false;
+   boton.textContent = "Detectar categoria con IA";
+  }
+ }
+}
+
 // Vista previa de la imagen del producto en el panel lateral -- se llama
 // antes de subirImagenProductoManual() para mostrar de inmediato el
 // archivo elegido, sin esperar a que termine de subirse.
@@ -2821,6 +3057,8 @@ function editarProducto(
  producto?.subcategoria || "";
 
  renderChipsSubcategoria(chipsSubcategoriaActuales());
+
+ preseleccionarCategoriaNexoProducto(producto);
 
  document.getElementById("nuevaMarca").value =
  producto?.marca || "";
@@ -4095,6 +4333,7 @@ function mostrarFormularioAgregar() {
 
  asegurarEtiquetasFichaProducto();
  asegurarChipsSubcategoria();
+ cargarCategoriasNexo();
  inicializarCampoCodigoProducto();
 
  if (!productoEditandoId) {
@@ -4251,6 +4490,7 @@ function cerrarFormularioAgregar() {
  document.getElementById("nuevoCodigoInterno").value = "";
  document.getElementById("codigosRelacionados").value = "";
  document.getElementById("nuevaCategoria").value = "";
+ reiniciarCategoriaNexoCampo();
  document.getElementById("nuevaSubcategoria").value = "";
  renderChipsSubcategoria([]);
  document.getElementById("nuevaMarca").value = "";
@@ -4312,6 +4552,7 @@ function limpiarCamposCatalogoProducto() {
  document.getElementById("nuevoCodigoInterno").value = "";
  document.getElementById("codigosRelacionados").value = "";
  document.getElementById("nuevaCategoria").value = "";
+ reiniciarCategoriaNexoCampo();
  document.getElementById("nuevaMarca").value = "";
  document.getElementById("nuevaDescripcion").value = "";
  document.getElementById("stockMinimo").value = "3";

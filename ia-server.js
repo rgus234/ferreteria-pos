@@ -1,5 +1,6 @@
 const { config } = require("./config");
 const { responderError } = require("./error-utils");
+const { CATEGORIAS_NEXO } = require("./categorias-nexo");
 
 // Cliente de Anthropic inicializado de forma perezosa -- si todavia
 // no hay ANTHROPIC_API_KEY (caso normal mientras el usuario crea su
@@ -314,6 +315,28 @@ const SYSTEM_PROMPT_MAPEO_CATALOGO = `Ayudas a mapear las columnas de un catalog
 Los campos posibles son exactamente: ${CAMPOS_MAPEO_CATALOGO.join(", ")}.
 
 Se te dan los encabezados reales del archivo y unas filas de muestra. Responde UNICAMENTE con un JSON (objeto plano, sin texto extra) donde cada llave es uno de los campos de la lista y el valor es el encabezado EXACTO (copiado tal cual, sin modificar) que corresponde a ese campo. Si un campo no tiene una columna que le corresponda claramente, omite esa llave -- nunca inventes un encabezado que no este en la lista dada, nunca adivines si no hay evidencia razonable.`;
+
+// Cache aparte para la deteccion de categoria de Nexo -- mismo nombre +
+// marca da la misma sugerencia, sin volver a llamar al modelo.
+const CACHE_CATEGORIA_NEXO = new Map();
+
+function limpiarCacheCategoriaNexoExpirado() {
+    const ahora = Date.now();
+    for (const [clave, entrada] of CACHE_CATEGORIA_NEXO) {
+        if (entrada.expiraEn <= ahora) CACHE_CATEGORIA_NEXO.delete(clave);
+    }
+}
+
+const LISTA_CATEGORIAS_NEXO_TEXTO = CATEGORIAS_NEXO
+    .map((c, i) => `${i}. ${c.departamento} > ${c.nombre}`)
+    .join("\n");
+
+const SYSTEM_PROMPT_CATEGORIA_NEXO = `Ayudas a clasificar productos de ferreteria dentro del catalogo de categorias de Nexo.
+
+Estas son las unicas categorias validas (indice. departamento > subcategoria):
+${LISTA_CATEGORIAS_NEXO_TEXTO}
+
+Se te da el nombre de un producto (y a veces su marca). Responde UNICAMENTE con un JSON (objeto plano, sin texto extra) de la forma {"indice": N} donde N es el indice de la categoria de la lista que mejor corresponde. Si de verdad ninguna categoria corresponde razonablemente, responde {"indice": null}. Nunca inventes una categoria que no este en la lista.`;
 
 // Limites de Nexo IA Nivel 3 (el unico nivel con costo real) por
 // plan. Basico usa limite 0 -- eso es lo que significa "sin acceso a
@@ -965,6 +988,96 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             CACHE_MAPEO_CATALOGO.set(clave, { mapeo, expiraEn: Date.now() + CACHE_BUSQUEDA_TTL_MS });
 
             res.json({ ok: true, disponible: true, mapeo });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Deteccion de categoria de Nexo para un producto nuevo/editado --
+    // mismo patron de costo y seguridad que /ia/sugerir-mapeo-catalogo:
+    // Haiku, cache, gateado por acceso.iaDisponible, respuesta validada
+    // contra la lista real (el modelo nunca puede inventar una
+    // categoria que no exista en categorias-nexo.js). El frontend solo
+    // prellena el selector -- el usuario sigue pudiendo cambiarlo antes
+    // de guardar.
+    app.post("/ia/sugerir-categoria-nexo", requerirAccesoNegocio, async (req, res) => {
+        const anthropic = obtenerAnthropic();
+
+        if (!anthropic) {
+            res.status(503).json({ ok: false, error: "Nexo IA todavia no esta configurado en este servidor" });
+            return;
+        }
+
+        const nombreProducto = String(req.body?.nombre || "").trim().slice(0, 200);
+        const marca = String(req.body?.marca || "").trim().slice(0, 80);
+
+        if (!nombreProducto) {
+            res.status(400).json({ ok: false, error: "Falta el nombre del producto" });
+            return;
+        }
+
+        try {
+            const negocio = await negocioActual(req, pool);
+            const acceso = await licenciaDelNegocio(pool, negocio.id);
+
+            if (!acceso.iaDisponible) {
+                res.json({ ok: true, disponible: false });
+                return;
+            }
+
+            const clave = claveCache(negocio.id, `categoria|${nombreProducto}|${marca}`);
+            const enCache = CACHE_CATEGORIA_NEXO.get(clave);
+
+            if (enCache && enCache.expiraEn > Date.now()) {
+                res.json({ ok: true, disponible: true, ...enCache.resultado });
+                return;
+            }
+
+            const mensajeUsuario = marca ? `Producto: ${nombreProducto}\nMarca: ${marca}` : `Producto: ${nombreProducto}`;
+
+            const respuesta = await anthropic.messages.create({
+                model: "claude-haiku-4-5",
+                max_tokens: 60,
+                system: SYSTEM_PROMPT_CATEGORIA_NEXO,
+                messages: [{ role: "user", content: mensajeUsuario }]
+            });
+
+            const texto = respuesta.content
+                .filter(bloque => bloque.type === "text")
+                .map(bloque => bloque.text)
+                .join("")
+                .trim();
+
+            const coincidenciaObjeto = texto.match(/\{[\s\S]*\}/);
+            let sugerencia = {};
+            try {
+                sugerencia = JSON.parse(coincidenciaObjeto ? coincidenciaObjeto[0] : texto);
+            } catch (error) {
+                sugerencia = {};
+            }
+
+            // Nunca se confia ciegamente en el indice del modelo -- solo
+            // se acepta si es un entero dentro del rango real de
+            // CATEGORIAS_NEXO (el modelo no puede inventar una
+            // categoria que no se le dio).
+            const indice = Number.isInteger(sugerencia?.indice) ? sugerencia.indice : null;
+            const filaCategoria = indice !== null && indice >= 0 && indice < CATEGORIAS_NEXO.length ? CATEGORIAS_NEXO[indice] : null;
+
+            let resultado = { categoriaNexoId: null, departamento: null, nombre: null };
+            if (filaCategoria) {
+                const filaId = await pool.query(
+                    `SELECT id FROM public.categorias_nexo WHERE departamento = $1 AND nombre = $2 LIMIT 1`,
+                    [filaCategoria.departamento, filaCategoria.nombre]
+                );
+                if (filaId.rows.length > 0) {
+                    resultado = { categoriaNexoId: filaId.rows[0].id, departamento: filaCategoria.departamento, nombre: filaCategoria.nombre };
+                }
+            }
+
+            limpiarCacheCategoriaNexoExpirado();
+            CACHE_CATEGORIA_NEXO.set(clave, { resultado, expiraEn: Date.now() + CACHE_BUSQUEDA_TTL_MS });
+
+            res.json({ ok: true, disponible: true, ...resultado });
         } catch (error) {
             responderError(res, error);
         }

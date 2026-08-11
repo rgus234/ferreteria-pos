@@ -41,7 +41,7 @@
   <link rel="stylesheet" href="css/components/pos-sale-redesign.css?v=carrito-flat-minimal-20260723-01">
   <link rel="stylesheet" href="css/components/pos-quick-item-modal.css?v=botones-fix-20260721-01">
   <link rel="stylesheet" href="css/components/pos-busqueda-ia.css?v=borde-siri-fix2-20260721-01">
-  <link rel="stylesheet" href="css/components/pos-product-form.css?v=banco-imagenes-solicitar-20260731-01">
+  <link rel="stylesheet" href="css/components/pos-product-form.css?v=categorias-nexo-20260821-01">
   <link rel="stylesheet" href="css/components/banco-imagenes-galeria-modal.css?v=20260730-01">
   <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-editar-compra-20260730-01">
   <link rel="stylesheet" href="css/components/sale-documents.css?v=nota-venta-rediseno-20260721-01">
@@ -1157,8 +1157,18 @@
  <input id="nuevoCodigoInterno" placeholder="Codigo interno / clave proveedor" onblur="verificarCodigoDuplicadoEnVivo('nuevoCodigoInterno')">
  <input id="codigosRelacionados" placeholder="Codigos alternos: caja, paquete, proveedor">
  <input id="nuevoNombre" placeholder="Nombre del producto">
+ <div class="producto-categoria-nexo-campo campo-ficha-ancho" id="categoriaNexoCampo" hidden>
+ <select id="categoriaNexoDepartamento" onchange="alCambiarDepartamentoCategoriaNexo()">
+ <option value="">Categoria (Nexo)...</option>
+ </select>
+ <select id="categoriaNexoSubcategoria" onchange="alElegirSubcategoriaCategoriaNexo()" disabled>
+ <option value="">Subcategoria...</option>
+ </select>
+ <button type="button" id="detectarCategoriaIABtn" onclick="detectarCategoriaConIA()" hidden>Detectar categoria con IA</button>
+ </div>
  <input id="nuevaCategoria" placeholder="Categoria" list="listaCategoriasProducto">
  <datalist id="listaCategoriasProducto"></datalist>
+ <input type="hidden" id="categoriaNexoId">
  <input id="nuevaMarca" placeholder="Marca">
  <select id="unidadVenta" onchange="actualizarAyudaPrecioProducto()">
  <option value="pieza">Pieza</option>
@@ -1623,7 +1633,7 @@
   <script src="js/supplier-catalog.js?v=plantillas-servidor-ia-20260723-01"></script>
   <script src="js/pricing-rules.js?v=reglas-precio-20260709-02"></script>
   <script src="js/catalog-parsers.js?v=plantillas-servidor-ia-20260723-01"></script>
-  <script src="js/product-inventory.js?v=banco-imagenes-solicitar-20260731-01"></script>
+  <script src="js/product-inventory.js?v=categorias-nexo-20260821-01"></script>
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-weight-modal.js?v=peso-carrito-20260817-01"></script>

@@ -396,6 +396,21 @@
   align-items: end !important;
  }
 
+ #modalAgregar .producto-categoria-nexo-campo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nexo-space-2, 8px);
+ }
+
+ #modalAgregar .producto-categoria-nexo-campo select {
+  flex: 1 1 200px;
+ }
+
+ #modalAgregar .producto-categoria-nexo-campo button {
+  flex: 0 0 auto;
+ }
+
  #modalAgregar [data-seccion="precios"] .producto-form-campos {
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
  }

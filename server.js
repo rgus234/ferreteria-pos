@@ -5226,6 +5226,49 @@ app.get("/producto-codigo/:codigo", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
+// Catalogo canonico de categorias de Nexo (ver categorias-nexo.js). Si
+// el body trae categoriaNexoId, se resuelve contra la tabla real (nunca
+// se confia en un id que venga del cliente) y su "departamento" pasa a
+// ser el texto de categoria -- asi el texto que se guarda ya sale
+// limpio y consistente, sin tocar el resto del pipeline que sigue
+// leyendo esa columna como texto. subcategoria se deja intacta (sigue
+// siendo el input de chips existente, el frontend agrega el nombre de
+// la subcategoria elegida ahi como un chip mas).
+async function resolverCategoriaNexo(categoriaNexoId) {
+    const id = Number(categoriaNexoId);
+    if (!Number.isInteger(id) || id <= 0) return null;
+
+    const fila = await pool.query(
+        `SELECT id, departamento, nombre FROM public.categorias_nexo WHERE id = $1 LIMIT 1`,
+        [id]
+    );
+
+    return fila.rows[0] || null;
+}
+
+// Catalogo completo de categorias de Nexo, agrupado por departamento --
+// lo consume el selector de Agregar/Editar producto. Cacheado en
+// memoria (el catalogo solo cambia por deploy, ver categorias-nexo.js).
+let cacheCategoriasNexo = null;
+app.get("/categorias-nexo", requerirAccesoNegocio, async (req, res) => {
+    try {
+        if (!cacheCategoriasNexo) {
+            const filas = await pool.query(
+                `SELECT id, departamento, nombre FROM public.categorias_nexo ORDER BY orden, departamento, nombre`
+            );
+            const porDepartamento = new Map();
+            for (const fila of filas.rows) {
+                if (!porDepartamento.has(fila.departamento)) porDepartamento.set(fila.departamento, []);
+                porDepartamento.get(fila.departamento).push({ id: fila.id, nombre: fila.nombre });
+            }
+            cacheCategoriasNexo = Array.from(porDepartamento.entries()).map(([departamento, subcategorias]) => ({ departamento, subcategorias }));
+        }
+        res.json({ ok: true, departamentos: cacheCategoriasNexo });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
 app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
 
    const {
@@ -5237,6 +5280,7 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
     ubicacion,
     categoria,
     subcategoria,
+    categoriaNexoId,
     marca,
     descripcion,
     unidadVenta,
@@ -5269,6 +5313,10 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
         const negocio = await negocioActual(req);
 
         if (!(await exigirLicenciaActiva(res, negocio, "agregar un producto"))) return;
+
+        const categoriaNexo = await resolverCategoriaNexo(categoriaNexoId);
+        const categoriaFinal = categoriaNexo ? categoriaNexo.departamento : (categoria || "");
+        const subcategoriaFinal = subcategoria || "";
 
         const resultado = await pool.query(
 `
@@ -5321,8 +5369,8 @@ RETURNING id
   normalizarCodigo(codigo) || codigo || "",
   proveedor || "",
   ubicacion || "",
-  categoria || "",
-  subcategoria || "",
+  categoriaFinal,
+  subcategoriaFinal,
   marca || "",
   descripcion || "",
   unidadVenta || "pieza",
@@ -5359,6 +5407,10 @@ RETURNING id
             codigosRelacionados
         }, negocio.id);
 
+        if (categoriaNexo) {
+            await pool.query(`UPDATE public.productos SET categoria_nexo_id = $1 WHERE id = $2`, [categoriaNexo.id, productoId]);
+        }
+
         res.json({
             success: true,
             productoId,
@@ -5371,8 +5423,9 @@ RETURNING id
                 codigo: normalizarCodigo(codigo) || codigo || "",
                 proveedor: proveedor || "",
                 ubicacion: ubicacion || "",
-                categoria: categoria || "",
-                subcategoria: subcategoria || "",
+                categoria: categoriaFinal,
+                subcategoria: subcategoriaFinal,
+                categoria_nexo_id: categoriaNexo ? categoriaNexo.id : null,
                 marca: marca || "",
                 descripcion: descripcion || "",
                 unidad_venta: unidadVenta || "pieza",
@@ -5426,6 +5479,7 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         ubicacion,
         categoria,
         subcategoria,
+        categoriaNexoId,
         marca,
         descripcion,
         unidadVenta,
@@ -5459,6 +5513,10 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         const negocio = await negocioActual(req);
 
         if (!(await exigirLicenciaActiva(res, negocio, "guardar productos"))) return;
+
+        const categoriaNexo = await resolverCategoriaNexo(categoriaNexoId);
+        const categoriaFinal = categoriaNexo ? categoriaNexo.departamento : (categoria || "");
+        const subcategoriaFinal = subcategoria || "";
 
         const resultado = await pool.query(
             `
@@ -5497,9 +5555,10 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 notas_internas = $31,
                 admite_cambios = $32,
                 destacado = $33,
-                precio_oferta = $34
-            WHERE id = $35
-            AND negocio_id = $36
+                precio_oferta = $34,
+                categoria_nexo_id = COALESCE($35, categoria_nexo_id)
+            WHERE id = $36
+            AND negocio_id = $37
             RETURNING id
             `,
             [
@@ -5509,8 +5568,8 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 normalizarCodigo(codigo) || codigo || "",
                 proveedor || "",
                 ubicacion || "",
-                categoria || "",
-                subcategoria || "",
+                categoriaFinal,
+                subcategoriaFinal,
                 marca || "",
                 descripcion || "",
                 unidadVenta || "pieza",
@@ -5537,6 +5596,7 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 admiteCambios !== false && admiteCambios !== "false",
                 destacado === true || destacado === "true",
                 precioOferta || null,
+                categoriaNexo ? categoriaNexo.id : null,
                 id,
                 negocio.id
             ]
@@ -5567,8 +5627,8 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 codigo: normalizarCodigo(codigo) || codigo || "",
                 proveedor: proveedor || "",
                 ubicacion: ubicacion || "",
-                categoria: categoria || "",
-                subcategoria: subcategoria || "",
+                categoria: categoriaFinal,
+                subcategoria: subcategoriaFinal,
                 marca: marca || "",
                 descripcion: descripcion || "",
                 unidad_venta: unidadVenta || "pieza",
