@@ -854,6 +854,9 @@ function scriptMarketHeaderHtml({ navegarABusqueda = false } = {}) {
     const favoritosJs = navegarABusqueda
         ? "location.href = \"/market/buscar?vista=favoritos\";"
         : "document.getElementById(\"marketBuscarInput\").value = \"\"; document.getElementById(\"marketCategoriaSelect\").value = \"\"; if (typeof marketMostrarVistaFavoritos === \"function\") marketMostrarVistaFavoritos();";
+    const nuevosJs = navegarABusqueda
+        ? "location.href = \"/market/buscar?orden=recientes\";"
+        : "if (typeof marketMostrarBusqueda === \"function\") { marketMostrarBusqueda({ buscar: \"\", categoria: \"\", orden: \"recientes\" }); }";
 
     return `
 function marketHeaderEscapeHtml(texto) {
@@ -959,6 +962,11 @@ document.getElementById("marketBuscadorForm").addEventListener("submit", functio
 document.getElementById("marketFavoritosLink").addEventListener("click", function(evento) {
     evento.preventDefault();
     ${favoritosJs}
+});
+
+document.getElementById("marketNavNuevos").addEventListener("click", function(evento) {
+    evento.preventDefault();
+    ${nuevosJs}
 });
 `;
 }
@@ -1887,12 +1895,13 @@ marketCargarInicio();
 var marketParamsIniciales = new URLSearchParams(location.search);
 if (marketParamsIniciales.get("vista") === "favoritos") {
     marketMostrarVistaFavoritos();
-} else if (marketParamsIniciales.get("buscar") || marketParamsIniciales.get("categoria")) {
+} else if (marketParamsIniciales.get("buscar") || marketParamsIniciales.get("categoria") || marketParamsIniciales.get("orden")) {
     var marketBuscarInicial = marketParamsIniciales.get("buscar") || "";
     var marketCategoriaInicial = marketParamsIniciales.get("categoria") || "";
+    var marketOrdenInicial = marketParamsIniciales.get("orden") || "relevancia";
     document.getElementById("marketBuscarInput").value = marketBuscarInicial;
     document.getElementById("marketCategoriaSelect").value = marketCategoriaInicial;
-    marketMostrarBusqueda({ buscar: marketBuscarInicial, categoria: marketCategoriaInicial });
+    marketMostrarBusqueda({ buscar: marketBuscarInicial, categoria: marketCategoriaInicial, orden: marketOrdenInicial });
 }
 </script>
 </body>
