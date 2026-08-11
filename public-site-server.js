@@ -148,6 +148,25 @@ async function negocioActual(req, pool) {
     return resultado.rows[0];
 }
 
+// Detecta si una persona tiene alguna señal real de "comprador" -- cliente
+// de credito vinculado en alguna ferreteria, o al menos un pedido puesto
+// con su cuenta. Mismos dos criterios que ya usan
+// GET /personas/negocios-cliente y GET /personas/mis-pedidos (abajo), aqui
+// solo se cuenta en vez de listar. Usado por market-cuenta-server.js para
+// decidir si una persona que SOLO administra negocios puede saltarse el
+// hub de comprador -- nunca al reves (si hay cualquier señal, por minima
+// que sea, se respeta el hub de comprador de siempre).
+async function contarSenalCompradora(pool, personaId) {
+    const resultado = await pool.query(
+        `SELECT
+            (SELECT COUNT(*) FROM public.clientes_credito WHERE persona_id = $1 AND activo = true) +
+            (SELECT COUNT(*) FROM public.pedidos_publicos WHERE persona_id = $1) AS total`,
+        [personaId]
+    );
+
+    return Number(resultado.rows[0]?.total || 0);
+}
+
 // Punto unico de resolucion para las 3 paginas publicas (info, catalogo,
 // detalle de producto): confirma que el negocio existe, esta activo,
 // tiene el sitio web activado y su plan incluye la funcion. Cualquier
@@ -4493,6 +4512,7 @@ module.exports = {
     // cada tienda (market-tienda-server.js) reusa estas piezas de datos
     // y de vista en vez de duplicarlas.
     resolverSitioPublico,
+    contarSenalCompradora,
     cargarInicioTenant,
     cargarCatalogoTenant,
     cargarProductoTenant,

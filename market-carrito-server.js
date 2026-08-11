@@ -8,7 +8,7 @@
 // (/market/ferreteria/{slug}/catalogo/pedido-carrito). No hay pago --
 // no se inventa un checkout unificado que no tiene backend detras.
 
-const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml } = require("./market-server");
+const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml } = require("./market-server");
 
 const ESTILOS_CARRITO_MARKET = `
 .market-carrito-scope{ max-width:1200px; margin:0 auto; padding:28px clamp(18px,4vw,48px) 60px; }
@@ -71,6 +71,7 @@ function cabezaCarritoMarketHtml(titulo) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${titulo} -- Nexo Market</title>
 <link rel="icon" href="/nexo-pos-icon.jpg">
+${metaInstalableMarketHtml()}
 <link rel="stylesheet" href="/site/styles.css">
 <style>${ESTILOS_MARKET}</style>
 <style>${ESTILOS_CARRITO_MARKET}</style>`;

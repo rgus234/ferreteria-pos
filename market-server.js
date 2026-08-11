@@ -574,6 +574,22 @@ async function carritoProductosMarketJson(pool, req, res, firmarTokenImagen) {
     }
 }
 
+// Meta/link tags + registro del Service Worker que hacen a Nexo Market
+// instalable en el celular ("Agregar a pantalla de inicio"), mismo
+// patron ya validado en /dueno (manifest.json + dueno-sw.js) pero con
+// su propio manifest/icono de marca "Nexo Market". Se inserta en las 4
+// paginas que arman su propio <head> (esta misma, market-tienda-server.js,
+// market-carrito-server.js, market-cuenta-server.js) justo despues del
+// <link rel="icon"> -- mismo criterio de reuso que marketHeaderHtml.
+function metaInstalableMarketHtml() {
+    return `<link rel="manifest" href="/manifest-market.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Nexo Market">
+<link rel="apple-touch-icon" href="/icons/nexo-pos-icon-192.png">
+<meta name="theme-color" content="#1067e8">
+<script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("/market-sw.js", { scope: "/market/" }).catch(function() {}); }</script>`;
+}
+
 const ESTILOS_MARKET = `
 .market-header{ position:sticky; top:0; z-index:30; background:linear-gradient(180deg,#101826,#0b1220); border-bottom:1px solid rgba(255,255,255,.08); box-shadow:0 10px 30px rgba(6,10,18,.28); }
 .market-header-top{ display:flex; align-items:center; gap:18px; padding:14px clamp(18px,4vw,48px); max-width:1680px; margin:0 auto; }
@@ -980,6 +996,7 @@ function paginaMarketHtml() {
 <title>Nexo Market -- todo para construir, instalar y reparar</title>
 <meta name="description" content="Busca productos entre varias ferreterias Nexo, compara precio y disponibilidad, y compra directo con la tienda que elijas.">
 <link rel="icon" href="/nexo-pos-icon.jpg">
+${metaInstalableMarketHtml()}
 <link rel="stylesheet" href="/site/styles.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <style>${ESTILOS_MARKET}</style>
@@ -1916,5 +1933,5 @@ async function servirMarketPagina(req, res) {
 module.exports = {
     servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, tiendasPermitidasMarket,
     carritoProductosMarketJson,
-    ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml
+    ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml
 };

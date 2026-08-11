@@ -1806,7 +1806,24 @@ if ("serviceWorker" in navigator) {
     });
 }
 
+// Recibe el token cuando se llega desde Nexo Market ("Entrar a X" o el
+// auto-redirect de cuentas puramente administradoras) -- localStorage no
+// se comparte entre nexoposoficial.com y app.nexoposoficial.com (origenes
+// distintos), asi que el token viaja una sola vez por query string y se
+// guarda aqui, del lado de /dueno, antes de limpiar la URL.
+function recibirTokenDesdeMarket() {
+    const parametros = new URLSearchParams(window.location.search);
+    const token = parametros.get("entrar");
+    if (!token) return;
+
+    localStorage.setItem(DUENO_TOKEN_KEY, token);
+    parametros.delete("entrar");
+    const query = parametros.toString();
+    window.history.replaceState({}, "", window.location.pathname + (query ? `?${query}` : ""));
+}
+
 window.addEventListener("load", () => {
+    recibirTokenDesdeMarket();
     aplicarTemaDueno();
 
     document.getElementById("duenoSaludo").textContent = saludoHora();

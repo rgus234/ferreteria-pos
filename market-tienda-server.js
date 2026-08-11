@@ -30,7 +30,7 @@ const {
     modalCarritoTenantHtml
 } = require("./public-site-server");
 
-const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml } = require("./market-server");
+const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml } = require("./market-server");
 
 // Mismo patron de escape local usado en el resto de modulos del sitio
 // publico (public-site-server.js, market-server.js, email.js) --
@@ -126,6 +126,7 @@ function cabezaTiendaMarketHtml({ titulo, descripcion, color }) {
 <title>${titulo}</title>
 <meta name="description" content="${descripcion}">
 <link rel="icon" href="/nexo-pos-icon.jpg">
+${metaInstalableMarketHtml()}
 <link rel="stylesheet" href="/site/styles.css">
 <style>${ESTILOS_MARKET}</style>
 <style>${ESTILOS_TIENDA_MARKET}</style>

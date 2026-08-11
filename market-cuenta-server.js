@@ -24,9 +24,15 @@ const {
     ICONO_TENANT_FAVORITO
 } = require("./public-site-server");
 
-const { crearResolverSesionPersonaOpcional } = require("./personas-server");
+const {
+    crearResolverSesionPersonaOpcional,
+    listarNegociosAdministrados,
+    mintearSesionParaNegocioDePersona
+} = require("./personas-server");
 
-const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml } = require("./market-server");
+const { contarSenalCompradora } = require("./public-site-server");
+
+const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml } = require("./market-server");
 
 // Mismo patron de escape local que el resto de modulos del sitio
 // publico -- copiado, no importado.
@@ -61,6 +67,7 @@ function cabezaCuentaMarketHtml() {
 <title>Mi cuenta -- Nexo Market</title>
 <meta name="description" content="Tu cuenta Nexo: pedidos, favoritos, credito y las ferreterias donde compras, todo dentro de Nexo Market.">
 <link rel="icon" href="/nexo-pos-icon.jpg">
+${metaInstalableMarketHtml()}
 <link rel="stylesheet" href="/site/styles.css">
 <style>${ESTILOS_MARKET}</style>
 <style>${estilosPortalClienteHtml()}</style>
@@ -204,6 +211,77 @@ document.getElementById("cuentaMarketRegistroForm").addEventListener("submit", a
     }
 })();
 `;
+}
+
+// Cuenta puramente administradora (1 negocio, ninguna señal de
+// comprador): se mintea la sesion server-side y se redirige de
+// inmediato a /dueno -- nunca se pinta el hub de comprador ni se
+// muestra ningun mensaje tipo "entraste como administrador" (el dueño
+// pidio explicitamente evitar esa confusion). Doble redirect
+// (meta refresh + JS) para que funcione incluso si JS tarda en correr.
+function paginaEntrandoAdminMarketHtml(token) {
+    const destino = "https://app.nexoposoficial.com/?entrar=" + encodeURIComponent(token);
+    return `<!doctype html>
+<html lang="es">
+<head>
+${cabezaCuentaMarketHtml()}
+<meta http-equiv="refresh" content="0;url=${escaparHtml(destino)}">
+</head>
+<body>
+<div style="min-height:70vh; display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--muted);">Entrando a tu panel...</div>
+<script>window.location.replace(${JSON.stringify(destino)});</script>
+</body>
+</html>`;
+}
+
+// Cuenta administradora de 2+ negocios y ninguna señal de comprador: no
+// se puede auto-elegir cual, asi que se pide -- pantalla corta, sin el
+// resto del hub de comprador debajo (mismo motivo que la de arriba).
+function paginaElegirNegocioMarketHtml(negocios) {
+    const botones = negocios.map(n =>
+        `<button type="button" data-negocio-id="${n.id}">Entrar a ${escaparHtml(n.nombre)}</button>`
+    ).join("");
+
+    const contenido = `<div class="market-cuenta-login">
+<div class="contact-intro" style="margin-bottom:24px;">
+<p class="eyebrow">Tu cuenta Nexo</p>
+<h2>Administras varios negocios</h2>
+<p>Elige a cual quieres entrar.</p>
+</div>
+<div class="market-cuenta-admin-card" style="display:block;">
+<div class="market-cuenta-admin-lista" id="elegirNegocioLista" style="gap:12px;">${botones}</div>
+</div>
+<div id="elegirNegocioResultado" class="lead-result" aria-live="polite" style="margin-top:16px;"></div>
+</div>`;
+
+    return `<!doctype html>
+<html lang="es">
+<head>
+${cabezaCuentaMarketHtml()}
+</head>
+<body>
+${marketHeaderHtml({})}
+${contenido}
+${marketFooterHtml()}
+<script>${scriptMarketHeaderHtml({ navegarABusqueda: true })}</script>
+<script>
+document.querySelectorAll("#elegirNegocioLista button").forEach(function(boton) {
+    boton.addEventListener("click", async function() {
+        const resultado = document.getElementById("elegirNegocioResultado");
+        resultado.textContent = "Entrando...";
+        try {
+            const respuesta = await fetch("/personas/negocios/" + boton.dataset.negocioId + "/entrar", { method: "POST", credentials: "include" });
+            const datos = await respuesta.json();
+            if (!datos.ok) { resultado.textContent = datos.error || "No se pudo entrar a ese negocio."; return; }
+            window.location.href = "https://app.nexoposoficial.com/?entrar=" + encodeURIComponent(datos.token);
+        } catch (error) {
+            resultado.textContent = "Ocurrio un error. Intenta de nuevo.";
+        }
+    });
+});
+</script>
+</body>
+</html>`;
 }
 
 // Hub de cuenta -- se renderiza directo cuando ya hay sesion de
@@ -514,8 +592,7 @@ async function cuentaMarketCargarAdmin() {
         boton.addEventListener("click", async function() {
             const resultado = await cuentaMarketLlamar("/personas/negocios/" + n.id + "/entrar", { method: "POST" });
             if (!resultado.ok) { alert(resultado.error || "No se pudo entrar a ese negocio."); return; }
-            localStorage.setItem("nexoCuentaSesionToken", resultado.token);
-            window.location.href = "https://app.nexoposoficial.com/";
+            window.location.href = "https://app.nexoposoficial.com/?entrar=" + encodeURIComponent(resultado.token);
         });
         lista.appendChild(boton);
     });
@@ -567,11 +644,35 @@ async function servirCuentaMarket(pool, req, res) {
         const resolverPersonaOpcional = crearResolverSesionPersonaOpcional(pool);
         await new Promise(continuar => resolverPersonaOpcional(req, res, continuar));
 
-        const html = req.persona
-            ? paginaHubCuentaMarketHtml(req.persona)
-            : paginaLoginCuentaMarketHtml();
+        if (!req.persona) {
+            res.set("Content-Type", "text/html; charset=utf-8").send(paginaLoginCuentaMarketHtml());
+            return;
+        }
 
-        res.set("Content-Type", "text/html; charset=utf-8").send(html);
+        // Cuenta puramente administradora (administra 1+ negocio y no
+        // tiene ninguna señal real de comprador en ninguna ferreteria):
+        // se salta el hub de comprador por completo, tal como pidio el
+        // dueño. Cualquier otra combinacion (comprador puro, o comprador
+        // que tambien administra) sigue viendo el hub de siempre.
+        const [negociosAdministrados, senalCompradora] = await Promise.all([
+            listarNegociosAdministrados(pool, req.persona.id),
+            contarSenalCompradora(pool, req.persona.id)
+        ]);
+
+        if (negociosAdministrados.length > 0 && senalCompradora === 0) {
+            if (negociosAdministrados.length === 1) {
+                const resultado = await mintearSesionParaNegocioDePersona(pool, req.persona.id, negociosAdministrados[0].id, req);
+                if (resultado) {
+                    res.set("Content-Type", "text/html; charset=utf-8").send(paginaEntrandoAdminMarketHtml(resultado.token));
+                    return;
+                }
+            } else {
+                res.set("Content-Type", "text/html; charset=utf-8").send(paginaElegirNegocioMarketHtml(negociosAdministrados));
+                return;
+            }
+        }
+
+        res.set("Content-Type", "text/html; charset=utf-8").send(paginaHubCuentaMarketHtml(req.persona));
     } catch (error) {
         console.warn("Error sirviendo /market/mi-cuenta:", error.message);
         res.status(500).send("Error");

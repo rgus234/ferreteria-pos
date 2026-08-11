@@ -176,6 +176,46 @@ async function mintearSesionPersona(pool, res, personaId, req) {
     return tokenPlano;
 }
 
+// Lista los negocios que administra una persona (negocios.persona_id) --
+// misma consulta que ya usa GET /personas/negocios abajo, expuesta como
+// funcion para que market-cuenta-server.js pueda decidir server-side si
+// una persona es puramente administradora sin pasar por HTTP.
+async function listarNegociosAdministrados(pool, personaId) {
+    const resultado = await pool.query(
+        `SELECT id, slug, nombre FROM public.negocios WHERE persona_id = $1 ORDER BY nombre`,
+        [personaId]
+    );
+    return resultado.rows;
+}
+
+// Mintea una sesion de negocio real (mismo INSERT que usa el login
+// normal de dueño) para una persona que ya administra ese negocio, sin
+// pedirle contrasena de nuevo -- ambos ya probaron su identidad por
+// separado. Regresa null si esa persona no administra ese negocio
+// (nunca mintea para un negocio ajeno). Reusado tanto por la ruta
+// POST /personas/negocios/:negocioId/entrar (boton manual) como por el
+// auto-redirect de cuentas puramente administradoras en
+// market-cuenta-server.js.
+async function mintearSesionParaNegocioDePersona(pool, personaId, negocioId, req) {
+    const negocio = await pool.query(
+        `SELECT id, slug, nombre FROM public.negocios WHERE id = $1 AND persona_id = $2 LIMIT 1`,
+        [negocioId, personaId]
+    );
+
+    if (negocio.rows.length === 0) return null;
+
+    const fila = negocio.rows[0];
+    const tokenPlano = generarTokenSeguro();
+    const dispositivo = limpiarTexto(req.headers["user-agent"], 200) || "Dispositivo desconocido";
+
+    await pool.query(
+        `INSERT INTO public.sesiones_cuenta (negocio_id, token_hash, dispositivo, ip) VALUES ($1, $2, $3, $4)`,
+        [fila.id, hashTokenSeguro(tokenPlano), dispositivo, req.ip]
+    );
+
+    return { token: tokenPlano, negocio: { id: fila.id, slug: fila.slug, nombre: fila.nombre } };
+}
+
 function registrarRutas(app, pool, requerirAccesoNegocio) {
     const requerirSesionPersona = crearRequerirSesionPersona(pool);
 
@@ -315,26 +355,14 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
 
     app.post("/personas/negocios/:negocioId/entrar", requerirSesionPersona, async (req, res) => {
         try {
-            const negocio = await pool.query(
-                `SELECT id, slug, nombre FROM public.negocios WHERE id = $1 AND persona_id = $2 LIMIT 1`,
-                [req.params.negocioId, req.persona.id]
-            );
+            const resultado = await mintearSesionParaNegocioDePersona(pool, req.persona.id, req.params.negocioId, req);
 
-            if (negocio.rows.length === 0) {
+            if (!resultado) {
                 res.status(404).json({ ok: false, error: "No administras ese negocio" });
                 return;
             }
 
-            const fila = negocio.rows[0];
-            const tokenPlano = generarTokenSeguro();
-            const dispositivo = limpiarTexto(req.headers["user-agent"], 200) || "Dispositivo desconocido";
-
-            await pool.query(
-                `INSERT INTO public.sesiones_cuenta (negocio_id, token_hash, dispositivo, ip) VALUES ($1, $2, $3, $4)`,
-                [fila.id, hashTokenSeguro(tokenPlano), dispositivo, req.ip]
-            );
-
-            res.json({ ok: true, token: tokenPlano, negocio: { slug: fila.slug, nombre: fila.nombre } });
+            res.json({ ok: true, token: resultado.token, negocio: resultado.negocio });
         } catch (error) {
             responderError(res, error);
         }
@@ -412,4 +440,10 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
     });
 }
 
-module.exports = { registrarRutas, crearRequerirSesionPersona, crearResolverSesionPersonaOpcional };
+module.exports = {
+    registrarRutas,
+    crearRequerirSesionPersona,
+    crearResolverSesionPersonaOpcional,
+    listarNegociosAdministrados,
+    mintearSesionParaNegocioDePersona
+};
