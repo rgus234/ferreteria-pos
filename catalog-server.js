@@ -177,7 +177,7 @@ async function actualizarContadoresCatalogo(pool, negocioId, catalogoId) {
     );
 }
 
-module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
+module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTokenImagenCatalogoPdf) => {
     // Sidebar + header contextual: lista de catalogos del negocio con
     // sus contadores ya calculados (nunca se cuentan en el cliente).
     app.get("/catalogo-proveedor", requerirAccesoNegocio, async (req, res) => {
@@ -185,10 +185,11 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
             const negocio = await negocioActual(req, pool);
             const resultado = await pool.query(
                 `
-                SELECT id, proveedor, total_productos, productos_vinculados, productos_conflicto, updated_at
-                FROM public.catalogos_proveedor
-                WHERE negocio_id = $1
-                ORDER BY proveedor ASC
+                SELECT c.id, c.proveedor, c.total_productos, c.productos_vinculados, c.productos_conflicto, c.updated_at,
+                       EXISTS(SELECT 1 FROM public.catalogo_productos cp WHERE cp.catalogo_id = c.id AND cp.origen = 'pdf') AS tiene_origen_pdf
+                FROM public.catalogos_proveedor c
+                WHERE c.negocio_id = $1
+                ORDER BY c.proveedor ASC
                 `,
                 [negocio.id]
             );
@@ -338,6 +339,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
             const negocio = await negocioActual(req, pool);
             const catalogoId = Number(req.params.id);
             const estado = String(req.query.estado || "").trim();
+            const estadoExtraccion = String(req.query.estadoExtraccion || "").trim();
             const buscar = String(req.query.buscar || "").trim();
             const pagina = Math.max(1, Number(req.query.pagina) || 1);
             const porPagina = 50;
@@ -349,6 +351,10 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
                 valores.push(estado);
                 condiciones.push(`cp.estado = $${valores.length}`);
             }
+            if (estadoExtraccion && ["completo", "revision", "no_identificado"].includes(estadoExtraccion)) {
+                valores.push(estadoExtraccion);
+                condiciones.push(`cp.estado_extraccion = $${valores.length}`);
+            }
             if (buscar) {
                 valores.push(`%${buscar}%`);
                 condiciones.push(`(cp.nombre_proveedor ILIKE $${valores.length} OR cp.codigo_proveedor ILIKE $${valores.length})`);
@@ -359,7 +365,8 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
             const resultado = await pool.query(
                 `
                 SELECT cp.id, cp.codigo_proveedor, cp.nombre_proveedor, cp.marca, cp.precio_publico, cp.estado,
-                       cp.porcentaje_coincidencia, cp.producto_id, p.nombre AS producto_nombre, p.codigo AS producto_codigo
+                       cp.porcentaje_coincidencia, cp.producto_id, p.nombre AS producto_nombre, p.codigo AS producto_codigo,
+                       cp.origen, cp.estado_extraccion, (cp.imagen IS NOT NULL) AS tiene_imagen
                 FROM public.catalogo_productos cp
                 LEFT JOIN public.productos p ON p.id = cp.producto_id
                 WHERE ${condiciones.join(" AND ")}
@@ -369,12 +376,20 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
                 valores
             );
 
+            const filas = resultado.rows.map(fila => {
+                if (fila.tiene_imagen && typeof firmarTokenImagenCatalogoPdf === "function") {
+                    fila.imagenPropuestaUrl = `/catalogo-proveedor/${catalogoId}/productos/${fila.id}/imagen-propuesta?token=${firmarTokenImagenCatalogoPdf(fila.id)}`;
+                }
+                delete fila.tiene_imagen;
+                return fila;
+            });
+
             const total = await pool.query(
                 `SELECT COUNT(*) FROM public.catalogo_productos cp WHERE ${condiciones.join(" AND ")}`,
                 valores.slice(0, -2)
             );
 
-            res.json({ ok: true, productos: resultado.rows, total: Number(total.rows[0].count), pagina, porPagina });
+            res.json({ ok: true, productos: filas, total: Number(total.rows[0].count), pagina, porPagina });
         } catch (error) {
             responderError(res, error);
         }
@@ -385,7 +400,13 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
             const negocio = await negocioActual(req, pool);
             const resultado = await pool.query(
                 `
-                SELECT cp.*, p.nombre AS producto_nombre, p.codigo AS producto_codigo, p.precio AS producto_precio, p.stock AS producto_stock
+                SELECT cp.id, cp.catalogo_id, cp.codigo_proveedor, cp.nombre_proveedor, cp.descripcion, cp.marca,
+                       cp.categoria, cp.codigo_interno, cp.precio_distribuidor, cp.precio_medio_mayoreo,
+                       cp.precio_publico, cp.precio_publico_anterior, cp.producto_id, cp.estado,
+                       cp.porcentaje_coincidencia, cp.vinculado_manualmente, cp.origen, cp.pagina_pdf,
+                       cp.confianza_codigo, cp.confianza_descripcion, cp.confianza_precio, cp.confianza_imagen,
+                       cp.estado_extraccion, (cp.imagen IS NOT NULL) AS tiene_imagen,
+                       p.nombre AS producto_nombre, p.codigo AS producto_codigo, p.precio AS producto_precio, p.stock AS producto_stock
                 FROM public.catalogo_productos cp
                 LEFT JOIN public.productos p ON p.id = cp.producto_id
                 WHERE cp.id = $1 AND cp.catalogo_id = $2 AND cp.negocio_id = $3
@@ -403,6 +424,10 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
             if (producto.producto_codigo && typeof firmarTokenImagen === "function") {
                 producto.imagenUrl = `/fotos-producto/${encodeURIComponent(producto.producto_codigo)}/principal?negocio=${negocio.slug}&token=${firmarTokenImagen(negocio.id, producto.producto_codigo)}`;
             }
+            if (producto.tiene_imagen && typeof firmarTokenImagenCatalogoPdf === "function") {
+                producto.imagenPropuestaUrl = `/catalogo-proveedor/${producto.catalogo_id}/productos/${producto.id}/imagen-propuesta?token=${firmarTokenImagenCatalogoPdf(producto.id)}`;
+            }
+            delete producto.tiene_imagen;
 
             res.json({ ok: true, producto });
         } catch (error) {
@@ -472,6 +497,25 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
                 ]
             );
             const productoId = nuevoProducto.rows[0].id;
+
+            // Si la fila viene de un catalogo PDF y trae una imagen
+            // candidata (catalog-pdf-extractor.js ya la recorto y
+            // comprimio), se copia a fotos_producto de una vez -- sin
+            // esto, la imagen que el extractor SI encontro se perderia
+            // en silencio al crear el producto por esta ruta individual
+            // (crear-productos-lote, la ruta de confirmacion en lote,
+            // ya hace lo mismo -- misma logica en los dos caminos).
+            if (cp.imagen) {
+                await pool.query(
+                    `
+                    INSERT INTO public.fotos_producto (negocio_id, codigo, imagen_principal, imagen_principal_tipo, actualizado_at)
+                    VALUES ($1, $2, $3, $4, NOW())
+                    ON CONFLICT (negocio_id, codigo) DO UPDATE SET
+                        imagen_principal = EXCLUDED.imagen_principal, imagen_principal_tipo = EXCLUDED.imagen_principal_tipo, actualizado_at = NOW()
+                    `,
+                    [negocio.id, cp.codigo_interno || cp.codigo_proveedor, cp.imagen, cp.imagen_tipo || "image/jpeg"]
+                );
+            }
 
             await pool.query(
                 `
@@ -609,11 +653,15 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
     // cliente ya normaliza el nombre del proveedor con la misma
     // funcion que usa para todo lo demas (normalizarEncabezadoCatalogo)
     // y la manda explicita; el servidor solo guarda/compara ese valor.
+    // formato='csv' explicito: desde que existe tambien plantilla de
+    // layout PDF (mismo proveedor_normalizado, formato='pdf'), esta
+    // ruta -- la unica que existia antes de PDF -- solo lee/escribe el
+    // lado CSV, nunca toca ni pisa la plantilla de PDF del proveedor.
     app.get("/catalogo-proveedor/plantillas", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
             const resultado = await pool.query(
-                `SELECT proveedor, proveedor_normalizado, parser, mapeo, updated_at FROM public.plantillas_catalogo WHERE negocio_id = $1 ORDER BY proveedor ASC`,
+                `SELECT proveedor, proveedor_normalizado, parser, mapeo, updated_at FROM public.plantillas_catalogo WHERE negocio_id = $1 AND formato = 'csv' ORDER BY proveedor ASC`,
                 [negocio.id]
             );
             res.json({ ok: true, plantillas: resultado.rows });
@@ -637,9 +685,9 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
 
             await pool.query(
                 `
-                INSERT INTO public.plantillas_catalogo (negocio_id, proveedor, proveedor_normalizado, parser, mapeo)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (negocio_id, proveedor_normalizado) DO UPDATE SET
+                INSERT INTO public.plantillas_catalogo (negocio_id, proveedor, proveedor_normalizado, parser, mapeo, formato)
+                VALUES ($1, $2, $3, $4, $5, 'csv')
+                ON CONFLICT (negocio_id, proveedor_normalizado, formato) DO UPDATE SET
                     proveedor = EXCLUDED.proveedor,
                     parser = EXCLUDED.parser,
                     mapeo = EXCLUDED.mapeo,
@@ -658,7 +706,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
         try {
             const negocio = await negocioActual(req, pool);
             await pool.query(
-                `DELETE FROM public.plantillas_catalogo WHERE negocio_id = $1 AND proveedor_normalizado = $2`,
+                `DELETE FROM public.plantillas_catalogo WHERE negocio_id = $1 AND proveedor_normalizado = $2 AND formato = 'csv'`,
                 [negocio.id, req.params.proveedorNormalizado]
             );
             res.json({ ok: true });

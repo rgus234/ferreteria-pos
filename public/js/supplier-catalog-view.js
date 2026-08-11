@@ -541,8 +541,25 @@ function asegurarPantallaCatalogo() {
  <button type="button" class="btn-catalogo-subir" onclick="abrirCargaCatalogo('nuevo')">
  Subir catalogo nuevo
  </button>
+ <button type="button" class="btn-catalogo-subir" onclick="document.getElementById('archivoCatalogoPDF').click()">
+ Importar catalogo PDF
+ </button>
  <input type="file" id="archivoCatalogoVista" multiple accept=".xlsx,.csv" hidden>
+ <input type="file" id="archivoCatalogoPDF" accept="application/pdf" hidden>
  </div>
+ </div>
+
+ <div id="catalogoPdfProgreso" class="catalogo-fotos-progreso" style="display:none;">
+ <div id="catalogoPdfProgresoBarra" class="catalogo-fotos-progreso-barra"></div>
+ </div>
+ <p id="catalogoPdfEstadoTexto" class="catalogo-insight" style="display:none;"></p>
+
+ <div id="catalogoPdfResumen" class="catalogo-filtros" style="display:none;">
+ <button type="button" data-extraccion="" class="activo" onclick="cambiarFiltroExtraccionCatalogo('')">Todos</button>
+ <button type="button" data-extraccion="completo" onclick="cambiarFiltroExtraccionCatalogo('completo')">🟢 <span id="catalogoPdfCompletosTexto">0</span> completos</button>
+ <button type="button" data-extraccion="revision" onclick="cambiarFiltroExtraccionCatalogo('revision')">🟡 <span id="catalogoPdfRevisionTexto">0</span> necesitan revision</button>
+ <button type="button" data-extraccion="no_identificado" onclick="cambiarFiltroExtraccionCatalogo('no_identificado')">🔴 <span id="catalogoPdfNoIdTexto">0</span> no identificados</button>
+ <button type="button" class="btn-catalogo-subir" onclick="confirmarImportacionPdfCompletos()">Confirmar importacion</button>
  </div>
 
  <div class="catalogo-resumen">
@@ -651,6 +668,14 @@ function asegurarPantallaCatalogo() {
  .addEventListener("change", event => {
  procesarArchivosCatalogo(event.target.files);
  event.target.value = "";
+ });
+
+ document
+ .getElementById("archivoCatalogoPDF")
+ .addEventListener("change", event => {
+ const archivo = event.target.files?.[0];
+ event.target.value = "";
+ if (archivo) iniciarImportacionCatalogoPDF(archivo);
  });
 }
 
@@ -885,6 +910,7 @@ function renderCatalogosProveedor() {
 let catalogoActivoId = null;
 let catalogoActivoProveedor = "";
 let filtroEstadoCatalogo = "";
+let filtroExtraccionCatalogo = "";
 let busquedaCatalogoServidor = "";
 let paginaCatalogoActual = 1;
 let productoCatalogoSeleccionadoId = null;
@@ -1032,7 +1058,7 @@ function renderSidebarCatalogos(catalogos) {
  }
 
  lista.innerHTML = catalogos.map(catalogo => `
-  <div class="catalogo-proveedor-item${catalogo.id === catalogoActivoId ? " activo" : ""}" onclick="seleccionarCatalogoProveedor(${catalogo.id}, '${escaparAtributoCatalogo(catalogo.proveedor)}')">
+  <div class="catalogo-proveedor-item${catalogo.id === catalogoActivoId ? " activo" : ""}" onclick="seleccionarCatalogoProveedor(${catalogo.id}, '${escaparAtributoCatalogo(catalogo.proveedor)}', ${catalogo.tiene_origen_pdf ? "true" : "false"})">
    <span class="catalogo-proveedor-punto ${Number(catalogo.productos_conflicto) > 0 ? "ambar" : "verde"}"></span>
    <div class="catalogo-proveedor-info">
     <strong>${catalogo.proveedor}</strong>
@@ -1043,7 +1069,7 @@ function renderSidebarCatalogos(catalogos) {
  `).join("");
 
  if (!catalogoActivoId && catalogos.length > 0) {
-  seleccionarCatalogoProveedor(catalogos[0].id, catalogos[0].proveedor);
+  seleccionarCatalogoProveedor(catalogos[0].id, catalogos[0].proveedor, catalogos[0].tiene_origen_pdf);
  }
 }
 
@@ -1051,12 +1077,17 @@ function escaparAtributoCatalogo(texto) {
  return String(texto || "").replace(/'/g, "\\'");
 }
 
-function seleccionarCatalogoProveedor(id, proveedor) {
+function seleccionarCatalogoProveedor(id, proveedor, tieneOrigenPdf) {
  catalogoActivoId = id;
  catalogoActivoProveedor = proveedor;
  filtroEstadoCatalogo = "";
+ filtroExtraccionCatalogo = "";
  paginaCatalogoActual = 1;
  productoCatalogoSeleccionadoId = null;
+
+ const resumenPdf = document.getElementById("catalogoPdfResumen");
+ if (resumenPdf) resumenPdf.style.display = tieneOrigenPdf ? "flex" : "none";
+ if (tieneOrigenPdf) actualizarConteosExtraccionCatalogo(id);
 
  document.querySelectorAll(".catalogo-proveedor-item").forEach(el => el.classList.remove("activo"));
  document.querySelectorAll(`#catalogoFiltros button`).forEach(b => b.classList.toggle("activo", b.dataset.estado === ""));
@@ -1086,6 +1117,30 @@ function cambiarFiltroCatalogo(estado) {
  cargarProductosCatalogoServidor();
 }
 
+// Filtro por calidad de extraccion (🟢🟡🔴) -- solo aplica a catalogos
+// importados de PDF, distinto del filtro de vinculacion de arriba (ese
+// responde "¿ya coincide con algo que tengo en Nexo?", este responde
+// "¿que tan bien se extrajo del PDF?").
+function cambiarFiltroExtraccionCatalogo(estadoExtraccion) {
+ filtroExtraccionCatalogo = estadoExtraccion;
+ paginaCatalogoActual = 1;
+ document.querySelectorAll("#catalogoPdfResumen button[data-extraccion]").forEach(b => b.classList.toggle("activo", b.dataset.extraccion === estadoExtraccion));
+ cargarProductosCatalogoServidor();
+}
+
+async function actualizarConteosExtraccionCatalogo(catalogoId) {
+ try {
+  const [completos, revision, noId] = await Promise.all([
+   fetch(`/catalogo-proveedor/${catalogoId}/productos?estadoExtraccion=completo&pagina=1`).then(r => r.json()),
+   fetch(`/catalogo-proveedor/${catalogoId}/productos?estadoExtraccion=revision&pagina=1`).then(r => r.json()),
+   fetch(`/catalogo-proveedor/${catalogoId}/productos?estadoExtraccion=no_identificado&pagina=1`).then(r => r.json())
+  ]);
+  document.getElementById("catalogoPdfCompletosTexto").textContent = completos.total ?? 0;
+  document.getElementById("catalogoPdfRevisionTexto").textContent = revision.total ?? 0;
+  document.getElementById("catalogoPdfNoIdTexto").textContent = noId.total ?? 0;
+ } catch (error) { /* los contadores se quedan en 0, no es critico */ }
+}
+
 function buscarProductosCatalogoServidor(texto) {
  busquedaCatalogoServidor = texto;
  paginaCatalogoActual = 1;
@@ -1099,6 +1154,7 @@ async function cargarProductosCatalogoServidor() {
 
  const parametros = new URLSearchParams({ pagina: String(paginaCatalogoActual) });
  if (filtroEstadoCatalogo) parametros.set("estado", filtroEstadoCatalogo);
+ if (filtroExtraccionCatalogo) parametros.set("estadoExtraccion", filtroExtraccionCatalogo);
  if (busquedaCatalogoServidor) parametros.set("buscar", busquedaCatalogoServidor);
 
  try {
@@ -1121,13 +1177,19 @@ function renderListaProductosCatalogo(datos) {
   return;
  }
 
+ const ETIQUETA_EXTRACCION = { completo: "🟢", revision: "🟡", no_identificado: "🔴" };
+
  contenedor.innerHTML = datos.productos.map(p => `
   <div class="catalogo-fila-producto${p.id === productoCatalogoSeleccionadoId ? " activo" : ""}" onclick="seleccionarProductoCatalogo(${p.id})">
+   ${p.imagenPropuestaUrl
+    ? `<img class="catalogo-fila-miniatura" src="${p.imagenPropuestaUrl}" alt="" loading="lazy">`
+    : (p.origen === "pdf" ? `<div class="catalogo-fila-miniatura catalogo-fila-miniatura-vacia">Sin foto</div>` : "")}
    <div class="catalogo-fila-codigo">${p.codigo_proveedor}</div>
    <div class="catalogo-fila-nombre">
     <strong>${p.nombre_proveedor}</strong>
     <span>${p.producto_nombre ? "→ " + p.producto_nombre : "Sin vincular en Nexo"}</span>
    </div>
+   ${p.origen === "pdf" ? `<span class="catalogo-badge-extraccion" title="Calidad de extraccion del PDF">${ETIQUETA_EXTRACCION[p.estado_extraccion] || ""}</span>` : ""}
    ${badgeEstadoCatalogoHTML(p.estado)}
   </div>
  `).join("");
@@ -1261,9 +1323,21 @@ function renderPanelPreviaCatalogo(p) {
  // el producto vinculado tiene foto, mismo patron que el resto de la
  // app (server.js, firmarTokenImagen). Sin imagenUrl, no hay foto que
  // mostrar -- estado vacio explicito, no se inventa.
+ // Si el producto ya esta vinculado, se muestra SU foto real
+ // (imagenUrl). Si no, y la fila viene de un PDF con una imagen
+ // candidata ya recortada por el extractor (imagenPropuestaUrl), se
+ // muestra esa como propuesta -- nunca se inventa una si ninguna de
+ // las dos existe.
  const fotoHTML = p.imagenUrl
   ? `<img class="catalogo-previa-foto" src="${p.imagenUrl}" alt="${p.nombre_proveedor}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'catalogo-previa-foto-vacia',textContent:'Sin foto'}))">`
+  : p.imagenPropuestaUrl
+  ? `<img class="catalogo-previa-foto" src="${p.imagenPropuestaUrl}" alt="${p.nombre_proveedor}" title="Imagen encontrada en el PDF (candidata, sin confirmar)" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'catalogo-previa-foto-vacia',textContent:'Sin foto'}))">`
   : `<div class="catalogo-previa-foto-vacia">Sin foto</div>`;
+
+ const ETIQUETA_EXTRACCION_LARGA = { completo: "🟢 Completo", revision: "🟡 Necesita revision", no_identificado: "🔴 No identificado" };
+ const extraccionHTML = p.origen === "pdf"
+  ? `<p class="catalogo-insight" style="display:block;">Extraido de PDF (pagina ${p.pagina_pdf ?? "?"}) -- ${ETIQUETA_EXTRACCION_LARGA[p.estado_extraccion] || ""}</p>`
+  : "";
 
  const coincidenciaHTML = p.producto_id
   ? `
@@ -1286,6 +1360,7 @@ function renderPanelPreviaCatalogo(p) {
 
  panel.innerHTML = `
   ${fotoHTML}
+  ${extraccionHTML}
   <h4 class="catalogo-previa-titulo">Informacion del proveedor</h4>
   <dl class="catalogo-previa-datos">
    <dt>Codigo proveedor</dt><dd>${p.codigo_proveedor}</dd>
@@ -1350,6 +1425,198 @@ async function crearProductoDesdeCatalogoActual(catalogoProductoId) {
   cargarCatalogosServidor();
  } catch (error) {
   alertaPOS("No se pudo crear el producto.", "Catalogo proveedor", "alerta");
+ }
+}
+
+/* ---------- Importar catalogo PDF (codigo, descripcion, imagen, precio) ---------- */
+
+function mostrarEstadoPdfCatalogo(texto) {
+ const el = document.getElementById("catalogoPdfEstadoTexto");
+ if (!el) return;
+ el.textContent = texto;
+ el.style.display = texto ? "block" : "none";
+}
+
+function actualizarProgresoPdfCatalogo(fraccion) {
+ const barra = document.getElementById("catalogoPdfProgresoBarra");
+ const contenedor = document.getElementById("catalogoPdfProgreso");
+ if (!barra || !contenedor) return;
+ contenedor.style.display = "block";
+ barra.style.width = `${Math.round(Math.min(1, Math.max(0, fraccion)) * 100)}%`;
+}
+
+function ocultarProgresoPdfCatalogo() {
+ const contenedor = document.getElementById("catalogoPdfProgreso");
+ if (contenedor) contenedor.style.display = "none";
+}
+
+async function iniciarImportacionCatalogoPDF(archivo) {
+ const proveedorSugerido = nombreProveedorDesdeArchivo(archivo.name);
+ const proveedor = await pedirTextoPOS(
+  "Nombre del proveedor de este catalogo PDF:",
+  proveedorSugerido,
+  "Importar catalogo PDF"
+ ) || proveedorSugerido;
+ if (!proveedor) return;
+
+ const proveedorNormalizado = normalizarEncabezadoCatalogo(proveedor);
+
+ mostrarEstadoPdfCatalogo(`Subiendo ${archivo.name}...`);
+ actualizarProgresoPdfCatalogo(0);
+
+ let trabajoId;
+ try {
+  const datos = await subirPdfCatalogoConProgreso(archivo, proveedor, proveedorNormalizado, actualizarProgresoPdfCatalogo);
+  trabajoId = datos.trabajoId;
+ } catch (error) {
+  ocultarProgresoPdfCatalogo();
+  mostrarEstadoPdfCatalogo("");
+  alertaPOS(error.message || "No se pudo subir el catalogo PDF.", "Importar catalogo PDF", "alerta");
+  return;
+ }
+
+ mostrarEstadoPdfCatalogo("Analizando el PDF... esto puede tardar segun el numero de paginas.");
+ await sondearTrabajoPdfCatalogo(trabajoId, proveedor, proveedorNormalizado);
+}
+
+// Sube el PDF con XMLHttpRequest (para poder mostrar el avance real de
+// la subida) al mismo patron ya usado para los zips de fotos de
+// producto (subirZipFotosProducto).
+function subirPdfCatalogoConProgreso(archivo, proveedor, proveedorNormalizado, alAvanzar) {
+ return new Promise((resolve, reject) => {
+  const xhr = new XMLHttpRequest();
+
+  xhr.upload.addEventListener("progress", event => {
+   if (event.lengthComputable) alAvanzar(event.loaded / event.total);
+  });
+
+  xhr.addEventListener("load", () => {
+   const contentType = xhr.getResponseHeader("content-type") || "";
+   if (!contentType.includes("application/json")) {
+    reject(new Error(`Respuesta invalida del servidor (status ${xhr.status}). El archivo puede ser demasiado pesado.`));
+    return;
+   }
+   try {
+    const datos = JSON.parse(xhr.responseText);
+    if (!datos.ok) { reject(new Error(datos.error || "No se pudo subir el catalogo PDF")); return; }
+    resolve(datos);
+   } catch (error) {
+    reject(new Error("Respuesta invalida del servidor."));
+   }
+  });
+
+  xhr.addEventListener("error", () => reject(new Error("Error de conexion al subir el archivo.")));
+
+  const formData = new FormData();
+  formData.append("pdf", archivo);
+  formData.append("proveedorNormalizado", proveedorNormalizado);
+
+  xhr.open("POST", `/catalogo-proveedor-pdf/${encodeURIComponent(proveedor)}/subir`);
+  xhr.send(formData);
+ });
+}
+
+// Sondeo cada 2.5s hasta que el trabajo en segundo plano quede listo o
+// falle -- el worker real (catalog-pdf-server.js) revisa cada 4s, asi
+// que 2.5s del lado del cliente ya alcanza a reflejar cada avance sin
+// saturar de peticiones.
+async function sondearTrabajoPdfCatalogo(trabajoId, proveedor, proveedorNormalizado) {
+ for (;;) {
+  await new Promise(resolve => setTimeout(resolve, 2500));
+
+  let trabajo;
+  try {
+   const respuesta = await fetch(`/catalogo-proveedor-pdf/trabajos/${trabajoId}`);
+   const datos = await respuesta.json();
+   if (!respuesta.ok || !datos.ok) continue;
+   trabajo = datos.trabajo;
+  } catch (error) { continue; }
+
+  if (trabajo.estado === "procesando" || trabajo.estado === "pendiente") {
+   const totalPaginas = trabajo.total_paginas;
+   mostrarEstadoPdfCatalogo(
+    totalPaginas ? `Analizando pagina ${trabajo.pagina_actual} de ${totalPaginas}...` : "Preparando el analisis del PDF..."
+   );
+   if (totalPaginas) actualizarProgresoPdfCatalogo(trabajo.pagina_actual / totalPaginas);
+   continue;
+  }
+
+  ocultarProgresoPdfCatalogo();
+
+  if (trabajo.estado === "error") {
+   mostrarEstadoPdfCatalogo("");
+   alertaPOS(trabajo.mensaje_error || "No se pudo procesar el catalogo PDF.", "Importar catalogo PDF", "alerta");
+   return;
+  }
+
+  // listo
+  const resumenResp = await fetch(`/catalogo-proveedor-pdf/trabajos/${trabajoId}/resumen`);
+  const resumenJson = await resumenResp.json();
+  const r = resumenJson.resumen || {};
+
+  mostrarEstadoPdfCatalogo(
+   `Catalogo analizado: ${r.total ?? 0} productos encontrados -- 🟢 ${r.completos ?? 0} completos, 🟡 ${r.revision ?? 0} necesitan revision, 🔴 ${r.noIdentificados ?? 0} no pudieron identificarse.`
+  );
+
+  catalogoProveedorNormalizadoActual = proveedorNormalizado;
+  await cargarCatalogosServidor();
+  seleccionarCatalogoProveedor(resumenJson.catalogoId, proveedor, true);
+  return;
+ }
+}
+
+// Se guarda para mandarlo de vuelta al confirmar la importacion --
+// asi el servidor puede guardar/actualizar el aprendizaje de layout
+// PDF del proveedor (plantillas_catalogo, formato='pdf') bajo la misma
+// clave con la que se subio.
+let catalogoProveedorNormalizadoActual = "";
+
+// Confirma en un solo lote todos los productos 🟢 completos que
+// todavia no estan vinculados a ningun producto -- las filas 🔴 nunca
+// se crean solas, se quedan en staging para que el dueno las complete
+// despues (recorre paginas de 50 en 50 porque asi responde el listado).
+async function confirmarImportacionPdfCompletos() {
+ if (!catalogoActivoId) return;
+
+ const idsACrear = [];
+ let pagina = 1;
+ for (;;) {
+  const respuesta = await fetch(`/catalogo-proveedor/${catalogoActivoId}/productos?estadoExtraccion=completo&pagina=${pagina}`);
+  const datos = await respuesta.json();
+  if (!respuesta.ok || !datos.ok || datos.productos.length === 0) break;
+  idsACrear.push(...datos.productos.filter(p => !p.producto_id).map(p => p.id));
+  if (idsACrear.length + (pagina - 1) * 50 >= datos.total) break;
+  pagina++;
+ }
+
+ if (idsACrear.length === 0) {
+  alertaPOS("No hay productos completos pendientes de importar.", "Importar catalogo PDF", "info");
+  return;
+ }
+
+ const confirmar = await dialogoPOS({
+  titulo: "Confirmar importacion",
+  mensaje: `Se crearan ${idsACrear.length} producto(s) nuevo(s) en tu inventario (los marcados 🟢 completo, que todavia no estan vinculados). Los que necesitan revision o no se identificaron se quedan pendientes para que los completes tu.`,
+  mostrarCancelar: true,
+  textoAceptar: "Confirmar e importar"
+ });
+ if (!confirmar) return;
+
+ try {
+  const respuesta = await fetch(`/catalogo-proveedor/${catalogoActivoId}/crear-productos-lote`, {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ catalogoProductoIds: idsACrear, proveedorNormalizado: catalogoProveedorNormalizadoActual })
+  });
+  const datos = await respuesta.json();
+  if (!respuesta.ok || !datos.ok) { alertaPOS(datos.error || "No se pudo confirmar la importacion.", "Importar catalogo PDF", "alerta"); return; }
+
+  alertaPOS(`Se crearon ${datos.creados} producto(s) nuevo(s).`, "Importar catalogo PDF", "exito");
+  cargarCatalogosServidor();
+  cargarProductosCatalogoServidor();
+  actualizarConteosExtraccionCatalogo(catalogoActivoId);
+ } catch (error) {
+  alertaPOS("No se pudo confirmar la importacion.", "Importar catalogo PDF", "alerta");
  }
 }
 

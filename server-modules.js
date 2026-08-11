@@ -37,7 +37,12 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     });
 
     cargarModuloPOS("catalogo de proveedor", () => {
-        require("./catalog-server")(app, pool, requerirAccesoNegocio, firmarTokenImagen);
+        const { firmarTokenImagenCatalogoPdf } = require("./catalog-pdf-server");
+        require("./catalog-server")(app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTokenImagenCatalogoPdf);
+    });
+
+    cargarModuloPOS("catalogo de proveedor -- importacion PDF", () => {
+        require("./catalog-pdf-server")(app, pool, requerirAccesoNegocio);
     });
 
     cargarModuloPOS("respaldos automaticos", () => {

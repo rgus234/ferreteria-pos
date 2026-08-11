@@ -197,8 +197,19 @@
  cursor:pointer;
  transition:border-color .16s ease, transform .16s ease;
 }
+.catalogo-fila-producto:has(.catalogo-fila-miniatura){ grid-template-columns:36px 110px minmax(0,1fr) auto auto; }
 .catalogo-fila-producto:hover{ border-color:var(--nexo-brand,#0d6efd); transform:translateY(-1px); }
 .catalogo-fila-producto.activo{ border-color:var(--nexo-brand,#0d6efd); background:var(--nexo-brand-soft,rgba(13,110,253,.06)); }
+
+.catalogo-fila-miniatura{
+ width:36px; height:36px; border-radius:8px; object-fit:cover;
+ border:1px solid var(--nexo-line,#eef2f7); background:var(--nexo-surface-soft,#f1f5f9);
+}
+.catalogo-fila-miniatura-vacia{
+ display:flex; align-items:center; justify-content:center;
+ font-size:8px; color:var(--nexo-muted,#98a2b3); text-align:center; line-height:1.1;
+}
+.catalogo-badge-extraccion{ font-size:14px; }
 
 .catalogo-fila-codigo{ font-size:12px; color:var(--nexo-muted,#667085); font-family:monospace; }
 .catalogo-fila-nombre{ display:flex; flex-direction:column; gap:2px; min-width:0; }
