@@ -170,3 +170,201 @@
  border:1px solid var(--pos-line,#dbe3ef);
  background:var(--pos-surface,#f8fafc);
 }
+
+/* ---------- Rediseno: pestanas + panel de vista previa ---------- */
+
+.sitio-web-shell-rediseno{ max-width:none; }
+
+.sitio-web-layout{
+ display:grid;
+ grid-template-columns:minmax(0,1fr) 320px;
+ gap:20px;
+ align-items:start;
+}
+
+.sitio-web-principal{ display:grid; gap:16px; min-width:0; }
+
+.sitio-web-tabs{
+ display:flex;
+ gap:4px;
+ flex-wrap:wrap;
+ padding:4px;
+ border-radius:14px;
+ background:var(--pos-surface,#f8fafc);
+ border:1px solid var(--pos-line,#dbe3ef);
+}
+.sitio-web-tab{
+ padding:9px 14px;
+ border-radius:10px;
+ border:none;
+ background:transparent;
+ color:var(--pos-muted,#687386);
+ font-weight:700;
+ font-size:12.5px;
+ cursor:pointer;
+ white-space:nowrap;
+}
+.sitio-web-tab.activo{ background:var(--pos-surface-strong,#fff); color:var(--pos-text,#172033); box-shadow:0 1px 3px rgba(20,32,51,.12); }
+
+.sitio-web-tab-panel{ display:grid; gap:16px; }
+.sitio-web-tab-panel[hidden]{ display:none; }
+
+.sitio-web-preview{
+ position:sticky;
+ top:12px;
+ display:grid;
+ gap:10px;
+ padding:14px;
+ border-radius:16px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ background:var(--pos-surface,#f8fafc);
+}
+.sitio-web-preview-header{
+ display:flex;
+ align-items:center;
+ justify-content:space-between;
+ gap:8px;
+}
+.sitio-web-preview-header span{ font-size:12px; font-weight:700; color:var(--pos-muted,#687386); text-transform:uppercase; letter-spacing:.03em; }
+.sitio-web-preview-toggle{ display:flex; gap:4px; padding:3px; border-radius:999px; background:var(--pos-surface-strong,#fff); border:1px solid var(--pos-line,#dbe3ef); }
+.sitio-web-preview-toggle button{ padding:5px 10px; border:none; border-radius:999px; background:transparent; color:var(--pos-muted,#687386); font-size:11px; font-weight:700; cursor:pointer; }
+.sitio-web-preview-toggle button.activo{ background:var(--pos-text,#172033); color:#fff; }
+
+.sitio-web-preview-frame{
+ border-radius:14px;
+ overflow:hidden;
+ border:1px solid var(--pos-line,#dbe3ef);
+ background:#fff;
+ max-width:100%;
+ transition:max-width .18s ease;
+}
+.sitio-web-preview-frame.escritorio{ max-width:100%; }
+.sitio-web-preview-frame:not(.escritorio){ max-width:260px; margin:0 auto; }
+
+.sitio-web-preview-card{ display:grid; }
+.sitio-web-preview-marca{ display:grid; gap:2px; padding:14px 16px; border-bottom:1px solid var(--pos-line,#dbe3ef); }
+.sitio-web-preview-marca strong{ font-size:14px; color:var(--pos-text,#172033); }
+.sitio-web-preview-marca span{ font-size:11px; color:var(--pos-muted,#687386); }
+.sitio-web-preview-promo{ font-size:11px; }
+.sitio-web-preview-promo p{ padding:14px 16px; margin:0; }
+.sitio-web-preview-promo .tenant-promo-banner{ padding:14px 16px; }
+.sitio-web-preview-promo .tenant-promo-banner strong{ font-size:12px; }
+.sitio-web-preview-promo .tenant-promo-banner span{ font-size:10.5px; }
+.sitio-web-preview-promo .tenant-promo-banner-boton{ padding:5px 10px; font-size:10.5px; }
+
+@media (max-width:900px){
+ .sitio-web-layout{ grid-template-columns:1fr; }
+ .sitio-web-preview{ position:static; }
+}
+
+/* ---------- Editor de Promocion: plantillas y color ---------- */
+
+.sitio-web-promocion-label{ display:block; font-size:12px; font-weight:700; color:var(--pos-muted,#687386); margin-bottom:8px; }
+
+.sitio-web-plantillas-grid{
+ display:grid;
+ grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+ gap:10px;
+}
+.sitio-web-plantilla-tarjeta{
+ display:grid;
+ gap:6px;
+ padding:10px;
+ border-radius:12px;
+ border:2px solid var(--pos-line,#dbe3ef);
+ background:var(--pos-surface-strong,#fff);
+ cursor:pointer;
+ text-align:left;
+}
+.sitio-web-plantilla-tarjeta.activo{ border-color:#1067e8; box-shadow:0 0 0 3px rgba(16,103,232,.14); }
+.sitio-web-plantilla-tarjeta strong{ font-size:12.5px; color:var(--pos-text,#172033); }
+.sitio-web-plantilla-tarjeta span{ font-size:11px; color:var(--pos-muted,#687386); }
+
+.sitio-web-plantilla-miniatura{ display:block; height:44px; border-radius:8px; background:linear-gradient(135deg,#1067e8,#172033); position:relative; overflow:hidden; }
+.sitio-web-plantilla-miniatura--clasica::after{ content:""; position:absolute; left:0; top:0; width:34%; height:100%; background:rgba(255,255,255,.28); }
+.sitio-web-plantilla-miniatura--imagen-fondo::after{ content:""; position:absolute; inset:0; background:linear-gradient(0deg, rgba(0,0,0,.6), transparent 60%); }
+.sitio-web-plantilla-miniatura--dividida{ background:linear-gradient(90deg,#172033 50%, rgba(255,255,255,.25) 50%); }
+.sitio-web-plantilla-miniatura--minimal{ background:#172033; }
+.sitio-web-plantilla-miniatura--minimal::after{ content:""; position:absolute; left:20%; right:20%; top:44%; height:12%; background:rgba(255,255,255,.5); border-radius:4px; }
+
+.sitio-web-colores-fila{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.sitio-web-color-swatch{ width:28px; height:28px; border-radius:999px; border:2px solid transparent; cursor:pointer; padding:0; }
+.sitio-web-color-swatch.activo{ border-color:var(--pos-text,#172033); box-shadow:0 0 0 2px #fff inset; }
+#sitioWebPromocionColorInput{ width:34px; height:28px; padding:0; border:1px solid var(--pos-line,#dbe3ef); border-radius:8px; background:none; cursor:pointer; }
+
+/* ---------- Recorte de foto con guias ---------- */
+
+.sitio-web-recorte-overlay{
+ position:fixed;
+ inset:0;
+ z-index:2000;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ background:rgba(15,20,30,.55);
+ padding:20px;
+}
+.sitio-web-recorte-caja{
+ width:min(560px,100%);
+ display:grid;
+ gap:12px;
+ padding:20px;
+ border-radius:16px;
+ background:#fff;
+}
+.sitio-web-recorte-caja h3{ margin:0; font-size:16px; }
+.sitio-web-recorte-marco{
+ position:relative;
+ width:100%;
+ aspect-ratio:12/5;
+ overflow:hidden;
+ border-radius:12px;
+ background:#0f1522;
+ touch-action:none;
+ cursor:grab;
+}
+.sitio-web-recorte-marco img{ position:absolute; left:0; top:0; user-select:none; pointer-events:none; max-width:none; }
+.sitio-web-recorte-guias{ position:absolute; inset:0; display:grid; grid-template-columns:repeat(3,1fr); pointer-events:none; }
+.sitio-web-recorte-guias div{ border-right:1px solid rgba(255,255,255,.4); }
+.sitio-web-recorte-guias div:last-child{ border-right:none; }
+.sitio-web-recorte-acciones{ display:flex; justify-content:flex-end; gap:8px; }
+#sitioWebRecorteZoomInput{ width:100%; }
+
+/* ---------- Nexo Market (fusionado, antes market-admin-view.css) ---------- */
+
+.market-admin-estado{
+ display:flex;
+ align-items:center;
+ justify-content:space-between;
+ flex-wrap:wrap;
+ gap:14px;
+ padding:18px;
+ border-radius:14px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ background:var(--pos-surface-strong,#fff);
+}
+.market-admin-estado strong{ font-size:15px; display:block; margin-bottom:2px; }
+.market-admin-estado p{ margin:0; font-size:13px; color:var(--pos-muted,#687386); max-width:360px; }
+.market-admin-estado.visible strong{ color:#0e9973; }
+.market-admin-estado.oculto strong{ color:#b45309; }
+.market-admin-estado-acciones{ display:flex; gap:8px; flex-wrap:wrap; }
+
+.market-admin-stats{
+ display:grid;
+ grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:12px;
+}
+.market-admin-stat{
+ padding:14px 16px;
+ border-radius:14px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ background:var(--pos-surface-strong,#fff);
+}
+.market-admin-stat span{ display:block; font-size:11.5px; font-weight:700; color:var(--pos-muted,#687386); text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px; }
+.market-admin-stat strong{ font-size:22px; font-weight:800; }
+
+.market-admin-nota{ margin:0; font-size:12.5px; color:var(--pos-muted,#687386); }
+
+@media (max-width:560px){
+ .market-admin-stats{ grid-template-columns:1fr; }
+}

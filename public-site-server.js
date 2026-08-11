@@ -225,17 +225,64 @@ async function resolverSitioPublico(pool, slug) {
 // hace falta para construir la URL publica de la imagen, ya que
 // promocion_imagen vive en sitio_web_config (por negocio), no en un
 // archivo con URL propia.
+//
+// Plantillas (Fase "rediseno Sitio web", ver plan): el dueno elige una
+// plantilla en el editor del POS en vez de un layout unico fijo --
+// bannerPromocionHtml es el dispatcher, cada plantilla es una funcion
+// pura que arma el mismo tipo de datos con un layout distinto. El
+// acento de color es propio de la promocion (--promo-acento, via
+// estilo inline), separado del acento general del sitio (--blue) para
+// no forzar al dueno a cambiar el color de todo su sitio solo para su
+// promocion.
+function imagenPromocionUrl(config, slug) {
+    if (!config.promocionTieneImagen) return "";
+    const v = config.promocionImagenActualizadoAt ? new Date(config.promocionImagenActualizadoAt).getTime() : 0;
+    return `/sitio-web-promocion-imagen?negocio=${encodeURIComponent(slug)}&v=${v}`;
+}
+
+function botonPromocionHtml(config, clase) {
+    if (!config.promocionEnlace) return "";
+    const texto = config.promocionTextoBoton ? escaparHtml(config.promocionTextoBoton) : "Ver mas";
+    return `<a class="${clase}" href="${escaparHtml(config.promocionEnlace)}">${texto}</a>`;
+}
+
+function bannerPromocionClasica(config, slug) {
+    const imagenUrl = imagenPromocionUrl(config, slug);
+    const imagenHtml = imagenUrl ? `<img class="tenant-promo-banner-img" src="${imagenUrl}" alt="" loading="lazy">` : "";
+    return `<div class="tenant-promo-banner${imagenUrl ? " con-imagen" : ""}" style="--promo-acento:${colorSeguro(config.promocionColorAcento)}">${imagenHtml}<div class="tenant-promo-banner-texto"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${botonPromocionHtml(config, "tenant-promo-banner-boton")}</div></div>`;
+}
+
+function bannerPromocionImagenFondo(config, slug) {
+    const imagenUrl = imagenPromocionUrl(config, slug);
+    const fondoHtml = imagenUrl ? `<img class="tenant-promo-banner-fondo-img" src="${imagenUrl}" alt="" loading="lazy">` : "";
+    return `<div class="tenant-promo-banner tenant-promo-banner--imagen-fondo" style="--promo-acento:${colorSeguro(config.promocionColorAcento)}">${fondoHtml}<div class="tenant-promo-banner-fondo-velo"></div><div class="tenant-promo-banner-texto"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${botonPromocionHtml(config, "tenant-promo-banner-boton")}</div></div>`;
+}
+
+function bannerPromocionDividida(config, slug) {
+    const imagenUrl = imagenPromocionUrl(config, slug);
+    const imagenHtml = imagenUrl
+        ? `<img class="tenant-promo-banner-img" src="${imagenUrl}" alt="" loading="lazy">`
+        : `<div class="tenant-promo-banner-img tenant-promo-banner-img-vacia"></div>`;
+    return `<div class="tenant-promo-banner tenant-promo-banner--dividida" style="--promo-acento:${colorSeguro(config.promocionColorAcento)}"><div class="tenant-promo-banner-texto"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${botonPromocionHtml(config, "tenant-promo-banner-boton")}</div>${imagenHtml}</div>`;
+}
+
+function bannerPromocionMinimal(config) {
+    return `<div class="tenant-promo-banner tenant-promo-banner--minimal" style="--promo-acento:${colorSeguro(config.promocionColorAcento)}"><div class="tenant-promo-banner-texto"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${botonPromocionHtml(config, "tenant-promo-banner-boton")}</div></div>`;
+}
+
+const PLANTILLAS_PROMOCION = {
+    clasica: bannerPromocionClasica,
+    "imagen-fondo": bannerPromocionImagenFondo,
+    dividida: bannerPromocionDividida,
+    minimal: bannerPromocionMinimal
+};
+
 function bannerPromocionHtml(config, slug) {
     if (!config.promocionActiva || !config.promocionTitulo || !config.promocionTexto) {
         return "";
     }
-    const enlaceHtml = config.promocionEnlace
-        ? `<a href="${escaparHtml(config.promocionEnlace)}">Ver mas</a>`
-        : "";
-    const imagenHtml = config.promocionTieneImagen
-        ? `<img class="tenant-promo-banner-img" src="/sitio-web-promocion-imagen?negocio=${encodeURIComponent(slug)}&v=${config.promocionImagenActualizadoAt ? new Date(config.promocionImagenActualizadoAt).getTime() : 0}" alt="" loading="lazy">`
-        : "";
-    return `<div class="tenant-promo-banner${config.promocionTieneImagen ? " con-imagen" : ""}">${imagenHtml}<div class="tenant-promo-banner-texto"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${enlaceHtml}</div></div>`;
+    const constructor = PLANTILLAS_PROMOCION[config.promocionPlantilla] || PLANTILLAS_PROMOCION.clasica;
+    return constructor(config, slug);
 }
 
 // Texto honesto de politica de envio segun lo que el dueno declaro en
@@ -339,6 +386,57 @@ ${existenciaHtml}
 </a>
 <button type="button" class="tenant-btn-carrito" data-codigo="${escaparHtml(codigo)}" data-nombre="${nombreSeguro}">Agregar al carrito</button>
 </div>`;
+}
+
+// CSS del banner de "Promocion" y sus 4 plantillas -- funcion propia
+// (no solo un bloque dentro de estilosBaseTenant) para poder mandarla
+// sola y chica a la vista previa en vivo del editor del POS
+// (POST /negocio-actual/sitio-web/promocion-preview), sin tener que
+// inyectar todo el CSS del sitio publico completo solo para previsualizar
+// un banner.
+function estilosPromoBanner(color) {
+    const colorFinal = colorSeguro(color);
+    return `
+.tenant-promo-banner{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; padding:14px clamp(20px,5vw,64px); background:linear-gradient(135deg, var(--promo-acento, ${colorFinal}), var(--ink,#172033)); color:#fff; position:relative; overflow:hidden; }
+.tenant-promo-banner strong{ font-size:14px; }
+.tenant-promo-banner span{ font-size:13px; opacity:.92; }
+.tenant-promo-banner a{ color:#fff; font-weight:700; text-decoration:underline; font-size:13px; margin-left:auto; }
+.tenant-promo-banner-texto{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; flex:1; min-width:0; position:relative; z-index:1; }
+.tenant-promo-banner.con-imagen{ padding:0; }
+.tenant-promo-banner.con-imagen .tenant-promo-banner-texto{ padding:14px clamp(16px,4vw,48px); }
+.tenant-promo-banner-img{ width:120px; height:80px; object-fit:cover; flex:0 0 auto; border-radius:10px; }
+.tenant-promo-banner-boton{ display:inline-flex; align-items:center; padding:8px 18px; border-radius:999px; background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.45); color:#fff !important; font-weight:700; font-size:13px; text-decoration:none !important; margin-left:auto; }
+@media (max-width:520px){
+  .tenant-promo-banner-img{ width:84px; height:64px; }
+}
+
+/* Plantilla "imagen-fondo": foto de fondo a todo lo ancho con velo
+   oscuro degradado para que el texto siga siendo legible sobre
+   cualquier foto que suba el dueno. */
+.tenant-promo-banner--imagen-fondo{ padding:32px clamp(20px,5vw,64px); min-height:160px; align-items:flex-end; background:linear-gradient(135deg, var(--promo-acento, ${colorFinal}), var(--ink,#172033)); }
+.tenant-promo-banner-fondo-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
+.tenant-promo-banner-fondo-velo{ position:absolute; inset:0; background:linear-gradient(0deg, rgba(10,15,25,.82), rgba(10,15,25,.15)); z-index:0; }
+.tenant-promo-banner--imagen-fondo .tenant-promo-banner-texto{ flex-direction:column; align-items:flex-start; gap:6px; }
+
+/* Plantilla "dividida": panel de color con texto a un lado, foto de
+   producto ocupando el otro lado a toda altura. */
+.tenant-promo-banner--dividida{ padding:0; align-items:stretch; }
+.tenant-promo-banner--dividida .tenant-promo-banner-texto{ flex-direction:column; align-items:flex-start; gap:8px; padding:22px clamp(20px,4vw,40px); }
+.tenant-promo-banner--dividida .tenant-promo-banner-boton{ margin-left:0; margin-top:4px; }
+.tenant-promo-banner--dividida .tenant-promo-banner-img{ width:220px; height:auto; min-height:140px; border-radius:0; }
+.tenant-promo-banner-img-vacia{ background:rgba(255,255,255,.12); }
+@media (max-width:640px){
+  .tenant-promo-banner--dividida{ flex-direction:column; }
+  .tenant-promo-banner--dividida .tenant-promo-banner-img{ width:100%; height:120px; }
+}
+
+/* Plantilla "minimal": sin foto, solo texto centrado de alto
+   contraste -- para el dueno que solo quiere anunciar una oferta sin
+   subir ninguna imagen. */
+.tenant-promo-banner--minimal{ justify-content:center; text-align:center; padding:22px clamp(20px,5vw,64px); }
+.tenant-promo-banner--minimal .tenant-promo-banner-texto{ flex-direction:column; justify-content:center; flex:none; }
+.tenant-promo-banner--minimal .tenant-promo-banner-boton{ margin-left:0; }
+`;
 }
 
 // Bloque <style> compartido por las 3 paginas publicas (info, catalogo,
@@ -493,17 +591,7 @@ ${selectorRaiz}{ --blue:${colorFinal}; --blue-dark:${colorFinal}; }
 .tenant-portal-badge.descartado{ background:rgba(226,67,77,.12); color:#e2434d; }
 .tenant-portal-badge.cotizado{ background:rgba(37,99,235,.14); color:#1d4ed8; }
 .tenant-portal-saludo{ font-size:20px; margin:0 0 6px; }
-.tenant-promo-banner{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; padding:14px clamp(20px,5vw,64px); background:linear-gradient(135deg, ${colorFinal}, var(--ink)); color:#fff; }
-.tenant-promo-banner strong{ font-size:14px; }
-.tenant-promo-banner span{ font-size:13px; opacity:.92; }
-.tenant-promo-banner a{ color:#fff; font-weight:700; text-decoration:underline; font-size:13px; margin-left:auto; }
-.tenant-promo-banner-texto{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; flex:1; min-width:0; }
-.tenant-promo-banner.con-imagen{ padding:0; overflow:hidden; }
-.tenant-promo-banner.con-imagen .tenant-promo-banner-texto{ padding:14px clamp(16px,4vw,48px); }
-.tenant-promo-banner-img{ width:120px; height:80px; object-fit:cover; flex:0 0 auto; }
-@media (max-width:520px){
-  .tenant-promo-banner-img{ width:84px; height:64px; }
-}
+${estilosPromoBanner(color)}
 .tenant-carrito-boton-nav{ display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
 .tenant-carrito-contador{ display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 4px; border-radius:999px; background:rgba(255,255,255,.28); font-size:11px; font-weight:800; }
 .tenant-btn-carrito{ margin-top:10px; padding:10px 18px; border-radius:999px; border:1px solid var(--line); background:var(--glass); color:var(--ink); font-weight:700; font-size:13px; cursor:pointer; align-self:start; }
@@ -3828,7 +3916,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const acceso = await funcionDelPlan(negocio.id, CLAVE_FUNCION_SITIO_WEB);
 
             const resultado = await pool.query(
-                `SELECT activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, (promocion_imagen IS NOT NULL) AS promocion_tiene_imagen, envio_modo, envio_tarifa, envio_notas FROM public.sitio_web_config WHERE negocio_id = $1`,
+                `SELECT activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, promocion_plantilla, promocion_color_acento, promocion_texto_boton, (promocion_imagen IS NOT NULL) AS promocion_tiene_imagen, envio_modo, envio_tarifa, envio_notas FROM public.sitio_web_config WHERE negocio_id = $1`,
                 [negocio.id]
             );
 
@@ -3837,6 +3925,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 horario_texto: "", whatsapp: "", facebook: "", instagram: "",
                 mostrar_precios: false, mostrar_existencias: false, aceptar_solicitudes_credito: false,
                 promocion_activa: false, promocion_titulo: "", promocion_texto: "", promocion_enlace: "", promocion_tiene_imagen: false,
+                promocion_plantilla: "clasica", promocion_color_acento: null, promocion_texto_boton: "",
                 envio_modo: "a_coordinar", envio_tarifa: null, envio_notas: ""
             };
 
@@ -3844,6 +3933,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 ok: true,
                 incluido: acceso.incluido,
                 slug: negocio.slug,
+                nombre: negocio.nombre,
                 urlPublica: `https://${negocio.slug}.nexoposoficial.com`,
                 activo: config.activo,
                 descripcion: config.descripcion,
@@ -3862,6 +3952,9 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 promocionTitulo: config.promocion_titulo,
                 promocionTexto: config.promocion_texto,
                 promocionEnlace: config.promocion_enlace,
+                promocionPlantilla: config.promocion_plantilla || "clasica",
+                promocionColorAcento: config.promocion_color_acento,
+                promocionTextoBoton: config.promocion_texto_boton || "",
                 promocionTieneImagen: config.promocion_tiene_imagen,
                 envioModo: config.envio_modo,
                 envioTarifa: config.envio_tarifa !== null ? Number(config.envio_tarifa) : null,
@@ -3899,6 +3992,11 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const promocionTitulo = String(req.body?.promocionTitulo || "").slice(0, 140);
             const promocionTexto = String(req.body?.promocionTexto || "").slice(0, 500);
             const promocionEnlace = String(req.body?.promocionEnlace || "").slice(0, 300);
+            const promocionTextoBoton = String(req.body?.promocionTextoBoton || "").slice(0, 40);
+            const plantillaBody = String(req.body?.promocionPlantilla || "");
+            const promocionPlantilla = Object.prototype.hasOwnProperty.call(PLANTILLAS_PROMOCION, plantillaBody) ? plantillaBody : "clasica";
+            const colorAcentoBody = String(req.body?.promocionColorAcento || "");
+            const promocionColorAcento = /^#[0-9a-fA-F]{6}$/.test(colorAcentoBody) ? colorAcentoBody : null;
 
             // Politica de envio por tienda (Fase 1, sin pagos -- ver
             // plan): 3 modos honestos, nunca se inventa logistica que
@@ -3966,8 +4064,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             await pool.query(
                 `
                 INSERT INTO public.sitio_web_config
-                    (negocio_id, activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, envio_modo, envio_tarifa, envio_notas, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
+                    (negocio_id, activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, envio_modo, envio_tarifa, envio_notas, promocion_plantilla, promocion_color_acento, promocion_texto_boton, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW())
                 ON CONFLICT (negocio_id) DO UPDATE SET
                     activo = $2, descripcion = $3,
                     portada = CASE WHEN $9 THEN $4 ELSE sitio_web_config.portada END,
@@ -3975,9 +4073,10 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                     mostrar_precios = $10, mostrar_existencias = $11, aceptar_solicitudes_credito = $12,
                     promocion_activa = $13, promocion_titulo = $14, promocion_texto = $15, promocion_enlace = $16,
                     envio_modo = $17, envio_tarifa = $18, envio_notas = $19,
+                    promocion_plantilla = $20, promocion_color_acento = $21, promocion_texto_boton = $22,
                     updated_at = NOW()
                 `,
-                [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias, aceptarSolicitudesCredito, promocionActiva, promocionTitulo, promocionTexto, promocionEnlace, envioModo, envioTarifa, envioNotas]
+                [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias, aceptarSolicitudesCredito, promocionActiva, promocionTitulo, promocionTexto, promocionEnlace, envioModo, envioTarifa, envioNotas, promocionPlantilla, promocionColorAcento, promocionTextoBoton]
             );
 
             res.json({ ok: true, direccionUbicada });
@@ -3997,9 +4096,31 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
         limits: { fileSize: 8 * 1024 * 1024, files: 1 }
     });
 
-    async function procesarImagenPromocion(buffer) {
-        return sharp(buffer)
-            .resize({ width: 1200, height: 500, fit: "cover" })
+    // "recorte" (Fase "rediseno Sitio web", ver plan): rectangulo en
+    // pixeles de la imagen ORIGINAL que el dueno encuadro con el paso
+    // de recorte-con-guias del cliente -- si viene, se respeta
+    // exactamente (extract + fill, sin volver a recortar); si no viene
+    // (cliente viejo o sin JS de recorte), se usa el mismo cover ciego
+    // de siempre como respaldo.
+    async function procesarImagenPromocion(buffer, recorte) {
+        let pipeline = sharp(buffer);
+
+        const valido = recorte
+            && Number.isFinite(recorte.left) && Number.isFinite(recorte.top)
+            && Number.isFinite(recorte.width) && Number.isFinite(recorte.height)
+            && recorte.width > 0 && recorte.height > 0;
+
+        if (valido) {
+            pipeline = pipeline.extract({
+                left: Math.max(0, Math.round(recorte.left)),
+                top: Math.max(0, Math.round(recorte.top)),
+                width: Math.round(recorte.width),
+                height: Math.round(recorte.height)
+            });
+        }
+
+        return pipeline
+            .resize({ width: 1200, height: 500, fit: valido ? "fill" : "cover" })
             .jpeg({ quality: 78 })
             .toBuffer();
     }
@@ -4019,8 +4140,13 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             try {
                 if (!req.file) { res.status(400).json({ ok: false, error: "No se recibio ninguna imagen" }); return; }
 
+                let recorte = null;
+                if (req.body?.recorte) {
+                    try { recorte = JSON.parse(req.body.recorte); } catch { recorte = null; }
+                }
+
                 const negocio = await negocioActual(req, pool);
-                const imagen = await procesarImagenPromocion(req.file.buffer);
+                const imagen = await procesarImagenPromocion(req.file.buffer, recorte);
 
                 await pool.query(
                     `INSERT INTO public.sitio_web_config (negocio_id, promocion_imagen, promocion_imagen_actualizado_at, updated_at)
@@ -4035,6 +4161,45 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 res.status(error2.httpStatus || 500).json({ ok: false, error: error2.message });
             }
         });
+    });
+
+    // Vista previa en vivo del editor de Promociones (Fase "rediseno
+    // Sitio web", ver plan): recibe los campos EN BORRADOR (todavia sin
+    // guardar) y devuelve el HTML real de la plantilla elegida, usando
+    // el mismo dispatcher/plantillas que renderiza el sitio publico --
+    // nunca una maqueta aparte que se pueda desincronizar. La imagen no
+    // viaja en el borrador (ya se sube aparte via
+    // /promocion-imagen y queda guardada de inmediato) -- se lee la que
+    // ya este guardada para que la vista previa la incluya.
+    app.post("/negocio-actual/sitio-web/promocion-preview", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+
+            const resultado = await pool.query(
+                `SELECT (promocion_imagen IS NOT NULL) AS promocion_tiene_imagen, promocion_imagen_actualizado_at FROM public.sitio_web_config WHERE negocio_id = $1`,
+                [negocio.id]
+            );
+            const fila = resultado.rows[0] || { promocion_tiene_imagen: false, promocion_imagen_actualizado_at: null };
+
+            const plantillaBody = String(req.body?.promocionPlantilla || "");
+            const colorBody = String(req.body?.promocionColorAcento || "");
+
+            const config = {
+                promocionActiva: true,
+                promocionTitulo: String(req.body?.promocionTitulo || "").slice(0, 140),
+                promocionTexto: String(req.body?.promocionTexto || "").slice(0, 500),
+                promocionEnlace: String(req.body?.promocionEnlace || "").slice(0, 300),
+                promocionTextoBoton: String(req.body?.promocionTextoBoton || "").slice(0, 40),
+                promocionPlantilla: Object.prototype.hasOwnProperty.call(PLANTILLAS_PROMOCION, plantillaBody) ? plantillaBody : "clasica",
+                promocionColorAcento: /^#[0-9a-fA-F]{6}$/.test(colorBody) ? colorBody : null,
+                promocionTieneImagen: fila.promocion_tiene_imagen,
+                promocionImagenActualizadoAt: fila.promocion_imagen_actualizado_at
+            };
+
+            res.json({ ok: true, html: bannerPromocionHtml(config, negocio.slug) });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
     });
 
     // Publica, sin token -- mismo criterio que los banners de Nexo

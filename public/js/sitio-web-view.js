@@ -3,9 +3,29 @@
 // public-site-server.js). Solo Plus/Pro -- el servidor es la fuente
 // real de verdad (funcionDelPlan), esta pantalla solo refleja lo que
 // el servidor ya decidio.
+//
+// Rediseno (ver plan "Rediseno Sitio web -- fusion con Nexo Market +
+// editor de Promocion por plantillas"): pantallas separadas de "Sitio
+// web" y "Nexo Market" se fusionaron en una sola con pestanas, mas un
+// panel de vista previa en vivo a la derecha, mas un editor de
+// Promocion basado en plantillas (en vez de un solo campo de imagen +
+// texto encima). "Nexo Market" ya no es un boton propio del sidebar --
+// su contenido (antes en market-admin-view.js, ahora borrado) vive
+// aqui como una pestana mas.
 
 let sitioWebPortadaTemporal = undefined;
 let sitioWebSlugActual = "";
+let sitioWebNombreActual = "";
+let sitioWebDatosActuales = null;
+
+const SITIO_WEB_PLANTILLAS_PROMOCION = [
+    { id: "clasica", nombre: "Clasica", descripcion: "Foto chica a un lado, texto al otro." },
+    { id: "imagen-fondo", nombre: "Foto de fondo", descripcion: "Tu foto a todo el ancho con el texto encima." },
+    { id: "dividida", nombre: "Dividida", descripcion: "Panel de color con texto y tu foto al lado." },
+    { id: "minimal", nombre: "Minimal", descripcion: "Solo texto, sin foto -- rapido y directo." }
+];
+
+const SITIO_WEB_COLORES_PRESET = ["#1067e8", "#e2434d", "#18b88f", "#f59e0b", "#7c3aed", "#0f172a"];
 
 async function mostrarSitioWeb() {
  if (typeof ocultarPantallasPrincipales === "function") {
@@ -20,7 +40,7 @@ async function mostrarSitioWeb() {
  pantalla.style.display = "block";
 
  if (typeof actualizarTopbarContexto === "function") {
- actualizarTopbarContexto("Sitio web", "Activa y personaliza la pagina publica automatica de tu negocio", "sitio-web");
+ actualizarTopbarContexto("Sitio web", "Activa y personaliza tu pagina y tu presencia en Nexo Market", "sitio-web");
  }
 
  sitioWebPortadaTemporal = undefined;
@@ -48,6 +68,8 @@ async function mostrarSitioWeb() {
  renderSitioWebFormulario(pantalla, datos);
  cargarPedidosPublicosSitioWeb();
  cargarSolicitudesCreditoSitioWeb();
+ cargarMarketResumenSitioWeb();
+ actualizarVistaPreviaPromocion();
  } catch (error) {
  pantalla.innerHTML = `<div class="sitio-web-shell"><p>No se pudo cargar la configuracion del sitio. Revisa tu conexion.</p></div>`;
  }
@@ -58,17 +80,33 @@ function renderSitioWebUpsell(pantalla) {
  <div class="sitio-web-shell">
  <div class="sitio-web-upsell">
  <h2>Tu negocio con su propia pagina web</h2>
- <p>Con el plan Plus o Pro, tu negocio obtiene automaticamente una pagina publica en su propio subdominio -- con tu logo, descripcion, horario, WhatsApp y redes sociales -- sin disenar nada.</p>
+ <p>Con el plan Plus o Pro, tu negocio obtiene automaticamente una pagina publica en su propio subdominio -- con tu logo, descripcion, horario, WhatsApp y redes sociales -- ademas de aparecer en Nexo Market, sin disenar nada.</p>
  <button type="button" class="btn-encargo-primario" onclick="mostrarCuenta()">Ver planes</button>
  </div>
  </div>
  `;
 }
 
+/* ---------- Shell de pestanas + vista previa ---------- */
+
+const SITIO_WEB_PESTANAS = [
+ { id: "informacion", nombre: "Informacion" },
+ { id: "apariencia", nombre: "Apariencia" },
+ { id: "promociones", nombre: "Promociones" },
+ { id: "contacto", nombre: "Contacto y redes" },
+ { id: "ubicacion", nombre: "Ubicacion y horario" },
+ { id: "pedidos", nombre: "Pedidos" },
+ { id: "market", nombre: "Nexo Market" }
+];
+
 function renderSitioWebFormulario(pantalla, datos) {
  sitioWebSlugActual = datos.slug || "";
+ sitioWebNombreActual = datos.nombre || "";
+ sitioWebDatosActuales = datos;
+
  pantalla.innerHTML = `
- <div class="sitio-web-shell">
+ <div class="sitio-web-shell sitio-web-shell-rediseno">
+
  <div class="sitio-web-url-card">
  <div>
  <span>Tu sitio</span>
@@ -77,60 +115,88 @@ function renderSitioWebFormulario(pantalla, datos) {
  <div class="sitio-web-url-acciones">
  <button type="button" class="btn-encargo-secundario" onclick="copiarUrlSitioWeb('${datos.urlPublica}')">Copiar enlace</button>
  <button type="button" class="btn-encargo-secundario" onclick="window.open('${datos.urlPublica}', '_blank')">Ver mi sitio</button>
+ <button type="button" class="btn-encargo-primario" onclick="guardarSitioWeb()">Guardar cambios</button>
  </div>
  </div>
 
+ <div class="sitio-web-layout">
+ <div class="sitio-web-principal">
+
+ <div class="sitio-web-tabs" role="tablist">
+ ${SITIO_WEB_PESTANAS.map((p, i) => `
+ <button type="button" class="sitio-web-tab${i === 0 ? " activo" : ""}" data-tab-boton="${p.id}" onclick="activarPestanaSitioWeb('${p.id}')">${p.nombre}</button>
+ `).join("")}
+ </div>
+
+ <div class="sitio-web-tab-panel" data-tab-panel="informacion">
  <div class="sitio-web-panel">
  <label class="sitio-web-toggle">
  <input type="checkbox" id="sitioWebActivo" ${datos.activo ? "checked" : ""}>
  <span>Sitio activado (visible al publico)</span>
  </label>
-
  <label class="sitio-web-toggle">
  <input type="checkbox" id="sitioWebMostrarPrecios" ${datos.mostrarPrecios ? "checked" : ""}>
  <span>Mostrar precios al publico</span>
  </label>
-
  <label class="sitio-web-toggle">
  <input type="checkbox" id="sitioWebMostrarExistencias" ${datos.mostrarExistencias ? "checked" : ""}>
  <span>Mostrar existencias al publico</span>
  </label>
-
  <label class="sitio-web-toggle">
  <input type="checkbox" id="sitioWebAceptarCredito" ${datos.aceptarSolicitudesCredito ? "checked" : ""}>
  <span>Aceptar solicitudes de credito (incluye fotos de identificacion)</span>
  </label>
- <p class="sitio-web-nota">Al activarlo, tus clientes podran pedirte credito desde tu sitio, incluyendo subir su identificacion oficial. Revisalas en "Solicitudes de credito" mas abajo.</p>
-
- <label class="sitio-web-toggle">
- <input type="checkbox" id="sitioWebPromocionActiva" ${datos.promocionActiva ? "checked" : ""}>
- <span>Promocion activa (aviso en la parte superior del sitio)</span>
- </label>
-
+ <p class="sitio-web-nota">Al activarlo, tus clientes podran pedirte credito desde tu sitio, incluyendo subir su identificacion oficial. Revisalas en la pestana "Pedidos".</p>
  <label>
- <span>Titulo de la promocion</span>
- <input type="text" id="sitioWebPromocionTitulo" maxlength="140" placeholder="Ej. Descuento de temporada" value="${datos.promocionTitulo || ""}">
+ <span>Descripcion</span>
+ <textarea id="sitioWebDescripcion" rows="3" maxlength="2000" placeholder="Cuentale a tus clientes que vendes y que te hace diferente.">${datos.descripcion || ""}</textarea>
  </label>
-
- <label>
- <span>Texto de la promocion</span>
- <textarea id="sitioWebPromocionTexto" rows="2" maxlength="500" placeholder="Ej. 10% de descuento en herramienta electrica esta semana.">${datos.promocionTexto || ""}</textarea>
- </label>
-
- <label>
- <span>Enlace (opcional)</span>
- <input type="text" id="sitioWebPromocionEnlace" maxlength="300" placeholder="Ej. https://tu-sitio.nexoposoficial.com/catalogo" value="${datos.promocionEnlace || ""}">
- </label>
-
- <label>
- <span>Imagen de la promocion (opcional)</span>
- <input type="file" id="sitioWebPromocionImagenInput" accept="image/*" onchange="subirPromocionImagenSitioWeb(event)">
- </label>
- <div id="sitioWebPromocionImagenPreview" class="sitio-web-portada-preview">
- ${datos.promocionTieneImagen ? `<img src="/sitio-web-promocion-imagen?negocio=${encodeURIComponent(datos.slug)}&v=${Date.now()}" alt="Imagen de la promocion">` : ""}
  </div>
- <p class="sitio-web-nota" id="sitioWebPromocionImagenEstado" style="display:none;"></p>
+ </div>
 
+ <div class="sitio-web-tab-panel" data-tab-panel="apariencia" hidden>
+ <div class="sitio-web-panel">
+ <label>
+ <span>Portada</span>
+ <input type="file" id="sitioWebPortadaInput" accept="image/*" onchange="cargarPortadaSitioWeb(event)">
+ </label>
+ <div id="sitioWebPortadaPreview" class="sitio-web-portada-preview">
+ ${datos.portada ? `<img src="${datos.portada}" alt="Portada">` : ""}
+ </div>
+ </div>
+ </div>
+
+ <div class="sitio-web-tab-panel" data-tab-panel="promociones" hidden>
+ ${sitioWebPromocionEditorHtml(datos)}
+ </div>
+
+ <div class="sitio-web-tab-panel" data-tab-panel="contacto" hidden>
+ <div class="sitio-web-panel">
+ <label>
+ <span>WhatsApp</span>
+ <input type="text" id="sitioWebWhatsapp" maxlength="40" placeholder="10 digitos" value="${datos.whatsapp || ""}">
+ </label>
+ <label>
+ <span>Facebook</span>
+ <input type="text" id="sitioWebFacebook" maxlength="300" placeholder="https://facebook.com/tu-negocio" value="${datos.facebook || ""}">
+ </label>
+ <label>
+ <span>Instagram</span>
+ <input type="text" id="sitioWebInstagram" maxlength="300" placeholder="https://instagram.com/tu-negocio" value="${datos.instagram || ""}">
+ </label>
+ </div>
+ </div>
+
+ <div class="sitio-web-tab-panel" data-tab-panel="ubicacion" hidden>
+ <div class="sitio-web-panel">
+ <label>
+ <span>Horario</span>
+ <textarea id="sitioWebHorario" rows="2" maxlength="500" placeholder="Ej. Lun-Sab 8:00-19:00, Dom 9:00-14:00">${datos.horarioTexto || ""}</textarea>
+ </label>
+ <label>
+ <span>Direccion (aparece en el mapa de Nexo Market)</span>
+ <input type="text" id="sitioWebDireccion" maxlength="180" placeholder="Calle, numero, colonia, ciudad" value="${datos.direccion || ""}">
+ </label>
  <label>
  <span>Politica de envio</span>
  <select id="sitioWebEnvioModo" onchange="actualizarVisibilidadTarifaEnvioSitioWeb()">
@@ -139,70 +205,81 @@ function renderSitioWebFormulario(pantalla, datos) {
  <option value="tarifa_fija" ${datos.envioModo === "tarifa_fija" ? "selected" : ""}>Entrego con costo fijo</option>
  </select>
  </label>
-
  <label id="sitioWebEnvioTarifaCampo" style="${datos.envioModo === "tarifa_fija" ? "" : "display:none;"}">
  <span>Costo de envio (pesos)</span>
  <input type="number" id="sitioWebEnvioTarifa" min="0" step="0.01" value="${datos.envioTarifa !== null && datos.envioTarifa !== undefined ? datos.envioTarifa : ""}">
  </label>
-
  <label>
  <span>Notas de envio (opcional)</span>
  <textarea id="sitioWebEnvioNotas" rows="2" maxlength="300" placeholder="Zona de entrega, tiempo estimado, minimo de compra...">${datos.envioNotas || ""}</textarea>
  </label>
-
- <label>
- <span>Descripcion</span>
- <textarea id="sitioWebDescripcion" rows="3" maxlength="2000" placeholder="Cuentale a tus clientes que vendes y que te hace diferente.">${datos.descripcion || ""}</textarea>
- </label>
-
- <label>
- <span>Portada</span>
- <input type="file" id="sitioWebPortadaInput" accept="image/*" onchange="cargarPortadaSitioWeb(event)">
- </label>
- <div id="sitioWebPortadaPreview" class="sitio-web-portada-preview">
- ${datos.portada ? `<img src="${datos.portada}" alt="Portada">` : ""}
+ </div>
  </div>
 
- <label>
- <span>Horario</span>
- <textarea id="sitioWebHorario" rows="2" maxlength="500" placeholder="Ej. Lun-Sab 8:00-19:00, Dom 9:00-14:00">${datos.horarioTexto || ""}</textarea>
- </label>
-
- <label>
- <span>Direccion (aparece en el mapa de Nexo Market)</span>
- <input type="text" id="sitioWebDireccion" maxlength="180" placeholder="Calle, numero, colonia, ciudad" value="${datos.direccion || ""}">
- </label>
-
- <label>
- <span>WhatsApp</span>
- <input type="text" id="sitioWebWhatsapp" maxlength="40" placeholder="10 digitos" value="${datos.whatsapp || ""}">
- </label>
-
- <label>
- <span>Facebook</span>
- <input type="text" id="sitioWebFacebook" maxlength="300" placeholder="https://facebook.com/tu-negocio" value="${datos.facebook || ""}">
- </label>
-
- <label>
- <span>Instagram</span>
- <input type="text" id="sitioWebInstagram" maxlength="300" placeholder="https://instagram.com/tu-negocio" value="${datos.instagram || ""}">
- </label>
-
- <button type="button" class="btn-encargo-primario encargo-btn-full" onclick="guardarSitioWeb()">Guardar</button>
- </div>
-
+ <div class="sitio-web-tab-panel" data-tab-panel="pedidos" hidden>
  <div class="sitio-web-panel">
  <h3 class="sitio-web-panel-titulo">Pedidos recibidos</h3>
  <div id="sitioWebPedidosLista"><p>Cargando...</p></div>
  </div>
-
  <div class="sitio-web-panel">
  <h3 class="sitio-web-panel-titulo">Solicitudes de credito</h3>
  <div id="sitioWebSolicitudesCreditoLista"><p>Cargando...</p></div>
  </div>
  </div>
+
+ <div class="sitio-web-tab-panel" data-tab-panel="market" hidden>
+ <div id="sitioWebMarketResumen"><p>Cargando...</p></div>
+ </div>
+
+ </div>
+
+ <aside class="sitio-web-preview">
+ <div class="sitio-web-preview-header">
+ <span>Vista previa de tu sitio</span>
+ <div class="sitio-web-preview-toggle">
+ <button type="button" class="activo" data-preview-size="movil" onclick="cambiarTamanoVistaPreviaSitioWeb('movil')">Movil</button>
+ <button type="button" data-preview-size="escritorio" onclick="cambiarTamanoVistaPreviaSitioWeb('escritorio')">Escritorio</button>
+ </div>
+ </div>
+ <div class="sitio-web-preview-frame" id="sitioWebPreviewFrame">
+ <div class="sitio-web-preview-card">
+ <div class="sitio-web-preview-marca">
+ <strong>${escaparSitioWeb(sitioWebNombreActual || "Tu negocio")}</strong>
+ <span>${escaparSitioWeb(sitioWebSlugActual)}.nexoposoficial.com</span>
+ </div>
+ <div id="sitioWebPreviewPromo" class="sitio-web-preview-promo"><p class="sitio-web-nota">Activa la promocion para verla aqui.</p></div>
+ </div>
+ </div>
+ </aside>
+ </div>
+ </div>
  `;
+
+ actualizarVisibilidadTarifaEnvioSitioWeb();
 }
+
+function activarPestanaSitioWeb(id) {
+ document.querySelectorAll(".sitio-web-tab").forEach(boton => {
+ boton.classList.toggle("activo", boton.dataset.tabBoton === id);
+ });
+ document.querySelectorAll(".sitio-web-tab-panel").forEach(panel => {
+ panel.hidden = panel.dataset.tabPanel !== id;
+ });
+}
+
+function cambiarTamanoVistaPreviaSitioWeb(tamano) {
+ const marco = document.getElementById("sitioWebPreviewFrame");
+ if (marco) marco.classList.toggle("escritorio", tamano === "escritorio");
+ document.querySelectorAll("[data-preview-size]").forEach(boton => {
+ boton.classList.toggle("activo", boton.dataset.previewSize === tamano);
+ });
+}
+
+function escaparSitioWeb(texto) {
+ return typeof escaparPOS === "function" ? escaparPOS(texto) : String(texto || "");
+}
+
+/* ---------- Pedidos recibidos (sin cambios de fondo, Fase 5/10) ---------- */
 
 async function cargarPedidosPublicosSitioWeb() {
  const contenedor =
@@ -251,8 +328,7 @@ function renderListaPedidosPublicos(pedidos) {
  return;
  }
 
- const escapar =
- typeof escaparPOS === "function" ? escaparPOS : texto => String(texto || "");
+ const escapar = escaparSitioWeb;
 
  const gruposMap = new Map();
  pedidos.forEach(pedido => {
@@ -435,8 +511,7 @@ function renderListaSolicitudesCredito(solicitudes) {
  return;
  }
 
- const escapar =
- typeof escaparPOS === "function" ? escaparPOS : texto => String(texto || "");
+ const escapar = escaparSitioWeb;
 
  contenedor.innerHTML = solicitudes.map(s => `
  <div class="sitio-web-pedido-item">
@@ -561,17 +636,428 @@ function cargarPortadaSitioWeb(evento) {
  lector.readAsDataURL(archivo);
 }
 
+/* ---------- Nexo Market (fusionado -- antes market-admin-view.js) ---------- */
+
+async function cargarMarketResumenSitioWeb() {
+ const contenedor =
+ document.getElementById("sitioWebMarketResumen");
+
+ if (!contenedor) return;
+
+ try {
+ const respuesta = await fetch("/negocio-actual/market-resumen");
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ contenedor.innerHTML = `<p>No se pudo cargar tu presencia en Nexo Market.</p>`;
+ return;
+ }
+
+ if (!datos.incluido) {
+ contenedor.innerHTML = `
+ <div class="sitio-web-upsell">
+ <h2>Vende tambien en Nexo Market</h2>
+ <p>Con el plan Plus o Pro, tu negocio aparece automaticamente en Nexo Market -- el buscador que junta el catalogo de varias ferreterias Nexo -- ademas de tu propia pagina.</p>
+ <button type="button" class="btn-encargo-primario" onclick="mostrarCuenta()">Ver planes</button>
+ </div>
+ `;
+ return;
+ }
+
+ renderMarketResumenSitioWeb(datos);
+ cargarProductosDestacadosMarketSitioWeb();
+ } catch (error) {
+ contenedor.innerHTML = `<p>No se pudo cargar tu presencia en Nexo Market. Revisa tu conexion.</p>`;
+ }
+}
+
+function renderMarketResumenSitioWeb(datos) {
+ const contenedor =
+ document.getElementById("sitioWebMarketResumen");
+
+ if (!contenedor) return;
+
+ contenedor.innerHTML = `
+ <div class="market-admin-estado ${datos.visible ? "visible" : "oculto"}">
+ <div>
+ <strong>${datos.visible ? "Tu tienda esta visible en Nexo Market" : "Tu tienda esta oculta en Nexo Market"}</strong>
+ <p>${datos.visible ? "Los compradores pueden encontrar tu catalogo al buscar en Nexo Market." : "Activa tu sitio (pestana Informacion) para que tu catalogo aparezca en Nexo Market."}</p>
+ </div>
+ <div class="market-admin-estado-acciones">
+ <button type="button" class="btn-encargo-secundario" onclick="window.open('${datos.urlMarket}', '_blank')">Ver mi tienda en Market</button>
+ </div>
+ </div>
+
+ <div class="market-admin-stats">
+ <div class="market-admin-stat">
+ <span>Destacados y ofertas</span>
+ <strong>${datos.totalDestacadosOfertas}</strong>
+ </div>
+ <div class="market-admin-stat">
+ <span>Pedidos de Market (30 dias)</span>
+ <strong>${datos.pedidosMarket30Dias}</strong>
+ </div>
+ </div>
+
+ <div class="sitio-web-panel">
+ <h3 class="sitio-web-panel-titulo">Productos destacados y en oferta</h3>
+ <p class="market-admin-nota">Se editan desde Inventario -- aqui solo se ven los que ya marcaste.</p>
+ <div id="sitioWebMarketDestacadosLista"><p>Cargando...</p></div>
+ </div>
+
+ <div class="sitio-web-panel">
+ <h3 class="sitio-web-panel-titulo">Pedidos de Nexo Market</h3>
+ <p class="market-admin-nota">Se atienden desde la pestana "Pedidos" -- los de Market llevan la etiqueta "Nexo Market".</p>
+ <button type="button" class="btn-encargo-secundario" onclick="activarPestanaSitioWeb('pedidos')">Ver todos mis pedidos</button>
+ </div>
+ `;
+}
+
+async function cargarProductosDestacadosMarketSitioWeb() {
+ const contenedor =
+ document.getElementById("sitioWebMarketDestacadosLista");
+
+ if (!contenedor) return;
+
+ try {
+ const respuesta = await fetch("/negocio-actual/productos-destacados");
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ contenedor.innerHTML = `<p>No se pudieron cargar tus productos destacados.</p>`;
+ return;
+ }
+
+ renderListaDestacadosMarketSitioWeb(datos.productos || []);
+ } catch (error) {
+ contenedor.innerHTML = `<p>No se pudieron cargar tus productos destacados. Revisa tu conexion.</p>`;
+ }
+}
+
+function renderListaDestacadosMarketSitioWeb(productos) {
+ const contenedor =
+ document.getElementById("sitioWebMarketDestacadosLista");
+
+ if (!contenedor) return;
+
+ if (!productos.length) {
+ contenedor.innerHTML = `<p>Todavia no marcas productos como destacados ni les pones precio de oferta. Hazlo desde Inventario &rarr; Editar producto.</p>`;
+ return;
+ }
+
+ const escapar = escaparSitioWeb;
+
+ contenedor.innerHTML = productos.map(p => `
+ <div class="sitio-web-pedido-item">
+ <div class="sitio-web-pedido-cabecera">
+ <strong>${escapar(p.nombre)}</strong>
+ ${p.destacado ? `<span class="sitio-web-pedido-badge atendido">Destacado</span>` : ""}
+ ${p.precioOferta !== null ? `<span class="sitio-web-pedido-tipo cotizacion">Oferta</span>` : ""}
+ </div>
+ <div class="sitio-web-pedido-cliente">
+ $${Number(p.precio).toFixed(2)}${p.precioOferta !== null ? ` &rarr; $${Number(p.precioOferta).toFixed(2)}` : ""}
+ </div>
+ </div>
+ `).join("");
+}
+
+/* ---------- Editor de Promocion por plantillas ---------- */
+
+function sitioWebPromocionEditorHtml(datos) {
+ const colorActual = datos.promocionColorAcento || "#1067e8";
+ return `
+ <div class="sitio-web-panel">
+ <label class="sitio-web-toggle">
+ <input type="checkbox" id="sitioWebPromocionActiva" ${datos.promocionActiva ? "checked" : ""} onchange="actualizarVistaPreviaPromocion()">
+ <span>Promocion activa (aviso en la parte superior del sitio)</span>
+ </label>
+
+ <div>
+ <span class="sitio-web-promocion-label">Plantilla</span>
+ <div class="sitio-web-plantillas-grid" id="sitioWebPlantillasGrid">
+ ${SITIO_WEB_PLANTILLAS_PROMOCION.map(p => sitioWebTarjetaPlantillaHtml(p, p.id === (datos.promocionPlantilla || "clasica"))).join("")}
+ </div>
+ </div>
+
+ <label>
+ <span>Titulo</span>
+ <input type="text" id="sitioWebPromocionTitulo" maxlength="140" placeholder="Ej. Descuento de temporada" value="${datos.promocionTitulo || ""}" oninput="actualizarVistaPreviaPromocionDebounced()">
+ </label>
+
+ <label>
+ <span>Texto</span>
+ <textarea id="sitioWebPromocionTexto" rows="2" maxlength="500" placeholder="Ej. 10% de descuento en herramienta electrica esta semana." oninput="actualizarVistaPreviaPromocionDebounced()">${datos.promocionTexto || ""}</textarea>
+ </label>
+
+ <label>
+ <span>Texto del boton</span>
+ <input type="text" id="sitioWebPromocionTextoBoton" maxlength="40" placeholder="Ej. Ver ofertas" value="${datos.promocionTextoBoton || ""}" oninput="actualizarVistaPreviaPromocionDebounced()">
+ </label>
+
+ <label>
+ <span>Enlace del boton (opcional)</span>
+ <input type="text" id="sitioWebPromocionEnlace" maxlength="300" placeholder="Ej. https://tu-sitio.nexoposoficial.com/catalogo" value="${datos.promocionEnlace || ""}" oninput="actualizarVistaPreviaPromocionDebounced()">
+ </label>
+
+ <div>
+ <span class="sitio-web-promocion-label">Color de acento</span>
+ <div class="sitio-web-colores-fila">
+ ${SITIO_WEB_COLORES_PRESET.map(c => `
+ <button type="button" class="sitio-web-color-swatch${c.toLowerCase() === colorActual.toLowerCase() ? " activo" : ""}" style="background:${c}" data-color="${c}" onclick="elegirColorPromocion('${c}')"></button>
+ `).join("")}
+ <input type="color" id="sitioWebPromocionColorInput" value="${colorActual}" oninput="elegirColorPromocion(this.value)">
+ </div>
+ </div>
+
+ <label>
+ <span>Foto de la promocion (opcional)</span>
+ <input type="file" id="sitioWebPromocionImagenInput" accept="image/*" onchange="iniciarRecorteImagenPromocion(event)">
+ </label>
+ <p class="sitio-web-nota">Al elegir una foto se abre un recorte con guias para encuadrarla -- se usa exactamente lo que recortes, la plantilla "Minimal" no necesita foto.</p>
+ <div id="sitioWebPromocionImagenPreview" class="sitio-web-portada-preview">
+ ${datos.promocionTieneImagen ? `<img src="/sitio-web-promocion-imagen?negocio=${encodeURIComponent(datos.slug)}&v=${Date.now()}" alt="Imagen de la promocion">` : ""}
+ </div>
+ <p class="sitio-web-nota" id="sitioWebPromocionImagenEstado" style="display:none;"></p>
+ </div>
+ `;
+}
+
+function sitioWebTarjetaPlantillaHtml(plantilla, activa) {
+ return `
+ <button type="button" class="sitio-web-plantilla-tarjeta${activa ? " activo" : ""}" data-plantilla="${plantilla.id}" onclick="elegirPlantillaPromocion('${plantilla.id}')">
+ <span class="sitio-web-plantilla-miniatura sitio-web-plantilla-miniatura--${plantilla.id}"></span>
+ <strong>${plantilla.nombre}</strong>
+ <span>${plantilla.descripcion}</span>
+ </button>
+ `;
+}
+
+function elegirPlantillaPromocion(id) {
+ document.querySelectorAll(".sitio-web-plantilla-tarjeta").forEach(tarjeta => {
+ tarjeta.classList.toggle("activo", tarjeta.dataset.plantilla === id);
+ });
+ actualizarVistaPreviaPromocion();
+}
+
+function plantillaPromocionElegida() {
+ const activa = document.querySelector(".sitio-web-plantilla-tarjeta.activo");
+ return activa ? activa.dataset.plantilla : "clasica";
+}
+
+function elegirColorPromocion(color) {
+ document.querySelectorAll(".sitio-web-color-swatch").forEach(boton => {
+ boton.classList.toggle("activo", boton.dataset.color.toLowerCase() === color.toLowerCase());
+ });
+ const input = document.getElementById("sitioWebPromocionColorInput");
+ if (input) input.value = color;
+ actualizarVistaPreviaPromocionDebounced();
+}
+
+// Vista previa en vivo: manda los campos EN BORRADOR (todavia sin
+// guardar) al servidor, que devuelve el HTML REAL de la plantilla
+// elegida (mismo dispatcher que renderiza el sitio publico) -- nunca
+// una maqueta aparte que se pueda desincronizar. Con debounce para no
+// mandar un fetch por cada tecla.
+let sitioWebPreviewPromoTimeout = null;
+function actualizarVistaPreviaPromocionDebounced() {
+ clearTimeout(sitioWebPreviewPromoTimeout);
+ sitioWebPreviewPromoTimeout = setTimeout(actualizarVistaPreviaPromocion, 350);
+}
+
+async function actualizarVistaPreviaPromocion() {
+ const contenedor =
+ document.getElementById("sitioWebPreviewPromo");
+
+ if (!contenedor) return;
+
+ const activa = document.getElementById("sitioWebPromocionActiva")?.checked;
+ const titulo = document.getElementById("sitioWebPromocionTitulo")?.value || "";
+ const texto = document.getElementById("sitioWebPromocionTexto")?.value || "";
+
+ if (!activa || !titulo || !texto) {
+ contenedor.innerHTML = `<p class="sitio-web-nota">Activa la promocion y completa titulo/texto para verla aqui.</p>`;
+ return;
+ }
+
+ try {
+ const respuesta = await fetch("/negocio-actual/sitio-web/promocion-preview", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({
+ promocionTitulo: titulo,
+ promocionTexto: texto,
+ promocionTextoBoton: document.getElementById("sitioWebPromocionTextoBoton")?.value || "",
+ promocionEnlace: document.getElementById("sitioWebPromocionEnlace")?.value || "",
+ promocionPlantilla: plantillaPromocionElegida(),
+ promocionColorAcento: document.getElementById("sitioWebPromocionColorInput")?.value || ""
+ })
+ });
+
+ const datos = await respuesta.json();
+ if (!datos.ok) return;
+
+ contenedor.innerHTML = datos.html || `<p class="sitio-web-nota">Activa la promocion y completa titulo/texto para verla aqui.</p>`;
+ } catch (error) { /* la vista previa es informativa, un fallo no bloquea el editor */ }
+}
+
+/* ---------- Recorte de foto con guias ---------- */
+
+const SITIO_WEB_RECORTE_ANCHO = 1200;
+const SITIO_WEB_RECORTE_ALTO = 500;
+
+let sitioWebRecorteArchivo = null;
+let sitioWebRecorteNatural = { width: 0, height: 0 };
+let sitioWebRecorteZoom = 1;
+let sitioWebRecorteOffset = { x: 0, y: 0 };
+let sitioWebRecorteArrastre = null;
+
+function iniciarRecorteImagenPromocion(evento) {
+ const archivo = evento.target.files?.[0];
+ if (!archivo) return;
+ sitioWebRecorteArchivo = archivo;
+
+ const lector = new FileReader();
+ lector.onload = e => abrirModalRecorteImagen(e.target.result);
+ lector.readAsDataURL(archivo);
+}
+
+function abrirModalRecorteImagen(urlImagen) {
+ cerrarModalRecorteImagen();
+
+ const modal = document.createElement("div");
+ modal.id = "sitioWebRecorteModal";
+ modal.className = "sitio-web-recorte-overlay";
+ modal.innerHTML = `
+ <div class="sitio-web-recorte-caja">
+ <h3>Encuadra tu foto</h3>
+ <p class="sitio-web-nota">Arrastra para mover y usa el control para acercar. La zona visible es exactamente lo que se va a publicar.</p>
+ <div class="sitio-web-recorte-marco" id="sitioWebRecorteMarco">
+ <img id="sitioWebRecorteImg" src="${urlImagen}" alt="">
+ <div class="sitio-web-recorte-guias">
+ <div></div><div></div><div></div><div></div>
+ </div>
+ </div>
+ <input type="range" id="sitioWebRecorteZoomInput" min="1" max="3" step="0.01" value="1">
+ <div class="sitio-web-recorte-acciones">
+ <button type="button" class="btn-encargo-secundario" onclick="cerrarModalRecorteImagen()">Cancelar</button>
+ <button type="button" class="btn-encargo-primario" onclick="confirmarRecorteImagenPromocion()">Usar esta foto</button>
+ </div>
+ </div>
+ `;
+ document.body.appendChild(modal);
+
+ const img = document.getElementById("sitioWebRecorteImg");
+ img.onload = () => {
+ sitioWebRecorteNatural = { width: img.naturalWidth, height: img.naturalHeight };
+ sitioWebRecorteZoom = 1;
+ sitioWebRecorteOffset = { x: 0, y: 0 };
+ centrarRecorteImagen();
+ aplicarEstiloRecorteImagen();
+ };
+
+ const marco = document.getElementById("sitioWebRecorteMarco");
+ marco.addEventListener("pointerdown", iniciarArrastreRecorte);
+ window.addEventListener("pointermove", moverArrastreRecorte);
+ window.addEventListener("pointerup", terminarArrastreRecorte);
+
+ document.getElementById("sitioWebRecorteZoomInput").addEventListener("input", evento => {
+ sitioWebRecorteZoom = Number(evento.target.value) || 1;
+ clampOffsetRecorteImagen();
+ aplicarEstiloRecorteImagen();
+ });
+}
+
+function cerrarModalRecorteImagen() {
+ const modal = document.getElementById("sitioWebRecorteModal");
+ if (modal) modal.remove();
+ window.removeEventListener("pointermove", moverArrastreRecorte);
+ window.removeEventListener("pointerup", terminarArrastreRecorte);
+ sitioWebRecorteArrastre = null;
+}
+
+function dimensionesMarcoRecorte() {
+ const marco = document.getElementById("sitioWebRecorteMarco");
+ return marco ? { width: marco.clientWidth, height: marco.clientHeight } : { width: 480, height: 200 };
+}
+
+function escalaBaseRecorte() {
+ const marco = dimensionesMarcoRecorte();
+ if (!sitioWebRecorteNatural.width || !sitioWebRecorteNatural.height) return 1;
+ return Math.max(marco.width / sitioWebRecorteNatural.width, marco.height / sitioWebRecorteNatural.height);
+}
+
+function centrarRecorteImagen() {
+ const marco = dimensionesMarcoRecorte();
+ const escala = escalaBaseRecorte() * sitioWebRecorteZoom;
+ const dispW = sitioWebRecorteNatural.width * escala;
+ const dispH = sitioWebRecorteNatural.height * escala;
+ sitioWebRecorteOffset = { x: (marco.width - dispW) / 2, y: (marco.height - dispH) / 2 };
+}
+
+function clampOffsetRecorteImagen() {
+ const marco = dimensionesMarcoRecorte();
+ const escala = escalaBaseRecorte() * sitioWebRecorteZoom;
+ const dispW = sitioWebRecorteNatural.width * escala;
+ const dispH = sitioWebRecorteNatural.height * escala;
+ sitioWebRecorteOffset.x = Math.min(0, Math.max(marco.width - dispW, sitioWebRecorteOffset.x));
+ sitioWebRecorteOffset.y = Math.min(0, Math.max(marco.height - dispH, sitioWebRecorteOffset.y));
+}
+
+function aplicarEstiloRecorteImagen() {
+ const img = document.getElementById("sitioWebRecorteImg");
+ if (!img) return;
+ const escala = escalaBaseRecorte() * sitioWebRecorteZoom;
+ img.style.width = `${sitioWebRecorteNatural.width * escala}px`;
+ img.style.height = `${sitioWebRecorteNatural.height * escala}px`;
+ img.style.left = `${sitioWebRecorteOffset.x}px`;
+ img.style.top = `${sitioWebRecorteOffset.y}px`;
+}
+
+function iniciarArrastreRecorte(evento) {
+ sitioWebRecorteArrastre = { x: evento.clientX, y: evento.clientY, offset: { ...sitioWebRecorteOffset } };
+}
+
+function moverArrastreRecorte(evento) {
+ if (!sitioWebRecorteArrastre) return;
+ sitioWebRecorteOffset = {
+ x: sitioWebRecorteArrastre.offset.x + (evento.clientX - sitioWebRecorteArrastre.x),
+ y: sitioWebRecorteArrastre.offset.y + (evento.clientY - sitioWebRecorteArrastre.y)
+ };
+ clampOffsetRecorteImagen();
+ aplicarEstiloRecorteImagen();
+}
+
+function terminarArrastreRecorte() {
+ sitioWebRecorteArrastre = null;
+}
+
+async function confirmarRecorteImagenPromocion() {
+ if (!sitioWebRecorteArchivo || !sitioWebRecorteNatural.width) return;
+
+ const marco = dimensionesMarcoRecorte();
+ const escala = escalaBaseRecorte() * sitioWebRecorteZoom;
+
+ // El rectangulo visible del marco, convertido a coordenadas de
+ // pixel de la imagen ORIGINAL (antes de escalar para mostrarla).
+ const recorte = {
+ left: -sitioWebRecorteOffset.x / escala,
+ top: -sitioWebRecorteOffset.y / escala,
+ width: marco.width / escala,
+ height: marco.height / escala
+ };
+
+ cerrarModalRecorteImagen();
+ await subirPromocionImagenSitioWeb(sitioWebRecorteArchivo, recorte);
+ sitioWebRecorteArchivo = null;
+}
+
 // Imagen de la promocion (Fase "Ofertas destacadas", ver plan) -- a
 // diferencia de la portada (que viaja como base64 dentro del mismo
 // PUT de guardarSitioWeb), esta se sube aparte de inmediato via
-// multipart/form-data: el servidor la recorta con sharp, no tiene
-// sentido guardarla como base64 sin procesar.
-async function subirPromocionImagenSitioWeb(evento) {
- const archivo =
- evento.target.files?.[0];
-
- if (!archivo) return;
-
+// multipart/form-data junto con el rectangulo de recorte que el
+// dueno encuadro (ver arriba) -- el servidor la recorta exactamente
+// asi en vez de adivinar con un cover ciego.
+async function subirPromocionImagenSitioWeb(archivo, recorte) {
  const estado =
  document.getElementById("sitioWebPromocionImagenEstado");
 
@@ -583,6 +1069,7 @@ async function subirPromocionImagenSitioWeb(evento) {
  try {
  const formulario = new FormData();
  formulario.append("imagen", archivo);
+ if (recorte) formulario.append("recorte", JSON.stringify(recorte));
 
  const respuesta = await fetch("/negocio-actual/sitio-web/promocion-imagen", {
  method: "POST",
@@ -606,10 +1093,13 @@ async function subirPromocionImagenSitioWeb(evento) {
 
  if (estado) estado.style.display = "none";
  if (typeof alertaPOS === "function") alertaPOS("Imagen de la promocion actualizada.", "Sitio web", "exito");
+ actualizarVistaPreviaPromocion();
  } catch (error) {
  if (estado) estado.textContent = "No se pudo subir la imagen. Revisa tu conexion.";
  }
 }
+
+/* ---------- Envio / guardado general ---------- */
 
 // Politica de envio por tienda (Fase 1, sin pagos -- ver plan): la
 // tarifa solo aplica en el modo "tarifa_fija", el campo se muestra u
@@ -630,7 +1120,10 @@ async function guardarSitioWeb() {
  promocionActiva: document.getElementById("sitioWebPromocionActiva")?.checked || false,
  promocionTitulo: document.getElementById("sitioWebPromocionTitulo")?.value || "",
  promocionTexto: document.getElementById("sitioWebPromocionTexto")?.value || "",
+ promocionTextoBoton: document.getElementById("sitioWebPromocionTextoBoton")?.value || "",
  promocionEnlace: document.getElementById("sitioWebPromocionEnlace")?.value || "",
+ promocionPlantilla: plantillaPromocionElegida(),
+ promocionColorAcento: document.getElementById("sitioWebPromocionColorInput")?.value || "",
  envioModo: envioModo,
  envioTarifa: envioModo === "tarifa_fija" ? (parseFloat(document.getElementById("sitioWebEnvioTarifa")?.value) || 0) : null,
  envioNotas: document.getElementById("sitioWebEnvioNotas")?.value || "",
