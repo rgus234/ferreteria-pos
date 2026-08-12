@@ -31,7 +31,7 @@ const {
     servirComparadorNegocio,
     comparadorJson
 } = require("./public-site-server");
-const { servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, carritoProductosMarketJson } = require("./market-server");
+const { servirMarketPagina, servirMarketCategoria, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, carritoProductosMarketJson } = require("./market-server");
 const { servirInicioTiendaMarket, servirCatalogoTiendaMarket, servirProductoTiendaMarket } = require("./market-tienda-server");
 const { servirCuentaMarket } = require("./market-cuenta-server");
 const { servirCarritoMarket, servirCheckoutMarket } = require("./market-carrito-server");
@@ -4722,6 +4722,16 @@ app.get("/market/checkout", (req, res) => {
 app.get("/market/mi-cuenta", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
     await servirCuentaMarket(pool, req, res);
+});
+
+// URL propia y compartible por categoria (antes solo existia como
+// filtro por query string sobre /market -- ver plan "routing de
+// categorias de Nexo Market"). Ruta fija, debe quedar registrada ANTES
+// de "GET /market/:slug" (mas abajo) por el mismo motivo ya documentado
+// para "/market/mi-cuenta" y "/market/carrito".
+app.get("/market/categorias/:slug", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirMarketCategoria(pool, req, res);
 });
 
 // Nexo Market -- ver una tienda especifica SIN salir de

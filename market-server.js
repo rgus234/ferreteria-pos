@@ -24,6 +24,7 @@
 const { funcionDelPlan } = require("./plan-enforcement");
 const { crearResolverSesionPersonaOpcional } = require("./personas-server");
 const { OFICIOS_PERSONA } = require("./oficios-persona");
+const { normalizarSlug } = require("./tenant");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
 const PRODUCTOS_POR_PAGINA_MARKET = 24;
@@ -987,14 +988,37 @@ document.getElementById("marketNavNuevos").addEventListener("click", function(ev
 `;
 }
 
-function paginaMarketHtml() {
+function paginaMarketHtml(opciones) {
+    opciones = opciones || {};
+    const categoriaInicial = String(opciones.categoriaInicial || "").trim().slice(0, 120);
+    const modoCategoria = Boolean(categoriaInicial);
+
+    const tituloPagina = modoCategoria
+        ? `${categoriaInicial} -- Nexo Market`
+        : "Nexo Market -- todo para construir, instalar y reparar";
+    const descripcionPagina = modoCategoria
+        ? `Productos de ${categoriaInicial} en Nexo Market: compara precio y disponibilidad entre varias ferreterias y compra directo con la tienda.`
+        : "Busca productos entre varias ferreterias Nexo, compara precio y disponibilidad, y compra directo con la tienda que elijas.";
+
+    // Cuando la pagina arranca ya en modo categoria (ruta canonica
+    // /market/categorias/{slug} o el alias con query string /market/buscar?categoria=),
+    // el cascaron de inicio (hero, banners, tira de categorias, Explora
+    // por categoria, Como funciona) se manda oculto desde el primer HTML
+    // -- nunca se pinta y luego se esconde con JS, que es justo lo que
+    // daba la sensacion de "regreso al inicio y luego bajo" reportada.
+    const ocultoInicialAttr = modoCategoria ? ' style="display:none"' : '';
+    const resultadosHiddenAttr = modoCategoria ? '' : ' hidden';
+    const resultadosContenidoInicial = modoCategoria
+        ? `<p class="market-vacio">Cargando ${escaparHtml(categoriaInicial)}...</p>`
+        : '';
+
     return `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nexo Market -- todo para construir, instalar y reparar</title>
-<meta name="description" content="Busca productos entre varias ferreterias Nexo, compara precio y disponibilidad, y compra directo con la tienda que elijas.">
+<title>${escaparHtml(tituloPagina)}</title>
+<meta name="description" content="${escaparHtml(descripcionPagina)}">
 <link rel="icon" href="/nexo-pos-icon.jpg">
 ${metaInstalableMarketHtml()}
 <link rel="stylesheet" href="/site/styles.css">
@@ -1005,8 +1029,8 @@ ${metaInstalableMarketHtml()}
 ${marketHeaderHtml({})}
 
 <main>
-<div class="market-banners-scope" id="marketBannersDestacados"></div>
-<section class="market-hero">
+<div class="market-banners-scope market-oculto-en-busqueda" id="marketBannersDestacados"${ocultoInicialAttr}></div>
+<section class="market-hero market-oculto-en-busqueda"${ocultoInicialAttr}>
 <div class="market-hero-texto">
 <h1>Todo para construir, instalar y reparar.</h1>
 <p>Busca en varias ferreterias Nexo, compara precio y disponibilidad, y compra directo con la tienda.</p>
@@ -1025,7 +1049,7 @@ ${marketHeaderHtml({})}
 
 <div class="market-layout">
 <div class="market-contenido">
-<div id="marketCategoriasTop" class="market-oculto-en-busqueda"></div>
+<div id="marketCategoriasTop" class="market-oculto-en-busqueda"${ocultoInicialAttr}></div>
 
 <section class="market-oficio market-oculto-en-busqueda" id="marketOficio" hidden>
 <h3>Cuentanos a que te dedicas</h3>
@@ -1035,15 +1059,15 @@ ${marketHeaderHtml({})}
 
 <span class="market-anchor" id="marketOfertas"></span>
 <span class="market-anchor" id="marketExplora"></span>
-<div id="marketInicio"><p class="market-vacio">Cargando...</p></div>
-<div id="marketResultadosBusqueda" hidden></div>
+<div id="marketInicio"${ocultoInicialAttr}><p class="market-vacio">Cargando...</p></div>
+<div id="marketResultadosBusqueda"${resultadosHiddenAttr}>${resultadosContenidoInicial}</div>
 
-<section class="market-seccion market-oculto-en-busqueda" id="marketSeccionExplora">
+<section class="market-seccion market-oculto-en-busqueda" id="marketSeccionExplora"${ocultoInicialAttr}>
 <div class="market-seccion-header"><h3>Explora por categoria</h3></div>
 <div id="marketExploraCategorias"></div>
 </section>
 
-<section id="marketComoFunciona" class="market-como market-oculto-en-busqueda">
+<section id="marketComoFunciona" class="market-como market-oculto-en-busqueda"${ocultoInicialAttr}>
 <h3>Como funciona</h3>
 <div class="market-como-pasos">
 <div><strong>1. Busca</strong><span>Encuentra productos en varias ferreterias Nexo a la vez.</span></div>
@@ -1084,6 +1108,8 @@ ${marketFooterHtml()}
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+var marketCategoriaInicialSSR = ${JSON.stringify(categoriaInicial)};
+
 function escapeHtml(texto) {
     return String(texto == null ? "" : texto)
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -1519,11 +1545,47 @@ function marketMarcarFavoritosBotones() {
     });
 }
 
+// Sincroniza la URL visible con la vista actual (inicio, categoria,
+// busqueda) via pushState -- asi cada categoria tiene su propio link
+// compartible/recargable y el boton atras/adelante del navegador
+// funciona, sin recargar la pagina en cada clic. "marketSincronizandoHistorial"
+// evita que restaurar una vista desde un evento popstate dispare otro
+// pushState (lo que rompería atras/adelante metiendo entradas de mas).
+var marketSincronizandoHistorial = false;
+
+function marketSlugificar(texto) {
+    return String(texto || "")
+        .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+        .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function marketUrlDesdeFiltros(f) {
+    if (f.buscar) {
+        var params = ["buscar=" + encodeURIComponent(f.buscar)];
+        if (f.categoria) params.push("categoria=" + encodeURIComponent(f.categoria));
+        if (f.orden && f.orden !== "relevancia") params.push("orden=" + encodeURIComponent(f.orden));
+        return "/market/buscar?" + params.join("&");
+    }
+    if (f.categoria) {
+        var extra = [];
+        if (f.orden && f.orden !== "relevancia") extra.push("orden=" + encodeURIComponent(f.orden));
+        return "/market/categorias/" + encodeURIComponent(marketSlugificar(f.categoria)) + (extra.length ? "?" + extra.join("&") : "");
+    }
+    return "/market";
+}
+
+function marketActualizarUrl(url) {
+    if (marketSincronizandoHistorial) return;
+    if (location.pathname + location.search === url) return;
+    history.pushState({ marketUrl: url }, "", url);
+}
+
 function marketMostrarInicio() {
     document.getElementById("marketInicio").style.display = "";
     document.getElementById("marketResultadosBusqueda").hidden = true;
     document.querySelectorAll(".market-oculto-en-busqueda").forEach(function(el) { el.style.display = ""; });
     window.scrollTo({ top: 0, behavior: "smooth" });
+    marketActualizarUrl("/market");
 }
 
 function marketMostrarResultados() {
@@ -1617,6 +1679,7 @@ async function marketMostrarBusqueda(opciones, agregarMas) {
             pagina: 1
         };
         marketResultadosAcumulados = [];
+        marketActualizarUrl(marketUrlDesdeFiltros(marketFiltrosActuales));
     } else {
         marketFiltrosActuales.pagina += 1;
     }
@@ -1651,6 +1714,7 @@ async function marketMostrarBusqueda(opciones, agregarMas) {
 
 async function marketMostrarVistaFavoritos() {
     marketMostrarResultados();
+    marketActualizarUrl("/market/buscar?vista=favoritos");
     var contenedor = document.getElementById("marketResultadosBusqueda");
     var lista = marketFavoritosLeer();
     if (lista.length === 0) {
@@ -1910,16 +1974,50 @@ marketCargarInicio();
 // /market?buscar=...|?categoria=...|?vista=favoritos (ver scriptMarketHeaderHtml).
 // Esto hace que esa navegacion aterrice ya con los resultados abiertos.
 var marketParamsIniciales = new URLSearchParams(location.search);
+var marketOrdenInicialSSR = marketParamsIniciales.get("orden") || "relevancia";
 if (marketParamsIniciales.get("vista") === "favoritos") {
     marketMostrarVistaFavoritos();
-} else if (marketParamsIniciales.get("buscar") || marketParamsIniciales.get("categoria") || marketParamsIniciales.get("orden")) {
+} else if (marketCategoriaInicialSSR || marketParamsIniciales.get("buscar") || marketParamsIniciales.get("categoria") || marketParamsIniciales.get("orden")) {
     var marketBuscarInicial = marketParamsIniciales.get("buscar") || "";
-    var marketCategoriaInicial = marketParamsIniciales.get("categoria") || "";
-    var marketOrdenInicial = marketParamsIniciales.get("orden") || "relevancia";
+    var marketCategoriaInicial = marketCategoriaInicialSSR || marketParamsIniciales.get("categoria") || "";
     document.getElementById("marketBuscarInput").value = marketBuscarInicial;
     document.getElementById("marketCategoriaSelect").value = marketCategoriaInicial;
-    marketMostrarBusqueda({ buscar: marketBuscarInicial, categoria: marketCategoriaInicial, orden: marketOrdenInicial });
+    marketMostrarBusqueda({ buscar: marketBuscarInicial, categoria: marketCategoriaInicial, orden: marketOrdenInicialSSR });
 }
+
+// Boton atras/adelante del navegador -- restaura la vista (inicio,
+// categoria via /market/categorias/{slug}, busqueda por query string o
+// favoritos) segun la URL a la que se volvio, sin volver a empujar otra
+// entrada al historial (marketSincronizandoHistorial).
+window.addEventListener("popstate", function() {
+    marketSincronizandoHistorial = true;
+    var params = new URLSearchParams(location.search);
+    var matchCategoria = location.pathname.match(/^\\/market\\/categorias\\/([^\\/]+)$/);
+
+    document.getElementById("marketBuscarInput").value = "";
+    document.getElementById("marketCategoriaSelect").value = "";
+
+    if (params.get("vista") === "favoritos") {
+        marketMostrarVistaFavoritos();
+    } else if (matchCategoria) {
+        var slugBuscado = decodeURIComponent(matchCategoria[1]);
+        var categoriaResuelta = "";
+        document.querySelectorAll("#marketCategoriaSelect option").forEach(function(opcion) {
+            if (opcion.value && marketSlugificar(opcion.value) === slugBuscado) categoriaResuelta = opcion.value;
+        });
+        document.getElementById("marketCategoriaSelect").value = categoriaResuelta;
+        marketMostrarBusqueda({ buscar: "", categoria: categoriaResuelta, orden: params.get("orden") || "relevancia" });
+    } else if (params.get("buscar") || params.get("categoria") || params.get("orden")) {
+        var buscarVal = params.get("buscar") || "";
+        var categoriaVal = params.get("categoria") || "";
+        document.getElementById("marketBuscarInput").value = buscarVal;
+        document.getElementById("marketCategoriaSelect").value = categoriaVal;
+        marketMostrarBusqueda({ buscar: buscarVal, categoria: categoriaVal, orden: params.get("orden") || "relevancia" });
+    } else {
+        marketMostrarInicio();
+    }
+    marketSincronizandoHistorial = false;
+});
 </script>
 </body>
 </html>`;
@@ -1927,11 +2025,42 @@ if (marketParamsIniciales.get("vista") === "favoritos") {
 
 async function servirMarketPagina(req, res) {
     res.set("Content-Type", "text/html; charset=utf-8");
-    res.send(paginaMarketHtml());
+    const categoriaInicial = String(req.query?.categoria || "").trim();
+    res.send(paginaMarketHtml({ categoriaInicial }));
+}
+
+// GET /market/categorias/:slug -- URL propia y compartible por categoria
+// (antes solo existia como filtro por query string sobre /market, que
+// nunca cambiaba de URL al hacer clic en una tarjeta ni sobrevivia un
+// refresh/atras). El slug se resuelve contra las categorias REALES de
+// los productos de las tiendas permitidas -- nunca se inventa una
+// categoria ni se acepta un slug que no corresponda a ninguna.
+async function servirMarketCategoria(pool, req, res) {
+    try {
+        const slug = String(req.params?.slug || "").trim().toLowerCase();
+        const tiendas = await tiendasPermitidasMarket(pool);
+        const idsPermitidos = tiendas.map(t => t.id);
+
+        if (idsPermitidos.length === 0) { res.redirect(302, "/market"); return; }
+
+        const filas = await pool.query(
+            `SELECT DISTINCT categoria FROM public.productos
+             WHERE negocio_id = ANY($1::int[]) AND categoria IS NOT NULL AND categoria <> ''`,
+            [idsPermitidos]
+        );
+        const categoriaReal = filas.rows.map(f => f.categoria).find(cat => normalizarSlug(cat) === slug);
+
+        if (!categoriaReal) { res.redirect(302, "/market"); return; }
+
+        res.set("Content-Type", "text/html; charset=utf-8");
+        res.send(paginaMarketHtml({ categoriaInicial: categoriaReal }));
+    } catch (error) {
+        res.redirect(302, "/market");
+    }
 }
 
 module.exports = {
-    servirMarketPagina, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, tiendasPermitidasMarket,
+    servirMarketPagina, servirMarketCategoria, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, tiendasPermitidasMarket,
     carritoProductosMarketJson,
     ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml
 };
