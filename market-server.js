@@ -229,7 +229,7 @@ async function heroProductoMarket(pool, idsPermitidos, firmarTokenImagen) {
 // (p.id DESC, proxy real de recencia -- productos no tiene columna de
 // fecha de creacion) alimenta "Explora productos"/"Nuevos"; se ignora
 // si hay texto de busqueda (la relevancia del texto manda).
-async function buscarProductosMarket(pool, { buscar = "", categoria = "", marcas = [], precioMin = null, precioMax = null, pagina = 1, orden = "relevancia", limite = PRODUCTOS_POR_PAGINA_MARKET } = {}, firmarTokenImagen) {
+async function buscarProductosMarket(pool, { buscar = "", categoria = "", ofertas = false, marcas = [], precioMin = null, precioMax = null, pagina = 1, orden = "relevancia", limite = PRODUCTOS_POR_PAGINA_MARKET } = {}, firmarTokenImagen) {
     const tiendas = await tiendasPermitidasMarket(pool);
     if (tiendas.length === 0) return { productos: [], total: 0 };
 
@@ -262,6 +262,12 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", marcas
     if (categoria) {
         parametros.push(categoria);
         condiciones.push(`p.categoria = $${parametros.length}`);
+    }
+
+    // Misma condicion real que ya usa ofertasMarket() -- nunca se
+    // inventa una regla distinta de "producto en oferta".
+    if (ofertas) {
+        condiciones.push(`p.precio_oferta IS NOT NULL AND p.precio_oferta < COALESCE(p.precio_publico, p.precio)`);
     }
 
     if (marcas.length > 0) {
@@ -317,7 +323,7 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", marcas
 // asi los checkboxes de marca no se autolimitan entre si, mismo criterio
 // de faceted search estandar. Sin datos reales, regresa listas vacias
 // (nunca se inventan marcas ni un rango de precio de relleno).
-async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "" } = {}) {
+async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "", ofertas = false } = {}) {
     if (idsPermitidos.length === 0) return { marcas: [], precioMin: null, precioMax: null };
 
     const condiciones = ["p.negocio_id = ANY($1::int[])"];
@@ -337,6 +343,10 @@ async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "" 
     if (categoria) {
         parametros.push(categoria);
         condiciones.push(`p.categoria = $${parametros.length}`);
+    }
+
+    if (ofertas) {
+        condiciones.push(`p.precio_oferta IS NOT NULL AND p.precio_oferta < COALESCE(p.precio_publico, p.precio)`);
     }
 
     const whereBase = condiciones.join(" AND ");
@@ -409,6 +419,7 @@ async function buscarMarketJson(pool, req, res, firmarTokenImagen) {
     try {
         const buscar = String(req.query?.buscar || "").trim().slice(0, 120);
         const categoria = String(req.query?.categoria || "").trim().slice(0, 120);
+        const ofertas = req.query?.ofertas === "1";
         const marcas = String(req.query?.marcas || "").split(",").map(m => m.trim()).filter(Boolean).slice(0, 12);
         const precioMinCrudo = req.query?.precioMin !== undefined ? Number(req.query.precioMin) : NaN;
         const precioMaxCrudo = req.query?.precioMax !== undefined ? Number(req.query.precioMax) : NaN;
@@ -422,8 +433,8 @@ async function buscarMarketJson(pool, req, res, firmarTokenImagen) {
         const idsPermitidos = tiendas.map(t => t.id);
 
         const [{ productos, total }, facetas] = await Promise.all([
-            buscarProductosMarket(pool, { buscar, categoria, marcas, precioMin, precioMax, pagina, orden }, firmarTokenImagen),
-            facetasMarket(pool, idsPermitidos, { buscar, categoria })
+            buscarProductosMarket(pool, { buscar, categoria, ofertas, marcas, precioMin, precioMax, pagina, orden }, firmarTokenImagen),
+            facetasMarket(pool, idsPermitidos, { buscar, categoria, ofertas })
         ]);
 
         res.json({ ok: true, productos, total, pagina, facetas });
@@ -626,6 +637,7 @@ const ESTILOS_MARKET = `
 .market-header-nav a:hover,
 .market-header-nav a:focus,
 .market-header-nav a:active{ opacity:1; border-bottom-color:rgba(255,255,255,.6); color:#fff; background:none; }
+.market-header-nav a.activo{ opacity:1; border-bottom-color:#fff; font-weight:800; color:#fff; }
 .market-banners-scope{ max-width:1680px; margin:24px auto 0; padding:0 clamp(18px,4vw,48px); }
 .market-banners-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:18px; }
 .market-banner-card{ position:relative; display:block; min-height:180px; border-radius:18px; overflow:hidden; color:#fff; box-shadow:0 16px 40px rgba(20,32,51,.14); }
@@ -794,7 +806,8 @@ const ESTILOS_MARKET = `
 //     markup entre la tienda A y la tienda B (ver verificacion de la
 //     Fase 1: el resto del bloque <header class="market-header"> debe
 //     ser string-identico entre tiendas).
-function marketHeaderHtml({ slugTienda = null, nombreTienda = "", baseAnclas = "" } = {}) {
+function marketHeaderHtml({ slugTienda = null, nombreTienda = "", baseAnclas = "", activo = null } = {}) {
+    const claseActiva = clave => clave === activo ? ' class="activo"' : '';
     const carritoBotonHtml = slugTienda
         ? `<button type="button" class="tenant-carrito-boton-nav" id="tenantCarritoAbrirBoton" data-slug-tienda="${escaparHtml(slugTienda)}" aria-label="Ver carrito de ${escaparHtml(nombreTienda)}">Carrito<span id="carritoContador" class="tenant-carrito-contador">0</span></button>`
         : "";
@@ -820,11 +833,11 @@ function marketHeaderHtml({ slugTienda = null, nombreTienda = "", baseAnclas = "
 </div>
 </div>
 <nav class="market-header-nav">
-<a href="${baseAnclas}#marketOfertas">Ofertas</a>
-<a href="${baseAnclas}#marketExplora">Explora</a>
-<a href="#" id="marketNavNuevos">Nuevos</a>
-<a href="${baseAnclas}#marketTiendas">Ferreterias</a>
-<a href="${baseAnclas}#marketCredito">Credito Nexo</a>
+<a href="/market/ofertas"${claseActiva('ofertas')}>Ofertas</a>
+<a href="/market/explora"${claseActiva('explora')}>Explora</a>
+<a href="/market/nuevos"${claseActiva('nuevos')}>Nuevos</a>
+<a href="/market/ferreterias"${claseActiva('ferreterias')}>Ferreterias</a>
+<a href="/market/credito-nexo"${claseActiva('credito')}>Credito Nexo</a>
 <a href="/site#contacto">Ayuda</a>
 <a href="/site#planes">Vende en Nexo</a>
 </nav>
@@ -871,9 +884,6 @@ function scriptMarketHeaderHtml({ navegarABusqueda = false } = {}) {
     const favoritosJs = navegarABusqueda
         ? "location.href = \"/market/buscar?vista=favoritos\";"
         : "document.getElementById(\"marketBuscarInput\").value = \"\"; document.getElementById(\"marketCategoriaSelect\").value = \"\"; if (typeof marketMostrarVistaFavoritos === \"function\") marketMostrarVistaFavoritos();";
-    const nuevosJs = navegarABusqueda
-        ? "location.href = \"/market/buscar?orden=recientes\";"
-        : "if (typeof marketMostrarBusqueda === \"function\") { marketMostrarBusqueda({ buscar: \"\", categoria: \"\", orden: \"recientes\" }); }";
 
     return `
 function marketHeaderEscapeHtml(texto) {
@@ -980,36 +990,39 @@ document.getElementById("marketFavoritosLink").addEventListener("click", functio
     evento.preventDefault();
     ${favoritosJs}
 });
-
-document.getElementById("marketNavNuevos").addEventListener("click", function(evento) {
-    evento.preventDefault();
-    ${nuevosJs}
-});
 `;
 }
 
 function paginaMarketHtml(opciones) {
     opciones = opciones || {};
     const categoriaInicial = String(opciones.categoriaInicial || "").trim().slice(0, 120);
-    const modoCategoria = Boolean(categoriaInicial);
+    const ofertasInicial = Boolean(opciones.ofertasInicial);
+    const ordenInicial = String(opciones.ordenInicial || "").trim();
+    // Mismo mecanismo sin-flash construido para categorias, generalizado:
+    // cualquier filtro inicial (categoria, ofertas, o "nuevos" via
+    // orden=recientes) arranca la pagina ya en modo resultados.
+    const modoResultados = Boolean(categoriaInicial) || ofertasInicial || ordenInicial === "recientes";
+    const etiquetaModo = categoriaInicial || (ofertasInicial ? "Ofertas" : (ordenInicial === "recientes" ? "Nuevos" : ""));
+    const activoNav = ofertasInicial ? "ofertas" : (ordenInicial === "recientes" ? "nuevos" : null);
 
-    const tituloPagina = modoCategoria
-        ? `${categoriaInicial} -- Nexo Market`
+    const tituloPagina = modoResultados
+        ? `${etiquetaModo} -- Nexo Market`
         : "Nexo Market -- todo para construir, instalar y reparar";
-    const descripcionPagina = modoCategoria
-        ? `Productos de ${categoriaInicial} en Nexo Market: compara precio y disponibilidad entre varias ferreterias y compra directo con la tienda.`
+    const descripcionPagina = modoResultados
+        ? `${etiquetaModo} en Nexo Market: compara precio y disponibilidad entre varias ferreterias y compra directo con la tienda.`
         : "Busca productos entre varias ferreterias Nexo, compara precio y disponibilidad, y compra directo con la tienda que elijas.";
 
-    // Cuando la pagina arranca ya en modo categoria (ruta canonica
-    // /market/categorias/{slug} o el alias con query string /market/buscar?categoria=),
-    // el cascaron de inicio (hero, banners, tira de categorias, Explora
-    // por categoria, Como funciona) se manda oculto desde el primer HTML
-    // -- nunca se pinta y luego se esconde con JS, que es justo lo que
-    // daba la sensacion de "regreso al inicio y luego bajo" reportada.
-    const ocultoInicialAttr = modoCategoria ? ' style="display:none"' : '';
-    const resultadosHiddenAttr = modoCategoria ? '' : ' hidden';
-    const resultadosContenidoInicial = modoCategoria
-        ? `<p class="market-vacio">Cargando ${escaparHtml(categoriaInicial)}...</p>`
+    // Cuando la pagina arranca ya en modo resultados (categoria, ofertas
+    // o nuevos -- por ruta canonica o por el alias con query string
+    // /market/buscar?...), el cascaron de inicio (hero, banners, tira de
+    // categorias, Explora por categoria, Como funciona) se manda oculto
+    // desde el primer HTML -- nunca se pinta y luego se esconde con JS,
+    // que es justo lo que daba la sensacion de "regreso al inicio y
+    // luego bajo" reportada.
+    const ocultoInicialAttr = modoResultados ? ' style="display:none"' : '';
+    const resultadosHiddenAttr = modoResultados ? '' : ' hidden';
+    const resultadosContenidoInicial = modoResultados
+        ? `<p class="market-vacio">Cargando ${escaparHtml(etiquetaModo)}...</p>`
         : '';
 
     return `<!doctype html>
@@ -1026,7 +1039,7 @@ ${metaInstalableMarketHtml()}
 <style>${ESTILOS_MARKET}</style>
 </head>
 <body>
-${marketHeaderHtml({})}
+${marketHeaderHtml({ activo: activoNav })}
 
 <main>
 <div class="market-banners-scope market-oculto-en-busqueda" id="marketBannersDestacados"${ocultoInicialAttr}></div>
@@ -1108,7 +1121,7 @@ ${marketFooterHtml()}
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-var marketCategoriaInicialSSR = ${JSON.stringify(categoriaInicial)};
+var marketFiltroInicialSSR = { categoria: ${JSON.stringify(categoriaInicial)}, ofertas: ${JSON.stringify(ofertasInicial)}, orden: ${JSON.stringify(ordenInicial)} };
 
 function escapeHtml(texto) {
     return String(texto == null ? "" : texto)
@@ -1571,6 +1584,8 @@ function marketUrlDesdeFiltros(f) {
         if (f.orden && f.orden !== "relevancia") extra.push("orden=" + encodeURIComponent(f.orden));
         return "/market/categorias/" + encodeURIComponent(marketSlugificar(f.categoria)) + (extra.length ? "?" + extra.join("&") : "");
     }
+    if (f.ofertas) return "/market/ofertas";
+    if (f.orden === "recientes") return "/market/nuevos";
     return "/market";
 }
 
@@ -1599,7 +1614,7 @@ function marketMostrarResultados() {
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-var marketFiltrosActuales = { buscar: "", categoria: "", marcas: [], precioMin: null, precioMax: null, orden: "relevancia", pagina: 1 };
+var marketFiltrosActuales = { buscar: "", categoria: "", ofertas: false, marcas: [], precioMin: null, precioMax: null, orden: "relevancia", pagina: 1 };
 var marketResultadosAcumulados = [];
 var marketResultadosTotal = 0;
 
@@ -1634,7 +1649,11 @@ function marketRenderFiltros(facetas) {
 
 function marketRenderResultados(facetas) {
     var f = marketFiltrosActuales;
-    var tituloTexto = f.buscar ? 'Resultados para “' + escapeHtml(f.buscar) + '”' : (f.categoria ? escapeHtml(f.categoria) : 'Todos los productos');
+    var tituloTexto = f.buscar ? 'Resultados para “' + escapeHtml(f.buscar) + '”'
+        : f.categoria ? escapeHtml(f.categoria)
+        : f.ofertas ? 'Ofertas'
+        : f.orden === 'recientes' ? 'Nuevos'
+        : 'Todos los productos';
     var breadcrumb = '<nav class="market-breadcrumb"><a href="#" id="marketBreadcrumbInicio">Inicio</a> &rsaquo; ' + tituloTexto + '</nav>';
     var conteoTexto = marketResultadosTotal === 1 ? '1 producto encontrado' : marketResultadosTotal + ' productos encontrados';
 
@@ -1672,6 +1691,7 @@ async function marketMostrarBusqueda(opciones, agregarMas) {
         marketFiltrosActuales = {
             buscar: opciones.buscar !== undefined ? opciones.buscar : marketFiltrosActuales.buscar,
             categoria: opciones.categoria !== undefined ? opciones.categoria : marketFiltrosActuales.categoria,
+            ofertas: opciones.ofertas !== undefined ? Boolean(opciones.ofertas) : false,
             marcas: opciones.marcas !== undefined ? opciones.marcas : [],
             precioMin: opciones.precioMin !== undefined ? opciones.precioMin : null,
             precioMax: opciones.precioMax !== undefined ? opciones.precioMax : null,
@@ -1692,6 +1712,7 @@ async function marketMostrarBusqueda(opciones, agregarMas) {
     var params = [];
     if (f.buscar) params.push("buscar=" + encodeURIComponent(f.buscar));
     if (f.categoria) params.push("categoria=" + encodeURIComponent(f.categoria));
+    if (f.ofertas) params.push("ofertas=1");
     if (f.marcas.length) params.push("marcas=" + encodeURIComponent(f.marcas.join(",")));
     if (f.precioMin !== null) params.push("precioMin=" + encodeURIComponent(f.precioMin));
     if (f.precioMax !== null) params.push("precioMax=" + encodeURIComponent(f.precioMax));
@@ -1878,13 +1899,6 @@ document.getElementById("marketFavoritosLink").addEventListener("click", functio
     marketMostrarVistaFavoritos();
 });
 
-document.getElementById("marketNavNuevos").addEventListener("click", function(evento) {
-    evento.preventDefault();
-    document.getElementById("marketBuscarInput").value = "";
-    document.getElementById("marketCategoriaSelect").value = "";
-    marketMostrarBusqueda({ buscar: "", categoria: "", orden: "recientes" });
-});
-
 document.getElementById("marketBuscadorForm").addEventListener("submit", function(evento) {
     evento.preventDefault();
     marketOcultarSugerencias();
@@ -1974,15 +1988,16 @@ marketCargarInicio();
 // /market?buscar=...|?categoria=...|?vista=favoritos (ver scriptMarketHeaderHtml).
 // Esto hace que esa navegacion aterrice ya con los resultados abiertos.
 var marketParamsIniciales = new URLSearchParams(location.search);
-var marketOrdenInicialSSR = marketParamsIniciales.get("orden") || "relevancia";
+var marketOrdenInicialSSR = marketFiltroInicialSSR.orden || marketParamsIniciales.get("orden") || "relevancia";
+var marketOfertasInicialSSR = marketFiltroInicialSSR.ofertas || marketParamsIniciales.get("ofertas") === "1";
 if (marketParamsIniciales.get("vista") === "favoritos") {
     marketMostrarVistaFavoritos();
-} else if (marketCategoriaInicialSSR || marketParamsIniciales.get("buscar") || marketParamsIniciales.get("categoria") || marketParamsIniciales.get("orden")) {
+} else if (marketFiltroInicialSSR.categoria || marketOfertasInicialSSR || marketParamsIniciales.get("buscar") || marketParamsIniciales.get("categoria") || marketParamsIniciales.get("orden")) {
     var marketBuscarInicial = marketParamsIniciales.get("buscar") || "";
-    var marketCategoriaInicial = marketCategoriaInicialSSR || marketParamsIniciales.get("categoria") || "";
+    var marketCategoriaInicial = marketFiltroInicialSSR.categoria || marketParamsIniciales.get("categoria") || "";
     document.getElementById("marketBuscarInput").value = marketBuscarInicial;
     document.getElementById("marketCategoriaSelect").value = marketCategoriaInicial;
-    marketMostrarBusqueda({ buscar: marketBuscarInicial, categoria: marketCategoriaInicial, orden: marketOrdenInicialSSR });
+    marketMostrarBusqueda({ buscar: marketBuscarInicial, categoria: marketCategoriaInicial, ofertas: marketOfertasInicialSSR, orden: marketOrdenInicialSSR });
 }
 
 // Boton atras/adelante del navegador -- restaura la vista (inicio,
@@ -2007,12 +2022,16 @@ window.addEventListener("popstate", function() {
         });
         document.getElementById("marketCategoriaSelect").value = categoriaResuelta;
         marketMostrarBusqueda({ buscar: "", categoria: categoriaResuelta, orden: params.get("orden") || "relevancia" });
-    } else if (params.get("buscar") || params.get("categoria") || params.get("orden")) {
+    } else if (location.pathname === "/market/ofertas") {
+        marketMostrarBusqueda({ buscar: "", categoria: "", ofertas: true, orden: params.get("orden") || "relevancia" });
+    } else if (location.pathname === "/market/nuevos") {
+        marketMostrarBusqueda({ buscar: "", categoria: "", orden: "recientes" });
+    } else if (params.get("buscar") || params.get("categoria") || params.get("orden") || params.get("ofertas") === "1") {
         var buscarVal = params.get("buscar") || "";
         var categoriaVal = params.get("categoria") || "";
         document.getElementById("marketBuscarInput").value = buscarVal;
         document.getElementById("marketCategoriaSelect").value = categoriaVal;
-        marketMostrarBusqueda({ buscar: buscarVal, categoria: categoriaVal, orden: params.get("orden") || "relevancia" });
+        marketMostrarBusqueda({ buscar: buscarVal, categoria: categoriaVal, ofertas: params.get("ofertas") === "1", orden: params.get("orden") || "relevancia" });
     } else {
         marketMostrarInicio();
     }
@@ -2026,7 +2045,205 @@ window.addEventListener("popstate", function() {
 async function servirMarketPagina(req, res) {
     res.set("Content-Type", "text/html; charset=utf-8");
     const categoriaInicial = String(req.query?.categoria || "").trim();
-    res.send(paginaMarketHtml({ categoriaInicial }));
+    const ofertasInicial = req.query?.ofertas === "1";
+    const ordenInicial = String(req.query?.orden || "").trim();
+    res.send(paginaMarketHtml({ categoriaInicial, ofertasInicial, ordenInicial }));
+}
+
+// GET /market/ofertas -- URL propia para "todas las ofertas", mismo
+// mecanismo sin-flash que /market/categorias/{slug} pero sin resolver
+// ningun slug (el filtro "ofertas" no depende de datos de una tienda).
+async function servirMarketOfertas(req, res) {
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.send(paginaMarketHtml({ ofertasInicial: true }));
+}
+
+// GET /market/nuevos -- idem, para orden=recientes.
+async function servirMarketNuevos(req, res) {
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.send(paginaMarketHtml({ ordenInicial: "recientes" }));
+}
+
+// GET /market/explora -- pagina propia con TODAS las categorias reales
+// (mismas que ya poblaban la tira/grid del inicio via categoriasMarket,
+// nunca una lista inventada), cada una con link real a
+// /market/categorias/{slug} -- mismo slug que ya resuelve esa ruta.
+function tarjetaCategoriaExploraHtml(categoria) {
+    const slug = normalizarSlug(categoria);
+    return `<a class="market-categoria-tile" href="/market/categorias/${encodeURIComponent(slug)}">` +
+        `<span class="market-categoria-tile-label">${escaparHtml(categoria)}</span></a>`;
+}
+
+async function paginaExploraMarketHtml(pool) {
+    const categorias = await categoriasMarket(pool);
+    const tarjetasHtml = categorias.length > 0
+        ? categorias.map(tarjetaCategoriaExploraHtml).join('')
+        : '<p class="market-vacio">Todavia no hay categorias para mostrar.</p>';
+
+    return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explora por categoria -- Nexo Market</title>
+<meta name="description" content="Explora todas las categorias de productos disponibles en Nexo Market.">
+<link rel="icon" href="/nexo-pos-icon.jpg">
+${metaInstalableMarketHtml()}
+<link rel="stylesheet" href="/site/styles.css">
+<style>${ESTILOS_MARKET}</style>
+</head>
+<body>
+${marketHeaderHtml({ activo: "explora" })}
+<main>
+<div class="market-layout">
+<div class="market-contenido">
+<nav class="market-breadcrumb"><a href="/market">Inicio</a> &rsaquo; Explora</nav>
+<div class="market-resultados-header"><div><h2>Explora por categoria</h2></div></div>
+<div class="market-categorias-grid">${tarjetasHtml}</div>
+</div>
+</div>
+</main>
+${marketFooterHtml()}
+<script>${scriptMarketHeaderHtml({ navegarABusqueda: true })}</script>
+</body>
+</html>`;
+}
+
+async function servirMarketExplora(pool, req, res) {
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.send(await paginaExploraMarketHtml(pool));
+}
+
+// GET /market/ferreterias -- directorio real de tiendas Nexo, misma
+// fuente de verdad que ya usa el sidebar (tiendasPermitidasMarket:
+// id/slug/nombre/giro/direccion/lat/lng/aceptaCredito reales, ninguna
+// coordenada inventada) en un grid de pagina completa en vez de una
+// lista corta.
+function tarjetaTiendaDirectorioHtml(t) {
+    return `<div class="market-tienda-card"><strong>${escaparHtml(t.nombre)}</strong>` +
+        (t.giro ? `<span class="market-tienda-giro">${escaparHtml(t.giro)}</span>` : '') +
+        (t.direccion ? `<span class="market-tienda-direccion">${escaparHtml(t.direccion)}</span>` : '') +
+        `<a class="btn secondary" href="/market/${encodeURIComponent(t.slug)}">Ver tienda</a></div>`;
+}
+
+async function paginaFerreteriasMarketHtml(pool) {
+    const tiendas = await tiendasPermitidasMarket(pool);
+    const tarjetasHtml = tiendas.length > 0
+        ? tiendas.map(tarjetaTiendaDirectorioHtml).join('')
+        : '<p class="market-vacio">Todavia no hay ferreterias Nexo activas para mostrar.</p>';
+    const conUbicacion = tiendas.filter(t => typeof t.lat === "number" && typeof t.lng === "number" && !isNaN(t.lat) && !isNaN(t.lng));
+    const datosMapaJson = JSON.stringify(conUbicacion.map(t => ({ nombre: t.nombre, slug: t.slug, lat: t.lat, lng: t.lng })));
+
+    return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ferreterias Nexo -- Nexo Market</title>
+<meta name="description" content="Directorio de ferreterias Nexo: revisa cual esta mas cerca y visita su catalogo.">
+<link rel="icon" href="/nexo-pos-icon.jpg">
+${metaInstalableMarketHtml()}
+<link rel="stylesheet" href="/site/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<style>${ESTILOS_MARKET}</style>
+</head>
+<body>
+${marketHeaderHtml({ activo: "ferreterias" })}
+<main>
+<div class="market-layout">
+<div class="market-contenido">
+<nav class="market-breadcrumb"><a href="/market">Inicio</a> &rsaquo; Ferreterias</nav>
+<div class="market-resultados-header"><div><h2>Ferreterias Nexo</h2><span class="market-resultados-conteo">${tiendas.length === 1 ? '1 ferreteria' : tiendas.length + ' ferreterias'}</span></div></div>
+<div id="marketFerreteriasMapa" class="market-mapa-tiendas" hidden></div>
+<div class="market-tiendas-grid">${tarjetasHtml}</div>
+</div>
+</div>
+</main>
+${marketFooterHtml()}
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>${scriptMarketHeaderHtml({ navegarABusqueda: true })}</script>
+<script>
+(function() {
+    var tiendas = ${datosMapaJson};
+    var contenedor = document.getElementById("marketFerreteriasMapa");
+    if (!contenedor || tiendas.length === 0 || typeof L === "undefined") return;
+    contenedor.hidden = false;
+    var mapa = L.map("marketFerreteriasMapa", { scrollWheelZoom: false });
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+        maxZoom: 19
+    }).addTo(mapa);
+    var marcadores = tiendas.map(function(t) {
+        var marcador = L.marker([t.lat, t.lng]).addTo(mapa);
+        marcador.bindPopup("<strong>" + t.nombre.replace(/</g, "&lt;") + "</strong><br><a href=\\"/market/" + encodeURIComponent(t.slug) + "\\">Ver tienda</a>");
+        return marcador;
+    });
+    if (marcadores.length === 1) {
+        mapa.setView([tiendas[0].lat, tiendas[0].lng], 14);
+    } else {
+        mapa.fitBounds(L.featureGroup(marcadores).getBounds().pad(0.2));
+    }
+})();
+</script>
+</body>
+</html>`;
+}
+
+async function servirMarketFerreterias(pool, req, res) {
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.send(await paginaFerreteriasMarketHtml(pool));
+}
+
+// GET /market/credito-nexo -- mismo criterio real que ya usa
+// marketPintarCreditoNexo en el sidebar (t.aceptaCredito), en una pagina
+// propia. Mensaje honesto si ninguna tienda acepta credito, misma
+// redaccion que ya existe en el sidebar.
+function tarjetaCreditoNexoHtml(t) {
+    return `<div class="market-tienda-card"><strong>${escaparHtml(t.nombre)}</strong>` +
+        (t.giro ? `<span class="market-tienda-giro">${escaparHtml(t.giro)}</span>` : '') +
+        (t.direccion ? `<span class="market-tienda-direccion">${escaparHtml(t.direccion)}</span>` : '') +
+        `<a class="btn primary" href="https://${escaparHtml(t.slug)}.nexoposoficial.com/solicitud-credito">Solicitar credito</a></div>`;
+}
+
+async function paginaCreditoNexoMarketHtml(pool) {
+    const tiendas = await tiendasPermitidasMarket(pool);
+    const conCredito = tiendas.filter(t => t.aceptaCredito);
+    const tarjetasHtml = conCredito.length > 0
+        ? conCredito.map(tarjetaCreditoNexoHtml).join('')
+        : '<p class="market-vacio">Ninguna ferreteria Nexo acepta solicitudes de credito por ahora.</p>';
+
+    return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Credito Nexo -- Nexo Market</title>
+<meta name="description" content="Ferreterias Nexo que aceptan solicitudes de credito directo en su tienda.">
+<link rel="icon" href="/nexo-pos-icon.jpg">
+${metaInstalableMarketHtml()}
+<link rel="stylesheet" href="/site/styles.css">
+<style>${ESTILOS_MARKET}</style>
+</head>
+<body>
+${marketHeaderHtml({ activo: "credito" })}
+<main>
+<div class="market-layout">
+<div class="market-contenido">
+<nav class="market-breadcrumb"><a href="/market">Inicio</a> &rsaquo; Credito Nexo</nav>
+<div class="market-resultados-header"><div><h2>Credito Nexo</h2><span class="market-resultados-conteo">${conCredito.length === 1 ? '1 ferreteria' : conCredito.length + ' ferreterias'}</span></div></div>
+<div class="market-tiendas-grid">${tarjetasHtml}</div>
+</div>
+</div>
+</main>
+${marketFooterHtml()}
+<script>${scriptMarketHeaderHtml({ navegarABusqueda: true })}</script>
+</body>
+</html>`;
+}
+
+async function servirMarketCreditoNexo(pool, req, res) {
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.send(await paginaCreditoNexoMarketHtml(pool));
 }
 
 // GET /market/categorias/:slug -- URL propia y compartible por categoria
@@ -2060,7 +2277,7 @@ async function servirMarketCategoria(pool, req, res) {
 }
 
 module.exports = {
-    servirMarketPagina, servirMarketCategoria, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, tiendasPermitidasMarket,
+    servirMarketPagina, servirMarketCategoria, servirMarketOfertas, servirMarketNuevos, servirMarketExplora, servirMarketFerreterias, servirMarketCreditoNexo, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, tiendasPermitidasMarket,
     carritoProductosMarketJson,
     ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml
 };

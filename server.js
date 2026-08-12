@@ -31,7 +31,7 @@ const {
     servirComparadorNegocio,
     comparadorJson
 } = require("./public-site-server");
-const { servirMarketPagina, servirMarketCategoria, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, carritoProductosMarketJson } = require("./market-server");
+const { servirMarketPagina, servirMarketCategoria, servirMarketOfertas, servirMarketNuevos, servirMarketExplora, servirMarketFerreterias, servirMarketCreditoNexo, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, carritoProductosMarketJson } = require("./market-server");
 const { servirInicioTiendaMarket, servirCatalogoTiendaMarket, servirProductoTiendaMarket } = require("./market-tienda-server");
 const { servirCuentaMarket } = require("./market-cuenta-server");
 const { servirCarritoMarket, servirCheckoutMarket } = require("./market-carrito-server");
@@ -4732,6 +4732,31 @@ app.get("/market/mi-cuenta", async (req, res) => {
 app.get("/market/categorias/:slug", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
     await servirMarketCategoria(pool, req, res);
+});
+
+app.get("/market/ofertas", (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    servirMarketOfertas(req, res);
+});
+
+app.get("/market/nuevos", (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    servirMarketNuevos(req, res);
+});
+
+app.get("/market/explora", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirMarketExplora(pool, req, res);
+});
+
+app.get("/market/ferreterias", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirMarketFerreterias(pool, req, res);
+});
+
+app.get("/market/credito-nexo", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirMarketCreditoNexo(pool, req, res);
 });
 
 // Nexo Market -- ver una tienda especifica SIN salir de

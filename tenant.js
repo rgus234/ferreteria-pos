@@ -15,7 +15,8 @@ const SUBDOMINIOS_RESERVADOS = new Set([
     // nunca debe terminar con un slug que choque con una de estas.
     "market", "catalogo", "buscar-json", "sugerencias-json", "inicio-json",
     "favoritos-json", "comparador-json", "pedido-carrito", "solicitud-credito",
-    "portal-cliente", "site", "login", "mi-cuenta", "categorias"
+    "portal-cliente", "site", "login", "mi-cuenta", "categorias",
+    "ofertas", "explora", "nuevos", "ferreterias", "credito-nexo"
 ]);
 
 function normalizarSlug(valor) {
