@@ -354,6 +354,8 @@ function renderListaPedidosPublicos(pedidos) {
  <span class="sitio-web-pedido-tipo ${esCotizacion ? "cotizacion" : "pedido"}">${esCotizacion ? "Cotizacion" : "Pedido"}</span>
  <span class="sitio-web-pedido-badge ${principal.estado}">${principal.estado}</span>
  ${principal.origen === "market" ? `<span class="sitio-web-pedido-origen market">Nexo Market</span>` : ""}
+ ${principal.entregaModo === "recoleccion" ? `<span class="sitio-web-pedido-origen">Recoge en tienda</span>` : ""}
+ ${principal.entregaModo === "domicilio" ? `<span class="sitio-web-pedido-origen">Domicilio</span>` : ""}
  </div>
  <div class="sitio-web-pedido-cliente">
  ${escapar(principal.clienteNombre)}

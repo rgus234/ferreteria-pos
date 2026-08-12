@@ -25,6 +25,11 @@ const ESTILOS_CARRITO_MARKET = `
 .market-checkout-form label{ display:grid; gap:6px; font-size:13px; font-weight:700; color:var(--muted); }
 .market-checkout-form input, .market-checkout-form textarea{ padding:10px 12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; font-family:inherit; }
 .market-checkout-botones{ display:flex; gap:10px; flex-wrap:wrap; }
+.market-checkout-disponibilidad{ margin:0; padding:10px 14px; border-radius:10px; font-size:13px; font-weight:700; background:rgba(24,184,143,.12); color:var(--mint); }
+.market-checkout-disponibilidad.incierto{ background:rgba(230,162,60,.14); color:var(--amber); }
+.market-checkout-entrega{ display:grid; gap:8px; padding:14px 16px; border-radius:12px; border:1px solid var(--line); background:var(--paper); }
+.market-checkout-entrega > span{ font-size:13px; font-weight:700; color:var(--muted); }
+.market-checkout-entrega-opcion{ display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; }
 
 .market-carrito-vacio{ color:var(--muted); font-size:14px; text-align:center; padding:60px 0; display:grid; gap:16px; justify-items:center; }
 
@@ -160,7 +165,9 @@ function marketCarritoBloquePrecioHtml(p) {
 }
 
 function marketCarritoExistenciaHtml(p) {
-    if (p.stock === null || p.stock === undefined) return '';
+    if (p.stock === null || p.stock === undefined) {
+        return '<span class="market-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>';
+    }
     return '<span class="market-producto-existencia' + (p.stock <= 0 ? ' agotado' : '') + '">' +
         (p.stock <= 0 ? 'Agotado' : p.stock + ' disponibles') + '</span>';
 }
@@ -398,6 +405,11 @@ ${marketHeaderHtml({})}
 <label>Telefono<input type="text" id="checkoutTelefono" maxlength="40" placeholder="10 digitos"></label>
 <label>Correo (opcional)<input type="text" id="checkoutCorreo" maxlength="140"></label>
 <label>Mensaje (opcional)<textarea id="checkoutMensaje" maxlength="500" rows="3"></textarea></label>
+<div class="market-checkout-entrega" id="marketCheckoutEntrega" hidden>
+<span>Como quieres recibirlo?</span>
+<label class="market-checkout-entrega-opcion"><input type="radio" name="entrega" value="recoleccion" checked> Recoger en tienda</label>
+<label class="market-checkout-entrega-opcion" id="marketCheckoutEntregaDomicilioWrap" hidden><input type="radio" name="entrega" value="domicilio"> <span id="marketCheckoutEntregaDomicilioTexto">Domicilio</span></label>
+</div>
 <p id="marketCheckoutAviso" style="color:#e2434d; font-size:13px; margin:0;"></p>
 <div class="market-checkout-botones">
 <button class="btn primary" type="submit" data-tipo="pedido">Enviar pedido</button>
@@ -416,6 +428,10 @@ ${marketFooterHtml()}
 
 function scriptCheckoutMarketHtml() {
     return `
+function marketCarritoFormatoDinero(numero) {
+    return "$" + Number(numero).toFixed(2);
+}
+
 function marketCheckoutLeerCarrito(slug) {
     try {
         const datos = JSON.parse(localStorage.getItem("nexoCarrito_" + slug) || "[]");
@@ -459,11 +475,73 @@ function marketCheckoutLeerCarrito(slug) {
     resumen.appendChild(lista);
     document.getElementById("marketCheckoutForm").style.display = "grid";
 
+    // Consulta el stock real (mismo endpoint que ya usa /market/carrito)
+    // para saber si todo el pedido esta disponible en tienda o si algo
+    // esta bajo pedido/sin existencia confirmada -- orienta al cliente
+    // sobre cual boton conviene usar, sin cambiar el "tipo" que se manda
+    // al servidor.
+    fetch("/market/carrito-productos-json", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: items.map(function(it) { return { slug: slug, codigo: it.codigo, cantidad: it.cantidad }; }) })
+    }).then(function(r) { return r.json(); }).catch(function() { return { ok: false }; }).then(function(datos) {
+        const productos = (datos && datos.ok) ? datos.productos : [];
+        if (productos.length === 0) return;
+
+        const todoDisponible = productos.every(function(p) { return p.stock !== null && p.stock !== undefined && p.stock > 0; });
+        const algunoIncierto = productos.some(function(p) { return p.stock === null || p.stock === undefined || p.stock <= 0; });
+
+        const aviso = document.createElement("p");
+        aviso.className = "market-checkout-disponibilidad" + (algunoIncierto ? " incierto" : "");
+        aviso.textContent = todoDisponible
+            ? "Todos los productos de tu pedido estan disponibles en tienda. Puedes enviar tu pedido directo."
+            : "Uno o mas productos estan bajo pedido o sin existencia confirmada -- te recomendamos solicitar cotizacion primero para confirmar con la tienda.";
+
+        const contenedorBotones = document.querySelector(".market-checkout-botones");
+        const botonPedido = contenedorBotones.querySelector('[data-tipo="pedido"]');
+        const botonCotizacion = contenedorBotones.querySelector('[data-tipo="cotizacion"]');
+        contenedorBotones.parentNode.insertBefore(aviso, contenedorBotones);
+
+        // Recoger en tienda / domicilio -- solo se ofrece "Domicilio" si la
+        // tienda lo tiene habilitado en Sitio web (envioModo), mismo
+        // criterio ya usado para la nota informativa de /market/carrito.
+        const envioModo = productos[0].envioModo;
+        const entregaBloque = document.getElementById("marketCheckoutEntrega");
+        const domicilioWrap = document.getElementById("marketCheckoutEntregaDomicilioWrap");
+        const domicilioTexto = document.getElementById("marketCheckoutEntregaDomicilioTexto");
+        entregaBloque.hidden = false;
+        if (envioModo === "solo_recoleccion") {
+            domicilioWrap.hidden = true;
+        } else {
+            domicilioWrap.hidden = false;
+            if (envioModo === "tarifa_fija" && productos[0].envioTarifa !== null && productos[0].envioTarifa !== undefined) {
+                domicilioTexto.textContent = "Domicilio (costo fijo: " + marketCarritoFormatoDinero(productos[0].envioTarifa) + ")";
+            } else {
+                domicilioTexto.textContent = "Domicilio (se coordina con la tienda)";
+            }
+        }
+
+        if (todoDisponible) {
+            botonPedido.textContent = "Realizar pedido";
+            botonPedido.className = "btn primary";
+            botonCotizacion.className = "btn secondary";
+            contenedorBotones.appendChild(botonPedido);
+            contenedorBotones.appendChild(botonCotizacion);
+        } else {
+            botonCotizacion.textContent = "Solicitar pedido (sujeto a confirmacion)";
+            botonCotizacion.className = "btn primary";
+            botonPedido.className = "btn secondary";
+            contenedorBotones.appendChild(botonCotizacion);
+            contenedorBotones.appendChild(botonPedido);
+        }
+    });
+
     document.getElementById("marketCheckoutForm").addEventListener("submit", async function(evento) {
         evento.preventDefault();
         const aviso = document.getElementById("marketCheckoutAviso");
         aviso.textContent = "";
         const tipo = evento.submitter && evento.submitter.dataset && evento.submitter.dataset.tipo === "cotizacion" ? "cotizacion" : "pedido";
+        const entregaInput = document.querySelector('input[name="entrega"]:checked');
 
         const body = {
             items: marketCheckoutLeerCarrito(slug).map(function(it) { return { codigo: it.codigo, cantidad: it.cantidad }; }),
@@ -472,7 +550,8 @@ function marketCheckoutLeerCarrito(slug) {
             clienteCorreo: document.getElementById("checkoutCorreo").value.trim(),
             mensaje: document.getElementById("checkoutMensaje").value.trim(),
             sitioExtra: document.getElementById("checkoutHoneypot").value,
-            tipo: tipo
+            tipo: tipo,
+            entrega: entregaInput ? entregaInput.value : null
         };
 
         try {

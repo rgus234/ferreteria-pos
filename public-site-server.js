@@ -385,7 +385,7 @@ function tarjetaProductoTenantHtml({ codigo, nombre, fotoUrl, precio, precioOfer
     const nombreSeguro = escaparHtml(nombre);
     const existenciaHtml = stock !== null && stock !== undefined
         ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>`
-        : "";
+        : `<span class="tenant-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>`;
     const precioHtml = precio !== null && precio !== undefined ? precioOfertaHtml(precio, precioOferta) : "";
     const favoritoBtnHtml = mostrarFavorito
         ? `<button type="button" class="tenant-btn-favorito" data-codigo="${escaparHtml(codigo)}" aria-label="Guardar en favoritos">${ICONO_TENANT_FAVORITO}</button>\n`
@@ -546,6 +546,7 @@ ${selectorRaiz}{ --blue:${colorFinal}; --blue-dark:${colorFinal}; }
 .tenant-producto-precio{ font-size:15px; font-weight:800; color:var(--blue); }
 .tenant-producto-existencia{ display:inline-flex; align-items:center; width:fit-content; padding:3px 10px; border-radius:999px; font-size:11px; color:var(--mint); font-weight:700; background:rgba(24,184,143,.14); }
 .tenant-producto-existencia.agotado{ color:#e2434d; background:rgba(226,67,77,.12); }
+.tenant-producto-existencia.bajo-pedido{ color:var(--amber); background:rgba(230,162,60,.14); }
 .tenant-catalogo-vacio{ padding:48px 0; text-align:center; color:var(--muted); }
 .tenant-paginacion{ display:flex; justify-content:center; gap:12px; margin-top:32px; }
 .tenant-paginacion a{ padding:10px 18px; border-radius:12px; border:1px solid var(--line); color:var(--ink); font-weight:600; }
@@ -1672,7 +1673,7 @@ ${badgeDestacadoHtml}
 <h1 class="tenant-detalle-titulo">${nombreProducto}</h1>
 ${producto.marca || producto.categoria ? `<p class="tenant-detalle-marca">${producto.marca ? escaparHtml(producto.marca) : ""}${producto.marca && producto.categoria ? " &middot; " : ""}${producto.categoria ? escaparHtml(producto.categoria) : ""}</p>` : ""}
 ${precio !== null && Number.isFinite(precio) ? `<div class="tenant-detalle-precio">${precioOfertaHtml(precio, producto.precio_oferta)}</div>` : ""}
-${stock !== null ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>` : ""}
+${stock !== null ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>` : `<span class="tenant-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>`}
 ${producto.descripcion ? `<p class="tenant-detalle-descripcion">${escaparHtml(producto.descripcion)}</p>` : ""}
 ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto tiene garantia${producto.garantia_detalle ? `: ${escaparHtml(producto.garantia_detalle)}` : "."}</div>` : ""}
 </div>
@@ -1886,6 +1887,12 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
         const clienteCorreo = paramTexto(req.body?.clienteCorreo, 140).toLowerCase();
         const mensaje = paramTexto(req.body?.mensaje, 500);
         const tipo = req.body?.tipo === "cotizacion" ? "cotizacion" : "pedido";
+        // El cliente elige recoleccion/domicilio en el front, pero nunca se
+        // confia en eso solo: si la tienda declaro "solo_recoleccion" en
+        // Sitio web, se fuerza aqui sin importar lo que mande la peticion.
+        const entregaModoBody = req.body?.entrega;
+        let entregaModo = entregaModoBody === "recoleccion" || entregaModoBody === "domicilio" ? entregaModoBody : null;
+        if (sitio.config.envioModo === "solo_recoleccion") entregaModo = "recoleccion";
 
         if (!clienteNombre) {
             res.json({ ok: false, error: "Escribe tu nombre." });
@@ -1940,10 +1947,10 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
                 await client.query(
                     `
                     INSERT INTO public.pedidos_publicos
-                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id, tipo, persona_id, origen)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id, tipo, persona_id, origen, entrega_modo)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                     `,
-                    [sitio.negocio.id, codigo, nombreProducto, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId, tipo, req.persona ? req.persona.id : null, origen]
+                    [sitio.negocio.id, codigo, nombreProducto, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId, tipo, req.persona ? req.persona.id : null, origen, entregaModo]
                 );
 
                 itemsParaCorreo.push({ nombre: nombreProducto, cantidad });
@@ -2369,12 +2376,15 @@ function favoritosCrearTarjeta(producto){
         info.appendChild(favoritosPrecioNodo(producto.precio, producto.precioOferta));
     }
 
+    const existencia = document.createElement("span");
     if (producto.stock !== null && producto.stock !== undefined) {
-        const existencia = document.createElement("span");
         existencia.className = "tenant-producto-existencia" + (producto.stock <= 0 ? " agotado" : "");
         existencia.textContent = producto.stock <= 0 ? "Agotado" : (producto.stock + " disponibles");
-        info.appendChild(existencia);
+    } else {
+        existencia.className = "tenant-producto-existencia bajo-pedido";
+        existencia.textContent = "Bajo pedido -- confirma con la tienda";
     }
+    info.appendChild(existencia);
 
     enlace.appendChild(info);
     card.appendChild(enlace);
@@ -2592,12 +2602,15 @@ function comparadorCrearColumna(producto){
         columna.appendChild(comparadorPrecioNodo(producto.precio, producto.precioOferta));
     }
 
+    const existencia = document.createElement("span");
     if (producto.stock !== null && producto.stock !== undefined) {
-        const existencia = document.createElement("span");
         existencia.className = "tenant-producto-existencia" + (producto.stock <= 0 ? " agotado" : "");
         existencia.textContent = producto.stock <= 0 ? "Agotado" : (producto.stock + " disponibles");
-        columna.appendChild(existencia);
+    } else {
+        existencia.className = "tenant-producto-existencia bajo-pedido";
+        existencia.textContent = "Bajo pedido -- confirma con la tienda";
     }
+    columna.appendChild(existencia);
 
     const atributos = document.createElement("div");
     atributos.className = "tenant-comparador-atributos";
@@ -4258,7 +4271,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const resultado = await pool.query(
                 `
                 SELECT id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono,
-                    cliente_correo, mensaje, estado, created_at, grupo_id, tipo, precio_cotizado, nota_negocio, respondido_at, origen
+                    cliente_correo, mensaje, estado, created_at, grupo_id, tipo, precio_cotizado, nota_negocio, respondido_at, origen, entrega_modo
                 FROM public.pedidos_publicos
                 WHERE negocio_id = $1
                 ORDER BY created_at DESC
@@ -4285,7 +4298,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                     precioCotizado: fila.precio_cotizado !== null ? Number(fila.precio_cotizado) : null,
                     notaNegocio: fila.nota_negocio,
                     respondidoAt: fila.respondido_at,
-                    origen: fila.origen
+                    origen: fila.origen,
+                    entregaModo: fila.entrega_modo
                 }))
             });
         } catch (error) {

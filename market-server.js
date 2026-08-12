@@ -733,6 +733,7 @@ const ESTILOS_MARKET = `
 .market-producto-badge-oferta{ background:var(--amber); color:#fff; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; padding:2px 8px; border-radius:999px; }
 .market-producto-existencia{ color:var(--mint); font-size:13px; font-weight:700; }
 .market-producto-existencia.agotado{ color:#c0392b; }
+.market-producto-existencia.bajo-pedido{ color:var(--amber); }
 .market-producto-tienda{ color:var(--muted); font-size:12.5px; }
 .market-como{ max-width:1680px; margin:0 auto 60px; padding:0 clamp(18px,4vw,48px); }
 .market-como h3{ font-size:19px; margin:0 0 18px; }
@@ -1278,7 +1279,8 @@ function marketTarjetaProducto(p) {
     }
 
     const existenciaHtml = p.stock !== null && p.stock !== undefined
-        ? '<span class="market-producto-existencia' + (p.stock <= 0 ? ' agotado' : '') + '">' + (p.stock <= 0 ? 'Agotado' : p.stock + ' disponibles') + '</span>' : '';
+        ? '<span class="market-producto-existencia' + (p.stock <= 0 ? ' agotado' : '') + '">' + (p.stock <= 0 ? 'Agotado' : p.stock + ' disponibles') + '</span>'
+        : '<span class="market-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>';
 
     const fotoHtml = p.fotoUrl
         ? '<img src="' + p.fotoUrl + '" alt="' + escapeHtml(p.nombre) + '" loading="lazy">'
@@ -1345,7 +1347,8 @@ function marketTarjetaOfertaDelDia(p) {
 
     var agotado = p.stock !== null && p.stock !== undefined && p.stock <= 0;
     var existenciaHtml = p.stock !== null && p.stock !== undefined
-        ? '<span class="market-producto-existencia' + (agotado ? ' agotado' : '') + '">' + (agotado ? 'Agotado' : p.stock + ' disponibles') + '</span>' : '';
+        ? '<span class="market-producto-existencia' + (agotado ? ' agotado' : '') + '">' + (agotado ? 'Agotado' : p.stock + ' disponibles') + '</span>'
+        : '<span class="market-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>';
 
     var link = '/market/ferreteria/' + encodeURIComponent(p.slug) + '/catalogo/' + encodeURIComponent(p.codigo);
     var fotoHtml = p.fotoUrl
