@@ -56,6 +56,8 @@ const ESTILOS_CUENTA_MARKET = `
 .market-cuenta-admin-lista button{ padding:9px 16px; border-radius:999px; border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-weight:700; font-size:12.5px; cursor:pointer; }
 .market-cuenta-panel[hidden]{ display:none; }
 .market-cuenta-login{ max-width:920px; margin:0 auto; padding:40px clamp(18px,4vw,48px) 60px; }
+.market-cuenta-login .contact{ grid-template-columns:minmax(0,1fr); padding-left:0; padding-right:0; gap:28px; }
+.market-cuenta-login .contact-panel-wrap{ max-width:420px; }
 .market-cuenta-config-form{ display:grid; gap:14px; max-width:420px; }
 .market-cuenta-config-form label{ display:grid; gap:6px; font-size:13px; font-weight:700; color:var(--muted); }
 .market-cuenta-config-form input, .market-cuenta-config-form select{ padding:10px 12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; }
