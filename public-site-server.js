@@ -1916,6 +1916,46 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
             return;
         }
 
+        // Pago real (Stripe Connect, ver plan "Nexo Market: pagos reales
+        // con Stripe Connect"): si el checkout ya cobro con tarjeta,
+        // aqui se verifica el pago CONTRA Stripe antes de marcar
+        // pagado=true -- nunca se confia en que el cliente diga "ya
+        // pague". El monto real ya lo calculo crear-intento-pago con
+        // precios de la base de datos; aqui solo se confirma que el
+        // pago exista, este completado, y sea de esta misma tienda
+        // (metadata.negocio_slug) -- no se vuelve a recalcular el total.
+        const stripePaymentIntentId = paramTexto(req.body?.stripePaymentIntentId, 100) || null;
+        let pagado = false;
+        let montoPagado = null;
+        let comisionNexo = null;
+
+        if (stripePaymentIntentId) {
+            const { obtenerStripe } = require("./stripe-connect-server");
+            const stripe = obtenerStripe();
+
+            if (!stripe) {
+                res.json({ ok: false, error: "No se pudo verificar tu pago. Intenta de nuevo." });
+                return;
+            }
+
+            let intento;
+            try {
+                intento = await stripe.paymentIntents.retrieve(stripePaymentIntentId);
+            } catch (error) {
+                res.json({ ok: false, error: "No se pudo verificar tu pago. Intenta de nuevo." });
+                return;
+            }
+
+            if (intento.status !== "succeeded" || intento.metadata?.negocio_slug !== slug) {
+                res.json({ ok: false, error: "Tu pago no se pudo confirmar. Intenta de nuevo." });
+                return;
+            }
+
+            pagado = true;
+            montoPagado = intento.amount / 100;
+            comisionNexo = (intento.application_fee_amount || 0) / 100;
+        }
+
         const client = await pool.connect();
         let grupoId = null;
         let cuentaCreada = false;
@@ -1947,10 +1987,10 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
                 await client.query(
                     `
                     INSERT INTO public.pedidos_publicos
-                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id, tipo, persona_id, origen, entrega_modo)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id, tipo, persona_id, origen, entrega_modo, pagado, stripe_payment_intent_id, monto_pagado, comision_nexo)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
                     `,
-                    [sitio.negocio.id, codigo, nombreProducto, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId, tipo, req.persona ? req.persona.id : null, origen, entregaModo]
+                    [sitio.negocio.id, codigo, nombreProducto, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId, tipo, req.persona ? req.persona.id : null, origen, entregaModo, pagado, stripePaymentIntentId, montoPagado, comisionNexo]
                 );
 
                 itemsParaCorreo.push({ nombre: nombreProducto, cantidad });
@@ -4271,7 +4311,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const resultado = await pool.query(
                 `
                 SELECT id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono,
-                    cliente_correo, mensaje, estado, created_at, grupo_id, tipo, precio_cotizado, nota_negocio, respondido_at, origen, entrega_modo
+                    cliente_correo, mensaje, estado, created_at, grupo_id, tipo, precio_cotizado, nota_negocio, respondido_at, origen, entrega_modo,
+                    pagado, monto_pagado
                 FROM public.pedidos_publicos
                 WHERE negocio_id = $1
                 ORDER BY created_at DESC
@@ -4299,7 +4340,9 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                     notaNegocio: fila.nota_negocio,
                     respondidoAt: fila.respondido_at,
                     origen: fila.origen,
-                    entregaModo: fila.entrega_modo
+                    entregaModo: fila.entrega_modo,
+                    pagado: fila.pagado,
+                    montoPagado: fila.monto_pagado !== null ? Number(fila.monto_pagado) : null
                 }))
             });
         } catch (error) {

@@ -108,6 +108,22 @@
 }
 .sitio-web-pedido-cabecera strong{ font-size:14px; }
 
+.sitio-web-cobros-estado{
+ padding:14px 16px;
+ border-radius:12px;
+ margin-bottom:6px;
+}
+.sitio-web-cobros-estado strong{ display:block; font-size:14px; margin-bottom:2px; }
+.sitio-web-cobros-estado p{ margin:0; font-size:13px; }
+.sitio-web-cobros-estado ul{ margin:8px 0 0; padding-left:18px; font-size:13px; }
+.sitio-web-cobros-estado.listo{ background:rgba(24,184,143,.14); color:#0e9973; }
+.sitio-web-cobros-estado.pendiente{ background:rgba(245,158,11,.15); color:#b45309; }
+.sitio-web-cobros-fila-3{
+ display:grid;
+ grid-template-columns:repeat(3, 1fr);
+ gap:10px;
+}
+
 .sitio-web-pedido-badge{
  padding:3px 10px;
  border-radius:999px;
@@ -121,6 +137,7 @@
 .sitio-web-pedido-badge.atendido{ background:rgba(24,184,143,.15); color:#0e9973; }
 .sitio-web-pedido-badge.descartado{ background:rgba(226,67,77,.12); color:#e2434d; }
 .sitio-web-pedido-badge.cotizado{ background:rgba(37,99,235,.14); color:#1d4ed8; }
+.sitio-web-pedido-badge.pagado{ background:rgba(24,184,143,.15); color:#0e9973; }
 
 .sitio-web-pedido-tipo{
  padding:3px 10px;

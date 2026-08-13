@@ -28,6 +28,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./stripe-server")(app, pool, requerirSesionCuenta, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("stripe connect marketplace", () => {
+        require("./stripe-connect-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("ia nexo", () => {
         require("./ia-server")(app, pool, requerirAccesoNegocio);
     });

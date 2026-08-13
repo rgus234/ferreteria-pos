@@ -69,6 +69,7 @@ async function mostrarSitioWeb() {
  cargarPedidosPublicosSitioWeb();
  cargarSolicitudesCreditoSitioWeb();
  cargarMarketResumenSitioWeb();
+ cargarCobrosSitioWeb();
  actualizarVistaPreviaPromocion();
  } catch (error) {
  pantalla.innerHTML = `<div class="sitio-web-shell"><p>No se pudo cargar la configuracion del sitio. Revisa tu conexion.</p></div>`;
@@ -96,7 +97,8 @@ const SITIO_WEB_PESTANAS = [
  { id: "contacto", nombre: "Contacto y redes" },
  { id: "ubicacion", nombre: "Ubicacion y horario" },
  { id: "pedidos", nombre: "Pedidos" },
- { id: "market", nombre: "Nexo Market" }
+ { id: "market", nombre: "Nexo Market" },
+ { id: "cobros", nombre: "Cobros en linea" }
 ];
 
 function renderSitioWebFormulario(pantalla, datos) {
@@ -231,6 +233,10 @@ function renderSitioWebFormulario(pantalla, datos) {
  <div id="sitioWebMarketResumen"><p>Cargando...</p></div>
  </div>
 
+ <div class="sitio-web-tab-panel" data-tab-panel="cobros" hidden>
+ <div id="sitioWebCobrosContenido"><p>Cargando...</p></div>
+ </div>
+
  </div>
 
  <aside class="sitio-web-preview">
@@ -356,6 +362,7 @@ function renderListaPedidosPublicos(pedidos) {
  ${principal.origen === "market" ? `<span class="sitio-web-pedido-origen market">Nexo Market</span>` : ""}
  ${principal.entregaModo === "recoleccion" ? `<span class="sitio-web-pedido-origen">Recoge en tienda</span>` : ""}
  ${principal.entregaModo === "domicilio" ? `<span class="sitio-web-pedido-origen">Domicilio</span>` : ""}
+ ${principal.pagado ? `<span class="sitio-web-pedido-badge pagado">Pagado $${Number(principal.montoPagado).toFixed(2)}</span>` : ""}
  </div>
  <div class="sitio-web-pedido-cliente">
  ${escapar(principal.clienteNombre)}
@@ -670,6 +677,214 @@ async function cargarMarketResumenSitioWeb() {
  cargarProductosDestacadosMarketSitioWeb();
  } catch (error) {
  contenedor.innerHTML = `<p>No se pudo cargar tu presencia en Nexo Market. Revisa tu conexion.</p>`;
+ }
+}
+
+/* ---------- Cobros en linea (Stripe Connect, alta embebida) ---------- */
+
+let sitioWebCobrosEstadoActual = null;
+
+async function cargarCobrosSitioWeb() {
+ const contenedor =
+ document.getElementById("sitioWebCobrosContenido");
+
+ if (!contenedor) return;
+
+ try {
+ const respuesta = await fetch("/negocio-actual/cobros/estado");
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ contenedor.innerHTML = `<p>No se pudo cargar el estado de tus cobros en linea.</p>`;
+ return;
+ }
+
+ sitioWebCobrosEstadoActual = datos;
+ renderCobrosSitioWeb(datos);
+ } catch (error) {
+ contenedor.innerHTML = `<p>No se pudo cargar el estado de tus cobros en linea. Revisa tu conexion.</p>`;
+ }
+}
+
+function renderCobrosSitioWeb(estado) {
+ const contenedor =
+ document.getElementById("sitioWebCobrosContenido");
+
+ if (!contenedor) return;
+
+ if (!estado.tieneCuenta) {
+ contenedor.innerHTML = `
+ <div class="sitio-web-panel">
+ <h3 class="sitio-web-panel-titulo">Cobros en linea</h3>
+ <p class="sitio-web-nota">Activa esto para que tus clientes puedan pagar de verdad al hacer un pedido en Nexo Market -- el dinero llega directo a tu cuenta bancaria, menos la comision de Nexo por transaccion. Solo lo llenas una vez.</p>
+ <button type="button" class="btn-encargo-primario" onclick="crearCuentaCobrosSitioWeb()">Activar cobros en linea</button>
+ </div>
+ `;
+ return;
+ }
+
+ const estadoTexto = estado.chargesEnabled
+ ? `<div class="sitio-web-cobros-estado listo"><strong>Listo para cobrar</strong><p>Tus clientes ya pueden pagar en linea en tus pedidos de Nexo Market.</p></div>`
+ : `<div class="sitio-web-cobros-estado pendiente"><strong>Pendiente de verificacion</strong><p>Completa los datos de abajo para poder cobrar. Esto es lo que falta:</p>
+ <ul>${(estado.requisitosPendientes || []).map(r => `<li>${escaparSitioWeb(r)}</li>`).join("") || "<li>Completa el formulario y sube tu identificacion.</li>"}</ul>
+ </div>`;
+
+ contenedor.innerHTML = `
+ <div class="sitio-web-panel">
+ <h3 class="sitio-web-panel-titulo">Cobros en linea</h3>
+ ${estadoTexto}
+
+ <label>
+ <span>Tipo de cuenta</span>
+ <select id="cobrosBusinessType" onchange="actualizarVisibilidadTipoCobrosSitioWeb()">
+ <option value="individual">Persona fisica</option>
+ <option value="company">Empresa</option>
+ </select>
+ </label>
+
+ <div id="cobrosCamposIndividual">
+ <label><span>Nombre(s)</span><input type="text" id="cobrosNombre" maxlength="100"></label>
+ <label><span>Apellidos</span><input type="text" id="cobrosApellidos" maxlength="100"></label>
+ </div>
+
+ <div id="cobrosCamposCompany" hidden>
+ <label><span>Razon social</span><input type="text" id="cobrosRazonSocial" maxlength="150"></label>
+ <label><span>Nombre del representante</span><input type="text" id="cobrosRepresentanteNombre" maxlength="100"></label>
+ <label><span>Apellidos del representante</span><input type="text" id="cobrosRepresentanteApellidos" maxlength="100"></label>
+ <label><span>Cargo del representante</span><input type="text" id="cobrosRepresentanteCargo" maxlength="100" placeholder="Ej. Propietario, Gerente"></label>
+ </div>
+
+ <label><span>RFC</span><input type="text" id="cobrosRfc" maxlength="20"></label>
+ <label><span>Correo de contacto</span><input type="text" id="cobrosCorreo" maxlength="140"></label>
+ <label><span>Telefono</span><input type="text" id="cobrosTelefono" maxlength="20"></label>
+
+ <div class="sitio-web-cobros-fila-3">
+ <label><span>Dia de nacimiento</span><input type="number" id="cobrosDia" min="1" max="31"></label>
+ <label><span>Mes</span><input type="number" id="cobrosMes" min="1" max="12"></label>
+ <label><span>Ano</span><input type="number" id="cobrosAnio" min="1900" max="2020"></label>
+ </div>
+
+ <label><span>Calle y numero</span><input type="text" id="cobrosCalle" maxlength="200"></label>
+ <label><span>Ciudad</span><input type="text" id="cobrosCiudad" maxlength="100"></label>
+ <label><span>Estado</span><input type="text" id="cobrosEstado" maxlength="100"></label>
+ <label><span>Codigo postal</span><input type="text" id="cobrosCP" maxlength="10"></label>
+
+ <label><span>CLABE (18 digitos)</span><input type="text" id="cobrosClabe" maxlength="18" placeholder="018180001234567895"></label>
+
+ <label class="sitio-web-toggle">
+ <input type="checkbox" id="cobrosAceptaTerminos">
+ <span>Acepto los <a href="https://stripe.com/mx/legal/connect-account" target="_blank" rel="noopener">Terminos de servicio de Stripe Connect</a> para recibir pagos</span>
+ </label>
+
+ <button type="button" class="btn-encargo-primario" onclick="guardarDatosCobrosSitioWeb()">Guardar datos de cobro</button>
+
+ <h4 class="sitio-web-panel-titulo">Identificacion oficial</h4>
+ <p class="sitio-web-nota">Sube tu INE o pasaporte -- se manda directo a Stripe para verificar tu identidad, Nexo no guarda una copia.</p>
+ <label><span>Frente</span><input type="file" id="cobrosIdFrente" accept="image/*,.pdf"></label>
+ <label><span>Reverso (opcional)</span><input type="file" id="cobrosIdReverso" accept="image/*,.pdf"></label>
+ <button type="button" class="btn-encargo-secundario" onclick="subirIdentificacionCobrosSitioWeb()">Subir identificacion</button>
+ </div>
+ `;
+}
+
+function actualizarVisibilidadTipoCobrosSitioWeb() {
+ const tipo = document.getElementById("cobrosBusinessType")?.value || "individual";
+ const individual = document.getElementById("cobrosCamposIndividual");
+ const company = document.getElementById("cobrosCamposCompany");
+ if (individual) individual.hidden = tipo !== "individual";
+ if (company) company.hidden = tipo !== "company";
+}
+
+async function crearCuentaCobrosSitioWeb() {
+ try {
+ const respuesta = await fetch("/negocio-actual/cobros/cuenta", { method: "POST" });
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ alert(datos.error || "No se pudo activar los cobros en linea.");
+ return;
+ }
+
+ cargarCobrosSitioWeb();
+ } catch (error) {
+ alert("No se pudo activar los cobros en linea. Revisa tu conexion.");
+ }
+}
+
+async function guardarDatosCobrosSitioWeb() {
+ const valor = id => document.getElementById(id)?.value?.trim() || "";
+
+ const body = {
+ businessType: document.getElementById("cobrosBusinessType")?.value || "individual",
+ nombre: valor("cobrosNombre"),
+ apellidos: valor("cobrosApellidos"),
+ razonSocial: valor("cobrosRazonSocial"),
+ representanteNombre: valor("cobrosRepresentanteNombre"),
+ representanteApellidos: valor("cobrosRepresentanteApellidos"),
+ representanteCargo: valor("cobrosRepresentanteCargo"),
+ rfc: valor("cobrosRfc"),
+ correo: valor("cobrosCorreo"),
+ telefono: valor("cobrosTelefono"),
+ diaNacimiento: valor("cobrosDia"),
+ mesNacimiento: valor("cobrosMes"),
+ anioNacimiento: valor("cobrosAnio"),
+ calle: valor("cobrosCalle"),
+ ciudad: valor("cobrosCiudad"),
+ estado: valor("cobrosEstado"),
+ codigoPostal: valor("cobrosCP"),
+ clabe: valor("cobrosClabe"),
+ aceptaTerminos: Boolean(document.getElementById("cobrosAceptaTerminos")?.checked)
+ };
+
+ try {
+ const respuesta = await fetch("/negocio-actual/cobros/cuenta", {
+ method: "PATCH",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify(body)
+ });
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ alert(datos.error || "No se pudieron guardar tus datos de cobro.");
+ return;
+ }
+
+ alert("Datos guardados.");
+ cargarCobrosSitioWeb();
+ } catch (error) {
+ alert("No se pudieron guardar tus datos de cobro. Revisa tu conexion.");
+ }
+}
+
+async function subirIdentificacionCobrosSitioWeb() {
+ const frenteInput = document.getElementById("cobrosIdFrente");
+ const reversoInput = document.getElementById("cobrosIdReverso");
+
+ if (!frenteInput?.files?.[0]) {
+ alert("Sube al menos la foto del frente de tu identificacion.");
+ return;
+ }
+
+ const formData = new FormData();
+ formData.append("frente", frenteInput.files[0]);
+ if (reversoInput?.files?.[0]) formData.append("reverso", reversoInput.files[0]);
+
+ try {
+ const respuesta = await fetch("/negocio-actual/cobros/identificacion", {
+ method: "POST",
+ body: formData
+ });
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ alert(datos.error || "No se pudo subir tu identificacion.");
+ return;
+ }
+
+ alert("Identificacion subida.");
+ cargarCobrosSitioWeb();
+ } catch (error) {
+ alert("No se pudo subir tu identificacion. Revisa tu conexion.");
  }
 }
 

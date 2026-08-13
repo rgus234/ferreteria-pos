@@ -5,9 +5,13 @@
 // en public-site-server.js), asi que estas paginas son honestas sobre
 // esa realidad: agrupan por tienda lo que YA hay en el navegador, y el
 // envio real sigue siendo el mismo POST por tienda que ya existe
-// (/market/ferreteria/{slug}/catalogo/pedido-carrito). No hay pago --
-// no se inventa un checkout unificado que no tiene backend detras.
+// (/market/ferreteria/{slug}/catalogo/pedido-carrito). El pago real
+// (Stripe Connect, ver plan "Nexo Market: pagos reales con Stripe
+// Connect") se agrega en el checkout SOLO cuando la tienda tiene cobros
+// activos (stripe-connect-server.js) -- si no, sigue el flujo de
+// pedido/cotizacion sin cobro de siempre, sin romper nada.
 
+const { config } = require("./config");
 const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml } = require("./market-server");
 
 const ESTILOS_CARRITO_MARKET = `
@@ -30,6 +34,8 @@ const ESTILOS_CARRITO_MARKET = `
 .market-checkout-entrega{ display:grid; gap:8px; padding:14px 16px; border-radius:12px; border:1px solid var(--line); background:var(--paper); }
 .market-checkout-entrega > span{ font-size:13px; font-weight:700; color:var(--muted); }
 .market-checkout-entrega-opcion{ display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; }
+.market-checkout-pago{ display:grid; gap:8px; padding:14px 16px; border-radius:12px; border:1px solid var(--line); background:var(--paper); }
+.market-checkout-pago > span{ font-size:13px; font-weight:700; color:var(--muted); }
 
 .market-carrito-vacio{ color:var(--muted); font-size:14px; text-align:center; padding:60px 0; display:grid; gap:16px; justify-items:center; }
 
@@ -410,6 +416,11 @@ ${marketHeaderHtml({})}
 <label class="market-checkout-entrega-opcion"><input type="radio" name="entrega" value="recoleccion" checked> Recoger en tienda</label>
 <label class="market-checkout-entrega-opcion" id="marketCheckoutEntregaDomicilioWrap" hidden><input type="radio" name="entrega" value="domicilio"> <span id="marketCheckoutEntregaDomicilioTexto">Domicilio</span></label>
 </div>
+<div class="market-checkout-pago" id="marketCheckoutPago" hidden>
+<span>Pago con tarjeta</span>
+<div id="marketPagoElement"></div>
+<p id="marketCheckoutPagoError" style="color:#e2434d; font-size:13px; margin:6px 0 0;"></p>
+</div>
 <p id="marketCheckoutAviso" style="color:#e2434d; font-size:13px; margin:0;"></p>
 <div class="market-checkout-botones">
 <button class="btn primary" type="submit" data-tipo="pedido">Enviar pedido</button>
@@ -419,8 +430,9 @@ ${marketHeaderHtml({})}
 <div id="marketCheckoutExito" style="display:none;"></div>
 </div>
 ${marketFooterHtml()}
+<script src="https://js.stripe.com/v3/"></script>
 <script>${scriptMarketHeaderHtml({ navegarABusqueda: true })}</script>
-<script>window.NEXO_CHECKOUT_SLUG = ${slugSeguro};</script>
+<script>window.NEXO_CHECKOUT_SLUG = ${slugSeguro}; window.NEXO_STRIPE_PK = ${JSON.stringify(config.stripePublishableKey || "")};</script>
 <script>${scriptCheckoutMarketHtml()}</script>
 </body>
 </html>`;
@@ -438,6 +450,12 @@ function marketCheckoutLeerCarrito(slug) {
         return Array.isArray(datos) ? datos : [];
     } catch (error) { return []; }
 }
+
+// Pago real (Stripe Connect) -- solo se llenan si la tienda tiene cobros
+// activos (ver crear-intento-pago mas abajo); si quedan null, el flujo
+// de pedido/cotizacion sin cobro sigue igual que siempre.
+var marketStripe = null;
+var marketStripeElements = null;
 
 (function marketCheckoutInicio() {
     const slug = window.NEXO_CHECKOUT_SLUG;
@@ -534,14 +552,44 @@ function marketCheckoutLeerCarrito(slug) {
             contenedorBotones.appendChild(botonCotizacion);
             contenedorBotones.appendChild(botonPedido);
         }
+
+        // Pago real (Stripe Connect) -- solo se ofrece si la tienda ya
+        // tiene cobros activos. Si crear-intento-pago responde ok:false
+        // (tienda sin cuenta verificada), no pasa nada visible: el
+        // comprador sigue viendo el flujo de pedido/cotizacion de
+        // siempre, sin cobro. El total se recalcula server-side, nunca
+        // se manda un monto desde aqui.
+        if (window.NEXO_STRIPE_PK && typeof Stripe !== "undefined") {
+            fetch("/market/ferreteria/" + encodeURIComponent(slug) + "/catalogo/crear-intento-pago", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ items: items.map(function(it) { return { codigo: it.codigo, cantidad: it.cantidad }; }) })
+            }).then(function(r) { return r.json(); }).catch(function() { return { ok: false }; }).then(function(datosPago) {
+                if (!datosPago || !datosPago.ok || !datosPago.clientSecret) return;
+
+                marketStripe = Stripe(window.NEXO_STRIPE_PK);
+                marketStripeElements = marketStripe.elements({
+                    clientSecret: datosPago.clientSecret,
+                    appearance: { theme: "stripe", variables: { colorPrimary: "#1067e8", fontFamily: "inherit" } }
+                });
+                marketStripeElements.create("payment").mount("#marketPagoElement");
+                document.getElementById("marketCheckoutPago").hidden = false;
+
+                const botonPedidoPago = document.querySelector('.market-checkout-botones [data-tipo="pedido"]');
+                if (botonPedidoPago) botonPedidoPago.textContent = "Pagar y realizar pedido";
+            });
+        }
     });
 
     document.getElementById("marketCheckoutForm").addEventListener("submit", async function(evento) {
         evento.preventDefault();
         const aviso = document.getElementById("marketCheckoutAviso");
+        const pagoError = document.getElementById("marketCheckoutPagoError");
         aviso.textContent = "";
+        pagoError.textContent = "";
         const tipo = evento.submitter && evento.submitter.dataset && evento.submitter.dataset.tipo === "cotizacion" ? "cotizacion" : "pedido";
         const entregaInput = document.querySelector('input[name="entrega"]:checked');
+        const botonUsado = evento.submitter;
 
         const body = {
             items: marketCheckoutLeerCarrito(slug).map(function(it) { return { codigo: it.codigo, cantidad: it.cantidad }; }),
@@ -554,6 +602,23 @@ function marketCheckoutLeerCarrito(slug) {
             entrega: entregaInput ? entregaInput.value : null
         };
 
+        // Solo "pedido" (compra real) exige el pago -- "cotizacion" sigue
+        // siendo una solicitud sin cobro, aunque la tienda ya tenga
+        // Stripe Connect activo.
+        if (tipo === "pedido" && marketStripe && marketStripeElements) {
+            if (botonUsado) botonUsado.disabled = true;
+
+            const resultadoPago = await marketStripe.confirmPayment({ elements: marketStripeElements, redirect: "if_required" });
+
+            if (resultadoPago.error) {
+                pagoError.textContent = resultadoPago.error.message || "No se pudo procesar el pago.";
+                if (botonUsado) botonUsado.disabled = false;
+                return;
+            }
+
+            body.stripePaymentIntentId = resultadoPago.paymentIntent && resultadoPago.paymentIntent.id;
+        }
+
         try {
             const respuesta = await fetch("/market/ferreteria/" + encodeURIComponent(slug) + "/catalogo/pedido-carrito", {
                 method: "POST",
@@ -561,7 +626,11 @@ function marketCheckoutLeerCarrito(slug) {
                 body: JSON.stringify(body)
             });
             const datos = await respuesta.json();
-            if (!datos.ok) { aviso.textContent = datos.error || "No se pudo enviar el pedido."; return; }
+            if (!datos.ok) {
+                aviso.textContent = datos.error || "No se pudo enviar el pedido.";
+                if (botonUsado) botonUsado.disabled = false;
+                return;
+            }
 
             localStorage.removeItem("nexoCarrito_" + slug);
             document.getElementById("marketCheckoutForm").style.display = "none";
@@ -570,7 +639,9 @@ function marketCheckoutLeerCarrito(slug) {
             exito.style.display = "";
             exito.innerHTML = "";
             const p = document.createElement("p");
-            p.textContent = tipo === "cotizacion" ? "Solicitud enviada. La tienda te va a contactar con el precio." : "Pedido enviado. La tienda te va a contactar para confirmar.";
+            p.textContent = tipo === "cotizacion"
+                ? "Solicitud enviada. La tienda te va a contactar con el precio."
+                : (body.stripePaymentIntentId ? "Pago confirmado. Tu pedido fue enviado a la tienda." : "Pedido enviado. La tienda te va a contactar para confirmar.");
             exito.appendChild(p);
             const link = document.createElement("a");
             link.className = "btn secondary";
@@ -579,6 +650,7 @@ function marketCheckoutLeerCarrito(slug) {
             exito.appendChild(link);
         } catch (error) {
             aviso.textContent = "No se pudo enviar el pedido. Intenta de nuevo.";
+            if (botonUsado) botonUsado.disabled = false;
         }
     });
 })();
