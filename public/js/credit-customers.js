@@ -407,13 +407,14 @@ async function abrirCuentaCliente(id) {
  ).textContent =
  datos.cliente.nombre;
 
- document.querySelector(
- "#detalleCliente .cliente-info p"
- ).textContent =
- `Cliente desde: ${
+ const fechaClienteDesde =
+ document.getElementById("creditoDetalleFecha");
+
+ if (fechaClienteDesde) {
+ fechaClienteDesde.textContent =
  new Date(datos.cliente.created_at)
- .toLocaleDateString("es-MX")
- }`;
+ .toLocaleDateString("es-MX");
+ }
 
  document.querySelector(
  "#detalleCliente .limite-credito strong"

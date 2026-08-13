@@ -222,12 +222,9 @@
   boton.onclick = () => mostrarFinanzasPOS();
   boton.innerHTML = icono("wallet") + "<span>Finanzas</span>";
 
-  const antes = sidebar.querySelector("[data-modulo='caja']") ||
-   sidebar.querySelector("[data-modulo='ajustes']") ||
-   [...sidebar.querySelectorAll("button")].find(btn => /Reportes/i.test(btn.textContent || ""));
-
-  if (antes) antes.insertAdjacentElement("afterend", boton);
-  else sidebar.appendChild(boton);
+  // La posicion de insercion no importa: ordenarSidebarPOS() (shell-topbar.js)
+  // reordena todo el sidebar por un arreglo canonico justo despues de esto.
+  sidebar.appendChild(boton);
  }
 
  function limpiarCampos(ids) {

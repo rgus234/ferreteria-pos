@@ -956,7 +956,7 @@ async function mostrarPantallaDeEntradaPOS() {
  }
 
  if (navigator.onLine) {
- sincronizarEmpleadosDispositivo();
+ await sincronizarEmpleadosDispositivo();
  }
 
  const hayPerfilesSincronizados =

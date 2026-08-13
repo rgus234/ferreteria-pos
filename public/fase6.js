@@ -179,9 +179,9 @@
   boton.onclick = () => mostrarCajaPOS();
   boton.innerHTML = icono("wallet") + "<span>Caja</span>";
 
-  const antes = sidebar.querySelector("[data-modulo='finanzas']") ||
-   [...sidebar.querySelectorAll("button")].find(x => /Reportes/i.test(x.textContent || ""));
-  antes ? antes.insertAdjacentElement("afterend", boton) : sidebar.appendChild(boton);
+  // La posicion de insercion no importa: ordenarSidebarPOS() (shell-topbar.js)
+  // reordena todo el sidebar por un arreglo canonico justo despues de esto.
+  sidebar.appendChild(boton);
  }
 
  async function getJson(url, opciones) {
