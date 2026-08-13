@@ -223,6 +223,70 @@ async function heroProductoMarket(pool, idsPermitidos, firmarTokenImagen) {
     };
 }
 
+// Una foto real por categoria para las tarjetas de "Explora por
+// categoria" (pagina /market/explora) -- un producto al azar de esa
+// categoria que si tenga foto real subida. Sin ningun producto con foto
+// en la categoria, fotoUrl queda null y la tarjeta cae al icono
+// generico (mismo criterio de honestidad que heroProductoMarket: nunca
+// una imagen inventada ni repetida a la fuerza).
+async function categoriasConFotoMarket(pool, firmarTokenImagen) {
+    const categorias = await categoriasMarket(pool);
+    if (categorias.length === 0) return [];
+    if (typeof firmarTokenImagen !== "function") return categorias.map(nombre => ({ nombre, fotoUrl: null }));
+
+    const tiendas = await tiendasPermitidasMarket(pool);
+    const idsPermitidos = tiendas.map(t => t.id);
+
+    const resultado = await pool.query(
+        `SELECT DISTINCT ON (p.categoria) p.categoria, p.codigo, n.id AS negocio_id, n.slug, fp.actualizado_at AS foto_actualizado_at
+         FROM public.productos p
+         JOIN public.negocios n ON n.id = p.negocio_id
+         JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
+         WHERE p.negocio_id = ANY($1::int[]) AND p.categoria = ANY($2::text[])
+         ORDER BY p.categoria, RANDOM()`,
+        [idsPermitidos, categorias]
+    );
+
+    const fotoPorCategoria = new Map(resultado.rows.map(fila => [
+        fila.categoria,
+        `/fotos-producto/${encodeURIComponent(fila.codigo)}/principal?negocio=${encodeURIComponent(fila.slug)}&v=${new Date(fila.foto_actualizado_at).getTime()}&token=${firmarTokenImagen(fila.negocio_id, fila.codigo)}`
+    ]));
+
+    return categorias.map(nombre => ({ nombre, fotoUrl: fotoPorCategoria.get(nombre) || null }));
+}
+
+// "Productos populares" para /market/explora. No existe ningun conteo
+// real de vistas ni de ventas cruzado entre tiendas en el sistema (ver
+// nota en marketTarjetaOfertaDelDia mas abajo, mismo criterio) -- inventar
+// un numero de "popularidad" seria mentirle al comprador. En su lugar se
+// prioriza lo unico real y honesto que existe: productos que el propio
+// dueño de cada tienda marco como destacados en su catalogo (columna
+// "destacado", ver Fase F9), y se completa con productos con foto real
+// de cualquier tienda para que la seccion no se quede vacia si pocos
+// dueños han marcado destacados todavia. Siempre requiere foto real
+// (INNER JOIN) -- nunca un producto sin imagen en esta seccion.
+async function popularesMarket(pool, idsPermitidos, firmarTokenImagen, limite = 10) {
+    if (idsPermitidos.length === 0) return [];
+
+    const resultado = await pool.query(
+        `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
+                CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+                CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
+                CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
+                fp.actualizado_at AS foto_actualizado_at, c.envio_modo, c.envio_tarifa, c.envio_notas
+         FROM public.productos p
+         JOIN public.negocios n ON n.id = p.negocio_id
+         JOIN public.sitio_web_config c ON c.negocio_id = n.id
+         JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
+         WHERE p.negocio_id = ANY($1::int[])
+         ORDER BY p.destacado DESC, RANDOM()
+         LIMIT $2`,
+        [idsPermitidos, limite]
+    );
+
+    return mapearFilasProducto(resultado.rows, firmarTokenImagen);
+}
+
 // Busqueda/exploracion -- WHERE condicional (mismo patron que
 // servirCatalogoNegocio): sin buscar ni categoria, lista todo
 // paginado; con cualquiera de los dos, filtra. orden="recientes"
@@ -698,6 +762,29 @@ const ESTILOS_MARKET = `
 .market-categoria-tile-icono{ width:38px; height:38px; display:flex; align-items:center; justify-content:center; border-radius:12px; background:var(--paper); color:var(--blue); }
 .market-categoria-tile-icono svg{ width:20px; height:20px; }
 .market-categoria-tile-label{ font-size:12px; font-weight:700; text-align:center; line-height:1.25; }
+
+/* Explora por categoria (foto real) + Productos populares + Ferreterias
+   cerca de ti -- pagina /market/explora. */
+.market-categorias-grid-foto{ display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:16px; }
+.market-categoria-tile-foto{ display:flex; flex-direction:column; gap:10px; padding:12px; border-radius:16px; border:1px solid var(--line); background:#fff; box-shadow:0 10px 26px rgba(20,32,51,.06); transition:transform .16s ease, box-shadow .16s ease; }
+.market-categoria-tile-foto:hover{ transform:translateY(-2px); box-shadow:0 16px 34px rgba(20,32,51,.12); border-color:var(--blue); }
+.market-categoria-tile-imagen{ aspect-ratio:1; border-radius:12px; overflow:hidden; background:var(--paper); display:flex; align-items:center; justify-content:center; }
+.market-categoria-tile-imagen img{ width:100%; height:100%; object-fit:cover; }
+.market-categoria-tile-icono-generico{ color:var(--muted); width:36px; height:36px; }
+.market-categoria-tile-icono-generico svg{ width:100%; height:100%; }
+.market-categoria-tile-foto .market-categoria-tile-label{ text-align:left; }
+.market-explora-seccion{ margin-top:38px; }
+.market-explora-seccion h2{ margin:0 0 16px; font-size:19px; }
+.market-productos-grid-wrap{ display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); overflow-x:visible; }
+.market-productos-grid-wrap .market-producto-card{ flex:none; width:auto; }
+.market-explora-cerca-header{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.market-explora-cerca-header h2{ margin:0; }
+.market-ubicacion-boton-inline{ display:inline-block; width:auto; margin-bottom:0; }
+.market-tiendas-cerca-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; }
+.market-tienda-cerca-card{ display:flex; flex-direction:column; gap:8px; padding:16px; border:1px solid var(--line); border-radius:18px; background:#fff; box-shadow:0 14px 36px rgba(20,32,51,.08); color:var(--ink); transition:transform .16s ease, box-shadow .16s ease; }
+.market-tienda-cerca-card:hover{ transform:translateY(-3px); box-shadow:0 20px 44px rgba(20,32,51,.14); border-color:var(--blue); }
+.market-tienda-cerca-avatar{ width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:15px; }
+.market-tienda-cerca-distancia{ color:var(--blue); font-weight:700; font-size:12.5px; }
 .market-oficio{ margin:0 0 32px; padding:20px; border-radius:20px; background:var(--glass); border:1px solid var(--line); }
 .market-oficio h3{ margin:0 0 4px; font-size:17px; }
 .market-oficio p{ margin:0 0 14px; color:var(--muted); font-size:13.5px; }
@@ -2067,21 +2154,123 @@ async function servirMarketNuevos(req, res) {
     res.send(paginaMarketHtml({ ordenInicial: "recientes" }));
 }
 
+// Mismo SVG generico de "sin foto" que ya usa el script del inicio
+// (ICONO_FOTO_GENERICA) -- copiado como constante de servidor porque
+// esta pagina renderiza sus tarjetas de producto/categoria en HTML
+// directo, no via el script del cliente.
+const ICONO_FOTO_GENERICA_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg>';
+
+// Paleta fija para el avatar-iniciales de las tarjetas de "Ferreterias
+// cerca de ti" -- ninguna tienda tiene logo real cargado todavia
+// (columna negocios.logo), asi que en vez de un logo generico o
+// inventado se usan las iniciales reales del nombre de la tienda sobre
+// un color que rota por posicion (mismo criterio ya usado en el POS
+// para avatares de empleados sin foto).
+const PALETA_AVATAR_TIENDA = ["#0d6efd", "#e2434d", "#0ea472", "#f5a623", "#7c5cff", "#0891b2"];
+
+function inicialesTienda(nombre) {
+    const limpio = String(nombre || "").trim();
+    if (!limpio) return "?";
+    const partes = limpio.split(/\s+/).filter(Boolean);
+    return ((partes[0]?.[0] || "") + (partes[1]?.[0] || "")).toUpperCase() || limpio[0].toUpperCase();
+}
+
 // GET /market/explora -- pagina propia con TODAS las categorias reales
 // (mismas que ya poblaban la tira/grid del inicio via categoriasMarket,
 // nunca una lista inventada), cada una con link real a
-// /market/categorias/{slug} -- mismo slug que ya resuelve esa ruta.
+// /market/categorias/{slug} -- mismo slug que ya resuelve esa ruta, mas
+// una foto real de un producto de esa categoria cuando existe.
 function tarjetaCategoriaExploraHtml(categoria) {
-    const slug = normalizarSlug(categoria);
-    return `<a class="market-categoria-tile" href="/market/categorias/${encodeURIComponent(slug)}">` +
-        `<span class="market-categoria-tile-label">${escaparHtml(categoria)}</span></a>`;
+    const slug = normalizarSlug(categoria.nombre);
+    const fotoHtml = categoria.fotoUrl
+        ? `<img src="${categoria.fotoUrl}" alt="" loading="lazy">`
+        : `<span class="market-categoria-tile-icono-generico">${ICONO_FOTO_GENERICA_SVG}</span>`;
+    return `<a class="market-categoria-tile-foto" href="/market/categorias/${encodeURIComponent(slug)}">` +
+        `<span class="market-categoria-tile-imagen">${fotoHtml}</span>` +
+        `<span class="market-categoria-tile-label">${escaparHtml(categoria.nombre)}</span></a>`;
 }
 
-async function paginaExploraMarketHtml(pool) {
-    const categorias = await categoriasMarket(pool);
-    const tarjetasHtml = categorias.length > 0
+// Tarjeta de producto server-rendered para "Productos populares" --
+// mismo shape visual que marketTarjetaProducto (script del inicio),
+// reescrita en HTML plano porque esta pagina no depende de JS para
+// pintar sus datos (ya vienen calculados desde el servidor).
+function tarjetaProductoExploraHtml(p) {
+    const tieneOferta = p.precioOferta !== null && p.precioOferta !== undefined
+        && p.precio !== null && p.precio !== undefined && p.precioOferta < p.precio;
+
+    let precioHtml = '';
+    if (tieneOferta) {
+        precioHtml = `<span class="market-producto-precio-tachado">$${Number(p.precio).toFixed(2)}</span>` +
+            `<span class="market-precio-actual">$${Number(p.precioOferta).toFixed(2)}</span>` +
+            `<span class="market-producto-badge-oferta">Oferta</span>`;
+    } else if (p.precio !== null && p.precio !== undefined) {
+        precioHtml = `<span class="market-precio-actual">$${Number(p.precio).toFixed(2)}</span>`;
+    }
+
+    const existenciaHtml = p.stock !== null && p.stock !== undefined
+        ? `<span class="market-producto-existencia${p.stock <= 0 ? ' agotado' : ''}">${p.stock <= 0 ? 'Agotado' : p.stock + ' disponibles'}</span>`
+        : `<span class="market-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>`;
+
+    const fotoHtml = p.fotoUrl
+        ? `<img src="${p.fotoUrl}" alt="${escaparHtml(p.nombre)}" loading="lazy">`
+        : ICONO_FOTO_GENERICA_SVG;
+
+    const enlace = `/market/${encodeURIComponent(p.slug)}/catalogo/${encodeURIComponent(p.codigo)}`;
+
+    return `<div class="market-producto-card">` +
+        `<a href="${enlace}" class="market-producto-foto">${fotoHtml}</a>` +
+        `<span class="market-producto-nombre">${escaparHtml(p.nombre)}</span>` +
+        `<span class="market-producto-precios">${precioHtml}</span>` +
+        existenciaHtml +
+        `<span class="market-producto-tienda">${escaparHtml(p.tienda)}</span>` +
+        `<a class="btn primary" href="${enlace}">Ver en ${escaparHtml(p.tienda)}</a></div>`;
+}
+
+// Tarjeta de "Ferreterias cerca de ti" -- la distancia real (via
+// navigator.geolocation + formula de Haversine, mismo criterio que ya
+// usa el sidebar del inicio en marketDistanciaKm) se llena en el
+// navegador si el usuario da permiso; sin permiso o sin coordenadas
+// reales de la tienda, el span de distancia se queda vacio (nunca un
+// numero inventado).
+function tarjetaTiendaCercaHtml(t, indice) {
+    const color = PALETA_AVATAR_TIENDA[indice % PALETA_AVATAR_TIENDA.length];
+    const tieneCoordenadas = typeof t.lat === "number" && typeof t.lng === "number" && !isNaN(t.lat) && !isNaN(t.lng);
+    return `<a class="market-tienda-cerca-card" href="/market/${encodeURIComponent(t.slug)}"` +
+        (tieneCoordenadas ? ` data-tienda-slug="${escaparHtml(t.slug)}" data-tienda-lat="${t.lat}" data-tienda-lng="${t.lng}"` : '') + `>` +
+        `<span class="market-tienda-cerca-avatar" style="background:${color}">${escaparHtml(inicialesTienda(t.nombre))}</span>` +
+        `<strong>${escaparHtml(t.nombre)}</strong>` +
+        (t.giro ? `<span class="market-tienda-giro">${escaparHtml(t.giro)}</span>` : '') +
+        (t.direccion ? `<span class="market-tienda-direccion">${escaparHtml(t.direccion)}</span>` : '') +
+        (tieneCoordenadas ? `<span class="market-tienda-cerca-distancia" hidden></span>` : '') +
+        `</a>`;
+}
+
+async function paginaExploraMarketHtml(pool, firmarTokenImagen) {
+    const tiendas = await tiendasPermitidasMarket(pool);
+    const idsPermitidos = tiendas.map(t => t.id);
+
+    const [categorias, populares] = await Promise.all([
+        categoriasConFotoMarket(pool, firmarTokenImagen),
+        popularesMarket(pool, idsPermitidos, firmarTokenImagen, 10)
+    ]);
+
+    const categoriasHtml = categorias.length > 0
         ? categorias.map(tarjetaCategoriaExploraHtml).join('')
         : '<p class="market-vacio">Todavia no hay categorias para mostrar.</p>';
+
+    const popularesHtml = populares.length > 0
+        ? `<section class="market-explora-seccion"><h2>Productos populares</h2><div class="market-productos-grid market-productos-grid-wrap">${populares.map(tarjetaProductoExploraHtml).join('')}</div></section>`
+        : '';
+
+    const tiendasOrdenadas = [...tiendas].sort((a, b) => a.nombre.localeCompare(b.nombre));
+    const tiendasCercaHtml = tiendasOrdenadas.length > 0
+        ? `<section class="market-explora-seccion market-explora-cerca">` +
+            `<div class="market-explora-cerca-header"><h2>Ferreterias cerca de ti</h2>` +
+            `<button type="button" id="marketExploraUbicacionBoton" class="market-ubicacion-boton market-ubicacion-boton-inline">Usar mi ubicacion</button></div>` +
+            `<p id="marketExploraUbicacionEstado" class="market-vacio-chico" hidden></p>` +
+            `<div class="market-tiendas-cerca-grid" id="marketTiendasCercaGrid">${tiendasOrdenadas.map(tarjetaTiendaCercaHtml).join('')}</div>` +
+          `</section>`
+        : '';
 
     return `<!doctype html>
 <html lang="es">
@@ -2102,19 +2291,66 @@ ${marketHeaderHtml({ activo: "explora" })}
 <div class="market-contenido">
 <nav class="market-breadcrumb"><a href="/market">Inicio</a> &rsaquo; Explora</nav>
 <div class="market-resultados-header"><div><h2>Explora por categoria</h2></div></div>
-<div class="market-categorias-grid">${tarjetasHtml}</div>
+<div class="market-categorias-grid market-categorias-grid-foto">${categoriasHtml}</div>
+${popularesHtml}
+${tiendasCercaHtml}
 </div>
 </div>
 </main>
 ${marketFooterHtml()}
 <script>${scriptMarketHeaderHtml({ navegarABusqueda: true })}</script>
+<script>
+(function() {
+    function distanciaKm(lat1, lng1, lat2, lng2) {
+        var R = 6371;
+        var dLat = (lat2 - lat1) * Math.PI / 180;
+        var dLng = (lng2 - lng1) * Math.PI / 180;
+        var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return Math.round(R * c * 10) / 10;
+    }
+
+    var boton = document.getElementById("marketExploraUbicacionBoton");
+    var estado = document.getElementById("marketExploraUbicacionEstado");
+    var grid = document.getElementById("marketTiendasCercaGrid");
+    if (!boton || !grid) return;
+
+    boton.addEventListener("click", function() {
+        if (!navigator.geolocation) {
+            estado.hidden = false;
+            estado.textContent = "Tu navegador no permite compartir ubicacion.";
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(function(posicion) {
+            var lat = posicion.coords.latitude;
+            var lng = posicion.coords.longitude;
+            var tarjetas = Array.prototype.slice.call(grid.querySelectorAll("[data-tienda-lat]"));
+            tarjetas.forEach(function(tarjeta) {
+                var km = distanciaKm(lat, lng, Number(tarjeta.dataset.tiendaLat), Number(tarjeta.dataset.tiendaLng));
+                tarjeta.dataset.distanciaKm = km;
+                var span = tarjeta.querySelector(".market-tienda-cerca-distancia");
+                if (span) { span.hidden = false; span.textContent = "a " + km + " km"; }
+            });
+            tarjetas.sort(function(a, b) { return Number(a.dataset.distanciaKm) - Number(b.dataset.distanciaKm); });
+            tarjetas.forEach(function(tarjeta) { grid.appendChild(tarjeta); });
+            boton.hidden = true;
+            estado.hidden = true;
+        }, function() {
+            estado.hidden = false;
+            estado.textContent = "No pudimos usar tu ubicacion. Revisa el permiso del navegador.";
+        });
+    });
+})();
+</script>
 </body>
 </html>`;
 }
 
-async function servirMarketExplora(pool, req, res) {
+async function servirMarketExplora(pool, req, res, firmarTokenImagen) {
     res.set("Content-Type", "text/html; charset=utf-8");
-    res.send(await paginaExploraMarketHtml(pool));
+    res.send(await paginaExploraMarketHtml(pool, firmarTokenImagen));
 }
 
 // GET /market/ferreterias -- directorio real de tiendas Nexo, misma

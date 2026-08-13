@@ -4746,7 +4746,7 @@ app.get("/market/nuevos", (req, res) => {
 
 app.get("/market/explora", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
-    await servirMarketExplora(pool, req, res);
+    await servirMarketExplora(pool, req, res, firmarTokenImagen);
 });
 
 app.get("/market/ferreterias", async (req, res) => {
