@@ -421,6 +421,7 @@ ${marketHeaderHtml({})}
 <div id="marketPagoElement"></div>
 <p id="marketCheckoutPagoError" style="color:#e2434d; font-size:13px; margin:6px 0 0;"></p>
 </div>
+<p id="marketCheckoutPagoProximamente" style="color:#5a6b8c; font-size:13px; margin:0 0 4px;">Pago en linea proximamente. Por ahora pagas directo en la tienda al recibir tu pedido.</p>
 <p id="marketCheckoutAviso" style="color:#e2434d; font-size:13px; margin:0;"></p>
 <div class="market-checkout-botones">
 <button class="btn primary" type="submit" data-tipo="pedido">Enviar pedido</button>
@@ -574,6 +575,7 @@ var marketStripeElements = null;
                 });
                 marketStripeElements.create("payment").mount("#marketPagoElement");
                 document.getElementById("marketCheckoutPago").hidden = false;
+                document.getElementById("marketCheckoutPagoProximamente").hidden = true;
 
                 const botonPedidoPago = document.querySelector('.market-checkout-botones [data-tipo="pedido"]');
                 if (botonPedidoPago) botonPedidoPago.textContent = "Pagar y realizar pedido";
