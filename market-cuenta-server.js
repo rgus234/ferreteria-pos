@@ -291,26 +291,36 @@ document.querySelectorAll("#elegirNegocioLista button").forEach(function(boton) 
 // despues de cargar (nombre/correo/telefono de la persona son la unica
 // excepcion, ya vienen del servidor porque no hay forma de que un
 // visitante sin sesion vea este HTML).
-function paginaHubCuentaMarketHtml(persona) {
+function paginaHubCuentaMarketHtml(persona, pestanaInicial = "resumen") {
     const nombreSeguro = escaparHtml(persona.nombre);
     const correoSeguro = escaparHtml(persona.correo || "Sin correo registrado");
     const telefonoSeguro = escaparHtml(persona.telefono || "Sin telefono registrado");
     const oficioActual = escaparHtml(persona.oficio || "");
+
+    // Que pestana abre por defecto viene del servidor (nunca de un hash
+    // en la URL) -- un fragmento "#pedidos" nunca llega al servidor, asi
+    // que si /market/mis-pedidos dependiera de eso para decidir que
+    // pintar, cualquier logica de servidor que corra antes (como el
+    // atajo a la app del dueno de abajo) lo pisaria sin que el cliente
+    // pueda evitarlo. Cada ruta que quiera abrir en una pestana concreta
+    // debe pasarla aqui explicitamente.
+    const claseActiva = tab => tab === pestanaInicial ? ' class="activo"' : '';
+    const oculto = tab => tab === pestanaInicial ? '' : ' hidden';
 
     const contenido = `<div class="market-cuenta-scope">
 <div id="cuentaMarketAdminCard"></div>
 <div class="portal-shell">
 <aside class="portal-sidebar">
 <div class="portal-sidebar-titulo">Mi cuenta</div>
-<a href="#resumen" data-tab="resumen" class="activo">${ICONO_PORTAL_RESUMEN}Resumen</a>
-<a href="#pedidos" data-tab="pedidos">${ICONO_PORTAL_PEDIDOS}Mis pedidos</a>
-<a href="#favoritos" data-tab="favoritos">${ICONO_TENANT_FAVORITO}Favoritos</a>
-<a href="#credito" data-tab="credito">${ICONO_PORTAL_CREDITO}Mi credito</a>
-<a href="#ferreterias" data-tab="ferreterias">${ICONO_PORTAL_DIRECCION}Ferreterias</a>
+<a href="#resumen" data-tab="resumen"${claseActiva("resumen")}>${ICONO_PORTAL_RESUMEN}Resumen</a>
+<a href="#pedidos" data-tab="pedidos"${claseActiva("pedidos")}>${ICONO_PORTAL_PEDIDOS}Mis pedidos</a>
+<a href="#favoritos" data-tab="favoritos"${claseActiva("favoritos")}>${ICONO_TENANT_FAVORITO}Favoritos</a>
+<a href="#credito" data-tab="credito"${claseActiva("credito")}>${ICONO_PORTAL_CREDITO}Mi credito</a>
+<a href="#ferreterias" data-tab="ferreterias"${claseActiva("ferreterias")}>${ICONO_PORTAL_DIRECCION}Ferreterias</a>
 <div class="portal-sidebar-titulo">Proximamente</div>
 <span class="portal-sidebar-proximamente">${ICONO_PORTAL_DIRECCION}Direcciones<span class="etiqueta">Pronto</span></span>
 <div class="portal-sidebar-titulo">Cuenta</div>
-<a href="#configuracion" data-tab="configuracion">${ICONO_PORTAL_SEGURIDAD}Configuracion</a>
+<a href="#configuracion" data-tab="configuracion"${claseActiva("configuracion")}>${ICONO_PORTAL_SEGURIDAD}Configuracion</a>
 <a href="/site#contacto">${ICONO_PORTAL_AYUDA}Ayuda y soporte</a>
 <div class="portal-sidebar-salir">
 <button type="button" id="cuentaMarketLogoutBoton">${ICONO_PORTAL_SALIR}Cerrar sesion</button>
@@ -318,7 +328,7 @@ function paginaHubCuentaMarketHtml(persona) {
 </aside>
 <div>
 
-<section class="market-cuenta-panel" data-panel="resumen">
+<section class="market-cuenta-panel" data-panel="resumen"${oculto("resumen")}>
 <div class="portal-header-card">
 <div><p class="portal-header-saludo">Hola, ${nombreSeguro} 👋</p><span class="portal-header-badge">Cuenta Nexo</span></div>
 </div>
@@ -330,23 +340,23 @@ function paginaHubCuentaMarketHtml(persona) {
 </div>
 </section>
 
-<section class="market-cuenta-panel" data-panel="pedidos" hidden>
+<section class="market-cuenta-panel" data-panel="pedidos"${oculto("pedidos")}>
 <div class="portal-card"><div class="portal-card-header"><h2>Mis pedidos</h2></div><div id="cuentaMarketPedidosLista"><p class="portal-credito-vacio">Cargando...</p></div></div>
 </section>
 
-<section class="market-cuenta-panel" data-panel="favoritos" hidden>
+<section class="market-cuenta-panel" data-panel="favoritos"${oculto("favoritos")}>
 <div class="portal-card"><div class="portal-card-header"><h2>Favoritos</h2></div><div id="cuentaMarketFavoritosLista"><p class="portal-credito-vacio">Cargando...</p></div></div>
 </section>
 
-<section class="market-cuenta-panel" data-panel="credito" hidden>
+<section class="market-cuenta-panel" data-panel="credito"${oculto("credito")}>
 <div class="portal-card"><div class="portal-card-header"><h2>Mi credito</h2></div><div id="cuentaMarketCreditoLista"><p class="portal-credito-vacio">Cargando...</p></div></div>
 </section>
 
-<section class="market-cuenta-panel" data-panel="ferreterias" hidden>
+<section class="market-cuenta-panel" data-panel="ferreterias"${oculto("ferreterias")}>
 <div class="portal-card"><div class="portal-card-header"><h2>Ferreterias donde eres cliente</h2></div><div id="cuentaMarketFerreteriasLista"><p class="portal-credito-vacio">Cargando...</p></div></div>
 </section>
 
-<section class="market-cuenta-panel" data-panel="configuracion" hidden>
+<section class="market-cuenta-panel" data-panel="configuracion"${oculto("configuracion")}>
 <div class="portal-card" style="margin-bottom:20px;">
 <div class="portal-card-header"><h2>Datos personales</h2></div>
 <div class="portal-datos-fila"><span>Correo</span><span>${correoSeguro}</span></div>
@@ -705,4 +715,31 @@ async function servirCuentaMarket(pool, req, res) {
     }
 }
 
-module.exports = { servirCuentaMarket };
+// /market/mis-pedidos -- a proposito NO pasa por el atajo de
+// servirCuentaMarket que salta directo a la app del dueno para cuentas
+// puramente administradoras. Ese atajo tiene sentido quando alguien le
+// da clic al icono de la cuenta (quiere entrar a administrar), pero
+// "Mis pedidos" siempre es una intencion de comprador -- alguien que
+// tambien administra una ferreteria puede perfectamente haber comprado
+// algo en otra. Bug real reportado: entrar aqui rebotaba a la app del
+// dueno sin mostrar nunca los pedidos. Por el mismo motivo, la pestana
+// inicial se decide en el servidor (pestanaInicial="pedidos"), no con
+// un hash en la URL -- un fragmento nunca llega al servidor.
+async function servirMisPedidosMarket(pool, req, res) {
+    try {
+        const resolverPersonaOpcional = crearResolverSesionPersonaOpcional(pool);
+        await new Promise(continuar => resolverPersonaOpcional(req, res, continuar));
+
+        if (!req.persona) {
+            res.set("Content-Type", "text/html; charset=utf-8").send(paginaLoginCuentaMarketHtml());
+            return;
+        }
+
+        res.set("Content-Type", "text/html; charset=utf-8").send(paginaHubCuentaMarketHtml(req.persona, "pedidos"));
+    } catch (error) {
+        console.warn("Error sirviendo /market/mis-pedidos:", error.message);
+        res.status(500).send("Error");
+    }
+}
+
+module.exports = { servirCuentaMarket, servirMisPedidosMarket };

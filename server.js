@@ -33,7 +33,7 @@ const {
 } = require("./public-site-server");
 const { servirMarketPagina, servirMarketCategoria, servirMarketOfertas, servirMarketNuevos, servirMarketExplora, servirMarketFerreterias, servirMarketCreditoNexo, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, carritoProductosMarketJson } = require("./market-server");
 const { servirInicioTiendaMarket, servirCatalogoTiendaMarket, servirProductoTiendaMarket } = require("./market-tienda-server");
-const { servirCuentaMarket } = require("./market-cuenta-server");
+const { servirCuentaMarket, servirMisPedidosMarket } = require("./market-cuenta-server");
 const { servirCarritoMarket, servirCheckoutMarket } = require("./market-carrito-server");
 const {
     servirSeguimientoPedidoMarket,
@@ -4756,11 +4756,16 @@ app.get("/market/mi-cuenta", async (req, res) => {
 });
 
 // URL propia y compartible para "Mis pedidos" (rediseno de pedidos, ver
-// plan) -- hoy es una pestana dentro de /market/mi-cuenta (mismo login
-// gate, no se duplica), el hash activa esa pestana al cargar.
-app.get("/market/mis-pedidos", (req, res) => {
+// plan) -- pinta el mismo hub de cuenta que /market/mi-cuenta, en la
+// pestana de pedidos, pero SIN pasar por el atajo que salta directo a
+// la app del dueno para cuentas puramente administradoras: "Mis
+// pedidos" es siempre una intencion de comprador, sin importar que mas
+// administre esa persona (bug real reportado: antes redirigia aqui a
+// /market/mi-cuenta, que rebotaba a la app del dueno sin mostrar nunca
+// los pedidos).
+app.get("/market/mis-pedidos", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
-    res.redirect(302, "/market/mi-cuenta#pedidos");
+    await servirMisPedidosMarket(pool, req, res);
 });
 
 // URL propia y compartible por categoria (antes solo existia como
