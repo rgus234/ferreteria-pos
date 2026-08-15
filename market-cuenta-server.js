@@ -432,6 +432,17 @@ document.querySelectorAll(".portal-sidebar a[data-tab]").forEach(function(link) 
     });
 });
 
+// /market/mis-pedidos redirige aqui con #pedidos -- los enlaces del
+// sidebar ya son anclas reales (href="#pedidos"), pero solo el click
+// dispara el cambio de panel. Si la pagina carga directo con un hash
+// (en vez de por click), se simula el click una sola vez al cargar.
+(function(){
+    const hashTab = window.location.hash.replace("#", "");
+    if (!hashTab) return;
+    const enlace = document.querySelector('.portal-sidebar a[data-tab="' + hashTab + '"]');
+    if (enlace) enlace.click();
+})();
+
 async function cuentaMarketCargarResumenPedidosFavoritos() {
     const pedidos = await cuentaMarketLlamar("/personas/mis-pedidos");
     const totalPedidos = pedidos.ok ? new Set(pedidos.pedidos.map(function(p) { return p.grupo_id || p.id; })).size : 0;
@@ -451,19 +462,32 @@ async function cuentaMarketCargarResumenPedidosFavoritos() {
         grupos.get(clave).push(p);
     });
 
+    var ETIQUETAS_ESTADO_MARKET = {
+        pendiente: "Recibido", recibido: "Recibido", confirmado: "Preparando", preparando: "Preparando",
+        listo: "Listo para recoger", entregado: "Entregado", cancelado: "Cancelado"
+    };
+
     listaPedidos.innerHTML = "";
     grupos.forEach(function(items) {
         const primero = items[0];
-        const fila = document.createElement("div");
+        const esPedidoMarket = !!primero.codigo_recogida;
+        const fila = document.createElement(esPedidoMarket ? "a" : "div");
         fila.className = "portal-pedido-fila";
+        if (esPedidoMarket) {
+            fila.href = "/market/pedido/" + encodeURIComponent(primero.codigo_recogida);
+            fila.style.textDecoration = "none";
+        }
         const nombres = items.map(function(it) { return it.producto_nombre; }).join(", ");
+        const etiquetaEstado = esPedidoMarket
+            ? (ETIQUETAS_ESTADO_MARKET[primero.estado_pedido_market] || primero.estado_pedido_market)
+            : primero.estado;
         fila.innerHTML =
             '<div class="portal-pedido-icono">' + '${ICONO_PORTAL_PEDIDOS}' + '</div>' +
             '<div class="portal-pedido-info"><div class="portal-pedido-nombre"></div><div class="portal-pedido-fecha"></div></div>' +
             '<div class="portal-pedido-precio"></div>';
         fila.querySelector(".portal-pedido-nombre").textContent = nombres;
         fila.querySelector(".portal-pedido-fecha").textContent =
-            cuentaMarketEscapar(primero.tienda) + " -- " + new Date(primero.created_at).toLocaleDateString("es-MX") + " -- " + primero.estado;
+            cuentaMarketEscapar(primero.tienda) + " -- " + new Date(primero.created_at).toLocaleDateString("es-MX") + " -- " + etiquetaEstado;
         fila.querySelector(".portal-pedido-precio").textContent = primero.precio_cotizado ? cuentaMarketDinero(primero.precio_cotizado) : "";
         listaPedidos.appendChild(fila);
     });

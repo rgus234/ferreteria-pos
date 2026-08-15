@@ -68,6 +68,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("personas (identidad Nexo unificada)", () => {
         require("./personas-server").registrarRutas(app, pool, requerirAccesoNegocio);
     });
+
+    cargarModuloPOS("pedidos de Nexo Market (maquina de estados)", () => {
+        require("./market-pedidos-server")(app, pool, requerirAccesoNegocio);
+    });
 }
 
 module.exports = {

@@ -35,6 +35,12 @@ const { servirMarketPagina, servirMarketCategoria, servirMarketOfertas, servirMa
 const { servirInicioTiendaMarket, servirCatalogoTiendaMarket, servirProductoTiendaMarket } = require("./market-tienda-server");
 const { servirCuentaMarket } = require("./market-cuenta-server");
 const { servirCarritoMarket, servirCheckoutMarket } = require("./market-carrito-server");
+const {
+    servirSeguimientoPedidoMarket,
+    estadoPedidoMarketJson,
+    servirQrPedidoMarket,
+    servirBarcodePedidoMarket
+} = require("./market-pedidos-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
@@ -4715,6 +4721,31 @@ app.get("/market/checkout", (req, res) => {
     servirCheckoutMarket(req, res);
 });
 
+// Seguimiento de pedidos de Market (rediseno de pedidos, ver plan) --
+// acceso por codigo, sin sesion. Rutas fijas de 2+ segmentos ("pedido"
+// como primer segmento) -- no chocan con "GET /market/:slug" (1 solo
+// segmento, mas abajo) pero se registran aqui junto al resto de rutas
+// fijas de Market por orden de lectura.
+app.get("/market/pedido/:codigo", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirSeguimientoPedidoMarket(pool, req, res);
+});
+
+app.get("/market/pedido/:codigo/estado", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false }); return; }
+    await estadoPedidoMarketJson(pool, req, res);
+});
+
+app.get("/market/pedido/:codigo/qr.png", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirQrPedidoMarket(pool, req, res);
+});
+
+app.get("/market/pedido/:codigo/barcode.png", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirBarcodePedidoMarket(pool, req, res);
+});
+
 // Identidad del comprador dentro de Market (Fase "arquitectura de
 // navegacion del comprador", ver plan) -- ruta fija, debe quedar
 // registrada ANTES de "GET /market/:slug" (mas abajo) o Express la
@@ -4722,6 +4753,14 @@ app.get("/market/checkout", (req, res) => {
 app.get("/market/mi-cuenta", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
     await servirCuentaMarket(pool, req, res);
+});
+
+// URL propia y compartible para "Mis pedidos" (rediseno de pedidos, ver
+// plan) -- hoy es una pestana dentro de /market/mi-cuenta (mismo login
+// gate, no se duplica), el hash activa esa pestana al cargar.
+app.get("/market/mis-pedidos", (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    res.redirect(302, "/market/mi-cuenta#pedidos");
 });
 
 // URL propia y compartible por categoria (antes solo existia como

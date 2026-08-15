@@ -1,0 +1,233 @@
+.pmk-shell {
+  max-width: 920px;
+}
+
+.pmk-contadores {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 4px 0 18px;
+}
+
+.pmk-contador {
+  padding: 14px 16px;
+  border: 1px solid var(--line-soft, #dbe3ef);
+  border-radius: 14px;
+  background: var(--surface-soft, #f8fafc);
+  font-size: 12.5px;
+  color: var(--text-muted, #64748b);
+  font-weight: 700;
+}
+
+.pmk-contador span {
+  display: block;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--text, #172033);
+  margin-bottom: 2px;
+}
+
+.pmk-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.pmk-tab {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft, #dbe3ef);
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+}
+
+.pmk-tab.activo {
+  background: var(--pos-accent, #2563eb);
+  border-color: var(--pos-accent, #2563eb);
+  color: #fff;
+}
+
+.pmk-vacio {
+  color: var(--text-muted, #64748b);
+  font-size: 14px;
+  padding: 30px 0;
+  text-align: center;
+}
+
+.pmk-lista {
+  display: grid;
+  gap: 14px;
+}
+
+.pmk-tarjeta {
+  padding: 16px 18px;
+  border: 1px solid var(--line-soft, #dbe3ef);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.pmk-tarjeta-cabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.pmk-tarjeta-cabecera strong {
+  font-size: 15px;
+  display: block;
+}
+
+.pmk-codigo {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  color: var(--pos-accent, #2563eb);
+}
+
+.pmk-total {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.pmk-tarjeta-contacto {
+  font-size: 12.5px;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 10px;
+}
+
+.pmk-items {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.pmk-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13.5px;
+  padding: 4px 0;
+  border-top: 1px solid var(--line-soft, #eef2f7);
+}
+
+.pmk-item:first-child {
+  border-top: none;
+}
+
+.pmk-item-faltante {
+  color: #b3261e;
+}
+
+.pmk-badge-faltante {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(217, 83, 79, .12);
+  color: #b3261e;
+  white-space: nowrap;
+}
+
+.pmk-recogida,
+.pmk-motivo {
+  font-size: 12.5px;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 8px;
+}
+
+.pmk-motivo {
+  color: #b3261e;
+}
+
+.pmk-tarjeta-acciones {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.pmk-btn-primario,
+.pmk-btn-secundario {
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.pmk-btn-primario {
+  background: var(--pos-accent, #2563eb);
+  color: #fff;
+}
+
+.pmk-btn-secundario {
+  background: #fff;
+  border-color: var(--line-soft, #dbe3ef);
+  color: var(--text-muted, #64748b);
+}
+
+.pmk-btn-escanear {
+  display: block;
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 12px;
+  background: var(--pos-accent, #2563eb);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pmk-modal-escaneo .pmk-escaneo-caja,
+.pmk-modal-verificacion .pmk-verificacion-caja {
+  background: #fff;
+  border-radius: 16px;
+  padding: 22px 24px;
+  max-width: 420px;
+  width: 100%;
+  margin: auto;
+  display: grid;
+  gap: 12px;
+}
+
+.pmk-escaneo-ayuda {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+}
+
+.pmk-escaneo-video {
+  width: 100%;
+  border-radius: 12px;
+  background: #000;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+}
+
+.pmk-escaneo-estado {
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+  text-align: center;
+}
+
+.pmk-verificacion-cliente {
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.pmk-verificacion-pregunta {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  font-weight: 700;
+}

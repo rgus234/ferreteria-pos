@@ -24,12 +24,13 @@ const {
     firmarTokenBancoImagen
 } = require("./banco-imagenes-server");
 const { funcionDelPlan } = require("./plan-enforcement");
-const { enviarCorreoPedidoPublico, enviarCorreoPedidoCarritoPublico, enviarCorreoSolicitudCreditoPublica, enviarCorreoCotizacionRespondida } = require("./email");
+const { enviarCorreoPedidoPublico, enviarCorreoPedidoCarritoPublico, enviarCorreoSolicitudCreditoPublica, enviarCorreoCotizacionRespondida, enviarCorreoPedidoRecibido } = require("./email");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { calcularAntiguedadCredito } = require("./credit-aging");
 const { crearRequerirSesionPersona, crearResolverSesionPersonaOpcional } = require("./personas-server");
 const { OFICIOS_PERSONA } = require("./oficios-persona");
 const { geocodificarDireccion } = require("./geocodificacion");
+const { formatearCodigoRecogida, generarQrYBarcode } = require("./pedido-codigos");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
 const TAMANO_MAXIMO_PORTADA = 3 * 1024 * 1024;
@@ -177,6 +178,7 @@ async function resolverSitioPublico(pool, slug) {
         `
         SELECT
             n.id, n.slug, n.nombre, n.telefono, n.direccion, n.logo, n.color, n.estado, n.correo, n.giro,
+            n.pedido_prep_min, n.pedido_prep_max,
             c.activo, c.descripcion, c.portada, c.horario_texto, c.whatsapp, c.facebook, c.instagram,
             c.mostrar_precios, c.mostrar_existencias, c.aceptar_solicitudes_credito,
             c.promocion_activa, c.promocion_titulo, c.promocion_texto, c.promocion_enlace,
@@ -212,7 +214,9 @@ async function resolverSitioPublico(pool, slug) {
             logo: fila.logo,
             color: fila.color,
             correo: fila.correo,
-            giro: fila.giro
+            giro: fila.giro,
+            pedidoPrepMin: fila.pedido_prep_min,
+            pedidoPrepMax: fila.pedido_prep_max
         },
         config: {
             descripcion: fila.descripcion,
@@ -1961,15 +1965,19 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
         let cuentaCreada = false;
         let codigoAcceso = null;
         let itemsParaCorreo = [];
+        let pedidoMarketId = null;
+        let codigoRecogida = null;
+        let recogidaEstimada = null;
 
         try {
             await client.query("BEGIN");
 
             const productosRes = await client.query(
-                `SELECT codigo, nombre FROM public.productos WHERE negocio_id = $1 AND codigo = ANY($2)`,
+                `SELECT codigo, nombre, COALESCE(precio_oferta, precio_publico, precio) AS precio_final FROM public.productos WHERE negocio_id = $1 AND codigo = ANY($2)`,
                 [sitio.negocio.id, codigos]
             );
             const nombresPorCodigo = new Map(productosRes.rows.map(p => [p.codigo, p.nombre]));
+            const preciosPorCodigo = new Map(productosRes.rows.map(p => [p.codigo, Number(p.precio_final) || 0]));
 
             if (nombresPorCodigo.size !== codigos.length) {
                 await client.query("ROLLBACK");
@@ -1979,21 +1987,58 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
 
             grupoId = crypto.randomUUID();
 
-            for (const item of itemsBody) {
+            const itemsNormalizados = itemsBody.map(item => {
                 const codigo = paramTexto(item?.codigo, 80);
                 const cantidad = Math.min(9999, Math.max(1, parseInt(item?.cantidad, 10) || 1));
-                const nombreProducto = nombresPorCodigo.get(codigo);
+                return { codigo, cantidad, nombre: nombresPorCodigo.get(codigo), precio: preciosPorCodigo.get(codigo) };
+            });
 
+            // Cabecera del pedido (Fase 1/2 del rediseno de pedidos de
+            // Market): solo para pedidos reales de Nexo Market, no para
+            // cotizaciones ni pedidos del sitio propio del negocio -- esos
+            // siguen igual que siempre, con pedido_market_id = NULL. El
+            // codigo de recogida depende del id (serial), asi que primero
+            // se inserta con un codigo temporal unico y se actualiza en la
+            // misma transaccion en cuanto se conoce el id.
+            if (origen === "market" && tipo === "pedido") {
+                const total = itemsNormalizados.reduce((suma, i) => suma + i.precio * i.cantidad, 0);
+                const prepMin = sitio.negocio.pedidoPrepMin ?? 30;
+                const prepMax = sitio.negocio.pedidoPrepMax ?? 45;
+                const ahora = Date.now();
+                const recogidaDesde = new Date(ahora + prepMin * 60000);
+                const recogidaHasta = new Date(ahora + prepMax * 60000);
+
+                const insertCabecera = await client.query(
+                    `
+                    INSERT INTO public.pedidos_market
+                        (negocio_id, persona_id, grupo_id, cliente_nombre, cliente_telefono, cliente_correo, estado, codigo_recogida, total, pagado, tiempo_prep_min, tiempo_prep_max, recogida_estimada_desde, recogida_estimada_hasta)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'pendiente', $7, $8, $9, $10, $11, $12, $13)
+                    RETURNING id
+                    `,
+                    [sitio.negocio.id, req.persona ? req.persona.id : null, grupoId, clienteNombre, clienteTelefono, clienteCorreo, `TEMP-${grupoId}`, total, pagado, prepMin, prepMax, recogidaDesde, recogidaHasta]
+                );
+
+                pedidoMarketId = insertCabecera.rows[0].id;
+                codigoRecogida = formatearCodigoRecogida(pedidoMarketId);
+                recogidaEstimada = { desde: recogidaDesde, hasta: recogidaHasta };
+
+                await client.query(
+                    `UPDATE public.pedidos_market SET codigo_recogida = $1 WHERE id = $2`,
+                    [codigoRecogida, pedidoMarketId]
+                );
+            }
+
+            for (const item of itemsNormalizados) {
                 await client.query(
                     `
                     INSERT INTO public.pedidos_publicos
-                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id, tipo, persona_id, origen, entrega_modo, pagado, stripe_payment_intent_id, monto_pagado, comision_nexo)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                        (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id, tipo, persona_id, origen, entrega_modo, pagado, stripe_payment_intent_id, monto_pagado, comision_nexo, pedido_market_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
                     `,
-                    [sitio.negocio.id, codigo, nombreProducto, cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId, tipo, req.persona ? req.persona.id : null, origen, entregaModo, pagado, stripePaymentIntentId, montoPagado, comisionNexo]
+                    [sitio.negocio.id, item.codigo, item.nombre, item.cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, req.ip, grupoId, tipo, req.persona ? req.persona.id : null, origen, entregaModo, pagado, stripePaymentIntentId, montoPagado, comisionNexo, pedidoMarketId]
                 );
 
-                itemsParaCorreo.push({ nombre: nombreProducto, cantidad });
+                itemsParaCorreo.push({ nombre: item.nombre, cantidad: item.cantidad });
             }
 
             // Cuenta ligera (Fase 7): solo si hay telefono valido y NO
@@ -2043,9 +2088,21 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
             }).catch(error => console.warn("No se pudo enviar el aviso de pedido de carrito:", error.message));
         }
 
+        if (pedidoMarketId && clienteCorreo) {
+            enviarCorreoPedidoRecibido(clienteCorreo, sitio.negocio.nombre, {
+                items: itemsParaCorreo,
+                codigoRecogida,
+                recogidaDesde: recogidaEstimada?.desde,
+                recogidaHasta: recogidaEstimada?.hasta,
+                urlSeguimiento: `https://nexoposoficial.com/market/pedido/${encodeURIComponent(codigoRecogida)}`
+            }).catch(error => console.warn("No se pudo enviar el correo de pedido recibido:", error.message));
+        }
+
         res.json({
             ok: true,
-            cuenta: cuentaCreada ? { creada: true, codigo: codigoAcceso } : { creada: false }
+            cuenta: cuentaCreada ? { creada: true, codigo: codigoAcceso } : { creada: false },
+            pedidoMarketId,
+            codigoRecogida
         });
     } catch (error) {
         console.warn("Error recibiendo pedido de carrito publico:", error.message);
@@ -3865,9 +3922,12 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
         try {
             const resultado = await pool.query(
                 `SELECT pp.id, pp.negocio_id, n.slug, n.nombre AS tienda, pp.producto_codigo, pp.producto_nombre,
-                        pp.cantidad, pp.estado, pp.created_at, pp.grupo_id, pp.tipo, pp.precio_cotizado, pp.nota_negocio
+                        pp.cantidad, pp.estado, pp.created_at, pp.grupo_id, pp.tipo, pp.precio_cotizado, pp.nota_negocio,
+                        pm.id AS pedido_market_id, pm.codigo_recogida, pm.estado AS estado_pedido_market,
+                        pm.recogida_estimada_desde, pm.recogida_estimada_hasta
                  FROM public.pedidos_publicos pp
                  JOIN public.negocios n ON n.id = pp.negocio_id
+                 LEFT JOIN public.pedidos_market pm ON pm.id = pp.pedido_market_id
                  WHERE pp.persona_id = $1
                  ORDER BY pp.created_at DESC
                  LIMIT 200`,

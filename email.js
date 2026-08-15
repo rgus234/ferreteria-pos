@@ -549,6 +549,156 @@ function enviarCorreoCotizacionRespondida(correo, nombreNegocio, { items, precio
     });
 }
 
+// ---- Rediseno del flujo de pedidos de Nexo Market (Fase 3/5, ver plan
+// "Nexo Market: rediseno del flujo de pedidos"): un correo por cada
+// transicion de estado, disparado directamente por quien hace el UPDATE
+// (mismo patron ya usado por enviarCorreoCotizacionRespondida) -- nunca
+// hay IA de por medio, solo texto fijo segun el estado nuevo. ----
+
+function filasItemsPedidoMarket(items) {
+    return (items || [])
+        .map(item => `<tr><td style="padding:4px 0;color:#344054;font-size:14px;">${escaparHtmlCorreo(item.nombre)} &times; ${escaparHtmlCorreo(item.cantidad)}</td></tr>`)
+        .join("");
+}
+
+function rangoRecogidaHtml(recogidaDesde, recogidaHasta) {
+    if (!recogidaDesde || !recogidaHasta) return "";
+    const formato = fecha => new Date(fecha).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" });
+    return `<tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Recogida estimada:</strong> ${formato(recogidaDesde)} - ${formato(recogidaHasta)}</td></tr>`;
+}
+
+function enviarCorreoPedidoRecibido(correo, nombreNegocio, { items, codigoRecogida, urlSeguimiento }) {
+    const nombreSeguro = escaparHtmlCorreo(nombreNegocio);
+
+    return enviarCorreo({
+        correo,
+        asunto: `Pedido recibido -- ${nombreSeguro}`,
+        html: envolverPlantilla({
+            etiqueta: "Pedido realizado",
+            titulo: "Recibimos tu pedido",
+            saludo: `Pedido ${escaparHtmlCorreo(codigoRecogida)}`,
+            robot: "feliz",
+            cuerpoHtml: `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 10px;">
+                    ${filasItemsPedidoMarket(items)}
+                </table>
+                ${botonHtml("Ver mi pedido", urlSeguimiento)}
+                ${avisoHtml(`Enviamos tu pedido a ${nombreSeguro} para que lo revisen. Te avisaremos por correo en cuanto lo confirmen.`)}
+            `
+        })
+    });
+}
+
+function enviarCorreoPedidoConfirmado(correo, nombreNegocio, { items, urlSeguimiento, recogidaDesde, recogidaHasta }) {
+    const nombreSeguro = escaparHtmlCorreo(nombreNegocio);
+
+    return enviarCorreo({
+        correo,
+        asunto: `¡Tu pedido fue aceptado! -- ${nombreSeguro}`,
+        html: envolverPlantilla({
+            etiqueta: "Pedido aceptado",
+            titulo: `${nombreSeguro} aceptó tu pedido`,
+            saludo: "Ya lo empezarán a preparar",
+            robot: "celebrando",
+            cuerpoHtml: `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 10px;">
+                    ${filasItemsPedidoMarket(items)}
+                </table>
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 6px;">
+                    ${rangoRecogidaHtml(recogidaDesde, recogidaHasta)}
+                </table>
+                ${botonHtml("Ver mi pedido", urlSeguimiento)}
+                ${avisoHtml("Te enviaremos otro correo en cuanto esté listo para recoger.")}
+            `
+        })
+    });
+}
+
+// Unico correo del flujo con adjunto -- el QR va embebido inline con
+// contentId (asi lo llama el SDK de Resend; el atributo <img> lo
+// referencia con el prefijo estandar "cid:"), no como boton, para que
+// el cliente lo pueda ensenar directo desde el correo sin dar clic a
+// nada.
+function enviarCorreoPedidoListo(correo, nombreNegocio, { items, codigoRecogida, urlSeguimiento, direccion, qrBuffer }) {
+    const nombreSeguro = escaparHtmlCorreo(nombreNegocio);
+
+    return enviarCorreo({
+        correo,
+        asunto: `🎉 Tu pedido ya está listo -- ${nombreSeguro}`,
+        attachments: qrBuffer ? [{ filename: "codigo-recogida.png", content: qrBuffer, contentId: "qr-pedido" }] : [],
+        html: envolverPlantilla({
+            etiqueta: "Listo para recoger",
+            titulo: "¡Tu pedido está listo!",
+            saludo: "Ya puedes pasar a recogerlo",
+            robot: "celebrando",
+            cuerpoHtml: `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 10px;">
+                    ${filasItemsPedidoMarket(items)}
+                </table>
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 6px;">
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>${nombreSeguro}</strong></td></tr>
+                    ${direccion ? `<tr><td style="padding:2px 0;color:#667085;font-size:13.5px;">📍 ${escaparHtmlCorreo(direccion)}</td></tr>` : ""}
+                </table>
+                ${qrBuffer ? `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0;background:#f8fafc;border:1px solid #eef2f7;border-radius:14px;">
+                    <tr><td align="center" style="padding:20px;">
+                        <div style="font-size:11px;font-weight:800;color:#667085;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">Código de recogida</div>
+                        <img src="cid:qr-pedido" width="160" height="160" alt="Código QR" style="display:block;margin:0 auto 10px;">
+                        <div style="font-size:18px;font-weight:800;color:#0f172a;letter-spacing:.05em;">${escaparHtmlCorreo(codigoRecogida)}</div>
+                    </td></tr>
+                </table>
+                ` : ""}
+                ${botonHtml("Ver mi pedido", urlSeguimiento)}
+                ${avisoHtml("Muestra este código (o el correo completo) en la tienda para que te entreguen tu pedido.")}
+            `
+        })
+    });
+}
+
+function enviarCorreoPedidoEntregado(correo, nombreNegocio, { items, urlSeguimiento }) {
+    const nombreSeguro = escaparHtmlCorreo(nombreNegocio);
+
+    return enviarCorreo({
+        correo,
+        asunto: `Pedido entregado -- gracias por comprar en Nexo`,
+        html: envolverPlantilla({
+            etiqueta: "Pedido entregado",
+            titulo: "¡Pedido entregado!",
+            saludo: `Gracias por comprar en ${nombreSeguro}`,
+            robot: "celebrando",
+            cuerpoHtml: `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 10px;">
+                    ${filasItemsPedidoMarket(items)}
+                </table>
+                ${urlSeguimiento ? botonHtml("Ver detalle del pedido", urlSeguimiento) : ""}
+            `
+        })
+    });
+}
+
+function enviarCorreoPedidoCancelado(correo, nombreNegocio, { items, motivo, urlSeguimiento }) {
+    const nombreSeguro = escaparHtmlCorreo(nombreNegocio);
+
+    return enviarCorreo({
+        correo,
+        asunto: `Tu pedido fue cancelado -- ${nombreSeguro}`,
+        html: envolverPlantilla({
+            etiqueta: "Pedido cancelado",
+            titulo: "Tu pedido fue cancelado",
+            saludo: nombreSeguro,
+            robot: "feliz",
+            cuerpoHtml: `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 10px;">
+                    ${filasItemsPedidoMarket(items)}
+                </table>
+                ${motivo ? `<p style="margin:10px 0;color:#344054;font-size:14px;"><strong>Motivo:</strong> ${escaparHtmlCorreo(motivo)}</p>` : ""}
+                ${urlSeguimiento ? botonHtml("Ver detalle del pedido", urlSeguimiento) : ""}
+                ${avisoHtml("Si tienes dudas, contacta directamente a la tienda.")}
+            `
+        })
+    });
+}
+
 // La solicitud viene del formulario publico de credito (sin sesion).
 // A proposito NUNCA incluye las fotos de identificacion en el correo
 // -- correo no es un canal seguro para documentos sensibles, se avisa
@@ -607,5 +757,10 @@ module.exports = {
     enviarCorreoPedidoPublico,
     enviarCorreoPedidoCarritoPublico,
     enviarCorreoSolicitudCreditoPublica,
-    enviarCorreoCotizacionRespondida
+    enviarCorreoCotizacionRespondida,
+    enviarCorreoPedidoRecibido,
+    enviarCorreoPedidoConfirmado,
+    enviarCorreoPedidoListo,
+    enviarCorreoPedidoEntregado,
+    enviarCorreoPedidoCancelado
 };

@@ -635,6 +635,12 @@ var marketStripeElements = null;
             }
 
             localStorage.removeItem("nexoCarrito_" + slug);
+
+            if (tipo === "pedido" && datos.codigoRecogida) {
+                window.location.href = "/market/pedido/" + encodeURIComponent(datos.codigoRecogida);
+                return;
+            }
+
             document.getElementById("marketCheckoutForm").style.display = "none";
             resumen.style.display = "none";
             const exito = document.getElementById("marketCheckoutExito");
