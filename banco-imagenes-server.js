@@ -92,11 +92,13 @@ function verificarTokenBancoImagen(token, codigo) {
 }
 
 // Un zip de varias paginas del Banco de Contenido Digital de Truper puede
-// pesar bastante -- mismo margen de 200MB/30 archivos ya usado por el
-// importador por-negocio (server.js, uploadZipsFotosProducto).
+// pesar bastante -- el margen de 200MB usado originalmente (mismo que
+// uploadZipsFotosProducto en server.js) se quedaba corto con paginas muy
+// pobladas de fotos (hasta ~236MB observado en el catalogo real), asi que
+// aqui se sube a 300MB con el mismo limite de 30 archivos por lote.
 const uploadZipsBancoImagenes = multer({
     dest: os.tmpdir(),
-    limits: { fileSize: 200 * 1024 * 1024, files: 30 }
+    limits: { fileSize: 300 * 1024 * 1024, files: 30 }
 });
 
 // Envuelto a mano (no como middleware directo) para que un error de
@@ -240,11 +242,76 @@ async function procesarZipBancoImagenes(pool, rutaZip, marca, origen) {
     return resumen;
 }
 
+// Un zip grande (muchas fotos) puede tardar minutos en comprimirse una
+// por una -- eso ya superaba el timeout del proxy de produccion cuando
+// se procesaba dentro de la misma peticion HTTP (la subida se veia como
+// 502/520 aunque el archivo hubiera llegado bien). Mismo patron que
+// catalogo_pdf_trabajos (catalog-pdf-server.js): la ruta de subida solo
+// guarda el archivo y encola un trabajo; este poller lo procesa aparte,
+// fuera del ciclo de la peticion HTTP que lo subio.
+async function procesarTrabajoImportacionBanco(pool, trabajo) {
+    try {
+        await pool.query(
+            `UPDATE public.banco_imagenes_importacion_trabajos SET estado = 'procesando', updated_at = NOW() WHERE id = $1`,
+            [trabajo.id]
+        );
+
+        const resultado = await procesarZipBancoImagenes(pool, trabajo.ruta_temporal, trabajo.marca, trabajo.nombre_archivo);
+
+        await pool.query(
+            `
+            UPDATE public.banco_imagenes_importacion_trabajos
+            SET estado = 'listo', fotos_guardadas = $1, solicitudes_resueltas = $2, errores = $3, updated_at = NOW()
+            WHERE id = $4
+            `,
+            [resultado.fotosGuardadas, resultado.solicitudesResueltas, JSON.stringify(resultado.errores), trabajo.id]
+        );
+    } catch (error) {
+        await pool.query(
+            `UPDATE public.banco_imagenes_importacion_trabajos SET estado = 'error', mensaje_error = $1, updated_at = NOW() WHERE id = $2`,
+            [error.message || "Error desconocido procesando el zip", trabajo.id]
+        );
+    } finally {
+        fs.unlink(trabajo.ruta_temporal, () => {});
+    }
+}
+
+const INTERVALO_REVISION_IMPORTACION_BANCO_MS = 4000;
+let procesandoImportacionBancoAhora = false;
+
+function iniciarProcesadorImportacionBanco(pool) {
+    async function revisarYCorrer() {
+        if (procesandoImportacionBancoAhora) return;
+
+        try {
+            const pendiente = await pool.query(
+                `SELECT * FROM public.banco_imagenes_importacion_trabajos WHERE estado = 'pendiente' ORDER BY created_at ASC LIMIT 1`
+            );
+            if (pendiente.rows.length === 0) return;
+
+            procesandoImportacionBancoAhora = true;
+            await procesarTrabajoImportacionBanco(pool, pendiente.rows[0]);
+        } catch (error) {
+            console.log("[banco-imagenes] Error en el poller de importacion:", error.message);
+        } finally {
+            procesandoImportacionBancoAhora = false;
+        }
+    }
+
+    setInterval(revisarYCorrer, INTERVALO_REVISION_IMPORTACION_BANCO_MS);
+}
+
 function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
+    iniciarProcesadorImportacionBanco(pool);
+
     // ---- Rutas de Admin -- protegidas globalmente por validarAdminKey,
     // montado en server.js sobre todo el prefijo /admin/api antes de que
     // cargarModulosPOS() cargue este modulo. ----
 
+    // No procesa el zip aqui -- solo lo guarda y encola un trabajo por
+    // archivo (iniciarProcesadorImportacionBanco lo recoge aparte). Asi
+    // la peticion HTTP responde en cuanto el archivo termina de subir,
+    // sin esperar a que se compriman todas las fotos adentro.
     app.post("/admin/api/banco-imagenes/importar-lote", manejarSubidaBancoImagenes, async (req, res) => {
         const archivos = req.files || [];
 
@@ -255,25 +322,55 @@ function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
             }
 
             const marca = String(req.body?.marca || "").trim() || null;
-            const resumen = { zipsProcesados: 0, fotosGuardadas: 0, solicitudesResueltas: 0, errores: [] };
+            const trabajoIds = [];
 
             for (const archivo of archivos) {
-                const resultadoZip = await procesarZipBancoImagenes(pool, archivo.path, marca, archivo.originalname);
-                resumen.zipsProcesados += 1;
-                resumen.fotosGuardadas += resultadoZip.fotosGuardadas;
-                resumen.solicitudesResueltas += resultadoZip.solicitudesResueltas;
-                if (resultadoZip.errores.length) {
-                    resumen.errores.push(`${archivo.originalname}: ${resultadoZip.errores.join("; ")}`);
-                }
+                const trabajo = await pool.query(
+                    `
+                    INSERT INTO public.banco_imagenes_importacion_trabajos (nombre_archivo, ruta_temporal, marca, estado)
+                    VALUES ($1, $2, $3, 'pendiente')
+                    RETURNING id
+                    `,
+                    [archivo.originalname, archivo.path, marca]
+                );
+                trabajoIds.push(trabajo.rows[0].id);
             }
 
-            res.json({ ok: true, ...resumen });
+            res.json({ ok: true, trabajoIds });
         } catch (error) {
-            responderError(res, error);
-        } finally {
             for (const archivo of archivos) {
                 fs.unlink(archivo.path, () => {});
             }
+            responderError(res, error);
+        }
+    });
+
+    // Consultado por el navegador cada pocos segundos hasta que todos
+    // los trabajos pedidos queden en 'listo' o 'error'.
+    app.get("/admin/api/banco-imagenes/importar-lote/trabajos", async (req, res) => {
+        try {
+            const ids = String(req.query?.ids || "")
+                .split(",")
+                .map(id => Number(id.trim()))
+                .filter(id => Number.isInteger(id) && id > 0);
+
+            if (ids.length === 0) {
+                res.json({ ok: true, trabajos: [] });
+                return;
+            }
+
+            const resultado = await pool.query(
+                `
+                SELECT id, nombre_archivo, estado, fotos_guardadas, solicitudes_resueltas, errores, mensaje_error
+                FROM public.banco_imagenes_importacion_trabajos
+                WHERE id = ANY($1::int[])
+                `,
+                [ids]
+            );
+
+            res.json({ ok: true, trabajos: resultado.rows });
+        } catch (error) {
+            responderError(res, error);
         }
     });
 

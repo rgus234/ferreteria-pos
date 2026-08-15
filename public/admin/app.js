@@ -750,7 +750,12 @@ function subirZipBancoImagenesAdmin(archivo, marca, alAvanzar) {
           reject(new Error(datos.error || "No se pudo importar este archivo"));
           return;
         }
-        resolve(datos);
+        // El servidor ya no comprime las fotos dentro de esta peticion
+        // (zips grandes tardaban mas que el timeout del proxy de
+        // produccion) -- solo confirma que el archivo se guardo y
+        // encolo. Hay que consultar el trabajo aparte hasta que quede
+        // listo o en error.
+        esperarTrabajoImportacionBanco(datos.trabajoIds[0]).then(resolve, reject);
       } catch (error) {
         reject(new Error(`Respuesta invalida del servidor (status ${xhr.status}).`));
       }
@@ -768,6 +773,48 @@ function subirZipBancoImagenesAdmin(archivo, marca, alAvanzar) {
   });
 }
 
+const INTERVALO_REVISION_TRABAJO_BANCO_MS = 3000;
+
+function esperarTrabajoImportacionBanco(trabajoId) {
+  return new Promise((resolve, reject) => {
+    const revisar = async () => {
+      try {
+        const respuesta = await fetch(`/admin/api/banco-imagenes/importar-lote/trabajos?ids=${trabajoId}`, {
+          headers: { "x-admin-key": adminKeyActual() }
+        });
+        const datos = await respuesta.json();
+        const trabajo = datos?.trabajos?.[0];
+
+        if (!datos.ok || !trabajo) {
+          reject(new Error("No se pudo consultar el estado de la importacion"));
+          return;
+        }
+
+        if (trabajo.estado === "listo") {
+          resolve({
+            zipsProcesados: 1,
+            fotosGuardadas: trabajo.fotos_guardadas || 0,
+            solicitudesResueltas: trabajo.solicitudes_resueltas || 0,
+            errores: trabajo.errores || []
+          });
+          return;
+        }
+
+        if (trabajo.estado === "error") {
+          reject(new Error(trabajo.mensaje_error || "No se pudo importar este archivo"));
+          return;
+        }
+
+        setTimeout(revisar, INTERVALO_REVISION_TRABAJO_BANCO_MS);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    revisar();
+  });
+}
+
 // ---- Importacion masiva: cola secuencial en el navegador ----
 // Render (plan starter) no tiene disco persistente ni un servicio worker
 // separado, asi que en vez de una cola real del lado del servidor, el
@@ -777,17 +824,54 @@ function subirZipBancoImagenesAdmin(archivo, marca, alAvanzar) {
 
 let bancoImagenesArchivosCola = [];
 let colaImportacionBanco = null;
+let bancoImagenesUltimoOmitidos = 0;
+
+// Registro local (localStorage, por navegador) de ZIPs que ya se
+// importaron con exito antes -- para que si el usuario vuelve a
+// arrastrar/seleccionar la misma carpeta (ej. 8 de 10 ya subidos), esos
+// 8 se descarten al instante sin volver a subirlos, y solo queden los
+// que faltan. Clave = "nombre:tamano" (mismo criterio de deduplicacion
+// que ya usa esta cola contra si misma) -- si el archivo cambia de
+// tamano ya no hace match y se vuelve a ofrecer, por seguridad.
+const CLAVE_LOCALSTORAGE_ZIPS_SUBIDOS = "bancoImagenesZipsSubidos_v1";
+
+function bancoImagenesZipsSubidosCargar() {
+  try {
+    return JSON.parse(localStorage.getItem(CLAVE_LOCALSTORAGE_ZIPS_SUBIDOS) || "{}");
+  } catch (error) {
+    return {};
+  }
+}
+
+function bancoImagenesZipsSubidosMarcar(clave) {
+  const registro = bancoImagenesZipsSubidosCargar();
+  registro[clave] = Date.now();
+  try {
+    localStorage.setItem(CLAVE_LOCALSTORAGE_ZIPS_SUBIDOS, JSON.stringify(registro));
+  } catch (error) {
+    // localStorage lleno o no disponible -- no es critico, solo se
+    // pierde la deduplicacion entre sesiones, no rompe la subida.
+  }
+}
 
 function agregarArchivosColaBancoImagenes(fileList) {
   const nuevos = [...(fileList || [])].filter(archivo => /\.zip$/i.test(archivo.name));
+  const yaSubidosAntes = bancoImagenesZipsSubidosCargar();
   const yaEstan = new Set(bancoImagenesArchivosCola.map(a => `${a.name}:${a.size}`));
+  let omitidos = 0;
+
   nuevos.forEach(archivo => {
     const clave = `${archivo.name}:${archivo.size}`;
-    if (!yaEstan.has(clave)) {
-      bancoImagenesArchivosCola.push(archivo);
-      yaEstan.add(clave);
+    if (yaEstan.has(clave)) return;
+    if (yaSubidosAntes[clave]) {
+      omitidos += 1;
+      return;
     }
+    bancoImagenesArchivosCola.push(archivo);
+    yaEstan.add(clave);
   });
+
+  bancoImagenesUltimoOmitidos = omitidos;
   pintarListaArchivosBancoImagenes();
 }
 
@@ -798,6 +882,7 @@ function quitarArchivoColaBancoImagenes(indice) {
 
 function limpiarColaArchivosBancoImagenes() {
   bancoImagenesArchivosCola = [];
+  bancoImagenesUltimoOmitidos = 0;
   pintarListaArchivosBancoImagenes();
 }
 
@@ -805,8 +890,12 @@ function pintarListaArchivosBancoImagenes() {
   const contenedor = document.getElementById("listaArchivosBancoImagenes");
   if (!contenedor) return;
 
+  const avisoOmitidos = bancoImagenesUltimoOmitidos > 0
+    ? `<div class="banco-imagenes-lista-omitidos">${bancoImagenesUltimoOmitidos} ZIP(s) omitidos -- ya se habian subido antes.</div>`
+    : "";
+
   if (!bancoImagenesArchivosCola.length) {
-    contenedor.innerHTML = "";
+    contenedor.innerHTML = avisoOmitidos;
     return;
   }
 
@@ -818,7 +907,7 @@ function pintarListaArchivosBancoImagenes() {
     </div>
   `).join("");
 
-  contenedor.innerHTML = filas + `
+  contenedor.innerHTML = avisoOmitidos + filas + `
     <div class="banco-imagenes-lista-archivo" style="background:transparent;border:none;">
       <span><strong>${bancoImagenesArchivosCola.length} archivo(s) listo(s)</strong></span>
       <button type="button" class="ghost" onclick="limpiarColaArchivosBancoImagenes()">Limpiar todo</button>
@@ -843,6 +932,7 @@ async function iniciarImportacionMasivaBanco() {
 
   colaImportacionBanco = estadoInicialColaImportacionBanco(bancoImagenesArchivosCola);
   bancoImagenesArchivosCola = [];
+  bancoImagenesUltimoOmitidos = 0;
   pintarListaArchivosBancoImagenes();
 
   document.getElementById("importActivoBancoImagenes").style.display = "grid";
@@ -878,6 +968,11 @@ async function procesarSiguienteZipBanco(marca) {
     if (datos.errores?.length) {
       cola.resumen.errores.push(...datos.errores.map(e => `${archivo.name}: ${e}`));
     }
+    // El ZIP ya se proceso en el servidor (con o sin errores de match
+    // de producto) -- volver a subir el mismo archivo no cambia nada,
+    // asi que se marca como hecho para que la proxima vez que se
+    // seleccione esta carpeta se descarte solo.
+    bancoImagenesZipsSubidosMarcar(`${archivo.name}:${archivo.size}`);
   } catch (error) {
     // Un ZIP fallido no detiene el lote -- se agrega al reporte y sigue.
     cola.resumen.errores.push(`${archivo.name}: ${error.message || "No se pudo importar"}`);

@@ -1092,6 +1092,15 @@ small,
 
 .banco-imagenes-lista-archivo small { color: var(--muted); white-space: nowrap; }
 
+.banco-imagenes-lista-omitidos {
+  padding: 8px 12px;
+  border-radius: var(--nexo-radius-sm);
+  background: rgba(24, 184, 143, 0.12);
+  color: var(--mint, #18b88f);
+  font-size: 12px;
+  font-weight: 750;
+}
+
 /* Buscador + filtros + orden */
 .banco-imagenes-toolbar {
   display: flex;
