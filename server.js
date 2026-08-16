@@ -4730,7 +4730,7 @@ app.get("/market/checkout", (req, res) => {
 // fijas de Market por orden de lectura.
 app.get("/market/pedido/:codigo", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
-    await servirSeguimientoPedidoMarket(pool, req, res);
+    await servirSeguimientoPedidoMarket(pool, req, res, firmarTokenImagen);
 });
 
 app.get("/market/pedido/:codigo/estado", async (req, res) => {
@@ -4740,7 +4740,7 @@ app.get("/market/pedido/:codigo/estado", async (req, res) => {
 
 app.post("/market/pedido/:codigo/cancelar", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false }); return; }
-    await cancelarPedidoMarketPorCliente(pool, req, res);
+    await cancelarPedidoMarketPorCliente(pool, req, res, firmarTokenImagen);
 });
 
 app.get("/market/pedido/:codigo/qr.png", async (req, res) => {

@@ -110,6 +110,14 @@ function renderPedidosMarket() {
         boton.onclick = () => pmkEjecutarAccion(Number(boton.dataset.pedidoId), boton.dataset.accionPedido);
     });
 
+    lista.querySelectorAll("[data-ver-detalle-pedido]").forEach(boton => {
+        boton.onclick = () => pmkVerDetallePedido(Number(boton.dataset.verDetallePedido));
+    });
+
+    lista.querySelectorAll("[data-contactar-pedido]").forEach(boton => {
+        boton.onclick = () => pmkContactarCliente(Number(boton.dataset.contactarPedido));
+    });
+
     document.getElementById("pmkBotonEscanear")?.addEventListener("click", pmkAbrirEscaneo);
 }
 
@@ -118,11 +126,17 @@ function pmkFormatoHora(fecha) {
     return new Date(fecha).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" });
 }
 
+function pmkFotoItemHtml(item) {
+    return item.fotoUrl
+        ? `<img src="${item.fotoUrl}" alt="" class="pmk-item-foto">`
+        : `<span class="pmk-item-foto pmk-item-foto-vacia">${typeof iconoProducto === "function" ? iconoProducto(item.nombre) : ""}</span>`;
+}
+
 function pmkTarjetaPedidoHtml(pedido) {
     const itemsHtml = (pedido.items || []).map(item => {
         const faltante = item.existencia !== null && item.existencia !== undefined && item.existencia < item.cantidad;
         return `<div class="pmk-item ${faltante ? "pmk-item-faltante" : ""}">
-            <span>${escaparPOS(item.nombre)} &times; ${item.cantidad}</span>
+            <span class="pmk-item-info">${pmkFotoItemHtml(item)}${escaparPOS(item.nombre)} &times; ${item.cantidad}</span>
             ${faltante ? `<span class="pmk-badge-faltante">Solo hay ${item.existencia}</span>` : ""}
         </div>`;
     }).join("");
@@ -166,9 +180,96 @@ function pmkTarjetaPedidoHtml(pedido) {
         <div class="pmk-items">${itemsHtml}</div>
         ${recogida}
         ${motivo}
-        <div class="pmk-tarjeta-acciones">${accionesHtml}</div>
+        <div class="pmk-tarjeta-acciones">
+            <button type="button" class="pmk-btn-secundario" data-ver-detalle-pedido="${pedido.id}">Ver detalles</button>
+            ${pedido.clienteTelefono ? `<button type="button" class="pmk-btn-secundario" data-contactar-pedido="${pedido.id}">Contactar cliente</button>` : ""}
+            ${accionesHtml}
+        </div>
     </div>
     `;
+}
+
+function pmkContactarCliente(pedidoId) {
+    const pedido = pedidosMarketCache.find(p => p.id === pedidoId);
+    if (!pedido || !pedido.clienteTelefono) return;
+
+    const telefono = String(pedido.clienteTelefono).replace(/\D/g, "");
+    const mensaje = `Hola ${pedido.clienteNombre || ""}, te escribimos por tu pedido ${pedido.codigoRecogida}.`;
+    window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+}
+
+function pmkDatoDetalleHtml(etiqueta, valor) {
+    if (!valor) return "";
+    return `<div class="pmk-detalle-dato"><span class="pmk-detalle-dato-etiqueta">${etiqueta}</span><span>${escaparPOS(valor)}</span></div>`;
+}
+
+function pmkItemDetalleHtml(item) {
+    const faltante = item.existencia !== null && item.existencia !== undefined && item.existencia < item.cantidad;
+    return `
+    <div class="pmk-detalle-item">
+        <div class="pmk-detalle-item-foto">
+            ${item.fotoUrl ? `<img src="${item.fotoUrl}" alt="">` : `<span class="pmk-detalle-item-foto-vacia">${typeof iconoProducto === "function" ? iconoProducto(item.nombre) : ""}</span>`}
+        </div>
+        <div class="pmk-detalle-item-info">
+            <strong>${escaparPOS(item.nombre)}</strong>
+            <div class="pmk-detalle-item-cantidad">Cantidad: ${item.cantidad}${faltante ? ` -- <span class="pmk-badge-faltante">Solo hay ${item.existencia}</span>` : ""}</div>
+            <div class="pmk-detalle-grid">
+                ${pmkDatoDetalleHtml("Código", item.codigo)}
+                ${pmkDatoDetalleHtml("Marca", item.marca)}
+                ${pmkDatoDetalleHtml("Categoría", item.categoria)}
+                ${pmkDatoDetalleHtml("Subcategoría", item.subcategoria)}
+                ${pmkDatoDetalleHtml("Ubicación", item.ubicacion)}
+            </div>
+            ${item.descripcion ? `<p class="pmk-detalle-item-descripcion">${escaparPOS(item.descripcion)}</p>` : ""}
+        </div>
+    </div>
+    `;
+}
+
+function pmkVerDetallePedido(pedidoId) {
+    const pedido = pedidosMarketCache.find(p => p.id === pedidoId);
+    if (!pedido) return;
+
+    let modal = document.getElementById("modalDetallePedidoMarket");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "modalDetallePedidoMarket";
+        modal.className = "modal-personalizado pmk-modal-detalle";
+        document.body.appendChild(modal);
+    }
+
+    function cerrar() {
+        document.removeEventListener("keydown", alEscape, { capture: true });
+        modal.style.display = "none";
+        modal.innerHTML = "";
+    }
+
+    function alEscape(evento) {
+        if (evento.key === "Escape") cerrar();
+    }
+
+    modal.innerHTML = `
+        <div class="pmk-detalle-caja">
+            <div class="pmk-detalle-cabecera">
+                <div>
+                    <h3>Pedido ${escaparPOS(pedido.codigoRecogida)}</h3>
+                    <p class="pmk-detalle-cliente">${escaparPOS(pedido.clienteNombre)} -- ${escaparPOS(pedido.clienteTelefono || "")}${pedido.clienteCorreo ? ` -- ${escaparPOS(pedido.clienteCorreo)}` : ""}</p>
+                </div>
+                <button type="button" class="pmk-detalle-cerrar" id="pmkDetalleCerrarBoton">&times;</button>
+            </div>
+            <div class="pmk-detalle-items">${(pedido.items || []).map(pmkItemDetalleHtml).join("")}</div>
+            <div class="pmk-detalle-total">Total: ${dinero(pedido.total || 0)}</div>
+            <div class="pmk-tarjeta-acciones">
+                ${pedido.clienteTelefono ? `<button type="button" class="pmk-btn-secundario" id="pmkDetalleContactarBoton">Contactar cliente</button>` : ""}
+            </div>
+        </div>
+    `;
+
+    modal.style.display = "flex";
+    document.addEventListener("keydown", alEscape, { capture: true });
+    modal.addEventListener("click", evento => { if (evento.target === modal) cerrar(); });
+    document.getElementById("pmkDetalleCerrarBoton").onclick = cerrar;
+    document.getElementById("pmkDetalleContactarBoton")?.addEventListener("click", () => pmkContactarCliente(pedidoId));
 }
 
 async function pmkEjecutarAccion(pedidoId, accion) {
@@ -373,7 +474,7 @@ function pmkMostrarVerificacionEntrega(pedido) {
     }
 
     const itemsHtml = (pedido.items || [])
-        .map(item => `<div class="pmk-item"><span>${escaparPOS(item.nombre)} &times; ${item.cantidad}</span></div>`)
+        .map(item => `<div class="pmk-item"><span class="pmk-item-info">${pmkFotoItemHtml(item)}${escaparPOS(item.nombre)} &times; ${item.cantidad}</span></div>`)
         .join("");
 
     modal.innerHTML = `

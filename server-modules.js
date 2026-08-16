@@ -70,7 +70,7 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     });
 
     cargarModuloPOS("pedidos de Nexo Market (maquina de estados)", () => {
-        require("./market-pedidos-server")(app, pool, requerirAccesoNegocio);
+        require("./market-pedidos-server")(app, pool, requerirAccesoNegocio, firmarTokenImagen);
     });
 }
 

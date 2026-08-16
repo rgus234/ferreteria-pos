@@ -70,15 +70,21 @@ function urlSeguimientoPedido(codigoRecogida) {
     return `${DOMINIO_PUBLICO}/market/pedido/${encodeURIComponent(codigoRecogida)}`;
 }
 
-async function itemsDePedidos(pool, negocioId, pedidoIds) {
+// slug + firmarTokenImagen son opcionales: si no llegan (llamador
+// viejo), fotoUrl simplemente queda null y todo lo demas sigue
+// funcionando -- mismo criterio "degrada, no truena" que el resto del
+// modulo.
+async function itemsDePedidos(pool, negocioId, pedidoIds, slug, firmarTokenImagen) {
     if (pedidoIds.length === 0) return new Map();
 
     const resultado = await pool.query(
         `
         SELECT pp.pedido_market_id, pp.producto_codigo, pp.producto_nombre, pp.cantidad,
-               pr.stock AS existencia
+               pr.stock AS existencia, pr.descripcion, pr.ubicacion, pr.marca, pr.categoria, pr.subcategoria,
+               fp.actualizado_at AS foto_actualizado_at
         FROM public.pedidos_publicos pp
         LEFT JOIN public.productos pr ON pr.negocio_id = $1 AND pr.codigo = pp.producto_codigo
+        LEFT JOIN public.fotos_producto fp ON fp.negocio_id = $1 AND fp.codigo = pp.producto_codigo
         WHERE pp.pedido_market_id = ANY($2)
         ORDER BY pp.id ASC
         `,
@@ -88,11 +94,21 @@ async function itemsDePedidos(pool, negocioId, pedidoIds) {
     const porPedido = new Map();
     for (const fila of resultado.rows) {
         const lista = porPedido.get(fila.pedido_market_id) || [];
+        const fotoUrl = (fila.foto_actualizado_at && slug && typeof firmarTokenImagen === "function")
+            ? `${DOMINIO_PUBLICO}/fotos-producto/${encodeURIComponent(fila.producto_codigo)}/principal?negocio=${encodeURIComponent(slug)}&v=${new Date(fila.foto_actualizado_at).getTime()}&token=${firmarTokenImagen(negocioId, fila.producto_codigo)}`
+            : null;
+
         lista.push({
             codigo: fila.producto_codigo,
             nombre: fila.producto_nombre,
             cantidad: Number(fila.cantidad),
-            existencia: fila.existencia !== null ? Number(fila.existencia) : null
+            existencia: fila.existencia !== null ? Number(fila.existencia) : null,
+            descripcion: fila.descripcion || null,
+            ubicacion: fila.ubicacion || null,
+            marca: fila.marca || null,
+            categoria: fila.categoria || null,
+            subcategoria: fila.subcategoria || null,
+            fotoUrl
         });
         porPedido.set(fila.pedido_market_id, lista);
     }
@@ -134,7 +150,7 @@ const GRUPOS_ESTADO = {
     cancelados: ["cancelado"]
 };
 
-module.exports = (app, pool, requerirAccesoNegocio) => {
+module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
     app.get("/negocio-actual/pedidos-market", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActualPedidosMarket(req, pool);
@@ -148,7 +164,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 estados ? [negocio.id, estados] : [negocio.id]
             );
 
-            const itemsPorPedido = await itemsDePedidos(pool, negocio.id, resultado.rows.map(f => f.id));
+            const itemsPorPedido = await itemsDePedidos(pool, negocio.id, resultado.rows.map(f => f.id), negocio.slug, firmarTokenImagen);
 
             res.json({
                 ok: true,
@@ -201,7 +217,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             );
 
             const pedidoActualizado = actualizado.rows[0];
-            const itemsPorPedido = await itemsDePedidos(pool, negocio.id, [pedidoActualizado.id]);
+            const itemsPorPedido = await itemsDePedidos(pool, negocio.id, [pedidoActualizado.id], negocio.slug, firmarTokenImagen);
             const items = itemsPorPedido.get(pedidoActualizado.id) || [];
             const urlSeguimiento = urlSeguimientoPedido(pedidoActualizado.codigo_recogida);
 
@@ -280,7 +296,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 return;
             }
 
-            const itemsPorPedido = await itemsDePedidos(pool, negocio.id, [pedido.id]);
+            const itemsPorPedido = await itemsDePedidos(pool, negocio.id, [pedido.id], negocio.slug, firmarTokenImagen);
             res.json({ ok: true, pedido: mapearPedidoMarket(pedido, itemsPorPedido.get(pedido.id)) });
         } catch (error) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
@@ -356,6 +372,9 @@ const ESTILOS_SEGUIMIENTO_PEDIDO = `
 .market-pedido-card h3{ margin:0 0 12px; font-size:14.5px; }
 .market-pedido-item{ display:flex; justify-content:space-between; padding:6px 0; font-size:13.5px; border-top:1px solid var(--line); }
 .market-pedido-item:first-child{ border-top:none; }
+.market-pedido-item-info{ display:flex; align-items:center; gap:10px; }
+.market-pedido-item-foto{ width:36px; height:36px; border-radius:8px; object-fit:cover; flex:0 0 auto; background:var(--paper); border:1px solid var(--line); }
+.market-pedido-item-foto-vacia{ display:inline-block; }
 .market-pedido-recogida{ font-size:13.5px; color:var(--muted); }
 .market-pedido-qr-card{ text-align:center; padding:26px; border-radius:18px; background:var(--paper); border:1px solid var(--line); margin-bottom:18px; }
 .market-pedido-qr-card img{ display:block; margin:0 auto 14px; width:180px; height:180px; }
@@ -414,7 +433,12 @@ ${pedido.estado === "listo" ? `
 
 <div class="market-pedido-card">
     <h3>Productos</h3>
-    ${items.map(item => `<div class="market-pedido-item"><span>${escaparHtml(item.nombre)} &times; ${item.cantidad}</span></div>`).join("")}
+    ${items.map(item => `<div class="market-pedido-item">
+        <span class="market-pedido-item-info">
+            ${item.fotoUrl ? `<img src="${escaparHtml(item.fotoUrl)}" alt="" class="market-pedido-item-foto">` : `<span class="market-pedido-item-foto market-pedido-item-foto-vacia"></span>`}
+            ${escaparHtml(item.nombre)} &times; ${item.cantidad}
+        </span>
+    </div>`).join("")}
     <div class="market-pedido-item" style="font-weight:800;"><span>Total</span><span>${totalTexto}</span></div>
 </div>
 
@@ -480,7 +504,7 @@ ${marketFooterHtml()}
 </html>`;
 }
 
-async function servirSeguimientoPedidoMarket(pool, req, res) {
+async function servirSeguimientoPedidoMarket(pool, req, res, firmarTokenImagen) {
     const codigo = String(req.params.codigo || "").trim();
     const pedido = await pedidoPorCodigo(pool, codigo);
 
@@ -489,7 +513,7 @@ async function servirSeguimientoPedidoMarket(pool, req, res) {
         return;
     }
 
-    const itemsPorPedido = await itemsDePedidos(pool, pedido.negocio_id, [pedido.id]);
+    const itemsPorPedido = await itemsDePedidos(pool, pedido.negocio_id, [pedido.id], pedido.negocio_slug, firmarTokenImagen);
     res.set("Content-Type", "text/html; charset=utf-8").send(paginaSeguimientoPedidoMarketHtml(pedido, itemsPorPedido.get(pedido.id) || []));
 }
 
@@ -500,7 +524,7 @@ async function servirSeguimientoPedidoMarket(pool, req, res) {
 // que de ahi en adelante el cliente tiene que hablar directo con la
 // tienda (mismo limite de tiempo real que TRANSICIONES.cancelar del
 // lado POS, solo que aqui restringido a un solo estado de origen).
-async function cancelarPedidoMarketPorCliente(pool, req, res) {
+async function cancelarPedidoMarketPorCliente(pool, req, res, firmarTokenImagen) {
     const codigo = String(req.params.codigo || "").trim();
     const pedido = await pedidoPorCodigo(pool, codigo);
 
@@ -523,7 +547,7 @@ async function cancelarPedidoMarketPorCliente(pool, req, res) {
     );
     const pedidoActualizado = actualizado.rows[0];
 
-    const itemsPorPedido = await itemsDePedidos(pool, pedido.negocio_id, [pedido.id]);
+    const itemsPorPedido = await itemsDePedidos(pool, pedido.negocio_id, [pedido.id], pedido.negocio_slug, firmarTokenImagen);
     const items = itemsPorPedido.get(pedido.id) || [];
     const urlSeguimiento = urlSeguimientoPedido(pedido.codigo_recogida);
 

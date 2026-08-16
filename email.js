@@ -557,7 +557,12 @@ function enviarCorreoCotizacionRespondida(correo, nombreNegocio, { items, precio
 
 function filasItemsPedidoMarket(items) {
     return (items || [])
-        .map(item => `<tr><td style="padding:4px 0;color:#344054;font-size:14px;">${escaparHtmlCorreo(item.nombre)} &times; ${escaparHtmlCorreo(item.cantidad)}</td></tr>`)
+        .map(item => `<tr><td style="padding:6px 0;color:#344054;font-size:14px;">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                ${item.fotoUrl ? `<td style="padding-right:10px;width:40px;"><img src="${item.fotoUrl}" width="40" height="40" style="display:block;border-radius:8px;object-fit:cover;border:1px solid #eef2f7;" alt=""></td>` : ""}
+                <td>${escaparHtmlCorreo(item.nombre)} &times; ${escaparHtmlCorreo(item.cantidad)}</td>
+            </tr></table>
+        </td></tr>`)
         .join("");
 }
 
