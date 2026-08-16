@@ -75,7 +75,7 @@ async function itemsDePedidos(pool, negocioId, pedidoIds) {
     const resultado = await pool.query(
         `
         SELECT pp.pedido_market_id, pp.producto_codigo, pp.producto_nombre, pp.cantidad,
-               pr.existencia
+               pr.stock AS existencia
         FROM public.pedidos_publicos pp
         LEFT JOIN public.productos pr ON pr.negocio_id = $1 AND pr.codigo = pp.producto_codigo
         WHERE pp.pedido_market_id = ANY($2)
