@@ -4784,14 +4784,25 @@ async function aplicarProductoCatalogoAlFormulario(producto, origen) {
 
  // El match del catalogo puede traer el codigo en cualquiera de los
  // dos campos segun el modo de captura -- se revisa el que quedo con
- // valor para saber si ya existe una foto guardada esperando.
- verificarImagenExistenteParaCodigo(
+ // valor para saber si ya existe una foto guardada esperando (propia
+ // del negocio) o disponible en el Banco de Nexo para usar. Antes solo
+ // se revisaba la propia -- dependiamos del blur tardio del campo
+ // codigo (enfocarStockNuevoProducto) para el chequeo del banco, y en
+ // un escaneo rapido con pistola USB ese blur nunca alcanzaba a
+ // resolver antes de guardar.
+ const codigoParaFotos =
  normalizarCodigo(
  document.getElementById("nuevoCodigo")?.value ||
  document.getElementById("nuevoCodigoInterno")?.value ||
  ""
- )
  );
+
+ // Encadenado (no en paralelo): verificarBancoImagenesParaCodigo lee
+ // codigoImagenExistenteActual para saber si ya hay foto propia y en
+ // ese caso no ofrecer el banco -- si corrieran en paralelo, leeria el
+ // valor viejo antes de que la primera consulta terminara.
+ verificarImagenExistenteParaCodigo(codigoParaFotos)
+ .then(() => verificarBancoImagenesParaCodigo(codigoParaFotos));
 
  enfocarStockNuevoProducto();
 }
