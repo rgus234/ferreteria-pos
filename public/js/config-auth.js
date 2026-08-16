@@ -1261,7 +1261,7 @@ function guardarConfiguracionInicial() {
  admin.pin = adminPin;
  }
 
- guardarUsuariosSistema(usuarios);
+ guardarEmpleadosCache(usuarios);
  aplicarConfiguracionNegocio(configuracion);
  logoConfiguracionTemporal = null;
 
