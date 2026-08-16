@@ -58,3 +58,32 @@ self.addEventListener("fetch", evento => {
         )
     );
 });
+
+// Avisos de cambio de estado de pedido (Nexo Market -> cliente). El
+// payload lo arma push-server.js: { titulo, cuerpo, url }.
+self.addEventListener("push", evento => {
+    let datos = { titulo: "Nexo Market", cuerpo: "Tienes una actualizacion de tu pedido.", url: "/market/mi-cuenta" };
+    try { datos = Object.assign(datos, evento.data.json()); } catch (error) { /* payload no-JSON, usa el default */ }
+
+    evento.waitUntil(
+        self.registration.showNotification(datos.titulo, {
+            body: datos.cuerpo,
+            icon: "/icons/nexo-pos-icon-192.png",
+            badge: "/icons/nexo-pos-icon-192.png",
+            data: { url: datos.url }
+        })
+    );
+});
+
+self.addEventListener("notificationclick", evento => {
+    evento.notification.close();
+    const url = evento.notification.data?.url || "/market/mi-cuenta";
+
+    evento.waitUntil(
+        self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clientes => {
+            const existente = clientes.find(c => c.url.includes(url));
+            if (existente) return existente.focus();
+            return self.clients.openWindow(url);
+        })
+    );
+});

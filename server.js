@@ -4720,7 +4720,7 @@ app.get("/market/carrito", (req, res) => {
 
 app.get("/market/checkout", (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
-    servirCheckoutMarket(req, res);
+    servirCheckoutMarket(req, res, pool);
 });
 
 // Seguimiento de pedidos de Market (rediseno de pedidos, ver plan) --

@@ -26,6 +26,17 @@ const {
 } = require("./email");
 const { generarQrYBarcode } = require("./pedido-codigos");
 const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml } = require("./market-server");
+const { enviarPushAPersona } = require("./push-server");
+
+// Mensaje corto por accion -- mismo texto que ya usan los correos de
+// cada transicion, condensado para una notificacion push.
+const TITULOS_PUSH_POR_ACCION = {
+    aceptar: "Tu pedido fue confirmado",
+    marcar_listo: "Tu pedido esta listo para recoger",
+    entregar: "Tu pedido fue entregado",
+    rechazar: "Tu pedido fue cancelado",
+    cancelar: "Tu pedido fue cancelado"
+};
 
 const DOMINIO_PUBLICO = "https://nexoposoficial.com";
 
@@ -251,6 +262,14 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
                         urlSeguimiento
                     }).catch(error => console.warn("No se pudo enviar el correo de pedido cancelado:", error.message));
                 }
+            }
+
+            if (pedidoActualizado.persona_id && TITULOS_PUSH_POR_ACCION[accion]) {
+                enviarPushAPersona(pool, pedidoActualizado.persona_id, {
+                    titulo: TITULOS_PUSH_POR_ACCION[accion],
+                    cuerpo: `Pedido ${pedidoActualizado.codigo_recogida} -- ${negocio.nombre}`,
+                    url: urlSeguimiento
+                }).catch(error => console.warn("No se pudo enviar el push de cambio de estado:", error.message));
             }
 
             res.json({ ok: true, pedido: mapearPedidoMarket(pedidoActualizado, items) });

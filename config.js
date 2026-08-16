@@ -20,6 +20,9 @@ const config = {
     stripePricePro: process.env.STRIPE_PRICE_PRO || "",
     anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
     respaldoEmailDestino: process.env.RESPALDO_EMAIL_DESTINO || "",
+    vapidPublicKey: process.env.VAPID_PUBLIC_KEY || "",
+    vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || "",
+    vapidSubject: process.env.VAPID_SUBJECT || "",
 };
 
 function validarConfigProduccion() {

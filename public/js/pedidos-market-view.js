@@ -9,6 +9,195 @@
 let pedidosMarketCache = [];
 let pedidosMarketTabActiva = "nuevos";
 
+// Monitor en vivo de pedidos nuevos -- sondea cada 20s mientras la
+// sesion esta abierta (sin importar que pantalla este viendo el
+// empleado) y avisa con sonido + badge en el sidebar. null = todavia
+// no se establece la base de comparacion (evita sonar en la primera
+// carga con pedidos que ya estaban ahi).
+let pmkMonitorTimer = null;
+let pmkPedidosPendientesConocidosIds = null;
+let pmkAudioCtx = null;
+
+function pmkAsegurarAudioContext() {
+    if (pmkAudioCtx) return pmkAudioCtx;
+    try {
+        pmkAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (error) {
+        pmkAudioCtx = null;
+    }
+    return pmkAudioCtx;
+}
+
+// Los navegadores bloquean audio sin una interaccion previa del
+// usuario -- la primera vez que alguien haga clic o toque una tecla en
+// el POS (siempre pasa al iniciar sesion) se desbloquea el contexto
+// para el resto de la sesion.
+document.addEventListener("click", () => { pmkAsegurarAudioContext()?.resume(); }, { once: true });
+document.addEventListener("keydown", () => { pmkAsegurarAudioContext()?.resume(); }, { once: true });
+
+// Dos tonos ascendentes cortos generados con Web Audio API -- sin
+// archivo de sonido externo que descargar ni licencia que cuidar.
+function pmkReproducirBeep() {
+    const ctx = pmkAsegurarAudioContext();
+    if (!ctx) return;
+
+    const ahora = ctx.currentTime;
+    [0, 0.16].forEach((retraso, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = i === 0 ? 880 : 1108.73;
+        gain.gain.setValueAtTime(0, ahora + retraso);
+        gain.gain.linearRampToValueAtTime(0.22, ahora + retraso + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ahora + retraso + 0.15);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(ahora + retraso);
+        osc.stop(ahora + retraso + 0.16);
+    });
+}
+
+function pmkActualizarBadgeSidebar(cantidad) {
+    const boton = document.querySelector('[data-shell-module="pedidos-market"]');
+    if (!boton) return;
+
+    let badge = boton.querySelector(".pmk-sidebar-badge");
+    if (cantidad > 0) {
+        if (!badge) {
+            badge = document.createElement("span");
+            badge.className = "pmk-sidebar-badge";
+            boton.appendChild(badge);
+        }
+        badge.textContent = cantidad > 9 ? "9+" : String(cantidad);
+    } else if (badge) {
+        badge.remove();
+    }
+}
+
+async function pmkRevisarPedidosNuevos() {
+    try {
+        const respuesta = await fetch("/negocio-actual/pedidos-market?estado=nuevos");
+        const datos = await respuesta.json();
+        if (!datos.ok) return;
+
+        const idsActuales = new Set(datos.pedidos.map(p => p.id));
+
+        if (pmkPedidosPendientesConocidosIds === null) {
+            pmkPedidosPendientesConocidosIds = idsActuales;
+            pmkActualizarBadgeSidebar(idsActuales.size);
+            return;
+        }
+
+        const hayNuevos = [...idsActuales].some(id => !pmkPedidosPendientesConocidosIds.has(id));
+        pmkPedidosPendientesConocidosIds = idsActuales;
+        pmkActualizarBadgeSidebar(idsActuales.size);
+
+        if (hayNuevos) {
+            pmkReproducirBeep();
+
+            const pantalla = document.getElementById("pantallaPedidosMarket");
+            if (pantalla && pantalla.style.display !== "none") {
+                await cargarPedidosMarket();
+            }
+        }
+    } catch (error) {
+        // Silencioso -- un fallo de red puntual no debe interrumpir el POS.
+    }
+}
+
+function iniciarMonitorPedidosMarket() {
+    if (pmkMonitorTimer) return;
+    pmkRevisarPedidosNuevos();
+    pmkMonitorTimer = setInterval(pmkRevisarPedidosNuevos, 20000);
+    pmkResuscribirPushSiYaHabiaPermiso();
+}
+
+// --- Notificaciones push reales (avisan aunque la pestana este en
+// segundo plano o cerrada) -- complementan el sonido/badge de arriba,
+// que solo funciona con la pestana abierta. ---
+
+function pmkBase64UrlAUint8Array(base64Url) {
+    const relleno = "=".repeat((4 - base64Url.length % 4) % 4);
+    const base64 = (base64Url + relleno).replace(/-/g, "+").replace(/_/g, "/");
+    const bruto = atob(base64);
+    const salida = new Uint8Array(bruto.length);
+    for (let i = 0; i < bruto.length; i++) salida[i] = bruto.charCodeAt(i);
+    return salida;
+}
+
+function pmkActualizarEstadoBotonPush() {
+    const boton = document.getElementById("pmkBotonPush");
+    if (!boton) return;
+
+    const activado = typeof Notification !== "undefined" &&
+        Notification.permission === "granted" &&
+        localStorage.getItem("nexoPosPushActivado") === "1";
+
+    boton.textContent = activado ? "🔔 Notificaciones activadas" : "🔕 Activar notificaciones push";
+    boton.disabled = activado;
+}
+
+async function pmkActivarNotificacionesPush() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        alert("Este navegador no soporta notificaciones push.");
+        return;
+    }
+
+    try {
+        const permiso = await Notification.requestPermission();
+        if (permiso !== "granted") {
+            alert("No se activaron las notificaciones -- el permiso fue denegado.");
+            return;
+        }
+
+        const respuestaClave = await fetch("/push/vapid-public-key").then(r => r.json());
+        if (!respuestaClave.ok) {
+            alert("Las notificaciones push no estan configuradas en el servidor todavia.");
+            return;
+        }
+
+        const registro = await navigator.serviceWorker.register("/pos-push-sw.js");
+        const suscripcion = await registro.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: pmkBase64UrlAUint8Array(respuestaClave.publicKey)
+        });
+
+        await fetch("/negocio-actual/push/suscribir", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(suscripcion.toJSON())
+        });
+
+        localStorage.setItem("nexoPosPushActivado", "1");
+        pmkActualizarEstadoBotonPush();
+    } catch (error) {
+        console.warn("No se pudo activar notificaciones push:", error);
+        alert("No se pudieron activar las notificaciones push en este dispositivo.");
+    }
+}
+
+// Si el empleado ya habia dado permiso antes (misma sesion del
+// navegador, otro dia), vuelve a registrar la suscripcion en silencio
+// al iniciar sesion -- sin pedir el permiso otra vez.
+async function pmkResuscribirPushSiYaHabiaPermiso() {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    if (localStorage.getItem("nexoPosPushActivado") !== "1") return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+
+    try {
+        const registro = await navigator.serviceWorker.register("/pos-push-sw.js");
+        const suscripcionExistente = await registro.pushManager.getSubscription();
+        if (suscripcionExistente) {
+            await fetch("/negocio-actual/push/suscribir", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(suscripcionExistente.toJSON())
+            });
+        }
+    } catch (error) {
+        // Silencioso -- no interrumpir el login por esto.
+    }
+}
+
 const PMK_GRUPOS_ESTADO = {
     nuevos: ["pendiente"],
     preparando: ["confirmado", "preparando"],
@@ -41,13 +230,17 @@ async function mostrarPedidosMarket() {
 
     pantalla.innerHTML = `
     <div class="caja pmk-shell">
-        <h2>Pedidos de Nexo Market</h2>
+        <div class="pmk-cabecera">
+            <h2>Pedidos de Nexo Market</h2>
+            <button type="button" class="pmk-btn-secundario" id="pmkBotonPush" onclick="pmkActivarNotificacionesPush()">🔕 Activar notificaciones push</button>
+        </div>
         <div class="pmk-contadores" id="pmkContadores"></div>
         <div class="pmk-tabs" id="pmkTabs"></div>
         <div class="pmk-lista" id="pmkLista"><p class="pmk-vacio">Cargando...</p></div>
     </div>
     `;
 
+    pmkActualizarEstadoBotonPush();
     await cargarPedidosMarket();
 }
 

@@ -382,6 +382,11 @@ function paginaHubCuentaMarketHtml(persona, pestanaInicial = "resumen") {
 </form>
 <div id="cuentaMarketOficioResultado" class="lead-result" aria-live="polite"></div>
 </div>
+<div class="portal-card" style="margin-bottom:20px;">
+<div class="portal-card-header"><h2>Notificaciones</h2></div>
+<p class="portal-credito-vacio" style="text-align:left; padding:0 0 12px;">Recibe un aviso en este dispositivo cuando cambie el estado de tus pedidos (listo para recoger, etc.).</p>
+<button type="button" class="btn secondary" id="cuentaMarketPushBoton">🔕 Activar notificaciones</button>
+</div>
 <div class="portal-card">
 <div class="portal-card-header"><h2>Acceso y seguridad</h2></div>
 <form class="market-cuenta-config-form" id="cuentaMarketPasswordForm">
@@ -667,6 +672,58 @@ document.getElementById("cuentaMarketLogoutBoton").addEventListener("click", asy
     window.location.href = "/market";
 });
 
+function cuentaMarketBase64UrlAUint8Array(base64Url) {
+    var relleno = "=".repeat((4 - base64Url.length % 4) % 4);
+    var base64 = (base64Url + relleno).replace(/-/g, "+").replace(/_/g, "/");
+    var bruto = atob(base64);
+    var salida = new Uint8Array(bruto.length);
+    for (var i = 0; i < bruto.length; i++) salida[i] = bruto.charCodeAt(i);
+    return salida;
+}
+
+function cuentaMarketActualizarBotonPush() {
+    var boton = document.getElementById("cuentaMarketPushBoton");
+    if (!boton) return;
+    var activado = typeof Notification !== "undefined" && Notification.permission === "granted" && localStorage.getItem("nexoMarketPushActivado") === "1";
+    boton.textContent = activado ? "🔔 Notificaciones activadas" : "🔕 Activar notificaciones";
+    boton.disabled = activado;
+}
+
+document.getElementById("cuentaMarketPushBoton").addEventListener("click", async function() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        alert("Este navegador no soporta notificaciones push.");
+        return;
+    }
+
+    try {
+        var permiso = await Notification.requestPermission();
+        if (permiso !== "granted") {
+            alert("No se activaron las notificaciones -- el permiso fue denegado.");
+            return;
+        }
+
+        var respuestaClave = await fetch("/push/vapid-public-key").then(function(r) { return r.json(); });
+        if (!respuestaClave.ok) {
+            alert("Las notificaciones push no estan configuradas en el servidor todavia.");
+            return;
+        }
+
+        var registro = await navigator.serviceWorker.register("/market-sw.js", { scope: "/market/" });
+        var suscripcion = await registro.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: cuentaMarketBase64UrlAUint8Array(respuestaClave.publicKey)
+        });
+
+        await cuentaMarketLlamar("/personas/push/suscribir", { method: "POST", body: JSON.stringify(suscripcion.toJSON()) });
+
+        localStorage.setItem("nexoMarketPushActivado", "1");
+        cuentaMarketActualizarBotonPush();
+    } catch (error) {
+        alert("No se pudieron activar las notificaciones push en este dispositivo.");
+    }
+});
+
+cuentaMarketActualizarBotonPush();
 cuentaMarketCargarResumenPedidosFavoritos();
 cuentaMarketCargarFavoritos();
 cuentaMarketCargarCredito();

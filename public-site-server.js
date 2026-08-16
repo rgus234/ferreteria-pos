@@ -31,6 +31,7 @@ const { crearRequerirSesionPersona, crearResolverSesionPersonaOpcional } = requi
 const { OFICIOS_PERSONA } = require("./oficios-persona");
 const { geocodificarDireccion } = require("./geocodificacion");
 const { formatearCodigoRecogida, generarQrYBarcode } = require("./pedido-codigos");
+const { enviarPushANegocio } = require("./push-server");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
 const TAMANO_MAXIMO_PORTADA = 3 * 1024 * 1024;
@@ -2096,6 +2097,14 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
                 recogidaHasta: recogidaEstimada?.hasta,
                 urlSeguimiento: `https://nexoposoficial.com/market/pedido/${encodeURIComponent(codigoRecogida)}`
             }).catch(error => console.warn("No se pudo enviar el correo de pedido recibido:", error.message));
+        }
+
+        if (pedidoMarketId) {
+            enviarPushANegocio(pool, sitio.negocio.id, {
+                titulo: "Nuevo pedido de Nexo Market",
+                cuerpo: `${clienteNombre} -- ${itemsParaCorreo.map(i => i.nombre).join(", ")}`.slice(0, 180),
+                url: "/"
+            }).catch(error => console.warn("No se pudo enviar el push de pedido nuevo:", error.message));
         }
 
         res.json({

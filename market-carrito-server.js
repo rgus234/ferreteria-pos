@@ -13,6 +13,12 @@
 
 const { config } = require("./config");
 const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml } = require("./market-server");
+const { crearResolverSesionPersonaOpcional } = require("./personas-server");
+
+function escaparHtmlAtributo(valor) {
+    return String(valor == null ? "" : valor)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 
 const ESTILOS_CARRITO_MARKET = `
 .market-carrito-scope{ max-width:1200px; margin:0 auto; padding:28px clamp(18px,4vw,48px) 60px; }
@@ -465,8 +471,11 @@ const ICONO_CHECKOUT_CASA = '<svg viewBox="0 0 24 24" fill="none" stroke="curren
 const ICONO_CHECKOUT_AYUDA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="12" r="10"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2-3 4"></path><path d="M12 17h.01"></path></svg>';
 const ICONO_CHECKOUT_WHATSAPP = '<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2Zm0 18a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-3-.2-.3A8 8 0 1 1 12 20Zm4.4-6c-.2-.1-1.4-.7-1.6-.8s-.4-.1-.5.1-.6.8-.7.9-.3.2-.5.1a6.5 6.5 0 0 1-1.9-1.2 7.2 7.2 0 0 1-1.3-1.7c-.1-.2 0-.3.1-.4l.4-.4.2-.3v-.3l-.6-1.4c-.1-.4-.3-.3-.5-.3h-.4a.9.9 0 0 0-.6.3 2.6 2.6 0 0 0-.8 1.9 4.5 4.5 0 0 0 1 2.4 10.2 10.2 0 0 0 3.9 3.5c.5.2 1 .4 1.3.5a3.1 3.1 0 0 0 1.5.1 2.4 2.4 0 0 0 1.6-1.1 2 2 0 0 0 .1-1.1c-.1-.1-.2-.2-.4-.3Z"></path></svg>';
 
-function paginaCheckoutMarketHtml(slug) {
+function paginaCheckoutMarketHtml(slug, persona) {
     const slugSeguro = JSON.stringify(String(slug || "")).replace(/<\//g, "<\\/");
+    const valorNombre = persona?.nombre ? ` value="${escaparHtmlAtributo(persona.nombre)}"` : "";
+    const valorTelefono = persona?.telefono ? ` value="${escaparHtmlAtributo(persona.telefono)}"` : "";
+    const valorCorreo = persona?.correo ? ` value="${escaparHtmlAtributo(persona.correo)}"` : "";
 
     return `<!doctype html>
 <html lang="es">
@@ -500,11 +509,11 @@ ${marketHeaderHtml({})}
 <div class="market-checkout-card">
 <h2>${ICONO_CHECKOUT_PERSONA}Tus datos</h2>
 <div class="market-checkout-campo-grid">
-<label>Tu nombre<input type="text" id="checkoutNombre" maxlength="140" required></label>
-<label>Telefono<input type="text" id="checkoutTelefono" maxlength="40" placeholder="10 digitos"></label>
+<label>Tu nombre<input type="text" id="checkoutNombre" maxlength="140" required${valorNombre}></label>
+<label>Telefono<input type="text" id="checkoutTelefono" maxlength="40" placeholder="10 digitos"${valorTelefono}></label>
 </div>
 <div class="market-checkout-campo-grid" style="margin-top:14px;">
-<label>Correo electronico<input type="text" id="checkoutCorreo" maxlength="140"></label>
+<label>Correo electronico<input type="text" id="checkoutCorreo" maxlength="140"${valorCorreo}></label>
 </div>
 <label class="market-checkout-check"><input type="checkbox" id="checkoutQuiereActualizaciones" checked> Quiero recibir actualizaciones de mi pedido por correo</label>
 </div>
@@ -983,9 +992,24 @@ async function servirCarritoMarket(req, res) {
     res.set("Content-Type", "text/html; charset=utf-8").send(paginaCarritoMarketHtml());
 }
 
-async function servirCheckoutMarket(req, res) {
+// pool es opcional (llamador viejo sigue funcionando: simplemente no
+// prellena datos de persona) -- mismo criterio "degrada, no truena" ya
+// usado en itemsDePedidos con slug/firmarTokenImagen.
+async function servirCheckoutMarket(req, res, pool) {
     const slug = String(req.query.tienda || "").trim().slice(0, 120);
-    res.set("Content-Type", "text/html; charset=utf-8").send(paginaCheckoutMarketHtml(slug));
+    let persona = null;
+
+    if (pool) {
+        try {
+            const resolver = crearResolverSesionPersonaOpcional(pool);
+            await new Promise(resolve => resolver(req, res, resolve));
+            persona = req.persona || null;
+        } catch (error) {
+            persona = null;
+        }
+    }
+
+    res.set("Content-Type", "text/html; charset=utf-8").send(paginaCheckoutMarketHtml(slug, persona));
 }
 
 module.exports = { servirCarritoMarket, servirCheckoutMarket };

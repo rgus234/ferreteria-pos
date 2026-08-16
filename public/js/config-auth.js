@@ -2883,6 +2883,7 @@ async function entrarAlSistemaConUsuario(usuario) {
  if (typeof revisarAperturaCajaPOS === "function") revisarAperturaCajaPOS();
  if (typeof iniciarRecordatorioCierreCajaPOS === "function") iniciarRecordatorioCierreCajaPOS();
  if (typeof revisarEncargosVencidosPOS === "function") revisarEncargosVencidosPOS();
+ if (typeof iniciarMonitorPedidosMarket === "function") iniciarMonitorPedidosMarket();
 }
 
 async function intentarRestaurarSesion() {

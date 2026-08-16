@@ -72,6 +72,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("pedidos de Nexo Market (maquina de estados)", () => {
         require("./market-pedidos-server")(app, pool, requerirAccesoNegocio, firmarTokenImagen);
     });
+
+    cargarModuloPOS("notificaciones push (VAPID)", () => {
+        require("./push-server").registrarRutas(app, pool, requerirAccesoNegocio);
+    });
 }
 
 module.exports = {

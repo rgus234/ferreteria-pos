@@ -2,6 +2,44 @@
   max-width: 920px;
 }
 
+.pmk-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.pmk-cabecera h2 {
+  margin: 0;
+}
+
+.pmk-cabecera .pmk-btn-secundario {
+  white-space: nowrap;
+}
+
+[data-shell-module="pedidos-market"] {
+  position: relative;
+}
+
+.pmk-sidebar-badge {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #e2434d;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.9);
+}
+
 .pmk-contadores {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
