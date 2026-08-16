@@ -420,6 +420,198 @@
   return codigoLimpio(producto?.codigo || producto?.codigo_interno || producto?.id || "");
  }
 
+ // No existe ninguna bandera en la base que diga "este codigo es
+ // provisional" -- un EAN/UPC real siempre es puramente numerico y de
+ // 8, 12, 13 o 14 digitos; las claves internas de los proveedores (Truper,
+ // Diprofer, etc) son mas cortas o traen letras.
+ function codigoPareceBarraReal(codigo) {
+  return /^\d{8}$|^\d{12,14}$/.test(String(codigo || "").trim());
+ }
+
+ let productosPendientesCodigoBarras = [];
+ let pendienteCodigoSeleccionadoId = null;
+ let pendientesCodigoCompletadosSesion = 0;
+
+ function detectarPendientesCodigoBarras(idsTocados) {
+  const nuevos = [...new Set(idsTocados)]
+   .map(id => (todosProductos || []).find(p => Number(p.id) === Number(id)))
+   .filter(Boolean)
+   .filter(p => !codigoPareceBarraReal(p.codigo));
+
+  // No se reemplaza la lista -- si ya habia pendientes de una recepcion
+  // anterior en esta misma visita a la pantalla que aun no se resolvian,
+  // se conservan y solo se agregan los nuevos.
+  const yaListados = new Set(productosPendientesCodigoBarras.map(p => p.id));
+  productosPendientesCodigoBarras = [...productosPendientesCodigoBarras, ...nuevos.filter(p => !yaListados.has(p.id))];
+
+  if (!pendienteCodigoSeleccionadoId && productosPendientesCodigoBarras.length) {
+   pendienteCodigoSeleccionadoId = productosPendientesCodigoBarras[0].id;
+  }
+  renderPendientesCodigoBarras();
+ }
+
+ // Mismo criterio que productoPayloadDesdeExistente() de abajo: reconstruye
+ // TODOS los campos que PUT /editar-producto/:id exige, tomandolos del
+ // producto ya cargado en todosProductos, cambiando solo el codigo --
+ // nombre/precio/stock no tienen fallback en el servidor.
+ function payloadCompletoParaCodigoBarras(producto, codigoNuevo) {
+  return {
+   nombre: producto.nombre,
+   precio: producto.precio,
+   stock: producto.stock,
+   codigo: codigoNuevo,
+   proveedor: producto.proveedor || "",
+   ubicacion: producto.ubicacion || "",
+   categoria: producto.categoria || "",
+   subcategoria: producto.subcategoria || "",
+   categoriaNexoId: producto.categoria_nexo_id || null,
+   marca: producto.marca || "",
+   descripcion: producto.descripcion || "",
+   unidadVenta: producto.unidad_venta || "pieza",
+   precioDistribuidor: producto.precio_distribuidor ?? "",
+   precioMayoreo: producto.precio_mayoreo ?? "",
+   precioPublico: producto.precio_publico ?? producto.precio,
+   stockMinimo: producto.stock_minimo ?? 3,
+   altaRotacion: producto.alta_rotacion || "",
+   tipoProducto: producto.tipo_producto || "catalogo",
+   presentacionCompra: producto.presentacion_compra || "",
+   factorConversion: producto.factor_conversion ?? "",
+   basculaDigital: producto.bascula_digital || "no",
+   codigosRelacionados: (producto.codigos_relacionados || []).map(c => c.codigo).filter(Boolean),
+   permiteVentaPieza: Boolean(producto.permite_venta_pieza),
+   unidadSuelta: producto.unidad_suelta || "pieza",
+   piezasPorBolsa: producto.piezas_por_bolsa ?? "",
+   precioPieza: producto.precio_pieza ?? "",
+   tieneGarantia: Boolean(producto.tiene_garantia),
+   garantiaDetalle: producto.garantia_detalle || "",
+   stockMaximo: producto.stock_maximo ?? "",
+   peso: producto.peso ?? "",
+   largoCm: producto.largo_cm ?? "",
+   anchoCm: producto.ancho_cm ?? "",
+   altoCm: producto.alto_cm ?? "",
+   notasInternas: producto.notas_internas || "",
+   admiteCambios: producto.admite_cambios !== false,
+   destacado: Boolean(producto.destacado),
+   precioOferta: producto.precio_oferta ?? ""
+  };
+ }
+
+ function renderPendientesCodigoBarras() {
+  const panel = document.getElementById("recepcionPanelPendientesCodigo");
+  if (!panel) return;
+
+  productosPendientesCodigoBarras = productosPendientesCodigoBarras
+   .map(p => (todosProductos || []).find(tp => Number(tp.id) === Number(p.id)) || p)
+   .filter(p => !codigoPareceBarraReal(p.codigo));
+
+  if (!productosPendientesCodigoBarras.length) {
+   panel.style.display = "none";
+   return;
+  }
+  panel.style.display = "block";
+
+  if (!productosPendientesCodigoBarras.some(p => p.id === pendienteCodigoSeleccionadoId)) {
+   pendienteCodigoSeleccionadoId = productosPendientesCodigoBarras[0].id;
+  }
+  const seleccionado = productosPendientesCodigoBarras.find(p => p.id === pendienteCodigoSeleccionadoId);
+
+  const contador = document.getElementById("recepcionPendientesContador");
+  if (contador) contador.textContent = productosPendientesCodigoBarras.length;
+
+  const lista = document.getElementById("recepcionPendientesLista");
+  if (lista) {
+   lista.innerHTML = productosPendientesCodigoBarras.map(p => {
+    const miniatura = typeof miniaturaProducto === "function" ? miniaturaProducto(p, "recepcion-pendiente-miniatura") : "";
+    return '<div class="recepcion-pendiente-fila' + (p.id === pendienteCodigoSeleccionadoId ? " activo" : "") + '" data-pendiente-id="' + p.id + '">' +
+     miniatura +
+     '<div class="recepcion-pendiente-info"><strong>' + textoSeguro(p.nombre) + '</strong><span>' + textoSeguro(p.marca || p.categoria || "") + '</span></div>' +
+     '<span class="recepcion-pendiente-clave">' + textoSeguro(p.codigo || "sin codigo") + '</span></div>';
+   }).join("");
+
+   lista.querySelectorAll("[data-pendiente-id]").forEach(fila => {
+    fila.onclick = () => {
+     pendienteCodigoSeleccionadoId = Number(fila.dataset.pendienteId);
+     renderPendientesCodigoBarras();
+    };
+   });
+  }
+
+  const seleccionEl = document.getElementById("recepcionPendientesSeleccion");
+  if (seleccionEl) {
+   seleccionEl.innerHTML = seleccionado ? (
+    '<span class="recepcion-pendientes-etiqueta">Escaneando para</span>' +
+    '<strong>' + textoSeguro(seleccionado.nombre) + '</strong>' +
+    '<span class="recepcion-pendientes-clave-actual">Clave actual: ' + textoSeguro(seleccionado.codigo || "(sin codigo)") + '</span>'
+   ) : "";
+  }
+
+  const progreso = document.getElementById("recepcionPendientesProgreso");
+  if (progreso) progreso.textContent = pendientesCodigoCompletadosSesion + " completados en esta sesion -- quedan " + productosPendientesCodigoBarras.length;
+
+  const input = document.getElementById("recepcionPendientesInput");
+  if (input) {
+   input.focus();
+   input.onkeydown = event => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const codigo = input.value;
+    input.value = "";
+    guardarCodigoPendienteRecepcion(codigo);
+   };
+  }
+ }
+
+ window.guardarCodigoPendienteRecepcion = async function(codigoCrudo) {
+  const codigo = codigoLimpio(codigoCrudo);
+
+  if (!codigo || codigo.length < 4) {
+   if (typeof mostrarToastPOS === "function") mostrarToastPOS("El codigo escaneado parece muy corto, intenta de nuevo.", { tipo: "alerta" });
+   return;
+  }
+
+  const producto = productosPendientesCodigoBarras.find(p => p.id === pendienteCodigoSeleccionadoId);
+  if (!producto) return;
+
+  if (codigoLimpio(producto.codigo) === codigo) {
+   pendientesCodigoCompletadosSesion++;
+   if (typeof mostrarToastPOS === "function") mostrarToastPOS('"' + producto.nombre + '" ya tenia este codigo guardado.', { tipo: "info", titulo: "Sin cambios" });
+   renderPendientesCodigoBarras();
+   return;
+  }
+
+  const duplicado = typeof buscarProductoPorCodigo === "function" ? buscarProductoPorCodigo(codigo) : null;
+  if (duplicado && duplicado.id !== producto.id) {
+   if (typeof mostrarToastPOS === "function") mostrarToastPOS('Este codigo ya es de "' + duplicado.nombre + '" -- revisa que no sea el producto equivocado.', { tipo: "peligro", titulo: "Codigo duplicado" });
+   return;
+  }
+
+  const payload = payloadCompletoParaCodigoBarras(producto, codigo);
+
+  try {
+   const respuesta = await fetch("/editar-producto/" + producto.id, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+   });
+   const datos = await respuesta.json();
+
+   if (!datos.success) {
+    if (typeof mostrarToastPOS === "function") mostrarToastPOS(datos.error || "No se pudo guardar el codigo.", { tipo: "peligro" });
+    return;
+   }
+
+   producto.codigo = codigo;
+   const enMemoria = (todosProductos || []).find(p => Number(p.id) === Number(producto.id));
+   if (enMemoria) enMemoria.codigo = codigo;
+
+   pendientesCodigoCompletadosSesion++;
+   if (typeof mostrarToastPOS === "function") mostrarToastPOS('"' + producto.nombre + '": codigo guardado.', { tipo: "exito", titulo: "Listo", autoDismiss: 1800 });
+   renderPendientesCodigoBarras();
+  } catch (error) {
+   if (typeof mostrarToastPOS === "function") mostrarToastPOS("Error de conexion, intenta de nuevo.", { tipo: "peligro" });
+  }
+ };
+
  function asegurarPantallaRecepcion() {
   let pantalla = document.getElementById("pantallaRecepcionMercancia");
   if (pantalla) return pantalla;
@@ -440,6 +632,25 @@
 
     <div class="recepcion-grid">
      <div class="recepcion-columna-principal">
+      <section class="recepcion-panel recepcion-pendientes-codigo" id="recepcionPanelPendientesCodigo" style="display:none;">
+       <div class="recepcion-pendientes-header">
+        <div>
+         <h3>Productos sin codigo de barras <span class="recepcion-contador" id="recepcionPendientesContador">0</span></h3>
+         <p>Se registraron con la clave del proveedor. Escanea o teclea el codigo de barras real de cada uno -- no importa el orden.</p>
+        </div>
+       </div>
+       <div class="recepcion-pendientes-layout">
+        <div class="recepcion-pendientes-lista" id="recepcionPendientesLista"></div>
+        <div class="recepcion-pendientes-panel">
+         <div class="recepcion-pendientes-seleccion" id="recepcionPendientesSeleccion"></div>
+         <label class="recepcion-pendientes-input-label">Codigo de barras
+          <input type="text" id="recepcionPendientesInput" placeholder="Escanea aqui o teclea y presiona Enter" autocomplete="off">
+         </label>
+         <p class="recepcion-pendientes-progreso" id="recepcionPendientesProgreso"></p>
+        </div>
+       </div>
+      </section>
+
       <section class="recepcion-panel recepcion-carga">
        <h3>Informacion del documento</h3>
        <div class="recepcion-form">
@@ -814,13 +1025,16 @@
    const stockNuevo = stockActual + Number(item.cantidad || 0);
    const indiceReal = lista.indexOf(item);
     const importeLinea = Number(item.importe || 0) || Number(item.costo || 0) * Number(item.cantidad || 0);
-    return '<tr class="' + (item.existe ? "existente" : "nuevo") + '"><td><strong>' + textoSeguro(item.codigo || producto?.codigo || "Sin codigo") + '</strong><small>' + textoSeguro(item.unidad || "pieza") + '</small></td><td><strong>' + textoSeguro(item.descripcion) + '</strong><small>' + (item.existe ? "Actualizar stock" : "Crear producto") + '</small></td><td><input type="number" step="0.001" value="' + textoSeguro(item.cantidad || 0) + '" onchange="editarConceptoRecepcion(' + indiceReal + ', \'cantidad\', this.value)"></td><td><input type="number" step="0.01" value="' + textoSeguro(item.costo || 0) + '" onchange="editarConceptoRecepcion(' + indiceReal + ', \'costo\', this.value)">' +
+    const miniatura = typeof miniaturaProducto === "function"
+     ? miniaturaProducto(producto || { nombre: item.descripcion }, "recepcion-fila-miniatura")
+     : "";
+    return '<tr class="' + (item.existe ? "existente" : "nuevo") + '"><td>' + miniatura + '</td><td><strong>' + textoSeguro(item.codigo || producto?.codigo || "Sin codigo") + '</strong><small>' + textoSeguro(item.unidad || "pieza") + '</small></td><td><strong>' + textoSeguro(item.descripcion) + '</strong><small>' + (item.existe ? "Actualizar stock" : "Crear producto") + '</small></td><td><input type="number" step="0.001" value="' + textoSeguro(item.cantidad || 0) + '" onchange="editarConceptoRecepcion(' + indiceReal + ', \'cantidad\', this.value)"></td><td><input type="number" step="0.01" value="' + textoSeguro(item.costo || 0) + '" onchange="editarConceptoRecepcion(' + indiceReal + ', \'costo\', this.value)">' +
      (item.tieneDiferencia ? '<small class="recepcion-diferencia-linea">Antes ' + formatoDinero(item.precioAnterior) + '</small>' : '') + '</td><td>' + formatoDinero(importeLinea) + '</td><td>' +
      textoSeguro(item.existe ? stockActual + " -> " + stockNuevo : "Nuevo") + '</td><td><span class="recepcion-estado ' + (item.existe ? "ok" : "nuevo") + '">' +
      (item.existe ? "Encontrado" : "Nuevo") + '</span></td></tr>';
    }).join("");
 
-   contenedor.innerHTML = '<table class="recepcion-tabla"><thead><tr><th>Codigo</th><th>Descripcion</th><th>Cantidad</th><th>Costo</th><th>Importe</th><th>Stock</th><th>Estado</th></tr></thead><tbody>' + filas + '</tbody></table>';
+   contenedor.innerHTML = '<table class="recepcion-tabla"><thead><tr><th>Foto</th><th>Codigo</th><th>Descripcion</th><th>Cantidad</th><th>Costo</th><th>Importe</th><th>Stock</th><th>Estado</th></tr></thead><tbody>' + filas + '</tbody></table>';
 
   setText("recepcionPaginacionTexto", "Mostrando " + (inicio + 1) + "-" + Math.min(inicio + tamanoPagina, filtrada.length) + " de " + filtrada.length);
   if (typeof renderPaginacion === "function") {
@@ -899,6 +1113,7 @@
 
   let actualizados = 0;
   let creados = 0;
+  const idsTocados = [];
   try {
    for (const item of lista) {
     if (item.existe && item.producto?.id) {
@@ -909,6 +1124,7 @@
      });
      if (!respuesta.ok) throw new Error("No se pudo actualizar " + item.descripcion);
      actualizados++;
+     idsTocados.push(item.producto.id);
     } else {
      const respuesta = await fetch("/agregar-producto", {
       method: "POST",
@@ -916,10 +1132,13 @@
       body: JSON.stringify(productoPayloadNuevo(item))
      });
      if (!respuesta.ok) throw new Error("No se pudo crear " + item.descripcion);
+     const datos = await respuesta.json();
+     if (datos?.producto?.id) idsTocados.push(datos.producto.id);
      creados++;
     }
    }
    await cargarProductos();
+   detectarPendientesCodigoBarras(idsTocados);
    limpiarRecepcionMercancia();
    alertaPOS("Recepcion aplicada", actualizados + " actualizados, " + creados + " creados.", "success");
   } catch (error) {

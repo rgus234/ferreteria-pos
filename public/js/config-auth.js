@@ -1304,7 +1304,6 @@ function ocultarPantallasPrincipales() {
  "pantallaNexoIA",
  "pantallaBuscarTicket",
  "pantallaEncargos",
- "pantallaCodigosPendientes",
  "pantallaSitioWeb",
  "pantallaPedidosMarket",
  "modalAgregar"
