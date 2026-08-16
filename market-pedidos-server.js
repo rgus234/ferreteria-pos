@@ -21,7 +21,8 @@ const {
     enviarCorreoPedidoConfirmado,
     enviarCorreoPedidoListo,
     enviarCorreoPedidoEntregado,
-    enviarCorreoPedidoCancelado
+    enviarCorreoPedidoCancelado,
+    enviarCorreoPedidoCanceladoPorCliente
 } = require("./email");
 const { generarQrYBarcode } = require("./pedido-codigos");
 const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml } = require("./market-server");
@@ -297,7 +298,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 async function pedidoPorCodigo(pool, codigo) {
     const resultado = await pool.query(
         `
-        SELECT pm.*, n.nombre AS negocio_nombre, n.slug AS negocio_slug, n.direccion AS negocio_direccion
+        SELECT pm.*, n.nombre AS negocio_nombre, n.slug AS negocio_slug, n.direccion AS negocio_direccion, n.correo AS negocio_correo
         FROM public.pedidos_market pm
         JOIN public.negocios n ON n.id = pm.negocio_id
         WHERE pm.codigo_recogida = $1
@@ -360,6 +361,10 @@ const ESTILOS_SEGUIMIENTO_PEDIDO = `
 .market-pedido-qr-card img{ display:block; margin:0 auto 14px; width:180px; height:180px; }
 .market-pedido-qr-codigo{ font-size:20px; font-weight:900; letter-spacing:.05em; margin-bottom:14px; }
 .market-pedido-barcode img{ display:block; margin:0 auto; max-width:100%; }
+.market-pedido-cancelar-btn{ display:block; width:100%; padding:14px; border-radius:14px; border:1px solid rgba(217,83,79,.35); background:#fff; color:#b3261e; font-weight:800; font-size:14px; cursor:pointer; }
+.market-pedido-cancelar-btn:hover{ background:rgba(217,83,79,.06); }
+.market-pedido-cancelar-btn:disabled{ opacity:.6; cursor:default; }
+.market-pedido-cancelar-aviso{ margin:10px 0 0; color:var(--muted); font-size:12.5px; text-align:center; }
 `;
 
 function paginaSeguimientoPedidoMarketHtml(pedido, items) {
@@ -420,6 +425,11 @@ ${mostrarRecogida ? `
     ${pedido.negocio_direccion ? `<p class="market-pedido-recogida">📍 ${escaparHtml(pedido.negocio_direccion)}</p>` : ""}
 </div>
 ` : ""}
+
+${pedido.estado === "pendiente" ? `
+<button type="button" id="marketPedidoCancelarBtn" class="market-pedido-cancelar-btn">Cancelar pedido</button>
+<p class="market-pedido-cancelar-aviso">Puedes cancelar mientras la tienda todavia no acepta tu pedido. Despues de eso, contacta directamente a ${escaparHtml(pedido.negocio_nombre)}.</p>
+` : ""}
 </div>
 ${marketFooterHtml()}
 <script>${scriptMarketHeaderHtml({ navegarABusqueda: true })}</script>
@@ -439,6 +449,31 @@ ${marketFooterHtml()}
             })
             .catch(function(){});
     }, 7000);
+
+    var btnCancelar = document.getElementById("marketPedidoCancelarBtn");
+    if (btnCancelar) {
+        btnCancelar.addEventListener("click", function(){
+            if (!window.confirm("Seguro que quieres cancelar este pedido?")) return;
+            btnCancelar.disabled = true;
+            btnCancelar.textContent = "Cancelando...";
+            fetch("/market/pedido/" + encodeURIComponent(codigo) + "/cancelar", { method: "POST" })
+                .then(function(r){ return r.json().then(function(datos){ return { ok: r.ok, datos: datos }; }); })
+                .then(function(resultado){
+                    if (resultado.datos && resultado.datos.ok) {
+                        window.location.reload();
+                        return;
+                    }
+                    alert((resultado.datos && resultado.datos.error) || "No se pudo cancelar el pedido.");
+                    btnCancelar.disabled = false;
+                    btnCancelar.textContent = "Cancelar pedido";
+                })
+                .catch(function(){
+                    alert("No se pudo cancelar el pedido. Intenta de nuevo.");
+                    btnCancelar.disabled = false;
+                    btnCancelar.textContent = "Cancelar pedido";
+                });
+        });
+    }
 })();
 </script>
 </body>
@@ -456,6 +491,59 @@ async function servirSeguimientoPedidoMarket(pool, req, res) {
 
     const itemsPorPedido = await itemsDePedidos(pool, pedido.negocio_id, [pedido.id]);
     res.set("Content-Type", "text/html; charset=utf-8").send(paginaSeguimientoPedidoMarketHtml(pedido, itemsPorPedido.get(pedido.id) || []));
+}
+
+// El cliente cancela su propio pedido por codigo, sin sesion (mismo
+// criterio de acceso que el resto de esta pagina). Solo se permite
+// mientras el pedido sigue "pendiente" -- en cuanto la ferreteria lo
+// acepta (pasa a "preparando") ya empezo a moverse fisicamente, asi
+// que de ahi en adelante el cliente tiene que hablar directo con la
+// tienda (mismo limite de tiempo real que TRANSICIONES.cancelar del
+// lado POS, solo que aqui restringido a un solo estado de origen).
+async function cancelarPedidoMarketPorCliente(pool, req, res) {
+    const codigo = String(req.params.codigo || "").trim();
+    const pedido = await pedidoPorCodigo(pool, codigo);
+
+    if (!pedido) {
+        res.status(404).json({ ok: false, error: "Pedido no encontrado" });
+        return;
+    }
+
+    if (pedido.estado !== "pendiente") {
+        res.status(400).json({
+            ok: false,
+            error: "Este pedido ya no se puede cancelar en linea. Contacta directamente a la tienda."
+        });
+        return;
+    }
+
+    const actualizado = await pool.query(
+        `UPDATE public.pedidos_market SET estado = 'cancelado', cancelado_at = NOW(), motivo_cancelacion = 'Cancelado por el cliente' WHERE id = $1 RETURNING *`,
+        [pedido.id]
+    );
+    const pedidoActualizado = actualizado.rows[0];
+
+    const itemsPorPedido = await itemsDePedidos(pool, pedido.negocio_id, [pedido.id]);
+    const items = itemsPorPedido.get(pedido.id) || [];
+    const urlSeguimiento = urlSeguimientoPedido(pedido.codigo_recogida);
+
+    if (pedido.cliente_correo) {
+        enviarCorreoPedidoCancelado(pedido.cliente_correo, pedido.negocio_nombre, {
+            items,
+            motivo: null,
+            urlSeguimiento
+        }).catch(error => console.warn("No se pudo enviar el correo de pedido cancelado (cliente):", error.message));
+    }
+
+    if (pedido.negocio_correo) {
+        enviarCorreoPedidoCanceladoPorCliente(pedido.negocio_correo, {
+            codigoRecogida: pedido.codigo_recogida,
+            items,
+            clienteNombre: pedido.cliente_nombre
+        }).catch(error => console.warn("No se pudo enviar el aviso de cancelacion al negocio:", error.message));
+    }
+
+    res.json({ ok: true, pedido: mapearPedidoMarket(pedidoActualizado, items) });
 }
 
 async function estadoPedidoMarketJson(pool, req, res) {
@@ -505,6 +593,7 @@ async function servirBarcodePedidoMarket(pool, req, res) {
 }
 
 module.exports.servirSeguimientoPedidoMarket = servirSeguimientoPedidoMarket;
+module.exports.cancelarPedidoMarketPorCliente = cancelarPedidoMarketPorCliente;
 module.exports.estadoPedidoMarketJson = estadoPedidoMarketJson;
 module.exports.servirQrPedidoMarket = servirQrPedidoMarket;
 module.exports.servirBarcodePedidoMarket = servirBarcodePedidoMarket;

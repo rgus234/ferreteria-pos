@@ -699,6 +699,28 @@ function enviarCorreoPedidoCancelado(correo, nombreNegocio, { items, motivo, url
     });
 }
 
+// El cliente cancela su propio pedido (solo posible mientras sigue
+// "pendiente", ver market-pedidos-server.js) -- este correo va al
+// negocio, no al cliente, para que no lo empiecen a preparar.
+function enviarCorreoPedidoCanceladoPorCliente(correo, { codigoRecogida, items, clienteNombre }) {
+    return enviarCorreo({
+        correo,
+        asunto: `Pedido ${codigoRecogida} cancelado por el cliente`,
+        html: envolverPlantilla({
+            etiqueta: "Pedido cancelado",
+            titulo: `El cliente canceló el pedido ${escaparHtmlCorreo(codigoRecogida)}`,
+            saludo: escaparHtmlCorreo(clienteNombre),
+            robot: "feliz",
+            cuerpoHtml: `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 10px;">
+                    ${filasItemsPedidoMarket(items)}
+                </table>
+                ${avisoHtml("No es necesario prepararlo. Puedes verlo en la pantalla Pedidos de tu panel.")}
+            `
+        })
+    });
+}
+
 // La solicitud viene del formulario publico de credito (sin sesion).
 // A proposito NUNCA incluye las fotos de identificacion en el correo
 // -- correo no es un canal seguro para documentos sensibles, se avisa
@@ -762,5 +784,6 @@ module.exports = {
     enviarCorreoPedidoConfirmado,
     enviarCorreoPedidoListo,
     enviarCorreoPedidoEntregado,
-    enviarCorreoPedidoCancelado
+    enviarCorreoPedidoCancelado,
+    enviarCorreoPedidoCanceladoPorCliente
 };
