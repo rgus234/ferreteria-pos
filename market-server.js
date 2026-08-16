@@ -40,6 +40,16 @@ function escaparHtml(valor) {
         .replace(/'/g, "&#39;");
 }
 
+// Mismo normalizador que ya usa public-site-server.js para armar
+// enlaces wa.me reales (contacto directo, no mensajeria automatica) --
+// copiado, no importado, mismo criterio del resto del proyecto.
+function normalizarTelefonoWhatsAppMarket(telefono) {
+    const digitos = String(telefono || "").replace(/\D/g, "");
+    if (!digitos) return null;
+    if (digitos.length === 10) return `52${digitos}`;
+    return digitos.length >= 10 ? digitos : null;
+}
+
 // Cache corto en memoria (mismo criterio que CACHE_FUNCIONES_PLAN en
 // plan-enforcement.js) -- evita repetir el chequeo de plan por negocio
 // en cada busqueda. A este volumen (unos pocos negocios), es barato de
@@ -602,6 +612,7 @@ async function carritoProductosMarketJson(pool, req, res, firmarTokenImagen) {
 
         const resultado = await pool.query(
             `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
+                    n.pedido_prep_min, n.pedido_prep_max, c.whatsapp,
                     CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
                     CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                     CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
@@ -617,9 +628,19 @@ async function carritoProductosMarketJson(pool, req, res, firmarTokenImagen) {
         const cantidadPorPar = new Map(paresValidos.map(p => [`${p.slug}:${p.codigo}`, Math.min(9999, Math.max(1, parseInt(p.cantidad, 10) || 1))]));
         const filas = resultado.rows.filter(f => cantidadPorPar.has(`${f.slug}:${f.codigo}`));
 
+        // pedidoPrepMin/Max y whatsappUrl son a nivel de negocio (igual
+        // que envioModo/envioTarifa arriba), pegados a cada fila -- el
+        // checkout de una sola tienda los lee del primer producto.
+        const extrasPorPar = new Map(filas.map(f => [`${f.slug}:${f.codigo}`, {
+            pedidoPrepMin: f.pedido_prep_min,
+            pedidoPrepMax: f.pedido_prep_max,
+            whatsappUrl: normalizarTelefonoWhatsAppMarket(f.whatsapp) ? `https://wa.me/${normalizarTelefonoWhatsAppMarket(f.whatsapp)}` : null
+        }]));
+
         const productos = mapearFilasProducto(filas, firmarTokenImagen).map(p => ({
             ...p,
-            cantidad: cantidadPorPar.get(`${p.slug}:${p.codigo}`)
+            cantidad: cantidadPorPar.get(`${p.slug}:${p.codigo}`),
+            ...extrasPorPar.get(`${p.slug}:${p.codigo}`)
         }));
 
         const categorias = [...new Set(productos.map(p => p.categoria).filter(Boolean))];

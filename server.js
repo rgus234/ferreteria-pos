@@ -105,12 +105,13 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://js.stripe.com"],
             scriptSrcAttr: ["'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
             imgSrc: ["'self'", "data:", "blob:", "https://cdn.jsdelivr.net", "https://*.tile.openstreetmap.org"],
             fontSrc: ["'self'", "data:"],
-            connectSrc: ["'self'"],
+            connectSrc: ["'self'", "https://api.stripe.com"],
+            frameSrc: ["https://js.stripe.com", "https://hooks.stripe.com"],
             frameAncestors: ["'none'"],
             baseUri: ["'self'"],
             objectSrc: ["'none'"],
