@@ -5,7 +5,13 @@
 
 async function pedirModoVentaPOS(producto) {
  let paso = "modo";
- let cantidadTexto = "1";
+
+ const unidadContenedor = unidadProducto(producto);
+ const unidadSuelta = unidadSueltaDeProducto(producto);
+ const etiquetaSuelta = etiquetaUnidadVenta(unidadSuelta);
+ const sueltaEsDecimal = esUnidadDecimal(unidadSuelta);
+
+ let cantidadTexto = sueltaEsDecimal ? "" : "1";
 
  return new Promise(resolve => {
   let modal =
@@ -70,12 +76,12 @@ async function pedirModoVentaPOS(producto) {
 
     <div class="venta-pieza-opciones">
      <button type="button" data-accion="bolsa">
-      <strong>Bolsa completa</strong>
+      <strong>${escaparPOS(etiquetaContenedorCompleto(unidadContenedor))}</strong>
       <span>Vende la presentacion cerrada tal como esta</span>
      </button>
      <button type="button" data-accion="pieza">
-      <strong>Piezas sueltas</strong>
-      <span>Abre o descuenta piezas individuales</span>
+      <strong>${escaparPOS(etiquetaBotonVentaSuelta(unidadSuelta))}</strong>
+      <span>${sueltaEsDecimal ? `Descuenta ${etiquetaSuelta.plural} del contenedor abierto` : `Abre o descuenta ${etiquetaSuelta.plural} individuales`}</span>
      </button>
     </div>
    </div>
@@ -84,14 +90,14 @@ async function pedirModoVentaPOS(producto) {
    <div class="modal-card venta-pieza-card">
     <div class="modal-card-header">
      <div>
-      <span>Piezas sueltas</span>
+      <span>${escaparPOS(etiquetaBotonVentaSuelta(unidadSuelta))}</span>
       <h3>${nombre}</h3>
      </div>
      <button type="button" class="venta-pieza-cerrar" data-accion="cancelar">Cerrar</button>
     </div>
 
-    <label class="venta-pieza-cantidad-label">Cuantas piezas?
-     <input type="number" step="1" min="1" id="modalVentaPiezaCantidad" value="${cantidadTexto}">
+    <label class="venta-pieza-cantidad-label">${etiquetaSuelta.fem ? "Cuantas" : "Cuantos"} ${etiquetaSuelta.plural}?
+     <input type="number" step="${sueltaEsDecimal ? "0.01" : "1"}" min="${sueltaEsDecimal ? "0.01" : "1"}" id="modalVentaPiezaCantidad" value="${cantidadTexto}">
     </label>
 
     <div class="modal-actions-row">

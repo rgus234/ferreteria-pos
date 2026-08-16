@@ -1326,13 +1326,82 @@ function pasoUnidad(unidad) {
  return esUnidadDecimal(unidad) ? 0.1 : 1;
 }
 
+// La venta "suelta" (permite_venta_pieza) ya no asume que lo suelto
+// siempre es "pieza" -- unidad_suelta dice que es (pieza, kg, litro,
+// metro, gramo). Este lookup da singular/plural/genero para armar
+// frases naturales ("Bulto completo", "Vender por kilo", "2.5 kg
+// sueltos") tanto en el formulario como en el modal del POS.
+const ETIQUETAS_UNIDAD_VENTA_TEXTO = {
+ pieza: { singular: "pieza", plural: "piezas", fem: true },
+ metro: { singular: "metro", plural: "metros", fem: false },
+ kg: { singular: "kilo", plural: "kilos", fem: false },
+ kilo: { singular: "kilo", plural: "kilos", fem: false },
+ litro: { singular: "litro", plural: "litros", fem: false },
+ gramo: { singular: "gramo", plural: "gramos", fem: false },
+ caja: { singular: "caja", plural: "cajas", fem: true },
+ bolsa: { singular: "bolsa", plural: "bolsas", fem: true },
+ paquete: { singular: "paquete", plural: "paquetes", fem: false },
+ tramo: { singular: "tramo", plural: "tramos", fem: false },
+ rollo: { singular: "rollo", plural: "rollos", fem: false },
+ saco: { singular: "saco", plural: "sacos", fem: false },
+ bulto: { singular: "bulto", plural: "bultos", fem: false },
+ servicio: { singular: "servicio", plural: "servicios", fem: false }
+};
+
+function etiquetaUnidadVenta(unidad) {
+ const clave = String(unidad || "pieza").toLowerCase();
+ return ETIQUETAS_UNIDAD_VENTA_TEXTO[clave] || { singular: clave, plural: `${clave}s`, fem: false };
+}
+
+// "Bulto completo" / "Bolsa completa" segun el genero de la unidad.
+function etiquetaContenedorCompleto(unidadVenta) {
+ const etiqueta = etiquetaUnidadVenta(unidadVenta);
+ const nombre = etiqueta.singular.charAt(0).toUpperCase() + etiqueta.singular.slice(1);
+ return `${nombre} ${etiqueta.fem ? "completa" : "completo"}`;
+}
+
+function unidadSueltaDeProducto(producto = {}) {
+ return String(producto.unidad_suelta || producto.unidadSuelta || "pieza").toLowerCase();
+}
+
+// Texto del boton de venta suelta en el modal del POS -- "Vender por
+// kilo" para unidades decimales (kg/litro/metro/gramo, no tiene
+// sentido contar "kilos sueltos" uno por uno) vs "Piezas sueltas" /
+// "Cajas sueltas" para unidades enteras.
+// Sufijo del nombre en el renglon del carrito -- "(pieza suelta)" para
+// unidades enteras (compatibilidad con el texto original), "(por
+// kilo)" para unidades decimales.
+function sufijoNombreVentaSuelta(unidad) {
+ const etiqueta = etiquetaUnidadVenta(unidad);
+
+ if (esUnidadDecimal(unidad)) {
+ return ` (por ${etiqueta.singular})`;
+ }
+
+ return ` (${etiqueta.singular} ${etiqueta.fem ? "suelta" : "suelto"})`;
+}
+
+function etiquetaBotonVentaSuelta(unidad) {
+ const etiqueta = etiquetaUnidadVenta(unidad);
+
+ if (esUnidadDecimal(unidad)) {
+ return `Vender por ${etiqueta.singular}`;
+ }
+
+ const pluralCap = etiqueta.plural.charAt(0).toUpperCase() + etiqueta.plural.slice(1);
+ return `${pluralCap} ${etiqueta.fem ? "sueltas" : "sueltos"}`;
+}
+
 function piezasSueltasInfoCelda(producto) {
  if (!producto?.permite_venta_pieza) return "";
 
  const piezas =
  Number(producto.piezas_sueltas_stock || 0);
 
- return `<br><small class="pieza-stock-info">+ ${piezas} piezas sueltas</small>`;
+ const etiqueta =
+ etiquetaUnidadVenta(unidadSueltaDeProducto(producto));
+
+ return `<br><small class="pieza-stock-info">+ ${piezas} ${etiqueta.plural} sueltos</small>`;
 }
 
 function formatearCantidad(cantidad, unidad = "pieza") {
@@ -1740,9 +1809,10 @@ function asegurarEtiquetasFichaProducto() {
  unidadVenta: "Unidad base de venta",
  presentacionCompra: "Presentacion de compra",
  factorConversion: "Equivalencia de compra",
- permiteVentaPieza: "Tambien se vende por pieza suelta",
- piezasPorBolsa: "Piezas por bolsa/caja",
- precioPieza: "Precio por pieza suelta",
+ permiteVentaPieza: "Tambien se vende suelto (no solo el contenedor completo)",
+ unidadSuelta: "Unidad en la que se vende suelto",
+ piezasPorBolsa: "Cuanto trae el contenedor completo",
+ precioPieza: "Precio por unidad suelta",
  nuevaTieneGarantia: "Tiene garantia",
  nuevoGarantiaDetalle: "Detalle de la garantia",
  nuevaNoAdmiteCambios: "No admite cambios (ej. cortado a la medida)",
@@ -2272,7 +2342,7 @@ function togglePiezaCamposProducto() {
  const activo =
  Boolean(checkbox?.checked);
 
- ["piezasPorBolsa", "precioPieza"].forEach(id => {
+ ["unidadSuelta", "piezasPorBolsa", "precioPieza"].forEach(id => {
  const campo =
  document.getElementById(id);
 
@@ -2287,6 +2357,41 @@ function togglePiezaCamposProducto() {
  wrapper.style.setProperty("display", "none", "important");
  }
  });
+
+ if (activo) actualizarEtiquetasPiezaCamposProducto();
+}
+
+// Los placeholders de "cuanto trae el contenedor" y "precio por unidad
+// suelta" se adaptan a lo que el dueno ya eligio en unidadVenta (el
+// contenedor: bulto, caja, bolsa...) y unidadSuelta (lo que se vende
+// suelto: pieza, kg, litro...) -- para que un bulto de cemento diga
+// "Cuantos kilos trae el bulto" en vez de "Piezas por bolsa/caja".
+function actualizarEtiquetasPiezaCamposProducto() {
+ const unidadVenta =
+ document.getElementById("unidadVenta")?.value || "pieza";
+
+ const unidadSuelta =
+ document.getElementById("unidadSuelta")?.value || "pieza";
+
+ const etiquetaContenedor =
+ etiquetaUnidadVenta(unidadVenta);
+
+ const etiquetaSuelta =
+ etiquetaUnidadVenta(unidadSuelta);
+
+ const campoCantidad =
+ document.getElementById("piezasPorBolsa");
+
+ const campoPrecio =
+ document.getElementById("precioPieza");
+
+ if (campoCantidad) {
+ campoCantidad.placeholder = `Cuantos ${etiquetaSuelta.plural} trae el ${etiquetaContenedor.singular}`;
+ }
+
+ if (campoPrecio) {
+ campoPrecio.placeholder = `Precio por ${etiquetaSuelta.singular}`;
+ }
 }
 
 // Etiquetas/ejemplo para cada unidad decimal -- mismo criterio de
@@ -2366,7 +2471,7 @@ function toggleGarantiaCamposProducto() {
  }
 }
 
-function mostrarPiezasSueltasStockInfo(valor) {
+function mostrarPiezasSueltasStockInfo(valor, producto = {}) {
  const campo =
  document.getElementById("piezasPorBolsa");
 
@@ -2393,8 +2498,11 @@ function mostrarPiezasSueltasStockInfo(valor) {
  wrapper.appendChild(info);
  }
 
+ const etiqueta =
+ etiquetaUnidadVenta(unidadSueltaDeProducto(producto));
+
  info.textContent =
- `Piezas sueltas actuales: ${cantidad}`;
+ `${etiqueta.plural.charAt(0).toUpperCase() + etiqueta.plural.slice(1)} sueltos actuales: ${cantidad}`;
 }
 
 function enfocarCampoStockAhora() {
@@ -2574,6 +2682,9 @@ document.getElementById("basculaDigital")?.value || "no";
 const permiteVentaPieza =
 document.getElementById("permiteVentaPieza")?.checked || false;
 
+const unidadSuelta =
+document.getElementById("unidadSuelta")?.value || "pieza";
+
 const piezasPorBolsa =
 document.getElementById("piezasPorBolsa")?.value || "";
 
@@ -2659,7 +2770,9 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  }
 
  if (permiteVentaPieza && (piezasPorBolsa === "" || Number(piezasPorBolsa) <= 0 || precioPieza === "" || Number(precioPieza) < 0)) {
- await alertaPOS("Para vender por pieza suelta, escribe cuantas piezas trae cada bolsa/caja y el precio por pieza.", "Faltan datos de pieza suelta", "alerta");
+ const etiquetaSuelta = etiquetaUnidadVenta(unidadSuelta);
+ const etiquetaContenedor = etiquetaUnidadVenta(unidadVenta);
+ await alertaPOS(`Para vender suelto, escribe cuantos ${etiquetaSuelta.plural} trae cada ${etiquetaContenedor.singular} y el precio por ${etiquetaSuelta.singular}.`, "Faltan datos de venta suelta", "alerta");
  document.getElementById("piezasPorBolsa")?.focus();
  return;
  }
@@ -2724,6 +2837,7 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  basculaDigital,
  codigosRelacionados,
  permiteVentaPieza,
+ unidadSuelta,
  piezasPorBolsa,
  precioPieza,
  tieneGarantia,
@@ -3085,6 +3199,9 @@ function editarProducto(
  document.getElementById("permiteVentaPieza").checked =
  Boolean(producto?.permite_venta_pieza);
 
+ document.getElementById("unidadSuelta").value =
+ producto?.unidad_suelta || "pieza";
+
  document.getElementById("piezasPorBolsa").value =
  producto?.piezas_por_bolsa || "";
 
@@ -3092,7 +3209,7 @@ function editarProducto(
  producto?.precio_pieza || "";
 
  togglePiezaCamposProducto();
- mostrarPiezasSueltasStockInfo(producto?.piezas_sueltas_stock);
+ mostrarPiezasSueltasStockInfo(producto?.piezas_sueltas_stock, producto);
 
  document.getElementById("nuevaTieneGarantia").checked =
  Boolean(producto?.tiene_garantia);
@@ -4501,6 +4618,7 @@ function cerrarFormularioAgregar() {
  document.getElementById("presentacionCompra").value = "";
  document.getElementById("factorConversion").value = "";
  document.getElementById("permiteVentaPieza").checked = false;
+ document.getElementById("unidadSuelta").value = "pieza";
  document.getElementById("piezasPorBolsa").value = "";
  document.getElementById("precioPieza").value = "";
  togglePiezaCamposProducto();
@@ -4560,6 +4678,7 @@ function limpiarCamposCatalogoProducto() {
  document.getElementById("presentacionCompra").value = "";
  document.getElementById("factorConversion").value = "";
  document.getElementById("permiteVentaPieza").checked = false;
+ document.getElementById("unidadSuelta").value = "pieza";
  document.getElementById("piezasPorBolsa").value = "";
  document.getElementById("precioPieza").value = "";
  togglePiezaCamposProducto();

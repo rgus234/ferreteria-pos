@@ -5393,7 +5393,8 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
     notasInternas,
     admiteCambios,
     destacado,
-    precioOferta
+    precioOferta,
+    unidadSuelta
 } = req.body;
     try {
         const negocio = await negocioActual(req);
@@ -5442,9 +5443,10 @@ INSERT INTO public.productos
   notas_internas,
   admite_cambios,
   destacado,
-  precio_oferta
+  precio_oferta,
+  unidad_suelta
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36)
 RETURNING id
 `,
 [
@@ -5482,7 +5484,8 @@ RETURNING id
   notasInternas || "",
   admiteCambios !== false && admiteCambios !== "false",
   destacado === true || destacado === "true",
-  precioOferta || null
+  precioOferta || null,
+  unidadSuelta || "pieza"
 ]
 );
 
@@ -5538,7 +5541,8 @@ RETURNING id
                 notas_internas: notasInternas || "",
                 admite_cambios: admiteCambios !== false && admiteCambios !== "false",
                 destacado: destacado === true || destacado === "true",
-                precio_oferta: precioOferta || null
+                precio_oferta: precioOferta || null,
+                unidad_suelta: unidadSuelta || "pieza"
             }
         });
 
@@ -5592,7 +5596,8 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         notasInternas,
         admiteCambios,
         destacado,
-        precioOferta
+        precioOferta,
+        unidadSuelta
     } = req.body;
 
     try {
@@ -5642,9 +5647,10 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 admite_cambios = $32,
                 destacado = $33,
                 precio_oferta = $34,
-                categoria_nexo_id = COALESCE($35, categoria_nexo_id)
-            WHERE id = $36
-            AND negocio_id = $37
+                unidad_suelta = $35,
+                categoria_nexo_id = COALESCE($36, categoria_nexo_id)
+            WHERE id = $37
+            AND negocio_id = $38
             RETURNING id
             `,
             [
@@ -5682,6 +5688,7 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 admiteCambios !== false && admiteCambios !== "false",
                 destacado === true || destacado === "true",
                 precioOferta || null,
+                unidadSuelta || "pieza",
                 categoriaNexo ? categoriaNexo.id : null,
                 id,
                 negocio.id
@@ -5741,7 +5748,8 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 notas_internas: notasInternas || "",
                 admite_cambios: admiteCambios !== false && admiteCambios !== "false",
                 destacado: destacado === true || destacado === "true",
-                precio_oferta: precioOferta || null
+                precio_oferta: precioOferta || null,
+                unidad_suelta: unidadSuelta || "pieza"
             }
         });
 

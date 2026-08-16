@@ -1168,7 +1168,7 @@
  <datalist id="listaCategoriasProducto"></datalist>
  <input type="hidden" id="categoriaNexoId">
  <input id="nuevaMarca" placeholder="Marca">
- <select id="unidadVenta" onchange="actualizarAyudaPrecioProducto()">
+ <select id="unidadVenta" onchange="actualizarAyudaPrecioProducto(); actualizarEtiquetasPiezaCamposProducto();">
  <option value="pieza">Pieza</option>
  <option value="metro">Metro</option>
  <option value="kg">Kilo</option>
@@ -1217,8 +1217,15 @@
  <input id="presentacionCompra" type="text" placeholder="Compra: caja, rollo, saco, bulto">
  <input id="factorConversion" type="number" step="0.001" placeholder="Equivalencia: ej. caja 100 piezas">
  <input id="permiteVentaPieza" type="checkbox" onchange="togglePiezaCamposProducto()">
- <input id="piezasPorBolsa" type="number" step="0.01" min="0" placeholder="Piezas por bolsa/caja">
- <input id="precioPieza" type="number" step="0.01" min="0" placeholder="Precio por pieza suelta">
+ <select id="unidadSuelta" onchange="actualizarEtiquetasPiezaCamposProducto()">
+ <option value="pieza">Suelto por pieza</option>
+ <option value="kg">Suelto por kilo</option>
+ <option value="gramo">Suelto por gramo</option>
+ <option value="litro">Suelto por litro</option>
+ <option value="metro">Suelto por metro</option>
+ </select>
+ <input id="piezasPorBolsa" type="number" step="0.01" min="0" placeholder="Cuanto trae el contenedor">
+ <input id="precioPieza" type="number" step="0.01" min="0" placeholder="Precio por unidad suelta">
  <select id="basculaDigital">
  <option value="no">Boton de peso manual: automatico en kg/litro/metro</option>
  <option value="preparado">Boton de peso manual: tambien en esta unidad</option>

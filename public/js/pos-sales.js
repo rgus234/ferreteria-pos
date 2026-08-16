@@ -180,7 +180,10 @@ function agregar(
  opciones.modoVenta === "pieza" ? "pieza" : "bolsa";
 
  const unidad =
- modoVenta === "pieza" ? "pieza" : unidadProducto(producto);
+ modoVenta === "pieza" ? unidadSueltaDeProducto(producto) : unidadProducto(producto);
+
+ const sueltaEsEntera =
+ modoVenta === "pieza" && !esUnidadDecimal(unidad);
 
  const existente =
  carrito.find(item =>
@@ -195,7 +198,7 @@ function agregar(
 
  if (existente) {
  existente.cantidad =
- modoVenta === "pieza"
+ sueltaEsEntera
  ? Number(existente.cantidad || 0) + Math.max(1, cantidadCapturada || 1)
  : Number(existente.cantidad || 0) + (cantidadCapturada || pasoUnidad(unidad));
  } else {
@@ -208,13 +211,13 @@ function agregar(
  : Number(precio || 0);
 
  const cantidadInicial =
- modoVenta === "pieza"
+ sueltaEsEntera
  ? Math.max(1, cantidadCapturada || 1)
  : (cantidadCapturada || pasoUnidad(unidad));
 
  carrito.push({
  id,
- nombre: modoVenta === "pieza" ? `${nombre} (pieza suelta)` : nombre,
+ nombre: modoVenta === "pieza" ? `${nombre}${sufijoNombreVentaSuelta(unidad)}` : nombre,
  precio: precioLinea,
  cantidad: cantidadInicial,
  codigo: producto.codigo || "",
