@@ -57,6 +57,7 @@
   <link rel="stylesheet" href="css/components/encargos-clientes.css?v=encargos-20260803-01">
   <link rel="stylesheet" href="css/components/sitio-web-view.css?v=sitio-web-20260821-01">
   <link rel="stylesheet" href="css/components/pedidos-market-view.css?v=pedidos-market-20260816-02">
+  <link rel="stylesheet" href="css/components/codigos-pendientes-view.css?v=codigos-pendientes-20260816-01">
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -470,6 +471,9 @@
  <button data-shell-module="inventario-bajo" onclick="mostrarInventarioBajo()">
  Inventario bajo
  </button>
+ <button data-shell-module="codigos-pendientes" onclick="mostrarCodigosPendientes()">
+ Codigos pendientes
+ </button>
  </div>
 
  <button data-shell-module="reportes" onclick="mostrarGraficas()">
@@ -534,6 +538,7 @@
  <section id="pantallaPedidosMarket" style="display:none;"></section>
  <section id="pantallaBuscarTicket" style="display:none;"></section>
  <section id="pantallaEncargos" style="display:none;"></section>
+ <section id="pantallaCodigosPendientes" style="display:none;"></section>
  <section id="pantallaSitioWeb" style="display:none;"></section>
 
  <section id="pantallaCatalogo" style="display:none;">
@@ -1657,6 +1662,7 @@
   <script src="js/account-view.js?v=recordatorio-caja-20260731-01"></script>
   <script src="js/pedidos-market-view.js?v=pedidos-market-20260816-02"></script>
   <script src="js/ticket-lookup-view.js?v=creditos-editar-compra-20260730-01"></script>
+  <script src="js/codigos-pendientes-view.js?v=codigos-pendientes-20260816-01"></script>
  <script src="js/encargos-clientes.js?v=encargos-20260803-01"></script>
  <script src="js/sitio-web-view.js?v=sitio-web-20260821-01"></script>
   <script src="js/product-details-view.js?v=alertas-tempranas-20260712-01"></script>
