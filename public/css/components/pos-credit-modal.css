@@ -82,43 +82,40 @@
  color:#b91c1c !important;
 }
 
-/* --- Fila de dos columnas: lista + detalle --- */
+/* --- Lista de clientes: pantalla completa, tabla real ---
+   La lista y el detalle nunca se muestran a la vez: se navega de una
+   a otra (como una pantalla maestro-detalle), cada una a todo lo
+   ancho, para que la informacion respire y quede lugar para crecer
+   (telefono, foto de Nexo Market, etc). Ver abrirCuentaCliente() y
+   regresarListaCreditos() en credit-customers.js. */
 
 .creditos-panel-row{
- display:grid;
- grid-template-columns:minmax(300px,340px) 1fr;
- gap:16px;
- align-items:start;
  max-width:1320px;
  margin:0 auto;
 }
 
-#listaCreditos.creditos-layout{
- display:block;
- grid-template-columns:none;
- margin-top:0;
-}
-
 .creditos-lista-panel{
  display:grid;
- gap:12px;
+ gap:14px;
  background:var(--pos-surface-strong,#fff);
  border:1px solid var(--pos-line,#dbe3ef);
  border-radius:14px;
- padding:16px;
+ padding:20px;
 }
 
 .creditos-lista-toolbar{
- display:grid;
- gap:10px;
+ display:flex;
+ align-items:center;
+ gap:12px;
 }
 
 .creditos-lista-toolbar .buscador-con-limpiar{
+ flex:1;
  grid-template-columns:1fr;
 }
 
 .creditos-lista-toolbar input{
- min-height:38px;
+ min-height:40px;
  padding:0 12px;
  border:1px solid var(--pos-line,#dbe3ef);
  border-radius:9px;
@@ -128,15 +125,17 @@
 }
 
 #pantallaCreditos .btn-agregar{
- width:100%;
+ width:auto;
  min-height:40px;
  margin:0;
+ padding:0 18px;
  border:0;
  border-radius:9px;
  background:var(--brand-color,#0d6efd) !important;
  color:#fff !important;
  font-weight:800;
  font-size:13.5px;
+ white-space:nowrap;
 }
 
 .creditos-tabs{
@@ -147,14 +146,14 @@
 .creditos-tabs button{
  width:auto;
  margin:0 !important;
- min-height:30px;
- padding:0 12px;
+ min-height:32px;
+ padding:0 14px;
  border:1px solid var(--pos-line,#dbe3ef);
  border-radius:999px;
  background:transparent !important;
  color:var(--pos-muted,#687386) !important;
  font-weight:700;
- font-size:12px;
+ font-size:12.5px;
 }
 
 .creditos-tabs button.activo{
@@ -163,55 +162,74 @@
  color:#fff !important;
 }
 
-.creditos-principales{
- display:flex;
- flex-direction:column;
- gap:8px;
- max-height:min(520px,58vh);
- overflow-y:auto;
+.tabla-creditos-clientes-wrap{
+ overflow-x:auto;
 }
 
-.cliente-credito{
- display:flex;
- flex-direction:row;
- align-items:center;
- gap:10px;
+.tabla-creditos-clientes{
  width:100%;
- margin:0;
- padding:10px;
- border:1px solid var(--pos-line,#dbe3ef);
- border-radius:10px;
- background:transparent;
- color:var(--pos-text,#172033);
+ border-collapse:collapse;
+ table-layout:fixed;
+}
+
+.tabla-creditos-clientes th{
  text-align:left;
+ padding:10px 12px;
+ border-bottom:1px solid var(--pos-line,#dbe3ef);
+ color:var(--pos-muted,#687386);
+ font-size:11px;
+ font-weight:800;
+ text-transform:uppercase;
+ letter-spacing:.04em;
+}
+
+.tabla-creditos-clientes th:nth-child(1){ width:58%; }
+.tabla-creditos-clientes th:nth-child(2){ width:22%; }
+.tabla-creditos-clientes th:nth-child(3){ width:20%; }
+
+.fila-cliente-credito{
  cursor:pointer;
 }
 
-.cliente-credito:hover{
+.fila-cliente-credito td{
+ padding:12px;
+ border-bottom:1px solid var(--pos-line,#dbe3ef);
+ vertical-align:middle;
+}
+
+.fila-cliente-credito:hover td{
  background:rgba(13,110,253,.05);
 }
 
-.cliente-credito.activo{
- border-color:var(--brand-color,#0d6efd);
- background:rgba(13,110,253,.06);
+.fila-cliente-credito.activo td{
+ background:rgba(13,110,253,.08);
+}
+
+.fila-cliente-credito:last-child td{
+ border-bottom:none;
+}
+
+.celda-cliente-credito{
+ display:flex;
+ align-items:center;
+ gap:12px;
 }
 
 .cliente-avatar{
- width:36px;
- height:36px;
- min-width:36px;
+ width:38px;
+ height:38px;
+ min-width:38px;
  display:grid;
  place-items:center;
  border-radius:50%;
  background:rgba(13,110,253,.12);
  color:var(--brand-color,#0d6efd);
- font-size:12.5px;
+ font-size:13px;
  font-weight:800;
 }
 
 .cliente-credito-texto{
  display:grid;
- flex:1;
  min-width:0;
 }
 
@@ -220,38 +238,40 @@
  text-overflow:ellipsis;
  white-space:nowrap;
  color:var(--pos-text,#172033);
- font-size:13.5px;
+ font-size:14px;
  font-weight:700;
 }
 
 .cliente-credito-texto small{
  color:var(--pos-muted,#687386);
- font-size:11.5px;
+ font-size:12px;
 }
 
-.cliente-credito-texto small.rojo{
+.cliente-credito-texto small .rojo{
  color:#b91c1c;
+ font-weight:700;
 }
 
-.cliente-credito-derecha{
- display:grid;
- justify-items:end;
- gap:4px;
-}
-
-.cliente-credito-derecha strong{
+.celda-saldo-credito strong{
  color:var(--pos-text,#172033);
- font-size:13.5px;
+ font-size:14px;
  font-weight:800;
+}
+
+.creditos-tabla-vacio{
+ padding:32px 12px;
+ text-align:center;
+ color:var(--pos-muted,#687386);
+ font-size:13px;
 }
 
 .credito-badge{
  display:inline-flex;
  align-items:center;
- min-height:20px;
- padding:0 9px;
+ min-height:22px;
+ padding:0 10px;
  border-radius:999px;
- font-size:11px;
+ font-size:11.5px;
  font-weight:700;
  white-space:nowrap;
 }
@@ -666,12 +686,22 @@
 }
 
 @media (max-width:1080px){
- .creditos-panel-row{
- grid-template-columns:1fr;
- }
-
  .credito-detalle-cuerpo{
  grid-template-columns:1fr;
+ }
+}
+
+@media (max-width:640px){
+ .tabla-creditos-clientes th:nth-child(1){ width:auto; }
+ .tabla-creditos-clientes th:nth-child(2),
+ .tabla-creditos-clientes th:nth-child(3){ width:auto; }
+
+ .celda-cliente-credito{
+ gap:8px;
+ }
+
+ .cliente-credito-texto small{
+ display:block;
  }
 }
 

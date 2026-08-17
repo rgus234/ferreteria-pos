@@ -174,28 +174,24 @@ function renderCreditos(datos) {
 
  if (clientesTab.length === 0) {
  lista.innerHTML =
- `<div class="cliente-credito">
- <h3>Sin clientes</h3>
- <p>No hay cuentas de credito en este filtro.</p>
- </div>`;
+ `<tr><td colspan="3" class="creditos-tabla-vacio">No hay cuentas de credito en este filtro.</td></tr>`;
  } else {
  lista.innerHTML =
  clientesTab.map(cliente => {
  const vencido = clienteCreditoVencido(cliente);
 
  return `
- <button type="button" class="cliente-credito ${creditoActual && Number(creditoActual.id) === Number(cliente.id) ? "activo" : ""}" onclick="abrirCuentaCreditoDetalle(${cliente.id})">
+ <tr class="fila-cliente-credito ${creditoActual && Number(creditoActual.id) === Number(cliente.id) ? "activo" : ""}" onclick="abrirCuentaCreditoDetalle(${cliente.id})">
+ <td class="celda-cliente-credito">
  <span class="cliente-avatar">${inicialesClienteCredito(cliente.nombre)}</span>
  <span class="cliente-credito-texto">
  <strong>${escaparPOS(cliente.nombre || "Cliente")}</strong>
- <small>CR-${String(cliente.id).padStart(6, "0")}</small>
- ${cliente.vencido ? `<small class="rojo">Vencido: ${dinero(cliente.totalVencido)}</small>` : ""}
+ <small>CR-${String(cliente.id).padStart(6, "0")}${cliente.vencido ? ` &middot; <span class="rojo">Vencido: ${dinero(cliente.totalVencido)}</span>` : ""}</small>
  </span>
- <span class="cliente-credito-derecha">
- <strong>${dinero(cliente.saldo)}</strong>
- <span class="credito-badge ${vencido ? "vencido" : "al-dia"}">${vencido ? "Vencido" : "Al dia"}</span>
- </span>
- </button>
+ </td>
+ <td class="celda-saldo-credito"><strong>${dinero(cliente.saldo)}</strong></td>
+ <td class="celda-estado-credito"><span class="credito-badge ${vencido ? "vencido" : "al-dia"}">${vencido ? "Vencido" : "Al dia"}</span></td>
+ </tr>
  `;
  }).join("");
  }
@@ -232,10 +228,7 @@ async function mostrarCreditos() {
 
  if (lista) {
  lista.innerHTML =
- `<div class="cliente-credito">
- <h3>Error cargando creditos</h3>
- <p>${error.message}</p>
- </div>`;
+ `<tr><td colspan="3" class="creditos-tabla-vacio">Error cargando creditos: ${escaparPOS(error.message)}</td></tr>`;
  }
 
  alert(error.message);
@@ -516,6 +509,7 @@ async function abrirCuentaCliente(id) {
   );
  }
 
+ document.getElementById("listaCreditos").style.display = "none";
  document.getElementById("detalleCliente").style.display = "block";
 }
 
@@ -530,7 +524,7 @@ function mostrarMasMovimientosCredito() {
 }
 
 function regresarListaCreditos() {
- document.getElementById("listaCreditos").style.display = "grid";
+ document.getElementById("listaCreditos").style.display = "block";
  document.getElementById("detalleCliente").style.display = "none";
 }
 

@@ -43,7 +43,7 @@
   <link rel="stylesheet" href="css/components/pos-busqueda-ia.css?v=borde-siri-fix2-20260721-01">
   <link rel="stylesheet" href="css/components/pos-product-form.css?v=categorias-nexo-20260821-01">
   <link rel="stylesheet" href="css/components/banco-imagenes-galeria-modal.css?v=20260730-01">
-  <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-rediseno-20260817-01">
+  <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-maestro-detalle-20260818-01">
   <link rel="stylesheet" href="css/components/sale-documents.css?v=nota-venta-rediseno-20260721-01">
   <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=venta-pieza-20260711-01">
   <link rel="stylesheet" href="css/components/pos-piece-sale-modal.css?v=venta-pieza-20260711-01">
@@ -691,11 +691,19 @@
 
  <div class="creditos-tabs" id="creditosTabs"></div>
 
- <div class="creditos-principales">
- <div class="cliente-credito">
- <h3>Cargando creditos...</h3>
- <p>Espera un momento.</p>
- </div>
+ <div class="tabla-creditos-clientes-wrap">
+ <table class="tabla-creditos-clientes">
+ <thead>
+ <tr>
+ <th>Cliente</th>
+ <th>Saldo</th>
+ <th>Estado</th>
+ </tr>
+ </thead>
+ <tbody class="creditos-principales">
+ <tr><td colspan="3" class="creditos-tabla-vacio">Cargando creditos...</td></tr>
+ </tbody>
+ </table>
  </div>
 
  <div class="creditos-lista-footer">
