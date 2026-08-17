@@ -7716,4 +7716,89 @@ probado: `/mi-cuenta?oficio=jardin&tab=registro` preselecciona
 correctamente la pestaña de registro y el `<select>`. Confirmado
 `negocio_id=1` sin ningun cambio de escritura durante toda la prueba.
 
+## 2026-08-16 -- Camino a Google Play: unificar /dueno y Nexo Market bajo un solo shell instalado
+
+El dueño pidió que la app que la gente descarga de Google Play se sienta
+como una sola app "Nexo", no dos cosas separadas -- hoy solo `/dueno`
+está empaquetada como TWA en pruebas cerradas de Play Store, y Nexo
+Market (`/market`) es un PWA instalable aparte sin relacion visible.
+Pidio explicitamente "unificar de verdad bajo un solo shell", no solo un
+link cruzado ligero.
+
+**Diseño**:
+- `public/manifest.json`: `scope` `"/dueno"` -> `"/"` (deja de aislar la
+  confianza de origen a solo el panel del dueño); `name`/`short_name` a
+  `"Nexo"` (sigue el rebrand de NEX7). `start_url` se queda en `/dueno`
+  a proposito -- abrir el icono siempre lleva primero al panel.
+- `public/dueno-sw.js`: `CACHE_NAME` subido de `v15` a `v16` -- el
+  service worker borra el cache viejo completo antes de repoblarlo, asi
+  que sin este bump los clientes con la app ya instalada seguirian
+  viendo el manifest/JS viejos indefinidamente sin importar el `?v=` en
+  las URLs (el `fetch` del cascaron usa `ignoreSearch:true`).
+- `market-cuenta-server.js`: bug real encontrado (no diseño) en los 3
+  lugares que redirigian el token `?entrar=` a la raiz
+  (`https://app.nexoposoficial.com/?entrar=`) cuando un comentario
+  propio del archivo decia explicitamente "se redirige de inmediato a
+  /dueno" -- corregido a `.../dueno?entrar=`, que es donde
+  `recibirTokenDesdeMarket()` (dueno.js) ya sabia consumirlo.
+- `public/dueno.js`: nueva fila "Comprar en Nexo Market" en
+  `CATEGORIAS_MAS_DUENO` (pantalla Más), con `href` real en vez de abrir
+  una subpantalla -- `renderCategoriasMasDueno()` generalizado para
+  soportar navegacion externa via `location.href` ademas de las
+  subpantallas internas existentes.
+- `market-server.js`: nuevo link "Administrar mi negocio" agregado al
+  header compartido de Market (`marketHeaderHtml`/
+  `scriptMarketHeaderHtml`, usado por las paginas de carrito, cuenta,
+  tienda y pedidos) y duplicado en el script propio de `/market`
+  (que no usa el header compartido) -- si la persona administra 1
+  negocio, el boton llama a `POST /personas/negocios/:id/entrar` y
+  redirige con el token ya corregido; si administra 2+, enlaza a
+  `/market/mi-cuenta` (reusa el selector que ya vive ahi).
+- No hizo falta tocar rutas de servidor para que Market responda en
+  `app.nexoposoficial.com` -- ya lo hacia (las rutas de Market solo
+  rechazan subdominios de tenant real, y `"app"` esta en
+  `SUBDOMINIOS_RESERVADOS`). Los Digital Asset Links tambien ya
+  verifican a nivel de origen completo, no por path.
+
+**Riesgos genuinos, documentados y no verificables en este entorno**:
+- Si Chrome deja de mostrar la barra de URL al navegar de `/dueno` a
+  `/market` dentro de la app YA INSTALADA (el efecto central del cambio
+  de `scope`) -- Market tiene su propio manifest/SW propios
+  (`manifest-market.json`, `market-sw.js`), y no hay forma de confirmar
+  aqui si Chrome reevalua el scope contra el manifest de cada pagina
+  cargada o solo contra el del `start_url` original.
+- Si el nombre/icono nuevo se refleja en el launcher de los testers
+  actuales sin un rebuild de Bubblewrap -- probablemente NO, porque el
+  APK ya en pruebas cerradas se genero a partir del manifest de ese
+  momento (Bubblewrap corre localmente, fuera de este repo).
+  Vale la pena el cambio igual para instalaciones futuras/PWA por
+  navegador.
+- Si el Service Worker actualizado se activa solo o si el tester
+  necesita forzar un refresh/reinstalacion.
+
+Fuera de alcance a proposito: el link `https://app.nexoposoficial.com`
+hardcodeado en `server.js` (`GET /app`, alias de marketing del dominio
+comercial) tambien manda a la raiz hoy -- es un link generico "abrir la
+app" sin token, y cambiar su destino es una decision de producto aparte.
+
+**Verificacion**: `node --check` en los 4 archivos JS tocados. `GET
+/manifest.json` devuelve `scope:"/"`, `name`/`short_name:"Nexo"`.
+Script end-to-end temporal contra negocio+persona sinteticos (vinculados
+via `negocios.persona_id`, cookie `nexo_persona_token`): confirma los 3
+sitios de `market-cuenta-server.js` emitiendo `.../dueno?entrar=`,
+`POST /personas/negocios/:id/entrar` funcionando igual, `/market/mi-cuenta`
+con sesion responde 200, y el HTML de `/market` incluye el link nuevo
+(`marketCargarAdmin`/`marketAdminLink`) -- fallo en la primera pasada
+porque `/market` usa un script propio que no pasa por
+`scriptMarketHeaderHtml()`, corregido duplicando la logica del boton en
+ese script. Verificacion en el navegador: `CATEGORIAS_MAS_DUENO`
+confirmado con la fila "market" primero y `renderCategoriasMasDueno()`
+generando el `onclick` correcto (`location.href=...`) sin afectar el
+`onclick` de ninguna otra fila. `npm test` completo 19/19 sin regresion.
+
+**No se pudo probar aqui -- pendiente de confirmacion del usuario en un
+telefono Android real**: barra de URL al navegar dentro de la app
+instalada, nombre/icono reflejado en el launcher, activacion del
+Service Worker actualizado.
+
 Pendiente de confirmacion del usuario para `git add`/`commit`.

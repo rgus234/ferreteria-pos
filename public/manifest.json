@@ -1,8 +1,8 @@
 {
-    "name": "Nexo POS -- App del dueño",
-    "short_name": "Nexo POS",
+    "name": "Nexo",
+    "short_name": "Nexo",
     "start_url": "/dueno",
-    "scope": "/dueno",
+    "scope": "/",
     "display": "standalone",
     "background_color": "#f6f7fb",
     "theme_color": "#f6f7fb",

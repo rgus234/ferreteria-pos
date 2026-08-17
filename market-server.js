@@ -939,7 +939,7 @@ function marketHeaderHtml({ slugTienda = null, nombreTienda = "", baseAnclas = "
 <a class="market-header-link" href="#" id="marketFavoritosLink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg><span>Favoritos</span><span class="market-favoritos-contador" id="marketFavoritosContador">0</span></a>
 <a class="market-header-link" href="/market/mis-pedidos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg><span>Mis pedidos</span></a>
 <a class="market-header-link" href="/market/carrito"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg><span>Carrito</span></a>
-<div class="market-header-sesion" id="marketSesion"><a class="market-header-link" href="/market/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Inicia sesion</span></a></div>${carritoBotonHtml}
+<div class="market-header-sesion" id="marketSesion"><a class="market-header-link" href="/market/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Inicia sesion</span></a></div><div id="marketAdminLink"></div>${carritoBotonHtml}
 </div>
 </div>
 <nav class="market-header-nav">
@@ -1012,8 +1012,36 @@ async function marketHeaderCargarSesion() {
     if (!estado.ok) return;
     document.getElementById("marketSesion").innerHTML =
         '<a class="market-header-link" href="/market/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Hola, ' + marketHeaderEscapeHtml(estado.persona.nombre) + '</span></a>';
+    marketHeaderCargarAdmin();
 }
 marketHeaderCargarSesion();
+
+// Link "Administrar mi negocio" visible en TODO Market (no solo
+// /market/mi-cuenta) -- mismo endpoint y mismo patron de "entrar" que ya
+// usa cuentaMarketCargarAdmin() en market-cuenta-server.js, generalizado
+// aqui porque este header se comparte en todas las paginas de la familia.
+async function marketHeaderCargarAdmin() {
+    const datos = await marketHeaderLlamar("/personas/negocios");
+    const contenedor = document.getElementById("marketAdminLink");
+    if (!contenedor || !datos.ok || !datos.negocios || datos.negocios.length === 0) return;
+
+    if (datos.negocios.length === 1) {
+        const negocioId = datos.negocios[0].id;
+        const boton = document.createElement("button");
+        boton.type = "button";
+        boton.className = "market-header-link market-header-admin-boton";
+        boton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8"></path><path d="M12 16v4"></path></svg><span>Administrar mi negocio</span>';
+        boton.addEventListener("click", async function() {
+            const resultado = await marketHeaderLlamar("/personas/negocios/" + negocioId + "/entrar", { method: "POST" });
+            if (!resultado.ok) return;
+            location.href = "https://app.nexoposoficial.com/dueno?entrar=" + encodeURIComponent(resultado.token);
+        });
+        contenedor.appendChild(boton);
+        return;
+    }
+
+    contenedor.innerHTML = '<a class="market-header-link" href="/market/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8"></path><path d="M12 16v4"></path></svg><span>Administrar mi negocio</span></a>';
+}
 
 function marketHeaderIrABusqueda(texto, categoria) {
     var params = [];
@@ -1249,6 +1277,34 @@ async function marketCargarSesion() {
     if (!estado.ok) return;
     document.getElementById("marketSesion").innerHTML =
         '<a class="market-header-link" href="/market/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Hola, ' + escapeHtml(estado.persona.nombre) + '</span></a>';
+    marketCargarAdmin();
+}
+
+// Link "Administrar mi negocio" -- misma logica que marketHeaderCargarAdmin()
+// (scriptMarketHeaderHtml, usado por el resto de las paginas de Market),
+// duplicada aqui porque /market corre su propio script grande en vez del
+// header compartido.
+async function marketCargarAdmin() {
+    const datos = await marketLlamar("/personas/negocios");
+    const contenedor = document.getElementById("marketAdminLink");
+    if (!contenedor || !datos.ok || !datos.negocios || datos.negocios.length === 0) return;
+
+    if (datos.negocios.length === 1) {
+        const negocioId = datos.negocios[0].id;
+        const boton = document.createElement("button");
+        boton.type = "button";
+        boton.className = "market-header-link market-header-admin-boton";
+        boton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8"></path><path d="M12 16v4"></path></svg><span>Administrar mi negocio</span>';
+        boton.addEventListener("click", async function() {
+            const resultado = await marketLlamar("/personas/negocios/" + negocioId + "/entrar", { method: "POST" });
+            if (!resultado.ok) return;
+            location.href = "https://app.nexoposoficial.com/dueno?entrar=" + encodeURIComponent(resultado.token);
+        });
+        contenedor.appendChild(boton);
+        return;
+    }
+
+    contenedor.innerHTML = '<a class="market-header-link" href="/market/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8"></path><path d="M12 16v4"></path></svg><span>Administrar mi negocio</span></a>';
 }
 
 var ICONO_CORAZON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg>';

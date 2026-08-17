@@ -1144,6 +1144,7 @@ function iconoCategoriaMasDueno(nombre) {
         campana: '<path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 21a2 2 0 0 0 4 0"/>',
         nube: '<path d="M7 18a4 4 0 0 1-1-7.9 5 5 0 0 1 9.6-1.8A4.5 4.5 0 0 1 17 18H7z"/>',
         pincel: '<path d="M15 4l5 5-9.5 9.5a2 2 0 0 1-1.2.6l-3.6.4.4-3.6a2 2 0 0 1 .6-1.2L15 4z"/>',
+        carrito: '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.4 12.2a1.6 1.6 0 0 0 1.6 1.3h9a1.6 1.6 0 0 0 1.6-1.3L21 7H6"/>',
         flecha: '<path d="M9 6l6 6-6 6"/>'
     };
 
@@ -1155,6 +1156,7 @@ function iconoCategoriaMasDueno(nombre) {
 // "proximamente" -- mismo patron ya usado en la pestaña Reportes, para
 // no fingir una funcion que no existe todavia.
 const CATEGORIAS_MAS_DUENO = [
+    { id: "market", titulo: "Comprar en Nexo Market", desc: "Explora productos de otras ferreterias", icono: "carrito", color: "verde", href: "https://app.nexoposoficial.com/market" },
     { id: "cuenta", titulo: "Cuenta", desc: "Datos del negocio y correo", icono: "usuario", color: "" },
     { id: "plan", titulo: "Plan y suscripcion", desc: "Tu plan, pagos y facturas", icono: "tarjeta", color: "verde" },
     { id: "nexo-ia", titulo: "Nexo IA", desc: "Consumo y disponibilidad", icono: "chispa", color: "morado" },
@@ -1170,7 +1172,7 @@ function renderCategoriasMasDueno() {
     document.getElementById("duenoMasCategorias").innerHTML =
         CATEGORIAS_MAS_DUENO.map(categoria => `
             <button type="button" class="dueno-categoria-row${categoria.proximamente ? " proximamente" : ""}"
-                onclick="${categoria.proximamente ? "proximamenteDueno()" : `abrirSubpantallaMasDueno('${categoria.id}')`}">
+                onclick="${categoria.href ? `location.href='${categoria.href}'` : (categoria.proximamente ? "proximamenteDueno()" : `abrirSubpantallaMasDueno('${categoria.id}')`)}">
                 <span class="dueno-categoria-icono${categoria.color ? ` dueno-categoria-icono-${categoria.color}` : ""}">${iconoCategoriaMasDueno(categoria.icono)}</span>
                 <span class="dueno-categoria-texto">
                     <strong>${escaparDueno(categoria.titulo)}</strong>

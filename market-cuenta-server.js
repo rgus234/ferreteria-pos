@@ -222,7 +222,7 @@ document.getElementById("cuentaMarketRegistroForm").addEventListener("submit", a
 // pidio explicitamente evitar esa confusion). Doble redirect
 // (meta refresh + JS) para que funcione incluso si JS tarda en correr.
 function paginaEntrandoAdminMarketHtml(token) {
-    const destino = "https://app.nexoposoficial.com/?entrar=" + encodeURIComponent(token);
+    const destino = "https://app.nexoposoficial.com/dueno?entrar=" + encodeURIComponent(token);
     return `<!doctype html>
 <html lang="es">
 <head>
@@ -275,7 +275,7 @@ document.querySelectorAll("#elegirNegocioLista button").forEach(function(boton) 
             const respuesta = await fetch("/personas/negocios/" + boton.dataset.negocioId + "/entrar", { method: "POST", credentials: "include" });
             const datos = await respuesta.json();
             if (!datos.ok) { resultado.textContent = datos.error || "No se pudo entrar a ese negocio."; return; }
-            window.location.href = "https://app.nexoposoficial.com/?entrar=" + encodeURIComponent(datos.token);
+            window.location.href = "https://app.nexoposoficial.com/dueno?entrar=" + encodeURIComponent(datos.token);
         } catch (error) {
             resultado.textContent = "Ocurrio un error. Intenta de nuevo.";
         }
@@ -633,7 +633,7 @@ async function cuentaMarketCargarAdmin() {
         boton.addEventListener("click", async function() {
             const resultado = await cuentaMarketLlamar("/personas/negocios/" + n.id + "/entrar", { method: "POST" });
             if (!resultado.ok) { alert(resultado.error || "No se pudo entrar a ese negocio."); return; }
-            window.location.href = "https://app.nexoposoficial.com/?entrar=" + encodeURIComponent(resultado.token);
+            window.location.href = "https://app.nexoposoficial.com/dueno?entrar=" + encodeURIComponent(resultado.token);
         });
         lista.appendChild(boton);
     });
