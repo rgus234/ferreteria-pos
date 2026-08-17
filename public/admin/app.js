@@ -605,7 +605,10 @@ function reemplazarImagenBancoAdmin(codigo) {
     const archivo = input.files?.[0];
     if (!archivo) return;
     try {
-      await subirZipBancoImagenesAdmin(archivo, "", () => {});
+      // false a proposito -- "Reemplazar" es una accion explicita sobre
+      // UN codigo ya conocido, quiere sobreescribirlo si o si, no
+      // saltarlo por ya tener foto.
+      await subirZipBancoImagenesAdmin(archivo, "", () => {}, false);
       await Promise.all([cargarBancoImagenesAdmin(bancoImagenesPaginaActual), cargarResumenBancoImagenes()]);
       await abrirDetalleBancoImagenAdmin(codigo);
       await alertaAdmin("Imagen reemplazada -- se importo el ZIP y se actualizo el codigo si venia incluido.", "Listo", "exito");
@@ -735,7 +738,7 @@ function cambiarTabDetalleBancoImagenes(tab) {
 // FormData -- aqui hace falta XMLHttpRequest crudo (para poder mostrar
 // avance real) con el header x-admin-key puesto a mano, mismo patron ya
 // usado en supplier-catalog-view.js para el importador por-negocio.
-function subirZipBancoImagenesAdmin(archivo, marca, alAvanzar) {
+function subirZipBancoImagenesAdmin(archivo, marca, alAvanzar, omitirExistentes = true) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
@@ -766,6 +769,7 @@ function subirZipBancoImagenesAdmin(archivo, marca, alAvanzar) {
     const formData = new FormData();
     formData.append("zips", archivo);
     if (marca) formData.append("marca", marca);
+    formData.append("omitirExistentes", omitirExistentes ? "1" : "0");
 
     xhr.open("POST", "/admin/api/banco-imagenes/importar-lote");
     xhr.setRequestHeader("x-admin-key", adminKeyActual());
@@ -794,7 +798,10 @@ function esperarTrabajoImportacionBanco(trabajoId) {
           resolve({
             zipsProcesados: 1,
             fotosGuardadas: trabajo.fotos_guardadas || 0,
+            fotosOmitidas: trabajo.fotos_omitidas || 0,
             solicitudesResueltas: trabajo.solicitudes_resueltas || 0,
+            codigosNuevos: trabajo.codigos_nuevos || [],
+            codigosOmitidos: trabajo.codigos_omitidos || [],
             errores: trabajo.errores || []
           });
           return;
@@ -916,21 +923,31 @@ function pintarListaArchivosBancoImagenes() {
   `;
 }
 
-function estadoInicialColaImportacionBanco(archivos) {
+function estadoInicialColaImportacionBanco(archivos, omitirExistentes) {
   return {
     archivos,
     indice: 0,
     pausado: false,
     cancelado: false,
-    resumen: { zipsProcesados: 0, fotosGuardadas: 0, solicitudesResueltas: 0, errores: [] }
+    omitirExistentes,
+    resumen: {
+      zipsProcesados: 0,
+      fotosGuardadas: 0,
+      fotosOmitidas: 0,
+      solicitudesResueltas: 0,
+      codigosNuevos: [],
+      codigosOmitidos: [],
+      errores: []
+    }
   };
 }
 
 async function iniciarImportacionMasivaBanco() {
   if (!bancoImagenesArchivosCola.length) return;
   const marca = document.getElementById("marcaBancoImagenes")?.value.trim() || "";
+  const omitirExistentes = document.getElementById("omitirExistentesBancoImagenes")?.checked !== false;
 
-  colaImportacionBanco = estadoInicialColaImportacionBanco(bancoImagenesArchivosCola);
+  colaImportacionBanco = estadoInicialColaImportacionBanco(bancoImagenesArchivosCola, omitirExistentes);
   bancoImagenesArchivosCola = [];
   bancoImagenesUltimoOmitidos = 0;
   pintarListaArchivosBancoImagenes();
@@ -960,11 +977,14 @@ async function procesarSiguienteZipBanco(marca) {
   try {
     const datos = await subirZipBancoImagenesAdmin(archivo, marca, fraccion => {
       pintarProgresoImportacionBanco("Subiendo", archivo.name, fraccion);
-    });
+    }, cola.omitirExistentes);
     pintarProgresoImportacionBanco("Procesando en el servidor...", archivo.name, 1);
     cola.resumen.zipsProcesados += datos.zipsProcesados;
     cola.resumen.fotosGuardadas += datos.fotosGuardadas;
+    cola.resumen.fotosOmitidas += datos.fotosOmitidas || 0;
     cola.resumen.solicitudesResueltas += datos.solicitudesResueltas || 0;
+    if (datos.codigosNuevos?.length) cola.resumen.codigosNuevos.push(...datos.codigosNuevos);
+    if (datos.codigosOmitidos?.length) cola.resumen.codigosOmitidos.push(...datos.codigosOmitidos);
     if (datos.errores?.length) {
       cola.resumen.errores.push(...datos.errores.map(e => `${archivo.name}: ${e}`));
     }
@@ -1008,6 +1028,7 @@ function pintarProgresoImportacionBanco(estado, nombreArchivo, fraccion) {
     <div class="banco-imagenes-import-conteos">
       <div><span>Procesados</span><strong>${cola.resumen.zipsProcesados}</strong></div>
       <div><span>Imagenes nuevas</span><strong>${cola.resumen.fotosGuardadas}</strong></div>
+      <div><span>Ya estaban (omitidas)</span><strong>${cola.resumen.fotosOmitidas}</strong></div>
       <div><span>Solicitudes resueltas</span><strong>${cola.resumen.solicitudesResueltas}</strong></div>
       <div class="errores"><span>Errores</span><strong>${cola.resumen.errores.length}</strong></div>
     </div>
@@ -1034,11 +1055,14 @@ function cancelarImportacionBanco() {
 async function mostrarResumenFinalImportacionBanco(resumen) {
   const contenedor = document.getElementById("importActivoBancoImagenes");
   if (contenedor) {
+    const nuevos = resumen.codigosNuevos || [];
+    const omitidos = resumen.codigosOmitidos || [];
+
     contenedor.innerHTML = `
       <div class="banco-imagenes-import-cabecera">
         <div>
           <strong>Importacion terminada</strong>
-          <span>${resumen.zipsProcesados} ZIP(s) procesados -- ${resumen.fotosGuardadas} imagen(es) nuevas o actualizadas</span>
+          <span>${resumen.zipsProcesados} ZIP(s) procesados -- ${resumen.fotosGuardadas} imagen(es) nuevas, ${resumen.fotosOmitidas} ya estaban en el banco</span>
         </div>
         <div class="banco-imagenes-import-acciones">
           ${resumen.errores.length ? `<button type="button" class="secondary" onclick="descargarReporteErroresBanco()">Descargar reporte de errores</button>` : ""}
@@ -1048,14 +1072,25 @@ async function mostrarResumenFinalImportacionBanco(resumen) {
       <div class="banco-imagenes-import-conteos">
         <div><span>Procesados</span><strong>${resumen.zipsProcesados}</strong></div>
         <div><span>Imagenes nuevas</span><strong>${resumen.fotosGuardadas}</strong></div>
+        <div><span>Ya estaban (omitidas)</span><strong>${resumen.fotosOmitidas}</strong></div>
         <div><span>Solicitudes resueltas</span><strong>${resumen.solicitudesResueltas}</strong></div>
         <div class="errores"><span>Errores</span><strong>${resumen.errores.length}</strong></div>
       </div>
+      ${nuevos.length || omitidos.length ? `
+        <div class="banco-imagenes-import-listas">
+          ${nuevos.length ? `<button type="button" class="ghost" onclick="descargarListaCodigosBanco('nuevos')">Ver/descargar ${nuevos.length} codigo(s) nuevo(s)</button>` : ""}
+          ${omitidos.length ? `<button type="button" class="ghost" onclick="descargarListaCodigosBanco('omitidos')">Ver/descargar ${omitidos.length} codigo(s) que ya estaban</button>` : ""}
+        </div>
+      ` : ""}
       ${resumen.errores.length ? `<div class="banco-imagenes-import-errores-detalle">${resumen.errores.map(e => `<div>${escaparHTMLAdmin(e)}</div>`).join("")}</div>` : ""}
     `;
   }
 
   window.bancoImagenesUltimoResumenErrores = resumen.errores;
+  window.bancoImagenesUltimoResumenCodigos = {
+    nuevos: resumen.codigosNuevos || [],
+    omitidos: resumen.codigosOmitidos || []
+  };
   await Promise.all([cargarBancoImagenesAdmin(1), cargarResumenBancoImagenes()]);
 }
 
@@ -1067,6 +1102,24 @@ function descargarReporteErroresBanco() {
   const enlace = document.createElement("a");
   enlace.href = url;
   enlace.download = `banco-imagenes-errores-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+// tipo: "nuevos" o "omitidos" -- mismos codigos que ya trae el ultimo
+// resumen de importacion (window.bancoImagenesUltimoResumenCodigos),
+// exportados como .csv de una columna para revisarlos en Excel.
+function descargarListaCodigosBanco(tipo) {
+  const codigos = window.bancoImagenesUltimoResumenCodigos?.[tipo] || [];
+  if (!codigos.length) return;
+  const contenido = ["codigo", ...codigos].join("\n");
+  const blob = new Blob([contenido], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = `banco-imagenes-codigos-${tipo}-${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(enlace);
   enlace.click();
   enlace.remove();

@@ -1000,6 +1000,22 @@ small,
 
 .banco-imagenes-import-errores-detalle div { padding: 3px 0; }
 
+.banco-imagenes-import-listas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.banco-imagenes-omitir-existentes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
 /* Zona de carga */
 .banco-imagenes-dropzone {
   display: grid;

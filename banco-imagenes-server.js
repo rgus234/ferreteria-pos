@@ -126,8 +126,25 @@ function manejarSubidaBancoImagenes(req, res, next) {
 // = galeria, hasta 2 codigos derivados por carpeta (nombre de archivo +
 // nombre de carpeta, por el caso conocido de Diprofer reusando el ID
 // numerico de Truper).
-async function procesarZipBancoImagenes(pool, rutaZip, marca, origen) {
-    const resumen = { fotosGuardadas: 0, solicitudesResueltas: 0, errores: [] };
+//
+// omitirExistentes (default true): antes de comprimir cada carpeta, se
+// consulta cuales de sus codigos derivados YA tienen foto en el banco y
+// se descartan -- comprimir es lo caro de esta funcion, y subir de
+// nuevo un catalogo grande de un proveedor donde la mayoria de los
+// codigos ya estan cubiertos hacia que la importacion tardara minutos
+// sin ganar nada. Si TODOS los codigos de una carpeta ya existen, la
+// carpeta se salta por completo (ni se lee ni se comprime la imagen).
+// El boton "Reemplazar" de un codigo especifico pasa false a proposito
+// (quiere sobreescribir ese codigo si o si).
+async function procesarZipBancoImagenes(pool, rutaZip, marca, origen, omitirExistentes = true) {
+    const resumen = {
+        fotosGuardadas: 0,
+        fotosOmitidas: 0,
+        solicitudesResueltas: 0,
+        errores: [],
+        codigosNuevos: [],
+        codigosOmitidos: []
+    };
 
     let zip;
     try {
@@ -170,6 +187,22 @@ async function procesarZipBancoImagenes(pool, rutaZip, marca, origen) {
 
             if (codigos.length === 0) continue;
 
+            let codigosAProcesar = codigos;
+            if (omitirExistentes) {
+                const existentes = await pool.query(
+                    `SELECT codigo FROM public.banco_imagenes_producto WHERE codigo = ANY($1::text[])`,
+                    [codigos]
+                );
+                const existentesSet = new Set(existentes.rows.map(fila => fila.codigo));
+                codigosAProcesar = codigos.filter(codigo => !existentesSet.has(codigo));
+                resumen.codigosOmitidos.push(...codigos.filter(codigo => existentesSet.has(codigo)));
+            }
+
+            if (codigosAProcesar.length === 0) {
+                resumen.fotosOmitidas += 1;
+                continue;
+            }
+
             const principalComprimida = await comprimirImagen(principal.entry.getData(), 320);
             const buffersGaleria = [];
 
@@ -177,7 +210,7 @@ async function procesarZipBancoImagenes(pool, rutaZip, marca, origen) {
                 buffersGaleria.push(await comprimirImagen(item.entry.getData(), 480));
             }
 
-            for (const codigo of codigos) {
+            for (const codigo of codigosAProcesar) {
                 const upsert = await pool.query(
                     `
                     INSERT INTO public.banco_imagenes_producto
@@ -233,6 +266,7 @@ async function procesarZipBancoImagenes(pool, rutaZip, marca, origen) {
                 }
             }
 
+            resumen.codigosNuevos.push(...codigosAProcesar);
             resumen.fotosGuardadas += 1;
         } catch (error) {
             resumen.errores.push(error.message);
@@ -256,15 +290,26 @@ async function procesarTrabajoImportacionBanco(pool, trabajo) {
             [trabajo.id]
         );
 
-        const resultado = await procesarZipBancoImagenes(pool, trabajo.ruta_temporal, trabajo.marca, trabajo.nombre_archivo);
+        const resultado = await procesarZipBancoImagenes(
+            pool, trabajo.ruta_temporal, trabajo.marca, trabajo.nombre_archivo, trabajo.omitir_existentes
+        );
 
         await pool.query(
             `
             UPDATE public.banco_imagenes_importacion_trabajos
-            SET estado = 'listo', fotos_guardadas = $1, solicitudes_resueltas = $2, errores = $3, updated_at = NOW()
-            WHERE id = $4
+            SET estado = 'listo', fotos_guardadas = $1, solicitudes_resueltas = $2, errores = $3,
+                fotos_omitidas = $4, codigos_nuevos = $5, codigos_omitidos = $6, updated_at = NOW()
+            WHERE id = $7
             `,
-            [resultado.fotosGuardadas, resultado.solicitudesResueltas, JSON.stringify(resultado.errores), trabajo.id]
+            [
+                resultado.fotosGuardadas,
+                resultado.solicitudesResueltas,
+                JSON.stringify(resultado.errores),
+                resultado.fotosOmitidas,
+                JSON.stringify(resultado.codigosNuevos),
+                JSON.stringify(resultado.codigosOmitidos),
+                trabajo.id
+            ]
         );
     } catch (error) {
         await pool.query(
@@ -322,16 +367,21 @@ function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
             }
 
             const marca = String(req.body?.marca || "").trim() || null;
+            // Por defecto se omiten los codigos que ya tienen foto (mas
+            // rapido en catalogos grandes ya parcialmente cubiertos); el
+            // boton "Reemplazar" de un codigo especifico manda "0" a
+            // proposito para forzar la sobreescritura.
+            const omitirExistentes = String(req.body?.omitirExistentes ?? "1") !== "0";
             const trabajoIds = [];
 
             for (const archivo of archivos) {
                 const trabajo = await pool.query(
                     `
-                    INSERT INTO public.banco_imagenes_importacion_trabajos (nombre_archivo, ruta_temporal, marca, estado)
-                    VALUES ($1, $2, $3, 'pendiente')
+                    INSERT INTO public.banco_imagenes_importacion_trabajos (nombre_archivo, ruta_temporal, marca, estado, omitir_existentes)
+                    VALUES ($1, $2, $3, 'pendiente', $4)
                     RETURNING id
                     `,
-                    [archivo.originalname, archivo.path, marca]
+                    [archivo.originalname, archivo.path, marca, omitirExistentes]
                 );
                 trabajoIds.push(trabajo.rows[0].id);
             }
@@ -361,7 +411,8 @@ function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
 
             const resultado = await pool.query(
                 `
-                SELECT id, nombre_archivo, estado, fotos_guardadas, solicitudes_resueltas, errores, mensaje_error
+                SELECT id, nombre_archivo, estado, fotos_guardadas, fotos_omitidas, solicitudes_resueltas,
+                       codigos_nuevos, codigos_omitidos, errores, mensaje_error
                 FROM public.banco_imagenes_importacion_trabajos
                 WHERE id = ANY($1::int[])
                 `,
@@ -1032,5 +1083,6 @@ function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
 registrarRutasBancoImagenes.normalizarCodigoFoto = normalizarCodigoFoto;
 registrarRutasBancoImagenes.planPermiteBancoImagenes = planPermiteBancoImagenes;
 registrarRutasBancoImagenes.firmarTokenBancoImagen = firmarTokenBancoImagen;
+registrarRutasBancoImagenes.procesarZipBancoImagenes = procesarZipBancoImagenes;
 
 module.exports = registrarRutasBancoImagenes;
