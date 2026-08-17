@@ -892,10 +892,14 @@ const ESTILOS_MARKET = `
   .market-resultados-filtros{ position:static; }
 }
 @media (max-width:560px){
-  .market-search-bar select{ display:none; }
-  .market-header-acciones .market-header-link span{ display:none; }
-  .market-header-top{ gap:10px; }
+  .market-header-top{ flex-wrap:wrap; row-gap:12px; gap:10px; padding:12px 14px; }
+  .market-logo{ order:1; }
   .market-logo span{ display:none; }
+  .market-header-acciones{ order:2; margin-left:auto; gap:14px; }
+  .market-header-acciones .market-header-link span{ display:none; }
+  .market-search-wrap{ order:3; flex:1 1 100%; }
+  .market-search-bar select{ display:none; }
+  .market-header-nav{ padding-left:14px; padding-right:14px; }
 }
 `;
 
