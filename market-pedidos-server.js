@@ -28,6 +28,38 @@ const { generarQrYBarcode } = require("./pedido-codigos");
 const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml } = require("./market-server");
 const { enviarPushAPersona } = require("./push-server");
 
+// Mismo helper chico duplicado que ya usan personas-server.js y
+// public-site-server.js (crearLimitadorPorIp) -- las 5 rutas de
+// seguimiento de pedido son publicas y sin sesion (acceso por codigo,
+// ver pedidoPorCodigo abajo). El codigo (NX{id}-{4 chars}) tiene un id
+// secuencial adivinable y solo el sufijo es aleatorio, asi que sin
+// limite alguien podria automatizar la busqueda de codigos validos.
+// Solo cuenta como intento fallido cuando el codigo NO existe --
+// revisar tu propio pedido varias veces (polling de estado) nunca
+// bloquea a nadie.
+function crearLimitadorPorIp(maxIntentos, ventanaMs) {
+    const registro = new Map();
+
+    return {
+        bloqueado(ip) {
+            const entrada = registro.get(ip);
+            return Boolean(entrada?.bloqueadoHasta && entrada.bloqueadoHasta > Date.now());
+        },
+        registrarFallo(ip) {
+            const entrada = registro.get(ip) || { fallos: 0, bloqueadoHasta: 0 };
+            entrada.fallos += 1;
+
+            if (entrada.fallos >= maxIntentos) {
+                entrada.bloqueadoHasta = Date.now() + ventanaMs;
+            }
+
+            registro.set(ip, entrada);
+        }
+    };
+}
+
+const limitadorPedidoPorCodigo = crearLimitadorPorIp(30, 15 * 60 * 1000);
+
 // Mensaje corto por accion -- mismo texto que ya usan los correos de
 // cada transicion, condensado para una notificacion push.
 const TITULOS_PUSH_POR_ACCION = {
@@ -524,10 +556,16 @@ ${marketFooterHtml()}
 }
 
 async function servirSeguimientoPedidoMarket(pool, req, res, firmarTokenImagen) {
+    if (limitadorPedidoPorCodigo.bloqueado(req.ip)) {
+        res.status(429).set("Content-Type", "text/html; charset=utf-8").send(paginaSeguimientoPedidoMarketHtml(null, []));
+        return;
+    }
+
     const codigo = String(req.params.codigo || "").trim();
     const pedido = await pedidoPorCodigo(pool, codigo);
 
     if (!pedido) {
+        limitadorPedidoPorCodigo.registrarFallo(req.ip);
         res.status(404).set("Content-Type", "text/html; charset=utf-8").send(paginaSeguimientoPedidoMarketHtml(null, []));
         return;
     }
@@ -544,10 +582,16 @@ async function servirSeguimientoPedidoMarket(pool, req, res, firmarTokenImagen) 
 // tienda (mismo limite de tiempo real que TRANSICIONES.cancelar del
 // lado POS, solo que aqui restringido a un solo estado de origen).
 async function cancelarPedidoMarketPorCliente(pool, req, res, firmarTokenImagen) {
+    if (limitadorPedidoPorCodigo.bloqueado(req.ip)) {
+        res.status(429).json({ ok: false, error: "Demasiados intentos. Espera unos minutos." });
+        return;
+    }
+
     const codigo = String(req.params.codigo || "").trim();
     const pedido = await pedidoPorCodigo(pool, codigo);
 
     if (!pedido) {
+        limitadorPedidoPorCodigo.registrarFallo(req.ip);
         res.status(404).json({ ok: false, error: "Pedido no encontrado" });
         return;
     }
@@ -590,10 +634,16 @@ async function cancelarPedidoMarketPorCliente(pool, req, res, firmarTokenImagen)
 }
 
 async function estadoPedidoMarketJson(pool, req, res) {
+    if (limitadorPedidoPorCodigo.bloqueado(req.ip)) {
+        res.status(429).json({ ok: false, error: "Demasiados intentos. Espera unos minutos." });
+        return;
+    }
+
     const codigo = String(req.params.codigo || "").trim();
     const pedido = await pedidoPorCodigo(pool, codigo);
 
     if (!pedido) {
+        limitadorPedidoPorCodigo.registrarFallo(req.ip);
         res.status(404).json({ ok: false, error: "Pedido no encontrado" });
         return;
     }
@@ -610,10 +660,16 @@ async function estadoPedidoMarketJson(pool, req, res) {
 }
 
 async function servirQrPedidoMarket(pool, req, res) {
+    if (limitadorPedidoPorCodigo.bloqueado(req.ip)) {
+        res.status(429).send("Demasiados intentos");
+        return;
+    }
+
     const codigo = String(req.params.codigo || "").trim();
     const pedido = await pedidoPorCodigo(pool, codigo);
 
     if (!pedido || pedido.estado !== "listo") {
+        limitadorPedidoPorCodigo.registrarFallo(req.ip);
         res.status(404).send("No encontrado");
         return;
     }
@@ -623,10 +679,16 @@ async function servirQrPedidoMarket(pool, req, res) {
 }
 
 async function servirBarcodePedidoMarket(pool, req, res) {
+    if (limitadorPedidoPorCodigo.bloqueado(req.ip)) {
+        res.status(429).send("Demasiados intentos");
+        return;
+    }
+
     const codigo = String(req.params.codigo || "").trim();
     const pedido = await pedidoPorCodigo(pool, codigo);
 
     if (!pedido || pedido.estado !== "listo") {
+        limitadorPedidoPorCodigo.registrarFallo(req.ip);
         res.status(404).send("No encontrado");
         return;
     }
