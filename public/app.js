@@ -119,6 +119,25 @@ const MODO_DESARROLLADOR_NEXO_KEY = "modoDesarrolladorNexoPOS";
         });
     };
 })();
+
+// Nexo Market redirige aqui ("app.nexoposoficial.com/?entrar=TOKEN")
+// cuando una persona entra a administrar su negocio -- mismo patron que
+// recibirTokenDesdeMarket() en dueno.js, pero para la SPA de escritorio,
+// que es donde ese redirect realmente aterriza (dueno.js nunca se carga
+// aqui). Sin esto el token llegaba en la URL pero nunca se guardaba, asi
+// que el interceptor de arriba no tenia nada que mandar y el usuario
+// caia en la pantalla de login normal en vez de entrar ya autenticado.
+(function recibirTokenDesdeMarketPOS() {
+    const parametros = new URLSearchParams(window.location.search);
+    const token = parametros.get("entrar");
+    if (!token) return;
+
+    localStorage.setItem(CUENTA_SESION_TOKEN_KEY, token);
+    parametros.delete("entrar");
+    const query = parametros.toString();
+    window.history.replaceState({}, "", window.location.pathname + (query ? `?${query}` : ""));
+})();
+
 const CONTACTO_DESARROLLADOR_DEFAULT = {
  nombre: "Soporte Nexo",
  telefono: "",
