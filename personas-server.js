@@ -8,6 +8,7 @@ const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { config } = require("./config");
 const { OFICIOS_PERSONA } = require("./oficios-persona");
+const { enviarCorreoRecuperacion } = require("./email");
 
 const CLAVES_OFICIO_VALIDAS = new Set(OFICIOS_PERSONA.map(o => o.clave));
 const DOMINIO_RAIZ_NEXO = "nexoposoficial.com";
@@ -27,6 +28,10 @@ function generarTokenSeguro() {
 
 function hashTokenSeguro(tokenPlano) {
     return crypto.createHash("sha256").update(String(tokenPlano)).digest("hex");
+}
+
+function generarCodigoNumerico() {
+    return String(crypto.randomInt(100000, 1000000));
 }
 
 function crearLimitadorPorIp(maxIntentos, ventanaMs) {
@@ -55,6 +60,8 @@ function crearLimitadorPorIp(maxIntentos, ventanaMs) {
 
 const limitadorLoginPersona = crearLimitadorPorIp(8, 15 * 60 * 1000);
 const limitadorRegistroPersona = crearLimitadorPorIp(5, 60 * 60 * 1000);
+const limitadorOlvidePasswordPersona = crearLimitadorPorIp(5, 60 * 60 * 1000);
+const limitadorVerificarCodigoPersona = crearLimitadorPorIp(8, 15 * 60 * 1000);
 
 // req.cookies no existe sin cookie-parser -- se evita esa dependencia
 // nueva parseando a mano el unico header de cookie que este modulo
@@ -336,6 +343,194 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
 
     app.get("/personas/estado", requerirSesionPersona, (req, res) => {
         res.json({ ok: true, persona: req.persona });
+    });
+
+    // "Olvide mi contrasena" para personas -- mismo diseno exacto que
+    // /cuenta/olvide-password (dueños de negocio), solo que ligado a
+    // personas/restablecimientos_password_persona/sesiones_persona.
+    app.post("/personas/olvide-password", async (req, res) => {
+        const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+
+        if (!correo || !REGEX_CORREO.test(correo)) {
+            res.status(400).json({ ok: false, error: "Escribe un correo valido" });
+            return;
+        }
+
+        if (limitadorOlvidePasswordPersona.bloqueado(req.ip) || limitadorOlvidePasswordPersona.bloqueado(correo)) {
+            res.status(429).json({ ok: false, error: "Demasiadas solicitudes. Intenta de nuevo mas tarde." });
+            return;
+        }
+
+        limitadorOlvidePasswordPersona.registrarFallo(req.ip);
+        limitadorOlvidePasswordPersona.registrarFallo(correo);
+
+        try {
+            const persona = await pool.query(
+                "SELECT id, nombre FROM public.personas WHERE LOWER(correo) = $1 LIMIT 1",
+                [correo]
+            );
+
+            // Respuesta identica exista o no la cuenta, para no revelar
+            // que correos estan registrados.
+            if (persona.rows.length === 0) {
+                res.json({ ok: true });
+                return;
+            }
+
+            const codigo = generarCodigoNumerico();
+
+            await pool.query(
+                `INSERT INTO public.restablecimientos_password_persona (persona_id, codigo_hash, expira_at)
+                 VALUES ($1, $2, NOW() + INTERVAL '15 minutes')`,
+                [persona.rows[0].id, hashTokenSeguro(codigo)]
+            );
+
+            await enviarCorreoRecuperacion(correo, persona.rows[0].nombre, codigo);
+
+            res.json({ ok: true });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.post("/personas/verificar-codigo-reset", async (req, res) => {
+        const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+        const codigo = limpiarTexto(req.body?.codigo, 10);
+
+        if (!correo || !codigo) {
+            res.status(400).json({ ok: false, error: "Correo y codigo son requeridos" });
+            return;
+        }
+
+        if (limitadorVerificarCodigoPersona.bloqueado(req.ip) || limitadorVerificarCodigoPersona.bloqueado(correo)) {
+            res.status(429).json({ ok: false, error: "Demasiados intentos. Espera unos minutos e intenta de nuevo." });
+            return;
+        }
+
+        try {
+            const persona = await pool.query(
+                "SELECT id FROM public.personas WHERE LOWER(correo) = $1 LIMIT 1",
+                [correo]
+            );
+
+            if (persona.rows.length === 0) {
+                limitadorVerificarCodigoPersona.registrarFallo(req.ip);
+                limitadorVerificarCodigoPersona.registrarFallo(correo);
+                res.status(400).json({ ok: false, error: "Codigo invalido o vencido" });
+                return;
+            }
+
+            const fila = await pool.query(
+                `
+                SELECT id, codigo_hash, intentos
+                FROM public.restablecimientos_password_persona
+                WHERE persona_id = $1 AND usado_at IS NULL AND expira_at > NOW()
+                ORDER BY creado_at DESC
+                LIMIT 1
+                `,
+                [persona.rows[0].id]
+            );
+
+            if (fila.rows.length === 0) {
+                limitadorVerificarCodigoPersona.registrarFallo(req.ip);
+                limitadorVerificarCodigoPersona.registrarFallo(correo);
+                res.status(400).json({ ok: false, error: "Codigo invalido o vencido" });
+                return;
+            }
+
+            const solicitud = fila.rows[0];
+
+            if (solicitud.intentos >= 5) {
+                res.status(429).json({ ok: false, error: "Demasiados intentos. Solicita un codigo nuevo." });
+                return;
+            }
+
+            if (hashTokenSeguro(codigo) !== solicitud.codigo_hash) {
+                await pool.query(
+                    `UPDATE public.restablecimientos_password_persona SET intentos = intentos + 1 WHERE id = $1`,
+                    [solicitud.id]
+                );
+                limitadorVerificarCodigoPersona.registrarFallo(req.ip);
+                limitadorVerificarCodigoPersona.registrarFallo(correo);
+                res.status(400).json({ ok: false, error: "Codigo invalido o vencido" });
+                return;
+            }
+
+            limitadorVerificarCodigoPersona.registrarExito(req.ip);
+            limitadorVerificarCodigoPersona.registrarExito(correo);
+
+            const tokenPlano = generarTokenSeguro();
+
+            await pool.query(
+                `UPDATE public.restablecimientos_password_persona SET codigo_hash = $1 WHERE id = $2`,
+                [hashTokenSeguro(tokenPlano), solicitud.id]
+            );
+
+            res.json({ ok: true, tokenRestablecimiento: tokenPlano });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.post("/personas/restablecer-password", async (req, res) => {
+        const tokenRestablecimiento = limpiarTexto(req.body?.tokenRestablecimiento, 200);
+        const password = String(req.body?.password || "");
+        const confirmarPassword = String(req.body?.confirmarPassword || "");
+
+        if (!tokenRestablecimiento) {
+            res.status(400).json({ ok: false, error: "Solicitud invalida" });
+            return;
+        }
+
+        if (password.length < 8) {
+            res.status(400).json({ ok: false, error: "La contrasena debe tener al menos 8 caracteres" });
+            return;
+        }
+
+        if (password !== confirmarPassword) {
+            res.status(400).json({ ok: false, error: "Las contrasenas no coinciden" });
+            return;
+        }
+
+        try {
+            const fila = await pool.query(
+                `
+                SELECT id, persona_id
+                FROM public.restablecimientos_password_persona
+                WHERE codigo_hash = $1 AND usado_at IS NULL AND expira_at > NOW()
+                LIMIT 1
+                `,
+                [hashTokenSeguro(tokenRestablecimiento)]
+            );
+
+            if (fila.rows.length === 0) {
+                res.status(400).json({ ok: false, error: "Solicitud invalida o vencida" });
+                return;
+            }
+
+            const solicitud = fila.rows[0];
+
+            await pool.query(
+                `UPDATE public.personas SET password_hash = $1 WHERE id = $2`,
+                [hashPassword(password), solicitud.persona_id]
+            );
+
+            await pool.query(
+                `UPDATE public.restablecimientos_password_persona SET usado_at = NOW() WHERE id = $1`,
+                [solicitud.id]
+            );
+
+            // Si alguien recupero la contrasena, cualquier sesion robada
+            // anterior se cierra sola.
+            await pool.query(
+                `UPDATE public.sesiones_persona SET revocado_at = NOW() WHERE persona_id = $1 AND revocado_at IS NULL`,
+                [solicitud.persona_id]
+            );
+
+            res.json({ ok: true });
+        } catch (error) {
+            responderError(res, error);
+        }
     });
 
     // Lado "Administrar": negocios donde esta persona ya es el dueño

@@ -61,6 +61,9 @@ const ESTILOS_CUENTA_MARKET = `
 .market-cuenta-config-form{ display:grid; gap:14px; max-width:420px; }
 .market-cuenta-config-form label{ display:grid; gap:6px; font-size:13px; font-weight:700; color:var(--muted); }
 .market-cuenta-config-form input, .market-cuenta-config-form select{ padding:10px 12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; }
+.market-cuenta-link-olvide{ background:none; border:none; padding:0; margin-top:2px; font-size:12.5px; font-weight:700; color:var(--primary,#1c2c47); text-decoration:underline; cursor:pointer; text-align:left; }
+.market-cuenta-link-volver{ background:none; border:none; padding:0; margin-top:14px; font-size:12.5px; font-weight:700; color:var(--muted); text-decoration:underline; cursor:pointer; }
+.market-cuenta-olvide-paso[hidden]{ display:none; }
 `;
 
 function cabezaCuentaMarketHtml() {
@@ -95,8 +98,29 @@ function paginaLoginCuentaMarketHtml() {
 <label>Correo o telefono<input id="loginIdentificador" type="text" placeholder="Ej. tu@correo.com o 4421234567" required></label>
 <label>Contrasena<input id="loginPassword" type="password" placeholder="Tu contrasena" required></label>
 <button class="btn primary" type="submit">Entrar</button>
+<button type="button" class="market-cuenta-link-olvide" id="botonOlvidePassword">¿Olvidaste tu contrasena?</button>
 <div id="loginResultado" class="lead-result" aria-live="polite"></div>
 </form>
+</div>
+<div class="contact-panel" id="panelOlvide" role="tabpanel" hidden>
+<form class="lead-form market-cuenta-olvide-paso" id="cuentaMarketOlvideForm">
+<p style="margin:0 0 4px; color:var(--muted); font-size:13px;">Escribe el correo con el que te registraste. Si existe una cuenta, te enviamos un codigo de 6 digitos.</p>
+<label>Correo<input id="olvideCorreo" type="email" placeholder="tu@correo.com" required></label>
+<button class="btn primary" type="submit">Enviar codigo</button>
+<div id="olvideResultado" class="lead-result" aria-live="polite"></div>
+</form>
+<form class="lead-form market-cuenta-olvide-paso" id="cuentaMarketCodigoForm" hidden>
+<label>Codigo de 6 digitos<input id="olvideCodigo" type="text" inputmode="numeric" maxlength="6" placeholder="123456" required></label>
+<button class="btn primary" type="submit">Verificar codigo</button>
+<div id="olvideCodigoResultado" class="lead-result" aria-live="polite"></div>
+</form>
+<form class="lead-form market-cuenta-olvide-paso" id="cuentaMarketNuevaPasswordForm" hidden>
+<label>Nueva contrasena<input id="olvideNuevaPassword" type="password" minlength="8" placeholder="Minimo 8 caracteres" required></label>
+<label>Confirmar contrasena<input id="olvideConfirmarPassword" type="password" minlength="8" placeholder="Repite tu nueva contrasena" required></label>
+<button class="btn primary" type="submit">Restablecer contrasena</button>
+<div id="olvideNuevaPasswordResultado" class="lead-result" aria-live="polite"></div>
+</form>
+<button type="button" class="market-cuenta-link-volver" id="botonVolverLogin">&larr; Volver a iniciar sesion</button>
 </div>
 <div class="contact-panel" id="panelRegistro" role="tabpanel" hidden>
 <form class="lead-form" id="cuentaMarketRegistroForm">
@@ -151,6 +175,7 @@ document.querySelectorAll(".contact-tab").forEach(function(tab) {
         tab.setAttribute("aria-selected", "true");
         document.getElementById("panelLogin").hidden = tab.dataset.tab !== "login";
         document.getElementById("panelRegistro").hidden = tab.dataset.tab !== "registro";
+        document.getElementById("panelOlvide").hidden = true;
     });
 });
 
@@ -190,6 +215,79 @@ document.getElementById("cuentaMarketRegistroForm").addEventListener("submit", a
     });
     if (!datos.ok) { resultado.textContent = datos.error || "No se pudo crear tu cuenta."; return; }
     window.location.reload();
+});
+
+var olvideTokenRestablecimiento = "";
+
+function mostrarPanelOlvide() {
+    document.getElementById("panelLogin").hidden = true;
+    document.getElementById("panelRegistro").hidden = true;
+    document.getElementById("panelOlvide").hidden = false;
+    document.getElementById("cuentaMarketOlvideForm").hidden = false;
+    document.getElementById("cuentaMarketCodigoForm").hidden = true;
+    document.getElementById("cuentaMarketNuevaPasswordForm").hidden = true;
+}
+
+document.getElementById("botonOlvidePassword").addEventListener("click", mostrarPanelOlvide);
+
+document.getElementById("botonVolverLogin").addEventListener("click", function() {
+    document.getElementById("panelOlvide").hidden = true;
+    document.querySelectorAll(".contact-tab").forEach(function(t) {
+        const esLogin = t.dataset.tab === "login";
+        t.classList.toggle("active", esLogin);
+        t.setAttribute("aria-selected", esLogin ? "true" : "false");
+    });
+    document.getElementById("panelLogin").hidden = false;
+    document.getElementById("panelRegistro").hidden = true;
+});
+
+document.getElementById("cuentaMarketOlvideForm").addEventListener("submit", async function(evento) {
+    evento.preventDefault();
+    const resultado = document.getElementById("olvideResultado");
+    resultado.textContent = "Enviando...";
+    const datos = await cuentaMarketLlamar("/personas/olvide-password", {
+        method: "POST",
+        body: JSON.stringify({ correo: document.getElementById("olvideCorreo").value })
+    });
+    if (!datos.ok) { resultado.textContent = datos.error || "No se pudo enviar el codigo."; return; }
+    resultado.textContent = "Si existe una cuenta con ese correo, te enviamos un codigo. Revisa tu bandeja de entrada.";
+    document.getElementById("cuentaMarketOlvideForm").hidden = true;
+    document.getElementById("cuentaMarketCodigoForm").hidden = false;
+});
+
+document.getElementById("cuentaMarketCodigoForm").addEventListener("submit", async function(evento) {
+    evento.preventDefault();
+    const resultado = document.getElementById("olvideCodigoResultado");
+    resultado.textContent = "Verificando...";
+    const datos = await cuentaMarketLlamar("/personas/verificar-codigo-reset", {
+        method: "POST",
+        body: JSON.stringify({
+            correo: document.getElementById("olvideCorreo").value,
+            codigo: document.getElementById("olvideCodigo").value
+        })
+    });
+    if (!datos.ok) { resultado.textContent = datos.error || "Codigo invalido o vencido."; return; }
+    olvideTokenRestablecimiento = datos.tokenRestablecimiento;
+    resultado.textContent = "";
+    document.getElementById("cuentaMarketCodigoForm").hidden = true;
+    document.getElementById("cuentaMarketNuevaPasswordForm").hidden = false;
+});
+
+document.getElementById("cuentaMarketNuevaPasswordForm").addEventListener("submit", async function(evento) {
+    evento.preventDefault();
+    const resultado = document.getElementById("olvideNuevaPasswordResultado");
+    resultado.textContent = "Guardando...";
+    const datos = await cuentaMarketLlamar("/personas/restablecer-password", {
+        method: "POST",
+        body: JSON.stringify({
+            tokenRestablecimiento: olvideTokenRestablecimiento,
+            password: document.getElementById("olvideNuevaPassword").value,
+            confirmarPassword: document.getElementById("olvideConfirmarPassword").value
+        })
+    });
+    if (!datos.ok) { resultado.textContent = datos.error || "No se pudo restablecer tu contrasena."; return; }
+    resultado.textContent = "Tu contrasena se actualizo. Ya puedes iniciar sesion.";
+    setTimeout(function() { document.getElementById("botonVolverLogin").click(); }, 1500);
 });
 
 (function preseleccionarDesdeMarket() {
