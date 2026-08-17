@@ -66,7 +66,7 @@ async function tiendasPermitidasMarket(pool) {
         SELECT n.id, n.slug, n.nombre, n.giro, n.direccion, n.direccion_lat, n.direccion_lng, c.aceptar_solicitudes_credito AS acepta_credito
         FROM public.negocios n
         JOIN public.sitio_web_config c ON c.negocio_id = n.id
-        WHERE n.estado = 'activo' AND c.activo = true
+        WHERE n.estado = 'activo' AND c.activo = true AND n.visible_en_market = true
         ORDER BY n.nombre
     `);
 
