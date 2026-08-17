@@ -1,8 +1,8 @@
 /* Compatibilidad Liquid Glass compartida. Los estilos de Punto de venta viven en components/pos-cart.css. */
 :root {
-  --surface: rgba(255, 255, 255, .78);
-  --surface-soft: rgba(255, 255, 255, .56);
-  --surface-strong: rgba(255, 255, 255, .92);
+  --surface: rgba(255, 255, 255, .94);
+  --surface-soft: rgba(255, 255, 255, .84);
+  --surface-strong: rgba(255, 255, 255, .97);
   --line-soft: rgba(15, 23, 42, .10);
   --text-main: #101828;
   --text-muted: #667085;
@@ -11,9 +11,9 @@
 }
 
 body.oscuro {
-  --surface: rgba(15, 23, 42, .78);
-  --surface-soft: rgba(30, 41, 59, .58);
-  --surface-strong: rgba(15, 23, 42, .92);
+  --surface: rgba(15, 23, 42, .94);
+  --surface-soft: rgba(30, 41, 59, .86);
+  --surface-strong: rgba(15, 23, 42, .97);
   --line-soft: rgba(226, 232, 240, .16);
   --text-main: #f8fafc;
   --text-muted: #cbd5e1;
