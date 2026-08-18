@@ -1803,6 +1803,39 @@ app.delete("/cuenta/empleados/:id", requerirSesionCuenta, async (req, res) => {
     }
 });
 
+// Fase 0 del ecosistema Nexo (RBAC2): el dueno genera un codigo de un
+// solo uso para que el empleado vincule su propia cuenta Nexo (persona)
+// a su fila de empleado -- mismo patron ya probado en
+// /creditos/clientes/:id/codigo-acceso (el codigo solo se regresa una
+// vez, en texto plano, aqui; nunca se puede volver a consultar despues).
+app.post("/cuenta/empleados/:id/generar-codigo-vinculo", requerirSesionCuenta, async (req, res) => {
+    try {
+        const codigo = generarCodigoAccesoCliente();
+        // A diferencia del codigo_acceso de clientes_credito (que se
+        // verifica contra un scrypt hash acotado por telefono+negocio
+        // conocidos de antemano), este codigo tiene que resolverse SIN
+        // ningun campo previo para acotar la busqueda -- por eso usa el
+        // mismo hash rapido y determinista que ya usan los tokens de
+        // sesion (dispositivos_vinculados, sesiones_persona), que si
+        // permite buscar por igualdad directa.
+        const codigoHash = hashTokenSeguro(codigo);
+
+        const actualizado = await pool.query(
+            `UPDATE public.empleados SET codigo_vinculo_hash = $1 WHERE id = $2 AND negocio_id = $3 RETURNING id`,
+            [codigoHash, Number(req.params.id), req.negocioAutenticado.negocio_id]
+        );
+
+        if (actualizado.rows.length === 0) {
+            res.status(404).json({ ok: false, error: "Empleado no encontrado" });
+            return;
+        }
+
+        res.json({ ok: true, codigo });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
 app.post("/cuenta/empleados/importar-locales", requerirSesionCuenta, async (req, res) => {
     const empleadosLocales = Array.isArray(req.body?.empleados) ? req.body.empleados : [];
 
@@ -3389,6 +3422,20 @@ async function negocioActual(req) {
 
     return resultado.rows[0];
 }
+
+// Fase 0 del ecosistema Nexo (RBAC3): gancho inerte para "identificar
+// producto por foto" (empleado toma una foto de una pieza, Nexo sugiere
+// el producto mas parecido) -- catalogado en catalogo_funciones como
+// 'ia.identificar_producto_foto' (estado 'planeado'). Deja el contrato
+// de API listo para cuando se construya la funcion real; por ahora
+// responde 501 sin subir nada a ningun modelo.
+app.post("/negocio-actual/identificar-producto-foto", requerirAccesoNegocio, async (req, res) => {
+    res.status(501).json({
+        ok: false,
+        implementado: false,
+        error: "Identificar producto por foto todavia no esta disponible."
+    });
+});
 
 function normalizarCodigoFoto(codigo) {
     return String(codigo || "")

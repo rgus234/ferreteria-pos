@@ -203,8 +203,10 @@ const GRUPOS_ESTADO = {
     cancelados: ["cancelado"]
 };
 
+const { PERMISOS, requerirPermiso } = require("./rbac");
+
 module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
-    app.get("/negocio-actual/pedidos-market", requerirAccesoNegocio, async (req, res) => {
+    app.get("/negocio-actual/pedidos-market", requerirAccesoNegocio, requerirPermiso(PERMISOS.VER_PEDIDOS), async (req, res) => {
         try {
             const negocio = await negocioActualPedidosMarket(req, pool);
             const grupo = String(req.query.estado || "");
@@ -373,7 +375,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
     // pidio al empleado confirmar a ojo (dialogo de "verifica que sea el
     // producto correcto" antes de llamar aqui) -- pensado para productos
     // sin codigo de barras real.
-    app.patch("/negocio-actual/pedidos-market/:pedidoId/items/:itemId/verificar", requerirAccesoNegocio, async (req, res) => {
+    app.patch("/negocio-actual/pedidos-market/:pedidoId/items/:itemId/verificar", requerirAccesoNegocio, requerirPermiso(PERMISOS.GESTIONAR_PEDIDOS), async (req, res) => {
         try {
             const negocio = await negocioActualPedidosMarket(req, pool);
             const metodo = String(req.body?.metodo || "");

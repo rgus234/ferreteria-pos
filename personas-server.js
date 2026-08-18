@@ -633,6 +633,55 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             responderError(res, error);
         }
     });
+
+    // Fase 0 del ecosistema Nexo (RBAC2): la persona ya logueada canjea
+    // el codigo que el dueño genero para SU empleado (POST /cuenta/
+    // empleados/:id/generar-codigo-vinculo) -- a partir de aqui esa
+    // persona puede entrar como empleado de ese negocio con su propia
+    // cuenta Nexo, no solo con el PIN en un equipo ya vinculado.
+    app.post("/personas/vincular-empleado", requerirSesionPersona, async (req, res) => {
+        const codigo = limpiarTexto(req.body?.codigo, 20).toUpperCase();
+
+        if (!codigo) {
+            res.status(400).json({ ok: false, error: "Escribe el codigo que te dio tu jefe" });
+            return;
+        }
+
+        try {
+            const empleado = await pool.query(
+                `SELECT id, negocio_id, nombre, rol, permisos FROM public.empleados WHERE codigo_vinculo_hash = $1 AND activo = true`,
+                [hashTokenSeguro(codigo)]
+            );
+
+            if (empleado.rows.length === 0) {
+                res.status(404).json({ ok: false, error: "Codigo invalido o ya usado" });
+                return;
+            }
+
+            const fila = empleado.rows[0];
+
+            await pool.query(
+                `UPDATE public.empleados SET persona_id = $1, codigo_vinculo_hash = NULL WHERE id = $2`,
+                [req.persona.id, fila.id]
+            );
+
+            const rolMiembro = fila.rol === "Administrador" ? "owner" : "employee";
+            await pool.query(
+                `
+                INSERT INTO public.negocio_miembros (persona_id, negocio_id, rol, permisos, activo)
+                VALUES ($1, $2, $3, $4, true)
+                ON CONFLICT (persona_id, negocio_id) DO UPDATE SET rol = $3, permisos = $4, activo = true
+                `,
+                [req.persona.id, fila.negocio_id, rolMiembro, JSON.stringify(fila.permisos || {})]
+            );
+
+            const negocio = await pool.query(`SELECT slug, nombre FROM public.negocios WHERE id = $1`, [fila.negocio_id]);
+
+            res.json({ ok: true, negocio: negocio.rows[0], rol: rolMiembro });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
 }
 
 module.exports = {
