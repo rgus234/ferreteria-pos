@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=venta-empleado-20260818-02">
+    <link rel="stylesheet" href="dueno.css?v=caja-empleado-20260818-01">
 </head>
 
 <body>
@@ -357,6 +357,41 @@
         </div>
     </div>
 
+    <main id="duenoCaja" class="dueno-app" style="display:none;">
+        <header class="dueno-header">
+            <div>
+                <p class="dueno-saludo">Turno de caja</p>
+                <h1>Caja</h1>
+                <p class="dueno-estado" id="duenoCajaEstado">Cargando...</p>
+            </div>
+        </header>
+
+        <article class="dueno-status-card" id="duenoCajaStatusCard"></article>
+
+        <article class="dueno-card" id="duenoCajaResumenCard" style="display:none;">
+            <div class="card-head">
+                <div>
+                    <span>Turno abierto</span>
+                    <h2>Resumen en vivo</h2>
+                </div>
+            </div>
+            <div id="duenoCajaResumenLista" class="lista-compacta"></div>
+        </article>
+
+        <button type="button" class="dueno-boton-primario" id="duenoCajaBotonAbrir" style="display:none;" onclick="mostrarAbrirTurnoDueno()">Abrir turno</button>
+        <button type="button" class="dueno-boton-primario" id="duenoCajaBotonCerrar" style="display:none;" onclick="mostrarCerrarTurnoDueno()">Cerrar turno (corte)</button>
+    </main>
+
+    <div id="duenoCajaAccionOverlay" class="dueno-mas-subpantalla">
+        <div class="dueno-subpantalla-inner">
+            <div class="dueno-subpantalla-header">
+                <button type="button" class="dueno-subpantalla-atras" onclick="cerrarAccionCajaDueno()">&lsaquo; Atrás</button>
+                <h2 id="duenoCajaAccionTitulo">Caja</h2>
+            </div>
+            <div id="duenoCajaAccionContenido"></div>
+        </div>
+    </div>
+
     <main id="duenoInventario" class="dueno-app" style="display:none;">
         <header class="dueno-header">
             <div>
@@ -461,6 +496,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.4 12.2a1.6 1.6 0 0 0 1.6 1.3h9a1.6 1.6 0 0 0 1.6-1.3L21 7H6"/></svg>
             <span>Vender</span>
         </button>
+        <button type="button" data-tab="caja" onclick="cambiarTabDueno('caja')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M7 15h4"/></svg>
+            <span>Caja</span>
+        </button>
         <button type="button" data-tab="mas" onclick="cambiarTabDueno('mas')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
             <span>Más</span>
@@ -506,7 +545,7 @@
     </div>
 
     <script src="dueno-offline.js?v=dueno-modo-oscuro-20260721-01"></script>
-    <script src="dueno.js?v=venta-empleado-20260818-02"></script>
+    <script src="dueno.js?v=caja-empleado-20260818-01"></script>
 </body>
 
 </html>

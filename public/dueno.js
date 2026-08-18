@@ -556,12 +556,13 @@ function cambiarTabDueno(tab) {
     document.getElementById("duenoInventario").style.display = tab === "inventario" ? "block" : "none";
     document.getElementById("duenoPedidos").style.display = tab === "pedidos" ? "block" : "none";
     document.getElementById("duenoVender").style.display = tab === "vender" ? "block" : "none";
+    document.getElementById("duenoCaja").style.display = tab === "caja" ? "block" : "none";
     document.getElementById("duenoMas").style.display = tab === "mas" ? "block" : "none";
 
     const burbujaNexo =
     document.getElementById("duenoNexoBurbuja");
 
-    if (burbujaNexo) burbujaNexo.style.display = (tab === "reportes" || tab === "pedidos" || tab === "vender") ? "none" : "flex";
+    if (burbujaNexo) burbujaNexo.style.display = (tab === "reportes" || tab === "pedidos" || tab === "vender" || tab === "caja") ? "none" : "flex";
 
     if (tab !== "mas") cerrarSubpantallaMasDueno();
 
@@ -570,6 +571,7 @@ function cambiarTabDueno(tab) {
     if (tab === "inventario") cargarPanelInventarioDueno();
     if (tab === "pedidos") cargarPanelPedidosDueno();
     if (tab === "vender") cargarPanelVenderDueno();
+    if (tab === "caja") cargarPanelCajaDueno();
     if (tab === "mas") cargarPanelMasDueno();
 }
 
@@ -1870,6 +1872,198 @@ function finalizarVentaVenderDueno() {
 
 function cerrarCobroVenderDueno() {
     document.getElementById("duenoVenderCobroOverlay").classList.remove("abierta");
+}
+
+// ---------------- pestaña Caja: turno y corte ----------------
+
+let duenoCajaTurnoActual = null;
+let duenoCajaResumenActual = null;
+
+async function cargarPanelCajaDueno() {
+    const estado = document.getElementById("duenoCajaEstado");
+    estado.textContent = "Cargando...";
+
+    try {
+        const datos = await fetchAutenticado("/caja/turno-activo");
+        duenoCajaTurnoActual = datos.turno;
+        duenoCajaResumenActual = datos.resumen;
+        renderEstadoCajaDueno();
+    } catch (error) {
+        estado.textContent = "No se pudo cargar el estado de caja";
+    }
+}
+
+function renderEstadoCajaDueno() {
+    const turno = duenoCajaTurnoActual;
+    const resumen = duenoCajaResumenActual;
+    const estado = document.getElementById("duenoCajaEstado");
+    const statusCard = document.getElementById("duenoCajaStatusCard");
+    const resumenCard = document.getElementById("duenoCajaResumenCard");
+    const botonAbrir = document.getElementById("duenoCajaBotonAbrir");
+    const botonCerrar = document.getElementById("duenoCajaBotonCerrar");
+
+    if (!turno) {
+        estado.textContent = "Sin turno abierto";
+        statusCard.innerHTML = `
+            <div class="dueno-status-head">
+                <div>
+                    <span>Estado de caja</span>
+                    <h2>Sin turno abierto</h2>
+                </div>
+                <span class="dueno-pill dueno-pill-limitado">Cerrado</span>
+            </div>
+        `;
+        resumenCard.style.display = "none";
+        botonAbrir.style.display = "block";
+        botonCerrar.style.display = "none";
+        return;
+    }
+
+    estado.textContent = `Abierto desde ${new Date(turno.abierto_at).toLocaleString("es-MX")}`;
+    statusCard.innerHTML = `
+        <div class="dueno-status-head">
+            <div>
+                <span>Estado de caja</span>
+                <h2>Turno abierto</h2>
+            </div>
+            <span class="dueno-pill dueno-pill-normal">Abierto</span>
+        </div>
+        <div class="dueno-status-lineas">
+            <div class="dueno-status-linea"><span>Fondo inicial</span><strong>$${Number(turno.fondo_inicial || 0).toFixed(2)}</strong></div>
+            <div class="dueno-status-linea"><span>Efectivo esperado</span><strong>$${Number(resumen?.esperado_efectivo || 0).toFixed(2)}</strong></div>
+        </div>
+    `;
+
+    document.getElementById("duenoCajaResumenLista").innerHTML = `
+        <div class="fila-dueno"><span>Ventas</span><strong>$${Number(resumen?.ventas || 0).toFixed(2)}</strong></div>
+        <div class="fila-dueno"><span>Efectivo</span><strong>$${Number(resumen?.efectivo || 0).toFixed(2)}</strong></div>
+        <div class="fila-dueno"><span>Tarjeta</span><strong>$${Number(resumen?.tarjeta || 0).toFixed(2)}</strong></div>
+        <div class="fila-dueno"><span>Transferencia</span><strong>$${Number(resumen?.transferencia || 0).toFixed(2)}</strong></div>
+        <div class="fila-dueno"><span>Credito</span><strong>$${Number(resumen?.credito || 0).toFixed(2)}</strong></div>
+        <div class="fila-dueno"><span>Entradas</span><strong>$${Number(resumen?.entradas || 0).toFixed(2)}</strong></div>
+        <div class="fila-dueno"><span>Salidas</span><strong>$${Number(resumen?.salidas || 0).toFixed(2)}</strong></div>
+    `;
+
+    resumenCard.style.display = "block";
+    botonAbrir.style.display = "none";
+    botonCerrar.style.display = "block";
+}
+
+function mostrarAbrirTurnoDueno() {
+    document.getElementById("duenoCajaAccionTitulo").textContent = "Abrir turno";
+    document.getElementById("duenoCajaAccionContenido").innerHTML = `
+        <label class="dueno-campo">Fondo inicial
+            <input type="number" id="duenoCajaFondoInicial" inputmode="decimal" min="0" step="0.01" placeholder="0.00">
+        </label>
+        <label class="dueno-campo">Notas (opcional)
+            <textarea id="duenoCajaAbrirNotas" rows="2" placeholder="Ej. turno de la mañana"></textarea>
+        </label>
+        <p class="dueno-estado" id="duenoCajaAbrirError" style="display:none;"></p>
+        <button type="button" class="dueno-boton-primario" onclick="confirmarAbrirTurnoDueno()">Abrir turno</button>
+    `;
+    document.getElementById("duenoCajaAccionOverlay").classList.add("abierta");
+}
+
+async function confirmarAbrirTurnoDueno() {
+    const fondoInicial = Number(document.getElementById("duenoCajaFondoInicial").value || 0);
+    const notas = document.getElementById("duenoCajaAbrirNotas").value.trim();
+    const errorEl = document.getElementById("duenoCajaAbrirError");
+
+    try {
+        await fetchAutenticado("/caja/abrir", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fondoInicial, notas })
+        });
+        cerrarAccionCajaDueno();
+        await cargarPanelCajaDueno();
+    } catch (error) {
+        errorEl.textContent = error.message || "No se pudo abrir el turno";
+        errorEl.style.display = "block";
+    }
+}
+
+function mostrarCerrarTurnoDueno() {
+    const resumen = duenoCajaResumenActual;
+
+    document.getElementById("duenoCajaAccionTitulo").textContent = "Cerrar turno (corte)";
+    document.getElementById("duenoCajaAccionContenido").innerHTML = `
+        <p class="dueno-estado">Cuenta el dinero real en caja por cada metodo.</p>
+        <label class="dueno-campo">Efectivo contado (ventas: $${Number(resumen?.efectivo || 0).toFixed(2)})
+            <input type="number" id="duenoCajaEfectivoContado" inputmode="decimal" min="0" step="0.01" placeholder="0.00">
+        </label>
+        <label class="dueno-campo">Tarjeta contado (ventas: $${Number(resumen?.tarjeta || 0).toFixed(2)})
+            <input type="number" id="duenoCajaTarjetaContado" inputmode="decimal" min="0" step="0.01" placeholder="0.00">
+        </label>
+        <label class="dueno-campo">Transferencia contado (ventas: $${Number(resumen?.transferencia || 0).toFixed(2)})
+            <input type="number" id="duenoCajaTransferenciaContado" inputmode="decimal" min="0" step="0.01" placeholder="0.00">
+        </label>
+        <label class="dueno-campo">Credito contado (ventas: $${Number(resumen?.credito || 0).toFixed(2)})
+            <input type="number" id="duenoCajaCreditoContado" inputmode="decimal" min="0" step="0.01" placeholder="0.00">
+        </label>
+        <label class="dueno-campo">Notas (opcional)
+            <textarea id="duenoCajaCerrarNotas" rows="2" placeholder="Ej. faltante por cambio mal dado"></textarea>
+        </label>
+        <p class="dueno-estado" id="duenoCajaCerrarError" style="display:none;"></p>
+        <button type="button" class="dueno-boton-primario" onclick="confirmarCerrarTurnoDueno()">Confirmar corte</button>
+    `;
+    document.getElementById("duenoCajaAccionOverlay").classList.add("abierta");
+}
+
+async function confirmarCerrarTurnoDueno() {
+    const errorEl = document.getElementById("duenoCajaCerrarError");
+    const cuerpo = {
+        efectivoContado: Number(document.getElementById("duenoCajaEfectivoContado").value || 0),
+        tarjetaContado: Number(document.getElementById("duenoCajaTarjetaContado").value || 0),
+        transferenciaContado: Number(document.getElementById("duenoCajaTransferenciaContado").value || 0),
+        creditoContado: Number(document.getElementById("duenoCajaCreditoContado").value || 0),
+        notas: document.getElementById("duenoCajaCerrarNotas").value.trim()
+    };
+
+    try {
+        const datos = await fetchAutenticado("/caja/cerrar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cuerpo)
+        });
+        renderResultadoCorteDueno(datos.turno);
+    } catch (error) {
+        errorEl.textContent = error.message || "No se pudo cerrar el turno";
+        errorEl.style.display = "block";
+    }
+}
+
+function renderResultadoCorteDueno(turno) {
+    const diferencia = Number(turno.diferencia || 0);
+    const claseColor = diferencia === 0 ? "dueno-pill-normal" : "dueno-pill-limitado";
+    const textoDiferencia = diferencia === 0
+        ? "Cuadró exacto"
+        : diferencia > 0
+            ? `Sobrante de $${diferencia.toFixed(2)}`
+            : `Faltante de $${Math.abs(diferencia).toFixed(2)}`;
+
+    document.getElementById("duenoCajaAccionTitulo").textContent = "Corte realizado";
+    document.getElementById("duenoCajaAccionContenido").innerHTML = `
+        <div class="dueno-status-card">
+            <div class="dueno-status-head">
+                <div>
+                    <span>Efectivo esperado</span>
+                    <h2>$${Number(turno.esperado_efectivo || 0).toFixed(2)}</h2>
+                </div>
+                <span class="dueno-pill ${claseColor}">${textoDiferencia}</span>
+            </div>
+        </div>
+        <button type="button" class="dueno-boton-primario" onclick="finalizarCorteCajaDueno()">Listo</button>
+    `;
+}
+
+function finalizarCorteCajaDueno() {
+    cerrarAccionCajaDueno();
+    cargarPanelCajaDueno();
+}
+
+function cerrarAccionCajaDueno() {
+    document.getElementById("duenoCajaAccionOverlay").classList.remove("abierta");
 }
 
 // ---------------- pestaña Más: navegacion tipo Ajustes ----------------

@@ -1,5 +1,6 @@
 const { DEFAULT_NEGOCIO_SLUG } = require("./tenant");
 const { responderError } = require("./error-utils");
+const { PERMISOS, requerirPermiso } = require("./rbac");
 
 module.exports = (app, pool, requerirAccesoNegocio) => {
     let listo = false;
@@ -157,6 +158,13 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
     async function resumenTurno(turno, client = pool) {
         const hasta = turno.cerrado_at || new Date();
 
+        // historial_ventas.fecha es TIMESTAMP sin zona (columna legada),
+        // mientras que turnos_caja.abierto_at/cerrado_at SI tienen zona.
+        // node-postgres interpreta timestamps sin zona con la zona local
+        // del proceso, no UTC -- sin el cast explicito, esta comparacion
+        // podia excluir ventas reales del turno (bug encontrado al
+        // agregar el primer test que hacia una venta real entre abrir y
+        // cerrar turno).
         const ventas = await client.query(`
             SELECT
                 COALESCE(SUM(total), 0) AS total,
@@ -173,8 +181,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 COALESCE(SUM(pago_credito), 0) AS credito
             FROM public.historial_ventas
             WHERE negocio_id = $1
-            AND fecha >= $2
-            AND fecha <= $3
+            AND (fecha AT TIME ZONE 'UTC') >= $2
+            AND (fecha AT TIME ZONE 'UTC') <= $3
         `, [turno.negocio_id, turno.abierto_at, hasta]);
 
         const movimientos = await client.query(`
@@ -239,7 +247,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
-    app.post("/caja/abrir", requerirAccesoNegocio, async (req, res) => {
+    app.post("/caja/abrir", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_CORTE), async (req, res) => {
         const { usuario, fondoInicial, notas } = req.body;
 
         try {
@@ -301,7 +309,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
-    app.post("/caja/movimientos", requerirAccesoNegocio, async (req, res) => {
+    app.post("/caja/movimientos", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_CORTE), async (req, res) => {
         const { tipo, concepto, monto, metodo, referencia } = req.body;
 
         if (!["entrada", "salida"].includes(tipo) || n(monto) <= 0) {
@@ -343,7 +351,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
-    app.post("/caja/cerrar", requerirAccesoNegocio, async (req, res) => {
+    app.post("/caja/cerrar", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_CORTE), async (req, res) => {
         const {
             efectivoContado,
             tarjetaContado,

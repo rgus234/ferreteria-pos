@@ -186,6 +186,65 @@ test("Fase 2: un empleado sin permiso hacer_ventas recibe 403 real en POST /vent
     assert.equal(Number(stockFinal.rows[0].stock), 4);
 });
 
+test("Fase 3: un empleado sin permiso hacer_corte recibe 403 real en POST /caja/abrir; con el permiso concedido, abre y cierra turno de verdad con diferencia 0", async () => {
+    const entrada = await fetch(`${BASE_URL}/personas/entrar-como-empleado`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-persona-token": personaToken },
+        body: JSON.stringify({})
+    });
+    assert.equal(entrada.status, 200);
+    const { token: tokenEmpleadoDueno } = await entrada.json();
+
+    const sinPermiso = await fetch(`${BASE_URL}/caja/abrir`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenEmpleadoDueno}` },
+        body: JSON.stringify({ fondoInicial: 300 })
+    });
+    assert.equal(sinPermiso.status, 403);
+    const datosSinPermiso = await sinPermiso.json();
+    assert.equal(datosSinPermiso.requierePermiso, "hacer_corte");
+
+    await pool.query(
+        `UPDATE public.negocio_miembros SET permisos = permisos || '{"hacer_corte": true, "hacer_ventas": true}'::jsonb WHERE persona_id = $1 AND negocio_id = $2`,
+        [persona.id, negocio.negocioId]
+    );
+
+    const apertura = await fetch(`${BASE_URL}/caja/abrir`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenEmpleadoDueno}` },
+        body: JSON.stringify({ fondoInicial: 300 })
+    });
+    assert.equal(apertura.status, 200);
+    const datosApertura = await apertura.json();
+    assert.equal(datosApertura.turno.estado, "abierto");
+
+    const producto = await crearProductoPrueba(negocio.negocioId, { precio: 150, stock: 5 });
+    const venta = await fetch(`${BASE_URL}/ventas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenEmpleadoDueno}` },
+        body: JSON.stringify({
+            total: 150, subtotal: 150, descuento: 0, descuentoTipo: "ninguno", descuentoValor: 0,
+            clienteId: null, clienteNombre: "Publico general",
+            cajeroUsuario: persona.correo, cajeroNombre: persona.nombre,
+            productos: [{ id: producto.id, codigo: "TEST", nombre: "Producto de prueba", precio: 150,
+                cantidad: 1, unidadVenta: "pieza", modoVenta: "bolsa", importe: 150 }],
+            metodoPago: "efectivo", pagos: { efectivo: 150, tarjeta: 0, transferencia: 0, credito: 0 },
+            recibido: 150, cambio: 0
+        })
+    });
+    assert.equal(venta.status, 200);
+
+    const cierre = await fetch(`${BASE_URL}/caja/cerrar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenEmpleadoDueno}` },
+        body: JSON.stringify({ efectivoContado: 450, tarjetaContado: 0, transferenciaContado: 0, creditoContado: 0, notas: "" })
+    });
+    assert.equal(cierre.status, 200);
+    const datosCierre = await cierre.json();
+    assert.equal(datosCierre.turno.estado, "cerrado");
+    assert.equal(Number(datosCierre.turno.diferencia), 0, "fondo inicial (300) + venta en efectivo (150) debe cuadrar exacto con lo contado (450)");
+});
+
 test("una segunda persona sin membresia de empleado no puede entrar como empleado a ningun negocio", async () => {
     const personaSuelta = await crearPersonaPrueba("rbac-dueno-suelta");
     const tokenSuelta = await mintearSesionPruebaPersona(personaSuelta.id);
