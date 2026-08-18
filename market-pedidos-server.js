@@ -137,8 +137,13 @@ async function itemsDePedidos(pool, negocioId, pedidoIds, slug, firmarTokenImage
     const porPedido = new Map();
     for (const fila of resultado.rows) {
         const lista = porPedido.get(fila.pedido_market_id) || [];
+        // Ruta relativa (no DOMINIO_PUBLICO): esta foto se muestra tanto en
+        // la pantalla "Pedidos" del POS (que puede vivir en otro host, ej.
+        // pos.onrender.com) como en la pagina de seguimiento del cliente.
+        // Un dominio absoluto distinto al host actual choca con el CSP
+        // img-src (solo 'self' + CDNs), dejando la imagen en blanco.
         const fotoUrl = (fila.foto_actualizado_at && slug && typeof firmarTokenImagen === "function")
-            ? `${DOMINIO_PUBLICO}/fotos-producto/${encodeURIComponent(fila.producto_codigo)}/principal?negocio=${encodeURIComponent(slug)}&v=${new Date(fila.foto_actualizado_at).getTime()}&token=${firmarTokenImagen(negocioId, fila.producto_codigo)}`
+            ? `/fotos-producto/${encodeURIComponent(fila.producto_codigo)}/principal?negocio=${encodeURIComponent(slug)}&v=${new Date(fila.foto_actualizado_at).getTime()}&token=${firmarTokenImagen(negocioId, fila.producto_codigo)}`
             : null;
 
         lista.push({
