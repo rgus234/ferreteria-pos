@@ -122,7 +122,8 @@ async function itemsDePedidos(pool, negocioId, pedidoIds, slug, firmarTokenImage
 
     const resultado = await pool.query(
         `
-        SELECT pp.pedido_market_id, pp.producto_codigo, pp.producto_nombre, pp.cantidad,
+        SELECT pp.id AS item_id, pp.pedido_market_id, pp.producto_codigo, pp.producto_nombre, pp.cantidad,
+               pp.verificado, pp.verificado_at, pp.verificado_metodo,
                pr.stock AS existencia, pr.descripcion, pr.ubicacion, pr.marca, pr.categoria, pr.subcategoria,
                fp.actualizado_at AS foto_actualizado_at
         FROM public.pedidos_publicos pp
@@ -147,9 +148,13 @@ async function itemsDePedidos(pool, negocioId, pedidoIds, slug, firmarTokenImage
             : null;
 
         lista.push({
+            id: fila.item_id,
             codigo: fila.producto_codigo,
             nombre: fila.producto_nombre,
             cantidad: Number(fila.cantidad),
+            verificado: fila.verificado,
+            verificadoAt: fila.verificado_at,
+            verificadoMetodo: fila.verificado_metodo,
             existencia: fila.existencia !== null ? Number(fila.existencia) : null,
             descripcion: fila.descripcion || null,
             ubicacion: fila.ubicacion || null,
@@ -354,6 +359,67 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
 
             const itemsPorPedido = await itemsDePedidos(pool, negocio.id, [pedido.id], negocio.slug, firmarTokenImagen);
             res.json({ ok: true, pedido: mapearPedidoMarket(pedido, itemsPorPedido.get(pedido.id)) });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
+    // Verificacion de picking por item -- flujo tipo almacen (imprimir
+    // pedido + escanear cada producto antes de marcarlo listo, como en
+    // Amazon/Mercado Libre). metodo="escaneo" compara el codigo leido
+    // contra pedidos_publicos.producto_codigo (el mismo codigo que ya usa
+    // el resto del catalogo como codigo de barras/interno) antes de
+    // marcar; metodo="manual" no compara nada porque el frontend ya le
+    // pidio al empleado confirmar a ojo (dialogo de "verifica que sea el
+    // producto correcto" antes de llamar aqui) -- pensado para productos
+    // sin codigo de barras real.
+    app.patch("/negocio-actual/pedidos-market/:pedidoId/items/:itemId/verificar", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActualPedidosMarket(req, pool);
+            const metodo = String(req.body?.metodo || "");
+            const codigo = req.body?.codigo != null ? String(req.body.codigo).trim() : "";
+
+            if (metodo !== "escaneo" && metodo !== "manual") {
+                res.status(400).json({ ok: false, error: "Metodo invalido" });
+                return;
+            }
+
+            const filaItem = await pool.query(
+                `
+                SELECT pp.*
+                FROM public.pedidos_publicos pp
+                JOIN public.pedidos_market pm ON pm.id = pp.pedido_market_id
+                WHERE pp.id = $1 AND pp.pedido_market_id = $2 AND pm.negocio_id = $3
+                `,
+                [req.params.itemId, req.params.pedidoId, negocio.id]
+            );
+
+            if (filaItem.rows.length === 0) {
+                res.status(404).json({ ok: false, error: "Producto no encontrado en este pedido" });
+                return;
+            }
+
+            const item = filaItem.rows[0];
+
+            if (metodo === "escaneo") {
+                if (!codigo) {
+                    res.status(400).json({ ok: false, error: "Codigo requerido" });
+                    return;
+                }
+                if (codigo.toLowerCase() !== String(item.producto_codigo).toLowerCase()) {
+                    res.json({ ok: false, error: "El codigo escaneado no corresponde a este producto" });
+                    return;
+                }
+            }
+
+            await pool.query(
+                `UPDATE public.pedidos_publicos SET verificado = true, verificado_at = NOW(), verificado_metodo = $1 WHERE id = $2`,
+                [metodo, item.id]
+            );
+
+            const pedidoMarketId = Number(req.params.pedidoId);
+            const itemsPorPedido = await itemsDePedidos(pool, negocio.id, [pedidoMarketId], negocio.slug, firmarTokenImagen);
+            res.json({ ok: true, items: itemsPorPedido.get(pedidoMarketId) || [] });
         } catch (error) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
         }

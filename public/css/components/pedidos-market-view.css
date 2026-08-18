@@ -411,6 +411,150 @@
   color: var(--text-muted, #64748b);
 }
 
+/* Base de overlay para los modales dinamicos de esta pantalla. Faltaba
+   -- las tarjetas internas (.pmk-escaneo-caja, .pmk-verificacion-caja,
+   .pmk-detalle-caja) ya se centraban con margin:auto dentro de un
+   display:flex, pero sin position:fixed el wrapper solo se renderizaba
+   como un bloque estatico al final de la pagina (invisible sin hacer
+   scroll) en vez de una superposicion de pantalla completa. Mismo
+   patron que #modalCambioProductoPOS.modal-cambio-producto en
+   ticket-lookup-view.css. */
+.pmk-modal-escaneo,
+.pmk-modal-verificacion,
+.pmk-modal-detalle,
+.pmk-modal-verif-productos {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, .45);
+  backdrop-filter: blur(6px);
+  overflow-y: auto;
+}
+
+.pmk-verif-productos-caja {
+  background: #fff;
+  border-radius: 16px;
+  padding: 22px 24px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  margin: auto;
+  display: grid;
+  gap: 14px;
+}
+
+.pmk-verif-progreso {
+  display: grid;
+  gap: 6px;
+}
+
+.pmk-verif-progreso-barra-fondo {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line-soft, #eef2f7);
+  overflow: hidden;
+}
+
+.pmk-verif-progreso-barra {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: var(--pos-accent, #2563eb);
+  transition: width .25s ease;
+}
+
+.pmk-verif-progreso span {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+}
+
+.pmk-verif-escaneo {
+  display: grid;
+  gap: 8px;
+}
+
+.pmk-verif-manual-form {
+  display: flex;
+  gap: 8px;
+}
+
+.pmk-verif-manual-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft, #dbe3ef);
+  font-size: 13px;
+}
+
+.pmk-escaneo-estado.pmk-verif-escaneo-error {
+  color: #b3261e;
+  font-weight: 700;
+}
+
+.pmk-verif-cuerpo {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line-soft, #eef2f7);
+  padding-top: 10px;
+}
+
+.pmk-verif-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft, #eef2f7);
+}
+
+.pmk-verif-item-ok {
+  background: rgba(16, 185, 129, .08);
+  border-color: rgba(16, 185, 129, .3);
+}
+
+.pmk-verif-item-info {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+
+.pmk-verif-item-info strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pmk-verif-item-info small {
+  font-size: 11.5px;
+  color: var(--text-muted, #64748b);
+}
+
+.pmk-verif-badge-ok {
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, .14);
+  color: #047857;
+  white-space: nowrap;
+}
+
+.pmk-verif-manual-boton {
+  white-space: nowrap;
+  padding: 7px 12px;
+  font-size: 12px;
+}
+
 .pmk-detalle-total {
   font-size: 16px;
   font-weight: 900;

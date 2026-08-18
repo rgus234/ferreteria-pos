@@ -311,6 +311,14 @@ function renderPedidosMarket() {
         boton.onclick = () => pmkContactarCliente(Number(boton.dataset.contactarPedido));
     });
 
+    lista.querySelectorAll("[data-verificar-pedido]").forEach(boton => {
+        boton.onclick = () => pmkAbrirVerificacionProductos(Number(boton.dataset.verificarPedido));
+    });
+
+    lista.querySelectorAll("[data-imprimir-pedido]").forEach(boton => {
+        boton.onclick = () => pmkImprimirPedido(Number(boton.dataset.imprimirPedido));
+    });
+
     document.getElementById("pmkBotonEscanear")?.addEventListener("click", pmkAbrirEscaneo);
 }
 
@@ -323,6 +331,11 @@ function pmkFotoItemHtml(item) {
     return item.fotoUrl
         ? `<img src="${item.fotoUrl}" alt="" class="pmk-item-foto">`
         : `<span class="pmk-item-foto pmk-item-foto-vacia">${typeof iconoProducto === "function" ? iconoProducto(item.nombre) : ""}</span>`;
+}
+
+function pmkContarVerificados(pedido) {
+    const items = pedido.items || [];
+    return { verificados: items.filter(item => item.verificado).length, total: items.length };
 }
 
 function pmkTarjetaPedidoHtml(pedido) {
@@ -341,7 +354,9 @@ function pmkTarjetaPedidoHtml(pedido) {
             <button type="button" class="pmk-btn-secundario" data-pedido-id="${pedido.id}" data-accion-pedido="rechazar">Rechazar</button>
         `;
     } else if (pedido.estado === "confirmado" || pedido.estado === "preparando") {
+        const { verificados, total } = pmkContarVerificados(pedido);
         accionesHtml = `
+            <button type="button" class="pmk-btn-secundario" data-verificar-pedido="${pedido.id}">✓ Verificar productos (${verificados}/${total})</button>
             <button type="button" class="pmk-btn-primario" data-pedido-id="${pedido.id}" data-accion-pedido="marcar_listo">Marcar como listo</button>
             <button type="button" class="pmk-btn-secundario" data-pedido-id="${pedido.id}" data-accion-pedido="cancelar">Cancelar</button>
         `;
@@ -375,6 +390,7 @@ function pmkTarjetaPedidoHtml(pedido) {
         ${motivo}
         <div class="pmk-tarjeta-acciones">
             <button type="button" class="pmk-btn-secundario" data-ver-detalle-pedido="${pedido.id}">Ver detalles</button>
+            <button type="button" class="pmk-btn-secundario" data-imprimir-pedido="${pedido.id}">🖨️ Imprimir</button>
             ${pedido.clienteTelefono ? `<button type="button" class="pmk-btn-secundario" data-contactar-pedido="${pedido.id}">Contactar cliente</button>` : ""}
             ${accionesHtml}
         </div>
@@ -453,6 +469,8 @@ function pmkVerDetallePedido(pedidoId) {
             <div class="pmk-detalle-items">${(pedido.items || []).map(pmkItemDetalleHtml).join("")}</div>
             <div class="pmk-detalle-total">Total: ${dinero(pedido.total || 0)}</div>
             <div class="pmk-tarjeta-acciones">
+                <button type="button" class="pmk-btn-secundario" id="pmkDetalleImprimirBoton">🖨️ Imprimir</button>
+                ${(pedido.estado === "confirmado" || pedido.estado === "preparando") ? `<button type="button" class="pmk-btn-secundario" id="pmkDetalleVerificarBoton">✓ Verificar productos</button>` : ""}
                 ${pedido.clienteTelefono ? `<button type="button" class="pmk-btn-secundario" id="pmkDetalleContactarBoton">Contactar cliente</button>` : ""}
             </div>
         </div>
@@ -462,6 +480,8 @@ function pmkVerDetallePedido(pedidoId) {
     document.addEventListener("keydown", alEscape, { capture: true });
     modal.addEventListener("click", evento => { if (evento.target === modal) cerrar(); });
     document.getElementById("pmkDetalleCerrarBoton").onclick = cerrar;
+    document.getElementById("pmkDetalleImprimirBoton").onclick = () => pmkImprimirPedido(pedidoId);
+    document.getElementById("pmkDetalleVerificarBoton")?.addEventListener("click", () => { cerrar(); pmkAbrirVerificacionProductos(pedidoId); });
     document.getElementById("pmkDetalleContactarBoton")?.addEventListener("click", () => pmkContactarCliente(pedidoId));
 }
 
@@ -482,6 +502,18 @@ async function pmkEjecutarAccion(pedidoId, accion) {
     } else if (accion === "entregar") {
         const confirmado = await confirmarPOS("¿Confirmas que el cliente ya recogio este pedido?", "Confirmar entrega", "alerta");
         if (!confirmado) return;
+    } else if (accion === "marcar_listo") {
+        const pedido = pedidosMarketCache.find(p => p.id === pedidoId);
+        const { verificados, total } = pedido ? pmkContarVerificados(pedido) : { verificados: 0, total: 0 };
+
+        if (total > 0 && verificados < total) {
+            const confirmado = await confirmarPOS(
+                `Aun faltan ${total - verificados} de ${total} productos por verificar. ¿Marcar como listo de todas formas?`,
+                "Faltan productos por verificar",
+                "alerta"
+            );
+            if (!confirmado) return;
+        }
     }
 
     try {
@@ -709,4 +741,315 @@ function pmkMostrarVerificacionEntrega(pedido) {
             await alertaPOS("No se pudo confirmar la entrega. Intenta de nuevo.", "Error", "peligro");
         }
     };
+}
+
+// ---------------------------------------------------------------------
+// Imprimir pedido -- hoja de picking para buscar los productos en el
+// almacen (flujo tipo Amazon/Mercado Libre: imprimir, ir por cada
+// producto, escanearlo para confirmar antes de empacar). Mismo patron
+// de ventana nueva + window.print() que ya usa low-stock.js.
+
+function pmkImprimirPedido(pedidoId) {
+    const pedido = pedidosMarketCache.find(p => p.id === pedidoId);
+    if (!pedido) return;
+
+    const negocio = configuracionNegocio() || {};
+
+    const filasHtml = (pedido.items || []).map(item => `
+        <tr>
+            <td>${escaparPOS(item.codigo || "")}</td>
+            <td>${escaparPOS(item.nombre)}</td>
+            <td>${escaparPOS(item.ubicacion || "-")}</td>
+            <td class="pmk-print-cantidad">${item.cantidad}</td>
+        </tr>
+    `).join("");
+
+    const ventana = window.open("", "_blank", "width=420,height=680");
+    if (!ventana) {
+        alertaPOS("El navegador bloqueo la ventana de impresion. Permite ventanas emergentes e intenta de nuevo.", "Imprimir pedido", "alerta");
+        return;
+    }
+
+    ventana.document.write(`
+        <html>
+        <head>
+        <title>Pedido ${escaparPOS(pedido.codigoRecogida)}</title>
+        <style>
+            body{font-family:Arial,sans-serif;color:#111827;padding:20px;}
+            h1{font-size:20px;margin:0 0 2px;}
+            .pmk-print-negocio{color:#667085;font-size:12px;margin-bottom:14px;}
+            .pmk-print-codigo{font-size:16px;font-weight:800;letter-spacing:.04em;margin-bottom:8px;}
+            .pmk-print-dato{font-size:13px;color:#344054;margin:2px 0;}
+            table{width:100%;border-collapse:collapse;margin-top:16px;}
+            th,td{border-bottom:1px solid #d0d5dd;padding:8px 6px;text-align:left;font-size:13px;}
+            th{font-size:11px;text-transform:uppercase;color:#667085;}
+            .pmk-print-cantidad{text-align:center;font-weight:800;}
+            .pmk-print-total{margin-top:16px;font-size:15px;font-weight:800;text-align:right;}
+        </style>
+        </head>
+        <body>
+            <h1>Pedido para preparar</h1>
+            <div class="pmk-print-negocio">${escaparPOS(negocio.nombre || "")}</div>
+            <div class="pmk-print-codigo">${escaparPOS(pedido.codigoRecogida)}</div>
+            <div class="pmk-print-dato">Cliente: ${escaparPOS(pedido.clienteNombre)}</div>
+            ${pedido.clienteTelefono ? `<div class="pmk-print-dato">Telefono: ${escaparPOS(pedido.clienteTelefono)}</div>` : ""}
+            <table>
+                <thead><tr><th>Codigo</th><th>Producto</th><th>Ubicacion</th><th>Cant.</th></tr></thead>
+                <tbody>${filasHtml}</tbody>
+            </table>
+            <div class="pmk-print-total">Total: ${dinero(pedido.total || 0)}</div>
+            <script>window.print();</script>
+        </body>
+        </html>
+    `);
+    ventana.document.close();
+}
+
+// ---------------------------------------------------------------------
+// Verificacion de picking por item -- flujo tipo almacen: se escanea
+// (camara o entrada manual, sirve tambien para lector USB que actua
+// como teclado) cada producto del pedido para marcarlo verificado antes
+// de "Marcar como listo". Productos sin codigo de barras real se
+// verifican a mano con una confirmacion explicita. Reusa
+// pmkCargarZxing() (el mismo lector de la verificacion de entrega) pero
+// con un lector propio que sigue escaneando en bucle -- aqui no se
+// cierra tras la primera lectura porque un pedido normalmente trae
+// varios productos.
+
+let pmkVerifLectorActivo = null;
+let pmkVerifControlesEscaneo = null;
+let pmkVerifPedidoIdActivo = null;
+
+function pmkDetenerEscaneoVerificacion() {
+    if (pmkVerifControlesEscaneo) {
+        try { pmkVerifControlesEscaneo.stop(); } catch (error) { /* nada que hacer */ }
+        pmkVerifControlesEscaneo = null;
+    }
+    pmkVerifLectorActivo = null;
+}
+
+function pmkVerificacionItemFilaHtml(item) {
+    const verificado = Boolean(item.verificado);
+    return `
+    <div class="pmk-verif-item ${verificado ? "pmk-verif-item-ok" : ""}" data-verif-item-id="${item.id}">
+        ${pmkFotoItemHtml(item)}
+        <div class="pmk-verif-item-info">
+            <strong>${escaparPOS(item.nombre)}</strong>
+            <small>${escaparPOS(item.codigo || "")} &middot; Cantidad: ${item.cantidad}</small>
+        </div>
+        ${verificado
+            ? `<span class="pmk-verif-badge-ok">✓ Verificado</span>`
+            : `<button type="button" class="pmk-btn-secundario pmk-verif-manual-boton" data-verif-manual-id="${item.id}">Verificar manualmente</button>`
+        }
+    </div>
+    `;
+}
+
+function pmkActualizarModalVerificacion(pedido) {
+    const cuerpo = document.getElementById("pmkVerifCuerpo");
+    const progreso = document.getElementById("pmkVerifProgreso");
+    if (!cuerpo || !progreso) return;
+
+    const { verificados, total } = pmkContarVerificados(pedido);
+    progreso.textContent = `${verificados} de ${total} productos verificados`;
+    progreso.parentElement.querySelector(".pmk-verif-progreso-barra")
+        ?.style.setProperty("width", total > 0 ? `${Math.round((verificados / total) * 100)}%` : "0%");
+
+    cuerpo.innerHTML = (pedido.items || []).map(pmkVerificacionItemFilaHtml).join("");
+
+    cuerpo.querySelectorAll("[data-verif-manual-id]").forEach(boton => {
+        boton.onclick = () => pmkVerificarItemManual(pedido.id, Number(boton.dataset.verifManualId));
+    });
+}
+
+async function pmkGuardarVerificacionItem(pedidoId, itemId, metodo, codigo) {
+    const respuesta = await fetch(`/negocio-actual/pedidos-market/${pedidoId}/items/${itemId}/verificar`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metodo, codigo })
+    });
+    return respuesta.json();
+}
+
+async function pmkVerificarItemManual(pedidoId, itemId) {
+    const pedido = pedidosMarketCache.find(p => p.id === pedidoId);
+    const item = pedido?.items?.find(i => i.id === itemId);
+    if (!pedido || !item) return;
+
+    const confirmado = await confirmarPOS(
+        `Verifica con cuidado que este producto sea "${item.nombre}" antes de confirmar -- no se esta comprobando por codigo.`,
+        "Verificar manualmente",
+        "alerta"
+    );
+    if (!confirmado) return;
+
+    try {
+        const datos = await pmkGuardarVerificacionItem(pedidoId, itemId, "manual", null);
+        if (!datos.ok) {
+            await alertaPOS(datos.error || "No se pudo verificar el producto.", "Error", "peligro");
+            return;
+        }
+
+        pedido.items = datos.items;
+        pmkActualizarModalVerificacion(pedido);
+        renderPedidosMarket();
+    } catch (error) {
+        await alertaPOS("No se pudo verificar el producto. Intenta de nuevo.", "Error", "peligro");
+    }
+}
+
+async function pmkIntentarVerificarPorCodigo(pedidoId, codigoCrudo) {
+    const codigo = pmkExtraerCodigoEscaneado(codigoCrudo);
+    if (!codigo) return;
+
+    const pedido = pedidosMarketCache.find(p => p.id === pedidoId);
+    if (!pedido) return;
+
+    const estado = document.getElementById("pmkVerifEscaneoEstado");
+    const itemCoincidente = (pedido.items || []).find(item =>
+        !item.verificado && String(item.codigo || "").toLowerCase() === codigo.toLowerCase()
+    );
+
+    if (!itemCoincidente) {
+        if (estado) {
+            estado.textContent = "Ese codigo no corresponde a ningun producto pendiente de este pedido.";
+            estado.classList.add("pmk-verif-escaneo-error");
+        }
+        return;
+    }
+
+    try {
+        const datos = await pmkGuardarVerificacionItem(pedidoId, itemCoincidente.id, "escaneo", codigo);
+        if (!datos.ok) {
+            if (estado) {
+                estado.textContent = datos.error || "No se pudo verificar el producto.";
+                estado.classList.add("pmk-verif-escaneo-error");
+            }
+            return;
+        }
+
+        pedido.items = datos.items;
+        pmkActualizarModalVerificacion(pedido);
+        renderPedidosMarket();
+        pmkReproducirBeep();
+
+        if (estado) {
+            estado.textContent = `"${itemCoincidente.nombre}" verificado.`;
+            estado.classList.remove("pmk-verif-escaneo-error");
+        }
+    } catch (error) {
+        if (estado) {
+            estado.textContent = "No se pudo verificar el producto. Intenta de nuevo.";
+            estado.classList.add("pmk-verif-escaneo-error");
+        }
+    }
+}
+
+async function pmkIniciarEscaneoVerificacion(pedidoId) {
+    const video = document.getElementById("pmkVerifVideo");
+    const estado = document.getElementById("pmkVerifEscaneoEstado");
+    if (!video || !estado) return;
+
+    estado.textContent = "Cargando lector...";
+    estado.classList.remove("pmk-verif-escaneo-error");
+
+    try {
+        await pmkCargarZxing();
+    } catch (error) {
+        estado.textContent = "No se pudo cargar el lector de codigos.";
+        estado.classList.add("pmk-verif-escaneo-error");
+        return;
+    }
+
+    if (pmkVerifPedidoIdActivo !== pedidoId) return;
+
+    estado.textContent = "Abriendo camara...";
+
+    try {
+        pmkVerifLectorActivo = new window.ZXingBrowser.BrowserMultiFormatReader();
+
+        pmkVerifControlesEscaneo = await pmkVerifLectorActivo.decodeFromVideoDevice(undefined, video, (resultado, error, controles) => {
+            if (!resultado || pmkVerifPedidoIdActivo !== pedidoId) return;
+            pmkIntentarVerificarPorCodigo(pedidoId, resultado.getText());
+        });
+
+        if (pmkVerifPedidoIdActivo === pedidoId) estado.textContent = "Apunta la camara a cada codigo de barras.";
+    } catch (error) {
+        estado.textContent = "No se pudo abrir la camara. Revisa los permisos del navegador.";
+        estado.classList.add("pmk-verif-escaneo-error");
+    }
+}
+
+function pmkAbrirVerificacionProductos(pedidoId) {
+    const pedido = pedidosMarketCache.find(p => p.id === pedidoId);
+    if (!pedido) return;
+
+    let modal = document.getElementById("modalVerificacionProductosMarket");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "modalVerificacionProductosMarket";
+        modal.className = "modal-personalizado pmk-modal-verif-productos";
+        document.body.appendChild(modal);
+    }
+
+    function cerrar() {
+        pmkDetenerEscaneoVerificacion();
+        pmkVerifPedidoIdActivo = null;
+        document.removeEventListener("keydown", alEscape, { capture: true });
+        modal.style.display = "none";
+        modal.innerHTML = "";
+        renderPedidosMarket();
+    }
+
+    function alEscape(evento) {
+        if (evento.key === "Escape") cerrar();
+    }
+
+    pmkVerifPedidoIdActivo = pedidoId;
+
+    modal.innerHTML = `
+        <div class="pmk-verif-productos-caja">
+            <div class="pmk-detalle-cabecera">
+                <div>
+                    <h3>Verificar productos</h3>
+                    <p class="pmk-verificacion-cliente">Pedido ${escaparPOS(pedido.codigoRecogida)}</p>
+                </div>
+                <button type="button" class="pmk-detalle-cerrar" id="pmkVerifCerrarBoton">&times;</button>
+            </div>
+
+            <div class="pmk-verif-progreso">
+                <div class="pmk-verif-progreso-barra-fondo"><div class="pmk-verif-progreso-barra"></div></div>
+                <span id="pmkVerifProgreso"></span>
+            </div>
+
+            <div class="pmk-verif-escaneo">
+                <video id="pmkVerifVideo" class="pmk-escaneo-video" autoplay muted playsinline></video>
+                <div id="pmkVerifEscaneoEstado" class="pmk-escaneo-estado">Iniciando...</div>
+                <form id="pmkVerifManualForm" class="pmk-verif-manual-form">
+                    <input type="text" id="pmkVerifManualInput" placeholder="O escribe / escanea con lector USB el codigo aqui" autocomplete="off">
+                    <button type="submit" class="pmk-btn-secundario">Verificar codigo</button>
+                </form>
+            </div>
+
+            <div id="pmkVerifCuerpo" class="pmk-verif-cuerpo"></div>
+        </div>
+    `;
+
+    modal.style.display = "flex";
+    document.addEventListener("keydown", alEscape, { capture: true });
+    modal.addEventListener("click", evento => { if (evento.target === modal) cerrar(); });
+    document.getElementById("pmkVerifCerrarBoton").onclick = cerrar;
+
+    document.getElementById("pmkVerifManualForm").onsubmit = evento => {
+        evento.preventDefault();
+        const input = document.getElementById("pmkVerifManualInput");
+        const codigo = input.value.trim();
+        if (!codigo) return;
+        pmkIntentarVerificarPorCodigo(pedidoId, codigo);
+        input.value = "";
+        input.focus();
+    };
+
+    pmkActualizarModalVerificacion(pedido);
+    pmkIniciarEscaneoVerificacion(pedidoId);
 }
