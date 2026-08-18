@@ -162,6 +162,39 @@ button{
     opacity:.6;
 }
 
+.dueno-login-alt{
+    margin:16px 0 0;
+}
+
+.dueno-login-alt a{
+    color:var(--brand);
+    font-size:12.5px;
+    font-weight:700;
+    text-decoration:none;
+}
+
+.dueno-login-alt a:hover{
+    text-decoration:underline;
+}
+
+.dueno-login-selector{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin:0 0 14px;
+}
+
+.dueno-login-selector button{
+    width:100%;
+    min-height:44px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:var(--surface-soft);
+    color:var(--text);
+    font-weight:700;
+    font-size:14px;
+}
+
 /* ---------------- onboarding (primera vez) ---------------- */
 
 .dueno-onboarding{
@@ -1497,4 +1530,104 @@ button{
         border-radius:20px;
         border:1px solid var(--line);
     }
+}
+
+/* ---------------- pestaña Pedidos (Nexo Market) ---------------- */
+
+.fila-dueno-pedido{
+    flex-direction:column;
+    align-items:stretch;
+    gap:8px;
+}
+
+.dueno-ped-acciones{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+}
+
+.dueno-boton-primario-chico,
+.dueno-boton-secundario-chico{
+    min-height:34px;
+    padding:0 14px;
+    border-radius:10px;
+    font-size:12.5px;
+    font-weight:700;
+}
+
+.dueno-boton-primario-chico{
+    border:none;
+    background:var(--brand);
+    color:#fff;
+}
+
+.dueno-boton-secundario-chico{
+    border:1px solid var(--line);
+    background:var(--surface);
+    color:var(--text);
+}
+
+.dueno-ped-verif-progreso{
+    margin-bottom:14px;
+}
+
+.dueno-ped-verif-progreso-fondo{
+    height:6px;
+    border-radius:999px;
+    background:var(--surface-soft);
+    overflow:hidden;
+    margin-bottom:6px;
+}
+
+.dueno-ped-verif-progreso-barra{
+    height:100%;
+    width:0;
+    border-radius:999px;
+    background:var(--green);
+    transition:width .2s ease;
+}
+
+.dueno-ped-verif-escaneo{
+    margin-bottom:14px;
+}
+
+.dueno-ped-verif-video{
+    width:100%;
+    max-height:220px;
+    border-radius:14px;
+    background:#000;
+    object-fit:cover;
+    margin-bottom:8px;
+}
+
+.dueno-ped-verif-manual-form{
+    display:flex;
+    gap:8px;
+    margin-top:8px;
+}
+
+.dueno-ped-verif-manual-form input{
+    flex:1;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    background:var(--surface-soft);
+    color:var(--text);
+    font-size:13px;
+}
+
+.dueno-ped-verif-item{
+    align-items:center;
+}
+
+.dueno-ped-verif-item-ok{
+    background:var(--green-soft);
+}
+
+.dueno-ped-verif-badge{
+    flex-shrink:0;
+    color:var(--green);
+    font-size:12px;
+    font-weight:800;
 }

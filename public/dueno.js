@@ -140,9 +140,160 @@ async function iniciarSesionDueno() {
         document.getElementById("duenoNegocio").textContent =
         datos.negocio?.nombre || "Tu negocio";
 
+        duenoRolSesion = "owner";
+        aplicarRolShellDueno();
         mostrarAppDueno();
         cargarPanelDueno();
         actualizarNexoBurbujaDueno();
+    } catch (error) {
+        cajaError.textContent = "No se pudo conectar. Revisa tu internet e intenta de nuevo.";
+        cajaError.style.display = "block";
+    } finally {
+        boton.disabled = false;
+        boton.textContent = "Entrar";
+    }
+}
+
+let duenoPersonaTokenTemporal = null;
+
+function mostrarLoginEmpleadoDueno() {
+    document.getElementById("duenoLoginCajaDueno").style.display = "none";
+    document.getElementById("duenoLoginCajaEmpleado").style.display = "block";
+}
+
+function mostrarLoginDuenoNormal() {
+    document.getElementById("duenoLoginCajaEmpleado").style.display = "none";
+    document.getElementById("duenoLoginCajaDueno").style.display = "block";
+}
+
+function entrarComoEmpleadoDueno(negocioId) {
+    return fetch("/personas/entrar-como-empleado", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-persona-token": duenoPersonaTokenTemporal },
+        body: JSON.stringify(negocioId ? { negocioId } : {})
+    }).then(respuesta => respuesta.json());
+}
+
+function completarLoginEmpleadoDueno(datos) {
+    duenoPersonaTokenTemporal = null;
+    localStorage.setItem(DUENO_TOKEN_KEY, datos.token);
+
+    document.getElementById("duenoNegocio").textContent =
+    datos.negocio?.nombre || "Tu negocio";
+
+    duenoRolSesion = datos.rol === "employee" ? "employee" : "owner";
+    mostrarAppDueno();
+    aplicarRolShellDueno();
+
+    // aplicarRolShellDueno() ya cambia a Pedidos (y lo carga) para un
+    // empleado -- el dashboard de Inicio es solo para dueño.
+    if (duenoRolSesion !== "employee") cargarPanelDueno();
+
+    actualizarNexoBurbujaDueno();
+}
+
+function mostrarSelectorNegocioEmpleadoDueno(negocios) {
+    const boton =
+    document.getElementById("btnDuenoLoginEmpleado");
+
+    boton.style.display = "none";
+
+    const selector =
+    document.getElementById("duenoLoginEmpleadoSelector");
+
+    selector.innerHTML =
+    `<p style="margin:0 0 8px;font-size:12.5px;font-weight:700;color:var(--muted);">¿A qué negocio quieres entrar?</p>` +
+    `<div class="dueno-login-selector">${negocios.map(negocio =>
+        `<button type="button" data-negocio-id="${negocio.id}">${escaparDueno(negocio.nombre)}</button>`
+    ).join("")}</div>`;
+
+    selector.style.display = "block";
+
+    selector.querySelectorAll("button[data-negocio-id]").forEach(botonNegocio => {
+        botonNegocio.addEventListener("click", async () => {
+            const cajaError = document.getElementById("duenoLoginEmpleadoError");
+            cajaError.style.display = "none";
+
+            try {
+                const datos = await entrarComoEmpleadoDueno(Number(botonNegocio.dataset.negocioId));
+
+                if (!datos.ok) {
+                    cajaError.textContent = datos.error || "No se pudo iniciar sesion.";
+                    cajaError.style.display = "block";
+                    return;
+                }
+
+                completarLoginEmpleadoDueno(datos);
+            } catch (error) {
+                cajaError.textContent = "No se pudo conectar. Revisa tu internet e intenta de nuevo.";
+                cajaError.style.display = "block";
+            }
+        });
+    });
+}
+
+async function iniciarSesionEmpleadoDueno() {
+    const identificador =
+    document.getElementById("duenoLoginEmpleadoId")?.value.trim();
+
+    const password =
+    document.getElementById("duenoLoginEmpleadoPassword")?.value || "";
+
+    const cajaError =
+    document.getElementById("duenoLoginEmpleadoError");
+
+    const boton =
+    document.getElementById("btnDuenoLoginEmpleado");
+
+    const selector =
+    document.getElementById("duenoLoginEmpleadoSelector");
+
+    cajaError.style.display = "none";
+    selector.style.display = "none";
+    boton.style.display = "block";
+
+    if (!identificador || !password) {
+        cajaError.textContent = "Escribe tu correo/telefono y tu contraseña.";
+        cajaError.style.display = "block";
+        return;
+    }
+
+    boton.disabled = true;
+    boton.textContent = "Entrando...";
+
+    try {
+        const respuestaPersona =
+        await fetch("/personas/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ identificador, password })
+        });
+
+        const datosPersona =
+        await respuestaPersona.json();
+
+        if (!datosPersona.ok) {
+            cajaError.textContent = datosPersona.error || "No se pudo iniciar sesion.";
+            cajaError.style.display = "block";
+            return;
+        }
+
+        duenoPersonaTokenTemporal = datosPersona.token;
+
+        const datos = await entrarComoEmpleadoDueno(null);
+
+        if (!datos.ok) {
+            cajaError.textContent = datos.error || "No se pudo iniciar sesion.";
+            cajaError.style.display = "block";
+            return;
+        }
+
+        if (datos.requiereSeleccion) {
+            mostrarSelectorNegocioEmpleadoDueno(datos.negocios);
+            return;
+        }
+
+        completarLoginEmpleadoDueno(datos);
     } catch (error) {
         cajaError.textContent = "No se pudo conectar. Revisa tu internet e intenta de nuevo.";
         cajaError.style.display = "block";
@@ -399,19 +550,54 @@ function cambiarTabDueno(tab) {
     document.getElementById("duenoReportes").style.display = tab === "reportes" ? "block" : "none";
     document.getElementById("duenoVentas").style.display = tab === "ventas" ? "block" : "none";
     document.getElementById("duenoInventario").style.display = tab === "inventario" ? "block" : "none";
+    document.getElementById("duenoPedidos").style.display = tab === "pedidos" ? "block" : "none";
     document.getElementById("duenoMas").style.display = tab === "mas" ? "block" : "none";
 
     const burbujaNexo =
     document.getElementById("duenoNexoBurbuja");
 
-    if (burbujaNexo) burbujaNexo.style.display = tab === "reportes" ? "none" : "flex";
+    if (burbujaNexo) burbujaNexo.style.display = (tab === "reportes" || tab === "pedidos") ? "none" : "flex";
 
     if (tab !== "mas") cerrarSubpantallaMasDueno();
 
     if (tab === "reportes") cargarPanelReportesDueno();
     if (tab === "ventas") cargarPanelVentasDueno();
     if (tab === "inventario") cargarPanelInventarioDueno();
+    if (tab === "pedidos") cargarPanelPedidosDueno();
     if (tab === "mas") cargarPanelMasDueno();
+}
+
+// Fase 1 del ecosistema Nexo: pestañas que solo tienen sentido para el
+// dueño (dashboards, cotizaciones, catalogo completo, configuracion) --
+// "Pedidos" queda fuera de este set porque la ve tanto el dueño como el
+// empleado desde el dia uno. Mismo espiritu que CATEGORIAS_MAS_DUENO:
+// un dato central en vez de checks de rol repartidos por el codigo.
+const DUENO_TABS_SOLO_DUENO = new Set(["inicio", "reportes", "ventas", "inventario", "mas"]);
+let duenoRolSesion = "owner";
+
+function aplicarRolShellDueno() {
+    const esEmpleado = duenoRolSesion === "employee";
+
+    document.querySelectorAll(".dueno-tabs button[data-tab]").forEach(boton => {
+        boton.style.display = (esEmpleado && DUENO_TABS_SOLO_DUENO.has(boton.dataset.tab)) ? "none" : "";
+    });
+
+    if (esEmpleado) cambiarTabDueno("pedidos");
+}
+
+async function sincronizarRolSesionDueno() {
+    try {
+        const datos = await fetchAutenticado("/negocio-actual");
+        duenoRolSesion = datos.rol || "owner";
+    } catch (error) {
+        duenoRolSesion = "owner";
+    }
+
+    aplicarRolShellDueno();
+
+    // aplicarRolShellDueno() ya cambia a la pestaña Pedidos (y la carga)
+    // cuando es empleado -- el dashboard de Inicio es solo para dueño.
+    if (duenoRolSesion !== "employee") cargarPanelDueno();
 }
 
 function cambiarSubtabVentasDueno(subtab) {
@@ -1050,6 +1236,307 @@ async function filtrarInventarioDueno() {
                 </div>
             `).join("")
             : `<div class="vacio">Sin productos en tu catalogo guardado${texto.trim() || duenoInventarioCategoria ? " que coincidan" : ""}.</div>`;
+}
+
+// ---------------- pestaña Pedidos (Nexo Market) ----------------
+//
+// Primera pantalla real que un empleado puede usar dentro de la app de
+// Play Store -- mismo backend que ya usa la pantalla "Pedidos" del POS
+// de escritorio (market-pedidos-server.js), sin cambios de servidor.
+// El escaneo reusa el mismo bundle vendored (~400KB, @zxing/browser)
+// que pedidos-market-view.js ya carga bajo demanda -- no se reinventa.
+
+let duenoPedidosCache = [];
+let duenoPedidosGrupoActual = "nuevos";
+let duenoPedidoDetalleId = null;
+
+const DUENO_PED_ACCIONES_POR_ESTADO = {
+    pendiente: [{ accion: "aceptar", texto: "Aceptar", clase: "dueno-boton-primario-chico" }, { accion: "rechazar", texto: "Rechazar", clase: "dueno-boton-secundario-chico" }],
+    confirmado: [{ accion: "marcar_listo", texto: "Marcar listo", clase: "dueno-boton-primario-chico" }],
+    preparando: [{ accion: "marcar_listo", texto: "Marcar listo", clase: "dueno-boton-primario-chico" }],
+    listo: [{ accion: "entregar", texto: "Confirmar entrega", clase: "dueno-boton-primario-chico" }]
+};
+
+function duenoPedEtiquetaEstado(estado) {
+    const mapa = {
+        pendiente: "Nuevo", confirmado: "Preparando", preparando: "Preparando",
+        listo: "Listo para recoger", entregado: "Entregado", cancelado: "Cancelado"
+    };
+    return mapa[estado] || estado;
+}
+
+function cambiarEstadoPedidosDueno(grupo) {
+    duenoPedidosGrupoActual = grupo;
+
+    document.querySelectorAll("#duenoPedidosSubtabs button").forEach(boton => {
+        boton.classList.toggle("activo", boton.dataset.estado === grupo);
+    });
+
+    cargarPanelPedidosDueno();
+}
+
+async function cargarPanelPedidosDueno() {
+    const estadoTexto =
+    document.getElementById("duenoPedidosEstado");
+
+    if (estadoTexto) estadoTexto.textContent = "Actualizando...";
+
+    try {
+        duenoPedidosCache =
+        (await fetchAutenticado(`/negocio-actual/pedidos-market?estado=${encodeURIComponent(duenoPedidosGrupoActual)}`)).pedidos || [];
+
+        if (estadoTexto) {
+            estadoTexto.textContent = duenoPedidosCache.length
+                ? `${duenoPedidosCache.length} pedido${duenoPedidosCache.length === 1 ? "" : "s"}`
+                : "Sin pedidos en este grupo";
+        }
+
+        document.getElementById("duenoPedidosLista").innerHTML =
+            duenoPedidosCache.length
+                ? duenoPedidosCache.map(duenoPedFilaHtml).join("")
+                : `<div class="vacio">No hay pedidos aqui por ahora.</div>`;
+    } catch (error) {
+        if (estadoTexto) estadoTexto.textContent = "No se pudo conectar con el POS";
+    }
+}
+
+function duenoPedFilaHtml(pedido) {
+    const acciones = DUENO_PED_ACCIONES_POR_ESTADO[pedido.estado] || [];
+
+    return `
+    <div class="fila-dueno fila-dueno-pedido">
+        <div onclick="abrirDetallePedidoDueno(${pedido.id})">
+            <strong>${escaparDueno(pedido.clienteNombre || "Cliente")}</strong>
+            <span>${escaparDueno(pedido.codigoRecogida)} · ${duenoPedEtiquetaEstado(pedido.estado)} · ${dinero(pedido.total)}</span>
+        </div>
+        <div class="dueno-ped-acciones">
+            ${acciones.map(a => `<button type="button" class="${a.clase}" onclick="accionPedidoDueno(${pedido.id}, '${a.accion}')">${a.texto}</button>`).join("")}
+            <button type="button" class="dueno-link" onclick="abrirDetallePedidoDueno(${pedido.id})">Ver detalle</button>
+        </div>
+    </div>
+    `;
+}
+
+async function accionPedidoDueno(id, accion) {
+    if ((accion === "rechazar" || accion === "cancelar") && !confirm("¿Seguro que quieres cancelar este pedido?")) return;
+
+    try {
+        const respuesta = await fetchAutenticado(`/negocio-actual/pedidos-market/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ accion })
+        });
+
+        if (!respuesta.ok) {
+            mostrarToastDueno(respuesta.error || "No se pudo actualizar el pedido.");
+            return;
+        }
+
+        mostrarToastDueno("Pedido actualizado.");
+        cargarPanelPedidosDueno();
+    } catch (error) {
+        mostrarToastDueno("No se pudo conectar con el POS.");
+    }
+}
+
+function duenoPedContarVerificados(pedido) {
+    const items = pedido.items || [];
+    return { verificados: items.filter(i => i.verificado).length, total: items.length };
+}
+
+function duenoPedVerifItemFilaHtml(item) {
+    const verificado = Boolean(item.verificado);
+    return `
+    <div class="fila-dueno dueno-ped-verif-item ${verificado ? "dueno-ped-verif-item-ok" : ""}">
+        <div>
+            <strong>${escaparDueno(item.nombre)}</strong>
+            <span>${escaparDueno(item.codigo || "")} · Cantidad: ${item.cantidad}</span>
+        </div>
+        ${verificado
+            ? `<span class="dueno-ped-verif-badge">✓ Verificado</span>`
+            : `<button type="button" class="dueno-boton-secundario-chico" onclick="verificarItemManualDueno(${item.id})">Verificar manual</button>`}
+    </div>
+    `;
+}
+
+function duenoPedActualizarDetalle(pedido) {
+    const { verificados, total } = duenoPedContarVerificados(pedido);
+    const progreso = document.getElementById("duenoPedVerifProgreso");
+    if (progreso) progreso.textContent = total > 0 ? `${verificados} de ${total} productos verificados` : "Este pedido no tiene productos con codigo para verificar.";
+
+    const barra = document.getElementById("duenoPedVerifBarra");
+    if (barra) barra.style.width = total > 0 ? `${Math.round((verificados / total) * 100)}%` : "0%";
+
+    const cuerpo = document.getElementById("duenoPedVerifCuerpo");
+    if (cuerpo) cuerpo.innerHTML = (pedido.items || []).map(duenoPedVerifItemFilaHtml).join("");
+}
+
+async function duenoPedGuardarVerificacion(pedidoId, itemId, metodo, codigo) {
+    const respuesta = await fetch(`/negocio-actual/pedidos-market/${pedidoId}/items/${itemId}/verificar`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenGuardado()}` },
+        body: JSON.stringify({ metodo, codigo })
+    });
+    return respuesta.json();
+}
+
+async function verificarItemManualDueno(itemId) {
+    const pedido = duenoPedidosCache.find(p => p.id === duenoPedidoDetalleId);
+    const item = pedido?.items?.find(i => i.id === itemId);
+    if (!pedido || !item) return;
+
+    if (!confirm(`Verifica con cuidado que este producto sea "${item.nombre}" antes de confirmar -- no se esta comprobando por codigo.`)) return;
+
+    try {
+        const datos = await duenoPedGuardarVerificacion(pedido.id, itemId, "manual", null);
+        if (!datos.ok) {
+            mostrarToastDueno(datos.error || "No se pudo verificar el producto.");
+            return;
+        }
+
+        pedido.items = datos.items;
+        duenoPedActualizarDetalle(pedido);
+    } catch (error) {
+        mostrarToastDueno("No se pudo verificar el producto. Intenta de nuevo.");
+    }
+}
+
+async function duenoPedIntentarVerificarPorCodigo(codigoCrudo) {
+    const codigo = String(codigoCrudo || "").trim();
+    if (!codigo) return;
+
+    const pedido = duenoPedidosCache.find(p => p.id === duenoPedidoDetalleId);
+    if (!pedido) return;
+
+    const estado = document.getElementById("duenoPedVerifEscaneoEstado");
+    const itemCoincidente = (pedido.items || []).find(item =>
+        !item.verificado && String(item.codigo || "").toLowerCase() === codigo.toLowerCase()
+    );
+
+    if (!itemCoincidente) {
+        if (estado) estado.textContent = "Ese codigo no corresponde a ningun producto pendiente de este pedido.";
+        return;
+    }
+
+    try {
+        const datos = await duenoPedGuardarVerificacion(pedido.id, itemCoincidente.id, "escaneo", codigo);
+        if (!datos.ok) {
+            if (estado) estado.textContent = datos.error || "No se pudo verificar el producto.";
+            return;
+        }
+
+        pedido.items = datos.items;
+        duenoPedActualizarDetalle(pedido);
+        if (estado) estado.textContent = `"${itemCoincidente.nombre}" verificado.`;
+    } catch (error) {
+        if (estado) estado.textContent = "No se pudo verificar el producto. Intenta de nuevo.";
+    }
+}
+
+let duenoPedZxingCargando = null;
+let duenoPedControlesEscaneo = null;
+
+function duenoPedCargarZxing() {
+    if (window.ZXingBrowser) return Promise.resolve();
+    if (duenoPedZxingCargando) return duenoPedZxingCargando;
+
+    duenoPedZxingCargando = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "js/vendor/zxing-browser.min.js";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("No se pudo cargar el lector de codigos"));
+        document.body.appendChild(script);
+    });
+
+    return duenoPedZxingCargando;
+}
+
+function duenoPedDetenerEscaneo() {
+    if (duenoPedControlesEscaneo) {
+        try { duenoPedControlesEscaneo.stop(); } catch (error) { /* nada que hacer */ }
+        duenoPedControlesEscaneo = null;
+    }
+}
+
+async function duenoPedIniciarEscaneo() {
+    const video = document.getElementById("duenoPedVerifVideo");
+    const estado = document.getElementById("duenoPedVerifEscaneoEstado");
+    if (!video || !estado) return;
+
+    estado.textContent = "Cargando lector...";
+
+    try {
+        await duenoPedCargarZxing();
+    } catch (error) {
+        estado.textContent = "No se pudo cargar el lector de codigos.";
+        return;
+    }
+
+    if (!duenoPedidoDetalleId) return;
+
+    estado.textContent = "Abriendo camara...";
+
+    try {
+        const lector = new window.ZXingBrowser.BrowserMultiFormatReader();
+
+        duenoPedControlesEscaneo = await lector.decodeFromVideoDevice(undefined, video, (resultado) => {
+            if (!resultado || !duenoPedidoDetalleId) return;
+            duenoPedIntentarVerificarPorCodigo(resultado.getText());
+        });
+
+        estado.textContent = "Apunta la camara a cada codigo de barras.";
+    } catch (error) {
+        estado.textContent = "No se pudo abrir la camara. Revisa los permisos del navegador.";
+    }
+}
+
+function abrirDetallePedidoDueno(id) {
+    const pedido = duenoPedidosCache.find(p => p.id === id);
+    if (!pedido) return;
+
+    duenoPedidoDetalleId = id;
+
+    document.getElementById("duenoPedidoDetalleTitulo").textContent = `Pedido ${pedido.codigoRecogida}`;
+    document.getElementById("duenoPedidoDetalleContenido").innerHTML = `
+        <p class="dueno-estado">${escaparDueno(pedido.clienteNombre || "Cliente")} · ${dinero(pedido.total)}</p>
+
+        <div class="dueno-ped-verif-progreso">
+            <div class="dueno-ped-verif-progreso-fondo"><div id="duenoPedVerifBarra" class="dueno-ped-verif-progreso-barra"></div></div>
+            <span id="duenoPedVerifProgreso"></span>
+        </div>
+
+        <div class="dueno-ped-verif-escaneo">
+            <video id="duenoPedVerifVideo" class="dueno-ped-verif-video" autoplay muted playsinline></video>
+            <div id="duenoPedVerifEscaneoEstado" class="dueno-estado">Iniciando...</div>
+            <form id="duenoPedVerifManualForm" class="dueno-ped-verif-manual-form">
+                <input type="text" id="duenoPedVerifManualInput" placeholder="O escribe el codigo aqui" autocomplete="off">
+                <button type="submit" class="dueno-boton-secundario-chico">Verificar codigo</button>
+            </form>
+        </div>
+
+        <div id="duenoPedVerifCuerpo" class="lista-compacta"></div>
+    `;
+
+    document.getElementById("duenoPedVerifManualForm").onsubmit = evento => {
+        evento.preventDefault();
+        const input = document.getElementById("duenoPedVerifManualInput");
+        const codigo = input.value.trim();
+        if (!codigo) return;
+        duenoPedIntentarVerificarPorCodigo(codigo);
+        input.value = "";
+        input.focus();
+    };
+
+    document.getElementById("duenoPedidoDetalleOverlay").classList.add("abierta");
+    duenoPedActualizarDetalle(pedido);
+    duenoPedIniciarEscaneo();
+}
+
+function cerrarDetallePedidoDueno() {
+    duenoPedDetenerEscaneo();
+    duenoPedidoDetalleId = null;
+    document.getElementById("duenoPedidoDetalleOverlay").classList.remove("abierta");
+    cargarPanelPedidosDueno();
 }
 
 // ---------------- pestaña Más: navegacion tipo Ajustes ----------------
@@ -1839,12 +2326,21 @@ window.addEventListener("load", () => {
         });
     });
 
+    [
+        document.getElementById("duenoLoginEmpleadoId"),
+        document.getElementById("duenoLoginEmpleadoPassword")
+    ].forEach(campo => {
+        campo?.addEventListener("keydown", evento => {
+            if (evento.key === "Enter") iniciarSesionEmpleadoDueno();
+        });
+    });
+
     if (tokenGuardado()) {
         localStorage.setItem(DUENO_ONBOARDING_KEY, "1");
         mostrarAppDueno();
-        cargarPanelDueno();
+        sincronizarRolSesionDueno();
         actualizarNexoBurbujaDueno();
-        setInterval(cargarPanelDueno, 60000);
+        setInterval(() => { if (duenoRolSesion !== "employee") cargarPanelDueno(); }, 60000);
         setInterval(actualizarNexoBurbujaDueno, 60000);
     } else if (!localStorage.getItem(DUENO_ONBOARDING_KEY)) {
         mostrarOnboardingDueno();

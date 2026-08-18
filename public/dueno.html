@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=dueno-modo-oscuro-20260721-01">
+    <link rel="stylesheet" href="dueno.css?v=rbac-empleado-20260818-01">
 </head>
 
 <body>
@@ -67,7 +67,7 @@
     </main>
 
     <main id="duenoLogin" class="dueno-login">
-        <div class="dueno-login-caja">
+        <div class="dueno-login-caja" id="duenoLoginCajaDueno">
             <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-login-nexo">
             <h1>Panel del dueño</h1>
             <p>Entra con el correo y la contraseña de tu cuenta Nexo.</p>
@@ -79,6 +79,23 @@
             </label>
             <p id="duenoLoginError" class="dueno-login-error" style="display:none;"></p>
             <button id="btnDuenoLogin" type="button" onclick="iniciarSesionDueno()">Entrar</button>
+            <p class="dueno-login-alt"><a href="#" onclick="mostrarLoginEmpleadoDueno(); return false;">¿Eres empleado? Entra con tu cuenta Nexo</a></p>
+        </div>
+
+        <div class="dueno-login-caja" id="duenoLoginCajaEmpleado" style="display:none;">
+            <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-login-nexo">
+            <h1>Acceso de empleado</h1>
+            <p>Entra con el correo/teléfono y la contraseña de tu cuenta Nexo.</p>
+            <label>Correo o teléfono
+                <input type="text" id="duenoLoginEmpleadoId" autocomplete="username" placeholder="correo@ejemplo.com">
+            </label>
+            <label>Contraseña
+                <input type="password" id="duenoLoginEmpleadoPassword" autocomplete="current-password" placeholder="Tu contraseña">
+            </label>
+            <p id="duenoLoginEmpleadoError" class="dueno-login-error" style="display:none;"></p>
+            <div id="duenoLoginEmpleadoSelector" style="display:none;"></div>
+            <button id="btnDuenoLoginEmpleado" type="button" onclick="iniciarSesionEmpleadoDueno()">Entrar</button>
+            <p class="dueno-login-alt"><a href="#" onclick="mostrarLoginDuenoNormal(); return false;">¿Eres el dueño? Entra con tu cuenta de negocio</a></p>
         </div>
     </main>
 
@@ -314,6 +331,36 @@
         </article>
     </main>
 
+    <main id="duenoPedidos" class="dueno-app" style="display:none;">
+        <header class="dueno-header">
+            <div>
+                <p class="dueno-saludo">Nexo Market</p>
+                <h1>Pedidos</h1>
+                <p class="dueno-estado" id="duenoPedidosEstado">Cargando...</p>
+            </div>
+        </header>
+
+        <div id="duenoPedidosSubtabs" class="dueno-ventas-subtabs">
+            <button type="button" class="activo" data-estado="nuevos" onclick="cambiarEstadoPedidosDueno('nuevos')">Nuevos</button>
+            <button type="button" data-estado="preparando" onclick="cambiarEstadoPedidosDueno('preparando')">Preparando</button>
+            <button type="button" data-estado="listos" onclick="cambiarEstadoPedidosDueno('listos')">Listos</button>
+        </div>
+
+        <article class="dueno-card dueno-card-wide">
+            <div id="duenoPedidosLista" class="lista-compacta"></div>
+        </article>
+    </main>
+
+    <div id="duenoPedidoDetalleOverlay" class="dueno-mas-subpantalla">
+        <div class="dueno-subpantalla-inner">
+            <div class="dueno-subpantalla-header">
+                <button type="button" class="dueno-subpantalla-atras" onclick="cerrarDetallePedidoDueno()">&lsaquo; Atrás</button>
+                <h2 id="duenoPedidoDetalleTitulo"></h2>
+            </div>
+            <div id="duenoPedidoDetalleContenido"></div>
+        </div>
+    </div>
+
     <main id="duenoMas" class="dueno-app" style="display:none;">
         <div id="duenoMasNivel1">
             <header class="dueno-header">
@@ -360,6 +407,11 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
             <span>Inventario</span>
         </button>
+        <button type="button" data-tab="pedidos" onclick="cambiarTabDueno('pedidos')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3.6l-1.6-2.7A1.8 1.8 0 0 0 13.2 3h-2.4a1.8 1.8 0 0 0-1.6 1.3L7.6 7H4a1 1 0 0 0-1 1v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a1 1 0 0 0-1-1z"/><path d="M9 12h6"/></svg>
+            <span>Pedidos</span>
+            <span id="duenoPedidosBadge" class="dueno-tab-badge" style="display:none;"></span>
+        </button>
         <button type="button" data-tab="mas" onclick="cambiarTabDueno('mas')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
             <span>Más</span>
@@ -405,7 +457,7 @@
     </div>
 
     <script src="dueno-offline.js?v=dueno-modo-oscuro-20260721-01"></script>
-    <script src="dueno.js?v=shell-unificado-20260816-01"></script>
+    <script src="dueno.js?v=rbac-empleado-20260818-01"></script>
 </body>
 
 </html>

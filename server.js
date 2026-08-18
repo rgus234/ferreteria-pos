@@ -45,6 +45,7 @@ const {
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
+const { resolverIdentidadNexo } = require("./rbac");
 const { calcularAntiguedadCredito } = require("./credit-aging");
 const { listarPlanes, listarCatalogoFunciones, funcionesDelPlan } = require("./features");
 const {
@@ -373,10 +374,12 @@ async function buscarNegocioPorLicencia(client, licenseKey) {
 app.get("/negocio-actual", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
+        const identidad = await resolverIdentidadNexo(req);
 
         res.json({
             ok: true,
-            negocio
+            negocio,
+            rol: identidad.rol
         });
     } catch (error) {
         responderError(res, error);
@@ -1086,7 +1089,8 @@ app.post("/cuenta/reenviar-verificacion", async (req, res) => {
 async function buscarNegocioPorTokenCuenta(token) {
     const fila = await pool.query(
         `
-        SELECT s.id AS sesion_id, n.id AS negocio_id, n.slug, n.nombre, n.correo, n.correo_verificado
+        SELECT s.id AS sesion_id, n.id AS negocio_id, n.slug, n.nombre, n.correo, n.correo_verificado,
+               s.persona_id, s.rol
         FROM public.sesiones_cuenta s
         JOIN public.negocios n ON n.id = s.negocio_id
         WHERE s.token_hash = $1 AND s.revocado_at IS NULL

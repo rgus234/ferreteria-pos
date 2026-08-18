@@ -223,6 +223,55 @@ async function mintearSesionParaNegocioDePersona(pool, personaId, negocioId, req
     return { token: tokenPlano, negocio: { id: fila.id, slug: fila.slug, nombre: fila.nombre } };
 }
 
+// Fase 1 del ecosistema Nexo: mismo espiritu que listarNegociosAdministrados,
+// pero mirando negocio_miembros (rol='employee') en vez de
+// negocios.persona_id -- para que /dueno pueda ofrecer un login de
+// empleado que resuelva a que negocio(s) entrar.
+async function listarNegociosDeEmpleado(pool, personaId) {
+    const resultado = await pool.query(
+        `
+        SELECT n.id, n.slug, n.nombre
+        FROM public.negocio_miembros m
+        JOIN public.negocios n ON n.id = m.negocio_id
+        WHERE m.persona_id = $1 AND m.rol = 'employee' AND m.activo = true
+        ORDER BY n.nombre
+        `,
+        [personaId]
+    );
+    return resultado.rows;
+}
+
+// Variante de mintearSesionParaNegocioDePersona para empleados: en vez
+// de filtrar por negocios.persona_id (dueño), verifica la membresia en
+// negocio_miembros. Mismo INSERT/formato de token que la sesion de
+// dueño, solo que ahora con persona_id+rol puestos para que rbac.js
+// pueda resolver permisos reales en vez de acceso total.
+async function mintearSesionEmpleadoDePersona(pool, personaId, negocioId, req) {
+    const miembro = await pool.query(
+        `
+        SELECT n.id, n.slug, n.nombre
+        FROM public.negocio_miembros m
+        JOIN public.negocios n ON n.id = m.negocio_id
+        WHERE m.negocio_id = $1 AND m.persona_id = $2 AND m.rol = 'employee' AND m.activo = true
+        LIMIT 1
+        `,
+        [negocioId, personaId]
+    );
+
+    if (miembro.rows.length === 0) return null;
+
+    const fila = miembro.rows[0];
+    const tokenPlano = generarTokenSeguro();
+    const dispositivo = limpiarTexto(req.headers["user-agent"], 200) || "Dispositivo desconocido";
+
+    await pool.query(
+        `INSERT INTO public.sesiones_cuenta (negocio_id, token_hash, dispositivo, ip, persona_id, rol) VALUES ($1, $2, $3, $4, $5, 'employee')`,
+        [fila.id, hashTokenSeguro(tokenPlano), dispositivo, req.ip, personaId]
+    );
+
+    return { token: tokenPlano, negocio: { id: fila.id, slug: fila.slug, nombre: fila.nombre } };
+}
+
 function registrarRutas(app, pool, requerirAccesoNegocio) {
     const requerirSesionPersona = crearRequerirSesionPersona(pool);
 
@@ -682,10 +731,52 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             responderError(res, error);
         }
     });
+
+    // Fase 1 del ecosistema Nexo: el segundo camino de login de /dueno
+    // (persona, no dueño) llega aqui despues de POST /personas/login --
+    // si la persona es empleada de un solo negocio entra directo, si de
+    // varios el frontend debe mandar negocioId (mismo patron que ya usa
+    // market-cuenta-server.js para 2+ negocios administrados).
+    app.post("/personas/entrar-como-empleado", requerirSesionPersona, async (req, res) => {
+        const negocioIdSolicitado = req.body?.negocioId ? Number(req.body.negocioId) : null;
+
+        try {
+            if (negocioIdSolicitado) {
+                const resultado = await mintearSesionEmpleadoDePersona(pool, req.persona.id, negocioIdSolicitado, req);
+
+                if (!resultado) {
+                    res.status(404).json({ ok: false, error: "No eres empleado de ese negocio" });
+                    return;
+                }
+
+                res.json({ ok: true, token: resultado.token, negocio: resultado.negocio, rol: "employee" });
+                return;
+            }
+
+            const negocios = await listarNegociosDeEmpleado(pool, req.persona.id);
+
+            if (negocios.length === 0) {
+                res.status(404).json({ ok: false, error: "No eres empleado de ningun negocio en Nexo" });
+                return;
+            }
+
+            if (negocios.length > 1) {
+                res.json({ ok: true, requiereSeleccion: true, negocios });
+                return;
+            }
+
+            const resultado = await mintearSesionEmpleadoDePersona(pool, req.persona.id, negocios[0].id, req);
+            res.json({ ok: true, token: resultado.token, negocio: resultado.negocio, rol: "employee" });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
 }
 
 module.exports = {
     registrarRutas,
+    listarNegociosDeEmpleado,
+    mintearSesionEmpleadoDePersona,
     crearRequerirSesionPersona,
     crearResolverSesionPersonaOpcional,
     listarNegociosAdministrados,

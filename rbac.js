@@ -62,7 +62,18 @@ async function permisosDeMiembro(personaId, negocioId) {
 // una persona logueada pero sin membresia en el negocio consultado.
 async function resolverIdentidadNexo(req, negocioIdExplicito) {
     if (req.negocioAutenticado) {
-        return { rol: "owner", negocioId: req.negocioAutenticado.negocio_id, permisos: null };
+        const negocioId = req.negocioAutenticado.negocio_id;
+
+        // Fase 1: una sesion de cuenta minteada para un empleado (via
+        // /personas/entrar-como-empleado) trae persona_id+rol='employee'
+        // -- a diferencia de una sesion clasica de dueño (ambos NULL,
+        // sigue siendo owner sin restriccion como siempre).
+        if (req.negocioAutenticado.rol === "employee" && req.negocioAutenticado.persona_id) {
+            const resuelto = await permisosDeMiembro(req.negocioAutenticado.persona_id, negocioId);
+            if (resuelto) return { ...resuelto, negocioId };
+        }
+
+        return { rol: "owner", negocioId, permisos: null };
     }
 
     if (req.negocioDispositivo) {
