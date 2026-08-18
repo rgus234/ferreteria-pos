@@ -45,7 +45,7 @@ const {
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
-const { resolverIdentidadNexo } = require("./rbac");
+const { resolverIdentidadNexo, PERMISOS, requerirPermiso } = require("./rbac");
 const { calcularAntiguedadCredito } = require("./credit-aging");
 const { listarPlanes, listarCatalogoFunciones, funcionesDelPlan } = require("./features");
 const {
@@ -379,7 +379,8 @@ app.get("/negocio-actual", requerirAccesoNegocio, async (req, res) => {
         res.json({
             ok: true,
             negocio,
-            rol: identidad.rol
+            rol: identidad.rol,
+            personaNombre: req.negocioAutenticado?.persona_nombre || null
         });
     } catch (error) {
         responderError(res, error);
@@ -1090,9 +1091,10 @@ async function buscarNegocioPorTokenCuenta(token) {
     const fila = await pool.query(
         `
         SELECT s.id AS sesion_id, n.id AS negocio_id, n.slug, n.nombre, n.correo, n.correo_verificado,
-               s.persona_id, s.rol
+               s.persona_id, s.rol, p.nombre AS persona_nombre
         FROM public.sesiones_cuenta s
         JOIN public.negocios n ON n.id = s.negocio_id
+        LEFT JOIN public.personas p ON p.id = s.persona_id
         WHERE s.token_hash = $1 AND s.revocado_at IS NULL
         LIMIT 1
         `,
@@ -6109,7 +6111,7 @@ app.post("/login", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
-app.post("/ventas", requerirAccesoNegocio, async (req, res) => {
+app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS), async (req, res) => {
 
     const {
         total,

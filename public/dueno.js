@@ -155,6 +155,8 @@ async function iniciarSesionDueno() {
 }
 
 let duenoPersonaTokenTemporal = null;
+let duenoEmpleadoNombrePersona = null;
+let duenoEmpleadoCorreoPersona = null;
 
 function mostrarLoginEmpleadoDueno() {
     document.getElementById("duenoLoginCajaDueno").style.display = "none";
@@ -279,6 +281,8 @@ async function iniciarSesionEmpleadoDueno() {
         }
 
         duenoPersonaTokenTemporal = datosPersona.token;
+        duenoEmpleadoNombrePersona = datosPersona.persona?.nombre || null;
+        duenoEmpleadoCorreoPersona = datosPersona.persona?.correo || datosPersona.persona?.telefono || null;
 
         const datos = await entrarComoEmpleadoDueno(null);
 
@@ -551,12 +555,13 @@ function cambiarTabDueno(tab) {
     document.getElementById("duenoVentas").style.display = tab === "ventas" ? "block" : "none";
     document.getElementById("duenoInventario").style.display = tab === "inventario" ? "block" : "none";
     document.getElementById("duenoPedidos").style.display = tab === "pedidos" ? "block" : "none";
+    document.getElementById("duenoVender").style.display = tab === "vender" ? "block" : "none";
     document.getElementById("duenoMas").style.display = tab === "mas" ? "block" : "none";
 
     const burbujaNexo =
     document.getElementById("duenoNexoBurbuja");
 
-    if (burbujaNexo) burbujaNexo.style.display = (tab === "reportes" || tab === "pedidos") ? "none" : "flex";
+    if (burbujaNexo) burbujaNexo.style.display = (tab === "reportes" || tab === "pedidos" || tab === "vender") ? "none" : "flex";
 
     if (tab !== "mas") cerrarSubpantallaMasDueno();
 
@@ -564,6 +569,7 @@ function cambiarTabDueno(tab) {
     if (tab === "ventas") cargarPanelVentasDueno();
     if (tab === "inventario") cargarPanelInventarioDueno();
     if (tab === "pedidos") cargarPanelPedidosDueno();
+    if (tab === "vender") cargarPanelVenderDueno();
     if (tab === "mas") cargarPanelMasDueno();
 }
 
@@ -589,6 +595,7 @@ async function sincronizarRolSesionDueno() {
     try {
         const datos = await fetchAutenticado("/negocio-actual");
         duenoRolSesion = datos.rol || "owner";
+        if (datos.personaNombre) duenoEmpleadoNombrePersona = datos.personaNombre;
     } catch (error) {
         duenoRolSesion = "owner";
     }
@@ -1539,6 +1546,332 @@ function cerrarDetallePedidoDueno() {
     cargarPanelPedidosDueno();
 }
 
+// ---------------- pestaña Vender (venta real) ----------------
+//
+// Fase 2 del ecosistema Nexo: carrito independiente del de Cotizaciones
+// (duenoCarrito, pestaña "Ventas") porque el contrato de POST /ventas
+// usa nombres de campo distintos (id/precio/importe/unidadVenta/
+// modoVenta) -- se arma directo en esa forma para no traducir despues.
+// Alcance v1: solo unidades completas (bolsa/pieza entera, sin
+// fraccion suelta), sin credito ni pago mixto (son flujos aparte) y
+// sin cola offline -- una venta real mueve stock y dinero, no se
+// encola para reconciliar despues.
+
+let duenoVentaCarrito = [];
+let duenoVentaUltimosResultados = [];
+let duenoVentaMetodoPago = null;
+let duenoVentaCobrando = false;
+
+async function cargarPanelVenderDueno() {
+    renderCarritoVenderDueno();
+
+    // A diferencia del dueño (que ya siembra el cache local al cargar
+    // Inicio), un empleado puede entrar directo a Vender sin haber
+    // pasado nunca por ahi -- sin esto el buscador queda vacio.
+    try {
+        const productos = await fetchAutenticado("/productos");
+        await guardarCatalogoLocal(productos);
+    } catch (error) {
+        // Sin conexion se sigue usando lo que ya haya en el cache local.
+    }
+}
+
+async function buscarProductoVenderDueno(texto) {
+    const contenedor =
+    document.getElementById("duenoVenderResultados");
+
+    duenoVentaUltimosResultados =
+    await buscarEnCatalogoLocal(texto);
+
+    contenedor.innerHTML =
+        duenoVentaUltimosResultados.length
+            ? duenoVentaUltimosResultados.map(producto => `
+                <div class="fila-dueno fila-dueno-producto">
+                    <div class="dueno-miniatura">
+                        ${producto.imagenUrl
+                            ? `<img src="${producto.imagenUrl}" alt="" loading="lazy">`
+                            : `<span class="dueno-miniatura-vacia">Sin foto</span>`}
+                    </div>
+                    <div>
+                        <strong>${escaparDueno(producto.nombre)}</strong>
+                        <span>${escaparDueno(producto.codigo || "Sin codigo")} · Stock ${producto.stock} · ${dinero(producto.precio)}</span>
+                    </div>
+                    <button type="button" class="dueno-boton-agregar" onclick="agregarAlCarritoVenderDueno(${producto.id})">+</button>
+                </div>
+            `).join("")
+            : (texto.trim() ? `<div class="vacio">Sin resultados en tu catalogo guardado.</div>` : "");
+}
+
+function agregarAlCarritoVenderDueno(id) {
+    const producto =
+    duenoVentaUltimosResultados.find(p => p.id === id);
+
+    if (!producto) return;
+
+    const existente =
+    duenoVentaCarrito.find(item => item.id === id);
+
+    if (existente) {
+        existente.cantidad += 1;
+    } else {
+        duenoVentaCarrito.push({
+            id: producto.id,
+            codigo: producto.codigo,
+            nombre: producto.nombre,
+            precio: Number(producto.precio || 0),
+            cantidad: 1,
+            unidadVenta: producto.unidadVenta || "pieza",
+            modoVenta: "bolsa"
+        });
+    }
+
+    renderCarritoVenderDueno();
+}
+
+function cambiarCantidadCarritoVenderDueno(id, delta) {
+    const item =
+    duenoVentaCarrito.find(i => i.id === id);
+
+    if (!item) return;
+
+    item.cantidad += delta;
+
+    if (item.cantidad <= 0) {
+        duenoVentaCarrito = duenoVentaCarrito.filter(i => i.id !== id);
+    }
+
+    renderCarritoVenderDueno();
+}
+
+function totalCarritoVenderDueno() {
+    return duenoVentaCarrito.reduce((acumulado, item) => acumulado + item.precio * item.cantidad, 0);
+}
+
+function renderCarritoVenderDueno() {
+    const card =
+    document.getElementById("duenoVenderCarritoCard");
+
+    if (!duenoVentaCarrito.length) {
+        card.style.display = "none";
+        return;
+    }
+
+    card.style.display = "block";
+
+    document.getElementById("duenoVenderTotal").textContent =
+    dinero(totalCarritoVenderDueno());
+
+    document.getElementById("duenoVenderCarritoLista").innerHTML =
+        duenoVentaCarrito.map(item => `
+            <div class="fila-dueno">
+                <div>
+                    <strong>${escaparDueno(item.nombre)}</strong>
+                    <span>${escaparDueno(item.codigo || "")} · ${dinero(item.precio)} c/u</span>
+                </div>
+                <div class="dueno-cantidad-control">
+                    <button type="button" onclick="cambiarCantidadCarritoVenderDueno(${item.id}, -1)">-</button>
+                    <span>${item.cantidad}</span>
+                    <button type="button" onclick="cambiarCantidadCarritoVenderDueno(${item.id}, 1)">+</button>
+                </div>
+            </div>
+        `).join("");
+}
+
+async function iniciarCobroVenderDueno() {
+    if (!duenoVentaCarrito.length) return;
+
+    duenoVentaMetodoPago = null;
+
+    const overlay =
+    document.getElementById("duenoVenderCobroOverlay");
+
+    const contenido =
+    document.getElementById("duenoVenderCobroContenido");
+
+    document.getElementById("duenoVenderCobroTitulo").textContent = "Verificando stock...";
+    contenido.innerHTML = `<p class="dueno-estado">Verificando existencias antes de cobrar...</p>`;
+    overlay.classList.add("abierta");
+
+    let productosFrescos;
+    try {
+        productosFrescos = await fetchAutenticado("/productos");
+    } catch (error) {
+        contenido.innerHTML = `<div class="vacio">No se pudo verificar el stock. Revisa tu conexion e intenta de nuevo.</div>`;
+        return;
+    }
+
+    const stockPorId =
+    new Map(productosFrescos.map(p => [p.id, Number(p.stock || 0)]));
+
+    const faltantes =
+    duenoVentaCarrito.filter(item => (stockPorId.get(item.id) ?? 0) < item.cantidad);
+
+    if (faltantes.length) {
+        document.getElementById("duenoVenderCobroTitulo").textContent = "Stock insuficiente";
+        contenido.innerHTML = `
+            <div class="vacio">
+                No hay suficiente stock para: ${faltantes.map(f => `${escaparDueno(f.nombre)} (pides ${f.cantidad}, hay ${stockPorId.get(f.id) ?? 0})`).join(", ")}.
+                Ajusta el carrito y vuelve a intentar.
+            </div>
+        `;
+        return;
+    }
+
+    document.getElementById("duenoVenderCobroTitulo").textContent = "Cobrar";
+    renderMetodoPagoVenderDueno();
+}
+
+function renderMetodoPagoVenderDueno() {
+    const contenido =
+    document.getElementById("duenoVenderCobroContenido");
+
+    contenido.innerHTML = `
+        <p class="dueno-estado">Total a cobrar: <strong>${dinero(totalCarritoVenderDueno())}</strong></p>
+        <div class="dueno-metodo-pago-grid">
+            <button type="button" class="dueno-metodo-pago-boton" onclick="elegirMetodoPagoVenderDueno('efectivo')">Efectivo</button>
+            <button type="button" class="dueno-metodo-pago-boton" onclick="elegirMetodoPagoVenderDueno('tarjeta')">Tarjeta</button>
+            <button type="button" class="dueno-metodo-pago-boton" onclick="elegirMetodoPagoVenderDueno('transferencia')">Transferencia</button>
+        </div>
+    `;
+}
+
+function elegirMetodoPagoVenderDueno(metodo) {
+    duenoVentaMetodoPago = metodo;
+
+    const contenido =
+    document.getElementById("duenoVenderCobroContenido");
+
+    const total = totalCarritoVenderDueno();
+
+    if (metodo !== "efectivo") {
+        const etiqueta = metodo === "tarjeta" ? "Tarjeta" : "Transferencia";
+
+        contenido.innerHTML = `
+            <p class="dueno-estado">Total a cobrar: <strong>${dinero(total)}</strong></p>
+            <p class="dueno-estado">Metodo: ${etiqueta}</p>
+            <button type="button" class="dueno-boton-primario" onclick="confirmarCobroVenderDueno()">Confirmar cobro</button>
+            <button type="button" class="dueno-link" onclick="renderMetodoPagoVenderDueno()">Cambiar metodo</button>
+        `;
+        return;
+    }
+
+    contenido.innerHTML = `
+        <p class="dueno-estado">Total a cobrar: <strong>${dinero(total)}</strong></p>
+        <label class="dueno-campo">Recibido
+            <input type="number" id="duenoVenderRecibido" inputmode="decimal" min="0" step="0.01" placeholder="0.00" oninput="actualizarCambioVenderDueno()">
+        </label>
+        <p class="dueno-estado" id="duenoVenderCambio">Cambio: ${dinero(0)}</p>
+        <button type="button" class="dueno-boton-primario" id="duenoVenderBotonConfirmarEfectivo" onclick="confirmarCobroVenderDueno()" disabled>Confirmar cobro</button>
+        <button type="button" class="dueno-link" onclick="renderMetodoPagoVenderDueno()">Cambiar metodo</button>
+    `;
+}
+
+function actualizarCambioVenderDueno() {
+    const total = totalCarritoVenderDueno();
+
+    const recibido =
+    Number(document.getElementById("duenoVenderRecibido")?.value || 0);
+
+    document.getElementById("duenoVenderCambio").textContent =
+    `Cambio: ${dinero(Math.max(recibido - total, 0))}`;
+
+    document.getElementById("duenoVenderBotonConfirmarEfectivo").disabled = recibido < total;
+}
+
+async function confirmarCobroVenderDueno() {
+    if (duenoVentaCobrando) return;
+    duenoVentaCobrando = true;
+
+    const total = totalCarritoVenderDueno();
+
+    const clienteNombre =
+    document.getElementById("duenoVenderClienteNombre")?.value.trim() || "Publico general";
+
+    let recibido = total;
+    let cambio = 0;
+
+    if (duenoVentaMetodoPago === "efectivo") {
+        recibido = Number(document.getElementById("duenoVenderRecibido")?.value || 0);
+        cambio = Math.max(recibido - total, 0);
+    }
+
+    const pagos = { efectivo: 0, tarjeta: 0, transferencia: 0, credito: 0 };
+    pagos[duenoVentaMetodoPago] = total;
+
+    const cuerpo = {
+        total,
+        subtotal: total,
+        descuento: 0,
+        descuentoTipo: "ninguno",
+        descuentoValor: 0,
+        clienteId: null,
+        clienteNombre,
+        cajeroUsuario: duenoEmpleadoCorreoPersona || "dueno",
+        cajeroNombre: duenoEmpleadoNombrePersona || document.getElementById("duenoNegocio")?.textContent || "Dueño",
+        productos: duenoVentaCarrito.map(item => ({
+            id: item.id,
+            codigo: item.codigo,
+            nombre: item.nombre,
+            precio: item.precio,
+            cantidad: item.cantidad,
+            unidadVenta: item.unidadVenta,
+            modoVenta: item.modoVenta,
+            importe: item.precio * item.cantidad
+        })),
+        metodoPago: duenoVentaMetodoPago,
+        pagos,
+        recibido,
+        cambio
+    };
+
+    const contenido =
+    document.getElementById("duenoVenderCobroContenido");
+
+    contenido.innerHTML = `<p class="dueno-estado">Cobrando...</p>`;
+
+    try {
+        const respuesta = await fetchAutenticado("/ventas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cuerpo)
+        });
+
+        document.getElementById("duenoVenderCobroTitulo").textContent = "Venta cobrada";
+        contenido.innerHTML = `
+            <div class="dueno-status-card">
+                <p class="dueno-estado">Folio</p>
+                <h2>${escaparDueno(respuesta.folio)}</h2>
+                <p class="dueno-estado">Total ${dinero(total)}</p>
+            </div>
+            <button type="button" class="dueno-boton-primario" onclick="finalizarVentaVenderDueno()">Nueva venta</button>
+        `;
+
+        duenoVentaCarrito = [];
+    } catch (error) {
+        contenido.innerHTML = `
+            <div class="vacio">${escaparDueno(error.message || "No se pudo cobrar la venta. Intenta de nuevo.")}</div>
+            <button type="button" class="dueno-link" onclick="renderMetodoPagoVenderDueno()">Volver a intentar</button>
+        `;
+    } finally {
+        duenoVentaCobrando = false;
+    }
+}
+
+function finalizarVentaVenderDueno() {
+    document.getElementById("duenoVenderCobroOverlay").classList.remove("abierta");
+
+    const campoCliente =
+    document.getElementById("duenoVenderClienteNombre");
+
+    if (campoCliente) campoCliente.value = "";
+
+    renderCarritoVenderDueno();
+}
+
+function cerrarCobroVenderDueno() {
+    document.getElementById("duenoVenderCobroOverlay").classList.remove("abierta");
+}
+
 // ---------------- pestaña Más: navegacion tipo Ajustes ----------------
 
 function estadoLicenciaDuenoPOS(modo) {
@@ -2109,6 +2442,8 @@ function cerrarSesionDuenoApp() {
     }).catch(() => {});
 
     localStorage.removeItem(DUENO_TOKEN_KEY);
+    duenoEmpleadoNombrePersona = null;
+    duenoEmpleadoCorreoPersona = null;
     mostrarLoginDueno();
 }
 

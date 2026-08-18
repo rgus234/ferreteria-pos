@@ -1631,3 +1631,27 @@ button{
     font-size:12px;
     font-weight:800;
 }
+
+/* ---------------- pestaña Vender (venta real) ---------------- */
+
+.dueno-metodo-pago-grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:10px;
+    margin:14px 0;
+}
+
+.dueno-metodo-pago-boton{
+    min-height:56px;
+    border:1px solid var(--line);
+    border-radius:14px;
+    background:var(--surface);
+    color:var(--text);
+    font-size:15px;
+    font-weight:700;
+}
+
+.dueno-metodo-pago-boton:active{
+    background:var(--brand-soft);
+    border-color:var(--brand);
+}

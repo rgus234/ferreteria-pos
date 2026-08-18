@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=rbac-empleado-20260818-01">
+    <link rel="stylesheet" href="dueno.css?v=venta-empleado-20260818-02">
 </head>
 
 <body>
@@ -312,6 +312,51 @@
         </section>
     </main>
 
+    <main id="duenoVender" class="dueno-app" style="display:none;">
+        <header class="dueno-header">
+            <div>
+                <p class="dueno-saludo">Cobro real</p>
+                <h1>Vender</h1>
+                <p class="dueno-estado">Descuenta stock e imprime folio, igual que en el mostrador</p>
+            </div>
+        </header>
+
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Buscar producto</span>
+                    <h2>En tu catalogo guardado</h2>
+                </div>
+            </div>
+            <input type="search" id="duenoVenderBuscar" placeholder="Nombre o codigo..." oninput="buscarProductoVenderDueno(this.value)">
+            <div id="duenoVenderResultados" class="lista-compacta" style="margin-top:10px;"></div>
+        </article>
+
+        <article class="dueno-card" id="duenoVenderCarritoCard" style="display:none;">
+            <div class="card-head">
+                <div>
+                    <span>Carrito</span>
+                    <h2 id="duenoVenderTotal">$0.00</h2>
+                </div>
+            </div>
+            <div id="duenoVenderCarritoLista" class="lista-compacta"></div>
+            <label class="dueno-campo" style="margin-top:10px;">Cliente (opcional)
+                <input type="text" id="duenoVenderClienteNombre" placeholder="Publico general">
+            </label>
+            <button type="button" class="dueno-boton-primario" onclick="iniciarCobroVenderDueno()">Cobrar</button>
+        </article>
+    </main>
+
+    <div id="duenoVenderCobroOverlay" class="dueno-mas-subpantalla">
+        <div class="dueno-subpantalla-inner">
+            <div class="dueno-subpantalla-header">
+                <button type="button" class="dueno-subpantalla-atras" onclick="cerrarCobroVenderDueno()">&lsaquo; Atrás</button>
+                <h2 id="duenoVenderCobroTitulo">Cobrar</h2>
+            </div>
+            <div id="duenoVenderCobroContenido"></div>
+        </div>
+    </div>
+
     <main id="duenoInventario" class="dueno-app" style="display:none;">
         <header class="dueno-header">
             <div>
@@ -412,6 +457,10 @@
             <span>Pedidos</span>
             <span id="duenoPedidosBadge" class="dueno-tab-badge" style="display:none;"></span>
         </button>
+        <button type="button" data-tab="vender" onclick="cambiarTabDueno('vender')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.4 12.2a1.6 1.6 0 0 0 1.6 1.3h9a1.6 1.6 0 0 0 1.6-1.3L21 7H6"/></svg>
+            <span>Vender</span>
+        </button>
         <button type="button" data-tab="mas" onclick="cambiarTabDueno('mas')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
             <span>Más</span>
@@ -457,7 +506,7 @@
     </div>
 
     <script src="dueno-offline.js?v=dueno-modo-oscuro-20260721-01"></script>
-    <script src="dueno.js?v=rbac-empleado-20260818-01"></script>
+    <script src="dueno.js?v=venta-empleado-20260818-02"></script>
 </body>
 
 </html>

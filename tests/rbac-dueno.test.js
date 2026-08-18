@@ -8,7 +8,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("crypto");
 const { hashPassword } = require("../password-utils");
-const { pool, crearNegocioPrueba, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
+const { pool, crearNegocioPrueba, crearProductoPrueba, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
 const { crearPersonaPrueba, mintearSesionPruebaPersona, borrarPersonaPrueba } = require("./helpers/persona-prueba");
 const { iniciarServidorPrueba, detenerServidorPrueba, BASE_URL } = require("./helpers/servidor-prueba");
 
@@ -119,6 +119,71 @@ test("un empleado vinculado entra a /dueno con su propia cuenta Nexo y el enforc
         headers: { Authorization: `Bearer ${tokenEmpleadoDueno}` }
     });
     assert.equal(conPermiso.status, 200);
+});
+
+test("Fase 2: un empleado sin permiso hacer_ventas recibe 403 real en POST /ventas; con el permiso concedido, cobra de verdad y el stock baja", async () => {
+    // La persona ya quedo vinculada como empleado en el primer test --
+    // vuelve a entrar para tener un token de cuenta fresco.
+    const entrada = await fetch(`${BASE_URL}/personas/entrar-como-empleado`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-persona-token": personaToken },
+        body: JSON.stringify({})
+    });
+    assert.equal(entrada.status, 200);
+    const { token: tokenEmpleadoDueno } = await entrada.json();
+
+    const producto = await crearProductoPrueba(negocio.negocioId, { precio: 100, stock: 5 });
+
+    const cuerpoVenta = {
+        total: 100,
+        subtotal: 100,
+        descuento: 0,
+        descuentoTipo: "ninguno",
+        descuentoValor: 0,
+        clienteId: null,
+        clienteNombre: "Publico general",
+        cajeroUsuario: persona.correo,
+        cajeroNombre: persona.nombre,
+        productos: [{
+            id: producto.id, codigo: "TEST", nombre: "Producto de prueba", precio: 100,
+            cantidad: 1, unidadVenta: "pieza", modoVenta: "bolsa", importe: 100
+        }],
+        metodoPago: "efectivo",
+        pagos: { efectivo: 100, tarjeta: 0, transferencia: 0, credito: 0 },
+        recibido: 100,
+        cambio: 0
+    };
+
+    // Sin permiso hacer_ventas (negocio_miembros.permisos solo tiene
+    // ver_pedidos de un test anterior) -- 403 real, no solo compila.
+    const sinPermiso = await fetch(`${BASE_URL}/ventas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenEmpleadoDueno}` },
+        body: JSON.stringify(cuerpoVenta)
+    });
+    assert.equal(sinPermiso.status, 403);
+    const datosSinPermiso = await sinPermiso.json();
+    assert.equal(datosSinPermiso.requierePermiso, "hacer_ventas");
+
+    // Con el permiso concedido, la venta se cobra de verdad y el stock
+    // baja -- confirma que gatear /ventas no rompio el flujo real.
+    await pool.query(
+        `UPDATE public.negocio_miembros SET permisos = permisos || '{"hacer_ventas": true}'::jsonb WHERE persona_id = $1 AND negocio_id = $2`,
+        [persona.id, negocio.negocioId]
+    );
+
+    const conPermiso = await fetch(`${BASE_URL}/ventas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenEmpleadoDueno}` },
+        body: JSON.stringify(cuerpoVenta)
+    });
+    assert.equal(conPermiso.status, 200);
+    const datosVenta = await conPermiso.json();
+    assert.equal(datosVenta.success, true);
+    assert.ok(datosVenta.folio);
+
+    const stockFinal = await pool.query(`SELECT stock FROM public.productos WHERE id = $1`, [producto.id]);
+    assert.equal(Number(stockFinal.rows[0].stock), 4);
 });
 
 test("una segunda persona sin membresia de empleado no puede entrar como empleado a ningun negocio", async () => {
