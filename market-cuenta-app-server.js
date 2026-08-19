@@ -381,8 +381,19 @@ document.querySelectorAll("[data-ir]").forEach(function(boton) {
     boton.addEventListener("click", function() { wizardIrA(boton.dataset.ir); });
 });
 
-wizardMostrar(${JSON.stringify(pantallaInicial)});
-history.replaceState({ wizardPantalla: ${JSON.stringify(pantallaInicial)} }, "", "#" + ${JSON.stringify(pantallaInicial)});
+// Deep-link ?tab=registro/login (mismo parametro que ya usaba el
+// formulario de escritorio) -- solo aplica a un invitado (nunca pisa
+// la pantalla "home" de una persona ya logueada).
+var wizardPantallaArranque = ${JSON.stringify(pantallaInicial)};
+if (wizardPantallaArranque === "bienvenida") {
+    var wizardTabInicial = new URLSearchParams(window.location.search).get("tab");
+    if (wizardTabInicial === "registro") wizardPantallaArranque = "crear-cuenta";
+    else if (wizardTabInicial === "login") wizardPantallaArranque = "iniciar-sesion";
+}
+if (wizardPantallaArranque !== wizardPila[0]) wizardPila[0] = wizardPantallaArranque;
+
+wizardMostrar(wizardPantallaArranque);
+history.replaceState({ wizardPantalla: wizardPantallaArranque }, "", "#" + wizardPantallaArranque);
 
 // Drawer (pantalla 12) -- overlay independiente de la pila de pantallas.
 var wizardDrawerOverlay = document.getElementById("wizardDrawerOverlay");
