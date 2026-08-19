@@ -234,10 +234,10 @@
    const boton = document.createElement("button");
    boton.dataset.modulo = "pedidos";
    boton.dataset.shellModule = "pedidos";
-   boton.dataset.navLabel = "Pedidos";
+   boton.dataset.navLabel = "Pedidos a proveedor";
    boton.type = "button";
    boton.onclick = () => mostrarPedidosProveedor();
-   boton.innerHTML = icono("file") + "<span>Pedidos</span>";
+   boton.innerHTML = icono("file") + "<span>Pedidos a proveedor</span>";
    antes ? antes.insertAdjacentElement("beforebegin", boton) : sidebar.appendChild(boton);
   }
 

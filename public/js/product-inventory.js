@@ -3458,12 +3458,7 @@ async function aplicarPlantillaGiroConfiguracion() {
 }
 
 function abrirSubmenuInventario() {
- const submenu =
- document.getElementById("submenuInventario");
-
- if (submenu) {
- submenu.classList.add("abierto");
- }
+ if (typeof abrirSubmenuSidebar === "function") abrirSubmenuSidebar("submenuInventario");
 }
 
 function toggleSubmenuInventario() {
@@ -3475,7 +3470,7 @@ function toggleSubmenuInventario() {
  return;
  }
 
- submenu.classList.toggle("abierto");
+ toggleSubmenuSidebar("submenuInventario");
 }
 
 function mostrarCategoriasInventario() {

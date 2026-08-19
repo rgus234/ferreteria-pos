@@ -152,51 +152,57 @@ function asegurarBotonSidebarPOS(modulo, etiqueta, handler) {
  boton.innerHTML = iconoUISVG(iconoModuloPOS(modulo)) + '<span>' + etiqueta + '</span>';
  sidebar.appendChild(boton);
 }
+/* Grupos plegables del sidebar -- cada modulo de la lista se muda
+   fisicamente dentro del contenedor del grupo durante el reacomodo,
+   sin importar si el boton lo agrego el HTML estatico o un script
+   async (fase4/5/6.js, ferretero-flow.js) que solo sabe hacer
+   sidebar.appendChild(boton) directo. Esos scripts no necesitan saber
+   nada de los grupos -- el reacomodo central los recoge de aqui. */
+const GRUPOS_SIDEBAR_POS = {
+ inventario: { contenedor: "submenuInventario", modulos: ["inventario", "agregar-producto", "categorias", "inventario-bajo"] },
+ "ventas-caja": { contenedor: "submenuVentasCaja", modulos: ["reportes", "caja", "finanzas"] },
+ compras: { contenedor: "submenuCompras", modulos: ["proveedores", "catalogo", "recepcion", "pedidos", "ajustes"] },
+ nexo: { contenedor: "submenuNexo", modulos: ["nexo-ia", "pedidos-market", "sitio-web", "encargos", "buscar-ticket"] }
+};
+function abrirSubmenuSidebar(id) {
+ const submenu = document.getElementById(id);
+ if (submenu) submenu.classList.add("abierto");
+}
+function toggleSubmenuSidebar(id) {
+ const submenu = document.getElementById(id);
+ if (!submenu) return;
+ const abierto = submenu.classList.toggle("abierto");
+ const header = document.querySelector(`.sidebar-grupo-toggle[onclick*="'${id}'"]`);
+ if (header) header.classList.toggle("abierto", abierto);
+}
 function ordenarSidebarPOS() {
  const sidebar = document.querySelector(".sidebar");
  if (!sidebar) return;
- const orden = [
-  "inicio",
-  "venta",
-  "inventario",
-  "productos",
-  "agregar-producto",
-  "categorias",
-  "catalogo",
-  "inventario-bajo",
-  "recepcion",
-  "ajustes",
-  "reportes",
-  "caja",
-  "finanzas",
-  "pedidos",
-  "clientes",
-  "creditos",
-  "proveedores",
-  "dueno",
-  "configuracion",
-  "cuenta",
-  "nexo-ia",
-  "buscar-ticket",
-  "encargos",
-  "sitio-web"
- ];
+
+ Object.values(GRUPOS_SIDEBAR_POS).forEach(grupo => {
+  const contenedor = document.getElementById(grupo.contenedor);
+  if (!contenedor) return;
+  const candidatos = Array.from(sidebar.querySelectorAll("button:not(.sidebar-grupo-toggle)"))
+   .filter(boton => grupo.modulos.includes(datosSidebarPOS(boton).modulo));
+  candidatos
+   .sort((a, b) => grupo.modulos.indexOf(datosSidebarPOS(a).modulo) - grupo.modulos.indexOf(datosSidebarPOS(b).modulo))
+   .forEach(boton => contenedor.appendChild(boton));
+ });
+
+ const orden = ["inicio", "venta", "inventario", "ventas-caja", "clientes", "creditos", "compras", "nexo", "cuenta", "configuracion", "dueno"];
+ const claveOrden = boton => boton.dataset.grupo || datosSidebarPOS(boton).modulo;
  const peso = boton => {
-  const index = orden.indexOf(datosSidebarPOS(boton).modulo);
+  const index = orden.indexOf(claveOrden(boton));
   return index === -1 ? 999 : index;
  };
  const botones = Array.from(sidebar.querySelectorAll(":scope > button"));
  botones
   .sort((a, b) => peso(a) - peso(b))
   .forEach(boton => {
-   const modulo = datosSidebarPOS(boton).modulo;
-   const submenuInventario = document.getElementById("submenuInventario");
-   if (modulo === "inventario" && submenuInventario) {
-    sidebar.appendChild(boton);
-    sidebar.appendChild(submenuInventario);
-   } else {
-    sidebar.appendChild(boton);
-   }
+   sidebar.appendChild(boton);
+   const grupo = GRUPOS_SIDEBAR_POS[boton.dataset.grupo];
+   const contenedor = grupo && document.getElementById(grupo.contenedor);
+   if (contenedor) sidebar.appendChild(contenedor);
   });
 }
 function profesionalizarSidebarPOS() {

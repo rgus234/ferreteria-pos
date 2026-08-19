@@ -231,10 +231,38 @@ body.sidebar-oculta .layout {
 }
 
 .submenu-sidebar {
+  display: none;
+  flex-direction: column;
   margin: 0 0 2px 34px !important;
   padding-left: 10px !important;
   border-left: 1px solid rgba(255, 255, 255, .1);
   gap: 2px !important;
+}
+
+.submenu-sidebar.abierto {
+  display: flex;
+}
+
+.sidebar-grupo-toggle {
+  position: relative;
+}
+
+.sidebar-grupo-toggle::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  opacity: .55;
+  transform: translateY(-65%) rotate(45deg);
+  transition: transform .15s ease;
+}
+
+.sidebar-grupo-toggle.abierto::after {
+  transform: translateY(-35%) rotate(-135deg);
 }
 
 .submenu-sidebar button {
