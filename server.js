@@ -1640,7 +1640,7 @@ function validarPin(pin) {
     return /^[0-9]{4,6}$/.test(String(pin || ""));
 }
 
-app.get("/cuenta/empleados", requerirSesionCuenta, async (req, res) => {
+app.get("/cuenta/empleados", requerirSesionCuenta, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
     try {
         const filas = await pool.query(
             `SELECT * FROM public.empleados WHERE negocio_id = $1 ORDER BY creado_at ASC`,
@@ -1653,7 +1653,7 @@ app.get("/cuenta/empleados", requerirSesionCuenta, async (req, res) => {
     }
 });
 
-app.post("/cuenta/empleados", requerirSesionCuenta, async (req, res) => {
+app.post("/cuenta/empleados", requerirSesionCuenta, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
     const nombre = limpiarTexto(req.body?.nombre, 80);
     const rol = limpiarTexto(req.body?.rol, 40) || "Cajero";
     const pin = String(req.body?.pin || "");
@@ -1721,7 +1721,7 @@ app.post("/cuenta/empleados", requerirSesionCuenta, async (req, res) => {
     }
 });
 
-app.put("/cuenta/empleados/:id", requerirSesionCuenta, async (req, res) => {
+app.put("/cuenta/empleados/:id", requerirSesionCuenta, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
     const id = Number(req.params.id);
 
     try {
@@ -1787,7 +1787,7 @@ app.put("/cuenta/empleados/:id", requerirSesionCuenta, async (req, res) => {
     }
 });
 
-app.delete("/cuenta/empleados/:id", requerirSesionCuenta, async (req, res) => {
+app.delete("/cuenta/empleados/:id", requerirSesionCuenta, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
     try {
         const actualizado = await pool.query(
             `
@@ -1814,7 +1814,7 @@ app.delete("/cuenta/empleados/:id", requerirSesionCuenta, async (req, res) => {
 // a su fila de empleado -- mismo patron ya probado en
 // /creditos/clientes/:id/codigo-acceso (el codigo solo se regresa una
 // vez, en texto plano, aqui; nunca se puede volver a consultar despues).
-app.post("/cuenta/empleados/:id/generar-codigo-vinculo", requerirSesionCuenta, async (req, res) => {
+app.post("/cuenta/empleados/:id/generar-codigo-vinculo", requerirSesionCuenta, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
     try {
         const codigo = generarCodigoAccesoCliente();
         // A diferencia del codigo_acceso de clientes_credito (que se
@@ -1842,7 +1842,7 @@ app.post("/cuenta/empleados/:id/generar-codigo-vinculo", requerirSesionCuenta, a
     }
 });
 
-app.post("/cuenta/empleados/importar-locales", requerirSesionCuenta, async (req, res) => {
+app.post("/cuenta/empleados/importar-locales", requerirSesionCuenta, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
     const empleadosLocales = Array.isArray(req.body?.empleados) ? req.body.empleados : [];
 
     if (empleadosLocales.length === 0) {

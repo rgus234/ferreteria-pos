@@ -245,6 +245,57 @@ test("Fase 3: un empleado sin permiso hacer_corte recibe 403 real en POST /caja/
     assert.equal(Number(datosCierre.turno.diferencia), 0, "fondo inicial (300) + venta en efectivo (150) debe cuadrar exacto con lo contado (450)");
 });
 
+test("Fase 3.1: un empleado sin permiso administrar_usuarios recibe 403 real en /cuenta/empleados (incluye intento de auto-escalar su propio rol); con el permiso concedido, funciona; la sesion del dueño sigue sin restriccion", async () => {
+    const entrada = await fetch(`${BASE_URL}/personas/entrar-como-empleado`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-persona-token": personaToken },
+        body: JSON.stringify({})
+    });
+    assert.equal(entrada.status, 200);
+    const { token: tokenEmpleadoDueno } = await entrada.json();
+
+    // Sin administrar_usuarios (permisos de tests anteriores no lo
+    // incluyen) -- listar empleados debe rechazar con 403 real.
+    const listaSinPermiso = await fetch(`${BASE_URL}/cuenta/empleados`, {
+        headers: { Authorization: `Bearer ${tokenEmpleadoDueno}` }
+    });
+    assert.equal(listaSinPermiso.status, 403);
+    const datosListaSinPermiso = await listaSinPermiso.json();
+    assert.equal(datosListaSinPermiso.requierePermiso, "administrar_usuarios");
+
+    // Intento de auto-escalar su propio rol a Administrador via PUT --
+    // debe rechazar con 403 real, no solo la falta de UI.
+    const autoEscalar = await fetch(`${BASE_URL}/cuenta/empleados/${empleadoId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenEmpleadoDueno}` },
+        body: JSON.stringify({ rol: "Administrador" })
+    });
+    assert.equal(autoEscalar.status, 403);
+
+    // La sesion clasica del dueño (sin persona_id/rol, permisos: null)
+    // sigue sin ninguna restriccion -- confirma que gatear estas rutas
+    // no rompe el flujo real de administracion de empleados.
+    const listaDueno = await fetch(`${BASE_URL}/cuenta/empleados`, {
+        headers: { Authorization: `Bearer ${cuentaTokenDueno}` }
+    });
+    assert.equal(listaDueno.status, 200);
+    const datosListaDueno = await listaDueno.json();
+    assert.equal(datosListaDueno.ok, true);
+    assert.ok(Array.isArray(datosListaDueno.empleados));
+
+    // Con el permiso concedido, el empleado autorizado puede administrar
+    // empleados de verdad.
+    await pool.query(
+        `UPDATE public.negocio_miembros SET permisos = permisos || '{"administrar_usuarios": true}'::jsonb WHERE persona_id = $1 AND negocio_id = $2`,
+        [persona.id, negocio.negocioId]
+    );
+
+    const listaConPermiso = await fetch(`${BASE_URL}/cuenta/empleados`, {
+        headers: { Authorization: `Bearer ${tokenEmpleadoDueno}` }
+    });
+    assert.equal(listaConPermiso.status, 200);
+});
+
 test("una segunda persona sin membresia de empleado no puede entrar como empleado a ningun negocio", async () => {
     const personaSuelta = await crearPersonaPrueba("rbac-dueno-suelta");
     const tokenSuelta = await mintearSesionPruebaPersona(personaSuelta.id);
