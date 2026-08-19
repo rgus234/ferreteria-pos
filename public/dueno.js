@@ -44,8 +44,34 @@ function tokenGuardado() {
     return localStorage.getItem(DUENO_TOKEN_KEY);
 }
 
+// Punto de entrada por defecto cuando no hay sesion -- la mayoria de
+// quien descarga la app es un comprador normal, no el dueno de un
+// negocio, asi que la primera pantalla invita a Nexo Market. El acceso
+// de administrador/empleado (login de siempre) queda detras de un
+// link chico, en vez de ser lo primero que se ve.
+function mostrarBienvenidaDueno() {
+    document.getElementById("duenoOnboarding").style.display = "none";
+    document.getElementById("duenoApp").style.display = "none";
+    document.getElementById("duenoVentas").style.display = "none";
+    document.getElementById("duenoTabs").style.display = "none";
+    document.getElementById("duenoLogin").style.display = "none";
+    document.getElementById("duenoNexoBurbuja").style.display = "none";
+    document.getElementById("duenoBienvenida").style.display = "flex";
+}
+
+function mostrarAccesoNegocioDueno() {
+    document.getElementById("duenoBienvenida").style.display = "none";
+
+    if (!localStorage.getItem(DUENO_ONBOARDING_KEY)) {
+        mostrarOnboardingDueno();
+    } else {
+        mostrarLoginDueno();
+    }
+}
+
 function mostrarLoginDueno() {
     document.getElementById("duenoOnboarding").style.display = "none";
+    document.getElementById("duenoBienvenida").style.display = "none";
     document.getElementById("duenoApp").style.display = "none";
     document.getElementById("duenoVentas").style.display = "none";
     document.getElementById("duenoTabs").style.display = "none";
@@ -2871,9 +2897,7 @@ window.addEventListener("load", () => {
         actualizarNexoBurbujaDueno();
         setInterval(() => { if (duenoRolSesion !== "employee") cargarPanelDueno(); }, 60000);
         setInterval(actualizarNexoBurbujaDueno, 60000);
-    } else if (!localStorage.getItem(DUENO_ONBOARDING_KEY)) {
-        mostrarOnboardingDueno();
     } else {
-        mostrarLoginDueno();
+        mostrarBienvenidaDueno();
     }
 });
