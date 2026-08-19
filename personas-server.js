@@ -8,7 +8,7 @@ const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { config } = require("./config");
 const { OFICIOS_PERSONA } = require("./oficios-persona");
-const { enviarCorreoRecuperacion } = require("./email");
+const { enviarCorreoRecuperacion, enviarCorreoVerificacionPersona } = require("./email");
 
 const CLAVES_OFICIO_VALIDAS = new Set(OFICIOS_PERSONA.map(o => o.clave));
 const DOMINIO_RAIZ_NEXO = "nexoposoficial.com";
@@ -62,6 +62,27 @@ const limitadorLoginPersona = crearLimitadorPorIp(8, 15 * 60 * 1000);
 const limitadorRegistroPersona = crearLimitadorPorIp(5, 60 * 60 * 1000);
 const limitadorOlvidePasswordPersona = crearLimitadorPorIp(5, 60 * 60 * 1000);
 const limitadorVerificarCodigoPersona = crearLimitadorPorIp(8, 15 * 60 * 1000);
+const limitadorReenviarVerificacionPersona = crearLimitadorPorIp(5, 60 * 60 * 1000);
+
+// Mismo criterio que server.js:urlBase -- APP_BASE_URL manda siempre
+// para que los enlaces de correo usen el dominio propio.
+function urlBasePersona(req) {
+    return process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+}
+
+// Mismo patron exacto que crearVerificacionCorreo de server.js
+// (negocios), adaptado a verificaciones_correo_persona.
+async function crearVerificacionCorreoPersona(pool, personaId, correo) {
+    const tokenPlano = generarTokenSeguro();
+
+    await pool.query(
+        `INSERT INTO public.verificaciones_correo_persona (persona_id, correo, token_hash, expira_at)
+         VALUES ($1, $2, $3, NOW() + INTERVAL '24 hours')`,
+        [personaId, correo, hashTokenSeguro(tokenPlano)]
+    );
+
+    return tokenPlano;
+}
 
 // req.cookies no existe sin cookie-parser -- se evita esa dependencia
 // nueva parseando a mano el unico header de cookie que este modulo
@@ -104,7 +125,7 @@ async function buscarPersonaPorToken(pool, token) {
     if (!token) return null;
 
     const resultado = await pool.query(
-        `SELECT p.id, p.nombre, p.correo, p.telefono, p.oficio
+        `SELECT p.id, p.nombre, p.correo, p.telefono, p.oficio, p.correo_verificado
          FROM public.sesiones_persona s
          JOIN public.personas p ON p.id = s.persona_id
          WHERE s.token_hash = $1 AND s.revocado_at IS NULL
@@ -119,7 +140,16 @@ async function buscarPersonaPorToken(pool, token) {
         [hashTokenSeguro(token)]
     ).catch(() => {});
 
-    return resultado.rows[0];
+    const fila = resultado.rows[0];
+
+    return {
+        id: fila.id,
+        nombre: fila.nombre,
+        correo: fila.correo,
+        telefono: fila.telefono,
+        oficio: fila.oficio,
+        correoVerificado: fila.correo_verificado
+    };
 }
 
 // Reusable desde otros modulos (ej. public-site-server.js para
@@ -323,7 +353,13 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const persona = nueva.rows[0];
             const token = await mintearSesionPersona(pool, res, persona.id, req);
 
-            res.json({ ok: true, token, persona });
+            if (correo) {
+                const tokenVerificacion = await crearVerificacionCorreoPersona(pool, persona.id, correo);
+                const enlace = `${urlBasePersona(req)}/personas/verificar-correo/${tokenVerificacion}`;
+                enviarCorreoVerificacionPersona(correo, nombre, enlace).catch(() => {});
+            }
+
+            res.json({ ok: true, token, persona, requiereVerificacionCorreo: Boolean(correo) });
         } catch (error) {
             responderError(res, error);
         }
@@ -345,7 +381,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
 
         try {
             const fila = await pool.query(
-                `SELECT id, nombre, correo, telefono, password_hash, oficio FROM public.personas WHERE LOWER(correo) = $1 OR telefono = $1 LIMIT 1`,
+                `SELECT id, nombre, correo, telefono, password_hash, oficio, correo_verificado FROM public.personas WHERE LOWER(correo) = $1 OR telefono = $1 LIMIT 1`,
                 [identificador]
             );
 
@@ -356,6 +392,19 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 limitadorLoginPersona.registrarFallo(req.ip);
                 limitadorLoginPersona.registrarFallo(identificador);
                 res.status(401).json({ ok: false, error: "Correo/telefono o contrasena incorrectos" });
+                return;
+            }
+
+            if (persona.correo && !persona.correo_verificado) {
+                // Contrasena correcta pero correo sin verificar -- no
+                // cuenta como fallo (son credenciales validas), pero
+                // tampoco se crea sesion. Cuentas de solo-telefono
+                // (persona.correo === null) nunca entran aqui.
+                res.status(403).json({
+                    ok: false,
+                    error: "Verifica tu correo antes de iniciar sesion. Revisa tu bandeja de entrada o pide que te reenviemos el correo.",
+                    correoSinVerificar: true
+                });
                 return;
             }
 
@@ -392,6 +441,157 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
 
     app.get("/personas/estado", requerirSesionPersona, (req, res) => {
         res.json({ ok: true, persona: req.persona });
+    });
+
+    // Se abre desde el enlace del correo (fuera del wizard), asi que
+    // responde una pagina HTML sencilla en vez de JSON -- mismo patron
+    // que paginaCorreoHtml de server.js (negocios).
+    function paginaCorreoPersonaHtml(titulo, mensaje, exito) {
+        return `
+        <!doctype html>
+        <html lang="es">
+        <head>
+            <meta charset="utf-8">
+            <title>${titulo} -- Nexo</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+        </head>
+        <body style="margin:0;background:#f4f5f7;font-family:Segoe UI,Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+            <div style="max-width:420px;margin:24px;background:#fff;border-radius:16px;padding:32px;text-align:center;border:1px solid #e4e7ec;">
+                <div style="width:56px;height:56px;border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:28px;background:${exito ? "#dcfce7" : "#fee2e2"};color:${exito ? "#16a34a" : "#dc2626"};">${exito ? "OK" : "!"}</div>
+                <h1 style="font-size:20px;margin:0 0 8px;color:#101828;">${titulo}</h1>
+                <p style="color:#667085;font-size:14px;line-height:1.5;margin:0;">${mensaje}</p>
+            </div>
+        </body>
+        </html>
+        `;
+    }
+
+    app.get("/personas/verificar-correo/:token", async (req, res) => {
+        try {
+            const tokenHash = hashTokenSeguro(req.params.token);
+
+            const fila = await pool.query(
+                `
+                SELECT v.id, v.persona_id, v.correo
+                FROM public.verificaciones_correo_persona v
+                WHERE v.token_hash = $1 AND v.usado_at IS NULL AND v.expira_at > NOW()
+                LIMIT 1
+                `,
+                [tokenHash]
+            );
+
+            if (fila.rows.length === 0) {
+                res.status(400).send(paginaCorreoPersonaHtml(
+                    "Enlace invalido o vencido",
+                    "Pide que te reenvien el correo de verificacion e intenta de nuevo.",
+                    false
+                ));
+                return;
+            }
+
+            const verificacion = fila.rows[0];
+
+            await pool.query(
+                `UPDATE public.personas SET correo_verificado = true WHERE id = $1`,
+                [verificacion.persona_id]
+            );
+
+            await pool.query(
+                `UPDATE public.verificaciones_correo_persona SET usado_at = NOW() WHERE id = $1`,
+                [verificacion.id]
+            );
+
+            res.send(paginaCorreoPersonaHtml(
+                "Correo verificado",
+                "Tu correo quedo confirmado. Ya puedes cerrar esta ventana e iniciar sesion en Nexo.",
+                true
+            ));
+        } catch (error) {
+            console.error(error);
+            res.status(500).send(paginaCorreoPersonaHtml("No se pudo verificar", "Ocurrio un error inesperado. Intenta de nuevo o pide un nuevo enlace.", false));
+        }
+    });
+
+    // Publica (sin sesion) a proposito, mismo patron que
+    // /cuenta/reenviar-verificacion (negocios) -- cubre tanto "acabo de
+    // registrarme" (con sesion) como "intente loguear y me bloquearon
+    // por correo sin verificar" (sin sesion todavia). Respuesta
+    // identica exista o no la cuenta / ya este verificada, para no
+    // revelar que correos estan registrados.
+    app.post("/personas/reenviar-verificacion", async (req, res) => {
+        const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+
+        if (!correo || !REGEX_CORREO.test(correo)) {
+            res.status(400).json({ ok: false, error: "Escribe un correo valido" });
+            return;
+        }
+
+        if (limitadorReenviarVerificacionPersona.bloqueado(req.ip)) {
+            res.status(429).json({ ok: false, error: "Demasiadas solicitudes. Intenta de nuevo mas tarde." });
+            return;
+        }
+
+        limitadorReenviarVerificacionPersona.registrarFallo(req.ip);
+
+        try {
+            const persona = await pool.query(
+                `SELECT id, nombre, correo_verificado FROM public.personas WHERE LOWER(correo) = $1 LIMIT 1`,
+                [correo]
+            );
+
+            if (persona.rows.length === 0 || persona.rows[0].correo_verificado) {
+                res.json({ ok: true });
+                return;
+            }
+
+            const tokenVerificacion = await crearVerificacionCorreoPersona(pool, persona.rows[0].id, correo);
+            const enlace = `${urlBasePersona(req)}/personas/verificar-correo/${tokenVerificacion}`;
+
+            await enviarCorreoVerificacionPersona(correo, persona.rows[0].nombre, enlace);
+
+            res.json({ ok: true });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Cambiar correo antes de verificar (pantalla "Verifica tu correo"
+    // del wizard) -- requiere sesion porque cambia un dato sensible de
+    // la cuenta ya autenticada (a diferencia de reenviar-verificacion,
+    // que es publico). Reinicia la verificacion con el correo nuevo.
+    app.patch("/personas/correo", requerirSesionPersona, async (req, res) => {
+        const correo = limpiarTexto(req.body?.correo, 140).toLowerCase();
+
+        if (!correo || !REGEX_CORREO.test(correo)) {
+            res.status(400).json({ ok: false, error: "Correo invalido" });
+            return;
+        }
+
+        try {
+            const existente = await pool.query(
+                `SELECT id FROM public.personas WHERE LOWER(correo) = $1 AND id != $2 LIMIT 1`,
+                [correo, req.persona.id]
+            );
+
+            if (existente.rows.length > 0) {
+                res.status(409).json({ ok: false, error: "Ya existe una cuenta Nexo con ese correo" });
+                return;
+            }
+
+            await pool.query(
+                `UPDATE public.personas SET correo = $1, correo_verificado = false WHERE id = $2`,
+                [correo, req.persona.id]
+            );
+
+            const tokenVerificacion = await crearVerificacionCorreoPersona(pool, req.persona.id, correo);
+            const enlace = `${urlBasePersona(req)}/personas/verificar-correo/${tokenVerificacion}`;
+
+            enviarCorreoVerificacionPersona(correo, req.persona.nombre, enlace).catch(() => {});
+
+            res.json({ ok: true, correo });
+        } catch (error) {
+            responderError(res, error);
+        }
     });
 
     // "Olvide mi contrasena" para personas -- mismo diseno exacto que

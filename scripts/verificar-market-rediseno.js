@@ -134,8 +134,8 @@ function llamar(metodo, ruta, { token, body } = {}) {
             // El contrato viejo hacia "if (!texto) { ...datos.tiendas.length...}"
             // dentro de marketBuscar (buscar-json regresaba tiendas sin texto).
             // Ahora marketBuscar hace un early-return a marketMostrarInicio()
-            // sin llamar a buscar-json en absoluto cuando no hay texto.
-            log("marketBuscar ya no llama buscar-json cuando el texto esta vacio (usa marketMostrarInicio)", r.texto.includes('if (!texto) { marketMostrarInicio(); return; }'));
+            // sin llamar a buscar-json en absoluto cuando no hay texto ni categoria.
+            log("marketBuscar ya no llama buscar-json cuando el texto esta vacio (usa marketMostrarInicio)", r.texto.includes('if (!texto && !categoria) { marketMostrarInicio(); return; }'));
         }
 
         // --- 7. negocio_id = 1 y tabla personas real sin contaminacion ---

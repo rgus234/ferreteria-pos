@@ -1,0 +1,390 @@
+// Nexo Market -- shell movil/PWA de "Mi cuenta" con mascota "Nexo" (12
+// pantallas, ver plan stateless-doodling-tarjan.md). Alcance confirmado
+// con el dueño: SOLO movil/PWA -- /market/mi-cuenta en escritorio sigue
+// sirviendo market-cuenta-server.js (servirCuentaMarket) sin ningun
+// cambio. La deteccion es server-side por User-Agent porque no existe
+// ningun mecanismo de deteccion de viewport/PWA en el proyecto.
+//
+// Fase 2 (esta fase): solo el esqueleto navegable -- 12 secciones con
+// mascota/copy real y botones que navegan entre pantallas, SIN llamar
+// a ningun endpoint todavia. Fase 3 conecta registro/login reales,
+// Fase 4 la verificacion bloqueante, Fase 5 el elegir modo, Fase 6 el
+// restablecimiento de contrasena, Fase 7 el home/drawer reales.
+
+const { crearResolverSesionPersonaOpcional } = require("./personas-server");
+
+const REGEX_USER_AGENT_MOVIL = /Mobi|Android|iPhone|iPad/i;
+
+// ?vista=app / ?vista=escritorio -- override manual para QA (permite
+// probar cualquiera de las 2 vistas desde cualquier dispositivo, y es
+// lo que usa el script de verificacion de esta fase).
+function esVistaMovilMarket(req) {
+    const forzado = String((req.query && req.query.vista) || "").toLowerCase();
+    if (forzado === "app") return true;
+    if (forzado === "escritorio") return false;
+    return REGEX_USER_AGENT_MOVIL.test(req.headers["user-agent"] || "");
+}
+
+function escaparHtml(valor) {
+    return String(valor == null ? "" : valor)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+const ESTILOS_WIZARD_MARKET = `
+.wizard-body{ margin:0; background:var(--paper); }
+.wizard-shell{ max-width:440px; margin:0 auto; min-height:100vh; background:#fff; display:flex; flex-direction:column; position:relative; box-shadow:var(--shadow); }
+.wizard-topbar{ display:flex; align-items:center; gap:10px; padding:16px 18px; }
+.wizard-topbar-atras{ width:36px; height:36px; border-radius:999px; border:1px solid var(--line); background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink); font-size:16px; }
+.wizard-topbar-atras[hidden]{ display:none; }
+.wizard-screen{ flex:1; display:flex; flex-direction:column; padding:8px 26px 32px; text-align:center; }
+.wizard-screen[hidden]{ display:none; }
+.wizard-screen-scroll{ text-align:left; padding-bottom:100px; }
+.wizard-mascota{ width:112px; height:112px; border-radius:50%; object-fit:cover; margin:18px auto 22px; box-shadow:0 14px 30px rgba(16,103,232,.22); }
+.wizard-mascota-chica{ width:64px; height:64px; margin:0 0 14px; }
+.wizard-titulo{ font-size:22px; font-weight:800; color:var(--ink); margin:0 0 10px; }
+.wizard-texto{ font-size:14.5px; color:var(--muted); line-height:1.55; margin:0 0 28px; }
+.wizard-spacer{ flex:1; }
+.wizard-acciones{ display:flex; flex-direction:column; gap:12px; margin-top:auto; }
+.wizard-btn-primario{ display:inline-flex; align-items:center; justify-content:center; padding:14px 24px; border:none; border-radius:999px; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; font-weight:800; font-size:15px; cursor:pointer; box-shadow:0 14px 28px rgba(16,103,232,.28); }
+.wizard-btn-secundario{ display:inline-flex; align-items:center; justify-content:center; padding:14px 24px; border-radius:999px; background:var(--glass); border:1px solid var(--line); color:var(--ink); font-weight:700; font-size:15px; cursor:pointer; }
+.wizard-link{ background:none; border:none; padding:8px; font-size:13px; font-weight:700; color:var(--blue); text-decoration:underline; cursor:pointer; }
+.wizard-card{ text-align:left; border:1px solid var(--line); border-radius:16px; padding:16px 18px; margin-bottom:14px; }
+.wizard-card-titulo{ font-weight:800; font-size:14.5px; color:var(--ink); margin:0 0 4px; }
+.wizard-card-texto{ font-size:13px; color:var(--muted); margin:0; }
+.wizard-form{ display:grid; gap:14px; text-align:left; margin-bottom:20px; }
+.wizard-form label{ display:grid; gap:6px; font-size:13px; font-weight:700; color:var(--muted); }
+.wizard-form input, .wizard-form select{ padding:13px 14px; border-radius:12px; border:1px solid var(--line); font-size:15px; background:#fff; }
+.wizard-form input:disabled{ opacity:.55; }
+.wizard-oauth{ display:flex; flex-direction:column; gap:10px; margin:6px 0 20px; }
+.wizard-btn-oauth{ display:flex; align-items:center; justify-content:center; gap:10px; padding:13px 20px; border-radius:999px; border:1px solid var(--line); background:#fff; color:var(--ink); font-weight:700; font-size:14px; cursor:not-allowed; opacity:.55; }
+.wizard-separador{ display:flex; align-items:center; gap:10px; color:var(--muted); font-size:12px; margin:4px 0 16px; }
+.wizard-separador::before, .wizard-separador::after{ content:""; flex:1; height:1px; background:var(--line); }
+.wizard-resultado{ font-size:13px; font-weight:700; min-height:18px; margin-top:2px; }
+.wizard-resultado[data-tipo="error"]{ color:#c0392b; }
+.wizard-resultado[data-tipo="ok"]{ color:var(--mint); }
+.wizard-elegir-grid{ display:grid; gap:14px; }
+.wizard-elegir-opcion{ display:flex; align-items:center; gap:14px; padding:18px; border:1px solid var(--line); border-radius:18px; background:#fff; cursor:pointer; text-align:left; }
+.wizard-elegir-opcion span.icono{ font-size:26px; }
+.wizard-elegir-opcion strong{ display:block; font-size:14.5px; color:var(--ink); }
+.wizard-elegir-opcion small{ color:var(--muted); font-size:12.5px; }
+
+.wizard-home{ padding:0 0 78px; text-align:left; }
+.wizard-home-header{ padding:20px 22px 10px; display:flex; align-items:center; justify-content:space-between; }
+.wizard-home-saludo{ font-size:18px; font-weight:800; color:var(--ink); margin:0; }
+.wizard-menu-boton{ width:38px; height:38px; border-radius:999px; border:1px solid var(--line); background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:17px; }
+.wizard-sugerencia{ margin:6px 22px 18px; padding:16px; border-radius:16px; background:linear-gradient(135deg, rgba(16,103,232,.08), rgba(24,184,143,.08)); display:flex; gap:12px; align-items:center; }
+.wizard-sugerencia img{ width:44px; height:44px; border-radius:50%; object-fit:cover; flex-shrink:0; }
+.wizard-sugerencia p{ margin:0; font-size:13px; color:var(--ink); font-weight:600; }
+.wizard-home-cuerpo{ padding:0 22px; }
+.wizard-bottom-nav{ position:fixed; left:50%; transform:translateX(-50%); bottom:0; width:100%; max-width:440px; display:flex; background:#fff; border-top:1px solid var(--line); box-shadow:0 -8px 24px rgba(20,32,51,.08); z-index:5; }
+.wizard-bottom-nav button{ flex:1; border:none; background:none; padding:10px 4px 12px; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:11px; font-weight:700; color:var(--muted); cursor:pointer; }
+.wizard-bottom-nav button.activo{ color:var(--blue); }
+.wizard-bottom-nav button .icono{ font-size:19px; }
+
+.wizard-drawer-overlay{ position:fixed; inset:0; background:rgba(20,32,51,.42); z-index:20; }
+.wizard-drawer-overlay[hidden]{ display:none; }
+.wizard-drawer{ position:absolute; top:0; left:0; bottom:0; width:82%; max-width:340px; background:#fff; padding:24px 20px; overflow-y:auto; }
+.wizard-drawer-perfil{ display:flex; align-items:center; gap:12px; margin-bottom:22px; }
+.wizard-drawer-avatar{ width:52px; height:52px; border-radius:50%; object-fit:cover; }
+.wizard-drawer-nombre{ font-weight:800; font-size:15px; color:var(--ink); margin:0; }
+.wizard-drawer-correo{ font-size:12.5px; color:var(--muted); margin:0; }
+.wizard-drawer-titulo{ font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:18px 0 8px; }
+.wizard-drawer-link{ display:flex; align-items:center; gap:12px; padding:11px 4px; font-size:14px; color:var(--ink); text-decoration:none; font-weight:600; }
+.wizard-drawer-cerrar{ position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+`;
+
+const MASCOTA = {
+    feliz: "/img/nexo-ia/feliz.jpg",
+    pensando: "/img/nexo-ia/pensando.jpg",
+    alerta: "/img/nexo-ia/alerta.jpg",
+    celebrando: "/img/nexo-ia/celebrando.jpg",
+    neutral: "/img/nexo-ia/neutral.jpg"
+};
+
+function mascotaImgHtml(estado, clase) {
+    return `<img class="wizard-mascota${clase ? " " + clase : ""}" src="${MASCOTA[estado] || MASCOTA.neutral}" alt="Nexo">`;
+}
+
+function cabezaWizardMarketHtml() {
+    return `<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mi cuenta -- Nexo</title>
+<meta name="description" content="Tu cuenta Nexo: pedidos, favoritos, credito y las ferreterias donde compras.">
+<meta name="theme-color" content="#1067e8">
+<link rel="icon" href="/nexo-pos-icon.jpg">
+<link rel="apple-touch-icon" href="/nexo-pos-icon.jpg">
+<link rel="stylesheet" href="/site/styles.css">
+<style>${ESTILOS_WIZARD_MARKET}</style>`;
+}
+
+// --- Pantallas 1-10: wizard de bienvenida/registro/login (visitante o
+// persona recien registrada) -------------------------------------------
+
+function pantallasWizardAuthHtml() {
+    return `
+<section class="wizard-screen" data-screen="bienvenida">
+${mascotaImgHtml("feliz")}
+<h1 class="wizard-titulo">Hola, soy Nexo</h1>
+<p class="wizard-texto">Tu asistente para comprar y administrar en las ferreterias de tu zona, todo desde una sola cuenta.</p>
+<div class="wizard-spacer"></div>
+<div class="wizard-acciones">
+<button type="button" class="wizard-btn-primario" data-ir="que-es-market">Comenzar</button>
+<button type="button" class="wizard-btn-secundario" data-ir="iniciar-sesion">Ya tengo cuenta</button>
+</div>
+</section>
+
+<section class="wizard-screen" data-screen="que-es-market">
+${mascotaImgHtml("neutral")}
+<h1 class="wizard-titulo">¿Que es Nexo Market?</h1>
+<p class="wizard-texto">Es el lugar donde encuentras productos de ferreterias reales cerca de ti: comparas precios, pides tus productos y les das seguimiento hasta que los recoges.</p>
+<div class="wizard-spacer"></div>
+<div class="wizard-acciones">
+<button type="button" class="wizard-btn-primario" data-ir="elegir-registro">Continuar</button>
+</div>
+</section>
+
+<section class="wizard-screen" data-screen="elegir-registro">
+${mascotaImgHtml("feliz")}
+<h1 class="wizard-titulo">Crea tu cuenta Nexo</h1>
+<p class="wizard-texto">Con una sola cuenta compras en Nexo Market y, si tienes una ferreteria, tambien la administras.</p>
+<div class="wizard-spacer"></div>
+<div class="wizard-acciones">
+<button type="button" class="wizard-btn-primario" data-ir="crear-cuenta">Crear cuenta</button>
+<button type="button" class="wizard-btn-secundario" data-ir="iniciar-sesion">Ya tengo cuenta</button>
+</div>
+</section>
+
+<section class="wizard-screen wizard-screen-scroll" data-screen="crear-cuenta">
+<h1 class="wizard-titulo" style="text-align:left;">Crea tu cuenta</h1>
+<p class="wizard-texto" style="text-align:left;">Es gratis y toma un minuto.</p>
+<div class="wizard-oauth">
+<button type="button" class="wizard-btn-oauth" disabled>🔵 Continuar con Google (Proximamente)</button>
+<button type="button" class="wizard-btn-oauth" disabled>⬛ Continuar con Apple (Proximamente)</button>
+</div>
+<div class="wizard-separador">o con tu correo</div>
+<form class="wizard-form" id="wizardCrearCuentaForm">
+<label>Tu nombre<input id="wizardRegistroNombre" type="text" placeholder="Ej. Gustavo" required></label>
+<label>Correo (opcional si dejas telefono)<input id="wizardRegistroCorreo" type="email" placeholder="tu@correo.com"></label>
+<label>Telefono (opcional si dejas correo)<input id="wizardRegistroTelefono" type="tel" placeholder="4421234567"></label>
+<label>Contrasena<input id="wizardRegistroPassword" type="password" minlength="8" placeholder="Minimo 8 caracteres" required></label>
+</form>
+<div class="wizard-resultado" id="wizardCrearCuentaResultado"></div>
+<div class="wizard-acciones">
+<button type="button" class="wizard-btn-primario" id="wizardCrearCuentaBoton">Crear mi cuenta Nexo</button>
+</div>
+</section>
+
+<section class="wizard-screen" data-screen="verificacion">
+${mascotaImgHtml("pensando")}
+<h1 class="wizard-titulo">Revisa tu correo</h1>
+<p class="wizard-texto" id="wizardVerificacionTexto">Te enviamos un enlace para confirmar tu cuenta. Abrelo desde este mismo telefono y regresa aqui.</p>
+<div class="wizard-resultado" id="wizardVerificacionResultado"></div>
+<div class="wizard-spacer"></div>
+<div class="wizard-acciones">
+<button type="button" class="wizard-link" id="wizardReenviarVerificacionBoton">Reenviar correo</button>
+<button type="button" class="wizard-link" id="wizardCambiarCorreoBoton">Cambiar correo</button>
+</div>
+</section>
+
+<section class="wizard-screen" data-screen="cuenta-creada">
+${mascotaImgHtml("celebrando")}
+<h1 class="wizard-titulo">Cuenta creada 🎉</h1>
+<p class="wizard-texto">Tu correo quedo verificado. Ya puedes usar tu cuenta Nexo.</p>
+<div class="wizard-spacer"></div>
+<div class="wizard-acciones">
+<button type="button" class="wizard-btn-primario" data-ir="una-cuenta">Continuar</button>
+</div>
+</section>
+
+<section class="wizard-screen" data-screen="una-cuenta">
+${mascotaImgHtml("feliz")}
+<h1 class="wizard-titulo">Una cuenta. Todo Nexo.</h1>
+<p class="wizard-texto">Con tu cuenta puedes comprar en cualquier ferreteria de Nexo Market y, si administras un negocio, entrar a Nexo para negocios -- sin crear otra cuenta.</p>
+<div class="wizard-spacer"></div>
+<div class="wizard-acciones">
+<button type="button" class="wizard-btn-primario" data-ir="elegir-modo">Continuar</button>
+</div>
+</section>
+
+<section class="wizard-screen" data-screen="elegir-modo">
+<h1 class="wizard-titulo">¿Como quieres continuar?</h1>
+<p class="wizard-texto">Puedes cambiar de modo cuando quieras desde tu cuenta.</p>
+<div class="wizard-elegir-grid">
+<button type="button" class="wizard-elegir-opcion" data-ir="home"><span class="icono">🛒</span><span><strong>Comprar</strong><small>Explora Nexo Market</small></span></button>
+<button type="button" class="wizard-elegir-opcion" id="wizardElegirAdministrar"><span class="icono">🏬</span><span><strong>Administrar mi negocio</strong><small>Entra a Nexo para negocios</small></span></button>
+</div>
+</section>
+
+<section class="wizard-screen wizard-screen-scroll" data-screen="iniciar-sesion">
+<h1 class="wizard-titulo" style="text-align:left;">Inicia sesion</h1>
+<div class="wizard-oauth">
+<button type="button" class="wizard-btn-oauth" disabled>🔵 Continuar con Google (Proximamente)</button>
+<button type="button" class="wizard-btn-oauth" disabled>⬛ Continuar con Apple (Proximamente)</button>
+</div>
+<div class="wizard-separador">o con tu correo</div>
+<form class="wizard-form" id="wizardLoginForm">
+<label>Correo o telefono<input id="wizardLoginIdentificador" type="text" placeholder="tu@correo.com o 4421234567" required></label>
+<label>Contrasena<input id="wizardLoginPassword" type="password" placeholder="Tu contrasena" required></label>
+</form>
+<div class="wizard-resultado" id="wizardLoginResultado"></div>
+<div class="wizard-acciones">
+<button type="button" class="wizard-btn-primario" id="wizardLoginBoton">Entrar</button>
+<button type="button" class="wizard-link" data-ir="recuperar-password">¿Olvidaste tu contrasena?</button>
+<button type="button" class="wizard-link" data-ir="crear-cuenta">Crear cuenta nueva</button>
+</div>
+</section>
+
+<section class="wizard-screen wizard-screen-scroll" data-screen="recuperar-password">
+<h1 class="wizard-titulo" style="text-align:left;">Recupera tu contrasena</h1>
+<p class="wizard-texto" style="text-align:left;">Te enviamos un codigo de 6 digitos a tu correo.</p>
+<form class="wizard-form" id="wizardRecuperarForm">
+<label>Correo<input id="wizardRecuperarCorreo" type="email" placeholder="tu@correo.com" required></label>
+</form>
+<div class="wizard-resultado" id="wizardRecuperarResultado"></div>
+<div class="wizard-acciones">
+<button type="button" class="wizard-btn-primario" id="wizardRecuperarBoton">Enviar codigo</button>
+</div>
+</section>`;
+}
+
+// --- Pantallas 11-12: home (logueado) + drawer -------------------------
+
+function pantallaHomeHtml(persona) {
+    const nombre = escaparHtml((persona && persona.nombre) || "");
+    return `
+<section class="wizard-screen wizard-home" data-screen="home">
+<div class="wizard-home-header">
+<p class="wizard-home-saludo">Hola, ${nombre || "de nuevo"} 👋</p>
+<button type="button" class="wizard-menu-boton" id="wizardAbrirDrawer" aria-label="Abrir menu">☰</button>
+</div>
+<div class="wizard-sugerencia">
+<img src="${MASCOTA.neutral}" alt="Nexo" style="width:44px; height:44px; border-radius:50%; object-fit:cover; flex-shrink:0;">
+<p id="wizardSugerenciaTexto">Nexo siempre te acompaña -- pronto veras aqui sugerencias segun tus compras.</p>
+</div>
+<div class="wizard-home-cuerpo">
+<div class="wizard-card"><p class="wizard-card-titulo">Explora Nexo Market</p><p class="wizard-card-texto">Busca productos en las ferreterias de tu zona.</p></div>
+</div>
+</section>`;
+}
+
+function bottomNavHtml() {
+    return `<nav class="wizard-bottom-nav" id="wizardBottomNav">
+<button type="button" class="activo" data-tab="inicio"><span class="icono">🏠</span>Inicio</button>
+<button type="button" data-tab="favoritos"><span class="icono">❤️</span>Favoritos</button>
+<button type="button" data-tab="pedidos"><span class="icono">📦</span>Pedidos</button>
+<button type="button" data-tab="cuenta"><span class="icono">👤</span>Cuenta</button>
+</nav>`;
+}
+
+function pantallaDrawerHtml(persona) {
+    const nombre = escaparHtml((persona && persona.nombre) || "Tu cuenta");
+    const correo = escaparHtml((persona && (persona.correo || persona.telefono)) || "");
+    return `
+<div class="wizard-drawer-overlay" id="wizardDrawerOverlay" hidden>
+<div class="wizard-drawer">
+<button type="button" class="wizard-drawer-cerrar" id="wizardCerrarDrawer" aria-label="Cerrar menu">✕</button>
+<div class="wizard-drawer-perfil">
+<img class="wizard-drawer-avatar" src="${MASCOTA.feliz}" alt="">
+<div><p class="wizard-drawer-nombre">${nombre}</p><p class="wizard-drawer-correo">${correo}</p></div>
+</div>
+<p class="wizard-drawer-titulo">Explorar Nexo</p>
+<a class="wizard-drawer-link" href="/market">🛒 Nexo Market</a>
+<a class="wizard-drawer-link" href="https://app.nexoposoficial.com/dueno">🏬 Nexo para negocios</a>
+<p class="wizard-drawer-titulo">Cuenta</p>
+<a class="wizard-drawer-link" href="#" data-ir-drawer="home">👤 Mi perfil</a>
+<a class="wizard-drawer-link" href="#" data-ir-drawer="home">📍 Direcciones</a>
+<a class="wizard-drawer-link" href="#" data-ir-drawer="home">💳 Metodos de pago</a>
+<a class="wizard-drawer-link" href="#" id="wizardCerrarSesion">🚪 Cerrar sesion</a>
+</div>
+</div>`;
+}
+
+function scriptWizardMarketHtml(pantallaInicial) {
+    return `
+var wizardPila = [${JSON.stringify(pantallaInicial)}];
+
+function wizardMostrar(pantalla) {
+    document.querySelectorAll(".wizard-screen").forEach(function(s) { s.hidden = s.dataset.screen !== pantalla; });
+    document.getElementById("wizardTopbarAtras").hidden = (wizardPila.length <= 1) || pantalla === "home";
+}
+
+function wizardIrA(pantalla) {
+    if (wizardPila[wizardPila.length - 1] === pantalla) return;
+    wizardPila.push(pantalla);
+    history.pushState({ wizardPantalla: pantalla }, "", "#" + pantalla);
+    wizardMostrar(pantalla);
+}
+
+function wizardAtras() {
+    if (wizardPila.length <= 1) return;
+    history.back();
+}
+
+window.addEventListener("popstate", function(evento) {
+    if (wizardPila.length > 1) wizardPila.pop();
+    wizardMostrar(wizardPila[wizardPila.length - 1] || ${JSON.stringify(pantallaInicial)});
+});
+
+document.getElementById("wizardTopbarAtras").addEventListener("click", wizardAtras);
+
+document.querySelectorAll("[data-ir]").forEach(function(boton) {
+    boton.addEventListener("click", function() { wizardIrA(boton.dataset.ir); });
+});
+
+wizardMostrar(${JSON.stringify(pantallaInicial)});
+history.replaceState({ wizardPantalla: ${JSON.stringify(pantallaInicial)} }, "", "#" + ${JSON.stringify(pantallaInicial)});
+
+// Drawer (pantalla 12) -- overlay independiente de la pila de pantallas.
+var wizardDrawerOverlay = document.getElementById("wizardDrawerOverlay");
+if (wizardDrawerOverlay) {
+    var abrirDrawer = document.getElementById("wizardAbrirDrawer");
+    var cerrarDrawer = document.getElementById("wizardCerrarDrawer");
+    if (abrirDrawer) abrirDrawer.addEventListener("click", function() { wizardDrawerOverlay.hidden = false; });
+    if (cerrarDrawer) cerrarDrawer.addEventListener("click", function() { wizardDrawerOverlay.hidden = true; });
+    wizardDrawerOverlay.addEventListener("click", function(evento) { if (evento.target === wizardDrawerOverlay) wizardDrawerOverlay.hidden = true; });
+}
+`;
+}
+
+function paginaWizardMarketHtml(persona, pantallaInicial) {
+    const seccionesAuth = persona ? "" : pantallasWizardAuthHtml();
+    const seccionHome = persona ? pantallaHomeHtml(persona) : "";
+    const seccionDrawer = persona ? pantallaDrawerHtml(persona) : "";
+    const seccionBottomNav = persona ? bottomNavHtml() : "";
+
+    return `<!doctype html>
+<html lang="es">
+<head>
+${cabezaWizardMarketHtml()}
+</head>
+<body class="wizard-body">
+<div class="wizard-shell">
+<div class="wizard-topbar"><button type="button" class="wizard-topbar-atras" id="wizardTopbarAtras" aria-label="Atras">←</button></div>
+${seccionesAuth}
+${seccionHome}
+</div>
+${seccionBottomNav}
+${seccionDrawer}
+<script>${scriptWizardMarketHtml(pantallaInicial)}</script>
+</body>
+</html>`;
+}
+
+async function servirCuentaMarketApp(pool, req, res) {
+    try {
+        const resolverPersonaOpcional = crearResolverSesionPersonaOpcional(pool);
+        await new Promise(continuar => resolverPersonaOpcional(req, res, continuar));
+
+        const pantallaInicial = req.persona ? "home" : "bienvenida";
+        res.set("Content-Type", "text/html; charset=utf-8").send(paginaWizardMarketHtml(req.persona, pantallaInicial));
+    } catch (error) {
+        console.warn("Error sirviendo /market/mi-cuenta (app movil):", error.message);
+        res.status(500).send("Error");
+    }
+}
+
+module.exports = { esVistaMovilMarket, servirCuentaMarketApp };

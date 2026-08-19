@@ -34,6 +34,7 @@ const {
 const { servirMarketPagina, servirMarketCategoria, servirMarketOfertas, servirMarketNuevos, servirMarketExplora, servirMarketFerreterias, servirMarketCreditoNexo, buscarMarketJson, sugerenciasMarketJson, inicioMarketJson, favoritosMarketJson, carritoProductosMarketJson } = require("./market-server");
 const { servirInicioTiendaMarket, servirCatalogoTiendaMarket, servirProductoTiendaMarket } = require("./market-tienda-server");
 const { servirCuentaMarket, servirMisPedidosMarket } = require("./market-cuenta-server");
+const { esVistaMovilMarket, servirCuentaMarketApp } = require("./market-cuenta-app-server");
 const { servirCarritoMarket, servirCheckoutMarket } = require("./market-carrito-server");
 const {
     servirSeguimientoPedidoMarket,
@@ -4916,6 +4917,9 @@ app.get("/market/pedido/:codigo/barcode.png", async (req, res) => {
 // capturaria como si "mi-cuenta" fuera un slug de tienda.
 app.get("/market/mi-cuenta", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    // Login/onboarding con mascota "Nexo" -- solo movil/PWA (ver plan
+    // stateless-doodling-tarjan.md). Escritorio sigue exactamente igual.
+    if (esVistaMovilMarket(req)) { await servirCuentaMarketApp(pool, req, res); return; }
     await servirCuentaMarket(pool, req, res);
 });
 

@@ -14,14 +14,15 @@ async function crearPersonaPrueba(sufijo, overrides = {}) {
     const correo = `test-auto-persona-${sufijo}-${Date.now()}@example.com`;
 
     const persona = await pool.query(
-        `INSERT INTO public.personas (nombre, correo, password_hash, oficio)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, nombre, correo, oficio`,
+        `INSERT INTO public.personas (nombre, correo, password_hash, oficio, correo_verificado)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, nombre, correo, oficio, correo_verificado`,
         [
             overrides.nombre || `Persona de prueba ${sufijo}`,
             correo,
             hashPassword("password-de-prueba-123"),
-            overrides.oficio ?? null
+            overrides.oficio ?? null,
+            overrides.correoVerificado !== false
         ]
     );
 

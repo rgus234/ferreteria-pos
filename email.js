@@ -223,6 +223,27 @@ function enviarCorreoVerificacion(correo, nombreNegocio, enlace) {
     });
 }
 
+// Mismo patron que enviarCorreoVerificacion (negocios) pero para la
+// cuenta de persona (Nexo Market / Nexo para negocios), disparado por
+// personas-server.js, POST /personas/registro.
+function enviarCorreoVerificacionPersona(correo, nombrePersona, enlace) {
+    return enviarCorreo({
+        correo,
+        asunto: "Confirma tu correo en Nexo",
+        html: envolverPlantilla({
+            etiqueta: "Verificacion de cuenta",
+            titulo: "Confirma tu correo para activar tu cuenta",
+            saludo: `Hola, ${nombrePersona} 👋`,
+            robot: "feliz",
+            cuerpoHtml: `
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Gracias por crear tu cuenta en Nexo. Solo falta confirmar tu correo electronico para que puedas comenzar.</p>
+                ${botonHtml("Confirmar mi correo", enlace)}
+                ${avisoHtml("Este enlace vence en 24 horas.")}
+            `
+        })
+    });
+}
+
 // Se dispara justo despues de que el correo se confirma con exito
 // (server.js, GET /verificar-correo/:token) -- es la primera vez que
 // el negocio recibe algo de Nexo con la cuenta ya activa.
@@ -774,6 +795,7 @@ function enviarCorreoSolicitudCreditoPublica(correo, nombreNegocio, { clienteNom
 
 module.exports = {
     enviarCorreoVerificacion,
+    enviarCorreoVerificacionPersona,
     enviarCorreoBienvenida,
     enviarCorreoRecuperacion,
     enviarCorreoActivacionCuenta,
