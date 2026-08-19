@@ -258,14 +258,38 @@ ${mascotaImgHtml("feliz")}
 </section>
 
 <section class="wizard-screen wizard-screen-scroll" data-screen="recuperar-password">
+<div id="wizardRecuperarPaso1">
 <h1 class="wizard-titulo" style="text-align:left;">Recupera tu contrasena</h1>
-<p class="wizard-texto" style="text-align:left;">Te enviamos un codigo de 6 digitos a tu correo.</p>
+<p class="wizard-texto" style="text-align:left;">Escribe el correo con el que te registraste. Si existe una cuenta, te enviamos un codigo de 6 digitos.</p>
 <form class="wizard-form" id="wizardRecuperarForm">
 <label>Correo<input id="wizardRecuperarCorreo" type="email" placeholder="tu@correo.com" required></label>
 </form>
 <div class="wizard-resultado" id="wizardRecuperarResultado"></div>
 <div class="wizard-acciones">
 <button type="button" class="wizard-btn-primario" id="wizardRecuperarBoton">Enviar codigo</button>
+</div>
+</div>
+<div id="wizardRecuperarPaso2" hidden>
+<h1 class="wizard-titulo" style="text-align:left;">Escribe el codigo</h1>
+<p class="wizard-texto" style="text-align:left;">Revisa tu correo, valido por 15 minutos.</p>
+<form class="wizard-form" id="wizardRecuperarCodigoForm">
+<label>Codigo de 6 digitos<input id="wizardRecuperarCodigo" type="text" inputmode="numeric" maxlength="6" placeholder="123456" required></label>
+</form>
+<div class="wizard-resultado" id="wizardRecuperarCodigoResultado"></div>
+<div class="wizard-acciones">
+<button type="button" class="wizard-btn-primario" id="wizardRecuperarCodigoBoton">Verificar codigo</button>
+</div>
+</div>
+<div id="wizardRecuperarPaso3" hidden>
+<h1 class="wizard-titulo" style="text-align:left;">Nueva contrasena</h1>
+<form class="wizard-form" id="wizardRecuperarNuevaForm">
+<label>Nueva contrasena<input id="wizardRecuperarNuevaPassword" type="password" minlength="8" placeholder="Minimo 8 caracteres" required></label>
+<label>Confirmar contrasena<input id="wizardRecuperarConfirmarPassword" type="password" minlength="8" placeholder="Repite tu nueva contrasena" required></label>
+</form>
+<div class="wizard-resultado" id="wizardRecuperarNuevaResultado"></div>
+<div class="wizard-acciones">
+<button type="button" class="wizard-btn-primario" id="wizardRecuperarNuevaBoton">Restablecer contrasena</button>
+</div>
 </div>
 </section>`;
 }
@@ -480,6 +504,78 @@ if (wizardBotonLogin) {
             wizardResultado("wizardLoginResultado", "Ocurrio un error. Intenta de nuevo.", "error");
         } finally {
             wizardBotonLogin.disabled = false;
+        }
+    });
+}
+
+// Pantalla 10 -- recuperar contrasena en 3 pasos, mismo backend que ya
+// usaba el formulario clasico de escritorio (market-cuenta-server.js):
+// POST /personas/olvide-password -> POST /personas/verificar-codigo-reset
+// -> POST /personas/restablecer-password. Sin cambios de servidor.
+var wizardTokenRestablecimiento = "";
+
+var wizardBotonRecuperar = document.getElementById("wizardRecuperarBoton");
+if (wizardBotonRecuperar) {
+    wizardBotonRecuperar.addEventListener("click", async function() {
+        var correo = document.getElementById("wizardRecuperarCorreo").value.trim();
+        if (!correo) { wizardResultado("wizardRecuperarResultado", "Escribe tu correo.", "error"); return; }
+        wizardResultado("wizardRecuperarResultado", "Enviando...");
+        wizardBotonRecuperar.disabled = true;
+        try {
+            var datos = await wizardLlamar("/personas/olvide-password", { method: "POST", body: JSON.stringify({ correo: correo }) });
+            if (!datos.ok) { wizardResultado("wizardRecuperarResultado", datos.error || "No se pudo enviar el codigo.", "error"); return; }
+            document.getElementById("wizardRecuperarPaso1").hidden = true;
+            document.getElementById("wizardRecuperarPaso2").hidden = false;
+        } catch (error) {
+            wizardResultado("wizardRecuperarResultado", "Ocurrio un error. Intenta de nuevo.", "error");
+        } finally {
+            wizardBotonRecuperar.disabled = false;
+        }
+    });
+}
+
+var wizardBotonRecuperarCodigo = document.getElementById("wizardRecuperarCodigoBoton");
+if (wizardBotonRecuperarCodigo) {
+    wizardBotonRecuperarCodigo.addEventListener("click", async function() {
+        var correo = document.getElementById("wizardRecuperarCorreo").value.trim();
+        var codigo = document.getElementById("wizardRecuperarCodigo").value.trim();
+        if (!codigo) { wizardResultado("wizardRecuperarCodigoResultado", "Escribe el codigo.", "error"); return; }
+        wizardResultado("wizardRecuperarCodigoResultado", "Verificando...");
+        wizardBotonRecuperarCodigo.disabled = true;
+        try {
+            var datos = await wizardLlamar("/personas/verificar-codigo-reset", { method: "POST", body: JSON.stringify({ correo: correo, codigo: codigo }) });
+            if (!datos.ok) { wizardResultado("wizardRecuperarCodigoResultado", datos.error || "Codigo invalido o vencido.", "error"); return; }
+            wizardTokenRestablecimiento = datos.tokenRestablecimiento;
+            document.getElementById("wizardRecuperarPaso2").hidden = true;
+            document.getElementById("wizardRecuperarPaso3").hidden = false;
+        } catch (error) {
+            wizardResultado("wizardRecuperarCodigoResultado", "Ocurrio un error. Intenta de nuevo.", "error");
+        } finally {
+            wizardBotonRecuperarCodigo.disabled = false;
+        }
+    });
+}
+
+var wizardBotonRecuperarNueva = document.getElementById("wizardRecuperarNuevaBoton");
+if (wizardBotonRecuperarNueva) {
+    wizardBotonRecuperarNueva.addEventListener("click", async function() {
+        var password = document.getElementById("wizardRecuperarNuevaPassword").value;
+        var confirmarPassword = document.getElementById("wizardRecuperarConfirmarPassword").value;
+        if (password.length < 8) { wizardResultado("wizardRecuperarNuevaResultado", "Minimo 8 caracteres.", "error"); return; }
+        wizardResultado("wizardRecuperarNuevaResultado", "Guardando...");
+        wizardBotonRecuperarNueva.disabled = true;
+        try {
+            var datos = await wizardLlamar("/personas/restablecer-password", {
+                method: "POST",
+                body: JSON.stringify({ tokenRestablecimiento: wizardTokenRestablecimiento, password: password, confirmarPassword: confirmarPassword })
+            });
+            if (!datos.ok) { wizardResultado("wizardRecuperarNuevaResultado", datos.error || "No se pudo restablecer tu contrasena.", "error"); return; }
+            wizardResultado("wizardRecuperarNuevaResultado", "Contrasena actualizada. Ya puedes iniciar sesion.", "ok");
+            setTimeout(function() { wizardIrA("iniciar-sesion"); }, 1200);
+        } catch (error) {
+            wizardResultado("wizardRecuperarNuevaResultado", "Ocurrio un error. Intenta de nuevo.", "error");
+        } finally {
+            wizardBotonRecuperarNueva.disabled = false;
         }
     });
 }
