@@ -12,6 +12,8 @@
    paneles se pintan de una sola vez en el DOM, cambiar de pestana
    solo alterna visibilidad -- sin refetch. */
 
+let dispositivosCuentaCache = [];
+
 function cuentaSesionToken() {
  return localStorage.getItem(CUENTA_SESION_TOKEN_KEY);
 }
@@ -620,9 +622,14 @@ async function cargarSeguridadCuenta() {
      <strong>${escaparPOS(dispositivo.nombre || "Equipo sin nombre")}</strong>
      <span>Vinculado ${new Date(dispositivo.creadoAt).toLocaleDateString("es-MX")} -- ${tiempoRelativoPOS(dispositivo.ultimoUsoAt)}</span>
     </div>
-    <button type="button" class="cuenta-link-boton" onclick="desvincularDispositivoCuentaPOS(${dispositivo.id})">Desvincular</button>
+    <div class="cuenta-sesion-acciones">
+     <button type="button" class="cuenta-link-boton" onclick="renombrarDispositivoCuentaPOS(${dispositivo.id})">Renombrar</button>
+     <button type="button" class="cuenta-link-boton" onclick="desvincularDispositivoCuentaPOS(${dispositivo.id})">Desvincular</button>
+    </div>
    </div>
   `).join("") || `<p class="cuenta-subtitulo" style="margin:0;">No hay equipos vinculados a este negocio.</p>`;
+
+  dispositivosCuentaCache = dispositivosDatos.ok ? dispositivosDatos.dispositivos : [];
 
   panelDispositivos.innerHTML = `
    <h3>Dispositivos con sesion iniciada</h3>
@@ -698,6 +705,41 @@ async function cerrarSesionCuentaPOS(id) {
   cargarSeguridadCuenta();
  } catch (error) {
   await alertaPOS("No se pudo conectar. Revisa tu internet e intenta de nuevo.", "Sin conexion", "alerta");
+ }
+}
+
+async function renombrarDispositivoCuentaPOS(id) {
+ const dispositivo =
+ dispositivosCuentaCache.find(item => item.id === id);
+
+ const nombreNuevo =
+ await pedirTextoPOS(
+ "Ponle un nombre a este equipo para identificarlo, por ejemplo \"Mostrador\" o \"Escritorio\".",
+ dispositivo?.nombre || "",
+ "Renombrar equipo"
+ );
+
+ if (nombreNuevo === null || nombreNuevo === undefined) return;
+ if (!nombreNuevo.trim()) {
+  await alertaPOS("Escribe un nombre para el equipo.", "Falta el nombre", "alerta");
+  return;
+ }
+
+ try {
+  const datos =
+  await cuentaFetchAutenticado(`/cuenta/dispositivos/${id}/nombre`, {
+   method: "PUT",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ nombre: nombreNuevo.trim() })
+  });
+
+  if (!datos.ok) {
+   throw new Error(datos.error || "No se pudo renombrar el equipo");
+  }
+
+  cargarSeguridadCuenta();
+ } catch (error) {
+  await alertaPOS(error.message || "No se pudo conectar. Revisa tu internet e intenta de nuevo.", "Error", "alerta");
  }
 }
 

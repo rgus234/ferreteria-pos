@@ -493,6 +493,17 @@ body.oscuro .cuenta-pill-limitado {
   color: var(--pos-text, #172033);
 }
 
+.cuenta-sesion-acciones {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.cuenta-sesion-acciones .cuenta-link-boton {
+  margin-top: 0;
+}
+
 .cuenta-sesion-fila span {
   display: block;
   margin-top: 2px;

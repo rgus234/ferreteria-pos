@@ -1598,6 +1598,28 @@ app.post("/cuenta/dispositivos/:id/revocar", requerirSesionCuenta, requerirFunci
     }
 });
 
+app.put("/cuenta/dispositivos/:id/nombre", requerirSesionCuenta, async (req, res) => {
+    try {
+        const nombre = limpiarTexto(req.body?.nombre, 60);
+        if (!nombre) { res.status(400).json({ error: "Escribe un nombre para el equipo." }); return; }
+
+        const resultado = await pool.query(
+            `
+            UPDATE public.dispositivos_vinculados SET nombre_dispositivo = $1
+            WHERE id = $2 AND negocio_id = $3 AND revocado_at IS NULL
+            RETURNING id
+            `,
+            [nombre, Number(req.params.id), req.negocioAutenticado.negocio_id]
+        );
+
+        if (resultado.rowCount === 0) { res.status(404).json({ error: "Equipo no encontrado." }); return; }
+
+        res.json({ ok: true, nombre });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
 const PALETA_AVATAR_EMPLEADO = [
     "#0d6efd", "#7c3aed", "#dc2626", "#ea580c", "#16a34a",
     "#0891b2", "#c026d3", "#4f46e5", "#0f766e", "#b45309"
