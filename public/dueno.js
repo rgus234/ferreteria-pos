@@ -55,8 +55,14 @@ function mostrarBienvenidaDueno() {
     document.getElementById("duenoVentas").style.display = "none";
     document.getElementById("duenoTabs").style.display = "none";
     document.getElementById("duenoLogin").style.display = "none";
+    document.getElementById("duenoMarketPrompt").style.display = "none";
     document.getElementById("duenoNexoBurbuja").style.display = "none";
     document.getElementById("duenoBienvenida").style.display = "flex";
+}
+
+function mostrarPromptMarketDueno() {
+    document.getElementById("duenoBienvenida").style.display = "none";
+    document.getElementById("duenoMarketPrompt").style.display = "flex";
 }
 
 function mostrarAccesoNegocioDueno() {
@@ -72,6 +78,7 @@ function mostrarAccesoNegocioDueno() {
 function mostrarLoginDueno() {
     document.getElementById("duenoOnboarding").style.display = "none";
     document.getElementById("duenoBienvenida").style.display = "none";
+    document.getElementById("duenoMarketPrompt").style.display = "none";
     document.getElementById("duenoApp").style.display = "none";
     document.getElementById("duenoVentas").style.display = "none";
     document.getElementById("duenoTabs").style.display = "none";

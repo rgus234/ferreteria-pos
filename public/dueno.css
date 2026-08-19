@@ -162,6 +162,12 @@ button{
     opacity:.6;
 }
 
+.dueno-login-caja button.dueno-boton-secundario{
+    margin-top:10px;
+    background:var(--bg-soft, #f1f2f4);
+    color:var(--text, #1a1a1a);
+}
+
 .dueno-login-alt{
     margin:16px 0 0;
 }

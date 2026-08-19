@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=bienvenida-market-20260818-01">
+    <link rel="stylesheet" href="dueno.css?v=market-prompt-cuenta-20260818-01">
 </head>
 
 <body>
@@ -71,8 +71,19 @@
             <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-login-nexo">
             <h1>Bienvenido a Nexo</h1>
             <p>Compra en ferreterias cerca de ti, todo desde tu celular.</p>
-            <button type="button" onclick="window.location.href='/market'">Entrar a Nexo Market</button>
+            <button type="button" onclick="mostrarPromptMarketDueno(); return false;">Entrar a Nexo Market</button>
             <p class="dueno-login-alt"><a href="#" onclick="mostrarAccesoNegocioDueno(); return false;">¿Eres administrador o empleado de un negocio?</a></p>
+        </div>
+    </main>
+
+    <main id="duenoMarketPrompt" class="dueno-login" style="display:none;">
+        <div class="dueno-login-caja">
+            <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-login-nexo">
+            <h1>Compra mas facil con tu cuenta</h1>
+            <p>Crea tu cuenta gratis para guardar tus pedidos, tu credito con las ferreterias y tus favoritos. O si prefieres, entra sin crear cuenta.</p>
+            <button type="button" onclick="window.location.href='/market/mi-cuenta?tab=registro'">Crear cuenta</button>
+            <button type="button" class="dueno-boton-secundario" onclick="window.location.href='/market'">Continuar sin cuenta</button>
+            <p class="dueno-login-alt"><a href="#" onclick="mostrarBienvenidaDueno(); return false;">&larr; Volver</a></p>
         </div>
     </main>
 
@@ -555,7 +566,7 @@
     </div>
 
     <script src="dueno-offline.js?v=dueno-modo-oscuro-20260721-01"></script>
-    <script src="dueno.js?v=bienvenida-market-20260818-01"></script>
+    <script src="dueno.js?v=market-prompt-cuenta-20260818-01"></script>
 </body>
 
 </html>
