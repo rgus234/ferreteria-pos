@@ -79,8 +79,13 @@ function mostrarLoginDueno() {
     document.getElementById("duenoOnboarding").style.display = "none";
     document.getElementById("duenoBienvenida").style.display = "none";
     document.getElementById("duenoMarketPrompt").style.display = "none";
-    document.getElementById("duenoApp").style.display = "none";
-    document.getElementById("duenoVentas").style.display = "none";
+    // Oculta las 8 pantallas de pestaña por su clase compartida (no una
+    // lista parcial de ids) -- si el cierre de sesion pasaba solo por
+    // duenoApp/duenoVentas, cerrar sesion estando en cualquier otra
+    // pestaña (Mas, Reportes, Inventario, Pedidos, Vender, Caja) la
+    // dejaba visible detras del login. Bug real reportado por el
+    // usuario, ver captura de "Mas" quedando debajo del login.
+    document.querySelectorAll(".dueno-app").forEach(pantalla => { pantalla.style.display = "none"; });
     document.getElementById("duenoTabs").style.display = "none";
     document.getElementById("duenoLogin").style.display = "flex";
     document.getElementById("duenoNexoBurbuja").style.display = "none";
