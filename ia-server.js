@@ -1,3 +1,4 @@
+const sharp = require("sharp");
 const { config } = require("./config");
 const { responderError } = require("./error-utils");
 const { CATEGORIAS_NEXO } = require("./categorias-nexo");
@@ -38,6 +39,75 @@ async function negocioActual(req, pool) {
     }
 
     return resultado.rows[0];
+}
+
+function normalizarCodigoFotoIA(codigo) {
+    return String(codigo || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+// Emparejamiento por trigram para "identificar producto por foto" --
+// mismo operador `%`+similarity() ya usado en catalog-server.js (CAT2,
+// vinculacion de catalogo de proveedor) y market-server.js (busqueda
+// cruzada), aplicado aqui a los terminos de busqueda que la IA
+// extrajo de la foto. Separada de la ruta para poder probarla sin
+// pasar por Claude (ver scripts/verificar-identificar-producto-foto.js).
+async function buscarCandidatosPorTerminos(pool, negocio, terminosBusqueda, firmarTokenImagen) {
+    if (!Array.isArray(terminosBusqueda) || terminosBusqueda.length === 0) return [];
+
+    const mejorPorId = new Map();
+
+    for (const termino of terminosBusqueda) {
+        const resultado = await pool.query(
+            `
+            SELECT id, codigo, nombre, precio_publico AS precio, stock, marca, unidad_venta AS "unidadVenta",
+                   similarity(nombre, $2) AS similitud
+            FROM public.productos
+            WHERE negocio_id = $1 AND nombre % $2
+            ORDER BY similitud DESC
+            LIMIT 5
+            `,
+            [negocio.id, termino]
+        );
+
+        for (const fila of resultado.rows) {
+            const existente = mejorPorId.get(fila.id);
+            if (!existente || Number(fila.similitud) > Number(existente.similitud)) {
+                mejorPorId.set(fila.id, fila);
+            }
+        }
+    }
+
+    const candidatos = Array.from(mejorPorId.values())
+        .sort((a, b) => Number(b.similitud) - Number(a.similitud))
+        .slice(0, 5);
+
+    if (candidatos.length === 0) return [];
+
+    const codigosNormalizados = candidatos.map(c => normalizarCodigoFotoIA(c.codigo));
+    const fotos = await pool.query(
+        `SELECT codigo, actualizado_at FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2::text[])`,
+        [negocio.id, codigosNormalizados]
+    );
+    const mapaFotos = new Map(fotos.rows.map(fila => [fila.codigo, fila.actualizado_at]));
+
+    return candidatos.map(candidato => {
+        const codigoNormalizado = normalizarCodigoFotoIA(candidato.codigo);
+        const fechaFoto = mapaFotos.get(codigoNormalizado);
+        const imagenUrl = fechaFoto
+            ? `/fotos-producto/${codigoNormalizado}/principal?negocio=${negocio.slug}&v=${new Date(fechaFoto).getTime()}&token=${firmarTokenImagen(negocio.id, codigoNormalizado)}`
+            : null;
+
+        return {
+            id: candidato.id,
+            codigo: candidato.codigo,
+            nombre: candidato.nombre,
+            precio: Number(candidato.precio || 0),
+            stock: Number(candidato.stock || 0),
+            marca: candidato.marca || null,
+            unidadVenta: candidato.unidadVenta || "pieza",
+            imagenUrl
+        };
+    });
 }
 
 const SYSTEM_PROMPT_NEXO = `Eres Nexo, el asistente de inteligencia artificial de Nexo, un sistema de punto de venta para ferreterias en Mexico. Hablas con el dueno o un empleado del negocio.
@@ -315,6 +385,18 @@ const SYSTEM_PROMPT_MAPEO_CATALOGO = `Ayudas a mapear las columnas de un catalog
 Los campos posibles son exactamente: ${CAMPOS_MAPEO_CATALOGO.join(", ")}.
 
 Se te dan los encabezados reales del archivo y unas filas de muestra. Responde UNICAMENTE con un JSON (objeto plano, sin texto extra) donde cada llave es uno de los campos de la lista y el valor es el encabezado EXACTO (copiado tal cual, sin modificar) que corresponde a ese campo. Si un campo no tiene una columna que le corresponda claramente, omite esa llave -- nunca inventes un encabezado que no este en la lista dada, nunca adivines si no hay evidencia razonable.`;
+
+const SYSTEM_PROMPT_IDENTIFICAR_FOTO = `Ayudas a un empleado o dueno de una ferreteria mexicana a identificar, a partir de una foto, una pieza fisica que un cliente llevo al mostrador (herramienta, tornilleria, conexion, etc.).
+
+Responde UNICAMENTE con un JSON (sin texto extra, sin fences de markdown) con esta forma exacta:
+{"descripcion": {"tipo": "...", "marca": "..." o null, "color": "..." o null, "medidaVisible": "..." o null}, "terminosBusqueda": ["...", "..."]}
+
+Reglas:
+- "tipo": el nombre generico de la pieza en espanol de Mexico (ej. "llave stilson", "codo PVC", "taladro").
+- "marca": solo si el logo o texto de una marca es legible en la foto, si no null.
+- "medidaVisible": solo si hay un numero/medida grabado o impreso en la pieza y es legible (ej. "14 pulg", "1/2\\""), si no null -- nunca inventes una medida que no puedas leer.
+- "terminosBusqueda": de 3 a 5 frases cortas en espanol, cada una un sinonimo o forma regional distinta de nombrar la MISMA pieza (ej. para una llave de tubo: "llave stilson", "llave perica", "llave para tubo") -- estas frases se usan para buscar en el inventario real de la ferreteria, entre mas variedad de sinonimos cubras, mejor.
+- Si la foto no muestra claramente una pieza de ferreteria, responde con "tipo": null y "terminosBusqueda": [].`;
 
 // Cache aparte para la deteccion de categoria de Nexo -- mismo nombre +
 // marca da la misma sugerencia, sin volver a llamar al modelo.
@@ -796,7 +878,7 @@ async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8",
     return { texto: "Estoy tardando mas de lo normal analizando tu negocio. Intenta de nuevo en un momento.", accion: null, celebrar: false };
 }
 
-module.exports = (app, pool, requerirAccesoNegocio) => {
+module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
     // Resumen instantaneo para el popover de la burbuja -- mismas
     // herramientas de Nivel 1, sin pasar por el clasificador ni el
     // modelo. Costo $0, siempre en vivo (no necesita cache).
@@ -1083,6 +1165,97 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
+    // Identificar producto por foto (RBAC3, antes un stub 501 en
+    // server.js) -- el empleado o dueno toma una foto desde /dueno,
+    // Nexo IA describe la pieza y sugiere productos reales del propio
+    // inventario. Mismo patron de costo/seguridad que
+    // /ia/sugerir-mapeo-catalogo (Haiku, gateado por acceso.iaDisponible),
+    // sin cache -- cada foto es unica, cachear por dataURL no ayudaria.
+    // La foto nunca se guarda: se redimensiona en memoria, se manda a
+    // Claude y se descarta. La IA solo aporta terminos de busqueda; el
+    // precio/stock que ve el usuario siempre sale de la fila real de
+    // `productos`, nunca de lo que "cree" el modelo.
+    app.post("/negocio-actual/identificar-producto-foto", requerirAccesoNegocio, async (req, res) => {
+        const anthropic = obtenerAnthropic();
+
+        if (!anthropic) {
+            res.status(503).json({ ok: false, error: "Nexo IA todavia no esta configurado en este servidor" });
+            return;
+        }
+
+        const imagenBase64 = String(req.body?.imagenBase64 || "");
+        const coincidenciaDataUrl = imagenBase64.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/);
+
+        if (!coincidenciaDataUrl) {
+            res.status(400).json({ ok: false, error: "Falta la foto o el formato no es valido" });
+            return;
+        }
+
+        try {
+            const negocio = await negocioActual(req, pool);
+            const acceso = await licenciaDelNegocio(pool, negocio.id);
+
+            if (!acceso.iaDisponible) {
+                res.json({ ok: true, disponible: false });
+                return;
+            }
+
+            // 1024px alcanza para leer una medida grabada en metal --
+            // las miniaturas guardadas (320px) son para otro proposito
+            // y no sirven aqui. Nunca se persiste, solo vive en memoria
+            // durante esta llamada.
+            const bufferOriginal = Buffer.from(coincidenciaDataUrl[1], "base64");
+            const bufferParaIA = await sharp(bufferOriginal)
+                .resize({ width: 1024, withoutEnlargement: true })
+                .jpeg({ quality: 82 })
+                .toBuffer();
+
+            const respuesta = await anthropic.messages.create({
+                model: "claude-haiku-4-5",
+                max_tokens: 300,
+                system: SYSTEM_PROMPT_IDENTIFICAR_FOTO,
+                messages: [{
+                    role: "user",
+                    content: [
+                        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: bufferParaIA.toString("base64") } },
+                        { type: "text", text: "Identifica esta pieza de ferreteria." }
+                    ]
+                }]
+            });
+
+            const texto = respuesta.content
+                .filter(bloque => bloque.type === "text")
+                .map(bloque => bloque.text)
+                .join("")
+                .trim();
+
+            const coincidenciaObjeto = texto.match(/\{[\s\S]*\}/);
+            let salidaIA = {};
+            try {
+                salidaIA = JSON.parse(coincidenciaObjeto ? coincidenciaObjeto[0] : texto);
+            } catch (error) {
+                salidaIA = {};
+            }
+
+            const descripcion = {
+                tipo: typeof salidaIA?.descripcion?.tipo === "string" ? salidaIA.descripcion.tipo.slice(0, 80) : null,
+                marca: typeof salidaIA?.descripcion?.marca === "string" ? salidaIA.descripcion.marca.slice(0, 60) : null,
+                color: typeof salidaIA?.descripcion?.color === "string" ? salidaIA.descripcion.color.slice(0, 40) : null,
+                medidaVisible: typeof salidaIA?.descripcion?.medidaVisible === "string" ? salidaIA.descripcion.medidaVisible.slice(0, 40) : null
+            };
+
+            const terminosBusqueda = Array.isArray(salidaIA?.terminosBusqueda)
+                ? salidaIA.terminosBusqueda.filter(t => typeof t === "string" && t.trim()).map(t => t.trim().slice(0, 60)).slice(0, 5)
+                : [];
+
+            const candidatos = await buscarCandidatosPorTerminos(pool, negocio, terminosBusqueda, firmarTokenImagen);
+
+            res.json({ ok: true, disponible: true, descripcion, candidatos });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     // Lista de conversaciones guardadas del negocio, mas recientes
     // primero -- para el panel de "Conversaciones" del frontend.
     app.get("/ia/conversaciones", requerirAccesoNegocio, async (req, res) => {
@@ -1284,3 +1457,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 };
+
+// Expuesto aparte para que scripts/verificar-identificar-producto-foto.js
+// pueda probar el emparejamiento por trigram directo, sin depender de
+// una respuesta real de Claude.
+module.exports.buscarCandidatosPorTerminos = buscarCandidatosPorTerminos;

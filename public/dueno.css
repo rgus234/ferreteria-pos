@@ -684,6 +684,40 @@ button{
     line-height:1;
 }
 
+/* Fila del buscador de Vender + boton "identificar por foto" */
+.dueno-buscar-fila{
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+.dueno-buscar-fila input[type="search"]{
+    flex:1;
+    min-width:0;
+    padding:11px 13px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:var(--surface-soft);
+    color:var(--text);
+    font-family:inherit;
+    font-size:14px;
+}
+
+.dueno-boton-camara{
+    width:40px;
+    height:40px;
+    font-size:18px;
+}
+
+.dueno-foto-descripcion{
+    padding:10px 12px;
+    margin-bottom:8px;
+    border-radius:12px;
+    background:var(--brand-soft);
+    color:var(--text);
+    font-size:12.5px;
+}
+
 .dueno-cantidad-control{
     display:flex;
     align-items:center;

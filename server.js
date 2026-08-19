@@ -3534,19 +3534,11 @@ async function negocioActual(req) {
     return resultado.rows[0];
 }
 
-// Fase 0 del ecosistema Nexo (RBAC3): gancho inerte para "identificar
-// producto por foto" (empleado toma una foto de una pieza, Nexo sugiere
-// el producto mas parecido) -- catalogado en catalogo_funciones como
-// 'ia.identificar_producto_foto' (estado 'planeado'). Deja el contrato
-// de API listo para cuando se construya la funcion real; por ahora
-// responde 501 sin subir nada a ningun modelo.
-app.post("/negocio-actual/identificar-producto-foto", requerirAccesoNegocio, async (req, res) => {
-    res.status(501).json({
-        ok: false,
-        implementado: false,
-        error: "Identificar producto por foto todavia no esta disponible."
-    });
-});
+// "Identificar producto por foto" (catalogado en catalogo_funciones
+// como 'ia.identificar_producto_foto') ya no es un stub -- la
+// implementacion real vive en ia-server.js junto con las demas rutas
+// de IA de un turno (mismo patron: Haiku, gateado por
+// licenciaDelNegocio().iaDisponible).
 
 function normalizarCodigoFoto(codigo) {
     return String(codigo || "")

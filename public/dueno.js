@@ -1611,6 +1611,23 @@ async function cargarPanelVenderDueno() {
     }
 }
 
+function filaProductoVenderDuenoHtml(producto) {
+    return `
+        <div class="fila-dueno fila-dueno-producto">
+            <div class="dueno-miniatura">
+                ${producto.imagenUrl
+                    ? `<img src="${producto.imagenUrl}" alt="" loading="lazy">`
+                    : `<span class="dueno-miniatura-vacia">Sin foto</span>`}
+            </div>
+            <div>
+                <strong>${escaparDueno(producto.nombre)}</strong>
+                <span>${escaparDueno(producto.codigo || "Sin codigo")} · Stock ${producto.stock} · ${dinero(producto.precio)}</span>
+            </div>
+            <button type="button" class="dueno-boton-agregar" onclick="agregarAlCarritoVenderDueno(${producto.id})">+</button>
+        </div>
+    `;
+}
+
 async function buscarProductoVenderDueno(texto) {
     const contenedor =
     document.getElementById("duenoVenderResultados");
@@ -1620,21 +1637,79 @@ async function buscarProductoVenderDueno(texto) {
 
     contenedor.innerHTML =
         duenoVentaUltimosResultados.length
-            ? duenoVentaUltimosResultados.map(producto => `
-                <div class="fila-dueno fila-dueno-producto">
-                    <div class="dueno-miniatura">
-                        ${producto.imagenUrl
-                            ? `<img src="${producto.imagenUrl}" alt="" loading="lazy">`
-                            : `<span class="dueno-miniatura-vacia">Sin foto</span>`}
-                    </div>
-                    <div>
-                        <strong>${escaparDueno(producto.nombre)}</strong>
-                        <span>${escaparDueno(producto.codigo || "Sin codigo")} · Stock ${producto.stock} · ${dinero(producto.precio)}</span>
-                    </div>
-                    <button type="button" class="dueno-boton-agregar" onclick="agregarAlCarritoVenderDueno(${producto.id})">+</button>
-                </div>
-            `).join("")
+            ? duenoVentaUltimosResultados.map(filaProductoVenderDuenoHtml).join("")
             : (texto.trim() ? `<div class="vacio">Sin resultados en tu catalogo guardado.</div>` : "");
+}
+
+// Redimensiona la foto a dataURL en el propio navegador antes de
+// mandarla -- mismo patron ya usado en product-inventory.js
+// (redimensionarImagenCanvas), copiado aqui porque ese archivo no se
+// carga en /dueno. anchoMax mas grande que el de las miniaturas de
+// catalogo (320px): aqui si importa poder leer una medida grabada.
+function redimensionarImagenCanvasDueno(archivo, anchoMax = 1024) {
+    return new Promise((resolve, reject) => {
+        const lector = new FileReader();
+        lector.onerror = () => reject(new Error("No se pudo leer la foto"));
+        lector.onload = () => {
+            const img = new Image();
+            img.onerror = () => reject(new Error("Foto invalida"));
+            img.onload = () => {
+                const escala = Math.min(1, anchoMax / img.width);
+                const canvas = document.createElement("canvas");
+                canvas.width = Math.round(img.width * escala);
+                canvas.height = Math.round(img.height * escala);
+                canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL("image/jpeg", 0.85));
+            };
+            img.src = lector.result;
+        };
+        lector.readAsDataURL(archivo);
+    });
+}
+
+// "Identificar producto por foto" -- el empleado o dueno toma una
+// foto desde el buscador de Vender, Nexo IA la describe y sugiere
+// productos reales del inventario. Reusa duenoVentaUltimosResultados
+// + agregarAlCarritoVenderDueno (mismos que ya usa la busqueda por
+// texto) para no duplicar la logica de "agregar al carrito".
+async function identificarProductoPorFotoDueno(archivo) {
+    if (!archivo) return;
+
+    const contenedor = document.getElementById("duenoVenderResultados");
+    const inputFoto = document.getElementById("duenoVenderFotoInput");
+    contenedor.innerHTML = `<div class="vacio">Nexo esta mirando la foto...</div>`;
+
+    try {
+        const imagenBase64 = await redimensionarImagenCanvasDueno(archivo);
+        const respuesta = await fetchAutenticado("/negocio-actual/identificar-producto-foto", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imagenBase64 })
+        });
+
+        if (!respuesta.disponible) {
+            contenedor.innerHTML = `<div class="vacio">Identificar por foto es una funcion de Nexo IA -- mejora tu plan desde Cuenta para usarla.</div>`;
+            return;
+        }
+
+        if (!respuesta.candidatos.length) {
+            contenedor.innerHTML = `<div class="vacio">No encontre nada parecido en tu inventario. Prueba escribiendo el nombre.</div>`;
+            return;
+        }
+
+        duenoVentaUltimosResultados = respuesta.candidatos;
+
+        const tipo = respuesta.descripcion?.tipo;
+        const encabezado = tipo
+            ? `<div class="dueno-foto-descripcion">Nexo cree que es: ${escaparDueno(tipo)}${respuesta.descripcion.marca ? ` · ${escaparDueno(respuesta.descripcion.marca)}` : ""}${respuesta.descripcion.medidaVisible ? ` · ${escaparDueno(respuesta.descripcion.medidaVisible)}` : ""}</div>`
+            : "";
+
+        contenedor.innerHTML = encabezado + respuesta.candidatos.map(filaProductoVenderDuenoHtml).join("");
+    } catch (error) {
+        contenedor.innerHTML = `<div class="vacio">${escaparDueno(error.message || "No se pudo identificar la foto")}</div>`;
+    } finally {
+        if (inputFoto) inputFoto.value = "";
+    }
 }
 
 function agregarAlCarritoVenderDueno(id) {

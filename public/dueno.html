@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=market-prompt-cuenta-20260818-01">
+    <link rel="stylesheet" href="dueno.css?v=identificar-foto-20260819-01">
 </head>
 
 <body>
@@ -350,7 +350,11 @@
                     <h2>En tu catalogo guardado</h2>
                 </div>
             </div>
-            <input type="search" id="duenoVenderBuscar" placeholder="Nombre o codigo..." oninput="buscarProductoVenderDueno(this.value)">
+            <div class="dueno-buscar-fila">
+                <input type="search" id="duenoVenderBuscar" placeholder="Nombre o codigo..." oninput="buscarProductoVenderDueno(this.value)">
+                <button type="button" class="dueno-boton-agregar dueno-boton-camara" title="Identificar por foto" onclick="document.getElementById('duenoVenderFotoInput').click()">📷</button>
+                <input type="file" id="duenoVenderFotoInput" accept="image/*" capture="environment" hidden onchange="identificarProductoPorFotoDueno(this.files[0])">
+            </div>
             <div id="duenoVenderResultados" class="lista-compacta" style="margin-top:10px;"></div>
         </article>
 
@@ -567,7 +571,7 @@
     </div>
 
     <script src="dueno-offline.js?v=dueno-modo-oscuro-20260721-01"></script>
-    <script src="dueno.js?v=market-prompt-cuenta-20260818-01"></script>
+    <script src="dueno.js?v=identificar-foto-20260819-01"></script>
 </body>
 
 </html>
