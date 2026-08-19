@@ -897,4 +897,4 @@ async function servirMisPedidosMarket(pool, req, res) {
     }
 }
 
-module.exports = { servirCuentaMarket, servirMisPedidosMarket };
+module.exports = { servirCuentaMarket, servirMisPedidosMarket, paginaEntrandoAdminMarketHtml, paginaElegirNegocioMarketHtml };

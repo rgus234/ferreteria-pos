@@ -11,7 +11,9 @@
 // Fase 4 la verificacion bloqueante, Fase 5 el elegir modo, Fase 6 el
 // restablecimiento de contrasena, Fase 7 el home/drawer reales.
 
-const { crearResolverSesionPersonaOpcional } = require("./personas-server");
+const { crearResolverSesionPersonaOpcional, listarNegociosAdministrados, mintearSesionParaNegocioDePersona } = require("./personas-server");
+const { contarSenalCompradora } = require("./public-site-server");
+const { paginaEntrandoAdminMarketHtml, paginaElegirNegocioMarketHtml } = require("./market-cuenta-server");
 
 const REGEX_USER_AGENT_MOVIL = /Mobi|Android|iPhone|iPad/i;
 
@@ -231,7 +233,7 @@ ${mascotaImgHtml("feliz")}
 <h1 class="wizard-titulo">¿Como quieres continuar?</h1>
 <p class="wizard-texto">Puedes cambiar de modo cuando quieras desde tu cuenta.</p>
 <div class="wizard-elegir-grid">
-<button type="button" class="wizard-elegir-opcion" data-ir="home"><span class="icono">🛒</span><span><strong>Comprar</strong><small>Explora Nexo Market</small></span></button>
+<button type="button" class="wizard-elegir-opcion" id="wizardElegirComprar"><span class="icono">🛒</span><span><strong>Comprar</strong><small>Explora Nexo Market</small></span></button>
 <button type="button" class="wizard-elegir-opcion" id="wizardElegirAdministrar"><span class="icono">🏬</span><span><strong>Administrar mi negocio</strong><small>Entra a Nexo para negocios</small></span></button>
 </div>
 </section>
@@ -482,6 +484,18 @@ if (wizardBotonLogin) {
     });
 }
 
+// Pantalla 8 (elegir modo) -- ambas opciones recargan /market/mi-cuenta
+// de verdad (no SPA): la seccion "home" solo existe en el HTML cuando
+// el servidor ya renderizo con persona, y un invitado recien
+// registrado nunca la tiene en el DOM todavia. Dejar que el servidor
+// decida de nuevo tambien cubre el caso "Administrar mi negocio" sin
+// duplicar el auto-routing (ver servirCuentaMarketApp).
+var wizardBotonElegirComprar = document.getElementById("wizardElegirComprar");
+if (wizardBotonElegirComprar) wizardBotonElegirComprar.addEventListener("click", function() { window.location.href = "/market/mi-cuenta"; });
+
+var wizardBotonElegirAdministrar = document.getElementById("wizardElegirAdministrar");
+if (wizardBotonElegirAdministrar) wizardBotonElegirAdministrar.addEventListener("click", function() { window.location.href = "/market/mi-cuenta"; });
+
 // Pantalla 5 -- verificacion bloqueante: polling real a GET
 // /personas/estado (solo funciona si hay sesion viva, caso del
 // registro recien hecho -- el login bloqueado no mintea sesion, por
@@ -614,6 +628,32 @@ async function servirCuentaMarketApp(pool, req, res) {
     try {
         const resolverPersonaOpcional = crearResolverSesionPersonaOpcional(pool);
         await new Promise(continuar => resolverPersonaOpcional(req, res, continuar));
+
+        // Mismo atajo que servirCuentaMarket (escritorio, ver plan
+        // "arquitectura de navegacion del comprador"): una persona que
+        // solo administra negocios (sin ninguna señal de comprador)
+        // nunca ve el wizard de comprador -- espejado aqui para que el
+        // comportamiento sea identico en movil y escritorio (decision de
+        // alcance confirmada: el auto-routing existente no se toca).
+        if (req.persona) {
+            const [negociosAdministrados, senalCompradora] = await Promise.all([
+                listarNegociosAdministrados(pool, req.persona.id),
+                contarSenalCompradora(pool, req.persona.id)
+            ]);
+
+            if (negociosAdministrados.length > 0 && senalCompradora === 0) {
+                if (negociosAdministrados.length === 1) {
+                    const resultado = await mintearSesionParaNegocioDePersona(pool, req.persona.id, negociosAdministrados[0].id, req);
+                    if (resultado) {
+                        res.set("Content-Type", "text/html; charset=utf-8").send(paginaEntrandoAdminMarketHtml(resultado.token));
+                        return;
+                    }
+                } else {
+                    res.set("Content-Type", "text/html; charset=utf-8").send(paginaElegirNegocioMarketHtml(negociosAdministrados));
+                    return;
+                }
+            }
+        }
 
         const pantallaInicial = req.persona ? "home" : "bienvenida";
         res.set("Content-Type", "text/html; charset=utf-8").send(paginaWizardMarketHtml(req.persona, pantallaInicial));
