@@ -99,6 +99,11 @@ const ESTILOS_WIZARD_MARKET = `
 .wizard-drawer-titulo{ font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:18px 0 8px; }
 .wizard-drawer-link{ display:flex; align-items:center; gap:12px; padding:11px 4px; font-size:14px; color:var(--ink); text-decoration:none; font-weight:600; }
 .wizard-drawer-cerrar{ position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+
+@keyframes wizardCaerConfetti{
+  0%{ transform:translateY(0) rotate(0deg); opacity:.9; }
+  100%{ transform:translateY(110vh) rotate(540deg); opacity:0; }
+}
 `;
 
 const MASCOTA = {
@@ -191,8 +196,12 @@ ${mascotaImgHtml("pensando")}
 <h1 class="wizard-titulo">Revisa tu correo</h1>
 <p class="wizard-texto" id="wizardVerificacionTexto">Te enviamos un enlace para confirmar tu cuenta. Abrelo desde este mismo telefono y regresa aqui.</p>
 <div class="wizard-resultado" id="wizardVerificacionResultado"></div>
+<form class="wizard-form" id="wizardCambiarCorreoForm" hidden style="text-align:left; margin-top:8px;">
+<label>Nuevo correo<input id="wizardCambiarCorreoInput" type="email" placeholder="tu@correo.com" required></label>
+</form>
 <div class="wizard-spacer"></div>
 <div class="wizard-acciones">
+<button type="button" class="wizard-btn-secundario" id="wizardYaVerifiqueBoton" hidden>Ya verifique mi correo</button>
 <button type="button" class="wizard-link" id="wizardReenviarVerificacionBoton">Reenviar correo</button>
 <button type="button" class="wizard-link" id="wizardCambiarCorreoBoton">Cambiar correo</button>
 </div>
@@ -315,9 +324,12 @@ function scriptWizardMarketHtml(pantallaInicial) {
     return `
 var wizardPila = [${JSON.stringify(pantallaInicial)}];
 
+var wizardEstadoVerificacion = { correo: null, credenciales: null };
+
 function wizardMostrar(pantalla) {
     document.querySelectorAll(".wizard-screen").forEach(function(s) { s.hidden = s.dataset.screen !== pantalla; });
     document.getElementById("wizardTopbarAtras").hidden = (wizardPila.length <= 1) || pantalla === "home";
+    if (typeof wizardAlEntrarPantalla === "function") wizardAlEntrarPantalla(pantalla);
 }
 
 function wizardIrA(pantalla) {
@@ -421,6 +433,8 @@ if (wizardBotonCrearCuenta) {
             if (datos.requiereVerificacionCorreo) {
                 var textoVerif = document.getElementById("wizardVerificacionTexto");
                 if (textoVerif) textoVerif.textContent = "Te enviamos un enlace a " + correo + ". Abrelo desde este mismo telefono y regresa aqui.";
+                wizardEstadoVerificacion.correo = correo;
+                wizardEstadoVerificacion.credenciales = null;
                 wizardIrA("verificacion");
             } else {
                 wizardIrA("cuenta-creada");
@@ -451,6 +465,8 @@ if (wizardBotonLogin) {
                 if (datos.correoSinVerificar) {
                     var textoVerif2 = document.getElementById("wizardVerificacionTexto");
                     if (textoVerif2) textoVerif2.textContent = "Tu correo todavia no esta verificado. Revisa tu bandeja de entrada o pide que te reenviemos el enlace.";
+                    wizardEstadoVerificacion.correo = identificador.includes("@") ? identificador : null;
+                    wizardEstadoVerificacion.credenciales = { identificador: identificador, password: password };
                     wizardIrA("verificacion");
                 } else {
                     wizardResultado("wizardLoginResultado", datos.error || "No se pudo iniciar sesion.", "error");
@@ -464,6 +480,108 @@ if (wizardBotonLogin) {
             wizardBotonLogin.disabled = false;
         }
     });
+}
+
+// Pantalla 5 -- verificacion bloqueante: polling real a GET
+// /personas/estado (solo funciona si hay sesion viva, caso del
+// registro recien hecho -- el login bloqueado no mintea sesion, por
+// eso el boton manual "Ya verifique" existe como alternativa).
+var wizardPollingVerificacion = null;
+
+function wizardDetenerPolling() {
+    if (wizardPollingVerificacion) { clearInterval(wizardPollingVerificacion); wizardPollingVerificacion = null; }
+}
+
+async function wizardRevisarVerificacion() {
+    try {
+        var estado = await wizardLlamar("/personas/estado");
+        if (estado && estado.ok && estado.persona && estado.persona.correoVerificado) {
+            wizardDetenerPolling();
+            wizardIrA("cuenta-creada");
+            return true;
+        }
+    } catch (error) { /* sin sesion o sin red -- se reintenta solo */ }
+    return false;
+}
+
+async function wizardAlEntrarPantalla(pantalla) {
+    if (pantalla === "verificacion") {
+        var botonYaVerifique = document.getElementById("wizardYaVerifiqueBoton");
+        if (botonYaVerifique) botonYaVerifique.hidden = false;
+        wizardDetenerPolling();
+        var yaVerificado = await wizardRevisarVerificacion();
+        if (!yaVerificado) wizardPollingVerificacion = setInterval(wizardRevisarVerificacion, 4000);
+    } else {
+        wizardDetenerPolling();
+    }
+    if (pantalla === "cuenta-creada") wizardConfetti();
+}
+
+var wizardBotonYaVerifique = document.getElementById("wizardYaVerifiqueBoton");
+if (wizardBotonYaVerifique) {
+    wizardBotonYaVerifique.addEventListener("click", async function() {
+        wizardResultado("wizardVerificacionResultado", "Revisando...");
+        if (wizardEstadoVerificacion.credenciales) {
+            var datosLogin = await wizardLlamar("/personas/login", {
+                method: "POST",
+                body: JSON.stringify(wizardEstadoVerificacion.credenciales)
+            });
+            if (datosLogin.ok) { window.location.reload(); return; }
+            wizardResultado("wizardVerificacionResultado", datosLogin.correoSinVerificar ? "Todavia no. Revisa tu correo e intenta de nuevo." : (datosLogin.error || "No se pudo verificar."), "error");
+            return;
+        }
+        var verificado = await wizardRevisarVerificacion();
+        if (!verificado) wizardResultado("wizardVerificacionResultado", "Todavia no. Revisa tu correo e intenta de nuevo.", "error");
+    });
+}
+
+var wizardBotonReenviar = document.getElementById("wizardReenviarVerificacionBoton");
+if (wizardBotonReenviar) {
+    wizardBotonReenviar.addEventListener("click", async function() {
+        if (!wizardEstadoVerificacion.correo) { wizardResultado("wizardVerificacionResultado", "No tenemos un correo para reenviar.", "error"); return; }
+        wizardResultado("wizardVerificacionResultado", "Reenviando...");
+        await wizardLlamar("/personas/reenviar-verificacion", { method: "POST", body: JSON.stringify({ correo: wizardEstadoVerificacion.correo }) });
+        wizardResultado("wizardVerificacionResultado", "Si tu correo existe, te reenviamos el enlace.", "ok");
+    });
+}
+
+var wizardBotonCambiarCorreo = document.getElementById("wizardCambiarCorreoBoton");
+if (wizardBotonCambiarCorreo) {
+    wizardBotonCambiarCorreo.addEventListener("click", async function() {
+        var formulario = document.getElementById("wizardCambiarCorreoForm");
+        if (formulario.hidden) { formulario.hidden = false; return; }
+        var nuevoCorreo = document.getElementById("wizardCambiarCorreoInput").value.trim();
+        if (!nuevoCorreo) return;
+        wizardResultado("wizardVerificacionResultado", "Actualizando...");
+        var datos = await wizardLlamar("/personas/correo", { method: "PATCH", body: JSON.stringify({ correo: nuevoCorreo }) });
+        if (!datos.ok) { wizardResultado("wizardVerificacionResultado", datos.error || "No se pudo cambiar el correo.", "error"); return; }
+        wizardEstadoVerificacion.correo = nuevoCorreo;
+        wizardEstadoVerificacion.credenciales = null;
+        var textoVerif3 = document.getElementById("wizardVerificacionTexto");
+        if (textoVerif3) textoVerif3.textContent = "Te enviamos un enlace a " + nuevoCorreo + ". Abrelo desde este mismo telefono y regresa aqui.";
+        formulario.hidden = true;
+        wizardResultado("wizardVerificacionResultado", "Correo actualizado.", "ok");
+        wizardDetenerPolling();
+        wizardPollingVerificacion = setInterval(wizardRevisarVerificacion, 4000);
+    });
+}
+
+// Pantalla 6 -- confetti CSS/JS puro, sin dependencias.
+function wizardConfetti() {
+    var colores = ["#1067e8", "#18b88f", "#f3a21b", "#073f9a"];
+    var contenedor = document.createElement("div");
+    contenedor.style.cssText = "position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:30;";
+    for (var i = 0; i < 60; i++) {
+        var pieza = document.createElement("span");
+        var izquierda = Math.random() * 100;
+        var retraso = Math.random() * 0.4;
+        var duracion = 1.8 + Math.random() * 1.2;
+        var color = colores[i % colores.length];
+        pieza.style.cssText = "position:absolute; top:-12px; left:" + izquierda + "%; width:8px; height:14px; background:" + color + "; opacity:.9; transform:rotate(" + (Math.random() * 360) + "deg); animation:wizardCaerConfetti " + duracion + "s ease-in " + retraso + "s forwards;";
+        contenedor.appendChild(pieza);
+    }
+    document.body.appendChild(contenedor);
+    setTimeout(function() { contenedor.remove(); }, 3500);
 }
 `;
 }
