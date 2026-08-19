@@ -59,7 +59,7 @@ const NOTA_BUSQUEDA_WEB_NEXO = "\n\nAdemas de tus herramientas de datos internos
 // Herramienta de servidor (ejecutada por Anthropic, no por este
 // backend) -- max_uses acota el costo por pregunta ademas del limite
 // mensual de Nivel 3 que ya existe.
-const HERRAMIENTA_BUSQUEDA_WEB = { type: "web_search_20260209", name: "web_search", max_uses: 3 };
+const HERRAMIENTA_BUSQUEDA_WEB = { type: "web_search_20260209", name: "web_search", max_uses: 3, allowed_callers: ["direct"] };
 
 // Modulos a los que Nexo AI puede navegar por conversacion (herramienta
 // abrir_modulo). Es un subconjunto deliberado de AYUDA_MODULOS_POS
