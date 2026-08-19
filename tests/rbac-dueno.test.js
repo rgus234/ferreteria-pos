@@ -121,6 +121,66 @@ test("un empleado vinculado entra a /dueno con su propia cuenta Nexo y el enforc
     assert.equal(conPermiso.status, 200);
 });
 
+test("Fase 3.2: el dueño ve el estado real de vinculacion Nexo del empleado en GET /cuenta/empleados y puede editar sus permisos granulares desde PUT /cuenta/empleados/:id/permisos-nexo (con allowlist real, sin colar claves ajenas)", async () => {
+    // El empleado ya quedo vinculado en el primer test de este archivo
+    // (misma persona/empleadoId) y con ver_pedidos:true concedido ahi.
+    const lista = await fetch(`${BASE_URL}/cuenta/empleados`, {
+        headers: { Authorization: `Bearer ${cuentaTokenDueno}` }
+    });
+    assert.equal(lista.status, 200);
+    const datosLista = await lista.json();
+    const filaEmpleado = datosLista.empleados.find(item => item.id === empleadoId);
+    assert.ok(filaEmpleado, "el empleado debe aparecer en la lista del dueño");
+    assert.equal(filaEmpleado.vinculadoNexo, true);
+    assert.equal(filaEmpleado.permisosNexo.ver_pedidos, true);
+
+    // El dueño concede hacer_ventas y manda una clave que NO existe en
+    // PERMISOS -- debe guardarse solo la real, la ajena se descarta.
+    const editar = await fetch(`${BASE_URL}/cuenta/empleados/${empleadoId}/permisos-nexo`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${cuentaTokenDueno}` },
+        body: JSON.stringify({ permisos: { hacer_ventas: true, clave_inventada: true } })
+    });
+    assert.equal(editar.status, 200);
+    const datosEditar = await editar.json();
+    assert.equal(datosEditar.permisos.hacer_ventas, true);
+    assert.equal(datosEditar.permisos.clave_inventada, undefined);
+    // Reemplaza el objeto completo (no hace merge) -- ver_pedidos del
+    // test anterior se pierde a proposito, es el contrato de la ruta.
+    assert.equal(datosEditar.permisos.ver_pedidos, undefined);
+
+    const listaActualizada = await fetch(`${BASE_URL}/cuenta/empleados`, {
+        headers: { Authorization: `Bearer ${cuentaTokenDueno}` }
+    });
+    const datosListaActualizada = await listaActualizada.json();
+    const filaActualizada = datosListaActualizada.empleados.find(item => item.id === empleadoId);
+    assert.equal(filaActualizada.permisosNexo.hacer_ventas, true);
+
+    // Deja el estado limpio como antes de este test -- las pruebas de
+    // Fase 2/Fase 3 que corren despues en este mismo archivo asumen que
+    // el empleado empieza sin hacer_ventas concedido.
+    await pool.query(
+        `UPDATE public.negocio_miembros SET permisos = '{}'::jsonb WHERE persona_id = $1 AND negocio_id = $2`,
+        [persona.id, negocio.negocioId]
+    );
+});
+
+test("Fase 3.2: PUT /cuenta/empleados/:id/permisos-nexo responde 400 para un empleado que todavia no vincula su cuenta Nexo", async () => {
+    const empleadoSinVincular = await pool.query(
+        `INSERT INTO public.empleados (negocio_id, nombre, rol, pin_hash, permisos)
+         VALUES ($1, 'Empleado Sin Vincular', 'Cajero', $2, '{}'::jsonb)
+         RETURNING id`,
+        [negocio.negocioId, hashPassword("5678")]
+    );
+
+    const respuesta = await fetch(`${BASE_URL}/cuenta/empleados/${empleadoSinVincular.rows[0].id}/permisos-nexo`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${cuentaTokenDueno}` },
+        body: JSON.stringify({ permisos: { hacer_ventas: true } })
+    });
+    assert.equal(respuesta.status, 400);
+});
+
 test("Fase 2: un empleado sin permiso hacer_ventas recibe 403 real en POST /ventas; con el permiso concedido, cobra de verdad y el stock baja", async () => {
     // La persona ya quedo vinculada como empleado en el primer test --
     // vuelve a entrar para tener un token de cuenta fresco.

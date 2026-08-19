@@ -267,6 +267,22 @@ const WIDGETS_DASHBOARD = [
  { clave: "ultimasVentas", nombre: "Lista de ultimas ventas" }
 ];
 
+// Fase 3.2 del ecosistema Nexo: estos son los permisos granulares de
+// rbac.js (PERMISOS.*), distintos de MODULOS_SISTEMA de arriba -- los
+// de arriba controlan que ve el empleado en el POS de escritorio (PIN
+// + equipo vinculado), estos controlan que puede HACER un empleado
+// desde /dueno con su propia cuenta Nexo (negocio_miembros.permisos).
+const PERMISOS_NEXO = [
+ { clave: "hacer_ventas", nombre: "Cobrar ventas", descripcion: "Puede vender desde la pestana Vender de /dueno" },
+ { clave: "hacer_corte", nombre: "Abrir y cerrar caja", descripcion: "Puede abrir turno y hacer el corte desde /dueno" },
+ { clave: "ver_pedidos", nombre: "Ver pedidos de Nexo Market", descripcion: "Puede ver la lista de pedidos en /dueno" },
+ { clave: "gestionar_pedidos", nombre: "Gestionar pedidos de Nexo Market", descripcion: "Puede aceptar, preparar y entregar pedidos" },
+ { clave: "ver_inventario", nombre: "Ver inventario", descripcion: "Puede consultar el inventario desde /dueno" },
+ { clave: "modificar_inventario", nombre: "Modificar inventario", descripcion: "Puede editar productos y existencias desde /dueno" },
+ { clave: "ver_reportes", nombre: "Ver reportes", descripcion: "Puede ver reportes de ventas del negocio" },
+ { clave: "administrar_usuarios", nombre: "Administrar empleados", descripcion: "Puede ver, crear, editar y eliminar otros empleados -- otorgalo con cuidado" }
+];
+
 function configuracionNegocio() {
  try {
  return JSON.parse(
@@ -3261,7 +3277,7 @@ async function cambiarPinUsuario(id) {
  }
 }
 
-function abrirPermisosUsuario(id) {
+async function abrirPermisosUsuario(id) {
  const usuarios =
  asegurarUsuariosSistema();
 
@@ -3269,6 +3285,27 @@ function abrirPermisosUsuario(id) {
  usuarios.find(item => item.id === Number(id));
 
  if (!usuario) return;
+
+ // La vinculacion Nexo (negocio_miembros) no vive en la copia local del
+ // dispositivo, solo en el servidor -- se pide fresca cada vez que se
+ // abre el modal para no mostrar un estado viejo.
+ let estadoNexo = { vinculadoNexo: false, permisosNexo: null };
+ try {
+ const respuesta =
+ await cuentaFetchAutenticado("/cuenta/empleados");
+
+ if (respuesta.ok) {
+ const fresco =
+ respuesta.empleados.find(item => item.id === Number(id));
+
+ if (fresco) {
+ estadoNexo = { vinculadoNexo: fresco.vinculadoNexo, permisosNexo: fresco.permisosNexo };
+ }
+ }
+ } catch (error) {
+ // Si no hay conexion o falla, la seccion de Nexo abajo simplemente
+ // muestra el estado "sin vincular" -- no bloquea el resto del modal.
+ }
 
  let modal =
  document.getElementById("modalPermisosUsuario");
@@ -3329,6 +3366,30 @@ function abrirPermisosUsuario(id) {
  <span>${widget.nombre}</span>
  </label>
  `).join("")}
+ </section>
+
+ <section class="permisos-seccion-nexo">
+ <h3>Acceso a Nexo (celular)</h3>
+ ${!estadoNexo.vinculadoNexo ? `
+ <p class="permisos-rol-nota">Este empleado todavia no vincula su propia cuenta Nexo -- sin vincular, no puede entrar a /dueno desde su celular. Genera un codigo de un solo uso y compartelo con el (de palabra, WhatsApp, impreso).</p>
+ <button type="button" onclick="generarCodigoVinculoEmpleado(${usuario.id})">Generar codigo de vinculacion</button>
+ ` : `
+ <p class="permisos-rol-nota">Cuenta Nexo vinculada. Elige que puede hacer este empleado desde /dueno con su propio celular.</p>
+ ${PERMISOS_NEXO.map(permiso => `
+ <label class="permiso-check">
+ <input
+ type="checkbox"
+ data-tipo="permisosNexo"
+ data-clave="${permiso.clave}"
+ ${estadoNexo.permisosNexo?.[permiso.clave] === true ? "checked" : ""}
+ >
+ <span>${permiso.nombre}<br><small>${permiso.descripcion}</small></span>
+ </label>
+ `).join("")}
+ <div class="permisos-acciones">
+ <button type="button" onclick="guardarPermisosNexoUsuario(${usuario.id})">Guardar accesos de Nexo</button>
+ </div>
+ `}
  </section>
  </div>
 
@@ -3425,6 +3486,71 @@ async function guardarPermisosUsuario(id) {
  renderPanelUsuariosDashboard();
  } catch (error) {
  await alertaPOS(error.message || "No se pudieron guardar los permisos.", "Error", "alerta");
+ }
+}
+
+// Fase 3.2 del ecosistema Nexo: el dueno genera, desde este mismo
+// panel, el codigo de un solo uso que el empleado canjea en su celular
+// (mi-cuenta.html -> "vincular-empleado") para tener su propia cuenta
+// Nexo -- mismo patron de codigo mostrado una sola vez que ya usa el
+// portal del cliente de credito (activarPortalCliente en
+// credit-customers.js).
+async function generarCodigoVinculoEmpleado(id) {
+ try {
+ const respuesta =
+ await cuentaFetchAutenticado(`/cuenta/empleados/${Number(id)}/generar-codigo-vinculo`, { method: "POST" });
+
+ if (!respuesta.ok) {
+ throw new Error(respuesta.error || "No se pudo generar el codigo de vinculacion");
+ }
+
+ navigator.clipboard?.writeText(respuesta.codigo).catch(() => {});
+
+ await dialogoPOS({
+ tipo: "exito",
+ titulo: "Codigo generado",
+ mensaje: `Codigo de vinculacion: ${respuesta.codigo}. Compartelo tu mismo (de palabra, WhatsApp, impreso) para que el empleado entre a Nexo con su propia cuenta y lo canjee -- este codigo solo se muestra una vez. Ya se copio a tu portapapeles.`,
+ textoAceptar: "Entendido"
+ });
+ } catch (error) {
+ await alertaPOS(error.message || "No se pudo generar el codigo de vinculacion.", "Error", "alerta");
+ }
+}
+
+// Guarda los permisos granulares de rbac.js (negocio_miembros.permisos)
+// para un empleado YA vinculado -- ruta y tabla distintas de
+// guardarPermisosUsuario() de arriba, que solo toca empleados.permisos
+// (visibilidad de modulos en el POS de escritorio).
+async function guardarPermisosNexoUsuario(id) {
+ const modal =
+ document.getElementById("modalPermisosUsuario");
+
+ if (!modal) return;
+
+ const permisos = {};
+
+ modal
+ .querySelectorAll("input[data-tipo='permisosNexo']")
+ .forEach(input => {
+ permisos[input.dataset.clave] = input.checked;
+ });
+
+ try {
+ const respuesta =
+ await cuentaFetchAutenticado(`/cuenta/empleados/${Number(id)}/permisos-nexo`, {
+ method: "PUT",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ permisos })
+ });
+
+ if (!respuesta.ok) {
+ throw new Error(respuesta.error || "No se pudieron guardar los accesos de Nexo");
+ }
+
+ cerrarPermisosUsuario();
+ await alertaPOS("Accesos de Nexo actualizados.", "Listo", "exito");
+ } catch (error) {
+ await alertaPOS(error.message || "No se pudieron guardar los accesos de Nexo.", "Error", "alerta");
  }
 }
 

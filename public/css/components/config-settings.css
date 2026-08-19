@@ -691,6 +691,30 @@
   color: #fff;
 }
 
+/* Fase 3.2 del ecosistema Nexo: seccion de permisos granulares (rbac.js)
+   por empleado -- ocupa las 2 columnas del grid y su boton de guardar
+   propio no necesita el divisor/space-between del footer del modal. */
+.permisos-seccion-nexo {
+  grid-column: 1 / -1;
+}
+
+.permisos-seccion-nexo .permisos-acciones {
+  border-top: none;
+  padding-top: 10px;
+  justify-content: flex-start;
+}
+
+.permisos-seccion-nexo .permiso-check span {
+  line-height: 1.4;
+}
+
+.permisos-seccion-nexo .permiso-check span small {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-weight: 400;
+}
+
 body.oscuro #pantallaConfiguracion {
   color: #f8fafc;
 }

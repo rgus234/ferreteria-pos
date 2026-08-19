@@ -1616,7 +1616,14 @@ function empleadoParaAdmin(fila) {
         activo: fila.activo,
         permisos: fila.permisos,
         widgets: fila.widgets,
-        creadoAt: fila.creado_at
+        creadoAt: fila.creado_at,
+        // Fase 3.2 del ecosistema Nexo: si este empleado ya vinculo su
+        // propia cuenta Nexo (persona_id), aqui va el estado real de sus
+        // permisos granulares en negocio_miembros -- lo que decide si
+        // puede vender/hacer corte/etc desde /dueno. null = todavia no
+        // vincula ninguna cuenta.
+        vinculadoNexo: fila.persona_id !== null && fila.persona_id !== undefined,
+        permisosNexo: fila.persona_id !== null && fila.persona_id !== undefined ? (fila.permisos_nexo || {}) : null
     };
 }
 
@@ -1643,7 +1650,14 @@ function validarPin(pin) {
 app.get("/cuenta/empleados", requerirSesionCuenta, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
     try {
         const filas = await pool.query(
-            `SELECT * FROM public.empleados WHERE negocio_id = $1 ORDER BY creado_at ASC`,
+            `
+            SELECT e.*, m.permisos AS permisos_nexo
+            FROM public.empleados e
+            LEFT JOIN public.negocio_miembros m
+                ON m.persona_id = e.persona_id AND m.negocio_id = e.negocio_id AND m.activo = true
+            WHERE e.negocio_id = $1
+            ORDER BY e.creado_at ASC
+            `,
             [req.negocioAutenticado.negocio_id]
         );
 
@@ -1837,6 +1851,74 @@ app.post("/cuenta/empleados/:id/generar-codigo-vinculo", requerirSesionCuenta, r
         }
 
         res.json({ ok: true, codigo });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+// Fase 3.2 del ecosistema Nexo: el dueno autoriza, por empleado, cuales
+// de los permisos granulares de rbac.js (PERMISOS.*) puede usar ese
+// empleado desde /dueno con su propia cuenta Nexo -- antes de esto la
+// unica forma de tocar negocio_miembros.permisos era una UPDATE manual
+// en la base de datos, no habia ningun boton para el dueno.
+app.put("/cuenta/empleados/:id/permisos-nexo", requerirSesionCuenta, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
+    const id = Number(req.params.id);
+
+    try {
+        const permisosGranulares = await funcionDelPlan(req.negocioAutenticado.negocio_id, "multiusuario.permisos_granulares");
+
+        if (!permisosGranulares.incluido) {
+            res.status(403).json({
+                ok: false,
+                error: "Tu plan no incluye permisos granulares por empleado. Mejora tu plan desde Cuenta para asignarlos.",
+                requiereUpgrade: true,
+                funcion: "multiusuario.permisos_granulares"
+            });
+            return;
+        }
+
+        const empleado = await pool.query(
+            `SELECT persona_id FROM public.empleados WHERE id = $1 AND negocio_id = $2 LIMIT 1`,
+            [id, req.negocioAutenticado.negocio_id]
+        );
+
+        if (empleado.rows.length === 0) {
+            res.status(404).json({ ok: false, error: "Empleado no encontrado" });
+            return;
+        }
+
+        if (!empleado.rows[0].persona_id) {
+            res.status(400).json({ ok: false, error: "Este empleado todavia no vincula su propia cuenta Nexo -- genera un codigo de vinculacion primero." });
+            return;
+        }
+
+        // Allowlist estricta: solo se aceptan las llaves que rbac.js ya
+        // conoce, nunca lo que venga en el body tal cual -- evita que
+        // se cuele cualquier otra clave dentro del JSONB.
+        const permisosBody = req.body?.permisos && typeof req.body.permisos === "object" ? req.body.permisos : {};
+        const permisosValidos = {};
+        for (const clave of Object.values(PERMISOS)) {
+            if (permisosBody[clave] !== undefined) {
+                permisosValidos[clave] = Boolean(permisosBody[clave]);
+            }
+        }
+
+        const actualizado = await pool.query(
+            `
+            UPDATE public.negocio_miembros
+            SET permisos = $1
+            WHERE persona_id = $2 AND negocio_id = $3 AND rol = 'employee'
+            RETURNING permisos
+            `,
+            [JSON.stringify(permisosValidos), empleado.rows[0].persona_id, req.negocioAutenticado.negocio_id]
+        );
+
+        if (actualizado.rows.length === 0) {
+            res.status(404).json({ ok: false, error: "No se encontro la membresia Nexo de este empleado" });
+            return;
+        }
+
+        res.json({ ok: true, permisos: actualizado.rows[0].permisos });
     } catch (error) {
         responderError(res, error);
     }
