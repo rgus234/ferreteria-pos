@@ -63,6 +63,10 @@ const ESTILOS_WIZARD_MARKET = `
 .wizard-btn-oauth{ display:flex; align-items:center; justify-content:center; gap:10px; padding:13px 20px; border-radius:999px; border:1px solid var(--line); background:#fff; color:var(--ink); font-weight:700; font-size:14px; cursor:not-allowed; opacity:.55; }
 .wizard-separador{ display:flex; align-items:center; gap:10px; color:var(--muted); font-size:12px; margin:4px 0 16px; }
 .wizard-separador::before, .wizard-separador::after{ content:""; flex:1; height:1px; background:var(--line); }
+.wizard-fuerza{ display:flex; align-items:center; gap:8px; margin:-6px 0 14px; }
+.wizard-fuerza-barra{ flex:1; height:5px; border-radius:999px; background:var(--line); overflow:hidden; }
+.wizard-fuerza-relleno{ height:100%; width:0%; border-radius:999px; background:#c0392b; transition:width .2s ease, background .2s ease; }
+.wizard-fuerza span{ font-size:11.5px; font-weight:700; color:var(--muted); min-width:56px; text-align:right; }
 .wizard-resultado{ font-size:13px; font-weight:700; min-height:18px; margin-top:2px; }
 .wizard-resultado[data-tipo="error"]{ color:#c0392b; }
 .wizard-resultado[data-tipo="ok"]{ color:var(--mint); }
@@ -172,6 +176,10 @@ ${mascotaImgHtml("feliz")}
 <label>Telefono (opcional si dejas correo)<input id="wizardRegistroTelefono" type="tel" placeholder="4421234567"></label>
 <label>Contrasena<input id="wizardRegistroPassword" type="password" minlength="8" placeholder="Minimo 8 caracteres" required></label>
 </form>
+<div class="wizard-fuerza" id="wizardFuerzaPassword" hidden>
+<div class="wizard-fuerza-barra"><div class="wizard-fuerza-relleno" id="wizardFuerzaRelleno"></div></div>
+<span id="wizardFuerzaTexto"></span>
+</div>
 <div class="wizard-resultado" id="wizardCrearCuentaResultado"></div>
 <div class="wizard-acciones">
 <button type="button" class="wizard-btn-primario" id="wizardCrearCuentaBoton">Crear mi cuenta Nexo</button>
@@ -346,6 +354,116 @@ if (wizardDrawerOverlay) {
     if (abrirDrawer) abrirDrawer.addEventListener("click", function() { wizardDrawerOverlay.hidden = false; });
     if (cerrarDrawer) cerrarDrawer.addEventListener("click", function() { wizardDrawerOverlay.hidden = true; });
     wizardDrawerOverlay.addEventListener("click", function(evento) { if (evento.target === wizardDrawerOverlay) wizardDrawerOverlay.hidden = true; });
+}
+
+async function wizardLlamar(ruta, opciones) {
+    var respuesta = await fetch(ruta, Object.assign({ credentials: "include", headers: { "Content-Type": "application/json" } }, opciones || {}));
+    return respuesta.json();
+}
+
+function wizardResultado(elementoId, mensaje, tipo) {
+    var el = document.getElementById(elementoId);
+    if (!el) return;
+    el.textContent = mensaje || "";
+    if (tipo) el.dataset.tipo = tipo; else el.removeAttribute("data-tipo");
+}
+
+// Medidor de fuerza de contrasena (pantalla 4) -- calculo local, sin
+// libreria: longitud + variedad de caracteres.
+var wizardCampoPassword = document.getElementById("wizardRegistroPassword");
+if (wizardCampoPassword) {
+    wizardCampoPassword.addEventListener("input", function() {
+        var valor = wizardCampoPassword.value;
+        var caja = document.getElementById("wizardFuerzaPassword");
+        var relleno = document.getElementById("wizardFuerzaRelleno");
+        var texto = document.getElementById("wizardFuerzaTexto");
+        if (!valor) { caja.hidden = true; return; }
+        caja.hidden = false;
+        var puntos = 0;
+        if (valor.length >= 8) puntos++;
+        if (valor.length >= 12) puntos++;
+        if (/[a-z]/.test(valor) && /[A-Z]/.test(valor)) puntos++;
+        if (/[0-9]/.test(valor)) puntos++;
+        if (/[^a-zA-Z0-9]/.test(valor)) puntos++;
+        var niveles = [
+            { hasta: 1, ancho: "20%", color: "#c0392b", texto: "Muy debil" },
+            { hasta: 2, ancho: "45%", color: "#e08a1b", texto: "Debil" },
+            { hasta: 3, ancho: "65%", color: "#f3a21b", texto: "Regular" },
+            { hasta: 4, ancho: "85%", color: "#18b88f", texto: "Fuerte" },
+            { hasta: 5, ancho: "100%", color: "#18b88f", texto: "Muy fuerte" }
+        ];
+        var nivel = niveles[Math.min(Math.max(puntos, 1), 5) - 1];
+        relleno.style.width = nivel.ancho;
+        relleno.style.background = nivel.color;
+        texto.textContent = nivel.texto;
+    });
+}
+
+// Crear cuenta (pantalla 4) -- POST /personas/registro real.
+var wizardBotonCrearCuenta = document.getElementById("wizardCrearCuentaBoton");
+if (wizardBotonCrearCuenta) {
+    wizardBotonCrearCuenta.addEventListener("click", async function() {
+        var nombre = document.getElementById("wizardRegistroNombre").value.trim();
+        var correo = document.getElementById("wizardRegistroCorreo").value.trim();
+        var telefono = document.getElementById("wizardRegistroTelefono").value.trim();
+        var password = document.getElementById("wizardRegistroPassword").value;
+        if (!nombre || !password) { wizardResultado("wizardCrearCuentaResultado", "Escribe tu nombre y una contrasena.", "error"); return; }
+        if (!correo && !telefono) { wizardResultado("wizardCrearCuentaResultado", "Escribe un correo o un telefono.", "error"); return; }
+        wizardResultado("wizardCrearCuentaResultado", "Creando tu cuenta...");
+        wizardBotonCrearCuenta.disabled = true;
+        try {
+            var datos = await wizardLlamar("/personas/registro", {
+                method: "POST",
+                body: JSON.stringify({ nombre: nombre, correo: correo, telefono: telefono, password: password })
+            });
+            if (!datos.ok) { wizardResultado("wizardCrearCuentaResultado", datos.error || "No se pudo crear tu cuenta.", "error"); return; }
+            wizardResultado("wizardCrearCuentaResultado", "");
+            if (datos.requiereVerificacionCorreo) {
+                var textoVerif = document.getElementById("wizardVerificacionTexto");
+                if (textoVerif) textoVerif.textContent = "Te enviamos un enlace a " + correo + ". Abrelo desde este mismo telefono y regresa aqui.";
+                wizardIrA("verificacion");
+            } else {
+                wizardIrA("cuenta-creada");
+            }
+        } catch (error) {
+            wizardResultado("wizardCrearCuentaResultado", "Ocurrio un error. Intenta de nuevo.", "error");
+        } finally {
+            wizardBotonCrearCuenta.disabled = false;
+        }
+    });
+}
+
+// Iniciar sesion (pantalla 9) -- POST /personas/login real.
+var wizardBotonLogin = document.getElementById("wizardLoginBoton");
+if (wizardBotonLogin) {
+    wizardBotonLogin.addEventListener("click", async function() {
+        var identificador = document.getElementById("wizardLoginIdentificador").value.trim();
+        var password = document.getElementById("wizardLoginPassword").value;
+        if (!identificador || !password) { wizardResultado("wizardLoginResultado", "Escribe tu correo/telefono y tu contrasena.", "error"); return; }
+        wizardResultado("wizardLoginResultado", "Entrando...");
+        wizardBotonLogin.disabled = true;
+        try {
+            var datos = await wizardLlamar("/personas/login", {
+                method: "POST",
+                body: JSON.stringify({ identificador: identificador, password: password })
+            });
+            if (!datos.ok) {
+                if (datos.correoSinVerificar) {
+                    var textoVerif2 = document.getElementById("wizardVerificacionTexto");
+                    if (textoVerif2) textoVerif2.textContent = "Tu correo todavia no esta verificado. Revisa tu bandeja de entrada o pide que te reenviemos el enlace.";
+                    wizardIrA("verificacion");
+                } else {
+                    wizardResultado("wizardLoginResultado", datos.error || "No se pudo iniciar sesion.", "error");
+                }
+                return;
+            }
+            window.location.reload();
+        } catch (error) {
+            wizardResultado("wizardLoginResultado", "Ocurrio un error. Intenta de nuevo.", "error");
+        } finally {
+            wizardBotonLogin.disabled = false;
+        }
+    });
 }
 `;
 }
