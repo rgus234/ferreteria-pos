@@ -935,6 +935,7 @@ async function enfocarHistorialVentasPOS() {
 
 function actualizarCarrito() {
  renderCarritoReferenciaPOS();
+ if (typeof sincronizarHojaActivaVentaPOS === "function") sincronizarHojaActivaVentaPOS();
 }
 
 function renderCarritoReferenciaPOS() {

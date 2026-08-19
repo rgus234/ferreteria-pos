@@ -712,3 +712,90 @@ body.oscuro .pos-referencia .pos-reference-search {
     transform: translateX(8px);
   }
 }
+
+/* Hojas de venta multiples (pestanas tipo Excel/Eleventa) */
+
+.pos-hojas-venta-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 4px;
+  margin: 0 0 12px;
+  border-radius: 14px;
+  background: var(--pos-sale-soft);
+  border: 1px solid var(--pos-sale-line);
+}
+
+.pos-hojas-venta-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--pos-sale-muted);
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pos-hojas-venta-tab.activo {
+  background: var(--pos-sale-card);
+  color: var(--pos-sale-text);
+  box-shadow: var(--pos-sale-shadow);
+}
+
+.pos-hojas-venta-tab small {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--pos-sale-line);
+  color: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.pos-hojas-venta-tab.activo small {
+  background: color-mix(in srgb, var(--pos-sale-brand) 16%, transparent);
+  color: var(--pos-sale-brand);
+}
+
+.pos-hojas-venta-tab-cerrar {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  color: inherit;
+  opacity: .55;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.pos-hojas-venta-tab-cerrar:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--pos-sale-danger) 14%, transparent);
+  color: var(--pos-sale-danger);
+}
+
+.pos-hojas-venta-nueva {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  margin: 0 0 0 2px;
+  padding: 0;
+  border: 1px dashed var(--pos-sale-line);
+  border-radius: 10px;
+  background: var(--pos-sale-card) !important;
+  color: var(--pos-sale-brand) !important;
+  font-weight: 900;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.pos-hojas-venta-nueva[disabled] {
+  opacity: .4;
+  cursor: not-allowed;
+}

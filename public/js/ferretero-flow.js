@@ -165,6 +165,7 @@
  window.actualizarCarrito = function() {
   if (typeof renderCarritoReferenciaPOS === "function") {
    renderCarritoReferenciaPOS();
+   if (typeof sincronizarHojaActivaVentaPOS === "function") sincronizarHojaActivaVentaPOS();
    return;
   }
 

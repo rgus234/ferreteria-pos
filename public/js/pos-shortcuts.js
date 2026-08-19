@@ -1,5 +1,5 @@
 /* Atajos de teclado del Punto de venta: F2 Buscar, F3 Escanear, F4 Cliente,
-   F5 Descuento, F6 Cantidad, F7 Precio, F8 Cobrar */
+   F5 Descuento, F6 Cantidad, F7 Precio, F8 Cobrar, F9 Nueva hoja de venta */
 (function instalarAtajosPuntoVentaPOS() {
  if (window.__posShortcutsInstalado) return;
  window.__posShortcutsInstalado = true;
@@ -68,7 +68,7 @@
  document.addEventListener("keydown", event => {
   if (!puntoVentaVisible() || modalOperativoAbierto()) return;
 
-  if (!["F2", "F3", "F4", "F5", "F6", "F7", "F8"].includes(event.key)) return;
+  if (!["F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"].includes(event.key)) return;
 
   event.preventDefault();
 
@@ -114,6 +114,13 @@
     if (resumen.total > 0) {
      cobrar(resumen.total);
     }
+   }
+   return;
+  }
+
+  if (event.key === "F9") {
+   if (typeof nuevaHojaVentaPOS === "function") {
+    nuevaHojaVentaPOS();
    }
    return;
   }

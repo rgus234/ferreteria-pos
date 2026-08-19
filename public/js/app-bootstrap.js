@@ -251,6 +251,7 @@ window.onload =
  await intentarRestaurarSesion();
  }
 
+ if (typeof inicializarHojasVentaPOS === "function") inicializarHojasVentaPOS();
  actualizarCarrito();
  cargarHistorial().catch(error => console.warn("No se pudo cargar historial inicial", error));
 
