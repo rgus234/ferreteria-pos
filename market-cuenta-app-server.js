@@ -394,6 +394,42 @@ if (wizardDrawerOverlay) {
     wizardDrawerOverlay.addEventListener("click", function(evento) { if (evento.target === wizardDrawerOverlay) wizardDrawerOverlay.hidden = true; });
 }
 
+// Enlaces del drawer que hoy no tienen pantalla propia (Mi perfil,
+// Direcciones, Metodos de pago) -- mismo criterio "Proximamente" que
+// ya usa el hub de escritorio para estas mismas secciones. Solo
+// cierran el drawer.
+document.querySelectorAll("[data-ir-drawer]").forEach(function(enlace) {
+    enlace.addEventListener("click", function(evento) {
+        evento.preventDefault();
+        if (wizardDrawerOverlay) wizardDrawerOverlay.hidden = true;
+    });
+});
+
+var wizardBotonCerrarSesion = document.getElementById("wizardCerrarSesion");
+if (wizardBotonCerrarSesion) {
+    wizardBotonCerrarSesion.addEventListener("click", async function(evento) {
+        evento.preventDefault();
+        try { await wizardLlamar("/personas/logout", { method: "POST" }); } catch (error) { /* continua igual */ }
+        window.location.href = "/market/mi-cuenta";
+    });
+}
+
+// Bottom-nav (pantalla 11): Favoritos y Pedidos navegan a las paginas
+// reales ya existentes (fuera del wizard, ver plan -- este shell nuevo
+// no duplica esas pantallas); Cuenta abre el mismo drawer que el
+// boton hamburguesa.
+var wizardBottomNav = document.getElementById("wizardBottomNav");
+if (wizardBottomNav) {
+    wizardBottomNav.querySelectorAll("[data-tab]").forEach(function(boton) {
+        boton.addEventListener("click", function() {
+            var destino = boton.dataset.tab;
+            if (destino === "favoritos") { window.location.href = "/favoritos"; return; }
+            if (destino === "pedidos") { window.location.href = "/market/mis-pedidos"; return; }
+            if (destino === "cuenta") { if (wizardDrawerOverlay) wizardDrawerOverlay.hidden = false; return; }
+        });
+    });
+}
+
 async function wizardLlamar(ruta, opciones) {
     var respuesta = await fetch(ruta, Object.assign({ credentials: "include", headers: { "Content-Type": "application/json" } }, opciones || {}));
     return respuesta.json();
@@ -506,6 +542,30 @@ if (wizardBotonLogin) {
             wizardBotonLogin.disabled = false;
         }
     });
+}
+
+// Pantalla 11 -- sugerencia proactiva real: reusa /market/inicio-json
+// (ya calcula recomendados por oficio, sin duplicar esa logica aqui)
+// + window.NEXO_PERSONA_OFICIO (inyectado por el servidor) -- nunca
+// inventa datos que no vengan del servidor.
+if (${JSON.stringify(pantallaInicial)} === "home") {
+    (async function() {
+        var elemento = document.getElementById("wizardSugerenciaTexto");
+        if (!elemento) return;
+        try {
+            var datos = await wizardLlamar("/market/inicio-json");
+            if (!datos || !datos.ok) return;
+            var oficio = window.NEXO_PERSONA_OFICIO || "";
+            var totalRecomendados = (datos.recomendados || []).length;
+            if (oficio && totalRecomendados > 0) {
+                elemento.textContent = "Como trabajas en " + oficio + ", tenemos " + totalRecomendados + " producto" + (totalRecomendados === 1 ? "" : "s") + " recomendados para ti.";
+            } else if (!oficio) {
+                elemento.textContent = "Cuentanos a que te dedicas desde tu cuenta para ver recomendaciones a tu medida.";
+            } else {
+                elemento.textContent = "Explora Nexo Market -- ferreterias reales cerca de ti.";
+            }
+        } catch (error) { /* deja el texto por defecto */ }
+    })();
 }
 
 // Pantalla 10 -- recuperar contrasena en 3 pasos, mismo backend que ya
@@ -715,6 +775,7 @@ ${seccionHome}
 </div>
 ${seccionBottomNav}
 ${seccionDrawer}
+<script>window.NEXO_PERSONA_OFICIO = ${JSON.stringify((persona && persona.oficio) || "").replace(/<\//g, "<\\/")};</script>
 <script>${scriptWizardMarketHtml(pantallaInicial)}</script>
 </body>
 </html>`;
