@@ -23,4 +23,14 @@ const pool = new Pool({
         : false,
 });
 
+// Sin este listener, un error en un cliente inactivo del pool (por
+// ejemplo el proveedor cerrando la conexion, "Connection terminated
+// unexpectedly") se propaga como excepcion no capturada y tumba todo
+// el proceso -- asi lo documenta node-postgres. Con el listener, el
+// pool simplemente descarta ese cliente y sigue funcionando con el
+// resto de las conexiones.
+pool.on("error", error => {
+    console.error("Error inesperado en un cliente inactivo del pool de Postgres:", error);
+});
+
 module.exports = pool;

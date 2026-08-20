@@ -3760,7 +3760,24 @@ async function exigirLicenciaActiva(res, negocio, operacion) {
     return licencia;
 }
 
+// Esta funcion corre ~33 sentencias DDL (CREATE TABLE / ALTER TABLE
+// ADD COLUMN IF NOT EXISTS) contra Postgres. Se llama antes de 8 rutas
+// distintas (ventas, historial, reportes...) para asegurar que el
+// esquema ya tenga las columnas que el codigo espera -- pero sin este
+// candado se repetian las 33 sentencias en CADA peticion, aunque el
+// esquema ya estuviera al dia desde hace rato. Cada ALTER TABLE ADD
+// COLUMN IF NOT EXISTS toma brevemente un lock de la tabla aunque no
+// haga nada, y sumados esos ~33 viajes de ida y vuelta a una base de
+// datos remota facilmente pasaban de 5 segundos por peticion -- medido
+// en vivo: la pantalla de Reportes tardaba hasta 16s en cargar por
+// esto. Una vez que corre exitosamente en este proceso, el esquema no
+// vuelve a cambiar solo -- cambia con un despliegue de codigo nuevo,
+// que reinicia el proceso y limpia esta bandera de todos modos.
+let columnasHistorialVentasAseguradas = false;
+
 async function asegurarColumnasHistorialVentas(client = pool) {
+    if (columnasHistorialVentasAseguradas) return;
+
     await client.query(`
         CREATE TABLE IF NOT EXISTS public.folio_contadores (
             negocio_id INTEGER NOT NULL REFERENCES public.negocios(id) ON DELETE CASCADE,
@@ -3956,6 +3973,8 @@ async function asegurarColumnasHistorialVentas(client = pool) {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     `);
+
+    columnasHistorialVentasAseguradas = true;
 }
 
 async function siguienteFolioVenta(client, negocioId) {
@@ -7709,123 +7728,136 @@ app.get("/reportes/ventas", requerirAccesoNegocio, async (req, res) => {
 
         filtroFechaAnterior += FILTRO_CREDITO_LIQUIDADO;
 
-        const resumen = await pool.query(`
-            SELECT
-                COALESCE(SUM(total), 0) AS total,
-                COUNT(*) AS transacciones,
-                COALESCE(AVG(total), 0) AS ticket_promedio,
-                COALESCE(MAX(total), 0) AS venta_mayor,
-                COALESCE(SUM(descuento), 0) AS descuento_total
-            FROM public.historial_ventas
-            WHERE negocio_id = $1
-            ${filtroFecha}
-        `, params);
-
-        const porDia = await pool.query(`
-            SELECT
-                TO_CHAR(fecha, 'DD/MM') AS dia,
-                COALESCE(SUM(total), 0) AS total,
-                COUNT(*) AS transacciones
-            FROM public.historial_ventas
-            WHERE negocio_id = $1
-            ${filtroFecha}
-            GROUP BY TO_CHAR(fecha, 'DD/MM'), DATE(fecha)
-            ORDER BY DATE(fecha) ASC
-            LIMIT 30
-        `, params);
-
-        const metodosPago = await pool.query(`
-            SELECT metodo_pago, COALESCE(SUM(total), 0) AS total, COUNT(*) AS transacciones
-            FROM public.historial_ventas
-            WHERE negocio_id = $1
-            ${filtroFecha}
-            GROUP BY metodo_pago
-            ORDER BY total DESC
-        `, params);
-
-        const porHora = await pool.query(`
-            SELECT TO_CHAR(date_trunc('hour', fecha), 'HH24:00') AS hora,
-                   COALESCE(SUM(total), 0) AS total,
-                   COUNT(*) AS transacciones
-            FROM public.historial_ventas
-            WHERE negocio_id = $1
-            ${filtroFecha}
-            GROUP BY date_trunc('hour', fecha)
-            ORDER BY date_trunc('hour', fecha)
-        `, params);
-
-        const productosVendidos = await pool.query(`
-            SELECT
-                item->>'nombre' AS nombre,
-                COALESCE(SUM((item->>'cantidad')::numeric), 0) AS cantidad,
-                COALESCE(SUM((item->>'importe')::numeric), 0) AS total
-            FROM public.historial_ventas,
-                 LATERAL jsonb_array_elements(productos) AS item
-            WHERE negocio_id = $1
-            ${filtroFecha}
-            GROUP BY item->>'nombre'
-            ORDER BY total DESC
-            LIMIT 10
-        `, params);
-
-        const ultimas = await pool.query(`
-            SELECT *
-            FROM public.historial_ventas
-            WHERE negocio_id = $1
-            ${filtroFecha}
-            ORDER BY fecha DESC
-            LIMIT 12
-        `, params);
-
-        const productosVendidosTotal = await pool.query(`
-            SELECT COALESCE(SUM((item->>'cantidad')::numeric), 0) AS cantidad
-            FROM public.historial_ventas,
-                 LATERAL jsonb_array_elements(productos) AS item
-            WHERE negocio_id = $1
-            ${filtroFecha}
-        `, params);
-
-        const ventasPorCategoria = await pool.query(`
-            SELECT
-                COALESCE(NULLIF(p.categoria, ''), 'Sin categoria') AS categoria,
-                COALESCE(SUM((item->>'importe')::numeric), 0) AS total
-            FROM public.historial_ventas
-            CROSS JOIN LATERAL jsonb_array_elements(productos) AS item
-            LEFT JOIN public.productos p
-                ON p.id = NULLIF(item->>'id', '')::integer
-                AND p.negocio_id = historial_ventas.negocio_id
-            WHERE historial_ventas.negocio_id = $1
-            ${filtroFecha}
-            GROUP BY 1
-            ORDER BY total DESC
-            LIMIT 8
-        `, params);
-
-        // "reportes.comparativas" es uno de los diferenciadores reales
-        // Basico vs Plus -- en vez de bloquear toda la ruta (los demas
-        // bloques son basicos, incluidos en todos los planes), se omite
-        // solo el bloque de comparacion contra el periodo anterior.
-        const comparativas = await funcionDelPlan(negocio.id, "reportes.comparativas");
-
-        let resumenAnterior = null;
-        if (comparativas.incluido) {
-            const resumenAnteriorFila = await pool.query(`
+        // Las 8 consultas de este bloque (mas la revision de plan) son
+        // independientes entre si -- ninguna depende del resultado de
+        // otra, solo comparten los mismos parametros ya calculados
+        // arriba. Antes se esperaban una por una con await secuencial,
+        // lo que sumaba la latencia de cada viaje de ida y vuelta a la
+        // base de datos (llegando a tardar mas de 10 segundos en la
+        // practica); en paralelo con Promise.all tardan lo mismo que la
+        // mas lenta de todas, no la suma de todas.
+        const [
+            resumen,
+            porDia,
+            metodosPago,
+            porHora,
+            productosVendidos,
+            ultimas,
+            productosVendidosTotal,
+            ventasPorCategoria,
+            comparativas
+        ] = await Promise.all([
+            pool.query(`
                 SELECT
                     COALESCE(SUM(total), 0) AS total,
                     COUNT(*) AS transacciones,
-                    COALESCE(AVG(total), 0) AS ticket_promedio
+                    COALESCE(AVG(total), 0) AS ticket_promedio,
+                    COALESCE(MAX(total), 0) AS venta_mayor,
+                    COALESCE(SUM(descuento), 0) AS descuento_total
                 FROM public.historial_ventas
                 WHERE negocio_id = $1
-                ${filtroFechaAnterior}
-            `, paramsAnterior);
-
-            const productosVendidosTotalAnterior = await pool.query(`
+                ${filtroFecha}
+            `, params),
+            pool.query(`
+                SELECT
+                    TO_CHAR(fecha, 'DD/MM') AS dia,
+                    COALESCE(SUM(total), 0) AS total,
+                    COUNT(*) AS transacciones
+                FROM public.historial_ventas
+                WHERE negocio_id = $1
+                ${filtroFecha}
+                GROUP BY TO_CHAR(fecha, 'DD/MM'), DATE(fecha)
+                ORDER BY DATE(fecha) ASC
+                LIMIT 30
+            `, params),
+            pool.query(`
+                SELECT metodo_pago, COALESCE(SUM(total), 0) AS total, COUNT(*) AS transacciones
+                FROM public.historial_ventas
+                WHERE negocio_id = $1
+                ${filtroFecha}
+                GROUP BY metodo_pago
+                ORDER BY total DESC
+            `, params),
+            pool.query(`
+                SELECT TO_CHAR(date_trunc('hour', fecha), 'HH24:00') AS hora,
+                       COALESCE(SUM(total), 0) AS total,
+                       COUNT(*) AS transacciones
+                FROM public.historial_ventas
+                WHERE negocio_id = $1
+                ${filtroFecha}
+                GROUP BY date_trunc('hour', fecha)
+                ORDER BY date_trunc('hour', fecha)
+            `, params),
+            pool.query(`
+                SELECT
+                    item->>'nombre' AS nombre,
+                    COALESCE(SUM((item->>'cantidad')::numeric), 0) AS cantidad,
+                    COALESCE(SUM((item->>'importe')::numeric), 0) AS total
+                FROM public.historial_ventas,
+                     LATERAL jsonb_array_elements(productos) AS item
+                WHERE negocio_id = $1
+                ${filtroFecha}
+                GROUP BY item->>'nombre'
+                ORDER BY total DESC
+                LIMIT 10
+            `, params),
+            pool.query(`
+                SELECT *
+                FROM public.historial_ventas
+                WHERE negocio_id = $1
+                ${filtroFecha}
+                ORDER BY fecha DESC
+                LIMIT 12
+            `, params),
+            pool.query(`
                 SELECT COALESCE(SUM((item->>'cantidad')::numeric), 0) AS cantidad
                 FROM public.historial_ventas,
                      LATERAL jsonb_array_elements(productos) AS item
                 WHERE negocio_id = $1
-                ${filtroFechaAnterior}
-            `, paramsAnterior);
+                ${filtroFecha}
+            `, params),
+            pool.query(`
+                SELECT
+                    COALESCE(NULLIF(p.categoria, ''), 'Sin categoria') AS categoria,
+                    COALESCE(SUM((item->>'importe')::numeric), 0) AS total
+                FROM public.historial_ventas
+                CROSS JOIN LATERAL jsonb_array_elements(productos) AS item
+                LEFT JOIN public.productos p
+                    ON p.id = NULLIF(item->>'id', '')::integer
+                    AND p.negocio_id = historial_ventas.negocio_id
+                WHERE historial_ventas.negocio_id = $1
+                ${filtroFecha}
+                GROUP BY 1
+                ORDER BY total DESC
+                LIMIT 8
+            `, params),
+            // "reportes.comparativas" es uno de los diferenciadores reales
+            // Basico vs Plus -- en vez de bloquear toda la ruta (los demas
+            // bloques son basicos, incluidos en todos los planes), se omite
+            // solo el bloque de comparacion contra el periodo anterior.
+            funcionDelPlan(negocio.id, "reportes.comparativas")
+        ]);
+
+        let resumenAnterior = null;
+        if (comparativas.incluido) {
+            const [resumenAnteriorFila, productosVendidosTotalAnterior] = await Promise.all([
+                pool.query(`
+                    SELECT
+                        COALESCE(SUM(total), 0) AS total,
+                        COUNT(*) AS transacciones,
+                        COALESCE(AVG(total), 0) AS ticket_promedio
+                    FROM public.historial_ventas
+                    WHERE negocio_id = $1
+                    ${filtroFechaAnterior}
+                `, paramsAnterior),
+                pool.query(`
+                    SELECT COALESCE(SUM((item->>'cantidad')::numeric), 0) AS cantidad
+                    FROM public.historial_ventas,
+                         LATERAL jsonb_array_elements(productos) AS item
+                    WHERE negocio_id = $1
+                    ${filtroFechaAnterior}
+                `, paramsAnterior)
+            ]);
 
             resumenAnterior = {
                 ...resumenAnteriorFila.rows[0],
