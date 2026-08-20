@@ -305,7 +305,7 @@ function renderTopbarPOS() {
  const negocio = nombreNegocioTopbarPOS();
 
  topbar.innerHTML =
- '<div class="topbar-title-block"><span class="topbar-eyebrow">Ferreteria Olimpico POS</span><strong id="topbarTituloPOS">' +
+ '<div class="topbar-title-block"><span class="topbar-eyebrow">' + escaparPOS(negocio) + ' POS</span><strong id="topbarTituloPOS">' +
  contextoTopbarPOS.titulo +
  '</strong><small id="topbarSubtituloPOS">' +
  contextoTopbarPOS.subtitulo +

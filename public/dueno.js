@@ -2930,7 +2930,14 @@ async function enviarMensajeNexoDueno() {
 // ---------------- arranque ----------------
 
 if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/dueno-sw.js").catch(() => {
+    // scope explicito a /dueno -- sin esto el registro por defecto toma
+    // como scope la raiz del origen (el script vive en /dueno-sw.js),
+    // lo que le da control sobre el POS de escritorio (/) tambien: un
+    // dueno que abre /dueno una sola vez en el mismo navegador donde
+    // usa el POS de escritorio terminaba con datos viejos cacheados
+    // sirviendose ahi. Bug real encontrado al preparar capturas para
+    // el manual.
+    navigator.serviceWorker.register("/dueno-sw.js", { scope: "/dueno" }).catch(() => {
         // Sin Service Worker el resto de la pagina sigue funcionando
         // igual mientras haya conexion -- solo se pierde el arranque
         // 100% offline con el navegador recien abierto.

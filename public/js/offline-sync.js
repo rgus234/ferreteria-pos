@@ -1,11 +1,17 @@
+// El fallback generico era literalmente "ferreteria-olimpico" (el
+// nombre de un negocio real) -- mientras no hay configuracion cargada
+// (primer render antes de que resuelva /configuracion), cualquier
+// negocio nuevo mostraba temporalmente el nombre de otro negocio real
+// en vez de un placeholder neutro. Bug real encontrado al preparar
+// capturas para el manual con un negocio de demostracion.
 function normalizarSlugNegocio(valor) {
- return String(valor || "ferreteria-olimpico")
+ return String(valor || "mi-negocio")
  .normalize("NFD")
  .replace(/[\u0300-\u036f]/g, "")
  .toLowerCase()
  .replace(/[^a-z0-9]+/g, "-")
  .replace(/^-+|-+$/g, "")
- .slice(0, 80) || "ferreteria-olimpico";
+ .slice(0, 80) || "mi-negocio";
 }
 
 function negocioActivoSlug() {
@@ -16,7 +22,7 @@ function negocioActivoSlug() {
  localStorage.getItem(NEGOCIO_ACTIVO_KEY) ||
  configuracion?.negocioSlug ||
  configuracion?.nombre ||
- "ferreteria-olimpico"
+ "mi-negocio"
  );
 }
 
