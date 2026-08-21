@@ -9,13 +9,13 @@
 // siempre van a la red; los datos y la cola offline viven en
 // IndexedDB (dueno-offline.js), no en este cache.
 
-const CACHE_NAME = "nexo-dueno-shell-v24";
+const CACHE_NAME = "nexo-dueno-shell-v25";
 const CACHE_FOTOS = "nexo-dueno-fotos-v1";
 
 const ARCHIVOS_CASCARON = [
     "/dueno",
-    "/dueno.css?v=bienvenida-pantalla-completa-20260821-01",
-    "/dueno.js?v=bienvenida-pantalla-completa-20260821-01",
+    "/dueno.css?v=fix-scroll-real-dvh-20260821-01",
+    "/dueno.js?v=fix-scroll-real-dvh-20260821-01",
     "/dueno-offline.js?v=dueno-modo-oscuro-20260721-01",
     "/manifest.json?v=shell-unificado-20260816-01",
     "/nexo-pos-icon.jpg",
