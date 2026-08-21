@@ -373,6 +373,26 @@ function iniciarProcesadorImportacionBanco(pool) {
         }
     }
 
+    // Si el proceso de Node se cae o se reinicia (deploy, OOM, etc.)
+    // justo mientras procesaba un ZIP, ese trabajo se queda para
+    // siempre en 'procesando' -- el proceso que lo estaba corriendo ya
+    // no existe, y nada mas lo vuelve a tomar (el poller solo busca
+    // 'pendiente'). El admin veia esos ZIPs como "en curso" sin fin, y
+    // la verificacion por hash los trataba como ya subidos aunque nunca
+    // se guardo ni una foto. Al arrancar, cualquier fila en 'procesando'
+    // SOLO puede ser un sobrante de un proceso anterior (este proceso
+    // recien inicia, no pudo haber dejado nada a medias todavia) -- se
+    // regresa a 'pendiente' para que el poller la vuelva a intentar.
+    pool.query(
+        `UPDATE public.banco_imagenes_importacion_trabajos SET estado = 'pendiente', updated_at = NOW() WHERE estado = 'procesando'`
+    ).then(resultado => {
+        if (resultado.rowCount > 0) {
+            console.log(`[banco-imagenes] ${resultado.rowCount} trabajo(s) de importacion atorados en 'procesando' se reencolaron al arrancar.`);
+        }
+    }).catch(error => {
+        console.log("[banco-imagenes] No se pudo reencolar trabajos atorados al arrancar:", error.message);
+    });
+
     setInterval(revisarYCorrer, INTERVALO_REVISION_IMPORTACION_BANCO_MS);
 }
 
