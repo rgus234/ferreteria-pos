@@ -498,11 +498,18 @@ function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
                 return;
             }
 
+            // Excluye trabajos marcados 'listo' que en realidad fallaron
+            // (errores no vacio) -- eso paso con ZIPs procesados antes de
+            // que procesarZipBancoImagenes empezara a relanzar el error
+            // cuando el zip no se podia ni abrir. Sin este filtro, un
+            // ZIP que nunca se importo de verdad se reportaria como "ya
+            // subido" y se saltaria solo al volver a seleccionarlo.
             const resultado = await pool.query(
                 `
                 SELECT DISTINCT ON (hash_zip) hash_zip, nombre_archivo, estado, created_at
                 FROM public.banco_imagenes_importacion_trabajos
                 WHERE hash_zip = ANY($1::text[])
+                    AND NOT (estado = 'listo' AND COALESCE(jsonb_array_length(errores), 0) > 0)
                 ORDER BY hash_zip, created_at DESC
                 `,
                 [hashes]
