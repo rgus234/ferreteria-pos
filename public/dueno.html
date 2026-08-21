@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=fix-sw-scope-20260820-01">
+    <link rel="stylesheet" href="dueno.css?v=menu-hamburguesa-20260820-01">
 </head>
 
 <body>
@@ -123,6 +123,9 @@
 
     <main id="duenoApp" class="dueno-app" style="display:none;">
         <header class="dueno-header">
+            <button type="button" class="dueno-menu-boton" title="Menú" onclick="cambiarTabDueno('mas')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
             <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-header-nexo">
             <div>
                 <p id="duenoSaludo" class="dueno-saludo">Buenos días</p>
@@ -193,6 +196,9 @@
 
     <main id="duenoReportes" class="dueno-app" style="display:none;">
         <header class="dueno-header">
+            <button type="button" class="dueno-menu-boton" title="Menú" onclick="cambiarTabDueno('mas')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
             <div>
                 <p class="dueno-saludo">Tu negocio en numeros</p>
                 <h1>Reportes</h1>
@@ -266,6 +272,9 @@
 
     <main id="duenoVentas" class="dueno-app" style="display:none;">
         <header class="dueno-header">
+            <button type="button" class="dueno-menu-boton" title="Menú" onclick="cambiarTabDueno('mas')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
             <div>
                 <p class="dueno-saludo">Sin internet, sin problema</p>
                 <h1>Cotizaciones</h1>
@@ -336,6 +345,9 @@
 
     <main id="duenoVender" class="dueno-app" style="display:none;">
         <header class="dueno-header">
+            <button type="button" class="dueno-menu-boton" title="Menú" onclick="cambiarTabDueno('mas')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
             <div>
                 <p class="dueno-saludo">Cobro real</p>
                 <h1>Vender</h1>
@@ -352,7 +364,9 @@
             </div>
             <div class="dueno-buscar-fila">
                 <input type="search" id="duenoVenderBuscar" placeholder="Nombre o codigo..." oninput="buscarProductoVenderDueno(this.value)">
-                <button type="button" class="dueno-boton-agregar dueno-boton-camara" title="Identificar por foto" onclick="document.getElementById('duenoVenderFotoInput').click()">📷</button>
+                <button type="button" class="dueno-boton-agregar dueno-boton-camara" title="Identificar por foto" onclick="document.getElementById('duenoVenderFotoInput').click()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </button>
                 <input type="file" id="duenoVenderFotoInput" accept="image/*" capture="environment" hidden onchange="identificarProductoPorFotoDueno(this.files[0])">
             </div>
             <div id="duenoVenderResultados" class="lista-compacta" style="margin-top:10px;"></div>
@@ -385,6 +399,9 @@
 
     <main id="duenoCaja" class="dueno-app" style="display:none;">
         <header class="dueno-header">
+            <button type="button" class="dueno-menu-boton" title="Menú" onclick="cambiarTabDueno('mas')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
             <div>
                 <p class="dueno-saludo">Turno de caja</p>
                 <h1>Caja</h1>
@@ -420,6 +437,9 @@
 
     <main id="duenoInventario" class="dueno-app" style="display:none;">
         <header class="dueno-header">
+            <button type="button" class="dueno-menu-boton" title="Menú" onclick="cambiarTabDueno('mas')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
             <div>
                 <p class="dueno-saludo">Tu catalogo guardado</p>
                 <h1>Inventario</h1>
@@ -439,6 +459,9 @@
 
     <main id="duenoPedidos" class="dueno-app" style="display:none;">
         <header class="dueno-header">
+            <button type="button" class="dueno-menu-boton" title="Menú" onclick="cambiarTabDueno('mas')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
             <div>
                 <p class="dueno-saludo">Nexo Market</p>
                 <h1>Pedidos</h1>
@@ -471,9 +494,9 @@
         <div id="duenoMasNivel1">
             <header class="dueno-header">
                 <div>
-                    <p class="dueno-saludo">Configuracion</p>
+                    <p class="dueno-saludo">Menú</p>
                     <h1>Más</h1>
-                    <p class="dueno-estado">Tu cuenta, tu plan y seguridad</p>
+                    <p class="dueno-estado">Reportes, cotizar, inventario, tu cuenta y tu plan</p>
                 </div>
             </header>
 
@@ -500,35 +523,18 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
             <span>Inicio</span>
         </button>
-        <button type="button" data-tab="reportes" onclick="cambiarTabDueno('reportes')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
-            <span>Reportes</span>
-        </button>
-        <button type="button" data-tab="ventas" onclick="cambiarTabDueno('ventas')">
+        <button type="button" data-tab="vender" onclick="cambiarTabDueno('vender')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.4 12.2a1.6 1.6 0 0 0 1.6 1.3h9a1.6 1.6 0 0 0 1.6-1.3L21 7H6"/></svg>
-            <span>Ventas</span>
-            <span id="duenoVentasBadge" class="dueno-tab-badge" style="display:none;"></span>
-        </button>
-        <button type="button" data-tab="inventario" onclick="cambiarTabDueno('inventario')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
-            <span>Inventario</span>
+            <span>Vender</span>
         </button>
         <button type="button" data-tab="pedidos" onclick="cambiarTabDueno('pedidos')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3.6l-1.6-2.7A1.8 1.8 0 0 0 13.2 3h-2.4a1.8 1.8 0 0 0-1.6 1.3L7.6 7H4a1 1 0 0 0-1 1v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a1 1 0 0 0-1-1z"/><path d="M9 12h6"/></svg>
             <span>Pedidos</span>
             <span id="duenoPedidosBadge" class="dueno-tab-badge" style="display:none;"></span>
         </button>
-        <button type="button" data-tab="vender" onclick="cambiarTabDueno('vender')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.4 12.2a1.6 1.6 0 0 0 1.6 1.3h9a1.6 1.6 0 0 0 1.6-1.3L21 7H6"/></svg>
-            <span>Vender</span>
-        </button>
         <button type="button" data-tab="caja" onclick="cambiarTabDueno('caja')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M7 15h4"/></svg>
             <span>Caja</span>
-        </button>
-        <button type="button" data-tab="mas" onclick="cambiarTabDueno('mas')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
-            <span>Más</span>
         </button>
     </nav>
 
@@ -571,7 +577,7 @@
     </div>
 
     <script src="dueno-offline.js?v=dueno-modo-oscuro-20260721-01"></script>
-    <script src="dueno.js?v=fix-sw-scope-20260820-01"></script>
+    <script src="dueno.js?v=menu-hamburguesa-20260820-01"></script>
 </body>
 
 </html>

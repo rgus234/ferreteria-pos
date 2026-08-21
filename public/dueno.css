@@ -345,6 +345,34 @@ button{
     margin-bottom:18px;
 }
 
+/* Boton de menu (tres rayas) -- reemplaza el icono "Más" que antes
+   vivia apachurrado en la barra inferior junto a otros 6. Vive en el
+   encabezado de cada pestaña, mismo lugar donde Amazon y la mayoria
+   de apps con navegacion recortada ponen el acceso a "todo lo demas". */
+.dueno-menu-boton{
+    width:38px;
+    height:38px;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:1px solid var(--line);
+    border-radius:11px;
+    background:var(--surface-soft);
+    color:var(--text);
+    padding:0;
+}
+
+.dueno-menu-boton svg{
+    width:20px;
+    height:20px;
+}
+
+.dueno-menu-boton:active{
+    background:var(--brand-soft);
+    color:var(--brand);
+}
+
 .dueno-header-nexo{
     width:52px;
     height:52px;
@@ -675,6 +703,9 @@ button{
     width:34px;
     height:34px;
     flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
     border:none;
     border-radius:10px;
     background:var(--brand);
@@ -707,6 +738,11 @@ button{
     width:40px;
     height:40px;
     font-size:18px;
+}
+
+.dueno-boton-camara svg{
+    width:20px;
+    height:20px;
 }
 
 .dueno-foto-descripcion{

@@ -628,6 +628,15 @@ function aplicarRolShellDueno() {
         boton.style.display = (esEmpleado && DUENO_TABS_SOLO_DUENO.has(boton.dataset.tab)) ? "none" : "";
     });
 
+    // El boton de menu (tres rayas) lleva a la pestaña "mas", que ya
+    // esta marcada solo-dueño en DUENO_TABS_SOLO_DUENO -- un empleado
+    // no tiene nada util ahi (ni cuenta, ni plan, ni reportes), asi
+    // que el boton mismo se oculta en vez de llevarlo a una pantalla
+    // vacia para su rol.
+    document.querySelectorAll(".dueno-menu-boton").forEach(boton => {
+        boton.style.display = esEmpleado ? "none" : "";
+    });
+
     if (esEmpleado) cambiarTabDueno("pedidos");
 }
 
@@ -636,6 +645,17 @@ async function sincronizarRolSesionDueno() {
         const datos = await fetchAutenticado("/negocio-actual");
         duenoRolSesion = datos.rol || "owner";
         if (datos.personaNombre) duenoEmpleadoNombrePersona = datos.personaNombre;
+
+        // El login ya pone el nombre real del negocio en el saludo,
+        // pero una sesion guardada (que es como se abre la app la
+        // gran mayoria de las veces, al reabrir el icono instalado)
+        // nunca pasaba por ahi -- se quedaba con el "Tu negocio"
+        // generico del HTML para siempre. Aqui es donde debe
+        // refrescarse tambien.
+        if (datos.negocio?.nombre) {
+            const elementoNegocio = document.getElementById("duenoNegocio");
+            if (elementoNegocio) elementoNegocio.textContent = datos.negocio.nombre;
+        }
     } catch (error) {
         duenoRolSesion = "owner";
     }
@@ -2272,17 +2292,26 @@ function iconoCategoriaMasDueno(nombre) {
         nube: '<path d="M7 18a4 4 0 0 1-1-7.9 5 5 0 0 1 9.6-1.8A4.5 4.5 0 0 1 17 18H7z"/>',
         pincel: '<path d="M15 4l5 5-9.5 9.5a2 2 0 0 1-1.2.6l-3.6.4.4-3.6a2 2 0 0 1 .6-1.2L15 4z"/>',
         carrito: '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.4 12.2a1.6 1.6 0 0 0 1.6 1.3h9a1.6 1.6 0 0 0 1.6-1.3L21 7H6"/>',
+        grafica: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>',
+        caja: '<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
         flecha: '<path d="M9 6l6 6-6 6"/>'
     };
 
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconos[nombre] || iconos.usuario}</svg>`;
 }
 
-// Categorias reales (con sub-pantalla funcional) primero; las que el
-// negocio todavia no tiene construidas quedan visibles pero marcadas
-// "proximamente" -- mismo patron ya usado en la pestaña Reportes, para
-// no fingir una funcion que no existe todavia.
+// Reportes, Cotizar e Inventario vivian como iconos propios en la
+// barra inferior -- con Inicio/Vender/Pedidos/Caja ya eran 7 iconos
+// mas "Más", demasiados para acertarle bien con el dedo. Se movieron
+// aqui, al menu que abre el boton de tres rayas del encabezado (mismo
+// patron que usa Amazon: pocos accesos directos abajo, todo lo demas
+// detras de un menu). "Ventas" se renombra a "Cotizar" de paso porque
+// "Ventas" chocaba de nombre con la pestaña real "Vender" (cobro de
+// verdad) -- dos palabras casi identicas para funciones opuestas.
 const CATEGORIAS_MAS_DUENO = [
+    { id: "reportes-tab", titulo: "Reportes", desc: "Tu negocio en numeros", icono: "grafica", color: "azul", tab: "reportes" },
+    { id: "ventas-tab", titulo: "Cotizar", desc: "Arma una cotizacion sin cobrar", icono: "carrito", color: "azul", tab: "ventas" },
+    { id: "inventario-tab", titulo: "Inventario", desc: "Consulta tu catalogo completo", icono: "caja", color: "azul", tab: "inventario" },
     { id: "market", titulo: "Comprar en Nexo Market", desc: "Explora productos de otras ferreterias", icono: "carrito", color: "verde", href: "https://app.nexoposoficial.com/market" },
     { id: "cuenta", titulo: "Cuenta", desc: "Datos del negocio y correo", icono: "usuario", color: "" },
     { id: "plan", titulo: "Plan y suscripcion", desc: "Tu plan, pagos y facturas", icono: "tarjeta", color: "verde" },
@@ -2299,12 +2328,13 @@ function renderCategoriasMasDueno() {
     document.getElementById("duenoMasCategorias").innerHTML =
         CATEGORIAS_MAS_DUENO.map(categoria => `
             <button type="button" class="dueno-categoria-row${categoria.proximamente ? " proximamente" : ""}"
-                onclick="${categoria.href ? `location.href='${categoria.href}'` : (categoria.proximamente ? "proximamenteDueno()" : `abrirSubpantallaMasDueno('${categoria.id}')`)}">
+                onclick="${categoria.tab ? `cambiarTabDueno('${categoria.tab}')` : categoria.href ? `location.href='${categoria.href}'` : (categoria.proximamente ? "proximamenteDueno()" : `abrirSubpantallaMasDueno('${categoria.id}')`)}">
                 <span class="dueno-categoria-icono${categoria.color ? ` dueno-categoria-icono-${categoria.color}` : ""}">${iconoCategoriaMasDueno(categoria.icono)}</span>
                 <span class="dueno-categoria-texto">
                     <strong>${escaparDueno(categoria.titulo)}</strong>
                     <span>${escaparDueno(categoria.desc)}</span>
                 </span>
+                ${categoria.id === "ventas-tab" ? `<span id="duenoVentasBadge" class="dueno-tab-badge" style="display:none;"></span>` : ""}
                 <span class="dueno-categoria-flecha">${iconoCategoriaMasDueno("flecha")}</span>
             </button>
         `).join("");
