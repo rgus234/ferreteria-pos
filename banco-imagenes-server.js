@@ -178,7 +178,7 @@ async function procesarZipBancoImagenes(pool, rutaZip, marca, origen, omitirExis
     try {
         zip = new AdmZip(rutaZip);
     } catch (error) {
-        if (error.message === "Invalid filename") {
+        if (error.message.includes("Invalid filename")) {
             throw new Error("El archivo se perdio en el servidor antes de procesarse (probablemente por un reinicio a media importacion). Vuelve a subir este ZIP.");
         }
         throw new Error(`Este ZIP esta danado o no es un .zip valido: ${error.message}`);
