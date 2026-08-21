@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=menu-hamburguesa-20260820-01">
+    <link rel="stylesheet" href="dueno.css?v=bienvenida-pantalla-completa-20260821-01">
 </head>
 
 <body>
@@ -66,9 +66,12 @@
         </div>
     </main>
 
-    <main id="duenoBienvenida" class="dueno-login" style="display:none;">
-        <div class="dueno-login-caja">
+    <main id="duenoBienvenida" class="dueno-login dueno-pantalla-completa" style="display:none;">
+        <div class="dueno-login-hero">
+            <div class="dueno-login-hero-glow"></div>
             <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-login-nexo">
+        </div>
+        <div class="dueno-login-caja">
             <h1>Bienvenido a Nexo</h1>
             <p>Compra en ferreterias cerca de ti, todo desde tu celular.</p>
             <button type="button" onclick="mostrarPromptMarketDueno(); return false;">Entrar a Nexo Market</button>
@@ -76,9 +79,12 @@
         </div>
     </main>
 
-    <main id="duenoMarketPrompt" class="dueno-login" style="display:none;">
-        <div class="dueno-login-caja">
+    <main id="duenoMarketPrompt" class="dueno-login dueno-pantalla-completa" style="display:none;">
+        <div class="dueno-login-hero">
+            <div class="dueno-login-hero-glow"></div>
             <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-login-nexo">
+        </div>
+        <div class="dueno-login-caja">
             <h1>Compra mas facil con tu cuenta</h1>
             <p>Crea tu cuenta gratis para guardar tus pedidos, tu credito con las ferreterias y tus favoritos. O si prefieres, entra sin crear cuenta.</p>
             <button type="button" onclick="window.location.href='/market/mi-cuenta?tab=registro'">Crear cuenta</button>
@@ -577,7 +583,7 @@
     </div>
 
     <script src="dueno-offline.js?v=dueno-modo-oscuro-20260721-01"></script>
-    <script src="dueno.js?v=menu-hamburguesa-20260820-01"></script>
+    <script src="dueno.js?v=bienvenida-pantalla-completa-20260821-01"></script>
 </body>
 
 </html>
