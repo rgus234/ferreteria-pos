@@ -121,6 +121,21 @@ function manejarSubidaBancoImagenes(req, res, next) {
     });
 }
 
+// Hash del archivo tal cual se subio -- deja detectar "este ZIP exacto
+// ya se importo" desde CUALQUIER navegador/equipo (a diferencia del
+// registro en localStorage de app.js, que solo sirve dentro del mismo
+// navegador). Se calcula leyendo el temporal ya guardado por multer, no
+// el buffer en memoria, para no duplicar el archivo en RAM.
+function calcularHashArchivo(rutaArchivo) {
+    return new Promise((resolve, reject) => {
+        const hash = crypto.createHash("sha256");
+        const stream = fs.createReadStream(rutaArchivo);
+        stream.on("data", chunk => hash.update(chunk));
+        stream.on("end", () => resolve(hash.digest("hex")));
+        stream.on("error", reject);
+    });
+}
+
 // Copia casi literal de procesarZipFotosProducto (server.js) sin
 // negocio_id: una carpeta por producto, primera foto = principal, resto
 // = galeria, hasta 2 codigos derivados por carpeta (nombre de archivo +
@@ -375,13 +390,14 @@ function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
             const trabajoIds = [];
 
             for (const archivo of archivos) {
+                const hashZip = await calcularHashArchivo(archivo.path).catch(() => null);
                 const trabajo = await pool.query(
                     `
-                    INSERT INTO public.banco_imagenes_importacion_trabajos (nombre_archivo, ruta_temporal, marca, estado, omitir_existentes)
-                    VALUES ($1, $2, $3, 'pendiente', $4)
+                    INSERT INTO public.banco_imagenes_importacion_trabajos (nombre_archivo, ruta_temporal, marca, estado, omitir_existentes, hash_zip)
+                    VALUES ($1, $2, $3, 'pendiente', $4, $5)
                     RETURNING id
                     `,
-                    [archivo.originalname, archivo.path, marca, omitirExistentes]
+                    [archivo.originalname, archivo.path, marca, omitirExistentes, hashZip]
                 );
                 trabajoIds.push(trabajo.rows[0].id);
             }
@@ -420,6 +436,72 @@ function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
             );
 
             res.json({ ok: true, trabajos: resultado.rows });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Historial persistente de importaciones -- lee directo de la tabla
+    // de trabajos (que ya guardaba todo esto) en vez de depender de los
+    // ids que el navegador tenia en memoria durante la sesion. Asi el
+    // panel de Admin sigue mostrando que se subio y que quedo pendiente
+    // o en error aunque se refresque la pagina a la mitad de un lote.
+    app.get("/admin/api/banco-imagenes/importar-lote/historial", async (req, res) => {
+        try {
+            const limite = Math.min(Math.max(Number(req.query.limite) || 60, 1), 200);
+
+            const resultado = await pool.query(
+                `
+                SELECT id, nombre_archivo, marca, estado, fotos_guardadas, fotos_omitidas,
+                    solicitudes_resueltas, errores, mensaje_error, hash_zip, created_at, updated_at
+                FROM public.banco_imagenes_importacion_trabajos
+                ORDER BY created_at DESC
+                LIMIT $1
+                `,
+                [limite]
+            );
+
+            res.json({ ok: true, trabajos: resultado.rows });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // El navegador calcula el hash de cada ZIP ANTES de subirlo (Web
+    // Crypto, sin red) y manda solo la lista de hashes -- esto deja
+    // saber al instante cuales de un lote grande ya se importaron antes
+    // (desde este equipo o cualquier otro), sin tener que volver a subir
+    // el archivo completo solo para descubrirlo.
+    app.post("/admin/api/banco-imagenes/importar-lote/verificar-hashes", async (req, res) => {
+        try {
+            const hashes = Array.isArray(req.body?.hashes)
+                ? [...new Set(req.body.hashes.filter(h => typeof h === "string" && /^[a-f0-9]{64}$/.test(h)))]
+                : [];
+
+            if (hashes.length === 0) {
+                res.json({ ok: true, encontrados: [] });
+                return;
+            }
+
+            const resultado = await pool.query(
+                `
+                SELECT DISTINCT ON (hash_zip) hash_zip, nombre_archivo, estado, created_at
+                FROM public.banco_imagenes_importacion_trabajos
+                WHERE hash_zip = ANY($1::text[])
+                ORDER BY hash_zip, created_at DESC
+                `,
+                [hashes]
+            );
+
+            res.json({
+                ok: true,
+                encontrados: resultado.rows.map(fila => ({
+                    hash: fila.hash_zip,
+                    nombreArchivo: fila.nombre_archivo,
+                    estado: fila.estado,
+                    fecha: fila.created_at
+                }))
+            });
         } catch (error) {
             responderError(res, error);
         }

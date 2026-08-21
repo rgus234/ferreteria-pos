@@ -232,6 +232,14 @@
       <div class="banco-imagenes-import-activo" id="importActivoBancoImagenes" style="display:none;"></div>
 
       <article class="panel wide">
+        <div class="banco-imagenes-historial-cabecera">
+          <strong>Historial de importaciones</strong>
+          <button type="button" class="ghost" onclick="cargarHistorialImportacionBanco()">Actualizar</button>
+        </div>
+        <div id="listaHistorialImportacionBanco" class="banco-imagenes-historial"><div class="empty">Cargando...</div></div>
+      </article>
+
+      <article class="panel wide">
         <div class="banco-imagenes-upload" id="zonaSubidaBancoImagenes">
           <div class="banco-imagenes-dropzone" id="dropzoneBancoImagenes">
             <strong>Arrastra tus archivos .zip aqui</strong>

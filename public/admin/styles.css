@@ -1117,6 +1117,56 @@ small,
   font-weight: 750;
 }
 
+.banco-imagenes-historial-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.banco-imagenes-historial {
+  display: grid;
+  gap: 6px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.banco-imagenes-historial-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--nexo-radius-sm);
+  background: var(--surface-strong);
+  font-size: 12px;
+}
+
+.banco-imagenes-historial-fila strong {
+  color: var(--ink);
+  font-weight: 750;
+}
+
+.banco-imagenes-historial-fila small {
+  display: block;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.banco-imagenes-historial-fila-derecha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.banco-imagenes-historial-fila-derecha span {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 /* Buscador + filtros + orden */
 .banco-imagenes-toolbar {
   display: flex;

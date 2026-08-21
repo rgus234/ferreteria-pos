@@ -861,11 +861,36 @@ function bancoImagenesZipsSubidosMarcar(clave) {
   }
 }
 
-function agregarArchivosColaBancoImagenes(fileList) {
+// Corre como maximo N hasheos de archivo a la vez -- un lote de 30 zips
+// de hasta 300MB cada uno no debe intentar leerlos todos en memoria al
+// mismo tiempo (el navegador podria quedarse sin RAM), pero tampoco vale
+// la pena hacerlo uno por uno cuando la idea es que la verificacion sea
+// rapida.
+async function mapConLimiteBancoImagenes(items, limite, fn) {
+  const resultados = new Array(items.length);
+  let indice = 0;
+  async function trabajador() {
+    while (indice < items.length) {
+      const miIndice = indice++;
+      resultados[miIndice] = await fn(items[miIndice], miIndice);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limite, items.length) }, trabajador));
+  return resultados;
+}
+
+async function calcularHashArchivoBancoImagenes(archivo) {
+  const buffer = await archivo.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+  return [...new Uint8Array(hashBuffer)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function agregarArchivosColaBancoImagenes(fileList) {
   const nuevos = [...(fileList || [])].filter(archivo => /\.zip$/i.test(archivo.name));
   const yaSubidosAntes = bancoImagenesZipsSubidosCargar();
   const yaEstan = new Set(bancoImagenesArchivosCola.map(a => `${a.name}:${a.size}`));
   let omitidos = 0;
+  const candidatos = [];
 
   nuevos.forEach(archivo => {
     const clave = `${archivo.name}:${archivo.size}`;
@@ -874,8 +899,61 @@ function agregarArchivosColaBancoImagenes(fileList) {
       omitidos += 1;
       return;
     }
-    bancoImagenesArchivosCola.push(archivo);
+    candidatos.push(archivo);
     yaEstan.add(clave);
+  });
+
+  if (candidatos.length === 0) {
+    bancoImagenesUltimoOmitidos = omitidos;
+    pintarListaArchivosBancoImagenes();
+    return;
+  }
+
+  const contenedor = document.getElementById("listaArchivosBancoImagenes");
+  if (contenedor) {
+    contenedor.innerHTML = `<div class="empty">Verificando cuales de estos ${candidatos.length} archivo(s) ya se subieron antes...</div>`;
+  }
+
+  // Verificacion real contra el servidor por hash (no solo nombre+tamano
+  // en localStorage): detecta un ZIP ya importado aunque sea desde otro
+  // navegador o equipo, o si se limpio el localStorage de este.
+  const hashesPorArchivo = new Map();
+  await mapConLimiteBancoImagenes(candidatos, 3, async archivo => {
+    try {
+      hashesPorArchivo.set(archivo, await calcularHashArchivoBancoImagenes(archivo));
+    } catch (error) {
+      // Si no se puede hashear (navegador viejo, etc.) simplemente no
+      // se verifica ese archivo -- no bloquea que se agregue a la cola.
+    }
+  });
+
+  let yaSubidosServidor = new Set();
+  const hashesUnicos = [...new Set(hashesPorArchivo.values())];
+  if (hashesUnicos.length > 0) {
+    try {
+      const datos = await apiAdmin("/admin/api/banco-imagenes/importar-lote/verificar-hashes", {
+        method: "POST",
+        body: JSON.stringify({ hashes: hashesUnicos })
+      });
+      yaSubidosServidor = new Set(
+        (datos.encontrados || [])
+          .filter(f => f.estado === "listo" || f.estado === "procesando" || f.estado === "pendiente")
+          .map(f => f.hash)
+      );
+    } catch (error) {
+      // Ayuda extra, no requisito -- si falla la verificacion se sigue
+      // igual y el archivo se agrega a la cola sin marcar.
+    }
+  }
+
+  candidatos.forEach(archivo => {
+    const hash = hashesPorArchivo.get(archivo);
+    if (hash && yaSubidosServidor.has(hash)) {
+      omitidos += 1;
+      bancoImagenesZipsSubidosMarcar(`${archivo.name}:${archivo.size}`);
+      return;
+    }
+    bancoImagenesArchivosCola.push(archivo);
   });
 
   bancoImagenesUltimoOmitidos = omitidos;
@@ -998,6 +1076,7 @@ async function procesarSiguienteZipBanco(marca) {
     cola.resumen.errores.push(`${archivo.name}: ${error.message || "No se pudo importar"}`);
   }
 
+  cargarHistorialImportacionBanco();
   cola.indice += 1;
   await procesarSiguienteZipBanco(marca);
 }
@@ -1091,7 +1170,7 @@ async function mostrarResumenFinalImportacionBanco(resumen) {
     nuevos: resumen.codigosNuevos || [],
     omitidos: resumen.codigosOmitidos || []
   };
-  await Promise.all([cargarBancoImagenesAdmin(1), cargarResumenBancoImagenes()]);
+  await Promise.all([cargarBancoImagenesAdmin(1), cargarResumenBancoImagenes(), cargarHistorialImportacionBanco()]);
 }
 
 function descargarReporteErroresBanco() {
@@ -1241,6 +1320,65 @@ function abrirVistaBancoImagenesAdmin() {
   cargarResumenBancoImagenes();
   cargarBancoImagenesAdmin(1);
   cargarSolicitudesBancoImagenes(1);
+  cargarHistorialImportacionBanco();
+}
+
+const ETIQUETA_ESTADO_TRABAJO_BANCO = {
+  pendiente: "En cola",
+  procesando: "Procesando...",
+  listo: "Subido",
+  error: "Error"
+};
+
+// Lee directo de banco_imagenes_importacion_trabajos -- a diferencia de
+// colaImportacionBanco (memoria del navegador, se pierde al refrescar),
+// esto sobrevive a un refresh de pagina porque vive en la base de
+// datos, y muestra el estado real de cada ZIP subido desde cualquier
+// equipo, no solo el de la sesion actual.
+async function cargarHistorialImportacionBanco() {
+  const contenedor = document.getElementById("listaHistorialImportacionBanco");
+  if (!contenedor) return;
+
+  try {
+    const datos = await apiAdmin("/admin/api/banco-imagenes/importar-lote/historial?limite=60");
+    pintarHistorialImportacionBanco(datos.trabajos || []);
+  } catch (error) {
+    contenedor.innerHTML = `<div class="empty">No se pudo cargar el historial: ${escaparHTMLAdmin(error.message)}</div>`;
+  }
+}
+
+function pintarHistorialImportacionBanco(trabajos) {
+  const contenedor = document.getElementById("listaHistorialImportacionBanco");
+  if (!contenedor) return;
+
+  if (!trabajos.length) {
+    contenedor.innerHTML = '<div class="empty">Todavia no se ha importado ningun ZIP.</div>';
+    return;
+  }
+
+  contenedor.innerHTML = trabajos.map(trabajo => {
+    const estado = trabajo.estado;
+    const clase = estado === "listo" ? "ok" : estado === "error" ? "danger" : "warning";
+    const totalErrores = Array.isArray(trabajo.errores) ? trabajo.errores.length : 0;
+    const detalle = estado === "listo"
+      ? `${trabajo.fotos_guardadas || 0} nueva(s), ${trabajo.fotos_omitidas || 0} ya estaban${totalErrores ? `, ${totalErrores} error(es) de match` : ""}`
+      : estado === "error"
+        ? (trabajo.mensaje_error || "No se pudo procesar")
+        : "Esperando su turno...";
+
+    return `
+      <div class="banco-imagenes-historial-fila">
+        <div>
+          <strong>${escaparHTMLAdmin(trabajo.nombre_archivo)}</strong>
+          <small>${fechaHoraCortaAdmin(trabajo.created_at)}${trabajo.marca ? ` -- ${escaparHTMLAdmin(trabajo.marca)}` : ""}</small>
+        </div>
+        <div class="banco-imagenes-historial-fila-derecha">
+          <span>${escaparHTMLAdmin(detalle)}</span>
+          <em class="pill ${clase}">${ETIQUETA_ESTADO_TRABAJO_BANCO[estado] || escaparHTMLAdmin(estado)}</em>
+        </div>
+      </div>
+    `;
+  }).join("");
 }
 
 function pintarSoporteAdmin() {
