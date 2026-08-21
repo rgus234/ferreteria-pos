@@ -85,7 +85,12 @@ async function apiAdmin(endpoint, options = {}) {
     }
   });
   const data = await respuesta.json().catch(() => ({}));
-  if (respuesta.status === 401 || respuesta.status === 503) {
+  // Solo un 401 real (clave incorrecta) cierra la sesion. Un 503 aqui no
+  // siempre significa "clave invalida" -- Render tambien puede devolver
+  // 503 desde su propio proxy cuando el servidor esta ocupado (ej.
+  // comprimiendo fotos de un ZIP grande en Banco de Nexo), y cerrar la
+  // sesion por eso pedia la clave de nuevo a medio uso sin motivo real.
+  if (respuesta.status === 401) {
     sessionStorage.removeItem(ADMIN_KEY_STORAGE);
     setAdminSesion(false);
   }
@@ -1335,15 +1340,31 @@ const ETIQUETA_ESTADO_TRABAJO_BANCO = {
 // esto sobrevive a un refresh de pagina porque vive en la base de
 // datos, y muestra el estado real de cada ZIP subido desde cualquier
 // equipo, no solo el de la sesion actual.
+//
+// Se llama una vez por cada ZIP terminado durante un lote grande --
+// justo el momento en que el servidor esta mas ocupado comprimiendo
+// fotos. A proposito usa fetch crudo en vez de apiAdmin(): un hipo
+// transitorio (502/503 del proxy) aqui nunca debe cerrar la sesion de
+// administrador a medio import, mismo criterio ya usado por
+// esperarTrabajoImportacionBanco. Si falla, el historial se queda como
+// estaba y se reintenta solo con el siguiente ZIP.
 async function cargarHistorialImportacionBanco() {
   const contenedor = document.getElementById("listaHistorialImportacionBanco");
   if (!contenedor) return;
 
+  const sinDatosTodavia = !contenedor.querySelector(".banco-imagenes-historial-fila");
+
   try {
-    const datos = await apiAdmin("/admin/api/banco-imagenes/importar-lote/historial?limite=60");
+    const respuesta = await fetch("/admin/api/banco-imagenes/importar-lote/historial?limite=60", {
+      headers: { "x-admin-key": adminKeyActual() }
+    });
+    const datos = await respuesta.json();
+    if (!datos.ok) throw new Error(datos.error || "Error de admin");
     pintarHistorialImportacionBanco(datos.trabajos || []);
   } catch (error) {
-    contenedor.innerHTML = `<div class="empty">No se pudo cargar el historial: ${escaparHTMLAdmin(error.message)}</div>`;
+    if (sinDatosTodavia) {
+      contenedor.innerHTML = `<div class="empty">No se pudo cargar el historial: ${escaparHTMLAdmin(error.message)}</div>`;
+    }
   }
 }
 
