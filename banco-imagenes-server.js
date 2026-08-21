@@ -161,12 +161,27 @@ async function procesarZipBancoImagenes(pool, rutaZip, marca, origen, omitirExis
         codigosOmitidos: []
     };
 
+    // Si el zip completo no se puede ni abrir, esto NO es un error de un
+    // producto suelto (esos se acumulan en resumen.errores y el trabajo
+    // sigue) -- es que no hay nada que procesar. Antes se tragaba el
+    // error aqui y regresaba resumen igual, y procesarTrabajoImportacionBanco
+    // lo marcaba como 'listo' (¡exito!) aunque no se hubiera guardado ni
+    // una foto -- el admin veia "Subido" en verde en un ZIP que en
+    // realidad nunca se proceso. Ahora se relanza para que el trabajo
+    // quede en 'error' de verdad. El caso mas comun de esto es que el
+    // archivo temporal ya no existe (fs.existsSync falla dentro de
+    // AdmZip, "Invalid filename") porque el proceso se reinicio a la
+    // mitad del lote -- se distingue ese caso con un mensaje que le dice
+    // al usuario que vuelva a subir el archivo, en vez del texto interno
+    // de la libreria que suena a "tu zip esta corrupto".
     let zip;
     try {
         zip = new AdmZip(rutaZip);
     } catch (error) {
-        resumen.errores.push(`Zip invalido: ${error.message}`);
-        return resumen;
+        if (error.message === "Invalid filename") {
+            throw new Error("El archivo se perdio en el servidor antes de procesarse (probablemente por un reinicio a media importacion). Vuelve a subir este ZIP.");
+        }
+        throw new Error(`Este ZIP esta danado o no es un .zip valido: ${error.message}`);
     }
 
     const carpetas = new Map();
