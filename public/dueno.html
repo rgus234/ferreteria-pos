@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=fix-scroll-real-dvh-20260821-01">
+    <link rel="stylesheet" href="dueno.css?v=vincular-empleado-codigo-20260821-01">
 </head>
 
 <body>
@@ -122,6 +122,16 @@
             </label>
             <p id="duenoLoginEmpleadoError" class="dueno-login-error" style="display:none;"></p>
             <div id="duenoLoginEmpleadoSelector" style="display:none;"></div>
+
+            <div id="duenoVincularEmpleadoCaja" style="display:none;">
+                <p style="margin:0 0 12px;font-size:12.5px;color:var(--muted);">Tu cuenta Nexo todavía no está vinculada a ningún negocio. Pídele a tu jefe el código que generó para ti y escríbelo aquí.</p>
+                <label>Código de tu jefe
+                    <input type="text" id="duenoVincularEmpleadoCodigo" autocomplete="off" autocapitalize="characters" placeholder="Ej. AB12CD34">
+                </label>
+                <p id="duenoVincularEmpleadoError" class="dueno-login-error" style="display:none;"></p>
+                <button id="btnDuenoVincularEmpleado" type="button" onclick="vincularCodigoEmpleadoDueno()">Vincular</button>
+            </div>
+
             <button id="btnDuenoLoginEmpleado" type="button" onclick="iniciarSesionEmpleadoDueno()">Entrar</button>
             <p class="dueno-login-alt"><a href="#" onclick="mostrarLoginDuenoNormal(); return false;">¿Eres el dueño? Entra con tu cuenta de negocio</a></p>
         </div>
@@ -583,7 +593,7 @@
     </div>
 
     <script src="dueno-offline.js?v=dueno-modo-oscuro-20260721-01"></script>
-    <script src="dueno.js?v=fix-scroll-real-dvh-20260821-01"></script>
+    <script src="dueno.js?v=vincular-empleado-codigo-20260821-01"></script>
 </body>
 
 </html>

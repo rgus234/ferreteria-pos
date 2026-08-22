@@ -199,6 +199,9 @@ let duenoEmpleadoCorreoPersona = null;
 function mostrarLoginEmpleadoDueno() {
     document.getElementById("duenoLoginCajaDueno").style.display = "none";
     document.getElementById("duenoLoginCajaEmpleado").style.display = "block";
+    document.getElementById("duenoVincularEmpleadoCaja").style.display = "none";
+    document.getElementById("duenoLoginEmpleadoSelector").style.display = "none";
+    document.getElementById("btnDuenoLoginEmpleado").style.display = "block";
 }
 
 function mostrarLoginDuenoNormal() {
@@ -211,7 +214,83 @@ function entrarComoEmpleadoDueno(negocioId) {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-persona-token": duenoPersonaTokenTemporal },
         body: JSON.stringify(negocioId ? { negocioId } : {})
-    }).then(respuesta => respuesta.json());
+    }).then(async respuesta => {
+        const datos = await respuesta.json();
+        datos.status = respuesta.status;
+        return datos;
+    });
+}
+
+// Se muestra cuando la cuenta Nexo de la persona ya existe (login
+// correcto) pero todavia no esta vinculada a ningun negocio -- antes
+// esto se quedaba como un error generico sin salida ("No eres
+// empleado de ningun negocio en Nexo"), aunque el dueño ya le hubiera
+// generado un codigo de vinculacion desde el panel de escritorio
+// (config-auth.js, "Acceso a Nexo") -- no habia ninguna pantalla en
+// /dueno donde meter ese codigo.
+function mostrarVincularEmpleadoDueno() {
+    document.getElementById("btnDuenoLoginEmpleado").style.display = "none";
+    document.getElementById("duenoLoginEmpleadoSelector").style.display = "none";
+    document.getElementById("duenoVincularEmpleadoCaja").style.display = "block";
+}
+
+async function vincularCodigoEmpleadoDueno() {
+    const codigo = document.getElementById("duenoVincularEmpleadoCodigo")?.value.trim();
+    const cajaError = document.getElementById("duenoVincularEmpleadoError");
+    const boton = document.getElementById("btnDuenoVincularEmpleado");
+
+    cajaError.style.display = "none";
+
+    if (!codigo) {
+        cajaError.textContent = "Escribe el codigo que te dio tu jefe.";
+        cajaError.style.display = "block";
+        return;
+    }
+
+    boton.disabled = true;
+    boton.textContent = "Vinculando...";
+
+    try {
+        const respuesta = await fetch("/personas/vincular-empleado", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-persona-token": duenoPersonaTokenTemporal },
+            body: JSON.stringify({ codigo })
+        });
+        const datos = await respuesta.json();
+
+        if (!datos.ok) {
+            cajaError.textContent = datos.error || "No se pudo vincular tu cuenta.";
+            cajaError.style.display = "block";
+            return;
+        }
+
+        // El canje ya asocio la persona al negocio (negocio_miembros),
+        // pero /personas/vincular-empleado no entrega una sesion de
+        // /dueno -- hay que pedirla aparte, mismo endpoint que el login
+        // normal de empleado, ahora si con exito porque ya hay membresia.
+        const datosSesion = await entrarComoEmpleadoDueno(null);
+
+        if (!datosSesion.ok) {
+            cajaError.textContent = datosSesion.error || "Tu cuenta se vinculo, pero no se pudo iniciar sesion. Intenta entrar de nuevo.";
+            cajaError.style.display = "block";
+            return;
+        }
+
+        document.getElementById("duenoVincularEmpleadoCaja").style.display = "none";
+
+        if (datosSesion.requiereSeleccion) {
+            mostrarSelectorNegocioEmpleadoDueno(datosSesion.negocios);
+            return;
+        }
+
+        completarLoginEmpleadoDueno(datosSesion);
+    } catch (error) {
+        cajaError.textContent = "No se pudo conectar. Revisa tu internet e intenta de nuevo.";
+        cajaError.style.display = "block";
+    } finally {
+        boton.disabled = false;
+        boton.textContent = "Vincular";
+    }
 }
 
 function completarLoginEmpleadoDueno(datos) {
@@ -325,6 +404,10 @@ async function iniciarSesionEmpleadoDueno() {
         const datos = await entrarComoEmpleadoDueno(null);
 
         if (!datos.ok) {
+            if (datos.status === 404) {
+                mostrarVincularEmpleadoDueno();
+                return;
+            }
             cajaError.textContent = datos.error || "No se pudo iniciar sesion.";
             cajaError.style.display = "block";
             return;
