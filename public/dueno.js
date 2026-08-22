@@ -196,6 +196,26 @@ let duenoPersonaTokenTemporal = null;
 let duenoEmpleadoNombrePersona = null;
 let duenoEmpleadoCorreoPersona = null;
 
+// "Crear cuenta" es una señal explicita de querer una cuenta NUEVA --
+// pero /market/mi-cuenta detecta cualquier sesion de persona que ya
+// siga viva (cookie de dominio) y, si esa persona administra un
+// negocio, aterriza derecho en SU panel de administrador, ignorando
+// por completo la intencion de registrar una cuenta distinta. Bug real
+// reportado por el dueño probando en su telefono: le dio "Crear
+// cuenta" y lo mando al panel de Ferreteria Olimpico porque esa sesion
+// vieja seguia viva. Se cierra cualquier sesion de persona ANTES de
+// navegar (y se espera a que termine) para que el servidor si
+// muestre el formulario de registro.
+async function irACrearCuentaMarket() {
+    try {
+        await fetch("/personas/logout", { method: "POST" });
+    } catch (error) {
+        // Sin sesion previa o sin conexion -- no bloquea la navegacion,
+        // el registro funciona igual sin sesion de persona.
+    }
+    window.location.href = "/market/mi-cuenta?tab=registro";
+}
+
 function mostrarLoginEmpleadoDueno() {
     document.getElementById("duenoLoginCajaDueno").style.display = "none";
     document.getElementById("duenoLoginCajaEmpleado").style.display = "block";

@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=login-volver-y-crear-cuenta-20260822-01">
+    <link rel="stylesheet" href="dueno.css?v=crear-cuenta-cierra-sesion-vieja-20260822-01">
 </head>
 
 <body>
@@ -87,7 +87,7 @@
         <div class="dueno-login-caja">
             <h1>Compra mas facil con tu cuenta</h1>
             <p>Crea tu cuenta gratis para guardar tus pedidos, tu credito con las ferreterias y tus favoritos. O si prefieres, entra sin crear cuenta.</p>
-            <button type="button" onclick="window.location.href='/market/mi-cuenta?tab=registro'">Crear cuenta</button>
+            <button type="button" onclick="irACrearCuentaMarket()">Crear cuenta</button>
             <button type="button" class="dueno-boton-secundario" onclick="window.location.href='/market'">Continuar sin cuenta</button>
             <p class="dueno-login-alt"><a href="#" onclick="window.location.href='/market/mi-cuenta?tab=login'; return false;">Ya tengo cuenta</a></p>
             <p class="dueno-login-alt"><a href="#" onclick="mostrarBienvenidaDueno(); return false;">&larr; Volver</a></p>
@@ -134,7 +134,7 @@
             </div>
 
             <button id="btnDuenoLoginEmpleado" type="button" onclick="iniciarSesionEmpleadoDueno()">Entrar</button>
-            <p class="dueno-login-alt">¿No tienes cuenta? <a href="#" onclick="window.location.href='/market/mi-cuenta?tab=registro'; return false;">Crea una gratis</a> y pídele a tu jefe el código para entrar a su ferretería.</p>
+            <p class="dueno-login-alt">¿No tienes cuenta? <a href="#" onclick="irACrearCuentaMarket(); return false;">Crea una gratis</a> y pídele a tu jefe el código para entrar a su ferretería.</p>
             <p class="dueno-login-alt"><a href="#" onclick="mostrarLoginDuenoNormal(); return false;">¿Eres el dueño? Entra con tu cuenta de negocio</a></p>
             <p class="dueno-login-alt"><a href="#" onclick="mostrarBienvenidaDueno(); return false;">&larr; Volver</a></p>
         </div>
@@ -596,7 +596,7 @@
     </div>
 
     <script src="dueno-offline.js?v=dueno-modo-oscuro-20260721-01"></script>
-    <script src="dueno.js?v=login-volver-y-crear-cuenta-20260822-01"></script>
+    <script src="dueno.js?v=crear-cuenta-cierra-sesion-vieja-20260822-01"></script>
 </body>
 
 </html>
