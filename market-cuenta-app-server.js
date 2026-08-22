@@ -651,14 +651,15 @@ if (wizardBotonRecuperarNueva) {
     });
 }
 
-// Pantalla 8 (elegir modo) -- ambas opciones recargan /market/mi-cuenta
-// de verdad (no SPA): la seccion "home" solo existe en el HTML cuando
-// el servidor ya renderizo con persona, y un invitado recien
-// registrado nunca la tiene en el DOM todavia. Dejar que el servidor
-// decida de nuevo tambien cubre el caso "Administrar mi negocio" sin
-// duplicar el auto-routing (ver servirCuentaMarketApp).
+// Pantalla 8 (elegir modo). "Administrar mi negocio" recarga
+// /market/mi-cuenta de verdad (no SPA) -- deja que el servidor decida
+// de nuevo, que es quien detecta que esa persona administra un negocio
+// y hace el auto-routing al panel del dueño (ver servirCuentaMarketApp).
+// "Comprar" es una señal explicita del usuario, no necesita esa
+// decision del servidor -- se manda derecho al catalogo en vez de
+// pasar primero por la pantalla "Hola, nombre" de /market/mi-cuenta.
 var wizardBotonElegirComprar = document.getElementById("wizardElegirComprar");
-if (wizardBotonElegirComprar) wizardBotonElegirComprar.addEventListener("click", function() { window.location.href = "/market/mi-cuenta"; });
+if (wizardBotonElegirComprar) wizardBotonElegirComprar.addEventListener("click", function() { window.location.href = "/market"; });
 
 var wizardBotonElegirAdministrar = document.getElementById("wizardElegirAdministrar");
 if (wizardBotonElegirAdministrar) wizardBotonElegirAdministrar.addEventListener("click", function() { window.location.href = "/market/mi-cuenta"; });

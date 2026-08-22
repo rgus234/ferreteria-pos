@@ -2861,6 +2861,15 @@ function cerrarSesionDuenoApp() {
         headers: { Authorization: `Bearer ${tokenGuardado()}` }
     }).catch(() => {});
 
+    // La sesion de negocio (dueño/empleado, arriba) y la sesion de
+    // persona Nexo (cookie de dominio, usada por Nexo Market) son dos
+    // cosas separadas -- cerrar solo la primera dejaba la cuenta de
+    // persona viva, asi que "Ya tengo cuenta" en Market volvia a entrar
+    // solo, sin pedir nada, aunque ya se hubiera cerrado sesion aqui.
+    // Se manda tambien por si esta cookie sigue viva; si no hay sesion
+    // de persona el 401 se ignora, no bloquea el cierre de sesion normal.
+    fetch("/personas/logout", { method: "POST" }).catch(() => {});
+
     localStorage.removeItem(DUENO_TOKEN_KEY);
     duenoEmpleadoNombrePersona = null;
     duenoEmpleadoCorreoPersona = null;
