@@ -1866,6 +1866,77 @@ function agregarAlCarritoVenderDueno(id) {
     renderCarritoVenderDueno();
 }
 
+// "Articulo rapido": para algo que no tiene ni codigo interno ni de
+// barras y no vale la pena dar de alta como producto solo para
+// venderlo una vez -- mismo patron ya probado en el POS de escritorio
+// (agregarArticuloRapido, pos-sales.js / pedirArticuloRapidoPOS,
+// pos-quick-item-modal.js), portado aqui porque en /dueno no existia
+// ninguna forma de cobrar algo sin codigo. Se abre con un boton
+// siempre visible junto al buscador (no hace falta buscar nada
+// primero, a diferencia del boton "sin resultados" de escritorio) --
+// el dueño pidio explicitamente que se pudiera abrir directo.
+let contadorArticuloRapidoDueno = 0;
+
+function abrirArticuloRapidoDueno() {
+    document.getElementById("duenoArticuloRapidoNombre").value = "";
+    document.getElementById("duenoArticuloRapidoPrecio").value = "";
+    document.getElementById("duenoArticuloRapidoCantidad").value = "1";
+    document.getElementById("duenoArticuloRapidoError").style.display = "none";
+    document.getElementById("duenoArticuloRapidoOverlay").style.display = "flex";
+    setTimeout(() => document.getElementById("duenoArticuloRapidoNombre")?.focus(), 80);
+}
+
+function cerrarArticuloRapidoDueno() {
+    document.getElementById("duenoArticuloRapidoOverlay").style.display = "none";
+}
+
+function confirmarArticuloRapidoDueno() {
+    const nombre = document.getElementById("duenoArticuloRapidoNombre")?.value.trim() || "";
+    const precio = Number(document.getElementById("duenoArticuloRapidoPrecio")?.value || 0);
+    const cantidad = Number(document.getElementById("duenoArticuloRapidoCantidad")?.value || 0);
+    const cajaError = document.getElementById("duenoArticuloRapidoError");
+
+    cajaError.style.display = "none";
+
+    if (!nombre) {
+        cajaError.textContent = "Escribe que es lo que estas vendiendo.";
+        cajaError.style.display = "block";
+        document.getElementById("duenoArticuloRapidoNombre")?.focus();
+        return;
+    }
+
+    if (!Number.isFinite(precio) || precio <= 0) {
+        cajaError.textContent = "Escribe un precio valido.";
+        cajaError.style.display = "block";
+        document.getElementById("duenoArticuloRapidoPrecio")?.focus();
+        return;
+    }
+
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+        cajaError.textContent = "Escribe una cantidad valida.";
+        cajaError.style.display = "block";
+        document.getElementById("duenoArticuloRapidoCantidad")?.focus();
+        return;
+    }
+
+    // Id sintetico NEGATIVO -- nunca choca con un id real de producto.
+    // descontarStockVentaProducto (server.js) hace UPDATE ... WHERE
+    // id = $id, que simplemente no encuentra fila con un id negativo y
+    // no descuenta nada -- mismo truco que ya usa el POS de escritorio.
+    duenoVentaCarrito.push({
+        id: -(++contadorArticuloRapidoDueno),
+        codigo: "Sin codigo",
+        nombre,
+        precio,
+        cantidad,
+        unidadVenta: "pieza",
+        modoVenta: "bolsa"
+    });
+
+    renderCarritoVenderDueno();
+    cerrarArticuloRapidoDueno();
+}
+
 function cambiarCantidadCarritoVenderDueno(id, delta) {
     const item =
     duenoVentaCarrito.find(i => i.id === id);
