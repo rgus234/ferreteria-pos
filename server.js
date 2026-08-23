@@ -5555,6 +5555,7 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
     permiteVentaPieza,
     piezasPorBolsa,
     precioPieza,
+    piezasSueltasIniciales,
     tieneGarantia,
     garantiaDetalle,
     stockMaximo,
@@ -5605,6 +5606,7 @@ INSERT INTO public.productos
   permite_venta_pieza,
   piezas_por_bolsa,
   precio_pieza,
+  piezas_sueltas_stock,
   tiene_garantia,
   garantia_detalle,
   stock_maximo,
@@ -5618,7 +5620,7 @@ INSERT INTO public.productos
   precio_oferta,
   unidad_suelta
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37)
 RETURNING id
 `,
 [
@@ -5646,6 +5648,7 @@ RETURNING id
   permiteVentaPieza === true || permiteVentaPieza === "true",
   piezasPorBolsa || null,
   precioPieza || null,
+  piezasSueltasIniciales || null,
   tieneGarantia === true || tieneGarantia === "true",
   garantiaDetalle || "",
   stockMaximo || null,

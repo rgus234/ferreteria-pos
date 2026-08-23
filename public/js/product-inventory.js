@@ -1828,6 +1828,7 @@ function asegurarEtiquetasFichaProducto() {
  unidadSuelta: "Unidad en la que se vende suelto",
  piezasPorBolsa: "Cuanto trae el contenedor completo",
  precioPieza: "Precio por unidad suelta",
+ piezasSueltasIniciales: "Piezas sueltas que ya tienes (de un contenedor ya abierto)",
  nuevaTieneGarantia: "Tiene garantia",
  nuevoGarantiaDetalle: "Detalle de la garantia",
  nuevaNoAdmiteCambios: "No admite cambios (ej. cortado a la medida)",
@@ -2357,7 +2358,7 @@ function togglePiezaCamposProducto() {
  const activo =
  Boolean(checkbox?.checked);
 
- ["unidadSuelta", "piezasPorBolsa", "precioPieza"].forEach(id => {
+ ["unidadSuelta", "piezasPorBolsa", "precioPieza", "piezasSueltasIniciales"].forEach(id => {
  const campo =
  document.getElementById(id);
 
@@ -2372,6 +2373,22 @@ function togglePiezaCamposProducto() {
  wrapper.style.setProperty("display", "none", "important");
  }
  });
+
+ // "Piezas sueltas que ya tienes" solo tiene sentido al AGREGAR un
+ // producto nuevo -- en Editar producto ese numero ya lo lleva la
+ // operacion real de ventas (descontarStockVentaProducto abre bolsas
+ // solas cuando se venden piezas sueltas), sobreescribirlo ahi borraria
+ // el conteo real acumulado. En edicion se sigue mostrando nomas el
+ // texto informativo de solo lectura de siempre.
+ if (activo && productoEditandoId) {
+ const campoInicial =
+ document.getElementById("piezasSueltasIniciales");
+
+ const wrapperInicial =
+ campoInicial?.closest(".campo-ficha") || campoInicial;
+
+ if (wrapperInicial) wrapperInicial.style.setProperty("display", "none", "important");
+ }
 
  if (activo) actualizarEtiquetasPiezaCamposProducto();
 }
@@ -2406,6 +2423,13 @@ function actualizarEtiquetasPiezaCamposProducto() {
 
  if (campoPrecio) {
  campoPrecio.placeholder = `Precio por ${etiquetaSuelta.singular}`;
+ }
+
+ const campoSueltasIniciales =
+ document.getElementById("piezasSueltasIniciales");
+
+ if (campoSueltasIniciales) {
+ campoSueltasIniciales.placeholder = `${etiquetaSuelta.plural} sueltos que ya tienes de un ${etiquetaContenedor.singular} abierto (opcional)`;
  }
 }
 
@@ -2706,6 +2730,9 @@ document.getElementById("piezasPorBolsa")?.value || "";
 const precioPieza =
 document.getElementById("precioPieza")?.value || "";
 
+const piezasSueltasIniciales =
+document.getElementById("piezasSueltasIniciales")?.value || "";
+
 const tieneGarantia =
 document.getElementById("nuevaTieneGarantia")?.checked || false;
 
@@ -2855,6 +2882,7 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  unidadSuelta,
  piezasPorBolsa,
  precioPieza,
+ piezasSueltasIniciales,
  tieneGarantia,
  garantiaDetalle,
  stockMaximo,
@@ -3222,6 +3250,8 @@ function editarProducto(
 
  document.getElementById("precioPieza").value =
  producto?.precio_pieza || "";
+
+ document.getElementById("piezasSueltasIniciales").value = "";
 
  togglePiezaCamposProducto();
  mostrarPiezasSueltasStockInfo(producto?.piezas_sueltas_stock, producto);
@@ -4631,6 +4661,7 @@ function cerrarFormularioAgregar() {
  document.getElementById("unidadSuelta").value = "pieza";
  document.getElementById("piezasPorBolsa").value = "";
  document.getElementById("precioPieza").value = "";
+ document.getElementById("piezasSueltasIniciales").value = "";
  togglePiezaCamposProducto();
  document.getElementById("nuevaTieneGarantia").checked = false;
  document.getElementById("nuevoGarantiaDetalle").value = "";
@@ -4691,6 +4722,7 @@ function limpiarCamposCatalogoProducto() {
  document.getElementById("unidadSuelta").value = "pieza";
  document.getElementById("piezasPorBolsa").value = "";
  document.getElementById("precioPieza").value = "";
+ document.getElementById("piezasSueltasIniciales").value = "";
  togglePiezaCamposProducto();
  document.getElementById("nuevaTieneGarantia").checked = false;
  document.getElementById("nuevoGarantiaDetalle").value = "";
