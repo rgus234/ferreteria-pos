@@ -2390,6 +2390,20 @@ function togglePiezaCamposProducto() {
  if (wrapperInicial) wrapperInicial.style.setProperty("display", "none", "important");
  }
 
+ // Con venta suelta activa, "Stock actual" pasa a significar solo
+ // contenedores CERRADOS (actualizarEtiquetasPiezaCamposProducto pone
+ // el texto exacto abajo) -- el dueño reporto sentirse obligado a
+ // poner al menos 1 bolsa ahi aunque en realidad solo tuviera una
+ // bolsa YA abierta con puras piezas sueltas (0 bolsas cerradas es una
+ // respuesta valida y ya la acepta el guardado, pero el campo no lo
+ // aclaraba). Al desactivar, se regresa al texto generico de siempre.
+ if (!activo) {
+ const campoStock =
+ document.getElementById("nuevoStock");
+
+ if (campoStock) campoStock.placeholder = "Stock actual";
+ }
+
  if (activo) actualizarEtiquetasPiezaCamposProducto();
 }
 
@@ -2430,6 +2444,18 @@ function actualizarEtiquetasPiezaCamposProducto() {
 
  if (campoSueltasIniciales) {
  campoSueltasIniciales.placeholder = `${etiquetaSuelta.plural} sueltos que ya tienes de un ${etiquetaContenedor.singular} abierto (opcional)`;
+ }
+
+ // Aclara que "Stock actual" cuenta solo los contenedores CERRADOS --
+ // sin esto, alguien que solo tiene un contenedor ya abierto (puras
+ // piezas sueltas, cero cerrados) sentia que tenia que poner al menos
+ // 1 aqui aunque no fuera cierto.
+ const campoStock =
+ document.getElementById("nuevoStock");
+
+ if (campoStock) {
+ const cerrados = etiquetaContenedor.fem ? "cerradas" : "cerrados";
+ campoStock.placeholder = `${etiquetaContenedor.plural} ${cerrados} (0 si solo tienes sueltas)`;
  }
 }
 
