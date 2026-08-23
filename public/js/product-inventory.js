@@ -2861,11 +2861,25 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  });
 
  if (irAEditar) {
- editarProducto(duplicado.id);
- return;
- }
+ // A proposito NO se llama editarProducto(duplicado.id) aqui --
+ // esa funcion repuebla TODO el formulario con los datos viejos
+ // ya guardados, borrando justo lo que el usuario acaba de
+ // escanear/corregir en esta misma pantalla (caso real: un
+ // inventario donde el codigo no quedo bien la primera vez, y
+ // ahora se vuelve a escanear para completarlo). Aqui solo se
+ // cambia el DESTINO del guardado -- se sigue de largo con los
+ // datos que ya estan en pantalla y se actualiza el producto
+ // existente, en vez de crear un duplicado.
+ productoEditandoId = duplicado.id;
 
+ const tituloModal = document.getElementById("modalAgregarTitulo");
+ if (tituloModal) tituloModal.textContent = "Editar producto";
+
+ const botonGuardar = document.getElementById("btnGuardarProducto");
+ if (botonGuardar) botonGuardar.textContent = "Actualizar producto";
+ } else {
  codigoDuplicadoConfirmado = codigoFinal;
+ }
  }
  }
 
