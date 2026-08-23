@@ -5648,7 +5648,7 @@ RETURNING id
   permiteVentaPieza === true || permiteVentaPieza === "true",
   piezasPorBolsa || null,
   precioPieza || null,
-  piezasSueltasIniciales || null,
+  piezasSueltasIniciales || 0,
   tieneGarantia === true || tieneGarantia === "true",
   garantiaDetalle || "",
   stockMaximo || null,
