@@ -48,7 +48,7 @@ const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
 const { resolverIdentidadNexo, PERMISOS, requerirPermiso } = require("./rbac");
 const { calcularAntiguedadCredito } = require("./credit-aging");
-const { enviarPushANegocio } = require("./push-server");
+const { enviarPushADuenoDelNegocio } = require("./push-server");
 const { listarPlanes, listarCatalogoFunciones, funcionesDelPlan } = require("./features");
 const {
     enviarCorreoVerificacion,
@@ -6342,7 +6342,7 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
         // desde antes, ver public-site-server.js). Fire-and-forget
         // despues de responder -- un push que tarda o falla nunca debe
         // bloquear ni tumbar una venta ya cobrada.
-        enviarPushANegocio(pool, negocio.id, {
+        enviarPushADuenoDelNegocio(pool, negocio.id, {
             titulo: "Venta registrada",
             cuerpo: `$${Number(total || 0).toFixed(2)} -- Folio ${folioVenta.folio}${cajeroNombre ? ` -- ${cajeroNombre}` : ""}`,
             url: "/"
@@ -7450,7 +7450,7 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res
             movimiento: resultado.rows[0]
         });
 
-        enviarPushANegocio(pool, negocio.id, {
+        enviarPushADuenoDelNegocio(pool, negocio.id, {
             titulo: "Abono de credito recibido",
             cuerpo: `$${Number(monto).toFixed(2)} -- ${concepto || "Abono"}`,
             url: "/"
@@ -7594,7 +7594,7 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
             historialId: historialCreado.rows[0].id
         });
 
-        enviarPushANegocio(pool, negocio.id, {
+        enviarPushADuenoDelNegocio(pool, negocio.id, {
             titulo: "Venta a credito registrada",
             cuerpo: `$${montoNum.toFixed(2)} -- ${cliente.nombre} -- Folio ${folioVenta.folio}`,
             url: "/"

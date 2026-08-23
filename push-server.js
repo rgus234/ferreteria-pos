@@ -51,6 +51,20 @@ async function enviarPushANegocio(pool, negocioId, payload) {
     await enviarPushAFilas(pool, resultado.rows, payload);
 }
 
+// Igual que enviarPushANegocio pero excluye a los empleados -- para
+// avisos de dinero (venta, abono, cargo a credito) que el dueño pidio
+// explicitamente que solo el viera. rol IS NULL cubre las
+// suscripciones creadas antes de que existiera esta columna (se
+// tratan como dueño, no se les deja de avisar).
+async function enviarPushADuenoDelNegocio(pool, negocioId, payload) {
+    if (!VAPID_CONFIGURADO) return;
+    const resultado = await pool.query(
+        `SELECT id, endpoint, p256dh, auth FROM public.push_subscriptions WHERE tipo = 'admin' AND negocio_id = $1 AND (rol IS NULL OR rol = 'owner')`,
+        [negocioId]
+    );
+    await enviarPushAFilas(pool, resultado.rows, payload);
+}
+
 async function enviarPushAPersona(pool, personaId, payload) {
     if (!VAPID_CONFIGURADO || !personaId) return;
     const resultado = await pool.query(
@@ -62,6 +76,18 @@ async function enviarPushAPersona(pool, personaId, payload) {
 
 function negocioIdDesdeRequest(req) {
     return req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id ?? null;
+}
+
+// Una sesion de cuenta (rbac.js) trae rol='employee' o NULL (sesion
+// clasica de dueño). Una sesion de dispositivo (equipo compartido, sin
+// el header x-empleado-id que hoy ningun frontend manda) no distingue
+// quien esta sentado ahi -- se trata como dueño, mismo criterio "sin
+// restriccion" que ya usa el resto del RBAC para ese caso.
+function rolDesdeRequest(req) {
+    if (req.negocioAutenticado) {
+        return req.negocioAutenticado.rol === "employee" ? "employee" : "owner";
+    }
+    return "owner";
 }
 
 function datosSuscripcionValidos(body) {
@@ -86,11 +112,13 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const datos = datosSuscripcionValidos(req.body);
             if (!datos) { res.status(400).json({ ok: false, error: "Suscripcion invalida" }); return; }
 
+            const rol = rolDesdeRequest(req);
+
             await pool.query(
-                `INSERT INTO public.push_subscriptions (tipo, negocio_id, endpoint, p256dh, auth, user_agent, ultimo_uso_at)
-                 VALUES ('admin', $1, $2, $3, $4, $5, NOW())
-                 ON CONFLICT (endpoint) DO UPDATE SET tipo = 'admin', negocio_id = $1, persona_id = NULL, p256dh = $3, auth = $4, user_agent = $5, ultimo_uso_at = NOW()`,
-                [negocioId, datos.endpoint, datos.p256dh, datos.auth, String(req.headers["user-agent"] || "").slice(0, 200)]
+                `INSERT INTO public.push_subscriptions (tipo, negocio_id, rol, endpoint, p256dh, auth, user_agent, ultimo_uso_at)
+                 VALUES ('admin', $1, $2, $3, $4, $5, $6, NOW())
+                 ON CONFLICT (endpoint) DO UPDATE SET tipo = 'admin', negocio_id = $1, rol = $2, persona_id = NULL, p256dh = $4, auth = $5, user_agent = $6, ultimo_uso_at = NOW()`,
+                [negocioId, rol, datos.endpoint, datos.p256dh, datos.auth, String(req.headers["user-agent"] || "").slice(0, 200)]
             );
 
             res.json({ ok: true });
@@ -146,6 +174,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
 module.exports = {
     registrarRutas,
     enviarPushANegocio,
+    enviarPushADuenoDelNegocio,
     enviarPushAPersona,
     VAPID_CONFIGURADO
 };
