@@ -102,6 +102,7 @@ function mostrarAppDueno() {
     document.getElementById("duenoApp").style.display = "block";
     document.getElementById("duenoTabs").style.display = "flex";
     document.getElementById("duenoNexoBurbuja").style.display = "flex";
+    resuscribirPushDuenoSiYaHabiaPermiso();
 }
 
 async function fetchAutenticado(url, opciones = {}) {
@@ -2494,7 +2495,7 @@ const CATEGORIAS_MAS_DUENO = [
     { id: "dispositivos", titulo: "Dispositivos", desc: "Cajas vinculadas a tu negocio", icono: "dispositivo", color: "" },
     { id: "ayuda", titulo: "Ayuda", desc: "Contacto y version de la app", icono: "ayuda", color: "gris" },
     { id: "apariencia", titulo: "Apariencia", desc: "Tema claro u oscuro", icono: "pincel", color: "" },
-    { id: "notificaciones", titulo: "Notificaciones", desc: "Proximamente", icono: "campana", color: "gris", proximamente: true },
+    { id: "notificaciones", titulo: "Notificaciones", desc: "Avisos de ventas, pedidos y credito", icono: "campana", color: "" },
     { id: "respaldos", titulo: "Respaldos", desc: "Proximamente", icono: "nube", color: "gris", proximamente: true }
 ];
 
@@ -2521,7 +2522,8 @@ const RENDER_SUBPANTALLA_MAS_DUENO = {
     seguridad: renderSubpantallaSeguridad,
     dispositivos: renderSubpantallaDispositivos,
     ayuda: renderSubpantallaAyuda,
-    apariencia: renderSubpantallaApariencia
+    apariencia: renderSubpantallaApariencia,
+    notificaciones: renderSubpantallaNotificaciones
 };
 
 function abrirSubpantallaMasDueno(categoriaId) {
@@ -2776,6 +2778,142 @@ function cambiarTemaDueno() {
     if (meta) meta.setAttribute("content", activo ? "#0b1220" : "#f6f7fb");
 
     renderSubpantallaApariencia();
+}
+
+// Notificaciones push -- mismo patron ya probado en el POS de
+// escritorio (pmkActivarNotificacionesPush, pedidos-market-view.js),
+// portado aqui porque la pantalla "Notificaciones" de Mas era un
+// "Proximamente" inerte y dueno-sw.js no tenia como mostrarlas de
+// todas formas (ver el push/notificationclick agregado ahi). A
+// diferencia de escritorio (boton de un solo sentido), aqui si se
+// puede desactivar -- ya existe /negocio-actual/push/desuscribir.
+function duenoBase64UrlAUint8Array(base64Url) {
+    const relleno = "=".repeat((4 - base64Url.length % 4) % 4);
+    const base64 = (base64Url + relleno).replace(/-/g, "+").replace(/_/g, "/");
+    const bruto = atob(base64);
+    const salida = new Uint8Array(bruto.length);
+    for (let i = 0; i < bruto.length; i++) salida[i] = bruto.charCodeAt(i);
+    return salida;
+}
+
+function notificacionesPushDuenoActivas() {
+    return typeof Notification !== "undefined" &&
+        Notification.permission === "granted" &&
+        localStorage.getItem("nexoDuenoPushActivado") === "1";
+}
+
+async function activarNotificacionesPushDueno() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        alert("Este navegador no soporta notificaciones push. En iPhone, agrega esta app a tu pantalla de inicio desde Safari primero.");
+        return;
+    }
+
+    try {
+        const permiso = await Notification.requestPermission();
+        if (permiso !== "granted") {
+            alert("No se activaron las notificaciones -- el permiso fue denegado.");
+            return;
+        }
+
+        const respuestaClave = await fetch("/push/vapid-public-key").then(r => r.json());
+        if (!respuestaClave.ok) {
+            alert("Las notificaciones push no estan configuradas en el servidor todavia.");
+            return;
+        }
+
+        const registro = await navigator.serviceWorker.register("/dueno-sw.js", { scope: "/dueno" });
+        const suscripcion = await registro.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: duenoBase64UrlAUint8Array(respuestaClave.publicKey)
+        });
+
+        await fetchAutenticado("/negocio-actual/push/suscribir", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(suscripcion.toJSON())
+        });
+
+        localStorage.setItem("nexoDuenoPushActivado", "1");
+        mostrarToastDueno("Notificaciones activadas");
+    } catch (error) {
+        console.warn("No se pudo activar notificaciones push:", error);
+        alert("No se pudieron activar las notificaciones push en este telefono.");
+    } finally {
+        if (duenoMasCategoriaActiva === "notificaciones") renderSubpantallaNotificaciones();
+    }
+}
+
+async function desactivarNotificacionesPushDueno() {
+    try {
+        const registro = await navigator.serviceWorker.getRegistration("/dueno");
+        const suscripcion = await registro?.pushManager.getSubscription();
+
+        if (suscripcion) {
+            await fetchAutenticado("/negocio-actual/push/desuscribir", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ endpoint: suscripcion.endpoint })
+            });
+            await suscripcion.unsubscribe();
+        }
+    } catch (error) {
+        console.warn("No se pudo desactivar notificaciones push:", error);
+    } finally {
+        localStorage.removeItem("nexoDuenoPushActivado");
+        mostrarToastDueno("Notificaciones desactivadas");
+        if (duenoMasCategoriaActiva === "notificaciones") renderSubpantallaNotificaciones();
+    }
+}
+
+// Si ya se habia dado permiso antes (misma sesion del navegador, otro
+// dia), vuelve a registrar la suscripcion en silencio al entrar a la
+// app -- sin pedir el permiso otra vez. Mismo criterio que
+// pmkResuscribirPushSiYaHabiaPermiso en el POS de escritorio.
+async function resuscribirPushDuenoSiYaHabiaPermiso() {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    if (localStorage.getItem("nexoDuenoPushActivado") !== "1") return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+
+    try {
+        const registro = await navigator.serviceWorker.register("/dueno-sw.js", { scope: "/dueno" });
+        const suscripcionExistente = await registro.pushManager.getSubscription();
+        if (suscripcionExistente) {
+            await fetchAutenticado("/negocio-actual/push/suscribir", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(suscripcionExistente.toJSON())
+            });
+        }
+    } catch (error) {
+        // Silencioso -- no interrumpir el arranque de la app por esto.
+    }
+}
+
+function renderSubpantallaNotificaciones() {
+    const activo = notificacionesPushDuenoActivas();
+    const soportado = "serviceWorker" in navigator && "PushManager" in window;
+
+    document.getElementById("duenoMasSubpantallaContenido").innerHTML = `
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Notificaciones</span>
+                    <h2>Avisos en este telefono</h2>
+                </div>
+            </div>
+            <p class="dueno-estado">Te avisamos aqui cuando entra una venta, un pedido de Nexo Market, o un movimiento de credito.</p>
+            ${soportado
+                ? `<div class="dueno-toggle-fila" onclick="${activo ? "desactivarNotificacionesPushDueno" : "activarNotificacionesPushDueno"}()">
+                    <div>
+                        <strong>Notificaciones push</strong>
+                        <span>${activo ? "Activadas" : "Toca para activarlas"}</span>
+                    </div>
+                    <span class="dueno-toggle-switch${activo ? " activo" : ""}"></span>
+                </div>`
+                : `<p class="dueno-login-error">Este navegador no soporta notificaciones push. En iPhone, primero agrega esta app a tu pantalla de inicio desde Safari (compartir → "Agregar a inicio").</p>`
+            }
+        </article>
+    `;
 }
 
 function renderSubpantallaApariencia() {

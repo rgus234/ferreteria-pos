@@ -48,6 +48,7 @@ const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
 const { resolverIdentidadNexo, PERMISOS, requerirPermiso } = require("./rbac");
 const { calcularAntiguedadCredito } = require("./credit-aging");
+const { enviarPushANegocio } = require("./push-server");
 const { listarPlanes, listarCatalogoFunciones, funcionesDelPlan } = require("./features");
 const {
     enviarCorreoVerificacion,
@@ -6336,6 +6337,17 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
             fecha: historialCreado.rows[0]?.fecha || ventaCreada.rows[0]?.fecha || null
         });
 
+        // Pedido explicito del dueño: un aviso por CADA venta de
+        // mostrador, no solo pedidos de Nexo Market (que ya avisaban
+        // desde antes, ver public-site-server.js). Fire-and-forget
+        // despues de responder -- un push que tarda o falla nunca debe
+        // bloquear ni tumbar una venta ya cobrada.
+        enviarPushANegocio(pool, negocio.id, {
+            titulo: "Venta registrada",
+            cuerpo: `$${Number(total || 0).toFixed(2)} -- Folio ${folioVenta.folio}${cajeroNombre ? ` -- ${cajeroNombre}` : ""}`,
+            url: "/"
+        }).catch(error => console.warn("No se pudo enviar push de venta:", error.message));
+
     } catch (error) {
         await client.query("ROLLBACK").catch(() => {});
         responderError(res, error);
@@ -7437,6 +7449,12 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res
             success: true,
             movimiento: resultado.rows[0]
         });
+
+        enviarPushANegocio(pool, negocio.id, {
+            titulo: "Abono de credito recibido",
+            cuerpo: `$${Number(monto).toFixed(2)} -- ${concepto || "Abono"}`,
+            url: "/"
+        }).catch(error => console.warn("No se pudo enviar push de abono:", error.message));
     } catch (error) {
         await client.query("ROLLBACK").catch(() => {});
         responderError(res, error);
@@ -7575,6 +7593,12 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
             folio: folioVenta.folio,
             historialId: historialCreado.rows[0].id
         });
+
+        enviarPushANegocio(pool, negocio.id, {
+            titulo: "Venta a credito registrada",
+            cuerpo: `$${montoNum.toFixed(2)} -- ${cliente.nombre} -- Folio ${folioVenta.folio}`,
+            url: "/"
+        }).catch(error => console.warn("No se pudo enviar push de cargo a credito:", error.message));
     } catch (error) {
         await client.query("ROLLBACK").catch(() => {});
         responderError(res, error);

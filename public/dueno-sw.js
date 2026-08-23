@@ -9,13 +9,13 @@
 // siempre van a la red; los datos y la cola offline viven en
 // IndexedDB (dueno-offline.js), no en este cache.
 
-const CACHE_NAME = "nexo-dueno-shell-v30";
+const CACHE_NAME = "nexo-dueno-shell-v31";
 const CACHE_FOTOS = "nexo-dueno-fotos-v1";
 
 const ARCHIVOS_CASCARON = [
     "/dueno",
-    "/dueno.css?v=articulo-rapido-dueno-20260823-01",
-    "/dueno.js?v=articulo-rapido-dueno-20260823-01",
+    "/dueno.css?v=notificaciones-push-dueno-20260824-01",
+    "/dueno.js?v=notificaciones-push-dueno-20260824-01",
     "/dueno-offline.js?v=dueno-modo-oscuro-20260721-01",
     "/manifest.json?v=shell-unificado-20260816-01",
     "/nexo-pos-icon.jpg",
@@ -91,4 +91,36 @@ self.addEventListener("fetch", evento => {
                 .catch(() => caches.match(evento.request))
         );
     }
+});
+
+// Notificaciones push (venta registrada, cargo/pago de credito, pedido
+// nuevo de Market) -- antes esto solo lo recibia pos-push-sw.js (POS de
+// escritorio), asi que un dueño que solo usaba /dueno y nunca habia
+// entrado a la pantalla "Pedidos" del POS no tenia ningun Service
+// Worker capaz de mostrarle la notificacion. Mismo patron que
+// pos-push-sw.js/market-sw.js, sin tocar esos archivos.
+self.addEventListener("push", evento => {
+    let datos = { titulo: "Nexo", cuerpo: "Tienes una notificacion nueva.", url: "/dueno" };
+    try { datos = Object.assign(datos, evento.data.json()); } catch (error) { /* payload no-JSON, usa el default */ }
+
+    evento.waitUntil(
+        self.registration.showNotification(datos.titulo, {
+            body: datos.cuerpo,
+            icon: "/icons/nexo-pos-icon-192.png",
+            badge: "/icons/nexo-pos-icon-192.png",
+            data: { url: datos.url }
+        })
+    );
+});
+
+self.addEventListener("notificationclick", evento => {
+    evento.notification.close();
+    const url = evento.notification.data?.url || "/dueno";
+
+    evento.waitUntil(
+        self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clientes => {
+            if (clientes.length > 0) return clientes[0].focus();
+            return self.clients.openWindow(url);
+        })
+    );
 });
