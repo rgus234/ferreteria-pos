@@ -65,7 +65,22 @@ async function verificarCodigoDuplicadoEnVivo(inputId) {
  return;
  }
 
- verificarImagenExistenteParaCodigo(valor).then(() => verificarBancoImagenesParaCodigo(valor));
+ // banco_imagenes_producto/fotos_producto se buscan por el codigo de
+ // CATALOGO del proveedor, no por codigo de barras -- si el catalogo ya
+ // autorelleno nuevoCodigoInterno (aplicarProductoCatalogoAlFormulario),
+ // ese es el codigo correcto para el chequeo de fotos aunque este blur
+ // haya sido sobre nuevoCodigo (el de barras). Mismo criterio que el
+ // chequeo que corre justo despues de resolver el catalogo -- sin esto,
+ // el blur del campo de barras podia sobreescribir con "no existe" el
+ // resultado correcto que ya se habia mostrado.
+ const codigoParaFotos =
+ normalizarCodigo(
+ document.getElementById("nuevoCodigoInterno")?.value ||
+ document.getElementById("nuevoCodigo")?.value ||
+ ""
+ );
+
+ verificarImagenExistenteParaCodigo(codigoParaFotos).then(() => verificarBancoImagenesParaCodigo(codigoParaFotos));
 
  if (valor === codigoDuplicadoConfirmado) return;
 
@@ -4777,18 +4792,21 @@ async function aplicarProductoCatalogoAlFormulario(producto, origen) {
 
  actualizarInputMargenManualProveedor();
 
- // El match del catalogo puede traer el codigo en cualquiera de los
- // dos campos segun el modo de captura -- se revisa el que quedo con
- // valor para saber si ya existe una foto guardada esperando (propia
- // del negocio) o disponible en el Banco de Nexo para usar. Antes solo
- // se revisaba la propia -- dependiamos del blur tardio del campo
- // codigo (enfocarStockNuevoProducto) para el chequeo del banco, y en
- // un escaneo rapido con pistola USB ese blur nunca alcanzaba a
- // resolver antes de guardar.
+ // El match del catalogo llena los dos campos de codigo cuando viene
+ // de un escaneo de codigo de barras (nuevoCodigo se queda con el
+ // codigo de barras que se escaneo, nuevoCodigoInterno se autorrellena
+ // con el codigo de catalogo del proveedor, arriba) -- banco_imagenes_
+ // producto esta indexada por el codigo de CATALOGO, nunca por codigo
+ // de barras, asi que nuevoCodigoInterno debe tener prioridad aqui.
+ // Bug real: antes se prefería nuevoCodigo (por venir con valor
+ // primero en el ||), asi que agregar un producto escaneando su codigo
+ // de barras nunca encontraba la foto del banco aunque si existiera
+ // para su codigo de catalogo -- solo funcionaba tecleando el codigo
+ // de catalogo directo en nuevoCodigoInterno.
  const codigoParaFotos =
  normalizarCodigo(
- document.getElementById("nuevoCodigo")?.value ||
  document.getElementById("nuevoCodigoInterno")?.value ||
+ document.getElementById("nuevoCodigo")?.value ||
  ""
  );
 
