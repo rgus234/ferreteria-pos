@@ -980,5 +980,7 @@ module.exports = {
     crearRequerirSesionPersona,
     crearResolverSesionPersonaOpcional,
     listarNegociosAdministrados,
-    mintearSesionParaNegocioDePersona
+    mintearSesionParaNegocioDePersona,
+    tokenDeSesionPersona,
+    buscarPersonaPorToken
 };

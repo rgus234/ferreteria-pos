@@ -27,7 +27,7 @@ const { funcionDelPlan } = require("./plan-enforcement");
 const { enviarCorreoPedidoPublico, enviarCorreoPedidoCarritoPublico, enviarCorreoSolicitudCreditoPublica, enviarCorreoCotizacionRespondida, enviarCorreoPedidoRecibido } = require("./email");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { calcularAntiguedadCredito } = require("./credit-aging");
-const { crearRequerirSesionPersona, crearResolverSesionPersonaOpcional } = require("./personas-server");
+const { crearRequerirSesionPersona, crearResolverSesionPersonaOpcional, tokenDeSesionPersona, buscarPersonaPorToken } = require("./personas-server");
 const { OFICIOS_PERSONA } = require("./oficios-persona");
 const { geocodificarDireccion } = require("./geocodificacion");
 const { formatearCodigoRecogida, generarQrYBarcode } = require("./pedido-codigos");
@@ -3760,6 +3760,29 @@ async function iniciarSesionClientePublico(pool, req, res, slug) {
             `INSERT INTO public.sesiones_cliente_credito (cliente_id, token_hash, ip) VALUES ($1, $2, $3)`,
             [fila.id, hashTokenSesionCliente(token), req.ip]
         );
+
+        // Autovincula con la cuenta Nexo personal si este navegador ya
+        // trae una sesion activa (cookie de .nexoposoficial.com) --
+        // ambos lados ya probaron su identidad por separado (telefono+
+        // codigo aqui, login de Nexo alla), asi que no hace falta
+        // depender de que el cliente encuentre el boton "Vincular" a
+        // mano (/portal-cliente/vincular-persona, que sigue existiendo
+        // para quien inicia sesion de Nexo despues de entrar aqui).
+        // Nunca bloquea el login si algo falla.
+        try {
+            const tokenPersona = tokenDeSesionPersona(req);
+            if (tokenPersona) {
+                const persona = await buscarPersonaPorToken(pool, tokenPersona);
+                if (persona) {
+                    await pool.query(
+                        `UPDATE public.clientes_credito SET persona_id = $1 WHERE id = $2 AND persona_id IS NULL`,
+                        [persona.id, fila.id]
+                    );
+                }
+            }
+        } catch (error) {
+            console.warn("No se pudo autovincular cliente de credito a persona:", error.message);
+        }
 
         res.json({ ok: true, token, nombre: fila.nombre });
     } catch (error) {

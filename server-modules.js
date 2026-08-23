@@ -76,6 +76,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("notificaciones push (VAPID)", () => {
         require("./push-server").registrarRutas(app, pool, requerirAccesoNegocio);
     });
+
+    cargarModuloPOS("recordatorios automaticos de credito vencido", () => {
+        require("./credito-recordatorios-server")(app, pool);
+    });
 }
 
 module.exports = {
