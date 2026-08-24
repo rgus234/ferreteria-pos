@@ -54,7 +54,8 @@ const ESTILOS_WIZARD_MARKET = `
 .wizard-btn-primario{ display:inline-flex; align-items:center; justify-content:center; padding:14px 24px; border:none; border-radius:999px; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; font-weight:800; font-size:15px; cursor:pointer; box-shadow:0 14px 28px rgba(16,103,232,.28); }
 .wizard-btn-secundario{ display:inline-flex; align-items:center; justify-content:center; padding:14px 24px; border-radius:999px; background:var(--glass); border:1px solid var(--line); color:var(--ink); font-weight:700; font-size:15px; cursor:pointer; }
 .wizard-link{ background:none; border:none; padding:8px; font-size:13px; font-weight:700; color:var(--blue); text-decoration:underline; cursor:pointer; }
-.wizard-card{ text-align:left; border:1px solid var(--line); border-radius:16px; padding:16px 18px; margin-bottom:14px; }
+.wizard-card{ display:block; text-align:left; border:1px solid var(--line); border-radius:16px; padding:16px 18px; margin-bottom:14px; text-decoration:none; }
+.wizard-card-link:active{ background:var(--surface-soft, #f5f5f7); }
 .wizard-card-titulo{ font-weight:800; font-size:14.5px; color:var(--ink); margin:0 0 4px; }
 .wizard-card-texto{ font-size:13px; color:var(--muted); margin:0; }
 .wizard-form{ display:grid; gap:14px; text-align:left; margin-bottom:20px; }
@@ -65,6 +66,7 @@ const ESTILOS_WIZARD_MARKET = `
 .wizard-btn-oauth{ display:flex; align-items:center; justify-content:center; gap:10px; padding:13px 20px; border-radius:999px; border:1px solid var(--line); background:#fff; color:var(--ink); font-weight:700; font-size:14px; cursor:not-allowed; opacity:.55; text-decoration:none; }
 .wizard-btn-oauth:not([disabled]){ cursor:pointer; opacity:1; }
 .wizard-btn-oauth:not([disabled]):hover{ background:var(--surface-soft, #f5f5f7); }
+.wizard-icono-google{ width:18px; height:18px; flex-shrink:0; }
 .wizard-separador{ display:flex; align-items:center; gap:10px; color:var(--muted); font-size:12px; margin:4px 0 16px; }
 .wizard-separador::before, .wizard-separador::after{ content:""; flex:1; height:1px; background:var(--line); }
 .wizard-fuerza{ display:flex; align-items:center; gap:8px; margin:-6px 0 14px; }
@@ -175,7 +177,7 @@ ${mascotaImgHtml("feliz")}
 <h1 class="wizard-titulo" style="text-align:left;">Crea tu cuenta</h1>
 <p class="wizard-texto" style="text-align:left;">Es gratis y toma un minuto.</p>
 <div class="wizard-oauth">
-<a href="/personas/oauth/google/iniciar" class="wizard-btn-oauth">🔵 Continuar con Google</a>
+<a href="/personas/oauth/google/iniciar" class="wizard-btn-oauth"><svg class="wizard-icono-google" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.4 0 6.4 1.2 8.8 3.5l6.6-6.6C35.3 2.5 30 0 24 0 14.6 0 6.5 5.4 2.5 13.2l7.7 6c1.9-5.7 7.2-9.7 13.8-9.7z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.6c-.5 3-2.2 5.5-4.7 7.2l7.3 5.7c4.3-4 6.8-9.8 6.8-17.4z"/><path fill="#FBBC05" d="M10.2 19.2c-.5 1.5-.8 3.1-.8 4.8s.3 3.3.8 4.8l-7.7 6C.9 31.5 0 27.9 0 24s.9-7.5 2.5-10.8z"/><path fill="#34A853" d="M24 48c6 0 11.3-2 15-5.4l-7.3-5.7c-2 1.4-4.6 2.2-7.7 2.2-6.6 0-11.9-4-13.8-9.7l-7.7 6C6.5 42.6 14.6 48 24 48z"/></svg> Continuar con Google</a>
 <button type="button" class="wizard-btn-oauth" disabled>⬛ Continuar con Apple (Proximamente)</button>
 </div>
 <div class="wizard-separador">o con tu correo</div>
@@ -243,7 +245,7 @@ ${mascotaImgHtml("feliz")}
 <section class="wizard-screen wizard-screen-scroll" data-screen="iniciar-sesion">
 <h1 class="wizard-titulo" style="text-align:left;">Inicia sesion</h1>
 <div class="wizard-oauth">
-<a href="/personas/oauth/google/iniciar" class="wizard-btn-oauth">🔵 Continuar con Google</a>
+<a href="/personas/oauth/google/iniciar" class="wizard-btn-oauth"><svg class="wizard-icono-google" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.4 0 6.4 1.2 8.8 3.5l6.6-6.6C35.3 2.5 30 0 24 0 14.6 0 6.5 5.4 2.5 13.2l7.7 6c1.9-5.7 7.2-9.7 13.8-9.7z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.6c-.5 3-2.2 5.5-4.7 7.2l7.3 5.7c4.3-4 6.8-9.8 6.8-17.4z"/><path fill="#FBBC05" d="M10.2 19.2c-.5 1.5-.8 3.1-.8 4.8s.3 3.3.8 4.8l-7.7 6C.9 31.5 0 27.9 0 24s.9-7.5 2.5-10.8z"/><path fill="#34A853" d="M24 48c6 0 11.3-2 15-5.4l-7.3-5.7c-2 1.4-4.6 2.2-7.7 2.2-6.6 0-11.9-4-13.8-9.7l-7.7 6C6.5 42.6 14.6 48 24 48z"/></svg> Continuar con Google</a>
 <button type="button" class="wizard-btn-oauth" disabled>⬛ Continuar con Apple (Proximamente)</button>
 </div>
 <div class="wizard-separador">o con tu correo</div>
@@ -311,7 +313,7 @@ function pantallaHomeHtml(persona) {
 <p id="wizardSugerenciaTexto">Nexo siempre te acompaña -- pronto veras aqui sugerencias segun tus compras.</p>
 </div>
 <div class="wizard-home-cuerpo">
-<div class="wizard-card"><p class="wizard-card-titulo">Explora Nexo Market</p><p class="wizard-card-texto">Busca productos en las ferreterias de tu zona.</p></div>
+<a href="/market" class="wizard-card wizard-card-link"><p class="wizard-card-titulo">Explora Nexo Market</p><p class="wizard-card-texto">Busca productos en las ferreterias de tu zona.</p></a>
 </div>
 </section>`;
 }
@@ -586,8 +588,6 @@ if (${JSON.stringify(pantallaInicial)} === "home") {
             var totalRecomendados = (datos.recomendados || []).length;
             if (oficio && totalRecomendados > 0) {
                 elemento.textContent = "Como trabajas en " + oficio + ", tenemos " + totalRecomendados + " producto" + (totalRecomendados === 1 ? "" : "s") + " recomendados para ti.";
-            } else if (!oficio) {
-                elemento.textContent = "Cuentanos a que te dedicas desde tu cuenta para ver recomendaciones a tu medida.";
             } else {
                 elemento.textContent = "Explora Nexo Market -- ferreterias reales cerca de ti.";
             }
