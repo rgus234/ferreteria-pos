@@ -1874,6 +1874,118 @@ function agregarAlCarritoVenderDueno(id) {
     renderCarritoVenderDueno();
 }
 
+// ---- Escanear codigo de barras con la camara (Vender) ----
+// Reusa el mismo lector vendorizado localmente (ZXing) y el mismo
+// patron de video en vivo que ya usa la verificacion de pedidos
+// (duenoPedIniciarEscaneo/duenoPedCargarZxing, mas arriba) -- no se
+// reinventa nada, solo se apunta a otro <video> y a otro callback.
+// duenoPedCargarZxing() es generica (solo carga window.ZXingBrowser),
+// se reusa tal cual.
+
+let duenoVenderControlesEscaneo = null;
+
+function duenoVenderDetenerEscaneo() {
+    if (duenoVenderControlesEscaneo) {
+        try { duenoVenderControlesEscaneo.stop(); } catch (error) { /* nada que hacer */ }
+        duenoVenderControlesEscaneo = null;
+    }
+}
+
+async function abrirEscanerVenderDueno() {
+    document.getElementById("duenoVenderEscanerOverlay").classList.add("abierta");
+    document.getElementById("duenoVenderEscaneoCarrito").innerHTML = "";
+
+    document.getElementById("duenoVenderEscaneoManualForm").onsubmit = evento => {
+        evento.preventDefault();
+        const input = document.getElementById("duenoVenderEscaneoManualInput");
+        const codigo = input.value.trim();
+        if (!codigo) return;
+        duenoVenderIntentarAgregarPorCodigo(codigo);
+        input.value = "";
+        input.focus();
+    };
+
+    const estado = document.getElementById("duenoVenderEscaneoEstado");
+    estado.textContent = "Cargando lector...";
+
+    try {
+        await duenoPedCargarZxing();
+    } catch (error) {
+        estado.textContent = "No se pudo cargar el lector de codigos. Escribe el codigo a mano.";
+        return;
+    }
+
+    estado.textContent = "Abriendo camara...";
+
+    try {
+        const video = document.getElementById("duenoVenderEscaneoVideo");
+        const lector = new window.ZXingBrowser.BrowserMultiFormatReader();
+
+        duenoVenderControlesEscaneo = await lector.decodeFromVideoDevice(undefined, video, (resultado) => {
+            if (!resultado) return;
+            duenoVenderIntentarAgregarPorCodigo(resultado.getText());
+        });
+
+        estado.textContent = "Apunta la camara al codigo de barras.";
+    } catch (error) {
+        estado.textContent = "No se pudo abrir la camara. Revisa los permisos del navegador, o escribe el codigo a mano.";
+    }
+}
+
+function cerrarEscanerVenderDueno() {
+    duenoVenderDetenerEscaneo();
+    document.getElementById("duenoVenderEscanerOverlay").classList.remove("abierta");
+}
+
+// Cada escaneo dispara varios frames seguidos con el mismo resultado
+// mientras la camara sigue apuntando al mismo codigo -- sin este
+// enfriamiento, un solo producto fisico se agregaria decenas de veces
+// al carrito antes de que el usuario alcance a retirar la camara.
+let duenoVenderUltimoCodigoEscaneado = null;
+let duenoVenderUltimoTiempoEscaneado = 0;
+
+async function duenoVenderIntentarAgregarPorCodigo(codigo) {
+    const codigoLimpio = String(codigo || "").trim();
+    if (!codigoLimpio) return;
+
+    const ahora = Date.now();
+    if (codigoLimpio === duenoVenderUltimoCodigoEscaneado && ahora - duenoVenderUltimoTiempoEscaneado < 2500) return;
+    duenoVenderUltimoCodigoEscaneado = codigoLimpio;
+    duenoVenderUltimoTiempoEscaneado = ahora;
+
+    const estado =
+    document.getElementById("duenoVenderEscaneoEstado");
+
+    const resultados =
+    await buscarEnCatalogoLocal(codigoLimpio);
+
+    const producto =
+    resultados.find(p => p.codigo === codigoLimpio) || null;
+
+    if (!producto) {
+        if (estado) estado.textContent = `Sin coincidencia para "${codigoLimpio}". Sigue apuntando o escribe el nombre en Vender.`;
+        return;
+    }
+
+    duenoVentaUltimosResultados = resultados;
+    agregarAlCarritoVenderDueno(producto.id);
+
+    if (estado) estado.textContent = `"${producto.nombre}" agregado. Sigue escaneando o cierra para cobrar.`;
+
+    document.getElementById("duenoVenderEscaneoCarrito").innerHTML =
+    duenoVentaCarrito.map(item => `
+        <div class="fila-dueno">
+            <div>
+                <strong>${escaparDueno(item.nombre)}</strong>
+                <span>${escaparDueno(item.codigo || "")} · ${dinero(item.precio)} c/u</span>
+            </div>
+            <div class="dueno-cantidad-control">
+                <span>x${item.cantidad}</span>
+            </div>
+        </div>
+    `).join("");
+}
+
 // "Articulo rapido": para algo que no tiene ni codigo interno ni de
 // barras y no vale la pena dar de alta como producto solo para
 // venderlo una vez -- mismo patron ya probado en el POS de escritorio
