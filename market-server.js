@@ -28,7 +28,12 @@ const { normalizarSlug } = require("./tenant");
 const {
     estilosPortalClienteHtml,
     ICONO_PORTAL_PEDIDOS,
-    ICONO_PORTAL_DIRECCION
+    ICONO_PORTAL_CREDITO,
+    ICONO_PORTAL_DIRECCION,
+    ICONO_PORTAL_USUARIO,
+    ICONO_PORTAL_PAGO,
+    ICONO_PORTAL_TIENDA,
+    ICONO_PORTAL_SALIR
 } = require("./public-site-server");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
@@ -937,16 +942,23 @@ const ESTILOS_MARKET_NAV_MOVIL = `
 .market-drawer{ position:absolute; top:0; left:0; bottom:0; width:82%; max-width:340px; background:#fff; padding:24px 20px calc(24px + env(safe-area-inset-bottom)); overflow-y:auto; }
 .market-drawer-cerrar{ position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; transition:transform .15s ease, background .15s ease; }
 .market-drawer-cerrar:active{ transform:scale(.88); background:var(--surface-soft, #f5f5f7); }
-.market-drawer-perfil{ display:flex; align-items:center; gap:12px; margin-bottom:18px; }
-.market-drawer-nombre{ font-weight:800; font-size:15px; color:var(--ink); margin:0; }
-.market-drawer-correo{ font-size:12.5px; color:var(--muted); margin:0; }
+.market-drawer-perfil{ display:flex; align-items:center; gap:14px; margin-bottom:20px; padding-bottom:18px; border-bottom:1px solid var(--line); }
+.market-drawer-avatar{ width:48px; height:48px; flex-shrink:0; border-radius:50%; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:18px; }
+.market-drawer-nombre{ font-weight:800; font-size:15.5px; color:var(--ink); margin:0; }
+.market-drawer-correo{ font-size:12.5px; color:var(--muted); margin:2px 0 0; }
 .market-drawer-titulo{ font-weight:800; font-size:16px; color:var(--ink); margin:20px 0 8px; }
 .market-drawer-texto{ font-size:13.5px; color:var(--muted); line-height:1.5; margin:0 0 16px; }
 .market-drawer-cta{ display:inline-flex; align-items:center; justify-content:center; padding:12px 22px; border-radius:999px; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; font-weight:800; font-size:14px; text-decoration:none; transition:transform .12s ease; }
 .market-drawer-cta:active{ transform:scale(.96); }
-.market-drawer-seccion{ font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:18px 0 8px; }
-.market-drawer-link{ display:flex; align-items:center; gap:12px; padding:11px 4px; border-radius:10px; font-size:14px; color:var(--ink); text-decoration:none; font-weight:600; transition:background .12s ease; }
+.market-drawer-seccion{ font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:20px 0 8px; }
+.market-drawer-link{ display:flex; align-items:center; gap:12px; padding:11px 6px; border-radius:10px; font-size:14px; color:var(--ink); text-decoration:none; font-weight:600; transition:background .12s ease; }
+.market-drawer-link svg{ width:18px; height:18px; flex-shrink:0; color:var(--muted); }
 .market-drawer-link:active{ background:var(--surface-soft, #f5f5f7); }
+.market-drawer-link-salir{ margin-top:6px; padding-top:17px; border-top:1px solid var(--line); color:#c0392b; }
+.market-drawer-link-salir svg{ color:#c0392b; opacity:.85; }
+.market-drawer-vacio{ display:flex; align-items:center; gap:10px; padding:12px; border-radius:12px; background:var(--surface-soft, #f6f7fb); }
+.market-drawer-vacio svg{ width:20px; height:20px; flex-shrink:0; color:var(--blue); opacity:.55; }
+.market-drawer-vacio p{ margin:0; color:var(--muted); font-size:12.5px; line-height:1.4; }
 `;
 
 // Header + nav de Nexo Market (Fase 1 "Market embebido") -- extraido tal
@@ -1045,6 +1057,10 @@ function marketBottomNavMovilHtml() {
 }
 
 function marketDrawerCuentaHtml() {
+    // Mismos iconos de linea que ya usa el hub de escritorio
+    // (estilosPortalClienteHtml + ICONO_PORTAL_*, public-site-server.js)
+    // en vez de emoji -- consistente con el resto de la app, nunca un
+    // set de iconos aparte.
     return `<div class="market-drawer-overlay" id="marketDrawerOverlay" hidden>
 <div class="market-drawer">
 <button type="button" class="market-drawer-cerrar" id="marketDrawerCerrar" aria-label="Cerrar menu">✕</button>
@@ -1055,6 +1071,7 @@ function marketDrawerCuentaHtml() {
 </div>
 <div id="marketDrawerPersona" hidden>
 <div class="market-drawer-perfil">
+<div class="market-drawer-avatar" id="marketDrawerAvatar"></div>
 <div>
 <p class="market-drawer-nombre" id="marketDrawerNombre"></p>
 <p class="market-drawer-correo" id="marketDrawerCorreo"></p>
@@ -1065,11 +1082,11 @@ function marketDrawerCuentaHtml() {
 <p class="market-drawer-seccion">Ferreterias donde compras</p>
 <div id="marketDrawerFerreterias"><p class="portal-credito-vacio">Cargando...</p></div>
 <p class="market-drawer-seccion">Cuenta</p>
-<a class="market-drawer-link" href="#" data-ir-proximamente>👤 Mi perfil</a>
-<a class="market-drawer-link" href="#" data-ir-proximamente>📍 Direcciones</a>
-<a class="market-drawer-link" href="#" data-ir-proximamente>💳 Metodos de pago</a>
-<a class="market-drawer-link" href="https://app.nexoposoficial.com/dueno">🏬 Nexo para negocios</a>
-<a class="market-drawer-link" href="#" id="marketDrawerCerrarSesion">🚪 Cerrar sesion</a>
+<a class="market-drawer-link" href="#" data-ir-proximamente>${ICONO_PORTAL_USUARIO}Mi perfil</a>
+<a class="market-drawer-link" href="#" data-ir-proximamente>${ICONO_PORTAL_DIRECCION}Direcciones</a>
+<a class="market-drawer-link" href="#" data-ir-proximamente>${ICONO_PORTAL_PAGO}Metodos de pago</a>
+<a class="market-drawer-link" href="https://app.nexoposoficial.com/dueno">${ICONO_PORTAL_TIENDA}Nexo para negocios</a>
+<a class="market-drawer-link market-drawer-link-salir" href="#" id="marketDrawerCerrarSesion">${ICONO_PORTAL_SALIR}Cerrar sesion</a>
 </div>
 </div>
 </div>`;
@@ -2365,8 +2382,11 @@ async function marketCargarDrawer() {
 
     invitado.hidden = true;
     persona.hidden = false;
-    document.getElementById("marketDrawerNombre").textContent = estado.persona.nombre || "";
+    var nombre = estado.persona.nombre || "";
+    document.getElementById("marketDrawerNombre").textContent = nombre;
     document.getElementById("marketDrawerCorreo").textContent = estado.persona.correo || estado.persona.telefono || "";
+    var avatar = document.getElementById("marketDrawerAvatar");
+    if (avatar) avatar.textContent = nombre ? nombre.trim().charAt(0).toUpperCase() : "N";
 
     marketCargarDrawerCredito();
     marketCargarDrawerFerreterias();
@@ -2378,7 +2398,7 @@ async function marketCargarDrawerCredito() {
     var creditos = datos.ok ? datos.creditos : [];
 
     if (creditos.length === 0) {
-        contenedor.innerHTML = '<p class="portal-credito-vacio">Todavia no eres cliente de credito vinculado en ninguna ferreteria.</p>';
+        contenedor.innerHTML = '<div class="market-drawer-vacio">${ICONO_PORTAL_CREDITO}<p>Todavia no eres cliente de credito vinculado en ninguna ferreteria.</p></div>';
         return;
     }
 
@@ -2411,7 +2431,7 @@ async function marketCargarDrawerFerreterias() {
     var negocios = datos.ok ? datos.negocios : [];
 
     if (negocios.length === 0) {
-        contenedor.innerHTML = '<p class="portal-credito-vacio">Todavia no eres cliente en ninguna ferreteria Nexo.</p>';
+        contenedor.innerHTML = '<div class="market-drawer-vacio">${ICONO_PORTAL_TIENDA}<p>Todavia no eres cliente en ninguna ferreteria Nexo.</p></div>';
         return;
     }
 
