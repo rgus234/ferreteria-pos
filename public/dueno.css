@@ -794,6 +794,17 @@ button{
     color:#fff;
     font-size:18px;
     font-weight:800;
+}
+
+/* Sin esto el icono se ve en blanco en Safari/iPhone -- un <svg> solo
+   con viewBox (sin width/height propios) se puede colapsar a tamaño 0
+   dentro de un boton flex ahi, aunque en Chrome se vea bien. Paso
+   igual en el escaneo por foto (dueno-boton-camara), que ya tenia su
+   propia regla; aqui se generaliza para cualquier boton de este tipo. */
+.dueno-boton-agregar svg{
+    width:18px;
+    height:18px;
+    flex-shrink:0;
     line-height:1;
 }
 
