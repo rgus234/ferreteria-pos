@@ -302,8 +302,153 @@ async function mintearSesionEmpleadoDePersona(pool, personaId, negocioId, req) {
     return { token: tokenPlano, negocio: { id: fila.id, slug: fila.slug, nombre: fila.nombre } };
 }
 
+// "Continuar con Google" -- codigo de autorizacion clasico (no
+// implicit flow): /iniciar redirige a Google, /callback intercambia el
+// codigo por un token y ese token por el perfil, nunca se maneja aqui
+// un id_token ni hace falta verificar su firma. state viaja en una
+// cookie propia (corta duracion) en vez de sesion de servidor -- este
+// modulo no tiene ningun almacen de sesion temporal, y una cookie
+// httpOnly cumple exactamente el mismo proposito anti-CSRF.
+const NOMBRE_COOKIE_OAUTH_STATE = "nexo_oauth_state";
+const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
+
+function googleOAuthConfigurado() {
+    return Boolean(config.googleClientId && config.googleClientSecret && config.googleRedirectUri);
+}
+
+function construirUrlAutorizacionGoogle(state) {
+    const parametros = new URLSearchParams({
+        client_id: config.googleClientId,
+        redirect_uri: config.googleRedirectUri,
+        response_type: "code",
+        scope: "openid email profile",
+        state,
+        prompt: "select_account"
+    });
+    return `${GOOGLE_AUTH_URL}?${parametros.toString()}`;
+}
+
+async function intercambiarCodigoGoogle(code) {
+    const respuesta = await fetch(GOOGLE_TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+            code,
+            client_id: config.googleClientId,
+            client_secret: config.googleClientSecret,
+            redirect_uri: config.googleRedirectUri,
+            grant_type: "authorization_code"
+        })
+    });
+
+    const datos = await respuesta.json().catch(() => null);
+    if (!respuesta.ok || !datos?.access_token) {
+        throw new Error(datos?.error_description || datos?.error || "Google no devolvio un token valido");
+    }
+    return datos.access_token;
+}
+
+async function obtenerPerfilGoogle(accessToken) {
+    const respuesta = await fetch(GOOGLE_USERINFO_URL, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    const perfil = await respuesta.json().catch(() => null);
+    if (!respuesta.ok || !perfil?.sub) {
+        throw new Error("No se pudo leer el perfil de Google");
+    }
+    return perfil;
+}
+
+// Encuentra o crea la persona correspondiente a un perfil de Google:
+// 1) ya vinculada por google_id (login de siempre), 2) existe una
+// cuenta con ese correo creada antes con contraseña normal (se vincula
+// ahi en vez de duplicar), 3) cuenta nueva sin password_hash -- Google
+// ya verifico el correo, asi que correo_verificado nace en true.
+async function resolverPersonaDesdeGoogle(pool, perfil) {
+    const porGoogleId = await pool.query(
+        `SELECT id, nombre, correo, telefono, oficio, correo_verificado FROM public.personas WHERE google_id = $1 LIMIT 1`,
+        [perfil.sub]
+    );
+    if (porGoogleId.rows[0]) return porGoogleId.rows[0];
+
+    const correo = limpiarTexto(perfil.email, 140).toLowerCase() || null;
+
+    if (correo) {
+        const porCorreo = await pool.query(
+            `SELECT id, nombre, correo, telefono, oficio, correo_verificado FROM public.personas WHERE LOWER(correo) = $1 LIMIT 1`,
+            [correo]
+        );
+        if (porCorreo.rows[0]) {
+            await pool.query(
+                `UPDATE public.personas SET google_id = $1, correo_verificado = correo_verificado OR $2 WHERE id = $3`,
+                [perfil.sub, Boolean(perfil.email_verified), porCorreo.rows[0].id]
+            );
+            return porCorreo.rows[0];
+        }
+    }
+
+    const nombre = limpiarTexto(perfil.name, 140) || correo || "Cliente Nexo";
+    const nueva = await pool.query(
+        `INSERT INTO public.personas (nombre, correo, password_hash, correo_verificado, google_id)
+         VALUES ($1, $2, NULL, $3, $4)
+         RETURNING id, nombre, correo, telefono, oficio, correo_verificado`,
+        [nombre, correo, Boolean(perfil.email_verified), perfil.sub]
+    );
+    return nueva.rows[0];
+}
+
 function registrarRutas(app, pool, requerirAccesoNegocio) {
     const requerirSesionPersona = crearRequerirSesionPersona(pool);
+
+    app.get("/personas/oauth/google/iniciar", (req, res) => {
+        if (!googleOAuthConfigurado()) {
+            res.status(503).send("Continuar con Google no esta configurado todavia.");
+            return;
+        }
+
+        const state = generarTokenSeguro();
+        res.cookie(NOMBRE_COOKIE_OAUTH_STATE, state, {
+            httpOnly: true,
+            secure: config.isProduction,
+            sameSite: "lax",
+            maxAge: 1000 * 60 * 10
+        });
+
+        res.redirect(construirUrlAutorizacionGoogle(state));
+    });
+
+    app.get("/personas/oauth/google/callback", async (req, res) => {
+        res.clearCookie(NOMBRE_COOKIE_OAUTH_STATE);
+
+        if (!googleOAuthConfigurado()) {
+            res.status(503).send("Continuar con Google no esta configurado todavia.");
+            return;
+        }
+
+        const cookies = parsearCookies(req);
+        const estadoEsperado = cookies[NOMBRE_COOKIE_OAUTH_STATE];
+        const { code, state, error } = req.query;
+
+        if (error || !code || !state || state !== estadoEsperado) {
+            res.redirect("/market/mi-cuenta?error=google");
+            return;
+        }
+
+        try {
+            const accessToken = await intercambiarCodigoGoogle(code);
+            const perfil = await obtenerPerfilGoogle(accessToken);
+            const persona = await resolverPersonaDesdeGoogle(pool, perfil);
+
+            await mintearSesionPersona(pool, res, persona.id, req);
+            res.redirect("/market/mi-cuenta");
+        } catch (err) {
+            console.warn("Error en callback de Google OAuth:", err.message);
+            res.redirect("/market/mi-cuenta?error=google");
+        }
+    });
 
     app.post("/personas/registro", async (req, res) => {
         const nombre = limpiarTexto(req.body?.nombre, 140);
@@ -982,5 +1127,6 @@ module.exports = {
     listarNegociosAdministrados,
     mintearSesionParaNegocioDePersona,
     tokenDeSesionPersona,
-    buscarPersonaPorToken
+    buscarPersonaPorToken,
+    resolverPersonaDesdeGoogle
 };

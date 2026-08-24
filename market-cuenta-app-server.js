@@ -62,7 +62,9 @@ const ESTILOS_WIZARD_MARKET = `
 .wizard-form input, .wizard-form select{ padding:13px 14px; border-radius:12px; border:1px solid var(--line); font-size:15px; background:#fff; }
 .wizard-form input:disabled{ opacity:.55; }
 .wizard-oauth{ display:flex; flex-direction:column; gap:10px; margin:6px 0 20px; }
-.wizard-btn-oauth{ display:flex; align-items:center; justify-content:center; gap:10px; padding:13px 20px; border-radius:999px; border:1px solid var(--line); background:#fff; color:var(--ink); font-weight:700; font-size:14px; cursor:not-allowed; opacity:.55; }
+.wizard-btn-oauth{ display:flex; align-items:center; justify-content:center; gap:10px; padding:13px 20px; border-radius:999px; border:1px solid var(--line); background:#fff; color:var(--ink); font-weight:700; font-size:14px; cursor:not-allowed; opacity:.55; text-decoration:none; }
+.wizard-btn-oauth:not([disabled]){ cursor:pointer; opacity:1; }
+.wizard-btn-oauth:not([disabled]):hover{ background:var(--surface-soft, #f5f5f7); }
 .wizard-separador{ display:flex; align-items:center; gap:10px; color:var(--muted); font-size:12px; margin:4px 0 16px; }
 .wizard-separador::before, .wizard-separador::after{ content:""; flex:1; height:1px; background:var(--line); }
 .wizard-fuerza{ display:flex; align-items:center; gap:8px; margin:-6px 0 14px; }
@@ -173,7 +175,7 @@ ${mascotaImgHtml("feliz")}
 <h1 class="wizard-titulo" style="text-align:left;">Crea tu cuenta</h1>
 <p class="wizard-texto" style="text-align:left;">Es gratis y toma un minuto.</p>
 <div class="wizard-oauth">
-<button type="button" class="wizard-btn-oauth" disabled>🔵 Continuar con Google (Proximamente)</button>
+<a href="/personas/oauth/google/iniciar" class="wizard-btn-oauth">🔵 Continuar con Google</a>
 <button type="button" class="wizard-btn-oauth" disabled>⬛ Continuar con Apple (Proximamente)</button>
 </div>
 <div class="wizard-separador">o con tu correo</div>
@@ -241,7 +243,7 @@ ${mascotaImgHtml("feliz")}
 <section class="wizard-screen wizard-screen-scroll" data-screen="iniciar-sesion">
 <h1 class="wizard-titulo" style="text-align:left;">Inicia sesion</h1>
 <div class="wizard-oauth">
-<button type="button" class="wizard-btn-oauth" disabled>🔵 Continuar con Google (Proximamente)</button>
+<a href="/personas/oauth/google/iniciar" class="wizard-btn-oauth">🔵 Continuar con Google</a>
 <button type="button" class="wizard-btn-oauth" disabled>⬛ Continuar con Apple (Proximamente)</button>
 </div>
 <div class="wizard-separador">o con tu correo</div>
@@ -385,15 +387,29 @@ document.querySelectorAll("[data-ir]").forEach(function(boton) {
 // formulario de escritorio) -- solo aplica a un invitado (nunca pisa
 // la pantalla "home" de una persona ya logueada).
 var wizardPantallaArranque = ${JSON.stringify(pantallaInicial)};
+var wizardParametrosArranque = new URLSearchParams(window.location.search);
 if (wizardPantallaArranque === "bienvenida") {
-    var wizardTabInicial = new URLSearchParams(window.location.search).get("tab");
+    var wizardTabInicial = wizardParametrosArranque.get("tab");
     if (wizardTabInicial === "registro") wizardPantallaArranque = "crear-cuenta";
     else if (wizardTabInicial === "login") wizardPantallaArranque = "iniciar-sesion";
 }
+
+// Si /personas/oauth/google/callback rebota con ?error=google (state
+// invalido, codigo rechazado, etc.), se avisa en la misma pantalla de
+// login en vez de fallar en silencio.
+if (wizardParametrosArranque.get("error") === "google") {
+    wizardPantallaArranque = "iniciar-sesion";
+    window.history.replaceState({}, "", window.location.pathname);
+}
+
 if (wizardPantallaArranque !== wizardPila[0]) wizardPila[0] = wizardPantallaArranque;
 
 wizardMostrar(wizardPantallaArranque);
 history.replaceState({ wizardPantalla: wizardPantallaArranque }, "", "#" + wizardPantallaArranque);
+
+if (wizardParametrosArranque.get("error") === "google") {
+    wizardResultado("wizardLoginResultado", "No se pudo continuar con Google. Intenta de nuevo.", "error");
+}
 
 // Drawer (pantalla 12) -- overlay independiente de la pila de pantallas.
 var wizardDrawerOverlay = document.getElementById("wizardDrawerOverlay");

@@ -23,6 +23,9 @@ const config = {
     vapidPublicKey: process.env.VAPID_PUBLIC_KEY || "",
     vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || "",
     vapidSubject: process.env.VAPID_SUBJECT || "",
+    googleClientId: process.env.GOOGLE_CLIENT_ID || "",
+    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || "",
 };
 
 function validarConfigProduccion() {
