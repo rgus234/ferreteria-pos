@@ -2,6 +2,13 @@
 // siempre negativo para no colisionar nunca con un id real de producto (serial positivo).
 let contadorArticuloRapido = 0;
 
+// Si el panel de descuento esta abierto -- renderResumenCobroPOS() rehace
+// todo el innerHTML del resumen en cada cambio (select o cada digito del
+// monto), asi que la clase "abierto" del DOM se perdia con cada rerender
+// y el panel parecia "cerrarse solo" al elegir tipo o al escribir. Ahora
+// el estado vive aqui, no en el DOM, y se vuelve a aplicar en cada render.
+let resumenDescuentoAbierto = false;
+
 async function procesarCodigoBarrasPos(codigoManual) {
  const input =
  document.getElementById("busqueda");
@@ -1102,6 +1109,16 @@ function renderResumenCobroPOS() {
 
  if (!contenedor) return;
 
+ // El input de monto pierde el elemento de foco en cada rerender (se
+ // reconstruye desde cero via innerHTML) -- sin esto, escribir "25"
+ // perdia el cursor despues del primer digito y habia que volver a
+ // hacer clic para seguir escribiendo.
+ const inputDescuentoEnfocado =
+ document.activeElement?.id === "valorDescuentoCarrito";
+
+ const cursorDescuento =
+ inputDescuentoEnfocado ? document.activeElement.selectionStart : null;
+
  const resumen =
  resumenCarritoPOS();
 
@@ -1127,7 +1144,7 @@ function renderResumenCobroPOS() {
  </div>
  </div>
 
- <button type="button" class="pos-discount-button" onclick="document.querySelector('.resumen-descuento')?.classList.toggle('abierto')">
+ <button type="button" class="pos-discount-button" onclick="resumenDescuentoAbierto = !resumenDescuentoAbierto; document.querySelector('.resumen-descuento')?.classList.toggle('abierto', resumenDescuentoAbierto)">
  <span>Agregar descuento</span>
  <strong>&gt;</strong>
  </button>
@@ -1137,7 +1154,7 @@ function renderResumenCobroPOS() {
  <strong>$${resumen.subtotal.toFixed(2)}</strong>
  </div>
 
- <div class="resumen-descuento">
+ <div class="resumen-descuento${resumenDescuentoAbierto ? " abierto" : ""}">
  <label>
  <span>Descuento</span>
  <select onchange="actualizarDescuentoCarrito(this.value, document.getElementById('valorDescuentoCarrito')?.value || 0)">
@@ -1146,15 +1163,17 @@ function renderResumenCobroPOS() {
  <option value="monto" ${resumen.descuentoTipo === "monto" ? "selected" : ""}>Monto</option>
  </select>
  </label>
+ <label>
+ <span>Cantidad</span>
  <input
  id="valorDescuentoCarrito"
- type="number"
- min="0"
- step="0.01"
+ type="text"
+ inputmode="decimal"
  value="${resumen.descuentoValor || ""}"
  placeholder="0"
- oninput="actualizarDescuentoCarrito(document.querySelector('.resumen-descuento select')?.value || 'ninguno', this.value)"
+ oninput="if(/[^0-9.]/.test(this.value)){const p=this.selectionStart;this.value=this.value.replace(/[^0-9.]/g,'');this.setSelectionRange(p-1,p-1);} actualizarDescuentoCarrito(document.querySelector('.resumen-descuento select')?.value || 'ninguno', this.value)"
  >
+ </label>
  </div>
 
  <div class="resumen-linea">
@@ -1230,6 +1249,18 @@ function renderResumenCobroPOS() {
  </div>
  </div>
  `;
+
+ if (inputDescuentoEnfocado) {
+ const inputDescuentoNuevo =
+ document.getElementById("valorDescuentoCarrito");
+
+ if (inputDescuentoNuevo) {
+ inputDescuentoNuevo.focus();
+ if (cursorDescuento !== null) {
+ inputDescuentoNuevo.setSelectionRange(cursorDescuento, cursorDescuento);
+ }
+ }
+ }
 
  if (metodoPagoSeleccionado !== "efectivo") {
  calcularCambio(total);

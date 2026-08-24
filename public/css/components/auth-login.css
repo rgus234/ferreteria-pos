@@ -688,3 +688,79 @@
  padding:32px 28px;
  }
 }
+
+/* MODO OSCURO -- .login-panel-form (el panel derecho: vincular equipo,
+   elegir perfil, PIN) nunca tenia override de modo oscuro, asi que se
+   quedaba blanco fijo aunque el resto de la app ya estuviera oscura --
+   reportado como "se ve feo" y "cuadro blanco" (bug real, con captura).
+   .login-form-logo y .pin-perfil-saludo se dejan a proposito CON su
+   fondo claro de siempre: son un "marco" para una imagen con fondo
+   blanco de por si (nexo-ia/feliz.jpg no es un PNG transparente), asi
+   que mantenerlos claros los hace ver como una tarjeta con foto a
+   proposito en vez de un recorte roto. */
+body.oscuro .login-panel-form{
+ background:#111827;
+ box-shadow:-1px 0 0 rgba(255,255,255,.06);
+}
+
+body.oscuro .login-panel-form h1{
+ color:#f1f5f9 !important;
+}
+
+body.oscuro .login-subtitulo{
+ color:#94a3b8;
+}
+
+body.oscuro .perfil-tarjeta{
+ border-color:rgba(255,255,255,.12) !important;
+ background:#1f2937 !important;
+ color:#f1f5f9 !important;
+}
+
+body.oscuro .perfil-tarjeta:hover{
+ background:color-mix(in srgb, var(--brand-color, #0d6efd) 16%, #1f2937) !important;
+}
+
+body.oscuro .perfil-tarjeta span{
+ color:#94a3b8;
+}
+
+body.oscuro .pin-perfil-volver{
+ color:#94a3b8 !important;
+}
+
+body.oscuro .pin-perfil-volver:hover{
+ color:#f1f5f9 !important;
+}
+
+body.oscuro .pin-perfil-cabecera strong{
+ color:#f1f5f9;
+}
+
+body.oscuro .pin-perfil-cabecera span{
+ color:#94a3b8;
+}
+
+body.oscuro .pin-perfil-casilla{
+ border-color:rgba(255,255,255,.14);
+ background:#1f2937;
+ color:#f1f5f9;
+}
+
+body.oscuro .pin-perfil-casilla.llena{
+ background:color-mix(in srgb, var(--brand-color, #0d6efd) 14%, #1f2937);
+}
+
+body.oscuro .pin-perfil-teclado button{
+ border-color:rgba(255,255,255,.14) !important;
+ background:#1f2937 !important;
+ color:#f1f5f9 !important;
+}
+
+body.oscuro .pin-perfil-teclado button:hover{
+ background:color-mix(in srgb, var(--brand-color, #0d6efd) 16%, #1f2937) !important;
+}
+
+body.oscuro .pin-perfil-tecla-borrar{
+ background:#111827 !important;
+}
