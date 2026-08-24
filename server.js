@@ -35,6 +35,7 @@ const { servirMarketPagina, servirMarketCategoria, servirMarketOfertas, servirMa
 const { servirInicioTiendaMarket, servirCatalogoTiendaMarket, servirProductoTiendaMarket } = require("./market-tienda-server");
 const { servirCuentaMarket, servirMisPedidosMarket } = require("./market-cuenta-server");
 const { esVistaMovilMarket, servirCuentaMarketApp } = require("./market-cuenta-app-server");
+const { servirMarketAyuda, servirMarketVender } = require("./market-paginas-server");
 const { servirCarritoMarket, servirCheckoutMarket } = require("./market-carrito-server");
 const {
     servirSeguimientoPedidoMarket,
@@ -4981,6 +4982,19 @@ app.get("/market/ferreterias", async (req, res) => {
 app.get("/market/credito-nexo", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
     await servirMarketCreditoNexo(pool, req, res);
+});
+
+// Ayuda y "Vende en Nexo" -- antes vivian en /site (el sitio comercial)
+// y sacaban al usuario de Nexo Market por completo. Ahora son paginas
+// reales dentro del mismo shell de Market (ver market-paginas-server.js).
+app.get("/market/ayuda", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirMarketAyuda(req, res);
+});
+
+app.get("/market/vende-en-nexo", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirMarketVender(req, res);
 });
 
 // Nexo Market -- ver una tienda especifica SIN salir de

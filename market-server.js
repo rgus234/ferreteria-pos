@@ -1010,8 +1010,8 @@ function marketHeaderHtml({ slugTienda = null, nombreTienda = "", baseAnclas = "
 <a href="/market/nuevos"${claseActiva('nuevos')}>Nuevos</a>
 <a href="/market/ferreterias"${claseActiva('ferreterias')}>Ferreterias</a>
 <a href="/market/credito-nexo"${claseActiva('credito')}>Credito Nexo</a>
-<a href="/site#contacto">Ayuda</a>
-<a href="/site#planes">Vende en Nexo</a>
+<a href="/market/ayuda"${claseActiva('ayuda')}>Ayuda</a>
+<a href="/market/vende-en-nexo"${claseActiva('vender')}>Vende en Nexo</a>
 </nav>
 </header>`;
 }
