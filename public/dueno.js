@@ -2889,29 +2889,57 @@ async function resuscribirPushDuenoSiYaHabiaPermiso() {
     }
 }
 
+// Lo que dispara cada tipo de aviso -- mismo orden en el que
+// server.js/public-site-server.js los manda, para que esta lista nunca
+// prometa algo que el backend no cubre todavia.
+const NOTIF_DUENO_TIPOS = [
+    { icono: "carrito", color: "", titulo: "Cada venta", desc: "Folio y monto al cerrar el cobro" },
+    { icono: "tarjeta", color: "verde", titulo: "Movimientos de credito", desc: "Cargos y abonos de tus clientes" },
+    { icono: "caja", color: "morado", titulo: "Pedidos de Nexo Market", desc: "Cuando alguien compra en tu tienda" }
+];
+
 function renderSubpantallaNotificaciones() {
     const activo = notificacionesPushDuenoActivas();
     const soportado = "serviceWorker" in navigator && "PushManager" in window;
 
     document.getElementById("duenoMasSubpantallaContenido").innerHTML = `
-        <article class="dueno-card">
-            <div class="card-head">
-                <div>
-                    <span>Notificaciones</span>
-                    <h2>Avisos en este telefono</h2>
-                </div>
+        <div class="dueno-notif-header">
+            <span class="dueno-notif-header-icono">${iconoCategoriaMasDueno("campana")}</span>
+            <div>
+                <h2>Avisos en este telefono</h2>
+                <p>Al tocar un aviso te llevamos directo a la pantalla con la informacion.</p>
             </div>
-            <p class="dueno-estado">Te avisamos aqui cuando entra una venta, un pedido de Nexo Market, o un movimiento de credito.</p>
+        </div>
+        <article class="dueno-card">
             ${soportado
                 ? `<div class="dueno-toggle-fila" onclick="${activo ? "desactivarNotificacionesPushDueno" : "activarNotificacionesPushDueno"}()">
                     <div>
                         <strong>Notificaciones push</strong>
-                        <span>${activo ? "Activadas" : "Toca para activarlas"}</span>
+                        <span>${activo ? "Activadas en este telefono" : "Toca para activarlas"}</span>
                     </div>
                     <span class="dueno-toggle-switch${activo ? " activo" : ""}"></span>
                 </div>`
                 : `<p class="dueno-login-error">Este navegador no soporta notificaciones push. En iPhone, primero agrega esta app a tu pantalla de inicio desde Safari (compartir → "Agregar a inicio").</p>`
             }
+        </article>
+        <article class="dueno-card dueno-card-notif-lista">
+            <div class="card-head">
+                <div>
+                    <span>Te avisamos cuando</span>
+                    <h2>Pasa esto</h2>
+                </div>
+            </div>
+            <div class="dueno-lista-info">
+                ${NOTIF_DUENO_TIPOS.map(tipo => `
+                    <div class="dueno-info-fila">
+                        <span class="dueno-categoria-icono${tipo.color ? ` dueno-categoria-icono-${tipo.color}` : ""}">${iconoCategoriaMasDueno(tipo.icono)}</span>
+                        <span class="dueno-info-fila-texto">
+                            <strong>${tipo.titulo}</strong>
+                            <span>${tipo.desc}</span>
+                        </span>
+                    </div>
+                `).join("")}
+            </div>
         </article>
     `;
 }
@@ -3311,6 +3339,25 @@ function recibirTokenDesdeMarket() {
     window.history.replaceState({}, "", window.location.pathname + (query ? `?${query}` : ""));
 }
 
+// Al tocar una notificacion push, dueno-sw.js abre (o reusa, ver su
+// "navigate") esta pagina con ?ir=<tab> -- aqui es donde se traduce
+// eso en cambiar a la pestaña real. Mismo motivo por el que
+// recibirTokenDesdeMarket limpia el query string despues de leerlo:
+// que un refresh manual no lo vuelva a disparar.
+const TABS_VALIDAS_DEEP_LINK_DUENO = new Set(["inicio", "reportes", "ventas", "inventario", "pedidos", "vender", "caja", "mas"]);
+
+function aplicarDeepLinkDueno() {
+    const parametros = new URLSearchParams(window.location.search);
+    const ir = parametros.get("ir");
+    if (!ir) return;
+
+    parametros.delete("ir");
+    const query = parametros.toString();
+    window.history.replaceState({}, "", window.location.pathname + (query ? `?${query}` : ""));
+
+    if (TABS_VALIDAS_DEEP_LINK_DUENO.has(ir)) cambiarTabDueno(ir);
+}
+
 window.addEventListener("load", () => {
     recibirTokenDesdeMarket();
     aplicarTemaDueno();
@@ -3340,6 +3387,7 @@ window.addEventListener("load", () => {
         mostrarAppDueno();
         sincronizarRolSesionDueno();
         actualizarNexoBurbujaDueno();
+        aplicarDeepLinkDueno();
         setInterval(() => { if (duenoRolSesion !== "employee") cargarPanelDueno(); }, 60000);
         setInterval(actualizarNexoBurbujaDueno, 60000);
     } else {

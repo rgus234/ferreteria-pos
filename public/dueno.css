@@ -1592,6 +1592,79 @@ button{
 .dueno-categoria-icono-rojo{ background:var(--red-soft); color:var(--red); }
 .dueno-categoria-icono-gris{ background:var(--surface-soft); color:var(--muted); }
 
+/* ---------------- pestaña Más → Notificaciones ---------------- */
+
+.dueno-notif-header{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:18px 16px;
+    border-radius:22px;
+    margin-bottom:12px;
+    background:linear-gradient(135deg, var(--brand-soft), var(--surface) 75%);
+    box-shadow:var(--shadow);
+}
+
+.dueno-notif-header-icono{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:46px;
+    height:46px;
+    flex-shrink:0;
+    border-radius:14px;
+    background:var(--brand);
+    color:#fff;
+}
+
+.dueno-notif-header-icono svg{
+    width:23px;
+    height:23px;
+}
+
+.dueno-notif-header h2{
+    margin:0 0 4px;
+    font-size:16px;
+}
+
+.dueno-notif-header p{
+    margin:0;
+    color:var(--muted);
+    font-size:12px;
+    line-height:1.4;
+}
+
+.dueno-card-notif-lista{
+    margin-top:10px;
+}
+
+.dueno-lista-info{
+    display:grid;
+    gap:8px;
+    margin-top:12px;
+}
+
+.dueno-info-fila{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:10px 12px;
+    border-radius:14px;
+    background:var(--surface-soft);
+}
+
+.dueno-info-fila-texto strong{
+    display:block;
+    font-size:12.5px;
+}
+
+.dueno-info-fila-texto span{
+    display:block;
+    margin-top:1px;
+    color:var(--muted);
+    font-size:11px;
+}
+
 .dueno-categoria-texto{
     min-width:0;
     flex:1;

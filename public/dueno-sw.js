@@ -9,13 +9,13 @@
 // siempre van a la red; los datos y la cola offline viven en
 // IndexedDB (dueno-offline.js), no en este cache.
 
-const CACHE_NAME = "nexo-dueno-shell-v31";
+const CACHE_NAME = "nexo-dueno-shell-v32";
 const CACHE_FOTOS = "nexo-dueno-fotos-v1";
 
 const ARCHIVOS_CASCARON = [
     "/dueno",
-    "/dueno.css?v=notificaciones-push-dueno-20260824-01",
-    "/dueno.js?v=notificaciones-push-dueno-20260824-01",
+    "/dueno.css?v=notificaciones-deeplink-dueno-20260824-01",
+    "/dueno.js?v=notificaciones-deeplink-dueno-20260824-01",
     "/dueno-offline.js?v=dueno-modo-oscuro-20260721-01",
     "/manifest.json?v=shell-unificado-20260816-01",
     "/nexo-pos-icon.jpg",
@@ -108,18 +108,34 @@ self.addEventListener("push", evento => {
             body: datos.cuerpo,
             icon: "/icons/nexo-pos-icon-192.png",
             badge: "/icons/nexo-pos-icon-192.png",
-            data: { url: datos.url }
+            data: { url: datos.url, pantalla: datos.pantalla }
         })
     );
 });
 
+// El backend manda "pantalla" (de que trata el aviso -- una venta, un
+// pedido) en vez de una URL fija: aqui, del lado de /dueno, es donde
+// se sabe que pestaña de la SPA le corresponde a cada una. Antes el
+// payload traia url:"/" (pensado para el POS de escritorio) y un
+// dueño que solo usa /dueno terminaba mandado a la raiz del sitio en
+// vez de quedarse en su app -- bug real, encontrado al pedir que tocar
+// el aviso llevara a la info real.
+const PANTALLA_A_TAB_DUENO = { ventas: "inicio", credito: "inicio", pedidos: "pedidos" };
+
+function urlNotificacionDueno(datos) {
+    const tab = PANTALLA_A_TAB_DUENO[datos.pantalla];
+    return tab ? `/dueno?ir=${tab}` : (datos.url || "/dueno");
+}
+
 self.addEventListener("notificationclick", evento => {
     evento.notification.close();
-    const url = evento.notification.data?.url || "/dueno";
+    const url = urlNotificacionDueno(evento.notification.data || {});
 
     evento.waitUntil(
         self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clientes => {
-            if (clientes.length > 0) return clientes[0].focus();
+            if (clientes.length > 0) {
+                return clientes[0].navigate(url).then(cliente => (cliente || clientes[0]).focus());
+            }
             return self.clients.openWindow(url);
         })
     );

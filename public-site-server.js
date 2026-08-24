@@ -2103,7 +2103,8 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
             enviarPushANegocio(pool, sitio.negocio.id, {
                 titulo: "Nuevo pedido de Nexo Market",
                 cuerpo: `${clienteNombre} -- ${itemsParaCorreo.map(i => i.nombre).join(", ")}`.slice(0, 180),
-                url: "/"
+                url: "/",
+                pantalla: "pedidos"
             }).catch(error => console.warn("No se pudo enviar el push de pedido nuevo:", error.message));
         }
 

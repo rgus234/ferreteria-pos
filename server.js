@@ -6345,7 +6345,8 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
         enviarPushADuenoDelNegocio(pool, negocio.id, {
             titulo: "Venta registrada",
             cuerpo: `$${Number(total || 0).toFixed(2)} -- Folio ${folioVenta.folio}${cajeroNombre ? ` -- ${cajeroNombre}` : ""}`,
-            url: "/"
+            url: "/",
+            pantalla: "ventas"
         }).catch(error => console.warn("No se pudo enviar push de venta:", error.message));
 
     } catch (error) {
@@ -7453,7 +7454,8 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res
         enviarPushADuenoDelNegocio(pool, negocio.id, {
             titulo: "Abono de credito recibido",
             cuerpo: `$${Number(monto).toFixed(2)} -- ${concepto || "Abono"}`,
-            url: "/"
+            url: "/",
+            pantalla: "credito"
         }).catch(error => console.warn("No se pudo enviar push de abono:", error.message));
     } catch (error) {
         await client.query("ROLLBACK").catch(() => {});
@@ -7597,7 +7599,8 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
         enviarPushADuenoDelNegocio(pool, negocio.id, {
             titulo: "Venta a credito registrada",
             cuerpo: `$${montoNum.toFixed(2)} -- ${cliente.nombre} -- Folio ${folioVenta.folio}`,
-            url: "/"
+            url: "/",
+            pantalla: "credito"
         }).catch(error => console.warn("No se pudo enviar push de cargo a credito:", error.message));
     } catch (error) {
         await client.query("ROLLBACK").catch(() => {});
