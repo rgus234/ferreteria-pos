@@ -1867,22 +1867,242 @@ button{
 
 .dueno-metodo-pago-grid{
     display:grid;
-    grid-template-columns:1fr;
+    grid-template-columns:1fr 1fr;
     gap:10px;
     margin:14px 0;
 }
 
 .dueno-metodo-pago-boton{
-    min-height:56px;
+    position:relative;
+    min-height:76px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    padding:10px 8px;
     border:1px solid var(--line);
     border-radius:14px;
     background:var(--surface);
     color:var(--text);
-    font-size:15px;
+    font-size:13px;
     font-weight:700;
+    text-align:center;
+}
+
+.dueno-metodo-pago-boton svg{
+    width:22px;
+    height:22px;
+    color:var(--muted);
+}
+
+.dueno-metodo-pago-boton span.sub{
+    display:block;
+    color:var(--muted);
+    font-size:10.5px;
+    font-weight:600;
 }
 
 .dueno-metodo-pago-boton:active{
     background:var(--brand-soft);
     border-color:var(--brand);
+}
+
+.dueno-metodo-pago-boton.seleccionado{
+    border-color:var(--brand);
+    background:var(--brand-soft);
+    color:var(--brand);
+}
+
+.dueno-metodo-pago-boton.seleccionado svg{
+    color:var(--brand);
+}
+
+.dueno-metodo-pago-check{
+    position:absolute;
+    top:6px;
+    right:6px;
+    width:18px;
+    height:18px;
+    border-radius:999px;
+    background:var(--brand);
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:11px;
+    line-height:1;
+}
+
+/* ---- Fila de cliente (Vender) ---- */
+
+.dueno-cliente-fila{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 12px;
+    margin-bottom:10px;
+    border-radius:14px;
+    background:var(--surface-soft);
+}
+
+.dueno-cliente-fila-icono{
+    width:34px;
+    height:34px;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:999px;
+    background:var(--brand-soft);
+    color:var(--brand);
+}
+
+.dueno-cliente-fila-icono svg{
+    width:18px;
+    height:18px;
+}
+
+.dueno-cliente-fila-info{
+    min-width:0;
+    flex:1 1 auto;
+}
+
+.dueno-cliente-fila-info span{
+    display:block;
+    color:var(--muted);
+    font-size:11px;
+    font-weight:700;
+}
+
+.dueno-cliente-fila-info strong{
+    display:block;
+    font-size:13.5px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
+.dueno-cliente-pill{
+    flex-shrink:0;
+    border:1px solid var(--brand);
+    border-radius:999px;
+    padding:7px 14px;
+    background:var(--brand-soft);
+    color:var(--brand);
+    font-size:12px;
+    font-weight:800;
+}
+
+/* ---- Resumen de carrito (subtotal / descuento / total) ---- */
+
+.dueno-resumen-linea{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:6px 2px;
+    font-size:13px;
+}
+
+.dueno-resumen-linea span{
+    color:var(--muted);
+    font-weight:700;
+}
+
+.dueno-resumen-linea strong{
+    font-weight:800;
+}
+
+.dueno-resumen-linea-total{
+    padding-top:10px;
+    margin-top:4px;
+    border-top:1px solid var(--line);
+    font-size:15px;
+}
+
+.dueno-resumen-linea-total strong{
+    font-size:17px;
+}
+
+.dueno-resumen-descuento-link{
+    border:none;
+    background:transparent;
+    color:var(--brand);
+    font-size:12.5px;
+    font-weight:800;
+    padding:0;
+}
+
+.dueno-resumen-descuento-panel{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin:6px 0 10px;
+}
+
+.dueno-resumen-descuento-panel .dueno-campo{
+    margin-bottom:0;
+}
+
+/* ---- Montos rapidos (efectivo) ---- */
+
+.dueno-monto-rapido-fila{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin:10px 0;
+}
+
+.dueno-monto-rapido-boton{
+    flex:1 1 auto;
+    min-height:36px;
+    padding:0 12px;
+    border:1px solid var(--line);
+    border-radius:999px;
+    background:var(--surface-soft);
+    color:var(--text);
+    font-size:12.5px;
+    font-weight:700;
+}
+
+.dueno-monto-rapido-boton:active{
+    background:var(--brand-soft);
+    border-color:var(--brand);
+    color:var(--brand);
+}
+
+/* ---- Carrito: fila con miniatura + total de linea ---- */
+
+.fila-dueno-carrito{
+    flex-wrap:wrap;
+    align-items:flex-start;
+}
+
+.fila-dueno-carrito > .fila-dueno-carrito-info{
+    flex:1 1 100%;
+    display:flex;
+    gap:10px;
+    min-width:0;
+}
+
+.fila-dueno-carrito-texto{
+    min-width:0;
+    flex:1 1 auto;
+}
+
+.fila-dueno-carrito-pie{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    width:100%;
+    margin-top:8px;
+}
+
+.dueno-cantidad-total{
+    font-weight:800;
+    color:var(--text);
+    font-size:13px;
+    white-space:nowrap;
 }

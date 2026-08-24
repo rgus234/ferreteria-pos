@@ -1725,6 +1725,12 @@ let duenoVentaCarrito = [];
 let duenoVentaUltimosResultados = [];
 let duenoVentaMetodoPago = null;
 let duenoVentaCobrando = false;
+let duenoVentaDescuento = { tipo: "ninguno", valor: 0 };
+let duenoVentaDescuentoPanelAbierto = false;
+let duenoVentaClienteSeleccionado = null;
+let duenoVentaClientesCredito = [];
+let duenoVentaClienteModoCrear = false;
+let duenoVentaMixto = { efectivo: 0, tarjeta: 0 };
 
 async function cargarPanelVenderDueno() {
     renderCarritoVenderDueno();
@@ -1860,7 +1866,8 @@ function agregarAlCarritoVenderDueno(id) {
             precio: Number(producto.precio || 0),
             cantidad: 1,
             unidadVenta: producto.unidadVenta || "pieza",
-            modoVenta: "bolsa"
+            modoVenta: "bolsa",
+            imagenUrl: producto.imagenUrl || null
         });
     }
 
@@ -1953,8 +1960,159 @@ function cambiarCantidadCarritoVenderDueno(id, delta) {
     renderCarritoVenderDueno();
 }
 
-function totalCarritoVenderDueno() {
-    return duenoVentaCarrito.reduce((acumulado, item) => acumulado + item.precio * item.cantidad, 0);
+// Misma formula que resumenCarritoPOS (public/js/pos-sales.js) --
+// subtotal, descuento (por porcentaje o monto fijo, tope al 100%/al
+// subtotal respectivamente) y total, todo redondeado a centavos.
+function resumenCarritoVenderDueno() {
+    const subtotal =
+    duenoVentaCarrito.reduce((acumulado, item) => acumulado + item.precio * item.cantidad, 0);
+
+    const valorDescuento =
+    Math.max(0, Number(duenoVentaDescuento.valor || 0));
+
+    const descuentoBruto =
+    duenoVentaDescuento.tipo === "porcentaje"
+        ? subtotal * Math.min(valorDescuento, 100) / 100
+        : duenoVentaDescuento.tipo === "monto"
+        ? Math.min(valorDescuento, subtotal)
+        : 0;
+
+    const redondear =
+    valor => Math.round((Number(valor) + Number.EPSILON) * 100) / 100;
+
+    const subtotalRedondeado = redondear(subtotal);
+    const descuento = redondear(descuentoBruto);
+    const total = redondear(Math.max(0, subtotalRedondeado - descuento));
+
+    return {
+        subtotal: subtotalRedondeado,
+        descuento,
+        total,
+        descuentoTipo: duenoVentaDescuento.tipo,
+        descuentoValor: valorDescuento
+    };
+}
+
+function actualizarDescuentoCarritoVenderDueno(tipo, valor) {
+    duenoVentaDescuento = { tipo: tipo || "ninguno", valor: Number(valor || 0) };
+    renderCarritoVenderDueno();
+}
+
+function quitarDescuentoCarritoVenderDueno() {
+    duenoVentaDescuento = { tipo: "ninguno", valor: 0 };
+    renderCarritoVenderDueno();
+}
+
+function alternarDescuentoCarritoVenderDueno() {
+    duenoVentaDescuentoPanelAbierto = !duenoVentaDescuentoPanelAbierto;
+    renderCarritoVenderDueno();
+}
+
+async function vaciarCarritoVenderDueno() {
+    if (!duenoVentaCarrito.length) return;
+    if (!confirm("¿Vaciar todos los productos del carrito?")) return;
+
+    duenoVentaCarrito = [];
+    duenoVentaDescuento = { tipo: "ninguno", valor: 0 };
+    duenoVentaDescuentoPanelAbierto = false;
+    duenoVentaClienteSeleccionado = null;
+
+    renderCarritoVenderDueno();
+}
+
+function filaCarritoVenderDuenoHtml(item) {
+    return `
+        <div class="fila-dueno fila-dueno-carrito">
+            <div class="fila-dueno-carrito-info">
+                <div class="dueno-miniatura">
+                    ${item.imagenUrl
+                        ? `<img src="${item.imagenUrl}" alt="" loading="lazy">`
+                        : `<span class="dueno-miniatura-vacia">Sin foto</span>`}
+                </div>
+                <div class="fila-dueno-carrito-texto">
+                    <strong>${escaparDueno(item.nombre)}</strong>
+                    <span>Código: ${escaparDueno(item.codigo || "Sin código")} · ${dinero(item.precio)} c/u</span>
+                </div>
+            </div>
+            <div class="fila-dueno-carrito-pie">
+                <div class="dueno-cantidad-control">
+                    <button type="button" onclick="cambiarCantidadCarritoVenderDueno(${item.id}, -1)">-</button>
+                    <span>${item.cantidad}</span>
+                    <button type="button" onclick="cambiarCantidadCarritoVenderDueno(${item.id}, 1)">+</button>
+                </div>
+                <span class="dueno-cantidad-total">${dinero(item.precio * item.cantidad)}</span>
+            </div>
+        </div>
+    `;
+}
+
+function renderResumenVenderDueno() {
+    const contenedor =
+    document.getElementById("duenoVenderResumen");
+
+    if (!contenedor) return;
+
+    // El input de monto pierde el foco en cada rerender (se reconstruye
+    // desde cero via innerHTML) -- se captura y restaura el cursor igual
+    // que en el descuento de escritorio (pos-sales.js, commit b4b1192).
+    // type="text" a proposito: type="number" no expone
+    // selectionStart/setSelectionRange en Chrome, ese fue justo el bug.
+    const inputEnfocado =
+    document.activeElement?.id === "duenoVenderDescuentoValor";
+
+    const cursor =
+    inputEnfocado ? document.activeElement.selectionStart : null;
+
+    const resumen =
+    resumenCarritoVenderDueno();
+
+    contenedor.innerHTML = `
+        <div class="dueno-resumen-linea">
+            <span>Subtotal</span>
+            <strong>${dinero(resumen.subtotal)}</strong>
+        </div>
+        <div class="dueno-resumen-linea">
+            <span>Descuento</span>
+            ${duenoVentaDescuentoPanelAbierto || resumen.descuento > 0
+                ? `<strong>-${dinero(resumen.descuento)}</strong>`
+                : `<button type="button" class="dueno-resumen-descuento-link" onclick="alternarDescuentoCarritoVenderDueno()">+ Agregar</button>`}
+        </div>
+        ${duenoVentaDescuentoPanelAbierto ? `
+            <div class="dueno-resumen-descuento-panel">
+                <label class="dueno-campo">Tipo
+                    <select onchange="actualizarDescuentoCarritoVenderDueno(this.value, document.getElementById('duenoVenderDescuentoValor')?.value || 0)">
+                        <option value="ninguno" ${resumen.descuentoTipo === "ninguno" ? "selected" : ""}>Sin descuento</option>
+                        <option value="porcentaje" ${resumen.descuentoTipo === "porcentaje" ? "selected" : ""}>Porcentaje</option>
+                        <option value="monto" ${resumen.descuentoTipo === "monto" ? "selected" : ""}>Monto</option>
+                    </select>
+                </label>
+                <label class="dueno-campo">Cantidad
+                    <input
+                        id="duenoVenderDescuentoValor"
+                        type="text"
+                        inputmode="decimal"
+                        value="${resumen.descuentoValor || ""}"
+                        placeholder="0"
+                        oninput="if(/[^0-9.]/.test(this.value)){const p=this.selectionStart;this.value=this.value.replace(/[^0-9.]/g,'');this.setSelectionRange(p-1,p-1);} actualizarDescuentoCarritoVenderDueno(document.querySelector('.dueno-resumen-descuento-panel select')?.value || 'ninguno', this.value)"
+                    >
+                </label>
+            </div>
+        ` : ""}
+        <div class="dueno-resumen-linea dueno-resumen-linea-total">
+            <span>Total</span>
+            <strong>${dinero(resumen.total)}</strong>
+        </div>
+    `;
+
+    if (inputEnfocado) {
+        const nuevoInput =
+        document.getElementById("duenoVenderDescuentoValor");
+
+        if (nuevoInput) {
+            nuevoInput.focus();
+            if (cursor !== null) nuevoInput.setSelectionRange(cursor, cursor);
+        }
+    }
 }
 
 function renderCarritoVenderDueno() {
@@ -1968,23 +2126,152 @@ function renderCarritoVenderDueno() {
 
     card.style.display = "block";
 
+    const resumen =
+    resumenCarritoVenderDueno();
+
     document.getElementById("duenoVenderTotal").textContent =
-    dinero(totalCarritoVenderDueno());
+    dinero(resumen.total);
+
+    document.getElementById("duenoVenderCantidadEtiqueta").textContent =
+    `Venta actual · ${duenoVentaCarrito.length} producto${duenoVentaCarrito.length === 1 ? "" : "s"}`;
+
+    document.getElementById("duenoVenderClienteEtiqueta").textContent =
+    duenoVentaClienteSeleccionado?.nombre || "Público general";
 
     document.getElementById("duenoVenderCarritoLista").innerHTML =
-        duenoVentaCarrito.map(item => `
-            <div class="fila-dueno">
-                <div>
-                    <strong>${escaparDueno(item.nombre)}</strong>
-                    <span>${escaparDueno(item.codigo || "")} · ${dinero(item.precio)} c/u</span>
-                </div>
-                <div class="dueno-cantidad-control">
-                    <button type="button" onclick="cambiarCantidadCarritoVenderDueno(${item.id}, -1)">-</button>
-                    <span>${item.cantidad}</span>
-                    <button type="button" onclick="cambiarCantidadCarritoVenderDueno(${item.id}, 1)">+</button>
-                </div>
+    duenoVentaCarrito.map(filaCarritoVenderDuenoHtml).join("");
+
+    renderResumenVenderDueno();
+}
+
+// ---- Selector de cliente de credito (para vender a credito o solo
+// para dejar registrada la venta a nombre de alguien) -- mismo
+// endpoint que ya usa Creditos en escritorio (GET /creditos, POST
+// /creditos/clientes), adaptado a la subpantalla de /dueno en vez del
+// modal de escritorio (abrirSelectorClientePOS, pos-sales.js).
+
+async function abrirSelectorClienteVenderDueno() {
+    duenoVentaClienteModoCrear = false;
+
+    document.getElementById("duenoVenderClienteOverlay").classList.add("abierta");
+    document.getElementById("duenoVenderClienteContenido").innerHTML =
+    `<p class="dueno-estado">Cargando clientes...</p>`;
+
+    try {
+        const datos = await fetchAutenticado("/creditos");
+        duenoVentaClientesCredito = datos.clientes || [];
+    } catch (error) {
+        // Se sigue con lo que ya hubiera en cache de una apertura previa.
+    }
+
+    renderSelectorClienteVenderDueno("");
+}
+
+function cerrarSelectorClienteVenderDueno() {
+    document.getElementById("duenoVenderClienteOverlay").classList.remove("abierta");
+}
+
+function filaClienteVenderDuenoHtml(cliente) {
+    const disponible =
+    Number(cliente.limite_credito || 0) - Number(cliente.saldo || 0);
+
+    return `
+        <button type="button" class="fila-dueno" style="width:100%;text-align:left;" onclick="seleccionarClienteVenderDueno(${cliente.id})">
+            <div>
+                <strong>${escaparDueno(cliente.nombre)}</strong>
+                <span>Saldo ${dinero(cliente.saldo)} · Disponible ${dinero(disponible)}</span>
             </div>
-        `).join("");
+        </button>
+    `;
+}
+
+function renderSelectorClienteVenderDueno(filtro) {
+    const contenedor =
+    document.getElementById("duenoVenderClienteContenido");
+
+    if (!contenedor) return;
+
+    if (duenoVentaClienteModoCrear) {
+        contenedor.innerHTML = `
+            <label class="dueno-campo">Nombre
+                <input type="text" id="duenoVenderClienteNuevoNombre" placeholder="Nombre del cliente">
+            </label>
+            <label class="dueno-campo">Teléfono (opcional)
+                <input type="tel" id="duenoVenderClienteNuevoTelefono" placeholder="10 dígitos">
+            </label>
+            <div id="duenoVenderClienteNuevoError" class="vacio" style="display:none;"></div>
+            <button type="button" class="dueno-boton-primario" onclick="crearClienteDesdeVenderDueno()">Crear y elegir</button>
+            <button type="button" class="dueno-link" onclick="duenoVentaClienteModoCrear = false; renderSelectorClienteVenderDueno('')">Cancelar</button>
+        `;
+        return;
+    }
+
+    const filtroNormalizado =
+    (filtro || "").trim().toLowerCase();
+
+    const clientesFiltrados =
+    filtroNormalizado
+        ? duenoVentaClientesCredito.filter(c => String(c.nombre || "").toLowerCase().includes(filtroNormalizado))
+        : duenoVentaClientesCredito;
+
+    contenedor.innerHTML = `
+        <input type="search" class="dueno-buscar-fila" style="display:block;width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:12px;background:var(--surface-soft);color:var(--text);margin-bottom:10px;" placeholder="Buscar cliente..." value="${escaparDueno(filtro || "")}" oninput="renderSelectorClienteVenderDueno(this.value)">
+        <button type="button" class="fila-dueno" style="width:100%;text-align:left;margin-bottom:8px;" onclick="seleccionarClienteVenderDueno(null)">
+            <div><strong>Público general</strong><span>Sin cliente asociado</span></div>
+        </button>
+        <button type="button" class="dueno-link" style="display:block;margin-bottom:10px;" onclick="duenoVentaClienteModoCrear = true; renderSelectorClienteVenderDueno('')">+ Crear cliente nuevo</button>
+        <div class="lista-compacta">
+            ${clientesFiltrados.length
+                ? clientesFiltrados.map(filaClienteVenderDuenoHtml).join("")
+                : `<div class="vacio">${duenoVentaClientesCredito.length ? "Sin resultados." : "Todavía no tienes clientes de crédito."}</div>`}
+        </div>
+    `;
+}
+
+function seleccionarClienteVenderDueno(id) {
+    duenoVentaClienteSeleccionado =
+    id ? duenoVentaClientesCredito.find(c => Number(c.id) === Number(id)) || null : null;
+
+    cerrarSelectorClienteVenderDueno();
+    renderCarritoVenderDueno();
+
+    if (duenoVentaMetodoPago === "credito") {
+        elegirMetodoPagoVenderDueno("credito");
+    }
+}
+
+async function crearClienteDesdeVenderDueno() {
+    const nombre =
+    document.getElementById("duenoVenderClienteNuevoNombre")?.value.trim() || "";
+
+    const telefono =
+    document.getElementById("duenoVenderClienteNuevoTelefono")?.value.trim() || "";
+
+    const error =
+    document.getElementById("duenoVenderClienteNuevoError");
+
+    if (!nombre) {
+        error.textContent = "Escribe el nombre del cliente.";
+        error.style.display = "block";
+        return;
+    }
+
+    error.style.display = "none";
+
+    try {
+        const respuesta = await fetchAutenticado("/creditos/clientes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nombre, telefono: telefono || null })
+        });
+
+        duenoVentaClientesCredito.push(respuesta.cliente);
+        duenoVentaClienteModoCrear = false;
+        seleccionarClienteVenderDueno(respuesta.cliente.id);
+    } catch (err) {
+        error.textContent = err.message || "No se pudo crear el cliente.";
+        error.style.display = "block";
+    }
 }
 
 async function iniciarCobroVenderDueno() {
@@ -2031,53 +2318,184 @@ async function iniciarCobroVenderDueno() {
     renderMetodoPagoVenderDueno();
 }
 
-function renderMetodoPagoVenderDueno() {
-    const contenido =
-    document.getElementById("duenoVenderCobroContenido");
+// 5 metodos -- sin Codigo/QR (no hay backend real de cobro por QR
+// todavia) ni Cargo extra (funcion de negocio nueva, fuera de
+// alcance). Iconos estilo Feather, mismo trazo que el resto de /dueno.
+const METODOS_PAGO_VENDER_DUENO = [
+    {
+        id: "efectivo",
+        etiqueta: "Efectivo",
+        icono: `<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>`
+    },
+    {
+        id: "tarjeta",
+        etiqueta: "Tarjeta",
+        icono: `<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>`
+    },
+    {
+        id: "transferencia",
+        etiqueta: "Transferencia",
+        icono: `<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>`
+    },
+    {
+        id: "mixto",
+        etiqueta: "Mixto",
+        sub: "Efectivo + tarjeta",
+        icono: `<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>`
+    },
+    {
+        id: "credito",
+        etiqueta: "Crédito",
+        sub: "Ticket a crédito",
+        icono: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>`
+    }
+];
 
-    contenido.innerHTML = `
-        <p class="dueno-estado">Total a cobrar: <strong>${dinero(totalCarritoVenderDueno())}</strong></p>
-        <div class="dueno-metodo-pago-grid">
-            <button type="button" class="dueno-metodo-pago-boton" onclick="elegirMetodoPagoVenderDueno('efectivo')">Efectivo</button>
-            <button type="button" class="dueno-metodo-pago-boton" onclick="elegirMetodoPagoVenderDueno('tarjeta')">Tarjeta</button>
-            <button type="button" class="dueno-metodo-pago-boton" onclick="elegirMetodoPagoVenderDueno('transferencia')">Transferencia</button>
-        </div>
+function metodoPagoBotonVenderDuenoHtml(metodo) {
+    const seleccionado =
+    metodo.id === duenoVentaMetodoPago;
+
+    return `
+        <button type="button" class="dueno-metodo-pago-boton ${seleccionado ? "seleccionado" : ""}" onclick="elegirMetodoPagoVenderDueno('${metodo.id}')">
+            ${seleccionado ? `<span class="dueno-metodo-pago-check">✓</span>` : ""}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${metodo.icono}</svg>
+            <span>${metodo.etiqueta}</span>
+            ${metodo.sub ? `<span class="sub">${metodo.sub}</span>` : ""}
+        </button>
     `;
+}
+
+function renderMetodoPagoVenderDueno() {
+    duenoVentaMetodoPago = null;
+    renderCobroVenderDueno();
 }
 
 function elegirMetodoPagoVenderDueno(metodo) {
     duenoVentaMetodoPago = metodo;
 
+    if (metodo === "mixto") {
+        duenoVentaMixto = { efectivo: 0, tarjeta: 0 };
+    }
+
+    renderCobroVenderDueno();
+}
+
+function renderCobroVenderDueno() {
     const contenido =
     document.getElementById("duenoVenderCobroContenido");
 
-    const total = totalCarritoVenderDueno();
+    const resumen =
+    resumenCarritoVenderDueno();
 
-    if (metodo !== "efectivo") {
-        const etiqueta = metodo === "tarjeta" ? "Tarjeta" : "Transferencia";
+    contenido.innerHTML = `
+        <div class="dueno-card">
+            <div class="dueno-resumen-linea">
+                <span>Subtotal (${duenoVentaCarrito.length} producto${duenoVentaCarrito.length === 1 ? "" : "s"})</span>
+                <strong>${dinero(resumen.subtotal)}</strong>
+            </div>
+            <div class="dueno-resumen-linea">
+                <span>Descuento</span>
+                <strong>-${dinero(resumen.descuento)}</strong>
+            </div>
+            <div class="dueno-resumen-linea dueno-resumen-linea-total">
+                <span>Total a cobrar</span>
+                <strong>${dinero(resumen.total)}</strong>
+            </div>
+        </div>
+        <p class="dueno-estado" style="margin-top:14px;">Método de pago</p>
+        <div class="dueno-metodo-pago-grid">
+            ${METODOS_PAGO_VENDER_DUENO.map(metodoPagoBotonVenderDuenoHtml).join("")}
+        </div>
+        <div id="duenoVenderMetodoSubpanel"></div>
+    `;
 
-        contenido.innerHTML = `
-            <p class="dueno-estado">Total a cobrar: <strong>${dinero(total)}</strong></p>
-            <p class="dueno-estado">Metodo: ${etiqueta}</p>
-            <button type="button" class="dueno-boton-primario" onclick="confirmarCobroVenderDueno()">Confirmar cobro</button>
-            <button type="button" class="dueno-link" onclick="renderMetodoPagoVenderDueno()">Cambiar metodo</button>
+    renderSubpanelMetodoPagoVenderDueno();
+}
+
+function renderSubpanelMetodoPagoVenderDueno() {
+    const subpanel =
+    document.getElementById("duenoVenderMetodoSubpanel");
+
+    if (!subpanel || !duenoVentaMetodoPago) return;
+
+    const total =
+    resumenCarritoVenderDueno().total;
+
+    if (duenoVentaMetodoPago === "efectivo") {
+        subpanel.innerHTML = `
+            <p class="dueno-estado" style="font-weight:800;">Pago en efectivo</p>
+            <label class="dueno-campo">Recibido -- por cobrar ${dinero(total)}
+                <input type="text" inputmode="decimal" id="duenoVenderRecibido" placeholder="0.00" oninput="this.value=this.value.replace(/[^0-9.]/g,''); actualizarCambioVenderDueno()">
+            </label>
+            <div class="dueno-monto-rapido-fila">
+                <button type="button" class="dueno-monto-rapido-boton" onclick="aplicarMontoRapidoVenderDueno(50)">$50</button>
+                <button type="button" class="dueno-monto-rapido-boton" onclick="aplicarMontoRapidoVenderDueno(100)">$100</button>
+                <button type="button" class="dueno-monto-rapido-boton" onclick="aplicarMontoRapidoVenderDueno(200)">$200</button>
+                <button type="button" class="dueno-monto-rapido-boton" onclick="document.getElementById('duenoVenderRecibido')?.focus()">Personalizado</button>
+            </div>
+            <p class="dueno-estado" id="duenoVenderCambio">Cambio: ${dinero(0)}</p>
+            <div class="dueno-foto-descripcion">El cambio se calculará automáticamente al ingresar el monto recibido.</div>
+            <button type="button" class="dueno-boton-primario" id="duenoVenderBotonConfirmarEfectivo" onclick="confirmarCobroVenderDueno()" disabled>Confirmar cobro</button>
         `;
         return;
     }
 
-    contenido.innerHTML = `
-        <p class="dueno-estado">Total a cobrar: <strong>${dinero(total)}</strong></p>
-        <label class="dueno-campo">Recibido
-            <input type="number" id="duenoVenderRecibido" inputmode="decimal" min="0" step="0.01" placeholder="0.00" oninput="actualizarCambioVenderDueno()">
-        </label>
-        <p class="dueno-estado" id="duenoVenderCambio">Cambio: ${dinero(0)}</p>
-        <button type="button" class="dueno-boton-primario" id="duenoVenderBotonConfirmarEfectivo" onclick="confirmarCobroVenderDueno()" disabled>Confirmar cobro</button>
-        <button type="button" class="dueno-link" onclick="renderMetodoPagoVenderDueno()">Cambiar metodo</button>
-    `;
+    if (duenoVentaMetodoPago === "tarjeta" || duenoVentaMetodoPago === "transferencia") {
+        subpanel.innerHTML = `
+            <button type="button" class="dueno-boton-primario" onclick="confirmarCobroVenderDueno()">Confirmar cobro</button>
+        `;
+        return;
+    }
+
+    if (duenoVentaMetodoPago === "mixto") {
+        subpanel.innerHTML = `
+            <p class="dueno-estado" style="font-weight:800;">Dividir el pago -- total ${dinero(total)}</p>
+            <label class="dueno-campo">Efectivo
+                <input type="text" inputmode="decimal" id="duenoVenderMixtoEfectivo" placeholder="0.00" value="${duenoVentaMixto.efectivo || ""}" oninput="this.value=this.value.replace(/[^0-9.]/g,''); actualizarMixtoVenderDueno()">
+            </label>
+            <label class="dueno-campo">Tarjeta
+                <input type="text" inputmode="decimal" id="duenoVenderMixtoTarjeta" placeholder="0.00" value="${duenoVentaMixto.tarjeta || ""}" oninput="this.value=this.value.replace(/[^0-9.]/g,''); actualizarMixtoVenderDueno()">
+            </label>
+            <p class="dueno-estado" id="duenoVenderMixtoRestante"></p>
+            <button type="button" class="dueno-boton-primario" id="duenoVenderBotonConfirmarMixto" onclick="confirmarCobroVenderDueno()" disabled>Confirmar cobro</button>
+        `;
+        actualizarMixtoVenderDueno();
+        return;
+    }
+
+    if (duenoVentaMetodoPago === "credito") {
+        if (!duenoVentaClienteSeleccionado) {
+            subpanel.innerHTML = `
+                <div class="vacio">Elige un cliente con crédito para cobrar así.</div>
+                <button type="button" class="dueno-boton-primario" onclick="abrirSelectorClienteVenderDueno()">Elegir cliente</button>
+            `;
+            return;
+        }
+
+        const disponible =
+        Number(duenoVentaClienteSeleccionado.limite_credito || 0) - Number(duenoVentaClienteSeleccionado.saldo || 0);
+
+        subpanel.innerHTML = `
+            <p class="dueno-estado"><strong>${escaparDueno(duenoVentaClienteSeleccionado.nombre)}</strong> -- disponible ${dinero(disponible)}</p>
+            <button type="button" class="dueno-boton-primario" onclick="confirmarCobroCreditoVenderDueno()">Confirmar cobro</button>
+        `;
+        return;
+    }
+}
+
+function aplicarMontoRapidoVenderDueno(monto) {
+    const input =
+    document.getElementById("duenoVenderRecibido");
+
+    if (!input) return;
+
+    input.value = monto;
+    actualizarCambioVenderDueno();
 }
 
 function actualizarCambioVenderDueno() {
-    const total = totalCarritoVenderDueno();
+    const total =
+    resumenCarritoVenderDueno().total;
 
     const recibido =
     Number(document.getElementById("duenoVenderRecibido")?.value || 0);
@@ -2088,14 +2506,42 @@ function actualizarCambioVenderDueno() {
     document.getElementById("duenoVenderBotonConfirmarEfectivo").disabled = recibido < total;
 }
 
+function actualizarMixtoVenderDueno() {
+    const total =
+    resumenCarritoVenderDueno().total;
+
+    duenoVentaMixto = {
+        efectivo: Number(document.getElementById("duenoVenderMixtoEfectivo")?.value || 0),
+        tarjeta: Number(document.getElementById("duenoVenderMixtoTarjeta")?.value || 0)
+    };
+
+    const suma =
+    duenoVentaMixto.efectivo + duenoVentaMixto.tarjeta;
+
+    const restante =
+    document.getElementById("duenoVenderMixtoRestante");
+
+    if (restante) {
+        restante.textContent =
+        suma >= total
+            ? `Cambio: ${dinero(suma - total)}`
+            : `Falta: ${dinero(total - suma)}`;
+    }
+
+    const boton =
+    document.getElementById("duenoVenderBotonConfirmarMixto");
+
+    if (boton) boton.disabled = suma < total;
+}
+
 async function confirmarCobroVenderDueno() {
     if (duenoVentaCobrando) return;
     duenoVentaCobrando = true;
 
-    const total = totalCarritoVenderDueno();
+    const resumen =
+    resumenCarritoVenderDueno();
 
-    const clienteNombre =
-    document.getElementById("duenoVenderClienteNombre")?.value.trim() || "Publico general";
+    const total = resumen.total;
 
     let recibido = total;
     let cambio = 0;
@@ -2106,16 +2552,24 @@ async function confirmarCobroVenderDueno() {
     }
 
     const pagos = { efectivo: 0, tarjeta: 0, transferencia: 0, credito: 0 };
-    pagos[duenoVentaMetodoPago] = total;
+
+    if (duenoVentaMetodoPago === "mixto") {
+        pagos.efectivo = duenoVentaMixto.efectivo;
+        pagos.tarjeta = duenoVentaMixto.tarjeta;
+        recibido = duenoVentaMixto.efectivo + duenoVentaMixto.tarjeta;
+        cambio = Math.max(recibido - total, 0);
+    } else {
+        pagos[duenoVentaMetodoPago] = total;
+    }
 
     const cuerpo = {
         total,
-        subtotal: total,
-        descuento: 0,
-        descuentoTipo: "ninguno",
-        descuentoValor: 0,
-        clienteId: null,
-        clienteNombre,
+        subtotal: resumen.subtotal,
+        descuento: resumen.descuento,
+        descuentoTipo: resumen.descuentoTipo,
+        descuentoValor: resumen.descuentoValor,
+        clienteId: duenoVentaClienteSeleccionado?.id || null,
+        clienteNombre: duenoVentaClienteSeleccionado?.nombre || "Publico general",
         cajeroUsuario: duenoEmpleadoCorreoPersona || "dueno",
         cajeroNombre: duenoEmpleadoNombrePersona || document.getElementById("duenoNegocio")?.textContent || "Dueño",
         productos: duenoVentaCarrito.map(item => ({
@@ -2146,34 +2600,94 @@ async function confirmarCobroVenderDueno() {
             body: JSON.stringify(cuerpo)
         });
 
-        document.getElementById("duenoVenderCobroTitulo").textContent = "Venta cobrada";
-        contenido.innerHTML = `
-            <div class="dueno-status-card">
-                <p class="dueno-estado">Folio</p>
-                <h2>${escaparDueno(respuesta.folio)}</h2>
-                <p class="dueno-estado">Total ${dinero(total)}</p>
-            </div>
-            <button type="button" class="dueno-boton-primario" onclick="finalizarVentaVenderDueno()">Nueva venta</button>
-        `;
-
-        duenoVentaCarrito = [];
+        mostrarVentaCobradaVenderDueno(respuesta.folio, total);
     } catch (error) {
         contenido.innerHTML = `
             <div class="vacio">${escaparDueno(error.message || "No se pudo cobrar la venta. Intenta de nuevo.")}</div>
-            <button type="button" class="dueno-link" onclick="renderMetodoPagoVenderDueno()">Volver a intentar</button>
+            <button type="button" class="dueno-link" onclick="renderCobroVenderDueno()">Volver a intentar</button>
         `;
     } finally {
         duenoVentaCobrando = false;
     }
 }
 
+// Metodo Credito no pasa por /ventas -- POST /creditos/clientes/:id/cargos
+// (server.js) es el que ya usa Creditos en escritorio: crea el folio en
+// historial_ventas Y el movimiento en movimientos_credito en una sola
+// transaccion, y tambien descuenta stock. Guardia extra por si acaso,
+// aunque el sub-panel ya no deja llegar aqui sin cliente elegido.
+async function confirmarCobroCreditoVenderDueno() {
+    if (duenoVentaCobrando) return;
+    if (!duenoVentaClienteSeleccionado) return;
+
+    duenoVentaCobrando = true;
+
+    const resumen =
+    resumenCarritoVenderDueno();
+
+    const cuerpo = {
+        monto: resumen.total,
+        subtotal: resumen.subtotal,
+        descuento: resumen.descuento,
+        descuentoTipo: resumen.descuentoTipo,
+        descuentoValor: resumen.descuentoValor,
+        concepto: "Venta de mostrador",
+        productos: duenoVentaCarrito.map(item => ({
+            id: item.id,
+            codigo: item.codigo,
+            nombre: item.nombre,
+            precio: item.precio,
+            cantidad: item.cantidad,
+            unidadVenta: item.unidadVenta,
+            modoVenta: item.modoVenta,
+            importe: item.precio * item.cantidad
+        }))
+    };
+
+    const contenido =
+    document.getElementById("duenoVenderCobroContenido");
+
+    contenido.innerHTML = `<p class="dueno-estado">Cobrando...</p>`;
+
+    try {
+        const respuesta = await fetchAutenticado(`/creditos/clientes/${duenoVentaClienteSeleccionado.id}/cargos`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cuerpo)
+        });
+
+        mostrarVentaCobradaVenderDueno(respuesta.folio, resumen.total);
+    } catch (error) {
+        contenido.innerHTML = `
+            <div class="vacio">${escaparDueno(error.message || "No se pudo registrar la venta a credito. Intenta de nuevo.")}</div>
+            <button type="button" class="dueno-link" onclick="renderCobroVenderDueno()">Volver a intentar</button>
+        `;
+    } finally {
+        duenoVentaCobrando = false;
+    }
+}
+
+function mostrarVentaCobradaVenderDueno(folio, total) {
+    document.getElementById("duenoVenderCobroTitulo").textContent = "Venta cobrada";
+    document.getElementById("duenoVenderCobroContenido").innerHTML = `
+        <div class="dueno-status-card">
+            <p class="dueno-estado">Folio</p>
+            <h2>${escaparDueno(folio)}</h2>
+            <p class="dueno-estado">Total ${dinero(total)}</p>
+        </div>
+        <button type="button" class="dueno-boton-primario" onclick="finalizarVentaVenderDueno()">Nueva venta</button>
+    `;
+
+    duenoVentaCarrito = [];
+}
+
 function finalizarVentaVenderDueno() {
     document.getElementById("duenoVenderCobroOverlay").classList.remove("abierta");
 
-    const campoCliente =
-    document.getElementById("duenoVenderClienteNombre");
-
-    if (campoCliente) campoCliente.value = "";
+    duenoVentaDescuento = { tipo: "ninguno", valor: 0 };
+    duenoVentaDescuentoPanelAbierto = false;
+    duenoVentaClienteSeleccionado = null;
+    duenoVentaMixto = { efectivo: 0, tarjeta: 0 };
 
     renderCarritoVenderDueno();
 }

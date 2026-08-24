@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=notificaciones-deeplink-dueno-20260824-01">
+    <link rel="stylesheet" href="dueno.css?v=vender-cobrar-rediseno-dueno-20260824-01">
 </head>
 
 <body>
@@ -397,14 +397,24 @@
         <article class="dueno-card" id="duenoVenderCarritoCard" style="display:none;">
             <div class="card-head">
                 <div>
-                    <span>Carrito</span>
+                    <span id="duenoVenderCantidadEtiqueta">Venta actual</span>
                     <h2 id="duenoVenderTotal">$0.00</h2>
                 </div>
+                <button type="button" class="dueno-link dueno-link-peligro" onclick="vaciarCarritoVenderDueno()">Vaciar carrito</button>
+            </div>
+            <div class="dueno-cliente-fila">
+                <div class="dueno-cliente-fila-icono">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+                <div class="dueno-cliente-fila-info">
+                    <span>Cliente</span>
+                    <strong id="duenoVenderClienteEtiqueta">Público general</strong>
+                </div>
+                <button type="button" class="dueno-cliente-pill" onclick="abrirSelectorClienteVenderDueno()">Elegir cliente</button>
             </div>
             <div id="duenoVenderCarritoLista" class="lista-compacta"></div>
-            <label class="dueno-campo" style="margin-top:10px;">Cliente (opcional)
-                <input type="text" id="duenoVenderClienteNombre" placeholder="Publico general">
-            </label>
+            <button type="button" class="dueno-link" style="display:block;text-align:center;margin:10px 0;" onclick="document.getElementById('duenoVenderBuscar')?.focus()">+ Agregar producto</button>
+            <div id="duenoVenderResumen"></div>
             <button type="button" class="dueno-boton-primario" onclick="iniciarCobroVenderDueno()">Cobrar</button>
         </article>
     </main>
@@ -416,6 +426,16 @@
                 <h2 id="duenoVenderCobroTitulo">Cobrar</h2>
             </div>
             <div id="duenoVenderCobroContenido"></div>
+        </div>
+    </div>
+
+    <div id="duenoVenderClienteOverlay" class="dueno-mas-subpantalla">
+        <div class="dueno-subpantalla-inner">
+            <div class="dueno-subpantalla-header">
+                <button type="button" class="dueno-subpantalla-atras" onclick="cerrarSelectorClienteVenderDueno()">&lsaquo; Atrás</button>
+                <h2>Elegir cliente</h2>
+            </div>
+            <div id="duenoVenderClienteContenido"></div>
         </div>
     </div>
 
@@ -618,7 +638,7 @@
     </div>
 
     <script src="dueno-offline.js?v=dueno-modo-oscuro-20260721-01"></script>
-    <script src="dueno.js?v=notificaciones-deeplink-dueno-20260824-01"></script>
+    <script src="dueno.js?v=vender-cobrar-rediseno-dueno-20260824-01"></script>
 </body>
 
 </html>
