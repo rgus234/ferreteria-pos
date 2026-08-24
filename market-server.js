@@ -918,24 +918,35 @@ const ESTILOS_MARKET = `
 const ESTILOS_MARKET_NAV_MOVIL = `
 .market-bottom-nav{ display:none; }
 .market-drawer-overlay{ display:none; }
+@keyframes marketFadeIn{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
+.market-vista-transicion{ animation:marketFadeIn .22s ease; }
 @media (max-width:640px){
   main{ padding-bottom:calc(72px + env(safe-area-inset-bottom)); }
   .market-bottom-nav{ position:fixed; left:0; right:0; bottom:0; display:flex; padding-bottom:env(safe-area-inset-bottom); background:#fff; border-top:1px solid var(--line); box-shadow:0 -8px 24px rgba(20,32,51,.08); z-index:2000; -webkit-transform:translateZ(0); transform:translateZ(0); }
-  .market-bottom-nav button{ flex:1; border:none; background:none; padding:10px 4px 12px; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:11px; font-weight:700; color:var(--muted); cursor:pointer; }
+  .market-bottom-nav button{ flex:1; border:none; background:none; padding:10px 4px 12px; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:11px; font-weight:700; color:var(--muted); cursor:pointer; transition:color .15s ease; }
   .market-bottom-nav button.activo{ color:var(--blue); }
-  .market-bottom-nav button .icono{ font-size:19px; }
-  .market-drawer-overlay:not([hidden]){ position:fixed; inset:0; background:rgba(20,32,51,.42); z-index:2000; display:block; }
+  .market-bottom-nav button .icono{ display:flex; transition:transform .15s cubic-bezier(.34,1.56,.64,1); }
+  .market-bottom-nav button .icono svg{ width:22px; height:22px; }
+  .market-bottom-nav button.activo .icono{ transform:scale(1.12); }
+  .market-bottom-nav button:active .icono{ transform:scale(.85); }
+  .market-drawer-overlay:not([hidden]){ position:fixed; inset:0; background:rgba(20,32,51,.42); z-index:2000; display:block; opacity:0; transition:opacity .25s ease; }
+  .market-drawer-overlay.abierta{ opacity:1; }
+  .market-drawer-overlay .market-drawer{ transform:translateX(-100%); transition:transform .28s cubic-bezier(.4,0,.2,1); }
+  .market-drawer-overlay.abierta .market-drawer{ transform:translateX(0); }
 }
 .market-drawer{ position:absolute; top:0; left:0; bottom:0; width:82%; max-width:340px; background:#fff; padding:24px 20px calc(24px + env(safe-area-inset-bottom)); overflow-y:auto; }
-.market-drawer-cerrar{ position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+.market-drawer-cerrar{ position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; transition:transform .15s ease, background .15s ease; }
+.market-drawer-cerrar:active{ transform:scale(.88); background:var(--surface-soft, #f5f5f7); }
 .market-drawer-perfil{ display:flex; align-items:center; gap:12px; margin-bottom:18px; }
 .market-drawer-nombre{ font-weight:800; font-size:15px; color:var(--ink); margin:0; }
 .market-drawer-correo{ font-size:12.5px; color:var(--muted); margin:0; }
 .market-drawer-titulo{ font-weight:800; font-size:16px; color:var(--ink); margin:20px 0 8px; }
 .market-drawer-texto{ font-size:13.5px; color:var(--muted); line-height:1.5; margin:0 0 16px; }
-.market-drawer-cta{ display:inline-flex; align-items:center; justify-content:center; padding:12px 22px; border-radius:999px; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; font-weight:800; font-size:14px; text-decoration:none; }
+.market-drawer-cta{ display:inline-flex; align-items:center; justify-content:center; padding:12px 22px; border-radius:999px; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; font-weight:800; font-size:14px; text-decoration:none; transition:transform .12s ease; }
+.market-drawer-cta:active{ transform:scale(.96); }
 .market-drawer-seccion{ font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:18px 0 8px; }
-.market-drawer-link{ display:flex; align-items:center; gap:12px; padding:11px 4px; font-size:14px; color:var(--ink); text-decoration:none; font-weight:600; }
+.market-drawer-link{ display:flex; align-items:center; gap:12px; padding:11px 4px; border-radius:10px; font-size:14px; color:var(--ink); text-decoration:none; font-weight:600; transition:background .12s ease; }
+.market-drawer-link:active{ background:var(--surface-soft, #f5f5f7); }
 `;
 
 // Header + nav de Nexo Market (Fase 1 "Market embebido") -- extraido tal
@@ -1021,11 +1032,15 @@ function marketFooterHtml() {
 // .portal-* que ya usaba (solo) el hub de escritorio
 // (market-cuenta-server.js), nunca duplicados.
 function marketBottomNavMovilHtml() {
+    // Mismos icono-trazo (viewBox 24, stroke-width 2, puntas redondeadas)
+    // que ya usa el header -- Favoritos/Pedidos/Cuenta son literalmente
+    // el mismo SVG que marketHeaderHtml(), para que la barra se vea
+    // parte de la misma app, no un set de emojis aparte.
     return `<nav class="market-bottom-nav" id="marketBottomNav">
-<button type="button" class="activo" data-tab="inicio"><span class="icono">🏠</span>Inicio</button>
-<button type="button" data-tab="favoritos"><span class="icono">❤️</span>Favoritos</button>
-<button type="button" data-tab="pedidos"><span class="icono">📦</span>Pedidos</button>
-<button type="button" data-tab="cuenta"><span class="icono">👤</span>Cuenta</button>
+<button type="button" class="activo" data-tab="inicio"><span class="icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"></path><path d="M5 9.5V21h14V9.5"></path><path d="M9 21v-6h6v6"></path></svg></span>Inicio</button>
+<button type="button" data-tab="favoritos"><span class="icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg></span>Favoritos</button>
+<button type="button" data-tab="pedidos"><span class="icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg></span>Pedidos</button>
+<button type="button" data-tab="cuenta"><span class="icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg></span>Cuenta</button>
 </nav>`;
 }
 
@@ -1869,22 +1884,39 @@ function marketMarcarTabActiva(tab) {
     nav.querySelectorAll("[data-tab]").forEach(function(boton) { boton.classList.toggle("activo", boton.dataset.tab === tab); });
 }
 
+// Vuelve a disparar la animacion de entrada (marketFadeIn) en un
+// contenedor que ya estaba en el DOM -- quitar y reponer la clase no
+// alcanza sola, hace falta forzar un reflow entre medio o el navegador
+// la trata como si nunca hubiera cambiado.
+function marketAnimarEntrada(el) {
+    if (!el) return;
+    el.classList.remove("market-vista-transicion");
+    void el.offsetWidth;
+    el.classList.add("market-vista-transicion");
+}
+
 function marketMostrarInicio() {
-    document.getElementById("marketInicio").style.display = "";
+    var contenedorInicio = document.getElementById("marketInicio");
+    contenedorInicio.style.display = "";
     document.getElementById("marketResultadosBusqueda").hidden = true;
     document.querySelectorAll(".market-oculto-en-busqueda").forEach(function(el) { el.style.display = ""; });
     // Instantaneo, no animado -- el salto suave se sentia como que "se
     // cortaba" al cambiar de pestaña en movil (iOS recalcula el header
     // fijo a medio scroll animado); cambiar de pestaña en la barra
-    // inferior debe sentirse como Amazon/Mercado Libre: instantaneo.
+    // inferior debe sentirse como Amazon/Mercado Libre: instantaneo. El
+    // contenido si tiene una entrada suave (marketAnimarEntrada), nada
+    // que ver con el scroll de la pagina.
     window.scrollTo(0, 0);
     marketActualizarUrl("/market");
     marketMarcarTabActiva("inicio");
+    marketAnimarEntrada(contenedorInicio);
 }
 
 function marketMostrarResultados() {
     document.getElementById("marketInicio").style.display = "none";
-    document.getElementById("marketResultadosBusqueda").hidden = false;
+    var contenedorResultados = document.getElementById("marketResultadosBusqueda");
+    contenedorResultados.hidden = false;
+    marketAnimarEntrada(contenedorResultados);
     // Se ocultan las secciones de inicio (Cuentanos a que te dedicas, tira de
     // categorias, Explora por categoria, Como funciona) para que la busqueda
     // se sienta como una pantalla propia, no como contenido pegado debajo
@@ -2279,14 +2311,23 @@ if (marketBottomNavEl) {
 var marketDrawerOverlayEl = document.getElementById("marketDrawerOverlay");
 var marketDrawerCargado = false;
 
+// Abre/cierra con el panel deslizandose (ver .market-drawer-overlay.abierta
+// en el CSS) -- quitar "hidden" no alcanza para animar (display:none no
+// interpola), asi que la clase se agrega un frame despues de mostrar el
+// overlay, y "hidden" se vuelve a poner hasta que termina el cierre.
 function marketAbrirDrawer() {
-    if (marketDrawerOverlayEl) marketDrawerOverlayEl.hidden = false;
+    if (marketDrawerOverlayEl) {
+        marketDrawerOverlayEl.hidden = false;
+        requestAnimationFrame(function() { marketDrawerOverlayEl.classList.add("abierta"); });
+    }
     marketMarcarTabActiva("cuenta");
     if (!marketDrawerCargado) { marketDrawerCargado = true; marketCargarDrawer(); }
 }
 
 function marketCerrarDrawer() {
-    if (marketDrawerOverlayEl) marketDrawerOverlayEl.hidden = true;
+    if (!marketDrawerOverlayEl) return;
+    marketDrawerOverlayEl.classList.remove("abierta");
+    setTimeout(function() { marketDrawerOverlayEl.hidden = true; }, 280);
 }
 
 if (marketDrawerOverlayEl) {
