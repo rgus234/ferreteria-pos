@@ -11,18 +11,26 @@ const HOJAS_VENTA_POS_LIMITE = 6;
 
 let hojasVentaPOS = [];
 let hojaVentaActivaIdPOS = null;
-let contadorHojasVentaPOS = 1;
 
-function crearHojaVentaPOS(nombre) {
+function crearHojaVentaPOS() {
  return {
   id: Date.now() + Math.floor(Math.random() * 1000),
-  nombre,
+  nombre: null,
+  personalizado: false,
   carrito: [],
   clienteVentaActual: null,
   descuentoCarrito: { tipo: "ninguno", valor: 0 },
   metodoPagoSeleccionado: "efectivo",
   nivelPrecioActual: "mayoreo"
  };
+}
+
+// Nombre a mostrar en la pestana -- si el dueño nunca la renombro (doble
+// clic), se recalcula segun la posicion actual en vez de quedar fija con
+// el numero que tenia al crearse. Antes "Venta 6" se quedaba asi para
+// siempre aunque borraras las otras 5 hojas y fuera la unica que quedaba.
+function nombreMostradoHojaVentaPOS(hoja, indice) {
+ return hoja.personalizado && hoja.nombre ? hoja.nombre : `Venta ${indice + 1}`;
 }
 
 function capturarSnapshotHojaActivaVentaPOS() {
@@ -47,7 +55,6 @@ function guardarHojasVentaLocalStoragePOS() {
  localStorage.setItem(HOJAS_VENTA_POS_KEY, JSON.stringify({
   version: 1,
   hojaActivaId: hojaVentaActivaIdPOS,
-  contador: contadorHojasVentaPOS,
   hojas: hojasVentaPOS
  }));
 }
@@ -85,7 +92,16 @@ function inicializarHojasVentaPOS() {
 
  if (datos) {
   hojasVentaPOS = datos.hojas;
-  contadorHojasVentaPOS = Number(datos.contador) || hojasVentaPOS.length;
+
+  // Migracion de hojas guardadas antes de que "personalizado" existiera:
+  // un nombre que sigue el patron "Venta N" se trata como generico (se
+  // vuelve a numerar segun posicion); cualquier otro nombre se conserva
+  // porque el dueño lo escribio a mano con "Renombrar hoja".
+  hojasVentaPOS.forEach(hoja => {
+   if (hoja.personalizado === undefined) {
+    hoja.personalizado = !/^Venta \d+$/.test(hoja.nombre || "");
+   }
+  });
 
   const hojaActiva =
   hojasVentaPOS.find(h => h.id === datos.hojaActivaId) || hojasVentaPOS[0];
@@ -94,7 +110,7 @@ function inicializarHojasVentaPOS() {
   aplicarSnapshotHojaVentaPOS(hojaActiva);
  } else {
   const hoja =
-  crearHojaVentaPOS("Venta 1");
+  crearHojaVentaPOS();
 
   hojasVentaPOS = [hoja];
   hojaVentaActivaIdPOS = hoja.id;
@@ -136,10 +152,8 @@ function nuevaHojaVentaPOS() {
 
  sincronizarHojaActivaVentaPOS();
 
- contadorHojasVentaPOS += 1;
-
  const hoja =
- crearHojaVentaPOS(`Venta ${contadorHojasVentaPOS}`);
+ crearHojaVentaPOS();
 
  hojasVentaPOS.push(hoja);
  hojaVentaActivaIdPOS = hoja.id;
@@ -193,17 +207,26 @@ async function cerrarHojaVentaPOS(id) {
 }
 
 async function renombrarHojaVentaPOS(id) {
+ const indice =
+ hojasVentaPOS.findIndex(h => h.id === id);
+
  const hoja =
- hojasVentaPOS.find(h => h.id === id);
+ hojasVentaPOS[indice];
 
  if (!hoja) return;
 
  const nombre =
- await pedirTextoPOS("Nombre para esta hoja de venta:", hoja.nombre, "Renombrar hoja");
+ await pedirTextoPOS("Nombre para esta hoja de venta:", nombreMostradoHojaVentaPOS(hoja, indice), "Renombrar hoja");
 
  if (nombre === null) return;
 
- hoja.nombre = nombre.trim() || hoja.nombre;
+ const nombreLimpio =
+ nombre.trim();
+
+ if (nombreLimpio) {
+  hoja.nombre = nombreLimpio;
+  hoja.personalizado = true;
+ }
 
  guardarHojasVentaLocalStoragePOS();
  renderHojasVentaTabsPOS();
@@ -216,7 +239,7 @@ function renderHojasVentaTabsPOS() {
  if (!contenedor) return;
 
  const botonesHojas =
- hojasVentaPOS.map(hoja => {
+ hojasVentaPOS.map((hoja, indice) => {
   const activa =
   hoja.id === hojaVentaActivaIdPOS;
 
@@ -227,7 +250,7 @@ function renderHojasVentaTabsPOS() {
   <button type="button" class="pos-hojas-venta-tab ${activa ? "activo" : ""}"
    onclick="cambiarHojaVentaActivaPOS(${hoja.id})"
    ondblclick="renombrarHojaVentaPOS(${hoja.id})">
-   <span>${escaparPOS(hoja.nombre)}</span>
+   <span>${escaparPOS(nombreMostradoHojaVentaPOS(hoja, indice))}</span>
    ${cantidad > 0 ? `<small>${cantidad}</small>` : ""}
    <span class="pos-hojas-venta-tab-cerrar" onclick="event.stopPropagation(); cerrarHojaVentaPOS(${hoja.id})">×</span>
   </button>

@@ -434,6 +434,9 @@ body.oscuro .pos-referencia {
 .pos-referencia .resumen-descuento select,
 .pos-referencia .resumen-descuento input,
 .pos-referencia .campo-recibido input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   min-height: 30px;
   border: 1px solid var(--pos-sale-line);
   border-radius: 14px;
