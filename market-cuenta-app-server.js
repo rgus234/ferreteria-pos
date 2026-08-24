@@ -27,15 +27,6 @@ function esVistaMovilMarket(req) {
     return REGEX_USER_AGENT_MOVIL.test(req.headers["user-agent"] || "");
 }
 
-function escaparHtml(valor) {
-    return String(valor == null ? "" : valor)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-}
-
 const ESTILOS_WIZARD_MARKET = `
 .wizard-body{ margin:0; background:var(--paper); }
 .wizard-shell{ max-width:440px; margin:0 auto; min-height:100vh; background:#fff; display:flex; flex-direction:column; position:relative; box-shadow:var(--shadow); }
@@ -54,10 +45,6 @@ const ESTILOS_WIZARD_MARKET = `
 .wizard-btn-primario{ display:inline-flex; align-items:center; justify-content:center; padding:14px 24px; border:none; border-radius:999px; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; font-weight:800; font-size:15px; cursor:pointer; box-shadow:0 14px 28px rgba(16,103,232,.28); }
 .wizard-btn-secundario{ display:inline-flex; align-items:center; justify-content:center; padding:14px 24px; border-radius:999px; background:var(--glass); border:1px solid var(--line); color:var(--ink); font-weight:700; font-size:15px; cursor:pointer; }
 .wizard-link{ background:none; border:none; padding:8px; font-size:13px; font-weight:700; color:var(--blue); text-decoration:underline; cursor:pointer; }
-.wizard-card{ display:block; text-align:left; border:1px solid var(--line); border-radius:16px; padding:16px 18px; margin-bottom:14px; text-decoration:none; }
-.wizard-card-link:active{ background:var(--surface-soft, #f5f5f7); }
-.wizard-card-titulo{ font-weight:800; font-size:14.5px; color:var(--ink); margin:0 0 4px; }
-.wizard-card-texto{ font-size:13px; color:var(--muted); margin:0; }
 .wizard-form{ display:grid; gap:14px; text-align:left; margin-bottom:20px; }
 .wizard-form label{ display:grid; gap:6px; font-size:13px; font-weight:700; color:var(--muted); }
 .wizard-form input, .wizard-form select{ padding:13px 14px; border-radius:12px; border:1px solid var(--line); font-size:15px; background:#fff; }
@@ -81,30 +68,6 @@ const ESTILOS_WIZARD_MARKET = `
 .wizard-elegir-opcion span.icono{ font-size:26px; }
 .wizard-elegir-opcion strong{ display:block; font-size:14.5px; color:var(--ink); }
 .wizard-elegir-opcion small{ color:var(--muted); font-size:12.5px; }
-
-.wizard-home{ padding:0 0 78px; text-align:left; }
-.wizard-home-header{ padding:20px 22px 10px; display:flex; align-items:center; justify-content:space-between; }
-.wizard-home-saludo{ font-size:18px; font-weight:800; color:var(--ink); margin:0; }
-.wizard-menu-boton{ width:38px; height:38px; border-radius:999px; border:1px solid var(--line); background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:17px; }
-.wizard-sugerencia{ margin:6px 22px 18px; padding:16px; border-radius:16px; background:linear-gradient(135deg, rgba(16,103,232,.08), rgba(24,184,143,.08)); display:flex; gap:12px; align-items:center; }
-.wizard-sugerencia img{ width:44px; height:44px; border-radius:50%; object-fit:cover; flex-shrink:0; }
-.wizard-sugerencia p{ margin:0; font-size:13px; color:var(--ink); font-weight:600; }
-.wizard-home-cuerpo{ padding:0 22px; }
-.wizard-bottom-nav{ position:fixed; left:50%; transform:translateX(-50%); bottom:0; width:100%; max-width:440px; display:flex; background:#fff; border-top:1px solid var(--line); box-shadow:0 -8px 24px rgba(20,32,51,.08); z-index:5; }
-.wizard-bottom-nav button{ flex:1; border:none; background:none; padding:10px 4px 12px; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:11px; font-weight:700; color:var(--muted); cursor:pointer; }
-.wizard-bottom-nav button.activo{ color:var(--blue); }
-.wizard-bottom-nav button .icono{ font-size:19px; }
-
-.wizard-drawer-overlay{ position:fixed; inset:0; background:rgba(20,32,51,.42); z-index:20; }
-.wizard-drawer-overlay[hidden]{ display:none; }
-.wizard-drawer{ position:absolute; top:0; left:0; bottom:0; width:82%; max-width:340px; background:#fff; padding:24px 20px; overflow-y:auto; }
-.wizard-drawer-perfil{ display:flex; align-items:center; gap:12px; margin-bottom:22px; }
-.wizard-drawer-avatar{ width:52px; height:52px; border-radius:50%; object-fit:cover; }
-.wizard-drawer-nombre{ font-weight:800; font-size:15px; color:var(--ink); margin:0; }
-.wizard-drawer-correo{ font-size:12.5px; color:var(--muted); margin:0; }
-.wizard-drawer-titulo{ font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:18px 0 8px; }
-.wizard-drawer-link{ display:flex; align-items:center; gap:12px; padding:11px 4px; font-size:14px; color:var(--ink); text-decoration:none; font-weight:600; }
-.wizard-drawer-cerrar{ position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; }
 
 @keyframes wizardCaerConfetti{
   0%{ transform:translateY(0) rotate(0deg); opacity:.9; }
@@ -298,58 +261,6 @@ ${mascotaImgHtml("feliz")}
 </section>`;
 }
 
-// --- Pantallas 11-12: home (logueado) + drawer -------------------------
-
-function pantallaHomeHtml(persona) {
-    const nombre = escaparHtml((persona && persona.nombre) || "");
-    return `
-<section class="wizard-screen wizard-home" data-screen="home">
-<div class="wizard-home-header">
-<p class="wizard-home-saludo">Hola, ${nombre || "de nuevo"} 👋</p>
-<button type="button" class="wizard-menu-boton" id="wizardAbrirDrawer" aria-label="Abrir menu">☰</button>
-</div>
-<div class="wizard-sugerencia">
-<img src="${MASCOTA.neutral}" alt="Nexo" style="width:44px; height:44px; border-radius:50%; object-fit:cover; flex-shrink:0;">
-<p id="wizardSugerenciaTexto">Nexo siempre te acompaña -- pronto veras aqui sugerencias segun tus compras.</p>
-</div>
-<div class="wizard-home-cuerpo">
-<a href="/market" class="wizard-card wizard-card-link"><p class="wizard-card-titulo">Explora Nexo Market</p><p class="wizard-card-texto">Busca productos en las ferreterias de tu zona.</p></a>
-</div>
-</section>`;
-}
-
-function bottomNavHtml() {
-    return `<nav class="wizard-bottom-nav" id="wizardBottomNav">
-<button type="button" class="activo" data-tab="inicio"><span class="icono">🏠</span>Inicio</button>
-<button type="button" data-tab="favoritos"><span class="icono">❤️</span>Favoritos</button>
-<button type="button" data-tab="pedidos"><span class="icono">📦</span>Pedidos</button>
-<button type="button" data-tab="cuenta"><span class="icono">👤</span>Cuenta</button>
-</nav>`;
-}
-
-function pantallaDrawerHtml(persona) {
-    const nombre = escaparHtml((persona && persona.nombre) || "Tu cuenta");
-    const correo = escaparHtml((persona && (persona.correo || persona.telefono)) || "");
-    return `
-<div class="wizard-drawer-overlay" id="wizardDrawerOverlay" hidden>
-<div class="wizard-drawer">
-<button type="button" class="wizard-drawer-cerrar" id="wizardCerrarDrawer" aria-label="Cerrar menu">✕</button>
-<div class="wizard-drawer-perfil">
-<img class="wizard-drawer-avatar" src="${MASCOTA.feliz}" alt="">
-<div><p class="wizard-drawer-nombre">${nombre}</p><p class="wizard-drawer-correo">${correo}</p></div>
-</div>
-<p class="wizard-drawer-titulo">Explorar Nexo</p>
-<a class="wizard-drawer-link" href="/market">🛒 Nexo Market</a>
-<a class="wizard-drawer-link" href="https://app.nexoposoficial.com/dueno">🏬 Nexo para negocios</a>
-<p class="wizard-drawer-titulo">Cuenta</p>
-<a class="wizard-drawer-link" href="#" data-ir-drawer="home">👤 Mi perfil</a>
-<a class="wizard-drawer-link" href="#" data-ir-drawer="home">📍 Direcciones</a>
-<a class="wizard-drawer-link" href="#" data-ir-drawer="home">💳 Metodos de pago</a>
-<a class="wizard-drawer-link" href="#" id="wizardCerrarSesion">🚪 Cerrar sesion</a>
-</div>
-</div>`;
-}
-
 function scriptWizardMarketHtml(pantallaInicial) {
     return `
 var wizardPila = [${JSON.stringify(pantallaInicial)}];
@@ -358,7 +269,7 @@ var wizardEstadoVerificacion = { correo: null, credenciales: null };
 
 function wizardMostrar(pantalla) {
     document.querySelectorAll(".wizard-screen").forEach(function(s) { s.hidden = s.dataset.screen !== pantalla; });
-    document.getElementById("wizardTopbarAtras").hidden = (wizardPila.length <= 1) || pantalla === "home";
+    document.getElementById("wizardTopbarAtras").hidden = wizardPila.length <= 1;
     if (typeof wizardAlEntrarPantalla === "function") wizardAlEntrarPantalla(pantalla);
 }
 
@@ -411,52 +322,6 @@ history.replaceState({ wizardPantalla: wizardPantallaArranque }, "", "#" + wizar
 
 if (wizardParametrosArranque.get("error") === "google") {
     wizardResultado("wizardLoginResultado", "No se pudo continuar con Google. Intenta de nuevo.", "error");
-}
-
-// Drawer (pantalla 12) -- overlay independiente de la pila de pantallas.
-var wizardDrawerOverlay = document.getElementById("wizardDrawerOverlay");
-if (wizardDrawerOverlay) {
-    var abrirDrawer = document.getElementById("wizardAbrirDrawer");
-    var cerrarDrawer = document.getElementById("wizardCerrarDrawer");
-    if (abrirDrawer) abrirDrawer.addEventListener("click", function() { wizardDrawerOverlay.hidden = false; });
-    if (cerrarDrawer) cerrarDrawer.addEventListener("click", function() { wizardDrawerOverlay.hidden = true; });
-    wizardDrawerOverlay.addEventListener("click", function(evento) { if (evento.target === wizardDrawerOverlay) wizardDrawerOverlay.hidden = true; });
-}
-
-// Enlaces del drawer que hoy no tienen pantalla propia (Mi perfil,
-// Direcciones, Metodos de pago) -- mismo criterio "Proximamente" que
-// ya usa el hub de escritorio para estas mismas secciones. Solo
-// cierran el drawer.
-document.querySelectorAll("[data-ir-drawer]").forEach(function(enlace) {
-    enlace.addEventListener("click", function(evento) {
-        evento.preventDefault();
-        if (wizardDrawerOverlay) wizardDrawerOverlay.hidden = true;
-    });
-});
-
-var wizardBotonCerrarSesion = document.getElementById("wizardCerrarSesion");
-if (wizardBotonCerrarSesion) {
-    wizardBotonCerrarSesion.addEventListener("click", async function(evento) {
-        evento.preventDefault();
-        try { await wizardLlamar("/personas/logout", { method: "POST" }); } catch (error) { /* continua igual */ }
-        window.location.href = "/market/mi-cuenta";
-    });
-}
-
-// Bottom-nav (pantalla 11): Favoritos y Pedidos navegan a las paginas
-// reales ya existentes (fuera del wizard, ver plan -- este shell nuevo
-// no duplica esas pantallas); Cuenta abre el mismo drawer que el
-// boton hamburguesa.
-var wizardBottomNav = document.getElementById("wizardBottomNav");
-if (wizardBottomNav) {
-    wizardBottomNav.querySelectorAll("[data-tab]").forEach(function(boton) {
-        boton.addEventListener("click", function() {
-            var destino = boton.dataset.tab;
-            if (destino === "favoritos") { window.location.href = "/favoritos"; return; }
-            if (destino === "pedidos") { window.location.href = "/market/mis-pedidos"; return; }
-            if (destino === "cuenta") { if (wizardDrawerOverlay) wizardDrawerOverlay.hidden = false; return; }
-        });
-    });
 }
 
 async function wizardLlamar(ruta, opciones) {
@@ -571,28 +436,6 @@ if (wizardBotonLogin) {
             wizardBotonLogin.disabled = false;
         }
     });
-}
-
-// Pantalla 11 -- sugerencia proactiva real: reusa /market/inicio-json
-// (ya calcula recomendados por oficio, sin duplicar esa logica aqui)
-// + window.NEXO_PERSONA_OFICIO (inyectado por el servidor) -- nunca
-// inventa datos que no vengan del servidor.
-if (${JSON.stringify(pantallaInicial)} === "home") {
-    (async function() {
-        var elemento = document.getElementById("wizardSugerenciaTexto");
-        if (!elemento) return;
-        try {
-            var datos = await wizardLlamar("/market/inicio-json");
-            if (!datos || !datos.ok) return;
-            var oficio = window.NEXO_PERSONA_OFICIO || "";
-            var totalRecomendados = (datos.recomendados || []).length;
-            if (oficio && totalRecomendados > 0) {
-                elemento.textContent = "Como trabajas en " + oficio + ", tenemos " + totalRecomendados + " producto" + (totalRecomendados === 1 ? "" : "s") + " recomendados para ti.";
-            } else {
-                elemento.textContent = "Explora Nexo Market -- ferreterias reales cerca de ti.";
-            }
-        } catch (error) { /* deja el texto por defecto */ }
-    })();
 }
 
 // Pantalla 10 -- recuperar contrasena en 3 pasos, mismo backend que ya
@@ -784,12 +627,7 @@ function wizardConfetti() {
 `;
 }
 
-function paginaWizardMarketHtml(persona, pantallaInicial) {
-    const seccionesAuth = persona ? "" : pantallasWizardAuthHtml();
-    const seccionHome = persona ? pantallaHomeHtml(persona) : "";
-    const seccionDrawer = persona ? pantallaDrawerHtml(persona) : "";
-    const seccionBottomNav = persona ? bottomNavHtml() : "";
-
+function paginaWizardMarketHtml(pantallaInicial) {
     return `<!doctype html>
 <html lang="es">
 <head>
@@ -798,12 +636,8 @@ ${cabezaWizardMarketHtml()}
 <body class="wizard-body">
 <div class="wizard-shell">
 <div class="wizard-topbar"><button type="button" class="wizard-topbar-atras" id="wizardTopbarAtras" aria-label="Atras">←</button></div>
-${seccionesAuth}
-${seccionHome}
+${pantallasWizardAuthHtml()}
 </div>
-${seccionBottomNav}
-${seccionDrawer}
-<script>window.NEXO_PERSONA_OFICIO = ${JSON.stringify((persona && persona.oficio) || "").replace(/<\//g, "<\\/")};</script>
 <script>${scriptWizardMarketHtml(pantallaInicial)}</script>
 </body>
 </html>`;
@@ -840,8 +674,17 @@ async function servirCuentaMarketApp(pool, req, res) {
             }
         }
 
-        const pantallaInicial = req.persona ? "home" : "bienvenida";
-        res.set("Content-Type", "text/html; charset=utf-8").send(paginaWizardMarketHtml(req.persona, pantallaInicial));
+        if (req.persona) {
+            // Confirmada como compradora (o compradora+dueña) por el
+            // chequeo de arriba -- /market/mi-cuenta ya no tiene una
+            // pantalla propia de "home": aterriza directo en el
+            // catalogo real, que ya trae su propia barra inferior
+            // (Inicio/Favoritos/Pedidos/Cuenta, ver market-server.js).
+            res.redirect(302, "/market");
+            return;
+        }
+
+        res.set("Content-Type", "text/html; charset=utf-8").send(paginaWizardMarketHtml("bienvenida"));
     } catch (error) {
         console.warn("Error sirviendo /market/mi-cuenta (app movil):", error.message);
         res.status(500).send("Error");

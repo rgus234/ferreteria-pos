@@ -25,6 +25,11 @@ const { funcionDelPlan } = require("./plan-enforcement");
 const { crearResolverSesionPersonaOpcional } = require("./personas-server");
 const { OFICIOS_PERSONA } = require("./oficios-persona");
 const { normalizarSlug } = require("./tenant");
+const {
+    estilosPortalClienteHtml,
+    ICONO_PORTAL_PEDIDOS,
+    ICONO_PORTAL_DIRECCION
+} = require("./public-site-server");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
 const PRODUCTOS_POR_PAGINA_MARKET = 24;
@@ -903,6 +908,36 @@ const ESTILOS_MARKET = `
 }
 `;
 
+// Barra inferior + cajon de Cuenta -- SOLO se inyecta dentro de
+// paginaMarketHtml() (nunca en ESTILOS_MARKET compartido, para no
+// afectar /market/explora, /market/ferreterias, /market/credito-nexo,
+// que no reciben esta barra en esta fase). display:none arriba de
+// 640px -- breakpoint propio, no esVistaMovilMarket: /market ya es
+// responsive por CSS sin ninguna rama de servidor, mezclar UA-sniffing
+// aqui crearia dos fuentes de verdad sobre "es movil".
+const ESTILOS_MARKET_NAV_MOVIL = `
+.market-bottom-nav{ display:none; }
+.market-drawer-overlay{ display:none; }
+@media (max-width:640px){
+  main{ padding-bottom:72px; }
+  .market-bottom-nav{ position:fixed; left:0; right:0; bottom:0; display:flex; background:#fff; border-top:1px solid var(--line); box-shadow:0 -8px 24px rgba(20,32,51,.08); z-index:60; }
+  .market-bottom-nav button{ flex:1; border:none; background:none; padding:10px 4px 12px; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:11px; font-weight:700; color:var(--muted); cursor:pointer; }
+  .market-bottom-nav button.activo{ color:var(--blue); }
+  .market-bottom-nav button .icono{ font-size:19px; }
+  .market-drawer-overlay:not([hidden]){ position:fixed; inset:0; background:rgba(20,32,51,.42); z-index:70; display:block; }
+}
+.market-drawer{ position:absolute; top:0; left:0; bottom:0; width:82%; max-width:340px; background:#fff; padding:24px 20px; overflow-y:auto; }
+.market-drawer-cerrar{ position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+.market-drawer-perfil{ display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+.market-drawer-nombre{ font-weight:800; font-size:15px; color:var(--ink); margin:0; }
+.market-drawer-correo{ font-size:12.5px; color:var(--muted); margin:0; }
+.market-drawer-titulo{ font-weight:800; font-size:16px; color:var(--ink); margin:20px 0 8px; }
+.market-drawer-texto{ font-size:13.5px; color:var(--muted); line-height:1.5; margin:0 0 16px; }
+.market-drawer-cta{ display:inline-flex; align-items:center; justify-content:center; padding:12px 22px; border-radius:999px; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; font-weight:800; font-size:14px; text-decoration:none; }
+.market-drawer-seccion{ font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:18px 0 8px; }
+.market-drawer-link{ display:flex; align-items:center; gap:12px; padding:11px 4px; font-size:14px; color:var(--ink); text-decoration:none; font-weight:600; }
+`;
+
 // Header + nav de Nexo Market (Fase 1 "Market embebido") -- extraido tal
 // cual del markup que antes vivia pegado dentro de paginaMarketHtml(),
 // parametrizado para poder reusarse desde una pagina de tienda dentro de
@@ -941,7 +976,7 @@ function marketHeaderHtml({ slugTienda = null, nombreTienda = "", baseAnclas = "
 </div>
 <div class="market-header-acciones">
 <a class="market-header-link" href="#" id="marketFavoritosLink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg><span>Favoritos</span><span class="market-favoritos-contador" id="marketFavoritosContador">0</span></a>
-<a class="market-header-link" href="/market/mis-pedidos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg><span>Mis pedidos</span></a>
+<a class="market-header-link" href="/market/mis-pedidos" id="marketPedidosLink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg><span>Mis pedidos</span></a>
 <a class="market-header-link" href="/market/carrito"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg><span>Carrito</span></a>
 <div class="market-header-sesion" id="marketSesion"><a class="market-header-link" href="/market/mi-cuenta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-7 8-7s8 3 8 7"></path></svg><span>Inicia sesion</span></a></div><div id="marketAdminLink"></div>${carritoBotonHtml}
 </div>
@@ -972,6 +1007,57 @@ function marketFooterHtml() {
 <a href="/privacidad">Privacidad</a>
 </nav>
 </footer>`;
+}
+
+// Barra inferior + cajon de Cuenta -- SOLO dentro de paginaMarketHtml()
+// (/market, /market/buscar, /market/ofertas, /market/nuevos, categorias).
+// Antes esto vivia aparte, en /market/mi-cuenta (market-cuenta-app-server.js,
+// shell "wizard"), como si fuera otra app: su "Inicio" era una tarjeta
+// muerta, "Favoritos" apuntaba a una ruta que truena fuera de un
+// subdominio de tienda, y "Pedidos" mandaba al hub de escritorio (otro
+// diseno). Ahora vive aqui, dentro de Market mismo -- Favoritos reusa
+// marketMostrarVistaFavoritos() tal cual (arregla el enlace roto de
+// origen), Pedidos/Cuenta pintan con los mismos endpoints e iconos
+// .portal-* que ya usaba (solo) el hub de escritorio
+// (market-cuenta-server.js), nunca duplicados.
+function marketBottomNavMovilHtml() {
+    return `<nav class="market-bottom-nav" id="marketBottomNav">
+<button type="button" class="activo" data-tab="inicio"><span class="icono">🏠</span>Inicio</button>
+<button type="button" data-tab="favoritos"><span class="icono">❤️</span>Favoritos</button>
+<button type="button" data-tab="pedidos"><span class="icono">📦</span>Pedidos</button>
+<button type="button" data-tab="cuenta"><span class="icono">👤</span>Cuenta</button>
+</nav>`;
+}
+
+function marketDrawerCuentaHtml() {
+    return `<div class="market-drawer-overlay" id="marketDrawerOverlay" hidden>
+<div class="market-drawer">
+<button type="button" class="market-drawer-cerrar" id="marketDrawerCerrar" aria-label="Cerrar menu">✕</button>
+<div id="marketDrawerInvitado" hidden>
+<p class="market-drawer-titulo">Tu cuenta</p>
+<p class="market-drawer-texto">Inicia sesion para ver tus pedidos, tu credito y las ferreterias donde compras.</p>
+<a class="market-drawer-cta" href="/market/mi-cuenta">Iniciar sesion</a>
+</div>
+<div id="marketDrawerPersona" hidden>
+<div class="market-drawer-perfil">
+<div>
+<p class="market-drawer-nombre" id="marketDrawerNombre"></p>
+<p class="market-drawer-correo" id="marketDrawerCorreo"></p>
+</div>
+</div>
+<p class="market-drawer-seccion">Credito Nexo</p>
+<div id="marketDrawerCredito"><p class="portal-credito-vacio">Cargando...</p></div>
+<p class="market-drawer-seccion">Ferreterias donde compras</p>
+<div id="marketDrawerFerreterias"><p class="portal-credito-vacio">Cargando...</p></div>
+<p class="market-drawer-seccion">Cuenta</p>
+<a class="market-drawer-link" href="#" data-ir-proximamente>👤 Mi perfil</a>
+<a class="market-drawer-link" href="#" data-ir-proximamente>📍 Direcciones</a>
+<a class="market-drawer-link" href="#" data-ir-proximamente>💳 Metodos de pago</a>
+<a class="market-drawer-link" href="https://app.nexoposoficial.com/dueno">🏬 Nexo para negocios</a>
+<a class="market-drawer-link" href="#" id="marketDrawerCerrarSesion">🚪 Cerrar sesion</a>
+</div>
+</div>
+</div>`;
 }
 
 // Script minimo de la barra fija de Market (sesion + buscador con
@@ -1178,7 +1264,7 @@ function paginaMarketHtml(opciones) {
 ${metaInstalableMarketHtml()}
 <link rel="stylesheet" href="/site/styles.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<style>${ESTILOS_MARKET}</style>
+<style>${ESTILOS_MARKET}${ESTILOS_MARKET_NAV_MOVIL}${estilosPortalClienteHtml()}</style>
 </head>
 <body>
 ${marketHeaderHtml({ activo: activoNav })}
@@ -1260,6 +1346,8 @@ ${marketHeaderHtml({ activo: activoNav })}
 </main>
 
 ${marketFooterHtml()}
+${marketBottomNavMovilHtml()}
+${marketDrawerCuentaHtml()}
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -1928,6 +2016,72 @@ async function marketMostrarVistaFavoritos() {
     marketMarcarFavoritosBotones();
 }
 
+function marketDinero(valor) {
+    var numero = Number(valor) || 0;
+    return "$" + numero.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+var ETIQUETAS_ESTADO_MARKET_NAV = {
+    pendiente: "Recibido", recibido: "Recibido", confirmado: "Preparando", preparando: "Preparando",
+    listo: "Listo para recoger", entregado: "Entregado", cancelado: "Cancelado"
+};
+
+// Mismo patron que cuentaMarketCargarResumenPedidosFavoritos()
+// (market-cuenta-server.js, hub de escritorio) para /personas/mis-pedidos
+// -- adaptado aqui, no compartido via <script src>, mismo criterio que
+// ya usa este archivo para no acoplar los dos scripts grandes.
+async function marketMostrarVistaPedidos() {
+    marketMostrarResultados();
+    marketActualizarUrl("/market/buscar?vista=pedidos");
+    var contenedor = document.getElementById("marketResultadosBusqueda");
+    contenedor.innerHTML = '<p class="market-vacio">Cargando tus pedidos...</p>';
+
+    var datos = await marketLlamar("/personas/mis-pedidos");
+    if (!datos.ok) {
+        contenedor.innerHTML = '<p class="market-vacio">Inicia sesion para ver tus pedidos. <a href="/market/mi-cuenta">Iniciar sesion</a></p>';
+        return;
+    }
+    if (datos.pedidos.length === 0) {
+        contenedor.innerHTML = '<p class="market-vacio">Todavia no tienes pedidos con tu cuenta Nexo.</p>';
+        return;
+    }
+
+    var grupos = new Map();
+    datos.pedidos.forEach(function(p) {
+        var clave = p.grupo_id || ("solo-" + p.id);
+        if (!grupos.has(clave)) grupos.set(clave, []);
+        grupos.get(clave).push(p);
+    });
+
+    var lista = document.createElement("div");
+    lista.className = "market-pedidos-lista";
+    grupos.forEach(function(items) {
+        var primero = items[0];
+        var esPedidoMarket = Boolean(primero.codigo_recogida);
+        var fila = document.createElement(esPedidoMarket ? "a" : "div");
+        fila.className = "portal-pedido-fila";
+        if (esPedidoMarket) {
+            fila.href = "/market/pedido/" + encodeURIComponent(primero.codigo_recogida);
+            fila.style.textDecoration = "none";
+        }
+        var nombres = items.map(function(it) { return it.producto_nombre; }).join(", ");
+        var etiquetaEstado = esPedidoMarket
+            ? (ETIQUETAS_ESTADO_MARKET_NAV[primero.estado_pedido_market] || primero.estado_pedido_market)
+            : primero.estado;
+        fila.innerHTML =
+            '<div class="portal-pedido-icono">${ICONO_PORTAL_PEDIDOS}</div>' +
+            '<div class="portal-pedido-info"><div class="portal-pedido-nombre"></div><div class="portal-pedido-fecha"></div></div>' +
+            '<div class="portal-pedido-precio"></div>';
+        fila.querySelector(".portal-pedido-nombre").textContent = nombres;
+        fila.querySelector(".portal-pedido-fecha").textContent =
+            primero.tienda + " -- " + new Date(primero.created_at).toLocaleDateString("es-MX") + " -- " + etiquetaEstado;
+        fila.querySelector(".portal-pedido-precio").textContent = primero.precio_cotizado ? marketDinero(primero.precio_cotizado) : "";
+        lista.appendChild(fila);
+    });
+    contenedor.innerHTML = "";
+    contenedor.appendChild(lista);
+}
+
 async function marketCargarInicio() {
     var contenedor = document.getElementById("marketInicio");
     var resultados = await Promise.all([
@@ -2071,6 +2225,160 @@ document.getElementById("marketFavoritosLink").addEventListener("click", functio
     marketMostrarVistaFavoritos();
 });
 
+// En movil (mismo breakpoint que la barra inferior), "Mis pedidos" del
+// header pinta el panel en pagina en vez de mandar al hub de
+// escritorio -- mismo trato que Favoritos ya recibe arriba. En
+// escritorio se deja el enlace normal, sin cambios.
+var marketPedidosHeaderLink = document.getElementById("marketPedidosLink");
+if (marketPedidosHeaderLink) {
+    marketPedidosHeaderLink.addEventListener("click", function(evento) {
+        if (!window.matchMedia("(max-width:640px)").matches) return;
+        evento.preventDefault();
+        marketMostrarVistaPedidos();
+    });
+}
+
+// Barra inferior movil (Inicio/Favoritos/Pedidos/Cuenta) -- reemplaza
+// al shell aparte que antes vivia en /market/mi-cuenta. Cuenta abre el
+// cajon en vez de navegar; el resto reusa las mismas funciones de
+// vista que ya usa el resto de esta pagina.
+var marketBottomNavEl = document.getElementById("marketBottomNav");
+if (marketBottomNavEl) {
+    marketBottomNavEl.querySelectorAll("[data-tab]").forEach(function(boton) {
+        boton.addEventListener("click", function() {
+            marketBottomNavEl.querySelectorAll("[data-tab]").forEach(function(b) { b.classList.toggle("activo", b === boton); });
+            var destino = boton.dataset.tab;
+            if (destino === "inicio") { marketMostrarInicio(); return; }
+            if (destino === "favoritos") { marketMostrarVistaFavoritos(); return; }
+            if (destino === "pedidos") { marketMostrarVistaPedidos(); return; }
+            if (destino === "cuenta") { marketAbrirDrawer(); return; }
+        });
+    });
+}
+
+var marketDrawerOverlayEl = document.getElementById("marketDrawerOverlay");
+var marketDrawerCargado = false;
+
+function marketAbrirDrawer() {
+    if (marketDrawerOverlayEl) marketDrawerOverlayEl.hidden = false;
+    if (!marketDrawerCargado) { marketDrawerCargado = true; marketCargarDrawer(); }
+}
+
+function marketCerrarDrawer() {
+    if (marketDrawerOverlayEl) marketDrawerOverlayEl.hidden = true;
+}
+
+if (marketDrawerOverlayEl) {
+    var marketDrawerCerrarBoton = document.getElementById("marketDrawerCerrar");
+    if (marketDrawerCerrarBoton) marketDrawerCerrarBoton.addEventListener("click", marketCerrarDrawer);
+    marketDrawerOverlayEl.addEventListener("click", function(evento) { if (evento.target === marketDrawerOverlayEl) marketCerrarDrawer(); });
+}
+
+// En movil, el link de sesion del header ("Inicia sesion" / "Hola,
+// NOMBRE") abre el cajon de Cuenta en vez de navegar a
+// /market/mi-cuenta -- que ya no tiene una pantalla propia que mostrar
+// (redirige de vuelta aqui). En escritorio se deja intacto. Delegado
+// en el contenedor porque marketCargarSesion() reemplaza el <a> de
+// adentro por innerHTML.
+document.getElementById("marketSesion").addEventListener("click", function(evento) {
+    if (!window.matchMedia("(max-width:640px)").matches) return;
+    var enlace = evento.target.closest("a");
+    if (!enlace) return;
+    var estado = document.getElementById("marketDrawerPersona");
+    if (!estado || estado.hidden) return; // invitado: deja el link normal a /market/mi-cuenta
+    evento.preventDefault();
+    marketAbrirDrawer();
+});
+
+async function marketCargarDrawer() {
+    var invitado = document.getElementById("marketDrawerInvitado");
+    var persona = document.getElementById("marketDrawerPersona");
+    var estado = await marketLlamar("/personas/estado");
+
+    if (!estado.ok) {
+        invitado.hidden = false;
+        persona.hidden = true;
+        return;
+    }
+
+    invitado.hidden = true;
+    persona.hidden = false;
+    document.getElementById("marketDrawerNombre").textContent = estado.persona.nombre || "";
+    document.getElementById("marketDrawerCorreo").textContent = estado.persona.correo || estado.persona.telefono || "";
+
+    marketCargarDrawerCredito();
+    marketCargarDrawerFerreterias();
+}
+
+async function marketCargarDrawerCredito() {
+    var datos = await marketLlamar("/personas/mi-credito");
+    var contenedor = document.getElementById("marketDrawerCredito");
+    var creditos = datos.ok ? datos.creditos : [];
+
+    if (creditos.length === 0) {
+        contenedor.innerHTML = '<p class="portal-credito-vacio">Todavia no eres cliente de credito vinculado en ninguna ferreteria.</p>';
+        return;
+    }
+
+    contenedor.innerHTML = "";
+    creditos.forEach(function(c) {
+        var disponible = Math.max(0, c.limiteCredito - c.saldo);
+        var bloque = document.createElement("div");
+        bloque.style.marginBottom = "16px";
+        bloque.innerHTML =
+            '<div class="portal-datos-fila" style="border:none; padding:2px 0;"><strong style="font-size:14px;"></strong></div>' +
+            '<div class="portal-credito-linea"><span>Disponible</span><strong></strong></div>' +
+            '<div class="portal-credito-linea"><span>Limite</span><strong></strong></div>';
+        bloque.querySelector(".portal-datos-fila strong").textContent = c.negocio.nombre;
+        var lineas = bloque.querySelectorAll(".portal-credito-linea strong");
+        lineas[0].textContent = marketDinero(disponible);
+        lineas[1].textContent = marketDinero(c.limiteCredito);
+        if (c.vencido) {
+            var aviso = document.createElement("span");
+            aviso.className = "portal-credito-estado vencido";
+            aviso.textContent = "Vencido -- " + marketDinero(c.totalVencido);
+            bloque.appendChild(aviso);
+        }
+        contenedor.appendChild(bloque);
+    });
+}
+
+async function marketCargarDrawerFerreterias() {
+    var datos = await marketLlamar("/personas/negocios-cliente");
+    var contenedor = document.getElementById("marketDrawerFerreterias");
+    var negocios = datos.ok ? datos.negocios : [];
+
+    if (negocios.length === 0) {
+        contenedor.innerHTML = '<p class="portal-credito-vacio">Todavia no eres cliente en ninguna ferreteria Nexo.</p>';
+        return;
+    }
+
+    contenedor.innerHTML = "";
+    negocios.forEach(function(n) {
+        var fila = document.createElement("div");
+        fila.className = "portal-tienda-fila";
+        fila.innerHTML = '${ICONO_PORTAL_DIRECCION}<strong></strong><a></a>';
+        fila.querySelector("strong").textContent = n.nombre;
+        var link = fila.querySelector("a");
+        link.textContent = "Ver tienda";
+        link.href = "/market/ferreteria/" + encodeURIComponent(n.slug);
+        contenedor.appendChild(fila);
+    });
+}
+
+document.querySelectorAll("[data-ir-proximamente]").forEach(function(enlace) {
+    enlace.addEventListener("click", function(evento) { evento.preventDefault(); });
+});
+
+var marketDrawerCerrarSesionBoton = document.getElementById("marketDrawerCerrarSesion");
+if (marketDrawerCerrarSesionBoton) {
+    marketDrawerCerrarSesionBoton.addEventListener("click", async function(evento) {
+        evento.preventDefault();
+        try { await marketLlamar("/personas/logout", { method: "POST" }); } catch (error) { /* continua igual */ }
+        window.location.reload();
+    });
+}
+
 document.getElementById("marketBuscadorForm").addEventListener("submit", function(evento) {
     evento.preventDefault();
     marketOcultarSugerencias();
@@ -2164,6 +2472,8 @@ var marketOrdenInicialSSR = marketFiltroInicialSSR.orden || marketParamsIniciale
 var marketOfertasInicialSSR = marketFiltroInicialSSR.ofertas || marketParamsIniciales.get("ofertas") === "1";
 if (marketParamsIniciales.get("vista") === "favoritos") {
     marketMostrarVistaFavoritos();
+} else if (marketParamsIniciales.get("vista") === "pedidos") {
+    marketMostrarVistaPedidos();
 } else if (marketFiltroInicialSSR.categoria || marketOfertasInicialSSR || marketParamsIniciales.get("buscar") || marketParamsIniciales.get("categoria") || marketParamsIniciales.get("orden")) {
     var marketBuscarInicial = marketParamsIniciales.get("buscar") || "";
     var marketCategoriaInicial = marketFiltroInicialSSR.categoria || marketParamsIniciales.get("categoria") || "";
@@ -2186,6 +2496,8 @@ window.addEventListener("popstate", function() {
 
     if (params.get("vista") === "favoritos") {
         marketMostrarVistaFavoritos();
+    } else if (params.get("vista") === "pedidos") {
+        marketMostrarVistaPedidos();
     } else if (matchCategoria) {
         var slugBuscado = decodeURIComponent(matchCategoria[1]);
         var categoriaResuelta = "";

@@ -4,7 +4,8 @@
 // Requiere el servidor dev en localhost:3000. Crea/borra su propia
 // persona sintetica (ya verificada) para probar la vista logueada.
 const http = require("http");
-const { crearPersonaPrueba, mintearSesionPruebaPersona, borrarPersonaPrueba } = require("../tests/helpers/persona-prueba");
+const { crearPersonaPrueba, mintearSesionPruebaPersona, borrarPersonaPrueba, pool } = require("../tests/helpers/persona-prueba");
+const { crearNegocioPrueba, borrarNegocioPrueba } = require("../tests/helpers/negocio-prueba");
 
 const BASE_HOST = "localhost";
 const BASE_PORT = 3000;
@@ -24,7 +25,7 @@ function pedir(ruta, userAgent, token) {
         const req = http.request({ hostname: BASE_HOST, port: BASE_PORT, path: ruta, method: "GET", headers }, res => {
             let texto = "";
             res.on("data", chunk => { texto += chunk; });
-            res.on("end", () => resolve({ status: res.statusCode, texto }));
+            res.on("end", () => resolve({ status: res.statusCode, texto, location: res.headers.location || null }));
         });
         req.on("error", reject);
         req.end();
@@ -62,22 +63,54 @@ function pedir(ruta, userAgent, token) {
         const forzarApp = await pedir("/market/mi-cuenta?vista=app", UA_DESKTOP);
         log("?vista=app en desktop fuerza el wizard movil", forzarApp.texto.includes("<title>Mi cuenta -- Nexo</title>"));
 
-        // 4. Persona logueada (movil) -> home + drawer, sin las 10 pantallas de auth
+        // 4. Persona logueada (movil, comprador) -> /market/mi-cuenta ya
+        // no tiene home propia: redirige derecho a /market (que trae su
+        // propia barra inferior, ver market-server.js).
         const persona = await crearPersonaPrueba("wizard-shell");
         personaId = persona.id;
         const token = await mintearSesionPruebaPersona(persona.id);
 
         const movilLogueado = await pedir("/market/mi-cuenta", UA_ANDROID, token);
-        log("Android logueado responde 200", movilLogueado.status === 200);
-        log("Android logueado trae data-screen=\"home\"", movilLogueado.texto.includes('data-screen="home"'));
-        log("Android logueado trae el drawer (wizardDrawerOverlay)", movilLogueado.texto.includes('id="wizardDrawerOverlay"'));
-        log("Android logueado NO repite las pantallas de auth (bienvenida)", !movilLogueado.texto.includes('data-screen="bienvenida"'));
-        log("Android logueado saluda con el nombre real de la persona", movilLogueado.texto.includes(persona.nombre));
+        log("Android logueado (comprador) responde 302", movilLogueado.status === 302, `status=${movilLogueado.status}`);
+        log("Android logueado (comprador) redirige a /market", movilLogueado.location === "/market", `location=${movilLogueado.location}`);
+
+        const marketConSesion = await pedir("/market", UA_ANDROID, token);
+        log("/market responde 200 para el comprador", marketConSesion.status === 200);
+        log("/market trae la barra inferior movil", marketConSesion.texto.includes('id="marketBottomNav"'));
+        log("/market trae el cajon de Cuenta", marketConSesion.texto.includes('id="marketDrawerOverlay"'));
     } catch (error) {
-        console.error("Error inesperado durante la prueba:", error);
+        console.error("Error inesperado durante la prueba (comprador):", error);
         errorInesperado = true;
     } finally {
         await borrarPersonaPrueba(personaId);
+    }
+
+    // 5. Persona logueada (movil, dueña PURA -- administra un negocio,
+    // cero señal de comprador) -> el chequeo de auto-routing existente
+    // NUNCA se toco, debe seguir mandandola al panel de dueño, jamas a
+    // /market. Esta es la prueba de regresion concreta de "no tocar el
+    // ruteo de dueño" pedida en el plan.
+    let personaDuenoId = null;
+    let negocioDuenoId = null;
+    try {
+        const personaDueno = await crearPersonaPrueba("wizard-shell-dueno");
+        personaDuenoId = personaDueno.id;
+        const negocioDueno = await crearNegocioPrueba("wizard-shell-dueno");
+        negocioDuenoId = negocioDueno.negocioId;
+        await pool.query("UPDATE public.negocios SET persona_id = $1 WHERE id = $2", [personaDuenoId, negocioDuenoId]);
+
+        const tokenDueno = await mintearSesionPruebaPersona(personaDuenoId);
+        const movilDueno = await pedir("/market/mi-cuenta", UA_ANDROID, tokenDueno);
+        log("Android logueado (dueño puro) NO redirige a /market", movilDueno.status !== 302 || movilDueno.location !== "/market", `status=${movilDueno.status} location=${movilDueno.location}`);
+        log("Android logueado (dueño puro) recibe la pantalla de auto-entrada", movilDueno.texto.includes("Entrando a tu panel"));
+    } catch (error) {
+        console.error("Error inesperado durante la prueba (dueño puro):", error);
+        errorInesperado = true;
+    } finally {
+        // Orden importa: negocios.persona_id referencia a personas -- hay
+        // que soltar/borrar el negocio antes de poder borrar la persona.
+        await borrarNegocioPrueba(negocioDuenoId);
+        await borrarPersonaPrueba(personaDuenoId);
     }
 
     console.log(`\n${(fallos === 0 && !errorInesperado) ? "TODAS LAS PRUEBAS PASARON" : `${fallos} PRUEBA(S) FALLARON`}`);
