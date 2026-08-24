@@ -1026,7 +1026,8 @@ function marketFooterHtml() {
 </div>
 <span>Sistema comercial para punto de venta.</span>
 <nav aria-label="Legal">
-<a href="/terminos">Terminos</a>
+<a href="/market/terminos">Terminos de Market</a>
+<a href="/terminos">Terminos de Nexo</a>
 <a href="/privacidad">Privacidad</a>
 </nav>
 </footer>`;
