@@ -919,14 +919,14 @@ const ESTILOS_MARKET_NAV_MOVIL = `
 .market-bottom-nav{ display:none; }
 .market-drawer-overlay{ display:none; }
 @media (max-width:640px){
-  main{ padding-bottom:72px; }
-  .market-bottom-nav{ position:fixed; left:0; right:0; bottom:0; display:flex; background:#fff; border-top:1px solid var(--line); box-shadow:0 -8px 24px rgba(20,32,51,.08); z-index:60; }
+  main{ padding-bottom:calc(72px + env(safe-area-inset-bottom)); }
+  .market-bottom-nav{ position:fixed; left:0; right:0; bottom:0; display:flex; padding-bottom:env(safe-area-inset-bottom); background:#fff; border-top:1px solid var(--line); box-shadow:0 -8px 24px rgba(20,32,51,.08); z-index:2000; -webkit-transform:translateZ(0); transform:translateZ(0); }
   .market-bottom-nav button{ flex:1; border:none; background:none; padding:10px 4px 12px; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:11px; font-weight:700; color:var(--muted); cursor:pointer; }
   .market-bottom-nav button.activo{ color:var(--blue); }
   .market-bottom-nav button .icono{ font-size:19px; }
-  .market-drawer-overlay:not([hidden]){ position:fixed; inset:0; background:rgba(20,32,51,.42); z-index:70; display:block; }
+  .market-drawer-overlay:not([hidden]){ position:fixed; inset:0; background:rgba(20,32,51,.42); z-index:2000; display:block; }
 }
-.market-drawer{ position:absolute; top:0; left:0; bottom:0; width:82%; max-width:340px; background:#fff; padding:24px 20px; overflow-y:auto; }
+.market-drawer{ position:absolute; top:0; left:0; bottom:0; width:82%; max-width:340px; background:#fff; padding:24px 20px calc(24px + env(safe-area-inset-bottom)); overflow-y:auto; }
 .market-drawer-cerrar{ position:absolute; top:16px; right:16px; width:32px; height:32px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; }
 .market-drawer-perfil{ display:flex; align-items:center; gap:12px; margin-bottom:18px; }
 .market-drawer-nombre{ font-weight:800; font-size:15px; color:var(--ink); margin:0; }
@@ -1257,7 +1257,7 @@ function paginaMarketHtml(opciones) {
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${escaparHtml(tituloPagina)}</title>
 <meta name="description" content="${escaparHtml(descripcionPagina)}">
 <link rel="icon" href="/nexo-pos-icon.jpg">
@@ -1855,12 +1855,31 @@ function marketActualizarUrl(url) {
     history.pushState({ marketUrl: url }, "", url);
 }
 
+// Sincroniza el resaltado de la barra inferior con la vista realmente
+// visible -- se llama desde cada funcion marketMostrar*, no solo desde
+// el click del boton, para que quede correcto sin importar como se
+// llegue ahi (tocar la barra, el enlace "Mis pedidos"/Favoritos del
+// header, el boton atras/adelante del navegador, o la carga inicial
+// con ?vista=... en la URL). Antes solo se marcaba dentro del click de
+// la barra, asi que llegar por cualquier otro camino dejaba "Inicio"
+// resaltado aunque la vista real fuera otra.
+function marketMarcarTabActiva(tab) {
+    var nav = document.getElementById("marketBottomNav");
+    if (!nav) return;
+    nav.querySelectorAll("[data-tab]").forEach(function(boton) { boton.classList.toggle("activo", boton.dataset.tab === tab); });
+}
+
 function marketMostrarInicio() {
     document.getElementById("marketInicio").style.display = "";
     document.getElementById("marketResultadosBusqueda").hidden = true;
     document.querySelectorAll(".market-oculto-en-busqueda").forEach(function(el) { el.style.display = ""; });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    // Instantaneo, no animado -- el salto suave se sentia como que "se
+    // cortaba" al cambiar de pestaña en movil (iOS recalcula el header
+    // fijo a medio scroll animado); cambiar de pestaña en la barra
+    // inferior debe sentirse como Amazon/Mercado Libre: instantaneo.
+    window.scrollTo(0, 0);
     marketActualizarUrl("/market");
+    marketMarcarTabActiva("inicio");
 }
 
 function marketMostrarResultados() {
@@ -1871,7 +1890,7 @@ function marketMostrarResultados() {
     // se sienta como una pantalla propia, no como contenido pegado debajo
     // del inicio -- mismo espiritu que "cambiar de pagina".
     document.querySelectorAll(".market-oculto-en-busqueda").forEach(function(el) { el.style.display = "none"; });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo(0, 0);
 }
 
 var marketFiltrosActuales = { buscar: "", categoria: "", ofertas: false, marcas: [], precioMin: null, precioMax: null, orden: "relevancia", pagina: 1 };
@@ -1996,6 +2015,7 @@ async function marketMostrarBusqueda(opciones, agregarMas) {
 async function marketMostrarVistaFavoritos() {
     marketMostrarResultados();
     marketActualizarUrl("/market/buscar?vista=favoritos");
+    marketMarcarTabActiva("favoritos");
     var contenedor = document.getElementById("marketResultadosBusqueda");
     var lista = marketFavoritosLeer();
     if (lista.length === 0) {
@@ -2033,6 +2053,7 @@ var ETIQUETAS_ESTADO_MARKET_NAV = {
 async function marketMostrarVistaPedidos() {
     marketMostrarResultados();
     marketActualizarUrl("/market/buscar?vista=pedidos");
+    marketMarcarTabActiva("pedidos");
     var contenedor = document.getElementById("marketResultadosBusqueda");
     contenedor.innerHTML = '<p class="market-vacio">Cargando tus pedidos...</p>';
 
@@ -2246,7 +2267,6 @@ var marketBottomNavEl = document.getElementById("marketBottomNav");
 if (marketBottomNavEl) {
     marketBottomNavEl.querySelectorAll("[data-tab]").forEach(function(boton) {
         boton.addEventListener("click", function() {
-            marketBottomNavEl.querySelectorAll("[data-tab]").forEach(function(b) { b.classList.toggle("activo", b === boton); });
             var destino = boton.dataset.tab;
             if (destino === "inicio") { marketMostrarInicio(); return; }
             if (destino === "favoritos") { marketMostrarVistaFavoritos(); return; }
@@ -2261,6 +2281,7 @@ var marketDrawerCargado = false;
 
 function marketAbrirDrawer() {
     if (marketDrawerOverlayEl) marketDrawerOverlayEl.hidden = false;
+    marketMarcarTabActiva("cuenta");
     if (!marketDrawerCargado) { marketDrawerCargado = true; marketCargarDrawer(); }
 }
 
