@@ -9,6 +9,15 @@ let contadorArticuloRapido = 0;
 // el estado vive aqui, no en el DOM, y se vuelve a aplicar en cada render.
 let resumenDescuentoAbierto = false;
 
+// Misma llave de idempotencia mientras dure ESTE intento de cobro -- si
+// la red se cae justo cuando el servidor ya guardo la venta y el
+// cajero reintenta, la segunda peticion manda la misma llave y el
+// servidor regresa la venta original en vez de registrarla dos veces.
+// Se limpia al cobrar con exito o al vaciar el carrito; una venta
+// nueva (carrito distinto) siempre saca una llave nueva.
+let idempotencyKeyVentaActual = null;
+let idempotencyKeyCreditoActual = null;
+
 async function procesarCodigoBarrasPos(codigoManual) {
  const input =
  document.getElementById("busqueda");
@@ -344,6 +353,8 @@ async function limpiarCarrito() {
 };
  metodoPagoSeleccionado = "efectivo";
  nivelPrecioActual = "mayoreo";
+ idempotencyKeyVentaActual = null;
+ idempotencyKeyCreditoActual = null;
 
  actualizarCarrito();
 }
@@ -1575,6 +1586,18 @@ let ventaOffline = false;
 const productosVenta =
 productosCarritoAgrupados();
 
+// Misma llave mientras el carrito no cambie -- si esta funcion se
+// vuelve a llamar porque el intento anterior fallo (reintentar), se
+// reusa; asi el servidor puede detectar un cobro repetido en vez de
+// registrarlo dos veces.
+if (!idempotencyKeyVentaActual) {
+ idempotencyKeyVentaActual =
+ crearEventIdPOS("venta");
+}
+
+const idempotencyKey =
+idempotencyKeyVentaActual;
+
 try {
  respuesta = await fetch(
  "/ventas",
@@ -1598,7 +1621,8 @@ try {
  cajeroNombre: usuarioActual?.nombre || usuarioActual?.usuario || "Administrador",
  productos: productosVenta,
  metodoPago: pago.metodoPago,
- pagos: pago.pagos
+ pagos: pago.pagos,
+ idempotencyKey
  })
  }
  );
@@ -1618,6 +1642,7 @@ try {
  cambio,
  metodoPago: pago.metodoPago,
  productos: productosVenta,
+ idempotencyKey,
  errorConexion: error.message
  });
 
@@ -1650,6 +1675,7 @@ try {
  cambio,
  metodoPago: pago.metodoPago,
  productos: productosVenta,
+ idempotencyKey,
  errorServidor: respuesta.status
  });
 
@@ -1665,6 +1691,11 @@ try {
  return;
  }
  }
+
+ // La venta de este intento ya quedo confirmada o encolada offline --
+ // la proxima vez que se llame a cobrar() es un cobro nuevo, le toca
+ // su propia llave.
+ idempotencyKeyVentaActual = null;
 
  if (!ventaRegistrada) {
  ventaRegistrada =
@@ -1908,6 +1939,14 @@ async function cobrarCreditoInternoPOS(total) {
  const conceptoCredito =
  datos.concepto || "Venta de productos";
 
+ if (!idempotencyKeyCreditoActual) {
+ idempotencyKeyCreditoActual =
+ crearEventIdPOS("credito");
+ }
+
+ const idempotencyKey =
+ idempotencyKeyCreditoActual;
+
  try {
  respuesta =
  await fetch(
@@ -1924,7 +1963,8 @@ async function cobrarCreditoInternoPOS(total) {
  descuentoTipo: resumen.descuentoTipo,
  descuentoValor: resumen.descuentoValor,
  concepto: conceptoCredito,
- productos
+ productos,
+ idempotencyKey
  })
  }
  );
@@ -1940,6 +1980,7 @@ async function cobrarCreditoInternoPOS(total) {
  descuentoValor: resumen.descuentoValor,
  concepto: conceptoCredito,
  productos,
+ idempotencyKey,
  errorConexion: error.message
  });
 
@@ -1968,6 +2009,7 @@ async function cobrarCreditoInternoPOS(total) {
  descuentoValor: resumen.descuentoValor,
  concepto: conceptoCredito,
  productos,
+ idempotencyKey,
  errorServidor: respuesta.status
  });
 
@@ -1983,6 +2025,8 @@ async function cobrarCreditoInternoPOS(total) {
  return;
  }
  }
+
+ idempotencyKeyCreditoActual = null;
 
  if (!creditoRegistrado) {
  creditoRegistrado =

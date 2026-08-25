@@ -1732,6 +1732,21 @@ let duenoVentaClientesCredito = [];
 let duenoVentaClienteModoCrear = false;
 let duenoVentaMixto = { efectivo: 0, tarjeta: 0 };
 
+// Misma llave mientras dure un intento de cobro -- si "Confirmar cobro"
+// falla y el dueño le da "Volver a intentar" sobre el mismo carrito, la
+// segunda peticion manda la misma llave y el servidor puede detectar un
+// cobro repetido en vez de registrarlo dos veces. Se limpia al cobrar
+// con exito o al vaciar el carrito.
+let duenoVentaIdempotencyKey = null;
+let duenoVentaCreditoIdempotencyKey = null;
+
+function generarIdempotencyKeyDueno() {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID();
+    }
+    return `dueno-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 async function cargarPanelVenderDueno() {
     renderCarritoVenderDueno();
 
@@ -2128,6 +2143,8 @@ async function vaciarCarritoVenderDueno() {
     duenoVentaDescuento = { tipo: "ninguno", valor: 0 };
     duenoVentaDescuentoPanelAbierto = false;
     duenoVentaClienteSeleccionado = null;
+    duenoVentaIdempotencyKey = null;
+    duenoVentaCreditoIdempotencyKey = null;
 
     renderCarritoVenderDueno();
 }
@@ -2700,6 +2717,12 @@ async function confirmarCobroVenderDueno() {
         cambio
     };
 
+    if (!duenoVentaIdempotencyKey) {
+        duenoVentaIdempotencyKey = generarIdempotencyKeyDueno();
+    }
+
+    cuerpo.idempotencyKey = duenoVentaIdempotencyKey;
+
     const contenido =
     document.getElementById("duenoVenderCobroContenido");
 
@@ -2712,6 +2735,7 @@ async function confirmarCobroVenderDueno() {
             body: JSON.stringify(cuerpo)
         });
 
+        duenoVentaIdempotencyKey = null;
         mostrarVentaCobradaVenderDueno(respuesta.folio, total);
     } catch (error) {
         contenido.innerHTML = `
@@ -2756,6 +2780,12 @@ async function confirmarCobroCreditoVenderDueno() {
         }))
     };
 
+    if (!duenoVentaCreditoIdempotencyKey) {
+        duenoVentaCreditoIdempotencyKey = generarIdempotencyKeyDueno();
+    }
+
+    cuerpo.idempotencyKey = duenoVentaCreditoIdempotencyKey;
+
     const contenido =
     document.getElementById("duenoVenderCobroContenido");
 
@@ -2768,6 +2798,7 @@ async function confirmarCobroCreditoVenderDueno() {
             body: JSON.stringify(cuerpo)
         });
 
+        duenoVentaCreditoIdempotencyKey = null;
         mostrarVentaCobradaVenderDueno(respuesta.folio, resumen.total);
     } catch (error) {
         contenido.innerHTML = `

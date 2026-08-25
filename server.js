@@ -3941,6 +3941,20 @@ async function asegurarColumnasHistorialVentas(client = pool) {
         ON public.historial_ventas (negocio_id, folio)
         WHERE folio IS NOT NULL
     `);
+    // Deja que /ventas y /creditos/clientes/:id/cargos sean idempotentes:
+    // si el mismo intento de cobro se reenvia (red que se cae despues de
+    // que el servidor ya guardo la venta, cajero que reintenta), la
+    // segunda peticion con la misma llave regresa la venta original en
+    // vez de registrarla -- y descontar stock -- una segunda vez.
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS idempotency_key TEXT
+    `);
+    await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_historial_ventas_negocio_idempotency
+        ON public.historial_ventas (negocio_id, idempotency_key)
+        WHERE idempotency_key IS NOT NULL
+    `);
     await client.query(`
         CREATE TABLE IF NOT EXISTS public.comprobantes_venta (
             id SERIAL PRIMARY KEY,
@@ -4512,6 +4526,25 @@ async function aplicarVentaSync(client, negocio, payload) {
 
     await asegurarColumnasHistorialVentas(client);
 
+    // Cubre el hueco que el propio event_id de sync no puede: la venta
+    // se intento primero en linea (con esta misma idempotencyKey), el
+    // navegador la dio por fallida porque la respuesta nunca llego, y
+    // la encolo offline con un event_id nuevo -- pero el servidor si la
+    // habia guardado. Sin este chequeo, aqui se crearia una segunda
+    // venta real por el mismo cobro.
+    if (payload?.idempotencyKey) {
+        const yaExiste = await buscarVentaPorIdempotencyKey(client, negocio.id, payload.idempotencyKey);
+        if (yaExiste) {
+            return {
+                accion: "venta_ya_confirmada",
+                folio: yaExiste.folio,
+                ventaId: yaExiste.venta_id,
+                historialId: yaExiste.id,
+                fecha: yaExiste.fecha
+            };
+        }
+    }
+
     const pagosVenta =
         payload?.pagos || {};
     const metodoPago =
@@ -4535,8 +4568,8 @@ async function aplicarVentaSync(client, negocio, payload) {
     const historialCreado = await client.query(
         `
         INSERT INTO public.historial_ventas
-            (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada')
+            (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado, idempotency_key)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada',$24)
         RETURNING id, fecha, folio
         `,
         [
@@ -4562,7 +4595,8 @@ async function aplicarVentaSync(client, negocio, payload) {
             Number(pagosVenta.credito || 0),
             recibido,
             cambio,
-            JSON.stringify(pagosVenta)
+            JSON.stringify(pagosVenta),
+            payload?.idempotencyKey || null
         ]
     );
 
@@ -4619,13 +4653,25 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
     // asi una compra a credito hecha sin internet tambien puede usar
     // "Buscar ticket" y "Cambiar producto" despues.
     await asegurarColumnasHistorialVentas(client);
+
+    if (payload?.idempotencyKey) {
+        const yaExiste = await buscarVentaPorIdempotencyKey(client, negocio.id, payload.idempotencyKey);
+        if (yaExiste) {
+            return {
+                accion: "credito_ya_confirmado",
+                folio: yaExiste.folio,
+                historialId: yaExiste.id
+            };
+        }
+    }
+
     const folioVenta = await siguienteFolioVenta(client, negocio.id);
 
     const historialCreado = await client.query(
         `
         INSERT INTO public.historial_ventas
-            (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada')
+            (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado, idempotency_key)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada', $12)
         RETURNING id, fecha, folio
         `,
         [
@@ -4639,7 +4685,8 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
             numeroSync(payload?.descuentoValor, 0),
             cliente.id,
             cliente.nombre,
-            JSON.stringify(productos)
+            JSON.stringify(productos),
+            payload?.idempotencyKey || null
         ]
     );
 
@@ -6253,12 +6300,61 @@ app.post("/login", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
+// Unica fuente de verdad para calcular subtotal/descuento/total de una
+// venta -- antes cada endpoint de cobro insertaba el total que mandaba
+// el cliente tal cual, sin volver a sumarlo del lado del servidor. Un
+// cliente modificado (o una peticion repetida a mano) podia registrar
+// cualquier total para productos reales. Misma formula que ya usan
+// resumenCarritoPOS (pos-sales.js) y resumenCarritoVenderDueno
+// (dueno.js) -- porcentaje tope 100%, monto tope el subtotal, redondeo
+// a centavos -- para no inventar una regla de redondeo nueva.
+function calcularResumenVentaServidor(productos, descuentoTipo, descuentoValor) {
+    const redondear = valor => Math.round((Number(valor) + Number.EPSILON) * 100) / 100;
+
+    const subtotal = (productos || []).reduce((suma, producto) => {
+        const cantidad = Number(producto?.cantidad || 1);
+        const precio = Number(producto?.precio || 0);
+        return suma + cantidad * precio;
+    }, 0);
+
+    const valorDescuento = Math.max(0, Number(descuentoValor || 0));
+
+    const descuentoBruto =
+        descuentoTipo === "porcentaje" ? subtotal * Math.min(valorDescuento, 100) / 100
+        : descuentoTipo === "monto" ? Math.min(valorDescuento, subtotal)
+        : 0;
+
+    const subtotalRedondeado = redondear(subtotal);
+    const descuento = redondear(descuentoBruto);
+    const total = redondear(Math.max(0, subtotalRedondeado - descuento));
+
+    return {
+        subtotal: subtotalRedondeado,
+        descuento,
+        total,
+        descuentoTipo: descuentoTipo === "porcentaje" || descuentoTipo === "monto" ? descuentoTipo : "ninguno",
+        descuentoValor: valorDescuento
+    };
+}
+
+// Busca una venta ya registrada con esta idempotencyKey -- si el
+// cajero reintenta despues de que la red se cayo justo cuando el
+// servidor ya habia guardado la venta, regresa el resultado original
+// en vez de cobrar/descontar stock una segunda vez.
+async function buscarVentaPorIdempotencyKey(client, negocioId, idempotencyKey) {
+    if (!idempotencyKey) return null;
+
+    const fila = await client.query(
+        `SELECT id, folio, folio_numero, fecha, venta_id, total FROM public.historial_ventas WHERE negocio_id = $1 AND idempotency_key = $2`,
+        [negocioId, idempotencyKey]
+    );
+
+    return fila.rows[0] || null;
+}
+
 app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS), async (req, res) => {
 
     const {
-        total,
-        subtotal,
-        descuento,
         descuentoTipo,
         descuentoValor,
         clienteId,
@@ -6269,13 +6365,22 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
         cambio,
         cajeroUsuario,
         cajeroNombre,
-        clienteNombre
+        clienteNombre,
+        idempotencyKey
     } = req.body;
     const pagosVenta = pagos || {};
     const pagoEfectivo = Number(pagosVenta.efectivo || 0);
     const pagoTarjeta = Number(pagosVenta.tarjeta || 0);
     const pagoTransferencia = Number(pagosVenta.transferencia || 0);
     const pagoCredito = Number(pagosVenta.credito || 0);
+
+    if (!Array.isArray(productos) || productos.length === 0) {
+        res.status(400).json({ ok: false, error: "La venta no tiene productos." });
+        return;
+    }
+
+    const resumen = calcularResumenVentaServidor(productos, descuentoTipo, descuentoValor);
+    const { subtotal, descuento, total } = resumen;
 
     let negocioVenta;
 
@@ -6296,6 +6401,22 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
         await asegurarColumnasHistorialVentas(client);
         await client.query("BEGIN");
 
+        const existente = await buscarVentaPorIdempotencyKey(client, negocio.id, idempotencyKey);
+
+        if (existente) {
+            await client.query("ROLLBACK");
+            res.json({
+                success: true,
+                folio: existente.folio,
+                folioNumero: existente.folio_numero,
+                ventaId: existente.venta_id,
+                historialId: existente.id,
+                fecha: existente.fecha,
+                repetida: true
+            });
+            return;
+        }
+
         const folioVenta = await siguienteFolioVenta(client, negocio.id);
         const turno = await turnoActivoVenta(client, negocio.id);
         const ventaCreada = await client.query(
@@ -6307,39 +6428,68 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
             [negocio.id, total, folioVenta.folio, folioVenta.numero, turno?.id || null]
         );
 
-        const historialCreado = await client.query(
-            `
-            INSERT INTO public.historial_ventas
-                (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada')
-            RETURNING id, fecha, folio
-            `,
-            [
-                negocio.id,
-                ventaCreada.rows[0]?.id || null,
-                folioVenta.folio,
-                folioVenta.numero,
-                turno?.id || null,
-                Number(total || 0),
-                Number(subtotal ?? total ?? 0),
-                Number(descuento || 0),
-                descuentoTipo || "ninguno",
-                Number(descuentoValor || 0),
-                clienteId ? Number(clienteId) : null,
-                clienteNombre || null,
-                cajeroUsuario || null,
-                cajeroNombre || turno?.usuario || null,
-                JSON.stringify(productos || []),
-                metodoPago || "efectivo",
-                pagoEfectivo,
-                pagoTarjeta,
-                pagoTransferencia,
-                pagoCredito,
-                Number(recibido || 0),
-                Number(cambio || 0),
-                JSON.stringify(pagosVenta)
-            ]
-        );
+        let historialCreado;
+
+        try {
+            historialCreado = await client.query(
+                `
+                INSERT INTO public.historial_ventas
+                    (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado, idempotency_key)
+                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada',$24)
+                RETURNING id, fecha, folio
+                `,
+                [
+                    negocio.id,
+                    ventaCreada.rows[0]?.id || null,
+                    folioVenta.folio,
+                    folioVenta.numero,
+                    turno?.id || null,
+                    total,
+                    subtotal,
+                    descuento,
+                    resumen.descuentoTipo,
+                    resumen.descuentoValor,
+                    clienteId ? Number(clienteId) : null,
+                    clienteNombre || null,
+                    cajeroUsuario || null,
+                    cajeroNombre || turno?.usuario || null,
+                    JSON.stringify(productos || []),
+                    metodoPago || "efectivo",
+                    pagoEfectivo,
+                    pagoTarjeta,
+                    pagoTransferencia,
+                    pagoCredito,
+                    Number(recibido || 0),
+                    Number(cambio || 0),
+                    JSON.stringify(pagosVenta),
+                    idempotencyKey || null
+                ]
+            );
+        } catch (error) {
+            // Carrera real: dos peticiones con la misma idempotencyKey
+            // llegaron casi al mismo tiempo y ambas pasaron el chequeo
+            // de arriba antes de que la primera terminara de insertar.
+            // El indice unico (negocio_id, idempotency_key) es el que
+            // de verdad lo evita -- aqui solo se responde con gracia en
+            // vez de tronar con un error 500.
+            if (error.code === "23505" && idempotencyKey) {
+                await client.query("ROLLBACK");
+                const yaExiste = await buscarVentaPorIdempotencyKey(pool, negocio.id, idempotencyKey);
+                if (yaExiste) {
+                    res.json({
+                        success: true,
+                        folio: yaExiste.folio,
+                        folioNumero: yaExiste.folio_numero,
+                        ventaId: yaExiste.venta_id,
+                        historialId: yaExiste.id,
+                        fecha: yaExiste.fecha,
+                        repetida: true
+                    });
+                    return;
+                }
+            }
+            throw error;
+        }
 
         for (const producto of productos || []) {
             await descontarStockVentaProducto(client, negocio.id, producto);
@@ -6363,7 +6513,7 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
         // bloquear ni tumbar una venta ya cobrada.
         enviarPushADuenoDelNegocio(pool, negocio.id, {
             titulo: "Venta registrada",
-            cuerpo: `$${Number(total || 0).toFixed(2)} -- Folio ${folioVenta.folio}${cajeroNombre ? ` -- ${cajeroNombre}` : ""}`,
+            cuerpo: `$${total.toFixed(2)} -- Folio ${folioVenta.folio}${cajeroNombre ? ` -- ${cajeroNombre}` : ""}`,
             url: "/",
             pantalla: "ventas"
         }).catch(error => console.warn("No se pudo enviar push de venta:", error.message));
@@ -7494,10 +7644,41 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
         descuentoTipo,
         descuentoValor,
         concepto,
-        productos
+        productos,
+        idempotencyKey
     } = req.body;
 
-    if (!monto || Number(monto) <= 0) {
+    // Dos casos reales y distintos: un cargo con productos (viene del
+    // carrito de Vender, en mostrador o en /dueno) recalcula el total
+    // desde los productos igual que /ventas -- mismo hueco de
+    // confianza, misma solucion. Un "cargo manual" (pantalla de
+    // Creditos, "Registrar cargo", sin productos) es un monto que la
+    // persona escribe a mano a proposito -- ahi no hay nada contra que
+    // recalcularlo, se queda como esta hoy.
+    const productosLista = Array.isArray(productos) ? productos : [];
+
+    let montoNum;
+    let subtotalFinal;
+    let descuentoFinal;
+    let descuentoTipoFinal;
+    let descuentoValorFinal;
+
+    if (productosLista.length > 0) {
+        const resumen = calcularResumenVentaServidor(productosLista, descuentoTipo, descuentoValor);
+        montoNum = resumen.total;
+        subtotalFinal = resumen.subtotal;
+        descuentoFinal = resumen.descuento;
+        descuentoTipoFinal = resumen.descuentoTipo;
+        descuentoValorFinal = resumen.descuentoValor;
+    } else {
+        montoNum = Number(monto || 0);
+        subtotalFinal = Number(subtotal ?? monto ?? 0);
+        descuentoFinal = Number(descuento || 0);
+        descuentoTipoFinal = descuentoTipo || "ninguno";
+        descuentoValorFinal = Number(descuentoValor || 0);
+    }
+
+    if (!montoNum || montoNum <= 0) {
         res.status(400).json({
             error: "Monto invalido"
         });
@@ -7541,30 +7722,58 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
         }
 
         const cliente = clienteFila.rows[0];
-        const folioVenta = await siguienteFolioVenta(client, negocio.id);
-        const montoNum = Number(monto);
 
-        const historialCreado = await client.query(
-            `
-            INSERT INTO public.historial_ventas
-                (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada')
-            RETURNING id, fecha, folio
-            `,
-            [
-                negocio.id,
-                folioVenta.folio,
-                folioVenta.numero,
-                montoNum,
-                Number(subtotal ?? monto ?? 0),
-                Number(descuento || 0),
-                descuentoTipo || "ninguno",
-                Number(descuentoValor || 0),
-                cliente.id,
-                cliente.nombre,
-                JSON.stringify(productos || [])
-            ]
-        );
+        const existente = await buscarVentaPorIdempotencyKey(client, negocio.id, idempotencyKey);
+
+        if (existente) {
+            await client.query("ROLLBACK");
+            res.json({
+                success: true,
+                folio: existente.folio,
+                historialId: existente.id,
+                repetida: true
+            });
+            return;
+        }
+
+        const folioVenta = await siguienteFolioVenta(client, negocio.id);
+
+        let historialCreado;
+
+        try {
+            historialCreado = await client.query(
+                `
+                INSERT INTO public.historial_ventas
+                    (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado, idempotency_key)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada', $12)
+                RETURNING id, fecha, folio
+                `,
+                [
+                    negocio.id,
+                    folioVenta.folio,
+                    folioVenta.numero,
+                    montoNum,
+                    subtotalFinal,
+                    descuentoFinal,
+                    descuentoTipoFinal,
+                    descuentoValorFinal,
+                    cliente.id,
+                    cliente.nombre,
+                    JSON.stringify(productosLista),
+                    idempotencyKey || null
+                ]
+            );
+        } catch (error) {
+            if (error.code === "23505" && idempotencyKey) {
+                await client.query("ROLLBACK");
+                const yaExiste = await buscarVentaPorIdempotencyKey(pool, negocio.id, idempotencyKey);
+                if (yaExiste) {
+                    res.json({ success: true, folio: yaExiste.folio, historialId: yaExiste.id, repetida: true });
+                    return;
+                }
+            }
+            throw error;
+        }
 
         const resultado = await client.query(
             `
@@ -7593,16 +7802,16 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
                 `CR-${Date.now()}`,
                 concepto || "Venta a credito",
                 montoNum,
-                Number(subtotal ?? monto ?? 0),
-                Number(descuento || 0),
-                descuentoTipo || "ninguno",
-                Number(descuentoValor || 0),
-                JSON.stringify(productos || []),
+                subtotalFinal,
+                descuentoFinal,
+                descuentoTipoFinal,
+                descuentoValorFinal,
+                JSON.stringify(productosLista),
                 historialCreado.rows[0].id
             ]
         );
 
-        for (const producto of productos || []) {
+        for (const producto of productosLista) {
             await descontarStockVentaProducto(client, negocio.id, producto);
         }
 

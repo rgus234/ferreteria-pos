@@ -1275,7 +1275,8 @@ async function registrarCargoCredito() {
  body: JSON.stringify({
  monto,
  concepto,
- productos: []
+ productos: [],
+ idempotencyKey: crearEventIdPOS("cargo-manual")
  })
  }
  );

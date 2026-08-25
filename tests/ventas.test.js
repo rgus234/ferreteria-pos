@@ -32,9 +32,7 @@ test("una venta descuenta el stock exacto y queda en el historial", async () => 
             "x-dispositivo-token": negocio.token
         },
         body: JSON.stringify({
-            total: 300,
-            subtotal: 300,
-            productos: [{ id: producto.id, cantidad: 2, modoVenta: "bolsa" }],
+            productos: [{ id: producto.id, precio: 150, cantidad: 2, modoVenta: "bolsa" }],
             metodoPago: "efectivo",
             pagos: { efectivo: 300 },
             recibido: 300,
