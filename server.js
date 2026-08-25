@@ -6165,8 +6165,15 @@ app.patch("/productos/categoria-masiva", requerirAccesoNegocio, async (req, res)
     try {
         const negocio = await negocioActual(req);
 
+        // categoria_nexo_id se limpia a proposito -- este renombrado
+        // masivo pisa el texto sin saber si el producto usaba la
+        // taxonomia estructurada (Fase 3 del plan "Catalogo Maestro
+        // Nexo"). Intentar adivinar si el id sigue correspondiendo al
+        // texto nuevo es mas riesgoso que simplemente dejar el
+        // producto "sin estructurar" -- sigue apareciendo por su
+        // texto (fallback de Market) y se puede re-clasificar despues.
         const resultado = await pool.query(
-            `UPDATE public.productos SET categoria = $1 WHERE negocio_id = $2 AND categoria = $3 RETURNING id`,
+            `UPDATE public.productos SET categoria = $1, categoria_nexo_id = NULL WHERE negocio_id = $2 AND categoria = $3 RETURNING id`,
             [categoriaNueva, negocio.id, categoriaAnterior]
         );
 

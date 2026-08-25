@@ -478,12 +478,31 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
             if (fila.rows.length === 0) { res.status(404).json({ ok: false, error: "No encontrado" }); return; }
             const cp = fila.rows[0];
 
+            // Intenta clasificar el producto de una vez si el catalogo
+            // trae una categoria de texto -- match exacto de
+            // departamento, acotado a los giros activos del negocio
+            // (Fase 3 del plan "Catalogo Maestro Nexo"). Sin coincidencia
+            // clara se deja NULL, igual que antes -- nunca se adivina.
+            let categoriaNexoId = null;
+            if (cp.categoria) {
+                const girosFila = await pool.query(
+                    `SELECT giro FROM public.negocio_giros WHERE negocio_id = $1 AND activo = true`,
+                    [negocio.id]
+                );
+                const girosActivos = girosFila.rows.length ? girosFila.rows.map(f => f.giro) : ["ferreteria"];
+                const coincidencia = await pool.query(
+                    `SELECT id FROM public.categorias_nexo WHERE giro = ANY($1::text[]) AND LOWER(departamento) = LOWER($2) LIMIT 1`,
+                    [girosActivos, cp.categoria]
+                );
+                categoriaNexoId = coincidencia.rows[0]?.id || null;
+            }
+
             const nuevoProducto = await pool.query(
                 `
                 INSERT INTO public.productos
-                    (negocio_id, nombre, precio, stock, codigo, proveedor, categoria, marca, descripcion,
+                    (negocio_id, nombre, precio, stock, codigo, proveedor, categoria, categoria_nexo_id, marca, descripcion,
                      precio_distribuidor, precio_mayoreo, precio_publico, tipo_producto)
-                VALUES ($1,$2,$3,0,$4,$5,$6,$7,$8,$9,$10,$11,'catalogo')
+                VALUES ($1,$2,$3,0,$4,$5,$6,$7,$8,$9,$10,$11,$12,'catalogo')
                 RETURNING id
                 `,
                 [
@@ -492,7 +511,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     // precio_publico solo como respaldo si el catalogo
                     // no trae medio mayoreo para esta fila.
                     negocio.id, cp.nombre_proveedor, cp.precio_medio_mayoreo || cp.precio_publico || 0,
-                    cp.codigo_interno || cp.codigo_proveedor, "", cp.categoria, cp.marca, cp.descripcion,
+                    cp.codigo_interno || cp.codigo_proveedor, "", cp.categoria, categoriaNexoId, cp.marca, cp.descripcion,
                     cp.precio_distribuidor, cp.precio_medio_mayoreo, cp.precio_publico
                 ]
             );
@@ -617,12 +636,19 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
     app.post("/catalogo-proveedor/:id/aplicar-precio-mayoreo", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
+            // categoria_nexo_id solo se limpia cuando el catalogo trae
+            // una categoria propia que de verdad reemplaza el texto
+            // (COALESCE cae en cp.categoria) -- si cp.categoria viene
+            // vacio, la categoria del producto no cambia y no hay
+            // razon para tirar un id estructurado valido (Fase 3 del
+            // plan "Catalogo Maestro Nexo").
             const resultado = await pool.query(
                 `
                 UPDATE public.productos p
                 SET precio = cp.precio_medio_mayoreo,
                     nombre = COALESCE(NULLIF(cp.nombre_proveedor, ''), p.nombre),
                     categoria = COALESCE(NULLIF(cp.categoria, ''), p.categoria),
+                    categoria_nexo_id = CASE WHEN NULLIF(cp.categoria, '') IS NOT NULL THEN NULL ELSE p.categoria_nexo_id END,
                     marca = COALESCE(NULLIF(cp.marca, ''), p.marca)
                 FROM public.catalogo_productos cp
                 WHERE cp.catalogo_id = $1 AND cp.negocio_id = $2
