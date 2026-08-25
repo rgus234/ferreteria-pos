@@ -4126,10 +4126,15 @@ async function descontarStockVentaProducto(client, negocioId, productoVenta = {}
         productoVenta.modoVenta === "pieza" ? "pieza" : "bolsa";
 
     if (modoVenta !== "pieza") {
+        // GREATEST evita que el stock quede en negativo si se vendio de
+        // mas (dos cajas cobrando la ultima pieza casi al mismo tiempo,
+        // o inventario ya desfasado de la realidad) -- no bloquea la
+        // venta (eso es una decision de negocio aparte, no se toca
+        // aqui), solo evita que el numero deje de tener sentido.
         await client.query(
             `
             UPDATE public.productos
-            SET stock = stock - $1
+            SET stock = GREATEST(stock - $1, 0)
             WHERE id = $2
             AND negocio_id = $3
             `,
@@ -4141,12 +4146,18 @@ async function descontarStockVentaProducto(client, negocioId, productoVenta = {}
     // Venta por pieza suelta: si no alcanzan las piezas sueltas en existencia,
     // se abren bolsas cerradas automaticamente (sin interrumpir al cajero) para
     // completar la venta, hasta donde alcancen las bolsas disponibles.
+    // FOR UPDATE bloquea la fila mientras dura esta transaccion -- sin
+    // esto, dos ventas del mismo producto casi al mismo tiempo podian
+    // leer el mismo stock inicial y una de las dos actualizaciones se
+    // perdia (la clasica carrera de leer-calcular-escribir en el
+    // servidor en vez de dejar que Postgres lo haga atomico).
     const actual = await client.query(
         `
         SELECT stock, piezas_sueltas_stock, piezas_por_bolsa
         FROM public.productos
         WHERE id = $1
         AND negocio_id = $2
+        FOR UPDATE
         `,
         [productoId, negocioId]
     );
@@ -4173,6 +4184,11 @@ async function descontarStockVentaProducto(client, negocioId, productoVenta = {}
         nuevasBolsas = bolsasActuales - bolsasAAbrir;
         nuevasPiezas = piezasActuales + (bolsasAAbrir * piezasPorBolsa) - cantidad;
     }
+
+    // Mismo piso que el modo bolsa -- si se vendieron mas piezas de las
+    // que alcanzaba a cubrir ni abriendo todas las bolsas disponibles,
+    // no se deja el conteo en negativo.
+    nuevasPiezas = Math.max(0, nuevasPiezas);
 
     await client.query(
         `
