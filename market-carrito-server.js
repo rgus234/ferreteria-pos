@@ -965,10 +965,26 @@ function marketCheckoutIniciarPago() {
     // sin cuenta verificada), no pasa nada visible: el comprador sigue
     // viendo el flujo de pedido/cotizacion de siempre, sin cobro. El
     // total se recalcula server-side, nunca se manda un monto desde aqui.
+    //
+    // clienteNombre/telefono/correo/mensaje/entrega tambien se mandan
+    // aqui (ya estan llenos y validados -- esta pantalla solo se alcanza
+    // despues de la pantalla "info") para que el servidor guarde una foto
+    // del checkout junto con el PaymentIntent -- respaldo por si el pago
+    // se completa pero el POST final (pedido-carrito, al enviar el
+    // formulario) nunca llega. Ver crearPedidoMarketDesdeSnapshot en
+    // stripe-connect-server.js.
+    const entregaInputPago = document.querySelector('input[name="entrega"]:checked');
     fetch("/market/ferreteria/" + encodeURIComponent(slug) + "/catalogo/crear-intento-pago", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: items.map(function(it) { return { codigo: it.codigo, cantidad: it.cantidad }; }) })
+        body: JSON.stringify({
+            items: items.map(function(it) { return { codigo: it.codigo, cantidad: it.cantidad }; }),
+            clienteNombre: document.getElementById("checkoutNombre").value.trim(),
+            clienteTelefono: document.getElementById("checkoutTelefono").value.trim(),
+            clienteCorreo: document.getElementById("checkoutCorreo").value.trim(),
+            mensaje: document.getElementById("checkoutMensaje").value.trim(),
+            entrega: entregaInputPago ? entregaInputPago.value : null
+        })
     }).then(function(r) { return r.json(); }).catch(function() { return { ok: false }; }).then(function(datosPago) {
         if (!datosPago || !datosPago.ok || !datosPago.clientSecret) return;
 

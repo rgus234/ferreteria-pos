@@ -73,7 +73,9 @@ async function borrarNegocioPrueba(negocioId) {
         "sesiones_cuenta",
         "licencias",
         "ia_conversaciones",
+        "market_checkout_pendiente",
         "pedidos_publicos",
+        "pedidos_market",
         "sitio_web_config"
     ];
 

@@ -1,6 +1,11 @@
 const multer = require("multer");
+const crypto = require("crypto");
 const { config } = require("./config");
 const { responderError } = require("./error-utils");
+const { hashPassword } = require("./password-utils");
+const { formatearCodigoRecogida } = require("./pedido-codigos");
+const { enviarCorreoPedidoCarritoPublico, enviarCorreoPedidoRecibido } = require("./email");
+const { enviarPushANegocio } = require("./push-server");
 
 // Pagos reales de Nexo Market: cada ferreteria tiene su propia cuenta
 // conectada de Stripe (Connect, API "Accounts v2" -- 100% embebida, el
@@ -78,6 +83,211 @@ async function negocioConCobros(pool, req) {
     }
 
     return resultado.rows[0];
+}
+
+// Mismo helper que paramTexto en public-site-server.js, copiado local.
+function paramTextoConnect(valor, maximo) {
+    return String(valor || "").trim().slice(0, maximo);
+}
+
+// Mismo alfabeto que ya usa public-site-server.js para el codigo de
+// acceso de una "cuenta ligera" de visitante -- copiado local a este
+// archivo, mismo criterio de helpers chicos duplicados por archivo ya
+// seguido en todo el proyecto.
+const ALFABETO_CODIGO_ACCESO_CLIENTE = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function generarCodigoAccesoClienteConnect() {
+    let codigo = "";
+    for (let i = 0; i < 8; i++) {
+        codigo += ALFABETO_CODIGO_ACCESO_CLIENTE[crypto.randomInt(ALFABETO_CODIGO_ACCESO_CLIENTE.length)];
+    }
+    return codigo;
+}
+
+// Respaldo de atomicidad: crea el pedido a partir de la foto guardada
+// en market_checkout_pendiente cuando el POST normal del navegador
+// (pedido-carrito, en public-site-server.js/recibirPedidoCarritoPublico)
+// nunca llego pero el pago SI se completo -- el navegador cerro la
+// pestana, perdio la conexion, etc. justo despues de que Stripe
+// confirmara el cargo.
+//
+// A proposito NO reusa recibirPedidoCarritoPublico: esa funcion tambien
+// maneja cotizaciones, pedidos del sitio propio sin pago, limite de
+// intentos por IP, honeypot y sesion de persona -- aqui el UNICO caso
+// posible es un pedido de Market ya pagado de verdad (Stripe ya lo
+// confirmo), asi que duplicar esta logica mas chica y simple es mas
+// seguro que tocar la funcion grande que ya funciona en produccion.
+//
+// Diferencia deliberada con el flujo normal: si un producto del
+// carrito ya no existe, aqui NO se aborta la transaccion (el pago ya
+// se hizo -- perder el registro completo del pedido seria peor que
+// guardarlo con el nombre/precio que traiga la foto guardada).
+async function crearPedidoMarketDesdeSnapshot(pool, snapshotRow, intentoStripe) {
+    const datos = snapshotRow.datos || {};
+    const negocioId = snapshotRow.negocio_id;
+    const slug = snapshotRow.slug;
+
+    const negocioRes = await pool.query(
+        `
+        SELECT n.id, n.nombre, n.correo, n.pedido_prep_min, n.pedido_prep_max, c.envio_modo
+        FROM public.negocios n
+        LEFT JOIN public.sitio_web_config c ON c.negocio_id = n.id
+        WHERE n.id = $1
+        LIMIT 1
+        `,
+        [negocioId]
+    );
+    const negocio = negocioRes.rows[0];
+
+    if (!negocio) return { ok: false, error: "Negocio no encontrado" };
+
+    const itemsBody = Array.isArray(datos.items) ? datos.items : [];
+    const codigos = itemsBody.map(it => String(it?.codigo || "").trim()).filter(Boolean);
+
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const productosRes = await client.query(
+            `SELECT codigo, nombre, COALESCE(precio_oferta, precio_publico, precio) AS precio_final FROM public.productos WHERE negocio_id = $1 AND codigo = ANY($2)`,
+            [negocioId, codigos]
+        );
+        const nombresPorCodigo = new Map(productosRes.rows.map(p => [p.codigo, p.nombre]));
+        const preciosPorCodigo = new Map(productosRes.rows.map(p => [p.codigo, Number(p.precio_final) || 0]));
+
+        const itemsNormalizados = itemsBody.map(item => {
+            const codigo = String(item?.codigo || "").trim();
+            const cantidad = Math.min(9999, Math.max(1, parseInt(item?.cantidad, 10) || 1));
+            return {
+                codigo,
+                cantidad,
+                nombre: nombresPorCodigo.get(codigo) || String(item?.nombre || codigo),
+                precio: preciosPorCodigo.has(codigo) ? preciosPorCodigo.get(codigo) : Number(item?.precio) || 0
+            };
+        });
+
+        const grupoId = crypto.randomUUID();
+        const total = itemsNormalizados.reduce((suma, i) => suma + i.precio * i.cantidad, 0);
+        const prepMin = negocio.pedido_prep_min ?? 30;
+        const prepMax = negocio.pedido_prep_max ?? 45;
+        const ahora = Date.now();
+        const recogidaDesde = new Date(ahora + prepMin * 60000);
+        const recogidaHasta = new Date(ahora + prepMax * 60000);
+
+        let entregaModo = datos.entrega === "domicilio" || datos.entrega === "recoleccion" ? datos.entrega : null;
+        if (negocio.envio_modo === "solo_recoleccion") entregaModo = "recoleccion";
+
+        const clienteNombre = String(datos.clienteNombre || "");
+        const clienteTelefono = String(datos.clienteTelefono || "");
+        const clienteCorreo = String(datos.clienteCorreo || "");
+        const mensaje = String(datos.mensaje || "");
+
+        let pedidoMarketId;
+
+        try {
+            const insertCabecera = await client.query(
+                `
+                INSERT INTO public.pedidos_market
+                    (negocio_id, persona_id, grupo_id, cliente_nombre, cliente_telefono, cliente_correo, estado, codigo_recogida, total, pagado, tiempo_prep_min, tiempo_prep_max, recogida_estimada_desde, recogida_estimada_hasta, stripe_payment_intent_id)
+                VALUES ($1, $2, $3, $4, $5, $6, 'pendiente', $7, $8, true, $9, $10, $11, $12, $13)
+                RETURNING id
+                `,
+                [negocioId, null, grupoId, clienteNombre, clienteTelefono, clienteCorreo, `TEMP-${grupoId}`, total, prepMin, prepMax, recogidaDesde, recogidaHasta, intentoStripe.id]
+            );
+            pedidoMarketId = insertCabecera.rows[0].id;
+        } catch (error) {
+            if (error.code === "23505") {
+                // Otro proceso (el POST normal del navegador, o un reintento
+                // de este mismo webhook) ya creo el pedido para este pago --
+                // no es un error, es la carrera que este indice existe para
+                // resolver.
+                await client.query("ROLLBACK");
+                return { ok: true, repetido: true };
+            }
+            throw error;
+        }
+
+        const codigoRecogida = formatearCodigoRecogida(pedidoMarketId);
+
+        await client.query(`UPDATE public.pedidos_market SET codigo_recogida = $1 WHERE id = $2`, [codigoRecogida, pedidoMarketId]);
+
+        const itemsParaCorreo = [];
+
+        for (const item of itemsNormalizados) {
+            await client.query(
+                `
+                INSERT INTO public.pedidos_publicos
+                    (negocio_id, producto_codigo, producto_nombre, cantidad, cliente_nombre, cliente_telefono, cliente_correo, mensaje, ip, grupo_id, tipo, persona_id, origen, entrega_modo, pagado, stripe_payment_intent_id, monto_pagado, comision_nexo, pedido_market_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pedido', $11, 'market', $12, true, $13, $14, $15, $16)
+                `,
+                [negocioId, item.codigo, item.nombre, item.cantidad, clienteNombre, clienteTelefono, clienteCorreo, mensaje, null, grupoId, null, entregaModo, intentoStripe.id, intentoStripe.amount / 100, (intentoStripe.application_fee_amount || 0) / 100, pedidoMarketId]
+            );
+            itemsParaCorreo.push({ nombre: item.nombre, cantidad: item.cantidad });
+        }
+
+        const digitosTelefono = clienteTelefono.replace(/\D/g, "");
+        let cuentaCreada = false;
+        let codigoAcceso = null;
+
+        if (digitosTelefono.length >= 10) {
+            const existente = await client.query(
+                `SELECT id FROM public.clientes_credito WHERE negocio_id = $1 AND telefono = $2`,
+                [negocioId, clienteTelefono]
+            );
+
+            if (existente.rows.length === 0) {
+                codigoAcceso = generarCodigoAccesoClienteConnect();
+                await client.query(
+                    `
+                    INSERT INTO public.clientes_credito
+                        (negocio_id, nombre, telefono, limite_credito, es_visitante_sitio, codigo_acceso_hash, codigo_acceso_generado_at)
+                    VALUES ($1, $2, $3, 0, true, $4, NOW())
+                    `,
+                    [negocioId, clienteNombre, clienteTelefono, hashPassword(codigoAcceso)]
+                );
+                cuentaCreada = true;
+            }
+        }
+
+        await client.query(`UPDATE public.market_checkout_pendiente SET procesado = true WHERE payment_intent_id = $1`, [intentoStripe.id]);
+
+        await client.query("COMMIT");
+
+        if (negocio.correo) {
+            enviarCorreoPedidoCarritoPublico(negocio.correo, negocio.nombre, {
+                items: itemsParaCorreo,
+                clienteNombre,
+                clienteTelefono,
+                clienteCorreo,
+                mensaje,
+                urlCatalogo: `https://${slug}.nexoposoficial.com/catalogo`
+            }).catch(error => console.warn("No se pudo enviar el aviso de pedido de carrito (respaldo webhook):", error.message));
+        }
+
+        if (clienteCorreo) {
+            enviarCorreoPedidoRecibido(clienteCorreo, negocio.nombre, {
+                items: itemsParaCorreo,
+                codigoRecogida,
+                recogidaDesde,
+                recogidaHasta,
+                urlSeguimiento: `https://nexoposoficial.com/market/pedido/${encodeURIComponent(codigoRecogida)}`
+            }).catch(error => console.warn("No se pudo enviar el correo de pedido recibido (respaldo webhook):", error.message));
+        }
+
+        enviarPushANegocio(pool, negocioId, {
+            titulo: "Nuevo pedido de Nexo Market",
+            cuerpo: `${clienteNombre} -- ${itemsParaCorreo.map(i => i.nombre).join(", ")}`.slice(0, 180),
+            url: "/",
+            pantalla: "pedidos"
+        }).catch(error => console.warn("No se pudo enviar el push de pedido nuevo (respaldo webhook):", error.message));
+
+        return { ok: true, codigoRecogida, pedidoMarketId, cuentaCreada, codigoAcceso };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
 }
 
 // Solo la foto de identificacion (frente/reverso) -- en memoria, se manda
@@ -501,6 +711,38 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 metadata: { negocio_slug: slug }
             });
 
+            // Foto del checkout para el respaldo de atomicidad (ver
+            // crearPedidoMarketDesdeSnapshot mas arriba): si el POST normal
+            // de pedido-carrito nunca llega despues de que Stripe confirme
+            // el pago, el webhook payment_intent.succeeded usa esto para no
+            // perder el pedido. Best-effort a proposito -- si esta escritura
+            // falla, el pago debe poder seguir de todos modos (el flujo
+            // normal, el caso comun, no depende de esta tabla para nada).
+            try {
+                await pool.query(
+                    `
+                    INSERT INTO public.market_checkout_pendiente (payment_intent_id, negocio_id, slug, datos)
+                    VALUES ($1, $2, $3, $4::jsonb)
+                    ON CONFLICT (payment_intent_id) DO NOTHING
+                    `,
+                    [
+                        intento.id,
+                        negocio.id,
+                        slug,
+                        JSON.stringify({
+                            items: itemsBody.map(it => ({ codigo: String(it?.codigo || "").trim(), cantidad: it?.cantidad })),
+                            clienteNombre: paramTextoConnect(req.body?.clienteNombre, 140),
+                            clienteTelefono: paramTextoConnect(req.body?.clienteTelefono, 40),
+                            clienteCorreo: paramTextoConnect(req.body?.clienteCorreo, 140),
+                            mensaje: paramTextoConnect(req.body?.mensaje, 500),
+                            entrega: req.body?.entrega === "domicilio" || req.body?.entrega === "recoleccion" ? req.body.entrega : null
+                        })
+                    ]
+                );
+            } catch (error) {
+                console.warn("No se pudo guardar la foto de checkout para respaldo de atomicidad:", error.message);
+            }
+
             res.json({ ok: true, clientSecret: intento.client_secret, total, comision: comisionCentavos / 100 });
         } catch (error) {
             responderError(res, error);
@@ -602,15 +844,16 @@ async function procesarEventoStripeConnect(pool, stripe, evento) {
             break;
         }
 
-        // Respaldo de reconciliacion, no crea pedidos: el flujo normal
-        // (ver public-site-server.js, recibirPedidoCarritoPublico) ya
-        // marca pagado=true al recibir stripePaymentIntentId y
-        // verificarlo contra Stripe. Si este evento llega y NINGUN
-        // pedido referencia todavia ese payment_intent (el comprador
-        // pago pero cerro la pestana antes de que el POST final
-        // llegara), no se inventa un pedido con datos de cliente en
-        // blanco -- solo se deja registro en consola para revision
-        // manual, honesto con lo que realmente se sabe en ese momento.
+        // Respaldo de atomicidad (ver crearPedidoMarketDesdeSnapshot mas
+        // arriba): el flujo normal (public-site-server.js,
+        // recibirPedidoCarritoPublico) ya crea el pedido al recibir
+        // stripePaymentIntentId del navegador y verificarlo contra Stripe
+        // -- ese es el camino comun y el mas rapido para el comprador. Si
+        // este evento llega y NINGUN pedido referencia todavia ese
+        // payment_intent (el comprador pago pero cerro la pestana o perdio
+        // la conexion antes de que el POST final llegara), se usa la foto
+        // guardada en market_checkout_pendiente para crear el pedido de
+        // todos modos -- el pago ya es real, no hay motivo para perderlo.
         case "payment_intent.succeeded": {
             const intento = evento.data.object;
 
@@ -620,9 +863,25 @@ async function procesarEventoStripeConnect(pool, stripe, evento) {
             );
 
             if (existente.rows.length === 0) {
-                console.warn(
-                    `Pago de Stripe Connect confirmado sin pedido asociado -- payment_intent ${intento.id}, tienda ${intento.metadata?.negocio_slug || "desconocida"}. Revisar manualmente.`
+                const snapshot = await pool.query(
+                    `SELECT * FROM public.market_checkout_pendiente WHERE payment_intent_id = $1 AND procesado = false LIMIT 1`,
+                    [intento.id]
                 );
+
+                if (snapshot.rows.length > 0) {
+                    try {
+                        await crearPedidoMarketDesdeSnapshot(pool, snapshot.rows[0], intento);
+                    } catch (error) {
+                        console.warn(
+                            `No se pudo crear el pedido de respaldo para payment_intent ${intento.id}:`,
+                            error.message
+                        );
+                    }
+                } else {
+                    console.warn(
+                        `Pago de Stripe Connect confirmado sin pedido asociado ni foto de checkout -- payment_intent ${intento.id}, tienda ${intento.metadata?.negocio_slug || "desconocida"}. Revisar manualmente.`
+                    );
+                }
             }
 
             break;

@@ -2009,15 +2009,42 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
                 const recogidaDesde = new Date(ahora + prepMin * 60000);
                 const recogidaHasta = new Date(ahora + prepMax * 60000);
 
-                const insertCabecera = await client.query(
-                    `
-                    INSERT INTO public.pedidos_market
-                        (negocio_id, persona_id, grupo_id, cliente_nombre, cliente_telefono, cliente_correo, estado, codigo_recogida, total, pagado, tiempo_prep_min, tiempo_prep_max, recogida_estimada_desde, recogida_estimada_hasta)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'pendiente', $7, $8, $9, $10, $11, $12, $13)
-                    RETURNING id
-                    `,
-                    [sitio.negocio.id, req.persona ? req.persona.id : null, grupoId, clienteNombre, clienteTelefono, clienteCorreo, `TEMP-${grupoId}`, total, pagado, prepMin, prepMax, recogidaDesde, recogidaHasta]
-                );
+                let insertCabecera;
+                try {
+                    insertCabecera = await client.query(
+                        `
+                        INSERT INTO public.pedidos_market
+                            (negocio_id, persona_id, grupo_id, cliente_nombre, cliente_telefono, cliente_correo, estado, codigo_recogida, total, pagado, tiempo_prep_min, tiempo_prep_max, recogida_estimada_desde, recogida_estimada_hasta, stripe_payment_intent_id)
+                        VALUES ($1, $2, $3, $4, $5, $6, 'pendiente', $7, $8, $9, $10, $11, $12, $13, $14)
+                        RETURNING id
+                        `,
+                        [sitio.negocio.id, req.persona ? req.persona.id : null, grupoId, clienteNombre, clienteTelefono, clienteCorreo, `TEMP-${grupoId}`, total, pagado, prepMin, prepMax, recogidaDesde, recogidaHasta, stripePaymentIntentId]
+                    );
+                } catch (error) {
+                    // Carrera con el respaldo del webhook (ver
+                    // crearPedidoMarketDesdeSnapshot, stripe-connect-server.js):
+                    // si el pago se confirmo y el webhook ya creo este pedido
+                    // por su cuenta justo antes de que este POST llegara, no es
+                    // un error real -- el pedido ya existe, se regresa ese en
+                    // vez de intentar crear uno duplicado.
+                    if (error.code === "23505" && stripePaymentIntentId) {
+                        const existenteRow = await client.query(
+                            `SELECT id, codigo_recogida FROM public.pedidos_market WHERE stripe_payment_intent_id = $1 LIMIT 1`,
+                            [stripePaymentIntentId]
+                        );
+                        if (existenteRow.rows.length > 0) {
+                            await client.query("ROLLBACK");
+                            res.json({
+                                ok: true,
+                                repetido: true,
+                                pedidoMarketId: existenteRow.rows[0].id,
+                                codigoRecogida: existenteRow.rows[0].codigo_recogida
+                            });
+                            return;
+                        }
+                    }
+                    throw error;
+                }
 
                 pedidoMarketId = insertCabecera.rows[0].id;
                 codigoRecogida = formatearCodigoRecogida(pedidoMarketId);
@@ -2027,6 +2054,16 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
                     `UPDATE public.pedidos_market SET codigo_recogida = $1 WHERE id = $2`,
                     [codigoRecogida, pedidoMarketId]
                 );
+
+                if (stripePaymentIntentId) {
+                    // El pedido ya se creo por el camino normal -- la foto de
+                    // respaldo (ver crearPedidoMarketDesdeSnapshot) ya no hace
+                    // falta, se marca procesada para que el webhook no la use.
+                    await client.query(
+                        `UPDATE public.market_checkout_pendiente SET procesado = true WHERE payment_intent_id = $1`,
+                        [stripePaymentIntentId]
+                    );
+                }
             }
 
             for (const item of itemsNormalizados) {
