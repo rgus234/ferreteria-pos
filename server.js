@@ -47,6 +47,7 @@ const {
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
+const { resolverOcrearProveedorId } = require("./proveedor-resolver");
 const { resolverIdentidadNexo, PERMISOS, requerirPermiso } = require("./rbac");
 const { calcularAntiguedadCredito } = require("./credit-aging");
 const { enviarPushADuenoDelNegocio } = require("./push-server");
@@ -5752,6 +5753,7 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
     stock,
     codigo,
     proveedor,
+    proveedorId,
     ubicacion,
     categoria,
     subcategoria,
@@ -5892,6 +5894,22 @@ RETURNING id
             await pool.query(`UPDATE public.productos SET categoria_nexo_id = $1 WHERE id = $2`, [categoriaNexo.id, productoId]);
         }
 
+        // Fase 6 del plan "Catalogo Maestro Nexo": dual-write -- si la
+        // UI ya manda un proveedorId real, se usa directo; si solo
+        // manda el texto de siempre, se resuelve/crea el proveedor real
+        // a partir de ese texto (mismo criterio que usan los productos
+        // creados desde catalogo). Nunca bloquea el alta si algo no
+        // resuelve limpio -- el producto ya se creo, proveedor_id
+        // simplemente se queda NULL.
+        const proveedorIdNumerico = Number(proveedorId);
+        const proveedorIdFinal = Number.isInteger(proveedorIdNumerico) && proveedorIdNumerico > 0
+            ? proveedorIdNumerico
+            : (proveedor ? await resolverOcrearProveedorId(pool, negocio.id, proveedor) : null);
+
+        if (proveedorIdFinal) {
+            await pool.query(`UPDATE public.productos SET proveedor_id = $1 WHERE id = $2`, [proveedorIdFinal, productoId]);
+        }
+
         res.json({
             success: true,
             productoId,
@@ -5903,6 +5921,7 @@ RETURNING id
                 stock,
                 codigo: normalizarCodigo(codigo) || codigo || "",
                 proveedor: proveedor || "",
+                proveedor_id: proveedorIdFinal,
                 ubicacion: ubicacion || "",
                 categoria: categoriaFinal,
                 subcategoria: subcategoriaFinal,
@@ -5958,6 +5977,7 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         stock,
         codigo,
         proveedor,
+        proveedorId,
         ubicacion,
         categoria,
         subcategoria,
@@ -6001,6 +6021,16 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         const categoriaFinal = categoriaNexo ? categoriaNexo.departamento : (categoria || "");
         const subcategoriaFinal = subcategoria || "";
 
+        // Fase 6 del plan "Catalogo Maestro Nexo": mismo dual-write que
+        // /agregar-producto -- proveedorId explicito gana, si no se
+        // resuelve/crea desde el texto de siempre. COALESCE en el SET
+        // de abajo preserva el vinculo existente si esta edicion no
+        // trae ninguno de los dos (nunca lo borra por accidente).
+        const proveedorIdNumerico = Number(proveedorId);
+        const proveedorIdResuelto = Number.isInteger(proveedorIdNumerico) && proveedorIdNumerico > 0
+            ? proveedorIdNumerico
+            : (proveedor ? await resolverOcrearProveedorId(pool, negocio.id, proveedor) : null);
+
         const resultado = await pool.query(
             `
             UPDATE public.productos
@@ -6040,10 +6070,11 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 destacado = $33,
                 precio_oferta = $34,
                 unidad_suelta = $35,
-                categoria_nexo_id = COALESCE($36, categoria_nexo_id)
-            WHERE id = $37
-            AND negocio_id = $38
-            RETURNING id
+                categoria_nexo_id = COALESCE($36, categoria_nexo_id),
+                proveedor_id = COALESCE($37, proveedor_id)
+            WHERE id = $38
+            AND negocio_id = $39
+            RETURNING id, categoria_nexo_id, proveedor_id
             `,
             [
                 nombre,
@@ -6082,6 +6113,7 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 precioOferta || null,
                 unidadSuelta || "pieza",
                 categoriaNexo ? categoriaNexo.id : null,
+                proveedorIdResuelto,
                 id,
                 negocio.id
             ]
@@ -6111,9 +6143,11 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 stock,
                 codigo: normalizarCodigo(codigo) || codigo || "",
                 proveedor: proveedor || "",
+                proveedor_id: resultado.rows[0].proveedor_id,
                 ubicacion: ubicacion || "",
                 categoria: categoriaFinal,
                 subcategoria: subcategoriaFinal,
+                categoria_nexo_id: resultado.rows[0].categoria_nexo_id,
                 marca: marca || "",
                 descripcion: descripcion || "",
                 unidad_venta: unidadVenta || "pieza",
@@ -7742,14 +7776,21 @@ app.get("/proveedores", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const activo = String(req.query.estado || "activo") !== "baja";
+        // Fase 6 del plan "Catalogo Maestro Nexo": prefiere el FK real
+        // (proveedor_id) cuando existe -- inmune a typos/mayusculas --
+        // y cae al match de texto de siempre solo para productos que
+        // todavia no se resolvieron (backfill pendiente o en conflicto).
         const resultado = await pool.query(`
             SELECT
                 pr.*,
                 COUNT(p.id) AS productos
             FROM public.proveedores pr
             LEFT JOIN public.productos p
-                ON LOWER(COALESCE(p.proveedor, '')) = LOWER(pr.nombre)
-                AND p.negocio_id = pr.negocio_id
+                ON p.negocio_id = pr.negocio_id
+                AND (
+                    p.proveedor_id = pr.id
+                    OR (p.proveedor_id IS NULL AND LOWER(COALESCE(p.proveedor, '')) = LOWER(pr.nombre))
+                )
             WHERE pr.activo = $2
             AND pr.negocio_id = $1
             GROUP BY pr.id

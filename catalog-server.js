@@ -1,5 +1,6 @@
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan } = require("./plan-enforcement");
+const { resolverOcrearProveedorId } = require("./proveedor-resolver");
 
 async function negocioActual(req, pool) {
     const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -562,12 +563,23 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                 categoriaNexoId = coincidencia.rows[0]?.id || null;
             }
 
+            // Fase 6: el producto nace ya vinculado a un proveedor real
+            // en vez de quedar con proveedor="" hardcodeado -- se
+            // resuelve/crea desde el nombre del proveedor dueño de este
+            // catalogo, mismo criterio de normalizacion que el backfill.
+            const catalogoInfo = await pool.query(
+                `SELECT proveedor FROM public.catalogos_proveedor WHERE id = $1`,
+                [req.params.id]
+            );
+            const nombreProveedorCatalogo = catalogoInfo.rows[0]?.proveedor || "";
+            const proveedorId = await resolverOcrearProveedorId(pool, negocio.id, nombreProveedorCatalogo);
+
             const nuevoProducto = await pool.query(
                 `
                 INSERT INTO public.productos
-                    (negocio_id, nombre, precio, stock, codigo, proveedor, categoria, categoria_nexo_id, marca, descripcion,
+                    (negocio_id, nombre, precio, stock, codigo, proveedor, proveedor_id, categoria, categoria_nexo_id, marca, descripcion,
                      precio_distribuidor, precio_mayoreo, precio_publico, tipo_producto)
-                VALUES ($1,$2,$3,0,$4,$5,$6,$7,$8,$9,$10,$11,$12,'catalogo')
+                VALUES ($1,$2,$3,0,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'catalogo')
                 RETURNING id
                 `,
                 [
@@ -576,7 +588,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     // precio_publico solo como respaldo si el catalogo
                     // no trae medio mayoreo para esta fila.
                     negocio.id, cp.nombre_proveedor, cp.precio_medio_mayoreo || cp.precio_publico || 0,
-                    cp.codigo_interno || cp.codigo_proveedor, "", cp.categoria, categoriaNexoId, cp.marca, cp.descripcion,
+                    cp.codigo_interno || cp.codigo_proveedor, nombreProveedorCatalogo, proveedorId, cp.categoria, categoriaNexoId, cp.marca, cp.descripcion,
                     cp.precio_distribuidor, cp.precio_medio_mayoreo, cp.precio_publico
                 ]
             );

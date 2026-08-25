@@ -11,6 +11,7 @@ const multer = require("multer");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan } = require("./plan-enforcement");
 const { extraerCatalogoPDF } = require("./catalog-pdf-extractor");
+const { resolverOcrearProveedorId } = require("./proveedor-resolver");
 
 async function negocioActual(req, pool) {
     const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -495,17 +496,25 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             let proveedorParaAprendizaje = null;
             let proveedorNormalizadoParaAprendizaje = null;
 
+            // Fase 6 del plan "Catalogo Maestro Nexo": se resuelve una
+            // sola vez para todo el lote (todas las filas vienen del
+            // mismo catalogo, mismo proveedor) en vez de repetir la
+            // consulta por producto.
+            const catalogoInfo = await pool.query(`SELECT proveedor FROM public.catalogos_proveedor WHERE id = $1`, [req.params.id]);
+            const nombreProveedorCatalogo = catalogoInfo.rows[0]?.proveedor || "";
+            const proveedorId = await resolverOcrearProveedorId(pool, negocio.id, nombreProveedorCatalogo);
+
             for (const cp of filas.rows) {
                 const nuevoProducto = await pool.query(
                     `
                     INSERT INTO public.productos
-                        (negocio_id, nombre, precio, stock, codigo, proveedor, descripcion, precio_publico, tipo_producto)
-                    VALUES ($1,$2,$3,0,$4,$5,$6,$7,'catalogo')
+                        (negocio_id, nombre, precio, stock, codigo, proveedor, proveedor_id, descripcion, precio_publico, tipo_producto)
+                    VALUES ($1,$2,$3,0,$4,$5,$6,$7,$8,'catalogo')
                     RETURNING id
                     `,
                     [
                         negocio.id, cp.nombre_proveedor || cp.codigo_proveedor, cp.precio_publico || 0,
-                        cp.codigo_interno || cp.codigo_proveedor, "", cp.descripcion, cp.precio_publico
+                        cp.codigo_interno || cp.codigo_proveedor, nombreProveedorCatalogo, proveedorId, cp.descripcion, cp.precio_publico
                     ]
                 );
                 const productoId = nuevoProducto.rows[0].id;
