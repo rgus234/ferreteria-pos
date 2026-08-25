@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.js && node --check preload.js && node --check local-db.js",
+    "check": "node --check main.js && node --check preload.js && node --check local-db.js && node --check offline-shell-cache.js",
     "rebuild": "electron-builder install-app-deps",
     "dist": "electron-builder --win nsis",
     "dist:win": "electron-builder --win nsis --publish never",
@@ -24,6 +24,8 @@
       "main.js",
       "local-db.js",
       "preload.js",
+      "offline-shell-cache.js",
+      "offline-fallback.html",
       "renderer/**",
       "package.json"
     ],

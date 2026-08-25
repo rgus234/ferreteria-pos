@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, session, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("fs/promises");
 const path = require("path");
@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const os = require("os");
 const { execFile } = require("child_process");
 const localDb = require("./local-db");
+const { activarCacheDeAppShell } = require("./offline-shell-cache");
 
 const DEFAULT_API_URL = "https://app.nexoposoficial.com";
 const CONFIG_FILE = "desktop-config.json";
@@ -13,6 +14,8 @@ const CONFIG_FILE = "desktop-config.json";
 let mainWindow;
 let configCache;
 let updateTimer;
+let modoRespaldoActivo = false;
+let reintentoTimer = null;
 let updateState = {
   status: "idle",
   updateAvailable: false,
@@ -396,6 +399,48 @@ async function loadPosWindow() {
   await mainWindow.loadURL(`${config.apiBaseUrl}/?desktop=1`);
 }
 
+function detenerReintento() {
+  if (reintentoTimer) {
+    clearInterval(reintentoTimer);
+    reintentoTimer = null;
+  }
+}
+
+function programarReintento() {
+  if (reintentoTimer) return;
+
+  reintentoTimer = setInterval(async () => {
+    try {
+      await loadPosWindow();
+      detenerReintento();
+      modoRespaldoActivo = false;
+    } catch {
+      // Sigue sin conexion y sin cache -- se intenta de nuevo en el
+      // siguiente ciclo, sin que el cajero tenga que hacer nada.
+    }
+  }, 5000);
+}
+
+async function mostrarPantallaSinConexion() {
+  if (modoRespaldoActivo) return;
+  modoRespaldoActivo = true;
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    await mainWindow.loadFile(path.join(__dirname, "offline-fallback.html"));
+    if (!mainWindow.isVisible()) mainWindow.show();
+  }
+
+  programarReintento();
+}
+
+async function setupOfflineShellCache() {
+  const config = await readConfig();
+  const cacheDir = path.join(app.getPath("userData"), "app-shell-cache");
+  const hostsPermitidos = new Set([new URL(config.apiBaseUrl).hostname, "cdn.jsdelivr.net"]);
+
+  activarCacheDeAppShell(session.defaultSession, cacheDir, hostsPermitidos);
+}
+
 async function getDefaultPrinterName() {
   if (!mainWindow || mainWindow.isDestroyed()) return "";
 
@@ -575,6 +620,17 @@ async function createWindow() {
     mainWindow.show();
   });
 
+  // Si el documento principal falla al cargar (sin internet y sin nada
+  // en la cache de apps-shell-cache todavia, ej. equipo recien
+  // instalado) se muestra una pantalla clara en vez de quedar en blanco,
+  // y se reintenta solo hasta que la red vuelva. errorCode -3 es
+  // ERR_ABORTED, que ocurre seguido por navegaciones canceladas sin ser
+  // un fallo real, asi que se ignora.
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, _errorDescription, _validatedURL, isMainFrame) => {
+    if (!isMainFrame || errorCode === -3) return;
+    mostrarPantallaSinConexion();
+  });
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!url || url === "about:blank") {
       return {
@@ -595,7 +651,12 @@ async function createWindow() {
     return { action: "deny" };
   });
 
-  await loadPosWindow();
+  try {
+    await loadPosWindow();
+  } catch {
+    await mostrarPantallaSinConexion();
+  }
+
   setTimeout(() => {
     runAutoUpdateCheck().catch(() => {});
   }, 15000);
@@ -789,12 +850,14 @@ ipcMain.handle("nexo:open-cash-drawer", async (_event, payload = {}) => openCash
 
 app.whenReady().then(async () => {
   configureAutoUpdater();
+  await setupOfflineShellCache();
   await createWindow();
   startBackgroundJobs();
 });
 
 app.on("window-all-closed", () => {
   if (updateTimer) clearInterval(updateTimer);
+  detenerReintento();
   if (process.platform !== "darwin") {
     app.quit();
   }

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Nexo - Sin conexion</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .tarjeta {
+    max-width: 420px;
+    text-align: center;
+  }
+  .icono {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    background: #1e293b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icono svg { width: 30px; height: 30px; }
+  h1 {
+    font-size: 20px;
+    margin: 0 0 10px;
+    font-weight: 600;
+  }
+  p {
+    margin: 0 0 22px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #94a3b8;
+  }
+  .estado {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #64748b;
+  }
+  .punto {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f59e0b;
+    animation: parpadeo 1.4s ease-in-out infinite;
+  }
+  @keyframes parpadeo {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+  <div class="tarjeta">
+    <div class="icono">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 1l22 22" />
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+        <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+        <path d="M12 20h.01" />
+      </svg>
+    </div>
+    <h1>Sin conexion a internet</h1>
+    <p>No se pudo conectar con Nexo y todavia no hay una copia guardada en este equipo. Revisa el internet de la tienda -- en cuanto vuelva, la pantalla se recarga sola.</p>
+    <div class="estado"><span class="punto"></span> Reintentando...</div>
+  </div>
+</body>
+</html>
