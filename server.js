@@ -4049,7 +4049,24 @@ async function validarPinAdministrador(client, negocioId, pin) {
     );
 
     const admin = resultado.rows.find(fila => verificarPassword(limpio, fila.pin_hash));
-    return admin ? { usuario: admin.usuario, rol: admin.rol } : null;
+    return admin ? { id: admin.id, usuario: admin.usuario, rol: admin.rol } : null;
+}
+
+// Auditoria minima: quien hizo que en las acciones mas sensibles --
+// las que ya piden PIN de administrador, o las que borran/cambian
+// algo que no se deshace con un clic (eliminar producto, renombrar
+// categoria en masa). Alcance chico a proposito, no un log general de
+// toda accion del sistema. Nunca debe tumbar la accion que esta
+// registrando -- si la escritura falla, solo se avisa en consola.
+async function registrarBitacora(clientOPool, negocioId, empleadoId, accion, detalle = {}) {
+    try {
+        await clientOPool.query(
+            `INSERT INTO public.bitacora_acciones (negocio_id, empleado_id, accion, detalle) VALUES ($1, $2, $3, $4::jsonb)`,
+            [negocioId, empleadoId || null, accion, JSON.stringify(detalle)]
+        );
+    } catch (error) {
+        console.warn(`No se pudo registrar bitacora (${accion}):`, error.message);
+    }
 }
 
 async function asegurarColumnasMovimientosCredito(client = pool) {
@@ -6036,6 +6053,12 @@ app.patch("/productos/categoria-masiva", requerirAccesoNegocio, async (req, res)
             [categoriaNueva, negocio.id, categoriaAnterior]
         );
 
+        await registrarBitacora(pool, negocio.id, Number(req.headers["x-empleado-id"]) || null, "categoria_renombrada", {
+            categoriaAnterior,
+            categoriaNueva,
+            productosActualizados: resultado.rows.length
+        });
+
         res.json({ ok: true, actualizados: resultado.rows.length });
     } catch (error) {
         responderError(res, error);
@@ -6164,14 +6187,23 @@ app.delete("/eliminar-producto/:id", requerirAccesoNegocio, async (req, res) => 
     try {
         const negocio = await negocioActual(req);
 
-        await pool.query(
+        const eliminado = await pool.query(
             `
             DELETE FROM public.productos
             WHERE id = $1
             AND negocio_id = $2
+            RETURNING nombre, codigo
             `,
             [id, negocio.id]
         );
+
+        if (eliminado.rows.length) {
+            await registrarBitacora(pool, negocio.id, Number(req.headers["x-empleado-id"]) || null, "producto_eliminado", {
+                productoId: Number(id),
+                nombre: eliminado.rows[0].nombre,
+                codigo: eliminado.rows[0].codigo
+            });
+        }
 
         res.json({
             success: true
@@ -6369,19 +6401,28 @@ function descuentoRequierePinAdmin(resumen) {
 // que sepa que esto NO es una falla de red/servidor -- si lo tratara
 // igual que cualquier otro error, encolaria la venta offline sin PIN
 // y el control quedaria de adorno.
-async function exigirPinAdminSiAplica(client, res, negocioId, resumen, adminPin) {
+async function exigirPinAdminSiAplica(client, res, negocioId, resumen, adminPin, empleadoIdCajero) {
     if (!descuentoRequierePinAdmin(resumen)) return true;
 
     const admin = await validarPinAdministrador(client, negocioId, adminPin);
+    const porcentaje = Math.round(resumen.descuento / resumen.subtotal * 100);
 
     if (!admin) {
         res.status(400).json({
             ok: false,
-            error: `Este descuento (${Math.round(resumen.descuento / resumen.subtotal * 100)}%) necesita el PIN de un administrador.`,
+            error: `Este descuento (${porcentaje}%) necesita el PIN de un administrador.`,
             requierePinAdmin: true
         });
         return false;
     }
+
+    await registrarBitacora(client, negocioId, empleadoIdCajero, "descuento_autorizado", {
+        porcentaje,
+        descuento: resumen.descuento,
+        subtotal: resumen.subtotal,
+        adminId: admin.id,
+        adminNombre: admin.usuario
+    });
 
     return true;
 }
@@ -6418,7 +6459,7 @@ async function excederiaLimiteCredito(client, negocioId, clienteId, montoCargo, 
 // mandar a un cliente por encima de su limite -- necesita el visto bueno
 // de un administrador. Antes de esto el limite_credito se guardaba y se
 // mostraba pero nunca se revisaba en ningun lado.
-async function exigirPinAdminSiExcedeLimite(client, res, negocioId, clienteId, montoCargo, limiteCredito, adminPin) {
+async function exigirPinAdminSiExcedeLimite(client, res, negocioId, clienteId, montoCargo, limiteCredito, adminPin, empleadoIdCajero) {
     const exceso = await excederiaLimiteCredito(client, negocioId, clienteId, montoCargo, limiteCredito);
 
     if (!exceso) return true;
@@ -6437,6 +6478,16 @@ async function exigirPinAdminSiExcedeLimite(client, res, negocioId, clienteId, m
         });
         return false;
     }
+
+    await registrarBitacora(client, negocioId, empleadoIdCajero, "limite_credito_autorizado", {
+        clienteId,
+        montoCargo,
+        saldoActual: exceso.saldoActual,
+        saldoNuevo: exceso.saldoNuevo,
+        limiteCredito: Number(limiteCredito),
+        adminId: admin.id,
+        adminNombre: admin.usuario
+    });
 
     return true;
 }
@@ -6522,7 +6573,7 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
             return;
         }
 
-        if (!(await exigirPinAdminSiAplica(client, res, negocio.id, resumen, adminPin))) {
+        if (!(await exigirPinAdminSiAplica(client, res, negocio.id, resumen, adminPin, Number(req.headers["x-empleado-id"]) || null))) {
             await client.query("ROLLBACK");
             return;
         }
@@ -6837,6 +6888,15 @@ app.post("/ventas/:id/cambios", requerirAccesoNegocio, async (req, res) => {
                 res.status(400).json({ ok: false, error: "PIN de administrador invalido para editar esta compra" });
                 return;
             }
+
+            await registrarBitacora(client, negocio.id, Number(req.headers["x-empleado-id"]) || null, "compra_credito_editada", {
+                historialId,
+                folio: venta.folio,
+                idDevuelto,
+                idNuevo,
+                adminId: admin.id,
+                adminNombre: admin.usuario
+            });
         }
 
         const productosVenta = Array.isArray(venta.productos) ? venta.productos : [];
@@ -7013,6 +7073,16 @@ app.post("/ventas/:id/comprobantes", requerirAccesoNegocio, async (req, res) => 
             if (!String(motivoAjuste || "").trim()) {
                 throw new Error("Captura el motivo del ajuste");
             }
+
+            await registrarBitacora(client, negocio.id, Number(req.headers["x-empleado-id"]) || null, "nota_venta_ajustada", {
+                historialId,
+                folio: venta.folio,
+                totalOriginal: original,
+                totalMostrado: mostrado,
+                motivo: String(motivoAjuste).trim(),
+                adminId: admin.id,
+                adminNombre: admin.usuario
+            });
         }
 
         const comprobante = await client.query(
@@ -7847,12 +7917,14 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
             return;
         }
 
-        if (!(await exigirPinAdminSiAplica(client, res, negocio.id, { subtotal: subtotalFinal, descuento: descuentoFinal }, adminPin))) {
+        const empleadoIdCajero = Number(req.headers["x-empleado-id"]) || null;
+
+        if (!(await exigirPinAdminSiAplica(client, res, negocio.id, { subtotal: subtotalFinal, descuento: descuentoFinal }, adminPin, empleadoIdCajero))) {
             await client.query("ROLLBACK");
             return;
         }
 
-        if (!(await exigirPinAdminSiExcedeLimite(client, res, negocio.id, cliente.id, montoNum, cliente.limite_credito, adminPin))) {
+        if (!(await exigirPinAdminSiExcedeLimite(client, res, negocio.id, cliente.id, montoNum, cliente.limite_credito, adminPin, empleadoIdCajero))) {
             await client.query("ROLLBACK");
             return;
         }
