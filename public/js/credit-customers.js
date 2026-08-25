@@ -1187,6 +1187,17 @@ async function registrarAbonoCredito() {
  requerido: true
  },
  {
+ nombre: "metodoPago",
+ etiqueta: "Metodo de pago",
+ tipo: "select",
+ opciones: [
+ { valor: "efectivo", etiqueta: "Efectivo" },
+ { valor: "tarjeta", etiqueta: "Tarjeta" },
+ { valor: "transferencia", etiqueta: "Transferencia" }
+ ],
+ valor: "efectivo"
+ },
+ {
  nombre: "concepto",
  etiqueta: "Concepto",
  placeholder: "Pago parcial",
@@ -1206,7 +1217,15 @@ async function registrarAbonoCredito() {
  datos.concepto ||
  "Pago parcial";
 
- await fetch(
+ const metodoPago =
+ datos.metodoPago || "efectivo";
+
+ const clienteNombre =
+ creditoActual.nombre;
+
+ let respuesta;
+ try {
+ respuesta = await fetch(
  `/creditos/clientes/${creditoActual.id}/abonos`,
  {
  method: "POST",
@@ -1216,13 +1235,124 @@ async function registrarAbonoCredito() {
  },
  body: JSON.stringify({
  monto,
- concepto
+ concepto,
+ metodoPago
  })
  }
  );
+ } catch (error) {
+ alert("No se pudo registrar el abono. Revisa tu conexion.");
+ return;
+ }
+
+ const cuerpo =
+ await respuesta.json().catch(() => null);
+
+ if (!respuesta.ok) {
+ alert(cuerpo?.error || "No se pudo registrar el abono.");
+ return;
+ }
 
  await cargarCreditos();
  await abrirCuentaCreditoDetalle(creditoActual.id);
+
+ if (cuerpo?.cuentaLiquidada) {
+ const imprimir =
+ await confirmarPOS(
+ `${clienteNombre} ya no debe nada. Imprimir un ticket de agradecimiento?`,
+ "Cuenta saldada"
+ );
+
+ if (imprimir) {
+ imprimirTicketAbonoCredito({
+ clienteNombre,
+ monto,
+ metodoPago,
+ fecha: new Date().toLocaleString("es-MX")
+ });
+ }
+ }
+}
+
+const ETIQUETA_METODO_PAGO_ABONO = {
+ efectivo: "Efectivo",
+ tarjeta: "Tarjeta",
+ transferencia: "Transferencia"
+};
+
+// Ticket corto de "cuenta saldada" -- no es un ticket de venta (sin
+// productos), asi que no usa construirTicketVentaHTML (esa plantilla
+// esta hecha para eso). Mismas convenciones visuales (logo/nombre del
+// negocio, hr, mensaje final) y el mismo imprimirTicketPOS ya generico
+// que usa pos-sales.js para imprimir cualquier HTML como ticket
+// termico.
+function imprimirTicketAbonoCredito({ clienteNombre, monto, metodoPago, fecha }) {
+ if (typeof imprimirTicketPOS !== "function") return;
+
+ const config =
+ (typeof configuracionNegocio === "function" && configuracionNegocio()) || {};
+
+ const logoHtml =
+ config.logo && config.mostrarLogoTicket !== false
+ ? `<img src="${config.logo}" style="width:58px;height:58px;object-fit:cover;border-radius:10px;margin-bottom:8px;">`
+ : "";
+
+ const nombreHtml =
+ config.mostrarNombreTicket === false
+ ? ""
+ : `<h2 style="margin:0;font-size:22px;text-transform:uppercase;">${escaparPOS(config.ticketNombre || config.nombre || "")}</h2>`;
+
+ const direccionHtml =
+ config.mostrarDireccionTicket === false || !config.direccion
+ ? ""
+ : `<div>${escaparPOS(config.direccion)}</div>`;
+
+ const telefonoHtml =
+ config.mostrarTelefonoTicket === false || !config.telefono
+ ? ""
+ : `<div>Tel. ${escaparPOS(config.telefono)}</div>`;
+
+ const html = `
+ <div>
+  <div style="text-align:center;margin-bottom:8px;">
+   ${logoHtml}
+   ${nombreHtml}
+   <div style="display:inline-block;background:#000;color:#fff;padding:2px 10px;border-radius:4px;font-size:11px;font-weight:bold;letter-spacing:1px;margin-top:4px;">CUENTA SALDADA</div>
+   <div style="margin-top:6px;">${escaparPOS(fecha)}</div>
+   <div>Cliente: ${escaparPOS(clienteNombre)}</div>
+  </div>
+
+  <hr>
+
+  <div style="display:flex;justify-content:space-between;">
+   <span>ULTIMO ABONO</span>
+   <span>${dinero(monto)}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;">
+   <span>METODO</span>
+   <span>${ETIQUETA_METODO_PAGO_ABONO[metodoPago] || "Efectivo"}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;font-weight:bold;">
+   <span>SALDO ACTUAL</span>
+   <span>${dinero(0)}</span>
+  </div>
+
+  <hr>
+
+  <div style="text-align:center;margin-top:12px;font-size:14px;">Gracias por tu pago -- tu cuenta quedo al corriente.</div>
+
+  <hr>
+
+  <div style="text-align:center;">
+   ${direccionHtml}
+   ${telefonoHtml}
+  </div>
+
+  <div style="margin-top:12px;font-size:9px;color:#999;text-align:center;">Con la tecnologia de Nexo</div>
+ </div>
+ `;
+
+ imprimirTicketPOS(html, config, { abrirCajon: false });
 }
 
 async function registrarCargoCredito() {

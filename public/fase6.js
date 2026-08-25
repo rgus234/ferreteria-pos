@@ -315,6 +315,9 @@
    ["Efectivo en caja", money(resumen.efectivo)],
    ["Tarjeta", money(resumen.tarjeta)],
    ["Transferencia", money(resumen.transferencia)],
+   ["Abonos de credito (efectivo)", money(resumen.abonoEfectivo || 0)],
+   ["Abonos de credito (tarjeta)", money(resumen.abonoTarjeta || 0)],
+   ["Abonos de credito (transferencia)", money(resumen.abonoTransferencia || 0)],
    ["Total ventas", money(resumen.ventas)],
    ["Total transacciones", resumen.transacciones]
   ];

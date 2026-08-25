@@ -205,10 +205,30 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             AND negocio_id = $2
         `, [turno.id, turno.negocio_id]);
 
+        // Abonos a credito cobrados durante este turno -- antes no se
+        // contaban para nada en el corte de caja, aunque un abono en
+        // efectivo si mete dinero real al cajon (y uno con tarjeta/
+        // transferencia igual deberia aparecer en el resumen del dia,
+        // aunque no cuente para el efectivo esperado). fecha ya es
+        // TIMESTAMPTZ (a diferencia de historial_ventas.fecha), no hace
+        // falta el cast AT TIME ZONE de la consulta de arriba.
+        const abonos = await client.query(`
+            SELECT
+                COALESCE(SUM(monto) FILTER (WHERE metodo_pago = 'efectivo'), 0) AS efectivo,
+                COALESCE(SUM(monto) FILTER (WHERE metodo_pago = 'tarjeta'), 0) AS tarjeta,
+                COALESCE(SUM(monto) FILTER (WHERE metodo_pago = 'transferencia'), 0) AS transferencia
+            FROM public.movimientos_credito
+            WHERE negocio_id = $1
+            AND tipo = 'abono'
+            AND fecha >= $2
+            AND fecha <= $3
+        `, [turno.negocio_id, turno.abierto_at, hasta]);
+
         const venta = ventas.rows[0];
+        const abono = abonos.rows[0];
         const entradas = n(movimientos.rows[0].entradas);
         const salidas = n(movimientos.rows[0].salidas);
-        const esperado = n(turno.fondo_inicial) + n(venta.efectivo) + entradas - salidas;
+        const esperado = n(turno.fondo_inicial) + n(venta.efectivo) + n(abono.efectivo) + entradas - salidas;
 
         return {
             turno,
@@ -218,6 +238,9 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             tarjeta: n(venta.tarjeta),
             transferencia: n(venta.transferencia),
             credito: n(venta.credito),
+            abonoEfectivo: n(abono.efectivo),
+            abonoTarjeta: n(abono.tarjeta),
+            abonoTransferencia: n(abono.transferencia),
             entradas,
             salidas,
             esperado_efectivo: esperado

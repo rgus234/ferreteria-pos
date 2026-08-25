@@ -7880,6 +7880,8 @@ async function marcarVentasLiquidadasCliente(client, negocioId, clienteId) {
     }
 }
 
+const METODOS_PAGO_ABONO_VALIDOS = new Set(["efectivo", "tarjeta", "transferencia"]);
+
 app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res) => {
     const { id } = req.params;
 
@@ -7887,6 +7889,8 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res
         monto,
         concepto
     } = req.body;
+
+    const metodoPago = METODOS_PAGO_ABONO_VALIDOS.has(req.body?.metodoPago) ? req.body.metodoPago : "efectivo";
 
     if (!monto || Number(monto) <= 0) {
         res.status(400).json({
@@ -7899,6 +7903,7 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res
 
     try {
         const negocio = await negocioActual(req);
+        await asegurarColumnasMovimientosCredito(client);
         await client.query("BEGIN");
 
         const resultado = await client.query(`
@@ -7909,9 +7914,10 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res
                 tipo,
                 referencia,
                 concepto,
-                monto
+                monto,
+                metodo_pago
             )
-            SELECT $1, c.id, 'abono', $2, $3, $4
+            SELECT $1, c.id, 'abono', $2, $3, $4, $6
             FROM public.clientes_credito c
             WHERE c.id = $5
             AND c.negocio_id = $1
@@ -7921,7 +7927,8 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res
             `AB-${Date.now()}`,
             concepto || "Abono",
             monto,
-            id
+            id,
+            metodoPago
         ]);
 
         if (!resultado.rows.length) {
@@ -7930,11 +7937,29 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res
 
         await marcarVentasLiquidadasCliente(client, negocio.id, Number(id));
 
+        // Mismo calculo de saldo que ya usa GET /creditos/clientes/:id --
+        // se vuelve a correr aqui, dentro de la misma transaccion,
+        // justo despues de insertar este abono, para saber si la cuenta
+        // acaba de quedar en $0 y el cliente ofrecerle imprimir un
+        // ticket de "cuenta saldada".
+        const saldoFila = await client.query(`
+            SELECT COALESCE(SUM(
+                CASE WHEN tipo = 'venta' THEN monto WHEN tipo = 'abono' THEN -monto ELSE 0 END
+            ), 0) AS saldo
+            FROM public.movimientos_credito
+            WHERE negocio_id = $1 AND cliente_id = $2
+        `, [negocio.id, id]);
+
+        const saldo = Number(saldoFila.rows[0].saldo);
+        const cuentaLiquidada = saldo <= 0;
+
         await client.query("COMMIT");
 
         res.json({
             success: true,
-            movimiento: resultado.rows[0]
+            movimiento: resultado.rows[0],
+            saldo,
+            cuentaLiquidada
         });
 
         enviarPushADuenoDelNegocio(pool, negocio.id, {
