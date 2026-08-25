@@ -6353,6 +6353,39 @@ function calcularResumenVentaServidor(productos, descuentoTipo, descuentoValor) 
     };
 }
 
+// Cualquier cajero podia dar cualquier descuento, hasta el 100%, sin
+// que nadie se enterara -- ni tope ni aprobacion. 20% es un numero
+// redondo y defendible (descuentos de cortesia normales quedan libres,
+// uno grande necesita el visto bueno de un administrador) -- ajustable
+// si el negocio prefiere otro umbral.
+const UMBRAL_DESCUENTO_REQUIERE_PIN = 0.20;
+
+function descuentoRequierePinAdmin(resumen) {
+    if (!resumen.subtotal || resumen.subtotal <= 0) return false;
+    return (resumen.descuento / resumen.subtotal) >= UMBRAL_DESCUENTO_REQUIERE_PIN;
+}
+
+// Respuesta reconocible por el cliente (requierePinAdmin:true) para
+// que sepa que esto NO es una falla de red/servidor -- si lo tratara
+// igual que cualquier otro error, encolaria la venta offline sin PIN
+// y el control quedaria de adorno.
+async function exigirPinAdminSiAplica(client, res, negocioId, resumen, adminPin) {
+    if (!descuentoRequierePinAdmin(resumen)) return true;
+
+    const admin = await validarPinAdministrador(client, negocioId, adminPin);
+
+    if (!admin) {
+        res.status(400).json({
+            ok: false,
+            error: `Este descuento (${Math.round(resumen.descuento / resumen.subtotal * 100)}%) necesita el PIN de un administrador.`,
+            requierePinAdmin: true
+        });
+        return false;
+    }
+
+    return true;
+}
+
 // Busca una venta ya registrada con esta idempotencyKey -- si el
 // cajero reintenta despues de que la red se cayo justo cuando el
 // servidor ya habia guardado la venta, regresa el resultado original
@@ -6382,7 +6415,8 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
         cajeroUsuario,
         cajeroNombre,
         clienteNombre,
-        idempotencyKey
+        idempotencyKey,
+        adminPin
     } = req.body;
     const pagosVenta = pagos || {};
     const pagoEfectivo = Number(pagosVenta.efectivo || 0);
@@ -6430,6 +6464,11 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
                 fecha: existente.fecha,
                 repetida: true
             });
+            return;
+        }
+
+        if (!(await exigirPinAdminSiAplica(client, res, negocio.id, resumen, adminPin))) {
+            await client.query("ROLLBACK");
             return;
         }
 
@@ -7661,7 +7700,8 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
         descuentoValor,
         concepto,
         productos,
-        idempotencyKey
+        idempotencyKey,
+        adminPin
     } = req.body;
 
     // Dos casos reales y distintos: un cargo con productos (viene del
@@ -7749,6 +7789,11 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
                 historialId: existente.id,
                 repetida: true
             });
+            return;
+        }
+
+        if (!(await exigirPinAdminSiAplica(client, res, negocio.id, { subtotal: subtotalFinal, descuento: descuentoFinal }, adminPin))) {
+            await client.query("ROLLBACK");
             return;
         }
 

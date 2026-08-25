@@ -1747,6 +1747,25 @@ function generarIdempotencyKeyDueno() {
     return `dueno-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+// Mismo umbral que server.js (UMBRAL_DESCUENTO_REQUIERE_PIN) -- la
+// seguridad real la da el servidor, esto solo evita mandar la peticion
+// y esperar el rechazo en el caso comun.
+const UMBRAL_DESCUENTO_REQUIERE_PIN_DUENO = 0.20;
+
+function descuentoRequierePinAdminDueno(resumen) {
+    if (!resumen.subtotal || resumen.subtotal <= 0) return false;
+    return (resumen.descuento / resumen.subtotal) >= UMBRAL_DESCUENTO_REQUIERE_PIN_DUENO;
+}
+
+// prompt() nativo a proposito -- /dueno ya usa confirm() nativo en
+// varias otras acciones (vaciar carrito, cerrar hoja, etc.), mismo
+// criterio de esta app para una interaccion rapida y poco frecuente.
+// null si cancela -- el cobro completo se cancela con el.
+function pedirPinAdministradorParaDescuentoDueno(porcentaje) {
+    const pin = prompt(`Este descuento (${porcentaje}%) necesita el PIN de un administrador.`);
+    return pin && pin.trim() ? pin.trim() : null;
+}
+
 async function cargarPanelVenderDueno() {
     renderCarritoVenderDueno();
 
@@ -2723,6 +2742,18 @@ async function confirmarCobroVenderDueno() {
 
     cuerpo.idempotencyKey = duenoVentaIdempotencyKey;
 
+    if (descuentoRequierePinAdminDueno(resumen)) {
+        const porcentaje = Math.round(resumen.descuento / resumen.subtotal * 100);
+        const adminPin = pedirPinAdministradorParaDescuentoDueno(porcentaje);
+
+        if (!adminPin) {
+            duenoVentaCobrando = false;
+            return;
+        }
+
+        cuerpo.adminPin = adminPin;
+    }
+
     const contenido =
     document.getElementById("duenoVenderCobroContenido");
 
@@ -2785,6 +2816,18 @@ async function confirmarCobroCreditoVenderDueno() {
     }
 
     cuerpo.idempotencyKey = duenoVentaCreditoIdempotencyKey;
+
+    if (descuentoRequierePinAdminDueno(resumen)) {
+        const porcentaje = Math.round(resumen.descuento / resumen.subtotal * 100);
+        const adminPin = pedirPinAdministradorParaDescuentoDueno(porcentaje);
+
+        if (!adminPin) {
+            duenoVentaCobrando = false;
+            return;
+        }
+
+        cuerpo.adminPin = adminPin;
+    }
 
     const contenido =
     document.getElementById("duenoVenderCobroContenido");

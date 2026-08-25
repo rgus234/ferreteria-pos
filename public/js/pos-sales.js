@@ -18,6 +18,37 @@ let resumenDescuentoAbierto = false;
 let idempotencyKeyVentaActual = null;
 let idempotencyKeyCreditoActual = null;
 
+// Mismo umbral que server.js (UMBRAL_DESCUENTO_REQUIERE_PIN) -- se
+// repite aqui solo para no mandar la peticion y esperar el rechazo en
+// el caso comun; la seguridad real la da el servidor, esto es nomas
+// para no hacerle dar una vuelta de mas al cajero.
+const UMBRAL_DESCUENTO_REQUIERE_PIN_POS = 0.20;
+
+function descuentoRequierePinAdminPOS(resumen) {
+ if (!resumen.subtotal || resumen.subtotal <= 0) return false;
+ return (resumen.descuento / resumen.subtotal) >= UMBRAL_DESCUENTO_REQUIERE_PIN_POS;
+}
+
+// Pide el PIN de un administrador antes de cobrar un descuento grande.
+// null si el cajero cancela (la venta completa se cancela con el, no
+// se manda a medias) -- la validacion real de que sea un PIN de
+// administrador de verdad la hace el servidor (validarPinAdministrador).
+async function pedirPinAdministradorParaDescuentoPOS(porcentaje) {
+ const datos =
+ await abrirFormularioCredito({
+ titulo: "Autorizacion requerida",
+ subtitulo: `Este descuento (${porcentaje}%) necesita el PIN de un administrador.`,
+ campos: [{
+ nombre: "adminPin",
+ etiqueta: "PIN de administrador",
+ tipo: "password",
+ requerido: true
+ }]
+ });
+
+ return datos ? datos.adminPin : null;
+}
+
 async function procesarCodigoBarrasPos(codigoManual) {
  const input =
  document.getElementById("busqueda");
@@ -1574,6 +1605,18 @@ async function cobrarInternoPOS(total) {
  return;
  }
 
+ let adminPin = null;
+
+ if (descuentoRequierePinAdminPOS(resumen)) {
+ const porcentaje =
+ Math.round(resumen.descuento / resumen.subtotal * 100);
+
+ adminPin =
+ await pedirPinAdministradorParaDescuentoPOS(porcentaje);
+
+ if (!adminPin) return;
+ }
+
  const montoRecibido =
  pago.recibido;
 
@@ -1622,7 +1665,8 @@ try {
  productos: productosVenta,
  metodoPago: pago.metodoPago,
  pagos: pago.pagos,
- idempotencyKey
+ idempotencyKey,
+ adminPin
  })
  }
  );
@@ -1660,6 +1704,19 @@ try {
  }
 
  if (!ventaOffline && !respuesta.ok) {
+ // Un rechazo por PIN de administrador invalido NO es una falla de
+ // red o de servidor -- si se tratara igual y se encolara offline,
+ // el descuento se aplicaria de todos modos al sincronizar despues
+ // sin que nadie haya autorizado nada. Se avisa de inmediato y no
+ // se manda a la cola.
+ const cuerpoError =
+ await respuesta.clone().json().catch(() => null);
+
+ if (cuerpoError?.requierePinAdmin) {
+ await alertaPOS(cuerpoError.error || "PIN de administrador invalido para este descuento.", "Autorizacion requerida", "peligro");
+ return;
+ }
+
  const offline =
  await registrarVentaOfflineDesktopPOS({
  total,
@@ -1933,6 +1990,18 @@ async function cobrarCreditoInternoPOS(total) {
  const productos =
  productosCarritoAgrupados();
 
+ let adminPin = null;
+
+ if (descuentoRequierePinAdminPOS(resumen)) {
+ const porcentaje =
+ Math.round(resumen.descuento / resumen.subtotal * 100);
+
+ adminPin =
+ await pedirPinAdministradorParaDescuentoPOS(porcentaje);
+
+ if (!adminPin) return;
+ }
+
  let respuesta;
  let creditoRegistrado = null;
  let creditoOffline = false;
@@ -1964,7 +2033,8 @@ async function cobrarCreditoInternoPOS(total) {
  descuentoValor: resumen.descuentoValor,
  concepto: conceptoCredito,
  productos,
- idempotencyKey
+ idempotencyKey,
+ adminPin
  })
  }
  );
@@ -1998,6 +2068,14 @@ async function cobrarCreditoInternoPOS(total) {
  }
 
  if (!creditoOffline && !respuesta.ok) {
+ const cuerpoError =
+ await respuesta.clone().json().catch(() => null);
+
+ if (cuerpoError?.requierePinAdmin) {
+ alert(cuerpoError.error || "PIN de administrador invalido para este descuento.");
+ return;
+ }
+
  const offline =
  await registrarCreditoOfflineDesktopPOS({
  clienteId,
