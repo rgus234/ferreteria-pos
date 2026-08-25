@@ -199,6 +199,71 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
         }
     });
 
+    // Busqueda por codigo cruzando TODOS los catalogos del negocio --
+    // Fase 5 del plan "Catalogo Maestro Nexo". Antes, el autocompletado
+    // de "Agregar producto" (productoDesdeCatalogo en product-inventory.js)
+    // buscaba solo en catalogosProveedor de localStorage; este motor
+    // server-side ya existia para vinculacion pero nunca tenia una ruta
+    // de "busca este codigo en cualquiera de mis catalogos" -- las demas
+    // rutas de abajo estan todas scoped a un :id de catalogo especifico.
+    // Match exacto (mismo criterio que vincularCatalogoProductos), nunca
+    // pg_trgm aqui -- es una busqueda por codigo, no por nombre.
+    app.get("/catalogo-proveedor/buscar-codigo", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const codigo = String(req.query.codigo || "").trim();
+
+            if (!codigo) {
+                res.json({ ok: true, producto: null });
+                return;
+            }
+
+            const fila = await pool.query(
+                `
+                SELECT cp.codigo_proveedor, cp.codigo_interno, cp.nombre_proveedor, cp.descripcion, cp.marca, cp.categoria,
+                       cp.precio_distribuidor, cp.precio_medio_mayoreo, cp.precio_publico, cat.proveedor AS proveedor_nombre
+                FROM public.catalogo_productos cp
+                JOIN public.catalogos_proveedor cat ON cat.id = cp.catalogo_id
+                WHERE cp.negocio_id = $1
+                  AND (cp.codigo_proveedor = $2 OR NULLIF(cp.codigo_interno, '') = $2)
+                ORDER BY cp.catalogo_id ASC, cp.id ASC
+                LIMIT 1
+                `,
+                [negocio.id, codigo]
+            );
+
+            if (fila.rows.length === 0) {
+                res.json({ ok: true, producto: null });
+                return;
+            }
+
+            const cp = fila.rows[0];
+            res.json({
+                ok: true,
+                producto: {
+                    codigo: cp.codigo_interno || cp.codigo_proveedor,
+                    nombre: cp.nombre_proveedor || "",
+                    descripcion: cp.descripcion || "",
+                    marca: cp.marca || "",
+                    categoria: cp.categoria || "",
+                    unidadVenta: "pieza",
+                    codigoInterno: cp.codigo_interno || "",
+                    distribuidor: cp.precio_distribuidor,
+                    medioMayoreo: cp.precio_medio_mayoreo,
+                    publico: cp.precio_publico,
+                    proveedor: cp.proveedor_nombre || "",
+                    stockMinimo: 3,
+                    altaRotacion: "",
+                    precioDetectado: "medio mayoreo",
+                    codigosRelacionados: [cp.codigo_proveedor, cp.codigo_interno]
+                        .filter(c => c && c !== codigo)
+                }
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     // Sube (o re-sube) un catalogo ya parseado por catalog-parsers.js en
     // el cliente -- este endpoint solo recibe el arreglo final, nunca
     // procesa el archivo original. El limite de tamano de body (25mb,

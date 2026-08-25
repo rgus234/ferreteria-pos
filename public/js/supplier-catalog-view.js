@@ -343,9 +343,48 @@ window.mostrarCatalogo = async function() {
   actualizarTopbarContexto("Catalogo proveedor", "Carga, mapeo y mantenimiento de listas", "catalogo");
  }
 
+ migrarCatalogosLocalesAlServidorSiHaceFalta();
  renderCatalogosProveedor();
  cargarResumenFotosProducto();
 };
+
+// Fase 5 del plan "Catalogo Maestro Nexo": el autocompletado de
+// "Agregar producto" ya solo lee del motor server-side
+// (GET /catalogo-proveedor/buscar-codigo) -- si este equipo tiene
+// catalogos guardados desde antes SOLO en localStorage (nunca
+// subidos), se suben solos aqui, reusando exactamente el mismo flujo
+// de subida manual de siempre (subirCatalogoAlServidor). Nunca se
+// toca ni se borra el localStorage -- si algo falla (sin internet,
+// etc.), el catalogo local sigue intacto y esto se reintenta la
+// proxima vez que se abra esta pantalla. La bandera en memoria solo
+// evita repetir la subida varias veces dentro de la misma sesion de
+// pagina, no persiste entre recargas.
+let migracionCatalogosLocalesHecha = false;
+async function migrarCatalogosLocalesAlServidorSiHaceFalta() {
+ if (migracionCatalogosLocalesHecha) return;
+ migracionCatalogosLocalesHecha = true;
+
+ const locales =
+  typeof catalogosGuardados === "function" ? catalogosGuardados() : [];
+
+ if (locales.length === 0) return;
+
+ try {
+  const respuesta = await fetch("/catalogo-proveedor");
+  const datos = await respuesta.json();
+  const proveedoresServidor = new Set(
+   (datos.ok ? datos.catalogos : []).map(c => String(c.proveedor || "").trim().toLowerCase())
+  );
+
+  for (const catalogo of locales) {
+   const clave = String(catalogo.proveedor || "").trim().toLowerCase();
+   if (!clave || proveedoresServidor.has(clave)) continue;
+   await subirCatalogoAlServidor(catalogo);
+  }
+ } catch (error) {
+  console.error("No se pudieron migrar catalogos locales al servidor", error);
+ }
+}
 
 // Muestra cuantas fotos de producto hay guardadas de forma permanente
 // (no solo el resultado de la ultima importacion en esta sesion) -- antes
@@ -1620,143 +1659,14 @@ async function confirmarImportacionPdfCompletos() {
  }
 }
 
-function productosDesdeCsvCatalogo(csv, limite = 12, mapeoCatalogo = {}) {
- const lineas =
- String(csv || "")
- .split("\n")
- .map(linea => linea.trim())
- .filter(Boolean);
-
- const mapaColumnas =
- detectarColumnasCatalogo(lineas);
-
- return lineas
- .filter((linea, indice) => indice !== mapaColumnas.indice)
- .slice(0, limite)
- .map(linea => {
- const datos =
- separarFilaCatalogo(linea);
-
- const columnas =
- mapaColumnas.columnas || {};
-
- const mayoreo =
- numeroCatalogo(
- valorMapeoCatalogo(datos, mapeoCatalogo, "costo") ||
- valorColumnaCatalogo(datos, columnas, "distribuidor")
- ) || "";
-
- let medioMayoreo =
- numeroCatalogo(
- valorMapeoCatalogo(datos, mapeoCatalogo, "medioMayoreo") ||
- valorColumnaCatalogo(datos, columnas, "medioMayoreoIva")
- ) ||
- numeroCatalogo(
- valorColumnaCatalogo(datos, columnas, "medioMayoreo")
- ) || "";
-
- const publico =
- numeroCatalogo(
- valorMapeoCatalogo(datos, mapeoCatalogo, "publico") ||
- valorColumnaCatalogo(datos, columnas, "publico")
- ) || "";
-
- if (medioMayoreo && mayoreo && medioMayoreo < mayoreo) {
- medioMayoreo =
- publico && publico >= mayoreo
- ? publico
- : mayoreo;
- }
-
- return {
- codigo:
- normalizarCodigo(
- valorColumnaCatalogo(datos, columnas, "codigo") ||
- valorMapeoCatalogo(datos, mapeoCatalogo, "codigoBarras") ||
- valorMapeoCatalogo(datos, mapeoCatalogo, "codigoInterno") ||
- datos[0]
- ),
- nombre:
- valorMapeoCatalogo(datos, mapeoCatalogo, "nombre") ||
- valorColumnaCatalogo(datos, columnas, "nombre") ||
- nombreProductoDesdeFilaCatalogo(datos, columnas.codigo ?? 0),
- mayoreo: medioMayoreo,
- publico
- };
- });
-}
-
-function nombreColumnaCatalogo(lineas, indiceEncabezado, indiceColumna) {
- if (indiceEncabezado < 0 || indiceColumna === undefined) {
- return "No detectada";
- }
-
- const encabezados =
- separarFilaCatalogo(lineas[indiceEncabezado] || "");
-
- return limpiarTextoCatalogo(encabezados[indiceColumna]) || "No detectada";
-}
-
-function diagnosticoCatalogo(catalogo) {
- const lineas =
- String(catalogo?.csv || "")
- .split("\n")
- .map(linea => linea.trim())
- .filter(Boolean);
-
- const mapa =
- detectarColumnasCatalogo(lineas);
-
- const columnas =
- mapa.columnas || {};
-
- const mapeo =
- catalogo?.mapeo || {};
-
- const nombreMapeado = campo => {
- const indice =
- mapeo[campo];
-
- return indice === "" || indice === undefined
- ? ""
- : nombreColumnaCatalogo(lineas, mapa.indice, indice);
- };
-
- return {
- filas: lineas.length,
- encabezado: mapa.indice >= 0 ? mapa.indice + 1 : "No detectado",
- codigo:
- nombreMapeado("codigoBarras") ||
- nombreMapeado("codigoInterno") ||
- nombreColumnaCatalogo(lineas, mapa.indice, columnas.codigo),
- nombre:
- nombreMapeado("nombre") ||
- nombreColumnaCatalogo(lineas, mapa.indice, columnas.nombre),
- mayoreo:
- nombreMapeado("costo") ||
- nombreColumnaCatalogo(lineas, mapa.indice, columnas.distribuidor),
- medioMayoreo:
- nombreMapeado("medioMayoreo") ||
- nombreColumnaCatalogo(
- lineas,
- mapa.indice,
- columnas.medioMayoreoIva ?? columnas.medioMayoreo
- ),
- publico:
- nombreMapeado("publico") ||
- nombreColumnaCatalogo(lineas, mapa.indice, columnas.publico),
- precioVenta: mapeo.medioMayoreo !== undefined && mapeo.medioMayoreo !== ""
- ? "Configurado por plantilla"
- : columnas.medioMayoreoIva !== undefined
- ? "Medio mayoreo con IVA"
- : columnas.medioMayoreo !== undefined
- ? "Medio mayoreo"
- : "Respaldo por columnas"
- };
-}
-
-let catalogoSeleccionadoIndice = null;
-
+// productosDesdeCsvCatalogo/nombreColumnaCatalogo/diagnosticoCatalogo
+// (usadas por una vista de diagnostico de CSV vieja) y
+// catalogoSeleccionadoIndice se retiraron en Fase 5 del plan "Catalogo
+// Maestro Nexo" -- confirmado sin ningun otro punto de entrada
+// (renderizaban sobre #vistaCatalogoProveedor/#resultadosBusquedaCatalogo,
+// contenedores que ya no existen en ningun HTML actual). buscarProductosEnCatalogoGuardado
+// SIGUE VIVA (pos-busqueda-ia.js la usa para sugerencias de busqueda) --
+// se queda intacta.
 function buscarProductosEnCatalogoGuardado(indice, texto, limite = 30) {
  const catalogos =
  catalogosGuardados();
@@ -1827,171 +1737,11 @@ function buscarProductosEnCatalogoGuardado(indice, texto, limite = 30) {
  return resultados;
 }
 
-function buscarYRenderizarProductosCatalogo(texto) {
- const contenedor =
- document.getElementById("resultadosBusquedaCatalogo");
-
- if (!contenedor) return;
-
- const textoLimpio =
- String(texto || "").trim();
-
- if (!textoLimpio || catalogoSeleccionadoIndice === null) {
- contenedor.innerHTML = "";
- return;
- }
-
- const resultados =
- buscarProductosEnCatalogoGuardado(catalogoSeleccionadoIndice, textoLimpio, 30);
-
- if (!resultados.length) {
- contenedor.innerHTML = `
- <div class="catalogo-busqueda-vacia">
- Sin resultados para "${escaparPOS(textoLimpio)}"
- </div>
- `;
- return;
- }
-
- contenedor.innerHTML = `
- <table class="tabla-busqueda-catalogo">
- <thead>
- <tr>
- <th>Codigo</th>
- <th>Producto</th>
- <th>Marca</th>
- <th>Publico</th>
- </tr>
- </thead>
- <tbody>
- ${resultados.map(producto => `
- <tr>
- <td><strong>${escaparPOS(producto.codigo || "-")}</strong></td>
- <td>${escaparPOS(producto.nombre)}</td>
- <td>${escaparPOS(producto.marca || "-")}</td>
- <td>${producto.publico ? "$" + Number(producto.publico).toFixed(2) : "-"}</td>
- </tr>
- `).join("")}
- </tbody>
- </table>
- <small class="catalogo-busqueda-nota">
- Mostrando hasta 30 resultados. Copia el codigo y pegalo en "Agregar producto" para traer sus datos.
- </small>
- `;
-}
-
-function renderVistaCatalogo(indice) {
- const vista =
- document.getElementById("vistaCatalogoProveedor");
-
- if (!vista) return;
-
- catalogoSeleccionadoIndice =
- typeof indice === "number" ? indice : null;
-
- const buscador =
- document.getElementById("buscarProductoCatalogoInput");
-
- if (buscador) buscador.value = "";
-
- const resultadosBusqueda =
- document.getElementById("resultadosBusquedaCatalogo");
-
- if (resultadosBusqueda) resultadosBusqueda.innerHTML = "";
-
- const catalogos =
- catalogosGuardados();
-
- const catalogo =
- typeof indice === "number"
- ? catalogos[indice]
- : null;
-
- if (!catalogo) {
- vista.innerHTML = `
- <div class="catalogo-diagnostico-vacio">
- <strong>Sin catalogo seleccionado</strong>
- <span>Sube un catalogo nuevo o selecciona uno existente para revisar como se estan leyendo sus columnas.</span>
- </div>
- `;
- return;
- }
-
- const productos =
- productosDesdeCsvCatalogo(catalogo.csv, 12, catalogo.mapeo || {});
-
- const diagnostico =
- diagnosticoCatalogo(catalogo);
-
- vista.innerHTML = `
- <div class="vista-catalogo-header">
- <div>
- <strong>${catalogo.proveedor}</strong>
- <span>${catalogo.archivo}</span>
- </div>
- <span>${new Date(catalogo.fecha).toLocaleString("es-MX")}</span>
- </div>
-
- <div class="catalogo-diagnostico">
- <div>
- <span>Precio para venta</span>
- <strong>${diagnostico.precioVenta}</strong>
- </div>
- <div>
- <span>Columna codigo</span>
- <strong>${diagnostico.codigo}</strong>
- </div>
- <div>
- <span>Columna producto</span>
- <strong>${diagnostico.nombre}</strong>
- </div>
- <div>
- <span>Medio mayoreo</span>
- <strong>${diagnostico.medioMayoreo}</strong>
- </div>
- <div>
- <span>Publico</span>
- <strong>${diagnostico.publico}</strong>
- </div>
- <div>
- <span>Filas leidas</span>
- <strong>${diagnostico.filas}</strong>
- </div>
- </div>
-
- <h4 class="catalogo-muestra-titulo">Productos de muestra</h4>
- <table>
- <thead>
- <tr>
- <th>Codigo</th>
- <th>Producto</th>
- <th>Precio venta</th>
- <th>Publico</th>
- </tr>
- </thead>
- <tbody>
- ${productos.map(producto => `
- <tr>
- <td>${producto.codigo || "-"}</td>
- <td>${producto.nombre}</td>
- <td>${producto.mayoreo || "-"}</td>
- <td>${producto.publico || "-"}</td>
- </tr>
- `).join("")}
- </tbody>
- </table>
- `;
-}
-
-function eliminarCatalogoProveedor(indice) {
- const catalogos =
- catalogosGuardados();
-
- catalogos.splice(indice, 1);
- guardarCatalogosProveedor(catalogos);
- renderCatalogosProveedor();
-}
-
+// buscarYRenderizarProductosCatalogo/renderVistaCatalogo/
+// eliminarCatalogoProveedor se retiraron en Fase 5 del plan "Catalogo
+// Maestro Nexo" -- renderizaban sobre #vistaCatalogoProveedor/
+// #resultadosBusquedaCatalogo/#buscarProductoCatalogoInput, ninguno
+// presente en el HTML actual, y sin ningun otro punto de entrada.
 async function limpiarCatalogosProveedor() {
  const confirmar =
  await confirmarPOS(

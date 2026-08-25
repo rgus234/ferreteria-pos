@@ -1616,114 +1616,30 @@ function programarLecturaCodigoBarras(texto) {
  }, 220);
 }
 
-function productoDesdeCatalogo(codigo) {
+// Fase 5 del plan "Catalogo Maestro Nexo": antes buscaba en
+// catalogosGuardados() (localStorage, re-parseando el CSV completo en
+// cada llamada) -- ahora pregunta al servidor, que ya tiene el motor
+// real de catalogo de proveedor (catalog-server.js, el mismo que usa
+// la pantalla de vinculacion). El objeto que regresa mantiene la
+// misma forma que ya esperaban aplicarProductoCatalogoAlFormulario()/
+// llenarFormularioConProductoCatalogo() (ver catalog-parsers.js).
+async function productoDesdeCatalogo(codigo) {
  const codigoNormalizado =
  normalizarCodigo(codigo);
 
- const catalogos =
- catalogosGuardados();
+ if (!codigoNormalizado) return null;
 
- const fuentes =
- catalogos.length > 0
- ? catalogos
- : [
- {
- proveedor: "",
- csv: localStorage.getItem(
- "catalogoProveedorCsv"
- ) || ""
- }
- ];
+ try {
+ const respuesta =
+ await fetch(`/catalogo-proveedor/buscar-codigo?codigo=${encodeURIComponent(codigoNormalizado)}`);
 
- for (const catalogoProveedor of fuentes) {
- const catalogoGuardado =
- catalogoProveedor.csv || "";
-
- const lineas =
- dividirLineasCatalogo(catalogoGuardado)
- .map(linea => linea.trim())
- .filter(linea => linea);
-
- const mapaColumnas =
- detectarColumnasCatalogo(lineas);
-
- const mapeoCatalogo =
- catalogoProveedor.mapeo || {};
-
- for (const linea of lineas) {
  const datos =
- separarFilaCatalogo(linea);
+ await respuesta.json();
 
- const indicesCodigo =
- [
- mapeoCatalogo.codigoBarras,
- mapeoCatalogo.codigoInterno,
- mapeoCatalogo.claveProveedor,
- mapaColumnas.columnas.codigo,
- mapaColumnas.columnas.codigoInterno
- ]
- .filter(indice => indice !== "" && indice !== undefined);
-
- let indiceCodigo =
- indicesCodigo.find(indice =>
- normalizarCodigo(datos[indice]) === codigoNormalizado
- );
-
- const codigosAlternos =
- valorMapeoCatalogo(
- datos,
- mapeoCatalogo,
- "codigosAlternos"
- )
- .split("|")
- .map(normalizarCodigo)
- .filter(Boolean);
-
- const coincideCodigoAlterno =
- codigosAlternos.includes(codigoNormalizado);
-
- if (indiceCodigo === undefined) {
- indiceCodigo =
- datos.findIndex(
- dato =>
- normalizarCodigo(dato) ===
- codigoNormalizado
- );
- }
-
- if (indiceCodigo >= 0 || coincideCodigoAlterno) {
- const indiceCodigoProducto =
- indiceCodigo >= 0
- ? indiceCodigo
- : (
- mapeoCatalogo.codigoBarras ??
- mapeoCatalogo.codigoInterno ??
- mapeoCatalogo.claveProveedor ??
- 0
- );
-
- const columnas =
- mapaColumnas.columnas || {};
-
- const parser =
- typeof parserCatalogoProveedor === "function"
- ? parserCatalogoProveedor(catalogoProveedor)
- : { extraerProducto: extraerProductoGenericoCatalogo };
-
- return parser.extraerProducto({
- datos,
- columnas,
- mapeoCatalogo,
- indiceCodigoProducto,
- codigoNormalizado,
- codigosAlternos,
- catalogoProveedor
- });
- }
- }
- }
-
+ return datos.ok ? datos.producto : null;
+ } catch (error) {
  return null;
+ }
 }
 
 // Punto de entrada cuando se escanea un codigo durante una venta y no
@@ -2602,85 +2518,14 @@ function buscarCodigoEnter(event) {
  clearTimeout(temporizadorCodigoBarras);
 
  procesarCodigoBarrasPos();
- return;
-
- const input =
- document.getElementById(
- "busqueda"
- );
-
- const codigo =
- normalizarCodigo(input.value);
-
- // Si esta vacio:
- // pasar a dinero
- if (!codigo) {
-
- document
- .getElementById(
- "dinero"
- )
- ?.focus();
-
- return;
- }
-
- const producto =
- todosProductos.find(
- p =>
-
- normalizarCodigo(p.codigo) === codigo
-
- ||
-
- normalizarCodigo(p.id) === codigo
- );
-
- if (!producto) {
- const productoCatalogo =
- productoDesdeCatalogo(codigo);
-
- if (productoCatalogo) {
- llenarFormularioConProductoCatalogo(
- productoCatalogo
- );
-
- input.value = "";
- enfocarStockNuevoProducto();
- return;
- }
-
- alert(
- "Producto no encontrado en inventario ni catalogo"
- );
-
- return;
- }
-
- agregar(
- producto.id,
- producto.nombre,
- producto.precio
-);
-
-// limpiar buscador
-input.value = "";
-
-buscarProductos();
-
-// regresar al buscador
-setTimeout(() => {
-
- document
- .getElementById(
- "busqueda"
- )
- ?.focus();
-
-}, 50);
-
-return;
 }
+
+// El resto de este cuerpo (busqueda directa en todosProductos +
+// productoDesdeCatalogo, con su propio "regresar al buscador") era
+// codigo muerto -- un `return` mas arriba lo dejaba inalcanzable desde
+// hace tiempo, ver auditoria del Catalogo Maestro Nexo (A.9). El flujo
+// real de venta por codigo de barras es procesarCodigoBarrasPos()
+// (pos-sales.js), llamado arriba. Retirado en Fase 5 del plan.
 
 /* Alta, edicion y baja de producto */
 async function agregarProductoNuevo(opciones = {}) {
@@ -4923,7 +4768,7 @@ async function aplicarProductoCatalogoAlFormulario(producto, origen) {
  enfocarStockNuevoProducto();
 }
 
-function buscarEnCatalogo() {
+async function buscarEnCatalogo() {
  const codigo =
  normalizarCodigo(
  document
@@ -4937,7 +4782,7 @@ function buscarEnCatalogo() {
  }
 
  const producto =
- productoDesdeCatalogo(codigo);
+ await productoDesdeCatalogo(codigo);
 
  if (!producto) return;
 
@@ -4948,7 +4793,7 @@ function buscarEnCatalogo() {
 // clave de proveedor en vez del de codigo de barras -- para proveedores
 // como Gafi, cuyos productos no traen codigo de barras real y solo se
 // identifican por su clave interna.
-function buscarEnCatalogoPorCodigoInterno() {
+async function buscarEnCatalogoPorCodigoInterno() {
  const codigo =
  normalizarCodigo(
  document
@@ -4959,7 +4804,7 @@ function buscarEnCatalogoPorCodigoInterno() {
  if (!codigo) return;
 
  const producto =
- productoDesdeCatalogo(codigo);
+ await productoDesdeCatalogo(codigo);
 
  if (!producto) return;
 

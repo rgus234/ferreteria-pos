@@ -1,31 +1,9 @@
 const archivoCatalogo =
  document.getElementById("archivoCatalogo");
 
-archivoCatalogo.addEventListener(
- "catalogo-antiguo-desactivado",
- function (e) {
- return;
-
- const archivo = e.target.files[0];
-
- if (!archivo) return;
-
- const lector = new FileReader();
-
- lector.onload = function (evento) {
- const texto = evento.target.result;
-
- localStorage.setItem(
- "catalogoProveedorCsv",
- texto
- );
-
- alert("Catalogo actualizado correctamente ");
- };
-
- lector.readAsText(archivo);
- }
-);
+// El listener de "catalogo-antiguo-desactivado" (evento que nunca se
+// disparaba en ningun lugar del proyecto) se retiro en Fase 5 del
+// plan "Catalogo Maestro Nexo" -- inerte por diseno desde siempre.
 
 archivoCatalogo.addEventListener(
  "change",

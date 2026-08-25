@@ -148,7 +148,7 @@ async function procesarCodigoBarrasPos(codigoManual) {
 
  if (!producto) {
  const productoCatalogo =
- productoDesdeCatalogo(codigo);
+ await productoDesdeCatalogo(codigo);
 
  if (productoCatalogo) {
  llenarFormularioConProductoCatalogo(
