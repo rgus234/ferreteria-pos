@@ -1766,6 +1766,21 @@ function pedirPinAdministradorParaDescuentoDueno(porcentaje) {
     return pin && pin.trim() ? pin.trim() : null;
 }
 
+// limite_credito = 0 en el cliente significa "sin limite configurado" --
+// mismo criterio que el servidor. saldo/limite_credito vienen de /creditos,
+// que ya se carga al abrir el selector de cliente.
+function limiteCreditoSeExcederiaDueno(cliente, montoCargo) {
+    const limite = Number(cliente?.limite_credito || 0);
+    if (limite <= 0) return false;
+    return (Number(cliente?.saldo || 0) + montoCargo) > limite;
+}
+
+function pedirPinAdministradorParaLimiteCreditoDueno(cliente, montoCargo) {
+    const nuevoSaldo = Number(cliente?.saldo || 0) + montoCargo;
+    const pin = prompt(`Este cargo deja a ${cliente?.nombre || "el cliente"} en $${nuevoSaldo.toFixed(2)}, por encima de su limite de $${Number(cliente?.limite_credito || 0).toFixed(2)}. Necesita el PIN de un administrador.`);
+    return pin && pin.trim() ? pin.trim() : null;
+}
+
 async function cargarPanelVenderDueno() {
     renderCarritoVenderDueno();
 
@@ -2817,17 +2832,28 @@ async function confirmarCobroCreditoVenderDueno() {
 
     cuerpo.idempotencyKey = duenoVentaCreditoIdempotencyKey;
 
+    let adminPinCredito = null;
+
     if (descuentoRequierePinAdminDueno(resumen)) {
         const porcentaje = Math.round(resumen.descuento / resumen.subtotal * 100);
-        const adminPin = pedirPinAdministradorParaDescuentoDueno(porcentaje);
+        adminPinCredito = pedirPinAdministradorParaDescuentoDueno(porcentaje);
 
-        if (!adminPin) {
+        if (!adminPinCredito) {
             duenoVentaCobrando = false;
             return;
         }
-
-        cuerpo.adminPin = adminPin;
     }
+
+    if (!adminPinCredito && limiteCreditoSeExcederiaDueno(duenoVentaClienteSeleccionado, resumen.total)) {
+        adminPinCredito = pedirPinAdministradorParaLimiteCreditoDueno(duenoVentaClienteSeleccionado, resumen.total);
+
+        if (!adminPinCredito) {
+            duenoVentaCobrando = false;
+            return;
+        }
+    }
+
+    if (adminPinCredito) cuerpo.adminPin = adminPinCredito;
 
     const contenido =
     document.getElementById("duenoVenderCobroContenido");

@@ -49,6 +49,36 @@ async function pedirPinAdministradorParaDescuentoPOS(porcentaje) {
  return datos ? datos.adminPin : null;
 }
 
+// limite_credito = 0 en el cliente significa "sin limite configurado"
+// -- mismo criterio que el servidor. saldo/limite_credito ya vienen en
+// la lista de /creditos/clientes que carga el selector, asi que se
+// puede avisar antes de mandar la peticion (el servidor vuelve a
+// calcular el saldo real dentro de la transaccion, esto es solo para
+// no hacer un viaje de mas en el caso comun).
+function limiteCreditoSeExcederiaPOS(cliente, montoCargo) {
+ const limite = Number(cliente?.limite_credito || 0);
+ if (limite <= 0) return false;
+ return (Number(cliente?.saldo || 0) + montoCargo) > limite;
+}
+
+async function pedirPinAdministradorParaLimiteCreditoPOS(cliente, montoCargo) {
+ const nuevoSaldo = Number(cliente?.saldo || 0) + montoCargo;
+
+ const datos =
+ await abrirFormularioCredito({
+ titulo: "Autorizacion requerida",
+ subtitulo: `Este cargo deja a ${cliente?.nombre || "el cliente"} en $${nuevoSaldo.toFixed(2)}, por encima de su limite de $${Number(cliente?.limite_credito || 0).toFixed(2)}. Necesita el PIN de un administrador.`,
+ campos: [{
+ nombre: "adminPin",
+ etiqueta: "PIN de administrador",
+ tipo: "password",
+ requerido: true
+ }]
+ });
+
+ return datos ? datos.adminPin : null;
+}
+
 async function procesarCodigoBarrasPos(codigoManual) {
  const input =
  document.getElementById("busqueda");
@@ -2011,6 +2041,13 @@ async function cobrarCreditoInternoPOS(total) {
  if (!adminPin) return;
  }
 
+ if (!adminPin && limiteCreditoSeExcederiaPOS(clienteSeleccionado, total)) {
+ adminPin =
+ await pedirPinAdministradorParaLimiteCreditoPOS(clienteSeleccionado, total);
+
+ if (!adminPin) return;
+ }
+
  let respuesta;
  let creditoRegistrado = null;
  let creditoOffline = false;
@@ -2082,6 +2119,14 @@ async function cobrarCreditoInternoPOS(total) {
 
  if (cuerpoError?.requierePinAdmin) {
  alert(cuerpoError.error || "PIN de administrador invalido para este descuento.");
+ return;
+ }
+
+ // Igual que requierePinAdmin: exceder el limite de credito no es una
+ // falla de red -- encolarlo dejaria pasar el cargo sin autorizacion
+ // al sincronizar, porque /sync/push no vuelve a revisar el limite.
+ if (cuerpoError?.excedeLimiteCredito) {
+ alert(cuerpoError.error || "Este cargo excede el limite de credito del cliente.");
  return;
  }
 

@@ -6386,6 +6386,61 @@ async function exigirPinAdminSiAplica(client, res, negocioId, resumen, adminPin)
     return true;
 }
 
+// limite_credito = 0 significa "sin limite configurado" (asi nace todo
+// cliente nuevo) -- el tope solo aplica una vez que el dueño le pone un
+// numero de verdad. Mismo saldo que ya se calcula en GET
+// /creditos/clientes (ventas suman, abonos restan), pero aqui adentro
+// de la misma transaccion (el cliente ya esta bloqueado con FOR UPDATE)
+// para que no haya una carrera entre leer el saldo y aplicar el cargo.
+async function excederiaLimiteCredito(client, negocioId, clienteId, montoCargo, limiteCredito) {
+    if (!limiteCredito || limiteCredito <= 0) return null;
+
+    const fila = await client.query(
+        `
+        SELECT COALESCE(SUM(
+            CASE WHEN tipo = 'venta' THEN monto WHEN tipo = 'abono' THEN -monto ELSE 0 END
+        ), 0) AS saldo
+        FROM public.movimientos_credito
+        WHERE negocio_id = $1 AND cliente_id = $2
+        `,
+        [negocioId, clienteId]
+    );
+
+    const saldoActual = Number(fila.rows[0].saldo);
+    const saldoNuevo = saldoActual + montoCargo;
+
+    if (saldoNuevo <= limiteCredito) return null;
+
+    return { saldoActual, saldoNuevo, disponible: Math.max(0, limiteCredito - saldoActual) };
+}
+
+// Mismo patron que exigirPinAdminSiAplica: un cajero no puede simplemente
+// mandar a un cliente por encima de su limite -- necesita el visto bueno
+// de un administrador. Antes de esto el limite_credito se guardaba y se
+// mostraba pero nunca se revisaba en ningun lado.
+async function exigirPinAdminSiExcedeLimite(client, res, negocioId, clienteId, montoCargo, limiteCredito, adminPin) {
+    const exceso = await excederiaLimiteCredito(client, negocioId, clienteId, montoCargo, limiteCredito);
+
+    if (!exceso) return true;
+
+    const admin = await validarPinAdministrador(client, negocioId, adminPin);
+
+    if (!admin) {
+        res.status(400).json({
+            ok: false,
+            error: `Este cargo deja al cliente en $${exceso.saldoNuevo.toFixed(2)}, por encima de su limite de $${Number(limiteCredito).toFixed(2)}. Necesita el PIN de un administrador.`,
+            excedeLimiteCredito: true,
+            saldoActual: exceso.saldoActual,
+            saldoNuevo: exceso.saldoNuevo,
+            limiteCredito: Number(limiteCredito),
+            disponible: exceso.disponible
+        });
+        return false;
+    }
+
+    return true;
+}
+
 // Busca una venta ya registrada con esta idempotencyKey -- si el
 // cajero reintenta despues de que la red se cayo justo cuando el
 // servidor ya habia guardado la venta, regresa el resultado original
@@ -7765,7 +7820,7 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
 
         const clienteFila = await client.query(
             `
-            SELECT id, nombre
+            SELECT id, nombre, limite_credito
             FROM public.clientes_credito
             WHERE id = $1 AND negocio_id = $2
             FOR UPDATE
@@ -7793,6 +7848,11 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
         }
 
         if (!(await exigirPinAdminSiAplica(client, res, negocio.id, { subtotal: subtotalFinal, descuento: descuentoFinal }, adminPin))) {
+            await client.query("ROLLBACK");
+            return;
+        }
+
+        if (!(await exigirPinAdminSiExcedeLimite(client, res, negocio.id, cliente.id, montoNum, cliente.limite_credito, adminPin))) {
             await client.query("ROLLBACK");
             return;
         }

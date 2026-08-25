@@ -1264,7 +1264,17 @@ async function registrarCargoCredito() {
  datos.concepto ||
  "Venta a credito";
 
- await fetch(
+ async function enviarCargoManual(adminPin) {
+ const cuerpo = {
+ monto,
+ concepto,
+ productos: [],
+ idempotencyKey: crearEventIdPOS("cargo-manual")
+ };
+
+ if (adminPin) cuerpo.adminPin = adminPin;
+
+ return fetch(
  `/creditos/clientes/${creditoActual.id}/cargos`,
  {
  method: "POST",
@@ -1272,14 +1282,44 @@ async function registrarCargoCredito() {
  "Content-Type":
  "application/json"
  },
- body: JSON.stringify({
- monto,
- concepto,
- productos: [],
- idempotencyKey: crearEventIdPOS("cargo-manual")
- })
+ body: JSON.stringify(cuerpo)
  }
  );
+ }
+
+ let respuesta =
+ await enviarCargoManual();
+
+ if (!respuesta.ok) {
+ const cuerpoError =
+ await respuesta.clone().json().catch(() => null);
+
+ if (cuerpoError?.excedeLimiteCredito) {
+ const pinDatos =
+ await abrirFormularioCredito({
+ titulo: "Autorizacion requerida",
+ subtitulo: cuerpoError.error,
+ campos: [{
+ nombre: "adminPin",
+ etiqueta: "PIN de administrador",
+ tipo: "password",
+ requerido: true
+ }]
+ });
+
+ if (!pinDatos) return;
+
+ respuesta = await enviarCargoManual(pinDatos.adminPin);
+ }
+ }
+
+ if (!respuesta.ok) {
+ const cuerpoError =
+ await respuesta.json().catch(() => null);
+
+ alert(cuerpoError?.error || "No se pudo registrar el cargo");
+ return;
+ }
 
  await cargarCreditos();
  await abrirCuentaCreditoDetalle(creditoActual.id);
