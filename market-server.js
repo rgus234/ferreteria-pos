@@ -115,11 +115,20 @@ async function categoriasMarket(pool) {
     if (tiendas.length === 0) return [];
 
     const idsPermitidos = tiendas.map(t => t.id);
+    // COALESCE(cn.departamento, p.categoria) en vez de p.categoria a
+    // secas -- Fase 4 del plan "Catalogo Maestro Nexo": lee la
+    // taxonomia estructurada cuando el producto la tiene
+    // (categoria_nexo_id), con la columna de texto como fallback para
+    // el resto (nunca UNION -- duplicaria filas). Hoy ambas fuentes
+    // coinciden en la practica porque el servidor mantiene el texto
+    // como espejo del departamento (ver Fase 3), pero esto deja de
+    // depender de que ese espejo nunca se desincronice.
     const resultado = await pool.query(
-        `SELECT categoria, COUNT(*) AS total
-         FROM public.productos
-         WHERE negocio_id = ANY($1::int[]) AND categoria <> ''
-         GROUP BY categoria
+        `SELECT COALESCE(cn.departamento, p.categoria) AS categoria, COUNT(*) AS total
+         FROM public.productos p
+         LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
+         WHERE p.negocio_id = ANY($1::int[]) AND COALESCE(cn.departamento, p.categoria) <> ''
+         GROUP BY COALESCE(cn.departamento, p.categoria)
          ORDER BY COUNT(*) DESC
          LIMIT 12`,
         [idsPermitidos]
@@ -258,12 +267,14 @@ async function categoriasConFotoMarket(pool, firmarTokenImagen) {
     const idsPermitidos = tiendas.map(t => t.id);
 
     const resultado = await pool.query(
-        `SELECT DISTINCT ON (p.categoria) p.categoria, p.codigo, n.id AS negocio_id, n.slug, fp.actualizado_at AS foto_actualizado_at
+        `SELECT DISTINCT ON (COALESCE(cn.departamento, p.categoria)) COALESCE(cn.departamento, p.categoria) AS categoria,
+                p.codigo, n.id AS negocio_id, n.slug, fp.actualizado_at AS foto_actualizado_at
          FROM public.productos p
+         LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
          JOIN public.negocios n ON n.id = p.negocio_id
          JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
-         WHERE p.negocio_id = ANY($1::int[]) AND p.categoria = ANY($2::text[])
-         ORDER BY p.categoria, RANDOM()`,
+         WHERE p.negocio_id = ANY($1::int[]) AND COALESCE(cn.departamento, p.categoria) = ANY($2::text[])
+         ORDER BY COALESCE(cn.departamento, p.categoria), RANDOM()`,
         [idsPermitidos, categorias]
     );
 
@@ -345,7 +356,7 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
 
     if (categoria) {
         parametros.push(categoria);
-        condiciones.push(`p.categoria = $${parametros.length}`);
+        condiciones.push(`COALESCE(cn.departamento, p.categoria) = $${parametros.length}`);
     }
 
     // Misma condicion real que ya usa ofertasMarket() -- nunca se
@@ -378,7 +389,7 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
 
     const resultado = await pool.query(
         `
-        SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
+        SELECT p.codigo, p.nombre, COALESCE(cn.departamento, p.categoria) AS categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
                CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
                CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
@@ -389,6 +400,7 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
         JOIN public.negocios n ON n.id = p.negocio_id
         JOIN public.sitio_web_config c ON c.negocio_id = n.id
         LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
+        LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
         WHERE ${condiciones.join(" AND ")}
         ORDER BY ${ordenSql}
         LIMIT $${indiceLimit} OFFSET $${indiceOffset}
@@ -426,7 +438,7 @@ async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "",
 
     if (categoria) {
         parametros.push(categoria);
-        condiciones.push(`p.categoria = $${parametros.length}`);
+        condiciones.push(`COALESCE(cn.departamento, p.categoria) = $${parametros.length}`);
     }
 
     if (ofertas) {
@@ -439,6 +451,7 @@ async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "",
         pool.query(
             `SELECT p.marca, COUNT(*) AS total
              FROM public.productos p
+             LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
              WHERE ${whereBase} AND p.marca <> ''
              GROUP BY p.marca
              ORDER BY COUNT(*) DESC
@@ -450,6 +463,7 @@ async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "",
                     MAX(COALESCE(p.precio_oferta, p.precio_publico, p.precio)) AS max
              FROM public.productos p
              JOIN public.sitio_web_config c ON c.negocio_id = p.negocio_id
+             LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
              WHERE ${whereBase} AND c.mostrar_precios = true`,
             parametros
         )

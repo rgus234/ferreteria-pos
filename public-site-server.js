@@ -863,13 +863,16 @@ async function cargarInicioTenant(pool, sitio, slug, firmarTokenImagen) {
     );
 
     // Top 10 categorias reales del negocio (nunca una lista fija) --
-    // alimenta la grilla de categorias del inicio.
+    // alimenta la grilla de categorias del inicio. COALESCE(cn.
+    // departamento, p.categoria) en vez de p.categoria a secas -- Fase
+    // 4 del plan "Catalogo Maestro Nexo", mismo criterio que Market.
     const categoriasRes = await pool.query(
         `
-        SELECT categoria, COUNT(*) AS total
-        FROM public.productos
-        WHERE negocio_id = $1 AND categoria IS NOT NULL AND categoria <> ''
-        GROUP BY categoria
+        SELECT COALESCE(cn.departamento, p.categoria) AS categoria, COUNT(*) AS total
+        FROM public.productos p
+        LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
+        WHERE p.negocio_id = $1 AND COALESCE(cn.departamento, p.categoria) <> ''
+        GROUP BY COALESCE(cn.departamento, p.categoria)
         ORDER BY COUNT(*) DESC
         LIMIT 10
         `,
@@ -1165,7 +1168,7 @@ async function cargarCatalogoTenant(pool, sitio, slug, filtros, firmarTokenImage
 
     if (categoria) {
         valores.push(categoria);
-        condiciones.push(`p.categoria = $${valores.length}`);
+        condiciones.push(`COALESCE(cn.departamento, p.categoria) = $${valores.length}`);
     }
 
     if (marca) {
@@ -1183,10 +1186,11 @@ async function cargarCatalogoTenant(pool, sitio, slug, filtros, firmarTokenImage
 
     const filas = await pool.query(
         `
-        SELECT p.id, p.codigo, p.nombre, p.categoria, p.marca,
+        SELECT p.id, p.codigo, p.nombre, COALESCE(cn.departamento, p.categoria) AS categoria, p.marca,
             ${columnasExtra.length ? columnasExtra.join(", ") + "," : ""}
             COUNT(*) OVER() AS total
         FROM public.productos p
+        LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
         WHERE ${condiciones.join(" AND ")}
         ORDER BY p.nombre ASC
         LIMIT $${valores.length - 1} OFFSET $${valores.length}
@@ -1210,7 +1214,11 @@ async function cargarCatalogoTenant(pool, sitio, slug, filtros, firmarTokenImage
 
     const [categoriasRes, marcasRes] = await Promise.all([
         pool.query(
-            `SELECT DISTINCT categoria FROM public.productos WHERE negocio_id = $1 AND categoria IS NOT NULL AND categoria <> '' ORDER BY categoria`,
+            `SELECT DISTINCT COALESCE(cn.departamento, p.categoria) AS categoria
+             FROM public.productos p
+             LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
+             WHERE p.negocio_id = $1 AND COALESCE(cn.departamento, p.categoria) <> ''
+             ORDER BY COALESCE(cn.departamento, p.categoria)`,
             [sitio.negocio.id]
         ),
         pool.query(
