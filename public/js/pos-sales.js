@@ -1717,6 +1717,15 @@ try {
  return;
  }
 
+ // Mismo motivo: un empleado sin permiso para vender no es una falla
+ // de red -- /sync/push no vuelve a revisar permisos al aplicar la
+ // cola offline, asi que encolar esto igual seria dejar que la venta
+ // pase de todos modos sin autorizacion.
+ if (cuerpoError?.requierePermiso) {
+ await alertaPOS(cuerpoError.error || "Tu cuenta no tiene permiso para hacer ventas.", "Permiso requerido", "peligro");
+ return;
+ }
+
  const offline =
  await registrarVentaOfflineDesktopPOS({
  total,

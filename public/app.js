@@ -99,6 +99,17 @@ const MODO_DESARROLLADOR_NEXO_KEY = "modoDesarrolladorNexoPOS";
             }
         }
 
+        // Identifica cual empleado esta usando este equipo compartido para
+        // que el servidor pueda aplicar sus permisos reales (rbac.js) --
+        // sin esto, cualquier peticion desde un dispositivo vinculado se
+        // trataba como sin restriccion, sin importar quien la mandara. Si
+        // nadie eligio un usuario (equipo con una sola cuenta, sin la
+        // funcion de "usuarios del sistema" activada), no se manda nada y
+        // el comportamiento sigue siendo el de siempre.
+        if (!headers.has("x-empleado-id") && typeof usuarioActual !== "undefined" && usuarioActual?.id) {
+            headers.set("x-empleado-id", String(usuarioActual.id));
+        }
+
         opciones.headers = headers;
 
         return fetchOriginalPOS(entrada, opciones).then(respuesta => {
