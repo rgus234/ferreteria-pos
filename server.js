@@ -590,6 +590,56 @@ app.put("/negocio-actual/marca", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
+// Giros validos que ya existen como plantilla en config-auth.js
+// (PLANTILLAS_GIRO_NEGOCIO) -- evita que llegue basura arbitraria a
+// negocio_giros mientras esa sigue siendo la unica fuente de nombres
+// de giro reconocidos por el sistema.
+const GIROS_NEGOCIO_VALIDOS = new Set(["ferreteria", "abarrotes", "papeleria", "vinateria", "general"]);
+
+// Fase 1 de "Catalogo Maestro Nexo": guarda el giro del negocio en el
+// servidor en vez de solo en localStorage (ver migracion
+// 20260826_negocio_giros -- ese es el hallazgo real: hoy el giro
+// elegido en Configuracion nunca llega aqui). Por ahora sigue siendo
+// seleccion unica (desactiva cualquier otro giro del negocio) para no
+// cambiar el comportamiento actual -- la tabla ya soporta varios giros
+// activos a la vez, eso se habilita cuando haya arboles de categorias
+// reales para mas de un giro.
+app.put("/negocio-actual/giro", requerirAccesoNegocio, async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const giro = String(req.body?.giro || "").trim().toLowerCase();
+
+        if (!GIROS_NEGOCIO_VALIDOS.has(giro)) {
+            res.status(400).json({ ok: false, error: "Giro invalido" });
+            return;
+        }
+
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            await client.query(
+                `UPDATE public.negocio_giros SET activo = (giro = $2) WHERE negocio_id = $1`,
+                [negocio.id, giro]
+            );
+            await client.query(
+                `INSERT INTO public.negocio_giros (negocio_id, giro, activo) VALUES ($1, $2, true)
+                 ON CONFLICT (negocio_id, giro) DO UPDATE SET activo = true`,
+                [negocio.id, giro]
+            );
+            await client.query("COMMIT");
+        } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+        } finally {
+            client.release();
+        }
+
+        res.json({ ok: true, giro });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
 app.post("/api/clientes/registro", async (req, res) => {
     if (limpiarTexto(req.body?.empresaWeb, 200)) {
         return res.status(400).json({
@@ -5666,7 +5716,18 @@ app.get("/categorias-nexo", requerirAccesoNegocio, async (req, res) => {
             }
             cacheCategoriasNexo = Array.from(porDepartamento.entries()).map(([departamento, subcategorias]) => ({ departamento, subcategorias }));
         }
-        res.json({ ok: true, departamentos: cacheCategoriasNexo });
+
+        const negocio = await negocioActual(req);
+        const giros = await pool.query(
+            `SELECT giro FROM public.negocio_giros WHERE negocio_id = $1 AND activo = true ORDER BY id`,
+            [negocio.id]
+        );
+
+        res.json({
+            ok: true,
+            departamentos: cacheCategoriasNexo,
+            girosActivos: giros.rows.map(fila => fila.giro)
+        });
     } catch (error) {
         responderError(res, error);
     }

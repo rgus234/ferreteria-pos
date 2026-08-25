@@ -402,6 +402,15 @@ function aplicarPreferenciaTema() {
 }
 
 function guardarConfiguracionNegocioDesdeServidor(negocio) {
+ // Preserva giroNegocio de lo que ya hubiera en este equipo -- esta
+ // funcion reconstruye el objeto completo de configuracion en cada
+ // reconexion/login, y al no incluirlo antes lo borraba en silencio.
+ // El servidor es la fuente real desde la migracion de Fase 1 (tabla
+ // negocio_giros, ver giroNegocioEsFerreteria en product-inventory.js),
+ // pero esta copia local sigue usandose para preseleccionar el select
+ // de Configuracion mientras carga.
+ const actual = configuracionNegocio() || {};
+
  const configuracionReconstruida = {
  negocioSlug: negocio.slug,
  nombre: negocio.nombre,
@@ -411,6 +420,7 @@ function guardarConfiguracionNegocioDesdeServidor(negocio) {
  color: negocio.color || "#0d6efd",
  logo: negocio.logo || null,
  adminNombre: "",
+ giroNegocio: actual.giroNegocio || "ferreteria",
  fechaConfiguracion: new Date().toISOString()
  };
 
@@ -2050,6 +2060,16 @@ function guardarConfiguracionSistema() {
  color: nuevaConfig.color || "",
  logo: nuevaConfig.logo || null
  })
+ }).catch(() => {});
+
+ // El giro del negocio ahora vive en el servidor (tabla
+ // negocio_giros) -- antes solo se guardaba en localStorage, sin
+ // sincronizar entre equipos del mismo negocio ni sobrevivir una
+ // reconexion. Ver giroNegocioEsFerreteria() en product-inventory.js.
+ fetch("/negocio-actual/giro", {
+ method: "PUT",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ giro: nuevaConfig.giroNegocio || "ferreteria" })
  }).catch(() => {});
 }
 

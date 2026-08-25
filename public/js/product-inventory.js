@@ -1980,20 +1980,43 @@ function quitarUltimoChipSubcategoria() {
 // guardar -- los selects de departamento/subcategoria solo le asignan
 // el valor, para no tocar el resto del formulario ni el envio.
 let categoriasNexoArbol = null;
+let girosActivosNegocio = null;
 let categoriasNexoCargando = null;
 
-function giroNegocioEsFerreteria() {
- const config =
- typeof configuracionNegocio === "function" ? configuracionNegocio() || {} : {};
+// Fuente real desde Fase 1 de "Catalogo Maestro Nexo": los giros
+// activos del negocio viven en el servidor (tabla negocio_giros), no
+// en localStorage -- antes giroNegocioEsFerreteria() confiaba en
+// configuracionNegocio().giroNegocio, que es por dispositivo y se
+// podia desincronizar entre equipos del mismo negocio (o borrarse
+// solo en cada reconexion). Comparte la misma peticion/cache que
+// cargarCategoriasNexo() para no duplicar el fetch.
+async function giroNegocioEsFerreteria() {
+ if (girosActivosNegocio === null) {
+  await cargarGirosYCategoriasNexo();
+ }
 
- return (config.giroNegocio || "ferreteria") === "ferreteria";
+ return (girosActivosNegocio || ["ferreteria"]).includes("ferreteria");
+}
+
+async function cargarGirosYCategoriasNexo() {
+ if (!categoriasNexoCargando) {
+  categoriasNexoCargando = fetch("/categorias-nexo")
+   .then(respuesta => respuesta.json())
+   .then(datos => datos.ok ? datos : { departamentos: [], girosActivos: ["ferreteria"] })
+   .catch(() => ({ departamentos: [], girosActivos: ["ferreteria"] }));
+ }
+
+ const datos = await categoriasNexoCargando;
+ categoriasNexoArbol = datos.departamentos || [];
+ girosActivosNegocio = datos.girosActivos && datos.girosActivos.length ? datos.girosActivos : ["ferreteria"];
+ return datos;
 }
 
 async function cargarCategoriasNexo() {
  const campo = document.getElementById("categoriaNexoCampo");
  const campoLibre = document.getElementById("nuevaCategoria");
 
- if (!giroNegocioEsFerreteria()) {
+ if (!(await giroNegocioEsFerreteria())) {
   if (campo) campo.hidden = true;
   if (campoLibre) campoLibre.style.display = "";
   return;
@@ -2002,26 +2025,16 @@ async function cargarCategoriasNexo() {
  if (campo) campo.hidden = false;
  if (campoLibre) campoLibre.style.display = "none";
 
- if (!categoriasNexoArbol) {
-  if (!categoriasNexoCargando) {
-   categoriasNexoCargando = fetch("/categorias-nexo")
-    .then(respuesta => respuesta.json())
-    .then(datos => (datos.ok ? datos.departamentos : []))
-    .catch(() => []);
-  }
+ const select =
+  document.getElementById("categoriaNexoDepartamento");
 
-  categoriasNexoArbol = await categoriasNexoCargando;
-
-  const select =
-   document.getElementById("categoriaNexoDepartamento");
-
-  if (select) {
-   select.innerHTML =
-    '<option value="">Categoria (Nexo)...</option>' +
-    categoriasNexoArbol
-     .map(grupo => `<option value="${escaparPOS(grupo.departamento)}">${escaparPOS(grupo.departamento)}</option>`)
-     .join("");
-  }
+ if (select && !select.dataset.pobladoNexo) {
+  select.dataset.pobladoNexo = "1";
+  select.innerHTML =
+   '<option value="">Categoria (Nexo)...</option>' +
+   (categoriasNexoArbol || [])
+    .map(grupo => `<option value="${escaparPOS(grupo.departamento)}">${escaparPOS(grupo.departamento)}</option>`)
+    .join("");
  }
 
  verificarDisponibilidadIACategoriaNexo();
