@@ -103,6 +103,7 @@ function mostrarAppDueno() {
     document.getElementById("duenoTabs").style.display = "flex";
     document.getElementById("duenoNexoBurbuja").style.display = "flex";
     resuscribirPushDuenoSiYaHabiaPermiso();
+    actualizarBadgePedidosDueno();
 }
 
 async function fetchAutenticado(url, opciones = {}) {
@@ -1106,6 +1107,35 @@ function actualizarBadgeVentasDueno(pendientesLocales) {
     }
 }
 
+// El badge de Pedidos existia en el HTML pero ningun JS lo tocaba --
+// se quedaba oculto para siempre sin importar cuantos pedidos nuevos
+// hubiera. Mismo patron que actualizarBadgeVentasDueno: se refresca al
+// abrir la app, al entrar a la pestana Pedidos y al recuperar
+// conexion. "nuevos" (estado=pendiente) es el grupo que de verdad
+// necesita accion del dueno -- aceptar o rechazar.
+async function actualizarBadgePedidosDueno() {
+    const badge =
+    document.getElementById("duenoPedidosBadge");
+
+    if (!badge) return;
+
+    try {
+        const datos = await fetchAutenticado("/negocio-actual/pedidos-market?estado=nuevos");
+        const cantidad = (datos.pedidos || []).length;
+
+        if (cantidad > 0) {
+            badge.textContent = cantidad;
+            badge.style.display = "flex";
+        } else {
+            badge.style.display = "none";
+        }
+    } catch (error) {
+        // Sin conexion, sin permiso de ver pedidos, o Market no activo
+        // para este negocio -- se deja el badge como estaba, no es un
+        // error que deba interrumpir nada mas de la app.
+    }
+}
+
 function actualizarChipConexionDueno() {
     const chip =
     document.getElementById("duenoConexionEstado");
@@ -1142,6 +1172,7 @@ function cargarPanelVentasDueno() {
 window.addEventListener("online", () => {
     actualizarChipConexionDueno();
     sincronizarYRecargarDueno();
+    actualizarBadgePedidosDueno();
 });
 
 window.addEventListener("offline", actualizarChipConexionDueno);
@@ -1466,6 +1497,8 @@ async function cargarPanelPedidosDueno() {
             duenoPedidosCache.length
                 ? duenoPedidosCache.map(duenoPedFilaHtml).join("")
                 : `<div class="vacio">No hay pedidos aqui por ahora.</div>`;
+
+        actualizarBadgePedidosDueno();
     } catch (error) {
         if (estadoTexto) estadoTexto.textContent = "No se pudo conectar con el POS";
     }
