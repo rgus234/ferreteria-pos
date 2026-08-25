@@ -76,7 +76,13 @@ async function borrarNegocioPrueba(negocioId) {
         "market_checkout_pendiente",
         "pedidos_publicos",
         "pedidos_market",
-        "sitio_web_config"
+        "sitio_web_config",
+        "recepciones_mercancia_items",
+        "recepciones_mercancia",
+        "pedidos_proveedor_items",
+        "pedidos_proveedor",
+        "ajustes_inventario",
+        "bitacora_acciones"
     ];
 
     for (const tabla of tablasHijas) {

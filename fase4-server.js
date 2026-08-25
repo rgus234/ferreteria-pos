@@ -1,6 +1,7 @@
 const { DEFAULT_NEGOCIO_SLUG } = require("./tenant");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan } = require("./plan-enforcement");
+const { PERMISOS, requerirPermiso } = require("./rbac");
 
 module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
     const requerirPedidosProveedor = requerirFuncionPlan(
@@ -438,6 +439,122 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
             responderError(res, error);
         } finally {
             client.release();
+        }
+    });
+
+    // Historial de recepciones "libres" -- la pantalla de Recepcion
+    // (ferretero-flow.js, subir una factura XML/CSV suelta, sin pedido
+    // a proveedor de por medio) aplicaba el stock directo con PUT/POST
+    // a productos y nunca dejaba ningun registro de que se recibio.
+    // Este endpoint SOLO guarda el historial -- el stock ya se aplico
+    // en las peticiones a /editar-producto y /agregar-producto que el
+    // cliente manda antes de llamar aqui, asi que aqui no se vuelve a
+    // tocar productos (evita duplicar el aumento de stock). Reusa las
+    // mismas tablas que ya llena la recepcion ligada a un pedido, solo
+    // que con pedido_id = NULL (ya era nullable en el esquema).
+    app.post("/recepciones-mercancia", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
+        const { proveedor, referencia, notas, fechaDocumento, tipoDocumento, items } = req.body;
+
+        if (!Array.isArray(items) || !items.length) {
+            res.status(400).json({ error: "Sin conceptos que registrar" });
+            return;
+        }
+
+        const client = await pool.connect();
+
+        try {
+            await asegurar();
+            const negocio = await negocioActual(req);
+            await client.query("BEGIN");
+
+            const total = items.reduce(
+                (suma, item) => suma + n(item.cantidad) * n(item.costo),
+                0
+            );
+
+            const recepcion = await client.query(`
+                INSERT INTO public.recepciones_mercancia
+                    (negocio_id, pedido_id, proveedor, referencia, notas, total, fecha_documento, tipo_documento)
+                VALUES ($1, NULL, $2, $3, $4, $5, $6, $7)
+                RETURNING *
+            `, [
+                negocio.id,
+                proveedor || "",
+                referencia || "",
+                notas || "",
+                total,
+                fechaDocumento || null,
+                tipoDocumento || ""
+            ]);
+
+            for (const item of items) {
+                await client.query(`
+                    INSERT INTO public.recepciones_mercancia_items
+                        (negocio_id, recepcion_id, producto_id, codigo, nombre, cantidad, costo)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7)
+                `, [
+                    negocio.id,
+                    recepcion.rows[0].id,
+                    item.productoId || item.producto_id || null,
+                    normalizarCodigo(item.codigo) || item.codigo || "",
+                    item.nombre || item.descripcion || "",
+                    n(item.cantidad),
+                    n(item.costo)
+                ]);
+            }
+
+            await client.query("COMMIT");
+            res.status(201).json({ ok: true, recepcion: recepcion.rows[0] });
+        } catch (error) {
+            await client.query("ROLLBACK");
+            responderError(res, error);
+        } finally {
+            client.release();
+        }
+    });
+
+    app.get("/recepciones-mercancia", requerirAccesoNegocio, async (req, res) => {
+        try {
+            await asegurar();
+            const negocio = await negocioActual(req);
+
+            const resultado = await pool.query(`
+                SELECT
+                    r.*,
+                    (SELECT COUNT(*) FROM public.recepciones_mercancia_items i WHERE i.recepcion_id = r.id) AS items_count
+                FROM public.recepciones_mercancia r
+                WHERE r.negocio_id = $1
+                ORDER BY r.created_at DESC
+                LIMIT 80
+            `, [negocio.id]);
+
+            res.json({ ok: true, recepciones: resultado.rows });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.get("/recepciones-mercancia/:id", requerirAccesoNegocio, async (req, res) => {
+        try {
+            await asegurar();
+            const negocio = await negocioActual(req);
+
+            const recepcion = await pool.query(`
+                SELECT * FROM public.recepciones_mercancia WHERE id = $1 AND negocio_id = $2
+            `, [req.params.id, negocio.id]);
+
+            if (!recepcion.rows.length) {
+                res.status(404).json({ ok: false, error: "Recepcion no encontrada" });
+                return;
+            }
+
+            const items = await pool.query(`
+                SELECT * FROM public.recepciones_mercancia_items WHERE recepcion_id = $1 ORDER BY id ASC
+            `, [req.params.id]);
+
+            res.json({ ok: true, recepcion: recepcion.rows[0], items: items.rows });
+        } catch (error) {
+            responderError(res, error);
         }
     });
 

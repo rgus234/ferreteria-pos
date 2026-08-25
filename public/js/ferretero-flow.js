@@ -629,6 +629,7 @@
       <h2>Registro de compras e inventario</h2>
       <p>Registra la factura o remision, compara contra inventario y actualiza existencias con vista previa. Acepta XML CFDI o CSV.</p>
      </div>
+     <button type="button" class="btn-recepcion-historial" onclick="abrirHistorialRecepciones()">Ver historial</button>
     </div>
 
     <div class="recepcion-grid">
@@ -1115,6 +1116,7 @@
   let actualizados = 0;
   let creados = 0;
   const idsTocados = [];
+  const itemsParaHistorial = [];
   try {
    for (const item of lista) {
     if (item.existe && item.producto?.id) {
@@ -1126,6 +1128,7 @@
      if (!respuesta.ok) throw new Error("No se pudo actualizar " + item.descripcion);
      actualizados++;
      idsTocados.push(item.producto.id);
+     itemsParaHistorial.push({ productoId: item.producto.id, codigo: item.codigo, nombre: item.descripcion, cantidad: item.cantidad, costo: item.costo });
     } else {
      const respuesta = await fetch("/agregar-producto", {
       method: "POST",
@@ -1136,10 +1139,32 @@
      const datos = await respuesta.json();
      if (datos?.producto?.id) idsTocados.push(datos.producto.id);
      creados++;
+     itemsParaHistorial.push({ productoId: datos?.producto?.id || null, codigo: item.codigo, nombre: item.descripcion, cantidad: item.cantidad, costo: item.costo });
     }
    }
    await cargarProductos();
    detectarPendientesCodigoBarras(idsTocados);
+
+   // Guarda el historial de esta recepcion -- best-effort a proposito,
+   // el stock ya se aplico arriba, si esto falla no debe verse como
+   // que la recepcion completa fallo (el dueño ya se quedaria
+   // pensando que no se actualizo nada, cuando si se actualizo).
+   try {
+    await fetch("/recepciones-mercancia", {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },
+     body: JSON.stringify({
+      proveedor: estadoRecepcion.proveedor || "",
+      referencia: estadoRecepcion.documento?.folio || "",
+      fechaDocumento: estadoRecepcion.documento?.fecha || null,
+      tipoDocumento: estadoRecepcion.documento?.tipo || "",
+      items: itemsParaHistorial
+     })
+    });
+   } catch (errorHistorial) {
+    console.warn("No se pudo guardar el historial de esta recepcion:", errorHistorial.message);
+   }
+
    limpiarRecepcionMercancia();
    alertaPOS("Recepcion aplicada", actualizados + " actualizados, " + creados + " creados.", "success");
   } catch (error) {
@@ -1175,6 +1200,126 @@
    if (buscar) buscar.value = "";
    renderRecepcionMercancia();
   };
+
+ // Historial de recepciones -- lista todas las recepciones guardadas
+ // (con pedido a proveedor o libres, via factura XML/CSV suelta) y
+ // permite ver el detalle de cada una. Modal propio, mismo patron
+ // reusable (crear una vez, reescribir innerHTML) que ya usa
+ // modalPermisosUsuario/modalHorarioUsuario en config-auth.js.
+ function modalHistorialRecepciones() {
+  let modal = document.getElementById("modalHistorialRecepciones");
+  if (!modal) {
+   modal = document.createElement("div");
+   modal.id = "modalHistorialRecepciones";
+   modal.className = "modal-permisos-usuario";
+   document.body.appendChild(modal);
+  }
+  return modal;
+ }
+
+ window.abrirHistorialRecepciones = async function() {
+  const modal = modalHistorialRecepciones();
+  modal.innerHTML = `<div class="permisos-card"><p class="permisos-rol-nota">Cargando historial...</p></div>`;
+  modal.style.display = "flex";
+
+  try {
+   const respuesta = await fetch("/recepciones-mercancia");
+   const datos = await respuesta.json();
+   if (!datos.ok) throw new Error(datos.error || "No se pudo cargar el historial");
+   renderListaHistorialRecepciones(datos.recepciones || []);
+  } catch (error) {
+   modal.innerHTML = `
+    <div class="permisos-card">
+     <div class="permisos-header"><h2>Historial de recepciones</h2><button type="button" onclick="cerrarHistorialRecepciones()">Cerrar</button></div>
+     <p class="permisos-rol-nota">${escaparPOS(error.message || "No se pudo cargar el historial.")}</p>
+    </div>
+   `;
+  }
+ };
+
+ function renderListaHistorialRecepciones(recepciones) {
+  const modal = modalHistorialRecepciones();
+  modal.innerHTML = `
+   <div class="permisos-card">
+    <div class="permisos-header">
+     <div><h2>Historial de recepciones</h2><p>Facturas y remisiones recibidas, con o sin pedido a proveedor.</p></div>
+     <button type="button" onclick="cerrarHistorialRecepciones()">Cerrar</button>
+    </div>
+    <div class="permisos-secciones">
+     <section>
+      ${recepciones.length ? recepciones.map(r => `
+       <div class="fila-dueno" style="cursor:pointer;" onclick="verDetalleRecepcion(${r.id})">
+        <div>
+         <strong>${escaparPOS(r.proveedor || "Sin proveedor")}</strong>
+         <span>${escaparPOS(r.referencia || "Sin folio")} -- ${new Date(r.created_at).toLocaleDateString("es-MX")} -- ${r.items_count} producto${Number(r.items_count) === 1 ? "" : "s"}</span>
+        </div>
+        <strong>${dinero(Number(r.total || 0))}</strong>
+       </div>
+      `).join("") : `<div class="vacio">Todavia no hay recepciones registradas.</div>`}
+     </section>
+    </div>
+   </div>
+  `;
+  modal.style.display = "flex";
+ }
+
+ window.verDetalleRecepcion = async function(id) {
+  const modal = modalHistorialRecepciones();
+  modal.innerHTML = `<div class="permisos-card"><p class="permisos-rol-nota">Cargando...</p></div>`;
+
+  try {
+   const respuesta = await fetch("/recepciones-mercancia/" + id);
+   const datos = await respuesta.json();
+   if (!datos.ok) throw new Error(datos.error || "No se pudo cargar la recepcion");
+
+   const r = datos.recepcion;
+   const items = datos.items || [];
+
+   modal.innerHTML = `
+    <div class="permisos-card">
+     <div class="permisos-header">
+      <div>
+       <h2>${escaparPOS(r.proveedor || "Sin proveedor")}</h2>
+       <p>${escaparPOS(r.referencia || "Sin folio")} -- ${new Date(r.created_at).toLocaleDateString("es-MX")}${r.tipo_documento ? " -- " + escaparPOS(r.tipo_documento) : ""}</p>
+      </div>
+      <button type="button" onclick="cerrarHistorialRecepciones()">Cerrar</button>
+     </div>
+     <div class="permisos-secciones">
+      <section>
+       ${items.map(item => `
+        <div class="fila-dueno">
+         <div>
+          <strong>${escaparPOS(item.nombre)}</strong>
+          <span>${escaparPOS(item.codigo || "Sin codigo")} -- ${Number(item.cantidad)} pzas</span>
+         </div>
+         <strong>${dinero(Number(item.costo || 0))}</strong>
+        </div>
+       `).join("")}
+       <div class="fila-dueno" style="border-top:1px solid var(--line, #e2e8f0);margin-top:8px;padding-top:8px;">
+        <strong>Total</strong>
+        <strong>${dinero(Number(r.total || 0))}</strong>
+       </div>
+      </section>
+     </div>
+     <div class="permisos-acciones">
+      <button type="button" onclick="abrirHistorialRecepciones()">Volver al historial</button>
+     </div>
+    </div>
+   `;
+  } catch (error) {
+   modal.innerHTML = `
+    <div class="permisos-card">
+     <div class="permisos-header"><h2>Recepcion</h2><button type="button" onclick="cerrarHistorialRecepciones()">Cerrar</button></div>
+     <p class="permisos-rol-nota">${escaparPOS(error.message || "No se pudo cargar la recepcion.")}</p>
+    </div>
+   `;
+  }
+ };
+
+ window.cerrarHistorialRecepciones = function() {
+  const modal = document.getElementById("modalHistorialRecepciones");
+  if (modal) modal.style.display = "none";
+ };
 
  const ocultarBase = window.ocultarPantallasPrincipales;
  if (typeof ocultarBase === "function" && !ocultarBase.__recepcionMercancia) {
