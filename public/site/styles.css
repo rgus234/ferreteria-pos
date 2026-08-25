@@ -20,6 +20,31 @@ html {
   overflow-x: hidden;
 }
 
+/* Animacion de entrada al hacer scroll (site-nav.js agrega
+   .reveal-visible via IntersectionObserver la primera vez que la
+   seccion entra en pantalla). Con guardia de movimiento reducido --
+   las animaciones de mascota existentes (girarMascota, nexoFlotar,
+   etc.) son decorativas y no llevaban esta guardia; esta si, porque
+   es la primera animacion que de verdad mueve contenido/texto. */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity .6s ease-out, transform .6s ease-out;
+}
+
+.reveal-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
 body {
   margin: 0;
   overflow-x: hidden;
@@ -1510,8 +1535,28 @@ footer {
 }
 
 .nexo-capacidades,
-.nexo-planes {
+.nexo-planes,
+.modulos-nexo {
   padding: clamp(50px, 7vw, 96px) clamp(18px, 6vw, 88px);
+}
+
+.modulos-nexo-nota {
+  margin: 24px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.modulos-nexo > .btn {
+  display: table;
+  margin: 16px auto 0;
+}
+
+.nexo-capacidad-grid h3 small {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 13px;
 }
 
 .nexo-capacidad-grid {
