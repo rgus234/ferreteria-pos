@@ -113,4 +113,105 @@ const CATEGORIAS_NEXO = [
     { departamento: "Ferreteria general", nombre: "Otros / sin categoria clara" }
 ];
 
-module.exports = { CATEGORIAS_NEXO };
+// Fase 2 del plan "Catalogo Maestro Nexo": arboles nuevos para
+// negocios de abarrotes y papeleria. Todavia NO los usa la IA de
+// clasificacion (SYSTEM_PROMPT_CATEGORIA_NEXO en ia-server.js sigue
+// leyendo solo CATEGORIAS_NEXO -- generalizar el prompt es Fase 9) ni
+// el selector estructurado del formulario de producto (sigue
+// mostrando solo ferreteria hasta que haya ayuda de IA y payoff real
+// en Nexo Market para estos giros) -- por ahora solo pueblan
+// categorias_nexo para que la migracion/filtrado por giro se pueda
+// probar con datos reales de mas de un giro.
+const CATEGORIAS_NEXO_ABARROTES = [
+    { departamento: "Bebidas", nombre: "Refrescos" },
+    { departamento: "Bebidas", nombre: "Aguas" },
+    { departamento: "Bebidas", nombre: "Jugos y nectares" },
+    { departamento: "Bebidas", nombre: "Cafe y te" },
+    { departamento: "Bebidas", nombre: "Bebidas alcoholicas" },
+    { departamento: "Bebidas", nombre: "Bebidas energeticas" },
+
+    { departamento: "Lacteos", nombre: "Leche" },
+    { departamento: "Lacteos", nombre: "Yogurt" },
+    { departamento: "Lacteos", nombre: "Quesos" },
+    { departamento: "Lacteos", nombre: "Mantequilla y margarina" },
+    { departamento: "Lacteos", nombre: "Crema" },
+
+    { departamento: "Botanas y dulces", nombre: "Papas y frituras" },
+    { departamento: "Botanas y dulces", nombre: "Galletas" },
+    { departamento: "Botanas y dulces", nombre: "Dulces y chocolates" },
+    { departamento: "Botanas y dulces", nombre: "Chicles" },
+
+    { departamento: "Abarrotes secos", nombre: "Granos y semillas" },
+    { departamento: "Abarrotes secos", nombre: "Pastas y sopas" },
+    { departamento: "Abarrotes secos", nombre: "Aceites y vinagres" },
+    { departamento: "Abarrotes secos", nombre: "Condimentos y especias" },
+    { departamento: "Abarrotes secos", nombre: "Enlatados" },
+    { departamento: "Abarrotes secos", nombre: "Harinas y azucar" },
+
+    { departamento: "Panaderia", nombre: "Pan de caja" },
+    { departamento: "Panaderia", nombre: "Pan dulce" },
+    { departamento: "Panaderia", nombre: "Tortillas" },
+
+    { departamento: "Limpieza del hogar", nombre: "Detergentes" },
+    { departamento: "Limpieza del hogar", nombre: "Jabon para trastes" },
+    { departamento: "Limpieza del hogar", nombre: "Desinfectantes" },
+    { departamento: "Limpieza del hogar", nombre: "Papel higienico y servilletas" },
+    { departamento: "Limpieza del hogar", nombre: "Bolsas de basura" },
+
+    { departamento: "Higiene y cuidado personal", nombre: "Jabon de bano" },
+    { departamento: "Higiene y cuidado personal", nombre: "Shampoo" },
+    { departamento: "Higiene y cuidado personal", nombre: "Pasta dental" },
+    { departamento: "Higiene y cuidado personal", nombre: "Cuidado femenino" },
+    { departamento: "Higiene y cuidado personal", nombre: "Rasurado" },
+
+    { departamento: "Congelados y refrigerados", nombre: "Helados" },
+    { departamento: "Congelados y refrigerados", nombre: "Embutidos" },
+    { departamento: "Congelados y refrigerados", nombre: "Comida congelada" },
+
+    { departamento: "Cigarros y accesorios", nombre: "Cigarros y accesorios" },
+
+    { departamento: "Abarrotes general", nombre: "Otros / sin categoria clara" }
+];
+
+const CATEGORIAS_NEXO_PAPELERIA = [
+    { departamento: "Utiles escolares", nombre: "Cuadernos" },
+    { departamento: "Utiles escolares", nombre: "Lapices y plumas" },
+    { departamento: "Utiles escolares", nombre: "Colores y crayones" },
+    { departamento: "Utiles escolares", nombre: "Mochilas y loncheras" },
+    { departamento: "Utiles escolares", nombre: "Reglas y geometria" },
+    { departamento: "Utiles escolares", nombre: "Correctores y borradores" },
+
+    { departamento: "Oficina", nombre: "Carpetas y archivo" },
+    { departamento: "Oficina", nombre: "Grapas y clips" },
+    { departamento: "Oficina", nombre: "Cinta adhesiva" },
+    { departamento: "Oficina", nombre: "Calculadoras" },
+    { departamento: "Oficina", nombre: "Post-its y notas" },
+
+    { departamento: "Arte y manualidades", nombre: "Pinturas y acuarelas" },
+    { departamento: "Arte y manualidades", nombre: "Pinceles" },
+    { departamento: "Arte y manualidades", nombre: "Papel para manualidades" },
+    { departamento: "Arte y manualidades", nombre: "Pegamento y silicon" },
+
+    { departamento: "Impresion y copiado", nombre: "Papel para impresora" },
+    { departamento: "Impresion y copiado", nombre: "Toner y tinta" },
+    { departamento: "Impresion y copiado", nombre: "Servicio de copias" },
+    { departamento: "Impresion y copiado", nombre: "Servicio de impresion" },
+
+    { departamento: "Empastado y acabados", nombre: "Engargolado" },
+    { departamento: "Empastado y acabados", nombre: "Plastificado" },
+    { departamento: "Empastado y acabados", nombre: "Encuadernado" },
+
+    { departamento: "Tecnologia y computo", nombre: "USB y memorias" },
+    { departamento: "Tecnologia y computo", nombre: "Audifonos" },
+    { departamento: "Tecnologia y computo", nombre: "Accesorios de computo" },
+
+    { departamento: "Papeleria general", nombre: "Otros / sin categoria clara" }
+];
+
+const CATEGORIAS_POR_GIRO = {
+    ferreteria: CATEGORIAS_NEXO,
+    abarrotes: CATEGORIAS_NEXO_ABARROTES,
+    papeleria: CATEGORIAS_NEXO_PAPELERIA
+};
+
+module.exports = { CATEGORIAS_NEXO, CATEGORIAS_NEXO_ABARROTES, CATEGORIAS_NEXO_PAPELERIA, CATEGORIAS_POR_GIRO };

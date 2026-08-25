@@ -5701,32 +5701,43 @@ async function resolverCategoriaNexo(categoriaNexoId) {
 
 // Catalogo completo de categorias de Nexo, agrupado por departamento --
 // lo consume el selector de Agregar/Editar producto. Cacheado en
-// memoria (el catalogo solo cambia por deploy, ver categorias-nexo.js).
-let cacheCategoriasNexo = null;
+// memoria por combinacion de giros (el catalogo solo cambia por
+// deploy, ver categorias-nexo.js) -- Fase 2 de "Catalogo Maestro
+// Nexo": la tabla ahora tiene arboles de mas de un giro, asi que la
+// respuesta se filtra a los giros activos del negocio. Sin esto, en
+// cuanto existieran filas de abarrotes/papeleria, un negocio ferretero
+// las veria mezcladas en su selector.
+const cacheCategoriasNexoPorGiros = new Map();
 app.get("/categorias-nexo", requerirAccesoNegocio, async (req, res) => {
     try {
-        if (!cacheCategoriasNexo) {
+        const negocio = await negocioActual(req);
+        const filasGiro = await pool.query(
+            `SELECT giro FROM public.negocio_giros WHERE negocio_id = $1 AND activo = true ORDER BY giro`,
+            [negocio.id]
+        );
+        const girosActivos = filasGiro.rows.length ? filasGiro.rows.map(fila => fila.giro) : ["ferreteria"];
+        const claveCache = girosActivos.join(",");
+
+        if (!cacheCategoriasNexoPorGiros.has(claveCache)) {
             const filas = await pool.query(
-                `SELECT id, departamento, nombre FROM public.categorias_nexo ORDER BY orden, departamento, nombre`
+                `SELECT id, departamento, nombre FROM public.categorias_nexo WHERE giro = ANY($1::text[]) ORDER BY orden, departamento, nombre`,
+                [girosActivos]
             );
             const porDepartamento = new Map();
             for (const fila of filas.rows) {
                 if (!porDepartamento.has(fila.departamento)) porDepartamento.set(fila.departamento, []);
                 porDepartamento.get(fila.departamento).push({ id: fila.id, nombre: fila.nombre });
             }
-            cacheCategoriasNexo = Array.from(porDepartamento.entries()).map(([departamento, subcategorias]) => ({ departamento, subcategorias }));
+            cacheCategoriasNexoPorGiros.set(
+                claveCache,
+                Array.from(porDepartamento.entries()).map(([departamento, subcategorias]) => ({ departamento, subcategorias }))
+            );
         }
-
-        const negocio = await negocioActual(req);
-        const giros = await pool.query(
-            `SELECT giro FROM public.negocio_giros WHERE negocio_id = $1 AND activo = true ORDER BY id`,
-            [negocio.id]
-        );
 
         res.json({
             ok: true,
-            departamentos: cacheCategoriasNexo,
-            girosActivos: giros.rows.map(fila => fila.giro)
+            departamentos: cacheCategoriasNexoPorGiros.get(claveCache),
+            girosActivos
         });
     } catch (error) {
         responderError(res, error);
