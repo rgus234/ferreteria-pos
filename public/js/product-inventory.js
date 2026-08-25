@@ -3984,6 +3984,24 @@ async function editarCategoriaInventario(id) {
  }
 
  const nombreNuevo = nombre.trim();
+
+ // Renombrar aqui es distinto de eliminar una categoria (eso solo
+ // quita metadata local) -- esto SI cambia productos.categoria de
+ // verdad, en cuantos productos reales tenga asignados hoy. Sin
+ // confirmacion, un typo en el nombre nuevo se aplicaba de inmediato
+ // a todos ellos sin aviso.
+ const afectados = productosPorCategoria(categoria.nombre).length;
+
+ const confirmar = await confirmarPOS(
+ afectados > 0
+ ? `Vas a renombrar "${categoria.nombre}" a "${nombreNuevo}". Esto actualiza ${afectados} producto${afectados === 1 ? "" : "s"} que ya tienen esta categoria asignada.`
+ : `Vas a renombrar "${categoria.nombre}" a "${nombreNuevo}".`,
+ "Renombrar categoria",
+ "alerta"
+ );
+
+ if (!confirmar) return;
+
  let actualizados = 0;
 
  try {
