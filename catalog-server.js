@@ -1,6 +1,7 @@
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan } = require("./plan-enforcement");
 const { resolverOcrearProveedorId } = require("./proveedor-resolver");
+const { contribuirOEnlazarCatalogoMaestro } = require("./catalogo-maestro-resolver");
 
 async function negocioActual(req, pool) {
     const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -621,6 +622,30 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                 `,
                 [productoId, cp.id]
             );
+
+            // Fase 7 del plan "Catalogo Maestro Nexo": confirmar un
+            // producto desde el catalogo de proveedor ya es la accion
+            // afirmativa del dueño de traerlo a su inventario -- de
+            // paso aporta (o simplemente enlaza, si ya lo trajo otro
+            // negocio antes) su identidad general al Catalogo Maestro.
+            // Nunca se comparte precio/costo/stock, solo marca/nombre/
+            // categoria/imagen. No bloquea el alta si falla.
+            try {
+                const catalogoMaestroId = await contribuirOEnlazarCatalogoMaestro(pool, negocio.id, {
+                    codigo: cp.codigo_interno || cp.codigo_proveedor,
+                    marca: cp.marca,
+                    nombre: cp.nombre_proveedor,
+                    descripcion: cp.descripcion,
+                    categoriaNexoId,
+                    imagen: cp.imagen,
+                    imagenTipo: cp.imagen_tipo
+                });
+                if (catalogoMaestroId) {
+                    await pool.query(`UPDATE public.productos SET catalogo_maestro_id = $1 WHERE id = $2`, [catalogoMaestroId, productoId]);
+                }
+            } catch (errorCatalogoMaestro) {
+                console.error("No se pudo aportar/enlazar al Catalogo Maestro", errorCatalogoMaestro);
+            }
 
             await actualizarContadoresCatalogo(pool, negocio.id, Number(req.params.id));
             res.json({ ok: true, productoId });

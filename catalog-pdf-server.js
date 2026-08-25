@@ -12,6 +12,7 @@ const { responderError } = require("./error-utils");
 const { requerirFuncionPlan } = require("./plan-enforcement");
 const { extraerCatalogoPDF } = require("./catalog-pdf-extractor");
 const { resolverOcrearProveedorId } = require("./proveedor-resolver");
+const { contribuirOEnlazarCatalogoMaestro } = require("./catalogo-maestro-resolver");
 
 async function negocioActual(req, pool) {
     const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -535,6 +536,27 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     `UPDATE public.catalogo_productos SET producto_id = $1, estado = 'vinculado', porcentaje_coincidencia = 100, vinculado_manualmente = true, updated_at = NOW() WHERE id = $2`,
                     [productoId, cp.id]
                 );
+
+                // Fase 7 del plan "Catalogo Maestro Nexo" -- mismo
+                // criterio que crear-producto (catalog-server.js): solo
+                // identidad de producto, nunca precio/costo. No bloquea
+                // la creacion en lote si falla.
+                try {
+                    const catalogoMaestroId = await contribuirOEnlazarCatalogoMaestro(pool, negocio.id, {
+                        codigo: cp.codigo_interno || cp.codigo_proveedor,
+                        marca: cp.marca,
+                        nombre: cp.nombre_proveedor || cp.codigo_proveedor,
+                        descripcion: cp.descripcion,
+                        categoriaNexoId: null,
+                        imagen: cp.imagen,
+                        imagenTipo: cp.imagen_tipo
+                    });
+                    if (catalogoMaestroId) {
+                        await pool.query(`UPDATE public.productos SET catalogo_maestro_id = $1 WHERE id = $2`, [catalogoMaestroId, productoId]);
+                    }
+                } catch (errorCatalogoMaestro) {
+                    console.error("No se pudo aportar/enlazar al Catalogo Maestro", errorCatalogoMaestro);
+                }
 
                 creados++;
                 if (!/^SIN-CODIGO-/.test(cp.codigo_proveedor)) codigosConfirmados.push(cp.codigo_proveedor);
