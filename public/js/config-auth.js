@@ -2365,6 +2365,54 @@ async function calcularVerificadorPinOfflineCliente(pin, saltHex, iteraciones) {
  .join("");
 }
 
+// Mismo criterio que limitadorPinEmpleado en server.js (6 intentos /
+// 5 minutos) -- el verificador offline corre 100% en el navegador, sin
+// ningun servidor de por medio, asi que el limite tambien tiene que
+// vivir aqui. No es tan fuerte como el del servidor (alguien con la
+// consola del navegador podria borrar localStorage o llamar la funcion
+// de verificacion directo, sin pasar por este contador) pero sube la
+// barrera para el caso comun: adivinar el PIN tecleando en la pantalla
+// real. En localStorage para que sobreviva un refresco de pagina.
+const LIMITADOR_PIN_OFFLINE_KEY = "limitadorPinOfflinePOS";
+const LIMITADOR_PIN_OFFLINE_MAX_INTENTOS = 6;
+const LIMITADOR_PIN_OFFLINE_VENTANA_MS = 5 * 60 * 1000;
+
+function leerLimitadorPinOffline() {
+ try {
+ return JSON.parse(localStorage.getItem(LIMITADOR_PIN_OFFLINE_KEY) || "{}");
+ } catch (error) {
+ return {};
+ }
+}
+
+function guardarLimitadorPinOffline(registro) {
+ localStorage.setItem(LIMITADOR_PIN_OFFLINE_KEY, JSON.stringify(registro));
+}
+
+function pinOfflineBloqueado(empleadoId) {
+ const entrada = leerLimitadorPinOffline()[empleadoId];
+ return Boolean(entrada?.bloqueadoHasta && entrada.bloqueadoHasta > Date.now());
+}
+
+function pinOfflineRegistrarFallo(empleadoId) {
+ const registro = leerLimitadorPinOffline();
+ const entrada = registro[empleadoId] || { fallos: 0, bloqueadoHasta: 0 };
+ entrada.fallos += 1;
+
+ if (entrada.fallos >= LIMITADOR_PIN_OFFLINE_MAX_INTENTOS) {
+ entrada.bloqueadoHasta = Date.now() + LIMITADOR_PIN_OFFLINE_VENTANA_MS;
+ }
+
+ registro[empleadoId] = entrada;
+ guardarLimitadorPinOffline(registro);
+}
+
+function pinOfflineRegistrarExito(empleadoId) {
+ const registro = leerLimitadorPinOffline();
+ delete registro[empleadoId];
+ guardarLimitadorPinOffline(registro);
+}
+
 async function verificarPinEmpleadoOffline(empleado, pin) {
  if (!empleado?.pinOffline?.salt || !empleado?.pinOffline?.verificador) {
  return false;
@@ -2435,30 +2483,47 @@ async function verificarPinEmpleado(empleadoId, pin) {
  return { ok: false, error: "Este perfil no esta disponible sin internet todavia. Conectate para sincronizar." };
  }
 
+ if (pinOfflineBloqueado(empleadoId)) {
+ return { ok: false, error: "Demasiados intentos. Espera unos minutos e intenta de nuevo." };
+ }
+
  const valido =
  await verificarPinEmpleadoOffline(empleado, pin);
 
  if (!valido) {
+ pinOfflineRegistrarFallo(empleadoId);
  return { ok: false, error: "PIN incorrecto" };
  }
 
+ pinOfflineRegistrarExito(empleadoId);
  return { ok: true, empleado };
 }
 
 // Usado por pantallas que piden "PIN de administrador" como
 // confirmacion rapida (ej. ajustar el total de una nota de venta) sin
 // pasar por la pantalla completa de seleccion de perfil. Revisa contra
-// la cache local -- no necesita internet.
+// la cache local -- no necesita internet. Llave fija de limitador (no
+// hay un empleadoId especifico en este punto -- se prueba el PIN
+// contra todos los administradores) para que probar contra varios
+// administradores no sirva para esquivar el limite de intentos.
+const LIMITADOR_PIN_OFFLINE_LLAVE_ADMIN = "admin-local";
+
 async function buscarAdminPorPinLocal(pin) {
+ if (pinOfflineBloqueado(LIMITADOR_PIN_OFFLINE_LLAVE_ADMIN)) {
+ return null;
+ }
+
  const candidatos =
  usuariosSistema().filter(usuario => usuario.rol === "Administrador");
 
  for (const candidato of candidatos) {
  if (await verificarPinEmpleadoOffline(candidato, pin)) {
+ pinOfflineRegistrarExito(LIMITADOR_PIN_OFFLINE_LLAVE_ADMIN);
  return candidato;
  }
  }
 
+ pinOfflineRegistrarFallo(LIMITADOR_PIN_OFFLINE_LLAVE_ADMIN);
  return null;
 }
 

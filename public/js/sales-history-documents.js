@@ -646,6 +646,12 @@ async function generarNotaVentaPOS(id) {
 
   if (requiereAutorizacion) {
    const pin = document.getElementById("notaPinVentaPOS")?.value || "";
+
+   if (pinOfflineBloqueado(LIMITADOR_PIN_OFFLINE_LLAVE_ADMIN)) {
+    await alertaPOS("Demasiados intentos. Espera unos minutos e intenta de nuevo.", "Ajuste de nota", "peligro");
+    return;
+   }
+
    const admin = await buscarAdminPorPinLocal(pin);
 
    if (!admin) {

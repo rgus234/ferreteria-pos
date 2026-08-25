@@ -721,6 +721,11 @@ async function editarCompraCreditoPOS(indice) {
 
  if (pin === null || pin === undefined) return;
 
+ if (pinOfflineBloqueado(LIMITADOR_PIN_OFFLINE_LLAVE_ADMIN)) {
+ await alertaPOS("Demasiados intentos. Espera unos minutos e intenta de nuevo.", "Editar compra", "peligro");
+ return;
+ }
+
  const admin =
  await buscarAdminPorPinLocal(pin);
 
