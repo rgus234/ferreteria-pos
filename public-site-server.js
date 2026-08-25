@@ -858,7 +858,7 @@ ${modalCarritoTenantHtml(datos.slug)}
 // mano, oferta vigente real, categorias con al menos 1 producto).
 async function cargarInicioTenant(pool, sitio, slug, firmarTokenImagen) {
     const conteoProductos = await pool.query(
-        `SELECT COUNT(*) AS total FROM public.productos WHERE negocio_id = $1`,
+        `SELECT COUNT(*) AS total FROM public.productos WHERE negocio_id = $1 AND visible_market = true`,
         [sitio.negocio.id]
     );
 
@@ -871,7 +871,7 @@ async function cargarInicioTenant(pool, sitio, slug, firmarTokenImagen) {
         SELECT COALESCE(cn.departamento, p.categoria) AS categoria, COUNT(*) AS total
         FROM public.productos p
         LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
-        WHERE p.negocio_id = $1 AND COALESCE(cn.departamento, p.categoria) <> ''
+        WHERE p.negocio_id = $1 AND p.visible_market = true AND COALESCE(cn.departamento, p.categoria) <> ''
         GROUP BY COALESCE(cn.departamento, p.categoria)
         ORDER BY COUNT(*) DESC
         LIMIT 10
@@ -892,7 +892,7 @@ async function cargarInicioTenant(pool, sitio, slug, firmarTokenImagen) {
         `
         SELECT ${columnasDestacados.join(", ")}
         FROM public.productos
-        WHERE negocio_id = $1 AND destacado = true
+        WHERE negocio_id = $1 AND visible_market = true AND destacado = true
         ORDER BY nombre
         LIMIT 8
         `,
@@ -926,6 +926,7 @@ async function cargarInicioTenant(pool, sitio, slug, firmarTokenImagen) {
         SELECT EXISTS(
             SELECT 1 FROM public.productos
             WHERE negocio_id = $1
+            AND visible_market = true
             AND precio_oferta IS NOT NULL
             AND precio_oferta < COALESCE(precio_publico, precio)
         ) AS existe
@@ -1030,7 +1031,7 @@ async function favoritosJson(pool, req, res, slug, firmarTokenImagen) {
             `
             SELECT codigo, nombre${columnasExtra.length ? ", " + columnasExtra.join(", ") : ""}
             FROM public.productos
-            WHERE negocio_id = $1 AND codigo = ANY($2)
+            WHERE negocio_id = $1 AND codigo = ANY($2) AND visible_market = true
             `,
             [sitio.negocio.id, codigos]
         );
@@ -1098,7 +1099,7 @@ async function comparadorJson(pool, req, res, slug, firmarTokenImagen) {
             `
             SELECT codigo, nombre, categoria, marca, unidad_venta, tiene_garantia, garantia_detalle${columnasExtra.length ? ", " + columnasExtra.join(", ") : ""}
             FROM public.productos
-            WHERE negocio_id = $1 AND codigo = ANY($2)
+            WHERE negocio_id = $1 AND codigo = ANY($2) AND visible_market = true
             `,
             [sitio.negocio.id, codigos]
         );
@@ -1152,7 +1153,7 @@ async function cargarCatalogoTenant(pool, sitio, slug, filtros, firmarTokenImage
     const offset = (pagina - 1) * PRODUCTOS_POR_PAGINA_CATALOGO;
 
     const valores = [sitio.negocio.id];
-    const condiciones = ["p.negocio_id = $1"];
+    const condiciones = ["p.negocio_id = $1", "p.visible_market = true"];
 
     if (ofertas) {
         condiciones.push(`p.precio_oferta IS NOT NULL AND p.precio_oferta < COALESCE(p.precio_publico, p.precio)`);
@@ -1217,12 +1218,12 @@ async function cargarCatalogoTenant(pool, sitio, slug, filtros, firmarTokenImage
             `SELECT DISTINCT COALESCE(cn.departamento, p.categoria) AS categoria
              FROM public.productos p
              LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
-             WHERE p.negocio_id = $1 AND COALESCE(cn.departamento, p.categoria) <> ''
+             WHERE p.negocio_id = $1 AND p.visible_market = true AND COALESCE(cn.departamento, p.categoria) <> ''
              ORDER BY COALESCE(cn.departamento, p.categoria)`,
             [sitio.negocio.id]
         ),
         pool.query(
-            `SELECT DISTINCT marca FROM public.productos WHERE negocio_id = $1 AND marca IS NOT NULL AND marca <> '' ORDER BY marca`,
+            `SELECT DISTINCT marca FROM public.productos WHERE negocio_id = $1 AND visible_market = true AND marca IS NOT NULL AND marca <> '' ORDER BY marca`,
             [sitio.negocio.id]
         )
     ]);
@@ -1466,7 +1467,7 @@ async function cargarProductoTenant(pool, sitio, slug, codigo, firmarTokenImagen
         SELECT id, codigo, nombre, categoria, marca, descripcion, precio, precio_publico, precio_oferta, stock,
             tiene_garantia, garantia_detalle, destacado
         FROM public.productos
-        WHERE negocio_id = $1 AND codigo = $2
+        WHERE negocio_id = $1 AND codigo = $2 AND visible_market = true
         LIMIT 1
         `,
         [sitio.negocio.id, codigo]
@@ -1547,7 +1548,7 @@ async function cargarProductoTenant(pool, sitio, slug, codigo, firmarTokenImagen
     // hay ninguno real, la lista queda vacia.
     let complementarios = [];
     if (producto.categoria || producto.marca) {
-        const condicionesComp = ["p.negocio_id = $1", "p.codigo <> $2"];
+        const condicionesComp = ["p.negocio_id = $1", "p.codigo <> $2", "p.visible_market = true"];
         const valoresComp = [sitio.negocio.id, producto.codigo];
         const subcondiciones = [];
         if (producto.categoria) {
@@ -1797,7 +1798,7 @@ async function recibirPedidoPublico(pool, req, res, slug, codigo, basePath = "")
         limitadorPedidoPublico.registrarFallo(req.ip);
 
         const productoRes = await pool.query(
-            `SELECT nombre FROM public.productos WHERE negocio_id = $1 AND codigo = $2 LIMIT 1`,
+            `SELECT nombre FROM public.productos WHERE negocio_id = $1 AND codigo = $2 AND disponible_pedidos = true LIMIT 1`,
             [sitio.negocio.id, codigo]
         );
 
@@ -1982,7 +1983,7 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
             await client.query("BEGIN");
 
             const productosRes = await client.query(
-                `SELECT codigo, nombre, COALESCE(precio_oferta, precio_publico, precio) AS precio_final FROM public.productos WHERE negocio_id = $1 AND codigo = ANY($2)`,
+                `SELECT codigo, nombre, COALESCE(precio_oferta, precio_publico, precio) AS precio_final FROM public.productos WHERE negocio_id = $1 AND codigo = ANY($2) AND disponible_pedidos = true`,
                 [sitio.negocio.id, codigos]
             );
             const nombresPorCodigo = new Map(productosRes.rows.map(p => [p.codigo, p.nombre]));

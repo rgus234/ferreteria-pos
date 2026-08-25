@@ -127,7 +127,7 @@ async function categoriasMarket(pool) {
         `SELECT COALESCE(cn.departamento, p.categoria) AS categoria, COUNT(*) AS total
          FROM public.productos p
          LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
-         WHERE p.negocio_id = ANY($1::int[]) AND COALESCE(cn.departamento, p.categoria) <> ''
+         WHERE p.negocio_id = ANY($1::int[]) AND p.visible_market = true AND COALESCE(cn.departamento, p.categoria) <> ''
          GROUP BY COALESCE(cn.departamento, p.categoria)
          ORDER BY COUNT(*) DESC
          LIMIT 12`,
@@ -188,7 +188,7 @@ async function recomendadosMarket(pool, idsPermitidos, claveOficio, firmarTokenI
          JOIN public.negocios n ON n.id = p.negocio_id
          JOIN public.sitio_web_config c ON c.negocio_id = n.id
          LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
-         WHERE p.negocio_id = ANY($1::int[]) AND p.categoria ~* $2
+         WHERE p.negocio_id = ANY($1::int[]) AND p.visible_market = true AND p.categoria ~* $2
          LIMIT 12`,
         [idsPermitidos, oficio.patron.source]
     );
@@ -212,7 +212,7 @@ async function ofertasMarket(pool, idsPermitidos, firmarTokenImagen) {
          JOIN public.negocios n ON n.id = p.negocio_id
          JOIN public.sitio_web_config c ON c.negocio_id = n.id
          LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
-         WHERE p.negocio_id = ANY($1::int[])
+         WHERE p.negocio_id = ANY($1::int[]) AND p.visible_market = true
            AND p.precio_oferta IS NOT NULL
            AND p.precio_oferta < COALESCE(p.precio_publico, p.precio)
          LIMIT 12`,
@@ -235,7 +235,7 @@ async function heroProductoMarket(pool, idsPermitidos, firmarTokenImagen) {
          FROM public.productos p
          JOIN public.negocios n ON n.id = p.negocio_id
          JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
-         WHERE p.negocio_id = ANY($1::int[])
+         WHERE p.negocio_id = ANY($1::int[]) AND p.visible_market = true
          ORDER BY RANDOM()
          LIMIT 1`,
         [idsPermitidos]
@@ -273,7 +273,7 @@ async function categoriasConFotoMarket(pool, firmarTokenImagen) {
          LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
          JOIN public.negocios n ON n.id = p.negocio_id
          JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
-         WHERE p.negocio_id = ANY($1::int[]) AND COALESCE(cn.departamento, p.categoria) = ANY($2::text[])
+         WHERE p.negocio_id = ANY($1::int[]) AND p.visible_market = true AND COALESCE(cn.departamento, p.categoria) = ANY($2::text[])
          ORDER BY COALESCE(cn.departamento, p.categoria), RANDOM()`,
         [idsPermitidos, categorias]
     );
@@ -309,7 +309,7 @@ async function popularesMarket(pool, idsPermitidos, firmarTokenImagen, limite = 
          JOIN public.negocios n ON n.id = p.negocio_id
          JOIN public.sitio_web_config c ON c.negocio_id = n.id
          JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
-         WHERE p.negocio_id = ANY($1::int[])
+         WHERE p.negocio_id = ANY($1::int[]) AND p.visible_market = true
          ORDER BY p.destacado DESC, RANDOM()
          LIMIT $2`,
         [idsPermitidos, limite]
@@ -331,7 +331,7 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
     const idsPermitidos = tiendas.map(t => t.id);
     const offset = Math.max(0, (pagina - 1) * limite);
 
-    const condiciones = ["p.negocio_id = ANY($1::int[])"];
+    const condiciones = ["p.negocio_id = ANY($1::int[]) AND p.visible_market = true"];
     const parametros = [idsPermitidos];
     let ordenSql = orden === "recientes" ? "p.id DESC"
         : orden === "precio_asc" ? "COALESCE(p.precio_oferta, p.precio_publico, p.precio) ASC NULLS LAST"
@@ -422,7 +422,7 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
 async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "", ofertas = false } = {}) {
     if (idsPermitidos.length === 0) return { marcas: [], precioMin: null, precioMax: null };
 
-    const condiciones = ["p.negocio_id = ANY($1::int[])"];
+    const condiciones = ["p.negocio_id = ANY($1::int[]) AND p.visible_market = true"];
     const parametros = [idsPermitidos];
 
     if (buscar) {
@@ -592,7 +592,7 @@ async function favoritosMarketJson(pool, req, res, firmarTokenImagen) {
              JOIN public.negocios n ON n.id = p.negocio_id
              JOIN public.sitio_web_config c ON c.negocio_id = n.id
              LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
-             WHERE p.negocio_id = ANY($1::int[]) AND p.codigo = ANY($2::text[])`,
+             WHERE p.negocio_id = ANY($1::int[]) AND p.visible_market = true AND p.codigo = ANY($2::text[])`,
             [negociosIds, codigos]
         );
 
@@ -645,7 +645,7 @@ async function carritoProductosMarketJson(pool, req, res, firmarTokenImagen) {
              JOIN public.negocios n ON n.id = p.negocio_id
              JOIN public.sitio_web_config c ON c.negocio_id = n.id
              LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
-             WHERE p.negocio_id = ANY($1::int[]) AND p.codigo = ANY($2::text[])`,
+             WHERE p.negocio_id = ANY($1::int[]) AND p.visible_market = true AND p.codigo = ANY($2::text[])`,
             [negociosIds, codigos]
         );
 
@@ -682,7 +682,7 @@ async function carritoProductosMarketJson(pool, req, res, firmarTokenImagen) {
                  JOIN public.negocios n ON n.id = p.negocio_id
                  JOIN public.sitio_web_config c ON c.negocio_id = n.id
                  LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
-                 WHERE p.negocio_id = ANY($1::int[]) AND p.categoria = ANY($2::text[]) AND p.codigo <> ALL($3::text[])
+                 WHERE p.negocio_id = ANY($1::int[]) AND p.visible_market = true AND p.categoria = ANY($2::text[]) AND p.codigo <> ALL($3::text[])
                  LIMIT 8`,
                 [[...idPorSlug.values()], categorias, codigosExcluir]
             );
@@ -2992,7 +2992,7 @@ async function servirMarketCategoria(pool, req, res) {
 
         const filas = await pool.query(
             `SELECT DISTINCT categoria FROM public.productos
-             WHERE negocio_id = ANY($1::int[]) AND categoria IS NOT NULL AND categoria <> ''`,
+             WHERE negocio_id = ANY($1::int[]) AND visible_market = true AND categoria IS NOT NULL AND categoria <> ''`,
             [idsPermitidos]
         );
         const categoriaReal = filas.rows.map(f => f.categoria).find(cat => normalizarSlug(cat) === slug);

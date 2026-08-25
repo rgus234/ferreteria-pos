@@ -5786,7 +5786,10 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
     admiteCambios,
     destacado,
     precioOferta,
-    unidadSuelta
+    unidadSuelta,
+    visiblePos,
+    visibleMarket,
+    disponiblePedidos
 } = req.body;
     try {
         const negocio = await negocioActual(req);
@@ -5837,9 +5840,12 @@ INSERT INTO public.productos
   admite_cambios,
   destacado,
   precio_oferta,
-  unidad_suelta
+  unidad_suelta,
+  visible_pos,
+  visible_market,
+  disponible_pedidos
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40)
 RETURNING id
 `,
 [
@@ -5879,7 +5885,10 @@ RETURNING id
   admiteCambios !== false && admiteCambios !== "false",
   destacado === true || destacado === "true",
   precioOferta || null,
-  unidadSuelta || "pieza"
+  unidadSuelta || "pieza",
+  visiblePos !== false && visiblePos !== "false",
+  visibleMarket !== false && visibleMarket !== "false",
+  disponiblePedidos !== false && disponiblePedidos !== "false"
 ]
 );
 
@@ -5926,6 +5935,9 @@ RETURNING id
                 categoria: categoriaFinal,
                 subcategoria: subcategoriaFinal,
                 categoria_nexo_id: categoriaNexo ? categoriaNexo.id : null,
+                visible_pos: visiblePos !== false && visiblePos !== "false",
+                visible_market: visibleMarket !== false && visibleMarket !== "false",
+                disponible_pedidos: disponiblePedidos !== false && disponiblePedidos !== "false",
                 marca: marca || "",
                 descripcion: descripcion || "",
                 unidad_venta: unidadVenta || "pieza",
@@ -6009,7 +6021,10 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         admiteCambios,
         destacado,
         precioOferta,
-        unidadSuelta
+        unidadSuelta,
+        visiblePos,
+        visibleMarket,
+        disponiblePedidos
     } = req.body;
 
     try {
@@ -6030,6 +6045,14 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         const proveedorIdResuelto = Number.isInteger(proveedorIdNumerico) && proveedorIdNumerico > 0
             ? proveedorIdNumerico
             : (proveedor ? await resolverOcrearProveedorId(pool, negocio.id, proveedor) : null);
+
+        // Fase 8: los 3 toggles de visibilidad solo se tocan si esta
+        // edicion los trae explicitos -- si vienen undefined (ninguna
+        // UI todavia los manda), COALESCE preserva el valor actual en
+        // vez de resetear a un default.
+        const visiblePosNuevo = visiblePos === undefined ? null : (visiblePos !== false && visiblePos !== "false");
+        const visibleMarketNuevo = visibleMarket === undefined ? null : (visibleMarket !== false && visibleMarket !== "false");
+        const disponiblePedidosNuevo = disponiblePedidos === undefined ? null : (disponiblePedidos !== false && disponiblePedidos !== "false");
 
         const resultado = await pool.query(
             `
@@ -6071,10 +6094,13 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 precio_oferta = $34,
                 unidad_suelta = $35,
                 categoria_nexo_id = COALESCE($36, categoria_nexo_id),
-                proveedor_id = COALESCE($37, proveedor_id)
+                proveedor_id = COALESCE($37, proveedor_id),
+                visible_pos = COALESCE($40, visible_pos),
+                visible_market = COALESCE($41, visible_market),
+                disponible_pedidos = COALESCE($42, disponible_pedidos)
             WHERE id = $38
             AND negocio_id = $39
-            RETURNING id, categoria_nexo_id, proveedor_id
+            RETURNING id, categoria_nexo_id, proveedor_id, visible_pos, visible_market, disponible_pedidos
             `,
             [
                 nombre,
@@ -6115,7 +6141,10 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 categoriaNexo ? categoriaNexo.id : null,
                 proveedorIdResuelto,
                 id,
-                negocio.id
+                negocio.id,
+                visiblePosNuevo,
+                visibleMarketNuevo,
+                disponiblePedidosNuevo
             ]
         );
 
@@ -6148,6 +6177,9 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 categoria: categoriaFinal,
                 subcategoria: subcategoriaFinal,
                 categoria_nexo_id: resultado.rows[0].categoria_nexo_id,
+                visible_pos: resultado.rows[0].visible_pos,
+                visible_market: resultado.rows[0].visible_market,
+                disponible_pedidos: resultado.rows[0].disponible_pedidos,
                 marca: marca || "",
                 descripcion: descripcion || "",
                 unidad_venta: unidadVenta || "pieza",

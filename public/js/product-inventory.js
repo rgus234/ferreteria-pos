@@ -1297,6 +1297,12 @@ function codigosProducto(producto) {
  .filter(Boolean);
 }
 
+// Unico llamador: procesarCodigoBarrasPos (pos-sales.js), el punto de
+// entrada real de venta por codigo -- por eso aqui, y solo aqui, se
+// respeta visible_pos (Fase 8 del plan "Catalogo Maestro Nexo"). El
+// resto de pantallas (Inventario, etc.) siguen leyendo todosProductos
+// directo, sin este filtro -- el dueño necesita seguir viendo/editando
+// un producto oculto del POS, solo no debe poder VENDERLO por esta via.
 function buscarProductoLocalPorCodigo(codigo) {
  const limpio =
  normalizarCodigo(codigo);
@@ -1304,8 +1310,11 @@ function buscarProductoLocalPorCodigo(codigo) {
  if (!limpio) return null;
 
  return todosProductos.find(producto =>
- normalizarCodigo(producto.id) === limpio ||
- codigosProducto(producto).includes(limpio)
+ producto.visible_pos !== false &&
+ (
+  normalizarCodigo(producto.id) === limpio ||
+  codigosProducto(producto).includes(limpio)
+ )
  ) || null;
 }
 
