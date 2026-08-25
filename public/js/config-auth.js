@@ -3211,6 +3211,7 @@ function renderPanelUsuariosDashboard() {
  <small>${resumenPermisosUsuario(usuario)}</small>
  <div class="usuario-card-acciones">
  <button type="button" onclick="abrirPermisosUsuario(${usuario.id})">Permisos</button>
+ <button type="button" onclick="abrirHorarioUsuario(${usuario.id})">Horario</button>
  <button type="button" onclick="cambiarPinUsuario(${usuario.id})">PIN</button>
  <button type="button" onclick="eliminarUsuarioSistema(${usuario.id})">Eliminar</button>
  </div>
@@ -3551,6 +3552,158 @@ async function guardarPermisosUsuario(id) {
  renderPanelUsuariosDashboard();
  } catch (error) {
  await alertaPOS(error.message || "No se pudieron guardar los permisos.", "Error", "alerta");
+ }
+}
+
+// Horario laboral por empleado -- a la hora de fin del turno de hoy,
+// si el empleado todavia tiene una caja abierta, el servidor bloquea
+// nuevas ventas hasta que la cierre (o un administrador autoriza con
+// PIN). Mismo dia null = no trabaja ese dia -- coincide exactamente
+// con las llaves que server.js espera (DIAS_SEMANA_HORARIO).
+const DIAS_HORARIO_ORDEN = [
+ { clave: "lunes", nombre: "Lunes" },
+ { clave: "martes", nombre: "Martes" },
+ { clave: "miercoles", nombre: "Miercoles" },
+ { clave: "jueves", nombre: "Jueves" },
+ { clave: "viernes", nombre: "Viernes" },
+ { clave: "sabado", nombre: "Sabado" },
+ { clave: "domingo", nombre: "Domingo" }
+];
+
+function abrirHorarioUsuario(id) {
+ const usuarios =
+ asegurarUsuariosSistema();
+
+ const usuario =
+ usuarios.find(item => item.id === Number(id));
+
+ if (!usuario) return;
+
+ const horario =
+ usuario.horarioLaboral || {};
+
+ let modal =
+ document.getElementById("modalHorarioUsuario");
+
+ if (!modal) {
+ modal = document.createElement("div");
+ modal.id = "modalHorarioUsuario";
+ modal.className = "modal-permisos-usuario";
+ document.body.appendChild(modal);
+ }
+
+ modal.innerHTML = `
+ <div class="permisos-card">
+ <div class="permisos-header">
+ <div>
+ <h2>${usuario.nombre}</h2>
+ <p>Horario laboral</p>
+ </div>
+ <button type="button" onclick="cerrarHorarioUsuario()">Cerrar</button>
+ </div>
+
+ <div class="permisos-secciones">
+ <section>
+ <p class="permisos-rol-nota">Marca los dias que trabaja y su horario. Al terminar su turno de ese dia, si todavia tiene la caja abierta, el sistema le avisa y bloquea nuevas ventas hasta que la cierre (o un administrador autoriza con su PIN). Un dia sin marcar no tiene ningun limite.</p>
+ ${DIAS_HORARIO_ORDEN.map(dia => {
+ const deDia = horario[dia.clave];
+ const activo = Boolean(deDia);
+ return `
+ <label class="permiso-check horario-dia-check">
+ <input type="checkbox" data-horario-dia="${dia.clave}" ${activo ? "checked" : ""} onchange="alternarHorarioDia('${dia.clave}')">
+ <span>${dia.nombre}</span>
+ </label>
+ <div class="horario-dia-horas" id="horarioHoras_${dia.clave}" style="${activo ? "" : "display:none;"} margin:4px 0 12px 26px;">
+ <input type="time" id="horarioInicio_${dia.clave}" value="${deDia?.inicio || "08:00"}">
+ <span> a </span>
+ <input type="time" id="horarioFin_${dia.clave}" value="${deDia?.fin || "18:00"}">
+ </div>
+ `;
+ }).join("")}
+ </section>
+ </div>
+
+ <div class="permisos-acciones">
+ <button type="button" onclick="cerrarHorarioUsuario()">Cancelar</button>
+ <button type="button" onclick="guardarHorarioUsuario(${usuario.id})">Guardar horario</button>
+ </div>
+ </div>
+ `;
+
+ modal.style.display = "flex";
+}
+
+function alternarHorarioDia(dia) {
+ const casilla =
+ document.querySelector(`input[data-horario-dia="${dia}"]`);
+
+ const filaHoras =
+ document.getElementById(`horarioHoras_${dia}`);
+
+ if (!casilla || !filaHoras) return;
+
+ filaHoras.style.display = casilla.checked ? "" : "none";
+}
+
+function cerrarHorarioUsuario() {
+ const modal =
+ document.getElementById("modalHorarioUsuario");
+
+ if (modal) modal.style.display = "none";
+}
+
+async function guardarHorarioUsuario(id) {
+ const usuarios =
+ asegurarUsuariosSistema();
+
+ const usuario =
+ usuarios.find(item => item.id === Number(id));
+
+ if (!usuario) return;
+
+ const horarioLaboral = {};
+
+ for (const dia of DIAS_HORARIO_ORDEN) {
+ const casilla =
+ document.querySelector(`input[data-horario-dia="${dia.clave}"]`);
+
+ if (!casilla?.checked) {
+ horarioLaboral[dia.clave] = null;
+ continue;
+ }
+
+ const inicio = document.getElementById(`horarioInicio_${dia.clave}`)?.value || "";
+ const fin = document.getElementById(`horarioFin_${dia.clave}`)?.value || "";
+
+ if (!inicio || !fin || inicio >= fin) {
+ await alertaPOS(`Revisa el horario de ${dia.nombre.toLowerCase()}: la hora de inicio debe ser antes que la de fin.`, "Horario laboral", "alerta");
+ return;
+ }
+
+ horarioLaboral[dia.clave] = { inicio, fin };
+ }
+
+ try {
+ const respuesta =
+ await cuentaFetchAutenticado(`/cuenta/empleados/${usuario.id}`, {
+ method: "PUT",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ horarioLaboral })
+ });
+
+ if (!respuesta.ok) {
+ throw new Error(respuesta.error || "No se pudo guardar el horario");
+ }
+
+ await sincronizarEmpleadosDispositivo();
+
+ if (usuarioActual?.id === usuario.id) {
+ aplicarSesionUsuario(respuesta.empleado);
+ }
+
+ cerrarHorarioUsuario();
+ } catch (error) {
+ await alertaPOS(error.message || "No se pudo guardar el horario.", "Error", "alerta");
  }
 }
 

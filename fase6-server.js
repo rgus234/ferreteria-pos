@@ -140,7 +140,13 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         listo = true;
     }
 
-    async function turnoAbierto(negocioId, client = pool) {
+    // empleadoId opcional: si viene (negocio con "usuarios del sistema"
+    // -- header x-empleado-id), resuelve el turno abierto de ESE
+    // empleado especifico, no "el mas reciente del negocio" -- asi un
+    // cajero de la tarde puede tener su propio turno abierto sin
+    // interferir con el de la manana. Sin empleadoId, mismo
+    // comportamiento negocio-wide de siempre (negocios sin ese sistema).
+    async function turnoAbierto(negocioId, client = pool, empleadoId = null) {
         await asegurar();
 
         const resultado = await client.query(`
@@ -148,11 +154,16 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             FROM public.turnos_caja
             WHERE estado = 'abierto'
             AND negocio_id = $1
+            AND ($2::integer IS NULL OR empleado_id = $2)
             ORDER BY abierto_at DESC
             LIMIT 1
-        `, [negocioId]);
+        `, [negocioId, empleadoId]);
 
         return resultado.rows[0] || null;
+    }
+
+    function empleadoIdDeRequest(req) {
+        return Number(req.headers["x-empleado-id"]) || null;
     }
 
     async function resumenTurno(turno, client = pool) {
@@ -235,7 +246,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
     app.get("/caja/turno-activo", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req);
-            const turno = await turnoAbierto(negocio.id);
+            const turno = await turnoAbierto(negocio.id, pool, empleadoIdDeRequest(req));
 
             res.json({
                 turno,
@@ -253,7 +264,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         try {
             await asegurar();
             const negocio = await negocioActual(req);
-            const abierto = await turnoAbierto(negocio.id);
+            const empleadoId = empleadoIdDeRequest(req);
+            const abierto = await turnoAbierto(negocio.id, pool, empleadoId);
 
             if (abierto) {
                 res.status(400).json({
@@ -265,14 +277,15 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             const resultado = await pool.query(`
                 INSERT INTO public.turnos_caja
-                    (negocio_id, usuario, fondo_inicial, notas)
-                VALUES ($1,$2,$3,$4)
+                    (negocio_id, usuario, fondo_inicial, notas, empleado_id)
+                VALUES ($1,$2,$3,$4,$5)
                 RETURNING *
             `, [
                 negocio.id,
                 usuario || "",
                 n(fondoInicial),
-                notas || ""
+                notas || "",
+                empleadoId
             ]);
 
             res.json({ turno: resultado.rows[0] });
@@ -285,7 +298,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         try {
             await asegurar();
             const negocio = await negocioActual(req);
-            const turno = await turnoAbierto(negocio.id);
+            const turno = await turnoAbierto(negocio.id, pool, empleadoIdDeRequest(req));
 
             const params = [negocio.id];
             let where = "WHERE negocio_id = $1";
@@ -320,7 +333,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         try {
             await asegurar();
             const negocio = await negocioActual(req);
-            const turno = await turnoAbierto(negocio.id);
+            const turno = await turnoAbierto(negocio.id, pool, empleadoIdDeRequest(req));
 
             if (!turno) {
                 res.status(400).json({ error: "Abre turno antes de registrar movimientos" });
@@ -365,6 +378,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         try {
             await asegurar();
             const negocio = await negocioActual(req);
+            const empleadoId = empleadoIdDeRequest(req);
             await client.query("BEGIN");
 
             const turno = await client.query(`
@@ -372,10 +386,11 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 FROM public.turnos_caja
                 WHERE estado = 'abierto'
                 AND negocio_id = $1
+                AND ($2::integer IS NULL OR empleado_id = $2)
                 ORDER BY abierto_at DESC
                 LIMIT 1
                 FOR UPDATE
-            `, [negocio.id]);
+            `, [negocio.id, empleadoId]);
 
             if (!turno.rows.length) {
                 await client.query("ROLLBACK");

@@ -79,6 +79,40 @@ async function pedirPinAdministradorParaLimiteCreditoPOS(cliente, montoCargo) {
  return datos ? datos.adminPin : null;
 }
 
+const DIAS_SEMANA_HORARIO_POS_VENTA = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+
+// Mismo criterio que el servidor (exigirTurnoDentroDeHorario): si el
+// horario de hoy del empleado ya vencio, regresa la hora de fin --
+// null si no tiene horario configurado hoy o todavia no vence.
+function turnoVencidoHoyPOS(usuario) {
+ const horario = usuario?.horarioLaboral;
+ if (!horario) return null;
+
+ const deHoy = horario[DIAS_SEMANA_HORARIO_POS_VENTA[new Date().getDay()]];
+ if (!deHoy?.fin) return null;
+
+ const ahora = new Date();
+ const horaActual = `${String(ahora.getHours()).padStart(2, "0")}:${String(ahora.getMinutes()).padStart(2, "0")}`;
+
+ return horaActual >= deHoy.fin ? deHoy.fin : null;
+}
+
+async function pedirPinAdministradorParaTurnoVencidoPOS(horaFin) {
+ const datos =
+ await abrirFormularioCredito({
+ titulo: "Autorizacion requerida",
+ subtitulo: `Tu turno termino a las ${horaFin} y la caja sigue abierta. Cierra tu caja, o pide el PIN de un administrador para seguir vendiendo.`,
+ campos: [{
+ nombre: "adminPin",
+ etiqueta: "PIN de administrador",
+ tipo: "password",
+ requerido: true
+ }]
+ });
+
+ return datos ? datos.adminPin : null;
+}
+
 async function procesarCodigoBarrasPos(codigoManual) {
  const input =
  document.getElementById("busqueda");
@@ -1647,6 +1681,15 @@ async function cobrarInternoPOS(total) {
  if (!adminPin) return;
  }
 
+ if (!adminPin) {
+ const horaFin = turnoVencidoHoyPOS(usuarioActual);
+
+ if (horaFin && await hayTurnoAbiertoCajaPOS()) {
+ adminPin = await pedirPinAdministradorParaTurnoVencidoPOS(horaFin);
+ if (!adminPin) return;
+ }
+ }
+
  const montoRecibido =
  pago.recibido;
 
@@ -1753,6 +1796,13 @@ try {
  // pase de todos modos sin autorizacion.
  if (cuerpoError?.requierePermiso) {
  await alertaPOS(cuerpoError.error || "Tu cuenta no tiene permiso para hacer ventas.", "Permiso requerido", "peligro");
+ return;
+ }
+
+ // Mismo motivo otra vez: el turno vencido no es una falla de red --
+ // /sync/push no vuelve a revisar el horario al aplicar la cola.
+ if (cuerpoError?.requiereCerrarTurno) {
+ await alertaPOS(cuerpoError.error || "Tu turno termino. Cierra tu caja para seguir vendiendo.", "Turno terminado", "peligro");
  return;
  }
 
@@ -2048,6 +2098,15 @@ async function cobrarCreditoInternoPOS(total) {
  if (!adminPin) return;
  }
 
+ if (!adminPin) {
+ const horaFin = turnoVencidoHoyPOS(usuarioActual);
+
+ if (horaFin && await hayTurnoAbiertoCajaPOS()) {
+ adminPin = await pedirPinAdministradorParaTurnoVencidoPOS(horaFin);
+ if (!adminPin) return;
+ }
+ }
+
  let respuesta;
  let creditoRegistrado = null;
  let creditoOffline = false;
@@ -2127,6 +2186,11 @@ async function cobrarCreditoInternoPOS(total) {
  // al sincronizar, porque /sync/push no vuelve a revisar el limite.
  if (cuerpoError?.excedeLimiteCredito) {
  alert(cuerpoError.error || "Este cargo excede el limite de credito del cliente.");
+ return;
+ }
+
+ if (cuerpoError?.requiereCerrarTurno) {
+ alert(cuerpoError.error || "Tu turno termino. Cierra tu caja para seguir vendiendo.");
  return;
  }
 

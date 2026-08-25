@@ -77,10 +77,56 @@ async function revisarCierreCajaPOS() {
  });
 }
 
+const DIAS_SEMANA_HORARIO_POS = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+
+// Horario laboral por empleado (usuarioActual.horarioLaboral, ya
+// sincronizado con el servidor via empleadosCache()) -- a diferencia
+// de revisarCierreCajaPOS (una sola hora para todo el negocio), esto
+// es por empleado y por dia de la semana. El servidor ya bloquea la
+// venta de verdad si el turno vencio y sigue con caja abierta (ver
+// exigirTurnoDentroDeHorario) -- este aviso es solo para que se entere
+// antes de intentar cobrar, mismo componente que el resto de avisos de
+// caja (mostrarToastPOS, no bloqueante en si mismo).
+async function revisarHorarioLaboralPOS() {
+ const horario = usuarioActual?.horarioLaboral;
+ if (!horario) return;
+
+ const hoy = DIAS_SEMANA_HORARIO_POS[new Date().getDay()];
+ const deHoy = horario[hoy];
+ if (!deHoy?.fin) return;
+
+ const ahora = new Date();
+ const horaActual = `${String(ahora.getHours()).padStart(2, "0")}:${String(ahora.getMinutes()).padStart(2, "0")}`;
+ if (horaActual < deHoy.fin) return;
+
+ const llaveAviso = `cajaRecordatorioHorarioFecha_${usuarioActual.id}`;
+ if (localStorage.getItem(llaveAviso) === fechaHoyPOS()) return;
+
+ const hayTurno = await hayTurnoAbiertoCajaPOS();
+ if (!hayTurno) return;
+
+ localStorage.setItem(llaveAviso, fechaHoyPOS());
+
+ mostrarToastPOS(`Tu turno termino a las ${deHoy.fin} y la caja sigue abierta. Cierrala para seguir vendiendo -- si no, se te va a pedir el PIN de un administrador en la siguiente venta.`, {
+  titulo: "Turno terminado",
+  tipo: "alerta",
+  autoDismiss: false,
+  accion: {
+   texto: "Cerrar caja ahora",
+   onClick: async () => {
+    if (typeof mostrarCajaPOS === "function") await mostrarCajaPOS();
+    if (typeof abrirModalCerrarTurnoCaja === "function") abrirModalCerrarTurnoCaja();
+   }
+  }
+ });
+}
+
 function iniciarRecordatorioCierreCajaPOS() {
  if (cajaRecordatorioCierreIniciado) return;
  cajaRecordatorioCierreIniciado = true;
 
  revisarCierreCajaPOS();
+ revisarHorarioLaboralPOS();
  setInterval(revisarCierreCajaPOS, CAJA_RECORDATORIO_INTERVALO_MS);
+ setInterval(revisarHorarioLaboralPOS, CAJA_RECORDATORIO_INTERVALO_MS);
 }

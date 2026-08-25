@@ -1648,7 +1648,8 @@ function empleadoParaAdmin(fila) {
         // puede vender/hacer corte/etc desde /dueno. null = todavia no
         // vincula ninguna cuenta.
         vinculadoNexo: fila.persona_id !== null && fila.persona_id !== undefined,
-        permisosNexo: fila.persona_id !== null && fila.persona_id !== undefined ? (fila.permisos_nexo || {}) : null
+        permisosNexo: fila.persona_id !== null && fila.persona_id !== undefined ? (fila.permisos_nexo || {}) : null,
+        horarioLaboral: fila.horario_laboral || null
     };
 }
 
@@ -1660,6 +1661,7 @@ function empleadoParaDispositivo(fila) {
         colorAvatar: fila.color_avatar,
         permisos: fila.permisos,
         widgets: fila.widgets,
+        horarioLaboral: fila.horario_laboral || null,
         pinOffline: {
             salt: fila.pin_salt_offline,
             verificador: fila.pin_verificador_offline,
@@ -1670,6 +1672,37 @@ function empleadoParaDispositivo(fila) {
 
 function validarPin(pin) {
     return /^[0-9]{4,6}$/.test(String(pin || ""));
+}
+
+const REGEX_HORA_HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// Allowlist estricta, mismo criterio que permisos-nexo mas abajo:
+// solo se aceptan los 7 dias conocidos, cada uno null (no trabaja) o
+// {inicio, fin} en formato HH:MM valido -- nunca lo que venga en el
+// body tal cual. undefined -> null (limpia el horario del empleado).
+function limpiarHorarioLaboral(valor) {
+    if (valor === null || valor === undefined) return null;
+    if (typeof valor !== "object") return null;
+
+    const limpio = {};
+
+    for (const dia of DIAS_SEMANA_HORARIO) {
+        const deDia = valor[dia];
+
+        if (!deDia || typeof deDia !== "object") {
+            limpio[dia] = null;
+            continue;
+        }
+
+        const inicio = String(deDia.inicio || "");
+        const fin = String(deDia.fin || "");
+
+        limpio[dia] = REGEX_HORA_HHMM.test(inicio) && REGEX_HORA_HHMM.test(fin) && inicio < fin
+            ? { inicio, fin }
+            : null;
+    }
+
+    return limpio;
 }
 
 app.get("/cuenta/empleados", requerirSesionCuenta, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
@@ -1698,6 +1731,7 @@ app.post("/cuenta/empleados", requerirSesionCuenta, requerirPermiso(PERMISOS.ADM
     const pin = String(req.body?.pin || "");
     const permisos = req.body?.permisos && typeof req.body.permisos === "object" ? req.body.permisos : {};
     const widgets = req.body?.widgets && typeof req.body.widgets === "object" ? req.body.widgets : {};
+    const horarioLaboral = limpiarHorarioLaboral(req.body?.horarioLaboral);
 
     if (!nombre) {
         res.status(400).json({ ok: false, error: "Escribe el nombre del empleado" });
@@ -1737,8 +1771,8 @@ app.post("/cuenta/empleados", requerirSesionCuenta, requerirPermiso(PERMISOS.ADM
         const fila = await pool.query(
             `
             INSERT INTO public.empleados
-                (negocio_id, nombre, rol, pin_hash, pin_verificador_offline, pin_salt_offline, color_avatar, permisos, widgets)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                (negocio_id, nombre, rol, pin_hash, pin_verificador_offline, pin_salt_offline, color_avatar, permisos, widgets, horario_laboral)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING *
             `,
             [
@@ -1750,7 +1784,8 @@ app.post("/cuenta/empleados", requerirSesionCuenta, requerirPermiso(PERMISOS.ADM
                 offline.salt,
                 colorAvatarAleatorio(),
                 JSON.stringify(permisosAGuardar),
-                JSON.stringify(widgets)
+                JSON.stringify(widgets),
+                horarioLaboral ? JSON.stringify(horarioLaboral) : null
             ]
         );
 
@@ -1786,6 +1821,10 @@ app.put("/cuenta/empleados/:id", requerirSesionCuenta, requerirPermiso(PERMISOS.
             if (!permisosGranulares.incluido) permisos = fila.permisos;
         }
 
+        const horarioLaboral = req.body?.horarioLaboral !== undefined
+            ? limpiarHorarioLaboral(req.body.horarioLaboral)
+            : fila.horario_laboral;
+
         if (!nombre) {
             res.status(400).json({ ok: false, error: "Escribe el nombre del empleado" });
             return;
@@ -1813,11 +1852,11 @@ app.put("/cuenta/empleados/:id", requerirSesionCuenta, requerirPermiso(PERMISOS.
             UPDATE public.empleados
             SET nombre = $1, rol = $2, activo = $3, permisos = $4, widgets = $5,
                 pin_hash = $6, pin_verificador_offline = $7, pin_salt_offline = $8,
-                actualizado_at = NOW()
-            WHERE id = $9
+                horario_laboral = $9, actualizado_at = NOW()
+            WHERE id = $10
             RETURNING *
             `,
-            [nombre, rol, activo, JSON.stringify(permisos), JSON.stringify(widgets), pinHash, pinVerificador, pinSalt, id]
+            [nombre, rol, activo, JSON.stringify(permisos), JSON.stringify(widgets), pinHash, pinVerificador, pinSalt, horarioLaboral ? JSON.stringify(horarioLaboral) : null, id]
         );
 
         res.json({ ok: true, empleado: empleadoParaAdmin(actualizado.rows[0]) });
@@ -4014,17 +4053,23 @@ async function siguienteFolioVenta(client, negocioId) {
     };
 }
 
-async function turnoActivoVenta(client, negocioId) {
+// empleadoId opcional: con "usuarios del sistema" (x-empleado-id),
+// resuelve el turno de ESE empleado -- no "el mas reciente del
+// negocio" -- para que una venta se atribuya al turno correcto durante
+// un relevo (cajero de la manana y de la tarde con turno abierto a la
+// vez). Sin empleadoId, mismo comportamiento negocio-wide de siempre.
+async function turnoActivoVenta(client, negocioId, empleadoId = null) {
     const resultado = await client.query(
         `
         SELECT id, usuario
         FROM public.turnos_caja
         WHERE negocio_id = $1
         AND estado = 'abierto'
+        AND ($2::integer IS NULL OR empleado_id = $2)
         ORDER BY abierto_at DESC
         LIMIT 1
         `,
-        [negocioId]
+        [negocioId, empleadoId]
     );
 
     return resultado.rows[0] || null;
@@ -6492,6 +6537,91 @@ async function exigirPinAdminSiExcedeLimite(client, res, negocioId, clienteId, m
     return true;
 }
 
+const DIAS_SEMANA_HORARIO = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+
+// Hora/dia de la tienda, no del proceso del servidor -- si el servidor
+// corre en otro huso horario (comun en hosting en la nube, suele ser
+// UTC), comparar contra su hora local daria resultados incorrectos.
+// Intl.DateTimeFormat con timeZone explicito calcula bien sin importar
+// en que huso corra el proceso, sin tocar nada mas de como la app
+// maneja fechas.
+const DIAS_SEMANA_EN = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+function ahoraNegocioMX() {
+    const partes = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Mexico_City",
+        weekday: "long", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+    }).formatToParts(new Date());
+
+    const mapa = {};
+    for (const parte of partes) mapa[parte.type] = parte.value;
+
+    const diaIndice = DIAS_SEMANA_EN.indexOf(String(mapa.weekday || "").toLowerCase());
+
+    return { dia: DIAS_SEMANA_HORARIO[diaIndice] || null, hora: `${mapa.hour}:${mapa.minute}` };
+}
+
+// horario_laboral es null (sin horario configurado) o un objeto por
+// dia de la semana -- cada dia null (no trabaja) o {inicio, fin}
+// "HH:MM". Regresa la hora de fin del turno de hoy si ya paso, o null
+// si el empleado no tiene horario, no trabaja hoy, o su turno de hoy
+// todavia no termina.
+function horarioVencidoHoy(horarioLaboral, ahora) {
+    if (!horarioLaboral) return null;
+
+    const deHoy = horarioLaboral[ahora.dia];
+    if (!deHoy || !deHoy.fin) return null;
+
+    return ahora.hora >= deHoy.fin ? deHoy.fin : null;
+}
+
+// Mismo patron que exigirPinAdminSiAplica/exigirPinAdminSiExcedeLimite:
+// si el horario del empleado para hoy ya vencio Y todavia tiene un
+// turno de caja abierto, no puede seguir vendiendo sin que un
+// administrador lo autorice -- el aviso de "cierra caja" que ya existe
+// hoy es solo un recordatorio que se puede ignorar, esto lo hace
+// cumplir de verdad. Sin empleadoId (negocio sin "usuarios del
+// sistema", o venta sin cajero identificado) no hay nada que revisar.
+async function exigirTurnoDentroDeHorario(client, res, negocioId, empleadoId, adminPin) {
+    if (!empleadoId) return true;
+
+    const empleadoFila = await client.query(
+        `SELECT horario_laboral FROM public.empleados WHERE id = $1 AND negocio_id = $2 AND activo = true`,
+        [empleadoId, negocioId]
+    );
+
+    if (!empleadoFila.rows.length) return true;
+
+    const ahora = ahoraNegocioMX();
+    const finVencido = horarioVencidoHoy(empleadoFila.rows[0].horario_laboral, ahora);
+
+    if (!finVencido) return true;
+
+    const turno = await turnoActivoVenta(client, negocioId, empleadoId);
+    if (!turno) return true;
+
+    const admin = await validarPinAdministrador(client, negocioId, adminPin);
+
+    if (!admin) {
+        res.status(400).json({
+            ok: false,
+            error: `Tu turno termino a las ${finVencido}. Cierra tu caja para seguir, o pide el PIN de un administrador.`,
+            requiereCerrarTurno: true,
+            horarioFin: finVencido
+        });
+        return false;
+    }
+
+    await registrarBitacora(client, negocioId, empleadoId, "turno_vencido_autorizado", {
+        horarioFin: finVencido,
+        turnoId: turno.id,
+        adminId: admin.id,
+        adminNombre: admin.usuario
+    });
+
+    return true;
+}
+
 // Busca una venta ya registrada con esta idempotencyKey -- si el
 // cajero reintenta despues de que la red se cayo justo cuando el
 // servidor ya habia guardado la venta, regresa el resultado original
@@ -6573,13 +6703,20 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
             return;
         }
 
-        if (!(await exigirPinAdminSiAplica(client, res, negocio.id, resumen, adminPin, Number(req.headers["x-empleado-id"]) || null))) {
+        const empleadoIdVenta = Number(req.headers["x-empleado-id"]) || null;
+
+        if (!(await exigirPinAdminSiAplica(client, res, negocio.id, resumen, adminPin, empleadoIdVenta))) {
+            await client.query("ROLLBACK");
+            return;
+        }
+
+        if (!(await exigirTurnoDentroDeHorario(client, res, negocio.id, empleadoIdVenta, adminPin))) {
             await client.query("ROLLBACK");
             return;
         }
 
         const folioVenta = await siguienteFolioVenta(client, negocio.id);
-        const turno = await turnoActivoVenta(client, negocio.id);
+        const turno = await turnoActivoVenta(client, negocio.id, empleadoIdVenta);
         const ventaCreada = await client.query(
             `
             INSERT INTO public.ventas(negocio_id, total, folio, folio_numero, turno_id, estado)
@@ -7925,6 +8062,11 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
         }
 
         if (!(await exigirPinAdminSiExcedeLimite(client, res, negocio.id, cliente.id, montoNum, cliente.limite_credito, adminPin, empleadoIdCajero))) {
+            await client.query("ROLLBACK");
+            return;
+        }
+
+        if (!(await exigirTurnoDentroDeHorario(client, res, negocio.id, empleadoIdCajero, adminPin))) {
             await client.query("ROLLBACK");
             return;
         }
