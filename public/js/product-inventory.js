@@ -3373,40 +3373,17 @@ function mostrarInventario() {
 
 }
 
-function categoriasInventarioGuardadas() {
- try {
- const guardadas =
- JSON.parse(localStorage.getItem("categoriasInventario") || "[]");
-
- if (Array.isArray(guardadas) && guardadas.length > 0) {
- return guardadas;
- }
- } catch (error) {
- console.warn("No se pudieron leer categorias", error);
- }
-
- const desdeProductos =
+// Fuente real de nombres de categoria: el texto que ya tienen los
+// productos (siempre poblado, tanto en categorias estructuradas como
+// libres -- ver alCambiarDepartamentoCategoriaNexo, que copia el
+// nombre del departamento a #nuevaCategoria). Reemplaza el antiguo
+// catalogo inventado en localStorage (categoriasInventarioGuardadas).
+function nombresCategoriasProductos() {
+ return [...new Set(
  todosProductos
  .map(producto => String(producto.categoria || "").trim())
- .filter(Boolean);
-
- return [...new Set([
- ...plantillaGiroActual().categorias,
- ...desdeProductos
- ])].map((nombre, indice) => ({
- id: `cat-${normalizarTexto(nombre).replace(/[^a-z0-9]/g, "-") || indice}`,
- nombre,
- color: ["#0d6efd", "#16a34a", "#be2f5f", "#f59e0b", "#7c3aed", "#0891b2"][indice % 6]
- }));
-}
-
-function guardarCategoriasInventario(categorias) {
- localStorage.setItem(
- "categoriasInventario",
- JSON.stringify(categorias)
- );
-
- actualizarDatalistCategorias();
+ .filter(Boolean)
+ )].sort((a, b) => a.localeCompare(b));
 }
 
 function actualizarDatalistCategorias() {
@@ -3416,63 +3393,9 @@ function actualizarDatalistCategorias() {
  if (!lista) return;
 
  lista.innerHTML =
- categoriasInventarioGuardadas()
- .map(categoria => `<option value="${categoria.nombre}"></option>`)
+ nombresCategoriasProductos()
+ .map(nombre => `<option value="${nombre}"></option>`)
  .join("");
-}
-
-function aplicarCategoriasDeGiro(giro = "ferreteria", reemplazar = false) {
- const plantilla =
- PLANTILLAS_GIRO_NEGOCIO[giro] || PLANTILLAS_GIRO_NEGOCIO.ferreteria;
-
- const existentes =
- reemplazar ? [] : categoriasInventarioGuardadas();
-
- const combinadas =
- [...existentes];
-
- plantilla.categorias.forEach((nombre, indice) => {
- const existe =
- combinadas.some(categoria =>
- normalizarTexto(categoria.nombre) === normalizarTexto(nombre)
- );
-
- if (!existe) {
- combinadas.push({
- id: `cat-${normalizarTexto(nombre).replace(/[^a-z0-9]/g, "-") || Date.now()}`,
- nombre,
- color: ["#0d6efd", "#16a34a", "#be2f5f", "#f59e0b", "#7c3aed", "#0891b2"][indice % 6]
- });
- }
- });
-
- guardarCategoriasInventario(combinadas);
- return combinadas;
-}
-
-async function aplicarPlantillaGiroConfiguracion() {
- const giro =
- document.getElementById("configGiroNegocio")?.value || "ferreteria";
-
- const plantilla =
- PLANTILLAS_GIRO_NEGOCIO[giro] || PLANTILLAS_GIRO_NEGOCIO.ferreteria;
-
- const confirmar =
- await confirmarPOS(
- `Se agregaran categorias sugeridas para ${plantilla.nombre}. No se borran productos ni categorias existentes.`,
- "Aplicar plantilla",
- "info"
- );
-
- if (!confirmar) return;
-
- aplicarCategoriasDeGiro(giro, false);
-
- alertaPOS(
- `Categorias de ${plantilla.nombre} listas para usar.`,
- "Plantilla aplicada",
- "exito"
- );
 }
 
 function abrirSubmenuInventario() {
@@ -3491,7 +3414,44 @@ function toggleSubmenuInventario() {
  toggleSubmenuSidebar("submenuInventario");
 }
 
-function mostrarCategoriasInventario() {
+// Arbol de categorias curadas del giro activo (departamentos.length>0)
+// mas las categorias libres que ya tengan productos y no correspondan
+// a ningun departamento oficial ("otras categorias" -- lo unico que
+// todavia se puede renombrar, ver editarCategoriaInventario). Sin
+// arbol curado para el giro, solo aparecen "otras categorias".
+function departamentosCategoriaInventario() {
+ return (categoriasNexoArbol || []).map(grupo => ({
+ tipo: "departamento",
+ nombre: grupo.departamento,
+ subcategorias: grupo.subcategorias || []
+ }));
+}
+
+function otrasCategoriasInventario() {
+ const departamentosOficiales = new Set(
+ (categoriasNexoArbol || []).map(grupo => normalizarTexto(grupo.departamento))
+ );
+
+ return nombresCategoriasProductos()
+ .filter(nombre => !departamentosOficiales.has(normalizarTexto(nombre)))
+ .map(nombre => ({ tipo: "otra", nombre }));
+}
+
+function nodosCategoriasInventario() {
+ return [...departamentosCategoriaInventario(), ...otrasCategoriasInventario()];
+}
+
+// Cache estable de la lista visible -- las tarjetas referencian su
+// indice aqui (no su nombre) para no tener que escapar texto libre
+// dentro de un onclick, y para que la seleccion no salte de categoria
+// al filtrar con el buscador.
+let categoriasInventarioCache = [];
+
+function reconstruirCacheCategoriasInventario() {
+ categoriasInventarioCache = nodosCategoriasInventario();
+}
+
+async function mostrarCategoriasInventario() {
  ocultarPantallasPrincipales();
  abrirSubmenuInventario();
  actualizarDatalistCategorias();
@@ -3499,10 +3459,11 @@ function mostrarCategoriasInventario() {
  document.getElementById("pantallaCategoriasInventario").style.display =
  "block";
 
- const categorias = categoriasInventarioGuardadas();
+ await cargarGirosYCategoriasNexo();
+ reconstruirCacheCategoriasInventario();
 
- if (!categoriaSeleccionadaId || !categorias.some(categoria => categoria.id === categoriaSeleccionadaId)) {
- categoriaSeleccionadaId = categorias[0]?.id || null;
+ if (categoriaSeleccionadaId === null || !categoriasInventarioCache[categoriaSeleccionadaId]) {
+ categoriaSeleccionadaId = categoriasInventarioCache.length ? 0 : null;
  }
 
  tabCategoriaActual = "productos";
@@ -3522,25 +3483,11 @@ function productosPorCategoria(nombreCategoria) {
  );
 }
 
-function categoriaIconoPOS(nombre) {
- const texto = normalizarTexto(nombre || "");
-
- if (texto.includes("electr")) return "zap";
- if (texto.includes("herramient")) return "wrench";
- if (texto.includes("ferreter")) return "toolbox";
- if (texto.includes("plomer") || texto.includes("agua")) return "drop";
- if (texto.includes("pintura")) return "roller";
- if (texto.includes("segur")) return "shield";
- if (texto.includes("jardin")) return "leaf";
- if (texto.includes("construc")) return "building";
- return "tag";
-}
-
 function renderResumenCategorias() {
  const contenedor = document.getElementById("resumenCategoriasInventario");
  if (!contenedor) return;
 
- const categorias = categoriasInventarioGuardadas();
+ const categorias = categoriasInventarioCache;
  const conProductos = categorias.filter(categoria => productosPorCategoria(categoria.nombre).length > 0);
  const productosCategorizados = todosProductos.filter(producto => String(producto.categoria || "").trim());
 
@@ -3590,39 +3537,45 @@ function renderListaCategorias() {
  if (!contenedor) return;
 
  const texto = normalizarTexto(document.getElementById("buscarCategorias")?.value || "");
- const categorias = categoriasInventarioGuardadas()
+
+ const visibles = categoriasInventarioCache
+ .map((categoria, indice) => ({ ...categoria, indice }))
  .filter(categoria => !texto || normalizarTexto(categoria.nombre).includes(texto));
 
- if (!categorias.length) {
+ const departamentos = visibles.filter(categoria => categoria.tipo === "departamento");
+ const otras = visibles.filter(categoria => categoria.tipo === "otra");
+
+ if (!departamentos.length && !otras.length) {
  contenedor.innerHTML = `<div class="categoria-producto-vacio">No se encontraron categorias.</div>`;
  return;
  }
 
- contenedor.innerHTML =
- categorias.map(categoria => {
+ const tarjeta = categoria => {
  const productos = productosPorCategoria(categoria.nombre);
- const color = categoria.color || "#0d6efd";
- const activa = categoria.id === categoriaSeleccionadaId;
+ const activa = categoria.indice === categoriaSeleccionadaId;
 
  return `
  <button
  type="button"
  class="categoria-card ${activa ? "activa" : ""}"
- style="--categoria-color:${color}"
- onclick="seleccionarCategoriaInventario('${categoria.id}')"
+ onclick="seleccionarCategoriaInventario(${categoria.indice})"
  >
- <span class="categoria-card-icono">${iconoUISVG(categoriaIconoPOS(categoria.nombre))}</span>
+ <span class="categoria-card-icono">${iconoUISVG(categoria.tipo === "departamento" ? "toolbox" : "tag")}</span>
  <span class="categoria-card-texto">
  <strong>${escaparPOS(categoria.nombre)}</strong>
  <small>${productos.length} productos</small>
  </span>
  </button>
  `;
- }).join("");
+ };
+
+ contenedor.innerHTML =
+ (departamentos.length ? `<div class="categorias-lista-grupo-titulo">Categorias de tu giro</div>${departamentos.map(tarjeta).join("")}` : "") +
+ (otras.length ? `<div class="categorias-lista-grupo-titulo">Otras categorias</div>${otras.map(tarjeta).join("")}` : "");
 }
 
-function seleccionarCategoriaInventario(id) {
- categoriaSeleccionadaId = id;
+function seleccionarCategoriaInventario(indice) {
+ categoriaSeleccionadaId = indice;
  tabCategoriaActual = "productos";
  paginaCategoriaProductos = 1;
 
@@ -3637,7 +3590,7 @@ function mostrarTabCategoria(tab) {
 }
 
 function categoriaSeleccionadaActual() {
- return categoriasInventarioGuardadas().find(categoria => categoria.id === categoriaSeleccionadaId) || null;
+ return categoriaSeleccionadaId === null ? null : (categoriasInventarioCache[categoriaSeleccionadaId] || null);
 }
 
 function estadisticasCategoria(productos) {
@@ -3757,14 +3710,14 @@ function renderDetalleCategoria() {
  const categoria = categoriaSeleccionadaActual();
 
  if (!categoria) {
- panel.innerHTML = `<div class="categoria-producto-vacio">Crea o selecciona una categoria para ver su detalle.</div>`;
+ panel.innerHTML = `<div class="categoria-producto-vacio">Todavia no hay categorias para mostrar.</div>`;
  return;
  }
 
  const productos = productosPorCategoria(categoria.nombre);
  const activa = productos.length > 0;
  const stats = estadisticasCategoria(productos);
- const color = categoria.color || "#0d6efd";
+ const esDepartamento = categoria.tipo === "departamento";
 
  const tabs = [
  { id: "productos", etiqueta: `Productos (${productos.length})` },
@@ -3776,9 +3729,14 @@ function renderDetalleCategoria() {
  ? `
  <div class="categoria-info-grid">
  <div><span>Nombre</span><strong>${escaparPOS(categoria.nombre)}</strong></div>
- <div><span>Color</span><strong class="categoria-info-color"><i style="background:${color}"></i>${color}</strong></div>
+ <div><span>Origen</span><strong>${esDepartamento ? "Categoria oficial de tu giro" : "Categoria personalizada"}</strong></div>
  <div><span>Productos asignados</span><strong>${productos.length}</strong></div>
- <div><span>Identificador</span><strong>${escaparPOS(categoria.id)}</strong></div>
+ ${esDepartamento ? `
+ <div class="categoria-info-subcategorias">
+ <span>Subcategorias</span>
+ <strong>${categoria.subcategorias.length ? categoria.subcategorias.map(sub => escaparPOS(sub.nombre)).join(", ") : "Sin subcategorias definidas"}</strong>
+ </div>
+ ` : ""}
  </div>
  `
  : tabCategoriaActual === "stats"
@@ -3827,19 +3785,21 @@ function renderDetalleCategoria() {
  `;
 
  panel.innerHTML = `
- <div class="categoria-detalle-header" style="--categoria-color:${color}">
- <span class="categoria-detalle-icono">${iconoUISVG(categoriaIconoPOS(categoria.nombre))}</span>
+ <div class="categoria-detalle-header">
+ <span class="categoria-detalle-icono">${iconoUISVG(esDepartamento ? "toolbox" : "tag")}</span>
  <div class="categoria-detalle-titulo">
  <div class="categoria-detalle-nombre">
  <h3>${escaparPOS(categoria.nombre)}</h3>
  <span class="categoria-badge ${activa ? "activa" : "vacia"}">${activa ? "Activa" : "Sin productos"}</span>
+ ${esDepartamento ? `<span class="categoria-badge categoria-badge-oficial">Oficial de tu giro</span>` : ""}
  </div>
  <small>${productos.length} productos asignados</small>
  </div>
+ ${esDepartamento ? "" : `
  <div class="categoria-detalle-acciones">
- <button type="button" class="btn-categoria-editar" onclick="editarCategoriaInventario('${categoria.id}')">${iconoUISVG("edit")}<span>Editar</span></button>
- <button type="button" class="btn-categoria-eliminar" onclick="eliminarCategoriaInventario('${categoria.id}')">${iconoUISVG("trash")}<span>Eliminar</span></button>
+ <button type="button" class="btn-categoria-editar" onclick="editarCategoriaInventario()">${iconoUISVG("edit")}<span>Renombrar</span></button>
  </div>
+ `}
  </div>
  <div class="categoria-tabs">
  ${tabs.map(tab => `
@@ -3856,73 +3816,27 @@ function renderDetalleCategoria() {
  }
 }
 
-async function abrirFormularioCategoria() {
- const nombre =
- await pedirTextoPOS(
- "Nombre de la categoria:",
- "",
- "Nueva categoria"
- );
-
- if (!nombre) return;
-
- const categorias =
- categoriasInventarioGuardadas();
-
- const existe =
- categorias.some(categoria =>
- normalizarTexto(categoria.nombre) === normalizarTexto(nombre)
- );
-
- if (existe) {
- alertaPOS("Esa categoria ya existe.", "Categorias", "info");
- return;
- }
-
- const nuevaCategoria = {
- id: `cat-${Date.now()}`,
- nombre: nombre.trim(),
- color: ["#0d6efd", "#16a34a", "#be2f5f", "#f59e0b", "#7c3aed", "#0891b2"][categorias.length % 6]
- };
-
- categorias.push(nuevaCategoria);
-
- guardarCategoriasInventario(categorias);
- categoriaSeleccionadaId = nuevaCategoria.id;
- renderResumenCategorias();
- renderListaCategorias();
- renderDetalleCategoria();
-}
-
-async function editarCategoriaInventario(id) {
- const categorias = categoriasInventarioGuardadas();
- const categoria = categorias.find(item => item.id === id);
- if (!categoria) return;
+// Renombrar solo aplica a "otras categorias" (texto libre que no
+// corresponde a ningun departamento oficial del giro) -- los
+// departamentos oficiales son de solo lectura porque son taxonomia
+// compartida (categorias_nexo), no datos propios de este negocio.
+// Es la unica funcion real que tenia esta pantalla: cambia
+// productos.categoria de verdad via /productos/categoria-masiva.
+// Si el nombre nuevo coincide con otra categoria libre existente, las
+// fusiona (ya no hay metadata decorativa que se lo impida).
+async function editarCategoriaInventario() {
+ const categoria = categoriaSeleccionadaActual();
+ if (!categoria || categoria.tipo !== "otra") return;
 
  const nombre = await pedirTextoPOS(
  "Nuevo nombre de la categoria:",
  categoria.nombre,
- "Editar categoria"
+ "Renombrar categoria"
  );
 
  if (!nombre || normalizarTexto(nombre) === normalizarTexto(categoria.nombre)) return;
 
- const existe = categorias.some(item =>
- item.id !== id && normalizarTexto(item.nombre) === normalizarTexto(nombre)
- );
-
- if (existe) {
- alertaPOS("Ya existe una categoria con ese nombre.", "Categorias", "info");
- return;
- }
-
  const nombreNuevo = nombre.trim();
-
- // Renombrar aqui es distinto de eliminar una categoria (eso solo
- // quita metadata local) -- esto SI cambia productos.categoria de
- // verdad, en cuantos productos reales tenga asignados hoy. Sin
- // confirmacion, un typo en el nombre nuevo se aplicaba de inmediato
- // a todos ellos sin aviso.
  const afectados = productosPorCategoria(categoria.nombre).length;
 
  const confirmar = await confirmarPOS(
@@ -3956,12 +3870,17 @@ async function editarCategoriaInventario(id) {
  return;
  }
 
- categoria.nombre = nombreNuevo;
- guardarCategoriasInventario(categorias);
-
  if (actualizados > 0) {
  await cargarProductos();
  }
+
+ reconstruirCacheCategoriasInventario();
+
+ const indiceNuevo = categoriasInventarioCache.findIndex(item =>
+ normalizarTexto(item.nombre) === normalizarTexto(nombreNuevo)
+ );
+
+ categoriaSeleccionadaId = indiceNuevo >= 0 ? indiceNuevo : (categoriasInventarioCache.length ? 0 : null);
 
  renderResumenCategorias();
  renderListaCategorias();
@@ -3970,30 +3889,6 @@ async function editarCategoriaInventario(id) {
  if (actualizados > 0) {
  alertaPOS(`Se actualizaron ${actualizados} producto(s).`, "Categorias", "exito");
  }
-}
-
-async function eliminarCategoriaInventario(id) {
- const confirmar =
- await confirmarPOS(
- "Eliminar esta categoria? Los productos no se borran.",
- "Eliminar categoria",
- "alerta"
- );
-
- if (!confirmar) return;
-
- guardarCategoriasInventario(
- categoriasInventarioGuardadas()
- .filter(categoria => categoria.id !== id)
- );
-
- if (categoriaSeleccionadaId === id) {
- categoriaSeleccionadaId = categoriasInventarioGuardadas()[0]?.id || null;
- }
-
- renderResumenCategorias();
- renderListaCategorias();
- renderDetalleCategoria();
 }
 
 function filtrarInventarioPorCategoria(nombreCategoria) {
@@ -4113,10 +4008,7 @@ function poblarFiltroCategoriaInventario() {
  if (!select) return;
 
  const valorActual = select.value;
-
- const nombres =
- [...new Set(categoriasInventarioGuardadas().map(categoria => categoria.nombre).filter(Boolean))]
- .sort((a, b) => a.localeCompare(b));
+ const nombres = nombresCategoriasProductos();
 
  select.innerHTML =
  '<option value="">Todas</option>' +

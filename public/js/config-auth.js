@@ -78,11 +78,6 @@ const PLANTILLAS_GIRO_NEGOCIO = {
  }
 };
 
-function plantillaGiroActual(config = configuracionNegocio() || {}) {
- return PLANTILLAS_GIRO_NEGOCIO[config.giroNegocio || "ferreteria"] ||
- PLANTILLAS_GIRO_NEGOCIO.ferreteria;
-}
-
 function dialogoPOS(opciones = {}) {
  const {
  tipo = "info",
@@ -1801,9 +1796,8 @@ function mostrarConfiguracion() {
  Estos datos se guardan en esta computadora y se usan para inicio, menu, ticket y apariencia.
  </div>
  <div class="config-note config-giro-note">
- <strong>Plantilla comercial</strong>
- <span>El giro prepara categorias y unidades recomendadas. Sirve para ferreteria, abarrotes, papeleria, vinateria o negocios generales.</span>
- <button type="button" onclick="aplicarPlantillaGiroConfiguracion()">Aplicar categorias sugeridas</button>
+ <strong>Giro del negocio</strong>
+ <span>Activa las categorias oficiales de Nexo para ese giro en el formulario de productos y en la pantalla de Categorias.</span>
  </div>
  <div class="config-danger-zone">
  <div>

@@ -219,12 +219,12 @@ function renderReglasPrecios() {
  <h3>Margenes por categoria</h3>
  <p class="reglas-precio-ayuda">Vacio = usa el margen general. Tiene prioridad sobre el margen general, pero no sobre un margen especifico de producto.</p>
  <div class="reglas-precio-categorias-tabla">
- ${categoriasInventarioGuardadas().map(categoria => {
- const clave = normalizarTexto(categoria.nombre);
+ ${nombresCategoriasProductos().map(nombre => {
+ const clave = normalizarTexto(nombre);
  const valor = reglas.margenesCategoria?.[clave];
  return `
  <div class="reglas-precio-categoria-fila">
- <span>${escaparPOS(categoria.nombre)}</span>
+ <span>${escaparPOS(nombre)}</span>
  <input type="number" step="0.01" min="0" value="${valor ?? ""}" placeholder="General" onchange="actualizarMargenCategoria('${clave}', this.value)">
  </div>
  `;

@@ -220,8 +220,8 @@ body.oscuro .categorias-resumen strong{
  display:grid;
  place-items:center;
  border-radius:10px;
- background:color-mix(in srgb, var(--categoria-color,#0d6efd) 14%, white);
- color:var(--categoria-color,#0d6efd);
+ background:#e7f0ff;
+ color:#0d6efd;
 }
 
 .categoria-card-icono .ui-icon{
@@ -248,14 +248,25 @@ body.oscuro .categorias-resumen strong{
 }
 
 .categoria-card.activa{
- border-color:var(--categoria-color,#0d6efd);
- background:color-mix(in srgb, var(--categoria-color,#0d6efd) 8%, white) !important;
+ border-color:#0d6efd;
+ background:#f5f9ff !important;
 }
 
-.categorias-btn-nueva{
- grid-column:auto;
- justify-self:stretch;
- width:100%;
+.categorias-lista-grupo-titulo{
+ margin:4px 2px 0;
+ color:#98a2b3;
+ font-size:11px;
+ font-weight:800;
+ letter-spacing:.04em;
+ text-transform:uppercase;
+}
+
+.categorias-lista-grupo-titulo:first-child{
+ margin-top:0;
+}
+
+body.oscuro .categorias-lista-grupo-titulo{
+ color:#667085;
 }
 
 body.oscuro .categorias-lista-panel,
@@ -297,8 +308,8 @@ body.oscuro .categoria-card-texto strong{
  display:grid;
  place-items:center;
  border-radius:14px;
- background:color-mix(in srgb, var(--categoria-color,#0d6efd) 14%, white);
- color:var(--categoria-color,#0d6efd);
+ background:#e7f0ff;
+ color:#0d6efd;
 }
 
 .categoria-detalle-icono .ui-icon{
@@ -347,6 +358,11 @@ body.oscuro .categoria-card-texto strong{
  color:#667085;
 }
 
+.categoria-badge-oficial{
+ background:#e7f0ff;
+ color:#0d6efd;
+}
+
 .categoria-detalle-acciones{
  display:flex;
  gap:10px;
@@ -376,11 +392,6 @@ body.oscuro .categoria-card-texto strong{
 
 .btn-categoria-editar{
  background:linear-gradient(135deg, color-mix(in srgb, #667085 85%, white 15%), color-mix(in srgb, #667085 65%, #101828 35%)) !important;
- color:#fff !important;
-}
-
-.btn-categoria-eliminar{
- background:linear-gradient(135deg, color-mix(in srgb, #ef4444 88%, white 12%), color-mix(in srgb, #ef4444 65%, #450a0a 35%)) !important;
  color:#fff !important;
 }
 
@@ -471,17 +482,8 @@ body.oscuro .categoria-card-texto strong{
  font-size:18px;
 }
 
-.categoria-info-color{
- display:flex !important;
- align-items:center;
- gap:8px;
-}
-
-.categoria-info-color i{
- width:16px;
- height:16px;
- border-radius:4px;
- display:inline-block;
+.categoria-info-subcategorias{
+ grid-column:1 / -1;
 }
 
 .categoria-producto-vacio{
