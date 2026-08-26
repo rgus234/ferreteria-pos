@@ -70,7 +70,7 @@ function cabezaCuentaMarketHtml() {
     return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mi cuenta -- Nexo Market</title>
-<meta name="description" content="Tu cuenta Nexo: pedidos, favoritos, credito y las ferreterias donde compras, todo dentro de Nexo Market.">
+<meta name="description" content="Tu cuenta Nexo: pedidos, favoritos, credito y las tiendas donde compras, todo dentro de Nexo Market.">
 <link rel="icon" href="/nexo-pos-icon.jpg">
 ${metaInstalableMarketHtml()}
 <link rel="stylesheet" href="/site/styles.css">
@@ -86,7 +86,7 @@ function paginaLoginCuentaMarketHtml() {
 <div class="contact-intro">
 <p class="eyebrow">Tu cuenta Nexo</p>
 <h2>Una sola cuenta para comprar y administrar.</h2>
-<p>Entra con tu correo o telefono. Desde aqui puedes ver tus pedidos, tu credito y las ferreterias donde ya eres cliente, sin salir de Nexo Market.</p>
+<p>Entra con tu correo o telefono. Desde aqui puedes ver tus pedidos, tu credito y las tiendas donde ya eres cliente, sin salir de Nexo Market.</p>
 </div>
 <div class="contact-panel-wrap">
 <div class="contact-tabs" role="tablist">
@@ -414,7 +414,7 @@ function paginaHubCuentaMarketHtml(persona, pestanaInicial = "resumen") {
 <a href="#pedidos" data-tab="pedidos"${claseActiva("pedidos")}>${ICONO_PORTAL_PEDIDOS}Mis pedidos</a>
 <a href="#favoritos" data-tab="favoritos"${claseActiva("favoritos")}>${ICONO_TENANT_FAVORITO}Favoritos</a>
 <a href="#credito" data-tab="credito"${claseActiva("credito")}>${ICONO_PORTAL_CREDITO}Mi credito</a>
-<a href="#ferreterias" data-tab="ferreterias"${claseActiva("ferreterias")}>${ICONO_PORTAL_DIRECCION}Ferreterias</a>
+<a href="#ferreterias" data-tab="ferreterias"${claseActiva("ferreterias")}>${ICONO_PORTAL_DIRECCION}Tiendas</a>
 <div class="portal-sidebar-titulo">Proximamente</div>
 <span class="portal-sidebar-proximamente">${ICONO_PORTAL_DIRECCION}Direcciones<span class="etiqueta">Pronto</span></span>
 <div class="portal-sidebar-titulo">Cuenta</div>
@@ -434,7 +434,7 @@ function paginaHubCuentaMarketHtml(persona, pestanaInicial = "resumen") {
 <div class="portal-stat-card"><div class="portal-stat-card-titulo">${ICONO_PORTAL_PEDIDOS}Mis pedidos</div><div class="portal-stat-card-valor" id="resumenPedidosValor">--</div></div>
 <div class="portal-stat-card"><div class="portal-stat-card-titulo">${ICONO_TENANT_FAVORITO}Favoritos</div><div class="portal-stat-card-valor" id="resumenFavoritosValor">--</div></div>
 <div class="portal-stat-card"><div class="portal-stat-card-titulo">${ICONO_PORTAL_CREDITO}Credito disponible</div><div class="portal-stat-card-valor" id="resumenCreditoValor">--</div></div>
-<div class="portal-stat-card"><div class="portal-stat-card-titulo">${ICONO_PORTAL_DIRECCION}Ferreterias</div><div class="portal-stat-card-valor" id="resumenFerreteriasValor">--</div></div>
+<div class="portal-stat-card"><div class="portal-stat-card-titulo">${ICONO_PORTAL_DIRECCION}Tiendas</div><div class="portal-stat-card-valor" id="resumenFerreteriasValor">--</div></div>
 </div>
 </section>
 
@@ -451,7 +451,7 @@ function paginaHubCuentaMarketHtml(persona, pestanaInicial = "resumen") {
 </section>
 
 <section class="market-cuenta-panel" data-panel="ferreterias"${oculto("ferreterias")}>
-<div class="portal-card"><div class="portal-card-header"><h2>Ferreterias donde eres cliente</h2></div><div id="cuentaMarketFerreteriasLista"><p class="portal-credito-vacio">Cargando...</p></div></div>
+<div class="portal-card"><div class="portal-card-header"><h2>Tiendas donde eres cliente</h2></div><div id="cuentaMarketFerreteriasLista"><p class="portal-credito-vacio">Cargando...</p></div></div>
 </section>
 
 <section class="market-cuenta-panel" data-panel="configuracion"${oculto("configuracion")}>
@@ -632,7 +632,7 @@ async function cuentaMarketCargarFavoritos() {
     productos.forEach(function(p) {
         const fila = document.createElement("a");
         fila.className = "portal-pedido-fila";
-        fila.href = "/market/ferreteria/" + encodeURIComponent(p.slug) + "/catalogo/" + encodeURIComponent(p.codigo);
+        fila.href = "/market/tienda/" + encodeURIComponent(p.slug) + "/catalogo/" + encodeURIComponent(p.codigo);
         fila.style.textDecoration = "none";
         fila.innerHTML =
             '<div class="portal-pedido-icono">' + '${ICONO_TENANT_FAVORITO}' + '</div>' +
@@ -655,7 +655,7 @@ async function cuentaMarketCargarCredito() {
 
     contenedor.innerHTML = "";
     if (creditos.length === 0) {
-        contenedor.appendChild(Object.assign(document.createElement("p"), { className: "portal-credito-vacio", textContent: "Todavia no eres cliente de credito vinculado en ninguna ferreteria." }));
+        contenedor.appendChild(Object.assign(document.createElement("p"), { className: "portal-credito-vacio", textContent: "Todavia no eres cliente de credito vinculado en ninguna tienda." }));
         return;
     }
 
@@ -698,7 +698,7 @@ async function cuentaMarketCargarFerreterias() {
 
     contenedor.innerHTML = "";
     if (negocios.length === 0) {
-        contenedor.appendChild(Object.assign(document.createElement("p"), { className: "portal-credito-vacio", textContent: "Todavia no eres cliente en ninguna ferreteria Nexo." }));
+        contenedor.appendChild(Object.assign(document.createElement("p"), { className: "portal-credito-vacio", textContent: "Todavia no eres cliente en ninguna tienda Nexo." }));
         return;
     }
 
@@ -709,7 +709,7 @@ async function cuentaMarketCargarFerreterias() {
         fila.querySelector("strong").textContent = n.nombre;
         const link = fila.querySelector("a");
         link.textContent = "Ver tienda";
-        link.href = "/market/ferreteria/" + encodeURIComponent(n.slug);
+        link.href = "/market/tienda/" + encodeURIComponent(n.slug);
         contenedor.appendChild(fila);
     });
 }

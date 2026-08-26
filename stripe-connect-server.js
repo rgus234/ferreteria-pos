@@ -469,7 +469,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 },
                 defaults: {
                     profile: {
-                        business_url: `https://nexoposoficial.com/market/ferreteria/${encodeURIComponent(negocio.slug)}`,
+                        business_url: `https://nexoposoficial.com/market/tienda/${encodeURIComponent(negocio.slug)}`,
                         product_description: "Venta de productos de ferreteria"
                     }
                 }
@@ -638,7 +638,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
     // (la comision de Nexo) en el mismo movimiento. PaymentIntent sigue
     // siendo un recurso v1 de Stripe (no cambia con la migracion a
     // Accounts v2) -- este bloque no se toco.
-    app.post("/market/ferreteria/:slug/catalogo/crear-intento-pago", async (req, res) => {
+    // Registrada en los dos prefijos: "/market/tienda/..." (canonico) y
+    // "/market/ferreteria/..." (compatibilidad -- POST no se puede
+    // redirigir sin romper clientes viejos, ver server.js).
+    app.post(["/market/tienda/:slug/catalogo/crear-intento-pago", "/market/ferreteria/:slug/catalogo/crear-intento-pago"], async (req, res) => {
         const stripe = obtenerStripe();
 
         if (!stripe) {

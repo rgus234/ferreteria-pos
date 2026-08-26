@@ -4085,7 +4085,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                 ok: true,
                 incluido: acceso.incluido,
                 visible: Boolean(config.rows[0]?.activo) && acceso.incluido,
-                urlMarket: `https://nexoposoficial.com/market/ferreteria/${negocio.slug}`,
+                urlMarket: `https://nexoposoficial.com/market/tienda/${negocio.slug}`,
                 totalDestacadosOfertas: Number(destacados.rows[0].count),
                 pedidosMarket30Dias: Number(pedidosMarket.rows[0].count)
             });

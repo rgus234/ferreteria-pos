@@ -119,14 +119,14 @@ function subirIdentificacion(token, frenteBytes, reversoBytes) {
 
         const intentoSinCuenta2 = await llamar(
             "POST",
-            `/market/ferreteria/${negocioSinConn.slug}/catalogo/crear-intento-pago`,
+            `/market/tienda/${negocioSinConn.slug}/catalogo/crear-intento-pago`,
             { items: [{ codigo: codigoSinConn, cantidad: 1 }] }
         );
         log("Tienda sin cuenta Connect: crear-intento-pago rechaza con 400 (no inventa cobro)", intentoSinCuenta2.status === 400 && intentoSinCuenta2.datos?.ok === false, intentoSinCuenta2.datos);
 
         const pedidoSinConn = await llamar(
             "POST",
-            `/market/ferreteria/${negocioSinConn.slug}/catalogo/pedido-carrito`,
+            `/market/tienda/${negocioSinConn.slug}/catalogo/pedido-carrito`,
             {
                 items: [{ codigo: codigoSinConn, cantidad: 1 }],
                 clienteNombre: "Comprador de prueba",
@@ -196,7 +196,7 @@ function subirIdentificacion(token, frenteBytes, reversoBytes) {
 
             const intentoPago = await llamar(
                 "POST",
-                `/market/ferreteria/${negocioConn.slug}/catalogo/crear-intento-pago`,
+                `/market/tienda/${negocioConn.slug}/catalogo/crear-intento-pago`,
                 { items: [{ codigo: codigoConn, cantidad: 2 }] }
             );
             log("crear-intento-pago responde clientSecret con split 97/3", intentoPago.status === 200 && intentoPago.datos?.ok === true && intentoPago.datos?.clientSecret, intentoPago.datos);
@@ -213,7 +213,7 @@ function subirIdentificacion(token, frenteBytes, reversoBytes) {
 
             const pedido = await llamar(
                 "POST",
-                `/market/ferreteria/${negocioConn.slug}/catalogo/pedido-carrito`,
+                `/market/tienda/${negocioConn.slug}/catalogo/pedido-carrito`,
                 {
                     items: [{ codigo: codigoConn, cantidad: 2 }],
                     clienteNombre: "Comprador de prueba",
@@ -231,7 +231,7 @@ function subirIdentificacion(token, frenteBytes, reversoBytes) {
             // Rechazo de PaymentIntent inventado/ajeno
             const pedidoFalso = await llamar(
                 "POST",
-                `/market/ferreteria/${negocioConn.slug}/catalogo/pedido-carrito`,
+                `/market/tienda/${negocioConn.slug}/catalogo/pedido-carrito`,
                 {
                     items: [{ codigo: codigoConn, cantidad: 1 }],
                     clienteNombre: "Comprador falso",

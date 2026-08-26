@@ -76,7 +76,7 @@ function llamar(metodo, host, ruta, body, headers = {}) {
         log("market-resumen responde ok (con Pro)", resumen.status === 200 && resumen.datos?.ok === true);
         log("incluido = true con Pro", resumen.datos?.incluido === true);
         log("visible = true (sitio_web_config.activo)", resumen.datos?.visible === true);
-        log("urlMarket usa el slug real", resumen.datos?.urlMarket === `https://nexoposoficial.com/market/ferreteria/${negocio.slug}`);
+        log("urlMarket usa el slug real", resumen.datos?.urlMarket === `https://nexoposoficial.com/market/tienda/${negocio.slug}`);
         log("totalDestacadosOfertas arranca en 0", resumen.datos?.totalDestacadosOfertas === 0);
         log("pedidosMarket30Dias arranca en 0", resumen.datos?.pedidosMarket30Dias === 0);
 

@@ -5,7 +5,7 @@
 // en public-site-server.js), asi que estas paginas son honestas sobre
 // esa realidad: agrupan por tienda lo que YA hay en el navegador, y el
 // envio real sigue siendo el mismo POST por tienda que ya existe
-// (/market/ferreteria/{slug}/catalogo/pedido-carrito). El pago real
+// (/market/tienda/{slug}/catalogo/pedido-carrito). El pago real
 // (Stripe Connect, ver plan "Nexo Market: pagos reales con Stripe
 // Connect") se agrega en el checkout SOLO cuando la tienda tiene cobros
 // activos (stripe-connect-server.js) -- si no, sigue el flujo de
@@ -246,7 +246,7 @@ function marketCarritoExistenciaHtml(p) {
 }
 
 function marketCarritoEnlaceProducto(p) {
-    return '/market/ferreteria/' + encodeURIComponent(p.slug) + '/catalogo/' + encodeURIComponent(p.codigo);
+    return '/market/tienda/' + encodeURIComponent(p.slug) + '/catalogo/' + encodeURIComponent(p.codigo);
 }
 
 function marketCarritoFilaProductoHtml(p) {
@@ -270,7 +270,7 @@ function marketCarritoFilaProductoHtml(p) {
 function marketCarritoTarjetaTiendaHtml(slug, items) {
     const tienda = items[0].tienda;
     return '<div class="market-carrito-tienda-card">' +
-        '<div class="market-carrito-tienda-header"><a href="/market/ferreteria/' + encodeURIComponent(slug) + '">' + marketCarritoEscapar(tienda) + '</a></div>' +
+        '<div class="market-carrito-tienda-header"><a href="/market/tienda/' + encodeURIComponent(slug) + '">' + marketCarritoEscapar(tienda) + '</a></div>' +
         items.map(marketCarritoFilaProductoHtml).join('') +
         '</div>';
 }
@@ -532,7 +532,7 @@ ${marketHeaderHtml({})}
 </div>
 
 <div class="market-checkout-card">
-<h2>${ICONO_CHECKOUT_MENSAJE}Mensaje para la ferreteria (opcional)</h2>
+<h2>${ICONO_CHECKOUT_MENSAJE}Mensaje para la tienda (opcional)</h2>
 <div class="market-checkout-textarea-wrap">
 <textarea id="checkoutMensaje" maxlength="250" rows="3" placeholder="Ej. Necesito factura, horario especial, indicaciones, etc." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line); font:inherit; font-size:13.5px; resize:vertical;"></textarea>
 <span class="market-checkout-contador" id="marketCheckoutContadorMensaje">0/250</span>
@@ -575,7 +575,7 @@ ${marketHeaderHtml({})}
 <div class="market-checkout-ayuda-card">
 <h3>Dudas sobre tu pedido?</h3>
 <div class="market-checkout-ayuda-item"><span>${ICONO_CHECKOUT_AYUDA}</span><a href="/site#contacto"><strong>Centro de ayuda</strong><span>Resuelve tus dudas</span></a></div>
-<div class="market-checkout-ayuda-item" id="marketCheckoutAyudaWhatsapp" hidden><span>${ICONO_CHECKOUT_WHATSAPP}</span><a href="#" target="_blank" rel="noopener" id="marketCheckoutAyudaWhatsappLink"><strong>Contactar ferreteria</strong><span>Habla directamente con la tienda</span></a></div>
+<div class="market-checkout-ayuda-item" id="marketCheckoutAyudaWhatsapp" hidden><span>${ICONO_CHECKOUT_WHATSAPP}</span><a href="#" target="_blank" rel="noopener" id="marketCheckoutAyudaWhatsappLink"><strong>Contactar tienda</strong><span>Habla directamente con la tienda</span></a></div>
 </div>
 </div>
 </div>
@@ -790,7 +790,7 @@ var marketCheckoutProductos = [];
         }
 
         try {
-            const respuesta = await fetch("/market/ferreteria/" + encodeURIComponent(slugActual) + "/catalogo/pedido-carrito", {
+            const respuesta = await fetch("/market/tienda/" + encodeURIComponent(slugActual) + "/catalogo/pedido-carrito", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body)
@@ -820,7 +820,7 @@ var marketCheckoutProductos = [];
             exito.appendChild(p);
             const link = document.createElement("a");
             link.className = "btn secondary";
-            link.href = "/market/ferreteria/" + encodeURIComponent(slugActual);
+            link.href = "/market/tienda/" + encodeURIComponent(slugActual);
             link.textContent = "Volver a la tienda";
             exito.appendChild(link);
         } catch (error) {
@@ -931,7 +931,7 @@ function marketCheckoutPintarResumenLateral() {
     confianza.innerHTML =
         '<div class="market-checkout-confianza-item"><span>${ICONO_CHECKOUT_ESCUDO}</span><div><strong>Compra segura</strong><span>Tu conexion con Nexo esta cifrada</span></div></div>' +
         '<div class="market-checkout-confianza-item"><span>${ICONO_CHECKOUT_CANDADO}</span><div><strong>Sin cargos ocultos</strong><span>El precio que ves es el que pagas</span></div></div>' +
-        '<div class="market-checkout-confianza-item"><span>${ICONO_CHECKOUT_CASA}</span><div><strong>Directo con la ferreteria</strong><span>Tu pedido llega directo a la tienda</span></div></div>';
+        '<div class="market-checkout-confianza-item"><span>${ICONO_CHECKOUT_CASA}</span><div><strong>Directo con la tienda</strong><span>Tu pedido llega directo a la tienda</span></div></div>';
     contenedor.appendChild(confianza);
 }
 
@@ -974,7 +974,7 @@ function marketCheckoutIniciarPago() {
     // formulario) nunca llega. Ver crearPedidoMarketDesdeSnapshot en
     // stripe-connect-server.js.
     const entregaInputPago = document.querySelector('input[name="entrega"]:checked');
-    fetch("/market/ferreteria/" + encodeURIComponent(slug) + "/catalogo/crear-intento-pago", {
+    fetch("/market/tienda/" + encodeURIComponent(slug) + "/catalogo/crear-intento-pago", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

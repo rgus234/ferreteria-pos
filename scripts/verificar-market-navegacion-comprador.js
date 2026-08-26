@@ -1,7 +1,7 @@
 // Prueba manual end-to-end de la Fase 1 "arquitectura de navegacion
 // del comprador" de Nexo Market: /market/mi-cuenta (hub directo, sin
 // "Elige a donde quieres entrar"), agregacion de pedidos/credito por
-// persona entre tiendas, reestructura de URLs /market/ferreteria/{slug}
+// persona entre tiendas, reestructura de URLs /market/tienda/{slug}
 // con redirects legacy, y /market/carrito + /market/carrito-tiendas-json.
 // No es parte de la suite automatizada -- script de un solo uso contra
 // negocios/personas sinteticos (nunca negocio_id = 1), datos borrados
@@ -116,14 +116,14 @@ function llamar(metodo, ruta, body, headers = {}) {
 
         // --- 4) Pedido con persona logueada guarda persona_id; anonimo no ---
         const pedidoConSesion = await llamar(
-            "POST", `/market/ferreteria/${negocioA.slug}/catalogo/pedido-carrito`,
+            "POST", `/market/tienda/${negocioA.slug}/catalogo/pedido-carrito`,
             { items: [{ codigo: "PRUEBA-MART-A", cantidad: 1 }], clienteNombre: "Gustavo Prueba", clienteTelefono: "4779998877", tipo: "pedido" },
             authHeader
         );
         log("pedido con sesion de persona -> ok", pedidoConSesion.status === 200 && pedidoConSesion.datos?.ok === true, pedidoConSesion.datos);
 
         const pedidoAnonimo = await llamar(
-            "POST", `/market/ferreteria/${negocioA.slug}/catalogo/pedido-carrito`,
+            "POST", `/market/tienda/${negocioA.slug}/catalogo/pedido-carrito`,
             { items: [{ codigo: "PRUEBA-MART-A", cantidad: 2 }], clienteNombre: "Anonimo Prueba", clienteTelefono: "4779998866", tipo: "pedido" }
         );
         log("pedido anonimo -> ok", pedidoAnonimo.status === 200 && pedidoAnonimo.datos?.ok === true, pedidoAnonimo.datos);
@@ -142,28 +142,41 @@ function llamar(metodo, ruta, body, headers = {}) {
         log("solo trae el pedido con sesion (no el anonimo)",
             (misPedidos.datos?.pedidos || []).length === 1 && misPedidos.datos.pedidos[0].producto_codigo === "PRUEBA-MART-A");
 
-        // --- 5) Reestructura de URLs + redirects legacy ---
-        const nuevaTienda = await llamar("GET", `/market/ferreteria/${negocioA.slug}`, null);
-        log("GET /market/ferreteria/{slug} responde 200", nuevaTienda.status === 200);
+        // --- 5) Reestructura de URLs + redirects legacy (2 capas: primero
+        // "/market/ferreteria/{slug}" paso a ser legacy de "/market/tienda/
+        // {slug}", y el prefijo aun mas viejo "/market/{slug}" ahora salta
+        // directo al canonico actual sin pasar por el intermedio) ---
+        const nuevaTienda = await llamar("GET", `/market/tienda/${negocioA.slug}`, null);
+        log("GET /market/tienda/{slug} responde 200", nuevaTienda.status === 200);
         log("incluye la franja de marca de la tienda", nuevaTienda.texto.includes("market-tienda-franja"));
 
+        const tiendaFerreteriaLegacy = await llamar("GET", `/market/ferreteria/${negocioA.slug}`, null);
+        log("GET /market/ferreteria/{slug} (legacy) -> 301", tiendaFerreteriaLegacy.status === 301);
+        log("redirige a /market/tienda/{slug}", tiendaFerreteriaLegacy.headers.location === `/market/tienda/${negocioA.slug}`);
+
         const viejaTienda = await llamar("GET", `/market/${negocioA.slug}`, null);
-        log("GET /market/{slug} (viejo) -> 301", viejaTienda.status === 301);
-        log("redirige a /market/ferreteria/{slug}", viejaTienda.headers.location === `/market/ferreteria/${negocioA.slug}`);
+        log("GET /market/{slug} (mas viejo) -> 301", viejaTienda.status === 301);
+        log("redirige directo a /market/tienda/{slug} (sin pasar por /ferreteria/)", viejaTienda.headers.location === `/market/tienda/${negocioA.slug}`);
 
         const viejoCatalogoCodigo = await llamar("GET", `/market/${negocioA.slug}/catalogo/PRUEBA-MART-A`, null);
-        log("GET /market/{slug}/catalogo/{codigo} (viejo) -> 301", viejoCatalogoCodigo.status === 301);
+        log("GET /market/{slug}/catalogo/{codigo} (mas viejo) -> 301", viejoCatalogoCodigo.status === 301);
         log("redirige a .../catalogo/{codigo} (no a /producto/)",
-            viejoCatalogoCodigo.headers.location === `/market/ferreteria/${negocioA.slug}/catalogo/PRUEBA-MART-A`);
+            viejoCatalogoCodigo.headers.location === `/market/tienda/${negocioA.slug}/catalogo/PRUEBA-MART-A`);
 
-        const aliasProducto = await llamar("GET", `/market/ferreteria/${negocioA.slug}/producto/PRUEBA-MART-A`, null);
+        const aliasProducto = await llamar("GET", `/market/tienda/${negocioA.slug}/producto/PRUEBA-MART-A`, null);
         log("alias /producto/{codigo} responde 200 (misma pagina)", aliasProducto.status === 200 && aliasProducto.texto.includes("Martillo de prueba A"));
+
+        const postFerreteriaLegacyCompat = await llamar(
+            "POST", `/market/ferreteria/${negocioA.slug}/catalogo/pedido-carrito`,
+            { items: [{ codigo: "PRUEBA-MART-A", cantidad: 1 }], clienteNombre: "Compat Legacy Ferreteria", clienteTelefono: "4779990001", tipo: "pedido" }
+        );
+        log("POST legacy (/ferreteria/) sigue funcionando durante la ventana de gracia", postFerreteriaLegacyCompat.status === 200 && postFerreteriaLegacyCompat.datos?.ok === true);
 
         const postLegacyCompat = await llamar(
             "POST", `/market/${negocioA.slug}/catalogo/pedido-carrito`,
             { items: [{ codigo: "PRUEBA-MART-A", cantidad: 1 }], clienteNombre: "Compat Legacy", clienteTelefono: "4779990000", tipo: "pedido" }
         );
-        log("POST legacy (sin /ferreteria/) sigue funcionando durante la ventana de gracia", postLegacyCompat.status === 200 && postLegacyCompat.datos?.ok === true);
+        log("POST legacy (sin prefijo de tienda) sigue funcionando durante la ventana de gracia", postLegacyCompat.status === 200 && postLegacyCompat.datos?.ok === true);
 
         const viejaMiCuenta = await llamar("GET", "/mi-cuenta?oficio=herramientas&tab=registro", null);
         log("GET /mi-cuenta -> 301", viejaMiCuenta.status === 301);

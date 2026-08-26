@@ -73,7 +73,11 @@ async function tiendasPermitidasMarket(pool) {
     }
 
     const candidatas = await pool.query(`
-        SELECT n.id, n.slug, n.nombre, n.giro, n.direccion, n.direccion_lat, n.direccion_lng, c.aceptar_solicitudes_credito AS acepta_credito
+        SELECT n.id, n.slug, n.nombre, n.direccion, n.direccion_lat, n.direccion_lng, c.aceptar_solicitudes_credito AS acepta_credito,
+               COALESCE(
+                   (SELECT array_agg(ng.giro ORDER BY ng.giro) FROM public.negocio_giros ng WHERE ng.negocio_id = n.id AND ng.activo = true),
+                   ARRAY[n.giro]
+               ) AS giros
         FROM public.negocios n
         JOIN public.sitio_web_config c ON c.negocio_id = n.id
         WHERE n.estado = 'activo' AND c.activo = true AND n.visible_en_market = true
@@ -88,7 +92,11 @@ async function tiendasPermitidasMarket(pool) {
                 id: negocio.id,
                 slug: negocio.slug,
                 nombre: negocio.nombre,
-                giro: negocio.giro,
+                // Giros reales del negocio (tabla negocio_giros, Fase 1 de
+                // "Catalogo Maestro Nexo") -- un negocio puede tener mas
+                // de uno activo a la vez. Cae a [negocios.giro] solo para
+                // el negocio excepcional que no tenga fila todavia.
+                giros: (negocio.giros || []).filter(Boolean),
                 direccion: negocio.direccion,
                 lat: negocio.direccion_lat,
                 lng: negocio.direccion_lng,
@@ -101,20 +109,57 @@ async function tiendasPermitidasMarket(pool) {
     return permitidas;
 }
 
-// Cache corto de las categorias mas pobladas cruzando todas las
-// tiendas permitidas -- mismo TTL/criterio que cacheTiendas.
-let cacheCategorias = { categorias: null, expiraEn: 0 };
+// Mismas etiquetas que PLANTILLAS_GIRO_NEGOCIO (public/js/config-auth.js)
+// -- Market es server-side, no puede requerir ese archivo del cliente,
+// asi que se repite aqui solo la etiqueta de despliegue.
+const ETIQUETAS_GIRO_MARKET = {
+    ferreteria: "Ferreteria",
+    abarrotes: "Abarrotes",
+    papeleria: "Papeleria",
+    vinateria: "Vinateria",
+    general: "General"
+};
+
+function etiquetaGiroMarket(giro) {
+    return ETIQUETAS_GIRO_MARKET[giro] || giro;
+}
+
+// Giros con al menos una tienda visible en Market -- fuente real para
+// el selector de giro de primer nivel (Ferreteria/Abarrotes/
+// Papeleria/..., al estilo "departamento" de Amazon/Mercado Libre).
+// Nunca se calcula sobre p.categoria_nexo_id (muchos productos siguen
+// sin clasificar): el giro es un dato de LA TIENDA, no del producto,
+// asi que se deriva de negocio_giros via tiendasPermitidasMarket --
+// tiendas con mas de un giro activo cuentan en cada uno.
+async function girosMarket(pool) {
+    const tiendas = await tiendasPermitidasMarket(pool);
+    const conteo = new Map();
+    tiendas.forEach(t => (t.giros || []).forEach(giro => conteo.set(giro, (conteo.get(giro) || 0) + 1)));
+    return [...conteo.entries()]
+        .map(([giro, total]) => ({ giro, tiendas: total }))
+        .sort((a, b) => b.tiendas - a.tiendas);
+}
+
+// Cache corto de las categorias mas pobladas cruzando las tiendas
+// permitidas -- mismo TTL/criterio que cacheTiendas. Una entrada por
+// giro (mas "" para "todos") -- mismo patron ya usado esta sesion para
+// el arbol de categorias_nexo por combinacion de giros
+// (cacheCategoriasNexoPorGiros, ia-server.js/server.js).
+const cacheCategoriasPorGiro = new Map();
 const CACHE_CATEGORIAS_TTL_MS = 60 * 1000;
 
-async function categoriasMarket(pool) {
-    if (cacheCategorias.categorias && cacheCategorias.expiraEn > Date.now()) {
-        return cacheCategorias.categorias;
+async function categoriasMarket(pool, giro = "") {
+    const clave = giro || "";
+    const entrada = cacheCategoriasPorGiro.get(clave);
+    if (entrada && entrada.expiraEn > Date.now()) {
+        return entrada.categorias;
     }
 
     const tiendas = await tiendasPermitidasMarket(pool);
-    if (tiendas.length === 0) return [];
+    const tiendasFiltradas = giro ? tiendas.filter(t => (t.giros || []).includes(giro)) : tiendas;
+    if (tiendasFiltradas.length === 0) return [];
 
-    const idsPermitidos = tiendas.map(t => t.id);
+    const idsPermitidos = tiendasFiltradas.map(t => t.id);
     // COALESCE(cn.departamento, p.categoria) en vez de p.categoria a
     // secas -- Fase 4 del plan "Catalogo Maestro Nexo": lee la
     // taxonomia estructurada cuando el producto la tiene
@@ -122,7 +167,9 @@ async function categoriasMarket(pool) {
     // el resto (nunca UNION -- duplicaria filas). Hoy ambas fuentes
     // coinciden en la practica porque el servidor mantiene el texto
     // como espejo del departamento (ver Fase 3), pero esto deja de
-    // depender de que ese espejo nunca se desincronice.
+    // depender de que ese espejo nunca se desincronice. El filtro de
+    // giro ya redujo idsPermitidos a solo las tiendas de ese giro --
+    // no hace falta repetir la condicion aqui.
     const resultado = await pool.query(
         `SELECT COALESCE(cn.departamento, p.categoria) AS categoria, COUNT(*) AS total
          FROM public.productos p
@@ -135,7 +182,7 @@ async function categoriasMarket(pool) {
     );
 
     const categorias = resultado.rows.map(f => f.categoria);
-    cacheCategorias = { categorias, expiraEn: Date.now() + CACHE_CATEGORIAS_TTL_MS };
+    cacheCategoriasPorGiro.set(clave, { categorias, expiraEn: Date.now() + CACHE_CATEGORIAS_TTL_MS });
     return categorias;
 }
 
@@ -324,11 +371,12 @@ async function popularesMarket(pool, idsPermitidos, firmarTokenImagen, limite = 
 // (p.id DESC, proxy real de recencia -- productos no tiene columna de
 // fecha de creacion) alimenta "Explora productos"/"Nuevos"; se ignora
 // si hay texto de busqueda (la relevancia del texto manda).
-async function buscarProductosMarket(pool, { buscar = "", categoria = "", ofertas = false, marcas = [], precioMin = null, precioMax = null, pagina = 1, orden = "relevancia", limite = PRODUCTOS_POR_PAGINA_MARKET } = {}, firmarTokenImagen) {
+async function buscarProductosMarket(pool, { buscar = "", categoria = "", ofertas = false, marcas = [], precioMin = null, precioMax = null, pagina = 1, orden = "relevancia", limite = PRODUCTOS_POR_PAGINA_MARKET, giro = "" } = {}, firmarTokenImagen) {
     const tiendas = await tiendasPermitidasMarket(pool);
-    if (tiendas.length === 0) return { productos: [], total: 0 };
+    const tiendasFiltradas = giro ? tiendas.filter(t => (t.giros || []).includes(giro)) : tiendas;
+    if (tiendasFiltradas.length === 0) return { productos: [], total: 0 };
 
-    const idsPermitidos = tiendas.map(t => t.id);
+    const idsPermitidos = tiendasFiltradas.map(t => t.id);
     const offset = Math.max(0, (pagina - 1) * limite);
 
     const condiciones = ["p.negocio_id = ANY($1::int[]) AND p.visible_market = true"];
@@ -489,8 +537,9 @@ async function inicioMarketJson(pool, req, res, firmarTokenImagen) {
         const idsPermitidos = tiendas.map(t => t.id);
         const claveOficio = req.persona?.oficio || null;
 
-        const [categorias, recomendados, ofertas, hero] = await Promise.all([
+        const [categorias, girosDisponibles, recomendados, ofertas, hero] = await Promise.all([
             categoriasMarket(pool),
+            girosMarket(pool),
             recomendadosMarket(pool, idsPermitidos, claveOficio, firmarTokenImagen),
             ofertasMarket(pool, idsPermitidos, firmarTokenImagen),
             heroProductoMarket(pool, idsPermitidos, firmarTokenImagen)
@@ -500,6 +549,7 @@ async function inicioMarketJson(pool, req, res, firmarTokenImagen) {
             ok: true,
             hero,
             categorias,
+            girosDisponibles,
             recomendados,
             ofertas,
             tiendas,
@@ -526,16 +576,23 @@ async function buscarMarketJson(pool, req, res, firmarTokenImagen) {
         const pagina = Math.max(1, parseInt(req.query?.pagina, 10) || 1);
         const ordenesValidos = new Set(["relevancia", "recientes", "precio_asc", "precio_desc", "nombre"]);
         const orden = ordenesValidos.has(req.query?.orden) ? req.query.orden : "relevancia";
+        // Filtro de giro de primer nivel (Ferreteria/Abarrotes/...) --
+        // igual que "categoria", nunca se valida contra una lista fija
+        // aqui: si no hay tiendas con ese giro, simplemente no hay
+        // resultados, mismo criterio que una categoria inexistente.
+        const giro = String(req.query?.giro || "").trim().slice(0, 60);
 
         const tiendas = await tiendasPermitidasMarket(pool);
-        const idsPermitidos = tiendas.map(t => t.id);
+        const tiendasFiltradas = giro ? tiendas.filter(t => (t.giros || []).includes(giro)) : tiendas;
+        const idsPermitidos = tiendasFiltradas.map(t => t.id);
 
-        const [{ productos, total }, facetas] = await Promise.all([
-            buscarProductosMarket(pool, { buscar, categoria, ofertas, marcas, precioMin, precioMax, pagina, orden }, firmarTokenImagen),
-            facetasMarket(pool, idsPermitidos, { buscar, categoria, ofertas })
+        const [{ productos, total }, facetas, categoriasDelGiro] = await Promise.all([
+            buscarProductosMarket(pool, { buscar, categoria, ofertas, marcas, precioMin, precioMax, pagina, orden, giro }, firmarTokenImagen),
+            facetasMarket(pool, idsPermitidos, { buscar, categoria, ofertas }),
+            categoriasMarket(pool, giro)
         ]);
 
-        res.json({ ok: true, productos, total, pagina, facetas });
+        res.json({ ok: true, productos, total, pagina, facetas, categorias: categoriasDelGiro });
     } catch (error) {
         res.status(500).json({ ok: false, error: "No se pudo completar la busqueda." });
     }
@@ -808,6 +865,16 @@ const ESTILOS_MARKET = `
 .market-categoria-tile-icono svg{ width:20px; height:20px; }
 .market-categoria-tile-label{ font-size:12px; font-weight:700; text-align:center; line-height:1.25; }
 
+/* Filtro de giro (Ferreteria/Abarrotes/...), un nivel arriba de la
+   categoria -- mismo trato visual que las tarjetas de tienda (chip con
+   borde), deliberadamente distinto del tile de categoria para que se
+   lea como un nivel de navegacion superior, no como una categoria mas. */
+.market-giros-tira{ display:flex; gap:10px; overflow-x:auto; padding:2px 2px 18px; }
+.market-giro-tile{ display:flex; align-items:center; gap:8px; flex:0 0 auto; padding:10px 16px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; font-weight:800; font-size:13px; color:var(--ink); }
+.market-giro-tile:hover{ border-color:var(--blue); }
+.market-giro-tile.activo{ background:var(--blue); border-color:var(--blue); color:#fff; }
+.market-giro-tile-total{ font-size:11px; font-weight:700; opacity:.72; }
+
 /* Explora por categoria (foto real) + Productos populares + Ferreterias
    cerca de ti -- pagina /market/explora. */
 .market-categorias-grid-foto{ display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:16px; }
@@ -1022,7 +1089,7 @@ function marketHeaderHtml({ slugTienda = null, nombreTienda = "", baseAnclas = "
 <a href="/market/ofertas"${claseActiva('ofertas')}>Ofertas</a>
 <a href="/market/explora"${claseActiva('explora')}>Explora</a>
 <a href="/market/nuevos"${claseActiva('nuevos')}>Nuevos</a>
-<a href="/market/ferreterias"${claseActiva('ferreterias')}>Ferreterias</a>
+<a href="/market/tiendas"${claseActiva('tiendas')}>Tiendas</a>
 <a href="/market/credito-nexo"${claseActiva('credito')}>Credito Nexo</a>
 <a href="/market/ayuda"${claseActiva('ayuda')}>Ayuda</a>
 <a href="/market/vende-en-nexo"${claseActiva('vender')}>Vende en Nexo</a>
@@ -1081,7 +1148,7 @@ function marketDrawerCuentaHtml() {
 <button type="button" class="market-drawer-cerrar" id="marketDrawerCerrar" aria-label="Cerrar menu">✕</button>
 <div id="marketDrawerInvitado" hidden>
 <p class="market-drawer-titulo">Tu cuenta</p>
-<p class="market-drawer-texto">Inicia sesion para ver tus pedidos, tu credito y las ferreterias donde compras.</p>
+<p class="market-drawer-texto">Inicia sesion para ver tus pedidos, tu credito y las tiendas donde compras.</p>
 <a class="market-drawer-cta" href="/market/mi-cuenta">Iniciar sesion</a>
 </div>
 <div id="marketDrawerPersona" hidden>
@@ -1094,7 +1161,7 @@ function marketDrawerCuentaHtml() {
 </div>
 <p class="market-drawer-seccion">Credito Nexo</p>
 <div id="marketDrawerCredito"><p class="portal-credito-vacio">Cargando...</p></div>
-<p class="market-drawer-seccion">Ferreterias donde compras</p>
+<p class="market-drawer-seccion">Tiendas donde compras</p>
 <div id="marketDrawerFerreterias"><p class="portal-credito-vacio">Cargando...</p></div>
 <p class="market-drawer-seccion">Cuenta</p>
 <a class="market-drawer-link" href="#" data-ir-proximamente>${ICONO_PORTAL_USUARIO}Mi perfil</a>
@@ -1282,10 +1349,10 @@ function paginaMarketHtml(opciones) {
 
     const tituloPagina = modoResultados
         ? `${etiquetaModo} -- Nexo Market`
-        : "Nexo Market -- todo para construir, instalar y reparar";
+        : "Nexo Market -- ferreteria, abarrotes y papeleria en un solo lugar";
     const descripcionPagina = modoResultados
-        ? `${etiquetaModo} en Nexo Market: compara precio y disponibilidad entre varias ferreterias y compra directo con la tienda.`
-        : "Busca productos entre varias ferreterias Nexo, compara precio y disponibilidad, y compra directo con la tienda que elijas.";
+        ? `${etiquetaModo} en Nexo Market: compara precio y disponibilidad entre varias tiendas y compra directo con la tienda.`
+        : "Busca productos entre varias tiendas Nexo, compara precio y disponibilidad, y compra directo con la tienda que elijas.";
 
     // Cuando la pagina arranca ya en modo resultados (categoria, ofertas
     // o nuevos -- por ruta canonica o por el alias con query string
@@ -1320,15 +1387,15 @@ ${marketHeaderHtml({ activo: activoNav })}
 <div class="market-banners-scope market-oculto-en-busqueda" id="marketBannersDestacados"${ocultoInicialAttr}></div>
 <section class="market-hero market-oculto-en-busqueda"${ocultoInicialAttr}>
 <div class="market-hero-texto">
-<h1>Todo para construir, instalar y reparar.</h1>
-<p>Busca en varias ferreterias Nexo, compara precio y disponibilidad, y compra directo con la tienda.</p>
+<h1>Ferreteria, abarrotes y papeleria en un solo buscador.</h1>
+<p>Busca en varias tiendas Nexo, compara precio y disponibilidad, y compra directo con la tienda.</p>
 <div class="market-hero-chips">
 <span>Compara precios</span>
-<span>Elige tu ferreteria</span>
+<span>Elige tu tienda</span>
 <span>Compra directo con la tienda</span>
 </div>
 <div class="market-hero-acciones">
-<a class="btn primary" href="#marketTiendas">Ver ferreterias Nexo</a>
+<a class="btn primary" href="#marketTiendas">Ver tiendas Nexo</a>
 <a class="market-hero-como" href="#marketComoFunciona">Como funciona</a>
 </div>
 </div>
@@ -1337,6 +1404,7 @@ ${marketHeaderHtml({ activo: activoNav })}
 
 <div class="market-layout">
 <div class="market-contenido">
+<div id="marketGirosTop" class="market-oculto-en-busqueda"${ocultoInicialAttr}></div>
 <div id="marketCategoriasTop" class="market-oculto-en-busqueda"${ocultoInicialAttr}></div>
 
 <section class="market-oficio market-oculto-en-busqueda" id="marketOficio" hidden>
@@ -1358,7 +1426,7 @@ ${marketHeaderHtml({ activo: activoNav })}
 <section id="marketComoFunciona" class="market-como market-oculto-en-busqueda"${ocultoInicialAttr}>
 <h3>Como funciona</h3>
 <div class="market-como-pasos">
-<div><strong>1. Busca</strong><span>Encuentra productos en varias ferreterias Nexo a la vez.</span></div>
+<div><strong>1. Busca</strong><span>Encuentra productos en varias tiendas Nexo a la vez.</span></div>
 <div><strong>2. Compara</strong><span>Revisa precio y existencia real de cada tienda.</span></div>
 <div><strong>3. Compra</strong><span>Termina tu compra directo en el catalogo de la tienda.</span></div>
 </div>
@@ -1367,7 +1435,7 @@ ${marketHeaderHtml({ activo: activoNav })}
 
 <aside class="market-sidebar">
 <div class="market-sidebar-card">
-<h4 id="marketTiendas">Ferreterias Nexo</h4>
+<h4 id="marketTiendas">Tiendas Nexo</h4>
 <div id="marketMapaTiendas" class="market-mapa-tiendas" hidden></div>
 <button type="button" id="marketUbicacionBoton" class="market-ubicacion-boton" onclick="marketSolicitarUbicacion()">Usar mi ubicacion para ver que tan cerca estan</button>
 <p id="marketUbicacionEstado" class="market-vacio-chico" hidden></p>
@@ -1387,7 +1455,7 @@ ${marketHeaderHtml({ activo: activoNav })}
 <div class="market-badges">
 <span>Precios reales de cada tienda</span>
 <span>Compra directo con la tienda</span>
-<span>Solo ferreterias activas en Nexo</span>
+<span>Solo tiendas activas en Nexo</span>
 <span>Soporte Nexo</span>
 </div>
 </main>
@@ -1449,18 +1517,25 @@ async function marketCargarAdmin() {
 var ICONO_CORAZON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg>';
 var ICONO_FOTO_GENERICA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg>';
 
+var MARKET_ETIQUETAS_GIRO = { ferreteria: "Ferreteria", abarrotes: "Abarrotes", papeleria: "Papeleria", vinateria: "Vinateria", general: "General" };
+function marketEtiquetaGiros(giros) {
+    return (giros || []).map(function(g) { return MARKET_ETIQUETAS_GIRO[g] || g; }).join(" · ");
+}
+
 function marketTarjetaTienda(t) {
+    var girosTexto = marketEtiquetaGiros(t.giros);
     return '<div class="market-tienda-card"><strong>' + escapeHtml(t.nombre) + '</strong>' +
-        (t.giro ? '<span class="market-tienda-giro">' + escapeHtml(t.giro) + '</span>' : '') +
+        (girosTexto ? '<span class="market-tienda-giro">' + escapeHtml(girosTexto) + '</span>' : '') +
         (t.direccion ? '<span class="market-tienda-direccion">' + escapeHtml(t.direccion) + '</span>' : '') +
-        '<a class="btn secondary" href="/market/' + encodeURIComponent(t.slug) + '">Ver tienda</a></div>';
+        '<a class="btn secondary" href="/market/tienda/' + encodeURIComponent(t.slug) + '">Ver tienda</a></div>';
 }
 
 function marketTarjetaTiendaSidebar(t, indice) {
-    return '<a class="market-tienda-fila" href="/market/' + encodeURIComponent(t.slug) + '">' +
+    var girosTexto = marketEtiquetaGiros(t.giros);
+    return '<a class="market-tienda-fila" href="/market/tienda/' + encodeURIComponent(t.slug) + '">' +
         '<span class="market-tienda-fila-numero">' + (indice + 1) + '</span>' +
         '<span class="market-tienda-fila-nombre">' + escapeHtml(t.nombre) + '</span>' +
-        (t.giro ? '<span class="market-tienda-fila-giro">' + escapeHtml(t.giro) + '</span>' : '') +
+        (girosTexto ? '<span class="market-tienda-fila-giro">' + escapeHtml(girosTexto) + '</span>' : '') +
         (typeof t.distanciaKm === "number" ? '<span class="market-tienda-fila-distancia">a ' + t.distanciaKm + ' km</span>' : '') +
         '</a>';
 }
@@ -1654,7 +1729,7 @@ function marketTarjetaOfertaDelDia(p) {
         ? '<span class="market-producto-existencia' + (agotado ? ' agotado' : '') + '">' + (agotado ? 'Agotado' : p.stock + ' disponibles') + '</span>'
         : '<span class="market-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>';
 
-    var link = '/market/ferreteria/' + encodeURIComponent(p.slug) + '/catalogo/' + encodeURIComponent(p.codigo);
+    var link = '/market/tienda/' + encodeURIComponent(p.slug) + '/catalogo/' + encodeURIComponent(p.codigo);
     var fotoHtml = p.fotoUrl
         ? '<img src="' + p.fotoUrl + '" alt="' + escapeHtml(p.nombre) + '" loading="lazy">'
         : ICONO_FOTO_GENERICA;
@@ -1734,6 +1809,32 @@ function marketCategoriaTileHtml(cat) {
 function marketCategoriasHtml(categorias) {
     if (!categorias || categorias.length === 0) return '';
     return categorias.map(marketCategoriaTileHtml).join('');
+}
+
+// Filtro de primer nivel (giro de negocio: Ferreteria/Abarrotes/...),
+// al estilo "departamento" de Amazon/Mercado Libre -- se renderiza
+// arriba de las categorias (marketGirosTop) para que un negocio con
+// otro giro no se sienta revuelto entre categorias de otro tipo de
+// negocio. Solo aparece si hay mas de un giro real con tiendas
+// visibles (con uno solo no hay nada que dividir).
+function marketGiroTileHtml(g, activo) {
+    var etiqueta = MARKET_ETIQUETAS_GIRO[g.giro] || g.giro;
+    return '<button type="button" class="market-giro-tile' + (activo ? ' activo' : '') + '" data-giro="' + escapeHtml(g.giro) + '">' +
+        '<span class="market-giro-tile-label">' + escapeHtml(etiqueta) + '</span>' +
+        '<span class="market-giro-tile-total">' + g.tiendas + '</span></button>';
+}
+
+function marketGirosHtml(giros, giroActivo) {
+    if (!giros || giros.length < 2) return '';
+    return '<button type="button" class="market-giro-tile' + (giroActivo ? '' : ' activo') + '" data-giro="">' +
+        '<span class="market-giro-tile-label">Todos</span></button>' +
+        giros.map(function(g) { return marketGiroTileHtml(g, g.giro === giroActivo); }).join('');
+}
+
+function marketMarcarGiroActivo(giroActivo) {
+    document.querySelectorAll(".market-giro-tile").forEach(function(boton) {
+        boton.classList.toggle("activo", boton.dataset.giro === (giroActivo || ""));
+    });
 }
 
 function marketPintarSelectCategorias(categorias) {
@@ -1818,10 +1919,10 @@ function marketPintarCreditoNexo(tiendas) {
     var contenedor = document.getElementById("marketSidebarCreditoContenido");
     var conCredito = (tiendas || []).filter(function(t) { return t.aceptaCredito; });
     if (conCredito.length === 0) {
-        contenedor.innerHTML = '<p class="market-vacio-chico">Ninguna ferreteria Nexo acepta solicitudes de credito por ahora.</p>';
+        contenedor.innerHTML = '<p class="market-vacio-chico">Ninguna tienda Nexo acepta solicitudes de credito por ahora.</p>';
         return;
     }
-    contenedor.innerHTML = '<p class="market-vacio-chico">Estas ferreterias aceptan solicitudes de credito directo en su tienda:</p>' +
+    contenedor.innerHTML = '<p class="market-vacio-chico">Estas tiendas aceptan solicitudes de credito directo en su tienda:</p>' +
         '<ul class="market-credito-lista">' + conCredito.map(function(t) {
             return '<li><a href="https://' + escapeHtml(t.slug) + '.nexoposoficial.com/solicitud-credito">' + escapeHtml(t.nombre) + '</a></li>';
         }).join('') + '</ul>';
@@ -1883,13 +1984,20 @@ function marketUrlDesdeFiltros(f) {
     if (f.buscar) {
         var params = ["buscar=" + encodeURIComponent(f.buscar)];
         if (f.categoria) params.push("categoria=" + encodeURIComponent(f.categoria));
+        if (f.giro) params.push("giro=" + encodeURIComponent(f.giro));
         if (f.orden && f.orden !== "relevancia") params.push("orden=" + encodeURIComponent(f.orden));
         return "/market/buscar?" + params.join("&");
     }
     if (f.categoria) {
         var extra = [];
+        if (f.giro) extra.push("giro=" + encodeURIComponent(f.giro));
         if (f.orden && f.orden !== "relevancia") extra.push("orden=" + encodeURIComponent(f.orden));
         return "/market/categorias/" + encodeURIComponent(marketSlugificar(f.categoria)) + (extra.length ? "?" + extra.join("&") : "");
+    }
+    if (f.giro) {
+        var extraGiro = [];
+        if (f.orden && f.orden !== "relevancia") extraGiro.push("orden=" + encodeURIComponent(f.orden));
+        return "/market/buscar?giro=" + encodeURIComponent(f.giro) + (extraGiro.length ? "&" + extraGiro.join("&") : "");
     }
     if (f.ofertas) return "/market/ofertas";
     if (f.orden === "recientes") return "/market/nuevos";
@@ -1957,7 +2065,7 @@ function marketMostrarResultados() {
     window.scrollTo(0, 0);
 }
 
-var marketFiltrosActuales = { buscar: "", categoria: "", ofertas: false, marcas: [], precioMin: null, precioMax: null, orden: "relevancia", pagina: 1 };
+var marketFiltrosActuales = { buscar: "", categoria: "", giro: "", ofertas: false, marcas: [], precioMin: null, precioMax: null, orden: "relevancia", pagina: 1 };
 var marketResultadosAcumulados = [];
 var marketResultadosTotal = 0;
 
@@ -2034,6 +2142,7 @@ async function marketMostrarBusqueda(opciones, agregarMas) {
         marketFiltrosActuales = {
             buscar: opciones.buscar !== undefined ? opciones.buscar : marketFiltrosActuales.buscar,
             categoria: opciones.categoria !== undefined ? opciones.categoria : marketFiltrosActuales.categoria,
+            giro: opciones.giro !== undefined ? opciones.giro : marketFiltrosActuales.giro,
             ofertas: opciones.ofertas !== undefined ? Boolean(opciones.ofertas) : false,
             marcas: opciones.marcas !== undefined ? opciones.marcas : [],
             precioMin: opciones.precioMin !== undefined ? opciones.precioMin : null,
@@ -2055,6 +2164,7 @@ async function marketMostrarBusqueda(opciones, agregarMas) {
     var params = [];
     if (f.buscar) params.push("buscar=" + encodeURIComponent(f.buscar));
     if (f.categoria) params.push("categoria=" + encodeURIComponent(f.categoria));
+    if (f.giro) params.push("giro=" + encodeURIComponent(f.giro));
     if (f.ofertas) params.push("ofertas=1");
     if (f.marcas.length) params.push("marcas=" + encodeURIComponent(f.marcas.join(",")));
     if (f.precioMin !== null) params.push("precioMin=" + encodeURIComponent(f.precioMin));
@@ -2071,6 +2181,13 @@ async function marketMostrarBusqueda(opciones, agregarMas) {
 
     marketResultadosAcumulados = agregarMas ? marketResultadosAcumulados.concat(datos.productos) : datos.productos;
     marketResultadosTotal = datos.total;
+
+    // Las categorias que llegan aqui ya vienen filtradas por el giro
+    // elegido (buscar-json las recalcula) -- asi el select de categoria
+    // nunca ofrece "Herramienta manual" mientras el filtro esta en
+    // Abarrotes.
+    if (!agregarMas) marketPintarSelectCategorias(datos.categorias || []);
+    marketMarcarGiroActivo(f.giro);
 
     contenedor.innerHTML = marketRenderResultados(datos.facetas || { marcas: [], precioMin: null, precioMax: null });
     marketMarcarFavoritosBotones();
@@ -2191,6 +2308,8 @@ async function marketCargarInicio() {
     marketPintarSelectCategorias(datos.categorias);
     marketPintarOficioPicker();
 
+    document.getElementById("marketGirosTop").innerHTML = marketGirosHtml(datos.girosDisponibles, marketFiltrosActuales.giro)
+        ? '<div class="market-giros-tira">' + marketGirosHtml(datos.girosDisponibles, marketFiltrosActuales.giro) + '</div>' : '';
     document.getElementById("marketCategoriasTop").innerHTML = marketCategoriasHtml(datos.categorias)
         ? '<div class="market-categorias-tira">' + marketCategoriasHtml(datos.categorias) + '</div>' : '';
     document.getElementById("marketExploraCategorias").innerHTML = marketCategoriasHtml(datos.categorias)
@@ -2225,6 +2344,14 @@ document.addEventListener("click", function(evento) {
         document.getElementById("marketBuscarInput").value = "";
         document.getElementById("marketCategoriaSelect").value = tile.dataset.categoria;
         marketMostrarBusqueda({ buscar: "", categoria: tile.dataset.categoria });
+        return;
+    }
+
+    var giroTile = evento.target.closest(".market-giro-tile");
+    if (giroTile) {
+        document.getElementById("marketBuscarInput").value = "";
+        document.getElementById("marketCategoriaSelect").value = "";
+        marketMostrarBusqueda({ buscar: "", categoria: "", giro: giroTile.dataset.giro || "" });
         return;
     }
 
@@ -2413,7 +2540,7 @@ async function marketCargarDrawerCredito() {
     var creditos = datos.ok ? datos.creditos : [];
 
     if (creditos.length === 0) {
-        contenedor.innerHTML = '<div class="market-drawer-vacio">${ICONO_PORTAL_CREDITO}<p>Todavia no eres cliente de credito vinculado en ninguna ferreteria.</p></div>';
+        contenedor.innerHTML = '<div class="market-drawer-vacio">${ICONO_PORTAL_CREDITO}<p>Todavia no eres cliente de credito vinculado en ninguna tienda.</p></div>';
         return;
     }
 
@@ -2446,7 +2573,7 @@ async function marketCargarDrawerFerreterias() {
     var negocios = datos.ok ? datos.negocios : [];
 
     if (negocios.length === 0) {
-        contenedor.innerHTML = '<div class="market-drawer-vacio">${ICONO_PORTAL_TIENDA}<p>Todavia no eres cliente en ninguna ferreteria Nexo.</p></div>';
+        contenedor.innerHTML = '<div class="market-drawer-vacio">${ICONO_PORTAL_TIENDA}<p>Todavia no eres cliente en ninguna tienda Nexo.</p></div>';
         return;
     }
 
@@ -2458,7 +2585,7 @@ async function marketCargarDrawerFerreterias() {
         fila.querySelector("strong").textContent = n.nombre;
         var link = fila.querySelector("a");
         link.textContent = "Ver tienda";
-        link.href = "/market/ferreteria/" + encodeURIComponent(n.slug);
+        link.href = "/market/tienda/" + encodeURIComponent(n.slug);
         contenedor.appendChild(fila);
     });
 }
@@ -2571,12 +2698,13 @@ if (marketParamsIniciales.get("vista") === "favoritos") {
     marketMostrarVistaFavoritos();
 } else if (marketParamsIniciales.get("vista") === "pedidos") {
     marketMostrarVistaPedidos();
-} else if (marketFiltroInicialSSR.categoria || marketOfertasInicialSSR || marketParamsIniciales.get("buscar") || marketParamsIniciales.get("categoria") || marketParamsIniciales.get("orden")) {
+} else if (marketFiltroInicialSSR.categoria || marketOfertasInicialSSR || marketParamsIniciales.get("buscar") || marketParamsIniciales.get("categoria") || marketParamsIniciales.get("giro") || marketParamsIniciales.get("orden")) {
     var marketBuscarInicial = marketParamsIniciales.get("buscar") || "";
     var marketCategoriaInicial = marketFiltroInicialSSR.categoria || marketParamsIniciales.get("categoria") || "";
+    var marketGiroInicial = marketParamsIniciales.get("giro") || "";
     document.getElementById("marketBuscarInput").value = marketBuscarInicial;
     document.getElementById("marketCategoriaSelect").value = marketCategoriaInicial;
-    marketMostrarBusqueda({ buscar: marketBuscarInicial, categoria: marketCategoriaInicial, ofertas: marketOfertasInicialSSR, orden: marketOrdenInicialSSR });
+    marketMostrarBusqueda({ buscar: marketBuscarInicial, categoria: marketCategoriaInicial, giro: marketGiroInicial, ofertas: marketOfertasInicialSSR, orden: marketOrdenInicialSSR });
 }
 
 // Boton atras/adelante del navegador -- restaura la vista (inicio,
@@ -2602,17 +2730,17 @@ window.addEventListener("popstate", function() {
             if (opcion.value && marketSlugificar(opcion.value) === slugBuscado) categoriaResuelta = opcion.value;
         });
         document.getElementById("marketCategoriaSelect").value = categoriaResuelta;
-        marketMostrarBusqueda({ buscar: "", categoria: categoriaResuelta, orden: params.get("orden") || "relevancia" });
+        marketMostrarBusqueda({ buscar: "", categoria: categoriaResuelta, giro: params.get("giro") || "", orden: params.get("orden") || "relevancia" });
     } else if (location.pathname === "/market/ofertas") {
         marketMostrarBusqueda({ buscar: "", categoria: "", ofertas: true, orden: params.get("orden") || "relevancia" });
     } else if (location.pathname === "/market/nuevos") {
         marketMostrarBusqueda({ buscar: "", categoria: "", orden: "recientes" });
-    } else if (params.get("buscar") || params.get("categoria") || params.get("orden") || params.get("ofertas") === "1") {
+    } else if (params.get("buscar") || params.get("categoria") || params.get("giro") || params.get("orden") || params.get("ofertas") === "1") {
         var buscarVal = params.get("buscar") || "";
         var categoriaVal = params.get("categoria") || "";
         document.getElementById("marketBuscarInput").value = buscarVal;
         document.getElementById("marketCategoriaSelect").value = categoriaVal;
-        marketMostrarBusqueda({ buscar: buscarVal, categoria: categoriaVal, ofertas: params.get("ofertas") === "1", orden: params.get("orden") || "relevancia" });
+        marketMostrarBusqueda({ buscar: buscarVal, categoria: categoriaVal, giro: params.get("giro") || "", ofertas: params.get("ofertas") === "1", orden: params.get("orden") || "relevancia" });
     } else {
         marketMostrarInicio();
     }
@@ -2726,11 +2854,12 @@ function tarjetaProductoExploraHtml(p) {
 function tarjetaTiendaCercaHtml(t, indice) {
     const color = PALETA_AVATAR_TIENDA[indice % PALETA_AVATAR_TIENDA.length];
     const tieneCoordenadas = typeof t.lat === "number" && typeof t.lng === "number" && !isNaN(t.lat) && !isNaN(t.lng);
-    return `<a class="market-tienda-cerca-card" href="/market/${encodeURIComponent(t.slug)}"` +
+    const girosTexto = (t.giros || []).map(etiquetaGiroMarket).join(" · ");
+    return `<a class="market-tienda-cerca-card" href="/market/tienda/${encodeURIComponent(t.slug)}"` +
         (tieneCoordenadas ? ` data-tienda-slug="${escaparHtml(t.slug)}" data-tienda-lat="${t.lat}" data-tienda-lng="${t.lng}"` : '') + `>` +
         `<span class="market-tienda-cerca-avatar" style="background:${color}">${escaparHtml(inicialesTienda(t.nombre))}</span>` +
         `<strong>${escaparHtml(t.nombre)}</strong>` +
-        (t.giro ? `<span class="market-tienda-giro">${escaparHtml(t.giro)}</span>` : '') +
+        (girosTexto ? `<span class="market-tienda-giro">${escaparHtml(girosTexto)}</span>` : '') +
         (t.direccion ? `<span class="market-tienda-direccion">${escaparHtml(t.direccion)}</span>` : '') +
         (tieneCoordenadas ? `<span class="market-tienda-cerca-distancia" hidden></span>` : '') +
         `</a>`;
@@ -2756,7 +2885,7 @@ async function paginaExploraMarketHtml(pool, firmarTokenImagen) {
     const tiendasOrdenadas = [...tiendas].sort((a, b) => a.nombre.localeCompare(b.nombre));
     const tiendasCercaHtml = tiendasOrdenadas.length > 0
         ? `<section class="market-explora-seccion market-explora-cerca">` +
-            `<div class="market-explora-cerca-header"><h2>Ferreterias cerca de ti</h2>` +
+            `<div class="market-explora-cerca-header"><h2>Tiendas cerca de ti</h2>` +
             `<button type="button" id="marketExploraUbicacionBoton" class="market-ubicacion-boton market-ubicacion-boton-inline">Usar mi ubicacion</button></div>` +
             `<p id="marketExploraUbicacionEstado" class="market-vacio-chico" hidden></p>` +
             `<div class="market-tiendas-cerca-grid" id="marketTiendasCercaGrid">${tiendasOrdenadas.map(tarjetaTiendaCercaHtml).join('')}</div>` +
@@ -2844,23 +2973,24 @@ async function servirMarketExplora(pool, req, res, firmarTokenImagen) {
     res.send(await paginaExploraMarketHtml(pool, firmarTokenImagen));
 }
 
-// GET /market/ferreterias -- directorio real de tiendas Nexo, misma
+// GET /market/tiendas -- directorio real de tiendas Nexo, misma
 // fuente de verdad que ya usa el sidebar (tiendasPermitidasMarket:
-// id/slug/nombre/giro/direccion/lat/lng/aceptaCredito reales, ninguna
+// id/slug/nombre/giros/direccion/lat/lng/aceptaCredito reales, ninguna
 // coordenada inventada) en un grid de pagina completa en vez de una
 // lista corta.
 function tarjetaTiendaDirectorioHtml(t) {
+    const girosTexto = (t.giros || []).map(etiquetaGiroMarket).join(" · ");
     return `<div class="market-tienda-card"><strong>${escaparHtml(t.nombre)}</strong>` +
-        (t.giro ? `<span class="market-tienda-giro">${escaparHtml(t.giro)}</span>` : '') +
+        (girosTexto ? `<span class="market-tienda-giro">${escaparHtml(girosTexto)}</span>` : '') +
         (t.direccion ? `<span class="market-tienda-direccion">${escaparHtml(t.direccion)}</span>` : '') +
-        `<a class="btn secondary" href="/market/${encodeURIComponent(t.slug)}">Ver tienda</a></div>`;
+        `<a class="btn secondary" href="/market/tienda/${encodeURIComponent(t.slug)}">Ver tienda</a></div>`;
 }
 
 async function paginaFerreteriasMarketHtml(pool) {
     const tiendas = await tiendasPermitidasMarket(pool);
     const tarjetasHtml = tiendas.length > 0
         ? tiendas.map(tarjetaTiendaDirectorioHtml).join('')
-        : '<p class="market-vacio">Todavia no hay ferreterias Nexo activas para mostrar.</p>';
+        : '<p class="market-vacio">Todavia no hay tiendas Nexo activas para mostrar.</p>';
     const conUbicacion = tiendas.filter(t => typeof t.lat === "number" && typeof t.lng === "number" && !isNaN(t.lat) && !isNaN(t.lng));
     const datosMapaJson = JSON.stringify(conUbicacion.map(t => ({ nombre: t.nombre, slug: t.slug, lat: t.lat, lng: t.lng })));
 
@@ -2869,8 +2999,8 @@ async function paginaFerreteriasMarketHtml(pool) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ferreterias Nexo -- Nexo Market</title>
-<meta name="description" content="Directorio de ferreterias Nexo: revisa cual esta mas cerca y visita su catalogo.">
+<title>Tiendas Nexo -- Nexo Market</title>
+<meta name="description" content="Directorio de tiendas Nexo: revisa cual esta mas cerca y visita su catalogo.">
 <link rel="icon" href="/nexo-pos-icon.jpg">
 ${metaInstalableMarketHtml()}
 <link rel="stylesheet" href="/site/styles.css">
@@ -2878,12 +3008,12 @@ ${metaInstalableMarketHtml()}
 <style>${ESTILOS_MARKET}</style>
 </head>
 <body>
-${marketHeaderHtml({ activo: "ferreterias" })}
+${marketHeaderHtml({ activo: "tiendas" })}
 <main>
 <div class="market-layout">
 <div class="market-contenido">
-<nav class="market-breadcrumb"><a href="/market">Inicio</a> &rsaquo; Ferreterias</nav>
-<div class="market-resultados-header"><div><h2>Ferreterias Nexo</h2><span class="market-resultados-conteo">${tiendas.length === 1 ? '1 ferreteria' : tiendas.length + ' ferreterias'}</span></div></div>
+<nav class="market-breadcrumb"><a href="/market">Inicio</a> &rsaquo; Tiendas</nav>
+<div class="market-resultados-header"><div><h2>Tiendas Nexo</h2><span class="market-resultados-conteo">${tiendas.length === 1 ? '1 tienda' : tiendas.length + ' tiendas'}</span></div></div>
 <div id="marketFerreteriasMapa" class="market-mapa-tiendas" hidden></div>
 <div class="market-tiendas-grid">${tarjetasHtml}</div>
 </div>
@@ -2929,8 +3059,9 @@ async function servirMarketFerreterias(pool, req, res) {
 // propia. Mensaje honesto si ninguna tienda acepta credito, misma
 // redaccion que ya existe en el sidebar.
 function tarjetaCreditoNexoHtml(t) {
+    const girosTexto = (t.giros || []).map(etiquetaGiroMarket).join(" · ");
     return `<div class="market-tienda-card"><strong>${escaparHtml(t.nombre)}</strong>` +
-        (t.giro ? `<span class="market-tienda-giro">${escaparHtml(t.giro)}</span>` : '') +
+        (girosTexto ? `<span class="market-tienda-giro">${escaparHtml(girosTexto)}</span>` : '') +
         (t.direccion ? `<span class="market-tienda-direccion">${escaparHtml(t.direccion)}</span>` : '') +
         `<a class="btn primary" href="https://${escaparHtml(t.slug)}.nexoposoficial.com/solicitud-credito">Solicitar credito</a></div>`;
 }
@@ -2940,7 +3071,7 @@ async function paginaCreditoNexoMarketHtml(pool) {
     const conCredito = tiendas.filter(t => t.aceptaCredito);
     const tarjetasHtml = conCredito.length > 0
         ? conCredito.map(tarjetaCreditoNexoHtml).join('')
-        : '<p class="market-vacio">Ninguna ferreteria Nexo acepta solicitudes de credito por ahora.</p>';
+        : '<p class="market-vacio">Ninguna tienda Nexo acepta solicitudes de credito por ahora.</p>';
 
     return `<!doctype html>
 <html lang="es">
@@ -2948,7 +3079,7 @@ async function paginaCreditoNexoMarketHtml(pool) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Credito Nexo -- Nexo Market</title>
-<meta name="description" content="Ferreterias Nexo que aceptan solicitudes de credito directo en su tienda.">
+<meta name="description" content="Tiendas Nexo que aceptan solicitudes de credito directo en su tienda.">
 <link rel="icon" href="/nexo-pos-icon.jpg">
 ${metaInstalableMarketHtml()}
 <link rel="stylesheet" href="/site/styles.css">
@@ -2960,7 +3091,7 @@ ${marketHeaderHtml({ activo: "credito" })}
 <div class="market-layout">
 <div class="market-contenido">
 <nav class="market-breadcrumb"><a href="/market">Inicio</a> &rsaquo; Credito Nexo</nav>
-<div class="market-resultados-header"><div><h2>Credito Nexo</h2><span class="market-resultados-conteo">${conCredito.length === 1 ? '1 ferreteria' : conCredito.length + ' ferreterias'}</span></div></div>
+<div class="market-resultados-header"><div><h2>Credito Nexo</h2><span class="market-resultados-conteo">${conCredito.length === 1 ? '1 tienda' : conCredito.length + ' tiendas'}</span></div></div>
 <div class="market-tiendas-grid">${tarjetasHtml}</div>
 </div>
 </div>

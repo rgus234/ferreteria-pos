@@ -91,7 +91,7 @@ function cabezaWizardMarketHtml() {
     return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mi cuenta -- Nexo</title>
-<meta name="description" content="Tu cuenta Nexo: pedidos, favoritos, credito y las ferreterias donde compras.">
+<meta name="description" content="Tu cuenta Nexo: pedidos, favoritos, credito y las tiendas donde compras.">
 <meta name="theme-color" content="#1067e8">
 <link rel="icon" href="/nexo-pos-icon.jpg">
 <link rel="apple-touch-icon" href="/nexo-pos-icon.jpg">
@@ -107,7 +107,7 @@ function pantallasWizardAuthHtml() {
 <section class="wizard-screen" data-screen="bienvenida">
 ${mascotaImgHtml("feliz")}
 <h1 class="wizard-titulo">Hola, soy Nexo</h1>
-<p class="wizard-texto">Tu asistente para comprar y administrar en las ferreterias de tu zona, todo desde una sola cuenta.</p>
+<p class="wizard-texto">Tu asistente para comprar y administrar en las tiendas de tu zona, todo desde una sola cuenta.</p>
 <div class="wizard-spacer"></div>
 <div class="wizard-acciones">
 <button type="button" class="wizard-btn-primario" data-ir="que-es-market">Comenzar</button>
@@ -118,7 +118,7 @@ ${mascotaImgHtml("feliz")}
 <section class="wizard-screen" data-screen="que-es-market">
 ${mascotaImgHtml("neutral")}
 <h1 class="wizard-titulo">¿Que es Nexo Market?</h1>
-<p class="wizard-texto">Es el lugar donde encuentras productos de ferreterias reales cerca de ti: comparas precios, pides tus productos y les das seguimiento hasta que los recoges.</p>
+<p class="wizard-texto">Es el lugar donde encuentras productos de tiendas reales cerca de ti: comparas precios, pides tus productos y les das seguimiento hasta que los recoges.</p>
 <div class="wizard-spacer"></div>
 <div class="wizard-acciones">
 <button type="button" class="wizard-btn-primario" data-ir="elegir-registro">Continuar</button>
@@ -128,7 +128,7 @@ ${mascotaImgHtml("neutral")}
 <section class="wizard-screen" data-screen="elegir-registro">
 ${mascotaImgHtml("feliz")}
 <h1 class="wizard-titulo">Crea tu cuenta Nexo</h1>
-<p class="wizard-texto">Con una sola cuenta compras en Nexo Market y, si tienes una ferreteria, tambien la administras.</p>
+<p class="wizard-texto">Con una sola cuenta compras en Nexo Market y, si tienes un negocio, tambien lo administras.</p>
 <div class="wizard-spacer"></div>
 <div class="wizard-acciones">
 <button type="button" class="wizard-btn-primario" data-ir="crear-cuenta">Crear cuenta</button>
@@ -189,7 +189,7 @@ ${mascotaImgHtml("celebrando")}
 <section class="wizard-screen" data-screen="una-cuenta">
 ${mascotaImgHtml("feliz")}
 <h1 class="wizard-titulo">Una cuenta. Todo Nexo.</h1>
-<p class="wizard-texto">Con tu cuenta puedes comprar en cualquier ferreteria de Nexo Market y, si administras un negocio, entrar a Nexo para negocios -- sin crear otra cuenta.</p>
+<p class="wizard-texto">Con tu cuenta puedes comprar en cualquier tienda de Nexo Market y, si administras un negocio, entrar a Nexo para negocios -- sin crear otra cuenta.</p>
 <div class="wizard-spacer"></div>
 <div class="wizard-acciones">
 <button type="button" class="wizard-btn-primario" data-ir="elegir-modo">Continuar</button>

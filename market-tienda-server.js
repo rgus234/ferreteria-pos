@@ -171,7 +171,7 @@ async function servirInicioTiendaMarket(pool, req, res, slug, firmarTokenImagen)
             return;
         }
 
-        const basePath = `/market/ferreteria/${encodeURIComponent(slug)}`;
+        const basePath = `/market/tienda/${encodeURIComponent(slug)}`;
         const datos = await cargarInicioTenant(pool, sitio, slug, firmarTokenImagen);
         const nombre = escaparHtml(sitio.negocio.nombre);
 
@@ -207,7 +207,7 @@ async function servirCatalogoTiendaMarket(pool, req, res, slug, firmarTokenImage
             return;
         }
 
-        const basePath = `/market/ferreteria/${encodeURIComponent(slug)}`;
+        const basePath = `/market/tienda/${encodeURIComponent(slug)}`;
         const filtros = {
             buscar: String(req.query.buscar || "").trim().slice(0, 120),
             categoria: String(req.query.categoria || "").trim().slice(0, 120),
@@ -243,7 +243,7 @@ async function servirProductoTiendaMarket(pool, req, res, slug, codigo, firmarTo
             return;
         }
 
-        const basePath = `/market/ferreteria/${encodeURIComponent(slug)}`;
+        const basePath = `/market/tienda/${encodeURIComponent(slug)}`;
         const datos = await cargarProductoTenant(pool, sitio, slug, codigo, firmarTokenImagen);
 
         if (!datos) {

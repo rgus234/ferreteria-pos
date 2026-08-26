@@ -48,7 +48,7 @@ ${marketHeaderHtml({ activo: "ayuda" })}
 <div class="contact-intro">
 <p class="eyebrow">Ayuda</p>
 <h2>¿En que te podemos ayudar?</h2>
-<p>Escribenos si tienes dudas sobre un pedido, tu cuenta, o cualquier ferreteria de Nexo Market -- te contactamos por telefono o correo.</p>
+<p>Escribenos si tienes dudas sobre un pedido, tu cuenta, o cualquier tienda de Nexo Market -- te contactamos por telefono o correo.</p>
 <a class="contact-whatsapp" href="https://wa.me/524424950495?text=Hola%2C%20tengo%20una%20duda%20sobre%20Nexo%20Market." target="_blank" rel="noopener">
 <span>¿Prefieres WhatsApp?</span>
 <strong>Escribenos directo</strong>
@@ -59,7 +59,7 @@ ${marketHeaderHtml({ activo: "ayuda" })}
 <form class="lead-form" id="contactoLeadForm">
 <input type="text" id="contactoEmpresaWeb" name="empresaWeb" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
 <label>Tu nombre<input id="contactoNombre" type="text" placeholder="Ej. Gustavo" required></label>
-<label>Negocio (si tu duda es sobre una ferreteria)<input id="contactoNegocio" type="text" placeholder="Ej. Ferreteria Olimpico"></label>
+<label>Negocio (si tu duda es sobre una tienda)<input id="contactoNegocio" type="text" placeholder="Ej. Ferreteria Olimpico"></label>
 <label>Telefono<input id="contactoTelefono" type="tel" placeholder="Ej. 442 123 4567"></label>
 <label>Correo<input id="contactoCorreo" type="email" placeholder="Ej. tu@correo.com"></label>
 <label>Mensaje<input id="contactoMensaje" type="text" placeholder="Cuentanos que necesitas" required></label>
@@ -81,22 +81,31 @@ function paginaMarketVenderHtml() {
     return `<!doctype html>
 <html lang="es">
 <head>
-${cabezaMarketPaginaHtml("Vende en Nexo Market", "Da de alta tu ferreteria en Nexo Market: administra tu inventario con Nexo POS y vendele a mas clientes.")}
+${cabezaMarketPaginaHtml("Vende en Nexo Market", "Da de alta tu negocio en Nexo Market: administra tu inventario con Nexo POS y vendele a mas clientes.")}
 </head>
 <body>
 ${marketHeaderHtml({ activo: "vender" })}
 <main class="market-pagina-simple">
 <section class="contact">
 <div class="contact-intro">
-<p class="eyebrow">Para ferreterias</p>
+<p class="eyebrow">Para ferreterias, abarrotes y papelerias</p>
 <h2>Vende en Nexo Market</h2>
-<p>Da de alta tu ferreteria: administras tu inventario con Nexo POS y tus productos aparecen para miles de compradores en Nexo Market. <a href="/site#planes">Ver planes y precios en detalle</a>.</p>
+<p>Da de alta tu negocio: administras tu inventario con Nexo POS y tus productos aparecen para miles de compradores en Nexo Market. <a href="/site#planes">Ver planes y precios en detalle</a>.</p>
 </div>
 <div class="contact-panel-wrap">
 <div class="contact-panel" id="panelCuenta">
 <form class="lead-form" id="registroClienteForm">
 <input type="text" id="registroEmpresaWeb" name="empresaWeb" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
 <label>Nombre del negocio<input id="registroNegocio" type="text" placeholder="Ej. Ferreteria Olimpico" required></label>
+<label>Giro del negocio
+<select id="registroGiro">
+<option value="ferreteria">Ferreteria</option>
+<option value="abarrotes">Abarrotes</option>
+<option value="papeleria">Papeleria</option>
+<option value="vinateria">Vinateria</option>
+<option value="general">Otro / general</option>
+</select>
+</label>
 <label>Telefono<input id="registroTelefono" type="tel" placeholder="Ej. 498 123 4567" required></label>
 <label>Correo<input id="registroCorreo" type="email" placeholder="Ej. dueno@tunegocio.com" required></label>
 <label>Contrasena<input id="registroPassword" type="password" placeholder="Minimo 8 caracteres" minlength="8" required></label>
@@ -217,7 +226,7 @@ registroForm.addEventListener("submit", async function(evento) {
                 ciudad: document.getElementById("registroCiudad").value,
                 nombreContacto: document.getElementById("registroContacto").value,
                 empresaWeb: document.getElementById("registroEmpresaWeb").value,
-                giro: "ferreteria"
+                giro: document.getElementById("registroGiro").value || "ferreteria"
             })
         });
         var datos = await respuesta.json();
