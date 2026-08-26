@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=iconos-boton-agregar-fix-20260824-01">
+    <link rel="stylesheet" href="dueno.css?v=venta-detalle-20260826-01">
 </head>
 
 <body>
@@ -634,8 +634,15 @@
                 <div id="duenoDetalleCodigo" class="dueno-detalle-codigo"></div>
                 <div id="duenoDetallePrecio" class="dueno-detalle-precio"></div>
                 <div id="duenoDetalleSpecs" class="dueno-detalle-specs"></div>
-                <button type="button" class="dueno-boton-primario" onclick="agregarDesdeDetalleDueno()">Agregar al pedido</button>
+                <div id="duenoDetalleAccion"></div>
             </div>
+        </div>
+    </div>
+
+    <div id="duenoVentaDetalleOverlay" class="dueno-detalle-overlay" style="display:none;" onclick="cerrarDetalleVentaDueno()">
+        <div class="dueno-detalle-caja" onclick="event.stopPropagation()">
+            <button type="button" class="dueno-detalle-cerrar" onclick="cerrarDetalleVentaDueno()">&times;</button>
+            <div id="duenoVentaDetalleContenido"></div>
         </div>
     </div>
 
@@ -658,8 +665,8 @@
         </div>
     </div>
 
-    <script src="dueno-offline.js?v=dueno-modo-oscuro-20260721-01"></script>
-    <script src="dueno.js?v=copy-multi-giro-20260825-01"></script>
+    <script src="dueno-offline.js?v=venta-detalle-20260826-01"></script>
+    <script src="dueno.js?v=venta-detalle-20260826-02"></script>
 </body>
 
 </html>

@@ -60,7 +60,10 @@ async function guardarCatalogoLocal(productos) {
                 categoria: producto.categoria || "",
                 marca: producto.marca || "",
                 descripcion: producto.descripcion || "",
-                unidadVenta: producto.unidad_venta || ""
+                unidadVenta: producto.unidad_venta || "",
+                stockMinimo: producto.stock_minimo != null ? Number(producto.stock_minimo) : null,
+                ubicacion: producto.ubicacion || "",
+                precioDistribuidor: producto.precio_distribuidor != null ? Number(producto.precio_distribuidor) : null
             });
         });
 

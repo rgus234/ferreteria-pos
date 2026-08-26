@@ -1044,6 +1044,120 @@ button{
     text-align:right;
 }
 
+/* ---------------- detalle de venta ---------------- */
+
+.dueno-venta-cabecera{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:4px;
+}
+
+.dueno-venta-eyebrow{
+    display:block;
+    color:var(--muted);
+    font-size:11px;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+}
+
+.dueno-venta-folio{
+    margin:2px 0 0;
+    font-size:20px;
+    color:var(--brand);
+}
+
+.dueno-venta-subtexto{
+    margin:2px 0 0;
+    color:var(--muted);
+    font-size:12.5px;
+    font-weight:600;
+}
+
+.dueno-venta-alerta{
+    display:grid;
+    gap:2px;
+    margin:12px 0;
+    padding:10px 12px;
+    border-radius:12px;
+    background:var(--amber-soft);
+}
+
+.dueno-venta-alerta strong{
+    color:var(--amber);
+    font-size:12.5px;
+}
+
+.dueno-venta-alerta span{
+    color:var(--muted);
+    font-size:11.5px;
+}
+
+.dueno-venta-lista-compacta{
+    display:grid;
+    gap:8px;
+    margin:14px 0;
+}
+
+.dueno-venta-item-compacto{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:9px 12px;
+    border-radius:12px;
+    background:var(--surface-soft);
+}
+
+.dueno-venta-item-info{
+    display:grid;
+    gap:2px;
+    min-width:0;
+}
+
+.dueno-venta-item-info strong{
+    font-size:13px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
+.dueno-venta-item-info span{
+    color:var(--muted);
+    font-size:11.5px;
+}
+
+.dueno-venta-item-precio{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-shrink:0;
+}
+
+.dueno-venta-lista-productos{
+    display:grid;
+    gap:8px;
+}
+
+.dueno-venta-lista-productos .fila-dueno-columna{
+    cursor:pointer;
+}
+
+.dueno-venta-total-productos{
+    display:flex;
+    justify-content:space-between;
+    margin:14px 2px 0;
+    font-size:13px;
+    color:var(--muted);
+}
+
+.dueno-venta-total-productos strong{
+    color:var(--text);
+    font-size:16px;
+}
+
 /* ---------------- tab bar ---------------- */
 
 .dueno-tabs{
@@ -1412,6 +1526,22 @@ button{
 .dueno-pill-normal{ background:var(--green-soft); color:var(--green); }
 .dueno-pill-gracia{ background:var(--amber-soft); color:#b45309; }
 .dueno-pill-limitado{ background:var(--red-soft); color:var(--red); }
+
+.dueno-pill-stock-ok{ background:var(--green-soft); color:var(--green); }
+.dueno-pill-stock-bajo{ background:var(--amber-soft); color:var(--amber); }
+.dueno-pill-stock-sin{ background:var(--red-soft); color:var(--red); }
+
+.dueno-stock-dot{
+    display:inline-block;
+    flex-shrink:0;
+    width:8px;
+    height:8px;
+    border-radius:50%;
+}
+
+.dueno-stock-dot-ok{ background:var(--green); }
+.dueno-stock-dot-bajo{ background:var(--amber); }
+.dueno-stock-dot-sin{ background:var(--red); }
 
 .dueno-badge{
     display:inline-block;

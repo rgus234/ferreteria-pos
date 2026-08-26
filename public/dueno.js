@@ -6,6 +6,9 @@ const DUENO_TEMA_KEY = "nexoDuenoTema";
 let duenoCarrito = [];
 let duenoUltimosResultados = [];
 let duenoProductoDetalleActual = null;
+let duenoVentaDetalleActual = null;
+let duenoVentaDetalleVista = "resumen";
+let duenoVentaDetalleTab = "informacion";
 let duenoInventarioCategoria = "";
 let duenoNexoHistorial = [];
 let duenoNexoConversacionId = null;
@@ -642,7 +645,7 @@ function renderVentas(historial) {
     document.getElementById("duenoUltimasVentas").innerHTML =
         historial.length
             ? historial.slice(0, 8).map(venta => `
-                <div class="fila-dueno">
+                <div class="fila-dueno" onclick="abrirDetalleVentaDueno(${Number(venta.id) || 0})">
                     <div>
                         <strong>Venta registrada</strong>
                         <span>${fechaCorta(venta.fecha)}</span>
@@ -815,6 +818,62 @@ function verDetalleProductoDueno(id) {
 
     if (!producto) return;
 
+    renderDetalleProductoDueno(producto, "agregar");
+}
+
+// Version "en vivo" para cuando se entra desde una venta (Detalle de
+// venta -> tocar un producto): no puede usar duenoUltimosResultados
+// (cache de la ultima busqueda de inventario, puede no tener nada
+// cargado aun) ni el catalogo offline (recortado, sin stock_minimo/
+// ubicacion/costo) -- pide el producto fresco al servidor para
+// mostrar el stock real de HOY, no uno guardado.
+async function abrirDetalleProductoVentaDueno(id) {
+    try {
+        const datos =
+        await fetchAutenticado(`/productos/${Number(id)}`);
+
+        if (!datos?.producto) {
+            mostrarToastDueno("No se pudo cargar el producto.");
+            return;
+        }
+
+        renderDetalleProductoDueno(
+            {
+                id: datos.producto.id,
+                nombre: datos.producto.nombre,
+                codigo: datos.producto.codigo,
+                precio: datos.producto.precio_publico ?? datos.producto.precio,
+                stock: datos.producto.stock,
+                imagenUrl: datos.producto.imagenUrl,
+                categoria: datos.producto.categoria,
+                marca: datos.producto.marca,
+                descripcion: datos.producto.descripcion,
+                unidadVenta: datos.producto.unidad_venta,
+                stockMinimo: datos.producto.stock_minimo,
+                ubicacion: datos.producto.ubicacion,
+                precioDistribuidor: datos.producto.precio_distribuidor
+            },
+            "inventario"
+        );
+    } catch (error) {
+        mostrarToastDueno("No se pudo conectar. Revisa tu internet.");
+    }
+}
+
+// Los onclick de los botones aqui son siempre literales fijos (nunca
+// texto interpolado de un producto) a proposito: escaparDueno() sola
+// no alcanza para proteger un valor embebido dentro de un onclick con
+// comillas simples -- el navegador decodifica entidades HTML ANTES de
+// que el JS se ejecute, asi que un nombre/codigo con una comilla
+// simple sobreviviria el decode y podria escapar el string. Cualquier
+// dato que el boton necesite se lee de duenoProductoDetalleActual en
+// vez de pasarse como argumento.
+const ACCIONES_DETALLE_PRODUCTO_DUENO = {
+    agregar: { texto: "Agregar al pedido", onclick: "agregarDesdeDetalleDueno()" },
+    inventario: { texto: "Ver en inventario", onclick: "verEnInventarioDesdeVentaDueno()" }
+};
+
+function renderDetalleProductoDueno(producto, accion) {
     duenoProductoDetalleActual = producto;
 
     document.getElementById("duenoDetalleImagen").innerHTML =
@@ -831,6 +890,9 @@ function verDetalleProductoDueno(id) {
     if (producto.marca) specs.unshift(["Marca", producto.marca]);
     if (producto.categoria) specs.push(["Categoria", producto.categoria]);
     if (producto.unidadVenta) specs.push(["Unidad de venta", producto.unidadVenta]);
+    if (producto.stockMinimo != null) specs.push(["Stock minimo", String(Number(producto.stockMinimo))]);
+    if (producto.ubicacion) specs.push(["Ubicacion", producto.ubicacion]);
+    if (producto.precioDistribuidor) specs.push(["Costo", dinero(producto.precioDistribuidor)]);
     if (producto.descripcion) specs.push(["Descripcion", producto.descripcion]);
 
     document.getElementById("duenoDetalleSpecs").innerHTML =
@@ -840,6 +902,12 @@ function verDetalleProductoDueno(id) {
                 <strong>${escaparDueno(valor)}</strong>
             </div>
         `).join("");
+
+    const boton =
+    ACCIONES_DETALLE_PRODUCTO_DUENO[accion] || ACCIONES_DETALLE_PRODUCTO_DUENO.agregar;
+
+    document.getElementById("duenoDetalleAccion").innerHTML =
+        `<button type="button" class="dueno-boton-primario" onclick="${boton.onclick}">${escaparDueno(boton.texto)}</button>`;
 
     document.getElementById("duenoDetalleOverlay").style.display = "flex";
 }
@@ -854,6 +922,294 @@ function agregarDesdeDetalleDueno() {
     agregarAlCarritoDueno(duenoProductoDetalleActual.id);
     cerrarDetalleProductoDueno();
     mostrarToastDueno("Agregado al pedido.");
+}
+
+// Desde el detalle de un producto abierto vía una venta: manda al
+// inventario ya filtrado por su codigo, en vez de intentar abrir un
+// modal de edicion con datos que a esta altura ya podrian no ser los
+// mas recientes (el dueño pudo haber cerrado el detalle hace rato).
+function verEnInventarioDesdeVentaDueno() {
+    const codigo =
+    duenoProductoDetalleActual?.codigo || "";
+
+    cerrarDetalleProductoDueno();
+    cerrarDetalleVentaDueno();
+    cambiarTabDueno("inventario");
+
+    // cambiarTabDueno dispara cargarPanelInventarioDueno() sin
+    // esperarlo (recarga categorias + re-filtra con la busqueda
+    // vacia) -- se espera un poco a que asiente antes de escribir la
+    // busqueda, si no la sobreescribe el propio filtrado inicial.
+    setTimeout(() => {
+        const campo =
+        document.getElementById("duenoInventarioBuscar");
+
+        if (campo) campo.value = codigo;
+
+        filtrarInventarioDueno();
+    }, 120);
+}
+
+// Detalle de venta -- se abre al tocar la notificacion push de "Venta
+// registrada" (dueno-sw.js manda ?ir=venta&ventaId=<id>, ver
+// aplicarDeepLinkDueno) o al tocar una venta en "Ultimas ventas"
+// (inicio y reportes). Resumen primero (para el vistazo rapido al
+// llegar desde la notificacion), con boton a un detalle completo con
+// tabs -- mismo overlay para los dos, solo cambia el contenido segun
+// duenoVentaDetalleVista/duenoVentaDetalleTab.
+async function abrirDetalleVentaDueno(id) {
+    if (!id) return;
+
+    try {
+        const datos =
+        await fetchAutenticado(`/ventas/${Number(id)}`);
+
+        if (!datos?.venta) {
+            mostrarToastDueno("No se pudo cargar la venta.");
+            return;
+        }
+
+        duenoVentaDetalleActual = datos.venta;
+        duenoVentaDetalleVista = "resumen";
+        duenoVentaDetalleTab = "informacion";
+
+        renderDetalleVentaDueno();
+        document.getElementById("duenoVentaDetalleOverlay").style.display = "flex";
+    } catch (error) {
+        mostrarToastDueno("No se pudo conectar. Revisa tu internet.");
+    }
+}
+
+function cerrarDetalleVentaDueno() {
+    const overlay =
+    document.getElementById("duenoVentaDetalleOverlay");
+
+    if (overlay) overlay.style.display = "none";
+
+    duenoVentaDetalleActual = null;
+}
+
+function mostrarDetalleVentaCompletoDueno() {
+    duenoVentaDetalleVista = "completo";
+    duenoVentaDetalleTab = "informacion";
+    renderDetalleVentaDueno();
+}
+
+function cambiarTabDetalleVentaDueno(tab) {
+    duenoVentaDetalleTab = tab;
+    renderDetalleVentaDueno();
+}
+
+// stock_minimo por defecto en 3 -- mismo criterio ya usado en
+// renderBajos() (dashboard), no el limite fijo de 5 que usa el POS de
+// escritorio, para que el mismo producto no aparezca "bajo" en una
+// pantalla y "en stock" en la otra dentro de la MISMA app.
+function estadoStockItemVentaDueno(item) {
+    if (item.stockActual == null) return null;
+
+    const stock = Number(item.stockActual || 0);
+    if (stock <= 0) return "sin";
+
+    const minimo = Number(item.stockMinimo || 3);
+    if (stock <= minimo) return "bajo";
+
+    return "ok";
+}
+
+const ETIQUETA_STOCK_ITEM_VENTA_DUENO = { ok: "En stock", bajo: "Stock bajo", sin: "Sin stock" };
+const ETIQUETAS_METODO_PAGO_DUENO = { efectivo: "Efectivo", tarjeta: "Tarjeta", transferencia: "Transferencia", credito: "Credito", mixto: "Pago mixto" };
+
+function etiquetaMetodoPagoDueno(metodo) {
+    return ETIQUETAS_METODO_PAGO_DUENO[metodo] || metodo || "Efectivo";
+}
+
+function renderDetalleVentaDueno() {
+    const venta =
+    duenoVentaDetalleActual;
+
+    const contenedor =
+    document.getElementById("duenoVentaDetalleContenido");
+
+    if (!venta || !contenedor) return;
+
+    contenedor.innerHTML =
+        duenoVentaDetalleVista === "resumen"
+            ? htmlResumenVentaDueno(venta)
+            : htmlDetalleCompletoVentaDueno(venta);
+}
+
+function htmlItemVentaCompactoDueno(item) {
+    const estado =
+    estadoStockItemVentaDueno(item);
+
+    const importe =
+    item.importe ?? (Number(item.precio || 0) * Number(item.cantidad || 0));
+
+    return `
+        <div class="dueno-venta-item-compacto">
+            <div class="dueno-venta-item-info">
+                <strong>${escaparDueno(item.nombre || "Producto")}</strong>
+                <span>${item.cantidad || 0} x ${dinero(item.precio)}</span>
+            </div>
+            <div class="dueno-venta-item-precio">
+                ${estado ? `<span class="dueno-stock-dot dueno-stock-dot-${estado}"></span>` : ""}
+                <b>${dinero(importe)}</b>
+            </div>
+        </div>
+    `;
+}
+
+function htmlResumenVentaDueno(venta) {
+    const productos =
+    Array.isArray(venta.productos) ? venta.productos : [];
+
+    const totalUnidades =
+    productos.reduce((suma, item) => suma + Number(item.cantidad || 0), 0);
+
+    const alertas =
+    productos.filter(item => {
+        const estado = estadoStockItemVentaDueno(item);
+        return estado === "bajo" || estado === "sin";
+    });
+
+    const folio =
+    venta.folio || `V-${String(venta.id || 0).padStart(6, "0")}`;
+
+    const estadoTexto =
+    String(venta.estado || "completada");
+
+    return `
+        <div class="dueno-venta-cabecera">
+            <div>
+                <span class="dueno-venta-eyebrow">Folio</span>
+                <h2 class="dueno-venta-folio">${escaparDueno(folio)}</h2>
+            </div>
+            <span class="dueno-badge dueno-badge-ok">${escaparDueno(estadoTexto.charAt(0).toUpperCase() + estadoTexto.slice(1))}</span>
+        </div>
+        <p class="dueno-venta-subtexto">${escaparDueno(fechaCorta(venta.fecha))} &middot; ${escaparDueno(venta.cliente_nombre || "Publico general")}</p>
+
+        <div class="dueno-datos-grid">
+            <div><span>Total</span><strong>${dinero(venta.total)}</strong></div>
+            <div><span>Productos</span><strong>${totalUnidades} unidad${totalUnidades === 1 ? "" : "es"}</strong></div>
+            <div><span>Pago</span><strong>${escaparDueno(etiquetaMetodoPagoDueno(venta.metodo_pago))}</strong></div>
+        </div>
+
+        ${alertas.length ? `
+            <div class="dueno-venta-alerta">
+                <strong>${alertas.length} producto${alertas.length === 1 ? "" : "s"} requiere${alertas.length === 1 ? "" : "n"} atencion</strong>
+                <span>Revisa el stock para evitar faltantes.</span>
+            </div>
+        ` : ""}
+
+        <div class="dueno-venta-lista-compacta">
+            ${productos.map(htmlItemVentaCompactoDueno).join("")}
+        </div>
+
+        <button type="button" class="dueno-boton-primario" onclick="mostrarDetalleVentaCompletoDueno()">Ver detalle completo</button>
+    `;
+}
+
+function htmlTabInformacionVentaDueno(venta) {
+    return `
+        <div class="dueno-datos-grid">
+            <div><span>Cliente</span><strong>${escaparDueno(venta.cliente_nombre || "Publico general")}</strong></div>
+            <div><span>Vendedor</span><strong>${escaparDueno(venta.cajero_nombre || venta.cajero_usuario || venta.turno_usuario || "-")}</strong></div>
+            <div><span>Fecha</span><strong>${escaparDueno(fechaCorta(venta.fecha))}</strong></div>
+            <div><span>Metodo de pago</span><strong>${escaparDueno(etiquetaMetodoPagoDueno(venta.metodo_pago))}</strong></div>
+            <div><span>Subtotal</span><strong>${dinero(venta.subtotal)}</strong></div>
+            ${Number(venta.descuento || 0) > 0 ? `<div><span>Descuento</span><strong>-${dinero(venta.descuento)}</strong></div>` : ""}
+            <div><span>Total</span><strong>${dinero(venta.total)}</strong></div>
+        </div>
+    `;
+}
+
+function htmlTabProductosVentaDueno(venta) {
+    const productos =
+    Array.isArray(venta.productos) ? venta.productos : [];
+
+    return `
+        <div class="dueno-venta-lista-productos">
+            ${productos.map(item => {
+                const estado = estadoStockItemVentaDueno(item);
+                const idProducto = Number(item.id) || 0;
+                const importe = item.importe ?? (Number(item.precio || 0) * Number(item.cantidad || 0));
+
+                return `
+                    <div class="fila-dueno fila-dueno-columna"${idProducto > 0 ? ` onclick="abrirDetalleProductoVentaDueno(${idProducto})"` : ""}>
+                        <div>
+                            <strong>${escaparDueno(item.nombre || "Producto")}</strong>
+                            <span>${item.cantidad || 0} x ${dinero(item.precio)}</span>
+                        </div>
+                        <div class="dueno-fila-acciones">
+                            <b>${dinero(importe)}</b>
+                            ${estado ? `<span class="dueno-pill dueno-pill-stock-${estado}">${ETIQUETA_STOCK_ITEM_VENTA_DUENO[estado]}</span>` : ""}
+                        </div>
+                    </div>
+                `;
+            }).join("")}
+        </div>
+        <p class="dueno-venta-total-productos"><span>Total</span><strong>${dinero(venta.total)}</strong></p>
+    `;
+}
+
+function htmlTabPagosVentaDueno(venta) {
+    const desglose =
+    [
+        ["Efectivo", venta.pago_efectivo],
+        ["Tarjeta", venta.pago_tarjeta],
+        ["Transferencia", venta.pago_transferencia],
+        ["Credito", venta.pago_credito]
+    ].filter(([, monto]) => Number(monto || 0) > 0);
+
+    return `
+        <div class="dueno-datos-grid">
+            <div><span>Metodo</span><strong>${escaparDueno(etiquetaMetodoPagoDueno(venta.metodo_pago))}</strong></div>
+            <div><span>Total</span><strong>${dinero(venta.total)}</strong></div>
+            ${Number(venta.pago_recibido || 0) > 0 ? `<div><span>Recibido</span><strong>${dinero(venta.pago_recibido)}</strong></div>` : ""}
+            ${Number(venta.cambio || 0) > 0 ? `<div><span>Cambio</span><strong>${dinero(venta.cambio)}</strong></div>` : ""}
+        </div>
+        ${desglose.length > 1 ? `
+            <div class="dueno-subseccion">Desglose</div>
+            <div class="dueno-venta-lista-compacta">
+                ${desglose.map(([etiqueta, monto]) => `
+                    <div class="dueno-venta-item-compacto">
+                        <div class="dueno-venta-item-info"><strong>${escaparDueno(etiqueta)}</strong></div>
+                        <b>${dinero(monto)}</b>
+                    </div>
+                `).join("")}
+            </div>
+        ` : ""}
+    `;
+}
+
+function htmlDetalleCompletoVentaDueno(venta) {
+    const tabs =
+    [["informacion", "Informacion"], ["productos", "Productos"], ["pagos", "Pagos"]];
+
+    const folio =
+    venta.folio || `V-${String(venta.id || 0).padStart(6, "0")}`;
+
+    let panel = "";
+    if (duenoVentaDetalleTab === "productos") panel = htmlTabProductosVentaDueno(venta);
+    else if (duenoVentaDetalleTab === "pagos") panel = htmlTabPagosVentaDueno(venta);
+    else panel = htmlTabInformacionVentaDueno(venta);
+
+    return `
+        <div class="dueno-venta-cabecera">
+            <div>
+                <span class="dueno-venta-eyebrow">Detalle de venta</span>
+                <h2 class="dueno-venta-folio">${escaparDueno(folio)}</h2>
+            </div>
+        </div>
+
+        <div class="dueno-ventas-subtabs">
+            ${tabs.map(([id, etiqueta]) => `
+                <button type="button" class="${duenoVentaDetalleTab === id ? "activo" : ""}" onclick="cambiarTabDetalleVentaDueno('${id}')">${etiqueta}</button>
+            `).join("")}
+        </div>
+
+        <div class="dueno-subtab-panel activo">${panel}</div>
+    `;
 }
 
 function agregarAlCarritoDueno(id) {
@@ -1298,14 +1654,14 @@ function renderUltimasVentasReporteDueno(ventas) {
     contenedor.innerHTML =
         ventas.length
             ? ventas.map(venta => `
-                <div class="fila-dueno fila-dueno-columna">
+                <div class="fila-dueno fila-dueno-columna" onclick="abrirDetalleVentaDueno(${Number(venta.id) || 0})">
                     <div>
                         <strong>${escaparDueno(venta.folio || `V-${String(venta.id || 0).padStart(6, "0")}`)}</strong>
                         <span>${fechaCorta(venta.fecha)} · ${escaparDueno(venta.cliente_nombre || "Publico general")}</span>
                     </div>
                     <div class="dueno-fila-acciones">
                         <b>${dinero(venta.total)}</b>
-                        <button type="button" class="dueno-link" onclick="reimprimirVentaReporteDueno(${venta.id})">Reimprimir</button>
+                        <button type="button" class="dueno-link" onclick="event.stopPropagation(); reimprimirVentaReporteDueno(${venta.id})">Reimprimir</button>
                     </div>
                 </div>
             `).join("")
@@ -4110,9 +4466,18 @@ function aplicarDeepLinkDueno() {
     const ir = parametros.get("ir");
     if (!ir) return;
 
+    const ventaId = parametros.get("ventaId");
+
     parametros.delete("ir");
+    parametros.delete("ventaId");
     const query = parametros.toString();
     window.history.replaceState({}, "", window.location.pathname + (query ? `?${query}` : ""));
+
+    if (ir === "venta" && ventaId) {
+        cambiarTabDueno("inicio");
+        abrirDetalleVentaDueno(ventaId);
+        return;
+    }
 
     if (TABS_VALIDAS_DEEP_LINK_DUENO.has(ir)) cambiarTabDueno(ir);
 }

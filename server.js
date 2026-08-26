@@ -5444,6 +5444,37 @@ app.get("/productos", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
+app.get("/productos/:id", requerirAccesoNegocio, async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+
+        const resultado = await pool.query(
+            `SELECT * FROM public.productos WHERE id = $1 AND negocio_id = $2`,
+            [req.params.id, negocio.id]
+        );
+
+        if (resultado.rows.length === 0) {
+            res.status(404).json({ ok: false, error: "Producto no encontrado." });
+            return;
+        }
+
+        const producto = resultado.rows[0];
+
+        const foto = await pool.query(
+            `SELECT actualizado_at FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = $2`,
+            [negocio.id, normalizarCodigoFoto(producto.codigo)]
+        );
+
+        const imagenUrl = foto.rows.length
+            ? `/fotos-producto/${normalizarCodigoFoto(producto.codigo)}/principal?negocio=${negocio.slug}&v=${new Date(foto.rows[0].actualizado_at).getTime()}&token=${firmarTokenImagen(negocio.id, normalizarCodigoFoto(producto.codigo))}`
+            : null;
+
+        res.json({ ok: true, producto: { ...producto, imagenUrl } });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
 app.get("/fotos-producto-existe/:codigo", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
@@ -7021,7 +7052,8 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
             titulo: "Venta registrada",
             cuerpo: `$${total.toFixed(2)} -- Folio ${folioVenta.folio}${cajeroNombre ? ` -- ${cajeroNombre}` : ""}`,
             url: "/",
-            pantalla: "ventas"
+            pantalla: "ventas",
+            historialId: historialCreado.rows[0]?.id || null
         }).catch(error => console.warn("No se pudo enviar push de venta:", error.message));
 
     } catch (error) {
@@ -7106,7 +7138,7 @@ async function obtenerDetalleVenta(client, negocioId, filtro, valor) {
     if (idsProductos.length > 0) {
         const garantias = await client.query(
             `
-            SELECT id, tiene_garantia, garantia_detalle, admite_cambios
+            SELECT id, tiene_garantia, garantia_detalle, admite_cambios, stock, stock_minimo
             FROM public.productos
             WHERE negocio_id = $1
             AND id = ANY($2)
@@ -7122,7 +7154,9 @@ async function obtenerDetalleVenta(client, negocioId, filtro, valor) {
             ...item,
             tieneGarantia: garantia?.tiene_garantia === true,
             garantiaDetalle: garantia?.garantia_detalle || "",
-            admiteCambios: garantia?.admite_cambios !== false
+            admiteCambios: garantia?.admite_cambios !== false,
+            stockActual: garantia ? Number(garantia.stock) : null,
+            stockMinimo: garantia ? Number(garantia.stock_minimo) : null
         };
     });
 
