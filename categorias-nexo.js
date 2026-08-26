@@ -152,6 +152,12 @@ const CATEGORIAS_NEXO_ABARROTES = [
     { departamento: "Panaderia", nombre: "Pan dulce" },
     { departamento: "Panaderia", nombre: "Tortillas" },
 
+    { departamento: "Frutas y verduras", nombre: "Frutas" },
+    { departamento: "Frutas y verduras", nombre: "Verduras" },
+    { departamento: "Frutas y verduras", nombre: "Chiles" },
+    { departamento: "Frutas y verduras", nombre: "Hierbas y aromaticas" },
+    { departamento: "Frutas y verduras", nombre: "Tuberculos y raices" },
+
     { departamento: "Limpieza del hogar", nombre: "Detergentes" },
     { departamento: "Limpieza del hogar", nombre: "Jabon para trastes" },
     { departamento: "Limpieza del hogar", nombre: "Desinfectantes" },
