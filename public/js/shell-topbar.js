@@ -12,6 +12,8 @@ const AYUDA_MODULOS_POS = {
  categorias: "Organiza el inventario por familias para encontrar productos mas rapido.",
  catalogo: "Carga listas de proveedor y actualiza productos desde catalogos externos.",
  "inventario-bajo": "Revisa productos que necesitan compra, articulos criticos y posibles faltantes.",
+ "por-vencer": "Revisa productos con fecha de caducidad proxima o vencida para venderlos, marcarlos de oferta o retirarlos a tiempo.",
+ "listas-producto": "Arma listas de productos que vendes seguido (utiles escolares, despensa basica) para agregarlas completas al carrito con un click.",
  recepcion: "Registra mercancia recibida de proveedor y actualiza inventario desde compras.",
  ajustes: "Sirve para corregir existencias por conteo fisico, merma, entradas o salidas internas.",
  reportes: "Analiza ventas, metodos de pago, productos vendidos, horarios fuertes y desempeno del negocio.",
@@ -159,7 +161,7 @@ function asegurarBotonSidebarPOS(modulo, etiqueta, handler) {
    sidebar.appendChild(boton) directo. Esos scripts no necesitan saber
    nada de los grupos -- el reacomodo central los recoge de aqui. */
 const GRUPOS_SIDEBAR_POS = {
- inventario: { contenedor: "submenuInventario", modulos: ["inventario", "agregar-producto", "categorias", "inventario-bajo"] },
+ inventario: { contenedor: "submenuInventario", modulos: ["inventario", "agregar-producto", "categorias", "inventario-bajo", "por-vencer", "listas-producto"] },
  "ventas-caja": { contenedor: "submenuVentasCaja", modulos: ["reportes", "caja", "finanzas"] },
  compras: { contenedor: "submenuCompras", modulos: ["proveedores", "catalogo", "recepcion", "pedidos", "ajustes"] },
  nexo: { contenedor: "submenuNexo", modulos: ["nexo-ia", "pedidos-market", "sitio-web", "encargos", "buscar-ticket"] }

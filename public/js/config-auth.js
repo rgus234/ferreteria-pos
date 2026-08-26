@@ -1317,6 +1317,7 @@ function ocultarPantallasPrincipales() {
  "pantallaCreditos",
  "pantallaProveedores",
  "pantallaInventarioBajo",
+ "pantallaPorVencer",
  "pantallaReportes",
  "pantallaConfiguracion",
  "pantallaRecepcionMercancia",
@@ -1330,6 +1331,7 @@ function ocultarPantallasPrincipales() {
  "pantallaNexoIA",
  "pantallaBuscarTicket",
  "pantallaEncargos",
+ "pantallaListasProducto",
  "pantallaSitioWeb",
  "pantallaPedidosMarket",
  "modalAgregar"

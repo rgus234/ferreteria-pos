@@ -39,7 +39,7 @@
   <link rel="stylesheet" href="css/components/pos-operational-polish.css?v=refactor-pos-polish-20260701-01">
   <link rel="stylesheet" href="css/components/dashboard-alerts.css?v=inicio-redesign-20260706-01">
   <link rel="stylesheet" href="css/components/pos-cart.css?v=carrito-flat-minimal-20260723-01">
-  <link rel="stylesheet" href="css/components/pos-sale-redesign.css?v=hojas-venta-20260819-01">
+  <link rel="stylesheet" href="css/components/pos-sale-redesign.css?v=listas-producto-20260826-01">
   <link rel="stylesheet" href="css/components/pos-quick-item-modal.css?v=botones-fix-20260721-01">
   <link rel="stylesheet" href="css/components/pos-busqueda-ia.css?v=borde-siri-fix2-20260721-01">
   <link rel="stylesheet" href="css/components/pos-product-form.css?v=reorg-formulario-producto-20260825-01">
@@ -52,10 +52,10 @@
   <link rel="stylesheet" href="css/components/pos-image-zoom.css?v=zoom-carrito-20260809-01">
   <link rel="stylesheet" href="css/components/account-view.css?v=renombrar-dispositivo-20260819-01">
   <link rel="stylesheet" href="css/components/product-details-view.css?v=liquid-glass-inv-20260719-01">
-  <link rel="stylesheet" href="css/components/low-stock-order.css?v=refactor-low-stock-order-20260701-01">
+  <link rel="stylesheet" href="css/components/low-stock-order.css?v=caducidad-20260826-01">
   <link rel="stylesheet" href="css/components/support-reminders.css?v=notif-contraste-fix-20260706-01">
   <link rel="stylesheet" href="css/components/ticket-lookup-view.css?v=creditos-editar-compra-20260730-01">
-  <link rel="stylesheet" href="css/components/encargos-clientes.css?v=encargos-20260803-01">
+  <link rel="stylesheet" href="css/components/encargos-clientes.css?v=listas-producto-20260826-01">
   <link rel="stylesheet" href="css/components/sitio-web-view.css?v=sitio-web-20260821-01">
   <link rel="stylesheet" href="css/components/pedidos-market-view.css?v=verificacion-picking-20260818-01">
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -471,6 +471,12 @@
  <button data-shell-module="inventario-bajo" onclick="mostrarInventarioBajo()">
  Inventario bajo
  </button>
+ <button data-shell-module="por-vencer" onclick="mostrarPorVencer()">
+ Por vencer
+ </button>
+ <button data-shell-module="listas-producto" onclick="mostrarListasProducto()">
+ Listas de productos
+ </button>
  </div>
 
  <button class="sidebar-grupo-toggle" data-grupo="ventas-caja" onclick="toggleSubmenuSidebar('submenuVentasCaja')">
@@ -548,6 +554,7 @@
  <section id="pantallaPedidosMarket" style="display:none;"></section>
  <section id="pantallaBuscarTicket" style="display:none;"></section>
  <section id="pantallaEncargos" style="display:none;"></section>
+ <section id="pantallaListasProducto" style="display:none;"></section>
  <section id="pantallaSitioWeb" style="display:none;"></section>
 
  <section id="pantallaCatalogo" style="display:none;">
@@ -905,7 +912,10 @@
 
  <div class="pos-cart-hero-heading">
  <h2>Carrito de venta</h2>
+ <div class="pos-cart-hero-acciones">
+ <button type="button" class="btn-agregar-lista-pos" onclick="abrirSelectorListaProductosPOS()">Agregar lista</button>
  <button type="button" onclick="limpiarCarrito()">Vaciar carrito</button>
+ </div>
  </div>
 
  <div id="carritoTabla"></div>
@@ -1274,6 +1284,10 @@
  <input id="nuevaUbicacion" type="text" placeholder="Ubicacion">
  <span class="producto-form-mapa-nota">Ver en mapa de tienda</span>
  </div>
+ <div class="campo-ficha-ubicacion">
+ <input id="nuevaFechaCaducidad" type="date">
+ <span class="producto-form-mapa-nota">Fecha de caducidad (opcional)</span>
+ </div>
  </div>
  <div class="producto-form-subseccion" data-subseccion="venta-suelta">
  <div class="producto-form-subseccion-header">
@@ -1474,6 +1488,59 @@
  <tbody id="tablaInventarioBajo"></tbody>
  </table>
  <div id="paginacionInventarioBajo" class="paginacion-tabla"></div>
+ </div>
+ </div>
+
+ <div id="pantallaPorVencer" style="display:none;">
+
+ <div class="bajo-shell">
+
+ <div class="bajo-header">
+ <div>
+ <h2>Por vencer</h2>
+ <p>Productos con fecha de caducidad proxima o vencida.</p>
+ </div>
+
+ <button class="btn-bajo-inventario" onclick="mostrarInventario()">
+ Ver inventario completo
+ </button>
+ </div>
+
+ <div class="bajo-resumen">
+ <div>
+ <span>Por vencer (30 dias)</span>
+ <strong id="vencerTotal">0</strong>
+ </div>
+ <div>
+ <span>Ya vencidos</span>
+ <strong id="vencerVencidos">0</strong>
+ </div>
+ <div>
+ <span>Valor en riesgo</span>
+ <strong id="vencerValorRiesgo">$0</strong>
+ </div>
+ </div>
+
+ <div class="bajo-toolbar">
+ <input id="buscarPorVencer" type="text"
+ placeholder="Buscar producto, codigo o proveedor"
+ oninput="renderPorVencer()">
+ </div>
+
+ <table class="tabla-bajo">
+ <thead>
+ <tr>
+ <th>Producto</th>
+ <th>Codigo</th>
+ <th>Caducidad</th>
+ <th>Stock</th>
+ <th>Estado</th>
+ <th>Acciones</th>
+ </tr>
+ </thead>
+ <tbody id="tablaPorVencer"></tbody>
+ </table>
+ <div id="paginacionPorVencer" class="paginacion-tabla"></div>
  </div>
  </div>
 
@@ -1678,17 +1745,17 @@
  </div>
  </div>
 
-  <script src="app.js?v=token-market-entrar-20260816-01"></script>
+  <script src="app.js?v=caducidad-20260826-01"></script>
   <script src="js/offline-sync.js?v=fix-nombre-negocio-20260820-01"></script>
   <script src="js/toast-pos.js?v=toast-pos-20260723-01"></script>
   <script src="js/caja-recordatorios.js?v=recordatorio-caja-20260731-01"></script>
-  <script src="js/config-auth.js?v=multi-giro-20260825-01"></script>
+  <script src="js/config-auth.js?v=listas-producto-20260826-01"></script>
   <script src="js/ticket-template.js?v=cobro-mixto-20260802-01"></script>
   <script src="js/catalog-provider-picker.js?v=catalog-adapters-20260708-01"></script>
   <script src="js/supplier-catalog.js?v=plantillas-servidor-ia-20260723-01"></script>
   <script src="js/pricing-rules.js?v=reglas-precio-20260709-02"></script>
   <script src="js/catalog-parsers.js?v=plantillas-servidor-ia-20260723-01"></script>
-  <script src="js/product-inventory.js?v=retiro-categorias-decorativas-20260825-01"></script>
+  <script src="js/product-inventory.js?v=caducidad-20260826-01"></script>
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-weight-modal.js?v=peso-carrito-20260817-01"></script>
@@ -1704,16 +1771,18 @@
   <script src="js/pricing-apply-view.js?v=reglas-precio-20260709-02"></script>
   <script src="js/app-bootstrap.js?v=articulo-rapido-20260720-01"></script>
   <script src="js/reports.js?v=venta-detalle-reportes-20260720-01"></script>
-  <script src="js/shell-topbar.js?v=subtitulos-multi-giro-20260825-01"></script>
+  <script src="js/shell-topbar.js?v=listas-producto-20260826-01"></script>
   <script src="js/account-view.js?v=renombrar-dispositivo-20260819-01"></script>
   <script src="js/pedidos-market-view.js?v=verificacion-picking-20260818-01"></script>
   <script src="js/ticket-lookup-view.js?v=creditos-editar-compra-20260730-01"></script>
  <script src="js/encargos-clientes.js?v=encargos-20260803-01"></script>
+ <script src="js/product-lists.js?v=listas-producto-20260826-01"></script>
  <script src="js/sitio-web-view.js?v=copy-multi-giro-20260825-01"></script>
   <script src="js/product-details-view.js?v=alertas-tempranas-20260712-01"></script>
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/pos-shortcuts.js?v=hojas-venta-20260819-01"></script>
   <script src="js/low-stock.js?v=lowstock-bugfix-20260705-01"></script>
+  <script src="js/expiring-products.js?v=listas-producto-20260826-01"></script>
 <script src="js/factura-parser.js?v=pedidos-recepcion-xml-20260723-02"></script>
 <script src="js/ferretero-flow.js?v=historial-recepciones-20260825-01"></script>
 <script src="js/nexo-tour.js?v=bienvenida-20260730-01"></script>

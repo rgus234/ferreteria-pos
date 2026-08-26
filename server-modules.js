@@ -61,6 +61,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./encargos-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("listas de productos reutilizables", () => {
+        require("./listas-producto-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("sitio web del negocio", () => {
         require("./public-site-server").registrarRutas(app, pool, requerirAccesoNegocio);
     });

@@ -244,3 +244,14 @@
 }
 
 body.oscuro .encargo-card:hover{ border-color:var(--brand-color,#0d6efd); }
+
+.lista-detalle-cantidad-input{
+ width:70px;
+ min-height:32px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:8px;
+ padding:0 8px;
+ background:var(--pos-surface,#f8fafc);
+ color:var(--pos-text,#172033);
+ font-size:13px;
+}

@@ -2598,6 +2598,9 @@ document.getElementById("nuevoProveedor").value;
 const ubicacion =
 document.getElementById("nuevaUbicacion").value;
 
+const fechaCaducidad =
+document.getElementById("nuevaFechaCaducidad")?.value || "";
+
 const categoria =
 document.getElementById("nuevaCategoria")?.value || "";
 
@@ -2853,7 +2856,8 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  categoriaNexoId,
  visiblePos,
  visibleMarket,
- disponiblePedidos
+ disponiblePedidos,
+ fechaCaducidad
  };
 
  let respuesta;
@@ -3013,7 +3017,8 @@ function limpiarFormularioProductoParaSiguientePOS(contexto = {}) {
   "nuevoLargoCm",
   "nuevoAnchoCm",
   "nuevoAltoCm",
-  "nuevasNotasInternas"
+  "nuevasNotasInternas",
+  "nuevaFechaCaducidad"
  ];
 
  limpiar.forEach(id => {
@@ -3166,6 +3171,9 @@ function editarProducto(
 
  document.getElementById("nuevaUbicacion").value =
  producto?.ubicacion || "";
+
+ document.getElementById("nuevaFechaCaducidad").value =
+ producto?.fecha_caducidad ? String(producto.fecha_caducidad).slice(0, 10) : "";
 
  document.getElementById("nuevaCategoria").value =
  producto?.categoria || "";
@@ -4526,6 +4534,7 @@ function cerrarFormularioAgregar() {
  document.getElementById("stockMinimo").value = "3";
  document.getElementById("nuevoProveedor").value = "";
  document.getElementById("nuevaUbicacion").value = "";
+ document.getElementById("nuevaFechaCaducidad").value = "";
  document.getElementById("altaRotacion").value = "";
  document.getElementById("nuevoCodigoInterno").value = "";
  document.getElementById("codigosRelacionados").value = "";

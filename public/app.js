@@ -34,6 +34,7 @@ let logoConfiguracionTemporal = null;
 const ULTIMA_VENTA_POS_KEY = "ultimaVentaPOS";
 let paginaInventario = 1;
 let paginaInventarioBajo = 1;
+let paginaPorVencer = 1;
 let paginaReporteVentas = 1;
 let categoriaModalActual = "";
 let categoriaSeleccionadaId = null;

@@ -56,6 +56,12 @@
   font-weight: 950;
 }
 
+.pos-referencia .pos-cart-hero-acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .pos-referencia .pos-cart-hero-heading button {
   width: auto !important;
   min-height: 34px;
@@ -68,6 +74,11 @@
   font-size: 12.5px;
   font-weight: 900;
   box-shadow: none;
+}
+
+.pos-referencia .pos-cart-hero-heading .btn-agregar-lista-pos {
+  background: color-mix(in srgb, var(--pos-sale-brand) 10%, var(--pos-sale-card)) !important;
+  color: var(--pos-sale-brand) !important;
 }
 
 /* Buscador flyout */

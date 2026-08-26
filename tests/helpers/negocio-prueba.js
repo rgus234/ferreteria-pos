@@ -86,7 +86,8 @@ async function borrarNegocioPrueba(negocioId) {
         "catalogo_productos",
         "catalogos_proveedor",
         "proveedores",
-        "negocio_giros"
+        "negocio_giros",
+        "listas_producto"
     ];
 
     for (const tabla of tablasHijas) {

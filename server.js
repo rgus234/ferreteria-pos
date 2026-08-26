@@ -5844,7 +5844,8 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
     unidadSuelta,
     visiblePos,
     visibleMarket,
-    disponiblePedidos
+    disponiblePedidos,
+    fechaCaducidad
 } = req.body;
     try {
         const negocio = await negocioActual(req);
@@ -5898,9 +5899,10 @@ INSERT INTO public.productos
   unidad_suelta,
   visible_pos,
   visible_market,
-  disponible_pedidos
+  disponible_pedidos,
+  fecha_caducidad
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41)
 RETURNING id
 `,
 [
@@ -5943,7 +5945,8 @@ RETURNING id
   unidadSuelta || "pieza",
   visiblePos !== false && visiblePos !== "false",
   visibleMarket !== false && visibleMarket !== "false",
-  disponiblePedidos !== false && disponiblePedidos !== "false"
+  disponiblePedidos !== false && disponiblePedidos !== "false",
+  fechaCaducidad || null
 ]
 );
 
@@ -6020,7 +6023,8 @@ RETURNING id
                 admite_cambios: admiteCambios !== false && admiteCambios !== "false",
                 destacado: destacado === true || destacado === "true",
                 precio_oferta: precioOferta || null,
-                unidad_suelta: unidadSuelta || "pieza"
+                unidad_suelta: unidadSuelta || "pieza",
+                fecha_caducidad: fechaCaducidad || null
             }
         });
 
@@ -6079,7 +6083,8 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         unidadSuelta,
         visiblePos,
         visibleMarket,
-        disponiblePedidos
+        disponiblePedidos,
+        fechaCaducidad
     } = req.body;
 
     try {
@@ -6152,10 +6157,11 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 proveedor_id = COALESCE($37, proveedor_id),
                 visible_pos = COALESCE($40, visible_pos),
                 visible_market = COALESCE($41, visible_market),
-                disponible_pedidos = COALESCE($42, disponible_pedidos)
+                disponible_pedidos = COALESCE($42, disponible_pedidos),
+                fecha_caducidad = $43
             WHERE id = $38
             AND negocio_id = $39
-            RETURNING id, categoria_nexo_id, proveedor_id, visible_pos, visible_market, disponible_pedidos
+            RETURNING id, categoria_nexo_id, proveedor_id, visible_pos, visible_market, disponible_pedidos, fecha_caducidad
             `,
             [
                 nombre,
@@ -6199,7 +6205,8 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 negocio.id,
                 visiblePosNuevo,
                 visibleMarketNuevo,
-                disponiblePedidosNuevo
+                disponiblePedidosNuevo,
+                fechaCaducidad || null
             ]
         );
 
@@ -6262,7 +6269,8 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 admite_cambios: admiteCambios !== false && admiteCambios !== "false",
                 destacado: destacado === true || destacado === "true",
                 precio_oferta: precioOferta || null,
-                unidad_suelta: unidadSuelta || "pieza"
+                unidad_suelta: unidadSuelta || "pieza",
+                fecha_caducidad: resultado.rows[0].fecha_caducidad
             }
         });
 

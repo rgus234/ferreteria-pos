@@ -311,7 +311,8 @@ body.oscuro .pedido-prioridad.media {
 
 /* INVENTARIO BAJO */
 
-#pantallaInventarioBajo{
+#pantallaInventarioBajo,
+#pantallaPorVencer{
  padding:18px 24px;
  color:#111827;
 }
@@ -514,6 +515,7 @@ body.oscuro .pedido-prioridad.media {
 }
 
 body.oscuro #pantallaInventarioBajo,
+body.oscuro #pantallaPorVencer,
 body.oscuro .bajo-header h2,
 body.oscuro .tabla-bajo td:first-child strong{
  color:#f8fafc;
