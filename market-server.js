@@ -806,23 +806,41 @@ const ESTILOS_MARKET = `
 .market-header-nav a.activo{ opacity:1; border-bottom-color:#fff; font-weight:800; color:#fff; }
 .market-banners-scope{ max-width:1680px; margin:24px auto 0; padding:0 clamp(18px,4vw,48px); }
 .market-banners-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:18px; }
-.market-banner-card{ position:relative; display:block; min-height:180px; border-radius:18px; overflow:hidden; color:#fff; box-shadow:0 16px 40px rgba(20,32,51,.14); }
-.market-banner-card img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-.market-banner-overlay{ position:relative; height:100%; min-height:180px; display:flex; flex-direction:column; justify-content:center; gap:8px; padding:24px clamp(20px,4vw,36px); background:linear-gradient(120deg, rgba(0,0,0,.62), rgba(0,0,0,.18) 70%); }
-.market-banner-card.tema-azul .market-banner-overlay{ background:linear-gradient(120deg, rgba(7,63,154,.82), rgba(16,103,232,.35)); }
-.market-banner-card.tema-negro .market-banner-overlay{ background:linear-gradient(120deg, rgba(11,18,32,.86), rgba(31,41,55,.4)); }
-.market-banner-card.tema-rojo .market-banner-overlay{ background:linear-gradient(120deg, rgba(127,29,29,.82), rgba(220,38,38,.35)); }
-.market-banner-card.tema-verde .market-banner-overlay{ background:linear-gradient(120deg, rgba(20,83,45,.82), rgba(22,163,74,.35)); }
-.market-banner-card.tema-morado .market-banner-overlay{ background:linear-gradient(120deg, rgba(76,29,149,.82), rgba(124,58,237,.35)); }
-.market-banner-card.tema-naranja .market-banner-overlay{ background:linear-gradient(120deg, rgba(154,52,18,.82), rgba(249,115,22,.35)); }
-.market-banner-overlay h3{ margin:0; font-size:22px; line-height:1.2; }
-.market-banner-overlay p{ margin:0; font-size:13.5px; opacity:.92; max-width:320px; }
-.market-banner-btn{ display:inline-flex; width:fit-content; margin-top:6px; }
+
+/* Tarjeta de banner -- panel de color solido junto a la imagen (no
+   una foto con un degradado de opacidad encima). El color nunca
+   compite con la foto por legibilidad porque nunca comparten el
+   mismo espacio; --panel-color se declara una vez en el tema y lo
+   usan tanto el panel como el boton y el traslape hacia la imagen. */
+.market-banner-card{ position:relative; display:flex; min-height:196px; border-radius:20px; overflow:hidden; box-shadow:0 14px 34px rgba(20,32,51,.12); border:1px solid rgba(20,32,51,.05); }
+.market-banner-card.tema-azul{ --panel-color:#0f4c8f; }
+.market-banner-card.tema-negro{ --panel-color:#1c2333; }
+.market-banner-card.tema-rojo{ --panel-color:#8a3223; }
+.market-banner-card.tema-verde{ --panel-color:#245a3f; }
+.market-banner-card.tema-morado{ --panel-color:#472e63; }
+.market-banner-card.tema-naranja{ --panel-color:#9a4c1c; }
+
+.market-banner-media{ position:relative; flex:0 0 44%; overflow:hidden; background:var(--panel-color); }
+.market-banner-media img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.market-banner-media::after{ content:""; position:absolute; inset:0; background:linear-gradient(90deg, transparent 55%, var(--panel-color) 100%); opacity:.32; }
+
+.market-banner-panel{ position:relative; flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:8px; padding:24px clamp(20px,3vw,32px); background:var(--panel-color); color:#fff; }
+.market-banner-card.sin-imagen .market-banner-panel{ flex:1 1 100%; background:radial-gradient(135% 160% at 12% 15%, color-mix(in srgb, var(--panel-color) 78%, white 22%), var(--panel-color) 62%); }
+
+.market-banner-panel h3{ margin:0; font-size:21px; font-weight:800; letter-spacing:-.01em; line-height:1.2; }
+.market-banner-panel p{ margin:0; font-size:13px; line-height:1.42; opacity:.82; max-width:260px; }
+
+.market-banner-btn{ display:inline-flex; align-items:center; gap:6px; width:fit-content; margin-top:10px; min-height:auto; padding:9px 16px; border-radius:999px; background:#fff; color:var(--panel-color); font-weight:800; font-size:12.5px; transition:transform .15s ease; }
+.market-banner-btn::after{ content:"\\2192"; }
+.market-banner-card:hover .market-banner-btn{ transform:translateX(2px); }
+
 .market-ofertas-dia-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; overflow-x:visible; }
 .market-oferta-agregar-carrito{ width:100%; border:none; font-size:12.5px; }
 .market-oferta-agregar-carrito:disabled{ opacity:.55; cursor:not-allowed; }
 @media (max-width:640px){
   .market-banners-grid{ grid-template-columns:1fr; }
+  .market-banner-card{ flex-direction:column; }
+  .market-banner-media{ flex:0 0 140px; }
 }
 .market-hero{ display:grid; grid-template-columns:1.1fr .9fr; gap:32px; align-items:center; max-width:1680px; margin:28px auto; padding:0 clamp(18px,4vw,48px); min-width:0; }
 .market-hero > *{ min-width:0; }
@@ -1685,15 +1703,15 @@ function marketGridProductos(productos) {
 // una tienda. Sin banners activos, la seccion no se pinta (nunca un
 // placeholder inventado).
 function marketBannerTarjetaHtml(b) {
-    var fondoHtml = b.tieneImagen
-        ? '<img src="/banners-market/' + b.id + '/imagen?v=' + encodeURIComponent(b.actualizadoAt || '') + '" alt="" loading="lazy">'
+    var mediaHtml = b.tieneImagen
+        ? '<div class="market-banner-media"><img src="/banners-market/' + b.id + '/imagen?v=' + encodeURIComponent(b.actualizadoAt || '') + '" alt="" loading="lazy"></div>'
         : '';
-    return '<a class="market-banner-card tema-' + escapeHtml(b.temaColor) + '" href="' + escapeHtml(b.enlace) + '">' +
-        fondoHtml +
-        '<div class="market-banner-overlay">' +
+    return '<a class="market-banner-card tema-' + escapeHtml(b.temaColor) + (b.tieneImagen ? '' : ' sin-imagen') + '" href="' + escapeHtml(b.enlace) + '">' +
+        mediaHtml +
+        '<div class="market-banner-panel">' +
         '<h3>' + escapeHtml(b.titulo) + '</h3>' +
         (b.subtitulo ? '<p>' + escapeHtml(b.subtitulo) + '</p>' : '') +
-        '<span class="btn primary market-banner-btn">' + escapeHtml(b.textoBoton) + '</span>' +
+        '<span class="market-banner-btn">' + escapeHtml(b.textoBoton) + '</span>' +
         '</div></a>';
 }
 
