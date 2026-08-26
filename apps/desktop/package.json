@@ -26,6 +26,8 @@
       "preload.js",
       "offline-shell-cache.js",
       "offline-fallback.html",
+      "loading.html",
+      "build/icon.ico",
       "renderer/**",
       "package.json"
     ],
@@ -49,7 +51,8 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Nexo POS",
       "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico"
+      "uninstallerIcon": "build/icon.ico",
+      "license": "build/license.txt"
     }
   },
   "dependencies": {

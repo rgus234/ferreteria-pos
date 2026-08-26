@@ -192,9 +192,14 @@ function configureAutoUpdater() {
       message: "Actualizacion descargada, reiniciando"
     });
 
+    // 20s en vez de 5s -- ahora que el cliente si muestra un aviso
+    // (public/js/desktop-updates.js) cuando este evento llega, la
+    // espera necesita ser lo bastante larga para que un cajero a
+    // medio cobrar alcance a verlo y reaccionar, no solo un parpadeo
+    // antes de que la app se cierre sola.
     setTimeout(() => {
       autoUpdater.quitAndInstall(false, true);
-    }, 5000);
+    }, 20000);
   });
 
   autoUpdater.on("error", error => {
@@ -651,6 +656,20 @@ async function createWindow() {
     return { action: "deny" };
   });
 
+  // Pantalla de carga local (instantanea, no depende de la red) antes
+  // de pedir el POS real a app.nexoposoficial.com -- antes de esto,
+  // en una conexion lenta la ventana se quedaba oculta (show:false)
+  // sin ninguna señal de que la app si estaba abriendo hasta que el
+  // sitio completo terminara de cargar. did-fail-load (arriba) sigue
+  // cubriendo el caso de que la carga real fracase.
+  try {
+    await mainWindow.loadFile(path.join(__dirname, "loading.html"));
+  } catch {
+    // Un archivo local casi nunca falla -- si pasa, loadPosWindow()/
+    // mostrarPantallaSinConexion() de abajo terminan mostrando algo
+    // de todos modos.
+  }
+
   try {
     await loadPosWindow();
   } catch {
@@ -849,6 +868,17 @@ ipcMain.handle("nexo:print-ticket", async (_event, payload) => printTicketDeskto
 ipcMain.handle("nexo:open-cash-drawer", async (_event, payload = {}) => openCashDrawerRaw(payload));
 
 app.whenReady().then(async () => {
+  // Bug real encontrado al verificar el primer arranque: en una
+  // instalacion nueva (sin config.json todavia) setupOfflineShellCache()
+  // termina llamando localDb.saveSetting() antes de que createWindow()
+  // alcanzara a inicializar la base local -- tronaba con "Base local
+  // no inicializada" como rechazo de promesa sin capturar, en el
+  // arranque mas importante de todos. initLocalDatabase() ya es
+  // idempotente (linea "if (db) return db;"), asi que adelantarla
+  // aqui es seguro y no afecta la llamada que ya existe dentro de
+  // createWindow().
+  localDb.initLocalDatabase(app.getPath("userData"));
+
   configureAutoUpdater();
   await setupOfflineShellCache();
   await createWindow();

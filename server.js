@@ -5352,6 +5352,94 @@ app.get("/privacidad", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "site", "privacidad.html"));
 });
 
+// Pagina de descarga persistente -- antes de esto la unica forma de
+// llegar al instalador era registrarse primero (el link vivia solo
+// dentro del panel de exito del formulario). Alguien que ya tiene
+// cuenta y solo quiere instalar Nexo en un equipo nuevo, o que cerro
+// esa pantalla sin descargar, no tenia a donde volver. Reusa el mismo
+// panel de exito/aviso de Windows que ya ve quien acaba de registrarse
+// (mismas clases CSS en site/styles.css).
+app.get("/descargar", async (req, res) => {
+    try {
+        const version = await pool.query(
+            `
+            SELECT version, url_descarga, archivo
+            FROM public.app_versiones
+            WHERE canal = 'stable'
+            AND plataforma = 'windows'
+            AND publicada = true
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            `
+        );
+
+        const latest = version.rows[0] || null;
+        const urlInstalador = latest?.url_descarga || "/downloads/NexoPOS_Setup_1.0.0.exe";
+        const versionTexto = latest?.version ? `Version ${latest.version}` : "";
+
+        res.set("Content-Type", "text/html; charset=utf-8").send(`<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Descargar Nexo para Windows</title>
+  <meta name="description" content="Descarga el instalador de Nexo POS para Windows.">
+  <link rel="icon" href="/nexo-pos-icon.jpg">
+  <link rel="stylesheet" href="/site/styles.css">
+  <style>
+    .descarga-shell{ max-width:520px; margin:0 auto; padding:64px 20px 60px; }
+    .descarga-brand{ display:flex; align-items:center; gap:10px; justify-content:center; margin-bottom:28px; font-weight:900; font-size:15px; color:var(--ink); text-decoration:none; }
+    .descarga-brand img{ width:32px; height:32px; border-radius:9px; }
+    .descarga-shell &gt; p.descarga-intro{ text-align:center; color:var(--muted); font-weight:700; font-size:13.5px; margin:-18px 0 26px; }
+    .descarga-card{ padding:26px; border:1px solid rgba(255,255,255,.72); border-radius:28px; background:var(--glass); box-shadow:var(--shadow); }
+    .descarga-volver{ display:block; text-align:center; margin-top:22px; color:var(--muted); font-size:13px; font-weight:700; }
+  </style>
+</head>
+<body style="background:var(--paper);">
+  <div class="descarga-shell">
+    <a class="descarga-brand" href="/">
+      <img src="/nexo-pos-icon.jpg" alt="">
+      <span>Nexo</span>
+    </a>
+    <p class="descarga-intro">${versionTexto ? escaparHtmlDescarga(versionTexto) + " -- " : ""}Instalador para Windows</p>
+    <div class="descarga-card">
+      <div class="registro-exito">
+        <div class="registro-exito-check" aria-hidden="true">&#8681;</div>
+        <h3>Descarga Nexo para Windows</h3>
+        <p>Instalalo en la computadora donde vas a cobrar. Si es tu primera vez, primero necesitas una cuenta.</p>
+
+        <ol class="registro-pasos">
+          <li>Descarga e instala Nexo en la computadora donde vas a cobrar.</li>
+          <li>&Aacute;brelo y entra con el correo y la contrase&ntilde;a de tu cuenta Nexo.</li>
+          <li>Si es tu primer equipo, ah&iacute; mismo eliges el nombre y el PIN de tu usuario administrador.</li>
+        </ol>
+
+        <a class="btn primary registro-descarga-btn" href="${escaparHtmlDescarga(urlInstalador)}" download>&#11015; Descargar instalador para Windows</a>
+
+        <div class="registro-aviso-windows">
+          <strong>&#9888; Windows puede mostrar una advertencia al abrir el instalador</strong>
+          <p>Somos una empresa nueva y todav&iacute;a no tenemos el certificado de Microsoft (cuesta miles de pesos al a&ntilde;o) -- tu descarga es segura. Solo haz clic en <b>&quot;M&aacute;s informaci&oacute;n&quot;</b> y despu&eacute;s en <b>&quot;Ejecutar de todas formas&quot;</b>.</p>
+        </div>
+      </div>
+    </div>
+    <a class="descarga-volver" href="/#contacto">&iquest;A&uacute;n no tienes cuenta? Cr&eacute;ala gratis</a>
+  </div>
+</body>
+</html>`);
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+function escaparHtmlDescarga(valor) {
+    return String(valor ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 // La identidad del comprador ahora vive dentro de Nexo Market (ver
 // "GET /market/mi-cuenta" arriba) -- este alias solo existe para no
 // romper enlaces viejos (el picker de oficio de Market ya apunta

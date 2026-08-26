@@ -1090,6 +1090,111 @@ cite {
   font-size: 13px;
 }
 
+/* Panel de exito del registro / pagina de descarga persistente --
+   antes de esto este momento (clave de licencia + link del
+   instalador) se pintaba con el mismo estilo diminuto y gris que un
+   mensaje de error de formulario, sin ninguna jerarquia visual para
+   el paso mas importante de todo el flujo. */
+.registro-exito {
+  display: grid;
+  gap: 14px;
+}
+
+.registro-exito-check {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--mint);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.registro-exito h3 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.registro-exito > p {
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.registro-clave {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(16, 103, 232, .07);
+  border: 1px solid rgba(16, 103, 232, .18);
+}
+
+.registro-clave span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.registro-clave strong {
+  font-family: "Courier New", monospace;
+  font-size: 15px;
+  color: var(--blue-dark);
+  letter-spacing: .02em;
+  word-break: break-all;
+}
+
+.registro-pasos {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0 0 0 20px;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.registro-pasos li::marker {
+  color: var(--blue);
+  font-weight: 900;
+}
+
+.registro-descarga-btn {
+  justify-content: center;
+  text-align: center;
+  font-size: 14.5px;
+}
+
+.registro-aviso-windows {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(243, 162, 27, .12);
+  border: 1px solid rgba(243, 162, 27, .32);
+}
+
+.registro-aviso-windows strong {
+  color: #8a5c0a;
+  font-size: 13px;
+}
+
+.registro-aviso-windows p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
 .contact-intro {
   display: grid;
   gap: 14px;

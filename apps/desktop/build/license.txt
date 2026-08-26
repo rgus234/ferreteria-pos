@@ -1,0 +1,32 @@
+NEXO POS - TERMINOS DE USO DEL SOFTWARE DE ESCRITORIO
+
+Al instalar Nexo POS aceptas los Terminos de Servicio y el Aviso de
+Privacidad de Nexo, disponibles en:
+
+  https://nexoposoficial.com/terminos
+  https://nexoposoficial.com/privacidad
+
+En resumen:
+
+- Nexo POS es un servicio de suscripcion (SaaS). Esta aplicacion de
+  escritorio es un cliente que se conecta a los servidores de Nexo
+  para operar tu negocio -- no funciona de forma completamente
+  aislada ni es software de codigo abierto.
+
+- Necesitas una cuenta y una licencia activa de Nexo para usar esta
+  aplicacion. El periodo de prueba gratuita y los planes de pago se
+  describen en https://nexoposoficial.com y dentro de la app, en
+  Cuenta.
+
+- Tus datos (inventario, ventas, clientes, creditos) se guardan tanto
+  en este equipo (para poder seguir vendiendo sin internet) como en
+  los servidores de Nexo, conforme al Aviso de Privacidad.
+
+- Nexo se actualiza automaticamente para mantenerte al dia con
+  arreglos y mejoras.
+
+Si no estas de acuerdo con los Terminos de Servicio o el Aviso de
+Privacidad completos (en los enlaces de arriba), no continues con la
+instalacion.
+
+Copyright Nexo POS. Todos los derechos reservados.

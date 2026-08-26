@@ -200,6 +200,33 @@ function renderRegistro(mensaje, esError) {
     registroResultado.innerHTML = mensaje;
 }
 
+function mostrarExitoRegistro(datos) {
+    var campos = registroForm.querySelectorAll("label, button[type=submit]");
+    for (var i = 0; i < campos.length; i++) { campos[i].style.setProperty("display", "none", "important"); }
+
+    renderRegistro(
+        "<div class=\\"registro-exito\\">" +
+        "<div class=\\"registro-exito-check\\" aria-hidden=\\"true\\">&#10003;</div>" +
+        "<h3>&iexcl;Listo! Tu cuenta est&aacute; creada</h3>" +
+        "<p>Revisa tu correo (<b>" + marketPaginaEscapeHtml(datos.negocio.correo) + "</b>) para verificarla -- lo necesitas para poder entrar.</p>" +
+        "<div class=\\"registro-clave\\">" +
+        "<span>Tu clave de licencia</span>" +
+        "<strong>" + marketPaginaEscapeHtml(datos.licencia.licenseKey) + "</strong>" +
+        "</div>" +
+        "<ol class=\\"registro-pasos\\">" +
+        "<li>Descarga e instala Nexo en la computadora donde vas a cobrar.</li>" +
+        "<li>&Aacute;brelo y entra con el correo y la contrase&ntilde;a que acabas de crear.</li>" +
+        "<li>Elige el nombre y el PIN de tu usuario administrador -- ah&iacute; mismo, la primera vez.</li>" +
+        "</ol>" +
+        "<a class=\\"btn primary registro-descarga-btn\\" href=\\"" + marketPaginaEscapeHtml(datos.instalador.url) + "\\" download>&#11015; Descargar instalador para Windows</a>" +
+        "<div class=\\"registro-aviso-windows\\">" +
+        "<strong>&#9888; Windows puede mostrar una advertencia al abrir el instalador</strong>" +
+        "<p>Somos una empresa nueva y todav&iacute;a no tenemos el certificado de Microsoft (cuesta miles de pesos al a&ntilde;o) -- tu descarga es segura. Solo haz clic en <b>&quot;M&aacute;s informaci&oacute;n&quot;</b> y despu&eacute;s en <b>&quot;Ejecutar de todas formas&quot;</b>.</p>" +
+        "</div>" +
+        "</div>"
+    );
+}
+
 registroForm.addEventListener("submit", async function(evento) {
     evento.preventDefault();
 
@@ -232,19 +259,8 @@ registroForm.addEventListener("submit", async function(evento) {
         var datos = await respuesta.json();
         if (!respuesta.ok || datos.ok === false) throw new Error(datos.error || "No se pudo generar la licencia.");
 
-        renderRegistro(
-            "<strong>Licencia creada</strong>" +
-            "<span>Negocio: " + marketPaginaEscapeHtml(datos.negocio.nombre) + "</span>" +
-            "<span>Clave: <b>" + marketPaginaEscapeHtml(datos.licencia.licenseKey) + "</b></span>" +
-            "<span>Revisa tu correo (" + marketPaginaEscapeHtml(datos.negocio.correo) + ") para verificar tu cuenta.</span>" +
-            "<div class=\\"registro-acceso-inicial\\">" +
-            "<strong>Para entrar por primera vez:</strong>" +
-            "<span>Abre la app y entra con el correo y la contrasena que acabas de crear.</span>" +
-            "<span>Ahi mismo eliges el nombre y el PIN de tu primer usuario administrador.</span>" +
-            "</div>" +
-            "<a class=\\"btn secondary\\" href=\\"" + marketPaginaEscapeHtml(datos.instalador.url) + "\\" download>Descargar instalador</a>"
-        );
         registroForm.reset();
+        mostrarExitoRegistro(datos);
     } catch (error) {
         renderRegistro(error.message, true);
     } finally {

@@ -248,6 +248,8 @@ function enviarCorreoVerificacionPersona(correo, nombrePersona, enlace) {
 // (server.js, GET /verificar-correo/:token) -- es la primera vez que
 // el negocio recibe algo de Nexo con la cuenta ya activa.
 function enviarCorreoBienvenida(correo, nombreNegocio, enlace) {
+    const enlaceDescarga = `${DOMINIO_PUBLICO}/descargar`;
+
     return enviarCorreo({
         correo,
         asunto: "¡Bienvenido a Nexo!",
@@ -259,6 +261,7 @@ function enviarCorreoBienvenida(correo, nombreNegocio, enlace) {
             cuerpoHtml: `
                 <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Tu cuenta ya esta activa y lista para usarse. Estamos aqui para ayudarte a hacer crecer tu negocio.</p>
                 ${botonHtml("Ir a mi cuenta", enlace)}
+                ${avisoHtml(`¿Vas a usar Nexo en una computadora? <a href="${enlaceDescarga}" style="color:#0d6efd;font-weight:700;">Descarga el instalador aqui</a>. Windows puede mostrar una advertencia al abrirlo porque todavia no tenemos el certificado de Microsoft -- es normal, solo elige "Mas informacion" y despues "Ejecutar de todas formas".`)}
             `,
             cajaHtml: cajaPasosHtml([
                 "Configura tu negocio en minutos",

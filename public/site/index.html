@@ -430,6 +430,7 @@
     </div>
     <span>Sistema comercial para punto de venta.</span>
     <nav aria-label="Legal">
+      <a href="/descargar">Descargar</a>
       <a href="/terminos">Terminos</a>
       <a href="/privacidad">Privacidad</a>
     </nav>
@@ -442,6 +443,50 @@
     function renderRegistro(message, isError = false) {
       result.classList.toggle("error", isError);
       result.innerHTML = message;
+    }
+
+    // Antes de esto, el momento justo despues de registrarse (la
+    // clave de licencia y el link del instalador) se pintaba con el
+    // mismo estilo diminuto y gris que un mensaje de error del
+    // formulario -- sin jerarquia visual para el paso mas importante
+    // de todo el flujo. Ademas los campos ya llenos (nombre, giro,
+    // telefono...) se quedaban visibles debajo, compitiendo con el
+    // resultado. Aqui se oculta el formulario entero y se pinta un
+    // panel de exito propio.
+    function mostrarExitoRegistro(data) {
+      form.querySelectorAll("label, button[type=submit]").forEach(el => {
+        // setProperty(...,"important") a proposito -- la etiqueta del
+        // checkbox de terminos (.lead-consent) tiene "display:flex
+        // !important" en el CSS, y un el.style.display normal pierde
+        // contra un !important de la hoja de estilos.
+        el.style.setProperty("display", "none", "important");
+      });
+
+      renderRegistro(`
+        <div class="registro-exito">
+          <div class="registro-exito-check" aria-hidden="true">&#10003;</div>
+          <h3>&iexcl;Listo! Tu cuenta est&aacute; creada</h3>
+          <p>Revisa tu correo (<b>${escapeHtml(data.negocio.correo)}</b>) para verificarla -- lo necesitas para poder entrar.</p>
+
+          <div class="registro-clave">
+            <span>Tu clave de licencia</span>
+            <strong>${escapeHtml(data.licencia.licenseKey)}</strong>
+          </div>
+
+          <ol class="registro-pasos">
+            <li>Descarga e instala Nexo en la computadora donde vas a cobrar.</li>
+            <li>&Aacute;brelo y entra con el correo y la contrase&ntilde;a que acabas de crear.</li>
+            <li>Elige el nombre y el PIN de tu usuario administrador -- ah&iacute; mismo, la primera vez.</li>
+          </ol>
+
+          <a class="btn primary registro-descarga-btn" href="${escapeHtml(data.instalador.url)}" download>&#11015; Descargar instalador para Windows</a>
+
+          <div class="registro-aviso-windows">
+            <strong>&#9888; Windows puede mostrar una advertencia al abrir el instalador</strong>
+            <p>Somos una empresa nueva y todav&iacute;a no tenemos el certificado de Microsoft (cuesta miles de pesos al a&ntilde;o) -- tu descarga es segura. Solo haz clic en <b>&quot;M&aacute;s informaci&oacute;n&quot;</b> y despu&eacute;s en <b>&quot;Ejecutar de todas formas&quot;</b>.</p>
+          </div>
+        </div>
+      `);
     }
 
     function escapeHtml(value) {
@@ -490,19 +535,8 @@
           throw new Error(data.error || "No se pudo generar la licencia.");
         }
 
-        renderRegistro(`
-          <strong>Licencia creada</strong>
-          <span>Negocio: ${escapeHtml(data.negocio.nombre)}</span>
-          <span>Clave: <b>${escapeHtml(data.licencia.licenseKey)}</b></span>
-          <span>Revisa tu correo (${escapeHtml(data.negocio.correo)}) para verificar tu cuenta.</span>
-          <div class="registro-acceso-inicial">
-            <strong>Para entrar por primera vez:</strong>
-            <span>Abre la app y entra con el correo y la contrasena que acabas de crear.</span>
-            <span>Ahi mismo eliges el nombre y el PIN de tu primer usuario administrador.</span>
-          </div>
-          <a class="btn secondary" href="${escapeHtml(data.instalador.url)}" download>Descargar instalador</a>
-        `);
         form.reset();
+        mostrarExitoRegistro(data);
       } catch (error) {
         renderRegistro(error.message, true);
       } finally {
