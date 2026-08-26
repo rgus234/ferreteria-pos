@@ -1713,7 +1713,7 @@ function pintarBannersMarketAdmin() {
       <div class="banner-market-item-info">
         <strong>${escaparAdmin(banner.titulo)}</strong>
         <span>${escaparAdmin(banner.subtitulo || "")}</span>
-        <span class="banner-market-item-meta">Orden ${banner.orden} -- ${banner.activo ? "Activo" : "Inactivo"} -- Tema ${escaparAdmin(banner.temaColor)}</span>
+        <span class="banner-market-item-meta">Orden ${banner.orden} -- ${banner.activo ? "Activo" : "Inactivo"} -- Tema ${escaparAdmin(banner.temaColor)}${banner.quitarFondo ? " -- Fondo quitado" : ""}</span>
       </div>
       <div class="banner-market-item-acciones">
         <button type="button" class="secondary" onclick="editarBannerMarketAdmin(${banner.id})">Editar</button>
@@ -1740,6 +1740,7 @@ function editarBannerMarketAdmin(id) {
   document.getElementById("bannerMarketTemaColor").value = banner.temaColor || "azul";
   document.getElementById("bannerMarketOrden").value = banner.orden || 0;
   document.getElementById("bannerMarketActivo").checked = Boolean(banner.activo);
+  document.getElementById("bannerMarketQuitarFondo").checked = Boolean(banner.quitarFondo);
   document.getElementById("bannerMarketImagenInput").value = "";
   document.getElementById("bannerMarketImagenPreview").innerHTML = banner.tieneImagen
     ? `<img src="/banners-market/${banner.id}/imagen" alt="" style="max-width:220px; border-radius:10px;">`
@@ -1783,6 +1784,7 @@ async function guardarBannerMarketAdmin(evento) {
   formulario.append("temaColor", document.getElementById("bannerMarketTemaColor").value);
   formulario.append("orden", document.getElementById("bannerMarketOrden").value || "0");
   formulario.append("activo", document.getElementById("bannerMarketActivo").checked ? "true" : "false");
+  formulario.append("quitarFondo", document.getElementById("bannerMarketQuitarFondo").checked ? "true" : "false");
 
   const archivo = document.getElementById("bannerMarketImagenInput").files?.[0];
   if (archivo) formulario.append("imagen", archivo);
