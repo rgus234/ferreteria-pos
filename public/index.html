@@ -1172,10 +1172,10 @@
 
  <input id="tipoProductoInventario" type="hidden" value="catalogo">
 
- <section class="producto-form-seccion" data-seccion="basica">
+ <section class="producto-form-seccion" data-seccion="identidad">
  <div class="producto-form-seccion-header">
  <span class="producto-form-numero">1</span>
- <h2>Informacion basica</h2>
+ <h2>Identidad</h2>
  </div>
  <div class="producto-form-campos">
  <input id="nuevoCodigo" placeholder=" Codigo de barras"
@@ -1183,6 +1183,17 @@
  <input id="nuevoCodigoInterno" placeholder="Codigo interno / clave proveedor" onblur="verificarCodigoDuplicadoEnVivo('nuevoCodigoInterno')">
  <input id="codigosRelacionados" placeholder="Codigos alternos: caja, paquete, proveedor">
  <input id="nuevoNombre" placeholder="Nombre del producto">
+ <input id="nuevaMarca" placeholder="Marca">
+ <input id="nuevaDescripcion" class="campo-descripcion-input campo-ficha-ancho" placeholder="Descripcion / notas">
+ </div>
+ </section>
+
+ <section class="producto-form-seccion" data-seccion="clasificacion">
+ <div class="producto-form-seccion-header">
+ <span class="producto-form-numero">2</span>
+ <h2>Clasificacion</h2>
+ </div>
+ <div class="producto-form-campos">
  <div class="producto-categoria-nexo-campo campo-ficha-ancho" id="categoriaNexoCampo" hidden>
  <select id="categoriaNexoDepartamento" onchange="alCambiarDepartamentoCategoriaNexo()">
  <option value="">Categoria (Nexo)...</option>
@@ -1195,7 +1206,32 @@
  <input id="nuevaCategoria" placeholder="Categoria" list="listaCategoriasProducto">
  <datalist id="listaCategoriasProducto"></datalist>
  <input type="hidden" id="categoriaNexoId">
- <input id="nuevaMarca" placeholder="Marca">
+ <div class="campo-ficha producto-chip-campo campo-ficha-ancho">
+ <span>Subcategorias</span>
+ <div class="producto-chip-input" id="nuevaSubcategoriaChipInput">
+ <div class="producto-chip-lista" id="nuevaSubcategoriaChipLista"></div>
+ <input type="text" id="nuevaSubcategoriaTexto" placeholder="Escribe y presiona Enter" autocomplete="off">
+ </div>
+ <input type="hidden" id="nuevaSubcategoria">
+ </div>
+ </div>
+ </section>
+
+ <section class="producto-form-seccion" data-seccion="venta">
+ <div class="producto-form-seccion-header">
+ <span class="producto-form-numero">3</span>
+ <h2>Venta</h2>
+ </div>
+ <div class="producto-form-campos">
+ <input id="precioDistribuidor" type="number" step="0.01"
+ placeholder=" Precio distribuidor" />
+ <input id="precioMayoreo" type="number" step="0.01" placeholder=" Precio medio mayoreo" />
+ <input id="precioPublico" type="number" step="0.01" placeholder="Precio publico">
+ <div class="campo-ficha-precio-carrito">
+ <input id="nuevoPrecio" type="number" step="0.01" placeholder="Precio del carrito" oninput="actualizarAyudaPrecioProducto()">
+ <button type="button" id="sugerenciaPrecioProveedor" class="btn-sugerencia-precio-proveedor" style="display:none;"></button>
+ <span id="precioCarritoAyuda" class="precio-carrito-ayuda"></span>
+ </div>
  <select id="unidadVenta" onchange="actualizarAyudaPrecioProducto(); actualizarEtiquetasPiezaCamposProducto();">
  <option value="pieza">Pieza</option>
  <option value="metro">Metro</option>
@@ -1211,31 +1247,12 @@
  <option value="bulto">Bulto</option>
  <option value="servicio">Servicio</option>
  </select>
- <input id="nuevaDescripcion" class="campo-descripcion-input campo-ficha-ancho" placeholder="Descripcion / notas">
- </div>
- </section>
-
- <section class="producto-form-seccion" data-seccion="precios">
- <div class="producto-form-seccion-header">
- <span class="producto-form-numero">2</span>
- <h2>Precios</h2>
- </div>
- <div class="producto-form-campos">
- <input id="precioDistribuidor" type="number" step="0.01"
- placeholder=" Precio distribuidor" />
- <input id="precioMayoreo" type="number" step="0.01" placeholder=" Precio medio mayoreo" />
- <input id="precioPublico" type="number" step="0.01" placeholder="Precio publico">
- <div class="campo-ficha-precio-carrito">
- <input id="nuevoPrecio" type="number" step="0.01" placeholder="Precio del carrito" oninput="actualizarAyudaPrecioProducto()">
- <button type="button" id="sugerenciaPrecioProveedor" class="btn-sugerencia-precio-proveedor" style="display:none;"></button>
- <span id="precioCarritoAyuda" class="precio-carrito-ayuda"></span>
- </div>
  </div>
  </section>
 
  <section class="producto-form-seccion" data-seccion="inventario">
  <div class="producto-form-seccion-header">
- <span class="producto-form-numero">3</span>
+ <span class="producto-form-numero">4</span>
  <h2>Inventario</h2>
  </div>
  <div class="producto-form-campos">
@@ -1244,7 +1261,26 @@
  <input id="nuevoStockMaximo" type="number" step="0.001" min="0" placeholder="Stock maximo (opcional)">
  <input id="presentacionCompra" type="text" placeholder="Compra: caja, rollo, saco, bulto">
  <input id="factorConversion" type="number" step="0.001" placeholder="Equivalencia: ej. caja 100 piezas">
+ <select id="basculaDigital">
+ <option value="no">Boton de peso manual: automatico en kg/litro/metro</option>
+ <option value="preparado">Boton de peso manual: tambien en esta unidad</option>
+ </select>
+ <select id="altaRotacion">
+ <option value="">Se vende rapido?</option>
+ <option value="si">Si</option>
+ <option value="no">No</option>
+ </select>
+ <div class="campo-ficha-ubicacion">
+ <input id="nuevaUbicacion" type="text" placeholder="Ubicacion">
+ <span class="producto-form-mapa-nota">Ver en mapa de tienda</span>
+ </div>
+ </div>
+ <div class="producto-form-subseccion" data-subseccion="venta-suelta">
+ <div class="producto-form-subseccion-header">
  <input id="permiteVentaPieza" type="checkbox" onchange="togglePiezaCamposProducto()">
+ <label for="permiteVentaPieza">Tambien se vende suelto (no solo el contenedor completo)</label>
+ </div>
+ <div class="producto-form-campos">
  <select id="unidadSuelta" onchange="actualizarEtiquetasPiezaCamposProducto()">
  <option value="pieza">Suelto por pieza</option>
  <option value="kg">Suelto por kilo</option>
@@ -1255,20 +1291,17 @@
  <input id="piezasPorBolsa" type="number" step="0.01" min="0" placeholder="Cuanto trae el contenedor">
  <input id="precioPieza" type="number" step="0.01" min="0" placeholder="Precio por unidad suelta">
  <input id="piezasSueltasIniciales" type="number" step="0.01" min="0" placeholder="Piezas sueltas que ya tienes (opcional)">
- <select id="basculaDigital">
- <option value="no">Boton de peso manual: automatico en kg/litro/metro</option>
- <option value="preparado">Boton de peso manual: tambien en esta unidad</option>
- </select>
- <select id="altaRotacion">
- <option value="">Se vende rapido?</option>
- <option value="si">Si</option>
- <option value="no">No</option>
- </select>
- <input id="nuevoProveedor" type="text" placeholder="Proveedor">
- <div class="campo-ficha-ubicacion">
- <input id="nuevaUbicacion" type="text" placeholder="Ubicacion">
- <span class="producto-form-mapa-nota">Ver en mapa de tienda</span>
  </div>
+ </div>
+ </section>
+
+ <section class="producto-form-seccion" data-seccion="proveedor">
+ <div class="producto-form-seccion-header">
+ <span class="producto-form-numero">5</span>
+ <h2>Proveedor</h2>
+ </div>
+ <div class="producto-form-campos">
+ <input id="nuevoProveedor" type="text" placeholder="Proveedor">
  </div>
  </section>
 
@@ -1281,33 +1314,31 @@
  </div>
  <input id="nuevaImagenProducto" type="file" accept="image/*" onchange="previsualizarImagenProductoFormulario(this); subirImagenProductoManual()">
  </div>
- <div class="producto-form-tip">
- <img src="img/nexo-ia/feliz.jpg" alt="Nexo">
- <div>
- <strong>Consejo de Nexo</strong>
- <p>Una foto real y una buena descripcion ayudan a que tus productos se vendan mas rapido.</p>
- </div>
- </div>
 
- <section class="producto-form-seccion producto-form-seccion-lateral" data-seccion="adicional">
+ <section class="producto-form-seccion producto-form-seccion-lateral" data-seccion="market">
  <div class="producto-form-seccion-header">
- <span class="producto-form-numero">4</span>
- <h2>Informacion adicional</h2>
+ <span class="producto-form-numero">6</span>
+ <h2>Market y pedidos</h2>
  </div>
  <div class="producto-form-campos">
- <div class="campo-ficha producto-chip-campo campo-ficha-ancho">
- <span>Subcategorias</span>
- <div class="producto-chip-input" id="nuevaSubcategoriaChipInput">
- <div class="producto-chip-lista" id="nuevaSubcategoriaChipLista"></div>
- <input type="text" id="nuevaSubcategoriaTexto" placeholder="Escribe y presiona Enter" autocomplete="off">
+ <input id="nuevoVisiblePos" type="checkbox" checked>
+ <input id="nuevoVisibleMarket" type="checkbox" checked>
+ <input id="nuevoDisponiblePedidos" type="checkbox" checked>
+ <input id="nuevoDestacado" type="checkbox">
+ <input id="nuevoPrecioOferta" type="number" step="0.01" min="0" placeholder="Precio de oferta para el sitio web (opcional)">
  </div>
- <input type="hidden" id="nuevaSubcategoria">
- </div>
+ </section>
+
+ <section class="producto-form-seccion producto-form-seccion-lateral producto-form-seccion-colapsable" data-seccion="avanzado">
+ <button type="button" class="producto-form-seccion-header producto-form-seccion-header-toggle" onclick="alternarSeccionColapsableProducto(this)">
+ <span class="producto-form-numero">7</span>
+ <h2>Avanzado</h2>
+ <span class="producto-form-seccion-chevron">›</span>
+ </button>
+ <div class="producto-form-campos producto-form-seccion-contenido" hidden>
  <input id="nuevaTieneGarantia" type="checkbox" onchange="toggleGarantiaCamposProducto()">
  <input id="nuevoGarantiaDetalle" type="text" placeholder="ej. 3 meses contra defectos de fabrica">
  <input id="nuevaNoAdmiteCambios" type="checkbox">
- <input id="nuevoDestacado" type="checkbox">
- <input id="nuevoPrecioOferta" type="number" step="0.01" min="0" placeholder="Precio de oferta para el sitio web (opcional)">
  <input id="nuevoPeso" type="number" step="0.001" min="0" placeholder="Peso (kg, opcional)">
  <input id="nuevoLargoCm" type="number" step="0.01" min="0" placeholder="Largo (cm, opcional)">
  <input id="nuevoAnchoCm" type="number" step="0.01" min="0" placeholder="Ancho (cm, opcional)">
@@ -1317,13 +1348,6 @@
  </section>
  </aside>
 
- </div>
-
- <div class="producto-form-footer-callouts">
- <div><strong>Escanea o busca</strong><span>Agrega productos rapidamente escaneando el codigo de barras</span></div>
- <div><strong>Precios inteligentes</strong><span>Maneja multiples precios para cada tipo de cliente</span></div>
- <div><strong>Control de inventario</strong><span>Define minimos y maximos para mejorar el control de stock</span></div>
- <div><strong>Ubicacion inteligente</strong><span>Asigna ubicaciones y encuentra los productos facilmente</span></div>
  </div>
 
  </div>

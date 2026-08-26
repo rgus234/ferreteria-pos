@@ -1759,6 +1759,9 @@ function asegurarEtiquetasFichaProducto() {
  nuevaNoAdmiteCambios: "No admite cambios (ej. cortado a la medida)",
  nuevoDestacado: "Destacado en el sitio web",
  nuevoPrecioOferta: "Precio de oferta para el sitio web (opcional)",
+ nuevoVisiblePos: "Visible en el punto de venta",
+ nuevoVisibleMarket: "Visible en Nexo Market y en tu sitio",
+ nuevoDisponiblePedidos: "Se puede pedir en linea",
  precioDistribuidor: "Precio proveedor / costo",
  precioMayoreo: "Precio medio mayoreo",
  precioPublico: "Precio publico",
@@ -1800,6 +1803,27 @@ function asegurarEtiquetasFichaProducto() {
  wrapper.appendChild(etiqueta);
  wrapper.appendChild(campo);
  });
+}
+
+// Pliega/despliega la seccion "Avanzado" (garantia, cambios, medidas,
+// notas internas) -- colapsada por default para que el formulario no
+// abrume con lo que la mayoria de las altas no necesita tocar. El
+// boton es el header completo de la seccion (accesible, un solo
+// elemento clicable en vez de un icono suelto).
+function alternarSeccionColapsableProducto(boton) {
+ const seccion =
+ boton.closest(".producto-form-seccion-colapsable");
+
+ const contenido =
+ seccion?.querySelector(".producto-form-seccion-contenido");
+
+ if (!seccion || !contenido) return;
+
+ const vaAExpandirse =
+ contenido.hidden;
+
+ contenido.hidden = !vaAExpandirse;
+ seccion.dataset.colapsado = vaAExpandirse ? "0" : "1";
 }
 
 // Subcategorias como "pastillas" -- el input real sigue siendo el mismo
@@ -2670,6 +2694,23 @@ document.getElementById("nuevoDestacado")?.checked || false;
 const precioOferta =
 document.getElementById("nuevoPrecioOferta")?.value || "";
 
+// Bug real encontrado al reorganizar el formulario: el select
+// estructurado de categoria (y la sugerencia de IA) SI llenaban este
+// campo oculto, pero agregarProductoNuevo() nunca lo leia -- el
+// id nunca llegaba al servidor sin importar como se hubiera elegido
+// la categoria. Corregido aqui, no solo movido de lugar.
+const categoriaNexoId =
+document.getElementById("categoriaNexoId")?.value || "";
+
+const visiblePos =
+document.getElementById("nuevoVisiblePos")?.checked !== false;
+
+const visibleMarket =
+document.getElementById("nuevoVisibleMarket")?.checked !== false;
+
+const disponiblePedidos =
+document.getElementById("nuevoDisponiblePedidos")?.checked !== false;
+
 const codigoFinal =
 normalizarCodigo(codigo) ||
 (
@@ -2808,7 +2849,11 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  notasInternas,
  admiteCambios,
  destacado,
- precioOferta
+ precioOferta,
+ categoriaNexoId,
+ visiblePos,
+ visibleMarket,
+ disponiblePedidos
  };
 
  let respuesta;
@@ -3225,6 +3270,19 @@ function editarProducto(
 
  document.getElementById("nuevoPrecioOferta").value =
  producto?.precio_oferta || "";
+
+ // Fase 8 del plan "Catalogo Maestro Nexo" -- producto?.visible_pos
+ // etc. pueden venir undefined en cache vieja del cliente antes de
+ // esta fase; !== false trata "no se sabe" igual que "true" (default
+ // seguro, nunca oculta algo que en realidad esta visible).
+ document.getElementById("nuevoVisiblePos").checked =
+ producto?.visible_pos !== false;
+
+ document.getElementById("nuevoVisibleMarket").checked =
+ producto?.visible_market !== false;
+
+ document.getElementById("nuevoDisponiblePedidos").checked =
+ producto?.disponible_pedidos !== false;
 
  document.getElementById("altaRotacion").value =
  producto?.alta_rotacion || "";
@@ -4609,6 +4667,27 @@ function cerrarFormularioAgregar() {
  document.getElementById("nuevoAltoCm").value = "";
  document.getElementById("nuevasNotasInternas").value = "";
  document.getElementById("nuevaNoAdmiteCambios").checked = false;
+ // destacado/precioOferta ya se guardaban pero nunca se limpiaban aqui
+ // -- un producto anterior marcado "destacado" podia dejar el
+ // checkbox marcado para el siguiente alta sin que nadie lo tocara.
+ // Los 3 de visibilidad son nuevos, arrancan visibles por default.
+ document.getElementById("nuevoDestacado").checked = false;
+ document.getElementById("nuevoPrecioOferta").value = "";
+ document.getElementById("nuevoVisiblePos").checked = true;
+ document.getElementById("nuevoVisibleMarket").checked = true;
+ document.getElementById("nuevoDisponiblePedidos").checked = true;
+
+ const seccionAvanzado =
+ document.querySelector('[data-seccion="avanzado"]');
+
+ const contenidoAvanzado =
+ seccionAvanzado?.querySelector(".producto-form-seccion-contenido");
+
+ if (seccionAvanzado && contenidoAvanzado) {
+ contenidoAvanzado.hidden = true;
+ delete seccionAvanzado.dataset.colapsado;
+ }
+
  mostrarImagenPreviewProducto("");
  seleccionarTipoProducto("catalogo");
 
