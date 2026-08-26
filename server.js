@@ -600,42 +600,48 @@ const GIROS_NEGOCIO_VALIDOS = new Set(["ferreteria", "abarrotes", "papeleria", "
 // Fase 1 de "Catalogo Maestro Nexo": guarda el giro del negocio en el
 // servidor en vez de solo en localStorage (ver migracion
 // 20260826_negocio_giros -- ese es el hallazgo real: hoy el giro
-// elegido en Configuracion nunca llega aqui). Por ahora sigue siendo
-// seleccion unica (desactiva cualquier otro giro del negocio) para no
-// cambiar el comportamiento actual -- la tabla ya soporta varios giros
-// activos a la vez, eso se habilita cuando haya arboles de categorias
-// reales para mas de un giro.
+// elegido en Configuracion nunca llega aqui). Activa/desactiva UN giro
+// sin tocar los demas -- la tabla ya soporta varios giros activos a la
+// vez y el lado de lectura (/categorias-nexo, IA) ya los combina bien;
+// lo unico que faltaba era dejar de forzar seleccion unica aqui, ahora
+// que ferreteria/abarrotes/papeleria ya tienen arbol curado real
+// (Fase 2). "activo:false" se rechaza si es el ultimo giro activo del
+// negocio -- nunca puede quedarse sin ninguno.
 app.put("/negocio-actual/giro", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const giro = String(req.body?.giro || "").trim().toLowerCase();
+        const activo = req.body?.activo === undefined ? true : Boolean(req.body.activo);
 
         if (!GIROS_NEGOCIO_VALIDOS.has(giro)) {
             res.status(400).json({ ok: false, error: "Giro invalido" });
             return;
         }
 
-        const client = await pool.connect();
-        try {
-            await client.query("BEGIN");
-            await client.query(
-                `UPDATE public.negocio_giros SET activo = (giro = $2) WHERE negocio_id = $1`,
+        if (!activo) {
+            const restantes = await pool.query(
+                `SELECT count(*)::int AS total FROM public.negocio_giros WHERE negocio_id = $1 AND activo = true AND giro <> $2`,
                 [negocio.id, giro]
             );
-            await client.query(
-                `INSERT INTO public.negocio_giros (negocio_id, giro, activo) VALUES ($1, $2, true)
-                 ON CONFLICT (negocio_id, giro) DO UPDATE SET activo = true`,
-                [negocio.id, giro]
-            );
-            await client.query("COMMIT");
-        } catch (error) {
-            await client.query("ROLLBACK");
-            throw error;
-        } finally {
-            client.release();
+
+            if (restantes.rows[0].total === 0) {
+                res.status(400).json({ ok: false, error: "Debe quedar al menos un giro activo" });
+                return;
+            }
         }
 
-        res.json({ ok: true, giro });
+        await pool.query(
+            `INSERT INTO public.negocio_giros (negocio_id, giro, activo) VALUES ($1, $2, $3)
+             ON CONFLICT (negocio_id, giro) DO UPDATE SET activo = $3`,
+            [negocio.id, giro, activo]
+        );
+
+        const girosActivos = await pool.query(
+            `SELECT giro FROM public.negocio_giros WHERE negocio_id = $1 AND activo = true ORDER BY giro`,
+            [negocio.id]
+        );
+
+        res.json({ ok: true, giro, activo, girosActivos: girosActivos.rows.map(fila => fila.giro) });
     } catch (error) {
         responderError(res, error);
     }
@@ -749,6 +755,16 @@ app.post("/api/clientes/registro", async (req, res) => {
             RETURNING *
             `,
             [slug, nombreNegocio, giro, plan, telefono, correo, hashPassword(password), ciudad || null]
+        );
+
+        // Antes de esta migracion (Fase 1 de "Catalogo Maestro Nexo")
+        // ningun negocio nuevo quedaba con fila en negocio_giros -- el
+        // giro elegido en el registro se guardaba en negocios.giro pero
+        // /categorias-nexo solo lo lee de aqui, asi que sin esta fila
+        // el negocio arrancaba en ferreteria sin importar lo elegido.
+        await client.query(
+            `INSERT INTO public.negocio_giros (negocio_id, giro, activo) VALUES ($1, $2, true)`,
+            [negocio.rows[0].id, GIROS_NEGOCIO_VALIDOS.has(giro) ? giro : "ferreteria"]
         );
 
         const licenciaKey = await generarLicenciaUnica(client);
@@ -2737,6 +2753,11 @@ app.post("/admin/api/negocios", async (req, res) => {
                 correo || null,
                 direccion || null
             ]
+        );
+
+        await client.query(
+            `INSERT INTO public.negocio_giros (negocio_id, giro, activo) VALUES ($1, $2, true)`,
+            [negocio.rows[0].id, GIROS_NEGOCIO_VALIDOS.has(giro) ? giro : "ferreteria"]
         );
 
         const licenciaKey = await generarLicenciaUnica(client);

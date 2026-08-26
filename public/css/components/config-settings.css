@@ -370,9 +370,7 @@
 
 .config-giro-note {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6px 16px;
-  align-items: center;
+  gap: 6px;
 }
 
 .config-giro-note strong {
@@ -386,17 +384,46 @@
   line-height: 1.35;
 }
 
-.config-giro-note button {
-  grid-row: 1 / span 2;
-  grid-column: 2;
-  width: auto;
-  min-height: 40px;
-  padding: 0 14px;
-  border: 0;
+.config-giros-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.config-giro-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-soft, #dbe3ef);
   border-radius: 10px;
-  background: var(--brand-color, #0d6efd);
-  color: #fff;
-  font-weight: 900;
+  background: var(--surface, #fff);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-main, #111827);
+}
+
+.config-giro-item input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.config-giro-curado {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-color, #0d6efd) 14%, white);
+  color: var(--brand-color, #0d6efd);
+  font-size: 11px;
+  font-weight: 800;
+  font-style: normal;
+}
+
+body.oscuro .config-giro-item {
+  background: var(--surface, #111827);
+  border-color: var(--line-soft, #243044);
+  color: var(--text-main, #f8fafc);
 }
 
 .config-panel-head {
@@ -809,16 +836,6 @@ body.oscuro .config-danger-zone {
   .ticket-options-grid,
   .permisos-secciones {
     grid-template-columns: 1fr;
-  }
-
-  .config-giro-note {
-    grid-template-columns: 1fr;
-  }
-
-  .config-giro-note button {
-    grid-column: auto;
-    grid-row: auto;
-    width: 100%;
   }
 
   .config-panel-head {

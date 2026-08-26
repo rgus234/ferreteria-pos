@@ -666,7 +666,7 @@ async function cargarMarketResumenSitioWeb() {
  contenedor.innerHTML = `
  <div class="sitio-web-upsell">
  <h2>Vende tambien en Nexo Market</h2>
- <p>Con el plan Plus o Pro, tu negocio aparece automaticamente en Nexo Market -- el buscador que junta el catalogo de varias ferreterias Nexo -- ademas de tu propia pagina.</p>
+ <p>Con el plan Plus o Pro, tu negocio aparece automaticamente en Nexo Market -- el buscador que junta el catalogo de varios negocios Nexo -- ademas de tu propia pagina.</p>
  <button type="button" class="btn-encargo-primario" onclick="mostrarCuenta()">Ver planes</button>
  </div>
  `;

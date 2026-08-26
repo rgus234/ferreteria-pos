@@ -78,6 +78,11 @@ const PLANTILLAS_GIRO_NEGOCIO = {
  }
 };
 
+// Giros con arbol curado real en categorias_nexo (Fase 2) -- vinateria
+// y general siguen sin taxonomia propia, activarlos solo deja el
+// formulario en texto libre para esos productos (sin romper nada).
+const GIROS_CON_CATEGORIAS_CURADAS = new Set(["ferreteria", "abarrotes", "papeleria"]);
+
 function dialogoPOS(opciones = {}) {
  const {
  tipo = "info",
@@ -1469,7 +1474,6 @@ function valorTicketFormulario(config = configuracionNegocio() || {}) {
  color: valorConfigCampo("configColorNegocio", config.color || "#0d6efd"),
  logo: logoConfiguracionTemporal !== null ? logoConfiguracionTemporal : config.logo,
  moneda: valorConfigCampo("configMoneda", config.moneda || "MXN").trim() || "MXN",
- giroNegocio: valorConfigCampo("configGiroNegocio", config.giroNegocio || "ferreteria"),
  sucursal: valorConfigCampo("configSucursal", config.sucursal || "").trim(),
  duracionSesionHoras: Number(valorConfigCampo("configDuracionSesion", config.duracionSesionHoras ?? 12)),
  ticketAncho: valorConfigCampo("configTicketAncho", config.ticketAncho || "80"),
@@ -1767,16 +1771,6 @@ function mostrarConfiguracion() {
  <input id="configMoneda" value="${config.moneda || "MXN"}" oninput="renderVistaPreviaTicket()">
  </label>
  <label>
- <span>Giro del negocio</span>
- <select id="configGiroNegocio">
- ${Object.entries(PLANTILLAS_GIRO_NEGOCIO).map(([clave, plantilla]) => `
- <option value="${clave}" ${(config.giroNegocio || "ferreteria") === clave ? "selected" : ""}>
- ${plantilla.nombre}
- </option>
- `).join("")}
- </select>
- </label>
- <label>
  <span>Sucursal</span>
  <input id="configSucursal" value="${config.sucursal || ""}">
  </label>
@@ -1796,8 +1790,17 @@ function mostrarConfiguracion() {
  Estos datos se guardan en esta computadora y se usan para inicio, menu, ticket y apariencia.
  </div>
  <div class="config-note config-giro-note">
- <strong>Giro del negocio</strong>
- <span>Activa las categorias oficiales de Nexo para ese giro en el formulario de productos y en la pantalla de Categorias.</span>
+ <strong>Giros del negocio</strong>
+ <span>Activa uno o varios. Un negocio puede vender de varios giros a la vez (ej. ferreteria y abarrotes) -- cada giro activo agrega sus categorias oficiales al formulario de productos y a la pantalla de Categorias. Debe quedar al menos uno activo.</span>
+ <div class="config-giros-lista" id="configGirosLista">
+ ${Object.entries(PLANTILLAS_GIRO_NEGOCIO).map(([clave, plantilla]) => `
+ <label class="config-giro-item">
+ <input type="checkbox" data-giro="${clave}" onchange="alternarGiroNegocio('${clave}', this.checked)" ${(config.giroNegocio || "ferreteria") === clave ? "checked" : ""}>
+ <span>${plantilla.nombre}</span>
+ ${GIROS_CON_CATEGORIAS_CURADAS.has(clave) ? '<em class="config-giro-curado">Categorias + IA</em>' : ""}
+ </label>
+ `).join("")}
+ </div>
  </div>
  <div class="config-danger-zone">
  <div>
@@ -1816,6 +1819,7 @@ function mostrarConfiguracion() {
  pantalla.style.display = "block";
  renderVistaPreviaTicket();
  cargarImpresorasPOS({ silencioso: true });
+ sincronizarGirosActivosConfiguracion();
 }
 
 function renderVistaPreviaTicket() {
@@ -2055,16 +2059,63 @@ function guardarConfiguracionSistema() {
  logo: nuevaConfig.logo || null
  })
  }).catch(() => {});
+}
 
- // El giro del negocio ahora vive en el servidor (tabla
- // negocio_giros) -- antes solo se guardaba en localStorage, sin
- // sincronizar entre equipos del mismo negocio ni sobrevivir una
- // reconexion. Ver giroNegocioEsFerreteria() en product-inventory.js.
- fetch("/negocio-actual/giro", {
+// El giro del negocio vive en el servidor (tabla negocio_giros, Fase 1
+// de "Catalogo Maestro Nexo") -- cada checkbox de "Giros del negocio"
+// llama esto directo al cambiar, independiente del boton "Guardar
+// cambios" general, porque activar/desactivar un giro tiene efecto
+// inmediato real (agrega/quita categorias del formulario) y necesita
+// poder rechazarse (el ultimo giro activo no se puede apagar).
+async function alternarGiroNegocio(giro, activo) {
+ const casilla =
+ document.querySelector(`#configGirosLista input[data-giro="${giro}"]`);
+
+ try {
+ const respuesta = await fetch("/negocio-actual/giro", {
  method: "PUT",
  headers: { "Content-Type": "application/json" },
- body: JSON.stringify({ giro: nuevaConfig.giroNegocio || "ferreteria" })
- }).catch(() => {});
+ body: JSON.stringify({ giro, activo })
+ });
+
+ const datos = await respuesta.json();
+
+ if (!datos.ok) {
+ if (casilla) casilla.checked = !activo;
+ alertaPOS(datos.error || "No se pudo actualizar el giro.", "Giros del negocio", "alerta");
+ return;
+ }
+
+ if (activo) {
+ const actual = configuracionNegocio() || {};
+ localStorage.setItem(CONFIG_NEGOCIO_KEY, JSON.stringify({ ...actual, giroNegocio: giro }));
+ }
+ } catch (error) {
+ if (casilla) casilla.checked = !activo;
+ alertaPOS("No se pudo actualizar el giro. Revisa tu conexion.", "Giros del negocio", "alerta");
+ }
+}
+
+// Corrige las casillas con el estado real del servidor -- el render
+// inicial solo adivina desde el ultimo giro guardado localmente (por
+// dispositivo), asi que si otro equipo del mismo negocio activo un
+// giro distinto, esto lo refleja sin esperar a que el usuario
+// interactue.
+async function sincronizarGirosActivosConfiguracion() {
+ try {
+ const respuesta = await fetch("/categorias-nexo");
+ const datos = await respuesta.json();
+
+ if (!datos.ok) return;
+
+ const girosActivos = new Set(datos.girosActivos || []);
+
+ document.querySelectorAll("#configGirosLista input[data-giro]").forEach(casilla => {
+ casilla.checked = girosActivos.has(casilla.dataset.giro);
+ });
+ } catch (error) {
+ // Sin conexion -- se queda con el estimado local.
+ }
 }
 
 async function restablecerConfiguracionInicial() {

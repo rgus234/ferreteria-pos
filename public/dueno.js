@@ -3246,7 +3246,7 @@ const CATEGORIAS_MAS_DUENO = [
     { id: "reportes-tab", titulo: "Reportes", desc: "Tu negocio en numeros", icono: "grafica", color: "azul", tab: "reportes" },
     { id: "ventas-tab", titulo: "Cotizar", desc: "Arma una cotizacion sin cobrar", icono: "carrito", color: "azul", tab: "ventas" },
     { id: "inventario-tab", titulo: "Inventario", desc: "Consulta tu catalogo completo", icono: "caja", color: "azul", tab: "inventario" },
-    { id: "market", titulo: "Comprar en Nexo Market", desc: "Explora productos de otras ferreterias", icono: "carrito", color: "verde", href: "https://app.nexoposoficial.com/market" },
+    { id: "market", titulo: "Comprar en Nexo Market", desc: "Explora productos de otros negocios Nexo", icono: "carrito", color: "verde", href: "https://app.nexoposoficial.com/market" },
     { id: "cuenta", titulo: "Cuenta", desc: "Datos del negocio y correo", icono: "usuario", color: "" },
     { id: "plan", titulo: "Plan y suscripcion", desc: "Tu plan, pagos y facturas", icono: "tarjeta", color: "verde" },
     { id: "nexo-ia", titulo: "Nexo IA", desc: "Consumo y disponibilidad", icono: "chispa", color: "morado" },
