@@ -1910,17 +1910,25 @@ let categoriasNexoCargando = null;
 
 // Fuente real desde Fase 1 de "Catalogo Maestro Nexo": los giros
 // activos del negocio viven en el servidor (tabla negocio_giros), no
-// en localStorage -- antes giroNegocioEsFerreteria() confiaba en
+// en localStorage -- antes esta funcion confiaba en
 // configuracionNegocio().giroNegocio, que es por dispositivo y se
 // podia desincronizar entre equipos del mismo negocio (o borrarse
 // solo en cada reconexion). Comparte la misma peticion/cache que
 // cargarCategoriasNexo() para no duplicar el fetch.
-async function giroNegocioEsFerreteria() {
+//
+// Antes (Fase 1-2) solo se activaba para 'ferreteria' -- abrir el
+// selector estructurado para otros giros sin ayuda de IA ni payoff en
+// Market hubiera sido una experiencia a medias. Fase 4 (Market ya lee
+// categoria_nexo_id) y Fase 9 (IA de clasificacion multi-giro) quitan
+// esas dos razones -- ahora se activa para CUALQUIER giro que ya tenga
+// arbol curado (departamentos.length > 0, dato real del servidor), no
+// solo ferreteria por nombre.
+async function negocioTieneCategoriasEstructuradas() {
  if (girosActivosNegocio === null) {
   await cargarGirosYCategoriasNexo();
  }
 
- return (girosActivosNegocio || ["ferreteria"]).includes("ferreteria");
+ return (categoriasNexoArbol || []).length > 0;
 }
 
 async function cargarGirosYCategoriasNexo() {
@@ -1941,7 +1949,7 @@ async function cargarCategoriasNexo() {
  const campo = document.getElementById("categoriaNexoCampo");
  const campoLibre = document.getElementById("nuevaCategoria");
 
- if (!(await giroNegocioEsFerreteria())) {
+ if (!(await negocioTieneCategoriasEstructuradas())) {
   if (campo) campo.hidden = true;
   if (campoLibre) campoLibre.style.display = "";
   return;

@@ -1,7 +1,6 @@
 const sharp = require("sharp");
 const { config } = require("./config");
 const { responderError } = require("./error-utils");
-const { CATEGORIAS_NEXO } = require("./categorias-nexo");
 
 // Cliente de Anthropic inicializado de forma perezosa -- si todavia
 // no hay ANTHROPIC_API_KEY (caso normal mientras el usuario crea su
@@ -409,16 +408,42 @@ function limpiarCacheCategoriaNexoExpirado() {
     }
 }
 
-const LISTA_CATEGORIAS_NEXO_TEXTO = CATEGORIAS_NEXO
-    .map((c, i) => `${i}. ${c.departamento} > ${c.nombre}`)
-    .join("\n");
+// Fase 9 del plan "Catalogo Maestro Nexo": el prompt ya no es un
+// array hardcodeado de un solo giro (ferreteria) -- se arma por
+// combinacion de giros activos, leido de la tabla real categorias_nexo
+// (fuente unica desde Fase 2), para que un negocio con varios giros
+// activos (ej. ferreteria + abarrotes) vea las categorias de AMBOS en
+// una sola lista. Mismo criterio de cache-por-combinacion-de-giros que
+// GET /categorias-nexo (server.js) -- muchos negocios comparten el
+// mismo giro 'ferreteria', no hace falta repetir la consulta ni
+// reconstruir el texto por negocio.
+const cachePromptCategoriaNexoPorGiros = new Map();
 
-const SYSTEM_PROMPT_CATEGORIA_NEXO = `Ayudas a clasificar productos de ferreteria dentro del catalogo de categorias de Nexo.
+async function promptYListaCategoriaNexo(pool, girosActivos) {
+    const clave = [...girosActivos].sort().join(",") || "ferreteria";
+
+    if (cachePromptCategoriaNexoPorGiros.has(clave)) {
+        return cachePromptCategoriaNexoPorGiros.get(clave);
+    }
+
+    const filas = await pool.query(
+        `SELECT id, departamento, nombre FROM public.categorias_nexo WHERE giro = ANY($1::text[]) ORDER BY orden, departamento, nombre`,
+        [girosActivos.length ? girosActivos : ["ferreteria"]]
+    );
+
+    const lista = filas.rows;
+    const listaTexto = lista.map((c, i) => `${i}. ${c.departamento} > ${c.nombre}`).join("\n");
+    const prompt = `Ayudas a clasificar productos dentro del catalogo de categorias de Nexo.
 
 Estas son las unicas categorias validas (indice. departamento > subcategoria):
-${LISTA_CATEGORIAS_NEXO_TEXTO}
+${listaTexto}
 
 Se te da el nombre de un producto (y a veces su marca). Responde UNICAMENTE con un JSON (objeto plano, sin texto extra) de la forma {"indice": N} donde N es el indice de la categoria de la lista que mejor corresponde. Si de verdad ninguna categoria corresponde razonablemente, responde {"indice": null}. Nunca inventes una categoria que no este en la lista.`;
+
+    const resultado = { lista, prompt };
+    cachePromptCategoriaNexoPorGiros.set(clave, resultado);
+    return resultado;
+}
 
 // Limites de Nexo IA Nivel 3 (el unico nivel con costo real) por
 // plan. Basico usa limite 0 -- eso es lo que significa "sin acceso a
@@ -1107,6 +1132,12 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
                 return;
             }
 
+            const girosFila = await pool.query(
+                `SELECT giro FROM public.negocio_giros WHERE negocio_id = $1 AND activo = true`,
+                [negocio.id]
+            );
+            const girosActivos = girosFila.rows.length ? girosFila.rows.map(f => f.giro) : ["ferreteria"];
+
             const clave = claveCache(negocio.id, `categoria|${nombreProducto}|${marca}`);
             const enCache = CACHE_CATEGORIA_NEXO.get(clave);
 
@@ -1115,12 +1146,22 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
                 return;
             }
 
+            const { lista: listaCategoriasNexo, prompt: promptCategoriaNexo } = await promptYListaCategoriaNexo(pool, girosActivos);
+
+            if (listaCategoriasNexo.length === 0) {
+                // Giro(s) sin arbol curado todavia -- nada contra que
+                // clasificar, mismo criterio que "sin acceso" del lado
+                // del cliente (el boton simplemente no aparece).
+                res.json({ ok: true, disponible: false });
+                return;
+            }
+
             const mensajeUsuario = marca ? `Producto: ${nombreProducto}\nMarca: ${marca}` : `Producto: ${nombreProducto}`;
 
             const respuesta = await anthropic.messages.create({
                 model: "claude-haiku-4-5",
                 max_tokens: 60,
-                system: SYSTEM_PROMPT_CATEGORIA_NEXO,
+                system: promptCategoriaNexo,
                 messages: [{ role: "user", content: mensajeUsuario }]
             });
 
@@ -1139,22 +1180,20 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
             }
 
             // Nunca se confia ciegamente en el indice del modelo -- solo
-            // se acepta si es un entero dentro del rango real de
-            // CATEGORIAS_NEXO (el modelo no puede inventar una
-            // categoria que no se le dio).
+            // se acepta si es un entero dentro del rango real de la
+            // lista que se le mando EN ESTA peticion (el modelo no
+            // puede inventar una categoria que no se le dio).
             const indice = Number.isInteger(sugerencia?.indice) ? sugerencia.indice : null;
-            const filaCategoria = indice !== null && indice >= 0 && indice < CATEGORIAS_NEXO.length ? CATEGORIAS_NEXO[indice] : null;
+            const filaCategoria = indice !== null && indice >= 0 && indice < listaCategoriasNexo.length ? listaCategoriasNexo[indice] : null;
 
-            let resultado = { categoriaNexoId: null, departamento: null, nombre: null };
-            if (filaCategoria) {
-                const filaId = await pool.query(
-                    `SELECT id FROM public.categorias_nexo WHERE departamento = $1 AND nombre = $2 LIMIT 1`,
-                    [filaCategoria.departamento, filaCategoria.nombre]
-                );
-                if (filaId.rows.length > 0) {
-                    resultado = { categoriaNexoId: filaId.rows[0].id, departamento: filaCategoria.departamento, nombre: filaCategoria.nombre };
-                }
-            }
+            // filaCategoria ya trae su id real (viene de la misma lista
+            // giro-acotada que se le mando al modelo) -- no hace falta
+            // una segunda consulta por texto, que ademas podria
+            // ambiguar si dos giros distintos compartieran el mismo
+            // nombre de departamento/subcategoria.
+            const resultado = filaCategoria
+                ? { categoriaNexoId: filaCategoria.id, departamento: filaCategoria.departamento, nombre: filaCategoria.nombre }
+                : { categoriaNexoId: null, departamento: null, nombre: null };
 
             limpiarCacheCategoriaNexoExpirado();
             CACHE_CATEGORIA_NEXO.set(clave, { resultado, expiraEn: Date.now() + CACHE_BUSQUEDA_TTL_MS });
