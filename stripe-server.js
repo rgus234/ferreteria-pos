@@ -606,6 +606,33 @@ async function procesarEventoStripe(pool, stripe, evento) {
                 );
             }
 
+            // Bug real encontrado en la auditoria de lanzamiento
+            // (2026-08-26): este evento nunca leia suscripcion.status,
+            // asi que una suscripcion que Stripe ya dio por perdida
+            // (agoto sus reintentos: 'unpaid', o quedo 'canceled' sin
+            // pasar por customer.subscription.deleted, ej. al
+            // cancelarse desde el propio Dashboard de Stripe) nunca
+            // bloqueaba el acceso -- el negocio seguia "normal" o
+            // "gracia" segun el reloj interno, sin que nada se
+            // enterara de que Stripe ya no cobra nada. 'past_due' a
+            // proposito NO se toca aqui: mientras Stripe sigue
+            // reintentando, el periodo de gracia interno
+            // (fecha_vencimiento + gracia_dias) sigue siendo la unica
+            // fuente de verdad del acceso -- ver el comentario de
+            // invoice.payment_failed arriba. Mismo estado='cancelada'
+            // que ya usa customer.subscription.deleted, no un estado
+            // nuevo.
+            if (suscripcion.status === "unpaid" || suscripcion.status === "canceled") {
+                await pool.query(
+                    `
+                    UPDATE public.licencias
+                    SET estado = 'cancelada', updated_at = NOW()
+                    WHERE stripe_customer_id = $1
+                    `,
+                    [suscripcion.customer]
+                );
+            }
+
             break;
         }
 

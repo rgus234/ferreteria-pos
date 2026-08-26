@@ -150,11 +150,21 @@ const MODO_DESARROLLADOR_NEXO_KEY = "modoDesarrolladorNexoPOS";
     window.history.replaceState({}, "", window.location.pathname + (query ? `?${query}` : ""));
 })();
 
+// Antes de esto, todo negocio nuevo veia el modal de contacto vacio
+// ("Datos de soporte por configurar") a menos que alguien entrara al
+// modo desarrollador (clave oculta) y lo llenara a mano en ESE equipo
+// -- no escalaba a clientes reales. correo es el real (mismo que usa
+// email.js). whatsapp usa el mismo numero que ya aparece en
+// email.js/Nexo Market (524424950495) -- dueno.js trae un numero
+// DISTINTO (524981234567) que coincide sospechosamente con el texto
+// de ejemplo de este mismo formulario ("Ej. 524981234567"), asi que
+// se preferio el numero que aparece en dos lugares reales
+// independientes. Verificar con el dueño si hace falta corregir.
 const CONTACTO_DESARROLLADOR_DEFAULT = {
  nombre: "Soporte Nexo",
  telefono: "",
- whatsapp: "",
- correo: ""
+ whatsapp: "524424950495",
+ correo: "nexoposoficial@gmail.com"
 };
 let estadoLicenciaNexoPOS = {
  modo: "normal",

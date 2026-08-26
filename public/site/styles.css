@@ -596,6 +596,12 @@ h3 {
   font-size: 20px;
 }
 
+.feature-list strong small {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 13px;
+}
+
 .demo-section {
   display: grid;
   grid-template-columns: minmax(0, .8fr) minmax(360px, 1fr);

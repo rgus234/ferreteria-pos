@@ -33,10 +33,24 @@ async function planDelNegocio(negocioId) {
 // siempre pasan sin consultar el catalogo (los 10 diferenciadores
 // reales son 100% incluidos, sin limite, en pro -- mismo atajo ya
 // usado en banco-imagenes-server.js/ia-server.js).
+//
+// "prueba" (el plan que recibe todo registro publico nuevo, ver
+// POST /api/clientes/registro) se trata igual que pro/demo por el
+// mismo motivo -- pero ademas es la unica opcion correcta aqui: la
+// tabla public.planes nunca tuvo una fila 'prueba' (solo
+// basico/plus/pro), asi que sin este atajo funcionesDelPlanCacheado()
+// no encontraba nada y CADA registro nuevo perdia acceso real a mitad
+// del sistema durante su periodo de prueba -- justo lo contrario de
+// lo que prometen los Terminos de Servicio ("acceso completo al
+// sistema" durante los 15 dias). Sembrar una fila 'prueba' en la base
+// se descarto a proposito: /suscripcion/planes y /api/planes-publico
+// iteran TODAS las filas de planes para pintar tarjetas de plan
+// comprable, y una fila 'prueba' ahi apareceria como un 4o plan falso
+// junto a Basico/Plus/Pro.
 async function funcionDelPlan(negocioId, claveFuncion) {
     const plan = await planDelNegocio(negocioId);
 
-    if (plan === "pro" || plan === "demo") {
+    if (plan === "pro" || plan === "demo" || plan === "prueba") {
         return { incluido: true, limite: null, plan };
     }
 

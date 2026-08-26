@@ -351,6 +351,37 @@ function enviarCorreoPagoFallido(correo, nombreNegocio, { montoTexto, fechaReint
     });
 }
 
+// Aviso de que la prueba gratuita esta por terminar -- antes de esto
+// no existia ningun correo de este tipo, asi que un negocio nuevo
+// podia pasar de "prueba" a periodo de gracia/limitado sin ningun
+// aviso anticipado (encontrado en la auditoria de lanzamiento,
+// 2026-08-26). Se dispara desde prueba-recordatorios-server.js.
+function enviarCorreoPruebaPorTerminar(correo, nombreNegocio, { diasRestantes, enlaceSuscripcion }) {
+    return enviarCorreo({
+        correo,
+        asunto: diasRestantes <= 1
+            ? "Tu prueba gratuita de Nexo termina hoy o mañana"
+            : `Tu prueba gratuita de Nexo termina en ${diasRestantes} dias`,
+        html: envolverPlantilla({
+            etiqueta: "Prueba gratuita",
+            titulo: diasRestantes <= 1
+                ? "Tu prueba termina muy pronto"
+                : `Tu prueba termina en ${diasRestantes} dias`,
+            saludo: `Hola, ${nombreNegocio}`,
+            robot: "alerta",
+            cuerpoHtml: `
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">
+                    Llevas usando Nexo en tu negocio y tu periodo de prueba de 15 dias
+                    esta por terminar. Elige un plan para no perder acceso a tu
+                    inventario, tus ventas y tus creditos.
+                </p>
+                ${enlaceSuscripcion ? botonHtml("Elegir mi plan", enlaceSuscripcion) : ""}
+                ${avisoHtml("Si no eliges un plan a tiempo, tu cuenta entra a un periodo de gracia y despues se limita -- tu informacion no se borra, solo se restringe el acceso hasta que actives un plan.")}
+            `
+        })
+    });
+}
+
 // Se dispara desde el webhook invoice.paid de Stripe -- solo con
 // datos que el propio evento trae (nunca se inventa el metodo de pago
 // si Stripe no lo mando en el payload).
@@ -802,6 +833,7 @@ module.exports = {
     enviarCorreoRespaldo,
     enviarCorreoPagoFallido,
     enviarCorreoPagoConfirmado,
+    enviarCorreoPruebaPorTerminar,
     enviarCorreoLeadLanding,
     enviarCorreoPedidoPublico,
     enviarCorreoPedidoCarritoPublico,

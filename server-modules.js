@@ -84,6 +84,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("recordatorios automaticos de credito vencido", () => {
         require("./credito-recordatorios-server")(app, pool);
     });
+
+    cargarModuloPOS("recordatorio de prueba gratuita por terminar", () => {
+        require("./prueba-recordatorios-server")(app, pool);
+    });
 }
 
 module.exports = {

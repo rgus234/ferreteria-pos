@@ -276,12 +276,13 @@ ${marketHeaderHtml({ activo: "" })}
 <article class="legal-page">
 <span class="eyebrow">Documento legal</span>
 <h1>Terminos de Nexo Market</h1>
-<p class="legal-meta">Ultima actualizacion: 24 de agosto de 2026.</p>
+<p class="legal-meta">Ultima actualizacion: 26 de agosto de 2026.</p>
 
 <div class="legal-notice">
 Estos terminos son especificos de Nexo Market (comprar productos de
-ferreterias reales). Si administras un negocio en Nexo, el contrato
-del software esta en <a href="/terminos">Terminos de Nexo</a>.
+tiendas reales -- ferreterias, abarrotes, papelerias y demas negocios
+Nexo). Si administras un negocio en Nexo, el contrato del software
+esta en <a href="/terminos">Terminos de Nexo</a>.
 </div>
 
 <div class="legal-toc">
@@ -302,27 +303,27 @@ del software esta en <a href="/terminos">Terminos de Nexo</a>.
 </div>
 
 <h2 id="que-es">1. Que es Nexo Market</h2>
-<p>Nexo Market es el buscador de productos entre varias ferreterias Nexo. Cada resultado es un producto real de una ferreteria real: comparas precio y disponibilidad entre varias tiendas, pero compras directo con la tienda que elijas -- Nexo no es quien te vende el producto, es la plataforma que te ayuda a encontrarlo.</p>
+<p>Nexo Market es el buscador de productos entre varias tiendas Nexo. Cada resultado es un producto real de una tienda real: comparas precio y disponibilidad entre varias tiendas, pero compras directo con la tienda que elijas -- Nexo no es quien te vende el producto, es la plataforma que te ayuda a encontrarlo.</p>
 
 <h2 id="tu-cuenta">2. Tu cuenta</h2>
-<p>Con una sola cuenta Nexo puedes comprar en cualquier ferreteria de Nexo Market y, si tienes tu propia ferreteria, tambien administrarla -- sin crear cuentas separadas. Eres responsable de mantener tu contrasena en secreto y de todo lo que ocurra con tu cuenta.</p>
+<p>Con una sola cuenta Nexo puedes comprar en cualquier tienda de Nexo Market y, si tienes tu propio negocio, tambien administrarlo -- sin crear cuentas separadas. Eres responsable de mantener tu contrasena en secreto y de todo lo que ocurra con tu cuenta.</p>
 
 <h2 id="como-compras">3. Como funciona una compra</h2>
-<p>Buscas y comparas productos entre varias ferreterias, compras directo con la tienda elegida, y recibes un codigo de recogida (con QR) para recoger tu pedido en la tienda fisica. Nexo Market funciona por recoleccion en tienda -- no hay entrega a domicilio salvo que la ferreteria lo ofrezca por su cuenta.</p>
+<p>Buscas y comparas productos entre varias tiendas, compras directo con la tienda elegida, y recibes un codigo de recogida (con QR) para recoger tu pedido en la tienda fisica. Nexo Market funciona por recoleccion en tienda -- no hay entrega a domicilio salvo que la tienda lo ofrezca por su cuenta.</p>
 <p><strong>Cancelar un pedido:</strong> puedes cancelarlo tu mismo desde el seguimiento de tu pedido solo mientras siga en estado "pendiente" (antes de que la tienda lo confirme). Una vez que la tienda empieza a prepararlo, para cancelarlo tienes que contactarla directamente.</p>
 
 <h2 id="precios">4. Precios y disponibilidad</h2>
-<p>Cada ferreteria es responsable de su propio inventario, precio y existencia -- Nexo Market muestra esa informacion tal como la tienda la mantiene, pero no la garantiza en tiempo real al 100%: puede haber diferencias si la tienda no ha actualizado su sistema.</p>
+<p>Cada tienda es responsable de su propio inventario, precio y existencia -- Nexo Market muestra esa informacion tal como la tienda la mantiene, pero no la garantiza en tiempo real al 100%: puede haber diferencias si la tienda no ha actualizado su sistema.</p>
 
 <h2 id="pagos">5. Pagos</h2>
-<p>Puedes pagar con tarjeta (el cobro se procesa directo a la cuenta de la tienda que elegiste; Nexo cobra una comision del 3% a la tienda por ese servicio) o, si ya eres cliente de credito de esa tienda en particular, a tu credito con ella. El credito que tengas con una tienda es solo con esa tienda -- no es un credito general de Nexo Market que puedas usar en cualquier ferreteria.</p>
+<p>Puedes pagar con tarjeta (el cobro se procesa directo a la cuenta de la tienda que elegiste; Nexo cobra una comision del 3% a la tienda por ese servicio) o, si ya eres cliente de credito de esa tienda en particular, a tu credito con ella. El credito que tengas con una tienda es solo con esa tienda -- no es un credito general de Nexo Market que puedas usar en cualquier tienda.</p>
 
 <h2 id="devoluciones">6. Devoluciones, cambios y garantia</h2>
-<p>Cada ferreteria define su propia politica de cambios, devoluciones y garantia sobre lo que vende -- Nexo Market no fabrica ni almacena los productos, asi que no impone una regla unica para todas (una ferreteria no trata igual un cambio de tornilleria que de una herramienta electrica). Si la tienda no tiene su propia politica publicada, aplican las protecciones que ya te da la ley mexicana de proteccion al consumidor, sin importar lo que diga cualquier otro documento.</p>
-<p>Si tienes un problema con tu compra, contacta primero directo a la ferreteria (sus datos estan en tu pedido). Si no logras una respuesta, escribenos a Nexo y te ayudamos a mediar; si detectamos que una tienda incumple de forma repetida, podemos suspenderla de la plataforma.</p>
+<p>Cada tienda define su propia politica de cambios, devoluciones y garantia sobre lo que vende -- Nexo Market no fabrica ni almacena los productos, asi que no impone una regla unica para todas (una tienda no trata igual el cambio de un producto perecedero que el de una herramienta electrica). Si la tienda no tiene su propia politica publicada, aplican las protecciones que ya te da la ley mexicana de proteccion al consumidor, sin importar lo que diga cualquier otro documento.</p>
+<p>Si tienes un problema con tu compra, contacta primero directo a la tienda (sus datos estan en tu pedido). Si no logras una respuesta, escribenos a Nexo y te ayudamos a mediar; si detectamos que una tienda incumple de forma repetida, podemos suspenderla de la plataforma.</p>
 
 <h2 id="responsable">7. Quien responde por el producto</h2>
-<p>La ferreteria que vende el producto es responsable de que exista, de su calidad, y de entregarlo como se describio. Nexo Market es la plataforma tecnologica que conecta comprador y tienda -- no es el vendedor, no fabrica ni almacena los productos, y no responde por defectos o incumplimientos de la tienda (mas alla de ayudarte a contactarla o, si aplica, suspenderla de la plataforma).</p>
+<p>La tienda que vende el producto es responsable de que exista, de su calidad, y de entregarlo como se describio. Nexo Market es la plataforma tecnologica que conecta comprador y tienda -- no es el vendedor, no fabrica ni almacena los productos, y no responde por defectos o incumplimientos de la tienda (mas alla de ayudarte a contactarla o, si aplica, suspenderla de la plataforma).</p>
 
 <h2 id="uso-aceptable">8. Uso aceptable</h2>
 <p>Al usar Nexo Market te comprometes a no usarlo para fines ilegales, no intentar acceder a cuentas o pedidos que no son tuyos, y no abusar del sistema de codigos de recogida o de cancelaciones.</p>
