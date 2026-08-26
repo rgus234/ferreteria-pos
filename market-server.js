@@ -820,9 +820,15 @@ const ESTILOS_MARKET = `
 .market-banner-card.tema-morado{ --panel-color:#472e63; }
 .market-banner-card.tema-naranja{ --panel-color:#9a4c1c; }
 
-.market-banner-media{ position:relative; flex:0 0 44%; overflow:hidden; background:var(--panel-color); }
-.market-banner-media img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-.market-banner-media::after{ content:""; position:absolute; inset:0; background:linear-gradient(90deg, transparent 55%, var(--panel-color) 100%); opacity:.32; }
+/* Cuadrada de verdad (ancho = alto de la fila, via aspect-ratio) y
+   object-fit:contain -- antes era una franja angosta con cover, que
+   recortaba la mayor parte de fotos horizontales (una pinza, una
+   bomba) y solo dejaba ver un fragmento. Con contain siempre se ve la
+   herramienta completa; el fondo ya es del color del tema, asi que el
+   margen que deja contain se lee como parte del diseño, no como un
+   hueco vacio. */
+.market-banner-media{ position:relative; flex:0 0 auto; align-self:stretch; aspect-ratio:1/1; overflow:hidden; background:var(--panel-color); }
+.market-banner-media img{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; object-position:center; padding:16px; box-sizing:border-box; }
 
 .market-banner-panel{ position:relative; flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:8px; padding:24px clamp(20px,3vw,32px); background:var(--panel-color); color:#fff; }
 .market-banner-card.sin-imagen .market-banner-panel{ flex:1 1 100%; background:radial-gradient(135% 160% at 12% 15%, color-mix(in srgb, var(--panel-color) 78%, white 22%), var(--panel-color) 62%); }
@@ -840,7 +846,7 @@ const ESTILOS_MARKET = `
 @media (max-width:640px){
   .market-banners-grid{ grid-template-columns:1fr; }
   .market-banner-card{ flex-direction:column; }
-  .market-banner-media{ flex:0 0 140px; }
+  .market-banner-media{ aspect-ratio:auto; align-self:auto; flex:0 0 170px; width:100%; }
 }
 .market-hero{ display:grid; grid-template-columns:1.1fr .9fr; gap:32px; align-items:center; max-width:1680px; margin:28px auto; padding:0 clamp(18px,4vw,48px); min-width:0; }
 .market-hero > *{ min-width:0; }
