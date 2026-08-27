@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("nexoDesktop", {
   updateStatus: () => ipcRenderer.invoke("nexo:update-status"),
   updateCheck: () => ipcRenderer.invoke("nexo:update-check"),
   updateInstall: () => ipcRenderer.invoke("nexo:update-install"),
+  retryAfterUpdateLoop: () => ipcRenderer.invoke("nexo:retry-after-update-loop"),
   onUpdateStatus: callback => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("nexo:update-status-changed", listener);

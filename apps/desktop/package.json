@@ -1,6 +1,6 @@
 {
   "name": "nexo-pos-desktop",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Nexo POS para Windows",
   "author": "Nexo POS",
   "main": "main.js",
@@ -27,6 +27,7 @@
       "offline-shell-cache.js",
       "offline-fallback.html",
       "loading.html",
+      "update-stuck.html",
       "build/icon.ico",
       "renderer/**",
       "package.json"

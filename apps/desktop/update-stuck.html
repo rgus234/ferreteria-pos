@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Nexo - Problema al actualizar</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .tarjeta {
+    max-width: 440px;
+    text-align: center;
+  }
+  .icono {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    background: #1e293b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icono svg { width: 30px; height: 30px; }
+  h1 {
+    font-size: 20px;
+    margin: 0 0 10px;
+    font-weight: 700;
+  }
+  p {
+    margin: 0 0 22px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #94a3b8;
+  }
+  .version {
+    font-size: 12px;
+    color: #64748b;
+    margin: -12px 0 22px;
+  }
+  .reintentar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 13px 20px;
+    border: none;
+    border-radius: 12px;
+    background: #2563ff;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity .15s ease;
+  }
+  .reintentar:active { opacity: .8; }
+  .reintentar:disabled { opacity: .6; cursor: default; }
+  .contacto {
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid #1e293b;
+  }
+  .contacto p {
+    margin: 0 0 12px;
+    font-size: 12.5px;
+  }
+  .contacto-links {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  .contacto-links a {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #1e293b;
+    color: #e2e8f0;
+    text-decoration: none;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .contacto-links a:hover { border-color: #334155; }
+  .contacto-links svg { width: 15px; height: 15px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+  <div class="tarjeta">
+    <div class="icono">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 9v4"></path>
+        <path d="M12 17h.01"></path>
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path>
+      </svg>
+    </div>
+    <h1>Nexo tuvo un problema actualizandose</h1>
+    <p>Parece que la aplicacion se reinicio varias veces seguidas intentando instalar una actualizacion. Puedes intentar de nuevo, o contactar a soporte si se sigue repitiendo.</p>
+    <p class="version" id="versionActual"></p>
+    <button type="button" class="reintentar" id="botonReintentar">Reintentar</button>
+    <div class="contacto">
+      <p>Si esto se repite, contacta a soporte:</p>
+      <div class="contacto-links">
+        <a href="https://wa.me/524424950495" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.28-1.38a9.9 9.9 0 0 0 4.76 1.21h.01c5.46 0 9.9-4.45 9.9-9.91C21.96 6.45 17.5 2 12.04 2Z"></path></svg>
+          WhatsApp
+        </a>
+        <a href="mailto:nexoposoficial@gmail.com">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 6L2 7"></path></svg>
+          Correo
+        </a>
+      </div>
+    </div>
+  </div>
+  <script>
+    if (window.nexoDesktop && typeof window.nexoDesktop.updateStatus === "function") {
+      window.nexoDesktop.updateStatus().then(function (respuesta) {
+        var version = respuesta && respuesta.state && respuesta.state.currentVersion;
+        if (version) {
+          document.getElementById("versionActual").textContent = "Version instalada: " + version;
+        }
+      }).catch(function () {});
+    }
+
+    var boton = document.getElementById("botonReintentar");
+    boton.addEventListener("click", function () {
+      if (!window.nexoDesktop || typeof window.nexoDesktop.retryAfterUpdateLoop !== "function") return;
+      boton.disabled = true;
+      boton.textContent = "Reintentando...";
+      window.nexoDesktop.retryAfterUpdateLoop().catch(function () {
+        boton.disabled = false;
+        boton.textContent = "Reintentar";
+      });
+    });
+  </script>
+</body>
+</html>

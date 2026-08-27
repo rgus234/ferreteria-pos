@@ -192,6 +192,11 @@ function configureAutoUpdater() {
       message: "Actualizacion descargada, reiniciando"
     });
 
+    // Cuenta este reinicio -- si se repite demasiado seguido (ver
+    // detectarCicloDeActualizacionAtorado), el proximo arranque muestra
+    // una pantalla clara en vez de repetir el ciclo en silencio.
+    registrarReinicioPorActualizacion().catch(() => {});
+
     // 20s en vez de 5s -- ahora que el cliente si muestra un aviso
     // (public/js/desktop-updates.js) cuando este evento llega, la
     // espera necesita ser lo bastante larga para que un cajero a
@@ -402,6 +407,68 @@ async function pullCloudEvents() {
 async function loadPosWindow() {
   const config = await readConfig();
   await mainWindow.loadURL(`${config.apiBaseUrl}/?desktop=1`);
+}
+
+// Si el ciclo "descarga actualizacion -> se reinicia sola" se repite
+// varias veces seguidas (instalacion duplicada, actualizacion que no
+// termina de aplicarse, etc.) el cliente antes solo veia la app
+// abrirse y cerrarse sin explicacion, una y otra vez. Estas 3
+// funciones lo detectan y rompen el ciclo con una pantalla clara en
+// vez de repetirlo en silencio -- ver update-stuck.html.
+const UMBRAL_REINICIOS_ATORADOS = 2;
+const VENTANA_REINICIOS_ATORADOS_MS = 15 * 60 * 1000;
+const ESPERA_SALUD_ANTES_DE_RESETEAR_MS = 2 * 60 * 1000;
+
+async function registrarReinicioPorActualizacion() {
+  const config = await readConfig();
+  await writeConfig({
+    updateRestartCount: Number(config.updateRestartCount || 0) + 1,
+    updateRestartAt: new Date().toISOString()
+  });
+}
+
+async function detectarCicloDeActualizacionAtorado() {
+  const config = await readConfig();
+  const conteo = Number(config.updateRestartCount || 0);
+  if (conteo < UMBRAL_REINICIOS_ATORADOS) return false;
+
+  const ultimoReinicio = config.updateRestartAt ? new Date(config.updateRestartAt).getTime() : 0;
+  return (Date.now() - ultimoReinicio) < VENTANA_REINICIOS_ATORADOS_MS;
+}
+
+// Se llama solo despues de que loadPosWindow() SI cargo bien -- si el
+// proceso sigue vivo (nadie llamo quitAndInstall) pasados los 2
+// minutos, la actualizacion realmente funciono y el contador se
+// limpia. Si en cambio el proceso muere antes por otro reinicio, este
+// timer nunca llega a correr y el contador sigue sumando, que es
+// justo la señal que se busca.
+function programarResetDeContadorActualizacion() {
+  setTimeout(() => {
+    writeConfig({ updateRestartCount: 0, updateRestartAt: null }).catch(() => {});
+  }, ESPERA_SALUD_ANTES_DE_RESETEAR_MS);
+}
+
+async function intentarCargaNormal() {
+  try {
+    await mainWindow.loadFile(path.join(__dirname, "loading.html"));
+  } catch {
+    // Un archivo local casi nunca falla -- si pasa, loadPosWindow()/
+    // mostrarPantallaSinConexion() de abajo terminan mostrando algo
+    // de todos modos.
+  }
+
+  try {
+    await loadPosWindow();
+    programarResetDeContadorActualizacion();
+  } catch {
+    await mostrarPantallaSinConexion();
+  }
+}
+
+async function mostrarPantallaActualizacionAtorada() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  await mainWindow.loadFile(path.join(__dirname, "update-stuck.html"));
+  if (!mainWindow.isVisible()) mainWindow.show();
 }
 
 function detenerReintento() {
@@ -662,18 +729,15 @@ async function createWindow() {
   // sin ninguna señal de que la app si estaba abriendo hasta que el
   // sitio completo terminara de cargar. did-fail-load (arriba) sigue
   // cubriendo el caso de que la carga real fracase.
-  try {
-    await mainWindow.loadFile(path.join(__dirname, "loading.html"));
-  } catch {
-    // Un archivo local casi nunca falla -- si pasa, loadPosWindow()/
-    // mostrarPantallaSinConexion() de abajo terminan mostrando algo
-    // de todos modos.
-  }
-
-  try {
-    await loadPosWindow();
-  } catch {
-    await mostrarPantallaSinConexion();
+  //
+  // Si el equipo ya se reinicio varias veces seguidas por una
+  // actualizacion (ver registrarReinicioPorActualizacion), no tiene
+  // caso repetir el mismo ciclo una vez mas -- se muestra una pantalla
+  // clara en vez de dejar que la app se abra y se cierre sola otra vez.
+  if (await detectarCicloDeActualizacionAtorado()) {
+    await mostrarPantallaActualizacionAtorada();
+  } else {
+    await intentarCargaNormal();
   }
 
   setTimeout(() => {
@@ -734,6 +798,15 @@ ipcMain.handle("nexo:update-install", async () => {
   }
 
   autoUpdater.quitAndInstall(false, true);
+  return { ok: true };
+});
+
+// Boton "Reintentar" de update-stuck.html -- limpia el contador de
+// reinicios y vuelve a intentar la carga normal sobre la MISMA
+// ventana (nunca crear otra con createWindow(), tendria 2 abiertas).
+ipcMain.handle("nexo:retry-after-update-loop", async () => {
+  await writeConfig({ updateRestartCount: 0, updateRestartAt: null });
+  await intentarCargaNormal();
   return { ok: true };
 });
 
