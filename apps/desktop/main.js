@@ -409,6 +409,36 @@ async function loadPosWindow() {
   await mainWindow.loadURL(`${config.apiBaseUrl}/?desktop=1`);
 }
 
+// mainWindow.loadURL() no trae limite de tiempo propio -- con internet
+// lento o una conexion que se cuelga a medias (ni exito ni error, ej.
+// DNS que tarda mucho, wifi debil), la promesa se puede quedar sin
+// resolver ni rechazar para siempre. Sin esto, quien se quede en esa
+// situacion ve "Cargando tu negocio..." indefinidamente, sin llegar
+// nunca ni al POS ni a la pantalla de "sin conexion" que ya existe
+// (bug real reportado por un cliente: instalacion 100% limpia, se
+// quedaba pegado ahi). Esta funcion no cancela la carga original --
+// Electron ya abandona una navegacion en curso en cuanto se le pide
+// cargar otra cosa (mainWindow.loadFile en mostrarPantallaSinConexion),
+// mismo comportamiento que un navegador normal -- solo deja de
+// esperarla y sigue adelante.
+function esperarConLimite(promesa, ms) {
+  return new Promise((resolve, reject) => {
+    let liquidado = false;
+    const timer = setTimeout(() => {
+      if (liquidado) return;
+      liquidado = true;
+      reject(new Error("La carga esta tardando demasiado"));
+    }, ms);
+
+    promesa.then(
+      valor => { if (!liquidado) { liquidado = true; clearTimeout(timer); resolve(valor); } },
+      error => { if (!liquidado) { liquidado = true; clearTimeout(timer); reject(error); } }
+    );
+  });
+}
+
+const TIMEOUT_CARGA_INICIAL_MS = 20000;
+
 // Si el ciclo "descarga actualizacion -> se reinicia sola" se repite
 // varias veces seguidas (instalacion duplicada, actualizacion que no
 // termina de aplicarse, etc.) el cliente antes solo veia la app
@@ -458,7 +488,7 @@ async function intentarCargaNormal() {
   }
 
   try {
-    await loadPosWindow();
+    await esperarConLimite(loadPosWindow(), TIMEOUT_CARGA_INICIAL_MS);
     programarResetDeContadorActualizacion();
   } catch {
     await mostrarPantallaSinConexion();
@@ -483,7 +513,7 @@ function programarReintento() {
 
   reintentoTimer = setInterval(async () => {
     try {
-      await loadPosWindow();
+      await esperarConLimite(loadPosWindow(), TIMEOUT_CARGA_INICIAL_MS);
       detenerReintento();
       modoRespaldoActivo = false;
     } catch {
