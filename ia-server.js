@@ -812,24 +812,45 @@ async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
 // "Nexo no pudo responder", cuando la siguiente pregunta (o la misma,
 // tecleada de nuevo) normalmente ya funciona. Reintenta hasta 2 veces
 // con backoff corto antes de dejar que el error suba.
-async function crearMensajeConReintento(anthropic, parametros) {
+//
+// Usa anthropic.messages.stream() (no .create()) para poder mandar el
+// texto al cliente conforme llega -- pero solo reintenta si el error
+// paso ANTES de emitir texto visible (seEmitioTexto). Una vez que un
+// delta ya salio por res.write() en la ruta /ia/chat, no hay forma de
+// reintentar sin duplicar o reiniciar lo que la persona ya esta viendo
+// en pantalla.
+async function crearStreamConReintento(anthropic, parametros, onDelta) {
     const maxIntentos = 3;
     for (let intento = 1; intento <= maxIntentos; intento++) {
+        let seEmitioTexto = false;
+        const stream = anthropic.messages.stream(parametros);
+
+        // .on("text", ...) solo dispara para bloques de contenido tipo
+        // "text" -- structuralmente no puede filtrar el razonamiento
+        // interno del "thinking" adaptativo, que llega como un evento
+        // separado ("thinking") que aqui nunca se escucha.
+        stream.on("text", delta => {
+            seEmitioTexto = true;
+            onDelta(delta);
+        });
+
         try {
-            return await anthropic.messages.create(parametros);
+            return await stream.finalMessage();
         } catch (error) {
-            const reintentable = error.status === 429 || error.status === 529 || (error.status >= 500 && error.status < 600);
+            const reintentable = !seEmitioTexto &&
+                (error.status === 429 || error.status === 529 || (error.status >= 500 && error.status < 600));
             if (!reintentable || intento === maxIntentos) throw error;
             await new Promise(resolver => setTimeout(resolver, 600 * intento));
         }
     }
 }
 
-async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8", memoriaExtra = "", permitirBusquedaWeb = false) {
+async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8", memoriaExtra = "", permitirBusquedaWeb = false, onDelta = () => {}) {
     const anthropic = obtenerAnthropic();
     let mensajesActuales = mensajes;
     let accion = null;
     let celebrar = false;
+    let textoCompleto = "";
     let systemPrompt = memoriaExtra ? `${SYSTEM_PROMPT_NEXO}\n\n${memoriaExtra}` : SYSTEM_PROMPT_NEXO;
     if (permitirBusquedaWeb) systemPrompt += NOTA_BUSQUEDA_WEB_NEXO;
     const tools = permitirBusquedaWeb ? [...HERRAMIENTAS_NEXO, HERRAMIENTA_BUSQUEDA_WEB] : HERRAMIENTAS_NEXO;
@@ -849,16 +870,22 @@ async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8",
             parametros.thinking = { type: "adaptive" };
         }
 
-        const respuesta = await crearMensajeConReintento(anthropic, parametros);
+        const respuesta = await crearStreamConReintento(anthropic, parametros, delta => {
+            textoCompleto += delta;
+            onDelta(delta);
+        });
 
         if (respuesta.stop_reason !== "tool_use") {
-            const texto = respuesta.content
-                .filter(bloque => bloque.type === "text")
-                .map(bloque => bloque.text)
-                .join("\n")
-                .trim();
+            return { texto: textoCompleto.trim(), accion, celebrar };
+        }
 
-            return { texto, accion, celebrar };
+        // Si este turno trajo texto (Claude explicando antes de llamar
+        // una herramienta) separarlo del texto del siguiente turno --
+        // ese texto ya se le mostro a la persona en vivo, se deja
+        // (experiencia razonable) en vez de intentar "deshacerlo".
+        if (textoCompleto && !textoCompleto.endsWith("\n")) {
+            textoCompleto += "\n";
+            onDelta("\n");
         }
 
         mensajesActuales = [...mensajesActuales, { role: "assistant", content: respuesta.content }];
@@ -1475,23 +1502,74 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
 
             const memoriaExtra = esPrimerMensaje ? await resumenMemoriaNexo(pool, negocio.id) : "";
             const permitirBusquedaWeb = acceso.plan === "pro" || acceso.plan === "demo";
-            const { texto: respuesta, accion, celebrar } = await chatNexoIA(pool, negocio.id, mensajesIniciales, modeloElegido, memoriaExtra, permitirBusquedaWeb);
 
-            if (nivelFinal === 3) {
-                await registrarUsoNivel3(pool, negocio.id);
+            // A partir de aqui la respuesta se transmite en vivo, linea
+            // por linea de JSON (NDJSON) -- una respuesta cruda con
+            // application/x-ndjson en vez de application/json, para que
+            // el cliente sepa que debe leerla incremental en vez de
+            // esperar el cuerpo completo. Los 3 caminos de arriba
+            // (sin-acceso, nivel 1, cache) siguen siendo res.json() sin
+            // ningun cambio -- ya son instantaneos, transmitirlos en
+            // vivo no aportaria nada.
+            res.status(200).set("Content-Type", "application/x-ndjson; charset=utf-8");
+            res.flushHeaders();
+
+            const enviarLinea = objeto => res.write(`${JSON.stringify(objeto)}\n`);
+
+            let respuestaFinal;
+            try {
+                respuestaFinal = await chatNexoIA(
+                    pool, negocio.id, mensajesIniciales, modeloElegido, memoriaExtra, permitirBusquedaWeb,
+                    delta => enviarLinea({ tipo: "texto", delta })
+                );
+            } catch (error) {
+                // chatNexoIA fallo -- igual que antes de streaming: no se
+                // registra uso de nivel 3, no se cachea, no se guarda
+                // nada en la conversacion.
+                console.error(error);
+                enviarLinea({ tipo: "error", mensaje: "Nexo se interrumpio mientras respondia. Intenta de nuevo." });
+                res.end();
+                return;
             }
 
-            if (esPrimerMensaje) {
-                limpiarCacheExpirado();
-                CACHE_RESPUESTAS.set(claveCache(negocio.id, mensaje), { respuesta, nivel: nivelFinal, expiraEn: Date.now() + CACHE_TTL_MS });
+            const { texto: respuesta, accion, celebrar } = respuestaFinal;
+
+            try {
+                if (nivelFinal === 3) {
+                    await registrarUsoNivel3(pool, negocio.id);
+                }
+
+                if (esPrimerMensaje) {
+                    limpiarCacheExpirado();
+                    CACHE_RESPUESTAS.set(claveCache(negocio.id, mensaje), { respuesta, nivel: nivelFinal, expiraEn: Date.now() + CACHE_TTL_MS });
+                }
+
+                const idConversacion = await asegurarConversacion(pool, negocio.id, conversacionId, mensaje);
+                await guardarMensaje(pool, idConversacion, "user", mensaje);
+                await guardarMensaje(pool, idConversacion, "assistant", respuesta);
+
+                // notaLimite solo va al cliente (linea de texto extra al
+                // final), nunca se persiste ni se cachea -- mismo
+                // comportamiento que antes de streaming.
+                if (notaLimite) enviarLinea({ tipo: "texto", delta: notaLimite });
+
+                enviarLinea({ tipo: "final", nivel: nivelFinal, accion, celebrar, conversacionId: idConversacion });
+            } catch (error) {
+                // El texto YA se le mostro completo a la persona -- esto
+                // es un fallo guardando/registrando, no una respuesta
+                // rota. No se puede "des-mandar" el 200 que ya se envio.
+                console.error(error);
+                enviarLinea({ tipo: "error", mensaje: "Nexo respondio pero hubo un problema guardando la conversacion." });
             }
 
-            const idConversacion = await asegurarConversacion(pool, negocio.id, conversacionId, mensaje);
-            await guardarMensaje(pool, idConversacion, "user", mensaje);
-            await guardarMensaje(pool, idConversacion, "assistant", respuesta);
-
-            res.json({ ok: true, respuesta: respuesta + notaLimite, nivel: nivelFinal, accion, celebrar, conversacionId: idConversacion });
+            res.end();
         } catch (error) {
+            // Este catch solo sigue cubriendo errores ANTES de
+            // flushHeaders() (negocioActual, licenciaDelNegocio, etc.) --
+            // una vez que la respuesta NDJSON ya empezo, responderError()
+            // (que hace res.status(500).json(...)) crashearia con
+            // ERR_HTTP_HEADERS_SENT, por eso el bloque de arriba nunca
+            // deja que un error llegue hasta aqui despues de flushHeaders.
             responderError(res, error);
         }
     });

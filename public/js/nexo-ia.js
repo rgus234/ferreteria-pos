@@ -433,12 +433,40 @@ function renderHistorialNexoIA() {
 
  if (historialNexoIA.length === 0) {
   agregarMensajeNexoIA("Hola, soy Nexo. Preguntame como van tus ventas, tu inventario o tus creditos.", "asistente");
+  renderSugerenciasNexoIA();
   return;
  }
 
  historialNexoIA.forEach(entrada => {
   agregarMensajeNexoIA(entrada.contenido, entrada.rol === "user" ? "usuario" : "asistente");
  });
+}
+
+/* Chips de preguntas sugeridas -- mismas 3 preguntas que ya usa el
+   popover flotante (PREGUNTAS_RAPIDAS_NEXO_IA). Solo se muestran antes
+   del primer mensaje de la conversacion; enviarMensajeNexoIA() las
+   quita en cuanto se manda cualquier cosa. */
+function renderSugerenciasNexoIA() {
+ const lista = document.getElementById("nexoIaMensajes");
+ if (!lista) return;
+
+ const contenedor = document.createElement("div");
+ contenedor.className = "nexo-ia-sugerencias";
+ contenedor.innerHTML = PREGUNTAS_RAPIDAS_NEXO_IA.map(
+  (pregunta, indice) => `<button type="button" data-sugerencia="${indice}">${pregunta}</button>`
+ ).join("");
+
+ contenedor.querySelectorAll("[data-sugerencia]").forEach(boton => {
+  boton.addEventListener("click", () => {
+   const pregunta = PREGUNTAS_RAPIDAS_NEXO_IA[Number(boton.dataset.sugerencia)];
+   const input = document.getElementById("nexoIaInput");
+   if (input) input.value = pregunta;
+   enviarMensajeNexoIA();
+  });
+ });
+
+ lista.appendChild(contenedor);
+ lista.scrollTop = lista.scrollHeight;
 }
 
 /* Al abrir la pantalla de Nexo IA, restaura la ultima conversacion
@@ -613,6 +641,7 @@ async function enviarMensajeNexoIA() {
  const mensaje = (input?.value || "").trim();
  if (!mensaje) return;
 
+ document.querySelector(".nexo-ia-sugerencias")?.remove();
  input.value = "";
  agregarMensajeNexoIA(mensaje, "usuario");
  const indicador = agregarMensajeNexoIA("Nexo esta pensando...", "pensando");
@@ -629,30 +658,108 @@ async function enviarMensajeNexoIA() {
    body: JSON.stringify({ mensaje, conversacionId: conversacionActualNexoIA })
   });
 
-  const datos = await respuesta.json();
-  indicador?.remove();
+  const esNDJSON = (respuesta.headers.get("content-type") || "").includes("application/x-ndjson");
 
-  if (!respuesta.ok || !datos.ok) {
-   agregarMensajeNexoIA(datos.error || "Nexo no pudo responder. Intenta de nuevo.", "error");
+  if (!esNDJSON) {
+   // Camino instantaneo sin cambios: nivel 1, respuesta en cache,
+   // "sin acceso" por plan, y cualquier error (400/401/500/503) --
+   // todos siguen siendo un solo JSON, nunca streaming.
+   const datos = await respuesta.json();
+   indicador?.remove();
+
+   if (!respuesta.ok || !datos.ok) {
+    agregarMensajeNexoIA(datos.error || "Nexo no pudo responder. Intenta de nuevo.", "error");
+    return;
+   }
+
+   agregarMensajeNexoIA(datos.respuesta, "asistente");
+   historialNexoIA.push({ rol: "user", contenido: mensaje });
+   historialNexoIA.push({ rol: "assistant", contenido: datos.respuesta });
+
+   if (datos.conversacionId) {
+    conversacionActualNexoIA = datos.conversacionId;
+    localStorage.setItem(NEXO_IA_CONVERSACION_STORAGE_KEY, String(datos.conversacionId));
+   }
+
+   if (datos.accion) setTimeout(() => ejecutarAccionNexoIA(datos.accion), 400);
+   if (datos.celebrar) {
+    setTimeout(() => actualizarMarcaCabeceraNexoIA("celebrando"), 50);
+    setTimeout(() => actualizarMarcaCabeceraNexoIA("feliz"), 2200);
+   }
    return;
   }
 
-  agregarMensajeNexoIA(datos.respuesta, "asistente");
-  historialNexoIA.push({ rol: "user", contenido: mensaje });
-  historialNexoIA.push({ rol: "assistant", contenido: datos.respuesta });
+  // Respuesta en vivo (NDJSON): una linea de JSON por chunk, leida
+  // conforme llega en vez de esperar el cuerpo completo.
+  const lector = respuesta.body.getReader();
+  const decodificador = new TextDecoder();
+  let buffer = "";
+  let textoAcumulado = "";
+  let burbujaRespuesta = null;
+  let accionPendiente = null;
+  let celebrarPendiente = false;
 
-  if (datos.conversacionId) {
-   conversacionActualNexoIA = datos.conversacionId;
-   localStorage.setItem(NEXO_IA_CONVERSACION_STORAGE_KEY, String(datos.conversacionId));
+  const procesarLinea = linea => {
+   if (!linea.trim()) return;
+
+   let evento;
+   try {
+    evento = JSON.parse(linea);
+   } catch (error) {
+    return;
+   }
+
+   if (evento.tipo === "texto") {
+    if (!burbujaRespuesta) {
+     indicador?.remove();
+     burbujaRespuesta = agregarMensajeNexoIA("", "asistente");
+    }
+    textoAcumulado += evento.delta;
+    burbujaRespuesta.textContent = textoAcumulado;
+    const lista = document.getElementById("nexoIaMensajes");
+    if (lista) lista.scrollTop = lista.scrollHeight;
+   } else if (evento.tipo === "final") {
+    historialNexoIA.push({ rol: "user", contenido: mensaje });
+    historialNexoIA.push({ rol: "assistant", contenido: textoAcumulado });
+    if (evento.conversacionId) {
+     conversacionActualNexoIA = evento.conversacionId;
+     localStorage.setItem(NEXO_IA_CONVERSACION_STORAGE_KEY, String(evento.conversacionId));
+    }
+    accionPendiente = evento.accion || null;
+    celebrarPendiente = Boolean(evento.celebrar);
+   } else if (evento.tipo === "error") {
+    indicador?.remove();
+    agregarMensajeNexoIA(evento.mensaje || "Se interrumpio la respuesta. Intenta de nuevo.", "error");
+   }
+  };
+
+  while (true) {
+   const { done, value } = await lector.read();
+   if (done) break;
+
+   // { stream: true } es obligatorio: un caracter multibyte (acentos,
+   // enie) puede quedar partido justo en el limite entre dos chunks
+   // de red -- sin esto se corrompe.
+   buffer += decodificador.decode(value, { stream: true });
+
+   let indiceSalto;
+   while ((indiceSalto = buffer.indexOf("\n")) !== -1) {
+    procesarLinea(buffer.slice(0, indiceSalto));
+    buffer = buffer.slice(indiceSalto + 1);
+   }
   }
+  if (buffer.trim()) procesarLinea(buffer);
 
-  // Se navega DESPUES de mostrar el texto, para que el usuario vea
-  // primero que Nexo entendio antes de que la pantalla cambie.
-  if (datos.accion) setTimeout(() => ejecutarAccionNexoIA(datos.accion), 400);
+  indicador?.remove();
+
+  // Se navega DESPUES de mostrar el texto completo, para que el
+  // usuario vea primero que Nexo entendio antes de que la pantalla
+  // cambie.
+  if (accionPendiente) setTimeout(() => ejecutarAccionNexoIA(accionPendiente), 400);
 
   // El "finally" de abajo siempre deja la marca en "feliz" -- esto
   // corre despues y la reemplaza brevemente por "celebrando".
-  if (datos.celebrar) {
+  if (celebrarPendiente) {
    setTimeout(() => actualizarMarcaCabeceraNexoIA("celebrando"), 50);
    setTimeout(() => actualizarMarcaCabeceraNexoIA("feliz"), 2200);
   }

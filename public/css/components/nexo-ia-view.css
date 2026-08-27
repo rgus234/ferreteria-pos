@@ -119,6 +119,34 @@
  color: var(--nexo-danger);
 }
 
+.nexo-ia-sugerencias {
+ display: flex;
+ flex-direction: column;
+ gap: 6px;
+ align-self: flex-start;
+ max-width: 80%;
+}
+
+/* !important necesario: theme-runtime.css fuerza
+   background:var(--brand-color) !important en cualquier <button> para
+   que respete el color de marca configurable del negocio. Estos chips
+   usan a proposito la identidad fija de Nexo, no el color de marca --
+   mismo criterio que .nexo-ia-popover-preguntas en nexo-ia.css. */
+.nexo-ia-sugerencias button {
+ text-align: left;
+ border: 1px solid var(--nexo-line) !important;
+ background: var(--nexo-surface-soft) !important;
+ color: var(--nexo-text) !important;
+ border-radius: var(--nexo-radius-sm);
+ padding: 8px 12px;
+ font-size: var(--nexo-font-size-sm);
+ cursor: pointer;
+}
+
+.nexo-ia-sugerencias button:hover {
+ background: color-mix(in srgb, #2563ff 16%, var(--nexo-surface-soft)) !important;
+}
+
 .nexo-ia-entrada {
  display: flex;
  gap: var(--nexo-space-2);
