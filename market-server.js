@@ -181,7 +181,7 @@ async function categoriasMarket(pool, giro = "") {
         [idsPermitidos]
     );
 
-    const categorias = resultado.rows.map(f => f.categoria);
+    const categorias = resultado.rows.map(f => ({ categoria: f.categoria, total: Number(f.total) }));
     cacheCategoriasPorGiro.set(clave, { categorias, expiraEn: Date.now() + CACHE_CATEGORIAS_TTL_MS });
     return categorias;
 }
@@ -328,10 +328,11 @@ async function heroProductoMarket(pool, idsPermitidos, firmarTokenImagen) {
 async function categoriasConFotoMarket(pool, firmarTokenImagen) {
     const categorias = await categoriasMarket(pool);
     if (categorias.length === 0) return [];
-    if (typeof firmarTokenImagen !== "function") return categorias.map(nombre => ({ nombre, fotoUrl: null }));
+    if (typeof firmarTokenImagen !== "function") return categorias.map(c => ({ nombre: c.categoria, total: c.total, fotoUrl: null }));
 
     const tiendas = await tiendasPermitidasMarket(pool);
     const idsPermitidos = tiendas.map(t => t.id);
+    const nombresCategorias = categorias.map(c => c.categoria);
 
     const resultado = await pool.query(
         `SELECT DISTINCT ON (COALESCE(cn.departamento, p.categoria)) COALESCE(cn.departamento, p.categoria) AS categoria,
@@ -342,7 +343,7 @@ async function categoriasConFotoMarket(pool, firmarTokenImagen) {
          JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
          WHERE p.negocio_id = ANY($1::int[]) AND p.visible_market = true AND COALESCE(cn.departamento, p.categoria) = ANY($2::text[])
          ORDER BY COALESCE(cn.departamento, p.categoria), RANDOM()`,
-        [idsPermitidos, categorias]
+        [idsPermitidos, nombresCategorias]
     );
 
     const fotoPorCategoria = new Map(resultado.rows.map(fila => [
@@ -350,7 +351,7 @@ async function categoriasConFotoMarket(pool, firmarTokenImagen) {
         `/fotos-producto/${encodeURIComponent(fila.codigo)}/principal?negocio=${encodeURIComponent(fila.slug)}&v=${new Date(fila.foto_actualizado_at).getTime()}&token=${firmarTokenImagen(fila.negocio_id, fila.codigo)}`
     ]));
 
-    return categorias.map(nombre => ({ nombre, fotoUrl: fotoPorCategoria.get(nombre) || null }));
+    return categorias.map(c => ({ nombre: c.categoria, total: c.total, fotoUrl: fotoPorCategoria.get(c.categoria) || null }));
 }
 
 // "Productos populares" para /market/explora. No existe ningun conteo
@@ -558,8 +559,9 @@ async function inicioMarketJson(pool, req, res, firmarTokenImagen) {
         const claveOficio = req.persona?.oficio || null;
         const claveGiro = req.persona?.giro || null;
 
-        const [categorias, girosDisponibles, recomendados, ofertas, hero] = await Promise.all([
+        const [categorias, categoriasConFoto, girosDisponibles, recomendados, ofertas, hero] = await Promise.all([
             categoriasMarket(pool),
+            categoriasConFotoMarket(pool, firmarTokenImagen),
             girosMarket(pool),
             recomendadosMarket(pool, tiendas, claveOficio, claveGiro, firmarTokenImagen),
             ofertasMarket(pool, idsPermitidos, firmarTokenImagen),
@@ -569,7 +571,8 @@ async function inicioMarketJson(pool, req, res, firmarTokenImagen) {
         res.json({
             ok: true,
             hero,
-            categorias,
+            categorias: categorias.map(c => c.categoria),
+            categoriasConFoto,
             girosDisponibles,
             recomendados,
             ofertas,
@@ -613,7 +616,7 @@ async function buscarMarketJson(pool, req, res, firmarTokenImagen) {
             categoriasMarket(pool, giro)
         ]);
 
-        res.json({ ok: true, productos, total, pagina, facetas, categorias: categoriasDelGiro });
+        res.json({ ok: true, productos, total, pagina, facetas, categorias: categoriasDelGiro.map(c => c.categoria) });
     } catch (error) {
         res.status(500).json({ ok: false, error: "No se pudo completar la busqueda." });
     }
@@ -921,15 +924,17 @@ const ESTILOS_MARKET = `
 .market-giro-tile-total{ font-size:11px; font-weight:700; opacity:.72; }
 
 /* Explora por categoria (foto real) + Productos populares + Ferreterias
-   cerca de ti -- pagina /market/explora. */
+   cerca de ti -- pagina /market/explora, y desde hoy tambien la
+   seccion "Explora por categoria" del inicio (#marketExploraCategorias). */
 .market-categorias-grid-foto{ display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:16px; }
-.market-categoria-tile-foto{ display:flex; flex-direction:column; gap:10px; padding:12px; border-radius:16px; border:1px solid var(--line); background:#fff; box-shadow:0 10px 26px rgba(20,32,51,.06); transition:transform .16s ease, box-shadow .16s ease; }
+.market-categoria-tile-foto{ display:flex; flex-direction:column; gap:10px; padding:12px; border-radius:16px; border:1px solid var(--line); background:#fff; box-shadow:0 10px 26px rgba(20,32,51,.06); transition:transform .16s ease, box-shadow .16s ease; cursor:pointer; }
 .market-categoria-tile-foto:hover{ transform:translateY(-2px); box-shadow:0 16px 34px rgba(20,32,51,.12); border-color:var(--blue); }
 .market-categoria-tile-imagen{ aspect-ratio:1; border-radius:12px; overflow:hidden; background:var(--paper); display:flex; align-items:center; justify-content:center; }
 .market-categoria-tile-imagen img{ width:100%; height:100%; object-fit:cover; }
 .market-categoria-tile-icono-generico{ color:var(--muted); width:36px; height:36px; }
 .market-categoria-tile-icono-generico svg{ width:100%; height:100%; }
 .market-categoria-tile-foto .market-categoria-tile-label{ text-align:left; }
+.market-categoria-tile-foto .market-categoria-tile-total{ color:var(--muted); font-size:11.5px; font-weight:700; }
 .market-explora-seccion{ margin-top:38px; }
 .market-explora-seccion h2{ margin:0 0 16px; font-size:19px; }
 .market-productos-grid-wrap{ display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); overflow-x:visible; }
@@ -1905,6 +1910,30 @@ function marketCategoriasHtml(categorias) {
     return categorias.map(marketCategoriaTileHtml).join('');
 }
 
+// Version con foto real + conteo real para "Explora por categoria" en
+// el inicio -- gemela de tarjetaCategoriaExploraHtml() (servidor,
+// usada solo en /market/explora), mismo patron ya usado en este
+// archivo para marketTarjetaProducto/tarjetaProductoExploraHtml. Es
+// <button>, no <a href>, a diferencia de la version servidor: evita
+// tener que portar normalizarSlug() al cliente y evita pelear con la
+// navegacion SPA (history.pushState) que ya usa el resto de la
+// pagina -- mismo criterio que marketCategoriaTileHtml de arriba.
+function marketCategoriaTileFotoHtml(cat) {
+    var fotoHtml = cat.fotoUrl
+        ? '<img src="' + cat.fotoUrl + '" alt="" loading="lazy">'
+        : '<span class="market-categoria-tile-icono-generico">' + ICONO_FOTO_GENERICA + '</span>';
+    var totalTexto = cat.total === 1 ? '1 producto' : cat.total + ' productos';
+    return '<button type="button" class="market-categoria-tile-foto" data-categoria="' + escapeHtml(cat.nombre) + '">' +
+        '<span class="market-categoria-tile-imagen">' + fotoHtml + '</span>' +
+        '<span class="market-categoria-tile-label">' + escapeHtml(cat.nombre) + '</span>' +
+        '<span class="market-categoria-tile-total">' + totalTexto + '</span></button>';
+}
+
+function marketCategoriasFotoHtml(categorias) {
+    if (!categorias || categorias.length === 0) return '';
+    return '<div class="market-categorias-grid market-categorias-grid-foto">' + categorias.map(marketCategoriaTileFotoHtml).join('') + '</div>';
+}
+
 // Filtro de primer nivel (giro de negocio: Ferreteria/Abarrotes/...),
 // al estilo "departamento" de Amazon/Mercado Libre -- se renderiza
 // arriba de las categorias (marketGirosTop) para que un negocio con
@@ -2524,9 +2553,8 @@ async function marketCargarInicio() {
         ? '<div class="market-giros-tira">' + marketGirosHtml(datos.girosDisponibles, marketFiltrosActuales.giro) + '</div>' : '';
     document.getElementById("marketCategoriasTop").innerHTML = marketCategoriasHtml(datos.categorias)
         ? '<div class="market-categorias-tira">' + marketCategoriasHtml(datos.categorias) + '</div>' : '';
-    document.getElementById("marketExploraCategorias").innerHTML = marketCategoriasHtml(datos.categorias)
-        ? '<div class="market-categorias-grid">' + marketCategoriasHtml(datos.categorias) + '</div>'
-        : '<p class="market-vacio">Todavia no hay categorias para mostrar.</p>';
+    document.getElementById("marketExploraCategorias").innerHTML = marketCategoriasFotoHtml(datos.categoriasConFoto)
+        || '<p class="market-vacio">Todavia no hay categorias para mostrar.</p>';
 
     var html = "";
     html += marketSeccion("Recomendado para ti", marketGridProductos(datos.recomendados));
@@ -2552,7 +2580,7 @@ document.addEventListener("click", function(evento) {
         return;
     }
 
-    var tile = evento.target.closest(".market-categoria-tile");
+    var tile = evento.target.closest(".market-categoria-tile, .market-categoria-tile-foto");
     if (tile) {
         document.getElementById("marketBuscarInput").value = "";
         document.getElementById("marketCategoriaSelect").value = tile.dataset.categoria;
@@ -3045,9 +3073,11 @@ function tarjetaCategoriaExploraHtml(categoria) {
     const fotoHtml = categoria.fotoUrl
         ? `<img src="${categoria.fotoUrl}" alt="" loading="lazy">`
         : `<span class="market-categoria-tile-icono-generico">${ICONO_FOTO_GENERICA_SVG}</span>`;
+    const totalTexto = categoria.total === 1 ? '1 producto' : `${categoria.total} productos`;
     return `<a class="market-categoria-tile-foto" href="/market/categorias/${encodeURIComponent(slug)}">` +
         `<span class="market-categoria-tile-imagen">${fotoHtml}</span>` +
-        `<span class="market-categoria-tile-label">${escaparHtml(categoria.nombre)}</span></a>`;
+        `<span class="market-categoria-tile-label">${escaparHtml(categoria.nombre)}</span>` +
+        `<span class="market-categoria-tile-total">${totalTexto}</span></a>`;
 }
 
 // Tarjeta de producto server-rendered para "Productos populares" --
