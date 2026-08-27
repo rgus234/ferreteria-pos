@@ -2068,8 +2068,27 @@ async function marketElegirGiro(clave) {
 // se aplica automatico -- nunca se vuelve a preguntar. Si un invitado
 // con giro guardado local inicia sesion despues, aqui mismo se
 // sincroniza una vez hacia su cuenta (sin tocar el wizard de login).
+//
+// SOLO una vez por sesion de navegador (sessionStorage, no localStorage):
+// bug real reportado por un usuario -- sin este limite, cada visita a
+// /market (incluido darle clic al logo "Nexo Market" para "regresar al
+// inicio") volvia a filtrar por el giro recordado de inmediato, sin
+// ninguna forma de ver el catalogo completo otra vez salvo cerrar el
+// navegador. El chip "Todos" ya deja ver todo dentro de la misma
+// carga de pagina, pero cualquier navegacion de vuelta a /market lo
+// deshacia. Cerrar la pestaña/navegador limpia sessionStorage solo, asi
+// que en la siguiente visita (dias despues, etc.) se sigue aplicando
+// automatico una vez -- la conveniencia original no se pierde, solo
+// deja de ser inescapable dentro de la misma sesion.
+var MARKET_SS_GIRO_YA_APLICADO = "nexoMarketGiroAplicadoEnEstaSesion";
+
 function marketAplicarGiroInicialOMostrarPrompt() {
     if (marketVistaInicialTomada) return;
+
+    try {
+        if (sessionStorage.getItem(MARKET_SS_GIRO_YA_APLICADO)) return;
+        sessionStorage.setItem(MARKET_SS_GIRO_YA_APLICADO, "1");
+    } catch (e) {}
 
     var giroInvitado = marketGiroGuardadoLocal();
     if (marketPersonaActual && !marketPersonaActual.giro && giroInvitado) {
