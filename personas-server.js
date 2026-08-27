@@ -7,10 +7,18 @@ const crypto = require("crypto");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { config } = require("./config");
-const { OFICIOS_PERSONA } = require("./oficios-persona");
+const { OFICIOS_POR_GIRO } = require("./oficios-persona");
 const { enviarCorreoRecuperacion, enviarCorreoVerificacionPersona } = require("./email");
 
-const CLAVES_OFICIO_VALIDAS = new Set(OFICIOS_PERSONA.map(o => o.clave));
+// Union de las 3 listas -- validacion permisiva a proposito: que una
+// persona de giro "ferreteria" tenga guardada una clave de oficio de
+// "abarrotes" (de una eleccion vieja antes de cambiar de giro) no es un
+// error de escritura, es un dato historico inofensivo -- la funcion que
+// de verdad evita que contamine resultados es recomendadosMarket() en
+// market-server.js, que resuelve el oficio SOLO dentro de la lista del
+// giro actual de la persona.
+const CLAVES_OFICIO_VALIDAS = new Set(Object.values(OFICIOS_POR_GIRO).flatMap(lista => lista.map(o => o.clave)));
+const CLAVES_GIRO_VALIDAS = new Set([...Object.keys(OFICIOS_POR_GIRO), "otro"]);
 const DOMINIO_RAIZ_NEXO = "nexoposoficial.com";
 const REGEX_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NOMBRE_COOKIE_PERSONA = "nexo_persona_token";
@@ -125,7 +133,7 @@ async function buscarPersonaPorToken(pool, token) {
     if (!token) return null;
 
     const resultado = await pool.query(
-        `SELECT p.id, p.nombre, p.correo, p.telefono, p.oficio, p.correo_verificado
+        `SELECT p.id, p.nombre, p.correo, p.telefono, p.oficio, p.giro, p.correo_verificado
          FROM public.sesiones_persona s
          JOIN public.personas p ON p.id = s.persona_id
          WHERE s.token_hash = $1 AND s.revocado_at IS NULL
@@ -148,6 +156,7 @@ async function buscarPersonaPorToken(pool, token) {
         correo: fila.correo,
         telefono: fila.telefono,
         oficio: fila.oficio,
+        giro: fila.giro,
         correoVerificado: fila.correo_verificado
     };
 }
@@ -369,7 +378,7 @@ async function obtenerPerfilGoogle(accessToken) {
 // ya verifico el correo, asi que correo_verificado nace en true.
 async function resolverPersonaDesdeGoogle(pool, perfil) {
     const porGoogleId = await pool.query(
-        `SELECT id, nombre, correo, telefono, oficio, correo_verificado FROM public.personas WHERE google_id = $1 LIMIT 1`,
+        `SELECT id, nombre, correo, telefono, oficio, giro, correo_verificado FROM public.personas WHERE google_id = $1 LIMIT 1`,
         [perfil.sub]
     );
     if (porGoogleId.rows[0]) return porGoogleId.rows[0];
@@ -378,7 +387,7 @@ async function resolverPersonaDesdeGoogle(pool, perfil) {
 
     if (correo) {
         const porCorreo = await pool.query(
-            `SELECT id, nombre, correo, telefono, oficio, correo_verificado FROM public.personas WHERE LOWER(correo) = $1 LIMIT 1`,
+            `SELECT id, nombre, correo, telefono, oficio, giro, correo_verificado FROM public.personas WHERE LOWER(correo) = $1 LIMIT 1`,
             [correo]
         );
         if (porCorreo.rows[0]) {
@@ -526,7 +535,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
 
         try {
             const fila = await pool.query(
-                `SELECT id, nombre, correo, telefono, password_hash, oficio, correo_verificado FROM public.personas WHERE LOWER(correo) = $1 OR telefono = $1 LIMIT 1`,
+                `SELECT id, nombre, correo, telefono, password_hash, oficio, giro, correo_verificado FROM public.personas WHERE LOWER(correo) = $1 OR telefono = $1 LIMIT 1`,
                 [identificador]
             );
 
@@ -561,7 +570,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             res.json({
                 ok: true,
                 token,
-                persona: { id: persona.id, nombre: persona.nombre, correo: persona.correo, telefono: persona.telefono, oficio: persona.oficio }
+                persona: { id: persona.id, nombre: persona.nombre, correo: persona.correo, telefono: persona.telefono, oficio: persona.oficio, giro: persona.giro }
             });
         } catch (error) {
             responderError(res, error);
@@ -973,6 +982,29 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             );
 
             res.json({ ok: true, oficio: resultado.rows[0].oficio });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Giro de Nexo Market (ferreteria/abarrotes/papeleria/otro) -- un
+    // nivel arriba de oficio, mismo patron exacto que /personas/oficio.
+    app.patch("/personas/giro", requerirSesionPersona, async (req, res) => {
+        const giroBruto = limpiarTexto(req.body?.giro, 20);
+        const giro = giroBruto ? giroBruto : null;
+
+        if (giro && !CLAVES_GIRO_VALIDAS.has(giro)) {
+            res.status(400).json({ ok: false, error: "Giro invalido" });
+            return;
+        }
+
+        try {
+            const resultado = await pool.query(
+                `UPDATE public.personas SET giro = $1 WHERE id = $2 RETURNING giro`,
+                [giro, req.persona.id]
+            );
+
+            res.json({ ok: true, giro: resultado.rows[0].giro });
         } catch (error) {
             responderError(res, error);
         }

@@ -23,7 +23,7 @@
 
 const { funcionDelPlan } = require("./plan-enforcement");
 const { crearResolverSesionPersonaOpcional } = require("./personas-server");
-const { OFICIOS_PERSONA } = require("./oficios-persona");
+const { OFICIOS_POR_GIRO } = require("./oficios-persona");
 const { normalizarSlug } = require("./tenant");
 const {
     estilosPortalClienteHtml,
@@ -219,10 +219,30 @@ function mapearFilasProducto(rows, firmarTokenImagen) {
 // proyecto, ej. destacadosTenantHtml). El patron regex del oficio se
 // manda como texto al operador ~* de Postgres (case-insensitive,
 // mismo criterio que el regex de JS).
-async function recomendadosMarket(pool, idsPermitidos, claveOficio, firmarTokenImagen) {
-    if (!claveOficio || idsPermitidos.length === 0) return [];
+//
+// Giro-consciente (plan "Nexo Market -- pregunta de bienvenida por
+// giro"): el oficio se resuelve DENTRO de la lista del giro de la
+// persona, y las tiendas candidatas se filtran a ese mismo giro. Sin
+// el filtro de tiendas, un patron de abarrotes como "bebidas"
+// (que incluye la palabra "agua") podria encontrar productos de
+// ferreteria como "Bomba de agua" solo por coincidencia de texto --
+// filtrar las tiendas candidatas por giro hace eso imposible sin
+// importar el vocabulario de cada patron.
+//
+// giroEfectivo cae a "ferreteria" si la persona todavia no tiene giro
+// guardado (cualquier persona que ya exista antes de este cambio,
+// incluida cualquiera con oficio ya elegido) -- preserva exactamente
+// el comportamiento de hoy para todas ellas en vez de apagarles las
+// recomendaciones de golpe.
+async function recomendadosMarket(pool, tiendas, claveOficio, claveGiro, firmarTokenImagen) {
+    if (!claveOficio) return [];
 
-    const oficio = OFICIOS_PERSONA.find(o => o.clave === claveOficio);
+    const giroEfectivo = claveGiro || "ferreteria";
+    const idsDelGiro = tiendas.filter(t => (t.giros || []).includes(giroEfectivo)).map(t => t.id);
+    if (idsDelGiro.length === 0) return [];
+
+    const listaOficios = OFICIOS_POR_GIRO[giroEfectivo] || OFICIOS_POR_GIRO.ferreteria;
+    const oficio = listaOficios.find(o => o.clave === claveOficio);
     if (!oficio || !oficio.patron) return [];
 
     const resultado = await pool.query(
@@ -237,7 +257,7 @@ async function recomendadosMarket(pool, idsPermitidos, claveOficio, firmarTokenI
          LEFT JOIN public.fotos_producto fp ON fp.negocio_id = p.negocio_id AND fp.codigo = p.codigo
          WHERE p.negocio_id = ANY($1::int[]) AND p.visible_market = true AND p.categoria ~* $2
          LIMIT 12`,
-        [idsPermitidos, oficio.patron.source]
+        [idsDelGiro, oficio.patron.source]
     );
 
     return mapearFilasProducto(resultado.rows, firmarTokenImagen);
@@ -536,11 +556,12 @@ async function inicioMarketJson(pool, req, res, firmarTokenImagen) {
         const tiendas = await tiendasPermitidasMarket(pool);
         const idsPermitidos = tiendas.map(t => t.id);
         const claveOficio = req.persona?.oficio || null;
+        const claveGiro = req.persona?.giro || null;
 
         const [categorias, girosDisponibles, recomendados, ofertas, hero] = await Promise.all([
             categoriasMarket(pool),
             girosMarket(pool),
-            recomendadosMarket(pool, idsPermitidos, claveOficio, firmarTokenImagen),
+            recomendadosMarket(pool, tiendas, claveOficio, claveGiro, firmarTokenImagen),
             ofertasMarket(pool, idsPermitidos, firmarTokenImagen),
             heroProductoMarket(pool, idsPermitidos, firmarTokenImagen)
         ]);
@@ -553,7 +574,7 @@ async function inicioMarketJson(pool, req, res, firmarTokenImagen) {
             recomendados,
             ofertas,
             tiendas,
-            persona: req.persona ? { oficio: req.persona.oficio || null } : null
+            persona: req.persona ? { oficio: req.persona.oficio || null, giro: req.persona.giro || null } : null
         });
     } catch (error) {
         res.status(500).json({ ok: false, error: "No se pudo cargar el inicio de Nexo Market." });
@@ -1066,6 +1087,36 @@ const ESTILOS_MARKET_NAV_MOVIL = `
 .market-drawer-vacio p{ margin:0; color:var(--muted); font-size:12.5px; line-height:1.4; }
 `;
 
+// Tarjeta de bienvenida por giro -- a diferencia del cajon de cuenta
+// (solo movil), esta debe verse bien en escritorio tambien, asi que no
+// depende del breakpoint de 640px de ESTILOS_MARKET_NAV_MOVIL. Misma
+// convencion de apertura/cierre (hidden + clase .abierta con
+// transicion) que .market-drawer-overlay.
+const ESTILOS_MARKET_GIRO_PROMPT = `
+.market-giro-prompt-overlay{ display:none; }
+.market-giro-prompt-overlay:not([hidden]){ position:fixed; inset:0; background:rgba(20,32,51,.5); z-index:2100; display:flex; align-items:center; justify-content:center; padding:20px; opacity:0; transition:opacity .22s ease; }
+.market-giro-prompt-overlay.abierta{ opacity:1; }
+.market-giro-prompt{ position:relative; width:100%; max-width:440px; background:#fff; border-radius:22px; padding:34px 28px 28px; text-align:center; box-shadow:0 24px 64px rgba(20,32,51,.28); transform:scale(.94); transition:transform .22s ease; }
+.market-giro-prompt-overlay.abierta .market-giro-prompt{ transform:scale(1); }
+.market-giro-prompt-cerrar{ position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; transition:transform .15s ease, background .15s ease; }
+.market-giro-prompt-cerrar:hover{ background:var(--surface-soft, #f5f5f7); }
+.market-giro-prompt-cerrar:active{ transform:scale(.88); }
+.market-giro-prompt-mascota{ width:64px; height:64px; border-radius:50%; object-fit:cover; margin:0 auto 12px; display:block; }
+.market-giro-prompt h2{ margin:0 0 8px; font-size:20px; color:var(--ink); }
+.market-giro-prompt p{ margin:0 0 22px; font-size:13.5px; color:var(--muted); line-height:1.5; }
+.market-giro-prompt-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.market-giro-prompt-opcion{ display:flex; flex-direction:column; align-items:center; gap:8px; padding:16px 10px; border-radius:16px; border:1px solid var(--line); background:#fff; cursor:pointer; font:inherit; transition:border-color .15s ease, background .15s ease, transform .1s ease; }
+.market-giro-prompt-opcion:hover{ border-color:var(--blue); background:var(--surface-soft, #f5f5f7); }
+.market-giro-prompt-opcion:active{ transform:scale(.97); }
+.market-giro-prompt-opcion svg{ width:26px; height:26px; color:var(--blue); }
+.market-giro-prompt-opcion strong{ font-size:13px; color:var(--ink); font-weight:700; line-height:1.3; }
+.market-giro-prompt-opcion[data-giro="otro"]{ grid-column:1 / -1; flex-direction:row; justify-content:center; padding:12px; }
+.market-giro-prompt-opcion[data-giro="otro"] svg{ width:20px; height:20px; }
+@media (max-width:480px){
+  .market-giro-prompt{ padding:28px 20px 22px; }
+}
+`;
+
 // Header + nav de Nexo Market (Fase 1 "Market embebido") -- extraido tal
 // cual del markup que antes vivia pegado dentro de paginaMarketHtml(),
 // parametrizado para poder reusarse desde una pagina de tienda dentro de
@@ -1194,6 +1245,24 @@ function marketDrawerCuentaHtml() {
 <a class="market-drawer-link" href="https://app.nexoposoficial.com/dueno">${ICONO_PORTAL_TIENDA}Nexo para negocios</a>
 <a class="market-drawer-link market-drawer-link-salir" href="#" id="marketDrawerCerrarSesion">${ICONO_PORTAL_SALIR}Cerrar sesion</a>
 </div>
+</div>
+</div>`;
+}
+
+// Tarjeta de bienvenida por giro (Ferreteria/Abarrotes/Papeleria) --
+// se ve solo la primera visita (ver marketAplicarGiroInicialOMostrarPrompt
+// en el script de abajo). Igual que el cajon de cuenta, el shell se
+// renderiza vacio/oculto aqui y el cliente pinta las opciones (mismo
+// patron que #marketOficioChips: el servidor nunca decide contenido
+// personalizado fuera de una respuesta JSON).
+function marketGiroPromptHtml() {
+    return `<div class="market-giro-prompt-overlay" id="marketGiroPromptOverlay" hidden>
+<div class="market-giro-prompt" role="dialog" aria-modal="true" aria-labelledby="marketGiroPromptTitulo">
+<button type="button" class="market-giro-prompt-cerrar" id="marketGiroPromptCerrar" aria-label="Cerrar">✕</button>
+<img class="market-giro-prompt-mascota" src="/img/nexo-ia/feliz.jpg" alt="" aria-hidden="true">
+<h2 id="marketGiroPromptTitulo">Hola, soy Nexo</h2>
+<p>Cuentame que buscas para mostrarte tiendas y productos que te interesan.</p>
+<div class="market-giro-prompt-grid" id="marketGiroPromptOpciones"></div>
 </div>
 </div>`;
 }
@@ -1402,7 +1471,7 @@ function paginaMarketHtml(opciones) {
 ${metaInstalableMarketHtml()}
 <link rel="stylesheet" href="/site/styles.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<style>${ESTILOS_MARKET}${ESTILOS_MARKET_NAV_MOVIL}${estilosPortalClienteHtml()}</style>
+<style>${ESTILOS_MARKET}${ESTILOS_MARKET_NAV_MOVIL}${ESTILOS_MARKET_GIRO_PROMPT}${estilosPortalClienteHtml()}</style>
 </head>
 <body>
 ${marketHeaderHtml({ activo: activoNav })}
@@ -1487,6 +1556,7 @@ ${marketHeaderHtml({ activo: activoNav })}
 ${marketFooterHtml()}
 ${marketBottomNavMovilHtml()}
 ${marketDrawerCuentaHtml()}
+${marketGiroPromptHtml()}
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -1879,28 +1949,51 @@ function marketPintarHero(hero) {
     }
 }
 
-var MARKET_OFICIOS = [
-    { clave: "herramientas", etiqueta: "Herramientas" },
-    { clave: "construccion", etiqueta: "Construccion" },
-    { clave: "electrico", etiqueta: "Electrico" },
-    { clave: "plomeria", etiqueta: "Plomeria" },
-    { clave: "pintura", etiqueta: "Pintura" },
-    { clave: "seguridad", etiqueta: "Seguridad" },
-    { clave: "jardin", etiqueta: "Jardin" },
-    { clave: "limpieza", etiqueta: "Limpieza" },
-    { clave: "otro", etiqueta: "Otro oficio" }
-];
+var MARKET_OFICIOS_POR_GIRO = {
+    ferreteria: [
+        { clave: "herramientas", etiqueta: "Herramientas" },
+        { clave: "construccion", etiqueta: "Construccion" },
+        { clave: "electrico", etiqueta: "Electrico" },
+        { clave: "plomeria", etiqueta: "Plomeria" },
+        { clave: "pintura", etiqueta: "Pintura" },
+        { clave: "seguridad", etiqueta: "Seguridad" },
+        { clave: "jardin", etiqueta: "Jardin" },
+        { clave: "limpieza", etiqueta: "Limpieza" },
+        { clave: "otro", etiqueta: "Otro oficio" }
+    ],
+    abarrotes: [
+        { clave: "despensa", etiqueta: "Despensa y abarrotes secos" },
+        { clave: "bebidas", etiqueta: "Bebidas" },
+        { clave: "lacteos_panaderia", etiqueta: "Lacteos y panaderia" },
+        { clave: "frescos", etiqueta: "Frutas y verduras" },
+        { clave: "botanas_dulces", etiqueta: "Botanas y dulces" },
+        { clave: "limpieza_hogar", etiqueta: "Limpieza del hogar" },
+        { clave: "higiene_personal", etiqueta: "Higiene y cuidado personal" },
+        { clave: "congelados", etiqueta: "Congelados y refrigerados" },
+        { clave: "otro", etiqueta: "Otro" }
+    ],
+    papeleria: [
+        { clave: "escolar", etiqueta: "Utiles escolares" },
+        { clave: "oficina", etiqueta: "Oficina" },
+        { clave: "arte_manualidades", etiqueta: "Arte y manualidades" },
+        { clave: "impresion_copiado", etiqueta: "Impresion y copiado" },
+        { clave: "empastado", etiqueta: "Empastado y acabados" },
+        { clave: "tecnologia", etiqueta: "Tecnologia y computo" },
+        { clave: "otro", etiqueta: "Otro" }
+    ]
+};
 
 var marketPersonaActual = null;
 
 function marketPintarOficioPicker() {
     var seccion = document.getElementById("marketOficio");
-    if (marketPersonaActual && marketPersonaActual.oficio) {
+    var lista = MARKET_OFICIOS_POR_GIRO[marketFiltrosActuales.giro];
+    if ((marketPersonaActual && marketPersonaActual.oficio) || !lista) {
         seccion.hidden = true;
         return;
     }
     seccion.hidden = false;
-    document.getElementById("marketOficioChips").innerHTML = MARKET_OFICIOS.map(function(o) {
+    document.getElementById("marketOficioChips").innerHTML = lista.map(function(o) {
         return '<button type="button" class="market-oficio-chip" data-oficio="' + o.clave + '">' + marketIconoCategoria(o.etiqueta) + '<span>' + escapeHtml(o.etiqueta) + '</span></button>';
     }).join('');
 }
@@ -1916,8 +2009,84 @@ async function marketElegirOficio(clave) {
         body: JSON.stringify({ oficio: clave })
     });
     if (datos.ok) {
-        marketPersonaActual = { oficio: datos.oficio };
+        marketPersonaActual = Object.assign({}, marketPersonaActual, { oficio: datos.oficio });
         marketCargarInicio();
+    }
+}
+
+// Pregunta de bienvenida por giro (Ferreteria/Abarrotes/Papeleria) --
+// se ve solo la primera vez (ver marketAplicarGiroInicialOMostrarPrompt,
+// llamada al final de marketCargarInicio). Reusa marketMostrarBusqueda,
+// que ya existe y ya filtra por giro -- esto solo decide CUANDO
+// aplicarlo automatico y cuando preguntar.
+var MARKET_GIRO_PROMPT_CLAVE = "nexoMarketGiroElegido";
+var MARKET_GIRO_OPCIONES = [
+    { clave: "ferreteria", etiqueta: "Ferreteria", icono: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>' },
+    { clave: "abarrotes", etiqueta: "Abarrotes", icono: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><path d="M3 6h18"></path><path d="M16 10a4 4 0 0 1-8 0"></path></svg>' },
+    { clave: "papeleria", etiqueta: "Papeleria", icono: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path></svg>' },
+    { clave: "otro", etiqueta: "Otro / prefiero no decir", icono: MARKET_ICONO_GENERICO }
+];
+
+function marketGiroGuardadoLocal() {
+    try { return localStorage.getItem(MARKET_GIRO_PROMPT_CLAVE) || ""; } catch (e) { return ""; }
+}
+
+function marketGuardarGiroLocal(clave) {
+    try { localStorage.setItem(MARKET_GIRO_PROMPT_CLAVE, clave); } catch (e) {}
+}
+
+function marketAbrirPromptGiro() {
+    var overlay = document.getElementById("marketGiroPromptOverlay");
+    if (!overlay) return;
+    overlay.hidden = false;
+    requestAnimationFrame(function() { overlay.classList.add("abierta"); });
+}
+
+function marketCerrarPromptGiro() {
+    var overlay = document.getElementById("marketGiroPromptOverlay");
+    if (!overlay) return;
+    overlay.classList.remove("abierta");
+    setTimeout(function() { overlay.hidden = true; }, 280);
+}
+
+async function marketElegirGiro(clave) {
+    marketGuardarGiroLocal(clave);
+    if (marketPersonaActual) {
+        marketLlamar("/personas/giro", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ giro: clave })
+        }).then(function(datos) {
+            if (datos.ok) marketPersonaActual = Object.assign({}, marketPersonaActual, { giro: datos.giro });
+        });
+    }
+    marketCerrarPromptGiro();
+    if (clave !== "otro") marketMostrarBusqueda({ giro: clave });
+}
+
+// Al volver a /market ya con un giro conocido (cuenta o localStorage),
+// se aplica automatico -- nunca se vuelve a preguntar. Si un invitado
+// con giro guardado local inicia sesion despues, aqui mismo se
+// sincroniza una vez hacia su cuenta (sin tocar el wizard de login).
+function marketAplicarGiroInicialOMostrarPrompt() {
+    if (marketVistaInicialTomada) return;
+
+    var giroInvitado = marketGiroGuardadoLocal();
+    if (marketPersonaActual && !marketPersonaActual.giro && giroInvitado) {
+        marketLlamar("/personas/giro", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ giro: giroInvitado })
+        }).then(function(datos) {
+            if (datos.ok && marketPersonaActual) marketPersonaActual.giro = datos.giro;
+        });
+    }
+
+    var giroConocido = (marketPersonaActual && marketPersonaActual.giro) || giroInvitado;
+    if (giroConocido && giroConocido !== "otro") {
+        marketMostrarBusqueda({ giro: giroConocido });
+    } else if (!giroConocido) {
+        marketAbrirPromptGiro();
     }
 }
 
@@ -2353,6 +2522,7 @@ async function marketCargarInicio() {
 
     marketFavoritosActualizarContador();
     marketMarcarFavoritosBotones();
+    marketAplicarGiroInicialOMostrarPrompt();
 }
 
 document.addEventListener("click", function(evento) {
@@ -2382,6 +2552,17 @@ document.addEventListener("click", function(evento) {
     var oficioBtn = evento.target.closest(".market-oficio-chip");
     if (oficioBtn) {
         marketElegirOficio(oficioBtn.dataset.oficio);
+        return;
+    }
+
+    var giroPromptOpcion = evento.target.closest(".market-giro-prompt-opcion");
+    if (giroPromptOpcion) {
+        marketElegirGiro(giroPromptOpcion.dataset.giro);
+        return;
+    }
+
+    if (evento.target.id === "marketGiroPromptCerrar" || evento.target.id === "marketGiroPromptOverlay") {
+        marketCerrarPromptGiro();
         return;
     }
 
@@ -2706,6 +2887,20 @@ document.addEventListener("click", function(evento) {
     }
 });
 
+// true si la visita ya trae una vista/filtro especifico (deep-link) --
+// en ese caso marketAplicarGiroInicialOMostrarPrompt() (llamada al
+// final de marketCargarInicio) no debe aplicar giro automatico ni
+// mostrar la tarjeta de bienvenida, para no interrumpir una visita con
+// intencion clara.
+var marketVistaInicialTomada = false;
+
+var marketGiroPromptOpcionesEl = document.getElementById("marketGiroPromptOpciones");
+if (marketGiroPromptOpcionesEl) {
+    marketGiroPromptOpcionesEl.innerHTML = MARKET_GIRO_OPCIONES.map(function(o) {
+        return '<button type="button" class="market-giro-prompt-opcion" data-giro="' + o.clave + '">' + o.icono + '<strong>' + escapeHtml(o.etiqueta) + '</strong></button>';
+    }).join('');
+}
+
 marketCargarSesion();
 marketCargarInicio();
 
@@ -2719,10 +2914,13 @@ var marketParamsIniciales = new URLSearchParams(location.search);
 var marketOrdenInicialSSR = marketFiltroInicialSSR.orden || marketParamsIniciales.get("orden") || "relevancia";
 var marketOfertasInicialSSR = marketFiltroInicialSSR.ofertas || marketParamsIniciales.get("ofertas") === "1";
 if (marketParamsIniciales.get("vista") === "favoritos") {
+    marketVistaInicialTomada = true;
     marketMostrarVistaFavoritos();
 } else if (marketParamsIniciales.get("vista") === "pedidos") {
+    marketVistaInicialTomada = true;
     marketMostrarVistaPedidos();
 } else if (marketFiltroInicialSSR.categoria || marketOfertasInicialSSR || marketParamsIniciales.get("buscar") || marketParamsIniciales.get("categoria") || marketParamsIniciales.get("giro") || marketParamsIniciales.get("orden")) {
+    marketVistaInicialTomada = true;
     var marketBuscarInicial = marketParamsIniciales.get("buscar") || "";
     var marketCategoriaInicial = marketFiltroInicialSSR.categoria || marketParamsIniciales.get("categoria") || "";
     var marketGiroInicial = marketParamsIniciales.get("giro") || "";
