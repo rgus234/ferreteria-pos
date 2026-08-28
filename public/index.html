@@ -56,6 +56,7 @@
   <link rel="stylesheet" href="css/components/support-reminders.css?v=notif-contraste-fix-20260706-01">
   <link rel="stylesheet" href="css/components/ticket-lookup-view.css?v=creditos-editar-compra-20260730-01">
   <link rel="stylesheet" href="css/components/encargos-clientes.css?v=listas-producto-20260826-01">
+ <link rel="stylesheet" href="css/components/barcode-labels.css?v=codigos-barras-20260827-01">
   <link rel="stylesheet" href="css/components/sitio-web-view.css?v=sitio-web-20260821-01">
   <link rel="stylesheet" href="css/components/pedidos-market-view.css?v=verificacion-picking-20260818-01">
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -477,6 +478,9 @@
  <button data-shell-module="listas-producto" onclick="mostrarListasProducto()">
  Listas de productos
  </button>
+ <button data-shell-module="codigos-barras" onclick="mostrarCodigosBarras()">
+ Codigos de barras
+ </button>
  </div>
 
  <button class="sidebar-grupo-toggle" data-grupo="ventas-caja" onclick="toggleSubmenuSidebar('submenuVentasCaja')">
@@ -555,6 +559,7 @@
  <section id="pantallaBuscarTicket" style="display:none;"></section>
  <section id="pantallaEncargos" style="display:none;"></section>
  <section id="pantallaListasProducto" style="display:none;"></section>
+ <section id="pantallaCodigosBarras" style="display:none;"></section>
  <section id="pantallaSitioWeb" style="display:none;"></section>
 
  <section id="pantallaCatalogo" style="display:none;">
@@ -1046,7 +1051,7 @@
  <button type="button" class="btn-limpiar-inventario" onclick="limpiarFiltrosInventario()">
  Limpiar
  </button>
- <button type="button" class="btn-imprimir-codigos" onclick="imprimirCodigosBarrasInventario()">
+ <button type="button" class="btn-imprimir-codigos" onclick="abrirCodigosBarrasDesdeInventario()">
  Imprimir codigos
  </button>
  <button class="btn-agregar" onclick="abrirFormularioAgregarProductoNuevo()">
@@ -1778,6 +1783,7 @@
   <script src="js/ticket-lookup-view.js?v=creditos-editar-compra-20260730-01"></script>
  <script src="js/encargos-clientes.js?v=encargos-20260803-01"></script>
  <script src="js/product-lists.js?v=listas-producto-20260826-01"></script>
+ <script src="js/barcode-labels.js?v=codigos-barras-20260827-01"></script>
  <script src="js/sitio-web-view.js?v=copy-multi-giro-20260825-01"></script>
   <script src="js/product-details-view.js?v=alertas-tempranas-20260712-01"></script>
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>

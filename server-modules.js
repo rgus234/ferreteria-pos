@@ -65,6 +65,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./listas-producto-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("editor de codigos de barras / etiquetas", () => {
+        require("./barcode-labels-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("sitio web del negocio", () => {
         require("./public-site-server").registrarRutas(app, pool, requerirAccesoNegocio);
     });

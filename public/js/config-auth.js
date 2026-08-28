@@ -1332,6 +1332,7 @@ function ocultarPantallasPrincipales() {
  "pantallaBuscarTicket",
  "pantallaEncargos",
  "pantallaListasProducto",
+ "pantallaCodigosBarras",
  "pantallaSitioWeb",
  "pantallaPedidosMarket",
  "modalAgregar"
