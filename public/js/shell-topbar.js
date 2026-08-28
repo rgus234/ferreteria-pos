@@ -165,7 +165,7 @@ function asegurarBotonSidebarPOS(modulo, etiqueta, handler) {
    sidebar.appendChild(boton) directo. Esos scripts no necesitan saber
    nada de los grupos -- el reacomodo central los recoge de aqui. */
 const GRUPOS_SIDEBAR_POS = {
- inventario: { contenedor: "submenuInventario", modulos: ["inventario", "agregar-producto", "categorias", "inventario-bajo", "por-vencer", "listas-producto"] },
+ inventario: { contenedor: "submenuInventario", modulos: ["inventario", "agregar-producto", "inventario-bajo", "por-vencer", "categorias", "listas-producto", "codigos-barras"] },
  "ventas-caja": { contenedor: "submenuVentasCaja", modulos: ["reportes", "caja", "finanzas"] },
  compras: { contenedor: "submenuCompras", modulos: ["proveedores", "catalogo", "recepcion", "pedidos", "ajustes"] },
  nexo: { contenedor: "submenuNexo", modulos: ["nexo-ia", "pedidos-market", "sitio-web", "encargos", "buscar-ticket"] }
