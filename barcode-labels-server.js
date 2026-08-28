@@ -68,7 +68,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             }
 
             if (String(producto.rows[0].codigo || "").trim()) {
-                res.status(400).json({ ok: false, error: "Este producto ya tiene un codigo." });
+                res.status(400).json({ ok: false, error: "Este producto ya tiene un código." });
                 return;
             }
 
@@ -80,7 +80,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 codigo = `NX-${producto.rows[0].id}-${sufijo}`;
 
                 if (sufijo > 5) {
-                    res.status(500).json({ ok: false, error: "No se pudo generar un codigo unico." });
+                    res.status(500).json({ ok: false, error: "No se pudo generar un código único." });
                     return;
                 }
             }

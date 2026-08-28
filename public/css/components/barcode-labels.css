@@ -265,6 +265,44 @@
 .etiqueta-chip-lista{ display:inline-flex; align-items:center; gap:6px; font-size:12px; min-height:30px; padding:0 12px; }
 .etiqueta-chip-lista-conteo{ padding:1px 6px; border-radius:999px; background:var(--pos-line,#dbe3ef); font-weight:800; font-size:10px; }
 
+/* "Guardar como..." (lista en Etapa 1, plantilla en Etapa 2) -- una
+   tarjeta propia en vez de un label+input+boton sueltos, para que no
+   se sienta como un formulario aparte pegado al final del panel. */
+.etiqueta-guardar-fila{
+ display:flex;
+ align-items:end;
+ gap:10px;
+ margin-top:16px;
+ padding:14px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:12px;
+ background:var(--pos-surface,#f8fafc);
+}
+.etiqueta-guardar-fila label{
+ flex:1;
+ min-width:0;
+ display:grid;
+ gap:6px;
+ color:var(--pos-text,#172033);
+ font-size:12.5px;
+ font-weight:700;
+}
+.etiqueta-guardar-fila input{
+ min-height:42px;
+ border:1.5px solid var(--pos-line,#dbe3ef);
+ border-radius:10px;
+ padding:0 14px;
+ background:var(--pos-surface-strong,#fff);
+ color:var(--pos-text,#172033);
+ font-size:14px;
+ transition:border-color .12s ease;
+}
+.etiqueta-guardar-fila input:focus{
+ outline:none;
+ border-color:var(--brand-color,#0d6efd);
+}
+.etiqueta-guardar-fila button{ flex-shrink:0; min-height:42px; }
+
 /* --- Etapa 2: plantillas + acordeon --- */
 .etiqueta-etapa2-layout{ display:flex; flex-direction:column; gap:20px; }
 .etiqueta-plantillas-bloque h3{ margin:0 0 10px; font-size:15px; font-weight:800; }
@@ -296,11 +334,12 @@
  display:flex;
  align-items:center;
  justify-content:center;
- height:64px;
- transform:scale(.62);
+ width:100%;
+ height:56px;
+ overflow:hidden;
  pointer-events:none;
 }
-.etiqueta-plantilla-card-preview-personalizada{ transform:none; color:var(--pos-muted,#687386); }
+.etiqueta-plantilla-card-preview-personalizada{ color:var(--pos-muted,#687386); }
 .etiqueta-plantilla-card-preview-personalizada .ui-icon{ width:26px; height:26px; }
 .etiqueta-plantilla-card-guardada{ padding:0; border:1.5px solid var(--pos-line,#dbe3ef); border-radius:14px; overflow:hidden; }
 .etiqueta-plantilla-card-guardada.activa{ border-color:var(--brand-color,#0d6efd); }
@@ -344,6 +383,27 @@
 .etiqueta-seccion-chevron{ transition:transform .15s ease; color:var(--pos-muted,#687386); font-size:18px; }
 .etiqueta-seccion-colapsable[data-colapsado="0"] .etiqueta-seccion-chevron{ transform:rotate(90deg); }
 .etiqueta-seccion-contenido{ padding:0 16px 16px; }
+
+.etiqueta-diseno-checks{
+ display:grid;
+ grid-template-columns:1fr 1fr;
+ gap:10px 16px;
+ margin:2px 0 18px;
+}
+.etiqueta-diseno-checks label{
+ display:flex;
+ align-items:center;
+ gap:8px;
+ font-size:13px;
+ font-weight:600;
+ color:var(--pos-text,#172033);
+}
+.etiqueta-diseno-checks input[type="checkbox"]{
+ width:18px;
+ height:18px;
+ accent-color:var(--brand-color,#0d6efd);
+ cursor:pointer;
+}
 
 .etiqueta-papel-opciones{ display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; }
 .etiqueta-papel-boton{
@@ -389,6 +449,8 @@
 }
 .etiqueta-preview-paginacion button:disabled,
 .etiqueta-preview-zoom button:disabled{ opacity:.4; cursor:not-allowed; }
+.etiqueta-preview-paginacion button .ui-icon,
+.etiqueta-preview-zoom button .ui-icon{ width:16px; height:16px; }
 .etiqueta-preview-paginacion span{ font-size:12px; font-weight:700; color:var(--pos-muted,#687386); min-width:90px; text-align:center; }
 .etiqueta-preview-zoom input[type="range"]{ width:110px; }
 #etiquetaZoomTexto{ font-size:12px; font-weight:700; color:var(--pos-muted,#687386); min-width:38px; }
@@ -451,6 +513,7 @@ body.oscuro .etiqueta-preview-hoja{ background:#fff; }
  font-size:16px;
  cursor:pointer;
 }
+.etiqueta-btn-imprimir-final .ui-icon{ width:20px; height:20px; }
 
 /* --- Etiqueta individual (mayormente inline, esto es solo respaldo) --- */
 .hoja-etiquetas{ background:#fff; }

@@ -31,10 +31,10 @@ let paginaVistaPreviaActual = 0;
 let zoomVistaPreviaEtiquetas = 1;
 
 const PLANTILLAS_ETIQUETAS_POR_DEFECTO = [
- { nombre: "Pequena", anchoMm: 40, altoMm: 20, columnas: 4, margenMm: 5, espaciadoMm: 2, mostrarNombre: true, mostrarCodigoBarras: true, mostrarNumeroCodigo: false, mostrarPrecio: false, mostrarMarca: false, mostrarCategoria: false },
- { nombre: "Precio + codigo", anchoMm: 50, altoMm: 25, columnas: 3, margenMm: 5, espaciadoMm: 3, mostrarNombre: true, mostrarCodigoBarras: true, mostrarNumeroCodigo: true, mostrarPrecio: true, mostrarMarca: false, mostrarCategoria: false },
+ { nombre: "Pequeña", anchoMm: 40, altoMm: 20, columnas: 4, margenMm: 5, espaciadoMm: 2, mostrarNombre: true, mostrarCodigoBarras: true, mostrarNumeroCodigo: false, mostrarPrecio: false, mostrarMarca: false, mostrarCategoria: false },
+ { nombre: "Precio + código", anchoMm: 50, altoMm: 25, columnas: 3, margenMm: 5, espaciadoMm: 3, mostrarNombre: true, mostrarCodigoBarras: true, mostrarNumeroCodigo: true, mostrarPrecio: true, mostrarMarca: false, mostrarCategoria: false },
  { nombre: "Grande", anchoMm: 70, altoMm: 40, columnas: 2, margenMm: 8, espaciadoMm: 4, mostrarNombre: true, mostrarCodigoBarras: true, mostrarNumeroCodigo: true, mostrarPrecio: true, mostrarMarca: true, mostrarCategoria: true },
- { nombre: "Solo codigo", anchoMm: 40, altoMm: 20, columnas: 4, margenMm: 5, espaciadoMm: 2, mostrarNombre: false, mostrarCodigoBarras: true, mostrarNumeroCodigo: true, mostrarPrecio: false, mostrarMarca: false, mostrarCategoria: false },
+ { nombre: "Solo código", anchoMm: 40, altoMm: 20, columnas: 4, margenMm: 5, espaciadoMm: 2, mostrarNombre: false, mostrarCodigoBarras: true, mostrarNumeroCodigo: true, mostrarPrecio: false, mostrarMarca: false, mostrarCategoria: false },
  { nombre: "Anaquel", anchoMm: 60, altoMm: 30, columnas: 3, margenMm: 5, espaciadoMm: 3, mostrarNombre: true, mostrarCodigoBarras: true, mostrarNumeroCodigo: true, mostrarPrecio: true, mostrarMarca: false, mostrarCategoria: false }
 ];
 
@@ -46,13 +46,13 @@ const TAMANOS_PAPEL_ETIQUETAS = [
 
 const ETAPAS_ETIQUETAS = [
  { titulo: "Seleccionar" },
- { titulo: "Disenar" },
+ { titulo: "Diseñar" },
  { titulo: "Vista previa" },
  { titulo: "Imprimir" }
 ];
 
 const ETIQUETAS_TEXTO_SIGUIENTE = [
- "Continuar → Disenar etiquetas",
+ "Continuar → Diseñar etiquetas",
  "Continuar → Vista previa",
  "Continuar → Imprimir"
 ];
@@ -67,8 +67,23 @@ const CAMPOS_DISENO_ETIQUETA = [
 ];
 
 const ITEM_EJEMPLO_PLANTILLA_ETIQUETA = {
- nombre: "Producto de ejemplo", codigo: "7501234567890", precio: 99.5, marca: "Marca", categoria: "Categoria"
+ nombre: "Producto de ejemplo", codigo: "7501234567890", precio: 99.5, marca: "Marca", categoria: "Categoría"
 };
+
+// 1mm = 96/25.4 px (conversion estandar del navegador para unidades CSS
+// en mm). La mini-preview de cada plantilla debe caber en el mismo
+// recuadro sin importar su tamano real -- Grande (70x40mm) y Pequeña
+// (40x20mm) no pueden compartir una sola escala fija sin que la mas
+// grande se desborde de su tarjeta.
+const MM_A_PX_MINIATURA = 96 / 25.4;
+
+function estiloMiniaturaEtiqueta(plantilla, anchoObjetivoPx = 92, altoObjetivoPx = 50) {
+ const anchoRealPx = plantilla.anchoMm * MM_A_PX_MINIATURA;
+ const altoRealPx = plantilla.altoMm * MM_A_PX_MINIATURA;
+ const escala = Math.min(anchoObjetivoPx / anchoRealPx, altoObjetivoPx / altoRealPx, 1);
+
+ return `transform:scale(${escala.toFixed(3)});`;
+}
 
 // --- Entrada ---
 
@@ -106,7 +121,7 @@ async function mostrarCodigosBarras(opciones = {}) {
  pantalla.style.display = "block";
 
  if (typeof actualizarTopbarContexto === "function") {
- actualizarTopbarContexto("Codigos de barras", "Arma tu lista y disena la hoja de etiquetas", "codigos-barras");
+ actualizarTopbarContexto("Códigos de barras", "Arma tu lista y diseña la hoja de etiquetas", "codigos-barras");
  }
 
  itemsCodigosBarras = (opciones.productosIniciales || [])
@@ -141,8 +156,8 @@ function plantillaHtmlEsqueletoWizardEtiquetas() {
  <div class="etiqueta-wizard-shell">
  <div class="etiqueta-wizard-header">
  <div>
- <h2>Codigos de barras</h2>
- <p>Arma tu lista, disena tus etiquetas e imprime en minutos.</p>
+ <h2>Códigos de barras</h2>
+ <p>Arma tu lista, diseña tus etiquetas e imprime en minutos.</p>
  </div>
  <div class="etiqueta-wizard-dots">
  ${ETAPAS_ETIQUETAS.map((etapa, indice) => `
@@ -160,7 +175,7 @@ function plantillaHtmlEsqueletoWizardEtiquetas() {
  <section data-etiqueta-etapa="3" class="etiqueta-etapa" hidden></section>
 
  <div class="etiqueta-wizard-nav">
- <button type="button" id="etiquetaNavAtras" class="btn-encargo-secundario" onclick="retrocederEtapaEtiquetas()">&larr; Atras</button>
+ <button type="button" id="etiquetaNavAtras" class="btn-encargo-secundario" onclick="retrocederEtapaEtiquetas()">&larr; Atrás</button>
  <button type="button" id="etiquetaNavSiguiente" class="btn-encargo-primario" onclick="avanzarEtapaEtiquetas()">Continuar</button>
  </div>
  </div>
@@ -205,7 +220,7 @@ function cambiarEtapaEtiquetas(etapa) {
 
 function validarAvanceEtiquetas(etapaOrigen) {
  if (etapaOrigen === 0 && itemsCodigosBarras.length === 0) {
- alertaPOS("Agrega al menos un producto a tu lista antes de continuar.", "Lista vacia", "alerta");
+ alertaPOS("Agrega al menos un producto a tu lista antes de continuar.", "Lista vacía", "alerta");
  return false;
  }
 
@@ -247,24 +262,24 @@ function renderEtapaSeleccionProductos() {
  <div class="etiqueta-selector-catalogo">
  <div class="etiqueta-buscador-hero">
  <span class="etiqueta-buscador-icono">${iconoUISVG("search")}</span>
- <input type="text" id="etiquetaBuscadorInput" placeholder="Busca por nombre, codigo, SKU o marca..." oninput="programarBusquedaEtiqueta(this.value)">
- <button type="button" class="etiqueta-explorar-toggle" onclick="alternarCategoriasEtiquetas()">${iconoUISVG("grid")} Explorar por categoria</button>
+ <input type="text" id="etiquetaBuscadorInput" placeholder="Busca por nombre, código, SKU o marca..." oninput="programarBusquedaEtiqueta(this.value)">
+ <button type="button" class="etiqueta-explorar-toggle" onclick="alternarCategoriasEtiquetas()">${iconoUISVG("grid")} Explorar por categoría</button>
  </div>
  <div id="etiquetaCatalogoArea" class="etiqueta-catalogo-area"></div>
  </div>
 
  <aside class="etiqueta-mi-lista-panel">
  <div class="etiqueta-mi-lista-header">
- <h3>Mi lista de impresion</h3>
+ <h3>Mi lista de impresión</h3>
  <p id="etiquetaMiListaResumen"></p>
  </div>
  <div id="etiquetaMiListaItems" class="etiqueta-mi-lista-items"></div>
  <div class="etiqueta-mi-lista-acciones">
- <button type="button" class="btn-encargo-secundario" onclick="document.getElementById('etiquetaBuscadorInput')?.focus()">+ Agregar mas</button>
+ <button type="button" class="btn-encargo-secundario" onclick="document.getElementById('etiquetaBuscadorInput')?.focus()">+ Agregar más</button>
  <button type="button" class="etiqueta-btn-vaciar" onclick="vaciarListaEtiquetas()">Vaciar lista</button>
  </div>
  <div class="etiqueta-guardar-fila">
- <label>Guardar esta seleccion como lista
+ <label>Guardar esta selección como lista
  <input id="etiquetaGuardarListaNombre" placeholder="Nombre (opcional)">
  </label>
  <button type="button" class="btn-encargo-secundario" onclick="guardarListaDesdeEtiquetas()">Guardar</button>
@@ -348,7 +363,7 @@ async function renderCatalogoAreaEtiquetas() {
  area.innerHTML = `
  <div class="etiqueta-catalogo-vacio">
  <span class="etiqueta-catalogo-vacio-icono">${iconoUISVG("search")}</span>
- <p>Busca un producto arriba o explora por categoria para empezar a armar tu lista.</p>
+ <p>Busca un producto arriba o explora por categoría para empezar a armar tu lista.</p>
  </div>
  `;
 }
@@ -369,7 +384,7 @@ function tarjetaProductoEtiquetaHtml(producto, opciones = {}) {
  <div class="etiqueta-producto-card-cuerpo">
  <strong class="etiqueta-producto-card-nombre">${escaparPOS(producto.nombre || "")}</strong>
  ${metaTexto ? `<span class="etiqueta-producto-card-meta">${metaTexto}</span>` : ""}
- <span class="etiqueta-producto-card-codigo">${producto.codigo ? escaparPOS(producto.codigo) : "Sin codigo"}</span>
+ <span class="etiqueta-producto-card-codigo">${producto.codigo ? escaparPOS(producto.codigo) : "Sin código"}</span>
  <span class="etiqueta-producto-card-precio">${typeof dinero === "function" ? dinero(producto.precio || 0) : producto.precio}</span>
  </div>
  <div class="etiqueta-producto-card-accion">
@@ -447,7 +462,7 @@ function renderCategoriasEtiquetasDepartamentos(panel) {
  typeof nodosCategoriasInventario === "function" ? nodosCategoriasInventario() : [];
 
  if (nodos.length === 0) {
- panel.innerHTML = `<p class="encargo-items-vacio">Este negocio todavia no tiene categorias con productos.</p>`;
+ panel.innerHTML = `<p class="encargo-items-vacio">Este negocio todavía no tiene categorías con productos.</p>`;
  return;
  }
 
@@ -543,9 +558,9 @@ function renderCategoriasEtiquetasProductos(panel) {
  panel.innerHTML = `
  <button type="button" class="btn-encargo-secundario" onclick="${subcategoria === departamento ? "volverDepartamentosEtiquetas()" : "abrirDepartamentoDeVueltaEtiquetas()"}">&larr; ${escaparPOS(subcategoria)}</button>
  ${productos.length === 0
- ? `<p class="encargo-items-vacio">No hay productos en esta categoria.</p>`
+ ? `<p class="encargo-items-vacio">No hay productos en esta categoría.</p>`
  : `
- <button type="button" class="btn-encargo-primario encargo-btn-full" onclick="agregarTodosCategoriaEtiquetas()">+ Agregar los ${productos.length} de esta categoria</button>
+ <button type="button" class="btn-encargo-primario encargo-btn-full" onclick="agregarTodosCategoriaEtiquetas()">+ Agregar los ${productos.length} de esta categoría</button>
  <div class="etiqueta-productos-grid">${productos.map(producto => tarjetaProductoEtiquetaHtml(producto, { ampliable: false })).join("")}</div>
  `}
  `;
@@ -583,10 +598,10 @@ function renderMiListaEtiquetas() {
 
  resumen.textContent = itemsCodigosBarras.length
  ? `${itemsCodigosBarras.length} producto(s) · ${totalEtiquetasEnLista()} etiqueta(s) a imprimir`
- : "Todavia no agregas productos.";
+ : "Todavía no agregas productos.";
 
  if (itemsCodigosBarras.length === 0) {
- contenedor.innerHTML = `<p class="encargo-items-vacio">Busca productos o explora por categoria para empezar.</p>`;
+ contenedor.innerHTML = `<p class="encargo-items-vacio">Busca productos o explora por categoría para empezar.</p>`;
  return;
  }
 
@@ -610,7 +625,7 @@ function renderMiListaEtiquetas() {
  <span class="etiqueta-mi-lista-img">${miniaturaProducto(producto, "etiqueta-mi-lista-img-el")}</span>
  <span class="etiqueta-mi-lista-datos">
  <strong>${escaparPOS(producto.nombre)}</strong>
- <small>${producto.codigo ? escaparPOS(producto.codigo) : `<a href="#" onclick="event.preventDefault();generarCodigoProductoEtiqueta(${item.productoId})">Generar codigo</a>`}</small>
+ <small>${producto.codigo ? escaparPOS(producto.codigo) : `<a href="#" onclick="event.preventDefault();generarCodigoProductoEtiqueta(${item.productoId})">Generar código</a>`}</small>
  </span>
  <span class="etiqueta-stepper etiqueta-stepper-compacto">
  <button type="button" onclick="restarCantidadProductoEtiqueta(${item.productoId})">&minus;</button>
@@ -637,7 +652,7 @@ function quitarItemEtiqueta(indice) {
 function vaciarListaEtiquetas() {
  if (itemsCodigosBarras.length === 0) return;
 
- confirmarPOS("Esto va a quitar todos los productos de tu lista de impresion. ¿Continuar?", "Vaciar lista", "alerta")
+ confirmarPOS("Esto va a quitar todos los productos de tu lista de impresión. ¿Continuar?", "Vaciar lista", "alerta")
  .then(confirmado => {
  if (!confirmado) return;
  itemsCodigosBarras = [];
@@ -654,7 +669,7 @@ async function generarCodigoProductoEtiqueta(productoId) {
  await respuesta.json().catch(() => ({}));
 
  if (!respuesta.ok || !datos.ok) {
- alertaPOS(datos.error || "No se pudo generar el codigo.", "Error", "peligro");
+ alertaPOS(datos.error || "No se pudo generar el código.", "Error", "peligro");
  return;
  }
 
@@ -667,7 +682,7 @@ async function generarCodigoProductoEtiqueta(productoId) {
 
  refrescarSeleccionEtiquetas();
  } catch (error) {
- alertaPOS("No se pudo generar el codigo. Revisa tu conexion.", "Error", "peligro");
+ alertaPOS("No se pudo generar el código. Revisa tu conexión.", "Error", "peligro");
  }
 }
 
@@ -723,7 +738,7 @@ function renderChipsListasGuardadasEtiquetas() {
  if (!contenedor) return;
 
  if (listasGuardadasEtiquetasCache.length === 0) {
- contenedor.innerHTML = `<p class="encargo-items-vacio">Todavia no tienes listas guardadas.</p>`;
+ contenedor.innerHTML = `<p class="encargo-items-vacio">Todavía no tienes listas guardadas.</p>`;
  return;
  }
 
@@ -796,7 +811,7 @@ async function guardarListaDesdeEtiquetas() {
 
  cargarListasGuardadasEtiquetas();
  } catch (error) {
- alertaPOS("No se pudo guardar la lista. Revisa tu conexion.", "Error", "peligro");
+ alertaPOS("No se pudo guardar la lista. Revisa tu conexión.", "Error", "peligro");
  }
 }
 
@@ -822,7 +837,7 @@ function renderEtapaDisenoEtiquetas() {
  <p class="encargo-items-vacio">Cargando...</p>
  </div>
  <div class="etiqueta-guardar-fila">
- <label>Guardar diseno actual como
+ <label>Guardar diseño actual como
  <input id="etiquetaGuardarPlantillaNombre" placeholder="Nombre de la plantilla">
  </label>
  <button type="button" class="btn-encargo-agregar" onclick="guardarPlantillaEtiquetaActual()">Guardar plantilla</button>
@@ -833,7 +848,7 @@ function renderEtapaDisenoEtiquetas() {
  <div class="etiqueta-acordeon-grupo">
  <section class="etiqueta-seccion-colapsable" data-colapsado="1">
  <button type="button" class="etiqueta-seccion-header" onclick="alternarSeccionColapsableEtiqueta(this)">
- <span>Informacion de la etiqueta</span>
+ <span>Información de la etiqueta</span>
  <span class="etiqueta-seccion-chevron">&rsaquo;</span>
  </button>
  <div class="etiqueta-seccion-contenido" hidden>
@@ -897,7 +912,7 @@ function renderPlantillasPredisenoEtiquetas() {
 
  grid.innerHTML = PLANTILLAS_ETIQUETAS_POR_DEFECTO.map((preset, indice) => `
  <button type="button" class="etiqueta-plantilla-card ${coincideConPreset(preset) ? "activa" : ""}" onclick="aplicarPlantillaPredisenoEtiqueta(${indice})">
- <span class="etiqueta-plantilla-card-preview">${construirUnaEtiquetaHtml(ITEM_EJEMPLO_PLANTILLA_ETIQUETA, preset)}</span>
+ <span class="etiqueta-plantilla-card-preview" style="${estiloMiniaturaEtiqueta(preset)}">${construirUnaEtiquetaHtml(ITEM_EJEMPLO_PLANTILLA_ETIQUETA, preset)}</span>
  <strong>${escaparPOS(preset.nombre)}</strong>
  </button>
  `).join("") + `
@@ -967,7 +982,7 @@ function renderMisPlantillasGuardadas() {
  if (!grid) return;
 
  if (plantillasEtiquetasGuardadas.length === 0) {
- grid.innerHTML = `<p class="encargo-items-vacio">Aun no guardas ninguna plantilla propia.</p>`;
+ grid.innerHTML = `<p class="encargo-items-vacio">Aún no guardas ninguna plantilla propia.</p>`;
  return;
  }
 
@@ -975,7 +990,7 @@ function renderMisPlantillasGuardadas() {
  <div class="etiqueta-plantilla-card etiqueta-plantilla-card-guardada">
  <button type="button" class="etiqueta-plantilla-card-quitar" onclick="borrarPlantillaGuardadaEtiqueta(${plantilla.id})" title="Borrar plantilla">&times;</button>
  <button type="button" class="etiqueta-plantilla-card-cuerpo" onclick="aplicarPlantillaGuardadaEtiqueta(${plantilla.id})">
- <span class="etiqueta-plantilla-card-preview">${construirUnaEtiquetaHtml(ITEM_EJEMPLO_PLANTILLA_ETIQUETA, plantilla)}</span>
+ <span class="etiqueta-plantilla-card-preview" style="${estiloMiniaturaEtiqueta(plantilla)}">${construirUnaEtiquetaHtml(ITEM_EJEMPLO_PLANTILLA_ETIQUETA, plantilla)}</span>
  <strong>${escaparPOS(plantilla.nombre)}</strong>
  <small>${escaparPOS(plantilla.papelNombre || "A4")}</small>
  </button>
@@ -1001,7 +1016,7 @@ async function borrarPlantillaGuardadaEtiqueta(id) {
 
  cargarPlantillasEtiquetas();
  } catch (error) {
- alertaPOS("No se pudo borrar la plantilla. Revisa tu conexion.", "Error", "peligro");
+ alertaPOS("No se pudo borrar la plantilla. Revisa tu conexión.", "Error", "peligro");
  }
 }
 
@@ -1045,7 +1060,7 @@ async function guardarPlantillaEtiquetaActual() {
 
  cargarPlantillasEtiquetas();
  } catch (error) {
- alertaPOS("No se pudo guardar la plantilla. Revisa tu conexion.", "Error", "peligro");
+ alertaPOS("No se pudo guardar la plantilla. Revisa tu conexión.", "Error", "peligro");
  }
 }
 
@@ -1062,11 +1077,11 @@ function renderPanelInformacionEtiqueta() {
  panel.innerHTML = `
  <div class="etiqueta-diseno-checks">
  <label><input type="checkbox" ${d.mostrarNombre ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarNombre', this.checked)"> Nombre del producto</label>
- <label><input type="checkbox" ${d.mostrarCodigoBarras ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarCodigoBarras', this.checked)"> Codigo de barras</label>
- <label><input type="checkbox" ${d.mostrarNumeroCodigo ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarNumeroCodigo', this.checked)"> Numero del codigo</label>
+ <label><input type="checkbox" ${d.mostrarCodigoBarras ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarCodigoBarras', this.checked)"> Código de barras</label>
+ <label><input type="checkbox" ${d.mostrarNumeroCodigo ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarNumeroCodigo', this.checked)"> Número del código</label>
  <label><input type="checkbox" ${d.mostrarPrecio ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarPrecio', this.checked)"> Precio</label>
  <label><input type="checkbox" ${d.mostrarMarca ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarMarca', this.checked)"> Marca</label>
- <label><input type="checkbox" ${d.mostrarCategoria ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarCategoria', this.checked)"> Categoria</label>
+ <label><input type="checkbox" ${d.mostrarCategoria ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarCategoria', this.checked)"> Categoría</label>
  </div>
  `;
 }
@@ -1119,7 +1134,7 @@ function renderPanelFormatoEtiqueta() {
 
  <p class="etiqueta-filas-indicador">
  ${esRollo
- ? `Rollo continuo — ${d.columnas} columna(s), sin limite de largo.`
+ ? `Rollo continuo — ${d.columnas} columna(s), sin límite de largo.`
  : `≈ ${filas} fila(s) × ${d.columnas} columna(s) = ${porPagina} etiquetas por hoja ${escaparPOS(papel.nombre)}.`}
  </p>
  `;
@@ -1228,7 +1243,7 @@ function renderPaginaVistaPreviaEtiquetas() {
 
  const totalPaginas = vistaPreviaEtiquetasPaginas.length;
 
- if (textoPagina) textoPagina.textContent = totalPaginas ? `Pagina ${paginaVistaPreviaActual + 1} de ${totalPaginas}` : "Sin etiquetas";
+ if (textoPagina) textoPagina.textContent = totalPaginas ? `Página ${paginaVistaPreviaActual + 1} de ${totalPaginas}` : "Sin etiquetas";
  if (textoZoom) textoZoom.textContent = `${Math.round(zoomVistaPreviaEtiquetas * 100)}%`;
  if (botonAnterior) botonAnterior.disabled = paginaVistaPreviaActual === 0;
  if (botonSiguiente) botonSiguiente.disabled = paginaVistaPreviaActual >= totalPaginas - 1;
@@ -1301,7 +1316,7 @@ function renderEtapaImprimirEtiquetas() {
  <div class="etiqueta-resumen-tarjeta"><strong>${escaparPOS(disenoActualEtiquetas.nombre || "Personalizada")}</strong><span>plantilla</span></div>
  <div class="etiqueta-resumen-tarjeta"><strong>${escaparPOS(tamanoPapelActual.nombre)}</strong><span>papel</span></div>
  </div>
- ${sinCodigo > 0 ? `<p class="etiqueta-resumen-aviso">${sinCodigo} producto(s) sin codigo se van a imprimir sin barras.</p>` : ""}
+ ${sinCodigo > 0 ? `<p class="etiqueta-resumen-aviso">${sinCodigo} producto(s) sin código se van a imprimir sin barras.</p>` : ""}
  <button type="button" class="etiqueta-btn-imprimir-final" onclick="imprimirEtiquetas()">${iconoUISVG("printer")} Imprimir etiquetas</button>
  </div>
  `;
@@ -1342,7 +1357,7 @@ function construirUnaEtiquetaHtml(item, diseno) {
  ${diseno.mostrarNombre ? `<strong style="font-size:11px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;">${escaparPOS(item.nombre)}</strong>` : ""}
  ${diseno.mostrarMarca && item.marca ? `<small style="font-size:9px;color:#475467;">${escaparPOS(item.marca)}</small>` : ""}
  ${diseno.mostrarCategoria && item.categoria ? `<small style="font-size:9px;color:#475467;">${escaparPOS(item.categoria)}</small>` : ""}
- ${barcodeHtml ? `<div class="etiqueta-barcode">${barcodeHtml}</div>` : (diseno.mostrarCodigoBarras ? `<small style="font-size:9px;color:#b42318;">Sin codigo</small>` : "")}
+ ${barcodeHtml ? `<div class="etiqueta-barcode">${barcodeHtml}</div>` : (diseno.mostrarCodigoBarras ? `<small style="font-size:9px;color:#b42318;">Sin código</small>` : "")}
  ${diseno.mostrarPrecio ? `<span style="font-size:12px;font-weight:700;">${typeof dinero === "function" ? dinero(item.precio || 0) : item.precio}</span>` : ""}
  </div>
  `;
@@ -1385,7 +1400,7 @@ function imprimirEtiquetas() {
  window.open("", "_blank", "width=900,height=720");
 
  if (!ventana) {
- alertaPOS("Tu navegador bloqueo la ventana de impresion. Permite ventanas emergentes para Nexo POS e intenta de nuevo.", "Ventana bloqueada", "alerta");
+ alertaPOS("Tu navegador bloqueó la ventana de impresión. Permite ventanas emergentes para Nexo POS e intenta de nuevo.", "Ventana bloqueada", "alerta");
  return;
  }
 
@@ -1407,7 +1422,7 @@ function imprimirEtiquetas() {
  </style>
  </head>
  <body>
- <p class="encabezado-impresion">Imprime a escala 100% (sin "ajustar a pagina") para que el tamano real coincida con lo elegido.${sinCodigo ? ` ${sinCodigo} producto(s) sin codigo se imprimen sin barras.` : ""}</p>
+ <p class="encabezado-impresion">Imprime a escala 100% (sin "ajustar a página") para que el tamaño real coincida con lo elegido.${sinCodigo ? ` ${sinCodigo} producto(s) sin código se imprimen sin barras.` : ""}</p>
  ${paginasHtml}
  <script>window.print();</script>
  </body>
