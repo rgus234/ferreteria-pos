@@ -1,15 +1,34 @@
-// Editor de codigos de barras / etiquetas -- reemplaza a la vieja
-// imprimirCodigosBarrasInventario() (bolteada a Inventario, sin lista
-// propia, sin plantillas, productos sin codigo se saltaban en
-// silencio). Reusa /listas-producto tal cual para armar/guardar la
-// lista de productos a imprimir -- aqui solo vive lo genuinamente
-// nuevo: el armador visual, la vista previa en vivo, las plantillas de
-// diseno, y la generacion de codigo interno.
+// Editor de codigos de barras / etiquetas -- asistente guiado de 4
+// etapas (Seleccionar productos / Disenar etiquetas / Vista previa /
+// Imprimir). Reusa /listas-producto tal cual para guardar/cargar la
+// lista de productos a imprimir, y /etiquetas-plantillas para guardar
+// disenos reutilizables.
+//
+// Decision de arquitectura: itemsCodigosBarras solo guarda
+// {productoId, cantidad} -- nunca nombre/marca/categoria/codigo/precio.
+// Todo campo de presentacion se resuelve SIEMPRE contra el cache
+// global todosProductos al momento de renderizar (productoParaEtiqueta).
+// Esto evita que una lista cargada muestre datos viejos o vacios, y
+// evita tener que mutar los items cuando algo cambia en el producto
+// (ej. al generar su codigo interno).
 
-let itemsCodigosBarras = [];         // {productoId, nombre, codigo, precio, marca, categoria, cantidad}
+let itemsCodigosBarras = [];
 let disenoActualEtiquetas = null;
+let tamanoPapelActual = null;
 let plantillasEtiquetasGuardadas = [];
-let vistaCategoriaEtiquetas = null;  // null = departamentos; {departamento} = subcategorias; {departamento, subcategoria} = productos
+let listasGuardadasEtiquetasCache = [];
+let vistaCategoriaEtiquetas = null;
+let indiceArrastradoEtiqueta = null;
+
+let etapaActualEtiquetas = 0;
+let etapaMaximaAlcanzadaEtiquetas = 0;
+let modoCatalogoEtiquetas = "vacio"; // "vacio" | "busqueda" | "categoria"
+let busquedaEtiquetaTextoActual = "";
+let etiquetaBusquedaTimeout = null;
+
+let vistaPreviaEtiquetasPaginas = [];
+let paginaVistaPreviaActual = 0;
+let zoomVistaPreviaEtiquetas = 1;
 
 const PLANTILLAS_ETIQUETAS_POR_DEFECTO = [
  { nombre: "Pequena", anchoMm: 40, altoMm: 20, columnas: 4, margenMm: 5, espaciadoMm: 2, mostrarNombre: true, mostrarCodigoBarras: true, mostrarNumeroCodigo: false, mostrarPrecio: false, mostrarMarca: false, mostrarCategoria: false },
@@ -19,16 +38,59 @@ const PLANTILLAS_ETIQUETAS_POR_DEFECTO = [
  { nombre: "Anaquel", anchoMm: 60, altoMm: 30, columnas: 3, margenMm: 5, espaciadoMm: 3, mostrarNombre: true, mostrarCodigoBarras: true, mostrarNumeroCodigo: true, mostrarPrecio: true, mostrarMarca: false, mostrarCategoria: false }
 ];
 
-function mapearProductoAItemEtiqueta(producto, cantidad) {
- return {
- productoId: producto.id,
- nombre: producto.nombre,
- codigo: producto.codigo || "",
- precio: producto.precio || 0,
- marca: producto.marca || "",
- categoria: producto.categoria || "",
- cantidad: cantidad > 0 ? cantidad : 1
- };
+const TAMANOS_PAPEL_ETIQUETAS = [
+ { nombre: "A4", anchoMm: 210, altoMm: 297 },
+ { nombre: "Carta", anchoMm: 216, altoMm: 279 },
+ { nombre: "Rollo continuo", anchoMm: 58, altoMm: null }
+];
+
+const ETAPAS_ETIQUETAS = [
+ { titulo: "Seleccionar" },
+ { titulo: "Disenar" },
+ { titulo: "Vista previa" },
+ { titulo: "Imprimir" }
+];
+
+const ETIQUETAS_TEXTO_SIGUIENTE = [
+ "Continuar → Disenar etiquetas",
+ "Continuar → Vista previa",
+ "Continuar → Imprimir"
+];
+
+// Campos "de aspecto" de una plantilla -- deliberadamente sin .nombre,
+// para que comparar contra los presets no dependa de como se llame el
+// diseno actual (ver renderPlantillasPredisenoEtiquetas).
+const CAMPOS_DISENO_ETIQUETA = [
+ "anchoMm", "altoMm", "columnas", "margenMm", "espaciadoMm",
+ "mostrarNombre", "mostrarCodigoBarras", "mostrarNumeroCodigo",
+ "mostrarPrecio", "mostrarMarca", "mostrarCategoria"
+];
+
+const ITEM_EJEMPLO_PLANTILLA_ETIQUETA = {
+ nombre: "Producto de ejemplo", codigo: "7501234567890", precio: 99.5, marca: "Marca", categoria: "Categoria"
+};
+
+// --- Entrada ---
+
+function crearItemEtiqueta(productoId, cantidad) {
+ return { productoId: Number(productoId), cantidad: cantidad > 0 ? cantidad : 1 };
+}
+
+function productoParaEtiqueta(productoId) {
+ return (typeof todosProductos !== "undefined" ? todosProductos : [])
+ .find(producto => Number(producto.id) === Number(productoId)) || null;
+}
+
+function totalEtiquetasEnLista() {
+ return itemsCodigosBarras.reduce((total, item) => total + (item.cantidad || 0), 0);
+}
+
+// Se llama despues de cualquier cambio a itemsCodigosBarras hecho desde
+// la Etapa 1 -- refresca solo los sub-contenedores relevantes, nunca
+// toda la etapa (perderia el foco del buscador mientras se escribe).
+function refrescarSeleccionEtiquetas() {
+ renderMiListaEtiquetas();
+ renderCatalogoAreaEtiquetas();
 }
 
 async function mostrarCodigosBarras(opciones = {}) {
@@ -47,290 +109,325 @@ async function mostrarCodigosBarras(opciones = {}) {
  actualizarTopbarContexto("Codigos de barras", "Arma tu lista y disena la hoja de etiquetas", "codigos-barras");
  }
 
- itemsCodigosBarras = (opciones.productosIniciales || []).map(p => mapearProductoAItemEtiqueta(p, 1));
- disenoActualEtiquetas = { ...PLANTILLAS_ETIQUETAS_POR_DEFECTO[1] };
- vistaCategoriaEtiquetas = null;
+ itemsCodigosBarras = (opciones.productosIniciales || [])
+ .filter(producto => producto && producto.id != null)
+ .map(producto => crearItemEtiqueta(producto.id, 1));
 
- pantalla.innerHTML = `
- <div class="encargos-shell">
- <div class="encargos-header">
+ disenoActualEtiquetas = { ...PLANTILLAS_ETIQUETAS_POR_DEFECTO[1] };
+ tamanoPapelActual = { ...TAMANOS_PAPEL_ETIQUETAS[0] };
+ vistaCategoriaEtiquetas = null;
+ modoCatalogoEtiquetas = "vacio";
+ busquedaEtiquetaTextoActual = "";
+ etapaActualEtiquetas = 0;
+ etapaMaximaAlcanzadaEtiquetas = 0;
+ plantillasEtiquetasGuardadas = [];
+ listasGuardadasEtiquetasCache = [];
+ vistaPreviaEtiquetasPaginas = [];
+ paginaVistaPreviaActual = 0;
+ zoomVistaPreviaEtiquetas = 1;
+
+ pantalla.innerHTML = plantillaHtmlEsqueletoWizardEtiquetas();
+
+ cargarListasGuardadasEtiquetas();
+ cargarPlantillasEtiquetas();
+
+ cambiarEtapaEtiquetas(0);
+}
+
+// --- Esqueleto del wizard ---
+
+function plantillaHtmlEsqueletoWizardEtiquetas() {
+ return `
+ <div class="etiqueta-wizard-shell">
+ <div class="etiqueta-wizard-header">
  <div>
  <h2>Codigos de barras</h2>
- <p>Arma una lista de productos buscando o por categoria, disena la hoja y imprime tus etiquetas.</p>
+ <p>Arma tu lista, disena tus etiquetas e imprime en minutos.</p>
  </div>
- </div>
-
- <div class="encargos-grid">
- <section class="encargos-panel">
- <h3>Agregar productos</h3>
-
- <div class="encargo-add-row">
- <label>Producto
- <input id="etiquetaItemNombre" list="etiquetaItemLista" placeholder="Nombre del producto">
- <datalist id="etiquetaItemLista"></datalist>
- </label>
- <label>Cant.
- <input id="etiquetaItemCantidad" type="number" step="1" min="1" placeholder="1">
- </label>
- <button type="button" class="btn-encargo-agregar" onclick="agregarItemBusquedaEtiqueta()">Agregar</button>
- </div>
-
- <button type="button" class="btn-encargo-secundario encargo-btn-full" onclick="alternarCategoriasEtiquetas()">+ Agregar desde categoria</button>
- <div id="etiquetaCategoriasPanel" hidden></div>
-
- <div class="encargo-lista-cargar-fila">
- <label>Cargar desde una lista guardada
- <select id="etiquetaListaGuardadaSelect" onchange="cargarListaGuardadaEnEtiquetas(this.value)">
- <option value="">Elige una lista...</option>
- </select>
- </label>
- </div>
-
- <h4>Tu lista</h4>
- <div id="etiquetaTablaItems"></div>
-
- <div class="etiqueta-guardar-fila">
- <label>Nombre para guardar esta lista
- <input id="etiquetaGuardarListaNombre" placeholder="Opcional">
- </label>
- <button type="button" class="btn-encargo-secundario" onclick="guardarListaDesdeEtiquetas()">Guardar como lista</button>
- </div>
- </section>
-
- <section class="encargos-panel">
- <h3>Diseno</h3>
- <div id="etiquetaPanelDiseno"></div>
-
- <h4>Mis plantillas</h4>
- <div id="etiquetaListaPlantillas"></div>
- <div class="etiqueta-guardar-fila">
- <label>Guardar diseno actual como
- <input id="etiquetaGuardarPlantillaNombre" placeholder="Nombre de la plantilla">
- </label>
- <button type="button" class="btn-encargo-agregar" onclick="guardarPlantillaEtiquetaActual()">Guardar plantilla</button>
- </div>
- </section>
- </div>
-
- <section class="encargos-panel etiqueta-preview-panel">
- <div class="encargos-panel-titulo-fila">
- <h3>Vista previa</h3>
- <button type="button" class="btn-encargo-primario" onclick="imprimirEtiquetas()">Imprimir</button>
- </div>
- <div id="etiquetaVistaPrevia" class="etiqueta-preview-scroll"></div>
- </section>
- </div>
- `;
-
- llenarDatalistProductosCodigosBarras();
- renderTablaItemsCodigosBarras();
- renderPanelDisenoEtiquetas();
- renderVistaPreviaEtiquetas();
- renderCategoriasEtiquetas();
- await cargarListasGuardadasEnSelectEtiquetas();
- await cargarPlantillasEtiquetas();
-}
-
-// --- Buscar y agregar ---
-
-function llenarDatalistProductosCodigosBarras() {
- const lista =
- document.getElementById("etiquetaItemLista");
-
- if (!lista) return;
-
- lista.innerHTML =
- (typeof todosProductos !== "undefined" ? todosProductos : [])
- .slice(0, 500)
- .map(producto => `<option value="${escaparPOS(producto.nombre)}"></option>`)
- .join("");
-}
-
-function agregarProductoATablaEtiquetas(producto, cantidad) {
- const existente =
- itemsCodigosBarras.find(item => Number(item.productoId) === Number(producto.id));
-
- if (existente) {
- existente.cantidad += cantidad > 0 ? cantidad : 1;
- } else {
- itemsCodigosBarras.push(mapearProductoAItemEtiqueta(producto, cantidad));
- }
-}
-
-function agregarItemBusquedaEtiqueta() {
- const nombreInput =
- document.getElementById("etiquetaItemNombre");
-
- const nombre =
- nombreInput?.value.trim();
-
- if (!nombre) {
- nombreInput?.focus();
- return;
- }
-
- const producto =
- (typeof todosProductos !== "undefined" ? todosProductos : [])
- .find(item => item.nombre?.trim().toLowerCase() === nombre.toLowerCase());
-
- if (!producto) {
- alertaPOS("Ese producto no esta en tu inventario. Escribe el nombre exacto o elige una de las sugerencias.", "Producto no encontrado", "alerta");
- return;
- }
-
- const cantidad =
- Number(document.getElementById("etiquetaItemCantidad")?.value || 1);
-
- agregarProductoATablaEtiquetas(producto, cantidad);
-
- nombreInput.value = "";
- document.getElementById("etiquetaItemCantidad").value = "";
- nombreInput.focus();
-
- renderTablaItemsCodigosBarras();
- renderVistaPreviaEtiquetas();
-}
-
-function quitarItemEtiqueta(indice) {
- itemsCodigosBarras.splice(indice, 1);
- renderTablaItemsCodigosBarras();
- renderVistaPreviaEtiquetas();
-}
-
-function cambiarCantidadItemEtiqueta(indice, valor) {
- const cantidad =
- Number(valor);
-
- itemsCodigosBarras[indice].cantidad =
- cantidad > 0 ? cantidad : 1;
-
- renderVistaPreviaEtiquetas();
-}
-
-async function generarCodigoProductoEtiqueta(indice) {
- const item =
- itemsCodigosBarras[indice];
-
- if (!item) return;
-
- try {
- const respuesta =
- await fetch(`/productos/${item.productoId}/generar-codigo`, { method: "POST" });
-
- const datos =
- await respuesta.json().catch(() => ({}));
-
- if (!respuesta.ok || !datos.ok) {
- alertaPOS(datos.error || "No se pudo generar el codigo.", "Error", "peligro");
- return;
- }
-
- item.codigo = datos.codigo;
-
- // El resto de la app (busqueda, escaneo en caja) usa el cache
- // global todosProductos -- sin esto, el codigo nuevo no se ve
- // hasta recargar la pagina.
- if (typeof todosProductos !== "undefined") {
- const productoCache =
- todosProductos.find(p => Number(p.id) === Number(item.productoId));
-
- if (productoCache) productoCache.codigo = datos.codigo;
- }
-
- renderTablaItemsCodigosBarras();
- renderVistaPreviaEtiquetas();
- } catch (error) {
- alertaPOS("No se pudo generar el codigo. Revisa tu conexion.", "Error", "peligro");
- }
-}
-
-function renderTablaItemsCodigosBarras() {
- const contenedor =
- document.getElementById("etiquetaTablaItems");
-
- if (!contenedor) return;
-
- if (itemsCodigosBarras.length === 0) {
- contenedor.innerHTML = `<p class="encargo-items-vacio">Todavia no agregas productos.</p>`;
- return;
- }
-
- contenedor.innerHTML = `
- <table class="encargo-tabla-items etiqueta-tabla-arrastrable">
- <thead>
- <tr><th></th><th>Producto</th><th>Codigo</th><th>Etiquetas</th><th></th></tr>
- </thead>
- <tbody>
- ${itemsCodigosBarras.map((item, indice) => `
- <tr draggable="true"
- ondragstart="onArrastrarInicioItemEtiqueta(event, ${indice})"
- ondragover="onArrastrarSobreItemEtiqueta(event)"
- ondrop="onSoltarItemEtiqueta(event, ${indice})">
- <td class="etiqueta-fila-agarradera" title="Arrastra para reordenar">&#9776;</td>
- <td>${escaparPOS(item.nombre)}</td>
- <td>${item.codigo
- ? escaparPOS(item.codigo)
- : `<button type="button" class="btn-encargo-secundario" onclick="generarCodigoProductoEtiqueta(${indice})">Generar codigo</button>`}</td>
- <td><input type="number" step="1" min="1" value="${item.cantidad}" class="lista-detalle-cantidad-input" onchange="cambiarCantidadItemEtiqueta(${indice}, this.value)"></td>
- <td><button type="button" class="btn-encargo-quitar" onclick="quitarItemEtiqueta(${indice})">Quitar</button></td>
- </tr>
+ <div class="etiqueta-wizard-dots">
+ ${ETAPAS_ETIQUETAS.map((etapa, indice) => `
+ <button type="button" class="etiqueta-dot" data-etiqueta-dot="${indice}" onclick="irEtapaEtiquetasSiValida(${indice})">
+ <span class="etiqueta-dot-num">${indice + 1}</span>
+ <span class="etiqueta-dot-label">${escaparPOS(etapa.titulo)}</span>
+ </button>
  `).join("")}
- </tbody>
- </table>
+ </div>
+ </div>
+
+ <section data-etiqueta-etapa="0" class="etiqueta-etapa"></section>
+ <section data-etiqueta-etapa="1" class="etiqueta-etapa" hidden></section>
+ <section data-etiqueta-etapa="2" class="etiqueta-etapa" hidden></section>
+ <section data-etiqueta-etapa="3" class="etiqueta-etapa" hidden></section>
+
+ <div class="etiqueta-wizard-nav">
+ <button type="button" id="etiquetaNavAtras" class="btn-encargo-secundario" onclick="retrocederEtapaEtiquetas()">&larr; Atras</button>
+ <button type="button" id="etiquetaNavSiguiente" class="btn-encargo-primario" onclick="avanzarEtapaEtiquetas()">Continuar</button>
+ </div>
+ </div>
  `;
 }
 
-// --- Reordenar arrastrando ---
+function cambiarEtapaEtiquetas(etapa) {
+ const secciones =
+ Array.from(document.querySelectorAll('#pantallaCodigosBarras [data-etiqueta-etapa]'));
 
-let indiceArrastradoEtiqueta = null;
+ if (!secciones.length) return;
 
-function onArrastrarInicioItemEtiqueta(evento, indice) {
- indiceArrastradoEtiqueta = indice;
- evento.dataTransfer.setData("text/plain", String(indice));
+ etapaActualEtiquetas = Math.max(0, Math.min(etapa, secciones.length - 1));
+ etapaMaximaAlcanzadaEtiquetas = Math.max(etapaMaximaAlcanzadaEtiquetas, etapaActualEtiquetas);
+
+ secciones.forEach(seccion => {
+ seccion.hidden = Number(seccion.dataset.etiquetaEtapa) !== etapaActualEtiquetas;
+ });
+
+ document.querySelectorAll('#pantallaCodigosBarras [data-etiqueta-dot]').forEach(boton => {
+ const indice = Number(boton.dataset.etiquetaDot);
+ boton.classList.toggle("activa", indice === etapaActualEtiquetas);
+ boton.classList.toggle("completada", indice < etapaActualEtiquetas);
+ });
+
+ const botonAtras = document.getElementById("etiquetaNavAtras");
+ const botonSiguiente = document.getElementById("etiquetaNavSiguiente");
+
+ if (botonAtras) botonAtras.style.visibility = etapaActualEtiquetas === 0 ? "hidden" : "visible";
+
+ if (botonSiguiente) {
+ const esUltimaEtapa = etapaActualEtiquetas === secciones.length - 1;
+ botonSiguiente.style.display = esUltimaEtapa ? "none" : "inline-flex";
+ botonSiguiente.textContent = ETIQUETAS_TEXTO_SIGUIENTE[etapaActualEtiquetas] || "Continuar";
+ }
+
+ if (etapaActualEtiquetas === 0) renderEtapaSeleccionProductos();
+ else if (etapaActualEtiquetas === 1) renderEtapaDisenoEtiquetas();
+ else if (etapaActualEtiquetas === 2) renderEtapaVistaPreviaEtiquetas();
+ else if (etapaActualEtiquetas === 3) renderEtapaImprimirEtiquetas();
 }
 
-function onArrastrarSobreItemEtiqueta(evento) {
- evento.preventDefault();
+function validarAvanceEtiquetas(etapaOrigen) {
+ if (etapaOrigen === 0 && itemsCodigosBarras.length === 0) {
+ alertaPOS("Agrega al menos un producto a tu lista antes de continuar.", "Lista vacia", "alerta");
+ return false;
+ }
+
+ return true;
 }
 
-function onSoltarItemEtiqueta(evento, indiceDestino) {
- evento.preventDefault();
-
- const indiceOrigen =
- indiceArrastradoEtiqueta !== null ? indiceArrastradoEtiqueta : Number(evento.dataTransfer.getData("text/plain"));
-
- indiceArrastradoEtiqueta = null;
-
- if (!Number.isInteger(indiceOrigen) || indiceOrigen === indiceDestino) return;
-
- const [item] = itemsCodigosBarras.splice(indiceOrigen, 1);
- itemsCodigosBarras.splice(indiceDestino, 0, item);
-
- renderTablaItemsCodigosBarras();
- renderVistaPreviaEtiquetas();
+function avanzarEtapaEtiquetas() {
+ if (!validarAvanceEtiquetas(etapaActualEtiquetas)) return;
+ cambiarEtapaEtiquetas(etapaActualEtiquetas + 1);
 }
 
-// --- Agregar por categoria ---
+function retrocederEtapaEtiquetas() {
+ cambiarEtapaEtiquetas(etapaActualEtiquetas - 1);
+}
+
+function irEtapaEtiquetasSiValida(etapaDestino) {
+ if (etapaDestino <= etapaMaximaAlcanzadaEtiquetas) {
+ cambiarEtapaEtiquetas(etapaDestino);
+ return;
+ }
+
+ if (etapaDestino === etapaActualEtiquetas + 1) {
+ avanzarEtapaEtiquetas();
+ }
+}
+
+// =====================================================================
+// ETAPA 1 -- Seleccionar productos
+// =====================================================================
+
+function renderEtapaSeleccionProductos() {
+ const seccion =
+ document.querySelector('#pantallaCodigosBarras [data-etiqueta-etapa="0"]');
+
+ if (!seccion) return;
+
+ seccion.innerHTML = `
+ <div class="etiqueta-selector-grid">
+ <div class="etiqueta-selector-catalogo">
+ <div class="etiqueta-buscador-hero">
+ <span class="etiqueta-buscador-icono">${iconoUISVG("search")}</span>
+ <input type="text" id="etiquetaBuscadorInput" placeholder="Busca por nombre, codigo, SKU o marca..." oninput="programarBusquedaEtiqueta(this.value)">
+ <button type="button" class="etiqueta-explorar-toggle" onclick="alternarCategoriasEtiquetas()">${iconoUISVG("grid")} Explorar por categoria</button>
+ </div>
+ <div id="etiquetaCatalogoArea" class="etiqueta-catalogo-area"></div>
+ </div>
+
+ <aside class="etiqueta-mi-lista-panel">
+ <div class="etiqueta-mi-lista-header">
+ <h3>Mi lista de impresion</h3>
+ <p id="etiquetaMiListaResumen"></p>
+ </div>
+ <div id="etiquetaMiListaItems" class="etiqueta-mi-lista-items"></div>
+ <div class="etiqueta-mi-lista-acciones">
+ <button type="button" class="btn-encargo-secundario" onclick="document.getElementById('etiquetaBuscadorInput')?.focus()">+ Agregar mas</button>
+ <button type="button" class="etiqueta-btn-vaciar" onclick="vaciarListaEtiquetas()">Vaciar lista</button>
+ </div>
+ <div class="etiqueta-guardar-fila">
+ <label>Guardar esta seleccion como lista
+ <input id="etiquetaGuardarListaNombre" placeholder="Nombre (opcional)">
+ </label>
+ <button type="button" class="btn-encargo-secundario" onclick="guardarListaDesdeEtiquetas()">Guardar</button>
+ </div>
+ <div class="etiqueta-mis-listas-bloque">
+ <h4>Mis listas</h4>
+ <div id="etiquetaMisListasChips" class="etiqueta-mis-listas-chips">
+ <p class="encargo-items-vacio">Cargando...</p>
+ </div>
+ </div>
+ </aside>
+ </div>
+ `;
+
+ renderCatalogoAreaEtiquetas();
+ renderMiListaEtiquetas();
+ renderChipsListasGuardadasEtiquetas();
+}
+
+// --- Buscador ---
+
+function programarBusquedaEtiqueta(texto) {
+ clearTimeout(etiquetaBusquedaTimeout);
+ etiquetaBusquedaTimeout = setTimeout(() => ejecutarBusquedaEtiqueta(texto), 280);
+}
+
+function ejecutarBusquedaEtiqueta(texto) {
+ busquedaEtiquetaTextoActual = String(texto || "").trim();
+ modoCatalogoEtiquetas = busquedaEtiquetaTextoActual ? "busqueda" : "vacio";
+ renderCatalogoAreaEtiquetas();
+}
+
+function productoCoincideConBusquedaEtiqueta(producto, texto) {
+ if (!texto) return true;
+
+ const buscado = texto.toLowerCase();
+
+ if (String(producto.nombre || "").toLowerCase().includes(buscado)) return true;
+ if (String(producto.codigo || "").toLowerCase().includes(buscado)) return true;
+ if (String(producto.categoria || "").toLowerCase().includes(buscado)) return true;
+ if (String(producto.marca || "").toLowerCase().includes(buscado)) return true;
+
+ if (Array.isArray(producto.codigos_relacionados)) {
+ return producto.codigos_relacionados.some(item =>
+ String(item?.codigo || "").toLowerCase().includes(buscado)
+ );
+ }
+
+ return false;
+}
+
+async function renderCatalogoAreaEtiquetas() {
+ const area =
+ document.getElementById("etiquetaCatalogoArea");
+
+ if (!area) return;
+
+ const botonExplorar =
+ document.querySelector(".etiqueta-explorar-toggle");
+
+ if (botonExplorar) botonExplorar.classList.toggle("activo", modoCatalogoEtiquetas === "categoria");
+
+ if (modoCatalogoEtiquetas === "categoria") {
+ area.innerHTML = `<div id="etiquetaCategoriasPanel"></div>`;
+ await renderCategoriasEtiquetas();
+ return;
+ }
+
+ if (modoCatalogoEtiquetas === "busqueda") {
+ const resultados =
+ (typeof todosProductos !== "undefined" ? todosProductos : [])
+ .filter(producto => productoCoincideConBusquedaEtiqueta(producto, busquedaEtiquetaTextoActual))
+ .slice(0, 60);
+
+ area.innerHTML = resultados.length
+ ? `<div class="etiqueta-productos-grid">${resultados.map(producto => tarjetaProductoEtiquetaHtml(producto, { ampliable: true })).join("")}</div>`
+ : `<p class="encargo-items-vacio">No encontramos productos que coincidan con "${escaparPOS(busquedaEtiquetaTextoActual)}".</p>`;
+ return;
+ }
+
+ area.innerHTML = `
+ <div class="etiqueta-catalogo-vacio">
+ <span class="etiqueta-catalogo-vacio-icono">${iconoUISVG("search")}</span>
+ <p>Busca un producto arriba o explora por categoria para empezar a armar tu lista.</p>
+ </div>
+ `;
+}
+
+function tarjetaProductoEtiquetaHtml(producto, opciones = {}) {
+ const item =
+ itemsCodigosBarras.find(i => Number(i.productoId) === Number(producto.id));
+
+ const cantidadEnLista =
+ item?.cantidad || 0;
+
+ const metaTexto =
+ [producto.marca, producto.categoria].filter(Boolean).map(escaparPOS).join(" &middot; ");
+
+ return `
+ <div class="etiqueta-producto-card ${cantidadEnLista ? "en-lista" : ""}">
+ <div class="etiqueta-producto-card-img">${miniaturaProducto(producto, "etiqueta-producto-card-img-el", { ampliable: Boolean(opciones.ampliable) })}</div>
+ <div class="etiqueta-producto-card-cuerpo">
+ <strong class="etiqueta-producto-card-nombre">${escaparPOS(producto.nombre || "")}</strong>
+ ${metaTexto ? `<span class="etiqueta-producto-card-meta">${metaTexto}</span>` : ""}
+ <span class="etiqueta-producto-card-codigo">${producto.codigo ? escaparPOS(producto.codigo) : "Sin codigo"}</span>
+ <span class="etiqueta-producto-card-precio">${typeof dinero === "function" ? dinero(producto.precio || 0) : producto.precio}</span>
+ </div>
+ <div class="etiqueta-producto-card-accion">
+ ${cantidadEnLista
+ ? `<div class="etiqueta-stepper">
+ <button type="button" onclick="restarCantidadProductoEtiqueta(${producto.id})">&minus;</button>
+ <span>${cantidadEnLista}</span>
+ <button type="button" onclick="sumarCantidadProductoEtiqueta(${producto.id})">+</button>
+ </div>`
+ : `<button type="button" class="btn-encargo-agregar etiqueta-btn-agregar-card" onclick="sumarCantidadProductoEtiqueta(${producto.id})">+ Agregar</button>`}
+ </div>
+ </div>
+ `;
+}
+
+function sumarCantidadProductoEtiqueta(productoId) {
+ const item =
+ itemsCodigosBarras.find(i => Number(i.productoId) === Number(productoId));
+
+ if (item) item.cantidad += 1;
+ else itemsCodigosBarras.push(crearItemEtiqueta(productoId, 1));
+
+ refrescarSeleccionEtiquetas();
+}
+
+function restarCantidadProductoEtiqueta(productoId) {
+ const indice =
+ itemsCodigosBarras.findIndex(i => Number(i.productoId) === Number(productoId));
+
+ if (indice === -1) return;
+
+ if (itemsCodigosBarras[indice].cantidad <= 1) {
+ itemsCodigosBarras.splice(indice, 1);
+ } else {
+ itemsCodigosBarras[indice].cantidad -= 1;
+ }
+
+ refrescarSeleccionEtiquetas();
+}
+
+// --- Explorar por categoria (departamentos -> subcategorias -> productos) ---
 
 function alternarCategoriasEtiquetas() {
- const panel =
- document.getElementById("etiquetaCategoriasPanel");
+ modoCatalogoEtiquetas =
+ modoCatalogoEtiquetas === "categoria"
+ ? (busquedaEtiquetaTextoActual ? "busqueda" : "vacio")
+ : "categoria";
 
- if (!panel) return;
+ if (modoCatalogoEtiquetas === "categoria") vistaCategoriaEtiquetas = null;
 
- panel.hidden = !panel.hidden;
-
- if (!panel.hidden) {
- vistaCategoriaEtiquetas = null;
- renderCategoriasEtiquetas();
- }
+ renderCatalogoAreaEtiquetas();
 }
 
 async function renderCategoriasEtiquetas() {
  const panel =
  document.getElementById("etiquetaCategoriasPanel");
 
- if (!panel || panel.hidden) return;
+ if (!panel) return;
 
  if (typeof cargarGirosYCategoriasNexo === "function") {
  await cargarGirosYCategoriasNexo();
@@ -354,6 +451,8 @@ function renderCategoriasEtiquetasDepartamentos(panel) {
  return;
  }
 
+ panel._nodosCategoriasEtiquetas = nodos;
+
  panel.innerHTML = `
  <div class="etiqueta-categorias-grid">
  ${nodos.map((nodo, indice) => `
@@ -364,9 +463,6 @@ function renderCategoriasEtiquetasDepartamentos(panel) {
  `).join("")}
  </div>
  `;
-
- panel.dataset.nodos = "1";
- panel._nodosCategoriasEtiquetas = nodos;
 }
 
 function abrirDepartamentoEtiquetas(indice) {
@@ -416,6 +512,16 @@ function volverDepartamentosEtiquetas() {
  renderCategoriasEtiquetas();
 }
 
+function abrirDepartamentoDeVueltaEtiquetas() {
+ vistaCategoriaEtiquetas = {
+ departamento: vistaCategoriaEtiquetas.departamento,
+ subcategorias: (typeof nodosCategoriasInventario === "function" ? nodosCategoriasInventario() : [])
+ .find(n => n.nombre === vistaCategoriaEtiquetas.departamento)?.subcategorias || []
+ };
+
+ renderCategoriasEtiquetas();
+}
+
 function productosPorSubcategoriaNexo(nombreSubcategoria) {
  const normalizada =
  normalizarTexto(nombreSubcategoria);
@@ -432,80 +538,169 @@ function renderCategoriasEtiquetasProductos(panel) {
  ? (typeof productosPorCategoria === "function" ? productosPorCategoria(departamento) : [])
  : productosPorSubcategoriaNexo(subcategoria);
 
+ panel._productosCategoriaEtiquetas = productos;
+
  panel.innerHTML = `
  <button type="button" class="btn-encargo-secundario" onclick="${subcategoria === departamento ? "volverDepartamentosEtiquetas()" : "abrirDepartamentoDeVueltaEtiquetas()"}">&larr; ${escaparPOS(subcategoria)}</button>
  ${productos.length === 0
  ? `<p class="encargo-items-vacio">No hay productos en esta categoria.</p>`
  : `
- <table class="encargo-tabla-items">
- <thead><tr><th></th><th>Producto</th><th>Cant.</th></tr></thead>
- <tbody>
- ${productos.map((p, i) => `
- <tr>
- <td><input type="checkbox" id="etiquetaCatChk${i}"></td>
- <td>${escaparPOS(p.nombre)}</td>
- <td><input type="number" step="1" min="1" value="1" id="etiquetaCatCant${i}" style="width:60px"></td>
- </tr>
- `).join("")}
- </tbody>
- </table>
- <button type="button" class="btn-encargo-primario encargo-btn-full" onclick="agregarSeleccionadosCategoriaEtiquetas()">Agregar seleccionados</button>
+ <button type="button" class="btn-encargo-primario encargo-btn-full" onclick="agregarTodosCategoriaEtiquetas()">+ Agregar los ${productos.length} de esta categoria</button>
+ <div class="etiqueta-productos-grid">${productos.map(producto => tarjetaProductoEtiquetaHtml(producto, { ampliable: false })).join("")}</div>
  `}
  `;
-
- panel._productosCategoriaEtiquetas = productos;
 }
 
-function abrirDepartamentoDeVueltaEtiquetas() {
- vistaCategoriaEtiquetas = {
- departamento: vistaCategoriaEtiquetas.departamento,
- subcategorias: (typeof nodosCategoriasInventario === "function" ? nodosCategoriasInventario() : [])
- .find(n => n.nombre === vistaCategoriaEtiquetas.departamento)?.subcategorias || []
- };
-
- renderCategoriasEtiquetas();
-}
-
-function agregarSeleccionadosCategoriaEtiquetas() {
+function agregarTodosCategoriaEtiquetas() {
  const panel =
  document.getElementById("etiquetaCategoriasPanel");
 
  const productos =
  panel?._productosCategoriaEtiquetas || [];
 
- let agregados = 0;
+ productos.forEach(producto => {
+ const item =
+ itemsCodigosBarras.find(i => Number(i.productoId) === Number(producto.id));
 
- productos.forEach((producto, i) => {
- const marcado =
- document.getElementById(`etiquetaCatChk${i}`)?.checked;
-
- if (!marcado) return;
-
- const cantidad =
- Number(document.getElementById(`etiquetaCatCant${i}`)?.value || 1);
-
- agregarProductoATablaEtiquetas(producto, cantidad);
- agregados++;
+ if (item) item.cantidad += 1;
+ else itemsCodigosBarras.push(crearItemEtiqueta(producto.id, 1));
  });
 
- if (agregados === 0) {
- alertaPOS("Selecciona al menos un producto.", "Sin seleccion", "alerta");
+ refrescarSeleccionEtiquetas();
+ alertaPOS(`Se agregaron ${productos.length} producto(s) a tu lista.`, "Listo", "exito");
+}
+
+// --- Mi lista de impresion ---
+
+function renderMiListaEtiquetas() {
+ const resumen =
+ document.getElementById("etiquetaMiListaResumen");
+
+ const contenedor =
+ document.getElementById("etiquetaMiListaItems");
+
+ if (!resumen || !contenedor) return;
+
+ resumen.textContent = itemsCodigosBarras.length
+ ? `${itemsCodigosBarras.length} producto(s) · ${totalEtiquetasEnLista()} etiqueta(s) a imprimir`
+ : "Todavia no agregas productos.";
+
+ if (itemsCodigosBarras.length === 0) {
+ contenedor.innerHTML = `<p class="encargo-items-vacio">Busca productos o explora por categoria para empezar.</p>`;
  return;
  }
 
- renderTablaItemsCodigosBarras();
- renderVistaPreviaEtiquetas();
- alertaPOS(`Se agregaron ${agregados} producto(s) a tu lista.`, "Listo", "exito");
+ contenedor.innerHTML = itemsCodigosBarras.map((item, indice) => {
+ const producto = productoParaEtiqueta(item.productoId);
+ const arrastre = `draggable="true" ondragstart="onArrastrarInicioItemEtiqueta(event, ${indice})" ondragover="onArrastrarSobreItemEtiqueta(event)" ondrop="onSoltarItemEtiqueta(event, ${indice})"`;
+
+ if (!producto) {
+ return `
+ <div class="etiqueta-mi-lista-fila etiqueta-mi-lista-fila-rota" ${arrastre}>
+ <span class="etiqueta-fila-agarradera" title="Arrastra para reordenar">&#9776;</span>
+ <span class="etiqueta-mi-lista-datos"><strong>Producto ya no disponible</strong></span>
+ <button type="button" class="btn-encargo-quitar" onclick="quitarItemEtiqueta(${indice})">Quitar</button>
+ </div>
+ `;
+ }
+
+ return `
+ <div class="etiqueta-mi-lista-fila" ${arrastre}>
+ <span class="etiqueta-fila-agarradera" title="Arrastra para reordenar">&#9776;</span>
+ <span class="etiqueta-mi-lista-img">${miniaturaProducto(producto, "etiqueta-mi-lista-img-el")}</span>
+ <span class="etiqueta-mi-lista-datos">
+ <strong>${escaparPOS(producto.nombre)}</strong>
+ <small>${producto.codigo ? escaparPOS(producto.codigo) : `<a href="#" onclick="event.preventDefault();generarCodigoProductoEtiqueta(${item.productoId})">Generar codigo</a>`}</small>
+ </span>
+ <span class="etiqueta-stepper etiqueta-stepper-compacto">
+ <button type="button" onclick="restarCantidadProductoEtiqueta(${item.productoId})">&minus;</button>
+ <input type="number" step="1" min="1" value="${item.cantidad}" onchange="cambiarCantidadItemEtiqueta(${indice}, this.value)">
+ <button type="button" onclick="sumarCantidadProductoEtiqueta(${item.productoId})">+</button>
+ </span>
+ <button type="button" class="btn-encargo-quitar" onclick="quitarItemEtiqueta(${indice})">Quitar</button>
+ </div>
+ `;
+ }).join("");
 }
 
-// --- Cargar / guardar como lista de productos (reusa /listas-producto) ---
+function cambiarCantidadItemEtiqueta(indice, valor) {
+ const cantidad = Number(valor);
+ itemsCodigosBarras[indice].cantidad = cantidad > 0 ? cantidad : 1;
+ refrescarSeleccionEtiquetas();
+}
 
-async function cargarListasGuardadasEnSelectEtiquetas() {
- const select =
- document.getElementById("etiquetaListaGuardadaSelect");
+function quitarItemEtiqueta(indice) {
+ itemsCodigosBarras.splice(indice, 1);
+ refrescarSeleccionEtiquetas();
+}
 
- if (!select) return;
+function vaciarListaEtiquetas() {
+ if (itemsCodigosBarras.length === 0) return;
 
+ confirmarPOS("Esto va a quitar todos los productos de tu lista de impresion. ¿Continuar?", "Vaciar lista", "alerta")
+ .then(confirmado => {
+ if (!confirmado) return;
+ itemsCodigosBarras = [];
+ refrescarSeleccionEtiquetas();
+ });
+}
+
+async function generarCodigoProductoEtiqueta(productoId) {
+ try {
+ const respuesta =
+ await fetch(`/productos/${productoId}/generar-codigo`, { method: "POST" });
+
+ const datos =
+ await respuesta.json().catch(() => ({}));
+
+ if (!respuesta.ok || !datos.ok) {
+ alertaPOS(datos.error || "No se pudo generar el codigo.", "Error", "peligro");
+ return;
+ }
+
+ if (typeof todosProductos !== "undefined") {
+ const productoCache =
+ todosProductos.find(p => Number(p.id) === Number(productoId));
+
+ if (productoCache) productoCache.codigo = datos.codigo;
+ }
+
+ refrescarSeleccionEtiquetas();
+ } catch (error) {
+ alertaPOS("No se pudo generar el codigo. Revisa tu conexion.", "Error", "peligro");
+ }
+}
+
+// --- Reordenar arrastrando (unico patron de drag&drop del repo) ---
+
+function onArrastrarInicioItemEtiqueta(evento, indice) {
+ indiceArrastradoEtiqueta = indice;
+ evento.dataTransfer.setData("text/plain", String(indice));
+}
+
+function onArrastrarSobreItemEtiqueta(evento) {
+ evento.preventDefault();
+}
+
+function onSoltarItemEtiqueta(evento, indiceDestino) {
+ evento.preventDefault();
+
+ const indiceOrigen =
+ indiceArrastradoEtiqueta !== null ? indiceArrastradoEtiqueta : Number(evento.dataTransfer.getData("text/plain"));
+
+ indiceArrastradoEtiqueta = null;
+
+ if (!Number.isInteger(indiceOrigen) || indiceOrigen === indiceDestino) return;
+
+ const [item] = itemsCodigosBarras.splice(indiceOrigen, 1);
+ itemsCodigosBarras.splice(indiceDestino, 0, item);
+
+ refrescarSeleccionEtiquetas();
+}
+
+// --- Cargar / guardar como lista (reusa /listas-producto) ---
+
+async function cargarListasGuardadasEtiquetas() {
  try {
  const respuesta =
  await fetch("/listas-producto");
@@ -513,19 +708,37 @@ async function cargarListasGuardadasEnSelectEtiquetas() {
  const datos =
  await respuesta.json().catch(() => ({}));
 
- const listas =
- (respuesta.ok && datos.ok) ? datos.listas : [];
-
- select.innerHTML =
- '<option value="">Elige una lista...</option>' +
- listas.map(item => `<option value="${item.id}">${escaparPOS(item.nombre)} (${item.totalItems})</option>`).join("");
+ listasGuardadasEtiquetasCache = (respuesta.ok && datos.ok) ? datos.listas : [];
  } catch (error) {
- // silencioso -- el select simplemente se queda vacio
+ listasGuardadasEtiquetasCache = [];
  }
+
+ renderChipsListasGuardadasEtiquetas();
+}
+
+function renderChipsListasGuardadasEtiquetas() {
+ const contenedor =
+ document.getElementById("etiquetaMisListasChips");
+
+ if (!contenedor) return;
+
+ if (listasGuardadasEtiquetasCache.length === 0) {
+ contenedor.innerHTML = `<p class="encargo-items-vacio">Todavia no tienes listas guardadas.</p>`;
+ return;
+ }
+
+ contenedor.innerHTML = listasGuardadasEtiquetasCache.map(lista => `
+ <button type="button" class="btn-encargo-secundario etiqueta-chip-lista" onclick="cargarListaGuardadaEnEtiquetas(${lista.id})">
+ ${escaparPOS(lista.nombre)} <span class="etiqueta-chip-lista-conteo">${lista.totalItems}</span>
+ </button>
+ `).join("");
 }
 
 async function cargarListaGuardadaEnEtiquetas(listaId) {
- if (!listaId) return;
+ if (itemsCodigosBarras.length > 0) {
+ const confirmado = await confirmarPOS("Esto va a reemplazar tu lista actual. ¿Continuar?", "Cargar lista", "alerta");
+ if (!confirmado) return;
+ }
 
  try {
  const respuesta =
@@ -539,18 +752,9 @@ async function cargarListaGuardadaEnEtiquetas(listaId) {
  return;
  }
 
- itemsCodigosBarras = datos.lista.items.map(item => ({
- productoId: item.productoId,
- nombre: item.nombre,
- codigo: item.codigo || "",
- precio: item.precio || 0,
- marca: "",
- categoria: "",
- cantidad: item.cantidad
- }));
+ itemsCodigosBarras = datos.lista.items.map(item => crearItemEtiqueta(item.productoId, item.cantidad));
 
- renderTablaItemsCodigosBarras();
- renderVistaPreviaEtiquetas();
+ refrescarSeleccionEtiquetas();
  } catch (error) {
  alertaPOS("No se pudo cargar la lista.", "Error", "peligro");
  }
@@ -585,92 +789,144 @@ async function guardarListaDesdeEtiquetas() {
  return;
  }
 
- alertaPOS("Lista guardada. Ya la puedes reusar desde \"Listas de productos\" o desde aqui mismo.", "Listo", "exito");
- await cargarListasGuardadasEnSelectEtiquetas();
+ alertaPOS("Lista guardada. Ya la puedes reusar desde \"Mis listas\".", "Listo", "exito");
+
+ const campoNombre = document.getElementById("etiquetaGuardarListaNombre");
+ if (campoNombre) campoNombre.value = "";
+
+ cargarListasGuardadasEtiquetas();
  } catch (error) {
  alertaPOS("No se pudo guardar la lista. Revisa tu conexion.", "Error", "peligro");
  }
 }
 
-// --- Diseno + plantillas ---
+// =====================================================================
+// ETAPA 2 -- Disenar etiquetas
+// =====================================================================
 
-function renderPanelDisenoEtiquetas() {
- const panel =
- document.getElementById("etiquetaPanelDiseno");
+function renderEtapaDisenoEtiquetas() {
+ const seccion =
+ document.querySelector('#pantallaCodigosBarras [data-etiqueta-etapa="1"]');
 
- if (!panel || !disenoActualEtiquetas) return;
+ if (!seccion) return;
 
- const d = disenoActualEtiquetas;
+ seccion.innerHTML = `
+ <div class="etiqueta-etapa2-layout">
+ <div class="etiqueta-plantillas-bloque">
+ <h3>Plantillas</h3>
+ <div id="etiquetaPlantillasPredisenoGrid" class="etiqueta-plantillas-grid"></div>
 
- panel.innerHTML = `
- <div class="encargo-form-fila">
- <label>Ancho (mm)<input type="number" min="10" step="1" value="${d.anchoMm}" onchange="actualizarDisenoEtiqueta('anchoMm', this.value, true)"></label>
- <label>Alto (mm)<input type="number" min="10" step="1" value="${d.altoMm}" onchange="actualizarDisenoEtiqueta('altoMm', this.value, true)"></label>
+ <div class="etiqueta-mis-plantillas-bloque">
+ <h4>Mis plantillas guardadas</h4>
+ <div id="etiquetaMisPlantillasGrid" class="etiqueta-plantillas-grid">
+ <p class="encargo-items-vacio">Cargando...</p>
  </div>
- <div class="encargo-form-fila">
- <label>Columnas<input type="number" min="1" max="8" step="1" value="${d.columnas}" onchange="actualizarDisenoEtiqueta('columnas', this.value, true)"></label>
- <label>Margen (mm)<input type="number" min="0" step="1" value="${d.margenMm}" onchange="actualizarDisenoEtiqueta('margenMm', this.value, true)"></label>
- <label>Espaciado (mm)<input type="number" min="0" step="1" value="${d.espaciadoMm}" onchange="actualizarDisenoEtiqueta('espaciadoMm', this.value, true)"></label>
+ <div class="etiqueta-guardar-fila">
+ <label>Guardar diseno actual como
+ <input id="etiquetaGuardarPlantillaNombre" placeholder="Nombre de la plantilla">
+ </label>
+ <button type="button" class="btn-encargo-agregar" onclick="guardarPlantillaEtiquetaActual()">Guardar plantilla</button>
  </div>
- <div class="etiqueta-diseno-checks">
- <label><input type="checkbox" ${d.mostrarNombre ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarNombre', this.checked)"> Nombre</label>
- <label><input type="checkbox" ${d.mostrarCodigoBarras ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarCodigoBarras', this.checked)"> Codigo de barras</label>
- <label><input type="checkbox" ${d.mostrarNumeroCodigo ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarNumeroCodigo', this.checked)"> Numero del codigo</label>
- <label><input type="checkbox" ${d.mostrarPrecio ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarPrecio', this.checked)"> Precio</label>
- <label><input type="checkbox" ${d.mostrarMarca ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarMarca', this.checked)"> Marca</label>
- <label><input type="checkbox" ${d.mostrarCategoria ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarCategoria', this.checked)"> Categoria</label>
  </div>
+ </div>
+
+ <div class="etiqueta-acordeon-grupo">
+ <section class="etiqueta-seccion-colapsable" data-colapsado="1">
+ <button type="button" class="etiqueta-seccion-header" onclick="alternarSeccionColapsableEtiqueta(this)">
+ <span>Informacion de la etiqueta</span>
+ <span class="etiqueta-seccion-chevron">&rsaquo;</span>
+ </button>
+ <div class="etiqueta-seccion-contenido" hidden>
+ <div id="etiquetaPanelInformacion"></div>
+ </div>
+ </section>
+
+ <section class="etiqueta-seccion-colapsable" data-colapsado="1">
+ <button type="button" class="etiqueta-seccion-header" onclick="alternarSeccionColapsableEtiqueta(this)">
+ <span>Formato</span>
+ <span class="etiqueta-seccion-chevron">&rsaquo;</span>
+ </button>
+ <div class="etiqueta-seccion-contenido" hidden>
+ <div id="etiquetaPanelFormato"></div>
+ </div>
+ </section>
+ </div>
+ </div>
+ `;
+
+ renderPlantillasPredisenoEtiquetas();
+ renderPanelInformacionEtiqueta();
+ renderPanelFormatoEtiqueta();
+ cargarPlantillasEtiquetas();
+}
+
+function alternarSeccionColapsableEtiqueta(boton) {
+ const seccion = boton.closest(".etiqueta-seccion-colapsable");
+ const grupo = boton.closest(".etiqueta-acordeon-grupo");
+ const contenido = seccion?.querySelector(".etiqueta-seccion-contenido");
+
+ if (!seccion || !contenido) return;
+
+ const vaAExpandirse = contenido.hidden;
+
+ if (grupo) {
+ grupo.querySelectorAll(".etiqueta-seccion-colapsable").forEach(otra => {
+ otra.dataset.colapsado = "1";
+ const otroContenido = otra.querySelector(".etiqueta-seccion-contenido");
+ if (otroContenido) otroContenido.hidden = true;
+ });
+ }
+
+ contenido.hidden = !vaAExpandirse;
+ seccion.dataset.colapsado = vaAExpandirse ? "0" : "1";
+}
+
+// --- Plantillas prediseñadas (con mini-preview real) ---
+
+function renderPlantillasPredisenoEtiquetas() {
+ const grid =
+ document.getElementById("etiquetaPlantillasPredisenoGrid");
+
+ if (!grid || !disenoActualEtiquetas) return;
+
+ const coincideConPreset =
+ preset => CAMPOS_DISENO_ETIQUETA.every(campo => disenoActualEtiquetas[campo] === preset[campo]);
+
+ const esPersonalizada =
+ !PLANTILLAS_ETIQUETAS_POR_DEFECTO.some(coincideConPreset);
+
+ grid.innerHTML = PLANTILLAS_ETIQUETAS_POR_DEFECTO.map((preset, indice) => `
+ <button type="button" class="etiqueta-plantilla-card ${coincideConPreset(preset) ? "activa" : ""}" onclick="aplicarPlantillaPredisenoEtiqueta(${indice})">
+ <span class="etiqueta-plantilla-card-preview">${construirUnaEtiquetaHtml(ITEM_EJEMPLO_PLANTILLA_ETIQUETA, preset)}</span>
+ <strong>${escaparPOS(preset.nombre)}</strong>
+ </button>
+ `).join("") + `
+ <button type="button" class="etiqueta-plantilla-card etiqueta-plantilla-card-personalizada ${esPersonalizada ? "activa" : ""}" onclick="document.querySelector('.etiqueta-seccion-colapsable .etiqueta-seccion-header')?.click()">
+ <span class="etiqueta-plantilla-card-preview etiqueta-plantilla-card-preview-personalizada">${iconoUISVG("edit")}</span>
+ <strong>Personalizada</strong>
+ </button>
  `;
 }
 
-function actualizarDisenoEtiqueta(campo, valor, esNumero) {
- disenoActualEtiquetas[campo] =
- esNumero ? Math.max(1, Number(valor) || 1) : Boolean(valor);
+function aplicarPlantillaPredisenoEtiqueta(indice) {
+ const preset = PLANTILLAS_ETIQUETAS_POR_DEFECTO[indice];
+ if (!preset) return;
 
- renderVistaPreviaEtiquetas();
+ disenoActualEtiquetas = { ...preset };
+ // No toca tamanoPapelActual -- plantilla y papel son ejes
+ // independientes cuando se trata de un preset predisenado.
+
+ renderPlantillasPredisenoEtiquetas();
+ renderPanelInformacionEtiqueta();
+ renderPanelFormatoEtiqueta();
 }
 
-async function cargarPlantillasEtiquetas() {
- const contenedor =
- document.getElementById("etiquetaListaPlantillas");
-
- if (!contenedor) return;
-
- try {
- const respuesta =
- await fetch("/etiquetas-plantillas");
-
- const datos =
- await respuesta.json().catch(() => ({}));
-
- plantillasEtiquetasGuardadas =
- (respuesta.ok && datos.ok && datos.plantillas.length > 0) ? datos.plantillas : PLANTILLAS_ETIQUETAS_POR_DEFECTO;
-
- renderListaPlantillasEtiquetas();
- } catch (error) {
- plantillasEtiquetasGuardadas = PLANTILLAS_ETIQUETAS_POR_DEFECTO;
- renderListaPlantillasEtiquetas();
- }
-}
-
-function renderListaPlantillasEtiquetas() {
- const contenedor =
- document.getElementById("etiquetaListaPlantillas");
-
- if (!contenedor) return;
-
- contenedor.innerHTML = plantillasEtiquetasGuardadas.map((plantilla, indice) => `
- <button type="button" class="btn-encargo-secundario" onclick="aplicarPlantillaEtiqueta(${indice})">${escaparPOS(plantilla.nombre)}</button>
- `).join("");
-}
-
-function aplicarPlantillaEtiqueta(indice) {
- const plantilla =
- plantillasEtiquetasGuardadas[indice];
-
+function aplicarPlantillaGuardadaEtiqueta(id) {
+ const plantilla = plantillasEtiquetasGuardadas.find(p => p.id === id);
  if (!plantilla) return;
 
  disenoActualEtiquetas = {
+ nombre: plantilla.nombre,
  anchoMm: plantilla.anchoMm, altoMm: plantilla.altoMm, columnas: plantilla.columnas,
  margenMm: plantilla.margenMm, espaciadoMm: plantilla.espaciadoMm,
  mostrarNombre: plantilla.mostrarNombre, mostrarCodigoBarras: plantilla.mostrarCodigoBarras,
@@ -678,8 +934,75 @@ function aplicarPlantillaEtiqueta(indice) {
  mostrarMarca: plantilla.mostrarMarca, mostrarCategoria: plantilla.mostrarCategoria
  };
 
- renderPanelDisenoEtiquetas();
- renderVistaPreviaEtiquetas();
+ // A diferencia de un preset predisenado, una plantilla guardada por
+ // el usuario SI trae su propio tamano de papel -- lo que guardo es lo
+ // que se vuelve a aplicar.
+ tamanoPapelActual = { nombre: plantilla.papelNombre, anchoMm: plantilla.papelAnchoMm, altoMm: plantilla.papelAltoMm };
+
+ renderPlantillasPredisenoEtiquetas();
+ renderPanelInformacionEtiqueta();
+ renderPanelFormatoEtiqueta();
+}
+
+async function cargarPlantillasEtiquetas() {
+ try {
+ const respuesta =
+ await fetch("/etiquetas-plantillas");
+
+ const datos =
+ await respuesta.json().catch(() => ({}));
+
+ plantillasEtiquetasGuardadas = (respuesta.ok && datos.ok) ? datos.plantillas : [];
+ } catch (error) {
+ plantillasEtiquetasGuardadas = [];
+ }
+
+ renderMisPlantillasGuardadas();
+}
+
+function renderMisPlantillasGuardadas() {
+ const grid =
+ document.getElementById("etiquetaMisPlantillasGrid");
+
+ if (!grid) return;
+
+ if (plantillasEtiquetasGuardadas.length === 0) {
+ grid.innerHTML = `<p class="encargo-items-vacio">Aun no guardas ninguna plantilla propia.</p>`;
+ return;
+ }
+
+ grid.innerHTML = plantillasEtiquetasGuardadas.map(plantilla => `
+ <div class="etiqueta-plantilla-card etiqueta-plantilla-card-guardada">
+ <button type="button" class="etiqueta-plantilla-card-quitar" onclick="borrarPlantillaGuardadaEtiqueta(${plantilla.id})" title="Borrar plantilla">&times;</button>
+ <button type="button" class="etiqueta-plantilla-card-cuerpo" onclick="aplicarPlantillaGuardadaEtiqueta(${plantilla.id})">
+ <span class="etiqueta-plantilla-card-preview">${construirUnaEtiquetaHtml(ITEM_EJEMPLO_PLANTILLA_ETIQUETA, plantilla)}</span>
+ <strong>${escaparPOS(plantilla.nombre)}</strong>
+ <small>${escaparPOS(plantilla.papelNombre || "A4")}</small>
+ </button>
+ </div>
+ `).join("");
+}
+
+async function borrarPlantillaGuardadaEtiqueta(id) {
+ const confirmado = await confirmarPOS("Esta plantilla se va a borrar. ¿Continuar?", "Borrar plantilla", "peligro");
+ if (!confirmado) return;
+
+ try {
+ const respuesta =
+ await fetch(`/etiquetas-plantillas/${id}`, { method: "DELETE" });
+
+ const datos =
+ await respuesta.json().catch(() => ({}));
+
+ if (!respuesta.ok || !datos.ok) {
+ alertaPOS(datos.error || "No se pudo borrar la plantilla.", "Error", "peligro");
+ return;
+ }
+
+ cargarPlantillasEtiquetas();
+ } catch (error) {
+ alertaPOS("No se pudo borrar la plantilla. Revisa tu conexion.", "Error", "peligro");
+ }
 }
 
 async function guardarPlantillaEtiquetaActual() {
@@ -696,7 +1019,15 @@ async function guardarPlantillaEtiquetaActual() {
  await fetch("/etiquetas-plantillas", {
  method: "POST",
  headers: { "Content-Type": "application/json" },
- body: JSON.stringify({ nombre, diseno: disenoActualEtiquetas })
+ body: JSON.stringify({
+ nombre,
+ diseno: {
+ ...disenoActualEtiquetas,
+ papelNombre: tamanoPapelActual.nombre,
+ papelAnchoMm: tamanoPapelActual.anchoMm,
+ papelAltoMm: tamanoPapelActual.altoMm
+ }
+ })
  });
 
  const datos =
@@ -708,14 +1039,280 @@ async function guardarPlantillaEtiquetaActual() {
  }
 
  alertaPOS("Plantilla guardada.", "Listo", "exito");
- document.getElementById("etiquetaGuardarPlantillaNombre").value = "";
- await cargarPlantillasEtiquetas();
+
+ const campoNombre = document.getElementById("etiquetaGuardarPlantillaNombre");
+ if (campoNombre) campoNombre.value = "";
+
+ cargarPlantillasEtiquetas();
  } catch (error) {
  alertaPOS("No se pudo guardar la plantilla. Revisa tu conexion.", "Error", "peligro");
  }
 }
 
-// --- Render de etiquetas (vista previa + impresion, misma funcion) ---
+// --- Informacion de la etiqueta / Formato ---
+
+function renderPanelInformacionEtiqueta() {
+ const panel =
+ document.getElementById("etiquetaPanelInformacion");
+
+ if (!panel || !disenoActualEtiquetas) return;
+
+ const d = disenoActualEtiquetas;
+
+ panel.innerHTML = `
+ <div class="etiqueta-diseno-checks">
+ <label><input type="checkbox" ${d.mostrarNombre ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarNombre', this.checked)"> Nombre del producto</label>
+ <label><input type="checkbox" ${d.mostrarCodigoBarras ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarCodigoBarras', this.checked)"> Codigo de barras</label>
+ <label><input type="checkbox" ${d.mostrarNumeroCodigo ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarNumeroCodigo', this.checked)"> Numero del codigo</label>
+ <label><input type="checkbox" ${d.mostrarPrecio ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarPrecio', this.checked)"> Precio</label>
+ <label><input type="checkbox" ${d.mostrarMarca ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarMarca', this.checked)"> Marca</label>
+ <label><input type="checkbox" ${d.mostrarCategoria ? "checked" : ""} onchange="actualizarDisenoEtiqueta('mostrarCategoria', this.checked)"> Categoria</label>
+ </div>
+ `;
+}
+
+// Fuente unica de verdad de cuantas filas caben en una pagina --
+// compartida con la Etapa 3 (paginacion real de la vista previa).
+function filasPorPaginaEtiqueta(diseno, papel) {
+ if (papel.altoMm == null) return Infinity; // Rollo continuo
+
+ const altoUtil = Math.max(0, papel.altoMm - diseno.margenMm * 2);
+ const filas = Math.floor((altoUtil + diseno.espaciadoMm) / (diseno.altoMm + diseno.espaciadoMm));
+
+ return Math.max(1, filas);
+}
+
+function renderPanelFormatoEtiqueta() {
+ const panel =
+ document.getElementById("etiquetaPanelFormato");
+
+ if (!panel || !disenoActualEtiquetas || !tamanoPapelActual) return;
+
+ const d = disenoActualEtiquetas;
+ const papel = tamanoPapelActual;
+ const filas = filasPorPaginaEtiqueta(d, papel);
+ const esRollo = filas === Infinity;
+ const porPagina = esRollo ? d.columnas : filas * d.columnas;
+
+ panel.innerHTML = `
+ <div class="encargo-form-fila">
+ <label>Ancho de etiqueta (mm)<input type="number" min="10" step="1" value="${d.anchoMm}" onchange="actualizarDisenoEtiqueta('anchoMm', this.value, true)"></label>
+ <label>Alto de etiqueta (mm)<input type="number" min="10" step="1" value="${d.altoMm}" onchange="actualizarDisenoEtiqueta('altoMm', this.value, true)"></label>
+ </div>
+ <div class="encargo-form-fila">
+ <label>Columnas<input type="number" min="1" max="8" step="1" value="${d.columnas}" onchange="actualizarDisenoEtiqueta('columnas', this.value, true)"></label>
+ <label>Margen (mm)<input type="number" min="0" step="1" value="${d.margenMm}" onchange="actualizarDisenoEtiqueta('margenMm', this.value, true)"></label>
+ <label>Espaciado (mm)<input type="number" min="0" step="1" value="${d.espaciadoMm}" onchange="actualizarDisenoEtiqueta('espaciadoMm', this.value, true)"></label>
+ </div>
+
+ <h4>Papel</h4>
+ <div class="etiqueta-papel-opciones">
+ ${TAMANOS_PAPEL_ETIQUETAS.map(opcion => `
+ <button type="button" class="etiqueta-papel-boton ${papel.nombre === opcion.nombre ? "activo" : ""}" onclick="actualizarPapelEtiqueta('${opcion.nombre}')">${escaparPOS(opcion.nombre)}</button>
+ `).join("")}
+ </div>
+ ${esRollo ? `
+ <div class="encargo-form-fila">
+ <label>Ancho del rollo (mm)<input type="number" min="20" step="1" value="${papel.anchoMm}" onchange="actualizarPapelPersonalizadoEtiqueta('anchoMm', this.value)"></label>
+ </div>
+ ` : ""}
+
+ <p class="etiqueta-filas-indicador">
+ ${esRollo
+ ? `Rollo continuo — ${d.columnas} columna(s), sin limite de largo.`
+ : `≈ ${filas} fila(s) × ${d.columnas} columna(s) = ${porPagina} etiquetas por hoja ${escaparPOS(papel.nombre)}.`}
+ </p>
+ `;
+}
+
+function actualizarDisenoEtiqueta(campo, valor, esNumero) {
+ disenoActualEtiquetas[campo] = esNumero ? Math.max(1, Number(valor) || 1) : Boolean(valor);
+ disenoActualEtiquetas.nombre = "Personalizada";
+
+ renderPlantillasPredisenoEtiquetas();
+ renderPanelFormatoEtiqueta();
+}
+
+function actualizarPapelEtiqueta(nombrePapel) {
+ const preset = TAMANOS_PAPEL_ETIQUETAS.find(p => p.nombre === nombrePapel);
+ if (!preset) return;
+
+ tamanoPapelActual = { ...preset };
+ renderPanelFormatoEtiqueta();
+}
+
+function actualizarPapelPersonalizadoEtiqueta(campo, valor) {
+ tamanoPapelActual[campo] = Math.max(1, Number(valor) || 1);
+ renderPanelFormatoEtiqueta();
+}
+
+// =====================================================================
+// ETAPA 3 -- Vista previa (paginada, con zoom)
+// =====================================================================
+
+function instanciasEtiquetasAImprimir() {
+ const instancias = [];
+
+ itemsCodigosBarras.forEach(item => {
+ const producto = productoParaEtiqueta(item.productoId);
+ if (!producto) return; // producto borrado desde que se guardo la lista -- se omite, no truena
+
+ for (let copia = 0; copia < (item.cantidad || 0); copia++) {
+ instancias.push(producto);
+ }
+ });
+
+ return instancias;
+}
+
+function construirPaginasVistaPreviaEtiquetas() {
+ const instancias = instanciasEtiquetasAImprimir();
+ const diseno = disenoActualEtiquetas;
+ const papel = tamanoPapelActual;
+ const filas = filasPorPaginaEtiqueta(diseno, papel);
+
+ if (filas === Infinity) {
+ return instancias.length ? [instancias] : [];
+ }
+
+ const porPagina = Math.max(1, filas * diseno.columnas);
+ const paginas = [];
+
+ for (let inicio = 0; inicio < instancias.length; inicio += porPagina) {
+ paginas.push(instancias.slice(inicio, inicio + porPagina));
+ }
+
+ return paginas;
+}
+
+function renderEtapaVistaPreviaEtiquetas() {
+ const seccion =
+ document.querySelector('#pantallaCodigosBarras [data-etiqueta-etapa="2"]');
+
+ if (!seccion) return;
+
+ vistaPreviaEtiquetasPaginas = construirPaginasVistaPreviaEtiquetas();
+ paginaVistaPreviaActual = 0;
+
+ seccion.innerHTML = `
+ <div class="etiqueta-preview-toolbar">
+ <div class="etiqueta-preview-paginacion">
+ <button type="button" id="etiquetaPreviaAnterior" onclick="irPaginaAnteriorEtiquetas()">${iconoUISVG("chevronLeft")}</button>
+ <span id="etiquetaPreviaPaginaTexto"></span>
+ <button type="button" id="etiquetaPreviaSiguiente" onclick="irPaginaSiguienteEtiquetas()">${iconoUISVG("chevronRight")}</button>
+ </div>
+ <div class="etiqueta-preview-zoom">
+ <button type="button" onclick="cambiarZoomVistaPreviaEtiquetas(-0.1)">${iconoUISVG("zoomOut")}</button>
+ <input type="range" id="etiquetaZoomSlider" min="0.5" max="2" step="0.1" value="${zoomVistaPreviaEtiquetas}" oninput="actualizarZoomVistaPreviaEtiquetas(this.value)">
+ <button type="button" onclick="cambiarZoomVistaPreviaEtiquetas(0.1)">${iconoUISVG("zoomIn")}</button>
+ <span id="etiquetaZoomTexto"></span>
+ </div>
+ <span class="etiqueta-preview-papel-badge">${escaparPOS(tamanoPapelActual.nombre)}</span>
+ </div>
+ <div class="etiqueta-preview-scroll">
+ <div id="etiquetaPreviaHojaContenedor"></div>
+ </div>
+ `;
+
+ renderPaginaVistaPreviaEtiquetas();
+}
+
+function renderPaginaVistaPreviaEtiquetas() {
+ const contenedor = document.getElementById("etiquetaPreviaHojaContenedor");
+ const textoPagina = document.getElementById("etiquetaPreviaPaginaTexto");
+ const textoZoom = document.getElementById("etiquetaZoomTexto");
+ const botonAnterior = document.getElementById("etiquetaPreviaAnterior");
+ const botonSiguiente = document.getElementById("etiquetaPreviaSiguiente");
+
+ if (!contenedor) return;
+
+ const totalPaginas = vistaPreviaEtiquetasPaginas.length;
+
+ if (textoPagina) textoPagina.textContent = totalPaginas ? `Pagina ${paginaVistaPreviaActual + 1} de ${totalPaginas}` : "Sin etiquetas";
+ if (textoZoom) textoZoom.textContent = `${Math.round(zoomVistaPreviaEtiquetas * 100)}%`;
+ if (botonAnterior) botonAnterior.disabled = paginaVistaPreviaActual === 0;
+ if (botonSiguiente) botonSiguiente.disabled = paginaVistaPreviaActual >= totalPaginas - 1;
+
+ if (totalPaginas === 0) {
+ contenedor.innerHTML = `<p class="encargo-items-vacio">Agrega productos en la Etapa 1 para ver la vista previa.</p>`;
+ return;
+ }
+
+ const papel = tamanoPapelActual;
+ const pagina = vistaPreviaEtiquetasPaginas[paginaVistaPreviaActual];
+ const esRollo = papel.altoMm == null;
+
+ contenedor.innerHTML = `
+ <div class="etiqueta-preview-hoja" style="width:${papel.anchoMm}mm;${esRollo ? "" : `height:${papel.altoMm}mm;`}transform:scale(${zoomVistaPreviaEtiquetas});">
+ ${construirHtmlGridEtiquetas(pagina, disenoActualEtiquetas)}
+ </div>
+ `;
+}
+
+function irPaginaAnteriorEtiquetas() {
+ if (paginaVistaPreviaActual <= 0) return;
+ paginaVistaPreviaActual -= 1;
+ renderPaginaVistaPreviaEtiquetas();
+}
+
+function irPaginaSiguienteEtiquetas() {
+ if (paginaVistaPreviaActual >= vistaPreviaEtiquetasPaginas.length - 1) return;
+ paginaVistaPreviaActual += 1;
+ renderPaginaVistaPreviaEtiquetas();
+}
+
+function cambiarZoomVistaPreviaEtiquetas(delta) {
+ actualizarZoomVistaPreviaEtiquetas(zoomVistaPreviaEtiquetas + delta);
+}
+
+function actualizarZoomVistaPreviaEtiquetas(valor) {
+ zoomVistaPreviaEtiquetas = Math.max(0.5, Math.min(2, Number(valor) || 1));
+
+ const slider = document.getElementById("etiquetaZoomSlider");
+ if (slider) slider.value = zoomVistaPreviaEtiquetas;
+
+ renderPaginaVistaPreviaEtiquetas();
+}
+
+// =====================================================================
+// ETAPA 4 -- Imprimir
+// =====================================================================
+
+function renderEtapaImprimirEtiquetas() {
+ const seccion =
+ document.querySelector('#pantallaCodigosBarras [data-etiqueta-etapa="3"]');
+
+ if (!seccion) return;
+
+ const totalEtiquetas = totalEtiquetasEnLista();
+ const totalProductos = itemsCodigosBarras.length;
+
+ const sinCodigo = itemsCodigosBarras.filter(item => {
+ const producto = productoParaEtiqueta(item.productoId);
+ return producto && !producto.codigo;
+ }).length;
+
+ seccion.innerHTML = `
+ <div class="etiqueta-resumen-final">
+ <h3>Todo listo para imprimir</h3>
+ <div class="etiqueta-resumen-tarjetas">
+ <div class="etiqueta-resumen-tarjeta"><strong>${totalEtiquetas}</strong><span>etiqueta(s)</span></div>
+ <div class="etiqueta-resumen-tarjeta"><strong>${totalProductos}</strong><span>producto(s)</span></div>
+ <div class="etiqueta-resumen-tarjeta"><strong>${escaparPOS(disenoActualEtiquetas.nombre || "Personalizada")}</strong><span>plantilla</span></div>
+ <div class="etiqueta-resumen-tarjeta"><strong>${escaparPOS(tamanoPapelActual.nombre)}</strong><span>papel</span></div>
+ </div>
+ ${sinCodigo > 0 ? `<p class="etiqueta-resumen-aviso">${sinCodigo} producto(s) sin codigo se van a imprimir sin barras.</p>` : ""}
+ <button type="button" class="etiqueta-btn-imprimir-final" onclick="imprimirEtiquetas()">${iconoUISVG("printer")} Imprimir etiquetas</button>
+ </div>
+ `;
+}
+
+// =====================================================================
+// Render de etiqueta individual -- compartido por Etapa 2 (miniaturas),
+// Etapa 3 (vista previa) y la impresion final. Siempre estilos inline
+// (nunca clases CSS): la ventana de impresion no carga el stylesheet
+// de la app.
+// =====================================================================
 
 function construirUnaEtiquetaHtml(item, diseno) {
  let barcodeHtml = "";
@@ -751,27 +1348,11 @@ function construirUnaEtiquetaHtml(item, diseno) {
  `;
 }
 
-function construirHtmlEtiquetasImpresion(items, diseno) {
+function construirHtmlGridEtiquetas(productos, diseno) {
  const etiquetas =
- items.flatMap(item =>
- Array.from({ length: Math.max(1, Math.floor(item.cantidad) || 1) }, () => construirUnaEtiquetaHtml(item, diseno))
- ).join("");
+ productos.map(producto => construirUnaEtiquetaHtml(producto, diseno)).join("");
 
  return `<div class="hoja-etiquetas" style="display:grid;grid-template-columns:repeat(${diseno.columnas},1fr);gap:${diseno.espaciadoMm}mm;padding:${diseno.margenMm}mm;">${etiquetas}</div>`;
-}
-
-function renderVistaPreviaEtiquetas() {
- const contenedor =
- document.getElementById("etiquetaVistaPrevia");
-
- if (!contenedor || !disenoActualEtiquetas) return;
-
- if (itemsCodigosBarras.length === 0) {
- contenedor.innerHTML = `<p class="encargo-items-vacio">Agrega productos a tu lista para ver la vista previa.</p>`;
- return;
- }
-
- contenedor.innerHTML = construirHtmlEtiquetasImpresion(itemsCodigosBarras, disenoActualEtiquetas);
 }
 
 function imprimirEtiquetas() {
@@ -780,14 +1361,25 @@ function imprimirEtiquetas() {
  return;
  }
 
- const sinCodigo =
- itemsCodigosBarras.filter(item => !item.codigo).length;
+ const paginas = construirPaginasVistaPreviaEtiquetas();
+
+ if (paginas.length === 0) {
+ alertaPOS("No hay etiquetas para imprimir.", "Sin productos", "alerta");
+ return;
+ }
+
+ const sinCodigo = itemsCodigosBarras.filter(item => {
+ const producto = productoParaEtiqueta(item.productoId);
+ return producto && !producto.codigo;
+ }).length;
 
  const negocio =
  (typeof configuracionNegocio === "function" ? configuracionNegocio() : {}) || {};
 
- const html =
- construirHtmlEtiquetasImpresion(itemsCodigosBarras, disenoActualEtiquetas);
+ const papel = tamanoPapelActual;
+
+ const paginasHtml =
+ paginas.map(pagina => `<div class="hoja-etiquetas-pagina">${construirHtmlGridEtiquetas(pagina, disenoActualEtiquetas)}</div>`).join("");
 
  const ventana =
  window.open("", "_blank", "width=900,height=720");
@@ -805,6 +1397,9 @@ function imprimirEtiquetas() {
  body{font-family:Arial,sans-serif;color:#111827;padding:0;margin:0;}
  .encabezado-impresion{padding:14px 20px 0;font-size:11px;color:#475467;}
  .etiqueta-producto{page-break-inside:avoid;}
+ .hoja-etiquetas-pagina{page-break-after:always;}
+ .hoja-etiquetas-pagina:last-child{page-break-after:auto;}
+ @page{size:${papel.anchoMm}mm${papel.altoMm != null ? ` ${papel.altoMm}mm` : ""};margin:0;}
  @media print{
  .encabezado-impresion{display:none;}
  .etiqueta-producto{break-inside:avoid;}
@@ -813,7 +1408,7 @@ function imprimirEtiquetas() {
  </head>
  <body>
  <p class="encabezado-impresion">Imprime a escala 100% (sin "ajustar a pagina") para que el tamano real coincida con lo elegido.${sinCodigo ? ` ${sinCodigo} producto(s) sin codigo se imprimen sin barras.` : ""}</p>
- ${html}
+ ${paginasHtml}
  <script>window.print();</script>
  </body>
  </html>

@@ -105,7 +105,8 @@ test("crea una plantilla de etiquetas y la refleja en GET con los mismos valores
             diseno: {
                 anchoMm: 70, altoMm: 40, columnas: 2, margenMm: 8, espaciadoMm: 4,
                 mostrarNombre: true, mostrarCodigoBarras: true, mostrarNumeroCodigo: true,
-                mostrarPrecio: true, mostrarMarca: true, mostrarCategoria: true
+                mostrarPrecio: true, mostrarMarca: true, mostrarCategoria: true,
+                papelNombre: "Carta", papelAnchoMm: 216, papelAltoMm: 279
             }
         })
     });
@@ -126,6 +127,9 @@ test("crea una plantilla de etiquetas y la refleja en GET con los mismos valores
     assert.equal(plantilla.columnas, 2);
     assert.equal(plantilla.mostrarMarca, true);
     assert.equal(plantilla.mostrarCategoria, true);
+    assert.equal(plantilla.papelNombre, "Carta");
+    assert.equal(Number(plantilla.papelAnchoMm), 216);
+    assert.equal(Number(plantilla.papelAltoMm), 279);
 });
 
 test("guardar una plantilla con diseno incompleto usa los valores por defecto de la migracion", async () => {
@@ -146,6 +150,28 @@ test("guardar una plantilla con diseno incompleto usa los valores por defecto de
     assert.equal(Number(plantilla.espaciadoMm), 3);
     assert.equal(plantilla.mostrarMarca, false);
     assert.equal(plantilla.mostrarCategoria, false);
+    assert.equal(plantilla.papelNombre, "A4");
+    assert.equal(Number(plantilla.papelAnchoMm), 210);
+    assert.equal(Number(plantilla.papelAltoMm), 297);
+});
+
+test("guardar una plantilla en Rollo continuo fuerza papelAltoMm a null sin importar lo que mande el cliente", async () => {
+    const respuesta = await fetch(`${BASE_URL}/etiquetas-plantillas`, {
+        method: "POST",
+        headers: headersNegocio(negocio.token),
+        body: JSON.stringify({
+            nombre: "Plantilla rollo",
+            diseno: { papelNombre: "Rollo continuo", papelAnchoMm: 58, papelAltoMm: 999 }
+        })
+    });
+
+    const creada = await respuesta.json();
+    const listado = await (await fetch(`${BASE_URL}/etiquetas-plantillas`, { headers: headersNegocio(negocio.token) })).json();
+    const plantilla = listado.plantillas.find(p => p.id === creada.id);
+
+    assert.equal(plantilla.papelNombre, "Rollo continuo");
+    assert.equal(Number(plantilla.papelAnchoMm), 58);
+    assert.equal(plantilla.papelAltoMm, null, "el servidor debe forzar altoMm=null para Rollo continuo, ignorando el 999 enviado");
 });
 
 test("rechaza guardar una plantilla sin nombre", async () => {

@@ -121,6 +121,9 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     mostrarPrecio: fila.mostrar_precio,
                     mostrarMarca: fila.mostrar_marca,
                     mostrarCategoria: fila.mostrar_categoria,
+                    papelNombre: fila.papel_nombre,
+                    papelAnchoMm: Number(fila.papel_ancho_mm),
+                    papelAltoMm: fila.papel_alto_mm !== null ? Number(fila.papel_alto_mm) : null,
                     createdAt: fila.created_at
                 }))
             });
@@ -149,14 +152,25 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             return Number.isFinite(n) && n > 0 ? n : porDefecto;
         };
 
+        // El nombre de papel "Rollo continuo" es la unica fuente de
+        // verdad de si la plantilla tiene alto de pagina limitado -- el
+        // servidor fuerza papel_alto_mm=null en ese caso sin importar lo
+        // que mande el cliente, para que esa invariante nunca dependa de
+        // que el cliente la respete.
+        const papelNombre = String(diseno.papelNombre || "A4").trim().slice(0, 40) || "A4";
+        const esRolloContinuo = papelNombre === "Rollo continuo";
+        const papelAnchoMm = numeroPositivo(diseno.papelAnchoMm, 210);
+        const papelAltoMm = esRolloContinuo ? null : numeroPositivo(diseno.papelAltoMm, 297);
+
         try {
             const negocio = await negocioActual(req);
 
             const resultado = await pool.query(
                 `INSERT INTO public.etiquetas_plantillas
                     (negocio_id, nombre, ancho_mm, alto_mm, columnas, margen_mm, espaciado_mm,
-                     mostrar_nombre, mostrar_codigo_barras, mostrar_numero_codigo, mostrar_precio, mostrar_marca, mostrar_categoria)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                     mostrar_nombre, mostrar_codigo_barras, mostrar_numero_codigo, mostrar_precio, mostrar_marca, mostrar_categoria,
+                     papel_nombre, papel_ancho_mm, papel_alto_mm)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
                  RETURNING id`,
                 [
                     negocio.id,
@@ -171,7 +185,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     Boolean(diseno.mostrarNumeroCodigo),
                     Boolean(diseno.mostrarPrecio),
                     Boolean(diseno.mostrarMarca),
-                    Boolean(diseno.mostrarCategoria)
+                    Boolean(diseno.mostrarCategoria),
+                    papelNombre,
+                    papelAnchoMm,
+                    papelAltoMm
                 ]
             );
 
