@@ -135,6 +135,10 @@ async function mostrarEncargos() {
  <button type="button" data-estado="entregado" onclick="filtrarEncargos('entregado')">Entregados <span class="encargo-filtro-conteo" data-conteo="entregado">0</span></button>
  </div>
  </div>
+ <div class="encargo-buscador">
+ ${iconoUISVG("search")}
+ <input id="encargoBuscarCliente" type="text" placeholder="Buscar por cliente..." oninput="renderListaEncargos()">
+ </div>
  <div id="listaEncargosClientes" class="encargos-lista"></div>
  </section>
  </div>
@@ -417,13 +421,28 @@ function actualizarConteosFiltrosEncargos() {
 }
 
 function encargosFiltrados() {
- if (filtroEstadoEncargos === "vencido") {
- return encargosClientesActuales.filter(esEncargoVencido);
+ let items =
+ filtroEstadoEncargos === "vencido"
+ ? encargosClientesActuales.filter(esEncargoVencido)
+ : filtroEstadoEncargos
+ ? encargosClientesActuales.filter(encargo => encargo.estado === filtroEstadoEncargos)
+ : encargosClientesActuales;
+
+ const busqueda =
+ typeof normalizarTexto === "function"
+ ? normalizarTexto(document.getElementById("encargoBuscarCliente")?.value || "")
+ : (document.getElementById("encargoBuscarCliente")?.value || "").trim().toLowerCase();
+
+ if (busqueda) {
+ items = items.filter(encargo => {
+ const nombre =
+ typeof normalizarTexto === "function" ? normalizarTexto(encargo.clienteNombre) : String(encargo.clienteNombre || "").toLowerCase();
+
+ return nombre.includes(busqueda);
+ });
  }
 
- if (!filtroEstadoEncargos) return encargosClientesActuales;
-
- return encargosClientesActuales.filter(encargo => encargo.estado === filtroEstadoEncargos);
+ return items;
 }
 
 function renderListaEncargos() {
@@ -436,10 +455,13 @@ function renderListaEncargos() {
  encargosFiltrados();
 
  if (items.length === 0) {
+ const buscando =
+ (document.getElementById("encargoBuscarCliente")?.value || "").trim();
+
  lista.innerHTML = `
  <div class="encargo-vacio-estado">
- ${iconoUISVG("clipboard")}
- <p>Sin encargos ${filtroEstadoEncargos ? ETIQUETA_FILTRO_ENCARGO[filtroEstadoEncargos] : ""}.</p>
+ ${iconoUISVG(buscando ? "search" : "clipboard")}
+ <p>${buscando ? `Ningún cliente coincide con "${escaparPOS(buscando)}".` : `Sin encargos ${filtroEstadoEncargos ? ETIQUETA_FILTRO_ENCARGO[filtroEstadoEncargos] : ""}.`}</p>
  </div>
  `;
  return;
@@ -562,6 +584,7 @@ function renderModalDetalleEncargo() {
  ` : ""}
 
  <div class="encargo-detalle-acciones">
+ ${puedeAvisarPorWhatsAppEncargo(encargo) ? `<button type="button" class="btn-encargo-whatsapp" onclick="enviarWhatsAppEncargo()">Avisar por WhatsApp</button>` : ""}
  ${encargo.estado === "pendiente" ? `<button type="button" class="btn-encargo-primario" onclick="cambiarEstadoEncargo('listo')">Marcar listo para entregar</button>` : ""}
  ${encargo.estado === "pendiente" || encargo.estado === "listo" ? `<button type="button" class="btn-encargo-primario" onclick="cambiarEstadoEncargo('entregado')">Marcar entregado</button>` : ""}
  ${encargo.estado === "pendiente" || encargo.estado === "listo" ? `<button type="button" class="btn-encargo-secundario" onclick="cambiarEstadoEncargo('cancelado')">Cancelar encargo</button>` : ""}
@@ -579,6 +602,51 @@ function cerrarDetalleEncargo() {
  if (modal) modal.style.display = "none";
 
  encargoDetalleActual = null;
+}
+
+// Mismo perk de plan que el recordatorio de WhatsApp de Creditos
+// (enviarRecordatorioCreditoWhatsApp en credit-customers.js) -- Pro o
+// demo. Solo tiene sentido avisar cuando ya llego (listo) o cuando el
+// cliente lleva rato esperando sin noticias (vencido).
+function puedeAvisarPorWhatsAppEncargo(encargo) {
+ const planPermitido =
+ ["pro", "demo"].includes(typeof estadoLicenciaNexoPOS !== "undefined" ? estadoLicenciaNexoPOS?.plan : null);
+
+ return planPermitido && (encargo.estado === "listo" || esEncargoVencido(encargo));
+}
+
+function mensajeWhatsAppEncargo(encargo) {
+ const negocio =
+ typeof configuracionNegocio === "function" ? (configuracionNegocio() || {}) : {};
+
+ const nombreNegocio =
+ negocio.nombre || "la ferreteria";
+
+ const items =
+ (encargo.items || []).map(item => item.nombre).join(", ");
+
+ if (encargo.estado === "listo") {
+ return `Hola ${encargo.clienteNombre}, te saluda ${nombreNegocio}. Tu encargo${items ? ` (${items})` : ""} ya llegó y está listo para que pases a recogerlo. ¡Te esperamos!`;
+ }
+
+ return `Hola ${encargo.clienteNombre}, te saluda ${nombreNegocio}. Tu encargo${items ? ` (${items})` : ""} sigue en proceso con el proveedor, se está tardando más de lo esperado -- en cuanto llegue te avisamos. Gracias por tu paciencia.`;
+}
+
+function enviarWhatsAppEncargo() {
+ if (!encargoDetalleActual) return;
+
+ const telefono =
+ typeof normalizarTelefonoWhatsApp === "function" ? normalizarTelefonoWhatsApp(encargoDetalleActual.clienteTelefono) : null;
+
+ if (!telefono) {
+ alertaPOS("Este cliente no tiene un teléfono registrado. Agrégalo y vuelve a abrir el encargo.", "Avisar por WhatsApp", "alerta");
+ return;
+ }
+
+ const mensaje =
+ mensajeWhatsAppEncargo(encargoDetalleActual);
+
+ window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
 }
 
 async function agregarItemEncargoExistente() {

@@ -127,6 +127,18 @@
  font-size:13px;
  cursor:pointer;
 }
+.btn-encargo-whatsapp{
+ min-height:38px;
+ border:0;
+ border-radius:10px;
+ padding:0 16px;
+ background:#25d366 !important;
+ color:#fff !important;
+ font-weight:800;
+ font-size:13px;
+ cursor:pointer;
+ white-space:nowrap;
+}
 .btn-encargo-quitar{
  min-height:28px;
  border:0;
@@ -193,6 +205,28 @@
 }
 .encargos-filtros button.activo .encargo-filtro-conteo{ background:rgba(255,255,255,.28); }
 .encargo-filtro-conteo.alerta{ background:rgba(220,38,38,.16); color:#dc2626; }
+
+.encargo-buscador{
+ display:flex;
+ align-items:center;
+ gap:8px;
+ min-height:38px;
+ margin-bottom:10px;
+ padding:0 12px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:10px;
+ background:var(--pos-surface,#f8fafc);
+}
+.encargo-buscador .ui-icon{ width:16px; height:16px; flex-shrink:0; color:var(--pos-muted,#687386); }
+.encargo-buscador input{
+ flex:1;
+ min-width:0;
+ border:0;
+ background:transparent;
+ color:var(--pos-text,#172033);
+ font-size:13px;
+}
+.encargo-buscador input:focus{ outline:none; }
 
 .encargos-lista{ display:grid; gap:10px; max-height:560px; overflow-y:auto; }
 .encargo-card{
