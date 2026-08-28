@@ -29,11 +29,24 @@ function claveCache(url) {
  * esto la app no podia ni arrancar sin internet, sin importar que tan
  * reciente fuera la ultima vez que si conecto. Nunca compite con una
  * carga en vivo: solo se usa cuando net.fetch() truena.
+ *
+ * bypassCustomProtocolHandlers:true es obligatorio en las dos llamadas a
+ * net.fetch() de aqui abajo -- sin el, un net.fetch("https://...") hecho
+ * DENTRO de un protocol.handle("https", ...) se vuelve a interceptar a si
+ * mismo por el mismo handler (documentado en electron.d.ts). Eso crea
+ * recursion infinita en cada carga: se confirmo en vivo generando ~64,000
+ * llamadas en 8 segundos para una sola navegacion, la promesa de
+ * mainWindow.loadURL() nunca se resuelve, y tras el timeout de 20s la app
+ * cae a "Sin conexion a internet" -- CON internet funcionando. Bug real,
+ * presente desde que se agrego esta cache (commit 780e8f9), nunca antes
+ * detectado porque en las pruebas manuales previas la app ya tenia cache
+ * local de una corrida anterior y ese camino no se ejercito con la misma
+ * severidad senal a senal.
  */
 function activarCacheDeAppShell(sesion, cacheDir, hostsPermitidos) {
   sesion.protocol.handle("https", async request => {
     if (request.method !== "GET" || !esRecursoDeAppShell(request.url, hostsPermitidos)) {
-      return net.fetch(request);
+      return net.fetch(request, { bypassCustomProtocolHandlers: true });
     }
 
     const clave = claveCache(request.url);
@@ -41,7 +54,7 @@ function activarCacheDeAppShell(sesion, cacheDir, hostsPermitidos) {
     const rutaMeta = path.join(cacheDir, `${clave}.json`);
 
     try {
-      const respuesta = await net.fetch(request);
+      const respuesta = await net.fetch(request, { bypassCustomProtocolHandlers: true });
 
       if (respuesta.ok) {
         const buffer = Buffer.from(await respuesta.clone().arrayBuffer());

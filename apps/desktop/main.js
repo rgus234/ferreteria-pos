@@ -8,6 +8,16 @@ const { execFile } = require("child_process");
 const localDb = require("./local-db");
 const { activarCacheDeAppShell } = require("./offline-shell-cache");
 
+// Los equipos de una ferreteria varian mucho (graficas integradas
+// viejas, drivers desactualizados, a veces una maquina virtual para
+// soporte remoto) -- el POS es HTML/CSS/JS de negocio, sin video ni
+// WebGL, asi que no necesita GPU para nada. Sin esto, si el proceso de
+// GPU de Chromium falla varias veces seguidas, Electron cierra la app
+// COMPLETA sin ningun aviso ("GPU process isn't usable. Goodbye.") --
+// justo el tipo de crash silencioso que un cliente describe como "no
+// abre". Debe llamarse antes de app.whenReady().
+app.disableHardwareAcceleration();
+
 const DEFAULT_API_URL = "https://app.nexoposoficial.com";
 const CONFIG_FILE = "desktop-config.json";
 
@@ -490,8 +500,8 @@ async function intentarCargaNormal() {
   try {
     await esperarConLimite(loadPosWindow(), TIMEOUT_CARGA_INICIAL_MS);
     programarResetDeContadorActualizacion();
-  } catch {
-    await mostrarPantallaSinConexion();
+  } catch (error) {
+    await mostrarPantallaSinConexion(error);
   }
 }
 
@@ -523,12 +533,23 @@ function programarReintento() {
   }, 5000);
 }
 
-async function mostrarPantallaSinConexion() {
+// El detalle tecnico del error (si se tiene) se manda como query param a
+// offline-fallback.html -- nunca reemplaza el mensaje principal, solo
+// ayuda a diagnosticar por soporte cuando alguien reporta "no abre" sin
+// mas contexto (antes se perdia por completo, la pantalla no distinguia
+// entre "de verdad sin internet" y cualquier otra causa).
+async function mostrarPantallaSinConexion(error) {
   if (modoRespaldoActivo) return;
   modoRespaldoActivo = true;
 
+  if (error) {
+    console.error("Nexo: fallo la carga inicial -", error.message || error);
+  }
+
   if (mainWindow && !mainWindow.isDestroyed()) {
-    await mainWindow.loadFile(path.join(__dirname, "offline-fallback.html"));
+    await mainWindow.loadFile(path.join(__dirname, "offline-fallback.html"), {
+      query: error?.message ? { detalle: String(error.message).slice(0, 200) } : {}
+    });
     if (!mainWindow.isVisible()) mainWindow.show();
   }
 
@@ -728,9 +749,9 @@ async function createWindow() {
   // y se reintenta solo hasta que la red vuelva. errorCode -3 es
   // ERR_ABORTED, que ocurre seguido por navegaciones canceladas sin ser
   // un fallo real, asi que se ignora.
-  mainWindow.webContents.on("did-fail-load", (_event, errorCode, _errorDescription, _validatedURL, isMainFrame) => {
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, _validatedURL, isMainFrame) => {
     if (!isMainFrame || errorCode === -3) return;
-    mostrarPantallaSinConexion();
+    mostrarPantallaSinConexion(new Error(`${errorDescription || "Error de carga"} (${errorCode})`));
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
