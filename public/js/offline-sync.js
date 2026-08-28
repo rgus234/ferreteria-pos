@@ -297,7 +297,41 @@ function instalarContextoNegocioFetch() {
  };
 }
 
+// VERSION_NEXO_POS (app.js) es un numero fijo que nadie actualizaba
+// desde julio -- en escritorio existe la version real de verdad
+// (app.getVersion() de Electron, la del instalador que el cliente
+// tiene puesto) via IPC. El pie del sidebar y la pantalla de login ya
+// se dibujaron para cuando esto resuelve (es async, ellos no), asi
+// que ademas de la variable se actualiza el texto en pantalla
+// directo -- lo unico que se auto-corrige solo es el menu de cuenta,
+// que se vuelve a dibujar en cada cambio de pantalla.
+async function sincronizarVersionRealEscritorioPOS() {
+ if (!window.nexoDesktop || typeof window.nexoDesktop.updateStatus !== "function") return;
+
+ try {
+ const respuesta =
+ await window.nexoDesktop.updateStatus();
+
+ const version =
+ respuesta?.state?.currentVersion;
+
+ if (!version || typeof VERSION_NEXO_POS === "undefined") return;
+
+ VERSION_NEXO_POS = version;
+
+ const footer = document.getElementById("footerVersionTexto");
+ if (footer) footer.textContent = "NEXO v" + version;
+
+ const login = document.getElementById("loginVersionTexto");
+ if (login) login.textContent = "Version " + version;
+ } catch (error) {
+ // Sin escritorio, o el IPC no respondio -- se queda con el
+ // numero fijo de siempre, no rompe nada.
+ }
+}
+
 aplicarNegocioDesdeURL();
+sincronizarVersionRealEscritorioPOS();
 instalarContextoNegocioFetch();
 
 function desktopNexoDisponible() {

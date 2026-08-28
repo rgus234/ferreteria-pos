@@ -363,7 +363,7 @@ function renderSidebarFooterPOS() {
   const syncHtml = typeof desktopSyncDisponiblePOS === "function" && desktopSyncDisponiblePOS()
    ? '<button type="button" id="btnSyncDesktopPOS" class="sync-desktop-chip" onclick="sincronizarAhoraDesktopPOS()" title="Sincronizar ahora"><span id="chipSyncDesktopPOS" class="sync-chip-inner"><span class="sync-dot"></span><span>Sync</span><small>Revisando</small></span></button>'
    : "";
-  footer.innerHTML = '<div class="sidebar-powered-by"><span>Con la tecnologia de</span><img src="nexo-pos-icon.jpg" alt="Nexo"></div><span class="sidebar-footer-version">NEXO v' + version + '</span>' + syncHtml;
+  footer.innerHTML = '<div class="sidebar-powered-by"><span>Con la tecnologia de</span><img src="nexo-pos-icon.jpg" alt="Nexo"></div><span id="footerVersionTexto" class="sidebar-footer-version">NEXO v' + version + '</span>' + syncHtml;
  }
  sidebar.appendChild(footer);
 }

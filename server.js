@@ -3209,6 +3209,15 @@ app.post("/dispositivos/activar", async (req, res) => {
     }
 });
 
+// UPSERT a proposito, no solo UPDATE: desde que se quito la pantalla
+// vieja de activacion (commit 6cc75af, /dispositivos/activar dejo de
+// existir) ningun equipo nuevo llegaba a tener fila aqui -- checkin
+// hacia UPDATE ... WHERE device_id = X, encontraba 0 filas, y
+// respondia 404 "Dispositivo no registrado" en silencio (el cliente
+// desktop tampoco llamaba a este endpoint entonces, asi que nadie lo
+// habia notado). El primer checkin de un equipo ahora se auto-registra
+// solo, igual que el resto del flujo nuevo (todo se resuelve con la
+// sesion, sin paso de activacion aparte).
 app.post("/dispositivos/checkin", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
@@ -3221,53 +3230,59 @@ app.post("/dispositivos/checkin", requerirAccesoNegocio, async (req, res) => {
             });
         }
 
+        const syncPendientes = Number.isFinite(Number(req.body?.sync?.pendiente)) ? Number(req.body.sync.pendiente) : null;
+        const syncErrores = Number.isFinite(Number(req.body?.sync?.error)) ? Number(req.body.sync.error) : null;
+        const syncUltimoError = req.body?.sync?.ultimoError || null;
+        const localStats = req.body?.localStats ? JSON.stringify(req.body.localStats) : null;
+
         const resultado =
         await pool.query(
             `
-            UPDATE public.dispositivos
-            SET
-                app_version = COALESCE($3, app_version),
-                sync_pendientes = COALESCE($4, sync_pendientes),
-                sync_errores = COALESCE($5, sync_errores),
-                sync_ultimo_error = COALESCE($6, sync_ultimo_error),
-                local_stats = COALESCE($7::jsonb, local_stats),
-                os_version = COALESCE($8, os_version),
-                arch = COALESCE($9, arch),
-                update_latest_version = COALESCE($10, update_latest_version),
-                update_available = COALESCE($11, update_available),
+            INSERT INTO public.dispositivos
+                (negocio_id, device_id, nombre_equipo, plataforma, app_version, os_version, arch,
+                 update_latest_version, update_available, sync_pendientes, sync_errores, sync_ultimo_error,
+                 local_stats, ultimo_checkin_at)
+            VALUES
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, 0), COALESCE($11, 0), $12, COALESCE($13::jsonb, '{}'::jsonb), NOW())
+            ON CONFLICT (negocio_id, device_id)
+            DO UPDATE SET
+                nombre_equipo = COALESCE(EXCLUDED.nombre_equipo, public.dispositivos.nombre_equipo),
+                app_version = COALESCE(EXCLUDED.app_version, public.dispositivos.app_version),
+                sync_pendientes = COALESCE($10, public.dispositivos.sync_pendientes),
+                sync_errores = COALESCE($11, public.dispositivos.sync_errores),
+                sync_ultimo_error = COALESCE($12, public.dispositivos.sync_ultimo_error),
+                local_stats = COALESCE($13::jsonb, public.dispositivos.local_stats),
+                os_version = COALESCE(EXCLUDED.os_version, public.dispositivos.os_version),
+                arch = COALESCE(EXCLUDED.arch, public.dispositivos.arch),
+                update_latest_version = COALESCE(EXCLUDED.update_latest_version, public.dispositivos.update_latest_version),
+                update_available = EXCLUDED.update_available,
+                estado = 'activo',
                 last_sync_at = CASE
-                    WHEN COALESCE($4, sync_pendientes) = 0
-                     AND COALESCE($5, sync_errores) = 0
+                    WHEN COALESCE($10, public.dispositivos.sync_pendientes) = 0
+                     AND COALESCE($11, public.dispositivos.sync_errores) = 0
                     THEN NOW()
-                    ELSE last_sync_at
+                    ELSE public.dispositivos.last_sync_at
                 END,
                 ultimo_checkin_at = NOW(),
                 updated_at = NOW()
-            WHERE negocio_id = $1
-            AND device_id = $2
             RETURNING *
             `,
             [
                 negocio.id,
                 deviceId,
+                req.body?.nombreEquipo || null,
+                req.body?.plataforma || "windows",
                 req.body?.appVersion || null,
-                Number.isFinite(Number(req.body?.sync?.pendiente)) ? Number(req.body.sync.pendiente) : null,
-                Number.isFinite(Number(req.body?.sync?.error)) ? Number(req.body.sync.error) : null,
-                req.body?.sync?.ultimoError || null,
-                req.body?.localStats ? JSON.stringify(req.body.localStats) : null,
                 req.body?.osVersion || null,
                 req.body?.arch || null,
                 req.body?.update?.latestVersion || null,
-                req.body?.update?.updateAvailable === undefined ? null : Boolean(req.body.update.updateAvailable)
+                req.body?.update?.updateAvailable === undefined ? false : Boolean(req.body.update.updateAvailable),
+                syncPendientes,
+                syncErrores,
+                syncUltimoError,
+                localStats
             ]
         );
-
-        if (resultado.rows.length === 0) {
-            return res.status(404).json({
-                ok: false,
-                error: "Dispositivo no registrado"
-            });
-        }
 
         res.json({
             ok: true,

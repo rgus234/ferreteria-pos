@@ -57,7 +57,12 @@ const TAMANO_PAGINA_REPORTES = 8;
 const TAMANO_PAGINA_PROVEEDORES = 8;
 let paginaProveedoresActual = 1;
 let estadoProveedoresActual = "activo";
-const VERSION_NEXO_POS = "1.0.1";
+// En el navegador/movil esto se queda como esta -- la web no tiene
+// "versiones" discretas, se despliega seguido. En escritorio SI hay
+// una version real (el instalador que cada cliente tiene puesto), y
+// sincronizarVersionRealEscritorioPOS() (offline-sync.js) la
+// sobreescribe apenas arranca -- por eso es "let" y no "const".
+let VERSION_NEXO_POS = "1.0.1";
 
 const CONFIG_NEGOCIO_KEY = "configuracionNegocioPOS";
 const TEMA_POS_KEY = "temaPOS";

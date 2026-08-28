@@ -24,6 +24,7 @@ const CONFIG_FILE = "desktop-config.json";
 let mainWindow;
 let configCache;
 let updateTimer;
+let checkinTimer;
 let modoRespaldoActivo = false;
 let reintentoTimer = null;
 let updateState = {
@@ -121,6 +122,15 @@ async function apiRequest(endpoint, options = {}) {
   const url = `${config.apiBaseUrl}${endpoint}`;
   const headers = {
     "content-type": "application/json",
+    // requerirAccesoNegocio (server.js) solo reconoce x-dispositivo-token
+    // o Authorization -- x-negocio-slug/x-device-id no los lee para
+    // nada. Sin este header, TODA llamada de este archivo (updates,
+    // sync, checkin) respondia 401 en silencio desde el refactor de
+    // ese middleware; el error se tragaba porque runAutoUpdateCheck()
+    // atrapa sus propios fallos. config.dispositivoToken lo guarda
+    // saveDeviceLink() (ver nexo:save-device-link) apenas el
+    // renderer termina de vincular el equipo.
+    "x-dispositivo-token": config.dispositivoToken || "",
     "x-negocio-slug": config.negocioSlug,
     "x-device-id": config.deviceId,
     ...(options.headers || {})
@@ -330,6 +340,55 @@ async function runAutoUpdateCheck(options = {}) {
   }
 }
 
+// Reporta al servidor que version/estado tiene este equipo de verdad
+// (tabla public.dispositivos) -- se dejo de llamar por completo al
+// quitar la pantalla vieja de activacion (commit 6cc75af) y nunca se
+// reemplazo, asi que desde entonces ningun cliente reporta su version
+// real: el admin no tiene forma de saber si alguien sigue en una
+// version vieja. Sin dispositivoToken (equipo recien instalado, aun
+// sin vincular) no hay nada que reportar todavia -- se sale en
+// silencio, se vuelve a intentar solo en el proximo ciclo.
+async function checkInDevice() {
+  const config = await readConfig();
+  if (!config.dispositivoToken) return { ok: false, sinVincular: true };
+
+  const syncStats = localDb.syncStats();
+  const localStats = localDb.localDataStats(config.negocioSlug);
+
+  try {
+    const response = await apiRequest("/dispositivos/checkin", {
+      method: "POST",
+      body: JSON.stringify({
+        deviceId: config.deviceId,
+        nombreEquipo: config.deviceName,
+        plataforma: "windows",
+        appVersion: app.getVersion(),
+        osVersion: os.release(),
+        arch: os.arch(),
+        update: {
+          latestVersion: updateState.latestVersion,
+          updateAvailable: updateState.updateAvailable
+        },
+        sync: {
+          pendiente: syncStats?.pendiente,
+          error: syncStats?.error,
+          ultimoError: syncStats?.ultimoError
+        },
+        localStats
+      })
+    });
+
+    await writeConfig({ lastCheckinAt: new Date().toISOString() });
+    return { ok: true, ...response };
+  } catch (error) {
+    await writeConfig({
+      lastCheckinError: error.message,
+      lastCheckinErrorAt: new Date().toISOString()
+    });
+    return { ok: false, error: error.message };
+  }
+}
+
 async function syncPendingEvents() {
   const config = await readConfig();
   const eventos = localDb.pendingEvents(100, config.negocioSlug);
@@ -500,6 +559,7 @@ async function intentarCargaNormal() {
   try {
     await esperarConLimite(loadPosWindow(), TIMEOUT_CARGA_INICIAL_MS);
     programarResetDeContadorActualizacion();
+    checkInDevice().catch(() => {});
   } catch (error) {
     await mostrarPantallaSinConexion(error);
   }
@@ -802,6 +862,10 @@ function startBackgroundJobs() {
   updateTimer = setInterval(async () => {
     await runAutoUpdateCheck();
   }, 30 * 60 * 1000);
+
+  checkinTimer = setInterval(() => {
+    checkInDevice().catch(() => {});
+  }, 10 * 60 * 1000);
 }
 
 ipcMain.handle("nexo:get-config", async () => readConfig());
@@ -1011,6 +1075,7 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (updateTimer) clearInterval(updateTimer);
+  if (checkinTimer) clearInterval(checkinTimer);
   detenerReintento();
   if (process.platform !== "darwin") {
     app.quit();
