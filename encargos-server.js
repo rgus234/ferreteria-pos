@@ -275,7 +275,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             );
 
             if (resultado.rows.length === 0) {
-                res.status(404).json({ ok: false, error: "Articulo no encontrado." });
+                res.status(404).json({ ok: false, error: "Artículo no encontrado." });
                 return;
             }
 
@@ -298,7 +298,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
         if (req.body?.estado !== undefined) {
             if (!["pendiente", "listo", "entregado", "cancelado"].includes(req.body.estado)) {
-                res.status(400).json({ ok: false, error: "Estado invalido." });
+                res.status(400).json({ ok: false, error: "Estado inválido." });
                 return;
             }
             campos.push(`estado = $${indice++}`);

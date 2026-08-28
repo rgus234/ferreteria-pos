@@ -23,9 +23,46 @@
  border-radius:14px;
  background:var(--pos-surface-strong,#fff);
 }
-.encargos-panel h3{ margin:0 0 12px; font-size:15px; font-weight:800; }
+.encargos-panel h3{ display:flex; align-items:center; gap:8px; margin:0 0 12px; font-size:15px; font-weight:800; }
+.encargos-panel h3 .ui-icon{ width:18px; height:18px; flex-shrink:0; color:var(--brand-color,#0d6efd); }
 .encargos-panel-titulo-fila{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
 .encargos-panel-titulo-fila h3{ margin:0; }
+
+.encargos-stats{
+ display:grid;
+ grid-template-columns:repeat(4,minmax(0,1fr));
+ gap:12px;
+}
+.encargo-stat-tarjeta{
+ display:flex;
+ align-items:center;
+ gap:10px;
+ padding:12px 14px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:12px;
+ background:var(--pos-surface-strong,#fff);
+}
+.encargo-stat-tarjeta strong{ display:block; font-size:19px; font-weight:800; line-height:1.15; color:var(--pos-text,#172033); }
+.encargo-stat-tarjeta span{ display:block; font-size:11.5px; font-weight:700; color:var(--pos-muted,#687386); }
+.encargo-stat-icono{
+ flex-shrink:0;
+ width:34px;
+ height:34px;
+ display:grid;
+ place-items:center;
+ border-radius:10px;
+}
+.encargo-stat-icono .ui-icon{ width:18px; height:18px; }
+.stat-pendiente .encargo-stat-icono{ background:rgba(217,119,6,.14); color:#b45309; }
+.stat-listo .encargo-stat-icono{ background:rgba(37,99,235,.14); color:#1d4ed8; }
+.stat-vencido .encargo-stat-icono{ background:rgba(100,116,139,.14); color:#475569; }
+.stat-vencido.con-alerta .encargo-stat-icono{ background:rgba(220,38,38,.14); color:#dc2626; }
+.stat-vencido.con-alerta strong{ color:#dc2626; }
+.stat-anticipo .encargo-stat-icono{ background:rgba(22,163,74,.14); color:#15803d; }
+
+@media (max-width:900px){
+ .encargos-stats{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
 
 .encargo-form-cliente,
 .encargo-form-fila{
@@ -142,6 +179,20 @@
  color:#fff !important;
  border-color:transparent !important;
 }
+.encargo-filtro-conteo{
+ display:inline-flex;
+ align-items:center;
+ justify-content:center;
+ min-width:16px;
+ padding:0 4px;
+ margin-left:2px;
+ border-radius:999px;
+ background:rgba(104,115,134,.16);
+ font-size:10px;
+ font-weight:800;
+}
+.encargos-filtros button.activo .encargo-filtro-conteo{ background:rgba(255,255,255,.28); }
+.encargo-filtro-conteo.alerta{ background:rgba(220,38,38,.16); color:#dc2626; }
 
 .encargos-lista{ display:grid; gap:10px; max-height:560px; overflow-y:auto; }
 .encargo-card{
@@ -154,9 +205,40 @@
  cursor:pointer;
 }
 .encargo-card:hover{ border-color:var(--brand-color,#0d6efd); }
+.encargo-card.encargo-vencido{ box-shadow:inset 3px 0 0 #dc2626; }
 .encargo-card-cabecera{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .encargo-card-cabecera strong{ font-size:14px; }
-.encargo-card-detalle{ color:var(--pos-muted,#687386); font-size:12px; }
+.encargo-card-cliente{ display:flex; align-items:center; gap:8px; min-width:0; }
+.encargo-card-cliente strong{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.encargo-card-detalle{ display:flex; align-items:center; gap:4px; color:var(--pos-muted,#687386); font-size:12px; }
+.encargo-card-detalle-vencido{ color:#dc2626; font-weight:700; }
+.encargo-card-detalle .ui-icon{ width:13px; height:13px; flex-shrink:0; }
+
+.encargo-avatar{
+ flex-shrink:0;
+ width:28px;
+ height:28px;
+ display:grid;
+ place-items:center;
+ border-radius:50%;
+ background:rgba(13,110,253,.12);
+ color:var(--brand-color,#0d6efd);
+ font-size:11px;
+ font-weight:800;
+}
+.encargo-avatar-grande{ width:44px; height:44px; font-size:15px; }
+
+.encargo-vacio-estado{
+ display:flex;
+ flex-direction:column;
+ align-items:center;
+ gap:8px;
+ padding:32px 16px;
+ color:var(--pos-muted,#687386);
+ text-align:center;
+}
+.encargo-vacio-estado .ui-icon{ width:30px; height:30px; opacity:.45; }
+.encargo-vacio-estado p{ margin:0; font-size:13px; }
 
 .encargo-badge{
  display:inline-flex;
@@ -211,6 +293,21 @@
  text-transform:uppercase;
 }
 .encargo-detalle-card .modal-card-header h3{ margin:2px 0 0; font-size:20px; }
+.encargo-detalle-header-cliente{ display:flex; align-items:center; gap:12px; min-width:0; }
+.encargo-detalle-header-cliente h3{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.encargo-detalle-aviso-vencido{
+ display:flex;
+ align-items:center;
+ gap:8px;
+ margin:0 0 14px;
+ padding:10px 12px;
+ border-radius:10px;
+ background:rgba(220,38,38,.1);
+ color:#dc2626;
+ font-size:12.5px;
+ font-weight:700;
+}
+.encargo-detalle-aviso-vencido .ui-icon{ width:16px; height:16px; flex-shrink:0; }
 .encargo-detalle-card .modal-card-header button{
  min-height:32px;
  border:1px solid var(--pos-line,#dbe3ef) !important;

@@ -88,6 +88,8 @@ async function borrarNegocioPrueba(negocioId) {
         "proveedores",
         "negocio_giros",
         "listas_producto",
+        "encargos_clientes_items",
+        "encargos_clientes",
         "etiquetas_plantillas"
     ];
 

@@ -27,6 +27,28 @@ const ETIQUETA_ESTADO_ENCARGO = {
  cancelado: "Cancelado"
 };
 
+const ETIQUETA_FILTRO_ENCARGO = {
+ pendiente: "pendientes",
+ listo: "listos para entregar",
+ vencido: "vencidos",
+ entregado: "entregados"
+};
+
+// "Vencido" no es un estado real en la base -- es pendiente/listo cuya
+// fecha de entrega ya paso. Se calcula aqui, nunca se guarda, para que
+// nunca se desincronice de "hoy".
+function esEncargoVencido(encargo) {
+ if (encargo.estado !== "pendiente" && encargo.estado !== "listo") return false;
+ if (!encargo.fechaEntregaEsperada) return false;
+
+ const hoy = new Date().toISOString().slice(0, 10);
+ return String(encargo.fechaEntregaEsperada).slice(0, 10) < hoy;
+}
+
+function inicialesEncargoCliente(nombre) {
+ return typeof inicialesNegocio === "function" ? inicialesNegocio(nombre) : String(nombre || "?").slice(0, 2).toUpperCase();
+}
+
 async function mostrarEncargos() {
  if (typeof ocultarPantallasPrincipales === "function") {
  ocultarPantallasPrincipales();
@@ -50,20 +72,22 @@ async function mostrarEncargos() {
  <div class="encargos-header">
  <div>
  <h2>Encargos de clientes</h2>
- <p>Registra lo que un cliente pidio encargar, con anticipo y fecha estimada de entrega.</p>
+ <p>Registra lo que un cliente pidió encargar, con anticipo y fecha estimada de entrega.</p>
  </div>
  </div>
 
+ <div class="encargos-stats" id="encargosStats"></div>
+
  <div class="encargos-grid">
  <section class="encargos-panel">
- <h3>Nuevo encargo</h3>
+ <h3>${iconoUISVG("plus")}<span>Nuevo encargo</span></h3>
 
  <div class="encargo-form-cliente">
  <label>Cliente
  <input id="encargoClienteNombre" list="encargoClienteLista" placeholder="Nombre del cliente" oninput="autocompletarClienteEncargo()">
  <datalist id="encargoClienteLista"></datalist>
  </label>
- <label>Telefono
+ <label>Teléfono
  <input id="encargoClienteTelefono" placeholder="Opcional">
  </label>
  </div>
@@ -102,12 +126,13 @@ async function mostrarEncargos() {
 
  <section class="encargos-panel">
  <div class="encargos-panel-titulo-fila">
- <h3>Encargos</h3>
+ <h3>${iconoUISVG("clipboard")}<span>Encargos</span></h3>
  <div class="encargos-filtros">
- <button type="button" class="activo" data-estado="" onclick="filtrarEncargos('')">Todos</button>
- <button type="button" data-estado="pendiente" onclick="filtrarEncargos('pendiente')">Pendientes</button>
- <button type="button" data-estado="listo" onclick="filtrarEncargos('listo')">Listos</button>
- <button type="button" data-estado="entregado" onclick="filtrarEncargos('entregado')">Entregados</button>
+ <button type="button" class="activo" data-estado="" onclick="filtrarEncargos('')">Todos <span class="encargo-filtro-conteo" data-conteo="">0</span></button>
+ <button type="button" data-estado="pendiente" onclick="filtrarEncargos('pendiente')">Pendientes <span class="encargo-filtro-conteo" data-conteo="pendiente">0</span></button>
+ <button type="button" data-estado="listo" onclick="filtrarEncargos('listo')">Listos <span class="encargo-filtro-conteo" data-conteo="listo">0</span></button>
+ <button type="button" data-estado="vencido" onclick="filtrarEncargos('vencido')">Vencidos <span class="encargo-filtro-conteo alerta" data-conteo="vencido">0</span></button>
+ <button type="button" data-estado="entregado" onclick="filtrarEncargos('entregado')">Entregados <span class="encargo-filtro-conteo" data-conteo="entregado">0</span></button>
  </div>
  </div>
  <div id="listaEncargosClientes" class="encargos-lista"></div>
@@ -225,7 +250,7 @@ function renderTablaItemsEncargoNuevo() {
  if (!contenedor) return;
 
  if (itemsEncargoNuevo.length === 0) {
- contenedor.innerHTML = `<p class="encargo-items-vacio">Todavia no agregas productos.</p>`;
+ contenedor.innerHTML = `<p class="encargo-items-vacio">Todavía no agregas productos.</p>`;
  return;
  }
 
@@ -295,7 +320,7 @@ async function guardarEncargoNuevo() {
  itemsEncargoNuevo = [];
  await mostrarEncargos();
  } catch (error) {
- alertaPOS("No se pudo guardar el encargo. Revisa tu conexion.", "Error", "peligro");
+ alertaPOS("No se pudo guardar el encargo. Revisa tu conexión.", "Error", "peligro");
  }
 }
 
@@ -306,9 +331,14 @@ function filtrarEncargos(estado) {
  boton.classList.toggle("activo", boton.dataset.estado === estado);
  });
 
- cargarListaEncargos();
+ renderListaEncargos();
 }
 
+// Trae SIEMPRE la lista completa (sin filtro de estado en el
+// servidor) -- el filtro de las pestanas ahora es 100% del lado del
+// cliente. Asi las tarjetas de resumen y los contadores por pestana
+// reflejan el total real sin importar cual pestana este activa, y
+// cambiar de pestana no vuelve a pedir nada al servidor.
 async function cargarListaEncargos() {
  const lista =
  document.getElementById("listaEncargosClientes");
@@ -319,7 +349,7 @@ async function cargarListaEncargos() {
 
  try {
  const respuesta =
- await fetch(`/encargos-clientes${filtroEstadoEncargos ? `?estado=${filtroEstadoEncargos}` : ""}`);
+ await fetch("/encargos-clientes");
 
  const datos =
  await respuesta.json().catch(() => ({}));
@@ -327,10 +357,73 @@ async function cargarListaEncargos() {
  encargosClientesActuales =
  (respuesta.ok && datos.ok) ? datos.encargos : [];
 
+ renderStatsEncargos();
+ actualizarConteosFiltrosEncargos();
  renderListaEncargos();
  } catch (error) {
  lista.innerHTML = `<p class="encargo-items-vacio">No se pudo cargar la lista.</p>`;
  }
+}
+
+function renderStatsEncargos() {
+ const contenedor =
+ document.getElementById("encargosStats");
+
+ if (!contenedor) return;
+
+ const pendientes = encargosClientesActuales.filter(e => e.estado === "pendiente");
+ const listos = encargosClientesActuales.filter(e => e.estado === "listo");
+ const vencidos = encargosClientesActuales.filter(esEncargoVencido);
+ const anticipoEnMano = [...pendientes, ...listos].reduce((suma, e) => suma + Number(e.anticipo || 0), 0);
+
+ contenedor.innerHTML = `
+ <div class="encargo-stat-tarjeta stat-pendiente">
+ <span class="encargo-stat-icono">${iconoUISVG("clock")}</span>
+ <div><strong>${pendientes.length}</strong><span>Pendientes</span></div>
+ </div>
+ <div class="encargo-stat-tarjeta stat-listo">
+ <span class="encargo-stat-icono">${iconoUISVG("check")}</span>
+ <div><strong>${listos.length}</strong><span>Listos para entregar</span></div>
+ </div>
+ <div class="encargo-stat-tarjeta stat-vencido${vencidos.length > 0 ? " con-alerta" : ""}">
+ <span class="encargo-stat-icono">${iconoUISVG("alert")}</span>
+ <div><strong>${vencidos.length}</strong><span>Vencidos</span></div>
+ </div>
+ <div class="encargo-stat-tarjeta stat-anticipo">
+ <span class="encargo-stat-icono">${iconoUISVG("wallet")}</span>
+ <div><strong>${dineroEncargo(anticipoEnMano)}</strong><span>Anticipos en mano</span></div>
+ </div>
+ `;
+}
+
+function actualizarConteosFiltrosEncargos() {
+ const conteos = {
+ "": encargosClientesActuales.length,
+ pendiente: 0,
+ listo: 0,
+ vencido: 0,
+ entregado: 0
+ };
+
+ encargosClientesActuales.forEach(encargo => {
+ if (conteos[encargo.estado] !== undefined) conteos[encargo.estado] += 1;
+ if (esEncargoVencido(encargo)) conteos.vencido += 1;
+ });
+
+ document.querySelectorAll(".encargo-filtro-conteo").forEach(span => {
+ const clave = span.dataset.conteo;
+ span.textContent = conteos[clave] ?? 0;
+ });
+}
+
+function encargosFiltrados() {
+ if (filtroEstadoEncargos === "vencido") {
+ return encargosClientesActuales.filter(esEncargoVencido);
+ }
+
+ if (!filtroEstadoEncargos) return encargosClientesActuales;
+
+ return encargosClientesActuales.filter(encargo => encargo.estado === filtroEstadoEncargos);
 }
 
 function renderListaEncargos() {
@@ -339,22 +432,37 @@ function renderListaEncargos() {
 
  if (!lista) return;
 
- if (encargosClientesActuales.length === 0) {
- lista.innerHTML = `<p class="encargo-items-vacio">Sin encargos ${filtroEstadoEncargos ? ETIQUETA_ESTADO_ENCARGO[filtroEstadoEncargos].toLowerCase() : ""}.</p>`;
+ const items =
+ encargosFiltrados();
+
+ if (items.length === 0) {
+ lista.innerHTML = `
+ <div class="encargo-vacio-estado">
+ ${iconoUISVG("clipboard")}
+ <p>Sin encargos ${filtroEstadoEncargos ? ETIQUETA_FILTRO_ENCARGO[filtroEstadoEncargos] : ""}.</p>
+ </div>
+ `;
  return;
  }
 
  lista.innerHTML =
- encargosClientesActuales.map(encargo => `
- <article class="encargo-card estado-${encargo.estado}" onclick="abrirDetalleEncargo(${encargo.id})">
+ items.map(encargo => {
+ const vencido = esEncargoVencido(encargo);
+
+ return `
+ <article class="encargo-card estado-${encargo.estado}${vencido ? " encargo-vencido" : ""}" onclick="abrirDetalleEncargo(${encargo.id})">
  <div class="encargo-card-cabecera">
+ <div class="encargo-card-cliente">
+ <span class="encargo-avatar">${inicialesEncargoCliente(encargo.clienteNombre)}</span>
  <strong>${escaparPOS(encargo.clienteNombre)}</strong>
+ </div>
  <span class="encargo-badge estado-${encargo.estado}">${ETIQUETA_ESTADO_ENCARGO[encargo.estado] || encargo.estado}</span>
  </div>
  <span class="encargo-card-detalle">${encargo.totalItems} producto(s) &middot; ${dineroEncargo(encargo.totalEstimado)}</span>
- <span class="encargo-card-detalle">Entrega: ${fechaCortaEncargo(encargo.fechaEntregaEsperada)}${Number(encargo.anticipo) > 0 ? ` &middot; Anticipo ${dineroEncargo(encargo.anticipo)}` : ""}</span>
+ <span class="encargo-card-detalle${vencido ? " encargo-card-detalle-vencido" : ""}">${vencido ? iconoUISVG("alert") : ""}Entrega: ${fechaCortaEncargo(encargo.fechaEntregaEsperada)}${Number(encargo.anticipo) > 0 ? ` &middot; Anticipo ${dineroEncargo(encargo.anticipo)}` : ""}</span>
  </article>
- `).join("");
+ `;
+ }).join("");
 }
 
 async function abrirDetalleEncargo(id) {
@@ -396,18 +504,26 @@ function renderModalDetalleEncargo() {
  const totalEstimado =
  encargo.items.reduce((suma, item) => suma + item.cantidad * item.precioEstimado, 0);
 
+ const vencido =
+ esEncargoVencido(encargo);
+
  modal.innerHTML = `
  <div class="modal-card encargo-detalle-card">
  <div class="modal-card-header">
+ <div class="encargo-detalle-header-cliente">
+ <span class="encargo-avatar encargo-avatar-grande">${inicialesEncargoCliente(encargo.clienteNombre)}</span>
  <div>
  <span>Encargo</span>
  <h3>${escaparPOS(encargo.clienteNombre)}</h3>
  </div>
+ </div>
  <button type="button" onclick="cerrarDetalleEncargo()">Cerrar</button>
  </div>
 
+ ${vencido ? `<p class="encargo-detalle-aviso-vencido">${iconoUISVG("alert")}Este encargo ya debería haber llegado.</p>` : ""}
+
  <div class="encargo-detalle-info">
- <span>Telefono: ${escaparPOS(encargo.clienteTelefono || "Sin telefono")}</span>
+ <span>Teléfono: ${escaparPOS(encargo.clienteTelefono || "Sin teléfono")}</span>
  <span>Anticipo: ${dineroEncargo(encargo.anticipo)}</span>
  <span>Entrega estimada: ${fechaCortaEncargo(encargo.fechaEntregaEsperada)}</span>
  ${encargo.notas ? `<span>Notas: ${escaparPOS(encargo.notas)}</span>` : ""}
@@ -590,8 +706,8 @@ async function revisarEncargosVencidosPOS() {
 
  const mensaje =
  datos.encargos.length === 1
- ? `El encargo de ${nombres} ya deberia haber llegado.`
- : `${datos.encargos.length} encargos ya deberian haber llegado: ${nombres}.`;
+ ? `El encargo de ${nombres} ya debería haber llegado.`
+ : `${datos.encargos.length} encargos ya deberían haber llegado: ${nombres}.`;
 
  if (typeof mostrarToastPOS === "function") {
  mostrarToastPOS(mensaje, {
