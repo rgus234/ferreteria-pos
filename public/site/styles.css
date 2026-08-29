@@ -1626,6 +1626,120 @@ footer {
   }
 }
 
+/* Panel del dueno -- notificaciones al instante, visibilidad remota */
+
+.dueno-showcase {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: 44px;
+  align-items: center;
+  padding: clamp(50px, 7vw, 96px) clamp(18px, 6vw, 88px);
+}
+
+.dueno-showcase-content h2 {
+  max-width: 560px;
+}
+
+.dueno-showcase-content > p {
+  max-width: 520px;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.dueno-showcase-lista {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0 26px;
+  padding: 0;
+  list-style: none;
+}
+
+.dueno-showcase-lista li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: var(--ink);
+  font-weight: 750;
+  font-size: 14.5px;
+}
+
+.dueno-showcase-lista li::before {
+  content: "\2713";
+  color: var(--mint);
+  font-weight: 900;
+  flex: none;
+}
+
+.dueno-showcase-notifs {
+  display: grid;
+  gap: 12px;
+  padding: 26px 22px;
+  border: 1px solid rgba(255, 255, 255, .72);
+  border-radius: 32px;
+  background: linear-gradient(145deg, rgba(255,255,255,.82), rgba(232,239,250,.58));
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(22px);
+}
+
+.dueno-notif {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(20, 32, 51, .08);
+}
+
+.dueno-notif:nth-child(2) {
+  transform: scale(.98);
+  opacity: .92;
+}
+
+.dueno-notif:nth-child(3) {
+  transform: scale(.96);
+  opacity: .84;
+}
+
+.dueno-notif-icono {
+  display: flex;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(16, 103, 232, .10);
+  font-size: 18px;
+}
+
+.dueno-notif strong {
+  display: block;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.dueno-notif span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .dueno-showcase {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dueno-showcase-content h2,
+  .dueno-showcase-content > p {
+    max-width: none;
+  }
+}
+
 /* Nexo IA -- pagina dedicada (/nexo-ia) */
 
 .nexo-hero {
