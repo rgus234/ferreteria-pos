@@ -934,6 +934,70 @@ h3 {
   font-weight: 700;
 }
 
+.pricing-tabla-wrap {
+  margin-top: 36px;
+  overflow-x: auto;
+  border-radius: 26px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+  box-shadow: 0 18px 48px rgba(20, 32, 51, .08);
+}
+
+.pricing-tabla {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+}
+
+.pricing-tabla caption {
+  text-align: left;
+  padding: 22px 24px 6px;
+  font-weight: 900;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.pricing-tabla th,
+.pricing-tabla td {
+  padding: 14px 20px;
+  text-align: center;
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.pricing-tabla thead th {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.pricing-tabla tbody th {
+  text-align: left;
+  font-weight: 800;
+  white-space: normal;
+}
+
+.pricing-tabla td.si {
+  color: var(--mint);
+  font-weight: 900;
+  font-size: 16px;
+}
+
+.pricing-tabla td.no {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.pricing-tabla th:nth-child(3),
+.pricing-tabla td:nth-child(3) {
+  background: rgba(16, 103, 232, .07);
+}
+
 .growth {
   display: grid;
   grid-template-columns: minmax(0, .8fr) minmax(320px, 1fr);
@@ -1667,6 +1731,7 @@ footer {
 }
 
 .nexo-capacidades,
+.nexo-conversaciones,
 .nexo-planes,
 .modulos-nexo {
   padding: clamp(50px, 7vw, 96px) clamp(18px, 6vw, 88px);
@@ -1746,6 +1811,70 @@ footer {
   color: var(--muted);
   font-weight: 700;
   line-height: 1.5;
+}
+
+.nexo-chat-ejemplos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.nexo-chat-card {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, .72);
+  border-radius: 26px;
+  background: var(--glass);
+  box-shadow: 0 18px 48px rgba(20, 32, 51, .08);
+}
+
+.nexo-chat-burbuja {
+  max-width: 88%;
+  padding: 12px 16px;
+  border-radius: 18px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.nexo-chat-burbuja p {
+  margin: 0;
+}
+
+.nexo-chat-burbuja.usuario {
+  justify-self: end;
+  background: var(--blue);
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+
+.nexo-chat-burbuja.nexo {
+  justify-self: start;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-bottom-left-radius: 6px;
+}
+
+.nexo-chat-burbuja.nexo img {
+  width: 26px;
+  height: 26px;
+  margin-top: 2px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex: none;
+}
+
+.nexo-chat-nota {
+  margin: 20px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
 }
 
 .nexo-planes {
@@ -1831,7 +1960,8 @@ footer {
 @media (max-width: 600px) {
   .nexo-capacidad-grid,
   .nexo-planes-grid,
-  .nexo-pilares {
+  .nexo-pilares,
+  .nexo-chat-ejemplos {
     grid-template-columns: minmax(0, 1fr);
   }
 

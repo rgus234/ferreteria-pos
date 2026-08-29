@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Nexo POS</title>
-  <meta name="description" content="Nexo es un sistema comercial para ferreterias, abarrotes y papelerias con ventas, inventario, creditos, caja, reportes y recepcion de mercancia.">
+  <meta name="description" content="Nexo es un sistema comercial para abarrotes, ferreterias y papelerias con ventas, inventario, creditos, caja, reportes y recepcion de mercancia.">
   <link rel="icon" href="/nexo-pos-icon.jpg">
   <link rel="stylesheet" href="/site/styles.css">
   <script src="/site/site-nav.js" defer></script>
@@ -48,7 +48,7 @@
         </div>
         <div class="hero-proof">
           <span>Ya funciona para</span>
-          <strong>Ferreterias, abarrotes y papelerias</strong>
+          <strong>Abarrotes, ferreterias y papelerias</strong>
         </div>
 
         <img class="hero-mascota" src="/img/nexo-ia/feliz.jpg" alt="Nexo, el asistente de Nexo">
@@ -133,6 +133,11 @@
         <h2>Un sistema completo, no solo una caja registradora.</h2>
       </div>
       <div class="nexo-capacidad-grid">
+        <article>
+          <span class="nexo-capacidad-icono">&#128203;</span>
+          <h3>Encargos de clientes</h3>
+          <p>Registra lo que un cliente te pide, guarda un anticipo si aplica y avisale por WhatsApp en cuanto este listo -- sin que se pierda en una libreta.</p>
+        </article>
         <article>
           <span class="nexo-capacidad-icono">&#128179;</span>
           <h3>Creditos a clientes</h3>
@@ -316,6 +321,34 @@
           </div>
         </article>
       </div>
+
+      <div class="pricing-tabla-wrap">
+        <table class="pricing-tabla">
+          <caption>Comparacion rapida entre planes</caption>
+          <thead>
+            <tr>
+              <th scope="col">Funcion</th>
+              <th scope="col">Basico</th>
+              <th scope="col">Plus</th>
+              <th scope="col">Pro</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Punto de venta completo</th><td class="si">&#10003;</td><td class="si">&#10003;</td><td class="si">&#10003;</td></tr>
+            <tr><th scope="row">Inventario con alertas</th><td class="si">&#10003;</td><td class="si">&#10003;</td><td class="si">&#10003;</td></tr>
+            <tr><th scope="row">Caja: turnos y cortes</th><td class="si">&#10003;</td><td class="si">&#10003;</td><td class="si">&#10003;</td></tr>
+            <tr><th scope="row">Credito a clientes</th><td class="si">&#10003;</td><td class="si">&#10003;</td><td class="si">&#10003;</td></tr>
+            <tr><th scope="row">Empleados con PIN</th><td>Hasta 2</td><td>Hasta 8</td><td>Ilimitados</td></tr>
+            <tr><th scope="row">Recepcion por XML o CSV</th><td class="no">&#10005;</td><td class="si">&#10003;</td><td class="si">&#10003;</td></tr>
+            <tr><th scope="row">Catalogo de proveedor automatico</th><td class="no">&#10005;</td><td class="si">&#10003;</td><td class="si">&#10003;</td></tr>
+            <tr><th scope="row">Nexo Market (sitio propio + pagos)</th><td class="no">&#10005;</td><td class="si">&#10003;</td><td class="si">&#10003;</td></tr>
+            <tr><th scope="row">Reportes con comparativas</th><td class="no">&#10005;</td><td class="si">&#10003;</td><td class="si">&#10003;</td></tr>
+            <tr><th scope="row">Nexo IA</th><td class="no">No incluida</td><td>50 preguntas/mes</td><td>500/mes + internet</td></tr>
+            <tr><th scope="row">Banco Global de Imagenes</th><td class="no">&#10005;</td><td class="no">&#10005;</td><td class="si">&#10003;</td></tr>
+            <tr><th scope="row">Finanzas avanzadas</th><td class="no">&#10005;</td><td class="no">&#10005;</td><td class="si">&#10003;</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <div class="plan-modal-overlay" id="planModalOverlay" aria-hidden="true">
@@ -336,8 +369,8 @@
         <p>Nexo ya funciona con categorias, IA y catalogo propios para ferreterias, abarrotes y papelerias -- un negocio puede incluso operar mas de un giro a la vez, todo en el mismo inventario y la misma caja. Se sigue preparando para refaccionarias, ropa, farmacias y otros negocios con inventario y mostrador.</p>
       </div>
       <ul>
-        <li>Ferreterias</li>
         <li>Abarrotes</li>
+        <li>Ferreterias</li>
         <li>Papelerias</li>
         <li class="giro-proximamente">Refaccionarias</li>
         <li class="giro-proximamente">Tiendas de ropa</li>
