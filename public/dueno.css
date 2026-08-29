@@ -652,6 +652,27 @@ button{
     white-space:nowrap;
 }
 
+/* Inicio ya destaca el stock critico en su propia tarjeta de alertas
+   -- esto lleva el mismo criterio a la lista completa de Inventario,
+   que antes mostraba "Stock 0" y "Stock 15" en el mismo gris. Va
+   dentro de un span "display:block" (.fila-dueno span de arriba), por
+   eso el display:inline explicito -- sin el, el numero de stock se
+   caeria a su propio renglon. */
+.fila-dueno .stock-texto{
+    display:inline;
+    color:inherit;
+}
+
+.fila-dueno .stock-texto-bajo{
+    color:var(--amber);
+    font-weight:700;
+}
+
+.fila-dueno .stock-texto-sin{
+    color:var(--red);
+    font-weight:700;
+}
+
 .vacio{
     padding:16px;
     border:1px dashed var(--line);
@@ -930,11 +951,15 @@ button{
 }
 
 .dueno-miniatura-vacia{
-    font-size:8px;
-    line-height:1.2;
+    display:flex;
+    align-items:center;
+    justify-content:center;
     color:var(--muted);
-    text-align:center;
-    padding:2px;
+}
+
+.dueno-miniatura-vacia svg{
+    width:20px;
+    height:20px;
 }
 
 .fila-dueno-producto > div:nth-child(2){
@@ -1439,6 +1464,25 @@ button{
     background:var(--red-soft);
     color:var(--red);
     border-bottom-left-radius:4px;
+}
+
+.dueno-nexo-sugerencias{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    align-self:flex-start;
+    max-width:82%;
+}
+
+.dueno-nexo-sugerencias button{
+    text-align:left;
+    border:1px solid var(--line);
+    background:var(--surface-soft);
+    color:var(--text);
+    border-radius:12px;
+    padding:9px 13px;
+    font-size:13px;
+    font-family:inherit;
 }
 
 .dueno-nexo-entrada{

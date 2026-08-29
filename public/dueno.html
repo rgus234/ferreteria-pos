@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=venta-detalle-20260826-01">
+    <link rel="stylesheet" href="dueno.css?v=auditoria-fixes-20260829-01">
 </head>
 
 <body>
@@ -73,9 +73,9 @@
         </div>
         <div class="dueno-login-caja">
             <h1>Bienvenido a Nexo</h1>
-            <p>Compra en negocios Nexo cerca de ti, todo desde tu celular.</p>
-            <button type="button" onclick="mostrarPromptMarketDueno(); return false;">Entrar a Nexo Market</button>
-            <p class="dueno-login-alt"><a href="#" onclick="mostrarAccesoNegocioDueno(); return false;">¿Eres administrador o empleado de un negocio?</a></p>
+            <p>Entra al panel de tu negocio, o compra en negocios Nexo cerca de ti.</p>
+            <button type="button" onclick="mostrarAccesoNegocioDueno(); return false;">Entrar a mi negocio</button>
+            <button type="button" class="dueno-boton-secundario" onclick="mostrarPromptMarketDueno(); return false;">Comprar en Nexo Market</button>
         </div>
     </main>
 
@@ -394,7 +394,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </button>
             </div>
-            <div id="duenoVenderResultados" class="lista-compacta" style="margin-top:10px;"></div>
+            <div id="duenoVenderResultados" class="lista-compacta" style="margin-top:10px;"><div class="vacio">Escribe el nombre o código, o usa el escáner, la cámara o "artículo rápido" de arriba.</div></div>
         </article>
 
         <article class="dueno-card" id="duenoVenderCarritoCard" style="display:none;">
@@ -666,7 +666,7 @@
     </div>
 
     <script src="dueno-offline.js?v=venta-detalle-20260826-01"></script>
-    <script src="dueno.js?v=venta-detalle-20260826-02"></script>
+    <script src="dueno.js?v=auditoria-fixes-20260829-01"></script>
 </body>
 
 </html>

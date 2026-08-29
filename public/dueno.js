@@ -43,6 +43,14 @@ function escaparDueno(texto) {
     }[caracter]));
 }
 
+// Placeholder de miniatura cuando el producto no tiene foto -- antes
+// era solo la palabra "Sin foto" en texto chico; un catalogo real
+// siempre va a tener productos sin foto todavia, asi que vale la pena
+// que se vea a proposito y no como que falta cargar algo.
+function miniaturaVaciaDuenoHtml() {
+    return `<span class="dueno-miniatura-vacia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span>`;
+}
+
 function tokenGuardado() {
     return localStorage.getItem(DUENO_TOKEN_KEY);
 }
@@ -632,13 +640,19 @@ function renderVentas(historial) {
     const estado =
     document.getElementById("duenoVentasEstado");
 
+    // "0% vs ayer" se pintaba verde (el corte era ">= 0") tanto sin
+    // ventas de ningun lado como con un dia identico al anterior --
+    // ninguno de los dos es en realidad buena noticia.
+    const hayDatosQueComparar =
+        hoy.length || ayer.length;
+
     estado.textContent =
-        hoy.length || ayer.length
+        hayDatosQueComparar
             ? `${diferencia >= 0 ? "+" : ""}${diferencia.toFixed(0)}% vs ayer`
             : "Aun sin ventas hoy";
 
     estado.className =
-        diferencia >= 0 ? "dueno-estado-positivo" : "dueno-estado-negativo";
+        diferencia > 0 ? "dueno-estado-positivo" : diferencia < 0 ? "dueno-estado-negativo" : "";
 
     renderSparklineSVG(hoy);
 
@@ -800,7 +814,7 @@ async function buscarProductoVentaDueno(texto) {
                     <div class="dueno-miniatura" onclick="verDetalleProductoDueno(${producto.id})">
                         ${producto.imagenUrl
                             ? `<img src="${producto.imagenUrl}" alt="" loading="lazy">`
-                            : `<span class="dueno-miniatura-vacia">Sin foto</span>`}
+                            : miniaturaVaciaDuenoHtml()}
                     </div>
                     <div onclick="verDetalleProductoDueno(${producto.id})">
                         <strong>${escaparDueno(producto.nombre)}</strong>
@@ -1599,8 +1613,12 @@ function pintarTendenciaDueno(id, valor) {
 
     if (!elemento) return;
 
+    // valor > 0 es la unica mejora real -- 0% (sin cambio, o sin nada
+    // que comparar en ninguno de los dos periodos) no es ni buena ni
+    // mala noticia, y antes se pintaba verde de todos modos porque el
+    // corte estaba en ">= 0".
     elemento.textContent = `${valor >= 0 ? "+" : ""}${valor.toFixed(0)}% vs periodo anterior`;
-    elemento.className = valor >= 0 ? "dueno-estado-positivo" : "dueno-estado-negativo";
+    elemento.className = valor > 0 ? "dueno-estado-positivo" : valor < 0 ? "dueno-estado-negativo" : "";
 }
 
 function renderMetodosPagoDueno(metodos) {
@@ -1780,19 +1798,31 @@ async function filtrarInventarioDueno() {
 
     contenedor.innerHTML =
         resultados.length
-            ? resultados.map(producto => `
+            ? resultados.map(producto => {
+                // El catalogo offline no trae stock_minimo (ver
+                // abrirDetalleProductoVentaDueno arriba), asi que aqui
+                // se usa el mismo default de 3 que ya es el fallback
+                // en estadoStockItemVentaDueno -- mismo criterio,
+                // nunca un producto "critico" en Inicio y "normal" en
+                // esta lista.
+                const stock = Number(producto.stock || 0);
+                const estadoStock = stock <= 0 ? "sin" : stock <= 3 ? "bajo" : "ok";
+                const claseStock = estadoStock === "sin" ? " stock-texto-sin" : estadoStock === "bajo" ? " stock-texto-bajo" : "";
+
+                return `
                 <div class="fila-dueno fila-dueno-producto">
                     <div class="dueno-miniatura" onclick="verDetalleProductoDueno(${producto.id})">
                         ${producto.imagenUrl
                             ? `<img src="${producto.imagenUrl}" alt="" loading="lazy">`
-                            : `<span class="dueno-miniatura-vacia">Sin foto</span>`}
+                            : miniaturaVaciaDuenoHtml()}
                     </div>
                     <div onclick="verDetalleProductoDueno(${producto.id})">
                         <strong>${escaparDueno(producto.nombre)}</strong>
-                        <span>${escaparDueno(producto.codigo || "Sin codigo")} · Stock ${producto.stock} · ${dinero(producto.precio)}</span>
+                        <span>${escaparDueno(producto.codigo || "Sin codigo")} · <span class="stock-texto${claseStock}">Stock ${producto.stock}</span> · ${dinero(producto.precio)}</span>
                     </div>
                 </div>
-            `).join("")
+            `;
+            }).join("")
             : `<div class="vacio">Sin productos en tu catalogo guardado${texto.trim() || duenoInventarioCategoria ? " que coincidan" : ""}.</div>`;
 }
 
@@ -2190,7 +2220,7 @@ function filaProductoVenderDuenoHtml(producto) {
             <div class="dueno-miniatura">
                 ${producto.imagenUrl
                     ? `<img src="${producto.imagenUrl}" alt="" loading="lazy">`
-                    : `<span class="dueno-miniatura-vacia">Sin foto</span>`}
+                    : miniaturaVaciaDuenoHtml()}
             </div>
             <div>
                 <strong>${escaparDueno(producto.nombre)}</strong>
@@ -2211,7 +2241,9 @@ async function buscarProductoVenderDueno(texto) {
     contenedor.innerHTML =
         duenoVentaUltimosResultados.length
             ? duenoVentaUltimosResultados.map(filaProductoVenderDuenoHtml).join("")
-            : (texto.trim() ? `<div class="vacio">Sin resultados en tu catalogo guardado.</div>` : "");
+            : texto.trim()
+                ? `<div class="vacio">Sin resultados en tu catalogo guardado.</div>`
+                : `<div class="vacio">Escribe el nombre o código, o usa el escáner, la cámara o "artículo rápido" de arriba.</div>`;
 }
 
 // Redimensiona la foto a dataURL en el propio navegador antes de
@@ -2579,7 +2611,7 @@ function filaCarritoVenderDuenoHtml(item) {
                 <div class="dueno-miniatura">
                     ${item.imagenUrl
                         ? `<img src="${item.imagenUrl}" alt="" loading="lazy">`
-                        : `<span class="dueno-miniatura-vacia">Sin foto</span>`}
+                        : miniaturaVaciaDuenoHtml()}
                 </div>
                 <div class="fila-dueno-carrito-texto">
                     <strong>${escaparDueno(item.nombre)}</strong>
@@ -2974,16 +3006,22 @@ function renderSubpanelMetodoPagoVenderDueno() {
     resumenCarritoVenderDueno().total;
 
     if (duenoVentaMetodoPago === "efectivo") {
+        const [montoExacto, ...montosArriba] =
+        montosRapidosSugeridosVenderDueno(total);
+
+        const botonesMontoRapido = [
+            `<button type="button" class="dueno-monto-rapido-boton" onclick="aplicarMontoRapidoVenderDueno(${montoExacto})">${dinero(montoExacto)} exacto</button>`,
+            ...montosArriba.map(monto => `<button type="button" class="dueno-monto-rapido-boton" onclick="aplicarMontoRapidoVenderDueno(${monto})">${dinero(monto)}</button>`),
+            `<button type="button" class="dueno-monto-rapido-boton" onclick="document.getElementById('duenoVenderRecibido')?.focus()">Personalizado</button>`
+        ].join("");
+
         subpanel.innerHTML = `
             <p class="dueno-estado" style="font-weight:800;">Pago en efectivo</p>
             <label class="dueno-campo">Recibido -- por cobrar ${dinero(total)}
                 <input type="text" inputmode="decimal" id="duenoVenderRecibido" placeholder="0.00" oninput="this.value=this.value.replace(/[^0-9.]/g,''); actualizarCambioVenderDueno()">
             </label>
             <div class="dueno-monto-rapido-fila">
-                <button type="button" class="dueno-monto-rapido-boton" onclick="aplicarMontoRapidoVenderDueno(50)">$50</button>
-                <button type="button" class="dueno-monto-rapido-boton" onclick="aplicarMontoRapidoVenderDueno(100)">$100</button>
-                <button type="button" class="dueno-monto-rapido-boton" onclick="aplicarMontoRapidoVenderDueno(200)">$200</button>
-                <button type="button" class="dueno-monto-rapido-boton" onclick="document.getElementById('duenoVenderRecibido')?.focus()">Personalizado</button>
+                ${botonesMontoRapido}
             </div>
             <p class="dueno-estado" id="duenoVenderCambio">Cambio: ${dinero(0)}</p>
             <div class="dueno-foto-descripcion">El cambio se calculará automáticamente al ingresar el monto recibido.</div>
@@ -3033,6 +3071,34 @@ function renderSubpanelMetodoPagoVenderDueno() {
         `;
         return;
     }
+}
+
+// Antes eran botones fijos ($50/$100/$200) sin importar el total --
+// inutiles para cualquier venta de mas de $200 (comun en una
+// ferreteria: una herramienta sola facil pasa de $1,000). Ahora se
+// calculan sobre el total real: el monto exacto, mas los 1-2 billetes
+// "redondos" mas cercanos arriba de ese total, usando denominaciones
+// distintas segun que tan grande es la venta.
+function montosRapidosSugeridosVenderDueno(total) {
+    const exacto =
+    Math.max(1, Math.ceil(total));
+
+    const denominaciones =
+    exacto <= 100 ? [10, 20, 50]
+    : exacto <= 500 ? [50, 100, 200]
+    : exacto <= 2000 ? [100, 500, 1000]
+    : [500, 1000, 2000];
+
+    const montosArriba =
+    [...new Set(
+        denominaciones
+        .map(billete => Math.ceil(exacto / billete) * billete)
+        .filter(monto => monto > exacto)
+    )]
+    .sort((a, b) => a - b)
+    .slice(0, 2);
+
+    return [exacto, ...montosArriba];
 }
 
 function aplicarMontoRapidoVenderDueno(monto) {
@@ -4329,9 +4395,46 @@ function abrirNexoChatDueno() {
 
     if (duenoNexoHistorial.length === 0) {
         agregarMensajeNexoDueno("Hola, soy Nexo. Preguntame como van tus ventas, tu inventario o tus creditos.", "asistente");
+        renderSugerenciasNexoDueno();
     }
 
     document.getElementById("duenoNexoInput")?.focus();
+}
+
+// Mismas 3 preguntas que ya usa el chat de escritorio
+// (PREGUNTAS_RAPIDAS_NEXO_IA en nexo-ia.js) -- un usuario nuevo que
+// abre el chat por primera vez no tiene ninguna pista de que preguntar;
+// solo se muestran antes del primer mensaje real de la conversacion.
+const DUENO_NEXO_PREGUNTAS_SUGERIDAS = [
+    "Como van mis ventas?",
+    "Que productos se estan agotando?",
+    "Tengo creditos vencidos?"
+];
+
+function renderSugerenciasNexoDueno() {
+    const lista =
+    document.getElementById("duenoNexoMensajes");
+
+    if (!lista) return;
+
+    const contenedor =
+    document.createElement("div");
+
+    contenedor.className = "dueno-nexo-sugerencias";
+    contenedor.innerHTML = DUENO_NEXO_PREGUNTAS_SUGERIDAS.map(
+        (pregunta, indice) => `<button type="button" data-sugerencia="${indice}">${pregunta}</button>`
+    ).join("");
+
+    contenedor.querySelectorAll("[data-sugerencia]").forEach(boton => {
+        boton.addEventListener("click", () => {
+            const input = document.getElementById("duenoNexoInput");
+            if (input) input.value = DUENO_NEXO_PREGUNTAS_SUGERIDAS[Number(boton.dataset.sugerencia)];
+            enviarMensajeNexoDueno();
+        });
+    });
+
+    lista.appendChild(contenedor);
+    lista.scrollTop = lista.scrollHeight;
 }
 
 function cerrarNexoChatDueno() {
@@ -4367,6 +4470,7 @@ async function enviarMensajeNexoDueno() {
     if (!mensaje) return;
 
     input.value = "";
+    document.querySelector(".dueno-nexo-sugerencias")?.remove();
     agregarMensajeNexoDueno(mensaje, "usuario");
 
     const indicador =
