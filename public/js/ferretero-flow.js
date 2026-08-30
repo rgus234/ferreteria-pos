@@ -1076,11 +1076,40 @@
   };
  }
 
- function productoPayloadNuevo(item) {
+ // Antes esto ponia el precio de venta directo igual al costo de la
+ // factura (lo que el proveedor le cobra a la ferreteria) -- un
+ // producto nuevo recibido por factura se creaba sin ningun margen,
+ // vendiendose a lo que costo o hasta a perdida. Reportado por el
+ // dueño con una factura real de Diprofer. Ahora primero busca el
+ // codigo en el catalogo de proveedor ya importado (mismo catalogo
+ // real de Diprofer/Truper, con precio medio mayoreo correcto) y usa
+ // ese precio -- mismo endpoint que ya usa "Agregar producto" al
+ // escanear un codigo de catalogo, match exacto de codigo (nunca
+ // aproximado). Si el codigo no esta en el catalogo, se cae al
+ // comportamiento anterior (costo de la factura) porque no hay mejor
+ // dato disponible -- el dueño debe revisar el precio a mano en ese
+ // caso.
+ async function productoPayloadNuevo(item) {
   const categoria = document.getElementById("recepcionCategoriaDefault")?.value || "";
+
+  let medioMayoreo = null;
+  let publico = null;
+  if (item.codigo) {
+   try {
+    const respuesta = await fetch(`/catalogo-proveedor/buscar-codigo?codigo=${encodeURIComponent(item.codigo)}`);
+    const datos = await respuesta.json();
+    if (datos.ok && datos.producto && Number(datos.producto.medioMayoreo) > 0) {
+     medioMayoreo = Number(datos.producto.medioMayoreo);
+     publico = Number(datos.producto.publico) || null;
+    }
+   } catch (error) {
+    console.warn("No se pudo consultar el catalogo de proveedor para " + item.codigo, error);
+   }
+  }
+
   return {
    nombre: item.descripcion || "Producto nuevo",
-   precio: item.costo || 0,
+   precio: medioMayoreo || item.costo || 0,
    stock: item.cantidad || 0,
    codigo: item.codigo || "",
    proveedor: item.proveedor || estadoRecepcion.proveedor || "",
@@ -1091,8 +1120,8 @@
    descripcion: item.descripcion || "",
    unidadVenta: "pieza",
    precioDistribuidor: item.costo || "",
-   precioMayoreo: "",
-   precioPublico: item.costo || "",
+   precioMayoreo: medioMayoreo || "",
+   precioPublico: publico || medioMayoreo || item.costo || "",
    stockMinimo: 3,
    altaRotacion: "",
    tipoProducto: "catalogo",
@@ -1133,7 +1162,7 @@
      const respuesta = await fetch("/agregar-producto", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(productoPayloadNuevo(item))
+      body: JSON.stringify(await productoPayloadNuevo(item))
      });
      if (!respuesta.ok) throw new Error("No se pudo crear " + item.descripcion);
      const datos = await respuesta.json();
