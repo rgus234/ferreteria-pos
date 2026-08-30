@@ -909,6 +909,11 @@ function detectarColumnasCatalogo(lineas) {
  && !/\b(barra|barras|ean|upc)\b/.test(texto)
  },
  {
+ clave: "codigoBarras",
+ puntos: 5,
+ prueba: texto => /\b(ean|upc|gtin|codigo de barras|cod barras)\b/.test(texto)
+ },
+ {
  clave: "categoria",
  puntos: 3,
  prueba: texto => /\b(categoria|familia|depto|departamento|grupo)\b/.test(texto)

@@ -222,12 +222,12 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
 
             const fila = await pool.query(
                 `
-                SELECT cp.codigo_proveedor, cp.codigo_interno, cp.nombre_proveedor, cp.descripcion, cp.marca, cp.categoria,
+                SELECT cp.codigo_proveedor, cp.codigo_interno, cp.codigo_barras, cp.nombre_proveedor, cp.descripcion, cp.marca, cp.categoria,
                        cp.precio_distribuidor, cp.precio_medio_mayoreo, cp.precio_publico, cat.proveedor AS proveedor_nombre
                 FROM public.catalogo_productos cp
                 JOIN public.catalogos_proveedor cat ON cat.id = cp.catalogo_id
                 WHERE cp.negocio_id = $1
-                  AND (cp.codigo_proveedor = $2 OR NULLIF(cp.codigo_interno, '') = $2)
+                  AND (cp.codigo_proveedor = $2 OR NULLIF(cp.codigo_interno, '') = $2 OR NULLIF(cp.codigo_barras, '') = $2)
                 ORDER BY cp.catalogo_id ASC, cp.id ASC
                 LIMIT 1
                 `,
@@ -250,6 +250,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     categoria: cp.categoria || "",
                     unidadVenta: "pieza",
                     codigoInterno: cp.codigo_interno || "",
+                    codigoBarras: cp.codigo_barras || "",
                     distribuidor: cp.precio_distribuidor,
                     medioMayoreo: cp.precio_medio_mayoreo,
                     publico: cp.precio_publico,
@@ -257,7 +258,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     stockMinimo: 3,
                     altaRotacion: "",
                     precioDetectado: "medio mayoreo",
-                    codigosRelacionados: [cp.codigo_proveedor, cp.codigo_interno]
+                    codigosRelacionados: [cp.codigo_proveedor, cp.codigo_interno, cp.codigo_barras]
                         .filter(c => c && c !== codigo)
                 }
             });
@@ -315,6 +316,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                         marca: String(p.marca || ""),
                         categoria: String(p.categoria || ""),
                         codigoInterno: String(p.codigoInterno || ""),
+                        codigoBarras: String(p.codigoBarras || ""),
                         distribuidor: Number.isFinite(Number(p.distribuidor)) ? Number(p.distribuidor) : null,
                         medioMayoreo: Number.isFinite(Number(p.medioMayoreo)) ? Number(p.medioMayoreo) : null,
                         precioPublico: Number.isFinite(Number(p.publico)) ? Number(p.publico) : null
@@ -342,16 +344,16 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                 const TAMANO_LOTE = 400;
                 for (let inicio = 0; inicio < filas.length; inicio += TAMANO_LOTE) {
                     const lote = filas.slice(inicio, inicio + TAMANO_LOTE);
-                    const columnasPorFila = 9; // codigoProveedor..precioPublico (negocio_id/catalogo_id van fijos en $1/$2, precio_publico_anterior es NULL literal)
+                    const columnasPorFila = 10; // codigoProveedor..precioPublico (negocio_id/catalogo_id van fijos en $1/$2, precio_publico_anterior es NULL literal)
                     const valoresSQL = [];
                     const parametros = [];
 
                     lote.forEach((fila, indice) => {
                         const base = indice * columnasPorFila;
-                        valoresSQL.push(`($1,$2,$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},NULL)`);
+                        valoresSQL.push(`($1,$2,$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},NULL)`);
                         parametros.push(
                             fila.codigoProveedor, fila.nombre, fila.descripcion, fila.marca, fila.categoria,
-                            fila.codigoInterno, fila.distribuidor, fila.medioMayoreo, fila.precioPublico
+                            fila.codigoInterno, fila.codigoBarras, fila.distribuidor, fila.medioMayoreo, fila.precioPublico
                         );
                     });
 
@@ -359,7 +361,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                         `
                         INSERT INTO public.catalogo_productos
                             (negocio_id, catalogo_id, codigo_proveedor, nombre_proveedor, descripcion, marca, categoria,
-                             codigo_interno, precio_distribuidor, precio_medio_mayoreo, precio_publico, precio_publico_anterior)
+                             codigo_interno, codigo_barras, precio_distribuidor, precio_medio_mayoreo, precio_publico, precio_publico_anterior)
                         VALUES ${valoresSQL.join(",")}
                         ON CONFLICT (catalogo_id, codigo_proveedor) DO UPDATE SET
                             nombre_proveedor = EXCLUDED.nombre_proveedor,
@@ -367,6 +369,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                             marca = EXCLUDED.marca,
                             categoria = EXCLUDED.categoria,
                             codigo_interno = EXCLUDED.codigo_interno,
+                            codigo_barras = EXCLUDED.codigo_barras,
                             precio_distribuidor = EXCLUDED.precio_distribuidor,
                             precio_medio_mayoreo = EXCLUDED.precio_medio_mayoreo,
                             precio_publico_anterior = public.catalogo_productos.precio_publico,
@@ -589,7 +592,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     // precio_publico solo como respaldo si el catalogo
                     // no trae medio mayoreo para esta fila.
                     negocio.id, cp.nombre_proveedor, cp.precio_medio_mayoreo || cp.precio_publico || 0,
-                    cp.codigo_interno || cp.codigo_proveedor, nombreProveedorCatalogo, proveedorId, cp.categoria, categoriaNexoId, cp.marca, cp.descripcion,
+                    cp.codigo_barras || cp.codigo_interno || cp.codigo_proveedor, nombreProveedorCatalogo, proveedorId, cp.categoria, categoriaNexoId, cp.marca, cp.descripcion,
                     cp.precio_distribuidor, cp.precio_medio_mayoreo, cp.precio_publico
                 ]
             );

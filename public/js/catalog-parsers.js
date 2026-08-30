@@ -152,6 +152,11 @@ function extraerProductoGenericoCatalogo(ctx) {
  datos,
  datos[indiceCodigoProducto]
  ),
+ codigoBarras:
+ normalizarCodigo(
+ valorMapeoCatalogo(datos, mapeoCatalogo, "codigoBarras") ||
+ valorColumnaCatalogo(datos, columnas, "codigoBarras")
+ ),
  distribuidor,
  medioMayoreo,
  publico,

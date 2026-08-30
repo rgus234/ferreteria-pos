@@ -515,7 +515,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     `,
                     [
                         negocio.id, cp.nombre_proveedor || cp.codigo_proveedor, cp.precio_publico || 0,
-                        cp.codigo_interno || cp.codigo_proveedor, nombreProveedorCatalogo, proveedorId, cp.descripcion, cp.precio_publico
+                        cp.codigo_barras || cp.codigo_interno || cp.codigo_proveedor, nombreProveedorCatalogo, proveedorId, cp.descripcion, cp.precio_publico
                     ]
                 );
                 const productoId = nuevoProducto.rows[0].id;
