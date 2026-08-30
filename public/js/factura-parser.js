@@ -45,7 +45,22 @@ function parsearFacturaXmlCfdi(texto) {
  const comprobante = doc.getElementsByTagNameNS("*", "Comprobante")[0] || doc.getElementsByTagName("cfdi:Comprobante")[0] || doc.documentElement;
  const emisor = doc.getElementsByTagNameNS("*", "Emisor")[0] || doc.getElementsByTagName("cfdi:Emisor")[0];
  const proveedor = emisor?.getAttribute("Nombre") || emisor?.getAttribute("Rfc") || "";
- const impuestos = doc.getElementsByTagNameNS("*", "Impuestos")[0] || doc.getElementsByTagName("cfdi:Impuestos")[0];
+ // El nodo "Impuestos" de la factura completa (el que trae
+ // TotalImpuestosTrasladados) es HIJO DIRECTO de Comprobante -- pero
+ // cada Concepto tambien puede traer su propio "Impuestos" anidado
+ // (desglose por producto), y ese SIEMPRE aparece antes en el
+ // documento. Buscar el primer "Impuestos" de todo el XML (sin
+ // acotar a los hijos directos de Comprobante) agarraba el del primer
+ // concepto en vez del de la factura -- ese nodo nunca tiene
+ // TotalImpuestosTrasladados, asi que el IVA del resumen salia
+ // siempre en $0.00 en cualquier factura real con desglose de
+ // impuestos por producto (el caso comun). Bug real, reportado por el
+ // dueño ("marcaba todo en cero" en el cuadre de Recepcion de
+ // mercancia), reproducido con un CFDI 4.0 de prueba.
+ const impuestos =
+  Array.from(comprobante?.children || []).find(hijo => hijo.localName === "Impuestos") ||
+  doc.getElementsByTagNameNS("*", "Impuestos")[0] ||
+  doc.getElementsByTagName("cfdi:Impuestos")[0];
  const fechaXml = comprobante?.getAttribute("Fecha") || "";
 
  const documento = {
