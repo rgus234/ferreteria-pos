@@ -706,6 +706,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                 JOIN public.productos p ON p.id = cp.producto_id
                 WHERE cp.catalogo_id = $1 AND cp.negocio_id = $2
                   AND cp.producto_id IS NOT NULL
+                  AND cp.porcentaje_coincidencia = 100
                   AND ${CONDICION_CAMBIOS_CATALOGO}
                 ORDER BY p.nombre ASC
                 `,
@@ -747,6 +748,21 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
             // vacio, la categoria del producto no cambia y no hay
             // razon para tirar un id estructurado valido (Fase 3 del
             // plan "Catalogo Maestro Nexo").
+            //
+            // porcentaje_coincidencia = 100 es a proposito: solo es 100
+            // en un match exacto de codigo (Paso 1 de
+            // vincularCatalogoProductos) o en una vinculacion manual
+            // (el humano ya lo confirmo) -- nunca en un match de
+            // similitud de nombre via pg_trgm, ni siquiera los que
+            // pasan el umbral "vinculado" (>=70%). Bug real encontrado
+            // en vivo: un match de 70%+ por nombre ("Carda de copa
+            // 1-3/4 alambre FINO" vs "...alambre GRUESO", o dos
+            // productos con la misma familia de nombre pero medida
+            // distinta) puede estar completamente equivocado -- antes
+            // este endpoint aplicaba precio/nombre/categoria/marca a
+            // CUALQUIER fila vinculada sin importar que tan floja fuera
+            // la coincidencia, verificado que asi corrompio datos
+            // silenciosamente en produccion.
             const resultado = await pool.query(
                 `
                 UPDATE public.productos p
@@ -759,6 +775,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                 WHERE cp.catalogo_id = $1 AND cp.negocio_id = $2
                   AND cp.producto_id = p.id
                   AND p.negocio_id = $2
+                  AND cp.porcentaje_coincidencia = 100
                   AND ${CONDICION_CAMBIOS_CATALOGO}
                 `,
                 [req.params.id, negocio.id]

@@ -1307,7 +1307,7 @@ async function aplicarPrecioMedioMayoreoCatalogoActual() {
  const mas = cambios.length > 5 ? `\n...y ${cambios.length - 5} mas.` : "";
  const confirmar = await dialogoPOS({
   titulo: "Actualizar precios y datos",
-  mensaje: `Se actualizaran ${cambios.length} producto(s) de ${catalogoActivoProveedor} con el precio medio mayoreo y los datos del catalogo:\n\n${ejemplos}${mas}\n\nSolo se tocan productos de este proveedor. Esta accion no se puede deshacer.`,
+  mensaje: `Se actualizaran ${cambios.length} producto(s) de ${catalogoActivoProveedor} con el precio medio mayoreo y los datos del catalogo:\n\n${ejemplos}${mas}\n\nSolo se tocan productos con codigo identico o vinculados a mano -- las coincidencias por nombre parecido (aunque digan "vinculado") nunca se aplican solas. Esta accion no se puede deshacer.`,
   mostrarCancelar: true,
   textoAceptar: "Actualizar"
  });
