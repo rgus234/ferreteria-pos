@@ -467,6 +467,34 @@ body.oscuro .recepcion-diferencia-linea{
  color:var(--pos-text,#172033);
  font-weight:700;
 }
+.recepcion-precios-celda{
+ display:flex;
+ flex-direction:column;
+ gap:4px;
+ min-width:150px;
+}
+.recepcion-precios-celda label{
+ display:flex;
+ align-items:center;
+ gap:6px;
+ font-size:10px;
+ font-weight:800;
+ text-transform:uppercase;
+ letter-spacing:.03em;
+ color:var(--pos-muted,#687386);
+}
+.recepcion-tabla .recepcion-precios-celda input{
+ width:74px;
+ min-height:26px;
+ padding:0 7px;
+ border-radius:6px;
+ font-size:12px;
+ font-weight:700;
+}
+.recepcion-tabla .recepcion-precios-celda input:focus{
+ outline:none;
+ border-color:var(--brand-color,#0d6efd);
+}
 .recepcion-tabla tr.nuevo td:first-child small{
  color:#b45309;
 }

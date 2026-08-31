@@ -855,6 +855,7 @@
    if (!estadoRecepcion.conceptos.length) throw new Error("Sin conceptos");
    renderRecepcionMercancia();
    alertaPOS("Archivo analizado", "Revisa la vista previa antes de confirmar inventario.", "success");
+   precargarPreciosSugeridosRecepcion();
   } catch (error) {
    console.error(error);
    estadoRecepcion.conceptos = [];
@@ -870,6 +871,43 @@
    const codigos = [p.codigo, p.codigo_interno, ...(Array.isArray(p.codigos_relacionados) ? p.codigos_relacionados.map(c => c.codigo) : [])].map(codigoLimpio).filter(Boolean);
    return (codigo && codigos.includes(codigo)) || (nombre && String(p.nombre || "").toLowerCase() === nombre);
   }) || null;
+ }
+
+ // Precios de venta sugeridos para productos NUEVOS (los EXISTENTES no
+ // necesitan esto -- renderRecepcionMercancia ya lee su precio actual
+ // directo de "producto", sin red). Busca cada codigo nuevo contra el
+ // catalogo de proveedor ya importado, en paralelo, y deja el resultado
+ // escrito en el concepto crudo (estadoRecepcion.conceptos[i]) para que
+ // sobreviva los re-renders (conceptosPreparados() lo copia con
+ // spread cada vez). Fire-and-forget desde leerArchivoRecepcionMercancia:
+ // la tabla ya se ve con el costo de la factura de inmediato, los 3
+ // precios de venta se rellenan solos en cuanto responde el catalogo.
+ async function precargarPreciosSugeridosRecepcion() {
+  const pendientes = estadoRecepcion.conceptos.filter(c =>
+   c.codigo && c.precioDistribuidorNuevo === undefined && !buscarProductoConcepto(c)
+  );
+  if (!pendientes.length) return;
+
+  await Promise.all(pendientes.map(async concepto => {
+   let catalogo = null;
+   try {
+    const respuesta = await fetch(`/catalogo-proveedor/buscar-codigo?codigo=${encodeURIComponent(concepto.codigo)}`);
+    const datos = await respuesta.json();
+    if (datos.ok && datos.producto) catalogo = datos.producto;
+   } catch (error) {
+    console.warn("No se pudo consultar el catalogo de proveedor para " + concepto.codigo, error);
+   }
+
+   const medioMayoreo = Number(catalogo?.medioMayoreo) > 0 ? Number(catalogo.medioMayoreo) : null;
+   const distribuidor = Number(catalogo?.distribuidor) > 0 ? Number(catalogo.distribuidor) : Number(concepto.costo || 0);
+   const publico = Number(catalogo?.publico) > 0 ? Number(catalogo.publico) : (medioMayoreo || Number(concepto.costo || 0));
+
+   concepto.precioDistribuidorNuevo = distribuidor;
+   concepto.precioMayoreoNuevo = medioMayoreo;
+   concepto.precioPublicoNuevo = publico;
+  }));
+
+  renderRecepcionMercancia();
  }
 
  function conceptosPreparados() {
@@ -1030,13 +1068,33 @@
     const miniatura = typeof miniaturaProducto === "function"
      ? miniaturaProducto(producto || { nombre: item.descripcion }, "recepcion-fila-miniatura")
      : "";
+    // Precios de venta sugeridos: para un producto EXISTENTE, parten de
+    // lo que ya tiene guardado (no se tocan solos -- el dueño decide si
+    // los actualiza); para uno NUEVO, de precargarPreciosSugeridosRecepcion()
+    // (catalogo de proveedor real, mismo match exacto de codigo que ya
+    // usa "Agregar producto"). En cuanto el dueño edita un campo, ese
+    // valor manda en los siguientes renders (item.precioXNuevo ya no es
+    // undefined/null, asi que el ?? deja de caer al valor por defecto.
+    const precioPublico = item.precioPublicoNuevo ?? producto?.precio_publico ?? "";
+    const precioMayoreo = item.precioMayoreoNuevo ?? producto?.precio_mayoreo ?? "";
+    // Distribuidor SIEMPRE parte del costo fresco de esta factura, sea
+    // producto existente o nuevo -- es lo que de verdad esta pagando
+    // ahorita, y coincide con el criterio que ya usaba este mismo
+    // formulario antes de este cambio (productoPayloadDesdeExistente).
+    // Solo cae al valor viejo guardado si la fila no trae costo.
+    const precioDistribuidor = item.precioDistribuidorNuevo ?? item.costo ?? producto?.precio_distribuidor ?? "";
+    const preciosCelda = '<td class="recepcion-precios-celda">'
+     + '<label>Pub<input type="number" step="0.01" value="' + textoSeguro(precioPublico) + '" onchange="editarConceptoRecepcion(' + indiceReal + ', \'precioPublicoNuevo\', this.value)"></label>'
+     + '<label>Med<input type="number" step="0.01" value="' + textoSeguro(precioMayoreo) + '" onchange="editarConceptoRecepcion(' + indiceReal + ', \'precioMayoreoNuevo\', this.value)"></label>'
+     + '<label>Dist<input type="number" step="0.01" value="' + textoSeguro(precioDistribuidor) + '" onchange="editarConceptoRecepcion(' + indiceReal + ', \'precioDistribuidorNuevo\', this.value)"></label>'
+     + '</td>';
     return '<tr class="' + (item.existe ? "existente" : "nuevo") + '"><td>' + miniatura + '</td><td><strong>' + textoSeguro(item.codigo || producto?.codigo || "Sin codigo") + '</strong><small>' + textoSeguro(item.unidad || "pieza") + '</small></td><td><strong>' + textoSeguro(item.descripcion) + '</strong><small>' + (item.existe ? "Actualizar stock" : "Crear producto") + '</small></td><td><input type="number" step="0.001" value="' + textoSeguro(item.cantidad || 0) + '" onchange="editarConceptoRecepcion(' + indiceReal + ', \'cantidad\', this.value)"></td><td><input type="number" step="0.01" value="' + textoSeguro(item.costo || 0) + '" onchange="editarConceptoRecepcion(' + indiceReal + ', \'costo\', this.value)">' +
-     (item.tieneDiferencia ? '<small class="recepcion-diferencia-linea">Antes ' + formatoDinero(item.precioAnterior) + '</small>' : '') + '</td><td>' + formatoDinero(importeLinea) + '</td><td>' +
+     (item.tieneDiferencia ? '<small class="recepcion-diferencia-linea">Antes ' + formatoDinero(item.precioAnterior) + '</small>' : '') + '</td>' + preciosCelda + '<td>' + formatoDinero(importeLinea) + '</td><td>' +
      textoSeguro(item.existe ? stockActual + " -> " + stockNuevo : "Nuevo") + '</td><td><span class="recepcion-estado ' + (item.existe ? "ok" : "nuevo") + '">' +
      (item.existe ? "Encontrado" : "Nuevo") + '</span></td></tr>';
    }).join("");
 
-   contenedor.innerHTML = '<table class="recepcion-tabla"><thead><tr><th>Foto</th><th>Codigo</th><th>Descripcion</th><th>Cantidad</th><th>Costo</th><th>Importe</th><th>Stock</th><th>Estado</th></tr></thead><tbody>' + filas + '</tbody></table>';
+   contenedor.innerHTML = '<table class="recepcion-tabla"><thead><tr><th>Foto</th><th>Codigo</th><th>Descripcion</th><th>Cantidad</th><th>Costo</th><th>Precios de venta</th><th>Importe</th><th>Stock</th><th>Estado</th></tr></thead><tbody>' + filas + '</tbody></table>';
 
   setText("recepcionPaginacionTexto", "Mostrando " + (inicio + 1) + "-" + Math.min(inicio + tamanoPagina, filtrada.length) + " de " + filtrada.length);
   if (typeof renderPaginacion === "function") {
@@ -1044,9 +1102,11 @@
   }
  };
 
+ const CAMPOS_NUMERICOS_RECEPCION = ["cantidad", "costo", "precioPublicoNuevo", "precioMayoreoNuevo", "precioDistribuidorNuevo"];
+
  window.editarConceptoRecepcion = function(index, campo, valor) {
   if (!estadoRecepcion.conceptos[index]) return;
-  estadoRecepcion.conceptos[index][campo] = campo === "cantidad" || campo === "costo" ? numero(valor) : valor;
+  estadoRecepcion.conceptos[index][campo] = CAMPOS_NUMERICOS_RECEPCION.includes(campo) ? numero(valor) : valor;
   renderRecepcionMercancia();
  };
 
@@ -1063,9 +1123,14 @@
    marca: producto.marca || "",
    descripcion: producto.descripcion || item.descripcion || "",
    unidadVenta: producto.unidad_venta || producto.unidadVenta || "pieza",
-   precioDistribuidor: item.costo || producto.precio_distribuidor || "",
-   precioMayoreo: producto.precio_mayoreo || "",
-   precioPublico: producto.precio_publico || producto.precio || "",
+   // Los 3 precios de venta salen de lo que el dueño vio y, si quiso,
+   // ajusto en la vista previa de Recepcion (columna "Precios de
+   // venta") -- nunca se recalculan solos aqui. El ?? solo entra como
+   // red de seguridad si por algun motivo se confirma sin haber
+   // renderizado la tabla primero.
+   precioDistribuidor: item.precioDistribuidorNuevo ?? (item.costo || producto.precio_distribuidor || ""),
+   precioMayoreo: item.precioMayoreoNuevo ?? (producto.precio_mayoreo || ""),
+   precioPublico: item.precioPublicoNuevo ?? (producto.precio_publico || producto.precio || ""),
    stockMinimo: producto.stock_minimo ?? producto.stockMinimo ?? 3,
    altaRotacion: producto.alta_rotacion || producto.altaRotacion || "",
    tipoProducto: producto.tipo_producto || producto.tipoProducto || "catalogo",
@@ -1080,36 +1145,25 @@
  // factura (lo que el proveedor le cobra a la ferreteria) -- un
  // producto nuevo recibido por factura se creaba sin ningun margen,
  // vendiendose a lo que costo o hasta a perdida. Reportado por el
- // dueño con una factura real de Diprofer. Ahora primero busca el
- // codigo en el catalogo de proveedor ya importado (mismo catalogo
- // real de Diprofer/Truper, con precio medio mayoreo correcto) y usa
- // ese precio -- mismo endpoint que ya usa "Agregar producto" al
- // escanear un codigo de catalogo, match exacto de codigo (nunca
- // aproximado). Si el codigo no esta en el catalogo, se cae al
- // comportamiento anterior (costo de la factura) porque no hay mejor
- // dato disponible -- el dueño debe revisar el precio a mano en ese
- // caso.
+ // dueño con una factura real de Diprofer. Ahora los 3 precios de
+ // venta ya vienen resueltos desde la vista previa de la tabla --
+ // precargarPreciosSugeridosRecepcion() consulto el catalogo de
+ // proveedor (mismo endpoint que ya usa "Agregar producto" al escanear
+ // un codigo de catalogo, match exacto de codigo, nunca aproximado) en
+ // cuanto se cargo el archivo, y el dueño pudo revisarlos/ajustarlos
+ // ahi mismo antes de confirmar -- aqui solo se leen, nunca se
+ // recalculan de nuevo (evita una segunda consulta redundante y,
+ // sobre todo, evita que el precio final termine siendo distinto al
+ // que el dueño vio y confirmo en pantalla).
  async function productoPayloadNuevo(item) {
   const categoria = document.getElementById("recepcionCategoriaDefault")?.value || "";
-
-  let medioMayoreo = null;
-  let publico = null;
-  if (item.codigo) {
-   try {
-    const respuesta = await fetch(`/catalogo-proveedor/buscar-codigo?codigo=${encodeURIComponent(item.codigo)}`);
-    const datos = await respuesta.json();
-    if (datos.ok && datos.producto && Number(datos.producto.medioMayoreo) > 0) {
-     medioMayoreo = Number(datos.producto.medioMayoreo);
-     publico = Number(datos.producto.publico) || null;
-    }
-   } catch (error) {
-    console.warn("No se pudo consultar el catalogo de proveedor para " + item.codigo, error);
-   }
-  }
+  const distribuidor = item.precioDistribuidorNuevo || item.costo || "";
+  const mayoreo = item.precioMayoreoNuevo || "";
+  const publico = item.precioPublicoNuevo || mayoreo || item.costo || "";
 
   return {
    nombre: item.descripcion || "Producto nuevo",
-   precio: medioMayoreo || item.costo || 0,
+   precio: mayoreo || distribuidor || 0,
    stock: item.cantidad || 0,
    codigo: item.codigo || "",
    proveedor: item.proveedor || estadoRecepcion.proveedor || "",
@@ -1119,9 +1173,9 @@
    marca: "",
    descripcion: item.descripcion || "",
    unidadVenta: "pieza",
-   precioDistribuidor: item.costo || "",
-   precioMayoreo: medioMayoreo || "",
-   precioPublico: publico || medioMayoreo || item.costo || "",
+   precioDistribuidor: distribuidor,
+   precioMayoreo: mayoreo,
+   precioPublico: publico,
    stockMinimo: 3,
    altaRotacion: "",
    tipoProducto: "catalogo",
