@@ -457,6 +457,21 @@
 .facturacion-estado-pill.error { background: rgba(239, 68, 68, .14); color: #dc2626; }
 .facturacion-estado-pill.cancelada { background: rgba(100, 116, 139, .14); color: #475569; }
 
+.facturacion-tabla-accion {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .12));
+  border-radius: var(--nexo-radius-sm, 10px);
+  background: var(--nexo-bg, #f3f4f6);
+  color: var(--text-muted, #667085);
+  cursor: pointer;
+}
+.facturacion-tabla-accion:hover { color: var(--nexo-brand, #0d6efd); }
+.facturacion-tabla-accion .ui-icon { width: 15px; height: 15px; }
+
 .facturacion-vacio {
   padding: 30px 14px;
   text-align: center;

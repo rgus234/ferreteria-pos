@@ -13,9 +13,11 @@
 //   todavia; aqui solo se cubre PUE (pago en una sola exhibicion).
 const crypto = require("crypto");
 const multer = require("multer");
+const QRCode = require("qrcode");
 const { responderError } = require("./error-utils");
 const { cargarCsd, crearCfdi, descargarXmlCfdi } = require("./facturama-client");
 const { negocioIdDeRequest, requerirFuncionPlan, funcionDelPlan } = require("./plan-enforcement");
+const { enviarCorreoFacturaCfdi } = require("./email");
 
 const PATRON_RFC = /\b([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\b/;
 const PATRON_RFC_COMPLETO = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
@@ -115,6 +117,22 @@ async function resolverReceptorSugerido(pool, negocioId, venta, negocio) {
         correo: "",
         esGenerico: true
     };
+}
+
+// URL oficial del SAT para verificar un CFDI por su Folio Fiscal.
+// PENDIENTE: no incluye "fe" (los ultimos 8 caracteres del sello
+// digital) -- ese dato vive dentro del XML timbrado y se deja fuera a
+// proposito en vez de intentar extraerlo sin haber confirmado el
+// formato exacto contra una respuesta real de Facturama; la busqueda
+// por UUID (id) ya funciona sin el.
+function urlVerificacionSat({ uuid, rfcEmisor, rfcReceptor, total }) {
+    const parametros = new URLSearchParams({
+        id: uuid || "",
+        re: rfcEmisor || "",
+        rr: rfcReceptor || "",
+        tt: Number(total || 0).toFixed(6)
+    });
+    return `https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?${parametros.toString()}`;
 }
 
 // El .cer de un CSD es publico -- se puede leer sin la contrasena de la
@@ -264,7 +282,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             const [negocio, venta, facturaExistente] = await Promise.all([
                 pool.query(`SELECT codigo_postal_fiscal, facturacion_activa FROM public.negocios WHERE id = $1`, [negocioId]).then(r => r.rows[0]),
                 pool.query(`SELECT id, cliente_id, total, descuento, metodo_pago, requiere_factura FROM public.historial_ventas WHERE id = $1 AND negocio_id = $2`, [historialVentaId, negocioId]).then(r => r.rows[0]),
-                pool.query(`SELECT id, estado, uuid, serie, folio, total, created_at FROM public.facturas_cfdi WHERE historial_venta_id = $1 AND negocio_id = $2 ORDER BY created_at DESC LIMIT 1`, [historialVentaId, negocioId]).then(r => r.rows[0] || null)
+                pool.query(`SELECT id, estado, uuid, serie, folio, total, receptor_correo, created_at FROM public.facturas_cfdi WHERE historial_venta_id = $1 AND negocio_id = $2 ORDER BY created_at DESC LIMIT 1`, [historialVentaId, negocioId]).then(r => r.rows[0] || null)
             ]);
 
             if (!venta) {
@@ -444,7 +462,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                          receptor_regimen_fiscal, receptor_codigo_postal, receptor_correo, serie, folio, uuid, estado,
                          subtotal, total, xml_cfdi, facturama_id, creado_por, timbrada_at)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'timbrada', $13, $14, $15, $16, $17, NOW())
-                    RETURNING id, serie, folio, uuid, estado, total, created_at, timbrada_at
+                    RETURNING id, serie, folio, uuid, estado, total, receptor_correo, created_at, timbrada_at
                     `,
                     [negocioId, historialVentaId, venta.cliente_id, receptor.rfc, receptor.nombre, receptor.usoCfdi,
                      receptor.regimenFiscal, receptor.codigoPostal, receptor.correo || null,
@@ -487,6 +505,114 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             res.setHeader("Content-Type", "application/xml");
             res.setHeader("Content-Disposition", `attachment; filename="factura-${factura.folio || facturaId}.xml"`);
             res.send(factura.xml_cfdi);
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Detalle completo de una factura ya generada -- lo que arma la
+    // representacion impresa en el cliente (facturacion-view.js):
+    // emisor, receptor, conceptos reconstruidos desde
+    // historial_ventas.productos, y un QR (data URL) hacia el
+    // verificador real del SAT.
+    app.get("/facturacion/:id", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocioId = negocioIdDeRequest(req);
+            const facturaId = Number(req.params.id);
+
+            if (!negocioId) {
+                res.status(401).json({ ok: false, error: "Este equipo no esta vinculado a ningun negocio" });
+                return;
+            }
+            if (!Number.isInteger(facturaId)) {
+                res.status(400).json({ ok: false, error: "Factura invalida" });
+                return;
+            }
+
+            const [factura, negocio] = await Promise.all([
+                pool.query(
+                    `
+                    SELECT f.*, h.productos, h.folio AS venta_folio
+                    FROM public.facturas_cfdi f
+                    JOIN public.historial_ventas h ON h.id = f.historial_venta_id
+                    WHERE f.id = $1 AND f.negocio_id = $2
+                    `,
+                    [facturaId, negocioId]
+                ).then(r => r.rows[0]),
+                pool.query(`SELECT rfc, razon_social, regimen_fiscal, codigo_postal_fiscal FROM public.negocios WHERE id = $1`, [negocioId]).then(r => r.rows[0])
+            ]);
+
+            if (!factura) {
+                res.status(404).json({ ok: false, error: "Factura no encontrada" });
+                return;
+            }
+
+            let qrDataUrl = null;
+
+            if (factura.uuid) {
+                try {
+                    const qrBuffer = await QRCode.toBuffer(
+                        urlVerificacionSat({ uuid: factura.uuid, rfcEmisor: negocio.rfc, rfcReceptor: factura.receptor_rfc, total: factura.total }),
+                        { width: 240, margin: 1 }
+                    );
+                    qrDataUrl = `data:image/png;base64,${qrBuffer.toString("base64")}`;
+                } catch (error) {
+                    qrDataUrl = null;
+                }
+            }
+
+            const conceptos = armarConceptosFactura(factura.productos, "", "") || [];
+
+            res.json({ ok: true, factura, emisor: negocio, conceptos, qrDataUrl });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.post("/facturacion/:id/reenviar-correo", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocioId = negocioIdDeRequest(req);
+            const facturaId = Number(req.params.id);
+
+            if (!negocioId) {
+                res.status(401).json({ ok: false, error: "Este equipo no esta vinculado a ningun negocio" });
+                return;
+            }
+
+            const correoDestino = limpiarTexto(req.body?.correo, 200);
+
+            if (!correoDestino) {
+                res.status(400).json({ ok: false, error: "Falta el correo del destinatario" });
+                return;
+            }
+
+            const [factura, negocio] = await Promise.all([
+                pool.query(`SELECT folio, serie, uuid, total, xml_cfdi, estado FROM public.facturas_cfdi WHERE id = $1 AND negocio_id = $2`, [facturaId, negocioId]).then(r => r.rows[0]),
+                pool.query(`SELECT razon_social FROM public.negocios WHERE id = $1`, [negocioId]).then(r => r.rows[0])
+            ]);
+
+            if (!factura) {
+                res.status(404).json({ ok: false, error: "Factura no encontrada" });
+                return;
+            }
+            if (factura.estado !== "timbrada") {
+                res.status(400).json({ ok: false, error: "Solo se pueden reenviar facturas ya timbradas." });
+                return;
+            }
+
+            const resultado = await enviarCorreoFacturaCfdi(correoDestino, negocio?.razon_social || "Nexo", {
+                folioTexto: `${factura.serie || ""}${factura.folio || facturaId}`,
+                uuid: factura.uuid || "--",
+                totalTexto: `$${Number(factura.total || 0).toFixed(2)}`,
+                xmlContent: factura.xml_cfdi || null
+            });
+
+            if (!resultado.ok) {
+                res.status(502).json({ ok: false, error: resultado.error || "No se pudo enviar el correo." });
+                return;
+            }
+
+            res.json({ ok: true });
         } catch (error) {
             responderError(res, error);
         }
@@ -622,3 +748,4 @@ module.exports.partirImporteConIva = partirImporteConIva;
 module.exports.armarConceptosFactura = armarConceptosFactura;
 module.exports.resolverReceptorSugerido = resolverReceptorSugerido;
 module.exports.formaPagoSat = formaPagoSat;
+module.exports.urlVerificacionSat = urlVerificacionSat;

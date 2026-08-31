@@ -461,7 +461,7 @@ async function cargarFacturasFacturacion() {
 
         contenedor.innerHTML = `
             <table class="facturacion-tabla">
-                <thead><tr><th>Folio</th><th>Receptor</th><th>Fecha</th><th>Total</th><th>Estado</th></tr></thead>
+                <thead><tr><th>Folio</th><th>Receptor</th><th>Fecha</th><th>Total</th><th>Estado</th><th></th></tr></thead>
                 <tbody>
                     ${datos.facturas.map(f => `
                         <tr>
@@ -470,6 +470,7 @@ async function cargarFacturasFacturacion() {
                             <td>${f.created_at ? new Date(f.created_at).toLocaleDateString("es-MX") : "--"}</td>
                             <td>$${Number(f.total || 0).toFixed(2)}</td>
                             <td><span class="facturacion-estado-pill ${escaparPOS(f.estado)}">${escaparPOS(f.estado)}</span></td>
+                            <td>${f.estado === "timbrada" ? `<button type="button" class="facturacion-tabla-accion" onclick="verRepresentacionFactura(${f.id})" title="Ver / imprimir">${iconoUISVG("printer")}</button>` : ""}</td>
                         </tr>
                     `).join("")}
                 </tbody>
@@ -563,9 +564,11 @@ function renderFacturarVentaExistente(factura) {
                 <div class="facturacion-resumen-fila"><span>Folio</span><span>${escaparPOS((factura.serie || "") + (factura.folio || "--"))}</span></div>
                 <div class="facturacion-resumen-fila"><span>UUID</span><span style="font-size:11px;">${escaparPOS(factura.uuid || "--")}</span></div>
             </div>
-            ${factura.estado === "timbrada"
-                ? `<a class="facturacion-btn-secundario" style="display:block;text-align:center;text-decoration:none;box-sizing:border-box;" href="/facturacion/${factura.id}/xml" target="_blank" rel="noopener">Descargar XML</a>`
-                : ""}
+            ${factura.estado === "timbrada" ? `
+                <button type="button" class="facturacion-btn-secundario" onclick="verRepresentacionFactura(${factura.id})">Ver / imprimir</button>
+                <a class="facturacion-btn-secundario" style="display:block;text-align:center;text-decoration:none;box-sizing:border-box;" href="/facturacion/${factura.id}/xml" target="_blank" rel="noopener">Descargar XML</a>
+                <button type="button" class="facturacion-btn-secundario" onclick="reenviarCorreoFactura(${factura.id}, ${JSON.stringify(factura.receptor_correo || "")})">Reenviar por correo</button>
+            ` : ""}
         </div>
     `;
 }
@@ -634,5 +637,163 @@ async function timbrarVentaDesdeModal() {
         if (errorBox) { errorBox.textContent = "No se pudo conectar. Revisa tu conexión."; errorBox.classList.add("visible"); }
     } finally {
         if (boton) { boton.disabled = false; boton.textContent = "Timbrar factura"; }
+    }
+}
+
+/* ---------- Representacion impresa + reenvio por correo ---------- */
+
+async function verRepresentacionFactura(facturaId) {
+    try {
+        const respuesta = await fetch(`/facturacion/${facturaId}`);
+        const datos = await respuesta.json();
+
+        if (!datos.ok) {
+            alertaPOS(datos.error || "No se pudo cargar la factura.", "Factura CFDI", "peligro");
+            return;
+        }
+
+        imprimirRepresentacionFacturaPOS(construirRepresentacionFacturaHTML(datos));
+    } catch (error) {
+        alertaPOS("No se pudo conectar. Revisa tu conexión.", "Factura CFDI", "peligro");
+    }
+}
+
+function construirRepresentacionFacturaHTML(datos) {
+    const { factura, emisor, conceptos, qrDataUrl } = datos;
+    const folioTexto = `${factura.serie || ""}${factura.folio || factura.id}`;
+    const fechaTimbrado = factura.timbrada_at ? new Date(factura.timbrada_at).toLocaleString("es-MX") : "--";
+
+    const filasConceptos = (conceptos || []).map(c => `
+        <tr>
+            <td>${escaparPOS(c.Quantity)}</td>
+            <td>${escaparPOS(c.Description)}</td>
+            <td class="num">$${Number(c.UnitPrice).toFixed(2)}</td>
+            <td class="num">$${Number(c.Subtotal).toFixed(2)}</td>
+        </tr>
+    `).join("");
+
+    return `
+        <div class="factura-rep-doc">
+            <div class="factura-rep-header">
+                <div>
+                    <h1>${escaparPOS(emisor.razon_social || "")}</h1>
+                    <span>RFC: ${escaparPOS(emisor.rfc || "")} &middot; Régimen fiscal: ${escaparPOS(emisor.regimen_fiscal || "")}</span>
+                </div>
+                <div class="factura-rep-tipo">
+                    <strong>FACTURA</strong>
+                    <span>Folio: ${escaparPOS(folioTexto)}</span>
+                    <span>Timbrado: ${escaparPOS(fechaTimbrado)}</span>
+                </div>
+            </div>
+
+            <div class="factura-rep-receptor">
+                <strong>Receptor</strong>
+                <span>${escaparPOS(factura.receptor_nombre || "")} &middot; RFC: ${escaparPOS(factura.receptor_rfc || "")}</span>
+                <span>Uso CFDI: ${escaparPOS(factura.receptor_uso_cfdi || "")} &middot; Régimen: ${escaparPOS(factura.receptor_regimen_fiscal || "")} &middot; CP: ${escaparPOS(factura.receptor_codigo_postal || "")}</span>
+            </div>
+
+            <table class="factura-rep-tabla">
+                <thead><tr><th>Cant.</th><th>Descripción</th><th class="num">P. Unitario</th><th class="num">Importe</th></tr></thead>
+                <tbody>${filasConceptos}</tbody>
+            </table>
+
+            <div class="factura-rep-totales">
+                <div><span>Subtotal</span><strong>$${Number(factura.subtotal || 0).toFixed(2)}</strong></div>
+                <div><span>IVA</span><strong>$${(Number(factura.total || 0) - Number(factura.subtotal || 0)).toFixed(2)}</strong></div>
+                <div class="factura-rep-total-final"><span>Total</span><strong>$${Number(factura.total || 0).toFixed(2)}</strong></div>
+            </div>
+
+            <div class="factura-rep-timbre">
+                <div class="factura-rep-timbre-datos">
+                    <strong>Folio fiscal (UUID)</strong>
+                    <span>${escaparPOS(factura.uuid || "--")}</span>
+                    <p>Este documento es una representación impresa de un Comprobante Fiscal Digital por Internet (CFDI). El archivo XML timbrado es el documento con validez fiscal completa.</p>
+                </div>
+                ${qrDataUrl ? `<img src="${qrDataUrl}" alt="QR de verificación SAT">` : ""}
+            </div>
+        </div>
+    `;
+}
+
+function imprimirRepresentacionFacturaPOS(contenidoHtml) {
+    const html = `
+        <html>
+        <head>
+        <title>Factura</title>
+        <style>
+            @page { size: letter; margin: 14mm; }
+            * { box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; color: #101828; font-size: 12.5px; }
+            .factura-rep-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #101828; padding-bottom: 10px; margin-bottom: 14px; }
+            .factura-rep-header h1 { margin: 0 0 4px; font-size: 18px; }
+            .factura-rep-header span { display: block; font-size: 11.5px; color: #475467; }
+            .factura-rep-tipo { text-align: right; }
+            .factura-rep-tipo strong { display: block; font-size: 16px; letter-spacing: .04em; }
+            .factura-rep-tipo span { display: block; font-size: 11.5px; color: #475467; }
+            .factura-rep-receptor { margin-bottom: 16px; padding: 10px 12px; background: #f8fafc; border-radius: 8px; }
+            .factura-rep-receptor strong { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #667085; margin-bottom: 4px; }
+            .factura-rep-receptor span { display: block; font-size: 12.5px; }
+            .factura-rep-tabla { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+            .factura-rep-tabla th { text-align: left; font-size: 10.5px; text-transform: uppercase; color: #667085; border-bottom: 1px solid #d0d5dd; padding: 6px 8px; }
+            .factura-rep-tabla td { padding: 7px 8px; border-bottom: 1px solid #eef2f7; font-size: 12px; }
+            .factura-rep-tabla .num { text-align: right; }
+            .factura-rep-totales { width: 260px; margin-left: auto; margin-bottom: 20px; }
+            .factura-rep-totales div { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px; }
+            .factura-rep-total-final { border-top: 1px solid #101828; margin-top: 4px; padding-top: 6px !important; font-size: 14px !important; font-weight: 700; }
+            .factura-rep-timbre { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-top: 14px; border-top: 1px dashed #d0d5dd; }
+            .factura-rep-timbre-datos strong { display: block; font-size: 11px; text-transform: uppercase; color: #667085; margin-bottom: 2px; }
+            .factura-rep-timbre-datos span { display: block; font-size: 11px; font-family: ui-monospace, monospace; margin-bottom: 8px; }
+            .factura-rep-timbre-datos p { margin: 0; font-size: 9.5px; color: #667085; line-height: 1.5; max-width: 420px; }
+            .factura-rep-timbre img { width: 90px; height: 90px; flex-shrink: 0; }
+        </style>
+        </head>
+        <body>${contenidoHtml}</body>
+        </html>
+    `;
+
+    const iframe = document.createElement("iframe");
+    iframe.title = "Factura";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0";
+
+    document.body.appendChild(iframe);
+
+    const documento = iframe.contentWindow.document;
+    documento.open();
+    documento.write(html);
+    documento.close();
+
+    setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        setTimeout(() => iframe.remove(), 1200);
+    }, 180);
+}
+
+async function reenviarCorreoFactura(facturaId, correoSugerido) {
+    const correo = prompt("¿A qué correo se reenvía la factura?", correoSugerido || "");
+    if (!correo) return;
+
+    try {
+        const respuesta = await fetch(`/facturacion/${facturaId}/reenviar-correo`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ correo })
+        });
+        const datos = await respuesta.json();
+
+        if (!datos.ok) {
+            alertaPOS(datos.error || "No se pudo reenviar la factura.", "Factura CFDI", "peligro");
+            return;
+        }
+
+        alertaPOS(`Factura enviada a ${correo}.`, "Factura CFDI", "exito");
+    } catch (error) {
+        alertaPOS("No se pudo conectar. Revisa tu conexión.", "Factura CFDI", "peligro");
     }
 }

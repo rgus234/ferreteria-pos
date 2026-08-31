@@ -827,6 +827,46 @@ function enviarCorreoSolicitudCreditoPublica(correo, nombreNegocio, { clienteNom
     });
 }
 
+// Reenvio de una factura CFDI ya timbrada -- el XML adjunto es el
+// documento con validez fiscal real; el correo es solo un resumen
+// legible. Sin representacion impresa en PDF adjunta (no hay libreria
+// de PDF en el proyecto) -- se puede imprimir/guardar desde Nexo.
+function enviarCorreoFacturaCfdi(correo, razonSocialEmisor, { folioTexto, uuid, totalTexto, xmlContent }) {
+    const filas = [
+        ["Folio", folioTexto],
+        ["Folio fiscal (UUID)", uuid],
+        ["Total", totalTexto]
+    ];
+
+    const filasHtml = filas.map(([etiqueta, valor]) => `
+        <tr>
+            <td style="padding:8px 0;color:#667085;font-size:13.5px;">${etiqueta}</td>
+            <td align="right" style="padding:8px 0;color:#101828;font-size:13.5px;font-weight:700;">${valor}</td>
+        </tr>
+    `).join("");
+
+    return enviarCorreo({
+        correo,
+        asunto: `Tu factura de ${razonSocialEmisor}`,
+        html: envolverPlantilla({
+            etiqueta: "Factura electronica",
+            titulo: "Aqui esta tu factura 🧾",
+            saludo: "Hola",
+            robot: "feliz",
+            cuerpoHtml: `
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">${razonSocialEmisor} te envio esta factura electronica (CFDI). El archivo XML adjunto es el documento con validez fiscal.</p>
+            `,
+            cajaHtml: `
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #eef2f7;border-radius:14px;padding:6px 18px;">
+                    <tr><td colspan="2" style="padding:8px 0 2px;color:#101828;font-size:12.5px;font-weight:800;">Detalles de la factura</td></tr>
+                    ${filasHtml}
+                </table>
+            `
+        }),
+        attachments: xmlContent ? [{ filename: `factura-${folioTexto}.xml`, content: xmlContent }] : []
+    });
+}
+
 module.exports = {
     enviarCorreoVerificacion,
     enviarCorreoVerificacionPersona,
@@ -847,5 +887,6 @@ module.exports = {
     enviarCorreoPedidoListo,
     enviarCorreoPedidoEntregado,
     enviarCorreoPedidoCancelado,
-    enviarCorreoPedidoCanceladoPorCliente
+    enviarCorreoPedidoCanceladoPorCliente,
+    enviarCorreoFacturaCfdi
 };
