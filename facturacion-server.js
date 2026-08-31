@@ -452,6 +452,11 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                      xmlCfdi, factura.facturamaId ? String(factura.facturamaId) : null, creadoPor]
                 )).rows[0];
 
+                // Si se habia marcado "requiere factura" al cobrar, ya se
+                // cumplio -- se apaga para que el aviso de pendiente
+                // desaparezca del historial.
+                await pool.query(`UPDATE public.historial_ventas SET requiere_factura = false WHERE id = $1`, [historialVentaId]);
+
                 res.json({ ok: true, factura: filaFactura });
             } catch (error) {
                 responderError(res, error);

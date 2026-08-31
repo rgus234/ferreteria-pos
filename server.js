@@ -4733,8 +4733,8 @@ async function aplicarVentaSync(client, negocio, payload) {
     const historialCreado = await client.query(
         `
         INSERT INTO public.historial_ventas
-            (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado, idempotency_key)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada',$24)
+            (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado, idempotency_key, requiere_factura)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada',$24,$25)
         RETURNING id, fecha, folio
         `,
         [
@@ -4761,7 +4761,8 @@ async function aplicarVentaSync(client, negocio, payload) {
             recibido,
             cambio,
             JSON.stringify(pagosVenta),
-            payload?.idempotencyKey || null
+            payload?.idempotencyKey || null,
+            Boolean(payload?.requiereFactura)
         ]
     );
 
@@ -4835,8 +4836,8 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
     const historialCreado = await client.query(
         `
         INSERT INTO public.historial_ventas
-            (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado, idempotency_key)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada', $12)
+            (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado, idempotency_key, requiere_factura)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada', $12, $13)
         RETURNING id, fecha, folio
         `,
         [
@@ -4851,7 +4852,8 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
             cliente.id,
             cliente.nombre,
             JSON.stringify(productos),
-            payload?.idempotencyKey || null
+            payload?.idempotencyKey || null,
+            Boolean(payload?.requiereFactura)
         ]
     );
 
@@ -6994,7 +6996,8 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
         cajeroNombre,
         clienteNombre,
         idempotencyKey,
-        adminPin
+        adminPin,
+        requiereFactura
     } = req.body;
     const pagosVenta = pagos || {};
     const pagoEfectivo = Number(pagosVenta.efectivo || 0);
@@ -7074,8 +7077,8 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
             historialCreado = await client.query(
                 `
                 INSERT INTO public.historial_ventas
-                    (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado, idempotency_key)
-                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada',$24)
+                    (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado, idempotency_key, requiere_factura)
+                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada',$24,$25)
                 RETURNING id, fecha, folio
                 `,
                 [
@@ -7102,7 +7105,8 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
                     Number(recibido || 0),
                     Number(cambio || 0),
                     JSON.stringify(pagosVenta),
-                    idempotencyKey || null
+                    idempotencyKey || null,
+                    Boolean(requiereFactura)
                 ]
             );
         } catch (error) {
@@ -8340,7 +8344,8 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
         concepto,
         productos,
         idempotencyKey,
-        adminPin
+        adminPin,
+        requiereFactura
     } = req.body;
 
     // Dos casos reales y distintos: un cargo con productos (viene del
@@ -8456,8 +8461,8 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
             historialCreado = await client.query(
                 `
                 INSERT INTO public.historial_ventas
-                    (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado, idempotency_key)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada', $12)
+                    (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado, idempotency_key, requiere_factura)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada', $12, $13)
                 RETURNING id, fecha, folio
                 `,
                 [
@@ -8472,7 +8477,8 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
                     cliente.id,
                     cliente.nombre,
                     JSON.stringify(productosLista),
-                    idempotencyKey || null
+                    idempotencyKey || null,
+                    Boolean(requiereFactura)
                 ]
             );
         } catch (error) {

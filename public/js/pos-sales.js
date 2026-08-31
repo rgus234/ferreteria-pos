@@ -9,6 +9,12 @@ let contadorArticuloRapido = 0;
 // el estado vive aqui, no en el DOM, y se vuelve a aplicar en cada render.
 let resumenDescuentoAbierto = false;
 
+// Misma razon que resumenDescuentoAbierto arriba -- el checkbox
+// "Requiere factura" vive fuera del DOM para sobrevivir el rerender de
+// renderResumenCobroPOS(). Se resetea al limpiar el carrito (venta
+// nueva = intencion nueva, nunca se arrastra de una venta a otra).
+let carritoRequiereFactura = false;
+
 // Misma llave de idempotencia mientras dure ESTE intento de cobro -- si
 // la red se cae justo cuando el servidor ya guardo la venta y el
 // cajero reintenta, la segunda peticion manda la misma llave y el
@@ -450,6 +456,7 @@ async function limpiarCarrito() {
  nivelPrecioActual = "mayoreo";
  idempotencyKeyVentaActual = null;
  idempotencyKeyCreditoActual = null;
+ carritoRequiereFactura = false;
 
  actualizarCarrito();
 }
@@ -1330,6 +1337,11 @@ function renderResumenCobroPOS() {
  <strong id="cambioTexto">$0.00</strong>
  </div>
 
+ <label class="resumen-requiere-factura">
+ <input type="checkbox" id="requiereFacturaCarrito" ${carritoRequiereFactura ? "checked" : ""} onchange="carritoRequiereFactura = this.checked">
+ <span>Requiere factura</span>
+ </label>
+
  <div class="carrito-acciones-cobro">
  <button class="btn-cobrar" onclick="cobrar(${total})">
  Cobrar <span>F8</span>
@@ -1739,7 +1751,8 @@ try {
  metodoPago: pago.metodoPago,
  pagos: pago.pagos,
  idempotencyKey,
- adminPin
+ adminPin,
+ requiereFactura: carritoRequiereFactura
  })
  }
  );
@@ -1760,6 +1773,7 @@ try {
  metodoPago: pago.metodoPago,
  productos: productosVenta,
  idempotencyKey,
+ requiereFactura: carritoRequiereFactura,
  errorConexion: error.message
  });
 
@@ -1842,6 +1856,7 @@ try {
  // la proxima vez que se llame a cobrar() es un cobro nuevo, le toca
  // su propia llave.
  idempotencyKeyVentaActual = null;
+ carritoRequiereFactura = false;
 
  if (!ventaRegistrada) {
  ventaRegistrada =
@@ -2139,7 +2154,8 @@ async function cobrarCreditoInternoPOS(total) {
  concepto: conceptoCredito,
  productos,
  idempotencyKey,
- adminPin
+ adminPin,
+ requiereFactura: carritoRequiereFactura
  })
  }
  );
@@ -2156,6 +2172,7 @@ async function cobrarCreditoInternoPOS(total) {
  concepto: conceptoCredito,
  productos,
  idempotencyKey,
+ requiereFactura: carritoRequiereFactura,
  errorConexion: error.message
  });
 
@@ -2223,6 +2240,7 @@ async function cobrarCreditoInternoPOS(total) {
  }
 
  idempotencyKeyCreditoActual = null;
+ carritoRequiereFactura = false;
 
  if (!creditoRegistrado) {
  creditoRegistrado =

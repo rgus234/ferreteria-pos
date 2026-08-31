@@ -506,6 +506,26 @@ body.oscuro .pos-referencia {
   font-size: 18px;
 }
 
+.pos-referencia .resumen-requiere-factura {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--pos-sale-line);
+  border-radius: 14px;
+  background: var(--pos-sale-card);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pos-referencia .resumen-requiere-factura input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--pos-sale-brand);
+  cursor: pointer;
+}
+
 .pos-referencia .carrito-acciones-cobro {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(96px, .45fr) minmax(92px, .4fr);

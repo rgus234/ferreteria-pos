@@ -53,7 +53,7 @@ async function cargarHistorial() {
  return `
  <div class="venta-dashboard-item">
  <div>
- <strong>${venta.folio || "Venta"} · ${dinero(total)}</strong>
+ <strong>${venta.folio || "Venta"} · ${dinero(total)} ${venta.requiere_factura ? '<span class="venta-badge-pendiente-factura">Pendiente de facturar</span>' : ""}</strong>
  <span>${formatearFechaVenta(venta.fecha)}</span>
  </div>
  <b>Ingreso</b>
@@ -350,11 +350,12 @@ function renderVentaHistorialPOS(venta) {
  const metodo = venta.metodo_pago || venta.metodoPago || "efectivo";
  const cliente = venta.cliente_nombre || venta.cliente_nombre_resuelto || "Publico general";
  const folio = venta.folio || `V-${String(venta.id || 0).padStart(6, "0")}`;
+ const pendienteFactura = Boolean(venta.requiere_factura);
 
  return `
  <article class="venta-historial-card-pos">
   <div>
-   <span>${escaparPOS(folio)}</span>
+   <span>${escaparPOS(folio)} ${pendienteFactura ? '<span class="venta-badge-pendiente-factura" title="El cliente pidio factura al cobrar">Pendiente de facturar</span>' : ""}</span>
    <strong>${dinero(total)}</strong>
    <small>${formatearFechaVenta(venta.fecha)} · ${escaparPOS(metodo)} · ${escaparPOS(cliente)}</small>
   </div>
