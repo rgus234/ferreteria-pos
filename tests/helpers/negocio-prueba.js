@@ -63,6 +63,7 @@ async function borrarNegocioPrueba(negocioId) {
     if (!negocioId) return;
 
     const tablasHijas = [
+        "facturas_cfdi",
         "historial_ventas",
         "ventas",
         "movimientos_credito",

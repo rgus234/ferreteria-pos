@@ -1335,6 +1335,7 @@ function ocultarPantallasPrincipales() {
  "pantallaCodigosBarras",
  "pantallaSitioWeb",
  "pantallaPedidosMarket",
+ "pantallaFacturacion",
  "modalAgregar"
  ].forEach(id => {
  const pantalla =

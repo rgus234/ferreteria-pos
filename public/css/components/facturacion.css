@@ -1,0 +1,475 @@
+/* Facturacion electronica -- 3 estados con lenguaje visual distinto a
+   proposito: inactiva (momento de decision, con mascota) / wizard de
+   activacion / activa (pantalla de trabajo, tipo tarjeta). */
+
+.facturacion-shell {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 8px 4px 40px;
+}
+
+/* ---------- Estado: inactiva (hero) ---------- */
+
+.facturacion-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 18px;
+  padding: 40px 28px 34px;
+  border-radius: var(--nexo-radius-xl, 24px);
+  background: var(--surface, rgba(255, 255, 255, .94));
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .1));
+  box-shadow: var(--shadow-soft, 0 20px 55px rgba(15, 23, 42, .12));
+}
+
+.facturacion-hero-img {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center 15%;
+  box-shadow: var(--nexo-shadow-brand, 0 14px 28px rgba(13, 110, 253, .2));
+}
+
+.facturacion-hero h1 {
+  margin: 0;
+  font-size: 25px;
+  color: var(--text-main, #101828);
+}
+
+.facturacion-hero-sub {
+  margin: 0;
+  max-width: 480px;
+  color: var(--text-muted, #667085);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.facturacion-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  margin: 6px 0;
+  text-align: left;
+}
+
+.facturacion-checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--nexo-radius-sm, 12px);
+  background: var(--nexo-brand-soft, #e7f0ff);
+}
+
+.facturacion-checklist-item .ui-icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--nexo-brand, #0d6efd);
+}
+
+.facturacion-checklist-item strong {
+  display: block;
+  font-size: 13.5px;
+  color: var(--text-main, #101828);
+}
+
+.facturacion-checklist-item span {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-muted, #667085);
+  line-height: 1.45;
+}
+
+.facturacion-privacidad {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 480px;
+  padding: 10px 14px;
+  border-radius: var(--nexo-radius-sm, 12px);
+  background: rgba(22, 163, 74, .08);
+  color: #15803d;
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.facturacion-privacidad .ui-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+
+.facturacion-hero-cta {
+  min-width: 220px;
+  min-height: 48px;
+  border: none;
+  border-radius: var(--nexo-radius-pill, 999px);
+  background: var(--nexo-brand, #0d6efd);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.facturacion-hero-cta:hover { filter: brightness(1.05); }
+
+.facturacion-upsell-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--nexo-radius-pill, 999px);
+  background: rgba(245, 158, 11, .14);
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---------- Wizard de activacion ---------- */
+
+.facturacion-wizard {
+  border-radius: var(--nexo-radius-xl, 24px);
+  background: var(--surface, rgba(255, 255, 255, .94));
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .1));
+  box-shadow: var(--shadow-soft, 0 20px 55px rgba(15, 23, 42, .12));
+  overflow: hidden;
+}
+
+.facturacion-wizard-header {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px 26px 18px;
+  border-bottom: 1px solid var(--line-soft, rgba(15, 23, 42, .1));
+}
+
+.facturacion-wizard-header h2 {
+  margin: 0 0 2px;
+  font-size: 19px;
+  color: var(--text-main, #101828);
+}
+
+.facturacion-wizard-header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted, #667085);
+}
+
+.facturacion-dots {
+  display: flex;
+  gap: 8px;
+}
+
+.facturacion-dot {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--nexo-radius-sm, 12px);
+  background: var(--nexo-bg, #f3f4f6);
+  cursor: default;
+  text-align: left;
+}
+
+.facturacion-dot-num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--line-soft, rgba(15, 23, 42, .1));
+  color: var(--text-muted, #667085);
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.facturacion-dot-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted, #667085);
+}
+
+.facturacion-dot.activo {
+  background: var(--nexo-brand-soft, #e7f0ff);
+}
+.facturacion-dot.activo .facturacion-dot-num {
+  background: var(--nexo-brand, #0d6efd);
+  color: #fff;
+}
+.facturacion-dot.activo .facturacion-dot-label { color: var(--nexo-brand, #0d6efd); }
+
+.facturacion-dot.completado .facturacion-dot-num {
+  background: var(--nexo-success, #16a34a);
+  color: #fff;
+}
+.facturacion-dot.completado .facturacion-dot-label { color: var(--nexo-success, #16a34a); }
+
+.facturacion-etapa {
+  padding: 24px 26px 8px;
+}
+
+.facturacion-etapa h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  color: var(--text-main, #101828);
+}
+
+.facturacion-etapa-nota {
+  margin: 0 0 18px;
+  font-size: 13px;
+  color: var(--text-muted, #667085);
+  line-height: 1.55;
+}
+
+.facturacion-campos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.facturacion-campos label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted, #667085);
+}
+
+.facturacion-campos label.col-2 { grid-column: 1 / -1; }
+
+.facturacion-campos input,
+.facturacion-campos select {
+  min-height: var(--nexo-control-height, 42px);
+  padding: 0 12px;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .14));
+  border-radius: var(--nexo-radius-sm, 12px);
+  background: var(--nexo-surface-strong, #fff);
+  color: var(--text-main, #101828);
+  font-size: 14px;
+}
+
+.facturacion-campos input:focus,
+.facturacion-campos select:focus {
+  outline: none;
+  border-color: var(--nexo-brand, #0d6efd);
+}
+
+.facturacion-archivo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1.5px dashed var(--line-soft, rgba(15, 23, 42, .18));
+  border-radius: var(--nexo-radius-sm, 12px);
+  background: var(--nexo-bg, #f3f4f6);
+}
+
+.facturacion-archivo strong {
+  font-size: 13px;
+  color: var(--text-main, #101828);
+}
+
+.facturacion-archivo input[type="file"] {
+  font-size: 12.5px;
+  color: var(--text-muted, #667085);
+}
+
+.facturacion-archivo.con-valor {
+  border-style: solid;
+  border-color: var(--nexo-success, #16a34a);
+  background: rgba(22, 163, 74, .06);
+}
+
+.facturacion-error-inline {
+  display: none;
+  margin-top: 16px;
+  padding: 11px 14px;
+  border-radius: var(--nexo-radius-sm, 12px);
+  background: rgba(239, 68, 68, .1);
+  color: #b91c1c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.facturacion-error-inline.visible { display: block; }
+
+.facturacion-confirmacion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 10px 0 20px;
+}
+
+.facturacion-confirmacion img {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center 15%;
+  box-shadow: var(--nexo-shadow-brand, 0 14px 28px rgba(13, 110, 253, .2));
+}
+
+.facturacion-confirmacion h3 { margin: 0; font-size: 18px; }
+
+.facturacion-resumen-cert {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: var(--nexo-radius-md, 16px);
+  background: var(--nexo-bg, #f3f4f6);
+  text-align: left;
+}
+
+.facturacion-resumen-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.facturacion-resumen-fila span:first-child { color: var(--text-muted, #667085); }
+.facturacion-resumen-fila span:last-child { color: var(--text-main, #101828); font-weight: 700; }
+
+.facturacion-wizard-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 26px 24px;
+}
+
+/* ---------- Estado: activa (tarjetas de trabajo) ---------- */
+
+.facturacion-activa-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 820px) {
+  .facturacion-activa-grid { grid-template-columns: 1fr; }
+}
+
+.facturacion-tarjeta {
+  padding: 20px 22px;
+  border-radius: var(--nexo-radius-lg, 20px);
+  background: var(--surface, rgba(255, 255, 255, .94));
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .1));
+  box-shadow: var(--nexo-shadow-card, 0 14px 30px rgba(15, 23, 42, .07));
+}
+
+.facturacion-tarjeta h3 {
+  margin: 0 0 14px;
+  font-size: 14.5px;
+  color: var(--text-main, #101828);
+}
+
+.facturacion-cert-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-soft, rgba(15, 23, 42, .08));
+  font-size: 13px;
+}
+.facturacion-cert-fila:last-of-type { border-bottom: none; }
+.facturacion-cert-fila span:first-child { color: var(--text-muted, #667085); }
+.facturacion-cert-fila span:last-child { color: var(--text-main, #101828); font-weight: 600; text-align: right; }
+
+.facturacion-badge-vigencia {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--nexo-radius-pill, 999px);
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.facturacion-badge-vigencia.ok { background: rgba(22, 163, 74, .14); color: #15803d; }
+.facturacion-badge-vigencia.por-vencer { background: rgba(245, 158, 11, .14); color: #b45309; }
+.facturacion-badge-vigencia.vencido { background: rgba(239, 68, 68, .14); color: #dc2626; }
+
+.facturacion-btn-secundario {
+  width: 100%;
+  margin-top: 14px;
+  min-height: 38px;
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .16));
+  border-radius: var(--nexo-radius-sm, 12px);
+  background: transparent;
+  color: var(--text-main, #101828);
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.facturacion-tabla-wrap { overflow-x: auto; }
+
+.facturacion-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.facturacion-tabla th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  color: var(--text-muted, #667085);
+  border-bottom: 1px solid var(--line-soft, rgba(15, 23, 42, .1));
+}
+
+.facturacion-tabla td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line-soft, rgba(15, 23, 42, .06));
+  color: var(--text-main, #101828);
+}
+
+.facturacion-estado-pill {
+  display: inline-flex;
+  padding: 2px 9px;
+  border-radius: var(--nexo-radius-pill, 999px);
+  font-size: 11px;
+  font-weight: 700;
+}
+.facturacion-estado-pill.timbrada { background: rgba(22, 163, 74, .14); color: #15803d; }
+.facturacion-estado-pill.pendiente { background: rgba(245, 158, 11, .14); color: #b45309; }
+.facturacion-estado-pill.error { background: rgba(239, 68, 68, .14); color: #dc2626; }
+.facturacion-estado-pill.cancelada { background: rgba(100, 116, 139, .14); color: #475569; }
+
+.facturacion-vacio {
+  padding: 30px 14px;
+  text-align: center;
+  color: var(--text-muted, #667085);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+body.oscuro .facturacion-checklist-item,
+body.oscuro .facturacion-dot,
+body.oscuro .facturacion-resumen-cert,
+body.oscuro .facturacion-archivo {
+  background: rgba(255, 255, 255, .06);
+}
+
+body.oscuro .facturacion-privacidad { background: rgba(22, 163, 74, .12); }

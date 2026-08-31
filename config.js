@@ -26,6 +26,9 @@ const config = {
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || "",
+    facturamaApiUrl: process.env.FACTURAMA_API_URL || "",
+    facturamaApiUser: process.env.FACTURAMA_API_USER || "",
+    facturamaApiPassword: process.env.FACTURAMA_API_PASSWORD || "",
 };
 
 function validarConfigProduccion() {

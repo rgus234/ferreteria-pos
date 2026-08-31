@@ -92,6 +92,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("recordatorio de prueba gratuita por terminar", () => {
         require("./prueba-recordatorios-server")(app, pool);
     });
+
+    cargarModuloPOS("facturacion electronica (CFDI)", () => {
+        require("./facturacion-server")(app, pool, requerirAccesoNegocio);
+    });
 }
 
 module.exports = {
