@@ -624,12 +624,11 @@
   pantalla.innerHTML = `
    <div class="recepcion-shell">
     <div class="recepcion-header">
-     <span class="recepcion-header-icono">${typeof iconoUISVG === "function" ? iconoUISVG("cart") : ""}</span>
      <div class="recepcion-header-texto">
-      <h2>Registro de compras e inventario</h2>
-      <p>Registra la factura o remision, compara contra inventario y actualiza existencias con vista previa. Acepta XML CFDI o CSV.</p>
+      <span class="recepcion-header-icono">${typeof iconoUISVG === "function" ? iconoUISVG("cart") : ""}</span>
+      <p>Sube tu factura o remision (XML CFDI o CSV) para comparar contra tu inventario.</p>
      </div>
-     <button type="button" class="btn-recepcion-historial" onclick="abrirHistorialRecepciones()">Ver historial</button>
+     <button type="button" class="btn-recepcion-historial" onclick="abrirHistorialRecepciones()">${typeof iconoUISVG === "function" ? iconoUISVG("clock") : ""} Ver historial</button>
     </div>
 
     <div class="recepcion-grid">
@@ -679,6 +678,7 @@
         <label class="recepcion-form-archivo">Archivo
          <label class="recepcion-drop-compacto">
           <input id="archivoRecepcionMercancia" type="file" accept=".xml,.csv,.txt,.xlsx,.xls,.pdf" onchange="leerArchivoRecepcionMercancia(this.files[0])">
+          <span class="recepcion-drop-icono">${typeof iconoUISVG === "function" ? iconoUISVG("file") : ""}</span>
           <span id="recepcionArchivoNombre">Seleccionar archivo</span>
          </label>
         </label>

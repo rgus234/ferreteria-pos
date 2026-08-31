@@ -1,61 +1,99 @@
-/* Fase 3 - Recepcion inteligente de mercancia (diseno minimalista) */
+/* Recepcion de mercancia -- rediseno visual (2026-08-31).
+   Bug real corregido de paso: la tabla de conceptos forzaba el ancho
+   de TODA la columna principal y chocaba con el resumen lateral,
+   porque ningun contenedor entre .recepcion-columna-principal y la
+   tabla tenia min-width:0 -- un item de grid/flex hereda min-width:auto
+   por default, que respeta el ancho intrinseco del contenido (la tabla,
+   min-width:880px) en vez de dejarlo encogerse y scrollear dentro de su
+   propia columna. Con min-width:0 en .recepcion-panel, el overflow:auto
+   de .recepcion-tabla-wrap por fin puede hacer su trabajo.
+   Tambien se quito el encabezado interno duplicado (el topbar ya
+   muestra "Recepcion de mercancia" -- tener un segundo titulo suelto
+   aqui era ademas la superficie donde el reflow al cargar un archivo
+   se notaba mas). */
+
 .recepcion-shell{
  display:grid;
- gap:16px;
+ gap:20px;
  color:var(--pos-text,#172033);
 }
+
 .recepcion-header{
  display:flex;
  align-items:center;
+ justify-content:space-between;
  flex-wrap:wrap;
  gap:14px;
- padding:18px 20px;
- border-bottom:1px solid var(--pos-line,#dbe3ef);
+}
+.recepcion-header-texto{
+ display:flex;
+ align-items:center;
+ gap:10px;
+ min-width:0;
+ flex:1 1 280px;
 }
 .recepcion-header-icono{
  display:grid;
  place-items:center;
- width:40px;
- height:40px;
+ width:32px;
+ height:32px;
  flex:0 0 auto;
- border-radius:12px;
+ border-radius:10px;
  background:color-mix(in srgb,var(--brand-color,#0d6efd) 12%,transparent);
  color:var(--brand-color,#0d6efd);
 }
 .recepcion-header-icono svg{
- width:20px;
- height:20px;
-}
-.recepcion-header-texto{
- flex:1 1 280px;
- min-width:0;
-}
-.recepcion-header-texto h2{
- margin:0;
- font-size:22px;
- font-weight:800;
- letter-spacing:-.02em;
+ width:16px;
+ height:16px;
 }
 .recepcion-header-texto p{
- margin:4px 0 0;
+ margin:0;
  color:var(--pos-muted,#687386);
  font-weight:600;
- font-size:13px;
+ font-size:13.5px;
 }
-.btn-recepcion-confirmar{
- min-height:40px;
- border:0;
+.btn-recepcion-historial{
+ display:inline-flex;
+ align-items:center;
+ gap:7px;
+ flex:0 0 auto;
+ min-height:38px;
+ border:1px solid var(--pos-line,#dbe3ef);
  border-radius:10px;
- padding:0 16px;
+ padding:0 15px;
+ background:var(--pos-surface-strong,#fff);
+ color:var(--pos-text,#172033);
+ font-weight:700;
+ font-size:13px;
+ cursor:pointer;
+ white-space:nowrap;
+ box-shadow:0 1px 2px rgba(15,23,42,.05);
+}
+.btn-recepcion-historial svg{
+ width:15px;
+ height:15px;
+}
+.btn-recepcion-historial:hover{
+ border-color:color-mix(in srgb,var(--brand-color,#0d6efd) 40%,var(--pos-line,#dbe3ef));
+ color:var(--brand-color,#0d6efd);
+}
+
+.btn-recepcion-confirmar{
+ min-height:44px;
+ border:0;
+ border-radius:999px;
+ padding:0 18px;
  background:var(--brand-color,#0d6efd) !important;
  color:#fff !important;
  font-weight:800;
  font-size:14px;
  cursor:pointer;
+ box-shadow:0 10px 24px color-mix(in srgb,var(--brand-color,#0d6efd) 32%,transparent);
 }
 .btn-recepcion-confirmar:hover{
- background:color-mix(in srgb,var(--brand-color,#0d6efd) 88%,black 12%) !important;
+ filter:brightness(1.05);
 }
+
 .recepcion-grid{
  display:grid;
  grid-template-columns:minmax(0,1fr) minmax(280px,320px);
@@ -68,10 +106,12 @@
  min-width:0;
 }
 .recepcion-panel{
- padding:16px;
+ min-width:0;
+ padding:20px;
  border:1px solid var(--pos-line,#dbe3ef);
- border-radius:14px;
+ border-radius:18px;
  background:var(--pos-surface-strong,#fff);
+ box-shadow:0 1px 2px rgba(15,23,42,.03), 0 10px 26px rgba(15,23,42,.045);
 }
 .recepcion-panel h3{
  margin:0 0 6px;
@@ -88,7 +128,7 @@
  position:sticky;
  top:16px;
  display:grid;
- gap:10px;
+ gap:14px;
 }
 .recepcion-resumen-lateral h3{
  margin:0;
@@ -108,13 +148,20 @@
 }
 .recepcion-form input,
 .recepcion-form select{
- min-height:38px;
+ min-height:40px;
  border:1px solid var(--pos-line,#dbe3ef);
- border-radius:9px;
- padding:0 11px;
- background:var(--pos-surface-strong,#fff);
+ border-radius:10px;
+ padding:0 12px;
+ background:var(--pos-surface-soft,#f8fafc);
  color:var(--pos-text,#172033);
  font-weight:600;
+ transition:border-color .15s ease, background .15s ease;
+}
+.recepcion-form input:focus,
+.recepcion-form select:focus{
+ outline:none;
+ border-color:var(--brand-color,#0d6efd);
+ background:var(--pos-surface-strong,#fff);
 }
 .recepcion-form-archivo{
  grid-column:1/-1;
@@ -122,17 +169,33 @@
 .recepcion-drop-compacto{
  display:flex;
  align-items:center;
- min-height:38px;
- padding:0 12px;
- border:1px dashed var(--pos-line,#dbe3ef);
- border-radius:9px;
- background:transparent;
+ gap:10px;
+ min-height:40px;
+ padding:0 14px;
+ border:1.5px dashed var(--pos-line,#dbe3ef);
+ border-radius:11px;
+ background:var(--pos-surface-soft,#f8fafc);
  cursor:pointer;
  font-weight:600;
  color:var(--pos-muted,#687386);
+ transition:border-color .15s ease, background .15s ease;
+}
+.recepcion-drop-compacto:hover{
+ border-color:var(--brand-color,#0d6efd);
+ background:color-mix(in srgb,var(--brand-color,#0d6efd) 5%,var(--pos-surface-soft,#f8fafc));
 }
 .recepcion-drop-compacto input{
  display:none;
+}
+.recepcion-drop-icono{
+ display:grid;
+ place-items:center;
+ flex:0 0 auto;
+ color:var(--brand-color,#0d6efd);
+}
+.recepcion-drop-icono svg{
+ width:16px;
+ height:16px;
 }
 .recepcion-ayuda{
  margin:10px 0 0;
@@ -182,30 +245,17 @@
  width:100%;
  min-height:38px;
  border:1px solid var(--pos-line,#dbe3ef);
- border-radius:9px;
- padding:0 11px;
- background:var(--pos-surface-strong,#fff);
+ border-radius:10px;
+ padding:0 12px;
+ background:var(--pos-surface-soft,#f8fafc);
  color:var(--pos-text,#172033);
  font-weight:600;
-}
-.btn-recepcion-historial{
- flex:0 0 auto;
- min-height:38px;
- border:1px solid var(--pos-line,#dbe3ef);
- border-radius:9px;
- padding:0 14px;
- background:transparent;
- color:var(--pos-text,#172033);
- font-weight:700;
- font-size:13px;
- cursor:pointer;
- white-space:nowrap;
 }
 .btn-recepcion-diferencias{
  width:auto;
  min-height:38px;
  border:1px solid var(--pos-line,#dbe3ef);
- border-radius:9px;
+ border-radius:10px;
  padding:0 13px;
  background:transparent !important;
  color:var(--pos-muted,#687386) !important;
@@ -222,11 +272,14 @@
 .recepcion-kpis{
  display:grid;
  grid-template-columns:repeat(2,minmax(0,1fr));
- gap:8px 16px;
+ gap:2px 18px;
 }
 .recepcion-kpis div{
- padding:8px 0;
+ padding:9px 0;
  border-bottom:1px solid var(--pos-line,#dbe3ef);
+}
+.recepcion-kpis div:nth-last-child(-n+2){
+ border-bottom:0;
 }
 .recepcion-kpis span{
  display:block;
@@ -245,17 +298,23 @@
  display:flex;
  align-items:center;
  justify-content:space-between;
- padding:10px 0;
- border-bottom:1px solid var(--pos-line,#dbe3ef);
+ padding:16px 18px;
+ border-radius:14px;
+ background:linear-gradient(135deg,color-mix(in srgb,var(--brand-color,#0d6efd) 12%,transparent),color-mix(in srgb,var(--brand-color,#0d6efd) 4%,transparent));
+ border:1px solid color-mix(in srgb,var(--brand-color,#0d6efd) 18%,transparent);
 }
 .recepcion-total-final span{
- font-size:13px;
- font-weight:700;
+ font-size:12px;
+ font-weight:800;
+ text-transform:uppercase;
+ letter-spacing:.05em;
  color:var(--pos-muted,#687386);
 }
 .recepcion-total-final strong{
- font-size:18px;
- font-weight:800;
+ font-size:26px;
+ font-weight:900;
+ letter-spacing:-.02em;
+ color:var(--brand-color,#0d6efd);
 }
 .recepcion-documento-resumen{
  margin:0;
@@ -265,8 +324,10 @@
 }
 .recepcion-diferencias-banner{
  margin:0;
- padding-left:16px;
+ padding:8px 12px 8px 22px;
  position:relative;
+ border-radius:9px;
+ background:rgba(16,185,129,.10);
  color:#047857;
  font-size:12px;
  font-weight:700;
@@ -274,7 +335,7 @@
 .recepcion-diferencias-banner::before{
  content:"";
  position:absolute;
- left:0;
+ left:10px;
  top:50%;
  transform:translateY(-50%);
  width:7px;
@@ -283,6 +344,7 @@
  background:#10b981;
 }
 .recepcion-diferencias-banner.con-diferencias{
+ background:rgba(245,158,11,.12);
  color:#92400e;
 }
 .recepcion-diferencias-banner.con-diferencias::before{
@@ -301,15 +363,18 @@ body.oscuro .recepcion-diferencias-banner.con-diferencias{
  align-items:center;
 }
 .btn-recepcion-secundario{
- min-height:38px;
+ min-height:44px;
  border:1px solid var(--pos-line,#dbe3ef) !important;
- border-radius:9px;
- padding:0 14px;
+ border-radius:999px;
+ padding:0 16px;
  background:transparent !important;
  color:var(--pos-text,#172033) !important;
  font-weight:700;
- font-size:13px;
+ font-size:13.5px;
  cursor:pointer;
+}
+.btn-recepcion-secundario:hover{
+ border-color:color-mix(in srgb,var(--pos-text,#172033) 30%,var(--pos-line,#dbe3ef)) !important;
 }
 .recepcion-nota-final{
  margin:0;
@@ -328,7 +393,7 @@ body.oscuro .recepcion-diferencias-banner.con-diferencias{
 }
 .recepcion-tabla-wrap{
  border:1px solid var(--pos-line,#dbe3ef);
- border-radius:12px;
+ border-radius:14px;
  overflow:auto;
  min-height:220px;
  max-height:58vh;
@@ -344,12 +409,12 @@ body.oscuro .recepcion-diferencias-banner.con-diferencias{
 }
 .recepcion-tabla{
  width:100%;
- min-width:880px;
+ min-width:860px;
  border-collapse:collapse;
 }
 .recepcion-tabla th,
 .recepcion-tabla td{
- padding:10px 12px;
+ padding:11px 12px;
  border-bottom:1px solid var(--pos-line,#dbe3ef);
  text-align:left;
  vertical-align:middle;
@@ -364,10 +429,17 @@ body.oscuro .recepcion-diferencias-banner.con-diferencias{
  font-weight:800;
  text-transform:uppercase;
  letter-spacing:.06em;
+ box-shadow:0 1px 0 var(--pos-line,#dbe3ef);
 }
 .recepcion-tabla td{
  color:var(--pos-text,#172033);
  font-weight:600;
+}
+.recepcion-tabla tr:last-child td{
+ border-bottom:0;
+}
+.recepcion-tabla tr:hover td{
+ background:color-mix(in srgb,var(--brand-color,#0d6efd) 3%,transparent);
 }
 .recepcion-tabla td strong,
 .recepcion-tabla td small{
@@ -407,7 +479,7 @@ body.oscuro .recepcion-diferencia-linea{
  justify-content:center;
  min-width:88px;
  min-height:26px;
- border-radius:7px;
+ border-radius:999px;
  padding:0 10px;
  font-size:12px;
  font-weight:700;
@@ -432,6 +504,9 @@ body.oscuro .recepcion-estado.ok{
 body.oscuro .recepcion-estado.nuevo{
  color:#fcd34d;
 }
+body.oscuro .recepcion-tabla tr:hover td{
+ background:color-mix(in srgb,var(--brand-color,#0d6efd) 8%,transparent);
+}
 .recepcion-paginacion-footer{
  display:flex;
  align-items:center;
@@ -449,7 +524,7 @@ body.oscuro .recepcion-estado.nuevo{
  display:block;
  width:36px;
  height:36px;
- border-radius:8px;
+ border-radius:9px;
  object-fit:cover;
  background:var(--pos-surface-soft,#f8fafc);
 }
@@ -462,7 +537,7 @@ body.oscuro .recepcion-estado.nuevo{
  place-items:center;
  width:36px;
  height:36px;
- border-radius:8px;
+ border-radius:9px;
  background:var(--pos-surface-soft,#f8fafc);
  font-size:16px;
 }
@@ -494,7 +569,7 @@ body.oscuro .recepcion-estado.nuevo{
  gap:10px;
  padding:8px 12px;
  border:1px solid var(--pos-line,#dbe3ef);
- border-radius:10px;
+ border-radius:11px;
  background:var(--pos-surface-strong,#fff);
  cursor:pointer;
 }
@@ -509,7 +584,7 @@ body.oscuro .recepcion-estado.nuevo{
  display:block;
  width:32px;
  height:32px;
- border-radius:7px;
+ border-radius:8px;
  object-fit:cover;
  flex:0 0 auto;
  background:var(--pos-surface-soft,#f8fafc);
@@ -545,7 +620,7 @@ body.oscuro .recepcion-estado.nuevo{
  top:12px;
  padding:14px 16px;
  border:1px solid var(--pos-line,#dbe3ef);
- border-radius:12px;
+ border-radius:14px;
  background:var(--pos-surface-strong,#fff);
  display:grid;
  gap:12px;
@@ -577,13 +652,17 @@ body.oscuro .recepcion-estado.nuevo{
 }
 .recepcion-pendientes-input-label input{
  padding:11px 13px;
- border-radius:9px;
+ border-radius:10px;
  border:1px solid var(--pos-line,#dbe3ef);
  font-size:15px;
  font-weight:700;
  letter-spacing:.02em;
  background:var(--pos-surface-strong,#fff);
  color:var(--pos-text,#172033);
+}
+.recepcion-pendientes-input-label input:focus{
+ outline:none;
+ border-color:var(--brand-color,#0d6efd);
 }
 .recepcion-pendientes-progreso{
  margin:0;
@@ -599,13 +678,6 @@ body.oscuro .recepcion-estado.nuevo{
  .recepcion-grid,
  .recepcion-form{
   grid-template-columns:1fr;
- }
- .recepcion-header{
-  flex-direction:column;
-  align-items:flex-start;
- }
- .recepcion-preview-head{
-  flex-direction:column;
  }
  .recepcion-resumen-lateral{
   position:static;
