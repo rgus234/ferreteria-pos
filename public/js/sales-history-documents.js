@@ -501,7 +501,7 @@ function renderDetalleVentaPOS(venta) {
    <button type="button" onclick="descargarPDFVentaPOS(${id})">${iconoDetalleVentaPOS("descargar")} Descargar PDF</button>
    <button type="button" disabled>${iconoDetalleVentaPOS("chat")} WhatsApp</button>
    <button type="button" disabled>${iconoDetalleVentaPOS("correo")} Correo</button>
-   <button type="button" disabled>${iconoDetalleVentaPOS("documento")} Factura CFDI</button>
+   <button type="button" onclick="abrirModalFacturarVenta(${id})">${iconoDetalleVentaPOS("documento")} Factura CFDI</button>
   </div>
  </div>`;
 

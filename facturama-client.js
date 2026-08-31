@@ -93,27 +93,51 @@ async function crearCfdi(datosComprobante) {
 // formato de respuesta de exito) regresa el Id interno del comprobante
 // y, dentro de Complement.TaxStamp, el Uuid/fecha de timbrado del SAT
 // -- confirmado por la convencion documentada de su API Web (la
-// Multiemisor "es casi identica"). El XML timbrado se obtiene aparte
-// via GET /api/cfdi/xml/issued/{Id} en su API Web; para Multiemisor el
-// endpoint equivalente vive bajo /api-lite -- ESTO ES LO UNICO QUE
-// FALTA CONFIRMAR contra una respuesta real del sandbox antes de dar
-// por buena esta funcion (ver PENDIENTE en facturacion-server.js).
+// Multiemisor "es casi identica"). Algunas variantes de su API regresan
+// el XML timbrado inline en la misma respuesta (Xml/XmlBase64); si no
+// viene inline, se intenta la descarga aparte (descargarXmlCfdi) --
+// ESTO ES LO UNICO QUE FALTA CONFIRMAR contra una respuesta real del
+// sandbox antes de dar por buena esta funcion (ver PENDIENTE en
+// facturacion-server.js). Si ninguna de las dos formas trae el XML, el
+// CFDI de todos modos quedo timbrado ante el SAT -- guardar el XML es
+// para el registro propio de Nexo, no una condicion de exito.
 function normalizarRespuestaCfdi(datos) {
+    const xmlInline = datos?.Xml || (datos?.XmlBase64 ? Buffer.from(datos.XmlBase64, "base64").toString("utf8") : null);
+
     return {
         facturamaId: datos?.Id || null,
         uuid: datos?.Complement?.TaxStamp?.Uuid || datos?.Complemento?.TimbreFiscalDigital?.UUID || null,
         serie: datos?.Serie || null,
         folio: datos?.Folio || null,
         fechaTimbrado: datos?.Complement?.TaxStamp?.Date || null,
+        xml: xmlInline || null,
         crudo: datos
     };
 }
 
 // Descarga el XML timbrado de un comprobante ya creado, por su Id de
-// Facturama. PENDIENTE confirmar la ruta exacta para Multiemisor contra
-// el sandbox real -- se deja aqui la mejor forma conocida.
+// Facturama -- respuesta XML cruda, no JSON, por eso no usa
+// facturamaFetch. PENDIENTE confirmar la ruta exacta para Multiemisor
+// contra el sandbox real; se deja aqui la mejor forma conocida.
 async function descargarXmlCfdi(facturamaId) {
-    return facturamaFetch(`/api-lite/cfdi/xml/issued/${encodeURIComponent(facturamaId)}`);
+    if (!facturamaConfigurado()) {
+        return { ok: false, status: 0, error: "Facturacion electronica no esta configurada en este servidor." };
+    }
+
+    try {
+        const respuesta = await fetch(`${config.facturamaApiUrl}/api-lite/cfdi/xml/issued/${encodeURIComponent(facturamaId)}`, {
+            headers: { Authorization: authHeader() }
+        });
+
+        if (!respuesta.ok) {
+            return { ok: false, status: respuesta.status, error: `Facturama respondio ${respuesta.status} al descargar el XML` };
+        }
+
+        const xml = await respuesta.text();
+        return { ok: true, status: respuesta.status, xml };
+    } catch (error) {
+        return { ok: false, status: 0, error: error.message || "No se pudo descargar el XML" };
+    }
 }
 
 module.exports = {

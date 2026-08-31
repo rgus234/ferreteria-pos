@@ -473,3 +473,68 @@ body.oscuro .facturacion-archivo {
 }
 
 body.oscuro .facturacion-privacidad { background: rgba(22, 163, 74, .12); }
+
+/* ---------- Modal: generar factura desde una venta ---------- */
+
+.modal-facturar-venta-pos {
+  position: fixed;
+  inset: 0;
+  z-index: 12500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  background: rgba(15, 23, 42, .42);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.facturar-venta-card-pos {
+  width: min(480px, 94vw);
+  max-height: calc(100vh - 44px);
+  overflow: auto;
+  border-radius: var(--nexo-radius-xl, 22px);
+  padding: 22px 24px;
+  background: var(--surface, rgba(255, 255, 255, .96));
+  color: var(--text-main, #101828);
+  border: 1px solid var(--line-soft, rgba(15, 23, 42, .1));
+  box-shadow: var(--shadow-soft, 0 20px 55px rgba(15, 23, 42, .12));
+}
+
+.facturar-venta-header-pos {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.facturar-venta-header-pos h3 { margin: 0; font-size: 17px; }
+
+.facturar-venta-bloqueada-pos,
+.facturar-venta-exito-pos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 12px 4px 6px;
+}
+
+.facturar-venta-bloqueada-pos .ui-icon { width: 30px; height: 30px; color: var(--nexo-warning, #f59e0b); }
+.facturar-venta-exito-pos .ui-icon { width: 30px; height: 30px; color: var(--nexo-success, #16a34a); }
+
+.facturar-venta-bloqueada-pos p,
+.facturar-venta-exito-pos p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--text-muted, #667085);
+  line-height: 1.5;
+}
+
+body.oscuro .modal-facturar-venta-pos { background: rgba(0, 0, 0, .58); }
+body.oscuro .facturar-venta-card-pos {
+  background: rgba(15, 23, 42, .96);
+  color: #f8fafc;
+  border-color: rgba(226, 232, 240, .18);
+}

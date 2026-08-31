@@ -30,6 +30,15 @@ const FACTURACION_REGIMENES = [
     ["626", "Régimen Simplificado de Confianza (RESICO)"]
 ];
 
+// Catalogo real c_UsoCFDI del SAT -- solo los usos que de verdad aplican
+// a una venta de mostrador con pago inmediato (PUE): sin inversion, sin
+// nomina, sin pagos en parcialidades.
+const FACTURACION_USOS_CFDI = [
+    ["G01", "Adquisición de mercancías"],
+    ["G03", "Gastos en general"],
+    ["S01", "Sin efectos fiscales"]
+];
+
 async function mostrarFacturacion() {
     if (typeof ocultarPantallasPrincipales === "function") {
         ocultarPantallasPrincipales();
@@ -468,5 +477,162 @@ async function cargarFacturasFacturacion() {
         `;
     } catch (error) {
         contenedor.innerHTML = `<p class="facturacion-vacio">No se pudieron cargar tus facturas.</p>`;
+    }
+}
+
+/* ---------- Modal: generar factura desde el detalle de una venta ---------- */
+/* Llamado desde el boton "Factura CFDI" en sales-history-documents.js. */
+
+let facturacionVentaModalId = null;
+
+async function abrirModalFacturarVenta(historialVentaId) {
+    facturacionVentaModalId = historialVentaId;
+
+    let modal = document.getElementById("modalFacturarVentaPOS");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "modalFacturarVentaPOS";
+        modal.className = "modal-personalizado modal-facturar-venta-pos";
+        document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+        <div class="modal-card facturar-venta-card-pos">
+            <div class="facturar-venta-header-pos">
+                <h3>Factura CFDI</h3>
+                <button type="button" class="detalle-boton-cerrar-pos" onclick="cerrarModalFacturarVenta()">Cerrar</button>
+            </div>
+            <div id="facturarVentaContenido"><p class="facturacion-vacio">Cargando...</p></div>
+        </div>
+    `;
+    modal.style.display = "flex";
+
+    try {
+        const respuesta = await fetch(`/facturacion/venta/${historialVentaId}`);
+        const datos = await respuesta.json();
+
+        if (!datos.ok) {
+            renderFacturarVentaError(datos.error || "No se pudo cargar la información de esta venta.");
+            return;
+        }
+
+        if (datos.factura) {
+            renderFacturarVentaExistente(datos.factura);
+        } else if (datos.bloqueada) {
+            renderFacturarVentaBloqueada(datos.bloqueada);
+        } else {
+            renderFacturarVentaFormulario(datos.receptorSugerido);
+        }
+    } catch (error) {
+        renderFacturarVentaError("No se pudo conectar. Revisa tu conexión.");
+    }
+}
+
+function cerrarModalFacturarVenta() {
+    const modal = document.getElementById("modalFacturarVentaPOS");
+    if (modal) modal.style.display = "none";
+    facturacionVentaModalId = null;
+}
+
+function renderFacturarVentaError(mensaje) {
+    const contenedor = document.getElementById("facturarVentaContenido");
+    if (contenedor) contenedor.innerHTML = `<p class="facturacion-vacio">${escaparPOS(mensaje)}</p>`;
+}
+
+function renderFacturarVentaBloqueada(motivo) {
+    const contenedor = document.getElementById("facturarVentaContenido");
+    if (!contenedor) return;
+
+    contenedor.innerHTML = `
+        <div class="facturar-venta-bloqueada-pos">
+            ${iconoUISVG("alert")}
+            <p>${escaparPOS(motivo)}</p>
+        </div>
+    `;
+}
+
+function renderFacturarVentaExistente(factura) {
+    const contenedor = document.getElementById("facturarVentaContenido");
+    if (!contenedor) return;
+
+    contenedor.innerHTML = `
+        <div class="facturar-venta-exito-pos">
+            ${iconoUISVG("check")}
+            <p>Esta venta ya tiene una factura ${escaparPOS(factura.estado || "")}.</p>
+            <div class="facturacion-resumen-cert">
+                <div class="facturacion-resumen-fila"><span>Folio</span><span>${escaparPOS((factura.serie || "") + (factura.folio || "--"))}</span></div>
+                <div class="facturacion-resumen-fila"><span>UUID</span><span style="font-size:11px;">${escaparPOS(factura.uuid || "--")}</span></div>
+            </div>
+            ${factura.estado === "timbrada"
+                ? `<a class="facturacion-btn-secundario" style="display:block;text-align:center;text-decoration:none;box-sizing:border-box;" href="/facturacion/${factura.id}/xml" target="_blank" rel="noopener">Descargar XML</a>`
+                : ""}
+        </div>
+    `;
+}
+
+function renderFacturarVentaFormulario(receptor) {
+    const contenedor = document.getElementById("facturarVentaContenido");
+    if (!contenedor) return;
+
+    contenedor.innerHTML = `
+        <p class="facturacion-etapa-nota">Verifica los datos del receptor antes de timbrar -- si algo no coincide con el SAT, Facturama rechaza el timbrado.</p>
+        <div class="facturacion-campos">
+            <label class="col-2"><span>RFC</span><input type="text" id="facturarRfc" maxlength="13" style="text-transform:uppercase;" value="${escaparPOS(receptor.rfc)}"></label>
+            <label class="col-2"><span>Nombre / Razón social</span><input type="text" id="facturarNombre" maxlength="250" value="${escaparPOS(receptor.nombre)}"></label>
+            <label>
+                <span>Uso de CFDI</span>
+                <select id="facturarUsoCfdi">
+                    ${FACTURACION_USOS_CFDI.map(([clave, nombre]) => `<option value="${clave}" ${receptor.usoCfdi === clave ? "selected" : ""}>${clave} -- ${escaparPOS(nombre)}</option>`).join("")}
+                </select>
+            </label>
+            <label>
+                <span>Régimen fiscal</span>
+                <select id="facturarRegimen">
+                    <option value="">Selecciona...</option>
+                    ${FACTURACION_REGIMENES.map(([clave, nombre]) => `<option value="${clave}" ${receptor.regimenFiscal === clave ? "selected" : ""}>${clave} -- ${escaparPOS(nombre)}</option>`).join("")}
+                </select>
+            </label>
+            <label><span>Código postal</span><input type="text" id="facturarCP" maxlength="5" inputmode="numeric" value="${escaparPOS(receptor.codigoPostal)}"></label>
+            <label class="col-2"><span>Correo (opcional, para reenviar la factura)</span><input type="email" id="facturarCorreo" maxlength="200" value="${escaparPOS(receptor.correo)}"></label>
+        </div>
+        <div class="facturacion-error-inline" id="facturarVentaError"></div>
+        <button type="button" class="facturacion-hero-cta" id="facturarVentaBoton" style="width:100%;margin-top:16px;" onclick="timbrarVentaDesdeModal()">Timbrar factura</button>
+    `;
+}
+
+async function timbrarVentaDesdeModal() {
+    const boton = document.getElementById("facturarVentaBoton");
+    const errorBox = document.getElementById("facturarVentaError");
+
+    const cuerpo = {
+        rfc: document.getElementById("facturarRfc")?.value.trim().toUpperCase() || "",
+        nombre: document.getElementById("facturarNombre")?.value.trim() || "",
+        usoCfdi: document.getElementById("facturarUsoCfdi")?.value || "",
+        regimenFiscal: document.getElementById("facturarRegimen")?.value || "",
+        codigoPostal: document.getElementById("facturarCP")?.value.trim() || "",
+        correo: document.getElementById("facturarCorreo")?.value.trim() || ""
+    };
+
+    if (errorBox) errorBox.classList.remove("visible");
+    if (boton) { boton.disabled = true; boton.textContent = "Timbrando..."; }
+
+    try {
+        const respuesta = await fetch(`/facturacion/generar/${facturacionVentaModalId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cuerpo)
+        });
+        const datos = await respuesta.json();
+
+        if (!datos.ok) {
+            if (errorBox) { errorBox.textContent = datos.error || "No se pudo timbrar la factura."; errorBox.classList.add("visible"); }
+            return;
+        }
+
+        renderFacturarVentaExistente(datos.factura);
+    } catch (error) {
+        if (errorBox) { errorBox.textContent = "No se pudo conectar. Revisa tu conexión."; errorBox.classList.add("visible"); }
+    } finally {
+        if (boton) { boton.disabled = false; boton.textContent = "Timbrar factura"; }
     }
 }
