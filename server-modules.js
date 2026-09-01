@@ -49,6 +49,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./catalog-pdf-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("catalogo de fabricante (TRUPER)", () => {
+        require("./catalogo-fabricante-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("respaldos automaticos", () => {
         require("./backup-server")(app, pool);
     });
