@@ -1492,6 +1492,11 @@ function valorTicketFormulario(config = configuracionNegocio() || {}) {
  mostrarTelefonoTicket: checkConfigCampo("configMostrarTelefonoTicket", config.mostrarTelefonoTicket !== false),
  mostrarCajeroTicket: checkConfigCampo("configMostrarCajeroTicket", config.mostrarCajeroTicket !== false),
  mostrarBarcodeTicket: checkConfigCampo("configMostrarBarcodeTicket", config.mostrarBarcodeTicket === true),
+ // Ticket digital (ver plan stateless-doodling-tarjan.md): a diferencia
+ // del codigo de barras, este va prendido por default -- el pedido del
+ // dueno fue que TODAS las ventas tengan su recibo en linea, asi que el
+ // QR debe aparecer sin que nadie tenga que ir a activarlo primero.
+ mostrarQrTicket: checkConfigCampo("configMostrarQrTicket", config.mostrarQrTicket !== false),
  sitioWebNegocio: valorConfigCampo("configSitioWebNegocio", config.sitioWebNegocio || "").trim(),
  mostrarSitioWebTicket: checkConfigCampo("configMostrarSitioWebTicket", config.mostrarSitioWebTicket !== false),
  facebookNegocio: valorConfigCampo("configFacebookNegocio", config.facebookNegocio || "").trim(),
@@ -1703,7 +1708,9 @@ function mostrarConfiguracion() {
  <label class="config-check"><input id="configMostrarRedesTicket" type="checkbox" ${config.mostrarRedesTicket === true ? "checked" : ""} onchange="renderVistaPreviaTicket()"> Redes sociales</label>
  <label class="config-check"><input id="configMostrarBarcodeTicket" type="checkbox" ${config.mostrarBarcodeTicket === true ? "checked" : ""} onchange="renderVistaPreviaTicket()"> Codigo de barras</label>
  <label class="config-check"><input id="configMostrarIvaTicket" type="checkbox" ${config.mostrarIvaTicket === true ? "checked" : ""} onchange="renderVistaPreviaTicket()"> Desglosar IVA (informativo)</label>
+ <label class="config-check"><input id="configMostrarQrTicket" type="checkbox" ${config.mostrarQrTicket === false ? "" : "checked"} onchange="renderVistaPreviaTicket()"> Codigo QR del recibo digital</label>
  </div>
+ <p style="font-size:12px;opacity:.7;margin-top:4px;">El codigo QR se genera con cada venta real; no aparece en esta vista previa.</p>
  <p class="config-ayuda-texto">El desglose de IVA es solo informativo: muestra cuanto del total ya cobrado corresponde a impuesto (asumiendo que tus precios ya lo incluyen). No cambia lo que le cobras al cliente.</p>
  </section>
 

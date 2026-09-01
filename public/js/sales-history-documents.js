@@ -374,6 +374,7 @@ function htmlTicketDesdeVentaPOS(venta, opciones = {}) {
 
  return construirTicketVentaHTML({
   folio,
+  codigoPublico: venta.codigo_publico,
   fecha,
   cajero: venta.cajero_nombre || usuarioActual?.nombre || "Administrador",
   cliente,

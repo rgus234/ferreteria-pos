@@ -24,6 +24,14 @@ let carritoRequiereFactura = false;
 let idempotencyKeyVentaActual = null;
 let idempotencyKeyCreditoActual = null;
 
+// Codigo publico del ticket digital (ver crearCodigoPublicoTicketPOS en
+// offline-sync.js) -- misma vida que la llave de idempotencia de
+// arriba: se genera una vez por intento de cobro, se reusa si el mismo
+// intento se reintenta, y se limpia al cobrar con exito o al vaciar el
+// carrito.
+let codigoPublicoVentaActual = null;
+let codigoPublicoCreditoActual = null;
+
 // Mismo umbral que server.js (UMBRAL_DESCUENTO_REQUIERE_PIN) -- se
 // repite aqui solo para no mandar la peticion y esperar el rechazo en
 // el caso comun; la seguridad real la da el servidor, esto es nomas
@@ -456,6 +464,8 @@ async function limpiarCarrito() {
  nivelPrecioActual = "mayoreo";
  idempotencyKeyVentaActual = null;
  idempotencyKeyCreditoActual = null;
+ codigoPublicoVentaActual = null;
+ codigoPublicoCreditoActual = null;
  carritoRequiereFactura = false;
 
  actualizarCarrito();
@@ -1543,6 +1553,11 @@ async function imprimirTicketPOS(ticket, configOverride = null, opciones = {}) {
     max-height: 16mm !important;
    }
 
+   .ticket-print-page img.ticket-qr-img {
+    max-width: 24mm !important;
+    max-height: 24mm !important;
+   }
+
    .ticket-print-page svg {
     max-width: 100% !important;
     height: auto !important;
@@ -1726,6 +1741,14 @@ if (!idempotencyKeyVentaActual) {
 const idempotencyKey =
 idempotencyKeyVentaActual;
 
+if (!codigoPublicoVentaActual) {
+ codigoPublicoVentaActual =
+ crearCodigoPublicoTicketPOS();
+}
+
+const codigoPublico =
+codigoPublicoVentaActual;
+
 try {
  respuesta = await fetch(
  "/ventas",
@@ -1751,6 +1774,7 @@ try {
  metodoPago: pago.metodoPago,
  pagos: pago.pagos,
  idempotencyKey,
+ codigoPublico,
  adminPin,
  requiereFactura: carritoRequiereFactura
  })
@@ -1773,6 +1797,7 @@ try {
  metodoPago: pago.metodoPago,
  productos: productosVenta,
  idempotencyKey,
+ codigoPublico,
  requiereFactura: carritoRequiereFactura,
  errorConexion: error.message
  });
@@ -1836,6 +1861,7 @@ try {
  metodoPago: pago.metodoPago,
  productos: productosVenta,
  idempotencyKey,
+ codigoPublico,
  errorServidor: respuesta.status
  });
 
@@ -1856,6 +1882,7 @@ try {
  // la proxima vez que se llame a cobrar() es un cobro nuevo, le toca
  // su propia llave.
  idempotencyKeyVentaActual = null;
+ codigoPublicoVentaActual = null;
  carritoRequiereFactura = false;
 
  if (!ventaRegistrada) {
@@ -1926,7 +1953,8 @@ const ticket = construirTicketVentaHTML({
  metodoPago: pago.metodoPago,
  recibido: montoRecibido,
  cambio,
- ventaOffline
+ ventaOffline,
+ codigoPublico
 }, negocio, { tipo: "venta" });
 
 const ticketEnviado =
@@ -2136,6 +2164,14 @@ async function cobrarCreditoInternoPOS(total) {
  const idempotencyKey =
  idempotencyKeyCreditoActual;
 
+ if (!codigoPublicoCreditoActual) {
+ codigoPublicoCreditoActual =
+ crearCodigoPublicoTicketPOS();
+ }
+
+ const codigoPublico =
+ codigoPublicoCreditoActual;
+
  try {
  respuesta =
  await fetch(
@@ -2154,6 +2190,7 @@ async function cobrarCreditoInternoPOS(total) {
  concepto: conceptoCredito,
  productos,
  idempotencyKey,
+ codigoPublico,
  adminPin,
  requiereFactura: carritoRequiereFactura
  })
@@ -2172,6 +2209,7 @@ async function cobrarCreditoInternoPOS(total) {
  concepto: conceptoCredito,
  productos,
  idempotencyKey,
+ codigoPublico,
  requiereFactura: carritoRequiereFactura,
  errorConexion: error.message
  });
@@ -2223,6 +2261,7 @@ async function cobrarCreditoInternoPOS(total) {
  concepto: conceptoCredito,
  productos,
  idempotencyKey,
+ codigoPublico,
  errorServidor: respuesta.status
  });
 
@@ -2240,6 +2279,7 @@ async function cobrarCreditoInternoPOS(total) {
  }
 
  idempotencyKeyCreditoActual = null;
+ codigoPublicoCreditoActual = null;
  carritoRequiereFactura = false;
 
  if (!creditoRegistrado) {
@@ -2306,6 +2346,7 @@ async function cobrarCreditoInternoPOS(total) {
  new Date().toLocaleString("es-MX");
 
  const ticketCredito = construirTicketVentaHTML({
+  folio: creditoRegistrado.folio || creditoRegistrado.eventId || "",
   fecha: fechaCredito,
   cliente: clienteSeleccionado?.nombre || "Cliente",
   productos,
@@ -2313,7 +2354,8 @@ async function cobrarCreditoInternoPOS(total) {
   descuento: resumen.descuento,
   total,
   abonoInmediato: !creditoOffline ? montoPagadoAhora : 0,
-  ventaOffline: creditoOffline
+  ventaOffline: creditoOffline,
+  codigoPublico
  }, configuracionNegocio() || {}, { tipo: "credito" });
 
  await imprimirTicketPOS(ticketCredito, null, { abrirCajon: false });

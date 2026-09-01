@@ -44,6 +44,7 @@ const {
     servirQrPedidoMarket,
     servirBarcodePedidoMarket
 } = require("./market-pedidos-server");
+const { servirTicketPublico, servirQrTicketPublico } = require("./ticket-publico-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
@@ -114,7 +115,12 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://js.stripe.com"],
             scriptSrcAttr: ["'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
-            imgSrc: ["'self'", "data:", "blob:", "https://cdn.jsdelivr.net", "https://*.tile.openstreetmap.org"],
+            // https://nexoposoficial.com se agrega para el QR del ticket
+            // digital: la app POS corre en {slug}.nexoposoficial.com /
+            // app.nexoposoficial.com, nunca en el dominio raiz, asi que
+            // el <img> del ticket que apunta a /ticket/:codigo/qr.png es
+            // cross-origin (ver ticket-publico-server.js).
+            imgSrc: ["'self'", "data:", "blob:", "https://cdn.jsdelivr.net", "https://*.tile.openstreetmap.org", "https://nexoposoficial.com"],
             fontSrc: ["'self'", "data:"],
             connectSrc: ["'self'", "https://api.stripe.com"],
             frameSrc: ["https://js.stripe.com", "https://hooks.stripe.com"],
@@ -4081,6 +4087,21 @@ async function asegurarColumnasHistorialVentas(client = pool) {
         ON public.historial_ventas (negocio_id, idempotency_key)
         WHERE idempotency_key IS NOT NULL
     `);
+    // Codigo publico corto para el ticket digital (QR + link en el
+    // recibo impreso, ver ticket-publico-server.js). Sin negocio_id en
+    // el indice -- igual que pedidos_market.codigo_recogida, la
+    // unicidad es global. Nullable para siempre: ventas viejas y el
+    // raro caso de colision (ver el catch de 23505 mas abajo) se
+    // quedan sin codigo, nunca se rellenan retroactivamente.
+    await client.query(`
+        ALTER TABLE public.historial_ventas
+        ADD COLUMN IF NOT EXISTS codigo_publico TEXT
+    `);
+    await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_historial_ventas_codigo_publico
+        ON public.historial_ventas (codigo_publico)
+        WHERE codigo_publico IS NOT NULL
+    `);
     await client.query(`
         CREATE TABLE IF NOT EXISTS public.comprobantes_venta (
             id SERIAL PRIMARY KEY,
@@ -4730,41 +4751,62 @@ async function aplicarVentaSync(client, negocio, payload) {
         [negocio.id, total, folioVenta.folio, folioVenta.numero, turno?.id || null]
     );
 
-    const historialCreado = await client.query(
-        `
+    const parametrosHistorialSync = [
+        negocio.id,
+        ventaCreada.rows[0]?.id || null,
+        folioVenta.folio,
+        folioVenta.numero,
+        turno?.id || null,
+        total,
+        numeroSync(payload?.subtotal, total),
+        numeroSync(payload?.descuento, 0),
+        payload?.descuentoTipo || "ninguno",
+        numeroSync(payload?.descuentoValor, 0),
+        payload?.clienteId ? Number(payload.clienteId) : null,
+        payload?.clienteNombre || null,
+        payload?.cajeroUsuario || null,
+        payload?.cajeroNombre || turno?.usuario || null,
+        JSON.stringify(productosEvento(payload)),
+        metodoPago,
+        Number(pagosVenta.efectivo || (metodoPago === "efectivo" ? recibido : 0)),
+        Number(pagosVenta.tarjeta || 0),
+        Number(pagosVenta.transferencia || 0),
+        Number(pagosVenta.credito || 0),
+        recibido,
+        cambio,
+        JSON.stringify(pagosVenta),
+        payload?.idempotencyKey || null,
+        Boolean(payload?.requiereFactura),
+        payload?.codigoPublico || null
+    ];
+    const sqlInsertHistorialSync = `
         INSERT INTO public.historial_ventas
-            (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado, idempotency_key, requiere_factura)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada',$24,$25)
-        RETURNING id, fecha, folio
-        `,
-        [
-            negocio.id,
-            ventaCreada.rows[0]?.id || null,
-            folioVenta.folio,
-            folioVenta.numero,
-            turno?.id || null,
-            total,
-            numeroSync(payload?.subtotal, total),
-            numeroSync(payload?.descuento, 0),
-            payload?.descuentoTipo || "ninguno",
-            numeroSync(payload?.descuentoValor, 0),
-            payload?.clienteId ? Number(payload.clienteId) : null,
-            payload?.clienteNombre || null,
-            payload?.cajeroUsuario || null,
-            payload?.cajeroNombre || turno?.usuario || null,
-            JSON.stringify(productosEvento(payload)),
-            metodoPago,
-            Number(pagosVenta.efectivo || (metodoPago === "efectivo" ? recibido : 0)),
-            Number(pagosVenta.tarjeta || 0),
-            Number(pagosVenta.transferencia || 0),
-            Number(pagosVenta.credito || 0),
-            recibido,
-            cambio,
-            JSON.stringify(pagosVenta),
-            payload?.idempotencyKey || null,
-            Boolean(payload?.requiereFactura)
-        ]
-    );
+            (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado, idempotency_key, requiere_factura, codigo_publico)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada',$24,$25,$26)
+        RETURNING id, fecha, folio, codigo_publico
+        `;
+
+    let historialCreado;
+    await client.query("SAVEPOINT antes_insertar_historial_sync");
+    try {
+        historialCreado = await client.query(sqlInsertHistorialSync, parametrosHistorialSync);
+    } catch (error) {
+        // Aqui es obligatorio, no opcional: sin este catch, una venta
+        // offline cuyo codigo colisiona fallaria en cada intento de
+        // sync con el mismo payload y el mismo codigo, bloqueandose
+        // para siempre (markEventsFailed reintenta indefinidamente).
+        // ROLLBACK TO SAVEPOINT (no un ROLLBACK completo, y no solo
+        // reintentar) es obligatorio: Postgres deja la transaccion
+        // "abortada" tras un error, cualquier query nueva en el mismo
+        // client truena hasta deshacer el error con el savepoint.
+        if (error.code === "23505" && error.constraint === "idx_historial_ventas_codigo_publico") {
+            await client.query("ROLLBACK TO SAVEPOINT antes_insertar_historial_sync");
+            parametrosHistorialSync[25] = null;
+            historialCreado = await client.query(sqlInsertHistorialSync, parametrosHistorialSync);
+        } else {
+            throw error;
+        }
+    }
 
     await descontarInventarioPorProductos(
         client,
@@ -4777,7 +4819,8 @@ async function aplicarVentaSync(client, negocio, payload) {
         folio: folioVenta.folio,
         ventaId: ventaCreada.rows[0]?.id || null,
         historialId: historialCreado.rows[0]?.id || null,
-        fecha: historialCreado.rows[0]?.fecha || ventaCreada.rows[0]?.fecha || null
+        fecha: historialCreado.rows[0]?.fecha || ventaCreada.rows[0]?.fecha || null,
+        codigoPublico: historialCreado.rows[0]?.codigo_publico || null
     };
 }
 
@@ -4833,29 +4876,44 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
 
     const folioVenta = await siguienteFolioVenta(client, negocio.id);
 
-    const historialCreado = await client.query(
-        `
+    const parametrosHistorialCreditoSync = [
+        negocio.id,
+        folioVenta.folio,
+        folioVenta.numero,
+        total,
+        numeroSync(payload?.subtotal, total),
+        numeroSync(payload?.descuento, 0),
+        payload?.descuentoTipo || "ninguno",
+        numeroSync(payload?.descuentoValor, 0),
+        cliente.id,
+        cliente.nombre,
+        JSON.stringify(productos),
+        payload?.idempotencyKey || null,
+        Boolean(payload?.requiereFactura),
+        payload?.codigoPublico || null
+    ];
+    const sqlInsertHistorialCreditoSync = `
         INSERT INTO public.historial_ventas
-            (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado, idempotency_key, requiere_factura)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada', $12, $13)
-        RETURNING id, fecha, folio
-        `,
-        [
-            negocio.id,
-            folioVenta.folio,
-            folioVenta.numero,
-            total,
-            numeroSync(payload?.subtotal, total),
-            numeroSync(payload?.descuento, 0),
-            payload?.descuentoTipo || "ninguno",
-            numeroSync(payload?.descuentoValor, 0),
-            cliente.id,
-            cliente.nombre,
-            JSON.stringify(productos),
-            payload?.idempotencyKey || null,
-            Boolean(payload?.requiereFactura)
-        ]
-    );
+            (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado, idempotency_key, requiere_factura, codigo_publico)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada', $12, $13, $14)
+        RETURNING id, fecha, folio, codigo_publico
+        `;
+
+    let historialCreado;
+    await client.query("SAVEPOINT antes_insertar_historial_sync");
+    try {
+        historialCreado = await client.query(sqlInsertHistorialCreditoSync, parametrosHistorialCreditoSync);
+    } catch (error) {
+        // ROLLBACK TO SAVEPOINT obligatorio -- ver el comentario en
+        // aplicarVentaSync, mismo motivo exacto.
+        if (error.code === "23505" && error.constraint === "idx_historial_ventas_codigo_publico") {
+            await client.query("ROLLBACK TO SAVEPOINT antes_insertar_historial_sync");
+            parametrosHistorialCreditoSync[13] = null;
+            historialCreado = await client.query(sqlInsertHistorialCreditoSync, parametrosHistorialCreditoSync);
+        } else {
+            throw error;
+        }
+    }
 
     const resultado = await client.query(
         `
@@ -4897,7 +4955,8 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
         referencia: resultado.rows[0]?.referencia || null,
         fecha: resultado.rows[0]?.fecha || null,
         folio: folioVenta.folio,
-        historialId: historialCreado.rows[0]?.id || null
+        historialId: historialCreado.rows[0]?.id || null,
+        codigoPublico: historialCreado.rows[0]?.codigo_publico || null
     };
 }
 
@@ -5136,6 +5195,21 @@ app.get("/market/pedido/:codigo/qr.png", async (req, res) => {
 app.get("/market/pedido/:codigo/barcode.png", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
     await servirBarcodePedidoMarket(pool, req, res);
+});
+
+// Ticket digital (ver plan stateless-doodling-tarjan.md): recibo
+// publico de solo lectura por venta, sin sesion, para "a todos" los
+// compradores -- mismo patron de acceso por codigo, sin autenticacion,
+// que las rutas de seguimiento de pedido de arriba.
+app.get("/ticket/:codigo", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await asegurarColumnasHistorialVentas(pool);
+    await servirTicketPublico(pool, req, res);
+});
+
+app.get("/ticket/:codigo/qr.png", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).send("No encontrado"); return; }
+    await servirQrTicketPublico(pool, req, res);
 });
 
 // Identidad del comprador dentro de Market (Fase "arquitectura de
@@ -6974,7 +7048,7 @@ async function buscarVentaPorIdempotencyKey(client, negocioId, idempotencyKey) {
     if (!idempotencyKey) return null;
 
     const fila = await client.query(
-        `SELECT id, folio, folio_numero, fecha, venta_id, total FROM public.historial_ventas WHERE negocio_id = $1 AND idempotency_key = $2`,
+        `SELECT id, folio, folio_numero, fecha, venta_id, total, codigo_publico FROM public.historial_ventas WHERE negocio_id = $1 AND idempotency_key = $2`,
         [negocioId, idempotencyKey]
     );
 
@@ -6997,7 +7071,8 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
         clienteNombre,
         idempotencyKey,
         adminPin,
-        requiereFactura
+        requiereFactura,
+        codigoPublico
     } = req.body;
     const pagosVenta = pagos || {};
     const pagoEfectivo = Number(pagosVenta.efectivo || 0);
@@ -7043,6 +7118,7 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
                 ventaId: existente.venta_id,
                 historialId: existente.id,
                 fecha: existente.fecha,
+                codigoPublico: existente.codigo_publico,
                 repetida: true
             });
             return;
@@ -7072,51 +7148,69 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
         );
 
         let historialCreado;
+        const parametrosHistorial = [
+            negocio.id,
+            ventaCreada.rows[0]?.id || null,
+            folioVenta.folio,
+            folioVenta.numero,
+            turno?.id || null,
+            total,
+            subtotal,
+            descuento,
+            resumen.descuentoTipo,
+            resumen.descuentoValor,
+            clienteId ? Number(clienteId) : null,
+            clienteNombre || null,
+            cajeroUsuario || null,
+            cajeroNombre || turno?.usuario || null,
+            JSON.stringify(productos || []),
+            metodoPago || "efectivo",
+            pagoEfectivo,
+            pagoTarjeta,
+            pagoTransferencia,
+            pagoCredito,
+            Number(recibido || 0),
+            Number(cambio || 0),
+            JSON.stringify(pagosVenta),
+            idempotencyKey || null,
+            Boolean(requiereFactura),
+            codigoPublico || null
+        ];
+        const sqlInsertHistorial = `
+                INSERT INTO public.historial_ventas
+                    (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado, idempotency_key, requiere_factura, codigo_publico)
+                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada',$24,$25,$26)
+                RETURNING id, fecha, folio, codigo_publico
+                `;
+
+        await client.query("SAVEPOINT antes_insertar_historial");
 
         try {
-            historialCreado = await client.query(
-                `
-                INSERT INTO public.historial_ventas
-                    (negocio_id, venta_id, folio, folio_numero, turno_id, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, cajero_usuario, cajero_nombre, productos, metodo_pago, pago_efectivo, pago_tarjeta, pago_transferencia, pago_credito, pago_recibido, cambio, pagos_json, estado, idempotency_key, requiere_factura)
-                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,'completada',$24,$25)
-                RETURNING id, fecha, folio
-                `,
-                [
-                    negocio.id,
-                    ventaCreada.rows[0]?.id || null,
-                    folioVenta.folio,
-                    folioVenta.numero,
-                    turno?.id || null,
-                    total,
-                    subtotal,
-                    descuento,
-                    resumen.descuentoTipo,
-                    resumen.descuentoValor,
-                    clienteId ? Number(clienteId) : null,
-                    clienteNombre || null,
-                    cajeroUsuario || null,
-                    cajeroNombre || turno?.usuario || null,
-                    JSON.stringify(productos || []),
-                    metodoPago || "efectivo",
-                    pagoEfectivo,
-                    pagoTarjeta,
-                    pagoTransferencia,
-                    pagoCredito,
-                    Number(recibido || 0),
-                    Number(cambio || 0),
-                    JSON.stringify(pagosVenta),
-                    idempotencyKey || null,
-                    Boolean(requiereFactura)
-                ]
-            );
+            historialCreado = await client.query(sqlInsertHistorial, parametrosHistorial);
         } catch (error) {
-            // Carrera real: dos peticiones con la misma idempotencyKey
-            // llegaron casi al mismo tiempo y ambas pasaron el chequeo
-            // de arriba antes de que la primera terminara de insertar.
-            // El indice unico (negocio_id, idempotency_key) es el que
-            // de verdad lo evita -- aqui solo se responde con gracia en
-            // vez de tronar con un error 500.
-            if (error.code === "23505" && idempotencyKey) {
+            // Colision de codigo_publico: a diferencia de idempotencyKey
+            // (que significa "peticion duplicada"), esto es una venta
+            // legitima y unica que por azar saco un codigo ya usado en
+            // otra venta. La venta debe seguir adelante -- solo sin
+            // codigo -- nunca ROLLBACK de toda la transaccion aqui, ya
+            // se inserto la fila hermana en public.ventas momentos
+            // antes. ROLLBACK TO SAVEPOINT (no un ROLLBACK completo) es
+            // obligatorio: en Postgres, una sentencia que falla dentro
+            // de una transaccion la deja "abortada" -- cualquier query
+            // nueva en el mismo client truena con "current transaction
+            // is aborted" hasta que se deshaga el error con un
+            // SAVEPOINT o se cierre la transaccion entera.
+            if (error.code === "23505" && error.constraint === "idx_historial_ventas_codigo_publico") {
+                await client.query("ROLLBACK TO SAVEPOINT antes_insertar_historial");
+                parametrosHistorial[25] = null;
+                historialCreado = await client.query(sqlInsertHistorial, parametrosHistorial);
+            } else if (error.code === "23505" && idempotencyKey) {
+                // Carrera real: dos peticiones con la misma idempotencyKey
+                // llegaron casi al mismo tiempo y ambas pasaron el chequeo
+                // de arriba antes de que la primera terminara de insertar.
+                // El indice unico (negocio_id, idempotency_key) es el que
+                // de verdad lo evita -- aqui solo se responde con gracia en
+                // vez de tronar con un error 500.
                 await client.query("ROLLBACK");
                 const yaExiste = await buscarVentaPorIdempotencyKey(pool, negocio.id, idempotencyKey);
                 if (yaExiste) {
@@ -7127,12 +7221,15 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
                         ventaId: yaExiste.venta_id,
                         historialId: yaExiste.id,
                         fecha: yaExiste.fecha,
+                        codigoPublico: yaExiste.codigo_publico,
                         repetida: true
                     });
                     return;
                 }
+                throw error;
+            } else {
+                throw error;
             }
-            throw error;
         }
 
         for (const producto of productos || []) {
@@ -7147,7 +7244,8 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
             folioNumero: folioVenta.numero,
             ventaId: ventaCreada.rows[0]?.id || null,
             historialId: historialCreado.rows[0]?.id || null,
-            fecha: historialCreado.rows[0]?.fecha || ventaCreada.rows[0]?.fecha || null
+            fecha: historialCreado.rows[0]?.fecha || ventaCreada.rows[0]?.fecha || null,
+            codigoPublico: historialCreado.rows[0]?.codigo_publico || null
         });
 
         // Pedido explicito del dueño: un aviso por CADA venta de
@@ -8345,7 +8443,8 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
         productos,
         idempotencyKey,
         adminPin,
-        requiereFactura
+        requiereFactura,
+        codigoPublico
     } = req.body;
 
     // Dos casos reales y distintos: un cargo con productos (viene del
@@ -8431,6 +8530,7 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
                 success: true,
                 folio: existente.folio,
                 historialId: existente.id,
+                codigoPublico: existente.codigo_publico,
                 repetida: true
             });
             return;
@@ -8456,41 +8556,57 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
         const folioVenta = await siguienteFolioVenta(client, negocio.id);
 
         let historialCreado;
+        const parametrosHistorialCredito = [
+            negocio.id,
+            folioVenta.folio,
+            folioVenta.numero,
+            montoNum,
+            subtotalFinal,
+            descuentoFinal,
+            descuentoTipoFinal,
+            descuentoValorFinal,
+            cliente.id,
+            cliente.nombre,
+            JSON.stringify(productosLista),
+            idempotencyKey || null,
+            Boolean(requiereFactura),
+            codigoPublico || null
+        ];
+        const sqlInsertHistorialCredito = `
+                INSERT INTO public.historial_ventas
+                    (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado, idempotency_key, requiere_factura, codigo_publico)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada', $12, $13, $14)
+                RETURNING id, fecha, folio, codigo_publico
+                `;
+
+        await client.query("SAVEPOINT antes_insertar_historial");
 
         try {
-            historialCreado = await client.query(
-                `
-                INSERT INTO public.historial_ventas
-                    (negocio_id, folio, folio_numero, total, subtotal, descuento, descuento_tipo, descuento_valor, cliente_id, cliente_nombre, productos, metodo_pago, pago_credito, estado, idempotency_key, requiere_factura)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, 'credito', $4, 'completada', $12, $13)
-                RETURNING id, fecha, folio
-                `,
-                [
-                    negocio.id,
-                    folioVenta.folio,
-                    folioVenta.numero,
-                    montoNum,
-                    subtotalFinal,
-                    descuentoFinal,
-                    descuentoTipoFinal,
-                    descuentoValorFinal,
-                    cliente.id,
-                    cliente.nombre,
-                    JSON.stringify(productosLista),
-                    idempotencyKey || null,
-                    Boolean(requiereFactura)
-                ]
-            );
+            historialCreado = await client.query(sqlInsertHistorialCredito, parametrosHistorialCredito);
         } catch (error) {
-            if (error.code === "23505" && idempotencyKey) {
+            // Mismo tratamiento que /ventas: una colision de
+            // codigo_publico es una venta a credito legitima con un
+            // codigo repetido por azar -- sigue adelante sin codigo,
+            // nunca ROLLBACK completo. ROLLBACK TO SAVEPOINT es
+            // obligatorio (no basta con reintentar el INSERT): Postgres
+            // deja la transaccion "abortada" despues de un error, y
+            // cualquier query nueva en el mismo client truena hasta
+            // deshacer el error con el savepoint.
+            if (error.code === "23505" && error.constraint === "idx_historial_ventas_codigo_publico") {
+                await client.query("ROLLBACK TO SAVEPOINT antes_insertar_historial");
+                parametrosHistorialCredito[13] = null;
+                historialCreado = await client.query(sqlInsertHistorialCredito, parametrosHistorialCredito);
+            } else if (error.code === "23505" && idempotencyKey) {
                 await client.query("ROLLBACK");
                 const yaExiste = await buscarVentaPorIdempotencyKey(pool, negocio.id, idempotencyKey);
                 if (yaExiste) {
-                    res.json({ success: true, folio: yaExiste.folio, historialId: yaExiste.id, repetida: true });
+                    res.json({ success: true, folio: yaExiste.folio, historialId: yaExiste.id, codigoPublico: yaExiste.codigo_publico, repetida: true });
                     return;
                 }
+                throw error;
+            } else {
+                throw error;
             }
-            throw error;
         }
 
         const resultado = await client.query(
@@ -8539,7 +8655,8 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
             success: true,
             movimiento: resultado.rows[0],
             folio: folioVenta.folio,
-            historialId: historialCreado.rows[0].id
+            historialId: historialCreado.rows[0].id,
+            codigoPublico: historialCreado.rows[0].codigo_publico
         });
 
         enviarPushADuenoDelNegocio(pool, negocio.id, {

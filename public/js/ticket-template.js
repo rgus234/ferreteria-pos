@@ -234,6 +234,24 @@ function construirTicketVentaHTML(datos, config = {}, opciones = {}) {
   }
  }
 
+ // Ticket digital (ver plan stateless-doodling-tarjan.md): QR + link de
+ // texto al recibo publico. El texto se imprime siempre junto con la
+ // imagen, nunca condicionado a que cargue -- si se imprime sin
+ // internet la imagen sale rota, pero el link sigue siendo util a
+ // mano. Sin capability guard (a diferencia del codigo de barras): es
+ // solo un <img> con una URL, no depende de ninguna libreria del lado
+ // del cliente.
+ let qrHtml = "";
+ if (config.mostrarQrTicket !== false && datos.codigoPublico) {
+  const urlRecibo = `nexoposoficial.com/ticket/${datos.codigoPublico}`;
+  qrHtml = `
+   <div style="margin-top:10px;text-align:center;">
+    <img class="ticket-qr-img" src="https://nexoposoficial.com/ticket/${encodeURIComponent(datos.codigoPublico)}/qr.png" alt="Codigo QR del recibo" style="width:24mm;height:24mm;">
+    <div style="font-size:10px;margin-top:2px;">Ver tu recibo: ${escaparPOS(urlRecibo)}</div>
+   </div>
+  `;
+ }
+
  const offlineHtml =
  datos.ventaOffline
  ? `<div style="text-align:center;margin-top:6px;"><small style="font-weight:bold;">PENDIENTE DE SINCRONIZAR</small></div>`
@@ -286,6 +304,7 @@ function construirTicketVentaHTML(datos, config = {}, opciones = {}) {
   </div>
 
   ${codigoBarrasHtml}
+  ${qrHtml}
 
   <div style="margin-top:12px;font-size:9px;color:#999;text-align:center;">Con la tecnologia de Nexo</div>
  </div>

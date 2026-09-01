@@ -16,7 +16,9 @@ const SUBDOMINIOS_RESERVADOS = new Set([
     "market", "catalogo", "buscar-json", "sugerencias-json", "inicio-json",
     "favoritos-json", "comparador-json", "pedido-carrito", "solicitud-credito",
     "portal-cliente", "site", "login", "mi-cuenta", "categorias",
-    "ofertas", "explora", "nuevos", "ferreterias", "credito-nexo"
+    "ofertas", "explora", "nuevos", "ferreterias", "credito-nexo",
+    // Ticket digital (recibo publico por venta, ver ticket-publico-server.js).
+    "ticket"
 ]);
 
 function normalizarSlug(valor) {

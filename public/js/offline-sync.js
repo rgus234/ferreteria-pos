@@ -350,6 +350,28 @@ function crearEventIdPOS(tipo) {
  ].join("-");
 }
 
+// Codigo publico corto para el ticket digital (QR + link en el ticket
+// impreso, ver ticket-publico-server.js). Se genera aqui, del lado del
+// cliente, y no en el servidor -- una venta offline necesita su codigo
+// desde el momento en que se imprime el ticket, mucho antes de que el
+// servidor exista para esa venta. Mismo alfabeto que pedido-codigos.js
+// (sin caracteres ambiguos: I/O/0/1). 10 caracteres porque aqui, a
+// diferencia del sufijo de 4 de Market, la unicidad tiene que salir
+// completa de la aleatoriedad -- no hay un id de base de datos que
+// tambien la garantice. crypto.getRandomValues existe tanto en el
+// renderer de Electron como en cualquier navegador normal.
+const ALFABETO_CODIGO_PUBLICO_TICKET_POS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function crearCodigoPublicoTicketPOS(longitud = 10) {
+ const valores = new Uint32Array(longitud);
+ crypto.getRandomValues(valores);
+ let codigo = "";
+ for (let i = 0; i < longitud; i++) {
+ codigo += ALFABETO_CODIGO_PUBLICO_TICKET_POS[valores[i] % ALFABETO_CODIGO_PUBLICO_TICKET_POS.length];
+ }
+ return codigo;
+}
+
 async function aplicarMappingsSyncFrontendPOS(resultadoSync) {
  const aplicados =
  Array.isArray(resultadoSync?.aplicados)
