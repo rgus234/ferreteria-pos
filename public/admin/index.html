@@ -26,6 +26,10 @@
         <span id="badgeBancoImagenesAdmin" class="notification-badge" style="display:none;"></span>
       </button>
       <button type="button" data-view="ofertas-market">Ofertas Market</button>
+      <button type="button" data-view="catalogos" style="position:relative;">
+        Catalogos de fabricantes
+        <span id="badgeCatalogosAdmin" class="notification-badge" style="display:none;"></span>
+      </button>
     </nav>
     <div class="admin-sidebar-footer">
       <span id="adminSesionEstado">Sin sesion</span>
@@ -375,6 +379,55 @@
         </div>
       </article>
     </section>
+
+    <!-- Catalogos de fabricantes. La pantalla NO habla de OCR, vision,
+         recortes ni layouts: para quien la usa solo existe "Nexo encontro
+         cambios en el catalogo". El metodo de lectura aparece unicamente
+         como una etiqueta de confianza al revisar un cambio concreto. -->
+    <section class="admin-view" id="view-catalogos">
+      <div class="panel-head" style="margin-bottom:20px;">
+        <div>
+          <p class="eyebrow">Catalogo Nexo</p>
+          <h2>Catalogos de fabricantes</h2>
+          <span>Precios de lista publicados por cada fabricante. Son una referencia comercial: nunca cambian tu costo de compra ni tu precio de venta.</span>
+        </div>
+        <button type="button" class="secondary" onclick="cargarCatalogosFabricante()">Actualizar vista</button>
+      </div>
+
+      <div id="catalogosAvisoCorrida" class="catalogo-aviso" style="display:none;"></div>
+
+      <div class="catalogo-fuentes" id="listaCatalogosFabricante">
+        <div class="empty">Cargando...</div>
+      </div>
+
+      <article class="panel wide" id="panelCambiosCatalogo" style="display:none;">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow" id="cambiosCatalogoEyebrow">Cambios</p>
+            <h2 id="cambiosCatalogoTitulo">Cambios encontrados</h2>
+            <span id="cambiosCatalogoResumen"></span>
+          </div>
+          <button type="button" class="ghost" onclick="cerrarCambiosCatalogo()">Cerrar</button>
+        </div>
+        <div class="catalogo-cambios" id="listaCambiosCatalogo">
+          <div class="empty">Cargando...</div>
+        </div>
+      </article>
+
+      <article class="panel wide" id="panelRevisionCatalogo" style="display:none;">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Pendientes</p>
+            <h2 id="revisionCatalogoTitulo">Necesitan revision</h2>
+            <span id="revisionCatalogoResumen"></span>
+          </div>
+          <button type="button" class="ghost" onclick="cerrarRevisionCatalogo()">Cerrar</button>
+        </div>
+        <div class="catalogo-revision" id="listaRevisionCatalogo">
+          <div class="empty">Cargando...</div>
+        </div>
+      </article>
+    </section>
   </main>
 
   <section id="adminLogin" class="admin-login">
@@ -540,5 +593,6 @@
   </div>
   <script src="./dialogo-admin.js"></script>
   <script src="./app.js"></script>
+  <script src="./catalogos-fabricante.js"></script>
 </body>
 </html>

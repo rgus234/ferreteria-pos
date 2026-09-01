@@ -130,6 +130,64 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         res.json({ ok: true, corrida: corridaEnCurso });
     });
 
+    // Resumen de todas las fuentes para la pantalla principal. Una fila
+    // por fabricante con lo que le importa al dueno: cuando se sincronizo,
+    // cuantos productos hay y que necesita su atencion.
+    app.get("/admin/api/catalogo-fabricante/resumen", async (_req, res) => {
+        try {
+            const fuentes = Object.keys(ADAPTADORES);
+            const resumen = [];
+
+            for (const clave of fuentes) {
+                let adaptador;
+                try {
+                    adaptador = ADAPTADORES[clave]();
+                } catch (error) {
+                    continue;
+                }
+                const nombre = adaptador.nombre;
+
+                const productos = await pool.query(
+                    `SELECT COUNT(*) FILTER (WHERE estado = 'activo')::int AS activos,
+                            COUNT(*) FILTER (WHERE estado = 'descontinuado')::int AS descontinuados,
+                            COUNT(*) FILTER (WHERE estado = 'activo' AND confianza = 'baja')::int AS confianza_baja,
+                            COUNT(*) FILTER (WHERE estado = 'activo' AND catalogo_maestro_id IS NOT NULL)::int AS en_maestro,
+                            MAX(actualizado_en) AS ultimo_cambio
+                     FROM public.catalogo_fabricante_productos WHERE fabricante = $1`,
+                    [nombre]
+                );
+
+                const ultima = await pool.query(
+                    `SELECT id, estado, iniciada_en, terminada_en, detalle,
+                            productos_nuevos, productos_modificados, productos_descontinuados
+                     FROM public.catalogo_fabricante_sincronizaciones
+                     WHERE fabricante = $1 ORDER BY iniciada_en DESC LIMIT 1`,
+                    [nombre]
+                );
+
+                const revision = await pool.query(
+                    `SELECT COUNT(*)::int AS unidades,
+                            COALESCE(SUM(productos_afectados), 0)::int AS productos
+                     FROM public.catalogo_fabricante_modulos
+                     WHERE fabricante = $1 AND estado <> 'ok'`,
+                    [nombre]
+                );
+
+                resumen.push({
+                    fabricante: nombre,
+                    formato: adaptador.formato,
+                    productos: productos.rows[0],
+                    ultimaSincronizacion: ultima.rows[0] || null,
+                    revision: revision.rows[0]
+                });
+            }
+
+            res.json({ ok: true, fuentes: resumen, enCurso: corridaEnCurso });
+        } catch (error) {
+            responderError(res, error, "No se pudo leer el resumen de catalogos");
+        }
+    });
+
     app.get("/admin/api/catalogo-fabricante/:fabricante/sincronizaciones", async (req, res) => {
         try {
             const adaptador = obtenerAdaptador(req.params.fabricante);
@@ -162,11 +220,18 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 return res.status(404).json({ ok: false, error: "Sincronizacion no encontrada" });
             }
 
+            // Se trae el nombre y la trazabilidad junto al cambio: quien
+            // revisa necesita ver "Martillo 16 oz" y de donde salio ese
+            // precio, no un codigo suelto.
             const cambios = await pool.query(
-                `SELECT codigo, tipo, campo, valor_anterior, valor_nuevo, detalle
-                 FROM public.catalogo_fabricante_cambios
-                 WHERE sincronizacion_id = $1
-                 ORDER BY tipo, codigo`,
+                `SELECT c.codigo, c.tipo, c.campo, c.valor_anterior, c.valor_nuevo, c.detalle,
+                        p.descripcion, p.marca, p.clave,
+                        p.origen_lectura, p.confianza, p.verificado_por_persona
+                 FROM public.catalogo_fabricante_cambios c
+                 LEFT JOIN public.catalogo_fabricante_productos p
+                        ON p.fabricante = c.fabricante AND p.codigo = c.codigo
+                 WHERE c.sincronizacion_id = $1
+                 ORDER BY c.tipo, c.codigo`,
                 [id]
             );
 
@@ -175,22 +240,47 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             const porProducto = new Map();
             for (const fila of cambios.rows) {
                 if (!porProducto.has(fila.codigo)) {
-                    porProducto.set(fila.codigo, { codigo: fila.codigo, tipo: fila.tipo, campos: [], detalle: fila.detalle });
-                }
-                if (fila.campo) {
-                    porProducto.get(fila.codigo).campos.push({
-                        campo: fila.campo,
-                        de: fila.valor_anterior,
-                        a: fila.valor_nuevo
+                    porProducto.set(fila.codigo, {
+                        codigo: fila.codigo,
+                        tipo: fila.tipo,
+                        nombre: fila.descripcion || "",
+                        marca: fila.marca || "",
+                        clave: fila.clave || "",
+                        origenLectura: fila.origen_lectura || "",
+                        confianza: fila.confianza || "",
+                        verificado: Boolean(fila.verificado_por_persona),
+                        campos: [],
+                        detalle: fila.detalle
                     });
                 }
+                if (!fila.campo) continue;
+
+                // La variacion se calcula aqui y no en el navegador: es el
+                // dato con el que se decide si un cambio de precio es
+                // normal o merece una mirada.
+                const antes = Number(String(fila.valor_anterior).replace(/[$,]/g, ""));
+                const ahora = Number(String(fila.valor_nuevo).replace(/[$,]/g, ""));
+                const variacion = Number.isFinite(antes) && Number.isFinite(ahora) && antes > 0
+                    ? Math.round(((ahora - antes) / antes) * 1000) / 10
+                    : null;
+
+                porProducto.get(fila.codigo).campos.push({
+                    campo: fila.campo,
+                    de: fila.valor_anterior,
+                    a: fila.valor_nuevo,
+                    variacion
+                });
             }
 
-            res.json({
-                ok: true,
-                sincronizacion: corrida.rows[0],
-                productos: [...porProducto.values()]
+            const productos = [...porProducto.values()];
+            // Primero lo que mas subio: es lo que el dueno quiere ver.
+            productos.sort((a, b) => {
+                const maxA = Math.max(0, ...a.campos.map(c => Math.abs(c.variacion ?? 0)));
+                const maxB = Math.max(0, ...b.campos.map(c => Math.abs(c.variacion ?? 0)));
+                return maxB - maxA;
             });
+
+            res.json({ ok: true, sincronizacion: corrida.rows[0], productos });
         } catch (error) {
             responderError(res, error, "No se pudo leer el reporte");
         }
