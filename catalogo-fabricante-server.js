@@ -321,6 +321,55 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
+    // Estado del aporte al Catalogo Maestro: cuanta identidad de este
+    // fabricante ya llego al catalogo global que ven todos los negocios.
+    app.get("/admin/api/catalogo-fabricante/:fabricante/maestro", async (req, res) => {
+        try {
+            const adaptador = obtenerAdaptador(req.params.fabricante);
+
+            const resumen = await pool.query(
+                `SELECT COUNT(*)::int AS activos,
+                        COUNT(*) FILTER (WHERE catalogo_maestro_id IS NOT NULL)::int AS en_maestro,
+                        COUNT(*) FILTER (WHERE catalogo_maestro_id IS NULL AND maestro_detalle <> '')::int AS omitidos,
+                        COUNT(*) FILTER (WHERE catalogo_maestro_id IS NULL AND maestro_detalle = '')::int AS pendientes
+                 FROM public.catalogo_fabricante_productos
+                 WHERE fabricante = $1 AND estado = 'activo'`,
+                [adaptador.nombre]
+            );
+
+            // Los omitidos agrupados por motivo: casi siempre son productos
+            // sin nombre, o codigos que ya pertenecen a otro fabricante.
+            const motivos = await pool.query(
+                `SELECT maestro_detalle AS motivo, COUNT(*)::int AS productos
+                 FROM public.catalogo_fabricante_productos
+                 WHERE fabricante = $1 AND estado = 'activo'
+                   AND catalogo_maestro_id IS NULL AND maestro_detalle <> ''
+                 GROUP BY maestro_detalle ORDER BY productos DESC LIMIT 20`,
+                [adaptador.nombre]
+            );
+
+            res.json({ ok: true, resumen: resumen.rows[0], omitidosPorMotivo: motivos.rows });
+        } catch (error) {
+            responderError(res, error, "No se pudo leer el estado del Catalogo Maestro");
+        }
+    });
+
+    // Aportar al Maestro sin volver a sincronizar precios: util despues de
+    // corregir productos a mano o para procesar lo que quedo pendiente.
+    app.post("/admin/api/catalogo-fabricante/:fabricante/maestro/aportar", async (req, res) => {
+        try {
+            const adaptador = obtenerAdaptador(req.params.fabricante);
+            const { aportarAlMaestro } = require("./catalogo-maestro-fabricante");
+            const resumen = await aportarAlMaestro(pool, adaptador.nombre, {
+                limite: req.body?.limite,
+                confianzas: Array.isArray(req.body?.confianzas) ? req.body.confianzas : undefined
+            });
+            res.json({ ok: true, resumen });
+        } catch (error) {
+            responderError(res, error, "No se pudo aportar al Catalogo Maestro");
+        }
+    });
+
     // Marcar un producto como verificado por una persona. A partir de ahi
     // la sincronizacion deja de tocar su confianza: la revision humana
     // manda sobre lo que diga el extractor.

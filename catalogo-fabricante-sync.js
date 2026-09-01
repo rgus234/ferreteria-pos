@@ -689,6 +689,20 @@ async function sincronizar(pool, adaptador, opciones = {}) {
             client.release();
         }
 
+        // Aportar la identidad al Catalogo Maestro, ya con la transaccion
+        // cerrada. Va aparte a proposito: si esto falla, la sincronizacion
+        // de precios sigue siendo valida -- son dos cosas distintas y una
+        // no debe tumbar a la otra. NUNCA se aporta precio, solo identidad.
+        if (opciones.aportarAlMaestro !== false) {
+            try {
+                const { aportarAlMaestro } = require("./catalogo-maestro-fabricante");
+                contadores.maestro = await aportarAlMaestro(pool, fabricante, opciones.maestro);
+                progreso({ etapa: "maestro", ...contadores.maestro });
+            } catch (error) {
+                contadores.maestroError = error.message;
+            }
+        }
+
         await cerrarSincronizacion(pool, sincronizacionId, "completada", contadores);
         return { sincronizacionId, estado: "completada", contadores };
     } catch (error) {

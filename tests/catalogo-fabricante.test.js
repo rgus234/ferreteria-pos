@@ -1022,6 +1022,95 @@ test("reenviar el mismo archivo no reprocesa nada", async () => {
     assert.equal(resultado.contadores.unidadesCambiadas, 0);
 });
 
+// ---------------------------------------------------------------------
+// Aporte al Catalogo Maestro
+//
+// El Maestro guarda IDENTIDAD (que es el producto), nunca precio. Y lo
+// que ya esta escrito no se pisa: un dato de fabrica no es
+// automaticamente mejor que uno que alguien verifico con el producto en
+// la mano.
+// ---------------------------------------------------------------------
+
+const maestro = require("../catalogo-maestro-fabricante");
+
+test("un producto sin nombre no entra al Maestro", () => {
+    const decision = maestro.decidirAporte(
+        { codigo: "103013", descripcion: "", marca: "TRUPER", fabricante: "TRUPER" },
+        null
+    );
+    assert.equal(decision.accion, "omitir");
+    assert.match(decision.motivo, /sin nombre/);
+});
+
+test("un producto nuevo con identidad se inserta", () => {
+    const decision = maestro.decidirAporte(
+        { codigo: "103013", descripcion: "Pinza multiuso 8\"", marca: "TRUPER EXPERT", fabricante: "TRUPER" },
+        null
+    );
+    assert.equal(decision.accion, "insertar");
+});
+
+test("no se pisa lo que un negocio ya habia aportado", () => {
+    const decision = maestro.decidirAporte(
+        { codigo: "103013", descripcion: "Pinza multiuso 8\"", marca: "TRUPER EXPERT", fabricante: "TRUPER" },
+        { id: 7, nombre: "Pinza que el dueno nombro asi", marca: "TRUPER", ean: "", fabricante: "" }
+    );
+
+    assert.equal(decision.accion, "completar");
+    assert.equal(decision.campos.nombre, undefined, "el nombre existente no se toca");
+    assert.equal(decision.campos.marca, undefined, "la marca existente no se toca");
+    // Pero dejar constancia del fabricante SI es informacion nueva.
+    assert.equal(decision.campos.fabricante, "TRUPER");
+});
+
+test("solo se rellenan los huecos", () => {
+    const decision = maestro.decidirAporte(
+        { codigo: "103013", descripcion: "Pinza multiuso 8\"", marca: "TRUPER EXPERT", ean: "7501206512345", fabricante: "TRUPER" },
+        { id: 7, nombre: "Pinza", marca: "", ean: "", fabricante: "TRUPER" }
+    );
+
+    assert.equal(decision.accion, "completar");
+    assert.equal(decision.campos.nombre, undefined, "ya tenia nombre");
+    assert.equal(decision.campos.marca, "TRUPER EXPERT", "la marca estaba vacia: se llena");
+    assert.equal(decision.campos.ean, "7501206512345", "el EAN estaba vacio: se llena");
+});
+
+test("dos fabricantes con el mismo codigo NO se mezclan", () => {
+    // `codigo` es UNIQUE global en el Maestro. El 103013 de TRUPER y un
+    // 103013 de URREA son productos distintos; enlazarlos seria fundir dos
+    // productos que no tienen nada que ver.
+    const decision = maestro.decidirAporte(
+        { codigo: "103013", descripcion: "Llave ajustable", marca: "URREA", fabricante: "URREA" },
+        { id: 7, nombre: "Pinza multiuso", marca: "TRUPER EXPERT", ean: "", fabricante: "TRUPER" }
+    );
+
+    assert.equal(decision.accion, "omitir");
+    assert.match(decision.motivo, /ya pertenece a TRUPER/);
+});
+
+test("si no hay nada que agregar, solo se enlaza", () => {
+    const decision = maestro.decidirAporte(
+        { codigo: "103013", descripcion: "Pinza", marca: "TRUPER", fabricante: "TRUPER" },
+        { id: 7, nombre: "Pinza", marca: "TRUPER", ean: "", fabricante: "TRUPER" }
+    );
+    assert.equal(decision.accion, "enlazar");
+});
+
+test("el aporte al Maestro no toca ningun campo de precio", () => {
+    // Regla de oro del Maestro: guarda que ES el producto, no cuanto
+    // cuesta. Se comprueba sobre el codigo fuente para que nadie agregue
+    // un precio aqui por descuido.
+    const fuente = require("fs").readFileSync(
+        require("path").join(__dirname, "..", "catalogo-maestro-fabricante.js"), "utf8"
+    );
+    const lineasConPrecio = fuente
+        .split("\n")
+        .filter(linea => /precio_(mayoreo|medio_mayoreo|publico|distribuidor)/.test(linea))
+        .filter(linea => !linea.trim().startsWith("//"));
+
+    assert.deepEqual(lineasConPrecio, [], "ninguna linea de codigo debe tocar un campo de precio");
+});
+
 test("una variante que no aporta un precio no lo borra", async () => {
     const client = clienteFalso();
     const existente = {
