@@ -2365,6 +2365,12 @@ async function abrirEscanerVenderDueno() {
     document.getElementById("duenoVenderEscanerOverlay").classList.add("abierta");
     document.getElementById("duenoVenderEscaneoCarrito").innerHTML = "";
 
+    const ambiguoPrevio = document.getElementById("duenoVenderEscaneoAmbiguo");
+    if (ambiguoPrevio) {
+        ambiguoPrevio.style.display = "none";
+        ambiguoPrevio.innerHTML = "";
+    }
+
     document.getElementById("duenoVenderEscaneoManualForm").onsubmit = evento => {
         evento.preventDefault();
         const input = document.getElementById("duenoVenderEscaneoManualInput");
@@ -2429,13 +2435,42 @@ async function duenoVenderIntentarAgregarPorCodigo(codigo) {
     const resultados =
     await buscarEnCatalogoLocal(codigoLimpio);
 
-    const producto =
-    resultados.find(p => p.codigo === codigoLimpio) || null;
+    const coincidencias =
+    resultados.filter(p => p.codigo === codigoLimpio);
 
-    if (!producto) {
+    if (coincidencias.length === 0) {
         if (estado) estado.textContent = `Sin coincidencia para "${codigoLimpio}". Sigue apuntando o escribe el nombre en Vender.`;
         return;
     }
+
+    // Mismo codigo en varios productos: se muestran para elegir en vez de
+    // agregar el primero. En el inventario real hay codigos compartidos
+    // con precios muy distintos, y meter uno al azar es cobrar mal en
+    // silencio -- el cajero ni se entera de que habia otro.
+    const ambiguo =
+    document.getElementById("duenoVenderEscaneoAmbiguo");
+
+    if (coincidencias.length > 1) {
+        duenoVentaUltimosResultados = coincidencias;
+        if (ambiguo) {
+            ambiguo.style.display = "";
+            ambiguo.innerHTML = coincidencias.map(filaProductoVenderDuenoHtml).join("");
+        }
+        if (estado) {
+            estado.textContent =
+            `${coincidencias.length} productos tienen el codigo ${codigoLimpio}. Toca el que estas vendiendo.`;
+        }
+        // El anti-rebote guarda el ultimo codigo leido, asi que la camara
+        // no vuelve a disparar sobre el mismo mientras se elige.
+        return;
+    }
+
+    if (ambiguo) {
+        ambiguo.style.display = "none";
+        ambiguo.innerHTML = "";
+    }
+
+    const producto = coincidencias[0];
 
     duenoVentaUltimosResultados = resultados;
     agregarAlCarritoVenderDueno(producto.id);

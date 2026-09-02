@@ -1308,19 +1308,30 @@ function codigosProducto(producto) {
 // resto de pantallas (Inventario, etc.) siguen leyendo todosProductos
 // directo, sin este filtro -- el dueño necesita seguir viendo/editando
 // un producto oculto del POS, solo no debe poder VENDERLO por esta via.
-function buscarProductoLocalPorCodigo(codigo) {
+// TODOS los productos que responden a un codigo, no solo el primero.
+//
+// Que un codigo caiga en dos productos no es hipotetico: en el inventario
+// real de Ferreteria Olimpico hay 34 codigos compartidos, y en varios los
+// precios no se parecen -- uno tiene alambre de $79 y una empaquetadura de
+// $15.50 bajo el mismo codigo. Cobrar el primero que aparezca es cobrar
+// mal la mitad de las veces, y sin que nadie se entere.
+function buscarProductosLocalesPorCodigo(codigo) {
  const limpio =
  normalizarCodigo(codigo);
 
- if (!limpio) return null;
+ if (!limpio) return [];
 
- return todosProductos.find(producto =>
+ return todosProductos.filter(producto =>
  producto.visible_pos !== false &&
  (
   normalizarCodigo(producto.id) === limpio ||
   codigosProducto(producto).includes(limpio)
  )
- ) || null;
+ );
+}
+
+function buscarProductoLocalPorCodigo(codigo) {
+ return buscarProductosLocalesPorCodigo(codigo)[0] || null;
 }
 
 function precioVentaProducto(producto) {
