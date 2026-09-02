@@ -1008,21 +1008,52 @@ function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
 
             const version = new Date(filaBanco.actualizado_at).getTime();
 
+            // Fotos que el fabricante ya publica. Se usan cuando este
+            // producto no tiene galeria guardada: son mas (6-8 contra 4.5)
+            // y mejores (1800x1800 contra 480x480), y no ocupan lugar en
+            // la base -- solo se guarda cuales existen.
+            //
+            // Si el producto SI tiene galeria guardada se respeta esa: no
+            // se cambia lo que el negocio ya ve hoy.
+            let galeriaFabricante = [];
+            if (galeria.rows.length === 0) {
+                try {
+                    const { fotosDeProducto } = require("./banco-fotos-fabricante");
+                    const resultado = await fotosDeProducto(pool, codigo);
+                    galeriaFabricante = resultado.fotos.map((foto, indice) => ({
+                        id: null,
+                        origen: "fabricante",
+                        sufijo: foto.sufijo,
+                        orden: indice,
+                        url: foto.url
+                    }));
+                } catch (error) {
+                    // Que falle la consulta al fabricante no debe tumbar la
+                    // galeria: se sigue con lo que haya guardado.
+                    console.log("[banco-imagenes] no se pudieron resolver fotos del fabricante:", error.message);
+                }
+            }
+
+            const galeriaGuardada = galeria.rows.map(fila => ({
+                id: fila.id,
+                origen: "banco",
+                ancho: fila.ancho,
+                alto: fila.alto,
+                url: `/banco-imagenes-galeria/${fila.id}?token=${firmarTokenBancoImagen(String(fila.id))}`
+            }));
+
+            const galeriaFinal = galeriaGuardada.length > 0 ? galeriaGuardada : galeriaFabricante;
+
             res.json({
                 ok: true,
                 marca: filaBanco.marca,
-                totalFotos: 1 + galeria.rows.length,
+                totalFotos: 1 + galeriaFinal.length,
                 principal: {
                     ancho: filaBanco.imagen_principal_ancho,
                     alto: filaBanco.imagen_principal_alto,
                     url: `/banco-imagenes/${codigo}/principal?v=${version}&token=${firmarTokenBancoImagen(codigo)}`
                 },
-                galeria: galeria.rows.map(fila => ({
-                    id: fila.id,
-                    ancho: fila.ancho,
-                    alto: fila.alto,
-                    url: `/banco-imagenes-galeria/${fila.id}?token=${firmarTokenBancoImagen(String(fila.id))}`
-                }))
+                galeria: galeriaFinal
             });
         } catch (error) {
             responderError(res, error);

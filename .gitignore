@@ -9,3 +9,6 @@ logs/
 .DS_Store
 Thumbs.db
 *.traineddata
+
+# Respaldos locales: pueden pesar cientos de MB (imagenes del banco)
+backups/
