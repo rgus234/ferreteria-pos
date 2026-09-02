@@ -157,8 +157,30 @@ async function procesarCodigoBarrasPos(codigoManual) {
  window.__ultimoCodigoBarrasPOS = codigo;
  window.__ultimoCodigoBarrasTiempoPOS = ahora;
 
- const producto =
- buscarProductoLocalPorCodigo(codigo);
+ const coincidencias =
+ buscarProductosLocalesPorCodigo(codigo);
+
+ // Dos productos con el mismo codigo: no se cobra a ciegas. Antes se
+ // agregaba el primero de la lista y el cajero no tenia forma de saber
+ // que habia otro -- con precios que pueden ir de $15 a $79, eso es un
+ // cobro equivocado silencioso. Se deja el codigo en la busqueda para
+ // que los vea a los dos y elija.
+ if (coincidencias.length > 1) {
+ input.value = codigo;
+ if (typeof buscarProductos === "function") buscarProductos();
+
+ await dialogoPOS({
+  tipo: "alerta",
+  titulo: "Ese codigo esta en varios productos",
+  mensaje:
+  `${coincidencias.length} productos de tu inventario tienen el codigo ${codigo}. ` +
+  "Estan abajo en la busqueda: elige cual estas vendiendo."
+ });
+
+ return;
+ }
+
+ const producto = coincidencias[0] || null;
 
  if (!producto) {
  const productoCatalogo =
