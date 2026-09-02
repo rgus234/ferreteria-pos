@@ -100,14 +100,63 @@ function trocear(lista, tamano) {
 // Registro de la corrida
 // ---------------------------------------------------------------------
 
-async function crearSincronizacion(pool, fabricante) {
-    const resultado = await pool.query(
-        `INSERT INTO public.catalogo_fabricante_sincronizaciones (fabricante, estado)
-         VALUES ($1, 'en_curso') RETURNING id`,
-        [fabricante]
-    );
-    return resultado.rows[0].id;
+async function crearSincronizacion(pool, fabricante, confirmoRegeneracion = false) {
+    try {
+        const resultado = await pool.query(
+            `INSERT INTO public.catalogo_fabricante_sincronizaciones
+                (fabricante, estado, confirmo_regeneracion, latido_en)
+             VALUES ($1, 'en_curso', $2, NOW()) RETURNING id`,
+            [fabricante, confirmoRegeneracion]
+        );
+        return resultado.rows[0].id;
+    } catch (error) {
+        // Choque con el indice unico parcial: ya hay otra corrida viva de
+        // este fabricante, posiblemente en otro proceso.
+        if (error.code === "23505") {
+            const conflicto = new Error(`ya hay una sincronizacion de ${fabricante} en curso`);
+            conflicto.httpStatus = 409;
+            throw conflicto;
+        }
+        throw error;
+    }
 }
+
+// Marca de vida de la corrida. Sin esto no se puede distinguir una carga
+// larga y sana de un proceso muerto, y cerrarCorridasHuerfanas mataria la
+// primera. Es "dispara y olvida": un fallo al latir nunca debe tumbar la
+// corrida, por eso el .catch vacio.
+function crearLatido(pool, sincronizacionId, cadaMs = 30000) {
+    let ultimo = 0;
+    return () => {
+        const ahora = Date.now();
+        if (ahora - ultimo < cadaMs) return;
+        ultimo = ahora;
+        pool.query(
+            `UPDATE public.catalogo_fabricante_sincronizaciones SET latido_en = NOW() WHERE id = $1`,
+            [sincronizacionId]
+        ).catch(() => {});
+    };
+}
+
+// Un lote = todas las unidades cambiadas que comparten unidad.id. En
+// TRUPER eso es "las dos variantes del mismo modulo" (publico y
+// distribuidor), que es justo el par que el chequeo de coherencia entre
+// niveles necesita cruzar: si cayeran en lotes distintos, un precio de
+// distribuidor con un digito perdido dejaria de detectarse.
+function agruparPorUnidad(cambiadas) {
+    const lotes = new Map(); // Map preserva el orden de insercion
+    for (const unidad of cambiadas) {
+        if (!lotes.has(unidad.id)) lotes.set(unidad.id, []);
+        lotes.get(unidad.id).push(unidad);
+    }
+    return [...lotes.values()];
+}
+
+// Cuantos lotes seguidos pueden fallar antes de rendirse. Un CHECK que
+// revienta con una fila rara no debe bloquear a los 3.900 modulos que
+// siguen; pero si fallan varios seguidos, la base o el esquema estan mal
+// y seguir solo quema OCR.
+const MAX_LOTES_FALLIDOS_SEGUIDOS = 3;
 
 async function registrarCambio(pool, sincronizacionId, fabricante, cambio) {
     await pool.query(
@@ -360,12 +409,146 @@ async function extraerUnidades(pool, adaptador, cambiadas, contexto, onProgreso)
 // Aplicacion
 // ---------------------------------------------------------------------
 
-async function respaldarFila(client, sincronizacionId, fabricante, fila) {
+// La imagen de la fila la produce Postgres, dentro de la misma transaccion
+// y ANTES del UPDATE. Antes se guardaba el objeto `existente`, que es una
+// proyeccion recortada: le faltaban precio_*_anterior, ean_origen,
+// visto_en, actualizado_en, verificado_en y el id, asi que no alcanzaba
+// para restaurar la fila -- que es para lo unico que existe un respaldo.
+async function respaldarProducto(client, sincronizacionId, fabricante, codigo) {
     await client.query(
         `INSERT INTO public.catalogo_fabricante_respaldos (sincronizacion_id, fabricante, codigo, fila)
-         VALUES ($1, $2, $3, $4)`,
-        [sincronizacionId, fabricante, fila.codigo, JSON.stringify(fila)]
+         SELECT $1, $2, $3, to_jsonb(p)
+           FROM public.catalogo_fabricante_productos p
+          WHERE p.fabricante = $2 AND p.codigo = $3`,
+        [sincronizacionId, fabricante, codigo]
     );
+}
+
+// Cada lote lee lo suyo, fresco y DENTRO de su transaccion. Un snapshot
+// unico tomado al principio se vuelve mentira en cuanto commitea el primer
+// lote: un codigo dado de alta en el lote 1 seguiria pareciendo "no
+// existe" para el lote 40, que intentaria otro INSERT y tumbaria el lote
+// entero contra UNIQUE (fabricante, codigo).
+async function leerExistentesPorCodigo(ejecutor, fabricante, codigos) {
+    if (codigos.length === 0) return new Map();
+
+    const r = await ejecutor.query(
+        `SELECT codigo, clave, ean, descripcion, marca, modulo, pagina, estado,
+                origen_lectura, layout, confianza, precios_sin_publicar, verificado_por_persona,
+                precio_mayoreo, precio_medio_mayoreo, precio_publico, precio_distribuidor
+           FROM public.catalogo_fabricante_productos
+          WHERE fabricante = $1 AND codigo = ANY($2::text[])`,
+        [fabricante, codigos]
+    );
+    return new Map(r.rows.map(f => [f.codigo, f]));
+}
+
+// Datos que se aplican a un producto, juntando lo que dice el universo, el
+// enriquecimiento y lo leido de las unidades.
+function componerDatos(info, extra, leidos) {
+    return {
+        clave: info.clave || extra?.clave || leidos?.clave || "",
+        ean: extra?.ean || leidos?.ean || "",
+        descripcion: extra?.descripcion || leidos?.descripcion || "",
+        marca: extra?.marca || leidos?.marca || "",
+        modulo: leidos?.unidadId || info.unidadId || "",
+        pagina: leidos?.referencia ?? info.referencia ?? null,
+        origen_lectura: leidos?.origen_lectura || "",
+        layout: leidos?.layout || "",
+        confianza: leidos?.confianza || "",
+        precios_sin_publicar: leidos?.precios_sin_publicar || [],
+        ...(leidos ? Object.fromEntries(
+            CAMPOS_PRECIO
+                .filter(campo => leidos[campo] !== undefined)
+                .map(campo => [campo, leidos[campo]])
+        ) : {})
+    };
+}
+
+/**
+ * Aplica UN lote (las unidades de un mismo modulo) en su propia
+ * transaccion. Devuelve el delta de contadores solo si commiteo.
+ *
+ * La linea que sostiene todo el diseño esta al final: las firmas de las
+ * unidades se graban en la MISMA transaccion que los productos que
+ * salieron de ellas. Si el COMMIT no ocurre, no ocurre ninguna de las dos.
+ */
+async function aplicarLote(pool, sincronizacionId, fabricante, extraido, universo, extras) {
+    const delta = {
+        nuevos: 0, modificados: 0, incoherentes: 0,
+        sinCoincidencia: 0, incompletos: 0
+    };
+
+    const leidas = [...extraido.porProducto.keys()];
+    const identidades = universo ? leidas.filter(id => universo.has(id)) : leidas;
+
+    // Segundo cinturon contra un universo mal leido. Si el lote leyo filas
+    // y NINGUNA cae en el universo vigente, lo mas probable no es que el
+    // modulo este desalineado sino que el universo llego mal (la fuente
+    // respondio 200 con HTML que el parseo no reconoce). Firmar esas
+    // unidades como "ok" las quemaria para siempre: el etag nuevo hace que
+    // la proxima corrida las salte y nadie relee ese modulo hasta que el
+    // fabricante regenere la imagen.
+    const universoSospechoso = Boolean(universo) && leidas.length > 0 && identidades.length === 0;
+
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
+
+        const guardados = await leerExistentesPorCodigo(client, fabricante, identidades);
+
+        for (const identidad of identidades) {
+            const leidos = extraido.porProducto.get(identidad);
+            const info = universo?.get(identidad) || {};
+            const datos = componerDatos(info, extras.get(identidad), leidos);
+
+            const cambios = await aplicarProducto(
+                client, sincronizacionId, fabricante, identidad, datos, guardados.get(identidad)
+            );
+
+            // registrarCambio con el CLIENT, no con el pool: son conexiones
+            // distintas, asi que por el pool los renglones sobrevivirian al
+            // ROLLBACK y quedarian visibles antes del COMMIT.
+            for (const cambio of cambios) {
+                await registrarCambio(client, sincronizacionId, fabricante, cambio);
+            }
+            if (cambios.some(c => c.tipo === "nuevo")) delta.nuevos++;
+            if (cambios.some(c => c.tipo === "modificado")) delta.modificados++;
+        }
+
+        for (const item of extraido.incoherentes || []) {
+            await registrarCambio(client, sincronizacionId, fabricante, {
+                codigo: item.identidad, tipo: "incompleto",
+                detalle: `precios retirados por incoherencia: ${item.problemas}`
+            });
+        }
+        delta.incoherentes = (extraido.incoherentes || []).length;
+
+        for (const item of extraido.enRevision || []) {
+            await registrarCambio(client, sincronizacionId, fabricante, {
+                codigo: `unidad ${item.unidad}`, tipo: "sin_coincidencia", detalle: item.motivo
+            });
+        }
+        delta.sinCoincidencia = (extraido.enRevision || []).length;
+
+        for (const e of extraido.estadosUnidad) {
+            const estado = universoSospechoso ? "revision_manual" : e.estado;
+            const detalle = universoSospechoso
+                ? "ninguno de sus codigos aparece en el universo vigente: lectura del universo sospechosa"
+                : e.detalle;
+            await guardarEstadoUnidad(client, fabricante, e.unidad, estado, detalle, e.resultado);
+        }
+
+        await client.query("COMMIT");
+        return { ok: true, delta };
+    } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
+        // El delta se DESCARTA: contar altas que se deshicieron dejaria el
+        // reporte inflado.
+        return { ok: false, error, delta: null };
+    } finally {
+        client.release();
+    }
 }
 
 /**
@@ -397,7 +580,7 @@ async function aplicarProducto(client, sincronizacionId, fabricante, codigo, dat
     }
 
     // Respaldo ANTES de cualquier escritura sobre una fila existente.
-    await respaldarFila(client, sincronizacionId, fabricante, existente);
+    await respaldarProducto(client, sincronizacionId, fabricante, codigo);
 
     const sets = [];
     const valores = [];
@@ -481,6 +664,16 @@ async function aplicarProducto(client, sincronizacionId, fabricante, codigo, dat
  * Corre una sincronizacion completa de cualquier fuente que cumpla el
  * contrato.
  *
+ * ORDEN DE FASES -- el orden importa y es la mitad del diseño:
+ *   0. cerrar corridas huerfanas, abrir la propia, empezar a latir
+ *   1. leer universo y unidades (todavia no se escribe ningun dato)
+ *   2. LOS DOS FRENOS, antes de gastar un solo OCR
+ *   3. enriquecer productos nuevos (con tope)
+ *   4. bucle de lotes  <-- aqui viven las horas, y cada lote se confirma solo
+ *   5. cierre de universo: vigencia, altas sin precio, descontinuados
+ *   6. aportar identidad al Catalogo Maestro
+ *   7. cerrar la corrida
+ *
  * @param {object} pool
  * @param {object} adaptador  ver catalogo-fabricante-contrato.js
  * @param {object} [opciones]
@@ -498,34 +691,73 @@ async function sincronizar(pool, adaptador, opciones = {}) {
     const fabricante = adaptador.nombre;
     const progreso = opciones.onProgreso || (() => {});
     const contexto = { ...(opciones.contexto || {}), onProgreso: progreso };
-    const sincronizacionId = await crearSincronizacion(pool, fabricante);
+
+    // FASE 0 -----------------------------------------------------------
+    // Corridas que quedaron vivas de procesos que ya no existen. Sin esto
+    // el indice unico impediria arrancar despues de un apagon.
+    await cerrarCorridasHuerfanas(pool, fabricante).catch(() => {});
+
+    const sincronizacionId = await crearSincronizacion(
+        pool, fabricante, opciones.confirmarRegeneracionMasiva === true
+    );
+    const latido = crearLatido(pool, sincronizacionId);
 
     const contadores = {
         unidadesRevisadas: 0, unidadesCambiadas: 0,
         nuevos: 0, modificados: 0, descontinuados: 0,
-        sinCoincidencia: 0, incompletos: 0
+        sinCoincidencia: 0, incompletos: 0,
+        incoherentes: 0, lotesFallidos: 0
     };
 
     try {
+        // FASE 1 -------------------------------------------------------
         progreso({ etapa: "universo", mensaje: "leyendo que productos publica hoy la fuente" });
         const universo = await adaptador.listarUniverso(contexto);
+        latido();
 
         progreso({ etapa: "unidades", mensaje: "listando de donde viene la informacion" });
         const unidades = await adaptador.listarUnidades(contexto);
         if (!Array.isArray(unidades) || unidades.length === 0) {
             throw new Error("la fuente no devolvio ninguna unidad de informacion");
         }
+        latido();
 
         progreso({ etapa: "revisando", mensaje: "viendo que cambio desde la ultima vez" });
         const { revisadas, cambiadas, conEstadoPrevio, cambiadasConEstadoPrevio } =
             await detectarUnidadesCambiadas(pool, adaptador, unidades,
-                (hechas, cambios) => progreso({ etapa: "revisando", hechas, cambios }));
+                (hechas, cambios) => { latido(); progreso({ etapa: "revisando", hechas, cambios }); });
 
         contadores.unidadesRevisadas = revisadas;
         contadores.unidadesCambiadas = cambiadas.length;
 
+        // FASE 2 -- LOS FRENOS, ANTES DE GASTAR UN SOLO OCR -------------
+        //
+        // Antes vivian repartidos: el de regeneracion aqui y el de baja
+        // masiva dentro de la transaccion final. Ese segundo dependia de
+        // que un ROLLBACK deshiciera todo, y con lotes ya no hay una
+        // transaccion que cubra las 4 horas. Corriendolos aqui, el mensaje
+        // "no se aplico nada" es literalmente cierto, y un universo mal
+        // leido se atrapa en segundos en vez de a las 4 horas.
+
+        // Una confirmacion de regeneracion es del operador sobre un evento
+        // de la fuente, no de un proceso: si la corrida que la traia murio,
+        // la siguiente la hereda. Sin esto, reanudar una regeneracion ya
+        // confirmada volveria a pedir confirmacion en cada corte.
+        const anterior = await pool.query(
+            `SELECT confirmo_regeneracion
+               FROM public.catalogo_fabricante_sincronizaciones
+              WHERE fabricante = $1 AND id <> $2 AND estado IN ('en_curso', 'error')
+                AND iniciada_en > NOW() - interval '48 hours'
+              ORDER BY id DESC LIMIT 1`,
+            [fabricante, sincronizacionId]
+        );
+        // La de BAJA masiva nunca se hereda: es la unica proteccion dura
+        // contra descontinuar media tienda por una lectura incompleta.
+        const confirmadaRegeneracion = opciones.confirmarRegeneracionMasiva === true
+            || Boolean(anterior.rows[0]?.confirmo_regeneracion);
+
         const fraccion = conEstadoPrevio > 0 ? cambiadasConEstadoPrevio / conEstadoPrevio : 0;
-        if (fraccion > UMBRAL_REGENERACION_MASIVA && !opciones.confirmarRegeneracionMasiva) {
+        if (fraccion > UMBRAL_REGENERACION_MASIVA && !confirmadaRegeneracion) {
             const detalle = `la fuente regenero ${cambiadasConEstadoPrevio} de ${conEstadoPrevio} unidades `
                 + `ya conocidas (${Math.round(fraccion * 100)}%). Puede ser una regeneracion masiva sin cambios `
                 + `reales de precio. Confirma para procesarlas.`;
@@ -533,39 +765,38 @@ async function sincronizar(pool, adaptador, opciones = {}) {
             return { sincronizacionId, estado: "esperando_confirmacion", contadores, detalle };
         }
 
-        progreso({ etapa: "extrayendo", mensaje: `procesando ${cambiadas.length} unidades` });
-        const { porProducto, enRevision, resueltosPorAyuda, incoherentes, estadosUnidad } = await extraerUnidades(
-            pool, adaptador, cambiadas, contexto,
-            (hechas, total) => progreso({ etapa: "extrayendo", hechas, total })
-        );
-
-        contadores.sinCoincidencia = enRevision.length;
-        contadores.incoherentes = (incoherentes || []).length;
-        for (const item of incoherentes || []) {
-            await registrarCambio(pool, sincronizacionId, fabricante, {
-                codigo: item.identidad, tipo: "incompleto",
-                detalle: `precios retirados por incoherencia: ${item.problemas}`
-            });
-        }
-        contadores.resueltosPorAyuda = resueltosPorAyuda;
-        for (const item of enRevision) {
-            await registrarCambio(pool, sincronizacionId, fabricante, {
-                codigo: `unidad ${item.unidad}`, tipo: "sin_coincidencia", detalle: item.motivo
-            });
-        }
-
-        const existentesResultado = await pool.query(
-            `SELECT codigo, clave, ean, descripcion, marca, modulo, pagina, estado,
-                    origen_lectura, layout, confianza, precios_sin_publicar, verificado_por_persona,
-                    precio_mayoreo, precio_medio_mayoreo, precio_publico, precio_distribuidor
-             FROM public.catalogo_fabricante_productos WHERE fabricante = $1`,
+        // Snapshot ligero: solo los codigos. Traer las 17 columnas de
+        // 40.000 filas era el pico de memoria de toda la corrida.
+        const activos = await pool.query(
+            `SELECT codigo FROM public.catalogo_fabricante_productos
+              WHERE fabricante = $1 AND estado = 'activo'`,
             [fabricante]
         );
-        const existentes = new Map(existentesResultado.rows.map(f => [f.codigo, f]));
+        const totalActivos = activos.rows.length;
+        const paraDescontinuar = universo
+            ? activos.rows.map(f => f.codigo).filter(c => !universo.has(c))
+            : [];
+        const fraccionBaja = totalActivos > 0 ? paraDescontinuar.length / totalActivos : 0;
 
-        // Enriquecimiento opcional de productos nuevos (descripcion, marca).
-        const identidades = universo ? [...universo.keys()] : [...porProducto.keys()];
-        const nuevos = identidades.filter(id => !existentes.has(id));
+        if (totalActivos >= MIN_ACTIVOS_PARA_SALVAGUARDA
+            && fraccionBaja > UMBRAL_BAJA_MASIVA
+            && !opciones.confirmarBajaMasiva) {
+            throw new Error(
+                `la fuente dejo de listar ${paraDescontinuar.length} de ${totalActivos} productos activos `
+                + `(${Math.round(fraccionBaja * 100)}%). Parece una lectura incompleta, no un cambio real de `
+                + `catalogo: no se aplico nada.`
+            );
+        }
+
+        // FASE 3 -- enriquecimiento de productos nuevos ----------------
+        const identidadesUniverso = universo ? [...universo.keys()] : [];
+        const yaConocidos = new Set(
+            (await pool.query(
+                `SELECT codigo FROM public.catalogo_fabricante_productos WHERE fabricante = $1`,
+                [fabricante]
+            )).rows.map(f => f.codigo)
+        );
+        const nuevos = identidadesUniverso.filter(id => !yaConocidos.has(id));
         const extras = new Map();
 
         if (typeof adaptador.datosDeProducto === "function") {
@@ -579,120 +810,75 @@ async function sincronizar(pool, adaptador, opciones = {}) {
                     // Sin enriquecer, el producto igual se da de alta.
                 }
                 pedidas++;
-                progreso({ etapa: "enriqueciendo", hechas: pedidas, total: Math.min(nuevos.length, MAX_ENRIQUECIMIENTOS_POR_CORRIDA) });
+                latido();
+                progreso({
+                    etapa: "enriqueciendo", hechas: pedidas,
+                    total: Math.min(nuevos.length, MAX_ENRIQUECIMIENTOS_POR_CORRIDA)
+                });
             }
         }
 
-        // ---- Aplicacion en una sola transaccion ----
-        const client = await pool.connect();
-        try {
-            await client.query("BEGIN");
+        // FASE 4 -- bucle de lotes ------------------------------------
+        //
+        // Cada lote es un modulo, se lee y se aplica en su propia
+        // transaccion. Si el proceso muere, lo confirmado queda y la
+        // proxima corrida sigue: las unidades de los lotes commiteados ya
+        // tienen su firma, asi que detectarUnidadesCambiadas las salta.
+        const lotes = agruparPorUnidad(cambiadas);
+        let lotesSeguidosFallidos = 0;
+        let unidadesHechas = 0;
 
-            for (const identidad of identidades) {
-                const leidos = porProducto.get(identidad);
-                const extra = extras.get(identidad);
-                const existente = existentes.get(identidad);
-                const info = universo?.get(identidad) || {};
+        progreso({
+            etapa: "extrayendo",
+            mensaje: `procesando ${cambiadas.length} unidades en ${lotes.length} modulos`
+        });
 
-                // Producto conocido cuya unidad no cambio: nada que
-                // escribir, solo dejar constancia de que sigue vigente.
-                if (!leidos && existente) {
-                    await client.query(
-                        `UPDATE public.catalogo_fabricante_productos SET visto_en = NOW()
-                         WHERE fabricante = $1 AND codigo = $2`,
-                        [fabricante, identidad]
-                    );
-                    continue;
-                }
+        for (const lote of lotes) {
+            const extraido = await extraerUnidades(pool, adaptador, lote, contexto, () => latido());
 
-                const datos = {
-                    clave: info.clave || extra?.clave || leidos?.clave || "",
-                    ean: extra?.ean || leidos?.ean || "",
-                    descripcion: extra?.descripcion || leidos?.descripcion || "",
-                    marca: extra?.marca || leidos?.marca || "",
-                    modulo: leidos?.unidadId || info.unidadId || "",
-                    pagina: leidos?.referencia ?? info.referencia ?? null,
-                    origen_lectura: leidos?.origen_lectura || "",
-                    layout: leidos?.layout || "",
-                    confianza: leidos?.confianza || "",
-                    precios_sin_publicar: leidos?.precios_sin_publicar || [],
-                    ...(leidos ? Object.fromEntries(
-                        CAMPOS_PRECIO
-                            .filter(campo => leidos[campo] !== undefined)
-                            .map(campo => [campo, leidos[campo]])
-                    ) : {})
-                };
-
-                const cambios = await aplicarProducto(client, sincronizacionId, fabricante, identidad, datos, existente);
-                for (const cambio of cambios) {
-                    await registrarCambio(pool, sincronizacionId, fabricante, cambio);
-                }
-                if (cambios.some(c => c.tipo === "nuevo")) contadores.nuevos++;
-                if (cambios.some(c => c.tipo === "modificado")) contadores.modificados++;
-
-                if (!existente && !leidos) {
-                    contadores.incompletos++;
-                    await registrarCambio(pool, sincronizacionId, fabricante, {
-                        codigo: identidad, tipo: "incompleto",
-                        detalle: "alta sin precios: su unidad no cambio o no se pudo leer"
-                    });
-                }
+            let resultado = await aplicarLote(pool, sincronizacionId, fabricante, extraido, universo, extras);
+            if (!resultado.ok) {
+                // Un reintento del mismo lote: un fallo transitorio de red
+                // o un deadlock no deberian costar la relectura del modulo.
+                await new Promise(r => setTimeout(r, 1000));
+                resultado = await aplicarLote(pool, sincronizacionId, fabricante, extraido, universo, extras);
             }
 
-            // Descontinuados: solo se pueden deducir si la fuente sabe
-            // decir su universo vigente. Si no lo sabe (universo === null),
-            // no se marca ninguno -- nunca se inventan bajas.
-            if (universo) {
-                const paraDescontinuar = [...existentes.values()]
-                    .filter(f => f.estado === "activo" && !universo.has(f.codigo));
-
-                const activosPrevios = [...existentes.values()].filter(f => f.estado === "activo").length;
-                const fraccionBaja = activosPrevios > 0 ? paraDescontinuar.length / activosPrevios : 0;
-
-                if (activosPrevios >= MIN_ACTIVOS_PARA_SALVAGUARDA && fraccionBaja > UMBRAL_BAJA_MASIVA
-                    && !opciones.confirmarBajaMasiva) {
-                    throw new Error(
-                        `la fuente dejo de listar ${paraDescontinuar.length} de ${activosPrevios} productos activos `
-                        + `(${Math.round(fraccionBaja * 100)}%). Parece una lectura incompleta, no un cambio real de `
-                        + `catalogo: no se aplico nada.`
-                    );
-                }
-
-                for (const fila of paraDescontinuar) {
-                    await respaldarFila(client, sincronizacionId, fabricante, fila);
-                    await client.query(
-                        `UPDATE public.catalogo_fabricante_productos
-                         SET estado = 'descontinuado', actualizado_en = NOW()
-                         WHERE fabricante = $1 AND codigo = $2`,
-                        [fabricante, fila.codigo]
-                    );
-                    contadores.descontinuados++;
-                    await registrarCambio(pool, sincronizacionId, fabricante, {
-                        codigo: fila.codigo, tipo: "descontinuado",
-                        detalle: "la fuente dejo de listarlo"
-                    });
-                }
+            if (resultado.ok) {
+                contadores.nuevos += resultado.delta.nuevos;
+                contadores.modificados += resultado.delta.modificados;
+                contadores.incoherentes += resultado.delta.incoherentes;
+                contadores.sinCoincidencia += resultado.delta.sinCoincidencia;
+                lotesSeguidosFallidos = 0;
+            } else {
+                // No se escribio NADA de este lote, ni sus firmas: eso es
+                // justo lo que hace que la corrida siguiente lo relea.
+                contadores.lotesFallidos++;
+                lotesSeguidosFallidos++;
+                console.log(`[catalogo-fabricante] el modulo ${lote[0].id} fallo al aplicarse: ${resultado.error.message}`);
+                if (lotesSeguidosFallidos >= MAX_LOTES_FALLIDOS_SEGUIDOS) throw resultado.error;
             }
 
-            // Las firmas de unidad se graban con la MISMA transaccion que
-            // los productos: si algo falla, no queda ninguna unidad marcada
-            // como procesada sin que sus precios se hayan guardado.
-            for (const e of estadosUnidad) {
-                await guardarEstadoUnidad(client, fabricante, e.unidad, e.estado, e.detalle, e.resultado);
-            }
-
-            await client.query("COMMIT");
-        } catch (error) {
-            await client.query("ROLLBACK");
-            throw error;
-        } finally {
-            client.release();
+            unidadesHechas += lote.length;
+            latido();
+            progreso({ etapa: "extrayendo", hechas: unidadesHechas, total: cambiadas.length });
         }
 
-        // Aportar la identidad al Catalogo Maestro, ya con la transaccion
-        // cerrada. Va aparte a proposito: si esto falla, la sincronizacion
-        // de precios sigue siendo valida -- son dos cosas distintas y una
-        // no debe tumbar a la otra. NUNCA se aporta precio, solo identidad.
+        // FASE 5 -- cierre de universo --------------------------------
+        // Se deriva solo del universo y de la base, asi que es idempotente:
+        // si la corrida anterior murio antes de llegar aqui, la siguiente
+        // la corre completa.
+        if (universo) {
+            await cerrarUniverso(pool, {
+                fabricante, sincronizacionId, universo, extras,
+                paraDescontinuar, contadores, latido, progreso
+            });
+        }
+
+        // FASE 6 -- identidad al Catalogo Maestro ---------------------
+        // Va aparte y en su propio try: si esto falla, la sincronizacion
+        // de precios sigue siendo valida. Son dos cosas distintas y una no
+        // debe tumbar a la otra. NUNCA se aporta precio, solo identidad.
         if (opciones.aportarAlMaestro !== false) {
             try {
                 const { aportarAlMaestro } = require("./catalogo-maestro-fabricante");
@@ -703,19 +889,159 @@ async function sincronizar(pool, adaptador, opciones = {}) {
             }
         }
 
-        await cerrarSincronizacion(pool, sincronizacionId, "completada", contadores);
+        // FASE 7 ------------------------------------------------------
+        const detalleFinal = [
+            contadores.incoherentes ? `${contadores.incoherentes} con precios retirados por incoherencia` : "",
+            contadores.lotesFallidos ? `${contadores.lotesFallidos} modulos no se pudieron aplicar` : ""
+        ].filter(Boolean).join("; ");
+
+        await cerrarSincronizacion(pool, sincronizacionId, "completada", contadores, detalleFinal);
         return { sincronizacionId, estado: "completada", contadores };
     } catch (error) {
-        await cerrarSincronizacion(pool, sincronizacionId, "error", contadores, error.message);
+        // Dejar constancia del fallo es deseable, pero NO a costa de
+        // perder el error original. Si la corrida murio porque se cayo la
+        // red, la base tampoco es alcanzable y este UPDATE falla tambien:
+        // sin este try/catch, el error de cierre tapaba al de verdad y el
+        // proceso quedaba colgado con la corrida marcada "en_curso" para
+        // siempre. Paso de verdad al cortarse el internet a media carga.
+        try {
+            await cerrarSincronizacion(pool, sincronizacionId, "error", contadores, error.message);
+        } catch (errorAlCerrar) {
+            console.log(
+                `[catalogo-fabricante] no se pudo registrar el fallo de la corrida ${sincronizacionId}: ${errorAlCerrar.message}`
+            );
+        }
         throw error;
     }
 }
 
+/**
+ * FASE 5: lo que se deduce del universo entero y no de un lote --
+ * vigencia, altas de productos que ninguna unidad trajo, y bajas.
+ *
+ * `paraDescontinuar` viene calculado y ya validado en la fase 2. No se
+ * recalcula: los lotes solo tocan identidades que ESTAN en el universo, y
+ * las bajas son justo las que NO estan, asi que los dos conjuntos son
+ * disjuntos y ningun lote pudo cambiar esa lista.
+ */
+async function cerrarUniverso(pool, ctx) {
+    const { fabricante, sincronizacionId, universo, extras, paraDescontinuar, contadores, latido, progreso } = ctx;
+
+    progreso({ etapa: "cerrando", mensaje: "actualizando vigencia y bajas" });
+
+    // 1. Vigencia: "lo segui viendo". Antes eran ~40.000 UPDATE de una
+    //    fila; aqui uno por cada 2.000 codigos.
+    for (const trozo of trocear([...universo.keys()], 2000)) {
+        await pool.query(
+            `UPDATE public.catalogo_fabricante_productos SET visto_en = NOW()
+              WHERE fabricante = $1 AND codigo = ANY($2::text[])`,
+            [fabricante, trozo]
+        );
+        latido();
+    }
+
+    // 2. Altas de productos que el universo lista pero ninguna unidad
+    //    trajo. El "que ya existe" se relee FRESCO: los lotes de la fase 4
+    //    insertaron filas y cualquier snapshot anterior esta obsoleto.
+    const hay = new Set(
+        (await pool.query(
+            `SELECT codigo FROM public.catalogo_fabricante_productos WHERE fabricante = $1`,
+            [fabricante]
+        )).rows.map(f => f.codigo)
+    );
+    const faltantes = [...universo.keys()].filter(c => !hay.has(c));
+
+    for (const trozo of trocear(faltantes, 500)) {
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            for (const codigo of trozo) {
+                const datos = componerDatos(universo.get(codigo) || {}, extras.get(codigo), null);
+                const cambios = await aplicarProducto(client, sincronizacionId, fabricante, codigo, datos, null);
+                for (const cambio of cambios) {
+                    await registrarCambio(client, sincronizacionId, fabricante, cambio);
+                }
+                await registrarCambio(client, sincronizacionId, fabricante, {
+                    codigo, tipo: "incompleto",
+                    detalle: "alta sin precios: su unidad no cambio o no se pudo leer"
+                });
+                contadores.nuevos++;
+                contadores.incompletos++;
+            }
+            await client.query("COMMIT");
+        } catch (error) {
+            await client.query("ROLLBACK").catch(() => {});
+            console.log(`[catalogo-fabricante] no se pudo dar de alta un grupo sin precios: ${error.message}`);
+        } finally {
+            client.release();
+        }
+        latido();
+    }
+
+    // 3. Bajas, en una transaccion. Se marcan, nunca se borran.
+    if (paraDescontinuar.length > 0) {
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            for (const codigo of paraDescontinuar) {
+                await respaldarProducto(client, sincronizacionId, fabricante, codigo);
+                await client.query(
+                    `UPDATE public.catalogo_fabricante_productos
+                        SET estado = 'descontinuado', actualizado_en = NOW()
+                      WHERE fabricante = $1 AND codigo = $2`,
+                    [fabricante, codigo]
+                );
+                await registrarCambio(client, sincronizacionId, fabricante, {
+                    codigo, tipo: "descontinuado", detalle: "la fuente dejo de listarlo"
+                });
+                contadores.descontinuados++;
+            }
+            await client.query("COMMIT");
+        } catch (error) {
+            await client.query("ROLLBACK").catch(() => {});
+            contadores.descontinuados = 0;
+            console.log(`[catalogo-fabricante] no se pudieron aplicar las bajas: ${error.message}`);
+        } finally {
+            client.release();
+        }
+    }
+}
+
+/**
+ * Cierra las corridas que quedaron "en_curso" sin proceso detras: pasa
+ * cuando el equipo se apaga o se cae la red a media carga. Se corre al
+ * arrancar una corrida nueva para que el historial no acumule fantasmas.
+ */
+async function cerrarCorridasHuerfanas(pool, fabricante, minutosSinAvance = 30) {
+    const r = await pool.query(
+        `UPDATE public.catalogo_fabricante_sincronizaciones
+         SET estado = 'error',
+             detalle = 'la corrida quedo sin avanzar (equipo apagado o sin conexion)',
+             terminada_en = NOW()
+         WHERE fabricante = $1
+           AND estado = 'en_curso'
+           -- Por el LATIDO, no por la hora de arranque: una carga sana de
+           -- TRUPER dura 4 horas, asi que mirar iniciada_en daba por muerta
+           -- una corrida que estaba trabajando. COALESCE cubre las corridas
+           -- viejas, anteriores a que existiera la columna.
+           AND COALESCE(latido_en, iniciada_en) < NOW() - ($2 || ' minutes')::interval
+         RETURNING id`,
+        [fabricante, String(minutosSinAvance)]
+    );
+    return r.rows.map(f => f.id);
+}
+
 module.exports = {
     sincronizar,
+    cerrarCorridasHuerfanas,
     detectarUnidadesCambiadas,
     extraerUnidades,
     aplicarProducto,
+    aplicarLote,
+    agruparPorUnidad,
+    componerDatos,
+    crearSincronizacion,
+    MAX_LOTES_FALLIDOS_SEGUIDOS,
     clasificarRevision,
     mismoPrecio,
     formatearPrecio,

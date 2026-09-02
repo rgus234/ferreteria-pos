@@ -756,26 +756,81 @@ test("aplicarProducto reactiva un producto que el fabricante volvio a listar", a
 
 // Pool falso con respuestas por patron de SQL, suficiente para correr
 // sincronizar() completo sin base de datos.
-function poolFalso({ existentes = [], modulosGuardados = [] } = {}) {
+//
+// Dos cosas que la version anterior no hacia y que hacen falta desde que
+// la corrida se aplica por lotes:
+//
+//   1. RECUERDA lo que se inserta. Antes toda lectura devolvia la foto
+//      inicial, asi que una fase que relee la tabla despues de escribirla
+//      la veia vacia y volvia a dar de alta lo mismo.
+//   2. Cada client de connect() tiene su PROPIO buffer: lo que escribe no
+//      lo ve nadie hasta el COMMIT y un ROLLBACK lo tira. Sin eso la
+//      prueba no puede distinguir "se guardo" de "se intento guardar",
+//      que es justo lo unico que importa cuando un lote falla.
+function poolFalso({ existentes = [], modulosGuardados = [], fallarEn = null } = {}) {
     const ejecutadas = [];
+    const productos = existentes.map(f => ({ ...f })); // confirmados
+    const firmas = [];                                  // unidades firmadas y confirmadas
+
+    function leer(texto, valores, visibles) {
+        if (/FROM public\.catalogo_fabricante_modulos/.test(texto)) {
+            return { rows: modulosGuardados, rowCount: modulosGuardados.length };
+        }
+        if (/FROM public\.catalogo_fabricante_productos/.test(texto)) {
+            let filas = visibles;
+            if (/estado = 'activo'/.test(texto)) filas = filas.filter(f => f.estado === "activo");
+            const lista = (valores || []).find(v => Array.isArray(v));
+            if (lista) filas = filas.filter(f => lista.includes(f.codigo));
+            return { rows: filas, rowCount: filas.length };
+        }
+        return { rows: [], rowCount: 0 };
+    }
+
     async function query(texto, valores) {
         ejecutadas.push({ texto, valores });
         if (/INSERT INTO public\.catalogo_fabricante_sincronizaciones/.test(texto)) {
-            return { rows: [{ id: 1 }] };
+            return { rows: [{ id: 1 }], rowCount: 1 };
         }
-        if (/FROM public\.catalogo_fabricante_modulos/.test(texto)) {
-            return { rows: modulosGuardados };
+        if (/INSERT INTO public\.catalogo_fabricante_productos/.test(texto)) {
+            productos.push({ codigo: String(valores[1]), estado: "activo" });
+            return { rows: [], rowCount: 1 };
         }
-        if (/FROM public\.catalogo_fabricante_productos/.test(texto)) {
-            return { rows: existentes };
-        }
-        return { rows: [] };
+        return leer(texto, valores, productos);
     }
-    return {
-        ejecutadas,
-        query,
-        connect: async () => ({ query, release() {} })
-    };
+
+    async function connect() {
+        let nuevos = [];
+        let nuevasFirmas = [];
+        return {
+            async query(texto, valores) {
+                ejecutadas.push({ texto, valores });
+
+                if (/^\s*BEGIN/.test(texto)) { nuevos = []; nuevasFirmas = []; return { rows: [], rowCount: 0 }; }
+                if (/^\s*COMMIT/.test(texto)) {
+                    productos.push(...nuevos);
+                    firmas.push(...nuevasFirmas);
+                    nuevos = []; nuevasFirmas = [];
+                    return { rows: [], rowCount: 0 };
+                }
+                if (/^\s*ROLLBACK/.test(texto)) { nuevos = []; nuevasFirmas = []; return { rows: [], rowCount: 0 }; }
+
+                if (fallarEn && fallarEn(texto, valores)) throw new Error("fallo simulado de la base");
+
+                if (/INSERT INTO public\.catalogo_fabricante_productos/.test(texto)) {
+                    nuevos.push({ codigo: String(valores[1]), estado: "activo" });
+                    return { rows: [], rowCount: 1 };
+                }
+                if (/INSERT INTO public\.catalogo_fabricante_modulos/.test(texto)) {
+                    nuevasFirmas.push({ unidad: String(valores[1]), parte: String(valores[2]), estado: String(valores[6]) });
+                    return { rows: [], rowCount: 1 };
+                }
+                return leer(texto, valores, productos.concat(nuevos));
+            },
+            release() {}
+        };
+    }
+
+    return { ejecutadas, productos, firmas, query, connect };
 }
 
 // Adaptador falso: un catalogo que de pronto solo lista un producto.
@@ -853,6 +908,289 @@ test("la primera corrida no se bloquea por el freno de regeneracion masiva", asy
     assert.equal(resultado.estado, "completada");
 });
 
+
+// ---------------------------------------------------------------------
+// Reanudabilidad: la corrida se aplica por lotes
+//
+// Una carga completa de TRUPER son ~4 horas. Aplicarla en una sola
+// transaccion al final significaba que un apagon a las 3h50m tiraba TODO
+// el trabajo. Con lotes, cada modulo se confirma por su cuenta.
+//
+// El invariante que sostiene el diseno: la firma de una unidad ("esto ya
+// se leyo") se graba en la MISMA transaccion que los productos que
+// salieron de ella. Una firma sin precios seria peor que no tener nada:
+// hace que nadie vuelva a leer ese modulo hasta que el fabricante cambie
+// la imagen, y ese precio se pierde para siempre.
+// ---------------------------------------------------------------------
+
+// Adaptador con varios modulos, cada uno con sus productos. Es lo minimo
+// para poder hablar de lotes: con una sola unidad no hay nada que probar.
+function adaptadorPorModulos(modulos, opciones = {}) {
+    const universo = new Map();
+    for (const m of modulos) {
+        for (const codigo of m.codigos) {
+            universo.set(codigo, { clave: "K-" + codigo, unidadId: m.id, referencia: null });
+        }
+    }
+
+    return {
+        nombre: opciones.nombre || "MULTI",
+        formato: "prueba",
+        claveIdentidad: "codigo",
+        nivelesPrecio: ["precio_publico"],
+        leidas: [],
+        listarUniverso: async () => universo,
+        listarUnidades: async () => modulos.flatMap(m =>
+            (m.partes || ["pub"]).map(parte => ({
+                id: m.id, parte, firma: `${m.id}-${parte}-v1`, productosEsperados: m.codigos.length
+            }))
+        ),
+        async extraerUnidad(unidad) {
+            this.leidas.push(`${unidad.id}/${unidad.parte}`);
+            if (opciones.alLeer) opciones.alLeer(unidad);
+            const m = modulos.find(x => x.id === unidad.id);
+            return {
+                filas: m.codigos.map(codigo => ({
+                    codigo, clave: "K-" + codigo, descripcion: "Producto " + codigo,
+                    precios: { precio_publico: 100 }
+                })),
+                confiable: true, origen: "prueba", layout: "prueba", confianza: "alta",
+                firmaContenido: `${unidad.id}-${unidad.parte}-h`
+            };
+        }
+    };
+}
+
+test("lo que un lote confirma sobrevive a que el siguiente reviente", async () => {
+    // Esto es la razon de ser de todo el rediseno. Antes, un fallo en el
+    // modulo 40 borraba los 39 anteriores porque todo vivia en una sola
+    // transaccion que se aplicaba al final.
+    const adaptador = adaptadorPorModulos([
+        { id: "m1", codigos: ["1001"] },
+        { id: "m2", codigos: ["1002"] },
+        { id: "m3", codigos: ["1003"] }
+    ]);
+
+    const pool = poolFalso({
+        // El segundo modulo no se puede escribir.
+        fallarEn: (texto, valores) =>
+            /INSERT INTO public\.catalogo_fabricante_productos/.test(texto) && valores[1] === "1002"
+    });
+
+    const resultado = await sync.sincronizar(pool, adaptador, { aportarAlMaestro: false });
+
+    assert.equal(resultado.estado, "completada", "un modulo malo no tumba la corrida");
+    assert.equal(resultado.contadores.lotesFallidos, 1);
+
+    const guardados = pool.productos.map(p => p.codigo).sort();
+    assert.deepEqual(guardados, ["1001", "1003"],
+        "quedo guardado lo de los modulos que si se pudieron aplicar, y nada del que fallo");
+});
+
+test("un lote que falla NO deja firmada ninguna de sus unidades", async () => {
+    // Si la firma se guardara igual, la siguiente corrida se saltaria ese
+    // modulo por tener el etag al dia y esos precios no se recuperarian
+    // nunca. Es el bug que motivo mover las firmas dentro del COMMIT.
+    const adaptador = adaptadorPorModulos([
+        { id: "m1", codigos: ["1001"] },
+        { id: "m2", codigos: ["1002"] }
+    ]);
+
+    const pool = poolFalso({
+        fallarEn: (texto, valores) =>
+            /INSERT INTO public\.catalogo_fabricante_productos/.test(texto) && valores[1] === "1002"
+    });
+
+    await sync.sincronizar(pool, adaptador, { aportarAlMaestro: false });
+
+    const firmadas = pool.firmas.map(f => f.unidad);
+    assert.ok(firmadas.includes("m1"), "el modulo que se aplico si queda firmado");
+    assert.ok(!firmadas.includes("m2"), "el que fallo NO: la proxima corrida tiene que releerlo");
+});
+
+test("un lote se reintenta una vez antes de darlo por perdido", async () => {
+    // Un deadlock o un corte de red de un segundo no deberian costar la
+    // relectura del modulo, que es la parte cara.
+    let intentos = 0;
+    const adaptador = adaptadorPorModulos([{ id: "m1", codigos: ["1001"] }]);
+    const pool = poolFalso({
+        fallarEn: texto => {
+            if (!/INSERT INTO public\.catalogo_fabricante_productos/.test(texto)) return false;
+            intentos++;
+            return intentos === 1; // solo el primer intento falla
+        }
+    });
+
+    const resultado = await sync.sincronizar(pool, adaptador, { aportarAlMaestro: false });
+
+    assert.equal(intentos, 2, "se reintento");
+    assert.equal(resultado.contadores.lotesFallidos, 0, "y el reintento salio bien");
+    assert.deepEqual(pool.productos.map(p => p.codigo), ["1001"]);
+    // Y el modulo se leyo UNA sola vez: el reintento es de la escritura,
+    // no de la lectura.
+    assert.equal(adaptador.leidas.length, 1);
+});
+
+test("varios lotes fallidos seguidos abortan la corrida", async () => {
+    // Un CHECK que revienta con una fila rara no debe frenar a los 3.900
+    // modulos que siguen; pero si fallan varios seguidos, lo que esta mal
+    // es la base o el esquema y seguir solo quema lectura.
+    const modulos = Array.from({ length: 10 }, (_, i) => ({ id: "m" + i, codigos: ["100" + i] }));
+    const adaptador = adaptadorPorModulos(modulos);
+    const pool = poolFalso({
+        fallarEn: texto => /INSERT INTO public\.catalogo_fabricante_productos/.test(texto)
+    });
+
+    await assert.rejects(
+        () => sync.sincronizar(pool, adaptador, { aportarAlMaestro: false }),
+        /fallo simulado/
+    );
+
+    assert.equal(adaptador.leidas.length, sync.MAX_LOTES_FALLIDOS_SEGUIDOS,
+        "se rinde tras los primeros lotes, no lee los 10 modulos");
+});
+
+test("un lote es un modulo entero: sus dos variantes viajan juntas", async () => {
+    // No es un detalle de eficiencia. La revision de coherencia entre
+    // niveles cruza el precio de distribuidor con el de publico, y cada
+    // uno viene en una variante distinta del mismo modulo. Separados en
+    // lotes distintos, un precio con un digito perdido dejaria de verse.
+    const lotes = sync.agruparPorUnidad([
+        { id: "29901", parte: "pub" },
+        { id: "29901", parte: "dis" },
+        { id: "30001", parte: "pub" }
+    ]);
+
+    assert.equal(lotes.length, 2);
+    assert.deepEqual(lotes[0].map(u => u.parte), ["pub", "dis"]);
+    assert.deepEqual(lotes[1].map(u => u.parte), ["pub"]);
+});
+
+test("el freno de baja masiva salta ANTES de gastar una sola lectura", async () => {
+    // Antes vivia dentro de la transaccion final: se descubria a las 4
+    // horas, despues de pagar todo el OCR. Y el mensaje "no se aplico
+    // nada" dependia de que un ROLLBACK deshiciera la corrida entera, algo
+    // que ya no existe con lotes.
+    const existentes = Array.from({ length: 100 }, (_, i) => ({
+        codigo: String(1000 + i), estado: "activo", precio_publico: "10.00"
+    }));
+    const adaptador = adaptadorPorModulos([{ id: "m1", codigos: ["1000"] }]);
+    const pool = poolFalso({ existentes });
+
+    await assert.rejects(
+        () => sync.sincronizar(pool, adaptador, { aportarAlMaestro: false }),
+        /lectura incompleta/
+    );
+
+    assert.equal(adaptador.leidas.length, 0, "no se leyo ni un modulo");
+});
+
+test("la confirmacion de regeneracion masiva se hereda de la corrida anterior", async () => {
+    // Es una decision del operador sobre un evento de la fuente, no de un
+    // proceso. Si la corrida que la traia murio a la hora 3, volver a
+    // pedirla en cada reanudacion haria imposible terminar.
+    const modulos = [{ id: "m1", codigos: ["1001"] }, { id: "m2", codigos: ["1002"] }];
+    const adaptador = adaptadorPorModulos(modulos);
+    const pool = poolFalso({
+        // Las dos unidades ya conocidas, con firma vieja: todo "cambio".
+        modulosGuardados: [
+            { modulo: "m1", variante: "pub", etag: "viejo", hash_contenido: "x" },
+            { modulo: "m2", variante: "pub", etag: "viejo", hash_contenido: "x" }
+        ]
+    });
+
+    // Sin confirmar: se detiene y pregunta.
+    const primera = await sync.sincronizar(pool, adaptador, { aportarAlMaestro: false });
+    assert.equal(primera.estado, "esperando_confirmacion");
+
+    // Ahora una corrida anterior que SI traia la confirmacion.
+    const pool2 = poolFalso({
+        modulosGuardados: [
+            { modulo: "m1", variante: "pub", etag: "viejo", hash_contenido: "x" },
+            { modulo: "m2", variante: "pub", etag: "viejo", hash_contenido: "x" }
+        ]
+    });
+    const original = pool2.query;
+    pool2.query = async (texto, valores) => {
+        if (/SELECT confirmo_regeneracion/.test(texto)) {
+            return { rows: [{ confirmo_regeneracion: true }], rowCount: 1 };
+        }
+        return original(texto, valores);
+    };
+
+    const segunda = await sync.sincronizar(pool2, adaptadorPorModulos(modulos), { aportarAlMaestro: false });
+    assert.equal(segunda.estado, "completada", "hereda la confirmacion y sigue");
+});
+
+test("la confirmacion de BAJA masiva NUNCA se hereda", async () => {
+    // Es la unica proteccion dura contra descontinuar media tienda por una
+    // lectura incompleta del universo. Heredarla la volveria inutil justo
+    // en el caso que importa: corridas que se cortan y se reanudan solas.
+    const existentes = Array.from({ length: 100 }, (_, i) => ({
+        codigo: String(1000 + i), estado: "activo", precio_publico: "10.00"
+    }));
+    const pool = poolFalso({ existentes });
+    const original = pool.query;
+    pool.query = async (texto, valores) => {
+        // Aunque la corrida anterior hubiera confirmado TODO.
+        if (/SELECT confirmo_regeneracion/.test(texto)) {
+            return { rows: [{ confirmo_regeneracion: true }], rowCount: 1 };
+        }
+        return original(texto, valores);
+    };
+
+    await assert.rejects(
+        () => sync.sincronizar(pool, adaptadorPorModulos([{ id: "m1", codigos: ["1000"] }]), { aportarAlMaestro: false }),
+        /lectura incompleta/,
+        "la confirmacion heredada es solo de regeneracion, no de bajas"
+    );
+});
+
+test("dos corridas del mismo fabricante a la vez: la segunda se rechaza", async () => {
+    // El indice unico parcial de Postgres es lo unico que protege contra
+    // que el servidor y scripts/bootstrap-truper.js corran a la vez: la
+    // variable en memoria del servidor no ve al script.
+    const pool = {
+        query: async () => {
+            const choque = new Error("duplicate key value violates unique constraint");
+            choque.code = "23505";
+            throw choque;
+        }
+    };
+
+    await assert.rejects(
+        () => sync.crearSincronizacion(pool, "TRUPER"),
+        error => error.httpStatus === 409 && /ya hay una sincronizacion/.test(error.message)
+    );
+});
+
+test("si ninguna fila del lote cae en el universo, sus unidades quedan en revision", async () => {
+    // Segundo cinturon: que el universo llegue vacio o mal parseado no
+    // puede terminar en firmar modulos como leidos. Eso los quemaria hasta
+    // que el fabricante regenere la imagen.
+    const adaptador = adaptadorPorModulos([{ id: "m1", codigos: ["1001"] }]);
+    // El universo dice que el vigente es otro producto, no el que trae el
+    // modulo. Ninguna fila leida cae dentro.
+    adaptador.listarUniverso = async () => new Map([["9999", { clave: "K-9999", unidadId: "m1" }]]);
+
+    const pool = poolFalso();
+    await sync.sincronizar(pool, adaptador, { aportarAlMaestro: false });
+
+    assert.deepEqual(pool.firmas.map(f => f.estado), ["revision_manual"]);
+    assert.ok(!pool.productos.some(p => p.codigo === "1001"),
+        "y no se guardo el producto que no esta en el universo");
+});
+
+test("cerrarCorridasHuerfanas se guia por el latido, no por la hora de arranque", async () => {
+    // Una carga sana de TRUPER dura 4 horas. Mirando iniciada_en, la
+    // siguiente corrida daba por muerta a una que estaba trabajando.
+    const ejecutadas = [];
+    const pool = { query: async (texto, valores) => { ejecutadas.push({ texto, valores }); return { rows: [] }; } };
+
+    await sync.cerrarCorridasHuerfanas(pool, "TRUPER", 30);
+
+    assert.match(ejecutadas[0].texto, /COALESCE\(latido_en, iniciada_en\)/);
+});
 // ---------------------------------------------------------------------
 // El motor es UNIVERSAL: mismo nucleo, fuentes de formatos distintos
 // ---------------------------------------------------------------------
