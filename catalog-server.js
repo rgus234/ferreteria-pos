@@ -1,5 +1,65 @@
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan } = require("./plan-enforcement");
+
+// Identidad global de producto: lo que permite que un negocio reconozca
+// lo que escanea sin haber cargado ningun catalogo propio.
+//
+// Devuelve la MISMA forma que el catalogo de proveedor, para que la
+// pantalla de Agregar producto no tenga que distinguir de donde vino el
+// dato -- solo `origen` cambia, por si se quiere mostrar.
+//
+// Los precios que se entregan son los de LISTA del fabricante, no los de
+// ningun proveedor: el Maestro nunca guarda lo que un proveedor le cobra
+// a un negocio concreto.
+async function buscarEnCatalogoMaestro(pool, codigo) {
+    try {
+        const { identidadPorCodigo } = require("./catalogo-maestro-reconciliacion");
+        const identidad = await identidadPorCodigo(pool, codigo);
+        if (!identidad) return null;
+
+        // Un producto marcado para revision tiene un conflicto sin
+        // resolver (dos fabricantes con el mismo codigo, o una descripcion
+        // que no cuadra). No se ofrece hasta que alguien lo mire.
+        if (identidad.necesita_revision) return null;
+
+        const codigosRelacionados = [identidad.codigo_fabricante, identidad.ean, identidad.clave]
+            .filter(valor => valor && valor !== codigo);
+
+        return {
+            codigo: identidad.codigo_fabricante || identidad.codigo,
+            nombre: identidad.nombre || "",
+            descripcion: "",
+            marca: identidad.marca || "",
+            categoria: "",
+            unidadVenta: identidad.unidad || "pieza",
+            codigoInterno: identidad.codigo_fabricante || "",
+            codigoBarras: identidad.ean || "",
+            // Precios de lista del fabricante. Pueden venir vacios: el
+            // catalogo oficial todavia no cubre todos los productos, y es
+            // preferible dar identidad sin precio que no dar nada.
+            distribuidor: identidad.precio_distribuidor,
+            medioMayoreo: identidad.precio_medio_mayoreo,
+            publico: identidad.precio_publico,
+            mayoreo: identidad.precio_mayoreo,
+            // Sin proveedor: esta informacion no viene de ninguno, viene
+            // del fabricante. Que lo llene el dueno.
+            proveedor: "",
+            stockMinimo: 3,
+            altaRotacion: "",
+            precioDetectado: identidad.precio_medio_mayoreo != null ? "medio mayoreo" : "",
+            codigosRelacionados,
+            // Para que la pantalla pueda decir de donde salio el dato.
+            origen: "catalogo_nexo",
+            fabricante: identidad.fabricante || "",
+            clave: identidad.clave || ""
+        };
+    } catch (error) {
+        // Que falle el Maestro no debe romper el alta de un producto: se
+        // responde como si no hubiera coincidencia.
+        console.log("[catalogo] no se pudo consultar el Catalogo Maestro:", error.message);
+        return null;
+    }
+}
 const { resolverOcrearProveedorId } = require("./proveedor-resolver");
 const { contribuirOEnlazarCatalogoMaestro } = require("./catalogo-maestro-resolver");
 
@@ -235,7 +295,17 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
             );
 
             if (fila.rows.length === 0) {
-                res.json({ ok: true, producto: null });
+                // El catalogo de proveedor es POR NEGOCIO: un negocio que
+                // no ha cargado ninguno no encuentra nada aqui. Antes de
+                // rendirse se consulta el Catalogo Maestro, que es global.
+                //
+                // El orden importa y es a proposito: el catalogo propio
+                // MANDA siempre. Solo cuando no hay nada suyo entra el
+                // Maestro. Asi un negocio que ya cargo su catalogo sigue
+                // viendo exactamente los precios que negocio con SU
+                // proveedor, y el Maestro solo llena el hueco.
+                const desdeMaestro = await buscarEnCatalogoMaestro(pool, codigo);
+                res.json({ ok: true, producto: desdeMaestro });
                 return;
             }
 
