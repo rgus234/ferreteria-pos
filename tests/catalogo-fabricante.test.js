@@ -1181,6 +1181,31 @@ test("si ninguna fila del lote cae en el universo, sus unidades quedan en revisi
         "y no se guardo el producto que no esta en el universo");
 });
 
+test("el latido cuelga del avance del adaptador, no de los cortes entre fases", async () => {
+    // Latir solo entre fases dejaba ~35 minutos de silencio: listarUniverso
+    // recorre ~600 paginas y listarUnidades pide la firma de 7.932 unidades.
+    // En ese hueco una corrida sana se veia igual que un proceso muerto, y
+    // la siguiente la habria cerrado por huerfana a los 30 minutos. Se
+    // detecto midiendo la corrida de verdad: 169 segundos sin latir.
+    const pool = poolFalso();
+    const adaptador = adaptadorPorModulos([{ id: "m1", codigos: ["1001"] }]);
+
+    let latidosDurante = 0;
+    const universoOriginal = adaptador.listarUniverso;
+    adaptador.listarUniverso = async ctx => {
+        // El adaptador reporta avance a media fase, como hace el de TRUPER
+        // pagina por pagina.
+        ctx.onProgreso({ etapa: "universo", paginas: 1 });
+        latidosDurante = pool.ejecutadas.filter(c => /SET latido_en = NOW\(\)/.test(c.texto)).length;
+        return universoOriginal(ctx);
+    };
+
+    await sync.sincronizar(pool, adaptador, { aportarAlMaestro: false });
+
+    assert.ok(latidosDurante > 0,
+        "un adaptador que reporta avance mantiene viva la corrida sin esperar a que termine la fase");
+});
+
 test("cerrarCorridasHuerfanas se guia por el latido, no por la hora de arranque", async () => {
     // Una carga sana de TRUPER dura 4 horas. Mirando iniciada_en, la
     // siguiente corrida daba por muerta a una que estaba trabajando.

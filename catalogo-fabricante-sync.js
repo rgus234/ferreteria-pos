@@ -690,7 +690,6 @@ async function sincronizar(pool, adaptador, opciones = {}) {
 
     const fabricante = adaptador.nombre;
     const progreso = opciones.onProgreso || (() => {});
-    const contexto = { ...(opciones.contexto || {}), onProgreso: progreso };
 
     // FASE 0 -----------------------------------------------------------
     // Corridas que quedaron vivas de procesos que ya no existen. Sin esto
@@ -701,6 +700,19 @@ async function sincronizar(pool, adaptador, opciones = {}) {
         pool, fabricante, opciones.confirmarRegeneracionMasiva === true
     );
     const latido = crearLatido(pool, sincronizacionId);
+
+    // El latido cuelga del MISMO callback que ya emite el adaptador, no de
+    // llamadas sueltas entre fases. Con latidos solo entre fases habia una
+    // ventana muerta de ~35 minutos -- listarUniverso recorre ~600 paginas
+    // y listarUnidades pide la firma de 7.932 unidades -- durante la cual
+    // una corrida sana parecia un proceso muerto y la siguiente la habria
+    // cerrado por huerfana a los 30. Enganchado aqui, cualquier fase que
+    // reporte avance mantiene viva la corrida, incluidas las de los
+    // adaptadores que todavia no existen.
+    const contexto = {
+        ...(opciones.contexto || {}),
+        onProgreso: info => { latido(); progreso(info); }
+    };
 
     const contadores = {
         unidadesRevisadas: 0, unidadesCambiadas: 0,
