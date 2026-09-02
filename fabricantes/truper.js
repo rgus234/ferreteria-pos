@@ -55,6 +55,11 @@ function pausa(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Estados que significan "ahorita no, vuelve a intentar": el servidor esta
+// saturado, reiniciando, o pidiendo que bajemos el ritmo. No son un no
+// definitivo como un 404.
+const ESTADOS_REINTENTABLES = new Set([429, 500, 502, 503, 504]);
+
 async function pedir(url, opciones = {}) {
     const intentos = opciones.intentos ?? 3;
     let ultimoError = null;
@@ -70,6 +75,25 @@ async function pedir(url, opciones = {}) {
                 body: opciones.body,
                 signal: AbortSignal.timeout(opciones.timeoutMs ?? 30000)
             });
+
+            // fetch NO lanza con un 503: devuelve la respuesta y ya. Sin
+            // esto el reintento solo cubria fallos de red, y un hipo de
+            // medio segundo del servidor de TRUPER tumbaba la corrida
+            // entera. Paso de verdad: "ficha/fichas respondio 503" mato
+            // una carga de horas, y el mismo endpoint respondia 200 un
+            // minuto despues.
+            if (ESTADOS_REINTENTABLES.has(respuesta.status) && intento < intentos) {
+                // Si el servidor dice cuanto esperar, se le hace caso: nos
+                // esta pidiendo que bajemos el ritmo y es su catalogo.
+                const pedido = Number(respuesta.headers.get("retry-after"));
+                const espera = Number.isFinite(pedido) && pedido > 0
+                    ? Math.min(pedido, 30) * 1000
+                    : 1000 * intento;
+                ultimoError = new Error(`respondio ${respuesta.status}`);
+                await pausa(espera);
+                continue;
+            }
+
             return respuesta;
         } catch (error) {
             ultimoError = error;
@@ -464,6 +488,9 @@ module.exports = {
     codigosDeModulos,
     cabecerasModulo,
     descargarModulo,
+    // Se exporta para poder probar el reintento contra estados como 503:
+    // un hipo del servidor no puede tumbar una carga de horas.
+    pedir,
     extraerModulosDePagina,
     extraerSiguiente,
     paginaDeSlug,
