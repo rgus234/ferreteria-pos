@@ -11,7 +11,18 @@ const BASE_URL = `http://localhost:${PUERTO_PRUEBA}`;
 
 let proceso = null;
 
-async function esperarListo(intentosRestantes = 80) {
+// 200 x 300ms = 60 segundos.
+//
+// Eran 80 (24s) y arrancar en limpio ya tarda ~18: seis segundos de
+// margen. Cualquier cosa que ocupe la base -- otra corrida de pruebas, una
+// carga de catalogo, latencia a la nube -- se los come, y entonces
+// archivos ENTEROS fallan con "no arranco a tiempo" aunque el codigo este
+// bien. Paso hoy: la suite completa reporto 24 fallos, ninguno de ellos
+// una asercion, y los mismos archivos pasaron solos minutos despues.
+//
+// Un timeout generoso no oculta nada: si el servidor de verdad no
+// arranca, igual falla, solo que 36 segundos mas tarde y una vez.
+async function esperarListo(intentosRestantes = 200) {
     try {
         const respuesta = await fetch(`${BASE_URL}/health`);
         if (respuesta.ok) return;
