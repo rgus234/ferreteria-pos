@@ -804,6 +804,11 @@ function poolFalso({ existentes = [], modulosGuardados = [], fallarEn = null } =
         let nuevos = [];
         let nuevasFirmas = [];
         return {
+            // Un client de pg es un EventEmitter y el motor le engancha un
+            // oyente de "error": sin estos, el falso no se parece al real
+            // en lo unico que importaba para el fallo que se esta cubriendo.
+            on() { return this; },
+            removeListener() { return this; },
             async query(texto, valores) {
                 ejecutadas.push({ texto, valores });
 
@@ -1188,6 +1193,42 @@ test("si ninguna fila del lote cae en el universo, sus unidades quedan en revisi
     assert.deepEqual(pool.firmas.map(f => f.estado), ["revision_manual"]);
     assert.ok(!pool.productos.some(p => p.codigo === "1001"),
         "y no se guardo el producto que no esta en el universo");
+});
+
+test("una conexion que se muere a media carga no tumba el proceso", async () => {
+    // Paso de verdad a las 2h30m de la carga de TRUPER: Postgres corto una
+    // conexion y el proceso murio con "Unhandled 'error' event". db.js ya
+    // escuchaba errores del POOL, pero eso solo cubre a los clientes
+    // ociosos -- uno tomado con connect() emite en si mismo, y si nadie
+    // escucha, Node mata todo.
+    const pool = poolFalso();
+    const adaptador = adaptadorPorModulos([
+        { id: "m1", codigos: ["1001"] },
+        { id: "m2", codigos: ["1002"] }
+    ]);
+
+    const connectOriginal = pool.connect;
+    const clientes = [];
+    pool.connect = async () => {
+        const client = await connectOriginal();
+        const oyentes = new Map();
+        client.on = (evento, fn) => { oyentes.set(fn, evento); return client; };
+        client.removeListener = (evento, fn) => { oyentes.delete(fn); return client; };
+        const liberarOriginal = client.release;
+        client.release = razon => { client.razonDeSuelta = razon; return liberarOriginal(); };
+        clientes.push({ client, oyentes });
+        return client;
+    };
+
+    await sync.sincronizar(pool, adaptador, { aportarAlMaestro: false });
+
+    assert.ok(clientes.length > 0, "se pidieron conexiones");
+    for (const { client, oyentes } of clientes) {
+        assert.equal(oyentes.size, 0,
+            "el oyente se retira al soltar: dejarlo pegado a un cliente que vuelve al pool los va acumulando");
+        assert.ok("razonDeSuelta" in client,
+            "se suelta pasando el motivo, para que el pool destruya una conexion rota en vez de reciclarla");
+    }
 });
 
 test("el latido cuelga del avance del adaptador, no de los cortes entre fases", async () => {

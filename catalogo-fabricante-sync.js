@@ -466,6 +466,39 @@ async function extraerUnidades(pool, adaptador, cambiadas, contexto, onProgreso)
 // Aplicacion
 // ---------------------------------------------------------------------
 
+/**
+ * Pide una conexion y le pone escucha de errores.
+ *
+ * db.js ya tiene pool.on("error"), pero eso SOLO cubre a los clientes
+ * ociosos del pool. Un cliente tomado con connect() emite sus errores en
+ * si mismo, y si nadie escucha, Node tumba el proceso entero con
+ * "Unhandled 'error' event".
+ *
+ * Paso de verdad: a las 2h30m de la carga de TRUPER, Postgres corto una
+ * conexion ("Connection terminated unexpectedly") y se murio la corrida.
+ * No se perdio nada gracias a los lotes -- 614 productos ya estaban
+ * guardados -- pero se perdieron las horas que faltaban.
+ *
+ * El error se guarda para pasarselo a release(): asi el pool DESTRUYE esa
+ * conexion en vez de devolverla rota a la fila.
+ */
+async function conexionVigilada(pool) {
+    const client = await pool.connect();
+    const estado = { roto: null };
+
+    const alFallar = error => { estado.roto = error; };
+    client.on("error", alFallar);
+
+    estado.soltar = () => {
+        client.removeListener("error", alFallar);
+        // release(error) marca la conexion como inservible. Sin esto
+        // volveria al pool y el siguiente lote la tomaria ya muerta.
+        client.release(estado.roto || undefined);
+    };
+
+    return { client, estado };
+}
+
 // La imagen de la fila la produce Postgres, dentro de la misma transaccion
 // y ANTES del UPDATE. Antes se guardaba el objeto `existente`, que es una
 // proyeccion recortada: le faltaban precio_*_anterior, ean_origen,
@@ -554,8 +587,11 @@ async function aplicarLote(pool, sincronizacionId, fabricante, extraido, univers
     // envuelve la llamada, tumbaba la corrida de 4 horas entera. Justo el
     // caso que el reintento existe para absorber.
     let client = null;
+    let soltar = null;
     try {
-        client = await pool.connect();
+        const conexion = await conexionVigilada(pool);
+        client = conexion.client;
+        soltar = conexion.estado.soltar;
         await client.query("BEGIN");
 
         const guardados = await leerExistentesPorCodigo(client, fabricante, identidades);
@@ -613,7 +649,7 @@ async function aplicarLote(pool, sincronizacionId, fabricante, extraido, univers
         // reporte inflado.
         return { ok: false, error, delta: null };
     } finally {
-        if (client) client.release();
+        if (soltar) soltar();
     }
 }
 
@@ -1188,8 +1224,11 @@ function anotarFalloDeCierre(contadores, paso, error) {
 // {ok, valor} para que el llamador sume contadores SOLO si commiteo.
 async function enTransaccion(pool, trabajo) {
     let client = null;
+    let soltar = null;
     try {
-        client = await pool.connect();
+        const conexion = await conexionVigilada(pool);
+        client = conexion.client;
+        soltar = conexion.estado.soltar;
         await client.query("BEGIN");
         const valor = await trabajo(client);
         await client.query("COMMIT");
@@ -1198,7 +1237,7 @@ async function enTransaccion(pool, trabajo) {
         if (client) await client.query("ROLLBACK").catch(() => {});
         return { ok: false, error };
     } finally {
-        if (client) client.release();
+        if (soltar) soltar();
     }
 }
 
