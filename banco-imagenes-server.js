@@ -1159,6 +1159,40 @@ function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
             let nuevoPrincipal = { imagen: filaBanco.imagen_principal, tipo: filaBanco.imagen_principal_tipo };
             let filasParaGaleria = galeria.rows;
 
+            // Si el banco no guarda galeria para este codigo, se traen las
+            // fotos que el fabricante publica y se copian al producto del
+            // negocio. Asi "Usar esta imagen" sigue trayendo varias fotos
+            // aunque el banco ya no las almacene.
+            //
+            // Aqui SI se descargan y guardan, a diferencia de la ficha
+            // publica (que solo enlaza): es una decision explicita del
+            // dueno para ESE producto, no 16.739 fotos "por si acaso".
+            // Se redimensionan al mismo tamano que usaba el banco (480 px)
+            // para no meter imagenes de 1800x1800 en la base.
+            if (filasParaGaleria.length === 0) {
+                try {
+                    const { fotosDeProducto } = require("./banco-fotos-fabricante");
+                    const delFabricante = await fotosDeProducto(pool, codigo);
+                    const sharp = require("sharp");
+
+                    // slice(1): la primera es la principal, que ya va aparte.
+                    for (const foto of delFabricante.fotos.slice(1)) {
+                        const respuesta = await fetch(foto.url);
+                        if (!respuesta.ok) continue;
+                        const original = Buffer.from(await respuesta.arrayBuffer());
+                        const reducida = await sharp(original)
+                            .resize(480, 480, { fit: "inside", withoutEnlargement: true })
+                            .jpeg({ quality: 82 })
+                            .toBuffer();
+                        filasParaGaleria.push({ imagen: reducida, tipo: "image/jpeg" });
+                    }
+                } catch (error) {
+                    // Sin fotos del fabricante se copia solo la principal:
+                    // vale mas eso que fallar la accion entera.
+                    console.log("[banco-imagenes] no se pudieron traer fotos del fabricante:", error.message);
+                }
+            }
+
             // galeriaId opcional (viene de "Ver galeria"): promueve esa foto
             // a principal. Se busca DENTRO de la galeria ya cargada de este
             // mismo banco_imagen_id -- nunca un WHERE id=$1 suelto sobre toda

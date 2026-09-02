@@ -1527,9 +1527,32 @@ async function cargarProductoTenant(pool, sitio, slug, codigo, firmarTokenImagen
                     `SELECT id FROM public.banco_imagenes_producto_galeria WHERE banco_imagen_id = $1 ORDER BY orden ASC`,
                     [filaBanco.id]
                 );
-                const bancoGaleriaUrls = bancoGaleriaRes.rows.map(fila =>
+                let bancoGaleriaUrls = bancoGaleriaRes.rows.map(fila =>
                     `/banco-imagenes-galeria/${fila.id}?token=${firmarTokenBancoImagen(String(fila.id))}`
                 );
+
+                // Si el banco no tiene galeria guardada para este codigo,
+                // se usan las fotos que el fabricante ya publica (ver
+                // banco-fotos-fabricante.js). Son las mismas que ve el POS,
+                // asi que la tienda y el punto de venta muestran lo mismo.
+                //
+                // Esto es lo que permite dejar de guardar 1.2 GB de fotos
+                // secundarias sin que el cliente de la tienda pierda nada:
+                // sin este bloque, borrar la galeria del banco dejaria los
+                // productos con una sola foto en el Market.
+                if (bancoGaleriaUrls.length === 0) {
+                    try {
+                        const { fotosDeProducto } = require("./banco-fotos-fabricante");
+                        const delFabricante = await fotosDeProducto(pool, codigoBanco);
+                        // La primera del fabricante es la principal, que ya
+                        // va aparte: aqui solo interesan las adicionales.
+                        bancoGaleriaUrls = delFabricante.fotos.slice(1).map(foto => foto.url);
+                    } catch (error) {
+                        // Que no se puedan resolver no debe tumbar la ficha
+                        // del producto: se queda con la foto principal.
+                        console.log("[sitio] no se pudieron resolver fotos del fabricante:", error.message);
+                    }
+                }
                 const bancoUrls = [
                     `/banco-imagenes/${encodeURIComponent(codigoBanco)}/principal?v=${version}&token=${firmarTokenBancoImagen(codigoBanco)}`,
                     ...bancoGaleriaUrls
