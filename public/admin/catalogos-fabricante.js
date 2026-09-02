@@ -144,12 +144,23 @@ function pintarCatalogosFabricante(fuentes) {
     if (rev > 0) renglones.push(["Necesitan revision", numeroCatalogo(rev), "alerta"]);
 
     const esperando = u && u.estado === "esperando_confirmacion";
+    const fallo = u && u.estado === "error";
+    const enCurso = u && u.estado === "en_curso";
+    // Una corrida puede terminar y aun asi tener algo que contar: modulos
+    // que no se pudieron aplicar, precios retirados por incoherencia,
+    // productos que volvieron a activarse, o pasos del cierre que fallaron.
+    // Sin esto la tarjeta se veia igual de sana en los dos casos, que es
+    // justo lo que hace que un reporte mienta.
+    const avisos = u && u.detalle && !esperando && !fallo ? String(u.detalle) : "";
 
     return '<article class="catalogo-fuente">'
       + '<div class="catalogo-fuente-head"><div>'
       + "<h3>" + nombre + "</h3>"
       + '<span class="catalogo-fuente-sub">'
-      + (u ? "Sincronizado: " + fechaCortaCatalogo(u.terminada_en || u.iniciada_en) : "Sin sincronizar todavia")
+      + (u
+        ? (fallo ? "Ultimo intento: " : enCurso ? "En curso desde: " : "Sincronizado: ")
+          + fechaCortaCatalogo(fallo || enCurso ? u.iniciada_en : (u.terminada_en || u.iniciada_en))
+        : "Sin sincronizar todavia")
       + "</span></div>"
       + (rev > 0 ? '<span class="catalogo-chip alerta">' + numeroCatalogo(rev) + " por revisar</span>" : "")
       + "</div>"
@@ -163,6 +174,16 @@ function pintarCatalogosFabricante(fuentes) {
       + (esperando
         ? '<div class="catalogo-confirmacion"><p>' + escaparCatalogo(u.detalle || "La corrida quedo esperando tu confirmacion.")
           + '</p><button type="button" onclick="sincronizarCatalogo(\'' + nombre + '\', true)">Confirmar y continuar</button></div>'
+        : "")
+
+      + (fallo
+        ? '<div class="catalogo-nota roja"><b>La ultima corrida no termino.</b> '
+          + escaparCatalogo(u.detalle || "No quedo registrado el motivo.")
+          + " Lo que alcanzo a guardarse se conservo: al volver a sincronizar sigue donde quedo.</div>"
+        : "")
+
+      + (avisos
+        ? '<div class="catalogo-nota amarilla"><b>Termino, con avisos.</b> ' + escaparCatalogo(avisos) + "</div>"
         : "")
 
       + '<div class="catalogo-acciones">'

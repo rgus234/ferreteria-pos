@@ -1595,6 +1595,28 @@ small,
 
 .catalogo-confirmacion p { margin: 0 0 10px; }
 
+/* Notas sobre la ULTIMA corrida terminada. No llevan boton: no hay nada
+   que confirmar, son cosas que el dueno tiene que SABER -- modulos que no
+   se aplicaron, precios retirados por incoherencia, pasos del cierre que
+   fallaron.
+
+   Ojo con el nombre: .catalogo-aviso ya existe mas arriba y es el banner
+   de "hay una corrida en curso", que es display:flex. Reusarlo partia el
+   texto en dos columnas Y pisaba el estilo de aquel. */
+.catalogo-nota {
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.catalogo-nota b { display: block; margin-bottom: 3px; }
+.catalogo-nota.amarilla { border-left-color: var(--amber); }
+.catalogo-nota.roja { border-left-color: var(--red); }
+
 .catalogo-chip {
   display: inline-block;
   padding: 3px 9px;
