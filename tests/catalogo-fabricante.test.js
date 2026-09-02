@@ -1060,8 +1060,14 @@ test("varios lotes fallidos seguidos abortan la corrida", async () => {
         /fallo simulado/
     );
 
-    assert.equal(adaptador.leidas.length, sync.MAX_LOTES_FALLIDOS_SEGUIDOS,
-        "se rinde tras los primeros lotes, no lee los 10 modulos");
+    // La garantia es "se rinde temprano", no un numero exacto: con varios
+    // lotes en paralelo puede haber algunos ya en vuelo cuando se levanta
+    // la bandera de aborto, y esos terminan su lectura.
+    assert.ok(
+        adaptador.leidas.length >= sync.MAX_LOTES_FALLIDOS_SEGUIDOS &&
+        adaptador.leidas.length <= sync.MAX_LOTES_FALLIDOS_SEGUIDOS + sync.LOTES_EN_PARALELO,
+        `se rinde tras los primeros lotes en vez de leer los 10 (leyo ${adaptador.leidas.length})`
+    );
 });
 
 test("un lote es un modulo entero: sus dos variantes viajan juntas", async () => {

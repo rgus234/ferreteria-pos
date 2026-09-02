@@ -55,6 +55,30 @@ function pausa(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Turnero global de salida hacia TRUPER.
+//
+// Cuando la lectura pasa a ser concurrente, el freno de PAUSA_MS deja de
+// servir: cada tarea espera SU pausa, pero entre todas multiplican las
+// peticiones por el numero de tareas. Este turnero espacia las peticiones
+// de TODO el proceso, corran una o veinte tareas.
+//
+// La decision de fondo: la carga se acelera usando los nucleos que estan
+// ociosos -- el OCR es el 78% del tiempo y es CPU -- NO golpeando mas
+// fuerte a un servidor ajeno. TRUPER ya devolvio un 503 hoy con el ritmo
+// de una sola tarea.
+let turnoLibreEn = 0;
+
+async function esperarTurno(separacionMs) {
+    const ahora = Date.now();
+    // Se aparta el turno ANTES del await: si dos tareas leyeran el reloj a
+    // la vez, las dos creerian que les toca ya y saldrian juntas.
+    const miTurno = Math.max(ahora, turnoLibreEn);
+    turnoLibreEn = miTurno + separacionMs;
+
+    const espera = miTurno - ahora;
+    if (espera > 0) await pausa(espera);
+}
+
 // Estados que significan "ahorita no, vuelve a intentar": el servidor esta
 // saturado, reiniciando, o pidiendo que bajemos el ritmo. No son un no
 // definitivo como un 404.
@@ -66,6 +90,8 @@ async function pedir(url, opciones = {}) {
 
     for (let intento = 1; intento <= intentos; intento++) {
         try {
+            await esperarTurno(opciones.separacionMs ?? PAUSA_MS);
+
             const respuesta = await fetch(url, {
                 method: opciones.method || "GET",
                 headers: {
@@ -173,7 +199,6 @@ async function listarModulos(opciones = {}) {
         }
 
         slug = extraerSiguiente(html);
-        await pausa(PAUSA_MS);
     }
 
     if (paginas >= MAX_PAGINAS) {
@@ -255,8 +280,10 @@ async function descargarModulo(modulo, variante) {
         throw new Error(`imagen ${modulo}/${variante} respondio ${respuesta.status}`);
     }
 
+    // Sin pausa aqui: el espaciado hacia TRUPER lo lleva esperarTurno()
+    // dentro de pedir(), y cuenta para todo el proceso. Repetirlo frenaria
+    // de mas sin proteger nada.
     const buffer = Buffer.from(await respuesta.arrayBuffer());
-    await pausa(PAUSA_MS);
     return buffer;
 }
 
@@ -306,7 +333,6 @@ async function datosDeProducto(codigo) {
     // El buscador es difuso: se exige coincidencia EXACTA de codigo para
     // no quedarse con un producto parecido.
     const exacto = lista.find(item => String(item.codigo) === String(codigo));
-    await pausa(PAUSA_MS);
 
     if (!exacto) return null;
 

@@ -642,22 +642,60 @@ async function recortarTablas(bufferImagen, opciones = {}) {
     return recortes;
 }
 
-// Worker de tesseract reutilizado entre modulos -- crearlo por cada
+// Workers de tesseract reutilizados entre modulos -- crearlos por cada
 // imagen dominaria el tiempo total de una corrida de miles de modulos.
-let workerOcr = null;
-async function obtenerWorkerOcr() {
-    if (!workerOcr) {
+//
+// Son VARIOS, y ese es el cambio que baja la carga de ~28 horas a unas
+// pocas. Medido sobre modulos reales: bajar una imagen tarda 0.5s y
+// leerla 1.8s, o sea que el 78% del tiempo es CPU. Con un solo worker,
+// quince de los dieciseis nucleos miran.
+//
+// Por que 4 y no 16: cada worker de tesseract carga su propio motor y su
+// diccionario. Cuatro caben de sobra; sesenta abririan la puerta a que la
+// corrida muera por falta de memoria a las tres horas, que es peor que ir
+// lento. Se puede subir con NEXO_OCR_WORKERS si la maquina da para mas.
+const WORKERS_OCR = Math.max(1, Math.min(
+    Number(process.env.NEXO_OCR_WORKERS) || 4,
+    require("os").cpus().length
+));
+
+const workers = [];       // los creados hasta ahora
+const libres = [];        // los que estan sin trabajo
+const enEspera = [];      // resolvers de quien pidio uno y no habia
+
+async function tomarWorker() {
+    if (libres.length > 0) return libres.pop();
+
+    if (workers.length < WORKERS_OCR) {
         const Tesseract = require("tesseract.js");
-        workerOcr = await Tesseract.createWorker("spa");
+        const worker = await Tesseract.createWorker("spa");
+        workers.push(worker);
+        return worker;
     }
-    return workerOcr;
+
+    // Todos ocupados: se hace fila en vez de crear uno mas.
+    return new Promise(resolve => enEspera.push(resolve));
+}
+
+function devolverWorker(worker) {
+    const siguiente = enEspera.shift();
+    // Se entrega directo al que espera, sin pasar por la lista de libres:
+    // si no, dos que esperan podrian llevarse el mismo.
+    if (siguiente) siguiente(worker);
+    else libres.push(worker);
+}
+
+// Compatibilidad: habia un unico worker y este era su nombre. Se conserva
+// para no romper a nadie, pero toma uno del pool y hay que devolverlo.
+async function obtenerWorkerOcr() {
+    return tomarWorker();
 }
 
 async function liberarWorkerOcr() {
-    if (workerOcr) {
-        await workerOcr.terminate();
-        workerOcr = null;
-    }
+    const aTerminar = workers.splice(0, workers.length);
+    libres.length = 0;
+    enEspera.length = 0;
+    await Promise.all(aTerminar.map(w => w.terminate().catch(() => {})));
 }
 
 // ---------------------------------------------------------------------
@@ -775,9 +813,17 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
 
     const motor = opciones.ocr || {
         recognize: async buffer => {
-            const worker = await obtenerWorkerOcr();
-            const { data } = await worker.recognize(buffer);
-            return { texto: data.text, confianza: data.confidence };
+            // El worker se DEVUELVE pase lo que pase: si una imagen rara
+            // hace fallar a tesseract y el worker se queda tomado, el pool
+            // se va vaciando modulo a modulo hasta que la corrida se
+            // cuelga esperando un turno que no llega.
+            const worker = await tomarWorker();
+            try {
+                const { data } = await worker.recognize(buffer);
+                return { texto: data.text, confianza: data.confidence };
+            } finally {
+                devolverWorker(worker);
+            }
         }
     };
 

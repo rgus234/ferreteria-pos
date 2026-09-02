@@ -108,3 +108,35 @@ test("si el servidor nunca se recupera, devuelve el ultimo 503 y decide quien ll
         await s.cerrar();
     }
 });
+
+test("con lectura concurrente, las peticiones a TRUPER NO se multiplican", async () => {
+    // Este es el limite que hace aceptable acelerar la carga. Antes cada
+    // tarea esperaba SU pausa de 350ms; con cuatro tareas eso serian
+    // cuatro veces mas peticiones al servidor de TRUPER, que hoy ya
+    // devolvio un 503 al ritmo de una sola. El turnero espacia la salida
+    // de TODO el proceso, corran una tarea o veinte.
+    const s = await servidorConGuion([{ estado: 200, cuerpo: "ok" }]);
+
+    try {
+        const momentos = [];
+        const original = global.fetch;
+        global.fetch = async (...args) => { momentos.push(Date.now()); return original(...args); };
+
+        try {
+            // Ocho peticiones lanzadas TODAS a la vez.
+            await Promise.all(Array.from({ length: 8 }, () => pedir(s.url)));
+        } finally {
+            global.fetch = original;
+        }
+
+        momentos.sort((a, b) => a - b);
+        const total = momentos[momentos.length - 1] - momentos[0];
+
+        // 7 huecos de 350ms entre 8 peticiones. Se deja holgura por el
+        // reloj, pero muy por encima de los ~0ms de salir en tropel.
+        assert.ok(total >= 7 * 350 * 0.9,
+            `las 8 peticiones se espaciaron (tardaron ${total}ms, se esperaban ~2450)`);
+    } finally {
+        await s.cerrar();
+    }
+});

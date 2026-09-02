@@ -158,6 +158,17 @@ function agruparPorUnidad(cambiadas) {
 // y seguir solo quema OCR.
 const MAX_LOTES_FALLIDOS_SEGUIDOS = 3;
 
+// Cuantos modulos se procesan a la vez.
+//
+// Con uno solo, una carga completa de TRUPER son ~28 horas: se midio en
+// vivo a 4.5 unidades/minuto, cuando el trabajo puro de una unidad son
+// 2.3 segundos. El proceso pasaba casi todo el tiempo esperando.
+//
+// El techo no lo pone este numero sino el turnero de salida del adaptador,
+// que espacia las peticiones al fabricante igual que antes. O sea: se
+// aprovechan los nucleos ociosos SIN pedirle mas al servidor ajeno.
+const LOTES_EN_PARALELO = Math.max(1, Number(process.env.NEXO_LOTES_PARALELOS) || 4);
+
 async function registrarCambio(pool, sincronizacionId, fabricante, cambio) {
     await pool.query(
         `INSERT INTO public.catalogo_fabricante_cambios
@@ -988,7 +999,21 @@ async function sincronizar(pool, adaptador, opciones = {}) {
             mensaje: `procesando ${cambiadas.length} unidades en ${lotes.length} modulos`
         });
 
-        for (const lote of lotes) {
+        // Varios lotes a la vez. Cada uno es un modulo distinto, con sus
+        // propios productos y su propia transaccion, asi que no se pisan.
+        // Los invariantes se conservan intactos: las firmas se siguen
+        // grabando con los productos de su lote, y el chequeo de
+        // coherencia sigue viendo las dos variantes juntas porque un lote
+        // es un modulo entero.
+        //
+        // Si dos lotes intentan dar de alta el mismo codigo a la vez, uno
+        // choca contra el UNIQUE y falla; el reintento que ya existia lo
+        // encuentra creado y hace UPDATE. No hace falta nada mas.
+        let abortar = null;
+
+        async function correrLote(lote) {
+            if (abortar) return;
+
             const extraido = await extraerUnidades(pool, adaptador, lote, contexto, () => latido());
 
             let resultado = await aplicarLote(pool, sincronizacionId, fabricante, extraido, universo, extras);
@@ -1011,13 +1036,31 @@ async function sincronizar(pool, adaptador, opciones = {}) {
                 contadores.lotesFallidos++;
                 lotesSeguidosFallidos++;
                 console.log(`[catalogo-fabricante] el modulo ${lote[0].id} fallo al aplicarse: ${resultado.error.message}`);
-                if (lotesSeguidosFallidos >= MAX_LOTES_FALLIDOS_SEGUIDOS) throw resultado.error;
+                if (lotesSeguidosFallidos >= MAX_LOTES_FALLIDOS_SEGUIDOS) abortar = resultado.error;
             }
 
             unidadesHechas += lote.length;
             latido();
             progreso({ etapa: "extrayendo", hechas: unidadesHechas, total: cambiadas.length });
         }
+
+        // Los trabajadores se reparten la fila: cada uno toma el siguiente
+        // lote pendiente al terminar el suyo. Asi un modulo lento no frena
+        // a los demas, que es lo que pasaria repartiendo por bloques.
+        let siguienteLote = 0;
+        const trabajadores = Array.from(
+            { length: Math.min(LOTES_EN_PARALELO, lotes.length) },
+            async () => {
+                while (!abortar) {
+                    const indice = siguienteLote++;
+                    if (indice >= lotes.length) return;
+                    await correrLote(lotes[indice]);
+                }
+            }
+        );
+
+        await Promise.all(trabajadores);
+        if (abortar) throw abortar;
 
         // FASE 5 -- cierre de universo --------------------------------
         // Se deriva solo del universo y de la base, asi que es idempotente:
@@ -1281,6 +1324,7 @@ module.exports = {
     componerDatos,
     crearSincronizacion,
     MAX_LOTES_FALLIDOS_SEGUIDOS,
+    LOTES_EN_PARALELO,
     clasificarRevision,
     mismoPrecio,
     formatearPrecio,
