@@ -1921,3 +1921,42 @@ test("una corrida COMPLETA sigue dando de baja como siempre", async () => {
 
     assert.equal(resultado.contadores.descontinuados, 5);
 });
+
+test("una fila a la que le falta un precio no tira las demas", async () => {
+    // Caso real: hay modulos donde se leyeron 52 de 54 filas perfectas y
+    // se perdieron las 54, porque bastaba UNA fila incompleta para tumbar
+    // el modulo entero. Son 2.559 productos repartidos en 260 modulos.
+    const imagen = await moduloFalso();
+
+    // Tres productos: dos completos y uno al que le falta el publico.
+    const ocrConUnaCoja = {
+        recognize: async () => ({
+            texto: [
+                "Código Clave Mayoreo 1/2 Mayoreo Público",
+                "103013 PMU-8PX $335 $365 $400",
+                "103012 PMU-8EX $355 $390 $430",
+                "103011 PMU-6PX $300 $330"
+            ].join("\n"),
+            confianza: 66
+        })
+    };
+
+    const r = await ocr.extraerTablaDeModulo(imagen, {
+        codigosEsperados: ["103013", "103012", "103011"],
+        columnasForzadas: ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"],
+        ocr: ocrConUnaCoja
+    });
+
+    assert.equal(r.confiable, true, "los dos completos se aprovechan");
+    assert.equal(r.validacion.parcial, true, "y el modulo queda pendiente por el tercero");
+    assert.deepEqual(r.filas.map(f => f.codigo).sort(), ["103012", "103013"]);
+    assert.deepEqual(r.validacion.faltantes, ["103011"]);
+
+    // Y lo que se guarda esta COMPLETO: nunca un producto con dos de sus
+    // tres precios, que era el bug que esta regla protegia.
+    assert.ok(
+        r.filas.every(f => ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+            .every(c => f.precios[c] != null)),
+        "ninguna fila guardada va incompleta"
+    );
+});

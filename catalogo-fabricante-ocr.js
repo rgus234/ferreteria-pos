@@ -943,15 +943,37 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
                 fila.motivo = problemas.join("; ");
             }
         }
-        const validacion = validarContraFuenteTexto(filasEvaluadas, opciones.codigosEsperados);
+
+        // Se valida sobre las filas COMPLETAS, no sobre todas.
+        //
+        // Antes bastaba UNA fila a la que le faltara un precio para tirar
+        // el modulo entero: hay modulos reales donde se leyeron 52 de 54
+        // filas perfectas y se perdieron las 54. Al validar solo las
+        // completas, las incompletas caen solas del lado de "faltantes" y
+        // el modulo queda parcial, que es lo que de verdad es.
+        //
+        // Cada fila que se acepta sigue teniendo su codigo confirmado
+        // contra la fuente en texto y sus precios coherentes entre si. Que
+        // OTRA fila del mismo modulo saliera mal no la contamina: el
+        // parseo es por renglon, no arrastra de uno a otro.
+        const completas = filasEvaluadas.filter(f => f.completa);
+        const validacion = validarContraFuenteTexto(completas, opciones.codigosEsperados);
+
         return {
             validacion,
-            confiable: validacion.ok && filasEvaluadas.length > 0 && filasEvaluadas.every(f => f.completa)
+            // `utiles` es lo que se debe guardar. Puede ser menos que lo
+            // leido, y esta bien: un hueco es mejor que un precio a medias.
+            utiles: completas,
+            confiable: validacion.ok && completas.length > 0
         };
     }
 
     let filasFinales = filas;
-    let { validacion, confiable } = evaluar(filasFinales);
+    let evaluacion = evaluar(filasFinales);
+    let { validacion, confiable } = evaluacion;
+    // Solo se guardan las filas completas: las que salieron a medias
+    // cuentan como faltantes y dejan el modulo parcial.
+    if (confiable) filasFinales = evaluacion.utiles;
     let origen = "ocr";
 
     // Respaldo con vision: solo si el OCR ya fallo y el llamador aporto un
@@ -998,7 +1020,12 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
     // Una lectura PARCIAL tambien pide vision: es justo el caso donde
     // puede recuperar la fila que al OCR se le fue. Si la vision no lo
     // hace mejor, se conserva lo parcial en vez de perderlo.
-    const parcialOcr = Boolean(validacion?.parcial);
+    //
+    // Salvo cuando el modulo ya se resolvio como "el fabricante no publica
+    // este precio": ahi no falta nada que rescatar -- la columna esta
+    // vacia en el catalogo impreso-- y gastar vision seria pagar por
+    // confirmar un hueco que TRUPER dejo a proposito.
+    const parcialOcr = Boolean(validacion?.parcial) && !sinPreciosPublicados;
 
     if ((!confiable || parcialOcr) && opciones.anthropic && !precioPorBloque) {
         intentoVision = true;
@@ -1030,7 +1057,7 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
                 const faltanAhora = (evaluacionIA.validacion?.faltantes || []).length;
 
                 if (evaluacionIA.confiable && faltanAhora < faltabanAntes) {
-                    filasFinales = filasIA;
+                    filasFinales = evaluacionIA.utiles;
                     validacion = evaluacionIA.validacion;
                     confiable = true;
                     origen = "vision";
