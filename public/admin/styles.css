@@ -1,4 +1,4 @@
-/* Los colores/sombras vienen de public/css/design-system.css (tokens
+﻿/* Los colores/sombras vienen de public/css/design-system.css (tokens
    --nexo-*, ya linkeado en index.html) -- este panel solo mapea sus
    propios nombres de variable (usados en toda esta hoja) a esos
    tokens compartidos, para verse consistente con el resto de la app
@@ -1471,4 +1471,11 @@ small,
   .banco-imagenes-header { flex-direction: column; }
   .banco-imagenes-metrics { grid-template-columns: 1fr; }
   .banco-imagenes-solicitud-fila { grid-template-columns: 1fr; }
+}
+
+/* Detalle de una metrica que dejo de ser informativa y paso a ser un
+   aviso: la IA sin saldo no es un dato de costo, es un servicio caido. */
+.metric-alerta {
+  color: var(--red);
+  font-weight: 600;
 }
