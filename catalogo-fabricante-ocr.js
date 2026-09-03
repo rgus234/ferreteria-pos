@@ -154,6 +154,76 @@ function esLineaEncabezado(linea) {
 // simplemente no matcheaba y el producto desaparecia de la lectura.
 const REGEX_INICIO_FILA = /^\s*(\d{4,8})[^\s\d]{0,2}\s+(\S+)?/;
 
+/**
+ * Parte un renglon que trae VARIOS productos.
+ *
+ * Hay modulos maquetados con dos o tres tablas lado a lado. Cuando los
+ * pasillos entre ellas no son lo bastante blancos para separarlas por
+ * pixeles --se midieron al 4% de contenido contra un umbral del 2%,
+ * porque las franjas grises de las filas los cruzan-- el OCR entrega las
+ * tres tablas juntas en la misma linea:
+ *
+ *   13182 D-1408-L $35 $38 $42 4  13156 D-1408 $25 $27 $30 4  100875 ...
+ *
+ * Antes se buscaba UNA sola ancla al principio del renglon: se encontraba
+ * el primer codigo, se contaban 9 importes donde se esperaban 3, y la fila
+ * salia incompleta. Los otros dos productos ni se buscaban. Son 188
+ * modulos y ~1.100 productos.
+ *
+ * Se resuelve aqui y no en el recorte de la imagen a proposito: mover los
+ * umbrales de deteccion de pasillos arriesga los 7.496 modulos que ya se
+ * leen bien, y esto ademas sirve para dos, tres o las que sean.
+ */
+function partirEnProductos(linea, anclas) {
+    // Sin lista autoritativa no hay nada que partir: el renglon se procesa
+    // igual que siempre y el llamador usa REGEX_INICIO_FILA.
+    if (!anclas || anclas.length === 0) return [{ codigo: "", texto: linea }];
+
+    const encontradas = [];
+
+    for (const codigo of anclas) {
+        let desde = 0;
+        let pos;
+        while ((pos = linea.indexOf(codigo, desde)) >= 0) {
+            desde = pos + 1;
+
+            // Rodeado de digitos es un tramo de otro numero mas largo, no
+            // el codigo: "13156" dentro de "131567".
+            const antes = pos > 0 ? linea[pos - 1] : "";
+            const despues = linea[pos + codigo.length] || "";
+            if (/\d/.test(antes) || /\d/.test(despues)) continue;
+
+            // Las anclas vienen de mayor a menor longitud, asi que si esta
+            // posicion ya la reclamo un codigo mas largo, este es un
+            // pedazo suyo.
+            const solapa = encontradas.some(e =>
+                pos < e.pos + e.codigo.length && e.pos < pos + codigo.length);
+            if (solapa) continue;
+
+            encontradas.push({ codigo, pos });
+        }
+    }
+
+    if (encontradas.length === 0) return [{ codigo: "", texto: linea }];
+
+    encontradas.sort((a, b) => a.pos - b.pos);
+
+    // Un solo producto: se entrega el renglon COMPLETO, igual que antes de
+    // este cambio. Recortarlo desde el codigo cambiaria el comportamiento
+    // de los modulos que ya funcionan, y no hay razon para hacerlo.
+    if (encontradas.length === 1) {
+        return [{ codigo: encontradas[0].codigo, texto: linea }];
+    }
+
+    // Varios: cada uno se queda con su tramo, desde su codigo hasta el
+    // codigo del siguiente. Asi los importes de cada producto son los
+    // suyos y no los de sus vecinos.
+    return encontradas.map((e, i) => ({
+        codigo: e.codigo,
+        texto: linea.slice(e.pos, i + 1 < encontradas.length ? encontradas[i + 1].pos : undefined)
+    }));
+}
+
 // ---------------------------------------------------------------------
 // Tablas TRANSPUESTAS
 //
@@ -369,19 +439,21 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
     for (const linea of lineas) {
         if (esLineaEncabezado(linea)) continue;
 
+        for (const trozo of partirEnProductos(linea, anclas)) {
+
         let codigo = "";
         let resto = "";
 
-        const ancla = anclas.find(c => {
-            const posicion = linea.indexOf(c);
-            // Debe estar al principio de la fila, no ser un numero suelto
-            // de otra columna mas a la derecha.
-            return posicion >= 0 && posicion <= 6;
-        });
+        // El primer producto del renglon debe empezar cerca del margen; los
+        // siguientes ya vienen recortados por partirEnProductos, cada uno
+        // arrancando en su propio codigo.
+        const ancla = trozo.codigo && trozo.texto.indexOf(trozo.codigo) <= 6
+            ? trozo.codigo
+            : "";
 
         if (ancla) {
             codigo = ancla;
-            resto = linea.slice(linea.indexOf(ancla) + ancla.length);
+            resto = trozo.texto.slice(trozo.texto.indexOf(ancla) + ancla.length);
         } else if (anclas.length > 0) {
             // Con la lista autoritativa del fabricante en la mano, una linea
             // que no corresponde a ninguno de sus codigos no es un producto:
@@ -404,7 +476,9 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
         // columna NC con precios. No se admite espacio despues del "$":
         // cuando el OCR pierde el importe deja "$ " suelto y el siguiente
         // numero de la fila (el NC) se colaria como precio.
-        const importes = (linea.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
+        // Del TROZO, no del renglon: con tres tablas juntas, tomar los de
+        // la linea entera daba 9 importes donde se esperaban 3.
+        const importes = (trozo.texto.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
             .map(precioDeTexto)
             .filter(valor => valor !== null);
 
@@ -426,6 +500,7 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
         }
 
         filas.push(fila);
+        }
     }
 
     return { columnas, filas, avisos, layout: "filas" };

@@ -2000,3 +2000,60 @@ test("una corrida COMPLETA sigue frenando ante una regeneracion masiva", async (
     const resultado = await sync.sincronizar(pool, adaptadorPorModulos(modulos), { aportarAlMaestro: false });
     assert.equal(resultado.estado, "esperando_confirmacion");
 });
+
+test("un renglon con TRES tablas lado a lado da tres productos", async () => {
+    // Hay modulos maquetados con dos o tres tablas juntas. Cuando los
+    // pasillos entre ellas no son lo bastante blancos para separarlas por
+    // pixeles --se midieron al 4% de contenido contra un umbral del 2%,
+    // porque las franjas grises de las filas los cruzan-- el OCR entrega
+    // las tres en la misma linea.
+    //
+    // Antes se buscaba UNA sola ancla al principio: se encontraba el
+    // primer codigo, se contaban 9 importes donde se esperaban 3, y la
+    // fila salia incompleta. Los otros dos ni se buscaban. Son 188 modulos
+    // y ~1.100 productos.
+    const texto = [
+        "Código Clave Mayoreo 1/2 Mayoreo Público NC",
+        "13182 D-1408-L $35 $38 $42 4  13156 D-1408 $25 $27 $30 4  100875 D-1408-B $25 $27 $30 4"
+    ].join("\n");
+
+    const r = ocr.parsearTablaPrecios(texto, {
+        codigosEsperados: ["13182", "13156", "100875"],
+        columnasForzadas: ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+    });
+
+    assert.equal(r.filas.length, 3);
+    assert.deepEqual(r.filas.map(f => f.codigo), ["13182", "13156", "100875"]);
+    // Cada uno con SUS precios, no los del vecino.
+    assert.deepEqual(r.filas[0].precios, { precio_mayoreo: 35, precio_medio_mayoreo: 38, precio_publico: 42 });
+    assert.deepEqual(r.filas[2].precios, { precio_mayoreo: 25, precio_medio_mayoreo: 27, precio_publico: 30 });
+    assert.ok(r.filas.every(f => f.completa));
+});
+
+test("un codigo que es pedazo de otro numero no parte el renglon", () => {
+    // "13156" vive dentro de "131567". Partir ahi trocearia una fila sana
+    // en dos mitades sin precios.
+    const texto = [
+        "Código Clave Mayoreo 1/2 Mayoreo Público",
+        "13182 D-1408-L $35 $38 $42 131567"
+    ].join("\n");
+
+    const r = ocr.parsearTablaPrecios(texto, {
+        codigosEsperados: ["13182", "13156"],
+        columnasForzadas: ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+    });
+
+    assert.equal(r.filas.length, 1, "un solo producto");
+    assert.equal(r.filas[0].codigo, "13182");
+    assert.equal(r.filas[0].completa, true);
+});
+
+test("un renglon de un solo producto se lee igual que siempre", () => {
+    // La red de seguridad del cambio: 7.496 modulos ya se leen bien y no
+    // pueden verse afectados.
+    const r = ocr.parsearTablaPrecios(OCR_29901_PUB, { codigosEsperados: ["103013", "103012"] });
+
+    assert.equal(r.filas.length, 2);
+    assert.deepEqual(r.filas[0].precios, { precio_mayoreo: 335, precio_medio_mayoreo: 365, precio_publico: 400 });
+    assert.ok(r.filas.every(f => f.completa));
+});
