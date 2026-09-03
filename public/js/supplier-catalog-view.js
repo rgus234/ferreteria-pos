@@ -630,6 +630,18 @@ function asegurarPantallaCatalogo() {
 
  <p id="catalogoInsight" class="catalogo-insight" style="display:none;"></p>
 
+ <!-- Reporte de la ultima importacion. Vive aqui y no en un dialogo
+      porque es una tabla que se lee con calma, no un aviso. -->
+ <div class="catalogo-panel" id="panelCambiosImportacion" style="display:none;">
+  <div class="catalogo-panel-head">
+   <h3 id="cambiosImportacionTitulo">Que cambio</h3>
+   <button type="button" onclick="cerrarCambiosImportacion()">Cerrar</button>
+  </div>
+  <p class="catalogo-insight" id="cambiosImportacionResumen"></p>
+  <div class="catalogo-filtros" id="cambiosImportacionFiltros"></div>
+  <div id="listaCambiosImportacion"></div>
+ </div>
+
  <div class="catalogo-grid3">
  <div class="catalogo-panel catalogo-panel-sidebar">
  <div class="catalogo-panel-head">
@@ -1047,11 +1059,113 @@ function mostrarInsightCatalogo(insight) {
  if (!el || !insight) return;
  const partes = [];
  if (insight.coincidenciasAutomaticas) partes.push(`${insight.coincidenciasAutomaticas} coincidencias automaticas`);
- if (insight.cambiosPrecio) partes.push(`${insight.cambiosPrecio} cambios de precio`);
+ if (insight.cambiosPrecio) partes.push(`${insight.cambiosPrecio} productos con cambio de precio`);
  if (insight.nuevos) partes.push(`${insight.nuevos} productos nuevos`);
- if (partes.length === 0) { el.style.display = "none"; return; }
- el.textContent = `Nexo encontro ${partes.join(", ")}.`;
+ if (insight.descontinuados) partes.push(`${insight.descontinuados} que el proveedor dejo de listar`);
+
+ // Sin cambios TAMBIEN se dice. Un mensaje que solo aparece cuando hay
+ // novedades deja al dueno sin saber si la importacion corrio o no.
+ if (partes.length === 0) {
+  el.textContent = insight.sinCambio
+   ? `Nada cambio: los ${insight.sinCambio} productos llegaron iguales.`
+   : "La importacion termino.";
+ } else {
+  el.textContent = `Nexo encontro ${partes.join(", ")}.`;
+ }
+
+ // Y el detalle queda a un clic. Antes esta linea era todo lo que habia,
+ // y se perdia al recargar la pagina.
+ if (insight.importacionId) {
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.className = "secondary";
+  boton.style.marginLeft = "10px";
+  boton.textContent = "Ver que cambio";
+  boton.onclick = () => verCambiosImportacion(insight.importacionId);
+  el.appendChild(document.createTextNode(" "));
+  el.appendChild(boton);
+ }
+
  el.style.display = "block";
+}
+
+// Reporte de una importacion. El catalogo de un proveedor se actualiza una
+// o dos veces al año, y "que cambio" es la pregunta que uno se hace
+// despues de subirlo, no en el momento.
+let importacionAbierta = null;
+
+async function verCambiosImportacion(importacionId, tipo) {
+ const panel = document.getElementById("panelCambiosImportacion");
+ const lista = document.getElementById("listaCambiosImportacion");
+ if (!panel || !lista) return;
+
+ importacionAbierta = importacionId;
+ panel.style.display = "";
+ lista.innerHTML = '<div class="empty">Cargando...</div>';
+
+ try {
+  const url = `/catalogo-proveedor/importaciones/${importacionId}` + (tipo ? `?tipo=${tipo}` : "");
+  const datos = await (await fetch(url)).json();
+  if (!datos.ok) throw new Error(datos.error || "No se pudo leer el reporte");
+
+  const i = datos.importacion;
+  const fecha = new Date(i.creado_en).toLocaleString("es-MX", {
+   day: "numeric", month: "short", hour: "numeric", minute: "2-digit"
+  });
+
+  document.getElementById("cambiosImportacionTitulo").textContent = `Que cambio en ${i.proveedor}`;
+  document.getElementById("cambiosImportacionResumen").textContent =
+   `${fecha} · ${i.filas_recibidas} productos en el archivo: ${i.nuevos} nuevos, ` +
+   `${i.modificados} con cambios, ${i.descontinuados} que dejaron de listar, ${i.sin_cambio} iguales.`;
+
+  // Los filtros solo ofrecen lo que de verdad hay: un boton que siempre
+  // devuelve una lista vacia solo estorba.
+  const opciones = [
+   ["", "Todos"],
+   ["modificado", `Cambios (${i.modificados})`],
+   ["nuevo", `Nuevos (${i.nuevos})`],
+   ["descontinuado", `Ya no los listan (${i.descontinuados})`]
+  ].filter(([valor]) => valor === "" || Number(i[valor === "modificado" ? "modificados" : valor === "nuevo" ? "nuevos" : "descontinuados"]) > 0);
+
+  document.getElementById("cambiosImportacionFiltros").innerHTML = opciones.map(
+   ([valor, texto]) =>
+    `<button type="button" class="${(tipo || "") === valor ? "activo" : ""}" ` +
+    `onclick="verCambiosImportacion(${Number(importacionId)}, '${valor}')">${texto}</button>`
+  ).join("");
+
+  const ETIQUETA = { nuevo: "Nuevo", modificado: "Cambio", descontinuado: "Ya no lo listan" };
+
+  lista.innerHTML = datos.cambios.length === 0
+   ? '<div class="empty">Sin cambios de este tipo.</div>'
+   : `<table class="tabla-pos">
+       <thead><tr><th>Codigo</th><th>Producto</th><th>Que paso</th><th>Antes</th><th>Ahora</th></tr></thead>
+       <tbody>${datos.cambios.map(c => `
+        <tr>
+         <td>${escaparHtmlCatalogo(c.codigo_proveedor)}</td>
+         <td>${escaparHtmlCatalogo(c.nombre)}</td>
+         <td>${ETIQUETA[c.tipo] || escaparHtmlCatalogo(c.tipo)}${c.campo ? " · " + escaparHtmlCatalogo(c.campo) : ""}</td>
+         <td>${escaparHtmlCatalogo(c.valor_anterior || "—")}</td>
+         <td><strong>${escaparHtmlCatalogo(c.valor_nuevo || "—")}</strong></td>
+        </tr>`).join("")}</tbody>
+      </table>
+      ${datos.cambios.length >= 500 ? '<p class="catalogo-insight">Se muestran los primeros 500.</p>' : ""}`;
+
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+ } catch (error) {
+  lista.innerHTML = `<div class="empty">${escaparHtmlCatalogo(error.message)}</div>`;
+ }
+}
+
+function cerrarCambiosImportacion() {
+ const panel = document.getElementById("panelCambiosImportacion");
+ if (panel) panel.style.display = "none";
+ importacionAbierta = null;
+}
+
+function escaparHtmlCatalogo(texto) {
+ return String(texto == null ? "" : texto)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 async function cargarCatalogosServidor() {

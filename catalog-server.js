@@ -242,6 +242,75 @@ async function actualizarContadoresCatalogo(pool, negocioId, catalogoId) {
 module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTokenImagenCatalogoPdf) => {
     // Sidebar + header contextual: lista de catalogos del negocio con
     // sus contadores ya calculados (nunca se cuentan en el cliente).
+    // Historial de importaciones de catalogo. Lo que antes se decia en una
+    // linea que se iba al recargar la pagina, ahora se puede volver a
+    // consultar: un catalogo de proveedor se actualiza una o dos veces al
+    // año y "que cambio" es la pregunta que uno se hace despues, no en el
+    // momento de subirlo.
+    app.get("/catalogo-proveedor/importaciones", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const resultado = await pool.query(
+                `SELECT id, proveedor, filas_recibidas, nuevos, modificados,
+                        descontinuados, sin_cambio, creado_en
+                   FROM public.catalogo_proveedor_importaciones
+                  WHERE negocio_id = $1
+                  ORDER BY creado_en DESC
+                  LIMIT 30`,
+                [negocio.id]
+            );
+            res.json({ ok: true, importaciones: resultado.rows });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.get("/catalogo-proveedor/importaciones/:id", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+
+            // El negocio_id va en el WHERE, no solo el id: sin eso
+            // cualquier negocio podria leer el reporte de otro cambiando
+            // el numero en la URL.
+            const cabecera = await pool.query(
+                `SELECT id, proveedor, filas_recibidas, nuevos, modificados,
+                        descontinuados, sin_cambio, creado_en
+                   FROM public.catalogo_proveedor_importaciones
+                  WHERE id = $1 AND negocio_id = $2`,
+                [Number(req.params.id), negocio.id]
+            );
+
+            if (cabecera.rows.length === 0) {
+                // 404 explicito: responderError() manda 500 siempre, y esto
+                // no es una falla del servidor sino "no existe para ti".
+                // Mismo cuerpo para "no existe" y "es de otro negocio", a
+                // proposito: distinguirlos confirmaria que ese reporte
+                // existe en otra cuenta.
+                res.status(404).json({ ok: false, error: "Esa importacion no existe" });
+                return;
+            }
+
+            const tipo = String(req.query.tipo || "");
+            const filtro = ["nuevo", "modificado", "descontinuado"].includes(tipo) ? tipo : null;
+
+            // Con tope: un catalogo de 15.000 productos puede traer miles
+            // de cambios y nadie los lee todos de un jalon.
+            const cambios = await pool.query(
+                `SELECT codigo_proveedor, nombre, tipo, campo, valor_anterior, valor_nuevo
+                   FROM public.catalogo_proveedor_cambios
+                  WHERE importacion_id = $1 AND negocio_id = $2
+                    AND ($3::text IS NULL OR tipo = $3)
+                  ORDER BY tipo, codigo_proveedor
+                  LIMIT 500`,
+                [Number(req.params.id), negocio.id, filtro]
+            );
+
+            res.json({ ok: true, importacion: cabecera.rows[0], cambios: cambios.rows });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     app.get("/catalogo-proveedor", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
@@ -393,23 +462,21 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     }))
                     .filter(f => f.codigoProveedor);
 
+                // Se traen los TRES precios y el nombre, no solo el
+                // publico: el reporte de cambios los compara todos. Antes
+                // un cambio en el mayoreo o el distribuidor no dejaba
+                // rastro en ningun lado.
                 const existentes = await cliente.query(
-                    `SELECT codigo_proveedor, precio_publico FROM public.catalogo_productos WHERE catalogo_id = $1`,
+                    `SELECT codigo_proveedor, nombre_proveedor,
+                            precio_distribuidor, precio_medio_mayoreo, precio_publico
+                       FROM public.catalogo_productos WHERE catalogo_id = $1`,
                     [catalogoId]
                 );
-                const precioAnteriorPorCodigo = new Map(existentes.rows.map(r => [r.codigo_proveedor, r.precio_publico]));
 
-                let nuevos = 0;
-                let cambiosPrecio = 0;
-
-                for (const fila of filas) {
-                    if (!precioAnteriorPorCodigo.has(fila.codigoProveedor)) {
-                        nuevos++;
-                    } else {
-                        const anterior = precioAnteriorPorCodigo.get(fila.codigoProveedor);
-                        if (anterior !== null && fila.precioPublico !== null && Number(anterior) !== fila.precioPublico) cambiosPrecio++;
-                    }
-                }
+                const { compararCatalogo, guardarImportacion } = require("./catalogo-proveedor-cambios");
+                const comparacion = compararCatalogo(filas, existentes.rows);
+                const nuevos = comparacion.resumen.nuevos;
+                const cambiosPrecio = comparacion.resumen.modificados;
 
                 const TAMANO_LOTE = 400;
                 for (let inicio = 0; inicio < filas.length; inicio += TAMANO_LOTE) {
@@ -450,6 +517,17 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     );
                 }
 
+                // El reporte va DENTRO de la transaccion de la importacion:
+                // si esta se revierte, no debe quedar un reporte de
+                // cambios que nunca ocurrieron.
+                const importacionId = await guardarImportacion(cliente, {
+                    negocioId: negocio.id,
+                    catalogoId,
+                    proveedor,
+                    resumen: comparacion.resumen,
+                    cambios: comparacion.cambios
+                });
+
                 await cliente.query("COMMIT");
 
                 await vincularCatalogoProductos(pool, negocio.id, catalogoId);
@@ -463,7 +541,16 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     ok: true,
                     catalogoId,
                     resumen: resumen.rows[0],
-                    insight: { nuevos, cambiosPrecio, coincidenciasAutomaticas: resumen.rows[0].productos_vinculados }
+                    insight: {
+                        nuevos, cambiosPrecio,
+                        coincidenciasAutomaticas: resumen.rows[0].productos_vinculados,
+                        // Con esto la pantalla puede llevar al reporte
+                        // completo en vez de resumirlo en una linea que se
+                        // pierde al recargar.
+                        importacionId,
+                        descontinuados: comparacion.resumen.descontinuados,
+                        sinCambio: comparacion.resumen.sinCambio
+                    }
                 });
             } catch (error) {
                 await cliente.query("ROLLBACK").catch(() => {});
