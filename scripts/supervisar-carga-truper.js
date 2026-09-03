@@ -49,6 +49,24 @@ function correrCarga() {
     });
 }
 
+// Un corte de red no puede matar al supervisor: es exactamente lo que
+// esta aqui para aguantar. Paso de verdad -- se durmio la maquina, se
+// perdio el DNS del servidor de la base, y el supervisor se cayo con la
+// corrida en vez de esperar a que volviera la conexion y relanzarla.
+async function conPaciencia(trabajo, intentos = 20, esperaMs = 60000) {
+    let ultimo = null;
+    for (let i = 1; i <= intentos; i++) {
+        try {
+            return await trabajo();
+        } catch (error) {
+            ultimo = error;
+            anotar(`la base no responde (${error.message.slice(0, 60)}). Reintento ${i} de ${intentos} en 1 minuto.`);
+            await new Promise(r => setTimeout(r, esperaMs));
+        }
+    }
+    throw ultimo;
+}
+
 async function estado() {
     const m = await pool.query(
         `SELECT COUNT(*) FILTER (WHERE estado = 'ok')::int ok,
@@ -82,7 +100,7 @@ async function cerrarCorridaMuerta() {
 
 async function main() {
     anotar("supervisor en marcha");
-    const inicial = await estado();
+    const inicial = await conPaciencia(estado);
     anotar(`estado inicial -- modulos ok: ${inicial.ok}, pendientes: ${inicial.pendientes}, productos con los 3 precios: ${inicial.los_tres}`);
 
     for (let intento = 1; intento <= MAX_RELANZAMIENTOS; intento++) {
@@ -93,7 +111,7 @@ async function main() {
         const duro = Date.now() - desde;
         const minutos = Math.round(duro / 60000);
 
-        const despues = await estado();
+        const despues = await conPaciencia(estado);
         anotar(`corrida ${intento} termino con codigo ${codigo} tras ${minutos} min -- ` +
                `modulos ok: ${despues.ok}, pendientes: ${despues.pendientes}, con los 3 precios: ${despues.los_tres}`);
 
@@ -102,7 +120,7 @@ async function main() {
             break;
         }
 
-        const cerradas = await cerrarCorridaMuerta();
+        const cerradas = await conPaciencia(cerrarCorridaMuerta);
         if (cerradas.length > 0) anotar(`se cerro la corrida ${cerradas.join(", ")} que quedo colgada`);
 
         // Ya no queda nada pendiente: da igual como haya salido.
@@ -122,7 +140,7 @@ async function main() {
         }
     }
 
-    const fin = await estado();
+    const fin = await conPaciencia(estado);
     anotar("===== RESUMEN DE LA NOCHE =====");
     anotar(`  modulos leidos:        ${fin.ok}`);
     anotar(`  modulos pendientes:    ${fin.pendientes}`);
