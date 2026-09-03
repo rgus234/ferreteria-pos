@@ -945,13 +945,29 @@ async function sincronizar(pool, adaptador, opciones = {}) {
             return { sincronizacionId, estado: "esperando_confirmacion", contadores, detalle };
         }
 
+        // ALCANCE PARCIAL: la corrida viene por un subconjunto de la
+        // fuente, no por el catalogo entero.
+        //
+        // Cambia una cosa fundamental: el "universo" ya NO es la lista de
+        // todo lo vigente, es solo lo que cabe en ese subconjunto. Sacar
+        // conclusiones de ausencia con esa lista seria catastrofico --
+        // pedir 466 modulos de 3.970 y concluir que el fabricante
+        // descontinuo 38.000 productos. Por eso una corrida parcial NUNCA
+        // da de baja ni da de alta por ausencia: solo actualiza lo que
+        // pidio. La salvaguarda de baja masiva lo atraparia igual, pero no
+        // se deja como unica linea de defensa algo que depende de un
+        // umbral.
+        const alcanceParcial = opciones.alcanceParcial === true;
+
         // Snapshot ligero: solo los codigos. Traer las 17 columnas de
         // 40.000 filas era el pico de memoria de toda la corrida.
-        const activos = await pool.query(
-            `SELECT codigo FROM public.catalogo_fabricante_productos
-              WHERE fabricante = $1 AND estado = 'activo'`,
-            [fabricante]
-        );
+        const activos = alcanceParcial
+            ? { rows: [] }
+            : await pool.query(
+                `SELECT codigo FROM public.catalogo_fabricante_productos
+                  WHERE fabricante = $1 AND estado = 'activo'`,
+                [fabricante]
+            );
         const totalActivos = activos.rows.length;
         const paraDescontinuar = universo
             ? activos.rows.map(f => f.codigo).filter(c => !universo.has(c))
@@ -1089,11 +1105,19 @@ async function sincronizar(pool, adaptador, opciones = {}) {
         // Se deriva solo del universo y de la base, asi que es idempotente:
         // si la corrida anterior murio antes de llegar aqui, la siguiente
         // la corre completa.
-        if (universo) {
+        //
+        // Se salta ENTERA en una corrida parcial: todos sus pasos --altas
+        // por ausencia, bajas, reactivaciones-- concluyen cosas a partir de
+        // "esto no esta en el universo", y en una corrida parcial el
+        // universo es solo el trozo que se pidio. Ahi la ausencia no
+        // significa nada.
+        if (universo && !alcanceParcial) {
             await cerrarUniverso(pool, {
                 fabricante, sincronizacionId, universo, extras,
                 paraDescontinuar, contadores, latido, progreso
             });
+        } else if (alcanceParcial) {
+            progreso({ etapa: "cerrando", mensaje: "corrida parcial: no se tocan altas ni bajas" });
         }
 
         // FASE 6 -- identidad al Catalogo Maestro ---------------------

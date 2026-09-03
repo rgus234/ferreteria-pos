@@ -1865,3 +1865,59 @@ test("un modulo leido a medias guarda sus productos y queda marcado", async () =
     assert.equal(firmada.etag, "m1-pub-v1",
         "pero SI guarda su firma: releerlo en cada corrida daria el mismo resultado");
 });
+
+test("una corrida PARCIAL no da de baja aunque falte casi todo el universo", async () => {
+    // El peligro que hace falta cerrar: al pedir 466 modulos de 3.970, el
+    // "universo" es solo ese trozo. Si se sacaran conclusiones de ausencia,
+    // se descontinuaria el catalogo entero -- 38.000 productos.
+    const existentes = Array.from({ length: 100 }, (_, i) => ({
+        codigo: String(1000 + i), estado: "activo", precio_publico: "10.00"
+    }));
+
+    const pool = poolFalso({ existentes });
+    const adaptador = adaptadorPorModulos([{ id: "m1", codigos: ["1000"] }]);
+
+    const resultado = await sync.sincronizar(pool, adaptador, {
+        aportarAlMaestro: false,
+        alcanceParcial: true
+    });
+
+    assert.equal(resultado.estado, "completada",
+        "no se detiene: el freno de baja masiva ni siquiera aplica aqui");
+    assert.equal(resultado.contadores.descontinuados, 0);
+
+    const bajas = pool.ejecutadas.filter(c => /estado = 'descontinuado'/.test(c.texto));
+    assert.equal(bajas.length, 0, "ni una sola baja");
+});
+
+test("una corrida PARCIAL tampoco da de alta por ausencia", async () => {
+    // El otro lado del mismo error: un producto que el universo parcial no
+    // menciona no es un producto nuevo, es uno que no se pidio.
+    const pool = poolFalso();
+    const adaptador = adaptadorPorModulos([{ id: "m1", codigos: ["1001", "1002"] }]);
+    // Solo se lee uno de los dos.
+    adaptador.extraerUnidad = async () => ({
+        filas: [{ codigo: "1001", precios: { precio_publico: 100 } }],
+        confiable: true, origen: "ocr", layout: "prueba", confianza: "alta", firmaContenido: "h",
+        validacion: { ok: true, parcial: true, faltantes: ["1002"], sobrantes: [] }
+    });
+
+    await sync.sincronizar(pool, adaptador, { aportarAlMaestro: false, alcanceParcial: true });
+
+    assert.deepEqual(pool.productos.map(p => p.codigo), ["1001"],
+        "solo se guarda lo que se leyo; el otro no se da de alta a ciegas");
+});
+
+test("una corrida COMPLETA sigue dando de baja como siempre", async () => {
+    // La contraparte: el alcance parcial no puede haber apagado la
+    // deteccion de descontinuados en el caso normal.
+    const existentes = Array.from({ length: 100 }, (_, i) => ({
+        codigo: String(1000 + i), estado: "activo", precio_publico: "10.00"
+    }));
+    const vigentes = existentes.slice(0, 95).map(f => f.codigo);
+    const pool = poolFalso({ existentes });
+
+    const resultado = await sync.sincronizar(pool, adaptadorFalso(vigentes), { aportarAlMaestro: false });
+
+    assert.equal(resultado.contadores.descontinuados, 5);
+});
