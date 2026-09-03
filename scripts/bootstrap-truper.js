@@ -16,7 +16,7 @@
 const pool = require("../db");
 const truper = require("../fabricantes/truper");
 const { sincronizar } = require("../catalogo-fabricante-sync");
-const { liberarWorkerOcr } = require("../catalogo-fabricante-ocr");
+const { liberarWorkerOcr, reciclarWorkersOcr } = require("../catalogo-fabricante-ocr");
 const { config } = require("../config");
 
 // El worker de tesseract acumula memoria; reciclarlo cada tanto evita que
@@ -111,7 +111,9 @@ async function main() {
                 // Reciclado del worker de OCR para no acumular memoria.
                 if (info.hechas - procesadas >= RECICLAR_CADA) {
                     procesadas = info.hechas;
-                    liberarWorkerOcr().catch(() => {});
+                    // RECICLAR, no liberar: liberar mataba a los workers que
+                    // estaban leyendo y dejaba colgados a los que hacian fila.
+                    reciclarWorkersOcr();
                     if (global.gc) global.gc();
                 }
             }

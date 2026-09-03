@@ -659,30 +659,83 @@ const WORKERS_OCR = Math.max(1, Math.min(
     require("os").cpus().length
 ));
 
-const workers = [];       // los creados hasta ahora
 const libres = [];        // los que estan sin trabajo
-const enEspera = [];      // resolvers de quien pidio uno y no habia
+const ocupados = new Set(); // los que alguien tiene ahora mismo
+const enEspera = [];      // avisos para quien pidio uno y no habia
+const retirados = new Set(); // marcados para morir en cuanto se devuelvan
+let vivos = 0;            // creados y no terminados, incluidos los ocupados
 
+function crearWorker() {
+    vivos++; // se reserva el cupo YA, antes del await: si no, varias
+             // tareas pasarian la comprobacion a la vez y crearian de mas
+    const Tesseract = require("tesseract.js");
+    return Tesseract.createWorker("spa").catch(error => {
+        vivos--;
+        throw error;
+    });
+}
+
+function terminarWorker(worker) {
+    retirados.delete(worker);
+    vivos--;
+    worker.terminate().catch(() => {});
+}
+
+function despertarUno() {
+    const avisar = enEspera.shift();
+    if (avisar) avisar();
+}
+
+// Se despierta al que espera SIN entregarle un worker: al despertar vuelve
+// a mirar el estado. Entregarselo directo era mas corto, pero hacia
+// imposible retirar un worker sin dejar colgado a quien lo esperaba.
 async function tomarWorker() {
-    if (libres.length > 0) return libres.pop();
+    for (;;) {
+        while (libres.length > 0) {
+            const worker = libres.pop();
+            if (retirados.has(worker)) { terminarWorker(worker); continue; }
+            ocupados.add(worker);
+            return worker;
+        }
 
-    if (workers.length < WORKERS_OCR) {
-        const Tesseract = require("tesseract.js");
-        const worker = await Tesseract.createWorker("spa");
-        workers.push(worker);
-        return worker;
+        if (vivos < WORKERS_OCR) {
+            const worker = await crearWorker();
+            ocupados.add(worker);
+            return worker;
+        }
+
+        await new Promise(resolve => enEspera.push(resolve));
     }
-
-    // Todos ocupados: se hace fila en vez de crear uno mas.
-    return new Promise(resolve => enEspera.push(resolve));
 }
 
 function devolverWorker(worker) {
-    const siguiente = enEspera.shift();
-    // Se entrega directo al que espera, sin pasar por la lista de libres:
-    // si no, dos que esperan podrian llevarse el mismo.
-    if (siguiente) siguiente(worker);
+    ocupados.delete(worker);
+    if (retirados.has(worker)) terminarWorker(worker);
     else libres.push(worker);
+    despertarUno();
+}
+
+/**
+ * Recicla los workers para soltar la memoria que tesseract acumula, SIN
+ * matar a los que estan leyendo ahora mismo.
+ *
+ * La version anterior de esto tumbaba la corrida. liberarWorkerOcr()
+ * vaciaba la lista de espera, asi que las tareas que estaban formadas
+ * esperando un worker se quedaban con una promesa que nadie iba a
+ * resolver: nunca. Con un solo worker eso no existia (no habia fila);
+ * el pool lo volvio mortal. Paso de verdad -- la carga se colgo a las
+ * 3h30m con 4.998 de 7.574 unidades leidas, y el vigilante de los 15
+ * minutos sin avance fue lo unico que la saco de ahi.
+ *
+ * Ahora se marcan y cada uno muere cuando lo devuelven.
+ */
+function reciclarWorkersOcr() {
+    // Los que no estan haciendo nada mueren ya.
+    for (const worker of libres.splice(0, libres.length)) terminarWorker(worker);
+    // Los que estan leyendo se marcan y mueren cuando los devuelvan.
+    for (const worker of ocupados) retirados.add(worker);
+    // Y se despierta a los que esperaban: ahora hay cupo para nuevos.
+    while (enEspera.length > 0) despertarUno();
 }
 
 // Compatibilidad: habia un unico worker y este era su nombre. Se conserva
@@ -691,10 +744,14 @@ async function obtenerWorkerOcr() {
     return tomarWorker();
 }
 
+// Apagado completo, para el final del proceso. A diferencia del reciclado,
+// aqui si se tumba todo: ya no va a haber mas trabajo.
 async function liberarWorkerOcr() {
-    const aTerminar = workers.splice(0, workers.length);
-    libres.length = 0;
-    enEspera.length = 0;
+    const aTerminar = libres.splice(0, libres.length);
+    retirados.clear();
+    vivos -= aTerminar.length;
+    // A quien este esperando se le despierta para que no quede colgado.
+    while (enEspera.length > 0) despertarUno();
     await Promise.all(aTerminar.map(w => w.terminate().catch(() => {})));
 }
 
@@ -995,6 +1052,9 @@ module.exports = {
     construirPromptTabla,
     extraerTablaDeModulo,
     liberarWorkerOcr,
+    reciclarWorkersOcr,
+    tomarWorker,
+    devolverWorker,
     FACTOR_AMPLIACION,
     MODELO_VISION
 };
