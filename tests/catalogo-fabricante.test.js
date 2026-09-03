@@ -1960,3 +1960,43 @@ test("una fila a la que le falta un precio no tira las demas", async () => {
         "ninguna fila guardada va incompleta"
     );
 });
+
+test("una corrida PARCIAL no se detiene a pedir permiso por regeneracion", async () => {
+    // El freno existe para no reprocesar miles de unidades cuando el
+    // fabricante regenera sus imagenes sin cambiar precios. Pero en una
+    // corrida parcial las unidades se eligieron a proposito -- son las
+    // pendientes -- asi que que el 100% "haya cambiado" es lo esperado.
+    // Con el freno activo, la corrida se detenia SIEMPRE a pedir permiso
+    // para hacer justo lo que se le pidio. Paso de verdad.
+    const modulos = [{ id: "m1", codigos: ["1001"] }, { id: "m2", codigos: ["1002"] }];
+    const pool = poolFalso({
+        modulosGuardados: [
+            { modulo: "m1", variante: "pub", etag: "viejo", hash_contenido: "x", estado: "ok" },
+            { modulo: "m2", variante: "pub", etag: "viejo", hash_contenido: "x", estado: "ok" }
+        ]
+    });
+
+    const resultado = await sync.sincronizar(pool, adaptadorPorModulos(modulos), {
+        aportarAlMaestro: false,
+        alcanceParcial: true
+    });
+
+    assert.equal(resultado.estado, "completada", "no pide confirmacion");
+    assert.deepEqual(pool.productos.map(p => p.codigo).sort(), ["1001", "1002"]);
+});
+
+test("una corrida COMPLETA sigue frenando ante una regeneracion masiva", async () => {
+    // La contraparte: el permiso del alcance parcial no puede haber
+    // apagado el freno en el caso normal, que es el que protege de gastar
+    // horas de OCR reprocesando precios identicos.
+    const modulos = [{ id: "m1", codigos: ["1001"] }, { id: "m2", codigos: ["1002"] }];
+    const pool = poolFalso({
+        modulosGuardados: [
+            { modulo: "m1", variante: "pub", etag: "viejo", hash_contenido: "x", estado: "ok" },
+            { modulo: "m2", variante: "pub", etag: "viejo", hash_contenido: "x", estado: "ok" }
+        ]
+    });
+
+    const resultado = await sync.sincronizar(pool, adaptadorPorModulos(modulos), { aportarAlMaestro: false });
+    assert.equal(resultado.estado, "esperando_confirmacion");
+});

@@ -906,6 +906,19 @@ async function sincronizar(pool, adaptador, opciones = {}) {
         // "no se aplico nada" es literalmente cierto, y un universo mal
         // leido se atrapa en segundos en vez de a las 4 horas.
 
+        // ALCANCE PARCIAL: la corrida viene por un subconjunto de la
+        // fuente, no por el catalogo entero.
+        //
+        // Cambia una cosa fundamental: el "universo" ya NO es la lista de
+        // todo lo vigente, es solo lo que cabe en ese subconjunto. Sacar
+        // conclusiones de ausencia con esa lista seria catastrofico --
+        // pedir 296 modulos de 3.970 y concluir que el fabricante
+        // descontinuo 38.000 productos.
+        //
+        // Se resuelve ANTES que los dos frenos porque cambia como se leen
+        // los dos.
+        const alcanceParcial = opciones.alcanceParcial === true;
+
         // Una confirmacion de regeneracion es del operador sobre un evento
         // de la fuente, no de un proceso: si la corrida que la traia murio,
         // la siguiente la hereda. Sin esto, reanudar una regeneracion ya
@@ -936,7 +949,19 @@ async function sincronizar(pool, adaptador, opciones = {}) {
             ).catch(() => {});
         }
 
-        const fraccion = conEstadoPrevio > 0 ? cambiadasConEstadoPrevio / conEstadoPrevio : 0;
+        // El freno de regeneracion masiva no aplica a una corrida parcial.
+        //
+        // Existe para no reprocesar miles de unidades cuando el fabricante
+        // regenera todas sus imagenes sin cambiar un precio. Pero en una
+        // corrida parcial las unidades se eligieron A PROPOSITO --son las
+        // que quedaron pendientes-- asi que que el 100% "haya cambiado" es
+        // lo esperado, no una señal de nada. Dejarlo activo hace que la
+        // corrida se detenga siempre a pedir permiso para hacer justo lo
+        // que se le pidio.
+        const fraccion = (alcanceParcial || conEstadoPrevio === 0)
+            ? 0
+            : cambiadasConEstadoPrevio / conEstadoPrevio;
+
         if (fraccion > UMBRAL_REGENERACION_MASIVA && !confirmadaRegeneracion) {
             const detalle = `la fuente regenero ${cambiadasConEstadoPrevio} de ${conEstadoPrevio} unidades `
                 + `ya conocidas (${Math.round(fraccion * 100)}%). Puede ser una regeneracion masiva sin cambios `
@@ -951,13 +976,12 @@ async function sincronizar(pool, adaptador, opciones = {}) {
         // Cambia una cosa fundamental: el "universo" ya NO es la lista de
         // todo lo vigente, es solo lo que cabe en ese subconjunto. Sacar
         // conclusiones de ausencia con esa lista seria catastrofico --
-        // pedir 466 modulos de 3.970 y concluir que el fabricante
+        // pedir 296 modulos de 3.970 y concluir que el fabricante
         // descontinuo 38.000 productos. Por eso una corrida parcial NUNCA
         // da de baja ni da de alta por ausencia: solo actualiza lo que
         // pidio. La salvaguarda de baja masiva lo atraparia igual, pero no
         // se deja como unica linea de defensa algo que depende de un
         // umbral.
-        const alcanceParcial = opciones.alcanceParcial === true;
 
         // Snapshot ligero: solo los codigos. Traer las 17 columnas de
         // 40.000 filas era el pico de memoria de toda la corrida.
