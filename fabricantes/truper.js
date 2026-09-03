@@ -361,7 +361,18 @@ const { extraerTablaDeModulo } = require("../catalogo-fabricante-ocr");
 // Tope duro de llamadas a vision por corrida. La vision es el respaldo de
 // los modulos que el OCR no pudo leer; con un tope el costo queda acotado
 // por diseno aunque el fabricante cambie toda su maqueta.
-const MAX_LLAMADAS_VISION_POR_CORRIDA = 300;
+//
+// El costo por llamada esta MEDIDO, no estimado: 1.590 tokens de entrada
+// y 242 de salida, o sea ~0.0028 USD con el precio publico de Haiku 4.5.
+// Con el tope de 300, una corrida no puede gastar mas de ~0.85 USD.
+//
+// Se puede subir con NEXO_VISION_MAX para una carga de arranque, donde
+// conviene resolver miles de modulos de una vez en vez de repartirlos en
+// once corridas. Multiplicar el tope por 0.0028 da el gasto maximo en
+// dolares: es la cuenta que hay que hacer antes de subirlo.
+const MAX_LLAMADAS_VISION_POR_CORRIDA = Math.max(
+    1, Number(process.env.NEXO_VISION_MAX) || 300
+);
 
 // El crawl del catalogo completo es caro (~600 paginas). Se hace una sola
 // vez por corrida y se reusa entre listarUniverso() y listarUnidades().
