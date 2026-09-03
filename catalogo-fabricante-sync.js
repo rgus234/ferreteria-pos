@@ -1137,6 +1137,16 @@ async function cerrarUniverso(pool, ctx) {
 
     progreso({ etapa: "cerrando", mensaje: "actualizando vigencia y bajas" });
 
+    // Cada paso de esta fase avisa que avanza.
+    //
+    // Antes solo se anunciaba al entrar, y luego se pasaba media hora
+    // callada haciendo miles de UPDATEs. Quien vigila la corrida --
+    // scripts/bootstrap-truper.js se rinde a los 15 minutos sin senal --
+    // no puede distinguir eso de un proceso trabado, y mataba una carga
+    // que estaba trabajando bien. Paso de verdad: la extraccion termino
+    // completa (3.625 de 3.625) y la corrida murio en el cierre.
+    let vistos = 0;
+
     // 1. Vigencia: "lo segui viendo". Antes eran ~40.000 UPDATE de una
     //    fila; aqui uno por cada 2.000 codigos.
     for (const trozo of trocear([...universo.keys()], 2000)) {
@@ -1146,6 +1156,8 @@ async function cerrarUniverso(pool, ctx) {
             [fabricante, trozo]
         );
         latido();
+        vistos += trozo.length;
+        progreso({ etapa: "cerrando", paso: "vigencia", hechas: vistos, total: universo.size });
     }
 
     // 1.b REACTIVACION. El universo vuelve a listar algo que una corrida
@@ -1190,6 +1202,7 @@ async function cerrarUniverso(pool, ctx) {
         if (hechos.ok) contadores.reactivados = (contadores.reactivados || 0) + hechos.valor;
         else anotarFalloDeCierre(contadores, "reactivaciones", hechos.error);
         latido();
+        progreso({ etapa: "cerrando", paso: "reactivaciones" });
     }
 
     // 2. Altas de productos que el universo lista pero ninguna unidad
@@ -1226,6 +1239,7 @@ async function cerrarUniverso(pool, ctx) {
             anotarFalloDeCierre(contadores, "altas sin precios", hechos.error);
         }
         latido();
+        progreso({ etapa: "cerrando", paso: "altas", hechas: contadores.nuevos });
     }
 
     // 3. Bajas, por trozos. Se marcan, nunca se borran.
@@ -1249,6 +1263,7 @@ async function cerrarUniverso(pool, ctx) {
         if (hechos.ok) contadores.descontinuados += hechos.valor;
         else anotarFalloDeCierre(contadores, "bajas", hechos.error);
         latido();
+        progreso({ etapa: "cerrando", paso: "bajas", hechas: contadores.descontinuados });
     }
 }
 

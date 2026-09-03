@@ -968,7 +968,12 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
         avisos.push("el fabricante no publica precio para estos productos: la columna viene vacia");
     }
 
+    // Se anota que se GASTO una llamada, no que salio bien: la cuenta es
+    // de dinero y de cuota, y una llamada fallida cuesta igual.
+    let intentoVision = false;
+
     if (!confiable && opciones.anthropic && !precioPorBloque) {
+        intentoVision = true;
         try {
             // Se le dan al modelo las columnas DECLARADAS por el adaptador,
             // no las que dedujo el OCR: si el OCR fallo, su lectura del
@@ -1028,6 +1033,10 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
         avisos,
         validacion,
         origen,
+        // Si se llamo a la vision. El adaptador lleva la cuenta del tope por
+        // corrida y solo puede hacerlo bien si sabe cuando se gasto de
+        // verdad una llamada.
+        intentoVision,
         // Solo un modulo confiable puede escribir precios en el catalogo.
         confiable
     };

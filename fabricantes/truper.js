@@ -467,9 +467,19 @@ const adaptador = {
         const variante = unidad.parte;
 
         // La vision solo se ofrece mientras queden llamadas del tope.
+        //
+        // El tope se descuenta cuando se USA, no cuando se ofrece. Antes se
+        // sumaba aqui arriba, o sea en CADA unidad donde la vision era
+        // posible: las primeras 300 unidades agotaban el presupuesto
+        // aunque el OCR las hubiera leido perfectamente, y de ahi en
+        // adelante la vision quedaba apagada para el resto del catalogo.
+        //
+        // El efecto medido en la carga real: 15 productos leidos por
+        // vision de un tope de 300, con 3.623 modulos en revision
+        // esperando justo ese respaldo. El presupuesto se gastaba en
+        // modulos que no lo necesitaban.
         ctx._llamadasVision = ctx._llamadasVision || 0;
         const puedeUsarVision = Boolean(ctx.anthropic) && ctx._llamadasVision < MAX_LLAMADAS_VISION_POR_CORRIDA;
-        if (puedeUsarVision) ctx._llamadasVision++;
 
         const imagen = await descargarModulo(unidad.id, variante);
         const r = await extraerTablaDeModulo(imagen, {
@@ -477,6 +487,10 @@ const adaptador = {
             columnasForzadas: VARIANTES[variante]?.columnas,
             anthropic: puedeUsarVision ? ctx.anthropic : null
         });
+
+        // Se descuenta aunque la vision no haya servido: la llamada se
+        // hizo y se pago igual.
+        if (r.intentoVision) ctx._llamadasVision++;
 
         return {
             filas: r.filas.map(f => ({
