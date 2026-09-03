@@ -43,6 +43,16 @@ async function main() {
         console.log(`Se cerraron ${huerfanas.length} corrida(s) colgada(s): ${huerfanas.join(", ")}\n`);
     }
 
+    // --minimo=N acota a los modulos que afectan a N productos o mas.
+    //
+    // Sirve para separar los pocos modulos GRANDES del resto. Son los mas
+    // pesados del catalogo (1664 px de ancho, x3 al leerlos) y en paralelo
+    // agotan la memoria: tesseract muere con "pixdata_malloc fail" o la
+    // maquina pagina y una sola unidad llega a tardar 78 minutos. De uno
+    // en uno --NEXO_OCR_WORKERS=1-- cada uno tarda segundos.
+    const argMinimo = process.argv.find(a => a.startsWith("--minimo="));
+    const minimo = argMinimo ? Number(argMinimo.split("=")[1]) || 0 : 0;
+
     // Los modulos que no quedaron en 'ok'. Se agrupan porque un modulo
     // puede tener sus dos variantes pendientes y solo hace falta pedirlo
     // una vez: listarUnidades vuelve a mirar las dos.
@@ -54,9 +64,10 @@ async function main() {
                 WHERE p.fabricante = m.fabricante AND p.modulo = m.modulo
                 LIMIT 1
            ) p ON true
-          WHERE m.fabricante = $1 AND m.estado <> 'ok'
+          WHERE m.fabricante = $1 AND m.estado NOT IN ('ok', 'parcial')
+            AND m.productos_afectados >= $2
           GROUP BY modulo`,
-        [truper.nombre]
+        [truper.nombre, minimo]
     );
 
     if (pendientes.rows.length === 0) {
@@ -70,7 +81,8 @@ async function main() {
         slug: ""
     }));
 
-    console.log(`Reintentando ${modulos.length} modulos pendientes (de ~3.970 del catalogo).`);
+    const acotado = minimo > 0 ? ` con ${minimo}+ productos` : "";
+    console.log(`Reintentando ${modulos.length} modulos pendientes${acotado} (de ~3.970 del catalogo).`);
     console.log("No se recorre el catalogo completo: ya sabemos cuales son.");
     console.log("Esta corrida NO da de alta ni de baja ningun producto.\n");
 

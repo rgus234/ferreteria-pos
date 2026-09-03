@@ -57,6 +57,12 @@ const ANCHO_MIN_TABLA = 0.15;
 // pie del modulo; se deja margen de sobra porque en los modulos apaisados
 // puede empezar cerca del 30% y cortarla pierde el encabezado entero.
 const FRACCION_ZONA_TABLA = 0.25;
+// Cuanto texto se mira DESPUES de la palabra "Excepto" para encontrar los
+// codigos excluidos. La maqueta parte el rotulo en dos renglones
+// ("Excepto:" y debajo "19061"), asi que mirar solo el resto de la linea
+// no encuentra nada. 60 caracteres cubren el rotulo sin alcanzar la
+// primera fila de la tabla.
+const VENTANA_EXCEPCION = 60;
 
 // ---------------------------------------------------------------------
 // Normalizacion de valores
@@ -380,6 +386,182 @@ function parsearTablaTranspuesta(lineas, opciones) {
  *        "Distribuidor" y a veces sale cortado)
  * @returns {{columnas: string[], filas: object[], avisos: string[]}}
  */
+/**
+ * Lee una tabla donde el precio va UNA VEZ por bloque, no por producto.
+ *
+ * Verificado a ojo contra el modulo 29801 (pinturas en aerosol): la pagina
+ * trae cuatro bloques --estandar, metalicos, neon, altas temperaturas-- y
+ * cada uno cierra con una barra de precio propia:
+ *
+ *     Colores metalicos
+ *     Codigo  Clave     Color   Caja  Master
+ *     12778   PAM-NE    Negro    4     48
+ *     ...
+ *     19061   PAM-VE    Verde    4     48
+ *     ----------------------------------------
+ *     Mayoreo    1/2 Mayoreo    Publico
+ *     $78          $86            $96
+ *
+ * No tiene nada de ambiguo: los ocho colores metalicos cuestan eso.
+ * Cualquiera que abra la pagina lo lee igual. Antes se mandaba el modulo
+ * entero a revision manual por "estructura ambigua"; son 79 modulos y 501
+ * productos, buena parte tornilleria, que es lo que mas rota en una
+ * ferreteria.
+ *
+ * Reglas, en orden de importancia:
+ *
+ * 1. Un precio de mas es PEOR que un hueco, porque nadie lo nota hasta que
+ *    cobras mal. Ante cualquier duda, el bloque se queda sin asignar.
+ * 2. TRUPER marca las excepciones en la propia pagina ("Excepto: 19061").
+ *    Esos codigos se excluyen del reparto y se quedan sin precio.
+ * 3. Si un bloque termina sin barra de precio legible, sus productos NO
+ *    heredan la barra del bloque siguiente: se descartan.
+ */
+function parsearPreciosPorBloque(textoOcr, opciones = {}) {
+    const lineas = String(textoOcr || "").split(/\r?\n/);
+    const avisos = [];
+
+    const anclas = [...(opciones.codigosEsperados || [])]
+        .map(normalizarCodigo)
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length);
+
+    if (anclas.length === 0) {
+        return { filas: [], avisos: ["sin codigos esperados no se puede repartir un precio por bloque"] };
+    }
+
+    const declaradas = Array.isArray(opciones.columnasForzadas) ? opciones.columnasForzadas : [];
+
+    // Excepciones al precio del bloque. Vienen de dos sitios:
+    //
+    //  - opciones.excepcionesBloque, que el llamador saca de la zona
+    //    grafica del modulo con leerExcepcionesDeBloque(). Ese es el
+    //    camino BUENO: el rotulo "Excepto: 19061" se imprime arriba,
+    //    junto al titulo del bloque, fuera del recorte de la tabla.
+    //  - el propio texto de la tabla, por si el recorte alcanzo a
+    //    incluirlo.
+    //
+    // Sin esto se asignaba $78 al 19061 del modulo 29801, que es justo el
+    // producto que el catalogo excluye. Un precio de mas es peor que un
+    // hueco: nadie lo nota hasta que cobras mal.
+    const excluidos = new Set((opciones.excepcionesBloque || []).map(normalizarCodigo).filter(Boolean));
+    for (const linea of lineas) {
+        const marca = linea.match(/excep\w*\s*:?\s*(.+)$/i);
+        if (!marca) continue;
+        for (const numero of marca[1].match(/\d{4,8}/g) || []) {
+            const codigo = normalizarCodigo(numero);
+            if (anclas.includes(codigo)) excluidos.add(codigo);
+        }
+    }
+    if (excluidos.size > 0) {
+        avisos.push(`el catalogo marca ${excluidos.size} excepcion(es) al precio del bloque: ${[...excluidos].join(", ")}; se dejan sin precio`);
+    }
+
+    const filas = [];
+    let columnas = declaradas.slice();
+    let pendientes = [];
+
+    const cerrarSinPrecio = motivo => {
+        for (const codigo of pendientes) {
+            filas.push({ codigo, clave: "", precios: {}, completa: false, motivo });
+        }
+        pendientes = [];
+    };
+
+    for (const linea of lineas) {
+        const importes = (linea.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
+            .map(precioDeTexto)
+            .filter(valor => valor !== null);
+
+        const codigosAqui = [];
+        for (const codigo of anclas) {
+            const pos = linea.indexOf(codigo);
+            if (pos < 0) continue;
+            const antes = pos > 0 ? linea[pos - 1] : "";
+            const despues = linea[pos + codigo.length] || "";
+            if (/\d/.test(antes) || /\d/.test(despues)) continue;
+            if (codigosAqui.includes(codigo)) continue;
+            // Un codigo mas corto dentro de uno ya tomado es un pedazo suyo.
+            if (codigosAqui.some(c => c.includes(codigo))) continue;
+            codigosAqui.push(codigo);
+        }
+
+        // Aqui el encabezado va PARTIDO en dos lineas, y ninguna de las
+        // dos es lo que esLineaEncabezado() reconoce (esa exige "Codigo" y
+        // una palabra de precio en la MISMA linea):
+        //
+        //   Codigo  Clave  Color  Caja  Master      <- abre el bloque
+        //   ...filas de producto, sin importes...
+        //   Mayoreo  1/2 Mayoreo  Publico  MM  NC   <- rotulos de la barra
+        //   $78        $86          $96      0   2  <- la barra
+        //
+        // La primera lleva "Codigo" y ninguna palabra de precio; la
+        // segunda lleva las palabras de precio y ningun "Codigo".
+        const abreBloque = codigosAqui.length === 0 && /c[oó]digo/i.test(linea);
+        if (abreBloque) {
+            // Un bloque nuevo con filas pendientes significa que no se
+            // leyo la barra del anterior. Esos productos NO heredan el
+            // precio del bloque que viene: se quedan sin precio.
+            if (pendientes.length > 0) {
+                avisos.push(`${pendientes.length} producto(s) quedaron sin barra de precio legible y no se les asigno ninguna`);
+                cerrarSinPrecio("el bloque termino sin una barra de precio legible");
+            }
+            continue;
+        }
+
+        const rotulosBarra = codigosAqui.length === 0 && importes.length === 0
+            ? detectarColumnasPrecio(linea)
+            : [];
+        if (rotulosBarra.length > 0) {
+            columnas = rotulosBarra;
+            continue;
+        }
+
+        // Fila de producto: en este layout NUNCA trae importe propio.
+        if (codigosAqui.length > 0 && importes.length === 0) {
+            pendientes.push(...codigosAqui);
+            continue;
+        }
+
+        // Barra de precio del bloque: importes sin ningun codigo, y tantos
+        // como columnas declaradas. Exigir el numero exacto evita tomar por
+        // barra una nota al pie con un solo importe suelto.
+        const esBarra = codigosAqui.length === 0
+            && importes.length > 0
+            && columnas.length > 0
+            && importes.length === columnas.length;
+
+        if (esBarra && pendientes.length > 0) {
+            const precios = {};
+            columnas.forEach((campo, indice) => { precios[campo] = importes[indice]; });
+
+            for (const codigo of pendientes) {
+                if (excluidos.has(codigo)) {
+                    filas.push({
+                        codigo, clave: "", precios: {}, completa: false,
+                        motivo: "el catalogo lo marca como excepcion al precio del bloque"
+                    });
+                    continue;
+                }
+                filas.push({ codigo, clave: "", precios: { ...precios }, completa: true, motivo: "" });
+            }
+            pendientes = [];
+        }
+    }
+
+    // Lo que quede al final no tuvo barra: sin precio.
+    if (pendientes.length > 0) {
+        avisos.push(`${pendientes.length} producto(s) quedaron sin barra de precio legible y no se les asigno ninguna`);
+        cerrarSinPrecio("el bloque termino sin una barra de precio legible");
+    }
+
+    if (filas.some(f => f.completa)) {
+        avisos.push("precios tomados de la barra comun de cada bloque, no de cada fila");
+    }
+
+    return { filas, avisos };
+}
+
 function parsearTablaPrecios(textoOcr, opciones = {}) {
     const lineas = String(textoOcr || "").split(/\r?\n/);
     const avisos = [];
@@ -960,6 +1142,56 @@ async function leerTablaConVision(anthropic, recortes, codigosEsperados, columna
  * @param {object} [opciones.ocr] inyeccion para pruebas: {recognize(buffer)}
  * @param {object} [opciones.anthropic] cliente de vision para el respaldo
  */
+/**
+ * Busca los avisos de excepcion al precio de bloque.
+ *
+ * TRUPER marca en la propia pagina que producto NO lleva el precio comun
+ * ("Excepto: 19061", junto al titulo del bloque). Ese rotulo vive ARRIBA,
+ * en la zona grafica del modulo, fuera del recorte de la tabla -- asi que
+ * el OCR normal no lo ve nunca. Comprobado: el modulo 29801 asignaba $78
+ * al 19061, que es justo el producto que el catalogo excluye.
+ *
+ * Se hace una lectura aparte de la imagen COMPLETA, y barata: no hay que
+ * leer una tabla, solo cazar una palabra y unos numeros, asi que basta con
+ * la mitad de la ampliacion normal. Solo corre en los modulos de precio
+ * por bloque (79 de ~3.970), no en cada modulo del catalogo.
+ */
+async function leerExcepcionesDeBloque(bufferImagen, motor, codigosEsperados) {
+    const anclas = (codigosEsperados || []).map(normalizarCodigo).filter(Boolean);
+    if (anclas.length === 0) return { codigos: [], leido: false };
+
+    const meta = await sharp(bufferImagen).metadata();
+    const zona = await recortarRegion(
+        bufferImagen,
+        { left: 0, top: 0, width: meta.width, height: Math.round(meta.height * FRACCION_ZONA_TABLA) + 1 },
+        { ampliacion: 2 }
+    );
+
+    const lectura = await motor.recognize(zona);
+    const texto = String(lectura.texto || "");
+
+    // El rotulo va en DOS renglones en la maqueta, no en uno:
+    //
+    //     Excepto:
+    //     19061
+    //
+    // asi que no sirve mirar solo el resto de la linea. Se toma una
+    // ventana del texto que sigue a la palabra y se sacan de ahi los
+    // codigos que de verdad pertenecen a este modulo.
+    const codigos = new Set();
+    const patron = /excep\w*\s*:?/gi;
+    let marca;
+    while ((marca = patron.exec(texto)) !== null) {
+        const ventana = texto.slice(marca.index + marca[0].length, marca.index + marca[0].length + VENTANA_EXCEPCION);
+        for (const numero of ventana.match(/\d{4,8}/g) || []) {
+            const codigo = normalizarCodigo(numero);
+            if (anclas.includes(codigo)) codigos.add(codigo);
+        }
+    }
+
+    return { codigos: [...codigos], leido: true };
+}
+
 async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
     const recortes = await recortarTablas(bufferImagen, opciones);
     // El hash cubre todas las tablas del modulo: si cualquiera cambia, el
@@ -1057,6 +1289,45 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
     const precioPorBloque = parecePrecioPorBloque(texto, opciones.codigosEsperados);
     if (precioPorBloque) {
         avisos.push("el modulo parece traer un precio comun por bloque, no un precio por producto");
+
+        // Antes se quedaba aqui y el modulo entero iba a revision manual.
+        // Pero el layout no tiene nada de ambiguo: el precio esta impreso
+        // una vez al pie de cada bloque y aplica a todos sus productos.
+        // Son 79 modulos y 501 productos, buena parte tornilleria.
+        //
+        // Pasa por la MISMA evaluacion que cualquier otra lectura --
+        // coherencia de precios y cruce contra la fuente en texto-- y solo
+        // se acepta si mejora lo que habia.
+        // El rotulo de excepcion vive fuera del recorte de la tabla, asi
+        // que hace falta una lectura aparte de la zona grafica. Si esa
+        // lectura falla no se reparte nada: sin poder ver las excepciones
+        // no hay forma de saber a quien NO le toca el precio del bloque, y
+        // asignarlo a ciegas es justo el error que se quiere evitar.
+        let excepciones = [];
+        try {
+            const halladas = await leerExcepcionesDeBloque(bufferImagen, motor, opciones.codigosEsperados);
+            excepciones = halladas.codigos;
+            if (excepciones.length > 0) {
+                avisos.push(`el catalogo marca como excepcion al precio del bloque: ${excepciones.join(", ")}; se dejan sin precio`);
+            }
+        } catch (error) {
+            avisos.push(`no se pudo revisar si el modulo tiene excepciones al precio del bloque (${error.message}); no se reparte ninguno`);
+            excepciones = null;
+        }
+
+        const porBloque = excepciones === null
+            ? { filas: [], avisos: [] }
+            : parsearPreciosPorBloque(texto, { ...opciones, excepcionesBloque: excepciones });
+
+        if (porBloque.filas.length > 0) {
+            const evaluacionBloque = evaluar(porBloque.filas);
+            if (evaluacionBloque.utiles.length > filasFinales.filter(f => f.completa).length) {
+                filasFinales = evaluacionBloque.utiles;
+                validacion = evaluacionBloque.validacion;
+                confiable = evaluacionBloque.confiable;
+                avisos.push(...porBloque.avisos);
+            }
+        }
     }
 
     // Columna de precio VACIA en el catalogo: hay modulos donde el
@@ -1189,6 +1460,8 @@ module.exports = {
     pareceTablaTranspuesta,
     parecePrecioPorBloque,
     parsearTablaTranspuesta,
+    parsearPreciosPorBloque,
+    leerExcepcionesDeBloque,
     validarContraFuenteTexto,
     revisarCoherenciaPrecios,
     hashContenido,

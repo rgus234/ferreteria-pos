@@ -356,7 +356,12 @@ test("un modulo de un solo producto sin importe NO se da por columna vacia", asy
     assert.equal(r.confiable, false);
 });
 
-test("no se gasta vision en un modulo de precio por bloque", async () => {
+test("un modulo de precio por bloque se lee, y sin gastar vision", async () => {
+    // Antes esto se daba por perdido: el modulo entero iba a revision
+    // manual por "estructura ambigua". Pero el layout no tiene nada de
+    // ambiguo -- el precio esta impreso una vez al pie de cada bloque y
+    // aplica a todos sus productos. Verificado a ojo contra el modulo
+    // 29801 real. Eran 79 modulos y 501 productos.
     const imagen = await moduloFalso();
     let llamadas = 0;
     const vision = { messages: { create: async () => { llamadas++; return { content: [] }; } } };
@@ -368,8 +373,17 @@ test("no se gasta vision en un modulo de precio por bloque", async () => {
         anthropic: vision
     });
 
-    assert.equal(r.confiable, false, "va a revision manual");
-    assert.equal(llamadas, 0, "y sin gastar una llamada de vision que ademas podria inventar el reparto");
+    assert.equal(r.confiable, true, "ahora si se puede leer");
+    assert.equal(r.layout, "precio_por_bloque");
+    assert.equal(r.filas.length, 4);
+    assert.ok(
+        r.filas.every(f => f.precios.precio_mayoreo === 60 && f.precios.precio_publico === 73),
+        "los cuatro productos del bloque comparten el precio de la barra"
+    );
+
+    // Esto no cambia: la vision podria INVENTAR el reparto, y no hace
+    // falta -- la barra se lee con el mismo OCR.
+    assert.equal(llamadas, 0, "sin gastar una llamada de vision");
     assert.ok(r.avisos.some(a => /precio comun por bloque/.test(a)));
 });
 
@@ -2056,4 +2070,122 @@ test("un renglon de un solo producto se lee igual que siempre", () => {
     assert.equal(r.filas.length, 2);
     assert.deepEqual(r.filas[0].precios, { precio_mayoreo: 335, precio_medio_mayoreo: 365, precio_publico: 400 });
     assert.ok(r.filas.every(f => f.completa));
+});
+
+test("un precio por bloque se reparte entre los productos del bloque", () => {
+    // Verificado a ojo contra el modulo 29801 (pinturas en aerosol): la
+    // pagina trae cuatro bloques y cada uno cierra con su propia barra de
+    // precio. Los ocho colores metalicos cuestan $78/$86/$96. No tiene
+    // nada de ambiguo -- cualquiera que abra la pagina lo lee igual.
+    const texto = [
+        "Colores metálicos",
+        "Código Clave Color Caja Máster",
+        "12778 PAM-NE Negro 4 48",
+        "12779 PAM-RO Rojo 4 48",
+        "Mayoreo ½ Mayoreo Público MM NC",
+        "$78 $86 $96 0 2"
+    ].join("\n");
+
+    const r = ocr.parsearPreciosPorBloque(texto, {
+        codigosEsperados: ["12778", "12779"],
+        columnasForzadas: ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+    });
+
+    assert.equal(r.filas.length, 2);
+    assert.ok(r.filas.every(f => f.completa));
+    assert.deepEqual(r.filas[0].precios, { precio_mayoreo: 78, precio_medio_mayoreo: 86, precio_publico: 96 });
+    assert.deepEqual(r.filas[1].precios, r.filas[0].precios);
+});
+
+test("cada bloque usa SU barra, no la del bloque vecino", () => {
+    const texto = [
+        "Código Clave Color",
+        "12778 PAM-NE Negro",
+        "Distribuidor MM NC",
+        "$65 0 2",
+        "Código Clave Color",
+        "12062 PAF-AM Amarillo",
+        "Distribuidor MM NC",
+        "$55 0 2"
+    ].join("\n");
+
+    const r = ocr.parsearPreciosPorBloque(texto, {
+        codigosEsperados: ["12778", "12062"],
+        columnasForzadas: ["precio_distribuidor"]
+    });
+
+    assert.equal(r.filas.length, 2);
+    assert.equal(r.filas[0].precios.precio_distribuidor, 65);
+    assert.equal(r.filas[1].precios.precio_distribuidor, 55);
+});
+
+test("el producto marcado como excepcion NO recibe el precio del bloque", () => {
+    // El caso real: el modulo 29801 imprime "Excepto: 19061" junto al
+    // titulo del bloque. Sin esto se le asignaba $78, que es un precio
+    // EQUIVOCADO -- peor que un hueco, porque nadie lo nota hasta que se
+    // cobra mal.
+    const texto = [
+        "Código Clave Color",
+        "12778 PAM-NE Negro",
+        "19061 PAM-VE Verde",
+        "Mayoreo ½ Mayoreo Público",
+        "$78 $86 $96"
+    ].join("\n");
+
+    const r = ocr.parsearPreciosPorBloque(texto, {
+        codigosEsperados: ["12778", "19061"],
+        columnasForzadas: ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"],
+        excepcionesBloque: ["19061"]
+    });
+
+    const completos = r.filas.filter(f => f.completa).map(f => f.codigo);
+    assert.deepEqual(completos, ["12778"]);
+
+    const excepcion = r.filas.find(f => f.codigo === "19061");
+    assert.equal(excepcion.completa, false);
+    assert.match(excepcion.motivo, /excepcion/i);
+});
+
+test("un bloque sin barra de precio legible no hereda la del siguiente", () => {
+    // La regla que evita el peor error posible: si no se leyo la barra de
+    // un bloque, sus productos se quedan sin precio en vez de tomar el del
+    // bloque que viene.
+    const texto = [
+        "Código Clave Color",
+        "12778 PAM-NE Negro",
+        "Código Clave Color",
+        "12062 PAF-AM Amarillo",
+        "Distribuidor MM NC",
+        "$55 0 2"
+    ].join("\n");
+
+    const r = ocr.parsearPreciosPorBloque(texto, {
+        codigosEsperados: ["12778", "12062"],
+        columnasForzadas: ["precio_distribuidor"]
+    });
+
+    const primero = r.filas.find(f => f.codigo === "12778");
+    assert.equal(primero.completa, false, "no debe heredar los $55 del otro bloque");
+    const segundo = r.filas.find(f => f.codigo === "12062");
+    assert.equal(segundo.precios.precio_distribuidor, 55);
+});
+
+test("una nota al pie con un importe suelto no se toma por barra de bloque", () => {
+    // Se exige que la barra traiga TANTOS importes como columnas: asi una
+    // linea suelta con un solo "$" no reparte precios a medias.
+    const texto = [
+        "Código Clave Color",
+        "12778 PAM-NE Negro",
+        "Precio sugerido de exhibidor $999",
+        "Mayoreo ½ Mayoreo Público",
+        "$78 $86 $96"
+    ].join("\n");
+
+    const r = ocr.parsearPreciosPorBloque(texto, {
+        codigosEsperados: ["12778"],
+        columnasForzadas: ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+    });
+
+    assert.equal(r.filas.length, 1);
+    assert.equal(r.filas[0].precios.precio_mayoreo, 78, "debe tomar la barra real, no el $999");
 });
