@@ -9,9 +9,11 @@
 // asi que una corrida interrumpida se retoma donde quedo -- lo ya leido no
 // se vuelve a leer. Cortarlo con Ctrl+C no pierde el trabajo hecho.
 //
-// El tope de llamadas a vision por corrida (300, en fabricantes/truper.js)
-// sigue vigente: los modulos que el OCR no pueda leer y que no alcancen
-// vision quedan en revision y los toma la siguiente corrida.
+// El tope de llamadas a vision por corrida (300 por defecto) acota el
+// gasto: los modulos que no alcancen vision quedan en revision y los toma
+// la corrida siguiente. Para una carga de arranque conviene subirlo --
+// NEXO_VISION_MAX=4000 -- y resolverlos todos de una vez. El log dice al
+// empezar cual es el tope efectivo y cuanto puede llegar a costar.
 
 const pool = require("../db");
 const truper = require("../fabricantes/truper");
@@ -30,6 +32,11 @@ function reloj(desde) {
     const m = Math.floor((s % 3600) / 60);
     return h > 0 ? `${h}h ${m}m` : `${m}m ${s % 60}s`;
 }
+
+// Costo medido de una llamada de vision contra la API real: 1.590 tokens
+// de entrada y 242 de salida con Haiku 4.5. Sirve para anunciar el gasto
+// maximo de la corrida ANTES de empezarla.
+const COSTO_USD_POR_LLAMADA_VISION = 0.0028;
 
 // Si pasa este tiempo sin una sola señal de avance, la corrida se
 // abandona. Sin esto, al cortarse la conexion el proceso se quedaba vivo
@@ -69,7 +76,12 @@ async function main() {
     if (config.anthropicApiKey) {
         const Anthropic = require("@anthropic-ai/sdk");
         contexto.anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
-        console.log("Vision disponible como respaldo del OCR (tope: 300 por corrida).");
+        // El tope se lee del adaptador, no se escribe a mano: con el
+        // numero fijo, subirlo con NEXO_VISION_MAX seguia anunciando 300 y
+        // no habia forma de confirmar desde el log que habia entrado.
+        const tope = truper.MAX_LLAMADAS_VISION_POR_CORRIDA;
+        const gastoMaximo = (tope * COSTO_USD_POR_LLAMADA_VISION).toFixed(2);
+        console.log(`Vision disponible como respaldo del OCR (tope: ${tope}, gasto maximo ~${gastoMaximo} USD).`);
     } else {
         console.log("Sin ANTHROPIC_API_KEY: solo OCR. Los modulos que no se lean quedaran en revision.");
     }
