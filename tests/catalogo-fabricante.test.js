@@ -394,16 +394,32 @@ test("validarContraFuenteTexto acepta cuando el OCR concuerda", () => {
     assert.equal(resultado.ok, true);
 });
 
-test("validarContraFuenteTexto rechaza si el OCR invento o perdio un codigo", () => {
+test("un codigo INVENTADO tumba el modulo entero", () => {
+    // Que el OCR lea un codigo que no es de este modulo significa que no
+    // entendio la estructura, y una fila mal partida puede haber pegado el
+    // precio de un producto al codigo de otro. Eso no se salva.
     const { filas } = ocr.parsearTablaPrecios(OCR_29901_PUB);
-
-    const faltante = ocr.validarContraFuenteTexto(filas, ["103013", "103012", "999999"]);
-    assert.equal(faltante.ok, false);
-    assert.deepEqual(faltante.faltantes, ["999999"]);
 
     const sobrante = ocr.validarContraFuenteTexto(filas, ["103013"]);
     assert.equal(sobrante.ok, false);
     assert.deepEqual(sobrante.sobrantes, ["103012"]);
+});
+
+test("un codigo que FALTA no tumba el modulo: se guarda lo que si se leyo", () => {
+    // La otra cara, y es distinta: faltar codigos significa que se leyeron
+    // MENOS productos, no productos equivocados. Cada fila aceptada tiene
+    // su codigo confirmado contra la fuente en texto de TRUPER.
+    //
+    // Con la regla de todo-o-nada esto costo 310 modulos en la carga real,
+    // 113 de ellos por UN solo codigo. El modulo 55301 leyo 36 de 37 filas
+    // perfectas y se perdieron las 37.
+    const { filas } = ocr.parsearTablaPrecios(OCR_29901_PUB);
+
+    const faltante = ocr.validarContraFuenteTexto(filas, ["103013", "103012", "999999"]);
+    assert.equal(faltante.ok, true, "lo leido se aprovecha");
+    assert.equal(faltante.parcial, true, "pero queda marcado como incompleto");
+    assert.deepEqual(faltante.faltantes, ["999999"], "y se anota cual falto");
+    assert.deepEqual(faltante.sobrantes, []);
 });
 
 test("validarContraFuenteTexto rechaza si la fuente en texto no dio codigos", () => {
@@ -541,7 +557,16 @@ test("la vision solo entra si el OCR fallo, y su lectura tambien se valida", asy
         anthropic: visionIncompleta
     });
 
-    assert.equal(rechazado.confiable, false, "falta el medio mayoreo: no puede darse por bueno");
+    // La lectura de la vision se DESCARTA -- le falta el medio mayoreo --
+    // y se conserva la del OCR, que leyo un producto de dos pero ese con
+    // sus tres precios. Antes se perdian los dos.
+    assert.equal(rechazado.origen, "ocr", "no se adopta una lectura a la que le falta un precio");
+    assert.equal(rechazado.validacion.parcial, true, "el modulo queda pendiente por el que falto");
+    assert.deepEqual(rechazado.filas.map(f => f.codigo), ["103013"]);
+    assert.ok(
+        rechazado.filas.every(f => f.precios.precio_medio_mayoreo != null),
+        "ninguna fila guardada se queda sin el medio mayoreo"
+    );
 });
 
 test("la vision no se llama cuando el OCR ya leyo bien", async () => {
@@ -578,7 +603,10 @@ test("extraerTablaDeModulo marca confiable solo si todo concuerda", async () => 
         codigosEsperados: ["103013", "103012", "999999"],
         ocr: ocrFalso
     });
-    assert.equal(faltante.confiable, false, "falta un producto de la lista: no se escribe nada");
+    // Se aprovecha lo leido y queda marcado como incompleto. Descartarlo
+    // entero costaba 310 modulos en la carga real -- 113 por UN codigo.
+    assert.equal(faltante.confiable, true, "los 2 que si se leyeron valen");
+    assert.equal(faltante.validacion.parcial, true, "pero el modulo queda pendiente");
     assert.deepEqual(faltante.validacion.faltantes, ["999999"]);
 });
 
@@ -1808,4 +1836,32 @@ test("una variante que no aporta un precio no lo borra", async () => {
 
     const update = client.consultas.find(c => /UPDATE public\.catalogo_fabricante_productos/.test(c.texto));
     assert.doesNotMatch(update.texto, /precio_mayoreo/, "los precios que esta corrida no leyo quedan intactos");
+});
+
+test("un modulo leido a medias guarda sus productos y queda marcado", async () => {
+    // El caso real que motivo todo esto: el modulo 55301 leyo 36 de 37
+    // filas -- todas correctas, la tabla es perfectamente legible -- y la
+    // regla de todo-o-nada tiro las 37. Asi 310 modulos y 5.085 productos.
+    const adaptador = adaptadorPorModulos([{ id: "m1", codigos: ["1001", "1002", "1003"] }]);
+    adaptador.extraerUnidad = async () => ({
+        // Se leyeron dos de los tres que el universo lista.
+        filas: [
+            { codigo: "1001", precios: { precio_publico: 100 } },
+            { codigo: "1002", precios: { precio_publico: 200 } }
+        ],
+        confiable: true, origen: "ocr", layout: "prueba", confianza: "alta",
+        firmaContenido: "h",
+        validacion: { ok: true, parcial: true, faltantes: ["1003"], sobrantes: [] }
+    });
+
+    const pool = poolFalso();
+    await sync.sincronizar(pool, adaptador, { aportarAlMaestro: false });
+
+    assert.deepEqual(pool.productos.map(p => p.codigo).sort(), ["1001", "1002", "1003"],
+        "los dos leidos se guardan con precio; el tercero se da de alta sin el");
+
+    const firmada = pool.firmas.find(f => f.unidad === "m1");
+    assert.equal(firmada.estado, "parcial", "el modulo no se marca como ok");
+    assert.equal(firmada.etag, "m1-pub-v1",
+        "pero SI guarda su firma: releerlo en cada corrida daria el mismo resultado");
 });

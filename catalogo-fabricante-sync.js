@@ -298,8 +298,11 @@ function clasificarRevision(resultado) {
 // asi que sus precios no se recuperaban hasta que la fuente cambiara
 // sola. Paso de verdad al correr el primer adaptador de CSV: un CHECK
 // reviento la transaccion y los productos quedaron sin precio.
-async function guardarEstadoUnidad(ejecutor, fabricante, unidad, estado, detalle, resultado) {
-    const motivo = estado === "ok" ? "" : clasificarRevision(resultado);
+async function guardarEstadoUnidad(ejecutor, fabricante, unidad, estado, detalle, resultado, faltantes) {
+    // 'parcial' no es un fallo: se leyeron ALGUNOS productos del modulo y
+    // sus precios si se aplicaron. No lleva motivo de revision estructural.
+    const leyoBien = estado === "ok" || estado === "parcial";
+    const motivo = leyoBien ? "" : clasificarRevision(resultado);
 
     // LA FIRMA SOLO SE GRABA SI LA LECTURA SIRVIO.
     //
@@ -317,7 +320,9 @@ async function guardarEstadoUnidad(ejecutor, fabricante, unidad, estado, detalle
     // Conservando la firma anterior, la unidad sigue viendose cambiada y se
     // relee. El resto de la fila (estado, motivo, productos_afectados) si se
     // actualiza: es lo que alimenta la pantalla de revision.
-    const leyoBien = estado === "ok";
+    // 'parcial' cuenta como lectura buena para la firma: sus precios SI se
+    // aplicaron. Si no se guardara, esos modulos se releerian enteros en
+    // cada corrida para volver a fallar exactamente en lo mismo.
     const firma = leyoBien ? String(unidad.firma || "") : String(unidad.firmaPrevia || "");
     const ultimaMod = leyoBien ? String(unidad.lastModified || "") : "";
     // El hash va por el mismo camino: uno de una lectura fallida haria que
@@ -328,15 +333,17 @@ async function guardarEstadoUnidad(ejecutor, fabricante, unidad, estado, detalle
     await ejecutor.query(
         `INSERT INTO public.catalogo_fabricante_modulos
             (fabricante, modulo, variante, etag, last_modified, hash_contenido, estado, detalle,
-             filas_extraidas, layout, origen_lectura, motivo_revision, productos_afectados, extraido_en)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
+             filas_extraidas, layout, origen_lectura, motivo_revision, productos_afectados,
+             codigos_faltantes, extraido_en)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
          ON CONFLICT (fabricante, modulo, variante) DO UPDATE
          SET etag = EXCLUDED.etag, last_modified = EXCLUDED.last_modified,
              hash_contenido = EXCLUDED.hash_contenido, estado = EXCLUDED.estado,
              detalle = EXCLUDED.detalle, filas_extraidas = EXCLUDED.filas_extraidas,
              layout = EXCLUDED.layout, origen_lectura = EXCLUDED.origen_lectura,
              motivo_revision = EXCLUDED.motivo_revision,
-             productos_afectados = EXCLUDED.productos_afectados, extraido_en = NOW()`,
+             productos_afectados = EXCLUDED.productos_afectados,
+             codigos_faltantes = EXCLUDED.codigos_faltantes, extraido_en = NOW()`,
         [
             fabricante, unidad.id, unidad.parte || "",
             firma, ultimaMod, hash,
@@ -347,7 +354,11 @@ async function guardarEstadoUnidad(ejecutor, fabricante, unidad, estado, detalle
             motivo,
             // Cuantos productos quedan sin dato por culpa de esta unidad:
             // es lo que le importa a quien revisa, no cuantas unidades hay.
-            estado === "ok" ? 0 : (unidad.productosEsperados || resultado?.filas?.length || 0)
+            // En un parcial son SOLO los que faltaron, no el modulo entero.
+            estado === "ok" ? 0
+                : estado === "parcial" ? (faltantes || []).length
+                : (unidad.productosEsperados || resultado?.filas?.length || 0),
+            (faltantes || []).join(",")
         ]
     );
 }
@@ -426,7 +437,19 @@ async function extraerUnidades(pool, adaptador, cambiadas, contexto, onProgreso)
             });
         }
 
-        estadosUnidad.push({ unidad, estado: "ok", detalle: "", resultado });
+        // Un modulo del que se leyeron ALGUNOS productos no es ni un exito
+        // ni un fallo: los precios que trae son de fiar --cada codigo se
+        // confirmo contra la fuente en texto de TRUPER-- pero faltaron
+        // productos que alguien deberia mirar. Antes esto se descartaba
+        // entero: 310 modulos perdidos, 113 de ellos por UN solo codigo.
+        const parcial = Boolean(resultado.validacion?.parcial);
+        estadosUnidad.push({
+            unidad,
+            estado: parcial ? "parcial" : "ok",
+            detalle: parcial ? resultado.validacion.motivo : "",
+            faltantes: parcial ? resultado.validacion.faltantes : [],
+            resultado
+        });
         procesadas++;
         if (typeof onProgreso === "function") onProgreso(procesadas, cambiadas.length);
     }
@@ -646,7 +669,7 @@ async function aplicarLote(pool, sincronizacionId, fabricante, extraido, univers
             const detalle = universoSospechoso
                 ? "ninguno de sus codigos aparece en el universo vigente: lectura del universo sospechosa"
                 : e.detalle;
-            await guardarEstadoUnidad(client, fabricante, e.unidad, estado, detalle, e.resultado);
+            await guardarEstadoUnidad(client, fabricante, e.unidad, estado, detalle, e.resultado, e.faltantes);
         }
 
         await client.query("COMMIT");

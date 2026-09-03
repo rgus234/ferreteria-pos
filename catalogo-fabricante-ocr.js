@@ -455,16 +455,39 @@ function validarContraFuenteTexto(filas, codigosEsperados) {
     const faltantes = [...esperados].filter(c => !leidos.has(c));
     const sobrantes = [...leidos].filter(c => !esperados.has(c));
 
-    if (faltantes.length > 0 || sobrantes.length > 0) {
+    // SOBRAN codigos: el OCR leyo algo que no pertenece a este modulo.
+    // Eso significa que la estructura se entendio mal, y una fila mal
+    // partida puede haber pegado el precio de un producto al codigo de
+    // otro. Se rechaza todo, como siempre.
+    if (sobrantes.length > 0) {
         return {
             ok: false,
-            motivo: `el OCR no concuerda con la fuente en texto (faltan ${faltantes.length}, sobran ${sobrantes.length})`,
+            parcial: false,
+            motivo: `el OCR leyo ${sobrantes.length} codigo(s) que no son de este modulo`,
             faltantes,
             sobrantes
         };
     }
 
-    return { ok: true, motivo: "", faltantes: [], sobrantes: [] };
+    // FALTAN codigos, pero ninguno sobra: se leyeron MENOS productos, no
+    // productos equivocados. Cada fila que si se leyo tiene su codigo
+    // confirmado contra la fuente en texto de TRUPER, asi que es tan de
+    // fiar como la de un modulo completo.
+    //
+    // Antes esto tiraba el modulo entero. En la carga real eso costo 310
+    // modulos, 113 de ellos por UN solo codigo faltante -- el 55301 leyo
+    // 36 de 37 filas perfectas y se perdieron las 37.
+    if (faltantes.length > 0) {
+        return {
+            ok: true,
+            parcial: true,
+            motivo: `se leyeron ${leidos.size} de ${esperados.size} productos del modulo`,
+            faltantes,
+            sobrantes: []
+        };
+    }
+
+    return { ok: true, parcial: false, motivo: "", faltantes: [], sobrantes: [] };
 }
 
 // Coherencia interna de una fila: un mayoreo mas caro que el publico
@@ -972,7 +995,12 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
     // de dinero y de cuota, y una llamada fallida cuesta igual.
     let intentoVision = false;
 
-    if (!confiable && opciones.anthropic && !precioPorBloque) {
+    // Una lectura PARCIAL tambien pide vision: es justo el caso donde
+    // puede recuperar la fila que al OCR se le fue. Si la vision no lo
+    // hace mejor, se conserva lo parcial en vez de perderlo.
+    const parcialOcr = Boolean(validacion?.parcial);
+
+    if ((!confiable || parcialOcr) && opciones.anthropic && !precioPorBloque) {
         intentoVision = true;
         try {
             // Se le dan al modelo las columnas DECLARADAS por el adaptador,
@@ -993,7 +1021,15 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
 
             if (filasIA.length > 0) {
                 const evaluacionIA = evaluar(filasIA);
-                if (evaluacionIA.confiable) {
+
+                // Se queda con la lectura de la vision solo si MEJORA lo
+                // que ya habia: sirve, y le faltan menos productos. Sin
+                // esta comparacion, una vision que leyera menos filas que
+                // el OCR reemplazaria una lectura buena por una peor.
+                const faltabanAntes = confiable ? (validacion?.faltantes || []).length : Infinity;
+                const faltanAhora = (evaluacionIA.validacion?.faltantes || []).length;
+
+                if (evaluacionIA.confiable && faltanAhora < faltabanAntes) {
                     filasFinales = filasIA;
                     validacion = evaluacionIA.validacion;
                     confiable = true;
