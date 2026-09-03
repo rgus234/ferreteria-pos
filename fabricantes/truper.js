@@ -528,6 +528,7 @@ module.exports = {
     codigosDeModulos,
     cabecerasModulo,
     descargarModulo,
+    codigosDeLaCorrida,
     // Se exporta para poder probar el reintento contra estados como 503:
     // un hipo del servidor no puede tumbar una carga de horas.
     pedir,

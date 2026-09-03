@@ -1744,3 +1744,10 @@ small,
 .catalogo-revision-grupo small { font-size: 12px; color: var(--muted); }
 
 .catalogo-revision small { display: block; color: var(--muted); }
+
+/* Detalle de una metrica que dejo de ser informativa y paso a ser un
+   aviso: la IA sin saldo no es un dato de costo, es un servicio caido. */
+.metric-alerta {
+  color: var(--red);
+  font-weight: 600;
+}

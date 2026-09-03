@@ -8,11 +8,41 @@ const { responderError } = require("./error-utils");
 // tumbar el arranque del servidor.
 let anthropicClient = null;
 
+// El pool, para poder anotar la salud de la API. Lo deja module.exports al
+// montar las rutas; antes de eso no hay peticiones que atender.
+let poolIA = null;
+
 function obtenerAnthropic() {
     if (!config.anthropicApiKey) return null;
     if (!anthropicClient) {
         const Anthropic = require("@anthropic-ai/sdk");
-        anthropicClient = new Anthropic({ apiKey: config.anthropicApiKey });
+        const cliente = new Anthropic({ apiKey: config.anthropicApiKey });
+
+        // Se envuelve messages.create en UN solo lugar en vez de tocar
+        // cada llamada. Asi queda cubierto todo lo que ya existe y lo que
+        // se agregue despues, sin que nadie tenga que acordarse.
+        //
+        // Sin esto, cuando la cuenta se quedo sin saldo el 2026-09-02,
+        // Nexo IA dejo de responder a TODOS los clientes y nadie se
+        // entero: cada llamada moria en su propio catch, el cliente veia
+        // "no pude responder ahorita" y el dueno no veia nada.
+        const crearOriginal = cliente.messages.create.bind(cliente.messages);
+        const { registrarFalloIA, registrarExitoIA } = require("./ia-salud");
+
+        cliente.messages.create = async (...args) => {
+            try {
+                const respuesta = await crearOriginal(...args);
+                if (poolIA) registrarExitoIA(poolIA).catch(() => {});
+                return respuesta;
+            } catch (error) {
+                // Se anota y el error sigue su camino intacto: cada ruta
+                // decide como responderle a SU usuario.
+                if (poolIA) await registrarFalloIA(poolIA, error, "nexo_ia").catch(() => {});
+                throw error;
+            }
+        };
+
+        anthropicClient = cliente;
     }
     return anthropicClient;
 }
@@ -595,6 +625,7 @@ async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
                        COALESCE(AVG(total), 0) AS ticket_promedio
                 FROM public.historial_ventas
                 WHERE negocio_id = $1
+                AND estado = 'completada'
                 AND fecha >= NOW() - ($2 || ' days')::interval
                 `,
                 [negocioId, dias]
@@ -638,6 +669,7 @@ async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
                     FROM public.historial_ventas hv,
                          LATERAL jsonb_array_elements(hv.productos) AS item
                     WHERE hv.negocio_id = $1
+                    AND hv.estado = 'completada'
                     AND hv.fecha >= NOW() - ($2 || ' days')::interval
                     AND (item->>'id')::int = p.id
                 )
@@ -693,6 +725,7 @@ async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
                 FROM public.historial_ventas,
                      LATERAL jsonb_array_elements(productos) AS item
                 WHERE negocio_id = $1
+                AND estado = 'completada'
                 AND fecha >= NOW() - ($2 || ' days')::interval
                 GROUP BY item->>'nombre'
                 ORDER BY total DESC
@@ -728,6 +761,7 @@ async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
                     ) AS transacciones_anterior
                 FROM public.historial_ventas
                 WHERE negocio_id = $1
+                AND estado = 'completada'
                 `,
                 [negocioId, dias]
             );
@@ -931,6 +965,7 @@ async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8",
 }
 
 module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
+    poolIA = pool;
     // Resumen instantaneo para el popover de la burbuja -- mismas
     // herramientas de Nivel 1, sin pasar por el clasificador ni el
     // modelo. Costo $0, siempre en vivo (no necesita cache).

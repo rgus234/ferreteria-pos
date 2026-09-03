@@ -2571,7 +2571,11 @@ app.get("/admin/api/resumen", async (_req, res) => {
                 costoEstimadoMxn: {
                     min: Math.round(usosNivel3Mes * COSTO_ESTIMADO_MXN_POR_PREGUNTA_NIVEL3.min),
                     max: Math.round(usosNivel3Mes * COSTO_ESTIMADO_MXN_POR_PREGUNTA_NIVEL3.max)
-                }
+                },
+                // Si la cuenta se queda sin saldo, Nexo IA deja de
+                // responder a TODOS los clientes. Antes eso solo se sabia
+                // cuando alguien se quejaba.
+                salud: await require("./ia-salud").estadoIA(pool)
             }
         });
     } catch (error) {
@@ -4375,6 +4379,56 @@ async function descontarStockVentaProducto(client, negocioId, productoVenta = {}
 async function descontarInventarioPorProductos(client, negocioId, productos = []) {
     for (const producto of productos) {
         await descontarStockVentaProducto(client, negocioId, producto);
+    }
+}
+
+// Espejo de descontarStockVentaProducto, usado por "Cancelar venta" --
+// nunca intenta volver a cerrar una bolsa que se abrio automaticamente
+// durante la venta original (no hay forma de saber cuantas se abrieron,
+// y fisicamente tampoco tendria sentido "re-sellar" una bolsa ya
+// abierta): las piezas sueltas vuelven a la existencia suelta, que es
+// lo correcto. Mismo "mejor esfuerzo" que ya acepta "Cambiar producto"
+// si la venta original topo el piso de stock en 0 por vender de mas.
+async function restaurarStockVentaProducto(client, negocioId, productoVenta = {}) {
+    const productoId =
+        Number(productoVenta.id || productoVenta.productoId || 0);
+    const cantidad =
+        Number(productoVenta.cantidad || 0);
+
+    if (!productoId || !Number.isFinite(cantidad) || cantidad <= 0) {
+        return;
+    }
+
+    const modoVenta =
+        productoVenta.modoVenta === "pieza" ? "pieza" : "bolsa";
+
+    if (modoVenta === "pieza") {
+        await client.query(
+            `
+            UPDATE public.productos
+            SET piezas_sueltas_stock = COALESCE(piezas_sueltas_stock, 0) + $1
+            WHERE id = $2
+            AND negocio_id = $3
+            `,
+            [cantidad, productoId, negocioId]
+        );
+        return;
+    }
+
+    await client.query(
+        `
+        UPDATE public.productos
+        SET stock = stock + $1
+        WHERE id = $2
+        AND negocio_id = $3
+        `,
+        [cantidad, productoId, negocioId]
+    );
+}
+
+async function restaurarInventarioPorProductos(client, negocioId, productos = []) {
+    for (const producto of productos) {
+        await restaurarStockVentaProducto(client, negocioId, producto);
     }
 }
 
@@ -7616,6 +7670,109 @@ app.post("/ventas/:id/cambios", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
+// Cancela una venta completa: regresa el stock de cada linea, deja la
+// venta marcada 'cancelada' (nunca se borra la fila ni se toca su
+// idempotency_key -- un reintento tardio de sincronizacion offline de
+// la venta original podria recrearla y volver a descontar stock si se
+// borrara) y, si era a credito, retira el cargo del saldo del cliente.
+// PIN de administrador siempre obligatorio (a diferencia de "Cambiar
+// producto", que solo lo exige si hay credito de por medio) -- cancelar
+// una venta en efectivo tambien revierte dinero real.
+app.post("/ventas/:id/cancelar", requerirAccesoNegocio, async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+        const negocio = await negocioActual(req);
+        const historialId = Number(req.params.id);
+        const { motivo, adminPin } = req.body;
+
+        const motivoLimpio = String(motivo || "").trim();
+        if (!motivoLimpio) {
+            res.status(400).json({ ok: false, error: "Captura el motivo de la cancelacion" });
+            return;
+        }
+
+        await client.query("BEGIN");
+
+        const ventaRow = await client.query(
+            `SELECT * FROM public.historial_ventas WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
+            [historialId, negocio.id]
+        );
+
+        if (!ventaRow.rows.length) {
+            await client.query("ROLLBACK");
+            res.status(404).json({ ok: false, error: "Venta no encontrada" });
+            return;
+        }
+
+        const venta = ventaRow.rows[0];
+
+        if (venta.estado === "cancelada") {
+            await client.query("ROLLBACK");
+            res.status(400).json({ ok: false, error: "Esta venta ya esta cancelada" });
+            return;
+        }
+
+        const creditoLigado = await client.query(
+            `SELECT id, cliente_id FROM public.movimientos_credito WHERE historial_id = $1 FOR UPDATE`,
+            [historialId]
+        );
+
+        const admin = await validarPinAdministrador(client, negocio.id, adminPin);
+        if (!admin) {
+            await client.query("ROLLBACK");
+            res.status(400).json({ ok: false, error: "PIN de administrador invalido para cancelar esta venta" });
+            return;
+        }
+
+        const productosVenta = Array.isArray(venta.productos) ? venta.productos : [];
+        await restaurarInventarioPorProductos(client, negocio.id, productosVenta);
+
+        await client.query(
+            `UPDATE public.historial_ventas SET estado = 'cancelada' WHERE id = $1`,
+            [historialId]
+        );
+
+        if (venta.venta_id) {
+            await client.query(
+                `UPDATE public.ventas SET estado = 'cancelada' WHERE id = $1 AND negocio_id = $2`,
+                [venta.venta_id, negocio.id]
+            );
+        }
+
+        const eraCredito = creditoLigado.rows.length > 0;
+
+        if (eraCredito) {
+            const clienteId = creditoLigado.rows[0].cliente_id;
+            await client.query(
+                `DELETE FROM public.movimientos_credito WHERE historial_id = $1`,
+                [historialId]
+            );
+            await marcarVentasLiquidadasCliente(client, negocio.id, clienteId);
+        }
+
+        const empleadoId = Number(req.headers["x-empleado-id"]) || null;
+        await registrarBitacora(client, negocio.id, empleadoId, "venta_cancelada", {
+            historialId,
+            folio: venta.folio,
+            total: venta.total,
+            motivo: motivoLimpio,
+            eraCredito,
+            adminId: admin.id,
+            adminNombre: admin.usuario
+        });
+
+        await client.query("COMMIT");
+
+        res.json({ ok: true, folio: venta.folio });
+    } catch (error) {
+        await client.query("ROLLBACK");
+        responderError(res, error);
+    } finally {
+        client.release();
+    }
+});
+
 app.post("/ventas/:id/comprobantes", requerirAccesoNegocio, async (req, res) => {
     const client = await pool.connect();
 
@@ -8770,8 +8927,12 @@ app.get("/reportes/ventas", requerirAccesoNegocio, async (req, res) => {
         // Una compra a credito ligada (historial_id) solo cuenta aqui una
         // vez que ya se liquido por completo -- mientras tenga saldo
         // pendiente, no se cuenta como "venta" en Reportes (decision
-        // confirmada con el usuario).
+        // confirmada con el usuario). Tambien excluye ventas canceladas
+        // (ver "Cancelar venta") -- se agrega aqui porque filtroFecha y
+        // filtroFechaAnterior ya interpolan esta misma constante, asi
+        // que un solo cambio cubre las 9 consultas de este endpoint.
         const FILTRO_CREDITO_LIQUIDADO = `
+            AND estado = 'completada'
             AND NOT EXISTS (
                 SELECT 1 FROM public.movimientos_credito mc
                 WHERE mc.historial_id = historial_ventas.id

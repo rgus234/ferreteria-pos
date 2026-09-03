@@ -138,7 +138,22 @@ function pintarMetricasAdmin(resumen) {
   document.getElementById("metricSyncDetalle").textContent = `${pendientes} pendientes, ${errores} errores`;
   document.getElementById("metricFantasmas").textContent = fantasmas;
   document.getElementById("metricIAUsos").textContent = `${iaUsos} preguntas`;
-  document.getElementById("metricIACosto").textContent = `Costo estimado: ${formatoDineroAdmin.format(iaCostoMin)} - ${formatoDineroAdmin.format(iaCostoMax)} MXN (aproximado)`;
+
+  // Si la IA no esta respondiendo, eso manda sobre el costo: de nada
+  // sirve saber cuanto llevas gastado si tus clientes no la pueden usar.
+  const saludIA = resumen?.ia?.salud || {};
+  const detalleIA = document.getElementById("metricIACosto");
+  const tarjetaIA = detalleIA?.closest(".metric-card");
+
+  if (saludIA.estado && saludIA.estado !== "ok") {
+    detalleIA.textContent = saludIA.detalle || "La IA no esta respondiendo.";
+    detalleIA.classList.add("metric-alerta");
+    if (tarjetaIA) tarjetaIA.classList.add("warning");
+  } else {
+    detalleIA.textContent = `Costo estimado: ${formatoDineroAdmin.format(iaCostoMin)} - ${formatoDineroAdmin.format(iaCostoMax)} MXN (aproximado)`;
+    detalleIA.classList.remove("metric-alerta");
+    if (tarjetaIA) tarjetaIA.classList.remove("warning");
+  }
   document.getElementById("ingresoMRR").textContent = formatoDineroAdmin.format(mrr);
   document.getElementById("ingresoVencidas").textContent = vencidas;
   document.getElementById("ingresoSuspendidas").textContent = suspendidas;
