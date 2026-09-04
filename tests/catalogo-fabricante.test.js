@@ -2189,3 +2189,68 @@ test("una nota al pie con un importe suelto no se toma por barra de bloque", () 
     assert.equal(r.filas.length, 1);
     assert.equal(r.filas[0].precios.precio_mayoreo, 78, "debe tomar la barra real, no el $999");
 });
+
+test("varios productos en un renglon con UN solo juego de precios lo comparten", () => {
+    // Modulo 57906 real (letras y numeros de laton): tres acabados del
+    // mismo articulo --laton brillante, niquel satinado, negro-- en el
+    // mismo renglon, con un solo juego de precios a la derecha.
+    //
+    //   43292 NUCH-A | 43268 NUCH-AS | 43299 NUCH-AN | $105 $115 $125
+    //
+    // Es el mismo principio del precio por bloque, pero en horizontal.
+    const texto = [
+        "Código Clave Código Clave Código Clave Signo May. ½ May. Púb. NC",
+        "43292 NUCH-A 43268 NUCH-AS 43299 NUCH-AN A $105 $115 $125 3"
+    ].join("\n");
+
+    const r = ocr.parsearTablaPrecios(texto, {
+        codigosEsperados: ["43292", "43268", "43299"],
+        columnasForzadas: ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+    });
+
+    assert.equal(r.filas.length, 3);
+    assert.ok(r.filas.every(f => f.completa));
+    for (const fila of r.filas) {
+        assert.deepEqual(fila.precios, {
+            precio_mayoreo: 105, precio_medio_mayoreo: 115, precio_publico: 125
+        });
+    }
+});
+
+test("el conteo de importes distingue precio compartido de tres tablas juntas", () => {
+    // La regla es tajante y hay que mantenerla asi:
+    //   3 productos y 9 importes -> cada uno trae SU juego (tres tablas)
+    //   3 productos y 3 importes -> UN juego compartido
+    // Si esto se confundiera, tres productos de precios distintos
+    // acabarian todos con el mismo -- y nadie lo notaria.
+    const texto = [
+        "Código Clave Mayoreo 1/2 Mayoreo Público NC",
+        "13182 D-1408-L $35 $38 $42 4  13156 D-1408 $25 $27 $30 4  100875 D-1408-B $22 $24 $26 4"
+    ].join("\n");
+
+    const r = ocr.parsearTablaPrecios(texto, {
+        codigosEsperados: ["13182", "13156", "100875"],
+        columnasForzadas: ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+    });
+
+    assert.equal(r.filas.length, 3);
+    assert.equal(r.filas[0].precios.precio_mayoreo, 35);
+    assert.equal(r.filas[1].precios.precio_mayoreo, 25);
+    assert.equal(r.filas[2].precios.precio_mayoreo, 22, "cada tabla conserva SU precio");
+});
+
+test("un renglon con dos productos y un numero de importes que no cuadra no comparte", () => {
+    // Ni 1 juego ni N juegos: no se adivina. Cada trozo se queda con lo
+    // suyo y las filas salen incompletas, que es lo honesto.
+    const texto = [
+        "Código Clave Mayoreo 1/2 Mayoreo Público",
+        "43292 NUCH-A 43268 NUCH-AS $105 $115 $125 $130 $140"
+    ].join("\n");
+
+    const r = ocr.parsearTablaPrecios(texto, {
+        codigosEsperados: ["43292", "43268"],
+        columnasForzadas: ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+    });
+
+    assert.ok(r.filas.every(f => !f.completa), "5 importes para 2 productos y 3 columnas no se reparte");
+});

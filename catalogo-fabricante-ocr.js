@@ -607,6 +607,9 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
     }
 
     const filas = [];
+    // Cuantos productos compartieron precio en un mismo renglon, para
+    // avisarlo una sola vez al final en vez de por cada fila.
+    const avisosCompartidos = new Set();
     // Anclar por los codigos que la fuente en texto dice que tiene el
     // modulo es mucho mas robusto que confiar en que la linea empiece con
     // el numero: la maqueta antepone iconos a algunas filas (un ojo de
@@ -621,7 +624,37 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
     for (const linea of lineas) {
         if (esLineaEncabezado(linea)) continue;
 
-        for (const trozo of partirEnProductos(linea, anclas)) {
+        const trozos = partirEnProductos(linea, anclas);
+
+        // Renglon con VARIOS productos que comparten UN solo juego de
+        // precios. Visto en el modulo 57906 (letras y numeros de laton):
+        //
+        //   Codigo Clave   | Codigo Clave    | Codigo Clave    | May. | 1/2May. | Pub.
+        //   43292 NUCH-A   | 43268 NUCH-AS   | 43299 NUCH-AN   | $105 | $115    | $125
+        //
+        // Son tres acabados del mismo articulo --laton, niquel, negro-- y
+        // cuestan lo mismo. Es el mismo principio del precio por bloque,
+        // pero en horizontal.
+        //
+        // Se distingue del modulo de tres TABLAS lado a lado por el conteo
+        // de importes, que es tajante:
+        //   3 productos y 9 importes -> cada uno trae SU juego (tres tablas)
+        //   3 productos y 3 importes -> UN juego compartido (este caso)
+        // Por eso se exige el numero exacto de columnas: cualquier otra
+        // cuenta no entra aqui y cae en el reparto normal por trozo.
+        const importesLinea = (linea.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
+            .map(precioDeTexto)
+            .filter(valor => valor !== null);
+
+        const precioCompartido = trozos.length > 1
+            && columnas.length > 0
+            && importesLinea.length === columnas.length;
+
+        if (precioCompartido) {
+            avisosCompartidos.add(trozos.length);
+        }
+
+        for (const trozo of trozos) {
 
         let codigo = "";
         let resto = "";
@@ -660,9 +693,15 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
         // numero de la fila (el NC) se colaria como precio.
         // Del TROZO, no del renglon: con tres tablas juntas, tomar los de
         // la linea entera daba 9 importes donde se esperaban 3.
-        const importes = (trozo.texto.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
-            .map(precioDeTexto)
-            .filter(valor => valor !== null);
+        //
+        // Salvo cuando el renglon trae UN solo juego de precios para todos
+        // sus productos: ahi el juego es de la linea, no del trozo, y solo
+        // el ultimo trozo lo tendria dentro.
+        const importes = precioCompartido
+            ? importesLinea
+            : (trozo.texto.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
+                .map(precioDeTexto)
+                .filter(valor => valor !== null);
 
         const fila = { codigo, clave, precios: {}, completa: true, motivo: "" };
 
@@ -683,6 +722,11 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
 
         filas.push(fila);
         }
+    }
+
+    if (avisosCompartidos.size > 0) {
+        const cuantos = [...avisosCompartidos].sort((a, b) => a - b).join("/");
+        avisos.push(`hay renglones donde ${cuantos} productos comparten un mismo juego de precios`);
     }
 
     return { columnas, filas, avisos, layout: "filas" };
@@ -822,6 +866,13 @@ function segmentosOscuros(data, ancho, y, huecoMaximo) {
  *
  * @returns {Promise<Array<{left:number, top:number, width:number, height:number}>>}
  */
+// La zona de tabla sin dividir: un unico recorte del pie del modulo.
+async function zonaTablaCompleta(bufferImagen) {
+    const { width, height } = await sharp(bufferImagen).metadata();
+    const top = Math.round(height * FRACCION_ZONA_TABLA);
+    return [{ left: 0, top, width, height: height - top }];
+}
+
 async function detectarBandasTabla(bufferImagen) {
     const { data, info } = await sharp(bufferImagen).grayscale().raw()
         .toBuffer({ resolveWithObject: true });
@@ -914,7 +965,12 @@ async function recortarRegion(bufferImagen, region, opciones = {}) {
  * @returns {Promise<Buffer[]>}
  */
 async function recortarTablas(bufferImagen, opciones = {}) {
-    const regiones = await detectarBandasTabla(bufferImagen);
+    // sinPartir: la zona de tabla entera, de un solo recorte. Es el
+    // respaldo para cuando el pasillo detectado no separaba dos tablas
+    // sino dos columnas de la misma.
+    const regiones = opciones.sinPartir
+        ? await zonaTablaCompleta(bufferImagen)
+        : await detectarBandasTabla(bufferImagen);
     const recortes = [];
     for (const region of regiones) {
         recortes.push(await recortarRegion(bufferImagen, region, opciones));
@@ -1238,9 +1294,47 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
         avisos.push(...parseado.avisos);
     }
 
-    const texto = textos.join("\n");
+    let texto = textos.join("\n");
     // Se reportan las columnas de la primera tabla que las pudo determinar.
     let columnas = columnasVistas.find(c => c.length > 0) || [];
+
+    // Respaldo: releer el modulo SIN partir en tablas.
+    //
+    // Partir por pasillos blancos es lo que salva a los modulos de doble
+    // ancho, pero a veces el pasillo que encuentra no separa dos tablas
+    // sino dos COLUMNAS de la misma. Visto en el 57906 (letras de laton):
+    // se partia entre "May." y "1/2 May.", asi que un trozo se quedaba con
+    // los codigos y un solo importe, y el otro con los dos importes
+    // restantes y ningun codigo. Resultado: 0 de 39 productos, cuando sin
+    // partir salen 30.
+    //
+    // Solo se intenta si la lectura partida NO alcanzo, y solo se adopta
+    // si da mas filas completas. Un modulo que ya se lee bien no se toca.
+    if (recortes.length > 1) {
+        const completasPartido = filas.filter(f => f.completa).length;
+        if (completasPartido < (opciones.codigosEsperados || []).length) {
+            try {
+                const [entera] = await recortarTablas(bufferImagen, { ...opciones, sinPartir: true });
+                const lectura = await motor.recognize(entera);
+                const parseado = parsearTablaPrecios(lectura.texto, opciones);
+                const completasEntero = parseado.filas.filter(f => f.completa).length;
+
+                if (completasEntero > completasPartido) {
+                    avisos.push(
+                        `el corte en ${recortes.length} tablas dejo ${completasPartido} filas completas; `
+                        + `leido sin partir salen ${completasEntero}, se usa esa lectura`
+                    );
+                    filas.length = 0;
+                    filas.push(...parseado.filas);
+                    columnas = parseado.columnas.length > 0 ? parseado.columnas : columnas;
+                    texto = lectura.texto;
+                }
+            } catch (error) {
+                avisos.push(`no se pudo releer el modulo sin partir (${error.message})`);
+            }
+        }
+    }
+
 
     function evaluar(filasEvaluadas) {
         for (const fila of filasEvaluadas) {
