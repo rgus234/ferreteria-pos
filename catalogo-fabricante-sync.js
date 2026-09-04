@@ -210,9 +210,19 @@ async function cerrarSincronizacion(pool, id, estado, contadores, detalle = "") 
 // ---------------------------------------------------------------------
 
 async function leerEstadoUnidades(pool, fabricante) {
+    // El EXISTS va en la MISMA consulta a proposito, no en una aparte:
+    // asi una sola llamada trae todo lo que hace falta para decidir si una
+    // unidad se salta.
     const resultado = await pool.query(
-        `SELECT modulo, variante, etag, hash_contenido, estado
-         FROM public.catalogo_fabricante_modulos WHERE fabricante = $1`,
+        `SELECT m.modulo, m.variante, m.etag, m.hash_contenido, m.estado, m.layout,
+                EXISTS (
+                  SELECT 1 FROM public.catalogo_fabricante_productos p
+                   WHERE p.fabricante = m.fabricante AND p.modulo = m.modulo
+                     AND p.estado = 'activo'
+                     AND p.precio_mayoreo IS NULL AND p.precio_medio_mayoreo IS NULL
+                     AND p.precio_publico IS NULL AND p.precio_distribuidor IS NULL
+                ) AS falta_precio
+         FROM public.catalogo_fabricante_modulos m WHERE m.fabricante = $1`,
         [fabricante]
     );
 
@@ -252,9 +262,33 @@ async function detectarUnidadesCambiadas(pool, adaptador, unidades, onProgreso) 
         // guardo un precio. Esta condicion tambien REPARA sola las filas
         // que el codigo anterior alcanzo a quemar: al no estar en 'ok',
         // vuelven a entrar como cambiadas y se releen.
+        //
+        // Tampoco se salta si al modulo le quedan productos SIN un solo
+        // precio. "Listo" no puede significar "la imagen no cambio": la
+        // lista de codigos que el fabricante publica para un modulo puede
+        // CRECER sin que la imagen cambie, y esos productos nuevos no se
+        // leerian jamas.
+        //
+        // Paso de verdad: el modulo 19005 se marco 'ok' cuando TRUPER
+        // listaba 2 codigos ahi. Despues su lista crecio a 5. La imagen
+        // nunca cambio, asi que no se volvio a mirar y esos 3 productos
+        // quedaron invisibles -- corriendo el extractor a mano los lee los
+        // 5 sin problema. Eran 136 productos en esa situacion.
+        //
+        // Se excluye 'columna_vacia': ahi el fabricante no publica ese
+        // precio a proposito, y releerlo cada corrida seria trabajo
+        // perpetuo para confirmar un hueco.
+        //
+        // No crea un bucle: si el reintento tampoco consigue el precio, la
+        // validacion reporta los faltantes y el modulo deja de estar en
+        // 'ok'. Desde ahi entra por el camino normal de pendientes.
+        const leQuedanSinPrecio = Boolean(previo?.falta_precio)
+            && previo?.layout !== "columna_vacia";
+
         const sinCambio = teniaEstado
             && previo.estado === "ok"
-            && previo.etag === String(unidad.firma || "");
+            && previo.etag === String(unidad.firma || "")
+            && !leQuedanSinPrecio;
         if (sinCambio) continue;
 
         if (teniaEstado) cambiadasConEstadoPrevio++;
@@ -267,7 +301,12 @@ async function detectarUnidadesCambiadas(pool, adaptador, unidades, onProgreso) 
             // El atajo por hash solo vale si la vez anterior se aplicaron
             // precios de verdad; si no, marcaria 'ok' una unidad que jamas
             // dio uno.
-            estadoPrevio: previo?.estado || ""
+            estadoPrevio: previo?.estado || "",
+            // Y tampoco vale cuando la unidad entro justamente porque le
+            // quedan productos sin precio: el contenido de la imagen ES el
+            // mismo, asi que el atajo se dispararia y la volveria a dar por
+            // buena sin leer nada.
+            reintentarPorPrecios: leQuedanSinPrecio
         });
 
         if (typeof onProgreso === "function") onProgreso(revisadas, cambiadas.length);
@@ -389,7 +428,7 @@ async function extraerUnidades(pool, adaptador, cambiadas, contexto, onProgreso)
             // refresca la firma y no se reprocesa nada mas. Exige que la
             // vez anterior haya salido bien -- si no, este atajo ascenderia
             // a 'ok' una unidad de la que nunca se guardo un precio.
-            if (unidad.estadoPrevio === "ok" && unidad.hashPrevio
+            if (unidad.estadoPrevio === "ok" && unidad.hashPrevio && !unidad.reintentarPorPrecios
                 && resultado?.firmaContenido && unidad.hashPrevio === resultado.firmaContenido) {
                 estadosUnidad.push({ unidad, estado: "ok", detalle: "regenerada sin cambios de contenido", resultado });
                 procesadas++;

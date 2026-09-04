@@ -2428,3 +2428,58 @@ test("un '$0' alucinado por el OCR no convierte una pagina en tabla de precios",
         "una pagina sin precios no es un modulo de precio por bloque"
     );
 });
+
+// ---------------------------------------------------------------------
+// Un modulo "ok" con productos sin precio debe volver a leerse
+// ---------------------------------------------------------------------
+
+
+// Pool falso para el estado de unidades. El "falta_precio" viene en la
+// MISMA fila porque la consulta real lo trae con un EXISTS, en una sola
+// llamada.
+function poolDeEstados({ modulos = [] } = {}) {
+    return {
+        query: async () => ({ rows: modulos })
+    };
+}
+
+const ADAPTADOR = { nombre: "TRUPER" };
+const UNIDAD = { id: "19005", parte: "pub", firma: "etag-1" };
+
+test("un modulo ok y sin cambios se salta", async () => {
+    const pool = poolDeEstados({
+        modulos: [{ modulo: "19005", variante: "pub", etag: "etag-1", hash_contenido: "h1", estado: "ok", layout: "filas", falta_precio: false }]
+    });
+
+    const r = await sync.detectarUnidadesCambiadas(pool, ADAPTADOR, [UNIDAD]);
+    assert.equal(r.cambiadas.length, 0, "nada que rehacer");
+});
+
+test("un modulo ok al que le quedan productos SIN precio se vuelve a leer", async () => {
+    // El caso real: el modulo 19005 se marco 'ok' cuando TRUPER listaba 2
+    // codigos ahi. Despues su lista crecio a 5. La imagen nunca cambio,
+    // asi que no se volvio a mirar y esos 3 productos quedaron invisibles
+    // para el proceso -- corriendo el extractor a mano los lee los 5.
+    // Eran 136 productos en esa situacion.
+    const pool = poolDeEstados({
+        modulos: [{ modulo: "19005", variante: "pub", etag: "etag-1", hash_contenido: "h1", estado: "ok", layout: "filas", falta_precio: true }]
+    });
+
+    const r = await sync.detectarUnidadesCambiadas(pool, ADAPTADOR, [UNIDAD]);
+    assert.equal(r.cambiadas.length, 1, "debe reprocesarse");
+    assert.equal(
+        r.cambiadas[0].reintentarPorPrecios, true,
+        "y marcada, para que el atajo por hash de contenido tampoco la salte"
+    );
+});
+
+test("un modulo de columna vacia NO se relee cada corrida", async () => {
+    // Ahi el fabricante no publica ese precio a proposito. Releerlo
+    // siempre seria trabajo perpetuo para confirmar un hueco.
+    const pool = poolDeEstados({
+        modulos: [{ modulo: "19005", variante: "pub", etag: "etag-1", hash_contenido: "h1", estado: "ok", layout: "columna_vacia", falta_precio: true }]
+    });
+
+    const r = await sync.detectarUnidadesCambiadas(pool, ADAPTADOR, [UNIDAD]);
+    assert.equal(r.cambiadas.length, 0);
+});
