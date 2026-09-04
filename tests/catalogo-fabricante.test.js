@@ -2402,3 +2402,29 @@ test("un codigo que la vision se invento no entra al reparto", async () => {
 
     assert.deepEqual(filas.map(f => f.codigo), ["27170"]);
 });
+
+test("un '$0' alucinado por el OCR no convierte una pagina en tabla de precios", () => {
+    // Modulo 59902 real: no es una tabla de precios, es un INDICE
+    // ("Productos a granel recomendados para rack", con columnas Marca y
+    // Pag.) que remite a la pagina donde cada producto si tiene precio.
+    // El OCR alucinaba un "$0" sobre un adorno de la maqueta y con eso la
+    // pagina se tomaba por tabla con precio por bloque: sus 29 productos
+    // se reportaban como fallo de lectura cuando 27 ya tenian precio
+    // desde su modulo real.
+    assert.equal(ocr.tieneImporteValido("E $0 2602* MUL-GEGe Multicontacto"), false);
+    assert.equal(ocr.tieneImporteValido("Distribuidor $65"), true);
+    assert.equal(ocr.tieneImporteValido("sin importes aqui"), false);
+
+    const indice = [
+        "Imagen Código Clave Descripción Marca Pág.",
+        "27014 PIM-55PG Pistola para riego 5 funciones P 187",
+        "27015 CHMA-4PG Chiflón plástico 4 P 192",
+        "E $0 24039 LIRE-7CG Linterna LED 100 lm P 201"
+    ].join("\n");
+
+    assert.equal(
+        ocr.parecePrecioPorBloque(indice, ["27014", "27015", "24039"]),
+        false,
+        "una pagina sin precios no es un modulo de precio por bloque"
+    );
+});

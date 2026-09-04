@@ -269,6 +269,23 @@ function pareceTablaTranspuesta(lineas, codigosEsperados) {
 // equivocados. Se reconocen porque hay muchos codigos y muy pocos
 // importes, y se mandan a revision manual sin gastar una llamada de
 // vision (el modelo tiende a "razonar" que el precio aplica a todos).
+// "Hay al menos un importe DE VERDAD en este texto".
+//
+// No basta con buscar "$" seguido de un digito: el OCR alucina un "$0"
+// sobre cualquier adorno de la maqueta, y con eso una pagina sin precios
+// se tomaba por tabla de precios. Paso en el modulo 59902, que ni
+// siquiera es una tabla de precios --es un indice de "productos a granel
+// recomendados para rack", con columnas Marca y Pag.-- y sus 29
+// productos se reportaban como fallo de lectura cuando 27 de ellos ya
+// tenian precio desde su modulo real.
+//
+// precioDeTexto() ya rechaza el cero y lo que no es un importe, asi que
+// se reusa en vez de repetir la regla.
+function tieneImporteValido(texto) {
+    const candidatos = String(texto || "").match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [];
+    return candidatos.some(c => precioDeTexto(c) !== null);
+}
+
 function parecePrecioPorBloque(texto, codigosEsperados) {
     const codigos = (codigosEsperados || []).map(normalizarCodigo).filter(Boolean);
     if (codigos.length < 3) return false;
@@ -277,7 +294,7 @@ function parecePrecioPorBloque(texto, codigosEsperados) {
     // repartir: eso es una columna de precio vacia en el catalogo (o un
     // OCR que no leyo nada), y se trata aparte. Lo que define a este
     // layout es que el precio existe, pero fuera de las filas de producto.
-    if (!/\$\d/.test(texto)) return false;
+    if (!tieneImporteValido(texto)) return false;
 
     const lineas = String(texto || "").split(/\r?\n/);
 
@@ -1634,7 +1651,7 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
     // y aun asi no hay un solo importe en el texto. Se piden dos filas
     // como minimo para no aceptar como "vacio" un modulo de un solo
     // producto al que se le pudo escapar su unico precio.
-    const sinNingunImporte = !/\$\d/.test(texto);
+    const sinNingunImporte = !tieneImporteValido(texto);
     const sinPreciosPublicados = !confiable
         && !precioPorBloque
         && validacion.ok
@@ -1747,6 +1764,7 @@ module.exports = {
     parsearTablaPrecios,
     pareceTablaTranspuesta,
     parecePrecioPorBloque,
+    tieneImporteValido,
     parsearTablaTranspuesta,
     parsearPreciosPorBloque,
     leerExcepcionesDeBloque,
