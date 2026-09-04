@@ -2295,3 +2295,18 @@ test("un codigo que aparece DESPUES de un importe no se toma por codigo de fila"
     assert.equal(conPrecio.length, 1);
     assert.equal(conPrecio[0].codigo, "40183");
 });
+
+test("el prompt de vision explica la tabla transpuesta", () => {
+    // Sin esto, el modelo obedecia al pie de la letra "cada precio en la
+    // MISMA fila que su producto" y devolvia la tabla vacia: en una
+    // transpuesta el producto es una COLUMNA. Verificado en el modulo
+    // 46603 (llaves de bronce FOSET), donde la vision no rescataba ni un
+    // producto y con el prompt corregido devuelve los seis.
+    const prompt = ocr.construirPromptTabla(["46777"], ["precio_mayoreo", "precio_publico"]);
+
+    assert.match(prompt, /TRANSPUESTA/);
+    assert.match(prompt, /COLUMNA/);
+    // Y no se debilita la proteccion contra copiar un precio ajeno.
+    assert.match(prompt, /Nunca copies el precio de otro producto/);
+    assert.match(prompt, /omitelo/i);
+});

@@ -1155,8 +1155,17 @@ function construirPromptTabla(codigosEsperados, columnas) {
         // 19061"). Copiar ese precio a cada producto daria un catalogo lleno de
         // precios plausibles y equivocados, y pasaria la validacion porque los
         // codigos si coinciden. Preferimos no leer ese modulo.
-        "- Cada precio debe estar en la MISMA fila que su producto. Si un producto no tiene",
-        "  precio propio en su fila, omitelo por completo.",
+        // Hay modulos con la tabla TRANSPUESTA: cada producto es una
+        // COLUMNA y cada concepto un renglon. Sin decirselo, el modelo
+        // obedecia al pie de la letra la regla de "misma fila" y devolvia
+        // la tabla vacia -- verificado en el modulo 46603 (llaves de
+        // bronce FOSET), donde la vision no rescataba ni un producto.
+        "- La tabla puede venir TRANSPUESTA: cada producto en una COLUMNA, y cada concepto",
+        "  (Codigo, Clave, Mayoreo, Publico) en un RENGLON. Ahi el precio de un producto es",
+        "  el que cae en SU columna, en el renglon de ese precio.",
+        "- En una tabla normal cada precio debe estar en la MISMA fila que su producto; en una",
+        "  transpuesta, en la MISMA columna. Si un producto no tiene precio propio, omitelo",
+        "  por completo.",
         "- Nunca copies el precio de otro producto, ni un precio que aparezca al pie de un",
         "  bloque como precio comun de varios productos."
     ].join("\n");
