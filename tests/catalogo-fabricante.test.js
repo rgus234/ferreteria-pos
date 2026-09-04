@@ -2310,3 +2310,95 @@ test("el prompt de vision explica la tabla transpuesta", () => {
     assert.match(prompt, /Nunca copies el precio de otro producto/);
     assert.match(prompt, /omitelo/i);
 });
+
+// --- Lectura de bloques con vision ---
+//
+// Se le pide TRANSCRIBIR la estructura (que codigos agrupa cada bloque y
+// que dice su barra), no repartir. El reparto lo hace el extractor con
+// las mismas reglas de seguridad. Pedirle "el precio de cada producto" en
+// una pagina de precio por bloque es justo el escenario donde un modelo
+// rellena huecos con valores plausibles que ademas pasarian la validacion.
+
+function visionDeBloques(respuesta) {
+    return {
+        messages: {
+            create: async () => ({ content: [{ type: "text", text: JSON.stringify(respuesta) }] })
+        }
+    };
+}
+
+test("la vision de bloques reparte la barra entre los codigos del bloque", async () => {
+    // Modulo 29803 real (pinturas PRETUL): 15 productos y la barra dice
+    // $42 / $46 / $51. Verificado a ojo contra la imagen.
+    const vision = visionDeBloques({
+        bloques: [{
+            codigos: ["27170", "27183", "27172"],
+            precios: { precio_mayoreo: 42, precio_medio_mayoreo: 46, precio_publico: 51 },
+            excepto: []
+        }]
+    });
+
+    const filas = await ocr.leerBloquesConVision(
+        vision, [Buffer.from("x")],
+        ["27170", "27183", "27172"],
+        ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+    );
+
+    assert.equal(filas.length, 3);
+    assert.ok(filas.every(f => f.completa));
+    assert.deepEqual(filas[0].precios, { precio_mayoreo: 42, precio_medio_mayoreo: 46, precio_publico: 51 });
+});
+
+test("la vision de bloques respeta la excepcion que marca el catalogo", async () => {
+    const vision = visionDeBloques({
+        bloques: [{
+            codigos: ["12778", "19061"],
+            precios: { precio_distribuidor: 65 },
+            excepto: ["19061"]
+        }]
+    });
+
+    const filas = await ocr.leerBloquesConVision(
+        vision, [Buffer.from("x")], ["12778", "19061"], ["precio_distribuidor"]
+    );
+
+    const completos = filas.filter(f => f.completa).map(f => f.codigo);
+    assert.deepEqual(completos, ["12778"]);
+    assert.match(filas.find(f => f.codigo === "19061").motivo, /excepcion/i);
+});
+
+test("un bloque al que le falta una columna de precio no se reparte", async () => {
+    // Repartir una barra incompleta dejaria a TODO el bloque con dos de
+    // sus tres precios, y en el reporte se veria perfecto.
+    const vision = visionDeBloques({
+        bloques: [{
+            codigos: ["27170", "27183"],
+            precios: { precio_mayoreo: 42, precio_publico: 51 },
+            excepto: []
+        }]
+    });
+
+    const filas = await ocr.leerBloquesConVision(
+        vision, [Buffer.from("x")],
+        ["27170", "27183"],
+        ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+    );
+
+    assert.equal(filas.length, 0, "el bloque entero se omite");
+});
+
+test("un codigo que la vision se invento no entra al reparto", async () => {
+    const vision = visionDeBloques({
+        bloques: [{
+            codigos: ["27170", "999999"],
+            precios: { precio_distribuidor: 42 },
+            excepto: []
+        }]
+    });
+
+    const filas = await ocr.leerBloquesConVision(
+        vision, [Buffer.from("x")], ["27170"], ["precio_distribuidor"]
+    );
+
+    assert.deepEqual(filas.map(f => f.codigo), ["27170"]);
+});

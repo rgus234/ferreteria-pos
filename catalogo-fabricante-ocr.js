@@ -1171,6 +1171,116 @@ function construirPromptTabla(codigosEsperados, columnas) {
     ].join("\n");
 }
 
+/**
+ * Lee con vision la ESTRUCTURA de un modulo de precio por bloque.
+ *
+ * Distinto a leerTablaConVision() a proposito: aqui no se le pide al
+ * modelo que asigne precios a productos, se le pide que transcriba los
+ * BLOQUES -- que codigos agrupa cada uno, que dice su barra de precio, y
+ * a quien excluye. El reparto lo hace el codigo de abajo, con las mismas
+ * reglas de seguridad que la lectura por OCR.
+ *
+ * Esa division importa. Pedirle "el precio de cada producto" en una
+ * pagina de precio por bloque es justo el escenario donde un modelo
+ * rellena huecos con valores plausibles; pedirle "que dice esta barra" es
+ * transcripcion, que es lo unico que se le confia en toda la extraccion.
+ *
+ * Hace falta porque estos modulos son los que el OCR lee peor: en el
+ * 59902 no leyo ni la palabra "Distribuidor", asi que no habia barra que
+ * repartir y se perdian los 29 productos.
+ */
+function construirPromptBloques(codigosEsperados, columnas) {
+    return [
+        "Esta imagen es una pagina de catalogo de ferreteria con tablas de precio.",
+        "Los productos estan agrupados en BLOQUES, y cada bloque lleva UNA barra de",
+        "precio al pie que aplica a todos los productos de ese bloque.",
+        "",
+        `La pagina debe contener estos codigos: ${codigosEsperados.join(", ")}.`,
+        columnas.length
+            ? `Las columnas de precio de cada barra, en orden, son: ${columnas.join(", ")}.`
+            : "Identifica las columnas de precio por el encabezado de la barra.",
+        "",
+        "Devuelve SOLO un JSON con esta forma, sin texto alrededor:",
+        '{"bloques":[{"codigos":["12778","19059"],"precios":{"precio_distribuidor":65},"excepto":["19061"]}]}',
+        "",
+        "Reglas estrictas:",
+        "- Un bloque por cada barra de precio que veas. Sus 'codigos' son los que estan",
+        "  ARRIBA de esa barra y debajo del encabezado de ese bloque.",
+        "- 'precios' es lo que dice la barra, tal cual. No lo repartas tu: solo transcribelo.",
+        "- Si el bloque tiene una nota tipo 'Excepto: 19061', pon esos codigos en 'excepto'.",
+        "  Si no tiene nota, deja 'excepto' vacio.",
+        "- Transcribe solo lo impreso. No calcules, no estimes, no completes.",
+        "- Si una barra no se distingue, omite ese bloque entero en vez de adivinar su precio.",
+        "- Los importes llevan '$'; devuelvelos como numero, sin simbolo."
+    ].join("\n");
+}
+
+async function leerBloquesConVision(anthropic, recortes, codigosEsperados, columnas) {
+    const anclas = (codigosEsperados || []).map(normalizarCodigo).filter(Boolean);
+
+    const contenido = recortes.map(buffer => ({
+        type: "image",
+        source: { type: "base64", media_type: "image/png", data: buffer.toString("base64") }
+    }));
+    contenido.push({ type: "text", text: construirPromptBloques(anclas, columnas) });
+
+    const respuesta = await anthropic.messages.create({
+        model: MODELO_VISION,
+        max_tokens: 2000,
+        messages: [{ role: "user", content: contenido }]
+    });
+
+    const texto = (respuesta.content || [])
+        .filter(bloque => bloque.type === "text")
+        .map(bloque => bloque.text)
+        .join("");
+
+    const match = texto.match(/\{[\s\S]*\}/);
+    if (!match) return [];
+
+    let datos;
+    try {
+        datos = JSON.parse(match[0]);
+    } catch (error) {
+        return [];
+    }
+
+    const filas = [];
+
+    for (const bloque of datos.bloques || []) {
+        const precios = {};
+        for (const [campo, valor] of Object.entries(bloque.precios || {})) {
+            const numero = Number(valor);
+            if (Number.isFinite(numero) && numero > 0) precios[campo] = numero;
+        }
+
+        // Una barra a la que le falta una columna de la maqueta no se
+        // reparte: dejaria a todo el bloque con dos de sus tres precios y
+        // en el reporte se veria perfecto.
+        const faltantes = columnas.filter(campo => precios[campo] == null);
+        if (columnas.length === 0 || faltantes.length > 0) continue;
+
+        const excepto = new Set((bloque.excepto || []).map(normalizarCodigo).filter(Boolean));
+
+        for (const bruto of bloque.codigos || []) {
+            const codigo = normalizarCodigo(bruto);
+            // Solo codigos que el fabricante lista para este modulo: si la
+            // vision se invento uno, no entra.
+            if (!anclas.includes(codigo)) continue;
+            if (excepto.has(codigo)) {
+                filas.push({
+                    codigo, clave: "", precios: {}, completa: false,
+                    motivo: "el catalogo lo marca como excepcion al precio del bloque"
+                });
+                continue;
+            }
+            filas.push({ codigo, clave: "", precios: { ...precios }, completa: true, motivo: "" });
+        }
+    }
+
+    return filas;
+}
+
 async function leerTablaConVision(anthropic, recortes, codigosEsperados, columnas) {
     const contenido = recortes.map(buffer => ({
         type: "image",
@@ -1419,6 +1529,12 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
     // Respaldo con vision: solo si el OCR ya fallo y el llamador aporto un
     // cliente. El resultado pasa por la misma validacion; no se acepta por
     // venir de la IA.
+    // Se anota que se GASTO una llamada, no que salio bien: la cuenta es
+    // de dinero y de cuota, y una llamada fallida cuesta igual. Se declara
+    // aqui arriba porque los modulos de precio por bloque tambien pueden
+    // gastar una, mas abajo.
+    let intentoVision = false;
+
     const precioPorBloque = parecePrecioPorBloque(texto, opciones.codigosEsperados);
     if (precioPorBloque) {
         avisos.push("el modulo parece traer un precio comun por bloque, no un precio por producto");
@@ -1461,6 +1577,49 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
                 avisos.push(...porBloque.avisos);
             }
         }
+
+        // Si el OCR no dio para leer la barra, se le pide a la vision la
+        // ESTRUCTURA del modulo -- que codigos agrupa cada bloque y que
+        // dice su barra-- y el reparto se hace aqui, no alla.
+        //
+        // Hace falta de verdad: en el 59902 el OCR no leyo ni la palabra
+        // "Distribuidor", asi que no habia barra que repartir y se perdian
+        // los 29 productos.
+        //
+        // Se le pide transcribir, no repartir. Es la unica forma en que se
+        // le confia algo en toda la extraccion, y aqui importa mas que
+        // nunca: pedirle "el precio de cada producto" en una pagina de
+        // precio por bloque es justo el escenario donde un modelo rellena
+        // huecos con valores plausibles que ademas pasarian la validacion.
+        if (!confiable && opciones.anthropic) {
+            intentoVision = true;
+            try {
+                const columnasEsperadas = (opciones.columnasForzadas && opciones.columnasForzadas.length)
+                    ? opciones.columnasForzadas
+                    : columnas;
+
+                const filasIA = await leerBloquesConVision(
+                    opciones.anthropic,
+                    recortes,
+                    (opciones.codigosEsperados || []).map(normalizarCodigo),
+                    columnasEsperadas
+                );
+
+                if (filasIA.length > 0) {
+                    const evaluacionIA = evaluar(filasIA);
+                    if (evaluacionIA.confiable
+                        && evaluacionIA.utiles.length > filasFinales.filter(f => f.completa).length) {
+                        filasFinales = evaluacionIA.utiles;
+                        validacion = evaluacionIA.validacion;
+                        confiable = true;
+                        origen = "vision";
+                        avisos.push("la barra de cada bloque se leyo con vision; el reparto lo hizo el extractor");
+                    }
+                }
+            } catch (error) {
+                avisos.push(`fallo la lectura de bloques con vision (${error.message})`);
+            }
+        }
     }
 
     // Columna de precio VACIA en el catalogo: hay modulos donde el
@@ -1491,10 +1650,6 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
         origen = "sin_precios_publicados";
         avisos.push("el fabricante no publica precio para estos productos: la columna viene vacia");
     }
-
-    // Se anota que se GASTO una llamada, no que salio bien: la cuenta es
-    // de dinero y de cuota, y una llamada fallida cuesta igual.
-    let intentoVision = false;
 
     // Una lectura PARCIAL tambien pide vision: es justo el caso donde
     // puede recuperar la fila que al OCR se le fue. Si la vision no lo
@@ -1602,6 +1757,8 @@ module.exports = {
     detectarBandasTabla,
     recortarTablas,
     leerTablaConVision,
+    leerBloquesConVision,
+    construirPromptBloques,
     construirPromptTabla,
     extraerTablaDeModulo,
     liberarWorkerOcr,
