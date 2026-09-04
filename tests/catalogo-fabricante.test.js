@@ -2254,3 +2254,44 @@ test("un renglon con dos productos y un numero de importes que no cuadra no comp
 
     assert.ok(r.filas.every(f => !f.completa), "5 importes para 2 productos y 3 columnas no se reparte");
 });
+
+test("un codigo con una columna ANTES no se pierde", () => {
+    // Modulo 54202 real (cuerdas de polipropileno): la tabla lleva una
+    // columna "Diametro" delante del codigo, asi que el codigo cae en la
+    // posicion 15. La regla vieja exigia que estuviera en las primeras 6
+    // y descartaba la fila entera -- 11 productos del modulo.
+    const texto = [
+        "Diámetro Código Clave Rendimiento Distribuidor NC",
+        '4 mm (5/32")  40183 CUE-041K 125 m/kg $22 3'
+    ].join("\n");
+
+    const r = ocr.parsearTablaPrecios(texto, {
+        codigosEsperados: ["40183"],
+        columnasForzadas: ["precio_distribuidor"]
+    });
+
+    assert.equal(r.filas.length, 1);
+    assert.equal(r.filas[0].codigo, "40183");
+    assert.equal(r.filas[0].precios.precio_distribuidor, 22);
+});
+
+test("un codigo que aparece DESPUES de un importe no se toma por codigo de fila", () => {
+    // Lo que de verdad descalifica a un codigo no es estar lejos del
+    // margen, es venir despues de un "$": ahi ya se paso al territorio de
+    // otro producto.
+    const texto = [
+        "Código Clave Distribuidor NC",
+        "40183 CUE-041K $22 3 ver 40184"
+    ].join("\n");
+
+    const r = ocr.parsearTablaPrecios(texto, {
+        codigosEsperados: ["40183", "40184"],
+        columnasForzadas: ["precio_distribuidor"]
+    });
+
+    // El 40184 mencionado al final no debe convertirse en una fila propia
+    // con el precio del 40183.
+    const conPrecio = r.filas.filter(f => f.completa);
+    assert.equal(conPrecio.length, 1);
+    assert.equal(conPrecio[0].codigo, "40183");
+});

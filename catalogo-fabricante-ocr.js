@@ -218,7 +218,7 @@ function partirEnProductos(linea, anclas) {
     // este cambio. Recortarlo desde el codigo cambiaria el comportamiento
     // de los modulos que ya funcionan, y no hay razon para hacerlo.
     if (encontradas.length === 1) {
-        return [{ codigo: encontradas[0].codigo, texto: linea }];
+        return [{ codigo: encontradas[0].codigo, texto: linea, pos: encontradas[0].pos }];
     }
 
     // Varios: cada uno se queda con su tramo, desde su codigo hasta el
@@ -226,6 +226,7 @@ function partirEnProductos(linea, anclas) {
     // suyos y no los de sus vecinos.
     return encontradas.map((e, i) => ({
         codigo: e.codigo,
+        pos: e.pos,
         texto: linea.slice(e.pos, i + 1 < encontradas.length ? encontradas[i + 1].pos : undefined)
     }));
 }
@@ -646,9 +647,23 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
             .map(precioDeTexto)
             .filter(valor => valor !== null);
 
+        // Los importes deben venir DESPUES del ultimo codigo del renglon.
+        //
+        // Sin esto, una linea como "40183 CUE-041K $22 3 ver 40184" --donde
+        // el segundo numero es una mencion suelta, no un producto-- cumple
+        // igual "varios codigos y un solo juego de precios", y el 40184
+        // heredaba los $22 del 40183. Un precio EQUIVOCADO.
+        //
+        // En el compartido de verdad los importes cierran la fila, despues
+        // de los tres codigos:
+        //    43292 ... | 43268 ... | 43299 ... | $105 $115 $125
+        const primerImporte = linea.search(/\$\d/);
+        const ultimoCodigo = trozos.length > 0 ? trozos[trozos.length - 1].pos : -1;
+
         const precioCompartido = trozos.length > 1
             && columnas.length > 0
-            && importesLinea.length === columnas.length;
+            && importesLinea.length === columnas.length
+            && primerImporte > ultimoCodigo;
 
         if (precioCompartido) {
             avisosCompartidos.add(trozos.length);
@@ -659,10 +674,25 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
         let codigo = "";
         let resto = "";
 
-        // El primer producto del renglon debe empezar cerca del margen; los
-        // siguientes ya vienen recortados por partirEnProductos, cada uno
-        // arrancando en su propio codigo.
-        const ancla = trozo.codigo && trozo.texto.indexOf(trozo.codigo) <= 6
+        // Antes se exigia que el codigo estuviera en las primeras 6
+        // posiciones del renglon. La intencion era buena --no confundir un
+        // numero suelto de una columna mas a la derecha con el codigo del
+        // producto-- pero descartaba filas legitimas: hay tablas con una
+        // columna ANTES del codigo, como las cuerdas del modulo 54202:
+        //
+        //   Diametro    Codigo  Clave      Rendimiento  Capacidad
+        //   4 mm (5/32) 40183   CUE-041K   125 m/kg     22 kg
+        //
+        // Ahi el codigo cae en la posicion 15 y la fila entera se perdia.
+        //
+        // La regla que si distingue los dos casos: lo que descalifica a un
+        // codigo no es estar lejos del margen, es venir DESPUES de un
+        // importe. Un "$" antes significa que ya se paso al territorio de
+        // otro producto -- y ese caso lo resuelve partirEnProductos
+        // partiendo el renglon, no esta comprobacion.
+        const posicion = trozo.codigo ? trozo.texto.indexOf(trozo.codigo) : -1;
+        const antesDelCodigo = posicion > 0 ? trozo.texto.slice(0, posicion) : "";
+        const ancla = trozo.codigo && !/\$\d/.test(antesDelCodigo)
             ? trozo.codigo
             : "";
 
