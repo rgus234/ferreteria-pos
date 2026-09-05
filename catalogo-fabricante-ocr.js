@@ -841,6 +841,19 @@ function validarContraFuenteTexto(filas, codigosEsperados) {
 // Coherencia interna de una fila: un mayoreo mas caro que el publico
 // significa que las columnas se leyeron cruzadas. Se revisa aqui y no se
 // "corrige" -- se reporta, porque corregirlo seria inventar.
+// Cuantas veces puede ser el publico mas caro que el mayoreo antes de
+// que la fila deje de ser creible.
+//
+// Medido sobre los 13.203 productos de TRUPER que ya tienen los tres
+// precios leidos y validados:
+//
+//     mediana 1.21   p99 1.24   p99.9 3.27   MAXIMO REAL 3.66
+//
+// Es decir: el catalogo no tiene un solo producto con un salto de 4x.
+// Poner ahi el limite no marca ninguna fila de las que hoy son validas,
+// y si caza los desbarajustes del OCR.
+const RATIO_MAXIMO_PUBLICO = 4;
+
 function revisarCoherenciaPrecios(precios) {
     const { precio_mayoreo: may, precio_medio_mayoreo: medio, precio_publico: pub } = precios || {};
     const problemas = [];
@@ -853,6 +866,25 @@ function revisarCoherenciaPrecios(precios) {
     }
     if (may != null && medio != null && may > medio) {
         problemas.push("mayoreo mayor que medio mayoreo");
+    }
+
+    // Un salto imposible entre niveles.
+    //
+    // Solo revisar el ORDEN dejaba pasar lecturas rotas: el producto
+    // 50050 (exhibidor R-GIR) tiene $2,500 en los tres niveles, el OCR
+    // leyo "2500 / 2500 / 72500", y como 2500 <= 2500 <= 72500 es una
+    // secuencia creciente, la fila se dio por buena. El modulo quedo en
+    // 'ok', la vision nunca entro a corregirlo, y el error solo se
+    // descubrio mucho despues al cruzar contra el precio distribuidor --
+    // cuando ya solo se podia retirar el precio, no arreglarlo.
+    //
+    // Atrapandolo aqui la fila sale incompleta, el modulo queda parcial y
+    // la vision si entra a releerlo.
+    const base = may != null ? may : medio;
+    if (base != null && pub != null && base > 0 && pub > base * RATIO_MAXIMO_PUBLICO) {
+        problemas.push(
+            `el publico es ${Math.round(pub / base)} veces el mayoreo: parece un importe mal leido`
+        );
     }
 
     return problemas;

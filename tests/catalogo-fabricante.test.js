@@ -2483,3 +2483,41 @@ test("un modulo de columna vacia NO se relee cada corrida", async () => {
     const r = await sync.detectarUnidadesCambiadas(pool, ADAPTADOR, [UNIDAD]);
     assert.equal(r.cambiadas.length, 0);
 });
+
+test("un salto imposible entre niveles marca la fila, aunque el orden sea correcto", () => {
+    // Caso real: el producto 50050 (exhibidor R-GIR) tiene $2,500 en los
+    // tres niveles. El OCR leyo "2500 / 2500 / 72500" y, como
+    // 2500 <= 2500 <= 72500 es una secuencia CRECIENTE, la fila pasaba el
+    // chequeo de orden. El modulo quedaba en 'ok', la vision nunca entraba
+    // a corregirlo, y el error solo se descubria despues al cruzar contra
+    // el precio distribuidor -- cuando ya solo se podia retirar el precio.
+    //
+    // Eran 109 de los 129 productos vigentes que seguian sin precio.
+    const problemas = ocr.revisarCoherenciaPrecios({
+        precio_mayoreo: 2500, precio_medio_mayoreo: 2500, precio_publico: 72500
+    });
+
+    assert.equal(problemas.length, 1);
+    assert.match(problemas[0], /veces el mayoreo/);
+});
+
+test("el margen mas amplio que EXISTE de verdad sigue pasando", () => {
+    // El umbral no se invento: se midio sobre los 13.203 productos con
+    // los tres precios ya validados. Mediana 1.21, p99 1.24, y el maximo
+    // real del catalogo es 3.66. Por eso el limite esta en 4 -- no marca
+    // ni una sola fila de las que hoy son validas.
+    assert.deepEqual(
+        ocr.revisarCoherenciaPrecios({ precio_mayoreo: 100, precio_medio_mayoreo: 200, precio_publico: 366 }),
+        []
+    );
+    assert.deepEqual(
+        ocr.revisarCoherenciaPrecios({ precio_mayoreo: 335, precio_medio_mayoreo: 365, precio_publico: 400 }),
+        []
+    );
+});
+
+test("el salto se mide contra el medio mayoreo si no se leyo el mayoreo", () => {
+    const problemas = ocr.revisarCoherenciaPrecios({ precio_medio_mayoreo: 50, precio_publico: 900 });
+    assert.equal(problemas.length, 1);
+    assert.match(problemas[0], /veces el mayoreo/);
+});
