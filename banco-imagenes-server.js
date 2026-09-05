@@ -49,16 +49,30 @@ async function comprimirImagen(buffer, anchoMax = 320) {
     return { buffer: data, ancho: info.width, alto: info.height };
 }
 
+// Planes que ven el Banco de Nexo.
+//
 // Lee plan directo de licencias (no de negocios) -- es la fuente que de
 // verdad sincroniza con Stripe, mismo criterio ya usado para gatear la
-// busqueda web de Nexo IA (ia-server.js). demo se trata igual que pro.
+// busqueda web de Nexo IA (ia-server.js).
+//
+// 'plus' entra por decision del dueno (2026-09-05): el banco ya cubre
+// casi todo el Catalogo Maestro y tiene mas sentido como gancho de Plus
+// que como exclusiva de Pro.
+//
+// 'prueba' tambien, y esto era un hueco real: es el plan que recibe TODO
+// registro publico nuevo durante 15 dias, los Terminos le prometen
+// "acceso completo al sistema", y plan-enforcement.js ya lo trata igual
+// que pro/demo en todo lo demas. Solo este gate lo dejaba fuera, asi que
+// un negocio recien registrado no veia una sola foto del banco.
+const PLANES_CON_BANCO = new Set(["pro", "plus", "demo", "prueba"]);
+
 async function planPermiteBancoImagenes(pool, negocioId) {
     const fila = await pool.query(
         `SELECT plan FROM public.licencias WHERE negocio_id = $1`,
         [negocioId]
     );
     const plan = (fila.rows[0]?.plan || "demo").toLowerCase();
-    return plan === "pro" || plan === "demo";
+    return PLANES_CON_BANCO.has(plan);
 }
 
 // Firma independiente de la de fotos_producto (firmarTokenImagen en
@@ -1274,4 +1288,8 @@ registrarRutasBancoImagenes.planPermiteBancoImagenes = planPermiteBancoImagenes;
 registrarRutasBancoImagenes.firmarTokenBancoImagen = firmarTokenBancoImagen;
 registrarRutasBancoImagenes.procesarZipBancoImagenes = procesarZipBancoImagenes;
 
+// La funcion se exporta ademas del registrador de rutas para poder
+// probar la matriz de planes sin levantar el servidor entero.
 module.exports = registrarRutasBancoImagenes;
+module.exports.planPermiteBancoImagenes = planPermiteBancoImagenes;
+module.exports.PLANES_CON_BANCO = PLANES_CON_BANCO;
