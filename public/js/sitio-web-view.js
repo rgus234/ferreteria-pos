@@ -144,6 +144,15 @@ function renderSitioWebFormulario(pantalla, datos) {
  <input type="checkbox" id="sitioWebMostrarExistencias" ${datos.mostrarExistencias ? "checked" : ""}>
  <span>Mostrar existencias al publico</span>
  </label>
+ <label class="sitio-web-campo">
+ <span>Precio con el que publicas en linea</span>
+ <select id="sitioWebNivelPrecio">
+ <option value="publico" ${datos.nivelPrecio === "mayoreo" || datos.nivelPrecio === "distribuidor" ? "" : "selected"}>Publico</option>
+ <option value="mayoreo" ${datos.nivelPrecio === "mayoreo" ? "selected" : ""}>Medio mayoreo</option>
+ <option value="distribuidor" ${datos.nivelPrecio === "distribuidor" ? "selected" : ""}>Mayoreo / distribuidor</option>
+ </select>
+ <small>Es independiente del precio del mostrador. Si a un producto le falta ese precio, se muestra el publico.</small>
+ </label>
  <label class="sitio-web-toggle">
  <input type="checkbox" id="sitioWebAceptarCredito" ${datos.aceptarSolicitudesCredito ? "checked" : ""}>
  <span>Aceptar solicitudes de credito (incluye fotos de identificacion)</span>
@@ -1332,6 +1341,7 @@ async function guardarSitioWeb() {
  const payload = {
  activo: document.getElementById("sitioWebActivo")?.checked || false,
  mostrarPrecios: document.getElementById("sitioWebMostrarPrecios")?.checked || false,
+ nivelPrecio: document.getElementById("sitioWebNivelPrecio")?.value || "publico",
  mostrarExistencias: document.getElementById("sitioWebMostrarExistencias")?.checked || false,
  aceptarSolicitudesCredito: document.getElementById("sitioWebAceptarCredito")?.checked || false,
  promocionActiva: document.getElementById("sitioWebPromocionActiva")?.checked || false,
