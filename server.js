@@ -397,6 +397,44 @@ app.get("/negocio-actual", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
+// Con que nivel de precio arranca cada venta.
+//
+// Es un ajuste del NEGOCIO, no del dispositivo: si viviera en el
+// localStorage de cada caja --como la configuracion de ticket e
+// impresora-- habria que ponerlo en cada una, y una caja nueva empezaria
+// cobrando publico sin que nadie lo note.
+//
+// El nivel del CLIENTE sigue mandando sobre este: al seleccionar un
+// cliente de credito con nivel_precio_preferido, ese gana.
+const NIVELES_PRECIO = ["publico", "mayoreo", "distribuidor"];
+
+app.post("/negocio-actual/nivel-precio", requerirAccesoNegocio, async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const nivel = String(req.body?.nivel || "").trim();
+
+        if (!NIVELES_PRECIO.includes(nivel)) {
+            // Se responde aqui en vez de lanzar: responderError() manda
+            // 500 siempre --ignora error.httpStatus-- y esto es un dato
+            // mal escrito del cliente, no una falla del servidor.
+            res.status(400).json({
+                ok: false,
+                error: `Nivel de precio no valido: ${nivel}`
+            });
+            return;
+        }
+
+        await pool.query(
+            `UPDATE public.negocios SET nivel_precio_por_defecto = $1, updated_at = NOW() WHERE id = $2`,
+            [nivel, negocio.id]
+        );
+
+        res.json({ ok: true, nivel });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
 app.get("/negocios/buscar", async (req, res) => {
     const texto = String(req.query.q || "").trim();
 
@@ -3659,7 +3697,9 @@ async function negocioActual(req) {
     }
 
     const resultado = await pool.query(
-        `SELECT id, slug, nombre, giro, estado, plan, telefono, direccion, logo, color FROM public.negocios WHERE id = $1 LIMIT 1`,
+        `SELECT id, slug, nombre, giro, estado, plan, telefono, direccion, logo, color,
+                nivel_precio_por_defecto
+           FROM public.negocios WHERE id = $1 LIMIT 1`,
         [negocioId]
     );
 

@@ -468,9 +468,24 @@ async function identidadPorCodigo(pool, codigo) {
                 f.confianza AS confianza_precio, f.actualizado_en AS precio_actualizado_en
          FROM public.catalogo_maestro_identificadores i
          JOIN public.catalogo_maestro_productos m ON m.id = i.producto_maestro_id
+         -- El join va SOLO por codigo, no por fabricante.
+         --
+         -- El Maestro guarda la MARCA del producto (Foset, Volteck,
+         -- Pretul, Hermex, Fiero...) y las fichas guardan el FABRICANTE
+         -- que las engloba a todas ("TRUPER"). Exigir que coincidieran
+         -- hacia que el join no casara NUNCA -- ni siquiera para
+         -- "Truper", porque la ficha lo escribe en mayusculas.
+         --
+         -- El efecto: al escanear un producto en Agregar producto, sus
+         -- cuatro precios llegaban en null aunque estuvieran leidos y
+         -- guardados. El campo "Precio que usara el carrito" se quedaba
+         -- vacio o tomaba otro valor, y todo el catalogo de precios no
+         -- llegaba a la pantalla donde hace falta.
+         --
+         -- El codigo de fabricante ya es unico por si mismo: es la clave
+         -- con la que se guardan las fichas.
          LEFT JOIN public.catalogo_fabricante_productos f
                 ON f.codigo = m.codigo_fabricante
-               AND f.fabricante = m.fabricante
                AND f.estado = 'activo'
          WHERE i.valor = $1
          LIMIT 1`,

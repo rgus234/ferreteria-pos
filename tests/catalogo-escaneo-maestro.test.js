@@ -149,3 +149,41 @@ test("un producto marcado para revision no se ofrece", async () => {
         );
     }
 });
+
+test("al escanear llegan los PRECIOS, no solo la identidad", async () => {
+    // Bug real: el join que trae los precios exigia que el fabricante del
+    // Maestro coincidiera con el de la ficha. Pero el Maestro guarda la
+    // MARCA (Foset, Volteck, Pretul, Hermex, Fiero...) y la ficha guarda
+    // el FABRICANTE que las engloba ("TRUPER"). Nunca casaban -- ni
+    // siquiera "Truper" contra "TRUPER", por las mayusculas.
+    //
+    // El efecto: al escanear un producto en Agregar producto, sus cuatro
+    // precios llegaban en null aunque estuvieran leidos y guardados, y el
+    // campo "Precio que usara el carrito" se quedaba vacio. Todo el
+    // catalogo de precios no llegaba a la pantalla donde hace falta.
+    const { identidadPorCodigo } = require("../catalogo-maestro-reconciliacion");
+
+    const r = await pool.query(
+        `SELECT m.ean
+           FROM public.catalogo_maestro_productos m
+           JOIN public.catalogo_fabricante_productos f
+             ON f.codigo = m.codigo_fabricante AND f.estado = 'activo'
+          WHERE f.precio_medio_mayoreo IS NOT NULL
+            AND m.ean IS NOT NULL AND m.ean <> ''
+            AND NOT m.necesita_revision
+          LIMIT 1`
+    );
+
+    if (!r.rows[0]) {
+        console.log("    (sin productos con precio en esta base)");
+        return;
+    }
+
+    const identidad = await identidadPorCodigo(pool, r.rows[0].ean);
+
+    assert.ok(identidad, "el codigo deberia resolver");
+    assert.ok(
+        Number(identidad.precio_medio_mayoreo) > 0,
+        "el medio mayoreo tiene que llegar: es el precio que usa el carrito"
+    );
+});

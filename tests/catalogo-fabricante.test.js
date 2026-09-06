@@ -2648,3 +2648,38 @@ test("forzarVision NO se usa cuando el fabricante no publica ese precio", async 
     assert.equal(r.origen, "sin_precios_publicados");
     assert.equal(llamadas, 0, "no se gasta vision en confirmar un hueco a proposito");
 });
+
+test("los motivos de revision que usa el codigo son los que acepta la base", async () => {
+    // Esta prueba existe por un error real: se empezo a marcar modulos
+    // con motivo_revision='precios_incoherentes' sin agregar ese valor al
+    // CHECK de la columna, y la corrida entera reventaba a media
+    // extraccion con
+    //
+    //     violates check constraint
+    //     "catalogo_fabricante_modulos_motivo_revision_check"
+    //
+    // Ya habia pasado lo mismo con origen_lectura al agregar 'archivo'.
+    // Que la base y el codigo se contradigan no deberia descubrirse
+    // corriendo dos horas contra el catalogo real.
+    const pool = require("../db");
+
+    const { rows } = await pool.query(
+        `SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = $1`,
+        ["catalogo_fabricante_modulos_motivo_revision_check"]
+    );
+
+    if (!rows[0]) {
+        console.log("    (sin CHECK de motivo_revision en esta base)");
+        return;
+    }
+
+    // Los motivos que el codigo puede escribir hoy.
+    const usados = ["", "estructura_ambigua", "precios_incompletos", "precios_incoherentes"];
+
+    for (const motivo of usados) {
+        assert.ok(
+            rows[0].def.includes(`'${motivo}'`) || motivo === "",
+            `la base no acepta motivo_revision='${motivo}' -- falta una migracion`
+        );
+    }
+});
