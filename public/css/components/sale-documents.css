@@ -311,6 +311,11 @@ body.oscuro .venta-badge-pendiente-factura {
   height: 14px !important;
 }
 
+.detalle-venta-estado-cancelada-pos {
+  background: color-mix(in srgb, #dc2626 14%, transparent) !important;
+  color: #dc2626 !important;
+}
+
 .nota-venta-card-pos {
   width: min(480px, 94vw) !important;
   border-radius: 22px !important;
@@ -589,6 +594,21 @@ body.oscuro .venta-badge-pendiente-factura {
 .detalle-acciones-pos button:disabled {
   opacity: .5 !important;
   cursor: not-allowed !important;
+}
+
+.detalle-boton-cancelar-venta-pos {
+  grid-column: 1 / -1 !important;
+  flex-direction: row !important;
+  min-height: 44px !important;
+  color: #dc2626 !important;
+  border-color: color-mix(in srgb, #dc2626 35%, var(--pos-line, #dbe3ef)) !important;
+  background: color-mix(in srgb, #dc2626 6%, transparent) !important;
+}
+
+body.oscuro .detalle-boton-cancelar-venta-pos {
+  color: #f87171 !important;
+  border-color: color-mix(in srgb, #dc2626 45%, transparent) !important;
+  background: color-mix(in srgb, #dc2626 14%, transparent) !important;
 }
 
 body.oscuro .detalle-venta-icono-pos,

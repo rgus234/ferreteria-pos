@@ -192,6 +192,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 COALESCE(SUM(pago_credito), 0) AS credito
             FROM public.historial_ventas
             WHERE negocio_id = $1
+            AND estado = 'completada'
             AND (fecha AT TIME ZONE 'UTC') >= $2
             AND (fecha AT TIME ZONE 'UTC') <= $3
         `, [turno.negocio_id, turno.abierto_at, hasta]);
@@ -254,6 +255,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 COUNT(*) AS transacciones
             FROM public.historial_ventas
             WHERE negocio_id = $1
+            AND estado = 'completada'
             AND fecha >= CURRENT_DATE - INTERVAL '1 day'
             AND fecha < CURRENT_DATE
         `, [negocioId]);

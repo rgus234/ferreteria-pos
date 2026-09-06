@@ -116,7 +116,8 @@ function iconoUISVG(nombre) {
  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
  printer: '<path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="8" rx="1.5"/><path d="M6 17v4h12v-4"/>',
  zoomIn: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6M8 11h6"/>',
- zoomOut: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/>'
+ zoomOut: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/>',
+ menu: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>'
  };
  const cuerpo = iconos[nombre] || iconos.zap;
  return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + cuerpo + '</svg>';
@@ -316,7 +317,9 @@ function renderTopbarPOS() {
  '</strong><small id="topbarSubtituloPOS">' +
  contextoTopbarPOS.subtitulo +
  '</small></div><div class="topbar-actions">' +
- '<button type="button" class="topbar-icon-btn" onclick="abrirRecordatorioPOS()" title="Nuevo recordatorio">' +
+ '<button type="button" class="topbar-icon-btn" onclick="toggleSidebarPOS()" title="Ocultar/mostrar menu" aria-label="Ocultar o mostrar el menu lateral">' +
+ iconoUISVG("menu") +
+ '</button><button type="button" class="topbar-icon-btn" onclick="abrirRecordatorioPOS()" title="Nuevo recordatorio">' +
  iconoUISVG("plus") +
  '</button><button type="button" id="btnTemaPOS" class="topbar-icon-btn" onclick="cambiarModo()" title="Cambiar tema">' +
  iconoUISVG(temaIconoDestinoPOS()) +

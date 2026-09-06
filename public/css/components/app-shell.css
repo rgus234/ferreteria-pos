@@ -116,9 +116,10 @@ body.oscuro .sidebar {
   background: #070c16;
 }
 
-/* Modo enfoque: oculta el sidebar para dar mas espacio a la venta,
-   activado con el boton de menu (Punto de venta) -- vuelve a mostrarse
-   al pulsar de nuevo, sin persistir entre recargas. */
+/* Modo enfoque: oculta el sidebar para dar mas espacio al contenido,
+   activado con el boton de menu en la barra superior (visible en
+   cualquier modulo) -- vuelve a mostrarse al pulsar de nuevo, sin
+   persistir entre recargas. */
 body.sidebar-oculta .sidebar {
   display: none !important;
 }
