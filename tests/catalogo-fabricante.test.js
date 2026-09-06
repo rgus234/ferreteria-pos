@@ -2521,3 +2521,62 @@ test("el salto se mide contra el medio mayoreo si no se leyo el mayoreo", () => 
     assert.equal(problemas.length, 1);
     assert.match(problemas[0], /veces el mayoreo/);
 });
+
+test("la linea divisoria leida como '1' no se come el codigo siguiente", () => {
+    // Modulo 12402 real (86 productos). El OCR lee el borde entre dos
+    // tablas como un "1" pegado al codigo de la derecha:
+    //
+    //   ... $60 3 113605 D-3808-H $30 ... 113580 D-3808 ...
+    //             ^^^^^^          ^^^^^^
+    //
+    // donde los codigos son 13605 y 13580. A veces el mismo borde sale
+    // como "|13581" o "[13582" y esos si pasaban; cuando salia como "1"
+    // se perdia el producto entero.
+    const linea = '1/4" 100919 7D-3808-HL $50 $55 $60 3 113605 D-3808-H $30 $33 $36 3 113580 D-3808 -Z $30 $33 $36 3';
+
+    const r = ocr.parsearTablaPrecios("Código Clave Mayoreo 1/2 Mayoreo Público\n" + linea, {
+        codigosEsperados: ["100919", "13605", "13580"],
+        columnasForzadas: ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+    });
+
+    assert.deepEqual(r.filas.map(f => f.codigo), ["100919", "13605", "13580"]);
+    assert.ok(r.filas.every(f => f.completa));
+    assert.deepEqual(r.filas[1].precios, { precio_mayoreo: 30, precio_medio_mayoreo: 33, precio_publico: 36 });
+});
+
+test("un codigo dentro de un numero mas largo SIGUE rechazandose", () => {
+    // La red de seguridad de la regla anterior: aflojar el borde no puede
+    // volver a aceptar tramos de numeros. "13156" vive dentro de "131567".
+    const r = ocr.parsearTablaPrecios(
+        "Código Clave Mayoreo 1/2 Mayoreo Público\n13182 D-1408 $35 $38 $42 131567",
+        {
+            codigosEsperados: ["13182", "13156"],
+            columnasForzadas: ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+        }
+    );
+
+    assert.deepEqual(r.filas.map(f => f.codigo), ["13182"]);
+});
+
+test("con varias tablas por renglon, el respaldo de columnas acepta multiplos", () => {
+    // El encabezado de un modulo de 3 tablas se lee mal seguido, y el
+    // respaldo que usa las columnas declaradas contaba los importes por
+    // RENGLON: veia 9 donde esperaba 3 y no se activaba. En el modulo
+    // 12402 eso dejaba 83 filas ya leidas marcadas como incompletas.
+    const texto = [
+        "Código Clave May. Púb.",   // encabezado incompleto a proposito
+        "100919 D-3808-HL $50 $55 $60 13605 D-3808-H $30 $33 $36",
+        "100990 D-3810-HL $50 $55 $60 13606 D-3810-H $30 $33 $36",
+        "13712 D-3812-HL $50 $55 $60 13607 D-3812-H $30 $33 $36"
+    ].join("\n");
+
+    const r = ocr.parsearTablaPrecios(texto, {
+        codigosEsperados: ["100919", "13605", "100990", "13606", "13712", "13607"],
+        columnasForzadas: ["precio_mayoreo", "precio_medio_mayoreo", "precio_publico"]
+    });
+
+    const completas = r.filas.filter(f => f.completa);
+    assert.equal(completas.length, 6, "los 6 productos de las 3 lineas");
+    assert.deepEqual(completas[0].precios,
+        { precio_mayoreo: 50, precio_medio_mayoreo: 55, precio_publico: 60 });
+});

@@ -194,10 +194,32 @@ function partirEnProductos(linea, anclas) {
             desde = pos + 1;
 
             // Rodeado de digitos es un tramo de otro numero mas largo, no
-            // el codigo: "13156" dentro de "131567".
-            const antes = pos > 0 ? linea[pos - 1] : "";
+            // el codigo: "13156" dentro de "131567". Un digito DESPUES
+            // descalifica siempre.
             const despues = linea[pos + codigo.length] || "";
-            if (/\d/.test(antes) || /\d/.test(despues)) continue;
+            if (/\d/.test(despues)) continue;
+
+            // Antes es distinto, y hay que afinar: el OCR lee la linea
+            // divisoria entre dos tablas como un "1" pegado al codigo
+            // siguiente. En el modulo 12402 (86 productos) sale asi:
+            //
+            //   ... $60 3 113605 D-3808-H $30 ... 113580 D-3808 ...
+            //             ^^^^^^          ^^^^^^
+            //
+            // donde los codigos de verdad son 13605 y 13580. A veces el
+            // mismo borde sale como "|13581" o "[13582" y esos si pasaban;
+            // cuando salia como "1" se perdia el producto entero.
+            //
+            // Se distingue por lo que hay ANTES de ese digito: el borde es
+            // un "1" suelto tras un espacio, mientras que en "131567" el
+            // "1" viene pegado a mas digitos. Asi se recupera el borde sin
+            // volver a aceptar tramos de numeros mas largos.
+            const antes = pos > 0 ? linea[pos - 1] : "";
+            if (/\d/.test(antes)) {
+                const bordeSuelto = antes === "1"
+                    && (pos === 1 || /\s/.test(linea[pos - 2] || ""));
+                if (!bordeSuelto) continue;
+            }
 
             // Las anclas vienen de mayor a menor longitud, asi que si esta
             // posicion ya la reclamo un codigo mas largo, este es un
@@ -613,7 +635,32 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
         const conteos = lineas
             .map(linea => (linea.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || []).length)
             .filter(n => n > 0);
-        const cuadran = conteos.length > 0 && conteos.every(n => n === declaradas.length);
+        // Un MULTIPLO tambien cuadra, no solo el numero exacto.
+        //
+        // Este respaldo contaba los importes por RENGLON, y eso lo dejaba
+        // inutil justo donde mas falta hace: en los modulos de dos o tres
+        // tablas lado a lado, cada renglon trae los importes de VARIOS
+        // productos. En el 12402 se leian 83 de sus 86 filas, cada una con
+        // 9 importes (3 productos x 3 precios), el encabezado solo dejo
+        // ver 2 columnas, y las 83 salian incompletas por "se esperaban 2
+        // precios y se leyeron 3".
+        //
+        // Que cada renglon traiga un multiplo exacto de las columnas
+        // declaradas es la misma confirmacion de antes: no falta ninguna.
+        // Basta con que la MAYORIA cuadre, no todas.
+        //
+        // Exigir el 100% dejaba el respaldo inutil en la practica: en el
+        // modulo 12402, 27 de sus 30 lineas traen un multiplo exacto de 3
+        // importes y solo 3 no (ahi el OCR perdio un importe suelto). Con
+        // la regla estricta, esas 3 lineas tiraban la ayuda para las 27
+        // buenas y se perdian 83 filas ya leidas.
+        //
+        // Aflojar esto no puede meter un precio equivocado: cada fila
+        // sigue exigiendo por separado tantos importes como columnas, y
+        // la que no cumple sale incompleta. Lo unico que cambia es de
+        // donde se toma el ORDEN de las columnas.
+        const multiplos = conteos.filter(n => n % declaradas.length === 0).length;
+        const cuadran = conteos.length >= 3 && multiplos / conteos.length >= 0.7;
 
         if (cuadran) {
             avisos.push(
