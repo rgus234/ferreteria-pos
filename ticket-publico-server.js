@@ -181,6 +181,16 @@ body {
     padding: 4px 10px;
     border-radius: 999px;
 }
+.ticket-publico-cancelada-banner {
+    text-align: center;
+    background: rgba(220,38,38,.12);
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 10px;
+    border-radius: 8px;
+    margin: 10px 0;
+}
 .ticket-publico-boton-imprimir {
     width: 100%;
     margin-top: 18px;
@@ -234,6 +244,8 @@ function paginaTicketPublicoHtml(venta) {
    ${venta.negocio_direccion ? `<div class="ticket-publico-dato-negocio">${escaparHtml(venta.negocio_direccion)}</div>` : ""}
    ${venta.negocio_telefono ? `<div class="ticket-publico-dato-negocio">${escaparHtml(venta.negocio_telefono)}</div>` : ""}
   </div>
+
+  ${venta.estado === "cancelada" ? `<div class="ticket-publico-cancelada-banner">Esta venta fue cancelada</div>` : ""}
 
   <div class="ticket-publico-meta">
    <div class="ticket-publico-fila"><span>Folio</span><span>${escaparHtml(venta.folio || "")}</span></div>

@@ -92,6 +92,7 @@ function formatearFechaVenta(valor) {
 
 function ventasDeFecha(historial, fechaObjetivo) {
  return historial.filter(venta =>
+ venta.estado !== "cancelada" &&
  mismaFecha(
  fechaVenta(venta.fecha),
  fechaObjetivo
@@ -175,6 +176,7 @@ function mismoMes(a, b) {
 
 function ventasDelMes(historial, fechaObjetivo) {
  return historial.filter(venta =>
+ venta.estado !== "cancelada" &&
  mismoMes(fechaVenta(venta.fecha), fechaObjetivo)
  );
 }
@@ -415,7 +417,8 @@ function iconoDetalleVentaPOS(nombre) {
   documento: '<path d="M8 3h6l4 4v14H8Z"/><path d="M14 3v4h4"/><path d="M10.5 12h5M10.5 15.5h5"/>',
   descargar: '<path d="M12 4v11"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/>',
   chat: '<path d="M4 19v-3.4A7.6 7.6 0 1 1 8.6 20L4 19Z"/>',
-  correo: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 6.5 8 6 8-6"/>'
+  correo: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 6.5 8 6 8-6"/>',
+  alerta: '<path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5M12 17.5v.01"/>'
  };
 
  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${trazos[nombre] || trazos.documento}</svg>`;
@@ -466,7 +469,9 @@ function renderDetalleVentaPOS(venta) {
     <span>Total de la venta</span>
     <strong>${dinero(venta.total || 0)} <small>MXN</small></strong>
    </div>
-   <span class="detalle-venta-estado-pos">${iconoDetalleVentaPOS("check")} Completada</span>
+   ${venta.estado === "cancelada"
+    ? `<span class="detalle-venta-estado-pos detalle-venta-estado-cancelada-pos">${iconoDetalleVentaPOS("alerta")} Cancelada</span>`
+    : `<span class="detalle-venta-estado-pos">${iconoDetalleVentaPOS("check")} Completada</span>`}
   </div>
 
   <div class="detalle-venta-resumen-pos">
@@ -504,6 +509,7 @@ function renderDetalleVentaPOS(venta) {
    <button type="button" disabled>${iconoDetalleVentaPOS("chat")} WhatsApp</button>
    <button type="button" disabled>${iconoDetalleVentaPOS("correo")} Correo</button>
    <button type="button" onclick="abrirModalFacturarVenta(${id})">${iconoDetalleVentaPOS("documento")} Factura CFDI</button>
+   ${venta.estado === "cancelada" ? "" : `<button type="button" class="detalle-boton-cancelar-venta-pos" onclick="cancelarVentaPOS(${id})">${iconoDetalleVentaPOS("alerta")} Cancelar venta</button>`}
   </div>
  </div>`;
 
@@ -513,6 +519,52 @@ function renderDetalleVentaPOS(venta) {
 function cerrarDetalleVentaPOS() {
  const modal = document.getElementById("modalDetalleVentaPOS");
  if (modal) modal.style.display = "none";
+}
+
+// Reusa el mismo formulario generico ya usado para pedir PIN de
+// administrador en descuentos grandes/turno vencido (pos-sales.js) --
+// aqui con un campo extra de motivo, igual que ya exige el servidor.
+// Cierra el modal de detalle primero: su z-index (9999) es mayor que
+// el del formulario generico (2000), asi que dejarlo abierto tapa por
+// completo el formulario sin ningun aviso visible.
+async function cancelarVentaPOS(id) {
+ cerrarDetalleVentaPOS();
+
+ const datos =
+ await abrirFormularioCredito({
+  titulo: "Cancelar venta",
+  subtitulo: "Regresa el stock de todos los productos al inventario. Necesitas el PIN de un administrador.",
+  campos: [
+   { nombre: "motivo", etiqueta: "Motivo de la cancelacion", tipo: "text", requerido: true },
+   { nombre: "adminPin", etiqueta: "PIN de administrador", tipo: "password", requerido: true }
+  ]
+ });
+
+ if (!datos) return;
+
+ try {
+  const respuesta =
+  await fetch(`/ventas/${Number(id)}/cancelar`, {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ motivo: datos.motivo, adminPin: datos.adminPin })
+  });
+
+  const resultado =
+  await respuesta.json().catch(() => ({}));
+
+  if (!respuesta.ok || !resultado.ok) {
+   await alertaPOS(resultado.error || "No se pudo cancelar la venta.", "Cancelar venta", "peligro");
+   return;
+  }
+
+  cerrarDetalleVentaPOS();
+  await alertaPOS(`Venta ${resultado.folio} cancelada. El stock ya se regreso al inventario.`, "Venta cancelada", "exito");
+  await intentarRefrescarNubePOS(() => cargarHistorial(), "historial");
+  await intentarRefrescarNubePOS(() => cargarProductos(), "productos");
+ } catch (error) {
+  await alertaPOS("Error de conexion, intenta de nuevo.", "Cancelar venta", "peligro");
+ }
 }
 
 async function obtenerVentaDetallePOS(id) {

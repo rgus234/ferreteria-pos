@@ -141,7 +141,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         if (usarRango) {
             return {
                 filtroCreatedAt: "AND created_at::date BETWEEN $2::date AND $3::date",
-                filtroFecha: "AND fecha::date BETWEEN $2::date AND $3::date",
+                filtroFecha: "AND fecha::date BETWEEN $2::date AND $3::date AND estado = 'completada'",
                 params: [desde.toISOString().slice(0, 10), hasta.toISOString().slice(0, 10)]
             };
         }
@@ -156,7 +156,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
         return {
             filtroCreatedAt: `AND created_at >= ${desdeSql}`,
-            filtroFecha: `AND fecha >= ${desdeSql}`,
+            filtroFecha: `AND fecha >= ${desdeSql} AND estado = 'completada'`,
             params: []
         };
     }
@@ -173,7 +173,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             const anteriorDesde = new Date(anteriorHasta.getTime() - (duracionDias - 1) * 86400000);
             return {
                 filtroCreatedAt: "AND created_at::date BETWEEN $2::date AND $3::date",
-                filtroFecha: "AND fecha::date BETWEEN $2::date AND $3::date",
+                filtroFecha: "AND fecha::date BETWEEN $2::date AND $3::date AND estado = 'completada'",
                 params: [anteriorDesde.toISOString().slice(0, 10), anteriorHasta.toISOString().slice(0, 10)]
             };
         }
@@ -188,7 +188,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
         return {
             filtroCreatedAt: condicion.replace(/fecha/g, "created_at"),
-            filtroFecha: condicion,
+            filtroFecha: condicion + " AND estado = 'completada'",
             params: []
         };
     }

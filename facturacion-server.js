@@ -337,12 +337,16 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 }
 
                 const venta = (await pool.query(
-                    `SELECT id, cliente_id, total, subtotal, descuento, metodo_pago, folio, folio_numero, productos FROM public.historial_ventas WHERE id = $1 AND negocio_id = $2`,
+                    `SELECT id, cliente_id, total, subtotal, descuento, metodo_pago, folio, folio_numero, productos, estado FROM public.historial_ventas WHERE id = $1 AND negocio_id = $2`,
                     [historialVentaId, negocioId]
                 )).rows[0];
 
                 if (!venta) {
                     res.status(404).json({ ok: false, error: "Venta no encontrada" });
+                    return;
+                }
+                if (venta.estado === "cancelada") {
+                    res.status(400).json({ ok: false, error: "Esta venta esta cancelada, no se puede facturar." });
                     return;
                 }
                 if (Number(venta.descuento) > 0) {
