@@ -11,18 +11,36 @@ const BASE_URL = `http://localhost:${PUERTO_PRUEBA}`;
 
 let proceso = null;
 
-// 200 x 300ms = 60 segundos.
+// 400 x 300ms = 120 segundos.
 //
-// Eran 80 (24s) y arrancar en limpio ya tarda ~18: seis segundos de
-// margen. Cualquier cosa que ocupe la base -- otra corrida de pruebas, una
-// carga de catalogo, latencia a la nube -- se los come, y entonces
-// archivos ENTEROS fallan con "no arranco a tiempo" aunque el codigo este
-// bien. Paso hoy: la suite completa reporto 24 fallos, ninguno de ellos
-// una asercion, y los mismos archivos pasaron solos minutos despues.
+// Eran 80 (24s), luego 200 (60s). Arrancar en limpio tarda ~18, pero
+// cualquier cosa que ocupe la base -- otra corrida de pruebas, una carga
+// de catalogo, latencia a la nube-- se come el margen, y entonces
+// archivos ENTEROS fallan aunque el codigo este bien.
 //
 // Un timeout generoso no oculta nada: si el servidor de verdad no
-// arranca, igual falla, solo que 36 segundos mas tarde y una vez.
-async function esperarListo(intentosRestantes = 200) {
+// arranca, igual falla, solo que mas tarde y una vez.
+const INTENTOS_ARRANQUE = 400;
+
+// Lo ultimo que dijo el servidor antes de morir. Se guarda para poder
+// explicar POR QUE no arranco en vez de dar un timeout mudo.
+let ultimaSalidaServidor = "";
+let murioAlArrancar = null;
+
+async function esperarListo(intentosRestantes = INTENTOS_ARRANQUE) {
+    // Si el proceso ya murio, no tiene caso seguir esperando dos minutos:
+    // se falla de inmediato Y se dice lo que el servidor alcanzo a
+    // escribir. Sin esto, una base inalcanzable se reportaba como "no
+    // arranco a tiempo" -- un mensaje que manda a buscar el problema al
+    // lugar equivocado. Paso tres veces en un mismo dia: los fallos
+    // decian timeout y la causa real era ENOTFOUND contra la base.
+    if (murioAlArrancar) {
+        throw new Error(
+            `El servidor de pruebas murio al arrancar (codigo ${murioAlArrancar}).` +
+            (ultimaSalidaServidor ? `\nDijo: ${ultimaSalidaServidor.trim().slice(-500)}` : "")
+        );
+    }
+
     try {
         const respuesta = await fetch(`${BASE_URL}/health`);
         if (respuesta.ok) return;
@@ -31,7 +49,10 @@ async function esperarListo(intentosRestantes = 200) {
     }
 
     if (intentosRestantes <= 0) {
-        throw new Error("El servidor de pruebas no arranco a tiempo");
+        throw new Error(
+            "El servidor de pruebas no arranco a tiempo (120s)." +
+            (ultimaSalidaServidor ? `\nLo ultimo que dijo: ${ultimaSalidaServidor.trim().slice(-500)}` : "")
+        );
     }
 
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -41,15 +62,41 @@ async function esperarListo(intentosRestantes = 200) {
 async function iniciarServidorPrueba() {
     if (proceso) return BASE_URL;
 
+    ultimaSalidaServidor = "";
+    murioAlArrancar = null;
+
     const hijo = spawn(
         process.execPath,
         ["--env-file=.env", "server.js"],
         {
             cwd: path.join(__dirname, "..", ".."),
             env: { ...process.env, PORT: String(PUERTO_PRUEBA) },
-            stdio: "ignore"
+            // Antes era "ignore" y la salida del servidor se tiraba a la
+            // basura. Cuando no arrancaba, lo unico que quedaba era un
+            // "no arranco a tiempo" mudo, y habia que adivinar la causa
+            // -- se perdieron horas persiguiendo fantasmas por esto.
+            // Ahora se guarda para poder decirla.
+            stdio: ["ignore", "pipe", "pipe"]
         }
     );
+
+    const recordar = trozo => {
+        ultimaSalidaServidor += String(trozo);
+        // Solo interesa el final: un arranque normal escribe bastante.
+        if (ultimaSalidaServidor.length > 4000) {
+            ultimaSalidaServidor = ultimaSalidaServidor.slice(-4000);
+        }
+    };
+
+    hijo.stdout.on("data", recordar);
+    hijo.stderr.on("data", recordar);
+
+    // Que el proceso muera es una respuesta, no una espera: sin esto se
+    // aguantaban los dos minutos completos para decir "timeout" cuando la
+    // causa (base inalcanzable, puerto ocupado) ya se sabia al segundo.
+    hijo.on("exit", codigo => {
+        murioAlArrancar = codigo === null ? "sin codigo" : codigo;
+    });
 
     proceso = hijo;
 
