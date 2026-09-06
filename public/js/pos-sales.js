@@ -382,10 +382,22 @@ function agregar(
  precioPublico,
  precioMayoreo: Number(producto.precio_mayoreo || 0),
  precioDistribuidor: Number(producto.precio_distribuidor || 0),
+ // Los tres precios de lo que se vende SUELTO, mas su precio de
+ // referencia por si algun nivel viene vacio.
+ precioPiezaBase: Number(producto.precio_pieza || 0),
+ precioPiezaPublico: Number(producto.precio_pieza_publico || 0),
+ precioPiezaMayoreo: Number(producto.precio_pieza_mayoreo || 0),
+ precioPiezaDistribuidor: Number(producto.precio_pieza_distribuidor || 0),
  imagenUrl: producto.imagenUrl || null
  });
 
- if (modoVenta !== "pieza" && nivelPrecioActual && nivelPrecioActual !== "publico") {
+ // La venta suelta TAMBIEN entra aqui.
+ //
+ // Antes se excluia (modoVenta !== "pieza"), asi que un kilo se cobraba
+ // siempre al mismo precio aunque el cliente fuera distribuidor. Y se
+ // entra tambien con nivel "publico": lo suelto tiene su propio precio
+ // publico, que no tiene por que ser el de referencia.
+ if (nivelPrecioActual) {
  aplicarNivelPrecioAItem(carrito[carrito.length - 1], nivelPrecioActual);
  }
  }
@@ -551,17 +563,38 @@ function quitarDescuentoCarrito() {
 function aplicarNivelPrecioAItem(item, nivel) {
  if (!item) return;
 
- const candidato =
- nivel === "mayoreo"
- ? item.precioMayoreo
- : nivel === "distribuidor"
- ? item.precioDistribuidor
- : item.precioPublico;
+ // Lo que se vende SUELTO tiene sus propios tres precios.
+ //
+ // Antes la venta suelta cobraba siempre precio_pieza, un valor unico
+ // sin niveles -- y el POS ni la llamaba aqui. Caso real, PERRON
+ // ADULTO: llega en bulto de 25 kg (535/700/750) y se vende por kilo
+ // (23/33/43). Sin esto habia que elegir entre vender el bulto o
+ // cobrar bien el kilo.
+ const suelto = item.modoVenta === "pieza";
+
+ const candidato = suelto
+ ? (nivel === "mayoreo"
+  ? item.precioPiezaMayoreo
+  : nivel === "distribuidor"
+  ? item.precioPiezaDistribuidor
+  : item.precioPiezaPublico)
+ : (nivel === "mayoreo"
+  ? item.precioMayoreo
+  : nivel === "distribuidor"
+  ? item.precioDistribuidor
+  : item.precioPublico);
+
+ // Sin precio para ese nivel se cae al de referencia del MISMO modo de
+ // venta: nunca al del contenedor. Cobrar el bulto cuando se pidio un
+ // kilo seria mucho peor que cobrar el kilo a otro nivel.
+ const respaldo = suelto
+ ? Number(item.precioPiezaBase || item.precio || 0)
+ : Number(item.precioPublico || item.precio || 0);
 
  item.precio =
  Number(candidato) > 0
  ? Number(candidato)
- : Number(item.precioPublico || item.precio || 0);
+ : respaldo;
 }
 
 // Los tres niveles que el POS sabe aplicar. El nombre interno "mayoreo"

@@ -6133,6 +6133,9 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
     permiteVentaPieza,
     piezasPorBolsa,
     precioPieza,
+    precioPiezaPublico,
+    precioPiezaMayoreo,
+    precioPiezaDistribuidor,
     piezasSueltasIniciales,
     tieneGarantia,
     garantiaDetalle,
@@ -6204,9 +6207,12 @@ INSERT INTO public.productos
   visible_pos,
   visible_market,
   disponible_pedidos,
-  fecha_caducidad
+  fecha_caducidad,
+  precio_pieza_publico,
+  precio_pieza_mayoreo,
+  precio_pieza_distribuidor
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44)
 RETURNING id
 `,
 [
@@ -6250,7 +6256,10 @@ RETURNING id
   visiblePos !== false && visiblePos !== "false",
   visibleMarket !== false && visibleMarket !== "false",
   disponiblePedidos !== false && disponiblePedidos !== "false",
-  fechaCaducidad || null
+  fechaCaducidad || null,
+  precioPiezaPublico || null,
+  precioPiezaMayoreo || null,
+  precioPiezaDistribuidor || null
 ]
 );
 
@@ -6316,6 +6325,9 @@ RETURNING id
                 permite_venta_pieza: permiteVentaPieza === true || permiteVentaPieza === "true",
                 piezas_por_bolsa: piezasPorBolsa || null,
                 precio_pieza: precioPieza || null,
+                precio_pieza_publico: precioPiezaPublico || null,
+                precio_pieza_mayoreo: precioPiezaMayoreo || null,
+                precio_pieza_distribuidor: precioPiezaDistribuidor || null,
                 tiene_garantia: tieneGarantia === true || tieneGarantia === "true",
                 garantia_detalle: garantiaDetalle || "",
                 stock_maximo: stockMaximo || null,
@@ -6373,6 +6385,9 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
         permiteVentaPieza,
         piezasPorBolsa,
         precioPieza,
+    precioPiezaPublico,
+    precioPiezaMayoreo,
+    precioPiezaDistribuidor,
         tieneGarantia,
         garantiaDetalle,
         stockMaximo,
@@ -6462,7 +6477,10 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 visible_pos = COALESCE($40, visible_pos),
                 visible_market = COALESCE($41, visible_market),
                 disponible_pedidos = COALESCE($42, disponible_pedidos),
-                fecha_caducidad = $43
+                fecha_caducidad = $43,
+                precio_pieza_publico = $44,
+                precio_pieza_mayoreo = $45,
+                precio_pieza_distribuidor = $46
             WHERE id = $38
             AND negocio_id = $39
             RETURNING id, categoria_nexo_id, proveedor_id, visible_pos, visible_market, disponible_pedidos, fecha_caducidad
@@ -6510,7 +6528,10 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 visiblePosNuevo,
                 visibleMarketNuevo,
                 disponiblePedidosNuevo,
-                fechaCaducidad || null
+                fechaCaducidad || null,
+                precioPiezaPublico || null,
+                precioPiezaMayoreo || null,
+                precioPiezaDistribuidor || null
             ]
         );
 
@@ -6562,6 +6583,9 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 permite_venta_pieza: permiteVentaPieza === true || permiteVentaPieza === "true",
                 piezas_por_bolsa: piezasPorBolsa || null,
                 precio_pieza: precioPieza || null,
+                precio_pieza_publico: precioPiezaPublico || null,
+                precio_pieza_mayoreo: precioPiezaMayoreo || null,
+                precio_pieza_distribuidor: precioPiezaDistribuidor || null,
                 tiene_garantia: tieneGarantia === true || tieneGarantia === "true",
                 garantia_detalle: garantiaDetalle || "",
                 stock_maximo: stockMaximo || null,

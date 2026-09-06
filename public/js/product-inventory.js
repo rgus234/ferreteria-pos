@@ -2665,6 +2665,17 @@ document.getElementById("basculaDigital")?.value || "no";
 const permiteVentaPieza =
 document.getElementById("permiteVentaPieza")?.checked || false;
 
+// Los tres niveles de lo que se vende SUELTO. Son opcionales: si se
+// dejan vacios, el POS se cae al precio de referencia suelto.
+const precioPiezaPublico =
+document.getElementById("precioPiezaPublico")?.value || "";
+
+const precioPiezaMayoreo =
+document.getElementById("precioPiezaMayoreo")?.value || "";
+
+const precioPiezaDistribuidor =
+document.getElementById("precioPiezaDistribuidor")?.value || "";
+
 const unidadSuelta =
 document.getElementById("unidadSuelta")?.value || "pieza";
 
@@ -2857,6 +2868,9 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  unidadSuelta,
  piezasPorBolsa,
  precioPieza,
+ precioPiezaPublico,
+ precioPiezaMayoreo,
+ precioPiezaDistribuidor,
  piezasSueltasIniciales,
  tieneGarantia,
  garantiaDetalle,
@@ -2934,7 +2948,22 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  }
 
  if (!productoOffline && !respuesta.ok) {
- await alertaPOS("El servidor no pudo guardar el producto. Revisa que el codigo no este repetido y vuelve a intentar.", "Producto no guardado", "peligro");
+ // Se muestra lo que el SERVIDOR dijo, no una suposicion.
+ //
+ // Antes esto siempre decia "revisa que el codigo no este repetido",
+ // que es una adivinanza: no hay indice unico de codigo en productos
+ // --de hecho ya conviven 27 productos con codigo vacio-- asi que esa
+ // casi nunca es la causa. El servidor SI manda el motivo (licencia
+ // en modo limitado, un campo invalido, etc.) y el cliente lo tiraba
+ // a la basura, dejando al dueno sin saber que arreglar.
+ const detalle =
+ await respuesta.json().catch(() => null);
+
+ const motivo =
+ (detalle && detalle.error) ||
+ `El servidor respondio ${respuesta.status}.`;
+
+ await alertaPOS(motivo, "Producto no guardado", "peligro");
  return;
  }
 
