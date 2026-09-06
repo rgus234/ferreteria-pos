@@ -111,6 +111,32 @@ async function comprimirImagenIdentificacion(buffer) {
         .toBuffer();
 }
 
+// La columna de precio con la que este negocio publica en linea.
+//
+// Estaba FIJO en "COALESCE(precio_publico, precio)" en 7 consultas, asi
+// que un negocio no podia competir en linea con su precio de medio
+// mayoreo: el cliente siempre veia el publico, tanto en el catalogo como
+// al llegar a pagar.
+//
+// El nivel viene de sitio_web_config.nivel_precio y se traduce aqui a
+// una columna concreta. La lista es CERRADA y el valor jamas se
+// interpola crudo en el SQL, aunque venga de la propia base.
+const COLUMNA_POR_NIVEL = {
+    publico: "precio_publico",
+    mayoreo: "precio_mayoreo",
+    distribuidor: "precio_distribuidor"
+};
+
+function columnaPrecioDeSitio(sitio, prefijo = "") {
+    const nivel = sitio && sitio.config ? sitio.config.nivelPrecio : null;
+    const columna = COLUMNA_POR_NIVEL[nivel] || COLUMNA_POR_NIVEL.publico;
+
+    // Si a un producto le falta el precio del nivel elegido se cae al
+    // publico y luego al de referencia: es preferible mostrar un precio
+    // mas alto que dejar el producto sin precio en la tienda.
+    return "COALESCE(" + prefijo + columna + ", " + prefijo + "precio_publico, " + prefijo + "precio)";
+}
+
 function escaparHtml(valor) {
     return String(valor || "")
         .replace(/&/g, "&amp;")
@@ -227,6 +253,7 @@ async function resolverSitioPublico(pool, slug) {
             facebook: fila.facebook,
             instagram: fila.instagram,
             mostrarPrecios: fila.mostrar_precios,
+            nivelPrecio: fila.nivel_precio || "publico",
             mostrarExistencias: fila.mostrar_existencias,
             aceptarSolicitudesCredito: fila.aceptar_solicitudes_credito,
             promocionActiva: fila.promocion_activa,
@@ -884,7 +911,7 @@ async function cargarInicioTenant(pool, sitio, slug, firmarTokenImagen) {
     // condicionales de precio/existencia que el catalogo.
     const columnasDestacados = [
         "codigo", "nombre",
-        sitio.config.mostrarPrecios ? "COALESCE(precio_publico, precio) AS precio" : null,
+        sitio.config.mostrarPrecios ? columnaPrecioDeSitio(sitio) + " AS precio" : null,
         sitio.config.mostrarPrecios ? "precio_oferta" : null,
         sitio.config.mostrarExistencias ? "stock" : null
     ].filter(Boolean);
@@ -928,7 +955,7 @@ async function cargarInicioTenant(pool, sitio, slug, firmarTokenImagen) {
             WHERE negocio_id = $1
             AND visible_market = true
             AND precio_oferta IS NOT NULL
-            AND precio_oferta < COALESCE(precio_publico, precio)
+            AND precio_oferta < ${columnaPrecioDeSitio(sitio)}
         ) AS existe
         `,
         [sitio.negocio.id]
@@ -1022,7 +1049,7 @@ async function favoritosJson(pool, req, res, slug, firmarTokenImagen) {
         }
 
         const columnasExtra = [
-            sitio.config.mostrarPrecios ? "COALESCE(precio_publico, precio) AS precio" : null,
+            sitio.config.mostrarPrecios ? columnaPrecioDeSitio(sitio) + " AS precio" : null,
             sitio.config.mostrarPrecios ? "precio_oferta" : null,
             sitio.config.mostrarExistencias ? "stock" : null
         ].filter(Boolean);
@@ -1090,7 +1117,7 @@ async function comparadorJson(pool, req, res, slug, firmarTokenImagen) {
         }
 
         const columnasExtra = [
-            sitio.config.mostrarPrecios ? "COALESCE(precio_publico, precio) AS precio" : null,
+            sitio.config.mostrarPrecios ? columnaPrecioDeSitio(sitio) + " AS precio" : null,
             sitio.config.mostrarPrecios ? "precio_oferta" : null,
             sitio.config.mostrarExistencias ? "stock" : null
         ].filter(Boolean);
@@ -1156,7 +1183,7 @@ async function cargarCatalogoTenant(pool, sitio, slug, filtros, firmarTokenImage
     const condiciones = ["p.negocio_id = $1", "p.visible_market = true"];
 
     if (ofertas) {
-        condiciones.push(`p.precio_oferta IS NOT NULL AND p.precio_oferta < COALESCE(p.precio_publico, p.precio)`);
+        condiciones.push(`p.precio_oferta IS NOT NULL AND p.precio_oferta < ${columnaPrecioDeSitio(sitio, "p.")}`);
     }
 
     if (buscar) {
@@ -1178,7 +1205,7 @@ async function cargarCatalogoTenant(pool, sitio, slug, filtros, firmarTokenImage
     }
 
     const columnasExtra = [
-        sitio.config.mostrarPrecios ? "COALESCE(p.precio_publico, p.precio) AS precio" : null,
+        sitio.config.mostrarPrecios ? columnaPrecioDeSitio(sitio, "p.") + " AS precio" : null,
         sitio.config.mostrarPrecios ? "p.precio_oferta" : null,
         sitio.config.mostrarExistencias ? "p.stock" : null
     ].filter(Boolean);
@@ -1562,7 +1589,7 @@ async function cargarProductoTenant(pool, sitio, slug, codigo, firmarTokenImagen
         condicionesComp.push(`(${subcondiciones.join(" OR ")})`);
 
         const columnasExtraComp = [
-            sitio.config.mostrarPrecios ? "COALESCE(p.precio_publico, p.precio) AS precio" : null,
+            sitio.config.mostrarPrecios ? columnaPrecioDeSitio(sitio, "p.") + " AS precio" : null,
             sitio.config.mostrarPrecios ? "p.precio_oferta" : null,
             sitio.config.mostrarExistencias ? "p.stock" : null
         ].filter(Boolean);
@@ -4197,6 +4224,12 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             const facebook = String(req.body?.facebook || "").slice(0, 300);
             const instagram = String(req.body?.instagram || "").slice(0, 300);
             const mostrarPrecios = Boolean(req.body?.mostrarPrecios);
+
+            // Con que nivel de precio se publica en linea. Se valida contra
+            // la lista cerrada: un valor cualquiera reventaria contra el
+            // CHECK de la base en vez de dar un error claro aqui.
+            const nivelPedido = String(req.body?.nivelPrecio || "").trim();
+            const nivelPrecio = COLUMNA_POR_NIVEL[nivelPedido] ? nivelPedido : "publico";
             const mostrarExistencias = Boolean(req.body?.mostrarExistencias);
             const aceptarSolicitudesCredito = Boolean(req.body?.aceptarSolicitudesCredito);
             const promocionActiva = Boolean(req.body?.promocionActiva);
@@ -4275,8 +4308,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             await pool.query(
                 `
                 INSERT INTO public.sitio_web_config
-                    (negocio_id, activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, envio_modo, envio_tarifa, envio_notas, promocion_plantilla, promocion_color_acento, promocion_texto_boton, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW())
+                    (negocio_id, activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, envio_modo, envio_tarifa, envio_notas, promocion_plantilla, promocion_color_acento, promocion_texto_boton, nivel_precio, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, NOW())
                 ON CONFLICT (negocio_id) DO UPDATE SET
                     activo = $2, descripcion = $3,
                     portada = CASE WHEN $9 THEN $4 ELSE sitio_web_config.portada END,
@@ -4285,9 +4318,10 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                     promocion_activa = $13, promocion_titulo = $14, promocion_texto = $15, promocion_enlace = $16,
                     envio_modo = $17, envio_tarifa = $18, envio_notas = $19,
                     promocion_plantilla = $20, promocion_color_acento = $21, promocion_texto_boton = $22,
+                    nivel_precio = $23,
                     updated_at = NOW()
                 `,
-                [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias, aceptarSolicitudesCredito, promocionActiva, promocionTitulo, promocionTexto, promocionEnlace, envioModo, envioTarifa, envioNotas, promocionPlantilla, promocionColorAcento, promocionTextoBoton]
+                [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias, aceptarSolicitudesCredito, promocionActiva, promocionTitulo, promocionTexto, promocionEnlace, envioModo, envioTarifa, envioNotas, promocionPlantilla, promocionColorAcento, promocionTextoBoton, nivelPrecio]
             );
 
             res.json({ ok: true, direccionUbicada });
@@ -4737,3 +4771,7 @@ module.exports = {
     ICONO_PORTAL_TIENDA,
     ICONO_TENANT_FAVORITO
 };
+
+// Se exporta para poder probar la eleccion de columna sin levantar el
+// servidor entero.
+module.exports.columnaPrecioDeSitio = columnaPrecioDeSitio;
