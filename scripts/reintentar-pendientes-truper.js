@@ -64,7 +64,10 @@ async function main() {
                 WHERE p.fabricante = m.fabricante AND p.modulo = m.modulo
                 LIMIT 1
            ) p ON true
-          WHERE m.fabricante = $1 AND m.estado NOT IN ('ok', 'parcial')
+          -- 'parcial' TAMBIEN es pendiente: son modulos donde se leyeron
+          -- unos productos y otros no. Excluirlos dejaba fuera justo los
+          -- que mas productos tienen sin precio -- el 12402 solito son 86.
+          WHERE m.fabricante = $1 AND m.estado <> 'ok'
             AND m.productos_afectados >= $2
           GROUP BY modulo`,
         [truper.nombre, minimo]
