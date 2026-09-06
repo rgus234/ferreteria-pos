@@ -215,6 +215,7 @@ async function leerEstadoUnidades(pool, fabricante) {
     // unidad se salta.
     const resultado = await pool.query(
         `SELECT m.modulo, m.variante, m.etag, m.hash_contenido, m.estado, m.layout,
+                m.motivo_revision,
                 EXISTS (
                   SELECT 1 FROM public.catalogo_fabricante_productos p
                    WHERE p.fabricante = m.fabricante AND p.modulo = m.modulo
@@ -306,7 +307,12 @@ async function detectarUnidadesCambiadas(pool, adaptador, unidades, onProgreso) 
             // quedan productos sin precio: el contenido de la imagen ES el
             // mismo, asi que el atajo se dispararia y la volveria a dar por
             // buena sin leer nada.
-            reintentarPorPrecios: leQuedanSinPrecio
+            reintentarPorPrecios: leQuedanSinPrecio,
+            // Si la vez pasada se le retiraron precios por incoherencia
+            // entre variantes, el OCR de esta unidad ya se dio por bueno
+            // una vez y volveria a hacerlo. Sin forzar la vision, ese
+            // producto no se recupera nunca.
+            forzarVision: previo?.motivo_revision === "precios_incoherentes"
         });
 
         if (typeof onProgreso === "function") onProgreso(revisadas, cambiadas.length);
@@ -709,6 +715,42 @@ async function aplicarLote(pool, sincronizacionId, fabricante, extraido, univers
                 ? "ninguno de sus codigos aparece en el universo vigente: lectura del universo sospechosa"
                 : e.detalle;
             await guardarEstadoUnidad(client, fabricante, e.unidad, estado, detalle, e.resultado, e.faltantes);
+        }
+
+        // Marcar los modulos de los productos a los que se les retiraron
+        // los precios por incoherencia.
+        //
+        // Va DESPUES de guardarEstadoUnidad a proposito: ahi el modulo
+        // acaba de quedar en 'ok' --su OCR se dio por bueno-- y sin esta
+        // marca nadie volveria a mirarlo nunca. La incoherencia solo se
+        // ve al cruzar las dos variantes, cosa que el extractor no puede
+        // hacer porque lee cada una por separado.
+        //
+        // Caso real, producto 14958 del modulo 18004:
+        //     pub  495 / 545 / 595   (coherente entre si)
+        //     dis  110               (18% del publico: mal leido)
+        // Las dos lecturas "confiables", el producto sin precio, y nada
+        // que volviera a intentarlo.
+        //
+        // Con motivo_revision = 'precios_incoherentes', la corrida
+        // siguiente relee la unidad Y fuerza la vision (ver
+        // detectarUnidadesCambiadas y forzarVision en el extractor).
+        const codigosIncoherentes = (extraido.incoherentes || []).map(i => i.identidad);
+        if (codigosIncoherentes.length > 0) {
+            await client.query(
+                `UPDATE public.catalogo_fabricante_modulos mo
+                    SET estado = 'revision_manual',
+                        motivo_revision = 'precios_incoherentes',
+                        detalle = 'se retiraron precios por incoherencia entre variantes'
+                  WHERE mo.fabricante = $1
+                    AND mo.estado = 'ok'
+                    AND EXISTS (
+                      SELECT 1 FROM public.catalogo_fabricante_productos p
+                       WHERE p.fabricante = mo.fabricante
+                         AND p.modulo = mo.modulo
+                         AND p.codigo = ANY($2))`,
+                [fabricante, codigosIncoherentes]
+            );
         }
 
         await client.query("COMMIT");

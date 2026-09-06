@@ -496,7 +496,12 @@ const adaptador = {
         const r = await extraerTablaDeModulo(imagen, {
             codigosEsperados,
             columnasForzadas: VARIANTES[variante]?.columnas,
-            anthropic: puedeUsarVision ? ctx.anthropic : null
+            anthropic: puedeUsarVision ? ctx.anthropic : null,
+            // El nucleo marca asi las unidades cuyos precios se retiraron
+            // por incoherencia entre variantes: ahi el OCR se dio por
+            // bueno y hay que releer con vision aunque parezca que no
+            // hace falta.
+            forzarVision: Boolean(unidad.forzarVision)
         });
 
         // Se descuenta aunque la vision no haya servido: la llamada se

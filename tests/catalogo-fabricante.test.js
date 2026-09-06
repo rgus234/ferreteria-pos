@@ -2580,3 +2580,71 @@ test("con varias tablas por renglon, el respaldo de columnas acepta multiplos", 
     assert.deepEqual(completas[0].precios,
         { precio_mayoreo: 50, precio_medio_mayoreo: 55, precio_publico: 60 });
 });
+
+test("forzarVision deja que la vision gane un EMPATE", async () => {
+    // Cuando los precios de un producto se retiran por incoherencia ENTRE
+    // VARIANTES, el extractor no se entera: cada variante se leyo por
+    // separado y las dos se dieron por buenas. El OCR reporta 0 faltantes,
+    // la vision nunca podria "mejorar" eso, y el producto se queda sin
+    // precio para siempre.
+    //
+    // Caso real, producto 14958 del modulo 18004:
+    //     pub  495 / 545 / 595   (coherente entre si)
+    //     dis  110               (18% del publico: mal leido)
+    const imagen = await moduloFalso();
+    const ocrConfiable = {
+        recognize: async () => ({ texto: OCR_29901_PUB, confianza: 70 })
+    };
+
+    let llamadas = 0;
+    const vision = {
+        messages: {
+            create: async () => {
+                llamadas++;
+                return { content: [{ type: "text", text: JSON.stringify({ filas: [
+                    { codigo: "103013", clave: "PMU-8PX", precios: { precio_mayoreo: 300, precio_medio_mayoreo: 330, precio_publico: 360 } },
+                    { codigo: "103012", clave: "PMU-8EX", precios: { precio_mayoreo: 320, precio_medio_mayoreo: 350, precio_publico: 380 } }
+                ] }) }] };
+            }
+        }
+    };
+
+    // Sin forzar: el OCR ya leyo bien, no se gasta vision.
+    const normal = await ocr.extraerTablaDeModulo(imagen, {
+        codigosEsperados: ["103013", "103012"],
+        ocr: ocrConfiable,
+        anthropic: vision
+    });
+    assert.equal(llamadas, 0, "sin forzar no se llama");
+    assert.equal(normal.origen, "ocr");
+
+    // Forzando: se llama Y se adopta, aunque le falten los MISMOS (cero).
+    const forzado = await ocr.extraerTablaDeModulo(imagen, {
+        codigosEsperados: ["103013", "103012"],
+        ocr: ocrConfiable,
+        anthropic: vision,
+        forzarVision: true
+    });
+    assert.equal(llamadas, 1, "forzando si se llama");
+    assert.equal(forzado.origen, "vision");
+    assert.equal(forzado.filas[0].precios.precio_mayoreo, 300, "se queda la lectura de la vision");
+});
+
+test("forzarVision NO se usa cuando el fabricante no publica ese precio", async () => {
+    // Ahi no falta nada que rescatar: la columna viene vacia en el
+    // catalogo impreso. Gastar vision seria pagar por confirmar un hueco.
+    const imagen = await moduloFalso();
+    let llamadas = 0;
+    const vision = { messages: { create: async () => { llamadas++; return { content: [] }; } } };
+
+    const r = await ocr.extraerTablaDeModulo(imagen, {
+        codigosEsperados: ["41274", "41275", "41276"],
+        columnasForzadas: ["precio_distribuidor"],
+        ocr: { recognize: async () => ({ texto: OCR_51101_COLUMNA_VACIA, confianza: 70 }) },
+        anthropic: vision,
+        forzarVision: true
+    });
+
+    assert.equal(r.origen, "sin_precios_publicados");
+    assert.equal(llamadas, 0, "no se gasta vision en confirmar un hueco a proposito");
+});

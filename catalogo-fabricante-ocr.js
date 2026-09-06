@@ -1757,7 +1757,22 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
     // confirmar un hueco que TRUPER dejo a proposito.
     const parcialOcr = Boolean(validacion?.parcial) && !sinPreciosPublicados;
 
-    if ((!confiable || parcialOcr) && opciones.anthropic && !precioPorBloque) {
+    // forzarVision: el llamador sabe algo que esta lectura no puede saber.
+    //
+    // Cuando los precios de un producto se retiran por incoherencia ENTRE
+    // VARIANTES (el distribuidor no cuadra con el publico), el extractor
+    // no se entera: cada variante se leyo por separado y las dos se dieron
+    // por buenas. Sin esto el modulo se queda en 'ok' para siempre, la
+    // vision nunca entra, y ese producto no se recupera jamas.
+    //
+    // Caso real, producto 14958 del modulo 18004:
+    //     pub  495 / 545 / 595   (coherente entre si)
+    //     dis  110               (18% del publico: mal leido)
+    // Las dos lecturas "confiables", el producto sin precio, y nada que
+    // volviera a intentarlo.
+    const forzarVision = Boolean(opciones.forzarVision) && !sinPreciosPublicados;
+
+    if ((!confiable || parcialOcr || forzarVision) && opciones.anthropic && !precioPorBloque) {
         intentoVision = true;
         try {
             // Se le dan al modelo las columnas DECLARADAS por el adaptador,
@@ -1786,7 +1801,24 @@ async function extraerTablaDeModulo(bufferImagen, opciones = {}) {
                 const faltabanAntes = confiable ? (validacion?.faltantes || []).length : Infinity;
                 const faltanAhora = (evaluacionIA.validacion?.faltantes || []).length;
 
-                if (evaluacionIA.confiable && faltanAhora < faltabanAntes) {
+                // Con forzarVision se acepta un EMPATE, no solo una mejora.
+                //
+                // La regla normal --quedarse con la vision solo si le
+                // faltan MENOS productos-- es la correcta cuando no se
+                // sabe cual de las dos lecturas es mejor. Pero forzar la
+                // vision significa que el llamador ya sabe que la lectura
+                // del OCR produjo un valor malo (se retiro por incoherente
+                // contra la otra variante). Ahi el OCR reporta 0 faltantes
+                // y la vision jamas podria ganarle, asi que el producto se
+                // quedaria atorado para siempre.
+                //
+                // La vision sigue pasando por la MISMA validacion: si su
+                // lectura no cuadra con la fuente en texto, no se adopta.
+                const mejora = forzarVision
+                    ? faltanAhora <= faltabanAntes
+                    : faltanAhora < faltabanAntes;
+
+                if (evaluacionIA.confiable && mejora) {
                     filasFinales = evaluacionIA.utiles;
                     validacion = evaluacionIA.validacion;
                     confiable = true;
