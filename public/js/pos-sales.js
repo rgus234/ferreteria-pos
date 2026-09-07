@@ -495,7 +495,7 @@ async function limpiarCarrito() {
  valor: 0
 };
  metodoPagoSeleccionado = "efectivo";
- nivelPrecioActual = "mayoreo";
+ nivelPrecioActual = nivelPrecioPorDefectoDelNegocio();
  idempotencyKeyVentaActual = null;
  idempotencyKeyCreditoActual = null;
  codigoPublicoVentaActual = null;
@@ -595,6 +595,22 @@ function aplicarNivelPrecioAItem(item, nivel) {
  Number(candidato) > 0
  ? Number(candidato)
  : respaldo;
+}
+
+// Los tres niveles que el POS sabe aplicar. El nombre interno "mayoreo"
+// se muestra como "Medio mayoreo" -- es historico, no se toca aqui.
+const NIVELES_PRECIO_POS = ["publico", "mayoreo", "distribuidor"];
+
+// Con que nivel arranca una venta sin cliente seleccionado.
+//
+// Sale de la configuracion del NEGOCIO, no de este equipo: si cada caja
+// lo guardara por su cuenta habria que ponerlo una por una, y una caja
+// nueva empezaria cobrando publico sin que nadie lo note.
+function nivelPrecioPorDefectoDelNegocio() {
+ const configurado =
+ (configuracionNegocio() || {}).nivelPrecioPorDefecto;
+
+ return NIVELES_PRECIO_POS.includes(configurado) ? configurado : "publico";
 }
 
 function recalcularPreciosPorNivel(nivel) {
@@ -736,7 +752,7 @@ async function guardarVentaEnEspera() {
  descuentoCarrito = { tipo: "ninguno", valor: 0 };
  clienteVentaActual = null;
  metodoPagoSeleccionado = "efectivo";
- nivelPrecioActual = "mayoreo";
+ nivelPrecioActual = nivelPrecioPorDefectoDelNegocio();
 
  actualizarCarrito();
  actualizarClientePOS();
@@ -827,7 +843,7 @@ async function recuperarVentaEnEspera(id) {
  carrito = JSON.parse(JSON.stringify(venta.carrito || []));
  clienteVentaActual = venta.cliente || null;
  descuentoCarrito = venta.descuentoCarrito || { tipo: "ninguno", valor: 0 };
- nivelPrecioActual = venta.nivelPrecioActual || "mayoreo";
+ nivelPrecioActual = venta.nivelPrecioActual || nivelPrecioPorDefectoDelNegocio();
  metodoPagoSeleccionado = venta.metodoPagoSeleccionado || "efectivo";
 
  guardarListaVentasEnEsperaPOS(lista.filter(v => Number(v.id) !== Number(id)));
@@ -911,9 +927,15 @@ function seleccionarClientePOS(id) {
  const nivelPreferido = clienteVentaActual?.nivel_precio_preferido;
 
  if (nivelPreferido) {
+ // El nivel del CLIENTE manda sobre el de la tienda.
  recalcularPreciosPorNivel(nivelPreferido);
  } else if (clienteId === 0) {
- recalcularPreciosPorNivel("publico");
+ // Sin cliente: el nivel con el que el negocio decidio trabajar.
+ // Antes era siempre "publico", y un negocio que vende casi todo a
+ // medio mayoreo --como Ferreteria Olimpico con los productos de
+ // Diprofer-- tenia que cambiarlo a mano en CADA venta, o cobrar de
+ // mas sin darse cuenta.
+ recalcularPreciosPorNivel(nivelPrecioPorDefectoDelNegocio());
  } else {
  actualizarCarrito();
  }
@@ -2052,7 +2074,7 @@ if (ventaOffline) {
 };
  clienteVentaActual = null;
  metodoPagoSeleccionado = "efectivo";
- nivelPrecioActual = "mayoreo";
+ nivelPrecioActual = nivelPrecioPorDefectoDelNegocio();
 
  actualizarCarrito();
  actualizarClientePOS();
@@ -2422,7 +2444,7 @@ async function cobrarCreditoInternoPOS(total) {
 };
  clienteVentaActual = null;
  metodoPagoSeleccionado = "efectivo";
- nivelPrecioActual = "mayoreo";
+ nivelPrecioActual = nivelPrecioPorDefectoDelNegocio();
  actualizarCarrito();
  actualizarClientePOS();
 

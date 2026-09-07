@@ -49,16 +49,30 @@ async function comprimirImagen(buffer, anchoMax = 320) {
     return { buffer: data, ancho: info.width, alto: info.height };
 }
 
+// Planes que ven el Banco de Nexo.
+//
 // Lee plan directo de licencias (no de negocios) -- es la fuente que de
 // verdad sincroniza con Stripe, mismo criterio ya usado para gatear la
-// busqueda web de Nexo IA (ia-server.js). demo se trata igual que pro.
+// busqueda web de Nexo IA (ia-server.js).
+//
+// 'plus' entra por decision del dueno (2026-09-05): el banco ya cubre
+// casi todo el Catalogo Maestro y tiene mas sentido como gancho de Plus
+// que como exclusiva de Pro.
+//
+// 'prueba' tambien, y esto era un hueco real: es el plan que recibe TODO
+// registro publico nuevo durante 15 dias, los Terminos le prometen
+// "acceso completo al sistema", y plan-enforcement.js ya lo trata igual
+// que pro/demo en todo lo demas. Solo este gate lo dejaba fuera, asi que
+// un negocio recien registrado no veia una sola foto del banco.
+const PLANES_CON_BANCO = new Set(["pro", "plus", "demo", "prueba"]);
+
 async function planPermiteBancoImagenes(pool, negocioId) {
     const fila = await pool.query(
         `SELECT plan FROM public.licencias WHERE negocio_id = $1`,
         [negocioId]
     );
     const plan = (fila.rows[0]?.plan || "demo").toLowerCase();
-    return plan === "pro" || plan === "demo";
+    return PLANES_CON_BANCO.has(plan);
 }
 
 // Firma independiente de la de fotos_producto (firmarTokenImagen en
@@ -1008,21 +1022,52 @@ function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
 
             const version = new Date(filaBanco.actualizado_at).getTime();
 
+            // Fotos que el fabricante ya publica. Se usan cuando este
+            // producto no tiene galeria guardada: son mas (6-8 contra 4.5)
+            // y mejores (1800x1800 contra 480x480), y no ocupan lugar en
+            // la base -- solo se guarda cuales existen.
+            //
+            // Si el producto SI tiene galeria guardada se respeta esa: no
+            // se cambia lo que el negocio ya ve hoy.
+            let galeriaFabricante = [];
+            if (galeria.rows.length === 0) {
+                try {
+                    const { fotosDeProducto } = require("./banco-fotos-fabricante");
+                    const resultado = await fotosDeProducto(pool, codigo);
+                    galeriaFabricante = resultado.fotos.map((foto, indice) => ({
+                        id: null,
+                        origen: "fabricante",
+                        sufijo: foto.sufijo,
+                        orden: indice,
+                        url: foto.url
+                    }));
+                } catch (error) {
+                    // Que falle la consulta al fabricante no debe tumbar la
+                    // galeria: se sigue con lo que haya guardado.
+                    console.log("[banco-imagenes] no se pudieron resolver fotos del fabricante:", error.message);
+                }
+            }
+
+            const galeriaGuardada = galeria.rows.map(fila => ({
+                id: fila.id,
+                origen: "banco",
+                ancho: fila.ancho,
+                alto: fila.alto,
+                url: `/banco-imagenes-galeria/${fila.id}?token=${firmarTokenBancoImagen(String(fila.id))}`
+            }));
+
+            const galeriaFinal = galeriaGuardada.length > 0 ? galeriaGuardada : galeriaFabricante;
+
             res.json({
                 ok: true,
                 marca: filaBanco.marca,
-                totalFotos: 1 + galeria.rows.length,
+                totalFotos: 1 + galeriaFinal.length,
                 principal: {
                     ancho: filaBanco.imagen_principal_ancho,
                     alto: filaBanco.imagen_principal_alto,
                     url: `/banco-imagenes/${codigo}/principal?v=${version}&token=${firmarTokenBancoImagen(codigo)}`
                 },
-                galeria: galeria.rows.map(fila => ({
-                    id: fila.id,
-                    ancho: fila.ancho,
-                    alto: fila.alto,
-                    url: `/banco-imagenes-galeria/${fila.id}?token=${firmarTokenBancoImagen(String(fila.id))}`
-                }))
+                galeria: galeriaFinal
             });
         } catch (error) {
             responderError(res, error);
@@ -1128,6 +1173,40 @@ function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
             let nuevoPrincipal = { imagen: filaBanco.imagen_principal, tipo: filaBanco.imagen_principal_tipo };
             let filasParaGaleria = galeria.rows;
 
+            // Si el banco no guarda galeria para este codigo, se traen las
+            // fotos que el fabricante publica y se copian al producto del
+            // negocio. Asi "Usar esta imagen" sigue trayendo varias fotos
+            // aunque el banco ya no las almacene.
+            //
+            // Aqui SI se descargan y guardan, a diferencia de la ficha
+            // publica (que solo enlaza): es una decision explicita del
+            // dueno para ESE producto, no 16.739 fotos "por si acaso".
+            // Se redimensionan al mismo tamano que usaba el banco (480 px)
+            // para no meter imagenes de 1800x1800 en la base.
+            if (filasParaGaleria.length === 0) {
+                try {
+                    const { fotosDeProducto } = require("./banco-fotos-fabricante");
+                    const delFabricante = await fotosDeProducto(pool, codigo);
+                    const sharp = require("sharp");
+
+                    // slice(1): la primera es la principal, que ya va aparte.
+                    for (const foto of delFabricante.fotos.slice(1)) {
+                        const respuesta = await fetch(foto.url);
+                        if (!respuesta.ok) continue;
+                        const original = Buffer.from(await respuesta.arrayBuffer());
+                        const reducida = await sharp(original)
+                            .resize(480, 480, { fit: "inside", withoutEnlargement: true })
+                            .jpeg({ quality: 82 })
+                            .toBuffer();
+                        filasParaGaleria.push({ imagen: reducida, tipo: "image/jpeg" });
+                    }
+                } catch (error) {
+                    // Sin fotos del fabricante se copia solo la principal:
+                    // vale mas eso que fallar la accion entera.
+                    console.log("[banco-imagenes] no se pudieron traer fotos del fabricante:", error.message);
+                }
+            }
+
             // galeriaId opcional (viene de "Ver galeria"): promueve esa foto
             // a principal. Se busca DENTRO de la galeria ya cargada de este
             // mismo banco_imagen_id -- nunca un WHERE id=$1 suelto sobre toda
@@ -1209,4 +1288,8 @@ registrarRutasBancoImagenes.planPermiteBancoImagenes = planPermiteBancoImagenes;
 registrarRutasBancoImagenes.firmarTokenBancoImagen = firmarTokenBancoImagen;
 registrarRutasBancoImagenes.procesarZipBancoImagenes = procesarZipBancoImagenes;
 
+// La funcion se exporta ademas del registrador de rutas para poder
+// probar la matriz de planes sin levantar el servidor entero.
 module.exports = registrarRutasBancoImagenes;
+module.exports.planPermiteBancoImagenes = planPermiteBancoImagenes;
+module.exports.PLANES_CON_BANCO = PLANES_CON_BANCO;

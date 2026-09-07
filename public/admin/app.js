@@ -112,6 +112,7 @@ function mostrarVistaAdmin(vista) {
   if (target === "ingresos") cargarDescuentoFundadoresAdmin();
   if (target === "fotos") abrirVistaBancoImagenesAdmin();
   if (target === "ofertas-market") cargarBannersMarketAdmin();
+  if (target === "catalogos") cargarCatalogosFabricante();
 }
 
 function pintarMetricasAdmin(resumen) {

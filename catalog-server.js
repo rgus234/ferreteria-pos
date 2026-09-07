@@ -1,5 +1,65 @@
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan } = require("./plan-enforcement");
+
+// Identidad global de producto: lo que permite que un negocio reconozca
+// lo que escanea sin haber cargado ningun catalogo propio.
+//
+// Devuelve la MISMA forma que el catalogo de proveedor, para que la
+// pantalla de Agregar producto no tenga que distinguir de donde vino el
+// dato -- solo `origen` cambia, por si se quiere mostrar.
+//
+// Los precios que se entregan son los de LISTA del fabricante, no los de
+// ningun proveedor: el Maestro nunca guarda lo que un proveedor le cobra
+// a un negocio concreto.
+async function buscarEnCatalogoMaestro(pool, codigo) {
+    try {
+        const { identidadPorCodigo } = require("./catalogo-maestro-reconciliacion");
+        const identidad = await identidadPorCodigo(pool, codigo);
+        if (!identidad) return null;
+
+        // Un producto marcado para revision tiene un conflicto sin
+        // resolver (dos fabricantes con el mismo codigo, o una descripcion
+        // que no cuadra). No se ofrece hasta que alguien lo mire.
+        if (identidad.necesita_revision) return null;
+
+        const codigosRelacionados = [identidad.codigo_fabricante, identidad.ean, identidad.clave]
+            .filter(valor => valor && valor !== codigo);
+
+        return {
+            codigo: identidad.codigo_fabricante || identidad.codigo,
+            nombre: identidad.nombre || "",
+            descripcion: "",
+            marca: identidad.marca || "",
+            categoria: "",
+            unidadVenta: identidad.unidad || "pieza",
+            codigoInterno: identidad.codigo_fabricante || "",
+            codigoBarras: identidad.ean || "",
+            // Precios de lista del fabricante. Pueden venir vacios: el
+            // catalogo oficial todavia no cubre todos los productos, y es
+            // preferible dar identidad sin precio que no dar nada.
+            distribuidor: identidad.precio_distribuidor,
+            medioMayoreo: identidad.precio_medio_mayoreo,
+            publico: identidad.precio_publico,
+            mayoreo: identidad.precio_mayoreo,
+            // Sin proveedor: esta informacion no viene de ninguno, viene
+            // del fabricante. Que lo llene el dueno.
+            proveedor: "",
+            stockMinimo: 3,
+            altaRotacion: "",
+            precioDetectado: identidad.precio_medio_mayoreo != null ? "medio mayoreo" : "",
+            codigosRelacionados,
+            // Para que la pantalla pueda decir de donde salio el dato.
+            origen: "catalogo_nexo",
+            fabricante: identidad.fabricante || "",
+            clave: identidad.clave || ""
+        };
+    } catch (error) {
+        // Que falle el Maestro no debe romper el alta de un producto: se
+        // responde como si no hubiera coincidencia.
+        console.log("[catalogo] no se pudo consultar el Catalogo Maestro:", error.message);
+        return null;
+    }
+}
 const { resolverOcrearProveedorId } = require("./proveedor-resolver");
 const { contribuirOEnlazarCatalogoMaestro } = require("./catalogo-maestro-resolver");
 
@@ -182,6 +242,75 @@ async function actualizarContadoresCatalogo(pool, negocioId, catalogoId) {
 module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTokenImagenCatalogoPdf) => {
     // Sidebar + header contextual: lista de catalogos del negocio con
     // sus contadores ya calculados (nunca se cuentan en el cliente).
+    // Historial de importaciones de catalogo. Lo que antes se decia en una
+    // linea que se iba al recargar la pagina, ahora se puede volver a
+    // consultar: un catalogo de proveedor se actualiza una o dos veces al
+    // año y "que cambio" es la pregunta que uno se hace despues, no en el
+    // momento de subirlo.
+    app.get("/catalogo-proveedor/importaciones", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const resultado = await pool.query(
+                `SELECT id, proveedor, filas_recibidas, nuevos, modificados,
+                        descontinuados, sin_cambio, creado_en
+                   FROM public.catalogo_proveedor_importaciones
+                  WHERE negocio_id = $1
+                  ORDER BY creado_en DESC
+                  LIMIT 30`,
+                [negocio.id]
+            );
+            res.json({ ok: true, importaciones: resultado.rows });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.get("/catalogo-proveedor/importaciones/:id", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+
+            // El negocio_id va en el WHERE, no solo el id: sin eso
+            // cualquier negocio podria leer el reporte de otro cambiando
+            // el numero en la URL.
+            const cabecera = await pool.query(
+                `SELECT id, proveedor, filas_recibidas, nuevos, modificados,
+                        descontinuados, sin_cambio, creado_en
+                   FROM public.catalogo_proveedor_importaciones
+                  WHERE id = $1 AND negocio_id = $2`,
+                [Number(req.params.id), negocio.id]
+            );
+
+            if (cabecera.rows.length === 0) {
+                // 404 explicito: responderError() manda 500 siempre, y esto
+                // no es una falla del servidor sino "no existe para ti".
+                // Mismo cuerpo para "no existe" y "es de otro negocio", a
+                // proposito: distinguirlos confirmaria que ese reporte
+                // existe en otra cuenta.
+                res.status(404).json({ ok: false, error: "Esa importacion no existe" });
+                return;
+            }
+
+            const tipo = String(req.query.tipo || "");
+            const filtro = ["nuevo", "modificado", "descontinuado"].includes(tipo) ? tipo : null;
+
+            // Con tope: un catalogo de 15.000 productos puede traer miles
+            // de cambios y nadie los lee todos de un jalon.
+            const cambios = await pool.query(
+                `SELECT codigo_proveedor, nombre, tipo, campo, valor_anterior, valor_nuevo
+                   FROM public.catalogo_proveedor_cambios
+                  WHERE importacion_id = $1 AND negocio_id = $2
+                    AND ($3::text IS NULL OR tipo = $3)
+                  ORDER BY tipo, codigo_proveedor
+                  LIMIT 500`,
+                [Number(req.params.id), negocio.id, filtro]
+            );
+
+            res.json({ ok: true, importacion: cabecera.rows[0], cambios: cambios.rows });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     app.get("/catalogo-proveedor", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
@@ -235,7 +364,17 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
             );
 
             if (fila.rows.length === 0) {
-                res.json({ ok: true, producto: null });
+                // El catalogo de proveedor es POR NEGOCIO: un negocio que
+                // no ha cargado ninguno no encuentra nada aqui. Antes de
+                // rendirse se consulta el Catalogo Maestro, que es global.
+                //
+                // El orden importa y es a proposito: el catalogo propio
+                // MANDA siempre. Solo cuando no hay nada suyo entra el
+                // Maestro. Asi un negocio que ya cargo su catalogo sigue
+                // viendo exactamente los precios que negocio con SU
+                // proveedor, y el Maestro solo llena el hueco.
+                const desdeMaestro = await buscarEnCatalogoMaestro(pool, codigo);
+                res.json({ ok: true, producto: desdeMaestro });
                 return;
             }
 
@@ -323,23 +462,21 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     }))
                     .filter(f => f.codigoProveedor);
 
+                // Se traen los TRES precios y el nombre, no solo el
+                // publico: el reporte de cambios los compara todos. Antes
+                // un cambio en el mayoreo o el distribuidor no dejaba
+                // rastro en ningun lado.
                 const existentes = await cliente.query(
-                    `SELECT codigo_proveedor, precio_publico FROM public.catalogo_productos WHERE catalogo_id = $1`,
+                    `SELECT codigo_proveedor, nombre_proveedor,
+                            precio_distribuidor, precio_medio_mayoreo, precio_publico
+                       FROM public.catalogo_productos WHERE catalogo_id = $1`,
                     [catalogoId]
                 );
-                const precioAnteriorPorCodigo = new Map(existentes.rows.map(r => [r.codigo_proveedor, r.precio_publico]));
 
-                let nuevos = 0;
-                let cambiosPrecio = 0;
-
-                for (const fila of filas) {
-                    if (!precioAnteriorPorCodigo.has(fila.codigoProveedor)) {
-                        nuevos++;
-                    } else {
-                        const anterior = precioAnteriorPorCodigo.get(fila.codigoProveedor);
-                        if (anterior !== null && fila.precioPublico !== null && Number(anterior) !== fila.precioPublico) cambiosPrecio++;
-                    }
-                }
+                const { compararCatalogo, guardarImportacion } = require("./catalogo-proveedor-cambios");
+                const comparacion = compararCatalogo(filas, existentes.rows);
+                const nuevos = comparacion.resumen.nuevos;
+                const cambiosPrecio = comparacion.resumen.modificados;
 
                 const TAMANO_LOTE = 400;
                 for (let inicio = 0; inicio < filas.length; inicio += TAMANO_LOTE) {
@@ -380,6 +517,17 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     );
                 }
 
+                // El reporte va DENTRO de la transaccion de la importacion:
+                // si esta se revierte, no debe quedar un reporte de
+                // cambios que nunca ocurrieron.
+                const importacionId = await guardarImportacion(cliente, {
+                    negocioId: negocio.id,
+                    catalogoId,
+                    proveedor,
+                    resumen: comparacion.resumen,
+                    cambios: comparacion.cambios
+                });
+
                 await cliente.query("COMMIT");
 
                 await vincularCatalogoProductos(pool, negocio.id, catalogoId);
@@ -393,7 +541,16 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     ok: true,
                     catalogoId,
                     resumen: resumen.rows[0],
-                    insight: { nuevos, cambiosPrecio, coincidenciasAutomaticas: resumen.rows[0].productos_vinculados }
+                    insight: {
+                        nuevos, cambiosPrecio,
+                        coincidenciasAutomaticas: resumen.rows[0].productos_vinculados,
+                        // Con esto la pantalla puede llevar al reporte
+                        // completo en vez de resumirlo en una linea que se
+                        // pierde al recargar.
+                        importacionId,
+                        descontinuados: comparacion.resumen.descontinuados,
+                        sinCambio: comparacion.resumen.sinCambio
+                    }
                 });
             } catch (error) {
                 await cliente.query("ROLLBACK").catch(() => {});

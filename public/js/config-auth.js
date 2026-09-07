@@ -401,6 +401,48 @@ function aplicarPreferenciaTema() {
  actualizarBotonModo();
 }
 
+// Guarda con que nivel de precio arranca cada venta.
+//
+// Va al SERVIDOR, no solo al localStorage de este equipo: es una regla
+// del negocio y debe ser la misma en todas sus cajas. La copia local
+// solo sirve para que el POS pueda arrancar sin esperar la red.
+async function guardarNivelPrecioNegocio(nivel) {
+ const estado = document.getElementById("configNivelPrecioEstado");
+ const decir = (texto, ok) => {
+  if (!estado) return;
+  estado.textContent = texto;
+  estado.style.color = ok === false ? "var(--color-peligro, #c0392b)" : "";
+ };
+
+ try {
+  const respuesta = await fetch("/negocio-actual/nivel-precio", {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ nivel })
+  });
+
+  const datos = await respuesta.json().catch(() => null);
+
+  if (!datos || !datos.ok) {
+   decir("No se pudo guardar. Revisa tu conexion.", false);
+   return;
+  }
+
+  // La copia local solo despues de que el servidor confirmo: si se
+  // guardara antes, esta caja cobraria a un nivel que el resto del
+  // negocio no tiene.
+  const actual = configuracionNegocio() || {};
+  localStorage.setItem(
+   CONFIG_NEGOCIO_KEY,
+   JSON.stringify({ ...actual, nivelPrecioPorDefecto: nivel })
+  );
+
+  decir("Guardado. Si un cliente de credito tiene su propio nivel, ese manda.");
+ } catch (error) {
+  decir("No se pudo guardar. Revisa tu conexion.", false);
+ }
+}
+
 function guardarConfiguracionNegocioDesdeServidor(negocio) {
  // Preserva giroNegocio de lo que ya hubiera en este equipo -- esta
  // funcion reconstruye el objeto completo de configuracion en cada
@@ -421,6 +463,12 @@ function guardarConfiguracionNegocioDesdeServidor(negocio) {
  logo: negocio.logo || null,
  adminNombre: "",
  giroNegocio: actual.giroNegocio || "ferreteria",
+ // Con que nivel de precio arranca cada venta. Viene del NEGOCIO (una
+ // sola vez para todas sus cajas), no de este equipo. Se guarda aqui
+ // nada mas para que el POS pueda arrancar sin esperar la red; la
+ // fuente real es negocios.nivel_precio_por_defecto.
+ nivelPrecioPorDefecto:
+ negocio.nivel_precio_por_defecto || actual.nivelPrecioPorDefecto || "publico",
  fechaConfiguracion: new Date().toISOString()
  };
 
@@ -1586,6 +1634,15 @@ function mostrarConfiguracion() {
  <label>
  <span>Slogan</span>
  <input id="configSloganNegocio" value="${config.slogan || ""}" oninput="previewConfiguracionEmpresa(); renderVistaPreviaTicket();">
+ </label>
+ <label>
+ <span>Precio con el que empieza cada venta</span>
+ <select id="configNivelPrecio" onchange="guardarNivelPrecioNegocio(this.value)">
+ <option value="publico" ${config.nivelPrecioPorDefecto === "publico" ? "selected" : ""}>Publico</option>
+ <option value="mayoreo" ${config.nivelPrecioPorDefecto === "mayoreo" ? "selected" : ""}>Medio mayoreo</option>
+ <option value="distribuidor" ${config.nivelPrecioPorDefecto === "distribuidor" ? "selected" : ""}>Mayoreo / distribuidor</option>
+ </select>
+ <small id="configNivelPrecioEstado">Si un cliente de credito tiene su propio nivel, ese manda.</small>
  </label>
  <label>
  <span>Telefono</span>
