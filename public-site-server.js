@@ -16,6 +16,7 @@
 //     entre landing comercial / POS / sitio de negocio segun el host).
 
 const sharp = require("sharp");
+const QRCode = require("qrcode");
 const multer = require("multer");
 const crypto = require("crypto");
 const {
@@ -31,7 +32,9 @@ const { crearRequerirSesionPersona, crearResolverSesionPersonaOpcional, tokenDeS
 const { OFICIOS_PERSONA } = require("./oficios-persona");
 const { geocodificarDireccion } = require("./geocodificacion");
 const { formatearCodigoRecogida, generarQrYBarcode } = require("./pedido-codigos");
-const { enviarPushANegocio } = require("./push-server");
+const { enviarPushANegocio, enviarPushAPersona } = require("./push-server");
+const { PERMISOS, requerirPermiso } = require("./rbac");
+const acuerdoCredito = require("./acuerdo-credito");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
 const TAMANO_MAXIMO_PORTADA = 3 * 1024 * 1024;
@@ -2959,6 +2962,14 @@ async function servirSolicitudCreditoNegocio(pool, req, res, slug) {
             return;
         }
 
+        // Solicitar credito en linea exige cuenta Nexo (decision del
+        // diseno: evita que una solicitud anonima genere problemas
+        // despues para vincular su identidad). El alta presencial en
+        // el POS sigue sin necesitar cuenta -- esto es solo para el
+        // formulario publico.
+        const resolverPersonaOpcional = crearResolverSesionPersonaOpcional(pool);
+        await new Promise(continuar => resolverPersonaOpcional(req, res, continuar));
+
         const color = colorSeguro(sitio.negocio.color);
         const nombre = escaparHtml(sitio.negocio.nombre);
 
@@ -2968,6 +2979,31 @@ async function servirSolicitudCreditoNegocio(pool, req, res, slug) {
             : estadoSolicitud === "error"
                 ? `<div class="tenant-pedido-banner error">No pudimos enviar tu solicitud. Revisa tus datos e intenta de nuevo.</div>`
                 : "";
+
+        const configuracionCredito = await acuerdoCredito.obtenerConfiguracionCredito(pool, sitio.negocio.id);
+        const plazos = Array.isArray(configuracionCredito.plazos_disponibles) && configuracionCredito.plazos_disponibles.length
+            ? configuracionCredito.plazos_disponibles
+            : [15, 30, 60];
+        const opcionesPlazoHtml = plazos.map(dias => `<option value="${Number(dias)}">${Number(dias)} dias</option>`).join("");
+
+        const cuerpoHtml = !req.persona
+            ? `<div class="tenant-pedido-banner">Para solicitar credito necesitas iniciar sesion con tu cuenta Nexo -- asi tu solicitud queda ligada a tu identidad, no es anonima.</div>
+<p><a class="tenant-btn-primario" href="/market/mi-cuenta">Iniciar sesion o crear cuenta Nexo</a></p>`
+            : `${bannerHtml}
+<form class="tenant-pedido-form" method="POST" action="/solicitud-credito" enctype="multipart/form-data">
+<div class="tenant-pedido-honeypot" aria-hidden="true"><label>No llenar<input type="text" name="sitioExtra" tabindex="-1" autocomplete="off"></label></div>
+<label>Nombre completo<input type="text" name="nombre" maxlength="140" required value="${escaparHtml(req.persona.nombre || "")}"></label>
+<label>Telefono<input type="text" name="telefono" maxlength="40" placeholder="10 digitos" value="${escaparHtml(req.persona.telefono || "")}"></label>
+<label>Correo (opcional)<input type="text" name="correo" maxlength="140" value="${escaparHtml(req.persona.correo || "")}"></label>
+<label>Direccion (opcional)<input type="text" name="direccion" maxlength="300"></label>
+<label>Monto de credito que solicitas (opcional)<input type="number" name="montoSolicitado" min="0" step="0.01"></label>
+<label>Plazo que te gustaria<select name="plazoSolicitado">${opcionesPlazoHtml}</select></label>
+<label>Comentario (opcional)<textarea name="comentario" maxlength="500"></textarea></label>
+<label>Identificacion oficial -- frente (opcional)<input type="file" name="ineFrente" accept="image/*"></label>
+<label>Identificacion oficial -- reverso (opcional)<input type="file" name="ineReverso" accept="image/*"></label>
+<label class="tenant-consentimiento"><input type="checkbox" name="consentimiento"> Acepto que mi identificacion oficial, si la adjunto, sea tratada conforme al <a href="/privacidad" target="_blank" rel="noopener">aviso de privacidad</a>.</label>
+<button type="submit">Enviar solicitud</button>
+</form>`;
 
         const html = `<!doctype html>
 <html lang="es">
@@ -2985,20 +3021,7 @@ ${encabezadoTenantHtml(sitio.negocio, "credito", true)}
 <main class="tenant-main tenant-main-angosto">
 <h1 class="tenant-catalogo-titulo">Solicitar credito</h1>
 <p>Llena tus datos y, si quieres agilizar la revision, adjunta tu identificacion oficial. El negocio revisa tu solicitud y te contacta.</p>
-${bannerHtml}
-<form class="tenant-pedido-form" method="POST" action="/solicitud-credito" enctype="multipart/form-data">
-<div class="tenant-pedido-honeypot" aria-hidden="true"><label>No llenar<input type="text" name="sitioExtra" tabindex="-1" autocomplete="off"></label></div>
-<label>Nombre completo<input type="text" name="nombre" maxlength="140" required></label>
-<label>Telefono<input type="text" name="telefono" maxlength="40" placeholder="10 digitos"></label>
-<label>Correo (opcional)<input type="text" name="correo" maxlength="140"></label>
-<label>Direccion (opcional)<input type="text" name="direccion" maxlength="300"></label>
-<label>Monto de credito que solicitas (opcional)<input type="number" name="montoSolicitado" min="0" step="0.01"></label>
-<label>Comentario (opcional)<textarea name="comentario" maxlength="500"></textarea></label>
-<label>Identificacion oficial -- frente (opcional)<input type="file" name="ineFrente" accept="image/*"></label>
-<label>Identificacion oficial -- reverso (opcional)<input type="file" name="ineReverso" accept="image/*"></label>
-<label class="tenant-consentimiento"><input type="checkbox" name="consentimiento"> Acepto que mi identificacion oficial, si la adjunto, sea tratada conforme al <a href="/privacidad" target="_blank" rel="noopener">aviso de privacidad</a>.</label>
-<button type="submit">Enviar solicitud</button>
-</form>
+${cuerpoHtml}
 </main>
 <footer class="tenant-footer">Con la tecnologia de Nexo</footer>
 </body>
@@ -3028,6 +3051,20 @@ async function recibirSolicitudCreditoPublica(pool, req, res, slug) {
             return;
         }
 
+        // Solicitar credito en linea exige cuenta Nexo -- ver el mismo
+        // razonamiento en servirSolicitudCreditoNegocio. Si alguien
+        // intenta mandar el formulario sin sesion (ej. saltandose el
+        // GET), se rechaza aqui tambien -- la pagina nunca deberia
+        // dejarlo llegar a este punto, pero el servidor no confia en
+        // eso solo.
+        const resolverPersonaOpcional = crearResolverSesionPersonaOpcional(pool);
+        await new Promise(continuar => resolverPersonaOpcional(req, res, continuar));
+
+        if (!req.persona) {
+            res.redirect(303, "/market/mi-cuenta");
+            return;
+        }
+
         if (paramTexto(req.body?.sitioExtra, 200)) {
             volverConError();
             return;
@@ -3047,6 +3084,7 @@ async function recibirSolicitudCreditoPublica(pool, req, res, slug) {
         const comentario = paramTexto(req.body?.comentario, 500);
         const montoSolicitadoTexto = paramTexto(req.body?.montoSolicitado, 20);
         const montoSolicitado = montoSolicitadoTexto ? Math.max(0, Number(montoSolicitadoTexto) || 0) : null;
+        const plazoSolicitado = Number(req.body?.plazoSolicitado) || null;
 
         if (!nombre) {
             volverConError();
@@ -3087,10 +3125,10 @@ async function recibirSolicitudCreditoPublica(pool, req, res, slug) {
         await pool.query(
             `
             INSERT INTO public.solicitudes_credito
-                (negocio_id, nombre, telefono, correo, direccion, monto_solicitado, comentario, ine_frente, ine_reverso, consentimiento_datos_sensibles, ip)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                (negocio_id, nombre, telefono, correo, direccion, monto_solicitado, comentario, ine_frente, ine_reverso, consentimiento_datos_sensibles, ip, persona_id, plazo_solicitado_dias)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             `,
-            [sitio.negocio.id, nombre, telefono, correo, direccion, montoSolicitado, comentario, ineFrenteBuffer, ineReversoBuffer, tieneDocumentos && consentimiento, req.ip]
+            [sitio.negocio.id, nombre, telefono, correo, direccion, montoSolicitado, comentario, ineFrenteBuffer, ineReversoBuffer, tieneDocumentos && consentimiento, req.ip, req.persona.id, plazoSolicitado]
         );
 
         if (sitio.negocio.correo) {
@@ -4102,7 +4140,7 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
     app.get("/personas/mi-credito", crearRequerirSesionPersona(pool), async (req, res) => {
         try {
             const negociosRes = await pool.query(
-                `SELECT c.id AS cliente_id, c.negocio_id, c.limite_credito, n.slug, n.nombre
+                `SELECT c.id AS cliente_id, c.negocio_id, c.limite_credito, c.acuerdo_vigente_id, n.slug, n.nombre
                  FROM public.clientes_credito c
                  JOIN public.negocios n ON n.id = c.negocio_id
                  WHERE c.persona_id = $1 AND c.activo = true
@@ -4120,12 +4158,25 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                     [fila.cliente_id, fila.negocio_id]
                 );
                 const aging = calcularAntiguedadCredito(movimientos.rows);
+
+                const pendienteRes = await pool.query(
+                    `SELECT id, version, limite_credito, dias_credito FROM public.acuerdos_credito
+                     WHERE cliente_credito_id = $1 AND estado = 'pendiente_aceptacion'
+                     ORDER BY version DESC LIMIT 1`,
+                    [fila.cliente_id]
+                );
+                const pendiente = pendienteRes.rows[0] || null;
+
                 creditos.push({
                     negocio: { slug: fila.slug, nombre: fila.nombre },
                     limiteCredito: Number(fila.limite_credito),
                     saldo: aging.saldo,
                     vencido: aging.vencido,
-                    totalVencido: aging.totalVencido
+                    totalVencido: aging.totalVencido,
+                    // "pendiente_de_aceptacion": nunca es cuenta operable
+                    // todavia (§08 del diseno) aunque ya exista la fila.
+                    estadoCuenta: !fila.acuerdo_vigente_id ? "pendiente_de_aceptacion" : "activa",
+                    acuerdoPendiente: pendiente ? { id: pendiente.id, version: pendiente.version, limiteCredito: Number(pendiente.limite_credito), diasCredito: pendiente.dias_credito } : null
                 });
             }
 
@@ -4135,6 +4186,228 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
         }
     });
+
+    // Ver y aceptar un acuerdo desde la sesion de cuenta Nexo (Market).
+    // El texto completo solo se manda aqui, nunca en el listado de
+    // arriba -- es pesado y no hace falta hasta que el cliente entra a
+    // revisarlo de verdad.
+    app.get("/personas/acuerdos/:id", crearRequerirSesionPersona(pool), async (req, res) => {
+        try {
+            const fila = await pool.query(
+                `SELECT a.*, n.nombre AS negocio_nombre FROM public.acuerdos_credito a
+                 JOIN public.clientes_credito c ON c.id = a.cliente_credito_id
+                 JOIN public.negocios n ON n.id = a.negocio_id
+                 WHERE a.id = $1 AND c.persona_id = $2`,
+                [req.params.id, req.persona.id]
+            );
+            if (!fila.rows.length) {
+                res.status(404).json({ ok: false, error: "Acuerdo no encontrado" });
+                return;
+            }
+            const a = fila.rows[0];
+            res.json({
+                ok: true,
+                acuerdo: {
+                    id: a.id,
+                    version: a.version,
+                    estado: a.estado,
+                    limiteCredito: Number(a.limite_credito),
+                    diasCredito: a.dias_credito,
+                    condicionesHtml: a.condiciones_texto,
+                    negocioNombre: a.negocio_nombre
+                }
+            });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+        }
+    });
+
+    app.post("/personas/acuerdos/:id/aceptar", crearRequerirSesionPersona(pool), async (req, res) => {
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            const fila = await client.query(
+                `SELECT a.* FROM public.acuerdos_credito a
+                 JOIN public.clientes_credito c ON c.id = a.cliente_credito_id
+                 WHERE a.id = $1 AND c.persona_id = $2
+                 FOR UPDATE`,
+                [req.params.id, req.persona.id]
+            );
+            if (!fila.rows.length) {
+                await client.query("ROLLBACK");
+                res.status(404).json({ ok: false, error: "Acuerdo no encontrado" });
+                return;
+            }
+
+            await acuerdoCredito.confirmarAceptacion(client, {
+                acuerdo: fila.rows[0],
+                personaId: req.persona.id,
+                ip: req.ip,
+                userAgent: req.headers["user-agent"] || null,
+                metodo: "sesion_persona"
+            });
+
+            await acuerdoCredito.registrarBitacoraCredito(client, fila.rows[0].negocio_id, null, "acuerdo_credito_aceptado", {
+                clienteId: fila.rows[0].cliente_credito_id,
+                version: fila.rows[0].version,
+                metodo: "sesion_persona"
+            });
+
+            await client.query("COMMIT");
+
+            await enviarPushANegocio(pool, fila.rows[0].negocio_id, {
+                titulo: "Cliente acepto su credito",
+                cuerpo: "Un cliente acepto sus condiciones de credito -- ya puede comprar a credito.",
+                url: "/creditos"
+            }).catch(() => {});
+
+            res.json({ ok: true });
+        } catch (error) {
+            await client.query("ROLLBACK").catch(() => {});
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message || "Ocurrio un error. Intenta de nuevo." });
+        } finally {
+            client.release();
+        }
+    });
+
+    // Aceptacion sin cuenta Nexo (alta directa en el POS, §6f del
+    // diseno): un enlace/QR de un solo uso que el cliente abre en su
+    // propio telefono. No requiere sesion de ningun tipo -- la prueba
+    // de identidad es poseer el token, no una cuenta. Publica a
+    // proposito (nunca requerirAccesoNegocio ni requerirSesionPersona).
+    app.get("/acuerdo/:token", async (req, res) => {
+        try {
+            const fila = await pool.query(
+                `SELECT a.id, a.negocio_id, a.cliente_credito_id, a.version, a.limite_credito, a.dias_credito, a.condiciones_texto, a.estado,
+                        a.token_aceptacion_usado_at, a.token_aceptacion_expira_at, n.nombre AS negocio_nombre
+                 FROM public.acuerdos_credito a
+                 JOIN public.negocios n ON n.id = a.negocio_id
+                 WHERE a.token_aceptacion_hash = $1`,
+                [acuerdoCredito.hashDeToken(req.params.token)]
+            );
+
+            if (!fila.rows.length) {
+                res.status(404).send(paginaAcuerdoTokenHtml({ error: "Este enlace no es valido." }));
+                return;
+            }
+
+            const a = fila.rows[0];
+            if (a.token_aceptacion_usado_at) {
+                res.status(410).send(paginaAcuerdoTokenHtml({ error: "Este enlace ya fue usado. Si necesitas verlo de nuevo, pide al negocio que active tu acceso al portal del cliente." }));
+                return;
+            }
+            if (new Date(a.token_aceptacion_expira_at) < new Date()) {
+                res.status(410).send(paginaAcuerdoTokenHtml({ error: "Este enlace ya vencio. Pide al negocio que te genere uno nuevo." }));
+                return;
+            }
+
+            res.send(paginaAcuerdoTokenHtml({ acuerdo: a, token: req.params.token }));
+        } catch (error) {
+            res.status(500).send(paginaAcuerdoTokenHtml({ error: "Ocurrio un error. Intenta de nuevo." }));
+        }
+    });
+
+    // PNG del QR que apunta al mismo enlace de aceptacion -- para que
+    // el POS lo muestre en pantalla y el cliente lo escanee con su
+    // propio telefono, sin escribir nada. Nunca revela el acuerdo en
+    // si (solo un PNG), y el token sigue siendo de un solo uso.
+    app.get("/acuerdo/:token/qr.png", async (req, res) => {
+        try {
+            const buffer = await QRCode.toBuffer(`https://nexoposoficial.com/acuerdo/${encodeURIComponent(req.params.token)}`, { width: 320, margin: 1 });
+            res.set("Content-Type", "image/png").send(buffer);
+        } catch (error) {
+            res.status(500).send("No se pudo generar el QR");
+        }
+    });
+
+    app.post("/acuerdo/:token/aceptar", async (req, res) => {
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            const acuerdo = await acuerdoCredito.buscarAcuerdoPorToken(client, req.params.token);
+            if (!acuerdo) {
+                await client.query("ROLLBACK");
+                res.status(404).json({ ok: false, error: "Este enlace ya no es valido -- vencio, ya se uso, o el negocio genero uno nuevo." });
+                return;
+            }
+
+            await acuerdoCredito.confirmarAceptacion(client, {
+                acuerdo,
+                personaId: null,
+                ip: req.ip,
+                userAgent: req.headers["user-agent"] || null,
+                metodo: "enlace_token"
+            });
+
+            await acuerdoCredito.registrarBitacoraCredito(client, acuerdo.negocio_id, null, "acuerdo_credito_aceptado", {
+                clienteId: acuerdo.cliente_credito_id,
+                version: acuerdo.version,
+                metodo: "enlace_token"
+            });
+
+            await client.query("COMMIT");
+
+            await enviarPushANegocio(pool, acuerdo.negocio_id, {
+                titulo: "Cliente acepto su credito",
+                cuerpo: "Un cliente acepto sus condiciones de credito -- ya puede comprar a credito.",
+                url: "/creditos"
+            }).catch(() => {});
+
+            res.json({ ok: true });
+        } catch (error) {
+            await client.query("ROLLBACK").catch(() => {});
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message || "Ocurrio un error. Intenta de nuevo." });
+        } finally {
+            client.release();
+        }
+    });
+
+    function paginaAcuerdoTokenHtml({ acuerdo, token, error }) {
+        if (error) {
+            return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Acuerdo de credito</title><style>body{font-family:system-ui,sans-serif;max-width:480px;margin:60px auto;padding:0 20px;color:#21242b}</style></head>
+<body><h1>No se pudo abrir el acuerdo</h1><p>${error}</p></body></html>`;
+        }
+        return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Acuerdo de credito -- ${acuerdo.negocio_nombre}</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px 60px;color:#21242b;background:#f6f3ec}
+.tarjeta{background:#fff;border:1px solid #ddd4bd;border-radius:14px;padding:22px}
+.aviso{font-size:13px;background:#e8edfb;color:#1c3a94;padding:10px 12px;border-radius:8px;margin:16px 0}
+button{width:100%;padding:14px;border:none;border-radius:10px;background:#2952cc;color:#fff;font-size:15px;font-weight:600;margin-top:14px}
+button:disabled{opacity:.5}
+label{display:flex;gap:8px;align-items:flex-start;font-size:14px;margin-top:14px}
+</style></head>
+<body>
+<h2>${acuerdo.negocio_nombre} te aprobo credito</h2>
+<div class="tarjeta">
+${acuerdo.condiciones_texto}
+</div>
+<div class="aviso">El credito es otorgado por ${acuerdo.negocio_nombre}. Nexo proporciona la plataforma tecnologica.</div>
+<label><input type="checkbox" id="chk"> He leido y acepto estas condiciones de credito, version ${acuerdo.version}.</label>
+<button id="btn" disabled>Aceptar y activar credito</button>
+<p id="msg" style="font-size:13px;color:#b3392f"></p>
+<script>
+document.getElementById('chk').addEventListener('change', function(e){ document.getElementById('btn').disabled = !e.target.checked; });
+document.getElementById('btn').addEventListener('click', async function(){
+  this.disabled = true;
+  try {
+    const r = await fetch(${JSON.stringify(`/acuerdo/${token}/aceptar`)}, { method: 'POST' });
+    const datos = await r.json();
+    if (datos.ok) {
+      document.body.innerHTML = '<h2>Listo, tu credito ya esta activo</h2><p>Ya puedes usarlo en ' + ${JSON.stringify(acuerdo.negocio_nombre)} + '.</p>';
+    } else {
+      document.getElementById('msg').textContent = datos.error || 'No se pudo aceptar. Intenta de nuevo.';
+      this.disabled = false;
+    }
+  } catch (e) {
+    document.getElementById('msg').textContent = 'Error de conexion. Intenta de nuevo.';
+    this.disabled = false;
+  }
+});
+</script>
+</body></html>`;
+    }
 
     // Modulo "Nexo Market" del POS (Fase 2) -- resumen de solo lectura,
     // reusa el mismo gate de plan que Sitio web (misma clave de
@@ -4651,11 +4924,57 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
         }
     });
 
+    // Condiciones que el negocio ofrece (plazos, requisitos, politica) --
+    // separado del interruptor general sitio_web_config.aceptar_solicitudes_credito,
+    // que sigue igual. Una fila por negocio, se crea sola en el primer PUT.
+    app.get("/negocio-actual/configuracion-credito", requerirAccesoNegocio, requerirPermiso(PERMISOS.VER_CREDITO), async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const configuracion = await acuerdoCredito.obtenerConfiguracionCredito(pool, negocio.id);
+            res.json({
+                ok: true,
+                configuracion: {
+                    plazosDisponibles: configuracion.plazos_disponibles,
+                    requiereIdentificacion: configuracion.requiere_identificacion,
+                    requiereDomicilio: configuracion.requiere_domicilio,
+                    politicaTexto: configuracion.politica_texto
+                }
+            });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
+    app.put("/negocio-actual/configuracion-credito", requerirAccesoNegocio, requerirPermiso(PERMISOS.GESTIONAR_CREDITO), async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const plazos = Array.isArray(req.body?.plazosDisponibles)
+                ? req.body.plazosDisponibles.map(Number).filter(n => Number.isInteger(n) && n > 0)
+                : [15, 30, 60];
+
+            await pool.query(
+                `INSERT INTO public.configuracion_credito_negocio (negocio_id, plazos_disponibles, requiere_identificacion, requiere_domicilio, politica_texto, actualizado_at)
+                 VALUES ($1, $2, $3, $4, $5, NOW())
+                 ON CONFLICT (negocio_id) DO UPDATE SET
+                    plazos_disponibles = EXCLUDED.plazos_disponibles,
+                    requiere_identificacion = EXCLUDED.requiere_identificacion,
+                    requiere_domicilio = EXCLUDED.requiere_domicilio,
+                    politica_texto = EXCLUDED.politica_texto,
+                    actualizado_at = NOW()`,
+                [negocio.id, plazos, Boolean(req.body?.requiereIdentificacion), Boolean(req.body?.requiereDomicilio), String(req.body?.politicaTexto || "").slice(0, 2000)]
+            );
+
+            res.json({ ok: true });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
     // Igual que pedidos-publicos: ver/gestionar solicitudes ya
     // recibidas no se gatea por plan. Nunca se manda el binario de
     // las fotos en el listado JSON -- solo si existen, se piden por
     // separado con las rutas de abajo.
-    app.get("/negocio-actual/solicitudes-credito", requerirAccesoNegocio, async (req, res) => {
+    app.get("/negocio-actual/solicitudes-credito", requerirAccesoNegocio, requerirPermiso(PERMISOS.VER_CREDITO), async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
 
@@ -4722,39 +5041,116 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
         }
     }
 
-    app.get("/negocio-actual/solicitudes-credito/:id/ine-frente", requerirAccesoNegocio, (req, res) => {
+    app.get("/negocio-actual/solicitudes-credito/:id/ine-frente", requerirAccesoNegocio, requerirPermiso(PERMISOS.APROBAR_SOLICITUDES_CREDITO), (req, res) => {
         servirFotoIdentificacion(req, res, pool, "ine_frente", "ine_frente_tipo");
     });
 
-    app.get("/negocio-actual/solicitudes-credito/:id/ine-reverso", requerirAccesoNegocio, (req, res) => {
+    app.get("/negocio-actual/solicitudes-credito/:id/ine-reverso", requerirAccesoNegocio, requerirPermiso(PERMISOS.APROBAR_SOLICITUDES_CREDITO), (req, res) => {
         servirFotoIdentificacion(req, res, pool, "ine_reverso", "ine_reverso_tipo");
     });
 
-    app.patch("/negocio-actual/solicitudes-credito/:id", requerirAccesoNegocio, async (req, res) => {
+    app.patch("/negocio-actual/solicitudes-credito/:id", requerirAccesoNegocio, requerirPermiso(PERMISOS.APROBAR_SOLICITUDES_CREDITO), async (req, res) => {
+        const estado = String(req.body?.estado || "");
+        const estadosValidos = ["pendiente", "informacion_solicitada", "aprobado", "rechazado"];
+        if (!estadosValidos.includes(estado)) {
+            res.status(400).json({ ok: false, error: "Estado invalido" });
+            return;
+        }
+
+        const empleadoIdCajero = Number(req.headers["x-empleado-id"]) || null;
+        const client = await pool.connect();
         try {
             const negocio = await negocioActual(req, pool);
-            const estado = String(req.body?.estado || "");
+            await client.query("BEGIN");
 
-            if (!["pendiente", "aprobado", "rechazado"].includes(estado)) {
-                res.status(400).json({ ok: false, error: "Estado invalido" });
+            const solicitudFila = await client.query(
+                `SELECT * FROM public.solicitudes_credito WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
+                [req.params.id, negocio.id]
+            );
+            if (!solicitudFila.rows.length) {
+                await client.query("ROLLBACK");
+                res.status(404).json({ ok: false, error: "Solicitud no encontrada" });
                 return;
             }
+            const solicitud = solicitudFila.rows[0];
 
-            await pool.query(
-                `UPDATE public.solicitudes_credito SET estado = $1, revisada_at = CASE WHEN $1 <> 'pendiente' THEN NOW() ELSE revisada_at END WHERE id = $2 AND negocio_id = $3`,
-                [estado, req.params.id, negocio.id]
+            let clienteCreditoId = solicitud.cliente_credito_id;
+            let acuerdoGenerado = null;
+
+            if (estado === "aprobado") {
+                const limiteCredito = Number(req.body?.limiteCredito);
+                const diasCredito = Number(req.body?.diasCredito);
+                if (!(limiteCredito >= 0) || !(diasCredito > 0)) {
+                    await client.query("ROLLBACK");
+                    res.status(400).json({ ok: false, error: "Para aprobar hace falta limiteCredito (>=0) y diasCredito (>0) -- el negocio decide los terminos, no se aprueban solicitudes sin fijarlos." });
+                    return;
+                }
+
+                if (!clienteCreditoId) {
+                    const clienteInsertado = await client.query(
+                        `INSERT INTO public.clientes_credito (negocio_id, nombre, telefono, limite_credito, dias_credito, persona_id)
+                         VALUES ($1, $2, $3, $4, $5, $6)
+                         RETURNING id`,
+                        [negocio.id, solicitud.nombre, solicitud.telefono || null, limiteCredito, diasCredito, solicitud.persona_id || null]
+                    );
+                    clienteCreditoId = clienteInsertado.rows[0].id;
+                } else {
+                    await client.query(
+                        `UPDATE public.clientes_credito SET limite_credito = $1, dias_credito = $2 WHERE id = $3`,
+                        [limiteCredito, diasCredito, clienteCreditoId]
+                    );
+                }
+
+                const { acuerdo } = await acuerdoCredito.crearVersionAcuerdo(client, {
+                    negocioId: negocio.id,
+                    clienteCreditoId,
+                    limiteCredito,
+                    diasCredito,
+                    origen: "solicitud_online",
+                    solicitudId: solicitud.id,
+                    generadoPor: { tipo: "empleado", id: empleadoIdCajero, nombre: req.body?.empleadoNombre || null }
+                });
+                acuerdoGenerado = acuerdo;
+            }
+
+            await client.query(
+                `UPDATE public.solicitudes_credito
+                 SET estado = $1, revisada_at = CASE WHEN $1 <> 'pendiente' THEN NOW() ELSE revisada_at END, cliente_credito_id = $2
+                 WHERE id = $3 AND negocio_id = $4`,
+                [estado, clienteCreditoId, req.params.id, negocio.id]
             );
 
-            res.json({ ok: true });
+            await acuerdoCredito.registrarBitacoraCredito(client, negocio.id, empleadoIdCajero,
+                estado === "aprobado" ? "solicitud_credito_aprobada" : estado === "rechazado" ? "solicitud_credito_rechazada" : "solicitud_credito_actualizada",
+                { solicitudId: solicitud.id, estado, clienteCreditoId, version: acuerdoGenerado?.version || null }
+            );
+
+            await client.query("COMMIT");
+
+            if (solicitud.persona_id) {
+                const mensajesPush = {
+                    aprobado: { titulo: `${negocio.nombre} aprobo tu credito`, cuerpo: "Revisa y acepta tus condiciones para activarlo.", url: "https://nexoposoficial.com/market/mi-cuenta" },
+                    rechazado: { titulo: `${negocio.nombre} no aprobo tu solicitud de credito`, cuerpo: "Puedes contactar al negocio para mas informacion.", url: "https://nexoposoficial.com/market/credito-nexo" },
+                    informacion_solicitada: { titulo: `${negocio.nombre} pidio mas informacion`, cuerpo: "Contacta al negocio para continuar tu solicitud de credito.", url: "https://nexoposoficial.com/market/credito-nexo" }
+                };
+                if (mensajesPush[estado]) {
+                    await enviarPushAPersona(pool, solicitud.persona_id, mensajesPush[estado]).catch(() => {});
+                }
+            }
+
+            res.json({ ok: true, clienteCreditoId, acuerdo: acuerdoGenerado ? { id: acuerdoGenerado.id, version: acuerdoGenerado.version } : null });
         } catch (error) {
+            await client.query("ROLLBACK").catch(() => {});
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        } finally {
+            client.release();
         }
     });
 
     // Borrado real (fila + fotos incluidas) -- es la accion detras del
     // texto de /privacidad que dice que el negocio decide cuanto
     // tiempo conservar estos documentos.
-    app.delete("/negocio-actual/solicitudes-credito/:id", requerirAccesoNegocio, async (req, res) => {
+    app.delete("/negocio-actual/solicitudes-credito/:id", requerirAccesoNegocio, requerirPermiso(PERMISOS.APROBAR_SOLICITUDES_CREDITO), async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
 

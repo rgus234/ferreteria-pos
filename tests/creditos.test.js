@@ -4,7 +4,7 @@
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
-const { pool, crearNegocioPrueba, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
+const { pool, crearNegocioPrueba, borrarNegocioPrueba, crearClienteCreditoActivo } = require("./helpers/negocio-prueba");
 const { iniciarServidorPrueba, detenerServidorPrueba, BASE_URL } = require("./helpers/servidor-prueba");
 
 let negocio;
@@ -30,15 +30,7 @@ after(async () => {
 });
 
 test("cliente con credito: un cargo y un abono dejan el saldo correcto", async () => {
-    const creado = await fetch(`${BASE_URL}/creditos/clientes`, {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify({ nombre: "Cliente de prueba", telefono: "5550000000", limiteCredito: 1000 })
-    });
-
-    const datosCliente = await creado.json();
-    assert.equal(creado.status, 200);
-    const clienteId = datosCliente.cliente.id;
+    const clienteId = (await crearClienteCreditoActivo(negocio.negocioId, { limiteCredito: 1000 })).id;
 
     const cargo = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/cargos`, {
         method: "POST",
@@ -67,12 +59,7 @@ test("cliente con credito: un cargo y un abono dejan el saldo correcto", async (
 });
 
 test("antiguedad por venta: solo la compra vencida y no pagada aparece como vencida", async () => {
-    const creado = await fetch(`${BASE_URL}/creditos/clientes`, {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify({ nombre: "Cliente antiguedad", telefono: "4980000000", limiteCredito: 5000 })
-    });
-    const clienteId = (await creado.json()).cliente.id;
+    const clienteId = (await crearClienteCreditoActivo(negocio.negocioId, { nombre: "Cliente antiguedad", telefono: "4980000000", limiteCredito: 5000 })).id;
 
     async function crearCargo(monto) {
         const respuesta = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/cargos`, {

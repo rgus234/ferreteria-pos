@@ -685,7 +685,54 @@ async function cuentaMarketCargarCredito() {
             estado.textContent = "Vencido -- " + cuentaMarketDinero(c.totalVencido);
             bloque.appendChild(estado);
         }
+        // Tri-estado APROBADA -> PENDIENTE_DE_ACEPTACION -> ACTIVA (ver
+        // Acuerdo de Credito): mientras no acepte, no es credito
+        // operable, aunque ya exista la cuenta.
+        if (c.acuerdoPendiente) {
+            const aviso = document.createElement("div");
+            aviso.className = "portal-credito-pendiente-aviso";
+            aviso.style.cssText = "margin-top:10px;padding:12px;border-radius:12px;background:var(--amber-bg,#fff4e5);border:1px solid var(--amber,#e0a000);font-size:13px;";
+            aviso.innerHTML =
+                '<strong>' + c.negocio.nombre + ' te ofrece credito -- falta que aceptes.</strong><br>' +
+                'Limite: ' + cuentaMarketDinero(c.acuerdoPendiente.limiteCredito) + ' &middot; Plazo: ' + c.acuerdoPendiente.diasCredito + ' dias' +
+                '<br><button type="button" class="btn primary" style="margin-top:8px;" data-acuerdo-id="' + c.acuerdoPendiente.id + '">Ver y aceptar</button>';
+            aviso.querySelector("button").addEventListener("click", function() { cuentaMarketAbrirAcuerdoPendiente(c.acuerdoPendiente.id, c.negocio.nombre); });
+            bloque.appendChild(aviso);
+        }
         contenedor.appendChild(bloque);
+    });
+}
+
+async function cuentaMarketAbrirAcuerdoPendiente(acuerdoId, negocioNombre) {
+    const datos = await cuentaMarketLlamar("/personas/acuerdos/" + acuerdoId);
+    if (!datos.ok) { alert("No se pudo abrir el acuerdo. Intenta de nuevo."); return; }
+
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;";
+    overlay.innerHTML =
+        '<div style="background:#fff;border-radius:16px;max-width:480px;width:100%;padding:24px;max-height:90vh;overflow:auto;">' +
+        datos.acuerdo.condicionesHtml +
+        '<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:16px;"><input type="checkbox" id="cuentaMarketAceptoChk"> He leido y acepto estas condiciones de credito, version ' + datos.acuerdo.version + '.</label>' +
+        '<button type="button" class="btn primary" id="cuentaMarketAceptarBtn" style="width:100%;margin-top:14px;" disabled>Aceptar y activar credito</button>' +
+        '<button type="button" class="btn" id="cuentaMarketCerrarBtn" style="width:100%;margin-top:8px;">Cerrar</button>' +
+        '</div>';
+    document.body.appendChild(overlay);
+
+    overlay.querySelector("#cuentaMarketCerrarBtn").addEventListener("click", function() { overlay.remove(); });
+    overlay.querySelector("#cuentaMarketAceptoChk").addEventListener("change", function(e) {
+        overlay.querySelector("#cuentaMarketAceptarBtn").disabled = !e.target.checked;
+    });
+    overlay.querySelector("#cuentaMarketAceptarBtn").addEventListener("click", async function() {
+        this.disabled = true;
+        const resultado = await cuentaMarketLlamar("/personas/acuerdos/" + acuerdoId + "/aceptar", { method: "POST" });
+        if (resultado.ok) {
+            overlay.remove();
+            alert("Listo -- tu credito con " + negocioNombre + " ya esta activo.");
+            await cuentaMarketCargarCredito();
+        } else {
+            alert(resultado.error || "No se pudo aceptar. Intenta de nuevo.");
+            this.disabled = false;
+        }
     });
 }
 

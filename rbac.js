@@ -23,7 +23,11 @@ const PERMISOS = Object.freeze({
     HACER_VENTAS: "hacer_ventas",
     HACER_CORTE: "hacer_corte",
     VER_REPORTES: "ver_reportes",
-    ADMINISTRAR_USUARIOS: "administrar_usuarios"
+    ADMINISTRAR_USUARIOS: "administrar_usuarios",
+    VER_CREDITO: "ver_credito",
+    GESTIONAR_CREDITO: "gestionar_credito",
+    REGISTRAR_ABONOS_CREDITO: "registrar_abonos_credito",
+    APROBAR_SOLICITUDES_CREDITO: "aprobar_solicitudes_credito"
 });
 
 async function permisosDeEmpleado(empleadoId, negocioId) {

@@ -5,7 +5,7 @@
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
-const { pool, crearNegocioPrueba, crearProductoPrueba, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
+const { pool, crearNegocioPrueba, crearProductoPrueba, crearClienteCreditoActivo, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
 const { iniciarServidorPrueba, detenerServidorPrueba, BASE_URL } = require("./helpers/servidor-prueba");
 const { hashPassword } = require("../password-utils");
 
@@ -145,12 +145,7 @@ test("PIN incorrecto o vacio se rechaza sin modificar nada", async () => {
 });
 
 test("cancelar una venta a credito borra el cargo y regresa el saldo del cliente a lo que tenia antes", async () => {
-    const clienteResp = await fetch(`${BASE_URL}/creditos/clientes`, {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify({ nombre: "Cliente cancelar venta", telefono: "5550001111", limiteCredito: 5000 })
-    });
-    const clienteId = (await clienteResp.json()).cliente.id;
+    const clienteId = (await crearClienteCreditoActivo(negocio.negocioId, { nombre: "Cliente cancelar venta", telefono: "5550001111", limiteCredito: 5000 })).id;
 
     const cargoResp = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/cargos`, {
         method: "POST",

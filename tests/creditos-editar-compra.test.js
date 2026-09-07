@@ -5,7 +5,7 @@
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
-const { pool, crearNegocioPrueba, crearProductoPrueba, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
+const { pool, crearNegocioPrueba, crearProductoPrueba, crearClienteCreditoActivo, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
 const { iniciarServidorPrueba, detenerServidorPrueba, BASE_URL } = require("./helpers/servidor-prueba");
 const { hashPassword } = require("../password-utils");
 
@@ -43,12 +43,7 @@ after(async () => {
 });
 
 test("cargo a credito nuevo: folio real, stock descontado una sola vez, encontrable por folio", async () => {
-    const clienteResp = await fetch(`${BASE_URL}/creditos/clientes`, {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify({ nombre: "Cliente editar compra", telefono: "5551112222", limiteCredito: 5000 })
-    });
-    const clienteId = (await clienteResp.json()).cliente.id;
+    const clienteId = (await crearClienteCreditoActivo(negocio.negocioId, { nombre: "Cliente editar compra", telefono: "5551112222", limiteCredito: 5000 })).id;
 
     const cargoResp = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/cargos`, {
         method: "POST",

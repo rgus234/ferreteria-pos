@@ -280,7 +280,11 @@ const PERMISOS_NEXO = [
  { clave: "ver_inventario", nombre: "Ver inventario", descripcion: "Puede consultar el inventario desde /dueno" },
  { clave: "modificar_inventario", nombre: "Modificar inventario", descripcion: "Puede editar productos y existencias desde /dueno" },
  { clave: "ver_reportes", nombre: "Ver reportes", descripcion: "Puede ver reportes de ventas del negocio" },
- { clave: "administrar_usuarios", nombre: "Administrar empleados", descripcion: "Puede ver, crear, editar y eliminar otros empleados -- otorgalo con cuidado" }
+ { clave: "administrar_usuarios", nombre: "Administrar empleados", descripcion: "Puede ver, crear, editar y eliminar otros empleados -- otorgalo con cuidado" },
+ { clave: "ver_credito", nombre: "Ver creditos", descripcion: "Puede consultar la pantalla de Creditos: saldos, vencimientos y solicitudes" },
+ { clave: "gestionar_credito", nombre: "Gestionar creditos", descripcion: "Puede dar de alta clientes de credito y modificar su limite o plazo" },
+ { clave: "registrar_abonos_credito", nombre: "Registrar abonos de credito", descripcion: "Puede recibir pagos a cuenta de un cliente de credito" },
+ { clave: "aprobar_solicitudes_credito", nombre: "Aprobar solicitudes de credito", descripcion: "Puede revisar, aprobar o rechazar solicitudes de credito -- incluye ver la identificacion oficial adjunta" }
 ];
 
 function configuracionNegocio() {

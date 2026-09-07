@@ -51,7 +51,8 @@ const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./p
 const { resolverOcrearProveedorId } = require("./proveedor-resolver");
 const { resolverIdentidadNexo, PERMISOS, requerirPermiso } = require("./rbac");
 const { calcularAntiguedadCredito } = require("./credit-aging");
-const { enviarPushADuenoDelNegocio } = require("./push-server");
+const { enviarPushADuenoDelNegocio, enviarPushAPersona } = require("./push-server");
+const acuerdoCredito = require("./acuerdo-credito");
 const { listarPlanes, listarCatalogoFunciones, funcionesDelPlan } = require("./features");
 const {
     enviarCorreoVerificacion,
@@ -4940,7 +4941,7 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
     }
 
     const clienteFila = await client.query(
-        `SELECT id, nombre FROM public.clientes_credito WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
+        `SELECT id, nombre, dias_credito, acuerdo_vigente_id, suspendido FROM public.clientes_credito WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
         [clienteId, negocio.id]
     );
 
@@ -4949,6 +4950,10 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
     }
 
     const cliente = clienteFila.rows[0];
+
+    if (!cliente.acuerdo_vigente_id || cliente.suspendido) {
+        throw new Error("Este cliente no tiene un credito activo (falta aceptar sus condiciones, o esta suspendido)");
+    }
     const productos = productosEvento(payload);
 
     // Mismo tratamiento que aplicarVentaSync -- folio real en
@@ -5023,7 +5028,7 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
             fecha_vencimiento,
             historial_id
         )
-        VALUES ($1, $2, 'venta', $3, $4, $5, $6::jsonb, NOW() + INTERVAL '15 days', $7)
+        VALUES ($1, $2, 'venta', $3, $4, $5, $6::jsonb, NOW() + ($8 || ' days')::interval, $7)
         RETURNING *
         `,
         [
@@ -5033,7 +5038,8 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
             payload?.concepto || "Venta a credito",
             total,
             JSON.stringify(productos),
-            historialCreado.rows[0].id
+            historialCreado.rows[0].id,
+            cliente.dias_credito || 15
         ]
     );
 
@@ -7955,7 +7961,7 @@ app.post("/ventas/:id/comprobantes", requerirAccesoNegocio, async (req, res) => 
     }
 });
 
-app.get("/creditos", requerirAccesoNegocio, async (req, res) => {
+app.get("/creditos", requerirAccesoNegocio, requerirPermiso(PERMISOS.VER_CREDITO), async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         const clientes = await pool.query(`
@@ -8046,7 +8052,7 @@ app.get("/creditos", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
-app.get("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
+app.get("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISOS.VER_CREDITO), async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -8195,13 +8201,14 @@ app.post("/creditos/clientes/:id/codigo-acceso/revocar", requerirAccesoNegocio, 
     }
 });
 
-app.post("/creditos/clientes", requerirAccesoNegocio, async (req, res) => {
+app.post("/creditos/clientes", requerirAccesoNegocio, requerirPermiso(PERMISOS.GESTIONAR_CREDITO), async (req, res) => {
     const {
         nombre,
         telefono,
         limiteCredito,
         fechaVencimiento,
-        nivelPrecioPreferido
+        nivelPrecioPreferido,
+        diasCredito
     } = req.body;
 
     if (!nombre) {
@@ -8211,39 +8218,98 @@ app.post("/creditos/clientes", requerirAccesoNegocio, async (req, res) => {
         return;
     }
 
+    // Alta directa en el POS: el negocio esta viendo al cliente en
+    // persona, no requiere que tenga cuenta Nexo. Aun asi, la cuenta
+    // nace en PENDIENTE_DE_ACEPTACION -- el mismo tri-estado que una
+    // solicitud aprobada en Market -- porque no queremos una cuenta de
+    // credito operable sin que el cliente supiera y aceptara sus
+    // condiciones. Se le genera de una vez un enlace/QR de un solo uso
+    // (metodo enlace_token) y, si dio telefono, el codigo del portal-
+    // cliente se activa automaticamente en el mismo paso.
+    const empleadoIdCajero = Number(req.headers["x-empleado-id"]) || null;
+    const client = await pool.connect();
     try {
         const negocio = await negocioActual(req);
-        const resultado = await pool.query(`
+        await client.query("BEGIN");
+
+        const resultado = await client.query(`
             INSERT INTO public.clientes_credito
             (
                 negocio_id,
                 nombre,
                 telefono,
                 limite_credito,
+                dias_credito,
                 fecha_vencimiento,
                 nivel_precio_preferido
             )
-            VALUES ($1, $2, $3, $4, $5, $6)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
         `, [
             negocio.id,
             nombre,
             telefono || null,
             limiteCredito || 0,
+            Number(diasCredito) > 0 ? Number(diasCredito) : acuerdoCredito.PLAZO_CREDITO_DEFECTO_DIAS,
             fechaVencimiento || null,
             nivelPrecioPreferido || null
         ]);
+        const clienteCreado = resultado.rows[0];
+
+        const { acuerdo, tokenPlano } = await acuerdoCredito.crearVersionAcuerdo(client, {
+            negocioId: negocio.id,
+            clienteCreditoId: clienteCreado.id,
+            limiteCredito: clienteCreado.limite_credito,
+            diasCredito: clienteCreado.dias_credito,
+            origen: "alta_pos",
+            generadoPor: { tipo: "empleado", id: empleadoIdCajero, nombre: req.body?.empleadoNombre || null },
+            generarToken: true
+        });
+
+        let codigoPortal = null;
+        if (telefono) {
+            const codigo = generarCodigoAccesoCliente();
+            await client.query(
+                `UPDATE public.clientes_credito SET codigo_acceso_hash = $1, codigo_acceso_generado_at = NOW() WHERE id = $2`,
+                [hashPassword(codigo), clienteCreado.id]
+            );
+            codigoPortal = codigo;
+        }
+
+        await acuerdoCredito.registrarBitacoraCredito(client, negocio.id, empleadoIdCajero, "acuerdo_credito_generado", {
+            clienteId: clienteCreado.id,
+            version: acuerdo.version,
+            limiteCredito: clienteCreado.limite_credito,
+            diasCredito: clienteCreado.dias_credito,
+            origen: "alta_pos"
+        });
+
+        await client.query("COMMIT");
 
         res.json({
             success: true,
-            cliente: resultado.rows[0]
+            cliente: clienteCreado,
+            acuerdo: { id: acuerdo.id, version: acuerdo.version, estado: acuerdo.estado },
+            tokenAceptacion: tokenPlano,
+            codigoPortal
         });
     } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
         responderError(res, error);
+    } finally {
+        client.release();
     }
 });
 
-app.put("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
+// Nombre/telefono/nivel de precio se cambian aqui mismo, directo --
+// son datos administrativos, no condiciones del acuerdo. Limite y
+// plazo son distintos: nunca se sobrescriben a ciegas, porque eso
+// saltaria por completo el versionado del Acuerdo de Credito. La regla
+// (decision de producto, no legal -- ver el diseno): bajar el limite o
+// acortar el plazo se aplica de inmediato (el negocio protegiendose a
+// si mismo); subir cualquiera de los dos genera una version nueva que
+// el cliente debe aceptar antes de que aplique.
+app.put("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISOS.GESTIONAR_CREDITO), async (req, res) => {
     const { id } = req.params;
 
     const {
@@ -8251,7 +8317,9 @@ app.put("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
         telefono,
         limiteCredito,
         fechaVencimiento,
-        nivelPrecioPreferido
+        nivelPrecioPreferido,
+        diasCredito,
+        motivo
     } = req.body;
 
     if (!nombre) {
@@ -8261,45 +8329,77 @@ app.put("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
         return;
     }
 
+    const empleadoIdCajero = Number(req.headers["x-empleado-id"]) || null;
+    const client = await pool.connect();
     try {
         const negocio = await negocioActual(req);
-        const resultado = await pool.query(`
-            UPDATE public.clientes_credito
-            SET
-                nombre = $1,
-                telefono = $2,
-                limite_credito = $3,
-                fecha_vencimiento = $4,
-                nivel_precio_preferido = $5
-            WHERE id = $6
-            AND negocio_id = $7
-            RETURNING *
-        `, [
-            nombre,
-            telefono || "",
-            Number(limiteCredito || 0),
-            fechaVencimiento || null,
-            nivelPrecioPreferido || null,
-            id,
-            negocio.id
-        ]);
+        await client.query("BEGIN");
 
-        if (resultado.rows.length === 0) {
-            res.status(404).json({
-                error: "Cliente no encontrado"
-            });
+        const actualFila = await client.query(
+            `SELECT limite_credito, dias_credito FROM public.clientes_credito WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
+            [id, negocio.id]
+        );
+        if (!actualFila.rows.length) {
+            await client.query("ROLLBACK");
+            res.status(404).json({ error: "Cliente no encontrado" });
             return;
         }
+        const actual = actualFila.rows[0];
+
+        await client.query(`
+            UPDATE public.clientes_credito
+            SET nombre = $1, telefono = $2, fecha_vencimiento = $3, nivel_precio_preferido = $4
+            WHERE id = $5 AND negocio_id = $6
+        `, [nombre, telefono || "", fechaVencimiento || null, nivelPrecioPreferido || null, id, negocio.id]);
+
+        let acuerdoGenerado = null;
+        const nuevoLimite = limiteCredito !== undefined ? Number(limiteCredito) : Number(actual.limite_credito);
+        const nuevoPlazo = diasCredito !== undefined ? Number(diasCredito) : Number(actual.dias_credito);
+        const cambioTerminos = nuevoLimite !== Number(actual.limite_credito) || nuevoPlazo !== Number(actual.dias_credito);
+
+        if (cambioTerminos) {
+            const esAumento = nuevoLimite > Number(actual.limite_credito) || nuevoPlazo > Number(actual.dias_credito);
+
+            const { acuerdo, tokenPlano } = await acuerdoCredito.crearVersionAcuerdo(client, {
+                negocioId: negocio.id,
+                clienteCreditoId: id,
+                limiteCredito: nuevoLimite,
+                diasCredito: nuevoPlazo,
+                origen: nuevoLimite !== Number(actual.limite_credito) ? "cambio_limite" : "cambio_plazo",
+                generadoPor: { tipo: "empleado", id: empleadoIdCajero, nombre: req.body?.empleadoNombre || null },
+                autoAceptar: !esAumento,
+                generarToken: esAumento
+            });
+            acuerdoGenerado = { ...acuerdo, tokenPlano };
+
+            await acuerdoCredito.registrarBitacoraCredito(client, negocio.id, empleadoIdCajero,
+                nuevoLimite !== Number(actual.limite_credito) ? "limite_credito_modificado" : "plazo_credito_modificado", {
+                clienteId: Number(id),
+                valorAnterior: nuevoLimite !== Number(actual.limite_credito) ? Number(actual.limite_credito) : Number(actual.dias_credito),
+                valorNuevo: nuevoLimite !== Number(actual.limite_credito) ? nuevoLimite : nuevoPlazo,
+                motivo: motivo || null,
+                requirioAceptacion: esAumento
+            });
+        }
+
+        await client.query("COMMIT");
+
+        const clienteFinal = await pool.query(`SELECT * FROM public.clientes_credito WHERE id = $1`, [id]);
 
         res.json({
-            cliente: resultado.rows[0]
+            cliente: clienteFinal.rows[0],
+            acuerdo: acuerdoGenerado ? { id: acuerdoGenerado.id, version: acuerdoGenerado.version, estado: acuerdoGenerado.estado, requiereAceptacion: acuerdoGenerado.estado === "pendiente_aceptacion" } : null,
+            tokenAceptacion: acuerdoGenerado?.tokenPlano || null
         });
     } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
         responderError(res, error);
+    } finally {
+        client.release();
     }
 });
 
-app.delete("/creditos/clientes/:id", requerirAccesoNegocio, async (req, res) => {
+app.delete("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISOS.GESTIONAR_CREDITO), async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -8557,7 +8657,7 @@ async function marcarVentasLiquidadasCliente(client, negocioId, clienteId) {
 
 const METODOS_PAGO_ABONO_VALIDOS = new Set(["efectivo", "tarjeta", "transferencia"]);
 
-app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res) => {
+app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, requerirPermiso(PERMISOS.REGISTRAR_ABONOS_CREDITO), async (req, res) => {
     const { id } = req.params;
 
     const {
@@ -8651,7 +8751,7 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, async (req, res
     }
 });
 
-app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res) => {
+app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS), requerirPermiso(PERMISOS.VER_CREDITO), async (req, res) => {
     const { id } = req.params;
 
     const {
@@ -8729,7 +8829,7 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
 
         const clienteFila = await client.query(
             `
-            SELECT id, nombre, limite_credito
+            SELECT id, nombre, limite_credito, dias_credito, acuerdo_vigente_id, suspendido
             FROM public.clientes_credito
             WHERE id = $1 AND negocio_id = $2
             FOR UPDATE
@@ -8742,6 +8842,18 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
         }
 
         const cliente = clienteFila.rows[0];
+
+        if (!cliente.acuerdo_vigente_id) {
+            await client.query("ROLLBACK");
+            res.status(409).json({ error: "Este cliente todavia no acepta sus condiciones de credito -- no se le puede vender a credito hasta que acepte." });
+            return;
+        }
+
+        if (cliente.suspendido) {
+            await client.query("ROLLBACK");
+            res.status(409).json({ error: "El credito de este cliente esta suspendido temporalmente." });
+            return;
+        }
 
         const existente = await buscarVentaPorIdempotencyKey(client, negocio.id, idempotencyKey);
 
@@ -8848,7 +8960,7 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
                 fecha_vencimiento,
                 historial_id
             )
-            VALUES ($1, $2, 'venta', $3, $4, $5, $6, $7, $8, $9, $10::jsonb, NOW() + INTERVAL '15 days', $11)
+            VALUES ($1, $2, 'venta', $3, $4, $5, $6, $7, $8, $9, $10::jsonb, NOW() + ($12 || ' days')::interval, $11)
             RETURNING *
             `,
             [
@@ -8862,7 +8974,8 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, async (req, res
                 descuentoTipoFinal,
                 descuentoValorFinal,
                 JSON.stringify(productosLista),
-                historialCreado.rows[0].id
+                historialCreado.rows[0].id,
+                cliente.dias_credito || 15
             ]
         );
 

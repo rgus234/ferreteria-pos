@@ -8,7 +8,7 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const QRCode = require("qrcode");
-const { pool, crearNegocioPrueba, crearProductoPrueba, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
+const { pool, crearNegocioPrueba, crearProductoPrueba, crearClienteCreditoActivo, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
 const { iniciarServidorPrueba, detenerServidorPrueba, BASE_URL } = require("./helpers/servidor-prueba");
 
 let negocio;
@@ -67,12 +67,7 @@ test("una venta con codigoPublico lo guarda en historial_ventas", async () => {
 });
 
 test("una venta a credito con codigoPublico lo guarda en historial_ventas", async () => {
-    const creado = await fetch(`${BASE_URL}/creditos/clientes`, {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify({ nombre: "Cliente ticket digital", telefono: "5551112233", limiteCredito: 5000 })
-    });
-    const clienteId = (await creado.json()).cliente.id;
+    const clienteId = (await crearClienteCreditoActivo(negocio.negocioId, { nombre: "Cliente ticket digital", telefono: "5551112233", limiteCredito: 5000 })).id;
     const codigoPublico = `TICKCRE${Date.now()}`;
 
     const cargo = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/cargos`, {

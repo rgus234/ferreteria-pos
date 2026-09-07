@@ -59,6 +59,40 @@ async function crearProductoPrueba(negocioId, overrides = {}) {
     return producto.rows[0];
 }
 
+// La mayoria de las pruebas de credito no estan probando el Acuerdo de
+// Credito en si (eso lo cubre tests/acuerdo-credito.test.js) -- solo
+// necesitan un cliente ya activo para poder cargarle una venta. Crea
+// el cliente y su primer acuerdo ya "aceptado" directo por SQL, sin
+// pasar por el enlace/QR real.
+async function crearClienteCreditoActivo(negocioId, overrides = {}) {
+    const cliente = await pool.query(
+        `INSERT INTO public.clientes_credito (negocio_id, nombre, telefono, limite_credito, dias_credito, nivel_precio_preferido)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [
+            negocioId,
+            overrides.nombre || "Cliente de prueba",
+            overrides.telefono ?? "5550000000",
+            overrides.limiteCredito ?? 1000,
+            overrides.diasCredito ?? 15,
+            overrides.nivelPrecioPreferido || null
+        ]
+    );
+    const clienteId = cliente.rows[0].id;
+
+    const acuerdo = await pool.query(
+        `INSERT INTO public.acuerdos_credito
+            (negocio_id, cliente_credito_id, version, limite_credito, dias_credito, condiciones_texto, contenido_hash, origen, generado_por, estado)
+         VALUES ($1, $2, 1, $3, $4, 'prueba automatizada', 'hash-prueba', 'alta_pos', '{}'::jsonb, 'aceptado')
+         RETURNING id`,
+        [negocioId, clienteId, cliente.rows[0].limite_credito, cliente.rows[0].dias_credito]
+    );
+
+    await pool.query(`UPDATE public.clientes_credito SET acuerdo_vigente_id = $1 WHERE id = $2`, [acuerdo.rows[0].id, clienteId]);
+
+    return { ...cliente.rows[0], acuerdo_vigente_id: acuerdo.rows[0].id };
+}
+
 async function borrarNegocioPrueba(negocioId) {
     if (!negocioId) return;
 
@@ -67,6 +101,7 @@ async function borrarNegocioPrueba(negocioId) {
         "historial_ventas",
         "ventas",
         "movimientos_credito",
+        "solicitudes_credito",
         "clientes_credito",
         "turnos_caja",
         "productos",
@@ -105,5 +140,6 @@ module.exports = {
     pool,
     crearNegocioPrueba,
     crearProductoPrueba,
+    crearClienteCreditoActivo,
     borrarNegocioPrueba
 };

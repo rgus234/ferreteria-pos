@@ -1068,6 +1068,14 @@ async function abrirNuevoClienteCredito(prellenado = {}) {
  min: 0
  },
  {
+ nombre: "diasCredito",
+ etiqueta: "Plazo (dias)",
+ tipo: "number",
+ placeholder: "15",
+ valor: String(prellenado.diasCredito || 15),
+ min: 1
+ },
+ {
  nombre: "nivelPrecioPreferido",
  etiqueta: "Precio con el que siempre compra",
  tipo: "select",
@@ -1088,6 +1096,7 @@ async function abrirNuevoClienteCredito(prellenado = {}) {
  nombre: datos.nombre,
  telefono: datos.telefono,
  limiteCredito: datos.limiteCredito,
+ diasCredito: datos.diasCredito || 15,
  nivelPrecioPreferido: datos.nivelPrecioPreferido || null
  };
 
@@ -1160,8 +1169,58 @@ async function abrirNuevoClienteCredito(prellenado = {}) {
  });
  await alertaPOS("Cliente guardado offline. Se sincronizara cuando vuelva el internet.", "Cliente offline", "exito");
  } else {
+ const datosCreados = await respuesta.json().catch(() => null);
  await cargarCreditos();
+ if (datosCreados?.tokenAceptacion) {
+ await mostrarModalAcuerdoPendientePOS(datosCreados);
  }
+ }
+}
+
+// El cliente nace en PENDIENTE_DE_ACEPTACION (ver diseno del Acuerdo de
+// Credito) -- no puede comprar a credito hasta aceptar. Este modal le
+// da al empleado dos caminos: mostrar el QR para que el cliente lo
+// escanee con su propio telefono (recomendado, mas privado), o
+// aceptarlo ahi mismo en la pantalla del negocio si el cliente no trae
+// celular. No se cierra solo -- el empleado decide cuando terminar.
+function mostrarModalAcuerdoPendientePOS(datosCreados) {
+	return new Promise(resolver => {
+		const token = datosCreados.tokenAceptacion;
+		const overlay = document.createElement("div");
+		overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;";
+		overlay.innerHTML = `
+			<div style="background:var(--pos-sale-card,#fff);color:var(--pos-sale-text,#101828);border-radius:18px;max-width:380px;width:100%;padding:24px;text-align:center;font-family:inherit;">
+				<h3 style="margin:0 0 6px;">Falta un paso</h3>
+				<p style="margin:0 0 16px;font-size:14px;color:var(--pos-sale-muted,#667085);">El credito de <strong>${escaparPOS(datosCreados.cliente?.nombre || "")}</strong> queda pendiente hasta que acepte sus condiciones. Que escanee este codigo con su telefono:</p>
+				<img src="/acuerdo/${encodeURIComponent(token)}/qr.png" alt="Codigo QR del acuerdo de credito" style="width:220px;height:220px;margin:0 auto 16px;display:block;border-radius:12px;border:1px solid var(--pos-sale-line,#e5e7eb);">
+				<button type="button" id="btnAcuerdoPresencialPOS" style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--pos-sale-brand,#0d6efd);color:#fff;font-weight:600;margin-bottom:8px;">No trae celular -- aceptar aqui mismo</button>
+				<button type="button" id="btnAcuerdoCerrarPOS" style="width:100%;padding:12px;border-radius:12px;border:1px solid var(--pos-sale-line,#e5e7eb);background:transparent;color:inherit;">Listo, ya se lo mostre</button>
+			</div>
+		`;
+		document.body.appendChild(overlay);
+
+		function cerrar() {
+			overlay.remove();
+			resolver();
+		}
+
+		overlay.querySelector("#btnAcuerdoCerrarPOS").addEventListener("click", cerrar);
+		overlay.querySelector("#btnAcuerdoPresencialPOS").addEventListener("click", async () => {
+			try {
+				const respuesta = await fetch(`/acuerdo/${encodeURIComponent(token)}/aceptar`, { method: "POST" });
+				const resultado = await respuesta.json().catch(() => ({}));
+				if (resultado.ok) {
+					await alertaPOS("Credito activado -- ya puede comprar a credito.", "Aceptado", "exito");
+					await cargarCreditos();
+				} else {
+					await alertaPOS(resultado.error || "No se pudo aceptar.", "Aceptar credito", "peligro");
+				}
+			} catch (error) {
+				await alertaPOS("Error de conexion, intenta de nuevo.", "Aceptar credito", "peligro");
+			}
+			cerrar();
+		});
+	});
 }
 
 async function registrarAbonoCredito() {

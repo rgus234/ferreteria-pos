@@ -3337,12 +3337,21 @@ function tarjetaCreditoNexoHtml(t) {
         `<a class="btn primary" href="https://${escaparHtml(t.slug)}.nexoposoficial.com/solicitud-credito">Solicitar credito</a></div>`;
 }
 
-async function paginaCreditoNexoMarketHtml(pool) {
+async function paginaCreditoNexoMarketHtml(pool, busqueda) {
     const tiendas = await tiendasPermitidasMarket(pool);
-    const conCredito = tiendas.filter(t => t.aceptaCredito);
+    let conCredito = tiendas.filter(t => t.aceptaCredito);
+
+    const consulta = String(busqueda || "").trim();
+    if (consulta) {
+        const normalizado = consulta.toLowerCase();
+        conCredito = conCredito.filter(t => t.nombre.toLowerCase().includes(normalizado));
+    }
+
     const tarjetasHtml = conCredito.length > 0
         ? conCredito.map(tarjetaCreditoNexoHtml).join('')
-        : '<p class="market-vacio">Ninguna tienda Nexo acepta solicitudes de credito por ahora.</p>';
+        : consulta
+            ? `<p class="market-vacio">Ninguna tienda con credito coincide con "${escaparHtml(consulta)}".</p>`
+            : '<p class="market-vacio">Ninguna tienda Nexo acepta solicitudes de credito por ahora.</p>';
 
     return `<!doctype html>
 <html lang="es">
@@ -3362,6 +3371,10 @@ ${marketHeaderHtml({ activo: "credito" })}
 <div class="market-layout">
 <div class="market-contenido">
 <nav class="market-breadcrumb"><a href="/market">Inicio</a> &rsaquo; Credito Nexo</nav>
+<form class="market-buscador-inline" method="GET" action="/market/credito-nexo">
+<input type="text" name="q" placeholder="Buscar ferreteria por nombre..." value="${escaparHtml(consulta)}" maxlength="120">
+<button type="submit">Buscar</button>
+</form>
 <div class="market-resultados-header"><div><h2>Credito Nexo</h2><span class="market-resultados-conteo">${conCredito.length === 1 ? '1 tienda' : conCredito.length + ' tiendas'}</span></div></div>
 <div class="market-tiendas-grid">${tarjetasHtml}</div>
 </div>
@@ -3375,7 +3388,7 @@ ${marketFooterHtml()}
 
 async function servirMarketCreditoNexo(pool, req, res) {
     res.set("Content-Type", "text/html; charset=utf-8");
-    res.send(await paginaCreditoNexoMarketHtml(pool));
+    res.send(await paginaCreditoNexoMarketHtml(pool, req.query?.q));
 }
 
 // GET /market/categorias/:slug -- URL propia y compartible por categoria
