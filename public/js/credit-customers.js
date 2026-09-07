@@ -1922,3 +1922,74 @@ async function desactivarClienteCredito(id) {
  renderCreditos(datosCreditosActuales || {});
  }
 }
+
+// Condiciones que el negocio ofrece (§6h del diseno del Acuerdo de
+// Credito): plazos, si pide identificacion/domicilio, y la politica
+// que se congela dentro de cada acuerdo nuevo que se genere. Modal
+// propio (no el formulario generico de credito, que solo maneja
+// texto/numero/select de un cliente, no listas ni texto largo).
+async function abrirConfiguracionCreditoNegocio() {
+	let configuracion;
+	try {
+		const respuesta = await fetch("/negocio-actual/configuracion-credito");
+		const datos = await respuesta.json();
+		if (!datos.ok) throw new Error(datos.error || "No se pudo cargar");
+		configuracion = datos.configuracion;
+	} catch (error) {
+		await alertaPOS("No se pudo cargar la configuracion de credito.", "Configurar credito", "peligro");
+		return;
+	}
+
+	const overlay = document.createElement("div");
+	overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;";
+	overlay.innerHTML = `
+		<div style="background:var(--pos-sale-card,#fff);color:var(--pos-sale-text,#101828);border-radius:18px;max-width:420px;width:100%;padding:24px;max-height:90vh;overflow:auto;">
+			<h3 style="margin:0 0 4px;">Configurar credito</h3>
+			<p style="margin:0 0 16px;font-size:13px;color:var(--pos-sale-muted,#667085);">Esto es lo que ofreces -- el limite y plazo definitivo de cada cliente lo sigues decidiendo tu al aprobar o dar de alta.</p>
+			<label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px;">Plazos que ofreces (dias, separados por coma)</label>
+			<input id="configCreditoPlazos" type="text" placeholder="15, 30, 60" value="${escaparPOS((configuracion.plazosDisponibles || []).join(", "))}" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--pos-sale-line,#e5e7eb);margin-bottom:14px;">
+			<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:10px;"><input type="checkbox" id="configCreditoIdentificacion" ${configuracion.requiereIdentificacion ? "checked" : ""}> Pedir identificacion oficial en la solicitud en linea</label>
+			<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:14px;"><input type="checkbox" id="configCreditoDomicilio" ${configuracion.requiereDomicilio ? "checked" : ""}> Pedir domicilio en la solicitud en linea</label>
+			<label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px;">Politica (se incluye en cada acuerdo que se genere)</label>
+			<textarea id="configCreditoPolitica" rows="4" placeholder="Ej. El credito queda sujeto a aprobacion. Pagos atrasados pueden afectar tu limite futuro." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--pos-sale-line,#e5e7eb);margin-bottom:16px;font-family:inherit;">${escaparPOS(configuracion.politicaTexto || "")}</textarea>
+			<button type="button" id="configCreditoGuardarBtn" style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--pos-sale-brand,#0d6efd);color:#fff;font-weight:600;margin-bottom:8px;">Guardar</button>
+			<button type="button" id="configCreditoCerrarBtn" style="width:100%;padding:12px;border-radius:12px;border:1px solid var(--pos-sale-line,#e5e7eb);background:transparent;color:inherit;">Cancelar</button>
+		</div>
+	`;
+	document.body.appendChild(overlay);
+
+	overlay.querySelector("#configCreditoCerrarBtn").addEventListener("click", () => overlay.remove());
+	overlay.querySelector("#configCreditoGuardarBtn").addEventListener("click", async function() {
+		this.disabled = true;
+		const plazosDisponibles = overlay.querySelector("#configCreditoPlazos").value
+			.split(",")
+			.map(texto => parseInt(texto.trim(), 10))
+			.filter(numero => Number.isInteger(numero) && numero > 0);
+
+		if (plazosDisponibles.length === 0) {
+			await alertaPOS("Escribe al menos un plazo valido, ej. 15, 30, 60.", "Configurar credito", "peligro");
+			this.disabled = false;
+			return;
+		}
+
+		try {
+			const respuesta = await fetch("/negocio-actual/configuracion-credito", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					plazosDisponibles,
+					requiereIdentificacion: overlay.querySelector("#configCreditoIdentificacion").checked,
+					requiereDomicilio: overlay.querySelector("#configCreditoDomicilio").checked,
+					politicaTexto: overlay.querySelector("#configCreditoPolitica").value
+				})
+			});
+			const resultado = await respuesta.json();
+			if (!resultado.ok) throw new Error(resultado.error || "No se pudo guardar");
+			overlay.remove();
+			await alertaPOS("Configuracion de credito guardada.", "Configurar credito", "exito");
+		} catch (error) {
+			await alertaPOS(error.message || "No se pudo guardar. Intenta de nuevo.", "Configurar credito", "peligro");
+			this.disabled = false;
+		}
+	});
+}

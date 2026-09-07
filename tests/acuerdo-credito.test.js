@@ -226,3 +226,34 @@ test("suspender bloquea la venta a credito sin tocar el limite; reactivar la reg
     const fila = await pool.query(`SELECT limite_credito FROM public.clientes_credito WHERE id = $1`, [clienteId]);
     assert.equal(Number(fila.rows[0].limite_credito), 2000, "suspender/reactivar no debe tocar el limite");
 });
+
+test("configuracion de credito del negocio: valores por defecto, se guarda y se lee de vuelta", async () => {
+    const porDefecto = await fetch(`${BASE_URL}/negocio-actual/configuracion-credito`, { headers: headers() });
+    assert.equal(porDefecto.status, 200);
+    const datosDefecto = await porDefecto.json();
+    assert.deepEqual(datosDefecto.configuracion.plazosDisponibles, [15, 30, 60], "sin configurar todavia, el menu por defecto es 15/30/60");
+
+    const guardar = await fetch(`${BASE_URL}/negocio-actual/configuracion-credito`, {
+        method: "PUT", headers: headers(),
+        body: JSON.stringify({ plazosDisponibles: [7, 15, 45], requiereIdentificacion: true, requiereDomicilio: false, politicaTexto: "Sujeto a aprobacion del negocio." })
+    });
+    assert.equal(guardar.status, 200);
+
+    const leido = await fetch(`${BASE_URL}/negocio-actual/configuracion-credito`, { headers: headers() });
+    const datosLeidos = await leido.json();
+    assert.deepEqual(datosLeidos.configuracion.plazosDisponibles, [7, 15, 45]);
+    assert.equal(datosLeidos.configuracion.requiereIdentificacion, true);
+    assert.equal(datosLeidos.configuracion.requiereDomicilio, false);
+    assert.equal(datosLeidos.configuracion.politicaTexto, "Sujeto a aprobacion del negocio.");
+
+    // La politica configurada aqui debe llegar congelada dentro del
+    // siguiente acuerdo que se genere (§6b: nunca una referencia en
+    // vivo a la politica actual).
+    const cliente = await fetch(`${BASE_URL}/creditos/clientes`, {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({ nombre: "Cliente con politica", limiteCredito: 1000 })
+    });
+    const datosCliente = await cliente.json();
+    const acuerdoFila = await pool.query(`SELECT condiciones_texto FROM public.acuerdos_credito WHERE id = $1`, [datosCliente.acuerdo.id]);
+    assert.ok(acuerdoFila.rows[0].condiciones_texto.includes("Sujeto a aprobacion del negocio."), "la politica configurada debe quedar en el texto congelado del acuerdo");
+});
