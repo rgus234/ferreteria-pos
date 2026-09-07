@@ -64,3 +64,54 @@ test("la base acepta los tres niveles que usa el codigo", async () => {
 
     await pool.end();
 });
+
+test("el comparador de nombres NO ignora numeros ni siglas cortas", () => {
+    // Este es el error que puso 50 fotos equivocadas en productos reales.
+    //
+    // La primera version tiraba toda palabra de 2 letras o menos, y en
+    // ferreteria eso es justo lo que distingue un producto de otro:
+    //
+    //     "Blister con 4 pilas alcalinas AA, VOLTECK"
+    //     "Blister con 2 pilas alcalinas C, VOLTECK"
+    //
+    // quedaban ambos en "blister pilas alcalinas volteck" -- parecido
+    // 1.00, identicos. Se le puso a las pilas AA la foto de unas C.
+    const CONECTORES = new Set([
+        "con", "de", "del", "para", "por", "los", "las", "una", "uno",
+        "y", "el", "la", "en", "sin", "a"
+    ]);
+
+    const palabras = texto => new Set(
+        String(texto || "").toLowerCase()
+            .replace(/[^a-z0-9áéíóúñ ]/g, " ")
+            .split(/\s+/)
+            .filter(p => p && !CONECTORES.has(p))
+    );
+
+    const parecido = (a, b) => {
+        const A = palabras(a);
+        const B = palabras(b);
+        if (!A.size || !B.size) return 0;
+        let comunes = 0;
+        for (const p of A) if (B.has(p)) comunes++;
+        return comunes / Math.max(A.size, B.size);
+    };
+
+    // Los casos reales que se colaron.
+    const distintos = [
+        ["Blister con 4 pilas alcalinas AA, VOLTECK", "Blister con 2 pilas alcalinas C, VOLTECK"],
+        ["Adaptador macho de laton 1 para poliducto, FOSET", "Adaptador hembra de laton 1/2 para poliducto, FOSET"],
+        ["Bolsa con 1 kg de electrodos 7018 de 3/32, Truper", "Bolsa con 1 kg de electrodos 6013 de 1/8, Truper"],
+        ["Escoba metalica para jardin, recta, 24 dientes", "Escoba metalica para jardin, curva, 22 dientes"]
+    ];
+
+    for (const [a, b] of distintos) {
+        assert.ok(
+            parecido(a, b) < 0.8,
+            `deberian verse distintos y dieron ${parecido(a, b).toFixed(2)}: "${a}" vs "${b}"`
+        );
+    }
+
+    // Y lo identico sigue siendo identico.
+    assert.equal(parecido("Cautin 30 W tipo lapiz", "Cautin 30 W tipo lapiz"), 1);
+});

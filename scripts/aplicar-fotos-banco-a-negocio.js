@@ -86,15 +86,36 @@ const pool = require("../db");
 // toda de productos distintos, asi que el corte va alto.
 const PARECIDO_MINIMO = 0.8;
 
-// Palabras de 3 letras o mas, sin acentos ni signos. Las cortas ("de",
-// "el", "mm") no distinguen nada entre dos productos de ferreteria.
+// Conectores que no distinguen nada. Se quitan ESTOS por nombre, no las
+// palabras cortas en general.
+const CONECTORES = new Set([
+    "con", "de", "del", "para", "por", "los", "las", "una", "uno",
+    "y", "el", "la", "en", "sin", "a"
+]);
+
+// Las palabras que de verdad identifican al producto.
+//
+// La primera version tiraba TODA palabra de 2 letras o menos, y en
+// ferreteria eso es justo lo que distingue un producto de otro:
+//
+//     "Blister con 4 pilas alcalinas AA, VOLTECK"
+//     "Blister con 2 pilas alcalinas C, VOLTECK"
+//
+// quedaban los dos en "blister pilas alcalinas volteck" -- parecido
+// 1.00, identicos. Con ese criterio se le puso a las pilas AA la foto de
+// unas pilas C, y otras 49 fotos equivocadas mas (macho/hembra,
+// cruz/plano, electrodos 7018/6013, escoba recta/curva). Todas diferian
+// SOLO en numeros o siglas cortas.
+//
+// Una foto equivocada es peor que ninguna: nadie la nota hasta que
+// alguien en el mostrador entrega lo que no era.
 function palabras(texto) {
     return new Set(
         String(texto || "")
             .toLowerCase()
             .replace(/[^a-z0-9áéíóúñ ]/g, " ")
             .split(/\s+/)
-            .filter(p => p.length > 2)
+            .filter(p => p && !CONECTORES.has(p))
     );
 }
 
@@ -179,7 +200,7 @@ async function main() {
 
     if (sinResolver.length > 0) {
         const porEanSql =
-            "SELECT p.id, cm.codigo_fabricante, cm.nombre AS nombre_oficial" +
+            "SELECT p.id, cm.id AS maestro_id, cm.codigo_fabricante, cm.nombre AS nombre_oficial" +
             "  FROM public.productos p" +
             "  JOIN public.catalogo_maestro_productos cm ON cm.ean = p.codigo" +
             "  JOIN public.banco_imagenes_producto b ON b.codigo = cm.codigo_fabricante" +
@@ -196,6 +217,16 @@ async function main() {
 
             if (parecido(producto.nombre, hallazgo.nombre_oficial) >= PARECIDO_MINIMO) {
                 producto.codigo_banco = hallazgo.codigo_fabricante;
+                // Se guarda el enlace al Catalogo Maestro, no solo la foto.
+                //
+                // Esta coincidencia ya paso las dos senales (EAN exacto Y
+                // acuerdo de nombre), asi que vale mas que para una foto:
+                // con ella, Nexo Market puede mostrar la galeria del
+                // fabricante sin volver a adivinar. Sin el enlace, Market
+                // busca el banco por el codigo de BARRAS del producto, no
+                // lo encuentra, y se salta la galeria entera -- por eso
+                // solo se veia la foto principal.
+                producto.maestro_id = hallazgo.maestro_id;
                 porEan++;
             } else {
                 descartadosPorNombre++;
@@ -242,6 +273,16 @@ async function main() {
                 [negocioId, fila.codigo, fila.codigo_banco]
             );
             if (r.rowCount > 0) aplicadas++;
+
+            // El enlace al Maestro se guarda aunque la foto ya existiera:
+            // sirve para la galeria de Market, no solo para la foto.
+            if (fila.maestro_id) {
+                await pool.query(
+                    "UPDATE public.productos SET catalogo_maestro_id = $1" +
+                    " WHERE id = $2 AND negocio_id = $3 AND catalogo_maestro_id IS NULL",
+                    [fila.maestro_id, fila.id, negocioId]
+                );
+            }
         } catch (error) {
             fallidas++;
         }

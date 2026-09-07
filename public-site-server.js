@@ -1492,7 +1492,7 @@ async function cargarProductoTenant(pool, sitio, slug, codigo, firmarTokenImagen
     const productoRes = await pool.query(
         `
         SELECT id, codigo, nombre, categoria, marca, descripcion, precio, precio_publico, precio_oferta, stock,
-            tiene_garantia, garantia_detalle, destacado
+            tiene_garantia, garantia_detalle, destacado, catalogo_maestro_id
         FROM public.productos
         WHERE negocio_id = $1 AND codigo = $2 AND visible_market = true
         LIMIT 1
@@ -1541,7 +1541,31 @@ async function cargarProductoTenant(pool, sitio, slug, codigo, firmarTokenImagen
     if (galeriaUrls.length === 0) {
         const puedeBancoImagenes = await planPermiteBancoImagenes(pool, sitio.negocio.id);
         if (puedeBancoImagenes) {
-            const codigoBanco = normalizarCodigoBancoImagen(producto.codigo);
+            // El codigo con el que se busca en el banco.
+            //
+            // El banco se indexa por el codigo de CATALOGO del fabricante,
+            // pero el codigo con el que la tienda dio de alta su producto
+            // suele ser el de BARRAS. Buscando solo por ese, no se
+            // encontraba nada y se saltaba el bloque ENTERO de galeria:
+            // por eso en Market se veia una sola foto aunque el fabricante
+            // publique 6 u 8.
+            //
+            // catalogo_maestro_id es el puente, y es de fiar: solo se
+            // guarda cuando una coincidencia paso DOS senales
+            // independientes -- EAN exacto y acuerdo de nombre (ver
+            // scripts/aplicar-fotos-banco-a-negocio.js). No se adivina
+            // aqui.
+            const enlaceMaestro = producto.catalogo_maestro_id
+                ? (await pool.query(
+                    `SELECT codigo_fabricante FROM public.catalogo_maestro_productos WHERE id = $1`,
+                    [producto.catalogo_maestro_id]
+                )).rows[0]
+                : null;
+
+            const codigoBanco = normalizarCodigoBancoImagen(
+                enlaceMaestro?.codigo_fabricante || producto.codigo
+            );
+
             const bancoRes = await pool.query(
                 `SELECT id, actualizado_at FROM public.banco_imagenes_producto WHERE codigo = $1`,
                 [codigoBanco]
