@@ -96,6 +96,17 @@ async function crearClienteCreditoActivo(negocioId, overrides = {}) {
 async function borrarNegocioPrueba(negocioId) {
     if (!negocioId) return;
 
+    // acuerdos_credito y clientes_credito se apuntan uno a otro
+    // (acuerdo_vigente_id / cliente_credito_id), y acuerdos_credito
+    // tambien apunta a solicitudes_credito -- hay que romper el
+    // puntero circular y borrar acuerdos_credito antes de que el loop
+    // de abajo intente borrar solicitudes_credito o clientes_credito.
+    await pool.query(
+        `UPDATE public.clientes_credito SET acuerdo_vigente_id = NULL WHERE negocio_id = $1`,
+        [negocioId]
+    );
+    await pool.query(`DELETE FROM public.acuerdos_credito WHERE negocio_id = $1`, [negocioId]);
+
     const tablasHijas = [
         "facturas_cfdi",
         "historial_ventas",

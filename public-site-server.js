@@ -25,7 +25,7 @@ const {
     firmarTokenBancoImagen
 } = require("./banco-imagenes-server");
 const { funcionDelPlan } = require("./plan-enforcement");
-const { enviarCorreoPedidoPublico, enviarCorreoPedidoCarritoPublico, enviarCorreoSolicitudCreditoPublica, enviarCorreoCotizacionRespondida, enviarCorreoPedidoRecibido } = require("./email");
+const { enviarCorreoPedidoPublico, enviarCorreoPedidoCarritoPublico, enviarCorreoSolicitudCreditoPublica, enviarCorreoCotizacionRespondida, enviarCorreoPedidoRecibido, enviarCorreoSolicitudCreditoAprobada, enviarCorreoSolicitudCreditoRechazada, enviarCorreoSolicitudCreditoInformacionSolicitada } = require("./email");
 const { hashPassword, verificarPassword } = require("./password-utils");
 const { calcularAntiguedadCredito } = require("./credit-aging");
 const { crearRequerirSesionPersona, crearResolverSesionPersonaOpcional, tokenDeSesionPersona, buscarPersonaPorToken } = require("./personas-server");
@@ -5056,6 +5056,7 @@ document.getElementById('btn').addEventListener('click', async function(){
             res.status(400).json({ ok: false, error: "Estado invalido" });
             return;
         }
+        const mensajeInformacion = paramTexto(req.body?.mensaje, 500);
 
         const empleadoIdCajero = Number(req.headers["x-empleado-id"]) || null;
         const client = await pool.connect();
@@ -5135,6 +5136,38 @@ document.getElementById('btn').addEventListener('click', async function(){
                 };
                 if (mensajesPush[estado]) {
                     await enviarPushAPersona(pool, solicitud.persona_id, mensajesPush[estado]).catch(() => {});
+                }
+
+                // Correo de vuelta al cliente (§13 del diseno) -- el push ya
+                // se manda arriba, pero solo llega si tiene notificaciones
+                // activas; el correo es el canal de respaldo que si o si
+                // deberia llegarle. personas.correo es mas confiable que
+                // solicitud.correo (que puede venir vacio del formulario).
+                let correoCliente = solicitud.correo;
+                if (!correoCliente) {
+                    const personaFila = await pool.query(`SELECT correo FROM public.personas WHERE id = $1`, [solicitud.persona_id]);
+                    correoCliente = personaFila.rows[0]?.correo || null;
+                }
+
+                if (correoCliente) {
+                    if (estado === "aprobado") {
+                        enviarCorreoSolicitudCreditoAprobada(correoCliente, solicitud.nombre, {
+                            nombreNegocio: negocio.nombre,
+                            limiteCredito: Number(req.body?.limiteCredito),
+                            diasCredito: Number(req.body?.diasCredito),
+                            urlMiCuenta: "https://nexoposoficial.com/market/mi-cuenta"
+                        }).catch(error => console.warn("No se pudo enviar el correo de credito aprobado:", error.message));
+                    } else if (estado === "rechazado") {
+                        enviarCorreoSolicitudCreditoRechazada(correoCliente, solicitud.nombre, {
+                            nombreNegocio: negocio.nombre
+                        }).catch(error => console.warn("No se pudo enviar el correo de credito rechazado:", error.message));
+                    } else if (estado === "informacion_solicitada") {
+                        enviarCorreoSolicitudCreditoInformacionSolicitada(correoCliente, solicitud.nombre, {
+                            nombreNegocio: negocio.nombre,
+                            mensaje: mensajeInformacion,
+                            urlSolicitud: `https://${negocio.slug}.nexoposoficial.com/solicitud-credito`
+                        }).catch(error => console.warn("No se pudo enviar el correo de informacion solicitada:", error.message));
+                    }
                 }
             }
 

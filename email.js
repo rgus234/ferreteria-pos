@@ -827,6 +827,77 @@ function enviarCorreoSolicitudCreditoPublica(correo, nombreNegocio, { clienteNom
     });
 }
 
+// Las 3 respuestas posibles a una solicitud de credito (§13 del diseno
+// del Acuerdo de Credito) -- antes solo se avisaba al negocio cuando
+// LLEGABA la solicitud; estas son las que faltaban, de vuelta al
+// cliente. Los tres van a personas.correo/solicitud.correo, nunca al
+// negocio.
+function enviarCorreoSolicitudCreditoAprobada(correo, clienteNombre, { nombreNegocio, limiteCredito, diasCredito, urlMiCuenta }) {
+    const nombreNegocioSeguro = escaparHtmlCorreo(nombreNegocio);
+    const limiteTexto = Number(limiteCredito) > 0 ? `$${Number(limiteCredito).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "sujeto a lo que autorices en cada compra";
+
+    return enviarCorreo({
+        correo,
+        asunto: `${nombreNegocioSeguro} aprobo tu credito`,
+        html: envolverPlantilla({
+            etiqueta: "Credito aprobado",
+            titulo: "Tu solicitud de credito fue aprobada 🎉",
+            saludo: escaparHtmlCorreo(clienteNombre),
+            robot: "celebrando",
+            cuerpoHtml: `
+                <p style="margin:0 0 14px;color:#344054;font-size:15px;line-height:1.6;"><strong>${nombreNegocioSeguro}</strong> te otorgo credito con estas condiciones:</p>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #eef2f7;border-radius:14px;padding:6px 18px;margin-bottom:14px;">
+                    <tr><td style="padding:8px 0;color:#667085;font-size:13.5px;">Limite</td><td align="right" style="padding:8px 0;color:#101828;font-size:13.5px;font-weight:700;">${limiteTexto}</td></tr>
+                    <tr><td style="padding:8px 0;color:#667085;font-size:13.5px;">Plazo por compra</td><td align="right" style="padding:8px 0;color:#101828;font-size:13.5px;font-weight:700;">${Number(diasCredito)} dias</td></tr>
+                </table>
+                <p style="margin:0;color:#344054;font-size:14px;line-height:1.6;">Antes de poder usarlo, revisa y acepta tus condiciones de credito.</p>
+                ${urlMiCuenta ? botonHtml("Ver y aceptar mis condiciones", urlMiCuenta) : ""}
+                ${avisoHtml(`El credito es otorgado por ${nombreNegocioSeguro}. Nexo proporciona la plataforma tecnologica -- Nexo no presta dinero ni es el acreedor.`)}
+            `
+        })
+    });
+}
+
+function enviarCorreoSolicitudCreditoRechazada(correo, clienteNombre, { nombreNegocio }) {
+    const nombreNegocioSeguro = escaparHtmlCorreo(nombreNegocio);
+
+    return enviarCorreo({
+        correo,
+        asunto: `${nombreNegocioSeguro} respondio tu solicitud de credito`,
+        html: envolverPlantilla({
+            etiqueta: "Solicitud de credito",
+            titulo: "Tu solicitud de credito no fue aprobada",
+            saludo: escaparHtmlCorreo(clienteNombre),
+            robot: "neutral",
+            cuerpoHtml: `
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;"><strong>${nombreNegocioSeguro}</strong> reviso tu solicitud y por ahora decidio no aprobarla.</p>
+                ${avisoHtml(`Si quieres saber mas, puedes contactar directamente a ${nombreNegocioSeguro}. La decision sobre el credito siempre es del negocio, no de Nexo.`)}
+            `
+        })
+    });
+}
+
+function enviarCorreoSolicitudCreditoInformacionSolicitada(correo, clienteNombre, { nombreNegocio, mensaje, urlSolicitud }) {
+    const nombreNegocioSeguro = escaparHtmlCorreo(nombreNegocio);
+
+    return enviarCorreo({
+        correo,
+        asunto: `${nombreNegocioSeguro} necesita mas informacion para tu credito`,
+        html: envolverPlantilla({
+            etiqueta: "Falta informacion",
+            titulo: "Falta un poco de informacion",
+            saludo: escaparHtmlCorreo(clienteNombre),
+            robot: "alerta",
+            cuerpoHtml: `
+                <p style="margin:0 0 10px;color:#344054;font-size:15px;line-height:1.6;"><strong>${nombreNegocioSeguro}</strong> esta revisando tu solicitud de credito y necesita algo mas de ti antes de decidir.</p>
+                ${mensaje ? `<p style="margin:0 0 10px;color:#344054;font-size:14px;line-height:1.6;background:#f8fafc;border:1px solid #eef2f7;border-radius:12px;padding:12px 16px;">${escaparHtmlCorreo(mensaje)}</p>` : ""}
+                ${urlSolicitud ? botonHtml("Ver mi solicitud", urlSolicitud) : ""}
+                ${avisoHtml(`Puedes contactar directamente a ${nombreNegocioSeguro} para resolver esto mas rapido.`)}
+            `
+        })
+    });
+}
+
 // Reenvio de una factura CFDI ya timbrada -- el XML adjunto es el
 // documento con validez fiscal real; el correo es solo un resumen
 // legible. Sin representacion impresa en PDF adjunta (no hay libreria
@@ -888,5 +959,8 @@ module.exports = {
     enviarCorreoPedidoEntregado,
     enviarCorreoPedidoCancelado,
     enviarCorreoPedidoCanceladoPorCliente,
-    enviarCorreoFacturaCfdi
+    enviarCorreoFacturaCfdi,
+    enviarCorreoSolicitudCreditoAprobada,
+    enviarCorreoSolicitudCreditoRechazada,
+    enviarCorreoSolicitudCreditoInformacionSolicitada
 };

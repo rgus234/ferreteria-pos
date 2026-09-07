@@ -7,14 +7,34 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { pool, crearNegocioPrueba, borrarNegocioPrueba, crearClienteCreditoActivo } = require("./helpers/negocio-prueba");
 const { iniciarServidorPrueba, detenerServidorPrueba, BASE_URL } = require("./helpers/servidor-prueba");
+const { hashPassword } = require("../password-utils");
 
 let negocio;
+const personasCreadasIds = [];
 
 function headers() {
     return {
         "Content-Type": "application/json",
         "x-dispositivo-token": negocio.token
     };
+}
+
+// personas es global (no vive bajo negocio_id) -- borrarNegocioPrueba
+// no la toca, asi que las que este archivo cree se registran aqui para
+// limpiarlas aparte. correo=NULL a proposito: estas pruebas ejercitan
+// el endpoint de aprobar/rechazar solicitudes, que ahora manda un
+// correo real via Resend (RESEND_API_KEY si esta configurada en este
+// entorno) -- sin correo, ese envio se salta solo (mismo "if
+// (correoCliente)" que ya trae el endpoint), sin arriesgar un envio de
+// verdad durante las pruebas.
+async function crearPersonaPrueba(sufijo) {
+    const fila = await pool.query(
+        `INSERT INTO public.personas (nombre, correo, telefono, password_hash, correo_verificado)
+         VALUES ($1, NULL, NULL, $2, true) RETURNING id`,
+        [`Persona de prueba ${sufijo}`, hashPassword("prueba1234")]
+    );
+    personasCreadasIds.push(fila.rows[0].id);
+    return fila.rows[0].id;
 }
 
 before(async () => {
@@ -25,6 +45,9 @@ before(async () => {
 after(async () => {
     if (negocio) {
         await borrarNegocioPrueba(negocio.negocioId);
+    }
+    for (const id of personasCreadasIds) {
+        await pool.query(`DELETE FROM public.personas WHERE id = $1`, [id]);
     }
     await detenerServidorPrueba();
     await pool.end();
@@ -256,4 +279,68 @@ test("configuracion de credito del negocio: valores por defecto, se guarda y se 
     const datosCliente = await cliente.json();
     const acuerdoFila = await pool.query(`SELECT condiciones_texto FROM public.acuerdos_credito WHERE id = $1`, [datosCliente.acuerdo.id]);
     assert.ok(acuerdoFila.rows[0].condiciones_texto.includes("Sujeto a aprobacion del negocio."), "la politica configurada debe quedar en el texto congelado del acuerdo");
+});
+
+test("aprobar una solicitud crea el cliente vinculado a la persona y genera el acuerdo v1", async () => {
+    const personaId = await crearPersonaPrueba("aprobar");
+    const solicitud = await pool.query(
+        `INSERT INTO public.solicitudes_credito (negocio_id, nombre, telefono, persona_id, estado)
+         VALUES ($1, 'Cliente de solicitud', '5551234567', $2, 'pendiente') RETURNING id`,
+        [negocio.negocioId, personaId]
+    );
+    const solicitudId = solicitud.rows[0].id;
+
+    const sinTerminos = await fetch(`${BASE_URL}/negocio-actual/solicitudes-credito/${solicitudId}`, {
+        method: "PATCH", headers: headers(), body: JSON.stringify({ estado: "aprobado" })
+    });
+    assert.equal(sinTerminos.status, 400, "aprobar sin limite/plazo debe rechazarse -- el negocio decide los terminos");
+
+    const aprobar = await fetch(`${BASE_URL}/negocio-actual/solicitudes-credito/${solicitudId}`, {
+        method: "PATCH", headers: headers(), body: JSON.stringify({ estado: "aprobado", limiteCredito: 6000, diasCredito: 30 })
+    });
+    assert.equal(aprobar.status, 200);
+    const datosAprobar = await aprobar.json();
+    assert.ok(datosAprobar.clienteCreditoId);
+    assert.equal(datosAprobar.acuerdo.version, 1);
+
+    const clienteFila = await pool.query(`SELECT persona_id, limite_credito, dias_credito, acuerdo_vigente_id FROM public.clientes_credito WHERE id = $1`, [datosAprobar.clienteCreditoId]);
+    assert.equal(clienteFila.rows[0].persona_id, personaId, "el cliente creado debe quedar vinculado a la persona desde el dia uno, sin el paso manual de 'vincular'");
+    assert.equal(Number(clienteFila.rows[0].limite_credito), 6000);
+    assert.equal(clienteFila.rows[0].acuerdo_vigente_id, null, "PENDIENTE_DE_ACEPTACION -- aprobar no activa la cuenta, solo genera el acuerdo");
+
+    const solicitudFinal = await pool.query(`SELECT estado, cliente_credito_id FROM public.solicitudes_credito WHERE id = $1`, [solicitudId]);
+    assert.equal(solicitudFinal.rows[0].estado, "aprobado");
+    assert.equal(solicitudFinal.rows[0].cliente_credito_id, datosAprobar.clienteCreditoId);
+
+    const bitacora = await pool.query(`SELECT accion FROM public.bitacora_acciones WHERE negocio_id = $1 AND accion = 'solicitud_credito_aprobada'`, [negocio.negocioId]);
+    assert.equal(bitacora.rows.length, 1);
+});
+
+test("rechazar y pedir informacion no crean ningun cliente de credito", async () => {
+    const personaId = await crearPersonaPrueba("rechazar");
+    const solicitud = await pool.query(
+        `INSERT INTO public.solicitudes_credito (negocio_id, nombre, persona_id, estado)
+         VALUES ($1, 'Cliente rechazado', $2, 'pendiente') RETURNING id`,
+        [negocio.negocioId, personaId]
+    );
+    const solicitudId = solicitud.rows[0].id;
+
+    const infoSolicitada = await fetch(`${BASE_URL}/negocio-actual/solicitudes-credito/${solicitudId}`, {
+        method: "PATCH", headers: headers(), body: JSON.stringify({ estado: "informacion_solicitada", mensaje: "Falta tu comprobante de domicilio." })
+    });
+    assert.equal(infoSolicitada.status, 200);
+    let fila = await pool.query(`SELECT estado, cliente_credito_id FROM public.solicitudes_credito WHERE id = $1`, [solicitudId]);
+    assert.equal(fila.rows[0].estado, "informacion_solicitada");
+    assert.equal(fila.rows[0].cliente_credito_id, null);
+
+    const rechazar = await fetch(`${BASE_URL}/negocio-actual/solicitudes-credito/${solicitudId}`, {
+        method: "PATCH", headers: headers(), body: JSON.stringify({ estado: "rechazado" })
+    });
+    assert.equal(rechazar.status, 200);
+    fila = await pool.query(`SELECT estado, cliente_credito_id FROM public.solicitudes_credito WHERE id = $1`, [solicitudId]);
+    assert.equal(fila.rows[0].estado, "rechazado");
+    assert.equal(fila.rows[0].cliente_credito_id, null, "rechazar nunca debe crear un cliente de credito");
+
+    const acuerdos = await pool.query(`SELECT COUNT(*) AS n FROM public.acuerdos_credito WHERE solicitud_id = $1`, [solicitudId]);
+    assert.equal(Number(acuerdos.rows[0].n), 0);
 });
