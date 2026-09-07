@@ -8061,6 +8061,7 @@ app.get("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISO
             SELECT
                 c.id, c.negocio_id, c.nombre, c.telefono, c.limite_credito, c.activo,
                 c.created_at, c.fecha_vencimiento, c.nivel_precio_preferido,
+                c.dias_credito, c.acuerdo_vigente_id, c.suspendido,
                 (c.codigo_acceso_hash IS NOT NULL) AS "codigoAccesoActivo",
                 COALESCE(
                     SUM(
@@ -8098,6 +8099,19 @@ app.get("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISO
 
         const aging = calcularAntiguedadCredito(movimientos.rows);
 
+        // Tri-estado del Acuerdo de Credito (ver acuerdo-credito.js):
+        // sin ninguna fila en acuerdos_credito = cliente de antes de
+        // esta capa, sigue funcionando pero sin acuerdo digital. Con
+        // una fila pendiente_aceptacion = recien dado de alta o con un
+        // cambio de condiciones esperando que el cliente decida.
+        const acuerdos = await pool.query(
+            `SELECT id, version, estado, limite_credito, dias_credito, token_aceptacion_hash, token_aceptacion_expira_at, token_aceptacion_usado_at
+             FROM public.acuerdos_credito WHERE cliente_credito_id = $1 ORDER BY version DESC`,
+            [id]
+        );
+        const acuerdoPendiente = acuerdos.rows.find(a => a.estado === "pendiente_aceptacion") || null;
+        const tieneAlgunAcuerdo = acuerdos.rows.length > 0;
+
         res.json({
             cliente: {
                 ...cliente.rows[0],
@@ -8105,7 +8119,17 @@ app.get("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISO
                 totalVencido: aging.totalVencido
             },
             movimientos: movimientos.rows,
-            aging
+            aging,
+            acuerdo: {
+                tieneAlgunAcuerdo,
+                pendiente: acuerdoPendiente ? {
+                    id: acuerdoPendiente.id,
+                    version: acuerdoPendiente.version,
+                    limiteCredito: Number(acuerdoPendiente.limite_credito),
+                    diasCredito: acuerdoPendiente.dias_credito,
+                    tieneTokenVigente: Boolean(acuerdoPendiente.token_aceptacion_hash) && !acuerdoPendiente.token_aceptacion_usado_at && new Date(acuerdoPendiente.token_aceptacion_expira_at) > new Date()
+                } : null
+            }
         });
     } catch (error) {
         responderError(res, error);
@@ -8195,6 +8219,127 @@ app.post("/creditos/clientes/:id/codigo-acceso/revocar", requerirAccesoNegocio, 
             [id]
         );
 
+        res.json({ ok: true });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+// Clientes de credito de antes de esta capa (§6g del diseno) nunca
+// tuvieron un acuerdo digital -- este boton lo genera con sus
+// condiciones ACTUALES, fechado hoy. No inventa un acuerdo retroactivo:
+// es la version 1, generada ahora.
+app.post("/creditos/clientes/:id/acuerdo", requerirAccesoNegocio, requerirPermiso(PERMISOS.GESTIONAR_CREDITO), async (req, res) => {
+    const { id } = req.params;
+    const empleadoIdCajero = Number(req.headers["x-empleado-id"]) || null;
+    const client = await pool.connect();
+    try {
+        const negocio = await negocioActual(req);
+        await client.query("BEGIN");
+
+        const clienteFila = await client.query(
+            `SELECT id, limite_credito, dias_credito FROM public.clientes_credito WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
+            [id, negocio.id]
+        );
+        if (!clienteFila.rows.length) {
+            await client.query("ROLLBACK");
+            res.status(404).json({ error: "Cliente no encontrado" });
+            return;
+        }
+
+        const yaExiste = await client.query(`SELECT id FROM public.acuerdos_credito WHERE cliente_credito_id = $1 LIMIT 1`, [id]);
+        if (yaExiste.rows.length) {
+            await client.query("ROLLBACK");
+            res.status(409).json({ error: "Este cliente ya tiene un acuerdo -- usa 'Reenviar enlace' si necesita aceptarlo de nuevo." });
+            return;
+        }
+
+        const cliente = clienteFila.rows[0];
+        const { acuerdo, tokenPlano } = await acuerdoCredito.crearVersionAcuerdo(client, {
+            negocioId: negocio.id,
+            clienteCreditoId: id,
+            limiteCredito: cliente.limite_credito,
+            diasCredito: cliente.dias_credito || acuerdoCredito.PLAZO_CREDITO_DEFECTO_DIAS,
+            origen: "alta_pos",
+            generadoPor: { tipo: "empleado", id: empleadoIdCajero, nombre: req.body?.empleadoNombre || null },
+            generarToken: true
+        });
+
+        await acuerdoCredito.registrarBitacoraCredito(client, negocio.id, empleadoIdCajero, "acuerdo_credito_generado", {
+            clienteId: Number(id), version: acuerdo.version, origen: "alta_pos", retroactivo: true
+        });
+
+        await client.query("COMMIT");
+        res.json({ ok: true, acuerdo: { id: acuerdo.id, version: acuerdo.version, estado: acuerdo.estado }, tokenAceptacion: tokenPlano });
+    } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
+        responderError(res, error);
+    } finally {
+        client.release();
+    }
+});
+
+// El enlace de un acuerdo pendiente caduca (ventana corta, §6f) -- esto
+// le da uno nuevo sin tocar la version ni el texto ya congelado.
+app.post("/creditos/clientes/:id/acuerdo/reenviar", requerirAccesoNegocio, requerirPermiso(PERMISOS.GESTIONAR_CREDITO), async (req, res) => {
+    const { id } = req.params;
+    const client = await pool.connect();
+    try {
+        const negocio = await negocioActual(req);
+        await client.query("BEGIN");
+
+        const pendiente = await client.query(
+            `SELECT id FROM public.acuerdos_credito WHERE cliente_credito_id = $1 AND negocio_id = $2 AND estado = 'pendiente_aceptacion' ORDER BY version DESC LIMIT 1`,
+            [id, negocio.id]
+        );
+        if (!pendiente.rows.length) {
+            await client.query("ROLLBACK");
+            res.status(404).json({ error: "Este cliente no tiene ningun acuerdo pendiente de aceptacion" });
+            return;
+        }
+
+        const { tokenPlano } = await acuerdoCredito.regenerarTokenAcuerdo(client, pendiente.rows[0].id);
+        await client.query("COMMIT");
+        res.json({ ok: true, tokenAceptacion: tokenPlano });
+    } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
+        responderError(res, error);
+    } finally {
+        client.release();
+    }
+});
+
+// Suspender/reactivar (§6j): distinto de activo=false (baja definitiva)
+// y distinto de limite_credito=0 (que ya significa "sin tope" en este
+// sistema, no "sin credito") -- una pausa temporal y reversible.
+app.post("/creditos/clientes/:id/suspender", requerirAccesoNegocio, requerirPermiso(PERMISOS.GESTIONAR_CREDITO), async (req, res) => {
+    const { id } = req.params;
+    const empleadoIdCajero = Number(req.headers["x-empleado-id"]) || null;
+    try {
+        const negocio = await negocioActual(req);
+        const resultado = await pool.query(
+            `UPDATE public.clientes_credito SET suspendido = true WHERE id = $1 AND negocio_id = $2 RETURNING id`,
+            [id, negocio.id]
+        );
+        if (!resultado.rows.length) { res.status(404).json({ error: "Cliente no encontrado" }); return; }
+        await acuerdoCredito.registrarBitacoraCredito(pool, negocio.id, empleadoIdCajero, "credito_suspendido", { clienteId: Number(id), motivo: req.body?.motivo || null });
+        res.json({ ok: true });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+app.post("/creditos/clientes/:id/reactivar", requerirAccesoNegocio, requerirPermiso(PERMISOS.GESTIONAR_CREDITO), async (req, res) => {
+    const { id } = req.params;
+    const empleadoIdCajero = Number(req.headers["x-empleado-id"]) || null;
+    try {
+        const negocio = await negocioActual(req);
+        const resultado = await pool.query(
+            `UPDATE public.clientes_credito SET suspendido = false WHERE id = $1 AND negocio_id = $2 RETURNING id`,
+            [id, negocio.id]
+        );
+        if (!resultado.rows.length) { res.status(404).json({ error: "Cliente no encontrado" }); return; }
+        await acuerdoCredito.registrarBitacoraCredito(pool, negocio.id, empleadoIdCajero, "credito_reactivado", { clienteId: Number(id) });
         res.json({ ok: true });
     } catch (error) {
         responderError(res, error);

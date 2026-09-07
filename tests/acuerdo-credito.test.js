@@ -5,7 +5,7 @@
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
-const { pool, crearNegocioPrueba, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
+const { pool, crearNegocioPrueba, borrarNegocioPrueba, crearClienteCreditoActivo } = require("./helpers/negocio-prueba");
 const { iniciarServidorPrueba, detenerServidorPrueba, BASE_URL } = require("./helpers/servidor-prueba");
 
 let negocio;
@@ -153,4 +153,76 @@ test("bajar el limite se aplica de inmediato, sin pedir aceptacion -- subirlo si
         [despues.rows[0].acuerdo_vigente_id]
     );
     assert.equal(aceptacionReduccion.rows.length, 0, "una reduccion unilateral no genera fila de aceptacion -- esa ausencia es la senal de que fue unilateral");
+});
+
+test("cliente sin ningun acuerdo (de antes de esta capa) puede formalizar uno con 'Generar acuerdo'", async () => {
+    const clienteId = (await crearClienteCreditoActivo(negocio.negocioId, { limiteCredito: 4000, diasCredito: 15 })).id;
+
+    // crearClienteCreditoActivo ya deja un acuerdo aceptado -- para
+    // simular de verdad un cliente "de antes de esta capa" hay que
+    // borrarlo, dejando la fila igual que las que ya existian antes de
+    // que existiera el Acuerdo de Credito.
+    await pool.query(`UPDATE public.clientes_credito SET acuerdo_vigente_id = NULL WHERE id = $1`, [clienteId]);
+    await pool.query(`DELETE FROM public.acuerdos_credito WHERE cliente_credito_id = $1`, [clienteId]);
+
+    const detalleAntes = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}`, { headers: headers() });
+    const datosAntes = await detalleAntes.json();
+    assert.equal(datosAntes.acuerdo.tieneAlgunAcuerdo, false);
+
+    const generar = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/acuerdo`, { method: "POST", headers: headers(), body: "{}" });
+    assert.equal(generar.status, 200);
+    const datosGenerar = await generar.json();
+    assert.equal(datosGenerar.acuerdo.version, 1);
+    assert.ok(datosGenerar.tokenAceptacion);
+
+    // Ya no puede volver a "formalizar" -- ya tiene uno.
+    const segundaVez = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/acuerdo`, { method: "POST", headers: headers(), body: "{}" });
+    assert.equal(segundaVez.status, 409);
+});
+
+test("reenviar el acuerdo pendiente da un token nuevo sin crear otra version", async () => {
+    const creado = await fetch(`${BASE_URL}/creditos/clientes`, {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({ nombre: "Cliente reenvio", limiteCredito: 1000 })
+    });
+    const datos = await creado.json();
+
+    const reenviar = await fetch(`${BASE_URL}/creditos/clientes/${datos.cliente.id}/acuerdo/reenviar`, { method: "POST", headers: headers() });
+    assert.equal(reenviar.status, 200);
+    const datosReenvio = await reenviar.json();
+    assert.ok(datosReenvio.tokenAceptacion);
+    assert.notEqual(datosReenvio.tokenAceptacion, datos.tokenAceptacion, "debe ser un token distinto al original");
+
+    const versiones = await pool.query(`SELECT COUNT(*) AS n FROM public.acuerdos_credito WHERE cliente_credito_id = $1`, [datos.cliente.id]);
+    assert.equal(Number(versiones.rows[0].n), 1, "reenviar no debe crear una version nueva");
+
+    // El token viejo ya no sirve; el nuevo si.
+    const conTokenViejo = await fetch(`${BASE_URL}/acuerdo/${datos.tokenAceptacion}/aceptar`, { method: "POST" });
+    assert.equal(conTokenViejo.status, 404);
+
+    const conTokenNuevo = await fetch(`${BASE_URL}/acuerdo/${datosReenvio.tokenAceptacion}/aceptar`, { method: "POST" });
+    assert.equal(conTokenNuevo.status, 200);
+});
+
+test("suspender bloquea la venta a credito sin tocar el limite; reactivar la regresa", async () => {
+    const clienteId = (await crearClienteCreditoActivo(negocio.negocioId, { limiteCredito: 2000 })).id;
+
+    const suspender = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/suspender`, { method: "POST", headers: headers(), body: "{}" });
+    assert.equal(suspender.status, 200);
+
+    const cargoSuspendido = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/cargos`, {
+        method: "POST", headers: headers(), body: JSON.stringify({ monto: 100, concepto: "no deberia pasar" })
+    });
+    assert.equal(cargoSuspendido.status, 409);
+
+    const reactivar = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/reactivar`, { method: "POST", headers: headers() });
+    assert.equal(reactivar.status, 200);
+
+    const cargoReactivado = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/cargos`, {
+        method: "POST", headers: headers(), body: JSON.stringify({ monto: 100, concepto: "ya deberia pasar" })
+    });
+    assert.equal(cargoReactivado.status, 200);
+
+    const fila = await pool.query(`SELECT limite_credito FROM public.clientes_credito WHERE id = $1`, [clienteId]);
+    assert.equal(Number(fila.rows[0].limite_credito), 2000, "suspender/reactivar no debe tocar el limite");
 });

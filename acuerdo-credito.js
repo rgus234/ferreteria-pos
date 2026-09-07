@@ -243,6 +243,32 @@ async function confirmarAceptacion(client, { acuerdo, personaId = null, ip = nul
     }
 }
 
+// Un token vencido o ya usado no debe obligar a generar una version
+// nueva -- el acuerdo (texto, hash, version) no cambia, solo se le da
+// una puerta de entrada fresca. Nunca aplica a un acuerdo ya aceptado
+// o reemplazado.
+async function regenerarTokenAcuerdo(client, acuerdoId) {
+    const fila = await client.query(
+        `SELECT * FROM public.acuerdos_credito WHERE id = $1 AND estado = 'pendiente_aceptacion' FOR UPDATE`,
+        [acuerdoId]
+    );
+    if (!fila.rows.length) {
+        const error = new Error("Este acuerdo ya no esta pendiente de aceptacion");
+        error.httpStatus = 409;
+        throw error;
+    }
+
+    const { token, hash } = generarTokenAceptacion();
+    const expira = new Date(Date.now() + 4 * 60 * 60 * 1000);
+
+    await client.query(
+        `UPDATE public.acuerdos_credito SET token_aceptacion_hash = $1, token_aceptacion_expira_at = $2, token_aceptacion_usado_at = NULL WHERE id = $3`,
+        [hash, expira, acuerdoId]
+    );
+
+    return { acuerdo: fila.rows[0], tokenPlano: token };
+}
+
 async function buscarAcuerdoPorToken(client, tokenPlano) {
     const hash = hashDeToken(tokenPlano);
     const fila = await client.query(
@@ -263,6 +289,7 @@ module.exports = {
     renderizarCondicionesTexto,
     crearVersionAcuerdo,
     confirmarAceptacion,
+    regenerarTokenAcuerdo,
     buscarAcuerdoPorToken,
     registrarBitacoraCredito,
     obtenerConfiguracionCredito

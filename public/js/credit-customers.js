@@ -258,10 +258,22 @@ function renderCreditoDetalleExtra() {
  const avatar = document.getElementById("creditoDetalleAvatar");
  if (avatar) avatar.textContent = inicialesClienteCredito(creditoActual.nombre);
 
+ // Tri-estado del Acuerdo de Credito primero (APROBADA ->
+ // PENDIENTE_DE_ACEPTACION -> ACTIVA): una cuenta pendiente o
+ // suspendida no es "al dia" ni "vencida", es otra cosa por completo,
+ // y el badge lo tiene que decir antes que nada.
  const badge = document.getElementById("creditoDetalleBadge");
  if (badge) {
+ if (creditoActual.suspendido) {
+ badge.textContent = "Suspendida";
+ badge.className = "credito-badge vencido";
+ } else if (!creditoActual.acuerdo_vigente_id) {
+ badge.textContent = "Pendiente de aceptacion";
+ badge.className = "credito-badge vencido";
+ } else {
  badge.textContent = saldo <= 0 ? "Sin saldo" : vencido ? "Vencido" : "Al dia";
  badge.className = "credito-badge " + (saldo <= 0 ? "al-dia" : vencido ? "vencido" : "al-dia");
+ }
  }
 
  const codigo = document.getElementById("creditoDetalleCodigo");
@@ -322,6 +334,8 @@ function renderCreditoDetalleExtra() {
  : `<button class="btn-portal-cliente" type="button" onclick="activarPortalCliente()">Activar portal del cliente</button>`;
  }
 
+ renderAccionAcuerdoCredito();
+
  const pagosTab = document.getElementById("creditoPagosTabla");
  if (pagosTab) {
  const pagos = (window.movimientosCreditoActuales || []).filter(mov => mov.tipo === "abono");
@@ -336,6 +350,77 @@ function renderCreditoDetalleExtra() {
  </tr>
  `).join("");
  }
+}
+
+// Bloque de acciones del Acuerdo de Credito (§6g/§6j del diseno):
+// cliente viejo sin acuerdo -> ofrecer generarlo; acuerdo pendiente ->
+// reenviar el QR/enlace; cuenta activa -> suspender/reactivar.
+function renderAccionAcuerdoCredito() {
+ const contenedor = document.getElementById("creditoAccionAcuerdo");
+ if (!contenedor || !creditoActual) return;
+
+ const acuerdoInfo = window.creditoAcuerdoActual;
+ const botonesSuspension = creditoActual.suspendido
+ ? `<button class="btn-portal-cliente" type="button" onclick="reactivarCreditoPOS()">Reactivar credito</button>`
+ : `<button class="btn-portal-cliente-desactivar" type="button" onclick="suspenderCreditoPOS()">Suspender credito</button>`;
+
+ if (!acuerdoInfo || !acuerdoInfo.tieneAlgunAcuerdo) {
+ // Cliente de antes de esta capa -- sigue funcionando (§6g), solo
+ // se le ofrece formalizarlo.
+ contenedor.innerHTML = `
+ <div class="credito-badge vencido" style="display:inline-block; margin-bottom:8px;">Credito existente -- sin acuerdo digital registrado</div><br>
+ <button class="btn-portal-cliente" type="button" onclick="generarAcuerdoCreditoPOS(${creditoActual.id})">Generar acuerdo</button>
+ ${botonesSuspension}
+ `;
+ return;
+ }
+
+ if (acuerdoInfo.pendiente) {
+ contenedor.innerHTML = `
+ <div class="credito-badge vencido" style="display:inline-block; margin-bottom:8px;">Pendiente de aceptacion -- version ${acuerdoInfo.pendiente.version}</div><br>
+ <button class="btn-portal-cliente" type="button" onclick="reenviarAcuerdoCreditoPOS(${creditoActual.id})">${acuerdoInfo.pendiente.tieneTokenVigente ? "Mostrar QR de nuevo" : "Generar enlace nuevo (el anterior vencio)"}</button>
+ `;
+ return;
+ }
+
+ contenedor.innerHTML = botonesSuspension;
+}
+
+async function generarAcuerdoCreditoPOS(clienteId) {
+ try {
+ const respuesta = await fetch(`/creditos/clientes/${clienteId}/acuerdo`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+ const datos = await respuesta.json();
+ if (!respuesta.ok) { await alertaPOS(datos.error || "No se pudo generar el acuerdo.", "Generar acuerdo", "peligro"); return; }
+ await mostrarModalAcuerdoPendientePOS({ cliente: creditoActual, tokenAceptacion: datos.tokenAceptacion });
+ await abrirCuentaCreditoDetalle(clienteId);
+ } catch (error) {
+ await alertaPOS("Error de conexion, intenta de nuevo.", "Generar acuerdo", "peligro");
+ }
+}
+
+async function reenviarAcuerdoCreditoPOS(clienteId) {
+ try {
+ const respuesta = await fetch(`/creditos/clientes/${clienteId}/acuerdo/reenviar`, { method: "POST" });
+ const datos = await respuesta.json();
+ if (!respuesta.ok) { await alertaPOS(datos.error || "No se pudo generar un enlace nuevo.", "Reenviar acuerdo", "peligro"); return; }
+ await mostrarModalAcuerdoPendientePOS({ cliente: creditoActual, tokenAceptacion: datos.tokenAceptacion });
+ } catch (error) {
+ await alertaPOS("Error de conexion, intenta de nuevo.", "Reenviar acuerdo", "peligro");
+ }
+}
+
+async function suspenderCreditoPOS() {
+ if (!creditoActual) return;
+ const confirmado = await confirmarPOS("El cliente no podra comprar a credito hasta que lo reactives. Puede seguir abonando.", "Suspender credito");
+ if (!confirmado) return;
+ const respuesta = await fetch(`/creditos/clientes/${creditoActual.id}/suspender`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+ if (respuesta.ok) { await abrirCuentaCreditoDetalle(creditoActual.id); } else { await alertaPOS("No se pudo suspender.", "Suspender credito", "peligro"); }
+}
+
+async function reactivarCreditoPOS() {
+ if (!creditoActual) return;
+ const respuesta = await fetch(`/creditos/clientes/${creditoActual.id}/reactivar`, { method: "POST" });
+ if (respuesta.ok) { await abrirCuentaCreditoDetalle(creditoActual.id); } else { await alertaPOS("No se pudo reactivar.", "Reactivar credito", "peligro"); }
 }
 
 function mostrarTabDetalleCredito(tab) {
@@ -443,6 +528,9 @@ async function abrirCuentaCliente(id) {
 
  window.creditoAgingActual =
  datos.aging || null;
+
+ window.creditoAcuerdoActual =
+ datos.acuerdo || null;
 
  cuerpo.innerHTML =
  datos.movimientos.map((movimiento, indice) => {
