@@ -238,7 +238,7 @@ async function leerEstadoUnidades(pool, fabricante) {
  * Compara la firma de cada unidad contra la de la ultima corrida. No
  * descarga ni procesa contenido: solo decide que hay que reprocesar.
  */
-async function detectarUnidadesCambiadas(pool, adaptador, unidades, onProgreso, forzar) {
+async function detectarUnidadesCambiadas(pool, adaptador, unidades, onProgreso, forzar, visionForzar) {
     // Modulos que hay que releer aunque la fuente diga que no cambiaron.
     //
     // Existe porque un modulo puede estar en 'ok' con su etag intacto y
@@ -248,6 +248,13 @@ async function detectarUnidadesCambiadas(pool, adaptador, unidades, onProgreso, 
     // los recupera ningun reintento por estado, porque su estado es
     // bueno. Ver scripts/releer-modulos-truper.js.
     const forzados = forzar instanceof Set ? forzar : new Set(forzar || []);
+    // Modulos donde ademas hay que ir DIRECTO a la vision.
+    //
+    // El OCR de estos no falla del todo -- devuelve algo -- asi que
+    // nunca escala solo. Y lo que devuelve esta mal: en el 39804
+    // (tres tablas de cinchos, con columna de referencia y 50 filas)
+    // leyo $287 como $987 y corrio el mayoreo una columna.
+    const visionForzada = visionForzar instanceof Set ? visionForzar : new Set(visionForzar || []);
     const estado = await leerEstadoUnidades(pool, adaptador.nombre);
     const cambiadas = [];
     let revisadas = 0;
@@ -327,6 +334,7 @@ async function detectarUnidadesCambiadas(pool, adaptador, unidades, onProgreso, 
             // una vez y volveria a hacerlo. Sin forzar la vision, ese
             // producto no se recupera nunca.
             forzarVision: previo?.motivo_revision === "precios_incoherentes"
+                || visionForzada.has(String(unidad.id))
         });
 
         if (typeof onProgreso === "function") onProgreso(revisadas, cambiadas.length);
@@ -988,7 +996,7 @@ async function sincronizar(pool, adaptador, opciones = {}) {
         const { revisadas, cambiadas, conEstadoPrevio, cambiadasConEstadoPrevio } =
             await detectarUnidadesCambiadas(pool, adaptador, unidades,
                 (hechas, cambios) => { latido(); progreso({ etapa: "revisando", hechas, cambios }); },
-                opciones.forzarModulos);
+                opciones.forzarModulos, opciones.forzarVisionModulos);
 
         contadores.unidadesRevisadas = revisadas;
         contadores.unidadesCambiadas = cambiadas.length;

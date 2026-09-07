@@ -97,6 +97,7 @@ async function main() {
         console.log(`Se cerraron ${huerfanas.length} corrida(s) colgada(s): ${huerfanas.join(", ")}\n`);
     }
 
+    const conVision = process.argv.includes("--vision");
     const argModulos = process.argv.find(a => a.startsWith("--modulos="));
     let modulos;
     if (argModulos) {
@@ -132,6 +133,10 @@ async function main() {
         // Sin esto no se lee ni un pixel: estos modulos estan en 'ok' con
         // su etag intacto, asi que la deteccion de cambios los salta.
         forzarModulos: new Set(modulos.map(String)),
+        // --vision: ir directo a la vision en vez de intentar el OCR
+        // primero. Para los modulos donde el OCR no falla -- devuelve algo
+        // -- pero lo que devuelve esta mal, asi que nunca escala solo.
+        forzarVisionModulos: conVision ? new Set(modulos.map(String)) : null,
         onProgreso: info => {
             if (info.etapa !== ultimaEtapa) {
                 ultimaEtapa = info.etapa;
