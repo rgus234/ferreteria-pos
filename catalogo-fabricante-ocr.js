@@ -335,9 +335,36 @@ function parecePrecioPorBloque(texto, codigosEsperados) {
     return lineasConCodigo.every(linea => !/\$\d/.test(linea));
 }
 
+// Un importe ENTRE PARENTESIS no es un nivel de precio.
+//
+// Las tablas de paquetes traen una columna extra, "Ref. Precio Unit.
+// May.", con el precio por PIEZA y siempre entre parentesis. Es
+// informativa: lo que se cobra es el paquete.
+//
+//     Codigo  Clave         May.   Ref. Precio Unit. May.  1/2 May.  Pub.
+//     16167   B40-PUL-4X6   $160          ($53.33)          $175     $195
+//
+// Contarla como importe hacia dano doble. El recortador parte el modulo
+// 19606 justo por el pasillo blanco de esa columna, asi que el trozo
+// derecho se quedaba con ($53.33), $175 y $195: tres importes para tres
+// columnas, encaje perfecto. La fila se daba por COMPLETA y el mayoreo
+// quedaba en $53.33 en vez de $160 -- y por estar completa, el respaldo
+// de "releer sin partir" que hay mas abajo nunca llegaba a activarse.
+//
+// Descartarlas deja esas filas incompletas, que es la verdad, y entonces
+// el respaldo entra solo y lee la fila entera con su $160.
+//
+// Visto tambien en el 41309 (blister de 2 pilas, $72 el blister y ($36)
+// la pila) y en el 31206.
+const IMPORTE_DE_REFERENCIA = /\(\s*\$\d[\d,]*(?:\.\d{1,2})?\s*\)/g;
+
+function sinImportesDeReferencia(linea) {
+    return String(linea || "").replace(IMPORTE_DE_REFERENCIA, " ");
+}
+
 // Importes de una linea, en orden de aparicion.
 function importesDeLinea(linea) {
-    return (linea.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
+    return (sinImportesDeReferencia(linea).match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
         .map(precioDeTexto)
         .filter(valor => valor !== null);
 }
@@ -509,7 +536,7 @@ function parsearPreciosPorBloque(textoOcr, opciones = {}) {
     };
 
     for (const linea of lineas) {
-        const importes = (linea.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
+        const importes = (sinImportesDeReferencia(linea).match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
             .map(precioDeTexto)
             .filter(valor => valor !== null);
 
@@ -633,7 +660,7 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
     // de importes es la confirmacion de que no falta ninguna.
     if (declaradas.length > columnas.length) {
         const conteos = lineas
-            .map(linea => (linea.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || []).length)
+            .map(linea => (sinImportesDeReferencia(linea).match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || []).length)
             .filter(n => n > 0);
         // Un MULTIPLO tambien cuadra, no solo el numero exacto.
         //
@@ -707,7 +734,7 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
         //   3 productos y 3 importes -> UN juego compartido (este caso)
         // Por eso se exige el numero exacto de columnas: cualquier otra
         // cuenta no entra aqui y cae en el reparto normal por trozo.
-        const importesLinea = (linea.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
+        const importesLinea = (sinImportesDeReferencia(linea).match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
             .map(precioDeTexto)
             .filter(valor => valor !== null);
 
@@ -793,7 +820,7 @@ function parsearTablaPrecios(textoOcr, opciones = {}) {
         // el ultimo trozo lo tendria dentro.
         const importes = precioCompartido
             ? importesLinea
-            : (trozo.texto.match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
+            : (sinImportesDeReferencia(trozo.texto).match(/\$\d[\d,]*(?:\.\d{1,2})?/g) || [])
                 .map(precioDeTexto)
                 .filter(valor => valor !== null);
 
@@ -1876,6 +1903,8 @@ module.exports = {
     pareceTablaTranspuesta,
     parecePrecioPorBloque,
     tieneImporteValido,
+    importesDeLinea,
+    sinImportesDeReferencia,
     parsearTablaTranspuesta,
     parsearPreciosPorBloque,
     leerExcepcionesDeBloque,

@@ -238,7 +238,16 @@ async function leerEstadoUnidades(pool, fabricante) {
  * Compara la firma de cada unidad contra la de la ultima corrida. No
  * descarga ni procesa contenido: solo decide que hay que reprocesar.
  */
-async function detectarUnidadesCambiadas(pool, adaptador, unidades, onProgreso) {
+async function detectarUnidadesCambiadas(pool, adaptador, unidades, onProgreso, forzar) {
+    // Modulos que hay que releer aunque la fuente diga que no cambiaron.
+    //
+    // Existe porque un modulo puede estar en 'ok' con su etag intacto y
+    // aun asi tener precios mal leidos: si la tabla devolvio tantos
+    // importes como columnas, la fila se dio por completa sin que nadie
+    // notara que el primero venia de la columna de referencia. Esos no
+    // los recupera ningun reintento por estado, porque su estado es
+    // bueno. Ver scripts/releer-modulos-truper.js.
+    const forzados = forzar instanceof Set ? forzar : new Set(forzar || []);
     const estado = await leerEstadoUnidades(pool, adaptador.nombre);
     const cambiadas = [];
     let revisadas = 0;
@@ -286,7 +295,10 @@ async function detectarUnidadesCambiadas(pool, adaptador, unidades, onProgreso) 
         const leQuedanSinPrecio = Boolean(previo?.falta_precio)
             && previo?.layout !== "columna_vacia";
 
-        const sinCambio = teniaEstado
+        const forzado = forzados.has(String(unidad.id));
+
+        const sinCambio = !forzado
+            && teniaEstado
             && previo.estado === "ok"
             && previo.etag === String(unidad.firma || "")
             && !leQuedanSinPrecio;
@@ -307,7 +319,9 @@ async function detectarUnidadesCambiadas(pool, adaptador, unidades, onProgreso) 
             // quedan productos sin precio: el contenido de la imagen ES el
             // mismo, asi que el atajo se dispararia y la volveria a dar por
             // buena sin leer nada.
-            reintentarPorPrecios: leQuedanSinPrecio,
+            // Un modulo forzado tiene la imagen IDENTICA, asi que el
+            // atajo por hash lo daria por bueno sin leer una linea.
+            reintentarPorPrecios: leQuedanSinPrecio || forzado,
             // Si la vez pasada se le retiraron precios por incoherencia
             // entre variantes, el OCR de esta unidad ya se dio por bueno
             // una vez y volveria a hacerlo. Sin forzar la vision, ese
@@ -973,7 +987,8 @@ async function sincronizar(pool, adaptador, opciones = {}) {
         progreso({ etapa: "revisando", mensaje: "viendo que cambio desde la ultima vez" });
         const { revisadas, cambiadas, conEstadoPrevio, cambiadasConEstadoPrevio } =
             await detectarUnidadesCambiadas(pool, adaptador, unidades,
-                (hechas, cambios) => { latido(); progreso({ etapa: "revisando", hechas, cambios }); });
+                (hechas, cambios) => { latido(); progreso({ etapa: "revisando", hechas, cambios }); },
+                opciones.forzarModulos);
 
         contadores.unidadesRevisadas = revisadas;
         contadores.unidadesCambiadas = cambiadas.length;
