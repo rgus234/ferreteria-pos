@@ -41,12 +41,25 @@ async function ponerNivel(nivel) {
     return { estado: respuesta.status, datos: await respuesta.json().catch(() => null) };
 }
 
-test("un negocio nuevo arranca en publico", async () => {
+// Esta prueba decia "arranca en publico" y pasaba en verde todo el
+// tiempo que el bug estuvo vivo. La escribi yo junto con la funcion, asi
+// que no comprobaba el comportamiento correcto: comprobaba el mio.
+//
+// El POS siempre habia arrancado en medio mayoreo -- escrito a mano en
+// seis lugares de pos-sales.js -- y al hacerlo configurable lo cambie sin
+// darme cuenta. Los negocios que no habian tocado el ajuste pasaron a
+// cobrar publico de un dia para otro. Lo encontro el dueno de Ferreteria
+// Olimpico vendiendo: un Plasti Acero de $105 se cobro en $115.
+//
+// Una prueba escrita al mismo tiempo que el codigo comparte sus
+// suposiciones. Esta solo sirve si dice que un negocio nuevo cobra lo
+// que el producto cobraba ANTES de que el ajuste existiera.
+test("un negocio nuevo arranca en medio mayoreo, como antes del ajuste", async () => {
     const respuesta = await fetch(`${BASE_URL}/negocio-actual`, { headers: headers() });
     const datos = await respuesta.json();
 
     assert.equal(datos.ok, true);
-    assert.equal(datos.negocio.nivel_precio_por_defecto, "publico");
+    assert.equal(datos.negocio.nivel_precio_por_defecto, "mayoreo");
 });
 
 test("se puede cambiar a medio mayoreo y queda guardado", async () => {
