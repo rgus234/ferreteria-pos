@@ -51,7 +51,26 @@ async function buscarEnCatalogoMaestro(pool, codigo) {
             // Para que la pantalla pueda decir de donde salio el dato.
             origen: "catalogo_nexo",
             fabricante: identidad.fabricante || "",
-            clave: identidad.clave || ""
+            clave: identidad.clave || "",
+            // De QUE producto del Maestro salio todo esto.
+            //
+            // Sin este dato la pantalla recibia el nombre y los precios
+            // pero no de donde venian, asi que al guardar el producto se
+            // quedaba sin catalogo_maestro_id -- como copiar un telefono
+            // de la agenda a un papelito: tienes el numero, ya no sabes
+            // de quien era.
+            //
+            // Ese vinculo es lo que Nexo Market necesita para encontrar
+            // las fotos del fabricante: el banco se indexa por el codigo
+            // de CATALOGO (46813) y la tienda da de alta con el de BARRAS
+            // (7506240634553). Sin puente, la ficha se queda con una sola
+            // foto aunque el fabricante publique ocho.
+            //
+            // Recuperarlo despues cuesta caro y no sale completo: en
+            // Ferreteria Olimpico hubo que adivinarlo comparando nombres
+            // y 284 productos de 537 se quedaron fuera por no poder
+            // confirmarlos. Guardarlo aqui es gratis y es exacto.
+            catalogoMaestroId: identidad.id
         };
     } catch (error) {
         // Que falle el Maestro no debe romper el alta de un producto: se

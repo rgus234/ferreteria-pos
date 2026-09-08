@@ -6142,6 +6142,7 @@ app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
     precioPiezaPublico,
     precioPiezaMayoreo,
     precioPiezaDistribuidor,
+    catalogoMaestroId,
     piezasSueltasIniciales,
     tieneGarantia,
     garantiaDetalle,
@@ -6216,9 +6217,21 @@ INSERT INTO public.productos
   fecha_caducidad,
   precio_pieza_publico,
   precio_pieza_mayoreo,
-  precio_pieza_distribuidor
+  precio_pieza_distribuidor,
+  -- De que producto del Catalogo Maestro salio este. Solo viene con
+  -- valor cuando la pantalla se lleno escaneando desde el catalogo;
+  -- capturado a mano queda null, que es la verdad.
+  --
+  -- Es lo que permite que Nexo Market encuentre las fotos del
+  -- fabricante: el banco se indexa por el codigo de CATALOGO (46813) y
+  -- la tienda da de alta con el de BARRAS (7506240634553).
+  --
+  -- Antes no se guardaba, y recuperarlo despues sale caro e incompleto:
+  -- en Ferreteria Olimpico hubo que adivinarlo comparando nombres, y 284
+  -- productos de 537 se quedaron sin fotos por no poder confirmarlos.
+  catalogo_maestro_id
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45)
 RETURNING id
 `,
 [
@@ -6265,7 +6278,12 @@ RETURNING id
   fechaCaducidad || null,
   precioPiezaPublico || null,
   precioPiezaMayoreo || null,
-  precioPiezaDistribuidor || null
+  precioPiezaDistribuidor || null,
+  // Lo manda el navegador, asi que no se pasa tal cual a una llave
+  // foranea: entero positivo o null.
+  Number.isInteger(Number(catalogoMaestroId)) && Number(catalogoMaestroId) > 0
+    ? Number(catalogoMaestroId)
+    : null
 ]
 );
 
