@@ -472,7 +472,7 @@ function guardarConfiguracionNegocioDesdeServidor(negocio) {
  // nada mas para que el POS pueda arrancar sin esperar la red; la
  // fuente real es negocios.nivel_precio_por_defecto.
  nivelPrecioPorDefecto:
- negocio.nivel_precio_por_defecto || actual.nivelPrecioPorDefecto || "publico",
+ negocio.nivel_precio_por_defecto || actual.nivelPrecioPorDefecto || "mayoreo",
  fechaConfiguracion: new Date().toISOString()
  };
 

@@ -606,11 +606,27 @@ const NIVELES_PRECIO_POS = ["publico", "mayoreo", "distribuidor"];
 // Sale de la configuracion del NEGOCIO, no de este equipo: si cada caja
 // lo guardara por su cuenta habria que ponerlo una por una, y una caja
 // nueva empezaria cobrando publico sin que nadie lo note.
+// El respaldo es "mayoreo", NO "publico".
+//
+// Antes de que existiera este ajuste el POS arrancaba en medio
+// mayoreo, escrito a mano aqui mismo en seis lugares:
+//
+//     nivelPrecioActual = "mayoreo";
+//
+// Al cambiarlas por esta funcion con respaldo "publico", los 13
+// negocios que no habian tocado el ajuste pasaron a cobrar publico de
+// un dia para otro. Lo reporto el dueno de Ferreteria Olimpico
+// vendiendo: un Plasti Acero de $105 se cobro en $115, y una barra
+// LED de $140 salio en $155. Cobro de MAS, a sus clientes.
+//
+// El respaldo de una funcion asi no es "el valor mas razonable", es
+// "lo que el programa hacia antes". Cualquier otra cosa le cambia el
+// precio a alguien sin avisarle.
 function nivelPrecioPorDefectoDelNegocio() {
  const configurado =
  (configuracionNegocio() || {}).nivelPrecioPorDefecto;
 
- return NIVELES_PRECIO_POS.includes(configurado) ? configurado : "publico";
+ return NIVELES_PRECIO_POS.includes(configurado) ? configurado : "mayoreo";
 }
 
 function recalcularPreciosPorNivel(nivel) {
