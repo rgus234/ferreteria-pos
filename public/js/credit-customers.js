@@ -1274,6 +1274,7 @@ async function abrirNuevoClienteCredito(prellenado = {}) {
 function mostrarModalAcuerdoPendientePOS(datosCreados) {
 	return new Promise(resolver => {
 		const token = datosCreados.tokenAceptacion;
+		const clienteId = datosCreados.cliente?.id;
 		const overlay = document.createElement("div");
 		overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;";
 		overlay.innerHTML = `
@@ -1281,7 +1282,8 @@ function mostrarModalAcuerdoPendientePOS(datosCreados) {
 				<h3 style="margin:0 0 6px;">Falta un paso</h3>
 				<p style="margin:0 0 16px;font-size:14px;color:var(--pos-sale-muted,#667085);">El credito de <strong>${escaparPOS(datosCreados.cliente?.nombre || "")}</strong> queda pendiente hasta que acepte sus condiciones. Que escanee este codigo con su telefono:</p>
 				<img src="/acuerdo/${encodeURIComponent(token)}/qr.png" alt="Codigo QR del acuerdo de credito" style="width:220px;height:220px;margin:0 auto 16px;display:block;border-radius:12px;border:1px solid var(--pos-sale-line,#e5e7eb);">
-				<button type="button" id="btnAcuerdoPresencialPOS" style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--pos-sale-brand,#0d6efd);color:#fff;font-weight:600;margin-bottom:8px;">No trae celular -- aceptar aqui mismo</button>
+				<a href="/acuerdo/${encodeURIComponent(token)}" target="_blank" rel="noopener" style="display:block;font-size:13px;margin-bottom:16px;">Ver condiciones completas</a>
+				<button type="button" id="btnAcuerdoPresencialPOS" style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--pos-sale-brand,#0d6efd);color:#fff;font-weight:600;margin-bottom:8px;">No trae celular -- ya lo leyo, acepta aqui mismo</button>
 				<button type="button" id="btnAcuerdoCerrarPOS" style="width:100%;padding:12px;border-radius:12px;border:1px solid var(--pos-sale-line,#e5e7eb);background:transparent;color:inherit;">Listo, ya se lo mostre</button>
 			</div>
 		`;
@@ -1294,10 +1296,12 @@ function mostrarModalAcuerdoPendientePOS(datosCreados) {
 
 		overlay.querySelector("#btnAcuerdoCerrarPOS").addEventListener("click", cerrar);
 		overlay.querySelector("#btnAcuerdoPresencialPOS").addEventListener("click", async () => {
+			const confirmado = clienteId && await confirmarPOS("Confirma que el cliente ya leyo las condiciones y acepta el credito aqui mismo, en esta pantalla.", "Aceptar en el mostrador");
+			if (!confirmado) return;
 			try {
-				const respuesta = await fetch(`/acuerdo/${encodeURIComponent(token)}/aceptar`, { method: "POST" });
+				const respuesta = await fetch(`/creditos/clientes/${clienteId}/acuerdo/aceptar-presencial`, { method: "POST" });
 				const resultado = await respuesta.json().catch(() => ({}));
-				if (resultado.ok) {
+				if (respuesta.ok && resultado.ok) {
 					await alertaPOS("Credito activado -- ya puede comprar a credito.", "Aceptado", "exito");
 					await cargarCreditos();
 				} else {

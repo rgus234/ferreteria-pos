@@ -129,6 +129,50 @@ test("aceptar por enlace/token activa la cuenta y ya permite cobrar a credito --
     assert.equal(aceptacion.rows[0].persona_id, null, "sin cuenta Nexo, la aceptacion no tiene persona_id -- y esta bien que asi sea");
 });
 
+test("aceptar presencial en el mostrador activa la cuenta sin usar el token, y queda marcada distinta del enlace", async () => {
+    const creado = await fetch(`${BASE_URL}/creditos/clientes`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ nombre: "Cliente sin celular", limiteCredito: 3000, diasCredito: 20 })
+    });
+    const datos = await creado.json();
+    const clienteId = datos.cliente.id;
+
+    const aceptar = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/acuerdo/aceptar-presencial`, {
+        method: "POST",
+        headers: headers()
+    });
+    assert.equal(aceptar.status, 200);
+    assert.equal((await aceptar.json()).ok, true);
+
+    const cargo = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/cargos`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ monto: 100, concepto: "Compra tras aceptar presencial" })
+    });
+    assert.equal(cargo.status, 200, "ya deberia poder cobrar a credito tras aceptar presencial");
+
+    const aceptacion = await pool.query(
+        `SELECT metodo, persona_id FROM public.aceptaciones_credito ac
+         JOIN public.acuerdos_credito a ON a.id = ac.acuerdo_credito_id
+         WHERE a.cliente_credito_id = $1`,
+        [clienteId]
+    );
+    assert.equal(aceptacion.rows[0].metodo, "presencial_pos");
+    assert.equal(aceptacion.rows[0].persona_id, null);
+
+    // El token original sigue intacto -- aceptar presencial no lo
+    // consume, porque no depende de el para probar identidad.
+    const reintentoToken = await fetch(`${BASE_URL}/acuerdo/${datos.tokenAceptacion}/aceptar`, { method: "POST" });
+    assert.equal(reintentoToken.status, 404, "el acuerdo ya no esta pendiente, aunque el token nunca se haya usado ni haya vencido");
+
+    const otraVez = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/acuerdo/aceptar-presencial`, {
+        method: "POST",
+        headers: headers()
+    });
+    assert.equal(otraVez.status, 404, "sin acuerdo pendiente, no hay nada que aceptar presencial");
+});
+
 test("bajar el limite se aplica de inmediato, sin pedir aceptacion -- subirlo si la pide", async () => {
     const creado = await fetch(`${BASE_URL}/creditos/clientes`, {
         method: "POST",

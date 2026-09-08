@@ -8309,6 +8309,53 @@ app.post("/creditos/clientes/:id/acuerdo/reenviar", requerirAccesoNegocio, reque
     }
 });
 
+// Aceptacion presencial (§6f): el cliente no trae celular o prefiere
+// resolverlo ahi mismo -- se muestra el acuerdo en la pantalla/tableta
+// compartida del negocio y acepta directo, sin enlace/QR. personaId
+// siempre null, igual que enlace_token: la prueba de identidad aqui es
+// que el empleado esta viendolo en persona, no una sesion de cuenta
+// Nexo -- nunca se debe confundir con sesion_persona en un reporte.
+app.post("/creditos/clientes/:id/acuerdo/aceptar-presencial", requerirAccesoNegocio, requerirPermiso(PERMISOS.GESTIONAR_CREDITO), async (req, res) => {
+    const { id } = req.params;
+    const empleadoIdCajero = Number(req.headers["x-empleado-id"]) || null;
+    const client = await pool.connect();
+    try {
+        const negocio = await negocioActual(req);
+        await client.query("BEGIN");
+
+        const pendiente = await client.query(
+            `SELECT * FROM public.acuerdos_credito WHERE cliente_credito_id = $1 AND negocio_id = $2 AND estado = 'pendiente_aceptacion' ORDER BY version DESC LIMIT 1 FOR UPDATE`,
+            [id, negocio.id]
+        );
+        if (!pendiente.rows.length) {
+            await client.query("ROLLBACK");
+            res.status(404).json({ error: "Este cliente no tiene ningun acuerdo pendiente de aceptacion" });
+            return;
+        }
+        const acuerdo = pendiente.rows[0];
+
+        await acuerdoCredito.confirmarAceptacion(client, {
+            acuerdo,
+            personaId: null,
+            ip: req.ip,
+            userAgent: req.headers["user-agent"] || null,
+            metodo: "presencial_pos"
+        });
+
+        await acuerdoCredito.registrarBitacoraCredito(client, negocio.id, empleadoIdCajero, "acuerdo_credito_aceptado", {
+            clienteId: Number(id), version: acuerdo.version, metodo: "presencial_pos"
+        });
+
+        await client.query("COMMIT");
+        res.json({ ok: true });
+    } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
+        responderError(res, error);
+    } finally {
+        client.release();
+    }
+});
+
 // Suspender/reactivar (§6j): distinto de activo=false (baja definitiva)
 // y distinto de limite_credito=0 (que ya significa "sin tope" en este
 // sistema, no "sin credito") -- una pausa temporal y reversible.
