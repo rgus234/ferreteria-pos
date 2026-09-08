@@ -52,6 +52,7 @@
   <link rel="stylesheet" href="css/components/pos-image-zoom.css?v=zoom-carrito-20260809-01">
   <link rel="stylesheet" href="css/components/account-view.css?v=renombrar-dispositivo-20260819-01">
   <link rel="stylesheet" href="css/components/product-details-view.css?v=liquid-glass-inv-20260719-01">
+  <link rel="stylesheet" href="css/components/explorar-nexo-view.css?v=explorar-nexo-fase1-20260908-01">
   <link rel="stylesheet" href="css/components/low-stock-order.css?v=caducidad-20260826-01">
   <link rel="stylesheet" href="css/components/support-reminders.css?v=notif-contraste-fix-20260706-01">
   <link rel="stylesheet" href="css/components/ticket-lookup-view.css?v=creditos-editar-compra-20260730-01">
@@ -456,6 +457,10 @@
  Punto de venta
  </button>
 
+ <button data-shell-module="explorar-nexo" onclick="mostrarExplorarNexo()">
+ Explorar Nexo
+ </button>
+
  <button class="sidebar-grupo-toggle" data-grupo="inventario" onclick="toggleSubmenuSidebar('submenuInventario')">
  Inventario
  </button>
@@ -565,6 +570,8 @@
  <section id="pantallaEncargos" style="display:none;"></section>
  <section id="pantallaFacturacion" style="display:none;"></section>
  <section id="pantallaListasProducto" style="display:none;"></section>
+
+ <section id="pantallaExplorarNexo" style="display:none;"></section>
  <section id="pantallaCodigosBarras" style="display:none;"></section>
  <section id="pantallaSitioWeb" style="display:none;"></section>
 
@@ -1807,6 +1814,7 @@
 <script src="js/nexo-onboarding.js?v=bienvenida-20260730-01"></script>
 <script src="js/nexo-ia.js?v=ia-streaming-20260827-01"></script>
 <script src="js/pos-busqueda-ia.js?v=borde-siri-20260721-01"></script>
+<script src="js/explorar-nexo-view.js?v=explorar-nexo-fase1-20260908-01"></script>
 
 </body>
 

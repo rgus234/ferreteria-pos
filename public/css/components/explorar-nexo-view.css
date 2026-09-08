@@ -1,0 +1,224 @@
+/* Explorar Nexo -- busqueda por intencion en las 4 fuentes de
+   catalogo (inventario, Catalogo Maestro, catalogo de fabricante,
+   catalogo de proveedor). Reusa .encargos-shell/.encargos-header/
+   .encargos-panel para el look general de pantalla -- solo se
+   definen aqui las piezas propias: buscador, chips, tarjetas de
+   resultado y ficha. */
+
+.explorar-nexo-buscador-fila{
+ display:flex;
+ gap:10px;
+ align-items:center;
+ flex-wrap:wrap;
+}
+.explorar-nexo-buscador-fila .buscador-con-limpiar{ flex:1 1 320px; }
+.explorar-nexo-buscador-fila input{
+ width:100%;
+ height:42px;
+ padding:0 14px;
+ border-radius:12px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ background:var(--pos-surface-strong,#fff);
+ color:var(--pos-text,#172033);
+ font-size:14px;
+}
+
+.explorar-nexo-chips{
+ display:flex;
+ gap:8px;
+ flex-wrap:wrap;
+}
+.explorar-nexo-chip{
+ border:1px solid var(--pos-line,#dbe3ef);
+ background:var(--pos-surface-strong,#fff);
+ color:var(--pos-muted,#687386);
+ border-radius:999px;
+ padding:6px 14px;
+ font-size:12.5px;
+ font-weight:700;
+ cursor:pointer;
+ white-space:nowrap;
+}
+.explorar-nexo-chip.activo{
+ background:color-mix(in srgb, var(--brand-color,#0d6efd) 14%, var(--pos-surface-strong,#fff));
+ border-color:color-mix(in srgb, var(--brand-color,#0d6efd) 45%, transparent);
+ color:var(--brand-color,#0d6efd);
+}
+
+.explorar-nexo-grid{
+ display:grid;
+ grid-template-columns:1.7fr 1fr;
+ gap:16px;
+ align-items:start;
+}
+@media (max-width:900px){
+ .explorar-nexo-grid{ grid-template-columns:1fr; }
+}
+
+.explorar-nexo-resultados{
+ display:flex;
+ flex-direction:column;
+ gap:18px;
+ max-height:calc(100vh - 340px);
+ overflow-y:auto;
+ padding-right:4px;
+}
+
+.explorar-nexo-grupo-titulo{
+ display:flex;
+ align-items:center;
+ gap:8px;
+ margin:0 0 8px;
+ font-size:13px;
+ font-weight:800;
+ color:var(--pos-text,#172033);
+}
+.explorar-nexo-grupo-titulo .cuenta{
+ color:var(--pos-muted,#687386);
+ font-weight:700;
+}
+.explorar-nexo-grupo-lista{
+ display:flex;
+ flex-direction:column;
+ gap:8px;
+}
+
+.explorar-nexo-tarjeta{
+ display:flex;
+ align-items:center;
+ gap:12px;
+ padding:10px 12px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:12px;
+ background:var(--pos-surface-strong,#fff);
+ cursor:pointer;
+ text-align:left;
+ width:100%;
+}
+.explorar-nexo-tarjeta:hover{
+ border-color:color-mix(in srgb, var(--brand-color,#0d6efd) 40%, transparent);
+}
+.explorar-nexo-tarjeta.seleccionada{
+ border-color:var(--brand-color,#0d6efd);
+ background:color-mix(in srgb, var(--brand-color,#0d6efd) 6%, var(--pos-surface-strong,#fff));
+}
+.explorar-nexo-tarjeta-icono{
+ width:38px;
+ height:38px;
+ border-radius:10px;
+ flex-shrink:0;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ font-size:16px;
+ background:var(--pos-surface,#f3f5f9);
+ color:var(--pos-muted,#687386);
+}
+.explorar-nexo-tarjeta-info{ min-width:0; flex:1; }
+.explorar-nexo-tarjeta-nombre{
+ font-weight:700;
+ font-size:13.5px;
+ color:var(--pos-text,#172033);
+ white-space:nowrap;
+ overflow:hidden;
+ text-overflow:ellipsis;
+}
+.explorar-nexo-tarjeta-meta{
+ font-size:12px;
+ color:var(--pos-muted,#687386);
+ white-space:nowrap;
+ overflow:hidden;
+ text-overflow:ellipsis;
+}
+.explorar-nexo-tarjeta-precio{
+ font-weight:800;
+ font-size:13.5px;
+ color:var(--pos-text,#172033);
+ flex-shrink:0;
+}
+
+.explorar-nexo-nivel{
+ flex-shrink:0;
+ font-size:10.5px;
+ font-weight:800;
+ letter-spacing:.02em;
+ padding:2px 8px;
+ border-radius:999px;
+ white-space:nowrap;
+}
+.explorar-nexo-nivel.fuerte{ background:rgba(22,163,74,.14); color:#15803d; }
+.explorar-nexo-nivel.probable{ background:rgba(245,158,11,.16); color:#b45309; }
+.explorar-nexo-nivel.relacionado{ background:rgba(100,116,139,.16); color:#475569; }
+
+.explorar-nexo-vacio, .explorar-nexo-ficha-vacio{
+ padding:30px 16px;
+ text-align:center;
+ color:var(--pos-muted,#687386);
+ font-size:13.5px;
+}
+
+.explorar-nexo-ficha{
+ position:sticky;
+ top:0;
+}
+.explorar-nexo-ficha-fuente{
+ display:inline-block;
+ font-size:10.5px;
+ font-weight:800;
+ letter-spacing:.04em;
+ text-transform:uppercase;
+ color:var(--brand-color,#0d6efd);
+ background:color-mix(in srgb, var(--brand-color,#0d6efd) 12%, transparent);
+ border-radius:999px;
+ padding:3px 10px;
+ margin-bottom:8px;
+}
+.explorar-nexo-ficha h3{ margin:0 0 4px; font-size:18px; }
+.explorar-nexo-ficha-datos{
+ display:grid;
+ grid-template-columns:auto 1fr;
+ gap:6px 12px;
+ margin:14px 0;
+ font-size:13px;
+}
+.explorar-nexo-ficha-datos dt{ color:var(--pos-muted,#687386); font-weight:700; }
+.explorar-nexo-ficha-datos dd{ margin:0; color:var(--pos-text,#172033); }
+.explorar-nexo-ficha-precios{
+ display:grid;
+ grid-template-columns:repeat(2,1fr);
+ gap:8px;
+ margin:14px 0;
+}
+.explorar-nexo-ficha-precio-caja{
+ padding:10px;
+ border-radius:10px;
+ background:var(--pos-surface,#f3f5f9);
+ text-align:center;
+}
+.explorar-nexo-ficha-precio-caja span{ display:block; font-size:10.5px; color:var(--pos-muted,#687386); font-weight:700; text-transform:uppercase; }
+.explorar-nexo-ficha-precio-caja strong{ font-size:16px; }
+.explorar-nexo-ficha-acciones{
+ display:flex;
+ flex-direction:column;
+ gap:8px;
+ margin-top:16px;
+}
+.explorar-nexo-ficha-nota{
+ margin-top:14px;
+ padding:10px 12px;
+ border-radius:10px;
+ background:var(--pos-surface,#f3f5f9);
+ color:var(--pos-muted,#687386);
+ font-size:12.5px;
+}
+
+body.oscuro .explorar-nexo-buscador-fila input,
+body.oscuro .explorar-nexo-chip,
+body.oscuro .explorar-nexo-tarjeta{
+ background:rgba(15,23,42,.55) !important;
+ border-color:rgba(148,163,184,.2) !important;
+ color:#f8fafc !important;
+}
+body.oscuro .explorar-nexo-tarjeta-icono{ background:rgba(148,163,184,.14) !important; }
+body.oscuro .explorar-nexo-ficha-precio-caja{ background:rgba(148,163,184,.1) !important; }
+body.oscuro .explorar-nexo-ficha-nota{ background:rgba(148,163,184,.1) !important; color:#cbd5e1 !important; }
