@@ -2843,6 +2843,11 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  : "POST";
 
  const payloadProducto = {
+ // Solo va con valor cuando la pantalla se lleno desde el catalogo.
+ // Capturado a mano queda null, que es la verdad: no sabemos de que
+ // producto del Maestro se trata y adivinarlo es como se ponen fotos
+ // equivocadas.
+ catalogoMaestroId: catalogoMaestroIdDelFormulario,
  nombre,
  precio,
  stock,
@@ -4342,6 +4347,8 @@ function abrirCodigosBarrasDesdeInventario() {
 // puesto.
 function abrirFormularioAgregarProductoNuevo() {
  productoEditandoId = null;
+ // Formulario en blanco: el vinculo del producto anterior no se hereda.
+ catalogoMaestroIdDelFormulario = null;
  mostrarFormularioAgregar();
 }
 
@@ -4622,7 +4629,24 @@ function limpiarCamposCatalogoProducto() {
 // origen indica que campo escribio el usuario (para no pisarle lo que acaba
 // de teclear) -- "barras" cuando vino de nuevoCodigo, "interno" cuando vino
 // de nuevoCodigoInterno (caso Gafi: catalogos sin codigo de barras real).
+// De que producto del Catalogo Maestro salieron los datos que la
+// pantalla acaba de llenar.
+//
+// Se guarda para mandarlo al servidor al dar Guardar. Sin esto el
+// producto quedaba con su nombre y sus precios correctos pero sin
+// memoria de donde venian, y Nexo Market no podia encontrar las fotos
+// del fabricante: el banco se indexa por el codigo de CATALOGO (46813) y
+// la tienda da de alta con el de BARRAS (7506240634553).
+//
+// SE LIMPIA AL ABRIR EL FORMULARIO, y eso no es opcional. Si se quedara
+// pegado, el segundo producto que alguien capture a mano heredaria el
+// vinculo del primero y saldria en Market con SU foto. Es exactamente el
+// error que puso 50 fotos equivocadas en productos reales.
+let catalogoMaestroIdDelFormulario = null;
+
 async function aplicarProductoCatalogoAlFormulario(producto, origen) {
+    catalogoMaestroIdDelFormulario = producto.catalogoMaestroId || null;
+
  seleccionarTipoProducto("catalogo");
 
  document.getElementById("nuevoNombre").value =
