@@ -69,6 +69,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./listas-producto-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("Explorar Nexo (busqueda por intencion)", () => {
+        require("./explorar-nexo-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("editor de codigos de barras / etiquetas", () => {
         require("./barcode-labels-server")(app, pool, requerirAccesoNegocio);
     });
