@@ -221,7 +221,47 @@ async function buscarExplorarNexo(pool, negocioId, textoBusqueda) {
     return { termino, inventario, proveedor, catalogoMaestro, fabricante, coincidenciaPorCodigo };
 }
 
+// Misma foto que ya usan el POS (Banco de Nexo) y la ficha publica de
+// Nexo Market -- nunca una copia nueva. Primero la principal curada
+// (banco_imagenes_producto, subida por el admin); si no hay, la que
+// el propio fabricante publica (banco-fotos-fabricante.js -> TRUPER),
+// resuelta bajo demanda y cacheada ahi 30 dias. A proposito SIN el
+// candado de plan Pro que usa /banco-imagenes-existe/:codigo -- esa
+// ruta es para las herramientas de curar el banco (accion del dueno);
+// aqui es solo mostrar una foto que ya existe, mismo criterio que
+// Market ya aplica en su ficha publica (tampoco gatea por plan).
+async function resolverFotoPrincipal(pool, codigoCrudo) {
+    const { normalizarCodigoFoto, firmarTokenBancoImagen } = require("./banco-imagenes-server");
+    const codigo = normalizarCodigoFoto(codigoCrudo);
+    if (!codigo) return null;
+
+    try {
+        const banco = await pool.query(
+            `SELECT actualizado_at FROM public.banco_imagenes_producto WHERE codigo = $1`,
+            [codigo]
+        );
+        if (banco.rows.length) {
+            const version = new Date(banco.rows[0].actualizado_at).getTime();
+            return `/banco-imagenes/${encodeURIComponent(codigo)}/principal?v=${version}&token=${firmarTokenBancoImagen(codigo)}`;
+        }
+
+        const { fotosDeProducto } = require("./banco-fotos-fabricante");
+        const delFabricante = await fotosDeProducto(pool, codigoCrudo);
+        return delFabricante.fotos[0]?.url || null;
+    } catch (error) {
+        // Una foto que no se pudo resolver (fabricante inalcanzable,
+        // codigo raro) nunca debe tumbar la busqueda -- se queda sin
+        // foto, no es un error.
+        return null;
+    }
+}
+
 module.exports = (app, pool, requerirAccesoNegocio) => {
+    app.get("/explorar-nexo/foto/:codigo", requerirAccesoNegocio, async (req, res) => {
+        const url = await resolverFotoPrincipal(pool, req.params.codigo);
+        res.json({ ok: true, url });
+    });
+
     app.get("/explorar-nexo/buscar", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
@@ -245,3 +285,4 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 module.exports.buscarExplorarNexo = buscarExplorarNexo;
 module.exports.normalizarBusqueda = normalizarBusqueda;
 module.exports.nivelDeCoincidencia = nivelDeCoincidencia;
+module.exports.resolverFotoPrincipal = resolverFotoPrincipal;

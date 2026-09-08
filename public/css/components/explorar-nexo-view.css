@@ -103,16 +103,23 @@
  background:color-mix(in srgb, var(--brand-color,#0d6efd) 6%, var(--pos-surface-strong,#fff));
 }
 .explorar-nexo-tarjeta-icono{
- width:38px;
- height:38px;
+ width:64px;
+ height:64px;
  border-radius:10px;
  flex-shrink:0;
  display:flex;
  align-items:center;
  justify-content:center;
- font-size:16px;
+ font-size:24px;
  background:var(--pos-surface,#f3f5f9);
  color:var(--pos-muted,#687386);
+ overflow:hidden;
+}
+.explorar-nexo-tarjeta-icono img{
+ width:100%;
+ height:100%;
+ object-fit:contain;
+ background:#fff;
 }
 .explorar-nexo-tarjeta-info{ min-width:0; flex:1; }
 .explorar-nexo-tarjeta-nombre{
@@ -173,6 +180,26 @@
  padding:3px 10px;
  margin-bottom:8px;
 }
+.explorar-nexo-ficha-foto{
+ width:100%;
+ aspect-ratio:1/1;
+ max-height:220px;
+ border-radius:12px;
+ background:#fff;
+ border:1px solid var(--pos-line,#dbe3ef);
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ overflow:hidden;
+ margin-bottom:12px;
+ font-size:40px;
+ color:var(--pos-muted,#687386);
+}
+.explorar-nexo-ficha-foto img{
+ width:100%;
+ height:100%;
+ object-fit:contain;
+}
 .explorar-nexo-ficha h3{ margin:0 0 4px; font-size:18px; }
 .explorar-nexo-ficha-datos{
  display:grid;
@@ -222,3 +249,8 @@ body.oscuro .explorar-nexo-tarjeta{
 body.oscuro .explorar-nexo-tarjeta-icono{ background:rgba(148,163,184,.14) !important; }
 body.oscuro .explorar-nexo-ficha-precio-caja{ background:rgba(148,163,184,.1) !important; }
 body.oscuro .explorar-nexo-ficha-nota{ background:rgba(148,163,184,.1) !important; color:#cbd5e1 !important; }
+/* Las fotos reales (banco/fabricante) traen fondo blanco -- se deja
+   siempre blanco, en modo oscuro tambien, para que no se vean con un
+   halo gris ni recortadas por un fondo transparente. */
+body.oscuro .explorar-nexo-ficha-foto{ background:#fff !important; border-color:rgba(148,163,184,.2) !important; }
+body.oscuro .explorar-nexo-tarjeta-icono img{ background:#fff; }

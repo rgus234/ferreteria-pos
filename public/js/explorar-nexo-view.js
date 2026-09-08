@@ -195,7 +195,7 @@ function explorarNexoTarjetaHtml(item, fuente, indice) {
 
 	return `
 		<button type="button" class="explorar-nexo-tarjeta ${seleccionada ? "seleccionada" : ""}" onclick="explorarNexoVerFicha('${fuente}', ${indice})">
-			<span class="explorar-nexo-tarjeta-icono">${fuente === "inventario" ? "\u{1F3EA}" : fuente === "proveedor" ? "\u{1F69A}" : "\u{1F310}"}</span>
+			<span class="explorar-nexo-tarjeta-icono" id="explorarNexoIcono-${fuente}-${indice}" data-codigo="${escaparPOS(item.codigo || "")}">${fuente === "inventario" ? "\u{1F3EA}" : fuente === "proveedor" ? "\u{1F69A}" : "\u{1F310}"}</span>
 			<span class="explorar-nexo-tarjeta-info">
 				<span class="explorar-nexo-tarjeta-nombre">${escaparPOS(item.nombre)}</span>
 				<span class="explorar-nexo-tarjeta-meta">${escaparPOS(marcaOTexto)}${item.codigo ? " &middot; " + escaparPOS(item.codigo) : ""}</span>
@@ -204,6 +204,47 @@ function explorarNexoTarjetaHtml(item, fuente, indice) {
 			${explorarNexoBadgeNivel(item.nivel)}
 		</button>
 	`;
+}
+
+// Cache en memoria (codigo -> url o null) para no volver a preguntar
+// por la misma foto dos veces en la misma sesion -- varias tarjetas
+// (proveedor + Catalogo Nexo) suelen compartir el mismo codigo real.
+const explorarNexoFotoCache = new Map();
+
+async function explorarNexoResolverFoto(codigo) {
+	if (explorarNexoFotoCache.has(codigo)) return explorarNexoFotoCache.get(codigo);
+
+	try {
+		const respuesta = await fetch(`/explorar-nexo/foto/${encodeURIComponent(codigo)}`);
+		const datos = await respuesta.json();
+		const url = respuesta.ok && datos.ok ? (datos.url || null) : null;
+		explorarNexoFotoCache.set(codigo, url);
+		return url;
+	} catch (error) {
+		return null;
+	}
+}
+
+// Se llama despues de pintar resultados (lista) o la ficha -- busca
+// cada codigo visible una sola vez (Set) y solo reemplaza el icono
+// generico por la foto real si de verdad hay una. Nunca bloquea el
+// render: los iconos aparecen de inmediato, las fotos van llegando.
+function explorarNexoCargarFotosVisibles(contenedor) {
+	if (!contenedor) return;
+
+	const elementos = contenedor.querySelectorAll("[data-codigo]");
+	const codigos = new Set();
+	elementos.forEach(el => { if (el.dataset.codigo) codigos.add(el.dataset.codigo); });
+
+	codigos.forEach(codigo => {
+		explorarNexoResolverFoto(codigo).then(url => {
+			if (!url) return;
+			contenedor.querySelectorAll(`[data-codigo="${CSS.escape(codigo)}"]`).forEach(el => {
+				if (el.querySelector("img")) return;
+				el.innerHTML = `<img src="${url}" alt="" loading="lazy">`;
+			});
+		});
+	});
 }
 
 function explorarNexoRenderResultados() {
@@ -227,6 +268,8 @@ function explorarNexoRenderResultados() {
 			<p class="explorar-nexo-vacio">No encontramos una coincidencia con "${escaparPOS(r.termino)}". Prueba con otras palabras.</p>
 			<button type="button" class="btn-agregar" style="margin:0 auto;display:block;" onclick="explorarNexoCrearEncargoSinResultado()">Crear encargo con este nombre</button>
 		`;
+
+	explorarNexoCargarFotosVisibles(contenedor);
 }
 
 function explorarNexoObtenerItem(fuente, indice) {
@@ -302,6 +345,7 @@ function explorarNexoVerFicha(fuente, indice) {
 	}
 
 	ficha.innerHTML = `
+		<div class="explorar-nexo-ficha-foto" id="explorarNexoFichaFoto" data-codigo="${escaparPOS(item.codigo || "")}">\u{1F4E6}</div>
 		<span class="explorar-nexo-ficha-fuente">${escaparPOS(etiquetaFuente)}</span>
 		${explorarNexoBadgeNivel(item.nivel)}
 		<h3>${escaparPOS(item.nombre)}</h3>
@@ -309,6 +353,8 @@ function explorarNexoVerFicha(fuente, indice) {
 		${preciosHtml}
 		<div class="explorar-nexo-ficha-acciones">${accionesHtml}</div>
 	`;
+
+	explorarNexoCargarFotosVisibles(ficha);
 }
 
 function explorarNexoVerProductoInventario(productoId) {

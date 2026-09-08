@@ -8,11 +8,12 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { pool, crearNegocioPrueba, borrarNegocioPrueba, crearProductoPrueba } = require("./helpers/negocio-prueba");
 const { iniciarServidorPrueba, detenerServidorPrueba, BASE_URL } = require("./helpers/servidor-prueba");
-const { normalizarBusqueda, nivelDeCoincidencia, buscarExplorarNexo } = require("../explorar-nexo-server");
+const { normalizarBusqueda, nivelDeCoincidencia, buscarExplorarNexo, resolverFotoPrincipal } = require("../explorar-nexo-server");
 
 let negocio;
 const maestroIdsCreados = [];
 const fabricanteIdsCreados = [];
+const codigosBancoImagenesCreados = [];
 
 function headers() {
     return {
@@ -56,6 +57,9 @@ after(async () => {
     for (const id of maestroIdsCreados) {
         await pool.query(`DELETE FROM public.catalogo_maestro_identificadores WHERE producto_maestro_id = $1`, [id]);
         await pool.query(`DELETE FROM public.catalogo_maestro_productos WHERE id = $1`, [id]);
+    }
+    for (const codigo of codigosBancoImagenesCreados) {
+        await pool.query(`DELETE FROM public.banco_imagenes_producto WHERE codigo = $1`, [codigo]);
     }
     await detenerServidorPrueba();
     await pool.end();
@@ -230,4 +234,49 @@ test("GET /explorar-nexo/buscar exige dispositivo vinculado y responde con las 4
     assert.equal(datos.ok, true);
     assert.ok(Array.isArray(datos.inventario) && Array.isArray(datos.proveedor) && Array.isArray(datos.catalogoMaestro) && Array.isArray(datos.fabricante));
     assert.ok(datos.inventario.some(p => p.codigo === "EXP-HTTP-1"));
+});
+
+// La foto (misma fuente que ya usan el POS y la ficha publica de
+// Nexo Market -- Banco de Nexo primero, catalogo de fabricante como
+// respaldo) nunca debe tumbar la busqueda ni inventar una imagen.
+test("resolverFotoPrincipal: usa la foto curada del Banco de Nexo cuando existe", async () => {
+    // banco_imagenes_producto siempre guarda el codigo ya normalizado
+    // (normalizarCodigoFoto: mayusculas, solo A-Z0-9) -- sin guion,
+    // para que coincida con como lo inserta el proceso real de
+    // importacion de ZIPs, nunca el codigo tal cual se escribio.
+    const codigo = "EXPFOTOBANCO";
+    await pool.query(
+        `INSERT INTO public.banco_imagenes_producto (codigo, marca, imagen_principal, imagen_principal_tipo)
+         VALUES ($1, 'MARCA-PRUEBA', $2, 'image/jpeg')`,
+        [codigo, Buffer.from([0xff, 0xd8, 0xff])]
+    );
+    codigosBancoImagenesCreados.push(codigo);
+
+    const url = await resolverFotoPrincipal(pool, codigo);
+    assert.ok(url, "debe regresar una URL cuando el banco ya tiene la foto");
+    assert.ok(url.startsWith(`/banco-imagenes/${codigo}/principal`), "debe ser la ruta firmada del Banco de Nexo, no una copia nueva");
+});
+
+test("resolverFotoPrincipal: un codigo sin foto en ningun lado regresa null, nunca inventa una", async () => {
+    const url = await resolverFotoPrincipal(pool, "EXP-FOTO-NO-EXISTE-JAMAS");
+    assert.equal(url, null);
+});
+
+test("GET /explorar-nexo/foto/:codigo exige dispositivo vinculado y responde con la url resuelta", async () => {
+    const codigo = "EXPFOTOHTTP";
+    await pool.query(
+        `INSERT INTO public.banco_imagenes_producto (codigo, marca, imagen_principal, imagen_principal_tipo)
+         VALUES ($1, 'MARCA-PRUEBA', $2, 'image/jpeg')`,
+        [codigo, Buffer.from([0xff, 0xd8, 0xff])]
+    );
+    codigosBancoImagenesCreados.push(codigo);
+
+    const sinToken = await fetch(`${BASE_URL}/explorar-nexo/foto/${codigo}`);
+    assert.equal(sinToken.status, 401);
+
+    const conToken = await fetch(`${BASE_URL}/explorar-nexo/foto/${codigo}`, { headers: headers() });
+    assert.equal(conToken.status, 200);
+    const datos = await conToken.json();
+    assert.equal(datos.ok, true);
+    assert.ok(datos.url && datos.url.includes(codigo));
 });
