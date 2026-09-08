@@ -217,6 +217,25 @@ body.oscuro .pos-referencia .pos-reference-search {
   text-align: center;
 }
 
+.pos-flyout-buscar-en-nexo {
+  display: block;
+  width: calc(100% - 24px) !important;
+  margin: 0 12px 8px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--brand-color, #0d6efd) !important;
+  color: #fff !important;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-align: center;
+  cursor: pointer;
+}
+
+.pos-flyout-buscar-en-nexo:hover {
+  background: color-mix(in srgb, var(--brand-color, #0d6efd) 85%, black) !important;
+}
+
 .pos-flyout-articulo-rapido {
   display: block;
   width: calc(100% - 24px) !important;

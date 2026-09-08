@@ -22,7 +22,7 @@ function explorarNexoBadgeNivel(nivel) {
 	return `<span class="explorar-nexo-nivel ${clase}">${texto}</span>`;
 }
 
-async function mostrarExplorarNexo() {
+async function mostrarExplorarNexo(textoInicial) {
 	if (typeof ocultarPantallasPrincipales === "function") {
 		ocultarPantallasPrincipales();
 	}
@@ -69,7 +69,25 @@ async function mostrarExplorarNexo() {
 		</div>
 	`;
 
-	document.getElementById("explorarNexoInput")?.focus();
+	const campo = document.getElementById("explorarNexoInput");
+	if (textoInicial && campo) {
+		campo.value = textoInicial;
+		buscarExplorarNexo();
+	} else {
+		campo?.focus();
+	}
+}
+
+// Puente desde el buscador del Punto de Venta (§principio del diseno
+// aprobado): ese buscador solo mira el inventario propio a proposito
+// -- cuando no encuentra nada, este es el camino a las otras 3
+// fuentes, conservando exactamente lo que el empleado ya escribio.
+function buscarEnExplorarNexoDesdePOS() {
+	const texto = document.getElementById("busqueda")?.value || "";
+
+	if (typeof ocultarFlyoutBusquedaPOS === "function") ocultarFlyoutBusquedaPOS();
+
+	mostrarExplorarNexo(texto);
 }
 
 function explorarNexoOnInput() {

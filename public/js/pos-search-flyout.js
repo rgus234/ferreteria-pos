@@ -104,9 +104,19 @@
   Array.isArray(productos) ? productos : [];
 
   if (!lista.length) {
+   // mostrarArticuloRapido marca un vacio "de verdad" (busqueda local,
+   // y la de IA si estaba activa, ya terminaron sin nada) -- nunca un
+   // estado transitorio ("Buscando con Nexo IA...") ni un error. Es
+   // justo la senal correcta para ofrecer el puente a Explorar Nexo:
+   // el buscador del POS solo mira el inventario propio (§principio
+   // del diseno aprobado), asi que "nada aqui" no significa "no
+   // existe" en ningun lado.
    contenedor.innerHTML = `
    <div class="pos-flyout-vacio">${escaparPOS(opciones.textoVacio || "Sin resultados")}</div>
    ${opciones.mostrarArticuloRapido ? `
+   <button type="button" class="pos-flyout-buscar-en-nexo" onclick="buscarEnExplorarNexoDesdePOS()">
+    &#128269; Buscar en Nexo
+   </button>
    <button type="button" class="pos-flyout-articulo-rapido" onclick="abrirModalArticuloRapidoPOS(document.getElementById('busqueda')?.value || '')">
     + Agregar articulo rapido (sin codigo en el inventario)
    </button>
