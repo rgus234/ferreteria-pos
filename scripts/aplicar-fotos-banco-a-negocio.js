@@ -308,9 +308,17 @@ async function main() {
         ` (${Math.round(cobertura.con_foto / cobertura.total * 100)}%)`);
 }
 
-main()
-    .catch(error => {
-        console.error("\nFallo:", error.message);
-        process.exitCode = 1;
-    })
-    .finally(async () => { await pool.end(); });
+// Se ejecuta solo cuando se llama a mano, no al importarlo. Otros
+// scripts necesitan parecido() -- la unica copia buena del comparador de
+// nombres, la que ya se equivoco una vez y se corrigio -- y sin esta
+// guarda importarlo lanzaba la corrida entera.
+if (require.main === module) {
+    main()
+        .catch(error => {
+            console.error("\nFallo:", error.message);
+            process.exitCode = 1;
+        })
+        .finally(async () => { await pool.end(); });
+}
+
+module.exports = { palabras, parecido, PARECIDO_MINIMO };
