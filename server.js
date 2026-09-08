@@ -8136,6 +8136,33 @@ app.get("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISO
     }
 });
 
+// El PDF vive congelado en acuerdos_credito.pdf_bytes desde que el
+// cliente acepto (§6i) -- esta ruta solo lo sirve tal cual, nunca lo
+// vuelve a generar. Si el vigente es de antes de esta funcion (o de
+// un cliente que nunca acepto, §6g), simplemente no hay nada que
+// mandar.
+app.get("/creditos/clientes/:id/acuerdo/pdf", requerirAccesoNegocio, requerirPermiso(PERMISOS.VER_CREDITO), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const negocio = await negocioActual(req);
+        const fila = await pool.query(
+            `SELECT a.pdf_bytes, a.version FROM public.clientes_credito c
+             JOIN public.acuerdos_credito a ON a.id = c.acuerdo_vigente_id
+             WHERE c.id = $1 AND c.negocio_id = $2`,
+            [id, negocio.id]
+        );
+        if (!fila.rows.length || !fila.rows[0].pdf_bytes) {
+            res.status(404).json({ error: "Este cliente no tiene un PDF de acuerdo disponible." });
+            return;
+        }
+        res.set("Content-Type", "application/pdf");
+        res.set("Content-Disposition", `inline; filename="acuerdo-credito-v${fila.rows[0].version}.pdf"`);
+        res.send(fila.rows[0].pdf_bytes);
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
 // Portal de cliente final (Fase 6 del sitio web por negocio): el
 // dueno genera un codigo de acceso y se lo comparte el mismo al
 // cliente (de palabra, WhatsApp, impreso) -- nunca se envia por

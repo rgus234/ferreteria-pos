@@ -4176,13 +4176,75 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                     // "pendiente_de_aceptacion": nunca es cuenta operable
                     // todavia (§08 del diseno) aunque ya exista la fila.
                     estadoCuenta: !fila.acuerdo_vigente_id ? "pendiente_de_aceptacion" : "activa",
+                    acuerdoVigenteId: fila.acuerdo_vigente_id,
                     acuerdoPendiente: pendiente ? { id: pendiente.id, version: pendiente.version, limiteCredito: Number(pendiente.limite_credito), diasCredito: pendiente.dias_credito } : null
                 });
             }
 
-            res.json({ ok: true, creditos });
+            // Solicitudes todavia sin resolver (§09 del diseno) -- una
+            // vez aprobada, la solicitud ya tiene su fila reflejada
+            // arriba en `creditos` (via clientes_credito), asi que aqui
+            // solo interesan las que siguen en juego: el cliente puede
+            // retirarlas mientras no se resuelvan.
+            const solicitudesRes = await pool.query(
+                `SELECT s.id, n.slug, n.nombre AS negocio_nombre, s.monto_solicitado, s.plazo_solicitado_dias, s.estado, s.created_at
+                 FROM public.solicitudes_credito s
+                 JOIN public.negocios n ON n.id = s.negocio_id
+                 WHERE s.persona_id = $1 AND s.estado IN ('pendiente', 'informacion_solicitada')
+                 ORDER BY s.created_at DESC`,
+                [req.persona.id]
+            );
+
+            res.json({
+                ok: true,
+                creditos,
+                solicitudesEnCurso: solicitudesRes.rows.map(fila => ({
+                    id: fila.id,
+                    negocio: { slug: fila.slug, nombre: fila.negocio_nombre },
+                    montoSolicitado: fila.monto_solicitado !== null ? Number(fila.monto_solicitado) : null,
+                    plazoSolicitadoDias: fila.plazo_solicitado_dias,
+                    estado: fila.estado,
+                    createdAt: fila.created_at
+                }))
+            });
         } catch (error) {
             console.warn("Error calculando credito agregado de la persona:", error.message);
+            res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+        }
+    });
+
+    // El cliente puede arrepentirse antes de que el negocio decida --
+    // pasa a 'cancelada' (§07 del diseno), nunca se borra la fila (el
+    // expediente, si trae INE, sigue sujeto a la misma politica de
+    // retencion que una rechazada). Solo mientras siga en juego:
+    // aprobada/rechazada/cancelada ya son finales, no hay nada que
+    // retirar.
+    app.post("/personas/solicitudes-credito/:id/cancelar", crearRequerirSesionPersona(pool), async (req, res) => {
+        try {
+            const resultado = await pool.query(
+                `UPDATE public.solicitudes_credito
+                 SET estado = 'cancelada'
+                 WHERE id = $1 AND persona_id = $2 AND estado IN ('pendiente', 'informacion_solicitada')
+                 RETURNING negocio_id`,
+                [req.params.id, req.persona.id]
+            );
+            if (!resultado.rows.length) {
+                res.status(404).json({ ok: false, error: "Esta solicitud ya no se puede retirar." });
+                return;
+            }
+
+            await acuerdoCredito.registrarBitacoraCredito(pool, resultado.rows[0].negocio_id, null, "solicitud_credito_cancelada_por_cliente", {
+                solicitudId: Number(req.params.id), personaId: req.persona.id
+            });
+
+            await enviarPushANegocio(pool, resultado.rows[0].negocio_id, {
+                titulo: "Solicitud de credito retirada",
+                cuerpo: "Un cliente retiro su solicitud de credito antes de que se resolviera.",
+                url: "/creditos"
+            }).catch(() => {});
+
+            res.json({ ok: true });
+        } catch (error) {
             res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
         }
     });
@@ -4217,6 +4279,28 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
                     negocioNombre: a.negocio_nombre
                 }
             });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
+        }
+    });
+
+    // El PDF solo existe desde que el acuerdo quedo aceptado (§6i) --
+    // se genero una sola vez en ese momento, nunca se vuelve a armar.
+    app.get("/personas/acuerdos/:id/pdf", crearRequerirSesionPersona(pool), async (req, res) => {
+        try {
+            const fila = await pool.query(
+                `SELECT a.pdf_bytes, a.version FROM public.acuerdos_credito a
+                 JOIN public.clientes_credito c ON c.id = a.cliente_credito_id
+                 WHERE a.id = $1 AND c.persona_id = $2`,
+                [req.params.id, req.persona.id]
+            );
+            if (!fila.rows.length || !fila.rows[0].pdf_bytes) {
+                res.status(404).json({ ok: false, error: "Este acuerdo no tiene un PDF disponible." });
+                return;
+            }
+            res.set("Content-Type", "application/pdf");
+            res.set("Content-Disposition", `inline; filename="acuerdo-credito-v${fila.rows[0].version}.pdf"`);
+            res.send(fila.rows[0].pdf_bytes);
         } catch (error) {
             res.status(500).json({ ok: false, error: "Ocurrio un error. Intenta de nuevo." });
         }

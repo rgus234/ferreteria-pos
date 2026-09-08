@@ -649,13 +649,35 @@ async function cuentaMarketCargarCredito() {
     const datos = await cuentaMarketLlamar("/personas/mi-credito");
     const contenedor = document.getElementById("cuentaMarketCreditoLista");
     const creditos = datos.ok ? datos.creditos : [];
+    const solicitudes = datos.ok ? (datos.solicitudesEnCurso || []) : [];
 
     const disponibleTotal = creditos.reduce(function(suma, c) { return suma + Math.max(0, c.limiteCredito - c.saldo); }, 0);
     document.getElementById("resumenCreditoValor").textContent = creditos.length ? cuentaMarketDinero(disponibleTotal) : "--";
 
     contenedor.innerHTML = "";
+
+    // Solicitudes todavia sin resolver (§09 del diseno) -- el cliente
+    // puede retirarlas mientras el negocio no decida. Una vez
+    // aprobada, ya aparece abajo como credito (via clientes_credito),
+    // asi que nunca se duplican.
+    solicitudes.forEach(function(s) {
+        const bloque = document.createElement("div");
+        bloque.style.cssText = "margin-bottom:16px;padding:12px;border-radius:12px;background:var(--amber-bg,#fff4e5);border:1px solid var(--amber,#e0a000);font-size:13px;";
+        bloque.innerHTML =
+            '<strong></strong><br><span class="cuenta-market-solicitud-detalle"></span>' +
+            '<br><button type="button" class="btn" style="margin-top:8px;">Retirar solicitud</button>';
+        bloque.querySelector("strong").textContent = "Solicitud de credito en " + s.negocio.nombre;
+        const estadoTexto = s.estado === "informacion_solicitada" ? "El negocio te pidio mas informacion" : "En revision por el negocio";
+        bloque.querySelector(".cuenta-market-solicitud-detalle").textContent =
+            estadoTexto + (s.montoSolicitado ? " -- monto solicitado: " + cuentaMarketDinero(s.montoSolicitado) : "");
+        bloque.querySelector("button").addEventListener("click", function() { cuentaMarketRetirarSolicitudCredito(s.id, s.negocio.nombre); });
+        contenedor.appendChild(bloque);
+    });
+
     if (creditos.length === 0) {
-        contenedor.appendChild(Object.assign(document.createElement("p"), { className: "portal-credito-vacio", textContent: "Todavia no eres cliente de credito vinculado en ninguna tienda." }));
+        if (solicitudes.length === 0) {
+            contenedor.appendChild(Object.assign(document.createElement("p"), { className: "portal-credito-vacio", textContent: "Todavia no eres cliente de credito vinculado en ninguna tienda." }));
+        }
         return;
     }
 
@@ -698,6 +720,18 @@ async function cuentaMarketCargarCredito() {
                 '<br><button type="button" class="btn primary" style="margin-top:8px;" data-acuerdo-id="' + c.acuerdoPendiente.id + '">Ver y aceptar</button>';
             aviso.querySelector("button").addEventListener("click", function() { cuentaMarketAbrirAcuerdoPendiente(c.acuerdoPendiente.id, c.negocio.nombre); });
             bloque.appendChild(aviso);
+        } else if (c.acuerdoVigenteId) {
+            // Sesion de Market va por cookie, no por header -- a
+            // diferencia del PDF del POS, aqui un <a href> normal ya
+            // manda la autenticacion.
+            const enlacePdf = document.createElement("a");
+            enlacePdf.href = "/personas/acuerdos/" + c.acuerdoVigenteId + "/pdf";
+            enlacePdf.target = "_blank";
+            enlacePdf.rel = "noopener";
+            enlacePdf.className = "btn";
+            enlacePdf.style.cssText = "display:inline-block;margin-top:10px;text-decoration:none;";
+            enlacePdf.textContent = "Descargar PDF del acuerdo";
+            bloque.appendChild(enlacePdf);
         }
         contenedor.appendChild(bloque);
     });
@@ -734,6 +768,16 @@ async function cuentaMarketAbrirAcuerdoPendiente(acuerdoId, negocioNombre) {
             this.disabled = false;
         }
     });
+}
+
+async function cuentaMarketRetirarSolicitudCredito(id, negocioNombre) {
+    if (!confirm("Retirar tu solicitud de credito con " + negocioNombre + "? Tendrias que solicitarlo de nuevo si cambias de opinion.")) return;
+    const resultado = await cuentaMarketLlamar("/personas/solicitudes-credito/" + id + "/cancelar", { method: "POST" });
+    if (resultado.ok) {
+        await cuentaMarketCargarCredito();
+    } else {
+        alert(resultado.error || "No se pudo retirar la solicitud. Intenta de nuevo.");
+    }
 }
 
 async function cuentaMarketCargarFerreterias() {

@@ -383,7 +383,31 @@ function renderAccionAcuerdoCredito() {
  return;
  }
 
- contenedor.innerHTML = botonesSuspension;
+ contenedor.innerHTML = `
+ <button class="btn-portal-cliente" type="button" onclick="descargarAcuerdoPdfPOS(${creditoActual.id})">Descargar PDF del acuerdo</button>
+ ${botonesSuspension}
+ `;
+}
+
+// Igual que las fotos de identificacion (mismo criterio en
+// sitio-web-view.js): esta ruta solo acepta el header de auth, nunca
+// un token en la URL -- se pide por fetch (el interceptor global ya lo
+// manda) y se abre como blob, nunca con un <a href> directo.
+async function descargarAcuerdoPdfPOS(clienteId) {
+	try {
+		const respuesta = await fetch(`/creditos/clientes/${clienteId}/acuerdo/pdf`);
+		if (!respuesta.ok) {
+			const datos = await respuesta.json().catch(() => ({}));
+			await alertaPOS(datos.error || "No se pudo descargar el PDF.", "Acuerdo de credito", "peligro");
+			return;
+		}
+		const blob = await respuesta.blob();
+		const url = URL.createObjectURL(blob);
+		window.open(url, "_blank");
+		setTimeout(() => URL.revokeObjectURL(url), 60000);
+	} catch (error) {
+		await alertaPOS("Error de conexion, intenta de nuevo.", "Acuerdo de credito", "peligro");
+	}
 }
 
 async function generarAcuerdoCreditoPOS(clienteId) {

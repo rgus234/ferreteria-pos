@@ -12,6 +12,7 @@
 // aceptado (o NULL si nunca acepto ninguno) -- eso es lo que bloquea
 // vender a credito, no un campo de estado aparte.
 const crypto = require("crypto");
+const PDFDocument = require("pdfkit");
 
 const PLAZO_CREDITO_DEFECTO_DIAS = 15;
 
@@ -60,6 +61,56 @@ ${politicaTexto ? `<h2>Politica del negocio</h2><p>${escaparHtmlAcuerdo(politica
 <h2>Aviso</h2>
 <p>El credito es otorgado por ${escaparHtmlAcuerdo(negocio.nombre)}. Nexo proporciona la plataforma tecnologica -- Nexo no presta dinero, no es el acreedor, no garantiza el pago y no decide el limite de credito.</p>
 </article>`;
+}
+
+function decodificarEntidadesHtml(texto) {
+    return String(texto)
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, "&");
+}
+
+function textoPlanoDeBloque(html) {
+    return decodificarEntidadesHtml(
+        html.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?strong>/gi, "")
+    ).trim();
+}
+
+// El PDF se genera una sola vez, al aceptar (§6i) -- nunca de nuevo al
+// descargarlo despues. Por eso lee directo de condiciones_texto, ya
+// congelado y con su hash verificado, en vez de volver a consultar
+// negocio/cliente/politica en vivo: solo entiende las etiquetas que
+// renderizarCondicionesTexto() produce, no HTML arbitrario.
+function generarPdfAcuerdo(condicionesTextoHtml) {
+    return new Promise((resolver, rechazar) => {
+        const doc = new PDFDocument({ margin: 56, size: "letter" });
+        const trozos = [];
+        doc.on("data", trozo => trozos.push(trozo));
+        doc.on("end", () => resolver(Buffer.concat(trozos)));
+        doc.on("error", rechazar);
+
+        const regexBloque = /<(h1|h2|p)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/g;
+        let coincidencia;
+        while ((coincidencia = regexBloque.exec(condicionesTextoHtml)) !== null) {
+            const [, etiqueta, contenidoHtml] = coincidencia;
+            const texto = textoPlanoDeBloque(contenidoHtml);
+            if (!texto) continue;
+
+            if (etiqueta === "h1") {
+                doc.font("Helvetica-Bold").fontSize(18).text(texto);
+                doc.moveDown(0.6);
+            } else if (etiqueta === "h2") {
+                doc.moveDown(0.4);
+                doc.font("Helvetica-Bold").fontSize(12).text(texto);
+                doc.moveDown(0.2);
+            } else {
+                doc.font("Helvetica").fontSize(10).text(texto, { lineGap: 3 });
+            }
+        }
+
+        doc.end();
+    });
 }
 
 async function obtenerNegocioParaAcuerdo(clientOPool, negocioId) {
@@ -213,9 +264,11 @@ async function confirmarAceptacion(client, { acuerdo, personaId = null, ip = nul
         throw error;
     }
 
+    const pdfBytes = await generarPdfAcuerdo(acuerdo.condiciones_texto);
+
     await client.query(
-        `UPDATE public.acuerdos_credito SET estado = 'aceptado' WHERE id = $1`,
-        [acuerdo.id]
+        `UPDATE public.acuerdos_credito SET estado = 'aceptado', pdf_bytes = $2 WHERE id = $1`,
+        [acuerdo.id, pdfBytes]
     );
 
     await client.query(
@@ -287,6 +340,7 @@ module.exports = {
     hashDeToken,
     calcularHashTexto,
     renderizarCondicionesTexto,
+    generarPdfAcuerdo,
     crearVersionAcuerdo,
     confirmarAceptacion,
     regenerarTokenAcuerdo,

@@ -8,6 +8,7 @@ const assert = require("node:assert/strict");
 const { pool, crearNegocioPrueba, borrarNegocioPrueba, crearClienteCreditoActivo } = require("./helpers/negocio-prueba");
 const { iniciarServidorPrueba, detenerServidorPrueba, BASE_URL } = require("./helpers/servidor-prueba");
 const { hashPassword } = require("../password-utils");
+const { mintearSesionPruebaPersona } = require("./helpers/persona-prueba");
 
 let negocio;
 const personasCreadasIds = [];
@@ -387,4 +388,111 @@ test("rechazar y pedir informacion no crean ningun cliente de credito", async ()
 
     const acuerdos = await pool.query(`SELECT COUNT(*) AS n FROM public.acuerdos_credito WHERE solicitud_id = $1`, [solicitudId]);
     assert.equal(Number(acuerdos.rows[0].n), 0);
+});
+
+test("el cliente ve su solicitud en curso en /personas/mi-credito y puede retirarla", async () => {
+    const personaId = await crearPersonaPrueba("retira");
+    const tokenPersona = await mintearSesionPruebaPersona(personaId);
+    const solicitud = await pool.query(
+        `INSERT INTO public.solicitudes_credito (negocio_id, nombre, persona_id, estado, monto_solicitado)
+         VALUES ($1, 'Cliente que se arrepiente', $2, 'pendiente', 4000) RETURNING id`,
+        [negocio.negocioId, personaId]
+    );
+    const solicitudId = solicitud.rows[0].id;
+
+    const miCredito = await fetch(`${BASE_URL}/personas/mi-credito`, { headers: { "x-persona-token": tokenPersona } });
+    assert.equal(miCredito.status, 200);
+    const datosMiCredito = await miCredito.json();
+    assert.equal(datosMiCredito.solicitudesEnCurso.length, 1);
+    assert.equal(datosMiCredito.solicitudesEnCurso[0].id, solicitudId);
+    assert.equal(datosMiCredito.solicitudesEnCurso[0].estado, "pendiente");
+
+    // Otra persona no puede retirar la solicitud de alguien mas.
+    const otraPersonaId = await crearPersonaPrueba("intruso");
+    const tokenIntruso = await mintearSesionPruebaPersona(otraPersonaId);
+    const intento = await fetch(`${BASE_URL}/personas/solicitudes-credito/${solicitudId}/cancelar`, {
+        method: "POST", headers: { "x-persona-token": tokenIntruso }
+    });
+    assert.equal(intento.status, 404);
+    let fila = await pool.query(`SELECT estado FROM public.solicitudes_credito WHERE id = $1`, [solicitudId]);
+    assert.equal(fila.rows[0].estado, "pendiente", "un tercero no debe poder tocar la solicitud de otra persona");
+
+    const cancelar = await fetch(`${BASE_URL}/personas/solicitudes-credito/${solicitudId}/cancelar`, {
+        method: "POST", headers: { "x-persona-token": tokenPersona }
+    });
+    assert.equal(cancelar.status, 200);
+    fila = await pool.query(`SELECT estado FROM public.solicitudes_credito WHERE id = $1`, [solicitudId]);
+    assert.equal(fila.rows[0].estado, "cancelada");
+
+    const yaNoAparece = await fetch(`${BASE_URL}/personas/mi-credito`, { headers: { "x-persona-token": tokenPersona } });
+    assert.equal((await yaNoAparece.json()).solicitudesEnCurso.length, 0, "una solicitud cancelada ya no debe listarse como en curso");
+
+    const reintento = await fetch(`${BASE_URL}/personas/solicitudes-credito/${solicitudId}/cancelar`, {
+        method: "POST", headers: { "x-persona-token": tokenPersona }
+    });
+    assert.equal(reintento.status, 404, "una solicitud ya cancelada no se puede volver a retirar");
+
+    const bitacora = await pool.query(
+        `SELECT accion FROM public.bitacora_acciones WHERE negocio_id = $1 AND accion = 'solicitud_credito_cancelada_por_cliente'`,
+        [negocio.negocioId]
+    );
+    assert.equal(bitacora.rows.length, 1);
+});
+
+test("una solicitud ya aprobada o rechazada no se puede retirar", async () => {
+    const personaId = await crearPersonaPrueba("ya-resuelta");
+    const tokenPersona = await mintearSesionPruebaPersona(personaId);
+    const solicitud = await pool.query(
+        `INSERT INTO public.solicitudes_credito (negocio_id, nombre, persona_id, estado)
+         VALUES ($1, 'Cliente ya rechazado', $2, 'rechazado') RETURNING id`,
+        [negocio.negocioId, personaId]
+    );
+
+    const intento = await fetch(`${BASE_URL}/personas/solicitudes-credito/${solicitud.rows[0].id}/cancelar`, {
+        method: "POST", headers: { "x-persona-token": tokenPersona }
+    });
+    assert.equal(intento.status, 404, "una solicitud ya resuelta es final, no hay nada que retirar");
+});
+
+test("al aceptar se genera un PDF real, descargable desde el POS y desde la cuenta del cliente", async () => {
+    const personaId = await crearPersonaPrueba("pdf");
+    const tokenPersona = await mintearSesionPruebaPersona(personaId);
+
+    const creado = await fetch(`${BASE_URL}/creditos/clientes`, {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({ nombre: "Cliente con PDF", limiteCredito: 3000, diasCredito: 30 })
+    });
+    const datos = await creado.json();
+    const clienteId = datos.cliente.id;
+
+    // Vincula el cliente a la persona directamente por SQL (mismo
+    // atajo que el resto de este archivo) para poder probar tambien la
+    // descarga por sesion de cuenta Nexo.
+    await pool.query(`UPDATE public.clientes_credito SET persona_id = $1 WHERE id = $2`, [personaId, clienteId]);
+
+    const antesDeAceptar = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/acuerdo/pdf`, { headers: headers() });
+    assert.equal(antesDeAceptar.status, 404, "sin aceptar todavia, no hay ningun PDF que descargar");
+
+    const aceptar = await fetch(`${BASE_URL}/acuerdo/${datos.tokenAceptacion}/aceptar`, { method: "POST" });
+    assert.equal(aceptar.status, 200);
+
+    const filaAcuerdo = await pool.query(`SELECT pdf_bytes FROM public.acuerdos_credito WHERE id = $1`, [datos.acuerdo.id]);
+    const pdfGuardado = filaAcuerdo.rows[0].pdf_bytes;
+    assert.ok(pdfGuardado, "el acuerdo debe guardar un PDF real al aceptarse");
+    assert.equal(pdfGuardado.slice(0, 5).toString("latin1"), "%PDF-", "debe ser un PDF de verdad, no texto plano");
+
+    const pdfPOS = await fetch(`${BASE_URL}/creditos/clientes/${clienteId}/acuerdo/pdf`, { headers: headers() });
+    assert.equal(pdfPOS.status, 200);
+    assert.equal(pdfPOS.headers.get("content-type"), "application/pdf");
+    const bufferPOS = Buffer.from(await pdfPOS.arrayBuffer());
+    assert.equal(bufferPOS.length, pdfGuardado.length, "el POS debe servir exactamente el PDF ya congelado, no regenerarlo");
+
+    const pdfPersona = await fetch(`${BASE_URL}/personas/acuerdos/${datos.acuerdo.id}/pdf`, { headers: { "x-persona-token": tokenPersona } });
+    assert.equal(pdfPersona.status, 200);
+    assert.equal(pdfPersona.headers.get("content-type"), "application/pdf");
+
+    const otraPersonaId = await crearPersonaPrueba("pdf-intruso");
+    const tokenIntruso = await mintearSesionPruebaPersona(otraPersonaId);
+    const pdfIntruso = await fetch(`${BASE_URL}/personas/acuerdos/${datos.acuerdo.id}/pdf`, { headers: { "x-persona-token": tokenIntruso } });
+    assert.equal(pdfIntruso.status, 404, "el PDF de un acuerdo no le pertenece a un tercero");
 });
