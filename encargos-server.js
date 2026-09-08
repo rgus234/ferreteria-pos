@@ -29,7 +29,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         if (encargo.rows.length === 0) return null;
 
         const items = await pool.query(
-            `SELECT id, producto_id, codigo, nombre, cantidad, precio_estimado
+            `SELECT id, producto_id, codigo, nombre, proveedor, marca, cantidad, precio_estimado
              FROM public.encargos_clientes_items
              WHERE encargo_id = $1
              ORDER BY id ASC`,
@@ -52,6 +52,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 productoId: item.producto_id,
                 codigo: item.codigo,
                 nombre: item.nombre,
+                proveedor: item.proveedor,
+                marca: item.marca,
                 cantidad: Number(item.cantidad),
                 precioEstimado: Number(item.precio_estimado)
             }))
@@ -99,14 +101,16 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
                 await client.query(
                     `INSERT INTO public.encargos_clientes_items
-                        (negocio_id, encargo_id, producto_id, codigo, nombre, cantidad, precio_estimado)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                        (negocio_id, encargo_id, producto_id, codigo, nombre, proveedor, marca, cantidad, precio_estimado)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
                     [
                         negocio.id,
                         encargoId,
                         item.productoId || null,
                         String(item.codigo || "").slice(0, 80),
                         nombre,
+                        String(item.proveedor || "").slice(0, 120),
+                        String(item.marca || "").slice(0, 120),
                         Number(item.cantidad || 1),
                         Number(item.precioEstimado || 0)
                     ]
@@ -238,14 +242,16 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             await pool.query(
                 `INSERT INTO public.encargos_clientes_items
-                    (negocio_id, encargo_id, producto_id, codigo, nombre, cantidad, precio_estimado)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                    (negocio_id, encargo_id, producto_id, codigo, nombre, proveedor, marca, cantidad, precio_estimado)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
                 [
                     negocio.id,
                     req.params.id,
                     req.body?.productoId || null,
                     String(req.body?.codigo || "").slice(0, 80),
                     nombre,
+                    String(req.body?.proveedor || "").slice(0, 120),
+                    String(req.body?.marca || "").slice(0, 120),
                     Number(req.body?.cantidad || 1),
                     Number(req.body?.precioEstimado || 0)
                 ]

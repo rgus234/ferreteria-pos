@@ -266,7 +266,7 @@ function renderTablaItemsEncargoNuevo() {
  <tbody>
  ${itemsEncargoNuevo.map((item, indice) => `
  <tr>
- <td>${escaparPOS(item.nombre)}</td>
+ <td>${escaparPOS(item.nombre)}${(item.marca || item.proveedor) ? `<br><small>${escaparPOS([item.marca, item.proveedor].filter(Boolean).join(" &middot; "))}</small>` : ""}</td>
  <td>${item.cantidad}</td>
  <td>${dineroEncargo(item.precioEstimado)}</td>
  <td><button type="button" class="btn-encargo-quitar" onclick="quitarItemFormularioEncargo(${indice})">Quitar</button></td>
@@ -558,7 +558,7 @@ function renderModalDetalleEncargo() {
  <tbody>
  ${encargo.items.map(item => `
  <tr>
- <td>${escaparPOS(item.nombre)}</td>
+ <td>${escaparPOS(item.nombre)}${(item.marca || item.proveedor) ? `<br><small>${escaparPOS([item.marca, item.proveedor].filter(Boolean).join(" &middot; "))}</small>` : ""}</td>
  <td>${item.cantidad}</td>
  <td>${dineroEncargo(item.precioEstimado)}</td>
  <td>${encargo.estado !== "entregado" && encargo.estado !== "cancelado" ? `<button type="button" class="btn-encargo-quitar" onclick="quitarItemEncargoExistente(${item.id})">Quitar</button>` : ""}</td>

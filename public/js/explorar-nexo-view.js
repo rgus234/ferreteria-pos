@@ -223,7 +223,10 @@ function explorarNexoRenderResultados() {
 
 	contenedor.innerHTML = bloques.length
 		? bloques.join("")
-		: `<p class="explorar-nexo-vacio">No encontramos una coincidencia con "${escaparPOS(r.termino)}". Prueba con otras palabras.</p>`;
+		: `
+			<p class="explorar-nexo-vacio">No encontramos una coincidencia con "${escaparPOS(r.termino)}". Prueba con otras palabras.</p>
+			<button type="button" class="btn-agregar" style="margin:0 auto;display:block;" onclick="explorarNexoCrearEncargoSinResultado()">Crear encargo con este nombre</button>
+		`;
 }
 
 function explorarNexoObtenerItem(fuente, indice) {
@@ -291,7 +294,11 @@ function explorarNexoVerFicha(fuente, indice) {
 			<button type="button" class="btn-agregar btn-nuevo-credito" onclick="explorarNexoAgregarAVenta(${item.productoId})">Agregar a venta</button>
 		`;
 	} else {
-		accionesHtml = `<p class="explorar-nexo-ficha-nota">Este producto todavia no esta en tu inventario. Pedirlo al proveedor o crear un encargo para un cliente llega en el siguiente paso.</p>`;
+		accionesHtml = `
+			<p class="explorar-nexo-ficha-nota" style="margin-top:0;">Este producto todavia no esta en tu inventario.</p>
+			<button type="button" class="btn-agregar" onclick="explorarNexoPedirAlProveedor('${fuente}', ${indice})">Pedir al proveedor</button>
+			<button type="button" class="btn-agregar btn-nuevo-credito" onclick="explorarNexoCrearEncargo('${fuente}', ${indice})">Crear encargo para cliente</button>
+		`;
 	}
 
 	ficha.innerHTML = `
@@ -310,4 +317,115 @@ function explorarNexoVerProductoInventario(productoId) {
 
 function explorarNexoAgregarAVenta(productoId) {
 	if (typeof agregarDesdeFlyoutPOS === "function") agregarDesdeFlyoutPOS(productoId);
+}
+
+// Cuando ninguna de las 4 fuentes confirma el producto, la unica
+// opcion honesta es dejar que el cliente lo espere -- sin
+// codigo/marca/proveedor, solo el nombre que se busco.
+async function explorarNexoCrearEncargoSinResultado() {
+	const nombre = explorarNexoUltimoResultado?.termino;
+	if (!nombre) return;
+
+	if (typeof mostrarEncargos === "function") await mostrarEncargos();
+	if (typeof itemsEncargoNuevo === "undefined") return;
+
+	itemsEncargoNuevo.push({ productoId: null, codigo: "", nombre, proveedor: "", marca: "", cantidad: 1, precioEstimado: 0 });
+
+	if (typeof renderTablaItemsEncargoNuevo === "function") renderTablaItemsEncargoNuevo();
+
+	document.getElementById("encargoClienteNombre")?.focus();
+}
+
+// Puente hacia Encargos (paso 7 del diseno aprobado): la busqueda
+// descubre el producto, Encargos se encarga del proceso posterior --
+// se abre la pantalla real de Encargos y se le agrega este hallazgo
+// como si el empleado lo hubiera escrito a mano, sin duplicar nada de
+// esa logica. El empleado solo tiene que escribir el cliente y
+// guardar.
+async function explorarNexoCrearEncargo(fuente, indice) {
+	const item = explorarNexoObtenerItem(fuente, indice);
+	if (!item) return;
+
+	const precioEstimado = fuente === "proveedor" ? item.precioPublico : item.precioListaPublico;
+
+	if (typeof mostrarEncargos === "function") await mostrarEncargos();
+	if (typeof itemsEncargoNuevo === "undefined") return;
+
+	itemsEncargoNuevo.push({
+		productoId: null,
+		codigo: item.codigo || "",
+		nombre: item.nombre,
+		// item.proveedor solo existe de verdad para un resultado "con
+		// proveedores" -- para uno de Catalogo Nexo no se rellena con el
+		// fabricante: fabricante no es a quien se le compra, y mostrarlo
+		// como proveedor confundiria a quien revise el encargo despues.
+		proveedor: fuente === "proveedor" ? (item.proveedor || "") : "",
+		marca: item.marca || "",
+		cantidad: 1,
+		precioEstimado: precioEstimado || 0
+	});
+
+	if (typeof renderTablaItemsEncargoNuevo === "function") renderTablaItemsEncargoNuevo();
+
+	document.getElementById("encargoClienteNombre")?.focus();
+}
+
+// "Pedir al proveedor" (restocking, sin cliente de por medio) --
+// reusa POST /pedidos-proveedor tal cual, la misma ruta que ya usa la
+// pantalla de Compras -> Pedidos a proveedor (incluye su propio
+// candado de plan Plus, respetado aqui sin duplicarlo). Un resultado
+// de "Con proveedores" ya trae el proveedor; uno de "Catalogo Nexo"
+// no tiene uno especifico todavia, se pregunta con el mismo
+// formulario generico que ya usa Creditos.
+async function explorarNexoPedirAlProveedor(fuente, indice) {
+	const item = explorarNexoObtenerItem(fuente, indice);
+	if (!item) return;
+
+	let proveedorNombre = item.proveedor || "";
+
+	if (!proveedorNombre) {
+		const datos = typeof abrirFormularioCredito === "function"
+			? await abrirFormularioCredito({
+				titulo: "Pedir al proveedor",
+				subtitulo: item.nombre,
+				campos: [{ nombre: "proveedor", etiqueta: "Nombre del proveedor", placeholder: "Ej. Diprofer", requerido: true }]
+			})
+			: null;
+
+		if (!datos) return;
+		proveedorNombre = datos.proveedor;
+	}
+
+	const costo = fuente === "proveedor"
+		? (item.precioDistribuidor ?? item.precioPublico ?? 0)
+		: (item.precioListaDistribuidor ?? item.precioListaPublico ?? 0);
+
+	try {
+		const respuesta = await fetch("/pedidos-proveedor", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				proveedor: proveedorNombre,
+				estado: "borrador",
+				items: [{
+					codigo: item.codigo || "",
+					nombre: item.nombre,
+					proveedor: proveedorNombre,
+					cantidad: 1,
+					costo: costo || 0,
+					unidad: "pieza"
+				}]
+			})
+		});
+		const datosRespuesta = await respuesta.json().catch(() => ({}));
+
+		if (!respuesta.ok) {
+			await alertaPOS(datosRespuesta.error || "No se pudo crear el pedido.", "Pedir al proveedor", "peligro");
+			return;
+		}
+
+		await alertaPOS(`Pedido creado con ${proveedorNombre}, en borrador. Revisalo y envialo desde Compras -> Pedidos a proveedor.`, "Pedido creado", "exito");
+	} catch (error) {
+		await alertaPOS("Error de conexion, intenta de nuevo.", "Pedir al proveedor", "peligro");
+	}
 }
