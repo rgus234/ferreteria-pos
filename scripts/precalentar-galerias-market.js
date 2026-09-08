@@ -35,14 +35,30 @@ async function main() {
     const inicio = Date.now();
     const todos = process.argv.includes("--todos");
 
-    // Solo los que tienen foto en el banco: si el codigo del producto no
-    // esta en el banco, la ficha ni siquiera entra al bloque de galeria.
+    // Solo los que tienen foto en el banco: si el codigo no esta en el
+    // banco, la ficha ni siquiera entra al bloque de galeria.
+    //
+    // OJO CON QUE CODIGO SE BUSCA. Esta consulta miraba p.codigo, que en
+    // una tienda real es el codigo de BARRAS (7506240634553), y el banco
+    // se indexa por el de CATALOGO del fabricante (46813). Asi solo
+    // precalentaba los pocos productos que casualmente estan dados de
+    // alta con el codigo de fabricante -- 47 de los 813 de Ferreteria
+    // Olimpico -- y el resto se lo comia el primer cliente que abriera la
+    // ficha, entre 125 ms y 1.2 s.
+    //
+    // El puente es el mismo que usa la ficha de Market para resolver la
+    // galeria (ver public-site-server.js): catalogo_maestro_id. Si no lo
+    // usamos aqui, precalentamos un conjunto distinto del que se sirve.
     const sqlMarket =
-        "SELECT DISTINCT p.codigo" +
+        "SELECT DISTINCT COALESCE(m.codigo_fabricante, p.codigo) AS codigo" +
         "  FROM public.productos p" +
+        "  LEFT JOIN public.catalogo_maestro_productos m" +
+        "         ON m.id = p.catalogo_maestro_id" +
         " WHERE p.visible_market = true" +
-        "   AND EXISTS (SELECT 1 FROM public.banco_imagenes_producto b WHERE b.codigo = p.codigo)" +
-        "   AND NOT EXISTS (SELECT 1 FROM public.banco_imagenes_fabricante f WHERE f.codigo = p.codigo)";
+        "   AND EXISTS (SELECT 1 FROM public.banco_imagenes_producto b" +
+        "                WHERE b.codigo = COALESCE(m.codigo_fabricante, p.codigo))" +
+        "   AND NOT EXISTS (SELECT 1 FROM public.banco_imagenes_fabricante f" +
+        "                    WHERE f.codigo = COALESCE(m.codigo_fabricante, p.codigo))";
 
     const sqlTodos =
         "SELECT DISTINCT m.codigo_fabricante AS codigo" +
