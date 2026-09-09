@@ -41,24 +41,45 @@ const PERMISOS = Object.freeze({
 //     pero esa seccion NO SE RENDERIZA hasta que el empleado vincula
 //     su propio celular a Nexo. Un cajero de mostrador que nunca lo
 //     hace no tiene NINGUNA casilla en NINGUN lado para que el dueno
-//     le conceda ver_credito/gestionar_credito, aunque ya le haya
-//     marcado la pantalla "Clientes".
+//     le conceda esos permisos, aunque ya le haya marcado la pantalla
+//     correspondiente.
 //
 // Bug real reportado por Ferreteria Olimpico (2026-09-09): sus
 // cajeros (nunca vinculados a Nexo) veian la pantalla de Creditos
 // vacia y no podian dar de alta clientes, aunque el dueno confirmo
 // que "Clientes" ya estaba marcado -- porque no existia forma de
-// marcar lo otro. Mientras exista un solo editor, si el empleado ya
-// tiene la pantalla concedida se le reconoce el permiso de accion
-// equivalente. Un valor explicito ya guardado (por haber usado el
-// editor de Nexo) siempre gana sobre este valor por defecto.
+// marcar lo otro. Se corrigio primero solo para clientes/credito;
+// esta tabla extiende el mismo puente a cada modulo de escritorio que
+// tiene un permiso de accion equivalente en PERMISOS, para que ningun
+// otro cajero de mostrador se quede con el mismo hueco. Mientras
+// exista un solo editor, si el empleado ya tiene la pantalla
+// concedida se le reconocen los permisos de accion equivalentes. Un
+// valor explicito ya guardado (por haber usado el editor de Nexo)
+// siempre gana sobre este valor por defecto.
+//
+// A proposito fuera de esta tabla: administrar_usuarios (gestionar
+// empleados) y aprobar_solicitudes_credito (ve identificacion oficial
+// adjunta) -- ambas mas sensibles que una pantalla de escritorio, sin
+// modulo equivalente en MODULOS_SISTEMA. Deben seguir siendo una
+// concesion explicita via el editor de Nexo, nunca un default.
+const MODULO_A_PERMISOS_DERIVADOS = {
+    clientes: ["ver_credito", "gestionar_credito", "registrar_abonos_credito"],
+    puntoVenta: ["hacer_ventas"],
+    caja: ["hacer_corte"],
+    pedidos: ["ver_pedidos", "gestionar_pedidos"],
+    inventario: ["ver_inventario", "modificar_inventario"],
+    reportes: ["ver_reportes"]
+};
+
 function conPermisosDerivados(permisos) {
     const derivados = {};
 
-    if (permisos.clientes === true) {
-        derivados.ver_credito = true;
-        derivados.gestionar_credito = true;
-        derivados.registrar_abonos_credito = true;
+    for (const [modulo, clavesDerivadas] of Object.entries(MODULO_A_PERMISOS_DERIVADOS)) {
+        if (permisos[modulo] === true) {
+            for (const clave of clavesDerivadas) {
+                derivados[clave] = true;
+            }
+        }
     }
 
     return { ...derivados, ...permisos };

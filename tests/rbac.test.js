@@ -123,6 +123,51 @@ test("un valor explicito de ver_credito (ej. ya usado el editor de Nexo) gana so
     assert.equal(respuesta.status, 403);
 });
 
+test("conPermisosDerivados extiende el mismo puente a cada modulo con un permiso de accion equivalente", () => {
+    const { conPermisosDerivados } = require("../rbac");
+
+    assert.deepEqual(conPermisosDerivados({ puntoVenta: true }), { hacer_ventas: true, puntoVenta: true });
+    assert.deepEqual(conPermisosDerivados({ caja: true }), { hacer_corte: true, caja: true });
+    assert.deepEqual(
+        conPermisosDerivados({ pedidos: true }),
+        { ver_pedidos: true, gestionar_pedidos: true, pedidos: true }
+    );
+    assert.deepEqual(
+        conPermisosDerivados({ inventario: true }),
+        { ver_inventario: true, modificar_inventario: true, inventario: true }
+    );
+    assert.deepEqual(conPermisosDerivados({ reportes: true }), { ver_reportes: true, reportes: true });
+
+    // Modulos sin permiso de accion equivalente (proveedores, catalogo,
+    // configuracion...) no derivan nada -- solo pasan tal cual.
+    assert.deepEqual(conPermisosDerivados({ proveedores: true }), { proveedores: true });
+
+    // Las 2 sensibles nunca se derivan de ningun modulo, a proposito.
+    const derivado = conPermisosDerivados({ clientes: true, puntoVenta: true, caja: true, pedidos: true, inventario: true, reportes: true, configuracion: true, dueno: true });
+    assert.equal(derivado.administrar_usuarios, undefined);
+    assert.equal(derivado.aprobar_solicitudes_credito, undefined);
+
+    // Un valor explicito ya guardado sigue ganando sobre el derivado,
+    // en cualquier modulo -- no solo en clientes/credito.
+    assert.deepEqual(
+        conPermisosDerivados({ caja: true, hacer_corte: false }),
+        { caja: true, hacer_corte: false }
+    );
+});
+
+test("de extremo a extremo: la pantalla 'pedidos' basta para pasar por una ruta gateada con ver_pedidos", async () => {
+    await pool.query(
+        `UPDATE public.empleados SET permisos = '{"pedidos": true}'::jsonb WHERE id = $1`,
+        [empleadoId]
+    );
+
+    const respuesta = await fetch(`${BASE_URL}/negocio-actual/pedidos-market`, {
+        headers: { "x-dispositivo-token": negocio.token, "x-empleado-id": String(empleadoId) }
+    });
+
+    assert.equal(respuesta.status, 200);
+});
+
 test("sin la pantalla 'clientes', un empleado sigue sin ver_credito por defecto", async () => {
     await pool.query(
         `UPDATE public.empleados SET permisos = '{"ver_pedidos": true}'::jsonb WHERE id = $1`,
