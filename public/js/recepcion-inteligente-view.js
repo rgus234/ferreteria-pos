@@ -8,8 +8,39 @@
 // inventario excepto "Confirmar recepcion", y solo despues de que
 // cada concepto amarillo ya tiene una decision humana.
 let recepcionInteligenteActualId = null;
+let recepcionInteligenteItemsActuales = [];
 
 const RI_NIVEL_ETIQUETA = { fuerte: "🟢 Identificado", probable: "🟡 Revisar" };
+
+// El candidato trae precios de referencia con 2 nombres distintos segun
+// de donde salio (ver recepcion-inteligente-matching.js): catalogo de
+// proveedor/codigo usa precioPublico/precioMedioMayoreo/precioDistribuidor,
+// Catalogo Maestro/fabricante usa el mismo trio con prefijo "Lista". Esto
+// los normaliza a un solo trio, sin importar la fuente.
+function riPreciosReferenciaCandidato(candidato) {
+	if (!candidato) return null;
+
+	const publico = candidato.precioPublico ?? candidato.precioListaPublico ?? candidato.precio ?? null;
+	const medioMayoreo = candidato.precioMedioMayoreo ?? candidato.precioListaMedioMayoreo ?? null;
+	const distribuidor = candidato.precioDistribuidor ?? candidato.precioListaDistribuidor ?? null;
+
+	if (publico == null && medioMayoreo == null && distribuidor == null) return null;
+	return { publico, medioMayoreo, distribuidor };
+}
+
+// Regla de negocio confirmada (Ferreteria Olimpico): el precio de venta
+// por defecto es el medio mayoreo del proveedor/catalogo maestro, no el
+// publico -- ver memoria "Catalogo proveedor: precio medio mayoreo".
+// Publico/distribuidor quedan disponibles para el concepto puntual que
+// no siga esa regla general.
+function riPrecioSugerido(candidato) {
+	const precios = riPreciosReferenciaCandidato(candidato);
+	if (!precios) return null;
+
+	if (precios.medioMayoreo != null) return { valor: precios.medioMayoreo, etiqueta: "medio mayoreo" };
+	if (precios.publico != null) return { valor: precios.publico, etiqueta: "público" };
+	return { valor: precios.distribuidor, etiqueta: "distribuidor" };
+}
 
 function riBadgeEstado(recepcion) {
 	if (recepcion.porRevisar === 0) return `<span class="ri-badge ri-badge-ok">🟢 Todo identificado</span>`;
@@ -147,6 +178,7 @@ async function riVerDetalle(id) {
 	}
 
 	const { recepcion, items } = datos;
+	recepcionInteligenteItemsActuales = items;
 	const sinDecidir = items.filter(it => !it.accion).length;
 
 	panel.innerHTML = `
@@ -187,13 +219,14 @@ function riFilaItem(item, estadoRecepcion) {
 		: nivel;
 
 	const puedeEditar = estadoRecepcion === "pendiente";
+	const sugerido = !item.accion ? riPrecioSugerido(item.candidato) : null;
 
 	return `
 		<tr>
 			<td>${escaparPOS(item.descripcion)}${item.candidato?.nombre ? `<br><small>${escaparPOS(item.candidato.nombre)}</small>` : ""}</td>
 			<td>${escaparPOS(item.codigo || "-")}</td>
 			<td>${item.cantidad}</td>
-			<td>$${item.costo.toFixed(2)}</td>
+			<td>$${item.costo.toFixed(2)}${sugerido ? `<br><small>Venta: $${sugerido.valor.toFixed(2)} (${sugerido.etiqueta})</small>` : ""}</td>
 			<td>${yaDecidido}</td>
 			<td>${puedeEditar && !item.accion ? `
 				<button type="button" class="btn-mini" onclick="riRelacionarProducto(${item.id}, '${escaparPOS(item.descripcion).replace(/'/g, "\\'")}')">Relacionar</button>
@@ -231,14 +264,42 @@ async function riRelacionarProducto(itemId, descripcion) {
 }
 
 async function riCrearProducto(itemId, nombreSugerido) {
+	const item = recepcionInteligenteItemsActuales.find(it => it.id === itemId);
+	const precios = riPreciosReferenciaCandidato(item?.candidato);
+	const costo = item?.costo ?? 0;
+
+	// Con candidato: un solo select con las 3 opciones (publico/medio
+	// mayoreo/distribuidor) que tenga precio real -- nunca 3 campos
+	// sueltos, para que no se vea amontonado. Medio mayoreo va
+	// preseleccionado (regla de esta ferreteria), pero cualquiera de los
+	// tres queda a un clic si ese producto puntual no la sigue.
+	// Sin candidato: un numero simple, editable, prellenado con el costo.
+	const campoPrecio = precios
+		? {
+			nombre: "precioVenta",
+			etiqueta: "Precio de venta",
+			tipo: "select",
+			requerido: true,
+			valor: precios.medioMayoreo ?? precios.publico ?? precios.distribuidor,
+			opciones: [
+				precios.publico != null ? { valor: precios.publico, etiqueta: `Público — $${precios.publico.toFixed(2)}` } : null,
+				precios.medioMayoreo != null ? { valor: precios.medioMayoreo, etiqueta: `Medio mayoreo — $${precios.medioMayoreo.toFixed(2)}` } : null,
+				precios.distribuidor != null ? { valor: precios.distribuidor, etiqueta: `Distribuidor — $${precios.distribuidor.toFixed(2)}` } : null
+			].filter(Boolean)
+		}
+		: { nombre: "precioVenta", etiqueta: "Precio de venta", tipo: "number", requerido: true, valor: costo, min: 0 };
+
 	const datos = await abrirFormularioCredito({
 		titulo: "Crear producto",
-		subtitulo: "Se dará de alta con el costo de esta factura",
-		campos: [{ nombre: "nombre", etiqueta: "Nombre del producto", valor: nombreSugerido, requerido: true }]
+		subtitulo: `Costo de esta factura: $${costo.toFixed(2)}`,
+		campos: [
+			{ nombre: "nombre", etiqueta: "Nombre del producto", valor: nombreSugerido, requerido: true },
+			campoPrecio
+		]
 	});
 	if (!datos) return;
 
-	await riGuardarDecisionItem(itemId, { accion: "crear", nombreNuevoProducto: datos.nombre });
+	await riGuardarDecisionItem(itemId, { accion: "crear", nombreNuevoProducto: datos.nombre, precioVenta: Number(datos.precioVenta) });
 }
 
 async function riCambiarDecisionItem(itemId) {

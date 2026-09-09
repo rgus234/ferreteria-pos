@@ -320,7 +320,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         nivel: item.nivel,
                         productoId: item.producto_id,
                         accion: item.accion,
-                        nombreNuevoProducto: item.nombre_nuevo_producto
+                        nombreNuevoProducto: item.nombre_nuevo_producto,
+                        precioVentaNuevoProducto: item.precio_venta_nuevo_producto != null ? Number(item.precio_venta_nuevo_producto) : null
                     }))
                 });
             } catch (error) {
@@ -338,7 +339,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         async (req, res) => {
             try {
                 const negocio = await negocioActual(req, pool);
-                const { accion, productoId, nombreNuevoProducto } = req.body || {};
+                const { accion, productoId, nombreNuevoProducto, precioVenta } = req.body || {};
 
                 // "" resetea la decision (boton "Cambiar" en pantalla,
                 // para volver a elegir sin dejar un rastro de la accion
@@ -349,6 +350,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 }
                 if (accion === "relacionar" && !(Number.isInteger(productoId) && productoId > 0)) {
                     res.status(400).json({ ok: false, error: "Falta el producto a relacionar" });
+                    return;
+                }
+                if (accion === "crear" && !(Number.isFinite(Number(precioVenta)) && Number(precioVenta) >= 0)) {
+                    res.status(400).json({ ok: false, error: "Falta el precio de venta" });
                     return;
                 }
 
@@ -369,10 +374,15 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     `UPDATE public.recepciones_inteligentes_items
                      SET accion = $1,
                          producto_id = CASE WHEN $1 = 'relacionar' THEN $2::integer ELSE NULL END,
-                         nombre_nuevo_producto = CASE WHEN $1 = 'crear' THEN $3::text ELSE '' END
-                     WHERE id = $4 AND recepcion_id = $5 AND negocio_id = $6
+                         nombre_nuevo_producto = CASE WHEN $1 = 'crear' THEN $3::text ELSE '' END,
+                         precio_venta_nuevo_producto = CASE WHEN $1 = 'crear' THEN $4::numeric ELSE NULL END
+                     WHERE id = $5 AND recepcion_id = $6 AND negocio_id = $7
                      RETURNING id`,
-                    [accion, productoId || null, String(nombreNuevoProducto || "").trim(), req.params.itemId, req.params.id, negocio.id]
+                    [
+                        accion, productoId || null, String(nombreNuevoProducto || "").trim(),
+                        accion === "crear" ? Number(precioVenta) : null,
+                        req.params.itemId, req.params.id, negocio.id
+                    ]
                 );
 
                 if (!actualizado.rows.length) {
@@ -482,15 +492,21 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         const candidato = item.candidato || {};
                         const nombre = item.nombre_nuevo_producto || item.descripcion;
                         const catalogoMaestroId = candidato.catalogoMaestroId || null;
+                        // Precio elegido al revisar (uno de los 3 precios de
+                        // referencia del candidato, o capturado a mano si no
+                        // habia ninguno) -- nunca el costo de la factura tal
+                        // cual. Fallback a costo solo por si esta fila quedo
+                        // decidida antes de que este campo existiera.
+                        const precioVenta = item.precio_venta_nuevo_producto != null ? num(item.precio_venta_nuevo_producto) : costo;
 
                         const nuevo = await client.query(
                             `INSERT INTO public.productos
                                 (negocio_id, nombre, codigo, precio, precio_publico, precio_mayoreo, precio_distribuidor,
                                  stock, marca, proveedor_id, catalogo_maestro_id)
-                             VALUES ($1,$2,$3,$4,$4,$4,$4,0,$5,$6,$7)
+                             VALUES ($1,$2,$3,$4,$4,$4,$5,0,$6,$7,$8)
                              RETURNING id`,
                             [
-                                negocio.id, nombre, item.codigo_factura || "", costo,
+                                negocio.id, nombre, item.codigo_factura || "", precioVenta, costo,
                                 candidato.marca || null, recepcion.rows[0].proveedor_id, catalogoMaestroId
                             ]
                         );

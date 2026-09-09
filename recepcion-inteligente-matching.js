@@ -18,7 +18,8 @@ const {
     buscarEnCatalogoProveedor,
     buscarEnCatalogoMaestro,
     buscarEnCatalogoFabricante,
-    normalizarBusqueda
+    normalizarBusqueda,
+    numeroONull
 } = require("./explorar-nexo-server");
 
 // Codigo exacto primero -- nunca ClaveProdServ (ver cfdi-parser.js):
@@ -51,9 +52,9 @@ async function buscarPorCodigoExacto(pool, negocioId, codigo) {
             productoId: fila.producto_id || null,
             nombre: fila.nombre_proveedor,
             marca: fila.marca,
-            precioDistribuidor: fila.precio_distribuidor,
-            precioMedioMayoreo: fila.precio_medio_mayoreo,
-            precioPublico: fila.precio_publico,
+            precioDistribuidor: numeroONull(fila.precio_distribuidor),
+            precioMedioMayoreo: numeroONull(fila.precio_medio_mayoreo),
+            precioPublico: numeroONull(fila.precio_publico),
             similitud: 1,
             nivel: "fuerte"
         };
@@ -67,10 +68,10 @@ async function buscarPorCodigoExacto(pool, negocioId, codigo) {
             nombre: porMaestro.nombre,
             marca: porMaestro.marca,
             ean: porMaestro.ean || null,
-            precioListaMayoreo: porMaestro.precio_mayoreo,
-            precioListaMedioMayoreo: porMaestro.precio_medio_mayoreo,
-            precioListaPublico: porMaestro.precio_publico,
-            precioListaDistribuidor: porMaestro.precio_distribuidor,
+            precioListaMayoreo: numeroONull(porMaestro.precio_mayoreo),
+            precioListaMedioMayoreo: numeroONull(porMaestro.precio_medio_mayoreo),
+            precioListaPublico: numeroONull(porMaestro.precio_publico),
+            precioListaDistribuidor: numeroONull(porMaestro.precio_distribuidor),
             similitud: 1,
             nivel: "fuerte"
         };

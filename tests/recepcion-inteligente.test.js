@@ -285,7 +285,7 @@ test("flujo completo: relacionar, crear y omitir, luego confirmar aplica solo lo
     assert.equal(r1otraVez.status, 200);
 
     const r2 = await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/items/${itemCrear.id}`, {
-        method: "POST", headers: headers(), body: JSON.stringify({ accion: "crear", nombreNuevoProducto: "Producto totalmente nuevo de fabrica" })
+        method: "POST", headers: headers(), body: JSON.stringify({ accion: "crear", nombreNuevoProducto: "Producto totalmente nuevo de fabrica", precioVenta: 65 })
     });
     assert.equal(r2.status, 200, JSON.stringify(await r2.clone().json().catch(() => null)));
 
@@ -302,11 +302,20 @@ test("flujo completo: relacionar, crear y omitir, luego confirmar aplica solo lo
     assert.equal(Number(stockRelacionado.rows[0].stock), 5, "3 (inicial) + 2 (recibido) = 5");
 
     const nuevoProducto = await pool.query(
-        `SELECT id, stock, precio_distribuidor FROM public.productos WHERE negocio_id = $1 AND nombre = 'Producto totalmente nuevo de fabrica'`,
+        `SELECT id, stock, precio, precio_publico, precio_mayoreo, precio_distribuidor
+           FROM public.productos WHERE negocio_id = $1 AND nombre = 'Producto totalmente nuevo de fabrica'`,
         [negocio.negocioId]
     );
     assert.equal(nuevoProducto.rows.length, 1, "el producto omitido NUNCA debe darse de alta");
     assert.equal(Number(nuevoProducto.rows[0].stock), 3);
+    // El precio de venta elegido al revisar (65) es distinto del costo de
+    // la factura (60) -- confirma que /confirmar ya no copia el costo tal
+    // cual para el precio de venta. precio_distribuidor sigue siendo el
+    // costo: ese campo funciona como "ultimo costo", no como tier de venta,
+    // mismo comportamiento de antes de este cambio.
+    assert.equal(Number(nuevoProducto.rows[0].precio), 65);
+    assert.equal(Number(nuevoProducto.rows[0].precio_publico), 65);
+    assert.equal(Number(nuevoProducto.rows[0].precio_mayoreo), 65);
     assert.equal(Number(nuevoProducto.rows[0].precio_distribuidor), 60);
 
     const omitido = await pool.query(`SELECT COUNT(*)::int AS n FROM public.productos WHERE negocio_id = $1 AND nombre = 'Producto que se va a omitir'`, [negocio.negocioId]);
@@ -334,6 +343,64 @@ test("flujo completo: relacionar, crear y omitir, luego confirmar aplica solo lo
 
     const rechazarConfirmada = await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/rechazar`, { method: "POST", headers: headers() });
     assert.equal(rechazarConfirmada.status, 400);
+});
+
+test("crear producto sin precioVenta se rechaza con 400", async () => {
+    const uuid = `UUID-SINPRECIO-${Date.now()}`;
+    const xml = cfdiXml({ uuid, conceptos: [{ descripcion: "Concepto sin precio de venta elegido", costo: 30 }] });
+
+    const subida = await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, { method: "POST", headers: headers(), body: JSON.stringify({ xml }) });
+    const { recepcionId, } = await subida.json();
+    const detalle = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}`, { headers: headers() })).json();
+
+    const respuesta = await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/items/${detalle.items[0].id}`, {
+        method: "POST", headers: headers(), body: JSON.stringify({ accion: "crear", nombreNuevoProducto: "Producto sin precio" })
+    });
+    assert.equal(respuesta.status, 400);
+});
+
+test("crear producto usa el precio de referencia elegido (no el costo) cuando el candidato trae varios precios", async () => {
+    // Regla de negocio real (Ferreteria Olimpico): el precio de venta
+    // sugerido es el medio mayoreo del proveedor, distinto del costo de
+    // la factura -- ver memoria "Catalogo proveedor: precio medio
+    // mayoreo". Aqui se prueba que ese precio de referencia (no el
+    // costo) es el que de verdad puede terminar en el producto nuevo.
+    const catalogo = await pool.query(
+        `INSERT INTO public.catalogos_proveedor (negocio_id, proveedor) VALUES ($1, 'Proveedor Precios RI') RETURNING id`,
+        [negocio.negocioId]
+    );
+    await pool.query(
+        `INSERT INTO public.catalogo_productos
+            (negocio_id, catalogo_id, codigo_proveedor, nombre_proveedor, precio_distribuidor, precio_medio_mayoreo, precio_publico)
+         VALUES ($1, $2, 'COD-PRECIOS-RI', 'Producto con 3 precios de referencia', 40, 55, 70)`,
+        [negocio.negocioId, catalogo.rows[0].id]
+    );
+
+    const candidato = await resolverConceptoFactura(pool, negocio.negocioId, { codigo: "COD-PRECIOS-RI", descripcion: "no deberia usarse" });
+    assert.equal(candidato.precioMedioMayoreo, 55);
+
+    const uuid = `UUID-PRECIOELEGIDO-${Date.now()}`;
+    const xml = cfdiXml({ uuid, conceptos: [{ codigo: "COD-PRECIOS-RI", descripcion: "Producto con 3 precios de referencia", costo: 30 }] });
+    const subida = await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, { method: "POST", headers: headers(), body: JSON.stringify({ xml }) });
+    const { recepcionId } = await subida.json();
+    const detalle = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}`, { headers: headers() })).json();
+    const item = detalle.items[0];
+    assert.equal(item.candidato.precioMedioMayoreo, 55, "el candidato guardado en el item debe traer los 3 precios de referencia");
+
+    await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/items/${item.id}`, {
+        method: "POST", headers: headers(), body: JSON.stringify({ accion: "crear", nombreNuevoProducto: "Producto con 3 precios de referencia", precioVenta: 55 })
+    });
+
+    const confirmar = await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/confirmar`, { method: "POST", headers: headers() });
+    assert.equal(confirmar.status, 200);
+
+    const producto = await pool.query(
+        `SELECT precio, precio_publico, precio_mayoreo, precio_distribuidor FROM public.productos
+          WHERE negocio_id = $1 AND nombre = 'Producto con 3 precios de referencia'`,
+        [negocio.negocioId]
+    );
+    assert.equal(Number(producto.rows[0].precio), 55, "debe usar el medio mayoreo elegido, no el costo (30) ni el publico (70)");
+    assert.equal(Number(producto.rows[0].precio_distribuidor), 30, "precio_distribuidor sigue siendo el costo de la factura");
 });
 
 test("rechazar una factura pendiente no toca inventario y bloquea confirmarla despues", async () => {

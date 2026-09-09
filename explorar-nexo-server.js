@@ -293,3 +293,4 @@ module.exports.buscarEnInventario = buscarEnInventario;
 module.exports.buscarEnCatalogoProveedor = buscarEnCatalogoProveedor;
 module.exports.buscarEnCatalogoMaestro = buscarEnCatalogoMaestro;
 module.exports.buscarEnCatalogoFabricante = buscarEnCatalogoFabricante;
+module.exports.numeroONull = numeroONull;
