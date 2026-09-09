@@ -91,6 +91,51 @@ test("con el permiso concedido, la misma ruta responde 200", async () => {
     assert.equal(respuesta.status, 200);
 });
 
+test("un empleado con solo la pantalla 'clientes' concedida hereda ver_credito y gestionar_credito", async () => {
+    // Bug real (Ferreteria Olimpico, 2026-09-09): la unica casilla que
+    // de verdad concede ver_credito/gestionar_credito vive en "Acceso
+    // a Nexo (celular)", que no se renderiza hasta que el empleado
+    // vincula su propio celular. Un cajero de mostrador que nunca lo
+    // hace se quedaba sin ninguna forma de recibir el permiso, aunque
+    // ya tuviera la pantalla "Clientes" marcada.
+    await pool.query(
+        `UPDATE public.empleados SET permisos = '{"clientes": true}'::jsonb WHERE id = $1`,
+        [empleadoId]
+    );
+
+    const respuesta = await fetch(`${BASE_URL}/creditos`, {
+        headers: { "x-dispositivo-token": negocio.token, "x-empleado-id": String(empleadoId) }
+    });
+
+    assert.equal(respuesta.status, 200);
+});
+
+test("un valor explicito de ver_credito (ej. ya usado el editor de Nexo) gana sobre el heredado de 'clientes'", async () => {
+    await pool.query(
+        `UPDATE public.empleados SET permisos = '{"clientes": true, "ver_credito": false}'::jsonb WHERE id = $1`,
+        [empleadoId]
+    );
+
+    const respuesta = await fetch(`${BASE_URL}/creditos`, {
+        headers: { "x-dispositivo-token": negocio.token, "x-empleado-id": String(empleadoId) }
+    });
+
+    assert.equal(respuesta.status, 403);
+});
+
+test("sin la pantalla 'clientes', un empleado sigue sin ver_credito por defecto", async () => {
+    await pool.query(
+        `UPDATE public.empleados SET permisos = '{"ver_pedidos": true}'::jsonb WHERE id = $1`,
+        [empleadoId]
+    );
+
+    const respuesta = await fetch(`${BASE_URL}/creditos`, {
+        headers: { "x-dispositivo-token": negocio.token, "x-empleado-id": String(empleadoId) }
+    });
+
+    assert.equal(respuesta.status, 403);
+});
+
 test("un empleado con rol Administrador nunca se bloquea, aunque permisos este vacio", async () => {
     await pool.query(`UPDATE public.empleados SET rol = 'Administrador', permisos = '{}'::jsonb WHERE id = $1`, [empleadoId]);
 

@@ -30,6 +30,40 @@ const PERMISOS = Object.freeze({
     APROBAR_SOLICITUDES_CREDITO: "aprobar_solicitudes_credito"
 });
 
+// Puente de compatibilidad entre dos editores de permisos que existen
+// hoy para un empleado del POS de escritorio (empleados.permisos):
+//
+//   - "Modulos del sistema" (MODULOS_SISTEMA en config-auth.js) usa
+//     claves antiguas en camelCase ("clientes", "inventario"...) y
+//     SOLO controla que pantalla ve el empleado -- siempre visible.
+//   - "Acceso a Nexo (celular)" (PERMISOS_NEXO) usa las claves
+//     snake_case que este archivo revisa de verdad (PERMISOS.*) --
+//     pero esa seccion NO SE RENDERIZA hasta que el empleado vincula
+//     su propio celular a Nexo. Un cajero de mostrador que nunca lo
+//     hace no tiene NINGUNA casilla en NINGUN lado para que el dueno
+//     le conceda ver_credito/gestionar_credito, aunque ya le haya
+//     marcado la pantalla "Clientes".
+//
+// Bug real reportado por Ferreteria Olimpico (2026-09-09): sus
+// cajeros (nunca vinculados a Nexo) veian la pantalla de Creditos
+// vacia y no podian dar de alta clientes, aunque el dueno confirmo
+// que "Clientes" ya estaba marcado -- porque no existia forma de
+// marcar lo otro. Mientras exista un solo editor, si el empleado ya
+// tiene la pantalla concedida se le reconoce el permiso de accion
+// equivalente. Un valor explicito ya guardado (por haber usado el
+// editor de Nexo) siempre gana sobre este valor por defecto.
+function conPermisosDerivados(permisos) {
+    const derivados = {};
+
+    if (permisos.clientes === true) {
+        derivados.ver_credito = true;
+        derivados.gestionar_credito = true;
+        derivados.registrar_abonos_credito = true;
+    }
+
+    return { ...derivados, ...permisos };
+}
+
 async function permisosDeEmpleado(empleadoId, negocioId) {
     const fila = await pool.query(
         `SELECT rol, permisos FROM public.empleados WHERE id = $1 AND negocio_id = $2 AND activo = true`,
@@ -44,7 +78,7 @@ async function permisosDeEmpleado(empleadoId, negocioId) {
         return { rol: "owner", permisos: null };
     }
 
-    return { rol: "employee", permisos: empleado.permisos || {} };
+    return { rol: "employee", permisos: conPermisosDerivados(empleado.permisos || {}) };
 }
 
 async function permisosDeMiembro(personaId, negocioId) {
@@ -144,4 +178,4 @@ function requerirPermiso(clave) {
     };
 }
 
-module.exports = { PERMISOS, resolverIdentidadNexo, tienePermiso, requerirPermiso };
+module.exports = { PERMISOS, resolverIdentidadNexo, tienePermiso, requerirPermiso, conPermisosDerivados };
