@@ -115,6 +115,12 @@ async function borrarNegocioPrueba(negocioId) {
         "solicitudes_credito",
         "clientes_credito",
         "turnos_caja",
+        // Antes de "productos": recepciones_inteligentes_items tiene
+        // producto_id REFERENCES productos(id) sin ON DELETE CASCADE --
+        // borrar productos primero tumbaria esto con una violacion de
+        // llave foranea.
+        "recepciones_inteligentes_items",
+        "recepciones_inteligentes",
         "productos",
         "dispositivos_vinculados",
         "sesiones_cuenta",

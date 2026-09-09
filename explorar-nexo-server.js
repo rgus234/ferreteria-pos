@@ -281,8 +281,15 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 };
 
 // Exportado aparte para pruebas directas sin pasar por HTTP, mismo
-// criterio que buscarCandidatosPorTerminos en ia-server.js.
+// criterio que buscarCandidatosPorTerminos en ia-server.js. Las 4
+// fuentes individuales tambien se exponen -- Recepcion Inteligente
+// (recepcion-inteligente-matching.js) las reutiliza como sub-rutinas
+// en vez de duplicar las consultas.
 module.exports.buscarExplorarNexo = buscarExplorarNexo;
 module.exports.normalizarBusqueda = normalizarBusqueda;
 module.exports.nivelDeCoincidencia = nivelDeCoincidencia;
 module.exports.resolverFotoPrincipal = resolverFotoPrincipal;
+module.exports.buscarEnInventario = buscarEnInventario;
+module.exports.buscarEnCatalogoProveedor = buscarEnCatalogoProveedor;
+module.exports.buscarEnCatalogoMaestro = buscarEnCatalogoMaestro;
+module.exports.buscarEnCatalogoFabricante = buscarEnCatalogoFabricante;

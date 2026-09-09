@@ -1385,6 +1385,7 @@ function ocultarPantallasPrincipales() {
  "pantallaEncargos",
  "pantallaListasProducto",
  "pantallaExplorarNexo",
+ "pantallaRecepcionInteligente",
  "pantallaCodigosBarras",
  "pantallaSitioWeb",
  "pantallaPedidosMarket",

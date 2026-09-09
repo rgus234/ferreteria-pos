@@ -37,4 +37,50 @@ async function resolverOcrearProveedorId(pool, negocioId, nombreProveedor) {
     return nuevo.rows[0].id;
 }
 
-module.exports = { normalizarNombreProveedor, resolverOcrearProveedorId };
+function normalizarRfc(rfc) {
+    return String(rfc || "").trim().toUpperCase();
+}
+
+// Igual criterio que resolverOcrearProveedorId, pero por RFC del
+// emisor de un CFDI en vez de por nombre -- para Recepcion
+// Inteligente. El RFC es la identidad real (nunca se puede escribir de
+// mil formas distintas como un nombre), asi que se busca primero por
+// RFC; si el proveedor ya existe pero nunca se le guardo el RFC (dado
+// de alta a mano antes de que esta columna existiera), se completa con
+// el nombre de la factura como respaldo -- nunca al reves, un nombre
+// nunca debe pisar un RFC ya distinto. Ambiguo (mas de un proveedor
+// con el mismo RFC, solo posible si el dueno los duplico a mano) se
+// deja sin resolver, mismo criterio de "nunca fusionar solo".
+async function resolverProveedorPorRfc(pool, negocioId, rfcEmisor, nombreEmisor) {
+    const rfc = normalizarRfc(rfcEmisor);
+    if (!rfc) return await resolverOcrearProveedorId(pool, negocioId, nombreEmisor);
+
+    const porRfc = await pool.query(
+        `SELECT id FROM public.proveedores WHERE negocio_id = $1 AND rfc = $2`,
+        [negocioId, rfc]
+    );
+
+    if (porRfc.rows.length === 1) {
+        return porRfc.rows[0].id;
+    }
+
+    if (porRfc.rows.length > 1) {
+        return null;
+    }
+
+    const porNombre = await resolverOcrearProveedorId(pool, negocioId, nombreEmisor);
+    if (porNombre) {
+        // Proveedor ya existia por nombre, sin RFC guardado todavia --
+        // se completa con el de esta factura. No pisa nada: la
+        // busqueda de arriba ya garantizo que ningun proveedor de este
+        // negocio tiene ya este RFC.
+        await pool.query(
+            `UPDATE public.proveedores SET rfc = $1 WHERE id = $2 AND rfc = ''`,
+            [rfc, porNombre]
+        );
+    }
+
+    return porNombre;
+}
+
+module.exports = { normalizarNombreProveedor, resolverOcrearProveedorId, normalizarRfc, resolverProveedorPorRfc };
