@@ -255,7 +255,18 @@ window.onload =
  actualizarCarrito();
  cargarHistorial().catch(error => console.warn("No se pudo cargar historial inicial", error));
 
-}; 
+ // Modo proyeccion: la ventana que abre el boton "Proyectar" (Explorar
+ // Nexo / Punto de venta) navega aqui mismo con ?vista=pantalla-cliente
+ // -- mismo login/token ya guardado en este navegador, solo se oculta
+ // el menu/topbar y se entra directo a la pantalla del cliente, lista
+ // para arrastrar a un monitor por cable o proyectar de forma
+ // inalambrica (Proyectar de Windows / Cast de Chrome) esa ventana.
+ if (new URLSearchParams(location.search).get("vista") === "pantalla-cliente" && document.getElementById("sistema")?.style.display !== "none") {
+ document.body.classList.add("modo-proyeccion");
+ if (typeof mostrarPantallaCliente === "function") mostrarPantallaCliente();
+ }
+
+};
 
 function cobrarConEnter(
  event,

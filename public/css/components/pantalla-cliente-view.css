@@ -1,0 +1,134 @@
+/* Pantalla del cliente -- pensada para leerse de lejos, del otro lado
+   del mostrador: tipografia grande, una sola cosa a la vez, cero
+   ruido visual (nada de sidebar/topbar cuando de verdad se usa en un
+   segundo equipo dedicado a esto). Mismo lenguaje de tokens --pos-*
+   que el resto de la app. */
+
+#pantallaClienteDisplay {
+	padding: 24px;
+	min-height: calc(100vh - 64px);
+}
+
+/* Modo proyeccion: la ventana que abre el boton "Proyectar" (Explorar
+   Nexo / Punto de venta) -- sin menu lateral ni barra superior, para
+   que se pueda arrastrar limpia a un monitor por cable o proyectar de
+   forma inalambrica (Proyectar de Windows / Cast de Chrome) sin que
+   el cliente vea el resto del POS. */
+body.modo-proyeccion .sidebar,
+body.modo-proyeccion .topbar-pos,
+body.modo-proyeccion .pcli-config {
+	display: none !important;
+}
+body.modo-proyeccion .layout {
+	grid-template-columns: 1fr !important;
+}
+body.modo-proyeccion #pantallaClienteDisplay {
+	min-height: 100vh;
+	display: flex;
+	align-items: center;
+}
+body.modo-proyeccion .pcli-shell {
+	width: 100%;
+}
+
+.pcli-shell {
+	max-width: 900px;
+	margin: 0 auto;
+	display: grid;
+	gap: 16px;
+}
+
+.pcli-config {
+	padding: 12px 16px;
+	border: 1px solid var(--pos-line, #dbe3ef);
+	border-radius: 10px;
+	color: var(--pos-muted, #687386);
+	font-size: 13px;
+	text-align: center;
+}
+
+.pcli-vacio,
+.pcli-producto {
+	min-height: 60vh;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	border: 1px solid var(--pos-line, #dbe3ef);
+	border-radius: 20px;
+	background: var(--pos-surface-strong, #fff);
+	padding: 40px 24px;
+}
+
+.pcli-vacio-icono {
+	font-size: 64px;
+	opacity: 0.35;
+	margin-bottom: 18px;
+}
+
+.pcli-vacio p {
+	color: var(--pos-muted, #687386);
+	font-size: 20px;
+	font-weight: 700;
+	margin: 0;
+}
+
+.pcli-foto {
+	width: min(360px, 70vw);
+	aspect-ratio: 1/1;
+	border-radius: 20px;
+	background: var(--pos-surface, #f3f5f9);
+	border: 1px solid var(--pos-line, #dbe3ef);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	margin-bottom: 24px;
+	font-size: 90px;
+}
+
+.pcli-foto img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	background: #fff;
+}
+
+.pcli-info {
+	display: grid;
+	gap: 8px;
+	justify-items: center;
+}
+
+.pcli-marca {
+	color: var(--pos-muted, #687386);
+	font-size: 18px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.pcli-info h1 {
+	margin: 0;
+	font-size: clamp(26px, 5vw, 42px);
+	font-weight: 800;
+	color: var(--pos-text, #172033);
+	max-width: 700px;
+	line-height: 1.25;
+}
+
+.pcli-precio {
+	margin-top: 8px;
+	font-size: clamp(36px, 7vw, 64px);
+	font-weight: 800;
+	color: var(--brand-color, #0d6efd);
+}
+
+@media (max-width: 640px) {
+	.pcli-vacio,
+	.pcli-producto {
+		min-height: 70vh;
+		padding: 28px 16px;
+	}
+}

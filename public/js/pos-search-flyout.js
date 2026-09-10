@@ -45,7 +45,7 @@
 
   return `
   <div class="pos-flyout-row" data-flyout-id="${Number(producto.id)}">
-   <span class="pos-flyout-thumb">${typeof miniaturaProducto === "function" ? miniaturaProducto(producto, "pos-flyout-thumb-img") : "🧰"}</span>
+   <span class="pos-flyout-thumb" onclick="pantallaClientePOSMostrarProducto(${Number(producto.id)}, true); event.stopPropagation();" title="Proyectar a otra pantalla">${typeof miniaturaProducto === "function" ? miniaturaProducto(producto, "pos-flyout-thumb-img") : "🧰"}</span>
    <div class="pos-flyout-info">
     <strong>${escaparPOS(producto.nombre || "Producto")}</strong>
     <small>${escaparPOS(producto.marca || "")}${producto.marca ? " &middot; " : ""}Codigo ${escaparPOS(codigo)} &middot; Stock ${escaparPOS(producto.stock ?? 0)} ${escaparPOS(unidad)}</small>
@@ -58,11 +58,38 @@
   `;
  }
 
+ // Pantalla del cliente: usado tanto al agregar (confirma lo que se
+ // esta cobrando) como al tocar la miniatura sola (solo confirmar
+ // antes de agregar, sin cobrarlo todavia) -- mismo dato, dos momentos
+ // distintos. abrirProyeccion=true tambien abre/enfoca la ventana de
+ // proyeccion (ver pantalla-cliente-view.js); al agregar ya deberia
+ // estar abierta de antes, no hace falta reabrirla cada vez.
+ function pantallaClientePOSMostrarProducto(id, abrirProyeccion) {
+  const producto =
+  typeof todosProductos !== "undefined"
+   ? todosProductos.find(p => Number(p.id) === Number(id))
+   : null;
+  if (!producto) return;
+
+  if (abrirProyeccion && typeof pantallaClienteAbrirProyeccion === "function") pantallaClienteAbrirProyeccion();
+
+  if (typeof pantallaClienteMostrar === "function") {
+   const codigoFoto = producto.codigo;
+   Promise.resolve(codigoFoto && typeof explorarNexoResolverFoto === "function" ? explorarNexoResolverFoto(codigoFoto) : null).then(foto => {
+    pantallaClienteMostrar({ nombre: producto.nombre, foto, precio: producto.precio_publico ?? producto.precio, marca: producto.marca, origen: "punto-venta" });
+   });
+  }
+ }
+
+ window.pantallaClientePOSMostrarProducto = pantallaClientePOSMostrarProducto;
+
  async function agregarDesdeFlyoutPOS(id) {
   const producto =
   typeof todosProductos !== "undefined"
    ? todosProductos.find(p => Number(p.id) === Number(id))
    : null;
+
+  pantallaClientePOSMostrarProducto(id, false);
 
   if (producto?.permite_venta_pieza) {
    const eleccion =

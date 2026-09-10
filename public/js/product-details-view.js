@@ -8,6 +8,19 @@ async function verDetalleProducto(id) {
 
  if (!producto) return;
 
+ // Pantalla del cliente: al abrir el detalle de un producto desde
+ // Inventario tambien se manda a mostrar alla (mismo criterio que
+ // Explorar Nexo y Punto de venta).
+ if (typeof pantallaClienteMostrar === "function") {
+  pantallaClienteMostrar({
+   nombre: producto.nombre,
+   foto: producto.imagenUrl || null,
+   precio: producto.precio_publico ?? producto.precio,
+   marca: producto.marca,
+   origen: "inventario"
+  });
+ }
+
  let modal =
  document.getElementById("modalDetalleProductoPOS");
 
@@ -44,6 +57,7 @@ async function verDetalleProducto(id) {
   <div class="detalle-producto-body">
    <div class="detalle-producto-imagen">
     ${imagenPrincipal}
+    <button type="button" class="detalle-producto-proyectar" onclick="pantallaClienteAbrirProyeccion()" title="Proyectar a otra pantalla">📽️ Proyectar</button>
     <div id="detalleProductoGaleria" class="detalle-producto-galeria"></div>
    </div>
 

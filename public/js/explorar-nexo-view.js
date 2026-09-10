@@ -241,7 +241,20 @@ function explorarNexoCargarFotosVisibles(contenedor) {
 			if (!url) return;
 			contenedor.querySelectorAll(`[data-codigo="${CSS.escape(codigo)}"]`).forEach(el => {
 				if (el.querySelector("img")) return;
-				el.innerHTML = `<img src="${url}" alt="" loading="lazy">`;
+
+				// Solo se quita el placeholder (el texto/emoji suelto) --
+				// nunca innerHTML completo, porque la ficha mete ademas un
+				// boton "Proyectar" dentro de este mismo contenedor y eso
+				// lo borraria de un jalon.
+				el.childNodes.forEach(nodo => {
+					if (nodo.nodeType === Node.TEXT_NODE) nodo.remove();
+				});
+
+				const img = document.createElement("img");
+				img.src = url;
+				img.alt = "";
+				img.loading = "lazy";
+				el.insertBefore(img, el.firstChild);
 			});
 		});
 	});
@@ -345,7 +358,10 @@ function explorarNexoVerFicha(fuente, indice) {
 	}
 
 	ficha.innerHTML = `
-		<div class="explorar-nexo-ficha-foto" id="explorarNexoFichaFoto" data-codigo="${escaparPOS(item.codigo || "")}">\u{1F4E6}</div>
+		<div class="explorar-nexo-ficha-foto" id="explorarNexoFichaFoto" data-codigo="${escaparPOS(item.codigo || "")}">
+			\u{1F4E6}
+			<button type="button" class="explorar-nexo-foto-proyectar" onclick="pantallaClienteAbrirProyeccion(); event.stopPropagation();" title="Proyectar a otra pantalla">📽️</button>
+		</div>
 		<span class="explorar-nexo-ficha-fuente">${escaparPOS(etiquetaFuente)}</span>
 		${explorarNexoBadgeNivel(item.nivel)}
 		<h3>${escaparPOS(item.nombre)}</h3>
@@ -355,6 +371,17 @@ function explorarNexoVerFicha(fuente, indice) {
 	`;
 
 	explorarNexoCargarFotosVisibles(ficha);
+
+	// Pantalla del cliente: mientras se confirma con el cliente que este
+	// es el producto correcto, se manda a mostrar alla tambien.
+	if (typeof pantallaClienteMostrar === "function") {
+		const precioParaCliente = fuente === "inventario" ? item.precio
+			: fuente === "proveedor" ? item.precioPublico
+			: item.precioListaPublico;
+		Promise.resolve(item.codigo ? explorarNexoResolverFoto(item.codigo) : null).then(foto => {
+			pantallaClienteMostrar({ nombre: item.nombre, foto, precio: precioParaCliente, marca: item.marca, origen: "explorar-nexo" });
+		});
+	}
 }
 
 function explorarNexoVerProductoInventario(productoId) {

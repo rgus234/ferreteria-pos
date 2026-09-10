@@ -85,6 +85,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./recepcion-inteligente-gmail-cron")(app, pool);
     });
 
+    cargarModuloPOS("Pantalla del cliente", () => {
+        require("./pantalla-cliente-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("editor de codigos de barras / etiquetas", () => {
         require("./barcode-labels-server")(app, pool, requerirAccesoNegocio);
     });

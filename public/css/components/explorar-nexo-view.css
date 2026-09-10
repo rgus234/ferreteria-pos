@@ -183,6 +183,7 @@
  margin-bottom:8px;
 }
 .explorar-nexo-ficha-foto{
+ position:relative;
  width:100%;
  aspect-ratio:1/1;
  max-height:220px;
@@ -197,6 +198,24 @@
  font-size:40px;
  color:var(--pos-muted,#687386);
 }
+.explorar-nexo-foto-proyectar{
+ position:absolute;
+ bottom:8px;
+ right:8px;
+ width:34px;
+ height:34px;
+ min-height:34px;
+ padding:0;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:9px;
+ background:var(--pos-surface-strong,#fff);
+ font-size:16px;
+ cursor:pointer;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+}
+.explorar-nexo-foto-proyectar:hover{ border-color:var(--brand-color,#0d6efd); }
 .explorar-nexo-ficha-foto img{
  width:100%;
  height:100%;

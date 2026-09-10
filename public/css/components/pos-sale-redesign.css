@@ -145,6 +145,10 @@ body.oscuro .pos-referencia .pos-reference-search {
   border-radius: 11px;
   background: var(--pos-sale-soft, rgba(248, 250, 252, .78));
   font-size: 17px;
+  cursor: pointer;
+}
+.pos-flyout-thumb:hover {
+  box-shadow: 0 0 0 2px var(--brand-color, #0d6efd);
 }
 
 .pos-flyout-thumb-img {
