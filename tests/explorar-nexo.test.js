@@ -76,8 +76,8 @@ test("nivelDeCoincidencia nunca llama 'exacta' a un numero de similitud -- son 3
     assert.equal(nivelDeCoincidencia(0.9), "fuerte");
     assert.equal(nivelDeCoincidencia(0.55), "fuerte");
     assert.equal(nivelDeCoincidencia(0.54), "probable");
-    assert.equal(nivelDeCoincidencia(0.30), "probable");
-    assert.equal(nivelDeCoincidencia(0.29), "relacionado");
+    assert.equal(nivelDeCoincidencia(0.40), "probable");
+    assert.equal(nivelDeCoincidencia(0.39), "relacionado");
     assert.equal(nivelDeCoincidencia(0), "relacionado");
 });
 
@@ -261,6 +261,48 @@ test("una busqueda sin coincidencias claras no se cuelga -- sigue usando el indi
 
     assert.ok(Array.isArray(resultado.fabricante));
     assert.ok(duracionMs < 5000, `la busqueda tardo ${duracionMs}ms -- deberia resolverse con el indice, no con un escaneo completo`);
+});
+
+// Hallazgo real buscando "candado": salia "Dado cuadro 1/2 de impacto
+// 6 puntas..." (una herramienta totalmente distinta) solo porque
+// "dado" esta contenido dentro de "candado" -- un choque de trigramas
+// de una sola palabra, no una relacion real entre productos. Una
+// busqueda de una sola palabra ahora exige mas confianza
+// (UMBRAL_PALABRA_UNICA) precisamente para este caso. Se prueba
+// contra el inventario propio (aislado por negocio sintetico) y no
+// contra Catalogo Maestro -- ese es global y ya trae decenas de
+// candados reales que llenarian el LIMIT antes que la fila sintetica.
+test("una palabra corta no sugiere un producto sin relacion solo por compartir letras (candado/dado)", async () => {
+    await crearProductoPrueba(negocio.negocioId, { nombre: "Candado de laton 40mm gancho corto, EXP", codigo: "EXP-CANDADO-1" });
+    await crearProductoPrueba(negocio.negocioId, { nombre: "Dado cuadro 1/2 de impacto 6 puntas 20mm, EXP", codigo: "EXP-DADO-1" });
+
+    const resultado = await buscarExplorarNexo(pool, negocio.negocioId, "candado");
+
+    assert.ok(resultado.inventario.some(p => p.codigo === "EXP-CANDADO-1"), "debe encontrar el candado real");
+    assert.ok(!resultado.inventario.some(p => p.codigo === "EXP-DADO-1"), "un dado de herramienta no debe salir al buscar candado, aunque comparta letras");
+});
+
+// Hallazgo real buscando "broca de 1/2": "Bolsa con 100 pijas...punta
+// de broca" (un tornillo) rankeaba ARRIBA de "Broca para concreto de
+// 1/2..." (la broca de verdad) porque su similitud() general era mas
+// alta -- similarity() no distingue si la palabra buscada es DE QUE
+// ES el producto o solo describe una caracteristica secundaria
+// mencionada de pasada. ordenPorAfinidadInicial prioriza que la
+// primera palabra de la busqueda coincida con la primera palabra del
+// nombre antes que el similitud general. Mismo criterio que la
+// prueba de arriba: inventario propio para no competir por el LIMIT
+// contra el Catalogo Maestro real.
+test("un producto que de verdad ES lo buscado sale antes que uno que solo lo menciona de pasada (broca/pija)", async () => {
+    await crearProductoPrueba(negocio.negocioId, { nombre: "Bolsa con 100 pijas cabeza cruz punta de broca, EXP", codigo: "EXP-PIJA-BROCA-1" });
+    await crearProductoPrueba(negocio.negocioId, { nombre: "Broca para concreto de 1/2 pulgada, EXP", codigo: "EXP-BROCA-1" });
+
+    const resultado = await buscarExplorarNexo(pool, negocio.negocioId, "broca de 1/2");
+
+    const indiceBroca = resultado.inventario.findIndex(p => p.codigo === "EXP-BROCA-1");
+    const indicePija = resultado.inventario.findIndex(p => p.codigo === "EXP-PIJA-BROCA-1");
+
+    assert.ok(indiceBroca !== -1, "debe encontrar la broca real");
+    assert.ok(indicePija === -1 || indiceBroca < indicePija, "la broca de verdad debe salir antes que un producto que solo menciona 'broca'");
 });
 
 test("GET /explorar-nexo/buscar exige dispositivo vinculado y responde con las 4 fuentes", async () => {
