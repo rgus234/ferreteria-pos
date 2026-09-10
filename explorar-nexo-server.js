@@ -66,14 +66,43 @@ function numeroONull(valor) {
     return valor === null || valor === undefined ? null : Number(valor);
 }
 
+// Las 4 fuentes filtran con "col % termino OR word_similarity(termino, col) > umbral"
+// -- el problema real (encontrado con busquedas reales del dueno que
+// se quedaban colgadas, ej. "rotomartillo"): el operador % SI usa el
+// indice GIN de trigramas ya existente en cada tabla, pero
+// word_similarity(...) como llamada de funcion suelta NUNCA lo usa --
+// Postgres tiene que evaluarla fila por fila en TODA la tabla para
+// resolver el OR. Con 14 mil filas en catalogo_fabricante_productos
+// eso ya tardaba mas de 8 segundos.
+//
+// El mismo indice GIN si soporta el operador <% (word_similarity_op):
+// cambiando la funcion suelta por el operador, Postgres resuelve el
+// OR completo con un BitmapOr de dos escaneos de indice (~90ms en
+// vez de +8s, medido contra produccion). El unico costo es que <%
+// no compara contra el 0.30 fijo del codigo sino contra la GUC de
+// sesion pg_trgm.word_similarity_threshold (default 0.6, demasiado
+// estricta) -- por eso cada consulta se abre en su propio cliente,
+// fija esa GUC nada mas para esta conexion, y la resetea antes de
+// soltarla: nunca se filtra hacia otra query que comparta el pool.
+async function consultarConUmbralPalabra(pool, sql, valores) {
+    const client = await pool.connect();
+    try {
+        await client.query(`SET pg_trgm.word_similarity_threshold = ${UMBRAL_COINCIDENCIA_PROBABLE}`);
+        return await client.query(sql, valores);
+    } finally {
+        await client.query("RESET pg_trgm.word_similarity_threshold").catch(() => {});
+        client.release();
+    }
+}
+
 // Fuente 1: inventario propio -- mismo patron exacto que
 // ia-server.js:buscarCandidatosPorTerminos y CAT2.
 async function buscarEnInventario(pool, negocioId, termino) {
-    const resultado = await pool.query(
+    const resultado = await consultarConUmbralPalabra(pool,
         `SELECT id, codigo, nombre, marca, categoria, precio_publico, stock,
                 GREATEST(similarity(nombre, $2), word_similarity($2, nombre)) AS similitud
          FROM public.productos
-         WHERE negocio_id = $1 AND (nombre % $2 OR word_similarity($2, nombre) > ${UMBRAL_COINCIDENCIA_PROBABLE})
+         WHERE negocio_id = $1 AND (nombre % $2 OR $2 <% nombre)
          ORDER BY similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
         [negocioId, termino]
@@ -97,14 +126,14 @@ async function buscarEnInventario(pool, negocioId, termino) {
 // tabla y mismo indice de trigrama que ya usa CAT2 para vincular,
 // aqui como consulta de lectura bajo demanda, no de vinculacion.
 async function buscarEnCatalogoProveedor(pool, negocioId, termino) {
-    const resultado = await pool.query(
+    const resultado = await consultarConUmbralPalabra(pool,
         `SELECT cp.id, cp.codigo_proveedor, cp.nombre_proveedor, cp.marca,
                 cp.precio_distribuidor, cp.precio_medio_mayoreo, cp.precio_publico,
                 cat.proveedor AS proveedor_nombre,
                 GREATEST(similarity(cp.nombre_proveedor, $2), word_similarity($2, cp.nombre_proveedor)) AS similitud
          FROM public.catalogo_productos cp
          JOIN public.catalogos_proveedor cat ON cat.id = cp.catalogo_id
-         WHERE cp.negocio_id = $1 AND (cp.nombre_proveedor % $2 OR word_similarity($2, cp.nombre_proveedor) > ${UMBRAL_COINCIDENCIA_PROBABLE})
+         WHERE cp.negocio_id = $1 AND (cp.nombre_proveedor % $2 OR $2 <% cp.nombre_proveedor)
          ORDER BY similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
         [negocioId, termino]
@@ -132,7 +161,7 @@ async function buscarEnCatalogoProveedor(pool, negocioId, termino) {
 // exactamente el razonamiento ya documentado en identidadPorCodigo():
 // el join va por codigo_fabricante, nunca por marca/fabricante.
 async function buscarEnCatalogoMaestro(pool, termino) {
-    const resultado = await pool.query(
+    const resultado = await consultarConUmbralPalabra(pool,
         `SELECT m.id, m.codigo, m.marca, m.nombre, m.descripcion, m.fabricante,
                 m.codigo_fabricante, m.ean, m.clave,
                 f.precio_mayoreo, f.precio_medio_mayoreo, f.precio_publico, f.precio_distribuidor,
@@ -140,7 +169,7 @@ async function buscarEnCatalogoMaestro(pool, termino) {
          FROM public.catalogo_maestro_productos m
          LEFT JOIN public.catalogo_fabricante_productos f
                 ON f.codigo = m.codigo_fabricante AND f.estado = 'activo'
-         WHERE (m.nombre % $1 OR word_similarity($1, m.nombre) > ${UMBRAL_COINCIDENCIA_PROBABLE}) AND m.necesita_revision = false
+         WHERE (m.nombre % $1 OR $1 <% m.nombre) AND m.necesita_revision = false
          ORDER BY similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
         [termino]
@@ -170,12 +199,12 @@ async function buscarEnCatalogoMaestro(pool, termino) {
 // bootstrap de lectura no esta completo), asi que esta fuente crece
 // conforme avance el sincronizador, no es una limitacion del diseno.
 async function buscarEnCatalogoFabricante(pool, termino) {
-    const resultado = await pool.query(
+    const resultado = await consultarConUmbralPalabra(pool,
         `SELECT id, fabricante, codigo, clave, ean, descripcion, marca,
                 precio_mayoreo, precio_medio_mayoreo, precio_publico, precio_distribuidor,
                 GREATEST(similarity(descripcion, $1), word_similarity($1, descripcion)) AS similitud
          FROM public.catalogo_fabricante_productos
-         WHERE (descripcion % $1 OR word_similarity($1, descripcion) > ${UMBRAL_COINCIDENCIA_PROBABLE}) AND estado = 'activo'
+         WHERE (descripcion % $1 OR $1 <% descripcion) AND estado = 'activo'
          ORDER BY similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
         [termino]

@@ -243,6 +243,26 @@ test("texto vacio regresa estructura vacia sin tocar ninguna fuente", async () =
     assert.deepEqual(resultado, { termino: "", inventario: [], proveedor: [], catalogoMaestro: [], fabricante: [], coincidenciaPorCodigo: null });
 });
 
+// Bug real reportado por el dueno: buscar "rotomartillo" se quedaba
+// colgado sin regresar nada nunca. La causa era que el WHERE de las 4
+// fuentes combinaba el operador indexado % con una llamada suelta a
+// word_similarity(...) por OR -- Postgres no puede usar el indice GIN
+// de trigramas para esa llamada suelta y termina revisando fila por
+// fila TODA la tabla (contra produccion, mas de 8 segundos nada mas
+// en catalogo_fabricante_productos con 14 mil filas). El arreglo
+// cambia esa llamada por el operador <% (que si usa el mismo indice).
+// Esta prueba no repite ese numero exacto -- solo confirma que una
+// palabra normal, sin coincidencia obvia por trigrama de 3 letras,
+// sigue respondiendo rapido en vez de colgarse.
+test("una busqueda sin coincidencias claras no se cuelga -- sigue usando el indice, no un escaneo completo", async () => {
+    const inicio = Date.now();
+    const resultado = await buscarExplorarNexo(pool, negocio.negocioId, "rotomartillo percutor inalambrico");
+    const duracionMs = Date.now() - inicio;
+
+    assert.ok(Array.isArray(resultado.fabricante));
+    assert.ok(duracionMs < 5000, `la busqueda tardo ${duracionMs}ms -- deberia resolverse con el indice, no con un escaneo completo`);
+});
+
 test("GET /explorar-nexo/buscar exige dispositivo vinculado y responde con las 4 fuentes", async () => {
     const sinToken = await fetch(`${BASE_URL}/explorar-nexo/buscar?q=pinza`);
     assert.equal(sinToken.status, 401);
