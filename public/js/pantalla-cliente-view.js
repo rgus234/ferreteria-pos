@@ -38,13 +38,20 @@ function pantallaClienteAbrirProyeccion() {
 // que alguien ve o selecciona un producto -- fire-and-forget: si falla
 // (sin internet, pantalla del cliente nunca configurada, etc.) nunca
 // debe interrumpir la pantalla que de verdad esta usando el empleado.
-function pantallaClienteMostrar({ nombre, foto, precio, marca, origen }) {
+function pantallaClienteMostrar({ nombre, foto, fotos, precio, marca, origen }) {
 	if (!nombre) return;
 
 	fetch("/pantalla-cliente/mostrar", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ nombre, foto: foto || null, precio: precio ?? null, marca: marca || null, origen: origen || "" })
+		body: JSON.stringify({
+			nombre,
+			foto: foto || null,
+			fotos: Array.isArray(fotos) ? fotos : [],
+			precio: precio ?? null,
+			marca: marca || null,
+			origen: origen || ""
+		})
 	}).catch(() => {});
 }
 
@@ -63,7 +70,7 @@ async function mostrarPantallaCliente() {
 	pantallaClienteUltimaFirma = null;
 
 	pantalla.innerHTML = `
-		<div class="pcli-shell">
+		<div class="pcli-shell" id="pcliShell">
 			<div class="pcli-config">
 				<p>Deja esta pantalla abierta de este lado del mostrador, viendo hacia el cliente. En cuanto busques algo en Explorar Nexo, Punto de venta o Inventario, aparece solo aqui.</p>
 			</div>
@@ -73,6 +80,15 @@ async function mostrarPantallaCliente() {
 			</div>
 		</div>
 	`;
+
+	// Un solo listener delegado (el shell no se vuelve a pintar en cada
+	// poll, solo #pcliContenido) para las miniaturas de la galeria --
+	// evita meter la url en un onclick inline armado con template
+	// strings (mismo problema de comillas ya resuelto en Explorar Nexo).
+	document.getElementById("pcliShell")?.addEventListener("click", event => {
+		const miniatura = event.target.closest("[data-pcli-foto]");
+		if (miniatura) pantallaClienteCambiarFoto(miniatura.dataset.pcliFoto);
+	});
 
 	await pantallaClienteActualizar();
 	if (pantallaClienteIntervalo) clearInterval(pantallaClienteIntervalo);
@@ -94,7 +110,7 @@ async function pantallaClienteActualizar() {
 		if (!datos.ok) return;
 
 		const producto = datos.producto;
-		const firma = producto ? `${producto.nombre}|${producto.foto}|${producto.precio}|${producto.actualizadoEn}` : null;
+		const firma = producto ? `${producto.nombre}|${(producto.fotos || []).join(",")}|${producto.precio}|${producto.actualizadoEn}` : null;
 		if (firma === pantallaClienteUltimaFirma) return;
 		pantallaClienteUltimaFirma = firma;
 
@@ -104,9 +120,22 @@ async function pantallaClienteActualizar() {
 			return;
 		}
 
+		// fotos trae la galeria completa (Banco de Nexo / fabricante);
+		// producto.foto es solo la primera, por si algo todavia manda
+		// nada mas eso -- nunca se pierde la foto principal.
+		const fotos = Array.isArray(producto.fotos) && producto.fotos.length
+			? producto.fotos
+			: (producto.foto ? [producto.foto] : []);
+		const extras = fotos.slice(1);
+
 		contenido.className = "pcli-producto";
 		contenido.innerHTML = `
-			<div class="pcli-foto">${producto.foto ? `<img src="${producto.foto}" alt="">` : `<span>📦</span>`}</div>
+			<div class="pcli-foto" id="pcliFotoPrincipal">${fotos[0] ? `<img src="${fotos[0]}" alt="">` : `<span>📦</span>`}</div>
+			${extras.length ? `
+				<div class="pcli-galeria">
+					${extras.map(url => `<button type="button" class="pcli-galeria-item" data-pcli-foto="${escaparPOS(url)}"><img src="${url}" alt=""></button>`).join("")}
+				</div>
+			` : ""}
 			<div class="pcli-info">
 				${producto.marca ? `<span class="pcli-marca">${escaparPOS(producto.marca)}</span>` : ""}
 				<h1>${escaparPOS(producto.nombre)}</h1>
@@ -117,4 +146,13 @@ async function pantallaClienteActualizar() {
 		// Sin internet momentaneo: se queda con lo ultimo que ya mostro,
 		// no lo borra ni muestra un error que asuste al cliente.
 	}
+}
+
+// Tocar una miniatura de la galeria la pone de foto principal -- por si
+// la pantalla del cliente es una tablet touch y quiere ver otro angulo
+// el mismo cliente, sin depender de que el empleado vuelva a buscar.
+function pantallaClienteCambiarFoto(url) {
+	const contenedor = document.getElementById("pcliFotoPrincipal");
+	if (!contenedor || !url) return;
+	contenedor.innerHTML = `<img src="${url}" alt="">`;
 }

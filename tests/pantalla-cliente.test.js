@@ -119,6 +119,37 @@ test("POST /pantalla-cliente/limpiar borra lo que se estaba mostrando", async ()
     assert.equal((await actual.json()).producto, null);
 });
 
+test("mostrar con fotos (galeria) las guarda todas y usa la primera como foto principal", async () => {
+    const mostrar = await fetch(`${BASE_URL}/pantalla-cliente/mostrar`, {
+        method: "POST",
+        headers: headers(negocioA),
+        body: JSON.stringify({
+            nombre: "Producto con galeria",
+            fotos: ["https://ejemplo.com/1.jpg", "https://ejemplo.com/2.jpg", "https://ejemplo.com/3.jpg"]
+        })
+    });
+    assert.equal(mostrar.status, 200);
+
+    const actual = await fetch(`${BASE_URL}/pantalla-cliente/actual`, { headers: headers(negocioA) });
+    const datos = (await actual.json()).producto;
+    assert.deepEqual(datos.fotos, ["https://ejemplo.com/1.jpg", "https://ejemplo.com/2.jpg", "https://ejemplo.com/3.jpg"]);
+    assert.equal(datos.foto, "https://ejemplo.com/1.jpg", "sin foto explicita, se toma la primera de fotos");
+});
+
+test("fotos se acota a 12 elementos -- nadie puede mandar un arreglo gigante", async () => {
+    const muchasFotos = Array.from({ length: 30 }, (_, i) => `https://ejemplo.com/${i}.jpg`);
+
+    await fetch(`${BASE_URL}/pantalla-cliente/mostrar`, {
+        method: "POST",
+        headers: headers(negocioA),
+        body: JSON.stringify({ nombre: "Producto con demasiadas fotos", fotos: muchasFotos })
+    });
+
+    const actual = await fetch(`${BASE_URL}/pantalla-cliente/actual`, { headers: headers(negocioA) });
+    const datos = (await actual.json()).producto;
+    assert.equal(datos.fotos.length, 12);
+});
+
 test("foto y marca son opcionales -- null cuando no se mandan", async () => {
     await fetch(`${BASE_URL}/pantalla-cliente/mostrar`, {
         method: "POST",

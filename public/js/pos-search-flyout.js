@@ -75,8 +75,8 @@
 
   if (typeof pantallaClienteMostrar === "function") {
    const codigoFoto = producto.codigo;
-   Promise.resolve(codigoFoto && typeof explorarNexoResolverFoto === "function" ? explorarNexoResolverFoto(codigoFoto) : null).then(foto => {
-    pantallaClienteMostrar({ nombre: producto.nombre, foto, precio: producto.precio_publico ?? producto.precio, marca: producto.marca, origen: "punto-venta" });
+   Promise.resolve(codigoFoto && typeof explorarNexoResolverGaleria === "function" ? explorarNexoResolverGaleria(codigoFoto) : []).then(fotos => {
+    pantallaClienteMostrar({ nombre: producto.nombre, foto: fotos[0] || null, fotos, precio: producto.precio_publico ?? producto.precio, marca: producto.marca, origen: "punto-venta" });
    });
   }
  }

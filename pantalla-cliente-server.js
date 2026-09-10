@@ -39,16 +39,26 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
     app.post("/pantalla-cliente/mostrar", requerirAccesoNegocio, (req, res) => {
         try {
             const negocioId = negocioIdDeRequest(req);
-            const { nombre, foto, precio, marca, origen } = req.body || {};
+            const { nombre, foto, fotos, precio, marca, origen } = req.body || {};
 
             if (!nombre || typeof nombre !== "string") {
                 res.status(400).json({ ok: false, error: "Falta el nombre del producto" });
                 return;
             }
 
+            // fotos: la galeria completa (Ver detalles / Recepcion
+            // Inteligente ya la resuelven) -- se acota para que nadie
+            // mande un arreglo gigante por error. foto se conserva
+            // aparte por compatibilidad con quien todavia no manda
+            // galeria; si falta, se toma la primera de fotos.
+            const galeria = Array.isArray(fotos)
+                ? fotos.filter(item => typeof item === "string" && item).slice(0, 12).map(item => item.slice(0, 500))
+                : [];
+
             ESTADO_POR_NEGOCIO.set(negocioId, {
                 nombre: nombre.slice(0, 200),
-                foto: typeof foto === "string" && foto ? foto.slice(0, 500) : null,
+                foto: typeof foto === "string" && foto ? foto.slice(0, 500) : (galeria[0] || null),
+                fotos: galeria,
                 precio: Number.isFinite(Number(precio)) ? Number(precio) : null,
                 marca: typeof marca === "string" && marca ? marca.slice(0, 100) : null,
                 origen: typeof origen === "string" ? origen.slice(0, 40) : "",

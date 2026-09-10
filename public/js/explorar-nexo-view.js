@@ -225,6 +225,26 @@ async function explorarNexoResolverFoto(codigo) {
 	}
 }
 
+// Galeria completa (todas las fotos, no solo la principal) -- Pantalla
+// del cliente, Recepcion Inteligente y Ver detalles la usan para no
+// mostrar nada mas una foto cuando el producto tiene varias.
+const explorarNexoGaleriaCache = new Map();
+
+async function explorarNexoResolverGaleria(codigo) {
+	if (!codigo) return [];
+	if (explorarNexoGaleriaCache.has(codigo)) return explorarNexoGaleriaCache.get(codigo);
+
+	try {
+		const respuesta = await fetch(`/explorar-nexo/galeria/${encodeURIComponent(codigo)}`);
+		const datos = await respuesta.json();
+		const fotos = respuesta.ok && datos.ok && Array.isArray(datos.fotos) ? datos.fotos : [];
+		explorarNexoGaleriaCache.set(codigo, fotos);
+		return fotos;
+	} catch (error) {
+		return [];
+	}
+}
+
 // Se llama despues de pintar resultados (lista) o la ficha -- busca
 // cada codigo visible una sola vez (Set) y solo reemplaza el icono
 // generico por la foto real si de verdad hay una. Nunca bloquea el
@@ -373,13 +393,14 @@ function explorarNexoVerFicha(fuente, indice) {
 	explorarNexoCargarFotosVisibles(ficha);
 
 	// Pantalla del cliente: mientras se confirma con el cliente que este
-	// es el producto correcto, se manda a mostrar alla tambien.
+	// es el producto correcto, se manda a mostrar alla tambien -- con
+	// todas las fotos que haya, no solo la principal.
 	if (typeof pantallaClienteMostrar === "function") {
 		const precioParaCliente = fuente === "inventario" ? item.precio
 			: fuente === "proveedor" ? item.precioPublico
 			: item.precioListaPublico;
-		Promise.resolve(item.codigo ? explorarNexoResolverFoto(item.codigo) : null).then(foto => {
-			pantallaClienteMostrar({ nombre: item.nombre, foto, precio: precioParaCliente, marca: item.marca, origen: "explorar-nexo" });
+		Promise.resolve(item.codigo ? explorarNexoResolverGaleria(item.codigo) : []).then(fotos => {
+			pantallaClienteMostrar({ nombre: item.nombre, foto: fotos[0] || null, fotos, precio: precioParaCliente, marca: item.marca, origen: "explorar-nexo" });
 		});
 	}
 }

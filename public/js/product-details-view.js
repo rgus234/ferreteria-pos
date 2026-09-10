@@ -8,16 +8,24 @@ async function verDetalleProducto(id) {
 
  if (!producto) return;
 
+ // Se resuelve una sola vez: la usan tanto la pantalla del cliente
+ // (todas las fotos, no solo la principal) como la galeria de aqui
+ // abajo, para no duplicar la consulta.
+ const galeriaCompletaPromesa = resolverGaleriaVerDetalles(producto);
+
  // Pantalla del cliente: al abrir el detalle de un producto desde
  // Inventario tambien se manda a mostrar alla (mismo criterio que
  // Explorar Nexo y Punto de venta).
  if (typeof pantallaClienteMostrar === "function") {
-  pantallaClienteMostrar({
-   nombre: producto.nombre,
-   foto: producto.imagenUrl || null,
-   precio: producto.precio_publico ?? producto.precio,
-   marca: producto.marca,
-   origen: "inventario"
+  galeriaCompletaPromesa.then(fotos => {
+   pantallaClienteMostrar({
+    nombre: producto.nombre,
+    foto: fotos[0] || producto.imagenUrl || null,
+    fotos: fotos.length ? fotos : (producto.imagenUrl ? [producto.imagenUrl] : []),
+    precio: producto.precio_publico ?? producto.precio,
+    marca: producto.marca,
+    origen: "inventario"
+   });
   });
  }
 
@@ -83,27 +91,68 @@ async function verDetalleProducto(id) {
   boton.onclick = () => cerrarDetalleProducto();
  });
 
- if (producto.fotoCodigo) {
-  cargarGaleriaDetalleProducto(producto.fotoCodigo);
- }
+ cargarGaleriaDetalleProducto(producto, galeriaCompletaPromesa);
 }
 
-async function cargarGaleriaDetalleProducto(codigo) {
- try {
-  const respuesta =
-  await fetch(`/fotos-producto/${codigo}/galeria`);
+// Todas las fotos de este producto, en el mismo orden que se van a
+// mostrar. Si el negocio ya subio su propia foto para este codigo, esa
+// manda (nunca se mezcla con el banco); si no tiene ninguna propia, se
+// completa con el Banco de Nexo / catalogo del fabricante -- las
+// mismas fotos que ya ve Explorar Nexo, para no dejar "Ver detalles"
+// con menos de lo que el resto del POS ya muestra para ese mismo codigo.
+async function resolverGaleriaVerDetalles(producto) {
+ if (producto.imagenUrl && producto.fotoCodigo) {
+  try {
+   const respuesta = await fetch(`/fotos-producto/${producto.fotoCodigo}/galeria`);
+   const datos = await respuesta.json();
+   const extras = datos.ok && Array.isArray(datos.imagenes) ? datos.imagenes.map(img => img.url) : [];
+   return [producto.imagenUrl, ...extras];
+  } catch (error) {
+   return [producto.imagenUrl];
+  }
+ }
 
-  const datos =
-  await respuesta.json();
+ if (producto.codigo && typeof explorarNexoResolverGaleria === "function") {
+  return await explorarNexoResolverGaleria(producto.codigo);
+ }
+
+ return [];
+}
+
+async function cargarGaleriaDetalleProducto(producto, galeriaCompletaPromesa) {
+ try {
+  const fotos = await galeriaCompletaPromesa;
+  if (!fotos.length) return;
+
+  // Sin foto propia, el modal se pinto con el placeholder de "Sin foto
+  // todavia" -- si el banco/fabricante si tiene una, se reemplaza por
+  // la primera foto real y el resto se vuelve la galeria de abajo.
+  if (!producto.imagenUrl) {
+   const placeholder = document.querySelector(".detalle-producto-imagen .detalle-producto-sin-foto");
+   if (placeholder) {
+    const img = document.createElement("img");
+    img.id = "detalleProductoImgPrincipal";
+    img.src = fotos[0];
+    img.alt = "";
+    placeholder.replaceWith(img);
+   }
+  }
+
+  const extras = fotos.slice(1);
 
   const contenedor =
   document.getElementById("detalleProductoGaleria");
 
-  if (!contenedor || !datos.ok) return;
+  if (!contenedor || !extras.length) return;
 
-  contenedor.innerHTML = datos.imagenes.map(img =>
-   `<button type="button" class="detalle-producto-galeria-item" onclick="cambiarImagenPrincipalDetalle('${img.url}')"><img src="${img.url}" alt=""></button>`
+  contenedor.innerHTML = extras.map(url =>
+   `<button type="button" class="detalle-producto-galeria-item" data-detalle-foto="${escaparPOS(url)}"><img src="${url}" alt=""></button>`
   ).join("");
+
+  contenedor.addEventListener("click", event => {
+   const boton = event.target.closest("[data-detalle-foto]");
+   if (boton) cambiarImagenPrincipalDetalle(boton.dataset.detalleFoto);
+  });
  } catch (error) {
   console.warn("No se pudo cargar la galeria", error);
  }

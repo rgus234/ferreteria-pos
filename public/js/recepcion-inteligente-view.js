@@ -530,7 +530,8 @@ function riVerProductoModal(itemId) {
 	modal.innerHTML = `
 		<div class="ri-modal-producto-card">
 			<button type="button" class="ri-modal-producto-cerrar" aria-label="Cerrar">✕</button>
-			<div class="ri-modal-producto-foto">${fotoUrl ? `<img src="${fotoUrl}" alt="">` : `<span>📦</span>`}</div>
+			<div class="ri-modal-producto-foto" id="riModalProductoFoto">${fotoUrl ? `<img src="${fotoUrl}" alt="">` : `<span>📦</span>`}</div>
+			<div class="ri-modal-producto-galeria" id="riModalProductoGaleria"></div>
 			<h3>${escaparPOS(nombre)}</h3>
 			${marca ? `<p class="ri-modal-producto-marca">${escaparPOS(marca)}</p>` : ""}
 			<dl class="ri-modal-producto-datos">
@@ -553,6 +554,34 @@ function riVerProductoModal(itemId) {
 	modal.querySelector(".ri-modal-producto-cerrar").onclick = cerrar;
 
 	document.addEventListener("keydown", manejarTeclado, true);
+
+	// Todas las fotos del producto, no solo la principal -- mismo criterio
+	// que Ver detalles y Pantalla del cliente.
+	if (codigoFoto && typeof explorarNexoResolverGaleria === "function") {
+		explorarNexoResolverGaleria(codigoFoto).then(fotos => {
+			if (modal.style.display === "none") return;
+
+			const fotoPrincipal = document.getElementById("riModalProductoFoto");
+			if (fotoPrincipal && !fotoUrl && fotos[0]) {
+				fotoPrincipal.innerHTML = `<img src="${fotos[0]}" alt="">`;
+			}
+
+			const galeria = document.getElementById("riModalProductoGaleria");
+			const extras = fotos.slice(1);
+			if (!galeria || !extras.length) return;
+
+			galeria.innerHTML = extras.map(url =>
+				`<button type="button" class="ri-modal-producto-galeria-item" data-ri-foto="${escaparPOS(url)}"><img src="${url}" alt=""></button>`
+			).join("");
+
+			galeria.addEventListener("click", event => {
+				const boton = event.target.closest("[data-ri-foto]");
+				if (!boton) return;
+				const principal = document.getElementById("riModalProductoFoto");
+				if (principal) principal.innerHTML = `<img src="${boton.dataset.riFoto}" alt="">`;
+			});
+		});
+	}
 }
 
 async function riRelacionarProducto(itemId, descripcion) {

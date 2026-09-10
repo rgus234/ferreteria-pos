@@ -262,6 +262,15 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         res.json({ ok: true, url });
     });
 
+    // Todas las fotos de un producto (no solo la principal) -- Ver
+    // detalles, Recepcion Inteligente y Pantalla del cliente la usan
+    // para mostrar la galeria completa en vez de una sola foto.
+    app.get("/explorar-nexo/galeria/:codigo", requerirAccesoNegocio, async (req, res) => {
+        const { galeriaBancoOFabricante } = require("./producto-galeria");
+        const fotos = await galeriaBancoOFabricante(pool, req.params.codigo);
+        res.json({ ok: true, fotos });
+    });
+
     app.get("/explorar-nexo/buscar", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
