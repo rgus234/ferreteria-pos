@@ -245,7 +245,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 const negocio = await negocioActual(req, pool);
 
                 const filas = await pool.query(
-                    `SELECT r.id, r.nombre_emisor, r.folio, r.total, r.estado, r.created_at, r.confirmada_en,
+                    `SELECT r.id, r.nombre_emisor, r.folio, r.total, r.estado, r.origen, r.created_at, r.confirmada_en,
                             p.nombre AS proveedor_nombre,
                             COUNT(i.id) AS total_items,
                             COUNT(i.id) FILTER (WHERE i.accion <> '') AS resueltos
@@ -267,6 +267,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         folio: fila.folio,
                         total: Number(fila.total),
                         estado: fila.estado,
+                        origen: fila.origen,
                         totalItems: Number(fila.total_items),
                         resueltos: Number(fila.resueltos),
                         porRevisar: Number(fila.total_items) - Number(fila.resueltos),

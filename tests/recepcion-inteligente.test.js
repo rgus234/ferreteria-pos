@@ -186,6 +186,19 @@ test("subir una factura sin token de dispositivo se rechaza", async () => {
     assert.equal(respuesta.status, 401);
 });
 
+test("una factura subida a mano aparece con origen='manual' en la lista y en el detalle", async () => {
+    const uuid = `UUID-ORIGEN-MANUAL-${Date.now()}`;
+    const xml = cfdiXml({ uuid, conceptos: [{ descripcion: "Concepto para probar origen manual" }] });
+    const subida = await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, { method: "POST", headers: headers(), body: JSON.stringify({ xml }) });
+    const { recepcionId } = await subida.json();
+
+    const lista = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, { headers: headers() })).json();
+    assert.equal(lista.facturas.find(f => f.id === recepcionId).origen, "manual");
+
+    const detalle = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}`, { headers: headers() })).json();
+    assert.equal(detalle.recepcion.origen, "manual");
+});
+
 test("subir una factura nunca toca el stock -- queda pendiente de revision", async () => {
     const producto = await crearProductoPrueba(negocio.negocioId, { nombre: "Stock intacto RI", codigo: "RI-STOCK-1", stock: 5 });
     const catalogo = await pool.query(

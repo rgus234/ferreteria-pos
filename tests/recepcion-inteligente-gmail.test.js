@@ -26,6 +26,7 @@ const {
     extraerXmlsDelMensaje
 } = require("../recepcion-inteligente-gmail");
 const { negociosConGmailConectado } = require("../recepcion-inteligente-gmail-cron");
+const { procesarFacturaXml } = require("../recepcion-inteligente-server");
 
 let negocio;
 
@@ -275,4 +276,28 @@ test("negociosConGmailConectado solo regresa negocios con la conexion activa", a
     } finally {
         await borrarNegocioPrueba(otroNegocio.negocioId);
     }
+});
+
+test("una factura procesada con origen='gmail' aparece asi en la lista y en el detalle", async () => {
+    const uuid = `UUID-ORIGEN-GMAIL-${Date.now()}`;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital"
+  Version="4.0" Folio="1" Fecha="2026-09-09T10:00:00" SubTotal="10.00" Total="11.60">
+  <cfdi:Emisor Rfc="GAF850101AB1" Nombre="GAFI SA DE CV"/>
+  <cfdi:Receptor Rfc="OLI900101XX1" Nombre="RECEPTOR DE PRUEBA"/>
+  <cfdi:Conceptos>
+    <cfdi:Concepto NoIdentificacion="" ClaveProdServ="27112700" Descripcion="Concepto detectado por Gmail"
+        Cantidad="1" ValorUnitario="10" Importe="10.00" Unidad="Pieza"/>
+  </cfdi:Conceptos>
+  <cfdi:Impuestos TotalImpuestosTrasladados="1.60"><cfdi:Traslados><cfdi:Traslado Base="10" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.16" Importe="1.60"/></cfdi:Traslados></cfdi:Impuestos>
+  <cfdi:Complemento><tfd:TimbreFiscalDigital UUID="${uuid}" Version="1.1"/></cfdi:Complemento>
+</cfdi:Comprobante>`;
+
+    const resultado = await procesarFacturaXml(pool, negocio.negocioId, xml, { origen: "gmail" });
+
+    const lista = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, { headers: { "x-dispositivo-token": negocio.token } })).json();
+    assert.equal(lista.facturas.find(f => f.id === resultado.recepcionId).origen, "gmail");
+
+    const detalle = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${resultado.recepcionId}`, { headers: { "x-dispositivo-token": negocio.token } })).json();
+    assert.equal(detalle.recepcion.origen, "gmail");
 });

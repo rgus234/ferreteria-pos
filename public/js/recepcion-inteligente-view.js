@@ -47,6 +47,13 @@ function riBadgeEstado(recepcion) {
 	return `<span class="ri-badge ri-badge-revisar">🟡 ${recepcion.porRevisar} por revisar</span>`;
 }
 
+// "gmail" (Fase 2/3, Nexo la encontro solo) vs "manual" (Fase 1, XML
+// subido a mano) -- distincion puramente informativa para que el dueño
+// sepa de un vistazo cuales facturas detecto Nexo solo.
+function riIconoOrigen(origen) {
+	return origen === "gmail" ? "📧" : "📎";
+}
+
 function riBadgeGeneral(estado) {
 	if (estado === "confirmada") return `<span class="ri-badge ri-badge-ok">Confirmada</span>`;
 	if (estado === "rechazada") return `<span class="ri-badge ri-badge-rechazada">Rechazada</span>`;
@@ -247,7 +254,7 @@ async function riCargarLista() {
 		contenedor.innerHTML = datos.facturas.map(f => `
 			<div class="ri-fila-factura ${recepcionInteligenteActualId === f.id ? "activa" : ""}" onclick="riVerDetalle(${f.id})">
 				<div class="ri-fila-factura-principal">
-					<strong>${escaparPOS(f.proveedor)}</strong>
+					<strong>${riIconoOrigen(f.origen)} ${escaparPOS(f.proveedor)}</strong>
 					<span>Folio ${escaparPOS(f.folio || "-")} &middot; $${f.total.toFixed(2)}</span>
 				</div>
 				<div class="ri-fila-factura-estado">
@@ -282,8 +289,9 @@ async function riVerDetalle(id) {
 	const sinDecidir = items.filter(it => !it.accion).length;
 
 	panel.innerHTML = `
-		<h3>${escaparPOS(recepcion.proveedor)}</h3>
-		<p class="explorar-nexo-ficha-fuente">Folio ${escaparPOS(recepcion.folio || "-")} &middot; ${recepcion.fechaDocumento || ""} &middot; ${riBadgeGeneral(recepcion.estado)}</p>
+		<h3>${riIconoOrigen(recepcion.origen)} ${escaparPOS(recepcion.proveedor)}</h3>
+		<p class="explorar-nexo-ficha-fuente">Folio ${escaparPOS(recepcion.folio || "-")} &middot; ${recepcion.fechaDocumento || ""} &middot; ${riBadgeGeneral(recepcion.estado)}
+			&middot; ${recepcion.origen === "gmail" ? "Detectada en Gmail" : "Subida a mano"}</p>
 
 		<div class="ri-tabla-wrap">
 			<table class="ri-tabla-items">
