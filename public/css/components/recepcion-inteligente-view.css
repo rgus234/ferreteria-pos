@@ -15,6 +15,22 @@
 	color:var(--pos-muted,#687386);
 }
 
+.ri-gmail-fila{
+	display:flex;
+	flex-wrap:wrap;
+	align-items:center;
+	gap:12px;
+	margin-bottom:14px;
+	padding:10px 14px;
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:10px;
+}
+.ri-gmail-fila span{
+	font-size:13px;
+	color:var(--pos-muted,#687386);
+	flex:1 1 auto;
+}
+
 .ri-fila-factura{
 	display:flex;
 	justify-content:space-between;

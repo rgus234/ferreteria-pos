@@ -81,6 +81,132 @@ function decisionInicial(candidato) {
     return { accion: "", productoId: null };
 }
 
+// Corazon del pipeline, compartido por las 2 formas de "llegar" una
+// factura: subida a mano (POST /facturas, este archivo) y Gmail (Fase
+// 2, recepcion-inteligente-gmail.js). Nunca duplicar esta logica --
+// cualquier mejora al parseo/matching/deduplicacion debe beneficiar a
+// las dos fuentes por igual. Tira un error con .httpStatus para que el
+// llamador decida como responder (una request HTTP vs. un mensaje mas
+// de un lote de Gmail que debe seguir con el siguiente).
+async function procesarFacturaXml(pool, negocioId, xml, { origen = "manual", empleadoId = null, pdfBase64 = null } = {}) {
+    if (!xml || typeof xml !== "string" || !xml.trim()) {
+        const error = new Error("Falta el XML de la factura");
+        error.httpStatus = 400;
+        throw error;
+    }
+
+    let factura;
+    try {
+        factura = parsearCfdi(xml);
+    } catch (error) {
+        error.httpStatus = 400;
+        throw error;
+    }
+
+    if (!factura.conceptos.length) {
+        const error = new Error("La factura no trae conceptos que registrar");
+        error.httpStatus = 400;
+        throw error;
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
+
+        const existente = await buscarPorUuid(client, negocioId, factura.uuid);
+        if (existente) {
+            await client.query("ROLLBACK");
+            return { recepcionId: existente.id, estado: existente.estado, repetida: true };
+        }
+
+        const proveedorId = await resolverProveedorPorRfc(pool, negocioId, factura.emisorRfc, factura.emisorNombre);
+
+        await client.query("SAVEPOINT antes_insertar_recepcion");
+        let recepcion;
+        try {
+            recepcion = await client.query(
+                `INSERT INTO public.recepciones_inteligentes
+                    (negocio_id, origen, uuid_cfdi, proveedor_id, rfc_emisor, nombre_emisor, rfc_receptor,
+                     folio, serie, fecha_documento, subtotal, iva, total)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                 RETURNING id`,
+                [
+                    negocioId, origen, factura.uuid, proveedorId, factura.emisorRfc, factura.emisorNombre,
+                    factura.receptorRfc, factura.folio, factura.serie, factura.fecha,
+                    factura.subtotal, factura.iva, factura.total
+                ]
+            );
+        } catch (error) {
+            if (error.code === "23505" && factura.uuid) {
+                // Carrera real: dos peticiones para el mismo UUID casi al
+                // mismo tiempo (o Gmail devolviendo el mismo correo dos
+                // veces en un mismo lote). El indice unico (negocio_id,
+                // uuid_cfdi) es lo que en realidad evita el duplicado --
+                // aqui solo se responde con gracia en vez de tronar.
+                await client.query("ROLLBACK");
+                const yaExiste = await buscarPorUuid(pool, negocioId, factura.uuid);
+                return { recepcionId: yaExiste?.id, estado: yaExiste?.estado, repetida: true };
+            }
+            throw error;
+        }
+
+        const recepcionId = recepcion.rows[0].id;
+        let identificados = 0;
+
+        for (const concepto of factura.conceptos) {
+            const candidato = await resolverConceptoFactura(pool, negocioId, concepto);
+            const decision = decisionInicial(candidato);
+            if (decision.accion) identificados++;
+
+            await client.query(
+                `INSERT INTO public.recepciones_inteligentes_items
+                    (negocio_id, recepcion_id, codigo_factura, clave_prod_serv, descripcion, cantidad,
+                     unidad, costo_unitario, importe, descuento, candidato, nivel, producto_id, accion)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14)`,
+                [
+                    negocioId, recepcionId, concepto.codigo, concepto.claveProdServ, concepto.descripcion,
+                    concepto.cantidad, concepto.unidad, concepto.costo, concepto.importe, concepto.descuento,
+                    candidato ? JSON.stringify(candidato) : null,
+                    candidato ? candidato.nivel : null,
+                    decision.productoId, decision.accion
+                ]
+            );
+        }
+
+        if (pdfBase64) {
+            await client.query(
+                `UPDATE public.recepciones_inteligentes SET pdf_bytes = $1 WHERE id = $2`,
+                [Buffer.from(pdfBase64, "base64"), recepcionId]
+            );
+        }
+        await client.query(
+            `UPDATE public.recepciones_inteligentes SET xml_bytes = $1 WHERE id = $2`,
+            [Buffer.from(xml, "utf8"), recepcionId]
+        );
+
+        await client.query("COMMIT");
+
+        await registrarBitacora(pool, negocioId, empleadoId, "recepcion_inteligente_detectada", {
+            recepcionId, proveedor: factura.emisorNombre, folio: factura.folio, total: factura.total,
+            conceptos: factura.conceptos.length, identificados, origen
+        });
+
+        return {
+            recepcionId,
+            proveedorResuelto: Boolean(proveedorId),
+            totalConceptos: factura.conceptos.length,
+            identificados,
+            porRevisar: factura.conceptos.length - identificados,
+            repetida: false
+        };
+    } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 module.exports = (app, pool, requerirAccesoNegocio) => {
     // Sube una factura a mano -- lo que en la Fase 2 hara el correo
     // solo. Body: { xml: "<texto del CFDI>", pdfBase64?: "..." }.
@@ -89,125 +215,23 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         requerirAccesoNegocio,
         requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO),
         async (req, res) => {
-            const client = await pool.connect();
-
             try {
                 const negocio = await negocioActual(req, pool);
                 const { xml, pdfBase64 } = req.body || {};
 
-                if (!xml || typeof xml !== "string" || !xml.trim()) {
-                    res.status(400).json({ ok: false, error: "Falta el XML de la factura" });
-                    return;
-                }
-
-                let factura;
-                try {
-                    factura = parsearCfdi(xml);
-                } catch (error) {
-                    res.status(400).json({ ok: false, error: error.message });
-                    return;
-                }
-
-                if (!factura.conceptos.length) {
-                    res.status(400).json({ ok: false, error: "La factura no trae conceptos que registrar" });
-                    return;
-                }
-
-                await client.query("BEGIN");
-
-                const existente = await buscarPorUuid(client, negocio.id, factura.uuid);
-                if (existente) {
-                    await client.query("ROLLBACK");
-                    res.json({ ok: true, recepcionId: existente.id, estado: existente.estado, repetida: true });
-                    return;
-                }
-
-                const proveedorId = await resolverProveedorPorRfc(pool, negocio.id, factura.emisorRfc, factura.emisorNombre);
-
-                await client.query("SAVEPOINT antes_insertar_recepcion");
-                let recepcion;
-                try {
-                    recepcion = await client.query(
-                        `INSERT INTO public.recepciones_inteligentes
-                            (negocio_id, origen, uuid_cfdi, proveedor_id, rfc_emisor, nombre_emisor, rfc_receptor,
-                             folio, serie, fecha_documento, subtotal, iva, total)
-                         VALUES ($1,'manual',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-                         RETURNING id`,
-                        [
-                            negocio.id, factura.uuid, proveedorId, factura.emisorRfc, factura.emisorNombre,
-                            factura.receptorRfc, factura.folio, factura.serie, factura.fecha,
-                            factura.subtotal, factura.iva, factura.total
-                        ]
-                    );
-                } catch (error) {
-                    if (error.code === "23505" && factura.uuid) {
-                        // Carrera real: dos peticiones para el mismo UUID
-                        // casi al mismo tiempo. El indice unico
-                        // (negocio_id, uuid_cfdi) es lo que en realidad
-                        // evita el duplicado -- aqui solo se responde con
-                        // gracia en vez de tronar con un 500.
-                        await client.query("ROLLBACK");
-                        const yaExiste = await buscarPorUuid(pool, negocio.id, factura.uuid);
-                        res.json({ ok: true, recepcionId: yaExiste?.id, estado: yaExiste?.estado, repetida: true });
-                        return;
-                    }
-                    throw error;
-                }
-
-                const recepcionId = recepcion.rows[0].id;
-                let identificados = 0;
-
-                for (const concepto of factura.conceptos) {
-                    const candidato = await resolverConceptoFactura(pool, negocio.id, concepto);
-                    const decision = decisionInicial(candidato);
-                    if (decision.accion) identificados++;
-
-                    await client.query(
-                        `INSERT INTO public.recepciones_inteligentes_items
-                            (negocio_id, recepcion_id, codigo_factura, clave_prod_serv, descripcion, cantidad,
-                             unidad, costo_unitario, importe, descuento, candidato, nivel, producto_id, accion)
-                         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14)`,
-                        [
-                            negocio.id, recepcionId, concepto.codigo, concepto.claveProdServ, concepto.descripcion,
-                            concepto.cantidad, concepto.unidad, concepto.costo, concepto.importe, concepto.descuento,
-                            candidato ? JSON.stringify(candidato) : null,
-                            candidato ? candidato.nivel : null,
-                            decision.productoId, decision.accion
-                        ]
-                    );
-                }
-
-                if (pdfBase64) {
-                    await client.query(
-                        `UPDATE public.recepciones_inteligentes SET pdf_bytes = $1 WHERE id = $2`,
-                        [Buffer.from(pdfBase64, "base64"), recepcionId]
-                    );
-                }
-                await client.query(
-                    `UPDATE public.recepciones_inteligentes SET xml_bytes = $1 WHERE id = $2`,
-                    [Buffer.from(xml, "utf8"), recepcionId]
-                );
-
-                await client.query("COMMIT");
-
-                await registrarBitacora(pool, negocio.id, empleadoIdDeRequest(req), "recepcion_inteligente_detectada", {
-                    recepcionId, proveedor: factura.emisorNombre, folio: factura.folio, total: factura.total,
-                    conceptos: factura.conceptos.length, identificados
+                const resultado = await procesarFacturaXml(pool, negocio.id, xml, {
+                    origen: "manual",
+                    empleadoId: empleadoIdDeRequest(req),
+                    pdfBase64
                 });
 
-                res.json({
-                    ok: true,
-                    recepcionId,
-                    proveedorResuelto: Boolean(proveedorId),
-                    totalConceptos: factura.conceptos.length,
-                    identificados,
-                    porRevisar: factura.conceptos.length - identificados
-                });
+                res.json({ ok: true, ...resultado });
             } catch (error) {
-                await client.query("ROLLBACK").catch(() => {});
+                if (error.httpStatus) {
+                    res.status(error.httpStatus).json({ ok: false, error: error.message });
+                    return;
+                }
                 responderError(res, error);
-            } finally {
-                client.release();
             }
         }
     );
@@ -588,3 +612,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     );
 };
+
+// Reutilizado por recepcion-inteligente-gmail.js (Fase 2): mismo
+// pipeline exacto, nunca duplicado.
+module.exports.procesarFacturaXml = procesarFacturaXml;

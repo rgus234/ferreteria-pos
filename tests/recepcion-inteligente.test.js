@@ -218,7 +218,7 @@ test("subir la misma factura (mismo UUID) dos veces no crea una segunda recepcio
 
     const primera = await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, { method: "POST", headers: headers(), body: JSON.stringify({ xml }) });
     const datosPrimera = await primera.json();
-    assert.equal(datosPrimera.repetida, undefined);
+    assert.equal(datosPrimera.repetida, false);
 
     const segunda = await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, { method: "POST", headers: headers(), body: JSON.stringify({ xml }) });
     const datosSegunda = await segunda.json();

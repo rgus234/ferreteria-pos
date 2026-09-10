@@ -26,6 +26,14 @@ const config = {
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || "",
+    // Callback dedicado para Recepcion Inteligente -- Gmail (Fase 2), NO
+    // el mismo que "Continuar con Google" (googleRedirectUri): son 2
+    // flujos con proposito distinto (login de personas vs. leer un buzon
+    // de negocio) y cada uno pide su propio scope. Reusar el mismo
+    // callback los mezclaria sin necesidad -- registrar esta URL nueva en
+    // Google Cloud Console (Authorized redirect URIs) toma lo mismo que
+    // agregar el scope de Gmail, un paso mas no cuesta nada extra.
+    googleGmailRedirectUri: process.env.GOOGLE_GMAIL_REDIRECT_URI || "",
     facturamaApiUrl: process.env.FACTURAMA_API_URL || "",
     facturamaApiUser: process.env.FACTURAMA_API_USER || "",
     facturamaApiPassword: process.env.FACTURAMA_API_PASSWORD || "",

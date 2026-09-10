@@ -80,6 +80,8 @@ async function mostrarRecepcionInteligente() {
 				<span id="riSubiendoAviso" style="display:none">Leyendo factura…</span>
 			</div>
 
+			<div id="riGmailSeccion"></div>
+
 			<div class="explorar-nexo-grid">
 				<div class="explorar-nexo-resultados" id="riListaFacturas">
 					<p class="explorar-nexo-vacio">Cargando…</p>
@@ -92,6 +94,104 @@ async function mostrarRecepcionInteligente() {
 	`;
 
 	await riCargarLista();
+	await riCargarEstadoGmail();
+}
+
+// Fase 2: la factura llega sola por Gmail en vez de subirse a mano.
+// Seccion auto-oculta si el servidor todavia no tiene Gmail configurado
+// (faltan pasos manuales en Google Cloud Console) -- nada que confundir
+// mientras tanto, aparece sola en cuanto esos pasos queden listos.
+async function riCargarEstadoGmail() {
+	const contenedor = document.getElementById("riGmailSeccion");
+	if (!contenedor) return;
+
+	try {
+		const respuesta = await fetch("/recepcion-inteligente/gmail/estado");
+		const datos = await respuesta.json();
+		if (!datos.ok) { contenedor.innerHTML = ""; return; }
+
+		if (!datos.conectado) {
+			contenedor.innerHTML = datos.configurado ? `
+				<div class="ri-gmail-fila">
+					<span>O conecta tu Gmail para que Nexo detecte las facturas solo.</span>
+					<button type="button" class="btn-secundario" onclick="riConectarGmail()">Conectar Gmail</button>
+				</div>
+			` : "";
+			return;
+		}
+
+		contenedor.innerHTML = `
+			<div class="ri-gmail-fila">
+				<span>📧 Gmail conectado: <strong>${escaparPOS(datos.correo)}</strong></span>
+				<button type="button" class="btn-secundario" id="riGmailBuscarBoton" onclick="riBuscarFacturasGmail()">Buscar facturas nuevas</button>
+				<button type="button" class="btn-mini" onclick="riDesconectarGmail()">Desconectar</button>
+			</div>
+		`;
+	} catch (error) {
+		contenedor.innerHTML = "";
+	}
+}
+
+async function riConectarGmail() {
+	const respuesta = await fetch("/recepcion-inteligente/gmail/iniciar", { method: "POST" });
+	const datos = await respuesta.json().catch(() => ({}));
+
+	if (!respuesta.ok || !datos.ok) {
+		await alertaPOS(datos.error || "No se pudo iniciar la conexion con Gmail.", "Conectar Gmail", "peligro");
+		return;
+	}
+
+	// Navegacion normal de pagina completa (no fetch): Google necesita
+	// mostrar su propia pantalla de consentimiento antes de regresar.
+	window.location.href = datos.url;
+}
+
+async function riBuscarFacturasGmail() {
+	const boton = document.getElementById("riGmailBuscarBoton");
+	if (boton) { boton.disabled = true; boton.textContent = "Buscando…"; }
+
+	try {
+		const respuesta = await fetch("/recepcion-inteligente/gmail/buscar", { method: "POST" });
+		const datos = await respuesta.json().catch(() => ({}));
+
+		if (!respuesta.ok || !datos.ok) {
+			await alertaPOS(datos.error || "No se pudo buscar en Gmail.", "Buscar facturas nuevas", "peligro");
+			return;
+		}
+
+		const partes = [];
+		if (datos.nuevas) partes.push(`${datos.nuevas} nueva(s)`);
+		if (datos.repetidas) partes.push(`${datos.repetidas} ya conocida(s)`);
+		if (datos.fallidas) partes.push(`${datos.fallidas} sin poder leer`);
+
+		await alertaPOS(
+			datos.mensajesRevisados
+				? `Se revisaron ${datos.mensajesRevisados} correo(s): ${partes.join(", ") || "nada nuevo"}.`
+				: "No hay correos nuevos con factura adjunta desde la ultima revision.",
+			"Buscar facturas nuevas",
+			"exito"
+		);
+
+		await riCargarLista();
+		await riCargarEstadoGmail();
+	} finally {
+		if (boton) { boton.disabled = false; boton.textContent = "Buscar facturas nuevas"; }
+	}
+}
+
+async function riDesconectarGmail() {
+	const confirmado = await confirmarPOS("Nexo dejara de poder buscar facturas en este correo hasta que lo vuelvas a conectar.", "Desconectar Gmail");
+	if (!confirmado) return;
+
+	const respuesta = await fetch("/recepcion-inteligente/gmail/desconectar", { method: "POST" });
+	const datos = await respuesta.json().catch(() => ({}));
+
+	if (!respuesta.ok || !datos.ok) {
+		await alertaPOS(datos.error || "No se pudo desconectar.", "Desconectar Gmail", "peligro");
+		return;
+	}
+
+	await riCargarEstadoGmail();
 }
 
 async function riSubirFacturaSeleccionada(event) {

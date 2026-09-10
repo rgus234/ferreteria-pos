@@ -1,0 +1,251 @@
+// Recepcion Inteligente, Fase 2 (Gmail). A diferencia del resto del
+// proyecto, aqui no se puede probar contra la base de datos real
+// "de verdad hablando con Gmail" -- no hay una bandeja de Gmail real
+// disponible en este entorno de pruebas. Lo que si es 100% real y se
+// prueba de verdad:
+//   - listarAdjuntosXml / decodificarBase64Url / construirQueryBusqueda:
+//     logica pura, sin red, con payloads de Gmail armados a mano
+//     (mismo formato documentado por la API real).
+//   - firmarState / verificarState: HMAC real, sin mockear nada.
+//   - extraerXmlsDelMensaje: la rama con datos inline no toca la red;
+//     la rama con attachmentId mockea global.fetch (unico lugar del
+//     archivo donde hace falta, restaurado siempre en el finally).
+//   - Los endpoints HTTP que no requieren hablar con Gmail de verdad
+//     (estado, buscar sin conexion, iniciar sin configurar) si se
+//     prueban contra el servidor real.
+const { test, before, after } = require("node:test");
+const assert = require("node:assert/strict");
+const { pool, crearNegocioPrueba, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
+const { iniciarServidorPrueba, detenerServidorPrueba, BASE_URL } = require("./helpers/servidor-prueba");
+const {
+    listarAdjuntosXml,
+    decodificarBase64Url,
+    construirQueryBusqueda,
+    firmarState,
+    verificarState,
+    extraerXmlsDelMensaje
+} = require("../recepcion-inteligente-gmail");
+
+let negocio;
+
+before(async () => {
+    await iniciarServidorPrueba();
+    negocio = await crearNegocioPrueba("recepcion-inteligente-gmail");
+});
+
+after(async () => {
+    if (negocio) await borrarNegocioPrueba(negocio.negocioId);
+    await detenerServidorPrueba();
+    await pool.end();
+});
+
+// --- listarAdjuntosXml ----------------------------------------------
+
+test("listarAdjuntosXml encuentra un adjunto XML de primer nivel", () => {
+    const payload = {
+        mimeType: "multipart/mixed",
+        parts: [
+            { mimeType: "text/plain", body: { size: 10, data: "aG9sYQ" } },
+            { filename: "factura.xml", mimeType: "application/octet-stream", body: { attachmentId: "ATT-1", size: 500 } }
+        ]
+    };
+    const adjuntos = listarAdjuntosXml(payload);
+    assert.equal(adjuntos.length, 1);
+    assert.equal(adjuntos[0].filename, "factura.xml");
+    assert.equal(adjuntos[0].attachmentId, "ATT-1");
+});
+
+test("listarAdjuntosXml encuentra un adjunto anidado 2 niveles (mixed > alternative)", () => {
+    const payload = {
+        mimeType: "multipart/mixed",
+        parts: [
+            {
+                mimeType: "multipart/alternative",
+                parts: [
+                    { mimeType: "text/plain", body: { size: 5, data: "aG9sYQ" } },
+                    { mimeType: "text/html", body: { size: 20, data: "aG9sYQ" } }
+                ]
+            },
+            { filename: "CFDI-anidado.XML", body: { attachmentId: "ATT-2", size: 800 } }
+        ]
+    };
+    const adjuntos = listarAdjuntosXml(payload);
+    assert.equal(adjuntos.length, 1, "debe encontrar el XML sin importar la profundidad ni mayusculas en la extension");
+    assert.equal(adjuntos[0].attachmentId, "ATT-2");
+});
+
+test("listarAdjuntosXml detecta por mimeType aunque el nombre no termine en .xml", () => {
+    const payload = { filename: "factura_extraña", mimeType: "text/xml", body: { attachmentId: "ATT-3", size: 100 } };
+    const adjuntos = listarAdjuntosXml(payload);
+    assert.equal(adjuntos.length, 1);
+});
+
+test("listarAdjuntosXml ignora adjuntos que no son XML (ej. un PDF)", () => {
+    const payload = {
+        mimeType: "multipart/mixed",
+        parts: [
+            { filename: "factura.pdf", mimeType: "application/pdf", body: { attachmentId: "ATT-PDF", size: 900 } }
+        ]
+    };
+    assert.equal(listarAdjuntosXml(payload).length, 0);
+});
+
+test("listarAdjuntosXml regresa vacio para un mensaje sin adjuntos", () => {
+    const payload = { mimeType: "text/plain", body: { size: 20, data: "aG9sYQ" } };
+    assert.equal(listarAdjuntosXml(payload).length, 0);
+});
+
+// --- decodificarBase64Url --------------------------------------------
+
+test("decodificarBase64Url decodifica base64url (con - y _) igual que base64 normal", () => {
+    const texto = "<factura>áéí ñ</factura>";
+    const base64url = Buffer.from(texto, "utf8").toString("base64url");
+    assert.equal(decodificarBase64Url(base64url), texto);
+});
+
+// --- construirQueryBusqueda -------------------------------------------
+
+test("construirQueryBusqueda arma el query de Gmail con el timestamp en segundos", () => {
+    const fecha = new Date("2026-09-09T12:00:00.000Z");
+    const query = construirQueryBusqueda(fecha);
+    assert.equal(query, `has:attachment filename:xml after:${Math.floor(fecha.getTime() / 1000)}`);
+});
+
+// --- firmarState / verificarState --------------------------------------
+
+test("firmarState / verificarState: viaje de ida y vuelta regresa el mismo negocioId", () => {
+    const state = firmarState(42);
+    const verificado = verificarState(state);
+    assert.ok(verificado);
+    assert.equal(verificado.negocioId, 42);
+});
+
+test("verificarState rechaza un state con la firma alterada", () => {
+    const state = firmarState(42);
+    const alterado = state.slice(0, -1) + (state.at(-1) === "a" ? "b" : "a");
+    assert.equal(verificarState(alterado), null);
+});
+
+test("verificarState rechaza un state con negocioId alterado (la firma ya no corresponde)", () => {
+    const state = firmarState(42);
+    const partes = state.split(".");
+    partes[0] = "999";
+    assert.equal(verificarState(partes.join(".")), null, "cambiar negocioId sin recalcular la firma debe fallar la verificacion");
+});
+
+test("verificarState rechaza basura / formato invalido", () => {
+    assert.equal(verificarState("no-es-un-state-valido"), null);
+    assert.equal(verificarState(""), null);
+    assert.equal(verificarState(undefined), null);
+});
+
+test("verificarState rechaza un state vencido (mas de 10 minutos)", () => {
+    // Se firma un payload a mano con un timestamp viejo, en vez de
+    // esperar 10 minutos reales.
+    const crypto = require("crypto");
+    const { config } = require("../config");
+    const payload = `7.${Date.now() - 11 * 60 * 1000}.aabbccdd`;
+    const firma = crypto.createHmac("sha256", config.googleClientSecret).update(payload).digest("hex").slice(0, 32);
+    assert.equal(verificarState(`${payload}.${firma}`), null);
+});
+
+// --- extraerXmlsDelMensaje --------------------------------------------
+
+test("extraerXmlsDelMensaje decodifica un adjunto inline sin tocar la red", async () => {
+    const xmlOriginal = "<cfdi:Comprobante>inline</cfdi:Comprobante>";
+    const mensaje = {
+        id: "MSG-1",
+        payload: { filename: "factura.xml", body: { data: Buffer.from(xmlOriginal, "utf8").toString("base64url"), size: 100 } }
+    };
+
+    const xmls = await extraerXmlsDelMensaje("access-token-no-usado", mensaje);
+    assert.deepEqual(xmls, [xmlOriginal]);
+});
+
+test("extraerXmlsDelMensaje descarga por attachmentId cuando no viene inline", async () => {
+    const xmlOriginal = "<cfdi:Comprobante>descargado</cfdi:Comprobante>";
+    const mensaje = {
+        id: "MSG-2",
+        payload: { filename: "factura.xml", body: { attachmentId: "ATT-99", size: 5000 } }
+    };
+
+    const fetchOriginal = global.fetch;
+    let urlLlamada = null;
+    global.fetch = async (url) => {
+        urlLlamada = url;
+        return { ok: true, json: async () => ({ data: Buffer.from(xmlOriginal, "utf8").toString("base64url") }) };
+    };
+
+    try {
+        const xmls = await extraerXmlsDelMensaje("access-token-de-prueba", mensaje);
+        assert.deepEqual(xmls, [xmlOriginal]);
+        assert.match(urlLlamada, /\/messages\/MSG-2\/attachments\/ATT-99$/);
+    } finally {
+        global.fetch = fetchOriginal;
+    }
+});
+
+test("extraerXmlsDelMensaje regresa vacio para un mensaje sin adjuntos XML", async () => {
+    const mensaje = { id: "MSG-3", payload: { mimeType: "text/plain", body: { data: "aG9sYQ", size: 5 } } };
+    assert.deepEqual(await extraerXmlsDelMensaje("access-token-no-usado", mensaje), []);
+});
+
+// --- Pipeline HTTP: solo lo que NO necesita hablar con Gmail de verdad --
+
+test("GET /gmail/estado: un negocio que nunca conecto nada regresa conectado=false", async () => {
+    const respuesta = await fetch(`${BASE_URL}/recepcion-inteligente/gmail/estado`, {
+        headers: { "x-dispositivo-token": negocio.token }
+    });
+    const datos = await respuesta.json();
+
+    assert.equal(respuesta.status, 200);
+    assert.equal(datos.conectado, false);
+});
+
+test("POST /gmail/iniciar: sin token de dispositivo se rechaza", async () => {
+    const respuesta = await fetch(`${BASE_URL}/recepcion-inteligente/gmail/iniciar`, { method: "POST" });
+    assert.equal(respuesta.status, 401);
+});
+
+test("POST /gmail/iniciar: entrega una URL de Google con el scope de solo-lectura y un state firmado", async () => {
+    const respuesta = await fetch(`${BASE_URL}/recepcion-inteligente/gmail/iniciar`, {
+        method: "POST",
+        headers: { "x-dispositivo-token": negocio.token }
+    });
+    const datos = await respuesta.json();
+
+    assert.equal(respuesta.status, 200, JSON.stringify(datos));
+    assert.ok(datos.url.startsWith("https://accounts.google.com/o/oauth2/v2/auth?"));
+    assert.match(datos.url, /scope=https%3A%2F%2Fwww\.googleapis\.com%2Fauth%2Fgmail\.readonly/);
+    assert.match(datos.url, /access_type=offline/);
+    assert.match(datos.url, /prompt=consent/);
+
+    const parametros = new URL(datos.url).searchParams;
+    const verificado = verificarState(parametros.get("state"));
+    assert.equal(verificado.negocioId, negocio.negocioId, "el state debe llevar el negocio que inicio la conexion");
+});
+
+test("POST /gmail/buscar: sin ninguna cuenta conectada se rechaza con 400, nunca intenta hablar con Gmail", async () => {
+    const respuesta = await fetch(`${BASE_URL}/recepcion-inteligente/gmail/buscar`, {
+        method: "POST",
+        headers: { "x-dispositivo-token": negocio.token }
+    });
+    const datos = await respuesta.json();
+
+    assert.equal(respuesta.status, 400);
+    assert.match(datos.error, /no conectas ning.n Gmail/);
+});
+
+test("GET /gmail/callback: un state invalido o vencido se rechaza sin llegar a intercambiar el code", async () => {
+    const respuesta = await fetch(`${BASE_URL}/recepcion-inteligente/gmail/callback?code=algo&state=basura-invalida`);
+    assert.equal(respuesta.status, 400);
+    const html = await respuesta.text();
+    assert.match(html, /Enlace invalido o vencido/);
+});
+
+test("GET /gmail/callback: si Google regresa error (usuario cancelo), se muestra un aviso sin tronar", async () => {
+    const respuesta = await fetch(`${BASE_URL}/recepcion-inteligente/gmail/callback?error=access_denied`);
+    assert.equal(respuesta.status, 200);
+    const html = await respuesta.text();
+    assert.match(html, /Conexion cancelada/);
+});
