@@ -120,8 +120,13 @@ app.use(helmet({
             // digital: la app POS corre en {slug}.nexoposoficial.com /
             // app.nexoposoficial.com, nunca en el dominio raiz, asi que
             // el <img> del ticket que apunta a /ticket/:codigo/qr.png es
-            // cross-origin (ver ticket-publico-server.js).
-            imgSrc: ["'self'", "data:", "blob:", "https://cdn.jsdelivr.net", "https://*.tile.openstreetmap.org", "https://nexoposoficial.com"],
+            // cross-origin (ver ticket-publico-server.js). www.truper.com
+            // se agrega porque Explorar Nexo, Ver detalles, Recepcion
+            // Inteligente y Proyectar muestran ahi las fotos que el
+            // fabricante ya publica cuando el producto no tiene una
+            // curada en el Banco de Nexo (ver banco-fotos-fabricante.js)
+            // -- sin este origen, el navegador las bloquea en silencio.
+            imgSrc: ["'self'", "data:", "blob:", "https://cdn.jsdelivr.net", "https://*.tile.openstreetmap.org", "https://nexoposoficial.com", "https://www.truper.com"],
             fontSrc: ["'self'", "data:"],
             connectSrc: ["'self'", "https://api.stripe.com"],
             frameSrc: ["https://js.stripe.com", "https://hooks.stripe.com"],
