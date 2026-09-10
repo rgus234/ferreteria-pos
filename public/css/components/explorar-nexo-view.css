@@ -121,8 +121,9 @@
  object-fit:contain;
  background:#fff;
 }
-.explorar-nexo-tarjeta-info{ min-width:0; flex:1; }
+.explorar-nexo-tarjeta-info{ min-width:0; flex:1; display:flex; flex-direction:column; gap:2px; }
 .explorar-nexo-tarjeta-nombre{
+ display:block;
  font-weight:700;
  font-size:13.5px;
  color:var(--pos-text,#172033);
@@ -131,6 +132,7 @@
  text-overflow:ellipsis;
 }
 .explorar-nexo-tarjeta-meta{
+ display:block;
  font-size:12px;
  color:var(--pos-muted,#687386);
  white-space:nowrap;

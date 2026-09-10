@@ -71,9 +71,9 @@ function numeroONull(valor) {
 async function buscarEnInventario(pool, negocioId, termino) {
     const resultado = await pool.query(
         `SELECT id, codigo, nombre, marca, categoria, precio_publico, stock,
-                similarity(nombre, $2) AS similitud
+                GREATEST(similarity(nombre, $2), word_similarity($2, nombre)) AS similitud
          FROM public.productos
-         WHERE negocio_id = $1 AND nombre % $2
+         WHERE negocio_id = $1 AND (nombre % $2 OR word_similarity($2, nombre) > ${UMBRAL_COINCIDENCIA_PROBABLE})
          ORDER BY similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
         [negocioId, termino]
@@ -101,10 +101,10 @@ async function buscarEnCatalogoProveedor(pool, negocioId, termino) {
         `SELECT cp.id, cp.codigo_proveedor, cp.nombre_proveedor, cp.marca,
                 cp.precio_distribuidor, cp.precio_medio_mayoreo, cp.precio_publico,
                 cat.proveedor AS proveedor_nombre,
-                similarity(cp.nombre_proveedor, $2) AS similitud
+                GREATEST(similarity(cp.nombre_proveedor, $2), word_similarity($2, cp.nombre_proveedor)) AS similitud
          FROM public.catalogo_productos cp
          JOIN public.catalogos_proveedor cat ON cat.id = cp.catalogo_id
-         WHERE cp.negocio_id = $1 AND cp.nombre_proveedor % $2
+         WHERE cp.negocio_id = $1 AND (cp.nombre_proveedor % $2 OR word_similarity($2, cp.nombre_proveedor) > ${UMBRAL_COINCIDENCIA_PROBABLE})
          ORDER BY similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
         [negocioId, termino]
@@ -136,11 +136,11 @@ async function buscarEnCatalogoMaestro(pool, termino) {
         `SELECT m.id, m.codigo, m.marca, m.nombre, m.descripcion, m.fabricante,
                 m.codigo_fabricante, m.ean, m.clave,
                 f.precio_mayoreo, f.precio_medio_mayoreo, f.precio_publico, f.precio_distribuidor,
-                similarity(m.nombre, $1) AS similitud
+                GREATEST(similarity(m.nombre, $1), word_similarity($1, m.nombre)) AS similitud
          FROM public.catalogo_maestro_productos m
          LEFT JOIN public.catalogo_fabricante_productos f
                 ON f.codigo = m.codigo_fabricante AND f.estado = 'activo'
-         WHERE m.nombre % $1 AND m.necesita_revision = false
+         WHERE (m.nombre % $1 OR word_similarity($1, m.nombre) > ${UMBRAL_COINCIDENCIA_PROBABLE}) AND m.necesita_revision = false
          ORDER BY similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
         [termino]
@@ -173,9 +173,9 @@ async function buscarEnCatalogoFabricante(pool, termino) {
     const resultado = await pool.query(
         `SELECT id, fabricante, codigo, clave, ean, descripcion, marca,
                 precio_mayoreo, precio_medio_mayoreo, precio_publico, precio_distribuidor,
-                similarity(descripcion, $1) AS similitud
+                GREATEST(similarity(descripcion, $1), word_similarity($1, descripcion)) AS similitud
          FROM public.catalogo_fabricante_productos
-         WHERE descripcion % $1 AND estado = 'activo'
+         WHERE (descripcion % $1 OR word_similarity($1, descripcion) > ${UMBRAL_COINCIDENCIA_PROBABLE}) AND estado = 'activo'
          ORDER BY similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
         [termino]

@@ -94,29 +94,50 @@ test("fuente inventario: encuentra un producto propio por intencion, aislado por
     assert.ok(["fuerte", "probable", "relacionado"].includes(hallazgo.nivel));
 });
 
-// Hallazgo real de esta ronda de pruebas, con el ejemplo central del
-// mensaje original del dueno: el trigrama PURO no basta para cerrar
-// la brecha entre una frase coloquial y el nombre tecnico del
-// producto -- similarity real medida: 0.2586, por debajo del piso de
-// 0.30 que ya impone el operador "%" (pg_trgm.similarity_threshold,
-// confirmado con show_limit()). Esto no es un defecto de la Fase 1:
-// es la confirmacion, con datos reales, de por que hace falta el
-// rescate por IA (Fase 2, ya prevista en el diseno aprobado) -- la
-// busqueda estructurada sola no resuelve "cortar cable grueso" ->
-// "cortacables de alta palanca".
-test("busqueda estructurada por trigrama NO basta para frases muy coloquiales -- por eso existe la Fase 2", async () => {
+// Hallazgo real con el ejemplo central del mensaje original del
+// dueno: similarity() PURO no basta para cerrar la brecha entre una
+// frase coloquial y el nombre tecnico del producto -- similarity real
+// medida: 0.2586, por debajo del piso de 0.30 que impone el operador
+// "%". Root-cause real: similarity() compara la cadena COMPLETA, y
+// una frase de cliente ("pinza para cortar cable grueso") trae
+// palabras (para, cortar, grueso) que no estan en el nombre tecnico
+// ("Pinza cortacables de alta palanca 24 pulgadas"), diluyendo el
+// puntaje aunque "pinza"/"cable" si coincidan. word_similarity() SI
+// esta disenado para esto (palabra o frase corta dentro de un nombre
+// mas largo) -- agregado en explorar-nexo-server.js via
+// GREATEST(similarity(...), word_similarity(...)), confirmado real:
+// 0.4516, nivel "probable". Sigue sin ser magia (no es sinonimos, es
+// solapamiento de palabras) -- la siguiente prueba confirma que una
+// reformulacion sin ninguna palabra en comun SIGUE sin encontrar
+// nada, que es exactamente el hueco real que le toca a la Fase 2/IA
+// (o a un diccionario de sinonimos coloquiales, ver conversacion con
+// el dueno 2026-09-10).
+test("word_similarity ya rescata una frase coloquial que comparte palabras con el nombre tecnico", async () => {
     await crearProductoPrueba(negocio.negocioId, { nombre: "Pinza cortacables de alta palanca 24 pulgadas", codigo: "EXP-INV-COLOQUIAL", precio: 385 });
 
     const similitudReal = await pool.query(
         `SELECT similarity('Pinza cortacables de alta palanca 24 pulgadas', 'pinza para cortar cable grueso') AS sim`
     );
-    assert.ok(Number(similitudReal.rows[0].sim) < 0.30, "confirma que la frase coloquial cae por debajo del piso de pg_trgm");
+    assert.ok(Number(similitudReal.rows[0].sim) < 0.30, "similarity() puro por si solo sigue cayendo por debajo del piso de pg_trgm -- confirma por que hacia falta el respaldo");
 
     const resultado = await buscarExplorarNexo(pool, negocio.negocioId, "pinza para cortar cable grueso");
+    const hallazgo = resultado.inventario.find(p => p.codigo === "EXP-INV-COLOQUIAL");
+    assert.ok(hallazgo, "word_similarity debe rescatar esta frase coloquial (comparte 'pinza'/'cable' con el nombre tecnico)");
+    assert.equal(hallazgo.nivel, "probable", "honesto: coincidencia probable, nunca se presenta como exacta");
+});
+
+// El hueco real que queda: una reformulacion SIN ninguna palabra en
+// comun con el nombre tecnico (sinonimo puro, no solapamiento de
+// texto) sigue sin encontrar nada -- ninguna variante de trigrama
+// resuelve esto, hace falta un diccionario de sinonimos o IA (Fase 2).
+test("una reformulacion sin ninguna palabra en comun sigue sin encontrar el producto -- el hueco real de la Fase 2", async () => {
+    await crearProductoPrueba(negocio.negocioId, { nombre: "Pinza cortacables de alta palanca 24 pulgadas", codigo: "EXP-INV-SINONIMO", precio: 385 });
+
+    const resultado = await buscarExplorarNexo(pool, negocio.negocioId, "aparato para apretar tuercas chico");
     assert.equal(
-        resultado.inventario.find(p => p.codigo === "EXP-INV-COLOQUIAL"),
+        resultado.inventario.find(p => p.codigo === "EXP-INV-SINONIMO"),
         undefined,
-        "sin IA todavia, esta frase coloquial no debe encontrar el producto -- confirma el alcance real de la Fase 1"
+        "sin sinonimos ni IA, una reformulacion sin palabras compartidas no debe encontrar el producto -- confirma el alcance real de hoy"
     );
 });
 
