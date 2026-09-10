@@ -162,10 +162,20 @@ function ordenPorAfinidadInicial(columna, indiceTermino) {
 // ya paso el filtro por indice de arriba, nunca la tabla completa.
 const UMBRAL_PALABRA_INDIVIDUAL = 0.30;
 
+// Palabras de 4 letras o menos ("cal", "pija", "liga") son todavia mas
+// propensas al mismo choque que candado/dado: "cal" encontraba
+// "calibre" (similarity 0.33, arriba del umbral normal) en "Carrete
+// con cable... calibre 12" -- ni el mismo producto. Cuanto mas corta
+// la palabra, mas facil que un pedazo de ella empate por casualidad
+// con CUALQUIER palabra mas larga. Se le pide mas confianza solo a
+// las palabras cortas -- una palabra de 5+ letras ya es especifica
+// por si misma (broca, chupon, candado siguen funcionando igual).
 function existeCoincidenciaPorPalabra(columna, indiceTermino) {
     return `EXISTS (
         SELECT 1 FROM unnest(string_to_array(lower(${columna}), ' ')) AS palabra_suelta
-        WHERE similarity(split_part($${indiceTermino}, ' ', 1), palabra_suelta) > ${UMBRAL_PALABRA_INDIVIDUAL}
+        WHERE similarity(split_part($${indiceTermino}, ' ', 1), palabra_suelta) > (
+            CASE WHEN length(split_part($${indiceTermino}, ' ', 1)) <= 4 THEN 0.45 ELSE ${UMBRAL_PALABRA_INDIVIDUAL} END
+        )
     )`;
 }
 
