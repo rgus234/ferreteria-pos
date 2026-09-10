@@ -31,6 +31,54 @@
   border-radius: 12px;
 }
 
+.imagen-zoom-foto {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.imagen-zoom-galeria {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.imagen-zoom-galeria-item {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  background: #fff;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.imagen-zoom-galeria-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.imagen-zoom-proyectar {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--pos-text, #172033);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.imagen-zoom-proyectar:hover {
+  border-color: var(--brand-color, #0d6efd);
+  color: var(--brand-color, #0d6efd);
+}
+
 .imagen-zoom-nombre {
   margin: 0;
   color: var(--pos-text, #111827);

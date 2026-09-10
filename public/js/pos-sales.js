@@ -288,7 +288,14 @@ function miniaturaProducto(producto, claseImg = "", opciones = {}) {
  const claseAmpliable = opciones.ampliable ? " pos-thumb-ampliable" : "";
  const clickAmpliar = opciones.ampliable ? ` onclick="ampliarImagenProductoPOS(this)"` : "";
 
- return `<img src="${producto.imagenUrl}" class="${claseImg}${claseAmpliable}" alt="" loading="lazy" data-fallback-nombre="${nombreEscapado}" onerror="reemplazarImagenRotaPOS(this)"${clickAmpliar}>`;
+ // codigo/precio/marca via data-* (no en el onclick, para no repetir
+ // el bug de comillas de Recepcion Inteligente) -- ampliarImagenProductoPOS
+ // los usa para traer la galeria completa y para Proyectar, sin
+ // depender de en que pantalla se llamo esta miniatura.
+ const codigo = producto?.codigo || producto?.codigoInterno || "";
+ const precio = producto?.precio_publico ?? producto?.precio;
+
+ return `<img src="${producto.imagenUrl}" class="${claseImg}${claseAmpliable}" alt="" loading="lazy" data-fallback-nombre="${nombreEscapado}" data-codigo="${escaparPOS(codigo)}" data-precio="${precio ?? ""}" data-marca="${escaparPOS(producto?.marca || "")}" onerror="reemplazarImagenRotaPOS(this)"${clickAmpliar}>`;
  }
 
  return iconoProducto(producto?.nombre);
