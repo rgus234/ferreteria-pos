@@ -1,6 +1,18 @@
-/* Configuracion interna: empresa, apariencia, ticket, hardware, usuarios y sistema */
+/* ============================================================
+   CONFIGURACION -- empresa, apariencia, ticket, hardware, usuarios,
+   sistema. Mismo lenguaje visual minimalista que Creditos/Recepcion
+   Inteligente (pos-credit-modal.css): tarjetas planas de 1px de
+   borde, radios de 12-14px, sin degradados ni sombras pesadas, tokens
+   --pos-*/--brand-color (fallback claro inline, dark mode automatico
+   via body.oscuro en app-shell.css). Antes esta pantalla usaba su
+   propio sistema de variables (--line-soft/--surface/--text-main) y
+   duplicaba cada color a mano en un bloque body.oscuro aparte -- se
+   unifico todo para que Configuracion se vea como el resto de la app
+   en vez de una pantalla con su propia identidad visual.
+   ============================================================ */
+
 #pantallaConfiguracion {
-  color: #111827;
+  color: var(--pos-text, #172033);
 }
 
 .config-shell {
@@ -15,13 +27,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 4px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--line-soft, #dbe3ef);
-}
-
-.config-header-pro {
-  position: relative;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--pos-line, #dbe3ef);
 }
 
 .config-header span {
@@ -32,80 +39,148 @@
   margin: 0;
   font-size: 22px;
   font-weight: 800;
-  letter-spacing: -.02em;
+  letter-spacing: -.01em;
+  color: var(--pos-text, #172033);
 }
 
 .config-header p {
   margin: 4px 0 0;
-  color: var(--text-muted, #64748b);
-  font-weight: 600;
-  font-size: 13px;
+  color: var(--pos-muted, #687386);
+  font-size: 13.5px;
 }
 
 .config-header button,
 .config-panel button {
   width: auto;
   min-height: 40px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--brand-color) !important;
-  color: #fff !important;
-  font-weight: 800;
-  font-size: 14px;
+  padding: 0 18px;
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: 13.5px;
   cursor: pointer;
 }
 
-.config-grid {
-  display: grid;
-  grid-template-columns: 1.25fr .9fr;
-  gap: 16px;
+/* "Guardar cambios" es la unica accion realmente primaria de toda la
+   pantalla -- se queda solida. El resto (Subir imagen, Cambiar claro/
+   oscuro, Quitar logo, Buscar impresoras, Nuevo usuario...) son
+   acciones secundarias/utilitarias: demasiado azul solido junto se ve
+   pesado, asi que van en "outline" por defecto (mismo criterio que ya
+   usa Creditos: un boton solido por pantalla, el resto con borde). */
+.config-header button {
+  border: 0;
+  background: var(--brand-color, #0d6efd) !important;
+  color: #fff !important;
+  font-weight: 800;
+}
+
+.config-panel button {
+  border: 1px solid var(--pos-line, #dbe3ef) !important;
+  background: transparent !important;
+  color: var(--pos-text, #172033) !important;
+}
+
+.config-panel button:hover {
+  border-color: var(--brand-color, #0d6efd) !important;
+  color: var(--brand-color, #0d6efd) !important;
 }
 
 .config-panel {
-  padding: 18px;
-  border: 1px solid var(--line-soft, #dbe3ef);
+  padding: 20px;
+  border: 1px solid var(--pos-line, #dbe3ef);
   border-radius: 14px;
-  background: var(--surface, #fff);
+  background: var(--pos-surface-strong, #fff);
 }
 
 .config-panel h3 {
-  margin-bottom: 14px;
+  margin: 0 0 14px;
   font-size: 15px;
   font-weight: 800;
+  color: var(--pos-text, #172033);
 }
 
 .config-panel-hint {
   margin: -8px 0 14px;
   font-size: 12.5px;
-  font-weight: 600;
-  color: var(--muted, #64748b);
+  color: var(--pos-muted, #687386);
 }
 
 .config-panel label {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
   margin-bottom: 12px;
-  color: #334155;
-  font-weight: 800;
+  color: var(--pos-muted, #687386);
+  font-size: 12.5px;
+  font-weight: 700;
 }
 
 .config-panel input,
 .config-panel select,
 .config-panel textarea {
   width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid var(--line-soft, #dbe3ef);
-  border-radius: 12px;
-  background: var(--surface-soft, #f8fafc);
-  color: var(--text-main, #111827);
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--pos-text, #172033);
   font: inherit;
+  font-size: 13.5px;
 }
 
+.config-panel textarea {
+  padding: 10px 12px;
+  min-height: auto;
+}
+
+.config-panel input:focus,
+.config-panel select:focus,
+.config-panel textarea:focus {
+  outline: none;
+  border-color: var(--brand-color, #0d6efd);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-color, #0d6efd) 14%, transparent);
+}
+
+/* Selector de color: el <input type="color"> nativo se ve como una
+   barra grande y sin gracia en todos los navegadores -- se le quita
+   el estilo nativo y se deja como una muestra pequena y redonda que
+   sigue abriendo el mismo selector de color del sistema al hacer
+   clic (cero cambio de comportamiento, solo de apariencia). */
 .config-panel input[type="color"] {
-  padding: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  background: none;
+}
+.config-panel input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.config-panel input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.config-panel input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
+
+/* Subir logo: mismo problema que el selector de color -- el
+   <input type="file"> nativo ("Seleccionar archivo" / "Sin archivos
+   seleccionados") no tiene forma de verse bien. Se oculta y se
+   reemplaza por un boton que lo activa (mismo patron que "Subir
+   factura" en Recepcion Inteligente) -- el input real sigue siendo
+   el que dispara cargarLogoConfiguracionSistema(), solo cambia como
+   se ve el gatillo. */
+.config-campo-archivo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.config-campo-archivo > span {
+  color: var(--pos-muted, #687386);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.config-btn-archivo {
+  align-self: flex-start;
 }
 
 .config-brand-preview {
@@ -114,23 +189,22 @@
   gap: 14px;
   margin-bottom: 16px;
   padding: 14px;
-  border: 1px solid var(--line-soft, #eef2f7);
+  border: 1px solid var(--pos-line, #dbe3ef);
   border-radius: 12px;
-  background: var(--surface-soft, #f8fafc);
 }
 
 .config-brand-preview strong {
   display: block;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
+  color: var(--pos-text, #172033);
 }
 
 .config-brand-preview span {
   display: block;
   margin-top: 3px;
-  color: var(--text-muted, #64748b);
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--pos-muted, #687386);
+  font-size: 12.5px;
 }
 
 .config-actions-stack {
@@ -141,8 +215,8 @@
 
 .config-actions-stack button:nth-child(2) {
   background: transparent !important;
-  color: var(--text-main, #334155) !important;
-  border: 1px solid var(--line-soft, #dbe3ef) !important;
+  color: var(--pos-text, #172033) !important;
+  border: 1px solid var(--pos-line, #dbe3ef) !important;
 }
 
 .config-check {
@@ -160,7 +234,7 @@
 .config-users-list {
   display: grid;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .config-user-row {
@@ -168,10 +242,9 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--line-soft, #eef2f7);
+  padding: 12px 14px;
+  border: 1px solid var(--pos-line, #dbe3ef);
   border-radius: 12px;
-  background: var(--surface-soft, #f8fafc);
 }
 
 .config-user-row strong,
@@ -179,46 +252,45 @@
   display: block;
 }
 
+.config-user-row strong { color: var(--pos-text, #172033); font-size: 14px; }
+
 .config-user-row span {
-  color: var(--text-muted, #64748b);
-  font-size: 13px;
+  color: var(--pos-muted, #687386);
+  font-size: 12.5px;
 }
 
 .config-user-row button {
   min-height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--line-soft, #dbe3ef) !important;
+  padding: 0 12px;
+  border: 1px solid var(--pos-line, #dbe3ef) !important;
   background: transparent !important;
-  color: var(--text-main, #1456c7) !important;
+  color: var(--brand-color, #0d6efd) !important;
   font-size: 12px;
 }
 
 .config-tabs {
   display: flex;
-  gap: 6px;
-  padding: 4px;
-  border-bottom: 1px solid var(--line-soft, #dbe3ef);
-  border-radius: 0;
-  background: transparent;
+  gap: 18px;
+  border-bottom: 1px solid var(--pos-line, #dbe3ef);
 }
 
 .config-tabs button {
-  flex: 1;
+  flex: none;
   min-height: 38px;
+  padding: 0 0 10px;
   border: 0 !important;
   border-bottom: 2px solid transparent !important;
   border-radius: 0 !important;
   background: transparent !important;
-  color: var(--text-muted, #64748b) !important;
+  color: var(--pos-muted, #687386) !important;
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
 }
 
 .config-tabs button.activo {
-  border-bottom-color: var(--brand-color) !important;
-  color: var(--brand-color) !important;
-  box-shadow: none;
+  border-bottom-color: var(--brand-color, #0d6efd) !important;
+  color: var(--pos-text, #172033) !important;
 }
 
 .config-tab-panel {
@@ -241,15 +313,27 @@
   gap: 12px;
   align-items: center;
   margin-top: 16px;
-  padding: 16px;
-  border: 1px solid var(--line-soft, #dbe3ef);
+  padding: 14px 16px;
+  border: 1px solid var(--pos-line, #dbe3ef);
   border-radius: 12px;
-  background: var(--surface-soft, #f8fafc);
 }
 
 .config-theme-preview strong,
 .config-theme-preview span {
   display: block;
+}
+
+.config-theme-preview strong { color: var(--pos-text, #172033); font-size: 13.5px; }
+.config-theme-preview span { color: var(--pos-muted, #687386); font-size: 12px; margin-top: 2px; }
+
+/* Esta es la unica excepcion a "botones de panel = outline": es una
+   muestra en vivo de como se ve un boton solido con el color elegido,
+   a proposito se queda solido -- si tambien se pusiera en outline ya
+   no mostraria nada util. */
+.config-theme-preview .config-btn-preview-primario {
+  border: 0 !important;
+  background: var(--brand-color, #0d6efd) !important;
+  color: #fff !important;
 }
 
 .config-actions-row {
@@ -260,7 +344,7 @@
 
 .config-ticket-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 16px;
   align-items: start;
 }
@@ -275,15 +359,14 @@
 .ticket-options-grid .config-check {
   min-height: 42px;
   padding: 10px 12px;
-  border: 1px solid var(--line-soft, #dbe3ef);
-  border-radius: 12px;
-  background: var(--surface-soft, #f8fafc);
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 10px;
 }
 
 .config-ayuda-texto {
   margin: 10px 0 0;
   font-size: 12px;
-  color: var(--text-muted, #64748b);
+  color: var(--pos-muted, #687386);
 }
 
 .ticket-preview-panel {
@@ -295,18 +378,18 @@
   margin-bottom: 12px;
 }
 
+.ticket-preview-panel h3 { color: var(--pos-text, #172033); }
 .ticket-preview-panel span {
-  color: var(--text-muted, #64748b);
-  font-size: 13px;
+  color: var(--pos-muted, #687386);
+  font-size: 12.5px;
 }
 
 .ticket-preview {
   display: flex;
   justify-content: center;
   padding: 18px;
-  border: 1px solid var(--line-soft, #dbe3ef);
-  border-radius: 14px;
-  background: var(--surface-soft, #f8fafc);
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 12px;
 }
 
 .ticket-paper {
@@ -316,7 +399,7 @@
   border-radius: 6px;
   background: #fff;
   color: #111827;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, .2);
+  border: 1px solid var(--pos-line, #dbe3ef);
   font-family: "Courier New", monospace;
 }
 
@@ -327,11 +410,10 @@
 .config-note {
   margin-top: 16px;
   padding: 14px;
-  border: 1px solid var(--line-soft, #dbe3ef);
-  border-radius: 14px;
-  background: var(--surface-soft, #f8fafc);
-  color: var(--text-muted, #64748b);
-  font-weight: 700;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 12px;
+  color: var(--pos-muted, #687386);
+  font-size: 12.5px;
 }
 
 .config-danger-zone {
@@ -341,9 +423,8 @@
   gap: 18px;
   margin-top: 16px;
   padding: 16px;
-  border: 1px solid color-mix(in srgb, #ef4444 36%, var(--line-soft, #dbe3ef));
+  border: 1px solid color-mix(in srgb, #ef4444 30%, var(--pos-line, #dbe3ef));
   border-radius: 12px;
-  background: color-mix(in srgb, #ef4444 6%, var(--surface-soft, #f8fafc));
 }
 
 .config-danger-zone strong,
@@ -354,11 +435,12 @@
 .config-danger-zone strong {
   margin-bottom: 4px;
   color: #ef4444 !important;
+  font-size: 13.5px;
 }
 
 .config-danger-zone span {
-  color: var(--text-muted, #64748b);
-  font-size: 13px;
+  color: var(--pos-muted, #687386);
+  font-size: 12.5px;
   line-height: 1.35;
 }
 
@@ -374,13 +456,13 @@
 }
 
 .config-giro-note strong {
-  color: var(--text-main, #111827);
-  font-size: 15px;
+  color: var(--pos-text, #172033);
+  font-size: 14px;
 }
 
 .config-giro-note span {
-  color: var(--text-muted, #64748b);
-  font-size: 13px;
+  color: var(--pos-muted, #687386);
+  font-size: 12.5px;
   line-height: 1.35;
 }
 
@@ -396,13 +478,13 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border: 1px solid var(--line-soft, #dbe3ef);
+  border: 1px solid var(--pos-line, #dbe3ef);
   border-radius: 10px;
-  background: var(--surface, #fff);
+  background: var(--pos-surface-strong, #fff);
   cursor: pointer;
   font-weight: 700;
   font-size: 13px;
-  color: var(--text-main, #111827);
+  color: var(--pos-text, #172033);
 }
 
 .config-giro-item input[type="checkbox"] {
@@ -413,17 +495,11 @@
 .config-giro-curado {
   padding: 2px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--brand-color, #0d6efd) 14%, white);
+  background: color-mix(in srgb, var(--brand-color, #0d6efd) 14%, transparent);
   color: var(--brand-color, #0d6efd);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
   font-style: normal;
-}
-
-body.oscuro .config-giro-item {
-  background: var(--surface, #111827);
-  border-color: var(--line-soft, #243044);
-  color: var(--text-main, #f8fafc);
 }
 
 .config-panel-head {
@@ -439,9 +515,8 @@ body.oscuro .config-giro-item {
 }
 
 .config-panel-head span {
-  color: var(--text-muted) !important;
-  font-size: 13px;
-  font-weight: 800;
+  color: var(--pos-muted, #687386) !important;
+  font-size: 12.5px;
 }
 
 .hardware-actions {
@@ -449,13 +524,13 @@ body.oscuro .config-giro-item {
 }
 
 #estadoHardwarePOS[data-estado="exito"] {
-  border-color: rgba(22, 163, 74, .24);
+  border-color: rgba(22, 163, 74, .3);
   color: #15803d;
 }
 
 #estadoHardwarePOS[data-estado="alerta"] {
-  border-color: rgba(245, 158, 11, .30);
-  color: #b45309;
+  border-color: rgba(245, 158, 11, .35);
+  color: #92400e;
 }
 
 .usuario-info {
@@ -471,14 +546,14 @@ body.oscuro .config-giro-item {
 }
 
 .usuario-rol-pill {
-  min-height: 36px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
-  padding: 8px 13px;
+  padding: 0 13px;
   border-radius: 999px;
-  background: #e8f0ff;
-  color: #1456c7;
-  font-size: 14px;
+  background: color-mix(in srgb, var(--brand-color, #0d6efd) 12%, transparent);
+  color: var(--brand-color, #0d6efd);
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -491,34 +566,33 @@ body.oscuro .config-giro-item {
 .usuario-switch select,
 .usuario-switch button {
   min-height: 38px;
-  border: 0;
-  border-radius: 12px;
+  border-radius: 9px;
   font-weight: 700;
 }
 
 .usuario-switch select {
   min-width: 180px;
   padding: 0 12px;
-  background: #fff;
-  color: #111827;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, .08);
+  border: 1px solid var(--pos-line, #dbe3ef);
+  background: var(--pos-surface-strong, #fff);
+  color: var(--pos-text, #172033);
 }
 
 .usuario-switch button {
   width: auto;
   padding: 0 14px;
-  background: #111827;
-  color: #fff;
+  border: 0;
+  background: var(--pos-text, #172033);
+  color: var(--pos-surface-strong, #fff);
   cursor: pointer;
 }
 
 .panel-usuarios-dashboard {
   margin: -8px 0 24px;
   padding: 20px;
-  border: 1px solid rgba(15, 23, 42, .08);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, .82);
-  box-shadow: 0 18px 45px rgba(15, 23, 42, .08);
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 14px;
+  background: var(--pos-surface-strong, #fff);
 }
 
 .panel-usuarios-head {
@@ -531,21 +605,23 @@ body.oscuro .config-giro-item {
 
 .panel-usuarios-head h2 {
   margin-bottom: 4px;
-  font-size: 22px;
+  font-size: 20px;
+  color: var(--pos-text, #172033);
 }
 
 .panel-usuarios-head p {
-  color: #64748b;
+  color: var(--pos-muted, #687386);
 }
 
 .panel-usuarios-head button {
   width: auto;
   min-width: 150px;
-  padding: 12px 16px;
+  padding: 0 16px;
+  min-height: 40px;
   border: 0;
-  border-radius: 12px;
-  background: #0d6efd;
-  color: #fff;
+  border-radius: 9px;
+  background: var(--brand-color, #0d6efd) !important;
+  color: #fff !important;
   font-weight: 700;
   cursor: pointer;
 }
@@ -558,25 +634,26 @@ body.oscuro .config-giro-item {
 
 .usuario-card {
   padding: 16px;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  background: #fff;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 12px;
+  background: var(--pos-surface-strong, #fff);
 }
 
 .usuario-card.activo {
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 3px rgba(13, 110, 253, .12);
+  border-color: var(--brand-color, #0d6efd);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-color, #0d6efd) 14%, transparent);
 }
 
 .usuario-card strong {
   display: block;
   margin-bottom: 4px;
-  font-size: 18px;
+  font-size: 16px;
+  color: var(--pos-text, #172033);
 }
 
 .usuario-card span,
 .usuario-card small {
-  color: #64748b;
+  color: var(--pos-muted, #687386);
 }
 
 .usuario-card small {
@@ -592,12 +669,14 @@ body.oscuro .config-giro-item {
 
 .usuario-card-acciones button {
   width: auto;
-  padding: 8px 10px;
-  border: 0;
-  border-radius: 10px;
-  background: #edf2ff;
-  color: #0d47a1;
+  padding: 0 12px;
+  min-height: 32px;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--brand-color, #0d6efd);
   font-weight: 700;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -609,7 +688,7 @@ body.oscuro .config-giro-item {
   justify-content: center;
   align-items: center;
   padding: 20px;
-  background: rgba(15, 23, 42, .55);
+  background: rgba(15, 23, 42, .5);
 }
 
 .permisos-card {
@@ -617,9 +696,9 @@ body.oscuro .config-giro-item {
   max-height: 92vh;
   overflow: auto;
   padding: 24px;
-  border-radius: 20px;
-  background: #fff;
-  box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+  border-radius: 16px;
+  background: var(--pos-surface-strong, #fff);
+  border: 1px solid var(--pos-line, #dbe3ef);
 }
 
 .permisos-header,
@@ -632,25 +711,29 @@ body.oscuro .config-giro-item {
 
 .permisos-header {
   padding-bottom: 16px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--pos-line, #dbe3ef);
 }
 
 .permisos-header h2 {
-  font-size: 28px;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--pos-text, #172033);
 }
 
 .permisos-header p {
-  color: #64748b;
+  color: var(--pos-muted, #687386);
 }
 
 .permisos-header button,
 .permisos-acciones button {
   width: auto;
-  padding: 11px 16px;
-  border: 0;
-  border-radius: 12px;
-  background: #e5e7eb;
-  color: #111827;
+  padding: 0 16px;
+  min-height: 38px;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--pos-text, #172033);
   font-weight: 700;
   cursor: pointer;
 }
@@ -658,19 +741,19 @@ body.oscuro .config-giro-item {
 .permisos-secciones {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  gap: 16px;
   margin: 20px 0;
 }
 
 .permisos-secciones section {
   padding: 16px;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  background: #f8fafc;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 12px;
 }
 
 .permisos-secciones h3 {
-  margin-bottom: 12px;
+  margin: 0 0 12px;
+  color: var(--pos-text, #172033);
 }
 
 .permiso-check {
@@ -678,7 +761,7 @@ body.oscuro .config-giro-item {
   align-items: center;
   gap: 10px;
   padding: 10px 0;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--pos-line, #dbe3ef);
 }
 
 .permiso-check:last-child {
@@ -692,30 +775,31 @@ body.oscuro .config-giro-item {
 
 .permisos-rol-select {
   width: 100%;
-  min-height: 42px;
+  min-height: 40px;
   padding: 0 12px;
-  border: 1px solid #d0d5dd;
-  border-radius: 10px;
-  background: #fff;
-  color: #111827;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 9px;
+  background: var(--pos-surface-strong, #fff);
+  color: var(--pos-text, #172033);
   font-weight: 700;
 }
 
 .permisos-rol-nota {
   margin-top: 10px;
-  color: #64748b;
+  color: var(--pos-muted, #687386);
   font-size: 12.5px;
   line-height: 1.4;
 }
 
 .permisos-acciones {
   padding-top: 16px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--pos-line, #dbe3ef);
 }
 
 .permisos-acciones button:last-child {
-  background: #0d6efd;
-  color: #fff;
+  background: var(--brand-color, #0d6efd) !important;
+  color: #fff !important;
+  border: 0 !important;
 }
 
 /* Fase 3.2 del ecosistema Nexo: seccion de permisos granulares (rbac.js)
@@ -738,78 +822,8 @@ body.oscuro .config-giro-item {
 .permisos-seccion-nexo .permiso-check span small {
   display: block;
   margin-top: 2px;
-  color: #64748b;
+  color: var(--pos-muted, #687386);
   font-weight: 400;
-}
-
-body.oscuro #pantallaConfiguracion {
-  color: #f8fafc;
-}
-
-body.oscuro .config-header,
-body.oscuro .config-panel,
-body.oscuro .usuario-switch select,
-body.oscuro .panel-usuarios-dashboard,
-body.oscuro .usuario-card,
-body.oscuro .permisos-card {
-  background: #111827;
-  color: #fff;
-  border-color: #243044;
-  box-shadow: none;
-}
-
-body.oscuro .config-header p,
-body.oscuro .config-brand-preview span,
-body.oscuro .config-user-row span,
-body.oscuro .panel-usuarios-head p,
-body.oscuro .usuario-card span,
-body.oscuro .usuario-card small,
-body.oscuro .permisos-header p {
-  color: #cbd5e1;
-}
-
-body.oscuro .config-panel input,
-body.oscuro .config-panel select,
-body.oscuro .config-panel textarea,
-body.oscuro .config-brand-preview,
-body.oscuro .config-user-row {
-  background: #1f2937;
-  color: #f8fafc;
-  border-color: #374151;
-}
-
-body.oscuro .usuario-rol-pill {
-  background: #172554;
-  color: #bfdbfe;
-}
-
-body.oscuro .permisos-secciones section {
-  background: #0f172a;
-  border-color: #243044;
-}
-
-body.oscuro .permisos-rol-select {
-  background: #1f2937;
-  color: #f8fafc;
-  border-color: #374151;
-}
-
-body.oscuro .permisos-rol-nota {
-  color: #94a3b8;
-}
-
-body.oscuro .usuario-card-acciones button {
- background: #1d4ed8;
- color: #fff;
-}
-
-body.oscuro .config-tabs,
-body.oscuro .ticket-preview,
-body.oscuro .ticket-options-grid .config-check,
-body.oscuro .config-theme-preview,
-body.oscuro .config-note,
-body.oscuro .config-danger-zone {
-  border-color: var(--line-soft) !important;
 }
 
 @media (max-width: 1100px) {
@@ -829,7 +843,6 @@ body.oscuro .config-danger-zone {
 
   .config-tabs button {
     flex: 0 0 auto;
-    min-width: 120px;
   }
 
   .config-form-grid,

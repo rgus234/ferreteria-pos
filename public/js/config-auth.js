@@ -1689,17 +1689,18 @@ function mostrarConfiguracion() {
  <span>Color principal</span>
  <input id="configColorNegocio" type="color" value="${config.color || "#0d6efd"}" oninput="previewColorConfiguracion(); renderVistaPreviaTicket();">
  </label>
- <label>
+ <div class="config-campo-archivo">
  <span>Logo</span>
- <input id="configLogoNegocio" type="file" accept="image/*" onchange="cargarLogoConfiguracionSistema(event); renderVistaPreviaTicket();">
- </label>
+ <button type="button" class="config-btn-archivo" onclick="document.getElementById('configLogoNegocio').click()">Subir imagen</button>
+ <input id="configLogoNegocio" type="file" accept="image/*" style="display:none" onchange="cargarLogoConfiguracionSistema(event); renderVistaPreviaTicket();">
+ </div>
  </div>
  <div class="config-theme-preview">
  <div>
  <strong>Vista rapida</strong>
  <span>El color se aplica a botones, menu, acentos y tarjetas.</span>
  </div>
- <button type="button">Boton principal</button>
+ <button type="button" class="config-btn-preview-primario">Boton principal</button>
  </div>
  <div class="config-actions-stack config-actions-row">
  <button type="button" onclick="cambiarModo()">Cambiar claro / oscuro</button>

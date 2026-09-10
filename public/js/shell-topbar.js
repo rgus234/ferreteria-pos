@@ -211,6 +211,17 @@ function ordenarSidebarPOS() {
    const contenedor = grupo && document.getElementById(grupo.contenedor);
    if (contenedor) sidebar.appendChild(contenedor);
   });
+
+ // "Configuracion" siempre hasta abajo del todo, sin excepcion --
+ // el peso de "orden" ya la pone casi al final, pero cualquier modulo
+ // nuevo que alguien olvide agregar a ese arreglo cae con peso 999 y
+ // termina DESPUES de ella (ya paso con "Explorar Nexo"/"Facturacion").
+ // Reapendizarla la ultima vez, ya con todo lo demas en su lugar,
+ // la deja abajo de verdad sin depender de que nadie mantenga la
+ // lista al dia.
+ const botonConfiguracion = Array.from(sidebar.querySelectorAll(":scope > button"))
+  .find(boton => datosSidebarPOS(boton).modulo === "configuracion");
+ if (botonConfiguracion) sidebar.appendChild(botonConfiguracion);
 }
 function profesionalizarSidebarPOS() {
  asegurarBotonSidebarPOS("catalogo", "Catalogo proveedor", () => mostrarCatalogo());
