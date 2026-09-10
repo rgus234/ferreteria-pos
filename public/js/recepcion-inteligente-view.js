@@ -122,8 +122,8 @@ async function riCargarEstadoGmail() {
 
 		contenedor.innerHTML = `
 			<div class="ri-gmail-fila">
-				<span>📧 Gmail conectado: <strong>${escaparPOS(datos.correo)}</strong></span>
-				<button type="button" class="btn-secundario" id="riGmailBuscarBoton" onclick="riBuscarFacturasGmail()">Buscar facturas nuevas</button>
+				<span>📧 Gmail conectado: <strong>${escaparPOS(datos.correo)}</strong> -- Nexo revisa este correo solo cada cierto tiempo.</span>
+				<button type="button" class="btn-secundario" id="riGmailBuscarBoton" onclick="riBuscarFacturasGmail()">Revisar ahora</button>
 				<button type="button" class="btn-mini" onclick="riDesconectarGmail()">Desconectar</button>
 			</div>
 		`;
@@ -175,7 +175,7 @@ async function riBuscarFacturasGmail() {
 		await riCargarLista();
 		await riCargarEstadoGmail();
 	} finally {
-		if (boton) { boton.disabled = false; boton.textContent = "Buscar facturas nuevas"; }
+		if (boton) { boton.disabled = false; boton.textContent = "Revisar ahora"; }
 	}
 }
 

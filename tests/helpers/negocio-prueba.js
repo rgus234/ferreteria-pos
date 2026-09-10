@@ -121,6 +121,7 @@ async function borrarNegocioPrueba(negocioId) {
         // llave foranea.
         "recepciones_inteligentes_items",
         "recepciones_inteligentes",
+        "recepcion_inteligente_gmail",
         "productos",
         "dispositivos_vinculados",
         "sesiones_cuenta",

@@ -232,6 +232,71 @@ async function extraerXmlsDelMensaje(accessToken, mensaje) {
     return xmls;
 }
 
+// Corazon de "revisar este buzon ahora": lo usa tanto el boton manual
+// "Buscar facturas nuevas" (abajo) como el programador automatico
+// (recepcion-inteligente-gmail-cron.js, Fase 3) -- una sola
+// implementacion de "pedir token, listar, bajar cada adjunto,
+// entregarselo a procesarFacturaXml", nunca duplicada.
+async function revisarBuzonGmail(pool, negocioId) {
+    const conexion = await pool.query(
+        `SELECT refresh_token, ultima_revision_en FROM public.recepcion_inteligente_gmail WHERE negocio_id = $1 AND activo = true`,
+        [negocioId]
+    );
+
+    if (!conexion.rows.length) {
+        const error = new Error("Todavia no conectas ningun Gmail en Recepcion Inteligente.");
+        error.httpStatus = 400;
+        throw error;
+    }
+
+    let accessToken;
+    try {
+        accessToken = await refrescarAccessToken(conexion.rows[0].refresh_token);
+    } catch (error) {
+        if (error.gmailDesconectado) {
+            // La cuenta revoco el permiso desde fuera de Nexo
+            // (myaccount.google.com/permissions) -- se refleja aqui en
+            // vez de seguir fallando en silencio cada vez que se
+            // intente revisar este buzon.
+            await pool.query(
+                `UPDATE public.recepcion_inteligente_gmail SET activo = false, refresh_token = '', desconectado_en = NOW() WHERE negocio_id = $1`,
+                [negocioId]
+            );
+            const errorDesconectado = new Error("El acceso a Gmail fue revocado. Vuelve a conectarlo.");
+            errorDesconectado.httpStatus = 400;
+            throw errorDesconectado;
+        }
+        throw error;
+    }
+
+    const mensajes = await listarMensajesCandidatos(accessToken, conexion.rows[0].ultima_revision_en);
+
+    let nuevas = 0, repetidas = 0, fallidas = 0;
+    for (const referencia of mensajes) {
+        try {
+            const mensaje = await obtenerMensajeCompleto(accessToken, referencia.id);
+            const xmls = await extraerXmlsDelMensaje(accessToken, mensaje);
+
+            for (const xml of xmls) {
+                const resultado = await procesarFacturaXml(pool, negocioId, xml, { origen: "gmail" });
+                if (resultado.repetida) repetidas++; else nuevas++;
+            }
+
+            if (!xmls.length) fallidas++;
+        } catch (error) {
+            // Un mensaje raro (XML que no es un CFDI, un adjunto
+            // corrupto) no debe tumbar el lote completo -- se cuenta
+            // como fallido y se sigue con el siguiente mensaje.
+            console.error("Recepcion Inteligente / Gmail: fallo un mensaje", referencia.id, error.message);
+            fallidas++;
+        }
+    }
+
+    await pool.query(`UPDATE public.recepcion_inteligente_gmail SET ultima_revision_en = NOW() WHERE negocio_id = $1`, [negocioId]);
+
+    return { mensajesRevisados: mensajes.length, nuevas, repetidas, fallidas };
+}
+
 module.exports = (app, pool, requerirAccesoNegocio) => {
     async function negocioIdDeRequest(req) {
         const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -344,7 +409,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 [stateVerificado.negocioId, correo, tokens.refresh_token]
             );
 
-            res.send(paginaResultado("Gmail conectado", `Se conecto ${correo || "tu correo"}. Nexo va a revisar los correos nuevos con factura adjunta cuando toques "Buscar facturas nuevas".`));
+            res.send(paginaResultado("Gmail conectado", `Se conecto ${correo || "tu correo"}. Nexo va a revisar solo, cada cierto tiempo, si llegaron correos nuevos con factura adjunta -- tambien puedes tocar "Buscar facturas nuevas" para revisar al momento.`));
         } catch (error) {
             console.error(error);
             res.status(500).send(paginaResultado("Ocurrio un error", "No se pudo completar la conexion con Gmail. Intenta de nuevo."));
@@ -391,62 +456,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         async (req, res) => {
             try {
                 const negocioId = await negocioIdDeRequest(req);
-                const conexion = await pool.query(
-                    `SELECT refresh_token, ultima_revision_en FROM public.recepcion_inteligente_gmail WHERE negocio_id = $1 AND activo = true`,
-                    [negocioId]
-                );
-
-                if (!conexion.rows.length) {
-                    res.status(400).json({ ok: false, error: "Todavia no conectas ningun Gmail en Recepcion Inteligente." });
-                    return;
-                }
-
-                let accessToken;
-                try {
-                    accessToken = await refrescarAccessToken(conexion.rows[0].refresh_token);
-                } catch (error) {
-                    if (error.gmailDesconectado) {
-                        // La cuenta revoco el permiso desde fuera de Nexo
-                        // (myaccount.google.com/permissions) -- se refleja
-                        // aqui en vez de seguir fallando en silencio cada
-                        // vez que alguien toque "Buscar facturas nuevas".
-                        await pool.query(
-                            `UPDATE public.recepcion_inteligente_gmail SET activo = false, refresh_token = '', desconectado_en = NOW() WHERE negocio_id = $1`,
-                            [negocioId]
-                        );
-                        res.status(400).json({ ok: false, error: "El acceso a Gmail fue revocado. Vuelve a conectarlo." });
-                        return;
-                    }
-                    throw error;
-                }
-
-                const mensajes = await listarMensajesCandidatos(accessToken, conexion.rows[0].ultima_revision_en);
-
-                let nuevas = 0, repetidas = 0, fallidas = 0;
-                for (const referencia of mensajes) {
-                    try {
-                        const mensaje = await obtenerMensajeCompleto(accessToken, referencia.id);
-                        const xmls = await extraerXmlsDelMensaje(accessToken, mensaje);
-
-                        for (const xml of xmls) {
-                            const resultado = await procesarFacturaXml(pool, negocioId, xml, { origen: "gmail" });
-                            if (resultado.repetida) repetidas++; else nuevas++;
-                        }
-
-                        if (!xmls.length) fallidas++;
-                    } catch (error) {
-                        // Un mensaje raro (XML que no es un CFDI, un
-                        // adjunto corrupto) no debe tumbar el lote
-                        // completo -- se cuenta como fallido y se sigue
-                        // con el siguiente mensaje.
-                        console.error("Recepcion Inteligente / Gmail: fallo un mensaje", referencia.id, error.message);
-                        fallidas++;
-                    }
-                }
-
-                await pool.query(`UPDATE public.recepcion_inteligente_gmail SET ultima_revision_en = NOW() WHERE negocio_id = $1`, [negocioId]);
-
-                res.json({ ok: true, mensajesRevisados: mensajes.length, nuevas, repetidas, fallidas });
+                const resultado = await revisarBuzonGmail(pool, negocioId);
+                res.json({ ok: true, ...resultado });
             } catch (error) {
                 if (error.httpStatus) { res.status(error.httpStatus).json({ ok: false, error: error.message }); return; }
                 responderError(res, error);
@@ -461,3 +472,4 @@ module.exports.construirQueryBusqueda = construirQueryBusqueda;
 module.exports.firmarState = firmarState;
 module.exports.verificarState = verificarState;
 module.exports.extraerXmlsDelMensaje = extraerXmlsDelMensaje;
+module.exports.revisarBuzonGmail = revisarBuzonGmail;

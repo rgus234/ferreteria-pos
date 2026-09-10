@@ -25,6 +25,7 @@ const {
     verificarState,
     extraerXmlsDelMensaje
 } = require("../recepcion-inteligente-gmail");
+const { negociosConGmailConectado } = require("../recepcion-inteligente-gmail-cron");
 
 let negocio;
 
@@ -248,4 +249,30 @@ test("GET /gmail/callback: si Google regresa error (usuario cancelo), se muestra
     assert.equal(respuesta.status, 200);
     const html = await respuesta.text();
     assert.match(html, /Conexion cancelada/);
+});
+
+// --- Fase 3: programador automatico -- solo la parte que no habla ---
+// con Gmail de verdad (el filtro activo=true contra la base real).
+
+test("negociosConGmailConectado solo regresa negocios con la conexion activa", async () => {
+    await pool.query(
+        `INSERT INTO public.recepcion_inteligente_gmail (negocio_id, correo_conectado, refresh_token, activo)
+         VALUES ($1, 'activo@ejemplo.com', 'token-falso-activo', true)`,
+        [negocio.negocioId]
+    );
+
+    const otroNegocio = await crearNegocioPrueba("recepcion-inteligente-gmail-inactivo");
+    try {
+        await pool.query(
+            `INSERT INTO public.recepcion_inteligente_gmail (negocio_id, correo_conectado, refresh_token, activo, desconectado_en)
+             VALUES ($1, 'desconectado@ejemplo.com', '', false, NOW())`,
+            [otroNegocio.negocioId]
+        );
+
+        const conectados = await negociosConGmailConectado(pool);
+        assert.ok(conectados.includes(negocio.negocioId), "el negocio activo debe aparecer");
+        assert.ok(!conectados.includes(otroNegocio.negocioId), "un negocio desconectado no debe aparecer");
+    } finally {
+        await borrarNegocioPrueba(otroNegocio.negocioId);
+    }
 });
