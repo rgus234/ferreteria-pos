@@ -103,6 +103,7 @@ function iconoUISVG(nombre) {
  wallet: '<path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3"/><path d="M3 7v10a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-4"/><path d="M15 12h4a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-4a2 2 0 0 1 0-4Z"/>',
  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',
  clipboard: '<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 11h6M9 15h4"/>',
+ cast: '<rect x="3" y="4" width="18" height="12" rx="2"/><circle cx="12" cy="10" r="2.3"/><path d="M9 20h6"/><path d="M12 16v4"/>',
  arrowDownBox: '<path d="M12 3v10"/><path d="m8 9 4 4 4-4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
  arrowUpBox: '<path d="M12 21V11"/><path d="m8 15 4-4 4 4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
@@ -332,6 +333,8 @@ function renderTopbarPOS() {
  iconoUISVG("menu") +
  '</button><button type="button" class="topbar-icon-btn" onclick="abrirRecordatorioPOS()" title="Nuevo recordatorio">' +
  iconoUISVG("plus") +
+ '</button><button type="button" class="topbar-icon-btn" onclick="pantallaClienteAbrirProyeccion()" title="Proyectar a otra pantalla">' +
+ iconoUISVG("cast") +
  '</button><button type="button" id="btnTemaPOS" class="topbar-icon-btn" onclick="cambiarModo()" title="Cambiar tema">' +
  iconoUISVG(temaIconoDestinoPOS()) +
  '</button><button type="button" id="btnNotificacionesPOS" class="topbar-icon-btn topbar-bell" onclick="toggleNotificacionesPOS()" title="Notificaciones">' +
