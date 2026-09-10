@@ -1,122 +1,485 @@
-/* Recepcion Inteligente -- reusa .encargos-shell/.encargos-header/
-   .explorar-nexo-grid/.explorar-nexo-resultados/.explorar-nexo-ficha
-   para el look general de pantalla (mismo patron que Explorar Nexo).
-   Solo se definen aqui las piezas propias: subir factura, lista de
-   facturas, tabla de conceptos y las insignias de estado. */
+/* ============================================================
+   RECEPCION INTELIGENTE -- pantalla completa (lista + detalle)
+   Mismo lenguaje visual que Creditos/Finanzas (tarjetas planas con
+   borde de 1px, radios de 12-14px, sin degradados ni blur, tokens
+   --pos-*/--brand-color con fallback claro y override automatico en
+   body.oscuro via app-shell.css -- por eso este archivo no necesita
+   sus propias reglas de modo oscuro).
+   Lista y detalle nunca se muestran a la vez: se navega de una a
+   otra a todo lo ancho (igual que Creditos), para que la tabla de
+   conceptos tenga espacio real en vez de pelearse por la mitad de
+   la pantalla. Ver riVerDetalle()/riVolverALista() en
+   recepcion-inteligente-view.js.
+   ============================================================ */
 
-.ri-subir-fila{
-	display:flex;
-	align-items:center;
-	gap:12px;
-	margin-bottom:14px;
+#pantallaRecepcionInteligente{
+	padding:20px 24px;
 }
-.ri-subir-fila span{
-	font-size:13px;
+
+.ri-shell{
+	max-width:1320px;
+	margin:0 auto;
+	display:grid;
+	gap:16px;
+}
+
+.ri-header h2{
+	margin:0 0 4px;
+	font-size:22px;
+	font-weight:800;
+	color:var(--pos-text,#172033);
+}
+.ri-header p{
+	margin:0;
 	color:var(--pos-muted,#687386);
+	font-size:13.5px;
 }
 
-.ri-gmail-fila{
+/* --- Tarjetas de resumen (KPIs), mismo patron que .creditos-resumen --- */
+
+.ri-stats{
+	display:grid;
+	grid-template-columns:repeat(3,minmax(160px,1fr));
+	gap:12px;
+}
+.ri-stat{
+	display:flex;
+	align-items:flex-start;
+	gap:12px;
+	padding:14px;
+	background:var(--pos-surface-strong,#fff);
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:12px;
+}
+.ri-stat > span.ri-stat-icono{
+	width:34px;
+	height:34px;
+	min-width:34px;
+	display:grid;
+	place-items:center;
+	border-radius:9px;
+	font-size:15px;
+}
+.ri-stat-blue > .ri-stat-icono{ background:rgba(13,110,253,.14); }
+.ri-stat-orange > .ri-stat-icono{ background:rgba(245,158,11,.14); }
+.ri-stat-green > .ri-stat-icono{ background:rgba(16,185,129,.14); }
+.ri-stat small{
+	display:block;
+	color:var(--pos-muted,#687386);
+	font-size:11px;
+	font-weight:700;
+	text-transform:uppercase;
+	letter-spacing:.03em;
+}
+.ri-stat strong{
+	display:block;
+	margin-top:2px;
+	color:var(--pos-text,#172033);
+	font-size:19px;
+	font-weight:800;
+}
+
+/* --- Barra de acciones: subir factura + estado de Gmail --- */
+
+.ri-toolbar{
 	display:flex;
 	flex-wrap:wrap;
 	align-items:center;
-	gap:12px;
-	margin-bottom:14px;
-	padding:10px 14px;
-	border:1px solid var(--pos-line,#dbe3ef);
-	border-radius:10px;
-}
-.ri-gmail-fila span{
-	font-size:13px;
-	color:var(--pos-muted,#687386);
-	flex:1 1 auto;
-}
-
-.ri-fila-factura{
-	display:flex;
 	justify-content:space-between;
-	align-items:center;
-	gap:10px;
+	gap:12px;
 	padding:14px 16px;
+	background:var(--pos-surface-strong,#fff);
 	border:1px solid var(--pos-line,#dbe3ef);
 	border-radius:12px;
-	background:var(--pos-surface-strong,#fff);
-	cursor:pointer;
 }
-.ri-fila-factura.activa{
-	border-color:color-mix(in srgb, var(--brand-color,#0d6efd) 45%, transparent);
-	background:color-mix(in srgb, var(--brand-color,#0d6efd) 6%, var(--pos-surface-strong,#fff));
-}
-.ri-fila-factura-principal{
+.ri-toolbar-izq{
 	display:flex;
-	flex-direction:column;
-	gap:2px;
+	align-items:center;
+	gap:12px;
 }
-.ri-fila-factura-principal span{
-	font-size:12.5px;
+.ri-toolbar-izq span{
+	font-size:13px;
 	color:var(--pos-muted,#687386);
 }
-.ri-fila-factura-estado{
+#pantallaRecepcionInteligente .btn-agregar{
+	width:auto;
+	min-height:40px;
+	margin:0;
+	padding:0 18px;
+	border:0;
+	border-radius:9px;
+	background:var(--brand-color,#0d6efd) !important;
+	color:#fff !important;
+	font-weight:800;
+	font-size:13.5px;
+	white-space:nowrap;
+}
+
+.ri-gmail-estado{
 	display:flex;
-	flex-direction:column;
-	align-items:flex-end;
-	gap:4px;
+	flex-wrap:wrap;
+	align-items:center;
+	gap:10px;
+}
+.ri-gmail-estado span{
+	font-size:13px;
+	color:var(--pos-muted,#687386);
+}
+.ri-gmail-estado strong{
+	color:var(--pos-text,#172033);
+}
+.btn-secundario{
+	width:auto;
+	min-height:36px;
+	margin:0;
+	padding:0 14px;
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:9px;
+	background:transparent;
+	color:var(--pos-text,#172033);
+	font-weight:700;
+	font-size:12.5px;
+	cursor:pointer;
+	white-space:nowrap;
+}
+.btn-secundario:hover{ border-color:color-mix(in srgb, var(--brand-color,#0d6efd) 45%, transparent); }
+
+/* --- Panel lista: tabla real a todo lo ancho --- */
+
+.ri-panel{
+	display:grid;
+	gap:14px;
+	background:var(--pos-surface-strong,#fff);
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:14px;
+	padding:20px;
+}
+
+.ri-lista-toolbar{
+	display:flex;
+	align-items:center;
+	gap:12px;
+}
+.ri-lista-toolbar input{
+	flex:1;
+	min-height:40px;
+	padding:0 14px;
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:9px;
+	background:transparent;
+	color:var(--pos-text,#172033);
+	font-size:13.5px;
+	outline:none;
+}
+.ri-lista-toolbar input:focus{
+	border-color:var(--brand-color,#0d6efd);
+	box-shadow:0 0 0 3px rgba(13,110,253,.14);
+}
+
+.ri-tabla-facturas{
+	width:100%;
+	border-collapse:collapse;
+	table-layout:fixed;
+}
+.ri-tabla-facturas th{
+	text-align:left;
+	padding:10px 12px;
+	border-bottom:1px solid var(--pos-line,#dbe3ef);
+	color:var(--pos-muted,#687386);
+	font-size:11px;
+	font-weight:800;
+	text-transform:uppercase;
+	letter-spacing:.04em;
+}
+.ri-tabla-facturas th:nth-child(1){ width:44%; }
+.ri-tabla-facturas th:nth-child(2){ width:16%; }
+.ri-tabla-facturas th:nth-child(3){ width:16%; }
+.ri-tabla-facturas th:nth-child(4){ width:24%; }
+
+.ri-fila-factura{ cursor:pointer; }
+.ri-fila-factura td{
+	padding:12px;
+	border-bottom:1px solid var(--pos-line,#dbe3ef);
+	vertical-align:middle;
+	overflow-wrap:break-word;
+}
+.ri-fila-factura:hover td{ background:rgba(13,110,253,.05); }
+.ri-fila-factura:last-child td{ border-bottom:none; }
+
+.ri-celda-proveedor{
+	display:flex;
+	align-items:center;
+	gap:12px;
+}
+.ri-avatar{
+	width:38px;
+	height:38px;
+	min-width:38px;
+	display:grid;
+	place-items:center;
+	border-radius:50%;
+	font-size:15px;
+	background:rgba(13,110,253,.12);
+}
+.ri-avatar.manual{ background:var(--pos-line,#e9edf3); }
+.ri-proveedor-texto{ display:grid; min-width:0; }
+.ri-proveedor-texto strong{
+	overflow:hidden;
+	text-overflow:ellipsis;
+	white-space:nowrap;
+	color:var(--pos-text,#172033);
+	font-size:14px;
+	font-weight:700;
+}
+.ri-proveedor-texto small{
+	color:var(--pos-muted,#687386);
+	font-size:12px;
+}
+
+.ri-vacio{
+	padding:32px 12px;
+	text-align:center;
+	color:var(--pos-muted,#687386);
+	font-size:13.5px;
 }
 
 .ri-badge{
 	display:inline-flex;
 	align-items:center;
 	gap:4px;
-	padding:4px 10px;
+	min-height:22px;
+	padding:0 10px;
 	border-radius:999px;
 	font-size:11.5px;
 	font-weight:700;
 	white-space:nowrap;
 }
-.ri-badge-pendiente{ background:color-mix(in srgb, #f59e0b 16%, transparent); color:#92640a; }
-.ri-badge-ok{ background:color-mix(in srgb, #16a34a 16%, transparent); color:#15803d; }
-.ri-badge-revisar{ background:color-mix(in srgb, #f59e0b 20%, transparent); color:#92640a; }
-.ri-badge-rechazada{ background:color-mix(in srgb, #ef4444 16%, transparent); color:#b91c1c; }
+.ri-badge-pendiente{ background:rgba(245,158,11,.16); color:#92400e; }
+.ri-badge-ok{ background:rgba(16,185,129,.14); color:#047857; }
+.ri-badge-revisar{ background:rgba(245,158,11,.16); color:#92400e; }
+.ri-badge-rechazada{ background:rgba(239,68,68,.14); color:#b91c1c; }
+
+/* --- Panel detalle: header + resumen + tabla de conceptos --- */
+
+.ri-detalle-header{
+	display:flex;
+	align-items:flex-start;
+	gap:14px;
+	padding-bottom:16px;
+	border-bottom:1px solid var(--pos-line,#dbe3ef);
+}
+.ri-detalle-header .btn-regresar{
+	width:36px;
+	height:36px;
+	min-width:36px;
+	margin:0;
+	padding:0;
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:9px;
+	background:transparent;
+	color:var(--pos-text,#172033);
+	font-weight:700;
+	font-size:15px;
+	cursor:pointer;
+}
+.ri-detalle-header .btn-regresar:hover{ border-color:color-mix(in srgb, var(--brand-color,#0d6efd) 45%, transparent); }
+.ri-avatar-grande{
+	width:48px;
+	height:48px;
+	min-width:48px;
+	display:grid;
+	place-items:center;
+	border-radius:50%;
+	font-size:19px;
+	background:rgba(13,110,253,.12);
+}
+.ri-avatar-grande.manual{ background:var(--pos-line,#e9edf3); }
+.ri-detalle-info{ flex:1; min-width:0; }
+.ri-detalle-info h2{
+	margin:0;
+	font-size:19px;
+	font-weight:800;
+	color:var(--pos-text,#172033);
+	overflow-wrap:anywhere;
+}
+.ri-detalle-info p{
+	margin-top:4px;
+	color:var(--pos-muted,#687386);
+	font-size:12.5px;
+	display:flex;
+	flex-wrap:wrap;
+	align-items:center;
+	gap:6px;
+}
+.ri-detalle-info p .punto{ opacity:.5; }
+
+.ri-detalle-resumen{
+	display:grid;
+	grid-template-columns:repeat(3,minmax(0,1fr));
+	gap:10px;
+}
+.ri-detalle-resumen div{
+	padding:14px;
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:12px;
+	text-align:center;
+}
+.ri-detalle-resumen span{
+	display:block;
+	color:var(--pos-muted,#687386);
+	font-size:11.5px;
+	font-weight:700;
+	text-transform:uppercase;
+	letter-spacing:.03em;
+}
+.ri-detalle-resumen strong{
+	display:block;
+	margin-top:4px;
+	color:var(--pos-text,#172033);
+	font-size:18px;
+	font-weight:800;
+}
 
 .ri-tabla-wrap{
 	overflow-x:auto;
 	border:1px solid var(--pos-line,#dbe3ef);
 	border-radius:12px;
-	margin:14px 0;
 }
 .ri-tabla-items{
 	width:100%;
 	border-collapse:collapse;
 	font-size:13px;
+	min-width:640px;
 }
 .ri-tabla-items th,
 .ri-tabla-items td{
 	text-align:left;
-	padding:10px 12px;
+	padding:11px 12px;
 	border-bottom:1px solid var(--pos-line,#dbe3ef);
 	vertical-align:top;
-	white-space:nowrap;
 }
-.ri-tabla-items td:first-child{ white-space:normal; min-width:180px; }
+.ri-tabla-items td:first-child{ min-width:200px; }
 .ri-tabla-items th{
-	font-size:11px;
+	font-size:10.5px;
+	font-weight:800;
 	text-transform:uppercase;
 	letter-spacing:.04em;
 	color:var(--pos-muted,#687386);
 	background:color-mix(in srgb, var(--pos-line,#dbe3ef) 40%, transparent);
+	white-space:nowrap;
 }
 .ri-tabla-items tr:last-child td{ border-bottom:none; }
-.ri-tabla-items small{ color:var(--pos-muted,#687386); }
+.ri-tabla-items small{ display:block; margin-top:2px; color:var(--pos-muted,#687386); }
+
+.ri-item-celda{
+	display:flex;
+	align-items:flex-start;
+	gap:10px;
+}
+.ri-item-foto{
+	width:40px;
+	height:40px;
+	min-width:40px;
+	display:grid;
+	place-items:center;
+	border-radius:8px;
+	background:var(--pos-surface,#f3f5f9);
+	border:1px solid var(--pos-line,#dbe3ef);
+	overflow:hidden;
+	cursor:pointer;
+	font-size:16px;
+}
+.ri-item-foto:hover{ border-color:var(--brand-color,#0d6efd); }
+.ri-item-foto img{ width:100%; height:100%; object-fit:contain; background:#fff; }
+.ri-item-texto{ min-width:0; }
+
+/* --- Modal: foto ampliada + detalle del producto --- */
+
+.ri-modal-producto{
+	position:fixed;
+	inset:0;
+	z-index:2100;
+	display:none;
+	align-items:center;
+	justify-content:center;
+	background:rgba(15,23,42,.5);
+	padding:18px;
+}
+.ri-modal-producto-card{
+	width:min(360px,94vw);
+	background:var(--pos-surface-strong,#fff);
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:16px;
+	padding:22px;
+	position:relative;
+	text-align:center;
+}
+.ri-modal-producto-cerrar{
+	position:absolute;
+	top:12px;
+	right:12px;
+	width:30px;
+	height:30px;
+	padding:0;
+	margin:0;
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:8px;
+	background:transparent;
+	color:var(--pos-muted,#687386);
+	cursor:pointer;
+}
+.ri-modal-producto-foto{
+	width:100%;
+	aspect-ratio:1/1;
+	max-height:220px;
+	border-radius:12px;
+	background:var(--pos-surface,#f3f5f9);
+	border:1px solid var(--pos-line,#dbe3ef);
+	display:flex;
+	align-items:center;
+	justify-content:center;
+	overflow:hidden;
+	margin:0 0 14px;
+	font-size:44px;
+}
+.ri-modal-producto-foto img{ width:100%; height:100%; object-fit:contain; background:#fff; }
+.ri-modal-producto-card h3{ margin:0 0 2px; font-size:17px; font-weight:800; color:var(--pos-text,#172033); }
+.ri-modal-producto-marca{ margin:0 0 12px; color:var(--pos-muted,#687386); font-size:12.5px; }
+.ri-modal-producto-datos{
+	display:grid;
+	grid-template-columns:auto 1fr;
+	gap:6px 12px;
+	text-align:left;
+	margin:0 0 14px;
+	font-size:13px;
+}
+.ri-modal-producto-datos dt{ color:var(--pos-muted,#687386); font-weight:700; }
+.ri-modal-producto-datos dd{ margin:0; color:var(--pos-text,#172033); text-align:right; }
+.ri-modal-producto-precios{
+	display:grid;
+	grid-template-columns:repeat(auto-fit,minmax(90px,1fr));
+	gap:8px;
+}
+.ri-modal-producto-precios div{
+	padding:10px;
+	border-radius:10px;
+	background:var(--pos-surface,#f3f5f9);
+}
+.ri-modal-producto-precios span{ display:block; font-size:10.5px; color:var(--pos-muted,#687386); font-weight:700; text-transform:uppercase; }
+.ri-modal-producto-precios strong{ font-size:15px; color:var(--pos-text,#172033); }
+.ri-modal-producto-sin-precio{ margin:0; color:var(--pos-muted,#687386); font-size:12.5px; }
 
 .btn-mini{
+	width:auto;
 	border:1px solid var(--pos-line,#dbe3ef);
-	background:var(--pos-surface-strong,#fff);
+	background:transparent;
 	color:var(--pos-text,#172033);
 	border-radius:8px;
-	padding:4px 8px;
+	padding:5px 10px;
 	font-size:11.5px;
-	font-weight:600;
+	font-weight:700;
 	cursor:pointer;
-	margin:0 2px 2px 0;
+	margin:0 4px 4px 0;
 }
 .btn-mini:hover{ border-color:var(--brand-color,#0d6efd); color:var(--brand-color,#0d6efd); }
 
@@ -124,12 +487,22 @@
 	display:flex;
 	justify-content:flex-end;
 	gap:10px;
-	margin-top:16px;
+	margin-top:4px;
 }
+.ri-acciones-footer .btn-secundario,
+.ri-acciones-footer .btn-agregar{ min-height:40px; }
 
-@media (prefers-color-scheme:dark){
-	.ri-badge-pendiente{ color:#fcd34d; }
-	.ri-badge-ok{ color:#4ade80; }
-	.ri-badge-revisar{ color:#fcd34d; }
-	.ri-badge-rechazada{ color:#fca5a5; }
+@media (max-width:900px){
+	.ri-stats{ grid-template-columns:1fr 1fr; }
+	.ri-detalle-resumen{ grid-template-columns:1fr 1fr; }
+}
+@media (max-width:640px){
+	#pantallaRecepcionInteligente{ padding:14px 16px; }
+	.ri-stats{ grid-template-columns:1fr; }
+	.ri-toolbar{ flex-direction:column; align-items:stretch; }
+	.ri-tabla-facturas thead{ display:none; }
+	.ri-tabla-facturas, .ri-tabla-facturas tbody, .ri-tabla-facturas tr, .ri-tabla-facturas td{ display:block; width:auto !important; }
+	.ri-fila-factura{ padding:4px 0; }
+	.ri-fila-factura td:not(:first-child){ padding-left:50px; padding-top:0; border-bottom:none; }
+	.ri-fila-factura td:first-child{ padding-bottom:6px; }
 }

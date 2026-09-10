@@ -1,14 +1,20 @@
-// Recepcion Inteligente, Fase 1: pantalla de revision. Sin Gmail
-// todavia -- "Subir factura" es el stand-in manual de lo que en la
-// Fase 2 hara la conexion de correo sola. El resto del flujo (motor de
-// candidatos, tabla de revision, confirmar) es identico al que tendra
-// esa fase, para no reescribir nada cuando el correo entre solo.
+// Recepcion Inteligente. Pipeline: subida manual (Fase 1) + Gmail
+// conectado (Fase 2/3, ver recepcion-inteligente-gmail.js) alimentan el
+// mismo backend -- esta vista solo cambia como se ve, nunca la logica
+// de negocio.
 //
-// Principio del diseno aprobado: ningun boton de esta pantalla toca
-// inventario excepto "Confirmar recepcion", y solo despues de que
-// cada concepto amarillo ya tiene una decision humana.
+// Diseno: mismo lenguaje visual minimalista que Creditos
+// (pos-credit-modal.css) -- tarjetas planas, tokens --pos-*, lista y
+// detalle a todo lo ancho navegando entre ellas (nunca side-by-side)
+// para que la tabla de conceptos tenga espacio real.
+//
+// Principio del diseno aprobado (sin cambios): ningun boton de esta
+// pantalla toca inventario excepto "Confirmar recepcion", y solo
+// despues de que cada concepto amarillo ya tiene una decision humana.
 let recepcionInteligenteActualId = null;
 let recepcionInteligenteItemsActuales = [];
+let recepcionInteligenteFacturasActuales = [];
+let recepcionInteligenteFotosActuales = new Map();
 
 const RI_NIVEL_ETIQUETA = { fuerte: "🟢 Identificado", probable: "🟡 Revisar" };
 
@@ -47,9 +53,9 @@ function riBadgeEstado(recepcion) {
 	return `<span class="ri-badge ri-badge-revisar">🟡 ${recepcion.porRevisar} por revisar</span>`;
 }
 
-// "gmail" (Fase 2/3, Nexo la encontro solo) vs "manual" (Fase 1, XML
-// subido a mano) -- distincion puramente informativa para que el dueño
-// sepa de un vistazo cuales facturas detecto Nexo solo.
+// "gmail" (Nexo la encontro solo) vs "manual" (XML subido a mano) --
+// distincion puramente informativa para que el dueño sepa de un
+// vistazo cuales facturas detecto Nexo solo.
 function riIconoOrigen(origen) {
 	return origen === "gmail" ? "📧" : "📎";
 }
@@ -75,36 +81,66 @@ async function mostrarRecepcionInteligente() {
 	recepcionInteligenteActualId = null;
 
 	pantalla.innerHTML = `
-		<div class="encargos-shell">
-			<div class="encargos-header">
+		<div class="ri-shell">
+			<div class="ri-header">
 				<h2>Recepción Inteligente</h2>
-				<p>Sube el XML de una factura de proveedor. Nexo identifica los productos y arma una recepción pendiente de revisión -- nunca toca tu inventario hasta que la confirmes.</p>
+				<p>Sube una factura o conecta tu Gmail -- Nexo arma la recepción sola, tú solo confirmas.</p>
 			</div>
 
-			<div class="ri-subir-fila">
-				<input type="file" id="riArchivoXml" accept=".xml,text/xml" style="display:none" onchange="riSubirFacturaSeleccionada(event)">
-				<button type="button" class="btn-agregar" onclick="document.getElementById('riArchivoXml').click()">📎 Subir factura (XML)</button>
-				<span id="riSubiendoAviso" style="display:none">Leyendo factura…</span>
-			</div>
+			<div class="ri-stats" id="riStats"></div>
 
-			<div id="riGmailSeccion"></div>
-
-			<div class="explorar-nexo-grid">
-				<div class="explorar-nexo-resultados" id="riListaFacturas">
-					<p class="explorar-nexo-vacio">Cargando…</p>
+			<div class="ri-toolbar">
+				<div class="ri-toolbar-izq">
+					<input type="file" id="riArchivoXml" accept=".xml,text/xml" style="display:none" onchange="riSubirFacturaSeleccionada(event)">
+					<button type="button" class="btn-agregar" onclick="document.getElementById('riArchivoXml').click()">📎 Subir factura</button>
+					<span id="riSubiendoAviso" style="display:none">Leyendo factura…</span>
 				</div>
-				<div class="encargos-panel explorar-nexo-ficha" id="riDetalleFactura">
-					<p class="explorar-nexo-ficha-vacio">Selecciona una factura para revisarla.</p>
+				<div class="ri-gmail-estado" id="riGmailSeccion"></div>
+			</div>
+
+			<div class="ri-panel" id="riListaPanel">
+				<div class="ri-lista-toolbar">
+					<input type="search" id="riBuscador" placeholder="Buscar por proveedor o folio…" oninput="riFiltrarLista()">
+				</div>
+				<div style="overflow-x:auto">
+					<table class="ri-tabla-facturas">
+						<thead><tr><th>Proveedor</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+						<tbody id="riListaFacturasBody"><tr><td colspan="4" class="ri-vacio">Cargando…</td></tr></tbody>
+					</table>
 				</div>
 			</div>
+
+			<div class="ri-panel" id="riDetallePanel" style="display:none"></div>
 		</div>
 	`;
+
+	// Delegado sobre el panel entero (nunca se reemplaza el elemento en
+	// si, solo su innerHTML en cada riVerDetalle) -- evita el bug real
+	// de onclick="fn('...')" con texto interpolado: un apostrofe en la
+	// descripcion (comun en medidas, ej. 5' de manguera) rompia la
+	// sintaxis del atributo despues de que el navegador decodificaba la
+	// entidad HTML de escaparPOS, dejando "Relacionar"/"Crear" muertos
+	// en silencio. Con data-* no hace falta escapar nada para JS, el
+	// navegador ya decodifica el atributo al leer .dataset.
+	document.getElementById("riDetallePanel").addEventListener("click", event => {
+		const boton = event.target.closest("[data-ri-accion]");
+		if (!boton) return;
+
+		const itemId = Number(boton.dataset.itemId);
+		const accion = boton.dataset.riAccion;
+
+		if (accion === "relacionar") riRelacionarProducto(itemId, boton.dataset.descripcion);
+		else if (accion === "crear") riCrearProducto(itemId, boton.dataset.nombre);
+		else if (accion === "omitir") riOmitirItem(itemId);
+		else if (accion === "cambiar") riCambiarDecisionItem(itemId);
+		else if (accion === "ver-producto") riVerProductoModal(itemId);
+	});
 
 	await riCargarLista();
 	await riCargarEstadoGmail();
 }
 
-// Fase 2: la factura llega sola por Gmail en vez de subirse a mano.
+// Fase 2/3: la factura llega sola por Gmail en vez de subirse a mano.
 // Seccion auto-oculta si el servidor todavia no tiene Gmail configurado
 // (faltan pasos manuales en Google Cloud Console) -- nada que confundir
 // mientras tanto, aparece sola en cuanto esos pasos queden listos.
@@ -118,21 +154,16 @@ async function riCargarEstadoGmail() {
 		if (!datos.ok) { contenedor.innerHTML = ""; return; }
 
 		if (!datos.conectado) {
-			contenedor.innerHTML = datos.configurado ? `
-				<div class="ri-gmail-fila">
-					<span>O conecta tu Gmail para que Nexo detecte las facturas solo.</span>
-					<button type="button" class="btn-secundario" onclick="riConectarGmail()">Conectar Gmail</button>
-				</div>
-			` : "";
+			contenedor.innerHTML = datos.configurado
+				? `<button type="button" class="btn-secundario" onclick="riConectarGmail()">📧 Conectar Gmail</button>`
+				: "";
 			return;
 		}
 
 		contenedor.innerHTML = `
-			<div class="ri-gmail-fila">
-				<span>📧 Gmail conectado: <strong>${escaparPOS(datos.correo)}</strong> -- Nexo revisa este correo solo cada cierto tiempo.</span>
-				<button type="button" class="btn-secundario" id="riGmailBuscarBoton" onclick="riBuscarFacturasGmail()">Revisar ahora</button>
-				<button type="button" class="btn-mini" onclick="riDesconectarGmail()">Desconectar</button>
-			</div>
+			<span title="Nexo revisa este correo automáticamente cada cierto tiempo">📧 <strong>${escaparPOS(datos.correo)}</strong></span>
+			<button type="button" class="btn-secundario" id="riGmailBuscarBoton" onclick="riBuscarFacturasGmail()">Revisar ahora</button>
+			<button type="button" class="btn-mini" onclick="riDesconectarGmail()">Desconectar</button>
 		`;
 	} catch (error) {
 		contenedor.innerHTML = "";
@@ -238,60 +269,164 @@ async function riSubirFacturaSeleccionada(event) {
 	}
 }
 
-async function riCargarLista() {
-	const contenedor = document.getElementById("riListaFacturas");
+// 3 numeros de un vistazo (calculados aqui mismo, del listado ya
+// cargado -- no hace falta otro viaje al servidor): cuantas facturas
+// esperan revision, cuantos conceptos sueltos quedan por decidir en
+// total, y cuantas se confirmaron ya este mes.
+function riRenderStats(facturas) {
+	const contenedor = document.getElementById("riStats");
 	if (!contenedor) return;
 
+	const pendientes = facturas.filter(f => f.estado === "pendiente");
+	const porRevisar = pendientes.reduce((total, f) => total + f.porRevisar, 0);
+
+	const ahora = new Date();
+	const confirmadasEsteMes = facturas.filter(f => {
+		if (f.estado !== "confirmada" || !f.confirmadaEn) return false;
+		const fecha = new Date(f.confirmadaEn);
+		return fecha.getFullYear() === ahora.getFullYear() && fecha.getMonth() === ahora.getMonth();
+	}).length;
+
+	contenedor.innerHTML = `
+		<div class="ri-stat ri-stat-orange">
+			<span class="ri-stat-icono">🕓</span>
+			<div><small>Pendientes</small><strong>${pendientes.length}</strong></div>
+		</div>
+		<div class="ri-stat ri-stat-blue">
+			<span class="ri-stat-icono">📋</span>
+			<div><small>Conceptos por revisar</small><strong>${porRevisar}</strong></div>
+		</div>
+		<div class="ri-stat ri-stat-green">
+			<span class="ri-stat-icono">✅</span>
+			<div><small>Confirmadas este mes</small><strong>${confirmadasEsteMes}</strong></div>
+		</div>
+	`;
+}
+
+function riRenderTablaFacturas(facturas) {
+	const contenedor = document.getElementById("riListaFacturasBody");
+	if (!contenedor) return;
+
+	if (!facturas.length) {
+		contenedor.innerHTML = `<tr><td colspan="4" class="ri-vacio">Todavía no has subido ninguna factura.</td></tr>`;
+		return;
+	}
+
+	contenedor.innerHTML = facturas.map(f => `
+		<tr class="ri-fila-factura" onclick="riVerDetalle(${f.id})">
+			<td>
+				<div class="ri-celda-proveedor">
+					<span class="ri-avatar ${f.origen === "gmail" ? "" : "manual"}">${riIconoOrigen(f.origen)}</span>
+					<div class="ri-proveedor-texto">
+						<strong>${escaparPOS(f.proveedor)}</strong>
+						<small>Folio ${escaparPOS(f.folio || "-")}</small>
+					</div>
+				</div>
+			</td>
+			<td>$${f.total.toFixed(2)}</td>
+			<td>${riBadgeGeneral(f.estado)}</td>
+			<td>${f.estado === "pendiente" ? riBadgeEstado(f) : ""}</td>
+		</tr>
+	`).join("");
+}
+
+function riFiltrarLista() {
+	const termino = (document.getElementById("riBuscador")?.value || "").trim().toLowerCase();
+	if (!termino) { riRenderTablaFacturas(recepcionInteligenteFacturasActuales); return; }
+
+	const filtradas = recepcionInteligenteFacturasActuales.filter(f =>
+		f.proveedor.toLowerCase().includes(termino) || (f.folio || "").toLowerCase().includes(termino)
+	);
+	riRenderTablaFacturas(filtradas);
+}
+
+async function riCargarLista() {
 	try {
 		const respuesta = await fetch("/recepcion-inteligente/facturas");
 		const datos = await respuesta.json();
+		recepcionInteligenteFacturasActuales = datos.facturas || [];
 
-		if (!datos.facturas?.length) {
-			contenedor.innerHTML = `<p class="explorar-nexo-vacio">Todavía no has subido ninguna factura.</p>`;
-			return;
-		}
-
-		contenedor.innerHTML = datos.facturas.map(f => `
-			<div class="ri-fila-factura ${recepcionInteligenteActualId === f.id ? "activa" : ""}" onclick="riVerDetalle(${f.id})">
-				<div class="ri-fila-factura-principal">
-					<strong>${riIconoOrigen(f.origen)} ${escaparPOS(f.proveedor)}</strong>
-					<span>Folio ${escaparPOS(f.folio || "-")} &middot; $${f.total.toFixed(2)}</span>
-				</div>
-				<div class="ri-fila-factura-estado">
-					${riBadgeGeneral(f.estado)}
-					${f.estado === "pendiente" ? riBadgeEstado(f) : ""}
-				</div>
-			</div>
-		`).join("");
+		riRenderStats(recepcionInteligenteFacturasActuales);
+		riFiltrarLista();
 	} catch (error) {
-		contenedor.innerHTML = `<p class="explorar-nexo-vacio">No se pudo cargar la lista.</p>`;
+		const contenedor = document.getElementById("riListaFacturasBody");
+		if (contenedor) contenedor.innerHTML = `<tr><td colspan="4" class="ri-vacio">No se pudo cargar la lista.</td></tr>`;
 	}
 }
 
+// Mismo endpoint que ya usa Explorar Nexo para resolver la foto
+// principal de un codigo (banco de imagenes propio, o si no hay, la
+// del fabricante) -- nunca se duplica esa logica aqui. Un item sin
+// candidato o sin foto resuelta simplemente no trae imagen (icono
+// generico), nunca es un error.
+async function riResolverFotos(items) {
+	const codigos = [...new Set(items.map(it => it.candidato?.codigo || it.codigo).filter(Boolean))];
+
+	const entradas = await Promise.all(codigos.map(async codigo => {
+		try {
+			const respuesta = await fetch(`/explorar-nexo/foto/${encodeURIComponent(codigo)}`);
+			const datos = await respuesta.json();
+			return [codigo, datos.url || null];
+		} catch (error) {
+			return [codigo, null];
+		}
+	}));
+
+	return new Map(entradas);
+}
+
+// Lista y detalle nunca se muestran a la vez -- se navega de una a
+// otra, cada una a todo lo ancho (mismo patron que Creditos), para que
+// la tabla de conceptos tenga espacio real en vez de compartir la
+// pantalla con la lista.
 async function riVerDetalle(id) {
 	recepcionInteligenteActualId = id;
-	await riCargarLista();
 
-	const panel = document.getElementById("riDetalleFactura");
-	if (!panel) return;
-	panel.innerHTML = `<p class="explorar-nexo-ficha-vacio">Cargando…</p>`;
+	document.getElementById("riListaPanel").style.display = "none";
+	const panel = document.getElementById("riDetallePanel");
+	panel.style.display = "grid";
+	panel.innerHTML = `<p class="ri-vacio">Cargando…</p>`;
 
 	const respuesta = await fetch(`/recepcion-inteligente/facturas/${id}`);
 	const datos = await respuesta.json();
 
 	if (!datos.ok) {
-		panel.innerHTML = `<p class="explorar-nexo-ficha-vacio">No se pudo cargar esta factura.</p>`;
+		panel.innerHTML = `
+			<p class="ri-vacio">No se pudo cargar esta factura.</p>
+			<button type="button" class="btn-secundario" onclick="riVolverALista()" style="justify-self:center">← Volver</button>
+		`;
 		return;
 	}
 
 	const { recepcion, items } = datos;
 	recepcionInteligenteItemsActuales = items;
+	recepcionInteligenteFotosActuales = await riResolverFotos(items);
 	const sinDecidir = items.filter(it => !it.accion).length;
+	const esGmail = recepcion.origen === "gmail";
 
 	panel.innerHTML = `
-		<h3>${riIconoOrigen(recepcion.origen)} ${escaparPOS(recepcion.proveedor)}</h3>
-		<p class="explorar-nexo-ficha-fuente">Folio ${escaparPOS(recepcion.folio || "-")} &middot; ${recepcion.fechaDocumento || ""} &middot; ${riBadgeGeneral(recepcion.estado)}
-			&middot; ${recepcion.origen === "gmail" ? "Detectada en Gmail" : "Subida a mano"}</p>
+		<div class="ri-detalle-header">
+			<button type="button" class="btn-regresar" onclick="riVolverALista()">←</button>
+			<span class="ri-avatar-grande ${esGmail ? "" : "manual"}">${riIconoOrigen(recepcion.origen)}</span>
+			<div class="ri-detalle-info">
+				<h2>${escaparPOS(recepcion.proveedor)}</h2>
+				<p>
+					<span>Folio ${escaparPOS(recepcion.folio || "-")}</span>
+					<span class="punto">&middot;</span>
+					<span>${recepcion.fechaDocumento ? new Date(recepcion.fechaDocumento).toLocaleDateString("es-MX") : ""}</span>
+					<span class="punto">&middot;</span>
+					<span>${esGmail ? "Detectada en Gmail" : "Subida a mano"}</span>
+					<span class="punto">&middot;</span>
+					${riBadgeGeneral(recepcion.estado)}
+				</p>
+			</div>
+		</div>
+
+		<div class="ri-detalle-resumen">
+			<div><span>Subtotal</span><strong>$${recepcion.subtotal.toFixed(2)}</strong></div>
+			<div><span>IVA</span><strong>$${recepcion.iva.toFixed(2)}</strong></div>
+			<div><span>Total</span><strong>$${recepcion.total.toFixed(2)}</strong></div>
+		</div>
 
 		<div class="ri-tabla-wrap">
 			<table class="ri-tabla-items">
@@ -301,12 +436,6 @@ async function riVerDetalle(id) {
 				</tbody>
 			</table>
 		</div>
-
-		<dl class="explorar-nexo-ficha-datos">
-			<dt>Subtotal</dt><dd>$${recepcion.subtotal.toFixed(2)}</dd>
-			<dt>IVA</dt><dd>$${recepcion.iva.toFixed(2)}</dd>
-			<dt>Total</dt><dd>$${recepcion.total.toFixed(2)}</dd>
-		</dl>
 
 		${recepcion.estado === "pendiente" ? `
 			<div class="ri-acciones-footer">
@@ -319,6 +448,13 @@ async function riVerDetalle(id) {
 	`;
 }
 
+function riVolverALista() {
+	recepcionInteligenteActualId = null;
+	document.getElementById("riDetallePanel").style.display = "none";
+	document.getElementById("riListaPanel").style.display = "grid";
+	riCargarLista();
+}
+
 function riFilaItem(item, estadoRecepcion) {
 	const nivel = item.nivel ? RI_NIVEL_ETIQUETA[item.nivel] : "🟡 Sin identificar";
 	const yaDecidido = item.accion === "relacionar" ? "Relacionado"
@@ -329,20 +465,94 @@ function riFilaItem(item, estadoRecepcion) {
 	const puedeEditar = estadoRecepcion === "pendiente";
 	const sugerido = !item.accion ? riPrecioSugerido(item.candidato) : null;
 
+	const codigoFoto = item.candidato?.codigo || item.codigo || "";
+	const fotoUrl = codigoFoto ? recepcionInteligenteFotosActuales.get(codigoFoto) : null;
+
 	return `
 		<tr>
-			<td>${escaparPOS(item.descripcion)}${item.candidato?.nombre ? `<br><small>${escaparPOS(item.candidato.nombre)}</small>` : ""}</td>
+			<td>
+				<div class="ri-item-celda">
+					<div class="ri-item-foto" data-ri-accion="ver-producto" data-item-id="${item.id}" title="Ver detalle">
+						${fotoUrl ? `<img src="${fotoUrl}" alt="">` : `<span>📦</span>`}
+					</div>
+					<div class="ri-item-texto">
+						${escaparPOS(item.descripcion)}${item.candidato?.nombre ? `<small>${escaparPOS(item.candidato.nombre)}</small>` : ""}
+					</div>
+				</div>
+			</td>
 			<td>${escaparPOS(item.codigo || "-")}</td>
 			<td>${item.cantidad}</td>
-			<td>$${item.costo.toFixed(2)}${sugerido ? `<br><small>Venta: $${sugerido.valor.toFixed(2)} (${sugerido.etiqueta})</small>` : ""}</td>
+			<td>$${item.costo.toFixed(2)}${sugerido ? `<small>Venta: $${sugerido.valor.toFixed(2)} (${sugerido.etiqueta})</small>` : ""}</td>
 			<td>${yaDecidido}</td>
 			<td>${puedeEditar && !item.accion ? `
-				<button type="button" class="btn-mini" onclick="riRelacionarProducto(${item.id}, '${escaparPOS(item.descripcion).replace(/'/g, "\\'")}')">Relacionar</button>
-				<button type="button" class="btn-mini" onclick="riCrearProducto(${item.id}, '${escaparPOS(item.candidato?.nombre || item.descripcion).replace(/'/g, "\\'")}')">Crear</button>
-				<button type="button" class="btn-mini" onclick="riOmitirItem(${item.id})">Omitir</button>
-			` : (puedeEditar ? `<button type="button" class="btn-mini" onclick="riCambiarDecisionItem(${item.id})">Cambiar</button>` : "")}</td>
+				<button type="button" class="btn-mini" data-ri-accion="relacionar" data-item-id="${item.id}" data-descripcion="${escaparPOS(item.descripcion)}">Relacionar</button>
+				<button type="button" class="btn-mini" data-ri-accion="crear" data-item-id="${item.id}" data-nombre="${escaparPOS(item.candidato?.nombre || item.descripcion)}">Crear</button>
+				<button type="button" class="btn-mini" data-ri-accion="omitir" data-item-id="${item.id}">Omitir</button>
+			` : (puedeEditar ? `<button type="button" class="btn-mini" data-ri-accion="cambiar" data-item-id="${item.id}">Cambiar</button>` : "")}</td>
 		</tr>
 	`;
+}
+
+// Foto ampliada + detalle del producto de un concepto -- mismo patron
+// de modal que ampliarImagenProductoPOS (pos-image-zoom.js): id fijo,
+// display flex/none, Escape y clic afuera cierran. Muestra lo que ya
+// se sabe de este concepto (candidato, precios de referencia) aunque
+// todavia no tenga una decision -- nunca inventa datos que no existan.
+function riVerProductoModal(itemId) {
+	const item = recepcionInteligenteItemsActuales.find(it => it.id === itemId);
+	if (!item) return;
+
+	const codigoFoto = item.candidato?.codigo || item.codigo || "";
+	const fotoUrl = codigoFoto ? recepcionInteligenteFotosActuales.get(codigoFoto) : null;
+	const precios = riPreciosReferenciaCandidato(item.candidato);
+	const nombre = item.candidato?.nombre || item.descripcion;
+	const marca = item.candidato?.marca || null;
+
+	let modal = document.getElementById("riModalProducto");
+	if (!modal) {
+		modal = document.createElement("div");
+		modal.id = "riModalProducto";
+		modal.className = "ri-modal-producto";
+		document.body.appendChild(modal);
+	}
+
+	const cerrar = () => {
+		modal.style.display = "none";
+		modal.innerHTML = "";
+		document.removeEventListener("keydown", manejarTeclado, true);
+	};
+
+	const manejarTeclado = event => {
+		if (modal.style.display === "none") return;
+		if (event.key === "Escape") { event.preventDefault(); cerrar(); }
+	};
+
+	modal.innerHTML = `
+		<div class="ri-modal-producto-card">
+			<button type="button" class="ri-modal-producto-cerrar" aria-label="Cerrar">✕</button>
+			<div class="ri-modal-producto-foto">${fotoUrl ? `<img src="${fotoUrl}" alt="">` : `<span>📦</span>`}</div>
+			<h3>${escaparPOS(nombre)}</h3>
+			${marca ? `<p class="ri-modal-producto-marca">${escaparPOS(marca)}</p>` : ""}
+			<dl class="ri-modal-producto-datos">
+				<dt>Código</dt><dd>${escaparPOS(item.codigo || "-")}</dd>
+				<dt>Cantidad en factura</dt><dd>${item.cantidad}</dd>
+				<dt>Costo</dt><dd>$${item.costo.toFixed(2)}</dd>
+			</dl>
+			${precios ? `
+				<div class="ri-modal-producto-precios">
+					${precios.publico != null ? `<div><span>Público</span><strong>$${precios.publico.toFixed(2)}</strong></div>` : ""}
+					${precios.medioMayoreo != null ? `<div><span>Medio mayoreo</span><strong>$${precios.medioMayoreo.toFixed(2)}</strong></div>` : ""}
+					${precios.distribuidor != null ? `<div><span>Distribuidor</span><strong>$${precios.distribuidor.toFixed(2)}</strong></div>` : ""}
+				</div>
+			` : `<p class="ri-modal-producto-sin-precio">Todavía no hay precios de referencia para este producto.</p>`}
+		</div>
+	`;
+
+	modal.style.display = "flex";
+	modal.onclick = event => { if (event.target === modal) cerrar(); };
+	modal.querySelector(".ri-modal-producto-cerrar").onclick = cerrar;
+
+	document.addEventListener("keydown", manejarTeclado, true);
 }
 
 async function riRelacionarProducto(itemId, descripcion) {
@@ -451,7 +661,6 @@ async function riRechazar(id) {
 		return;
 	}
 
-	await riCargarLista();
 	await riVerDetalle(id);
 }
 
@@ -470,6 +679,5 @@ async function riConfirmar(id) {
 	await alertaPOS(`Recepción confirmada. Se aplicó un total de $${datos.totalAplicado.toFixed(2)} a tu inventario.`, "Recepción confirmada", "exito");
 
 	if (typeof cargarProductos === "function") cargarProductos();
-	await riCargarLista();
 	await riVerDetalle(id);
 }
