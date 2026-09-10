@@ -95,28 +95,40 @@ async function verDetalleProducto(id) {
 }
 
 // Todas las fotos de este producto, en el mismo orden que se van a
-// mostrar. Si el negocio ya subio su propia foto para este codigo, esa
-// manda (nunca se mezcla con el banco); si no tiene ninguna propia, se
-// completa con el Banco de Nexo / catalogo del fabricante -- las
-// mismas fotos que ya ve Explorar Nexo, para no dejar "Ver detalles"
-// con menos de lo que el resto del POS ya muestra para ese mismo codigo.
+// mostrar. La foto propia (si el negocio ya subio una) siempre manda
+// como principal -- nunca se reemplaza. Pero antes el Banco de Nexo /
+// catalogo del fabricante solo se consultaba cuando NO habia ninguna
+// foto propia: la mayoria de los productos con foto propia solo
+// tienen esa (nadie sube una galeria a mano en fotos_producto_galeria),
+// asi que en la practica "Ver detalles" casi nunca mostraba mas de una
+// foto aunque el resto del POS (Explorar Nexo, Proyectar) ya tuviera
+// varias para ese mismo codigo. Ahora, si la galeria PROPIA esta
+// vacia, se completa con el banco/fabricante igual -- mismo criterio
+// que ya usa la ficha publica de Nexo Market.
 async function resolverGaleriaVerDetalles(producto) {
+ let propias = [];
+
  if (producto.imagenUrl && producto.fotoCodigo) {
   try {
    const respuesta = await fetch(`/fotos-producto/${producto.fotoCodigo}/galeria`);
    const datos = await respuesta.json();
-   const extras = datos.ok && Array.isArray(datos.imagenes) ? datos.imagenes.map(img => img.url) : [];
-   return [producto.imagenUrl, ...extras];
+   propias = datos.ok && Array.isArray(datos.imagenes) ? datos.imagenes.map(img => img.url) : [];
   } catch (error) {
-   return [producto.imagenUrl];
+   propias = [];
   }
  }
 
- if (producto.codigo && typeof explorarNexoResolverGaleria === "function") {
-  return await explorarNexoResolverGaleria(producto.codigo);
+ if (propias.length > 0) {
+  return [producto.imagenUrl, ...propias];
  }
 
- return [];
+ const galeriaBanco = producto.codigo && typeof explorarNexoResolverGaleria === "function"
+  ? await explorarNexoResolverGaleria(producto.codigo)
+  : [];
+
+ // Con foto propia pero sin galeria: la propia se queda de principal,
+ // el banco solo aporta vistas adicionales (nunca la reemplaza).
+ return producto.imagenUrl ? [producto.imagenUrl, ...galeriaBanco] : galeriaBanco;
 }
 
 async function cargarGaleriaDetalleProducto(producto, galeriaCompletaPromesa) {
