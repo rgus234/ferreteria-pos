@@ -232,6 +232,41 @@ async function extraerXmlsDelMensaje(accessToken, mensaje) {
     return xmls;
 }
 
+// El mismo correo casi siempre trae tambien el PDF (la representacion
+// legible del CFDI) junto al XML -- Fase 1 ya sabe guardarlo
+// (procesarFacturaXml, parametro pdfBase64) porque la subida manual ya
+// lo permitia opcionalmente; aqui solo hacia falta encontrarlo. Se
+// queda con el PRIMERO que encuentra (una factura, un PDF -- no hay
+// necesidad de manejar varios).
+function buscarPrimerPdf(parte) {
+    if (!parte) return null;
+
+    const nombre = parte.filename || "";
+    const pareceQuePdf = /\.pdf$/i.test(nombre) || parte.mimeType === "application/pdf";
+
+    if (pareceQuePdf && (parte.body?.attachmentId || parte.body?.data)) {
+        return { attachmentId: parte.body.attachmentId || null, dataInline: parte.body.data || null };
+    }
+
+    for (const hija of parte.parts || []) {
+        const encontrado = buscarPrimerPdf(hija);
+        if (encontrado) return encontrado;
+    }
+
+    return null;
+}
+
+// procesarFacturaXml espera pdfBase64 en base64 estandar (Buffer.from(x,
+// "base64")) -- Gmail entrega base64url, hay que reconvertir, no solo
+// reusar el string tal cual.
+async function extraerPdfBase64DelMensaje(accessToken, mensaje) {
+    const adjunto = buscarPrimerPdf(mensaje.payload);
+    if (!adjunto) return null;
+
+    const data = adjunto.dataInline || await obtenerAdjunto(accessToken, mensaje.id, adjunto.attachmentId);
+    return Buffer.from(data, "base64url").toString("base64");
+}
+
 // Corazon de "revisar este buzon ahora": lo usa tanto el boton manual
 // "Buscar facturas nuevas" (abajo) como el programador automatico
 // (recepcion-inteligente-gmail-cron.js, Fase 3) -- una sola
@@ -276,9 +311,10 @@ async function revisarBuzonGmail(pool, negocioId) {
         try {
             const mensaje = await obtenerMensajeCompleto(accessToken, referencia.id);
             const xmls = await extraerXmlsDelMensaje(accessToken, mensaje);
+            const pdfBase64 = xmls.length ? await extraerPdfBase64DelMensaje(accessToken, mensaje).catch(() => null) : null;
 
             for (const xml of xmls) {
-                const resultado = await procesarFacturaXml(pool, negocioId, xml, { origen: "gmail" });
+                const resultado = await procesarFacturaXml(pool, negocioId, xml, { origen: "gmail", pdfBase64 });
                 if (resultado.repetida) repetidas++; else nuevas++;
             }
 
@@ -472,4 +508,6 @@ module.exports.construirQueryBusqueda = construirQueryBusqueda;
 module.exports.firmarState = firmarState;
 module.exports.verificarState = verificarState;
 module.exports.extraerXmlsDelMensaje = extraerXmlsDelMensaje;
+module.exports.buscarPrimerPdf = buscarPrimerPdf;
+module.exports.extraerPdfBase64DelMensaje = extraerPdfBase64DelMensaje;
 module.exports.revisarBuzonGmail = revisarBuzonGmail;

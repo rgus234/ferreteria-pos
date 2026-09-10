@@ -23,7 +23,9 @@ const {
     construirQueryBusqueda,
     firmarState,
     verificarState,
-    extraerXmlsDelMensaje
+    extraerXmlsDelMensaje,
+    buscarPrimerPdf,
+    extraerPdfBase64DelMensaje
 } = require("../recepcion-inteligente-gmail");
 const { negociosConGmailConectado } = require("../recepcion-inteligente-gmail-cron");
 const { procesarFacturaXml } = require("../recepcion-inteligente-server");
@@ -95,6 +97,44 @@ test("listarAdjuntosXml ignora adjuntos que no son XML (ej. un PDF)", () => {
 test("listarAdjuntosXml regresa vacio para un mensaje sin adjuntos", () => {
     const payload = { mimeType: "text/plain", body: { size: 20, data: "aG9sYQ" } };
     assert.equal(listarAdjuntosXml(payload).length, 0);
+});
+
+// --- buscarPrimerPdf / extraerPdfBase64DelMensaje --------------------
+
+test("buscarPrimerPdf encuentra el PDF junto al XML en el mismo mensaje", () => {
+    const payload = {
+        mimeType: "multipart/mixed",
+        parts: [
+            { mimeType: "text/plain", body: { size: 5, data: "aG9sYQ" } },
+            { filename: "factura.xml", body: { attachmentId: "ATT-XML", size: 500 } },
+            { filename: "factura.pdf", mimeType: "application/pdf", body: { attachmentId: "ATT-PDF", size: 12000 } }
+        ]
+    };
+    const adjunto = buscarPrimerPdf(payload);
+    assert.ok(adjunto);
+    assert.equal(adjunto.attachmentId, "ATT-PDF");
+});
+
+test("buscarPrimerPdf regresa null si el mensaje no trae ningun PDF", () => {
+    const payload = { filename: "factura.xml", body: { attachmentId: "ATT-XML", size: 500 } };
+    assert.equal(buscarPrimerPdf(payload), null);
+});
+
+test("extraerPdfBase64DelMensaje reconvierte de base64url (Gmail) a base64 estandar (lo que espera procesarFacturaXml)", async () => {
+    const bytesOriginales = Buffer.from("contenido binario de prueba %%%///", "utf8");
+    const mensaje = {
+        id: "MSG-PDF-1",
+        payload: { filename: "factura.pdf", body: { data: bytesOriginales.toString("base64url"), size: bytesOriginales.length } }
+    };
+
+    const pdfBase64 = await extraerPdfBase64DelMensaje("token-no-usado", mensaje);
+    assert.equal(pdfBase64, bytesOriginales.toString("base64"));
+    assert.deepEqual(Buffer.from(pdfBase64, "base64"), bytesOriginales);
+});
+
+test("extraerPdfBase64DelMensaje regresa null sin tocar la red si no hay PDF", async () => {
+    const mensaje = { id: "MSG-PDF-2", payload: { filename: "factura.xml", body: { data: "aG9sYQ", size: 5 } } };
+    assert.equal(await extraerPdfBase64DelMensaje("token-no-usado", mensaje), null);
 });
 
 // --- decodificarBase64Url --------------------------------------------
@@ -300,4 +340,41 @@ test("una factura procesada con origen='gmail' aparece asi en la lista y en el d
 
     const detalle = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${resultado.recepcionId}`, { headers: { "x-dispositivo-token": negocio.token } })).json();
     assert.equal(detalle.recepcion.origen, "gmail");
+});
+
+test("un correo con XML y PDF adjuntos guarda ambos -- el PDF llega intacto a pdf_bytes", async () => {
+    const uuid = `UUID-CON-PDF-${Date.now()}`;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital"
+  Version="4.0" Folio="1" Fecha="2026-09-09T10:00:00" SubTotal="10.00" Total="11.60">
+  <cfdi:Emisor Rfc="GAF850101AB1" Nombre="GAFI SA DE CV"/>
+  <cfdi:Receptor Rfc="OLI900101XX1" Nombre="RECEPTOR DE PRUEBA"/>
+  <cfdi:Conceptos>
+    <cfdi:Concepto NoIdentificacion="" ClaveProdServ="27112700" Descripcion="Concepto con PDF adjunto"
+        Cantidad="1" ValorUnitario="10" Importe="10.00" Unidad="Pieza"/>
+  </cfdi:Conceptos>
+  <cfdi:Impuestos TotalImpuestosTrasladados="1.60"><cfdi:Traslados><cfdi:Traslado Base="10" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.16" Importe="1.60"/></cfdi:Traslados></cfdi:Impuestos>
+  <cfdi:Complemento><tfd:TimbreFiscalDigital UUID="${uuid}" Version="1.1"/></cfdi:Complemento>
+</cfdi:Comprobante>`;
+
+    const pdfOriginal = Buffer.from("%PDF-1.4 contenido de prueba, no es un PDF real", "utf8");
+    const mensaje = {
+        id: "MSG-XML-Y-PDF",
+        payload: {
+            mimeType: "multipart/mixed",
+            parts: [
+                { filename: "factura.xml", body: { data: Buffer.from(xml, "utf8").toString("base64url"), size: xml.length } },
+                { filename: "factura.pdf", mimeType: "application/pdf", body: { data: pdfOriginal.toString("base64url"), size: pdfOriginal.length } }
+            ]
+        }
+    };
+
+    const xmls = await extraerXmlsDelMensaje("token-no-usado", mensaje);
+    const pdfBase64 = await extraerPdfBase64DelMensaje("token-no-usado", mensaje);
+    assert.equal(xmls.length, 1);
+
+    const resultado = await procesarFacturaXml(pool, negocio.negocioId, xmls[0], { origen: "gmail", pdfBase64 });
+
+    const fila = await pool.query(`SELECT pdf_bytes FROM public.recepciones_inteligentes WHERE id = $1`, [resultado.recepcionId]);
+    assert.deepEqual(fila.rows[0].pdf_bytes, pdfOriginal);
 });
