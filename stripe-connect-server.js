@@ -35,7 +35,14 @@ const MCC_FERRETERIA = "5251"; // Merchant Category Code de "Hardware Stores"
 // Comision de Nexo sobre cada pago procesado -- constante clara y
 // documentada (no una tabla de configuracion todavia; se puede mover
 // despues si el dueno quiere ajustarla sin tocar codigo).
-const COMISION_NEXO_MARKETPLACE = 0.03;
+//
+// 6% y no menos: esto es un destination charge sin on_behalf_of, o sea
+// que la comision de Stripe (~3.6% + $3 MXN por cobro en Mexico) la paga
+// la cuenta de Nexo, no la tienda -- con 3% Nexo perdia dinero en CADA
+// venta (3% de comision propia es menos que el 3.6% que Stripe le cobra
+// encima). Si se toca este numero, hay que seguir dejando margen real
+// despues de restar el costo de Stripe, no solo verse bien en el papel.
+const COMISION_NEXO_MARKETPLACE = 0.06;
 
 // Mismo patron lazy-init que stripe-server.js:26-40 (misma
 // STRIPE_SECRET_KEY -- Connect vive en la misma cuenta de Stripe de
