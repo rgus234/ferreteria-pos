@@ -170,13 +170,50 @@ const UMBRAL_PALABRA_INDIVIDUAL = 0.30;
 // con CUALQUIER palabra mas larga. Se le pide mas confianza solo a
 // las palabras cortas -- una palabra de 5+ letras ya es especifica
 // por si misma (broca, chupon, candado siguen funcionando igual).
-function existeCoincidenciaPorPalabra(columna, indiceTermino) {
-    return `EXISTS (
-        SELECT 1 FROM unnest(string_to_array(lower(${columna}), ' ')) AS palabra_suelta
-        WHERE similarity(split_part($${indiceTermino}, ' ', 1), palabra_suelta) > (
-            CASE WHEN length(split_part($${indiceTermino}, ' ', 1)) <= 4 THEN 0.45 ELSE ${UMBRAL_PALABRA_INDIVIDUAL} END
+const CONECTORES_ESPANOL = ["de", "del", "la", "el", "los", "las", "un", "una", "unos", "unas", "para", "con", "y", "en", "a", "al"];
+
+// Palabras con contenido real de la busqueda (sin contar conectores
+// como "de"/"para"/"con", que no distinguen nada). Se usa tanto aqui
+// (JS, para saber cuantas coincidencias exigir) como en el SQL de
+// abajo (para contarlas) -- deben ir de la mano.
+function palabrasConContenido(termino) {
+    return termino.trim().toLowerCase().split(/\s+/).filter(palabra => palabra && !CONECTORES_ESPANOL.includes(palabra));
+}
+
+// Hallazgo real buscando "llave de paso" (una valvula): salia "Llave
+// de cruz 14' plegable..." (una llave de tuercas, nada que ver) --
+// ambas EMPIEZAN con "llave", una palabra tan generica que la
+// comparten llaves de cruz, de paso, inglesas, stilson, allen...
+// Revisar solo la primera palabra de la busqueda (como hacia la
+// version anterior de este filtro) no bastaba: una vez que "llave"
+// empataba, nunca se fijaba en que "paso" -- la palabra que de
+// verdad distingue el producto -- no tiene nada que ver con "cruz".
+//
+// Cuando la busqueda trae 2 o mas palabras con contenido real, ahora
+// se exige que AL MENOS 2 de ellas -- no solo la primera -- encuentren
+// alguna palabra parecida en el nombre (similarity() palabra-contra-
+// palabra, igual que candado/dado y chupon/chumaceras). Una busqueda
+// de una sola palabra sigue pidiendo esa unica palabra, sin cambio.
+// Verificado con el caso flagship ("pinza para cortar cable grueso"
+// -> "Pinza cortacables...", coincide en "pinza" Y "cortar"~"cortacables"
+// = 2, pasa) para no repetir el error de un umbral que rescata un caso
+// y rompe el otro.
+function existeCoincidenciaPorPalabra(columna, indiceTermino, minimoCoincidencias) {
+    return `(
+        SELECT COUNT(DISTINCT palabra_busqueda)
+        FROM unnest(string_to_array(lower($${indiceTermino}), ' ')) AS palabra_busqueda
+        WHERE palabra_busqueda <> ALL(ARRAY[${CONECTORES_ESPANOL.map(c => `'${c}'`).join(",")}])
+        AND EXISTS (
+            SELECT 1 FROM unnest(string_to_array(lower(${columna}), ' ')) AS palabra_suelta
+            WHERE similarity(palabra_busqueda, palabra_suelta) > (
+                CASE WHEN length(palabra_busqueda) <= 4 THEN 0.45 ELSE ${UMBRAL_PALABRA_INDIVIDUAL} END
+            )
         )
-    )`;
+    ) >= ${minimoCoincidencias}`;
+}
+
+function minimoCoincidenciasPara(termino) {
+    return Math.min(2, palabrasConContenido(termino).length) || 1;
 }
 
 // Fuente 1: inventario propio -- mismo patron exacto que
@@ -187,7 +224,7 @@ async function buscarEnInventario(pool, negocioId, termino) {
                 GREATEST(similarity(nombre, $2), word_similarity($2, nombre)) AS similitud,
                 ${ordenPorAfinidadInicial("nombre", 2)} AS afinidad_inicial
          FROM public.productos
-         WHERE negocio_id = $1 AND (nombre % $2 OR $2 <% nombre) AND ${existeCoincidenciaPorPalabra("nombre", 2)}
+         WHERE negocio_id = $1 AND (nombre % $2 OR $2 <% nombre) AND ${existeCoincidenciaPorPalabra("nombre", 2, minimoCoincidenciasPara(termino))}
          ORDER BY afinidad_inicial DESC, similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
         [negocioId, termino]
@@ -219,7 +256,7 @@ async function buscarEnCatalogoProveedor(pool, negocioId, termino) {
                 ${ordenPorAfinidadInicial("cp.nombre_proveedor", 2)} AS afinidad_inicial
          FROM public.catalogo_productos cp
          JOIN public.catalogos_proveedor cat ON cat.id = cp.catalogo_id
-         WHERE cp.negocio_id = $1 AND (cp.nombre_proveedor % $2 OR $2 <% cp.nombre_proveedor) AND ${existeCoincidenciaPorPalabra("cp.nombre_proveedor", 2)}
+         WHERE cp.negocio_id = $1 AND (cp.nombre_proveedor % $2 OR $2 <% cp.nombre_proveedor) AND ${existeCoincidenciaPorPalabra("cp.nombre_proveedor", 2, minimoCoincidenciasPara(termino))}
          ORDER BY afinidad_inicial DESC, similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
         [negocioId, termino]
@@ -256,7 +293,7 @@ async function buscarEnCatalogoMaestro(pool, termino) {
          FROM public.catalogo_maestro_productos m
          LEFT JOIN public.catalogo_fabricante_productos f
                 ON f.codigo = m.codigo_fabricante AND f.estado = 'activo'
-         WHERE (m.nombre % $1 OR $1 <% m.nombre) AND m.necesita_revision = false AND ${existeCoincidenciaPorPalabra("m.nombre", 1)}
+         WHERE (m.nombre % $1 OR $1 <% m.nombre) AND m.necesita_revision = false AND ${existeCoincidenciaPorPalabra("m.nombre", 1, minimoCoincidenciasPara(termino))}
          ORDER BY afinidad_inicial DESC, similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
         [termino]
@@ -292,7 +329,7 @@ async function buscarEnCatalogoFabricante(pool, termino) {
                 GREATEST(similarity(descripcion, $1), word_similarity($1, descripcion)) AS similitud,
                 ${ordenPorAfinidadInicial("descripcion", 1)} AS afinidad_inicial
          FROM public.catalogo_fabricante_productos
-         WHERE (descripcion % $1 OR $1 <% descripcion) AND estado = 'activo' AND ${existeCoincidenciaPorPalabra("descripcion", 1)}
+         WHERE (descripcion % $1 OR $1 <% descripcion) AND estado = 'activo' AND ${existeCoincidenciaPorPalabra("descripcion", 1, minimoCoincidenciasPara(termino))}
          ORDER BY afinidad_inicial DESC, similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
         [termino]

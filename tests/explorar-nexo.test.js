@@ -305,6 +305,25 @@ test("un producto que de verdad ES lo buscado sale antes que uno que solo lo men
     assert.ok(indicePija === -1 || indiceBroca < indicePija, "la broca de verdad debe salir antes que un producto que solo menciona 'broca'");
 });
 
+// Hallazgo real buscando "llave de paso" (una valvula): salia "Llave
+// de cruz..." (para tuercas de llanta) -- ambas EMPIEZAN con "llave",
+// una palabra tan generica que la comparten llaves de cruz, de paso,
+// inglesas, stilson, allen... Revisar solo la primera palabra de la
+// busqueda no bastaba: una vez que "llave" empataba, nunca se fijaba
+// en que "paso" (la palabra que de verdad distingue el producto) no
+// tiene nada que ver con "cruz". Ahora se exige que al menos 2
+// palabras con contenido de la busqueda (no solo la primera) encuentren
+// algo parecido en el nombre.
+test("una palabra generica compartida no basta -- debe coincidir tambien la palabra que distingue el producto (llave de paso/cruz)", async () => {
+    await crearProductoPrueba(negocio.negocioId, { nombre: "Llave de cruz 14 plegable pulida y cromada, EXP", codigo: "EXP-LLAVE-CRUZ-1" });
+    await crearProductoPrueba(negocio.negocioId, { nombre: "Llave de paso de bola 1/2 pulgada, EXP", codigo: "EXP-LLAVE-PASO-1" });
+
+    const resultado = await buscarExplorarNexo(pool, negocio.negocioId, "llave de paso");
+
+    assert.ok(resultado.inventario.some(p => p.codigo === "EXP-LLAVE-PASO-1"), "debe encontrar la llave de paso real");
+    assert.ok(!resultado.inventario.some(p => p.codigo === "EXP-LLAVE-CRUZ-1"), "una llave de cruz (para llantas) no debe salir al buscar llave de paso (una valvula), aunque ambas empiecen con 'llave'");
+});
+
 test("GET /explorar-nexo/buscar exige dispositivo vinculado y responde con las 4 fuentes", async () => {
     const sinToken = await fetch(`${BASE_URL}/explorar-nexo/buscar?q=pinza`);
     assert.equal(sinToken.status, 401);
