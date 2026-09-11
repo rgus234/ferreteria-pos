@@ -51,6 +51,7 @@ const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./p
 const { resolverOcrearProveedorId } = require("./proveedor-resolver");
 const { resolverIdentidadNexo, PERMISOS, requerirPermiso } = require("./rbac");
 const { calcularAntiguedadCredito } = require("./credit-aging");
+const { calcularHistorialComercial } = require("./credit-historial-comercial");
 const { enviarPushADuenoDelNegocio, enviarPushAPersona } = require("./push-server");
 const acuerdoCredito = require("./acuerdo-credito");
 const { listarPlanes, listarCatalogoFunciones, funcionesDelPlan } = require("./features");
@@ -8121,6 +8122,7 @@ app.get("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISO
         `, [id, negocio.id]);
 
         const aging = calcularAntiguedadCredito(movimientos.rows);
+        const historialComercial = calcularHistorialComercial(movimientos.rows, cliente.rows[0].created_at);
 
         // Tri-estado del Acuerdo de Credito (ver acuerdo-credito.js):
         // sin ninguna fila en acuerdos_credito = cliente de antes de
@@ -8143,6 +8145,7 @@ app.get("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISO
             },
             movimientos: movimientos.rows,
             aging,
+            historialComercial,
             acuerdo: {
                 tieneAlgunAcuerdo,
                 pendiente: acuerdoPendiente ? {

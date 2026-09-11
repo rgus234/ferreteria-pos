@@ -640,6 +640,17 @@
  color:#047857;
 }
 
+/* Historial comercial (pestana Informacion) -- mismos colores que ya
+   usan el resumen lateral y las tarjetas de arriba, solo que aqui
+   viven dentro de categoria-info-grid en vez de resumen-card. */
+#creditoInfoTab strong.rojo{
+ color:#b91c1c;
+}
+
+#creditoInfoTab strong.verde{
+ color:#047857;
+}
+
 .acciones-credito{
  display:grid;
  gap:8px;

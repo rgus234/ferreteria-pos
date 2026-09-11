@@ -248,6 +248,55 @@ async function abrirCuentaCreditoDetalle(id) {
  renderCreditos(datosCreditosActuales || {});
 }
 
+function antiguedadClienteTexto(dias) {
+ if (dias == null) return "";
+ if (dias < 30) return `${dias} ${dias === 1 ? "dia" : "dias"}`;
+ if (dias < 365) {
+  const meses = Math.floor(dias / 30);
+  return `${meses} ${meses === 1 ? "mes" : "meses"}`;
+ }
+ const anos = Math.floor(dias / 365);
+ return `${anos} ${anos === 1 ? "ano" : "anos"}`;
+}
+
+// Historial comercial (calcularHistorialComercial en el servidor,
+// credit-historial-comercial.js): metricas de la relacion de credito
+// de este cliente CON ESTE NEGOCIO -- pensado para que el dueno decida
+// si sube un limite sin tener que leer el estado de cuenta completo.
+// Vive en la pestana "Informacion" (categoria-info-grid), mismo
+// formato de fila que Nombre/Telefono/Cliente desde de arriba.
+function renderHistorialComercialCredito(historial) {
+ if (!historial) return "";
+
+ const filas = [
+  `<div><span>Compras a credito</span><strong>${historial.totalCompras || "Sin compras registradas"}</strong></div>`
+ ];
+
+ if (historial.totalCompras > 0) {
+  filas.push(`<div><span>Promedio de compra</span><strong>${dinero(historial.promedioCompra)}</strong></div>`);
+ }
+
+ filas.push(`<div><span>Ultimo pago</span><strong>${
+  historial.diasDesdeUltimoPago != null
+   ? (historial.diasDesdeUltimoPago === 0 ? "Hoy" : `Hace ${antiguedadClienteTexto(historial.diasDesdeUltimoPago)}`)
+   : "Sin pagos registrados"
+ }</strong></div>`);
+
+ if (historial.diasPromedioParaPagar != null) {
+  filas.push(`<div><span>Dias promedio para pagar</span><strong>${Math.round(historial.diasPromedioParaPagar)} dias</strong></div>`);
+ }
+
+ if (historial.comprasConSeguimiento > 0) {
+  filas.push(`<div><span>Historial de pagos</span><strong class="${historial.nuncaSeHaAtrasado ? "verde" : "rojo"}">${
+   historial.nuncaSeHaAtrasado
+    ? "Nunca se ha atrasado"
+    : `Se ha atrasado ${historial.vecesAtrasado} ${historial.vecesAtrasado === 1 ? "vez" : "veces"}`
+  }</strong></div>`);
+ }
+
+ return filas.join("");
+}
+
 function renderCreditoDetalleExtra() {
  if (!creditoActual) return;
 
@@ -311,10 +360,16 @@ function renderCreditoDetalleExtra() {
 
  const infoTab = document.getElementById("creditoInfoTab");
  if (infoTab) {
+ const historial = window.creditoHistorialComercialActual;
+ const antiguedad = historial && historial.diasComoCliente != null
+ ? ` (${antiguedadClienteTexto(historial.diasComoCliente)})`
+ : "";
+
  infoTab.innerHTML = `
  <div><span>Nombre</span><strong>${escaparPOS(creditoActual.nombre || "")}</strong></div>
  <div><span>Telefono</span><strong>${escaparPOS(creditoActual.telefono || "Sin registrar")}</strong></div>
- <div><span>Cliente desde</span><strong>${new Date(creditoActual.created_at).toLocaleDateString("es-MX")}</strong></div>
+ <div><span>Cliente desde</span><strong>${new Date(creditoActual.created_at).toLocaleDateString("es-MX")}${antiguedad}</strong></div>
+ ${renderHistorialComercialCredito(historial)}
  `;
  }
 
@@ -552,6 +607,9 @@ async function abrirCuentaCliente(id) {
 
  window.creditoAgingActual =
  datos.aging || null;
+
+ window.creditoHistorialComercialActual =
+ datos.historialComercial || null;
 
  window.creditoAcuerdoActual =
  datos.acuerdo || null;
