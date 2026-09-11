@@ -26,6 +26,14 @@ const { crearResolverSesionPersonaOpcional } = require("./personas-server");
 const { OFICIOS_POR_GIRO } = require("./oficios-persona");
 const { normalizarSlug } = require("./tenant");
 const {
+    normalizarBusqueda,
+    umbralAdmisionPara,
+    consultarConUmbralPalabra,
+    ordenPorAfinidadInicial,
+    existeCoincidenciaPorPalabra,
+    minimoCoincidenciasPara
+} = require("./busqueda-inteligente");
+const {
     estilosPortalClienteHtml,
     ICONO_PORTAL_PEDIDOS,
     ICONO_PORTAL_CREDITO,
@@ -407,20 +415,37 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
         : orden === "precio_desc" ? "COALESCE(p.precio_oferta, p.precio_publico, p.precio) DESC NULLS LAST"
         : "p.nombre ASC";
 
-    if (buscar) {
-        parametros.push(buscar);
+    // Normalizado (acentos fuera, minusculas) con el mismo criterio que
+    // Explorar Nexo -- "sumergible" debe encontrar "SUMÉRGIBLE".
+    const buscarNormalizado = buscar ? normalizarBusqueda(buscar) : "";
+
+    if (buscarNormalizado) {
+        parametros.push(buscarNormalizado);
         const indiceBuscar = parametros.length;
-        parametros.push(`%${buscar}%`);
+        parametros.push(`%${buscarNormalizado}%`);
         const indiceIlike = parametros.length;
-        // p.nombre % (similitud pg_trgm) por si solo, contra nombres largos
-        // ("Dado punta corta bristol M12, cuadro 1/2', TRUPER"), diluye el
-        // puntaje de una palabra corta bajo el umbral por defecto y no
-        // encuentra nada aunque la palabra si este ahi -- se agrega ILIKE
-        // sobre el nombre tambien para garantizar coincidencia literal
-        // real ("bomba" siempre encuentra "Bomba..."), la similitud sigue
-        // aportando tolerancia a errores de escritura y el orden de relevancia.
-        condiciones.push(`(p.nombre % $${indiceBuscar} OR p.nombre ILIKE $${indiceIlike} OR p.codigo ILIKE $${indiceIlike} OR p.marca ILIKE $${indiceIlike})`);
-        if (orden === "relevancia") ordenSql = `similarity(p.nombre, $${indiceBuscar}) DESC`;
+        // Mismo motor de busqueda por intencion que Explorar Nexo (ver
+        // busqueda-inteligente.js): un codigo o marca exactos son una
+        // senal fuerte por si solos y nunca pasan por el filtro de
+        // palabras; el nombre en cambio exige que al menos N palabras con
+        // contenido real de la busqueda encuentren alguna palabra parecida
+        // dentro del nombre. Sin esto, un comprador real veia exactamente
+        // los mismos falsos positivos ya encontrados con el personal:
+        // "tinaco" ponia primero "tiner" (parecido de letras, no de
+        // sentido), "llave de paso" se mezclaba con "llave de cruz" y
+        // "llave para jardin" solo por compartir la palabra generica
+        // "llave", y frases de 2 palabras normales ("cable electrico")
+        // no encontraban nada aunque el producto si existiera.
+        condiciones.push(`(
+            p.codigo ILIKE $${indiceIlike} OR p.marca ILIKE $${indiceIlike}
+            OR (
+                (p.nombre % $${indiceBuscar} OR $${indiceBuscar} <% p.nombre OR p.nombre ILIKE $${indiceIlike})
+                AND ${existeCoincidenciaPorPalabra("p.nombre", indiceBuscar, minimoCoincidenciasPara(buscarNormalizado))}
+            )
+        )`);
+        if (orden === "relevancia") {
+            ordenSql = `${ordenPorAfinidadInicial("p.nombre", indiceBuscar)} DESC, GREATEST(similarity(p.nombre, $${indiceBuscar}), word_similarity($${indiceBuscar}, p.nombre)) DESC`;
+        }
     }
 
     if (categoria) {
@@ -456,8 +481,7 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
     parametros.push(offset);
     const indiceOffset = parametros.length;
 
-    const resultado = await pool.query(
-        `
+    const sql = `
         SELECT p.codigo, p.nombre, COALESCE(cn.departamento, p.categoria) AS categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
                CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
                CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
@@ -473,9 +497,14 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
         WHERE ${condiciones.join(" AND ")}
         ORDER BY ${ordenSql}
         LIMIT $${indiceLimit} OFFSET $${indiceOffset}
-        `,
-        parametros
-    );
+        `;
+
+    // El operador <% depende de la GUC de sesion pg_trgm.word_similarity_threshold
+    // (ver busqueda-inteligente.js) -- solo se necesita un cliente dedicado
+    // cuando hay texto de busqueda; sin el, una consulta normal del pool basta.
+    const resultado = buscarNormalizado
+        ? await consultarConUmbralPalabra(pool, umbralAdmisionPara(buscarNormalizado), sql, parametros)
+        : await pool.query(sql, parametros);
 
     return {
         productos: mapearFilasProducto(resultado.rows, firmarTokenImagen),
@@ -494,15 +523,25 @@ async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "",
     const condiciones = ["p.negocio_id = ANY($1::int[]) AND p.visible_market = true"];
     const parametros = [idsPermitidos];
 
-    if (buscar) {
-        parametros.push(buscar);
+    const buscarNormalizado = buscar ? normalizarBusqueda(buscar) : "";
+
+    if (buscarNormalizado) {
+        parametros.push(buscarNormalizado);
         const indiceBuscar = parametros.length;
-        parametros.push(`%${buscar}%`);
+        parametros.push(`%${buscarNormalizado}%`);
         const indiceIlike = parametros.length;
-        // Mismo fix que buscarProductosMarket: ILIKE sobre nombre
-        // garantiza match literal aunque pg_trgm diluya palabras cortas
-        // contra nombres largos.
-        condiciones.push(`(p.nombre % $${indiceBuscar} OR p.nombre ILIKE $${indiceIlike} OR p.codigo ILIKE $${indiceIlike} OR p.marca ILIKE $${indiceIlike})`);
+        // Misma condicion exacta que buscarProductosMarket -- las marcas y
+        // el rango de precio deben salir del mismo conjunto de productos
+        // que en verdad se muestran, nunca de un filtro mas permisivo (un
+        // checkbox de marca no debe ofrecerse si esa marca ya no aparece
+        // en ningun resultado real).
+        condiciones.push(`(
+            p.codigo ILIKE $${indiceIlike} OR p.marca ILIKE $${indiceIlike}
+            OR (
+                (p.nombre % $${indiceBuscar} OR $${indiceBuscar} <% p.nombre OR p.nombre ILIKE $${indiceIlike})
+                AND ${existeCoincidenciaPorPalabra("p.nombre", indiceBuscar, minimoCoincidenciasPara(buscarNormalizado))}
+            )
+        )`);
     }
 
     if (categoria) {
@@ -516,27 +555,26 @@ async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "",
 
     const whereBase = condiciones.join(" AND ");
 
-    const [marcasRes, precioRes] = await Promise.all([
-        pool.query(
-            `SELECT p.marca, COUNT(*) AS total
+    const sqlMarcas = `SELECT p.marca, COUNT(*) AS total
              FROM public.productos p
              LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
              WHERE ${whereBase} AND p.marca <> ''
              GROUP BY p.marca
              ORDER BY COUNT(*) DESC
-             LIMIT 12`,
-            parametros
-        ),
-        pool.query(
-            `SELECT MIN(COALESCE(p.precio_oferta, p.precio_publico, p.precio)) AS min,
+             LIMIT 12`;
+    const sqlPrecio = `SELECT MIN(COALESCE(p.precio_oferta, p.precio_publico, p.precio)) AS min,
                     MAX(COALESCE(p.precio_oferta, p.precio_publico, p.precio)) AS max
              FROM public.productos p
              JOIN public.sitio_web_config c ON c.negocio_id = p.negocio_id
              LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
-             WHERE ${whereBase} AND c.mostrar_precios = true`,
-            parametros
-        )
-    ]);
+             WHERE ${whereBase} AND c.mostrar_precios = true`;
+
+    const [marcasRes, precioRes] = buscarNormalizado
+        ? await Promise.all([
+            consultarConUmbralPalabra(pool, umbralAdmisionPara(buscarNormalizado), sqlMarcas, parametros),
+            consultarConUmbralPalabra(pool, umbralAdmisionPara(buscarNormalizado), sqlPrecio, parametros)
+        ])
+        : await Promise.all([pool.query(sqlMarcas, parametros), pool.query(sqlPrecio, parametros)]);
 
     return {
         marcas: marcasRes.rows.map(f => ({ marca: f.marca, total: Number(f.total) })),

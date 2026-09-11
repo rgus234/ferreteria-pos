@@ -14,6 +14,16 @@
 // producto que ninguna fuente confirme.
 const { responderError } = require("./error-utils");
 const { identidadPorCodigo } = require("./catalogo-maestro-reconciliacion");
+const {
+    normalizarBusqueda,
+    LIMITE_POR_FUENTE,
+    umbralAdmisionPara,
+    nivelDeCoincidencia,
+    consultarConUmbralPalabra,
+    ordenPorAfinidadInicial,
+    existeCoincidenciaPorPalabra,
+    minimoCoincidenciasPara
+} = require("./busqueda-inteligente");
 
 async function negocioActual(req, pool) {
     const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -35,185 +45,8 @@ async function negocioActual(req, pool) {
     return resultado.rows[0];
 }
 
-// Acentos fuera + minusculas -- "sumergible" debe encontrar
-// "SUMÉRGIBLE". El buscador actual del POS (product-inventory.js) no
-// hace esto hoy; Explorar Nexo si, desde el primer dia.
-function normalizarBusqueda(texto) {
-    return String(texto || "")
-        .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
-        .trim()
-        .toLowerCase()
-        .slice(0, 120);
-}
-
-// Umbrales centralizados y calibrables (decision del dueno, §06 del
-// diseno aprobado): un similarity() alto nunca se presenta como
-// "coincidencia exacta" -- son 3 niveles honestos sobre lo que en
-// realidad es una medida de parecido de texto. Punto de partida para
-// calibrar con busquedas reales, no una promesa de precision.
-const UMBRAL_COINCIDENCIA_FUERTE = 0.55;
-// Subio de 0.30 a 0.40 -- con 0.30, frases de varias palabras muy
-// genericas ("broca para concreto", "manguera para jardin") admitian
-// miles de filas debilmente relacionadas en las tablas globales
-// (2091 de 15758 en catalogo_maestro_productos para "broca para
-// concreto"), forzando a Postgres a revisarlas casi todas y tardando
-// varios segundos. 0.40 deja pasar con margen el caso flagship de
-// abajo (0.4516) y de paso reduce esas 2091 filas a 291 -- medido
-// contra produccion, la busqueda bajo de 3-7s a menos de 1s.
-const UMBRAL_COINCIDENCIA_PROBABLE = 0.40;
-const LIMITE_POR_FUENTE = 10;
-
-// Una busqueda de UNA sola palabra ("candado") es mucho mas propensa
-// a un choque de trigramas sin relacion real que una frase de varias
-// palabras -- encontrado con busquedas reales del dueno: "candado"
-// hacia match con "Dado cuadro 1/2 de impacto..." (word_similarity
-// 0.50) solo porque "dado" esta contenido en "candado", aunque sean
-// productos distintos. Subir el umbral general a 0.55 quitaba ese
-// ruido, pero de paso tumbaba el caso flagship que motivo agregar
-// word_similarity: "pinza para cortar cable grueso" encuentra "Pinza
-// cortacables de alta palanca 24 pulgadas" a un word_similarity de
-// solo 0.4516 (una frase larga diluye el parecido aunque el producto
-// SI sea el correcto -- ver tests/explorar-nexo.test.js). No hay un
-// solo umbral que deje pasar 0.4516 y rechace 0.50: la solucion es
-// exigir mas confianza SOLO cuando la busqueda es de una palabra
-// (ahi es donde vive el choque de trigramas), y dejar la frase larga
-// con el umbral original, mas permisivo.
-const UMBRAL_PALABRA_UNICA = 0.55;
-
-function umbralAdmisionPara(termino) {
-    return termino.trim().includes(" ") ? UMBRAL_COINCIDENCIA_PROBABLE : UMBRAL_PALABRA_UNICA;
-}
-
-function nivelDeCoincidencia(similitud) {
-    if (similitud >= UMBRAL_COINCIDENCIA_FUERTE) return "fuerte";
-    if (similitud >= UMBRAL_COINCIDENCIA_PROBABLE) return "probable";
-    return "relacionado";
-}
-
 function numeroONull(valor) {
     return valor === null || valor === undefined ? null : Number(valor);
-}
-
-// Las 4 fuentes filtran con "col % termino OR word_similarity(termino, col) > umbral"
-// -- el problema real (encontrado con busquedas reales del dueno que
-// se quedaban colgadas, ej. "rotomartillo"): el operador % SI usa el
-// indice GIN de trigramas ya existente en cada tabla, pero
-// word_similarity(...) como llamada de funcion suelta NUNCA lo usa --
-// Postgres tiene que evaluarla fila por fila en TODA la tabla para
-// resolver el OR. Con 14 mil filas en catalogo_fabricante_productos
-// eso ya tardaba mas de 8 segundos.
-//
-// El mismo indice GIN si soporta el operador <% (word_similarity_op):
-// cambiando la funcion suelta por el operador, Postgres resuelve el
-// OR completo con un BitmapOr de dos escaneos de indice (~90ms en
-// vez de +8s, medido contra produccion). El unico costo es que <%
-// no compara contra un umbral fijo del codigo sino contra la GUC de
-// sesion pg_trgm.word_similarity_threshold (default 0.6) -- por eso
-// cada consulta se abre en su propio cliente, fija esa GUC (el umbral
-// segun umbralAdmisionPara) nada mas para esta conexion, y la
-// resetea antes de soltarla: nunca se filtra hacia otra query que
-// comparta el pool.
-async function consultarConUmbralPalabra(pool, umbral, sql, valores) {
-    const client = await pool.connect();
-    try {
-        await client.query(`SET pg_trgm.word_similarity_threshold = ${umbral}`);
-        return await client.query(sql, valores);
-    } finally {
-        await client.query("RESET pg_trgm.word_similarity_threshold").catch(() => {});
-        client.release();
-    }
-}
-
-// Hallazgo real buscando "broca de 1/2": el trigrama por si solo pone
-// "Bolsa con 100 pijas...punta de broca 1/2'" (un tornillo, no una
-// broca) por encima de "Broca SDS Max de 1/2 x 13, TRUPER" -- ambos
-// comparten la palabra "broca" en algun lado del nombre, y similarity()
-// no distingue si esa palabra es DE QUE ES EL PRODUCTO o solo describe
-// una caracteristica secundaria. Pero en como Truper/Pretul/Fiero
-// nombran sus productos, la primera palabra SI es casi siempre el
-// producto en si ("Broca...", "Rotomartillo...", "Pinza..."). Ordenar
-// primero por que tan bien la primera palabra de la busqueda coincide
-// con la primera palabra del nombre -- antes del similitud general --
-// deja los productos correctos arriba sin excluir nada (las "pijas"
-// siguen apareciendo mas abajo, siguen siendo resultados validos por
-// si alguien de verdad las buscaba).
-function ordenPorAfinidadInicial(columna, indiceTermino) {
-    return `GREATEST(
-        similarity(split_part(${columna}, ' ', 1), split_part($${indiceTermino}, ' ', 1)),
-        word_similarity(split_part($${indiceTermino}, ' ', 1), split_part(${columna}, ' ', 1))
-    )`;
-}
-
-// Hallazgo real buscando "chupon": ademas del Chupon de PVC real,
-// tambien admitia "Tornilleria con chumaceras para carretilla" -- ni
-// remotamente el mismo producto. word_similarity("chupon", nombre
-// completo) encuentra su mejor extension DENTRO de "chumaceras"
-// (0.57, exactamente el mismo puntaje que el Chupon real) porque
-// ambas palabras comparten letras, no porque el producto tenga
-// relacion. No hay umbral de similitud de CADENA COMPLETA que separe
-// esto: la solucion es exigir que la palabra principal de la busqueda
-// (la primera) sea genuinamente parecida a ALGUNA palabra suelta del
-// nombre -- similarity() palabra-contra-palabra (no word_similarity
-// contra el nombre completo) SI distingue "chupon" de "chumaceras"
-// (0.20) de "chupon" de "chupón" (0.40, tolera el acento) o de
-// "candado" de "dado" (0.30, se queda justo en el limite y se
-// excluye). Barato de evaluar: solo corre sobre las pocas filas que
-// ya paso el filtro por indice de arriba, nunca la tabla completa.
-const UMBRAL_PALABRA_INDIVIDUAL = 0.30;
-
-// Palabras de 4 letras o menos ("cal", "pija", "liga") son todavia mas
-// propensas al mismo choque que candado/dado: "cal" encontraba
-// "calibre" (similarity 0.33, arriba del umbral normal) en "Carrete
-// con cable... calibre 12" -- ni el mismo producto. Cuanto mas corta
-// la palabra, mas facil que un pedazo de ella empate por casualidad
-// con CUALQUIER palabra mas larga. Se le pide mas confianza solo a
-// las palabras cortas -- una palabra de 5+ letras ya es especifica
-// por si misma (broca, chupon, candado siguen funcionando igual).
-const CONECTORES_ESPANOL = ["de", "del", "la", "el", "los", "las", "un", "una", "unos", "unas", "para", "con", "y", "en", "a", "al"];
-
-// Palabras con contenido real de la busqueda (sin contar conectores
-// como "de"/"para"/"con", que no distinguen nada). Se usa tanto aqui
-// (JS, para saber cuantas coincidencias exigir) como en el SQL de
-// abajo (para contarlas) -- deben ir de la mano.
-function palabrasConContenido(termino) {
-    return termino.trim().toLowerCase().split(/\s+/).filter(palabra => palabra && !CONECTORES_ESPANOL.includes(palabra));
-}
-
-// Hallazgo real buscando "llave de paso" (una valvula): salia "Llave
-// de cruz 14' plegable..." (una llave de tuercas, nada que ver) --
-// ambas EMPIEZAN con "llave", una palabra tan generica que la
-// comparten llaves de cruz, de paso, inglesas, stilson, allen...
-// Revisar solo la primera palabra de la busqueda (como hacia la
-// version anterior de este filtro) no bastaba: una vez que "llave"
-// empataba, nunca se fijaba en que "paso" -- la palabra que de
-// verdad distingue el producto -- no tiene nada que ver con "cruz".
-//
-// Cuando la busqueda trae 2 o mas palabras con contenido real, ahora
-// se exige que AL MENOS 2 de ellas -- no solo la primera -- encuentren
-// alguna palabra parecida en el nombre (similarity() palabra-contra-
-// palabra, igual que candado/dado y chupon/chumaceras). Una busqueda
-// de una sola palabra sigue pidiendo esa unica palabra, sin cambio.
-// Verificado con el caso flagship ("pinza para cortar cable grueso"
-// -> "Pinza cortacables...", coincide en "pinza" Y "cortar"~"cortacables"
-// = 2, pasa) para no repetir el error de un umbral que rescata un caso
-// y rompe el otro.
-function existeCoincidenciaPorPalabra(columna, indiceTermino, minimoCoincidencias) {
-    return `(
-        SELECT COUNT(DISTINCT palabra_busqueda)
-        FROM unnest(string_to_array(lower($${indiceTermino}), ' ')) AS palabra_busqueda
-        WHERE palabra_busqueda <> ALL(ARRAY[${CONECTORES_ESPANOL.map(c => `'${c}'`).join(",")}])
-        AND EXISTS (
-            SELECT 1 FROM unnest(string_to_array(lower(${columna}), ' ')) AS palabra_suelta
-            WHERE similarity(palabra_busqueda, palabra_suelta) > (
-                CASE WHEN length(palabra_busqueda) <= 4 THEN 0.45 ELSE ${UMBRAL_PALABRA_INDIVIDUAL} END
-            )
-        )
-    ) >= ${minimoCoincidencias}`;
-}
-
-function minimoCoincidenciasPara(termino) {
-    return Math.min(2, palabrasConContenido(termino).length) || 1;
 }
 
 // Fuente 1: inventario propio -- mismo patron exacto que
