@@ -149,7 +149,7 @@ ${cabezaTiendaMarketHtml({ titulo, descripcion, color: sitio.negocio.color })}
 ${marketHeaderHtml({ slugTienda: slug, nombreTienda: sitio.negocio.nombre, baseAnclas: "/market" })}
 <div class="market-tienda-scope">
 ${franjaTiendaMarketHtml(sitio, paginaActiva, basePath)}
-${bannerPromocionHtml(sitio.config)}
+${bannerPromocionHtml(sitio.config, slug)}
 <main class="tenant-main">
 ${contenidoHtml}
 </main>
