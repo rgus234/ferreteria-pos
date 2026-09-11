@@ -2988,7 +2988,7 @@ async function servirSolicitudCreditoNegocio(pool, req, res, slug) {
 
         const cuerpoHtml = !req.persona
             ? `<div class="tenant-pedido-banner">Para solicitar credito necesitas iniciar sesion con tu cuenta Nexo -- asi tu solicitud queda ligada a tu identidad, no es anonima.</div>
-<p><a class="tenant-btn-primario" href="/market/mi-cuenta">Iniciar sesion o crear cuenta Nexo</a></p>`
+<p><a class="tenant-btn-primario" href="https://nexoposoficial.com/market/mi-cuenta">Iniciar sesion o crear cuenta Nexo</a></p>`
             : `${bannerHtml}
 <form class="tenant-pedido-form" method="POST" action="/solicitud-credito" enctype="multipart/form-data">
 <div class="tenant-pedido-honeypot" aria-hidden="true"><label>No llenar<input type="text" name="sitioExtra" tabindex="-1" autocomplete="off"></label></div>
@@ -3061,7 +3061,7 @@ async function recibirSolicitudCreditoPublica(pool, req, res, slug) {
         await new Promise(continuar => resolverPersonaOpcional(req, res, continuar));
 
         if (!req.persona) {
-            res.redirect(303, "/market/mi-cuenta");
+            res.redirect(303, "https://nexoposoficial.com/market/mi-cuenta");
             return;
         }
 
@@ -5064,7 +5064,7 @@ document.getElementById('btn').addEventListener('click', async function(){
 
             const resultado = await pool.query(
                 `
-                SELECT id, nombre, telefono, correo, direccion, monto_solicitado, comentario, estado,
+                SELECT id, nombre, telefono, correo, direccion, monto_solicitado, plazo_solicitado_dias, comentario, estado,
                     (ine_frente IS NOT NULL) AS tiene_ine_frente,
                     (ine_reverso IS NOT NULL) AS tiene_ine_reverso,
                     created_at
@@ -5085,6 +5085,7 @@ document.getElementById('btn').addEventListener('click', async function(){
                     correo: fila.correo,
                     direccion: fila.direccion,
                     montoSolicitado: fila.monto_solicitado !== null ? Number(fila.monto_solicitado) : null,
+                    plazoSolicitadoDias: fila.plazo_solicitado_dias !== null ? Number(fila.plazo_solicitado_dias) : null,
                     comentario: fila.comentario,
                     estado: fila.estado,
                     tieneIneFrente: fila.tiene_ine_frente,

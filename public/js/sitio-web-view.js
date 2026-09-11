@@ -543,6 +543,7 @@ function renderListaSolicitudesCredito(solicitudes) {
  ${s.direccion ? ` &middot; ${escapar(s.direccion)}` : ""}
  </div>
  ${s.montoSolicitado !== null ? `<div class="sitio-web-pedido-mensaje">Monto solicitado: $${Number(s.montoSolicitado).toFixed(2)}</div>` : ""}
+ ${s.plazoSolicitadoDias !== null ? `<div class="sitio-web-pedido-mensaje">Plazo que le gustaria: ${s.plazoSolicitadoDias} dias</div>` : ""}
  ${s.comentario ? `<div class="sitio-web-pedido-mensaje">${escapar(s.comentario)}</div>` : ""}
  ${(s.tieneIneFrente || s.tieneIneReverso) ? `
  <div class="sitio-web-ine-fotos">
@@ -550,11 +551,11 @@ function renderListaSolicitudesCredito(solicitudes) {
  ${s.tieneIneReverso ? `<img class="sitio-web-ine-thumb" id="ineReversoImg${s.id}" alt="INE reverso">` : ""}
  </div>` : ""}
  <div class="sitio-web-pedido-acciones">
- ${s.estado !== "aprobado" ? `<button type="button" class="btn-encargo-secundario" onclick="actualizarEstadoSolicitudCredito(${s.id}, 'aprobado')">Aprobar</button>` : ""}
+ ${s.estado !== "aprobado" ? `<button type="button" class="btn-encargo-secundario" onclick="aprobarSolicitudCreditoConTerminos(${s.id}, ${s.montoSolicitado ?? "null"}, ${s.plazoSolicitadoDias ?? "null"})">Aprobar</button>` : ""}
  ${s.estado !== "rechazado" ? `<button type="button" class="btn-encargo-secundario" onclick="actualizarEstadoSolicitudCredito(${s.id}, 'rechazado')">Rechazar</button>` : ""}
  <button type="button" class="btn-encargo-secundario" onclick="eliminarSolicitudCredito(${s.id})">Eliminar solicitud</button>
  </div>
- ${s.estado === "aprobado" ? `<div class="sitio-web-nota">Crea el cliente desde Creditos &rarr; Nuevo cliente.</div>` : ""}
+ ${s.estado === "aprobado" ? `<div class="sitio-web-nota">Ya se creo el acuerdo de credito -- el cliente lo acepta desde su cuenta Nexo (Mi credito) para activarlo.</div>` : ""}
  </div>
  `).join("");
 
@@ -580,6 +581,64 @@ async function cargarMiniaturaIne(id, lado, idImagen) {
 
  if (img) img.src = url;
  } catch (error) { /* silencioso, mismo criterio que el resto de miniaturas */ }
+}
+
+// Aprobar una solicitud SIEMPRE necesita que el negocio fije limite y
+// plazo (el backend lo exige -- "no se aprueban solicitudes sin
+// fijar los terminos", ver PATCH /negocio-actual/solicitudes-credito/:id).
+// Bug real encontrado simulando el flujo completo: este boton nomas
+// mandaba {estado:'aprobado'} sin esos 2 datos, asi que Aprobar
+// jamas funcionaba -- fallaba con un mensaje facil de perder. Se pide
+// con el mismo formulario ya usado en el resto de Creditos,
+// sugiriendo lo que el cliente ya escribio en su solicitud.
+async function aprobarSolicitudCreditoConTerminos(id, montoSugerido, plazoSugerido) {
+ const datos = await abrirFormularioCredito({
+ titulo: "Aprobar solicitud de credito",
+ subtitulo: "Tu fijas el limite y el plazo -- el cliente los vera en su acuerdo antes de aceptarlo.",
+ campos: [
+ {
+ nombre: "limiteCredito",
+ etiqueta: "Limite de credito autorizado",
+ tipo: "number",
+ placeholder: "Ej. 5000",
+ valor: montoSugerido != null ? montoSugerido : "",
+ min: 0,
+ requerido: true
+ },
+ {
+ nombre: "diasCredito",
+ etiqueta: "Plazo de pago (dias)",
+ tipo: "number",
+ placeholder: "Ej. 30",
+ valor: plazoSugerido != null ? plazoSugerido : 30,
+ min: 1,
+ requerido: true
+ }
+ ]
+ });
+
+ if (!datos) return;
+
+ try {
+ const respuesta = await fetch(`/negocio-actual/solicitudes-credito/${id}`, {
+ method: "PATCH",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ estado: "aprobado", limiteCredito: datos.limiteCredito, diasCredito: datos.diasCredito })
+ });
+
+ const resultado = await respuesta.json();
+
+ if (!resultado.ok) {
+ if (typeof alertaPOS === "function") alertaPOS(resultado.error || "No se pudo aprobar la solicitud.", "Sitio web", "alerta");
+ return;
+ }
+
+ if (typeof alertaPOS === "function") alertaPOS("Se creo el acuerdo de credito -- el cliente ya puede aceptarlo desde su cuenta Nexo.", "Solicitud aprobada", "exito");
+
+ cargarSolicitudesCreditoSitioWeb();
+ } catch (error) {
+ if (typeof alertaPOS === "function") alertaPOS("No se pudo aprobar la solicitud. Revisa tu conexion.", "Sitio web", "alerta");
+ }
 }
 
 async function actualizarEstadoSolicitudCredito(id, estado) {
