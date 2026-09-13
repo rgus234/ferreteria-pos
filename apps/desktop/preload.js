@@ -13,6 +13,12 @@ contextBridge.exposeInMainWorld("nexoDesktop", {
     ipcRenderer.on("nexo:update-status-changed", listener);
     return () => ipcRenderer.removeListener("nexo:update-status-changed", listener);
   },
+  openExternal: url => ipcRenderer.invoke("nexo:open-external", url),
+  onWindowFocused: callback => {
+    const listener = () => callback();
+    ipcRenderer.on("nexo:window-focused", listener);
+    return () => ipcRenderer.removeListener("nexo:window-focused", listener);
+  },
   queueEvent: payload => ipcRenderer.invoke("nexo:queue-event", payload),
   syncPush: () => ipcRenderer.invoke("nexo:sync-push"),
   syncRetry: () => ipcRenderer.invoke("nexo:sync-retry"),

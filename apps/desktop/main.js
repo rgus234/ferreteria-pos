@@ -803,6 +803,17 @@ async function createWindow() {
     mainWindow.show();
   });
 
+  // Con "Conectar Gmail" abriendo el navegador normal del equipo (ver
+  // nexo:open-external), el dueno completa la conexion FUERA de esta
+  // ventana -- sin esto, Recepcion Inteligente se quedaria mostrando
+  // "no conectado" hasta que la pantalla se recargara por otra razon.
+  // Avisar al renderer cuando la ventana vuelve a tener foco (ej. el
+  // dueno regresa de Chrome) es la misma señal que ya usa cualquier
+  // pestaña de este navegador para refrescar su estado al volver.
+  mainWindow.on("focus", () => {
+    mainWindow.webContents.send("nexo:window-focused");
+  });
+
   // Si el documento principal falla al cargar (sin internet y sin nada
   // en la cache de apps-shell-cache todavia, ej. equipo recien
   // instalado) se muestra una pantalla clara en vez de quedar en blanco,
@@ -1054,6 +1065,38 @@ ipcMain.handle("nexo:list-printers", async () => {
 ipcMain.handle("nexo:print-ticket", async (_event, payload) => printTicketDesktop(payload));
 
 ipcMain.handle("nexo:open-cash-drawer", async (_event, payload = {}) => openCashDrawerRaw(payload));
+
+// Bug real reportado por el dueno: "Conectar Gmail" (Recepcion
+// Inteligente) navegaba la ventana PRINCIPAL de Electron directo a
+// accounts.google.com con window.location.href -- setWindowOpenHandler
+// (arriba) solo intercepta ventanas NUEVAS, nunca una navegacion en la
+// misma ventana, asi que ese viaje completo al login de Google corria
+// adentro del webview de la app. Cualquier tropiezo de red durante los
+// varios saltos de redireccion de Google (los mismos disparan
+// did-fail-load con normalidad) activaba mostrarPantallaSinConexion()
+// y de ahi el recargo de vuelta a app.nexoposoficial.com, tirando el
+// flujo de OAuth a la mitad -- exactamente lo que el dueno describio
+// (pantalla de "sin conexion" unos segundos, la app se "reinicia" y
+// regresa a Recepcion Inteligente sin haber conectado nada). Un
+// reintento inmediato despues de eso ya le mostraba a Google el
+// generico "Error 401 (Solicitud incorrecta)" en vez del consentimiento.
+// Fix real: la ventana principal nunca navega fuera de Nexo -- el link
+// de conectar se abre en el navegador normal del equipo (Chrome/Edge),
+// igual que ya hace setWindowOpenHandler con cualquier otro link
+// externo. Se valida que sea http(s) por si un renderer comprometido
+// intentara abrir otra cosa (file:, un ejecutable, etc.).
+ipcMain.handle("nexo:open-external", async (_event, url) => {
+  try {
+    const analizada = new URL(String(url || ""));
+    if (analizada.protocol !== "https:" && analizada.protocol !== "http:") {
+      return { ok: false, error: "URL no permitida" };
+    }
+    await shell.openExternal(analizada.href);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
 
 app.whenReady().then(async () => {
   // Bug real encontrado al verificar el primer arranque: en una

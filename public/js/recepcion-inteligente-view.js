@@ -138,6 +138,24 @@ async function mostrarRecepcionInteligente() {
 
 	await riCargarLista();
 	await riCargarEstadoGmail();
+	riEscucharRegresoDeGmail();
+}
+
+// "Conectar Gmail" abre el navegador normal del equipo en vez de esta
+// misma ventana (ver riConectarGmail) -- la conexion se completa AHI,
+// no aqui, asi que esta pantalla necesita enterarse sola cuando el
+// dueno regresa a Nexo en vez de quedarse mostrando "no conectado".
+// mainWindow.on("focus") en apps/desktop/main.js es esa señal. Se
+// suscribe una sola vez por vida de la pagina (esta funcion se vuelve a
+// llamar cada vez que se abre Recepcion Inteligente) para no apilar
+// listeners duplicados que refresquen el estado varias veces de mas.
+let riYaEscuchaRegresoDeGmail = false;
+function riEscucharRegresoDeGmail() {
+	if (riYaEscuchaRegresoDeGmail) return;
+	if (!window.nexoDesktop || typeof window.nexoDesktop.onWindowFocused !== "function") return;
+
+	riYaEscuchaRegresoDeGmail = true;
+	window.nexoDesktop.onWindowFocused(() => { riCargarEstadoGmail(); });
 }
 
 // Fase 2/3: la factura llega sola por Gmail en vez de subirse a mano.
@@ -176,6 +194,26 @@ async function riConectarGmail() {
 
 	if (!respuesta.ok || !datos.ok) {
 		await alertaPOS(datos.error || "No se pudo iniciar la conexion con Gmail.", "Conectar Gmail", "peligro");
+		return;
+	}
+
+	// En el POS de escritorio, la ventana principal NUNCA debe navegar a
+	// un dominio externo: cualquier tropiezo de red durante los saltos de
+	// redireccion de Google se veia como "la app se quedo sin internet" y
+	// recargaba la ventana de vuelta a Nexo, tirando la conexion a medias
+	// (bug real reportado por el dueno -- pantalla de "sin conexion" unos
+	// segundos, la app regresaba sola a Recepcion Inteligente sin haber
+	// conectado nada, y el siguiente intento le mostraba a Google un
+	// generico "Error 401"). Se abre en el navegador normal del equipo,
+	// igual que ya hace cualquier otro link externo de esta app; Recepcion
+	// Inteligente se entera sola cuando el dueno regresa (riEscucharRegresoDeGmail).
+	if (window.nexoDesktop && typeof window.nexoDesktop.openExternal === "function") {
+		const resultado = await window.nexoDesktop.openExternal(datos.url);
+		if (!resultado?.ok) {
+			await alertaPOS("No se pudo abrir el navegador para conectar Gmail.", "Conectar Gmail", "peligro");
+			return;
+		}
+		await alertaPOS("Completa la conexion en la ventana del navegador que se abrio, y regresa aqui.", "Conectar Gmail", "info");
 		return;
 	}
 
