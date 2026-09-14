@@ -151,7 +151,7 @@ function renderSitioWebFormulario(pantalla, datos) {
  <option value="mayoreo" ${datos.nivelPrecio === "mayoreo" ? "selected" : ""}>Medio mayoreo</option>
  <option value="distribuidor" ${datos.nivelPrecio === "distribuidor" ? "selected" : ""}>Mayoreo / distribuidor</option>
  </select>
- <small>Es independiente del precio del mostrador. Si a un producto le falta ese precio, se muestra el publico.</small>
+ <small>Es independiente del precio del mostrador. Aplica aqui y tambien en Nexo Market -- si compites ahi con otras tiendas, este es el precio con el que apareces. Si a un producto le falta ese precio, se muestra el publico.</small>
  </label>
  <label class="sitio-web-toggle">
  <input type="checkbox" id="sitioWebAceptarCredito" ${datos.aceptarSolicitudesCredito ? "checked" : ""}>

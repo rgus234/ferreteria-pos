@@ -41,8 +41,20 @@ const {
     ICONO_PORTAL_USUARIO,
     ICONO_PORTAL_PAGO,
     ICONO_PORTAL_TIENDA,
-    ICONO_PORTAL_SALIR
+    ICONO_PORTAL_SALIR,
+    columnaPrecioMultiTienda
 } = require("./public-site-server");
+
+// Con que precio publica CADA tienda en Market -- ya no siempre el
+// publico (ver migrations/20260927_nivel_precio_market.sql: el dueno ya
+// podia elegir esto para su propio sitio, {slug}.nexoposoficial.com,
+// pero Market -- donde SI compiten tiendas distintas por el mismo
+// producto buscado -- lo tenia fijo en precio_publico siempre, sin
+// leer esa eleccion). Un CASE en SQL (no un valor resuelto en JS como
+// columnaPrecioDeSitio) porque una sola consulta de Market mezcla
+// productos de varias tiendas a la vez, cada una con su propio
+// sitio_web_config.nivel_precio.
+const PRECIO_MARKET = columnaPrecioMultiTienda("p.", "c.");
 
 const CLAVE_FUNCION_SITIO_WEB = "sitio_web.pagina";
 const PRODUCTOS_POR_PAGINA_MARKET = 24;
@@ -255,7 +267,7 @@ async function recomendadosMarket(pool, tiendas, claveOficio, claveGiro, firmarT
 
     const resultado = await pool.query(
         `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
-                CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+                CASE WHEN c.mostrar_precios THEN ${PRECIO_MARKET} END AS precio,
                 CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                 CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
                 fp.actualizado_at AS foto_actualizado_at, c.envio_modo, c.envio_tarifa, c.envio_notas
@@ -279,7 +291,7 @@ async function ofertasMarket(pool, idsPermitidos, firmarTokenImagen) {
 
     const resultado = await pool.query(
         `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
-                CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+                CASE WHEN c.mostrar_precios THEN ${PRECIO_MARKET} END AS precio,
                 CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                 CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
                 fp.actualizado_at AS foto_actualizado_at, c.envio_modo, c.envio_tarifa, c.envio_notas
@@ -377,7 +389,7 @@ async function popularesMarket(pool, idsPermitidos, firmarTokenImagen, limite = 
 
     const resultado = await pool.query(
         `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
-                CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+                CASE WHEN c.mostrar_precios THEN ${PRECIO_MARKET} END AS precio,
                 CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                 CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
                 fp.actualizado_at AS foto_actualizado_at, c.envio_modo, c.envio_tarifa, c.envio_notas
@@ -411,8 +423,8 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
     const condiciones = ["p.negocio_id = ANY($1::int[]) AND p.visible_market = true"];
     const parametros = [idsPermitidos];
     let ordenSql = orden === "recientes" ? "p.id DESC"
-        : orden === "precio_asc" ? "COALESCE(p.precio_oferta, p.precio_publico, p.precio) ASC NULLS LAST"
-        : orden === "precio_desc" ? "COALESCE(p.precio_oferta, p.precio_publico, p.precio) DESC NULLS LAST"
+        : orden === "precio_asc" ? `COALESCE(p.precio_oferta, ${PRECIO_MARKET}) ASC NULLS LAST`
+        : orden === "precio_desc" ? `COALESCE(p.precio_oferta, ${PRECIO_MARKET}) DESC NULLS LAST`
         : "p.nombre ASC";
 
     // Normalizado (acentos fuera, minusculas) con el mismo criterio que
@@ -469,11 +481,11 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
     // que no se muestra seria una fuga de informacion indirecta.
     if (precioMin !== null) {
         parametros.push(precioMin);
-        condiciones.push(`(NOT c.mostrar_precios OR COALESCE(p.precio_oferta, p.precio_publico, p.precio) >= $${parametros.length})`);
+        condiciones.push(`(NOT c.mostrar_precios OR COALESCE(p.precio_oferta, ${PRECIO_MARKET}) >= $${parametros.length})`);
     }
     if (precioMax !== null) {
         parametros.push(precioMax);
-        condiciones.push(`(NOT c.mostrar_precios OR COALESCE(p.precio_oferta, p.precio_publico, p.precio) <= $${parametros.length})`);
+        condiciones.push(`(NOT c.mostrar_precios OR COALESCE(p.precio_oferta, ${PRECIO_MARKET}) <= $${parametros.length})`);
     }
 
     parametros.push(limite);
@@ -483,7 +495,7 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
 
     const sql = `
         SELECT p.codigo, p.nombre, COALESCE(cn.departamento, p.categoria) AS categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
-               CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+               CASE WHEN c.mostrar_precios THEN ${PRECIO_MARKET} END AS precio,
                CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
                fp.actualizado_at AS foto_actualizado_at,
@@ -562,8 +574,8 @@ async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "",
              GROUP BY p.marca
              ORDER BY COUNT(*) DESC
              LIMIT 12`;
-    const sqlPrecio = `SELECT MIN(COALESCE(p.precio_oferta, p.precio_publico, p.precio)) AS min,
-                    MAX(COALESCE(p.precio_oferta, p.precio_publico, p.precio)) AS max
+    const sqlPrecio = `SELECT MIN(COALESCE(p.precio_oferta, ${PRECIO_MARKET})) AS min,
+                    MAX(COALESCE(p.precio_oferta, ${PRECIO_MARKET})) AS max
              FROM public.productos p
              JOIN public.sitio_web_config c ON c.negocio_id = p.negocio_id
              LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
@@ -703,7 +715,7 @@ async function favoritosMarketJson(pool, req, res, firmarTokenImagen) {
 
         const resultado = await pool.query(
             `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
-                    CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+                    CASE WHEN c.mostrar_precios THEN ${PRECIO_MARKET} END AS precio,
                     CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                     CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
                     fp.actualizado_at AS foto_actualizado_at, c.envio_modo, c.envio_tarifa, c.envio_notas
@@ -756,7 +768,7 @@ async function carritoProductosMarketJson(pool, req, res, firmarTokenImagen) {
         const resultado = await pool.query(
             `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
                     n.pedido_prep_min, n.pedido_prep_max, c.whatsapp,
-                    CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+                    CASE WHEN c.mostrar_precios THEN ${PRECIO_MARKET} END AS precio,
                     CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                     CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
                     fp.actualizado_at AS foto_actualizado_at, c.envio_modo, c.envio_tarifa, c.envio_notas
@@ -793,7 +805,7 @@ async function carritoProductosMarketJson(pool, req, res, firmarTokenImagen) {
             const codigosExcluir = productos.map(p => p.codigo);
             const filasRelacionadas = await pool.query(
                 `SELECT p.codigo, p.nombre, p.categoria, p.marca, n.id AS negocio_id, n.slug, n.nombre AS tienda, n.direccion,
-                        CASE WHEN c.mostrar_precios THEN COALESCE(p.precio_publico, p.precio) END AS precio,
+                        CASE WHEN c.mostrar_precios THEN ${PRECIO_MARKET} END AS precio,
                         CASE WHEN c.mostrar_precios THEN p.precio_oferta END AS precio_oferta,
                         CASE WHEN c.mostrar_existencias THEN p.stock END AS stock,
                         fp.actualizado_at AS foto_actualizado_at, c.envio_modo, c.envio_tarifa, c.envio_notas

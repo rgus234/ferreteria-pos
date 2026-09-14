@@ -6,6 +6,15 @@ const { hashPassword } = require("./password-utils");
 const { formatearCodigoRecogida } = require("./pedido-codigos");
 const { enviarCorreoPedidoCarritoPublico, enviarCorreoPedidoRecibido } = require("./email");
 const { enviarPushANegocio } = require("./push-server");
+const { columnaPrecioMultiTienda } = require("./public-site-server");
+
+// Mismo criterio que market-server.js: el precio que se muestra en el
+// catalogo de Market debe ser EXACTAMENTE el que se cobra aqui -- antes
+// de esto, el checkout siempre cobraba precio_publico sin importar que
+// nivel_precio hubiera elegido la tienda, asi que una tienda que
+// decidiera competir en linea con su precio de mayoreo se veia barata
+// en el catalogo pero terminaba cobrando el publico al pagar de verdad.
+const PRECIO_MARKET_CHECKOUT = columnaPrecioMultiTienda("p.", "c.");
 
 // Pagos reales de Nexo Market: cada ferreteria tiene su propia cuenta
 // conectada de Stripe (Connect, API "Accounts v2" -- 100% embebida, el
@@ -685,7 +694,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             const codigos = itemsBody.map(it => String(it?.codigo || "").trim()).filter(Boolean);
 
             const productosRes = await pool.query(
-                `SELECT codigo, COALESCE(precio_publico, precio) AS precio FROM public.productos WHERE negocio_id = $1 AND codigo = ANY($2)`,
+                `SELECT p.codigo, ${PRECIO_MARKET_CHECKOUT} AS precio
+                 FROM public.productos p
+                 JOIN public.sitio_web_config c ON c.negocio_id = p.negocio_id
+                 WHERE p.negocio_id = $1 AND p.codigo = ANY($2)`,
                 [negocio.id, codigos]
             );
             const precioPorCodigo = new Map(productosRes.rows.map(p => [p.codigo, Number(p.precio)]));

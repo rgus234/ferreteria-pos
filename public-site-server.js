@@ -140,6 +140,25 @@ function columnaPrecioDeSitio(sitio, prefijo = "") {
     return "COALESCE(" + prefijo + columna + ", " + prefijo + "precio_publico, " + prefijo + "precio)";
 }
 
+// Version para Nexo Market (columnaPrecioDeSitio arriba solo sirve para
+// UNA tienda a la vez): las consultas de Market mezclan productos de
+// varias tiendas en una sola fila por fila, y cada tienda pudo elegir
+// un nivel distinto (sitio_web_config.nivel_precio, ya unido a la
+// consulta como "prefijoConfig"), asi que la columna a usar no se puede
+// resolver una sola vez en JS -- tiene que decidirse POR FILA dentro
+// del propio SQL. Mismo mapa COLUMNA_POR_NIVEL de arriba (nunca uno
+// duplicado: la lista de niveles validos vive en un solo lugar) y mismo
+// fallback a publico/precio si al nivel elegido le falta ese precio.
+function columnaPrecioMultiTienda(prefijoProducto = "p.", prefijoConfig = "c.") {
+    const publico = `COALESCE(${prefijoProducto}precio_publico, ${prefijoProducto}precio)`;
+    const casos = Object.entries(COLUMNA_POR_NIVEL)
+        .filter(([nivel]) => nivel !== "publico")
+        .map(([nivel, columna]) => `WHEN '${nivel}' THEN COALESCE(${prefijoProducto}${columna}, ${publico})`)
+        .join(" ");
+
+    return `CASE ${prefijoConfig}nivel_precio ${casos} ELSE ${publico} END`;
+}
+
 function escaparHtml(valor) {
     return String(valor || "")
         .replace(/&/g, "&amp;")
@@ -5336,3 +5355,4 @@ module.exports = {
 // Se exporta para poder probar la eleccion de columna sin levantar el
 // servidor entero.
 module.exports.columnaPrecioDeSitio = columnaPrecioDeSitio;
+module.exports.columnaPrecioMultiTienda = columnaPrecioMultiTienda;
