@@ -309,7 +309,19 @@ function pendingEvents(limit = 100, negocioSlug = null) {
     .map(event => resolveEventMappings(event, negocioSlug));
 }
 
-function retryFailedEvents(maxIntentos = 8) {
+// Bug real encontrado en Ferreteria Olimpico: con el tope de 8
+// intentos, un evento que fallaba por una razon de negocio que tarda
+// dias en resolverse (ej. un cliente de credito sin aceptar sus
+// condiciones) dejaba de reintentarse para siempre despues de 8 clics
+// en "Sincronizar ahora" -- sin avisar nada, la venta se quedaba
+// atorada en este archivo local sin que nadie se enterara. La
+// sincronizacion automatica (syncPush, al vender) NUNCA toca eventos en
+// estado 'error' -- solo re-lee 'pendiente' -- asi que el unico camino
+// para que "intentos" suba es que una PERSONA le de "Sincronizar
+// ahora" a proposito. Un reintento pedido a mano nunca debe tener
+// techo: no hay riesgo de bombardear el servidor solo porque alguien
+// hizo clic varias veces en distintos dias.
+function retryFailedEvents(maxIntentos = Number.MAX_SAFE_INTEGER) {
   const result = ensureDb()
     .prepare(`
       UPDATE sync_outbox
@@ -318,7 +330,7 @@ function retryFailedEvents(maxIntentos = 8) {
       WHERE estado = 'error'
       AND intentos < ?
     `)
-    .run(Number(maxIntentos || 8));
+    .run(Number(maxIntentos) || Number.MAX_SAFE_INTEGER);
 
   return result.changes || 0;
 }

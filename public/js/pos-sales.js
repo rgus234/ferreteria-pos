@@ -1945,6 +1945,17 @@ try {
  return;
  }
 
+ // Mismo bug real que en la venta a credito (ver el comentario ahi):
+ // cualquier otro rechazo 4xx (stock insuficiente, producto invalido,
+ // etc.) caia aqui y se encolaba offline igual, con internet real de
+ // por medio -- un motivo que nunca se arregla solo reintentando
+ // despues. Solo un 5xx (la nube con problemas de verdad) tiene
+ // sentido encolarlo.
+ if (respuesta.status < 500) {
+ await alertaPOS(cuerpoError?.error || "No se pudo registrar la venta.", "Venta no registrada", "peligro");
+ return;
+ }
+
  const offline =
  await registrarVentaOfflineDesktopPOS({
  total,
@@ -2346,6 +2357,23 @@ async function cobrarCreditoInternoPOS(total) {
 
  if (cuerpoError?.requiereCerrarTurno) {
  alert(cuerpoError.error || "Tu turno termino. Cierra tu caja para seguir vendiendo.");
+ return;
+ }
+
+ // Bug real encontrado en Ferreteria Olimpico: cualquier otro rechazo
+ // 4xx (ej. "este cliente no acepto sus condiciones de credito", o
+ // esta suspendido -- el caso real: 11 de sus 13 clientes de credito
+ // nunca habian aceptado) caia aqui y se encolaba offline igual,
+ // mostrando "guardado offline, se sincronizara" con internet real de
+ // por medio. El motivo nunca era de conexion, asi que nunca se
+ // arreglaba solo -- y al intentar sincronizar despues, /sync/push
+ // vuelve a aplicar la MISMA validacion (aplicarCreditoCargoSync) y
+ // vuelve a fallar, esta vez en silencio (el chip de sync solo dice
+ // "La nube no confirmo el evento", sin el motivo real). Un 4xx es una
+ // respuesta CIERTA del servidor: solo un 5xx (la nube realmente con
+ // problemas) tiene sentido encolarlo para reintentar despues.
+ if (respuesta.status < 500) {
+ alert(cuerpoError?.error || "No se pudo registrar la venta a credito.");
  return;
  }
 
