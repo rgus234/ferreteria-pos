@@ -138,6 +138,18 @@ async function todasLasReglasPrecio() {
  }
 }
 
+// Fase 7-adicional del plan de identidad multi-proveedor: aplicarRedondeo
+// es pura y autocontenida (a diferencia de resolverMargenProducto/
+// calcularPrecioSugerido, que dependen de normalizarCodigo/normalizarTexto
+// definidas en OTROS archivos del navegador -- product-inventory.js,
+// config-auth.js -- y por eso no se exportan aqui, tronarian en Node) --
+// el servidor (Recepcion Inteligente, para sugerir precio de venta al
+// recibir un producto GAFI nuevo) tambien la necesita. Este guard no
+// cambia nada para el navegador (module siempre es undefined ahi).
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = { aplicarRedondeo };
+}
+
 async function guardarReglasPrecioProveedor(reglas) {
  const respuesta =
  await fetch("/reglas-precios", {

@@ -6,11 +6,15 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { resolverDescuentoPorMonto, costoNetoConDescuento } = require("../descuento-proveedor");
 
-// Tramos reales de GAFI, tal cual los dio el dueño.
+// Tramos reales de GAFI, confirmados por el dueño (version corregida:
+// el tramo de 20% tiene techo en $15,000 -- arriba de eso se asume que
+// sigue siendo 20% -- convencion comun de descuento por volumen -- hasta
+// que el dueño confirme lo contrario).
 const TRAMOS_GAFI = [
-    { desde: 5000, hasta: 7999, porcentaje: 10 },
-    { desde: 8000, hasta: 11999, porcentaje: 12 },
-    { desde: 12000, hasta: null, porcentaje: 20 }
+    { desde: 5000, hasta: 8000, porcentaje: 10 },
+    { desde: 8000, hasta: 12000, porcentaje: 12 },
+    { desde: 12000, hasta: 15000, porcentaje: 20 },
+    { desde: 15000, hasta: null, porcentaje: 20 }
 ];
 
 test("sin tramos configurados, nunca hay descuento (comportamiento de siempre para TRUPER/Diprofer)", () => {

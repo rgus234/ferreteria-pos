@@ -37,10 +37,10 @@ function cfdiXml({ uuid, emisorRfc, emisorNombre, total, conceptos }) {
 </cfdi:Comprobante>`;
 }
 
-async function configurarTramos(proveedor, tramosDescuento) {
+async function configurarTramos(proveedor, tramosDescuento, extra = {}) {
     const respuesta = await fetch(`${BASE_URL}/reglas-precios`, {
         method: "POST", headers: headers(),
-        body: JSON.stringify({ proveedor, redondeo: "ninguno", margenesCategoria: {}, margenesProducto: {}, tramosDescuento })
+        body: JSON.stringify({ proveedor, redondeo: "ninguno", margenesCategoria: {}, margenesProducto: {}, tramosDescuento, ...extra })
     });
     assert.equal(respuesta.status, 200);
 }
@@ -179,4 +179,56 @@ test("Fase 8: una factura que llega por Gmail (origen='gmail') tambien respeta e
     const productoId = (await pool.query(`SELECT producto_id FROM public.recepciones_inteligentes_items WHERE id = $1`, [item.id])).rows[0].producto_id;
     const producto = await pool.query(`SELECT precio_distribuidor FROM public.productos WHERE id = $1`, [productoId]);
     assert.equal(Number(producto.rows[0].precio_distribuidor), 143 * 0.8);
+});
+
+// Precio de venta sugerido al revisar (costo neto con descuento del
+// tramo, Fase 7, mas el margen general del proveedor -- lo que el
+// dueño describio como "despues del 20% de GAFI, le sumo el 30%"):
+// se pide ANTES de decidir, para que el campo "precio de venta" al
+// crear el producto ya venga prellenado, no en blanco.
+test("GET .../facturas/:id sugiere el precio de venta (costo neto + margen general) para un concepto sin decidir", async () => {
+    await configurarTramos("GAFI PRUEBA MARGEN SA DE CV", [{ desde: 12000, hasta: null, porcentaje: 20 }], { margenGeneral: 30 });
+
+    const subida = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({
+            xml: cfdiXml({
+                uuid: "UUID-SUGERIDO-0001", emisorRfc: "GPM850101AB1", emisorNombre: "GAFI PRUEBA MARGEN SA DE CV",
+                total: 15000,
+                conceptos: [{ codigo: "ZZDESC-005", descripcion: "Producto con precio sugerido prueba unica", cantidad: 10, costo: 100 }]
+            })
+        })
+    })).json();
+
+    const detalle = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${subida.recepcionId}`, { headers: headers() })).json();
+    const item = detalle.items[0];
+
+    // Costo de lista 100 -- 20% del tramo (monto 15000) = costo neto 80
+    // -- +30% de margen general = 104.
+    assert.equal(item.precioSugerido, 104, JSON.stringify(item));
+
+    // Una vez decidido (o confirmado), ya no se sugiere nada -- el campo
+    // vuelve a ser responsabilidad de lo que el dueño ya eligio.
+    await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${subida.recepcionId}/items/${item.id}`, {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({ accion: "crear", nombreNuevoProducto: "Producto con precio sugerido prueba unica", precioVenta: 104 })
+    });
+    const detalleTrasDecidir = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${subida.recepcionId}`, { headers: headers() })).json();
+    assert.equal(detalleTrasDecidir.items[0].precioSugerido, null);
+});
+
+test("sin margen general configurado, precioSugerido es null (nunca inventa un margen)", async () => {
+    const subida = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({
+            xml: cfdiXml({
+                uuid: "UUID-SINSUGERIDO-0001", emisorRfc: "TSS850101AB1", emisorNombre: "TRUPER PRUEBA SIN MARGEN SA DE CV",
+                total: 1000,
+                conceptos: [{ codigo: "ZZDESC-006", descripcion: "Producto sin margen configurado prueba unica", cantidad: 1, costo: 50 }]
+            })
+        })
+    })).json();
+
+    const detalle = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${subida.recepcionId}`, { headers: headers() })).json();
+    assert.equal(detalle.items[0].precioSugerido, null);
 });

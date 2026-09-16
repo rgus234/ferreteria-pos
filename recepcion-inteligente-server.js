@@ -19,6 +19,7 @@ const { resolverConceptoFactura } = require("./recepcion-inteligente-matching");
 const { resolverProveedorPorRfc, resolverOcrearProveedorId } = require("./proveedor-resolver");
 const { obtenerAnthropic, licenciaDelNegocio } = require("./ia-server");
 const { costoNetoConDescuento } = require("./descuento-proveedor");
+const { aplicarRedondeo } = require("./public/js/pricing-rules");
 
 async function negocioActual(req, pool) {
     const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -572,6 +573,41 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 );
 
                 const fila = cabecera.rows[0];
+
+                // Precio de venta sugerido para conceptos que todavia no
+                // tienen decision (van a "crear" un producto nuevo): costo
+                // neto (con el tramo de descuento del proveedor si tiene
+                // uno configurado, Fase 7) mas SU margen general (Precios
+                // por proveedor) y redondeo. Por margen de categoria/
+                // producto no se sugiere aqui todavia -- un renglon de
+                // factura (CFDI o remision) no trae una categoria real
+                // con la que cruzar (ClaveProdServ es una clasificacion
+                // generica del SAT, nunca una categoria de Nexo), asi que
+                // solo el margen general tiene una señal confiable. Nunca
+                // se aplica solo: sigue siendo una SUGERENCIA que el
+                // dueño ve y puede cambiar al decidir "crear".
+                let reglaPrecioProveedor = null;
+                if (fila.nombre_emisor) {
+                    const reglaFila = await pool.query(
+                        `SELECT margen_general, redondeo, tramos_descuento FROM public.reglas_precios_proveedor
+                         WHERE negocio_id = $1 AND LOWER(TRIM(proveedor)) = LOWER(TRIM($2))`,
+                        [negocio.id, fila.nombre_emisor]
+                    );
+                    reglaPrecioProveedor = reglaFila.rows[0] || null;
+                }
+                // El tramo de descuento (Fase 7) solo aplica sobre una
+                // factura real -- una remision trae costos estimados por
+                // IA, sin descuento de por medio todavia.
+                const tramosParaSugerencia = fila.origen !== "remision_foto" ? (reglaPrecioProveedor?.tramos_descuento || []) : [];
+
+                function precioSugeridoParaItem(costoUnitario) {
+                    if (!reglaPrecioProveedor || reglaPrecioProveedor.margen_general == null || reglaPrecioProveedor.margen_general === "") {
+                        return null;
+                    }
+                    const { costoNeto } = costoNetoConDescuento(costoUnitario, tramosParaSugerencia, fila.total);
+                    const margen = Number(reglaPrecioProveedor.margen_general);
+                    return aplicarRedondeo(costoNeto * (1 + margen / 100), reglaPrecioProveedor.redondeo || "ninguno");
+                }
                 res.json({
                     ok: true,
                     recepcion: {
@@ -606,7 +642,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         productoId: item.producto_id,
                         accion: item.accion,
                         nombreNuevoProducto: item.nombre_nuevo_producto,
-                        precioVentaNuevoProducto: item.precio_venta_nuevo_producto != null ? Number(item.precio_venta_nuevo_producto) : null
+                        precioVentaNuevoProducto: item.precio_venta_nuevo_producto != null ? Number(item.precio_venta_nuevo_producto) : null,
+                        precioSugerido: item.accion ? null : precioSugeridoParaItem(Number(item.costo_unitario))
                     }))
                 });
             } catch (error) {

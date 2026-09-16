@@ -741,6 +741,17 @@ async function extraerCatalogoPDF(rutaPdf, opciones = {}) {
 
             fabricaCanvas.destroy({ canvas, context });
 
+            // Sin esto, pdfjs se queda con la cache interna de la pagina
+            // (fuentes decodificadas, operator list, imagenes XObject)
+            // viva entre iteraciones -- confirmado real corriendo el
+            // extractor contra el PDF completo de GAFI (636 paginas,
+            // 337MB): la memoria residente crecia de forma sostenida
+            // ~10-13MB por pagina sin bajar nunca (de 638MB en la pagina
+            // 1 a mas de 1.5GB en la pagina 86), una fuga que habria
+            // tumbado el proceso mucho antes de terminar un catalogo real
+            // de este tamano.
+            page.cleanup();
+
             if (typeof onProgreso === "function") {
                 await onProgreso(numeroPagina, totalPaginas);
             }
