@@ -80,7 +80,7 @@ async function buscarEnCatalogoMaestro(pool, codigo) {
     }
 }
 const { resolverOcrearProveedorId } = require("./proveedor-resolver");
-const { contribuirOEnlazarCatalogoMaestro } = require("./catalogo-maestro-resolver");
+const { contribuirOEnlazarCatalogoMaestro, confirmarEanCatalogoMaestro } = require("./catalogo-maestro-resolver");
 
 async function negocioActual(req, pool) {
     const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -349,6 +349,46 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
         }
     });
 
+    // Fase 9 de identidad multi-proveedor: cobertura de imagenes del
+    // Catalogo Maestro (global, no por negocio -- es el mismo catalogo
+    // que comparten todos). "Prefiero 95% bien identificado con 5% sin
+    // imagen, que 100% con imagenes que podrian estar mal" -- por eso
+    // este reporte separa sin_imagen de necesita_revision (una fila con
+    // conflicto sin resolver no cuenta ni a favor ni en contra de la
+    // cobertura real).
+    app.get("/catalogo-maestro/cobertura-imagenes", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const resumen = await pool.query(
+                `
+                SELECT
+                    COUNT(*)::int AS total,
+                    COUNT(*) FILTER (WHERE imagen IS NOT NULL)::int AS con_imagen,
+                    COUNT(*) FILTER (WHERE imagen IS NULL)::int AS sin_imagen,
+                    COUNT(*) FILTER (WHERE necesita_revision)::int AS necesita_revision
+                FROM public.catalogo_maestro_productos
+                `
+            );
+
+            const porFuente = await pool.query(
+                `
+                SELECT NULLIF(imagen_fuente, '') AS fuente, COUNT(*)::int AS total
+                FROM public.catalogo_maestro_productos
+                WHERE imagen IS NOT NULL
+                GROUP BY imagen_fuente
+                ORDER BY total DESC
+                `
+            );
+
+            res.json({
+                ok: true,
+                ...resumen.rows[0],
+                porFuente: porFuente.rows.map(f => ({ fuente: f.fuente, total: f.total }))
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     // Busqueda por codigo cruzando TODOS los catalogos del negocio --
     // Fase 5 del plan "Catalogo Maestro Nexo". Antes, el autocompletado
     // de "Agregar producto" (productoDesdeCatalogo en product-inventory.js)
@@ -370,12 +410,12 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
 
             const fila = await pool.query(
                 `
-                SELECT cp.codigo_proveedor, cp.codigo_interno, cp.codigo_barras, cp.nombre_proveedor, cp.descripcion, cp.marca, cp.categoria,
+                SELECT cp.codigo_proveedor, cp.codigo_interno, cp.clave_proveedor, cp.codigo_barras, cp.nombre_proveedor, cp.descripcion, cp.marca, cp.categoria,
                        cp.precio_distribuidor, cp.precio_medio_mayoreo, cp.precio_publico, cat.proveedor AS proveedor_nombre
                 FROM public.catalogo_productos cp
                 JOIN public.catalogos_proveedor cat ON cat.id = cp.catalogo_id
                 WHERE cp.negocio_id = $1
-                  AND (cp.codigo_proveedor = $2 OR NULLIF(cp.codigo_interno, '') = $2 OR NULLIF(cp.codigo_barras, '') = $2)
+                  AND (cp.codigo_proveedor = $2 OR NULLIF(cp.codigo_interno, '') = $2 OR NULLIF(cp.clave_proveedor, '') = $2 OR NULLIF(cp.codigo_barras, '') = $2)
                 ORDER BY cp.catalogo_id ASC, cp.id ASC
                 LIMIT 1
                 `,
@@ -408,6 +448,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     categoria: cp.categoria || "",
                     unidadVenta: "pieza",
                     codigoInterno: cp.codigo_interno || "",
+                    claveProveedor: cp.clave_proveedor || "",
                     codigoBarras: cp.codigo_barras || "",
                     distribuidor: cp.precio_distribuidor,
                     medioMayoreo: cp.precio_medio_mayoreo,
@@ -416,10 +457,64 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                     stockMinimo: 3,
                     altaRotacion: "",
                     precioDetectado: "medio mayoreo",
-                    codigosRelacionados: [cp.codigo_proveedor, cp.codigo_interno, cp.codigo_barras]
+                    codigosRelacionados: [cp.codigo_proveedor, cp.codigo_interno, cp.clave_proveedor, cp.codigo_barras]
                         .filter(c => c && c !== codigo)
                 }
             });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Fase 3 de identidad multi-proveedor: "aprender EAN por escaneo".
+    // Un producto ya identificado en el Catalogo Maestro (por su codigo
+    // de proveedor o de fabricante, Fase 1) casi siempre trae ademas un
+    // codigo de barras real en el empaque que GAFI -- o cualquier
+    // proveedor sin EAN propio -- nunca reporta. La primera vez que
+    // alguien lo escanea y lo confirma aqui, queda disponible para
+    // cualquier negocio que despues escanee el mismo codigo.
+    //
+    // Nunca guarda un EAN sin pasar su digito verificador, y nunca
+    // reasigna uno que ya pertenece a OTRO producto -- eso se responde
+    // como conflicto (409) para que la pantalla se lo diga al dueño en
+    // vez de adivinar.
+    app.post("/catalogo-maestro/:id/confirmar-ean", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const productoMaestroId = Number(req.params.id);
+            const ean = String(req.body?.ean || "").trim();
+
+            const producto = await pool.query(
+                `SELECT id, nombre, marca FROM public.catalogo_maestro_productos WHERE id = $1`,
+                [productoMaestroId]
+            );
+            if (producto.rows.length === 0) {
+                res.status(404).json({ ok: false, error: "Producto no encontrado en el Catalogo Maestro" });
+                return;
+            }
+
+            const resultado = await confirmarEanCatalogoMaestro(pool, productoMaestroId, ean, `escaneo:negocio-${negocio.id}`);
+
+            if (!resultado.ok && resultado.motivo === "ean_invalido") {
+                res.status(400).json({ ok: false, error: "Ese numero no es un codigo de barras valido (no pasa el digito verificador)." });
+                return;
+            }
+
+            if (!resultado.ok && resultado.motivo === "conflicto") {
+                const otro = await pool.query(
+                    `SELECT nombre, marca FROM public.catalogo_maestro_productos WHERE id = $1`,
+                    [resultado.otroProductoMaestroId]
+                );
+                res.status(409).json({
+                    ok: false,
+                    error: otro.rows[0]
+                        ? `Ese codigo de barras ya esta registrado para otro producto: "${otro.rows[0].nombre}" (${otro.rows[0].marca}). Verifica que no sea un error antes de continuar.`
+                        : "Ese codigo de barras ya esta registrado para otro producto."
+                });
+                return;
+            }
+
+            res.json({ ok: true });
         } catch (error) {
             responderError(res, error);
         }
@@ -474,6 +569,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                         marca: String(p.marca || ""),
                         categoria: String(p.categoria || ""),
                         codigoInterno: String(p.codigoInterno || ""),
+                        claveProveedor: String(p.claveProveedor || ""),
                         codigoBarras: String(p.codigoBarras || ""),
                         distribuidor: Number.isFinite(Number(p.distribuidor)) ? Number(p.distribuidor) : null,
                         medioMayoreo: Number.isFinite(Number(p.medioMayoreo)) ? Number(p.medioMayoreo) : null,
@@ -500,16 +596,16 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                 const TAMANO_LOTE = 400;
                 for (let inicio = 0; inicio < filas.length; inicio += TAMANO_LOTE) {
                     const lote = filas.slice(inicio, inicio + TAMANO_LOTE);
-                    const columnasPorFila = 10; // codigoProveedor..precioPublico (negocio_id/catalogo_id van fijos en $1/$2, precio_publico_anterior es NULL literal)
+                    const columnasPorFila = 11; // codigoProveedor..precioPublico (negocio_id/catalogo_id van fijos en $1/$2, precio_publico_anterior es NULL literal)
                     const valoresSQL = [];
                     const parametros = [];
 
                     lote.forEach((fila, indice) => {
                         const base = indice * columnasPorFila;
-                        valoresSQL.push(`($1,$2,$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},NULL)`);
+                        valoresSQL.push(`($1,$2,$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},NULL)`);
                         parametros.push(
                             fila.codigoProveedor, fila.nombre, fila.descripcion, fila.marca, fila.categoria,
-                            fila.codigoInterno, fila.codigoBarras, fila.distribuidor, fila.medioMayoreo, fila.precioPublico
+                            fila.codigoInterno, fila.claveProveedor, fila.codigoBarras, fila.distribuidor, fila.medioMayoreo, fila.precioPublico
                         );
                     });
 
@@ -517,7 +613,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                         `
                         INSERT INTO public.catalogo_productos
                             (negocio_id, catalogo_id, codigo_proveedor, nombre_proveedor, descripcion, marca, categoria,
-                             codigo_interno, codigo_barras, precio_distribuidor, precio_medio_mayoreo, precio_publico, precio_publico_anterior)
+                             codigo_interno, clave_proveedor, codigo_barras, precio_distribuidor, precio_medio_mayoreo, precio_publico, precio_publico_anterior)
                         VALUES ${valoresSQL.join(",")}
                         ON CONFLICT (catalogo_id, codigo_proveedor) DO UPDATE SET
                             nombre_proveedor = EXCLUDED.nombre_proveedor,
@@ -525,6 +621,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                             marca = EXCLUDED.marca,
                             categoria = EXCLUDED.categoria,
                             codigo_interno = EXCLUDED.codigo_interno,
+                            clave_proveedor = EXCLUDED.clave_proveedor,
                             codigo_barras = EXCLUDED.codigo_barras,
                             precio_distribuidor = EXCLUDED.precio_distribuidor,
                             precio_medio_mayoreo = EXCLUDED.precio_medio_mayoreo,
@@ -812,12 +909,16 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
             try {
                 const catalogoMaestroId = await contribuirOEnlazarCatalogoMaestro(pool, negocio.id, {
                     codigo: cp.codigo_interno || cp.codigo_proveedor,
+                    codigoFabricante: cp.clave_proveedor,
+                    ean: cp.codigo_barras,
                     marca: cp.marca,
                     nombre: cp.nombre_proveedor,
                     descripcion: cp.descripcion,
                     categoriaNexoId,
                     imagen: cp.imagen,
-                    imagenTipo: cp.imagen_tipo
+                    imagenTipo: cp.imagen_tipo,
+                    imagenConfianza: cp.confianza_imagen,
+                    fuente: nombreProveedorCatalogo
                 });
                 if (catalogoMaestroId) {
                     await pool.query(`UPDATE public.productos SET catalogo_maestro_id = $1 WHERE id = $2`, [catalogoMaestroId, productoId]);

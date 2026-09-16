@@ -1614,3 +1614,10 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
 // pueda probar el emparejamiento por trigram directo, sin depender de
 // una respuesta real de Claude.
 module.exports.buscarCandidatosPorTerminos = buscarCandidatosPorTerminos;
+
+// Expuestos para que otros modulos con su propia funcion de vision
+// (recepcion-inteligente-server.js: extraer una remision de una foto)
+// reusen el mismo cliente perezoso y el mismo calculo de acceso a IA
+// por plan, en vez de reimplementarlos.
+module.exports.obtenerAnthropic = obtenerAnthropic;
+module.exports.licenciaDelNegocio = licenciaDelNegocio;

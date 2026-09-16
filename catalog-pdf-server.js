@@ -544,12 +544,16 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 try {
                     const catalogoMaestroId = await contribuirOEnlazarCatalogoMaestro(pool, negocio.id, {
                         codigo: cp.codigo_interno || cp.codigo_proveedor,
+                        codigoFabricante: cp.clave_proveedor,
+                        ean: cp.codigo_barras,
                         marca: cp.marca,
                         nombre: cp.nombre_proveedor || cp.codigo_proveedor,
                         descripcion: cp.descripcion,
                         categoriaNexoId: null,
                         imagen: cp.imagen,
-                        imagenTipo: cp.imagen_tipo
+                        imagenTipo: cp.imagen_tipo,
+                        imagenConfianza: cp.confianza_imagen,
+                        fuente: nombreProveedorCatalogo
                     });
                     if (catalogoMaestroId) {
                         await pool.query(`UPDATE public.productos SET catalogo_maestro_id = $1 WHERE id = $2`, [catalogoMaestroId, productoId]);

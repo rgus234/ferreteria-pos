@@ -102,6 +102,20 @@
  border-color:var(--brand-color,#0d6efd);
  background:color-mix(in srgb, var(--brand-color,#0d6efd) 6%, var(--pos-surface-strong,#fff));
 }
+/* Coincidencia exacta por codigo/EAN (identidadPorCodigo, Fase 1-3 de
+   identidad multi-proveedor): es la respuesta, no una sugerencia por
+   parecido -- se separa visualmente de las tarjetas normales con el
+   mismo verde que ya usa "Coincidencia fuerte". */
+.explorar-nexo-coincidencia-exacta{
+ margin-bottom:14px;
+ border:1px solid rgba(22,163,74,.35);
+ background:rgba(22,163,74,.08);
+}
+.explorar-nexo-coincidencia-exacta.seleccionada{
+ border-color:#15803d;
+ background:rgba(22,163,74,.14);
+}
+.explorar-nexo-coincidencia-exacta .explorar-nexo-tarjeta-meta{ color:#15803d; font-weight:600; }
 .explorar-nexo-tarjeta-icono{
  width:64px;
  height:64px;
@@ -268,6 +282,11 @@ body.oscuro .explorar-nexo-tarjeta{
  color:#f8fafc !important;
 }
 body.oscuro .explorar-nexo-tarjeta-icono{ background:rgba(148,163,184,.14) !important; }
+body.oscuro .explorar-nexo-coincidencia-exacta{
+ background:rgba(22,163,74,.16) !important;
+ border-color:rgba(34,197,94,.4) !important;
+}
+body.oscuro .explorar-nexo-coincidencia-exacta .explorar-nexo-tarjeta-meta{ color:#4ade80 !important; }
 body.oscuro .explorar-nexo-ficha-precio-caja{ background:rgba(148,163,184,.1) !important; }
 body.oscuro .explorar-nexo-ficha-nota{ background:rgba(148,163,184,.1) !important; color:#cbd5e1 !important; }
 /* Las fotos reales (banco/fabricante) traen fondo blanco -- se deja

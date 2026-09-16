@@ -11,11 +11,14 @@
 // endpoint de este archivo toca productos.stock excepto
 // POST /:id/confirmar, y solo para los conceptos que una persona ya
 // decidio.
+const sharp = require("sharp");
 const { responderError } = require("./error-utils");
 const { PERMISOS, requerirPermiso } = require("./rbac");
 const { parsearCfdi } = require("./cfdi-parser");
 const { resolverConceptoFactura } = require("./recepcion-inteligente-matching");
-const { resolverProveedorPorRfc } = require("./proveedor-resolver");
+const { resolverProveedorPorRfc, resolverOcrearProveedorId } = require("./proveedor-resolver");
+const { obtenerAnthropic, licenciaDelNegocio } = require("./ia-server");
+const { costoNetoConDescuento } = require("./descuento-proveedor");
 
 async function negocioActual(req, pool) {
     const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -81,13 +84,46 @@ function decisionInicial(candidato) {
     return { accion: "", productoId: null };
 }
 
-// Corazon del pipeline, compartido por las 2 formas de "llegar" una
-// factura: subida a mano (POST /facturas, este archivo) y Gmail (Fase
-// 2, recepcion-inteligente-gmail.js). Nunca duplicar esta logica --
-// cualquier mejora al parseo/matching/deduplicacion debe beneficiar a
-// las dos fuentes por igual. Tira un error con .httpStatus para que el
-// llamador decida como responder (una request HTTP vs. un mensaje mas
-// de un lote de Gmail que debe seguir con el siguiente).
+// Resuelve y guarda los renglones de una recepcion -- compartido por
+// las 3 formas de "llegar" una recepcion: CFDI a mano, CFDI por Gmail,
+// y foto de remision (Fase 5). Un concepto/renglon de mercancia
+// recibida siempre se resuelve contra el inventario/catalogos igual,
+// sin importar si el texto vino de parsear un XML o de que la IA leyera
+// una foto. Nunca duplicar esta logica.
+async function insertarItemsRecepcionInteligente(pool, client, negocioId, recepcionId, conceptos) {
+    let identificados = 0;
+
+    for (const concepto of conceptos) {
+        const candidato = await resolverConceptoFactura(pool, negocioId, concepto);
+        const decision = decisionInicial(candidato);
+        if (decision.accion) identificados++;
+
+        await client.query(
+            `INSERT INTO public.recepciones_inteligentes_items
+                (negocio_id, recepcion_id, codigo_factura, clave_prod_serv, descripcion, cantidad,
+                 unidad, costo_unitario, importe, descuento, candidato, nivel, producto_id, accion)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14)`,
+            [
+                negocioId, recepcionId, concepto.codigo, concepto.claveProdServ, concepto.descripcion,
+                concepto.cantidad, concepto.unidad, concepto.costo, concepto.importe, concepto.descuento,
+                candidato ? JSON.stringify(candidato) : null,
+                candidato ? candidato.nivel : null,
+                decision.productoId, decision.accion
+            ]
+        );
+    }
+
+    return identificados;
+}
+
+// Corazon del pipeline CFDI, compartido por las 2 formas de "llegar"
+// una factura real: subida a mano (POST /facturas, este archivo) y
+// Gmail (Fase 2, recepcion-inteligente-gmail.js). Nunca duplicar esta
+// logica -- cualquier mejora al parseo/matching/deduplicacion debe
+// beneficiar a las dos fuentes por igual. Tira un error con
+// .httpStatus para que el llamador decida como responder (una request
+// HTTP vs. un mensaje mas de un lote de Gmail que debe seguir con el
+// siguiente).
 async function procesarFacturaXml(pool, negocioId, xml, { origen = "manual", empleadoId = null, pdfBase64 = null } = {}) {
     if (!xml || typeof xml !== "string" || !xml.trim()) {
         const error = new Error("Falta el XML de la factura");
@@ -151,27 +187,7 @@ async function procesarFacturaXml(pool, negocioId, xml, { origen = "manual", emp
         }
 
         const recepcionId = recepcion.rows[0].id;
-        let identificados = 0;
-
-        for (const concepto of factura.conceptos) {
-            const candidato = await resolverConceptoFactura(pool, negocioId, concepto);
-            const decision = decisionInicial(candidato);
-            if (decision.accion) identificados++;
-
-            await client.query(
-                `INSERT INTO public.recepciones_inteligentes_items
-                    (negocio_id, recepcion_id, codigo_factura, clave_prod_serv, descripcion, cantidad,
-                     unidad, costo_unitario, importe, descuento, candidato, nivel, producto_id, accion)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14)`,
-                [
-                    negocioId, recepcionId, concepto.codigo, concepto.claveProdServ, concepto.descripcion,
-                    concepto.cantidad, concepto.unidad, concepto.costo, concepto.importe, concepto.descuento,
-                    candidato ? JSON.stringify(candidato) : null,
-                    candidato ? candidato.nivel : null,
-                    decision.productoId, decision.accion
-                ]
-            );
-        }
+        const identificados = await insertarItemsRecepcionInteligente(pool, client, negocioId, recepcionId, factura.conceptos);
 
         if (pdfBase64) {
             await client.query(
@@ -207,6 +223,214 @@ async function procesarFacturaXml(pool, negocioId, xml, { origen = "manual", emp
     }
 }
 
+// Fase 5: leer una remision impresa (o cualquier hoja que un proveedor
+// entregue junto con la mercancia) desde una foto, en vez de esperar el
+// CFDI que puede llegar dias despues -- asi el stock se puede aplicar
+// en el momento sin frenar la recepcion de mercancia. Mismo patron que
+// /negocio-actual/identificar-producto-foto (ia-server.js): Haiku,
+// nunca se guarda la foto, la IA solo propone texto -- el candidato de
+// cada renglon sigue saliendo de resolverConceptoFactura contra datos
+// reales, nunca de lo que "cree" el modelo.
+const SYSTEM_PROMPT_EXTRAER_REMISION = `Ayudas a un empleado de una ferreteria mexicana a registrar mercancia que acaba de recibir de un proveedor, a partir de una foto de la nota de remision (o documento similar) que trajo el repartidor junto con el pedido.
+
+Responde UNICAMENTE con un JSON (sin texto extra, sin fences de markdown) con esta forma exacta:
+{"proveedor": "..." o null, "folio": "..." o null, "fecha": "AAAA-MM-DD" o null, "items": [{"codigo": "..." o null, "descripcion": "...", "cantidad": numero, "costoUnitario": numero o null}]}
+
+Reglas:
+- "proveedor": el nombre del proveedor/distribuidor impreso en la hoja (ej. "GAFI"), null si no es legible.
+- "folio": el numero de remision/nota/factura impreso, null si no es legible.
+- "fecha": la fecha del documento en formato AAAA-MM-DD, null si no es legible o no aparece.
+- "items": una fila por cada renglon real de la tabla de productos -- nunca inventes un renglon que no este impreso, nunca combines dos renglones en uno, nunca omitas uno por estar borroso (mejor con datos incompletos que faltante).
+- "codigo": el codigo/clave de ESE renglon tal cual esta impreso, null si no es legible -- nunca lo inventes ni lo copies de otro renglon.
+- "cantidad": siempre un numero; si no es legible, usa 0.
+- "costoUnitario": el precio unitario de ESE renglon si es legible, null si no aparece o no se puede leer con certeza -- nunca lo calcules dividiendo el importe entre la cantidad si el precio unitario mismo no esta impreso.
+- Si la foto no muestra una tabla de productos reconocible, responde con "items": [].`;
+
+async function extraerRemisionDeFoto(imagenBase64) {
+    const anthropic = obtenerAnthropic();
+    if (!anthropic) {
+        const error = new Error("Nexo IA todavia no esta configurado en este servidor");
+        error.httpStatus = 503;
+        throw error;
+    }
+
+    const coincidenciaDataUrl = String(imagenBase64 || "").match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/);
+    if (!coincidenciaDataUrl) {
+        const error = new Error("Falta la foto o el formato no es valido");
+        error.httpStatus = 400;
+        throw error;
+    }
+
+    // 1600px (mas que los 1024 de identificar-producto-foto): ahi se
+    // busca leer una pieza sola de cerca, aqui hace falta que una tabla
+    // completa de renglones siga siendo legible. Nunca se persiste,
+    // solo vive en memoria durante esta llamada.
+    const bufferOriginal = Buffer.from(coincidenciaDataUrl[1], "base64");
+    const bufferParaIA = await sharp(bufferOriginal)
+        .resize({ width: 1600, withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+
+    const respuesta = await anthropic.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 2000,
+        system: SYSTEM_PROMPT_EXTRAER_REMISION,
+        messages: [{
+            role: "user",
+            content: [
+                { type: "image", source: { type: "base64", media_type: "image/jpeg", data: bufferParaIA.toString("base64") } },
+                { type: "text", text: "Lee esta nota de remision y extrae sus renglones." }
+            ]
+        }]
+    });
+
+    const texto = respuesta.content
+        .filter(bloque => bloque.type === "text")
+        .map(bloque => bloque.text)
+        .join("")
+        .trim();
+
+    const coincidenciaObjeto = texto.match(/\{[\s\S]*\}/);
+    let salidaIA = {};
+    try {
+        salidaIA = JSON.parse(coincidenciaObjeto ? coincidenciaObjeto[0] : texto);
+    } catch (error) {
+        salidaIA = {};
+    }
+
+    const items = Array.isArray(salidaIA?.items)
+        ? salidaIA.items
+            .map(item => ({
+                codigo: typeof item?.codigo === "string" ? item.codigo.trim().slice(0, 80) : "",
+                descripcion: typeof item?.descripcion === "string" ? item.descripcion.trim().slice(0, 300) : "",
+                cantidad: num(item?.cantidad),
+                costoUnitario: Number.isFinite(Number(item?.costoUnitario)) ? Number(item.costoUnitario) : null
+            }))
+            .filter(item => item.descripcion)
+        : [];
+
+    return {
+        proveedor: typeof salidaIA?.proveedor === "string" ? salidaIA.proveedor.trim().slice(0, 120) : "",
+        folio: typeof salidaIA?.folio === "string" ? salidaIA.folio.trim().slice(0, 60) : "",
+        fecha: /^\d{4}-\d{2}-\d{2}$/.test(salidaIA?.fecha || "") ? salidaIA.fecha : null,
+        items
+    };
+}
+
+// Guarda lo que la IA extrajo de la foto como una recepcion mas, con el
+// mismo pipeline de revision/matching que ya usan las facturas CFDI --
+// nunca aplica stock aqui: eso solo pasa al confirmar (mismo principio
+// del archivo completo).
+async function procesarRemisionFoto(pool, negocioId, extraido, { empleadoId = null } = {}) {
+    const items = Array.isArray(extraido?.items) ? extraido.items : [];
+    if (!items.length) {
+        const error = new Error("No se reconocio ningun producto en la foto");
+        error.httpStatus = 400;
+        throw error;
+    }
+
+    const proveedorId = extraido.proveedor
+        ? await resolverOcrearProveedorId(pool, negocioId, extraido.proveedor)
+        : null;
+
+    const conceptos = items.map(item => ({
+        codigo: item.codigo || "",
+        claveProdServ: "",
+        descripcion: item.descripcion,
+        cantidad: item.cantidad,
+        unidad: "pieza",
+        costo: item.costoUnitario || 0,
+        importe: (Number(item.cantidad) || 0) * (Number(item.costoUnitario) || 0),
+        descuento: 0
+    }));
+
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
+
+        const recepcion = await client.query(
+            `INSERT INTO public.recepciones_inteligentes
+                (negocio_id, origen, proveedor_id, nombre_emisor, folio, fecha_documento, total)
+             VALUES ($1,'remision_foto',$2,$3,$4,$5,$6)
+             RETURNING id`,
+            [
+                negocioId, proveedorId, extraido.proveedor || "", extraido.folio || "", extraido.fecha,
+                conceptos.reduce((suma, c) => suma + num(c.importe), 0)
+            ]
+        );
+        const recepcionId = recepcion.rows[0].id;
+
+        const identificados = await insertarItemsRecepcionInteligente(pool, client, negocioId, recepcionId, conceptos);
+
+        await client.query("COMMIT");
+
+        await registrarBitacora(pool, negocioId, empleadoId, "recepcion_inteligente_detectada", {
+            recepcionId, proveedor: extraido.proveedor, folio: extraido.folio,
+            conceptos: conceptos.length, identificados, origen: "remision_foto"
+        });
+
+        return {
+            recepcionId,
+            proveedorResuelto: Boolean(proveedorId),
+            totalConceptos: conceptos.length,
+            identificados,
+            porRevisar: conceptos.length - identificados
+        };
+    } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+// Conciliacion remision <-> CFDI (Fase 5): antes de aplicar stock por
+// una factura real, hay que saber si ese mismo pedido ya se recibio por
+// una remision (stock ya aplicado entonces) para no duplicarlo. Solo
+// mira el mismo proveedor con una recepcion de mercancia todavia sin
+// factura, en una ventana de tiempo razonable -- nunca decide sola cual
+// es "la correcta": regresa la mas reciente y, si hay mas de una
+// posible, lo dice, para que una persona confirme o descarte.
+const DIAS_VENTANA_CONCILIACION_REMISION = 20;
+
+async function buscarRemisionPendienteConciliable(pool, negocioId, proveedorId) {
+    if (!proveedorId) return null;
+
+    // El camino real hoy (remision por foto, Fase 5) resuelve su propio
+    // proveedor_id en recepciones_inteligentes y queda ligada a la
+    // recepcion_mercancia que crea al confirmarse -- se busca por ahi.
+    // Una remision futura registrada por otro medio (ej. a mano, sin
+    // pasar por Recepcion Inteligente) no entra todavia a este
+    // emparejamiento -- se puede sumar despues sin tocar esta funcion.
+    const candidatas = await pool.query(
+        `SELECT rm.id, rm.referencia, rm.fecha_documento, rm.total, rm.created_at
+         FROM public.recepciones_mercancia rm
+         JOIN public.recepciones_inteligentes ri ON ri.recepcion_mercancia_id = rm.id
+         WHERE rm.negocio_id = $1
+           AND rm.estado = 'recibido_sin_factura'
+           AND ri.proveedor_id = $2
+           AND rm.created_at > NOW() - INTERVAL '${DIAS_VENTANA_CONCILIACION_REMISION} days'
+         ORDER BY rm.created_at DESC`,
+        [negocioId, proveedorId]
+    );
+
+    if (!candidatas.rows.length) return null;
+
+    const items = await pool.query(
+        `SELECT codigo, nombre, cantidad, costo FROM public.recepciones_mercancia_items WHERE recepcion_id = $1 ORDER BY id`,
+        [candidatas.rows[0].id]
+    );
+
+    return {
+        recepcionMercanciaId: candidatas.rows[0].id,
+        referencia: candidatas.rows[0].referencia,
+        fechaDocumento: candidatas.rows[0].fecha_documento,
+        total: num(candidatas.rows[0].total),
+        items: items.rows.map(i => ({ codigo: i.codigo, nombre: i.nombre, cantidad: num(i.cantidad), costo: num(i.costo) })),
+        otrasPendientes: candidatas.rows.length - 1
+    };
+}
+
 module.exports = (app, pool, requerirAccesoNegocio) => {
     // Sube una factura a mano -- lo que en la Fase 2 hara el correo
     // solo. Body: { xml: "<texto del CFDI>", pdfBase64?: "..." }.
@@ -226,6 +450,42 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 });
 
                 res.json({ ok: true, ...resultado });
+            } catch (error) {
+                if (error.httpStatus) {
+                    res.status(error.httpStatus).json({ ok: false, error: error.message });
+                    return;
+                }
+                responderError(res, error);
+            }
+        }
+    );
+
+    // Fase 5: registrar una remision a partir de una foto -- para no
+    // frenar la mercancia mientras se espera el CFDI real (puede llegar
+    // dias despues). Mismo candado de plan que ya usa
+    // /negocio-actual/identificar-producto-foto: sin IA disponible en
+    // este plan, se responde con claridad en vez de dejar la pantalla
+    // colgada.
+    app.post(
+        "/recepcion-inteligente/remision-foto",
+        requerirAccesoNegocio,
+        requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO),
+        async (req, res) => {
+            try {
+                const negocio = await negocioActual(req, pool);
+                const acceso = await licenciaDelNegocio(pool, negocio.id);
+
+                if (!acceso.iaDisponible) {
+                    res.json({ ok: true, disponible: false });
+                    return;
+                }
+
+                const extraido = await extraerRemisionDeFoto(req.body?.imagenBase64);
+                const resultado = await procesarRemisionFoto(pool, negocio.id, extraido, {
+                    empleadoId: empleadoIdDeRequest(req)
+                });
+
+                res.json({ ok: true, disponible: true, proveedorDetectado: extraido.proveedor, folioDetectado: extraido.folio, ...resultado });
             } catch (error) {
                 if (error.httpStatus) {
                     res.status(error.httpStatus).json({ ok: false, error: error.message });
@@ -349,6 +609,44 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         precioVentaNuevoProducto: item.precio_venta_nuevo_producto != null ? Number(item.precio_venta_nuevo_producto) : null
                     }))
                 });
+            } catch (error) {
+                responderError(res, error);
+            }
+        }
+    );
+
+    // Fase 5: antes de confirmar una factura real, la pantalla pregunta
+    // aqui si hay una remision de este mismo proveedor que ya se recibio
+    // y todavia espera factura -- para mostrar la comparacion ANTES de
+    // que el dueño decida, no despues. Nunca decide sola cual es "la
+    // correcta".
+    app.get(
+        "/recepcion-inteligente/facturas/:id/posible-conciliacion",
+        requerirAccesoNegocio,
+        requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO),
+        async (req, res) => {
+            try {
+                const negocio = await negocioActual(req, pool);
+
+                const recepcion = await pool.query(
+                    `SELECT proveedor_id, origen FROM public.recepciones_inteligentes WHERE id = $1 AND negocio_id = $2`,
+                    [req.params.id, negocio.id]
+                );
+                if (!recepcion.rows.length) {
+                    res.status(404).json({ ok: false, error: "Recepcion no encontrada" });
+                    return;
+                }
+
+                // Una remision por foto no puede "conciliar" con otra
+                // remision -- solo aplica cuando lo que se esta por
+                // confirmar es una factura real.
+                if (recepcion.rows[0].origen === "remision_foto") {
+                    res.json({ ok: true, remisionPendiente: null });
+                    return;
+                }
+
+                const remisionPendiente = await buscarRemisionPendienteConciliable(pool, negocio.id, recepcion.rows[0].proveedor_id);
+                res.json({ ok: true, remisionPendiente });
             } catch (error) {
                 responderError(res, error);
             }
@@ -503,6 +801,64 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     return;
                 }
 
+                // Fase 5: una factura real (nunca una remision por foto,
+                // que no tiene con que conciliar) puede corresponder a
+                // una remision de este mismo proveedor que ya se recibio
+                // y ya aplico su stock. Sin este paso, confirmar el CFDI
+                // volveria a sumar el mismo stock una segunda vez.
+                //
+                // Nunca se decide sola: si no viene body.conciliarConRecepcionMercanciaId
+                // (la pantalla ya lo pidio explicitamente, tras mostrar
+                // la comparacion via GET .../posible-conciliacion) ni
+                // body.ignorarConciliacion (el dueño ya dijo "no, es
+                // distinta"), y SI existe una remision pendiente, se
+                // aborta con 409 para que la pantalla pregunte primero.
+                const conciliarConId = Number(req.body?.conciliarConRecepcionMercanciaId) || null;
+                let remisionAConciliar = null;
+
+                if (recepcion.rows[0].origen !== "remision_foto" && !req.body?.ignorarConciliacion) {
+                    if (conciliarConId) {
+                        const fila = await client.query(
+                            `SELECT id FROM public.recepciones_mercancia
+                             WHERE id = $1 AND negocio_id = $2 AND estado = 'recibido_sin_factura' FOR UPDATE`,
+                            [conciliarConId, negocio.id]
+                        );
+                        if (!fila.rows.length) {
+                            await client.query("ROLLBACK");
+                            res.status(400).json({ ok: false, error: "La remision indicada ya no esta pendiente de conciliar" });
+                            return;
+                        }
+                        remisionAConciliar = fila.rows[0];
+                    } else {
+                        const posible = await buscarRemisionPendienteConciliable(pool, negocio.id, recepcion.rows[0].proveedor_id);
+                        if (posible) {
+                            await client.query("ROLLBACK");
+                            res.status(409).json({ ok: false, requiereConciliacion: true, remisionPendiente: posible });
+                            return;
+                        }
+                    }
+                }
+
+                // Fase 7: tramo de descuento por monto de factura -- SOLO
+                // si este proveedor (por nombre, mismo criterio que ya usa
+                // GET /reglas-precios/:proveedor) tiene tramos configurados
+                // a proposito desde la pantalla de Precios por proveedor.
+                // Un proveedor sin tramos (TRUPER, Diprofer, cualquiera que
+                // el dueño no haya configurado) sigue exactamente igual que
+                // antes de esta fase -- nunca se activa solo. Nunca aplica
+                // sobre una remision (costos estimados por IA, todavia sin
+                // documento fiscal real).
+                let tramosDescuentoProveedor = [];
+                if (recepcion.rows[0].origen !== "remision_foto" && recepcion.rows[0].nombre_emisor) {
+                    const reglaPrecios = await pool.query(
+                        `SELECT tramos_descuento FROM public.reglas_precios_proveedor
+                         WHERE negocio_id = $1 AND LOWER(TRIM(proveedor)) = LOWER(TRIM($2))`,
+                        [negocio.id, recepcion.rows[0].nombre_emisor]
+                    );
+                    tramosDescuentoProveedor = reglaPrecios.rows[0]?.tramos_descuento || [];
+                }
+
+                let tramoDescuentoAplicado = null;
                 let totalAplicado = 0;
                 const itemsAplicados = [];
 
@@ -510,7 +866,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     if (item.accion === "omitir") continue;
 
                     const cantidad = num(item.cantidad);
-                    const costo = num(item.costo_unitario);
+                    const costoLista = num(item.costo_unitario);
+                    const { costoNeto, tramoAplicado } = costoNetoConDescuento(costoLista, tramosDescuentoProveedor, recepcion.rows[0].total);
+                    if (tramoAplicado) tramoDescuentoAplicado = tramoAplicado;
+                    const costo = costoNeto;
                     let productoId = item.producto_id;
 
                     if (item.accion === "crear") {
@@ -551,41 +910,86 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         );
                     }
 
-                    await client.query(
-                        `UPDATE public.productos
-                         SET stock = stock + $1,
-                             precio_distribuidor = COALESCE(NULLIF($2, 0), precio_distribuidor)
-                         WHERE id = $3 AND negocio_id = $4`,
-                        [cantidad, costo, productoId, negocio.id]
-                    );
+                    if (remisionAConciliar) {
+                        // El stock de este renglon ya se sumo cuando se
+                        // recibio la remision -- aqui solo se corrige el
+                        // costo si la factura real trae uno distinto,
+                        // nunca se vuelve a sumar la cantidad.
+                        // 0::numeric, nunca 0 a secas: con el literal sin
+                        // tipo, Postgres decide que $1 es entero DENTRO del
+                        // NULLIF (antes de que el COALESCE de afuera sepa
+                        // que va a una columna numeric) -- un costo neto con
+                        // descuento (Fase 7, ej. 114.4) tronaba "invalid
+                        // input syntax for type integer" aunque la columna
+                        // siempre fue numeric.
+                        await client.query(
+                            `UPDATE public.productos
+                             SET precio_distribuidor = COALESCE(NULLIF($1, 0::numeric), precio_distribuidor)
+                             WHERE id = $2 AND negocio_id = $3`,
+                            [costo, productoId, negocio.id]
+                        );
+                    } else {
+                        await client.query(
+                            `UPDATE public.productos
+                             SET stock = stock + $1,
+                                 precio_distribuidor = COALESCE(NULLIF($2, 0::numeric), precio_distribuidor)
+                             WHERE id = $3 AND negocio_id = $4`,
+                            [cantidad, costo, productoId, negocio.id]
+                        );
+                    }
 
                     totalAplicado += cantidad * costo;
                     itemsAplicados.push({ productoId, codigo: item.codigo_factura, nombre: item.descripcion, cantidad, costo });
                 }
 
-                const recepcionMercancia = await client.query(
-                    `INSERT INTO public.recepciones_mercancia
-                        (negocio_id, proveedor, referencia, notas, total, fecha_documento, tipo_documento)
-                     VALUES ($1,$2,$3,$4,$5,$6,'factura')
-                     RETURNING id`,
-                    [
-                        negocio.id,
-                        recepcion.rows[0].nombre_emisor || "",
-                        recepcion.rows[0].folio || "",
-                        "Recepcion Inteligente",
-                        totalAplicado,
-                        recepcion.rows[0].fecha_documento
-                    ]
-                );
-                const recepcionMercanciaId = recepcionMercancia.rows[0].id;
+                let recepcionMercanciaId;
 
-                for (const item of itemsAplicados) {
+                if (remisionAConciliar) {
+                    recepcionMercanciaId = remisionAConciliar.id;
+
                     await client.query(
-                        `INSERT INTO public.recepciones_mercancia_items
-                            (negocio_id, recepcion_id, producto_id, codigo, nombre, cantidad, costo)
-                         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-                        [negocio.id, recepcionMercanciaId, item.productoId, item.codigo, item.nombre, item.cantidad, item.costo]
+                        `UPDATE public.recepciones_mercancia
+                         SET estado = 'conciliado', notas = notas || $2
+                         WHERE id = $1`,
+                        [recepcionMercanciaId, ` -- conciliada con factura ${recepcion.rows[0].folio || recepcion.rows[0].uuid_cfdi || "(sin folio)"}`]
                     );
+
+                    for (const item of itemsAplicados) {
+                        await client.query(
+                            `UPDATE public.recepciones_mercancia_items SET costo = $1 WHERE recepcion_id = $2 AND producto_id = $3`,
+                            [item.costo, recepcionMercanciaId, item.productoId]
+                        );
+                    }
+                } else {
+                    const tipoDocumento = recepcion.rows[0].origen === "remision_foto" ? "remision" : "factura";
+                    const estadoMercancia = recepcion.rows[0].origen === "remision_foto" ? "recibido_sin_factura" : "conciliado";
+
+                    const recepcionMercancia = await client.query(
+                        `INSERT INTO public.recepciones_mercancia
+                            (negocio_id, proveedor, referencia, notas, total, fecha_documento, tipo_documento, estado)
+                         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                         RETURNING id`,
+                        [
+                            negocio.id,
+                            recepcion.rows[0].nombre_emisor || "",
+                            recepcion.rows[0].folio || "",
+                            "Recepcion Inteligente",
+                            totalAplicado,
+                            recepcion.rows[0].fecha_documento,
+                            tipoDocumento,
+                            estadoMercancia
+                        ]
+                    );
+                    recepcionMercanciaId = recepcionMercancia.rows[0].id;
+
+                    for (const item of itemsAplicados) {
+                        await client.query(
+                            `INSERT INTO public.recepciones_mercancia_items
+                                (negocio_id, recepcion_id, producto_id, codigo, nombre, cantidad, costo)
+                             VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+                            [negocio.id, recepcionMercanciaId, item.productoId, item.codigo, item.nombre, item.cantidad, item.costo]
+                        );
+                    }
                 }
 
                 await client.query(
@@ -598,12 +1002,17 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
                 await client.query("COMMIT");
 
-                await registrarBitacora(pool, negocio.id, empleadoIdDeRequest(req), "recepcion_inteligente_confirmada", {
-                    recepcionId: Number(req.params.id), recepcionMercanciaId, totalAplicado,
-                    itemsAplicados: itemsAplicados.length, itemsOmitidos: items.rows.length - itemsAplicados.length
-                });
+                await registrarBitacora(pool, negocio.id, empleadoIdDeRequest(req),
+                    remisionAConciliar ? "recepcion_inteligente_conciliada" : "recepcion_inteligente_confirmada",
+                    {
+                        recepcionId: Number(req.params.id), recepcionMercanciaId, totalAplicado,
+                        itemsAplicados: itemsAplicados.length, itemsOmitidos: items.rows.length - itemsAplicados.length,
+                        conciliadaConRemision: Boolean(remisionAConciliar),
+                        tramoDescuentoAplicado
+                    }
+                );
 
-                res.json({ ok: true, recepcionMercanciaId, totalAplicado });
+                res.json({ ok: true, recepcionMercanciaId, totalAplicado, conciliada: Boolean(remisionAConciliar), tramoDescuentoAplicado });
             } catch (error) {
                 await client.query("ROLLBACK").catch(() => {});
                 responderError(res, error);
@@ -617,3 +1026,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 // Reutilizado por recepcion-inteligente-gmail.js (Fase 2): mismo
 // pipeline exacto, nunca duplicado.
 module.exports.procesarFacturaXml = procesarFacturaXml;
+
+// Expuestos para probar la Fase 5 (remision por foto + conciliacion)
+// directo, sin depender de una respuesta real de Claude para cada
+// prueba -- el parseo de la foto (extraerRemisionDeFoto) es la unica
+// parte que de verdad necesita la API real.
+module.exports.procesarRemisionFoto = procesarRemisionFoto;
+module.exports.buscarRemisionPendienteConciliable = buscarRemisionPendienteConciliable;

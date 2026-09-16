@@ -136,6 +136,13 @@ async function buscarEnCatalogoMaestro(pool, termino) {
         fuente: "catalogo_maestro",
         catalogoMaestroId: fila.id,
         codigo: fila.codigo,
+        // Codigo con el que el FABRICANTE identifica el producto (Fase 1
+        // de identidad multi-proveedor) -- para un producto GAFI, "codigo"
+        // de arriba es el propio de GAFI, distinto de este. Se venia
+        // leyendo del Maestro pero se perdia aqui mismo, antes de llegar
+        // a la respuesta: la pantalla nunca podia mostrarlo.
+        codigoFabricante: fila.codigo_fabricante || null,
+        clave: fila.clave || null,
         nombre: fila.nombre,
         marca: fila.marca,
         descripcion: fila.descripcion,
@@ -172,6 +179,7 @@ async function buscarEnCatalogoFabricante(pool, termino) {
         fuente: "fabricante",
         catalogoFabricanteId: fila.id,
         codigo: fila.codigo,
+        clave: fila.clave || null,
         nombre: fila.descripcion,
         marca: fila.marca,
         fabricante: fila.fabricante,
@@ -190,6 +198,32 @@ async function buscarEnCatalogoFabricante(pool, termino) {
 // en vez de escribir una frase -- identidadPorCodigo() ya existe y
 // hace un lookup indexado barato; sobre una frase de varias palabras
 // simplemente no encuentra nada, sin costo real). Sin IA todavia.
+// La identidad exacta (identidadPorCodigo) viene con nombres de columna
+// crudos (snake_case) porque tambien la usa codigo de servidor que
+// habla directo con la base -- aqui se traduce a la misma forma que ya
+// usan los items de "catalogo_maestro" (camelCase) para poder pintarla
+// con exactamente la misma funcion de ficha, sin una segunda copia.
+function coincidenciaPorCodigoDesdeIdentidad(identidad) {
+    if (!identidad || identidad.necesita_revision) return null;
+
+    return {
+        fuente: "catalogo_maestro",
+        catalogoMaestroId: identidad.id,
+        codigo: identidad.codigo,
+        codigoFabricante: identidad.codigo_fabricante || null,
+        clave: identidad.clave || null,
+        ean: identidad.ean || null,
+        nombre: identidad.nombre,
+        marca: identidad.marca,
+        fabricante: identidad.fabricante,
+        precioListaMayoreo: numeroONull(identidad.precio_mayoreo),
+        precioListaMedioMayoreo: numeroONull(identidad.precio_medio_mayoreo),
+        precioListaPublico: numeroONull(identidad.precio_publico),
+        precioListaDistribuidor: numeroONull(identidad.precio_distribuidor),
+        nivel: "fuerte"
+    };
+}
+
 async function buscarExplorarNexo(pool, negocioId, textoBusqueda) {
     const termino = normalizarBusqueda(textoBusqueda);
 
@@ -197,15 +231,24 @@ async function buscarExplorarNexo(pool, negocioId, textoBusqueda) {
         return { termino: "", inventario: [], proveedor: [], catalogoMaestro: [], fabricante: [], coincidenciaPorCodigo: null };
     }
 
-    const [inventario, proveedor, catalogoMaestro, fabricante, coincidenciaPorCodigo] = await Promise.all([
+    // identidadPorCodigo compara el valor TAL CUAL quedo guardado (un
+    // Alterno de fabricante puede traer letras, ej. "R5-45") -- pasarle
+    // el termino ya normalizado (normalizarBusqueda pone todo en
+    // minusculas, para que el trigrama de las otras 4 fuentes no
+    // distinga mayusculas de un nombre) rompia el match exacto para
+    // cualquier codigo con letras. Aqui solo se recorta espacios, igual
+    // que hace identidadPorCodigo por su cuenta.
+    const terminoTalCual = String(textoBusqueda || "").trim().slice(0, 120);
+
+    const [inventario, proveedor, catalogoMaestro, fabricante, identidad] = await Promise.all([
         buscarEnInventario(pool, negocioId, termino),
         buscarEnCatalogoProveedor(pool, negocioId, termino),
         buscarEnCatalogoMaestro(pool, termino),
         buscarEnCatalogoFabricante(pool, termino),
-        identidadPorCodigo(pool, termino).catch(() => null)
+        identidadPorCodigo(pool, terminoTalCual).catch(() => null)
     ]);
 
-    return { termino, inventario, proveedor, catalogoMaestro, fabricante, coincidenciaPorCodigo };
+    return { termino, inventario, proveedor, catalogoMaestro, fabricante, coincidenciaPorCodigo: coincidenciaPorCodigoDesdeIdentidad(identidad) };
 }
 
 // Misma foto que ya usan el POS (Banco de Nexo) y la ficha publica de
@@ -290,3 +333,4 @@ module.exports.buscarEnCatalogoProveedor = buscarEnCatalogoProveedor;
 module.exports.buscarEnCatalogoMaestro = buscarEnCatalogoMaestro;
 module.exports.buscarEnCatalogoFabricante = buscarEnCatalogoFabricante;
 module.exports.numeroONull = numeroONull;
+module.exports.coincidenciaPorCodigoDesdeIdentidad = coincidenciaPorCodigoDesdeIdentidad;

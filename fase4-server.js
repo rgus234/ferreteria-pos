@@ -383,11 +383,20 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                 const itemId = item.pedidoItemId || item.pedido_item_id || null;
 
                 if (productoId && cantidad > 0) {
+                    // NULLIF($2, 0) con el 0 sin tipo: Postgres decide el
+                    // tipo de $2 localmente dentro del NULLIF (entero, por
+                    // el literal), antes de que el COALESCE de afuera vea
+                    // que en realidad va a una columna numeric -- un costo
+                    // con centavos (la inmensa mayoria de los reales) tronaba
+                    // "invalid input syntax for type integer". Encontrado
+                    // real via Fase 7 (descuento por tramo, que sí produce
+                    // decimales) pero el bug ya afectaba cualquier costo con
+                    // centavos desde antes, en produccion.
                     await client.query(`
                         UPDATE public.productos
                         SET
                             stock = stock + $1,
-                            precio_distribuidor = COALESCE(NULLIF($2, 0), precio_distribuidor)
+                            precio_distribuidor = COALESCE(NULLIF($2, 0::numeric), precio_distribuidor)
                         WHERE id = $3
                         AND negocio_id = $4
                     `, [cantidad, costo, productoId, negocio.id]);

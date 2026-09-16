@@ -233,6 +233,35 @@ test("coincidencia por codigo exacto: escanear un EAN/codigo completo usa identi
     assert.equal(resultado.coincidenciaPorCodigo.codigo, "7501234500019");
 });
 
+test("Fase 4 de identidad multi-proveedor: el codigo de fabricante (Alterno GAFI) llega a la pantalla, no se pierde en el camino", async () => {
+    // A diferencia de crearMaestroPrueba (donde codigo_fabricante siempre
+    // es igual a codigo), este producto simula un GAFI real: su propio
+    // codigo interno es distinto del codigo con el que el FABRICANTE lo
+    // identifica (Fase 1). Antes de este fix, buscarEnCatalogoMaestro y
+    // coincidenciaPorCodigoDesdeIdentidad leian codigo_fabricante de la
+    // base pero nunca lo incluian en el objeto que llega a la pantalla.
+    const fila = await pool.query(
+        `INSERT INTO public.catalogo_maestro_productos (codigo, marca, nombre, fabricante, codigo_fabricante)
+         VALUES ('EXP-GAFI-189955', 'Devcon', 'Plastiacero jeringa 5 minutos, prueba automatizada', '', 'EXP-ALTERNO-R545')
+         RETURNING id`
+    );
+    maestroIdsCreados.push(fila.rows[0].id);
+    await pool.query(
+        `INSERT INTO public.catalogo_maestro_identificadores (producto_maestro_id, tipo, valor)
+         VALUES ($1, 'proveedor', 'EXP-GAFI-189955')`,
+        [fila.rows[0].id]
+    );
+
+    const porNombre = await buscarExplorarNexo(pool, negocio.negocioId, "Plastiacero jeringa 5 minutos, prueba automatizada");
+    const hallazgo = porNombre.catalogoMaestro.find(p => p.codigo === "EXP-GAFI-189955");
+    assert.ok(hallazgo, "debe encontrarlo por nombre");
+    assert.equal(hallazgo.codigoFabricante, "EXP-ALTERNO-R545", "el Alterno del fabricante debe llegar a la pantalla, distinto del codigo GAFI");
+
+    const porCodigoGafi = await buscarExplorarNexo(pool, negocio.negocioId, "EXP-GAFI-189955");
+    assert.ok(porCodigoGafi.coincidenciaPorCodigo, "el codigo GAFI debe resolver como coincidencia exacta");
+    assert.equal(porCodigoGafi.coincidenciaPorCodigo.codigoFabricante, "EXP-ALTERNO-R545");
+});
+
 test("una frase normal nunca activa por accidente la coincidencia por codigo", async () => {
     const resultado = await buscarExplorarNexo(pool, negocio.negocioId, "pinza para cortar cable grueso");
     assert.equal(resultado.coincidenciaPorCodigo, null);

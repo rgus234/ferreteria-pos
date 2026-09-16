@@ -56,6 +56,8 @@ async function mostrarExplorarNexo(textoInicial) {
 				<button type="button" class="btn-agregar" onclick="buscarExplorarNexo()">Buscar</button>
 			</div>
 
+			<div id="explorarNexoCoincidenciaExacta"></div>
+
 			<div class="explorar-nexo-chips" id="explorarNexoChips"></div>
 
 			<div class="explorar-nexo-grid">
@@ -104,6 +106,7 @@ async function buscarExplorarNexo() {
 		explorarNexoUltimoResultado = null;
 		contenedor.innerHTML = `<p class="explorar-nexo-vacio">Escribe que producto buscas para empezar -- por ejemplo, "pinza para cortar cable grueso".</p>`;
 		document.getElementById("explorarNexoChips").innerHTML = "";
+		document.getElementById("explorarNexoCoincidenciaExacta").innerHTML = "";
 		return;
 	}
 
@@ -134,13 +137,27 @@ async function buscarExplorarNexo() {
 			termino: datos.termino,
 			inventario: datos.inventario,
 			catalogoNexo,
-			proveedor: datos.proveedor
+			proveedor: datos.proveedor,
+			coincidenciaPorCodigo: datos.coincidenciaPorCodigo || null
 		};
-		explorarNexoSeleccionActual = null;
+		// Un codigo/EAN exacto (identidadPorCodigo, Fase 1-3 de identidad
+		// multi-proveedor: codigo GAFI, Alterno de fabricante o EAN
+		// confirmado) es una respuesta CIERTA, no una sugerencia por
+		// parecido -- se abre de una vez en la ficha, sin que el empleado
+		// tenga que elegir entre varias tarjetas.
+		explorarNexoSeleccionActual = explorarNexoUltimoResultado.coincidenciaPorCodigo
+			? { fuente: "codigo_exacto", indice: 0 }
+			: null;
 
+		explorarNexoRenderCoincidenciaExacta();
 		explorarNexoRenderChips();
 		explorarNexoRenderResultados();
-		document.getElementById("explorarNexoFicha").innerHTML = `<p class="explorar-nexo-ficha-vacio">Selecciona un resultado para ver los detalles.</p>`;
+
+		if (explorarNexoSeleccionActual) {
+			explorarNexoVerFicha("codigo_exacto", 0);
+		} else {
+			document.getElementById("explorarNexoFicha").innerHTML = `<p class="explorar-nexo-ficha-vacio">Selecciona un resultado para ver los detalles.</p>`;
+		}
 	} catch (error) {
 		contenedor.innerHTML = `<p class="explorar-nexo-vacio">Error de conexion, intenta de nuevo.</p>`;
 	}
@@ -165,6 +182,36 @@ function explorarNexoRenderChips() {
 			${escaparPOS(chip.etiqueta)} (${chip.cuenta})
 		</button>
 	`).join("");
+}
+
+// Tarjeta destacada cuando lo escrito/escaneado resolvio por identidad
+// exacta (identidadPorCodigo -- codigo GAFI, Alterno de fabricante o EAN
+// confirmado, Fases 1-3 de identidad multi-proveedor), separada de las
+// 3 columnas de sugerencias por parecido: esta no es una sugerencia, es
+// el producto.
+function explorarNexoRenderCoincidenciaExacta() {
+	const contenedor = document.getElementById("explorarNexoCoincidenciaExacta");
+	if (!contenedor) return;
+
+	const item = explorarNexoUltimoResultado?.coincidenciaPorCodigo;
+	if (!item) { contenedor.innerHTML = ""; return; }
+
+	const codigos = [item.codigo, item.codigoFabricante, item.clave, item.ean]
+		.filter((valor, indice, lista) => valor && lista.indexOf(valor) === indice)
+		.join(" &middot; ");
+
+	contenedor.innerHTML = `
+		<button type="button" class="explorar-nexo-tarjeta explorar-nexo-coincidencia-exacta ${explorarNexoSeleccionActual?.fuente === "codigo_exacto" ? "seleccionada" : ""}"
+			onclick="explorarNexoVerFicha('codigo_exacto', 0)">
+			<span class="explorar-nexo-tarjeta-icono" id="explorarNexoIcono-codigo_exacto-0" data-codigo="${escaparPOS(item.codigo || "")}">\u{2705}</span>
+			<span class="explorar-nexo-tarjeta-info">
+				<span class="explorar-nexo-tarjeta-nombre">${escaparPOS(item.nombre)}</span>
+				<span class="explorar-nexo-tarjeta-meta">Coincidencia exacta &middot; ${escaparPOS(codigos)}</span>
+			</span>
+		</button>
+	`;
+
+	explorarNexoCargarFotosVisibles(contenedor);
 }
 
 function explorarNexoCambiarFiltro(filtro) {
@@ -307,6 +354,7 @@ function explorarNexoRenderResultados() {
 
 function explorarNexoObtenerItem(fuente, indice) {
 	if (!explorarNexoUltimoResultado) return null;
+	if (fuente === "codigo_exacto") return explorarNexoUltimoResultado.coincidenciaPorCodigo;
 	if (fuente === "inventario") return explorarNexoUltimoResultado.inventario[indice];
 	if (fuente === "catalogo_nexo") return explorarNexoUltimoResultado.catalogoNexo[indice];
 	if (fuente === "proveedor") return explorarNexoUltimoResultado.proveedor[indice];
@@ -318,17 +366,27 @@ function explorarNexoVerFicha(fuente, indice) {
 	if (!item) return;
 
 	explorarNexoSeleccionActual = { fuente, indice };
+	explorarNexoRenderCoincidenciaExacta();
 	explorarNexoRenderResultados();
 
 	const ficha = document.getElementById("explorarNexoFicha");
 	if (!ficha) return;
 
-	const etiquetaFuente = fuente === "inventario" ? "En tu inventario"
+	const etiquetaFuente = fuente === "codigo_exacto" ? "Coincidencia exacta"
+		: fuente === "inventario" ? "En tu inventario"
 		: fuente === "proveedor" ? `Proveedor${item.proveedor ? ": " + item.proveedor : ""}`
 		: `Catalogo Nexo${item.fabricante ? " (" + item.fabricante + ")" : ""}`;
 
+	// Identidad multi-proveedor (Fase 1): un producto GAFI trae su propio
+	// codigo de distribuidor ("Codigo" de abajo) Y el codigo con el que
+	// el FABRICANTE lo identifica -- distintos entre si. Se muestran los
+	// dos, nunca solo uno, para que quede claro que no es el mismo dato
+	// repetido.
 	let datosHtml = `<dt>Marca</dt><dd>${escaparPOS(item.marca || "-")}</dd>`;
 	if (item.codigo) datosHtml += `<dt>Codigo</dt><dd>${escaparPOS(item.codigo)}</dd>`;
+	if (item.codigoFabricante && item.codigoFabricante !== item.codigo) {
+		datosHtml += `<dt>Codigo de fabricante</dt><dd>${escaparPOS(item.codigoFabricante)}</dd>`;
+	}
 	if (item.ean) datosHtml += `<dt>EAN</dt><dd>${escaparPOS(item.ean)}</dd>`;
 	if (fuente === "inventario") {
 		datosHtml += `<dt>Categoria</dt><dd>${escaparPOS(item.categoria || "-")}</dd>`;
@@ -351,7 +409,7 @@ function explorarNexoVerFicha(fuente, indice) {
 				${item.precioPublico != null ? `<div class="explorar-nexo-ficha-precio-caja"><span>Publico</span><strong>${dinero(item.precioPublico)}</strong></div>` : ""}
 			</div>
 		`;
-	} else if (fuente === "catalogo_nexo" && (item.precioListaPublico != null || item.precioListaDistribuidor != null || item.precioListaMayoreo != null || item.precioListaMedioMayoreo != null)) {
+	} else if ((fuente === "catalogo_nexo" || fuente === "codigo_exacto") && (item.precioListaPublico != null || item.precioListaDistribuidor != null || item.precioListaMayoreo != null || item.precioListaMedioMayoreo != null)) {
 		preciosHtml = `
 			<p class="explorar-nexo-ficha-nota" style="margin-top:0;">Precio de lista del fabricante -- no es lo que tu cobras, es una referencia.</p>
 			<div class="explorar-nexo-ficha-precios">

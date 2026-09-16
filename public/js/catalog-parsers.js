@@ -152,6 +152,17 @@ function extraerProductoGenericoCatalogo(ctx) {
  datos,
  datos[indiceCodigoProducto]
  ),
+ // Clave con la que el FABRICANTE identifica este producto (columna
+ // "Alterno" en el catalogo real de GAFI), distinta del codigo interno
+ // del DISTRIBUIDOR de arriba. Antes se calculaba pero nunca se
+ // guardaba en el objeto devuelto -- solo se usaba como respaldo de
+ // codigoInterno, respaldo que para GAFI nunca se alcanzaba porque su
+ // propio codigo interno siempre esta presente. Se guarda aparte para
+ // que catalog-server.js pueda persistirla sin depender de ese
+ // respaldo (Fase 1, identidad multi-proveedor).
+ claveProveedor:
+ valorMapeoCatalogo(datos, mapeoCatalogo, "claveProveedor") ||
+ valorColumnaCatalogo(datos, columnas, "claveProveedor"),
  codigoBarras:
  normalizarCodigo(
  valorMapeoCatalogo(datos, mapeoCatalogo, "codigoBarras") ||

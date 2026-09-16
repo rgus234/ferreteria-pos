@@ -6320,6 +6320,28 @@ RETURNING id
             await pool.query(`UPDATE public.productos SET proveedor_id = $1 WHERE id = $2`, [proveedorIdFinal, productoId]);
         }
 
+        // Fase 3 de identidad multi-proveedor: "aprender EAN por
+        // escaneo". Si esta alta viene de un producto ya identificado en
+        // el Catalogo Maestro (catalogoMaestroId, Fase 1 -- por su
+        // codigo GAFI/fabricante) y el codigo que se capturo o escaneo
+        // aqui es un EAN real que ese producto todavia no tiene
+        // registrado, se confirma de una vez: la proxima vez que
+        // cualquier negocio escanee ese mismo codigo de barras, ya
+        // encuentra el producto. Nunca bloquea el alta si falla o si el
+        // EAN ya pertenece a otro producto -- este producto ya se dio
+        // de alta bien de cualquier forma.
+        const catalogoMaestroIdNumerico = Number.isInteger(Number(catalogoMaestroId)) && Number(catalogoMaestroId) > 0
+            ? Number(catalogoMaestroId)
+            : null;
+        if (catalogoMaestroIdNumerico) {
+            try {
+                const { confirmarEanCatalogoMaestro } = require("./catalogo-maestro-resolver");
+                await confirmarEanCatalogoMaestro(pool, catalogoMaestroIdNumerico, codigo, `agregar-producto:negocio-${negocio.id}`);
+            } catch (errorEan) {
+                console.error("No se pudo confirmar EAN al agregar producto", errorEan);
+            }
+        }
+
         res.json({
             success: true,
             productoId,
@@ -6513,7 +6535,7 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
                 precio_pieza_distribuidor = $46
             WHERE id = $38
             AND negocio_id = $39
-            RETURNING id, categoria_nexo_id, proveedor_id, visible_pos, visible_market, disponible_pedidos, fecha_caducidad
+            RETURNING id, categoria_nexo_id, proveedor_id, visible_pos, visible_market, disponible_pedidos, fecha_caducidad, catalogo_maestro_id
             `,
             [
                 nombre,
@@ -6577,6 +6599,21 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
             proveedor,
             codigosRelacionados
         }, negocio.id);
+
+        // Fase 3 de identidad multi-proveedor: mismo criterio que
+        // /agregar-producto -- si este producto YA esta identificado en
+        // el Catalogo Maestro (se guarda una sola vez, al crearlo) y el
+        // codigo que se acaba de capturar/escanear es un EAN real que
+        // todavia no tiene, se confirma. Nunca bloquea la edicion si
+        // falla o si el EAN ya pertenece a otro producto.
+        if (resultado.rows[0].catalogo_maestro_id) {
+            try {
+                const { confirmarEanCatalogoMaestro } = require("./catalogo-maestro-resolver");
+                await confirmarEanCatalogoMaestro(pool, resultado.rows[0].catalogo_maestro_id, codigo, `editar-producto:negocio-${negocio.id}`);
+            } catch (errorEan) {
+                console.error("No se pudo confirmar EAN al editar producto", errorEan);
+            }
+        }
 
         res.json({
             success: true,
@@ -6688,6 +6725,7 @@ app.get("/reglas-precios", requerirAccesoNegocio, async (req, res) => {
                 redondeo,
                 margenes_categoria,
                 margenes_producto,
+                tramos_descuento,
                 actualizado_at
             FROM public.reglas_precios_proveedor
             WHERE negocio_id = $1
@@ -6722,6 +6760,7 @@ app.get("/reglas-precios/:proveedor", requerirAccesoNegocio, async (req, res) =>
                 redondeo,
                 margenes_categoria,
                 margenes_producto,
+                tramos_descuento,
                 actualizado_at
             FROM public.reglas_precios_proveedor
             WHERE negocio_id = $1
@@ -6746,7 +6785,8 @@ app.post("/reglas-precios", requerirAccesoNegocio, requerirFuncionPlan("catalogo
         margenGeneral,
         redondeo,
         margenesCategoria,
-        margenesProducto
+        margenesProducto,
+        tramosDescuento
     } = req.body;
 
     if (!proveedor) {
@@ -6754,22 +6794,39 @@ app.post("/reglas-precios", requerirAccesoNegocio, requerirFuncionPlan("catalogo
         return;
     }
 
+    // Fase 7 de identidad multi-proveedor: tramos de descuento por monto
+    // de factura -- exclusivo del proveedor que se esta guardando aqui
+    // (nunca se copia a otro), y nunca se activa solo: un proveedor sin
+    // tramos configurados sigue exactamente igual que antes de esta
+    // fase. Se sanea a numeros -- un tramo mal capturado (texto en vez
+    // de numero) se descarta en vez de guardarse roto.
+    const tramosDescuentoLimpios = Array.isArray(tramosDescuento)
+        ? tramosDescuento
+            .map(t => ({
+                desde: Number(t?.desde) || 0,
+                hasta: t?.hasta === "" || t?.hasta === null || t?.hasta === undefined ? null : Number(t.hasta),
+                porcentaje: Number(t?.porcentaje) || 0
+            }))
+            .filter(t => t.porcentaje > 0 && (t.hasta === null || t.hasta >= t.desde))
+        : [];
+
     try {
         const negocio = await negocioActual(req);
 
         const resultado = await pool.query(
             `
             INSERT INTO public.reglas_precios_proveedor
-                (negocio_id, proveedor, margen_general, redondeo, margenes_categoria, margenes_producto, actualizado_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                (negocio_id, proveedor, margen_general, redondeo, margenes_categoria, margenes_producto, tramos_descuento, actualizado_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
             ON CONFLICT (negocio_id, proveedor)
             DO UPDATE SET
                 margen_general = EXCLUDED.margen_general,
                 redondeo = EXCLUDED.redondeo,
                 margenes_categoria = EXCLUDED.margenes_categoria,
                 margenes_producto = EXCLUDED.margenes_producto,
+                tramos_descuento = EXCLUDED.tramos_descuento,
                 actualizado_at = NOW()
-            RETURNING proveedor, margen_general, redondeo, margenes_categoria, margenes_producto, actualizado_at
+            RETURNING proveedor, margen_general, redondeo, margenes_categoria, margenes_producto, tramos_descuento, actualizado_at
             `,
             [
                 negocio.id,
@@ -6777,7 +6834,8 @@ app.post("/reglas-precios", requerirAccesoNegocio, requerirFuncionPlan("catalogo
                 margenGeneral === "" || margenGeneral === undefined ? null : margenGeneral,
                 redondeo || "ninguno",
                 JSON.stringify(margenesCategoria || {}),
-                JSON.stringify(margenesProducto || {})
+                JSON.stringify(margenesProducto || {}),
+                JSON.stringify(tramosDescuentoLimpios)
             ]
         );
 

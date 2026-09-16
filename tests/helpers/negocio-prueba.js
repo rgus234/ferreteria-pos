@@ -139,6 +139,7 @@ async function borrarNegocioPrueba(negocioId) {
         "bitacora_acciones",
         "catalogo_productos",
         "catalogos_proveedor",
+        "reglas_precios_proveedor",
         "proveedores",
         "negocio_giros",
         "listas_producto",
