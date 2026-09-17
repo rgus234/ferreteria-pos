@@ -301,6 +301,69 @@
  font-weight:800;
 }
 
+.reglas-precio-tramos-tabla{
+ display:grid;
+ gap:8px;
+ margin-bottom:12px;
+}
+
+.reglas-precio-tramo-fila{
+ display:grid;
+ grid-template-columns:1fr 1fr 1fr auto;
+ align-items:end;
+ gap:10px;
+ padding:10px 12px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:10px;
+}
+
+.reglas-precio-tramo-fila label{
+ display:flex;
+ flex-direction:column;
+ gap:6px;
+ color:var(--pos-muted,#64748b);
+ font-size:11px;
+ font-weight:900;
+ text-transform:uppercase;
+}
+
+.reglas-precio-tramo-fila input{
+ min-height:38px;
+ padding:0 10px;
+ border:1px solid var(--pos-line,#dbe3ef);
+ border-radius:8px;
+ background:var(--pos-surface-strong,#fff);
+ color:var(--pos-text,#172033);
+ font-size:13px;
+ text-transform:none;
+}
+
+.reglas-precio-tramo-fila button{
+ width:auto !important;
+ min-height:38px;
+ margin:0;
+ padding:0 12px;
+ border:1px solid color-mix(in srgb, #dc2626 30%, transparent);
+ border-radius:8px;
+ background:color-mix(in srgb, #dc2626 8%, var(--pos-surface-strong,#fff)) !important;
+ color:#dc2626 !important;
+ font-size:12px;
+ font-weight:800;
+}
+
+.reglas-precio-agregar-tramo{
+ width:auto !important;
+ min-height:38px;
+ margin:0;
+ padding:0 14px;
+ border:1px dashed var(--pos-line,#dbe3ef);
+ border-radius:8px;
+ background:var(--pos-surface-strong,#fff) !important;
+ color:var(--brand-color,#0d6efd) !important;
+ font-size:12px;
+ font-weight:800;
+}
+
 .reglas-precio-acciones{
  display:flex;
  justify-content:flex-end;

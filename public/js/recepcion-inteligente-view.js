@@ -12,6 +12,7 @@
 // pantalla toca inventario excepto "Confirmar recepcion", y solo
 // despues de que cada concepto amarillo ya tiene una decision humana.
 let recepcionInteligenteActualId = null;
+let recepcionInteligenteRecepcionActual = null;
 let recepcionInteligenteItemsActuales = [];
 let recepcionInteligenteFacturasActuales = [];
 let recepcionInteligenteFotosActuales = new Map();
@@ -93,6 +94,8 @@ async function mostrarRecepcionInteligente() {
 				<div class="ri-toolbar-izq">
 					<input type="file" id="riArchivoXml" accept=".xml,text/xml" style="display:none" onchange="riSubirFacturaSeleccionada(event)">
 					<button type="button" class="btn-agregar" onclick="document.getElementById('riArchivoXml').click()">📎 Subir factura</button>
+					<input type="file" id="riArchivoRemisionFoto" accept="image/*" style="display:none" onchange="riSubirRemisionFotoSeleccionada(event)">
+					<button type="button" class="btn-secundario" onclick="document.getElementById('riArchivoRemisionFoto').click()">📷 Subir remisión (foto)</button>
 					<span id="riSubiendoAviso" style="display:none">Leyendo factura…</span>
 				</div>
 				<div class="ri-gmail-estado" id="riGmailSeccion"></div>
@@ -307,6 +310,54 @@ async function riSubirFacturaSeleccionada(event) {
 	}
 }
 
+// Fase 5: registrar una remision a partir de una foto -- para no frenar
+// la mercancia mientras se espera el CFDI real (puede llegar dias
+// despues). 1600px es de sobra para que la IA lea una tabla completa de
+// renglones (el servidor la vuelve a comprimir de todos modos, ver
+// extraerRemisionDeFoto) -- nunca se manda la foto original sin tocar.
+async function riSubirRemisionFotoSeleccionada(event) {
+	const archivo = event.target.files?.[0];
+	event.target.value = "";
+	if (!archivo) return;
+
+	const aviso = document.getElementById("riSubiendoAviso");
+	if (aviso) { aviso.textContent = "Leyendo remisión…"; aviso.style.display = "inline"; }
+
+	try {
+		const imagenBase64 = await redimensionarImagenCanvas(archivo, 1600);
+
+		const respuesta = await fetch("/recepcion-inteligente/remision-foto", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ imagenBase64 })
+		});
+		const datos = await respuesta.json().catch(() => ({}));
+
+		if (!respuesta.ok || !datos.ok) {
+			await alertaPOS(datos.error || "No se pudo leer la remisión.", "Recepción Inteligente", "peligro");
+			return;
+		}
+
+		if (!datos.disponible) {
+			await alertaPOS("Nexo IA no esta disponible en tu plan por ahora.", "Sin IA", "alerta");
+			return;
+		}
+
+		await alertaPOS(
+			`Remisión leída${datos.proveedorDetectado ? ` de ${datos.proveedorDetectado}` : ""}: ${datos.totalConceptos} producto(s), ${datos.identificados} identificados automáticamente, ${datos.porRevisar} por revisar. Se aplicará a inventario como cualquier otra recepción, aunque todavía no llegue la factura.`,
+			"Remisión detectada",
+			"exito"
+		);
+
+		await riCargarLista();
+		if (datos.recepcionId) await riVerDetalle(datos.recepcionId);
+	} catch (error) {
+		await alertaPOS("No se pudo leer el archivo. ¿Es una foto válida?", "Recepción Inteligente", "peligro");
+	} finally {
+		if (aviso) { aviso.style.display = "none"; aviso.textContent = "Leyendo factura…"; }
+	}
+}
+
 // 3 numeros de un vistazo (calculados aqui mismo, del listado ya
 // cargado -- no hace falta otro viaje al servidor): cuantas facturas
 // esperan revision, cuantos conceptos sueltos quedan por decidir en
@@ -437,6 +488,7 @@ async function riVerDetalle(id) {
 	}
 
 	const { recepcion, items } = datos;
+	recepcionInteligenteRecepcionActual = recepcion;
 	recepcionInteligenteItemsActuales = items;
 	recepcionInteligenteFotosActuales = await riResolverFotos(items);
 	const sinDecidir = items.filter(it => !it.accion).length;
@@ -501,7 +553,15 @@ function riFilaItem(item, estadoRecepcion) {
 		: nivel;
 
 	const puedeEditar = estadoRecepcion === "pendiente";
-	const sugerido = !item.accion ? riPrecioSugerido(item.candidato) : null;
+	// riPrecioSugerido (arriba) sale del precio de catalogo del candidato ya
+	// identificado -- solo existe si hay match. item.precioSugerido lo manda
+	// el servidor a partir del costo REAL de esta factura (con el tramo de
+	// descuento de Fase 7 ya aplicado) mas el margen_general del proveedor --
+	// util sobre todo cuando no hay candidato (producto nuevo), que es
+	// justo cuando riPrecioSugerido no tiene nada que sugerir.
+	const sugerido = !item.accion
+		? (riPrecioSugerido(item.candidato) || (item.precioSugerido != null ? { valor: item.precioSugerido, etiqueta: "según margen" } : null))
+		: null;
 
 	const codigoFoto = item.candidato?.codigo || item.codigo || "";
 	const fotoUrl = codigoFoto ? recepcionInteligenteFotosActuales.get(codigoFoto) : null;
@@ -672,19 +732,49 @@ async function riCrearProducto(itemId, nombreSugerido) {
 				precios.distribuidor != null ? { valor: precios.distribuidor, etiqueta: `Distribuidor — $${precios.distribuidor.toFixed(2)}` } : null
 			].filter(Boolean)
 		}
-		: { nombre: "precioVenta", etiqueta: "Precio de venta", tipo: "number", requerido: true, valor: costo, min: 0 };
+		: { nombre: "precioVenta", etiqueta: "Precio de venta", tipo: "number", requerido: true, valor: item?.precioSugerido ?? costo, min: 0 };
+
+	// Opcional, para el caso real de tornillos/pijas/taquetes/alambre que
+	// llegan por bulto pero tambien se venden sueltos a un precio propio
+	// (nunca una fraccion del precio de bulto -- mismo modelo que ya usa
+	// "Agregar producto", ver unidad_suelta/precio_pieza_publico). Sin
+	// esto, crear el producto aqui obligaba a ir a Inventario despues
+	// solo para activar la venta suelta.
+	const campoUnidadSuelta = {
+		nombre: "unidadSuelta",
+		etiqueta: "¿También se vende suelto?",
+		tipo: "select",
+		valor: "",
+		opciones: [
+			{ valor: "", etiqueta: "No, solo el contenedor completo" },
+			{ valor: "pieza", etiqueta: "Suelto por pieza" },
+			{ valor: "kg", etiqueta: "Suelto por kilo" },
+			{ valor: "gramo", etiqueta: "Suelto por gramo" },
+			{ valor: "litro", etiqueta: "Suelto por litro" },
+			{ valor: "metro", etiqueta: "Suelto por metro" }
+		]
+	};
+	const campoPrecioPieza = { nombre: "precioPieza", etiqueta: "Precio de venta suelta (si aplica)", tipo: "number", valor: "", min: 0 };
 
 	const datos = await abrirFormularioCredito({
 		titulo: "Crear producto",
 		subtitulo: `Costo de esta factura: $${costo.toFixed(2)}`,
 		campos: [
 			{ nombre: "nombre", etiqueta: "Nombre del producto", valor: nombreSugerido, requerido: true },
-			campoPrecio
+			campoPrecio,
+			campoUnidadSuelta,
+			campoPrecioPieza
 		]
 	});
 	if (!datos) return;
 
-	await riGuardarDecisionItem(itemId, { accion: "crear", nombreNuevoProducto: datos.nombre, precioVenta: Number(datos.precioVenta) });
+	await riGuardarDecisionItem(itemId, {
+		accion: "crear",
+		nombreNuevoProducto: datos.nombre,
+		precioVenta: Number(datos.precioVenta),
+		unidadSuelta: datos.unidadSuelta || null,
+		precioPieza: datos.unidadSuelta && Number(datos.precioPieza) > 0 ? Number(datos.precioPieza) : null
+	});
 }
 
 async function riCambiarDecisionItem(itemId) {
@@ -731,14 +821,45 @@ async function riRechazar(id) {
 	await riVerDetalle(id);
 }
 
+// Fase 5: antes de confirmar una factura real, se pregunta primero si hay
+// una remision de este mismo proveedor que ya recibio stock y sigue
+// esperando su factura -- si existe, se muestra la comparacion (modal de
+// conciliacion) en vez de ir derecho a confirmar, para que el dueño decida
+// si es la misma compra (evita duplicar el stock) o una compra distinta.
 async function riConfirmar(id) {
+	const respuesta = await fetch(`/recepcion-inteligente/facturas/${id}/posible-conciliacion`);
+	const datos = await respuesta.json().catch(() => ({}));
+
+	if (respuesta.ok && datos.ok && datos.remisionPendiente) {
+		riModalConciliacion(id, datos.remisionPendiente);
+		return;
+	}
+
+	await riConfirmarDefinitivo(id, {});
+}
+
+async function riConfirmarDefinitivo(id, extra) {
 	const confirmado = await confirmarPOS("Esto aplicará el stock y el costo de todos los productos ya revisados. ¿Confirmar la recepción?", "Confirmar recepción");
 	if (!confirmado) return;
 
-	const respuesta = await fetch(`/recepcion-inteligente/facturas/${id}/confirmar`, { method: "POST" });
+	const respuesta = await fetch(`/recepcion-inteligente/facturas/${id}/confirmar`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(extra || {})
+	});
 	const datos = await respuesta.json().catch(() => ({}));
 
 	if (!respuesta.ok || !datos.ok) {
+		// Carrera rara pero posible: una remision aparecio entre el GET de
+		// arriba y este POST. En vez del mensaje generico (que aqui seria
+		// enganoso -- los conceptos si estan revisados), se muestra la
+		// misma comparacion que se hubiera visto si hubiera llegado a
+		// tiempo.
+		if (datos.requiereConciliacion && datos.remisionPendiente) {
+			riModalConciliacion(id, datos.remisionPendiente);
+			return;
+		}
+
 		await alertaPOS(datos.error || "No se pudo confirmar. Revisa que todos los productos tengan una decisión.", "Recepción Inteligente", "peligro");
 		return;
 	}
@@ -747,4 +868,80 @@ async function riConfirmar(id) {
 
 	if (typeof cargarProductos === "function") cargarProductos();
 	await riVerDetalle(id);
+}
+
+// Comparacion lado a lado: la remision que ya entro a inventario (columna
+// izquierda) contra esta factura que se esta por confirmar (columna
+// derecha). Nunca decide sola cual es "la correcta" -- solo dos botones
+// que mandan exactamente lo que el dueño elija al mismo endpoint de
+// siempre (conciliarConRecepcionMercanciaId o ignorarConciliacion).
+function riModalConciliacion(id, remisionPendiente) {
+	let modal = document.getElementById("riModalConciliacion");
+	if (!modal) {
+		modal = document.createElement("div");
+		modal.id = "riModalConciliacion";
+		modal.className = "ri-modal-producto";
+		document.body.appendChild(modal);
+	}
+
+	const cerrar = () => {
+		modal.style.display = "none";
+		modal.innerHTML = "";
+		document.removeEventListener("keydown", manejarTeclado, true);
+	};
+
+	const manejarTeclado = event => {
+		if (modal.style.display === "none") return;
+		if (event.key === "Escape") { event.preventDefault(); cerrar(); }
+	};
+
+	const itemsFactura = recepcionInteligenteItemsActuales;
+	const totalFactura = recepcionInteligenteRecepcionActual?.total ?? itemsFactura.reduce((suma, it) => suma + it.importe, 0);
+
+	const filasTabla = (items, esFactura) => items.map(it => `
+		<tr>
+			<td>${escaparPOS(esFactura ? it.descripcion : it.nombre)}${it.codigo ? `<small>${escaparPOS(it.codigo)}</small>` : ""}</td>
+			<td>${it.cantidad}</td>
+			<td>$${Number(it.costo).toFixed(2)}</td>
+		</tr>
+	`).join("");
+
+	modal.innerHTML = `
+		<div class="ri-modal-producto-card ri-modal-conciliacion-card">
+			<button type="button" class="ri-modal-producto-cerrar" aria-label="Cerrar">✕</button>
+			<h3>¿Esta factura es la misma compra que ya recibiste?</h3>
+			<p class="ri-modal-producto-marca">Encontramos una remisión de este proveedor que ya sumó su stock y sigue esperando su factura. Si es la misma compra, confirma esta factura como su conciliación para no duplicar el stock.</p>
+			<div class="ri-conciliacion-comparacion">
+				<div class="ri-conciliacion-columna">
+					<h4>Remisión ya recibida${remisionPendiente.referencia ? ` — ${escaparPOS(remisionPendiente.referencia)}` : ""}</h4>
+					<p class="ri-conciliacion-total">Total: $${remisionPendiente.total.toFixed(2)}</p>
+					<table class="ri-conciliacion-tabla"><tbody>${filasTabla(remisionPendiente.items, false)}</tbody></table>
+					${remisionPendiente.otrasPendientes ? `<p class="ri-modal-producto-sin-precio">Hay ${remisionPendiente.otrasPendientes} remisión(es) más de este proveedor pendientes de conciliar.</p>` : ""}
+				</div>
+				<div class="ri-conciliacion-columna">
+					<h4>Esta factura${recepcionInteligenteRecepcionActual?.folio ? ` — Folio ${escaparPOS(recepcionInteligenteRecepcionActual.folio)}` : ""}</h4>
+					<p class="ri-conciliacion-total">Total: $${totalFactura.toFixed(2)}</p>
+					<table class="ri-conciliacion-tabla"><tbody>${filasTabla(itemsFactura, true)}</tbody></table>
+				</div>
+			</div>
+			<div class="ri-acciones-footer">
+				<button type="button" class="btn-secundario" data-ri-accion="distinta">No, es una compra distinta</button>
+				<button type="button" class="btn-agregar" data-ri-accion="misma">Sí, es la misma compra</button>
+			</div>
+		</div>
+	`;
+
+	modal.style.display = "flex";
+	modal.onclick = event => { if (event.target === modal) cerrar(); };
+	modal.querySelector(".ri-modal-producto-cerrar").onclick = cerrar;
+	modal.querySelector("[data-ri-accion='misma']").onclick = () => {
+		cerrar();
+		riConfirmarDefinitivo(id, { conciliarConRecepcionMercanciaId: remisionPendiente.recepcionMercanciaId });
+	};
+	modal.querySelector("[data-ri-accion='distinta']").onclick = () => {
+		cerrar();
+		riConfirmarDefinitivo(id, { ignorarConciliacion: true });
+	};
+
+	document.addEventListener("keydown", manejarTeclado, true);
 }

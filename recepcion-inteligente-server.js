@@ -699,7 +699,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         async (req, res) => {
             try {
                 const negocio = await negocioActual(req, pool);
-                const { accion, productoId, nombreNuevoProducto, precioVenta } = req.body || {};
+                const { accion, productoId, nombreNuevoProducto, precioVenta, unidadSuelta, precioPieza } = req.body || {};
 
                 // "" resetea la decision (boton "Cambiar" en pantalla,
                 // para volver a elegir sin dejar un rastro de la accion
@@ -716,6 +716,17 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     res.status(400).json({ ok: false, error: "Falta el precio de venta" });
                     return;
                 }
+
+                // Venta suelta (tornillos/pijas/taquetes/alambre por kilo o
+                // pieza, aparte del contenedor completo) es opcional: solo
+                // se guarda unidad valida con precio > 0 -- unidadSuelta sin
+                // precio (o al reves) no activa nada, igual que "Agregar
+                // producto".
+                const unidadesSueltaValidas = ["pieza", "kg", "gramo", "litro", "metro"];
+                const unidadSueltaLimpia = unidadesSueltaValidas.includes(unidadSuelta) && Number(precioPieza) > 0
+                    ? unidadSuelta
+                    : null;
+                const precioPiezaLimpio = unidadSueltaLimpia ? Number(precioPieza) : null;
 
                 const recepcion = await pool.query(
                     `SELECT estado FROM public.recepciones_inteligentes WHERE id = $1 AND negocio_id = $2`,
@@ -735,13 +746,16 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                      SET accion = $1,
                          producto_id = CASE WHEN $1 = 'relacionar' THEN $2::integer ELSE NULL END,
                          nombre_nuevo_producto = CASE WHEN $1 = 'crear' THEN $3::text ELSE '' END,
-                         precio_venta_nuevo_producto = CASE WHEN $1 = 'crear' THEN $4::numeric ELSE NULL END
+                         precio_venta_nuevo_producto = CASE WHEN $1 = 'crear' THEN $4::numeric ELSE NULL END,
+                         unidad_suelta_nuevo_producto = CASE WHEN $1 = 'crear' THEN $8::text ELSE NULL END,
+                         precio_pieza_nuevo_producto = CASE WHEN $1 = 'crear' THEN $9::numeric ELSE NULL END
                      WHERE id = $5 AND recepcion_id = $6 AND negocio_id = $7
                      RETURNING id`,
                     [
                         accion, productoId || null, String(nombreNuevoProducto || "").trim(),
                         accion === "crear" ? Number(precioVenta) : null,
-                        req.params.itemId, req.params.id, negocio.id
+                        req.params.itemId, req.params.id, negocio.id,
+                        unidadSueltaLimpia, precioPiezaLimpio
                     ]
                 );
 
@@ -920,15 +934,26 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         // decidida antes de que este campo existiera.
                         const precioVenta = item.precio_venta_nuevo_producto != null ? num(item.precio_venta_nuevo_producto) : costo;
 
+                        // Venta suelta (tornillos/pijas/taquetes/alambre que
+                        // ademas del bulto se venden por kilo/pieza/metro a
+                        // un precio propio, capturado en "Crear producto" --
+                        // ver 20261008_recepcion_crear_producto_venta_pieza.sql).
+                        // Sin esto quedaba pendiente ir a Inventario despues
+                        // solo para activarla.
+                        const unidadSuelta = item.unidad_suelta_nuevo_producto || null;
+                        const precioPieza = item.precio_pieza_nuevo_producto != null ? num(item.precio_pieza_nuevo_producto) : null;
+
                         const nuevo = await client.query(
                             `INSERT INTO public.productos
                                 (negocio_id, nombre, codigo, precio, precio_publico, precio_mayoreo, precio_distribuidor,
-                                 stock, marca, proveedor_id, catalogo_maestro_id)
-                             VALUES ($1,$2,$3,$4,$4,$4,$5,0,$6,$7,$8)
+                                 stock, marca, proveedor_id, catalogo_maestro_id,
+                                 permite_venta_pieza, unidad_suelta, precio_pieza, precio_pieza_publico)
+                             VALUES ($1,$2,$3,$4,$4,$4,$5,0,$6,$7,$8,$9,$10,$11,$11)
                              RETURNING id`,
                             [
                                 negocio.id, nombre, item.codigo_factura || "", precioVenta, costo,
-                                candidato.marca || null, recepcion.rows[0].proveedor_id, catalogoMaestroId
+                                candidato.marca || null, recepcion.rows[0].proveedor_id, catalogoMaestroId,
+                                Boolean(unidadSuelta), unidadSuelta || "pieza", precioPieza
                             ]
                         );
                         productoId = nuevo.rows[0].id;
@@ -937,6 +962,35 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                             `UPDATE public.recepciones_inteligentes_items SET producto_id = $1 WHERE id = $2`,
                             [productoId, item.id]
                         );
+
+                        // Fase 9 de identidad multi-proveedor (prioridad de
+                        // fuente de imagen): si ese codigo ya tiene una foto
+                        // en el catalogo de este proveedor (ej. extraida del
+                        // PDF de GAFI), se copia sola al producto nuevo --
+                        // antes se creaba siempre sin foto aunque el sistema
+                        // ya la tuviera guardada. Nunca pisa una foto que el
+                        // negocio ya haya subido a mano (esto es un INSERT
+                        // hacia un codigo que hasta este momento no existia
+                        // en fotos_producto, no una actualizacion).
+                        if (item.codigo_factura) {
+                            const fotoCatalogo = await client.query(
+                                `SELECT imagen, imagen_tipo FROM public.catalogo_productos
+                                 WHERE negocio_id = $1
+                                   AND (codigo_proveedor = $2 OR NULLIF(codigo_interno, '') = $2 OR NULLIF(codigo_barras, '') = $2)
+                                   AND imagen IS NOT NULL
+                                 ORDER BY updated_at DESC LIMIT 1`,
+                                [negocio.id, item.codigo_factura]
+                            );
+                            if (fotoCatalogo.rows.length) {
+                                await client.query(
+                                    `INSERT INTO public.fotos_producto (negocio_id, codigo, imagen_principal, imagen_principal_tipo, actualizado_at)
+                                     VALUES ($1, $2, $3, $4, NOW())
+                                     ON CONFLICT (negocio_id, codigo) DO UPDATE SET
+                                         imagen_principal = EXCLUDED.imagen_principal, imagen_principal_tipo = EXCLUDED.imagen_principal_tipo, actualizado_at = NOW()`,
+                                    [negocio.id, item.codigo_factura, fotoCatalogo.rows[0].imagen, fotoCatalogo.rows[0].imagen_tipo || "image/jpeg"]
+                                );
+                            }
+                        }
                     } else if (item.accion === "relacionar") {
                         const candidato = item.candidato || {};
                         await client.query(

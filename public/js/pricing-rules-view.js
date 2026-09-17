@@ -142,7 +142,8 @@ async function seleccionarProveedorReglas(proveedor) {
  margenGeneral: null,
  redondeo: "ninguno",
  margenesCategoria: {},
- margenesProducto: {}
+ margenesProducto: {},
+ tramosDescuento: []
  };
 
  renderReglasPrecios();
@@ -244,12 +245,53 @@ function renderReglasPrecios() {
  </div>
  </div>
 
+ <div class="reglas-precio-seccion">
+ <h3>Tramos de descuento por monto de factura</h3>
+ <p class="reglas-precio-ayuda">Al comprarle a este proveedor, si el total de la factura cae dentro de un tramo, ese % se descuenta del costo de lista antes de calcular el precio de venta. Vacio = nunca hay descuento (igual que antes).</p>
+ <div class="reglas-precio-tramos-tabla">
+ ${(reglas.tramosDescuento || []).map((tramo, indice) => `
+ <div class="reglas-precio-tramo-fila">
+ <label>Desde $<input type="number" step="0.01" min="0" value="${tramo.desde ?? ""}" onchange="actualizarTramoDescuento(${indice}, 'desde', this.value)"></label>
+ <label>Hasta $<input type="number" step="0.01" min="0" value="${tramo.hasta ?? ""}" placeholder="Sin tope" onchange="actualizarTramoDescuento(${indice}, 'hasta', this.value)"></label>
+ <label>Descuento %<input type="number" step="0.01" min="0" value="${tramo.porcentaje ?? ""}" onchange="actualizarTramoDescuento(${indice}, 'porcentaje', this.value)"></label>
+ <button type="button" onclick="quitarTramoDescuento(${indice})">Quitar</button>
+ </div>
+ `).join("") || `<div class="reglas-precio-vacio">Sin tramos configurados para este proveedor.</div>`}
+ </div>
+ <button type="button" class="reglas-precio-agregar-tramo" onclick="agregarTramoDescuento()">+ Agregar tramo</button>
+ </div>
+
  <div class="reglas-precio-acciones">
  <button type="button" class="btn-guardar-reglas-precio" onclick="guardarReglasActuales()">
  Guardar reglas
  </button>
  </div>
  `;
+}
+
+function agregarTramoDescuento() {
+ if (!estadoReglasPrecio.reglas.tramosDescuento) estadoReglasPrecio.reglas.tramosDescuento = [];
+
+ estadoReglasPrecio.reglas.tramosDescuento.push({ desde: 0, hasta: null, porcentaje: 0 });
+ renderReglasPrecios();
+}
+
+function actualizarTramoDescuento(indice, campo, valor) {
+ const tramo = estadoReglasPrecio.reglas.tramosDescuento?.[indice];
+ if (!tramo) return;
+
+ if (campo === "hasta" && valor === "") {
+ tramo.hasta = null;
+ } else {
+ tramo[campo] = Number(valor) || 0;
+ }
+}
+
+function quitarTramoDescuento(indice) {
+ if (!estadoReglasPrecio.reglas.tramosDescuento) return;
+
+ estadoReglasPrecio.reglas.tramosDescuento.splice(indice, 1);
+ renderReglasPrecios();
 }
 
 function filasMargenesProductoHTML(reglas) {

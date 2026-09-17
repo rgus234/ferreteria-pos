@@ -80,7 +80,9 @@ async function verificarCodigoDuplicadoEnVivo(inputId) {
  ""
  );
 
- verificarImagenExistenteParaCodigo(codigoParaFotos).then(() => verificarBancoImagenesParaCodigo(codigoParaFotos));
+ verificarImagenExistenteParaCodigo(codigoParaFotos)
+ .then(() => verificarBancoImagenesParaCodigo(codigoParaFotos))
+ .then(() => verificarCatalogoProveedorFotoParaCodigo(codigoParaFotos));
 
  if (valor === codigoDuplicadoConfirmado) return;
 
@@ -634,6 +636,105 @@ async function usarImagenBancoNexo(galeriaId = null) {
  return true;
  } catch (error) {
  await alertaPOS("No se pudo copiar la imagen del banco.", "Error", "alerta");
+ return false;
+ }
+}
+
+// Catalogo de proveedor ya importado (PDF/CSV, ver catalog-pdf-server.js)
+// -- bug real reportado por el dueño: al escribir a mano el codigo de un
+// producto de un catalogo recien importado (ej. GAFI), "Agregar producto"
+// nunca mostraba la foto que el catalogo ya tenia, solo miraba las fotos
+// propias del negocio y el Banco de Nexo. Solo tiene sentido preguntar
+// aqui si esos dos ya dijeron que no hay nada -- mismo criterio que el
+// chequeo del Banco de Nexo respecto a la foto propia.
+let datosCatalogoProveedorFotoActual = null;
+
+async function verificarCatalogoProveedorFotoParaCodigo(codigo) {
+ if (!codigo || codigoImagenExistenteActual === codigo || datosBancoImagenesActual) {
+ renderTarjetaCatalogoProveedorFoto(null);
+ datosCatalogoProveedorFotoActual = null;
+ return;
+ }
+
+ try {
+ const respuesta =
+ await fetch(`/catalogo-proveedor-foto-existe/${encodeURIComponent(codigo)}`);
+
+ const datos =
+ await respuesta.json();
+
+ const existe =
+ Boolean(datos.ok && datos.existe);
+
+ datosCatalogoProveedorFotoActual = existe ? { codigo, ...datos } : null;
+
+ if (existe) {
+ renderTarjetaSolicitarFotoBanco(null);
+ renderTarjetaCatalogoProveedorFoto(datos);
+ }
+ } catch (error) {
+ // Silencioso -- no interrumpe el formulario si falla la consulta.
+ }
+}
+
+function renderTarjetaCatalogoProveedorFoto(datos) {
+ const campo =
+ document.getElementById("nuevaImagenProducto");
+
+ const wrapperLabel =
+ campo?.closest(".campo-ficha");
+
+ if (!wrapperLabel) return;
+
+ let tarjeta =
+ document.getElementById("tarjetaCatalogoProveedorFoto");
+
+ if (!datos) {
+ tarjeta?.remove();
+ return;
+ }
+
+ if (!tarjeta) {
+ tarjeta = document.createElement("div");
+ tarjeta.id = "tarjetaCatalogoProveedorFoto";
+ tarjeta.className = "tarjeta-banco-imagenes";
+ wrapperLabel.insertAdjacentElement("afterend", tarjeta);
+ }
+
+ tarjeta.innerHTML = `
+ <span class="tarjeta-banco-imagenes-kicker">Catalogo de ${escaparPOS(datos.proveedor)}</span>
+ <div class="tarjeta-banco-imagenes-cuerpo">
+ <img src="${datos.imagenUrl}" alt="Foto encontrada en el catalogo de ${escaparPOS(datos.proveedor)}">
+ </div>
+ <div class="tarjeta-banco-imagenes-acciones">
+ <button type="button" class="tarjeta-banco-imagenes-usar" onclick="usarImagenCatalogoProveedor()">Usar esta imagen</button>
+ </div>
+ `;
+}
+
+async function usarImagenCatalogoProveedor() {
+ if (!datosCatalogoProveedorFotoActual) return false;
+
+ const codigo = datosCatalogoProveedorFotoActual.codigo;
+
+ try {
+ const respuesta =
+ await fetch(`/catalogo-proveedor-foto/${encodeURIComponent(codigo)}/usar`, { method: "POST" });
+
+ const datos =
+ await respuesta.json();
+
+ if (!datos.ok) {
+ await alertaPOS(datos.error || "No se pudo copiar la imagen del catalogo.", "Error", "alerta");
+ return false;
+ }
+
+ datosCatalogoProveedorFotoActual = null;
+ renderTarjetaCatalogoProveedorFoto(null);
+ await verificarImagenExistenteParaCodigo(codigo);
+ return true;
+ } catch (error) {
+ await alertaPOS("No se pudo copiar la imagen del catalogo.", "Error", "alerta");
  return false;
  }
 }
@@ -1717,6 +1818,7 @@ async function mostrarSugerenciaPrecioProveedor(producto) {
 
  boton.style.display = "none";
  boton.onclick = null;
+ delete boton.dataset.origen;
 
  if (!producto?.proveedor || typeof obtenerReglasPrecioProveedor !== "function") return;
 
@@ -1743,6 +1845,7 @@ async function mostrarSugerenciaPrecioProveedor(producto) {
  boton.textContent =
  `Usar precio sugerido: $${calculo.precioSugerido.toFixed(2)} (margen ${calculo.margen}%)`;
 
+ boton.dataset.origen = "catalogo";
  boton.style.display = "inline-flex";
 
  boton.onclick = () => {

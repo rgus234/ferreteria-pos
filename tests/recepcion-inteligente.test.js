@@ -416,6 +416,129 @@ test("crear producto usa el precio de referencia elegido (no el costo) cuando el
     assert.equal(Number(producto.rows[0].precio_distribuidor), 30, "precio_distribuidor sigue siendo el costo de la factura");
 });
 
+test("crear producto con venta suelta (tornillos/pijas por kilo) activa permite_venta_pieza y guarda su propio precio", async () => {
+    const uuid = `UUID-VENTAPIEZA-${Date.now()}`;
+    const xml = cfdiXml({ uuid, conceptos: [{ descripcion: "Tornillo 1/4 x 1 pulgada (bolsa)", cantidad: 5, costo: 400 }] });
+    const subida = await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, { method: "POST", headers: headers(), body: JSON.stringify({ xml }) });
+    const { recepcionId } = await subida.json();
+    const detalle = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}`, { headers: headers() })).json();
+    const item = detalle.items[0];
+
+    await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/items/${item.id}`, {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({
+            accion: "crear", nombreNuevoProducto: "Tornillo 1/4 x 1 pulgada (bolsa)", precioVenta: 500,
+            unidadSuelta: "kg", precioPieza: 33
+        })
+    });
+
+    const confirmar = await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/confirmar`, { method: "POST", headers: headers() });
+    assert.equal(confirmar.status, 200);
+
+    const producto = await pool.query(
+        `SELECT permite_venta_pieza, unidad_suelta, precio_pieza, precio_pieza_publico FROM public.productos
+          WHERE negocio_id = $1 AND nombre = 'Tornillo 1/4 x 1 pulgada (bolsa)'`,
+        [negocio.negocioId]
+    );
+    assert.equal(producto.rows[0].permite_venta_pieza, true);
+    assert.equal(producto.rows[0].unidad_suelta, "kg");
+    assert.equal(Number(producto.rows[0].precio_pieza), 33);
+    assert.equal(Number(producto.rows[0].precio_pieza_publico), 33);
+});
+
+test("crear producto sin marcar venta suelta no activa permite_venta_pieza (comportamiento de siempre)", async () => {
+    const uuid = `UUID-SINVENTAPIEZA-${Date.now()}`;
+    const xml = cfdiXml({ uuid, conceptos: [{ descripcion: "Producto normal sin venta suelta", costo: 80 }] });
+    const subida = await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, { method: "POST", headers: headers(), body: JSON.stringify({ xml }) });
+    const { recepcionId } = await subida.json();
+    const detalle = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}`, { headers: headers() })).json();
+    const item = detalle.items[0];
+
+    await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/items/${item.id}`, {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({ accion: "crear", nombreNuevoProducto: "Producto normal sin venta suelta", precioVenta: 100 })
+    });
+
+    const confirmar = await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/confirmar`, { method: "POST", headers: headers() });
+    assert.equal(confirmar.status, 200);
+
+    const producto = await pool.query(
+        `SELECT permite_venta_pieza, precio_pieza FROM public.productos
+          WHERE negocio_id = $1 AND nombre = 'Producto normal sin venta suelta'`,
+        [negocio.negocioId]
+    );
+    assert.equal(producto.rows[0].permite_venta_pieza, false);
+    assert.equal(producto.rows[0].precio_pieza, null);
+});
+
+test("crear producto hereda la foto del catalogo de proveedor cuando el codigo ya tiene una (Fase 9)", async () => {
+    const catalogo = await pool.query(
+        `INSERT INTO public.catalogos_proveedor (negocio_id, proveedor) VALUES ($1, 'Proveedor Fotos RI') RETURNING id`,
+        [negocio.negocioId]
+    );
+    const imagenFalsa = Buffer.from("imagen-de-prueba-no-es-un-jpg-real");
+    await pool.query(
+        `INSERT INTO public.catalogo_productos
+            (negocio_id, catalogo_id, codigo_proveedor, nombre_proveedor, imagen, imagen_tipo)
+         VALUES ($1, $2, 'COD-CON-FOTO-RI', 'Producto con foto en catalogo', $3, 'image/jpeg')`,
+        [negocio.negocioId, catalogo.rows[0].id, imagenFalsa]
+    );
+
+    const uuid = `UUID-CONFOTO-${Date.now()}`;
+    const xml = cfdiXml({ uuid, conceptos: [{ codigo: "COD-CON-FOTO-RI", descripcion: "Producto con foto en catalogo", costo: 20 }] });
+    const subida = await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, { method: "POST", headers: headers(), body: JSON.stringify({ xml }) });
+    const { recepcionId } = await subida.json();
+    const detalle = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}`, { headers: headers() })).json();
+    const item = detalle.items[0];
+
+    await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/items/${item.id}`, {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({ accion: "crear", nombreNuevoProducto: "Producto con foto en catalogo", precioVenta: 30 })
+    });
+
+    const confirmar = await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/confirmar`, { method: "POST", headers: headers() });
+    assert.equal(confirmar.status, 200);
+
+    const producto = await pool.query(
+        `SELECT codigo FROM public.productos WHERE negocio_id = $1 AND nombre = 'Producto con foto en catalogo'`,
+        [negocio.negocioId]
+    );
+    const foto = await pool.query(
+        `SELECT imagen_principal, imagen_principal_tipo FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = $2`,
+        [negocio.negocioId, producto.rows[0].codigo]
+    );
+    assert.equal(foto.rows.length, 1, "la foto ya existente en el catalogo de proveedor debe copiarse sola al producto nuevo");
+    assert.ok(Buffer.from(foto.rows[0].imagen_principal).equals(imagenFalsa));
+    assert.equal(foto.rows[0].imagen_principal_tipo, "image/jpeg");
+});
+
+test("crear producto sin coincidencia de codigo en el catalogo no crea ninguna foto (nunca inventa una)", async () => {
+    const uuid = `UUID-SINFOTO-${Date.now()}`;
+    const xml = cfdiXml({ uuid, conceptos: [{ descripcion: "Producto sin foto disponible en ningun catalogo", costo: 15 }] });
+    const subida = await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, { method: "POST", headers: headers(), body: JSON.stringify({ xml }) });
+    const { recepcionId } = await subida.json();
+    const detalle = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}`, { headers: headers() })).json();
+    const item = detalle.items[0];
+
+    await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/items/${item.id}`, {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({ accion: "crear", nombreNuevoProducto: "Producto sin foto disponible en ningun catalogo", precioVenta: 25 })
+    });
+
+    const confirmar = await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/confirmar`, { method: "POST", headers: headers() });
+    assert.equal(confirmar.status, 200);
+
+    const producto = await pool.query(
+        `SELECT codigo FROM public.productos WHERE negocio_id = $1 AND nombre = 'Producto sin foto disponible en ningun catalogo'`,
+        [negocio.negocioId]
+    );
+    const foto = await pool.query(
+        `SELECT id FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = $2`,
+        [negocio.negocioId, producto.rows[0].codigo]
+    );
+    assert.equal(foto.rows.length, 0);
+});
+
 test("rechazar una factura pendiente no toca inventario y bloquea confirmarla despues", async () => {
     const uuid = `UUID-RECHAZO-${Date.now()}`;
     const xml = cfdiXml({ uuid, conceptos: [{ descripcion: "Concepto de una factura rechazada" }] });

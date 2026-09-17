@@ -466,6 +466,18 @@
   line-height: 1.35;
 }
 
+.config-margen-categoria-btn {
+  width: auto !important;
+  min-height: 38px;
+  margin-top: 4px;
+  padding: 0 16px;
+  border: 1px solid var(--pos-line, #dbe3ef);
+  border-radius: 10px;
+  background: var(--pos-surface-strong, #fff) !important;
+  color: var(--pos-text, #172033) !important;
+  font-weight: 800;
+}
+
 .config-giros-lista {
   display: flex;
   flex-wrap: wrap;

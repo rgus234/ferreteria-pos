@@ -184,11 +184,52 @@ async function actualizarContadoresCatalogo(pool, negocioId, catalogoId) {
     );
 }
 
+// Un mismo codigo puede aparecer 2+ veces en un catalogo real de
+// cientos de paginas (reimpreso en otra seccion, actualizado de precio
+// mas adelante, etc.) -- confirmado corriendo el catalogo real de GAFI
+// (636 paginas): "ON CONFLICT DO UPDATE command cannot affect row a
+// second time", porque Postgres no permite que el mismo (catalogo_id,
+// codigo_proveedor) aparezca 2 veces DENTRO del mismo INSERT ... ON
+// CONFLICT. Se usa un Map para quedarse con la ultima aparicion de cada
+// codigo -- mismo resultado que tendria upsertear fila por fila en orden.
+function filasUnicasPorCodigo(productos) {
+    const filasPorCodigo = new Map();
+
+    productos.forEach((p, indice) => {
+        const codigoProveedor = p.codigo || `SIN-CODIGO-P${p.paginaPdf}-${indice}`;
+        filasPorCodigo.set(codigoProveedor, {
+            codigoProveedor,
+            nombre: p.descripcion || "",
+            descripcion: p.descripcion || "",
+            precioPublico: Number.isFinite(p.precio) ? p.precio : null,
+            imagen: p.imagenBuffer,
+            imagenTipo: p.imagenTipo,
+            paginaPdf: p.paginaPdf,
+            confianzaCodigo: p.confianzaCodigo,
+            confianzaDescripcion: p.confianzaDescripcion,
+            confianzaPrecio: p.confianzaPrecio,
+            confianzaImagen: p.confianzaImagen,
+            estadoExtraccion: p.estadoExtraccion
+        });
+    });
+
+    return [...filasPorCodigo.values()];
+}
+
 async function procesarTrabajoPdf(pool, trabajo) {
-    const cliente = await pool.connect();
+    // El cliente transaccional solo se reserva del pool justo antes de la
+    // transaccion (mas abajo) -- reservarlo desde aqui arriba lo dejaba
+    // detenido, sin usarse, durante los varios minutos que tarda
+    // extraerCatalogoPDF en un catalogo real grande (confirmado con el
+    // catalogo real de GAFI, 636 paginas, ~9 minutos): el proveedor de la
+    // base de datos cierra conexiones inactivas por su cuenta, y al volver
+    // a usarla para el BEGIN tronaba "Client has encountered a connection
+    // error and is not queryable". El progreso (onProgreso) y el update
+    // inicial de estado ya usaban `pool.query` normal, sin este problema.
+    let cliente = null;
 
     try {
-        await cliente.query(
+        await pool.query(
             `UPDATE public.catalogo_pdf_trabajos SET estado = 'procesando', updated_at = NOW() WHERE id = $1`,
             [trabajo.id]
         );
@@ -206,6 +247,7 @@ async function procesarTrabajoPdf(pool, trabajo) {
             }
         });
 
+        cliente = await pool.connect();
         await cliente.query("BEGIN");
 
         const catalogo = await cliente.query(
@@ -219,20 +261,7 @@ async function procesarTrabajoPdf(pool, trabajo) {
         );
         const catalogoId = catalogo.rows[0].id;
 
-        const filas = resultado.productos.map((p, indice) => ({
-            codigoProveedor: p.codigo || `SIN-CODIGO-P${p.paginaPdf}-${indice}`,
-            nombre: p.descripcion || "",
-            descripcion: p.descripcion || "",
-            precioPublico: Number.isFinite(p.precio) ? p.precio : null,
-            imagen: p.imagenBuffer,
-            imagenTipo: p.imagenTipo,
-            paginaPdf: p.paginaPdf,
-            confianzaCodigo: p.confianzaCodigo,
-            confianzaDescripcion: p.confianzaDescripcion,
-            confianzaPrecio: p.confianzaPrecio,
-            confianzaImagen: p.confianzaImagen,
-            estadoExtraccion: p.estadoExtraccion
-        }));
+        const filas = filasUnicasPorCodigo(resultado.productos);
 
         const TAMANO_LOTE = 200; // mas chico que el lote CSV (400): cada fila trae una imagen BYTEA
         for (let inicio = 0; inicio < filas.length; inicio += TAMANO_LOTE) {
@@ -299,13 +328,13 @@ async function procesarTrabajoPdf(pool, trabajo) {
             [catalogoId, filas.length, productosCompletos, productosRevision, productosNoIdentificados, resultado.llamadasIA, trabajo.id]
         );
     } catch (error) {
-        await cliente.query("ROLLBACK").catch(() => {});
+        if (cliente) await cliente.query("ROLLBACK").catch(() => {});
         await pool.query(
             `UPDATE public.catalogo_pdf_trabajos SET estado = 'error', mensaje_error = $1, updated_at = NOW() WHERE id = $2`,
             [error.message || "Error desconocido procesando el PDF", trabajo.id]
         ).catch(() => {});
     } finally {
-        cliente.release();
+        if (cliente) cliente.release();
         fs.unlink(trabajo.ruta_temporal, () => {});
     }
 }
@@ -315,7 +344,19 @@ let procesandoAhora = false;
 
 function iniciarProcesadorCatalogoPDF(pool) {
     async function revisarYCorrer() {
+        // La bandera se prende ANTES del primer await (sin nada async en
+        // medio) -- confirmado con carga real: si el SELECT de abajo se
+        // tarda (ej. la base ocupada por otra cosa al mismo tiempo, como
+        // una corrida de pruebas), el intervalo de 4s puede volver a
+        // disparar `revisarYCorrer` mientras el primero sigue esperando,
+        // y con la bandera prendiendose DESPUES del SELECT ambas llamadas
+        // pasaban el "if (procesandoAhora) return" y procesaban el MISMO
+        // trabajo en paralelo -- una copia borraba el PDF (fs.unlink al
+        // terminar) mientras la otra todavia lo estaba leyendo, tronando
+        // con ENOENT. JS es de un solo hilo: sin await entre el check y
+        // el set, ninguna otra llamada puede colarse en esa ventana.
         if (procesandoAhora) return;
+        procesandoAhora = true;
 
         try {
             const pendiente = await pool.query(
@@ -323,7 +364,6 @@ function iniciarProcesadorCatalogoPDF(pool) {
             );
             if (pendiente.rows.length === 0) return;
 
-            procesandoAhora = true;
             await procesarTrabajoPdf(pool, pendiente.rows[0]);
         } catch (error) {
             console.log("[catalogo-pdf] Error en el poller:", error.message);
@@ -466,6 +506,83 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
+    // Bug real reportado por el dueño: al usar "Agregar producto" con un
+    // codigo real de un catalogo ya importado (ej. GAFI), no aparecia
+    // ninguna foto -- ese formulario solo consultaba fotos_producto (lo
+    // que el negocio ya tiene guardado) y el Banco de Nexo, nunca el
+    // catalogo de proveedor recien importado (staging, catalogo_productos).
+    // Mismo criterio de exposicion que /fotos-producto-existe: solo dice
+    // si existe y da una URL firmada, nunca el bytea directo aqui.
+    app.get("/catalogo-proveedor-foto-existe/:codigo", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const codigo = String(req.params.codigo || "").trim();
+
+            if (!codigo) { res.json({ ok: true, existe: false }); return; }
+
+            const resultado = await pool.query(
+                `
+                SELECT cp.id, cp.catalogo_id, cat.proveedor
+                FROM public.catalogo_productos cp
+                JOIN public.catalogos_proveedor cat ON cat.id = cp.catalogo_id
+                WHERE cp.negocio_id = $1
+                  AND (cp.codigo_proveedor = $2 OR NULLIF(cp.codigo_interno, '') = $2 OR NULLIF(cp.codigo_barras, '') = $2)
+                  AND cp.imagen IS NOT NULL
+                ORDER BY cp.updated_at DESC LIMIT 1
+                `,
+                [negocio.id, codigo]
+            );
+
+            const fila = resultado.rows[0];
+            if (!fila) { res.json({ ok: true, existe: false }); return; }
+
+            res.json({
+                ok: true,
+                existe: true,
+                proveedor: fila.proveedor,
+                imagenUrl: `/catalogo-proveedor/${fila.catalogo_id}/productos/${fila.id}/imagen-propuesta?token=${firmarTokenImagenCatalogoPdf(fila.id)}`
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Copia esa misma imagen candidata a fotos_producto (lo que de verdad
+    // usa el POS/ticket/Market) -- mismo patron que /banco-imagenes/:codigo/usar,
+    // nunca se copia sola sin que el dueño le de "Usar esta imagen".
+    app.post("/catalogo-proveedor-foto/:codigo/usar", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const codigo = String(req.params.codigo || "").trim();
+
+            if (!codigo) { res.status(400).json({ ok: false, error: "Falta el codigo" }); return; }
+
+            const resultado = await pool.query(
+                `SELECT imagen, imagen_tipo FROM public.catalogo_productos
+                 WHERE negocio_id = $1
+                   AND (codigo_proveedor = $2 OR NULLIF(codigo_interno, '') = $2 OR NULLIF(codigo_barras, '') = $2)
+                   AND imagen IS NOT NULL
+                 ORDER BY updated_at DESC LIMIT 1`,
+                [negocio.id, codigo]
+            );
+
+            const fila = resultado.rows[0];
+            if (!fila) { res.status(404).json({ ok: false, error: "No se encontro esa imagen" }); return; }
+
+            await pool.query(
+                `INSERT INTO public.fotos_producto (negocio_id, codigo, imagen_principal, imagen_principal_tipo, actualizado_at)
+                 VALUES ($1, $2, $3, $4, NOW())
+                 ON CONFLICT (negocio_id, codigo) DO UPDATE SET
+                     imagen_principal = EXCLUDED.imagen_principal, imagen_principal_tipo = EXCLUDED.imagen_principal_tipo, actualizado_at = NOW()`,
+                [negocio.id, codigo, fila.imagen, fila.imagen_tipo || "image/jpeg"]
+            );
+
+            res.json({ ok: true });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     // Confirma la importacion: crea productos reales a partir de las
     // filas seleccionadas (normalmente las verdes + las amarillas ya
     // corregidas por el dueno) en un solo round-trip, en vez de una
@@ -586,3 +703,4 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 };
 
 module.exports.firmarTokenImagenCatalogoPdf = firmarTokenImagenCatalogoPdf;
+module.exports.filasUnicasPorCodigo = filasUnicasPorCodigo;

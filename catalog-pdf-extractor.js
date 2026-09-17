@@ -656,7 +656,16 @@ async function extraerCatalogoPDF(rutaPdf, opciones = {}) {
     let llamadasIA = 0;
     let ocrWorker = null;
 
-    const ESCALA = 2.0; // ~144dpi -- suficiente para OCR y recorte nitido sin gastar tiempo de mas
+    // Bug real reportado por el dueño: en un catalogo denso como el de GAFI
+    // (varios SKUs por pagina, foto de cada uno de solo unos cm en la
+    // hoja), 144dpi rasterizaba esa foto a apenas ~109x70px reales -- se
+    // veia borrosa no por el recorte/resize (withoutEnlargement:true nunca
+    // agranda), sino porque el propio raster de origen ya traia pocos
+    // pixeles ahi. A 288dpi el mismo recorte sale a ~218x140px, el doble
+    // de detalle real. Costo: ~4x mas memoria de raster por pagina (no
+    // acumulada entre paginas -- ese leak ya se arreglo aparte con
+    // page.cleanup()), verificado que sigue siendo manejable.
+    const ESCALA = 4.0; // ~288dpi -- recorte nitido en catalogos con fotos chicas
 
     try {
         for (let numeroPagina = 1; numeroPagina <= totalPaginas; numeroPagina++) {

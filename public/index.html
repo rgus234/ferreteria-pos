@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="css/components/config-settings.css?v=multi-giro-20260825-01">
   <link rel="stylesheet" href="css/components/customers.css?v=refactor-customers-20260701-01">
   <link rel="stylesheet" href="css/components/suppliers.css?v=proveedores-redesign-20260705-01">
-  <link rel="stylesheet" href="css/components/pricing-rules.css?v=reglas-precio-20260709-06">
+  <link rel="stylesheet" href="css/components/pricing-rules.css?v=gafi-fases-ui-20260916-01">
   <link rel="stylesheet" href="css/components/inventory.css?v=retiro-categorias-decorativas-20260825-01">
   <link rel="stylesheet" href="css/components/supplier-catalog.css?v=catalogo-pdf-20260902-01">
   <link rel="stylesheet" href="css/components/reports.css?v=venta-detalle-reportes-20260720-01">
@@ -53,7 +53,7 @@
   <link rel="stylesheet" href="css/components/account-view.css?v=renombrar-dispositivo-20260819-01">
   <link rel="stylesheet" href="css/components/product-details-view.css?v=liquid-glass-inv-20260719-01">
   <link rel="stylesheet" href="css/components/explorar-nexo-view.css?v=explorar-nexo-fotos-20260908-01">
-  <link rel="stylesheet" href="css/components/recepcion-inteligente-view.css?v=recepcion-inteligente-fase1-20260908-01">
+  <link rel="stylesheet" href="css/components/recepcion-inteligente-view.css?v=gafi-fases-ui-20260916-01">
   <link rel="stylesheet" href="css/components/pantalla-cliente-view.css?v=pantalla-cliente-20260910-01">
   <link rel="stylesheet" href="css/components/low-stock-order.css?v=caducidad-20260826-01">
   <link rel="stylesheet" href="css/components/support-reminders.css?v=notif-contraste-fix-20260706-01">
@@ -1239,7 +1239,7 @@
  </select>
  <button type="button" id="detectarCategoriaIABtn" onclick="detectarCategoriaConIA()" hidden>Detectar categoria con IA</button>
  </div>
- <input id="nuevaCategoria" placeholder="Categoria" list="listaCategoriasProducto">
+ <input id="nuevaCategoria" placeholder="Categoria" list="listaCategoriasProducto" oninput="actualizarSugerenciaPrecioCategoria()">
  <datalist id="listaCategoriasProducto"></datalist>
  <input type="hidden" id="categoriaNexoId">
  <div class="campo-ficha producto-chip-campo campo-ficha-ancho">
@@ -1260,7 +1260,7 @@
  </div>
  <div class="producto-form-campos">
  <input id="precioDistribuidor" type="number" step="0.01"
- placeholder=" Precio distribuidor" />
+ placeholder=" Precio distribuidor" oninput="actualizarSugerenciaPrecioCategoria()" />
  <input id="precioMayoreo" type="number" step="0.01" placeholder=" Precio medio mayoreo" />
  <input id="precioPublico" type="number" step="0.01" placeholder="Precio publico">
  <div class="campo-ficha-precio-carrito">
@@ -1783,7 +1783,7 @@
   <script src="js/ticket-template.js?v=ticket-digital-20260831-01"></script>
   <script src="js/catalog-provider-picker.js?v=catalog-adapters-20260708-01"></script>
   <script src="js/supplier-catalog.js?v=plantillas-servidor-ia-20260723-01"></script>
-  <script src="js/pricing-rules.js?v=reglas-precio-20260709-02"></script>
+  <script src="js/pricing-rules.js?v=gafi-fases-ui-20260916-01"></script>
   <script src="js/catalog-parsers.js?v=plantillas-servidor-ia-20260723-01"></script>
   <script src="js/product-inventory.js?v=codigo-duplicado-20260902-01"></script>
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
@@ -1797,7 +1797,8 @@
   <script src="js/sales-history-documents.js?v=cancelar-venta-20260901-01"></script>
   <script src="js/credit-customers.js?v=acuerdo-credito-20260928-02"></script>
   <script src="js/supplier-catalog-view.js?v=cambios-importacion-20260903-01"></script>
-  <script src="js/pricing-rules-view.js?v=retiro-categorias-decorativas-20260825-01"></script>
+  <script src="js/pricing-rules-view.js?v=gafi-fases-ui-20260916-01"></script>
+  <script src="js/category-margins.js?v=margen-categoria-20260917-01"></script>
   <script src="js/pricing-apply-view.js?v=reglas-precio-20260709-02"></script>
   <script src="js/app-bootstrap.js?v=articulo-rapido-20260720-01"></script>
   <script src="js/reports.js?v=venta-detalle-reportes-20260720-01"></script>
@@ -1822,7 +1823,7 @@
 <script src="js/nexo-ia.js?v=ia-streaming-20260827-01"></script>
 <script src="js/pos-busqueda-ia.js?v=borde-siri-20260721-01"></script>
 <script src="js/explorar-nexo-view.js?v=explorar-nexo-fotos-20260908-01"></script>
-<script src="js/recepcion-inteligente-view.js?v=recepcion-inteligente-fase1-20260908-01"></script>
+<script src="js/recepcion-inteligente-view.js?v=gafi-fases-ui-20260916-01"></script>
 <script src="js/pantalla-cliente-view.js?v=pantalla-cliente-20260910-01"></script>
 
 </body>

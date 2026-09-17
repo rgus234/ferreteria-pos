@@ -103,7 +103,8 @@ async function obtenerReglasPrecioProveedor(proveedor, forzar = false) {
  margenGeneral: datos.regla.margen_general != null ? Number(datos.regla.margen_general) : null,
  redondeo: datos.regla.redondeo || "ninguno",
  margenesCategoria: datos.regla.margenes_categoria || {},
- margenesProducto: datos.regla.margenes_producto || {}
+ margenesProducto: datos.regla.margenes_producto || {},
+ tramosDescuento: datos.regla.tramos_descuento || []
  }
  : null;
 
@@ -130,7 +131,8 @@ async function todasLasReglasPrecio() {
  margenGeneral: fila.margen_general != null ? Number(fila.margen_general) : null,
  redondeo: fila.redondeo || "ninguno",
  margenesCategoria: fila.margenes_categoria || {},
- margenesProducto: fila.margenes_producto || {}
+ margenesProducto: fila.margenes_producto || {},
+ tramosDescuento: fila.tramos_descuento || []
  }));
  } catch (error) {
  console.warn("No se pudieron leer las reglas de precio", error);
@@ -160,7 +162,8 @@ async function guardarReglasPrecioProveedor(reglas) {
  margenGeneral: reglas.margenGeneral,
  redondeo: reglas.redondeo || "ninguno",
  margenesCategoria: reglas.margenesCategoria || {},
- margenesProducto: reglas.margenesProducto || {}
+ margenesProducto: reglas.margenesProducto || {},
+ tramosDescuento: reglas.tramosDescuento || []
  })
  });
 
@@ -176,7 +179,8 @@ async function guardarReglasPrecioProveedor(reglas) {
  margenGeneral: datos.regla.margen_general != null ? Number(datos.regla.margen_general) : null,
  redondeo: datos.regla.redondeo || "ninguno",
  margenesCategoria: datos.regla.margenes_categoria || {},
- margenesProducto: datos.regla.margenes_producto || {}
+ margenesProducto: datos.regla.margenes_producto || {},
+ tramosDescuento: datos.regla.tramos_descuento || []
  };
 
  return __cacheReglasPrecioProveedor[reglas.proveedor];

@@ -6849,6 +6849,58 @@ app.post("/reglas-precios", requerirAccesoNegocio, requerirFuncionPlan("catalogo
     }
 });
 
+// Margen de ganancia por categoria, independiente de proveedor -- ver
+// migrations/20261009_margenes_categoria_negocio.sql. Caso real: un
+// producto llega sin factura (costo dado de palabra por el proveedor)
+// y en "Agregar producto" se quiere sugerir su precio de venta solo con
+// costo + categoria, sin depender de que haya una regla configurada
+// para ESE proveedor exacto.
+app.get("/margenes-categoria", requerirAccesoNegocio, async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+
+        const resultado = await pool.query(
+            `SELECT margenes_categoria, redondeo FROM public.margenes_categoria_negocio WHERE negocio_id = $1`,
+            [negocio.id]
+        );
+
+        res.json({
+            ok: true,
+            margenesCategoria: resultado.rows[0]?.margenes_categoria || {},
+            redondeo: resultado.rows[0]?.redondeo || "ninguno"
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ ok: false, error: "Error al leer margenes por categoria" });
+    }
+});
+
+app.post("/margenes-categoria", requerirAccesoNegocio, requerirFuncionPlan("catalogo.reglas_precio", "Las reglas de precio automaticas estan disponibles desde el plan Plus."), async (req, res) => {
+    const { margenesCategoria, redondeo } = req.body || {};
+
+    try {
+        const negocio = await negocioActual(req);
+
+        const resultado = await pool.query(
+            `
+            INSERT INTO public.margenes_categoria_negocio (negocio_id, margenes_categoria, redondeo, actualizado_at)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (negocio_id) DO UPDATE SET
+                margenes_categoria = EXCLUDED.margenes_categoria,
+                redondeo = EXCLUDED.redondeo,
+                actualizado_at = NOW()
+            RETURNING margenes_categoria, redondeo
+            `,
+            [negocio.id, JSON.stringify(margenesCategoria || {}), redondeo || "ninguno"]
+        );
+
+        res.json({ ok: true, margenesCategoria: resultado.rows[0].margenes_categoria, redondeo: resultado.rows[0].redondeo });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ ok: false, error: "Error al guardar margenes por categoria" });
+    }
+});
+
 app.delete("/eliminar-producto/:id", requerirAccesoNegocio, async (req, res) => {
 
     const { id } = req.params;

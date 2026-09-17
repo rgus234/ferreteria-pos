@@ -486,6 +486,36 @@
 .ri-modal-producto-precios strong{ font-size:15px; color:var(--pos-text,#172033); }
 .ri-modal-producto-sin-precio{ margin:0; color:var(--pos-muted,#687386); font-size:12.5px; }
 
+/* --- Modal: comparacion de conciliacion (remision vs factura) --- */
+
+.ri-modal-conciliacion-card{
+	width:min(680px,94vw);
+	text-align:left;
+}
+.ri-modal-conciliacion-card h3{ margin:0 0 6px; padding-right:30px; font-size:16px; font-weight:800; color:var(--pos-text,#172033); }
+.ri-conciliacion-comparacion{
+	display:grid;
+	grid-template-columns:1fr 1fr;
+	gap:14px;
+	margin:14px 0;
+}
+.ri-conciliacion-columna{
+	padding:12px;
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:12px;
+	background:var(--pos-surface,#f3f5f9);
+}
+.ri-conciliacion-columna h4{ margin:0 0 4px; font-size:12.5px; font-weight:800; color:var(--pos-text,#172033); }
+.ri-conciliacion-total{ margin:0 0 8px; font-size:13px; font-weight:700; color:var(--pos-muted,#687386); }
+.ri-conciliacion-tabla{ width:100%; border-collapse:collapse; font-size:12px; }
+.ri-conciliacion-tabla td{ padding:5px 0; border-bottom:1px solid var(--pos-line,#dbe3ef); color:var(--pos-text,#172033); vertical-align:top; }
+.ri-conciliacion-tabla td:last-child{ text-align:right; white-space:nowrap; }
+.ri-conciliacion-tabla small{ display:block; color:var(--pos-muted,#687386); font-size:10.5px; }
+
+@media (max-width:560px){
+	.ri-conciliacion-comparacion{ grid-template-columns:1fr; }
+}
+
 .btn-mini{
 	width:auto;
 	border:1px solid var(--pos-line,#dbe3ef);

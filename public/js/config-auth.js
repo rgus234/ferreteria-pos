@@ -1877,6 +1877,11 @@ function mostrarConfiguracion() {
  `).join("")}
  </div>
  </div>
+ <div class="config-giro-note">
+ <strong>Margen por categoria</strong>
+ <span>El margen que Nexo sugiere al agregar un producto nuevo solo con el costo (sin factura ni proveedor de por medio) -- ej. "Tornilleria y fijacion" siempre con 40%.</span>
+ <button type="button" class="config-margen-categoria-btn" onclick="mostrarMargenesCategoria()">Configurar margenes por categoria</button>
+ </div>
  <div class="config-danger-zone">
  <div>
  <strong>Restablecer configuracion inicial</strong>
