@@ -138,6 +138,25 @@
             <p class="dueno-login-alt"><a href="#" onclick="mostrarLoginDuenoNormal(); return false;">¿Eres el dueño? Entra con tu cuenta de negocio</a></p>
             <p class="dueno-login-alt"><a href="#" onclick="mostrarBienvenidaDueno(); return false;">&larr; Volver</a></p>
         </div>
+
+        <div class="dueno-login-caja" id="duenoLoginCajaPin" style="display:none;">
+            <img src="img/nexo-ia/feliz.jpg" alt="Nexo" class="dueno-login-nexo">
+            <h1>¿Quién está trabajando?</h1>
+            <p id="duenoPinSubtitulo">Elige tu perfil y escribe tu PIN.</p>
+
+            <div id="duenoPinPerfiles" class="dueno-pin-perfiles"></div>
+            <p id="duenoPinPerfilesError" class="dueno-login-error" style="display:none;"></p>
+
+            <div id="duenoPinPad" style="display:none;">
+                <p id="duenoPinPadNombre" class="dueno-pin-pad-nombre"></p>
+                <input type="password" id="duenoPinPadInput" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="PIN" autocomplete="off">
+                <p id="duenoPinPadError" class="dueno-login-error" style="display:none;"></p>
+                <button type="button" class="dueno-boton-primario" onclick="confirmarPinDueno()">Entrar</button>
+                <button type="button" class="dueno-boton-secundario" onclick="mostrarSelectorPinDueno()">&lsaquo; Elegir otro perfil</button>
+            </div>
+
+            <p class="dueno-login-alt"><a href="#" onclick="mostrarLoginDuenoNormal(); return false;">Entrar con correo y contraseña</a></p>
+        </div>
     </main>
 
     <main id="duenoApp" class="dueno-app" style="display:none;">

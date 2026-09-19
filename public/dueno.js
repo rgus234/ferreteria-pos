@@ -2,6 +2,8 @@ const DUENO_TOKEN_KEY = "nexoCuentaSesionToken";
 const DUENO_ONBOARDING_KEY = "nexoDuenoOnboardingVisto";
 const DUENO_ONBOARDING_TOTAL_SLIDES = 5;
 const DUENO_TEMA_KEY = "nexoDuenoTema";
+const DUENO_DISPOSITIVO_TOKEN_KEY = "nexoDuenoDispositivoToken";
+const DUENO_EMPLEADO_ACTIVO_KEY = "nexoDuenoEmpleadoActivo";
 
 let duenoCarrito = [];
 let duenoUltimosResultados = [];
@@ -54,6 +56,45 @@ function miniaturaVaciaDuenoHtml() {
 
 function tokenGuardado() {
     return localStorage.getItem(DUENO_TOKEN_KEY);
+}
+
+// Segundo mecanismo de sesion, paralelo al de arriba -- para un
+// celular/tablet COMPARTIDO entre varios empleados (ej. un mostrador
+// secundario), en vez de que cada quien tenga que escribir correo y
+// contraseña completos cada vez que entra a trabajar. Reusa el MISMO
+// modelo de confianza que ya usan las cajas fisicas de escritorio
+// (dispositivos_vinculados + PIN de public.empleados, ver rbac.js
+// resolverIdentidadNexo) -- nunca un atajo aparte: vincular este
+// celular pide la sesion normal de dueño/empleado (Bearer) una sola
+// vez, y de ahi en adelante cualquier empleado con PIN configurado en
+// escritorio puede entrar aqui con ese mismo PIN, con sus permisos
+// reales aplicados por el servidor via x-empleado-id -- nunca acceso
+// sin restriccion salvo que el empleado sea Administrador.
+function dispositivoTokenGuardado() {
+    return localStorage.getItem(DUENO_DISPOSITIVO_TOKEN_KEY);
+}
+
+function empleadoActivoGuardado() {
+    try {
+        return JSON.parse(localStorage.getItem(DUENO_EMPLEADO_ACTIVO_KEY) || "null");
+    } catch (error) {
+        return null;
+    }
+}
+
+function guardarEmpleadoActivo(empleado) {
+    localStorage.setItem(DUENO_EMPLEADO_ACTIVO_KEY, JSON.stringify({ id: empleado.id, nombre: empleado.nombre, colorAvatar: empleado.colorAvatar || "" }));
+}
+
+function limpiarEmpleadoActivo() {
+    localStorage.removeItem(DUENO_EMPLEADO_ACTIVO_KEY);
+}
+
+// Sesion "completa" para efectos de saltarse la pantalla de login al
+// abrir la app: o bien la de siempre (cuenta con Bearer), o bien un
+// celular ya vinculado con un empleado ya elegido por PIN.
+function haySesionActivaDueno() {
+    return Boolean(tokenGuardado()) || Boolean(dispositivoTokenGuardado() && empleadoActivoGuardado());
 }
 
 // Punto de entrada por defecto cuando no hay sesion -- la mayoria de
@@ -119,20 +160,35 @@ function mostrarAppDueno() {
 }
 
 async function fetchAutenticado(url, opciones = {}) {
-    const token = tokenGuardado();
+    const dispositivoToken = dispositivoTokenGuardado();
+    const empleadoActivo = empleadoActivoGuardado();
+    const enModoDispositivo = Boolean(dispositivoToken && empleadoActivo);
+
+    const headersSesion =
+    enModoDispositivo
+        ? { "x-dispositivo-token": dispositivoToken, "x-empleado-id": String(empleadoActivo.id) }
+        : { Authorization: `Bearer ${tokenGuardado()}` };
 
     const respuesta =
     await fetch(url, {
         ...opciones,
         headers: {
             ...(opciones.headers || {}),
-            Authorization: `Bearer ${token}`
+            ...headersSesion
         }
     });
 
     if (respuesta.status === 401) {
-        localStorage.removeItem(DUENO_TOKEN_KEY);
-        mostrarLoginDueno();
+        if (enModoDispositivo) {
+            // El PIN de este empleado dejo de ser valido (se dio de baja,
+            // le cambiaron el PIN) -- nunca el celular entero, solo se
+            // regresa al selector de perfiles, no al login completo.
+            limpiarEmpleadoActivo();
+            mostrarSelectorPinDueno();
+        } else {
+            localStorage.removeItem(DUENO_TOKEN_KEY);
+            mostrarLoginDueno();
+        }
         throw new Error("Sesion expirada");
     }
 
@@ -239,7 +295,9 @@ function mostrarLoginEmpleadoDueno() {
 }
 
 function mostrarLoginDuenoNormal() {
+    document.getElementById("duenoLogin").style.display = "flex";
     document.getElementById("duenoLoginCajaEmpleado").style.display = "none";
+    document.getElementById("duenoLoginCajaPin").style.display = "none";
     document.getElementById("duenoLoginCajaDueno").style.display = "block";
 }
 
@@ -343,6 +401,131 @@ function completarLoginEmpleadoDueno(datos) {
     if (duenoRolSesion !== "employee") cargarPanelDueno();
 
     actualizarNexoBurbujaDueno();
+}
+
+// ---------------- Login por PIN (celular vinculado como dispositivo) ----------------
+//
+// Tercer mecanismo de sesion, para un celular/tablet compartido -- ver
+// dispositivoTokenGuardado() arriba. Reusa exactamente los mismos 2
+// endpoints que ya usa el selector de perfil del POS de escritorio
+// (GET /dispositivo/empleados, POST /dispositivo/empleados/verificar-pin,
+// ver config-auth.js) via x-dispositivo-token, nunca via el Bearer de
+// cuenta -- distinto de fetchAutenticado() porque en este punto todavia
+// no hay ningun empleado activo elegido.
+
+let duenoPinPerfilElegido = null;
+
+async function mostrarSelectorPinDueno() {
+    document.querySelectorAll(".dueno-app").forEach(pantalla => { pantalla.style.display = "none"; });
+    document.getElementById("duenoTabs").style.display = "none";
+    document.getElementById("duenoOnboarding").style.display = "none";
+    document.getElementById("duenoBienvenida").style.display = "none";
+    document.getElementById("duenoMarketPrompt").style.display = "none";
+    document.getElementById("duenoNexoBurbuja").style.display = "none";
+
+    document.getElementById("duenoLogin").style.display = "flex";
+    document.getElementById("duenoLoginCajaDueno").style.display = "none";
+    document.getElementById("duenoLoginCajaEmpleado").style.display = "none";
+    document.getElementById("duenoLoginCajaPin").style.display = "block";
+
+    document.getElementById("duenoPinPad").style.display = "none";
+    document.getElementById("duenoPinPerfilesError").style.display = "none";
+    duenoPinPerfilElegido = null;
+
+    const contenedor =
+    document.getElementById("duenoPinPerfiles");
+
+    contenedor.innerHTML = `<p class="dueno-estado">Cargando...</p>`;
+
+    try {
+        const respuesta = await fetch("/dispositivo/empleados", {
+            headers: { "x-dispositivo-token": dispositivoTokenGuardado() || "" }
+        });
+
+        const datos = await respuesta.json();
+
+        if (!respuesta.ok || !datos.ok) {
+            // El token de este celular ya no sirve (lo desvincularon
+            // desde otro lado) -- nunca se queda atorado en un selector
+            // vacio, regresa al login normal de una vez.
+            localStorage.removeItem(DUENO_DISPOSITIVO_TOKEN_KEY);
+            mostrarLoginDuenoNormal();
+            return;
+        }
+
+        contenedor.innerHTML =
+            datos.empleados.length
+                ? datos.empleados.map(empleado => `
+                    <button type="button" class="dueno-pin-perfil" onclick='elegirPerfilPinDueno(${JSON.stringify(empleado.id)}, ${JSON.stringify(empleado.nombre)}, ${JSON.stringify(empleado.colorAvatar || "")})'>
+                        <span class="dueno-pin-avatar"${empleado.colorAvatar ? ` style="background:${escaparDueno(empleado.colorAvatar)}"` : ""}>${escaparDueno((empleado.nombre || "?").trim().charAt(0).toUpperCase())}</span>
+                        <span>${escaparDueno(empleado.nombre)}</span>
+                    </button>
+                `).join("")
+                : `<div class="vacio">Tu jefe todavia no ha dado de alta a nadie con PIN.</div>`;
+    } catch (error) {
+        contenedor.innerHTML = "";
+        document.getElementById("duenoPinPerfilesError").textContent = "No se pudo conectar. Revisa tu internet.";
+        document.getElementById("duenoPinPerfilesError").style.display = "block";
+    }
+}
+
+function elegirPerfilPinDueno(id, nombre, colorAvatar) {
+    duenoPinPerfilElegido = { id, nombre, colorAvatar };
+
+    document.getElementById("duenoPinPadNombre").textContent = nombre;
+    document.getElementById("duenoPinPad").style.display = "block";
+
+    const input = document.getElementById("duenoPinPadInput");
+    input.value = "";
+    document.getElementById("duenoPinPadError").style.display = "none";
+    input.focus();
+}
+
+async function confirmarPinDueno() {
+    if (!duenoPinPerfilElegido) return;
+
+    const pin =
+    document.getElementById("duenoPinPadInput")?.value || "";
+
+    const errorEl =
+    document.getElementById("duenoPinPadError");
+
+    errorEl.style.display = "none";
+
+    if (!/^[0-9]{4,6}$/.test(pin)) {
+        errorEl.textContent = "El PIN debe ser de 4 a 6 digitos.";
+        errorEl.style.display = "block";
+        return;
+    }
+
+    try {
+        const respuesta = await fetch("/dispositivo/empleados/verificar-pin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-dispositivo-token": dispositivoTokenGuardado() || "" },
+            body: JSON.stringify({ empleadoId: duenoPinPerfilElegido.id, pin })
+        });
+
+        const datos = await respuesta.json();
+
+        if (!respuesta.ok || !datos.ok) {
+            errorEl.textContent = datos.error || "PIN incorrecto.";
+            errorEl.style.display = "block";
+            return;
+        }
+
+        await completarLoginDispositivoDueno(datos.empleado);
+    } catch (error) {
+        errorEl.textContent = "No se pudo conectar. Revisa tu internet.";
+        errorEl.style.display = "block";
+    }
+}
+
+async function completarLoginDispositivoDueno(empleado) {
+    guardarEmpleadoActivo(empleado);
+    mostrarAppDueno();
+    await sincronizarRolSesionDueno();
+    actualizarNexoBurbujaDueno();
+    aplicarDeepLinkDueno();
 }
 
 function mostrarSelectorNegocioEmpleadoDueno(negocios) {
@@ -4013,12 +4196,22 @@ let duenoMasContexto = {};
 let duenoMasCategoriaActiva = null;
 
 async function cargarPanelMasDueno() {
+    // /cuenta/sesiones y /cuenta/dispositivos exigen la sesion de cuenta
+    // (Bearer) de siempre -- no existen en modo dispositivo+PIN (varios
+    // empleados comparten el mismo celular, ninguno tiene esa sesion
+    // personal aqui). Pedirlos igual tumbaria a quien esta trabajando
+    // de vuelta al selector de PIN a medio "Mas". Los tiles que
+    // dependen de esto (Cuenta/Plan/Seguridad/Dispositivos) se ocultan
+    // aparte, ver renderCategoriasMasDueno().
+    const enModoDispositivo =
+    Boolean(dispositivoTokenGuardado() && empleadoActivoGuardado());
+
     try {
         const [licenciaDatos, sesionesDatos, dispositivosDatos, iaDatos] =
         await Promise.all([
             fetchAutenticado("/licencia/estado"),
-            fetchAutenticado("/cuenta/sesiones"),
-            fetchAutenticado("/cuenta/dispositivos"),
+            enModoDispositivo ? Promise.resolve(null) : fetchAutenticado("/cuenta/sesiones"),
+            enModoDispositivo ? Promise.resolve(null) : fetchAutenticado("/cuenta/dispositivos"),
             fetchAutenticado("/ia/resumen-rapido")
         ]);
 
@@ -4115,14 +4308,30 @@ const CATEGORIAS_MAS_DUENO = [
     { id: "ayuda", titulo: "Ayuda", desc: "Contacto y version de la app", icono: "ayuda", color: "gris" },
     { id: "apariencia", titulo: "Apariencia", desc: "Tema claro u oscuro", icono: "pincel", color: "" },
     { id: "notificaciones", titulo: "Notificaciones", desc: "Avisos de ventas, pedidos y credito", icono: "campana", color: "" },
-    { id: "respaldos", titulo: "Respaldos", desc: "Proximamente", icono: "nube", color: "gris", proximamente: true }
+    { id: "respaldos", titulo: "Respaldos", desc: "Proximamente", icono: "nube", color: "gris", proximamente: true },
+    { id: "cambiar-usuario", titulo: "Cambiar de usuario", desc: "Otro empleado va a usar este celular", icono: "usuario", color: "" }
 ];
 
+// Tiles de cuenta personal (Bearer) -- sin sentido para "quien sea que
+// este trabajando ahorita" en un celular compartido, ver
+// cargarPanelMasDueno().
+const CATEGORIAS_MAS_SOLO_CUENTA_PERSONAL = new Set(["cuenta", "plan", "seguridad", "dispositivos"]);
+
 function renderCategoriasMasDueno() {
+    const enModoDispositivo =
+    Boolean(dispositivoTokenGuardado() && empleadoActivoGuardado());
+
+    const categorias =
+    CATEGORIAS_MAS_DUENO.filter(categoria =>
+        categoria.id === "cambiar-usuario"
+            ? enModoDispositivo
+            : !enModoDispositivo || !CATEGORIAS_MAS_SOLO_CUENTA_PERSONAL.has(categoria.id)
+    );
+
     document.getElementById("duenoMasCategorias").innerHTML =
-        CATEGORIAS_MAS_DUENO.map(categoria => `
+        categorias.map(categoria => `
             <button type="button" class="dueno-categoria-row${categoria.proximamente ? " proximamente" : ""}"
-                onclick="${categoria.tab ? `cambiarTabDueno('${categoria.tab}')` : categoria.href ? `location.href='${categoria.href}'` : (categoria.proximamente ? "proximamenteDueno()" : `abrirSubpantallaMasDueno('${categoria.id}')`)}">
+                onclick="${categoria.id === "cambiar-usuario" ? "cerrarSesionDuenoApp()" : categoria.tab ? `cambiarTabDueno('${categoria.tab}')` : categoria.href ? `location.href='${categoria.href}'` : (categoria.proximamente ? "proximamenteDueno()" : `abrirSubpantallaMasDueno('${categoria.id}')`)}">
                 <span class="dueno-categoria-icono${categoria.color ? ` dueno-categoria-icono-${categoria.color}` : ""}">${iconoCategoriaMasDueno(categoria.icono)}</span>
                 <span class="dueno-categoria-texto">
                     <strong>${escaparDueno(categoria.titulo)}</strong>
@@ -4347,7 +4556,34 @@ function renderSubpantallaSeguridad() {
 }
 
 function renderSubpantallaDispositivos() {
+    const vinculado = Boolean(dispositivoTokenGuardado());
+
     document.getElementById("duenoMasSubpantallaContenido").innerHTML = `
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Este celular</span>
+                    <h2>${vinculado ? "Entrar con PIN activado" : "Entrar con PIN"}</h2>
+                </div>
+            </div>
+            <p class="dueno-estado">${vinculado
+                ? "Cualquier empleado con PIN configurado en la computadora puede elegir su perfil y entrar aqui sin escribir correo ni contraseña."
+                : "Vincula este celular para que tus empleados con PIN (los mismos de la caja fisica) puedan entrar aqui eligiendo su perfil, sin correo ni contraseña -- util si varios van a usar el mismo celular o tablet."}</p>
+            <p id="duenoVincularDispositivoError" class="dueno-login-error" style="display:none;"></p>
+            ${vinculado
+                ? `<button type="button" class="dueno-boton-secundario" onclick="mostrarDesvincularEsteDispositivoDueno()">Desvincular este celular</button>`
+                : `<button type="button" class="dueno-boton-primario" onclick="vincularEsteDispositivoDueno()">Vincular este celular</button>`}
+            <div id="duenoDesvincularDispositivoForm" style="display:none;margin-top:10px;">
+                <label class="dueno-campo">Tu correo
+                    <input type="email" id="duenoDesvincularCorreo" autocomplete="username">
+                </label>
+                <label class="dueno-campo">Tu contraseña
+                    <input type="password" id="duenoDesvincularPassword" autocomplete="current-password">
+                </label>
+                <button type="button" class="dueno-boton-primario" onclick="confirmarDesvincularEsteDispositivoDueno()">Confirmar</button>
+            </div>
+        </article>
+
         <article class="dueno-card">
             <div class="card-head">
                 <div>
@@ -4358,6 +4594,67 @@ function renderSubpantallaDispositivos() {
             <div id="duenoMasDispositivos" class="lista-compacta">${htmlDispositivosMasDueno(duenoMasContexto.dispositivos || [])}</div>
         </article>
     `;
+}
+
+async function vincularEsteDispositivoDueno() {
+    const errorEl = document.getElementById("duenoVincularDispositivoError");
+    errorEl.style.display = "none";
+
+    try {
+        const datos = await fetchAutenticado("/dispositivo/vincular", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nombreDispositivo: `Celular (${navigator.platform || "movil"})` })
+        });
+
+        localStorage.setItem(DUENO_DISPOSITIVO_TOKEN_KEY, datos.token);
+        mostrarToastDueno("Celular vinculado. Tus empleados ya pueden entrar con su PIN.");
+        renderSubpantallaDispositivos();
+    } catch (error) {
+        errorEl.textContent = error.message || "No se pudo vincular este celular.";
+        errorEl.style.display = "block";
+    }
+}
+
+function mostrarDesvincularEsteDispositivoDueno() {
+    document.getElementById("duenoDesvincularDispositivoForm").style.display = "block";
+}
+
+async function confirmarDesvincularEsteDispositivoDueno() {
+    const correo = document.getElementById("duenoDesvincularCorreo")?.value.trim();
+    const password = document.getElementById("duenoDesvincularPassword")?.value || "";
+    const errorEl = document.getElementById("duenoVincularDispositivoError");
+
+    errorEl.style.display = "none";
+
+    if (!correo || !password) {
+        errorEl.textContent = "Confirma tu correo y contraseña para desvincular.";
+        errorEl.style.display = "block";
+        return;
+    }
+
+    try {
+        const respuesta = await fetch("/dispositivo/desvincular", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-dispositivo-token": dispositivoTokenGuardado() || "" },
+            body: JSON.stringify({ correo, password })
+        });
+
+        const datos = await respuesta.json();
+
+        if (!respuesta.ok || !datos.ok) {
+            errorEl.textContent = datos.error || "No se pudo desvincular.";
+            errorEl.style.display = "block";
+            return;
+        }
+
+        localStorage.removeItem(DUENO_DISPOSITIVO_TOKEN_KEY);
+        mostrarToastDueno("Celular desvinculado.");
+        renderSubpantallaDispositivos();
+    } catch (error) {
+        errorEl.textContent = "No se pudo conectar. Revisa tu internet.";
+        errorEl.style.display = "block";
+    }
 }
 
 function renderSubpantallaAyuda() {
@@ -4730,6 +5027,17 @@ async function desvincularDispositivoDesdeMasDueno(id) {
 }
 
 function cerrarSesionDuenoApp() {
+    // En un celular vinculado (varios empleados comparten el mismo
+    // equipo), "cerrar sesion" es solo dejar de ser ESTE perfil -- el
+    // celular sigue vinculado al negocio, listo para que el siguiente
+    // empleado elija el suyo. Desvincular el celular por completo es
+    // una accion aparte, ver desvincularEsteDispositivoDueno().
+    if (dispositivoTokenGuardado() && empleadoActivoGuardado()) {
+        limpiarEmpleadoActivo();
+        mostrarSelectorPinDueno();
+        return;
+    }
+
     if (!confirm("Vas a cerrar sesion en este telefono. Tendras que volver a entrar con tu correo y contraseña.")) return;
 
     fetch("/cuenta/logout", {
@@ -5048,7 +5356,11 @@ window.addEventListener("load", () => {
         });
     });
 
-    if (tokenGuardado()) {
+    document.getElementById("duenoPinPadInput")?.addEventListener("keydown", evento => {
+        if (evento.key === "Enter") confirmarPinDueno();
+    });
+
+    if (haySesionActivaDueno()) {
         localStorage.setItem(DUENO_ONBOARDING_KEY, "1");
         mostrarAppDueno();
         sincronizarRolSesionDueno();
@@ -5056,6 +5368,12 @@ window.addEventListener("load", () => {
         aplicarDeepLinkDueno();
         setInterval(() => { if (duenoRolSesion !== "employee") cargarPanelDueno(); }, 60000);
         setInterval(actualizarNexoBurbujaDueno, 60000);
+    } else if (dispositivoTokenGuardado()) {
+        // Celular ya vinculado pero sin un perfil elegido todavia (recien
+        // abierto, o alguien "cambio de usuario") -- directo al selector
+        // de PIN, nunca al login de correo/contraseña.
+        localStorage.setItem(DUENO_ONBOARDING_KEY, "1");
+        mostrarSelectorPinDueno();
     } else {
         mostrarBienvenidaDueno();
     }
