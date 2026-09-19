@@ -200,6 +200,17 @@
                 <div id="duenoListaCreditos" class="lista-compacta"></div>
             </article>
 
+            <article class="dueno-card" id="duenoRecepcionCard" style="display:none;">
+                <div class="card-head">
+                    <div>
+                        <span>Recepción Inteligente</span>
+                        <h2 id="duenoRecepcionTitulo">0 facturas</h2>
+                    </div>
+                    <b class="alert-dot"></b>
+                </div>
+                <div id="duenoListaRecepcion" class="lista-compacta"></div>
+            </article>
+
             <article class="dueno-card dueno-card-wide">
                 <div class="card-head">
                     <div>
@@ -488,7 +499,9 @@
         </article>
 
         <button type="button" class="dueno-boton-primario" id="duenoCajaBotonAbrir" style="display:none;" onclick="mostrarAbrirTurnoDueno()">Abrir turno</button>
+        <button type="button" class="dueno-boton-secundario" id="duenoCajaBotonMovimiento" style="display:none;" onclick="mostrarMovimientoCajaDueno()">Registrar entrada o salida</button>
         <button type="button" class="dueno-boton-primario" id="duenoCajaBotonCerrar" style="display:none;" onclick="mostrarCerrarTurnoDueno()">Cerrar turno (corte)</button>
+        <button type="button" class="dueno-boton-secundario" onclick="mostrarHistorialCortesDueno()">Historial de cortes</button>
     </main>
 
     <div id="duenoCajaAccionOverlay" class="dueno-mas-subpantalla">
@@ -522,6 +535,38 @@
             <div id="duenoInventarioLista" class="lista-compacta"></div>
         </article>
     </main>
+
+    <main id="duenoCreditos" class="dueno-app" style="display:none;">
+        <header class="dueno-header">
+            <button type="button" class="dueno-menu-boton" title="Menú" onclick="cambiarTabDueno('mas')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <div>
+                <p class="dueno-saludo">Clientes de credito</p>
+                <h1>Creditos</h1>
+                <p class="dueno-estado" id="duenoCreditosResumen">Actualizando...</p>
+            </div>
+        </header>
+
+        <article class="dueno-card">
+            <input type="search" id="duenoCreditosBuscar" placeholder="Nombre o telefono..." oninput="filtrarListaCreditosDueno()">
+            <div class="dueno-chips-categorias">
+                <button type="button" class="dueno-chip-categoria activo" data-filtro="todos" onclick="cambiarFiltroCreditosDueno('todos')">Todos</button>
+                <button type="button" class="dueno-chip-categoria dueno-chip-alerta" data-filtro="vencidos" onclick="cambiarFiltroCreditosDueno('vencidos')">Vencidos</button>
+            </div>
+        </article>
+
+        <article class="dueno-card dueno-card-wide">
+            <div id="duenoCreditosLista" class="lista-compacta"></div>
+        </article>
+    </main>
+
+    <div id="duenoCreditoDetalleOverlay" class="dueno-detalle-overlay" style="display:none;" onclick="cerrarDetalleCreditoDueno()">
+        <div class="dueno-detalle-caja" onclick="event.stopPropagation()">
+            <button type="button" class="dueno-detalle-cerrar" onclick="cerrarDetalleCreditoDueno()">&times;</button>
+            <div id="duenoCreditoDetalleContenido"></div>
+        </div>
+    </div>
 
     <main id="duenoPedidos" class="dueno-app" style="display:none;">
         <header class="dueno-header">

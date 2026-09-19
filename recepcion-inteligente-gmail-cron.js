@@ -35,7 +35,8 @@ async function revisarTodosLosBuzones(pool) {
                 await enviarPushANegocio(pool, negocioId, {
                     titulo: "Recepcion Inteligente",
                     cuerpo: `Nexo encontro ${resultado.nuevas} factura(s) nueva(s) en tu correo, pendiente(s) de revision.`,
-                    url: "/"
+                    url: "/",
+                    pantalla: "recepcion"
                 });
             }
         } catch (error) {

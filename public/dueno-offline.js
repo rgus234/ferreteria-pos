@@ -63,7 +63,8 @@ async function guardarCatalogoLocal(productos) {
                 unidadVenta: producto.unidad_venta || "",
                 stockMinimo: producto.stock_minimo != null ? Number(producto.stock_minimo) : null,
                 ubicacion: producto.ubicacion || "",
-                precioDistribuidor: producto.precio_distribuidor != null ? Number(producto.precio_distribuidor) : null
+                precioDistribuidor: producto.precio_distribuidor != null ? Number(producto.precio_distribuidor) : null,
+                fechaCaducidad: producto.fecha_caducidad || null
             });
         });
 
@@ -96,7 +97,25 @@ async function buscarEnCatalogoLocal(texto) {
     }
 }
 
-async function listarCatalogoLocal({ texto = "", categoria = "" } = {}) {
+// Mismo umbral y calculo que expiring-products.js (escritorio, "Por
+// vencer") -- se repite aqui en vez de compartir archivo porque ese
+// modulo depende de globals del POS de escritorio (todosProductos,
+// ocultarPantallasPrincipales) que no existen en /dueno.
+const DUENO_DIAS_ALERTA_CADUCIDAD = 30;
+
+function diasParaCaducarDueno(producto) {
+    if (!producto.fechaCaducidad) return null;
+
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const fecha =
+    new Date(String(producto.fechaCaducidad).slice(0, 10) + "T00:00:00");
+
+    return Math.round((fecha - hoy) / 86400000);
+}
+
+async function listarCatalogoLocal({ texto = "", categoria = "", porVencer = false } = {}) {
     try {
         const db = await abrirDuenoDB();
         const transaccion = db.transaction("catalogo", "readonly");
@@ -105,13 +124,21 @@ async function listarCatalogoLocal({ texto = "", categoria = "" } = {}) {
 
         const textoLimpio = String(texto || "").trim().toLowerCase();
 
-        return todos
-            .filter(producto =>
-                (!textoLimpio ||
-                    producto.nombre.toLowerCase().includes(textoLimpio) ||
-                    producto.codigo.toLowerCase().includes(textoLimpio)) &&
-                (!categoria || producto.categoria === categoria)
-            )
+        const filtrados = todos.filter(producto =>
+            (!textoLimpio ||
+                producto.nombre.toLowerCase().includes(textoLimpio) ||
+                producto.codigo.toLowerCase().includes(textoLimpio)) &&
+            (!categoria || producto.categoria === categoria) &&
+            (!porVencer || diasParaCaducarDueno(producto) !== null && diasParaCaducarDueno(producto) <= DUENO_DIAS_ALERTA_CADUCIDAD)
+        );
+
+        if (porVencer) {
+            return filtrados
+                .sort((a, b) => diasParaCaducarDueno(a) - diasParaCaducarDueno(b))
+                .slice(0, 60);
+        }
+
+        return filtrados
             .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
             .slice(0, 60);
     } catch (error) {

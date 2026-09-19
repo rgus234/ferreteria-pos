@@ -10,6 +10,7 @@ let duenoVentaDetalleActual = null;
 let duenoVentaDetalleVista = "resumen";
 let duenoVentaDetalleTab = "informacion";
 let duenoInventarioCategoria = "";
+let duenoInventarioPorVencer = false;
 let duenoNexoHistorial = [];
 let duenoNexoConversacionId = null;
 let duenoNexoEnviando = false;
@@ -603,6 +604,60 @@ function renderCreditos(datos) {
             : `<div class="vacio">No hay creditos pendientes.</div>`;
 }
 
+// Tarjeta de solo lectura -- Recepcion Inteligente (revisar facturas
+// detectadas en Gmail) no tiene pantalla propia en /dueno todavia,
+// es trabajo de sentarse con calma a conciliar productos, no algo
+// para hacer desde el celular. Antes de esto, el aviso push de "hay
+// facturas nuevas" llevaba a la nada (ver dueno-sw.js pantalla
+// "recepcion") -- esta tarjeta le da un destino real: un vistazo a lo
+// pendiente, con la instruccion explicita de revisarlo en la
+// computadora. Se oculta sola si no hay nada pendiente o si el
+// permiso/endpoint no esta disponible (fetch propio, fuera del
+// Promise.all de cargarPanelDueno, para que un fallo aqui nunca tumbe
+// ventas/creditos/inventario del dashboard).
+async function cargarRecepcionPendienteDueno() {
+    const tarjeta =
+    document.getElementById("duenoRecepcionCard");
+
+    if (!tarjeta) return;
+
+    try {
+        const datos =
+        await fetchAutenticado("/recepcion-inteligente/facturas");
+
+        const pendientes =
+        (datos.facturas || []).filter(factura => factura.estado === "pendiente");
+
+        if (!pendientes.length) {
+            tarjeta.style.display = "none";
+            return;
+        }
+
+        tarjeta.style.display = "";
+
+        document.getElementById("duenoRecepcionTitulo").textContent =
+            `${pendientes.length} factura${pendientes.length === 1 ? "" : "s"}`;
+
+        document.getElementById("duenoListaRecepcion").innerHTML =
+            pendientes
+                .slice(0, 5)
+                .map(factura => `
+                    <div class="fila-dueno">
+                        <div>
+                            <strong>${escaparDueno(factura.proveedor)}</strong>
+                            <span>${escaparDueno(factura.folio || "Sin folio")}</span>
+                        </div>
+                        <b>${dinero(factura.total)}</b>
+                    </div>
+                `).join("") +
+            `<div class="vacio">Revisalas en tu computadora.</div>`;
+    } catch (error) {
+        // Sin permiso de inventario, o Recepcion Inteligente sin
+        // configurar todavia -- no hay nada que mostrar, no un error.
+        tarjeta.style.display = "none";
+    }
+}
+
 function renderVentas(historial) {
     const hoy =
     ventasDeFecha(historial, new Date());
@@ -688,6 +743,7 @@ async function cargarPanelDueno() {
         renderBajos(productos);
         renderCreditos(creditos);
         guardarCatalogoLocal(productos);
+        cargarRecepcionPendienteDueno();
 
         if (estado) estado.textContent = "Datos en tiempo real del POS";
 
@@ -714,6 +770,7 @@ function cambiarTabDueno(tab) {
     document.getElementById("duenoReportes").style.display = tab === "reportes" ? "block" : "none";
     document.getElementById("duenoVentas").style.display = tab === "ventas" ? "block" : "none";
     document.getElementById("duenoInventario").style.display = tab === "inventario" ? "block" : "none";
+    document.getElementById("duenoCreditos").style.display = tab === "creditos" ? "block" : "none";
     document.getElementById("duenoPedidos").style.display = tab === "pedidos" ? "block" : "none";
     document.getElementById("duenoVender").style.display = tab === "vender" ? "block" : "none";
     document.getElementById("duenoCaja").style.display = tab === "caja" ? "block" : "none";
@@ -729,6 +786,7 @@ function cambiarTabDueno(tab) {
     if (tab === "reportes") cargarPanelReportesDueno();
     if (tab === "ventas") cargarPanelVentasDueno();
     if (tab === "inventario") cargarPanelInventarioDueno();
+    if (tab === "creditos") cargarPanelCreditosDueno();
     if (tab === "pedidos") cargarPanelPedidosDueno();
     if (tab === "vender") cargarPanelVenderDueno();
     if (tab === "caja") cargarPanelCajaDueno();
@@ -1766,6 +1824,7 @@ async function cargarPanelInventarioDueno() {
 
     contenedorChips.innerHTML =
         `<button type="button" class="dueno-chip-categoria activo" data-categoria="">Todas</button>` +
+        `<button type="button" class="dueno-chip-categoria dueno-chip-alerta" data-especial="porVencer">Por vencer</button>` +
         categorias.map(categoria => `
             <button type="button" class="dueno-chip-categoria" data-categoria="${escaparDueno(categoria)}">${escaparDueno(categoria)}</button>
         `).join("");
@@ -1774,12 +1833,14 @@ async function cargarPanelInventarioDueno() {
         boton.addEventListener("click", () => {
             contenedorChips.querySelectorAll("button").forEach(otro => otro.classList.remove("activo"));
             boton.classList.add("activo");
-            duenoInventarioCategoria = boton.dataset.categoria || "";
+            duenoInventarioPorVencer = boton.dataset.especial === "porVencer";
+            duenoInventarioCategoria = duenoInventarioPorVencer ? "" : (boton.dataset.categoria || "");
             filtrarInventarioDueno();
         });
     });
 
     duenoInventarioCategoria = "";
+    duenoInventarioPorVencer = false;
 
     await filtrarInventarioDueno();
 }
@@ -1792,7 +1853,7 @@ async function filtrarInventarioDueno() {
     document.getElementById("duenoInventarioBuscar")?.value || "";
 
     const resultados =
-    await listarCatalogoLocal({ texto, categoria: duenoInventarioCategoria });
+    await listarCatalogoLocal({ texto, categoria: duenoInventarioCategoria, porVencer: duenoInventarioPorVencer });
 
     duenoUltimosResultados = resultados;
 
@@ -1809,6 +1870,12 @@ async function filtrarInventarioDueno() {
                 const estadoStock = stock <= 0 ? "sin" : stock <= 3 ? "bajo" : "ok";
                 const claseStock = estadoStock === "sin" ? " stock-texto-sin" : estadoStock === "bajo" ? " stock-texto-bajo" : "";
 
+                const dias =
+                duenoInventarioPorVencer ? diasParaCaducarDueno(producto) : null;
+
+                const textoCaducidad =
+                dias === null ? "" : ` · <span class="stock-texto-sin">${dias < 0 ? "Vencido" : `Vence en ${dias} dia${dias === 1 ? "" : "s"}`}</span>`;
+
                 return `
                 <div class="fila-dueno fila-dueno-producto">
                     <div class="dueno-miniatura" onclick="verDetalleProductoDueno(${producto.id})">
@@ -1818,12 +1885,248 @@ async function filtrarInventarioDueno() {
                     </div>
                     <div onclick="verDetalleProductoDueno(${producto.id})">
                         <strong>${escaparDueno(producto.nombre)}</strong>
-                        <span>${escaparDueno(producto.codigo || "Sin codigo")} · <span class="stock-texto${claseStock}">Stock ${producto.stock}</span> · ${dinero(producto.precio)}</span>
+                        <span>${escaparDueno(producto.codigo || "Sin codigo")} · <span class="stock-texto${claseStock}">Stock ${producto.stock}</span> · ${dinero(producto.precio)}${textoCaducidad}</span>
                     </div>
                 </div>
             `;
             }).join("")
-            : `<div class="vacio">Sin productos en tu catalogo guardado${texto.trim() || duenoInventarioCategoria ? " que coincidan" : ""}.</div>`;
+            : `<div class="vacio">${duenoInventarioPorVencer ? "Nada por vencer en los proximos 30 dias." : `Sin productos en tu catalogo guardado${texto.trim() || duenoInventarioCategoria ? " que coincidan" : ""}.`}</div>`;
+}
+
+// ---------------- pestaña Creditos ----------------
+//
+// Antes de esto, /dueno solo tenia un widget de solo lectura en Inicio
+// (top 5 clientes con saldo, sin poder tocarlos) -- para registrar un
+// abono, ver el historial de un cliente o su antiguedad de deuda,
+// habia que ir forzosamente a la computadora. Mismos endpoints que ya
+// usa credit-customers.js de escritorio (GET /creditos, GET
+// /creditos/clientes/:id, POST /creditos/clientes/:id/abonos), sin
+// cambios de servidor.
+
+let duenoCreditosCache = [];
+let duenoCreditosFiltro = "todos";
+let duenoCreditoDetalleActual = null;
+let duenoCreditoMostrandoFormularioAbono = false;
+
+async function cargarPanelCreditosDueno() {
+    const resumen =
+    document.getElementById("duenoCreditosResumen");
+
+    if (resumen) resumen.textContent = "Actualizando...";
+
+    try {
+        const datos =
+        await fetchAutenticado("/creditos");
+
+        duenoCreditosCache = datos.clientes || [];
+
+        if (resumen) {
+            resumen.textContent =
+                `${dinero(datos.total || 0)} en ${datos.clientesConAdeudo || 0} cliente${(datos.clientesConAdeudo || 0) === 1 ? "" : "s"}` +
+                (datos.clientesVencidos ? ` · ${datos.clientesVencidos} vencido${datos.clientesVencidos === 1 ? "" : "s"}` : "");
+        }
+
+        filtrarListaCreditosDueno();
+    } catch (error) {
+        if (resumen) resumen.textContent = "No se pudo conectar con el POS";
+    }
+}
+
+function cambiarFiltroCreditosDueno(filtro) {
+    duenoCreditosFiltro = filtro;
+
+    document.querySelectorAll("#duenoCreditos .dueno-chip-categoria").forEach(boton => {
+        boton.classList.toggle("activo", boton.dataset.filtro === filtro);
+    });
+
+    filtrarListaCreditosDueno();
+}
+
+function filtrarListaCreditosDueno() {
+    const texto =
+    (document.getElementById("duenoCreditosBuscar")?.value || "").trim().toLowerCase();
+
+    const resultados =
+    duenoCreditosCache
+        .filter(cliente => Number(cliente.saldo || 0) > 0)
+        .filter(cliente => duenoCreditosFiltro !== "vencidos" || cliente.vencido)
+        .filter(cliente =>
+            !texto ||
+            String(cliente.nombre || "").toLowerCase().includes(texto) ||
+            String(cliente.telefono || "").includes(texto)
+        );
+
+    document.getElementById("duenoCreditosLista").innerHTML =
+        resultados.length
+            ? resultados.map(cliente => `
+                <div class="fila-dueno" onclick="abrirDetalleCreditoDueno(${cliente.id})">
+                    <div>
+                        <strong>${escaparDueno(cliente.nombre)}</strong>
+                        <span>${cliente.vencido ? `<span class="stock-texto-sin">Vencido ${cliente.diasVencidoMax ? `hace ${cliente.diasVencidoMax} dia${cliente.diasVencidoMax === 1 ? "" : "s"}` : ""}</span>` : escaparDueno(cliente.telefono || "Sin telefono")}</span>
+                    </div>
+                    <b>${dinero(cliente.saldo)}</b>
+                </div>
+            `).join("")
+            : `<div class="vacio">${duenoCreditosFiltro === "vencidos" ? "Sin clientes vencidos." : "Sin clientes con saldo pendiente."}</div>`;
+}
+
+async function abrirDetalleCreditoDueno(id) {
+    if (!id) return;
+
+    try {
+        const datos =
+        await fetchAutenticado(`/creditos/clientes/${Number(id)}`);
+
+        if (!datos?.cliente) {
+            mostrarToastDueno("No se pudo cargar el cliente.");
+            return;
+        }
+
+        duenoCreditoDetalleActual = datos;
+        duenoCreditoMostrandoFormularioAbono = false;
+
+        renderDetalleCreditoDueno();
+        document.getElementById("duenoCreditoDetalleOverlay").style.display = "flex";
+    } catch (error) {
+        mostrarToastDueno("No se pudo conectar. Revisa tu internet.");
+    }
+}
+
+function cerrarDetalleCreditoDueno() {
+    const overlay =
+    document.getElementById("duenoCreditoDetalleOverlay");
+
+    if (overlay) overlay.style.display = "none";
+
+    duenoCreditoDetalleActual = null;
+    duenoCreditoMostrandoFormularioAbono = false;
+}
+
+function htmlMovimientoCreditoDueno(movimiento) {
+    const esAbono =
+    movimiento.tipo === "abono";
+
+    return `
+        <div class="dueno-venta-item-compacto">
+            <div class="dueno-venta-item-info">
+                <strong>${esAbono ? "Abono" : "Venta a credito"}</strong>
+                <span>${escaparDueno(fechaCorta(movimiento.fecha))}${movimiento.metodo_pago ? ` · ${escaparDueno(etiquetaMetodoPagoDueno(movimiento.metodo_pago))}` : ""}</span>
+            </div>
+            <b class="${esAbono ? "dueno-estado-positivo" : ""}">${esAbono ? "-" : "+"}${dinero(movimiento.monto)}</b>
+        </div>
+    `;
+}
+
+function renderDetalleCreditoDueno() {
+    const contenedor =
+    document.getElementById("duenoCreditoDetalleContenido");
+
+    const datos =
+    duenoCreditoDetalleActual;
+
+    if (!contenedor || !datos) return;
+
+    const cliente = datos.cliente;
+    const movimientos = Array.isArray(datos.movimientos) ? [...datos.movimientos].reverse() : [];
+
+    contenedor.innerHTML = `
+        <div class="dueno-venta-cabecera">
+            <div>
+                <span class="dueno-venta-eyebrow">Cliente</span>
+                <h2 class="dueno-venta-folio">${escaparDueno(cliente.nombre)}</h2>
+            </div>
+            <span class="dueno-badge ${cliente.vencido ? "dueno-badge-alerta" : "dueno-badge-ok"}">${cliente.vencido ? "Vencido" : "Al corriente"}</span>
+        </div>
+        <p class="dueno-venta-subtexto">${escaparDueno(cliente.telefono || "Sin telefono")}</p>
+
+        <div class="dueno-datos-grid">
+            <div><span>Saldo</span><strong>${dinero(cliente.saldo)}</strong></div>
+            <div><span>Limite de credito</span><strong>${dinero(cliente.limite_credito)}</strong></div>
+            ${cliente.vencido ? `<div><span>Vencido hace</span><strong>${cliente.totalVencido ? dinero(cliente.totalVencido) : ""} ${datos.aging?.diasVencidoMax ? `(${datos.aging.diasVencidoMax} dias)` : ""}</strong></div>` : ""}
+        </div>
+
+        ${duenoCreditoMostrandoFormularioAbono ? htmlFormularioAbonoCreditoDueno() : `
+            <button type="button" class="dueno-boton-primario" onclick="mostrarFormularioAbonoCreditoDueno()">Registrar abono</button>
+        `}
+
+        <div class="dueno-subseccion">Movimientos</div>
+        <div class="dueno-venta-lista-compacta">
+            ${movimientos.length ? movimientos.map(htmlMovimientoCreditoDueno).join("") : `<div class="vacio">Sin movimientos todavia.</div>`}
+        </div>
+    `;
+}
+
+function htmlFormularioAbonoCreditoDueno() {
+    return `
+        <div class="dueno-form-abono">
+            <label>Monto
+                <input type="number" id="duenoAbonoMonto" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00">
+            </label>
+            <label>Metodo de pago
+                <select id="duenoAbonoMetodo">
+                    <option value="efectivo">Efectivo</option>
+                    <option value="tarjeta">Tarjeta</option>
+                    <option value="transferencia">Transferencia</option>
+                </select>
+            </label>
+            <label>Concepto (opcional)
+                <input type="text" id="duenoAbonoConcepto" placeholder="Abono">
+            </label>
+            <div class="dueno-form-abono-acciones">
+                <button type="button" class="dueno-boton-secundario-chico" onclick="cancelarFormularioAbonoCreditoDueno()">Cancelar</button>
+                <button type="button" class="dueno-boton-primario-chico" onclick="confirmarAbonoCreditoDueno()">Confirmar abono</button>
+            </div>
+        </div>
+    `;
+}
+
+function mostrarFormularioAbonoCreditoDueno() {
+    duenoCreditoMostrandoFormularioAbono = true;
+    renderDetalleCreditoDueno();
+}
+
+function cancelarFormularioAbonoCreditoDueno() {
+    duenoCreditoMostrandoFormularioAbono = false;
+    renderDetalleCreditoDueno();
+}
+
+async function confirmarAbonoCreditoDueno() {
+    const cliente =
+    duenoCreditoDetalleActual?.cliente;
+
+    if (!cliente) return;
+
+    const monto =
+    Number(document.getElementById("duenoAbonoMonto")?.value || 0);
+
+    if (!monto || monto <= 0) {
+        mostrarToastDueno("Escribe un monto valido.");
+        return;
+    }
+
+    const metodoPago =
+    document.getElementById("duenoAbonoMetodo")?.value || "efectivo";
+
+    const concepto =
+    document.getElementById("duenoAbonoConcepto")?.value || "";
+
+    try {
+        await fetchAutenticado(`/creditos/clientes/${cliente.id}/abonos`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ monto, metodoPago, concepto })
+        });
+
+        mostrarToastDueno("Abono registrado.");
+        duenoCreditoMostrandoFormularioAbono = false;
+
+        await Promise.all([
+            abrirDetalleCreditoDueno(cliente.id),
+            cargarPanelCreditosDueno()
+        ]);
+    } catch (error) {
+        mostrarToastDueno(error.message || "No se pudo registrar el abono.");
+    }
 }
 
 // ---------------- pestaña Pedidos (Nexo Market) ----------------
@@ -3425,6 +3728,7 @@ function renderEstadoCajaDueno() {
     const resumenCard = document.getElementById("duenoCajaResumenCard");
     const botonAbrir = document.getElementById("duenoCajaBotonAbrir");
     const botonCerrar = document.getElementById("duenoCajaBotonCerrar");
+    const botonMovimiento = document.getElementById("duenoCajaBotonMovimiento");
 
     if (!turno) {
         estado.textContent = "Sin turno abierto";
@@ -3440,6 +3744,7 @@ function renderEstadoCajaDueno() {
         resumenCard.style.display = "none";
         botonAbrir.style.display = "block";
         botonCerrar.style.display = "none";
+        botonMovimiento.style.display = "none";
         return;
     }
 
@@ -3471,6 +3776,7 @@ function renderEstadoCajaDueno() {
     resumenCard.style.display = "block";
     botonAbrir.style.display = "none";
     botonCerrar.style.display = "block";
+    botonMovimiento.style.display = "block";
 }
 
 function mostrarAbrirTurnoDueno() {
@@ -3590,6 +3896,102 @@ function cerrarAccionCajaDueno() {
     document.getElementById("duenoCajaAccionOverlay").classList.remove("abierta");
 }
 
+// Antes de esto, /dueno solo podia abrir/cerrar turno -- para un
+// ingreso o retiro suelto de efectivo (pago a un proveedor de
+// contado, un retiro del dueño) habia que ir a la computadora. Mismo
+// endpoint que ya usa fase6.js de escritorio (POST /caja/movimientos),
+// sin cambios de servidor.
+function mostrarMovimientoCajaDueno() {
+    document.getElementById("duenoCajaAccionTitulo").textContent = "Registrar movimiento";
+    document.getElementById("duenoCajaAccionContenido").innerHTML = `
+        <label class="dueno-campo">Tipo
+            <select id="duenoCajaMovimientoTipo">
+                <option value="entrada">Entrada (ingreso de efectivo)</option>
+                <option value="salida">Salida (retiro o pago)</option>
+            </select>
+        </label>
+        <label class="dueno-campo">Concepto
+            <input type="text" id="duenoCajaMovimientoConcepto" placeholder="Ej. pago a proveedor">
+        </label>
+        <label class="dueno-campo">Monto
+            <input type="number" id="duenoCajaMovimientoMonto" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00">
+        </label>
+        <p class="dueno-estado" id="duenoCajaMovimientoError" style="display:none;"></p>
+        <button type="button" class="dueno-boton-primario" onclick="confirmarMovimientoCajaDueno()">Registrar</button>
+    `;
+    document.getElementById("duenoCajaAccionOverlay").classList.add("abierta");
+}
+
+async function confirmarMovimientoCajaDueno() {
+    const tipo = document.getElementById("duenoCajaMovimientoTipo").value;
+    const concepto = document.getElementById("duenoCajaMovimientoConcepto").value.trim();
+    const monto = Number(document.getElementById("duenoCajaMovimientoMonto").value || 0);
+    const errorEl = document.getElementById("duenoCajaMovimientoError");
+
+    if (!monto || monto <= 0) {
+        errorEl.textContent = "Escribe un monto valido.";
+        errorEl.style.display = "block";
+        return;
+    }
+
+    try {
+        await fetchAutenticado("/caja/movimientos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tipo, concepto, monto })
+        });
+
+        mostrarToastDueno(tipo === "entrada" ? "Entrada registrada." : "Salida registrada.");
+        cerrarAccionCajaDueno();
+        await cargarPanelCajaDueno();
+    } catch (error) {
+        errorEl.textContent = error.message || "No se pudo registrar el movimiento";
+        errorEl.style.display = "block";
+    }
+}
+
+// Historial de cortes -- mismo endpoint que ya usa fase6.js de
+// escritorio (GET /caja/cortes), de solo lectura: revisar si el corte
+// de ayer cuadro sin tener que ir a la computadora.
+async function mostrarHistorialCortesDueno() {
+    document.getElementById("duenoCajaAccionTitulo").textContent = "Historial de cortes";
+    document.getElementById("duenoCajaAccionContenido").innerHTML = `<p class="dueno-estado">Cargando...</p>`;
+    document.getElementById("duenoCajaAccionOverlay").classList.add("abierta");
+
+    try {
+        const datos = await fetchAutenticado("/caja/cortes");
+        const cortes = (datos.cortes || []).filter(corte => corte.estado === "cerrado");
+
+        document.getElementById("duenoCajaAccionContenido").innerHTML =
+            cortes.length
+                ? `<div class="lista-compacta">${cortes.map(htmlCorteHistorialDueno).join("")}</div>`
+                : `<div class="vacio">Todavia no hay cortes cerrados.</div>`;
+    } catch (error) {
+        document.getElementById("duenoCajaAccionContenido").innerHTML =
+            `<p class="dueno-estado">No se pudo cargar el historial.</p>`;
+    }
+}
+
+function htmlCorteHistorialDueno(corte) {
+    const diferencia = Number(corte.diferencia || 0);
+    const claseColor = diferencia === 0 ? "dueno-pill-normal" : "dueno-pill-limitado";
+    const textoDiferencia = diferencia === 0
+        ? "Cuadro exacto"
+        : diferencia > 0
+            ? `Sobrante $${diferencia.toFixed(2)}`
+            : `Faltante $${Math.abs(diferencia).toFixed(2)}`;
+
+    return `
+        <div class="fila-dueno">
+            <div>
+                <strong>${escaparDueno(fechaCorta(corte.cerrado_at || corte.abierto_at))}</strong>
+                <span>${escaparDueno(corte.usuario || "Sin usuario")} · Esperado $${Number(corte.esperado_efectivo || 0).toFixed(2)}</span>
+            </div>
+            <span class="dueno-pill ${claseColor}">${textoDiferencia}</span>
+        </div>
+    `;
+}
+
 // ---------------- pestaña Más: navegacion tipo Ajustes ----------------
 
 function estadoLicenciaDuenoPOS(modo) {
@@ -3703,6 +4105,7 @@ const CATEGORIAS_MAS_DUENO = [
     { id: "reportes-tab", titulo: "Reportes", desc: "Tu negocio en numeros", icono: "grafica", color: "azul", tab: "reportes" },
     { id: "ventas-tab", titulo: "Cotizar", desc: "Arma una cotizacion sin cobrar", icono: "carrito", color: "azul", tab: "ventas" },
     { id: "inventario-tab", titulo: "Inventario", desc: "Consulta tu catalogo completo", icono: "caja", color: "azul", tab: "inventario" },
+    { id: "creditos-tab", titulo: "Creditos", desc: "Clientes, saldos y abonos", icono: "tarjeta", color: "azul", tab: "creditos" },
     { id: "market", titulo: "Comprar en Nexo Market", desc: "Explora productos de otros negocios Nexo", icono: "carrito", color: "verde", href: "https://app.nexoposoficial.com/market" },
     { id: "cuenta", titulo: "Cuenta", desc: "Datos del negocio y correo", icono: "usuario", color: "" },
     { id: "plan", titulo: "Plan y suscripcion", desc: "Tu plan, pagos y facturas", icono: "tarjeta", color: "verde" },
@@ -4598,7 +5001,7 @@ function recibirTokenDesdeMarket() {
 // eso en cambiar a la pestaña real. Mismo motivo por el que
 // recibirTokenDesdeMarket limpia el query string despues de leerlo:
 // que un refresh manual no lo vuelva a disparar.
-const TABS_VALIDAS_DEEP_LINK_DUENO = new Set(["inicio", "reportes", "ventas", "inventario", "pedidos", "vender", "caja", "mas"]);
+const TABS_VALIDAS_DEEP_LINK_DUENO = new Set(["inicio", "reportes", "ventas", "inventario", "creditos", "pedidos", "vender", "caja", "mas"]);
 
 function aplicarDeepLinkDueno() {
     const parametros = new URLSearchParams(window.location.search);

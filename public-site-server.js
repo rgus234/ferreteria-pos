@@ -4259,7 +4259,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             await enviarPushANegocio(pool, resultado.rows[0].negocio_id, {
                 titulo: "Solicitud de credito retirada",
                 cuerpo: "Un cliente retiro su solicitud de credito antes de que se resolviera.",
-                url: "/creditos"
+                url: "/",
+                pantalla: "credito"
             }).catch(() => {});
 
             res.json({ ok: true });
@@ -4361,7 +4362,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             await enviarPushANegocio(pool, fila.rows[0].negocio_id, {
                 titulo: "Cliente acepto su credito",
                 cuerpo: "Un cliente acepto sus condiciones de credito -- ya puede comprar a credito.",
-                url: "/creditos"
+                url: "/",
+                pantalla: "credito"
             }).catch(() => {});
 
             res.json({ ok: true });
@@ -4453,7 +4455,8 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
             await enviarPushANegocio(pool, acuerdo.negocio_id, {
                 titulo: "Cliente acepto su credito",
                 cuerpo: "Un cliente acepto sus condiciones de credito -- ya puede comprar a credito.",
-                url: "/creditos"
+                url: "/",
+                pantalla: "credito"
             }).catch(() => {});
 
             res.json({ ok: true });

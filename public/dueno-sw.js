@@ -120,7 +120,7 @@ self.addEventListener("push", evento => {
 // dueño que solo usa /dueno terminaba mandado a la raiz del sitio en
 // vez de quedarse en su app -- bug real, encontrado al pedir que tocar
 // el aviso llevara a la info real.
-const PANTALLA_A_TAB_DUENO = { ventas: "inicio", credito: "inicio", pedidos: "pedidos" };
+const PANTALLA_A_TAB_DUENO = { ventas: "inicio", credito: "creditos", pedidos: "pedidos", recepcion: "inicio" };
 
 function urlNotificacionDueno(datos) {
     if (datos.pantalla === "ventas" && datos.historialId) {

@@ -761,6 +761,17 @@ button{
     color:#fff;
 }
 
+.dueno-chip-alerta{
+    color:var(--red);
+    border-color:var(--red);
+}
+
+.dueno-chip-alerta.activo{
+    background:var(--red);
+    border-color:var(--red);
+    color:#fff;
+}
+
 #duenoBuscarProducto:focus,
 #duenoInventarioBuscar:focus,
 .dueno-campo input:focus,
@@ -798,6 +809,18 @@ button{
     border-radius:14px;
     background:var(--brand);
     color:#fff;
+    font-weight:800;
+    font-size:14.5px;
+}
+
+.dueno-boton-secundario{
+    width:100%;
+    min-height:46px;
+    margin-top:4px;
+    border:1px solid var(--line);
+    border-radius:14px;
+    background:var(--surface);
+    color:var(--text);
     font-weight:800;
     font-size:14.5px;
 }
@@ -1599,6 +1622,44 @@ button{
 
 .dueno-badge-ok{ background:var(--green-soft); color:var(--green); }
 .dueno-badge-pendiente{ background:var(--amber-soft); color:#b45309; }
+.dueno-badge-alerta{ background:var(--red-soft); color:var(--red); }
+
+.dueno-form-abono{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    margin:12px 0;
+    padding:12px;
+    border-radius:14px;
+    background:var(--surface-soft);
+}
+
+.dueno-form-abono label{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    font-size:12px;
+    font-weight:700;
+    color:var(--muted);
+}
+
+.dueno-form-abono input,
+.dueno-form-abono select{
+    padding:10px 12px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--surface);
+    color:var(--text);
+    font-size:14px;
+    font-weight:600;
+}
+
+.dueno-form-abono-acciones{
+    display:flex;
+    gap:8px;
+    justify-content:flex-end;
+    margin-top:4px;
+}
 
 .dueno-subseccion{
     margin:18px 0 8px;
