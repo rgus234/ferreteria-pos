@@ -276,6 +276,26 @@ let duenoEmpleadoCorreoPersona = null;
 // vieja seguia viva. Se cierra cualquier sesion de persona ANTES de
 // navegar (y se espera a que termine) para que el servidor si
 // muestre el formulario de registro.
+// Bug real de UX encontrado navegando la app como usuario real:
+// "Comprar en Nexo Market" mandaba a Market sin sesion alguna --
+// llegabas tratado como comprador anonimo nuevo ("Hola, soy Nexo,
+// Comenzar/Ya tengo cuenta") aunque tu negocio ya tuviera cuenta Nexo.
+// El endpoint mintea una sesion de persona real (misma cookie de
+// dominio que usa Market) SOLO si tu negocio ya esta vinculado a una
+// cuenta -- si no, Market se abre exactamente como antes, sin sesion,
+// nunca se rompe nada.
+async function irAComprarEnMarketDueno() {
+    try {
+        await fetchAutenticado("/negocio-actual/entrar-como-comprador", { method: "POST" });
+    } catch (error) {
+        // Sin negocio vinculado a una cuenta Nexo todavia, o celular en
+        // modo dispositivo compartido -- Market se abre igual, solo que
+        // sin sesion previa (mismo comportamiento de siempre).
+    }
+
+    location.href = "https://app.nexoposoficial.com/market";
+}
+
 async function irACrearCuentaMarket() {
     try {
         await fetch("/personas/logout", { method: "POST" });
@@ -4260,7 +4280,7 @@ function renderStatusCardMasDueno() {
         <div class="dueno-status-lineas">
             <div class="dueno-status-linea"><span>Plan actual</span><strong>${escaparDueno(nombresPlan[licencia.plan] || licencia.plan || "-")}</strong></div>
             <div class="dueno-status-linea"><span>Nexo IA</span><strong>${ia?.disponible ? "Activa" : "No incluida"}</strong></div>
-            <div class="dueno-status-linea"><span>Dispositivos conectados</span><strong>${totalDispositivos}</strong></div>
+            <div class="dueno-status-linea"><span>Sesiones y equipos</span><strong>${totalDispositivos}</strong></div>
             <div class="dueno-status-linea"><span>Alertas de stock</span><strong>${stockBajoCount}</strong></div>
         </div>
     `;
@@ -4331,7 +4351,7 @@ function renderCategoriasMasDueno() {
     document.getElementById("duenoMasCategorias").innerHTML =
         categorias.map(categoria => `
             <button type="button" class="dueno-categoria-row${categoria.proximamente ? " proximamente" : ""}"
-                onclick="${categoria.id === "cambiar-usuario" ? "cerrarSesionDuenoApp()" : categoria.tab ? `cambiarTabDueno('${categoria.tab}')` : categoria.href ? `location.href='${categoria.href}'` : (categoria.proximamente ? "proximamenteDueno()" : `abrirSubpantallaMasDueno('${categoria.id}')`)}">
+                onclick="${categoria.id === "cambiar-usuario" ? "cerrarSesionDuenoApp()" : categoria.id === "market" ? "irAComprarEnMarketDueno()" : categoria.tab ? `cambiarTabDueno('${categoria.tab}')` : categoria.href ? `location.href='${categoria.href}'` : (categoria.proximamente ? "proximamenteDueno()" : `abrirSubpantallaMasDueno('${categoria.id}')`)}">
                 <span class="dueno-categoria-icono${categoria.color ? ` dueno-categoria-icono-${categoria.color}` : ""}">${iconoCategoriaMasDueno(categoria.icono)}</span>
                 <span class="dueno-categoria-texto">
                     <strong>${escaparDueno(categoria.titulo)}</strong>
@@ -4374,13 +4394,41 @@ function cerrarSubpantallaMasDueno() {
     document.getElementById("duenoMasSubpantalla")?.classList.remove("abierta");
 }
 
+// El servidor guarda el user-agent crudo tal cual (mismo dato para
+// escritorio y movil) -- mostrarlo sin parsear ("Mozilla/5.0 (Linux;
+// Android 14; Pixel 8) AppleWebKit/537.36...") se ve a modo
+// desarrollador, no a una app terminada. Bug real encontrado navegando
+// la app como usuario real. Heuristica chica a proposito -- esto es
+// para que la lista se lea bien, no un parser de user-agent completo.
+function descripcionDispositivoDueno(userAgentCrudo) {
+    const ua = String(userAgentCrudo || "");
+
+    if (!ua) return "Dispositivo desconocido";
+
+    const so =
+        /android/i.test(ua) ? "Android" :
+        /iphone|ipad/i.test(ua) ? "iPhone/iPad" :
+        /windows/i.test(ua) ? "Windows" :
+        /macintosh|mac os/i.test(ua) ? "Mac" :
+        /linux/i.test(ua) ? "Linux" : "";
+
+    const navegador =
+        /edg\//i.test(ua) ? "Edge" :
+        /chrome\//i.test(ua) ? "Chrome" :
+        /firefox\//i.test(ua) ? "Firefox" :
+        /safari\//i.test(ua) && !/chrome/i.test(ua) ? "Safari" : "";
+
+    const partes = [so, navegador].filter(Boolean);
+    return partes.length ? partes.join(" · ") : "Dispositivo desconocido";
+}
+
 function htmlSesionesMasDueno(sesiones) {
     return sesiones.length
         ? sesiones.map(sesion => `
             <div class="fila-dueno">
                 <div>
-                    <strong>${escaparDueno(sesion.dispositivo || "Dispositivo desconocido")}${sesion.actual ? " · Este telefono" : ""}</strong>
-                    <span>${escaparDueno(sesion.ip || "")} · ${fechaCorta(sesion.ultimoUsoAt)}</span>
+                    <strong>${escaparDueno(descripcionDispositivoDueno(sesion.dispositivo))}${sesion.actual ? " · Este telefono" : ""}</strong>
+                    <span>${fechaCorta(sesion.ultimoUsoAt)}</span>
                 </div>
                 ${sesion.actual
                     ? ""
@@ -4657,6 +4705,10 @@ async function confirmarDesvincularEsteDispositivoDueno() {
     }
 }
 
+// La tarjeta prometia "Contacto y version" pero nunca mostraba ninguna
+// version real -- bug real encontrado navegando la app como usuario
+// real, mismo tipo ya arreglado del lado de escritorio (ver
+// GET /version, existente y sin autenticacion) pero nunca portado aqui.
 function renderSubpantallaAyuda() {
     document.getElementById("duenoMasSubpantallaContenido").innerHTML = `
         <article class="dueno-card">
@@ -4669,9 +4721,21 @@ function renderSubpantallaAyuda() {
             <a class="dueno-boton-primario" style="display:block;text-align:center;text-decoration:none;" href="https://wa.me/524981234567?text=Hola,%20necesito%20ayuda%20con%20Nexo%20POS" target="_blank" rel="noopener">Escribir por WhatsApp</a>
             <div class="dueno-datos-grid" style="margin-top:12px;">
                 <div><span>App</span><strong>Nexo -- App del dueño</strong></div>
+                <div><span>Version</span><strong id="duenoAyudaVersion">Cargando...</strong></div>
             </div>
         </article>
     `;
+
+    fetch("/version")
+        .then(respuesta => respuesta.json())
+        .then(datos => {
+            const elemento = document.getElementById("duenoAyudaVersion");
+            if (elemento) elemento.textContent = datos.version ? `v${datos.version}` : "Desconocida";
+        })
+        .catch(() => {
+            const elemento = document.getElementById("duenoAyudaVersion");
+            if (elemento) elemento.textContent = "No se pudo cargar";
+        });
 }
 
 function aplicarTemaDueno() {

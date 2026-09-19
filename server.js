@@ -7346,6 +7346,17 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
     const resumen = calcularResumenVentaServidor(productos, descuentoTipo, descuentoValor);
     const { subtotal, descuento, total } = resumen;
 
+    // Bug real encontrado en una auditoria de UX: no habia ningun piso
+    // de monto, asi que un carrito con precio en 0 (o un descuento que
+    // lo deja en 0) registraba una "venta" completa de $0.00 -- se
+    // vieron 4 en el historial del negocio de demostracion. Una venta
+    // sin dinero real no aporta nada a Reportes/Caja y solo ensucia el
+    // historial.
+    if (total <= 0) {
+        res.status(400).json({ ok: false, error: "El total de la venta debe ser mayor a $0.00." });
+        return;
+    }
+
     let negocioVenta;
 
     try {

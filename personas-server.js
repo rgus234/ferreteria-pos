@@ -1060,6 +1060,49 @@ function registrarRutas(app, pool, requerirAccesoNegocio) {
         }
     });
 
+    // "Comprar en Nexo Market" desde /dueno navegaba a Market SIN ninguna
+    // sesion -- el dueño llegaba tratado como comprador anonimo nuevo
+    // ("Hola, soy Nexo, Comenzar/Ya tengo cuenta") aunque su negocio ya
+    // estuviera vinculado a una cuenta Nexo (negocios.persona_id, ver
+    // /negocio-actual/vincular-persona arriba). Bug real encontrado en
+    // una auditoria de UX navegando la app como usuario real. Este
+    // puente hace lo mismo que ya hace mintearSesionParaNegocioDePersona
+    // (arriba, en la direccion contraria) pero de negocio hacia persona:
+    // nunca crea un vinculo nuevo, solo mintea una sesion de persona si
+    // el vinculo ya existe -- si no existe (la mayoria de los negocios
+    // hoy, que nunca pasaron por /negocio-actual/vincular-persona), Market
+    // se sigue abriendo exactamente como antes, sin romper nada.
+    // Explicitamente solo para sesion de cuenta (req.negocioAutenticado)
+    // -- un celular compartido en modo dispositivo+PIN (ver
+    // fetchAutenticado en dueno.js) no tiene una identidad personal que
+    // prestarle a Market, cualquier empleado ahi terminaria comprando
+    // "como" el dueño.
+    app.post("/negocio-actual/entrar-como-comprador", requerirAccesoNegocio, async (req, res) => {
+        if (!req.negocioAutenticado) {
+            res.status(404).json({ ok: false, error: "No disponible en este dispositivo" });
+            return;
+        }
+
+        try {
+            const negocio = await pool.query(
+                `SELECT persona_id FROM public.negocios WHERE id = $1`,
+                [req.negocioAutenticado.negocio_id]
+            );
+
+            const personaId = negocio.rows[0]?.persona_id;
+
+            if (!personaId) {
+                res.status(404).json({ ok: false, sinPersonaVinculada: true });
+                return;
+            }
+
+            await mintearSesionPersona(pool, res, personaId, req);
+            res.json({ ok: true });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     // Fase 0 del ecosistema Nexo (RBAC2): la persona ya logueada canjea
     // el codigo que el dueño genero para SU empleado (POST /cuenta/
     // empleados/:id/generar-codigo-vinculo) -- a partir de aqui esa
