@@ -1690,7 +1690,19 @@ function seleccionarTipoProducto(tipo) {
  asignarCodigoAutomaticoProducto("granel");
  }
  if (codigoInterno) codigoInterno.placeholder = "Clave proveedor / referencia opcional";
- if (unidad) unidad.value = "kg";
+ // Kilo solo como PUNTO DE PARTIDA: cuando se llega a Granel desde
+ // pieza (o sin unidad). Nunca encima de una unidad que el dueno ya
+ // eligio.
+ //
+ // Antes era `unidad.value = "kg"` a secas, y ferretero-flow.js vuelve
+ // a llamar a esta funcion en cada cambio del select de unidad. El
+ // resultado: elegir metro, litro, tramo o rollo en Granel regresaba a
+ // kilo al instante. Nadie podia dar de alta un cable por metro. Lo
+ // reporto el dueno de Ferreteria Olimpico con un alambre recocido:
+ // "le quiero poner que lo vendo por rollo y se queda en kilo".
+ if (unidad && (!unidad.value || unidad.value === "pieza" || unidad.value === "servicio")) {
+ unidad.value = "kg";
+ }
  if (factor && !factor.value) factor.value = "1";
  if (bascula) bascula.value = "preparado";
  }

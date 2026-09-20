@@ -83,7 +83,29 @@
   }
 
  if (tipoFinal === "granel") {
-   if (unidad && !["kg", "metro", "litro", "gramo"].includes(unidad.value)) unidad.value = "kg";
+   // Las unidades que se pueden vender en fraccion. "tramo" faltaba
+   // aunque la propia descripcion de Granel lo promete ("kilo, metro,
+   // litro o tramo"). Rollo, caja, saco no van: a granel vendes 2.3
+   // metros, no 2.3 rollos -- eso es "Sin codigo" con unidad Rollo.
+   //
+   // Y se AVISA al regresar a kilo. Antes era en silencio: el selector
+   // muestra Rollo, te deja elegirlo, y lo pisa sin decir nada. Lo
+   // reporto el dueno de Olimpico: "le quiero poner rollo y se queda en
+   // kilo". Un cambio que no se explica parece un bug aunque sea a
+   // proposito.
+   const UNIDADES_GRANEL = ["kg", "metro", "litro", "gramo", "tramo"];
+   if (unidad && !UNIDADES_GRANEL.includes(unidad.value)) {
+    const elegida = unidad.options[unidad.selectedIndex]?.text || unidad.value;
+    unidad.value = "kg";
+    if (unidad.dataset.granelYaAvisado !== elegida && typeof mostrarToastPOS === "function") {
+     unidad.dataset.granelYaAvisado = elegida;
+     mostrarToastPOS(
+      "A granel se vende por kilo, metro, litro, gramo o tramo. Para vender por " +
+      elegida.toLowerCase() + " completo, usa \"Sin codigo\" y elige esa unidad.",
+      { titulo: "Unidad no disponible a granel", tipo: "info" }
+     );
+    }
+   }
    if (bascula) bascula.value = "preparado";
    if (stock) stock.step = "0.001";
    if (typeof actualizarAyudaPrecioProducto === "function") actualizarAyudaPrecioProducto();
