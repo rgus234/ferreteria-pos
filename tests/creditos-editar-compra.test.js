@@ -32,6 +32,12 @@ before(async () => {
 
     productoA = await crearProductoPrueba(negocio.negocioId, { nombre: "Producto A de prueba", precio: 100, stock: 10 });
     productoB = await crearProductoPrueba(negocio.negocioId, { nombre: "Producto B de prueba", precio: 150, stock: 10 });
+
+    await fetch(`${BASE_URL}/caja/abrir`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ usuario: "prueba", fondoInicial: 500, notas: "" })
+    });
 });
 
 after(async () => {

@@ -23,6 +23,11 @@ function headers() {
 before(async () => {
     await iniciarServidorPrueba();
     negocio = await crearNegocioPrueba("ticket-publico");
+    await fetch(`${BASE_URL}/caja/abrir`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ usuario: "prueba", fondoInicial: 500, notas: "" })
+    });
 });
 
 after(async () => {

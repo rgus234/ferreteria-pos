@@ -22,7 +22,50 @@ after(async () => {
     await pool.end();
 });
 
+function headers() {
+    return {
+        "Content-Type": "application/json",
+        "x-dispositivo-token": negocio.token
+    };
+}
+
+test("una venta sin turno de caja abierto se rechaza", async () => {
+    const producto = await crearProductoPrueba(negocio.negocioId, { stock: 10, precio: 150 });
+
+    const respuesta = await fetch(`${BASE_URL}/ventas`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+            productos: [{ id: producto.id, precio: 150, cantidad: 1, modoVenta: "bolsa" }],
+            metodoPago: "efectivo",
+            pagos: { efectivo: 150 },
+            recibido: 150,
+            cambio: 0,
+            cajeroUsuario: "prueba",
+            cajeroNombre: "Prueba automatizada"
+        })
+    });
+
+    const datos = await respuesta.json();
+
+    assert.equal(respuesta.status, 400);
+    assert.equal(datos.requiereAbrirTurno, true);
+
+    const productoSinCambios = await pool.query(
+        "SELECT stock FROM public.productos WHERE id = $1",
+        [producto.id]
+    );
+    assert.equal(Number(productoSinCambios.rows[0].stock), 10, "el stock no debe bajar si la venta se rechazo");
+});
+
 test("una venta descuenta el stock exacto y queda en el historial", async () => {
+    const apertura = await fetch(`${BASE_URL}/caja/abrir`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ usuario: "prueba", fondoInicial: 500, notas: "" })
+    });
+    assert.equal(apertura.status, 200);
+
     const producto = await crearProductoPrueba(negocio.negocioId, { stock: 10, precio: 150 });
 
     const respuesta = await fetch(`${BASE_URL}/ventas`, {

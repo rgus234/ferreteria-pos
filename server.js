@@ -7405,8 +7405,25 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
             return;
         }
 
-        const folioVenta = await siguienteFolioVenta(client, negocio.id);
         const turno = await turnoActivoVenta(client, negocio.id, empleadoIdVenta);
+
+        // Bug real: una venta sin turno de caja abierto se guardaba con
+        // turno_id NULL y quedaba huerfana -- resumenTurno() solo cuenta
+        // ventas por rango de fecha desde turno.abierto_at, asi que esa
+        // venta nunca aparecia en ningun corte de caja, aunque el dinero
+        // si se haya cobrado. Igual que "Registrar movimiento" ya exige
+        // turno abierto, ahora vender tambien lo exige.
+        if (!turno) {
+            await client.query("ROLLBACK");
+            res.status(400).json({
+                ok: false,
+                error: "Abre un turno de caja antes de registrar ventas.",
+                requiereAbrirTurno: true
+            });
+            return;
+        }
+
+        const folioVenta = await siguienteFolioVenta(client, negocio.id);
         const ventaCreada = await client.query(
             `
             INSERT INTO public.ventas(negocio_id, total, folio, folio_numero, turno_id, estado)

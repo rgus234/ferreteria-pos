@@ -232,6 +232,15 @@ test("Fase 2: un empleado sin permiso hacer_ventas recibe 403 real en POST /vent
         [persona.id, negocio.negocioId]
     );
 
+    // /ventas ahora exige turno de caja abierto -- se abre con el token
+    // de dispositivo (nivel dueno, sin pasar por permisos de empleado)
+    // para no mezclar esa dependencia con lo que esta fase prueba.
+    await fetch(`${BASE_URL}/caja/abrir`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-dispositivo-token": negocio.token },
+        body: JSON.stringify({ usuario: "prueba", fondoInicial: 500 })
+    });
+
     const conPermiso = await fetch(`${BASE_URL}/ventas`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenEmpleadoDueno}` },
@@ -244,6 +253,14 @@ test("Fase 2: un empleado sin permiso hacer_ventas recibe 403 real en POST /vent
 
     const stockFinal = await pool.query(`SELECT stock FROM public.productos WHERE id = $1`, [producto.id]);
     assert.equal(Number(stockFinal.rows[0].stock), 4);
+
+    // Se cierra el turno abierto arriba para no dejarlo abierto de cara
+    // a Fase 3, que abre el suyo propio y espera encontrar la caja libre.
+    await fetch(`${BASE_URL}/caja/cerrar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-dispositivo-token": negocio.token },
+        body: JSON.stringify({ efectivoContado: 600 })
+    });
 });
 
 test("Fase 3: un empleado sin permiso hacer_corte recibe 403 real en POST /caja/abrir; con el permiso concedido, abre y cierra turno de verdad con diferencia 0", async () => {
