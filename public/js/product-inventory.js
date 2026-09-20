@@ -4773,16 +4773,23 @@ function limpiarCamposCatalogoProducto() {
  document.getElementById("altaRotacion").value = "";
  document.getElementById("presentacionCompra").value = "";
  document.getElementById("factorConversion").value = "";
- document.getElementById("permiteVentaPieza").checked = false;
- document.getElementById("unidadSuelta").value = "pieza";
- document.getElementById("piezasPorBolsa").value = "";
- document.getElementById("precioPieza").value = "";
- document.getElementById("piezasSueltasIniciales").value = "";
- togglePiezaCamposProducto();
- document.getElementById("nuevaTieneGarantia").checked = false;
- document.getElementById("nuevoGarantiaDetalle").value = "";
- toggleGarantiaCamposProducto();
- mostrarPiezasSueltasStockInfo(0);
+ // La venta suelta y la garantia NO se tocan aqui.
+ //
+ // Esta funcion corre cuando el campo de codigo queda vacio: su trabajo
+ // es limpiar lo que el CATALOGO llena solo (nombre, precios, marca...)
+ // para que el siguiente escaneo lo vuelva a llenar. Pero "se vende
+ // suelto", piezas por bolsa, precio por pieza y las piezas que ya
+ // tiene sueltas NUNCA vienen del catalogo: siempre las teclea el dueno.
+ // Borrarlas aqui era tirarle su trabajo por quitar un codigo.
+ //
+ // Lo reporto el dueno de Olimpico con unos cinchos: escaneo un codigo
+ // que ya existia, lo quito para volverlo a escanear, y "no me dejo
+ // poner la cantidad que ya tengo sueltos, como que se borra". Al
+ // desmarcar permiteVentaPieza, togglePiezaCamposProducto() ESCONDIA la
+ // seccion entera, y el siguiente escaneo no la vuelve a mostrar.
+ //
+ // Cerrar el formulario (cerrarFormularioAgregar) si limpia todo: ahi
+ // el dueno empieza de cero a proposito.
  document.getElementById("basculaDigital").value = "no";
  actualizarAyudaPrecioProducto();
  ["nuevoNombre", "nuevoCodigoInterno", "nuevaMarca", "nuevoProveedor", "nuevoCodigo"]
