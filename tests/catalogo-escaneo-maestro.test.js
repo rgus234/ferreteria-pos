@@ -23,7 +23,7 @@ before(async () => {
     negocio = await crearNegocioPrueba("escaneo-maestro");
 
     const r = await pool.query(
-        `SELECT i.valor, m.nombre, m.marca, m.codigo_fabricante
+        `SELECT i.valor, m.id AS maestro_id, m.nombre, m.marca, m.codigo_fabricante
          FROM public.catalogo_maestro_identificadores i
          JOIN public.catalogo_maestro_productos m ON m.id = i.producto_maestro_id
          WHERE i.tipo = 'ean' AND COALESCE(m.nombre,'') <> '' AND NOT m.necesita_revision
@@ -105,6 +105,81 @@ test("REGLA: el catalogo propio del negocio MANDA sobre el Maestro", async () =>
         assert.equal(Number(datos.producto.publico), 33.33,
             "manda el precio que el negocio negocio con SU proveedor, no el de lista");
         assert.equal(datos.producto.proveedor, "Proveedor de prueba");
+    } finally {
+        await pool.query(`DELETE FROM public.catalogo_productos WHERE catalogo_id = $1`, [catalogo.rows[0].id]);
+        await pool.query(`DELETE FROM public.catalogos_proveedor WHERE id = $1`, [catalogo.rows[0].id]);
+    }
+});
+
+// EL HUECO QUE SE VIO EN FERRETERIA OLIMPICO.
+//
+// El auto-vinculo al Maestro (catalogoMaestroId en la respuesta) solo
+// estaba en la rama que cae al Maestro cuando el catalogo propio no tiene
+// nada. Olimpico tiene un catalogo Diprofer de 15,762 productos, asi que
+// casi todo escaneo se resolvia en la rama del catalogo propio -- que NO
+// lo devolvia. Cada producto dado de alta desde el 8 de septiembre quedo
+// sin vinculo: una cinta Truper 13515, en el Maestro y con foto en el
+// banco, salio sin foto en Market.
+//
+// La prueba original de arriba ("el catalogo propio MANDA") usaba un
+// nombre distinto al del Maestro a proposito, asi que nunca podia
+// detectarlo. Estas dos si.
+test("con catalogo propio Y el mismo producto, el escaneo SI trae el vinculo al Maestro", async () => {
+    if (!eanDelMaestro) return;
+
+    const catalogo = await pool.query(
+        `INSERT INTO public.catalogos_proveedor (negocio_id, proveedor, total_productos)
+         VALUES ($1, 'Proveedor de prueba', 1) RETURNING id`,
+        [negocio.negocioId]
+    );
+    // Mismo nombre que el Maestro: es el mismo producto, solo que con los
+    // precios que este negocio negocio con SU proveedor.
+    await pool.query(
+        `INSERT INTO public.catalogo_productos
+            (negocio_id, catalogo_id, codigo_proveedor, nombre_proveedor, marca,
+             codigo_barras, precio_distribuidor, precio_medio_mayoreo, precio_publico)
+         VALUES ($1, $2, 'PROP-2', $3, 'MARCA PROPIA', $4, 11.11, 22.22, 33.33)`,
+        [negocio.negocioId, catalogo.rows[0].id, datosMaestro.nombre, eanDelMaestro]
+    );
+
+    try {
+        const datos = await buscarCodigo(eanDelMaestro);
+        assert.ok(datos.producto);
+        assert.equal(Number(datos.producto.publico), 33.33,
+            "sigue mandando el precio propio");
+        assert.equal(datos.producto.catalogoMaestroId, datosMaestro.maestro_id,
+            "sin esto, Market no encuentra las fotos del fabricante");
+    } finally {
+        await pool.query(`DELETE FROM public.catalogo_productos WHERE catalogo_id = $1`, [catalogo.rows[0].id]);
+        await pool.query(`DELETE FROM public.catalogos_proveedor WHERE id = $1`, [catalogo.rows[0].id]);
+    }
+});
+
+test("con catalogo propio pero OTRO nombre, el vinculo NO se ofrece", async () => {
+    if (!eanDelMaestro) return;
+
+    // El codigo casa, el nombre no. Puede ser un codigo mal capturado en
+    // el catalogo del proveedor; ligarlo pondria en Market la foto de otro
+    // producto. Ya paso con 50 productos reales.
+    const catalogo = await pool.query(
+        `INSERT INTO public.catalogos_proveedor (negocio_id, proveedor, total_productos)
+         VALUES ($1, 'Proveedor de prueba', 1) RETURNING id`,
+        [negocio.negocioId]
+    );
+    await pool.query(
+        `INSERT INTO public.catalogo_productos
+            (negocio_id, catalogo_id, codigo_proveedor, nombre_proveedor, marca,
+             codigo_barras, precio_distribuidor, precio_medio_mayoreo, precio_publico)
+         VALUES ($1, $2, 'PROP-3', 'Zapato de charol talla 27 con agujetas moradas', 'OTRA',
+                 $3, 11.11, 22.22, 33.33)`,
+        [negocio.negocioId, catalogo.rows[0].id, eanDelMaestro]
+    );
+
+    try {
+        const datos = await buscarCodigo(eanDelMaestro);
+        assert.ok(datos.producto);
+        assert.equal(datos.producto.catalogoMaestroId, null,
+            "el codigo casa pero el producto no es el mismo: mejor sin vinculo");
     } finally {
         await pool.query(`DELETE FROM public.catalogo_productos WHERE catalogo_id = $1`, [catalogo.rows[0].id]);
         await pool.query(`DELETE FROM public.catalogos_proveedor WHERE id = $1`, [catalogo.rows[0].id]);

@@ -79,6 +79,55 @@ async function buscarEnCatalogoMaestro(pool, codigo) {
         return null;
     }
 }
+
+// Cuando el codigo escaneado SI esta en el catalogo de proveedor del
+// negocio, averigua de todos modos a que producto del Maestro pertenece.
+//
+// Existe por un hueco que se vio en Ferreteria Olimpico: el auto-vinculo
+// al Maestro solo estaba en la rama que cae al Maestro cuando el catalogo
+// propio no tiene nada. Pero Olimpico tiene un catalogo Diprofer de
+// 15,762 productos, asi que casi todo escaneo se resuelve AHI y nunca
+// llegaba a esa rama. Cada producto que dio de alta desde el 8 de
+// septiembre quedo sin vinculo -- una cinta Truper 13515 que esta en el
+// Maestro y tiene foto en el banco, y aun asi salio sin foto en Market.
+//
+// El vinculo se acepta solo si el codigo casa exacto Y los nombres
+// concuerdan. Lo segundo no es paranoia: si Diprofer tiene un codigo mal
+// capturado, el Maestro devolveria OTRO producto y Market mostraria su
+// foto. Ya paso una vez con 50 productos reales.
+//
+// Se usa el comparador estricto de aplicar-fotos-banco-a-negocio.js, no
+// parecidoDescripcion() de este mismo modulo: aquel tira toda palabra de
+// 3 letras o menos ("AA", "1/2", "2") y divide por el conjunto MENOR, asi
+// que le da 1.0 a "4 pilas AA" contra "2 pilas C". Sirve para decidir si
+// fusionar dos filas del Maestro; para poner una foto en un producto
+// ajeno, no.
+async function maestroIdParaFilaProveedor(pool, codigoEscaneado, cp) {
+    const { identidadPorCodigo } = require("./catalogo-maestro-reconciliacion");
+    const { parecido, PARECIDO_MINIMO } = require("./scripts/aplicar-fotos-banco-a-negocio");
+
+    const candidatos = [codigoEscaneado, cp.codigo_barras, cp.codigo_proveedor, cp.codigo_interno]
+        .map(c => String(c || "").trim())
+        .filter((c, i, arr) => c && arr.indexOf(c) === i);
+
+    for (const codigo of candidatos) {
+        let identidad = null;
+        try {
+            identidad = await identidadPorCodigo(pool, codigo);
+        } catch (error) {
+            // Que falle el Maestro no debe romper el alta: sin vinculo y ya.
+            console.log("[catalogo] no se pudo resolver vinculo al Maestro:", error.message);
+            return null;
+        }
+        if (!identidad || identidad.necesita_revision) continue;
+
+        if (parecido(cp.nombre_proveedor || "", identidad.nombre || "") >= PARECIDO_MINIMO) {
+            return identidad.id;
+        }
+    }
+    return null;
+}
+
 const { resolverOcrearProveedorId } = require("./proveedor-resolver");
 const { contribuirOEnlazarCatalogoMaestro, confirmarEanCatalogoMaestro } = require("./catalogo-maestro-resolver");
 
@@ -438,9 +487,13 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
             }
 
             const cp = fila.rows[0];
+            const catalogoMaestroId = await maestroIdParaFilaProveedor(pool, codigo, cp);
             res.json({
                 ok: true,
                 producto: {
+                    // Ver maestroIdParaFilaProveedor(): sin esto, un negocio
+                    // CON catalogo de proveedor nunca ligaba nada.
+                    catalogoMaestroId,
                     codigo: cp.codigo_interno || cp.codigo_proveedor,
                     nombre: cp.nombre_proveedor || "",
                     descripcion: cp.descripcion || "",
