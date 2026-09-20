@@ -281,6 +281,58 @@ test("ORDEN: una lista nueva con 2 niveles no le gana a una vieja con los 3", as
     }
 });
 
+// CUANDO EL MISMO CODIGO SON PRODUCTOS DISTINTOS, SE PREGUNTA.
+//
+// La regla de orden elige una ganadora, pero elegir no es lo mismo que
+// acertar. Si las filas que comparten codigo NO se parecen por nombre
+// (gato hidraulico vs llave de manguera), el servidor manda las otras en
+// alternativas y la pantalla pregunta. Si SI se parecen (la misma cinta
+// Truper en Diprofer y en GAFI), no se molesta al dueno: es el mismo
+// producto y ya gano el precio mas reciente.
+
+test("AMBIGUO: mismo codigo, productos distintos -> llegan las alternativas", async () => {
+    const codigo = `AMB-${Date.now()}`;
+    const a = await catalogoConFila("Diprofer de prueba", codigo, "Gato hidraulico de patin 5t", { dist: 10000, mm: 12000, pub: 14000 });
+    const b = await catalogoConFila("GAFI de prueba", codigo, "Silicon transparente 280 ml", { dist: 40, mm: 50, pub: 60 });
+
+    try {
+        const datos = await buscarCodigo(codigo);
+        assert.ok(datos.producto, "siempre hay una ganadora");
+        assert.ok(Array.isArray(datos.alternativas), "y las otras vienen aparte");
+        assert.equal(datos.alternativas.length, 1);
+
+        const nombres = [datos.producto.nombre, ...datos.alternativas.map(p => p.nombre)].sort();
+        assert.deepEqual(nombres, ["Gato hidraulico de patin 5t", "Silicon transparente 280 ml"],
+            "las dos opciones estan, para que el dueno elija");
+        // La alternativa tiene la misma forma que el producto: la pantalla
+        // la aplica con la misma funcion.
+        assert.ok("medioMayoreo" in datos.alternativas[0]);
+        assert.ok("proveedor" in datos.alternativas[0]);
+    } finally {
+        await borrarCatalogos([a, b]);
+    }
+});
+
+test("NO ambiguo: el mismo producto en dos catalogos -> sin alternativas, sin preguntar", async () => {
+    const codigo = `AMB-${Date.now()}-B`;
+    // Ojo: el comparador es estricto a proposito. "9 m x 19 mm" contra
+    // "9m x 19mm" le dan 0.56 y SI preguntaria -- prefiere molestar de
+    // mas a colgar una foto ajena. Dos proveedores que copian el nombre
+    // oficial del fabricante, como aqui, pasan sin pregunta.
+    const a = await catalogoConFila("Diprofer de prueba", codigo, "Cinta de aislar de 9 m x 19 mm, negra, Truper", { dist: 8, mm: 10, pub: 12 });
+    const b = await catalogoConFila("GAFI de prueba", codigo, "Cinta de aislar de 9 m x 19 mm, negra, TRUPER", { dist: 9, mm: 11, pub: 13 });
+
+    try {
+        const datos = await buscarCodigo(codigo);
+        assert.ok(datos.producto);
+        assert.equal(datos.alternativas, undefined,
+            "misma cinta en dos catalogos: gana la mas reciente y no se pregunta nada");
+        assert.equal(datos.producto.proveedor, "GAFI de prueba");
+    } finally {
+        await borrarCatalogos([a, b]);
+    }
+});
+
 test("un codigo que no existe en ningun lado sigue devolviendo null", async () => {
     const datos = await buscarCodigo("0000000000000");
     assert.equal(datos.ok, true);

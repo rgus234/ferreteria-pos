@@ -1762,10 +1762,59 @@ async function productoDesdeCatalogo(codigo) {
  const datos =
  await respuesta.json();
 
- return datos.ok ? datos.producto : null;
+ if (!datos.ok || !datos.producto) return null;
+
+ // Si el servidor encontro el mismo codigo en varios catalogos como
+ // productos DISTINTOS, las manda en alternativas. Se cuelgan del
+ // producto para que las dos llamadas de abajo pasen por el mismo
+ // punto (elegirProductoDeCatalogo) sin cambiar su forma.
+ const producto = datos.producto;
+ if (Array.isArray(datos.alternativas) && datos.alternativas.length) {
+ producto.alternativas = datos.alternativas;
+ }
+ return producto;
  } catch (error) {
  return null;
  }
+}
+
+// Un codigo que esta en varios catalogos como productos DISTINTOS -- 14957
+// es un gato hidraulico en Diprofer y una llave de manguera en la lista
+// de diciembre -- no se resuelve a ciegas: se le pregunta al dueno. Elegir
+// por el la broca y ponerle foto de silicon es exactamente el error que
+// ya paso con 50 productos.
+//
+// Devuelve el producto elegido, o null si cancelo. Cuando no hay
+// alternativas devuelve el mismo producto sin preguntar nada.
+async function elegirProductoDeCatalogo(producto) {
+ if (!producto?.alternativas?.length) return producto;
+
+ const precio = p =>
+ p.medioMayoreo != null && p.medioMayoreo !== ""
+ ? `$${Number(p.medioMayoreo).toFixed(2)} medio mayoreo`
+ : p.publico != null && p.publico !== ""
+ ? `$${Number(p.publico).toFixed(2)} publico`
+ : "sin precio";
+
+ const candidatos = [producto, ...producto.alternativas];
+
+ const elegido = await dialogoPOS({
+ tipo: "alerta",
+ titulo: "Este codigo es varios productos",
+ mensaje: "Esta en mas de un catalogo con nombres distintos. Elige cual es:",
+ mostrarCancelar: true,
+ lista: candidatos.map((p, i) => ({
+ etiqueta: p.nombre || "(sin nombre)",
+ detalle: `${p.proveedor || "sin proveedor"} - ${precio(p)}`,
+ valor: i
+ }))
+ });
+
+ if (elegido === null || elegido === false || elegido === undefined) return null;
+
+ const final = candidatos[elegido];
+ delete final.alternativas;
+ return final;
 }
 
 // Punto de entrada cuando se escanea un codigo durante una venta y no
@@ -4877,7 +4926,7 @@ async function buscarEnCatalogo() {
  }
 
  const producto =
- await productoDesdeCatalogo(codigo);
+ await elegirProductoDeCatalogo(await productoDesdeCatalogo(codigo));
 
  if (!producto) return;
 
@@ -4899,7 +4948,7 @@ async function buscarEnCatalogoPorCodigoInterno() {
  if (!codigo) return;
 
  const producto =
- await productoDesdeCatalogo(codigo);
+ await elegirProductoDeCatalogo(await productoDesdeCatalogo(codigo));
 
  if (!producto) return;
 

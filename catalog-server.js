@@ -80,6 +80,37 @@ async function buscarEnCatalogoMaestro(pool, codigo) {
     }
 }
 
+// Una fila del catalogo de proveedor, en la forma que espera la pantalla
+// de Agregar producto. Es la MISMA forma que devuelve el Maestro, para que
+// la pantalla no distinga de donde vino. Se saco a funcion porque ahora
+// hay que armarla varias veces por escaneo: la ganadora y sus alternativas.
+function productoDesdeFilaProveedor(cp, codigoEscaneado, catalogoMaestroId) {
+    return {
+        // Ver maestroIdParaFilaProveedor(): sin esto, un negocio CON
+        // catalogo de proveedor nunca ligaba nada. Las alternativas traen
+        // su propio vinculo tambien, por si el dueno la elige.
+        catalogoMaestroId,
+        codigo: cp.codigo_interno || cp.codigo_proveedor,
+        nombre: cp.nombre_proveedor || "",
+        descripcion: cp.descripcion || "",
+        marca: cp.marca || "",
+        categoria: cp.categoria || "",
+        unidadVenta: "pieza",
+        codigoInterno: cp.codigo_interno || "",
+        claveProveedor: cp.clave_proveedor || "",
+        codigoBarras: cp.codigo_barras || "",
+        distribuidor: cp.precio_distribuidor,
+        medioMayoreo: cp.precio_medio_mayoreo,
+        publico: cp.precio_publico,
+        proveedor: cp.proveedor_nombre || "",
+        stockMinimo: 3,
+        altaRotacion: "",
+        precioDetectado: "medio mayoreo",
+        codigosRelacionados: [cp.codigo_proveedor, cp.codigo_interno, cp.clave_proveedor, cp.codigo_barras]
+            .filter(c => c && c !== codigoEscaneado)
+    };
+}
+
 // Cuando el codigo escaneado SI esta en el catalogo de proveedor del
 // negocio, averigua de todos modos a que producto del Maestro pertenece.
 //
@@ -513,7 +544,6 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                         + CASE WHEN COALESCE(cp.precio_distribuidor, 0) > 0 THEN 1 ELSE 0 END) DESC,
                          cp.catalogo_id DESC,
                          cp.id ASC
-                LIMIT 1
                 `,
                 [negocio.id, codigo]
             );
@@ -533,34 +563,39 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                 return;
             }
 
-            const cp = fila.rows[0];
-            const catalogoMaestroId = await maestroIdParaFilaProveedor(pool, codigo, cp);
-            res.json({
-                ok: true,
-                producto: {
-                    // Ver maestroIdParaFilaProveedor(): sin esto, un negocio
-                    // CON catalogo de proveedor nunca ligaba nada.
-                    catalogoMaestroId,
-                    codigo: cp.codigo_interno || cp.codigo_proveedor,
-                    nombre: cp.nombre_proveedor || "",
-                    descripcion: cp.descripcion || "",
-                    marca: cp.marca || "",
-                    categoria: cp.categoria || "",
-                    unidadVenta: "pieza",
-                    codigoInterno: cp.codigo_interno || "",
-                    claveProveedor: cp.clave_proveedor || "",
-                    codigoBarras: cp.codigo_barras || "",
-                    distribuidor: cp.precio_distribuidor,
-                    medioMayoreo: cp.precio_medio_mayoreo,
-                    publico: cp.precio_publico,
-                    proveedor: cp.proveedor_nombre || "",
-                    stockMinimo: 3,
-                    altaRotacion: "",
-                    precioDetectado: "medio mayoreo",
-                    codigosRelacionados: [cp.codigo_proveedor, cp.codigo_interno, cp.clave_proveedor, cp.codigo_barras]
-                        .filter(c => c && c !== codigo)
+            // La primera fila es la que gana por la regla de arriba. Las
+            // demas pueden ser el MISMO producto en otro catalogo (Diprofer
+            // y GAFI venden la misma cinta Truper) o un producto DISTINTO
+            // que comparte numero (14957 es un gato hidraulico en Diprofer
+            // y una llave de manguera en la lista de diciembre; 323 asi).
+            //
+            // Si son el mismo, se devuelve el ganador y ya: el dueno ve el
+            // precio mas reciente y no se le pregunta nada. Si NO se
+            // parecen, se le dice: elegir a ciegas es como acaban las
+            // brocas con foto de silicon. El comparador es el estricto de
+            // aplicar-fotos-banco-a-negocio.js, ver maestroIdParaFilaProveedor.
+            const { parecido, PARECIDO_MINIMO } = require("./scripts/aplicar-fotos-banco-a-negocio");
+            const ganadora = fila.rows[0];
+            const alternativas = [];
+            for (const otra of fila.rows.slice(1)) {
+                if (parecido(ganadora.nombre_proveedor || "", otra.nombre_proveedor || "") < PARECIDO_MINIMO) {
+                    // Con su propio vinculo al Maestro: si el dueno elige
+                    // esta, tiene que quedar ligada igual que la ganadora,
+                    // o su ficha en Market sale sin galeria.
+                    const maestroIdAlt = await maestroIdParaFilaProveedor(pool, codigo, otra);
+                    alternativas.push(productoDesdeFilaProveedor(otra, codigo, maestroIdAlt));
                 }
-            });
+            }
+
+            const catalogoMaestroId = await maestroIdParaFilaProveedor(pool, codigo, ganadora);
+            const respuesta = {
+                ok: true,
+                producto: productoDesdeFilaProveedor(ganadora, codigo, catalogoMaestroId)
+            };
+            // Solo va cuando hay algo que decidir. La pantalla lo muestra
+            // como "este codigo tambien es X en tal catalogo -- cual?".
+            if (alternativas.length > 0) respuesta.alternativas = alternativas;
+            res.json(respuesta);
         } catch (error) {
             responderError(res, error);
         }

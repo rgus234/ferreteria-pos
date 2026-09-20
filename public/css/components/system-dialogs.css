@@ -93,6 +93,50 @@
  box-shadow:0 0 0 3px color-mix(in srgb, var(--brand-color) 18%, transparent);
 }
 
+/* Lista de opciones: cada una es un boton ancho. Se usa cuando un
+ codigo escaneado esta en varios catalogos como productos DISTINTOS y
+ hay que elegir en vez de adivinar. */
+.dialogo-pos-lista{
+ display:flex;
+ flex-direction:column;
+ gap:8px;
+ margin-top:14px;
+ max-height:min(46vh, 380px);
+ overflow-y:auto;
+}
+
+.dialogo-pos-lista .dialogo-opcion{
+ display:flex;
+ flex-direction:column;
+ align-items:flex-start;
+ gap:3px;
+ width:100%;
+ padding:11px 14px;
+ border:1.5px solid var(--line-soft, #e5e7eb);
+ border-radius:13px;
+ background:var(--surface-strong, #eef2f7);
+ color:var(--text-main, #111827);
+ text-align:left;
+ cursor:pointer;
+ font:inherit;
+}
+
+.dialogo-pos-lista .dialogo-opcion:hover,
+.dialogo-pos-lista .dialogo-opcion:focus-visible{
+ border-color:var(--brand-color);
+ box-shadow:0 0 0 3px color-mix(in srgb, var(--brand-color) 18%, transparent);
+ outline:none;
+}
+
+.dialogo-opcion-etiqueta{
+ font-weight:900;
+}
+
+.dialogo-opcion-detalle{
+ font-size:0.86em;
+ opacity:0.75;
+}
+
 .dialogo-pos-actions{
  display:flex;
  justify-content:center;

@@ -94,7 +94,11 @@ function dialogoPOS(opciones = {}) {
  entrada = false,
  valorInicial = "",
  placeholder = "",
- tipoEntrada = "text"
+ tipoEntrada = "text",
+ // Lista de { etiqueta, detalle?, valor }: se pintan como botones y el
+ // dialogo resuelve con el valor del que se toque. Con esto no hace
+ // falta el boton Aceptar: elegir YA es aceptar.
+ lista = null
  } = opciones;
 
  return new Promise(resolve => {
@@ -133,13 +137,28 @@ function dialogoPOS(opciones = {}) {
  ? `<input id="dialogoPOSInput" type="${limpiar(tipoEntrada)}" value="${limpiar(valorInicial)}" placeholder="${limpiar(placeholder)}">`
  : ""
  }
+ ${
+ Array.isArray(lista) && lista.length
+ ? `<div class="dialogo-pos-lista">${
+ lista.map((o, i) => `
+ <button type="button" class="dialogo-opcion" data-indice="${i}">
+ <span class="dialogo-opcion-etiqueta">${limpiar(o.etiqueta)}</span>
+ ${o.detalle ? `<span class="dialogo-opcion-detalle">${limpiar(o.detalle)}</span>` : ""}
+ </button>`).join("")
+ }</div>`
+ : ""
+ }
  <div class="dialogo-pos-actions">
  ${
  mostrarCancelar
  ? `<button type="button" class="dialogo-cancelar">${textoCancelar}</button>`
  : ""
  }
- <button type="button" class="dialogo-aceptar">${textoAceptar}</button>
+ ${
+ Array.isArray(lista) && lista.length
+ ? ""
+ : `<button type="button" class="dialogo-aceptar">${textoAceptar}</button>`
+ }
  </div>
  </div>
  </div>
@@ -158,6 +177,12 @@ function dialogoPOS(opciones = {}) {
  modal.querySelector(".dialogo-aceptar")
  ?.addEventListener("click", () => {
  cerrar(entrada ? input.value : true);
+ });
+
+ modal.querySelectorAll(".dialogo-opcion").forEach(boton => {
+ boton.addEventListener("click", () => {
+ cerrar(lista[Number(boton.dataset.indice)].valor);
+ });
  });
 
  modal.querySelector(".dialogo-cancelar")
