@@ -11,6 +11,23 @@
  const MOTIVOS_APERTURA = ["Apertura de turno", "Fondo fijo diario", "Cambio de turno", "Otro"];
  const CONCEPTOS_MOVIMIENTO = ["Venta en efectivo", "Pago a proveedor", "Deposito bancario", "Retiro de dueno", "Cambio / vueltos", "Gasto menor", "Ajuste de caja"];
 
+ const BILLETES_MXN = [
+  { valor: 20, img: "/img/dinero/billete-20.png" },
+  { valor: 50, img: "/img/dinero/billete-50.png" },
+  { valor: 100, img: "/img/dinero/billete-100.png" },
+  { valor: 200, img: "/img/dinero/billete-200.png" },
+  { valor: 500, img: "/img/dinero/billete-500.png" },
+  { valor: 1000, img: "/img/dinero/billete-1000.png" }
+ ];
+ const MONEDAS_MXN = [
+  { valor: 0.5, img: "/img/dinero/moneda-050.png" },
+  { valor: 1, img: "/img/dinero/moneda-1.png" },
+  { valor: 2, img: "/img/dinero/moneda-2.png" },
+  { valor: 5, img: "/img/dinero/moneda-5.png" },
+  { valor: 10, img: "/img/dinero/moneda-10.png" },
+  { valor: 20, img: "/img/dinero/moneda-20.png" }
+ ];
+
  const estado = {
   turno: null,
   resumen: null,
@@ -19,7 +36,10 @@
   cortes: [],
   verTodosMovimientos: false,
   motivoApertura: "",
-  motivoAperturaOtro: ""
+  motivoAperturaOtro: "",
+  fondoInicial: "",
+  notasAbrir: "",
+  contador: { destino: null, mostrarMonedas: false, cantidades: {} }
  };
 
  let cronometroInterval = null;
@@ -135,6 +155,7 @@
      <div class="caja-form-cierre">
       <label>Efectivo contado
        <input id="cajaEfectivoContado" type="number" step="0.01" min="0" placeholder="0.00">
+       <button type="button" class="caja-link-contador" onclick="abrirContadorEfectivo('cajaEfectivoContado')">${icono("wallet")} Contar billetes y monedas</button>
       </label>
       <label>Tarjeta contado
        <input id="cajaTarjetaContado" type="number" step="0.01" min="0" placeholder="0.00">
@@ -152,6 +173,27 @@
      <div class="caja-modal-acciones">
       <button type="button" class="btn-caja-secundario" onclick="cerrarModalCerrarTurnoCaja()">Cancelar</button>
       <button type="button" class="btn-caja-primario" onclick="confirmarCierreTurnoCajaPOS()">Cerrar turno</button>
+     </div>
+    </div>
+   </div>
+
+   <div class="modal-overlay caja-modal-overlay" id="modalContarEfectivo" style="display:none;">
+    <div class="caja-modal-card caja-modal-contador">
+     <h3>Contar efectivo</h3>
+     <p>Captura cuantos billetes tienes de cada denominacion y el total se calcula solo.</p>
+     <div class="contador-grid" id="contadorBilletesGrid"></div>
+     <label class="contador-monedas-toggle">
+      <input type="checkbox" id="contadorMonedasCheck" onchange="toggleMonedasContador(this.checked)">
+      Tambien quiero contar monedas (opcional)
+     </label>
+     <div class="contador-grid" id="contadorMonedasGrid" style="display:none;"></div>
+     <div class="contador-total-bar">
+      <span>Total contado</span>
+      <strong id="contadorTotalTexto">$0.00</strong>
+     </div>
+     <div class="caja-modal-acciones">
+      <button type="button" class="btn-caja-secundario" onclick="cerrarContadorEfectivo()">Cancelar</button>
+      <button type="button" class="btn-caja-primario" onclick="confirmarContadorEfectivo()">Usar este total</button>
      </div>
     </div>
    </div>
@@ -338,12 +380,13 @@
     <h3>Abrir turno</h3>
     <p>Inicia nueva sesion de caja</p>
     <label>Monto inicial de efectivo
-     <div class="caja-input-dinero"><span>$</span><input id="cajaFondo" type="number" step="0.01" min="0" placeholder="0.00"></div>
+     <div class="caja-input-dinero"><span>$</span><input id="cajaFondo" type="number" step="0.01" min="0" placeholder="0.00" value="${esc(estado.fondoInicial)}" oninput="actualizarFondoInicialCaja(this.value)"></div>
+     <button type="button" class="caja-link-contador" onclick="abrirContadorEfectivo('cajaFondo')">${icono("wallet")} Contar billetes y monedas</button>
     </label>
     <label>Motivo de apertura (opcional)
      <select id="cajaMotivoApertura" onchange="actualizarMotivoAperturaCaja(this.value)">
       <option value="">Seleccionar motivo</option>
-      ${MOTIVOS_APERTURA.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join("")}
+      ${MOTIVOS_APERTURA.map(m => `<option value="${esc(m)}" ${estado.motivoApertura === m ? "selected" : ""}>${esc(m)}</option>`).join("")}
      </select>
     </label>
     ${estado.motivoApertura === "Otro" ? `
@@ -352,7 +395,7 @@
      </label>
     ` : ""}
     <label>Notas (opcional)
-     <input id="cajaNotasAbrir" placeholder="Escribe una nota...">
+     <input id="cajaNotasAbrir" placeholder="Escribe una nota..." value="${esc(estado.notasAbrir)}" oninput="actualizarNotasAbrirCaja(this.value)">
     </label>
     <button type="button" class="btn-caja-primario caja-btn-full" onclick="abrirTurnoCajaPOS()">Abrir turno</button>
    `;
@@ -454,6 +497,110 @@
 
  window.actualizarMotivoAperturaOtroCaja = valor => { estado.motivoAperturaOtro = valor; };
 
+ window.actualizarFondoInicialCaja = valor => { estado.fondoInicial = valor; };
+ window.actualizarNotasAbrirCaja = valor => { estado.notasAbrir = valor; };
+
+ function claveBillete(valor) { return "b_" + valor; }
+ function claveMoneda(valor) { return "m_" + valor; }
+
+ function totalContadorEfectivo() {
+  let total = 0;
+  BILLETES_MXN.forEach(b => { total += (estado.contador.cantidades[claveBillete(b.valor)] || 0) * b.valor; });
+  if (estado.contador.mostrarMonedas) {
+   MONEDAS_MXN.forEach(m => { total += (estado.contador.cantidades[claveMoneda(m.valor)] || 0) * m.valor; });
+  }
+  return total;
+ }
+
+ function etiquetaDenominacion(valor) { return valor < 1 ? (valor * 100) + "¢" : "$" + valor; }
+
+ function renderContadorTotal() {
+  const el = document.getElementById("contadorTotalTexto");
+  if (el) el.textContent = money(totalContadorEfectivo());
+ }
+
+ function renderContadorGrid(contenedorId, filas) {
+  const grid = document.getElementById(contenedorId);
+  if (!grid) return;
+  grid.innerHTML = filas;
+ }
+
+ function filaBillete(billete) {
+  const clave = claveBillete(billete.valor);
+  const cantidad = estado.contador.cantidades[clave] || 0;
+  return `
+   <div class="contador-item">
+    <div class="contador-billete-visual">
+     <img src="${billete.img}" alt="Billete de ${billete.valor} pesos" loading="lazy">
+    </div>
+    <span class="contador-etiqueta">${etiquetaDenominacion(billete.valor)}</span>
+    <input type="number" min="0" step="1" inputmode="numeric" class="contador-cantidad-input" value="${cantidad || ""}" placeholder="0" oninput="actualizarCantidadContador('${clave}', this)">
+    <span class="contador-subtotal">${money(cantidad * billete.valor)}</span>
+   </div>
+  `;
+ }
+
+ function filaMoneda(moneda) {
+  const clave = claveMoneda(moneda.valor);
+  const cantidad = estado.contador.cantidades[clave] || 0;
+  return `
+   <div class="contador-item">
+    <div class="contador-moneda-visual">
+     <img src="${moneda.img}" alt="Moneda de ${etiquetaDenominacion(moneda.valor)}" loading="lazy">
+    </div>
+    <span class="contador-etiqueta">${etiquetaDenominacion(moneda.valor)}</span>
+    <input type="number" min="0" step="1" inputmode="numeric" class="contador-cantidad-input" value="${cantidad || ""}" placeholder="0" oninput="actualizarCantidadContador('${clave}', this)">
+    <span class="contador-subtotal">${money(cantidad * moneda.valor)}</span>
+   </div>
+  `;
+ }
+
+ window.abrirContadorEfectivo = destino => {
+  estado.contador = { destino, mostrarMonedas: false, cantidades: {} };
+
+  const check = document.getElementById("contadorMonedasCheck");
+  if (check) check.checked = false;
+  const gridMonedas = document.getElementById("contadorMonedasGrid");
+  if (gridMonedas) gridMonedas.style.display = "none";
+
+  renderContadorGrid("contadorBilletesGrid", BILLETES_MXN.map(filaBillete).join(""));
+  renderContadorGrid("contadorMonedasGrid", MONEDAS_MXN.map(filaMoneda).join(""));
+  renderContadorTotal();
+
+  const modal = document.getElementById("modalContarEfectivo");
+  if (modal) modal.style.display = "flex";
+ };
+
+ window.cerrarContadorEfectivo = () => {
+  const modal = document.getElementById("modalContarEfectivo");
+  if (modal) modal.style.display = "none";
+ };
+
+ window.toggleMonedasContador = checked => {
+  estado.contador.mostrarMonedas = checked;
+  const gridMonedas = document.getElementById("contadorMonedasGrid");
+  if (gridMonedas) gridMonedas.style.display = checked ? "grid" : "none";
+  renderContadorTotal();
+ };
+
+ window.actualizarCantidadContador = (clave, inputEl) => {
+  const cantidad = Math.max(0, Math.floor(num(inputEl.value)));
+  estado.contador.cantidades[clave] = cantidad;
+  const denomValor = Number(clave.slice(2));
+  const subtotalEl = inputEl.parentElement.querySelector(".contador-subtotal");
+  if (subtotalEl) subtotalEl.textContent = money(cantidad * denomValor);
+  renderContadorTotal();
+ };
+
+ window.confirmarContadorEfectivo = () => {
+  const total = totalContadorEfectivo();
+  const destino = estado.contador.destino;
+  const input = destino ? document.getElementById(destino) : null;
+  if (input) input.value = total.toFixed(2);
+  if (destino === "cajaFondo") estado.fondoInicial = total.toFixed(2);
+  window.cerrarContadorEfectivo();
+ };
+
  window.abrirTurnoCajaPOS = async () => {
   const motivoFinal = estado.motivoApertura === "Otro" ? estado.motivoAperturaOtro : estado.motivoApertura;
   const notasLibres = document.getElementById("cajaNotasAbrir")?.value || "";
@@ -471,6 +618,8 @@
    });
    estado.motivoApertura = "";
    estado.motivoAperturaOtro = "";
+   estado.fondoInicial = "";
+   estado.notasAbrir = "";
    alertaPOS("Caja lista para operar.", "Turno abierto", "exito");
    await cargarCajaPOS();
    iniciarCronometro();
