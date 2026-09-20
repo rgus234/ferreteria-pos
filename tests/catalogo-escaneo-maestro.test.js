@@ -186,6 +186,101 @@ test("con catalogo propio pero OTRO nombre, el vinculo NO se ofrece", async () =
     }
 });
 
+// CUAL CATALOGO GANA cuando el mismo codigo esta en varios.
+//
+// Antes ganaba el catalogo subido PRIMERO (catalogo_id ASC), para
+// siempre. Una lista de precios nueva recibia un id mas alto y perdia
+// contra la vieja. Pero "el mas nuevo gana" a secas tampoco: el catalogo
+// GAFI de Ferreteria Olimpico salio de un PDF sin vision con UNA fila con
+// precio de 4,098, y sus "codigos" son numeros de pagina que chocan con
+// 913 de Diprofer. Con "mas nuevo gana", escanear el casco 10567 daba
+// "Diametro de 16". COD CAP EMP SUB D".
+//
+// Y "el que tenga algun precio" tampoco alcanzo: la lista de diciembre
+// 2025 trae 2 niveles (medio mayoreo siempre en cero) y codigos de OTRO
+// proveedor que chocan con 323 de Diprofer -- todos productos distintos.
+// Por ser mas nueva le ganaba, y el escaneo devolvia otro producto.
+//
+// Regla: manda cuantos NIVELES de precio trae la fila (3 > 2 > 0), y
+// entre iguales gana el catalogo mas nuevo.
+
+async function catalogoConFila(nombreProveedor, codigo, nombre, precios) {
+    const cat = await pool.query(
+        `INSERT INTO public.catalogos_proveedor (negocio_id, proveedor, total_productos)
+         VALUES ($1, $2, 1) RETURNING id`,
+        [negocio.negocioId, nombreProveedor]
+    );
+    await pool.query(
+        `INSERT INTO public.catalogo_productos
+            (negocio_id, catalogo_id, codigo_proveedor, nombre_proveedor, marca,
+             precio_distribuidor, precio_medio_mayoreo, precio_publico)
+         VALUES ($1, $2, $3, $4, 'MARCA', $5, $6, $7)`,
+        [negocio.negocioId, cat.rows[0].id, codigo, nombre,
+         precios?.dist ?? null, precios?.mm ?? null, precios?.pub ?? null]
+    );
+    return cat.rows[0].id;
+}
+
+async function borrarCatalogos(ids) {
+    for (const id of ids) {
+        await pool.query(`DELETE FROM public.catalogo_productos WHERE catalogo_id = $1`, [id]);
+        await pool.query(`DELETE FROM public.catalogos_proveedor WHERE id = $1`, [id]);
+    }
+}
+
+test("ORDEN: entre dos catalogos con precio, gana el mas NUEVO", async () => {
+    const codigo = `ORD-${Date.now()}`;
+    const viejo = await catalogoConFila("Lista vieja", codigo, "Producto lista vieja", { dist: 10, mm: 20, pub: 30 });
+    const nuevo = await catalogoConFila("Lista nueva", codigo, "Producto lista nueva", { dist: 11, mm: 22, pub: 33 });
+
+    try {
+        const datos = await buscarCodigo(codigo);
+        assert.ok(datos.producto);
+        assert.equal(datos.producto.proveedor, "Lista nueva",
+            "el dueno subio una lista nueva: esa es la que espera ver");
+        assert.equal(Number(datos.producto.publico), 33);
+    } finally {
+        await borrarCatalogos([viejo, nuevo]);
+    }
+});
+
+test("ORDEN: un catalogo nuevo SIN precio no le gana a uno viejo CON precio", async () => {
+    // El caso GAFI: importado despues, pero sin precios. Si ganara,
+    // escanear devolveria una fila que no sirve para cobrar.
+    const codigo = `ORD-${Date.now()}-B`;
+    const viejoConPrecio = await catalogoConFila("Diprofer de prueba", codigo, "Casco de seguridad", { dist: 10, mm: 20, pub: 30 });
+    const nuevoSinPrecio = await catalogoConFila("PDF sin precios", codigo, "Diametro de 16 COD CAP EMP", null);
+
+    try {
+        const datos = await buscarCodigo(codigo);
+        assert.ok(datos.producto);
+        assert.equal(datos.producto.proveedor, "Diprofer de prueba",
+            "una fila sin precio es casi seguro una extraccion fallida");
+        assert.equal(datos.producto.nombre, "Casco de seguridad");
+    } finally {
+        await borrarCatalogos([viejoConPrecio, nuevoSinPrecio]);
+    }
+});
+
+test("ORDEN: una lista nueva con 2 niveles no le gana a una vieja con los 3", async () => {
+    // El caso real de Olimpico: el mismo numero es un gato hidraulico en
+    // Diprofer y una llave de manguera en la lista de diciembre. La lista
+    // es mas nueva pero trae medio mayoreo en cero. Si ganara, el dueno
+    // escanearia un gato y veria una llave.
+    const codigo = `ORD-${Date.now()}-C`;
+    const viejoCompleto = await catalogoConFila("Diprofer de prueba", codigo, "Gato hidraulico de patin 5t", { dist: 10000, mm: 12000, pub: 14000 });
+    const nuevoIncompleto = await catalogoConFila("Lista de otro proveedor", codigo, "Llave manguera 013mm", { dist: 40, mm: 0, pub: 77 });
+
+    try {
+        const datos = await buscarCodigo(codigo);
+        assert.ok(datos.producto);
+        assert.equal(datos.producto.nombre, "Gato hidraulico de patin 5t",
+            "una fila con los tres niveles es mas de fiar que una con dos");
+    } finally {
+        await borrarCatalogos([viejoCompleto, nuevoIncompleto]);
+    }
+});
+
 test("un codigo que no existe en ningun lado sigue devolviendo null", async () => {
     const datos = await buscarCodigo("0000000000000");
     assert.equal(datos.ok, true);

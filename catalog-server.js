@@ -465,7 +465,54 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                 JOIN public.catalogos_proveedor cat ON cat.id = cp.catalogo_id
                 WHERE cp.negocio_id = $1
                   AND (cp.codigo_proveedor = $2 OR NULLIF(cp.codigo_interno, '') = $2 OR NULLIF(cp.clave_proveedor, '') = $2 OR NULLIF(cp.codigo_barras, '') = $2)
-                ORDER BY cp.catalogo_id ASC, cp.id ASC
+                -- CUAL FILA GANA cuando el mismo codigo esta en varios
+                -- catalogos del negocio.
+                --
+                -- Antes era "catalogo_id ASC": ganaba el catalogo subido
+                -- PRIMERO, para siempre. Un negocio que subiera una lista
+                -- de precios nueva recibia un id mas alto y perdia contra
+                -- la vieja. Ferreteria Olimpico acerto de casualidad
+                -- (Diprofer=16 vs una lista de diciembre 2025=27); el dia
+                -- que subiera precios nuevos habria seguido cobrando los
+                -- de agosto.
+                --
+                -- Pero "el mas nuevo gana" a secas tampoco sirve. El
+                -- catalogo GAFI (502) salio de un PDF sin vision: 4,098
+                -- filas, UNA con precio, 2,927 sin codigo real, y los
+                -- codigos que si trae son numeros de pagina o celdas que
+                -- chocan con 913 codigos de Diprofer. Con "mas nuevo
+                -- gana", escanear el casco 10567 devolveria
+                -- "Diametro de 16". COD CAP EMP SUB D".
+                --
+                -- Y "el que tenga ALGUN precio gana" tampoco alcanzo. La
+                -- lista de diciembre 2025 (27) trae publico y distribuidor
+                -- pero medio mayoreo en cero en sus 8,747 filas, y sus
+                -- codigos son de OTRO proveedor: 323 chocan con Diprofer y
+                -- los 323 son productos distintos (14957 es un gato
+                -- hidraulico en Diprofer y una llave de manguera en la
+                -- lista). Con esa regla la lista, por mas nueva, le ganaba
+                -- a Diprofer y el escaneo devolvia otro producto.
+                --
+                -- Asi que manda cuantos NIVELES de precio trae la fila:
+                -- Diprofer 3, la lista 2, GAFI 0. Una fila mas completa es
+                -- mas de fiar. Y entre iguales, gana la del catalogo mas
+                -- nuevo, que es lo que el dueno espera al subir una lista.
+                -- Un GAFI reimportado bien, con sus tres precios, ganaria
+                -- solo por ser el mas reciente.
+                --
+                -- Medido contra los datos reales de Olimpico: los 323
+                -- choques resuelven a Diprofer, y la cinta LX-66BK -- que
+                -- solo esta en la lista -- se sigue encontrando.
+                --
+                -- COALESCE a proposito: con precios en NULL la comparacion
+                -- da NULL, y Postgres pone los NULL PRIMERO en DESC. Una
+                -- fila sin precio ganaba justo por no tenerlo. Lo atrapo
+                -- la prueba.
+                ORDER BY (CASE WHEN COALESCE(cp.precio_medio_mayoreo, 0) > 0 THEN 1 ELSE 0 END
+                        + CASE WHEN COALESCE(cp.precio_publico, 0) > 0 THEN 1 ELSE 0 END
+                        + CASE WHEN COALESCE(cp.precio_distribuidor, 0) > 0 THEN 1 ELSE 0 END) DESC,
+                         cp.catalogo_id DESC,
+                         cp.id ASC
                 LIMIT 1
                 `,
                 [negocio.id, codigo]
