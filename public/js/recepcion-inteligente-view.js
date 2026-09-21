@@ -132,10 +132,7 @@ async function mostrarRecepcionInteligente() {
 		const itemId = Number(boton.dataset.itemId);
 		const accion = boton.dataset.riAccion;
 
-		if (accion === "relacionar") riRelacionarProducto(itemId, boton.dataset.descripcion);
-		else if (accion === "crear") riCrearProducto(itemId, boton.dataset.nombre);
-		else if (accion === "omitir") riOmitirItem(itemId);
-		else if (accion === "cambiar") riCambiarDecisionItem(itemId);
+		if (accion === "revisar") riAbrirModalDecision(itemId);
 		else if (accion === "ver-producto") riVerProductoModal(itemId);
 	});
 
@@ -585,11 +582,7 @@ function riFilaItem(item, estadoRecepcion) {
 			<td>${item.cantidad}</td>
 			<td>$${item.costo.toFixed(2)}${sugerido ? `<small>Venta: $${sugerido.valor.toFixed(2)} (${sugerido.etiqueta})</small>` : ""}</td>
 			<td>${yaDecidido}</td>
-			<td>${puedeEditar && !item.accion ? `
-				<button type="button" class="btn-mini" data-ri-accion="relacionar" data-item-id="${item.id}" data-descripcion="${escaparPOS(item.descripcion)}">Relacionar</button>
-				<button type="button" class="btn-mini" data-ri-accion="crear" data-item-id="${item.id}" data-nombre="${escaparPOS(item.candidato?.nombre || item.descripcion)}">Crear</button>
-				<button type="button" class="btn-mini" data-ri-accion="omitir" data-item-id="${item.id}">Omitir</button>
-			` : (puedeEditar ? `<button type="button" class="btn-mini" data-ri-accion="cambiar" data-item-id="${item.id}">Cambiar</button>` : "")}</td>
+			<td>${puedeEditar ? `<button type="button" class="btn-mini" data-ri-accion="revisar" data-item-id="${item.id}">${item.accion ? "Editar" : "Revisar"}</button>` : ""}</td>
 		</tr>
 	`;
 }
@@ -685,114 +678,15 @@ function riVerProductoModal(itemId) {
 	}
 }
 
-async function riRelacionarProducto(itemId, descripcion) {
-	const respuesta = await fetch(`/explorar-nexo/buscar?q=${encodeURIComponent(descripcion)}`);
-	const resultado = await respuesta.json().catch(() => null);
-	const candidatos = resultado?.inventario || [];
-
-	if (!candidatos.length) {
-		await alertaPOS("No encontramos ningún producto parecido en tu inventario. Puedes crear uno nuevo en su lugar.", "Relacionar producto", "info");
-		return;
-	}
-
-	const datos = await abrirFormularioCredito({
-		titulo: "Relacionar producto",
-		subtitulo: descripcion,
-		campos: [{
-			nombre: "productoId",
-			etiqueta: "Producto en tu inventario",
-			tipo: "select",
-			requerido: true,
-			opciones: candidatos.map(c => ({ valor: c.productoId, etiqueta: `${c.nombre} (${c.codigo || "sin código"})` }))
-		}]
-	});
-	if (!datos) return;
-
-	await riGuardarDecisionItem(itemId, { accion: "relacionar", productoId: Number(datos.productoId) });
-}
-
-async function riCrearProducto(itemId, nombreSugerido) {
-	const item = recepcionInteligenteItemsActuales.find(it => it.id === itemId);
-	const precios = riPreciosReferenciaCandidato(item?.candidato);
-	const costo = item?.costo ?? 0;
-
-	// Con candidato: un solo select con las 3 opciones (publico/medio
-	// mayoreo/distribuidor) que tenga precio real -- nunca 3 campos
-	// sueltos, para que no se vea amontonado. Medio mayoreo va
-	// preseleccionado (regla de esta ferreteria), pero cualquiera de los
-	// tres queda a un clic si ese producto puntual no la sigue.
-	// Sin candidato: un numero simple, editable, prellenado con el costo.
-	const campoPrecio = precios
-		? {
-			nombre: "precioVenta",
-			etiqueta: "Precio de venta",
-			tipo: "select",
-			requerido: true,
-			valor: precios.medioMayoreo ?? precios.publico ?? precios.distribuidor,
-			opciones: [
-				precios.publico != null ? { valor: precios.publico, etiqueta: `Público — $${precios.publico.toFixed(2)}` } : null,
-				precios.medioMayoreo != null ? { valor: precios.medioMayoreo, etiqueta: `Medio mayoreo — $${precios.medioMayoreo.toFixed(2)}` } : null,
-				precios.distribuidor != null ? { valor: precios.distribuidor, etiqueta: `Distribuidor — $${precios.distribuidor.toFixed(2)}` } : null
-			].filter(Boolean)
-		}
-		: { nombre: "precioVenta", etiqueta: "Precio de venta", tipo: "number", requerido: true, valor: item?.precioSugerido ?? costo, min: 0 };
-
-	// Opcional, para el caso real de tornillos/pijas/taquetes/alambre que
-	// llegan por bulto pero tambien se venden sueltos a un precio propio
-	// (nunca una fraccion del precio de bulto -- mismo modelo que ya usa
-	// "Agregar producto", ver unidad_suelta/precio_pieza_publico). Sin
-	// esto, crear el producto aqui obligaba a ir a Inventario despues
-	// solo para activar la venta suelta.
-	const campoUnidadSuelta = {
-		nombre: "unidadSuelta",
-		etiqueta: "¿También se vende suelto?",
-		tipo: "select",
-		valor: "",
-		opciones: [
-			{ valor: "", etiqueta: "No, solo el contenedor completo" },
-			{ valor: "pieza", etiqueta: "Suelto por pieza" },
-			{ valor: "kg", etiqueta: "Suelto por kilo" },
-			{ valor: "gramo", etiqueta: "Suelto por gramo" },
-			{ valor: "litro", etiqueta: "Suelto por litro" },
-			{ valor: "metro", etiqueta: "Suelto por metro" }
-		]
-	};
-	const campoPrecioPieza = { nombre: "precioPieza", etiqueta: "Precio de venta suelta (si aplica)", tipo: "number", valor: "", min: 0 };
-
-	const datos = await abrirFormularioCredito({
-		titulo: "Crear producto",
-		subtitulo: `Costo de esta factura: $${costo.toFixed(2)}`,
-		campos: [
-			{ nombre: "nombre", etiqueta: "Nombre del producto", valor: nombreSugerido, requerido: true },
-			campoPrecio,
-			campoUnidadSuelta,
-			campoPrecioPieza
-		]
-	});
-	if (!datos) return;
-
-	await riGuardarDecisionItem(itemId, {
-		accion: "crear",
-		nombreNuevoProducto: datos.nombre,
-		precioVenta: Number(datos.precioVenta),
-		unidadSuelta: datos.unidadSuelta || null,
-		precioPieza: datos.unidadSuelta && Number(datos.precioPieza) > 0 ? Number(datos.precioPieza) : null
-	});
-}
-
-async function riCambiarDecisionItem(itemId) {
-	await riGuardarDecisionItem(itemId, { accion: "" });
-}
-
 async function riOmitirItem(itemId) {
 	const confirmado = await confirmarPOS("Este producto no se agregará al inventario ni se contará en la recepción. ¿Continuar?", "Omitir");
-	if (!confirmado) return;
+	if (!confirmado) return false;
 
-	await riGuardarDecisionItem(itemId, { accion: "omitir" });
+	return riGuardarDecisionItem(itemId, { accion: "omitir" });
 }
 
 async function riGuardarDecisionItem(itemId, body) {
-	if (!recepcionInteligenteActualId) return;
+	if (!recepcionInteligenteActualId) return false;
 
 	const respuesta = await fetch(`/recepcion-inteligente/facturas/${recepcionInteligenteActualId}/items/${itemId}`, {
 		method: "POST",
@@ -803,10 +697,327 @@ async function riGuardarDecisionItem(itemId, body) {
 
 	if (!respuesta.ok || !datos.ok) {
 		await alertaPOS(datos.error || "No se pudo guardar.", "Recepción Inteligente", "peligro");
-		return;
+		return false;
 	}
 
 	await riVerDetalle(recepcionInteligenteActualId);
+	return true;
+}
+
+async function riObtenerProducto(productoId) {
+	const respuesta = await fetch(`/productos/${productoId}`);
+	const datos = await respuesta.json().catch(() => null);
+	return datos?.ok ? datos.producto : null;
+}
+
+const RI_UNIDADES_SUELTA = [
+	{ valor: "", etiqueta: "No, solo el contenedor completo" },
+	{ valor: "pieza", etiqueta: "Suelto por pieza" },
+	{ valor: "kg", etiqueta: "Suelto por kilo" },
+	{ valor: "gramo", etiqueta: "Suelto por gramo" },
+	{ valor: "litro", etiqueta: "Suelto por litro" },
+	{ valor: "metro", etiqueta: "Suelto por metro" }
+];
+
+// Estado del modal "Revisar concepto" mientras esta abierto -- controlado
+// en JS (no se relee del DOM al guardar) para poder re-renderizar el
+// modal completo en cada cambio (cambiar de pestaña, elegir un producto
+// de la busqueda) sin perder lo que el usuario ya habia escrito.
+let riDecision = null;
+
+// Reemplaza los 3 botones sueltos (Relacionar/Crear/Omitir) y el boton
+// "Cambiar" por un solo punto de entrada por concepto -- pedido real
+// ("que a todos les salga este modal"): un modal mediano con las
+// funciones de Agregar producto mejor acomodadas (precios de venta +
+// venta suelta), en vez del formulario minimo de antes que ni dejaba
+// ajustar el precio al relacionar con un producto ya existente.
+async function riAbrirModalDecision(itemId) {
+	const item = recepcionInteligenteItemsActuales.find(it => it.id === itemId);
+	if (!item) return;
+
+	riDecision = {
+		itemId,
+		descripcion: item.descripcion,
+		costo: item.costo,
+		modo: item.accion === "crear" ? "crear" : "relacionar",
+		productoSeleccionado: null,
+		terminoBusqueda: item.descripcion,
+		resultadosBusqueda: null,
+		nombre: item.candidato?.nombre || item.descripcion,
+		precioPublico: null,
+		precioMedioMayoreo: null,
+		unidadSuelta: "",
+		precioPieza: ""
+	};
+
+	if (item.accion === "crear") {
+		riDecision.nombre = item.nombreNuevoProducto || riDecision.nombre;
+		riDecision.precioPublico = item.precioPublicoNuevoProducto ?? item.precioVentaNuevoProducto ?? null;
+		riDecision.precioMedioMayoreo = item.precioMedioMayoreoNuevoProducto ?? item.precioVentaNuevoProducto ?? null;
+		riDecision.unidadSuelta = item.unidadSueltaNuevoProducto || "";
+		riDecision.precioPieza = item.precioPiezaNuevoProducto ?? "";
+	} else {
+		const sugerido = riPrecioSugerido(item.candidato) || (item.precioSugerido != null ? { valor: item.precioSugerido } : null);
+		if (sugerido) {
+			riDecision.precioPublico = sugerido.valor;
+			riDecision.precioMedioMayoreo = sugerido.valor;
+		}
+	}
+
+	// Producto a preseleccionar: el que ya se eligio ("Editar" sobre una
+	// fila Relacionada), o el candidato que el motor de matching ya
+	// encontro en TU inventario con buena confianza -- en ambos casos se
+	// trae el producto real para prellenar sus precios actuales, nunca
+	// los del candidato (pueden estar desactualizados).
+	const productoAPreseleccionar = item.accion === "relacionar" ? item.productoId
+		: (!item.accion && item.candidato?.fuente === "inventario" ? item.candidato.productoId : null);
+
+	if (productoAPreseleccionar) {
+		const producto = await riObtenerProducto(productoAPreseleccionar);
+		if (producto) {
+			riDecision.productoSeleccionado = producto;
+			riDecision.precioPublico = item.precioPublicoActualizarProducto ?? numeroOrNull(producto.precio_publico) ?? riDecision.precioPublico;
+			riDecision.precioMedioMayoreo = item.precioMedioMayoreoActualizarProducto ?? numeroOrNull(producto.precio_mayoreo) ?? riDecision.precioMedioMayoreo;
+			riDecision.unidadSuelta = item.unidadSueltaActualizarProducto || (producto.permite_venta_pieza ? producto.unidad_suelta : "") || "";
+			riDecision.precioPieza = item.precioPiezaActualizarProducto ?? (producto.permite_venta_pieza ? numeroOrNull(producto.precio_pieza) : "") ?? "";
+		}
+	} else if (riDecision.modo === "relacionar") {
+		await riBuscarProductoDecision(riDecision.terminoBusqueda, false);
+	}
+
+	riRenderModalDecision();
+}
+
+function numeroOrNull(valor) {
+	const numero = Number(valor);
+	return Number.isFinite(numero) ? numero : null;
+}
+
+async function riBuscarProductoDecision(termino, renderizar = true) {
+	riDecision.terminoBusqueda = termino;
+	if (!termino || !termino.trim()) {
+		riDecision.resultadosBusqueda = [];
+	} else {
+		const respuesta = await fetch(`/explorar-nexo/buscar?q=${encodeURIComponent(termino)}`);
+		const resultado = await respuesta.json().catch(() => null);
+		riDecision.resultadosBusqueda = resultado?.inventario || [];
+	}
+	if (renderizar) riRenderModalDecision();
+}
+
+function riRenderResultadosBusquedaDecision() {
+	const resultados = riDecision.resultadosBusqueda;
+	if (resultados == null) return "";
+	if (!resultados.length) return `<p class="ri-modal-decision-sin-resultados">Sin resultados. Prueba con otro nombre, o usa "Es un producto nuevo".</p>`;
+
+	return `<div class="ri-modal-decision-resultados">
+		${resultados.map(r => `
+			<button type="button" class="ri-modal-decision-resultado" data-producto-id="${r.productoId}">
+				<strong>${escaparPOS(r.nombre)}</strong>
+				<span>${escaparPOS(r.codigo || "sin código")}${r.precio != null ? " · $" + Number(r.precio).toFixed(2) : ""}</span>
+			</button>
+		`).join("")}
+	</div>`;
+}
+
+function riRenderModalDecision() {
+	let modal = document.getElementById("riModalDecision");
+	if (!modal) {
+		modal = document.createElement("div");
+		modal.id = "riModalDecision";
+		modal.className = "ri-modal-producto";
+		document.body.appendChild(modal);
+	}
+
+	const d = riDecision;
+	const esRelacionar = d.modo === "relacionar";
+	const mostrarPrecios = !esRelacionar || d.productoSeleccionado;
+
+	modal.innerHTML = `
+		<div class="ri-modal-decision-card">
+			<button type="button" class="ri-modal-producto-cerrar" id="riDecisionCerrar" aria-label="Cerrar">✕</button>
+			<h3>Revisar concepto</h3>
+			<p class="ri-modal-decision-subtitulo">${escaparPOS(d.descripcion)} · Costo de esta factura: $${d.costo.toFixed(2)}</p>
+
+			<div class="ri-modal-decision-tabs">
+				<button type="button" class="${esRelacionar ? "activo" : ""}" id="riDecisionTabRelacionar">Ya lo tengo en inventario</button>
+				<button type="button" class="${!esRelacionar ? "activo" : ""}" id="riDecisionTabCrear">Es un producto nuevo</button>
+			</div>
+
+			${esRelacionar ? `
+				<div class="ri-modal-decision-seccion">
+					<label>Buscar en tu inventario
+						<input type="search" id="riDecisionBuscador" placeholder="Nombre del producto..." value="${escaparPOS(d.terminoBusqueda || "")}">
+					</label>
+					<button type="button" class="btn-mini" id="riDecisionBuscarBtn">Buscar</button>
+					${d.productoSeleccionado ? `
+						<div class="ri-modal-decision-seleccionado">
+							Vinculando con <strong>${escaparPOS(d.productoSeleccionado.nombre)}</strong> (${escaparPOS(d.productoSeleccionado.codigo || "sin código")})
+							<button type="button" class="btn-mini" id="riDecisionQuitarSeleccion">Elegir otro</button>
+						</div>
+					` : riRenderResultadosBusquedaDecision()}
+				</div>
+			` : `
+				<div class="ri-modal-decision-seccion">
+					<label>Nombre del producto
+						<input type="text" id="riDecisionNombre" value="${escaparPOS(d.nombre || "")}">
+					</label>
+				</div>
+			`}
+
+			${mostrarPrecios ? `
+				<div class="ri-modal-decision-precios">
+					<h4>Precios de venta</h4>
+					<div class="ri-modal-decision-precios-grid">
+						<label>Público
+							<input type="number" step="0.01" min="0" id="riDecisionPrecioPublico" value="${d.precioPublico ?? ""}">
+						</label>
+						<label>Medio mayoreo
+							<input type="number" step="0.01" min="0" id="riDecisionPrecioMedioMayoreo" value="${d.precioMedioMayoreo ?? ""}">
+						</label>
+					</div>
+
+					<label class="ri-modal-decision-suelta-toggle">
+						<input type="checkbox" id="riDecisionVentaSuelta" ${d.unidadSuelta ? "checked" : ""}>
+						¿También se vende suelto? (ej. tornillos por pieza)
+					</label>
+					<div class="ri-modal-decision-suelta-campos" id="riDecisionSueltaCampos" style="${d.unidadSuelta ? "" : "display:none"}">
+						<label>Se vende suelto por
+							<select id="riDecisionUnidadSuelta">
+								${RI_UNIDADES_SUELTA.filter(o => o.valor).map(o => `<option value="${o.valor}" ${d.unidadSuelta === o.valor ? "selected" : ""}>${o.etiqueta}</option>`).join("")}
+							</select>
+						</label>
+						<label>Precio de venta suelta
+							<input type="number" step="0.01" min="0" id="riDecisionPrecioPieza" value="${d.precioPieza ?? ""}">
+						</label>
+					</div>
+				</div>
+			` : ""}
+
+			<div class="ri-modal-decision-acciones">
+				<button type="button" class="ri-modal-decision-omitir" id="riDecisionOmitir">Omitir este producto</button>
+				<div>
+					<button type="button" class="btn-secundario" id="riDecisionCancelar">Cancelar</button>
+					<button type="button" class="btn-agregar" id="riDecisionGuardar">Guardar</button>
+				</div>
+			</div>
+		</div>
+	`;
+
+	modal.style.display = "flex";
+	riWireModalDecisionEventos();
+}
+
+function riCerrarModalDecision() {
+	const modal = document.getElementById("riModalDecision");
+	if (modal) modal.style.display = "none";
+	riDecision = null;
+}
+
+function riWireModalDecisionEventos() {
+	const d = riDecision;
+
+	document.getElementById("riDecisionCerrar").onclick = riCerrarModalDecision;
+	document.getElementById("riDecisionCancelar").onclick = riCerrarModalDecision;
+
+	const tabRelacionar = document.getElementById("riDecisionTabRelacionar");
+	const tabCrear = document.getElementById("riDecisionTabCrear");
+	if (tabRelacionar) tabRelacionar.onclick = () => { d.modo = "relacionar"; riRenderModalDecision(); };
+	if (tabCrear) tabCrear.onclick = () => { d.modo = "crear"; riRenderModalDecision(); };
+
+	const buscador = document.getElementById("riDecisionBuscador");
+	const buscarBtn = document.getElementById("riDecisionBuscarBtn");
+	if (buscarBtn) buscarBtn.onclick = () => riBuscarProductoDecision(buscador.value);
+	if (buscador) buscador.onkeydown = event => {
+		if (event.key === "Enter") { event.preventDefault(); riBuscarProductoDecision(buscador.value); }
+	};
+
+	const quitarSeleccion = document.getElementById("riDecisionQuitarSeleccion");
+	if (quitarSeleccion) quitarSeleccion.onclick = () => { d.productoSeleccionado = null; riRenderModalDecision(); };
+
+	const resultadosContenedor = document.querySelector("#riModalDecision .ri-modal-decision-resultados");
+	if (resultadosContenedor) resultadosContenedor.addEventListener("click", async event => {
+		const fila = event.target.closest("[data-producto-id]");
+		if (!fila) return;
+		const producto = await riObtenerProducto(Number(fila.dataset.productoId));
+		if (!producto) return;
+		d.productoSeleccionado = producto;
+		d.precioPublico = numeroOrNull(producto.precio_publico) ?? d.precioPublico;
+		d.precioMedioMayoreo = numeroOrNull(producto.precio_mayoreo) ?? d.precioMedioMayoreo;
+		d.unidadSuelta = producto.permite_venta_pieza ? (producto.unidad_suelta || "pieza") : "";
+		d.precioPieza = producto.permite_venta_pieza ? (numeroOrNull(producto.precio_pieza) ?? "") : "";
+		riRenderModalDecision();
+	});
+
+	const nombreInput = document.getElementById("riDecisionNombre");
+	if (nombreInput) nombreInput.oninput = () => { d.nombre = nombreInput.value; };
+
+	const precioPublicoInput = document.getElementById("riDecisionPrecioPublico");
+	if (precioPublicoInput) precioPublicoInput.oninput = () => { d.precioPublico = precioPublicoInput.value; };
+
+	const precioMedioMayoreoInput = document.getElementById("riDecisionPrecioMedioMayoreo");
+	if (precioMedioMayoreoInput) precioMedioMayoreoInput.oninput = () => { d.precioMedioMayoreo = precioMedioMayoreoInput.value; };
+
+	const ventaSueltaCheck = document.getElementById("riDecisionVentaSuelta");
+	if (ventaSueltaCheck) ventaSueltaCheck.onchange = () => {
+		d.unidadSuelta = ventaSueltaCheck.checked ? (d.unidadSuelta || "pieza") : "";
+		riRenderModalDecision();
+	};
+
+	const unidadSueltaSelect = document.getElementById("riDecisionUnidadSuelta");
+	if (unidadSueltaSelect) unidadSueltaSelect.onchange = () => { d.unidadSuelta = unidadSueltaSelect.value; };
+
+	const precioPiezaInput = document.getElementById("riDecisionPrecioPieza");
+	if (precioPiezaInput) precioPiezaInput.oninput = () => { d.precioPieza = precioPiezaInput.value; };
+
+	document.getElementById("riDecisionOmitir").onclick = async () => {
+		if (await riOmitirItem(d.itemId)) riCerrarModalDecision();
+	};
+
+	document.getElementById("riDecisionGuardar").onclick = riGuardarModalDecision;
+}
+
+async function riGuardarModalDecision() {
+	const d = riDecision;
+	const precioPublicoNum = d.precioPublico !== "" && d.precioPublico != null ? Number(d.precioPublico) : null;
+	const precioMedioMayoreoNum = d.precioMedioMayoreo !== "" && d.precioMedioMayoreo != null ? Number(d.precioMedioMayoreo) : null;
+	const precioPiezaNum = d.unidadSuelta && d.precioPieza !== "" && d.precioPieza != null ? Number(d.precioPieza) : null;
+
+	let guardado;
+	if (d.modo === "relacionar") {
+		if (!d.productoSeleccionado) {
+			await alertaPOS("Busca y elige a cuál producto de tu inventario corresponde.", "Falta el producto", "info");
+			return;
+		}
+		guardado = await riGuardarDecisionItem(d.itemId, {
+			accion: "relacionar",
+			productoId: d.productoSeleccionado.id,
+			precioPublico: precioPublicoNum,
+			precioMedioMayoreo: precioMedioMayoreoNum,
+			unidadSuelta: d.unidadSuelta || null,
+			precioPieza: precioPiezaNum
+		});
+	} else {
+		if (!d.nombre || !d.nombre.trim()) {
+			await alertaPOS("Escribe el nombre del producto.", "Falta el nombre", "info");
+			return;
+		}
+		if (precioPublicoNum == null && precioMedioMayoreoNum == null) {
+			await alertaPOS("Indica al menos un precio de venta.", "Falta el precio", "info");
+			return;
+		}
+		guardado = await riGuardarDecisionItem(d.itemId, {
+			accion: "crear",
+			nombreNuevoProducto: d.nombre.trim(),
+			precioPublico: precioPublicoNum,
+			precioMedioMayoreo: precioMedioMayoreoNum,
+			precioVenta: precioMedioMayoreoNum ?? precioPublicoNum,
+			unidadSuelta: d.unidadSuelta || null,
+			precioPieza: precioPiezaNum
+		});
+	}
+
+	if (guardado) riCerrarModalDecision();
 }
 
 async function riRechazar(id) {

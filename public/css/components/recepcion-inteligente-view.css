@@ -486,6 +486,158 @@
 .ri-modal-producto-precios strong{ font-size:15px; color:var(--pos-text,#172033); }
 .ri-modal-producto-sin-precio{ margin:0; color:var(--pos-muted,#687386); font-size:12.5px; }
 
+/* --- Modal: revisar concepto (relacionar/crear + precios + venta suelta) --- */
+
+.ri-modal-decision-card{
+	width:min(540px,94vw);
+	max-height:88vh;
+	overflow:auto;
+	background:var(--pos-surface-strong,#fff);
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:16px;
+	padding:22px;
+	position:relative;
+	text-align:left;
+}
+.ri-modal-decision-card h3{ margin:0 0 4px; padding-right:30px; font-size:17px; font-weight:800; color:var(--pos-text,#172033); }
+.ri-modal-decision-subtitulo{ margin:0 0 16px; color:var(--pos-muted,#687386); font-size:12.5px; font-weight:600; }
+
+.ri-modal-decision-tabs{
+	display:flex;
+	gap:6px;
+	margin:0 0 14px;
+	padding:4px;
+	border-radius:10px;
+	background:var(--pos-surface,#f3f5f9);
+}
+.ri-modal-decision-tabs button{
+	flex:1 1 0;
+	border:0;
+	background:transparent;
+	border-radius:8px;
+	padding:9px 10px;
+	font-size:12.5px;
+	font-weight:700;
+	color:var(--pos-muted,#687386);
+	cursor:pointer;
+}
+.ri-modal-decision-tabs button.activo{ background:var(--pos-surface-strong,#fff); color:var(--brand-color,#0d6efd); box-shadow:0 1px 3px rgba(0,0,0,.1); }
+
+.ri-modal-decision-seccion{ margin:0 0 16px; }
+.ri-modal-decision-seccion label{ display:grid; gap:5px; margin:0 0 8px; font-size:12px; font-weight:700; color:var(--pos-muted,#687386); }
+.ri-modal-decision-seccion input[type="search"],
+.ri-modal-decision-seccion input[type="text"]{
+	min-height:38px;
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:9px;
+	padding:0 11px;
+	background:var(--pos-surface-strong,#fff);
+	color:var(--pos-text,#172033);
+	font-weight:600;
+}
+
+.ri-modal-decision-resultados{ display:grid; gap:6px; margin-top:8px; max-height:220px; overflow:auto; }
+.ri-modal-decision-resultado{
+	display:flex;
+	flex-direction:column;
+	align-items:flex-start;
+	gap:2px;
+	width:100%;
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:9px;
+	padding:8px 10px;
+	background:var(--pos-surface-strong,#fff);
+	color:var(--pos-text,#172033);
+	cursor:pointer;
+	text-align:left;
+}
+.ri-modal-decision-resultado:hover{ border-color:var(--brand-color,#0d6efd); }
+.ri-modal-decision-resultado strong{ font-size:13px; }
+.ri-modal-decision-resultado span{ font-size:11.5px; color:var(--pos-muted,#687386); }
+.ri-modal-decision-sin-resultados{ margin:8px 0 0; color:var(--pos-muted,#687386); font-size:12.5px; }
+
+.ri-modal-decision-seleccionado{
+	display:flex;
+	align-items:center;
+	flex-wrap:wrap;
+	gap:8px;
+	margin-top:8px;
+	padding:10px 12px;
+	border-radius:9px;
+	background:color-mix(in srgb,var(--brand-color,#0d6efd) 8%,transparent);
+	color:var(--pos-text,#172033);
+	font-size:12.5px;
+	font-weight:600;
+}
+
+.ri-modal-decision-precios{
+	margin:0 0 16px;
+	padding-top:12px;
+	border-top:1px solid var(--pos-line,#dbe3ef);
+}
+.ri-modal-decision-precios h4{ margin:0 0 10px; font-size:12.5px; font-weight:800; color:var(--pos-text,#172033); }
+.ri-modal-decision-precios-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:0 0 12px; }
+.ri-modal-decision-precios-grid label{ display:grid; gap:5px; font-size:12px; font-weight:700; color:var(--pos-muted,#687386); }
+.ri-modal-decision-precios-grid input{
+	min-height:38px;
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:9px;
+	padding:0 11px;
+	background:var(--pos-surface-strong,#fff);
+	color:var(--pos-text,#172033);
+	font-weight:600;
+}
+
+.ri-modal-decision-suelta-toggle{
+	display:flex;
+	align-items:center;
+	gap:8px;
+	margin:0 0 4px;
+	font-size:12.5px;
+	font-weight:700;
+	color:var(--pos-text,#172033);
+	cursor:pointer;
+}
+.ri-modal-decision-suelta-toggle input{ width:16px; height:16px; }
+.ri-modal-decision-suelta-campos{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px; }
+.ri-modal-decision-suelta-campos label{ display:grid; gap:5px; font-size:12px; font-weight:700; color:var(--pos-muted,#687386); }
+.ri-modal-decision-suelta-campos select,
+.ri-modal-decision-suelta-campos input{
+	min-height:38px;
+	border:1px solid var(--pos-line,#dbe3ef);
+	border-radius:9px;
+	padding:0 11px;
+	background:var(--pos-surface-strong,#fff);
+	color:var(--pos-text,#172033);
+	font-weight:600;
+}
+
+.ri-modal-decision-acciones{
+	display:flex;
+	align-items:center;
+	justify-content:space-between;
+	gap:10px;
+	margin-top:6px;
+	padding-top:14px;
+	border-top:1px solid var(--pos-line,#dbe3ef);
+}
+.ri-modal-decision-omitir{
+	border:0;
+	background:transparent;
+	color:#b91c1c;
+	font-size:12px;
+	font-weight:700;
+	cursor:pointer;
+	padding:0;
+}
+.ri-modal-decision-omitir:hover{ text-decoration:underline; }
+
+@media (max-width:560px){
+	.ri-modal-decision-precios-grid,
+	.ri-modal-decision-suelta-campos{ grid-template-columns:1fr; }
+	.ri-modal-decision-acciones{ flex-direction:column-reverse; align-items:stretch; }
+}
+
 /* --- Modal: comparacion de conciliacion (remision vs factura) --- */
 
 .ri-modal-conciliacion-card{

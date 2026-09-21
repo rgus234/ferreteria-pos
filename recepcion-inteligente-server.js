@@ -565,7 +565,11 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
                 const items = await pool.query(
                     `SELECT id, codigo_factura, clave_prod_serv, descripcion, cantidad, unidad, costo_unitario,
-                            importe, descuento, candidato, nivel, producto_id, accion, nombre_nuevo_producto
+                            importe, descuento, candidato, nivel, producto_id, accion, nombre_nuevo_producto,
+                            precio_venta_nuevo_producto, precio_publico_nuevo_producto, precio_medio_mayoreo_nuevo_producto,
+                            unidad_suelta_nuevo_producto, precio_pieza_nuevo_producto,
+                            precio_publico_actualizar_producto, precio_medio_mayoreo_actualizar_producto,
+                            unidad_suelta_actualizar_producto, precio_pieza_actualizar_producto
                      FROM public.recepciones_inteligentes_items
                      WHERE recepcion_id = $1
                      ORDER BY id ASC`,
@@ -643,6 +647,14 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         accion: item.accion,
                         nombreNuevoProducto: item.nombre_nuevo_producto,
                         precioVentaNuevoProducto: item.precio_venta_nuevo_producto != null ? Number(item.precio_venta_nuevo_producto) : null,
+                        precioPublicoNuevoProducto: item.precio_publico_nuevo_producto != null ? Number(item.precio_publico_nuevo_producto) : null,
+                        precioMedioMayoreoNuevoProducto: item.precio_medio_mayoreo_nuevo_producto != null ? Number(item.precio_medio_mayoreo_nuevo_producto) : null,
+                        unidadSueltaNuevoProducto: item.unidad_suelta_nuevo_producto,
+                        precioPiezaNuevoProducto: item.precio_pieza_nuevo_producto != null ? Number(item.precio_pieza_nuevo_producto) : null,
+                        precioPublicoActualizarProducto: item.precio_publico_actualizar_producto != null ? Number(item.precio_publico_actualizar_producto) : null,
+                        precioMedioMayoreoActualizarProducto: item.precio_medio_mayoreo_actualizar_producto != null ? Number(item.precio_medio_mayoreo_actualizar_producto) : null,
+                        unidadSueltaActualizarProducto: item.unidad_suelta_actualizar_producto,
+                        precioPiezaActualizarProducto: item.precio_pieza_actualizar_producto != null ? Number(item.precio_pieza_actualizar_producto) : null,
                         // Se manda sin importar si el item ya tiene decision --
                         // el dueño la usa para revisar precios de toda la
                         // factura de un vistazo, no solo mientras decide.
@@ -702,7 +714,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         async (req, res) => {
             try {
                 const negocio = await negocioActual(req, pool);
-                const { accion, productoId, nombreNuevoProducto, precioVenta, unidadSuelta, precioPieza } = req.body || {};
+                const {
+                    accion, productoId, nombreNuevoProducto, precioVenta, unidadSuelta, precioPieza,
+                    precioPublico, precioMedioMayoreo
+                } = req.body || {};
 
                 // "" resetea la decision (boton "Cambiar" en pantalla,
                 // para volver a elegir sin dejar un rastro de la accion
@@ -715,7 +730,20 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     res.status(400).json({ ok: false, error: "Falta el producto a relacionar" });
                     return;
                 }
-                if (accion === "crear" && !(Number.isFinite(Number(precioVenta)) && Number(precioVenta) >= 0)) {
+
+                // El modal manda los 2 niveles de venta por separado
+                // (publico/medio mayoreo) -- nunca distribuidor: mas abajo
+                // (confirmar) ese precio siempre se sincroniza con el costo
+                // real de la factura, nunca fue libre en este flujo.
+                // precioVenta sigue aceptandose solo, como precio unico de
+                // respaldo (pruebas existentes, o un llamado que no
+                // distingue niveles).
+                const numOrNull = valor => (Number.isFinite(Number(valor)) && Number(valor) >= 0 ? Number(valor) : null);
+                const precioPublicoLimpio = numOrNull(precioPublico);
+                const precioMedioMayoreoLimpio = numOrNull(precioMedioMayoreo);
+                const precioVentaLimpio = numOrNull(precioVenta);
+
+                if (accion === "crear" && precioVentaLimpio == null && precioMedioMayoreoLimpio == null && precioPublicoLimpio == null) {
                     res.status(400).json({ ok: false, error: "Falta el precio de venta" });
                     return;
                 }
@@ -724,7 +752,9 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 // pieza, aparte del contenedor completo) es opcional: solo
                 // se guarda unidad valida con precio > 0 -- unidadSuelta sin
                 // precio (o al reves) no activa nada, igual que "Agregar
-                // producto".
+                // producto". Aplica tanto a "crear" como a "relacionar" --
+                // un producto que ya existe tambien puede necesitar activar
+                // la venta suelta por primera vez desde aqui.
                 const unidadesSueltaValidas = ["pieza", "kg", "gramo", "litro", "metro"];
                 const unidadSueltaLimpia = unidadesSueltaValidas.includes(unidadSuelta) && Number(precioPieza) > 0
                     ? unidadSuelta
@@ -744,6 +774,13 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     return;
                 }
 
+                // El precio de un producto RELACIONADO (ya existente) nunca
+                // se toca aqui -- solo se guarda la intencion en la propia
+                // fila del concepto, y se aplica hasta POST /:id/confirmar
+                // (mismo principio del archivo completo: nada real se
+                // modifica antes de confirmar). Asi "Cambiar" puede seguir
+                // deshaciendo la decision sin dejar un precio a medias en
+                // un producto que ya no es el elegido.
                 const actualizado = await pool.query(
                     `UPDATE public.recepciones_inteligentes_items
                      SET accion = $1,
@@ -751,14 +788,21 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                          nombre_nuevo_producto = CASE WHEN $1 = 'crear' THEN $3::text ELSE '' END,
                          precio_venta_nuevo_producto = CASE WHEN $1 = 'crear' THEN $4::numeric ELSE NULL END,
                          unidad_suelta_nuevo_producto = CASE WHEN $1 = 'crear' THEN $8::text ELSE NULL END,
-                         precio_pieza_nuevo_producto = CASE WHEN $1 = 'crear' THEN $9::numeric ELSE NULL END
+                         precio_pieza_nuevo_producto = CASE WHEN $1 = 'crear' THEN $9::numeric ELSE NULL END,
+                         precio_publico_nuevo_producto = CASE WHEN $1 = 'crear' THEN $10::numeric ELSE NULL END,
+                         precio_medio_mayoreo_nuevo_producto = CASE WHEN $1 = 'crear' THEN $11::numeric ELSE NULL END,
+                         precio_publico_actualizar_producto = CASE WHEN $1 = 'relacionar' THEN $10::numeric ELSE NULL END,
+                         precio_medio_mayoreo_actualizar_producto = CASE WHEN $1 = 'relacionar' THEN $11::numeric ELSE NULL END,
+                         unidad_suelta_actualizar_producto = CASE WHEN $1 = 'relacionar' THEN $8::text ELSE NULL END,
+                         precio_pieza_actualizar_producto = CASE WHEN $1 = 'relacionar' THEN $9::numeric ELSE NULL END
                      WHERE id = $5 AND recepcion_id = $6 AND negocio_id = $7
                      RETURNING id`,
                     [
                         accion, productoId || null, String(nombreNuevoProducto || "").trim(),
-                        accion === "crear" ? Number(precioVenta) : null,
+                        accion === "crear" ? (precioVentaLimpio ?? precioMedioMayoreoLimpio ?? precioPublicoLimpio) : null,
                         req.params.itemId, req.params.id, negocio.id,
-                        unidadSueltaLimpia, precioPiezaLimpio
+                        unidadSueltaLimpia, precioPiezaLimpio,
+                        precioPublicoLimpio, precioMedioMayoreoLimpio
                     ]
                 );
 
@@ -937,6 +981,18 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         // decidida antes de que este campo existiera.
                         const precioVenta = item.precio_venta_nuevo_producto != null ? num(item.precio_venta_nuevo_producto) : costo;
 
+                        // Los 2 niveles de venta por separado (medio
+                        // mayoreo, la regla de esta ferreteria, siempre el
+                        // default) -- si el modal no los mando (llamado
+                        // viejo o prueba con solo precioVenta), se colapsan
+                        // en el mismo valor tal como funcionaba antes de
+                        // esto. Distribuidor no se pide aqui: abajo se
+                        // sincroniza siempre con el costo real de esta
+                        // factura, nunca fue un precio libre en este flujo.
+                        const precioPublico = item.precio_publico_nuevo_producto != null ? num(item.precio_publico_nuevo_producto) : precioVenta;
+                        const precioMedioMayoreo = item.precio_medio_mayoreo_nuevo_producto != null ? num(item.precio_medio_mayoreo_nuevo_producto) : precioVenta;
+                        const precioDistribuidor = costo;
+
                         // Venta suelta (tornillos/pijas/taquetes/alambre que
                         // ademas del bulto se venden por kilo/pieza/metro a
                         // un precio propio, capturado en "Crear producto" --
@@ -951,10 +1007,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                                 (negocio_id, nombre, codigo, precio, precio_publico, precio_mayoreo, precio_distribuidor,
                                  stock, marca, proveedor_id, catalogo_maestro_id,
                                  permite_venta_pieza, unidad_suelta, precio_pieza, precio_pieza_publico)
-                             VALUES ($1,$2,$3,$4,$4,$4,$5,0,$6,$7,$8,$9,$10,$11,$11)
+                             VALUES ($1,$2,$3,$4,$5,$6,$7,0,$8,$9,$10,$11,$12,$13,$13)
                              RETURNING id`,
                             [
-                                negocio.id, nombre, item.codigo_factura || "", precioVenta, costo,
+                                negocio.id, nombre, item.codigo_factura || "", precioMedioMayoreo, precioPublico, precioMedioMayoreo, precioDistribuidor,
                                 candidato.marca || null, recepcion.rows[0].proveedor_id, catalogoMaestroId,
                                 Boolean(unidadSuelta), unidadSuelta || "pieza", precioPieza
                             ]
@@ -996,11 +1052,37 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         }
                     } else if (item.accion === "relacionar") {
                         const candidato = item.candidato || {};
+
+                        // Precio nuevo capturado al revisar (modal de
+                        // Recepcion Inteligente) para un producto que YA
+                        // existia -- opcional, COALESCE deja el precio
+                        // actual intacto si no se toco ese campo. Pedido
+                        // real de Ferreteria Olimpico: poder ajustar el
+                        // precio de venta sin ir aparte a Inventario.
+                        // Nunca distribuidor: la actualizacion de abajo
+                        // (fuera de este if/else) ya lo sincroniza siempre
+                        // con el costo real de esta factura.
+                        const precioPublicoNuevo = item.precio_publico_actualizar_producto != null ? num(item.precio_publico_actualizar_producto) : null;
+                        const precioMedioMayoreoNuevo = item.precio_medio_mayoreo_actualizar_producto != null ? num(item.precio_medio_mayoreo_actualizar_producto) : null;
+                        const unidadSueltaNueva = item.unidad_suelta_actualizar_producto || null;
+                        const precioPiezaNuevo = item.precio_pieza_actualizar_producto != null ? num(item.precio_pieza_actualizar_producto) : null;
+
                         await client.query(
                             `UPDATE public.productos
-                             SET catalogo_maestro_id = COALESCE(catalogo_maestro_id, $1)
+                             SET catalogo_maestro_id = COALESCE(catalogo_maestro_id, $1),
+                                 precio_publico = COALESCE($4::numeric, precio_publico),
+                                 precio_mayoreo = COALESCE($5::numeric, precio_mayoreo),
+                                 precio = COALESCE($5::numeric, precio),
+                                 permite_venta_pieza = CASE WHEN $6::text IS NOT NULL THEN true ELSE permite_venta_pieza END,
+                                 unidad_suelta = COALESCE($6::text, unidad_suelta),
+                                 precio_pieza = COALESCE($7::numeric, precio_pieza),
+                                 precio_pieza_publico = COALESCE($7::numeric, precio_pieza_publico)
                              WHERE id = $2 AND negocio_id = $3`,
-                            [candidato.catalogoMaestroId || null, productoId, negocio.id]
+                            [
+                                candidato.catalogoMaestroId || null, productoId, negocio.id,
+                                precioPublicoNuevo, precioMedioMayoreoNuevo,
+                                unidadSueltaNueva, precioPiezaNuevo
+                            ]
                         );
                     }
 
