@@ -275,8 +275,24 @@ body.oscuro .buscar-ticket-form input {
   gap: 10px;
 }
 
+.modal-cambio-producto-botones-buscar {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .modal-cambio-producto-botones button {
   min-height: 42px;
+}
+
+.cambio-producto-solo-quitar {
+  background: rgba(239, 68, 68, .1) !important;
+  color: #b91c1c !important;
+  border-color: transparent !important;
+}
+
+@media (max-width: 480px) {
+  .modal-cambio-producto-botones-buscar {
+    grid-template-columns: 1fr;
+  }
 }
 
 .modal-cambio-producto-botones button:disabled {

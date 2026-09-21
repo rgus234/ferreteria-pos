@@ -7718,11 +7718,17 @@ app.post("/ventas/:id/cambios", requerirAccesoNegocio, async (req, res) => {
         } = req.body;
 
         const idDevuelto = Number(productoDevueltoId);
-        const idNuevo = Number(productoNuevoId);
         const cantDevuelta = Number(cantidadDevuelta);
-        const cantNueva = Number(cantidadNueva);
 
-        if (!Number.isInteger(idDevuelto) || !Number.isInteger(idNuevo) || !(cantDevuelta > 0) || !(cantNueva > 0)) {
+        // productoNuevoId/cantidadNueva son opcionales: sin ellos es una
+        // devolucion sin reemplazo (el cliente ya no se lleva nada a
+        // cambio, solo se le regresa el dinero o se le reduce el cargo a
+        // credito) en vez de un cambio de un producto por otro.
+        const haySustituto = productoNuevoId !== undefined && productoNuevoId !== null;
+        const idNuevo = haySustituto ? Number(productoNuevoId) : null;
+        const cantNueva = haySustituto ? Number(cantidadNueva) : null;
+
+        if (!Number.isInteger(idDevuelto) || !(cantDevuelta > 0) || (haySustituto && !(Number.isInteger(idNuevo) && cantNueva > 0))) {
             res.status(400).json({ ok: false, error: "Datos de cambio incompletos" });
             return;
         }
@@ -7795,36 +7801,43 @@ app.post("/ventas/:id/cambios", requerirAccesoNegocio, async (req, res) => {
             return;
         }
 
-        const nuevo = await client.query(
-            `SELECT id, nombre, stock, precio FROM public.productos WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
-            [idNuevo, negocio.id]
-        );
+        // Sin sustituto (soloQuitar): nunca se busca ni se descuenta stock
+        // de "producto nuevo" -- no existe.
+        let nuevo = { rows: [] };
+        if (haySustituto) {
+            nuevo = await client.query(
+                `SELECT id, nombre, stock, precio FROM public.productos WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
+                [idNuevo, negocio.id]
+            );
 
-        if (!nuevo.rows.length) {
-            await client.query("ROLLBACK");
-            res.status(404).json({ ok: false, error: "Producto nuevo no encontrado" });
-            return;
-        }
+            if (!nuevo.rows.length) {
+                await client.query("ROLLBACK");
+                res.status(404).json({ ok: false, error: "Producto nuevo no encontrado" });
+                return;
+            }
 
-        if (Number(nuevo.rows[0].stock) < cantNueva) {
-            await client.query("ROLLBACK");
-            res.status(400).json({ ok: false, error: "No hay suficiente stock del producto nuevo" });
-            return;
+            if (Number(nuevo.rows[0].stock) < cantNueva) {
+                await client.query("ROLLBACK");
+                res.status(400).json({ ok: false, error: "No hay suficiente stock del producto nuevo" });
+                return;
+            }
         }
 
         const precioDevuelto = Number(lineaDevuelta.precio || 0);
-        const precioNuevo = Number(nuevo.rows[0].precio || 0);
-        const diferencia = Number(((precioNuevo * cantNueva) - (precioDevuelto * cantDevuelta)).toFixed(2));
+        const precioNuevo = haySustituto ? Number(nuevo.rows[0].precio || 0) : 0;
+        const diferencia = Number((((haySustituto ? precioNuevo * cantNueva : 0)) - (precioDevuelto * cantDevuelta)).toFixed(2));
 
         await client.query(
             `UPDATE public.productos SET stock = stock + $1 WHERE id = $2 AND negocio_id = $3`,
             [cantDevuelta, idDevuelto, negocio.id]
         );
 
-        await client.query(
-            `UPDATE public.productos SET stock = stock - $1 WHERE id = $2 AND negocio_id = $3`,
-            [cantNueva, idNuevo, negocio.id]
-        );
+        if (haySustituto) {
+            await client.query(
+                `UPDATE public.productos SET stock = stock - $1 WHERE id = $2 AND negocio_id = $3`,
+                [cantNueva, idNuevo, negocio.id]
+            );
+        }
 
         const restanteDevuelto = Number(lineaDevuelta.cantidad || 0) - cantDevuelta;
         let productosActualizados = productosVenta.filter(item => Number(item?.id) !== idDevuelto);
@@ -7837,20 +7850,22 @@ app.post("/ventas/:id/cambios", requerirAccesoNegocio, async (req, res) => {
             });
         }
 
-        const lineaNuevaExistente = productosActualizados.find(item => Number(item?.id) === idNuevo);
+        if (haySustituto) {
+            const lineaNuevaExistente = productosActualizados.find(item => Number(item?.id) === idNuevo);
 
-        if (lineaNuevaExistente) {
-            lineaNuevaExistente.cantidad = Number(lineaNuevaExistente.cantidad || 0) + cantNueva;
-            lineaNuevaExistente.importe = Number((precioNuevo * lineaNuevaExistente.cantidad).toFixed(2));
-        } else {
-            productosActualizados.push({
-                id: idNuevo,
-                nombre: nuevo.rows[0].nombre,
-                cantidad: cantNueva,
-                precio: precioNuevo,
-                importe: Number((precioNuevo * cantNueva).toFixed(2)),
-                unidadVenta: lineaDevuelta.unidadVenta || "pieza"
-            });
+            if (lineaNuevaExistente) {
+                lineaNuevaExistente.cantidad = Number(lineaNuevaExistente.cantidad || 0) + cantNueva;
+                lineaNuevaExistente.importe = Number((precioNuevo * lineaNuevaExistente.cantidad).toFixed(2));
+            } else {
+                productosActualizados.push({
+                    id: idNuevo,
+                    nombre: nuevo.rows[0].nombre,
+                    cantidad: cantNueva,
+                    precio: precioNuevo,
+                    importe: Number((precioNuevo * cantNueva).toFixed(2)),
+                    unidadVenta: lineaDevuelta.unidadVenta || "pieza"
+                });
+            }
         }
 
         await client.query(
@@ -7883,9 +7898,9 @@ app.post("/ventas/:id/cambios", requerirAccesoNegocio, async (req, res) => {
                 cantDevuelta,
                 precioDevuelto,
                 idNuevo,
-                nuevo.rows[0].nombre,
-                cantNueva,
-                precioNuevo,
+                haySustituto ? nuevo.rows[0].nombre : null,
+                haySustituto ? cantNueva : null,
+                haySustituto ? precioNuevo : null,
                 diferencia,
                 usuarioNombre || ""
             ]

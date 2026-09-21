@@ -134,8 +134,9 @@ function renderResultadoBuscarTicket(venta) {
     <h3>Cambios en este ticket</h3>
     ${cambios.map(cambio => `
      <p class="buscar-ticket-cambio-fila">
-      Cambiado: <strong>${escaparPOS(cambio.producto_devuelto_nombre)}</strong> por
-      <strong>${escaparPOS(cambio.producto_nuevo_nombre)}</strong>
+      ${cambio.producto_nuevo_nombre
+       ? `Cambiado: <strong>${escaparPOS(cambio.producto_devuelto_nombre)}</strong> por <strong>${escaparPOS(cambio.producto_nuevo_nombre)}</strong>`
+       : `Quitado (sin reemplazo): <strong>${escaparPOS(cambio.producto_devuelto_nombre)}</strong>`}
       -- ${new Date(cambio.created_at).toLocaleString("es-MX")}
      </p>
     `).join("")}
@@ -185,6 +186,11 @@ function abrirCambioProductoPOS(productoId, adminPinAutorizado = null) {
   let cantidadNueva = 1;
   let productoSeleccionado = null;
   let productoRevisado = false;
+  // Devolucion sin reemplazo -- pedido real: el cliente ya no quiere
+  // ese producto y no se lleva nada a cambio, solo se le regresa el
+  // dinero (o se le reduce el cargo a credito). Antes esta pantalla
+  // siempre exigia elegir un producto nuevo para poder continuar.
+  let soloQuitar = false;
 
   let modal =
   document.getElementById("modalCambioProductoPOS");
@@ -252,6 +258,17 @@ function abrirCambioProductoPOS(productoId, adminPinAutorizado = null) {
      if (accion === "continuar") {
       cantidadDevuelta = Number(document.getElementById("cambioProductoCantidadDevuelta")?.value) || cantidadDevuelta;
       cantidadNueva = Number(document.getElementById("cambioProductoCantidadNueva")?.value) || cantidadNueva;
+      soloQuitar = false;
+      productoRevisado = false;
+      paso = "confirmar";
+      render();
+      return;
+     }
+
+     if (accion === "solo-quitar") {
+      cantidadDevuelta = Number(document.getElementById("cambioProductoCantidadDevuelta")?.value) || cantidadDevuelta;
+      soloQuitar = true;
+      productoSeleccionado = null;
       productoRevisado = false;
       paso = "confirmar";
       render();
@@ -311,8 +328,7 @@ function abrirCambioProductoPOS(productoId, adminPinAutorizado = null) {
      body: JSON.stringify({
       productoDevueltoId: productoId,
       cantidadDevuelta,
-      productoNuevoId: productoSeleccionado.id,
-      cantidadNueva,
+      ...(soloQuitar ? {} : { productoNuevoId: productoSeleccionado.id, cantidadNueva }),
       usuarioNombre: (typeof usuarioActual !== "undefined" && usuarioActual?.nombre) || "",
       adminPin: adminPinAutorizado || ""
      })
@@ -330,12 +346,14 @@ function abrirCambioProductoPOS(productoId, adminPinAutorizado = null) {
     cerrar(datos);
 
     await alertaPOS(
-     datos.diferencia > 0
+     soloQuitar
+      ? `Producto quitado de la venta. Regresa ${dinero(Math.abs(datos.diferencia))} al cliente (o se le reduce el cargo a credito).`
+      : datos.diferencia > 0
       ? `Cambio hecho. Cobra ${dinero(datos.diferencia)} de diferencia.`
       : datos.diferencia < 0
       ? `Cambio hecho. Regresa ${dinero(Math.abs(datos.diferencia))} de cambio.`
       : "Cambio hecho sin diferencia de precio.",
-     "Cambio registrado",
+     soloQuitar ? "Producto quitado" : "Cambio registrado",
      "exito"
     );
 
@@ -374,16 +392,19 @@ function abrirCambioProductoPOS(productoId, adminPinAutorizado = null) {
         </label>
        </div>
       ` : ""}
-      <div class="modal-cambio-producto-botones">
+      <div class="modal-cambio-producto-botones modal-cambio-producto-botones-buscar">
        <button type="button" data-accion="cancelar">Cancelar</button>
+       <button type="button" class="cambio-producto-solo-quitar" data-accion="solo-quitar">Solo quitar (sin reemplazo)</button>
        <button type="button" data-accion="continuar" ${productoSeleccionado ? "" : "disabled"}>Continuar</button>
       </div>
      </div>
     `;
    } else {
     const precioDevuelto = Number(lineaOriginal.precio || 0);
-    const precioNuevo = Number(productoSeleccionado.precio || 0);
-    const diferencia = (precioNuevo * cantidadNueva) - (precioDevuelto * cantidadDevuelta);
+    const precioNuevo = soloQuitar ? 0 : Number(productoSeleccionado.precio || 0);
+    const diferencia = soloQuitar
+     ? -(precioDevuelto * cantidadDevuelta)
+     : (precioNuevo * cantidadNueva) - (precioDevuelto * cantidadDevuelta);
 
     const textoDiferencia =
     diferencia > 0
@@ -394,10 +415,10 @@ function abrirCambioProductoPOS(productoId, adminPinAutorizado = null) {
 
     modal.innerHTML = `
      <div class="modal-cambio-producto-caja">
-      <h3>Confirmar cambio</h3>
+      <h3>${soloQuitar ? "Confirmar que se quita el producto" : "Confirmar cambio"}</h3>
       <div class="cambio-producto-resumen">
        <div><span>Se regresa</span><strong>${escaparPOS(lineaOriginal.nombre)} x ${cantidadDevuelta}</strong></div>
-       <div><span>Se entrega</span><strong>${escaparPOS(productoSeleccionado.nombre)} x ${cantidadNueva}</strong></div>
+       <div><span>Se entrega</span><strong>${soloQuitar ? "Nada -- solo se quita" : `${escaparPOS(productoSeleccionado.nombre)} x ${cantidadNueva}`}</strong></div>
        <div class="cambio-producto-diferencia">${textoDiferencia}</div>
       </div>
       <label class="cambio-producto-revision">
