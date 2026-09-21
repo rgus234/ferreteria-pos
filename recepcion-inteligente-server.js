@@ -643,7 +643,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         accion: item.accion,
                         nombreNuevoProducto: item.nombre_nuevo_producto,
                         precioVentaNuevoProducto: item.precio_venta_nuevo_producto != null ? Number(item.precio_venta_nuevo_producto) : null,
-                        precioSugerido: item.accion ? null : precioSugeridoParaItem(Number(item.costo_unitario))
+                        // Se manda sin importar si el item ya tiene decision --
+                        // el dueño la usa para revisar precios de toda la
+                        // factura de un vistazo, no solo mientras decide.
+                        precioSugerido: precioSugeridoParaItem(Number(item.costo_unitario))
                     }))
                 });
             } catch (error) {

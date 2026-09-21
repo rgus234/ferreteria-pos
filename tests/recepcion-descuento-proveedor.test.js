@@ -207,14 +207,15 @@ test("GET .../facturas/:id sugiere el precio de venta (costo neto + margen gener
     // -- +30% de margen general = 104.
     assert.equal(item.precioSugerido, 104, JSON.stringify(item));
 
-    // Una vez decidido (o confirmado), ya no se sugiere nada -- el campo
-    // vuelve a ser responsabilidad de lo que el dueño ya eligio.
+    // Una vez decidido (o confirmado), la sugerencia se sigue mandando --
+    // el dueño la quiere ver al revisar toda la factura de un vistazo,
+    // no solo mientras decide.
     await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${subida.recepcionId}/items/${item.id}`, {
         method: "POST", headers: headers(),
         body: JSON.stringify({ accion: "crear", nombreNuevoProducto: "Producto con precio sugerido prueba unica", precioVenta: 104 })
     });
     const detalleTrasDecidir = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${subida.recepcionId}`, { headers: headers() })).json();
-    assert.equal(detalleTrasDecidir.items[0].precioSugerido, null);
+    assert.equal(detalleTrasDecidir.items[0].precioSugerido, 104);
 });
 
 test("sin margen general configurado, precioSugerido es null (nunca inventa un margen)", async () => {

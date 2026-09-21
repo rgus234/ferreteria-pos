@@ -559,9 +559,12 @@ function riFilaItem(item, estadoRecepcion) {
 	// descuento de Fase 7 ya aplicado) mas el margen_general del proveedor --
 	// util sobre todo cuando no hay candidato (producto nuevo), que es
 	// justo cuando riPrecioSugerido no tiene nada que sugerir.
-	const sugerido = !item.accion
-		? (riPrecioSugerido(item.candidato) || (item.precioSugerido != null ? { valor: item.precioSugerido, etiqueta: "según margen" } : null))
-		: null;
+	//
+	// Se muestra sin importar si el item ya tiene decision (antes se
+	// apagaba al relacionar/crear): el dueño la quiere ver en toda la
+	// factura de un vistazo, no solo mientras decide.
+	const sugerido = riPrecioSugerido(item.candidato)
+		|| (item.precioSugerido != null ? { valor: item.precioSugerido, etiqueta: "según margen" } : null);
 
 	const codigoFoto = item.candidato?.codigo || item.codigo || "";
 	const fotoUrl = codigoFoto ? recepcionInteligenteFotosActuales.get(codigoFoto) : null;
