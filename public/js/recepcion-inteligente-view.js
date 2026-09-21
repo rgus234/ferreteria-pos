@@ -17,7 +17,23 @@ let recepcionInteligenteItemsActuales = [];
 let recepcionInteligenteFacturasActuales = [];
 let recepcionInteligenteFotosActuales = new Map();
 
-const RI_NIVEL_ETIQUETA = { fuerte: "🟢 Identificado", probable: "🟡 Revisar" };
+// candidato.fuente (ver recepcion-inteligente-matching.js) distingue si
+// Nexo encontro el parecido en TU inventario (solo hay que sumarle stock,
+// va a "Relacionar") o en otro catalogo -- del proveedor, Catalogo
+// Maestro o fabricante (Nexo ya conoce el nombre/precio de lista, pero
+// el producto sigue sin existir en TU negocio, va a "Crear"). Antes
+// "🟢 Identificado" no distinguia los dos casos y parecia que cualquier
+// match fuerte ya estaba en inventario. Pedido real: poder ver de un
+// vistazo cual concepto solo sube stock y cual hay que dar de alta.
+function riEtiquetaSinDecidir(item) {
+	if (!item.nivel) return "🟡 Sin identificar";
+
+	const yaEnInventario = item.candidato?.fuente === "inventario";
+	if (item.nivel === "fuerte") {
+		return yaEnInventario ? "🟢 Ya en tu inventario" : "🔵 Reconocido, es nuevo";
+	}
+	return yaEnInventario ? "🟡 Revisar (posible ya existente)" : "🟡 Revisar (nuevo)";
+}
 
 // El candidato trae precios de referencia con 2 nombres distintos segun
 // de donde salio (ver recepcion-inteligente-matching.js): catalogo de
@@ -543,11 +559,10 @@ function riVolverALista() {
 }
 
 function riFilaItem(item, estadoRecepcion) {
-	const nivel = item.nivel ? RI_NIVEL_ETIQUETA[item.nivel] : "🟡 Sin identificar";
 	const yaDecidido = item.accion === "relacionar" ? "Relacionado"
 		: item.accion === "crear" ? "Producto nuevo"
 		: item.accion === "omitir" ? "Omitido"
-		: nivel;
+		: riEtiquetaSinDecidir(item);
 
 	const puedeEditar = estadoRecepcion === "pendiente";
 	// riPrecioSugerido (arriba) sale del precio de catalogo del candidato ya
@@ -735,11 +750,21 @@ async function riAbrirModalDecision(itemId) {
 	const item = recepcionInteligenteItemsActuales.find(it => it.id === itemId);
 	if (!item) return;
 
+	// Pestaña inicial: "crear" si ya se habia decidido asi, o si el
+	// candidato viene de otro catalogo (proveedor/Catalogo Maestro/
+	// fabricante) -- ahi Nexo ya sabe el nombre, pero el producto sigue
+	// sin existir en TU inventario. Sin esto, un concepto claramente
+	// nuevo abria por default en "Ya lo tengo en inventario", obligando
+	// a cambiar de pestaña a mano cada vez.
+	const modoInicial = item.accion === "crear"
+		|| (!item.accion && item.candidato && item.candidato.fuente !== "inventario")
+		? "crear" : "relacionar";
+
 	riDecision = {
 		itemId,
 		descripcion: item.descripcion,
 		costo: item.costo,
-		modo: item.accion === "crear" ? "crear" : "relacionar",
+		modo: modoInicial,
 		productoSeleccionado: null,
 		terminoBusqueda: item.descripcion,
 		resultadosBusqueda: null,
