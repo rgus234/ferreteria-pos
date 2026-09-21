@@ -653,6 +653,11 @@ async function abrirCuentaCliente(id) {
  ? `<button class="btn-ver-detalle-venta btn-editar-compra-credito" onclick="editarCompraCreditoPOS(${indice})">Editar compra</button>`
  : ""
  }
+ ${
+ movimiento.tipo === "venta" && movimiento.historial_id
+ ? `<button class="btn-ver-detalle-venta btn-cancelar-compra-credito" onclick="cancelarCompraCreditoPOS(${indice})">Cancelar venta</button>`
+ : ""
+ }
  </td>
  <td>${
  movimiento.tipo === "venta"
@@ -971,6 +976,56 @@ async function editarCompraCreditoPOS(indice) {
 
  if (resultado && creditoActual?.id) {
   await abrirCuentaCliente(creditoActual.id);
+ }
+}
+
+// Cancela la compra completa -- reusa el mismo endpoint que ya usa
+// "Cancelar venta" en Reportes (POST /ventas/:id/cancelar): regresa el
+// stock de cada producto, marca la venta 'cancelada' y quita el cargo
+// del saldo del cliente. Antes esta pantalla solo ofrecia "Editar
+// compra" (cambiar UN producto por otro) -- no habia forma de cancelar
+// la compra completa sin salir a buscarla aparte en Reportes.
+async function cancelarCompraCreditoPOS(indice) {
+ const movimiento =
+ (window.movimientosCreditoActuales || [])[indice];
+
+ if (!movimiento || !movimiento.historial_id) return;
+
+ const datos =
+ await abrirFormularioCredito({
+ titulo: "Cancelar venta",
+ subtitulo: "Regresa el stock de todos los productos al inventario y quita el cargo del saldo del cliente. Necesitas el PIN de un administrador.",
+ campos: [
+ { nombre: "motivo", etiqueta: "Motivo de la cancelacion", tipo: "text", requerido: true },
+ { nombre: "adminPin", etiqueta: "PIN de administrador", tipo: "password", requerido: true }
+ ]
+ });
+
+ if (!datos) return;
+
+ try {
+ const respuesta =
+ await fetch(`/ventas/${movimiento.historial_id}/cancelar`, {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ motivo: datos.motivo, adminPin: datos.adminPin })
+ });
+
+ const resultado =
+ await respuesta.json().catch(() => ({}));
+
+ if (!respuesta.ok || !resultado.ok) {
+ await alertaPOS(resultado.error || "No se pudo cancelar la venta.", "Cancelar venta", "peligro");
+ return;
+ }
+
+ await alertaPOS(`Venta ${resultado.folio} cancelada. El stock ya se regreso al inventario.`, "Venta cancelada", "exito");
+
+ if (creditoActual?.id) {
+ await abrirCuentaCliente(creditoActual.id);
+ }
+ } catch (error) {
+ await alertaPOS("Error de conexion, intenta de nuevo.", "Cancelar venta", "peligro");
  }
 }
 

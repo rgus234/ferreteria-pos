@@ -576,6 +576,12 @@
  color:#6d28d9;
 }
 
+.btn-cancelar-compra-credito{
+ margin-left:6px;
+ background:rgba(239,68,68,.1);
+ color:#b91c1c;
+}
+
 .btn-ver-mas-creditos{
  width:100%;
  margin-top:10px;
