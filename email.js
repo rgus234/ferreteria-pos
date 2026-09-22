@@ -478,6 +478,62 @@ function enviarCorreoLeadLanding({ nombre, negocio, telefono, correo, mensaje })
     });
 }
 
+// Confirmacion instantanea a la PERSONA que pidio informacion (no a
+// ti) -- hoy el formulario de "quiero informacion" solo te avisaba a
+// ti y el lead se quedaba sin nada hasta que tu le escribias a mano.
+// Solo se llama si dejo correo (el campo es opcional en el
+// formulario -- con puro telefono no hay a donde mandar esto).
+// Precios "de siempre" (los reales del sitio publico, /#planes) --
+// nunca inventados aqui, y el cupo de fundador se deja igual de
+// generico que en el sitio ("primeros 10 negocios"), sin numero
+// exacto, para no tener que consultar Stripe en cada envio.
+const WHATSAPP_LEAD_INFO = "https://wa.me/524424950495?text=Hola%2C%20acabo%20de%20pedir%20informacion%20de%20Nexo%20en%20la%20pagina%20web.";
+
+function cajaPreciosFundadorHtml() {
+    const planes = [
+        ["Basico", "$199/mes", "$119.40/mes"],
+        ["Plus", "$499/mes", "$299.40/mes"],
+        ["Pro", "$799/mes", "$479.40/mes"]
+    ];
+
+    const filas = planes.map(([nombre, antes, fundador]) => `
+        <tr>
+            <td style="padding:8px 16px;color:#344054;font-size:14px;border-top:1px solid #eef2f7;">${nombre}</td>
+            <td align="right" style="padding:8px 16px;font-size:14px;border-top:1px solid #eef2f7;">
+                <span style="text-decoration:line-through;color:#98a2b3;margin-right:8px;">${antes}</span>
+                <strong style="color:#0d6efd;">${fundador}</strong>
+            </td>
+        </tr>
+    `).join("");
+
+    return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #eef2f7;border-radius:14px;">
+        <tr><td colspan="2" style="padding:14px 16px 4px;"><div style="font-size:12.5px;font-weight:800;color:#101828;">🔥 Precio fundador -- 40% de descuento de por vida, primeros 10 negocios</div></td></tr>
+        ${filas}
+    </table>
+    `;
+}
+
+function enviarCorreoConfirmacionLead(correo, nombre) {
+    const nombreSeguro = escaparHtmlCorreo(nombre);
+
+    return enviarCorreo({
+        correo,
+        asunto: "Recibimos tu solicitud -- Nexo POS",
+        html: envolverPlantilla({
+            etiqueta: "Gracias por tu interes",
+            titulo: `Ya recibimos tu solicitud, ${nombreSeguro}`,
+            saludo: "Te contactamos muy pronto por WhatsApp o correo.",
+            robot: "feliz",
+            cuerpoHtml: `
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Gracias por tu interes en Nexo, el sistema de punto de venta pensado para ferreterias: mostrador, inventario, credito y reportes en un solo lugar. Mientras te contactamos, aqui tienes lo basico.</p>
+                ${botonHtml("Hablar ahora por WhatsApp", WHATSAPP_LEAD_INFO)}
+            `,
+            cajaHtml: cajaPreciosFundadorHtml()
+        })
+    });
+}
+
 // El pedido viene del formulario publico del catalogo (sin sesion) --
 // mismo criterio de escape que enviarCorreoLeadLanding. A diferencia
 // de esa funcion, el destinatario es el correo del propio negocio
@@ -949,6 +1005,7 @@ module.exports = {
     enviarCorreoPagoConfirmado,
     enviarCorreoPruebaPorTerminar,
     enviarCorreoLeadLanding,
+    enviarCorreoConfirmacionLead,
     enviarCorreoPedidoPublico,
     enviarCorreoPedidoCarritoPublico,
     enviarCorreoSolicitudCreditoPublica,

@@ -60,7 +60,8 @@ const {
     enviarCorreoBienvenida,
     enviarCorreoRecuperacion,
     enviarCorreoActivacionCuenta,
-    enviarCorreoLeadLanding
+    enviarCorreoLeadLanding,
+    enviarCorreoConfirmacionLead
 } = require("./email");
 
 validarConfigProduccion();
@@ -963,6 +964,11 @@ app.post("/api/contacto-landing", async (req, res) => {
 
         enviarCorreoLeadLanding({ nombre, negocio, telefono, correo, mensaje })
             .catch(error => console.warn("No se pudo enviar el aviso de lead", error.message));
+
+        if (correo) {
+            enviarCorreoConfirmacionLead(correo, nombre)
+                .catch(error => console.warn("No se pudo enviar la confirmacion al lead", error.message));
+        }
 
         res.status(201).json({ ok: true });
     } catch (error) {
