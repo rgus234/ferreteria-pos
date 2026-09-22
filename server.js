@@ -5552,6 +5552,10 @@ app.get("/privacidad", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "site", "privacidad.html"));
 });
 
+app.get("/reembolsos", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "site", "reembolsos.html"));
+});
+
 // Pagina de descarga persistente -- antes de esto la unica forma de
 // llegar al instalador era registrarse primero (el link vivia solo
 // dentro del panel de exito del formulario). Alguien que ya tiene
