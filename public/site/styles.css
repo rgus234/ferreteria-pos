@@ -638,6 +638,26 @@ h3 {
   color: #fff;
   background: var(--blue);
   box-shadow: 0 22px 46px rgba(16, 103, 232, .34);
+  cursor: pointer;
+}
+
+/* Estado "todavia no hay video" -- a proposito SIN pinta de boton
+   (sin el circulo azul con sombra fuerte de .play-button): esa forma
+   siempre se lee como "haz clic aqui", y clicarla no hacia nada.
+   Reservado para cuando exista el video real -- ver data-video-estado. */
+.video-shell-proximamente .proximamente-badge {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 26px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.18);
+}
+
+.video-shell-proximamente .btn.primary {
+  margin-top: 6px;
 }
 
 .plans article {

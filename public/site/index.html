@@ -262,10 +262,11 @@
         <p>Un recorrido rapido por venta, credito, recepcion de mercancia, inventario bajo y reportes -- protagonizado por Nexo, el asistente del sistema.</p>
         <a class="btn primary" href="#contacto" data-panel="info">Agendar demostracion</a>
       </div>
-      <div class="video-shell" aria-label="Video demo pendiente" data-video-estado="proximamente" data-video-id="">
-        <div class="play-button">▶</div>
+      <div class="video-shell video-shell-proximamente" aria-label="Video demo pendiente" data-video-estado="proximamente" data-video-id="">
+        <div class="proximamente-badge">🎬</div>
         <strong>Demo Nexo</strong>
         <span>Muy pronto -- venta, inventario y credito en accion</span>
+        <a class="btn primary" href="#contacto" data-panel="info">Agendar demostracion en vivo</a>
       </div>
     </section>
 
@@ -454,9 +455,9 @@
         <div class="contact-panel" id="panelInfo" role="tabpanel">
           <form class="lead-form" id="contactoLeadForm">
             <input type="text" id="contactoEmpresaWeb" name="empresaWeb" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
-            <label>Tu nombre<input id="contactoNombre" type="text" placeholder="Ej. Gustavo" required></label>
-            <label>Negocio<input id="contactoNegocio" type="text" placeholder="Ej. Ferreteria Olimpico"></label>
-            <label>Telefono<input id="contactoTelefono" type="tel" placeholder="Ej. 442 123 4567"></label>
+            <label>Tu nombre<input id="contactoNombre" type="text" placeholder="Ej. Juan Perez" required></label>
+            <label>Negocio<input id="contactoNegocio" type="text" placeholder="Ej. Ferreteria La Union"></label>
+            <label>Telefono<input id="contactoTelefono" type="tel" placeholder="Ej. 55 1234 5678"></label>
             <label>Correo<input id="contactoCorreo" type="email" placeholder="Ej. dueno@tunegocio.com"></label>
             <label>Mensaje (opcional)<input id="contactoMensaje" type="text" placeholder="Cuentanos que necesitas"></label>
             <button class="btn primary" type="submit" id="contactoSubmit">Enviar</button>
@@ -467,7 +468,7 @@
         <div class="contact-panel" id="panelCuenta" role="tabpanel" hidden>
           <form class="lead-form" id="registroClienteForm">
             <input type="text" id="registroEmpresaWeb" name="empresaWeb" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
-            <label>Nombre del negocio<input id="registroNegocio" type="text" placeholder="Ej. Ferreteria Olimpico" required></label>
+            <label>Nombre del negocio<input id="registroNegocio" type="text" placeholder="Ej. Ferreteria La Union" required></label>
             <label>Giro del negocio
               <select id="registroGiro">
                 <option value="ferreteria">Ferreteria</option>
@@ -477,12 +478,12 @@
                 <option value="general">Otro / general</option>
               </select>
             </label>
-            <label>Telefono<input id="registroTelefono" type="tel" placeholder="Ej. 498 123 4567" required></label>
+            <label>Telefono<input id="registroTelefono" type="tel" placeholder="Ej. 55 1234 5678" required></label>
             <label>Correo<input id="registroCorreo" type="email" placeholder="Ej. dueno@tunegocio.com" required></label>
             <label>Contrasena<input id="registroPassword" type="password" placeholder="Minimo 8 caracteres" minlength="8" required></label>
             <label>Confirmar contrasena<input id="registroConfirmarPassword" type="password" placeholder="Repite tu contrasena" minlength="8" required></label>
-            <label>Ciudad<input id="registroCiudad" type="text" placeholder="Ej. Rio Grande, Zac."></label>
-            <label>Contacto<input id="registroContacto" type="text" placeholder="Ej. Gustavo"></label>
+            <label>Ciudad<input id="registroCiudad" type="text" placeholder="Ej. Guadalajara, Jal."></label>
+            <label>Contacto<input id="registroContacto" type="text" placeholder="Ej. Juan Perez"></label>
             <label class="lead-consent">
               <input id="registroAceptaTerminos" type="checkbox" required>
               <span>Acepto los <a href="/terminos" target="_blank" rel="noopener">Terminos de Servicio</a> y el <a href="/privacidad" target="_blank" rel="noopener">Aviso de Privacidad</a> de Nexo.</span>

@@ -819,9 +819,12 @@ app.post("/api/clientes/registro", async (req, res) => {
         );
 
         const licenciaKey = await generarLicenciaUnica(client);
-        const venceEnDias = Number.isFinite(Number(req.body?.diasPrueba))
-            ? Math.max(1, Math.min(Number(req.body.diasPrueba), 90))
-            : 15;
+        // Siempre 15 dias, nunca un valor que mande el cliente -- este
+        // endpoint es publico y sin autenticacion, asi que un
+        // "diasPrueba" leido del body dejaba a cualquiera pedir hasta
+        // 90 dias de prueba con una sola peticion directa a la API,
+        // sin pasar por el formulario (que nunca manda ese campo).
+        const venceEnDias = 15;
 
         const licencia = await client.query(
             `
