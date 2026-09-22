@@ -6,6 +6,7 @@
 // por un correo que no se pudo mandar).
 
 const { Resend } = require("resend");
+const { generarFichaInformativaPdf } = require("./ficha-informativa");
 
 const remitente =
     process.env.RESEND_FROM || "onboarding@resend.dev";
@@ -514,8 +515,18 @@ function cajaPreciosFundadorHtml() {
     `;
 }
 
-function enviarCorreoConfirmacionLead(correo, nombre) {
+async function enviarCorreoConfirmacionLead(correo, nombre) {
     const nombreSeguro = escaparHtmlCorreo(nombre);
+
+    let adjuntos = [];
+    try {
+        const pdfBytes = await generarFichaInformativaPdf();
+        adjuntos = [{ filename: "Nexo-ficha-informativa.pdf", content: pdfBytes }];
+    } catch (error) {
+        // Un PDF que no se pudo generar no debe tumbar la confirmacion
+        // -- se manda el correo igual, solo sin el adjunto.
+        console.warn("No se pudo generar la ficha informativa en PDF", error.message);
+    }
 
     return enviarCorreo({
         correo,
@@ -526,11 +537,12 @@ function enviarCorreoConfirmacionLead(correo, nombre) {
             saludo: "Te contactamos muy pronto por WhatsApp o correo.",
             robot: "feliz",
             cuerpoHtml: `
-                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Gracias por tu interes en Nexo, el sistema de punto de venta pensado para ferreterias: mostrador, inventario, credito y reportes en un solo lugar. Mientras te contactamos, aqui tienes lo basico.</p>
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Gracias por tu interes en Nexo, el sistema de punto de venta pensado para ferreterias: mostrador, inventario, credito y reportes en un solo lugar. Mientras te contactamos, te dejamos adjunta una ficha con el detalle de planes y precios.</p>
                 ${botonHtml("Hablar ahora por WhatsApp", WHATSAPP_LEAD_INFO)}
             `,
             cajaHtml: cajaPreciosFundadorHtml()
-        })
+        }),
+        attachments: adjuntos
     });
 }
 
