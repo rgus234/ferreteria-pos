@@ -1380,6 +1380,18 @@ footer {
   font-weight: 800;
 }
 
+.footer-tagline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.footer-legal {
+  font-weight: 600;
+  font-size: 13px;
+  opacity: .75;
+}
+
 @media (max-width: 980px) {
   .site-header {
     position: relative;
