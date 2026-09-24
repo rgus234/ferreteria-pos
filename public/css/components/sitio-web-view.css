@@ -304,6 +304,27 @@
 .sitio-web-plantilla-miniatura--minimal{ background:#172033; }
 .sitio-web-plantilla-miniatura--minimal::after{ content:""; position:absolute; left:20%; right:20%; top:44%; height:12%; background:rgba(255,255,255,.5); border-radius:4px; }
 
+/* Miniaturas de "Como se anima" -- una flecha por direccion (arriba,
+   abajo, lado) y un par de circulos translapados para "desvanecer",
+   sobre el mismo fondo que las demas miniaturas -- antes las 4
+   reusaban por error la miniatura de la plantilla "Minimal" y se
+   veian identicas entre si. */
+.sitio-web-plantilla-miniatura--anim-arriba::after,
+.sitio-web-plantilla-miniatura--anim-abajo::after,
+.sitio-web-plantilla-miniatura--anim-lado::after{
+ content:""; position:absolute; left:50%; top:50%; width:11px; height:11px;
+ border-top:2.5px solid rgba(255,255,255,.9); border-right:2.5px solid rgba(255,255,255,.9);
+ transform:translate(-50%,-50%) rotate(-45deg);
+}
+.sitio-web-plantilla-miniatura--anim-abajo::after{ transform:translate(-50%,-50%) rotate(135deg); }
+.sitio-web-plantilla-miniatura--anim-lado::after{ transform:translate(-50%,-50%) rotate(45deg); }
+.sitio-web-plantilla-miniatura--anim-fundido::before,
+.sitio-web-plantilla-miniatura--anim-fundido::after{
+ content:""; position:absolute; top:50%; width:20px; height:20px; border-radius:50%; transform:translateY(-50%);
+}
+.sitio-web-plantilla-miniatura--anim-fundido::before{ left:32%; background:rgba(255,255,255,.55); }
+.sitio-web-plantilla-miniatura--anim-fundido::after{ left:48%; background:rgba(255,255,255,.28); }
+
 .sitio-web-colores-fila{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .sitio-web-color-swatch{ width:28px; height:28px; border-radius:999px; border:2px solid transparent; cursor:pointer; padding:0; }
 .sitio-web-color-swatch.activo{ border-color:var(--pos-text,#172033); box-shadow:0 0 0 2px #fff inset; }

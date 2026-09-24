@@ -4698,6 +4698,35 @@ document.getElementById('btn').addEventListener('click', async function(){
         }
     });
 
+    // Filas de sitio_web_promociones de un negocio, ya mapeadas al
+    // formato que espera el cliente -- una sola fuente de verdad para
+    // GET /negocio-actual/sitio-web y para la vista previa del
+    // carrusel real (abajo), que necesitan exactamente los mismos datos.
+    async function promocionesDelNegocioParaConfig(negocioId) {
+        const promos = await pool.query(
+            `SELECT id, titulo, texto, texto_boton, enlace, plantilla, color_acento,
+                    (imagen IS NOT NULL) AS tiene_imagen, imagen_actualizado_at, duracion_segundos, orden, activa
+             FROM public.sitio_web_promociones
+             WHERE negocio_id = $1
+             ORDER BY orden ASC, id ASC`,
+            [negocioId]
+        );
+        return promos.rows.map(p => ({
+            id: p.id,
+            titulo: p.titulo,
+            texto: p.texto,
+            textoBoton: p.texto_boton,
+            enlace: p.enlace,
+            plantilla: p.plantilla,
+            colorAcento: p.color_acento,
+            tieneImagen: p.tiene_imagen,
+            imagenActualizadoAt: p.imagen_actualizado_at,
+            duracionSegundos: p.duracion_segundos,
+            orden: p.orden,
+            activa: p.activa
+        }));
+    }
+
     app.get("/negocio-actual/sitio-web", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
@@ -4716,14 +4745,7 @@ document.getElementById('btn').addEventListener('click', async function(){
                 envio_modo: "a_coordinar", envio_tarifa: null, envio_notas: ""
             };
 
-            const promos = await pool.query(
-                `SELECT id, titulo, texto, texto_boton, enlace, plantilla, color_acento,
-                        (imagen IS NOT NULL) AS tiene_imagen, imagen_actualizado_at, duracion_segundos, orden, activa
-                 FROM public.sitio_web_promociones
-                 WHERE negocio_id = $1
-                 ORDER BY orden ASC, id ASC`,
-                [negocio.id]
-            );
+            const promociones = await promocionesDelNegocioParaConfig(negocio.id);
 
             res.json({
                 ok: true,
@@ -4745,20 +4767,7 @@ document.getElementById('btn').addEventListener('click', async function(){
                 mostrarExistencias: config.mostrar_existencias,
                 aceptarSolicitudesCredito: config.aceptar_solicitudes_credito,
                 promocionAnimacion: config.promocion_animacion || "fundido",
-                promociones: promos.rows.map(p => ({
-                    id: p.id,
-                    titulo: p.titulo,
-                    texto: p.texto,
-                    textoBoton: p.texto_boton,
-                    enlace: p.enlace,
-                    plantilla: p.plantilla,
-                    colorAcento: p.color_acento,
-                    tieneImagen: p.tiene_imagen,
-                    imagenActualizadoAt: p.imagen_actualizado_at,
-                    duracionSegundos: p.duracion_segundos,
-                    orden: p.orden,
-                    activa: p.activa
-                })),
+                promociones,
                 envioModo: config.envio_modo,
                 envioTarifa: config.envio_tarifa !== null ? Number(config.envio_tarifa) : null,
                 envioNotas: config.envio_notas
@@ -5129,7 +5138,45 @@ document.getElementById('btn').addEventListener('click', async function(){
                 imagenActualizadoAt
             };
 
-            res.json({ ok: true, html: contenidoPromocionHtml(promo, negocio.slug) });
+            res.json({
+                ok: true,
+                html: contenidoPromocionHtml(promo, negocio.slug),
+                css: estilosPromoBanner(promo.colorAcento)
+            });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
+    // Vista previa del carrusel REAL (Fase "checar todo, no solo cosa
+    // por cosa", ver plan): a diferencia de promocion-preview (que
+    // previsualiza UNA promocion en borrador, sin guardar), esta
+    // devuelve exactamente lo que el sitio publico muestra ahora mismo
+    // con lo ya guardado -- mismo dispatcher, mismos datos -- para que
+    // el panel "Vista previa de tu sitio" nunca prometa algo distinto
+    // de lo que ya esta en vivo. Admite ?animacion= para previsualizar
+    // una animacion que el dueno todavia no guarda (clic en una tarjeta
+    // de animacion), sin tener que guardar todo el formulario primero.
+    app.get("/negocio-actual/sitio-web/promociones/vista-previa", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+
+            const configRes = await pool.query(
+                `SELECT promocion_animacion FROM public.sitio_web_config WHERE negocio_id = $1`,
+                [negocio.id]
+            );
+            const animacionBody = String(req.query?.animacion || "");
+            const promocionAnimacion = ANIMACIONES_PROMOCION_VALIDAS.has(animacionBody)
+                ? animacionBody
+                : (configRes.rows[0]?.promocion_animacion || "fundido");
+
+            const promociones = await promocionesDelNegocioParaConfig(negocio.id);
+
+            res.json({
+                ok: true,
+                html: bannerPromocionHtml({ promociones, promocionAnimacion }, negocio.slug),
+                css: estilosPromoBanner()
+            });
         } catch (error) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
         }

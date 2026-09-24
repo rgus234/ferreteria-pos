@@ -70,7 +70,7 @@ async function mostrarSitioWeb() {
  cargarSolicitudesCreditoSitioWeb();
  cargarMarketResumenSitioWeb();
  cargarCobrosSitioWeb();
- actualizarVistaPreviaPromocion();
+ actualizarVistaPreviaCarruselGuardado();
  } catch (error) {
  pantalla.innerHTML = `<div class="sitio-web-shell"><p>No se pudo cargar la configuracion del sitio. Revisa tu conexion.</p></div>`;
  }
@@ -262,7 +262,8 @@ function renderSitioWebFormulario(pantalla, datos) {
  <strong>${escaparSitioWeb(sitioWebNombreActual || "Tu negocio")}</strong>
  <span>${escaparSitioWeb(sitioWebSlugActual)}.nexoposoficial.com</span>
  </div>
- <div id="sitioWebPreviewPromo" class="sitio-web-preview-promo"><p class="sitio-web-nota">Activa la promocion para verla aqui.</p></div>
+ <style id="sitioWebPromoBannerEstilos"></style>
+ <div id="sitioWebPreviewPromo" class="sitio-web-preview-promo"><p class="sitio-web-nota">Cargando vista previa...</p></div>
  </div>
  </div>
  </aside>
@@ -1070,6 +1071,7 @@ function sitioWebPromocionEditorHtml(datos) {
 
  <div>
  <span class="sitio-web-promocion-label">Como se anima al cambiar de promocion</span>
+ <p class="sitio-web-nota">Se nota solo cuando tienes 2 o mas promociones activas.</p>
  <div class="sitio-web-plantillas-grid" id="sitioWebAnimacionGrid">
  ${SITIO_WEB_ANIMACIONES_PROMOCION.map(a => sitioWebTarjetaAnimacionHtml(a, a.id === (datos.promocionAnimacion || "fundido"))).join("")}
  </div>
@@ -1109,7 +1111,7 @@ function sitioWebPromocionesListaHtml(promociones) {
 function sitioWebTarjetaAnimacionHtml(animacion, activa) {
  return `
  <button type="button" class="sitio-web-plantilla-tarjeta${activa ? " activo" : ""}" data-animacion="${animacion.id}" onclick="elegirAnimacionPromocion('${animacion.id}')">
- <span class="sitio-web-plantilla-miniatura sitio-web-plantilla-miniatura--minimal"></span>
+ <span class="sitio-web-plantilla-miniatura sitio-web-plantilla-miniatura--anim-${animacion.id}"></span>
  <strong>${animacion.nombre}</strong>
  </button>
  `;
@@ -1119,6 +1121,11 @@ function elegirAnimacionPromocion(id) {
  document.querySelectorAll("#sitioWebAnimacionGrid .sitio-web-plantilla-tarjeta").forEach(tarjeta => {
  tarjeta.classList.toggle("activo", tarjeta.dataset.animacion === id);
  });
+ // Solo se ve algo si ya hay 2+ promociones activas guardadas -- con
+ // una sola no hay carrusel que animar (bannerPromocionHtml). No
+ // afecta la vista previa mientras se edita una promocion (el
+ // formulario, si esta abierto, sigue mostrando su propio borrador).
+ if (!document.getElementById("sitioWebPromocionTitulo")) actualizarVistaPreviaCarruselGuardado(id);
 }
 
 function animacionPromocionElegida() {
@@ -1135,6 +1142,7 @@ async function recargarPromocionesSitioWeb() {
  sitioWebDatosActuales = datos;
  const lista = document.getElementById("sitioWebPromocionesLista");
  if (lista) lista.innerHTML = sitioWebPromocionesListaHtml(datos.promociones || []);
+ if (!document.getElementById("sitioWebPromocionTitulo")) actualizarVistaPreviaCarruselGuardado();
  } catch (error) { /* la lista se queda como estaba, no bloquea el resto del editor */ }
 }
 
@@ -1242,8 +1250,7 @@ function cerrarFormularioPromocion() {
  contenedorForm.style.display = "none";
  contenedorForm.innerHTML = "";
  }
- const preview = document.getElementById("sitioWebPreviewPromo");
- if (preview) preview.innerHTML = `<p class="sitio-web-nota">Activa la promocion y completa titulo/texto para verla aqui.</p>`;
+ actualizarVistaPreviaCarruselGuardado();
 }
 
 async function guardarPromocionSitioWeb() {
@@ -1398,7 +1405,32 @@ async function actualizarVistaPreviaPromocion() {
  const datos = await respuesta.json();
  if (!datos.ok) return;
 
+ const estilos = document.getElementById("sitioWebPromoBannerEstilos");
+ if (estilos && datos.css) estilos.textContent = datos.css;
  contenedor.innerHTML = datos.html || `<p class="sitio-web-nota">Completa titulo y texto para verla aqui.</p>`;
+ } catch (error) { /* la vista previa es informativa, un fallo no bloquea el editor */ }
+}
+
+// Vista previa del carrusel REAL (ver plan "checar todo, no solo cosa
+// por cosa"): a diferencia de actualizarVistaPreviaPromocion (que
+// previsualiza UNA promocion en borrador dentro del formulario
+// abierto), esta muestra lo que YA esta guardado -- el mismo carrusel
+// que se ve en el sitio publico -- para cuando el formulario esta
+// cerrado. Si se le pasa una animacion, previsualiza esa sin haberla
+// guardado todavia (clic en una tarjeta de "Como se anima").
+async function actualizarVistaPreviaCarruselGuardado(animacionBorrador) {
+ const contenedor = document.getElementById("sitioWebPreviewPromo");
+ if (!contenedor) return;
+
+ try {
+ const query = animacionBorrador ? `?animacion=${encodeURIComponent(animacionBorrador)}` : "";
+ const respuesta = await fetch(`/negocio-actual/sitio-web/promociones/vista-previa${query}`);
+ const datos = await respuesta.json();
+ if (!datos.ok) return;
+
+ const estilos = document.getElementById("sitioWebPromoBannerEstilos");
+ if (estilos && datos.css) estilos.textContent = datos.css;
+ contenedor.innerHTML = datos.html || `<p class="sitio-web-nota">Activa al menos una promocion para verla aqui.</p>`;
  } catch (error) { /* la vista previa es informativa, un fallo no bloquea el editor */ }
 }
 
