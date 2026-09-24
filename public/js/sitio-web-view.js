@@ -1046,51 +1046,147 @@ function renderListaDestacadosMarketSitioWeb(productos) {
  `).join("");
 }
 
-/* ---------- Editor de Promocion por plantillas ---------- */
+/* ---------- Editor de Promociones (varias, con duracion y animacion) ---------- */
+
+const SITIO_WEB_ANIMACIONES_PROMOCION = [
+ { id: "arriba", nombre: "Hacia arriba" },
+ { id: "abajo", nombre: "Hacia abajo" },
+ { id: "lado", nombre: "Hacia un lado" },
+ { id: "fundido", nombre: "Desvanecer" }
+];
+
+const SITIO_WEB_DURACIONES_PROMOCION = [5, 8, 10, 15, 20];
+
+// null = el formulario esta cerrado o creando una promocion nueva;
+// con un id, "Guardar promocion" actualiza esa fila en vez de crear
+// otra.
+let sitioWebPromoEditandoId = null;
+let sitioWebPromoDuracionActual = 8;
 
 function sitioWebPromocionEditorHtml(datos) {
- const colorActual = datos.promocionColorAcento || "#1067e8";
  return `
  <div class="sitio-web-panel">
- <label class="sitio-web-toggle">
- <input type="checkbox" id="sitioWebPromocionActiva" ${datos.promocionActiva ? "checked" : ""} onchange="actualizarVistaPreviaPromocion()">
- <span>Promocion activa (aviso en la parte superior del sitio)</span>
- </label>
+ <p class="sitio-web-nota">Puedes tener varias promociones a la vez -- se van turnando solas en tu sitio, cada una el tiempo que le pongas.</p>
 
+ <div>
+ <span class="sitio-web-promocion-label">Como se anima al cambiar de promocion</span>
+ <div class="sitio-web-plantillas-grid" id="sitioWebAnimacionGrid">
+ ${SITIO_WEB_ANIMACIONES_PROMOCION.map(a => sitioWebTarjetaAnimacionHtml(a, a.id === (datos.promocionAnimacion || "fundido"))).join("")}
+ </div>
+ </div>
+
+ <div id="sitioWebPromocionesLista">
+ ${sitioWebPromocionesListaHtml(datos.promociones || [])}
+ </div>
+
+ <button type="button" class="btn-encargo-primario" onclick="abrirFormularioPromocion()">+ Agregar promocion</button>
+
+ <div id="sitioWebPromocionForm" style="display:none;"></div>
+ </div>
+ `;
+}
+
+function sitioWebPromocionesListaHtml(promociones) {
+ if (!promociones.length) {
+ return `<p class="sitio-web-nota">Todavia no tienes ninguna promocion. Agrega la primera abajo.</p>`;
+ }
+ return promociones.map(p => `
+ <div class="sitio-web-pedido-item">
+ <div class="sitio-web-pedido-cabecera">
+ <strong>${escaparSitioWeb(p.titulo)}</strong>
+ <span class="sitio-web-pedido-badge ${p.activa ? "atendido" : "descartado"}">${p.activa ? "Activa" : "Pausada"}</span>
+ <span class="sitio-web-pedido-badge cotizado">${p.duracionSegundos}s</span>
+ </div>
+ <div class="sitio-web-pedido-cliente">${escaparSitioWeb(p.texto)}</div>
+ <div class="sitio-web-promocion-acciones">
+ <button type="button" class="btn-encargo-secundario" onclick="abrirFormularioPromocion(${p.id})">Editar</button>
+ <button type="button" class="btn-encargo-secundario" onclick="eliminarPromocionSitioWeb(${p.id})">Eliminar</button>
+ </div>
+ </div>
+ `).join("");
+}
+
+function sitioWebTarjetaAnimacionHtml(animacion, activa) {
+ return `
+ <button type="button" class="sitio-web-plantilla-tarjeta${activa ? " activo" : ""}" data-animacion="${animacion.id}" onclick="elegirAnimacionPromocion('${animacion.id}')">
+ <span class="sitio-web-plantilla-miniatura sitio-web-plantilla-miniatura--minimal"></span>
+ <strong>${animacion.nombre}</strong>
+ </button>
+ `;
+}
+
+function elegirAnimacionPromocion(id) {
+ document.querySelectorAll("#sitioWebAnimacionGrid .sitio-web-plantilla-tarjeta").forEach(tarjeta => {
+ tarjeta.classList.toggle("activo", tarjeta.dataset.animacion === id);
+ });
+}
+
+function animacionPromocionElegida() {
+ const activa = document.querySelector("#sitioWebAnimacionGrid .sitio-web-plantilla-tarjeta.activo");
+ return activa ? activa.dataset.animacion : "fundido";
+}
+
+async function recargarPromocionesSitioWeb() {
+ try {
+ const respuesta = await fetch("/negocio-actual/sitio-web");
+ const datos = await respuesta.json();
+ if (!datos.ok) return;
+
+ sitioWebDatosActuales = datos;
+ const lista = document.getElementById("sitioWebPromocionesLista");
+ if (lista) lista.innerHTML = sitioWebPromocionesListaHtml(datos.promociones || []);
+ } catch (error) { /* la lista se queda como estaba, no bloquea el resto del editor */ }
+}
+
+function sitioWebPromocionFormHtml() {
+ return `
+ <div class="sitio-web-panel sitio-web-promocion-form">
  <div>
  <span class="sitio-web-promocion-label">Plantilla</span>
  <div class="sitio-web-plantillas-grid" id="sitioWebPlantillasGrid">
- ${SITIO_WEB_PLANTILLAS_PROMOCION.map(p => sitioWebTarjetaPlantillaHtml(p, p.id === (datos.promocionPlantilla || "clasica"))).join("")}
+ ${SITIO_WEB_PLANTILLAS_PROMOCION.map(p => sitioWebTarjetaPlantillaHtml(p, p.id === "clasica")).join("")}
  </div>
  </div>
 
+ <label class="sitio-web-toggle">
+ <input type="checkbox" id="sitioWebPromocionActiva" checked>
+ <span>Promocion activa</span>
+ </label>
+
  <label>
  <span>Titulo</span>
- <input type="text" id="sitioWebPromocionTitulo" maxlength="140" placeholder="Ej. Descuento de temporada" value="${datos.promocionTitulo || ""}" oninput="actualizarVistaPreviaPromocionDebounced()">
+ <input type="text" id="sitioWebPromocionTitulo" maxlength="140" placeholder="Ej. Descuento de temporada" oninput="actualizarVistaPreviaPromocionDebounced()">
  </label>
 
  <label>
  <span>Texto</span>
- <textarea id="sitioWebPromocionTexto" rows="2" maxlength="500" placeholder="Ej. 10% de descuento en herramienta electrica esta semana." oninput="actualizarVistaPreviaPromocionDebounced()">${datos.promocionTexto || ""}</textarea>
+ <textarea id="sitioWebPromocionTexto" rows="2" maxlength="500" placeholder="Ej. 10% de descuento en herramienta electrica esta semana." oninput="actualizarVistaPreviaPromocionDebounced()"></textarea>
  </label>
 
  <label>
  <span>Texto del boton</span>
- <input type="text" id="sitioWebPromocionTextoBoton" maxlength="40" placeholder="Ej. Ver ofertas" value="${datos.promocionTextoBoton || ""}" oninput="actualizarVistaPreviaPromocionDebounced()">
+ <input type="text" id="sitioWebPromocionTextoBoton" maxlength="40" placeholder="Ej. Ver ofertas" oninput="actualizarVistaPreviaPromocionDebounced()">
  </label>
 
  <label>
  <span>Enlace del boton (opcional)</span>
- <input type="text" id="sitioWebPromocionEnlace" maxlength="300" placeholder="Ej. https://tu-sitio.nexoposoficial.com/catalogo" value="${datos.promocionEnlace || ""}" oninput="actualizarVistaPreviaPromocionDebounced()">
+ <input type="text" id="sitioWebPromocionEnlace" maxlength="300" placeholder="Ej. https://tu-sitio.nexoposoficial.com/catalogo" oninput="actualizarVistaPreviaPromocionDebounced()">
  </label>
 
  <div>
  <span class="sitio-web-promocion-label">Color de acento</span>
  <div class="sitio-web-colores-fila">
  ${SITIO_WEB_COLORES_PRESET.map(c => `
- <button type="button" class="sitio-web-color-swatch${c.toLowerCase() === colorActual.toLowerCase() ? " activo" : ""}" style="background:${c}" data-color="${c}" onclick="elegirColorPromocion('${c}')"></button>
+ <button type="button" class="sitio-web-color-swatch" style="background:${c}" data-color="${c}" onclick="elegirColorPromocion('${c}')"></button>
  `).join("")}
- <input type="color" id="sitioWebPromocionColorInput" value="${colorActual}" oninput="elegirColorPromocion(this.value)">
+ <input type="color" id="sitioWebPromocionColorInput" value="#1067e8" oninput="elegirColorPromocion(this.value)">
+ </div>
+ </div>
+
+ <div>
+ <span class="sitio-web-promocion-label">Cuanto dura en pantalla</span>
+ <div class="sitio-web-duracion-fila" id="sitioWebDuracionGrid">
+ ${SITIO_WEB_DURACIONES_PROMOCION.map(s => `<button type="button" class="sitio-web-duracion-boton" data-duracion="${s}" onclick="elegirDuracionPromocion(${s})">${s}s</button>`).join("")}
  </div>
  </div>
 
@@ -1098,13 +1194,123 @@ function sitioWebPromocionEditorHtml(datos) {
  <span>Foto de la promocion (opcional)</span>
  <input type="file" id="sitioWebPromocionImagenInput" accept="image/*" onchange="iniciarRecorteImagenPromocion(event)">
  </label>
- <p class="sitio-web-nota">Al elegir una foto se abre un recorte con guias para encuadrarla -- se usa exactamente lo que recortes, la plantilla "Minimal" no necesita foto.</p>
- <div id="sitioWebPromocionImagenPreview" class="sitio-web-portada-preview">
- ${datos.promocionTieneImagen ? `<img src="/sitio-web-promocion-imagen?negocio=${encodeURIComponent(datos.slug)}&v=${Date.now()}" alt="Imagen de la promocion">` : ""}
- </div>
+ <p class="sitio-web-nota">Al elegir una foto se abre un recorte con guias -- se usa exactamente lo que recortes, la plantilla "Minimal" no necesita foto. Guarda primero titulo y texto para poder subir la foto.</p>
+ <div id="sitioWebPromocionImagenPreview" class="sitio-web-portada-preview"></div>
  <p class="sitio-web-nota" id="sitioWebPromocionImagenEstado" style="display:none;"></p>
+
+ <div class="sitio-web-promocion-acciones">
+ <button type="button" class="btn-encargo-secundario" onclick="cerrarFormularioPromocion()">Cancelar</button>
+ <button type="button" class="btn-encargo-primario" onclick="guardarPromocionSitioWeb()">Guardar promocion</button>
+ </div>
  </div>
  `;
+}
+
+function abrirFormularioPromocion(id) {
+ const contenedorForm = document.getElementById("sitioWebPromocionForm");
+ if (!contenedorForm) return;
+
+ sitioWebPromoEditandoId = id || null;
+ contenedorForm.innerHTML = sitioWebPromocionFormHtml();
+ contenedorForm.style.display = "";
+ elegirDuracionPromocion(8);
+
+ const promo = id ? (sitioWebDatosActuales?.promociones || []).find(p => p.id === id) : null;
+ if (promo) {
+ document.getElementById("sitioWebPromocionActiva").checked = promo.activa;
+ document.getElementById("sitioWebPromocionTitulo").value = promo.titulo || "";
+ document.getElementById("sitioWebPromocionTexto").value = promo.texto || "";
+ document.getElementById("sitioWebPromocionTextoBoton").value = promo.textoBoton || "";
+ document.getElementById("sitioWebPromocionEnlace").value = promo.enlace || "";
+ document.getElementById("sitioWebPromocionColorInput").value = promo.colorAcento || "#1067e8";
+ elegirPlantillaPromocion(promo.plantilla || "clasica");
+ elegirDuracionPromocion(promo.duracionSegundos || 8);
+ if (promo.tieneImagen) {
+ document.getElementById("sitioWebPromocionImagenPreview").innerHTML =
+ `<img src="/sitio-web-promocion-imagen/${promo.id}?negocio=${encodeURIComponent(sitioWebSlugActual)}&v=${Date.now()}" alt="Imagen de la promocion">`;
+ }
+ }
+
+ actualizarVistaPreviaPromocion();
+ contenedorForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function cerrarFormularioPromocion() {
+ sitioWebPromoEditandoId = null;
+ const contenedorForm = document.getElementById("sitioWebPromocionForm");
+ if (contenedorForm) {
+ contenedorForm.style.display = "none";
+ contenedorForm.innerHTML = "";
+ }
+ const preview = document.getElementById("sitioWebPreviewPromo");
+ if (preview) preview.innerHTML = `<p class="sitio-web-nota">Activa la promocion y completa titulo/texto para verla aqui.</p>`;
+}
+
+async function guardarPromocionSitioWeb() {
+ const titulo = document.getElementById("sitioWebPromocionTitulo")?.value || "";
+ const texto = document.getElementById("sitioWebPromocionTexto")?.value || "";
+
+ if (!titulo.trim() || !texto.trim()) {
+ if (typeof alertaPOS === "function") alertaPOS("Escribe un titulo y un texto para la promocion.", "Sitio web", "alerta");
+ return;
+ }
+
+ const payload = {
+ activa: document.getElementById("sitioWebPromocionActiva")?.checked ?? true,
+ titulo,
+ texto,
+ textoBoton: document.getElementById("sitioWebPromocionTextoBoton")?.value || "",
+ enlace: document.getElementById("sitioWebPromocionEnlace")?.value || "",
+ plantilla: plantillaPromocionElegida(),
+ colorAcento: document.getElementById("sitioWebPromocionColorInput")?.value || "",
+ duracionSegundos: sitioWebPromoDuracionActual
+ };
+
+ try {
+ const respuesta = await fetch(
+ sitioWebPromoEditandoId ? `/negocio-actual/sitio-web/promociones/${sitioWebPromoEditandoId}` : "/negocio-actual/sitio-web/promociones",
+ {
+ method: sitioWebPromoEditandoId ? "PUT" : "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify(payload)
+ }
+ );
+
+ const datos = await respuesta.json();
+ if (!datos.ok) {
+ if (typeof alertaPOS === "function") alertaPOS(datos.error || "No se pudo guardar la promocion.", "Sitio web", "alerta");
+ return;
+ }
+
+ if (!sitioWebPromoEditandoId && datos.id) {
+ sitioWebPromoEditandoId = datos.id;
+ }
+
+ if (typeof alertaPOS === "function") alertaPOS("Promocion guardada.", "Sitio web", "exito");
+ await recargarPromocionesSitioWeb();
+ cerrarFormularioPromocion();
+ } catch (error) {
+ if (typeof alertaPOS === "function") alertaPOS("No se pudo guardar. Revisa tu conexion.", "Sitio web", "alerta");
+ }
+}
+
+async function eliminarPromocionSitioWeb(id) {
+ const confirmar = typeof confirmarPOS === "function"
+ ? await confirmarPOS("Esta promocion se va a quitar de tu sitio.", "Eliminar promocion")
+ : window.confirm("Esta promocion se va a quitar de tu sitio. Continuar?");
+ if (!confirmar) return;
+
+ try {
+ const respuesta = await fetch(`/negocio-actual/sitio-web/promociones/${id}`, { method: "DELETE" });
+ const datos = await respuesta.json();
+ if (!datos.ok) {
+ if (typeof alertaPOS === "function") alertaPOS(datos.error || "No se pudo eliminar la promocion.", "Sitio web", "alerta");
+ return;
+ }
+ await recargarPromocionesSitioWeb();
+ } catch (error) {
+ if (typeof alertaPOS === "function") alertaPOS("No se pudo eliminar. Revisa tu conexion.", "Sitio web", "alerta");
+ }
 }
 
 function sitioWebTarjetaPlantillaHtml(plantilla, activa) {
@@ -1118,14 +1324,14 @@ function sitioWebTarjetaPlantillaHtml(plantilla, activa) {
 }
 
 function elegirPlantillaPromocion(id) {
- document.querySelectorAll(".sitio-web-plantilla-tarjeta").forEach(tarjeta => {
+ document.querySelectorAll("#sitioWebPlantillasGrid .sitio-web-plantilla-tarjeta").forEach(tarjeta => {
  tarjeta.classList.toggle("activo", tarjeta.dataset.plantilla === id);
  });
  actualizarVistaPreviaPromocion();
 }
 
 function plantillaPromocionElegida() {
- const activa = document.querySelector(".sitio-web-plantilla-tarjeta.activo");
+ const activa = document.querySelector("#sitioWebPlantillasGrid .sitio-web-plantilla-tarjeta.activo");
  return activa ? activa.dataset.plantilla : "clasica";
 }
 
@@ -1138,11 +1344,19 @@ function elegirColorPromocion(color) {
  actualizarVistaPreviaPromocionDebounced();
 }
 
+function elegirDuracionPromocion(segundos) {
+ sitioWebPromoDuracionActual = segundos;
+ document.querySelectorAll("#sitioWebDuracionGrid .sitio-web-duracion-boton").forEach(boton => {
+ boton.classList.toggle("activo", Number(boton.dataset.duracion) === segundos);
+ });
+}
+
 // Vista previa en vivo: manda los campos EN BORRADOR (todavia sin
-// guardar) al servidor, que devuelve el HTML REAL de la plantilla
-// elegida (mismo dispatcher que renderiza el sitio publico) -- nunca
-// una maqueta aparte que se pueda desincronizar. Con debounce para no
-// mandar un fetch por cada tecla.
+// guardar) de la promocion que se esta editando ahora mismo al
+// servidor, que devuelve el HTML REAL de la plantilla elegida (mismo
+// dispatcher que renderiza el sitio publico) -- nunca una maqueta
+// aparte que se pueda desincronizar. Con debounce para no mandar un
+// fetch por cada tecla.
 let sitioWebPreviewPromoTimeout = null;
 function actualizarVistaPreviaPromocionDebounced() {
  clearTimeout(sitioWebPreviewPromoTimeout);
@@ -1155,12 +1369,14 @@ async function actualizarVistaPreviaPromocion() {
 
  if (!contenedor) return;
 
- const activa = document.getElementById("sitioWebPromocionActiva")?.checked;
- const titulo = document.getElementById("sitioWebPromocionTitulo")?.value || "";
+ const tituloInput = document.getElementById("sitioWebPromocionTitulo");
+ if (!tituloInput) return; // formulario cerrado -- nada que previsualizar
+
+ const titulo = tituloInput.value || "";
  const texto = document.getElementById("sitioWebPromocionTexto")?.value || "";
 
- if (!activa || !titulo || !texto) {
- contenedor.innerHTML = `<p class="sitio-web-nota">Activa la promocion y completa titulo/texto para verla aqui.</p>`;
+ if (!titulo || !texto) {
+ contenedor.innerHTML = `<p class="sitio-web-nota">Completa titulo y texto para verla aqui.</p>`;
  return;
  }
 
@@ -1169,19 +1385,20 @@ async function actualizarVistaPreviaPromocion() {
  method: "POST",
  headers: { "Content-Type": "application/json" },
  body: JSON.stringify({
- promocionTitulo: titulo,
- promocionTexto: texto,
- promocionTextoBoton: document.getElementById("sitioWebPromocionTextoBoton")?.value || "",
- promocionEnlace: document.getElementById("sitioWebPromocionEnlace")?.value || "",
- promocionPlantilla: plantillaPromocionElegida(),
- promocionColorAcento: document.getElementById("sitioWebPromocionColorInput")?.value || ""
+ id: sitioWebPromoEditandoId || undefined,
+ titulo,
+ texto,
+ textoBoton: document.getElementById("sitioWebPromocionTextoBoton")?.value || "",
+ enlace: document.getElementById("sitioWebPromocionEnlace")?.value || "",
+ plantilla: plantillaPromocionElegida(),
+ colorAcento: document.getElementById("sitioWebPromocionColorInput")?.value || ""
  })
  });
 
  const datos = await respuesta.json();
  if (!datos.ok) return;
 
- contenedor.innerHTML = datos.html || `<p class="sitio-web-nota">Activa la promocion y completa titulo/texto para verla aqui.</p>`;
+ contenedor.innerHTML = datos.html || `<p class="sitio-web-nota">Completa titulo y texto para verla aqui.</p>`;
  } catch (error) { /* la vista previa es informativa, un fallo no bloquea el editor */ }
 }
 
@@ -1342,9 +1559,53 @@ async function confirmarRecorteImagenPromocion() {
 // multipart/form-data junto con el rectangulo de recorte que el
 // dueno encuadro (ver arriba) -- el servidor la recorta exactamente
 // asi en vez de adivinar con un cover ciego.
+// Guarda la promocion en borrador si todavia no existe (sin id no hay
+// donde colgar la imagen) -- mismo payload que "Guardar promocion",
+// pero silencioso: solo se usa como paso previo a subir una foto.
+async function asegurarPromocionGuardadaParaImagen() {
+ if (sitioWebPromoEditandoId) return true;
+
+ const titulo = document.getElementById("sitioWebPromocionTitulo")?.value || "";
+ const texto = document.getElementById("sitioWebPromocionTexto")?.value || "";
+ if (!titulo.trim() || !texto.trim()) {
+ if (typeof alertaPOS === "function") alertaPOS("Escribe primero un titulo y un texto, luego sube la foto.", "Sitio web", "alerta");
+ return false;
+ }
+
+ try {
+ const respuesta = await fetch("/negocio-actual/sitio-web/promociones", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({
+ activa: document.getElementById("sitioWebPromocionActiva")?.checked ?? true,
+ titulo, texto,
+ textoBoton: document.getElementById("sitioWebPromocionTextoBoton")?.value || "",
+ enlace: document.getElementById("sitioWebPromocionEnlace")?.value || "",
+ plantilla: plantillaPromocionElegida(),
+ colorAcento: document.getElementById("sitioWebPromocionColorInput")?.value || "",
+ duracionSegundos: sitioWebPromoDuracionActual
+ })
+ });
+ const datos = await respuesta.json();
+ if (!datos.ok) {
+ if (typeof alertaPOS === "function") alertaPOS(datos.error || "No se pudo guardar la promocion.", "Sitio web", "alerta");
+ return false;
+ }
+ sitioWebPromoEditandoId = datos.id;
+ recargarPromocionesSitioWeb();
+ return true;
+ } catch (error) {
+ if (typeof alertaPOS === "function") alertaPOS("No se pudo guardar. Revisa tu conexion.", "Sitio web", "alerta");
+ return false;
+ }
+}
+
 async function subirPromocionImagenSitioWeb(archivo, recorte) {
  const estado =
  document.getElementById("sitioWebPromocionImagenEstado");
+
+ const listo = await asegurarPromocionGuardadaParaImagen();
+ if (!listo) return;
 
  if (estado) {
  estado.style.display = "";
@@ -1356,7 +1617,7 @@ async function subirPromocionImagenSitioWeb(archivo, recorte) {
  formulario.append("imagen", archivo);
  if (recorte) formulario.append("recorte", JSON.stringify(recorte));
 
- const respuesta = await fetch("/negocio-actual/sitio-web/promocion-imagen", {
+ const respuesta = await fetch(`/negocio-actual/sitio-web/promociones/${sitioWebPromoEditandoId}/imagen`, {
  method: "POST",
  body: formulario
  });
@@ -1373,7 +1634,7 @@ async function subirPromocionImagenSitioWeb(archivo, recorte) {
  document.getElementById("sitioWebPromocionImagenPreview");
 
  if (preview) {
- preview.innerHTML = `<img src="/sitio-web-promocion-imagen?negocio=${encodeURIComponent(sitioWebSlugActual)}&v=${Date.now()}" alt="Imagen de la promocion">`;
+ preview.innerHTML = `<img src="/sitio-web-promocion-imagen/${sitioWebPromoEditandoId}?negocio=${encodeURIComponent(sitioWebSlugActual)}&v=${Date.now()}" alt="Imagen de la promocion">`;
  }
 
  if (estado) estado.style.display = "none";
@@ -1403,13 +1664,7 @@ async function guardarSitioWeb() {
  nivelPrecio: document.getElementById("sitioWebNivelPrecio")?.value || "publico",
  mostrarExistencias: document.getElementById("sitioWebMostrarExistencias")?.checked || false,
  aceptarSolicitudesCredito: document.getElementById("sitioWebAceptarCredito")?.checked || false,
- promocionActiva: document.getElementById("sitioWebPromocionActiva")?.checked || false,
- promocionTitulo: document.getElementById("sitioWebPromocionTitulo")?.value || "",
- promocionTexto: document.getElementById("sitioWebPromocionTexto")?.value || "",
- promocionTextoBoton: document.getElementById("sitioWebPromocionTextoBoton")?.value || "",
- promocionEnlace: document.getElementById("sitioWebPromocionEnlace")?.value || "",
- promocionPlantilla: plantillaPromocionElegida(),
- promocionColorAcento: document.getElementById("sitioWebPromocionColorInput")?.value || "",
+ promocionAnimacion: animacionPromocionElegida(),
  envioModo: envioModo,
  envioTarifa: envioModo === "tarifa_fija" ? (parseFloat(document.getElementById("sitioWebEnvioTarifa")?.value) || 0) : null,
  envioNotas: document.getElementById("sitioWebEnvioNotas")?.value || "",

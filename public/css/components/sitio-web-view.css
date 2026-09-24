@@ -309,6 +309,24 @@
 .sitio-web-color-swatch.activo{ border-color:var(--pos-text,#172033); box-shadow:0 0 0 2px #fff inset; }
 #sitioWebPromocionColorInput{ width:34px; height:28px; padding:0; border:1px solid var(--pos-line,#dbe3ef); border-radius:8px; background:none; cursor:pointer; }
 
+/* ---------- Varias promociones: duracion, lista y acciones ---------- */
+
+.sitio-web-duracion-fila{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.sitio-web-duracion-boton{
+ padding:8px 14px;
+ border-radius:999px;
+ border:1.5px solid var(--pos-line,#dbe3ef);
+ background:var(--pos-surface-strong,#fff);
+ color:var(--pos-text,#172033);
+ font-size:12.5px;
+ font-weight:700;
+ cursor:pointer;
+}
+.sitio-web-duracion-boton.activo{ border-color:#1067e8; background:rgba(16,103,232,.1); color:#1067e8; }
+
+.sitio-web-promocion-acciones{ display:flex; gap:8px; margin-top:10px; }
+.sitio-web-promocion-form{ margin-top:14px; padding-top:16px; border-top:1px solid var(--pos-line,#dbe3ef); }
+
 /* ---------- Recorte de foto con guias ---------- */
 
 .sitio-web-recorte-overlay{

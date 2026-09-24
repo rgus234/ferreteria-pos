@@ -229,9 +229,7 @@ async function resolverSitioPublico(pool, slug) {
             n.id, n.slug, n.nombre, n.telefono, n.direccion, n.logo, n.color, n.estado, n.correo, n.giro,
             n.pedido_prep_min, n.pedido_prep_max,
             c.activo, c.descripcion, c.portada, c.horario_texto, c.whatsapp, c.facebook, c.instagram,
-            c.mostrar_precios, c.mostrar_existencias, c.aceptar_solicitudes_credito,
-            c.promocion_activa, c.promocion_titulo, c.promocion_texto, c.promocion_enlace,
-            (c.promocion_imagen IS NOT NULL) AS promocion_tiene_imagen, c.promocion_imagen_actualizado_at,
+            c.mostrar_precios, c.mostrar_existencias, c.aceptar_solicitudes_credito, c.promocion_animacion,
             c.envio_modo, c.envio_tarifa, c.envio_notas
         FROM public.negocios n
         LEFT JOIN public.sitio_web_config c ON c.negocio_id = n.id
@@ -252,6 +250,15 @@ async function resolverSitioPublico(pool, slug) {
     if (!acceso.incluido) {
         return null;
     }
+
+    const promos = await pool.query(
+        `SELECT id, titulo, texto, texto_boton, enlace, plantilla, color_acento,
+                (imagen IS NOT NULL) AS tiene_imagen, imagen_actualizado_at, duracion_segundos, activa
+         FROM public.sitio_web_promociones
+         WHERE negocio_id = $1 AND activa = true
+         ORDER BY orden ASC, id ASC`,
+        [fila.id]
+    );
 
     return {
         negocio: {
@@ -278,12 +285,21 @@ async function resolverSitioPublico(pool, slug) {
             nivelPrecio: fila.nivel_precio || "publico",
             mostrarExistencias: fila.mostrar_existencias,
             aceptarSolicitudesCredito: fila.aceptar_solicitudes_credito,
-            promocionActiva: fila.promocion_activa,
-            promocionTitulo: fila.promocion_titulo,
-            promocionTexto: fila.promocion_texto,
-            promocionEnlace: fila.promocion_enlace,
-            promocionTieneImagen: fila.promocion_tiene_imagen,
-            promocionImagenActualizadoAt: fila.promocion_imagen_actualizado_at,
+            promocionActiva: promos.rows.length > 0,
+            promocionAnimacion: fila.promocion_animacion || "fundido",
+            promociones: promos.rows.map(p => ({
+                id: p.id,
+                titulo: p.titulo,
+                texto: p.texto,
+                textoBoton: p.texto_boton,
+                enlace: p.enlace,
+                plantilla: p.plantilla,
+                colorAcento: p.color_acento,
+                tieneImagen: p.tiene_imagen,
+                imagenActualizadoAt: p.imagen_actualizado_at,
+                duracionSegundos: p.duracion_segundos,
+                activa: p.activa
+            })),
             envioModo: fila.envio_modo,
             envioTarifa: fila.envio_tarifa !== null ? Number(fila.envio_tarifa) : null,
             envioNotas: fila.envio_notas
@@ -307,40 +323,40 @@ async function resolverSitioPublico(pool, slug) {
 // estilo inline), separado del acento general del sitio (--blue) para
 // no forzar al dueno a cambiar el color de todo su sitio solo para su
 // promocion.
-function imagenPromocionUrl(config, slug) {
-    if (!config.promocionTieneImagen) return "";
-    const v = config.promocionImagenActualizadoAt ? new Date(config.promocionImagenActualizadoAt).getTime() : 0;
-    return `/sitio-web-promocion-imagen?negocio=${encodeURIComponent(slug)}&v=${v}`;
+function imagenPromocionUrl(promo, slug) {
+    if (!promo.tieneImagen) return "";
+    const v = promo.imagenActualizadoAt ? new Date(promo.imagenActualizadoAt).getTime() : 0;
+    return `/sitio-web-promocion-imagen/${promo.id}?negocio=${encodeURIComponent(slug)}&v=${v}`;
 }
 
-function botonPromocionHtml(config, clase) {
-    if (!config.promocionEnlace) return "";
-    const texto = config.promocionTextoBoton ? escaparHtml(config.promocionTextoBoton) : "Ver mas";
-    return `<a class="${clase}" href="${escaparHtml(config.promocionEnlace)}">${texto}</a>`;
+function botonPromocionHtml(promo, clase) {
+    if (!promo.enlace) return "";
+    const texto = promo.textoBoton ? escaparHtml(promo.textoBoton) : "Ver mas";
+    return `<a class="${clase}" href="${escaparHtml(promo.enlace)}">${texto}</a>`;
 }
 
-function bannerPromocionClasica(config, slug) {
-    const imagenUrl = imagenPromocionUrl(config, slug);
+function bannerPromocionClasica(promo, slug) {
+    const imagenUrl = imagenPromocionUrl(promo, slug);
     const imagenHtml = imagenUrl ? `<img class="tenant-promo-banner-img" src="${imagenUrl}" alt="" loading="lazy">` : "";
-    return `<div class="tenant-promo-banner${imagenUrl ? " con-imagen" : ""}" style="--promo-acento:${colorSeguro(config.promocionColorAcento)}">${imagenHtml}<div class="tenant-promo-banner-texto"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${botonPromocionHtml(config, "tenant-promo-banner-boton")}</div></div>`;
+    return `<div class="tenant-promo-banner${imagenUrl ? " con-imagen" : ""}" style="--promo-acento:${colorSeguro(promo.colorAcento)}">${imagenHtml}<div class="tenant-promo-banner-texto"><strong>${escaparHtml(promo.titulo)}</strong><span>${escaparHtml(promo.texto)}</span>${botonPromocionHtml(promo, "tenant-promo-banner-boton")}</div></div>`;
 }
 
-function bannerPromocionImagenFondo(config, slug) {
-    const imagenUrl = imagenPromocionUrl(config, slug);
+function bannerPromocionImagenFondo(promo, slug) {
+    const imagenUrl = imagenPromocionUrl(promo, slug);
     const fondoHtml = imagenUrl ? `<img class="tenant-promo-banner-fondo-img" src="${imagenUrl}" alt="" loading="lazy">` : "";
-    return `<div class="tenant-promo-banner tenant-promo-banner--imagen-fondo" style="--promo-acento:${colorSeguro(config.promocionColorAcento)}">${fondoHtml}<div class="tenant-promo-banner-fondo-velo"></div><div class="tenant-promo-banner-texto"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${botonPromocionHtml(config, "tenant-promo-banner-boton")}</div></div>`;
+    return `<div class="tenant-promo-banner tenant-promo-banner--imagen-fondo" style="--promo-acento:${colorSeguro(promo.colorAcento)}">${fondoHtml}<div class="tenant-promo-banner-fondo-velo"></div><div class="tenant-promo-banner-texto"><strong>${escaparHtml(promo.titulo)}</strong><span>${escaparHtml(promo.texto)}</span>${botonPromocionHtml(promo, "tenant-promo-banner-boton")}</div></div>`;
 }
 
-function bannerPromocionDividida(config, slug) {
-    const imagenUrl = imagenPromocionUrl(config, slug);
+function bannerPromocionDividida(promo, slug) {
+    const imagenUrl = imagenPromocionUrl(promo, slug);
     const imagenHtml = imagenUrl
         ? `<img class="tenant-promo-banner-img" src="${imagenUrl}" alt="" loading="lazy">`
         : `<div class="tenant-promo-banner-img tenant-promo-banner-img-vacia"></div>`;
-    return `<div class="tenant-promo-banner tenant-promo-banner--dividida" style="--promo-acento:${colorSeguro(config.promocionColorAcento)}"><div class="tenant-promo-banner-texto"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${botonPromocionHtml(config, "tenant-promo-banner-boton")}</div>${imagenHtml}</div>`;
+    return `<div class="tenant-promo-banner tenant-promo-banner--dividida" style="--promo-acento:${colorSeguro(promo.colorAcento)}"><div class="tenant-promo-banner-texto"><strong>${escaparHtml(promo.titulo)}</strong><span>${escaparHtml(promo.texto)}</span>${botonPromocionHtml(promo, "tenant-promo-banner-boton")}</div>${imagenHtml}</div>`;
 }
 
-function bannerPromocionMinimal(config) {
-    return `<div class="tenant-promo-banner tenant-promo-banner--minimal" style="--promo-acento:${colorSeguro(config.promocionColorAcento)}"><div class="tenant-promo-banner-texto"><strong>${escaparHtml(config.promocionTitulo)}</strong><span>${escaparHtml(config.promocionTexto)}</span>${botonPromocionHtml(config, "tenant-promo-banner-boton")}</div></div>`;
+function bannerPromocionMinimal(promo) {
+    return `<div class="tenant-promo-banner tenant-promo-banner--minimal" style="--promo-acento:${colorSeguro(promo.colorAcento)}"><div class="tenant-promo-banner-texto"><strong>${escaparHtml(promo.titulo)}</strong><span>${escaparHtml(promo.texto)}</span>${botonPromocionHtml(promo, "tenant-promo-banner-boton")}</div></div>`;
 }
 
 const PLANTILLAS_PROMOCION = {
@@ -350,12 +366,109 @@ const PLANTILLAS_PROMOCION = {
     minimal: bannerPromocionMinimal
 };
 
+function contenidoPromocionHtml(promo, slug) {
+    const constructor = PLANTILLAS_PROMOCION[promo.plantilla] || PLANTILLAS_PROMOCION.clasica;
+    return constructor(promo, slug);
+}
+
+const ANIMACIONES_PROMOCION_VALIDAS = new Set(["arriba", "abajo", "lado", "fundido"]);
+
+// Varias promociones (Fase "varias promociones y animaciones", ver
+// plan): con una sola, se pinta igual que siempre (sin envoltura de
+// carrusel, para no tocar el caso mas comun). Con dos o mas, se
+// superponen en capas absolutas dentro de una caja de alto fijo -- asi
+// el banner nunca cambia de tamano al rotar entre plantillas distintas
+// -- y un script chiquito (scriptCarruselPromociones) las anima sin
+// dejar nunca la pantalla en blanco: siempre hay al menos una capa
+// visible, casi siempre las dos a la vez durante el cambio.
 function bannerPromocionHtml(config, slug) {
-    if (!config.promocionActiva || !config.promocionTitulo || !config.promocionTexto) {
-        return "";
+    const promos = (config.promociones || []).filter(p => p.activa && p.titulo && p.texto);
+    if (!promos.length) return "";
+
+    if (promos.length === 1) {
+        return contenidoPromocionHtml(promos[0], slug);
     }
-    const constructor = PLANTILLAS_PROMOCION[config.promocionPlantilla] || PLANTILLAS_PROMOCION.clasica;
-    return constructor(config, slug);
+
+    const animacion = ANIMACIONES_PROMOCION_VALIDAS.has(config.promocionAnimacion) ? config.promocionAnimacion : "fundido";
+    const slidesHtml = promos.map((promo, indice) => `
+        <div class="tenant-promo-slide${indice === 0 ? " activa" : ""}" data-duracion="${(promo.duracionSegundos || 8) * 1000}">
+            ${contenidoPromocionHtml(promo, slug)}
+        </div>
+    `).join("");
+
+    return `<div class="tenant-promo-carrusel" data-animacion="${escaparHtml(animacion)}">${slidesHtml}</div><script>${scriptCarruselPromociones()}</script>`;
+}
+
+// Mismo mecanismo que la maqueta de disenio que aprobo el dueno: dos
+// capas superpuestas (la que sale y la que entra) que se mueven o
+// desvanecen juntas -- la suma de sus opacidades es siempre 1 en cada
+// instante de la transicion, por eso nunca hay un hueco en blanco.
+function scriptCarruselPromociones() {
+    return `
+(function(){
+    var carrusel = document.querySelector(".tenant-promo-carrusel[data-animacion]");
+    if (!carrusel) return;
+    var slides = Array.prototype.slice.call(carrusel.querySelectorAll(".tenant-promo-slide"));
+    if (slides.length < 2) return;
+    var animacion = carrusel.getAttribute("data-animacion") || "fundido";
+    var indice = 0;
+
+    function posicion(esSaliente, fase) {
+        if (animacion === "fundido") {
+            var antes = esSaliente ? "1" : "0";
+            var final = esSaliente ? "0" : "1";
+            return { transform: "translate(0,0)", opacity: fase === "antes" ? antes : final };
+        }
+        var eje = animacion === "lado" ? "X" : "Y";
+        var entra = animacion === "abajo" ? "-100%" : "100%";
+        var sale = animacion === "abajo" ? "100%" : "-100%";
+        if (esSaliente) {
+            return { transform: "translate" + eje + "(" + (fase === "antes" ? "0%" : sale) + ")", opacity: "1" };
+        }
+        return { transform: "translate" + eje + "(" + (fase === "antes" ? entra : "0%") + ")", opacity: "1" };
+    }
+
+    function aplicar(el, esSaliente, fase) {
+        var pos = posicion(esSaliente, fase);
+        el.style.transform = pos.transform;
+        el.style.opacity = pos.opacity;
+    }
+
+    function avanzar() {
+        var actual = slides[indice];
+        var siguienteIndice = (indice + 1) % slides.length;
+        var siguiente = slides[siguienteIndice];
+
+        siguiente.classList.add("activa");
+        aplicar(actual, true, "antes");
+        aplicar(siguiente, false, "antes");
+
+        void siguiente.offsetWidth;
+
+        requestAnimationFrame(function(){
+            aplicar(actual, true, "moviendo");
+            aplicar(siguiente, false, "moviendo");
+        });
+
+        setTimeout(function(){
+            actual.classList.remove("activa");
+            actual.style.transform = "";
+            actual.style.opacity = "";
+            siguiente.style.transform = "";
+            siguiente.style.opacity = "";
+            indice = siguienteIndice;
+            programar();
+        }, 480);
+    }
+
+    function programar() {
+        var duracion = parseInt(slides[indice].getAttribute("data-duracion"), 10) || 8000;
+        setTimeout(avanzar, duracion);
+    }
+
+    programar();
+})();
+`;
 }
 
 // Texto honesto de politica de envio segun lo que el dueno declaro en
@@ -509,6 +622,18 @@ function estilosPromoBanner(color) {
 .tenant-promo-banner--minimal{ justify-content:center; text-align:center; padding:22px clamp(20px,5vw,64px); }
 .tenant-promo-banner--minimal .tenant-promo-banner-texto{ flex-direction:column; justify-content:center; flex:none; }
 .tenant-promo-banner--minimal .tenant-promo-banner-boton{ margin-left:0; }
+
+/* Carrusel de varias promociones -- alto fijo para que el banner
+   nunca "salte" de tamano al rotar entre plantillas distintas; cada
+   slide es una capa absoluta, el script las mueve/desvanece. */
+.tenant-promo-carrusel{ position:relative; height:150px; overflow:hidden; }
+.tenant-promo-carrusel .tenant-promo-slide{ position:absolute; inset:0; opacity:0; transition:opacity .48s ease, transform .48s cubic-bezier(.22,.61,.36,1); }
+.tenant-promo-carrusel .tenant-promo-slide.activa{ opacity:1; }
+.tenant-promo-carrusel .tenant-promo-banner{ height:100%; min-height:0; box-sizing:border-box; }
+.tenant-promo-carrusel .tenant-promo-banner-img{ height:100%; }
+@media (min-width:640px){
+  .tenant-promo-carrusel{ height:180px; }
+}
 `;
 }
 
@@ -1018,9 +1143,8 @@ async function servirSitioNegocio(pool, req, res, slug, firmarTokenImagen) {
             instagram: sitio.config.instagram,
             aceptarSolicitudesCredito: sitio.config.aceptarSolicitudesCredito,
             promocionActiva: sitio.config.promocionActiva,
-            promocionTitulo: sitio.config.promocionTitulo,
-            promocionTexto: sitio.config.promocionTexto,
-            promocionEnlace: sitio.config.promocionEnlace,
+            promociones: sitio.config.promociones,
+            promocionAnimacion: sitio.config.promocionAnimacion,
             totalProductos: datos.totalProductos,
             categorias: datos.categorias,
             destacados: datos.destacados,
@@ -4580,7 +4704,7 @@ document.getElementById('btn').addEventListener('click', async function(){
             const acceso = await funcionDelPlan(negocio.id, CLAVE_FUNCION_SITIO_WEB);
 
             const resultado = await pool.query(
-                `SELECT activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, promocion_plantilla, promocion_color_acento, promocion_texto_boton, (promocion_imagen IS NOT NULL) AS promocion_tiene_imagen, envio_modo, envio_tarifa, envio_notas FROM public.sitio_web_config WHERE negocio_id = $1`,
+                `SELECT activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_animacion, envio_modo, envio_tarifa, envio_notas FROM public.sitio_web_config WHERE negocio_id = $1`,
                 [negocio.id]
             );
 
@@ -4588,10 +4712,18 @@ document.getElementById('btn').addEventListener('click', async function(){
                 activo: false, descripcion: "", portada: null,
                 horario_texto: "", whatsapp: "", facebook: "", instagram: "",
                 mostrar_precios: false, mostrar_existencias: false, aceptar_solicitudes_credito: false,
-                promocion_activa: false, promocion_titulo: "", promocion_texto: "", promocion_enlace: "", promocion_tiene_imagen: false,
-                promocion_plantilla: "clasica", promocion_color_acento: null, promocion_texto_boton: "",
+                promocion_animacion: "fundido",
                 envio_modo: "a_coordinar", envio_tarifa: null, envio_notas: ""
             };
+
+            const promos = await pool.query(
+                `SELECT id, titulo, texto, texto_boton, enlace, plantilla, color_acento,
+                        (imagen IS NOT NULL) AS tiene_imagen, imagen_actualizado_at, duracion_segundos, orden, activa
+                 FROM public.sitio_web_promociones
+                 WHERE negocio_id = $1
+                 ORDER BY orden ASC, id ASC`,
+                [negocio.id]
+            );
 
             res.json({
                 ok: true,
@@ -4612,14 +4744,21 @@ document.getElementById('btn').addEventListener('click', async function(){
                 mostrarPrecios: config.mostrar_precios,
                 mostrarExistencias: config.mostrar_existencias,
                 aceptarSolicitudesCredito: config.aceptar_solicitudes_credito,
-                promocionActiva: config.promocion_activa,
-                promocionTitulo: config.promocion_titulo,
-                promocionTexto: config.promocion_texto,
-                promocionEnlace: config.promocion_enlace,
-                promocionPlantilla: config.promocion_plantilla || "clasica",
-                promocionColorAcento: config.promocion_color_acento,
-                promocionTextoBoton: config.promocion_texto_boton || "",
-                promocionTieneImagen: config.promocion_tiene_imagen,
+                promocionAnimacion: config.promocion_animacion || "fundido",
+                promociones: promos.rows.map(p => ({
+                    id: p.id,
+                    titulo: p.titulo,
+                    texto: p.texto,
+                    textoBoton: p.texto_boton,
+                    enlace: p.enlace,
+                    plantilla: p.plantilla,
+                    colorAcento: p.color_acento,
+                    tieneImagen: p.tiene_imagen,
+                    imagenActualizadoAt: p.imagen_actualizado_at,
+                    duracionSegundos: p.duracion_segundos,
+                    orden: p.orden,
+                    activa: p.activa
+                })),
                 envioModo: config.envio_modo,
                 envioTarifa: config.envio_tarifa !== null ? Number(config.envio_tarifa) : null,
                 envioNotas: config.envio_notas
@@ -4658,15 +4797,8 @@ document.getElementById('btn').addEventListener('click', async function(){
             const nivelPrecio = COLUMNA_POR_NIVEL[nivelPedido] ? nivelPedido : "publico";
             const mostrarExistencias = Boolean(req.body?.mostrarExistencias);
             const aceptarSolicitudesCredito = Boolean(req.body?.aceptarSolicitudesCredito);
-            const promocionActiva = Boolean(req.body?.promocionActiva);
-            const promocionTitulo = String(req.body?.promocionTitulo || "").slice(0, 140);
-            const promocionTexto = String(req.body?.promocionTexto || "").slice(0, 500);
-            const promocionEnlace = String(req.body?.promocionEnlace || "").slice(0, 300);
-            const promocionTextoBoton = String(req.body?.promocionTextoBoton || "").slice(0, 40);
-            const plantillaBody = String(req.body?.promocionPlantilla || "");
-            const promocionPlantilla = Object.prototype.hasOwnProperty.call(PLANTILLAS_PROMOCION, plantillaBody) ? plantillaBody : "clasica";
-            const colorAcentoBody = String(req.body?.promocionColorAcento || "");
-            const promocionColorAcento = /^#[0-9a-fA-F]{6}$/.test(colorAcentoBody) ? colorAcentoBody : null;
+            const animacionBody = String(req.body?.promocionAnimacion || "");
+            const promocionAnimacion = ANIMACIONES_PROMOCION_VALIDAS.has(animacionBody) ? animacionBody : "fundido";
 
             // Politica de envio por tienda (Fase 1, sin pagos -- ver
             // plan): 3 modos honestos, nunca se inventa logistica que
@@ -4734,20 +4866,19 @@ document.getElementById('btn').addEventListener('click', async function(){
             await pool.query(
                 `
                 INSERT INTO public.sitio_web_config
-                    (negocio_id, activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, promocion_activa, promocion_titulo, promocion_texto, promocion_enlace, envio_modo, envio_tarifa, envio_notas, promocion_plantilla, promocion_color_acento, promocion_texto_boton, nivel_precio, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, NOW())
+                    (negocio_id, activo, descripcion, portada, horario_texto, whatsapp, facebook, instagram, mostrar_precios, mostrar_existencias, aceptar_solicitudes_credito, envio_modo, envio_tarifa, envio_notas, promocion_animacion, nivel_precio, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
                 ON CONFLICT (negocio_id) DO UPDATE SET
                     activo = $2, descripcion = $3,
                     portada = CASE WHEN $9 THEN $4 ELSE sitio_web_config.portada END,
                     horario_texto = $5, whatsapp = $6, facebook = $7, instagram = $8,
                     mostrar_precios = $10, mostrar_existencias = $11, aceptar_solicitudes_credito = $12,
-                    promocion_activa = $13, promocion_titulo = $14, promocion_texto = $15, promocion_enlace = $16,
-                    envio_modo = $17, envio_tarifa = $18, envio_notas = $19,
-                    promocion_plantilla = $20, promocion_color_acento = $21, promocion_texto_boton = $22,
-                    nivel_precio = $23,
+                    envio_modo = $13, envio_tarifa = $14, envio_notas = $15,
+                    promocion_animacion = $16,
+                    nivel_precio = $17,
                     updated_at = NOW()
                 `,
-                [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias, aceptarSolicitudesCredito, promocionActiva, promocionTitulo, promocionTexto, promocionEnlace, envioModo, envioTarifa, envioNotas, promocionPlantilla, promocionColorAcento, promocionTextoBoton, nivelPrecio]
+                [negocio.id, activo, descripcion, portada, horarioTexto, whatsapp, facebook, instagram, tocaPortada, mostrarPrecios, mostrarExistencias, aceptarSolicitudesCredito, envioModo, envioTarifa, envioNotas, promocionAnimacion, nivelPrecio]
             );
 
             res.json({ ok: true, direccionUbicada });
@@ -4796,7 +4927,130 @@ document.getElementById('btn').addEventListener('click', async function(){
             .toBuffer();
     }
 
-    app.post("/negocio-actual/sitio-web/promocion-imagen", requerirAccesoNegocio, (req, res) => {
+    // Trae una fila de sitio_web_promociones YA verificando que sea de
+    // este negocio -- nunca confia en el :id de la URL solo, siempre
+    // filtra tambien por negocio_id (nadie puede editar/borrar/subir
+    // una imagen a la promocion de otro negocio con solo adivinar un id).
+    async function promocionDelNegocio(negocioId, promocionId) {
+        const fila = await pool.query(
+            `SELECT id FROM public.sitio_web_promociones WHERE id = $1 AND negocio_id = $2`,
+            [promocionId, negocioId]
+        );
+        return fila.rows[0] || null;
+    }
+
+    function camposPromocionDesdeBody(body) {
+        const plantillaBody = String(body?.plantilla || "");
+        const colorBody = String(body?.colorAcento || "");
+        const duracionBody = Number(body?.duracionSegundos);
+        return {
+            titulo: String(body?.titulo || "").slice(0, 140),
+            texto: String(body?.texto || "").slice(0, 500),
+            textoBoton: String(body?.textoBoton || "").slice(0, 40),
+            enlace: String(body?.enlace || "").slice(0, 300),
+            plantilla: Object.prototype.hasOwnProperty.call(PLANTILLAS_PROMOCION, plantillaBody) ? plantillaBody : "clasica",
+            colorAcento: /^#[0-9a-fA-F]{6}$/.test(colorBody) ? colorBody : null,
+            duracionSegundos: Number.isFinite(duracionBody) ? Math.max(3, Math.min(60, Math.round(duracionBody))) : 8,
+            activa: body?.activa === undefined ? true : Boolean(body.activa)
+        };
+    }
+
+    app.post("/negocio-actual/sitio-web/promociones", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const acceso = await funcionDelPlan(negocio.id, CLAVE_FUNCION_SITIO_WEB);
+            if (!acceso.incluido) {
+                res.status(403).json({ ok: false, error: "El sitio web propio esta disponible desde el plan Plus.", requiereUpgrade: true });
+                return;
+            }
+
+            const campos = camposPromocionDesdeBody(req.body);
+            if (!campos.titulo || !campos.texto) {
+                res.status(400).json({ ok: false, error: "Escribe un titulo y un mensaje para la promocion" });
+                return;
+            }
+
+            const ordenRes = await pool.query(
+                `SELECT COALESCE(MAX(orden), -1) + 1 AS siguiente FROM public.sitio_web_promociones WHERE negocio_id = $1`,
+                [negocio.id]
+            );
+
+            const insertado = await pool.query(
+                `INSERT INTO public.sitio_web_promociones
+                    (negocio_id, titulo, texto, texto_boton, enlace, plantilla, color_acento, duracion_segundos, activa, orden)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                 RETURNING id`,
+                [negocio.id, campos.titulo, campos.texto, campos.textoBoton, campos.enlace, campos.plantilla, campos.colorAcento, campos.duracionSegundos, campos.activa, ordenRes.rows[0].siguiente]
+            );
+
+            res.status(201).json({ ok: true, id: insertado.rows[0].id });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
+    app.put("/negocio-actual/sitio-web/promociones/:id", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const promoId = parseInt(req.params.id, 10);
+            const existente = await promocionDelNegocio(negocio.id, promoId);
+            if (!existente) { res.status(404).json({ ok: false, error: "Promocion no encontrada" }); return; }
+
+            const campos = camposPromocionDesdeBody(req.body);
+            if (!campos.titulo || !campos.texto) {
+                res.status(400).json({ ok: false, error: "Escribe un titulo y un mensaje para la promocion" });
+                return;
+            }
+
+            await pool.query(
+                `UPDATE public.sitio_web_promociones
+                 SET titulo = $1, texto = $2, texto_boton = $3, enlace = $4, plantilla = $5,
+                     color_acento = $6, duracion_segundos = $7, activa = $8, updated_at = NOW()
+                 WHERE id = $9`,
+                [campos.titulo, campos.texto, campos.textoBoton, campos.enlace, campos.plantilla, campos.colorAcento, campos.duracionSegundos, campos.activa, promoId]
+            );
+
+            res.json({ ok: true });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
+    app.delete("/negocio-actual/sitio-web/promociones/:id", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const promoId = parseInt(req.params.id, 10);
+            const existente = await promocionDelNegocio(negocio.id, promoId);
+            if (!existente) { res.status(404).json({ ok: false, error: "Promocion no encontrada" }); return; }
+
+            await pool.query(`DELETE FROM public.sitio_web_promociones WHERE id = $1`, [promoId]);
+            res.json({ ok: true });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
+    // Reordenar arrastrando en la lista del editor: el body trae los ids
+    // en el orden final, se guarda su posicion (indice) tal cual.
+    app.put("/negocio-actual/sitio-web/promociones-orden", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req, pool);
+            const ids = Array.isArray(req.body?.orden) ? req.body.orden.map(id => parseInt(id, 10)).filter(Number.isInteger) : [];
+
+            for (let indice = 0; indice < ids.length; indice++) {
+                await pool.query(
+                    `UPDATE public.sitio_web_promociones SET orden = $1 WHERE id = $2 AND negocio_id = $3`,
+                    [indice, ids[indice], negocio.id]
+                );
+            }
+
+            res.json({ ok: true });
+        } catch (error) {
+            res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
+        }
+    });
+
+    app.post("/negocio-actual/sitio-web/promociones/:id/imagen", requerirAccesoNegocio, (req, res) => {
         uploadPromocionImagen.single("imagen")(req, res, async error => {
             if (error) {
                 res.status(400).json({
@@ -4811,20 +5065,21 @@ document.getElementById('btn').addEventListener('click', async function(){
             try {
                 if (!req.file) { res.status(400).json({ ok: false, error: "No se recibio ninguna imagen" }); return; }
 
+                const negocio = await negocioActual(req, pool);
+                const promoId = parseInt(req.params.id, 10);
+                const existente = await promocionDelNegocio(negocio.id, promoId);
+                if (!existente) { res.status(404).json({ ok: false, error: "Promocion no encontrada" }); return; }
+
                 let recorte = null;
                 if (req.body?.recorte) {
                     try { recorte = JSON.parse(req.body.recorte); } catch { recorte = null; }
                 }
 
-                const negocio = await negocioActual(req, pool);
                 const imagen = await procesarImagenPromocion(req.file.buffer, recorte);
 
                 await pool.query(
-                    `INSERT INTO public.sitio_web_config (negocio_id, promocion_imagen, promocion_imagen_actualizado_at, updated_at)
-                     VALUES ($1, $2, NOW(), NOW())
-                     ON CONFLICT (negocio_id) DO UPDATE SET
-                        promocion_imagen = $2, promocion_imagen_actualizado_at = NOW(), updated_at = NOW()`,
-                    [negocio.id, imagen]
+                    `UPDATE public.sitio_web_promociones SET imagen = $1, imagen_actualizado_at = NOW(), updated_at = NOW() WHERE id = $2`,
+                    [imagen, promoId]
                 );
 
                 res.json({ ok: true });
@@ -4834,40 +5089,47 @@ document.getElementById('btn').addEventListener('click', async function(){
         });
     });
 
-    // Vista previa en vivo del editor de Promociones (Fase "rediseno
-    // Sitio web", ver plan): recibe los campos EN BORRADOR (todavia sin
-    // guardar) y devuelve el HTML real de la plantilla elegida, usando
-    // el mismo dispatcher/plantillas que renderiza el sitio publico --
-    // nunca una maqueta aparte que se pueda desincronizar. La imagen no
-    // viaja en el borrador (ya se sube aparte via
-    // /promocion-imagen y queda guardada de inmediato) -- se lee la que
-    // ya este guardada para que la vista previa la incluya.
+    // Vista previa en vivo del editor de Promociones: recibe los campos
+    // EN BORRADOR (todavia sin guardar) de UNA promocion y devuelve el
+    // HTML real de la plantilla elegida, usando el mismo dispatcher que
+    // renderiza el sitio publico -- nunca una maqueta aparte que se
+    // pueda desincronizar. Si la promocion ya existe (tiene id), se lee
+    // su imagen ya guardada para que la vista previa la incluya.
     app.post("/negocio-actual/sitio-web/promocion-preview", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req, pool);
+            const promoIdBody = parseInt(req.body?.id, 10);
 
-            const resultado = await pool.query(
-                `SELECT (promocion_imagen IS NOT NULL) AS promocion_tiene_imagen, promocion_imagen_actualizado_at FROM public.sitio_web_config WHERE negocio_id = $1`,
-                [negocio.id]
-            );
-            const fila = resultado.rows[0] || { promocion_tiene_imagen: false, promocion_imagen_actualizado_at: null };
+            let tieneImagen = false;
+            let imagenActualizadoAt = null;
+            let idParaImagen = 0;
 
-            const plantillaBody = String(req.body?.promocionPlantilla || "");
-            const colorBody = String(req.body?.promocionColorAcento || "");
+            if (Number.isInteger(promoIdBody)) {
+                const existente = await pool.query(
+                    `SELECT id, (imagen IS NOT NULL) AS tiene_imagen, imagen_actualizado_at FROM public.sitio_web_promociones WHERE id = $1 AND negocio_id = $2`,
+                    [promoIdBody, negocio.id]
+                );
+                if (existente.rows[0]) {
+                    tieneImagen = existente.rows[0].tiene_imagen;
+                    imagenActualizadoAt = existente.rows[0].imagen_actualizado_at;
+                    idParaImagen = existente.rows[0].id;
+                }
+            }
 
-            const config = {
-                promocionActiva: true,
-                promocionTitulo: String(req.body?.promocionTitulo || "").slice(0, 140),
-                promocionTexto: String(req.body?.promocionTexto || "").slice(0, 500),
-                promocionEnlace: String(req.body?.promocionEnlace || "").slice(0, 300),
-                promocionTextoBoton: String(req.body?.promocionTextoBoton || "").slice(0, 40),
-                promocionPlantilla: Object.prototype.hasOwnProperty.call(PLANTILLAS_PROMOCION, plantillaBody) ? plantillaBody : "clasica",
-                promocionColorAcento: /^#[0-9a-fA-F]{6}$/.test(colorBody) ? colorBody : null,
-                promocionTieneImagen: fila.promocion_tiene_imagen,
-                promocionImagenActualizadoAt: fila.promocion_imagen_actualizado_at
+            const campos = camposPromocionDesdeBody(req.body);
+            const promo = {
+                id: idParaImagen,
+                titulo: campos.titulo,
+                texto: campos.texto,
+                textoBoton: campos.textoBoton,
+                enlace: campos.enlace,
+                plantilla: campos.plantilla,
+                colorAcento: campos.colorAcento,
+                tieneImagen,
+                imagenActualizadoAt
             };
 
-            res.json({ ok: true, html: bannerPromocionHtml(config, negocio.slug) });
+            res.json({ ok: true, html: contenidoPromocionHtml(promo, negocio.slug) });
         } catch (error) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
         }
@@ -4876,24 +5138,27 @@ document.getElementById('btn').addEventListener('click', async function(){
     // Publica, sin token -- mismo criterio que los banners de Nexo
     // Market (banners-market-server.js): es contenido de marketing que
     // el propio negocio decidio hacer publico al activar su promocion.
-    app.get("/sitio-web-promocion-imagen", async (req, res) => {
+    // Se valida que la promocion sea de verdad de ese negocio (por
+    // slug) antes de servir la imagen -- nunca solo el id de la URL.
+    app.get("/sitio-web-promocion-imagen/:id", async (req, res) => {
         try {
             const slug = String(req.query.negocio || "").trim();
-            if (!slug) { res.status(404).end(); return; }
+            const promoId = parseInt(req.params.id, 10);
+            if (!slug || !Number.isInteger(promoId)) { res.status(404).end(); return; }
 
             const resultado = await pool.query(
-                `SELECT c.promocion_imagen
-                 FROM public.sitio_web_config c
-                 JOIN public.negocios n ON n.id = c.negocio_id
-                 WHERE n.slug = $1`,
-                [slug]
+                `SELECT p.imagen
+                 FROM public.sitio_web_promociones p
+                 JOIN public.negocios n ON n.id = p.negocio_id
+                 WHERE p.id = $1 AND n.slug = $2`,
+                [promoId, slug]
             );
 
             const fila = resultado.rows[0];
-            if (!fila || !fila.promocion_imagen) { res.status(404).end(); return; }
+            if (!fila || !fila.imagen) { res.status(404).end(); return; }
 
             res.set("Content-Type", "image/jpeg");
-            res.send(fila.promocion_imagen);
+            res.send(fila.imagen);
         } catch (error) {
             res.status(500).end();
         }
