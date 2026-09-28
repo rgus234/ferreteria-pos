@@ -1836,9 +1836,27 @@ async function elegirProductoDeCatalogo(producto) {
 // funcion que usa el autocompletado dentro de Agregar producto) para
 // no mantener dos copias de la misma logica; lo unico distinto en
 // este flujo es que ya sabemos que se esta agregando 1 pieza.
-async function llenarFormularioConProductoCatalogo(producto) {
+//
+// Bug real (dueño de Olimpico, agregando productos desde una venta): el
+// producto se autocompletaba bien (nombre, precios, marca...) pero el
+// codigo de barras se quedaba vacio y habia que volver a escanearlo.
+// Causa: abrirFormularioAgregarProductoNuevo() abre el formulario en
+// blanco (nuevoCodigo incluido), y aplicarProductoCatalogoAlFormulario
+// con origen="barras" NUNCA llena nuevoCodigo -- asume que ese campo ya
+// trae el valor porque en el otro caso que usa origen="barras"
+// (escanear directo dentro del formulario ya abierto) es cierto. Aqui
+// no lo es: el escaneo vino de la busqueda de venta del POS, un campo
+// distinto. Se recibe el codigo que de verdad se escaneo y se copia
+// aqui, en vez de confiar en producto.codigoBarras (puede venir vacio,
+// ej. catalogos como Gafi que solo traen clave interna).
+async function llenarFormularioConProductoCatalogo(producto, codigoEscaneado) {
  mostrarInventario();
  abrirFormularioAgregarProductoNuevo();
+
+ if (codigoEscaneado) {
+ document.getElementById("nuevoCodigo").value = codigoEscaneado;
+ marcarCampoAutocompletado("nuevoCodigo", true);
+ }
 
  await aplicarProductoCatalogoAlFormulario(producto, "barras");
 

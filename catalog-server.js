@@ -246,10 +246,32 @@ async function vincularCatalogoProductos(pool, negocioId, catalogoId) {
         [catalogoId, negocioId]
     );
 
-    // Bulk update en lotes -- con catalogos de miles de filas, un
-    // UPDATE por fila (miles de round-trips secuenciales) es lo que
-    // hacia que subir un catalogo grande se sintiera colgado.
-    const actualizaciones = candidatos.rows.map(fila => {
+    // Bug real (ver plan "un producto vinculado a decenas de filas del
+    // catalogo"): nombres de proveedor muy parecidos entre si (ej.
+    // "Bolsa con 50 tornillos 3/8' x 2-1/4' tipo coche, FIERO" vs otras
+    // 200+ variantes de tornillos con el mismo patron de texto) pasaban
+    // el umbral de similitud contra el MISMO producto real una y otra
+    // vez -- nada impedia que 2, 20 o 200 filas del catalogo quedaran
+    // "vinculadas" al mismo producto_id, cada una con su propio precio
+    // de referencia. Con eso, "Actualizar precios" no tiene forma de
+    // saber cual de esas filas es la de verdad -- el precio que termina
+    // en productos.precio es el ultimo que se proceso, no el correcto.
+    // Auditoria real (Ferreteria Olimpico, negocio_id 1): 476 productos
+    // con mas de una fila de catalogo apuntandoles, uno con 222 filas.
+    //
+    // Fix: un producto_id solo puede quedar "vinculado" a UNA fila de
+    // catalogo por corrida -- si el codigo exacto (Paso 1) ya lo tomo,
+    // ningun match de nombre (Paso 2) se lo puede quitar; entre varios
+    // candidatos de nombre para el mismo producto, solo gana el de
+    // mayor similitud, el resto se marca sin_vincular (NUNCA se
+    // inventa un producto distinto para ellos).
+    const yaVinculadosPorCodigo = await pool.query(
+        `SELECT DISTINCT producto_id FROM public.catalogo_productos WHERE catalogo_id = $1 AND negocio_id = $2 AND producto_id IS NOT NULL AND vinculado_manualmente = false`,
+        [catalogoId, negocioId]
+    );
+    const productosYaTomados = new Set(yaVinculadosPorCodigo.rows.map(fila => fila.producto_id));
+
+    const candidatosCrudos = candidatos.rows.map(fila => {
         const similitud = Number(fila.similitud);
         let estado = "sin_vincular";
         let productoId = null;
@@ -266,6 +288,25 @@ async function vincularCatalogoProductos(pool, negocioId, catalogoId) {
         }
 
         return { id: fila.catalogo_producto_id, productoId, estado, porcentaje };
+    });
+
+    const mejorCandidatoPorProducto = new Map();
+    for (const candidato of candidatosCrudos) {
+        if (!candidato.productoId || productosYaTomados.has(candidato.productoId)) continue;
+        const actual = mejorCandidatoPorProducto.get(candidato.productoId);
+        if (!actual || candidato.porcentaje > actual.porcentaje) mejorCandidatoPorProducto.set(candidato.productoId, candidato);
+    }
+
+    // Bulk update en lotes -- con catalogos de miles de filas, un
+    // UPDATE por fila (miles de round-trips secuenciales) es lo que
+    // hacia que subir un catalogo grande se sintiera colgado.
+    const actualizaciones = candidatosCrudos.map(candidato => {
+        if (!candidato.productoId) return candidato;
+        const yaGanoOtraFila = productosYaTomados.has(candidato.productoId)
+            || mejorCandidatoPorProducto.get(candidato.productoId)?.id !== candidato.id;
+        return yaGanoOtraFila
+            ? { id: candidato.id, productoId: null, estado: "sin_vincular", porcentaje: null }
+            : candidato;
     });
 
     const TAMANO_LOTE_VINCULACION = 500;

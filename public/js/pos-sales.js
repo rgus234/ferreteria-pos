@@ -188,7 +188,8 @@ async function procesarCodigoBarrasPos(codigoManual) {
 
  if (productoCatalogo) {
  llenarFormularioConProductoCatalogo(
- productoCatalogo
+ productoCatalogo,
+ codigo
  );
 
  alert(
