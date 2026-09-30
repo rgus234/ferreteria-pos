@@ -549,6 +549,22 @@ body.oscuro .cuenta-sesion-fila span {
   color: #94a3b8 !important;
 }
 
+.cuenta-centro-seguridad-alerta {
+  margin: 12px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(220, 38, 38, .1);
+  border: 1px solid rgba(220, 38, 38, .3);
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+body.oscuro .cuenta-centro-seguridad-alerta {
+  background: rgba(220, 38, 38, .18) !important;
+  color: #fca5a5 !important;
+}
+
 body.oscuro .cuenta-tabs {
   background: rgba(15, 23, 42, .55) !important;
   border-color: rgba(148, 163, 184, .2) !important;

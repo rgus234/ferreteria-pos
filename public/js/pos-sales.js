@@ -396,6 +396,19 @@ function agregar(
  precioPiezaPublico: Number(producto.precio_pieza_publico || 0),
  precioPiezaMayoreo: Number(producto.precio_pieza_mayoreo || 0),
  precioPiezaDistribuidor: Number(producto.precio_pieza_distribuidor || 0),
+ // Costo real (Fase "Finanzas avanzadas real", ver plan) -- vive por
+ // BOLSA en el producto. Si esta linea se vende suelta (modoVenta
+ // "pieza"), hay que dividir entre las piezas que trae la bolsa antes
+ // de guardarlo: guardar el costo de bolsa completa en una venta de 1
+ // pieza suelta daria un margen absurdamente negativo. costoConocido
+ // distingue "no se sabe el costo" de "cuesta $0 de verdad" -- nunca
+ // se trata un producto sin costo capturado como si fuera gratis.
+ costo: producto.costo != null && Number(producto.costo) > 0
+ ? (modoVenta === "pieza" && Number(producto.piezas_por_bolsa) > 0
+ ? Number(producto.costo) / Number(producto.piezas_por_bolsa)
+ : Number(producto.costo))
+ : 0,
+ costoConocido: producto.costo != null && Number(producto.costo) > 0,
  imagenUrl: producto.imagenUrl || null
  });
 
@@ -441,6 +454,11 @@ function agregarArticuloRapido(nombre, precio, cantidad) {
  precioPublico: Number(precio || 0),
  precioMayoreo: 0,
  precioDistribuidor: 0,
+ // Sin producto real detras, nunca hay costo que conocer -- costoConocido
+ // false para que el calculo de margen real lo excluya en vez de
+ // tratarlo como si costara $0 de verdad.
+ costo: 0,
+ costoConocido: false,
  imagenUrl: null,
  articuloRapido: true
  });
@@ -1563,7 +1581,7 @@ function productosCarritoAgrupados() {
  const precio =
  Number(producto.precio || 0);
 
- return {
+ const base = {
  id: producto.id,
  codigo: producto.codigo || "",
  nombre: producto.nombre,
@@ -1573,6 +1591,17 @@ function productosCarritoAgrupados() {
  modoVenta: producto.modoVenta || "bolsa",
  importe: cantidad * precio
  };
+
+ // costo solo se incluye cuando de verdad se conoce (Fase "Finanzas
+ // avanzadas real", ver plan) -- el calculo de margen en el servidor
+ // distingue por la PRESENCIA de esta llave (item ? 'costo'), nunca
+ // por su valor, asi que una linea sin costo conocido debe quedar
+ // totalmente sin la llave, no con costo:0.
+ if (producto.costoConocido) {
+ base.costo = Number(producto.costo || 0);
+ }
+
+ return base;
  });
 }
 

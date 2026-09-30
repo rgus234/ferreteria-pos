@@ -134,6 +134,14 @@ body.oscuro .finanzas-tendencia.negativa{ color:#fca5a5; }
 .finanzas-leyenda-linea span{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--pos-muted,#687386); }
 .finanzas-leyenda-linea i{ width:8px; height:8px; border-radius:999px; display:inline-block; }
 
+.finanzas-margen-desglose{ display:grid; gap:6px; margin-top:6px; }
+.finanzas-margen-desglose > div{ display:flex; justify-content:space-between; align-items:baseline; padding:6px 0; border-bottom:1px dashed var(--pos-line,#dbe3ef); font-size:13px; }
+.finanzas-margen-desglose > div span{ color:var(--pos-muted,#687386); font-weight:600; }
+.finanzas-margen-desglose > div strong{ font-weight:800; }
+.finanzas-margen-total{ border-bottom:none !important; border-top:2px solid var(--pos-line,#dbe3ef); margin-top:2px; padding-top:10px !important; }
+.finanzas-margen-total strong{ font-size:16px; color:#047857; }
+body.oscuro .finanzas-margen-total strong{ color:#6ee7b7; }
+
 .finanzas-donut-wrap{ position:relative; height:150px; margin-bottom:10px; }
 .finanzas-donut-wrap canvas{ height:150px !important; }
 .finanzas-categoria-leyenda{ display:grid; gap:8px; }

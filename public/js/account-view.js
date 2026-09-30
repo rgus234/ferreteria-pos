@@ -13,6 +13,11 @@
    solo alterna visibilidad -- sin refetch. */
 
 let dispositivosCuentaCache = [];
+// Centro de seguridad (ver plan) reusa estos dos en vez de volver a
+// pedir /cuenta/sesiones y /cuenta/dispositivos -- evita una llamada de
+// red de mas y que las dos pestanas puedan mostrar numeros distintos.
+let sesionesCuentaCache = [];
+let ultimoAccesoCuentaCache = null;
 
 function cuentaSesionToken() {
  return localStorage.getItem(CUENTA_SESION_TOKEN_KEY);
@@ -178,6 +183,7 @@ function renderCuentaPOS(negocio, licencia) {
    <button type="button" data-cuenta-tab="suscripcion" onclick="cambiarTabCuentaPOS('suscripcion')">Suscripcion</button>
    <button type="button" data-cuenta-tab="seguridad" onclick="cambiarTabCuentaPOS('seguridad')">Seguridad</button>
    <button type="button" data-cuenta-tab="dispositivos" onclick="cambiarTabCuentaPOS('dispositivos')">Dispositivos</button>
+   <button type="button" data-cuenta-tab="centro-seguridad" onclick="cambiarTabCuentaPOS('centro-seguridad')">Centro de seguridad</button>
   </div>
 
   <div class="cuenta-tab-panel activo" data-cuenta-panel="resumen">
@@ -279,6 +285,20 @@ function renderCuentaPOS(negocio, licencia) {
    </section>
   </div>
 
+  <div class="cuenta-tab-panel" data-cuenta-panel="centro-seguridad">
+   <section class="config-panel cuenta-tarjeta cuenta-tarjeta-ancha" id="cuentaCentroSeguridadPanel">
+    ${
+     tieneSesionCuenta
+     ? `<h3>Centro de seguridad</h3><p class="cuenta-subtitulo" style="margin:0 0 14px;">Cargando...</p>`
+     : `
+     <h3>Centro de seguridad</h3>
+     <p class="cuenta-subtitulo" style="margin:0 0 14px;">Inicia sesion con el correo y la contrasena de tu cuenta para ver el Centro de seguridad.</p>
+     <button type="button" class="btn-principal" onclick="abrirBuscarNegocioSetup()">Iniciar sesion</button>
+     `
+    }
+   </section>
+  </div>
+
   <div class="cuenta-banners">
    <div class="cuenta-banner cuenta-banner-protegida">
     <strong>Tu cuenta esta protegida</strong>
@@ -294,7 +314,11 @@ function renderCuentaPOS(negocio, licencia) {
  `;
 
  if (tieneSesionCuenta) {
-  cargarSeguridadCuenta();
+  // Encadenado (no en paralelo): Centro de seguridad reusa
+  // sesionesCuentaCache/dispositivosCuentaCache/ultimoAccesoCuentaCache
+  // que llena cargarSeguridadCuenta() -- en paralelo leeria los arrays
+  // todavia vacios.
+  cargarSeguridadCuenta().then(() => cargarCentroSeguridadCuenta());
  }
 
  cargarComparativaPlanes(licencia);
@@ -630,6 +654,8 @@ async function cargarSeguridadCuenta() {
   `).join("") || `<p class="cuenta-subtitulo" style="margin:0;">No hay equipos vinculados a este negocio.</p>`;
 
   dispositivosCuentaCache = dispositivosDatos.ok ? dispositivosDatos.dispositivos : [];
+  sesionesCuentaCache = sesionesDatos.sesiones || [];
+  ultimoAccesoCuentaCache = ultimoAccesoDatos.ok ? ultimoAccesoDatos.ultimoAcceso : null;
 
   panelDispositivos.innerHTML = `
    <h3>Dispositivos con sesion iniciada</h3>
@@ -649,6 +675,118 @@ async function cargarSeguridadCuenta() {
   panelDispositivos.innerHTML = `
    <h3>Dispositivos</h3>
    <p class="cuenta-subtitulo" style="margin:0;">No se pudo cargar la seguridad de tu cuenta. Intenta de nuevo.</p>
+  `;
+ }
+}
+
+// Etiquetas legibles de bitacora_acciones -- las 8 acciones que hoy se
+// registran (server.js, registrarBitacora). Una accion nueva que no
+// este en este mapa sigue mostrandose (con su clave cruda) en vez de
+// desaparecer de la lista.
+const ETIQUETAS_BITACORA_POS = {
+ descuento_autorizado: "Descuento grande autorizado",
+ limite_credito_autorizado: "Limite de credito excedido, autorizado",
+ compra_credito_editada: "Compra a credito editada",
+ turno_vencido_autorizado: "Turno vencido, venta autorizada",
+ categoria_renombrada: "Categoria renombrada",
+ producto_eliminado: "Producto eliminado",
+ venta_cancelada: "Venta cancelada",
+ nota_venta_ajustada: "Nota de venta ajustada"
+};
+
+function detalleBitacoraTextoPOS(detalle) {
+ if (!detalle || typeof detalle !== "object") return "";
+ const partes = [];
+ if (detalle.folio) partes.push(`Folio ${detalle.folio}`);
+ if (detalle.monto != null) partes.push(dinero(detalle.monto));
+ if (detalle.motivo) partes.push(detalle.motivo);
+ return partes.join(" -- ");
+}
+
+// Centro de seguridad (Fase "Finanzas avanzadas real" + Centro de
+// seguridad, ver plan): junta bitacora de acciones e intentos de
+// acceso (ninguno de los dos tenia pantalla hasta ahora) con un
+// resumen de Sesiones/Dispositivos que YA es gratis (reusado desde
+// cargarSeguridadCuenta, nunca vuelto a pedir).
+async function cargarCentroSeguridadCuenta() {
+ const panel =
+ document.getElementById("cuentaCentroSeguridadPanel");
+
+ if (!panel) return;
+
+ try {
+  const estadoDatos = await cuentaFetchAutenticado("/cuenta/centro-seguridad/estado");
+
+  if (!estadoDatos.ok) throw new Error(estadoDatos.error || "No se pudo checar tu plan");
+
+  if (!estadoDatos.disponibleEnPlan) {
+   panel.innerHTML = `
+    <div class="facturacion-hero">
+     <div class="facturacion-checklist-item">
+      ${iconoUISVG("shield")}
+      <div><strong>Centro de seguridad</strong><span>Bitacora de acciones delicadas (descuentos autorizados, ventas canceladas, limites de credito...), intentos de acceso a tu cuenta, y un resumen de tus sesiones y dispositivos, todo en un solo lugar.</span></div>
+     </div>
+     <span class="facturacion-upsell-badge">${iconoUISVG("zap")} Plan Pro</span>
+     <p class="facturacion-hero-sub" style="font-size:13px;">Esta funcion no esta incluida en tu plan actual.</p>
+     <button type="button" class="facturacion-hero-cta" onclick="cambiarTabCuentaPOS('suscripcion')">Ver planes</button>
+    </div>
+   `;
+   return;
+  }
+
+  const [bitacoraDatos, intentosDatos] = await Promise.all([
+   cuentaFetchAutenticado("/cuenta/bitacora"),
+   cuentaFetchAutenticado("/cuenta/intentos-acceso")
+  ]);
+
+  const bitacoraHtml =
+  (bitacoraDatos.ok ? bitacoraDatos.acciones : []).map(item => `
+   <div class="cuenta-sesion-fila">
+    <div>
+     <strong>${escaparPOS(ETIQUETAS_BITACORA_POS[item.accion] || item.accion)}</strong>
+     <span>${item.empleadoNombre ? escaparPOS(item.empleadoNombre) + " -- " : ""}${new Date(item.creadoAt).toLocaleString("es-MX")}${detalleBitacoraTextoPOS(item.detalle) ? " -- " + escaparPOS(detalleBitacoraTextoPOS(item.detalle)) : ""}</span>
+    </div>
+   </div>
+  `).join("") || `<p class="cuenta-subtitulo" style="margin:0;">Sin acciones registradas todavia.</p>`;
+
+  const intentosHtml =
+  (intentosDatos.ok ? intentosDatos.intentos : []).map(item => `
+   <div class="cuenta-sesion-fila">
+    <div>
+     <strong>${item.exito ? "Acceso exitoso" : "Intento fallido"}</strong>
+     <span>${escaparPOS(item.ip || "")} -- ${new Date(item.creadoAt).toLocaleString("es-MX")}</span>
+    </div>
+   </div>
+  `).join("") || `<p class="cuenta-subtitulo" style="margin:0;">Sin intentos de acceso registrados todavia.</p>`;
+
+  const alertaHtml =
+  intentosDatos.ok && intentosDatos.alertaIntentosFallidos
+  ? `<div class="cuenta-centro-seguridad-alerta">3 o mas intentos de acceso fallidos en las ultimas 24 horas. Si no fuiste tu, cambia tu contrasena.</div>`
+  : "";
+
+  panel.innerHTML = `
+   <h3>Centro de seguridad</h3>
+   <p class="cuenta-subtitulo" style="margin:0 0 14px;">Bitacora de acciones delicadas e intentos de acceso a tu cuenta. La alerta de abajo es una sola regla simple (3+ fallos en 24h) -- no deteccion automatica sofisticada.</p>
+
+   <div class="cuenta-datos-grid">
+    <div><span>Sesiones activas</span><strong>${sesionesCuentaCache.length}</strong></div>
+    <div><span>Equipos vinculados</span><strong>${dispositivosCuentaCache.length}</strong></div>
+    <div><span>Ultimo acceso</span><strong>${ultimoAccesoCuentaCache ? new Date(ultimoAccesoCuentaCache.fecha).toLocaleString("es-MX") : "-"}</strong></div>
+   </div>
+   <button type="button" class="cuenta-link-boton" onclick="cambiarTabCuentaPOS('dispositivos')">Ver sesiones y dispositivos</button>
+
+   ${alertaHtml}
+
+   <h4 class="cuenta-subseccion-titulo">Intentos de acceso recientes</h4>
+   <div class="cuenta-sesiones-lista">${intentosHtml}</div>
+
+   <h4 class="cuenta-subseccion-titulo">Bitacora de acciones</h4>
+   <div class="cuenta-sesiones-lista">${bitacoraHtml}</div>
+  `;
+ } catch (error) {
+  panel.innerHTML = `
+   <h3>Centro de seguridad</h3>
+   <p class="cuenta-subtitulo" style="margin:0;">No se pudo cargar el Centro de seguridad. Intenta de nuevo.</p>
   `;
  }
 }

@@ -2843,6 +2843,12 @@ function agregarAlCarritoVenderDueno(id) {
             cantidad: 1,
             unidadVenta: producto.unidadVenta || "pieza",
             modoVenta: "bolsa",
+            // Costo real (Fase "Finanzas avanzadas real", ver plan) --
+            // aqui siempre modoVenta es "bolsa" (Vender en /dueno no
+            // vende pieza suelta), asi que no hace falta dividir entre
+            // piezas_por_bolsa como en el POS de escritorio.
+            costo: producto.costo != null && Number(producto.costo) > 0 ? Number(producto.costo) : 0,
+            costoConocido: producto.costo != null && Number(producto.costo) > 0,
             imagenUrl: producto.imagenUrl || null
         });
     }
@@ -3061,7 +3067,10 @@ function confirmarArticuloRapidoDueno() {
         precio,
         cantidad,
         unidadVenta: "pieza",
-        modoVenta: "bolsa"
+        modoVenta: "bolsa",
+        // Sin producto real detras, nunca hay costo que conocer.
+        costo: 0,
+        costoConocido: false
     });
 
     renderCarritoVenderDueno();
@@ -3739,7 +3748,11 @@ async function confirmarCobroVenderDueno() {
             cantidad: item.cantidad,
             unidadVenta: item.unidadVenta,
             modoVenta: item.modoVenta,
-            importe: item.precio * item.cantidad
+            importe: item.precio * item.cantidad,
+            // costo solo si de verdad se conoce (Fase "Finanzas avanzadas
+            // real", ver plan) -- el servidor distingue por la PRESENCIA
+            // de esta llave, nunca por su valor.
+            ...(item.costoConocido ? { costo: Number(item.costo || 0) } : {})
         })),
         metodoPago: duenoVentaMetodoPago,
         pagos,
@@ -3818,7 +3831,8 @@ async function confirmarCobroCreditoVenderDueno() {
             cantidad: item.cantidad,
             unidadVenta: item.unidadVenta,
             modoVenta: item.modoVenta,
-            importe: item.precio * item.cantidad
+            importe: item.precio * item.cantidad,
+            ...(item.costoConocido ? { costo: Number(item.costo || 0) } : {})
         }))
     };
 

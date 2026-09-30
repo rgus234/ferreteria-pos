@@ -93,6 +93,34 @@ async function crearClienteCreditoActivo(negocioId, overrides = {}) {
     return { ...cliente.rows[0], acuerdo_vigente_id: acuerdo.rows[0].id };
 }
 
+// funcionDelPlan (plan-enforcement.js) lee licencias.plan, NUNCA
+// negocios.plan -- crearNegocioPrueba no inserta ninguna fila en
+// licencias, asi que por default un negocio de prueba se trata como
+// "demo" (sin restriccion alguna). Para probar de verdad un candado de
+// plan Pro hay que sembrar una licencia real con plan='basico'/'plus'.
+async function establecerPlanPrueba(negocioId, plan) {
+    await pool.query(
+        `INSERT INTO public.licencias (negocio_id, plan) VALUES ($1, $2)
+         ON CONFLICT (negocio_id) DO UPDATE SET plan = EXCLUDED.plan`,
+        [negocioId, plan]
+    );
+}
+
+// /cuenta/* (server.js) usa una sesion de CUENTA (Bearer, tabla
+// sesiones_cuenta) -- un mecanismo de auth distinto al token de
+// dispositivo (x-dispositivo-token) que usa el resto de las pruebas.
+// Se siembra directo por SQL, mismo hash sha256 que hashTokenSeguro()
+// en server.js, para no depender de correo+password reales.
+async function crearSesionCuentaPrueba(negocioId) {
+    const token = `sesion-prueba-${crypto.randomBytes(16).toString("hex")}`;
+    await pool.query(
+        `INSERT INTO public.sesiones_cuenta (negocio_id, token_hash, dispositivo, ip)
+         VALUES ($1, $2, 'equipo-pruebas-automatizadas', '127.0.0.1')`,
+        [negocioId, hashToken(token)]
+    );
+    return token;
+}
+
 async function borrarNegocioPrueba(negocioId) {
     if (!negocioId) return;
 
@@ -161,5 +189,7 @@ module.exports = {
     crearNegocioPrueba,
     crearProductoPrueba,
     crearClienteCreditoActivo,
+    establecerPlanPrueba,
+    crearSesionCuentaPrueba,
     borrarNegocioPrueba
 };

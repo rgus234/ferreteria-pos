@@ -1,5 +1,16 @@
 const { DEFAULT_NEGOCIO_SLUG } = require("./tenant");
 const { responderError } = require("./error-utils");
+const { requerirFuncionPlan, funcionDelPlan } = require("./plan-enforcement");
+
+// Fase "Finanzas avanzadas real" (ver plan): esta pantalla existia
+// completa y gratis para cualquier plan desde hace semanas
+// (public/fase5.js) pese a que la pagina de precios la promete como
+// exclusiva de Pro -- la promesa era falsa, no por faltar construirla
+// sino por nunca haberla candado. CLAVE_FINANZAS_PRO es la misma clave
+// ya sembrada en catalogo_funciones (migrations/20260716_...), lista
+// para usarse.
+const CLAVE_FINANZAS_PRO = "finanzas.utilidad_neta";
+const MENSAJE_FINANZAS_PRO = "Finanzas avanzadas esta disponible desde el plan Pro.";
 
 module.exports = (app, pool, requerirAccesoNegocio) => {
     let listo = false;
@@ -193,7 +204,17 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         };
     }
 
-    app.get("/finanzas/resumen", requerirAccesoNegocio, async (req, res) => {
+    app.get("/finanzas/estado", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req);
+            const { incluido } = await funcionDelPlan(negocio.id, CLAVE_FINANZAS_PRO);
+            res.json({ ok: true, disponibleEnPlan: incluido });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    app.get("/finanzas/resumen", requerirAccesoNegocio, requerirFuncionPlan(CLAVE_FINANZAS_PRO, MENSAJE_FINANZAS_PRO), async (req, res) => {
         try {
             await asegurarFinanzas();
             const negocio = await negocioActual(req);
@@ -269,6 +290,28 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 WHERE saldo > 0
             `, [negocio.id]);
 
+            // Margen real (Fase "Finanzas avanzadas real", ver plan):
+            // utilidad_neta de arriba siempre fue ingresos menos gastos
+            // OPERATIVOS -- nunca resto el costo real de lo vendido, asi
+            // que no era "real" en el sentido que promete la pagina de
+            // precios. El costo por linea (item->>'costo') solo existe en
+            // ventas hechas DESPUES de que esta fase se activo (ver
+            // productosCarritoAgrupados en pos-sales.js/dueno.js) -- por
+            // eso se cuenta cuantas lineas de verdad traen costo
+            // (lineas_con_costo/lineas_totales) para que el cliente pueda
+            // avisar cuando el numero todavia no cubre todo el periodo,
+            // en vez de mostrar un margen silenciosamente incompleto.
+            const margenReal = await pool.query(`
+                SELECT
+                    COALESCE(SUM((item->>'costo')::numeric * (item->>'cantidad')::numeric)
+                             FILTER (WHERE item ? 'costo'), 0) AS costo_productos,
+                    COUNT(*) FILTER (WHERE item ? 'costo') AS lineas_con_costo,
+                    COUNT(*) AS lineas_totales
+                FROM public.historial_ventas hv, jsonb_array_elements(hv.productos) AS item
+                WHERE hv.negocio_id = $1
+                ${filtroFecha}
+            `, parametros);
+
             const ingresosMonto = Number(ingresos.rows[0].ingresos || 0);
             const gastosMonto = Number(gastos.rows[0].gastos_mes || 0);
             const utilidadNeta = ingresosMonto - gastosMonto;
@@ -276,8 +319,17 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             const ingresosAnteriorMonto = Number(ingresosAnterior.rows[0].ingresos || 0);
             const gastosAnteriorMonto = Number(gastosAnterior.rows[0].gastos || 0);
 
+            const costoProductosMonto = Number(margenReal.rows[0].costo_productos || 0);
+            const margenBruto = ingresosMonto - costoProductosMonto;
+            const lineasConCosto = Number(margenReal.rows[0].lineas_con_costo || 0);
+            const lineasTotales = Number(margenReal.rows[0].lineas_totales || 0);
+
             res.json({
                 ...cuentas.rows[0],
+                costo_productos: costoProductosMonto,
+                margen_bruto: margenBruto,
+                utilidad_neta_real: margenBruto - gastosMonto,
+                cobertura_costo: lineasTotales > 0 ? lineasConCosto / lineasTotales : 0,
                 ingresos: ingresosMonto,
                 gastos_mes: gastosMonto,
                 pagos_mes: pagos.rows[0].pagos_mes,
@@ -296,7 +348,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
-    app.get("/finanzas/resumen-por-dia", requerirAccesoNegocio, async (req, res) => {
+    app.get("/finanzas/resumen-por-dia", requerirAccesoNegocio, requerirFuncionPlan(CLAVE_FINANZAS_PRO, MENSAJE_FINANZAS_PRO), async (req, res) => {
         try {
             await asegurarFinanzas();
             const negocio = await negocioActual(req);
@@ -361,7 +413,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
-    app.get("/finanzas/cuentas-por-cobrar", requerirAccesoNegocio, async (req, res) => {
+    app.get("/finanzas/cuentas-por-cobrar", requerirAccesoNegocio, requerirFuncionPlan(CLAVE_FINANZAS_PRO, MENSAJE_FINANZAS_PRO), async (req, res) => {
         try {
             const negocio = await negocioActual(req);
 
@@ -389,7 +441,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
-    app.get("/cuentas-pagar", requerirAccesoNegocio, async (req, res) => {
+    app.get("/cuentas-pagar", requerirAccesoNegocio, requerirFuncionPlan(CLAVE_FINANZAS_PRO, MENSAJE_FINANZAS_PRO), async (req, res) => {
         try {
             await asegurarFinanzas();
             const negocio = await negocioActual(req);
@@ -415,7 +467,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
-    app.post("/cuentas-pagar", requerirAccesoNegocio, async (req, res) => {
+    app.post("/cuentas-pagar", requerirAccesoNegocio, requerirFuncionPlan(CLAVE_FINANZAS_PRO, MENSAJE_FINANZAS_PRO), async (req, res) => {
         const {
             proveedor,
             origenTipo,
@@ -461,7 +513,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
-    app.post("/cuentas-pagar/:id/pagos", requerirAccesoNegocio, async (req, res) => {
+    app.post("/cuentas-pagar/:id/pagos", requerirAccesoNegocio, requerirFuncionPlan(CLAVE_FINANZAS_PRO, MENSAJE_FINANZAS_PRO), async (req, res) => {
         const { monto, metodo, referencia, notas } = req.body;
         const pagoMonto = numero(monto);
 
@@ -543,7 +595,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
-    app.get("/pagos-proveedor", requerirAccesoNegocio, async (req, res) => {
+    app.get("/pagos-proveedor", requerirAccesoNegocio, requerirFuncionPlan(CLAVE_FINANZAS_PRO, MENSAJE_FINANZAS_PRO), async (req, res) => {
         try {
             await asegurarFinanzas();
             const negocio = await negocioActual(req);
@@ -562,7 +614,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
-    app.get("/gastos-operativos", requerirAccesoNegocio, async (req, res) => {
+    app.get("/gastos-operativos", requerirAccesoNegocio, requerirFuncionPlan(CLAVE_FINANZAS_PRO, MENSAJE_FINANZAS_PRO), async (req, res) => {
         try {
             await asegurarFinanzas();
             const negocio = await negocioActual(req);
@@ -581,7 +633,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
-    app.post("/gastos-operativos", requerirAccesoNegocio, async (req, res) => {
+    app.post("/gastos-operativos", requerirAccesoNegocio, requerirFuncionPlan(CLAVE_FINANZAS_PRO, MENSAJE_FINANZAS_PRO), async (req, res) => {
         const {
             categoria,
             concepto,

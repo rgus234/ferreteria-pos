@@ -1004,13 +1004,13 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
                         const nuevo = await client.query(
                             `INSERT INTO public.productos
-                                (negocio_id, nombre, codigo, precio, precio_publico, precio_mayoreo, precio_distribuidor,
+                                (negocio_id, nombre, codigo, precio, precio_publico, precio_mayoreo, precio_distribuidor, costo,
                                  stock, marca, proveedor_id, catalogo_maestro_id,
                                  permite_venta_pieza, unidad_suelta, precio_pieza, precio_pieza_publico)
-                             VALUES ($1,$2,$3,$4,$5,$6,$7,0,$8,$9,$10,$11,$12,$13,$13)
+                             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$12,$13,$14,$14)
                              RETURNING id`,
                             [
-                                negocio.id, nombre, item.codigo_factura || "", precioMedioMayoreo, precioPublico, precioMedioMayoreo, precioDistribuidor,
+                                negocio.id, nombre, item.codigo_factura || "", precioMedioMayoreo, precioPublico, precioMedioMayoreo, precioDistribuidor, costo,
                                 candidato.marca || null, recepcion.rows[0].proveedor_id, catalogoMaestroId,
                                 Boolean(unidadSuelta), unidadSuelta || "pieza", precioPieza
                             ]
@@ -1098,9 +1098,17 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         // descuento (Fase 7, ej. 114.4) tronaba "invalid
                         // input syntax for type integer" aunque la columna
                         // siempre fue numeric.
+                        // costo tambien se guarda en la columna dedicada
+                        // productos.costo (Fase "Finanzas avanzadas real",
+                        // ver plan) -- a diferencia de precio_distribuidor
+                        // (un nivel de PRECIO DE VENTA que esta ruta ya
+                        // reusaba como proxy de costo desde antes), esta
+                        // columna nueva sirve solo para calcular margen
+                        // real, nunca se cobra en el POS.
                         await client.query(
                             `UPDATE public.productos
-                             SET precio_distribuidor = COALESCE(NULLIF($1, 0::numeric), precio_distribuidor)
+                             SET precio_distribuidor = COALESCE(NULLIF($1, 0::numeric), precio_distribuidor),
+                                 costo = COALESCE(NULLIF($1, 0::numeric), costo)
                              WHERE id = $2 AND negocio_id = $3`,
                             [costo, productoId, negocio.id]
                         );
@@ -1108,7 +1116,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         await client.query(
                             `UPDATE public.productos
                              SET stock = stock + $1,
-                                 precio_distribuidor = COALESCE(NULLIF($2, 0::numeric), precio_distribuidor)
+                                 precio_distribuidor = COALESCE(NULLIF($2, 0::numeric), precio_distribuidor),
+                                 costo = COALESCE(NULLIF($2, 0::numeric), costo)
                              WHERE id = $3 AND negocio_id = $4`,
                             [cantidad, costo, productoId, negocio.id]
                         );

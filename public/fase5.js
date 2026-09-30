@@ -93,6 +93,18 @@
      </div>
     </div>
 
+    <section class="finanzas-panel finanzas-margen-real">
+     <h3>Utilidad neta real</h3>
+     <p id="finMargenCobertura" class="finanzas-nota"></p>
+     <div class="finanzas-margen-desglose">
+      <div><span>Ingresos</span><strong id="finMargenIngresos">$0.00</strong></div>
+      <div><span>- Costo de productos vendidos</span><strong id="finMargenCosto">$0.00</strong></div>
+      <div><span>= Margen bruto</span><strong id="finMargenBruto">$0.00</strong></div>
+      <div><span>- Gastos operativos</span><strong id="finMargenGastos">$0.00</strong></div>
+      <div class="finanzas-margen-total"><span>= Utilidad neta real</span><strong id="finMargenUtilidad">$0.00</strong></div>
+     </div>
+    </section>
+
     <div class="finanzas-grid">
      <section class="finanzas-panel">
       <h3>Resumen financiero</h3>
@@ -299,6 +311,21 @@
   setTexto("finBalance", money(datos.balance_disponible));
   setTexto("finCuentasAbiertasTexto", (datos.cuentas_abiertas || 0) + " cuentas pendientes");
 
+  setTexto("finMargenIngresos", money(datos.ingresos));
+  setTexto("finMargenCosto", money(datos.costo_productos));
+  setTexto("finMargenBruto", money(datos.margen_bruto));
+  setTexto("finMargenGastos", money(datos.gastos_mes));
+  setTexto("finMargenUtilidad", money(datos.utilidad_neta_real));
+  const cobertura = num(datos.cobertura_costo);
+  setTexto(
+   "finMargenCobertura",
+   cobertura >= 0.999
+    ? "Costo real capturado en todas las ventas del periodo."
+    : cobertura > 0
+     ? `Costo real capturado en ${Math.round(cobertura * 100)}% de las ventas del periodo -- el resto no tenia costo registrado y no se incluye (nunca se cuenta como $0).`
+     : "Todavia no hay ventas con costo real capturado en este periodo -- se va llenando conforme recibes mercancia con factura real."
+  );
+
   const tendencias = {
    finIngresosTendencia: [datos.ingresos, anterior.ingresos, false],
    finGastosTendencia: [datos.gastos_mes, anterior.gastos, true],
@@ -466,6 +493,27 @@
   }
  }
 
+ // Fase "Finanzas avanzadas real" (ver plan): esta pantalla era gratis
+ // para cualquier plan pese a que la pagina de precios la promete
+ // exclusiva de Pro -- ahora se checa /finanzas/estado antes de pedir
+ // datos reales. Sin esto un negocio sin Pro veria un 403 feo en cada
+ // fetch en vez de una explicacion clara.
+ function renderUpsellFinanzas() {
+  const shell = document.querySelector("#pantallaFinanzas .finanzas-shell");
+  if (!shell) return;
+  shell.innerHTML = `
+   <div class="facturacion-hero">
+    <div class="facturacion-checklist-item">
+     ${icono("wallet")}
+     <div><strong>Finanzas avanzadas</strong><span>Utilidad neta real (con el costo de tus productos, no solo ventas brutas) y cuentas por pagar/cobrar consolidadas.</span></div>
+    </div>
+    <span class="facturacion-upsell-badge">${icono("zap")} Plan Pro</span>
+    <p class="facturacion-hero-sub" style="font-size:13px;">Esta funcion no esta incluida en tu plan actual. Actívala desde Cuenta.</p>
+    <button type="button" class="facturacion-hero-cta" onclick="mostrarCuenta()">Ir a Cuenta</button>
+   </div>
+  `;
+ }
+
  window.mostrarFinanzasPOS = async function () {
   asegurarPantallaFinanzas();
   instalarMenuFinanzas();
@@ -474,6 +522,15 @@
 
   if (typeof actualizarModuloActivoPOS === "function") actualizarModuloActivoPOS("finanzas");
   if (typeof actualizarTopbarContexto === "function") actualizarTopbarContexto("Finanzas", "Pagos, gastos y estado financiero", "finanzas");
+
+  try {
+   const respuesta = await fetch("/finanzas/estado");
+   const datos = await respuesta.json();
+   if (datos.ok && datos.disponibleEnPlan === false) {
+    renderUpsellFinanzas();
+    return;
+   }
+  } catch (error) { /* si falla el check, se intenta cargar normal -- el 403 real de /finanzas/resumen ya avisa */ }
 
   await cargarFinanzasPOS();
  };

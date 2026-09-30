@@ -1434,6 +1434,103 @@ app.get("/cuenta/sesiones", requerirSesionCuenta, async (req, res) => {
     }
 });
 
+// Centro de seguridad (Fase "Finanzas avanzadas real" + Centro de
+// seguridad, ver plan) -- valor nuevo genuino, no prometido hoy en la
+// pagina de precios, exclusivo Pro (clave ya sembrada desde hace
+// semanas en catalogo_funciones, sin usar todavia). Nunca re-canda
+// Sesiones/Dispositivos (arriba/abajo, gratis para cualquier plan) --
+// solo agrega dos vistas que hoy nadie puede consultar: la bitacora de
+// acciones delicadas (bitacora_acciones, se llena desde hace semanas
+// pero nunca tuvo un lector) y los intentos de acceso a la cuenta
+// (intentos_login, igual).
+app.get("/cuenta/centro-seguridad/estado", requerirSesionCuenta, async (req, res) => {
+    try {
+        const { incluido } = await funcionDelPlan(req.negocioAutenticado.negocio_id, "centro_seguridad.panel_unificado");
+        res.json({ ok: true, disponibleEnPlan: incluido });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+app.get(
+    "/cuenta/bitacora",
+    requerirSesionCuenta,
+    requerirFuncionPlan("centro_seguridad.panel_unificado", "El Centro de seguridad esta disponible desde el plan Pro."),
+    async (req, res) => {
+        try {
+            const filas = await pool.query(
+                `
+                SELECT b.id, b.accion, b.detalle, b.created_at, e.nombre AS empleado_nombre
+                FROM public.bitacora_acciones b
+                LEFT JOIN public.empleados e ON e.id = b.empleado_id
+                WHERE b.negocio_id = $1
+                ORDER BY b.created_at DESC
+                LIMIT 50
+                `,
+                [req.negocioAutenticado.negocio_id]
+            );
+
+            res.json({
+                ok: true,
+                acciones: filas.rows.map(fila => ({
+                    id: fila.id,
+                    accion: fila.accion,
+                    detalle: fila.detalle,
+                    empleadoNombre: fila.empleado_nombre,
+                    creadoAt: fila.created_at
+                }))
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    }
+);
+
+app.get(
+    "/cuenta/intentos-acceso",
+    requerirSesionCuenta,
+    requerirFuncionPlan("centro_seguridad.panel_unificado", "El Centro de seguridad esta disponible desde el plan Pro."),
+    async (req, res) => {
+        try {
+            const negocioId = req.negocioAutenticado.negocio_id;
+
+            const filas = await pool.query(
+                `
+                SELECT ip, exito, creado_at
+                FROM public.intentos_login
+                WHERE negocio_id = $1
+                ORDER BY creado_at DESC
+                LIMIT 50
+                `,
+                [negocioId]
+            );
+
+            // Una sola regla honesta y explicada en la pantalla -- nunca
+            // se insinua deteccion de anomalias sofisticada que no existe.
+            const fallidosRecientes = await pool.query(
+                `
+                SELECT COUNT(*) AS total
+                FROM public.intentos_login
+                WHERE negocio_id = $1 AND exito = false AND creado_at >= NOW() - INTERVAL '24 hours'
+                `,
+                [negocioId]
+            );
+
+            res.json({
+                ok: true,
+                intentos: filas.rows.map(fila => ({
+                    ip: fila.ip,
+                    exito: fila.exito,
+                    creadoAt: fila.creado_at
+                })),
+                alertaIntentosFallidos: Number(fallidosRecientes.rows[0].total || 0) >= 3
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    }
+);
+
 app.get("/cuenta/ultimo-acceso", requerirSesionCuenta, async (req, res) => {
     try {
         const fila = await pool.query(
