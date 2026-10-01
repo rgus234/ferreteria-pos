@@ -229,6 +229,7 @@ function pintarNegociosAdmin() {
           </div>
           <div class="client-actions">
             <button type="button" onclick="abrirLicenciaAdmin(${Number(negocio.id)})">Editar licencia</button>
+            <button type="button" class="secondary" onclick="abrirDiagnosticoEquiposAdmin(${Number(negocio.id)}, '${escaparHTMLAdmin(negocio.nombre || negocio.slug).replace(/'/g, "\\'")}')">Ver equipos (${equipos})</button>
             <button type="button" class="danger" onclick="eliminarClienteAdmin(${Number(negocio.id)})">${esFantasma ? "Revisar y eliminar" : "Eliminar"}</button>
           </div>
         </div>
@@ -249,6 +250,71 @@ function pintarNegociosAdmin() {
           <div><span>Sistema</span><strong>${escaparHTMLAdmin(sistema || "-")}</strong><small>Instalado ${fechaCortaAdmin(negocio.instalado_at || negocio.created_at)}</small></div>
         </div>
       </article>
+    `;
+  }).join("");
+}
+
+// Diagnostico remoto por equipo (ver plan "Alertas de errores..." y
+// la peticion de seguimiento del dueno: "conectar mi compu a la del
+// negocio para ver su estado" -- esto es la version sin control
+// remoto real, solo los datos que cada equipo ya reporta solo
+// (device-checkin.js en el cliente de escritorio) y que hoy nadie
+// podia ver desagregados por equipo, solo como un resumen por
+// negocio en la tarjeta de arriba. Reusa GET /admin/api/negocios/:id/
+// dispositivos, que ya existia pero ningun archivo de admin lo
+// consumia todavia.
+async function abrirDiagnosticoEquiposAdmin(negocioId, nombreNegocio) {
+  const modal = document.getElementById("modalDiagnosticoEquiposAdmin");
+  const titulo = document.getElementById("diagnosticoEquiposTitulo");
+  const contenedor = document.getElementById("listaDiagnosticoEquiposAdmin");
+  if (!modal || !contenedor) return;
+
+  titulo.textContent = `Equipos -- ${nombreNegocio}`;
+  contenedor.innerHTML = '<div class="empty">Cargando...</div>';
+  modal.hidden = false;
+
+  try {
+    const data = await apiAdmin(`/admin/api/negocios/${negocioId}/dispositivos`);
+    pintarDiagnosticoEquiposAdmin(data.dispositivos || []);
+  } catch (error) {
+    contenedor.innerHTML = `<div class="empty">${escaparHTMLAdmin(error.message || "No se pudo cargar el diagnostico.")}</div>`;
+  }
+}
+
+function cerrarDiagnosticoEquiposAdmin() {
+  const modal = document.getElementById("modalDiagnosticoEquiposAdmin");
+  if (modal) modal.hidden = true;
+}
+
+function pintarDiagnosticoEquiposAdmin(dispositivos) {
+  const contenedor = document.getElementById("listaDiagnosticoEquiposAdmin");
+  if (!contenedor) return;
+
+  if (!dispositivos.length) {
+    contenedor.innerHTML = '<div class="empty">Este negocio no tiene ningun equipo de escritorio instalado todavia.</div>';
+    return;
+  }
+
+  contenedor.innerHTML = dispositivos.map(eq => {
+    const sistema = [eq.plataforma, eq.os_version, eq.arch].filter(Boolean).join(" -- ");
+    const syncOk = Number(eq.sync_pendientes || 0) === 0 && Number(eq.sync_errores || 0) === 0;
+    return `
+      <div class="diagnostico-equipo-fila">
+        <div class="diagnostico-equipo-cabecera">
+          <strong>${escaparHTMLAdmin(eq.nombre_equipo || eq.device_id || "Equipo sin nombre")}</strong>
+          <em class="pill ${eq.en_linea ? "ok" : "warning"}">${eq.en_linea ? "En linea" : "Sin conexion reciente"}</em>
+          ${eq.update_available ? `<em class="pill warning">Actualizacion disponible (${escaparHTMLAdmin(eq.update_latest_version || "")})</em>` : ""}
+          ${syncOk ? "" : `<em class="pill danger">${eq.sync_pendientes || 0} pendientes / ${eq.sync_errores || 0} errores de sync</em>`}
+        </div>
+        <div class="diagnostico-equipo-detalles">
+          <div><span>Version instalada</span><strong>${escaparHTMLAdmin(eq.app_version || "-")}</strong></div>
+          <div><span>Sistema</span><strong>${escaparHTMLAdmin(sistema || "-")}</strong></div>
+          <div><span>Ultima conexion</span><strong>${fechaHoraCortaAdmin(eq.ultimo_checkin_at)}</strong></div>
+          <div><span>Ultima sincronizacion</span><strong>${fechaHoraCortaAdmin(eq.last_sync_at)}</strong></div>
+          <div><span>Instalado</span><strong>${fechaCortaAdmin(eq.installed_at)}</strong></div>
+        </div>
+        ${eq.sync_ultimo_error ? `<div class="diagnostico-equipo-error"><span>Ultimo error de sincronizacion:</span> ${escaparHTMLAdmin(eq.sync_ultimo_error)}</div>` : ""}
+      </div>
     `;
   }).join("");
 }
