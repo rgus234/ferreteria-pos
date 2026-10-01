@@ -113,6 +113,7 @@ function mostrarVistaAdmin(vista) {
   if (target === "fotos") abrirVistaBancoImagenesAdmin();
   if (target === "ofertas-market") cargarBannersMarketAdmin();
   if (target === "catalogos") cargarCatalogosFabricante();
+  if (target === "errores") cargarErroresAdmin();
 }
 
 function pintarMetricasAdmin(resumen) {
@@ -1301,6 +1302,95 @@ function pintarBadgeSolicitudesBancoImagenes(pendientes) {
   }
 }
 
+// Errores de produccion (ver plan "Alertas de errores en produccion +
+// panel de administrador") -- mismo patron de lista+badge que
+// Solicitudes del Banco de Imagenes arriba.
+async function cargarErroresAdmin() {
+  const contenedor = document.getElementById("listaErroresAdmin");
+  if (!contenedor) return;
+
+  const estado = document.getElementById("filtroEstadoErroresAdmin")?.value ?? "false";
+
+  try {
+    const data = await apiAdmin(`/admin/api/errores${estado !== "" ? `?resuelto=${estado}` : ""}`);
+    pintarErroresAdmin(data.errores || []);
+  } catch (error) {
+    contenedor.innerHTML = `<div class="empty">${escaparHTMLAdmin(error.message || "No se pudo cargar errores.")}</div>`;
+  }
+}
+
+function pintarErroresAdmin(errores) {
+  const contenedor = document.getElementById("listaErroresAdmin");
+  if (!contenedor) return;
+
+  if (!errores.length) {
+    contenedor.innerHTML = `<div class="empty">Sin errores en este filtro.</div>`;
+    return;
+  }
+
+  contenedor.innerHTML = errores.map(fila => `
+    <div class="banco-imagenes-solicitud-fila">
+      <strong>${escaparHTMLAdmin(fila.ruta)}</strong>
+      <span>${escaparHTMLAdmin(fila.negocio_nombre)}</span>
+      <span>${escaparHTMLAdmin(fila.mensaje)}</span>
+      <span>${fila.veces}x -- ${fechaHoraCortaAdmin(fila.ultima_vez)}</span>
+      <button type="button" class="ghost" onclick="copiarDiagnosticoErrorAdmin(${fila.id})">Copiar diagnostico</button>
+      ${fila.resuelto
+        ? `<span class="pill ok">Resuelto</span>`
+        : `<button type="button" class="ghost" onclick="resolverErrorAdmin(${fila.id})">Marcar resuelto</button>`}
+    </div>
+  `).join("");
+
+  window.__erroresAdminCache = errores;
+}
+
+async function copiarDiagnosticoErrorAdmin(id) {
+  const fila = (window.__erroresAdminCache || []).find(e => e.id === id);
+  if (!fila) return;
+
+  const texto = [
+    `Ruta: ${fila.ruta}`,
+    `Negocio: ${fila.negocio_nombre} (id ${fila.negocio_id ?? "sin negocio"})`,
+    `Mensaje: ${fila.mensaje}`,
+    `Visto ${fila.veces} veces, ultima vez ${fechaHoraCortaAdmin(fila.ultima_vez)}`,
+    "",
+    "Stack:",
+    fila.stack || "(sin stack)"
+  ].join("\n");
+
+  try {
+    await navigator.clipboard.writeText(texto);
+    await alertaAdmin("Diagnostico copiado -- pegalo en el chat con Claude.", "Copiado", "exito");
+  } catch (error) {
+    await alertaAdmin("No se pudo copiar automaticamente. Copia este texto a mano:\n\n" + texto, "Diagnostico", "info");
+  }
+}
+
+async function resolverErrorAdmin(id) {
+  try {
+    await apiAdmin(`/admin/api/errores/${id}/resolver`, { method: "PATCH" });
+    await Promise.all([cargarErroresAdmin(), cargarConteoErroresAdmin()]);
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo marcar como resuelto.", "Error", "peligro");
+  }
+}
+
+async function cargarConteoErroresAdmin() {
+  try {
+    const data = await apiAdmin("/admin/api/errores/conteo");
+    pintarBadgeErroresAdmin(data.pendientes);
+  } catch (error) {
+    // Silencioso -- el badge simplemente no aparece si falla.
+  }
+}
+
+function pintarBadgeErroresAdmin(pendientes) {
+  const badge = document.getElementById("badgeErroresAdmin");
+  if (!badge) return;
+  badge.textContent = pendientes > 99 ? "99+" : String(pendientes);
+  badge.style.display = pendientes > 0 ? "inline-flex" : "none";
+}
+
 function abrirVistaBancoImagenesAdmin() {
   inicializarDropzoneBancoImagenes();
   cargarResumenBancoImagenes();
@@ -1469,6 +1559,7 @@ async function cargarAdminNexo() {
   pintarSoporteAdmin();
   pintarVersionesAdmin();
   cargarConteoSolicitudesBancoImagenes();
+  cargarConteoErroresAdmin();
 }
 
 function abrirNuevoClienteAdmin() {

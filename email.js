@@ -20,6 +20,7 @@ const DOMINIO_PUBLICO = "https://nexoposoficial.com";
 // nunca se inventa un "centro de ayuda" que no existe todavia.
 const WHATSAPP_SOPORTE = "https://wa.me/524424950495?text=Hola%2C%20necesito%20ayuda%20con%20Nexo%20POS.";
 const CORREO_SOPORTE = "nexoposoficial@gmail.com";
+const CORREO_ALERTAS_ERRORES = process.env.ERROR_ALERT_EMAIL || "nexoposoficial@gmail.com";
 
 let clienteResend = null;
 
@@ -1006,6 +1007,33 @@ function enviarCorreoFacturaCfdi(correo, razonSocialEmisor, { folioTexto, uuid, 
     });
 }
 
+// Alerta de error de produccion (ver plan "Alertas de errores en
+// produccion + panel de administrador") -- unico lector real es
+// errores-sistema-server.js, llamado sin esperar desde
+// error-utils.js. El cuerpo se arma para que el dueno lo pueda copiar
+// y pegar tal cual en un chat para pedir el arreglo.
+function enviarCorreoAlertaError({ esNuevo, veces, ruta, negocioId, mensaje, stack }) {
+    const stackCorto = String(stack || "").split("\n").slice(0, 15).join("\n");
+
+    return enviarCorreo({
+        correo: CORREO_ALERTAS_ERRORES,
+        asunto: esNuevo ? "🔴 Error nuevo en Nexo POS" : `🔴 Error repetido (${veces}x) en Nexo POS`,
+        html: envolverPlantilla({
+            etiqueta: esNuevo ? "Error nuevo" : "Error repetido",
+            titulo: esNuevo ? "Se detecto un error nuevo" : `Este error ya paso ${veces} veces`,
+            robot: "alerta",
+            cuerpoHtml: `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 6px;">
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Ruta:</strong> ${escaparHtmlCorreo(ruta)}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Negocio ID:</strong> ${negocioId ?? "(sin negocio)"}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Mensaje:</strong> ${escaparHtmlCorreo(mensaje)}</td></tr>
+                </table>
+                <pre style="white-space:pre-wrap;background:#f4f4f5;border-radius:8px;padding:12px;font-size:12px;color:#344054;">${escaparHtmlCorreo(stackCorto)}</pre>
+            `
+        })
+    });
+}
+
 module.exports = {
     enviarCorreoVerificacion,
     enviarCorreoVerificacionPersona,
@@ -1018,6 +1046,7 @@ module.exports = {
     enviarCorreoPruebaPorTerminar,
     enviarCorreoLeadLanding,
     enviarCorreoConfirmacionLead,
+    enviarCorreoAlertaError,
     enviarCorreoPedidoPublico,
     enviarCorreoPedidoCarritoPublico,
     enviarCorreoSolicitudCreditoPublica,

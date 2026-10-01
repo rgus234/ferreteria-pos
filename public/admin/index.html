@@ -30,6 +30,10 @@
         Catalogos de fabricantes
         <span id="badgeCatalogosAdmin" class="notification-badge" style="display:none;"></span>
       </button>
+      <button type="button" data-view="errores" style="position:relative;">
+        Errores
+        <span id="badgeErroresAdmin" class="notification-badge" style="display:none;"></span>
+      </button>
     </nav>
     <div class="admin-sidebar-footer">
       <span id="adminSesionEstado">Sin sesion</span>
@@ -424,6 +428,28 @@
           <button type="button" class="ghost" onclick="cerrarRevisionCatalogo()">Cerrar</button>
         </div>
         <div class="catalogo-revision" id="listaRevisionCatalogo">
+          <div class="empty">Cargando...</div>
+        </div>
+      </article>
+    </section>
+
+    <section class="admin-view" id="view-errores">
+      <article class="panel wide">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Errores</p>
+            <h2>Errores de produccion</h2>
+            <span>Se agrupan por ruta+mensaje -- un bug repetido es una sola fila con contador, no una alerta por cada vez.</span>
+          </div>
+          <div class="panel-tools">
+            <select id="filtroEstadoErroresAdmin" onchange="cargarErroresAdmin()">
+              <option value="false">Pendientes</option>
+              <option value="">Todos</option>
+              <option value="true">Resueltos</option>
+            </select>
+          </div>
+        </div>
+        <div class="banco-imagenes-solicitudes-tabla" id="listaErroresAdmin">
           <div class="empty">Cargando...</div>
         </div>
       </article>

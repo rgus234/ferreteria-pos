@@ -16,6 +16,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./fase5-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("errores del sistema (seguimiento y alertas)", () => {
+        require("./errores-sistema-server").registrarRutasErroresSistema(app);
+    });
+
     cargarModuloPOS("fase6 caja", () => {
         require("./fase6-server")(app, pool, requerirAccesoNegocio);
     });
