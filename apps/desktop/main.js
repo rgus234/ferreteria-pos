@@ -222,8 +222,16 @@ function configureAutoUpdater() {
     // espera necesita ser lo bastante larga para que un cajero a
     // medio cobrar alcance a verlo y reaccionar, no solo un parpadeo
     // antes de que la app se cierre sola.
+    //
+    // isSilent=true: con nsis.oneClick=true el instalador ya puede
+    // correr sin mostrar ninguna pantalla. Antes isSilent iba en false
+    // y con oneClick=false eso abria el asistente clasico (Siguiente/
+    // Instalar/Finalizar) tras cerrar la app -- en una caja sin nadie
+    // pendiente del monitor ese instalador se quedaba esperando clics
+    // para siempre, y la app jamas volvia a abrir la version nueva
+    // (asi se quedo atorada Ferreteria Olimpico en 1.0.1 por meses).
     setTimeout(() => {
-      autoUpdater.quitAndInstall(false, true);
+      autoUpdater.quitAndInstall(true, true);
     }, 20000);
   });
 

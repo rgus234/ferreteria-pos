@@ -1,6 +1,6 @@
 {
   "name": "nexo-pos-desktop",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Nexo POS para Windows",
   "author": "Nexo POS",
   "main": "main.js",
@@ -46,14 +46,12 @@
       }
     ],
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Nexo POS",
       "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "license": "build/license.txt"
+      "uninstallerIcon": "build/icon.ico"
     }
   },
   "dependencies": {

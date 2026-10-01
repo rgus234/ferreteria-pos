@@ -23,8 +23,7 @@ publish:
   - provider: generic
     url: https://ferreteria-pos.onrender.com/downloads/
 nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
+  oneClick: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Nexo POS
