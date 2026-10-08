@@ -398,6 +398,9 @@ app.get("/negocio-actual", requerirAccesoNegocio, async (req, res) => {
             ok: true,
             negocio,
             rol: identidad.rol,
+            // null = sin restriccion (dueño). Un empleado trae sus permisos
+            // reales para que /dueno muestre solo las pestañas que puede usar.
+            permisos: identidad.permisos ?? null,
             personaNombre: req.negocioAutenticado?.persona_nombre || null
         });
     } catch (error) {
@@ -6334,7 +6337,7 @@ app.get("/categorias-nexo", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
-app.post("/agregar-producto", requerirAccesoNegocio, async (req, res) => {
+app.post("/agregar-producto", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
 
    const {
     nombre,
@@ -6624,7 +6627,7 @@ RETURNING id
     }
 });
 
-app.put("/editar-producto/:id", requerirAccesoNegocio, async (req, res) => {
+app.put("/editar-producto/:id", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
 
     const { id } = req.params;
 
@@ -7119,7 +7122,7 @@ app.post("/margenes-categoria", requerirAccesoNegocio, requerirFuncionPlan("cata
     }
 });
 
-app.delete("/eliminar-producto/:id", requerirAccesoNegocio, async (req, res) => {
+app.delete("/eliminar-producto/:id", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
 
     const { id } = req.params;
 
@@ -7879,6 +7882,51 @@ async function obtenerDetalleVenta(client, negocioId, filtro, valor) {
         cambios: cambios.rows
     };
 }
+
+// Busqueda ligera para el celular (/dueno): "Buscar venta" por folio, cliente
+// o dia. /historial devuelve TODAS las ventas del negocio sin paginar, no
+// sirve para buscar desde un telefono. Debe registrarse antes de
+// /ventas/:id, o Express toma "buscar" como si fuera un id.
+app.get("/ventas/buscar", requerirAccesoNegocio, async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        await asegurarColumnasHistorialVentas(pool);
+
+        const texto = String(req.query.q || "").trim().slice(0, 60);
+        const dia = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.dia || "")) ? String(req.query.dia) : null;
+        const limite = Math.min(Math.max(Number(req.query.limite) || 30, 1), 100);
+
+        const condiciones = ["negocio_id = $1"];
+        const parametros = [negocio.id];
+
+        if (texto) {
+            parametros.push(`%${texto}%`);
+            condiciones.push(`(folio ILIKE $${parametros.length} OR COALESCE(cliente_nombre, '') ILIKE $${parametros.length})`);
+        }
+
+        if (dia) {
+            parametros.push(dia);
+            condiciones.push(`fecha::date = $${parametros.length}::date`);
+        }
+
+        parametros.push(limite);
+
+        const resultado = await pool.query(
+            `
+            SELECT id, folio, fecha, total, metodo_pago, estado, cliente_nombre, codigo_publico
+            FROM public.historial_ventas
+            WHERE ${condiciones.join(" AND ")}
+            ORDER BY fecha DESC, id DESC
+            LIMIT $${parametros.length}
+            `,
+            parametros
+        );
+
+        res.json({ ok: true, ventas: resultado.rows });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
 
 app.get("/ventas/:id", requerirAccesoNegocio, async (req, res) => {
     try {
@@ -9723,7 +9771,7 @@ app.get("/grafica-ventas", requerirAccesoNegocio, async (req, res) => {
     res.json(resultado.rows);
 });
 
-app.get("/reportes/ventas", requerirAccesoNegocio, async (req, res) => {
+app.get("/reportes/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.VER_REPORTES), async (req, res) => {
     try {
         const negocio = await negocioActual(req);
         await asegurarColumnasHistorialVentas();

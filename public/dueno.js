@@ -249,6 +249,7 @@ async function iniciarSesionDueno() {
         datos.negocio?.nombre || "Tu negocio";
 
         duenoRolSesion = "owner";
+        duenoPermisosSesion = null;
         aplicarRolShellDueno();
         mostrarAppDueno();
         cargarPanelDueno();
@@ -405,20 +406,20 @@ async function vincularCodigoEmpleadoDueno() {
     }
 }
 
-function completarLoginEmpleadoDueno(datos) {
+async function completarLoginEmpleadoDueno(datos) {
     duenoPersonaTokenTemporal = null;
     localStorage.setItem(DUENO_TOKEN_KEY, datos.token);
 
     document.getElementById("duenoNegocio").textContent =
     datos.negocio?.nombre || "Tu negocio";
 
-    duenoRolSesion = datos.rol === "employee" ? "employee" : "owner";
     mostrarAppDueno();
-    aplicarRolShellDueno();
 
-    // aplicarRolShellDueno() ya cambia a Pedidos (y lo carga) para un
-    // empleado -- el dashboard de Inicio es solo para dueño.
-    if (duenoRolSesion !== "employee") cargarPanelDueno();
+    // El login solo dice el rol; los permisos reales del empleado
+    // (que pestañas puede usar) salen de /negocio-actual. Esa misma
+    // llamada aplica el rol, elige la primera pestaña permitida y, si es
+    // dueño, carga el dashboard de Inicio.
+    await sincronizarRolSesionDueno();
 
     actualizarNexoBurbujaDueno();
 }
@@ -996,37 +997,70 @@ function cambiarTabDueno(tab) {
     if (tab === "mas") cargarPanelMasDueno();
 }
 
-// Fase 1 del ecosistema Nexo: pestañas que solo tienen sentido para el
-// dueño (dashboards, cotizaciones, catalogo completo, configuracion) --
-// "Pedidos" queda fuera de este set porque la ve tanto el dueño como el
-// empleado desde el dia uno. Mismo espiritu que CATEGORIAS_MAS_DUENO:
-// un dato central en vez de checks de rol repartidos por el codigo.
-const DUENO_TABS_SOLO_DUENO = new Set(["inicio", "reportes", "ventas", "inventario", "mas"]);
+// Pestañas de la barra inferior que un empleado puede ver, con el permiso
+// real (rbac.js, PERMISOS.*) que las habilita. El dueño ve todo. Antes un
+// empleado solo veia Vender, Pedidos de Market y Caja, sin importar sus
+// permisos, y siempre aterrizaba en Pedidos -- un cajero no podia abrir
+// Creditos para cobrar un abono ni consultar el inventario.
+const DUENO_TABS_EMPLEADO = [
+    { tab: "vender", permiso: "hacer_ventas" },
+    { tab: "caja", permiso: "hacer_corte" },
+    { tab: "creditos", permiso: "ver_credito" },
+    { tab: "inventario", permiso: "ver_inventario" },
+    { tab: "pedidos", permiso: "ver_pedidos" }
+];
+
+// Las secciones del menu "Mas" que si tienen sentido para un empleado
+// (el resto es de la cuenta del dueño: plan, seguridad, reportes...).
+const DUENO_MAS_PARA_EMPLEADO = new Set(["buscar-venta", "notificaciones", "apariencia", "ayuda", "cambiar-usuario"]);
+
 let duenoRolSesion = "owner";
+// null = sin restriccion (dueño). Un empleado trae { clave: true/false }.
+let duenoPermisosSesion = null;
+
+function duenoTienePermiso(clave) {
+    if (duenoRolSesion !== "employee") return true;
+    if (duenoPermisosSesion === null) return true;
+    return duenoPermisosSesion?.[clave] === true;
+}
+
+function duenoPrimeraPestanaEmpleado() {
+    const regla = DUENO_TABS_EMPLEADO.find(item => duenoTienePermiso(item.permiso));
+    return regla ? regla.tab : "mas";
+}
 
 function aplicarRolShellDueno() {
     const esEmpleado = duenoRolSesion === "employee";
 
     document.querySelectorAll(".dueno-tabs button[data-tab]").forEach(boton => {
-        boton.style.display = (esEmpleado && DUENO_TABS_SOLO_DUENO.has(boton.dataset.tab)) ? "none" : "";
+        const tab = boton.dataset.tab;
+
+        if (!esEmpleado) {
+            // Creditos e Inventario ya viven en el menu del dueño; sus
+            // botones de la barra son solo para el empleado.
+            boton.style.display = boton.classList.contains("dueno-tab-solo-empleado") ? "none" : "";
+            return;
+        }
+
+        const regla = DUENO_TABS_EMPLEADO.find(item => item.tab === tab);
+        boton.style.display = regla && duenoTienePermiso(regla.permiso) ? "" : "none";
     });
 
-    // El boton de menu (tres rayas) lleva a la pestaña "mas", que ya
-    // esta marcada solo-dueño en DUENO_TABS_SOLO_DUENO -- un empleado
-    // no tiene nada util ahi (ni cuenta, ni plan, ni reportes), asi
-    // que el boton mismo se oculta en vez de llevarlo a una pantalla
-    // vacia para su rol.
+    // El menu sigue disponible para el empleado, pero solo con lo suyo
+    // (notificaciones, apariencia, ayuda y, sobre todo, cambiar de usuario
+    // en un celular compartido -- antes no tenia como salir).
     document.querySelectorAll(".dueno-menu-boton").forEach(boton => {
-        boton.style.display = esEmpleado ? "none" : "";
+        boton.style.display = "";
     });
 
-    if (esEmpleado) cambiarTabDueno("pedidos");
+    if (esEmpleado) cambiarTabDueno(duenoPrimeraPestanaEmpleado());
 }
 
 async function sincronizarRolSesionDueno() {
     try {
         const datos = await fetchAutenticado("/negocio-actual");
-        duenoRolSesion = datos.rol || "owner";
+        duenoRolSesion = datos.rol === "employee" ? "employee" : "owner";
+        duenoPermisosSesion = datos.rol === "employee" ? (datos.permisos ?? null) : null;
         if (datos.personaNombre) duenoEmpleadoNombrePersona = datos.personaNombre;
 
         // El login ya pone el nombre real del negocio en el saludo,
@@ -1041,12 +1075,13 @@ async function sincronizarRolSesionDueno() {
         }
     } catch (error) {
         duenoRolSesion = "owner";
+        duenoPermisosSesion = null;
     }
 
     aplicarRolShellDueno();
 
-    // aplicarRolShellDueno() ya cambia a la pestaña Pedidos (y la carga)
-    // cuando es empleado -- el dashboard de Inicio es solo para dueño.
+    // aplicarRolShellDueno() ya cambia a la primera pestaña permitida (y la
+    // carga) cuando es empleado -- el dashboard de Inicio es solo para dueño.
     if (duenoRolSesion !== "employee") cargarPanelDueno();
 }
 
@@ -1359,7 +1394,7 @@ function htmlResumenVentaDueno(venta) {
                 <span class="dueno-venta-eyebrow">Folio</span>
                 <h2 class="dueno-venta-folio">${escaparDueno(folio)}</h2>
             </div>
-            <span class="dueno-badge dueno-badge-ok">${escaparDueno(estadoTexto.charAt(0).toUpperCase() + estadoTexto.slice(1))}</span>
+            <span class="dueno-badge ${estadoTexto === "cancelada" ? "dueno-badge-alerta" : "dueno-badge-ok"}">${escaparDueno(estadoTexto.charAt(0).toUpperCase() + estadoTexto.slice(1))}</span>
         </div>
         <p class="dueno-venta-subtexto">${escaparDueno(fechaCorta(venta.fecha))} &middot; ${escaparDueno(venta.cliente_nombre || "Publico general")}</p>
 
@@ -1484,7 +1519,314 @@ function htmlDetalleCompletoVentaDueno(venta) {
         </div>
 
         <div class="dueno-subtab-panel activo">${panel}</div>
+
+        ${htmlAccionesVentaDueno(venta)}
     `;
+}
+
+// ---------------- Buscar venta, ticket y correcciones ----------------
+// Plan "celular como plan B": con la computadora caida, un cajero tiene que
+// poder encontrar una venta, mandarle el ticket al cliente, devolver o
+// cambiar un producto y cancelarla. Las rutas ya existian en el servidor
+// (el escritorio las usa desde "Buscar ticket"); aqui solo faltaba la
+// pantalla.
+
+function htmlAccionesVentaDueno(venta) {
+    const folio = venta.folio || `V-${String(venta.id || 0).padStart(6, "0")}`;
+    const cancelada = String(venta.estado || "") === "cancelada";
+
+    const ticket = venta.codigo_publico
+        ? accionesTicketDigitalDuenoHtml({ folio, codigoPublico: venta.codigo_publico, telefono: venta.cliente_telefono })
+        : "";
+
+    const correcciones = cancelada
+        ? `<p class="dueno-estado">Esta venta ya esta cancelada.</p>`
+        : `
+            <button type="button" class="dueno-boton-secundario" style="margin-bottom:8px;" onclick="abrirCorreccionVentaDueno('cambio')">Devolver o cambiar un producto</button>
+            <button type="button" class="dueno-link dueno-link-peligro" onclick="abrirCorreccionVentaDueno('cancelar')">Cancelar venta</button>
+        `;
+
+    return `
+        <div class="dueno-subseccion">Acciones</div>
+        ${ticket}
+        ${correcciones}
+        <div id="duenoVentaCorreccion"></div>
+    `;
+}
+
+function cerrarCorreccionVentaDueno() {
+    const contenedor = document.getElementById("duenoVentaCorreccion");
+    if (contenedor) contenedor.innerHTML = "";
+}
+
+let duenoCambioProductoNuevo = null;
+
+function abrirCorreccionVentaDueno(tipo) {
+    const venta = duenoVentaDetalleActual;
+    const contenedor = document.getElementById("duenoVentaCorreccion");
+    if (!venta || !contenedor) return;
+
+    duenoCambioProductoNuevo = null;
+
+    if (tipo === "cancelar") {
+        contenedor.innerHTML = `
+            <div class="dueno-form-abono">
+                <p class="dueno-estado" style="margin:0;">Cancelar regresa los productos al inventario${Number(venta.pago_credito || 0) > 0 ? " y quita el cargo al cliente" : ""}. Se necesita el PIN de un administrador.</p>
+                <label>Motivo
+                    <textarea id="duenoCancelMotivo" rows="2" maxlength="200" placeholder="Ej. El cliente se arrepintio"></textarea>
+                </label>
+                <label>PIN de administrador
+                    <input type="password" id="duenoCancelPin" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="PIN">
+                </label>
+                <div class="dueno-form-abono-acciones">
+                    <button type="button" class="dueno-boton-secundario-chico" onclick="cerrarCorreccionVentaDueno()">No cancelar</button>
+                    <button type="button" class="dueno-boton-primario-chico" onclick="confirmarCancelacionVentaDueno()">Confirmar</button>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    const lineas = (Array.isArray(venta.productos) ? venta.productos : []).filter(item => Number(item.id) > 0);
+
+    if (!lineas.length) {
+        contenedor.innerHTML = `<p class="dueno-estado">Esta venta no tiene productos que se puedan devolver o cambiar.</p>`;
+        return;
+    }
+
+    contenedor.innerHTML = `
+        <div class="dueno-form-abono">
+            <label>Producto a devolver
+                <select id="duenoCambioLinea">
+                    ${lineas.map(item => `<option value="${Number(item.id)}" data-max="${Number(item.cantidad || 0)}">${escaparDueno(item.nombre || "Producto")} (${Number(item.cantidad || 0)} vendido${Number(item.cantidad || 0) === 1 ? "" : "s"})</option>`).join("")}
+                </select>
+            </label>
+            <label>Cantidad que regresa
+                <input type="number" id="duenoCambioCantidad" min="0.01" step="any" value="1" inputmode="decimal">
+            </label>
+
+            <label>Cambiarlo por otro producto (opcional)
+                <input type="search" id="duenoCambioBuscar" placeholder="Busca el producto nuevo" autocomplete="off" oninput="buscarProductoCambioVentaDueno()">
+            </label>
+            <div id="duenoCambioResultados" class="lista-compacta"></div>
+            <div id="duenoCambioNuevoElegido"></div>
+
+            <label>PIN de administrador${Number(venta.pago_credito || 0) > 0 ? "" : " (solo si la venta fue a credito)"}
+                <input type="password" id="duenoCambioPin" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="PIN">
+            </label>
+
+            <div class="dueno-form-abono-acciones">
+                <button type="button" class="dueno-boton-secundario-chico" onclick="cerrarCorreccionVentaDueno()">Cancelar</button>
+                <button type="button" class="dueno-boton-primario-chico" onclick="confirmarCambioVentaDueno()">Confirmar</button>
+            </div>
+        </div>
+    `;
+}
+
+async function buscarProductoCambioVentaDueno() {
+    const texto = document.getElementById("duenoCambioBuscar")?.value || "";
+    const contenedor = document.getElementById("duenoCambioResultados");
+    if (!contenedor) return;
+
+    if (texto.trim().length < 2) {
+        contenedor.innerHTML = "";
+        return;
+    }
+
+    const resultados = (await listarCatalogoLocal({ texto, categoria: "", porVencer: false })).slice(0, 6);
+
+    contenedor.innerHTML = resultados.length
+        ? resultados.map(producto => `
+            <div class="fila-dueno" onclick="elegirProductoCambioVentaDueno(${Number(producto.id)})">
+                <div>
+                    <strong>${escaparDueno(producto.nombre)}</strong>
+                    <span>${dinero(producto.precio)} &middot; ${Number(producto.stock || 0)} en stock</span>
+                </div>
+            </div>
+        `).join("")
+        : `<p class="dueno-estado">Sin resultados.</p>`;
+
+    duenoUltimosResultadosCambio = resultados;
+}
+
+let duenoUltimosResultadosCambio = [];
+
+function elegirProductoCambioVentaDueno(id) {
+    const producto = duenoUltimosResultadosCambio.find(item => Number(item.id) === Number(id));
+    if (!producto) return;
+
+    duenoCambioProductoNuevo = producto;
+    document.getElementById("duenoCambioResultados").innerHTML = "";
+    document.getElementById("duenoCambioBuscar").value = "";
+    document.getElementById("duenoCambioNuevoElegido").innerHTML = `
+        <div class="dueno-datos-grid">
+            <div><span>Producto nuevo</span><strong>${escaparDueno(producto.nombre)}</strong></div>
+            <div><span>Precio</span><strong>${dinero(producto.precio)}</strong></div>
+        </div>
+        <label>Cantidad nueva
+            <input type="number" id="duenoCambioCantidadNueva" min="0.01" step="any" value="1" inputmode="decimal">
+        </label>
+        <button type="button" class="dueno-link" onclick="quitarProductoCambioVentaDueno()">Solo devolver, sin cambio</button>
+    `;
+}
+
+function quitarProductoCambioVentaDueno() {
+    duenoCambioProductoNuevo = null;
+    document.getElementById("duenoCambioNuevoElegido").innerHTML = "";
+}
+
+function textoDiferenciaCambioDueno(diferencia) {
+    const monto = Number(diferencia || 0);
+    if (monto > 0.005) return `El cliente paga ${dinero(monto)} de diferencia.`;
+    if (monto < -0.005) return `Devuelve ${dinero(Math.abs(monto))} al cliente.`;
+    return "Sin diferencia de dinero.";
+}
+
+async function confirmarCambioVentaDueno() {
+    const venta = duenoVentaDetalleActual;
+    if (!venta) return;
+
+    const selector = document.getElementById("duenoCambioLinea");
+    const cantidadDevuelta = Number(document.getElementById("duenoCambioCantidad")?.value || 0);
+    const maximo = Number(selector?.selectedOptions?.[0]?.dataset?.max || 0);
+
+    if (!(cantidadDevuelta > 0) || cantidadDevuelta > maximo) {
+        mostrarToastDueno(`La cantidad debe estar entre 0 y ${maximo}.`);
+        return;
+    }
+
+    const cuerpo = {
+        productoDevueltoId: Number(selector.value),
+        cantidadDevuelta,
+        usuarioNombre: duenoEmpleadoNombrePersona || "",
+        adminPin: document.getElementById("duenoCambioPin")?.value || ""
+    };
+
+    if (duenoCambioProductoNuevo) {
+        const cantidadNueva = Number(document.getElementById("duenoCambioCantidadNueva")?.value || 0);
+
+        if (!(cantidadNueva > 0)) {
+            mostrarToastDueno("Escribe la cantidad del producto nuevo.");
+            return;
+        }
+
+        cuerpo.productoNuevoId = Number(duenoCambioProductoNuevo.id);
+        cuerpo.cantidadNueva = cantidadNueva;
+    }
+
+    try {
+        const respuesta = await fetchAutenticado(`/ventas/${Number(venta.id)}/cambios`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(cuerpo)
+        });
+
+        mostrarToastDueno(textoDiferenciaCambioDueno(respuesta.diferencia));
+        await abrirDetalleVentaDueno(venta.id);
+        duenoVentaDetalleVista = "completo";
+        renderDetalleVentaDueno();
+    } catch (error) {
+        mostrarToastDueno(error.message || "No se pudo registrar el cambio.");
+    }
+}
+
+async function confirmarCancelacionVentaDueno() {
+    const venta = duenoVentaDetalleActual;
+    if (!venta) return;
+
+    const motivo = document.getElementById("duenoCancelMotivo")?.value.trim() || "";
+    const adminPin = document.getElementById("duenoCancelPin")?.value || "";
+
+    if (!motivo) {
+        mostrarToastDueno("Escribe el motivo de la cancelacion.");
+        return;
+    }
+
+    if (!adminPin) {
+        mostrarToastDueno("Escribe el PIN de un administrador.");
+        return;
+    }
+
+    try {
+        await fetchAutenticado(`/ventas/${Number(venta.id)}/cancelar`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ motivo, adminPin })
+        });
+
+        mostrarToastDueno("Venta cancelada. El inventario se regreso.");
+        await abrirDetalleVentaDueno(venta.id);
+        duenoVentaDetalleVista = "completo";
+        renderDetalleVentaDueno();
+
+        if (duenoMasCategoriaActiva === "buscar-venta") buscarVentasDueno();
+    } catch (error) {
+        mostrarToastDueno(error.message || "No se pudo cancelar la venta.");
+    }
+}
+
+function renderSubpantallaBuscarVenta() {
+    document.getElementById("duenoMasSubpantallaContenido").innerHTML = `
+        <article class="dueno-card">
+            <div class="card-head">
+                <div>
+                    <span>Ventas</span>
+                    <h2>Buscar venta</h2>
+                </div>
+            </div>
+            <div class="dueno-form-abono" style="margin:0 0 12px;">
+                <label>Folio o cliente
+                    <input type="search" id="duenoBuscarVentaTexto" placeholder="Ej. V-000123 o nombre del cliente" autocomplete="off" oninput="programarBusquedaVentasDueno()">
+                </label>
+                <label>Dia
+                    <input type="date" id="duenoBuscarVentaDia" onchange="buscarVentasDueno()">
+                </label>
+            </div>
+            <div id="duenoBuscarVentaResultados" class="lista-compacta"></div>
+        </article>
+    `;
+
+    buscarVentasDueno();
+}
+
+let duenoTemporizadorBusquedaVentas = null;
+
+function programarBusquedaVentasDueno() {
+    clearTimeout(duenoTemporizadorBusquedaVentas);
+    duenoTemporizadorBusquedaVentas = setTimeout(buscarVentasDueno, 300);
+}
+
+async function buscarVentasDueno() {
+    const contenedor = document.getElementById("duenoBuscarVentaResultados");
+    if (!contenedor) return;
+
+    const texto = document.getElementById("duenoBuscarVentaTexto")?.value.trim() || "";
+    const dia = document.getElementById("duenoBuscarVentaDia")?.value || "";
+
+    contenedor.innerHTML = `<p class="dueno-estado">Buscando...</p>`;
+
+    try {
+        const parametros = new URLSearchParams();
+        if (texto) parametros.set("q", texto);
+        if (dia) parametros.set("dia", dia);
+
+        const datos = await fetchAutenticado(`/ventas/buscar?${parametros.toString()}`);
+        const ventas = datos.ventas || [];
+
+        contenedor.innerHTML = ventas.length
+            ? ventas.map(venta => `
+                <div class="fila-dueno" onclick="abrirDetalleVentaDueno(${Number(venta.id)})">
+                    <div>
+                        <strong>${escaparDueno(venta.folio || `V-${String(venta.id).padStart(6, "0")}`)}${venta.estado === "cancelada" ? " &middot; cancelada" : ""}</strong>
+                        <span>${escaparDueno(fechaCorta(venta.fecha))} &middot; ${escaparDueno(venta.cliente_nombre || "Publico general")}</span>
+                    </div>
+                    <b>${dinero(venta.total)}</b>
+                </div>
+            `).join("")
+            : `<p class="dueno-estado">No se encontraron ventas.</p>`;
+    } catch (error) {
+        contenedor.innerHTML = `<p class="dueno-estado">No se pudo buscar. Revisa tu internet.</p>`;
+    }
 }
 
 function agregarAlCarritoDueno(id) {
@@ -2117,6 +2459,9 @@ async function cargarPanelCreditosDueno() {
 
     if (resumen) resumen.textContent = "Actualizando...";
 
+    const botonNuevoCliente = document.getElementById("btnDuenoNuevoClienteCredito");
+    if (botonNuevoCliente) botonNuevoCliente.style.display = duenoTienePermiso("gestionar_credito") ? "" : "none";
+
     try {
         const datos =
         await fetchAutenticado("/creditos");
@@ -2188,6 +2533,7 @@ async function abrirDetalleCreditoDueno(id) {
         duenoCreditoDetalleActual = datos;
         duenoCreditoMostrandoFormularioAbono = false;
 
+        await planDelNegocioDueno();
         renderDetalleCreditoDueno();
         document.getElementById("duenoCreditoDetalleOverlay").style.display = "flex";
     } catch (error) {
@@ -2238,9 +2584,9 @@ function renderDetalleCreditoDueno() {
                 <span class="dueno-venta-eyebrow">Cliente</span>
                 <h2 class="dueno-venta-folio">${escaparDueno(cliente.nombre)}</h2>
             </div>
-            <span class="dueno-badge ${cliente.vencido ? "dueno-badge-alerta" : "dueno-badge-ok"}">${cliente.vencido ? "Vencido" : "Al corriente"}</span>
+            <span class="dueno-badge ${cliente.suspendido || cliente.vencido ? "dueno-badge-alerta" : "dueno-badge-ok"}">${cliente.suspendido ? "Suspendido" : cliente.vencido ? "Vencido" : "Al corriente"}</span>
         </div>
-        <p class="dueno-venta-subtexto">${escaparDueno(cliente.telefono || "Sin telefono")}</p>
+        <p class="dueno-venta-subtexto">${escaparDueno(cliente.telefono || "Sin telefono")}${cliente.dias_credito ? ` &middot; Plazo ${Number(cliente.dias_credito)} dias` : ""}</p>
 
         <div class="dueno-datos-grid">
             <div><span>Saldo</span><strong>${dinero(cliente.saldo)}</strong></div>
@@ -2251,6 +2597,8 @@ function renderDetalleCreditoDueno() {
         ${duenoCreditoMostrandoFormularioAbono ? htmlFormularioAbonoCreditoDueno() : `
             <button type="button" class="dueno-boton-primario" onclick="mostrarFormularioAbonoCreditoDueno()">Registrar abono</button>
         `}
+
+        ${htmlAccionesClienteCreditoDueno(datos)}
 
         <div class="dueno-subseccion">Movimientos</div>
         <div class="dueno-venta-lista-compacta">
@@ -2281,6 +2629,250 @@ function htmlFormularioAbonoCreditoDueno() {
             </div>
         </div>
     `;
+}
+
+// ---------------- Creditos completos (plan "celular como plan B") ----------------
+// Alta de cliente, editar limite/plazo, suspender/reactivar y recordatorio por
+// WhatsApp: el escritorio ya tenia las cuatro cosas, el celular solo podia
+// ver saldos y registrar abonos.
+
+// El recordatorio por WhatsApp es Pro en el escritorio (credit-customers.js);
+// mismo criterio aqui. Se pide una sola vez y se recuerda.
+let duenoPlanNegocioCache = null;
+
+async function planDelNegocioDueno() {
+    if (duenoPlanNegocioCache) return duenoPlanNegocioCache;
+
+    try {
+        const datos = await fetchAutenticado("/licencia/estado");
+        duenoPlanNegocioCache = datos?.licencia?.plan || "";
+    } catch (error) {
+        duenoPlanNegocioCache = "";
+    }
+
+    return duenoPlanNegocioCache;
+}
+
+function htmlAccionesClienteCreditoDueno(datos) {
+    const cliente = datos.cliente;
+    const puedeGestionar = duenoTienePermiso("gestionar_credito");
+    const puedeRecordar = cliente.vencido && ["pro", "demo"].includes(duenoPlanNegocioCache || "");
+
+    if (!puedeGestionar && !puedeRecordar) return "";
+
+    return `
+        <div class="dueno-subseccion">Acciones</div>
+        ${puedeRecordar ? `<button type="button" class="dueno-boton-secundario" style="margin-bottom:8px;" onclick="enviarRecordatorioCreditoWhatsAppDueno()">Recordar por WhatsApp</button>` : ""}
+        ${puedeGestionar ? `
+            <button type="button" class="dueno-boton-secundario" style="margin-bottom:8px;" onclick="abrirEdicionClienteCreditoDueno()">Editar limite o plazo</button>
+            ${cliente.suspendido
+                ? `<button type="button" class="dueno-link" onclick="cambiarSuspensionCreditoDueno(false)">Reactivar credito</button>`
+                : `<button type="button" class="dueno-link dueno-link-peligro" onclick="cambiarSuspensionCreditoDueno(true)">Suspender credito</button>`}
+        ` : ""}
+        <div id="duenoCreditoEdicion"></div>
+    `;
+}
+
+function enviarRecordatorioCreditoWhatsAppDueno() {
+    const datos = duenoCreditoDetalleActual;
+    if (!datos) return;
+
+    const cliente = datos.cliente;
+    const telefono = telefonoParaWhatsAppDueno(cliente.telefono);
+
+    if (!telefono) {
+        mostrarToastDueno("Este cliente no tiene telefono registrado.");
+        return;
+    }
+
+    const negocio = document.getElementById("duenoNegocio")?.textContent?.trim() || "Nexo";
+    const masAntigua = datos.aging?.ventaVencidaMasAntigua;
+    const fechaTexto = masAntigua ? new Date(masAntigua.fechaVencimiento).toLocaleDateString("es-MX") : "";
+    const dias = masAntigua ? masAntigua.diasVencido : 0;
+
+    // Mismo texto que el recordatorio del escritorio.
+    const mensaje =
+        `Hola ${cliente.nombre || ""}, te saluda ${negocio}. ` +
+        `Tienes un saldo vencido de ${dinero(cliente.totalVencido || datos.aging?.totalVencido || 0)}` +
+        (fechaTexto ? ` de una compra con vencimiento el ${fechaTexto} (${dias} dia${dias === 1 ? "" : "s"} de atraso)` : "") +
+        `. Te agradecemos tu pago a la brevedad. Cualquier duda, contactanos.`;
+
+    window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+}
+
+function abrirEdicionClienteCreditoDueno() {
+    const cliente = duenoCreditoDetalleActual?.cliente;
+    const contenedor = document.getElementById("duenoCreditoEdicion");
+    if (!cliente || !contenedor) return;
+
+    contenedor.innerHTML = `
+        <div class="dueno-form-abono">
+            <label>Limite de credito
+                <input type="number" id="duenoCreditoEditLimite" inputmode="decimal" min="0" step="0.01" value="${Number(cliente.limite_credito || 0)}">
+            </label>
+            <label>Plazo por compra (dias)
+                <input type="number" id="duenoCreditoEditPlazo" inputmode="numeric" min="1" step="1" value="${Number(cliente.dias_credito || 15)}">
+            </label>
+            <div class="dueno-form-abono-acciones">
+                <button type="button" class="dueno-boton-secundario-chico" onclick="document.getElementById('duenoCreditoEdicion').innerHTML = ''">Cancelar</button>
+                <button type="button" class="dueno-boton-primario-chico" onclick="guardarEdicionClienteCreditoDueno()">Guardar</button>
+            </div>
+        </div>
+    `;
+}
+
+async function guardarEdicionClienteCreditoDueno() {
+    const cliente = duenoCreditoDetalleActual?.cliente;
+    if (!cliente) return;
+
+    const limiteCredito = Number(document.getElementById("duenoCreditoEditLimite")?.value);
+    const diasCredito = Number(document.getElementById("duenoCreditoEditPlazo")?.value);
+
+    if (!Number.isFinite(limiteCredito) || limiteCredito < 0 || !(diasCredito >= 1)) {
+        mostrarToastDueno("Revisa el limite y el plazo.");
+        return;
+    }
+
+    try {
+        // La ruta reescribe nombre, telefono, fecha de vencimiento y nivel de
+        // precio en cada guardado -- se mandan los valores actuales para no
+        // borrarlos por accidente al cambiar solo el limite o el plazo.
+        const respuesta = await fetchAutenticado(`/creditos/clientes/${Number(cliente.id)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                nombre: cliente.nombre,
+                telefono: cliente.telefono || "",
+                fechaVencimiento: cliente.fecha_vencimiento || null,
+                nivelPrecioPreferido: cliente.nivel_precio_preferido || null,
+                limiteCredito,
+                diasCredito,
+                motivo: "Ajuste desde el celular",
+                empleadoNombre: duenoEmpleadoNombrePersona || ""
+            })
+        });
+
+        mostrarToastDueno(
+            respuesta.acuerdo?.requiereAceptacion
+                ? "Guardado. El nuevo limite se aplica cuando el cliente acepte."
+                : "Listo, ya quedo actualizado."
+        );
+
+        await abrirDetalleCreditoDueno(cliente.id);
+        cargarPanelCreditosDueno();
+    } catch (error) {
+        mostrarToastDueno(error.message || "No se pudo guardar.");
+    }
+}
+
+async function cambiarSuspensionCreditoDueno(suspender) {
+    const cliente = duenoCreditoDetalleActual?.cliente;
+    if (!cliente) return;
+
+    if (suspender && !confirm(`¿Suspender el credito de ${cliente.nombre}? No podra comprar a credito hasta que lo reactives.`)) return;
+
+    try {
+        await fetchAutenticado(`/creditos/clientes/${Number(cliente.id)}/${suspender ? "suspender" : "reactivar"}`, { method: "POST" });
+        mostrarToastDueno(suspender ? "Credito suspendido." : "Credito reactivado.");
+        await abrirDetalleCreditoDueno(cliente.id);
+        cargarPanelCreditosDueno();
+    } catch (error) {
+        mostrarToastDueno(error.message || "No se pudo actualizar.");
+    }
+}
+
+function abrirFormularioNuevoClienteCreditoDueno() {
+    const contenedor = document.getElementById("duenoCreditoNuevoForm");
+    if (!contenedor) return;
+
+    contenedor.innerHTML = `
+        <div class="dueno-form-abono" style="margin-top:12px;">
+            <label>Nombre
+                <input type="text" id="duenoNuevoCreditoNombre" autocomplete="off" placeholder="Nombre del cliente">
+            </label>
+            <label>Telefono (opcional)
+                <input type="tel" id="duenoNuevoCreditoTelefono" inputmode="tel" autocomplete="off" placeholder="10 digitos">
+            </label>
+            <label>Limite de credito
+                <input type="number" id="duenoNuevoCreditoLimite" inputmode="decimal" min="0" step="0.01" value="0">
+            </label>
+            <label>Plazo por compra (dias)
+                <input type="number" id="duenoNuevoCreditoPlazo" inputmode="numeric" min="1" step="1" value="15">
+            </label>
+            <p id="duenoNuevoCreditoError" class="dueno-login-error" style="display:none;"></p>
+            <div class="dueno-form-abono-acciones">
+                <button type="button" class="dueno-boton-secundario-chico" onclick="document.getElementById('duenoCreditoNuevoForm').innerHTML = ''">Cancelar</button>
+                <button type="button" class="dueno-boton-primario-chico" onclick="crearClienteCreditoDueno()">Crear cliente</button>
+            </div>
+        </div>
+    `;
+}
+
+async function crearClienteCreditoDueno() {
+    const nombre = document.getElementById("duenoNuevoCreditoNombre")?.value.trim() || "";
+    const telefono = document.getElementById("duenoNuevoCreditoTelefono")?.value.trim() || "";
+    const limiteCredito = Number(document.getElementById("duenoNuevoCreditoLimite")?.value || 0);
+    const diasCredito = Number(document.getElementById("duenoNuevoCreditoPlazo")?.value || 15);
+    const error = document.getElementById("duenoNuevoCreditoError");
+
+    if (!nombre) {
+        error.textContent = "Escribe el nombre del cliente.";
+        error.style.display = "block";
+        return;
+    }
+
+    error.style.display = "none";
+
+    try {
+        const datos = await fetchAutenticado("/creditos/clientes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nombre, telefono: telefono || null, limiteCredito, diasCredito, empleadoNombre: duenoEmpleadoNombrePersona || "" })
+        });
+
+        document.getElementById("duenoCreditoNuevoForm").innerHTML = "";
+        await cargarPanelCreditosDueno();
+
+        // Solo si el negocio exige que el cliente acepte sus condiciones
+        // (apagado por defecto) el servidor devuelve un enlace/QR.
+        if (datos.tokenAceptacion) {
+            mostrarAcuerdoPendienteCreditoDueno(datos);
+        } else {
+            mostrarToastDueno("Cliente creado. Ya puede comprar a credito.");
+        }
+    } catch (err) {
+        error.textContent = err.message || "No se pudo crear el cliente.";
+        error.style.display = "block";
+    }
+}
+
+function mostrarAcuerdoPendienteCreditoDueno(datos) {
+    const token = encodeURIComponent(datos.tokenAceptacion);
+    const clienteId = Number(datos.cliente?.id);
+
+    document.getElementById("duenoCreditoNuevoForm").innerHTML = `
+        <div class="dueno-card" style="margin-top:12px;text-align:center;">
+            <h3>Falta que ${escaparDueno(datos.cliente?.nombre || "el cliente")} acepte</h3>
+            <p class="dueno-estado">Su credito queda pendiente hasta que acepte sus condiciones. Que escanee este codigo:</p>
+            <img src="/acuerdo/${token}/qr.png" alt="Codigo QR del acuerdo de credito" style="width:200px;height:200px;margin:8px auto;display:block;">
+            <a class="dueno-link" href="/acuerdo/${token}" target="_blank" rel="noopener">Ver condiciones</a>
+            <button type="button" class="dueno-boton-secundario" onclick="aceptarAcuerdoPresencialCreditoDueno(${clienteId})">No trae celular: acepta aqui mismo</button>
+            <button type="button" class="dueno-link" onclick="document.getElementById('duenoCreditoNuevoForm').innerHTML = ''">Listo, ya se lo mostre</button>
+        </div>
+    `;
+}
+
+async function aceptarAcuerdoPresencialCreditoDueno(clienteId) {
+    if (!confirm("¿El cliente ya leyo las condiciones y acepta el credito aqui mismo?")) return;
+
+    try {
+        await fetchAutenticado(`/creditos/clientes/${Number(clienteId)}/acuerdo/aceptar-presencial`, { method: "POST" });
+        document.getElementById("duenoCreditoNuevoForm").innerHTML = "";
+        mostrarToastDueno("Credito activado.");
+        cargarPanelCreditosDueno();
+    } catch (error) {
+        mostrarToastDueno(error.message || "No se pudo aceptar.");
+    }
 }
 
 function mostrarFormularioAbonoCreditoDueno() {
@@ -2664,6 +3256,27 @@ let duenoVentaMixto = { efectivo: 0, tarjeta: 0 };
 // con exito o al vaciar el carrito.
 let duenoVentaIdempotencyKey = null;
 let duenoVentaCreditoIdempotencyKey = null;
+
+// Codigo publico del ticket digital (/ticket/:codigo) -- el servidor solo
+// guarda el que manda el cliente, asi que antes las ventas hechas desde el
+// celular se quedaban sin ticket digital. Mismo alfabeto y longitud que
+// crearCodigoPublicoTicketPOS() del escritorio (sin 0/O/1/I para que no se
+// confunda al dictarlo). Igual que la llave de idempotencia, se conserva
+// mientras dure el intento de cobro: un reintento manda el mismo codigo.
+let duenoVentaCodigoPublico = null;
+const ALFABETO_CODIGO_PUBLICO_DUENO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function crearCodigoPublicoTicketDueno(longitud = 10) {
+    const valores = new Uint32Array(longitud);
+    crypto.getRandomValues(valores);
+
+    let codigo = "";
+    for (let i = 0; i < longitud; i++) {
+        codigo += ALFABETO_CODIGO_PUBLICO_DUENO[valores[i] % ALFABETO_CODIGO_PUBLICO_DUENO.length];
+    }
+
+    return codigo;
+}
 
 function generarIdempotencyKeyDueno() {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -3150,6 +3763,7 @@ async function vaciarCarritoVenderDueno() {
     duenoVentaClienteSeleccionado = null;
     duenoVentaIdempotencyKey = null;
     duenoVentaCreditoIdempotencyKey = null;
+    duenoVentaCodigoPublico = null;
 
     renderCarritoVenderDueno();
 }
@@ -3766,6 +4380,12 @@ async function confirmarCobroVenderDueno() {
 
     cuerpo.idempotencyKey = duenoVentaIdempotencyKey;
 
+    if (!duenoVentaCodigoPublico) {
+        duenoVentaCodigoPublico = crearCodigoPublicoTicketDueno();
+    }
+
+    cuerpo.codigoPublico = duenoVentaCodigoPublico;
+
     if (descuentoRequierePinAdminDueno(resumen)) {
         const porcentaje = Math.round(resumen.descuento / resumen.subtotal * 100);
         const adminPin = pedirPinAdministradorParaDescuentoDueno(porcentaje);
@@ -3791,7 +4411,8 @@ async function confirmarCobroVenderDueno() {
         });
 
         duenoVentaIdempotencyKey = null;
-        mostrarVentaCobradaVenderDueno(respuesta.folio, total);
+        duenoVentaCodigoPublico = null;
+        mostrarVentaCobradaVenderDueno(respuesta.folio, total, respuesta.codigoPublico);
     } catch (error) {
         contenido.innerHTML = `
             <div class="vacio">${escaparDueno(error.message || "No se pudo cobrar la venta. Intenta de nuevo.")}</div>
@@ -3842,6 +4463,12 @@ async function confirmarCobroCreditoVenderDueno() {
 
     cuerpo.idempotencyKey = duenoVentaCreditoIdempotencyKey;
 
+    if (!duenoVentaCodigoPublico) {
+        duenoVentaCodigoPublico = crearCodigoPublicoTicketDueno();
+    }
+
+    cuerpo.codigoPublico = duenoVentaCodigoPublico;
+
     let adminPinCredito = null;
 
     if (descuentoRequierePinAdminDueno(resumen)) {
@@ -3878,7 +4505,8 @@ async function confirmarCobroCreditoVenderDueno() {
         });
 
         duenoVentaCreditoIdempotencyKey = null;
-        mostrarVentaCobradaVenderDueno(respuesta.folio, resumen.total);
+        duenoVentaCodigoPublico = null;
+        mostrarVentaCobradaVenderDueno(respuesta.folio, resumen.total, respuesta.codigoPublico);
     } catch (error) {
         contenido.innerHTML = `
             <div class="vacio">${escaparDueno(error.message || "No se pudo registrar la venta a credito. Intenta de nuevo.")}</div>
@@ -3889,7 +4517,56 @@ async function confirmarCobroCreditoVenderDueno() {
     }
 }
 
-function mostrarVentaCobradaVenderDueno(folio, total) {
+// El ticket digital vive en el dominio principal (igual que el QR del
+// ticket impreso del escritorio) -- no en app.nexoposoficial.com.
+const URL_BASE_TICKET_PUBLICO_DUENO = "https://nexoposoficial.com/ticket/";
+
+// Los numeros de Mexico se guardan a 10 digitos; wa.me necesita el codigo
+// de pais. Si no hay un numero usable se manda sin destinatario y
+// WhatsApp deja elegir el chat.
+function telefonoParaWhatsAppDueno(telefono) {
+    const digitos = String(telefono || "").replace(/\D/g, "");
+
+    if (digitos.length === 10) return `52${digitos}`;
+    if (digitos.length >= 11) return digitos;
+    return "";
+}
+
+function enlaceWhatsAppTicketDueno({ folio, codigoPublico, telefono }) {
+    const negocio = document.getElementById("duenoNegocio")?.textContent?.trim() || "nuestro negocio";
+    const texto = `Gracias por tu compra en ${negocio}. Aqui esta tu ticket ${folio}: ${URL_BASE_TICKET_PUBLICO_DUENO}${codigoPublico}`;
+
+    return `https://wa.me/${telefonoParaWhatsAppDueno(telefono)}?text=${encodeURIComponent(texto)}`;
+}
+
+async function copiarEnlaceTicketDueno(codigoPublico) {
+    const enlace = `${URL_BASE_TICKET_PUBLICO_DUENO}${codigoPublico}`;
+
+    try {
+        await navigator.clipboard.writeText(enlace);
+        mostrarToastDueno("Enlace del ticket copiado.");
+    } catch (error) {
+        // Algunos navegadores moviles niegan el portapapeles -- se
+        // muestra el enlace para copiarlo a mano en vez de fallar callado.
+        window.prompt("Copia el enlace del ticket:", enlace);
+    }
+}
+
+function accionesTicketDigitalDuenoHtml({ folio, codigoPublico, telefono }) {
+    if (!codigoPublico) return "";
+
+    const enlaceWhatsApp = enlaceWhatsAppTicketDueno({ folio, codigoPublico, telefono });
+
+    return `
+        <a class="dueno-boton-secundario" href="${escaparDueno(enlaceWhatsApp)}" target="_blank" rel="noopener">Enviar ticket por WhatsApp</a>
+        <div class="dueno-acciones-ticket-enlaces">
+            <button type="button" class="dueno-link" onclick="copiarEnlaceTicketDueno('${escaparDueno(codigoPublico)}')">Copiar enlace</button>
+            <a class="dueno-link" href="${escaparDueno(URL_BASE_TICKET_PUBLICO_DUENO + codigoPublico)}" target="_blank" rel="noopener">Ver ticket</a>
+        </div>
+    `;
+}
+
+function mostrarVentaCobradaVenderDueno(folio, total, codigoPublico) {
     document.getElementById("duenoVenderCobroTitulo").textContent = "Venta cobrada";
     document.getElementById("duenoVenderCobroContenido").innerHTML = `
         <div class="dueno-status-card">
@@ -3897,7 +4574,8 @@ function mostrarVentaCobradaVenderDueno(folio, total) {
             <h2>${escaparDueno(folio)}</h2>
             <p class="dueno-estado">Total ${dinero(total)}</p>
         </div>
-        <button type="button" class="dueno-boton-primario" onclick="finalizarVentaVenderDueno()">Nueva venta</button>
+        ${accionesTicketDigitalDuenoHtml({ folio, codigoPublico, telefono: duenoVentaClienteSeleccionado?.telefono })}
+        <button type="button" class="dueno-boton-primario" onclick="finalizarVentaVenderDueno()" style="margin-top:8px;">Nueva venta</button>
     `;
 
     duenoVentaCarrito = [];
@@ -4240,6 +4918,22 @@ async function cargarPanelMasDueno() {
     const enModoDispositivo =
     Boolean(dispositivoTokenGuardado() && empleadoActivoGuardado());
 
+    // El estado del negocio (plan, sesiones, alertas de stock) es del dueño:
+    // un empleado solo necesita el menu corto, sin pedir nada de eso.
+    if (duenoRolSesion === "employee") {
+        duenoMasContexto = {
+            negocio: {}, licencia: {}, sesiones: [], dispositivos: [],
+            ia: { disponible: false }, stockBajoCount: 0
+        };
+        document.getElementById("duenoMasStatusCard").style.display = "none";
+        document.getElementById("duenoMasSubtitulo").textContent = "Buscar ventas, tu usuario y tus ajustes";
+        renderCategoriasMasDueno();
+        return;
+    }
+
+    document.getElementById("duenoMasStatusCard").style.display = "";
+    document.getElementById("duenoMasSubtitulo").textContent = "Reportes, cotizar, inventario, tu cuenta y tu plan";
+
     try {
         const [licenciaDatos, sesionesDatos, dispositivosDatos, iaDatos] =
         await Promise.all([
@@ -4333,6 +5027,7 @@ const CATEGORIAS_MAS_DUENO = [
     { id: "ventas-tab", titulo: "Cotizar", desc: "Arma una cotizacion sin cobrar", icono: "carrito", color: "azul", tab: "ventas" },
     { id: "inventario-tab", titulo: "Inventario", desc: "Consulta tu catalogo completo", icono: "caja", color: "azul", tab: "inventario" },
     { id: "creditos-tab", titulo: "Creditos", desc: "Clientes, saldos y abonos", icono: "tarjeta", color: "azul", tab: "creditos" },
+    { id: "buscar-venta", titulo: "Buscar venta", desc: "Por folio, cliente o dia: ticket, cambios y cancelaciones", icono: "carrito", color: "azul" },
     { id: "market", titulo: "Comprar en Nexo Market", desc: "Explora productos de otros negocios Nexo", icono: "carrito", color: "verde", href: "https://app.nexoposoficial.com/market" },
     { id: "cuenta", titulo: "Cuenta", desc: "Datos del negocio y correo", icono: "usuario", color: "" },
     { id: "plan", titulo: "Plan y suscripcion", desc: "Tu plan, pagos y facturas", icono: "tarjeta", color: "verde" },
@@ -4355,12 +5050,19 @@ function renderCategoriasMasDueno() {
     const enModoDispositivo =
     Boolean(dispositivoTokenGuardado() && empleadoActivoGuardado());
 
+    const esEmpleado = duenoRolSesion === "employee";
+
     const categorias =
-    CATEGORIAS_MAS_DUENO.filter(categoria =>
-        categoria.id === "cambiar-usuario"
+    CATEGORIAS_MAS_DUENO.filter(categoria => {
+        // Un empleado solo ve lo suyo (notificaciones, apariencia, ayuda y
+        // cambiar de usuario) -- lo demas es de la cuenta del dueño.
+        if (esEmpleado && !DUENO_MAS_PARA_EMPLEADO.has(categoria.id)) return false;
+        if (esEmpleado && categoria.id === "buscar-venta" && !duenoTienePermiso("hacer_ventas")) return false;
+
+        return categoria.id === "cambiar-usuario"
             ? enModoDispositivo
-            : !enModoDispositivo || !CATEGORIAS_MAS_SOLO_CUENTA_PERSONAL.has(categoria.id)
-    );
+            : !enModoDispositivo || !CATEGORIAS_MAS_SOLO_CUENTA_PERSONAL.has(categoria.id);
+    });
 
     document.getElementById("duenoMasCategorias").innerHTML =
         categorias.map(categoria => `
@@ -4378,6 +5080,7 @@ function renderCategoriasMasDueno() {
 }
 
 const RENDER_SUBPANTALLA_MAS_DUENO = {
+    "buscar-venta": renderSubpantallaBuscarVenta,
     cuenta: renderSubpantallaCuenta,
     plan: renderSubpantallaPlan,
     "nexo-ia": renderSubpantallaNexoIA,

@@ -586,7 +586,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
         }
     });
 
-    app.post("/ajustes-inventario", requerirAccesoNegocio, async (req, res) => {
+    app.post("/ajustes-inventario", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
         const { productoId, tipo, cantidad, motivo, referencia, usuarioNombre, fecha } = req.body;
 
         if (!productoId || !["entrada", "salida", "conteo"].includes(tipo)) {

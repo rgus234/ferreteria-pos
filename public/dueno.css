@@ -1702,7 +1702,9 @@ button{
 }
 
 .dueno-form-abono input,
-.dueno-form-abono select{
+.dueno-form-abono select,
+.dueno-form-abono textarea{
+    font-family:inherit;
     padding:10px 12px;
     border-radius:10px;
     border:1px solid var(--line);
@@ -2412,4 +2414,22 @@ button{
     color:var(--text);
     font-size:13px;
     white-space:nowrap;
+}
+/* Un <a> con la clase de boton no centra su texto vertical como un <button>
+   -- necesario para "Enviar ticket por WhatsApp", que tiene que ser un
+   enlace real (un window.open() desde un click lo bloquean muchos navegadores). */
+a.dueno-boton-secundario,
+a.dueno-boton-primario{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-sizing:border-box;
+    text-decoration:none;
+}
+
+.dueno-acciones-ticket-enlaces{
+    display:flex;
+    justify-content:center;
+    gap:22px;
+    margin:10px 0 6px;
 }
