@@ -3151,8 +3151,19 @@ async function confirmarPinPerfilPOS() {
 // input real; se filtra con el display inline que ya controla
 // abrirPinPerfilPOS/cerrarPinPerfilPOS.
 document.addEventListener("keydown", event => {
+ // El display inline de #loginPinPerfil se queda en "block" despues de
+ // entrar (solo cerrarPinPerfilPOS lo regresa a "none", y el flujo de
+ // login exitoso no la llama) -- filtrar solo por eso hacia que este
+ // listener se tragara TODOS los numeros, Retroceso y Enter en toda la
+ // app ya dentro del POS (bug real en Ferreteria Olimpico, 2026-10-08).
+ // Hay que exigir tambien que haya un perfil esperando PIN y que la
+ // pantalla de verdad se vea.
  const pantallaPin = document.getElementById("loginPinPerfil");
- if (!pantallaPin || pantallaPin.style.display !== "block") return;
+ if (!empleadoSeleccionadoPinPOS) return;
+ if (!pantallaPin || pantallaPin.style.display !== "block" || pantallaPin.offsetParent === null) return;
+
+ const destino = event.target;
+ if (destino instanceof HTMLElement && (destino.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(destino.tagName))) return;
 
  if (/^[0-9]$/.test(event.key)) {
  event.preventDefault();
