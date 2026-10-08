@@ -2977,6 +2977,42 @@ async function abrirDesvincularEquipoPOS() {
 let empleadoSeleccionadoPinPOS = null;
 let bufferPinPerfilPOS = "";
 
+// Comparte el circulo de iniciales (fondo de color + texto) o la foto
+// real segun tenga o no fotoUrl el empleado. data-nombre/data-color en
+// vez de pasarlos como argumentos de la funcion de error evita tener
+// que escapar comillas para meterlas dentro de un atributo onerror.
+function avatarHtmlEmpleado(empleado) {
+ if (!empleado.fotoUrl) {
+ return `<span class="perfil-avatar" style="background:${escaparPOS(empleado.colorAvatar || "#0d6efd")};">${escaparPOS(inicialesNegocio(empleado.nombre))}</span>`;
+ }
+
+ return `<img class="perfil-avatar perfil-avatar-foto" src="${escaparPOS(empleado.fotoUrl)}" alt="${escaparPOS(empleado.nombre)}" data-nombre="${escaparPOS(empleado.nombre)}" data-color="${escaparPOS(empleado.colorAvatar || "#0d6efd")}" onerror="reemplazarFotoRotaPorIniciales(this)">`;
+}
+
+// El token firmado de la URL expira en minutos (ver firmarTokenImagen
+// en server.js) -- si esta pantalla se queda abierta mucho tiempo sin
+// red o el navegador reintenta la imagen ya vencida, esto evita el
+// icono de imagen rota y cae de vuelta al circulo de iniciales de
+// siempre.
+function reemplazarFotoRotaPorIniciales(img) {
+ const span = document.createElement("span");
+ span.className = "perfil-avatar";
+ span.style.background = img.dataset.color || "#0d6efd";
+ span.textContent = inicialesNegocio(img.dataset.nombre || "");
+ img.replaceWith(span);
+}
+
+// Variante para el avatar de la pantalla de PIN: ahi el contenedor
+// (#pinPerfilAvatar) es un div fijo que se reutiliza entre perfiles, no
+// un <span> que se pueda reemplazar entero sin perder el id.
+function reemplazarFotoRotaPorInicialesEnContenedor(img) {
+ const contenedor = img.parentElement;
+ if (!contenedor) return;
+
+ contenedor.style.background = img.dataset.color || "#0d6efd";
+ contenedor.textContent = inicialesNegocio(img.dataset.nombre || "");
+}
+
 function renderSeleccionPerfilPOS() {
  const grid =
  document.getElementById("gridPerfilesPOS");
@@ -2988,7 +3024,7 @@ function renderSeleccionPerfilPOS() {
 
  grid.innerHTML = empleados.map(empleado => `
  <button type="button" class="perfil-tarjeta" onclick="abrirPinPerfilPOS(${empleado.id})">
- <span class="perfil-avatar" style="background:${escaparPOS(empleado.colorAvatar || "#0d6efd")};">${escaparPOS(inicialesNegocio(empleado.nombre))}</span>
+ ${avatarHtmlEmpleado(empleado)}
  <strong>${escaparPOS(empleado.nombre)}</strong>
  <span>${escaparPOS(empleado.rol || "")}</span>
  </button>
@@ -3011,8 +3047,13 @@ function abrirPinPerfilPOS(empleadoId) {
  document.getElementById("pinPerfilAvatar");
 
  if (avatar) {
+ if (empleado.fotoUrl) {
+ avatar.style.background = "transparent";
+ avatar.innerHTML = `<img src="${escaparPOS(empleado.fotoUrl)}" alt="${escaparPOS(empleado.nombre)}" data-nombre="${escaparPOS(empleado.nombre)}" data-color="${escaparPOS(empleado.colorAvatar || "#0d6efd")}" onerror="reemplazarFotoRotaPorInicialesEnContenedor(this)">`;
+ } else {
  avatar.style.background = empleado.colorAvatar || "#0d6efd";
  avatar.textContent = inicialesNegocio(empleado.nombre);
+ }
  }
 
  const nombre = document.getElementById("pinPerfilNombre");
@@ -3102,6 +3143,34 @@ async function confirmarPinPerfilPOS() {
 
  await entrarAlSistemaConUsuario(resultado.empleado);
 }
+
+// La pantalla de PIN solo tenia botones en pantalla -- un equipo con
+// teclado fisico (la mayoria de los POS de escritorio) no podia teclear
+// el codigo, tenia que tocar la pantalla si o si. Escucha a nivel
+// documento porque la pantalla reemplaza el contenido, nunca abre un
+// input real; se filtra con el display inline que ya controla
+// abrirPinPerfilPOS/cerrarPinPerfilPOS.
+document.addEventListener("keydown", event => {
+ const pantallaPin = document.getElementById("loginPinPerfil");
+ if (!pantallaPin || pantallaPin.style.display !== "block") return;
+
+ if (/^[0-9]$/.test(event.key)) {
+ event.preventDefault();
+ tecleoPinPerfilPOS(event.key);
+ return;
+ }
+
+ if (event.key === "Backspace") {
+ event.preventDefault();
+ borrarPinPerfilPOS();
+ return;
+ }
+
+ if (event.key === "Enter") {
+ event.preventDefault();
+ confirmarPinPerfilPOS();
+ }
+});
 
 async function entrarAlSistemaConUsuario(usuario) {
  document.getElementById("login").style.display =
@@ -3374,15 +3443,20 @@ function renderPanelUsuariosDashboard() {
  <div class="usuarios-grid">
  ${usuarios.map(usuario => `
  <div class="usuario-card ${usuario.id === usuarioActual.id ? "activo" : ""}">
+ <div class="usuario-card-cabecera">
+ ${avatarHtmlEmpleado(usuario)}
  <div>
  <strong>${usuario.nombre}</strong>
  <span>${usuario.rol}</span>
+ </div>
  </div>
  <small>${resumenPermisosUsuario(usuario)}</small>
  <div class="usuario-card-acciones">
  <button type="button" onclick="abrirPermisosUsuario(${usuario.id})">Permisos</button>
  <button type="button" onclick="abrirHorarioUsuario(${usuario.id})">Horario</button>
  <button type="button" onclick="cambiarPinUsuario(${usuario.id})">PIN</button>
+ <button type="button" onclick="elegirFotoUsuario(${usuario.id})">${usuario.fotoUrl ? "Cambiar foto" : "Subir foto"}</button>
+ ${usuario.fotoUrl ? `<button type="button" onclick="quitarFotoUsuario(${usuario.id})">Quitar foto</button>` : ""}
  <button type="button" onclick="eliminarUsuarioSistema(${usuario.id})">Eliminar</button>
  </div>
  </div>
@@ -3939,6 +4013,80 @@ async function guardarPermisosNexoUsuario(id) {
  await alertaPOS("Accesos de Nexo actualizados.", "Listo", "exito");
  } catch (error) {
  await alertaPOS(error.message || "No se pudieron guardar los accesos de Nexo.", "Error", "alerta");
+ }
+}
+
+// Un <input type=file> compartido en vez de uno por tarjeta -- se crea
+// una sola vez y se reusa, igual que el patron de modales de este
+// archivo (se crea perezoso la primera vez que hace falta).
+function elegirFotoUsuario(id) {
+ let input = document.getElementById("inputFotoUsuario");
+
+ if (!input) {
+ input = document.createElement("input");
+ input.type = "file";
+ input.id = "inputFotoUsuario";
+ input.accept = "image/*";
+ input.style.display = "none";
+ document.body.appendChild(input);
+ }
+
+ input.value = "";
+ input.onchange = () => {
+ const archivo = input.files?.[0];
+ if (archivo) subirFotoUsuario(id, archivo);
+ };
+ input.click();
+}
+
+async function subirFotoUsuario(id, archivo) {
+ try {
+ const imagenBase64 = await new Promise((resolve, reject) => {
+ const lector = new FileReader();
+ lector.onload = () => resolve(lector.result);
+ lector.onerror = () => reject(new Error("No se pudo leer la imagen"));
+ lector.readAsDataURL(archivo);
+ });
+
+ const respuesta =
+ await cuentaFetchAutenticado(`/cuenta/empleados/${Number(id)}/foto`, {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ imagenBase64 })
+ });
+
+ if (!respuesta.ok) {
+ throw new Error(respuesta.error || "No se pudo subir la foto");
+ }
+
+ await sincronizarEmpleadosDispositivo();
+ renderPanelUsuariosDashboard();
+ } catch (error) {
+ await alertaPOS(error.message || "No se pudo subir la foto.", "Error", "alerta");
+ }
+}
+
+async function quitarFotoUsuario(id) {
+ const confirmar =
+ await confirmarPOS(
+ "Quitar la foto de este usuario? Volvera a mostrar el circulo con sus iniciales.",
+ "Quitar foto"
+ );
+
+ if (!confirmar) return;
+
+ try {
+ const respuesta =
+ await cuentaFetchAutenticado(`/cuenta/empleados/${Number(id)}/foto`, { method: "DELETE" });
+
+ if (!respuesta.ok) {
+ throw new Error(respuesta.error || "No se pudo quitar la foto");
+ }
+
+ await sincronizarEmpleadosDispositivo();
+ renderPanelUsuariosDashboard();
+ } catch (error) {
+ await alertaPOS(error.message || "No se pudo quitar la foto.", "Error", "alerta");
  }
 }
 

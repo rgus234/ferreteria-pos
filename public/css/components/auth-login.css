@@ -499,6 +499,11 @@
  box-shadow:inset 0 1px 0 rgba(255,255,255,.28);
 }
 
+.perfil-avatar-foto{
+ object-fit:cover;
+ box-shadow:0 0 0 1px rgba(15,23,42,.08);
+}
+
 .perfil-tarjeta strong{
  font-size:13px;
  font-weight:800;
@@ -543,6 +548,30 @@
  align-items:center;
  gap:14px;
  margin-bottom:12px;
+}
+
+/* Nunca tuvo estilo propio -- antes de esto el avatar de la cabecera
+   del PIN dependia solo del color/texto puestos por JS inline, asi que
+   quedaba del tamano del texto (un rectangulo chico) en vez de un
+   circulo como el resto de los avatares de la app. */
+.pin-perfil-avatar{
+ width:48px;
+ height:48px;
+ flex:0 0 48px;
+ display:grid;
+ place-items:center;
+ border-radius:50%;
+ overflow:hidden;
+ color:#ffffff;
+ font-size:16px;
+ font-weight:900;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.28);
+}
+
+.pin-perfil-avatar img{
+ width:100%;
+ height:100%;
+ object-fit:cover;
 }
 
 .pin-perfil-cabecera strong{
@@ -693,11 +722,11 @@
    elegir perfil, PIN) nunca tenia override de modo oscuro, asi que se
    quedaba blanco fijo aunque el resto de la app ya estuviera oscura --
    reportado como "se ve feo" y "cuadro blanco" (bug real, con captura).
-   .login-form-logo y .pin-perfil-saludo se dejan a proposito CON su
-   fondo claro de siempre: son un "marco" para una imagen con fondo
-   blanco de por si (nexo-ia/feliz.jpg no es un PNG transparente), asi
-   que mantenerlos claros los hace ver como una tarjeta con foto a
-   proposito en vez de un recorte roto. */
+   .login-form-logo sigue con su fondo claro fijo porque nexo-pos-icon.jpg
+   todavia no tiene version transparente. .pin-perfil-saludo usa ya
+   feliz-transparente.png (fondo recortado con sharp, mismo algoritmo de
+   banners-market-server.js) -- se deja el fondo claro de todos modos
+   como marco decorativo a proposito, no para disimular un recorte roto. */
 body.oscuro .login-panel-form{
  background:#111827;
  box-shadow:-1px 0 0 rgba(255,255,255,.06);

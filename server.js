@@ -1856,12 +1856,24 @@ function colorAvatarAleatorio() {
     return PALETA_AVATAR_EMPLEADO[Math.floor(Math.random() * PALETA_AVATAR_EMPLEADO.length)];
 }
 
-function empleadoParaAdmin(fila) {
+// La foto nunca viaja inline en el JSON del empleado (serian varios KB
+// por fila en una lista que se pide seguido) -- solo una URL firmada
+// hacia /empleados/:id/foto, mismo patron que fotos-producto: un
+// <img src> no puede mandar el header x-dispositivo-token ni
+// Authorization, asi que requerirAccesoNegocioImagen acepta tambien
+// este token de un solo uso practico en la query string.
+function urlFotoEmpleado(fila, negocio) {
+    if (!fila.foto) return null;
+    return `/empleados/${fila.id}/foto?negocio=${encodeURIComponent(negocio.slug)}&token=${firmarTokenImagen(negocio.negocio_id, String(fila.id))}`;
+}
+
+function empleadoParaAdmin(fila, negocio) {
     return {
         id: fila.id,
         nombre: fila.nombre,
         rol: fila.rol,
         colorAvatar: fila.color_avatar,
+        fotoUrl: urlFotoEmpleado(fila, negocio),
         activo: fila.activo,
         permisos: fila.permisos,
         widgets: fila.widgets,
@@ -1877,12 +1889,13 @@ function empleadoParaAdmin(fila) {
     };
 }
 
-function empleadoParaDispositivo(fila) {
+function empleadoParaDispositivo(fila, negocio) {
     return {
         id: fila.id,
         nombre: fila.nombre,
         rol: fila.rol,
         colorAvatar: fila.color_avatar,
+        fotoUrl: urlFotoEmpleado(fila, negocio),
         permisos: fila.permisos,
         widgets: fila.widgets,
         horarioLaboral: fila.horario_laboral || null,
@@ -1943,7 +1956,7 @@ app.get("/cuenta/empleados", requerirSesionCuenta, requerirPermiso(PERMISOS.ADMI
             [req.negocioAutenticado.negocio_id]
         );
 
-        res.json({ ok: true, empleados: filas.rows.map(empleadoParaAdmin) });
+        res.json({ ok: true, empleados: filas.rows.map(f => empleadoParaAdmin(f, req.negocioAutenticado)) });
     } catch (error) {
         responderError(res, error);
     }
@@ -2013,7 +2026,7 @@ app.post("/cuenta/empleados", requerirSesionCuenta, requerirPermiso(PERMISOS.ADM
             ]
         );
 
-        res.status(201).json({ ok: true, empleado: empleadoParaAdmin(fila.rows[0]) });
+        res.status(201).json({ ok: true, empleado: empleadoParaAdmin(fila.rows[0], req.negocioAutenticado) });
     } catch (error) {
         responderError(res, error);
     }
@@ -2083,7 +2096,100 @@ app.put("/cuenta/empleados/:id", requerirSesionCuenta, requerirPermiso(PERMISOS.
             [nombre, rol, activo, JSON.stringify(permisos), JSON.stringify(widgets), pinHash, pinVerificador, pinSalt, horarioLaboral ? JSON.stringify(horarioLaboral) : null, id]
         );
 
-        res.json({ ok: true, empleado: empleadoParaAdmin(actualizado.rows[0]) });
+        res.json({ ok: true, empleado: empleadoParaAdmin(actualizado.rows[0], req.negocioAutenticado) });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+// Foto de perfil opcional -- reemplaza el circulo de iniciales en la
+// pantalla de "Quien esta trabajando?" cuando existe. Mismo flujo que
+// /fotos-producto/:codigo/principal (base64 en el body, comprimida con
+// sharp antes de guardar), pero gated por sesion de cuenta en vez de
+// acceso de negocio porque solo el dueno/administrador edita perfiles.
+app.post("/cuenta/empleados/:id/foto", requerirSesionCuenta, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
+    const id = Number(req.params.id);
+    const imagenBase64 = String(req.body?.imagenBase64 || "");
+
+    if (!id || !imagenBase64) {
+        res.status(400).json({ ok: false, error: "Falta la imagen" });
+        return;
+    }
+
+    try {
+        const base64Limpio = imagenBase64.replace(/^data:image\/\w+;base64,/, "");
+        const bufferOriginal = Buffer.from(base64Limpio, "base64");
+        const bufferComprimido = await comprimirImagen(bufferOriginal, 240);
+
+        const actualizado = await pool.query(
+            `
+            UPDATE public.empleados SET foto = $1, foto_tipo = 'image/jpeg', actualizado_at = NOW()
+            WHERE id = $2 AND negocio_id = $3
+            RETURNING *
+            `,
+            [bufferComprimido, id, req.negocioAutenticado.negocio_id]
+        );
+
+        if (actualizado.rows.length === 0) {
+            res.status(404).json({ ok: false, error: "Empleado no encontrado" });
+            return;
+        }
+
+        res.json({ ok: true, empleado: empleadoParaAdmin(actualizado.rows[0], req.negocioAutenticado) });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+app.delete("/cuenta/empleados/:id/foto", requerirSesionCuenta, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
+    const id = Number(req.params.id);
+
+    try {
+        const actualizado = await pool.query(
+            `
+            UPDATE public.empleados SET foto = NULL, foto_tipo = NULL, actualizado_at = NOW()
+            WHERE id = $1 AND negocio_id = $2
+            RETURNING *
+            `,
+            [id, req.negocioAutenticado.negocio_id]
+        );
+
+        if (actualizado.rows.length === 0) {
+            res.status(404).json({ ok: false, error: "Empleado no encontrado" });
+            return;
+        }
+
+        res.json({ ok: true, empleado: empleadoParaAdmin(actualizado.rows[0], req.negocioAutenticado) });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+// Sirve la foto -- la pide tanto la pantalla de Cuenta (sesion normal,
+// con header Authorization) como la pantalla de "Quien esta
+// trabajando?" en un <img src> antes de cualquier login (sin headers
+// posibles, de ahi requerirAccesoNegocioImagen y el token firmado en
+// la URL que arma urlFotoEmpleado).
+app.get("/empleados/:id/foto", requerirAccesoNegocioImagen, async (req, res) => {
+    try {
+        const negocioId = req.negocioDispositivo?.negocio_id || req.negocioAutenticado?.negocio_id;
+        const id = Number(req.params.id);
+
+        const resultado = await pool.query(
+            `SELECT foto, foto_tipo FROM public.empleados WHERE id = $1 AND negocio_id = $2`,
+            [id, negocioId]
+        );
+
+        const fila = resultado.rows[0];
+
+        if (!fila || !fila.foto) {
+            res.status(404).end();
+            return;
+        }
+
+        res.set("Content-Type", fila.foto_tipo || "image/jpeg");
+        res.set("Cache-Control", "private, max-age=600");
+        res.send(fila.foto);
     } catch (error) {
         responderError(res, error);
     }
@@ -2279,7 +2385,7 @@ app.get("/dispositivo/empleados", requerirDispositivoVinculado, async (req, res)
             [req.negocioDispositivo.negocio_id]
         );
 
-        res.json({ ok: true, empleados: filas.rows.map(empleadoParaDispositivo) });
+        res.json({ ok: true, empleados: filas.rows.map(f => empleadoParaDispositivo(f, req.negocioDispositivo)) });
     } catch (error) {
         responderError(res, error);
     }
@@ -2316,7 +2422,7 @@ app.post("/dispositivo/empleados/verificar-pin", requerirDispositivoVinculado, a
 
         limitadorPinEmpleado.registrarExito(clave);
 
-        res.json({ ok: true, empleado: empleadoParaDispositivo(fila.rows[0]) });
+        res.json({ ok: true, empleado: empleadoParaDispositivo(fila.rows[0], req.negocioDispositivo) });
     } catch (error) {
         responderError(res, error);
     }
