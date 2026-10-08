@@ -41,6 +41,14 @@ async function crearPersonaPrueba(sufijo) {
 before(async () => {
     await iniciarServidorPrueba();
     negocio = await crearNegocioPrueba("acuerdo-credito");
+
+    // Aceptar el acuerdo ya no es obligatorio por defecto (ver
+    // tests/credito-aceptacion-opcional.test.js) -- este archivo prueba
+    // justo el modo estricto, asi que lo enciende para su negocio.
+    await pool.query(
+        `INSERT INTO public.configuracion_credito_negocio (negocio_id, exigir_aceptacion_acuerdo) VALUES ($1, true)`,
+        [negocio.negocioId]
+    );
 });
 
 after(async () => {

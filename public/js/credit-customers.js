@@ -316,7 +316,7 @@ function renderCreditoDetalleExtra() {
  if (creditoActual.suspendido) {
  badge.textContent = "Suspendida";
  badge.className = "credito-badge vencido";
- } else if (!creditoActual.acuerdo_vigente_id) {
+ } else if (!creditoActual.acuerdo_vigente_id && window.creditoAcuerdoActual?.exigido === true) {
  badge.textContent = "Pendiente de aceptacion";
  badge.className = "credito-badge vencido";
  } else {
@@ -419,12 +419,22 @@ function renderAccionAcuerdoCredito() {
  ? `<button class="btn-portal-cliente" type="button" onclick="reactivarCreditoPOS()">Reactivar credito</button>`
  : `<button class="btn-portal-cliente-desactivar" type="button" onclick="suspenderCreditoPOS()">Suspender credito</button>`;
 
+ // Si el negocio no exige que el cliente acepte las condiciones (lo normal),
+ // un cliente sin acuerdo o con uno sin aceptar compra a credito igual --
+ // el aviso en rojo solo confunde, asi que se muestra neutro y el acuerdo
+ // queda como algo opcional que se puede generar si el cliente lo pide.
+ const acuerdoExigido = acuerdoInfo?.exigido === true;
+ const claseAviso = acuerdoExigido ? "credito-badge vencido" : "credito-badge al-dia";
+
  if (!acuerdoInfo || !acuerdoInfo.tieneAlgunAcuerdo) {
  // Cliente de antes de esta capa -- sigue funcionando (§6g), solo
  // se le ofrece formalizarlo.
- contenedor.innerHTML = `
+ contenedor.innerHTML = acuerdoExigido ? `
  <div class="credito-badge vencido" style="display:inline-block; margin-bottom:8px;">Credito existente -- sin acuerdo digital registrado</div><br>
  <button class="btn-portal-cliente" type="button" onclick="generarAcuerdoCreditoPOS(${creditoActual.id})">Generar acuerdo</button>
+ ${botonesSuspension}
+ ` : `
+ <button class="btn-portal-cliente" type="button" onclick="generarAcuerdoCreditoPOS(${creditoActual.id})">Generar acuerdo (opcional)</button>
  ${botonesSuspension}
  `;
  return;
@@ -432,7 +442,7 @@ function renderAccionAcuerdoCredito() {
 
  if (acuerdoInfo.pendiente) {
  contenedor.innerHTML = `
- <div class="credito-badge vencido" style="display:inline-block; margin-bottom:8px;">Pendiente de aceptacion -- version ${acuerdoInfo.pendiente.version}</div><br>
+ <div class="${claseAviso}" style="display:inline-block; margin-bottom:8px;">${acuerdoExigido ? "Pendiente de aceptacion" : "Acuerdo sin aceptar (opcional)"} -- version ${acuerdoInfo.pendiente.version}</div><br>
  <button class="btn-portal-cliente" type="button" onclick="reenviarAcuerdoCreditoPOS(${creditoActual.id})">${acuerdoInfo.pendiente.tieneTokenVigente ? "Mostrar QR de nuevo" : "Generar enlace nuevo (el anterior vencio)"}</button>
  `;
  return;
@@ -2091,6 +2101,8 @@ async function abrirConfiguracionCreditoNegocio() {
 			<input id="configCreditoPlazos" type="text" placeholder="15, 30, 60" value="${escaparPOS((configuracion.plazosDisponibles || []).join(", "))}" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--pos-sale-line,#e5e7eb);margin-bottom:14px;">
 			<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:10px;"><input type="checkbox" id="configCreditoIdentificacion" ${configuracion.requiereIdentificacion ? "checked" : ""}> Pedir identificacion oficial en la solicitud en linea</label>
 			<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:14px;"><input type="checkbox" id="configCreditoDomicilio" ${configuracion.requiereDomicilio ? "checked" : ""}> Pedir domicilio en la solicitud en linea</label>
+			<label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;margin-bottom:4px;"><input type="checkbox" id="configCreditoExigirAceptacion" style="margin-top:3px;" ${configuracion.exigirAceptacionAcuerdo ? "checked" : ""}> <span>Pedir que el cliente acepte las condiciones antes de comprar a credito</span></label>
+			<p style="margin:0 0 14px 26px;font-size:12px;color:var(--pos-sale-muted,#667085);">Apagado (lo normal): le das credito al cliente y ya. Encendido: el cliente tiene que escanear un QR con su celular, o aceptar en la pantalla, y hasta entonces no puede comprar a credito.</p>
 			<label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px;">Politica (se incluye en cada acuerdo que se genere)</label>
 			<textarea id="configCreditoPolitica" rows="4" placeholder="Ej. El credito queda sujeto a aprobacion. Pagos atrasados pueden afectar tu limite futuro." style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--pos-sale-line,#e5e7eb);margin-bottom:16px;font-family:inherit;">${escaparPOS(configuracion.politicaTexto || "")}</textarea>
 			<button type="button" id="configCreditoGuardarBtn" style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--pos-sale-brand,#0d6efd);color:#fff;font-weight:600;margin-bottom:8px;">Guardar</button>
@@ -2121,7 +2133,8 @@ async function abrirConfiguracionCreditoNegocio() {
 					plazosDisponibles,
 					requiereIdentificacion: overlay.querySelector("#configCreditoIdentificacion").checked,
 					requiereDomicilio: overlay.querySelector("#configCreditoDomicilio").checked,
-					politicaTexto: overlay.querySelector("#configCreditoPolitica").value
+					politicaTexto: overlay.querySelector("#configCreditoPolitica").value,
+					exigirAceptacionAcuerdo: overlay.querySelector("#configCreditoExigirAceptacion").checked
 				})
 			});
 			const resultado = await respuesta.json();

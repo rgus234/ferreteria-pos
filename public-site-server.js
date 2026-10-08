@@ -5355,7 +5355,8 @@ document.getElementById('btn').addEventListener('click', async function(){
                     plazosDisponibles: configuracion.plazos_disponibles,
                     requiereIdentificacion: configuracion.requiere_identificacion,
                     requiereDomicilio: configuracion.requiere_domicilio,
-                    politicaTexto: configuracion.politica_texto
+                    politicaTexto: configuracion.politica_texto,
+                    exigirAceptacionAcuerdo: configuracion.exigir_aceptacion_acuerdo === true
                 }
             });
         } catch (error) {
@@ -5370,16 +5371,25 @@ document.getElementById('btn').addEventListener('click', async function(){
                 ? req.body.plazosDisponibles.map(Number).filter(n => Number.isInteger(n) && n > 0)
                 : [15, 30, 60];
 
+            // Un cliente con la pantalla vieja en cache no manda este campo --
+            // en ese caso se conserva lo que ya estaba, nunca se apaga/enciende
+            // por accidente.
+            const configuracionActual = await acuerdoCredito.obtenerConfiguracionCredito(pool, negocio.id);
+            const exigirAceptacion = req.body?.exigirAceptacionAcuerdo === undefined
+                ? configuracionActual.exigir_aceptacion_acuerdo === true
+                : Boolean(req.body.exigirAceptacionAcuerdo);
+
             await pool.query(
-                `INSERT INTO public.configuracion_credito_negocio (negocio_id, plazos_disponibles, requiere_identificacion, requiere_domicilio, politica_texto, actualizado_at)
-                 VALUES ($1, $2, $3, $4, $5, NOW())
+                `INSERT INTO public.configuracion_credito_negocio (negocio_id, plazos_disponibles, requiere_identificacion, requiere_domicilio, politica_texto, exigir_aceptacion_acuerdo, actualizado_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, NOW())
                  ON CONFLICT (negocio_id) DO UPDATE SET
                     plazos_disponibles = EXCLUDED.plazos_disponibles,
                     requiere_identificacion = EXCLUDED.requiere_identificacion,
                     requiere_domicilio = EXCLUDED.requiere_domicilio,
                     politica_texto = EXCLUDED.politica_texto,
+                    exigir_aceptacion_acuerdo = EXCLUDED.exigir_aceptacion_acuerdo,
                     actualizado_at = NOW()`,
-                [negocio.id, plazos, Boolean(req.body?.requiereIdentificacion), Boolean(req.body?.requiereDomicilio), String(req.body?.politicaTexto || "").slice(0, 2000)]
+                [negocio.id, plazos, Boolean(req.body?.requiereIdentificacion), Boolean(req.body?.requiereDomicilio), String(req.body?.politicaTexto || "").slice(0, 2000), exigirAceptacion]
             );
 
             res.json({ ok: true });

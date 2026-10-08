@@ -5169,7 +5169,9 @@ async function aplicarCreditoCargoSync(client, negocio, payload) {
 
     const cliente = clienteFila.rows[0];
 
-    if (!cliente.acuerdo_vigente_id || cliente.suspendido) {
+    const faltaAceptarCondiciones = !cliente.acuerdo_vigente_id && await acuerdoCredito.exigirAceptacionAcuerdo(client, negocio.id);
+
+    if (faltaAceptarCondiciones || cliente.suspendido) {
         throw new Error("Este cliente no tiene un credito activo (falta aceptar sus condiciones, o esta suspendido)");
     }
     const productos = productosEvento(payload);
@@ -8505,6 +8507,7 @@ app.get("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISO
         );
         const acuerdoPendiente = acuerdos.rows.find(a => a.estado === "pendiente_aceptacion") || null;
         const tieneAlgunAcuerdo = acuerdos.rows.length > 0;
+        const acuerdoExigido = await acuerdoCredito.exigirAceptacionAcuerdo(pool, negocio.id);
 
         res.json({
             cliente: {
@@ -8517,6 +8520,7 @@ app.get("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISO
             historialComercial,
             acuerdo: {
                 tieneAlgunAcuerdo,
+                exigido: acuerdoExigido,
                 pendiente: acuerdoPendiente ? {
                     id: acuerdoPendiente.id,
                     version: acuerdoPendiente.version,
@@ -8870,15 +8874,24 @@ app.post("/creditos/clientes", requerirAccesoNegocio, requerirPermiso(PERMISOS.G
         ]);
         const clienteCreado = resultado.rows[0];
 
-        const { acuerdo, tokenPlano } = await acuerdoCredito.crearVersionAcuerdo(client, {
-            negocioId: negocio.id,
-            clienteCreditoId: clienteCreado.id,
-            limiteCredito: clienteCreado.limite_credito,
-            diasCredito: clienteCreado.dias_credito,
-            origen: "alta_pos",
-            generadoPor: { tipo: "empleado", id: empleadoIdCajero, nombre: req.body?.empleadoNombre || null },
-            generarToken: true
-        });
+        // Solo se genera el acuerdo (y su QR) si el negocio decidio exigir
+        // que el cliente lo acepte -- si no, el cliente nace listo para
+        // comprar a credito y el POS nunca muestra el paso del QR.
+        const exigirAceptacion = await acuerdoCredito.exigirAceptacionAcuerdo(client, negocio.id);
+        let acuerdo = null;
+        let tokenPlano = null;
+
+        if (exigirAceptacion) {
+            ({ acuerdo, tokenPlano } = await acuerdoCredito.crearVersionAcuerdo(client, {
+                negocioId: negocio.id,
+                clienteCreditoId: clienteCreado.id,
+                limiteCredito: clienteCreado.limite_credito,
+                diasCredito: clienteCreado.dias_credito,
+                origen: "alta_pos",
+                generadoPor: { tipo: "empleado", id: empleadoIdCajero, nombre: req.body?.empleadoNombre || null },
+                generarToken: true
+            }));
+        }
 
         let codigoPortal = null;
         if (telefono) {
@@ -8890,20 +8903,22 @@ app.post("/creditos/clientes", requerirAccesoNegocio, requerirPermiso(PERMISOS.G
             codigoPortal = codigo;
         }
 
-        await acuerdoCredito.registrarBitacoraCredito(client, negocio.id, empleadoIdCajero, "acuerdo_credito_generado", {
-            clienteId: clienteCreado.id,
-            version: acuerdo.version,
-            limiteCredito: clienteCreado.limite_credito,
-            diasCredito: clienteCreado.dias_credito,
-            origen: "alta_pos"
-        });
+        if (acuerdo) {
+            await acuerdoCredito.registrarBitacoraCredito(client, negocio.id, empleadoIdCajero, "acuerdo_credito_generado", {
+                clienteId: clienteCreado.id,
+                version: acuerdo.version,
+                limiteCredito: clienteCreado.limite_credito,
+                diasCredito: clienteCreado.dias_credito,
+                origen: "alta_pos"
+            });
+        }
 
         await client.query("COMMIT");
 
         res.json({
             success: true,
             cliente: clienteCreado,
-            acuerdo: { id: acuerdo.id, version: acuerdo.version, estado: acuerdo.estado },
+            acuerdo: acuerdo ? { id: acuerdo.id, version: acuerdo.version, estado: acuerdo.estado } : null,
             tokenAceptacion: tokenPlano,
             codigoPortal
         });
@@ -8974,6 +8989,13 @@ app.put("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISO
         if (cambioTerminos) {
             const esAumento = nuevoLimite > Number(actual.limite_credito) || nuevoPlazo > Number(actual.dias_credito);
 
+            // El nuevo limite/plazo solo se aplica al cliente cuando el
+            // acuerdo queda aceptado (crearVersionAcuerdo lo escribe al
+            // autoAceptar) -- si el negocio no exige aceptacion, un
+            // aumento tambien se aplica de inmediato en vez de quedarse
+            // esperando un QR que nadie va a escanear.
+            const requiereAceptacion = esAumento && await acuerdoCredito.exigirAceptacionAcuerdo(client, negocio.id);
+
             const { acuerdo, tokenPlano } = await acuerdoCredito.crearVersionAcuerdo(client, {
                 negocioId: negocio.id,
                 clienteCreditoId: id,
@@ -8981,8 +9003,8 @@ app.put("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISO
                 diasCredito: nuevoPlazo,
                 origen: nuevoLimite !== Number(actual.limite_credito) ? "cambio_limite" : "cambio_plazo",
                 generadoPor: { tipo: "empleado", id: empleadoIdCajero, nombre: req.body?.empleadoNombre || null },
-                autoAceptar: !esAumento,
-                generarToken: esAumento
+                autoAceptar: !requiereAceptacion,
+                generarToken: requiereAceptacion
             });
             acuerdoGenerado = { ...acuerdo, tokenPlano };
 
@@ -8992,7 +9014,7 @@ app.put("/creditos/clientes/:id", requerirAccesoNegocio, requerirPermiso(PERMISO
                 valorAnterior: nuevoLimite !== Number(actual.limite_credito) ? Number(actual.limite_credito) : Number(actual.dias_credito),
                 valorNuevo: nuevoLimite !== Number(actual.limite_credito) ? nuevoLimite : nuevoPlazo,
                 motivo: motivo || null,
-                requirioAceptacion: esAumento
+                requirioAceptacion: requiereAceptacion
             });
         }
 
@@ -9457,7 +9479,7 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, requerirPermiso
 
         const cliente = clienteFila.rows[0];
 
-        if (!cliente.acuerdo_vigente_id) {
+        if (!cliente.acuerdo_vigente_id && await acuerdoCredito.exigirAceptacionAcuerdo(client, negocio.id)) {
             await client.query("ROLLBACK");
             res.status(409).json({ error: "Este cliente todavia no acepta sus condiciones de credito -- no se le puede vender a credito hasta que acepte." });
             return;

@@ -124,12 +124,21 @@ async function obtenerNegocioParaAcuerdo(clientOPool, negocioId) {
 
 async function obtenerConfiguracionCredito(clientOPool, negocioId) {
     const fila = await clientOPool.query(
-        `SELECT plazos_disponibles, requiere_identificacion, requiere_domicilio, politica_texto
+        `SELECT plazos_disponibles, requiere_identificacion, requiere_domicilio, politica_texto, exigir_aceptacion_acuerdo
          FROM public.configuracion_credito_negocio WHERE negocio_id = $1`,
         [negocioId]
     );
     if (fila.rows.length) return fila.rows[0];
-    return { plazos_disponibles: [15, 30, 60], requiere_identificacion: false, requiere_domicilio: false, politica_texto: "" };
+    return { plazos_disponibles: [15, 30, 60], requiere_identificacion: false, requiere_domicilio: false, politica_texto: "", exigir_aceptacion_acuerdo: false };
+}
+
+// Apagado por defecto: un negocio sin fila de configuracion (o con la
+// opcion apagada) vende a credito sin que el cliente tenga que escanear
+// nada. Solo cuando el dueno lo enciende, un cliente sin acuerdo
+// aceptado queda bloqueado para comprar a credito.
+async function exigirAceptacionAcuerdo(clientOPool, negocioId) {
+    const configuracion = await obtenerConfiguracionCredito(clientOPool, negocioId);
+    return configuracion.exigir_aceptacion_acuerdo === true;
 }
 
 async function registrarBitacoraCredito(clientOPool, negocioId, empleadoId, accion, detalle = {}) {
@@ -346,5 +355,6 @@ module.exports = {
     regenerarTokenAcuerdo,
     buscarAcuerdoPorToken,
     registrarBitacoraCredito,
-    obtenerConfiguracionCredito
+    obtenerConfiguracionCredito,
+    exigirAceptacionAcuerdo
 };
