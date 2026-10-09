@@ -110,8 +110,16 @@ test("extremo a extremo contra el servidor real: provocar un 500 real, verlo en 
     await fetch(`${BASE_URL}/admin/api/negocios/prueba-automatizada-no-numerico/dispositivos`, { headers: headersAdmin() });
     await fetch(`${BASE_URL}/admin/api/negocios/prueba-automatizada-no-numerico/dispositivos`, { headers: headersAdmin() });
 
-    const lista = await (await fetch(`${BASE_URL}/admin/api/errores?resuelto=false`, { headers: headersAdmin() })).json();
-    const fila = lista.errores.find(e => e.ruta === ruta);
+    // El registro del error se dispara SIN esperar (no puede retrasar la
+    // respuesta al cliente), asi que el contador puede tardar unos
+    // milisegundos en reflejar la segunda peticion: se reintenta la lectura.
+    let fila;
+    for (let intento = 0; intento < 20; intento++) {
+        const lista = await (await fetch(`${BASE_URL}/admin/api/errores?resuelto=false`, { headers: headersAdmin() })).json();
+        fila = lista.errores.find(e => e.ruta === ruta);
+        if (fila && fila.veces >= 2) break;
+        await new Promise(resolver => setTimeout(resolver, 150));
+    }
 
     assert.ok(fila, "el error real debe aparecer en la lista de pendientes");
     assert.ok(fila.veces >= 2, "la segunda vez debe sumar al contador, no crear otra fila");

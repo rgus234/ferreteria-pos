@@ -2510,3 +2510,26 @@ a.dueno-boton-primario{
     color:var(--text);
     font-size:14px;
 }
+
+/* Fase 3 celular plan B: aviso de ventas cobradas sin internet */
+.dueno-ventas-pendientes-banner{
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin:0 0 12px;
+    padding:10px 14px;
+    border-radius:12px;
+    background:var(--amber-soft);
+    color:var(--amber);
+    font-size:13px;
+    font-weight:600;
+}
+.dueno-ventas-pendientes-banner.con-problema{
+    background:var(--red-soft);
+    color:var(--red);
+}
+.dueno-ventas-pendientes-banner .dueno-link{
+    flex:none;
+    color:inherit;
+    text-decoration:underline;
+}

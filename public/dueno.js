@@ -196,7 +196,15 @@ async function fetchAutenticado(url, opciones = {}) {
     await respuesta.json().catch(() => null);
 
     if (!respuesta.ok) {
-        throw new Error(datos?.error || `No se pudo completar la solicitud a ${url}`);
+        // status y datos viajan en el error: la venta sin conexion tiene que
+        // distinguir "se cayo la red / el servidor fallo (5xx)" de "el
+        // servidor RECHAZO esto" (PIN invalido, sin permiso, turno vencido,
+        // stock insuficiente), porque lo primero se guarda para despues y lo
+        // segundo nunca debe encolarse.
+        const falla = new Error(datos?.error || `No se pudo completar la solicitud a ${url}`);
+        falla.status = respuesta.status;
+        falla.datos = datos;
+        throw falla;
     }
 
     return datos;
@@ -1012,7 +1020,7 @@ const DUENO_TABS_EMPLEADO = [
 
 // Las secciones del menu "Mas" que si tienen sentido para un empleado
 // (el resto es de la cuenta del dueño: plan, seguridad, reportes...).
-const DUENO_MAS_PARA_EMPLEADO = new Set(["buscar-venta", "notificaciones", "apariencia", "ayuda", "cambiar-usuario"]);
+const DUENO_MAS_PARA_EMPLEADO = new Set(["buscar-venta", "ventas-pendientes", "notificaciones", "apariencia", "ayuda", "cambiar-usuario"]);
 
 let duenoRolSesion = "owner";
 // null = sin restriccion (dueño). Un empleado trae { clave: true/false }.
@@ -3252,6 +3260,9 @@ let duenoVentaCarrito = [];
 let duenoVentaUltimosResultados = [];
 let duenoVentaMetodoPago = null;
 let duenoVentaCobrando = false;
+// true cuando la verificacion de stock se hizo con el catalogo guardado
+// porque no habia internet: el cobro se puede guardar para sincronizar.
+let duenoVentaSinConexion = false;
 let duenoVentaDescuento = { tipo: "ninguno", valor: 0 };
 let duenoVentaDescuentoPanelAbierto = false;
 let duenoVentaClienteSeleccionado = null;
@@ -3331,6 +3342,7 @@ function pedirPinAdministradorParaLimiteCreditoDueno(cliente, montoCargo) {
 
 async function cargarPanelVenderDueno() {
     renderCarritoVenderDueno();
+    actualizarBannerVentasPendientesDueno();
 
     // A diferencia del dueño (que ya siembra el cache local al cargar
     // Inicio), un empleado puede entrar directo a Vender sin haber
@@ -4043,6 +4055,8 @@ async function iniciarCobroVenderDueno() {
     const contenido =
     document.getElementById("duenoVenderCobroContenido");
 
+    duenoVentaSinConexion = false;
+
     document.getElementById("duenoVenderCobroTitulo").textContent = "Verificando stock...";
     contenido.innerHTML = `<p class="dueno-estado">Verificando existencias antes de cobrar...</p>`;
     overlay.classList.add("abierta");
@@ -4051,15 +4065,26 @@ async function iniciarCobroVenderDueno() {
     try {
         productosFrescos = await fetchAutenticado("/productos");
     } catch (error) {
-        contenido.innerHTML = `<div class="vacio">No se pudo verificar el stock. Revisa tu conexion e intenta de nuevo.</div>`;
-        return;
+        // Sin internet se cobra con las existencias guardadas en el
+        // telefono (Fase 3, ver dueno-ventas-offline.js). Un error del
+        // servidor que NO es de conexion (sesion vencida, etc.) sigue
+        // bloqueando como antes.
+        if (!esFalloDeConexionDueno(error)) {
+            contenido.innerHTML = `<div class="vacio">No se pudo verificar el stock. Revisa tu conexion e intenta de nuevo.</div>`;
+            return;
+        }
+
+        productosFrescos = await listarCatalogoLocalCompletoDueno();
+        duenoVentaSinConexion = true;
     }
 
     const stockPorId =
     new Map(productosFrescos.map(p => [p.id, Number(p.stock || 0)]));
 
+    // Un articulo rapido (id sintetico negativo) no es un producto real:
+    // no tiene existencias que revisar.
     const faltantes =
-    duenoVentaCarrito.filter(item => (stockPorId.get(item.id) ?? 0) < item.cantidad);
+    duenoVentaCarrito.filter(item => item.id > 0 && (stockPorId.get(item.id) ?? 0) < item.cantidad);
 
     if (faltantes.length) {
         document.getElementById("duenoVenderCobroTitulo").textContent = "Stock insuficiente";
@@ -4424,8 +4449,31 @@ async function confirmarCobroVenderDueno() {
         duenoVentaCodigoPublico = null;
         mostrarVentaCobradaVenderDueno(respuesta.folio, total, respuesta.codigoPublico);
     } catch (error) {
+        // Sin red / servidor caido: la venta se guarda en el telefono con
+        // la MISMA llave y codigo de ticket de este intento y se sube sola
+        // (dueno-ventas-offline.js). Un rechazo del servidor (PIN, permiso,
+        // turno, stock) nunca se guarda: se muestra y ya. Y una venta con
+        // PIN de administrador tampoco: ese PIN solo se valida alla.
+        if (esFalloDeConexionDueno(error) && !cuerpo.adminPin) {
+            try {
+                const evento = await encolarVentaOfflineDueno(cuerpo);
+                duenoVentaIdempotencyKey = null;
+                duenoVentaCodigoPublico = null;
+                mostrarVentaGuardadaSinConexionDueno(evento);
+                return;
+            } catch (falloGuardar) {
+                contenido.innerHTML = `
+                    <div class="vacio">No hay internet y tampoco se pudo guardar la venta en el telefono (${escaparDueno(falloGuardar.message || "sin espacio")}). No entregues la mercancia como cobrada hasta confirmar.</div>
+                    <button type="button" class="dueno-link" onclick="renderCobroVenderDueno()">Volver a intentar</button>
+                `;
+                return;
+            }
+        }
+
+        const sinInternetConPin = esFalloDeConexionDueno(error) && cuerpo.adminPin;
+
         contenido.innerHTML = `
-            <div class="vacio">${escaparDueno(error.message || "No se pudo cobrar la venta. Intenta de nuevo.")}</div>
+            <div class="vacio">${escaparDueno(sinInternetConPin ? "Sin internet no se puede autorizar este descuento: el PIN de administrador solo se valida en linea. Quita el descuento o espera a tener señal." : (error.message || "No se pudo cobrar la venta. Intenta de nuevo."))}</div>
             <button type="button" class="dueno-link" onclick="renderCobroVenderDueno()">Volver a intentar</button>
         `;
     } finally {
@@ -4518,8 +4566,10 @@ async function confirmarCobroCreditoVenderDueno() {
         duenoVentaCodigoPublico = null;
         mostrarVentaCobradaVenderDueno(respuesta.folio, resumen.total, respuesta.codigoPublico);
     } catch (error) {
+        // Credito nunca se guarda para despues: el limite y el saldo del
+        // cliente solo se pueden validar en el servidor.
         contenido.innerHTML = `
-            <div class="vacio">${escaparDueno(error.message || "No se pudo registrar la venta a credito. Intenta de nuevo.")}</div>
+            <div class="vacio">${escaparDueno(esFalloDeConexionDueno(error) ? "Sin internet no se puede vender a credito (hay que revisar el limite del cliente). Cobra en efectivo, tarjeta o transferencia, o espera a tener señal." : (error.message || "No se pudo registrar la venta a credito. Intenta de nuevo."))}</div>
             <button type="button" class="dueno-link" onclick="renderCobroVenderDueno()">Volver a intentar</button>
         `;
     } finally {
@@ -4614,6 +4664,8 @@ let duenoCajaResumenActual = null;
 async function cargarPanelCajaDueno() {
     const estado = document.getElementById("duenoCajaEstado");
     estado.textContent = "Cargando...";
+
+    actualizarBannerVentasPendientesDueno();
 
     try {
         const datos = await fetchAutenticado("/caja/turno-activo");
@@ -4718,7 +4770,11 @@ async function confirmarAbrirTurnoDueno() {
     }
 }
 
-function mostrarCerrarTurnoDueno() {
+async function mostrarCerrarTurnoDueno() {
+    // El corte cuenta lo que ya esta en el servidor: con ventas guardadas
+    // en el telefono quedaria corto (Fase 3).
+    if (!(await asegurarVentasSincronizadasDueno())) return;
+
     const resumen = duenoCajaResumenActual;
 
     document.getElementById("duenoCajaAccionTitulo").textContent = "Cerrar turno (corte)";
@@ -5038,6 +5094,7 @@ const CATEGORIAS_MAS_DUENO = [
     { id: "inventario-tab", titulo: "Inventario", desc: "Consulta tu catalogo completo", icono: "caja", color: "azul", tab: "inventario" },
     { id: "creditos-tab", titulo: "Creditos", desc: "Clientes, saldos y abonos", icono: "tarjeta", color: "azul", tab: "creditos" },
     { id: "buscar-venta", titulo: "Buscar venta", desc: "Por folio, cliente o dia: ticket, cambios y cancelaciones", icono: "carrito", color: "azul" },
+    { id: "ventas-pendientes", titulo: "Ventas sin sincronizar", desc: "Cobradas sin internet, por subir al sistema", icono: "nube", color: "azul" },
     { id: "market", titulo: "Comprar en Nexo Market", desc: "Explora productos de otros negocios Nexo", icono: "carrito", color: "verde", href: "https://app.nexoposoficial.com/market" },
     { id: "cuenta", titulo: "Cuenta", desc: "Datos del negocio y correo", icono: "usuario", color: "" },
     { id: "plan", titulo: "Plan y suscripcion", desc: "Tu plan, pagos y facturas", icono: "tarjeta", color: "verde" },
@@ -5067,7 +5124,7 @@ function renderCategoriasMasDueno() {
         // Un empleado solo ve lo suyo (notificaciones, apariencia, ayuda y
         // cambiar de usuario) -- lo demas es de la cuenta del dueño.
         if (esEmpleado && !DUENO_MAS_PARA_EMPLEADO.has(categoria.id)) return false;
-        if (esEmpleado && categoria.id === "buscar-venta" && !duenoTienePermiso("hacer_ventas")) return false;
+        if (esEmpleado && (categoria.id === "buscar-venta" || categoria.id === "ventas-pendientes") && !duenoTienePermiso("hacer_ventas")) return false;
 
         return categoria.id === "cambiar-usuario"
             ? enModoDispositivo
@@ -5091,6 +5148,8 @@ function renderCategoriasMasDueno() {
 
 const RENDER_SUBPANTALLA_MAS_DUENO = {
     "buscar-venta": renderSubpantallaBuscarVenta,
+    // Funcion en dueno-ventas-offline.js (se carga despues de este archivo).
+    "ventas-pendientes": () => renderSubpantallaVentasPendientes(),
     cuenta: renderSubpantallaCuenta,
     plan: renderSubpantallaPlan,
     "nexo-ia": renderSubpantallaNexoIA,

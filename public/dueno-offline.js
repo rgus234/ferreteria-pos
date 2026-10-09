@@ -4,7 +4,9 @@
 // -- misma convencion del resto del proyecto.
 
 const DUENO_DB_NAME = "nexo-dueno-db";
-const DUENO_DB_VERSION = 1;
+// v2: almacen "ventasPendientes" (ventas cobradas sin internet, ver
+// dueno-ventas-offline.js).
+const DUENO_DB_VERSION = 2;
 
 function abrirDuenoDB() {
     return new Promise((resolve, reject) => {
@@ -19,6 +21,10 @@ function abrirDuenoDB() {
 
             if (!db.objectStoreNames.contains("cotizacionesLocales")) {
                 db.createObjectStore("cotizacionesLocales", { keyPath: "eventId" });
+            }
+
+            if (!db.objectStoreNames.contains("ventasPendientes")) {
+                db.createObjectStore("ventasPendientes", { keyPath: "eventId" });
             }
         };
 
