@@ -805,7 +805,7 @@ function enviarCorreoPedidoEntregado(correo, nombreNegocio, { items, urlSeguimie
     });
 }
 
-function enviarCorreoPedidoCancelado(correo, nombreNegocio, { items, motivo, urlSeguimiento }) {
+function enviarCorreoPedidoCancelado(correo, nombreNegocio, { items, motivo, urlSeguimiento, reembolsoMonto = null, reembolsoPendiente = false }) {
     const nombreSeguro = escaparHtmlCorreo(nombreNegocio);
 
     return enviarCorreo({
@@ -821,6 +821,8 @@ function enviarCorreoPedidoCancelado(correo, nombreNegocio, { items, motivo, url
                     ${filasItemsPedidoMarket(items)}
                 </table>
                 ${motivo ? `<p style="margin:10px 0;color:#344054;font-size:14px;"><strong>Motivo:</strong> ${escaparHtmlCorreo(motivo)}</p>` : ""}
+                ${reembolsoMonto ? `<p style="margin:10px 0;color:#344054;font-size:14px;"><strong>Reembolso:</strong> te devolvemos los ${Number(reembolsoMonto).toFixed(2)} que pagaste con tarjeta. Tu banco puede tardar de 5 a 10 dias habiles en reflejarlo.</p>` : ""}
+                ${reembolsoPendiente ? `<p style="margin:10px 0;color:#344054;font-size:14px;"><strong>Reembolso:</strong> tuvimos un problema al devolver tu pago y ya lo estamos revisando. No necesitas hacer nada: te devolveremos el total que pagaste.</p>` : ""}
                 ${urlSeguimiento ? botonHtml("Ver detalle del pedido", urlSeguimiento) : ""}
                 ${avisoHtml("Si tienes dudas, contacta directamente a la tienda.")}
             `

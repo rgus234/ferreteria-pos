@@ -42,6 +42,7 @@ const PLANES = [
             "Hasta 8 empleados con permisos",
             "Nexo Market: sitio propio y pagos",
             "Recepcion de mercancia por XML o CSV",
+            "Banco de Nexo: fotos de producto compartidas",
             "Nexo IA: hasta 50 preguntas al mes"
         ]
     },
@@ -53,9 +54,7 @@ const PLANES = [
         bullets: [
             "Todo lo del plan Plus",
             "Empleados y equipos ilimitados",
-            "Nexo IA: 500 preguntas/mes + internet",
-            "Banco Global de Imagenes",
-            "Soporte prioritario"
+            "Nexo IA: 500 preguntas/mes + internet"
         ]
     }
 ];

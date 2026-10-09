@@ -958,7 +958,7 @@ function registrarRutasBancoImagenes(app, pool, requerirAccesoNegocio) {
             const permitido = await planPermiteBancoImagenes(pool, negocio.id);
 
             if (!permitido) {
-                res.status(403).json({ ok: false, error: "Esta funcion esta disponible desde el plan Pro." });
+                res.status(403).json({ ok: false, error: "Esta funcion esta disponible desde el plan Plus." });
                 return;
             }
 

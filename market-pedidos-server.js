@@ -27,6 +27,7 @@ const {
 const { generarQrYBarcode } = require("./pedido-codigos");
 const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml } = require("./market-server");
 const { enviarPushAPersona } = require("./push-server");
+const { reembolsarPedidoMarket } = require("./market-reembolsos");
 
 // Mismo helper chico duplicado que ya usan personas-server.js y
 // public-site-server.js (crearLimitadorPorIp) -- las 5 rutas de
@@ -181,6 +182,7 @@ function mapearPedidoMarket(fila, items) {
         codigoRecogida: fila.codigo_recogida,
         total: Number(fila.total),
         pagado: fila.pagado,
+        reembolsado: Boolean(fila.reembolsado_at),
         tiempoPrepMin: fila.tiempo_prep_min,
         tiempoPrepMax: fila.tiempo_prep_max,
         recogidaEstimadaDesde: fila.recogida_estimada_desde,
@@ -271,7 +273,17 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
                 valores
             );
 
-            const pedidoActualizado = actualizado.rows[0];
+            let pedidoActualizado = actualizado.rows[0];
+
+            // Pedido pagado con tarjeta que se cancela: se devuelve el 100% (ver
+            // market-reembolsos.js). Si falla, el pedido igual queda cancelado y se
+            // avisa al operador -- nunca se atora a la tienda.
+            let reembolso = { estado: "no_aplica" };
+            if (accion === "rechazar" || accion === "cancelar") {
+                reembolso = await reembolsarPedidoMarket(pool, pedidoActualizado);
+                if (reembolso.estado === "reembolsado") pedidoActualizado = { ...pedidoActualizado, reembolsado_at: new Date() };
+            }
+
             const itemsPorPedido = await itemsDePedidos(pool, negocio.id, [pedidoActualizado.id], negocio.slug, firmarTokenImagen);
             const items = itemsPorPedido.get(pedidoActualizado.id) || [];
             const urlSeguimiento = urlSeguimientoPedido(pedidoActualizado.codigo_recogida);
@@ -303,7 +315,9 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
                     enviarCorreoPedidoCancelado(pedidoActualizado.cliente_correo, negocio.nombre, {
                         items,
                         motivo,
-                        urlSeguimiento
+                        urlSeguimiento,
+                        reembolsoMonto: reembolso.estado === "reembolsado" ? Number(pedidoActualizado.total) : null,
+                        reembolsoPendiente: reembolso.estado === "fallido"
                     }).catch(error => console.warn("No se pudo enviar el correo de pedido cancelado:", error.message));
                 }
             }
@@ -316,7 +330,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
                 }).catch(error => console.warn("No se pudo enviar el push de cambio de estado:", error.message));
             }
 
-            res.json({ ok: true, pedido: mapearPedidoMarket(pedidoActualizado, items) });
+            res.json({ ok: true, pedido: mapearPedidoMarket(pedidoActualizado, items), reembolso: reembolso.estado });
         } catch (error) {
             res.status(error.httpStatus || 500).json({ ok: false, error: error.message });
         }
@@ -681,7 +695,11 @@ async function cancelarPedidoMarketPorCliente(pool, req, res, firmarTokenImagen)
         `UPDATE public.pedidos_market SET estado = 'cancelado', cancelado_at = NOW(), motivo_cancelacion = 'Cancelado por el cliente' WHERE id = $1 RETURNING *`,
         [pedido.id]
     );
-    const pedidoActualizado = actualizado.rows[0];
+    let pedidoActualizado = actualizado.rows[0];
+
+    // Mismo reembolso automatico que cuando cancela la tienda.
+    const reembolso = await reembolsarPedidoMarket(pool, pedidoActualizado);
+    if (reembolso.estado === "reembolsado") pedidoActualizado = { ...pedidoActualizado, reembolsado_at: new Date() };
 
     const itemsPorPedido = await itemsDePedidos(pool, pedido.negocio_id, [pedido.id], pedido.negocio_slug, firmarTokenImagen);
     const items = itemsPorPedido.get(pedido.id) || [];
@@ -691,7 +709,9 @@ async function cancelarPedidoMarketPorCliente(pool, req, res, firmarTokenImagen)
         enviarCorreoPedidoCancelado(pedido.cliente_correo, pedido.negocio_nombre, {
             items,
             motivo: null,
-            urlSeguimiento
+            urlSeguimiento,
+            reembolsoMonto: reembolso.estado === "reembolsado" ? Number(pedidoActualizado.total) : null,
+            reembolsoPendiente: reembolso.estado === "fallido"
         }).catch(error => console.warn("No se pudo enviar el correo de pedido cancelado (cliente):", error.message));
     }
 
