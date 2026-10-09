@@ -6627,6 +6627,209 @@ RETURNING id
     }
 });
 
+// Edicion PARCIAL para el celular (plan "celular como plan B").
+// PUT /editar-producto reemplaza el producto completo (~40 campos): si el
+// celular le mandara solo nombre y precio, borraria categoria, marca,
+// proveedor, descripcion, garantia, precios de pieza, etc. Aqui solo se
+// tocan los campos que vienen en el cuerpo, de una lista fija.
+//
+// precio y precio_publico NO son lo mismo en este inventario (en
+// Ferreteria Olimpico difieren en 998 de 1038 productos: precio es el
+// "precio del carrito"). Cambiar el publico solo mueve tambien el precio
+// del carrito cuando YA eran iguales -- nunca pisa uno distinto.
+app.patch("/productos/:id/edicion-rapida", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
+    const id = Number(req.params.id);
+    const cuerpo = req.body || {};
+
+    if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ ok: false, error: "Producto invalido" });
+        return;
+    }
+
+    const asignaciones = [];
+    const valores = [];
+    const poner = (expresion, valor) => {
+        valores.push(valor);
+        asignaciones.push(expresion.replace("?", `$${valores.length}`));
+    };
+
+    // "" o null limpian el campo; cualquier otra cosa debe ser un numero >= 0.
+    const numeroOpcional = (valor, etiqueta) => {
+        if (valor === null || valor === "") return null;
+        const numero = Number(valor);
+        if (!Number.isFinite(numero) || numero < 0 || numero > 99999999) {
+            const error = new Error(`${etiqueta} no es un numero valido`);
+            error.httpStatus = 400;
+            throw error;
+        }
+        return numero;
+    };
+
+    const client = await pool.connect();
+
+    try {
+        const negocio = await negocioActual(req);
+
+        if (!(await exigirLicenciaActiva(res, negocio, "guardar productos"))) return;
+
+        if (cuerpo.nombre !== undefined) {
+            const nombre = String(cuerpo.nombre || "").trim().slice(0, 200);
+            if (!nombre) {
+                res.status(400).json({ ok: false, error: "El nombre no puede quedar vacio" });
+                return;
+            }
+            poner("nombre = ?", nombre);
+        }
+
+        if (cuerpo.precioPublico !== undefined) {
+            const publico = numeroOpcional(cuerpo.precioPublico, "El precio publico");
+            if (publico === null) {
+                res.status(400).json({ ok: false, error: "El precio publico no puede quedar vacio" });
+                return;
+            }
+            // $n se usa dos veces: en precio_publico y en la comparacion del
+            // precio del carrito (valores viejos, no los nuevos, dentro del SET).
+            valores.push(publico);
+            const posicion = valores.length;
+            asignaciones.push(`precio_publico = $${posicion}`);
+            asignaciones.push(`precio = CASE WHEN precio IS NOT DISTINCT FROM precio_publico THEN $${posicion} ELSE precio END`);
+        }
+
+        if (cuerpo.precioMayoreo !== undefined) poner("precio_mayoreo = ?", numeroOpcional(cuerpo.precioMayoreo, "El precio de mayoreo"));
+        if (cuerpo.precioDistribuidor !== undefined) poner("precio_distribuidor = ?", numeroOpcional(cuerpo.precioDistribuidor, "El precio de distribuidor"));
+        if (cuerpo.costo !== undefined) poner("costo = ?", numeroOpcional(cuerpo.costo, "El costo"));
+
+        if (cuerpo.stockMinimo !== undefined) {
+            const minimo = numeroOpcional(cuerpo.stockMinimo, "El stock minimo");
+            poner("stock_minimo = ?", minimo === null ? 3 : minimo);
+        }
+
+        if (cuerpo.ubicacion !== undefined) poner("ubicacion = ?", String(cuerpo.ubicacion || "").trim().slice(0, 120));
+
+        if (cuerpo.fechaCaducidad !== undefined) {
+            const fecha = cuerpo.fechaCaducidad ? String(cuerpo.fechaCaducidad) : null;
+            if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+                res.status(400).json({ ok: false, error: "La fecha de caducidad no es valida" });
+                return;
+            }
+            poner("fecha_caducidad = ?", fecha);
+        }
+
+        const quiereCambiarCodigo = cuerpo.codigo !== undefined;
+        const codigoNuevo = quiereCambiarCodigo ? normalizarCodigo(cuerpo.codigo) : null;
+
+        if (!asignaciones.length && !quiereCambiarCodigo) {
+            res.status(400).json({ ok: false, error: "No hay nada que guardar" });
+            return;
+        }
+
+        await client.query("BEGIN");
+
+        const actual = await client.query(
+            `SELECT id, nombre, codigo, proveedor FROM public.productos WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
+            [id, negocio.id]
+        );
+
+        if (!actual.rows.length) {
+            await client.query("ROLLBACK");
+            res.status(404).json({ ok: false, error: "Producto no encontrado" });
+            return;
+        }
+
+        const producto = actual.rows[0];
+        const codigoAnterior = normalizarCodigo(producto.codigo);
+        const cambiaCodigo = quiereCambiarCodigo && codigoNuevo.toLowerCase() !== codigoAnterior.toLowerCase();
+
+        if (cambiaCodigo && codigoNuevo) {
+            // Mismo criterio que GET /producto-codigo/:codigo: el codigo
+            // puede ser el principal o uno alterno de OTRO producto.
+            const duplicado = await client.query(
+                `
+                SELECT DISTINCT p.id, p.nombre
+                FROM public.productos p
+                LEFT JOIN public.producto_codigos pc ON pc.producto_id = p.id AND pc.negocio_id = p.negocio_id
+                WHERE p.negocio_id = $1
+                AND p.id <> $2
+                AND (
+                    LOWER(regexp_replace(COALESCE(p.codigo, ''), '[^a-zA-Z0-9]', '', 'g')) = LOWER($3)
+                    OR LOWER(regexp_replace(COALESCE(pc.codigo, ''), '[^a-zA-Z0-9]', '', 'g')) = LOWER($3)
+                )
+                LIMIT 1
+                `,
+                [negocio.id, id, codigoNuevo]
+            );
+
+            if (duplicado.rows.length) {
+                await client.query("ROLLBACK");
+                res.status(409).json({ ok: false, error: `Ese codigo ya lo tiene "${duplicado.rows[0].nombre}".` });
+                return;
+            }
+        }
+
+        if (cambiaCodigo) {
+            poner("codigo = ?", codigoNuevo);
+        }
+
+        // Solo vino el mismo codigo que ya tenia: no hay nada que escribir.
+        if (!asignaciones.length) {
+            await client.query("ROLLBACK");
+            res.json({ ok: true, sinCambios: true, producto: { id: producto.id, nombre: producto.nombre, codigo: producto.codigo } });
+            return;
+        }
+
+        valores.push(id, negocio.id);
+
+        const actualizado = await client.query(
+            `
+            UPDATE public.productos
+            SET ${asignaciones.join(", ")}
+            WHERE id = $${valores.length - 1} AND negocio_id = $${valores.length}
+            RETURNING id, nombre, codigo, precio, precio_publico, precio_mayoreo, precio_distribuidor, costo, stock, stock_minimo, ubicacion, fecha_caducidad
+            `,
+            valores
+        );
+
+        if (cambiaCodigo) {
+            // Solo se reemplaza el codigo principal (tipo 'barra') viejo --
+            // guardarCodigosProducto() borra y regraba TODOS los codigos del
+            // producto, incluidos los alternos y los de proveedor, y aqui no
+            // se tocan.
+            if (codigoAnterior) {
+                await client.query(
+                    `
+                    DELETE FROM public.producto_codigos
+                    WHERE producto_id = $1 AND negocio_id = $2 AND tipo = 'barra'
+                    AND LOWER(regexp_replace(codigo, '[^a-zA-Z0-9]', '', 'g')) = LOWER($3)
+                    `,
+                    [id, negocio.id, codigoAnterior]
+                );
+            }
+
+            if (codigoNuevo) {
+                await client.query(
+                    `INSERT INTO public.producto_codigos (negocio_id, producto_id, codigo, tipo, proveedor) VALUES ($1, $2, $3, 'barra', $4) ON CONFLICT DO NOTHING`,
+                    [negocio.id, id, codigoNuevo, producto.proveedor || ""]
+                );
+            }
+        }
+
+        await client.query("COMMIT");
+
+        res.json({ ok: true, producto: actualizado.rows[0] });
+    } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
+
+        if (error.httpStatus === 400) {
+            res.status(400).json({ ok: false, error: error.message });
+            return;
+        }
+
+        responderError(res, error);
+    } finally {
+        client.release();
+    }
+});
+
 app.put("/editar-producto/:id", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
 
     const { id } = req.params;

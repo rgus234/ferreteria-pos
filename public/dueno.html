@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=celular-plan-b-20261008-01">
+    <link rel="stylesheet" href="dueno.css?v=celular-plan-b-20261009-01">
 </head>
 
 <body>
@@ -550,6 +550,10 @@
         <article class="dueno-card">
             <input type="search" id="duenoInventarioBuscar" placeholder="Nombre o codigo..." oninput="filtrarInventarioDueno()">
             <div id="duenoInventarioCategorias" class="dueno-chips-categorias"></div>
+            <div id="duenoInventarioAcciones" class="dueno-acciones-doble" style="display:none;">
+                <button type="button" class="dueno-boton-secundario" onclick="abrirFormularioProductoDueno(null)">+ Producto nuevo</button>
+                <button type="button" class="dueno-boton-secundario" onclick="abrirRecepcionDueno()">Recibir mercancía</button>
+            </div>
         </article>
 
         <article class="dueno-card dueno-card-wide">
@@ -744,8 +748,45 @@
         </div>
     </div>
 
+    <!-- Fase 2 "celular como plan B": alta/edicion rapida, ajuste de existencias
+         y recepcion de mercancia. El formulario se reusa para los tres. -->
+    <div id="duenoProductoFormOverlay" class="dueno-detalle-overlay" style="display:none;z-index:44;" onclick="cerrarFormularioProductoDueno()">
+        <div class="dueno-detalle-caja" onclick="event.stopPropagation()">
+            <button type="button" class="dueno-detalle-cerrar" onclick="cerrarFormularioProductoDueno()">&times;</button>
+            <div id="duenoProductoFormContenido"></div>
+        </div>
+    </div>
+
+    <div id="duenoEscanerCodigoOverlay" class="dueno-mas-subpantalla" style="z-index:45;">
+        <div class="dueno-subpantalla-inner">
+            <div class="dueno-subpantalla-header">
+                <button type="button" class="dueno-subpantalla-atras" onclick="cerrarEscanerCodigoDueno()">&lsaquo; Atrás</button>
+                <h2 id="duenoEscanerCodigoTitulo">Escanear</h2>
+            </div>
+            <div class="dueno-ped-verif-escaneo">
+                <video id="duenoEscanerCodigoVideo" class="dueno-ped-verif-video" autoplay muted playsinline></video>
+                <div id="duenoEscanerCodigoEstado" class="dueno-estado">Iniciando...</div>
+                <form id="duenoEscanerCodigoManualForm" class="dueno-ped-verif-manual-form">
+                    <input type="text" id="duenoEscanerCodigoManualInput" placeholder="O escribe el codigo aqui" autocomplete="off">
+                    <button type="submit" class="dueno-boton-secundario-chico">Usar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="duenoRecepcionOverlay" class="dueno-mas-subpantalla" style="z-index:42;">
+        <div class="dueno-subpantalla-inner" style="padding-bottom:110px;">
+            <div class="dueno-subpantalla-header">
+                <button type="button" class="dueno-subpantalla-atras" onclick="cerrarRecepcionDueno()">&lsaquo; Atrás</button>
+                <h2>Recibir mercancía</h2>
+            </div>
+            <div id="duenoRecepcionContenido"></div>
+        </div>
+    </div>
+
     <script src="dueno-offline.js?v=venta-detalle-20260826-01"></script>
-    <script src="dueno.js?v=celular-plan-b-20261008-01"></script>
+    <script src="dueno.js?v=celular-plan-b-20261009-01"></script>
+    <script src="dueno-inventario.js?v=celular-plan-b-20261009-01"></script>
 </body>
 
 </html>

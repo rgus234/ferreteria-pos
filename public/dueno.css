@@ -2433,3 +2433,80 @@ a.dueno-boton-primario{
     gap:22px;
     margin:10px 0 6px;
 }
+/* ---------- Fase 2: inventario desde el celular ---------- */
+.dueno-acciones-doble{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-top:10px;
+}
+
+.dueno-acciones-doble .dueno-boton-secundario{
+    margin-top:0;
+    font-size:13px;
+}
+
+.dueno-campo-fila{
+    display:flex;
+    gap:8px;
+    align-items:center;
+}
+
+.dueno-campo-fila input{
+    flex:1;
+    min-width:0;
+}
+
+.dueno-campo-fila .dueno-boton-secundario-chico{
+    flex-shrink:0;
+    margin-top:5px;
+}
+
+.dueno-rec-linea{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    padding:12px 0;
+    border-bottom:1px solid var(--line);
+}
+
+.dueno-rec-linea:last-child{
+    border-bottom:none;
+}
+
+.dueno-rec-nombre strong{
+    display:block;
+    font-size:14px;
+}
+
+.dueno-rec-nombre span{
+    font-size:12px;
+    color:var(--muted);
+}
+
+.dueno-rec-campos{
+    display:flex;
+    gap:10px;
+    align-items:flex-end;
+    flex-wrap:wrap;
+}
+
+.dueno-rec-campos label{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    flex:1;
+    min-width:90px;
+    font-size:12px;
+    font-weight:700;
+    color:var(--muted);
+}
+
+.dueno-rec-campos input{
+    padding:9px 10px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--surface-soft);
+    color:var(--text);
+    font-size:14px;
+}

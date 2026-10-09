@@ -522,6 +522,163 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
         }
     });
 
+    // Recepcion rapida (celular, plan "celular como plan B"): a diferencia de
+    // POST /recepciones-mercancia -- que solo guarda el historial porque el
+    // escritorio ya aplico el stock con PUT /editar-producto -- esta SI aplica
+    // el stock, y lo hace aqui adentro, en la misma transaccion que el
+    // historial y el ajuste de inventario: si algo falla no queda stock
+    // sumado sin recepcion ni recepcion sin stock. Suma con el stock
+    // bloqueado (FOR UPDATE) en vez de que el celular lea-y-escriba un
+    // numero que pudo cambiar mientras tanto (alguien vendiendo).
+    app.post("/recepciones-mercancia/rapida", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
+        const { proveedor, referencia, notas, usuarioNombre, idempotencyKey, items } = req.body || {};
+
+        if (!Array.isArray(items) || items.length === 0 || items.length > 200) {
+            res.status(400).json({ ok: false, error: "Agrega al menos un producto (maximo 200)." });
+            return;
+        }
+
+        // Una misma mercancia escaneada dos veces es una sola linea: se suman
+        // las cantidades. Se ordena por id para bloquear siempre en el mismo
+        // orden y no provocar interbloqueos entre dos recepciones a la vez.
+        const lineasPorProducto = new Map();
+
+        for (const item of items) {
+            const productoId = Number(item?.productoId);
+            const cantidad = n(item?.cantidad);
+            const costo = n(item?.costo);
+
+            if (!Number.isInteger(productoId) || productoId <= 0 || !(cantidad > 0) || cantidad > 1000000 || costo < 0) {
+                res.status(400).json({ ok: false, error: "Hay una linea con producto, cantidad o costo invalido." });
+                return;
+            }
+
+            const actual = lineasPorProducto.get(productoId) || { productoId, cantidad: 0, costo: 0 };
+            actual.cantidad += cantidad;
+            if (costo > 0) actual.costo = costo;
+            lineasPorProducto.set(productoId, actual);
+        }
+
+        const lineas = Array.from(lineasPorProducto.values()).sort((a, b) => a.productoId - b.productoId);
+        const llave = String(idempotencyKey || "").trim().slice(0, 100) || null;
+        const referenciaLimpia = String(referencia || "").trim().slice(0, 120);
+        const usuario = String(usuarioNombre || "").trim().slice(0, 120);
+
+        const client = await pool.connect();
+
+        try {
+            await asegurar();
+            const negocio = await negocioActual(req);
+            await client.query("BEGIN");
+
+            if (llave) {
+                const previa = await client.query(
+                    `SELECT * FROM public.recepciones_mercancia WHERE negocio_id = $1 AND idempotency_key = $2`,
+                    [negocio.id, llave]
+                );
+
+                if (previa.rows.length) {
+                    await client.query("ROLLBACK");
+                    res.json({ ok: true, repetida: true, recepcion: previa.rows[0] });
+                    return;
+                }
+            }
+
+            const aplicadas = [];
+            let total = 0;
+
+            for (const linea of lineas) {
+                const producto = await client.query(`
+                    SELECT id, nombre, codigo, stock
+                    FROM public.productos
+                    WHERE id = $1 AND negocio_id = $2
+                    FOR UPDATE
+                `, [linea.productoId, negocio.id]);
+
+                if (!producto.rows.length) {
+                    await client.query("ROLLBACK");
+                    res.status(404).json({ ok: false, error: `El producto ${linea.productoId} ya no existe.` });
+                    return;
+                }
+
+                const fila = producto.rows[0];
+                const stockAnterior = n(fila.stock);
+                const stockNuevo = stockAnterior + linea.cantidad;
+
+                // El costo solo se actualiza si esta recepcion trae uno
+                // (> 0): recibir sin saber el costo no debe borrar el que ya
+                // se tenia. Mismo criterio que Recepcion Inteligente.
+                await client.query(`
+                    UPDATE public.productos
+                    SET stock = $1, costo = COALESCE(NULLIF($2, 0::numeric), costo)
+                    WHERE id = $3 AND negocio_id = $4
+                `, [stockNuevo, linea.costo, fila.id, negocio.id]);
+
+                await client.query(`
+                    INSERT INTO public.ajustes_inventario
+                        (negocio_id, producto_id, producto_nombre, codigo, tipo, cantidad, stock_anterior, stock_nuevo, motivo, referencia, usuario_nombre, fecha_ajuste)
+                    VALUES ($1,$2,$3,$4,'entrada',$5,$6,$7,'Recepcion de mercancia (celular)',$8,$9,CURRENT_DATE)
+                `, [
+                    negocio.id, fila.id, fila.nombre, fila.codigo || "",
+                    linea.cantidad, stockAnterior, stockNuevo, referenciaLimpia, usuario
+                ]);
+
+                total += linea.cantidad * linea.costo;
+                aplicadas.push({ ...linea, nombre: fila.nombre, codigo: fila.codigo || "", stockNuevo });
+            }
+
+            const recepcion = await client.query(`
+                INSERT INTO public.recepciones_mercancia
+                    (negocio_id, pedido_id, proveedor, referencia, notas, total, tipo_documento, idempotency_key)
+                VALUES ($1, NULL, $2, $3, $4, $5, 'Recepcion rapida (celular)', $6)
+                RETURNING *
+            `, [
+                negocio.id,
+                String(proveedor || "").trim().slice(0, 160),
+                referenciaLimpia,
+                String(notas || "").trim().slice(0, 500),
+                total,
+                llave
+            ]);
+
+            for (const aplicada of aplicadas) {
+                await client.query(`
+                    INSERT INTO public.recepciones_mercancia_items
+                        (negocio_id, recepcion_id, producto_id, codigo, nombre, cantidad, costo)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7)
+                `, [negocio.id, recepcion.rows[0].id, aplicada.productoId, aplicada.codigo, aplicada.nombre, aplicada.cantidad, aplicada.costo]);
+            }
+
+            await client.query("COMMIT");
+
+            res.status(201).json({
+                ok: true,
+                recepcion: recepcion.rows[0],
+                productos: aplicadas.map(a => ({ id: a.productoId, nombre: a.nombre, cantidad: a.cantidad, stockNuevo: a.stockNuevo }))
+            });
+        } catch (error) {
+            await client.query("ROLLBACK").catch(() => {});
+
+            // Dos peticiones a la vez con la misma llave: la segunda choca con
+            // el indice unico -- no es un error, es la recepcion ya guardada.
+            if (error.code === "23505" && llave) {
+                const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
+                const guardada = await pool.query(
+                    `SELECT * FROM public.recepciones_mercancia WHERE negocio_id = $1 AND idempotency_key = $2 LIMIT 1`,
+                    [negocioId, llave]
+                );
+                if (guardada.rows.length) {
+                    res.json({ ok: true, repetida: true, recepcion: guardada.rows[0] });
+                    return;
+                }
+            }
+
+            responderError(res, error);
+        } finally {
+            client.release();
+        }
+    });
+
     app.get("/recepciones-mercancia", requerirAccesoNegocio, async (req, res) => {
         try {
             await asegurar();

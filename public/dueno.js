@@ -1202,7 +1202,13 @@ function renderDetalleProductoDueno(producto, accion) {
     if (producto.unidadVenta) specs.push(["Unidad de venta", producto.unidadVenta]);
     if (producto.stockMinimo != null) specs.push(["Stock minimo", String(Number(producto.stockMinimo))]);
     if (producto.ubicacion) specs.push(["Ubicacion", producto.ubicacion]);
-    if (producto.precioDistribuidor) specs.push(["Costo", dinero(producto.precioDistribuidor)]);
+    if (producto.precioMayoreo) specs.push(["Precio mayoreo", dinero(producto.precioMayoreo)]);
+    if (producto.precioDistribuidor) specs.push(["Precio distribuidor", dinero(producto.precioDistribuidor)]);
+    // El costo real (productos.costo) solo lo ve el dueño: es de lo que sale
+    // el margen. Antes esta pantalla etiquetaba como "Costo" al precio de
+    // distribuidor, que es otra cosa.
+    if (producto.costo != null && producto.costo !== "" && duenoRolSesion !== "employee") specs.push(["Costo", dinero(producto.costo)]);
+    if (producto.fechaCaducidad) specs.push(["Caduca", String(producto.fechaCaducidad).slice(0, 10)]);
     if (producto.descripcion) specs.push(["Descripcion", producto.descripcion]);
 
     document.getElementById("duenoDetalleSpecs").innerHTML =
@@ -1217,7 +1223,9 @@ function renderDetalleProductoDueno(producto, accion) {
     ACCIONES_DETALLE_PRODUCTO_DUENO[accion] || ACCIONES_DETALLE_PRODUCTO_DUENO.agregar;
 
     document.getElementById("duenoDetalleAccion").innerHTML =
-        `<button type="button" class="dueno-boton-primario" onclick="${boton.onclick}">${escaparDueno(boton.texto)}</button>`;
+        accion === "gestion"
+            ? htmlAccionesGestionProductoDueno()
+            : `<button type="button" class="dueno-boton-primario" onclick="${boton.onclick}">${escaparDueno(boton.texto)}</button>`;
 
     document.getElementById("duenoDetalleOverlay").style.display = "flex";
 }
@@ -2361,6 +2369,8 @@ ${filas}
 // ---------------- pestaña Inventario ----------------
 
 async function cargarPanelInventarioDueno() {
+    actualizarAccionesInventarioDueno();
+
     const contenedorChips =
     document.getElementById("duenoInventarioCategorias");
 
@@ -2423,12 +2433,12 @@ async function filtrarInventarioDueno() {
 
                 return `
                 <div class="fila-dueno fila-dueno-producto">
-                    <div class="dueno-miniatura" onclick="verDetalleProductoDueno(${producto.id})">
+                    <div class="dueno-miniatura" onclick="abrirDetalleProductoInventarioDueno(${producto.id})">
                         ${producto.imagenUrl
                             ? `<img src="${producto.imagenUrl}" alt="" loading="lazy">`
                             : miniaturaVaciaDuenoHtml()}
                     </div>
-                    <div onclick="verDetalleProductoDueno(${producto.id})">
+                    <div onclick="abrirDetalleProductoInventarioDueno(${producto.id})">
                         <strong>${escaparDueno(producto.nombre)}</strong>
                         <span>${escaparDueno(producto.codigo || "Sin codigo")} · <span class="stock-texto${claseStock}">Stock ${producto.stock}</span> · ${dinero(producto.precio)}${textoCaducidad}</span>
                     </div>
