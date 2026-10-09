@@ -2533,3 +2533,15 @@ a.dueno-boton-primario{
     color:inherit;
     text-decoration:underline;
 }
+
+/* Fase 4 celular plan B: filas de lista que son botones (empleados, cuentas, encargos) */
+button.fila-dueno{
+    border:0;
+    font:inherit;
+    color:inherit;
+    cursor:pointer;
+}
+button.fila-dueno:disabled{
+    cursor:default;
+    opacity:.7;
+}

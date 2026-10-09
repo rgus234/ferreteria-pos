@@ -1020,7 +1020,7 @@ const DUENO_TABS_EMPLEADO = [
 
 // Las secciones del menu "Mas" que si tienen sentido para un empleado
 // (el resto es de la cuenta del dueño: plan, seguridad, reportes...).
-const DUENO_MAS_PARA_EMPLEADO = new Set(["buscar-venta", "ventas-pendientes", "notificaciones", "apariencia", "ayuda", "cambiar-usuario"]);
+const DUENO_MAS_PARA_EMPLEADO = new Set(["buscar-venta", "ventas-pendientes", "empleados-gestion", "finanzas-gestion", "encargos-gestion", "notificaciones", "apariencia", "ayuda", "cambiar-usuario"]);
 
 let duenoRolSesion = "owner";
 // null = sin restriccion (dueño). Un empleado trae { clave: true/false }.
@@ -5094,6 +5094,9 @@ const CATEGORIAS_MAS_DUENO = [
     { id: "inventario-tab", titulo: "Inventario", desc: "Consulta tu catalogo completo", icono: "caja", color: "azul", tab: "inventario" },
     { id: "creditos-tab", titulo: "Creditos", desc: "Clientes, saldos y abonos", icono: "tarjeta", color: "azul", tab: "creditos" },
     { id: "buscar-venta", titulo: "Buscar venta", desc: "Por folio, cliente o dia: ticket, cambios y cancelaciones", icono: "carrito", color: "azul" },
+    { id: "empleados-gestion", titulo: "Empleados", desc: "Altas, PIN, permisos, horario y foto", icono: "usuario", color: "azul" },
+    { id: "finanzas-gestion", titulo: "Finanzas", desc: "Utilidad, gastos y cuentas por pagar", icono: "grafica", color: "verde" },
+    { id: "encargos-gestion", titulo: "Encargos", desc: "Pedidos de clientes que no tienes en inventario", icono: "caja", color: "" },
     { id: "ventas-pendientes", titulo: "Ventas sin sincronizar", desc: "Cobradas sin internet, por subir al sistema", icono: "nube", color: "azul" },
     { id: "market", titulo: "Comprar en Nexo Market", desc: "Explora productos de otros negocios Nexo", icono: "carrito", color: "verde", href: "https://app.nexoposoficial.com/market" },
     { id: "cuenta", titulo: "Cuenta", desc: "Datos del negocio y correo", icono: "usuario", color: "" },
@@ -5111,7 +5114,9 @@ const CATEGORIAS_MAS_DUENO = [
 // Tiles de cuenta personal (Bearer) -- sin sentido para "quien sea que
 // este trabajando ahorita" en un celular compartido, ver
 // cargarPanelMasDueno().
-const CATEGORIAS_MAS_SOLO_CUENTA_PERSONAL = new Set(["cuenta", "plan", "seguridad", "dispositivos"]);
+// Empleados tambien: sus rutas piden la sesion de cuenta (Bearer), que un
+// celular compartido por PIN no tiene.
+const CATEGORIAS_MAS_SOLO_CUENTA_PERSONAL = new Set(["cuenta", "plan", "seguridad", "dispositivos", "empleados-gestion"]);
 
 function renderCategoriasMasDueno() {
     const enModoDispositivo =
@@ -5124,7 +5129,9 @@ function renderCategoriasMasDueno() {
         // Un empleado solo ve lo suyo (notificaciones, apariencia, ayuda y
         // cambiar de usuario) -- lo demas es de la cuenta del dueño.
         if (esEmpleado && !DUENO_MAS_PARA_EMPLEADO.has(categoria.id)) return false;
-        if (esEmpleado && (categoria.id === "buscar-venta" || categoria.id === "ventas-pendientes") && !duenoTienePermiso("hacer_ventas")) return false;
+        if (esEmpleado && (categoria.id === "buscar-venta" || categoria.id === "ventas-pendientes" || categoria.id === "encargos-gestion") && !duenoTienePermiso("hacer_ventas")) return false;
+        if (esEmpleado && categoria.id === "empleados-gestion" && !duenoTienePermiso("administrar_usuarios")) return false;
+        if (esEmpleado && categoria.id === "finanzas-gestion" && !duenoTienePermiso("ver_reportes")) return false;
 
         return categoria.id === "cambiar-usuario"
             ? enModoDispositivo
@@ -5150,6 +5157,10 @@ const RENDER_SUBPANTALLA_MAS_DUENO = {
     "buscar-venta": renderSubpantallaBuscarVenta,
     // Funcion en dueno-ventas-offline.js (se carga despues de este archivo).
     "ventas-pendientes": () => renderSubpantallaVentasPendientes(),
+    // Fase 4 (dueno-gestion.js, se carga despues de este archivo).
+    "empleados-gestion": () => renderSubpantallaEmpleadosGestion(),
+    "finanzas-gestion": () => renderSubpantallaFinanzasGestion(),
+    "encargos-gestion": () => renderSubpantallaEncargosGestion(),
     cuenta: renderSubpantallaCuenta,
     plan: renderSubpantallaPlan,
     "nexo-ia": renderSubpantallaNexoIA,
