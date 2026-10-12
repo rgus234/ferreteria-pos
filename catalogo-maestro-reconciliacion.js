@@ -351,8 +351,8 @@ async function crearProductoMaestro(pool, reconciliacionId, fila) {
     const r = await pool.query(
         `INSERT INTO public.catalogo_maestro_productos
             (codigo, marca, nombre, clave, unidad, ean, fabricante, codigo_fabricante,
-             origen, reconciliacion_id, fuente_identidad, fuente_fecha)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'fabricante',$9,$10,$11)
+             origen, reconciliacion_id, fuente_identidad, fuente_fecha, presentacion, categoria_nexo_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$12,$9,$10,$11,$13,$14)
          ON CONFLICT (codigo) DO NOTHING
          RETURNING id`,
         [
@@ -366,7 +366,13 @@ async function crearProductoMaestro(pool, reconciliacionId, fila) {
             textoLimpio(fila.codigoFabricante),
             reconciliacionId,
             textoLimpio(fila.fuente),
-            fila.fuenteFecha || null
+            fila.fuenteFecha || null,
+            // Opcionales: solo las trae una fuente que ya sabe la presentacion o
+            // la categoria (Open Food Facts). Las filas de fabricante siguen
+            // entrando igual que siempre.
+            fila.origen || "fabricante",
+            textoLimpio(fila.presentacion),
+            fila.categoriaNexoId || null
         ]
     );
 

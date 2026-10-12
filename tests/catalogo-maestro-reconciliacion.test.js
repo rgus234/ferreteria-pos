@@ -174,7 +174,10 @@ test("el INSERT al Maestro solo lleva campos de identidad", () => {
     const columnas = match[1].split(",").map(c => c.trim());
     const permitidas = new Set([
         "codigo", "marca", "nombre", "clave", "unidad", "ean", "fabricante",
-        "codigo_fabricante", "origen", "reconciliacion_id", "fuente_identidad", "fuente_fecha"
+        "codigo_fabricante", "origen", "reconciliacion_id", "fuente_identidad", "fuente_fecha",
+        // Tambien son identidad (la fuente de abarrotes las trae); precio, costo,
+        // stock y similares siguen sin poder entrar.
+        "presentacion", "categoria_nexo_id"
     ]);
 
     for (const columna of columnas) {
