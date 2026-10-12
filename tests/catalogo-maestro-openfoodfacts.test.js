@@ -187,3 +187,35 @@ test("las variantes de una misma marca se unifican a la forma mas frecuente", ()
 test("las bebidas a base de fruta se clasifican como jugos", () => {
     assert.equal(off.subcategoriaNexoAbarrotes(["en:beverages", "en:fruit-based-beverages"], "Bebida de mango", ""), "Jugos y nectares");
 });
+
+// ---------------------------------------------------------------------
+// Como se le muestra el producto al escanear
+// ---------------------------------------------------------------------
+
+test("la presentacion se acomoda: 600ml -> 600 ml, 1,5 L -> 1.5 L", () => {
+    assert.equal(off.normalizarPresentacion("600ml"), "600 ml");
+    assert.equal(off.normalizarPresentacion("1,5 L"), "1.5 L");
+    assert.equal(off.normalizarPresentacion("250 GR"), "250 g");
+    assert.equal(off.normalizarPresentacion("2 LTS"), "2 L");
+    assert.equal(off.normalizarPresentacion("12 piezas"), "12 pz");
+    assert.equal(off.normalizarPresentacion("caja con 6 botellas"), "caja con 6 botellas", "lo que no es cantidad simple se respeta");
+    assert.equal(off.normalizarPresentacion(""), "");
+    assert.equal(off.normalizarPresentacion(null), "");
+});
+
+test("al nombre sin tamano se le suma la presentacion", () => {
+    assert.equal(off.nombreParaMostrar("Coca cola", "600ml"), "Coca cola 600 ml");
+    assert.equal(off.nombreParaMostrar("Coca cola", "3L"), "Coca cola 3 L");
+    assert.equal(off.nombreParaMostrar("Pan Blanco Grande", "680 g"), "Pan Blanco Grande 680 g");
+});
+
+test("si el nombre ya dice el tamano no se repite", () => {
+    assert.equal(off.nombreParaMostrar("Coca-Cola 600ml", "600 ml"), "Coca-Cola 600ml");
+    assert.equal(off.nombreParaMostrar("Leche entera 1 L", "1L"), "Leche entera 1 L");
+    assert.equal(off.nombreParaMostrar("Leche entera 1,5 L", "1.5 L"), "Leche entera 1,5 L");
+});
+
+test("sin presentacion el nombre queda como esta", () => {
+    assert.equal(off.nombreParaMostrar("Coca cola", ""), "Coca cola");
+    assert.equal(off.nombreParaMostrar("", "600 ml"), "");
+});

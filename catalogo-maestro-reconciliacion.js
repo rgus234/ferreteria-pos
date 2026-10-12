@@ -470,10 +470,13 @@ async function identidadPorCodigo(pool, codigo) {
     const r = await pool.query(
         `SELECT m.id, m.codigo, m.nombre, m.marca, m.clave, m.unidad, m.ean,
                 m.fabricante, m.codigo_fabricante, m.necesita_revision,
+                m.presentacion, m.origen, m.categoria_nexo_id,
+                cn.nombre AS categoria_nexo_nombre, cn.departamento AS categoria_nexo_departamento,
                 f.precio_mayoreo, f.precio_medio_mayoreo, f.precio_publico, f.precio_distribuidor,
                 f.confianza AS confianza_precio, f.actualizado_en AS precio_actualizado_en
          FROM public.catalogo_maestro_identificadores i
          JOIN public.catalogo_maestro_productos m ON m.id = i.producto_maestro_id
+         LEFT JOIN public.categorias_nexo cn ON cn.id = m.categoria_nexo_id
          -- El join va SOLO por codigo, no por fabricante.
          --
          -- El Maestro guarda la MARCA del producto (Foset, Volteck,

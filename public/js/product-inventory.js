@@ -4885,6 +4885,15 @@ async function aplicarProductoCatalogoAlFormulario(producto, origen) {
  document.getElementById("nuevaCategoria").value =
  producto.categoria || "";
 
+ // Productos que el Catalogo Maestro ya trae clasificados (abarrotes):
+ // se preselecciona la categoria Nexo igual que al editar un producto o al
+ // usar la IA. Si el negocio no tiene ese giro activo, el arbol no incluye
+ // la categoria y simplemente no se selecciona nada.
+ if (producto.categoriaNexoId) {
+ await cargarCategoriasNexo();
+ await preseleccionarCategoriaNexoProducto({ categoria_nexo_id: producto.categoriaNexoId });
+ }
+
  document.getElementById("nuevaMarca").value =
  producto.marca || "";
 

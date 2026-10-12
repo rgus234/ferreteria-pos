@@ -204,6 +204,38 @@ function subcategoriaNexoAbarrotes(categoriasTags, nombre, marca) {
     return null;
 }
 
+// ---------------------------------------------------------------------
+// Como se le muestra el producto a quien lo escanea
+// ---------------------------------------------------------------------
+
+// "600ml" -> "600 ml", "1,5 L" -> "1.5 L". Lo que no se reconoce como
+// cantidad con unidad se deja tal cual.
+function normalizarPresentacion(presentacion) {
+    const limpia = colapsar(presentacion);
+    const m = limpia.match(/^(\d+(?:[.,]\d+)?)\s*(ml|l|lt|lts|litros?|g|gr|grs|kg|mg|oz|pz|pzas?|piezas?)$/i);
+    if (!m) return limpia;
+
+    const cantidad = m[1].replace(",", ".");
+    const unidad = { lt: "L", lts: "L", l: "L", litro: "L", litros: "L", gr: "g", grs: "g", pza: "pz", pzas: "pz", pieza: "pz", piezas: "pz" }[m[2].toLowerCase()] || m[2].toLowerCase();
+    return `${cantidad} ${unidad}`;
+}
+
+// En Open Food Facts es comun un nombre sin tamano ("Coca cola"), y una
+// tienda tiene la de 355 ml, la de 600 ml y la de 3 L. Al escanear se le
+// propone "Coca cola 600 ml", salvo que el nombre ya diga el tamano.
+function nombreParaMostrar(nombre, presentacion) {
+    const base = colapsar(nombre);
+    const tamano = normalizarPresentacion(presentacion);
+    if (!base || !tamano) return base;
+
+    // Sin espacios ni mayusculas: "600ml" dentro del nombre cuenta como
+    // "600 ml". Se compara solo la cantidad con su unidad.
+    const compacto = texto => String(texto).toLowerCase().replace(/[\s.,]/g, "");
+    if (compacto(base).includes(compacto(tamano))) return base;
+
+    return `${base} ${tamano}`;
+}
+
 // "Nestle", "Nestlé" y "NESTLÉ" son la misma marca: sin unificarlas, el
 // catalogo mostraria tres. Se elige la forma mas frecuente entre las filas
 // (a igualdad, la que tiene acentos o mayusculas correctas).
@@ -249,6 +281,8 @@ module.exports = {
     FUENTE_OFF,
     llaveMarca,
     unificarMarcas,
+    normalizarPresentacion,
+    nombreParaMostrar,
     REGLAS_CATEGORIA,
     colapsar,
     titulo,

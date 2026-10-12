@@ -25,9 +25,25 @@ async function buscarEnCatalogoMaestro(pool, codigo) {
         const codigosRelacionados = [identidad.codigo_fabricante, identidad.ean, identidad.clave]
             .filter(valor => valor && valor !== codigo);
 
+        // Productos de abarrotes (Open Food Facts): el nombre suele venir sin
+        // tamano, asi que se le suma la presentacion ("Coca cola 600 ml").
+        // Los de fabricante (ferreteria) conservan su nombre tal cual.
+        const esAbarrote = identidad.origen === "open_food_facts";
+        const { nombreParaMostrar, normalizarPresentacion } = require("./catalogo-maestro-openfoodfacts");
+
         return {
             codigo: identidad.codigo_fabricante || identidad.codigo,
-            nombre: identidad.nombre || "",
+            nombre: esAbarrote
+                ? nombreParaMostrar(identidad.nombre, identidad.presentacion)
+                : (identidad.nombre || ""),
+            nombreOriginal: identidad.nombre || "",
+            presentacion: esAbarrote ? normalizarPresentacion(identidad.presentacion) : (identidad.presentacion || ""),
+            // La categoria Nexo con la que ya viene clasificado (puede ser
+            // null: se prefiere vacio a mal clasificado).
+            categoriaNexoId: identidad.categoria_nexo_id || null,
+            categoriaNexoNombre: identidad.categoria_nexo_nombre || "",
+            categoriaNexoDepartamento: identidad.categoria_nexo_departamento || "",
+            origenMaestro: identidad.origen || "",
             descripcion: "",
             marca: identidad.marca || "",
             categoria: "",

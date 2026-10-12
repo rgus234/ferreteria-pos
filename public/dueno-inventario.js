@@ -246,9 +246,10 @@ function renderFormularioProductoDueno() {
 
         <label class="dueno-campo">Codigo de barras${editar ? "" : " (si no tiene, se le crea uno)"}
             <div class="dueno-campo-fila">
-                <input type="text" id="duenoProdCodigo" value="${escaparDueno(editar ? valorCampoForm(p.codigo) : estado.codigoInicial)}" autocomplete="off" placeholder="Escanea o escribe">
+                <input type="text" id="duenoProdCodigo" value="${escaparDueno(editar ? valorCampoForm(p.codigo) : estado.codigoInicial)}" autocomplete="off" placeholder="Escanea o escribe"${editar ? "" : ` onchange="autollenarDesdeMaestroDueno(this.value)"`}>
                 <button type="button" class="dueno-boton-secundario-chico" onclick="escanearCodigoProductoDueno()">Escanear</button>
             </div>
+            ${editar ? "" : `<p id="duenoProdReconocido" class="dueno-estado" style="display:none;margin:6px 0 0;"></p>`}
         </label>
 
         <label class="dueno-campo">Nombre
@@ -319,8 +320,71 @@ function escanearCodigoProductoDueno() {
         alCodigo: codigo => {
             const campo = document.getElementById("duenoProdCodigo");
             if (campo) campo.value = codigo;
+            autollenarDesdeMaestroDueno(codigo);
         }
     });
+}
+
+// Autollenado al escanear/escribir el codigo de un producto NUEVO: si el
+// negocio (o el Catalogo Maestro de Nexo) ya conoce ese codigo, se completan
+// nombre, categoria y precio. Nunca pisa lo que la persona ya escribio, y
+// sin internet o sin coincidencia no hace nada (el alta sigue a mano).
+async function autollenarDesdeMaestroDueno(codigoCrudo) {
+    const estado = duenoProductoForm;
+    const codigo = String(codigoCrudo || "").trim();
+
+    if (!estado || estado.modo !== "nuevo" || !codigo || !navigator.onLine) return;
+
+    const aviso = document.getElementById("duenoProdReconocido");
+    // Si el codigo cambio, el vinculo y la categoria del escaneo anterior ya no valen.
+    if (estado.maestroCodigo && estado.maestroCodigo !== codigo) {
+        estado.catalogoMaestroId = null;
+        if (estado.categoriaDelMaestro) {
+            estado.categoriaNexo = null;
+            const etiqueta = document.getElementById("duenoProdCategoria");
+            if (etiqueta) etiqueta.textContent = "Sin categoria";
+        }
+        estado.categoriaDelMaestro = false;
+    }
+
+    let producto = null;
+    try {
+        const datos = await fetchAutenticado(`/catalogo-proveedor/buscar-codigo?codigo=${encodeURIComponent(codigo)}`);
+        producto = datos?.producto || null;
+    } catch (error) {
+        return;
+    }
+
+    // El formulario pudo cerrarse o cambiar de codigo mientras esperaba.
+    if (!duenoProductoForm || duenoProductoForm !== estado) return;
+    if (document.getElementById("duenoProdCodigo")?.value.trim() !== codigo) return;
+
+    if (!producto) {
+        if (aviso) aviso.style.display = "none";
+        return;
+    }
+
+    estado.maestroCodigo = codigo;
+    estado.catalogoMaestroId = producto.catalogoMaestroId || null;
+
+    const nombre = document.getElementById("duenoProdNombre");
+    if (nombre && !nombre.value.trim() && producto.nombre) nombre.value = producto.nombre;
+
+    const precio = document.getElementById("duenoProdPrecioPublico");
+    const precioLista = Number(producto.publico || producto.medioMayoreo || 0);
+    if (precio && !precio.value && precioLista > 0) precio.value = precioLista;
+
+    if (producto.categoriaNexoId && !estado.categoriaNexo) {
+        estado.categoriaNexo = { id: producto.categoriaNexoId, departamento: producto.categoriaNexoDepartamento, nombre: producto.categoriaNexoNombre };
+        estado.categoriaDelMaestro = true;
+        const etiqueta = document.getElementById("duenoProdCategoria");
+        if (etiqueta) etiqueta.textContent = `${producto.categoriaNexoDepartamento} › ${producto.categoriaNexoNombre}`;
+    }
+
+    if (aviso) {
+        aviso.textContent = `Nexo lo reconoce: ${producto.nombre}${producto.marca ? ` (${producto.marca})` : ""}. Solo falta tu precio.`;
+        aviso.style.display = "block";
+    }
 }
 
 async function previsualizarFotoNuevoProductoDueno(archivo) {
@@ -435,6 +499,10 @@ async function guardarProductoNuevoDueno() {
         cuerpo.categoriaNexoId = estado.categoriaNexo.id;
         cuerpo.subcategoria = estado.categoriaNexo.nombre;
     }
+
+    // Enlace con el Catalogo Maestro (si el codigo se reconocio): de ahi salen
+    // despues las fotos y la ficha en Market.
+    if (estado.catalogoMaestroId) cuerpo.catalogoMaestroId = estado.catalogoMaestroId;
 
     const creado = await fetchAutenticado("/agregar-producto", {
         method: "POST",
