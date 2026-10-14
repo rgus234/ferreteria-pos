@@ -108,17 +108,17 @@
  <div class="setup-grid">
  <label>
  <span>Nombre del negocio</span>
- <input id="setupNombreNegocio" placeholder="Ej. Ferreteria Olimpico">
+ <input id="setupNombreNegocio" placeholder="Ej. Mi Negocio">
  </label>
 
  <label>
  <span>Codigo del negocio</span>
- <input id="setupCodigoNegocio" placeholder="Ej. ferreteria-olimpico">
+ <input id="setupCodigoNegocio" placeholder="Ej. mi-negocio">
  </label>
 
  <label>
  <span>Slogan o descripcion</span>
- <input id="setupSloganNegocio" placeholder="Todo para construir, todo para ti">
+ <input id="setupSloganNegocio" placeholder="Ej. Lo que necesitas, cerca de ti">
  </label>
 
  <label>
@@ -173,7 +173,7 @@
  <div class="setup-grid">
  <label>
  <span>Nombre del administrador</span>
- <input id="setupAdminNombre" placeholder="Ej. Gustavo">
+ <input id="setupAdminNombre" placeholder="Ej. Juan Perez">
  </label>
 
  <label>
@@ -360,7 +360,7 @@
  <span>Tu nombre</span>
  <div class="login-input-icono">
  <span class="login-input-icono-svg" data-kpi-icon="user"></span>
- <input id="crearPerfilInicialNombre" placeholder="Ej. Gustavo" autocomplete="off">
+ <input id="crearPerfilInicialNombre" placeholder="Ej. Juan Perez" autocomplete="off">
  </div>
  </label>
 
@@ -1262,9 +1262,9 @@
  <input id="precioDistribuidor" type="number" step="0.01"
  placeholder=" Precio distribuidor" oninput="actualizarSugerenciaPrecioCategoria()" />
  <input id="precioMayoreo" type="number" step="0.01" placeholder=" Precio medio mayoreo" />
- <input id="precioPublico" type="number" step="0.01" placeholder="Precio publico">
+ <input id="precioPublico" type="number" step="0.01" placeholder="Precio publico" oninput="sincronizarPrecioCarritoConPublico()">
  <div class="campo-ficha-precio-carrito">
- <input id="nuevoPrecio" type="number" step="0.01" placeholder="Precio del carrito" oninput="actualizarAyudaPrecioProducto()">
+ <input id="nuevoPrecio" type="number" step="0.01" placeholder="Precio de venta (lo que cobra el carrito)" oninput="this.dataset.manual = '1'; actualizarAyudaPrecioProducto()">
  <button type="button" id="sugerenciaPrecioProveedor" class="btn-sugerencia-precio-proveedor" style="display:none;"></button>
  <span id="precioCarritoAyuda" class="precio-carrito-ayuda"></span>
  </div>
@@ -1785,13 +1785,13 @@
   <script src="js/supplier-catalog.js?v=plantillas-servidor-ia-20260723-01"></script>
   <script src="js/pricing-rules.js?v=gafi-fases-ui-20260916-01"></script>
   <script src="js/catalog-parsers.js?v=plantillas-servidor-ia-20260723-01"></script>
-  <script src="js/product-inventory.js?v=autollenado-abarrotes-20261012-01"></script>
+  <script src="js/product-inventory.js?v=precio-carrito-20261014-01"></script>
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-weight-modal.js?v=peso-carrito-20260817-01"></script>
 <script src="js/pos-image-zoom.js?v=zoom-carrito-20260809-01"></script>
 <script src="js/pos-quick-item-modal.js?v=articulo-rapido-20260720-01"></script>
-<script src="js/pos-sales.js?v=finanzas-costo-carrito-20260930-01"></script>
+<script src="js/pos-sales.js?v=iva-incluido-20261014-01"></script>
 <script src="js/pos-hojas-venta.js?v=hojas-venta-20260819-01"></script>
 <script src="js/pos-search-flyout.js?v=explorar-nexo-puente-20260908-01"></script>
   <script src="js/sales-history-documents.js?v=cancelar-venta-20260901-01"></script>

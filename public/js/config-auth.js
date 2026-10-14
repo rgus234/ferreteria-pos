@@ -4143,7 +4143,7 @@ function inicializarLoginUsuarios() {
  const encontrado =
  usuariosSistema().find(item => item.id === usuarioGuardado);
 
- usuario.value = encontrado?.nombre || "Gustavo";
+ usuario.value = encontrado?.nombre || "";
  }
 
  ["usuario", "password"].forEach(id => {

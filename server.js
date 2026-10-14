@@ -801,12 +801,17 @@ app.post("/api/clientes/registro", async (req, res) => {
             throw new Error("No se pudo generar un codigo unico para el negocio");
         }
 
+        // Un negocio nuevo arranca vendiendo al PUBLICO. El default de la tabla
+        // sigue siendo 'mayoreo' a proposito (es lo que usaban los negocios que
+        // ya existian, ver 20260929_restaurar_nivel_precio_mayoreo.sql), pero un
+        // cliente nuevo con precio publico y de mayoreo cobraria el de mayoreo a
+        // todo el que llega al mostrador. Lo cambia en Configuracion si quiere.
         const negocio = await client.query(
             `
             INSERT INTO public.negocios
-                (slug, nombre, giro, estado, plan, telefono, correo, password_hash, direccion, updated_at)
+                (slug, nombre, giro, estado, plan, telefono, correo, password_hash, direccion, nivel_precio_por_defecto, updated_at)
             VALUES
-                ($1, $2, $3, 'prueba', $4, $5, $6, $7, $8, NOW())
+                ($1, $2, $3, 'prueba', $4, $5, $6, $7, $8, 'publico', NOW())
             RETURNING *
             `,
             [slug, nombreNegocio, giro, plan, telefono, correo, hashPassword(password), ciudad || null]
@@ -3008,9 +3013,9 @@ app.post("/admin/api/negocios", async (req, res) => {
         const negocio = await client.query(
             `
             INSERT INTO public.negocios
-                (slug, nombre, giro, estado, plan, telefono, correo, direccion, updated_at)
+                (slug, nombre, giro, estado, plan, telefono, correo, direccion, nivel_precio_por_defecto, updated_at)
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+                ($1, $2, $3, $4, $5, $6, $7, $8, 'publico', NOW())
             RETURNING *
             `,
             [

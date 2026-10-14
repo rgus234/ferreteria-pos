@@ -2641,6 +2641,22 @@ const ETIQUETAS_UNIDAD_DECIMAL_PRECIO = {
  litro: { singular: "litro", plural: "litros", abrev: "L", ejemplo: 2.5 }
 };
 
+// Un negocio nuevo escribe el "Precio publico" y se topaba con "Falta precio"
+// porque el campo del carrito (el que de verdad usa el POS) quedaba vacio y
+// su nombre no dice que es obligatorio. Mientras la persona no lo haya
+// escrito a mano, sigue al precio publico.
+function sincronizarPrecioCarritoConPublico() {
+ const publico = document.getElementById("precioPublico");
+ const carrito = document.getElementById("nuevoPrecio");
+
+ if (!publico || !carrito) return;
+ if (carrito.dataset.manual === "1" && carrito.value !== "") return;
+
+ carrito.value = publico.value;
+ delete carrito.dataset.manual;
+ actualizarAyudaPrecioProducto();
+}
+
 function actualizarAyudaPrecioProducto() {
  const unidad =
  String(document.getElementById("unidadVenta")?.value || "pieza").toLowerCase();
@@ -2657,7 +2673,7 @@ function actualizarAyudaPrecioProducto() {
  ETIQUETAS_UNIDAD_DECIMAL_PRECIO[unidad];
 
  if (!etiqueta) {
- campoPrecio.placeholder = "Precio del carrito";
+ campoPrecio.placeholder = "Precio de venta (lo que cobra el carrito)";
  ayuda.textContent = "";
  ayuda.style.display = "none";
  return;
@@ -2776,10 +2792,18 @@ async function agregarProductoNuevo(opciones = {}) {
  "nuevoNombre"
  ).value;
 
- const precio =
+ // Si el campo del carrito quedo vacio se usa el precio publico (o el de
+ // medio mayoreo): el POS necesita un precio de venta, y pedirselo otra vez
+ // a quien ya lo escribio solo estorba.
+ const precioCapturado =
  document.getElementById(
  "nuevoPrecio"
  ).value;
+
+ const precio =
+ precioCapturado !== ""
+ ? precioCapturado
+ : (document.getElementById("precioPublico")?.value || document.getElementById("precioMayoreo")?.value || "");
 
  const stock =
  document.getElementById(
