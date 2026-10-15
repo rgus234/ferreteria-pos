@@ -2650,10 +2650,19 @@ function sincronizarPrecioCarritoConPublico() {
  const carrito = document.getElementById("nuevoPrecio");
 
  if (!publico || !carrito) return;
- if (carrito.dataset.manual === "1" && carrito.value !== "") return;
+
+ // SOLO se escribe si el campo esta vacio o si todavia tiene exactamente lo
+ // que este mismo ajuste puso antes. Un valor que llego de otro lado (el
+ // medio mayoreo del catalogo del proveedor, un producto que se esta
+ // editando, lo que la persona tecleo) NUNCA se pisa: en una ferreteria que
+ // cobra a medio mayoreo, cambiar el precio publico no debe mover el precio
+ // con el que se cobra.
+ const vacio = carrito.value === "";
+ const intactoDesdeAqui = carrito.dataset.autoValor !== undefined && carrito.value === carrito.dataset.autoValor;
+ if (!vacio && !intactoDesdeAqui) return;
 
  carrito.value = publico.value;
- delete carrito.dataset.manual;
+ carrito.dataset.autoValor = publico.value;
  actualizarAyudaPrecioProducto();
 }
 
