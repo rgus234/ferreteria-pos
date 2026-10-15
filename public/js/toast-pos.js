@@ -55,6 +55,11 @@ function mostrarToastPOS(mensaje, opciones = {}) {
  ? { titulo: opciones }
  : opciones;
 
+ // Con el asistente de inicio abierto, los avisos de rutina ("Caja cerrada",
+ // recordatorios) solo estorban a quien esta configurando su negocio: los de
+ // error si se muestran.
+ if (tipo !== "peligro" && document.getElementById("asistenteInicio")) return null;
+
  const contenedor =
  contenedorToastPOS();
 

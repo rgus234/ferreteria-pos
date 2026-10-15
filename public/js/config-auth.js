@@ -485,7 +485,9 @@ function guardarConfiguracionNegocioDesdeServidor(negocio) {
  const configuracionReconstruida = {
  negocioSlug: negocio.slug,
  nombre: negocio.nombre,
- slogan: "",
+ // El eslogan ahora puede venir del servidor (asistente de inicio). Si el
+ // negocio no tiene uno guardado queda vacio, igual que antes.
+ slogan: negocio.slogan || "",
  telefono: negocio.telefono || "",
  direccion: negocio.direccion || "",
  color: negocio.color || "#0d6efd",
@@ -1199,7 +1201,14 @@ async function crearPerfilAdministradorInicial() {
 
  await entrarAlSistemaConUsuario(usuarioCreado);
 
- if (typeof mostrarBienvenidaNexoOnboarding === "function") {
+ // Negocio recien registrado: primero el asistente de inicio. Si no hace
+ // falta (ya estaba terminado) o no se pudo abrir, la bienvenida de siempre.
+ let asistenteMostrado = false;
+ if (typeof iniciarAsistenteInicio === "function") {
+ asistenteMostrado = await iniciarAsistenteInicio();
+ }
+
+ if (!asistenteMostrado && typeof mostrarBienvenidaNexoOnboarding === "function") {
  mostrarBienvenidaNexoOnboarding();
  }
  } catch (error) {
@@ -3215,6 +3224,8 @@ async function entrarAlSistemaConUsuario(usuario) {
  if (typeof iniciarRecordatorioCierreCajaPOS === "function") iniciarRecordatorioCierreCajaPOS();
  if (typeof revisarEncargosVencidosPOS === "function") revisarEncargosVencidosPOS();
  if (typeof iniciarMonitorPedidosMarket === "function") iniciarMonitorPedidosMarket();
+ // Si el asistente de inicio quedo a medias, un recordatorio lo retoma.
+ if (typeof revisarAsistenteInicioPendiente === "function") revisarAsistenteInicioPendiente(usuario);
 }
 
 async function intentarRestaurarSesion() {

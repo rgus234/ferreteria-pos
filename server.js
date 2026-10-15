@@ -702,6 +702,165 @@ app.put("/negocio-actual/giro", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
+// ---------------------------------------------------------------------
+// Asistente de inicio (primer uso): estado y guardado por pasos.
+//
+// Solo el dueno / administrador (administrar_usuarios) lo ve y lo guarda:
+// trae el correo de acceso de la cuenta y cambia datos del negocio.
+// El giro, el nivel de precio y el logo/color se guardan por sus rutas de
+// siempre (/giro, /nivel-precio, /marca); aqui van el resto de los datos,
+// las respuestas de "como vendes" y la marca de "terminado".
+// ---------------------------------------------------------------------
+
+// Solo estas respuestas, solo estos valores: nunca lo que llegue en el body
+// tal cual (es un JSONB que despues leen otras pantallas).
+const RESPUESTAS_ASISTENTE_VALIDAS = {
+    granel: ["si", "no"],
+    fiado: ["si", "no"],
+    caducidad: ["si", "no"],
+    impresora: ["si", "no", "no_se"],
+    primerPaso: ["agregar_productos", "primera_venta", "inicio"]
+};
+
+async function estadoAsistenteInicio(negocioId) {
+    const fila = await pool.query(
+        `SELECT nombre, telefono, direccion, slogan, correo, correo_verificado, correo_negocio, color,
+                (logo IS NOT NULL AND logo <> '') AS tiene_logo,
+                nivel_precio_por_defecto, onboarding_respuestas, onboarding_completado_at
+           FROM public.negocios WHERE id = $1`,
+        [negocioId]
+    );
+    const giros = await pool.query(
+        `SELECT giro FROM public.negocio_giros WHERE negocio_id = $1 AND activo = true ORDER BY giro`,
+        [negocioId]
+    );
+    const n = fila.rows[0];
+
+    return {
+        ok: true,
+        completado: Boolean(n.onboarding_completado_at),
+        completadoAt: n.onboarding_completado_at,
+        respuestas: n.onboarding_respuestas || {},
+        datos: {
+            nombre: n.nombre || "",
+            telefono: n.telefono || "",
+            direccion: n.direccion || "",
+            slogan: n.slogan || "",
+            correoNegocio: n.correo_negocio || "",
+            color: n.color || "",
+            tieneLogo: Boolean(n.tiene_logo)
+        },
+        correoAcceso: n.correo || "",
+        correoVerificado: Boolean(n.correo_verificado),
+        nivelPrecio: n.nivel_precio_por_defecto,
+        giros: giros.rows.map(f => f.giro)
+    };
+}
+
+app.get("/negocio-actual/onboarding", requerirAccesoNegocio, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        res.json(await estadoAsistenteInicio(negocio.id));
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+app.put("/negocio-actual/onboarding", requerirAccesoNegocio, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const datos = req.body?.datos && typeof req.body.datos === "object" ? req.body.datos : {};
+        const respuestas = req.body?.respuestas && typeof req.body.respuestas === "object" ? req.body.respuestas : {};
+        const tiene = (objeto, clave) => Object.prototype.hasOwnProperty.call(objeto, clave);
+
+        const sets = [];
+        const valores = [];
+        const agregar = (columna, valor) => {
+            valores.push(valor);
+            sets.push(`${columna} = $${valores.length}`);
+        };
+
+        if (tiene(datos, "nombre")) {
+            const nombre = limpiarTexto(datos.nombre, 140);
+            if (nombre.length < 2) {
+                res.status(400).json({ ok: false, error: "Escribe el nombre del negocio." });
+                return;
+            }
+            agregar("nombre", nombre);
+        }
+
+        if (tiene(datos, "telefono")) agregar("telefono", limpiarTexto(datos.telefono, 40) || null);
+        if (tiene(datos, "slogan")) agregar("slogan", limpiarTexto(datos.slogan, 120));
+
+        if (tiene(datos, "correoNegocio")) {
+            const correo = limpiarTexto(datos.correoNegocio, 140).toLowerCase();
+            if (correo && !REGEX_CORREO.test(correo)) {
+                res.status(400).json({ ok: false, error: "El correo del negocio no es valido." });
+                return;
+            }
+            agregar("correo_negocio", correo);
+        }
+
+        // La direccion se geocodifica (mapa de Nexo Market) solo si cambio y no
+        // es vacia; si el servicio gratuito no responde, la direccion se guarda
+        // igual, sin coordenadas.
+        if (tiene(datos, "direccion")) {
+            const direccionNueva = limpiarTexto(datos.direccion, 180);
+
+            if (direccionNueva !== (negocio.direccion || "")) {
+                let coordenadas = null;
+
+                if (direccionNueva) {
+                    coordenadas = await require("./geocodificacion").geocodificarDireccion(direccionNueva).catch(() => null);
+                }
+
+                agregar("direccion", direccionNueva || null);
+                agregar("direccion_lat", coordenadas ? coordenadas.lat : null);
+                agregar("direccion_lng", coordenadas ? coordenadas.lng : null);
+                sets.push("direccion_geocodificada_en = NOW()");
+            }
+        }
+
+        // Respuestas de "como vendes": se mezclan con las que ya habia.
+        const limpias = {};
+        for (const [clave, permitidos] of Object.entries(RESPUESTAS_ASISTENTE_VALIDAS)) {
+            if (tiene(respuestas, clave)) {
+                if (!permitidos.includes(respuestas[clave])) {
+                    res.status(400).json({ ok: false, error: `Respuesta no valida: ${clave}` });
+                    return;
+                }
+                limpias[clave] = respuestas[clave];
+            }
+        }
+
+        if (tiene(req.body || {}, "paso")) {
+            const paso = Number(req.body.paso);
+            if (Number.isInteger(paso) && paso >= 0 && paso <= 9) limpias.paso = paso;
+        }
+
+        if (Object.keys(limpias).length > 0) {
+            valores.push(JSON.stringify(limpias));
+            sets.push(`onboarding_respuestas = onboarding_respuestas || $${valores.length}::jsonb`);
+        }
+
+        if (req.body?.completado === true) {
+            sets.push("onboarding_completado_at = COALESCE(onboarding_completado_at, NOW())");
+        }
+
+        if (sets.length > 0) {
+            valores.push(negocio.id);
+            await pool.query(
+                `UPDATE public.negocios SET ${sets.join(", ")}, updated_at = NOW() WHERE id = $${valores.length}`,
+                valores
+            );
+        }
+
+        res.json(await estadoAsistenteInicio(negocio.id));
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
 app.post("/api/clientes/registro", async (req, res) => {
     if (limpiarTexto(req.body?.empresaWeb, 200)) {
         return res.status(400).json({
@@ -3925,7 +4084,7 @@ async function negocioActual(req) {
 
     const resultado = await pool.query(
         `SELECT id, slug, nombre, giro, estado, plan, telefono, direccion, logo, color,
-                nivel_precio_por_defecto
+                nivel_precio_por_defecto, slogan, correo_negocio, onboarding_completado_at
            FROM public.negocios WHERE id = $1 LIMIT 1`,
         [negocioId]
     );
