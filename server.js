@@ -4712,6 +4712,32 @@ function datosProductoSync(payload = {}) {
     };
 }
 
+// Mueve el stock entero de un producto aceptando cantidades con decimales.
+// productos.stock es INTEGER; la fraccion vive en stock_resto (0 <= resto < 1)
+// y la existencia real es stock + stock_resto. Con cantidades enteras el
+// resultado es identico a "stock = stock + delta" de siempre (resto queda en
+// 0). Un solo UPDATE atomico: dos cajas moviendo el mismo producto no se
+// pisan. piso:true evita que la existencia quede negativa (ventas).
+async function moverStockDecimal(client, negocioId, productoId, delta, { piso = false } = {}) {
+    await client.query(
+        `
+        UPDATE public.productos
+        SET stock = CASE
+                WHEN $4::boolean AND (stock + stock_resto + $1::numeric) <= 0 THEN 0
+                ELSE FLOOR(stock + stock_resto + $1::numeric)::int
+            END,
+            stock_resto = CASE
+                WHEN $4::boolean AND (stock + stock_resto + $1::numeric) <= 0 THEN 0
+                ELSE (stock + stock_resto + $1::numeric)
+                     - FLOOR(stock + stock_resto + $1::numeric)
+            END
+        WHERE id = $2
+        AND negocio_id = $3
+        `,
+        [delta, productoId, negocioId, piso]
+    );
+}
+
 async function descontarStockVentaProducto(client, negocioId, productoVenta = {}) {
     const productoId =
         Number(productoVenta.id || productoVenta.productoId || 0);
@@ -4731,15 +4757,7 @@ async function descontarStockVentaProducto(client, negocioId, productoVenta = {}
         // o inventario ya desfasado de la realidad) -- no bloquea la
         // venta (eso es una decision de negocio aparte, no se toca
         // aqui), solo evita que el numero deje de tener sentido.
-        await client.query(
-            `
-            UPDATE public.productos
-            SET stock = GREATEST(stock - $1, 0)
-            WHERE id = $2
-            AND negocio_id = $3
-            `,
-            [cantidad, productoId, negocioId]
-        );
+        await moverStockDecimal(client, negocioId, productoId, -cantidad, { piso: true });
         return;
     }
 
@@ -4841,15 +4859,7 @@ async function restaurarStockVentaProducto(client, negocioId, productoVenta = {}
         return;
     }
 
-    await client.query(
-        `
-        UPDATE public.productos
-        SET stock = stock + $1
-        WHERE id = $2
-        AND negocio_id = $3
-        `,
-        [cantidad, productoId, negocioId]
-    );
+    await moverStockDecimal(client, negocioId, productoId, cantidad);
 }
 
 async function restaurarInventarioPorProductos(client, negocioId, productos = []) {
@@ -8460,16 +8470,10 @@ app.post("/ventas/:id/cambios", requerirAccesoNegocio, async (req, res) => {
         const precioNuevo = haySustituto ? Number(nuevo.rows[0].precio || 0) : 0;
         const diferencia = Number((((haySustituto ? precioNuevo * cantNueva : 0)) - (precioDevuelto * cantDevuelta)).toFixed(2));
 
-        await client.query(
-            `UPDATE public.productos SET stock = stock + $1 WHERE id = $2 AND negocio_id = $3`,
-            [cantDevuelta, idDevuelto, negocio.id]
-        );
+        await moverStockDecimal(client, negocio.id, idDevuelto, cantDevuelta);
 
         if (haySustituto) {
-            await client.query(
-                `UPDATE public.productos SET stock = stock - $1 WHERE id = $2 AND negocio_id = $3`,
-                [cantNueva, idNuevo, negocio.id]
-            );
+            await moverStockDecimal(client, negocio.id, idNuevo, -cantNueva);
         }
 
         const restanteDevuelto = Number(lineaDevuelta.cantidad || 0) - cantDevuelta;
