@@ -1142,6 +1142,88 @@ const ESTILOS_MARKET_NAV_MOVIL = `
 .market-drawer-vacio p{ margin:0; color:var(--muted); font-size:12.5px; line-height:1.4; }
 `;
 
+// Inicio y resultados de /market en celular: densidad al estilo Amazon /
+// Mercado Libre (productos con precio desde la primera pantalla, cuadricula
+// de 2 columnas, banners en tira compacta). SOLO CSS de celular y SOLO se
+// inyecta en paginaMarketHtml(): escritorio y el resto de paginas de Market
+// (catalogo de tienda, explora, carrito...) quedan exactamente como estaban.
+const ESTILOS_MARKET_DENSIDAD_MOVIL = `
+.market-banners-puntos{ display:none; }
+@media (max-width:640px){
+  /* Banners: de 6 tarjetas gigantes apiladas a una tira compacta que se desliza */
+  .market-banners-scope{ margin-top:10px; padding:0 12px; }
+  .market-banners-grid{ display:flex; gap:10px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding-bottom:2px; }
+  .market-banners-grid::-webkit-scrollbar{ display:none; }
+  .market-banner-card{ flex:0 0 86%; flex-direction:row; min-height:108px; scroll-snap-align:start; border-radius:16px; box-shadow:0 6px 16px rgba(20,32,51,.1); }
+  .market-banner-media{ flex:0 0 108px; width:108px; align-self:stretch; aspect-ratio:auto; }
+  .market-banner-media img{ padding:8px; }
+  .market-banner-panel{ padding:12px 14px; gap:3px; }
+  .market-banner-panel h3{ font-size:15px; line-height:1.2; }
+  .market-banner-panel p{ font-size:12px; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .market-banner-btn{ margin-top:4px; padding:6px 12px; font-size:11.5px; }
+
+  /* El bloque de bienvenida es texto de escritorio: en celular estorba antes de los productos */
+  .market-hero{ display:none; }
+
+  /* Franja de fondo que cambia al color de la promo activa (--market-tinte
+     lo pone marketIniciarCarruselBanners) + tarjeta activa + puntitos */
+  .market-banners-scope{ position:relative; isolation:isolate; padding-top:12px; }
+  .market-banners-scope::before{ content:""; position:absolute; z-index:-1; left:0; right:0; top:-10px; bottom:0; background-color:var(--market-tinte, transparent); opacity:.2; transition:background-color .6s ease; -webkit-mask-image:linear-gradient(to bottom,#000 55%,transparent); mask-image:linear-gradient(to bottom,#000 55%,transparent); pointer-events:none; }
+  .market-banners-grid{ position:relative; }
+  .market-banner-card{ transition:transform .45s ease, opacity .45s ease, box-shadow .45s ease; }
+  .market-banners-grid:has(.activa) .market-banner-card:not(.activa){ transform:scale(.96); opacity:.82; }
+  .market-banners-puntos{ display:flex; justify-content:center; gap:6px; padding:8px 0 2px; }
+  .market-banners-puntos span{ width:6px; height:6px; border-radius:999px; background:rgba(20,32,51,.22); transition:width .35s ease, background-color .35s ease; }
+  .market-banners-puntos span.activo{ width:18px; background:var(--market-tinte, #0f4c8f); }
+
+  .market-layout{ padding:0 12px 24px; gap:14px; }
+  .market-giros-tira{ padding-bottom:8px; }
+  .market-categorias-tira{ gap:8px; padding:4px 2px 10px; }
+  .market-categoria-tile{ width:84px; padding:10px 6px; gap:6px; }
+  .market-seccion{ margin-bottom:18px; }
+  .market-seccion-header{ margin-bottom:10px; }
+  .market-seccion-header h3{ font-size:17px; }
+  .market-carousel-flechas{ display:none; }
+
+  /* Productos: cuadricula de 2 columnas (antes 1 tarjeta enorme por pantalla) */
+  #marketInicio .market-productos-grid,
+  #marketInicio .market-ofertas-dia-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; overflow:visible; }
+  .market-resultados-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  #marketInicio .market-producto-card,
+  #marketResultadosBusqueda .market-producto-card{ flex:none; width:auto; min-width:0; padding:10px; gap:5px; border-radius:14px; box-shadow:0 6px 18px rgba(20,32,51,.07); }
+  #marketInicio .market-producto-card:hover,
+  #marketResultadosBusqueda .market-producto-card:hover{ transform:none; }
+  #marketInicio .market-producto-foto,
+  #marketResultadosBusqueda .market-producto-foto{ border-radius:10px; background:#fff; }
+  #marketInicio .market-producto-foto img,
+  #marketResultadosBusqueda .market-producto-foto img{ object-fit:contain; }
+  #marketInicio .market-producto-nombre,
+  #marketResultadosBusqueda .market-producto-nombre{ font-size:13px; line-height:1.28; min-height:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  #marketInicio .market-precio-actual,
+  #marketResultadosBusqueda .market-precio-actual{ font-size:17px; }
+  #marketInicio .market-producto-precio-tachado,
+  #marketResultadosBusqueda .market-producto-precio-tachado{ font-size:12px; }
+  #marketInicio .market-producto-precios,
+  #marketResultadosBusqueda .market-producto-precios{ gap:6px; }
+  #marketInicio .market-producto-badge-oferta,
+  #marketResultadosBusqueda .market-producto-badge-oferta{ font-size:10.5px; padding:2px 6px; }
+  #marketInicio .market-producto-existencia,
+  #marketResultadosBusqueda .market-producto-existencia{ font-size:11.5px; }
+  #marketInicio .market-producto-tienda,
+  #marketResultadosBusqueda .market-producto-tienda{ font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #marketInicio .market-producto-card .btn,
+  #marketResultadosBusqueda .market-producto-card .btn{ padding:8px 6px; font-size:12px; min-height:0; white-space:normal; line-height:1.2; }
+  #marketInicio .market-producto-favorito,
+  #marketResultadosBusqueda .market-producto-favorito{ top:8px; right:8px; width:28px; height:28px; }
+
+  .market-categorias-grid-foto{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .market-como{ padding:0 12px; }
+}
+@media (prefers-reduced-motion: reduce){
+  .market-banners-scope::before, .market-banner-card, .market-banners-puntos span{ transition:none; }
+}
+`;
+
 // Tarjeta de bienvenida por giro -- a diferencia del cajon de cuenta
 // (solo movil), esta debe verse bien en escritorio tambien, asi que no
 // depende del breakpoint de 640px de ESTILOS_MARKET_NAV_MOVIL. Misma
@@ -1526,7 +1608,7 @@ function paginaMarketHtml(opciones) {
 ${metaInstalableMarketHtml()}
 <link rel="stylesheet" href="/site/styles.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<style>${ESTILOS_MARKET}${ESTILOS_MARKET_NAV_MOVIL}${ESTILOS_MARKET_GIRO_PROMPT}${estilosPortalClienteHtml()}</style>
+<style>${ESTILOS_MARKET}${ESTILOS_MARKET_NAV_MOVIL}${ESTILOS_MARKET_DENSIDAD_MOVIL}${ESTILOS_MARKET_GIRO_PROMPT}${estilosPortalClienteHtml()}</style>
 </head>
 <body>
 ${marketHeaderHtml({ activo: activoNav })}
@@ -1849,6 +1931,75 @@ function marketBannerTarjetaHtml(b) {
 function marketBannersHtml(banners) {
     if (!banners || banners.length === 0) return '';
     return '<div class="market-banners-grid">' + banners.map(marketBannerTarjetaHtml).join('') + '</div>';
+}
+
+// Tira de promos en celular: avanza sola con animacion suave, marca la
+// tarjeta activa y tine la franja de fondo con el color de la promo que
+// se ve (--market-tinte, ver ESTILOS_MARKET_DENSIDAD_MOVIL). En escritorio
+// los banners son una cuadricula fija, asi que no hace nada. Se pausa si
+// la persona la toca/desliza, si la pestana esta oculta, o si el sistema
+// pide animaciones reducidas.
+var marketCarruselBannersTimer = null;
+function marketIniciarCarruselBanners() {
+    if (marketCarruselBannersTimer) { clearInterval(marketCarruselBannersTimer); marketCarruselBannersTimer = null; }
+    var scope = document.getElementById("marketBannersDestacados");
+    var tira = scope ? scope.querySelector(".market-banners-grid") : null;
+    if (!tira) return;
+    var tarjetas = Array.prototype.slice.call(tira.children);
+    if (tarjetas.length === 0) return;
+
+    var viejos = scope.querySelector(".market-banners-puntos");
+    if (viejos) viejos.remove();
+    var puntos = document.createElement("div");
+    puntos.className = "market-banners-puntos";
+    puntos.innerHTML = tarjetas.map(function() { return "<span></span>"; }).join("");
+    scope.appendChild(puntos);
+
+    var movil = window.matchMedia("(max-width:640px)");
+    var reducido = window.matchMedia("(prefers-reduced-motion: reduce)");
+    var ultimaInteraccion = 0;
+    var indiceActual = -1;
+
+    function calcularActiva() {
+        if (tira.scrollLeft + tira.clientWidth >= tira.scrollWidth - 2) return tarjetas.length - 1;
+        var mejor = 0;
+        var menor = Infinity;
+        tarjetas.forEach(function(tarjeta, i) {
+            var distancia = Math.abs(tarjeta.offsetLeft - tira.scrollLeft);
+            if (distancia < menor) { menor = distancia; mejor = i; }
+        });
+        return mejor;
+    }
+
+    function marcarActiva() {
+        var indice = calcularActiva();
+        if (indice === indiceActual) return;
+        indiceActual = indice;
+        tarjetas.forEach(function(tarjeta, i) { tarjeta.classList.toggle("activa", i === indice); });
+        Array.prototype.forEach.call(puntos.children, function(punto, i) { punto.classList.toggle("activo", i === indice); });
+        var color = getComputedStyle(tarjetas[indice]).getPropertyValue("--panel-color").trim();
+        if (color) scope.style.setProperty("--market-tinte", color);
+    }
+
+    var esperando = false;
+    tira.addEventListener("scroll", function() {
+        if (esperando) return;
+        esperando = true;
+        requestAnimationFrame(function() { esperando = false; marcarActiva(); });
+    }, { passive: true });
+    ["touchstart", "pointerdown", "wheel"].forEach(function(nombre) {
+        tira.addEventListener(nombre, function() { ultimaInteraccion = Date.now(); }, { passive: true });
+    });
+
+    marcarActiva();
+
+    if (tarjetas.length < 2) return;
+    marketCarruselBannersTimer = setInterval(function() {
+        if (!movil.matches || reducido.matches || document.hidden) return;
+        if (Date.now() - ultimaInteraccion < 8000) return;
+        var siguiente = (calcularActiva() + 1) % tarjetas.length;
+        tira.scrollTo({ left: siguiente === 0 ? 0 : tarjetas[siguiente].offsetLeft, behavior: "smooth" });
+    }, 5000);
 }
 
 // "Ofertas del dia" (Fase "Ofertas destacadas", ver plan) -- mismos
@@ -2593,6 +2744,7 @@ async function marketCargarInicio() {
 
     document.getElementById("marketBannersDestacados").innerHTML =
         (banners.ok && banners.banners) ? marketBannersHtml(banners.banners) : "";
+    marketIniciarCarruselBanners();
 
     marketPersonaActual = datos.persona;
     marketPintarHero(datos.hero);
@@ -2606,10 +2758,24 @@ async function marketCargarInicio() {
     document.getElementById("marketExploraCategorias").innerHTML = marketCategoriasFotoHtml(datos.categoriasConFoto)
         || '<p class="market-vacio">Todavia no hay categorias para mostrar.</p>';
 
+    // Sin foto se ve como un cuadro vacio y un agotado no se puede comprar:
+    // ambos pasan al final de cada seccion (agotado pesa mas), sin alterar
+    // el orden relativo del resto.
+    var conFotoPrimero = function(lista) {
+        if (!lista) return lista;
+        var peso = function(p) {
+            var agotado = p.stock !== null && p.stock !== undefined && p.stock <= 0;
+            return (agotado ? 2 : 0) + (p.fotoUrl ? 0 : 1);
+        };
+        return [0, 1, 2, 3].reduce(function(acumulado, nivel) {
+            return acumulado.concat(lista.filter(function(p) { return peso(p) === nivel; }));
+        }, []);
+    };
+
     var html = "";
-    html += marketSeccion("Recomendado para ti", marketGridProductos(datos.recomendados));
-    html += marketSeccion("Ofertas del dia", marketGridOfertasDelDia(datos.ofertas));
-    html += marketSeccion("Explora productos", explora.ok ? marketGridProductos(explora.productos) : "");
+    html += marketSeccion("Recomendado para ti", marketGridProductos(conFotoPrimero(datos.recomendados)));
+    html += marketSeccion("Ofertas del dia", marketGridOfertasDelDia(conFotoPrimero(datos.ofertas)));
+    html += marketSeccion("Explora productos", explora.ok ? marketGridProductos(conFotoPrimero(explora.productos)) : "");
     contenedor.innerHTML = html || '<p class="market-vacio">Todavia no hay productos para mostrar aqui.</p>';
 
     marketPintarListaTiendasSidebar(datos.tiendas);
