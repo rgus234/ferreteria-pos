@@ -38,7 +38,13 @@ before(async () => {
 });
 
 after(async () => {
-    if (negocioA) await borrarNegocioPrueba(negocioA.negocioId);
+    if (negocioA) {
+        // Crear un producto desde el catalogo aporta su identidad al Catalogo Maestro
+        // (contribuido_por_negocio_id): hay que soltarla antes de borrar el negocio.
+        await pool.query(`UPDATE public.productos SET catalogo_maestro_id = NULL WHERE negocio_id = $1`, [negocioA.negocioId]);
+        await pool.query(`DELETE FROM public.catalogo_maestro_productos WHERE contribuido_por_negocio_id = $1`, [negocioA.negocioId]);
+        await borrarNegocioPrueba(negocioA.negocioId);
+    }
     if (negocioB) await borrarNegocioPrueba(negocioB.negocioId);
     await detenerServidorPrueba();
     await pool.end();
@@ -171,4 +177,98 @@ test("borrar un exhibidor no toca los productos ni su inventario", async () => {
 
     const espacios = await pool.query(`SELECT 1 FROM public.exhibidor_espacios WHERE exhibidor_id = $1`, [global.__exhibidorId]);
     assert.equal(espacios.rows.length, 0, "sus espacios se borraron en cascada");
+});
+
+// ---------------------------------------------------------------------
+// Buscar en el catalogo de proveedor para meter al exhibidor un producto
+// que aun no esta en el inventario.
+// ---------------------------------------------------------------------
+
+let catalogoA;
+
+async function filaCatalogo(negocio, catalogoId, { codigo, nombre, precioMedio = 0, precioPublico = 0, productoId = null }) {
+    const r = await pool.query(
+        `INSERT INTO public.catalogo_productos (negocio_id, catalogo_id, codigo_proveedor, codigo_interno, nombre_proveedor, marca, precio_medio_mayoreo, precio_publico, producto_id)
+         VALUES ($1, $2, $3, $3, $4, 'Truper', $5, $6, $7) RETURNING id`,
+        [negocio.negocioId, catalogoId, codigo, nombre, precioMedio, precioPublico, productoId]
+    );
+    return r.rows[0].id;
+}
+
+test("buscar en catalogo: por codigo exacto y por nombre, con el codigo primero", async () => {
+    const catalogo = await pool.query(
+        `INSERT INTO public.catalogos_proveedor (negocio_id, proveedor, total_productos) VALUES ($1, 'Diprofer de prueba', 3) RETURNING id`,
+        [negocioA.negocioId]
+    );
+    catalogoA = catalogo.rows[0].id;
+
+    await filaCatalogo(negocioA, catalogoA, { codigo: "11110", nombre: "Broca HSS 1/16 Trugold para metal", precioMedio: 18 });
+    await filaCatalogo(negocioA, catalogoA, { codigo: "11111", nombre: "Broca HSS 1/8 Trugold para metal", precioMedio: 22 });
+
+    const porCodigo = await llamar(negocioA, "/exhibidores/buscar-catalogo?q=11110");
+    assert.equal(porCodigo.status, 200);
+    assert.equal(porCodigo.cuerpo.resultados.length, 1);
+    assert.equal(porCodigo.cuerpo.resultados[0].codigo, "11110");
+    assert.equal(porCodigo.cuerpo.resultados[0].precio, 18);
+    assert.equal(porCodigo.cuerpo.resultados[0].productoId, null, "aun no esta en el inventario");
+    assert.equal(porCodigo.cuerpo.resultados[0].proveedor, "Diprofer de prueba");
+
+    const porInicio = await llamar(negocioA, "/exhibidores/buscar-catalogo?q=1111");
+    assert.equal(porInicio.cuerpo.resultados.length, 2, "al teclear parte del codigo ya aparecen las coincidencias");
+
+    const porNombre = await llamar(negocioA, "/exhibidores/buscar-catalogo?q=broca%20trugold");
+    assert.equal(porNombre.cuerpo.resultados.length, 2);
+
+    const corta = await llamar(negocioA, "/exhibidores/buscar-catalogo?q=b");
+    assert.deepEqual(corta.cuerpo.resultados, []);
+});
+
+test("buscar en catalogo: una fila sin ningun precio no se ofrece", async () => {
+    await filaCatalogo(negocioA, catalogoA, { codigo: "99999", nombre: "Broca fantasma sin precio" });
+
+    const { cuerpo } = await llamar(negocioA, "/exhibidores/buscar-catalogo?q=fantasma");
+    assert.equal(cuerpo.resultados.length, 0);
+});
+
+test("buscar en catalogo: si ya esta en el inventario devuelve su productoId", async () => {
+    const yaEnInventario = await crearProductoPrueba(negocioA.negocioId, { nombre: "Broca 3/16 ya en inventario", precio: 26, stock: 3, codigo: "11112" });
+    await filaCatalogo(negocioA, catalogoA, { codigo: "11112", nombre: "Broca HSS 3/16 Trugold para metal", precioMedio: 26 });
+
+    const { cuerpo } = await llamar(negocioA, "/exhibidores/buscar-catalogo?q=11112");
+    assert.equal(cuerpo.resultados[0].productoId, yaEnInventario.id);
+});
+
+test("buscar en catalogo: nunca se ve el catalogo de otro negocio", async () => {
+    const catalogoB = await pool.query(
+        `INSERT INTO public.catalogos_proveedor (negocio_id, proveedor, total_productos) VALUES ($1, 'Proveedor de B', 1) RETURNING id`,
+        [negocioB.negocioId]
+    );
+    await filaCatalogo(negocioB, catalogoB.rows[0].id, { codigo: "77777", nombre: "Producto secreto de B", precioPublico: 50 });
+
+    const { cuerpo } = await llamar(negocioA, "/exhibidores/buscar-catalogo?q=77777");
+    assert.equal(cuerpo.resultados.length, 0);
+
+    const propio = await llamar(negocioB, "/exhibidores/buscar-catalogo?q=77777");
+    assert.equal(propio.cuerpo.resultados.length, 1);
+});
+
+test("flujo completo: crear el producto desde el catalogo y meterlo al exhibidor", async () => {
+    const exhibidor = await llamar(negocioA, "/exhibidores", { method: "POST", body: JSON.stringify({ nombre: "Exhibidor desde catalogo" }) });
+    const id = exhibidor.cuerpo.exhibidor.id;
+
+    const busqueda = await llamar(negocioA, "/exhibidores/buscar-catalogo?q=11111");
+    const fila = busqueda.cuerpo.resultados[0];
+    assert.equal(fila.productoId, null);
+
+    const creado = await llamar(negocioA, `/catalogo-proveedor/${fila.catalogoId}/productos/${fila.catalogoProductoId}/crear-producto`, { method: "POST" });
+    assert.equal(creado.status, 200);
+    assert.ok(creado.cuerpo.productoId);
+
+    const agregado = await llamar(negocioA, `/exhibidores/${id}/espacios`, { method: "POST", body: JSON.stringify({ productoId: creado.cuerpo.productoId }) });
+    assert.equal(agregado.status, 200);
+    assert.equal(agregado.cuerpo.exhibidor.espacios[0].nombre, "Broca HSS 1/8 Trugold para metal");
+    assert.equal(agregado.cuerpo.exhibidor.espacios[0].existencia, 0, "nace con existencia 0");
+
+    const ahora = await llamar(negocioA, "/exhibidores/buscar-catalogo?q=11111");
+    assert.ok(ahora.cuerpo.resultados[0].productoId, "ahora el catalogo lo reconoce como producto del inventario");
 });

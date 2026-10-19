@@ -228,6 +228,7 @@ function buscarProductoParaExhibidor(texto) {
     const consulta = exhNormalizar(texto).trim();
 
     if (consulta.length < 2) {
+        exhBusquedaCatalogo.tanda++;
         contenedor.hidden = true;
         contenedor.innerHTML = "";
         return;
@@ -244,15 +245,91 @@ function buscarProductoParaExhibidor(texto) {
         })
         .slice(0, 8);
 
+    // Inventario al instante; el catalogo de proveedor llega unos instantes
+    // despues (la tanda mas reciente gana, asi una respuesta lenta de una
+    // busqueda vieja nunca pisa a la actual).
+    exhBusquedaCatalogo.inventario = encontrados;
+    exhBusquedaCatalogo.catalogo = null;
+    exhBusquedaCatalogo.consulta = texto;
+    exhBusquedaCatalogo.tanda++;
+    pintarResultadosExhibidor();
+
+    const tanda = exhBusquedaCatalogo.tanda;
+    clearTimeout(exhBusquedaCatalogo.temporizador);
+    exhBusquedaCatalogo.temporizador = setTimeout(async () => {
+        const { ok, datos } = await exhLlamar(`/exhibidores/buscar-catalogo?q=${encodeURIComponent(texto.trim())}`);
+        if (tanda !== exhBusquedaCatalogo.tanda) return;
+        exhBusquedaCatalogo.catalogo = ok ? datos.resultados : [];
+        pintarResultadosExhibidor();
+    }, 300);
+}
+
+const exhBusquedaCatalogo = { inventario: [], catalogo: null, consulta: "", tanda: 0, temporizador: null };
+
+function pintarResultadosExhibidor() {
+    const contenedor = document.getElementById("exhResultadosBusqueda");
+    if (!contenedor || !exhibidorEditando) return;
+
+    const yaEstan = new Set(exhibidorEditando.espacios.map(e => Number(e.productoId)));
+    const enInventario = new Set(exhBusquedaCatalogo.inventario.map(p => Number(p.id)));
+
+    const filasInventario = exhBusquedaCatalogo.inventario.map(p => `
+        <button type="button" class="exh-resultado" onclick="agregarProductoAExhibidor(${Number(p.id)})">
+            <span class="exh-resultado-foto">${exhMiniatura(p.id, p.nombre)}</span>
+            <span class="exh-resultado-texto"><strong>${exhEscapar(p.nombre)}</strong><small>${exhEscapar(p.codigo || "")} · ${exhDinero(typeof precioVentaProducto === "function" ? precioVentaProducto(p) : p.precio)}</small></span>
+            <span class="exh-resultado-mas">+</span>
+        </button>`).join("");
+
+    // Del catalogo: se omite lo que ya salio arriba (mismo producto del inventario) o ya esta en el exhibidor.
+    const delCatalogo = (exhBusquedaCatalogo.catalogo || []).filter(r =>
+        !(r.productoId && (yaEstan.has(Number(r.productoId)) || enInventario.has(Number(r.productoId))))
+    );
+
+    const filasCatalogo = delCatalogo.map(r => `
+        <button type="button" class="exh-resultado exh-resultado-catalogo" onclick="agregarDesdeCatalogoAExhibidor(${Number(r.catalogoId)}, ${Number(r.catalogoProductoId)}, ${Number(r.productoId) || 0})">
+            <span class="exh-resultado-foto"><span class="exh-sin-foto" aria-hidden="true">${exhEscapar(String(r.nombre || "?").charAt(0).toUpperCase())}</span></span>
+            <span class="exh-resultado-texto">
+                <strong>${exhEscapar(r.nombre)}</strong>
+                <small>${exhEscapar(r.codigo)} · ${exhDinero(r.precio)} · ${exhEscapar(r.proveedor || "catalogo")}</small>
+            </span>
+            <span class="exh-resultado-etiqueta">${r.productoId ? "Agregar" : "Agregar al inventario"}</span>
+        </button>`).join("");
+
+    const cargandoCatalogo = exhBusquedaCatalogo.catalogo === null;
+
     contenedor.hidden = false;
-    contenedor.innerHTML = encontrados.length === 0
-        ? '<div class="exh-resultado-vacio">No hay productos que coincidan (o ya estan en el exhibidor).</div>'
-        : encontrados.map(p => `
-            <button type="button" class="exh-resultado" onclick="agregarProductoAExhibidor(${Number(p.id)})">
-                <span class="exh-resultado-foto">${exhMiniatura(p.id, p.nombre)}</span>
-                <span class="exh-resultado-texto"><strong>${exhEscapar(p.nombre)}</strong><small>${exhEscapar(p.codigo || "")} · ${exhDinero(typeof precioVentaProducto === "function" ? precioVentaProducto(p) : p.precio)}</small></span>
-                <span class="exh-resultado-mas">+</span>
-            </button>`).join("");
+    contenedor.innerHTML = `
+        ${filasInventario ? `<div class="exh-grupo-titulo">En tu inventario</div>${filasInventario}` : ""}
+        ${filasCatalogo ? `<div class="exh-grupo-titulo">En el catalogo de tus proveedores</div>${filasCatalogo}` : ""}
+        ${cargandoCatalogo ? '<div class="exh-resultado-vacio">Buscando en tus catalogos...</div>' : ""}
+        ${!cargandoCatalogo && !filasInventario && !filasCatalogo ? '<div class="exh-resultado-vacio">No encontramos nada con eso (o ya esta en el exhibidor). Prueba con el codigo o parte del nombre.</div>' : ""}`;
+}
+
+// Producto que esta en el catalogo del proveedor pero aun no en el inventario:
+// se crea con la ruta ya probada de catalogo-proveedor (existencia 0, precio del
+// catalogo, vinculado al proveedor) y luego se mete al exhibidor.
+async function agregarDesdeCatalogoAExhibidor(catalogoId, catalogoProductoId, productoId) {
+    if (!exhibidorEditando) return;
+
+    if (productoId) {
+        await agregarProductoAExhibidor(productoId);
+        return;
+    }
+
+    const creado = await exhLlamar(`/catalogo-proveedor/${catalogoId}/productos/${catalogoProductoId}/crear-producto`, { method: "POST" });
+
+    if (!creado.ok || !creado.datos.productoId) {
+        alertaPOS(creado.datos.error || "No se pudo agregar el producto al inventario.", "Error", "peligro");
+        return;
+    }
+
+    // Refresca el inventario en memoria para que el nuevo producto traiga foto y precio.
+    if (typeof cargarProductos === "function") {
+        try { await cargarProductos(); } catch (error) { /* el exhibidor lo resuelve en vivo */ }
+    }
+
+    await agregarProductoAExhibidor(creado.datos.productoId);
+    alertaPOS("Se agrego al inventario con existencia 0 y al exhibidor. Registra su compra para darle existencia.", "Producto agregado", "exito");
 }
 
 async function agregarProductoAExhibidor(productoId) {

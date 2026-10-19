@@ -137,6 +137,84 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
+    // Busca en los catalogos de proveedor del negocio (el de Diprofer trae
+    // Truper, por ejemplo) por codigo o por nombre, para meter al exhibidor un
+    // producto que aun no esta en el inventario. SOLO LEE: crear el producto lo
+    // hace la ruta ya probada de catalogo-proveedor/.../crear-producto.
+    //
+    // Mismo criterio de confianza que /catalogo-proveedor/buscar-codigo: una
+    // fila sin ningun precio es basura de un catalogo mal leido (GAFI) y no se
+    // ofrece; si el mismo codigo esta en varios catalogos gana el que trae mas
+    // niveles de precio y, a igualdad, el catalogo mas nuevo. Debe ir ANTES de
+    // /exhibidores/:id para que "buscar-catalogo" no se tome como un id.
+    app.get("/exhibidores/buscar-catalogo", requerirAccesoNegocio, async (req, res) => {
+        const consulta = String(req.query.q || "").trim().slice(0, 80);
+
+        if (consulta.length < 2) {
+            res.json({ ok: true, resultados: [] });
+            return;
+        }
+
+        try {
+            const negocio = await negocioActual(req);
+            const palabras = consulta.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6)
+                .map(palabra => `%${palabra.replace(/[\\%_]/g, "\\$&")}%`);
+
+            const filas = await pool.query(
+                `
+                SELECT * FROM (
+                    SELECT DISTINCT ON (COALESCE(NULLIF(cp.codigo_interno, ''), cp.codigo_proveedor))
+                           cp.id, cp.catalogo_id, cp.codigo_proveedor, cp.codigo_interno, cp.nombre_proveedor, cp.marca,
+                           cp.precio_medio_mayoreo, cp.precio_publico, cat.proveedor,
+                           COALESCE(cp.producto_id, (
+                               SELECT p.id FROM public.productos p
+                               WHERE p.negocio_id = $1
+                                 AND p.codigo IN (cp.codigo_interno, cp.codigo_proveedor, NULLIF(cp.codigo_barras, ''))
+                               LIMIT 1
+                           )) AS producto_id,
+                           (cp.codigo_proveedor = $2 OR NULLIF(cp.codigo_interno, '') = $2 OR NULLIF(cp.clave_proveedor, '') = $2 OR NULLIF(cp.codigo_barras, '') = $2) AS por_codigo
+                    FROM public.catalogo_productos cp
+                    JOIN public.catalogos_proveedor cat ON cat.id = cp.catalogo_id
+                    WHERE cp.negocio_id = $1
+                      AND (COALESCE(cp.precio_medio_mayoreo, 0) > 0 OR COALESCE(cp.precio_publico, 0) > 0 OR COALESCE(cp.precio_distribuidor, 0) > 0)
+                      AND (
+                          cp.codigo_proveedor = $2 OR NULLIF(cp.codigo_interno, '') = $2
+                          OR NULLIF(cp.clave_proveedor, '') = $2 OR NULLIF(cp.codigo_barras, '') = $2
+                          OR cp.codigo_proveedor ILIKE $4 OR NULLIF(cp.codigo_interno, '') ILIKE $4
+                          OR cp.nombre_proveedor ILIKE ALL($3::text[])
+                      )
+                    ORDER BY COALESCE(NULLIF(cp.codigo_interno, ''), cp.codigo_proveedor),
+                             (CASE WHEN COALESCE(cp.precio_medio_mayoreo, 0) > 0 THEN 1 ELSE 0 END
+                              + CASE WHEN COALESCE(cp.precio_publico, 0) > 0 THEN 1 ELSE 0 END
+                              + CASE WHEN COALESCE(cp.precio_distribuidor, 0) > 0 THEN 1 ELSE 0 END) DESC,
+                             cp.catalogo_id DESC, cp.id ASC
+                ) mejores
+                ORDER BY por_codigo DESC, nombre_proveedor ASC
+                LIMIT 8
+                `,
+                // $4: "empieza con" para el codigo (desde 3 caracteres), asi al
+                // teclear 1111 ya aparecen 11110, 11111... sin esperar el codigo completo.
+                [negocio.id, consulta, palabras, consulta.length >= 3 ? `${consulta.replace(/[\\%_]/g, "\\$&")}%` : null]
+            );
+
+            res.json({
+                ok: true,
+                resultados: filas.rows.map(fila => ({
+                    catalogoId: fila.catalogo_id,
+                    catalogoProductoId: fila.id,
+                    codigo: fila.codigo_interno || fila.codigo_proveedor,
+                    nombre: fila.nombre_proveedor,
+                    marca: fila.marca || "",
+                    proveedor: fila.proveedor || "",
+                    precio: Number(fila.precio_medio_mayoreo) || Number(fila.precio_publico) || 0,
+                    productoId: fila.producto_id || null
+                }))
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     app.post("/exhibidores", requerirAccesoNegocio, async (req, res) => {
         const nombre = String(req.body?.nombre || "").trim().slice(0, 140);
         const descripcion = String(req.body?.descripcion || "").trim().slice(0, 500);
