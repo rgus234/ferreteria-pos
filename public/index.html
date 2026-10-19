@@ -60,6 +60,7 @@
   <link rel="stylesheet" href="css/components/support-reminders.css?v=notif-contraste-fix-20260706-01">
   <link rel="stylesheet" href="css/components/ticket-lookup-view.css?v=creditos-editar-compra-20260730-01">
   <link rel="stylesheet" href="css/components/encargos-clientes.css?v=encargos-rediseno-20260828-01">
+  <link rel="stylesheet" href="css/components/exhibidores.css?v=exhibidores-20261018-01">
   <link rel="stylesheet" href="css/components/facturacion.css?v=facturacion-representacion-20260831-01">
  <link rel="stylesheet" href="css/components/barcode-labels.css?v=codigos-barras-wizard-20260828-01">
   <link rel="stylesheet" href="css/components/sitio-web-view.css?v=sitio-web-20260924-01">
@@ -487,6 +488,9 @@
  <button data-shell-module="listas-producto" onclick="mostrarListasProducto()">
  Listas de productos
  </button>
+ <button data-shell-module="exhibidores" onclick="mostrarExhibidores()">
+ Exhibidores
+ </button>
  <button data-shell-module="codigos-barras" onclick="mostrarCodigosBarras()">
  Códigos de barras
  </button>
@@ -576,6 +580,7 @@
  <section id="pantallaEncargos" style="display:none;"></section>
  <section id="pantallaFacturacion" style="display:none;"></section>
  <section id="pantallaListasProducto" style="display:none;"></section>
+ <section id="pantallaExhibidores" style="display:none;"></section>
 
  <section id="pantallaExplorarNexo" style="display:none;"></section>
 <section id="pantallaRecepcionInteligente" style="display:none;"></section>
@@ -941,6 +946,7 @@
  <h2>Carrito de venta</h2>
  <div class="pos-cart-hero-acciones">
  <button type="button" class="btn-agregar-lista-pos" onclick="abrirSelectorListaProductosPOS()">Agregar lista</button>
+ <button type="button" class="btn-agregar-lista-pos" onclick="abrirExhibidorPOS()">Exhibidores</button>
  <button type="button" onclick="limpiarCarrito()">Vaciar carrito</button>
  </div>
  </div>
@@ -1810,6 +1816,7 @@
  <script src="js/encargos-clientes.js?v=explorar-nexo-encargos-20260908-01"></script>
  <script src="js/facturacion-view.js?v=facturacion-representacion-20260831-01"></script>
  <script src="js/product-lists.js?v=listas-producto-20260826-01"></script>
+ <script src="js/exhibidores.js?v=exhibidores-20261018-01"></script>
  <script src="js/barcode-labels.js?v=codigos-barras-wizard-20260828-01"></script>
  <script src="js/sitio-web-view.js?v=vista-previa-real-20260924-01"></script>
   <script src="js/product-details-view.js?v=alertas-tempranas-20260712-01"></script>
