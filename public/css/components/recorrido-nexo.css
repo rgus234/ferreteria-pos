@@ -1,0 +1,518 @@
+/* Recorrido de bienvenida de Nexo: bienvenida, etapas, mascota y asistente de
+   inicio a pantalla completa. Un solo diseno para todo el camino del negocio
+   nuevo (ver public/js/recorrido-nexo.js). */
+
+:root {
+  --rn-azul: #1067e8;
+  --rn-azul-oscuro: #073f9a;
+  --rn-verde: #16a34a;
+  --rn-tinta: #0f172a;
+  --rn-suave: #64748b;
+  --rn-linea: #e2e8f0;
+}
+
+/* ---------- Animaciones ---------- */
+
+@keyframes rnMascotaEntra {
+  0% { opacity: 0; transform: translateY(40px) scale(.9); }
+  60% { opacity: 1; transform: translateY(-8px) scale(1.02); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes rnFlotar {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes rnBurbuja {
+  0% { opacity: 0; transform: translateY(10px) scale(.92); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes rnPasoEntra {
+  0% { opacity: 0; transform: translateX(26px); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes rnPulso {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(16, 103, 232, .18); }
+  50% { box-shadow: 0 0 0 8px rgba(16, 103, 232, .06); }
+}
+
+@keyframes rnConfeti {
+  0% { transform: translateY(-20px) rotate(0); opacity: 1; }
+  100% { transform: translateY(105vh) rotate(720deg); opacity: .9; }
+}
+
+.rn-mascota {
+  display: block;
+  width: clamp(220px, 28vw, 400px);
+  height: auto;
+  filter: drop-shadow(0 22px 28px rgba(7, 63, 154, .28));
+  animation: rnMascotaEntra .8s cubic-bezier(.2, .9, .3, 1.1) both, rnFlotar 4.5s ease-in-out .9s infinite;
+}
+
+.rn-mascota-cambia {
+  animation: rnMascotaEntra .6s cubic-bezier(.2, .9, .3, 1.1) both, rnFlotar 4.5s ease-in-out .7s infinite;
+}
+
+.rn-burbuja,
+.rn-burbuja-nueva {
+  animation: rnBurbuja .5s .25s cubic-bezier(.2, .9, .3, 1.2) both;
+}
+
+.rn-paso-entra {
+  animation: rnPasoEntra .38s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rn-mascota,
+  .rn-mascota-cambia,
+  .rn-burbuja,
+  .rn-burbuja-nueva,
+  .rn-paso-entra,
+  .rn-etapa.actual .rn-etapa-punto {
+    animation: none !important;
+  }
+}
+
+/* ---------- Etapas del recorrido ---------- */
+
+.rn-etapas {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 26px;
+}
+
+.rn-etapa {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.rn-etapa-punto {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--rn-linea);
+  color: var(--rn-suave);
+  font-size: 12px;
+  font-weight: 800;
+  transition: background .3s ease, color .3s ease;
+}
+
+.rn-etapa.hecha .rn-etapa-punto {
+  background: var(--rn-verde);
+  color: #fff;
+}
+
+.rn-etapa.hecha {
+  color: var(--rn-verde);
+}
+
+.rn-etapa.actual {
+  color: var(--rn-tinta);
+}
+
+.rn-etapa.actual .rn-etapa-punto {
+  background: var(--rn-azul);
+  color: #fff;
+  animation: rnPulso 2.4s ease-in-out infinite;
+}
+
+.rn-linea {
+  flex: 1;
+  min-width: 12px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--rn-linea);
+  transition: background .3s ease;
+}
+
+.rn-linea.hecha {
+  background: var(--rn-verde);
+}
+
+/* ---------- Marca, escena y burbuja (panel izquierdo) ---------- */
+
+.rn-marca {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--rn-tinta);
+}
+
+.rn-marca img {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.rn-escena {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  min-height: 0;
+}
+
+.rn-burbuja,
+.rn-burbuja-nueva {
+  position: relative;
+  max-width: 360px;
+  padding: 16px 20px;
+  border-radius: 20px;
+  background: #fff;
+  color: var(--rn-tinta);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+  box-shadow: 0 14px 34px rgba(7, 63, 154, .16);
+}
+
+.rn-burbuja::after,
+.rn-burbuja-nueva::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  transform: translateX(-50%) rotate(45deg);
+  border-radius: 3px;
+}
+
+/* ---------- Bienvenida (equipo sin negocio) ---------- */
+
+#configuracionInicial .rn-bienvenida {
+  display: grid;
+  grid-template-columns: minmax(320px, 46%) 1fr;
+  width: 100%;
+  min-height: 100vh;
+  background: #fff;
+}
+
+#configuracionInicial:not(.rn-avanzado) > .setup-shell {
+  display: none !important;
+}
+
+#configuracionInicial.rn-avanzado .rn-bienvenida {
+  display: none;
+}
+
+.rn-lado {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 34px 40px 40px;
+  background:
+    radial-gradient(circle at 25% 15%, rgba(24, 184, 143, .16), transparent 45%),
+    linear-gradient(160deg, #e9f2ff 0%, #d4e6ff 100%);
+}
+
+.rn-contenido {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: min(560px, 100%);
+  margin: 0 auto;
+  padding: 40px 36px;
+  animation: rnPasoEntra .5s .15s ease both;
+}
+
+.rn-eyebrow {
+  margin: 0 0 8px;
+  color: var(--rn-azul);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.rn-contenido h1 {
+  margin: 0 0 12px;
+  font-size: clamp(32px, 4vw, 46px);
+  line-height: 1.1;
+  color: var(--rn-tinta);
+}
+
+.rn-lead {
+  margin: 0 0 28px;
+  color: var(--rn-suave);
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.rn-boton-principal,
+.rn-boton-secundario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.rn-boton-principal {
+  width: 100%;
+  padding: 18px 24px;
+  border: 0;
+  background: linear-gradient(135deg, var(--rn-azul), var(--rn-azul-oscuro));
+  color: #fff;
+  box-shadow: 0 14px 30px rgba(16, 103, 232, .32);
+}
+
+.rn-boton-principal:hover {
+  transform: translateY(-2px);
+}
+
+.rn-boton-secundario {
+  padding: 12px 20px;
+  border: 1px solid var(--rn-azul);
+  background: #fff;
+  color: var(--rn-azul);
+  font-size: 15px;
+}
+
+.rn-opcion-nueva {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  margin-top: 26px;
+  padding: 20px 22px;
+  border: 1px solid var(--rn-linea);
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.rn-opcion-nueva strong {
+  color: var(--rn-tinta);
+  font-size: 16px;
+}
+
+.rn-opcion-nueva span {
+  color: var(--rn-suave);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.rn-enlace {
+  align-self: flex-start;
+  margin-top: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #94a3b8;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---------- Perfil del administrador (dentro del login) ---------- */
+
+#loginCrearPerfilInicial .rn-etapas {
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+#loginCrearPerfilInicial .rn-etapa-nombre {
+  display: none;
+}
+
+#loginCrearPerfilInicial .rn-etapa.actual .rn-etapa-nombre {
+  display: inline;
+}
+
+.rn-saludo-perfil {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #eef5ff;
+  animation: rnBurbuja .5s .1s cubic-bezier(.2, .9, .3, 1.2) both;
+}
+
+.rn-saludo-perfil img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  animation: rnFlotar 4.5s ease-in-out infinite;
+}
+
+.rn-saludo-perfil strong {
+  display: block;
+  color: var(--rn-tinta);
+  font-size: 17px;
+}
+
+.rn-saludo-perfil span {
+  color: var(--rn-suave);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.login-personaje {
+  animation: rnFlotar 5s ease-in-out infinite;
+}
+
+/* ---------- Asistente de inicio a pantalla completa ---------- */
+
+#asistenteInicio.asistente-overlay {
+  display: grid;
+  grid-template-columns: minmax(320px, 42%) 1fr;
+  align-items: stretch;
+  padding: 0;
+  background: #fff;
+  overflow: hidden;
+}
+
+#asistenteInicio .asistente-lado {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 34px 36px 40px;
+  background:
+    radial-gradient(circle at 25% 15%, rgba(24, 184, 143, .16), transparent 45%),
+    linear-gradient(160deg, #e9f2ff 0%, #d4e6ff 100%);
+}
+
+#asistenteInicio .asistente-card {
+  width: min(720px, 100%);
+  max-height: 100vh;
+  margin: auto;
+  padding: 36px 48px;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#asistenteInicio .asistente-cabecera > .asistente-mascota {
+  display: none;
+}
+
+#asistenteInicio .asistente-cabecera h2 {
+  font-size: 30px;
+}
+
+/* Las tarjetas de opciones entran una tras otra. */
+#asistenteInicio .asistente-tarjeta {
+  animation: rnBurbuja .45s cubic-bezier(.2, .9, .3, 1.2) both;
+}
+
+#asistenteInicio .asistente-tarjeta:nth-child(2) { animation-delay: .06s; }
+#asistenteInicio .asistente-tarjeta:nth-child(3) { animation-delay: .12s; }
+#asistenteInicio .asistente-tarjeta:nth-child(4) { animation-delay: .18s; }
+#asistenteInicio .asistente-tarjeta:nth-child(5) { animation-delay: .24s; }
+
+.rn-confeti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.rn-confeti span {
+  position: absolute;
+  top: -20px;
+  width: 10px;
+  height: 16px;
+  border-radius: 2px;
+  animation: rnConfeti 3s linear forwards;
+}
+
+/* ---------- Pantallas angostas ---------- */
+
+@media (max-width: 900px) {
+  #configuracionInicial .rn-bienvenida,
+  #asistenteInicio.asistente-overlay {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  #asistenteInicio.asistente-overlay {
+    overflow-y: auto;
+  }
+
+  .rn-lado,
+  #asistenteInicio .asistente-lado {
+    padding: 18px 22px;
+  }
+
+  .rn-escena {
+    flex-direction: row;
+    gap: 14px;
+  }
+
+  .rn-mascota {
+    width: 110px;
+  }
+
+  .rn-burbuja,
+  .rn-burbuja-nueva {
+    font-size: 14px;
+    padding: 12px 14px;
+  }
+
+  .rn-burbuja::after,
+  .rn-burbuja-nueva::after {
+    display: none;
+  }
+
+  #asistenteInicio .asistente-card {
+    padding: 22px 20px 28px;
+  }
+
+  .rn-etapa-nombre {
+    display: none;
+  }
+
+  .rn-etapa.actual .rn-etapa-nombre {
+    display: inline;
+  }
+}
+
+/* ---------- Ajustes ---------- */
+
+/* El contenedor viejo traia margen y fondo oscuro: la bienvenida va a sangre. */
+#configuracionInicial:not(.rn-avanzado) {
+  padding: 0 !important;
+  background: #fff !important;
+  align-items: stretch;
+}
+
+.rn-marca span {
+  color: var(--rn-tinta);
+}
+
+/* Los avisos del punto de venta (ej. "Caja cerrada") no tienen cabida mientras
+   alguien se esta dando de alta: tapan el paso y distraen. */
+body:has(#asistenteInicio) .toast-pos-card,
+body:has(#asistenteInicio) .toast-pos-contenedor,
+body:has(#configuracionInicial:not([style*="none"])) .toast-pos-card {
+  display: none !important;
+}
+
+#asistenteInicio .rn-mascota {
+  width: clamp(200px, 24vw, 340px);
+}

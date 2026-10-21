@@ -159,6 +159,11 @@ test("la pagina de la invitacion muestra los datos ya cargados y no se indexa", 
     assert.match(html, /id="invForm"/);
     assert.doesNotMatch(html, /Descargar Nexo para Windows/, "antes de configurar no se ofrece la descarga");
     assert.match(html, /Cómo funciona la prueba/);
+    assert.match(html, /class="inv-recorrido"/, "la mascota da la bienvenida");
+    assert.match(html, /celebrando-transparente\.png/);
+    for (const etapa of ["Tu cuenta", "Tu perfil", "Tu negocio", "¡A vender!"]) {
+        assert.ok(html.includes(`<span>${etapa}</span>`), `falta la etapa ${etapa}`);
+    }
     assert.match(html, /45 días sin costo/);
     assert.ok(html.includes("$100 al mes"), "cuota mensual");
     assert.match(html, /base de datos/);
@@ -260,6 +265,8 @@ test("ya configurado, el mismo enlace SOLO muestra la descarga: nunca vuelve a p
     assert.match(html, /id="bloqueMovil"/, "trae el bloque para quien abre desde el celular");
     assert.match(html, /Tu prueba sin costo termina el/, "muestra SU fecha de fin de prueba");
     assert.ok(html.includes("$100"), "cuota mensual");
+    assert.match(html, /class="inv-recorrido"/, "el mismo recorrido con mascota que se ve dentro de Nexo");
+    assert.match(html, /desde ahí yo te guío/, "le dice que Nexo lo guia al entrar");
 });
 
 test("enviar el enlace por correo: solo se anuncia si el correo salio (aqui no hay llave: 502)", async () => {

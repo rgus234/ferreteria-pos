@@ -1029,6 +1029,12 @@ async function inicializarConfiguracionInicial() {
 
  mostrarPantallaDeEntradaPOS();
 
+ // Viene del boton "Iniciar sesion" de la pagina publica: aunque este equipo
+ // ya este vinculado a un negocio, se ofrece entrar con otra cuenta.
+ if (new URLSearchParams(window.location.search).get("accion") === "iniciar-sesion") {
+  setTimeout(() => abrirBuscarNegocioSetup(), 300);
+ }
+
  return true;
 }
 

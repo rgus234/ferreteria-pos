@@ -174,6 +174,19 @@ function envoltura({ titulo, cuerpo, script = "" }) {
 .inv-acciones .btn { cursor: pointer; border: 0; }
 .inv-solo-lectura { background: rgba(20, 32, 51, .06) !important; }
 .inv-ayuda { margin: 0; color: var(--muted); font-size: 12.5px; font-weight: 700; line-height: 1.5; }
+.inv-recorrido { display: flex; align-items: center; gap: 16px; margin: 0 0 22px; padding: 14px 18px; border-radius: 22px; background: linear-gradient(160deg, #e9f2ff, #d4e6ff); }
+.inv-mascota { width: 92px; height: auto; flex: none; filter: drop-shadow(0 12px 16px rgba(7, 63, 154, .25)); animation: invFlotar 4.5s ease-in-out infinite; }
+.inv-burbuja { position: relative; padding: 12px 16px; border-radius: 16px; background: #fff; color: var(--ink); font-weight: 800; line-height: 1.4; box-shadow: 0 10px 24px rgba(7, 63, 154, .14); animation: invBurbuja .5s .2s cubic-bezier(.2, .9, .3, 1.2) both; }
+.inv-etapas { display: flex; align-items: center; gap: 6px; margin: 0 0 22px; font-size: 12px; font-weight: 800; color: #94a3b8; }
+.inv-etapa { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.inv-etapa b { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #e2e8f0; color: #64748b; font-size: 11px; }
+.inv-etapa.actual { color: var(--ink); }
+.inv-etapa.actual b { background: var(--blue); color: #fff; }
+.inv-linea { flex: 1; min-width: 8px; height: 2px; background: #e2e8f0; border-radius: 2px; }
+@keyframes invFlotar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes invBurbuja { 0% { opacity: 0; transform: translateY(8px) scale(.94); } 100% { opacity: 1; transform: none; } }
+@media (max-width: 560px) { .inv-etapa span { display: none; } .inv-etapa.actual span { display: inline; } .inv-mascota { width: 72px; } }
+@media (prefers-reduced-motion: reduce) { .inv-mascota, .inv-burbuja { animation: none; } }
 </style>
 </head>
 <body>
@@ -197,6 +210,21 @@ function paginaEnlaceInvalido(mensaje) {
 <p class="inv-lead">${escapar(mensaje)}</p>
 <div class="inv-acciones"><a class="btn primary" href="/#participa">Ir a la página de Nexo</a></div>`
     });
+}
+
+// Encabezado del recorrido: mismo camino de 4 etapas que se ve dentro de Nexo
+// (Tu cuenta -> Tu perfil -> Tu negocio -> A vender), con la mascota como guia.
+function cabeceraRecorrido(frase) {
+    const etapas = ["Tu cuenta", "Tu perfil", "Tu negocio", "¡A vender!"]
+        .map((nombre, i) => `${i > 0 ? '<span class="inv-linea"></span>' : ""}<span class="inv-etapa${i === 0 ? " actual" : ""}"${i === 0 ? ' aria-current="step"' : ""}><b>${i + 1}</b><span>${nombre}</span></span>`)
+        .join("");
+
+    return `
+<div class="inv-recorrido">
+  <img class="inv-mascota" src="/img/nexo-ia/celebrando-transparente.png" alt="Nexo, tu asistente">
+  <div class="inv-burbuja">${escapar(frase)}</div>
+</div>
+<div class="inv-etapas" aria-label="Tu recorrido">${etapas}</div>`;
 }
 
 // Condiciones de la prueba. Con `inicioReal` (cuenta ya configurada) muestra las
@@ -228,6 +256,7 @@ function paginaPendiente(inv, token) {
     return envoltura({
         titulo: "Configura tu negocio",
         cuerpo: `
+${cabeceraRecorrido("¡Hola! Soy Nexo. En un minuto dejamos lista tu cuenta y te acompaño en lo que sigue.")}
 <p class="inv-saludo">Invitación a las pruebas</p>
 <h1>Hola ${escapar(inv.nombre)} 👋</h1>
 <p class="inv-lead">Los desarrolladores de Nexo aceptaron tu participación en las pruebas. Configura tu negocio: tus datos ya vienen cargados, solo revísalos y elige tu contraseña.</p>
@@ -319,6 +348,7 @@ function paginaConfigurada(inv, token, instalador) {
     return envoltura({
         titulo: "Tu negocio está listo",
         cuerpo: `
+${cabeceraRecorrido("¡Listo! Ahora descarga Nexo en tu computadora e inicia sesión: desde ahí yo te guío paso a paso.")}
 <p class="inv-saludo">Invitación a las pruebas</p>
 <h1>Tu negocio ya está configurado ✓</h1>
 <p class="inv-lead">Hola ${escapar(inv.nombre)}: solo falta instalar Nexo e iniciar sesión. No tienes que volver a escribir tus datos.</p>
