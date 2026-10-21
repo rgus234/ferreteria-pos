@@ -1810,3 +1810,14 @@ small,
   color: var(--red);
   font-weight: 600;
 }
+
+/* Solicitudes de pilotos */
+.solicitudes-lista { display: grid; gap: 12px; }
+.solicitud-fila { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--nexo-radius-sm); background: var(--surface-strong); font-size: 13px; }
+.solicitud-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.solicitud-cabecera strong { display: block; color: var(--ink); font-size: 15px; }
+.solicitud-cabecera span { color: var(--muted); }
+.solicitud-datos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 16px; color: var(--muted); }
+.solicitud-datos b { color: var(--ink); }
+.solicitud-ancho { grid-column: 1 / -1; }
+.solicitud-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

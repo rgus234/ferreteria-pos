@@ -114,6 +114,7 @@ function mostrarVistaAdmin(vista) {
   if (target === "ofertas-market") cargarBannersMarketAdmin();
   if (target === "catalogos") cargarCatalogosFabricante();
   if (target === "errores") cargarErroresAdmin();
+  if (target === "solicitudes") cargarSolicitudesAdmin();
 }
 
 function pintarMetricasAdmin(resumen) {
@@ -1457,6 +1458,155 @@ function pintarBadgeErroresAdmin(pendientes) {
   badge.style.display = pendientes > 0 ? "inline-flex" : "none";
 }
 
+// ---------------------------------------------------------------------
+// Solicitudes de pilotos: aceptar (genera y envia la invitacion) o descartar
+// ---------------------------------------------------------------------
+
+const ETIQUETA_ESTADO_SOLICITUD = {
+  nueva: { texto: "Nueva", clase: "lead" },
+  invitada: { texto: "Invitacion enviada", clase: "trial" },
+  configurada: { texto: "Ya configuro su cuenta", clase: "ok" },
+  vencida: { texto: "Invitacion vencida", clase: "warning" },
+  descartada: { texto: "Descartada", clase: "danger" }
+};
+
+async function cargarSolicitudesAdmin() {
+  const contenedor = document.getElementById("listaSolicitudesAdmin");
+  if (!contenedor) return;
+
+  try {
+    const data = await apiAdmin("/admin/api/solicitudes-participacion");
+    window.__solicitudesAdminCache = data.solicitudes || [];
+    pintarBadgeSolicitudesAdmin(window.__solicitudesAdminCache);
+    pintarSolicitudesAdmin();
+  } catch (error) {
+    contenedor.innerHTML = `<div class="empty">${escaparHTMLAdmin(error.message || "No se pudieron cargar las solicitudes.")}</div>`;
+  }
+}
+
+async function cargarConteoSolicitudesAdmin() {
+  try {
+    const data = await apiAdmin("/admin/api/solicitudes-participacion");
+    window.__solicitudesAdminCache = data.solicitudes || [];
+    pintarBadgeSolicitudesAdmin(window.__solicitudesAdminCache);
+  } catch (error) {
+    // Silencioso -- el badge simplemente no aparece si falla.
+  }
+}
+
+function pintarBadgeSolicitudesAdmin(solicitudes) {
+  const badge = document.getElementById("badgeSolicitudesAdmin");
+  if (!badge) return;
+  const nuevas = solicitudes.filter(s => s.estado === "nueva").length;
+  badge.textContent = nuevas > 99 ? "99+" : String(nuevas);
+  badge.style.display = nuevas > 0 ? "inline-flex" : "none";
+}
+
+function pintarSolicitudesAdmin() {
+  const contenedor = document.getElementById("listaSolicitudesAdmin");
+  if (!contenedor) return;
+
+  const filtro = document.getElementById("filtroSolicitudesAdmin")?.value || "pendientes";
+  const todas = window.__solicitudesAdminCache || [];
+  const lista = filtro === "todas"
+    ? todas
+    : todas.filter(s => ["nueva", "invitada", "vencida"].includes(s.estado));
+
+  if (!lista.length) {
+    contenedor.innerHTML = `<div class="empty">${filtro === "todas" ? "Todavia no hay solicitudes." : "No hay solicitudes por atender."}</div>`;
+    return;
+  }
+
+  contenedor.innerHTML = lista.map(s => {
+    const estado = ETIQUETA_ESTADO_SOLICITUD[s.estado] || ETIQUETA_ESTADO_SOLICITUD.nueva;
+    const sinCorreo = !s.correo;
+    const puedeInvitar = s.estado !== "configurada" && s.estado !== "descartada";
+    const textoBoton = s.estado === "nueva" ? "Aceptar y enviar invitacion" : "Reenviar invitacion (enlace nuevo)";
+
+    return `
+    <div class="solicitud-fila">
+      <div class="solicitud-cabecera">
+        <div>
+          <strong>${escaparHTMLAdmin(s.negocio || "(sin nombre de negocio)")}</strong>
+          <span>${escaparHTMLAdmin(s.nombre)} &middot; ${fechaHoraCortaAdmin(s.creadaEn)}</span>
+        </div>
+        <em class="pill ${estado.clase}">${estado.texto}</em>
+      </div>
+      <div class="solicitud-datos">
+        ${s.giro ? `<span><b>Giro:</b> ${escaparHTMLAdmin(s.giro)}</span>` : ""}
+        ${s.ciudad ? `<span><b>Ciudad:</b> ${escaparHTMLAdmin(s.ciudad)}</span>` : ""}
+        <span><b>Correo:</b> ${s.correo ? escaparHTMLAdmin(s.correo) : "<em>no dejo correo</em>"}</span>
+        ${s.telefono ? `<span><b>Telefono:</b> ${escaparHTMLAdmin(s.telefono)}</span>` : ""}
+        ${s.sistemaActual ? `<span><b>Sistema actual:</b> ${escaparHTMLAdmin(s.sistemaActual)}</span>` : ""}
+        ${s.problema ? `<span class="solicitud-ancho"><b>Problema que quiere resolver:</b> ${escaparHTMLAdmin(s.problema)}</span>` : ""}
+        ${s.mensaje ? `<span class="solicitud-ancho"><b>Mensaje:</b> ${escaparHTMLAdmin(s.mensaje)}</span>` : ""}
+        ${s.invitacion?.venceEn && s.estado === "invitada" ? `<span class="solicitud-ancho"><b>Su enlace vence:</b> ${fechaHoraCortaAdmin(s.invitacion.venceEn)}${s.invitacion.enviadaEn ? "" : " &middot; <em>el correo no salio: copia el enlace al reenviar</em>"}</span>` : ""}
+      </div>
+      <div class="solicitud-acciones">
+        ${puedeInvitar ? `<button type="button" class="primary" onclick="invitarSolicitudAdmin(${s.id})" ${sinCorreo ? "disabled title=\"Sin correo no se puede enviar la invitacion\"" : ""}>${textoBoton}</button>` : ""}
+        ${s.estado !== "descartada" && s.estado !== "configurada" ? `<button type="button" class="secondary" onclick="descartarSolicitudAdmin(${s.id})">Descartar</button>` : ""}
+        ${s.invitacion?.negocioId ? `<span class="pill ok">Negocio #${s.invitacion.negocioId}</span>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function invitarSolicitudAdmin(id) {
+  const solicitud = (window.__solicitudesAdminCache || []).find(s => s.id === id);
+  if (!solicitud) return;
+
+  const confirmado = await confirmarAdmin(
+    `Se enviara una invitacion personal a ${solicitud.correo} para que ${solicitud.negocio || solicitud.nombre} configure su cuenta de prueba (todas las funciones, sin vencimiento). Si ya tenia un enlace, el anterior deja de servir.`,
+    "Aceptar solicitud",
+    "info"
+  );
+
+  if (!confirmado) return;
+
+  try {
+    const data = await apiAdmin(`/admin/api/solicitudes-participacion/${id}/invitar`, { method: "POST" });
+
+    let copiado = false;
+    try {
+      await navigator.clipboard.writeText(data.enlace);
+      copiado = true;
+    } catch (error) {
+      // Se muestra el enlace en el mensaje para copiarlo a mano.
+    }
+
+    const partes = [
+      data.correoEnviado
+        ? `Invitacion enviada a ${solicitud.correo}.`
+        : (data.aviso || "El correo no salio."),
+      copiado ? "El enlace quedo copiado: puedes pegarlo en WhatsApp." : `Enlace: ${data.enlace}`
+    ];
+
+    await alertaAdmin(partes.join("\n\n"), data.correoEnviado ? "Invitacion enviada" : "Copia el enlace", data.correoEnviado ? "exito" : "alerta");
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo crear la invitacion.", "Error", "peligro");
+  }
+
+  cargarSolicitudesAdmin();
+}
+
+async function descartarSolicitudAdmin(id) {
+  const confirmado = await confirmarAdmin(
+    "La solicitud queda descartada y su enlace de invitacion (si tenia uno pendiente) deja de servir.",
+    "Descartar solicitud",
+    "alerta"
+  );
+
+  if (!confirmado) return;
+
+  try {
+    await apiAdmin(`/admin/api/solicitudes-participacion/${id}/descartar`, { method: "POST" });
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo descartar.", "Error", "peligro");
+  }
+
+  cargarSolicitudesAdmin();
+}
+
 function abrirVistaBancoImagenesAdmin() {
   inicializarDropzoneBancoImagenes();
   cargarResumenBancoImagenes();
@@ -1626,6 +1776,7 @@ async function cargarAdminNexo() {
   pintarVersionesAdmin();
   cargarConteoSolicitudesBancoImagenes();
   cargarConteoErroresAdmin();
+  cargarConteoSolicitudesAdmin();
 }
 
 function abrirNuevoClienteAdmin() {

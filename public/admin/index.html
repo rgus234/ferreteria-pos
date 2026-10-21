@@ -30,6 +30,10 @@
         Catalogos de fabricantes
         <span id="badgeCatalogosAdmin" class="notification-badge" style="display:none;"></span>
       </button>
+      <button type="button" data-view="solicitudes" style="position:relative;">
+        Solicitudes de pilotos
+        <span id="badgeSolicitudesAdmin" class="notification-badge" style="display:none;"></span>
+      </button>
       <button type="button" data-view="errores" style="position:relative;">
         Errores
         <span id="badgeErroresAdmin" class="notification-badge" style="display:none;"></span>
@@ -428,6 +432,27 @@
           <button type="button" class="ghost" onclick="cerrarRevisionCatalogo()">Cerrar</button>
         </div>
         <div class="catalogo-revision" id="listaRevisionCatalogo">
+          <div class="empty">Cargando...</div>
+        </div>
+      </article>
+    </section>
+
+    <section class="admin-view" id="view-solicitudes">
+      <article class="panel wide">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Pilotos</p>
+            <h2>Solicitudes para participar en las pruebas</h2>
+            <span>Llegan del formulario "Quiero participar" de la pagina publica. Al aceptar, se genera un enlace personal (vence en 14 dias) y se envia al correo del negocio; ahi configuran su cuenta y descargan Nexo.</span>
+          </div>
+          <div class="panel-tools">
+            <select id="filtroSolicitudesAdmin" onchange="cargarSolicitudesAdmin()">
+              <option value="pendientes">Por atender</option>
+              <option value="todas">Todas</option>
+            </select>
+          </div>
+        </div>
+        <div class="solicitudes-lista" id="listaSolicitudesAdmin">
           <div class="empty">Cargando...</div>
         </div>
       </article>
