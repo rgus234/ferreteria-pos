@@ -73,6 +73,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./listas-producto-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("fotos sugeridas (revisar y confirmar fotos del banco)", () => {
+        require("./fotos-sugeridas-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("exhibidores (displays con tarjetas visuales)", () => {
         require("./exhibidores-server")(app, pool, requerirAccesoNegocio);
     });

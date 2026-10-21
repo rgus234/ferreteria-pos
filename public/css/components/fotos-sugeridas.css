@@ -1,0 +1,65 @@
+/* Fotos sugeridas: revisar y confirmar con un toque la foto de cada producto.
+   Todo con prefijo fs- para no chocar con nada. */
+
+.fs-shell { display: grid; gap: 16px; color: var(--pos-text, #172033); }
+
+.fs-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--pos-line, #dbe3ef); }
+.fs-header h2 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+.fs-header p { margin: 4px 0 0; max-width: 640px; color: var(--pos-muted, #687386); font-weight: 600; font-size: 13px; line-height: 1.45; }
+.fs-contador { display: grid; justify-items: end; gap: 1px; min-width: 110px; }
+.fs-contador strong { font-size: 30px; line-height: 1; font-weight: 900; color: var(--brand-color, #0d6efd); }
+.fs-contador span { font-size: 12px; font-weight: 800; color: var(--pos-muted, #687386); text-transform: uppercase; letter-spacing: .04em; }
+.fs-contador small { margin-top: 4px; font-size: 11.5px; font-weight: 700; color: var(--pos-muted, #687386); }
+
+.fs-card { display: grid; gap: 0; overflow: hidden; border: 1px solid var(--pos-line, #dbe3ef); border-radius: 20px; background: var(--pos-surface-strong, #fff); box-shadow: 0 14px 38px rgba(20, 32, 51, .09); animation: fsEntrar .22s ease; }
+@keyframes fsEntrar { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.fs-producto { display: grid; gap: 6px; padding: 18px 22px; background: linear-gradient(135deg, #1d5fd1, #0b3d91); color: #fff; }
+.fs-etiqueta { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; opacity: .75; }
+.fs-producto h3 { margin: 0; font-size: 21px; line-height: 1.25; }
+.fs-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.fs-meta span { padding: 3px 10px; border-radius: 999px; background: rgba(255, 255, 255, .18); font-size: 12px; font-weight: 700; }
+
+.fs-candidatas { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; padding: 18px 22px; }
+.fs-cand { display: grid; gap: 12px; align-content: start; padding: 12px; border: 2px solid var(--pos-line, #e3e9f3); border-radius: 16px; background: var(--pos-surface, #f6f8fc); transition: border-color .15s ease, box-shadow .15s ease; }
+.fs-cand:hover { border-color: var(--brand-color, #0d6efd); box-shadow: 0 10px 26px rgba(13, 110, 253, .14); }
+.fs-foto { display: flex; align-items: center; justify-content: center; height: 210px; overflow: hidden; border-radius: 12px; background: #fff; }
+.fs-foto img { width: 100%; height: 100%; object-fit: contain; }
+.fs-foto-rota { color: var(--pos-muted, #8793a6); font-size: 13px; font-weight: 700; }
+.fs-cand-info { display: grid; gap: 8px; }
+.fs-chip { justify-self: start; padding: 3px 10px; border-radius: 999px; background: rgba(232, 163, 23, .16); color: #8a5a00; font-size: 11.5px; font-weight: 800; }
+.fs-chip-ean { background: rgba(31, 157, 99, .14); color: #11663f; }
+.fs-nombre-oficial { margin: 0; font-size: 14px; font-weight: 700; line-height: 1.4; min-height: 40px; }
+.fs-diferente { padding: 0 3px; border-radius: 4px; background: #ffd966; color: #4a3600; font-weight: 900; }
+
+.fs-btn { min-height: 42px; padding: 0 18px; border: 0; border-radius: 12px; font: inherit; font-weight: 800; font-size: 14px; cursor: pointer; transition: transform .12s ease, opacity .12s ease; }
+.fs-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.fs-btn:disabled { opacity: .5; cursor: wait; }
+.fs-btn-ok { background: #1f9d63; color: #fff; box-shadow: 0 6px 16px rgba(31, 157, 99, .28); }
+.fs-btn-suave { background: var(--pos-surface, #eef2f8); color: var(--pos-text, #172033); }
+.fs-btn kbd { margin-left: 6px; padding: 1px 7px; border-radius: 6px; background: rgba(255, 255, 255, .25); font: inherit; font-size: 12px; }
+.fs-btn-suave kbd { background: rgba(23, 32, 51, .1); }
+
+.fs-acciones { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; padding: 14px 22px 18px; border-top: 1px solid var(--pos-line, #e6ebf3); }
+
+.fs-vacio-grande { display: grid; justify-items: center; gap: 10px; padding: 64px 20px; text-align: center; border: 2px dashed var(--pos-line, #dbe3ef); border-radius: 20px; }
+.fs-vacio-grande h3 { margin: 0; font-size: 19px; }
+.fs-vacio-grande p { margin: 0; max-width: 480px; color: var(--pos-muted, #687386); font-weight: 600; line-height: 1.5; }
+.fs-vacio-icono { font-size: 44px; }
+
+@media (max-width: 760px) {
+    .fs-candidatas { padding: 14px; }
+    .fs-producto { padding: 14px 16px; }
+    .fs-acciones { padding: 12px 14px 16px; }
+    .fs-acciones .fs-btn { flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fs-card, .fs-btn, .fs-cand { animation: none; transition: none; }
+}
+
+/* Un estilo global de h3/span/p pisaba el color blanco heredado del encabezado:
+   se fija explicitamente en cada texto del bloque azul. */
+.fs-producto h3,
+.fs-producto .fs-etiqueta,
+.fs-meta span { color: #fff; }

@@ -131,6 +131,13 @@ function parecido(a, b) {
     return comunes / Math.max(A.size, B.size);
 }
 
+// Para comparar nombres IDENTICOS: solo se ignoran mayusculas y espacios
+// repetidos. Cualquier otra diferencia (una medida, una cantidad, un signo)
+// hace que NO sean el mismo producto.
+function normalizarNombre(texto) {
+    return String(texto || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
 function reloj(desde) {
     const s = Math.round((Date.now() - desde) / 1000);
     const m = Math.floor(s / 60);
@@ -234,6 +241,55 @@ async function main() {
         }
     }
 
+    // Camino 5: NOMBRE IDENTICO al oficial. El inventario de un negocio que
+    // cargo el catalogo de Truper/Diprofer trae los nombres oficiales tal cual
+    // ("Bolsa con 100 tornillos 1/4' x 1' tipo m..."), pero su codigo no siempre
+    // casa con el del Maestro (EAN faltante o distinto), asi que los caminos
+    // anteriores no los alcanzan. Un nombre IGUAL, letra por letra, incluyendo
+    // medida, cantidad y marca, no es "parecido": es el mismo producto. Aun asi
+    // se cuida: nombre de al menos 12 caracteres (nada generico) y que ese
+    // nombre pertenezca a UN SOLO producto del banco -- si dos productos
+    // distintos se llaman igual no se adivina cual es.
+    let porNombre = 0;
+    let ambiguosPorNombre = 0;
+    const faltanPorResolver = candidatos.filter(f => !f.codigo_banco);
+
+    if (faltanPorResolver.length > 0) {
+        const oficiales = (await pool.query(
+            "SELECT cm.id AS maestro_id, cm.codigo_fabricante, cm.nombre" +
+            "  FROM public.catalogo_maestro_productos cm" +
+            " WHERE cm.nombre <> '' AND EXISTS (" +
+            "   SELECT 1 FROM public.banco_imagenes_producto b WHERE b.codigo = cm.codigo_fabricante)"
+        )).rows;
+
+        const oficialesPorNombre = new Map();
+        for (const oficial of oficiales) {
+            const clave = normalizarNombre(oficial.nombre);
+            const lista = oficialesPorNombre.get(clave) || [];
+            lista.push(oficial);
+            oficialesPorNombre.set(clave, lista);
+        }
+
+        for (const producto of faltanPorResolver) {
+            const clave = normalizarNombre(producto.nombre);
+            if (clave.length < 12) continue;
+
+            const lista = oficialesPorNombre.get(clave);
+            if (!lista) continue;
+
+            if (new Set(lista.map(o => o.codigo_fabricante)).size !== 1) {
+                ambiguosPorNombre++;
+                continue;
+            }
+
+            producto.codigo_banco = lista[0].codigo_fabricante;
+            // Mismo criterio que el camino 4: se guarda el enlace al Maestro
+            // para que Market pueda mostrar la galeria del fabricante.
+            producto.maestro_id = lista[0].maestro_id;
+            porNombre++;
+        }
+    }
+
     const conFoto = candidatos.filter(f => f.codigo_banco);
 
     if (incluirCatalogo) {
@@ -243,10 +299,25 @@ async function main() {
 
     console.log(`Negocio ${negocio.id}: ${negocio.nombre}`);
     console.log(`  productos sin foto:        ${candidatos.length}`);
-    console.log(`  resueltos por su codigo:   ${conFoto.length - porEan}`);
+    console.log(`  resueltos por su codigo:   ${conFoto.length - porEan - porNombre}`);
     console.log(`  resueltos por EAN:         ${porEan}`);
-    console.log(`  descartados: el EAN casaba pero el nombre NO: ${descartadosPorNombre}`);
-    console.log(`  sin nada que ofrecerles:   ${candidatos.length - conFoto.length - descartadosPorNombre}\n`);
+    console.log(`  resueltos por nombre identico: ${porNombre}`);
+    console.log(`  sin resolver:              ${candidatos.length - conFoto.length}` +
+        `  (EAN casaba pero el nombre NO: ${descartadosPorNombre}; ambiguos por nombre: ${ambiguosPorNombre})\n`);
+
+    // --registro=archivo.json guarda exactamente a que productos se les pone
+    // foto y de que codigo del banco sale. Sirve para auditar la corrida y para
+    // DESHACERLA: borrar de fotos_producto esos codigos de ese negocio.
+    const argRegistro = process.argv.find(a => a.startsWith("--registro="));
+    if (argRegistro) {
+        require("fs").writeFileSync(
+            argRegistro.split("=")[1],
+            JSON.stringify(conFoto.map(f => ({
+                productoId: f.id, codigo: f.codigo, nombre: f.nombre,
+                codigoBanco: f.codigo_banco, maestroId: f.maestro_id || null
+            })), null, 1)
+        );
+    }
 
     if (simular) {
         console.log("--simular: no se escribio nada.");

@@ -165,3 +165,9 @@
 .exh-tiles:has(.exh-recibir-tile) { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
 .exh-stepper { grid-template-columns: 34px minmax(0, 1fr) 34px; }
 .exh-recibir-costo input { width: 100%; min-width: 0; }
+
+/* Mismo caso: el titulo y la etiqueta del encabezado de color de los modales
+   heredaban el color oscuro global en vez del blanco. */
+.exh-modal-cabecera-color h3,
+.exh-modal-cabecera-color span { color: #fff; }
+.exh-modal-cabecera-color span { opacity: .8; }
