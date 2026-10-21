@@ -137,3 +137,31 @@
 @media (prefers-reduced-motion: reduce) {
     .exh-card, .exh-tile, .exh-btn, .exh-modal-card, .exh-tile-cuenta { transition: none; animation: none; }
 }
+
+/* Recibir mercancia + Surtir */
+.exh-stepper { display: grid; grid-template-columns: 34px 1fr 34px; gap: 6px; align-items: center; }
+.exh-stepper button { height: 34px; border: 0; border-radius: 10px; background: var(--pos-surface-strong, #fff); color: var(--pos-text, #172033); font-size: 18px; font-weight: 800; cursor: pointer; box-shadow: inset 0 0 0 1px var(--pos-line, #dbe3ef); }
+.exh-stepper button:hover { background: var(--exh-color, #1d5fd1); color: #fff; box-shadow: none; }
+.exh-stepper input { width: 100%; min-width: 0; height: 34px; box-sizing: border-box; text-align: center; font: inherit; font-weight: 800; border: 1px solid var(--pos-line, #dbe3ef); border-radius: 10px; background: var(--pos-surface-strong, #fff); color: inherit; }
+.exh-recibir-costo { display: grid; gap: 3px; font-size: 10.5px; font-weight: 800; color: var(--pos-muted, #687386); }
+.exh-recibir-costo input { height: 30px; padding: 0 8px; box-sizing: border-box; font: inherit; font-size: 12.5px; border: 1px solid var(--pos-line, #dbe3ef); border-radius: 8px; background: var(--pos-surface-strong, #fff); color: inherit; }
+.exh-recibir-tile { cursor: default; }
+.exh-recibir-tile:hover { transform: none; box-shadow: none; border-color: transparent; }
+.exh-recibir-activa { border-color: var(--exh-color, #1d5fd1); background: color-mix(in srgb, var(--exh-color, #1d5fd1) 8%, var(--pos-surface, #f3f6fb)); }
+
+.exh-modal-pie { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 20px; border-top: 1px solid var(--pos-line, #e6ebf3); font-weight: 700; }
+
+.exh-surtir-lista { display: grid; gap: 6px; padding: 14px 20px; overflow-y: auto; }
+.exh-surtir-fila { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 12px; background: var(--pos-surface, #f3f6fb); }
+.exh-surtir-foto { display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex: none; overflow: hidden; border-radius: 10px; background: #fff; }
+.exh-surtir-foto img { width: 100%; height: 100%; object-fit: contain; }
+.exh-surtir-texto { display: grid; flex: 1; min-width: 0; }
+.exh-surtir-texto strong { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exh-surtir-texto small { color: var(--pos-muted, #687386); font-weight: 600; }
+.exh-surtir-fila input { width: 76px; height: 36px; box-sizing: border-box; text-align: center; font: inherit; font-weight: 800; border: 1px solid var(--pos-line, #dbe3ef); border-radius: 10px; background: var(--pos-surface-strong, #fff); color: inherit; }
+
+/* Ajuste de ancho: el campo numerico tiene ancho propio y desbordaba la tarjeta */
+.exh-tile { min-width: 0; }
+.exh-tiles:has(.exh-recibir-tile) { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.exh-stepper { grid-template-columns: 34px minmax(0, 1fr) 34px; }
+.exh-recibir-costo input { width: 100%; min-width: 0; }

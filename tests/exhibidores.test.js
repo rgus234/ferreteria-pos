@@ -272,3 +272,69 @@ test("flujo completo: crear el producto desde el catalogo y meterlo al exhibidor
     const ahora = await llamar(negocioA, "/exhibidores/buscar-catalogo?q=11111");
     assert.ok(ahora.cuerpo.resultados[0].productoId, "ahora el catalogo lo reconoce como producto del inventario");
 });
+
+// ---------------------------------------------------------------------
+// Recibir por exhibidor y Surtir: la pantalla manda las lineas a la recepcion
+// rapida ya existente (no hay logica de inventario nueva) y lee "faltan".
+// ---------------------------------------------------------------------
+
+test("recibir por exhibidor: suma al inventario, deja historial y 'faltan' baja", async () => {
+    const p1 = await crearProductoPrueba(negocioA.negocioId, { nombre: "Lija 80 de exhibidor", precio: 10, stock: 2 });
+    const p2 = await crearProductoPrueba(negocioA.negocioId, { nombre: "Lija 150 de exhibidor", precio: 12, stock: 0 });
+
+    const exhibidor = await llamar(negocioA, "/exhibidores", {
+        method: "POST",
+        body: JSON.stringify({ nombre: "Exhibidor de lijas", espacios: [{ productoId: p1.id, capacidad: 10 }, { productoId: p2.id, capacidad: 5 }] })
+    });
+    const id = exhibidor.cuerpo.exhibidor.id;
+    assert.deepEqual(exhibidor.cuerpo.exhibidor.espacios.map(e => e.faltan), [8, 5]);
+
+    const recibido = await llamar(negocioA, "/recepciones-mercancia/rapida", {
+        method: "POST",
+        body: JSON.stringify({
+            referencia: "REM-1",
+            notas: 'Recibido desde el exhibidor "Exhibidor de lijas"',
+            idempotencyKey: "exh-recibir-1",
+            items: [{ productoId: p1.id, cantidad: 8, costo: 6.5 }, { productoId: p2.id, cantidad: 5, costo: 0 }]
+        })
+    });
+    assert.equal(recibido.status, 201, JSON.stringify(recibido.cuerpo));
+
+    const stock = await pool.query(`SELECT id, stock, costo FROM public.productos WHERE id = ANY($1::int[]) ORDER BY id`, [[p1.id, p2.id]]);
+    assert.equal(Number(stock.rows[0].stock), 10);
+    assert.equal(Number(stock.rows[0].costo), 6.5, "el costo capturado se guarda");
+    assert.equal(Number(stock.rows[1].stock), 5);
+
+    const ajustes = await pool.query(`SELECT COUNT(*)::int n FROM public.ajustes_inventario WHERE negocio_id = $1 AND referencia = 'REM-1'`, [negocioA.negocioId]);
+    assert.equal(ajustes.rows[0].n, 2, "queda un ajuste de inventario por producto");
+
+    const despues = await llamar(negocioA, `/exhibidores/${id}`);
+    assert.deepEqual(despues.cuerpo.exhibidor.espacios.map(e => e.faltan), [0, 0], "el exhibidor quedo lleno");
+
+    // Mandar lo mismo dos veces (doble clic, mala conexion) no suma dos veces.
+    const repetido = await llamar(negocioA, "/recepciones-mercancia/rapida", {
+        method: "POST",
+        body: JSON.stringify({ idempotencyKey: "exh-recibir-1", items: [{ productoId: p1.id, cantidad: 8, costo: 6.5 }] })
+    });
+    assert.equal(repetido.cuerpo.repetida, true);
+
+    const intacto = await pool.query(`SELECT stock FROM public.productos WHERE id = $1`, [p1.id]);
+    assert.equal(Number(intacto.rows[0].stock), 10);
+});
+
+test("surtir: el pedido a proveedor se crea en borrador", async () => {
+    const p = await crearProductoPrueba(negocioA.negocioId, { nombre: "Lija 220 por surtir", precio: 9, stock: 1 });
+
+    const pedido = await llamar(negocioA, "/pedidos-proveedor", {
+        method: "POST",
+        body: JSON.stringify({
+            proveedor: "Diprofer",
+            estado: "borrador",
+            notas: 'Para surtir el exhibidor "Exhibidor de lijas"',
+            items: [{ productoId: p.id, codigo: "LIJA-220", nombre: "Lija 220 por surtir", proveedor: "Diprofer", cantidad: 4, costo: 5, unidad: "pieza" }]
+        })
+    });
+
+    assert.equal(pedido.status, 200, JSON.stringify(pedido.cuerpo));
+    assert.equal(pedido.cuerpo.pedido.estado, "borrador");
+});

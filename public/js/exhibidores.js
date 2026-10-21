@@ -92,6 +92,8 @@ function renderListaExhibidores() {
                 ${estado}
                 <div class="exh-card-acciones">
                     <button type="button" class="exh-btn exh-btn-suave" onclick="abrirEditorExhibidor(${item.id})">Editar</button>
+                    <button type="button" class="exh-btn exh-btn-suave" onclick="abrirRecibirExhibidor(${item.id})" ${item.totalEspacios ? "" : "disabled"}>Recibir</button>
+                    <button type="button" class="exh-btn exh-btn-suave" onclick="abrirSurtirExhibidor(${item.id})" ${item.totalEspacios ? "" : "disabled"}>Surtir</button>
                     <button type="button" class="exh-btn exh-btn-primario" onclick="abrirExhibidorPOS(${item.id})" ${item.totalEspacios ? "" : "disabled"}>Vender</button>
                 </div>
             </div>
@@ -187,6 +189,8 @@ function renderEditorExhibidor() {
                 <h2>${exhEscapar(x.nombre)}</h2>
             </div>
             <div class="exh-header-acciones">
+                <button type="button" class="exh-btn exh-btn-suave" onclick="abrirRecibirExhibidor(${x.id})" ${x.espacios.length ? "" : "disabled"}>Recibir mercancia</button>
+                <button type="button" class="exh-btn exh-btn-suave" onclick="abrirSurtirExhibidor(${x.id})" ${x.espacios.length ? "" : "disabled"}>Surtir</button>
                 <button type="button" class="exh-btn exh-btn-primario" onclick="abrirExhibidorPOS(${x.id})" ${x.espacios.length ? "" : "disabled"}>Probar venta</button>
                 <button type="button" class="exh-btn exh-btn-peligro" onclick="eliminarExhibidor()">Eliminar</button>
             </div>
@@ -571,6 +575,331 @@ function agregarDesdeExhibidor(productoId) {
 
     const filtro = document.getElementById("exhFiltroPOS")?.value || "";
     renderExhibidorPOS(filtro);
+}
+
+// ---------------------------------------------------------------------
+// Recibir mercancia por exhibidor y Surtir lo que falta
+//
+// Recibir NO tiene logica propia de inventario: arma las lineas y las manda a
+// POST /recepciones-mercancia/rapida (la misma ruta de la recepcion rapida del
+// celular), que suma el stock en una transaccion con la fila bloqueada, deja
+// historial + ajuste de inventario y no se duplica si se manda dos veces.
+// Surtir solo LEE: calcula lo que falta (capacidad - existencia) y, si se
+// quiere, crea un pedido a proveedor en BORRADOR (nada se envia solo).
+// ---------------------------------------------------------------------
+
+let exhRecibo = null;
+
+function exhModal(id) {
+    let modal = document.getElementById(id);
+
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = id;
+        modal.className = "exh-modal";
+        document.body.appendChild(modal);
+    }
+
+    modal.style.display = "flex";
+    return modal;
+}
+
+function cerrarExhModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.style.display = "none";
+}
+
+function exhLlaveUnica() {
+    return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `exh-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function exhEntero(valor) {
+    const numero = Math.floor(Number(valor));
+    return Number.isFinite(numero) && numero > 0 ? Math.min(numero, 100000) : 0;
+}
+
+async function abrirRecibirExhibidor(id) {
+    const modal = exhModal("modalExhibidorRecibir");
+    modal.innerHTML = `<div class="exh-modal-card"><div class="exh-vacio">Cargando...</div></div>`;
+
+    const { ok, datos } = await exhLlamar(`/exhibidores/${id}`);
+
+    if (!ok) {
+        cerrarExhModal("modalExhibidorRecibir");
+        alertaPOS(datos.error || "No se pudo abrir el exhibidor.", "Error", "peligro");
+        return;
+    }
+
+    exhRecibo = { exhibidor: datos.exhibidor, lineas: {}, referencia: "", llave: exhLlaveUnica(), enviando: false };
+    renderRecibirExhibidor();
+}
+
+function renderRecibirExhibidor() {
+    const modal = document.getElementById("modalExhibidorRecibir");
+    const r = exhRecibo;
+    if (!modal || !r) return;
+
+    const x = r.exhibidor;
+    const totalPiezas = Object.values(r.lineas).reduce((suma, linea) => suma + (linea.cantidad || 0), 0);
+
+    const tarjetas = x.espacios.map(e => {
+        const linea = r.lineas[e.productoId] || { cantidad: 0, costo: "" };
+
+        return `
+        <div class="exh-tile exh-recibir-tile${linea.cantidad > 0 ? " exh-recibir-activa" : ""}">
+            <span class="exh-tile-foto">${exhMiniatura(e.productoId, e.nombre)}</span>
+            ${e.etiqueta ? `<span class="exh-tile-lugar">${exhEscapar(e.etiqueta)}</span>` : ""}
+            <strong class="exh-tile-nombre">${exhEscapar(e.nombre)}</strong>
+            <span class="exh-tile-stock ${e.existencia <= 0 ? "sin" : "ok"}">${e.existencia <= 0 ? "Agotado" : `${Number(e.existencia.toFixed(3))} en existencia`}${e.faltan > 0 ? ` · faltan ${e.faltan}` : ""}</span>
+            <div class="exh-stepper">
+                <button type="button" aria-label="Quitar uno" onclick="exhRecibirCambiar(${e.productoId}, -1)">&minus;</button>
+                <input type="number" min="0" step="1" value="${linea.cantidad || ""}" placeholder="0" onchange="exhRecibirFijar(${e.productoId}, this.value)">
+                <button type="button" aria-label="Agregar uno" onclick="exhRecibirCambiar(${e.productoId}, 1)">+</button>
+            </div>
+            <label class="exh-recibir-costo">Costo c/u (opcional)
+                <input type="number" min="0" step="0.01" value="${linea.costo}" placeholder="0.00" onchange="exhRecibirCosto(${e.productoId}, this.value)">
+            </label>
+        </div>`;
+    }).join("");
+
+    modal.innerHTML = `
+    <div class="exh-modal-card exh-color-${exhEscapar(x.color)}">
+        <div class="exh-modal-cabecera exh-modal-cabecera-color">
+            <div><span>Recibir mercancia &middot; exhibidor</span><h3>${exhEscapar(x.nombre)}</h3></div>
+            <div class="exh-modal-acciones">
+                <button type="button" class="exh-btn exh-btn-claro" onclick="exhRecibirLlenar()">Llenar lo que falta</button>
+                <button type="button" class="exh-btn exh-btn-claro" onclick="cerrarExhModal('modalExhibidorRecibir')">Cerrar</button>
+            </div>
+        </div>
+        <div class="exh-modal-busqueda">
+            <input type="text" maxlength="120" placeholder="Factura o remision (opcional)" value="${exhEscapar(r.referencia)}" onchange="exhRecibo.referencia = this.value">
+            <span class="exh-modal-ayuda">Pon cuantas piezas llegaron de cada producto. Se suman a tu inventario.</span>
+        </div>
+        <div class="exh-tiles">${tarjetas || '<div class="exh-vacio">Este exhibidor aun no tiene productos.</div>'}</div>
+        <div class="exh-modal-pie">
+            <span>${totalPiezas > 0 ? `<strong>${totalPiezas}</strong> pieza${totalPiezas === 1 ? "" : "s"} por recibir` : "Aun no capturas cantidades"}</span>
+            <button type="button" class="exh-btn exh-btn-primario" onclick="confirmarRecibirExhibidor()" ${totalPiezas > 0 && !r.enviando ? "" : "disabled"}>${r.enviando ? "Recibiendo..." : "Recibir en inventario"}</button>
+        </div>
+    </div>`;
+}
+
+function exhRecibirCambiar(productoId, delta) {
+    const linea = exhRecibo.lineas[productoId] || { cantidad: 0, costo: "" };
+    linea.cantidad = Math.max(0, Math.min(100000, linea.cantidad + delta));
+    exhRecibo.lineas[productoId] = linea;
+    renderRecibirExhibidor();
+}
+
+function exhRecibirFijar(productoId, valor) {
+    const linea = exhRecibo.lineas[productoId] || { cantidad: 0, costo: "" };
+    linea.cantidad = exhEntero(valor);
+    exhRecibo.lineas[productoId] = linea;
+    renderRecibirExhibidor();
+}
+
+function exhRecibirCosto(productoId, valor) {
+    const linea = exhRecibo.lineas[productoId] || { cantidad: 0, costo: "" };
+    const costo = Number(valor);
+    linea.costo = Number.isFinite(costo) && costo > 0 ? costo : "";
+    exhRecibo.lineas[productoId] = linea;
+}
+
+function exhRecibirLlenar() {
+    exhRecibo.exhibidor.espacios.forEach(e => {
+        const linea = exhRecibo.lineas[e.productoId] || { cantidad: 0, costo: "" };
+        linea.cantidad = e.faltan > 0 ? exhEntero(Math.ceil(e.faltan)) : 0;
+        exhRecibo.lineas[e.productoId] = linea;
+    });
+    renderRecibirExhibidor();
+}
+
+async function confirmarRecibirExhibidor() {
+    const r = exhRecibo;
+    if (!r || r.enviando) return;
+
+    const items = Object.entries(r.lineas)
+        .filter(([, linea]) => linea.cantidad > 0)
+        .map(([productoId, linea]) => ({ productoId: Number(productoId), cantidad: linea.cantidad, costo: linea.costo || 0 }));
+
+    if (items.length === 0) return;
+
+    const totalPiezas = items.reduce((suma, item) => suma + item.cantidad, 0);
+    const confirmado = await confirmarPOS(
+        `Se suman ${totalPiezas} pieza${totalPiezas === 1 ? "" : "s"} (${items.length} producto${items.length === 1 ? "" : "s"}) al inventario.`,
+        "Recibir mercancia",
+        "info"
+    );
+
+    if (!confirmado) return;
+
+    r.enviando = true;
+    renderRecibirExhibidor();
+
+    const { ok, datos } = await exhLlamar("/recepciones-mercancia/rapida", {
+        method: "POST",
+        body: JSON.stringify({
+            referencia: r.referencia,
+            notas: `Recibido desde el exhibidor "${r.exhibidor.nombre}"`,
+            usuarioNombre: (typeof usuarioActual !== "undefined" && usuarioActual?.nombre) || "",
+            idempotencyKey: r.llave,
+            items
+        })
+    });
+
+    r.enviando = false;
+
+    if (!ok) {
+        renderRecibirExhibidor();
+        alertaPOS(datos.error || "No se pudo registrar la recepcion. No se sumo nada al inventario.", "Error", "peligro");
+        return;
+    }
+
+    if (typeof cargarProductos === "function") {
+        try { await cargarProductos(); } catch (error) { /* el exhibidor lee en vivo del servidor */ }
+    }
+
+    cerrarExhModal("modalExhibidorRecibir");
+    alertaPOS(`Se recibieron ${totalPiezas} pieza${totalPiezas === 1 ? "" : "s"} en "${r.exhibidor.nombre}".`, "Mercancia recibida", "exito");
+    exhRecibo = null;
+
+    if (exhibidorEditando && document.getElementById("pantallaExhibidores")?.style.display !== "none") {
+        abrirEditorExhibidor(exhibidorEditando.id);
+    }
+}
+
+// --- Surtir: lo que falta para llenar el exhibidor -----------------------
+
+let exhSurtido = null;
+
+async function abrirSurtirExhibidor(id) {
+    const modal = exhModal("modalExhibidorSurtir");
+    modal.innerHTML = `<div class="exh-modal-card"><div class="exh-vacio">Cargando...</div></div>`;
+
+    const { ok, datos } = await exhLlamar(`/exhibidores/${id}`);
+
+    if (!ok) {
+        cerrarExhModal("modalExhibidorSurtir");
+        alertaPOS(datos.error || "No se pudo abrir el exhibidor.", "Error", "peligro");
+        return;
+    }
+
+    const filas = datos.exhibidor.espacios
+        .filter(e => e.faltan > 0)
+        .map(e => {
+            const local = exhProducto(e.productoId) || {};
+            return {
+                productoId: e.productoId,
+                nombre: e.nombre,
+                codigo: e.codigo || "",
+                etiqueta: e.etiqueta,
+                existencia: e.existencia,
+                capacidad: e.capacidad,
+                cantidad: exhEntero(Math.ceil(e.faltan)),
+                costo: Number(local.costo || local.precio_distribuidor || 0) || 0,
+                proveedor: local.proveedor || ""
+            };
+        });
+
+    exhSurtido = { exhibidor: datos.exhibidor, filas, sinCapacidad: datos.exhibidor.espacios.filter(e => !(e.capacidad > 0)).length };
+    renderSurtirExhibidor();
+}
+
+function renderSurtirExhibidor() {
+    const modal = document.getElementById("modalExhibidorSurtir");
+    const s = exhSurtido;
+    if (!modal || !s) return;
+
+    const x = s.exhibidor;
+    const totalPiezas = s.filas.reduce((suma, fila) => suma + fila.cantidad, 0);
+
+    const filas = s.filas.map((fila, i) => `
+        <div class="exh-surtir-fila">
+            <span class="exh-surtir-foto">${exhMiniatura(fila.productoId, fila.nombre)}</span>
+            <span class="exh-surtir-texto">
+                <strong>${exhEscapar(fila.nombre)}</strong>
+                <small>${exhEscapar(fila.codigo)}${fila.etiqueta ? ` · ${exhEscapar(fila.etiqueta)}` : ""} · tiene ${Number(fila.existencia.toFixed(3))} de ${fila.capacidad}</small>
+            </span>
+            <input type="number" min="0" step="1" value="${fila.cantidad}" aria-label="Piezas a pedir" onchange="exhSurtirCantidad(${i}, this.value)">
+        </div>`).join("");
+
+    const cuerpo = s.filas.length > 0
+        ? `<div class="exh-surtir-lista">${filas}</div>`
+        : `<div class="exh-vacio">${s.sinCapacidad === x.espacios.length && x.espacios.length > 0
+            ? "Ningun producto tiene capacidad definida. Ponla en el editor del exhibidor (\"Capacidad\") para saber cuanto falta."
+            : "Este exhibidor esta completo: no falta nada."}</div>`;
+
+    modal.innerHTML = `
+    <div class="exh-modal-card exh-color-${exhEscapar(x.color)}">
+        <div class="exh-modal-cabecera exh-modal-cabecera-color">
+            <div><span>Surtir &middot; exhibidor</span><h3>${exhEscapar(x.nombre)}</h3></div>
+            <div class="exh-modal-acciones">
+                <button type="button" class="exh-btn exh-btn-claro" onclick="cerrarExhModal('modalExhibidorSurtir')">Cerrar</button>
+            </div>
+        </div>
+        ${cuerpo}
+        ${s.filas.length > 0 ? `
+        <div class="exh-modal-pie">
+            <span><strong>${totalPiezas}</strong> pieza${totalPiezas === 1 ? "" : "s"} por pedir${s.sinCapacidad > 0 ? ` &middot; ${s.sinCapacidad} producto${s.sinCapacidad === 1 ? "" : "s"} sin capacidad definida` : ""}</span>
+            <span class="exh-modal-acciones">
+                <button type="button" class="exh-btn exh-btn-suave" onclick="exhSurtirCopiar()">Copiar lista</button>
+                <button type="button" class="exh-btn exh-btn-primario" onclick="exhSurtirCrearPedido()" ${totalPiezas > 0 ? "" : "disabled"}>Crear pedido (borrador)</button>
+            </span>
+        </div>` : ""}
+    </div>`;
+}
+
+function exhSurtirCantidad(indice, valor) {
+    exhSurtido.filas[indice].cantidad = exhEntero(valor);
+    renderSurtirExhibidor();
+}
+
+function exhSurtirLineas() {
+    return exhSurtido.filas.filter(fila => fila.cantidad > 0);
+}
+
+async function exhSurtirCopiar() {
+    const texto = `Surtir ${exhSurtido.exhibidor.nombre}:\n` +
+        exhSurtirLineas().map(fila => `${fila.cantidad} x ${fila.nombre}${fila.codigo ? ` (${fila.codigo})` : ""}`).join("\n");
+
+    try {
+        await navigator.clipboard.writeText(texto);
+        alertaPOS("Lista copiada. Pegala donde la necesites (WhatsApp, correo...).", "Lista copiada", "exito");
+    } catch (error) {
+        alertaPOS("No se pudo copiar automaticamente.", "Copiar lista", "alerta");
+    }
+}
+
+async function exhSurtirCrearPedido() {
+    const lineas = exhSurtirLineas();
+    if (lineas.length === 0) return;
+
+    const proveedores = [...new Set(lineas.map(fila => fila.proveedor).filter(Boolean))];
+
+    const { ok, datos } = await exhLlamar("/pedidos-proveedor", {
+        method: "POST",
+        body: JSON.stringify({
+            proveedor: proveedores.length === 1 ? proveedores[0] : "",
+            estado: "borrador",
+            notas: `Para surtir el exhibidor "${exhSurtido.exhibidor.nombre}"`,
+            items: lineas.map(fila => ({
+                productoId: fila.productoId,
+                codigo: fila.codigo,
+                nombre: fila.nombre,
+                proveedor: fila.proveedor,
+                cantidad: fila.cantidad,
+                costo: fila.costo,
+                unidad: "pieza"
+            }))
+        })
+    });
+
+    if (!ok && !datos.pedido) {
+        alertaPOS(datos.error || "No se pudo crear el pedido.", "Surtir", "peligro");
+        return;
+    }
+
+    cerrarExhModal("modalExhibidorSurtir");
+    alertaPOS("Pedido creado en borrador. Revisalo y enviaselo a tu proveedor desde Compras -> Pedidos a proveedor.", "Pedido creado", "exito");
 }
 
 window.mostrarExhibidores = mostrarExhibidores;
