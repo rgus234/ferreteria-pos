@@ -1,6 +1,7 @@
 const sharp = require("sharp");
 const { config } = require("./config");
 const { responderError } = require("./error-utils");
+const { calcularAntiguedadCredito } = require("./credit-aging");
 
 // Cliente de Anthropic inicializado de forma perezosa -- si todavia
 // no hay ANTHROPIC_API_KEY (caso normal mientras el usuario crea su
@@ -29,17 +30,24 @@ function obtenerAnthropic() {
         const crearOriginal = cliente.messages.create.bind(cliente.messages);
         const { registrarFalloIA, registrarExitoIA } = require("./ia-salud");
 
-        cliente.messages.create = async (...args) => {
-            try {
-                const respuesta = await crearOriginal(...args);
-                if (poolIA) registrarExitoIA(poolIA).catch(() => {});
-                return respuesta;
-            } catch (error) {
-                // Se anota y el error sigue su camino intacto: cada ruta
-                // decide como responderle a SU usuario.
-                if (poolIA) await registrarFalloIA(poolIA, error, "nexo_ia").catch(() => {});
-                throw error;
-            }
+        //
+        // IMPORTANTE: debe devolver la promesa ORIGINAL del SDK (no una
+        // funcion async nueva). messages.stream() llama internamente a
+        // create(...).withResponse(), y una promesa normal no tiene ese
+        // metodo: con la version async, Nexo IA en streaming fallaba siempre.
+        cliente.messages.create = (...args) => {
+            const llamada = crearOriginal(...args);
+            // Rama lateral que solo anota: el error original sigue intacto
+            // en `llamada`, que es lo que recibe quien la invoco.
+            llamada.then(
+                () => { if (poolIA) registrarExitoIA(poolIA).catch(() => {}); },
+                error => {
+                    // Se anota y el error sigue su camino: cada ruta decide
+                    // como responderle a SU usuario.
+                    if (poolIA) registrarFalloIA(poolIA, error, "nexo_ia").catch(() => {});
+                }
+            );
+            return llamada;
         };
 
         anthropicClient = cliente;
@@ -683,34 +691,38 @@ async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
         }
 
         case "resumen_creditos": {
+            // Mismo criterio que la pantalla Creditos: antiguedad FIFO por
+            // venta (credit-aging.js), no la fecha del cliente completo.
             const resultado = await pool.query(
                 `
-                SELECT
-                    COUNT(*) FILTER (WHERE saldo.monto > 0) AS clientes_con_adeudo,
-                    COUNT(*) FILTER (WHERE saldo.monto > 0 AND c.fecha_vencimiento < CURRENT_DATE) AS clientes_vencidos,
-                    COALESCE(SUM(saldo.monto) FILTER (WHERE saldo.monto > 0 AND c.fecha_vencimiento < CURRENT_DATE), 0) AS total_vencido
-                FROM public.clientes_credito c
-                LEFT JOIN LATERAL (
-                    SELECT COALESCE(SUM(
-                        CASE WHEN m.tipo = 'venta' THEN m.monto
-                             WHEN m.tipo = 'abono' THEN -m.monto
-                             ELSE 0 END
-                    ), 0) AS monto
-                    FROM public.movimientos_credito m
-                    WHERE m.cliente_id = c.id AND m.negocio_id = c.negocio_id
-                ) AS saldo ON true
+                SELECT m.cliente_id, m.id, m.tipo, m.monto, m.fecha, m.fecha_vencimiento
+                FROM public.movimientos_credito m
+                JOIN public.clientes_credito c ON c.id = m.cliente_id AND c.negocio_id = m.negocio_id
                 WHERE c.activo = true AND c.negocio_id = $1
                 `,
                 [negocioId]
             );
 
-            const fila = resultado.rows[0];
+            const porCliente = new Map();
+            for (const fila of resultado.rows) {
+                if (!porCliente.has(fila.cliente_id)) porCliente.set(fila.cliente_id, []);
+                porCliente.get(fila.cliente_id).push(fila);
+            }
 
-            return {
-                clientesConAdeudo: Number(fila.clientes_con_adeudo),
-                clientesVencidos: Number(fila.clientes_vencidos),
-                totalVencido: Number(fila.total_vencido)
-            };
+            let clientesConAdeudo = 0;
+            let clientesVencidos = 0;
+            let totalVencido = 0;
+
+            for (const movimientos of porCliente.values()) {
+                const antiguedad = calcularAntiguedadCredito(movimientos);
+                if (antiguedad.saldo > 0.0001) clientesConAdeudo++;
+                if (antiguedad.vencido) {
+                    clientesVencidos++;
+                    totalVencido += antiguedad.totalVencido;
+                }
+            }
+
+            return { clientesConAdeudo, clientesVencidos, totalVencido };
         }
 
         case "top_productos_vendidos": {
@@ -1621,3 +1633,6 @@ module.exports.buscarCandidatosPorTerminos = buscarCandidatosPorTerminos;
 // por plan, en vez de reimplementarlos.
 module.exports.obtenerAnthropic = obtenerAnthropic;
 module.exports.licenciaDelNegocio = licenciaDelNegocio;
+
+// Expuesto para probar las herramientas de datos sin llamar a Claude.
+module.exports.ejecutarHerramientaNexo = ejecutarHerramientaNexo;
