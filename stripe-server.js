@@ -1,9 +1,15 @@
 const { config } = require("./config");
 const { responderError } = require("./error-utils");
 const { listarPlanes, funcionesDelPlan } = require("./features");
-const { enviarCorreoPagoFallido, enviarCorreoPagoConfirmado } = require("./email");
+const {
+    enviarCorreoPagoFallido,
+    enviarCorreoPagoConfirmado,
+    enviarCorreoSuscripcionPilotoProgramada,
+    enviarCorreoAvisoPiloto
+} = require("./email");
+const { LLAVE_PRECIO_PILOTO, fechaLarga } = require("./piloto-condiciones");
 
-const NOMBRE_PLAN_LEGIBLE = { basico: "Basico", plus: "Plus", pro: "Pro" };
+const NOMBRE_PLAN_LEGIBLE = { basico: "Basico", plus: "Plus", pro: "Pro", prueba: "Piloto" };
 
 // Funciones del catalogo (migrations/20260716_catalogo_funciones_planes.sql)
 // que se destacan en la rejilla de planes de Cuenta -- curadas a mano,
@@ -490,6 +496,10 @@ async function procesarEventoStripe(pool, stripe, evento) {
                     `,
                     [sesion.subscription, sesion.customer]
                 );
+
+                if (sesion.metadata?.plan === "piloto") {
+                    await avisarSuscripcionPiloto(pool, sesion.customer);
+                }
             }
 
             break;
@@ -497,10 +507,30 @@ async function procesarEventoStripe(pool, stripe, evento) {
 
         case "invoice.paid": {
             const factura = evento.data.object;
-            const priceId = factura.lines?.data?.[0]?.price?.id || null;
+            const linea = factura.lines?.data?.[0];
+            const priceId = linea?.price?.id || null;
             const plan = priceId ? planPorPriceId(priceId) : null;
 
-            const licenciaRow = await pool.query(
+            // Cuota de los pilotos: el periodo lo marca Stripe. La factura de $0
+            // de la prueba termina el dia en que acaba la prueba; despues, cada
+            // mes. Asi pagar con anticipacion nunca acorta ni alarga la prueba.
+            const esPilotoFactura = linea?.price?.lookup_key === LLAVE_PRECIO_PILOTO && linea?.period?.end;
+
+            const licenciaRow = esPilotoFactura
+                ? await pool.query(
+                    `
+                    UPDATE public.licencias
+                    SET estado = 'activa',
+                        fecha_vencimiento = to_timestamp($2),
+                        ultimo_pago_at = CASE WHEN $4::bigint > 0 THEN NOW() ELSE ultimo_pago_at END,
+                        stripe_price_id = COALESCE($3, stripe_price_id),
+                        updated_at = NOW()
+                    WHERE stripe_customer_id = $1
+                    RETURNING negocio_id, plan
+                    `,
+                    [factura.customer, linea.period.end, priceId, factura.amount_paid || 0]
+                )
+                : await pool.query(
                 `
                 UPDATE public.licencias
                 SET estado = 'activa',
@@ -515,7 +545,8 @@ async function procesarEventoStripe(pool, stripe, evento) {
                 [factura.customer, priceId, plan]
             );
 
-            if (licenciaRow.rows.length > 0) {
+            // La factura de $0 de la prueba no es un pago: no se manda "pago confirmado".
+            if (licenciaRow.rows.length > 0 && !(esPilotoFactura && !(factura.amount_paid > 0))) {
                 const negocioRow = await pool.query(
                     `SELECT correo, nombre FROM public.negocios WHERE id = $1`,
                     [licenciaRow.rows[0].negocio_id]
@@ -641,6 +672,47 @@ async function procesarEventoStripe(pool, stripe, evento) {
     }
 }
 
+// Un piloto puso su tarjeta: se le confirma (y se le dice que hoy no se cobro
+// nada si su prueba sigue corriendo) y se avisa al dueno de Nexo.
+async function avisarSuscripcionPiloto(pool, stripeCustomerId) {
+    const fila = await pool.query(
+        `SELECT l.negocio_id, l.fecha_vencimiento, n.nombre, n.correo
+         FROM public.licencias l JOIN public.negocios n ON n.id = l.negocio_id
+         WHERE l.stripe_customer_id = $1 AND l.piloto = true
+         LIMIT 1`,
+        [stripeCustomerId]
+    );
+
+    const licencia = fila.rows[0];
+    if (!licencia) return;
+
+    await pool.query(
+        `UPDATE public.licencias SET decision_piloto = 'seguir', decision_piloto_at = NOW() WHERE negocio_id = $1`,
+        [licencia.negocio_id]
+    );
+
+    const hayPrueba = licencia.fecha_vencimiento && new Date(licencia.fecha_vencimiento) > new Date();
+
+    if (licencia.correo) {
+        await enviarCorreoSuscripcionPilotoProgramada({
+            correo: licencia.correo,
+            nombre: licencia.nombre,
+            fechaCobroTexto: hayPrueba ? fechaLarga(licencia.fecha_vencimiento) : "",
+            hayPrueba: Boolean(hayPrueba)
+        }).catch(() => {});
+    }
+
+    await enviarCorreoAvisoPiloto({
+        asunto: `Piloto decidio seguir: ${licencia.nombre}`,
+        titulo: "Un piloto decidio seguir con Nexo",
+        lineas: [
+            ["Negocio", licencia.nombre],
+            ["Correo", licencia.correo],
+            ["Primer cobro", hayPrueba ? fechaLarga(licencia.fecha_vencimiento) : "hoy"]
+        ]
+    }).catch(() => {});
+}
+
 function planPorPriceId(priceId) {
     const mapa = PRECIO_POR_PLAN();
     const entrada = Object.entries(mapa).find(([, valor]) => valor === priceId);
@@ -648,3 +720,6 @@ function planPorPriceId(priceId) {
 }
 
 module.exports.procesarEventoStripe = procesarEventoStripe;
+
+// Para que otros modulos (prueba-piloto-server.js) usen el mismo cliente de Stripe.
+module.exports.obtenerStripe = obtenerStripe;

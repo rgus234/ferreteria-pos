@@ -1089,7 +1089,78 @@ function enviarCorreoEnlaceInvitacion({ correo, nombre, enlace }) {
     });
 }
 
+// ----- Prueba de 45 dias: aviso de fin de prueba, decision y encuesta -----
+
+// Unos dias antes de que termine la prueba: pregunta como le fue y le dice que
+// decide en Nexo -> Cuenta. Sin cobros automaticos.
+function enviarCorreoFinPrueba({ correo, nombre, negocio, fechaFinTexto, diasRestantes, enlace }) {
+    const { CUOTA_MENSUAL_PILOTO } = require("./piloto-condiciones");
+    const nombreSeguro = escaparHtmlCorreo(nombre);
+    const dias = Number(diasRestantes);
+    const cuando = dias <= 1 ? "manana" : `en ${dias} dias`;
+
+    return enviarCorreo({
+        correo,
+        asunto: `Tu prueba de Nexo termina ${cuando}`,
+        html: envolverPlantilla({
+            etiqueta: "Tu prueba",
+            titulo: `Tu prueba termina el ${escaparHtmlCorreo(fechaFinTexto)}`,
+            saludo: `Hola ${nombreSeguro} 👋`,
+            robot: "feliz",
+            cuerpoHtml: `
+                <p style="margin:0 0 12px;color:#344054;font-size:15px;line-height:1.6;">Ya casi termina la prueba sin costo de Nexo en <strong>${escaparHtmlCorreo(negocio || "tu negocio")}</strong>. Nos encantaria saber <strong>como te ha parecido el sistema</strong>: que te ha servido y que te falta.</p>
+                <p style="margin:0 0 12px;color:#344054;font-size:15px;line-height:1.6;">Entra a Nexo, abre <strong>Cuenta &rarr; Tu prueba</strong> y cuentanos en menos de un minuto. Ahi mismo decides:</p>
+                <p style="margin:0 0 6px;color:#344054;font-size:15px;line-height:1.6;">&bull; <strong>Si quieres seguir</strong>: pones tu tarjeta y la cuota es de $${CUOTA_MENSUAL_PILOTO} al mes. No te cobramos nada antes del ${escaparHtmlCorreo(fechaFinTexto)}.</p>
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">&bull; <strong>Si no</strong>: no pagas nada y tus datos se conservan unos dias por si cambias de opinion.</p>
+                ${botonHtml("Abrir Nexo", enlace)}
+                ${avisoHtml("Nexo no cobra nada sin que tu lo decidas.")}
+            `
+        })
+    });
+}
+
+// Cuando pone su tarjeta: confirma que NO se cobro nada todavia y cuando sera el primer cobro.
+function enviarCorreoSuscripcionPilotoProgramada({ correo, nombre, fechaCobroTexto, hayPrueba }) {
+    const { CUOTA_MENSUAL_PILOTO } = require("./piloto-condiciones");
+
+    return enviarCorreo({
+        correo,
+        asunto: "Listo: seguiras con Nexo",
+        html: envolverPlantilla({
+            etiqueta: "Gracias",
+            titulo: "Gracias por quedarte con Nexo",
+            saludo: `Hola ${escaparHtmlCorreo(nombre)} 👋`,
+            robot: "celebrando",
+            cuerpoHtml: hayPrueba
+                ? `<p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Guardamos tu tarjeta. <strong>Hoy no se cobro nada</strong>: tu prueba sin costo sigue hasta el ${escaparHtmlCorreo(fechaCobroTexto)}. Ese dia se hara el primer cobro de $${CUOTA_MENSUAL_PILOTO} y despues el mismo dia de cada mes. Puedes cancelar cuando quieras desde Cuenta.</p>`
+                : `<p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Guardamos tu tarjeta y se hizo el primer cobro de $${CUOTA_MENSUAL_PILOTO}. Despues se cobrara el mismo dia de cada mes. Puedes cancelar cuando quieras desde Cuenta.</p>`
+        })
+    });
+}
+
+// Aviso para el dueno de Nexo: llego una encuesta o un piloto decidio.
+function enviarCorreoAvisoPiloto({ asunto, titulo, lineas }) {
+    const filas = (lineas || [])
+        .map(([etiqueta, valor]) => `<tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>${escaparHtmlCorreo(etiqueta)}:</strong> ${escaparHtmlCorreo(valor) || "-"}</td></tr>`)
+        .join("");
+
+    return enviarCorreo({
+        correo: CORREO_NOTIFICACIONES_LEADS,
+        asunto: escaparHtmlCorreo(asunto),
+        html: envolverPlantilla({
+            etiqueta: "Pilotos",
+            titulo: escaparHtmlCorreo(titulo),
+            saludo: "Novedad de un negocio en prueba.",
+            robot: "neutral",
+            cuerpoHtml: `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 6px;">${filas}</table>`
+        })
+    });
+}
+
 module.exports = {
+    enviarCorreoFinPrueba,
+    enviarCorreoSuscripcionPilotoProgramada,
+    enviarCorreoAvisoPiloto,
     enviarCorreoInvitacionPiloto,
     enviarCorreoEnlaceInvitacion,
     enviarCorreoVerificacion,

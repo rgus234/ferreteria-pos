@@ -114,7 +114,7 @@ function mostrarVistaAdmin(vista) {
   if (target === "ofertas-market") cargarBannersMarketAdmin();
   if (target === "catalogos") cargarCatalogosFabricante();
   if (target === "errores") cargarErroresAdmin();
-  if (target === "solicitudes") cargarSolicitudesAdmin();
+  if (target === "solicitudes") { cargarSolicitudesAdmin(); cargarPilotosAdmin(); }
 }
 
 function pintarMetricasAdmin(resumen) {
@@ -1556,7 +1556,7 @@ async function invitarSolicitudAdmin(id) {
   if (!solicitud) return;
 
   const confirmado = await confirmarAdmin(
-    `Se enviara una invitacion personal a ${solicitud.correo} para que ${solicitud.negocio || solicitud.nombre} configure su cuenta de prueba (todas las funciones, sin vencimiento). Si ya tenia un enlace, el anterior deja de servir.`,
+    `Se enviara una invitacion personal a ${solicitud.correo} para que ${solicitud.negocio || solicitud.nombre} configure su cuenta de prueba (todas las funciones, 45 dias sin costo). Si ya tenia un enlace, el anterior deja de servir.`,
     "Aceptar solicitud",
     "info"
   );
@@ -1587,6 +1587,99 @@ async function invitarSolicitudAdmin(id) {
   }
 
   cargarSolicitudesAdmin();
+}
+
+const ETIQUETA_FASE_PILOTO = {
+  prueba: { texto: "En prueba", clase: "trial" },
+  suscrito: { texto: "Suscrito", clase: "ok" },
+  gracia: { texto: "Prueba terminada (gracia)", clase: "warning" },
+  vencida: { texto: "Vencida", clase: "danger" }
+};
+
+const ETIQUETA_DECISION_PILOTO = {
+  seguir: { texto: "Quiere seguir", clase: "ok" },
+  no_por_ahora: { texto: "No por ahora", clase: "danger" }
+};
+
+async function cargarPilotosAdmin() {
+  const contenedor = document.getElementById("listaPilotosAdmin");
+  if (!contenedor) return;
+
+  try {
+    const data = await apiAdmin("/admin/api/pilotos");
+    const pilotos = data.pilotos || [];
+
+    if (!pilotos.length) {
+      contenedor.innerHTML = '<div class="empty">Todavia no hay negocios piloto.</div>';
+      return;
+    }
+
+    contenedor.innerHTML = pilotos.map(p => {
+      const fase = ETIQUETA_FASE_PILOTO[p.fase] || ETIQUETA_FASE_PILOTO.prueba;
+      const decision = p.decision ? ETIQUETA_DECISION_PILOTO[p.decision] : null;
+      const dias = p.diasRestantes === null ? "sin fecha" : (p.diasRestantes >= 0 ? p.diasRestantes + " dias restantes" : "vencio hace " + Math.abs(p.diasRestantes) + " dias");
+
+      return `
+      <div class="solicitud-fila">
+        <div class="solicitud-cabecera">
+          <div>
+            <strong>${escaparHTMLAdmin(p.nombre)}</strong>
+            <span>${escaparHTMLAdmin(p.correo || "")} &middot; negocio #${p.negocioId}</span>
+          </div>
+          <em class="pill ${fase.clase}">${fase.texto}</em>
+        </div>
+        <div class="solicitud-datos">
+          <span><b>Prueba:</b> ${dias}${p.fechaFinTexto ? " (termina el " + escaparHTMLAdmin(p.fechaFinTexto) + ")" : ""}</span>
+          <span><b>Aviso de fin:</b> ${p.avisadoAt ? fechaHoraCortaAdmin(p.avisadoAt) : "aun no"}</span>
+          <span><b>Encuesta:</b> ${p.encuestas ? p.promedio + " / 5 (" + p.encuestas + ")" : "sin responder"}</span>
+          ${decision ? '<span><b>Decision:</b> <em class="pill ' + decision.clase + '">' + decision.texto + "</em></span>" : ""}
+        </div>
+        <div class="solicitud-acciones">
+          ${p.encuestas ? '<button type="button" class="secondary" onclick="verEncuestasPilotoAdmin(' + p.negocioId + ')">Ver respuestas</button>' : ""}
+          <button type="button" class="secondary" onclick="extenderPilotoAdmin(${p.negocioId})">Extender prueba</button>
+        </div>
+      </div>`;
+    }).join("");
+  } catch (error) {
+    contenedor.innerHTML = `<div class="empty">${escaparHTMLAdmin(error.message || "No se pudieron cargar los pilotos.")}</div>`;
+  }
+}
+
+async function verEncuestasPilotoAdmin(negocioId) {
+  try {
+    const data = await apiAdmin("/admin/api/pilotos/" + negocioId + "/encuestas");
+    const texto = (data.encuestas || []).map(e =>
+      fechaHoraCortaAdmin(e.created_at) + " - " + e.calificacion + "/5\nLo mejor: " + (e.lo_mejor || "-") + "\nLe falta: " + (e.lo_que_falta || "-") + "\nSeguiria: " + (e.seguiria === null ? "no contesto" : e.seguiria ? "si" : "no")
+    ).join("\n\n");
+
+    await alertaAdmin(texto || "Sin respuestas.", "Encuesta del piloto", "info");
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo cargar la encuesta.", "Error", "peligro");
+  }
+}
+
+async function extenderPilotoAdmin(negocioId) {
+  const respuesta = window.prompt("Cuantos dias quieres extenderle la prueba? (1 a 120)", "15");
+  if (respuesta === null) return;
+
+  const dias = Number(respuesta);
+
+  if (!Number.isInteger(dias) || dias < 1 || dias > 120) {
+    await alertaAdmin("Escribe un numero de dias entre 1 y 120.", "Dato invalido", "alerta");
+    return;
+  }
+
+  try {
+    await apiAdmin("/admin/api/pilotos/" + negocioId + "/extender", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dias })
+    });
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo extender.", "Error", "peligro");
+  }
+
+  cargarPilotosAdmin();
 }
 
 async function descartarSolicitudAdmin(id) {

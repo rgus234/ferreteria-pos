@@ -6,6 +6,9 @@ const DIAS_PRUEBA_PILOTO = 45;
 const CUOTA_MENSUAL_PILOTO = 100;
 const DIAS_AVISO_FIN_PRUEBA = 7;
 
+// Identifica el precio de la cuota en Stripe (se crea solo si no existe).
+const LLAVE_PRECIO_PILOTO = "nexo_piloto_mensual";
+
 // Lo que cubre la cuota, tal cual se le explica a la persona.
 const QUE_CUBRE_CUOTA =
     "el servidor y la base de datos donde se guardan tu inventario, tus ventas y tus créditos, " +
@@ -41,6 +44,7 @@ module.exports = {
     DIAS_PRUEBA_PILOTO,
     CUOTA_MENSUAL_PILOTO,
     DIAS_AVISO_FIN_PRUEBA,
+    LLAVE_PRECIO_PILOTO,
     QUE_CUBRE_CUOTA,
     sumarDias,
     fechaLarga,

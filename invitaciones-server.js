@@ -827,8 +827,8 @@ module.exports = (app, pool) => {
 
             await client.query(
                 `INSERT INTO public.licencias
-                    (negocio_id, license_key, estado, plan, fecha_vencimiento, gracia_dias, monto_mensual, notas, updated_at)
-                 VALUES ($1, $2, 'activa', 'prueba', NOW() + make_interval(days => $4::int), 15, 0, $3, NOW())`,
+                    (negocio_id, license_key, estado, plan, fecha_vencimiento, gracia_dias, monto_mensual, notas, piloto, updated_at)
+                 VALUES ($1, $2, 'activa', 'prueba', NOW() + make_interval(days => $4::int), 15, 0, $3, true, NOW())`,
                 [negocio.id, await licenciaUnica(client), `Piloto por invitacion. Contacto: ${nombreContacto || inv.nombre}`, DIAS_PRUEBA_PILOTO]
             );
 

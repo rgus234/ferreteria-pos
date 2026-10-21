@@ -188,6 +188,8 @@ function renderCuentaPOS(negocio, licencia) {
 
   <div class="cuenta-tab-panel activo" data-cuenta-panel="resumen">
    <div class="cuenta-tarjetas">
+    <section class="config-panel cuenta-tarjeta cuenta-tarjeta-ancha prueba-piloto-tarjeta" id="cuentaPruebaPiloto" style="display:none;"></section>
+
     <section class="config-panel cuenta-tarjeta">
      <h3>Tu cuenta</h3>
      <div class="cuenta-datos-grid">
@@ -322,6 +324,7 @@ function renderCuentaPOS(negocio, licencia) {
  }
 
  cargarComparativaPlanes(licencia);
+ cargarPruebaPilotoCuenta();
 }
 
 async function cargarComparativaPlanes(licencia) {
@@ -914,5 +917,163 @@ async function cerrarTodasSesionesCuenta() {
   mostrarCuenta();
  } catch (error) {
   await alertaPOS("No se pudo conectar. Revisa tu internet e intenta de nuevo.", "Sin conexion", "alerta");
+ }
+}
+
+// ----- Tu prueba (negocios piloto): dias que quedan, encuesta y decision de seguir.
+
+let estadoPruebaPilotoCache = null;
+
+async function cargarPruebaPilotoCuenta() {
+ const contenedor = document.getElementById("cuentaPruebaPiloto");
+ if (!contenedor) return;
+
+ try {
+  const respuesta = await fetch("/prueba-piloto/estado");
+  const datos = await respuesta.json();
+
+  if (!datos.ok || !datos.esPiloto) {
+   contenedor.style.display = "none";
+   return;
+  }
+
+  estadoPruebaPilotoCache = datos;
+  contenedor.style.display = "";
+  contenedor.innerHTML = renderPruebaPilotoCuenta(datos);
+ } catch (error) {
+  contenedor.style.display = "none";
+ }
+}
+
+function renderPruebaPilotoCuenta(p) {
+ const cuota = p.cuota || 100;
+ const dias = p.diasRestantes;
+
+ if (p.fase === "suscrito") {
+  return `
+  <h3>Tu suscripcion Nexo</h3>
+  <div class="cuenta-estado-pill cuenta-pill-normal">Activa</div>
+  <p class="cuenta-subtitulo" style="margin-bottom:12px;">Gracias por quedarte con Nexo. Tu cuota es de $${cuota} al mes${p.fechaFinTexto ? ` y tu siguiente cobro es el ${escaparPOS(p.fechaFinTexto)}` : ""}.</p>
+  <div class="cuenta-suscripcion-acciones">
+   <button type="button" onclick="abrirPortalSuscripcionCuenta()">Gestionar pago y facturas</button>
+  </div>`;
+ }
+
+ const vencida = p.fase === "gracia" || p.fase === "vencida";
+ const titulo = vencida ? "Tu prueba ya termino" : "Tu prueba";
+ const grande = vencida
+  ? "Prueba terminada"
+  : `${dias} dia${dias === 1 ? "" : "s"} restante${dias === 1 ? "" : "s"}`;
+ const detalle = vencida
+  ? "Tus datos siguen guardados. Si quieres seguir, activa tu suscripcion y todo vuelve a funcionar como antes."
+  : `Termina el ${escaparPOS(p.fechaFinTexto || "")}. Es sin costo y no necesitas tarjeta. Si decides seguir, la cuota es de $${cuota} al mes y no se cobra nada antes de esa fecha.`;
+
+ const encuesta = p.encuestaRespondida
+  ? `<p class="prueba-gracias">Gracias por tus comentarios. Si quieres agregar algo mas, escribenos con el boton Contactar.</p>`
+  : `
+  <div class="prueba-encuesta">
+   <h4>Cuentanos como te ha ido</h4>
+   <div class="prueba-estrellas" id="pruebaEstrellas" role="radiogroup" aria-label="Calificacion de 1 a 5">
+    ${[1, 2, 3, 4, 5].map(n => `<button type="button" data-valor="${n}" onclick="elegirCalificacionPrueba(${n})" aria-label="${n} de 5">&#9733;</button>`).join("")}
+   </div>
+   <textarea id="pruebaLoMejor" maxlength="1000" placeholder="Que es lo que mas te ha servido?"></textarea>
+   <textarea id="pruebaLoQueFalta" maxlength="1000" placeholder="Que te falta o que te estorba?"></textarea>
+   <label class="prueba-seguiria"><input type="checkbox" id="pruebaSeguiria"> Creo que si seguiria usando Nexo</label>
+   <button type="button" class="btn-principal" onclick="enviarEncuestaPrueba()">Enviar</button>
+   <div class="prueba-mensaje" id="pruebaMensaje" aria-live="polite"></div>
+  </div>`;
+
+ return `
+ <h3>${titulo}</h3>
+ <div class="prueba-contador ${vencida ? "prueba-contador-fin" : ""}">${grande}</div>
+ ${vencida ? "" : `<div class="prueba-barra" aria-hidden="true"><span style="width:${Number(p.progreso) || 0}%"></span></div>`}
+ <p class="cuenta-subtitulo" style="margin:10px 0 14px;">${detalle}</p>
+ ${encuesta}
+ <div class="prueba-decision">
+  <button type="button" class="btn-principal" onclick="decidirSeguirPrueba()">Quiero seguir ($${cuota} al mes)</button>
+  ${p.decision === "no_por_ahora" ? "" : `<button type="button" class="cuenta-link-boton" onclick="decidirNoPorAhoraPrueba()">No por ahora</button>`}
+ </div>
+ <p class="cuenta-subtitulo" style="margin:10px 0 0;font-size:12px;">Los $${cuota} al mes cubren lo que cuesta mantener tu sistema: el servidor y la base de datos, las preguntas a Nexo IA y el almacenamiento de fotos. Puedes cancelar cuando quieras.</p>`;
+}
+
+let calificacionPruebaElegida = 0;
+
+function elegirCalificacionPrueba(valor) {
+ calificacionPruebaElegida = valor;
+ document.querySelectorAll("#pruebaEstrellas button").forEach(boton => {
+  boton.classList.toggle("activa", Number(boton.dataset.valor) <= valor);
+ });
+}
+
+async function enviarEncuestaPrueba() {
+ const mensaje = document.getElementById("pruebaMensaje");
+
+ if (!calificacionPruebaElegida) {
+  if (mensaje) mensaje.textContent = "Elige de 1 a 5 estrellas.";
+  return;
+ }
+
+ try {
+  const respuesta = await fetch("/prueba-piloto/encuesta", {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({
+    calificacion: calificacionPruebaElegida,
+    loMejor: document.getElementById("pruebaLoMejor")?.value || "",
+    loQueFalta: document.getElementById("pruebaLoQueFalta")?.value || "",
+    seguiria: Boolean(document.getElementById("pruebaSeguiria")?.checked)
+   })
+  });
+  const datos = await respuesta.json();
+
+  if (!datos.ok) throw new Error(datos.error || "No se pudo enviar");
+
+  await alertaPOS("Gracias, esto nos ayuda muchisimo a mejorar Nexo.", "Encuesta enviada", "exito");
+  cargarPruebaPilotoCuenta();
+ } catch (error) {
+  if (mensaje) mensaje.textContent = error.message || "No se pudo enviar. Intenta de nuevo.";
+ }
+}
+
+async function decidirSeguirPrueba() {
+ if (!cuentaSesionToken()) {
+  await alertaPOS("Inicia sesion con tu correo y contrasena para activar tu suscripcion.", "Sesion requerida", "alerta");
+  return;
+ }
+
+ try {
+  const datos = await cuentaFetchAutenticado("/prueba-piloto/decision", {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ decision: "seguir" })
+  });
+
+  if (!datos.ok) throw new Error(datos.error || "No se pudo iniciar el pago");
+
+  window.location.href = datos.url;
+ } catch (error) {
+  await alertaPOS(error.message || "No se pudo iniciar el pago.", "Error", "alerta");
+ }
+}
+
+async function decidirNoPorAhoraPrueba() {
+ if (!cuentaSesionToken()) {
+  await alertaPOS("Inicia sesion con tu correo y contrasena para responder.", "Sesion requerida", "alerta");
+  return;
+ }
+
+ try {
+  const datos = await cuentaFetchAutenticado("/prueba-piloto/decision", {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ decision: "no_por_ahora" })
+  });
+
+  if (!datos.ok) throw new Error(datos.error || "No se pudo guardar");
+
+  await alertaPOS("Anotado. No te cobraremos nada. Si cambias de opinion, aqui mismo puedes activar tu suscripcion.", "Gracias", "info");
+  cargarPruebaPilotoCuenta();
+ } catch (error) {
+  await alertaPOS(error.message || "No se pudo guardar.", "Error", "alerta");
  }
 }

@@ -218,6 +218,7 @@ test("configurar crea la cuenta: licencia de prueba a 45 dias, correo verificado
     const diasDePrueba = (new Date(licencia.fecha_vencimiento) - Date.now()) / 86400000;
     assert.ok(diasDePrueba > 44.9 && diasDePrueba <= 45, `la prueba dura 45 dias (quedan ${diasDePrueba})`);
     assert.equal(licencia.gracia_dias, 15);
+    assert.equal(licencia.piloto, true, "queda marcado como piloto para el seguimiento de la prueba");
     assert.match(licencia.license_key, /^NXP-/);
 
     const giros = await pool.query(`SELECT giro FROM public.negocio_giros WHERE negocio_id = $1 AND activo`, [negocio.id]);
