@@ -2674,7 +2674,7 @@ async function planDelNegocioDueno() {
 function htmlAccionesClienteCreditoDueno(datos) {
     const cliente = datos.cliente;
     const puedeGestionar = duenoTienePermiso("gestionar_credito");
-    const puedeRecordar = cliente.vencido && ["pro", "demo"].includes(duenoPlanNegocioCache || "");
+    const puedeRecordar = cliente.vencido && ["pro", "prueba", "demo"].includes(duenoPlanNegocioCache || "");
 
     if (!puedeGestionar && !puedeRecordar) return "";
 

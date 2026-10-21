@@ -610,7 +610,7 @@ function cerrarDetalleEncargo() {
 // cliente lleva rato esperando sin noticias (vencido).
 function puedeAvisarPorWhatsAppEncargo(encargo) {
  const planPermitido =
- ["pro", "demo"].includes(typeof estadoLicenciaNexoPOS !== "undefined" ? estadoLicenciaNexoPOS?.plan : null);
+ ["pro", "prueba", "demo"].includes(typeof estadoLicenciaNexoPOS !== "undefined" ? estadoLicenciaNexoPOS?.plan : null);
 
  return planPermitido && (encargo.estado === "listo" || esEncargoVencido(encargo));
 }

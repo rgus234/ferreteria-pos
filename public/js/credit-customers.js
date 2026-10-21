@@ -375,7 +375,7 @@ function renderCreditoDetalleExtra() {
 
  const accionWhatsapp = document.getElementById("creditoAccionWhatsapp");
  if (accionWhatsapp) {
- const planPermitido = ["pro", "demo"].includes(estadoLicenciaNexoPOS?.plan);
+ const planPermitido = ["pro", "prueba", "demo"].includes(estadoLicenciaNexoPOS?.plan);
  accionWhatsapp.innerHTML = (planPermitido && aging && aging.vencido)
  ? `<button class="btn-whatsapp-recordatorio" type="button" onclick="enviarRecordatorioCreditoWhatsApp()">Recordar por WhatsApp</button>`
  : "";
