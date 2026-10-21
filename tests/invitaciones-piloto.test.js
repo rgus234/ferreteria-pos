@@ -4,7 +4,7 @@
 // Lo que se protege:
 //  - solo el admin acepta/descarta solicitudes;
 //  - el token no se guarda en claro y el enlace es de un solo uso para configurar;
-//  - la cuenta nace con licencia de prueba SIN vencimiento, correo ya verificado,
+//  - la cuenta nace con licencia de prueba que vence a los 45 dias, correo ya verificado,
 //    y el correo SIEMPRE es el de la invitacion (nunca el que mande el cliente);
 //  - despues de configurar, el mismo enlace solo muestra la descarga y nunca
 //    vuelve a pedir datos (configurar en el celular, abrir en la PC);
@@ -158,6 +158,11 @@ test("la pagina de la invitacion muestra los datos ya cargados y no se indexa", 
     assert.match(html, /id="invCorreo"[^>]*readonly/);
     assert.match(html, /id="invForm"/);
     assert.doesNotMatch(html, /Descargar Nexo para Windows/, "antes de configurar no se ofrece la descarga");
+    assert.match(html, /Cómo funciona la prueba/);
+    assert.match(html, /45 días sin costo/);
+    assert.ok(html.includes("$100 al mes"), "cuota mensual");
+    assert.match(html, /base de datos/);
+    assert.match(html, /Ejemplo:/);
 });
 
 test("enlaces inventados, mal formados o ajenos no sirven", async () => {
@@ -187,7 +192,7 @@ test("configurar valida contrasena y terminos", async () => {
     assert.equal(nada.rows[0].n, 0, "ninguna validacion fallida crea cuenta");
 });
 
-test("configurar crea la cuenta: licencia de prueba sin vencimiento, correo verificado y el correo de la invitacion", async () => {
+test("configurar crea la cuenta: licencia de prueba a 45 dias, correo verificado y el correo de la invitacion", async () => {
     const { token, id, correo } = global.__flujo;
 
     // Aunque el cliente intente mandar OTRO correo o un plan, se ignoran.
@@ -210,7 +215,9 @@ test("configurar crea la cuenta: licencia de prueba sin vencimiento, correo veri
     const licencia = (await pool.query(`SELECT * FROM public.licencias WHERE negocio_id = $1`, [negocio.id])).rows[0];
     assert.equal(licencia.plan, "prueba");
     assert.equal(licencia.estado, "activa");
-    assert.equal(licencia.fecha_vencimiento, null, "sin vencimiento");
+    const diasDePrueba = (new Date(licencia.fecha_vencimiento) - Date.now()) / 86400000;
+    assert.ok(diasDePrueba > 44.9 && diasDePrueba <= 45, `la prueba dura 45 dias (quedan ${diasDePrueba})`);
+    assert.equal(licencia.gracia_dias, 15);
     assert.match(licencia.license_key, /^NXP-/);
 
     const giros = await pool.query(`SELECT giro FROM public.negocio_giros WHERE negocio_id = $1 AND activo`, [negocio.id]);
@@ -250,6 +257,8 @@ test("ya configurado, el mismo enlace SOLO muestra la descarga: nunca vuelve a p
     assert.ok(html.includes(correo), "recuerda con que correo iniciar sesion");
     assert.doesNotMatch(html, /id="invForm"|type="password"/, "no pide ninguna informacion");
     assert.match(html, /id="bloqueMovil"/, "trae el bloque para quien abre desde el celular");
+    assert.match(html, /Tu prueba sin costo termina el/, "muestra SU fecha de fin de prueba");
+    assert.ok(html.includes("$100"), "cuota mensual");
 });
 
 test("enviar el enlace por correo: solo se anuncia si el correo salio (aqui no hay llave: 502)", async () => {

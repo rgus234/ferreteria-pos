@@ -211,3 +211,33 @@ test("la pagina de Nexo IA se sirve y muestra su estado", async () => {
     assert.match(respuesta.cuerpo, /estado-beta/);
     assert.match(respuesta.cuerpo, /Participa en las pruebas/);
 });
+
+test("la pagina explica la prueba: dias, cuota, para que es el dinero y un ejemplo (mismo texto que el correo)", () => {
+    const { DIAS_PRUEBA_PILOTO, CUOTA_MENSUAL_PILOTO, QUE_CUBRE_CUOTA, ejemploCondiciones } = require("../piloto-condiciones");
+    const ej = ejemploCondiciones();
+    const seccion = inicio.match(/<section id="prueba"[\s\S]*?<\/section>/);
+
+    assert.ok(seccion, "falta la seccion #prueba");
+    assert.ok(seccion[0].includes(`${DIAS_PRUEBA_PILOTO} días sin costo`), "dias de prueba");
+    assert.ok(seccion[0].includes(`$${CUOTA_MENSUAL_PILOTO} al mes`), "cuota mensual");
+    assert.ok(seccion[0].includes(QUE_CUBRE_CUOTA), "para que es el dinero");
+    assert.ok(seccion[0].includes(ej.inicio) && seccion[0].includes(ej.fin), "ejemplo con fechas");
+    assert.match(seccion[0], /no pagas nada/i, "si no quiere seguir, no paga");
+    assert.match(seccion[0], /Te avisamos antes de que termine/);
+});
+
+test("el correo de invitacion y el de confirmacion traen las mismas condiciones y ya no hablan de planes ni PDF", () => {
+    const correo = fs.readFileSync(path.join(__dirname, "..", "email.js"), "utf8");
+    const bloque = correo.match(/function condicionesPilotoHtml\(\)[\s\S]*?\n}\r?\n/);
+    assert.ok(bloque, "falta condicionesPilotoHtml");
+    assert.match(bloque[0], /DIAS_PRUEBA_PILOTO/);
+    assert.ok(bloque[0].includes("$${CUOTA_MENSUAL_PILOTO} al mes"), "cuota mensual");
+    assert.match(bloque[0], /Ejemplo:/);
+
+    const invitacion = correo.match(/function enviarCorreoInvitacionPiloto\([\s\S]*?\n}\r?\n/)[0];
+    assert.match(invitacion, /condicionesPilotoHtml\(\)/);
+
+    const confirmacion = correo.match(/async function enviarCorreoConfirmacionLead\([\s\S]*?\n}\r?\n/)[0];
+    assert.match(confirmacion, /condicionesPilotoHtml\(\)/);
+    assert.doesNotMatch(confirmacion, /cajaPreciosFundadorHtml|generarFichaInformativaPdf|planes y precios/);
+});

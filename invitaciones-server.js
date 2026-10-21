@@ -3,6 +3,14 @@ const { responderError } = require("./error-utils");
 const { normalizarSlug, SUBDOMINIOS_RESERVADOS } = require("./tenant");
 const { hashPassword } = require("./password-utils");
 const { enviarCorreoInvitacionPiloto, enviarCorreoEnlaceInvitacion } = require("./email");
+const {
+    DIAS_PRUEBA_PILOTO,
+    CUOTA_MENSUAL_PILOTO,
+    QUE_CUBRE_CUOTA,
+    ejemploCondiciones,
+    fechaFinPrueba,
+    fechaLarga
+} = require("./piloto-condiciones");
 
 // Invitaciones a negocios piloto.
 //
@@ -160,6 +168,8 @@ function envoltura({ titulo, cuerpo, script = "" }) {
 .inv-bloque { margin-top: 18px; padding: 18px; border: 1px solid var(--line); border-radius: 20px; background: var(--glass); }
 .inv-bloque h2 { font-size: 19px; margin-bottom: 8px; }
 .inv-bloque p { color: var(--muted); font-weight: 700; line-height: 1.5; margin-bottom: 10px; }
+.inv-lista { margin: 0 0 12px; padding-left: 20px; color: var(--muted); font-weight: 700; line-height: 1.55; }
+.inv-lista li { margin-bottom: 6px; }
 .inv-acciones { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .inv-acciones .btn { cursor: pointer; border: 0; }
 .inv-solo-lectura { background: rgba(20, 32, 51, .06) !important; }
@@ -189,6 +199,27 @@ function paginaEnlaceInvalido(mensaje) {
     });
 }
 
+// Condiciones de la prueba. Con `inicioReal` (cuenta ya configurada) muestra las
+// fechas de esa persona; sin el, un ejemplo fijo y facil de seguir.
+function bloqueCondiciones(inicioReal) {
+    const ej = ejemploCondiciones();
+    const ejemplo = inicioReal
+        ? `Tu prueba sin costo termina el <strong>${escapar(fechaLarga(fechaFinPrueba(inicioReal)))}</strong>. Si decides seguir, tu primer cobro de $${CUOTA_MENSUAL_PILOTO} sería ese día y después el mismo día de cada mes.`
+        : `<strong>Ejemplo:</strong> si configuras tu negocio el ${ej.inicio}, pruebas sin costo hasta el ${ej.fin}. Si decides seguir, tu primer cobro de $${CUOTA_MENSUAL_PILOTO} sería el ${ej.fin} y después el día ${ej.diaCobro} de cada mes.`;
+
+    return `
+<div class="inv-bloque" id="invCondiciones">
+  <h2>Cómo funciona la prueba</h2>
+  <ul class="inv-lista">
+    <li>Son <strong>${DIAS_PRUEBA_PILOTO} días sin costo</strong>, contados desde que configuras tu negocio. No necesitas tarjeta para empezar.</li>
+    <li>Unos días antes de que termine te avisamos por correo y te preguntamos cómo te fue.</li>
+    <li>Si decides seguir, la cuota es de <strong>$${CUOTA_MENSUAL_PILOTO} al mes</strong>. Ese dinero cubre lo que cuesta mantener tu sistema: ${QUE_CUBRE_CUOTA}.</li>
+    <li>Si no quieres seguir, no pagas nada.</li>
+  </ul>
+  <p class="inv-ayuda">${ejemplo}</p>
+</div>`;
+}
+
 function paginaPendiente(inv, token) {
     const opcionesGiro = GIROS.map(g =>
         `<option value="${g.valor}"${g.valor === inv.giro ? " selected" : ""}>${g.etiqueta}</option>`
@@ -200,6 +231,7 @@ function paginaPendiente(inv, token) {
 <p class="inv-saludo">Invitación a las pruebas</p>
 <h1>Hola ${escapar(inv.nombre)} 👋</h1>
 <p class="inv-lead">Los desarrolladores de Nexo aceptaron tu participación en las pruebas. Configura tu negocio: tus datos ya vienen cargados, solo revísalos y elige tu contraseña.</p>
+${bloqueCondiciones()}
 
 <form class="lead-form" id="invForm" data-token="${escapar(token)}">
   <label>Nombre del negocio<input id="invNegocio" type="text" value="${escapar(inv.negocio)}" maxlength="140" required></label>
@@ -290,6 +322,7 @@ function paginaConfigurada(inv, token, instalador) {
 <p class="inv-saludo">Invitación a las pruebas</p>
 <h1>Tu negocio ya está configurado ✓</h1>
 <p class="inv-lead">Hola ${escapar(inv.nombre)}: solo falta instalar Nexo e iniciar sesión. No tienes que volver a escribir tus datos.</p>
+${bloqueCondiciones(inv.configurada_at)}
 
 <div class="inv-bloque" id="bloqueWindows">
   <h2>1. Descarga Nexo en tu computadora</h2>
@@ -795,8 +828,8 @@ module.exports = (app, pool) => {
             await client.query(
                 `INSERT INTO public.licencias
                     (negocio_id, license_key, estado, plan, fecha_vencimiento, gracia_dias, monto_mensual, notas, updated_at)
-                 VALUES ($1, $2, 'activa', 'prueba', NULL, 15, 0, $3, NOW())`,
-                [negocio.id, await licenciaUnica(client), `Piloto por invitacion. Contacto: ${nombreContacto || inv.nombre}`]
+                 VALUES ($1, $2, 'activa', 'prueba', NOW() + make_interval(days => $4::int), 15, 0, $3, NOW())`,
+                [negocio.id, await licenciaUnica(client), `Piloto por invitacion. Contacto: ${nombreContacto || inv.nombre}`, DIAS_PRUEBA_PILOTO]
             );
 
             await client.query(

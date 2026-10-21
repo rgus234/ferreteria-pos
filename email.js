@@ -519,31 +519,21 @@ function cajaPreciosFundadorHtml() {
 async function enviarCorreoConfirmacionLead(correo, nombre) {
     const nombreSeguro = escaparHtmlCorreo(nombre);
 
-    let adjuntos = [];
-    try {
-        const pdfBytes = await generarFichaInformativaPdf();
-        adjuntos = [{ filename: "Nexo-ficha-informativa.pdf", content: pdfBytes }];
-    } catch (error) {
-        // Un PDF que no se pudo generar no debe tumbar la confirmacion
-        // -- se manda el correo igual, solo sin el adjunto.
-        console.warn("No se pudo generar la ficha informativa en PDF", error.message);
-    }
-
     return enviarCorreo({
         correo,
         asunto: "Recibimos tu solicitud -- Nexo POS",
         html: envolverPlantilla({
             etiqueta: "Gracias por tu interes",
             titulo: `Ya recibimos tu solicitud, ${nombreSeguro}`,
-            saludo: "Te contactamos muy pronto por WhatsApp o correo.",
+            saludo: "Te respondemos muy pronto por WhatsApp o correo.",
             robot: "feliz",
             cuerpoHtml: `
-                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Gracias por tu interes en Nexo, el sistema de punto de venta pensado para ferreterias: mostrador, inventario, credito y reportes en un solo lugar. Mientras te contactamos, te dejamos adjunta una ficha con el detalle de planes y precios.</p>
+                <p style="margin:0 0 12px;color:#344054;font-size:15px;line-height:1.6;">Gracias por tu interes en Nexo, el sistema de punto de venta pensado para ferreterias: mostrador, inventario, credito y reportes en un solo lugar. Nexo esta en etapa de pruebas con negocios reales.</p>
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Si tu negocio puede participar, te mandaremos un enlace personal para configurarlo. Asi funciona la prueba:</p>
+                ${condicionesPilotoHtml()}
                 ${botonHtml("Hablar ahora por WhatsApp", WHATSAPP_LEAD_INFO)}
-            `,
-            cajaHtml: cajaPreciosFundadorHtml()
-        }),
-        attachments: adjuntos
+            `
+        })
     });
 }
 
@@ -1039,6 +1029,23 @@ function enviarCorreoAlertaError({ esNuevo, veces, ruta, negocioId, mensaje, sta
 // Invitacion a un negocio piloto: la manda el admin al aceptar una solicitud de
 // participacion. El enlace es personal, sirve para configurar la cuenta una sola
 // vez y vence (ver invitaciones-server.js).
+// Condiciones de la prueba (mismas que la pagina del enlace y la pagina publica).
+function condicionesPilotoHtml() {
+    const { DIAS_PRUEBA_PILOTO, CUOTA_MENSUAL_PILOTO, QUE_CUBRE_CUOTA, ejemploCondiciones } = require("./piloto-condiciones");
+    const ej = ejemploCondiciones();
+    const p = "margin:0 0 8px;color:#344054;font-size:14px;line-height:1.6;";
+
+    return `
+        <div style="margin:18px 0 0;padding:16px 18px;border:1px solid #d0d5dd;border-radius:14px;background:#f8fafc;">
+            <p style="margin:0 0 10px;color:#101828;font-size:15px;font-weight:700;">Como funciona la prueba</p>
+            <p style="${p}">&bull; Son <strong>${DIAS_PRUEBA_PILOTO} dias sin costo</strong>, contados desde que configuras tu negocio. No necesitas tarjeta para empezar.</p>
+            <p style="${p}">&bull; Unos dias antes de que termine te avisamos por correo y te preguntamos como te fue.</p>
+            <p style="${p}">&bull; Si decides seguir, la cuota es de <strong>$${CUOTA_MENSUAL_PILOTO} al mes</strong>. Ese dinero cubre lo que cuesta mantener tu sistema: ${QUE_CUBRE_CUOTA.normalize("NFD").replace(/[̀-ͯ]/g, "")}.</p>
+            <p style="${p}">&bull; Si no quieres seguir, no pagas nada.</p>
+            <p style="margin:0;color:#475467;font-size:13px;line-height:1.6;"><strong>Ejemplo:</strong> si configuras tu negocio el ${ej.inicio}, pruebas sin costo hasta el ${ej.fin}. Si decides seguir, tu primer cobro de $${CUOTA_MENSUAL_PILOTO} seria el ${ej.fin} y despues el dia ${ej.diaCobro} de cada mes.</p>
+        </div>`;
+}
+
 function enviarCorreoInvitacionPiloto({ correo, nombre, negocio, enlace, vigenciaDias }) {
     const nombreSeguro = escaparHtmlCorreo(nombre);
     const negocioSeguro = escaparHtmlCorreo(negocio || "tu negocio");
@@ -1055,6 +1062,7 @@ function enviarCorreoInvitacionPiloto({ correo, nombre, negocio, enlace, vigenci
                 <p style="margin:0 0 12px;color:#344054;font-size:15px;line-height:1.6;">Los desarrolladores de Nexo revisamos tu solicitud para <strong>${negocioSeguro}</strong> y nos da gusto invitarte a probar Nexo.</p>
                 <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Configura tu negocio en un par de minutos (tus datos ya vienen cargados; solo eliges tu contrasena). Despues podras descargar Nexo e iniciar sesion.</p>
                 ${botonHtml("Configurar mi negocio", enlace)}
+                ${condicionesPilotoHtml()}
                 ${avisoHtml(`Este enlace es personal y vence en ${vigenciaDias} dias. Nexo se instala en una computadora con Windows: puedes configurar tu negocio desde el celular y descargar el programa despues desde tu computadora.`)}
             `
         })

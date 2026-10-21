@@ -2479,3 +2479,83 @@ footer nav {
     overflow-x: visible;
   }
 }
+
+/* Como funciona la prueba (condiciones del piloto) */
+.prueba-piloto {
+  padding: clamp(50px, 7vw, 96px) clamp(18px, 6vw, 88px);
+}
+
+.prueba-piloto-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.prueba-piloto-pasos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: paso;
+  display: grid;
+  gap: 14px;
+}
+
+.prueba-piloto-pasos li {
+  counter-increment: paso;
+  position: relative;
+  padding: 18px 18px 18px 64px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--glass);
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.prueba-piloto-pasos li::before {
+  content: counter(paso);
+  position: absolute;
+  left: 18px;
+  top: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 800;
+}
+
+.prueba-piloto-pasos strong {
+  color: var(--ink);
+}
+
+.prueba-piloto-caja {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.prueba-piloto-caja h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.prueba-piloto-caja p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.prueba-piloto-caja p:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 820px) {
+  .prueba-piloto-grid {
+    grid-template-columns: 1fr;
+  }
+}
