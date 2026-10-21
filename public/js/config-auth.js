@@ -503,6 +503,11 @@ function guardarConfiguracionNegocioDesdeServidor(negocio) {
  fechaConfiguracion: new Date().toISOString()
  };
 
+ // Equipo de ESTA computadora (lo elige el asistente de inicio o Configuracion).
+ for (const clave of ["usaLector", "imprimirAutomatico", "abrirCajonDespuesTicket"]) {
+ if (actual[clave] !== undefined) configuracionReconstruida[clave] = actual[clave];
+ }
+
  localStorage.setItem(
  CONFIG_NEGOCIO_KEY,
  JSON.stringify(configuracionReconstruida)
@@ -1426,6 +1431,7 @@ function ocultarPantallasPrincipales() {
  "pantallaListasProducto",
  "pantallaExhibidores",
  "pantallaFotosSugeridas",
+ "pantallaCargaInventario",
  "pantallaExplorarNexo",
  "pantallaRecepcionInteligente",
  "pantallaCodigosBarras",
@@ -1602,6 +1608,7 @@ function valorTicketFormulario(config = configuracionNegocio() || {}) {
  mostrarIvaTicket: checkConfigCampo("configMostrarIvaTicket", config.mostrarIvaTicket === true),
  impresoraNombre: valorConfigCampo("configImpresoraNombre", config.impresoraNombre || "").trim(),
  impresionSilenciosa: checkConfigCampo("configImpresionSilenciosa", config.impresionSilenciosa === true),
+ usaLector: checkConfigCampo("configUsaLector", config.usaLector !== false),
  imprimirAutomatico: checkConfigCampo("configImprimirAutomatico", config.imprimirAutomatico !== false),
  abrirCajonDespuesTicket: checkConfigCampo("configAbrirCajonDespuesTicket", config.abrirCajonDespuesTicket === true),
  abrirCajonPrueba: checkConfigCampo("configAbrirCajonPrueba", config.abrirCajonPrueba === true),
@@ -1853,6 +1860,7 @@ function mostrarConfiguracion() {
  </label>
  </div>
  <div class="ticket-options-grid hardware-options-grid">
+ <label class="config-check"><input id="configUsaLector" type="checkbox" ${config.usaLector === false ? "" : "checked"}> Uso lector de codigo de barras</label>
  <label class="config-check"><input id="configImpresionSilenciosa" type="checkbox" ${config.impresionSilenciosa === true ? "checked" : ""}> Impresion silenciosa</label>
  <label class="config-check"><input id="configImprimirAutomatico" type="checkbox" ${config.imprimirAutomatico === false ? "" : "checked"}> Imprimir al cobrar</label>
  <label class="config-check"><input id="configAbrirCajonDespuesTicket" type="checkbox" ${config.abrirCajonDespuesTicket === true ? "checked" : ""}> Abrir cajon al imprimir</label>

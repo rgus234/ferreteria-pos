@@ -1208,8 +1208,11 @@ function renderCarritoTablaPOS() {
  itemsHtml += `
  <div class="carrito-vacio pos-cart-empty pos-cart-empty-state">
  <span class="pos-cart-empty-icon">${typeof iconoUISVG === "function" ? iconoUISVG("cart") : ""}</span>
- <strong>Escanea un codigo de barras</strong>
- <span>o busca un producto para agregar a la venta</span>
+ ${(configuracionNegocio() || {}).usaLector === false
+ ? `<strong>Busca un producto para empezar</strong>
+ <span>Escribe el nombre o el codigo y elígelo de la lista</span>`
+ : `<strong>Escanea un codigo de barras</strong>
+ <span>o busca un producto para agregar a la venta</span>`}
  </div>
  `;
  } else {

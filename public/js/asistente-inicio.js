@@ -41,7 +41,7 @@ const ASISTENTE_SUGERENCIAS_GIRO = {
  general: { granel: "no", fiado: "no", caducidad: "no" }
 };
 
-const ASISTENTE_PASOS = ["bienvenida", "giro", "correos", "negocio", "vende", "listo"];
+const ASISTENTE_PASOS = ["bienvenida", "giro", "correos", "negocio", "vende", "equipo", "listo"];
 
 const ASISTENTE_NIVELES_PRECIO = [
  { id: "publico", etiqueta: "Precio publico (lo normal)" },
@@ -238,6 +238,7 @@ function asistentePintar() {
   correos: asistentePintarCorreos,
   negocio: asistentePintarNegocio,
   vende: asistentePintarVende,
+  equipo: asistentePintarEquipo,
   listo: asistentePintarListo
  };
 
@@ -265,7 +266,7 @@ function asistentePintarBienvenida() {
  document.getElementById("asistenteTitulo").textContent = nombre ? `¡Bienvenido a Nexo, ${nombre}!` : "¡Bienvenido a Nexo!";
  document.getElementById("asistenteCuerpo").innerHTML = `
   <p>Tu negocio merece herramientas que trabajen a tu ritmo. Vamos a dejar tu punto de venta listo para que puedas vender, controlar tu inventario y administrar todo desde un solo lugar.</p>
-  <p><strong>Son 4 pasos rapidos, unos 5 minutos.</strong> Puedes dejarlo a medias y retomarlo cuando quieras.</p>
+  <p><strong>Son ${ASISTENTE_PASOS.length - 2} pasos rapidos, unos 5 minutos.</strong> Puedes dejarlo a medias y retomarlo cuando quieras.</p>
  `;
  asistenteAcciones({ atras: false, siguiente: "Configurar mi negocio" });
 }
@@ -433,9 +434,27 @@ function asistentePintarVende() {
   ${asistentePregunta("granel", "¿Vendes por peso o a granel?", siNo)}
   ${asistentePregunta("fiado", "¿Das fiado (credito) a tus clientes?", siNo)}
   ${asistentePregunta("caducidad", "¿Controlas fechas de caducidad?", siNo)}
-  ${asistentePregunta("impresora", "¿Imprimes tickets?", [
+ `;
+ asistenteAcciones();
+}
+
+function asistentePintarEquipo() {
+ document.getElementById("asistenteTitulo").textContent = "¿Con que equipo cuentas?";
+ document.getElementById("asistenteCuerpo").innerHTML = `
+  <p>Asi Nexo se acomoda a tu mostrador: si no tienes algo, no te lo estorba. Puedes cambiarlo despues en Configuracion.</p>
+  ${asistentePregunta("lector", "🏷️ ¿Tienes lector de codigo de barras?", [
+   { valor: "si", etiqueta: "Si, tengo lector" },
+   { valor: "no", etiqueta: "No, escribo o busco el producto" },
+   { valor: "no_se", etiqueta: "Todavia no se" }
+  ])}
+  ${asistentePregunta("impresora", "🖨️ ¿Imprimes tickets?", [
    { valor: "si", etiqueta: "Si, tengo impresora" },
    { valor: "no", etiqueta: "No, prefiero ticket digital (QR)" },
+   { valor: "no_se", etiqueta: "Todavia no se" }
+  ])}
+  ${asistentePregunta("cajon", "💵 ¿Tienes cajon de dinero conectado a la impresora?", [
+   { valor: "si", etiqueta: "Si, tengo cajon" },
+   { valor: "no", etiqueta: "No tengo" },
    { valor: "no_se", etiqueta: "Todavia no se" }
   ])}
  `;
@@ -471,7 +490,13 @@ function asistentePintarListo() {
  const d = asistente.datos;
  const correoNegocio = asistente.usarMismoCorreo ? "El mismo de acceso" : (d.correoNegocio || "El mismo de acceso");
  const nivel = ASISTENTE_NIVELES_PRECIO.find(n => n.id === asistente.nivelPrecio)?.etiqueta || asistente.nivelPrecio;
- const impresora = { si: "Con impresora", no: "Ticket digital (QR)", no_se: "Por definir" }[asistente.respuestas.impresora] || "Por definir";
+ const textoEquipo = {
+  lector: { si: "Lector", no: "Sin lector", no_se: "Lector por definir" },
+  impresora: { si: "Impresora", no: "Ticket digital (QR)", no_se: "Impresora por definir" },
+  cajon: { si: "Cajon", no: "Sin cajon", no_se: "Cajon por definir" }
+ };
+ const equipo = ["lector", "impresora", "cajon"].map(clave => textoEquipo[clave][asistente.respuestas[clave]] || textoEquipo[clave].no_se).join(" · ");
+ const sinLector = asistente.respuestas.lector === "no";
 
  document.getElementById("asistenteTitulo").textContent = "¡Tu negocio esta listo para empezar!";
  document.getElementById("asistenteCuerpo").innerHTML = `
@@ -481,10 +506,10 @@ function asistentePintarListo() {
    <div><span>Correo del negocio</span><span>${asistenteEsc(correoNegocio)}</span></div>
    <div><span>Vendes a</span><span>${asistenteEsc(nivel)}</span></div>
    <div><span>Granel / fiado / caducidades</span><span>${asistenteTextoSiNo(asistente.respuestas.granel)} / ${asistenteTextoSiNo(asistente.respuestas.fiado)} / ${asistenteTextoSiNo(asistente.respuestas.caducidad)}</span></div>
-   <div><span>Tickets</span><span>${asistenteEsc(impresora)}</span></div>
+   <div><span>Equipo</span><span>${asistenteEsc(equipo)}</span></div>
    <div><span>Productos registrados</span><span>${Array.isArray(typeof todosProductos !== "undefined" ? todosProductos : null) ? todosProductos.length : 0}</span></div>
   </div>
-  <p>Lo siguiente es agregar tus productos. Con el escaner de codigo de barras, Nexo reconoce muchos y te llena el nombre y la categoria.</p>
+  <p>${sinLector ? "Lo siguiente es cargar tus productos. Con la carga rapida los buscas por nombre y Nexo te llena el precio sugerido." : "Lo siguiente es cargar tus productos. Escanea el codigo de barras y Nexo reconoce muchos: te llena el nombre, la categoria y el precio sugerido."}</p>
  `;
 
  document.getElementById("asistenteAcciones").innerHTML = `
@@ -492,7 +517,7 @@ function asistentePintarListo() {
   <span class="espacio"></span>
   <button type="button" class="asistente-boton secundario chico" onclick="asistenteTerminar('inicio')">Ir al inicio</button>
   <button type="button" class="asistente-boton secundario chico" onclick="asistenteTerminar('primera_venta')">Mi primera venta</button>
-  <button type="button" class="asistente-boton chico" onclick="asistenteTerminar('agregar_productos')">Agregar productos</button>
+  <button type="button" class="asistente-boton chico" onclick="asistenteTerminar('agregar_productos')">Cargar mi inventario</button>
  `;
 }
 
@@ -540,6 +565,7 @@ async function asistenteGuardarPasoActual() {
  if (paso === "correos") return asistenteGuardarCorreos();
  if (paso === "negocio") return asistenteGuardarNegocio();
  if (paso === "vende") return asistenteGuardarVende();
+ if (paso === "equipo") return asistenteGuardarEquipo();
 }
 
 async function asistenteGuardarGiros() {
@@ -630,23 +656,42 @@ async function asistenteGuardarVende() {
  });
 
  const respuestas = {};
- for (const clave of ["granel", "fiado", "caducidad", "impresora"]) {
+ for (const clave of ["granel", "fiado", "caducidad"]) {
   if (asistente.respuestas[clave]) respuestas[clave] = asistente.respuestas[clave];
  }
 
  await asistenteGuardarServidor({ respuestas });
 
- // La impresion automatica es de cada caja (no del negocio): se aplica aqui.
- // "No, prefiero ticket digital" deja de abrir el dialogo de impresion en
- // cada venta; el QR del ticket digital sigue prendido.
  const actual = configuracionNegocio() || {};
- const imprimirAutomatico = asistente.respuestas.impresora === "no" ? false : actual.imprimirAutomatico;
+ localStorage.setItem(CONFIG_NEGOCIO_KEY, JSON.stringify({ ...actual, nivelPrecioPorDefecto: asistente.nivelPrecio }));
+}
 
- localStorage.setItem(CONFIG_NEGOCIO_KEY, JSON.stringify({
-  ...actual,
-  nivelPrecioPorDefecto: asistente.nivelPrecio,
-  ...(imprimirAutomatico === undefined ? {} : { imprimirAutomatico })
- }));
+// El equipo es de ESTA computadora (no del negocio): lo que se contesta se
+// aplica aqui. Sin impresora deja de abrirse el dialogo de impresion en cada
+// venta (el QR del ticket digital sigue prendido); sin lector, el punto de
+// venta pide buscar por nombre; con cajon, se abre al imprimir.
+async function asistenteGuardarEquipo() {
+ const respuestas = {};
+ for (const clave of ["lector", "impresora", "cajon"]) {
+  respuestas[clave] = asistente.respuestas[clave] || "no_se";
+ }
+
+ await asistenteGuardarServidor({ respuestas });
+ Object.assign(asistente.respuestas, respuestas);
+
+ const cambios = {};
+ if (respuestas.impresora === "no") cambios.imprimirAutomatico = false;
+ if (respuestas.impresora === "si") cambios.imprimirAutomatico = true;
+ if (respuestas.cajon === "si") cambios.abrirCajonDespuesTicket = true;
+ if (respuestas.cajon === "no") cambios.abrirCajonDespuesTicket = false;
+ if (respuestas.lector === "si") cambios.usaLector = true;
+ if (respuestas.lector === "no") cambios.usaLector = false;
+
+ const actual = configuracionNegocio() || {};
+ localStorage.setItem(CONFIG_NEGOCIO_KEY, JSON.stringify({ ...actual, ...cambios }));
+
+ // Ya con el equipo elegido, el punto de venta se acomoda de inmediato.
+ if (typeof actualizarCarrito === "function") { try { actualizarCarrito(); } catch (error) { /* aun no hay carrito */ } }
 }
 
 // Despues de guardar nombre/logo/color: la copia local (la que pinta la
@@ -701,9 +746,8 @@ async function asistenteTerminar(primerPaso) {
 
  try { localStorage.setItem("nexoOnboardingBienvenidaVisto", "1"); } catch (error) { /* sin almacenamiento */ }
 
- if (primerPaso === "agregar_productos" && typeof mostrarInventario === "function") {
-  mostrarInventario();
-  if (typeof abrirFormularioAgregarProductoNuevo === "function") abrirFormularioAgregarProductoNuevo();
+ if (primerPaso === "agregar_productos" && typeof mostrarCargaInventario === "function") {
+  mostrarCargaInventario();
   return;
  }
 

@@ -719,6 +719,8 @@ const RESPUESTAS_ASISTENTE_VALIDAS = {
     fiado: ["si", "no"],
     caducidad: ["si", "no"],
     impresora: ["si", "no", "no_se"],
+    lector: ["si", "no", "no_se"],
+    cajon: ["si", "no", "no_se"],
     primerPaso: ["agregar_productos", "primera_venta", "inicio"]
 };
 

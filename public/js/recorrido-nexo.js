@@ -51,6 +51,7 @@ window.recorridoNexo = (function () {
   giro: { gesto: "pensando", frase: "Cuéntame qué vendes y te dejo las categorías y los consejos de tu giro." },
   correos: { gesto: "neutral", frase: "Con tu correo te avisamos de lo importante. Puedes cambiarlo cuando quieras." },
   negocio: { gesto: "feliz", frase: "Estos datos salen en tus tickets. Ya llené lo que tenía de ti." },
+  equipo: { gesto: "neutral", frase: "Dime con qué cuentas en tu mostrador y Nexo se acomoda a ti. Lo puedes cambiar después." },
   vende: { gesto: "pensando", frase: "Ya casi. Te marqué lo más común para tu giro: cambia lo que no aplique." },
   listo: { gesto: "celebrando", frase: "¡Listo! Tu negocio quedó configurado. ¡A vender! 🎉" }
  };

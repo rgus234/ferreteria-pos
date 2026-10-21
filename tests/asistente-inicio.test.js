@@ -104,6 +104,19 @@ test("una respuesta fuera de lo permitido se rechaza y no se guarda nada", async
     assert.notEqual(despues.cuerpo.datos.slogan, "No debe guardarse");
 });
 
+test("el equipo (lector, impresora y cajon) se guarda y solo acepta si, no o no_se", async () => {
+    const { status, cuerpo } = await guardar({ respuestas: { lector: "no", impresora: "si", cajon: "no_se" } });
+    assert.equal(status, 200);
+    assert.equal(cuerpo.respuestas.lector, "no");
+    assert.equal(cuerpo.respuestas.impresora, "si");
+    assert.equal(cuerpo.respuestas.cajon, "no_se");
+
+    for (const clave of ["lector", "cajon"]) {
+        const r = await guardar({ respuestas: { [clave]: "quizas" } });
+        assert.equal(r.status, 400, `${clave} acepta valores raros`);
+    }
+});
+
 test("claves desconocidas no entran al JSONB de respuestas", async () => {
     const { cuerpo } = await guardar({ respuestas: { granel: "no", inventada: "valor", "__proto__": "x" } });
     assert.equal(cuerpo.respuestas.granel, "no");
