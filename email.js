@@ -1036,7 +1036,54 @@ function enviarCorreoAlertaError({ esNuevo, veces, ruta, negocioId, mensaje, sta
     });
 }
 
+// Invitacion a un negocio piloto: la manda el admin al aceptar una solicitud de
+// participacion. El enlace es personal, sirve para configurar la cuenta una sola
+// vez y vence (ver invitaciones-server.js).
+function enviarCorreoInvitacionPiloto({ correo, nombre, negocio, enlace, vigenciaDias }) {
+    const nombreSeguro = escaparHtmlCorreo(nombre);
+    const negocioSeguro = escaparHtmlCorreo(negocio || "tu negocio");
+
+    return enviarCorreo({
+        correo,
+        asunto: "Aceptamos tu participacion en las pruebas de Nexo",
+        html: envolverPlantilla({
+            etiqueta: "Invitacion a las pruebas",
+            titulo: "Aceptamos tu participacion",
+            saludo: `Hola ${nombreSeguro} 👋`,
+            robot: "celebrando",
+            cuerpoHtml: `
+                <p style="margin:0 0 12px;color:#344054;font-size:15px;line-height:1.6;">Los desarrolladores de Nexo revisamos tu solicitud para <strong>${negocioSeguro}</strong> y nos da gusto invitarte a probar Nexo.</p>
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Configura tu negocio en un par de minutos (tus datos ya vienen cargados; solo eliges tu contrasena). Despues podras descargar Nexo e iniciar sesion.</p>
+                ${botonHtml("Configurar mi negocio", enlace)}
+                ${avisoHtml(`Este enlace es personal y vence en ${vigenciaDias} dias. Nexo se instala en una computadora con Windows: puedes configurar tu negocio desde el celular y descargar el programa despues desde tu computadora.`)}
+            `
+        })
+    });
+}
+
+// Para quien configuro su cuenta desde el celular: el mismo enlace, ahora para
+// abrirlo en la computadora y descargar. No pide ningun dato otra vez.
+function enviarCorreoEnlaceInvitacion({ correo, nombre, enlace }) {
+    return enviarCorreo({
+        correo,
+        asunto: "Tu enlace para descargar Nexo",
+        html: envolverPlantilla({
+            etiqueta: "Descarga de Nexo",
+            titulo: "Descarga Nexo en tu computadora",
+            saludo: `Hola ${escaparHtmlCorreo(nombre)} 👋`,
+            robot: "feliz",
+            cuerpoHtml: `
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Tu negocio ya esta configurado. Abre este enlace desde tu computadora con Windows para descargar Nexo e iniciar sesion con tu correo y la contrasena que elegiste.</p>
+                ${botonHtml("Descargar Nexo", enlace)}
+                ${avisoHtml("No tendras que volver a escribir tus datos.")}
+            `
+        })
+    });
+}
+
 module.exports = {
+    enviarCorreoInvitacionPiloto,
+    enviarCorreoEnlaceInvitacion,
     enviarCorreoVerificacion,
     enviarCorreoVerificacionPersona,
     enviarCorreoBienvenida,
