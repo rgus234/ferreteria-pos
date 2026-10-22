@@ -106,6 +106,9 @@ async function iniciarAsistenteInicio({ desdePaso = null } = {}) {
    estado,
    paso: desdePaso ?? Math.min(Number(estado.respuestas?.paso) || 0, ASISTENTE_PASOS.length - 1),
    giros: [...estado.giros],
+   // Tipo principal (estricto): negocios.giro. Los demas giros son complementos.
+   perfil: ASISTENTE_GIROS.some(g => g.id === estado.perfil) ? estado.perfil : ((estado.giros || [])[0] || null),
+   perfilConfirmado: null,
    datos: { ...estado.datos },
    respuestas: { ...estado.respuestas },
    // Lo que la persona ya contesto (o confirmo) no se vuelve a sugerir.
@@ -272,29 +275,48 @@ function asistentePintarBienvenida() {
 }
 
 function asistentePintarGiro() {
+ const extras = ASISTENTE_GIROS.filter(g => g.id !== asistente.perfil);
+
  document.getElementById("asistenteTitulo").textContent = "¿Que tipo de negocio tienes?";
  document.getElementById("asistenteCuerpo").innerHTML = `
-  <p>Con esto Nexo te muestra las categorias y los consejos de tu giro. Puedes elegir mas de uno.</p>
+  <p>Elige el tipo principal de tu negocio. <strong>Define como se ve y como se comporta Nexo</strong> (menu, formularios y avisos), y despues solo lo podemos cambiar nosotros.</p>
   <div class="asistente-grid">
    ${ASISTENTE_GIROS.map(giro => `
-    <button type="button" class="asistente-tarjeta" data-giro="${giro.id}" aria-pressed="${asistente.giros.includes(giro.id)}" onclick="asistenteAlternarGiro('${giro.id}')">
+    <button type="button" class="asistente-tarjeta" data-giro="${giro.id}" aria-pressed="${asistente.perfil === giro.id}" onclick="asistenteElegirPerfil('${giro.id}')">
      <span class="icono">${giro.icono}</span>
      <strong>${asistenteEsc(giro.nombre)}</strong>
      <span class="detalle">${asistenteEsc(giro.detalle)}</span>
     </button>
    `).join("")}
   </div>
+  <div class="asistente-pregunta" id="asistenteExtras" ${asistente.perfil ? "" : "hidden"}>
+   <strong>¿Vendes algo mas? (opcional)</strong>
+   <div class="asistente-opciones">
+    ${extras.map(g => `<button type="button" class="asistente-chip" data-extra="${g.id}" aria-pressed="${asistente.giros.includes(g.id)}" onclick="asistenteAlternarExtra('${g.id}')">${g.icono} ${asistenteEsc(g.nombre)}</button>`).join("")}
+   </div>
+  </div>
  `;
  asistenteAcciones();
 }
 
-function asistenteAlternarGiro(id) {
+function asistenteElegirPerfil(id) {
+ const extras = asistente.giros.filter(g => g !== asistente.perfil && g !== id);
+
+ asistente.perfil = id;
+ asistente.giros = [id, ...extras];
+ asistente.perfilConfirmado = null;
+ asistentePintarGiro();
+}
+
+function asistenteAlternarExtra(id) {
+ if (id === asistente.perfil) return;
+
  const activos = new Set(asistente.giros);
  if (activos.has(id)) activos.delete(id); else activos.add(id);
- asistente.giros = [...activos];
+ asistente.giros = [asistente.perfil, ...[...activos].filter(g => g !== asistente.perfil)];
 
- document.querySelectorAll(".asistente-tarjeta[data-giro]").forEach(tarjeta => {
-  tarjeta.setAttribute("aria-pressed", String(asistente.giros.includes(tarjeta.dataset.giro)));
+ document.querySelectorAll(".asistente-chip[data-extra]").forEach(chip => {
+  chip.setAttribute("aria-pressed", String(asistente.giros.includes(chip.dataset.extra)));
  });
 }
 
@@ -477,9 +499,10 @@ function asistenteElegirNivel(nivel) {
 }
 
 function asistenteNombreGiros() {
- return asistente.giros
-  .map(id => ASISTENTE_GIROS.find(g => g.id === id)?.nombre || id)
-  .join(", ") || "Sin elegir";
+ const nombre = id => ASISTENTE_GIROS.find(g => g.id === id)?.nombre || id;
+ if (!asistente.perfil) return "Sin elegir";
+ const extras = asistente.giros.filter(g => g !== asistente.perfil);
+ return nombre(asistente.perfil) + (extras.length ? ` (tambien: ${extras.map(nombre).join(", ")})` : "");
 }
 
 function asistenteTextoSiNo(valor) {
@@ -569,7 +592,24 @@ async function asistenteGuardarPasoActual() {
 }
 
 async function asistenteGuardarGiros() {
- if (asistente.giros.length === 0) throw new Error("Elige al menos un tipo de negocio.");
+ if (!asistente.perfil) throw new Error("Elige el tipo principal de tu negocio.");
+
+ // El tipo principal es una decision importante: se confirma una vez por eleccion.
+ if (asistente.perfilConfirmado !== asistente.perfil && asistente.perfil !== asistente.estado.perfilGuardado) {
+  const nombre = ASISTENTE_GIROS.find(g => g.id === asistente.perfil)?.nombre || asistente.perfil;
+  const seguro = await confirmarPOS(
+   `Elegiste "${nombre}". Esto define como se ve y como se comporta tu Nexo, y despues solo lo podemos cambiar nosotros. ¿Es correcto?`,
+   "Tipo de negocio",
+   "info"
+  );
+
+  if (!seguro) throw new Error("Elige el tipo de negocio que corresponde y vuelve a continuar.");
+  asistente.perfilConfirmado = asistente.perfil;
+ }
+
+ // Primero el principal (queda activo), luego los complementos.
+ await asistenteLlamar("/negocio-actual/perfil", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ perfil: asistente.perfil }) });
+ asistente.estado.perfilGuardado = asistente.perfil;
 
  const antes = new Set(asistente.estado.giros);
  const ahora = new Set(asistente.giros);
@@ -589,9 +629,10 @@ async function asistenteGuardarGiros() {
   if (!asistente.contestadas?.[clave]) asistente.respuestas[clave] = asistenteSugerencia(asistente.giros, clave);
  }
 
- // Copia local del giro para que Configuracion lo muestre al instante.
+ // Copia local del tipo para que menu y Configuracion cambien al instante.
  const actual = configuracionNegocio() || {};
- localStorage.setItem(CONFIG_NEGOCIO_KEY, JSON.stringify({ ...actual, giroNegocio: asistente.giros[0] }));
+ localStorage.setItem(CONFIG_NEGOCIO_KEY, JSON.stringify({ ...actual, giroNegocio: asistente.perfil, perfilNegocio: asistente.perfil }));
+ if (window.perfilNegocio) window.perfilNegocio.aplicar();
 }
 
 async function asistenteGuardarCorreos() {

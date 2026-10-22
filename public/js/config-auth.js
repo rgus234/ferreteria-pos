@@ -365,6 +365,8 @@ function aplicarConfiguracionNegocio(configuracion) {
 
  guardarNegocioActivo(configuracion.negocioSlug);
 
+ if (window.perfilNegocio) window.perfilNegocio.aplicar();
+
  document.title =
  configuracion.nombre || "POS Ferreteria";
 
@@ -494,6 +496,8 @@ function guardarConfiguracionNegocioDesdeServidor(negocio) {
  logo: negocio.logo || null,
  adminNombre: "",
  giroNegocio: actual.giroNegocio || "ferreteria",
+ // Tipo de negocio ESTRICTO (negocios.giro): define menu y formularios. Ver perfil-negocio.js.
+ perfilNegocio: String(negocio.giro || "").trim().toLowerCase() || actual.perfilNegocio || null,
  // Con que nivel de precio arranca cada venta. Viene del NEGOCIO (una
  // sola vez para todas sus cajas), no de este equipo. Se guarda aqui
  // nada mas para que el POS pueda arrancar sin esperar la red; la
@@ -931,6 +935,24 @@ async function seleccionarNegocioEncontradoSetup(slugCodificado) {
  await inicializarConfiguracionInicial();
 }
 
+// "?accion=iniciar-sesion" (boton de la pagina publica) abre el acceso por correo UNA vez:
+// se quita de la direccion para que, ya con la sesion iniciada, el cuadro no vuelva a salir.
+function consumirAccionIniciarSesion() {
+ const parametros = new URLSearchParams(window.location.search);
+
+ if (parametros.get("accion") !== "iniciar-sesion") return false;
+
+ try {
+  parametros.delete("accion");
+  const consulta = parametros.toString();
+  window.history.replaceState(null, "", window.location.pathname + (consulta ? "?" + consulta : "") + window.location.hash);
+ } catch (error) {
+  // sin historial: se queda como esta
+ }
+
+ return true;
+}
+
 async function inicializarConfiguracionInicial() {
  let configuracion =
  configuracionNegocio();
@@ -956,7 +978,7 @@ async function inicializarConfiguracionInicial() {
 
   cambiarPasoSetup(0);
 
-  if (new URLSearchParams(window.location.search).get("accion") === "iniciar-sesion") {
+  if (consumirAccionIniciarSesion()) {
   abrirBuscarNegocioSetup();
   }
   }, 50);
@@ -1036,7 +1058,7 @@ async function inicializarConfiguracionInicial() {
 
  // Viene del boton "Iniciar sesion" de la pagina publica: aunque este equipo
  // ya este vinculado a un negocio, se ofrece entrar con otra cuenta.
- if (new URLSearchParams(window.location.search).get("accion") === "iniciar-sesion") {
+ if (consumirAccionIniciarSesion()) {
   setTimeout(() => abrirBuscarNegocioSetup(), 300);
  }
 
@@ -1646,6 +1668,10 @@ function mostrarConfiguracion() {
  const config =
  configuracionNegocio() || {};
 
+ // Tipo principal del negocio (fijo): el que dejo el servidor, o el giro local de siempre.
+ const tipoPrincipalConfig =
+ String(config.perfilNegocio || config.giroNegocio || "ferreteria").toLowerCase();
+
  pantalla.innerHTML = `
  <div class="config-shell">
  <div class="config-header config-header-pro">
@@ -1915,12 +1941,14 @@ function mostrarConfiguracion() {
  Estos datos se guardan en esta computadora y se usan para inicio, menu, ticket y apariencia.
  </div>
  <div class="config-note config-giro-note">
- <strong>Giros del negocio</strong>
- <span>Activa uno o varios. Un negocio puede vender de varios giros a la vez (ej. ferreteria y abarrotes) -- cada giro activo agrega sus categorias oficiales al formulario de productos y a la pantalla de Categorias. Debe quedar al menos uno activo.</span>
+ <strong>Tipo de negocio</strong>
+ <span>${(PLANTILLAS_GIRO_NEGOCIO[tipoPrincipalConfig] || { nombre: tipoPrincipalConfig }).nombre}. Define como se ve y como se comporta Nexo, por eso no se cambia desde aqui. Si necesitas cambiarlo, escribenos y lo hacemos por ti.</span>
+ <strong style="margin-top:12px;">Tambien vendo</strong>
+ <span>Activa lo que vendes ademas de tu giro principal: agrega sus categorias oficiales al formulario de productos.</span>
  <div class="config-giros-lista" id="configGirosLista">
- ${Object.entries(PLANTILLAS_GIRO_NEGOCIO).map(([clave, plantilla]) => `
+ ${Object.entries(PLANTILLAS_GIRO_NEGOCIO).filter(([clave]) => clave !== tipoPrincipalConfig).map(([clave, plantilla]) => `
  <label class="config-giro-item">
- <input type="checkbox" data-giro="${clave}" onchange="alternarGiroNegocio('${clave}', this.checked)" ${(config.giroNegocio || "ferreteria") === clave ? "checked" : ""}>
+ <input type="checkbox" data-giro="${clave}" onchange="alternarGiroNegocio('${clave}', this.checked)">
  <span>${plantilla.nombre}</span>
  ${GIROS_CON_CATEGORIAS_CURADAS.has(clave) ? '<em class="config-giro-curado">Categorias + IA</em>' : ""}
  </label>

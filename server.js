@@ -673,6 +673,13 @@ app.put("/negocio-actual/giro", requerirAccesoNegocio, async (req, res) => {
             return;
         }
 
+        // El tipo principal (negocios.giro) define como se ve y se comporta Nexo:
+        // no se apaga desde aqui (ver PUT /negocio-actual/perfil).
+        if (!activo && giro === String(negocio.giro || "").trim().toLowerCase()) {
+            res.status(400).json({ ok: false, error: "Ese es el tipo principal de tu negocio y no se puede quitar. Si necesitas cambiarlo, escribenos." });
+            return;
+        }
+
         if (!activo) {
             const restantes = await pool.query(
                 `SELECT count(*)::int AS total FROM public.negocio_giros WHERE negocio_id = $1 AND activo = true AND giro <> $2`,
@@ -702,6 +709,49 @@ app.put("/negocio-actual/giro", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
+// Tipo de negocio ESTRICTO (perfil). negocios.giro es el tipo principal: define
+// que menu, que formulario y que avisos ve el negocio (abarrotes, ferreteria...).
+//
+// Solo se puede definir mientras el asistente de inicio no se haya terminado:
+// ahi la persona lo elige (con confirmacion) y despues queda fijo. Cambiarlo
+// despues lo hace Nexo desde el panel de administrador, nunca el propio
+// negocio (ni un empleado): por eso un negocio que ya existia, o que ya termino
+// el asistente, recibe 409.
+app.put("/negocio-actual/perfil", requerirAccesoNegocio, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
+    try {
+        const negocio = await negocioActual(req);
+        const perfil = String(req.body?.perfil || "").trim().toLowerCase();
+
+        if (!GIROS_NEGOCIO_VALIDOS.has(perfil)) {
+            res.status(400).json({ ok: false, error: "Tipo de negocio invalido" });
+            return;
+        }
+
+        if (perfil === String(negocio.giro || "").trim().toLowerCase()) {
+            res.json({ ok: true, perfil, sinCambios: true });
+            return;
+        }
+
+        if (negocio.onboarding_completado_at) {
+            res.status(409).json({ ok: false, error: "El tipo de negocio ya quedo definido. Para cambiarlo, escribenos y lo hacemos por ti." });
+            return;
+        }
+
+        await pool.query(`UPDATE public.negocios SET giro = $1, updated_at = NOW() WHERE id = $2`, [perfil, negocio.id]);
+
+        // El tipo principal siempre es un giro activo (sus categorias oficiales).
+        await pool.query(
+            `INSERT INTO public.negocio_giros (negocio_id, giro, activo) VALUES ($1, $2, true)
+             ON CONFLICT (negocio_id, giro) DO UPDATE SET activo = true`,
+            [negocio.id, perfil]
+        );
+
+        res.json({ ok: true, perfil });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
 // ---------------------------------------------------------------------
 // Asistente de inicio (primer uso): estado y guardado por pasos.
 //
@@ -726,7 +776,7 @@ const RESPUESTAS_ASISTENTE_VALIDAS = {
 
 async function estadoAsistenteInicio(negocioId) {
     const fila = await pool.query(
-        `SELECT nombre, telefono, direccion, slogan, correo, correo_verificado, correo_negocio, color,
+        `SELECT nombre, telefono, direccion, slogan, correo, correo_verificado, correo_negocio, color, giro,
                 (logo IS NOT NULL AND logo <> '') AS tiene_logo,
                 nivel_precio_por_defecto, onboarding_respuestas, onboarding_completado_at
            FROM public.negocios WHERE id = $1`,
@@ -755,6 +805,7 @@ async function estadoAsistenteInicio(negocioId) {
         correoAcceso: n.correo || "",
         correoVerificado: Boolean(n.correo_verificado),
         nivelPrecio: n.nivel_precio_por_defecto,
+        perfil: String(n.giro || "").trim().toLowerCase(),
         giros: giros.rows.map(f => f.giro)
     };
 }
@@ -3398,6 +3449,41 @@ app.get("/admin/api/versiones", async (_req, res) => {
             currentServerVersion: config.appVersion,
             versiones: resultado.rows
         });
+    } catch (error) {
+        responderError(res, error);
+    }
+});
+
+// Cambio de tipo de negocio por parte de Nexo (panel de administrador).
+app.patch("/admin/api/negocios/:id/perfil", async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const perfil = String(req.body?.perfil || "").trim().toLowerCase();
+
+        if (!Number.isInteger(id) || id <= 0) {
+            res.status(400).json({ ok: false, error: "Negocio invalido" });
+            return;
+        }
+
+        if (!GIROS_NEGOCIO_VALIDOS.has(perfil)) {
+            res.status(400).json({ ok: false, error: "Tipo de negocio invalido" });
+            return;
+        }
+
+        const actualizado = await pool.query(`UPDATE public.negocios SET giro = $1, updated_at = NOW() WHERE id = $2 RETURNING id, nombre, giro`, [perfil, id]);
+
+        if (actualizado.rows.length === 0) {
+            res.status(404).json({ ok: false, error: "Negocio no encontrado" });
+            return;
+        }
+
+        await pool.query(
+            `INSERT INTO public.negocio_giros (negocio_id, giro, activo) VALUES ($1, $2, true)
+             ON CONFLICT (negocio_id, giro) DO UPDATE SET activo = true`,
+            [id, perfil]
+        );
+
+        res.json({ ok: true, negocio: actualizado.rows[0] });
     } catch (error) {
         responderError(res, error);
     }

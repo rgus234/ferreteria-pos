@@ -84,7 +84,14 @@ test("'Iniciar sesion' de la pagina publica abre el acceso por correo aunque el 
     assert.match(sitio, /app\.nexoposoficial\.com\/\?accion=iniciar-sesion/);
 
     // Rama del equipo ya vinculado (despues de mostrar la pantalla de entrada).
-    assert.match(configAuth, /mostrarPantallaDeEntradaPOS\(\);[\s\S]{0,400}accion"\) === "iniciar-sesion"[\s\S]{0,120}abrirBuscarNegocioSetup\(\)/);
+    assert.match(configAuth, /mostrarPantallaDeEntradaPOS\(\);[\s\S]{0,400}consumirAccionIniciarSesion\(\)[\s\S]{0,120}abrirBuscarNegocioSetup\(\)/);
+
+    // Se usa UNA sola vez: se quita de la direccion, o tras iniciar sesion el cuadro volveria a salir.
+    const consumir = configAuth.match(/function consumirAccionIniciarSesion\(\) \{[\s\S]*?\n\}/)[0];
+    assert.match(consumir, /accion"\) !== "iniciar-sesion"\) return false/);
+    assert.match(consumir, /parametros\.delete\("accion"\)/);
+    assert.match(consumir, /history\.replaceState/);
+    assert.equal((configAuth.match(/consumirAccionIniciarSesion\(\)/g) || []).length, 3, "definicion + las dos ramas");
 });
 
 test("los archivos nuevos se cargan, en orden y con version", () => {

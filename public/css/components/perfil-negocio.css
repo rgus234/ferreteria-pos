@@ -1,0 +1,101 @@
+/* Perfil del negocio (ver public/js/perfil-negocio.js).
+
+   Un perfil "simple" (abarrotes) esconde lo que no usa; nada se borra:
+   "Mas herramientas" y "Mostrar todos los campos" lo vuelven a mostrar. */
+
+/* ---------- Menu ---------- */
+
+body.perfil-simple:not(.perfil-ver-todo) .sidebar [data-perfil-oculto="1"] {
+  display: none !important;
+}
+
+#perfilMasHerramientas.perfil-mas-herramientas {
+  margin: 6px 14px;
+  padding: 9px 12px;
+  border: 1px dashed rgba(148, 163, 184, .55);
+  border-radius: 12px;
+  background: transparent !important;
+  color: #94a3b8 !important;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.perfil-mas-herramientas:hover {
+  color: #e2e8f0;
+  border-color: #e2e8f0;
+}
+
+/* ---------- Formulario de producto (abarrotes) ---------- */
+
+/* El formulario de producto vive en la capa nexo-product-form (pos-product-form.css) y sus reglas
+   !important le ganan a cualquier regla fuera de la capa: las nuestras tienen que ir DENTRO. */
+@layer nexo-product-form {
+  body.perfil-simple:not(.perfil-campos-todos) #nuevoCodigoInterno,
+  body.perfil-simple:not(.perfil-campos-todos) #codigosRelacionados,
+  body.perfil-simple:not(.perfil-campos-todos) #nuevaDescripcion,
+  body.perfil-simple:not(.perfil-campos-todos) #precioMayoreo,
+  body.perfil-simple:not(.perfil-campos-todos) .campo-ficha-precio-carrito,
+  body.perfil-simple:not(.perfil-campos-todos) #nuevoStockMaximo,
+  body.perfil-simple:not(.perfil-campos-todos) #basculaDigital,
+  body.perfil-simple:not(.perfil-campos-todos) #altaRotacion,
+  body.perfil-simple:not(.perfil-campos-todos) .campo-ficha-ubicacion:has(#nuevaUbicacion),
+  body.perfil-simple:not(.perfil-campos-todos) #precioPiezaPublico,
+  body.perfil-simple:not(.perfil-campos-todos) #precioPiezaMayoreo,
+  body.perfil-simple:not(.perfil-campos-todos) #precioPiezaDistribuidor,
+  body.perfil-simple:not(.perfil-campos-todos) .producto-form-seccion[data-seccion="market"],
+  body.perfil-simple:not(.perfil-campos-todos) .producto-form-seccion[data-seccion="avanzado"] {
+    display: none !important;
+  }
+
+  /* Los campos van envueltos en <label class="campo-ficha"> con su etiqueta; perfil-negocio.js marca
+     esos bloques con .perfil-campo-avanzado (el prefijo #modalAgregar gana a las reglas del formulario). */
+  /* Catalogos de proveedor ferreteros (Diprofer, Gafi, Truper) y modos de captura: un abarrotes no los usa. */
+  body.perfil-simple:not(.perfil-campos-todos) #proveedorCatalogoSeccion,
+  body.perfil-simple:not(.perfil-campos-todos) #modoCapturaSeccion,
+  body.perfil-simple:not(.perfil-campos-todos) #modalAgregar .perfil-campo-avanzado,
+  body.perfil-simple:not(.perfil-campos-todos) .perfil-campo-avanzado {
+    display: none !important;
+  }
+}
+
+#perfilCamposTodos.perfil-campos-todos {
+  align-self: flex-start;
+  margin: 0 0 10px;
+  padding: 0;
+  border: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--brand-color, #0d6efd) !important;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.perfil-ganancia {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(100, 116, 139, .1);
+  color: #475569;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.perfil-ganancia-ok {
+  background: rgba(22, 163, 74, .12);
+  color: #15803d;
+}
+
+.perfil-ganancia-cero {
+  background: rgba(245, 158, 11, .14);
+  color: #b45309;
+}
+
+.perfil-ganancia-negativa {
+  background: rgba(220, 38, 38, .12);
+  color: #b91c1c;
+}

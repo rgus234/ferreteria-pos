@@ -50,7 +50,11 @@ test("la tabla se lee con comillas, saltos de linea de Windows y filas vacias", 
 
 test("las columnas se adivinan por su encabezado, sin repetir una columna para dos campos", () => {
     const m = ciAdivinarColumnas(["Descripción", "Precio de venta", "Existencia", "Código de barras", "Marca", "Departamento"]);
-    assert.deepEqual(m, { nombre: 0, precio: 1, stock: 2, codigo: 3, marca: 4, categoria: 5 });
+    assert.deepEqual(m, { nombre: 0, costo: -1, precio: 1, stock: 2, codigo: 3, marca: 4, categoria: 5 });
+
+    // "Precio distribuidor" es lo que te cuesta, no el precio de venta.
+    const conCosto = ciAdivinarColumnas(["Producto", "Precio distribuidor", "Precio publico", "Existencia"]);
+    assert.deepEqual([conCosto.nombre, conCosto.costo, conCosto.precio, conCosto.stock], [0, 1, 2, 3]);
 
     const sinAcentos = ciAdivinarColumnas(["PRODUCTO", "PRECIO", "CANTIDAD"]);
     assert.equal(sinAcentos.nombre, 0);
@@ -113,6 +117,18 @@ test("un resultado del catalogo se convierte en el cuerpo de /agregar-producto",
     assert.equal(ciPrecioSugerido(delMaestro), 340);
     assert.equal(ciPrecioSugerido(delProveedor), 99);
     assert.equal(ciPrecioSugerido({ fuente: "fabricante", precioListaPublico: 0 }), null, "un precio en cero no se sugiere");
+});
+
+test("el costo (precio distribuidor) es opcional y se lee de la lista", () => {
+    const mapeo = { nombre: 0, precio: 1, costo: 2, stock: 3, codigo: -1, marca: -1, categoria: -1 };
+    const r = ciPrepararFilas([
+        ["Refresco 600ml", "18", "12.5", "24"],
+        ["Galletas", "15", "", "10"],
+        ["Dulce", "2", "abc", "50"]
+    ], mapeo);
+
+    assert.deepEqual(r.listas.map(f => f.costo), [12.5, null, null], "sin costo o con costo raro no estorba");
+    assert.equal(r.conProblemas.length, 0);
 });
 
 test("las altas usan la ruta de siempre y la pantalla queda conectada al menu", () => {

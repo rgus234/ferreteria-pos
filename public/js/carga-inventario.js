@@ -95,6 +95,7 @@ const CI_SINONIMOS = {
     precio: ["precio", "precio venta", "precio de venta", "precio publico", "pvp", "venta", "precio al publico", "price"],
     stock: ["stock", "existencia", "existencias", "cantidad", "inventario", "piezas", "qty", "cant"],
     codigo: ["codigo", "codigo de barras", "barras", "sku", "clave", "ean", "upc", "cod", "codigo barras", "codigo interno"],
+    costo: ["costo", "costo unitario", "precio distribuidor", "precio proveedor", "precio de compra", "compra", "distribuidor", "precio costo"],
     marca: ["marca", "brand", "fabricante"],
     categoria: ["categoria", "departamento", "familia", "linea", "rubro"]
 };
@@ -102,6 +103,7 @@ const CI_SINONIMOS = {
 const CI_CAMPOS = [
     { id: "nombre", etiqueta: "Nombre del producto", obligatorio: true },
     { id: "precio", etiqueta: "Precio de venta", obligatorio: true },
+    { id: "costo", etiqueta: "Lo que te cuesta (precio distribuidor)", obligatorio: false },
     { id: "stock", etiqueta: "Cantidad que tienes", obligatorio: false },
     { id: "codigo", etiqueta: "Código o código de barras", obligatorio: false },
     { id: "marca", etiqueta: "Marca", obligatorio: false },
@@ -114,7 +116,9 @@ function ciAdivinarColumnas(encabezados) {
     const usadas = new Set();
     const mapeo = {};
 
-    for (const campo of CI_CAMPOS) {
+    const orden = ["nombre", "costo", "precio", "stock", "codigo", "marca", "categoria"];
+
+    for (const campo of orden.map(id => CI_CAMPOS.find(c => c.id === id))) {
         let indice = -1;
 
         // Primero coincidencia exacta con un sinonimo, despues "contiene".
@@ -163,6 +167,7 @@ function ciPrepararFilas(filas, mapeo, existentes = { codigos: new Set(), nombre
         const stockTexto = valor(fila, "stock");
         const stock = stockTexto === "" ? 0 : ciNumero(stockTexto);
         const codigo = valor(fila, "codigo");
+        const costo = ciNumero(valor(fila, "costo"));
 
         if (!nombre) return conProblemas.push({ fila: numeroFila, motivo: "No tiene nombre" });
         if (precio === null || precio < 0) return conProblemas.push({ fila: numeroFila, nombre, motivo: "El precio no es un número" });
@@ -185,6 +190,7 @@ function ciPrepararFilas(filas, mapeo, existentes = { codigos: new Set(), nombre
             precio,
             stock,
             codigo,
+            costo: costo !== null && costo >= 0 ? costo : null,
             marca: valor(fila, "marca"),
             categoria: valor(fila, "categoria")
         });
@@ -502,6 +508,9 @@ function ciFormularioItem(item, precio) {
         <label>Precio de venta
             <input id="ciPrecio" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${precio ? precio : ""}" required>
         </label>
+        ${typeof perfilEsSimple === "function" && perfilEsSimple() ? `<label>Te cuesta (precio distribuidor)
+            <input id="ciCosto" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Opcional">
+        </label>` : ""}
         <button type="submit" class="ci-boton" ${ciEstado.ocupado ? "disabled" : ""}>Guardar y seguir</button>
         <p class="ci-error" id="ciErrorItem"></p>
     </form>`;
@@ -527,11 +536,18 @@ async function ciGuardarItem(evento) {
     if (!Number.isFinite(precio) || precio < 0) { error.textContent = "Escribe el precio de venta."; return; }
     if (!Number.isFinite(stock) || stock < 0) { error.textContent = "Escribe cuántos tienes."; return; }
 
+    const costoTexto = document.getElementById("ciCosto")?.value;
+    const costo = costoTexto === undefined || costoTexto === "" ? null : Number(costoTexto);
+
+    if (costo !== null && (!Number.isFinite(costo) || costo < 0)) { error.textContent = "El costo no es un numero."; return; }
+
     ciEstado.ocupado = true;
 
     const producto = item.fuente === "manual"
         ? { nombre: item.nombre, precio, precioPublico: precio, stock }
         : ciProductoDesdeCatalogo(item, { stock, precio });
+
+    if (costo !== null) producto.precioDistribuidor = costo;
 
     const { ok, datos } = await ciLlamar("/agregar-producto", { method: "POST", body: JSON.stringify(producto) });
     ciEstado.ocupado = false;
@@ -620,6 +636,7 @@ function ciRevisarTexto(texto) {
         ["nombre", "precio", "stock", "codigo"].forEach((campo, i) => { mapeo[campo] = i < encabezados.length ? i : -1; });
         mapeo.marca = -1;
         mapeo.categoria = -1;
+        mapeo.costo = -1;
     }
 
     if (!filas.length) {
@@ -710,7 +727,8 @@ async function ciImportar() {
                         stock: fila.stock,
                         codigo: fila.codigo,
                         marca: fila.marca,
-                        categoria: fila.categoria
+                        categoria: fila.categoria,
+                        ...(fila.costo !== null && fila.costo !== undefined ? { precioDistribuidor: fila.costo } : {})
                     })
                 });
 

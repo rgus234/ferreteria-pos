@@ -230,6 +230,7 @@ function pintarNegociosAdmin() {
           </div>
           <div class="client-actions">
             <button type="button" onclick="abrirLicenciaAdmin(${Number(negocio.id)})">Editar licencia</button>
+            <button type="button" class="secondary" onclick="cambiarTipoNegocioAdmin(${Number(negocio.id)})">Tipo de negocio</button>
             <button type="button" class="secondary" onclick="abrirDiagnosticoEquiposAdmin(${Number(negocio.id)}, '${escaparHTMLAdmin(negocio.nombre || negocio.slug).replace(/'/g, "\\'")}')">Ver equipos (${equipos})</button>
             <button type="button" class="danger" onclick="eliminarClienteAdmin(${Number(negocio.id)})">${esFantasma ? "Revisar y eliminar" : "Eliminar"}</button>
           </div>
@@ -253,6 +254,40 @@ function pintarNegociosAdmin() {
       </article>
     `;
   }).join("");
+}
+
+// Tipo de negocio (perfil estricto): el negocio lo elige una sola vez en su asistente
+// de inicio y despues solo se cambia desde aqui.
+const TIPOS_NEGOCIO_ADMIN = ["abarrotes", "ferreteria", "papeleria", "vinateria", "general"];
+
+async function cambiarTipoNegocioAdmin(id) {
+  const negocio = negociosAdmin.find(n => Number(n.id) === id) || {};
+  const actual = String(negocio.giro || "").toLowerCase() || "(sin definir)";
+
+  const respuesta = window.prompt(`Tipo de negocio de "${negocio.nombre || id}" (hoy: ${actual}).\nEscribe uno: ${TIPOS_NEGOCIO_ADMIN.join(", ")}`, actual);
+  if (respuesta === null) return;
+
+  const perfil = respuesta.trim().toLowerCase();
+
+  if (!TIPOS_NEGOCIO_ADMIN.includes(perfil)) {
+    await alertaAdmin("Escribe uno de: " + TIPOS_NEGOCIO_ADMIN.join(", "), "Tipo invalido", "alerta");
+    return;
+  }
+
+  const confirmado = await confirmarAdmin(
+    `Cambiar a "${perfil}" cambia el menu, los formularios y los avisos de ese negocio. Sus datos no se tocan. ¿Continuar?`,
+    "Cambiar tipo de negocio",
+    "alerta"
+  );
+  if (!confirmado) return;
+
+  try {
+    await apiAdmin(`/admin/api/negocios/${id}/perfil`, { method: "PATCH", body: JSON.stringify({ perfil }) });
+    await alertaAdmin("Listo. El negocio lo verá la próxima vez que abra Nexo.", "Tipo de negocio actualizado", "exito");
+    if (typeof cargarAdminNexo === "function") cargarAdminNexo();
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo cambiar.", "Error", "peligro");
+  }
 }
 
 // Diagnostico remoto por equipo (ver plan "Alertas de errores..." y
