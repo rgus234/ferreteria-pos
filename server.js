@@ -6648,7 +6648,8 @@ app.post("/agregar-producto", requerirAccesoNegocio, requerirPermiso(PERMISOS.MO
     visiblePos,
     visibleMarket,
     disponiblePedidos,
-    fechaCaducidad
+    fechaCaducidad,
+    vidaUtilDias
 } = req.body;
     try {
         const negocio = await negocioActual(req);
@@ -6785,6 +6786,19 @@ RETURNING id
 
         if (categoriaNexo) {
             await pool.query(`UPDATE public.productos SET categoria_nexo_id = $1 WHERE id = $2`, [categoriaNexo.id, productoId]);
+        }
+
+        // Perecederos: vida util (dias) y el primer lote de lo que ya hay. Nunca bloquea el alta.
+        try {
+            await require("./lotes-server").registrarAltaConLote(pool, {
+                negocioId: negocio.id,
+                productoId,
+                stock: Number(stock) || 0,
+                vidaUtilDias,
+                fechaCaducidad
+            });
+        } catch (errorLote) {
+            console.error("No se pudo registrar el lote inicial", errorLote.message);
         }
 
         // Fase 6 del plan "Catalogo Maestro Nexo": dual-write -- si la
@@ -7299,6 +7313,15 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, requerirPermiso(PERMISOS.
             } catch (errorEan) {
                 console.error("No se pudo confirmar EAN al editar producto", errorEan);
             }
+        }
+
+        // Vida util de perecederos: solo si el formulario la manda (los demas clientes no la tocan).
+        if (req.body.vidaUtilDias !== undefined) {
+            const vida = Number(req.body.vidaUtilDias);
+            await pool.query(
+                `UPDATE public.productos SET vida_util_dias = $1 WHERE id = $2 AND negocio_id = $3`,
+                [Number.isInteger(vida) && vida >= 1 && vida <= 3650 ? vida : null, id, negocio.id]
+            );
         }
 
         res.json({

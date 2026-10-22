@@ -3107,7 +3107,8 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  visiblePos,
  visibleMarket,
  disponiblePedidos,
- fechaCaducidad
+ fechaCaducidad,
+ vidaUtilDias: document.getElementById("nuevaVidaUtilDias")?.value || ""
  };
 
  let respuesta;
@@ -3439,6 +3440,9 @@ function editarProducto(
 
  document.getElementById("nuevaFechaCaducidad").value =
  producto?.fecha_caducidad ? String(producto.fecha_caducidad).slice(0, 10) : "";
+
+ const campoVidaUtil = document.getElementById("nuevaVidaUtilDias");
+ if (campoVidaUtil) campoVidaUtil.value = producto?.vida_util_dias || "";
 
  document.getElementById("nuevaCategoria").value =
  producto?.categoria || "";
@@ -4728,6 +4732,7 @@ function cerrarFormularioAgregar() {
  document.getElementById("nuevoProveedor").value = "";
  document.getElementById("nuevaUbicacion").value = "";
  document.getElementById("nuevaFechaCaducidad").value = "";
+ if (document.getElementById("nuevaVidaUtilDias")) document.getElementById("nuevaVidaUtilDias").value = "";
  document.getElementById("altaRotacion").value = "";
  document.getElementById("nuevoCodigoInterno").value = "";
  document.getElementById("codigosRelacionados").value = "";

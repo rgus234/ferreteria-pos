@@ -66,6 +66,14 @@ function perfilGuardar(clave, valor) {
 
 // Como le dice cada tipo de negocio a lo que ya existe (mismo modulo, otro nombre).
 function perfilRenombrarMenu() {
+    // Por vencer -> Por revisar: en abarrotes cada entrada es un lote (ver lotes-ui.js).
+    const botonVencer = document.querySelector('.sidebar [data-shell-module="por-vencer"]');
+
+    if (botonVencer) {
+        if (!botonVencer.dataset.textoOriginal) botonVencer.dataset.textoOriginal = botonVencer.textContent.trim();
+        botonVencer.textContent = perfilEsSimple() ? "Por revisar" : botonVencer.dataset.textoOriginal;
+    }
+
     const botonCreditos = [...document.querySelectorAll(".sidebar button")].find(b => /abrirCreditos\(/.test(b.getAttribute("onclick") || ""));
     if (!botonCreditos) return;
 

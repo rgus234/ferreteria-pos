@@ -77,6 +77,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./prueba-piloto-server")(app, pool, requerirSesionCuenta, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("lotes de caducidad y merma (abarrotes)", () => {
+        require("./lotes-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("invitaciones a negocios piloto", () => {
         require("./invitaciones-server")(app, pool);
     });

@@ -71,6 +71,24 @@ body.perfil-simple:not(.perfil-ver-todo) .resumen-requiere-factura {
   }
 }
 
+/* Vida util (dias) de perecederos: solo abarrotes. */
+.campo-vida-util { display: none; }
+body.perfil-simple .campo-vida-util { display: block; }
+
+.lotes-acciones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+
+.lotes-acciones button {
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 #perfilCamposTodos.perfil-campos-todos {
   align-self: flex-start;
   margin: 0 0 10px;
