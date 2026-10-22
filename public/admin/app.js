@@ -1579,6 +1579,8 @@ function pintarSolicitudesAdmin() {
       </div>
       <div class="solicitud-acciones">
         ${puedeInvitar ? `<button type="button" class="primary" onclick="invitarSolicitudAdmin(${s.id})" ${sinCorreo ? "disabled title=\"Sin correo no se puede enviar la invitacion\"" : ""}>${textoBoton}</button>` : ""}
+        ${puedeInvitar ? `<button type="button" class="secondary" onclick="invitarPorWhatsappAdmin(${s.id})">Enlace por WhatsApp</button>` : ""}
+        ${puedeInvitar ? `<button type="button" class="secondary" onclick="corregirCorreoSolicitudAdmin(${s.id})">Corregir correo</button>` : ""}
         ${s.estado !== "descartada" && s.estado !== "configurada" ? `<button type="button" class="secondary" onclick="descartarSolicitudAdmin(${s.id})">Descartar</button>` : ""}
         ${s.invitacion?.negocioId ? `<span class="pill ok">Negocio #${s.invitacion.negocioId}</span>` : ""}
       </div>
@@ -1619,6 +1621,58 @@ async function invitarSolicitudAdmin(id) {
     await alertaAdmin(partes.join("\n\n"), data.correoEnviado ? "Invitacion enviada" : "Copia el enlace", data.correoEnviado ? "exito" : "alerta");
   } catch (error) {
     await alertaAdmin(error.message || "No se pudo crear la invitacion.", "Error", "peligro");
+  }
+
+  cargarSolicitudesAdmin();
+}
+
+// Si el correo no le llega (mal escrito, spam), se arma el enlace y se abre WhatsApp con el mensaje listo.
+async function invitarPorWhatsappAdmin(id) {
+  const solicitud = (window.__solicitudesAdminCache || []).find(s => s.id === id);
+  if (!solicitud) return;
+
+  const digitos = String(solicitud.telefono || "").replace(/\D/g, "");
+
+  if (digitos.length < 10) {
+    await alertaAdmin("Esta solicitud no dejo un telefono valido. Usa Reenviar invitacion y copia el enlace.", "Sin telefono", "alerta");
+    return;
+  }
+
+  const confirmado = await confirmarAdmin(
+    `Se creara un enlace NUEVO para ${solicitud.negocio || solicitud.nombre} (el anterior deja de servir) y se abrira WhatsApp para que se lo mandes.`,
+    "Enlace por WhatsApp",
+    "info"
+  );
+
+  if (!confirmado) return;
+
+  try {
+    const data = await apiAdmin(`/admin/api/solicitudes-participacion/${id}/invitar`, { method: "POST", body: JSON.stringify({ sinCorreo: true }) });
+    const nombre = solicitud.nombre ? ` ${solicitud.nombre}` : "";
+    const mensaje = `Hola${nombre}! Te paso tu enlace para probar Nexo POS gratis 45 dias. Entra aqui y configura tu cuenta: ${data.enlace}`;
+    const telefono = digitos.length === 10 ? `52${digitos}` : digitos;
+
+    window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo crear el enlace.", "Error", "peligro");
+  }
+
+  cargarSolicitudesAdmin();
+}
+
+// Cuando dejaron mal el correo: se corrige y la invitacion sale a ese correo.
+async function corregirCorreoSolicitudAdmin(id) {
+  const solicitud = (window.__solicitudesAdminCache || []).find(s => s.id === id);
+  if (!solicitud) return;
+
+  const nuevo = (window.prompt(`Correo correcto para ${solicitud.negocio || solicitud.nombre}:`, solicitud.correo || "") || "").trim().toLowerCase();
+  if (!nuevo) return;
+
+  try {
+    const data = await apiAdmin(`/admin/api/solicitudes-participacion/${id}/invitar`, { method: "POST", body: JSON.stringify({ correo: nuevo }) });
+    await alertaAdmin(data.correoEnviado ? `Invitacion enviada a ${nuevo}.` : (data.aviso || "El correo no salio."), "Correo corregido", data.correoEnviado ? "exito" : "alerta");
+  } catch (error) {
+    await alertaAdmin(error.message || "No se pudo enviar.", "Error", "peligro");
   }
 
   cargarSolicitudesAdmin();

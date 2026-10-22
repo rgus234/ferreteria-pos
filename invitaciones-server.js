@@ -562,12 +562,19 @@ module.exports = (app, pool) => {
                 return;
             }
 
-            const correo = limpiar(contacto.correo, 140).toLowerCase();
+            // Corregir el correo (el que dejaron estaba mal escrito) o armar solo el enlace para WhatsApp.
+            const sinCorreo = req.body?.sinCorreo === true;
+            const correoCorregido = limpiar(req.body?.correo, 140).toLowerCase();
+            const correo = correoCorregido || limpiar(contacto.correo, 140).toLowerCase();
 
             if (!correo || !REGEX_CORREO.test(correo)) {
                 await client.query("ROLLBACK");
-                res.status(400).json({ ok: false, error: "Esta solicitud no tiene un correo valido: no se le puede enviar la invitacion." });
+                res.status(400).json({ ok: false, error: "Esta solicitud no tiene un correo valido: escribe uno correcto para enviar la invitacion." });
                 return;
+            }
+
+            if (correoCorregido && correoCorregido !== limpiar(contacto.correo, 140).toLowerCase()) {
+                await client.query(`UPDATE public.contactos_landing SET correo = $1 WHERE id = $2`, [correoCorregido, id]);
             }
 
             const yaConfigurada = await client.query(
@@ -627,6 +634,12 @@ module.exports = (app, pool) => {
 
             const enlace = `${URL_SITIO}/invitacion/${token}`;
             let envio = { ok: false, error: "No se pudo enviar el correo." };
+
+            if (sinCorreo) {
+                await pool.query(`UPDATE public.invitaciones_piloto SET enviada_at = NOW() WHERE id = $1`, [invitacion.id]);
+                res.json({ ok: true, enlace, correoEnviado: false, aviso: null, venceEn: invitacion.expira_at });
+                return;
+            }
 
             try {
                 envio = await enviarCorreoInvitacionPiloto({

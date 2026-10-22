@@ -360,3 +360,32 @@ test("descartar una solicitud revoca su invitacion pendiente", async () => {
     const lista = await (await fetch(`${BASE_URL}/admin/api/solicitudes-participacion`, { headers: ADMIN })).json();
     assert.equal(lista.solicitudes.find(s => s.id === id).estado, "descartada");
 });
+
+test("si el correo estaba mal se corrige al invitar, y se puede armar solo el enlace para WhatsApp", async () => {
+    const malo = `test-inv-malo-${SUFIJO}@example.com`;
+    const bueno = `test-inv-bueno-${SUFIJO}@example.com`;
+    const id = await crearSolicitud({ correo: malo });
+    const ruta = `${BASE_URL}/admin/api/solicitudes-participacion/${id}/invitar`;
+    const enviar = cuerpo => fetch(ruta, { method: "POST", headers: ADMIN, body: JSON.stringify(cuerpo) });
+
+    // Un correo invalido nuevo se rechaza y no pisa el que habia.
+    assert.equal((await enviar({ correo: "esto-no-es-correo" })).status, 400);
+    assert.equal((await pool.query(`SELECT correo FROM public.contactos_landing WHERE id = $1`, [id])).rows[0].correo, malo);
+
+    const corregido = await (await enviar({ correo: bueno })).json();
+    assert.match(corregido.enlace, /\/invitacion\//);
+    assert.equal((await pool.query(`SELECT correo FROM public.contactos_landing WHERE id = $1`, [id])).rows[0].correo, bueno);
+    assert.equal((await pool.query(`SELECT correo FROM public.invitaciones_piloto WHERE contacto_id = $1 AND estado = 'pendiente'`, [id])).rows[0].correo, bueno);
+
+    // Solo enlace: no intenta correo, deja un enlace nuevo valido y revoca el anterior.
+    const whatsapp = await (await enviar({ sinCorreo: true })).json();
+    assert.equal(whatsapp.ok, true);
+    assert.equal(whatsapp.correoEnviado, false);
+    assert.equal(whatsapp.aviso, null);
+    assert.notEqual(whatsapp.enlace, corregido.enlace);
+
+    const viejo = await fetch(`${BASE_URL}/invitacion/${tokenDe(corregido.enlace)}`);
+    const nuevo = await fetch(`${BASE_URL}/invitacion/${tokenDe(whatsapp.enlace)}`);
+    assert.equal(nuevo.status, 200);
+    assert.notEqual(viejo.status, 200, "el enlace anterior ya no sirve");
+});
