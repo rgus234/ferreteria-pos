@@ -652,6 +652,9 @@ function nivelPrecioPorDefectoDelNegocio() {
  const configurado =
  (configuracionNegocio() || {}).nivelPrecioPorDefecto;
 
+ // Un abarrotes (perfil simple) vende a un solo precio: el del publico.
+ if (typeof perfilEsSimple === "function" && perfilEsSimple()) return "publico";
+
  return NIVELES_PRECIO_POS.includes(configurado) ? configurado : "mayoreo";
 }
 
@@ -1481,7 +1484,7 @@ function renderResumenCobroPOS() {
 
  <div class="carrito-acciones-secundarias">
  <button class="btn-credito-carrito" onclick="cobrarCredito(${total})">
- Credito
+ ${typeof perfilEsSimple === "function" && perfilEsSimple() ? "Fiado" : "Credito"}
  </button>
 
  <button class="btn-cotizar-carrito" onclick="cotizarVentaPOS()">

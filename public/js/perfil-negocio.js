@@ -64,7 +64,18 @@ function perfilGuardar(clave, valor) {
 // Menu
 // ---------------------------------------------------------------------
 
+// Como le dice cada tipo de negocio a lo que ya existe (mismo modulo, otro nombre).
+function perfilRenombrarMenu() {
+    const botonCreditos = [...document.querySelectorAll(".sidebar button")].find(b => /abrirCreditos\(/.test(b.getAttribute("onclick") || ""));
+    if (!botonCreditos) return;
+
+    if (!botonCreditos.dataset.textoOriginal) botonCreditos.dataset.textoOriginal = botonCreditos.textContent.trim();
+    botonCreditos.textContent = perfilEsSimple() ? "Fiado" : botonCreditos.dataset.textoOriginal;
+}
+
 function perfilAplicarMenu() {
+    perfilRenombrarMenu();
+
     const perfil = perfilNegocioActual();
     const definicion = perfil ? PERFILES_NEGOCIO[perfil] : null;
 

@@ -26,6 +26,16 @@ body.perfil-simple:not(.perfil-ver-todo) .sidebar [data-perfil-oculto="1"] {
   border-color: #e2e8f0;
 }
 
+/* ---------- Punto de venta (abarrotes) ---------- */
+
+/* Un solo precio (publico), sin listas de productos de ferreteria, exhibidores, cotizaciones ni factura a cada venta. */
+body.perfil-simple:not(.perfil-ver-todo) .resumen-precio-aplicado,
+body.perfil-simple:not(.perfil-ver-todo) .btn-agregar-lista-pos,
+body.perfil-simple:not(.perfil-ver-todo) .btn-cotizar-carrito,
+body.perfil-simple:not(.perfil-ver-todo) .resumen-requiere-factura {
+  display: none !important;
+}
+
 /* ---------- Formulario de producto (abarrotes) ---------- */
 
 /* El formulario de producto vive en la capa nexo-product-form (pos-product-form.css) y sus reglas
@@ -51,7 +61,9 @@ body.perfil-simple:not(.perfil-ver-todo) .sidebar [data-perfil-oculto="1"] {
   /* Los campos van envueltos en <label class="campo-ficha"> con su etiqueta; perfil-negocio.js marca
      esos bloques con .perfil-campo-avanzado (el prefijo #modalAgregar gana a las reglas del formulario). */
   /* Catalogos de proveedor ferreteros (Diprofer, Gafi, Truper) y modos de captura: un abarrotes no los usa. */
+  body.perfil-simple:not(.perfil-campos-todos) button[onclick="abrirActualizarCatalogo()"],
   body.perfil-simple:not(.perfil-campos-todos) #proveedorCatalogoSeccion,
+  body.perfil-simple:not(.perfil-campos-todos) #proveedorCatalogoInfo,
   body.perfil-simple:not(.perfil-campos-todos) #modoCapturaSeccion,
   body.perfil-simple:not(.perfil-campos-todos) #modalAgregar .perfil-campo-avanzado,
   body.perfil-simple:not(.perfil-campos-todos) .perfil-campo-avanzado {
