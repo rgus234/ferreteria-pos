@@ -105,7 +105,9 @@ function renderListaExhibidores() {
         <div class="exh-header">
             <div>
                 <h2>Exhibidores</h2>
-                <p>Despachador de brocas, exhibidor de lijas, rack de dulces... Arma el display una vez y vende con tarjetas: tocas el producto y se agrega al carrito.</p>
+                <p>${exhEsAbarrotes()
+                    ? "Botanas, dulces, galletas, refrescos... Arma cada exhibidor una vez, surte lo que falta cuando pasa el proveedor y vende con tarjetas: tocas el producto y se agrega al carrito."
+                    : "Despachador de brocas, exhibidor de lijas, rack de dulces... Arma el display una vez y vende con tarjetas: tocas el producto y se agrega al carrito."}</p>
             </div>
             <button type="button" class="exh-btn exh-btn-primario" onclick="nuevoExhibidor()">+ Nuevo exhibidor</button>
         </div>
@@ -114,15 +116,27 @@ function renderListaExhibidores() {
             <div class="exh-vacio-icono">🗄️</div>
             <h3>Aun no tienes exhibidores</h3>
             <p>Crea el primero: ponle nombre, elige su color y agrega los productos que lleva. Despues lo vendes desde el Punto de Venta con un toque por producto.</p>
+            ${exhEsAbarrotes() ? `
+            <p class="exh-sugeridos-titulo">Empieza con uno de estos:</p>
+            <div class="exh-sugeridos">${EXHIBIDORES_SUGERIDOS_ABARROTES.map(nombre => `<button type="button" class="exh-btn exh-btn-suave" onclick="nuevoExhibidor('${nombre}')">${nombre}</button>`).join("")}</div>` : ""}
             <button type="button" class="exh-btn exh-btn-primario" onclick="nuevoExhibidor()">Crear mi primer exhibidor</button>
-        </div>` : `<div class="exh-grid">${tarjetas}</div>`}
+        </div>` :`<div class="exh-grid">${tarjetas}</div>`}
     </div>`;
 }
 
-async function nuevoExhibidor() {
-    const nombre = typeof pedirTextoPOS === "function"
-        ? await pedirTextoPOS("Nombre del exhibidor (ej. Despachador de brocas)", "", "Nuevo exhibidor")
-        : prompt("Nombre del exhibidor");
+// Abarrotes: los exhibidores son los de la tienda (botanas, dulces, refrescos...), no un despachador de brocas.
+const EXHIBIDORES_SUGERIDOS_ABARROTES = ["Botanas", "Dulces", "Galletas", "Refrescos", "Pan", "Lácteos"];
+
+function exhEsAbarrotes() {
+    return typeof perfilEsSimple === "function" && perfilEsSimple();
+}
+
+async function nuevoExhibidor(nombreSugerido) {
+    const nombre = typeof nombreSugerido === "string"
+        ? nombreSugerido
+        : typeof pedirTextoPOS === "function"
+            ? await pedirTextoPOS(exhEsAbarrotes() ? "Nombre del exhibidor (ej. Botanas, Dulces del mostrador)" : "Nombre del exhibidor (ej. Despachador de brocas)", "", "Nuevo exhibidor")
+            : prompt("Nombre del exhibidor");
 
     if (!nombre || !String(nombre).trim()) return;
 

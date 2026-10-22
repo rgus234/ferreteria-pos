@@ -171,3 +171,7 @@
 .exh-modal-cabecera-color h3,
 .exh-modal-cabecera-color span { color: #fff; }
 .exh-modal-cabecera-color span { opacity: .8; }
+
+/* Abarrotes: exhibidores sugeridos para empezar */
+.exh-sugeridos-titulo { margin: 14px 0 6px; font-weight: 700; color: #475569; }
+.exh-sugeridos { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 14px; }

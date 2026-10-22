@@ -30,7 +30,7 @@ body.perfil-simple:not(.perfil-ver-todo) .sidebar [data-perfil-oculto="1"] {
 
 /* Un solo precio (publico), sin listas de productos de ferreteria, exhibidores, cotizaciones ni factura a cada venta. */
 body.perfil-simple:not(.perfil-ver-todo) .resumen-precio-aplicado,
-body.perfil-simple:not(.perfil-ver-todo) .btn-agregar-lista-pos,
+body.perfil-simple:not(.perfil-ver-todo) .btn-agregar-lista-pos:not(.btn-exhibidor-pos),
 body.perfil-simple:not(.perfil-ver-todo) .btn-cotizar-carrito,
 body.perfil-simple:not(.perfil-ver-todo) .resumen-requiere-factura {
   display: none !important;

@@ -220,3 +220,16 @@ test("el punto de venta de un abarrotes cobra a un solo precio, sin cotizar ni l
     assert.match(css, /abrirActualizarCatalogo\(\)/);
     assert.match(css, /#proveedorCatalogoSeccion/);
 });
+
+test("abarrotes muestra los exhibidores (botanas, dulces, refrescos) con sugerencias propias del giro", () => {
+    const js = leer("js/exhibidores.js");
+    const css = leer("css/components/perfil-negocio.css");
+    const indice = leer("index.html");
+
+    assert.ok(!PERFILES_NEGOCIO.abarrotes.ocultar.includes("exhibidores"), "el menu de exhibidores ya no se oculta");
+    assert.match(css, /\.btn-agregar-lista-pos:not\(\.btn-exhibidor-pos\)/, "el boton de exhibidores del punto de venta sigue visible");
+    assert.match(indice, /class="btn-agregar-lista-pos btn-exhibidor-pos"/);
+    assert.match(js, /EXHIBIDORES_SUGERIDOS_ABARROTES = \["Botanas", "Dulces", "Galletas", "Refrescos"/);
+    assert.match(js, /exhEsAbarrotes\(\)/);
+    assert.match(js, /nuevoExhibidor\('\$\{nombre\}'\)/);
+});

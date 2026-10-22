@@ -21,7 +21,7 @@ const PERFILES_NEGOCIO = {
         simple: true,
         // Modulos del menu (data-shell-module) que un abarrotes no usa.
         ocultar: [
-            "explorar-nexo", "catalogo", "recepcion-inteligente", "exhibidores", "listas-producto",
+            "explorar-nexo", "catalogo", "recepcion-inteligente", "listas-producto",
             "fotos-sugeridas", "codigos-barras", "encargos", "sitio-web", "pedidos-market", "facturacion"
         ]
     },
