@@ -1452,6 +1452,7 @@ function ocultarPantallasPrincipales() {
  "pantallaEncargos",
  "pantallaListasProducto",
  "pantallaExhibidores",
+ "pantallaPedidoSugerido",
  "pantallaFotosSugeridas",
  "pantallaCargaInventario",
  "pantallaExplorarNexo",

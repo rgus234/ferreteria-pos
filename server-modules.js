@@ -81,6 +81,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./lotes-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("pedido sugerido por proveedor (abarrotes)", () => {
+        require("./pedido-sugerido-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("invitaciones a negocios piloto", () => {
         require("./invitaciones-server")(app, pool);
     });

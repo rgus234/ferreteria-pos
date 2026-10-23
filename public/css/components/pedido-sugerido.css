@@ -1,0 +1,67 @@
+/* Pedido sugerido por proveedor (ver public/js/pedido-sugerido.js). Solo abarrotes. */
+
+.sidebar .solo-perfil-simple { display: none; }
+body.perfil-simple .sidebar .solo-perfil-simple { display: flex; }
+
+.pedsug-shell { padding: 20px; max-width: 1100px; margin: 0 auto; }
+
+.pedsug-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
+.pedsug-header h2 { margin: 0 0 4px; font-size: 22px; }
+.pedsug-header p { margin: 0; color: #64748b; font-size: 14px; max-width: 640px; }
+
+.pedsug-vacio { padding: 40px 16px; text-align: center; color: #64748b; }
+
+.pedsug-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+
+.pedsug-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+  border: 2px solid transparent;
+}
+
+.pedsug-card-urgente { border-color: #f59e0b; }
+
+.pedsug-card-cabecera { display: flex; flex-direction: column; gap: 2px; }
+.pedsug-card-cabecera strong { font-size: 17px; }
+.pedsug-cuando { font-size: 13px; font-weight: 700; color: #b45309; }
+
+.pedsug-card-cuerpo { display: flex; flex-direction: column; gap: 2px; min-height: 42px; color: #475569; font-size: 14px; }
+.pedsug-monto { font-size: 24px; color: #15803d; }
+.pedsug-nota { color: #94a3b8; }
+
+.pedsug-card-visita { display: flex; gap: 8px; }
+.pedsug-card-visita select { flex: 1; padding: 8px; border-radius: 10px; border: 1px solid #cbd5e1; font-size: 13px; }
+
+.pedsug-btn {
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pedsug-btn-primario { background: var(--brand-color, #0d6efd); border-color: transparent; color: #fff; }
+.pedsug-btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+.pedsug-tabla { width: 100%; border-collapse: collapse; background: #fff; border-radius: 14px; overflow: hidden; }
+.pedsug-tabla th, .pedsug-tabla td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+.pedsug-tabla td span { display: block; font-size: 12px; color: #94a3b8; }
+.pedsug-tabla input { width: 72px; padding: 6px; border-radius: 8px; border: 1px solid #cbd5e1; }
+.pedsug-subtotal { font-weight: 700; }
+
+.pedsug-pie { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+.pedsug-total { font-size: 16px; }
+.pedsug-total strong { font-size: 22px; color: #15803d; margin-left: 6px; }
+.pedsug-acciones { display: flex; gap: 8px; }
+
+@media (max-width: 640px) {
+  .pedsug-shell { padding: 12px; }
+  .pedsug-tabla th:nth-child(3), .pedsug-tabla td:nth-child(3),
+  .pedsug-tabla th:nth-child(5), .pedsug-tabla td:nth-child(5) { display: none; }
+}

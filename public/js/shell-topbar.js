@@ -16,6 +16,7 @@ const AYUDA_MODULOS_POS = {
  "listas-producto": "Arma listas de productos que vendes seguido (utiles escolares, despensa basica) para agregarlas completas al carrito con un click.",
  "carga-inventario": "Llena tu inventario rapido: busca en el catalogo de Nexo, pega tu lista de Excel o usa la lista de tu proveedor.",
  "fotos-sugeridas": "Revisa las fotos que el Banco de Nexo sugiere para tus productos sin foto y confirma con un toque las que son correctas.",
+ "pedido-sugerido": "Dile a Nexo que dia viene cada proveedor y te dice que pedirle segun lo que vendes, con el dinero estimado y un aviso antes de que llegue.",
  exhibidores: "Arma tus displays (brocas, lijas, dulces) con los productos que llevan y vende con tarjetas visuales desde el Punto de Venta.",
  recepcion: "Registra mercancia recibida de proveedor y actualiza inventario desde compras.",
  ajustes: "Sirve para corregir existencias por conteo fisico, merma, entradas o salidas internas.",
@@ -170,7 +171,7 @@ function asegurarBotonSidebarPOS(modulo, etiqueta, handler) {
    sidebar.appendChild(boton) directo. Esos scripts no necesitan saber
    nada de los grupos -- el reacomodo central los recoge de aqui. */
 const GRUPOS_SIDEBAR_POS = {
- inventario: { contenedor: "submenuInventario", modulos: ["inventario", "carga-inventario", "agregar-producto", "inventario-bajo", "por-vencer", "categorias", "listas-producto", "exhibidores", "fotos-sugeridas", "codigos-barras"] },
+ inventario: { contenedor: "submenuInventario", modulos: ["inventario", "carga-inventario", "agregar-producto", "inventario-bajo", "por-vencer", "categorias", "listas-producto", "exhibidores", "pedido-sugerido", "fotos-sugeridas", "codigos-barras"] },
  "ventas-caja": { contenedor: "submenuVentasCaja", modulos: ["reportes", "caja", "finanzas"] },
  compras: { contenedor: "submenuCompras", modulos: ["proveedores", "catalogo", "recepcion", "pedidos", "ajustes"] },
  nexo: { contenedor: "submenuNexo", modulos: ["nexo-ia", "pedidos-market", "sitio-web", "encargos", "buscar-ticket"] }
