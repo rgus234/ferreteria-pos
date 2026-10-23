@@ -258,9 +258,36 @@ if (typeof window !== "undefined") {
     window.perfilNegocio = { aplicar: perfilAplicar, actual: perfilNegocioActual, esSimple: perfilEsSimple, PERFILES: PERFILES_NEGOCIO };
 }
 
+// Quien ya tenia la sesion abierta (o entro por una ruta que no trae el tipo) no tiene el perfil en este equipo:
+// se pide una vez al servidor y se guarda SOLO el perfil, sin tocar el resto de la configuracion local.
+async function perfilSincronizarConServidor() {
+    if (perfilNegocioActual()) return;
+
+    try {
+        const respuesta = await fetch("/negocio-actual");
+        if (!respuesta.ok) return;
+
+        const datos = await respuesta.json();
+        const perfil = String(datos?.negocio?.giro || "").trim().toLowerCase();
+        if (!PERFILES_NEGOCIO[perfil]) return;
+
+        const actual = configuracionNegocio();
+        if (!actual) return;
+
+        localStorage.setItem(CONFIG_NEGOCIO_KEY, JSON.stringify({ ...actual, perfilNegocio: perfil }));
+        perfilAplicar();
+    } catch (error) { /* sin conexion: se queda como estaba */ }
+}
+
 if (typeof document !== "undefined") {
-    document.addEventListener("DOMContentLoaded", perfilAplicar);
-    if (document.readyState !== "loading") perfilAplicar();
+    document.addEventListener("DOMContentLoaded", () => {
+        perfilAplicar();
+        perfilSincronizarConServidor();
+    });
+    if (document.readyState !== "loading") {
+        perfilAplicar();
+        perfilSincronizarConServidor();
+    }
 }
 
 if (typeof module !== "undefined" && module.exports) {

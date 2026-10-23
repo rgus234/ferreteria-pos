@@ -233,3 +233,19 @@ test("abarrotes muestra los exhibidores (botanas, dulces, refrescos) con sugeren
     assert.match(js, /exhEsAbarrotes\(\)/);
     assert.match(js, /nuevoExhibidor\('\$\{nombre\}'\)/);
 });
+
+test("quien entra con correo y contrasena recibe su tipo de negocio (sin eso nunca veia el menu de su giro)", async () => {
+    const correo = `${negocio.slug}@example.com`;
+    await pool.query(`UPDATE public.negocios SET password_hash = $1 WHERE id = $2`, [hashPassword("ContrasenaSegura1"), negocio.negocioId]);
+
+    const r = await fetch(`${BASE_URL}/cuenta/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ correo, password: "ContrasenaSegura1" }) });
+    assert.equal(r.status, 200);
+
+    const cuerpo = await r.json();
+    assert.equal(cuerpo.negocio.giro, (await giroDelNegocio()).giro);
+
+    // Y el cliente se lo pide al servidor si su equipo no lo tiene (sesion ya abierta antes de este arreglo).
+    const js = leer("js/perfil-negocio.js");
+    assert.match(js, /async function perfilSincronizarConServidor/);
+    assert.match(js, /\/negocio-actual/);
+});

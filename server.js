@@ -1528,7 +1528,7 @@ app.post("/cuenta/login", async (req, res) => {
 
     try {
         const negocio = await pool.query(
-            "SELECT id, slug, nombre, correo, correo_verificado, password_hash FROM public.negocios WHERE LOWER(correo) = $1 LIMIT 1",
+            "SELECT id, slug, nombre, correo, correo_verificado, password_hash, giro FROM public.negocios WHERE LOWER(correo) = $1 LIMIT 1",
             [correo]
         );
 
@@ -1579,7 +1579,10 @@ app.post("/cuenta/login", async (req, res) => {
                 slug: fila.slug,
                 nombre: fila.nombre,
                 correo: fila.correo,
-                correoVerificado: fila.correo_verificado
+                correoVerificado: fila.correo_verificado,
+                // El tipo de negocio decide el menu y los formularios (perfil-negocio.js): sin esto,
+                // quien entra con correo y contrasena nunca recibia su perfil.
+                giro: fila.giro
             }
         });
     } catch (error) {
