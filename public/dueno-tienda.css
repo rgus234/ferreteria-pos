@@ -1,0 +1,58 @@
+/* Mi tienda (ver dueno-tienda.js): pantalla completa para el celular. */
+
+.tienda-entrada { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: center; width: calc(100% - 32px); margin: 12px 16px; padding: 14px 16px; border: 2px solid #16a34a; border-radius: 16px; background: #f0fdf4 !important; color: #0f172a !important; text-align: left; cursor: pointer; }
+.tienda-entrada span { grid-row: span 2; font-size: 30px; }
+.tienda-entrada small { color: #64748b; font-size: 12.5px; }
+
+.tienda-capa { position: fixed; inset: 0; z-index: 9400; display: none; flex-direction: column; background: #f1f5f9; color: #0f172a; overflow-y: auto; }
+.tienda-capa.abierta { display: flex; }
+.tienda-cabecera { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+.tienda-cabecera h2 { margin: 0; font-size: 18px; }
+.tienda-icono { width: 42px; height: 42px; border: 0; border-radius: 12px; background: #e2e8f0 !important; color: #0f172a !important; font-size: 20px; cursor: pointer; }
+.tienda-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 10px 14px; background: #fff; }
+.tienda-tabs button { padding: 10px 6px; border: 0; border-radius: 12px; background: #f1f5f9 !important; color: #475569 !important; font-weight: 800; font-size: 14px; }
+.tienda-tabs button.activo { background: #16a34a !important; color: #fff !important; }
+.tienda-cuerpo { display: grid; gap: 12px; padding: 14px; align-content: start; }
+
+.tienda-kpis { display: grid; gap: 10px; }
+.tienda-kpis article { display: grid; gap: 2px; padding: 14px 16px; border-radius: 16px; background: #fff; border-left: 6px solid #0d6efd; }
+.tienda-kpis .verde { border-left-color: #16a34a; }
+.tienda-kpis .ambar { border-left-color: #f59e0b; }
+.tienda-kpis span { font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #64748b; }
+.tienda-kpis strong { font-size: 28px; }
+.tienda-kpis small { color: #64748b; }
+.tienda-aviso { margin: 0; padding: 10px 12px; border-radius: 12px; background: rgba(245, 158, 11, .15); color: #92400e; font-size: 14px; }
+.tienda-tarjeta { padding: 14px 16px; border-radius: 16px; background: #fff; }
+.tienda-tarjeta.urgente { outline: 2px solid #f59e0b; }
+.tienda-tarjeta h3 { margin: 0 0 6px; font-size: 16px; }
+.tienda-tarjeta p { margin: 4px 0; }
+.tienda-cuando { color: #b45309; font-weight: 800; font-size: 13px; }
+.tienda-lista { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.tienda-lista li { display: flex; justify-content: space-between; gap: 10px; }
+.tienda-barras { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; height: 110px; }
+.tienda-barras div { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 4px; }
+.tienda-barras i { width: 70%; border-radius: 6px 6px 3px 3px; background: #93c5fd; min-height: 3px; }
+.tienda-barras span { font-size: 11px; color: #64748b; }
+.tienda-nota { margin: 0; color: #64748b; font-size: 13px; text-align: center; }
+.tienda-vacio { margin: 0; color: #94a3b8; text-align: center; padding: 6px 0; }
+.verde { color: #15803d; }
+.rojo { color: #b91c1c; }
+
+.tienda-revisar { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.tienda-revisar li { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; background: #fff; border-left: 5px solid #f59e0b; }
+.tienda-revisar li.mal { border-left-color: #dc2626; }
+.tienda-revisar small { display: block; color: #64748b; }
+
+.tienda-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.tienda-acciones button, .tienda-acciones select { padding: 10px 14px; border: 0; border-radius: 12px; background: #e2e8f0 !important; color: #0f172a !important; font-weight: 800; font-size: 14px; }
+.tienda-acciones button.primario { background: #16a34a !important; color: #fff !important; }
+.tienda-acciones button[disabled] { opacity: .45; }
+
+.tienda-volver { align-self: flex-start; padding: 0; border: 0; background: transparent !important; color: #0d6efd !important; font-weight: 800; }
+.tienda-titulo { margin: 0; font-size: 20px; }
+.tienda-pedido { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.tienda-pedido li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: #fff; }
+.tienda-pedido small { display: block; color: #64748b; }
+.tienda-pedido input { width: 72px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 16px; text-align: center; }
+.tienda-total { margin: 0; font-size: 16px; }
+.tienda-total b { font-size: 22px; color: #15803d; }
