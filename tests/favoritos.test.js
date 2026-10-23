@@ -149,3 +149,15 @@ test("la franja de favoritos se oculta y se muestra con animacion, recuerda la e
     assert.match(css, /transition: grid-template-rows/);
     assert.match(css, /prefers-reduced-motion[\s\S]*\.fav-plegable/);
 });
+
+test("el boton de ocultar/mostrar favoritos es visible: con texto, borde de color y flecha que gira", () => {
+    const leer = ruta => fs.readFileSync(path.join(__dirname, "..", "public", ruta), "utf8");
+    const js = leer("js/favoritos-pos.js");
+    const css = leer("css/components/favoritos-pos.css");
+
+    assert.match(js, /class="fav-btn fav-btn-alternar" onclick="favAlternar\(\)"/);
+    assert.match(js, /favoritosOculta \? "Mostrar" : "Ocultar"/);
+    assert.match(js, /alternar\.querySelector\("\.fav-btn-texto"\)\.textContent/, "el texto del boton cambia al alternar");
+    assert.match(css, /\.fav-btn-alternar \{[^}]*border: 2px solid var\(--brand-color/);
+    assert.match(css, /\.fav-oculta \.fav-btn-flecha \{ transform: rotate\(180deg\)/);
+});

@@ -157,6 +157,10 @@ function renderFavoritosPOS() {
         </button>
         <div class="fav-cabecera-acciones">
             ${productos.length || favoritosEditando ? `<button type="button" class="fav-btn" onclick="favEditar(${favoritosEditando ? "false" : "true"})">${favoritosEditando ? "Listo" : "Editar"}</button>` : ""}
+            <button type="button" class="fav-btn fav-btn-alternar" onclick="favAlternar()" aria-expanded="${favoritosOculta ? "false" : "true"}" aria-controls="favCuerpo">
+                <span class="fav-btn-texto">${favoritosOculta ? "Mostrar" : "Ocultar"}</span>
+                <span class="fav-btn-flecha" aria-hidden="true">▲</span>
+            </button>
         </div>
     </div>
     <div class="fav-plegable" id="favCuerpo">
@@ -231,6 +235,12 @@ function favAlternar() {
 
     const titulo = franja.querySelector(".fav-titulo");
     const resumen = franja.querySelector(".fav-resumen");
+    const alternar = franja.querySelector(".fav-btn-alternar");
+
+    if (alternar) {
+        alternar.setAttribute("aria-expanded", favoritosOculta ? "false" : "true");
+        alternar.querySelector(".fav-btn-texto").textContent = favoritosOculta ? "Mostrar" : "Ocultar";
+    }
 
     if (titulo) {
         titulo.setAttribute("aria-expanded", favoritosOculta ? "false" : "true");

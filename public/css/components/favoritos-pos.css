@@ -22,6 +22,11 @@
 .fav-cabecera-acciones { display: flex; gap: 8px; }
 
 .fav-btn { padding: 6px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff !important; color: #0f172a !important; font-weight: 800; font-size: 13px; cursor: pointer; }
+/* Boton para ocultar / mostrar la franja: bien visible, con color y flecha que gira. */
+.fav-btn-alternar { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border: 2px solid var(--brand-color, #0d6efd); background: color-mix(in srgb, var(--brand-color, #0d6efd) 10%, #fff) !important; color: var(--brand-color, #0d6efd) !important; font-size: 13.5px; }
+.fav-btn-alternar:hover { background: var(--brand-color, #0d6efd) !important; color: #fff !important; }
+.fav-btn-flecha { font-size: 11px; transition: transform .28s cubic-bezier(.4, 0, .2, 1); }
+.fav-oculta .fav-btn-flecha { transform: rotate(180deg); }
 .fav-btn-primario { background: var(--brand-color, #0d6efd) !important; border-color: transparent; color: #fff !important; }
 
 /* Hasta dos filas a la vista; si hay mas, se desplaza. */
@@ -72,5 +77,5 @@
 .fav-sugeridos small { color: #94a3b8; font-weight: 700; }
 
 @media (prefers-reduced-motion: reduce) {
-  .fav-tarjeta, .fav-plegable, .fav-flecha, .fav-franja { transition: none; }
+  .fav-tarjeta, .fav-plegable, .fav-flecha, .fav-btn-flecha, .fav-franja { transition: none; }
 }
