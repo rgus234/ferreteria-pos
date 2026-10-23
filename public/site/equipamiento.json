@@ -1,0 +1,121 @@
+{
+  "actualizado": "2026-10-30",
+  "fotosAutorizadas": false,
+  "avisoPrecios": "Precios de referencia del catálogo del fabricante (Truper), sin verificar su vigencia. Confirma el precio actual y la disponibilidad al cotizar.",
+  "fuentes": "Claves, códigos y precios: catálogo del fabricante cargado en Nexo (septiembre 2026). Especificaciones: ficha impresa del catálogo. Medio mayoreo de las impresoras: ficha impresa (el catálogo cargado no lo trae).",
+  "categorias": [
+    { "id": "impresoras", "nombre": "Impresoras térmicas de recibos" },
+    { "id": "lectores", "nombre": "Lectores de códigos de barras" }
+  ],
+  "productos": [
+    {
+      "id": "43946", "codigo": "43946", "clave": "PDV-81I", "marca": "Volteck", "fabricante": "Truper", "categoria": "impresoras",
+      "nombre": "Impresora térmica de recibos 80 mm", "conexiones": ["USB", "Bluetooth", "RJ45", "WiFi"],
+      "foto": "/site/equipos/43946.jpg",
+      "precios": { "mayoreo": 1615, "medioMayoreo": 1765, "publico": 1940 },
+      "resumen": ["Rollo de 80 mm", "USB + Bluetooth + RJ45 + WiFi", "Corte automático, 300 mm/s"],
+      "especificaciones": [
+        ["Ancho de rollo", "80 mm"], ["Conexión", "USB + Bluetooth + RJ45 + WiFi"], ["Corte de papel", "Automático"],
+        ["Velocidad de impresión", "300 mm/s"], ["Alimentación", "110/240 V, 50/60 Hz"], ["Cajón de dinero", "Interfaz RJ11"],
+        ["Medidas aproximadas", "14 × 16 × 14 cm"], ["Impresión", "No requiere tinta; imprime códigos de barras y QR"]
+      ],
+      "incluye": ["Adaptador c. a.", "Cable de alimentación", "Cable USB", "Rollo de papel"],
+      "compatibilidad": { "sistemas": ["Windows", "iOS", "Android"] },
+      "garantia": "1 año"
+    },
+    {
+      "id": "43945", "codigo": "43945", "clave": "PDV-80I", "marca": "Volteck", "fabricante": "Truper", "categoria": "impresoras",
+      "nombre": "Impresora térmica de recibos 58/80 mm", "conexiones": ["USB", "Bluetooth"],
+      "foto": "/site/equipos/43945.jpg",
+      "precios": { "mayoreo": 1155, "medioMayoreo": 1270, "publico": 1395 },
+      "resumen": ["Rollo de 58 u 80 mm", "USB + Bluetooth", "Corte automático, 150 mm/s"],
+      "especificaciones": [
+        ["Ancho de rollo", "58 / 80 mm"], ["Conexión", "USB + Bluetooth"], ["Corte de papel", "Automático"],
+        ["Velocidad de impresión", "150 mm/s"], ["Alimentación", "110/240 V, 50/60 Hz"], ["Cajón de dinero", "Interfaz RJ11"],
+        ["Medidas aproximadas", "11 × 13 × 9 cm"], ["Impresión", "No requiere tinta; imprime códigos de barras y QR"]
+      ],
+      "incluye": ["Adaptador c. a.", "Cable USB", "Separador plástico", "Tubo", "Rollo de papel"],
+      "compatibilidad": { "sistemas": ["Windows", "iOS", "Android"] },
+      "garantia": "1 año"
+    },
+    {
+      "id": "43944", "codigo": "43944", "clave": "PDV-58I", "marca": "Volteck", "fabricante": "Truper", "categoria": "impresoras",
+      "nombre": "Impresora térmica de recibos 58 mm", "conexiones": ["USB", "Bluetooth"],
+      "foto": "/site/equipos/43944.jpg",
+      "precios": { "mayoreo": 595, "medioMayoreo": 655, "publico": 720 },
+      "resumen": ["Rollo de 58 mm", "USB + Bluetooth", "Corte manual, 120 mm/s"],
+      "especificaciones": [
+        ["Ancho de rollo", "58 mm"], ["Conexión", "USB + Bluetooth"], ["Corte de papel", "Manual"],
+        ["Velocidad de impresión", "120 mm/s"], ["Alimentación", "110/240 V, 50/60 Hz"], ["Cajón de dinero", "Interfaz RJ11"],
+        ["Medidas aproximadas", "12 × 17 × 9 cm"], ["Impresión", "No requiere tinta; imprime códigos de barras y QR"]
+      ],
+      "incluye": ["Adaptador c. a.", "Cable USB", "Rollo de papel"],
+      "compatibilidad": { "sistemas": ["Windows", "iOS", "Android"] },
+      "garantia": "1 año"
+    },
+    {
+      "id": "44197", "codigo": "44197", "clave": "PDV-22L", "marca": "Volteck", "fabricante": "Truper", "categoria": "lectores",
+      "nombre": "Lector de códigos de barras 2D, Bluetooth", "conexiones": ["Bluetooth", "Inalámbrico 2.4 GHz", "USB"],
+      "foto": "/site/equipos/44197.jpg",
+      "precios": { "mayoreo": 1385, "medioMayoreo": 1525, "publico": 1675 },
+      "resumen": ["Código de barras y QR (2D)", "Bluetooth, receptor USB o cable", "Recargable USB-C, 70 g"],
+      "especificaciones": [
+        ["Tipo", "2D (códigos de barras y QR)"], ["Conexión", "Bluetooth, inalámbrica con receptor USB (2.4 GHz), cable USB"],
+        ["Batería", "Ion-litio 3.7 V / 1.2 Ah, recargable por USB-C"], ["Tiempo de carga", "3-4 horas"],
+        ["Escaneos por carga", "Hasta 100,000 con carga completa"], ["Peso", "70 g"], ["Largo del cable", "115 cm"],
+        ["Medidas aproximadas", "3 × 12 × 4 cm"], ["Lectura", "Códigos en pantallas de teléfonos o monitores; tono de escaneo"],
+        ["Para sistema", "TruScan"]
+      ],
+      "incluye": ["Cable USB-C", "Receptor USB", "Portagafete retráctil y cordón"],
+      "compatibilidad": { "sistemas": ["Windows", "Android", "iOS", "Mac"] },
+      "garantia": "1 año"
+    },
+    {
+      "id": "44196", "codigo": "44196", "clave": "PDV-21L", "marca": "Volteck", "fabricante": "Truper", "categoria": "lectores",
+      "nombre": "Lector de códigos de barras 2D, inalámbrico", "conexiones": ["Inalámbrico 2.4 GHz", "USB"],
+      "foto": "/site/equipos/44196.jpg",
+      "precios": { "mayoreo": 835, "medioMayoreo": 920, "publico": 1015 },
+      "resumen": ["Código de barras y QR (2D)", "Inalámbrico con receptor USB", "Incluye soporte y base"],
+      "especificaciones": [
+        ["Tipo", "2D (códigos de barras y QR)"], ["Conexión", "Inalámbrica con receptor USB (2.4 GHz), cable USB"],
+        ["Batería", "Ion-litio 3.7 V / 2 Ah, recargable por USB-C"], ["Tiempo de carga", "4-5 horas"],
+        ["Escaneos por carga", "Hasta 100,000 con carga completa"], ["Peso", "160 g"], ["Largo del cable", "115 cm"],
+        ["Medidas aproximadas", "10 × 6 × 17 cm"], ["Modos", "Lectura automática y modo de disparo"],
+        ["Lectura", "Códigos en pantallas de teléfonos o monitores; tono de escaneo"]
+      ],
+      "incluye": ["Cable USB-C", "Receptor USB", "Soporte y base"],
+      "compatibilidad": { "sistemas": ["Windows", "Android", "iOS", "Mac"] },
+      "garantia": "1 año"
+    },
+    {
+      "id": "44195", "codigo": "44195", "clave": "PDV-12L", "marca": "Volteck", "fabricante": "Truper", "categoria": "lectores",
+      "nombre": "Lector de códigos de barras 2D", "conexiones": ["USB"],
+      "foto": "/site/equipos/44195.jpg",
+      "precios": { "mayoreo": 695, "medioMayoreo": 765, "publico": 845 },
+      "resumen": ["Código de barras y QR (2D)", "USB con cable", "Incluye soporte y base"],
+      "especificaciones": [
+        ["Tipo", "2D (códigos de barras y QR)"], ["Conexión", "USB alámbrica, cable USB-A"], ["Peso", "165 g"],
+        ["Largo del cable", "154 cm"], ["Medidas aproximadas", "10 × 6 × 17 cm"], ["Modos", "Lectura automática y modo de disparo"],
+        ["Lectura", "Códigos en pantallas de teléfonos o monitores; tono de escaneo"]
+      ],
+      "incluye": ["Cable USB-A", "Soporte y base"],
+      "compatibilidad": { "sistemas": ["Windows", "Android", "iOS", "Mac"] },
+      "garantia": "1 año"
+    },
+    {
+      "id": "44189", "codigo": "44189", "clave": "PDV-11L", "marca": "Volteck", "fabricante": "Truper", "categoria": "lectores",
+      "nombre": "Lector de códigos de barras 1D", "conexiones": ["USB"],
+      "foto": "/site/equipos/44189.jpg",
+      "precios": { "mayoreo": 450, "medioMayoreo": 495, "publico": 545 },
+      "resumen": ["Código de barras (1D)", "USB con cable", "Incluye soporte y base"],
+      "especificaciones": [
+        ["Tipo", "1D (códigos de barras)"], ["Conexión", "USB alámbrica, cable USB-A"], ["Peso", "166 g"],
+        ["Largo del cable", "154 cm"], ["Medidas aproximadas", "10 × 6 × 17 cm"], ["Modos", "Lectura automática y modo de disparo"],
+        ["Lectura", "Tono de escaneo para indicar la lectura"]
+      ],
+      "incluye": ["Cable USB-A", "Soporte y base"],
+      "compatibilidad": { "sistemas": ["Windows", "Android", "iOS", "Mac"] },
+      "garantia": "1 año"
+    }
+  ]
+}

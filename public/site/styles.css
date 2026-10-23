@@ -2648,3 +2648,73 @@ html.giro-eligiendo { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .giro-elegir, .giro-opcion { animation: none; transition: none; }
 }
+
+/* ---------- Equipamiento para tu negocio (equipamiento.js / equipamiento.json) ---------- */
+
+.equipamiento { padding: 64px 20px; background: linear-gradient(180deg, var(--paper) 0%, #fff 100%); }
+.equipamiento-interior { max-width: 1100px; margin: 0 auto; }
+.equipamiento h2 { margin: 6px 0 8px; font-size: clamp(26px, 4vw, 36px); }
+.equipamiento-intro { color: var(--muted); max-width: 680px; margin: 0 0 22px; }
+
+.equipo-filtros { display: grid; gap: 12px; margin-bottom: 20px; }
+.equipo-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.equipo-chips button { padding: 9px 16px; border: 2px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font: inherit; font-weight: 800; font-size: 14px; cursor: pointer; }
+.equipo-chips button.activo { border-color: var(--blue); background: rgba(16, 103, 232, .1); color: var(--blue); }
+.equipo-controles { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.equipo-controles input, .equipo-controles select { padding: 11px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font: inherit; font-size: 15px; }
+.equipo-controles input { flex: 1 1 220px; min-width: 0; }
+.equipo-conteo { color: var(--muted); font-size: 13.5px; font-weight: 700; margin-left: auto; }
+
+.equipo-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.equipo-tarjeta { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 20px; background: #fff; box-shadow: 0 8px 24px rgba(20, 32, 51, .06); overflow: hidden; }
+.equipo-foto { width: 100%; aspect-ratio: 1; object-fit: contain; background: #f4f7fb; }
+.equipo-sin-foto { display: flex; align-items: center; justify-content: center; font-size: 56px; color: #8793a6; }
+.equipo-cuerpo { display: flex; flex-direction: column; gap: 8px; padding: 16px; flex: 1; }
+.equipo-marca { margin: 0; color: var(--muted); font-size: 12.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.equipo-cuerpo h3 { margin: 0; font-size: 18px; line-height: 1.25; }
+.equipo-resumen { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14px; }
+.equipo-precio { display: grid; margin: 4px 0 0; }
+.equipo-precio span { font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; }
+.equipo-precio strong { font-size: 26px; }
+.equipo-precio small { color: var(--muted); font-size: 12px; }
+.equipo-acciones { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; flex-wrap: wrap; }
+.equipo-acciones .btn { flex: 1 1 auto; text-align: center; cursor: pointer; }
+.equipo-vacio { grid-column: 1 / -1; padding: 28px 12px; text-align: center; color: var(--muted); }
+.equipo-aviso { margin: 18px 0 0; color: var(--muted); font-size: 13px; }
+
+html.equipo-abierta { overflow: hidden; }
+.equipo-ficha { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: flex-end; justify-content: center; background: rgba(15, 23, 42, .6); }
+.equipo-ficha-caja { position: relative; width: min(760px, 100%); max-height: 94vh; overflow-y: auto; padding: 22px 20px 26px; border-radius: 24px 24px 0 0; background: #fff; }
+.equipo-cerrar { position: sticky; top: 0; float: right; width: 40px; height: 40px; border: 0; border-radius: 50%; background: #f1f5f9; font-size: 24px; cursor: pointer; }
+.equipo-ficha-cabecera { display: grid; grid-template-columns: 120px 1fr; gap: 16px; align-items: center; margin-bottom: 14px; }
+.equipo-ficha-foto { width: 120px; height: 120px; border-radius: 16px; object-fit: contain; background: #f4f7fb; }
+.equipo-ficha h3 { margin: 4px 0; font-size: 22px; }
+.equipo-ficha h4 { margin: 18px 0 8px; font-size: 16px; }
+.equipo-garantia { margin: 0; color: var(--muted); font-weight: 700; }
+.equipo-precios { padding: 14px; border-radius: 16px; background: var(--paper); }
+.equipo-precios h4 { margin-top: 0; }
+.equipo-precios-fila { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.equipo-precios-fila div { padding: 10px; border-radius: 12px; background: #fff; text-align: center; }
+.equipo-precios-fila .destacado { outline: 2px solid var(--blue); }
+.equipo-precios-fila span { display: block; font-size: 12px; font-weight: 800; color: var(--muted); }
+.equipo-precios-fila strong { font-size: 20px; }
+.equipo-nota { margin: 10px 0 0; color: var(--muted); font-size: 12.5px; }
+.equipo-tabla { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.equipo-tabla th, .equipo-tabla td { padding: 9px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.equipo-tabla th { width: 38%; color: var(--muted); font-weight: 800; }
+.equipo-incluye { margin: 0; padding-left: 20px; }
+.equipo-pendiente { padding: 10px 12px; border-radius: 12px; background: rgba(243, 162, 27, .15); color: #8a5300; font-size: 14px; }
+.equipo-ficha-acciones { margin-top: 16px; }
+.equipo-fuente { margin: 16px 0 0; color: var(--muted); font-size: 12px; }
+
+@media (min-width: 720px) {
+  .equipo-ficha { align-items: center; }
+  .equipo-ficha-caja { border-radius: 24px; }
+}
+
+@media (max-width: 520px) {
+  .equipo-ficha-cabecera { grid-template-columns: 84px 1fr; }
+  .equipo-ficha-foto { width: 84px; height: 84px; }
+  .equipo-precios-fila strong { font-size: 17px; }
+  .equipo-tabla th { width: 44%; }
+}

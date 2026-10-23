@@ -93,6 +93,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./favoritos-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("capturar codigos (privado, temporal)", () => {
+        require("./captura-codigos-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("invitaciones a negocios piloto", () => {
         require("./invitaciones-server")(app, pool);
     });

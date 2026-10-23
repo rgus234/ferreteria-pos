@@ -1,0 +1,47 @@
+/* Capturar códigos (ver dueno-captura.js): pantalla completa pensada para una mano en el celular. */
+
+.captura-entrada { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: center; width: calc(100% - 32px); margin: 12px 16px; padding: 14px 16px; border: 2px dashed #94a3b8; border-radius: 16px; background: #fff !important; color: #0f172a !important; text-align: left; cursor: pointer; }
+.captura-entrada span { grid-row: span 2; font-size: 30px; }
+.captura-entrada small { color: #64748b; font-size: 12.5px; }
+
+.captura-capa { position: fixed; inset: 0; z-index: 9500; display: none; flex-direction: column; overflow-y: auto; background: #0b1220; color: #fff; }
+.captura-capa.abierta { display: flex; }
+
+.captura-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; }
+.captura-cabecera h2 { margin: 0; font-size: 18px; color: #fff !important; text-align: center; }
+.captura-cabecera small { display: block; text-align: center; color: #94a3b8; font-size: 12.5px; }
+.captura-icono { width: 44px; height: 44px; border: 0; border-radius: 14px; background: #1e293b !important; color: #fff !important; font-size: 20px; cursor: pointer; }
+
+.captura-camara { position: relative; margin: 0 14px; border-radius: 18px; overflow: hidden; background: #000; aspect-ratio: 4 / 3; max-height: 38vh; }
+.captura-camara video { width: 100%; height: 100%; object-fit: cover; }
+.captura-mira { position: absolute; inset: 22% 10%; border: 2px solid rgba(255, 255, 255, .85); border-radius: 14px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .35); pointer-events: none; }
+.captura-estado { margin: 8px 16px; text-align: center; color: #cbd5e1; font-size: 14px; }
+
+.captura-ficha { margin: 4px 14px 8px; padding: 16px; border-radius: 18px; background: #fff; color: #0f172a; display: grid; gap: 10px; }
+.captura-ficha[hidden] { display: none; }
+.captura-etiqueta { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #64748b; }
+.captura-codigo { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 26px; letter-spacing: .04em; word-break: break-all; }
+.captura-aviso { margin: 0; padding: 9px 12px; border-radius: 12px; background: rgba(245, 158, 11, .16); color: #92400e; font-size: 14px; }
+.captura-ficha input { padding: 14px; border: 2px solid #cbd5e1; border-radius: 14px; font-size: 18px; font-weight: 700; color: #0f172a; }
+.captura-acciones { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
+
+.captura-btn { padding: 14px 16px; border: 0; border-radius: 14px; background: #e2e8f0 !important; color: #0f172a !important; font-size: 16px; font-weight: 800; cursor: pointer; }
+.captura-btn-primario { background: #16a34a !important; color: #fff !important; }
+.captura-btn[disabled] { opacity: .5; }
+
+.captura-manual { display: flex; gap: 8px; margin: 6px 14px 18px; }
+.captura-manual input { flex: 1; min-width: 0; padding: 13px; border: 1px solid #334155; border-radius: 14px; background: #111a2e; color: #fff; font-size: 16px; }
+
+.captura-busca { padding: 0 14px 8px; }
+.captura-busca input { width: 100%; padding: 13px; border: 1px solid #334155; border-radius: 14px; background: #111a2e; color: #fff; font-size: 16px; }
+.captura-lista { list-style: none; margin: 0; padding: 0 14px 12px; display: grid; gap: 8px; }
+.captura-lista li { padding: 12px 14px; border-radius: 14px; background: #111a2e; display: grid; gap: 8px; }
+.captura-fila { display: grid; gap: 2px; }
+.captura-codigo-chico { font-family: ui-monospace, Consolas, monospace; font-size: 14px; color: #93c5fd; }
+.captura-fila span { font-size: 16px; font-weight: 700; }
+.captura-fila-acciones { display: flex; gap: 8px; }
+.captura-fila-acciones button { padding: 8px 14px; border: 0; border-radius: 10px; background: #1e293b !important; color: #fff !important; font-weight: 700; cursor: pointer; }
+.captura-fila-acciones .captura-borrar { color: #fca5a5 !important; }
+.captura-vacio { text-align: center; color: #94a3b8; }
+.captura-pie { position: sticky; bottom: 0; padding: 12px 14px; background: #0b1220; }
+.captura-pie .captura-btn { width: 100%; }
