@@ -22,7 +22,7 @@
     // WhatsApp con el equipo ya cargado: modelo, clave, codigo y el precio de mayoreo que vio en la pagina.
     function enlaceWhatsapp(p) {
         var texto = "Hola, quiero información de este equipo: " + p.marca + " " + p.clave + " (" + p.nombre + "), código " + p.codigo +
-            ". Vi un precio de mayoreo de referencia de " + dinero(p.precios.mayoreo) + ". ¿Me ayudas con precio, disponibilidad y envío?";
+            ". Vi un precio de referencia de " + dinero(p.precios.medioMayoreo) + ". ¿Me ayudas con precio, disponibilidad y envío?";
         return WHATSAPP + encodeURIComponent(texto);
     }
 
@@ -57,7 +57,7 @@
             '<p class="equipo-marca">' + esc(p.marca) + " · " + esc(p.clave) + "</p>" +
             "<h3>" + esc(p.nombre) + "</h3>" +
             '<ul class="equipo-resumen">' + p.resumen.map(function (r) { return "<li>" + esc(r) + "</li>"; }).join("") + "</ul>" +
-            '<p class="equipo-precio"><span>Mayoreo</span><strong>' + dinero(p.precios.mayoreo) + '</strong><small>Referencia · confirma vigencia</small></p>' +
+            '<p class="equipo-precio"><span>Precio</span><strong>' + dinero(p.precios.medioMayoreo) + '</strong><small>Referencia · confirma vigencia</small></p>' +
             '<div class="equipo-acciones">' +
             '<button type="button" class="btn secondary" data-ficha="' + esc(p.id) + '">Ver ficha</button>' +
             '<a class="btn primary" target="_blank" rel="noopener" href="' + enlaceWhatsapp(p) + '">WhatsApp</a>' +
@@ -125,7 +125,7 @@
             '<p class="equipo-garantia">Garantía: ' + esc(p.garantia) + "</p></div></div>" +
 
             '<div class="equipo-precios"><h4>Precio</h4><div class="equipo-precios-fila">' +
-            '<div class="destacado"><span>Mayoreo</span><strong>' + dinero(p.precios.mayoreo) + "</strong></div></div>" +
+            '<div class="destacado"><span>Medio mayoreo</span><strong>' + dinero(p.precios.medioMayoreo) + "</strong></div></div>" +
             '<p class="equipo-nota">' + esc(estado.datos.avisoPrecios) + "</p></div>" +
 
             "<h4>Características</h4>" +

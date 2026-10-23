@@ -63,8 +63,9 @@ test("la pagina muestra la seccion, la ficha y distingue compatibilidad comproba
     assert.match(js, /\/site\/equipamiento\.json/);
     assert.match(js, /fotosAutorizadas/);
     // En la pagina solo se muestra el precio de mayoreo; los otros niveles quedan solo en los datos.
-    assert.match(js, /<span>Mayoreo<\/span><strong>/);
-    assert.doesNotMatch(js, /precios\.publico|precios\.medioMayoreo/);
+    assert.match(js, /<span>Precio<\/span><strong>/);
+    assert.match(js, /<span>Medio mayoreo<\/span><strong>/);
+    assert.doesNotMatch(js, /precios\.publico|precios\.mayoreo/);
     assert.match(js, /Referencia · confirma vigencia/);
     assert.match(js, /data-ficha/);
     assert.match(js, /equipoBuscar/);

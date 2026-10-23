@@ -84,7 +84,7 @@ function instalar(app, pool) {
                 negocio: `Cotización de equipo: ${equipo.marca} ${equipo.clave}`,
                 telefono,
                 correo,
-                mensaje: `${cantidad} pieza(s) de ${equipo.marca} ${equipo.clave} (${equipo.nombre}, código ${equipo.codigo}). Mayoreo de referencia $${equipo.precios.mayoreo}.${ciudad ? ` Ciudad: ${ciudad}.` : ""}${mensaje ? ` Comentario: ${mensaje}` : ""}`
+                mensaje: `${cantidad} pieza(s) de ${equipo.marca} ${equipo.clave} (${equipo.nombre}, código ${equipo.codigo}). Precio de referencia (medio mayoreo) $${equipo.precios.medioMayoreo}.${ciudad ? ` Ciudad: ${ciudad}.` : ""}${mensaje ? ` Comentario: ${mensaje}` : ""}`
             }).catch(error => console.warn("No se pudo avisar de la solicitud de equipo", error.message));
 
             res.status(201).json({ ok: true });
