@@ -33,10 +33,10 @@
 .exh-card-banda { display: grid; gap: 2px; padding: 16px 18px; color: #fff; background: radial-gradient(130% 160% at 0% 0%, var(--exh-color), var(--exh-color-2)); }
 .exh-card .exh-card-banda strong { font-size: 17px; line-height: 1.2; color: #fff; }
 .exh-card .exh-card-banda span { font-size: 12.5px; font-weight: 800; color: #fff; opacity: .95; text-shadow: 0 1px 2px rgba(0, 0, 0, .35); }
-.exh-card-fotos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 14px 16px 6px; min-height: 84px; align-items: center; }
+.exh-card-fotos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 14px 16px 6px; min-height: 84px; align-items: center; }
 .exh-card-vacio { grid-column: 1 / -1; color: var(--pos-muted, #687386); font-size: 13px; font-weight: 600; text-align: center; }
 .exh-card-pie { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px 16px; flex-wrap: wrap; }
-.exh-card-acciones { display: flex; gap: 8px; margin-left: auto; }
+.exh-card-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; justify-content: flex-end; }
 
 .exh-mini { display: flex; align-items: center; justify-content: center; aspect-ratio: 1; overflow: hidden; border-radius: 10px; background: #fff; border: 1px solid var(--pos-line, #e6ebf3); }
 .exh-mini img, .exh-espacio-foto img, .exh-tile-foto img, .exh-resultado-foto img { width: 100%; height: 100%; object-fit: contain; }
@@ -168,8 +168,9 @@
 
 /* Mismo caso: el titulo y la etiqueta del encabezado de color de los modales
    heredaban el color oscuro global en vez del blanco. */
+/* theme-runtime.css fuerza h1-h4 en oscuro con !important: aqui tambien hace falta. */
 .exh-modal-cabecera-color h3,
-.exh-modal-cabecera-color span { color: #fff; }
+.exh-modal-cabecera-color span { color: #fff !important; }
 .exh-modal-cabecera-color span { opacity: .8; }
 
 /* Abarrotes: exhibidores sugeridos para empezar */

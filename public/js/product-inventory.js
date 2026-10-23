@@ -2600,7 +2600,8 @@ function actualizarEtiquetasPiezaCamposProducto() {
  document.getElementById("precioPieza");
 
  if (campoCantidad) {
- campoCantidad.placeholder = `Cuantos ${etiquetaSuelta.plural} trae el ${etiquetaContenedor.singular}`;
+ campoCantidad.placeholder = `Cuantos ${etiquetaSuelta.plural}`;
+ campoCantidad.title = `Cuantos ${etiquetaSuelta.plural} trae cada ${etiquetaContenedor.singular} completo`;
  }
 
  if (campoPrecio) {
@@ -2611,7 +2612,8 @@ function actualizarEtiquetasPiezaCamposProducto() {
  document.getElementById("piezasSueltasIniciales");
 
  if (campoSueltasIniciales) {
- campoSueltasIniciales.placeholder = `${etiquetaSuelta.plural} sueltos que ya tienes de un ${etiquetaContenedor.singular} abierto (opcional)`;
+ campoSueltasIniciales.placeholder = `Opcional`;
+ campoSueltasIniciales.title = `${etiquetaSuelta.plural} sueltos que ya tienes de un ${etiquetaContenedor.singular} abierto (opcional)`;
  }
 
  // Aclara que "Stock actual" cuenta solo los contenedores CERRADOS --
@@ -2623,7 +2625,8 @@ function actualizarEtiquetasPiezaCamposProducto() {
 
  if (campoStock) {
  const cerrados = etiquetaContenedor.fem ? "cerradas" : "cerrados";
- campoStock.placeholder = `${etiquetaContenedor.plural} ${cerrados} (0 si solo tienes sueltas)`;
+ campoStock.placeholder = `${etiquetaContenedor.plural} ${cerrados}`;
+ campoStock.title = `${etiquetaContenedor.plural} ${cerrados} (pon 0 si solo tienes sueltas)`;
  }
 }
 

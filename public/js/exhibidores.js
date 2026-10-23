@@ -513,7 +513,7 @@ function exhCambiarPendiente(productoId, delta) {
     if (nuevo > 0) exhPendientes[productoId] = nuevo;
     else delete exhPendientes[productoId];
 
-    renderExhibidorPOS(document.getElementById("exhFiltroPOS")?.value || "");
+    exhActualizarTilePOS(productoId);
 }
 
 function exhConfirmarTile(productoId) {
@@ -616,6 +616,51 @@ function exhCantidadEnCarrito(productoId) {
         .reduce((suma, item) => suma + Number(item.cantidad || 0), 0);
 }
 
+function exhTextoAyudaPOS() {
+    const n = exhibidorPOSAgregados;
+    return `${n ? `${n} toque${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} al carrito` : "Toca una tarjeta para agregarla al carrito"} &middot; <b>&larr; &rarr;</b> moverte &middot; <b>&uarr; &darr;</b> cantidad &middot; <b>Enter</b> al carrito`;
+}
+
+// Cambia SOLO la tarjeta tocada (contador del carrito y cantidad pendiente) en vez de volver a dibujar toda la
+// ventana: redibujarla recargaba todas las fotos y se veia como un parpadeo en cada toque.
+function exhActualizarTilePOS(productoId) {
+    const tile = document.querySelector(`#modalExhibidorPOS .exh-tile[data-producto-id="${productoId}"]`);
+
+    if (tile) {
+        const enCarrito = exhCantidadEnCarrito(productoId);
+        let cuenta = tile.querySelector(".exh-tile-cuenta");
+
+        if (enCarrito > 0) {
+            if (!cuenta) {
+                cuenta = document.createElement("span");
+                cuenta.className = "exh-tile-cuenta";
+                tile.prepend(cuenta);
+            }
+            cuenta.textContent = Number(enCarrito.toFixed(3));
+        } else if (cuenta) {
+            cuenta.remove();
+        }
+
+        const pendiente = exhPendientes[productoId] || 0;
+        let chip = tile.querySelector(".exh-tile-pend");
+
+        if (pendiente > 0) {
+            if (!chip) {
+                chip = document.createElement("span");
+                chip.className = "exh-tile-pend";
+                chip.title = "Enter la pone en el carrito";
+                tile.prepend(chip);
+            }
+            chip.innerHTML = `&times;${pendiente}`;
+        } else if (chip) {
+            chip.remove();
+        }
+    }
+
+    const ayuda = document.querySelector("#modalExhibidorPOS .exh-modal-ayuda");
+    if (ayuda) ayuda.innerHTML = exhTextoAyudaPOS();
+}
+
 function renderExhibidorPOS(filtro = "") {
     const modal = document.getElementById("modalExhibidorPOS");
     const x = exhibidorPOSActual;
@@ -655,7 +700,7 @@ function renderExhibidorPOS(filtro = "") {
         </div>
         <div class="exh-modal-busqueda">
             <input id="exhFiltroPOS" type="search" autocomplete="off" placeholder="Buscar en este exhibidor..." value="${exhEscapar(filtro)}" oninput="filtrarExhibidorPOS(this.value)">
-            <span class="exh-modal-ayuda">${exhibidorPOSAgregados ? `${exhibidorPOSAgregados} toque${exhibidorPOSAgregados === 1 ? "" : "s"} agregado${exhibidorPOSAgregados === 1 ? "" : "s"} al carrito` : "Toca una tarjeta para agregarla al carrito"} &middot; <b>&larr; &rarr;</b> moverte &middot; <b>&uarr; &darr;</b> cantidad &middot; <b>Enter</b> al carrito</span>
+            <span class="exh-modal-ayuda">${exhTextoAyudaPOS()}</span>
         </div>
         <div class="exh-tiles">${tarjetas || '<div class="exh-vacio">Nada coincide con esa busqueda.</div>'}</div>
     </div>`;
@@ -677,9 +722,7 @@ function agregarDesdeExhibidor(productoId) {
 
     agregarProductoPorId(productoId);
     exhibidorPOSAgregados++;
-
-    const filtro = document.getElementById("exhFiltroPOS")?.value || "";
-    renderExhibidorPOS(filtro);
+    exhActualizarTilePOS(productoId);
 }
 
 // ---------------------------------------------------------------------
@@ -739,6 +782,32 @@ async function abrirRecibirExhibidor(id) {
     renderRecibirExhibidor();
 }
 
+function exhTextoRecibirResumen(totalPiezas) {
+    return totalPiezas > 0 ? `<strong>${totalPiezas}</strong> pieza${totalPiezas === 1 ? "" : "s"} por recibir` : "Aun no capturas cantidades";
+}
+
+// Actualiza cantidades, tarjetas marcadas y el total sin volver a dibujar la ventana (sin parpadeo de fotos).
+function exhRecibirPintar() {
+    const modal = document.getElementById("modalExhibidorRecibir");
+    const r = exhRecibo;
+    if (!modal || !r) return;
+
+    modal.querySelectorAll(".exh-recibir-tile").forEach(tarjeta => {
+        const linea = r.lineas[Number(tarjeta.dataset.productoId)] || { cantidad: 0 };
+        const campo = tarjeta.querySelector(".exh-stepper input");
+
+        if (campo && document.activeElement !== campo) campo.value = linea.cantidad || "";
+        tarjeta.classList.toggle("exh-recibir-activa", linea.cantidad > 0);
+    });
+
+    const totalPiezas = Object.values(r.lineas).reduce((suma, linea) => suma + (linea.cantidad || 0), 0);
+    const resumen = modal.querySelector(".exh-recibir-resumen");
+    const boton = modal.querySelector(".exh-recibir-confirmar");
+
+    if (resumen) resumen.innerHTML = exhTextoRecibirResumen(totalPiezas);
+    if (boton) boton.disabled = !(totalPiezas > 0 && !r.enviando);
+}
+
 function renderRecibirExhibidor() {
     const modal = document.getElementById("modalExhibidorRecibir");
     const r = exhRecibo;
@@ -751,7 +820,7 @@ function renderRecibirExhibidor() {
         const linea = r.lineas[e.productoId] || { cantidad: 0, costo: "" };
 
         return `
-        <div class="exh-tile exh-recibir-tile${linea.cantidad > 0 ? " exh-recibir-activa" : ""}">
+        <div class="exh-tile exh-recibir-tile${linea.cantidad > 0 ? " exh-recibir-activa" : ""}" data-producto-id="${e.productoId}">
             <span class="exh-tile-foto">${exhMiniatura(e.productoId, e.nombre)}</span>
             ${e.etiqueta ? `<span class="exh-tile-lugar">${exhEscapar(e.etiqueta)}</span>` : ""}
             <strong class="exh-tile-nombre">${exhEscapar(e.nombre)}</strong>
@@ -782,8 +851,8 @@ function renderRecibirExhibidor() {
         </div>
         <div class="exh-tiles">${tarjetas || '<div class="exh-vacio">Este exhibidor aun no tiene productos.</div>'}</div>
         <div class="exh-modal-pie">
-            <span>${totalPiezas > 0 ? `<strong>${totalPiezas}</strong> pieza${totalPiezas === 1 ? "" : "s"} por recibir` : "Aun no capturas cantidades"}</span>
-            <button type="button" class="exh-btn exh-btn-primario" onclick="confirmarRecibirExhibidor()" ${totalPiezas > 0 && !r.enviando ? "" : "disabled"}>${r.enviando ? "Recibiendo..." : "Recibir en inventario"}</button>
+            <span class="exh-recibir-resumen">${exhTextoRecibirResumen(totalPiezas)}</span>
+            <button type="button" class="exh-btn exh-btn-primario exh-recibir-confirmar" onclick="confirmarRecibirExhibidor()" ${totalPiezas > 0 && !r.enviando ? "" : "disabled"}>${r.enviando ? "Recibiendo..." : "Recibir en inventario"}</button>
         </div>
     </div>`;
 }
@@ -792,14 +861,14 @@ function exhRecibirCambiar(productoId, delta) {
     const linea = exhRecibo.lineas[productoId] || { cantidad: 0, costo: "" };
     linea.cantidad = Math.max(0, Math.min(100000, linea.cantidad + delta));
     exhRecibo.lineas[productoId] = linea;
-    renderRecibirExhibidor();
+    exhRecibirPintar();
 }
 
 function exhRecibirFijar(productoId, valor) {
     const linea = exhRecibo.lineas[productoId] || { cantidad: 0, costo: "" };
     linea.cantidad = exhEntero(valor);
     exhRecibo.lineas[productoId] = linea;
-    renderRecibirExhibidor();
+    exhRecibirPintar();
 }
 
 function exhRecibirCosto(productoId, valor) {
@@ -815,7 +884,7 @@ function exhRecibirLlenar() {
         linea.cantidad = e.faltan > 0 ? exhEntero(Math.ceil(e.faltan)) : 0;
         exhRecibo.lineas[e.productoId] = linea;
     });
-    renderRecibirExhibidor();
+    exhRecibirPintar();
 }
 
 async function confirmarRecibirExhibidor() {
@@ -909,6 +978,11 @@ async function abrirSurtirExhibidor(id) {
     renderSurtirExhibidor();
 }
 
+function exhTextoSurtirResumen(totalPiezas) {
+    const sinCapacidad = exhSurtido.sinCapacidad;
+    return `<strong>${totalPiezas}</strong> pieza${totalPiezas === 1 ? "" : "s"} por pedir${sinCapacidad > 0 ? ` &middot; ${sinCapacidad} producto${sinCapacidad === 1 ? "" : "s"} sin capacidad definida` : ""}`;
+}
+
 function renderSurtirExhibidor() {
     const modal = document.getElementById("modalExhibidorSurtir");
     const s = exhSurtido;
@@ -944,10 +1018,10 @@ function renderSurtirExhibidor() {
         ${cuerpo}
         ${s.filas.length > 0 ? `
         <div class="exh-modal-pie">
-            <span><strong>${totalPiezas}</strong> pieza${totalPiezas === 1 ? "" : "s"} por pedir${s.sinCapacidad > 0 ? ` &middot; ${s.sinCapacidad} producto${s.sinCapacidad === 1 ? "" : "s"} sin capacidad definida` : ""}</span>
+            <span class="exh-surtir-resumen">${exhTextoSurtirResumen(totalPiezas)}</span>
             <span class="exh-modal-acciones">
                 <button type="button" class="exh-btn exh-btn-suave" onclick="exhSurtirCopiar()">Copiar lista</button>
-                <button type="button" class="exh-btn exh-btn-primario" onclick="exhSurtirCrearPedido()" ${totalPiezas > 0 ? "" : "disabled"}>Crear pedido (borrador)</button>
+                <button type="button" class="exh-btn exh-btn-primario exh-surtir-crear" onclick="exhSurtirCrearPedido()" ${totalPiezas > 0 ? "" : "disabled"}>Crear pedido (borrador)</button>
             </span>
         </div>` : ""}
     </div>`;
@@ -955,7 +1029,14 @@ function renderSurtirExhibidor() {
 
 function exhSurtirCantidad(indice, valor) {
     exhSurtido.filas[indice].cantidad = exhEntero(valor);
-    renderSurtirExhibidor();
+
+    const modal = document.getElementById("modalExhibidorSurtir");
+    const total = exhSurtido.filas.reduce((suma, fila) => suma + fila.cantidad, 0);
+    const resumen = modal && modal.querySelector(".exh-surtir-resumen");
+    const crear = modal && modal.querySelector(".exh-surtir-crear");
+
+    if (resumen) resumen.innerHTML = exhTextoSurtirResumen(total);
+    if (crear) crear.disabled = !(total > 0);
 }
 
 function exhSurtirLineas() {

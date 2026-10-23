@@ -357,3 +357,23 @@ test("el exhibidor del punto de venta se maneja con teclado: flechas para movers
     assert.match(css, /\.exh-card \.exh-card-banda span \{[^}]*color: #fff/);
     assert.match(css, /\.exh-tile-activa/);
 });
+
+test("vender, recibir y surtir cambian solo lo que cambio (sin volver a dibujar las fotos) y los titulos se leen", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const js = fs.readFileSync(path.join(__dirname, "..", "public", "js", "exhibidores.js"), "utf8");
+    const css = fs.readFileSync(path.join(__dirname, "..", "public", "css", "components", "exhibidores.css"), "utf8");
+
+    // Cada toque actualiza su tarjeta; ya no hay redibujado completo en esos caminos.
+    assert.match(js, /function exhActualizarTilePOS/);
+    assert.match(js, /function exhRecibirPintar/);
+    assert.doesNotMatch(js, /exhibidorPOSAgregados\+\+;\s*\n\s*const filtro/, "agregar ya no vuelve a dibujar toda la ventana");
+
+    const cuerpo = nombre => js.slice(js.indexOf(`function ${nombre}(`), js.indexOf(`function ${nombre}(`) + 600);
+    assert.doesNotMatch(cuerpo("exhRecibirCambiar"), /renderRecibirExhibidor\(\)/);
+    assert.doesNotMatch(cuerpo("exhRecibirFijar"), /renderRecibirExhibidor\(\)/);
+    assert.doesNotMatch(cuerpo("exhSurtirCantidad"), /renderSurtirExhibidor\(\)/);
+
+    // El tema global fuerza los h3 en oscuro con !important: el titulo de la cabecera de color tambien lo lleva.
+    assert.match(css, /\.exh-modal-cabecera-color h3,\s*\n\.exh-modal-cabecera-color span \{ color: #fff !important; \}/);
+});
