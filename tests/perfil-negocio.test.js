@@ -276,3 +276,13 @@ test("quien tiene ferreteria y abarrotes (ambos) recibe las herramientas de abar
     assert.match(leer("css/components/inicio-abarrotes.css"), /body\.perfil-simple:not\(\.perfil-ver-todo\) #pantallaInicio >/, "el tablero de ferreteria solo se esconde en el perfil simple");
     assert.match(leer("css/components/perfil-negocio.css"), /body\.perfil-simple:not\(\.perfil-ver-todo\) \.sidebar \[data-perfil-oculto="1"\]/, "el menu solo se recorta en el perfil simple");
 });
+
+test("abarrotes no muestra 'IVA incluido (16%)' en el carrito porque para lo basico no aplica; los demas giros lo siguen viendo", () => {
+    const ventas = leer("js/pos-sales.js");
+    const css = leer("css/components/perfil-negocio.css");
+
+    // La linea sigue existiendo (ferreteria la ve igual) y solo se esconde en el perfil simple.
+    assert.match(ventas, /resumen-linea resumen-iva-informativo/);
+    assert.match(ventas, /IVA incluido \(16%\)/);
+    assert.match(css, /body\.perfil-simple:not\(\.perfil-ver-todo\) \.resumen-iva-informativo \{\s*\n\s*display: none !important;/);
+});

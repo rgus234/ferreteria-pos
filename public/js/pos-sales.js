@@ -1429,7 +1429,7 @@ function renderResumenCobroPOS() {
  <strong>-$${resumen.descuento.toFixed(2)}</strong>
  </div>
 
- <div class="resumen-linea">
+ <div class="resumen-linea resumen-iva-informativo">
  <span title="El precio ya incluye IVA: no se suma al total">IVA incluido (16%)</span>
  <strong>$${(total - total / 1.16).toFixed(2)}</strong>
  </div>

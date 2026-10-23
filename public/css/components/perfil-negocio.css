@@ -36,6 +36,11 @@ body.perfil-simple:not(.perfil-ver-todo) .resumen-requiere-factura {
   display: none !important;
 }
 
+/* El IVA del carrito supone 16% en todo (informativo). Para abarrotes engana: lo basico (tortilla, leche, huevo...) va a tasa 0. */
+body.perfil-simple:not(.perfil-ver-todo) .resumen-iva-informativo {
+  display: none !important;
+}
+
 /* ---------- Formulario de producto (abarrotes) ---------- */
 
 /* El formulario de producto vive en la capa nexo-product-form (pos-product-form.css) y sus reglas
