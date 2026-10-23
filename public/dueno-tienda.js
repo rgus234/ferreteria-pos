@@ -284,7 +284,9 @@ function tiendaTexto() {
 // wa.me sin numero abre WhatsApp para elegir el contacto del proveedor con el texto ya escrito.
 function tiendaCompartir() {
     if (!tiendaLineas().length) { window.alert("No hay nada que pedir."); return; }
-    window.open(`https://wa.me/?text=${encodeURIComponent(tiendaTexto())}`, "_blank", "noopener");
+    const digitos = String(tiendaPedido.telefono || "").replace(/D/g, "");
+    const numero = digitos.length === 10 ? "52" + digitos : digitos.length >= 11 ? digitos : "";
+    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(tiendaTexto())}`, "_blank", "noopener");
 }
 
 async function tiendaCopiar() {

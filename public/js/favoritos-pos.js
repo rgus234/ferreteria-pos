@@ -93,7 +93,14 @@ function favTarjeta(producto) {
     const enCarrito = favCantidadEnCarrito(producto.id);
     const dinero = typeof window.dinero === "function" ? window.dinero(precio) : "$" + Number(precio || 0).toFixed(2);
 
-    return `
+    const posicion = favoritosIds.findIndex(x => Number(x) === Number(producto.id));
+    const mover = favoritosEditando ? `
+    <div class="fav-mover">
+        <button type="button" ${posicion <= 0 ? "disabled" : ""} onclick="favMover(${producto.id}, -1)" aria-label="Mover antes">◀</button>
+        <button type="button" ${posicion >= favoritosIds.length - 1 ? "disabled" : ""} onclick="favMover(${producto.id}, 1)" aria-label="Mover después">▶</button>
+    </div>` : "";
+
+    const tarjeta = `
     <button type="button" class="fav-tarjeta${agotado ? " fav-agotado" : ""}${favoritosEditando ? " fav-editando" : ""}" data-producto-id="${producto.id}"
         onclick="${favoritosEditando ? `favQuitar(${producto.id})` : `favAgregar(${producto.id})`}">
         ${favoritosEditando ? `<span class="fav-quitar" aria-label="Quitar de favoritos">&times;</span>` : (enCarrito > 0 ? `<span class="fav-cuenta">${Number(enCarrito.toFixed(3))}</span>` : "")}
@@ -102,6 +109,18 @@ function favTarjeta(producto) {
         <span class="fav-precio">${favEscapar(dinero)}</span>
         ${agotado ? `<span class="fav-aviso">Agotado</span>` : ""}
     </button>`;
+
+    return favoritosEditando ? `<div class="fav-celda">${tarjeta}${mover}</div>` : tarjeta;
+}
+
+async function favMover(id, delta) {
+    const lista = favoritosIds.map(Number);
+    const i = lista.indexOf(Number(id));
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= lista.length) return;
+
+    [lista[i], lista[j]] = [lista[j], lista[i]];
+    if (await favGuardar(lista)) renderFavoritosPOS();
 }
 
 function favResultadosBusqueda() {

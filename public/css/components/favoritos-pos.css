@@ -79,3 +79,8 @@
 @media (prefers-reduced-motion: reduce) {
   .fav-tarjeta, .fav-plegable, .fav-flecha, .fav-btn-flecha, .fav-franja { transition: none; }
 }
+
+.fav-celda { display: grid; gap: 4px; }
+.fav-mover { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.fav-mover button { padding: 6px 0; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff !important; color: #0f172a !important; font-size: 14px; cursor: pointer; }
+.fav-mover button[disabled] { opacity: .35; cursor: default; }

@@ -23,3 +23,16 @@ test("Mi tienda usa los endpoints existentes y solo aparece con abarrotes", () =
     assert.match(js, /girosActivos/);
     assert.match(js, /fetchAutenticado/);
 });
+
+test("el pedido sugerido abre el WhatsApp del proveedor y los favoritos se pueden reordenar", () => {
+    const servidor = fs.readFileSync(path.join(__dirname, "..", "pedido-sugerido-server.js"), "utf8");
+    const pedido = leer("js/pedido-sugerido.js");
+    const favoritos = leer("js/favoritos-pos.js");
+
+    assert.match(servidor, /telefono: proveedor\.telefono/);
+    assert.match(pedido, /"52" \+ digitos/);
+    assert.match(pedido, /pedSugEnviar/);
+    assert.match(leer("dueno-tienda.js"), /"52" \+ digitos/);
+    assert.match(favoritos, /async function favMover/);
+    assert.match(favoritos, /favMover\(\$\{producto\.id\}, -1\)/);
+});

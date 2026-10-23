@@ -107,6 +107,7 @@ async function sugeridoDeProveedor(pool, negocioId, proveedor, hoy = fechaLocal(
     return {
         proveedorId: proveedor.id,
         proveedor: proveedor.nombre,
+        telefono: proveedor.telefono || "",
         diaVisita: visita ? Number(proveedor.dia_visita) : null,
         frecuenciaDias,
         proximaVisita: visita?.fecha || null,
@@ -131,7 +132,7 @@ async function avisarVisitas(pool, ahora = new Date()) {
 
     const hoy = fechaLocal(ahora);
     const proveedores = (await pool.query(
-        `SELECT id, negocio_id, nombre, dia_visita, frecuencia_dias
+        `SELECT id, negocio_id, nombre, telefono, dia_visita, frecuencia_dias
          FROM public.proveedores WHERE activo = true AND dia_visita IS NOT NULL`
     )).rows;
 
@@ -190,7 +191,7 @@ function instalar(app, pool, requerirAccesoNegocio) {
         if (!Number.isInteger(numero) || numero <= 0) return null;
 
         return (await pool.query(
-            `SELECT id, negocio_id, nombre, dia_visita, frecuencia_dias FROM public.proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true`,
+            `SELECT id, negocio_id, nombre, telefono, dia_visita, frecuencia_dias FROM public.proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true`,
             [numero, id]
         )).rows[0] || null;
     }
@@ -200,7 +201,7 @@ function instalar(app, pool, requerirAccesoNegocio) {
         try {
             const id = negocioId(req);
             const proveedores = (await pool.query(
-                `SELECT id, negocio_id, nombre, dia_visita, frecuencia_dias FROM public.proveedores
+                `SELECT id, negocio_id, nombre, telefono, dia_visita, frecuencia_dias FROM public.proveedores
                  WHERE negocio_id = $1 AND activo = true ORDER BY nombre ASC`,
                 [id]
             )).rows;
