@@ -59,7 +59,8 @@ async function bancoGenericasSugerir() {
     if (bancoGenericasActual?.slug === concepto.slug && document.getElementById("tarjetaBancoGenericas")) return;
 
     bancoGenericasActual = concepto;
-    const destino = campo.closest(".campo-ficha") || campo.parentElement;
+    // Junto a la foto, donde ya aparece la tarjeta del Banco de Nexo; si no existe ese campo, bajo el nombre.
+    const destino = document.getElementById("nuevaImagenProducto")?.closest(".campo-ficha") || campo.closest(".campo-ficha") || campo.parentElement;
     let tarjeta = document.getElementById("tarjetaBancoGenericas");
 
     if (!tarjeta) {
