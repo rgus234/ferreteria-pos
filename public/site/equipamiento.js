@@ -19,6 +19,13 @@
         return "$" + Number(n).toLocaleString("es-MX", { maximumFractionDigits: 0 });
     }
 
+    // WhatsApp con el equipo ya cargado: modelo, clave, codigo y el precio de mayoreo que vio en la pagina.
+    function enlaceWhatsapp(p) {
+        var texto = "Hola, quiero información de este equipo: " + p.marca + " " + p.clave + " (" + p.nombre + "), código " + p.codigo +
+            ". Vi un precio de mayoreo de referencia de " + dinero(p.precios.mayoreo) + ". ¿Me ayudas con precio, disponibilidad y envío?";
+        return WHATSAPP + encodeURIComponent(texto);
+    }
+
     function norm(t) {
         return String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
     }
@@ -53,7 +60,7 @@
             '<p class="equipo-precio"><span>Mayoreo</span><strong>' + dinero(p.precios.mayoreo) + '</strong><small>Referencia · confirma vigencia</small></p>' +
             '<div class="equipo-acciones">' +
             '<button type="button" class="btn secondary" data-ficha="' + esc(p.id) + '">Ver ficha</button>' +
-            '<button type="button" class="btn primary" data-cotizar="' + esc(p.id) + '">Cotizar</button>' +
+            '<a class="btn primary" target="_blank" rel="noopener" href="' + enlaceWhatsapp(p) + '">WhatsApp</a>' +
             "</div></div></article>";
     }
 
@@ -131,9 +138,20 @@
             '<p class="equipo-pendiente"><b>Con Nexo POS: por confirmar.</b> Todavía no hemos probado este modelo dentro de Nexo; te lo confirmamos antes de que compres.</p>' +
 
             '<div class="equipo-acciones equipo-ficha-acciones">' +
-            '<button type="button" class="btn primary" data-cotizar="' + esc(p.id) + '">Solicitar información o cotizar</button>' +
-            '<a class="btn secondary" target="_blank" rel="noopener" href="' + WHATSAPP + encodeURIComponent("Hola, quiero cotizar el equipo " + p.marca + " " + p.clave + " (" + p.nombre + ").") + '">WhatsApp</a>' +
+            '<a class="btn primary" target="_blank" rel="noopener" href="' + enlaceWhatsapp(p) + '">Preguntar por WhatsApp</a>' +
             "</div>" +
+
+            '<form class="equipo-form" id="equipoForm" data-equipo="' + esc(p.id) + '">' +
+            "<h4>O déjanos tus datos y te respondemos</h4>" +
+            '<label>Tu nombre<input name="nombre" type="text" maxlength="140" required autocomplete="name"></label>' +
+            '<label>Teléfono o WhatsApp<input name="telefono" type="tel" maxlength="40" autocomplete="tel" inputmode="tel"></label>' +
+            '<label>Correo (opcional)<input name="correo" type="email" maxlength="140" autocomplete="email"></label>' +
+            '<div class="equipo-form-fila"><label>Cantidad<input name="cantidad" type="number" min="1" max="999" value="1" inputmode="numeric"></label>' +
+            '<label>Ciudad<input name="ciudad" type="text" maxlength="80" autocomplete="address-level2"></label></div>' +
+            '<label>Comentario (opcional)<input name="mensaje" type="text" maxlength="300" placeholder="Ej. la necesito para una tienda de abarrotes"></label>' +
+            '<input class="equipo-trampa" name="empresaWeb" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+            '<button class="btn primary" type="submit">Solicitar información</button>' +
+            '<div class="equipo-resultado" aria-live="polite"></div></form>' +
             '<p class="equipo-fuente">' + esc(estado.datos.fuentes) + "</p>" +
             "</div>";
 
@@ -146,18 +164,37 @@
         capa.querySelector(".equipo-cerrar").focus();
     }
 
-    // Lleva al formulario de contacto de siempre con el equipo ya anotado en el mensaje.
-    function cotizar(id) {
-        var p = estado.datos.productos.filter(function (x) { return x.id === id; })[0];
-        if (!p) return;
+    // Solicitud propia del equipo (no es el formulario de pruebas de Nexo): se guarda y le llega un aviso al propietario.
+    function enviarSolicitud(formulario) {
+        var resultado = formulario.querySelector(".equipo-resultado");
+        var boton = formulario.querySelector("button[type=submit]");
+        var cuerpo = { equipoId: formulario.getAttribute("data-equipo") };
 
-        cerrarFicha();
+        new FormData(formulario).forEach(function (valor, clave) { cuerpo[clave] = valor; });
 
-        var mensaje = document.getElementById("contactoMensaje");
-        if (mensaje) mensaje.value = ("Cotizar equipo: " + p.marca + " " + p.clave + " (" + p.codigo + ")").slice(0, 120);
+        if (!String(cuerpo.telefono || "").trim() && !String(cuerpo.correo || "").trim()) {
+            resultado.className = "equipo-resultado error";
+            resultado.textContent = "Déjanos un teléfono o un correo para responderte.";
+            return;
+        }
 
-        var destino = document.getElementById("participa");
-        if (destino && destino.scrollIntoView) destino.scrollIntoView({ behavior: "smooth", block: "start" });
+        boton.disabled = true;
+        resultado.className = "equipo-resultado";
+        resultado.textContent = "Enviando...";
+
+        fetch("/api/solicitud-equipo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(cuerpo) })
+            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, datos: d }; }); })
+            .then(function (r) {
+                if (!r.ok) throw new Error(r.datos.error || "No se pudo enviar. Intenta de nuevo o escríbenos por WhatsApp.");
+                resultado.className = "equipo-resultado ok";
+                resultado.textContent = "Listo, recibimos tu solicitud. Te respondemos pronto.";
+                formulario.reset();
+            })
+            .catch(function (error) {
+                resultado.className = "equipo-resultado error";
+                resultado.textContent = error.message;
+            })
+            .then(function () { boton.disabled = false; });
     }
 
     // ---------- Eventos ----------
@@ -165,7 +202,6 @@
     raiz.addEventListener("click", function (evento) {
         var chip = evento.target.closest("[data-categoria]");
         var ficha = evento.target.closest("[data-ficha]");
-        var cot = evento.target.closest("[data-cotizar]");
 
         if (chip) {
             estado.categoria = chip.getAttribute("data-categoria");
@@ -173,8 +209,6 @@
             pintarLista();
         } else if (ficha) {
             abrirFicha(ficha.getAttribute("data-ficha"));
-        } else if (cot) {
-            cotizar(cot.getAttribute("data-cotizar"));
         }
     });
 
@@ -186,9 +220,10 @@
         if (evento.target.id === "equipoConexion") { estado.conexion = evento.target.value; pintarLista(); }
     });
 
-    document.addEventListener("click", function (evento) {
-        var cot = evento.target.closest("#equipoFicha [data-cotizar]");
-        if (cot) cotizar(cot.getAttribute("data-cotizar"));
+    document.addEventListener("submit", function (evento) {
+        if (evento.target.id !== "equipoForm") return;
+        evento.preventDefault();
+        enviarSolicitud(evento.target);
     });
 
     document.addEventListener("keydown", function (evento) {

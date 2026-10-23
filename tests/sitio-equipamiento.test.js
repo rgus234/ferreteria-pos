@@ -61,7 +61,6 @@ test("la pagina muestra la seccion, la ficha y distingue compatibilidad comproba
 
     assert.match(js, /Con Nexo POS: por confirmar/);
     assert.match(js, /\/site\/equipamiento\.json/);
-    assert.match(js, /getElementById\("contactoMensaje"\)/, "cotizar usa el formulario de contacto de siempre");
     assert.match(js, /fotosAutorizadas/);
     // En la pagina solo se muestra el precio de mayoreo; los otros niveles quedan solo en los datos.
     assert.match(js, /<span>Mayoreo<\/span><strong>/);
@@ -70,4 +69,53 @@ test("la pagina muestra la seccion, la ficha y distingue compatibilidad comproba
     assert.match(js, /data-ficha/);
     assert.match(js, /equipoBuscar/);
     assert.match(js, /equipoConexion/);
+});
+
+test("pedir informacion de un equipo NO usa el formulario de pruebas de Nexo: WhatsApp precargado y solicitud propia", () => {
+    const js = fs.readFileSync(sitio("equipamiento.js"), "utf8");
+    const servidor = fs.readFileSync(path.join(__dirname, "..", "solicitud-equipo-server.js"), "utf8");
+
+    assert.doesNotMatch(js, /contactoMensaje|"participa"/, "ya no manda al formulario de participar");
+    assert.match(js, /function enlaceWhatsapp\(p\)/);
+    assert.match(js, /" \+ p\.marca \+ " " \+ p\.clave/, "el mensaje lleva marca y clave");
+    assert.match(js, /\/api\/solicitud-equipo/);
+    assert.match(js, /equipoForm/);
+
+    assert.match(servidor, /\/api\/solicitud-equipo/);
+    assert.match(servidor, /solicitudes_equipo/);
+    assert.match(servidor, /empresaWeb/, "campo trampa contra robots");
+});
+
+// Requiere la migracion 20261031_solicitudes_equipo.sql.
+test("la solicitud de un equipo se guarda aparte, valida y no crea invitaciones", async () => {
+    const { iniciarServidorPrueba, detenerServidorPrueba, BASE_URL } = require("./helpers/servidor-prueba");
+    await iniciarServidorPrueba();
+
+    try {
+        const enviar = cuerpo => fetch(`${BASE_URL}/api/solicitud-equipo`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(cuerpo) });
+        const marca = `Prueba equipo ${Date.now()}`;
+        const contactosAntes = Number((await pool.query("SELECT COUNT(*) AS n FROM public.contactos_landing")).rows[0].n);
+
+        assert.equal((await enviar({ equipoId: "no-existe", nombre: marca, telefono: "4421234567" })).status, 400, "equipo inexistente");
+        assert.equal((await enviar({ equipoId: "43946", nombre: "", telefono: "4421234567" })).status, 400, "falta el nombre");
+        assert.equal((await enviar({ equipoId: "43946", nombre: marca })).status, 400, "falta telefono o correo");
+        assert.equal((await enviar({ equipoId: "43946", nombre: marca, correo: "no-es-correo" })).status, 400);
+
+        const ok = await enviar({ equipoId: "43946", nombre: marca, telefono: "4421234567", cantidad: "2", ciudad: "Rio Grande", mensaje: "Para mi tienda" });
+        assert.equal(ok.status, 201);
+
+        const fila = (await pool.query("SELECT equipo_clave, cantidad, telefono, ciudad FROM public.solicitudes_equipo WHERE nombre = $1", [marca])).rows[0];
+        assert.deepEqual([fila.equipo_clave, fila.cantidad, fila.telefono, fila.ciudad], ["PDV-81I", 2, "4421234567", "Rio Grande"]);
+
+        // Un robot que llena el campo trampa recibe "ok" pero no se guarda nada.
+        await enviar({ equipoId: "43946", nombre: marca + " robot", telefono: "1", empresaWeb: "spam" });
+        assert.equal((await pool.query("SELECT COUNT(*) AS n FROM public.solicitudes_equipo WHERE nombre = $1", [marca + " robot"])).rows[0].n, "0");
+
+        // No es una solicitud de pruebas de Nexo: no toca contactos_landing (ni genera invitaciones).
+        assert.equal(Number((await pool.query("SELECT COUNT(*) AS n FROM public.contactos_landing")).rows[0].n), contactosAntes);
+
+        await pool.query("DELETE FROM public.solicitudes_equipo WHERE nombre LIKE $1", [marca + "%"]);
+    } finally {
+        await detenerServidorPrueba();
+    }
 });

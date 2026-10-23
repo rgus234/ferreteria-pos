@@ -2718,3 +2718,14 @@ html.equipo-abierta { overflow: hidden; }
   .equipo-precios-fila strong { font-size: 17px; }
   .equipo-tabla th { width: 44%; }
 }
+
+/* Solicitud de equipo (formulario propio dentro de la ficha) */
+.equipo-form { display: grid; gap: 10px; margin-top: 18px; padding: 14px; border-radius: 16px; background: var(--paper); }
+.equipo-form h4 { margin: 0; }
+.equipo-form label { display: grid; gap: 4px; font-size: 13px; font-weight: 800; color: var(--muted); }
+.equipo-form input { padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font: inherit; font-size: 16px; color: var(--ink); }
+.equipo-form-fila { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
+.equipo-trampa { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.equipo-resultado { min-height: 18px; font-size: 14px; font-weight: 700; }
+.equipo-resultado.ok { color: #0b7a5c; }
+.equipo-resultado.error { color: #b91c1c; }

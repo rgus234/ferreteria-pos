@@ -97,6 +97,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./captura-codigos-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("solicitud de equipo (pagina oficial)", () => {
+        require("./solicitud-equipo-server")(app, pool);
+    });
+
     cargarModuloPOS("invitaciones a negocios piloto", () => {
         require("./invitaciones-server")(app, pool);
     });
