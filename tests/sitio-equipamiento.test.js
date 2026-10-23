@@ -12,16 +12,20 @@ const datos = JSON.parse(fs.readFileSync(sitio("equipamiento.json"), "utf8"));
 
 after(async () => { await pool.end(); });
 
-test("el catalogo trae los 7 equipos con sus datos completos y sin inventar disponibilidad", () => {
-    assert.equal(datos.productos.length, 7);
-    assert.deepEqual(datos.categorias.map(c => c.id), ["impresoras", "lectores"]);
+test("el catalogo trae los equipos con sus datos y sin inventar disponibilidad", () => {
+    assert.equal(datos.productos.length, 25);
+    assert.deepEqual(datos.categorias.map(c => c.id), ["impresoras", "lectores", "basculas"]);
+    assert.equal(datos.productos.filter(p => p.categoria === "basculas").length, 18);
     assert.equal(datos.productos.filter(p => p.categoria === "impresoras").length, 3);
     assert.equal(datos.productos.filter(p => p.categoria === "lectores").length, 4);
 
     for (const p of datos.productos) {
-        for (const campo of ["id", "codigo", "clave", "marca", "nombre", "garantia"]) assert.ok(p[campo], `${p.id} sin ${campo}`);
+        const documentado = p.categoria !== "basculas"; // las basculas solo traen lo que dice su nombre; lo demas se marca "por confirmar"
+        for (const campo of ["id", "codigo", "clave", "marca", "nombre"]) assert.ok(p[campo], `${p.id} sin ${campo}`);
+        if (documentado) assert.ok(p.garantia, `${p.id} sin garantia`);
+        else assert.equal(p.especificaciones.at(-1)[1], "Por confirmar con el fabricante", "las basculas no inventan caracteristicas");
         assert.ok(p.precios.mayoreo > 0 && p.precios.medioMayoreo >= p.precios.mayoreo && p.precios.publico >= p.precios.medioMayoreo, `${p.clave}: orden de precios`);
-        assert.ok(p.especificaciones.length >= 6 && p.incluye.length >= 2 && p.compatibilidad.sistemas.length >= 3);
+        if (documentado) assert.ok(p.especificaciones.length >= 6 && p.incluye.length >= 2 && p.compatibilidad.sistemas.length >= 3);
         assert.ok(fs.existsSync(sitio(`equipos/${p.codigo}.jpg`)), `${p.clave}: falta su foto original`);
         assert.equal(p.disponibilidad, undefined, "la disponibilidad no se inventa");
         assert.equal(p.compatibilidad.conNexo, undefined, "compatibilidad con Nexo no afirmada: la pagina dice 'por confirmar'");
@@ -36,8 +40,9 @@ test("los precios coinciden con el catalogo del fabricante cargado en Nexo (dond
         `SELECT codigo, clave, precio_mayoreo, precio_medio_mayoreo, precio_publico FROM public.catalogo_fabricante_productos WHERE codigo = ANY($1)`,
         [datos.productos.map(p => p.codigo)]
     )).rows;
+    // (las basculas se cruzan igual: clave y precios deben coincidir con el catalogo)
 
-    assert.equal(filas.length, 7, "los 7 estan en el catalogo");
+    assert.equal(filas.length, datos.productos.length, "todos estan en el catalogo del fabricante");
 
     for (const p of datos.productos) {
         const fila = filas.find(f => f.codigo === p.codigo);

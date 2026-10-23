@@ -22,118 +22,1260 @@
   },
   "fuentes": "Claves, códigos y precios: catálogo del fabricante cargado en Nexo (septiembre 2026). Especificaciones: ficha impresa del catálogo. Medio mayoreo de las impresoras: ficha impresa (el catálogo cargado no lo trae).",
   "categorias": [
-    { "id": "impresoras", "nombre": "Impresoras térmicas de recibos" },
-    { "id": "lectores", "nombre": "Lectores de códigos de barras" }
+    {
+      "id": "impresoras",
+      "nombre": "Impresoras térmicas de recibos"
+    },
+    {
+      "id": "lectores",
+      "nombre": "Lectores de códigos de barras"
+    },
+    {
+      "id": "basculas",
+      "nombre": "Básculas electrónicas"
+    }
   ],
   "productos": [
     {
-      "id": "43946", "codigo": "43946", "clave": "PDV-81I", "marca": "Volteck", "fabricante": "Truper", "categoria": "impresoras",
-      "nombre": "Impresora térmica de recibos 80 mm", "conexiones": ["USB", "Bluetooth", "RJ45", "WiFi"],
+      "id": "43946",
+      "codigo": "43946",
+      "clave": "PDV-81I",
+      "marca": "Volteck",
+      "fabricante": "Truper",
+      "categoria": "impresoras",
+      "nombre": "Impresora térmica de recibos 80 mm",
+      "conexiones": [
+        "USB",
+        "Bluetooth",
+        "RJ45",
+        "WiFi"
+      ],
       "foto": "/site/equipos/43946.jpg",
-      "precios": { "mayoreo": 1615, "medioMayoreo": 1765, "publico": 1940 },
-      "resumen": ["Rollo de 80 mm", "USB + Bluetooth + RJ45 + WiFi", "Corte automático, 300 mm/s"],
-      "especificaciones": [
-        ["Ancho de rollo", "80 mm"], ["Conexión", "USB + Bluetooth + RJ45 + WiFi"], ["Corte de papel", "Automático"],
-        ["Velocidad de impresión", "300 mm/s"], ["Alimentación", "110/240 V, 50/60 Hz"], ["Cajón de dinero", "Interfaz RJ11"],
-        ["Medidas aproximadas", "14 × 16 × 14 cm"], ["Impresión", "No requiere tinta; imprime códigos de barras y QR"]
+      "precios": {
+        "mayoreo": 1615,
+        "medioMayoreo": 1765,
+        "publico": 1940
+      },
+      "resumen": [
+        "Rollo de 80 mm",
+        "USB + Bluetooth + RJ45 + WiFi",
+        "Corte automático, 300 mm/s"
       ],
-      "incluye": ["Adaptador c. a.", "Cable de alimentación", "Cable USB", "Rollo de papel"],
-      "compatibilidad": { "sistemas": ["Windows", "iOS", "Android"] },
+      "especificaciones": [
+        [
+          "Ancho de rollo",
+          "80 mm"
+        ],
+        [
+          "Conexión",
+          "USB + Bluetooth + RJ45 + WiFi"
+        ],
+        [
+          "Corte de papel",
+          "Automático"
+        ],
+        [
+          "Velocidad de impresión",
+          "300 mm/s"
+        ],
+        [
+          "Alimentación",
+          "110/240 V, 50/60 Hz"
+        ],
+        [
+          "Cajón de dinero",
+          "Interfaz RJ11"
+        ],
+        [
+          "Medidas aproximadas",
+          "14 × 16 × 14 cm"
+        ],
+        [
+          "Impresión",
+          "No requiere tinta; imprime códigos de barras y QR"
+        ]
+      ],
+      "incluye": [
+        "Adaptador c. a.",
+        "Cable de alimentación",
+        "Cable USB",
+        "Rollo de papel"
+      ],
+      "compatibilidad": {
+        "sistemas": [
+          "Windows",
+          "iOS",
+          "Android"
+        ]
+      },
       "garantia": "1 año"
     },
     {
-      "id": "43945", "codigo": "43945", "clave": "PDV-80I", "marca": "Volteck", "fabricante": "Truper", "categoria": "impresoras",
-      "nombre": "Impresora térmica de recibos 58/80 mm", "conexiones": ["USB", "Bluetooth"],
+      "id": "43945",
+      "codigo": "43945",
+      "clave": "PDV-80I",
+      "marca": "Volteck",
+      "fabricante": "Truper",
+      "categoria": "impresoras",
+      "nombre": "Impresora térmica de recibos 58/80 mm",
+      "conexiones": [
+        "USB",
+        "Bluetooth"
+      ],
       "foto": "/site/equipos/43945.jpg",
-      "precios": { "mayoreo": 1155, "medioMayoreo": 1270, "publico": 1395 },
-      "resumen": ["Rollo de 58 u 80 mm", "USB + Bluetooth", "Corte automático, 150 mm/s"],
-      "especificaciones": [
-        ["Ancho de rollo", "58 / 80 mm"], ["Conexión", "USB + Bluetooth"], ["Corte de papel", "Automático"],
-        ["Velocidad de impresión", "150 mm/s"], ["Alimentación", "110/240 V, 50/60 Hz"], ["Cajón de dinero", "Interfaz RJ11"],
-        ["Medidas aproximadas", "11 × 13 × 9 cm"], ["Impresión", "No requiere tinta; imprime códigos de barras y QR"]
+      "precios": {
+        "mayoreo": 1155,
+        "medioMayoreo": 1270,
+        "publico": 1395
+      },
+      "resumen": [
+        "Rollo de 58 u 80 mm",
+        "USB + Bluetooth",
+        "Corte automático, 150 mm/s"
       ],
-      "incluye": ["Adaptador c. a.", "Cable USB", "Separador plástico", "Tubo", "Rollo de papel"],
-      "compatibilidad": { "sistemas": ["Windows", "iOS", "Android"] },
+      "especificaciones": [
+        [
+          "Ancho de rollo",
+          "58 / 80 mm"
+        ],
+        [
+          "Conexión",
+          "USB + Bluetooth"
+        ],
+        [
+          "Corte de papel",
+          "Automático"
+        ],
+        [
+          "Velocidad de impresión",
+          "150 mm/s"
+        ],
+        [
+          "Alimentación",
+          "110/240 V, 50/60 Hz"
+        ],
+        [
+          "Cajón de dinero",
+          "Interfaz RJ11"
+        ],
+        [
+          "Medidas aproximadas",
+          "11 × 13 × 9 cm"
+        ],
+        [
+          "Impresión",
+          "No requiere tinta; imprime códigos de barras y QR"
+        ]
+      ],
+      "incluye": [
+        "Adaptador c. a.",
+        "Cable USB",
+        "Separador plástico",
+        "Tubo",
+        "Rollo de papel"
+      ],
+      "compatibilidad": {
+        "sistemas": [
+          "Windows",
+          "iOS",
+          "Android"
+        ]
+      },
       "garantia": "1 año"
     },
     {
-      "id": "43944", "codigo": "43944", "clave": "PDV-58I", "marca": "Volteck", "fabricante": "Truper", "categoria": "impresoras",
-      "nombre": "Impresora térmica de recibos 58 mm", "conexiones": ["USB", "Bluetooth"],
+      "id": "43944",
+      "codigo": "43944",
+      "clave": "PDV-58I",
+      "marca": "Volteck",
+      "fabricante": "Truper",
+      "categoria": "impresoras",
+      "nombre": "Impresora térmica de recibos 58 mm",
+      "conexiones": [
+        "USB",
+        "Bluetooth"
+      ],
       "foto": "/site/equipos/43944.jpg",
-      "precios": { "mayoreo": 595, "medioMayoreo": 655, "publico": 720 },
-      "resumen": ["Rollo de 58 mm", "USB + Bluetooth", "Corte manual, 120 mm/s"],
-      "especificaciones": [
-        ["Ancho de rollo", "58 mm"], ["Conexión", "USB + Bluetooth"], ["Corte de papel", "Manual"],
-        ["Velocidad de impresión", "120 mm/s"], ["Alimentación", "110/240 V, 50/60 Hz"], ["Cajón de dinero", "Interfaz RJ11"],
-        ["Medidas aproximadas", "12 × 17 × 9 cm"], ["Impresión", "No requiere tinta; imprime códigos de barras y QR"]
+      "precios": {
+        "mayoreo": 595,
+        "medioMayoreo": 655,
+        "publico": 720
+      },
+      "resumen": [
+        "Rollo de 58 mm",
+        "USB + Bluetooth",
+        "Corte manual, 120 mm/s"
       ],
-      "incluye": ["Adaptador c. a.", "Cable USB", "Rollo de papel"],
-      "compatibilidad": { "sistemas": ["Windows", "iOS", "Android"] },
+      "especificaciones": [
+        [
+          "Ancho de rollo",
+          "58 mm"
+        ],
+        [
+          "Conexión",
+          "USB + Bluetooth"
+        ],
+        [
+          "Corte de papel",
+          "Manual"
+        ],
+        [
+          "Velocidad de impresión",
+          "120 mm/s"
+        ],
+        [
+          "Alimentación",
+          "110/240 V, 50/60 Hz"
+        ],
+        [
+          "Cajón de dinero",
+          "Interfaz RJ11"
+        ],
+        [
+          "Medidas aproximadas",
+          "12 × 17 × 9 cm"
+        ],
+        [
+          "Impresión",
+          "No requiere tinta; imprime códigos de barras y QR"
+        ]
+      ],
+      "incluye": [
+        "Adaptador c. a.",
+        "Cable USB",
+        "Rollo de papel"
+      ],
+      "compatibilidad": {
+        "sistemas": [
+          "Windows",
+          "iOS",
+          "Android"
+        ]
+      },
       "garantia": "1 año"
     },
     {
-      "id": "44197", "codigo": "44197", "clave": "PDV-22L", "marca": "Volteck", "fabricante": "Truper", "categoria": "lectores",
-      "nombre": "Lector de códigos de barras 2D, Bluetooth", "conexiones": ["Bluetooth", "Inalámbrico 2.4 GHz", "USB"],
+      "id": "44197",
+      "codigo": "44197",
+      "clave": "PDV-22L",
+      "marca": "Volteck",
+      "fabricante": "Truper",
+      "categoria": "lectores",
+      "nombre": "Lector de códigos de barras 2D, Bluetooth",
+      "conexiones": [
+        "Bluetooth",
+        "Inalámbrico 2.4 GHz",
+        "USB"
+      ],
       "foto": "/site/equipos/44197.jpg",
-      "precios": { "mayoreo": 1385, "medioMayoreo": 1525, "publico": 1675 },
-      "resumen": ["Código de barras y QR (2D)", "Bluetooth, receptor USB o cable", "Recargable USB-C, 70 g"],
-      "especificaciones": [
-        ["Tipo", "2D (códigos de barras y QR)"], ["Conexión", "Bluetooth, inalámbrica con receptor USB (2.4 GHz), cable USB"],
-        ["Batería", "Ion-litio 3.7 V / 1.2 Ah, recargable por USB-C"], ["Tiempo de carga", "3-4 horas"],
-        ["Escaneos por carga", "Hasta 100,000 con carga completa"], ["Peso", "70 g"], ["Largo del cable", "115 cm"],
-        ["Medidas aproximadas", "3 × 12 × 4 cm"], ["Lectura", "Códigos en pantallas de teléfonos o monitores; tono de escaneo"],
-        ["Para sistema", "TruScan"]
+      "precios": {
+        "mayoreo": 1385,
+        "medioMayoreo": 1525,
+        "publico": 1675
+      },
+      "resumen": [
+        "Código de barras y QR (2D)",
+        "Bluetooth, receptor USB o cable",
+        "Recargable USB-C, 70 g"
       ],
-      "incluye": ["Cable USB-C", "Receptor USB", "Portagafete retráctil y cordón"],
-      "compatibilidad": { "sistemas": ["Windows", "Android", "iOS", "Mac"] },
+      "especificaciones": [
+        [
+          "Tipo",
+          "2D (códigos de barras y QR)"
+        ],
+        [
+          "Conexión",
+          "Bluetooth, inalámbrica con receptor USB (2.4 GHz), cable USB"
+        ],
+        [
+          "Batería",
+          "Ion-litio 3.7 V / 1.2 Ah, recargable por USB-C"
+        ],
+        [
+          "Tiempo de carga",
+          "3-4 horas"
+        ],
+        [
+          "Escaneos por carga",
+          "Hasta 100,000 con carga completa"
+        ],
+        [
+          "Peso",
+          "70 g"
+        ],
+        [
+          "Largo del cable",
+          "115 cm"
+        ],
+        [
+          "Medidas aproximadas",
+          "3 × 12 × 4 cm"
+        ],
+        [
+          "Lectura",
+          "Códigos en pantallas de teléfonos o monitores; tono de escaneo"
+        ],
+        [
+          "Para sistema",
+          "TruScan"
+        ]
+      ],
+      "incluye": [
+        "Cable USB-C",
+        "Receptor USB",
+        "Portagafete retráctil y cordón"
+      ],
+      "compatibilidad": {
+        "sistemas": [
+          "Windows",
+          "Android",
+          "iOS",
+          "Mac"
+        ]
+      },
       "garantia": "1 año"
     },
     {
-      "id": "44196", "codigo": "44196", "clave": "PDV-21L", "marca": "Volteck", "fabricante": "Truper", "categoria": "lectores",
-      "nombre": "Lector de códigos de barras 2D, inalámbrico", "conexiones": ["Inalámbrico 2.4 GHz", "USB"],
+      "id": "44196",
+      "codigo": "44196",
+      "clave": "PDV-21L",
+      "marca": "Volteck",
+      "fabricante": "Truper",
+      "categoria": "lectores",
+      "nombre": "Lector de códigos de barras 2D, inalámbrico",
+      "conexiones": [
+        "Inalámbrico 2.4 GHz",
+        "USB"
+      ],
       "foto": "/site/equipos/44196.jpg",
-      "precios": { "mayoreo": 835, "medioMayoreo": 920, "publico": 1015 },
-      "resumen": ["Código de barras y QR (2D)", "Inalámbrico con receptor USB", "Incluye soporte y base"],
-      "especificaciones": [
-        ["Tipo", "2D (códigos de barras y QR)"], ["Conexión", "Inalámbrica con receptor USB (2.4 GHz), cable USB"],
-        ["Batería", "Ion-litio 3.7 V / 2 Ah, recargable por USB-C"], ["Tiempo de carga", "4-5 horas"],
-        ["Escaneos por carga", "Hasta 100,000 con carga completa"], ["Peso", "160 g"], ["Largo del cable", "115 cm"],
-        ["Medidas aproximadas", "10 × 6 × 17 cm"], ["Modos", "Lectura automática y modo de disparo"],
-        ["Lectura", "Códigos en pantallas de teléfonos o monitores; tono de escaneo"]
+      "precios": {
+        "mayoreo": 835,
+        "medioMayoreo": 920,
+        "publico": 1015
+      },
+      "resumen": [
+        "Código de barras y QR (2D)",
+        "Inalámbrico con receptor USB",
+        "Incluye soporte y base"
       ],
-      "incluye": ["Cable USB-C", "Receptor USB", "Soporte y base"],
-      "compatibilidad": { "sistemas": ["Windows", "Android", "iOS", "Mac"] },
+      "especificaciones": [
+        [
+          "Tipo",
+          "2D (códigos de barras y QR)"
+        ],
+        [
+          "Conexión",
+          "Inalámbrica con receptor USB (2.4 GHz), cable USB"
+        ],
+        [
+          "Batería",
+          "Ion-litio 3.7 V / 2 Ah, recargable por USB-C"
+        ],
+        [
+          "Tiempo de carga",
+          "4-5 horas"
+        ],
+        [
+          "Escaneos por carga",
+          "Hasta 100,000 con carga completa"
+        ],
+        [
+          "Peso",
+          "160 g"
+        ],
+        [
+          "Largo del cable",
+          "115 cm"
+        ],
+        [
+          "Medidas aproximadas",
+          "10 × 6 × 17 cm"
+        ],
+        [
+          "Modos",
+          "Lectura automática y modo de disparo"
+        ],
+        [
+          "Lectura",
+          "Códigos en pantallas de teléfonos o monitores; tono de escaneo"
+        ]
+      ],
+      "incluye": [
+        "Cable USB-C",
+        "Receptor USB",
+        "Soporte y base"
+      ],
+      "compatibilidad": {
+        "sistemas": [
+          "Windows",
+          "Android",
+          "iOS",
+          "Mac"
+        ]
+      },
       "garantia": "1 año"
     },
     {
-      "id": "44195", "codigo": "44195", "clave": "PDV-12L", "marca": "Volteck", "fabricante": "Truper", "categoria": "lectores",
-      "nombre": "Lector de códigos de barras 2D", "conexiones": ["USB"],
+      "id": "44195",
+      "codigo": "44195",
+      "clave": "PDV-12L",
+      "marca": "Volteck",
+      "fabricante": "Truper",
+      "categoria": "lectores",
+      "nombre": "Lector de códigos de barras 2D",
+      "conexiones": [
+        "USB"
+      ],
       "foto": "/site/equipos/44195.jpg",
-      "precios": { "mayoreo": 695, "medioMayoreo": 765, "publico": 845 },
-      "resumen": ["Código de barras y QR (2D)", "USB con cable", "Incluye soporte y base"],
-      "especificaciones": [
-        ["Tipo", "2D (códigos de barras y QR)"], ["Conexión", "USB alámbrica, cable USB-A"], ["Peso", "165 g"],
-        ["Largo del cable", "154 cm"], ["Medidas aproximadas", "10 × 6 × 17 cm"], ["Modos", "Lectura automática y modo de disparo"],
-        ["Lectura", "Códigos en pantallas de teléfonos o monitores; tono de escaneo"]
+      "precios": {
+        "mayoreo": 695,
+        "medioMayoreo": 765,
+        "publico": 845
+      },
+      "resumen": [
+        "Código de barras y QR (2D)",
+        "USB con cable",
+        "Incluye soporte y base"
       ],
-      "incluye": ["Cable USB-A", "Soporte y base"],
-      "compatibilidad": { "sistemas": ["Windows", "Android", "iOS", "Mac"] },
+      "especificaciones": [
+        [
+          "Tipo",
+          "2D (códigos de barras y QR)"
+        ],
+        [
+          "Conexión",
+          "USB alámbrica, cable USB-A"
+        ],
+        [
+          "Peso",
+          "165 g"
+        ],
+        [
+          "Largo del cable",
+          "154 cm"
+        ],
+        [
+          "Medidas aproximadas",
+          "10 × 6 × 17 cm"
+        ],
+        [
+          "Modos",
+          "Lectura automática y modo de disparo"
+        ],
+        [
+          "Lectura",
+          "Códigos en pantallas de teléfonos o monitores; tono de escaneo"
+        ]
+      ],
+      "incluye": [
+        "Cable USB-A",
+        "Soporte y base"
+      ],
+      "compatibilidad": {
+        "sistemas": [
+          "Windows",
+          "Android",
+          "iOS",
+          "Mac"
+        ]
+      },
       "garantia": "1 año"
     },
     {
-      "id": "44189", "codigo": "44189", "clave": "PDV-11L", "marca": "Volteck", "fabricante": "Truper", "categoria": "lectores",
-      "nombre": "Lector de códigos de barras 1D", "conexiones": ["USB"],
-      "foto": "/site/equipos/44189.jpg",
-      "precios": { "mayoreo": 450, "medioMayoreo": 495, "publico": 545 },
-      "resumen": ["Código de barras (1D)", "USB con cable", "Incluye soporte y base"],
-      "especificaciones": [
-        ["Tipo", "1D (códigos de barras)"], ["Conexión", "USB alámbrica, cable USB-A"], ["Peso", "166 g"],
-        ["Largo del cable", "154 cm"], ["Medidas aproximadas", "10 × 6 × 17 cm"], ["Modos", "Lectura automática y modo de disparo"],
-        ["Lectura", "Tono de escaneo para indicar la lectura"]
+      "id": "44189",
+      "codigo": "44189",
+      "clave": "PDV-11L",
+      "marca": "Volteck",
+      "fabricante": "Truper",
+      "categoria": "lectores",
+      "nombre": "Lector de códigos de barras 1D",
+      "conexiones": [
+        "USB"
       ],
-      "incluye": ["Cable USB-A", "Soporte y base"],
-      "compatibilidad": { "sistemas": ["Windows", "Android", "iOS", "Mac"] },
+      "foto": "/site/equipos/44189.jpg",
+      "precios": {
+        "mayoreo": 450,
+        "medioMayoreo": 495,
+        "publico": 545
+      },
+      "resumen": [
+        "Código de barras (1D)",
+        "USB con cable",
+        "Incluye soporte y base"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "1D (códigos de barras)"
+        ],
+        [
+          "Conexión",
+          "USB alámbrica, cable USB-A"
+        ],
+        [
+          "Peso",
+          "166 g"
+        ],
+        [
+          "Largo del cable",
+          "154 cm"
+        ],
+        [
+          "Medidas aproximadas",
+          "10 × 6 × 17 cm"
+        ],
+        [
+          "Modos",
+          "Lectura automática y modo de disparo"
+        ],
+        [
+          "Lectura",
+          "Tono de escaneo para indicar la lectura"
+        ]
+      ],
+      "incluye": [
+        "Cable USB-A",
+        "Soporte y base"
+      ],
+      "compatibilidad": {
+        "sistemas": [
+          "Windows",
+          "Android",
+          "iOS",
+          "Mac"
+        ]
+      },
       "garantia": "1 año"
+    },
+    {
+      "id": "27119",
+      "codigo": "27119",
+      "clave": "BASE-30P",
+      "marca": "Pretul",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica multifunciones 30 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/27119.jpg",
+      "precios": {
+        "mayoreo": 695,
+        "medioMayoreo": 765,
+        "publico": 845
+      },
+      "resumen": [
+        "Capacidad 30 kg",
+        "Multifunciones"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "Multifunciones"
+        ],
+        [
+          "Capacidad",
+          "30 kg"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "29966",
+      "codigo": "29966",
+      "clave": "BASE-40P",
+      "marca": "Pretul",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica multifunciones 40 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/29966.jpg",
+      "precios": {
+        "mayoreo": 785,
+        "medioMayoreo": 865,
+        "publico": 960
+      },
+      "resumen": [
+        "Capacidad 40 kg",
+        "Multifunciones"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "Multifunciones"
+        ],
+        [
+          "Capacidad",
+          "40 kg"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "28461",
+      "codigo": "28461",
+      "clave": "BAS-100PLAP",
+      "marca": "Pretul",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica de plataforma, plegable, 100 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/28461.jpg",
+      "precios": {
+        "mayoreo": 1325,
+        "medioMayoreo": 1460,
+        "publico": 1610
+      },
+      "resumen": [
+        "Capacidad 100 kg",
+        "De plataforma plegable"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "De plataforma plegable"
+        ],
+        [
+          "Capacidad",
+          "100 kg"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "28462",
+      "codigo": "28462",
+      "clave": "BAS-200PLAP",
+      "marca": "Pretul",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica de plataforma, plegable, 200 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/28462.jpg",
+      "precios": {
+        "mayoreo": 1750,
+        "medioMayoreo": 1925,
+        "publico": 2125
+      },
+      "resumen": [
+        "Capacidad 200 kg",
+        "De plataforma plegable"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "De plataforma plegable"
+        ],
+        [
+          "Capacidad",
+          "200 kg"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "100786",
+      "codigo": "100786",
+      "clave": "BASE-05J",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica de bolsillo, de pilas, 500 g",
+      "conexiones": [],
+      "foto": "/site/equipos/100786.jpg",
+      "precios": {
+        "mayoreo": 150,
+        "medioMayoreo": 165,
+        "publico": 180
+      },
+      "resumen": [
+        "Capacidad 500 g",
+        "De bolsillo",
+        "Pilas"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "De bolsillo"
+        ],
+        [
+          "Capacidad",
+          "500 g"
+        ],
+        [
+          "Alimentación",
+          "Pilas"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "102316",
+      "codigo": "102316",
+      "clave": "BASE-05B",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica de precisión, de bolsillo, 500 g",
+      "conexiones": [],
+      "foto": "/site/equipos/102316.jpg",
+      "precios": {
+        "mayoreo": 240,
+        "medioMayoreo": 265,
+        "publico": 290
+      },
+      "resumen": [
+        "Capacidad 500 g",
+        "De bolsillo"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "De bolsillo"
+        ],
+        [
+          "Capacidad",
+          "500 g"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "102317",
+      "codigo": "102317",
+      "clave": "BASE-3",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica de precisión, recargable, 3 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/102317.jpg",
+      "precios": {
+        "mayoreo": 420,
+        "medioMayoreo": 460,
+        "publico": 510
+      },
+      "resumen": [
+        "Capacidad 3 kg",
+        "De precisión",
+        "Recargable"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "De precisión"
+        ],
+        [
+          "Capacidad",
+          "3 kg"
+        ],
+        [
+          "Alimentación",
+          "Recargable"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "102651",
+      "codigo": "102651",
+      "clave": "BASE-20",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica multifunciones 20 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/102651.jpg",
+      "precios": {
+        "mayoreo": 965,
+        "medioMayoreo": 1065,
+        "publico": 1165
+      },
+      "resumen": [
+        "Capacidad 20 kg",
+        "Multifunciones"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "Multifunciones"
+        ],
+        [
+          "Capacidad",
+          "20 kg"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "15241",
+      "codigo": "15241",
+      "clave": "BASE-40",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica multifunciones 40 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/15241.jpg",
+      "precios": {
+        "mayoreo": 1250,
+        "medioMayoreo": 1375,
+        "publico": 1515
+      },
+      "resumen": [
+        "Capacidad 40 kg",
+        "Multifunciones"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "Multifunciones"
+        ],
+        [
+          "Capacidad",
+          "40 kg"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "100871",
+      "codigo": "100871",
+      "clave": "BASE-40T",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica multifunciones con torreta 40 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/100871.jpg",
+      "precios": {
+        "mayoreo": 1500,
+        "medioMayoreo": 1650,
+        "publico": 1800
+      },
+      "resumen": [
+        "Capacidad 40 kg",
+        "Multifunciones"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "Multifunciones"
+        ],
+        [
+          "Capacidad",
+          "40 kg"
+        ],
+        [
+          "Incluye",
+          "Torreta"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "103131",
+      "codigo": "103131",
+      "clave": "BASE-40U",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica multifunciones 40 kg USB",
+      "conexiones": [
+        "USB"
+      ],
+      "foto": "/site/equipos/103131.jpg",
+      "precios": {
+        "mayoreo": 1500,
+        "medioMayoreo": 1650,
+        "publico": 1800
+      },
+      "resumen": [
+        "Capacidad 40 kg",
+        "Multifunciones"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "Multifunciones"
+        ],
+        [
+          "Capacidad",
+          "40 kg"
+        ],
+        [
+          "Conexión",
+          "USB"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "103112",
+      "codigo": "103112",
+      "clave": "BAS-80PLA",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica de plataforma p/mostrador, 80 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/103112.jpg",
+      "precios": {
+        "mayoreo": 1800,
+        "medioMayoreo": 2000,
+        "publico": 2200
+      },
+      "resumen": [
+        "Capacidad 80 kg",
+        "De plataforma"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "De plataforma"
+        ],
+        [
+          "Capacidad",
+          "80 kg"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "15729",
+      "codigo": "15729",
+      "clave": "BAS-100PLA",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica de plataforma, plegable, 100 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/15729.jpg",
+      "precios": {
+        "mayoreo": 2165,
+        "medioMayoreo": 2365,
+        "publico": 2615
+      },
+      "resumen": [
+        "Capacidad 100 kg",
+        "De plataforma plegable"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "De plataforma plegable"
+        ],
+        [
+          "Capacidad",
+          "100 kg"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "15732",
+      "codigo": "15732",
+      "clave": "BAS-200PLA",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica de plataforma, plegable, 200 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/15732.jpg",
+      "precios": {
+        "mayoreo": 2650,
+        "medioMayoreo": 2900,
+        "publico": 3200
+      },
+      "resumen": [
+        "Capacidad 200 kg",
+        "De plataforma plegable"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "De plataforma plegable"
+        ],
+        [
+          "Capacidad",
+          "200 kg"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "103771",
+      "codigo": "103771",
+      "clave": "BAS-200PLI",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica de plataforma, 200 kg, inoxidable",
+      "conexiones": [],
+      "foto": "/site/equipos/103771.jpg",
+      "precios": {
+        "mayoreo": 3000,
+        "medioMayoreo": 3300,
+        "publico": 3650
+      },
+      "resumen": [
+        "Capacidad 200 kg",
+        "De plataforma"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "De plataforma"
+        ],
+        [
+          "Capacidad",
+          "200 kg"
+        ],
+        [
+          "Material",
+          "Acero inoxidable"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "103721",
+      "codigo": "103721",
+      "clave": "BAS-501PLA",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica de plataforma, plegable,500 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/103721.jpg",
+      "precios": {
+        "mayoreo": 3600,
+        "medioMayoreo": 3950,
+        "publico": 4350
+      },
+      "resumen": [
+        "Capacidad 500 kg",
+        "De plataforma plegable"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "De plataforma plegable"
+        ],
+        [
+          "Capacidad",
+          "500 kg"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "15733",
+      "codigo": "15733",
+      "clave": "BAS-600PLA",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica de plataforma, plegable, 600 kg",
+      "conexiones": [],
+      "foto": "/site/equipos/15733.jpg",
+      "precios": {
+        "mayoreo": 6000,
+        "medioMayoreo": 6000,
+        "publico": 7250
+      },
+      "resumen": [
+        "Capacidad 600 kg",
+        "De plataforma plegable"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "De plataforma plegable"
+        ],
+        [
+          "Capacidad",
+          "600 kg"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
+    },
+    {
+      "id": "103772",
+      "codigo": "103772",
+      "clave": "BAS-600PLI",
+      "marca": "Truper",
+      "fabricante": "Truper",
+      "categoria": "basculas",
+      "nombre": "Báscula electrónica de plataforma, 600 kg, inoxidable",
+      "conexiones": [],
+      "foto": "/site/equipos/103772.jpg",
+      "precios": {
+        "mayoreo": 6600,
+        "medioMayoreo": 7250,
+        "publico": 8000
+      },
+      "resumen": [
+        "Capacidad 600 kg",
+        "De plataforma"
+      ],
+      "especificaciones": [
+        [
+          "Tipo",
+          "De plataforma"
+        ],
+        [
+          "Capacidad",
+          "600 kg"
+        ],
+        [
+          "Material",
+          "Acero inoxidable"
+        ],
+        [
+          "Características técnicas completas",
+          "Por confirmar con el fabricante"
+        ]
+      ],
+      "incluye": [],
+      "compatibilidad": {
+        "sistemas": []
+      },
+      "garantia": ""
     }
   ]
 }

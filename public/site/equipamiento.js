@@ -35,7 +35,7 @@
             return '<img class="' + clase + '" src="' + esc(p.foto) + '" alt="' + esc(p.marca + " " + p.clave) + '" loading="lazy" width="320" height="320">';
         }
 
-        return '<span class="' + clase + ' equipo-sin-foto" aria-hidden="true">' + (p.categoria === "impresoras" ? "🖨️" : "▦") + "</span>";
+        return '<span class="' + clase + ' equipo-sin-foto" aria-hidden="true">' + (p.categoria === "impresoras" ? "🖨️" : p.categoria === "basculas" ? "⚖️" : "▦") + "</span>";
     }
 
     function visibles() {
@@ -133,7 +133,7 @@
             '<div class="equipo-ficha-cabecera">' + foto(p, "equipo-ficha-foto") +
             "<div><p class=\"equipo-marca\">" + esc(p.marca) + " (" + esc(p.fabricante) + ") · Clave " + esc(p.clave) + " · Código " + esc(p.codigo) + "</p>" +
             "<h3>" + esc(p.nombre) + "</h3>" +
-            '<p class="equipo-garantia">Garantía: ' + esc(p.garantia) + "</p></div></div>" +
+            (p.garantia ? '<p class="equipo-garantia">Garantía: ' + esc(p.garantia) + "</p>" : '<p class="equipo-garantia">Garantía: por confirmar</p>') + "</div></div>" +
 
             '<div class="equipo-precios"><h4>Precio</h4><div class="equipo-precios-fila">' +
             '<div class="destacado"><span>Medio mayoreo</span><strong>' + dinero(p.precios.medioMayoreo) + "</strong></div></div>" +
@@ -142,10 +142,10 @@
             "<h4>Características</h4>" +
             '<table class="equipo-tabla"><tbody>' + p.especificaciones.map(function (e) { return "<tr><th>" + esc(e[0]) + "</th><td>" + esc(e[1]) + "</td></tr>"; }).join("") + "</tbody></table>" +
 
-            "<h4>Incluye</h4><ul class=\"equipo-incluye\">" + p.incluye.map(function (i) { return "<li>" + esc(i) + "</li>"; }).join("") + "</ul>" +
+            (p.incluye.length ? "<h4>Incluye</h4><ul class=\"equipo-incluye\">" + p.incluye.map(function (i) { return "<li>" + esc(i) + "</li>"; }).join("") + "</ul>" : "") +
 
             "<h4>Compatibilidad</h4>" +
-            '<p>Sistemas que indica el fabricante: <strong>' + esc(p.compatibilidad.sistemas.join(", ")) + "</strong>.</p>" +
+            (p.compatibilidad.sistemas.length ? '<p>Sistemas que indica el fabricante: <strong>' + esc(p.compatibilidad.sistemas.join(", ")) + "</strong>.</p>" : "<p>Sistemas compatibles: por confirmar con el fabricante.</p>") +
             '<p class="equipo-pendiente"><b>Con Nexo POS: por confirmar.</b> Todavía no hemos probado este modelo dentro de Nexo; te lo confirmamos antes de que compres.</p>' +
 
             '<div class="equipo-acciones equipo-ficha-acciones">' +
