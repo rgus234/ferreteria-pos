@@ -126,3 +126,26 @@ test("la franja solo sale en el perfil simple y un toque no vuelve a dibujar las
     assert.ok(indice.indexOf("js/pos-sales.js") < indice.indexOf("js/favoritos-pos.js"), "envuelve actualizarCarrito ya definido");
     assert.match(indice, /css\/components\/favoritos-pos\.css/);
 });
+
+test("la franja de favoritos se oculta y se muestra con animacion, recuerda la eleccion y se abre sola al editar", () => {
+    const leer = ruta => fs.readFileSync(path.join(__dirname, "..", "public", ruta), "utf8");
+    const js = leer("js/favoritos-pos.js");
+    const css = leer("css/components/favoritos-pos.css");
+
+    // Solo se cambia una clase: las tarjetas (y sus fotos) no se vuelven a dibujar.
+    const alternar = js.slice(js.indexOf("function favAlternar("), js.indexOf("function favEditar("));
+    assert.match(alternar, /classList\.toggle\("fav-oculta"/);
+    assert.doesNotMatch(alternar, /renderFavoritosPOS\(\)/);
+    assert.match(js, /nexoFavoritosOculta/);
+    assert.match(js, /try \{ localStorage\.setItem\(FAVORITOS_OCULTA_KEY/, "el almacenamiento puede fallar y no debe romper la franja");
+    assert.match(js, /aria-expanded/);
+
+    // Editar con la franja plegada la abre.
+    const editar = js.slice(js.indexOf("function favEditar("), js.indexOf("function favBuscar("));
+    assert.match(editar, /favoritosOculta = false/);
+
+    // Animacion de altura (grid 1fr -> 0fr) y respeto a "reducir movimiento".
+    assert.match(css, /\.fav-oculta \.fav-plegable \{ grid-template-rows: 0fr/);
+    assert.match(css, /transition: grid-template-rows/);
+    assert.match(css, /prefers-reduced-motion[\s\S]*\.fav-plegable/);
+});

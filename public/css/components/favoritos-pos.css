@@ -5,6 +5,20 @@
 
 .fav-cabecera { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
 .fav-cabecera h3 { margin: 0; font-size: 15px; }
+
+/* Titulo que tambien es boton: ocultar / mostrar la franja. */
+.fav-titulo { display: flex; align-items: center; gap: 8px; padding: 2px 4px 2px 0; border: 0; background: transparent !important; color: inherit !important; box-shadow: none !important; cursor: pointer; font: inherit; text-align: left; }
+.fav-flecha { display: inline-block; font-size: 14px; color: #64748b; transition: transform .28s cubic-bezier(.4, 0, .2, 1); }
+.fav-oculta .fav-flecha { transform: rotate(-90deg); }
+.fav-resumen { color: #94a3b8; font-size: 12px; font-weight: 700; }
+
+/* El cuerpo se pliega con una animacion de altura (grid 1fr -> 0fr) y se desvanece. */
+.fav-plegable { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .3s cubic-bezier(.4, 0, .2, 1), opacity .22s ease; }
+.fav-interior { min-height: 0; overflow: hidden; }
+.fav-oculta .fav-plegable { grid-template-rows: 0fr; opacity: 0; pointer-events: none; }
+.fav-oculta .fav-cabecera { margin-bottom: 0; }
+.fav-oculta { padding-top: 8px; padding-bottom: 8px; }
+.fav-franja { transition: padding .3s cubic-bezier(.4, 0, .2, 1); }
 .fav-cabecera-acciones { display: flex; gap: 8px; }
 
 .fav-btn { padding: 6px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff !important; color: #0f172a !important; font-weight: 800; font-size: 13px; cursor: pointer; }
@@ -58,5 +72,5 @@
 .fav-sugeridos small { color: #94a3b8; font-weight: 700; }
 
 @media (prefers-reduced-motion: reduce) {
-  .fav-tarjeta { transition: none; }
+  .fav-tarjeta, .fav-plegable, .fav-flecha, .fav-franja { transition: none; }
 }

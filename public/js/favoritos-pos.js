@@ -10,6 +10,13 @@ let favoritosMaximo = 24;
 let favoritosEditando = false;
 let favoritosCargados = false;
 let favoritosBusqueda = "";
+const FAVORITOS_OCULTA_KEY = "nexoFavoritosOculta";
+
+function favLeerOculta() {
+    try { return localStorage.getItem(FAVORITOS_OCULTA_KEY) === "1"; } catch (error) { return false; }
+}
+
+let favoritosOculta = favLeerOculta();
 
 function favEscapar(valor) {
     return String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -139,15 +146,25 @@ function renderFavoritosPOS() {
             ${sugeridos.length && productos.length < favoritosMaximo ? `<div class="fav-sugeridos"><small>Lo que más vendes:</small>${sugeridos.slice(0, 6).map(s => `<button type="button" onclick="favAgregarALista(${s.productoId})">+ ${favEscapar(favProducto(s.productoId).nombre)}</button>`).join("")}</div>` : ""}
         </div>` : "";
 
+    franja.classList.toggle("fav-oculta", favoritosOculta);
+
     franja.innerHTML = `
     <div class="fav-cabecera">
-        <h3>⭐ Favoritos</h3>
+        <button type="button" class="fav-titulo" onclick="favAlternar()" aria-expanded="${favoritosOculta ? "false" : "true"}" aria-controls="favCuerpo" title="${favoritosOculta ? "Mostrar favoritos" : "Ocultar favoritos"}">
+            <span class="fav-flecha" aria-hidden="true">▾</span>
+            <h3>⭐ Favoritos</h3>
+            <small class="fav-resumen">${favoritosOculta ? `${productos.length} producto${productos.length === 1 ? "" : "s"} a un toque` : ""}</small>
+        </button>
         <div class="fav-cabecera-acciones">
             ${productos.length || favoritosEditando ? `<button type="button" class="fav-btn" onclick="favEditar(${favoritosEditando ? "false" : "true"})">${favoritosEditando ? "Listo" : "Editar"}</button>` : ""}
         </div>
     </div>
-    ${editor}
-    ${cuerpo}`;
+    <div class="fav-plegable" id="favCuerpo">
+        <div class="fav-interior">
+            ${editor}
+            ${cuerpo}
+        </div>
+    </div>`;
 
     if (favoritosEditando && favoritosBusqueda) {
         const campo = document.getElementById("favBuscar");
@@ -201,8 +218,40 @@ async function favUsarMasVendidos() {
     if (ids.length && await favGuardar(ids)) renderFavoritosPOS();
 }
 
+// Oculta o muestra la franja con animacion: solo se cambia una clase, sin volver a dibujar las tarjetas.
+function favAlternar() {
+    favoritosOculta = !favoritosOculta;
+
+    try { localStorage.setItem(FAVORITOS_OCULTA_KEY, favoritosOculta ? "1" : "0"); } catch (error) { /* sin almacenamiento */ }
+
+    const franja = document.getElementById("favoritosPOS");
+    if (!franja) return;
+
+    franja.classList.toggle("fav-oculta", favoritosOculta);
+
+    const titulo = franja.querySelector(".fav-titulo");
+    const resumen = franja.querySelector(".fav-resumen");
+
+    if (titulo) {
+        titulo.setAttribute("aria-expanded", favoritosOculta ? "false" : "true");
+        titulo.title = favoritosOculta ? "Mostrar favoritos" : "Ocultar favoritos";
+    }
+
+    if (resumen) {
+        const n = favoritosIds.filter(favProducto).length;
+        resumen.textContent = favoritosOculta ? `${n} producto${n === 1 ? "" : "s"} a un toque` : "";
+    }
+}
+
 function favEditar(activar) {
     favoritosEditando = Boolean(activar);
+
+    // Para editar la franja tiene que estar a la vista.
+    if (favoritosEditando && favoritosOculta) {
+        favoritosOculta = false;
+        try { localStorage.setItem(FAVORITOS_OCULTA_KEY, "0"); } catch (error) { /* sin almacenamiento */ }
+    }
+
     favoritosBusqueda = "";
     renderFavoritosPOS();
 }
