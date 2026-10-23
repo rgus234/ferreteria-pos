@@ -172,3 +172,26 @@ test("quien eligio abarrotes recibe todo en abarrotes, y la descarga se adapta",
     assert.match(descarga, /\/site\/giro-contenido\.js/);
     assert.match(descarga, /\/site\/site-giro\.js/);
 });
+
+test("el correo de confirmacion de la solicitud habla del giro que eligio, no 'ferreterias' para todos", () => {
+    const { descripcionPorGiro } = require("../email.js");
+    const servidor = leer("server.js");
+
+    assert.equal(descripcionPorGiro("Ferretería").para, "ferreterias");
+    assert.equal(descripcionPorGiro("Abarrotes").para, "tiendas de abarrotes");
+    assert.equal(descripcionPorGiro("Ferretería y abarrotes (ambos)").para, "quien tiene ferreteria y tienda");
+    assert.equal(descripcionPorGiro("Papelería").para, "negocios como el tuyo", "otros giros: texto general, sin inventar");
+    assert.equal(descripcionPorGiro("").para, "negocios como el tuyo");
+
+    // Lo nuevo de abarrotes se dice como nuevo y en pruebas, tambien en el correo.
+    assert.match(descripcionPorGiro("Abarrotes").incluye, /nuevas y las estamos probando/);
+    assert.match(descripcionPorGiro("Ferretería").incluye, /cotizaciones/);
+    assert.ok(descripcionPorGiro("Abarrotes").lineaPerfil);
+
+    // El giro sale de "Giro: X | ..." dentro del mensaje, en cualquier posicion.
+    const sacar = mensaje => (/(?:^|\|\s*)Giro:\s*([^|]+)/i.exec(mensaje) || [])[1];
+    assert.equal(sacar("Giro: Abarrotes | Ciudad: Rio Grande").trim(), "Abarrotes");
+    assert.equal(sacar("Ciudad: X | Giro: Ferretería y abarrotes (ambos) | Mensaje: hola").trim(), "Ferretería y abarrotes (ambos)");
+    assert.equal(sacar("Ciudad: X"), undefined);
+    assert.match(servidor, /enviarCorreoConfirmacionLead\(correo, nombre, giroElegido\.trim\(\)\)/);
+});

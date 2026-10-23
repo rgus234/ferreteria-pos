@@ -1190,7 +1190,10 @@ app.post("/api/contacto-landing", async (req, res) => {
             .catch(error => console.warn("No se pudo enviar el aviso de lead", error.message));
 
         if (correo) {
-            enviarCorreoConfirmacionLead(correo, nombre)
+            // El formulario manda "Giro: X | Ciudad: Y | ..." dentro de mensaje: de ahi sale el giro que eligio.
+            const giroElegido = (/(?:^|\|\s*)Giro:\s*([^|]+)/i.exec(mensaje) || [])[1] || "";
+
+            enviarCorreoConfirmacionLead(correo, nombre, giroElegido.trim())
                 .catch(error => console.warn("No se pudo enviar la confirmacion al lead", error.message));
         }
 

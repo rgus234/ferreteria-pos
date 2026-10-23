@@ -516,8 +516,29 @@ function cajaPreciosFundadorHtml() {
     `;
 }
 
-async function enviarCorreoConfirmacionLead(correo, nombre) {
+// El giro llega tal como lo escribio el formulario ("Ferreteria", "Abarrotes", "Ferreteria y abarrotes (ambos)", otro...).
+// Lo que se dice del producto depende de el: antes decia "pensado para ferreterias" a todos.
+function descripcionPorGiro(giro) {
+    const { CONTENIDO, normalizar } = require("./public/site/giro-contenido.js");
+    const clave = normalizar(giro);
+    const perfil = clave ? CONTENIDO[clave] : null;
+
+    const textos = {
+        ferreteria: { para: "ferreterias", incluye: "mostrador, inventario, credito, cotizaciones y reportes en un solo lugar" },
+        abarrotes: { para: "tiendas de abarrotes", incluye: "venta rapida, fiado, caducidades, pedido sugerido por proveedor y cuanto ganas, a la vista (las herramientas de tienda son nuevas y las estamos probando)" },
+        ambos: { para: "quien tiene ferreteria y tienda", incluye: "una sola cuenta con el programa completo de ferreteria y las herramientas de tienda (estas ultimas son nuevas y las estamos probando)" }
+    };
+
+    return {
+        para: clave ? textos[clave].para : "negocios como el tuyo",
+        incluye: clave ? textos[clave].incluye : "mostrador, inventario, credito y reportes en un solo lugar",
+        lineaPerfil: perfil ? perfil.correo : ""
+    };
+}
+
+async function enviarCorreoConfirmacionLead(correo, nombre, giro) {
     const nombreSeguro = escaparHtmlCorreo(nombre);
+    const giroTexto = descripcionPorGiro(giro);
 
     return enviarCorreo({
         correo,
@@ -528,7 +549,8 @@ async function enviarCorreoConfirmacionLead(correo, nombre) {
             saludo: "Te respondemos muy pronto por WhatsApp o correo.",
             robot: "feliz",
             cuerpoHtml: `
-                <p style="margin:0 0 12px;color:#344054;font-size:15px;line-height:1.6;">Gracias por tu interes en Nexo, el sistema de punto de venta pensado para ferreterias: mostrador, inventario, credito y reportes en un solo lugar. Nexo esta en etapa de pruebas con negocios reales.</p>
+                <p style="margin:0 0 12px;color:#344054;font-size:15px;line-height:1.6;">Gracias por tu interes en Nexo, el sistema de punto de venta pensado para ${giroTexto.para}: ${giroTexto.incluye}. Nexo esta en etapa de pruebas con negocios reales.</p>
+                ${giroTexto.lineaPerfil ? `<p style="margin:0 0 12px;color:#344054;font-size:15px;line-height:1.6;">${escaparHtmlCorreo(giroTexto.lineaPerfil)}</p>` : ""}
                 <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Si tu negocio puede participar, te mandaremos un enlace personal para configurarlo. Asi funciona la prueba:</p>
                 ${condicionesPilotoHtml()}
                 ${botonHtml("Hablar ahora por WhatsApp", WHATSAPP_LEAD_INFO)}
@@ -1182,6 +1204,7 @@ module.exports = {
     enviarCorreoPruebaPorTerminar,
     enviarCorreoLeadLanding,
     enviarCorreoConfirmacionLead,
+    descripcionPorGiro,
     enviarCorreoAlertaError,
     enviarCorreoPedidoPublico,
     enviarCorreoPedidoCarritoPublico,
