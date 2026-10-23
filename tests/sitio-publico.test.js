@@ -52,7 +52,8 @@ test("ya no hay testimonios atribuidos a clientes", () => {
 });
 
 test("el mensaje principal y los dos botones principales", () => {
-    assert.match(inicio, /<h1>Tu negocio\. Todo conectado\.<\/h1>/);
+    // El titular general se conserva: data-giro-campo solo lo cambia con JavaScript, cuando el visitante elige su giro.
+    assert.match(inicio, /<h1[^>]*>Tu negocio\. Todo conectado\.<\/h1>/);
     assert.match(inicio, /En desarrollo activo &middot; Pruebas con negocios reales/);
     assert.match(inicio, /<a class="btn primary" href="#ecosistema">Conoce Nexo<\/a>/);
     assert.match(inicio, /<a class="btn secondary" href="#participa"[^>]*>Participa en las pruebas<\/a>/);

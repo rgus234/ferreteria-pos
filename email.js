@@ -1046,9 +1046,16 @@ function condicionesPilotoHtml() {
         </div>`;
 }
 
-function enviarCorreoInvitacionPiloto({ correo, nombre, negocio, enlace, vigenciaDias }) {
+function enviarCorreoInvitacionPiloto({ correo, nombre, negocio, enlace, vigenciaDias, giro }) {
     const nombreSeguro = escaparHtmlCorreo(nombre);
     const negocioSeguro = escaparHtmlCorreo(negocio || "tu negocio");
+
+    // Lo que el negocio eligio al entrar (ferreteria, abarrotes o ambos) tambien define el correo.
+    const { CONTENIDO } = require("./public/site/giro-contenido.js");
+    const perfil = CONTENIDO[giro];
+    const lineaGiro = perfil
+        ? `<p style="margin:12px 0 0;color:#344054;font-size:15px;line-height:1.6;">${escaparHtmlCorreo(perfil.correo)}</p>`
+        : "";
 
     return enviarCorreo({
         correo,
@@ -1061,6 +1068,7 @@ function enviarCorreoInvitacionPiloto({ correo, nombre, negocio, enlace, vigenci
             cuerpoHtml: `
                 <p style="margin:0 0 12px;color:#344054;font-size:15px;line-height:1.6;">Los desarrolladores de Nexo revisamos tu solicitud para <strong>${negocioSeguro}</strong> y nos da gusto invitarte a probar Nexo.</p>
                 <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Configura tu negocio en un par de minutos (tus datos ya vienen cargados; solo eliges tu contrasena). Despues podras descargar Nexo e iniciar sesion.</p>
+                ${lineaGiro}
                 ${botonHtml("Configurar mi negocio", enlace)}
                 ${condicionesPilotoHtml()}
                 ${avisoHtml(`Este enlace es personal y vence en ${vigenciaDias} dias. Nexo se instala en una computadora con Windows: puedes configurar tu negocio desde el celular y descargar el programa despues desde tu computadora.`)}

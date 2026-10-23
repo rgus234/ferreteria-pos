@@ -17,8 +17,10 @@
   <link rel="icon" href="/nexo-pos-icon.jpg">
   <link rel="stylesheet" href="/site/styles.css">
   <script src="/site/site-nav.js" defer></script>
+  <script src="/site/giro-contenido.js?v=giro-20261030-01" defer></script>
+  <script src="/site/site-giro.js?v=giro-20261030-01" defer></script>
 </head>
-<body>
+<body data-giro-elegir>
   <header class="site-header">
     <a class="brand" href="#inicio" aria-label="Nexo">
       <img src="/nexo-pos-icon.jpg" alt="Nexo">
@@ -47,10 +49,10 @@
   <main>
     <section id="inicio" class="hero">
       <div class="hero-content">
-        <p class="eyebrow">Nexo POS</p>
-        <h1>Tu negocio. Todo conectado.</h1>
+        <p class="eyebrow" data-giro-campo="eyebrow">Nexo POS</p>
+        <h1 data-giro-campo="titular">Tu negocio. Todo conectado.</h1>
         <p class="estado-hero"><span class="estado-hero-punto" aria-hidden="true"></span>En desarrollo activo &middot; Pruebas con negocios reales</p>
-        <p class="hero-copy">Estamos construyendo una plataforma para simplificar la operación de los negocios, conectar sus herramientas y ayudarlos a crecer. Nexo ya cuenta con funciones operativas que estamos probando en negocios reales, mientras desarrollamos nuevas herramientas a partir de las necesidades de quienes utilizan el sistema.</p>
+        <p class="hero-copy" data-giro-campo="copia">Estamos construyendo una plataforma para simplificar la operación de los negocios, conectar sus herramientas y ayudarlos a crecer. Nexo ya cuenta con funciones operativas que estamos probando en negocios reales, mientras desarrollamos nuevas herramientas a partir de las necesidades de quienes utilizan el sistema.</p>
         <div class="hero-actions">
           <a class="btn primary" href="#ecosistema">Conoce Nexo</a>
           <a class="btn secondary" href="#participa">Participa en las pruebas</a>
@@ -63,7 +65,41 @@
         <img class="hero-mascota" src="/img/nexo-ia/feliz.jpg" alt="Nexo, el asistente de Nexo">
       </div>
 
-      <div class="product-preview" aria-label="Vista ilustrativa de Nexo, con datos de ejemplo">
+      <div class="product-preview" data-solo="abarrotes" hidden aria-label="Vista ilustrativa de Nexo para una tienda de abarrotes, con datos de ejemplo">
+        <div class="preview-top">
+          <img src="/nexo-pos-logo.jpg" alt="Nexo">
+          <span>Tu día &middot; ejemplo</span>
+        </div>
+        <div class="preview-grid">
+          <div>
+            <span>Vendiste hoy</span>
+            <strong>$3,240</strong>
+          </div>
+          <div>
+            <span>Ganaste hoy</span>
+            <strong>$812</strong>
+          </div>
+          <div>
+            <span>Fiado por cobrar</span>
+            <strong>$640</strong>
+          </div>
+        </div>
+        <div class="preview-pos">
+          <div class="preview-products">
+            <span>Coca-Cola 600 ml</span>
+            <span>Sabritas original</span>
+            <span>Pan blanco</span>
+          </div>
+          <div class="preview-cart">
+            <strong>Por revisar</strong>
+            <span>Tortilla: vence mañana</span>
+            <button type="button" tabindex="-1" aria-hidden="true">Ver pedido sugerido</button>
+          </div>
+        </div>
+        <p class="nota-ilustrativa">Imagen ilustrativa con datos de ejemplo.</p>
+      </div>
+
+      <div class="product-preview" data-solo="general ferreteria ambos" aria-label="Vista ilustrativa de Nexo, con datos de ejemplo">
         <div class="preview-top">
           <img src="/nexo-pos-logo.jpg" alt="Nexo">
           <span>Panel operativo &middot; ejemplo</span>
@@ -97,6 +133,8 @@
         <p class="nota-ilustrativa">Imagen ilustrativa con datos de ejemplo.</p>
       </div>
     </section>
+
+    <section id="giroSeccion" class="giro-seccion" hidden></section>
 
     <section id="ecosistema" class="ecosistema reveal">
       <div class="section-title">
@@ -445,6 +483,7 @@
                 <option value="">Elige una opción</option>
                 <option value="Ferretería">Ferretería</option>
                 <option value="Abarrotes">Abarrotes</option>
+                <option value="Ferretería y abarrotes (ambos)">Ferretería y abarrotes (ambos)</option>
                 <option value="Papelería">Papelería</option>
                 <option value="Vinatería">Vinatería</option>
                 <option value="Refaccionaria">Refaccionaria</option>

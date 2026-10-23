@@ -2559,3 +2559,92 @@ footer nav {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- "¿Que negocio tienes?" (site-giro.js): la eleccion define lo que se muestra ---------- */
+
+html.giro-eligiendo { overflow: hidden; }
+
+.giro-elegir {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+  background: radial-gradient(120% 120% at 20% 0%, #eaf2ff 0%, #f7f9fc 55%, #eef7f3 100%);
+  animation: giroEntra .35s ease both;
+}
+
+.giro-elegir-caja { width: min(760px, 100%); text-align: center; }
+.giro-elegir-mascota { width: 92px; height: 92px; border-radius: 26px; object-fit: cover; box-shadow: var(--shadow); margin-bottom: 14px; }
+.giro-elegir-caja h2 { margin: 4px 0 8px; font-size: clamp(28px, 5vw, 40px); }
+.giro-elegir-caja > p { margin: 0 auto 22px; max-width: 520px; color: var(--muted); }
+
+.giro-opciones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+
+.giro-opcion {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding: 24px 14px;
+  border: 2px solid var(--line);
+  border-radius: 22px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(20, 32, 51, .08);
+  transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.giro-opcion:hover, .giro-opcion:focus-visible { transform: translateY(-4px); border-color: var(--blue); box-shadow: 0 16px 34px rgba(16, 103, 232, .18); outline: none; }
+.giro-opcion-icono { font-size: 40px; line-height: 1; }
+.giro-opcion strong { font-size: 18px; }
+.giro-opcion small { color: var(--muted); font-size: 13px; }
+
+.giro-saltar { margin-top: 18px; padding: 8px 14px; border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+.giro-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.giro-chip u { color: var(--blue); font-weight: 800; }
+
+.giro-seccion { padding: 64px 20px; background: linear-gradient(180deg, #fff 0%, var(--paper) 100%); }
+.giro-seccion-interior { max-width: 1100px; margin: 0 auto; }
+.giro-seccion h2 { margin: 6px 0 8px; font-size: clamp(26px, 4vw, 36px); }
+.giro-seccion-interior > p { color: var(--muted); max-width: 680px; }
+
+.giro-funciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin: 26px 0 20px; }
+.giro-funcion { padding: 20px; border-radius: 20px; background: #fff; border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(20, 32, 51, .06); }
+.giro-funcion h3 { margin: 10px 0 6px; font-size: 18px; }
+.giro-funcion p { margin: 0; color: var(--muted); font-size: 15px; }
+.giro-estado { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.giro-estado-ok { background: rgba(24, 184, 143, .14); color: #0b7a5c; }
+.giro-estado-nuevo { background: rgba(243, 162, 27, .18); color: #9a5b00; }
+.giro-sigue { margin: 0 0 20px; font-weight: 600; }
+
+@keyframes giroEntra { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 720px) {
+  .giro-opciones { grid-template-columns: 1fr; }
+  .giro-opcion { grid-template-columns: auto 1fr; justify-items: start; text-align: left; gap: 2px 14px; padding: 16px; }
+  .giro-opcion-icono { grid-row: span 2; font-size: 34px; }
+  .giro-chip u { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .giro-elegir, .giro-opcion { animation: none; transition: none; }
+}

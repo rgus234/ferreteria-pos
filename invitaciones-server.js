@@ -36,9 +36,12 @@ const URL_SITIO = (process.env.PUBLIC_SITE_URL || "https://nexoposoficial.com").
 const REGEX_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REGEX_TOKEN = /^[A-Za-z0-9_-]{20,100}$/;
 
+const { CONTENIDO: CONTENIDO_GIRO, normalizar: normalizarGiroSitio } = require("./public/site/giro-contenido.js");
+
 const GIROS = [
     { valor: "ferreteria", etiqueta: "Ferreteria" },
     { valor: "abarrotes", etiqueta: "Abarrotes" },
+    { valor: "ambos", etiqueta: "Ferreteria y abarrotes (ambos)" },
     { valor: "papeleria", etiqueta: "Papeleria" },
     { valor: "vinateria", etiqueta: "Vinateria" },
     { valor: "general", etiqueta: "Otro / general" }
@@ -71,6 +74,9 @@ function nuevoToken() {
 }
 
 function giroDesdeTexto(texto) {
+    // Ferreteria + abarrotes ("ambos"): una sola cuenta con el programa completo y las dos categorias.
+    if (normalizarGiroSitio(texto) === "ambos") return "ambos";
+
     const t = String(texto || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
     if (t.includes("ferret")) return "ferreteria";
@@ -149,7 +155,10 @@ async function instaladorActual(pool) {
 // Paginas
 // ---------------------------------------------------------------------
 
-function envoltura({ titulo, cuerpo, script = "" }) {
+function envoltura({ titulo, cuerpo, script = "", giro = "" }) {
+    const giroSitio = normalizarGiroSitio(giro);
+    const atributoGiro = giroSitio ? ` data-giro-forzado="${giroSitio}"` : "";
+
     return `<!doctype html>
 <html lang="es">
 <head>
@@ -189,13 +198,15 @@ function envoltura({ titulo, cuerpo, script = "" }) {
 @media (prefers-reduced-motion: reduce) { .inv-mascota, .inv-burbuja { animation: none; } }
 </style>
 </head>
-<body>
+<body${atributoGiro}>
 <header class="site-header">
   <a class="brand" href="/" aria-label="Nexo"><img src="/nexo-pos-icon.jpg" alt="Nexo"><span>Nexo</span></a>
 </header>
 <main class="inv-main">
 ${cuerpo}
 </main>
+<script src="/site/giro-contenido.js?v=giro-20261030-01"></script>
+<script src="/site/site-giro.js?v=giro-20261030-01"></script>
 ${script ? `<script>\n${script}\n</script>` : ""}
 </body>
 </html>`;
@@ -255,11 +266,16 @@ function paginaPendiente(inv, token) {
 
     return envoltura({
         titulo: "Configura tu negocio",
+        giro: inv.giro,
         cuerpo: `
 ${cabeceraRecorrido("¡Hola! Soy Nexo. En un minuto dejamos lista tu cuenta y te acompaño en lo que sigue.")}
 <p class="inv-saludo">Invitación a las pruebas</p>
 <h1>Hola ${escapar(inv.nombre)} 👋</h1>
 <p class="inv-lead">Los desarrolladores de Nexo aceptaron tu participación en las pruebas. Configura tu negocio: tus datos ya vienen cargados, solo revísalos y elige tu contraseña.</p>
+<div class="inv-bloque" id="invPerfil">
+  <h2>Tu cuenta: <span data-giro-campo="nombre">según tu giro</span></h2>
+  <p data-giro-campo="correo">Elige el giro de tu negocio en el formulario y adaptamos tu cuenta a él.</p>
+</div>
 ${bloqueCondiciones()}
 
 <form class="lead-form" id="invForm" data-token="${escapar(token)}">
@@ -293,6 +309,14 @@ ${bloqueCondiciones()}
   var ua = navigator.userAgent || "";
   var movil = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
   if (movil) document.getElementById("invAvisoMovil").hidden = false;
+
+  var selectGiro = document.getElementById("invGiro");
+  if (selectGiro && window.NEXO_GIRO && window.nexoGiro) {
+    selectGiro.addEventListener("change", function () {
+      var clave = window.NEXO_GIRO.normalizar(selectGiro.value);
+      if (clave) window.nexoGiro.elegir(clave);
+    });
+  }
 
   function mostrar(mensaje, error) {
     resultado.classList.toggle("error", !!error);
@@ -347,6 +371,7 @@ ${bloqueCondiciones()}
 function paginaConfigurada(inv, token, instalador) {
     return envoltura({
         titulo: "Tu negocio está listo",
+        giro: inv.giro,
         cuerpo: `
 ${cabeceraRecorrido("¡Listo! Ahora descarga Nexo en tu computadora e inicia sesión: desde ahí yo te guío paso a paso.")}
 <p class="inv-saludo">Invitación a las pruebas</p>
@@ -368,6 +393,16 @@ ${bloqueCondiciones(inv.configurada_at)}
     <li>Abre el archivo que descargaste e instala Nexo.</li>
     <li>Abre Nexo e inicia sesión con tu correo <b>${escapar(inv.correo)}</b> y la contraseña que elegiste.</li>
     <li>Elige el nombre y el PIN de tu usuario administrador, ahí mismo, la primera vez. Después te guiamos para dejar tu negocio listo.</li>
+  </ol>
+</div>
+
+<div class="inv-bloque" id="invPrimerosPasos">
+  <h2>Después de instalar: tu primera semana</h2>
+  <p data-giro-campo="sigue">Después de instalar, Nexo te ayuda a cargar tu inventario y a dejar tu negocio listo.</p>
+  <ol class="registro-pasos" data-giro-pasos>
+    <li>Carga tu inventario.</li>
+    <li>Registra a tus clientes.</li>
+    <li>Haz tu primera venta.</li>
   </ol>
 </div>
 
@@ -605,6 +640,7 @@ module.exports = (app, pool) => {
             );
 
             const campos = camposDelMensaje(contacto.mensaje);
+            const giroInvitacion = giroDesdeTexto(campos.giro);
             token = nuevoToken();
 
             invitacion = (await client.query(
@@ -619,7 +655,7 @@ module.exports = (app, pool) => {
                     limpiar(contacto.negocio, 140),
                     correo,
                     limpiar(contacto.telefono, 40),
-                    giroDesdeTexto(campos.giro),
+                    giroInvitacion,
                     limpiar(campos.ciudad, 180),
                     VIGENCIA_DIAS
                 ]
@@ -647,7 +683,8 @@ module.exports = (app, pool) => {
                     nombre: limpiar(contacto.nombre, 120),
                     negocio: limpiar(contacto.negocio, 140),
                     enlace,
-                    vigenciaDias: VIGENCIA_DIAS
+                    vigenciaDias: VIGENCIA_DIAS,
+                    giro: giroInvitacion
                 });
             } catch (error) {
                 envio = { ok: false, error: error.message };
@@ -761,7 +798,10 @@ module.exports = (app, pool) => {
         const telefono = limpiar(req.body?.telefono, 40);
         const ciudad = limpiar(req.body?.ciudad, 180);
         const giroPedido = limpiar(req.body?.giro, 80);
-        const giro = GIROS_VALIDOS.has(giroPedido) ? giroPedido : "general";
+        const giroElegido = GIROS_VALIDOS.has(giroPedido) ? giroPedido : "general";
+        // "Ambos": el tipo principal es ferreteria (el programa completo) y abarrotes queda activo como giro extra.
+        const giro = giroElegido === "ambos" ? "ferreteria" : giroElegido;
+        const girosActivos = giroElegido === "ambos" ? ["ferreteria", "abarrotes"] : [giro];
         const password = String(req.body?.password || "");
         const confirmarPassword = String(req.body?.confirmarPassword || "");
 
@@ -863,10 +903,12 @@ module.exports = (app, pool) => {
                 [slug, nombreNegocio, giro, telefono, correo, hashPassword(password), ciudad || null]
             )).rows[0];
 
-            await client.query(
-                `INSERT INTO public.negocio_giros (negocio_id, giro, activo) VALUES ($1, $2, true)`,
-                [negocio.id, giro]
-            );
+            for (const activo of girosActivos) {
+                await client.query(
+                    `INSERT INTO public.negocio_giros (negocio_id, giro, activo) VALUES ($1, $2, true)`,
+                    [negocio.id, activo]
+                );
+            }
 
             await client.query(
                 `INSERT INTO public.licencias

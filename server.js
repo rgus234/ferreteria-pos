@@ -6075,6 +6075,9 @@ app.get("/descargar", async (req, res) => {
     .descarga-brand img{ width:32px; height:32px; border-radius:9px; }
     .descarga-shell &gt; p.descarga-intro{ text-align:center; color:var(--muted); font-weight:700; font-size:13.5px; margin:-18px 0 26px; }
     .descarga-card{ padding:26px; border:1px solid rgba(255,255,255,.72); border-radius:28px; background:var(--glass); box-shadow:var(--shadow); }
+    .descarga-giro{ margin:18px 0; padding:14px 16px; border-radius:18px; background:rgba(16,103,232,.07); text-align:left; }
+    .descarga-giro h4{ margin:0 0 6px; font-size:15px; }
+    .descarga-giro p{ margin:0 0 8px; color:var(--muted); font-weight:700; font-size:13.5px; }
     .descarga-volver{ display:block; text-align:center; margin-top:22px; color:var(--muted); font-size:13px; font-weight:700; }
   </style>
 </head>
@@ -6097,6 +6100,12 @@ app.get("/descargar", async (req, res) => {
           <li>Si es tu primer equipo, ah&iacute; mismo eliges el nombre y el PIN de tu usuario administrador.</li>
         </ol>
 
+        <div class="descarga-giro" data-solo="ferreteria abarrotes ambos" hidden>
+          <h4>Despu&eacute;s de instalar: <span data-giro-campo="nombre"></span></h4>
+          <p data-giro-campo="sigue"></p>
+          <ol class="registro-pasos" data-giro-pasos></ol>
+        </div>
+
         <a class="btn primary registro-descarga-btn" href="${escaparHtmlDescarga(urlInstalador)}" download>&#11015; Descargar instalador para Windows</a>
 
         <div class="registro-aviso-windows">
@@ -6107,6 +6116,8 @@ app.get("/descargar", async (req, res) => {
     </div>
     <a class="descarga-volver" href="/#contacto">&iquest;A&uacute;n no tienes cuenta? Cr&eacute;ala gratis</a>
   </div>
+  <script src="/site/giro-contenido.js?v=giro-20261030-01"></script>
+  <script src="/site/site-giro.js?v=giro-20261030-01"></script>
 </body>
 </html>`);
     } catch (error) {
