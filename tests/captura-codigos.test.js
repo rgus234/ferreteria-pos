@@ -154,9 +154,10 @@ test("el celular solo muestra la opcion si el servidor la autoriza y reutiliza e
     assert.match(js, /duenoPedCargarZxing\(\)/, "reutiliza el lector de codigos de la app");
     assert.match(js, /if \(!codigo \|\| capturaCodigoActual\) return/, "no se sobrescribe el codigo mientras se nombra otro");
     assert.match(js, /Guardar y siguiente/);
-    assert.match(js, /fetchAutenticado\("\/captura-codigos\/exportar\.csv"\)/);
+    assert.match(js, /fetch\("\/captura-codigos\/exportar\.csv", \{ headers: capEncabezadosSesion\(\) \}\)/, "el CSV se baja con la sesion, como archivo");
+    assert.match(js, /error\.status \|\| 0/, "fetchAutenticado lanza errores con status: se convierten en ok/estado/datos");
 
     assert.ok(html.indexOf("dueno.js") < html.indexOf("dueno-captura.js"), "envuelve cargarPanelMasDueno ya definida");
     assert.match(sw, /dueno-captura\.js/);
-    assert.match(sw, /nexo-dueno-shell-v51/);
+    assert.match(sw, /nexo-dueno-shell-v52/);
 });

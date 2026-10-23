@@ -12,10 +12,25 @@ function capEscapar(valor) {
     return String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// fetchAutenticado (dueno.js) devuelve los datos ya leidos y LANZA un error con status y datos si el servidor
+// rechaza algo: aqui se convierte en { ok, estado, datos } para que cada pantalla decida que hacer.
 async function capLlamar(ruta, opciones = {}) {
-    const respuesta = await fetchAutenticado(ruta, { ...opciones, headers: { "Content-Type": "application/json", ...(opciones.headers || {}) } });
-    const datos = await respuesta.json().catch(() => ({}));
-    return { ok: respuesta.ok, estado: respuesta.status, datos };
+    try {
+        const datos = await fetchAutenticado(ruta, { ...opciones, headers: { "Content-Type": "application/json", ...(opciones.headers || {}) } });
+        return { ok: true, estado: 200, datos: datos || {} };
+    } catch (error) {
+        return { ok: false, estado: error.status || 0, datos: error.datos || { error: error.message } };
+    }
+}
+
+// El CSV es un archivo, no JSON: misma sesion (token de cuenta o equipo + empleado) pero con la respuesta cruda.
+function capEncabezadosSesion() {
+    const dispositivo = dispositivoTokenGuardado();
+    const empleado = empleadoActivoGuardado();
+
+    return dispositivo && empleado
+        ? { "x-dispositivo-token": dispositivo, "x-empleado-id": String(empleado.id) }
+        : { Authorization: `Bearer ${tokenGuardado()}` };
 }
 
 // ---------------------------------------------------------------------
@@ -310,7 +325,14 @@ async function capturaBorrar(id) {
 
 // El CSV pide la sesión, así que se baja con la petición autenticada y se entrega como archivo.
 async function capturaExportar() {
-    const respuesta = await fetchAutenticado("/captura-codigos/exportar.csv");
+    let respuesta;
+
+    try {
+        respuesta = await fetch("/captura-codigos/exportar.csv", { headers: capEncabezadosSesion() });
+    } catch (error) {
+        window.alert("No se pudo exportar. Revisa tu conexión.");
+        return;
+    }
 
     if (!respuesta.ok) { window.alert("No se pudo exportar."); return; }
 
