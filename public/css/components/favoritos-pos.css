@@ -1,0 +1,62 @@
+/* Venta rapida con favoritos (ver public/js/favoritos-pos.js). Solo perfil simple. */
+
+.fav-franja { margin: 10px 0 14px; padding: 12px 14px; border-radius: 16px; background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+.fav-franja:empty { display: none; }
+
+.fav-cabecera { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.fav-cabecera h3 { margin: 0; font-size: 15px; }
+.fav-cabecera-acciones { display: flex; gap: 8px; }
+
+.fav-btn { padding: 6px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff !important; color: #0f172a !important; font-weight: 800; font-size: 13px; cursor: pointer; }
+.fav-btn-primario { background: var(--brand-color, #0d6efd) !important; border-color: transparent; color: #fff !important; }
+
+/* Hasta dos filas a la vista; si hay mas, se desplaza. */
+.fav-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; max-height: 232px; overflow-y: auto; padding: 6px 4px 4px; }
+
+.fav-tarjeta {
+  position: relative;
+  display: grid;
+  grid-template-rows: 64px auto auto;
+  gap: 3px;
+  align-content: start;
+  padding: 8px 6px 7px;
+  text-align: center;
+  font: inherit;
+  color: inherit;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: #f4f7fb !important;
+  cursor: pointer;
+  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+.fav-tarjeta:hover { transform: translateY(-2px); border-color: var(--brand-color, #0d6efd); box-shadow: 0 8px 18px rgba(20, 32, 51, .14); }
+.fav-tarjeta:active { transform: scale(.96); }
+.fav-agotado { opacity: .55; }
+
+.fav-foto { display: flex; align-items: center; justify-content: center; height: 64px; overflow: hidden; border-radius: 10px; background: #fff; }
+.fav-foto img { width: 100%; height: 100%; object-fit: contain; }
+.fav-inicial { font-size: 24px; font-weight: 800; color: #8793a6; }
+
+.fav-nombre { font-size: 12px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 29px; color: #0f172a !important; }
+.fav-precio { font-size: 15px; font-weight: 900; color: #15803d; }
+.fav-aviso { position: absolute; top: 4px; left: 4px; padding: 1px 6px; border-radius: 999px; background: #b91c1c; color: #fff; font-size: 10px; font-weight: 800; }
+
+.fav-cuenta { position: absolute; top: -6px; right: -6px; z-index: 1; min-width: 24px; height: 24px; padding: 0 6px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--brand-color, #0d6efd); color: #fff; font-size: 12px; font-weight: 900; box-shadow: 0 3px 8px rgba(0, 0, 0, .3); }
+
+.fav-editando { border-color: #fca5a5; }
+.fav-quitar { position: absolute; top: -6px; right: -6px; z-index: 1; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #b91c1c; color: #fff; font-size: 16px; font-weight: 900; }
+
+.fav-vacio { text-align: center; padding: 10px 0 4px; color: #64748b; font-size: 14px; }
+.fav-vacio p { margin: 0 0 10px; }
+.fav-vacio-acciones { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+.fav-agregar { display: grid; gap: 8px; margin-bottom: 10px; }
+.fav-agregar input { padding: 9px 12px; border-radius: 10px; border: 1px solid #cbd5e1; font-size: 14px; }
+.fav-resultados, .fav-sugeridos { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fav-resultados button, .fav-sugeridos button { padding: 5px 10px; border-radius: 999px; border: 1px solid #cbd5e1; background: #fff !important; color: #0f172a !important; font-size: 12px; font-weight: 700; cursor: pointer; }
+.fav-sugeridos small { color: #94a3b8; font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fav-tarjeta { transition: none; }
+}

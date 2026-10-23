@@ -89,6 +89,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./inicio-abarrotes-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("venta rapida con favoritos (abarrotes)", () => {
+        require("./favoritos-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("invitaciones a negocios piloto", () => {
         require("./invitaciones-server")(app, pool);
     });

@@ -276,6 +276,7 @@ async function perfilSincronizarConServidor() {
 
         localStorage.setItem(CONFIG_NEGOCIO_KEY, JSON.stringify({ ...actual, perfilNegocio: perfil }));
         perfilAplicar();
+        if (typeof cargarFavoritosPOS === "function") cargarFavoritosPOS();
     } catch (error) { /* sin conexion: se queda como estaba */ }
 }
 
