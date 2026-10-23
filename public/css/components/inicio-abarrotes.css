@@ -1,0 +1,90 @@
+/* Inicio de abarrotes (ver public/js/inicio-abarrotes.js). Solo perfil simple. */
+
+/* El tablero de ferreteria se esconde en abarrotes (quien activa "Mas herramientas" lo ve completo). */
+body.perfil-simple:not(.perfil-ver-todo) #pantallaInicio > *:not(.dashboard-header):not(#inicioAbarrotes) {
+  display: none !important;
+}
+
+.inicio-ab { display: grid; gap: 16px; padding: 4px 0 24px; }
+
+.inicio-ab-cargando { padding: 40px 16px; text-align: center; color: #64748b; }
+
+.inicio-ab-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+
+.inicio-ab-kpi {
+  display: grid;
+  gap: 4px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+  border-left: 6px solid var(--brand-color, #0d6efd);
+}
+
+.inicio-ab-kpi > span { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+.inicio-ab-kpi strong { font-size: 32px; line-height: 1.1; color: #0f172a; }
+.inicio-ab-kpi small { font-size: 13px; color: #64748b; }
+.inicio-ab-kpi-gana { border-left-color: #16a34a; }
+.inicio-ab-kpi-gana strong { color: #15803d; }
+.inicio-ab-kpi-fiado { border-left-color: #f59e0b; cursor: pointer; }
+
+.inicio-ab-aviso { margin: 0; padding: 10px 14px; border-radius: 12px; background: rgba(245, 158, 11, .14); color: #92400e; font-size: 14px; font-weight: 600; }
+
+.inicio-ab-rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.inicio-ab-ancha { grid-column: 1 / -1; }
+
+.inicio-ab-tarjeta { padding: 16px 18px; border-radius: 18px; background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+.inicio-ab-tarjeta header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.inicio-ab-tarjeta h3 { margin: 0; font-size: 16px; }
+.inicio-ab-tarjeta header small { font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 6px; }
+
+.inicio-ab-link { border: 0; background: transparent !important; box-shadow: none !important; padding: 0; color: var(--brand-color, #0d6efd) !important; font-weight: 800; font-size: 13px; cursor: pointer; }
+
+.inicio-ab-lista, .inicio-ab-ranking { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.inicio-ab-ranking { counter-reset: puesto; }
+.inicio-ab-lista li, .inicio-ab-ranking li { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; }
+.inicio-ab-ranking li::before { counter-increment: puesto; content: counter(puesto); flex: none; width: 22px; height: 22px; border-radius: 50%; background: #e2e8f0; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-right: 8px; }
+.inicio-ab-ranking li span { flex: 1; min-width: 0; }
+.inicio-ab-lista small, .inicio-ab-ranking small { display: block; color: #94a3b8; font-size: 12px; }
+.inicio-ab-ranking em { font-style: normal; color: #64748b; font-size: 12px; margin-left: 4px; }
+.inicio-ab-vacio { margin: 0; color: #94a3b8; font-size: 14px; }
+
+.inicio-ab-etiqueta { padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.inicio-ab-etiqueta.mal { background: rgba(220, 38, 38, .12); color: #b91c1c; }
+.inicio-ab-etiqueta.ojo { background: rgba(245, 158, 11, .16); color: #b45309; }
+.inicio-ab-rojo { color: #b91c1c; }
+.inicio-ab-verde { color: #15803d; }
+.inicio-ab-nd { color: #94a3b8; font-style: italic; }
+
+/* Barras de la semana: lo vendido (azul) y, dentro, lo ganado (verde). */
+.inicio-ab-barras { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; align-items: end; height: 170px; }
+.inicio-ab-barra { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 4px; }
+.inicio-ab-barra-monto { font-size: 11px; font-weight: 800; color: #475569; min-height: 14px; }
+.inicio-ab-barra-columna { position: relative; width: 70%; max-width: 54px; min-height: 3px; border-radius: 8px 8px 4px 4px; background: color-mix(in srgb, var(--brand-color, #0d6efd) 55%, #fff); overflow: hidden; display: flex; align-items: flex-end; }
+.inicio-ab-barra-columna i { display: block; width: 100%; background: #16a34a; }
+.inicio-ab-barra-dia { font-size: 12px; font-weight: 700; color: #64748b; text-transform: capitalize; }
+.inicio-ab-leyenda-venta, .inicio-ab-leyenda-gana { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.inicio-ab-leyenda-venta { background: color-mix(in srgb, var(--brand-color, #0d6efd) 55%, #fff); }
+.inicio-ab-leyenda-gana { background: #16a34a; margin-left: 8px; }
+
+.inicio-ab-inventario { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; font-size: 14px; }
+
+/* Reporte de ganancia por producto */
+.inicio-ab-modal { position: fixed; inset: 0; z-index: 9000; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .55); }
+.inicio-ab-modal-card { width: min(860px, 100%); max-height: 90vh; display: flex; flex-direction: column; border-radius: 20px; background: #fff; overflow: hidden; }
+.inicio-ab-modal-cabecera { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; padding: 18px 20px; border-bottom: 1px solid #e2e8f0; }
+.inicio-ab-modal-cabecera h3 { margin: 0 0 2px; }
+.inicio-ab-modal-cabecera small { color: #64748b; }
+.inicio-ab-periodos { display: flex; gap: 6px; }
+.inicio-ab-periodos button { padding: 7px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; font-weight: 700; cursor: pointer; }
+.inicio-ab-periodos button.activo { background: var(--brand-color, #0d6efd); border-color: transparent; color: #fff; }
+.inicio-ab-tabla-caja { overflow: auto; }
+.inicio-ab-tabla { width: 100%; border-collapse: collapse; }
+.inicio-ab-tabla th, .inicio-ab-tabla td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+.inicio-ab-tabla th { position: sticky; top: 0; background: #f8fafc; font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+.inicio-ab-modal-card .inicio-ab-aviso { margin: 12px 16px; }
+
+@media (max-width: 640px) {
+  .inicio-ab-kpi strong { font-size: 26px; }
+  .inicio-ab-barras { gap: 5px; }
+}
