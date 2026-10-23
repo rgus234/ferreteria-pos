@@ -9,7 +9,7 @@
 const LOTES_ENCABEZADO_ORIGINAL = {};
 
 function lotesPerfilSimple() {
-    return typeof perfilEsSimple === "function" && perfilEsSimple();
+    return typeof perfilTieneAbarrotes === "function" && perfilTieneAbarrotes();
 }
 
 function lotesTextoDias(fila) {

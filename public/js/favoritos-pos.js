@@ -23,7 +23,7 @@ function favEscapar(valor) {
 }
 
 function favEsSimple() {
-    return typeof perfilEsSimple === "function" && perfilEsSimple();
+    return typeof perfilTieneAbarrotes === "function" && perfilTieneAbarrotes();
 }
 
 function favProducto(id) {

@@ -249,3 +249,30 @@ test("quien entra con correo y contrasena recibe su tipo de negocio (sin eso nun
     assert.match(js, /async function perfilSincronizarConServidor/);
     assert.match(js, /\/negocio-actual/);
 });
+
+test("quien tiene ferreteria y abarrotes (ambos) recibe las herramientas de abarrotes sin perder las de ferreteria", async () => {
+    // /negocio-actual dice que giros tiene activos: la app los usa para dar las herramientas extra.
+    await pool.query(`UPDATE public.negocios SET giro = 'ferreteria' WHERE id = $1`, [negocio.negocioId]);
+    await pool.query(`UPDATE public.negocio_giros SET activo = false WHERE negocio_id = $1 AND giro NOT IN ('ferreteria', 'abarrotes')`, [negocio.negocioId]);
+    await pool.query(`INSERT INTO public.negocio_giros (negocio_id, giro, activo) VALUES ($1, 'ferreteria', true), ($1, 'abarrotes', true)
+                      ON CONFLICT (negocio_id, giro) DO UPDATE SET activo = true`, [negocio.negocioId]);
+
+    const actual = await (await fetch(`${BASE_URL}/negocio-actual`, { headers: headers() })).json();
+    assert.equal(actual.negocio.giro, "ferreteria", "el tipo principal sigue siendo ferreteria: el menu y el formulario completos");
+    assert.deepEqual(actual.negocio.girosActivos, ["abarrotes", "ferreteria"]);
+
+    const js = leer("js/perfil-negocio.js");
+    assert.match(js, /function perfilTieneAbarrotes\(\)/);
+    assert.match(js, /configuracion\.girosActivos\.indexOf\("abarrotes"\)/);
+    assert.match(js, /classList\.toggle\("perfil-con-abarrotes", perfilTieneAbarrotes\(\)\)/);
+
+    // Las herramientas de abarrotes preguntan "tiene abarrotes"; lo que quita cosas de ferreteria sigue siendo solo del perfil simple.
+    for (const archivo of ["js/lotes-ui.js", "js/favoritos-pos.js", "js/inicio-abarrotes.js"]) {
+        assert.match(leer(archivo), /perfilTieneAbarrotes\(\)/, `${archivo} debe usar perfilTieneAbarrotes`);
+    }
+
+    assert.match(leer("css/components/pedido-sugerido.css"), /body\.perfil-con-abarrotes \.sidebar \.solo-perfil-simple \{ display: flex; \}/);
+    assert.match(leer("css/components/perfil-negocio.css"), /body:not\(\.perfil-con-abarrotes\) \.campo-vida-util/);
+    assert.match(leer("css/components/inicio-abarrotes.css"), /body\.perfil-simple:not\(\.perfil-ver-todo\) #pantallaInicio >/, "el tablero de ferreteria solo se esconde en el perfil simple");
+    assert.match(leer("css/components/perfil-negocio.css"), /body\.perfil-simple:not\(\.perfil-ver-todo\) \.sidebar \[data-perfil-oculto="1"\]/, "el menu solo se recorta en el perfil simple");
+});

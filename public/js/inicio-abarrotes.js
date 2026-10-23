@@ -20,7 +20,7 @@ function inicioAbEntero(valor) {
 }
 
 function inicioAbEsSimple() {
-    return typeof perfilEsSimple === "function" && perfilEsSimple();
+    return typeof perfilTieneAbarrotes === "function" && perfilTieneAbarrotes();
 }
 
 function inicioAbContenedor() {

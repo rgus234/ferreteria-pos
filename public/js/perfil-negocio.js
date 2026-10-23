@@ -52,6 +52,23 @@ function perfilEsSimple() {
     return Boolean(perfil && PERFILES_NEGOCIO[perfil].simple);
 }
 
+// Herramientas de abarrotes (pedido sugerido, favoritos, Por revisar, vida util, Inicio de la tienda): las tiene
+// quien es de abarrotes (perfil simple) Y quien tiene ferreteria + abarrotes ("ambos"). A este ultimo no se le
+// quita nada de ferreteria: el menu, el formulario y el Inicio de siempre se quedan.
+function perfilTieneAbarrotes() {
+    if (perfilEsSimple()) return true;
+
+    let configuracion = null;
+
+    try {
+        configuracion = typeof configuracionNegocio === "function" ? configuracionNegocio() : null;
+    } catch (error) {
+        configuracion = null;
+    }
+
+    return Array.isArray(configuracion?.girosActivos) && configuracion.girosActivos.indexOf("abarrotes") !== -1;
+}
+
 function perfilLeer(clave) {
     try { return localStorage.getItem(clave) === "1"; } catch (error) { return false; }
 }
@@ -71,7 +88,7 @@ function perfilRenombrarMenu() {
 
     if (botonVencer) {
         if (!botonVencer.dataset.textoOriginal) botonVencer.dataset.textoOriginal = botonVencer.textContent.trim();
-        botonVencer.textContent = perfilEsSimple() ? "Por revisar" : botonVencer.dataset.textoOriginal;
+        botonVencer.textContent = perfilTieneAbarrotes() ? "Por revisar" : botonVencer.dataset.textoOriginal;
     }
 
     const botonCreditos = [...document.querySelectorAll(".sidebar button")].find(b => /abrirCreditos\(/.test(b.getAttribute("onclick") || ""));
@@ -247,6 +264,7 @@ function perfilAplicar() {
 
     if (perfil) document.body.classList.add(`perfil-${perfil}`);
     document.body.classList.toggle("perfil-simple", perfilEsSimple());
+    document.body.classList.toggle("perfil-con-abarrotes", perfilTieneAbarrotes());
     document.body.classList.toggle("perfil-ver-todo", perfilEsSimple() && perfilLeer(PERFIL_VER_TODO_KEY));
     document.body.classList.toggle("perfil-campos-todos", perfilEsSimple() && perfilLeer(PERFIL_CAMPOS_TODOS_KEY));
 
@@ -255,13 +273,16 @@ function perfilAplicar() {
 }
 
 if (typeof window !== "undefined") {
-    window.perfilNegocio = { aplicar: perfilAplicar, actual: perfilNegocioActual, esSimple: perfilEsSimple, PERFILES: PERFILES_NEGOCIO };
+    window.perfilNegocio = { aplicar: perfilAplicar, actual: perfilNegocioActual, esSimple: perfilEsSimple, tieneAbarrotes: perfilTieneAbarrotes, PERFILES: PERFILES_NEGOCIO };
 }
 
 // Quien ya tenia la sesion abierta (o entro por una ruta que no trae el tipo) no tiene el perfil en este equipo:
 // se pide una vez al servidor y se guarda SOLO el perfil, sin tocar el resto de la configuracion local.
 async function perfilSincronizarConServidor() {
-    if (perfilNegocioActual()) return;
+    // Ya tiene el perfil Y los giros en este equipo: no hace falta preguntar.
+    let local = null;
+    try { local = typeof configuracionNegocio === "function" ? configuracionNegocio() : null; } catch (error) { local = null; }
+    if (perfilNegocioActual() && Array.isArray(local?.girosActivos)) return;
 
     try {
         const respuesta = await fetch("/negocio-actual");
@@ -274,7 +295,8 @@ async function perfilSincronizarConServidor() {
         const actual = configuracionNegocio();
         if (!actual) return;
 
-        localStorage.setItem(CONFIG_NEGOCIO_KEY, JSON.stringify({ ...actual, perfilNegocio: perfil }));
+        const girosActivos = Array.isArray(datos.negocio.girosActivos) ? datos.negocio.girosActivos : actual.girosActivos;
+        localStorage.setItem(CONFIG_NEGOCIO_KEY, JSON.stringify({ ...actual, perfilNegocio: perfil, girosActivos }));
         perfilAplicar();
         if (typeof cargarFavoritosPOS === "function") cargarFavoritosPOS();
     } catch (error) { /* sin conexion: se queda como estaba */ }

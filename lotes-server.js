@@ -142,7 +142,11 @@ async function avisarCaducidades(pool, ahora = new Date()) {
     if (horaLocal(ahora) < HORA_AVISO) return 0;
 
     const hoy = fechaLocal(ahora);
-    const negocios = await pool.query(`SELECT id FROM public.negocios WHERE giro = 'abarrotes'`);
+    const negocios = await pool.query(
+        `SELECT id FROM public.negocios n
+         WHERE n.giro = 'abarrotes'
+         OR EXISTS (SELECT 1 FROM public.negocio_giros g WHERE g.negocio_id = n.id AND g.giro = 'abarrotes' AND g.activo = true)`
+    );
     let avisados = 0;
 
     for (const negocio of negocios.rows) {

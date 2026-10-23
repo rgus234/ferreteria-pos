@@ -180,7 +180,7 @@ test("el cliente muestra Pedido sugerido solo a abarrotes y guarda el pedido com
     assert.match(js, /\/pedidos-proveedor/);
     assert.match(indice, /class="solo-perfil-simple" data-shell-module="pedido-sugerido"/);
     assert.match(indice, /id="pantallaPedidoSugerido"/);
-    assert.match(css, /body\.perfil-simple \.sidebar \.solo-perfil-simple/);
+    assert.match(css, /body\.perfil-con-abarrotes \.sidebar \.solo-perfil-simple/, "lo ven abarrotes y quien tiene ferreteria + abarrotes");
     assert.match(leer("js/config-auth.js"), /"pantallaPedidoSugerido"/);
     assert.match(leer("js/shell-topbar.js"), /"pedido-sugerido"/);
 });

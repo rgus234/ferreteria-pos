@@ -394,9 +394,13 @@ app.get("/negocio-actual", requerirAccesoNegocio, async (req, res) => {
         const negocio = await negocioActual(req);
         const identidad = await resolverIdentidadNexo(req);
 
+        // Giros activos (negocio_giros): un negocio "ambos" es ferreteria + abarrotes. El cliente los usa para
+        // dar las herramientas de abarrotes tambien a quien no tiene el perfil simple.
+        const giros = await pool.query(`SELECT giro FROM public.negocio_giros WHERE negocio_id = $1 AND activo = true ORDER BY giro`, [negocio.id]);
+
         res.json({
             ok: true,
-            negocio,
+            negocio: { ...negocio, girosActivos: giros.rows.map(f => f.giro) },
             rol: identidad.rol,
             // null = sin restriccion (dueño). Un empleado trae sus permisos
             // reales para que /dueno muestre solo las pestañas que puede usar.

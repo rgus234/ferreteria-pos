@@ -498,6 +498,9 @@ function guardarConfiguracionNegocioDesdeServidor(negocio) {
  giroNegocio: actual.giroNegocio || "ferreteria",
  // Tipo de negocio ESTRICTO (negocios.giro): define menu y formularios. Ver perfil-negocio.js.
  perfilNegocio: String(negocio.giro || "").trim().toLowerCase() || actual.perfilNegocio || null,
+ // Giros activos (ferreteria + abarrotes = "ambos"): ver perfilTieneAbarrotes en perfil-negocio.js.
+ // Solo se hereda el de antes si es el MISMO negocio: otro negocio en esta computadora trae sus propios giros.
+ girosActivos: Array.isArray(negocio.girosActivos) ? negocio.girosActivos : (actual.negocioSlug === negocio.slug ? (actual.girosActivos || null) : null),
  // Con que nivel de precio arranca cada venta. Viene del NEGOCIO (una
  // sola vez para todas sus cajas), no de este equipo. Se guarda aqui
  // nada mas para que el POS pueda arrancar sin esperar la red; la
