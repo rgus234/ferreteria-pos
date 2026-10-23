@@ -46,6 +46,28 @@ async function ventasPorProductoYDia(pool, negocioId, dias) {
     return filas.rows.map(f => ({ productoId: f.producto_id, dia: f.dia, unidades: Number(f.unidades), importe: Number(f.importe) }));
 }
 
+// Recargas y pagos de servicios: lineas de venta con "servicio" adentro. Su ganancia es la comision
+// (importe menos lo que costo pagarle al proveedor). Sin costo no se inventa comision.
+async function serviciosPorDia(pool, negocioId, dias) {
+    const filas = await pool.query(
+        `SELECT to_char(h.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') AS dia,
+                COALESCE(NULLIF(item->'servicio'->>'proveedor', ''), 'Otro') AS proveedor,
+                COALESCE(NULLIF(item->'servicio'->>'tipo', ''), 'servicio') AS tipo,
+                COALESCE(SUM((item->>'cantidad')::numeric), 0) AS operaciones,
+                COALESCE(SUM((item->>'importe')::numeric), 0) AS importe,
+                COALESCE(SUM(CASE WHEN item ? 'costo' THEN (item->>'importe')::numeric - (item->>'cantidad')::numeric * (item->>'costo')::numeric ELSE 0 END), 0) AS comision
+         FROM public.historial_ventas h
+         CROSS JOIN LATERAL jsonb_array_elements(h.productos) AS item
+         WHERE h.negocio_id = $1 AND h.estado = 'completada'
+         AND h.fecha >= NOW() - ($2 || ' days')::interval
+         AND item ? 'servicio'
+         GROUP BY 1, 2, 3`,
+        [negocioId, String(dias + 1)]
+    );
+
+    return filas.rows.map(f => ({ dia: f.dia, proveedor: f.proveedor, tipo: f.tipo, operaciones: Number(f.operaciones), importe: Number(f.importe), comision: Number(f.comision) }));
+}
+
 async function totalesPorDia(pool, negocioId, dias) {
     const filas = await pool.query(
         `SELECT to_char(h.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') AS dia, COUNT(*) AS ventas, COALESCE(SUM(h.total), 0) AS total
@@ -181,8 +203,13 @@ async function resumenInicio(pool, negocioId, hoy = fechaLocal()) {
     const ventas = await ventasPorProductoYDia(pool, negocioId, DIAS_HISTORIAL);
     const totales = await totalesPorDia(pool, negocioId, DIAS_HISTORIAL);
     const { filas, sinCosto } = calcularGanancias(ventas, productos);
+    const servicios = await serviciosPorDia(pool, negocioId, DIAS_HISTORIAL);
 
-    const gananciaDelDia = dia => filas.filter(f => f.dia === dia && f.ganancia !== null).reduce((suma, f) => suma + f.ganancia, 0);
+    const gananciaDelDia = dia =>
+        filas.filter(f => f.dia === dia && f.ganancia !== null).reduce((suma, f) => suma + f.ganancia, 0)
+        + servicios.filter(f => f.dia === dia).reduce((suma, f) => suma + f.comision, 0);
+
+    const serviciosHoy = servicios.filter(f => f.dia === hoy);
 
     const semana = [];
     for (let atras = 6; atras >= 0; atras--) {
@@ -218,6 +245,13 @@ async function resumenInicio(pool, negocioId, hoy = fechaLocal()) {
         semana,
         masGanancia,
         pierden,
+        // Recargas y pagos de servicios de hoy: cuantas, cuanto se movio y cuanto te queda de comision.
+        servicios: {
+            operaciones: serviciosHoy.reduce((s, f) => s + f.operaciones, 0),
+            importe: dinero(serviciosHoy.reduce((s, f) => s + f.importe, 0)),
+            comision: dinero(serviciosHoy.reduce((s, f) => s + f.comision, 0)),
+            porProveedor: serviciosHoy.map(f => ({ proveedor: f.proveedor, tipo: f.tipo, operaciones: f.operaciones, importe: dinero(f.importe), comision: dinero(f.comision) })).sort((a, b) => b.importe - a.importe)
+        },
         productosSinCosto: sinCosto.size,
         porRevisar: { resumen: resumirLotes(filasLotes), lotes: filasLotes.slice(0, 4) },
         porSurtir: await porSurtir(pool, negocioId, hoy),
@@ -260,6 +294,32 @@ function instalar(app, pool, requerirAccesoNegocio) {
 
             const { filas } = calcularGanancias(await ventasPorProductoYDia(pool, id, dias), productos);
             const lista = resumenPorProducto(filas, sumarDias(hoy, -(dias - 1)));
+
+            // Recargas y servicios: una fila por proveedor ("Recargas · Telcel"), con la comision como ganancia.
+            const desde = sumarDias(hoy, -(dias - 1));
+            const porProveedor = new Map();
+
+            for (const s of await serviciosPorDia(pool, id, dias)) {
+                if (s.dia < desde) continue;
+
+                const nombre = `${s.tipo === "recarga" ? "Recargas" : "Pagos"} · ${s.proveedor}`;
+                const actual = porProveedor.get(nombre) || { productoId: null, nombre, unidades: 0, vendido: 0, ganancia: 0 };
+                actual.unidades += s.operaciones;
+                actual.vendido += s.importe;
+                actual.ganancia += s.comision;
+                porProveedor.set(nombre, actual);
+            }
+
+            for (const s of porProveedor.values()) {
+                lista.push({
+                    productoId: null,
+                    nombre: s.nombre,
+                    unidades: s.unidades,
+                    vendido: dinero(s.vendido),
+                    ganancia: dinero(s.ganancia),
+                    margen: s.vendido > 0 ? Math.round((s.ganancia / s.vendido) * 100) : null
+                });
+            }
 
             const conGanancia = lista.filter(p => p.ganancia !== null).sort((a, b) => b.ganancia - a.ganancia);
             const sinCosto = lista.filter(p => p.ganancia === null).sort((a, b) => b.vendido - a.vendido);

@@ -15,6 +15,7 @@ const sharp = require("sharp");
 const { responderError } = require("./error-utils");
 const { PERMISOS, requerirPermiso } = require("./rbac");
 const { parsearCfdi } = require("./cfdi-parser");
+const { registrarLoteDeRecepcion } = require("./lotes-recepcion");
 const { resolverConceptoFactura } = require("./recepcion-inteligente-matching");
 const { resolverProveedorPorRfc, resolverOcrearProveedorId } = require("./proveedor-resolver");
 const { obtenerAnthropic, licenciaDelNegocio } = require("./ia-server");
@@ -1121,6 +1122,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                              WHERE id = $3 AND negocio_id = $4`,
                             [cantidad, costo, productoId, negocio.id]
                         );
+
+                        await registrarLoteDeRecepcion(client, { negocioId: negocio.id, productoId, cantidad });
                     }
 
                     totalAplicado += cantidad * costo;

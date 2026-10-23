@@ -169,24 +169,22 @@ async function abrirEditorExhibidor(id) {
     renderEditorExhibidor();
 }
 
-function renderEditorExhibidor() {
-    const pantalla = document.getElementById("pantallaExhibidores");
-    const x = exhibidorEditando;
-    if (!pantalla || !x) return;
+function exhEstadoEspacio(e) {
+    return e.existencia <= 0 ? "agotado" : (e.capacidad > 0 && e.existencia < e.capacidad / 2 ? "bajo" : "ok");
+}
 
-    const colores = EXHIBIDOR_COLORES.map(c =>
-        `<button type="button" class="exh-swatch exh-color-${c}${c === x.color ? " activo" : ""}" aria-label="Color ${c}" onclick="cambiarColorExhibidor('${c}')"></button>`
-    ).join("");
+function exhTextoExistenciaEspacio(e) {
+    return `${e.existencia <= 0 ? "Agotado" : `${Number(e.existencia.toFixed(3))} en existencia`}${e.faltan > 0 ? ` · faltan ${e.faltan}` : ""}`;
+}
 
-    const espacios = x.espacios.map(e => {
-        const estado = e.existencia <= 0 ? "agotado" : (e.capacidad > 0 && e.existencia < e.capacidad / 2 ? "bajo" : "ok");
-        return `
-        <div class="exh-espacio exh-${estado}">
+function exhEspacioHtml(e) {
+    return `
+        <div class="exh-espacio exh-${exhEstadoEspacio(e)}" data-espacio-id="${e.id}">
             <button type="button" class="exh-espacio-quitar" aria-label="Quitar del exhibidor" onclick="quitarEspacioExhibidor(${e.id})">&times;</button>
             <div class="exh-espacio-foto">${exhMiniatura(e.productoId, e.nombre)}</div>
             <strong class="exh-espacio-nombre">${exhEscapar(e.nombre)}</strong>
             <span class="exh-espacio-meta">${exhEscapar(e.codigo || "")} · ${exhDinero(e.precio)}</span>
-            <span class="exh-espacio-existencia">${e.existencia <= 0 ? "Agotado" : `${Number(e.existencia.toFixed(3))} en existencia`}${e.faltan > 0 ? ` · faltan ${e.faltan}` : ""}</span>
+            <span class="exh-espacio-existencia">${exhTextoExistenciaEspacio(e)}</span>
             <div class="exh-espacio-campos">
                 <label>Lugar
                     <input type="text" value="${exhEscapar(e.etiqueta)}" maxlength="80" placeholder="Ej. Cajon 1" onchange="guardarEspacioExhibidor(${e.id}, { etiqueta: this.value })">
@@ -196,19 +194,105 @@ function renderEditorExhibidor() {
                 </label>
             </div>
         </div>`;
-    }).join("");
+}
+
+// Actualiza el editor con los datos nuevos cambiando SOLO lo que cambio: agrega, quita o actualiza la tarjeta
+// tocada y deja el resto (fotos, buscador, lo que estas escribiendo) donde estaba. Antes cada cambio volvia a
+// dibujar toda la pantalla y todas las fotos parpadeaban.
+function exhEditorActualizar(nuevo) {
+    exhibidorEditando = nuevo;
+
+    const caja = document.getElementById("exhEspaciosCaja");
+    if (!caja) {
+        renderEditorExhibidor();
+        return;
+    }
+
+    const x = nuevo;
+    const enfocado = document.activeElement;
+
+    // Cabecera y datos
+    const titulo = document.getElementById("exhTituloEditor");
+    if (titulo) titulo.textContent = x.nombre;
+
+    const campoNombre = document.getElementById("exhNombre");
+    if (campoNombre && campoNombre !== enfocado) campoNombre.value = x.nombre;
+
+    const campoDescripcion = document.getElementById("exhDescripcion");
+    if (campoDescripcion && campoDescripcion !== enfocado) campoDescripcion.value = x.descripcion || "";
+
+    document.querySelectorAll("#pantallaExhibidores .exh-swatch").forEach(boton => {
+        boton.classList.toggle("activo", boton.classList.contains(`exh-color-${x.color}`));
+    });
+
+    document.querySelectorAll("#pantallaExhibidores [data-requiere-espacios]").forEach(boton => {
+        boton.disabled = x.espacios.length === 0;
+    });
+
+    const contador = document.getElementById("exhContadorEspacios");
+    if (contador) contador.textContent = x.espacios.length;
+
+    // Productos: sin ninguno, el aviso; con productos, la cuadricula se acomoda tarjeta por tarjeta.
+    if (x.espacios.length === 0) {
+        caja.innerHTML = '<div class="exh-vacio">Busca arriba y agrega los productos que lleva este exhibidor.</div>';
+        return;
+    }
+
+    let cuadricula = caja.querySelector(".exh-espacios");
+
+    if (!cuadricula) {
+        caja.innerHTML = '<div class="exh-espacios"></div>';
+        cuadricula = caja.querySelector(".exh-espacios");
+    }
+
+    const vigentes = new Set(x.espacios.map(e => String(e.id)));
+    cuadricula.querySelectorAll(".exh-espacio").forEach(tarjeta => {
+        if (!vigentes.has(tarjeta.dataset.espacioId)) tarjeta.remove();
+    });
+
+    x.espacios.forEach((e, indice) => {
+        let tarjeta = cuadricula.querySelector(`.exh-espacio[data-espacio-id="${e.id}"]`);
+
+        if (!tarjeta) {
+            const molde = document.createElement("div");
+            molde.innerHTML = exhEspacioHtml(e).trim();
+            tarjeta = molde.firstElementChild;
+        } else {
+            tarjeta.className = `exh-espacio exh-${exhEstadoEspacio(e)}`;
+            tarjeta.querySelector(".exh-espacio-existencia").textContent = exhTextoExistenciaEspacio(e);
+            tarjeta.querySelector(".exh-espacio-meta").textContent = `${e.codigo || ""} · ${exhDinero(e.precio)}`;
+
+            const [lugar, capacidad] = tarjeta.querySelectorAll(".exh-espacio-campos input");
+            if (lugar && lugar !== enfocado) lugar.value = e.etiqueta || "";
+            if (capacidad && capacidad !== enfocado) capacidad.value = e.capacidad || "";
+        }
+
+        if (cuadricula.children[indice] !== tarjeta) cuadricula.insertBefore(tarjeta, cuadricula.children[indice] || null);
+    });
+}
+
+function renderEditorExhibidor() {
+    const pantalla = document.getElementById("pantallaExhibidores");
+    const x = exhibidorEditando;
+    if (!pantalla || !x) return;
+
+    const colores = EXHIBIDOR_COLORES.map(c =>
+        `<button type="button" class="exh-swatch exh-color-${c}${c === x.color ? " activo" : ""}" aria-label="Color ${c}" onclick="cambiarColorExhibidor('${c}')"></button>`
+    ).join("");
+
+    const espacios = x.espacios.map(exhEspacioHtml).join("");
 
     pantalla.innerHTML = `
     <div class="exh-shell">
         <div class="exh-header">
             <div>
                 <button type="button" class="exh-enlace" onclick="mostrarExhibidores()">&larr; Todos los exhibidores</button>
-                <h2>${exhEscapar(x.nombre)}</h2>
+                <h2 id="exhTituloEditor">${exhEscapar(x.nombre)}</h2>
             </div>
             <div class="exh-header-acciones">
-                <button type="button" class="exh-btn exh-btn-suave" onclick="abrirRecibirExhibidor(${x.id})" ${x.espacios.length ? "" : "disabled"}>Recibir mercancia</button>
-                <button type="button" class="exh-btn exh-btn-suave" onclick="abrirSurtirExhibidor(${x.id})" ${x.espacios.length ? "" : "disabled"}>Surtir</button>
-                <button type="button" class="exh-btn exh-btn-primario" onclick="abrirExhibidorPOS(${x.id})" ${x.espacios.length ? "" : "disabled"}>Probar venta</button>
+                <button type="button" class="exh-btn exh-btn-suave" data-requiere-espacios onclick="abrirRecibirExhibidor(${x.id})" ${x.espacios.length ? "" : "disabled"}>Recibir mercancia</button>
+                <button type="button" class="exh-btn exh-btn-suave" data-requiere-espacios onclick="abrirSurtirExhibidor(${x.id})" ${x.espacios.length ? "" : "disabled"}>Surtir</button>
+                <button type="button" class="exh-btn exh-btn-primario" data-requiere-espacios onclick="abrirExhibidorPOS(${x.id})" ${x.espacios.length ? "" : "disabled"}>Probar venta</button>
                 <button type="button" class="exh-btn exh-btn-peligro" onclick="eliminarExhibidor()">Eliminar</button>
             </div>
         </div>
@@ -234,10 +318,12 @@ function renderEditorExhibidor() {
         </section>
 
         <section class="exh-panel">
-            <h3>Productos del exhibidor <span class="exh-contador">${x.espacios.length}</span></h3>
+            <h3>Productos del exhibidor <span class="exh-contador" id="exhContadorEspacios">${x.espacios.length}</span></h3>
+            <div id="exhEspaciosCaja">
             ${x.espacios.length === 0
                 ? '<div class="exh-vacio">Busca arriba y agrega los productos que lleva este exhibidor.</div>'
                 : `<div class="exh-espacios">${espacios}</div>`}
+            </div>
         </section>
     </div>`;
 }
@@ -366,9 +452,13 @@ async function agregarProductoAExhibidor(productoId) {
         return;
     }
 
-    exhibidorEditando = datos.exhibidor;
-    renderEditorExhibidor();
-    document.getElementById("exhBuscarProducto")?.focus();
+    exhEditorActualizar(datos.exhibidor);
+
+    // Listo para buscar el siguiente: se limpia el buscador y se deja el cursor ahi.
+    const buscador = document.getElementById("exhBuscarProducto");
+    const resultados = document.getElementById("exhResultadosBusqueda");
+    if (buscador) { buscador.value = ""; buscador.focus(); }
+    if (resultados) { resultados.hidden = true; resultados.innerHTML = ""; }
 }
 
 async function guardarEspacioExhibidor(espacioId, cambios) {
@@ -384,8 +474,7 @@ async function guardarEspacioExhibidor(espacioId, cambios) {
         return;
     }
 
-    exhibidorEditando = datos.exhibidor;
-    renderEditorExhibidor();
+    exhEditorActualizar(datos.exhibidor);
 }
 
 async function quitarEspacioExhibidor(espacioId) {
@@ -398,8 +487,7 @@ async function quitarEspacioExhibidor(espacioId) {
         return;
     }
 
-    exhibidorEditando = datos.exhibidor;
-    renderEditorExhibidor();
+    exhEditorActualizar(datos.exhibidor);
 }
 
 async function guardarDatosExhibidor() {
@@ -419,8 +507,7 @@ async function guardarDatosExhibidor() {
         return;
     }
 
-    exhibidorEditando = datos.exhibidor;
-    renderEditorExhibidor();
+    exhEditorActualizar(datos.exhibidor);
 }
 
 async function cambiarColorExhibidor(color) {
@@ -431,10 +518,7 @@ async function cambiarColorExhibidor(color) {
         body: JSON.stringify({ color })
     });
 
-    if (ok) {
-        exhibidorEditando = datos.exhibidor;
-        renderEditorExhibidor();
-    }
+    if (ok) exhEditorActualizar(datos.exhibidor);
 }
 
 async function eliminarExhibidor() {

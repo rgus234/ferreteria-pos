@@ -118,6 +118,12 @@ function renderInicioAbarrotes() {
             <li><span>${inicioAbEscapar(p.proveedor)} <small>viene ${inicioAbTextoDias(p.dias)}</small></span><b>${inicioAbEntero(p.total)} · ${p.productos} prod.</b></li>`).join("")}</ul>`
         : `<p class="inicio-ab-vacio">No hay pedidos por hacer esta semana. Dile a Nexo qué día viene cada proveedor.</p>`;
 
+    const sv = d.servicios || { operaciones: 0, importe: 0, comision: 0, porProveedor: [] };
+    const servicios = sv.operaciones > 0
+        ? `<p class="inicio-ab-servicios-total"><strong>${inicioAbDinero(sv.importe)}</strong> en ${sv.operaciones} operación${sv.operaciones === 1 ? "" : "es"} · te quedaron <b class="inicio-ab-verde">${inicioAbDinero(sv.comision)}</b></p>
+           <ul class="inicio-ab-lista">${sv.porProveedor.map(p => `<li><span>${inicioAbEscapar(p.proveedor)} <small>${p.tipo === "recarga" ? "recargas" : "pagos"} · ${p.operaciones}</small></span><b>${inicioAbDinero(p.importe)}</b></li>`).join("")}</ul>`
+        : `<p class="inicio-ab-vacio">Hoy no has registrado recargas ni pagos de servicios.</p>`;
+
     const top = d.masGanancia.length
         ? `<ol class="inicio-ab-ranking">${d.masGanancia.map(p => `
             <li><span>${inicioAbEscapar(p.nombre)} <small>${Number(p.unidades.toFixed(1))} vendidos</small></span><b>${inicioAbDinero(p.ganancia)} <em>${p.margen ?? "-"}%</em></b></li>`).join("")}</ol>`
@@ -163,6 +169,12 @@ function renderInicioAbarrotes() {
         <article class="inicio-ab-tarjeta">
             <header><h3>Toca pedir</h3><button type="button" class="inicio-ab-link" onclick="mostrarPedidoSugerido()">Ver pedidos</button></header>
             ${surtir}
+        </article>
+
+        <article class="inicio-ab-tarjeta inicio-ab-servicios">
+            <header><h3>Recargas y servicios</h3><button type="button" class="inicio-ab-link" onclick="abrirServiciosPOS()">Registrar</button></header>
+            ${servicios}
+            <p class="inicio-ab-nota">Su comisión ya cuenta en lo que ganaste hoy.</p>
         </article>
 
         <article class="inicio-ab-tarjeta">

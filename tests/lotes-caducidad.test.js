@@ -218,3 +218,61 @@ test("el cliente muestra Por revisar con lotes en abarrotes y deja Por vencer ig
     assert.match(leer("js/perfil-negocio.js"), /"Por revisar"/);
     assert.match(leer("js/product-inventory.js"), /vidaUtilDias: document\.getElementById\("nuevaVidaUtilDias"\)/);
 });
+
+test("recibir mercancia abre el lote de lo que tiene vida util y no toca lo que no la tiene", async () => {
+    const { sumarDiasFecha: sumar } = require("../lotes-calculo");
+    const { fechaLocal: hoyLocal } = require("../lotes-server");
+
+    const sinVida = (await pool.query(
+        `INSERT INTO public.productos (negocio_id, nombre, precio, precio_publico, precio_distribuidor, stock) VALUES ($1, 'Martillo (sin vida util)', 120, 120, 80, 0) RETURNING id`,
+        [negocio.negocioId]
+    )).rows[0].id;
+
+    await pool.query(`DELETE FROM public.producto_lotes WHERE producto_id = $1`, [productoId]);
+    await pool.query(`UPDATE public.productos SET stock = 0 WHERE id = $1`, [productoId]);
+
+    // Recepcion rapida (celular / exhibidores): suma stock y, por tener vida util de 2 dias, abre su lote.
+    const r = await post("/recepciones-mercancia/rapida", {
+        idempotencyKey: `lotes-${Date.now()}`,
+        items: [{ productoId, cantidad: 7, costo: 15 }, { productoId: sinVida, cantidad: 3, costo: 80 }]
+    });
+    assert.equal(r.status, 201);
+
+    const lotes = await pool.query(`SELECT producto_id, cantidad, fecha_caducidad, origen FROM public.producto_lotes WHERE producto_id = ANY($1::int[]) ORDER BY producto_id`, [[productoId, sinVida]]);
+    assert.equal(lotes.rows.length, 1, "solo el producto con vida util abre lote");
+    assert.equal(lotes.rows[0].producto_id, productoId);
+    assert.equal(Number(lotes.rows[0].cantidad), 7);
+    assert.equal(lotes.rows[0].origen, "recepcion");
+    assert.equal(new Date(lotes.rows[0].fecha_caducidad).toISOString().slice(0, 10), sumar(hoyLocal(), 2), "hoy mas 2 dias de vida util");
+
+    // El stock se sumo igual para los dos.
+    assert.equal(Number((await pool.query(`SELECT stock FROM public.productos WHERE id = $1`, [sinVida])).rows[0].stock), 3);
+
+    // Registro de recepcion del escritorio (el stock ya lo aplico otra ruta): tambien abre el lote.
+    await pool.query(`DELETE FROM public.producto_lotes WHERE producto_id = $1`, [productoId]);
+    const escritorio = await post("/recepciones-mercancia", { proveedor: "Prueba", items: [{ productoId, nombre: "Tortillas de maiz", cantidad: 4, costo: 15 }] });
+    assert.equal(escritorio.status, 201);
+    assert.equal(Number((await pool.query(`SELECT COALESCE(SUM(cantidad), 0) AS t FROM public.producto_lotes WHERE producto_id = $1`, [productoId])).rows[0].t), 4);
+
+    await pool.query(`DELETE FROM public.productos WHERE id = $1`, [sinVida]).catch(() => {});
+});
+
+test("un fallo al abrir el lote nunca tumba la recepcion", async () => {
+    const { registrarLoteDeRecepcion } = require("../lotes-recepcion");
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        // Producto inexistente y cantidades invalidas: no hace nada y no rompe la transaccion.
+        assert.equal(await registrarLoteDeRecepcion(client, { negocioId: negocio.negocioId, productoId: 999999999, cantidad: 5 }), null);
+        assert.equal(await registrarLoteDeRecepcion(client, { negocioId: negocio.negocioId, productoId, cantidad: 0 }), null);
+        assert.equal(await registrarLoteDeRecepcion(client, { negocioId: negocio.negocioId, productoId: "x", cantidad: 5 }), null);
+
+        // La transaccion sigue sana: se puede seguir consultando.
+        assert.equal((await client.query("SELECT 1 AS ok")).rows[0].ok, 1);
+    } finally {
+        await client.query("ROLLBACK");
+        client.release();
+    }
+});

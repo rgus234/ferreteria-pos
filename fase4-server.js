@@ -2,6 +2,7 @@ const { DEFAULT_NEGOCIO_SLUG } = require("./tenant");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan } = require("./plan-enforcement");
 const { PERMISOS, requerirPermiso } = require("./rbac");
+const { registrarLoteDeRecepcion } = require("./lotes-recepcion");
 
 module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
     const requerirPedidosProveedor = requerirFuncionPlan(
@@ -400,6 +401,9 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                         WHERE id = $3
                         AND negocio_id = $4
                     `, [cantidad, costo, productoId, negocio.id]);
+
+                    // Perecederos: la entrada abre su lote con la fecha que le toca.
+                    await registrarLoteDeRecepcion(client, { negocioId: negocio.id, productoId, cantidad });
                 }
 
                 await client.query(`
@@ -510,6 +514,8 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                     n(item.cantidad),
                     n(item.costo)
                 ]);
+
+                await registrarLoteDeRecepcion(client, { negocioId: negocio.id, productoId: item.productoId || item.producto_id, cantidad: n(item.cantidad) });
             }
 
             await client.query("COMMIT");
@@ -622,6 +628,8 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                     negocio.id, fila.id, fila.nombre, fila.codigo || "",
                     linea.cantidad, stockAnterior, stockNuevo, referenciaLimpia, usuario
                 ]);
+
+                await registrarLoteDeRecepcion(client, { negocioId: negocio.id, productoId: fila.id, cantidad: linea.cantidad });
 
                 total += linea.cantidad * linea.costo;
                 aplicadas.push({ ...linea, nombre: fila.nombre, codigo: fila.codigo || "", stockNuevo });

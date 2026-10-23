@@ -101,4 +101,9 @@ function caducidadDeEntrada({ fechaCaducidad, vidaUtilDias, hoy }) {
     return Number.isInteger(vida) && vida > 0 ? sumarDiasFecha(hoy, vida) : null;
 }
 
-module.exports = { calcularLotesVigentes, estadoDeCaducidad, caducidadDeEntrada, diasEntre, sumarDiasFecha, aFecha };
+// Fecha de hoy (AAAA-MM-DD) en hora de Mexico.
+function hoyEnMexico(ahora = new Date()) {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit" }).format(ahora);
+}
+
+module.exports = { calcularLotesVigentes, estadoDeCaducidad, caducidadDeEntrada, diasEntre, sumarDiasFecha, aFecha, hoyEnMexico };

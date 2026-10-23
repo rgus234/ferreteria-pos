@@ -1607,6 +1607,11 @@ function productosCarritoAgrupados() {
  base.costo = Number(producto.costo || 0);
  }
 
+ // Recargas y pago de servicios (servicios-pos.js): se guarda con la venta para el Inicio y el reporte de ganancia.
+ if (producto.servicio) {
+ base.servicio = producto.servicio;
+ }
+
  return base;
  });
 }

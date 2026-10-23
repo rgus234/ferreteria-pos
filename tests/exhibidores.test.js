@@ -377,3 +377,26 @@ test("vender, recibir y surtir cambian solo lo que cambio (sin volver a dibujar 
     // El tema global fuerza los h3 en oscuro con !important: el titulo de la cabecera de color tambien lo lleva.
     assert.match(css, /\.exh-modal-cabecera-color h3,\s*\n\.exh-modal-cabecera-color span \{ color: #fff !important; \}/);
 });
+
+test("el editor de exhibidores cambia solo lo que cambio: agregar, editar, quitar, renombrar y color ya no redibujan la pantalla", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const js = fs.readFileSync(path.join(__dirname, "..", "public", "js", "exhibidores.js"), "utf8");
+
+    assert.match(js, /function exhEditorActualizar\(nuevo\)/);
+    assert.match(js, /function exhEspacioHtml\(e\)/);
+    assert.match(js, /data-espacio-id="\$\{e\.id\}"/, "cada tarjeta se identifica para actualizarla por separado");
+
+    // Ninguna de las acciones del editor vuelve a llamar al dibujo completo.
+    for (const nombre of ["agregarProductoAExhibidor", "guardarEspacioExhibidor", "quitarEspacioExhibidor", "guardarDatosExhibidor", "cambiarColorExhibidor"]) {
+        const inicio = js.indexOf(`async function ${nombre}(`);
+        const cuerpo = js.slice(inicio, js.indexOf("\n}\n", inicio));
+
+        assert.match(cuerpo, /exhEditorActualizar\(/, `${nombre} debe actualizar por partes`);
+        assert.doesNotMatch(cuerpo, /renderEditorExhibidor\(\)/, `${nombre} ya no debe redibujar todo`);
+    }
+
+    // Lo que se esta escribiendo no se pisa.
+    assert.match(js, /campoNombre !== enfocado/);
+    assert.match(js, /lugar !== enfocado/);
+});
