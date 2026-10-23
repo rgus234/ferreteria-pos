@@ -87,6 +87,7 @@ function renderListaExhibidores() {
         return `
         <article class="exh-card exh-color-${exhEscapar(item.color)}${item.activo ? "" : " exh-inactivo"}">
             <div class="exh-card-banda">
+                ${item.foto ? `<img class="exh-card-foto" src="${item.foto}" alt="">` : ""}
                 <strong>${exhEscapar(item.nombre)}</strong>
                 <span>${item.totalEspacios} producto${item.totalEspacios === 1 ? "" : "s"}</span>
             </div>
@@ -114,6 +115,11 @@ function renderListaExhibidores() {
             </div>
             <button type="button" class="exh-btn exh-btn-primario" onclick="nuevoExhibidor()">+ Nuevo exhibidor</button>
         </div>
+        ${exhEsAbarrotes() ? "" : `
+        <div class="exh-plantillas">
+            <span>Empieza con una plantilla:</span>
+            ${EXHIBIDORES_PLANTILLAS_FERRETERIA.map((p, i) => `<button type="button" class="exh-btn exh-btn-suave" onclick="nuevoExhibidor(EXHIBIDORES_PLANTILLAS_FERRETERIA[${i}].nombre, EXHIBIDORES_PLANTILLAS_FERRETERIA[${i}].buscar)">${exhEscapar(p.nombre)}</button>`).join("")}
+        </div>`}
         ${exhibidoresLista.length === 0 ? `
         <div class="exh-vacio-grande">
             <div class="exh-vacio-icono">🗄️</div>
@@ -130,11 +136,23 @@ function renderListaExhibidores() {
 // Abarrotes: los exhibidores son los de la tienda (botanas, dulces, refrescos...), no un despachador de brocas.
 const EXHIBIDORES_SUGERIDOS_ABARROTES = ["Botanas", "Dulces", "Galletas", "Refrescos", "Pan", "Lácteos"];
 
+// Plantillas de ferreteria: nombre + lo que se busca en tu inventario para llenarlo de un golpe.
+const EXHIBIDORES_PLANTILLAS_FERRETERIA = [
+    { nombre: "Despachador de brocas", buscar: "broca" },
+    { nombre: "Exhibidor de lijas", buscar: "lija" },
+    { nombre: "Discos de corte y desbaste", buscar: "disco" },
+    { nombre: "Focos y lámparas", buscar: "foco" },
+    { nombre: "Pilas y baterías", buscar: "pila" },
+    { nombre: "Cintas y adhesivos", buscar: "cinta" },
+    { nombre: "Tornillos y pijas", buscar: "tornillo" },
+    { nombre: "Candados y chapas", buscar: "candado" }
+];
+
 function exhEsAbarrotes() {
     return typeof perfilEsSimple === "function" && perfilEsSimple();
 }
 
-async function nuevoExhibidor(nombreSugerido) {
+async function nuevoExhibidor(nombreSugerido, buscarInicial) {
     const nombre = typeof nombreSugerido === "string"
         ? nombreSugerido
         : typeof pedirTextoPOS === "function"
@@ -155,6 +173,12 @@ async function nuevoExhibidor(nombreSugerido) {
 
     exhibidorEditando = datos.exhibidor;
     renderEditorExhibidor();
+
+    // Plantilla: ya busca en tu inventario lo que lleva ese exhibidor, listo para "Agregar todos".
+    if (buscarInicial) {
+        const campo = document.getElementById("exhBuscarProducto");
+        if (campo) { campo.value = buscarInicial; buscarProductoParaExhibidor(buscarInicial); }
+    }
 }
 
 async function abrirEditorExhibidor(id) {
@@ -224,6 +248,15 @@ function exhEditorActualizar(nuevo) {
     document.querySelectorAll("#pantallaExhibidores .exh-swatch").forEach(boton => {
         boton.classList.toggle("activo", boton.classList.contains(`exh-color-${x.color}`));
     });
+
+    const vistaFoto = document.getElementById("exhFotoVista");
+    if (vistaFoto) {
+        if (x.foto) { vistaFoto.src = x.foto; vistaFoto.hidden = false; } else { vistaFoto.hidden = true; vistaFoto.removeAttribute("src"); }
+    }
+    const quitarFoto = document.getElementById("exhFotoQuitar");
+    if (quitarFoto) quitarFoto.hidden = !x.foto;
+    const etiquetaFoto = document.querySelector("#pantallaExhibidores .exh-foto-boton");
+    if (etiquetaFoto && etiquetaFoto.firstChild) etiquetaFoto.firstChild.textContent = x.foto ? "Cambiar foto" : "Agregar foto";
 
     document.querySelectorAll("#pantallaExhibidores [data-requiere-espacios]").forEach(boton => {
         boton.disabled = x.espacios.length === 0;
@@ -306,6 +339,12 @@ function renderEditorExhibidor() {
                     <input id="exhDescripcion" type="text" value="${exhEscapar(x.descripcion)}" maxlength="500" placeholder="Opcional" onchange="guardarDatosExhibidor()">
                 </label>
                 <div class="exh-colores"><span>Color</span>${colores}</div>
+                <div class="exh-foto-editor">
+                    <span>Foto del exhibidor</span>
+                    <img id="exhFotoVista" class="exh-foto-vista" alt="" ${x.foto ? `src="${x.foto}"` : "hidden"}>
+                    <label class="exh-btn exh-btn-suave exh-foto-boton">${x.foto ? "Cambiar foto" : "Agregar foto"}<input type="file" accept="image/*" hidden onchange="exhSubirFoto(this)"></label>
+                    <button type="button" id="exhFotoQuitar" class="exh-btn exh-btn-suave" onclick="exhQuitarFoto()" ${x.foto ? "" : "hidden"}>Quitar</button>
+                </div>
             </div>
         </section>
 
@@ -349,13 +388,14 @@ function buscarProductoParaExhibidor(texto) {
         .filter(p => {
             const base = exhNormalizar(`${p.nombre} ${p.codigo || ""} ${p.marca || ""}`);
             return palabras.every(palabra => base.includes(palabra));
-        })
-        .slice(0, 8);
+        });
+
+    exhBusquedaCatalogo.todosInventario = encontrados;
 
     // Inventario al instante; el catalogo de proveedor llega unos instantes
     // despues (la tanda mas reciente gana, asi una respuesta lenta de una
     // busqueda vieja nunca pisa a la actual).
-    exhBusquedaCatalogo.inventario = encontrados;
+    exhBusquedaCatalogo.inventario = encontrados.slice(0, 8);
     exhBusquedaCatalogo.catalogo = null;
     exhBusquedaCatalogo.consulta = texto;
     exhBusquedaCatalogo.tanda++;
@@ -371,7 +411,8 @@ function buscarProductoParaExhibidor(texto) {
     }, 300);
 }
 
-const exhBusquedaCatalogo = { inventario: [], catalogo: null, consulta: "", tanda: 0, temporizador: null };
+const exhBusquedaCatalogo = { inventario: [], todosInventario: [], catalogo: null, consulta: "", tanda: 0, temporizador: null };
+const EXH_MAXIMO_DE_UNA_VEZ = 60;
 
 function pintarResultadosExhibidor() {
     const contenedor = document.getElementById("exhResultadosBusqueda");
@@ -406,7 +447,7 @@ function pintarResultadosExhibidor() {
 
     contenedor.hidden = false;
     contenedor.innerHTML = `
-        ${filasInventario ? `<div class="exh-grupo-titulo">En tu inventario</div>${filasInventario}` : ""}
+        ${filasInventario ? `<div class="exh-grupo-titulo">En tu inventario${exhBusquedaCatalogo.todosInventario.length > 1 ? `<button type="button" class="exh-agregar-todos" onclick="agregarTodosAExhibidor()">Agregar los ${Math.min(exhBusquedaCatalogo.todosInventario.length, EXH_MAXIMO_DE_UNA_VEZ)} de tu inventario</button>` : ""}</div>${filasInventario}` : ""}
         ${filasCatalogo ? `<div class="exh-grupo-titulo">En el catalogo de tus proveedores</div>${filasCatalogo}` : ""}
         ${cargandoCatalogo ? '<div class="exh-resultado-vacio">Buscando en tus catalogos...</div>' : ""}
         ${!cargandoCatalogo && !filasInventario && !filasCatalogo ? '<div class="exh-resultado-vacio">No encontramos nada con eso (o ya esta en el exhibidor). Prueba con el codigo o parte del nombre.</div>' : ""}`;
@@ -437,6 +478,79 @@ async function agregarDesdeCatalogoAExhibidor(catalogoId, catalogoProductoId, pr
 
     await agregarProductoAExhibidor(creado.datos.productoId);
     alertaPOS("Se agrego al inventario con existencia 0 y al exhibidor. Registra su compra para darle existencia.", "Producto agregado", "exito");
+}
+
+// Agrega de una vez todo lo que salio de tu inventario en la busqueda (hasta 60), uno por uno con la ruta de siempre.
+async function agregarTodosAExhibidor() {
+    if (!exhibidorEditando) return;
+
+    const yaEstan = new Set(exhibidorEditando.espacios.map(e => Number(e.productoId)));
+    const ids = exhBusquedaCatalogo.todosInventario.map(p => Number(p.id)).filter(id => !yaEstan.has(id)).slice(0, EXH_MAXIMO_DE_UNA_VEZ);
+    const boton = document.querySelector("#exhResultadosBusqueda .exh-agregar-todos");
+    let ultimo = null;
+    let agregados = 0;
+
+    for (const productoId of ids) {
+        if (boton) boton.textContent = `Agregando ${agregados + 1} de ${ids.length}...`;
+
+        const { ok, datos } = await exhLlamar(`/exhibidores/${exhibidorEditando.id}/espacios`, { method: "POST", body: JSON.stringify({ productoId }) });
+        if (ok) { ultimo = datos.exhibidor; agregados++; }
+    }
+
+    if (ultimo) exhEditorActualizar(ultimo);
+
+    const buscador = document.getElementById("exhBuscarProducto");
+    const resultados = document.getElementById("exhResultadosBusqueda");
+    if (buscador) buscador.value = "";
+    if (resultados) { resultados.hidden = true; resultados.innerHTML = ""; }
+
+    alertaPOS(agregados ? `Se agregaron ${agregados} producto${agregados === 1 ? "" : "s"} al exhibidor. Ponles su capacidad para saber cuánto surtir.` : "No había nada nuevo que agregar.", "Exhibidor", "info");
+}
+
+// Foto del exhibidor: se reduce en el celular/computadora antes de subirla.
+function exhReducirImagen(archivo, maximo = 640) {
+    return new Promise((resolver, rechazar) => {
+        const lector = new FileReader();
+        lector.onerror = () => rechazar(new Error("No se pudo leer la foto"));
+        lector.onload = () => {
+            const imagen = new Image();
+            imagen.onerror = () => rechazar(new Error("Esa foto no se puede abrir"));
+            imagen.onload = () => {
+                const escala = Math.min(1, maximo / Math.max(imagen.width, imagen.height));
+                const lienzo = document.createElement("canvas");
+                lienzo.width = Math.round(imagen.width * escala);
+                lienzo.height = Math.round(imagen.height * escala);
+                lienzo.getContext("2d").drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
+                resolver(lienzo.toDataURL("image/jpeg", 0.8));
+            };
+            imagen.src = lector.result;
+        };
+        lector.readAsDataURL(archivo);
+    });
+}
+
+async function exhSubirFoto(entrada) {
+    const archivo = entrada.files && entrada.files[0];
+    if (!archivo || !exhibidorEditando) return;
+
+    try {
+        const imagenBase64 = await exhReducirImagen(archivo);
+        const { ok, datos } = await exhLlamar(`/exhibidores/${exhibidorEditando.id}/foto`, { method: "PUT", body: JSON.stringify({ imagenBase64 }) });
+
+        if (!ok) throw new Error(datos.error || "No se pudo guardar la foto.");
+        exhEditorActualizar(datos.exhibidor);
+    } catch (error) {
+        alertaPOS(error.message, "Foto del exhibidor", "peligro");
+    }
+
+    entrada.value = "";
+}
+
+async function exhQuitarFoto() {
+    if (!exhibidorEditando) return;
+
+    const { ok, datos } = await exhLlamar(`/exhibidores/${exhibidorEditando.id}/foto`, { method: "DELETE" });
+    if (ok) exhEditorActualizar(datos.exhibidor);
 }
 
 async function agregarProductoAExhibidor(productoId) {
@@ -778,6 +892,7 @@ function renderExhibidorPOS(filtro = "") {
         <div class="exh-modal-cabecera exh-modal-cabecera-color">
             <div><span>Punto de venta &middot; exhibidor</span><h3>${exhEscapar(x.nombre)}</h3></div>
             <div class="exh-modal-acciones">
+                <button type="button" class="exh-btn exh-btn-claro" onclick="exhAgregarTodoPOS()" title="Una pieza de cada producto con existencia">Agregar todo</button>
                 <button type="button" class="exh-btn exh-btn-claro" onclick="abrirExhibidorPOS()">Cambiar</button>
                 <button type="button" class="exh-btn exh-btn-claro" onclick="cerrarExhibidorPOS()">${exhibidorPOSAgregados ? "Listo" : "Cerrar"}</button>
             </div>
@@ -799,6 +914,27 @@ function filtrarExhibidorPOS(texto) {
         input.focus();
         input.setSelectionRange(input.value.length, input.value.length);
     }
+}
+
+// Vende el exhibidor completo: una pieza de cada producto que tiene existencia.
+function exhAgregarTodoPOS() {
+    const x = exhibidorPOSActual;
+    if (!x) return;
+
+    let agregados = 0;
+
+    for (const e of x.espacios) {
+        const local = exhProducto(e.productoId);
+        if (local && Number(local.stock) > 0) {
+            agregarProductoPorId(e.productoId);
+            exhibidorPOSAgregados++;
+            exhActualizarTilePOS(e.productoId);
+            agregados++;
+        }
+    }
+
+    const ayuda = document.querySelector("#modalExhibidorPOS .exh-modal-ayuda");
+    if (ayuda && !agregados) ayuda.textContent = "Ningún producto de este exhibidor tiene existencia.";
 }
 
 function agregarDesdeExhibidor(productoId) {

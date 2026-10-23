@@ -18,6 +18,8 @@ function cantidadValida(valor, porDefecto = 0) {
     return Number.isFinite(numero) && numero >= 0 ? Math.min(numero, 999999) : porDefecto;
 }
 
+const sharp = require("sharp");
+
 module.exports = (app, pool, requerirAccesoNegocio) => {
     async function negocioActual(req) {
         const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -62,6 +64,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             descripcion: fila.descripcion,
             color: fila.color,
             activo: fila.activo,
+            foto: fila.foto || null,
             createdAt: fila.created_at,
             updatedAt: fila.updated_at,
             espacios: espacios.rows.map(espacio => {
@@ -101,7 +104,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             const negocio = await negocioActual(req);
 
             const exhibidores = await pool.query(
-                `SELECT x.id, x.nombre, x.descripcion, x.color, x.activo, x.updated_at,
+                `SELECT x.id, x.nombre, x.descripcion, x.color, x.activo, x.foto, x.updated_at,
                         COUNT(e.id)::int AS total_espacios,
                         COUNT(e.id) FILTER (WHERE p.stock + p.stock_resto <= 0)::int AS agotados,
                         COALESCE(
@@ -129,6 +132,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     totalEspacios: fila.total_espacios,
                     agotados: fila.agotados,
                     vistaPrevia: fila.vista_previa,
+                    foto: fila.foto || null,
                     updatedAt: fila.updated_at
                 }))
             });
@@ -347,6 +351,62 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             );
 
             if (resultado.rows.length === 0) {
+                res.status(404).json({ ok: false, error: "Exhibidor no encontrado." });
+                return;
+            }
+
+            res.json({ ok: true, exhibidor: await exhibidorConEspacios(negocio.id, id) });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Foto del exhibidor (el mueble completo). Se reduce aqui (480 px, JPEG) para que nunca pese.
+    app.put("/exhibidores/:id/foto", requerirAccesoNegocio, async (req, res) => {
+        const id = idValido(req.params.id);
+        const imagen = String(req.body?.imagenBase64 || "").replace(/^data:image\/\w+;base64,/, "");
+
+        if (!id || !imagen) {
+            res.status(400).json({ ok: false, error: "Falta la foto." });
+            return;
+        }
+
+        try {
+            const negocio = await negocioActual(req);
+            const reducida = await sharp(Buffer.from(imagen, "base64"))
+                .rotate()
+                .resize({ width: 480, height: 480, fit: "inside", withoutEnlargement: true })
+                .jpeg({ quality: 78 })
+                .toBuffer();
+
+            const guardada = await pool.query(
+                `UPDATE public.exhibidores SET foto = $1, updated_at = NOW() WHERE id = $2 AND negocio_id = $3 RETURNING id`,
+                [`data:image/jpeg;base64,${reducida.toString("base64")}`, id, negocio.id]
+            );
+
+            if (!guardada.rows.length) {
+                res.status(404).json({ ok: false, error: "Exhibidor no encontrado." });
+                return;
+            }
+
+            res.json({ ok: true, exhibidor: await exhibidorConEspacios(negocio.id, id) });
+        } catch (error) {
+            if (/Input buffer|unsupported image|corrupt/i.test(error.message)) {
+                res.status(400).json({ ok: false, error: "No se pudo leer esa foto. Prueba con otra." });
+                return;
+            }
+            responderError(res, error);
+        }
+    });
+
+    app.delete("/exhibidores/:id/foto", requerirAccesoNegocio, async (req, res) => {
+        const id = idValido(req.params.id);
+
+        try {
+            const negocio = await negocioActual(req);
+            const quitada = id ? await pool.query(`UPDATE public.exhibidores SET foto = NULL, updated_at = NOW() WHERE id = $1 AND negocio_id = $2 RETURNING id`, [id, negocio.id]) : { rows: [] };
+
+            if (!quitada.rows.length) {
                 res.status(404).json({ ok: false, error: "Exhibidor no encontrado." });
                 return;
             }

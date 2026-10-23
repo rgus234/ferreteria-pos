@@ -400,3 +400,54 @@ test("el editor de exhibidores cambia solo lo que cambio: agregar, editar, quita
     assert.match(js, /campoNombre !== enfocado/);
     assert.match(js, /lugar !== enfocado/);
 });
+
+test("exhibidores: foto del exhibidor, agregar varios de una vez, plantillas de ferreteria y agregar todo al carrito", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const leer = ruta => fs.readFileSync(path.join(__dirname, "..", ruta), "utf8");
+    const js = leer("public/js/exhibidores.js");
+    const servidor = leer("exhibidores-server.js");
+
+    assert.match(servidor, /app\.put\("\/exhibidores\/:id\/foto"/);
+    assert.match(servidor, /app\.delete\("\/exhibidores\/:id\/foto"/);
+    assert.match(servidor, /width: 480, height: 480/, "la foto se reduce en el servidor");
+    assert.match(servidor, /WHERE id = \$2 AND negocio_id = \$3/, "solo el negocio dueno cambia la foto");
+    assert.match(js, /function exhSubirFoto/);
+    assert.match(js, /function agregarTodosAExhibidor/);
+    assert.match(js, /EXH_MAXIMO_DE_UNA_VEZ = 60/);
+    assert.match(js, /EXHIBIDORES_PLANTILLAS_FERRETERIA/);
+    assert.match(js, /\{ nombre: "Despachador de brocas", buscar: "broca" \}/);
+    assert.match(js, /function exhAgregarTodoPOS/);
+    assert.match(js, /Number\(local\.stock\) > 0/, "solo agrega lo que tiene existencia");
+});
+
+test("la foto del exhibidor se reduce, solo la cambia su negocio y se puede quitar (requiere la migracion 20261031_exhibidores_foto.sql)", async () => {
+    const sharp = require("sharp");
+    const grande = await sharp({ create: { width: 1600, height: 1200, channels: 3, background: { r: 200, g: 40, b: 40 } } }).jpeg().toBuffer();
+    const imagenBase64 = `data:image/jpeg;base64,${grande.toString("base64")}`;
+
+    const creado = await llamar(negocioA, "/exhibidores", { method: "POST", body: JSON.stringify({ nombre: "Con foto", color: "azul" }) });
+    const id = creado.cuerpo.exhibidor.id;
+
+    const subida = await llamar(negocioA, `/exhibidores/${id}/foto`, { method: "PUT", body: JSON.stringify({ imagenBase64 }) });
+    assert.equal(subida.status, 200);
+    assert.match(subida.cuerpo.exhibidor.foto, /^data:image\/jpeg;base64,/);
+
+    // Se reduce: la imagen guardada cabe en 480 px y pesa muy poco.
+    const guardada = Buffer.from(subida.cuerpo.exhibidor.foto.split(",")[1], "base64");
+    const medidas = await sharp(guardada).metadata();
+    assert.ok(Math.max(medidas.width, medidas.height) <= 480);
+    assert.ok(guardada.length < 60000);
+
+    // Sale en la lista, y otro negocio no puede cambiarla ni quitarla.
+    const lista = await llamar(negocioA, "/exhibidores");
+    assert.ok(lista.cuerpo.exhibidores.find(x => x.id === id).foto);
+    assert.equal((await llamar(negocioB, `/exhibidores/${id}/foto`, { method: "PUT", body: JSON.stringify({ imagenBase64 }) })).status, 404);
+    assert.equal((await llamar(negocioB, `/exhibidores/${id}/foto`, { method: "DELETE" })).status, 404);
+
+    // Una foto que no es imagen se rechaza sin tumbar nada.
+    assert.equal((await llamar(negocioA, `/exhibidores/${id}/foto`, { method: "PUT", body: JSON.stringify({ imagenBase64: "bm8gZXMgdW5hIGZvdG8=" }) })).status, 400);
+
+    const quitada = await llamar(negocioA, `/exhibidores/${id}/foto`, { method: "DELETE" });
+    assert.equal(quitada.cuerpo.exhibidor.foto, null);
+});

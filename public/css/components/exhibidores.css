@@ -181,3 +181,16 @@
 .exh-tile-activa:not(:disabled) { transform: translateY(-3px); border-color: var(--exh-color, #1d5fd1); box-shadow: 0 0 0 3px color-mix(in srgb, var(--exh-color, #1d5fd1) 30%, transparent), 0 12px 26px rgba(20, 32, 51, .16); }
 .exh-tile-pend { position: absolute; top: -8px; left: -6px; z-index: 2; min-width: 30px; height: 28px; padding: 0 9px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: #0f172a; color: #fff; font-size: 14px; font-weight: 900; box-shadow: 0 4px 10px rgba(0, 0, 0, .35); }
 .exh-modal-ayuda b { display: inline-block; padding: 0 5px; border-radius: 5px; background: rgba(15, 23, 42, .09); font-weight: 800; }
+
+/* Plantillas, foto del exhibidor y agregar varios a la vez */
+.exh-plantillas { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; }
+.exh-plantillas > span { font-size: 13px; font-weight: 800; color: #64748b; }
+.exh-card-banda { position: relative; }
+.exh-card-foto { position: absolute; top: 12px; right: 12px; width: 56px; height: 56px; object-fit: cover; border-radius: 12px; border: 2px solid rgba(255, 255, 255, .85); background: #fff; }
+.exh-foto-editor { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.exh-foto-editor > span { font-size: 13px; font-weight: 800; color: #475569; }
+.exh-foto-vista { width: 64px; height: 64px; object-fit: cover; border-radius: 12px; border: 1px solid #e2e8f0; }
+.exh-foto-vista[hidden], #exhFotoQuitar[hidden] { display: none; }
+.exh-foto-boton { cursor: pointer; }
+.exh-grupo-titulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.exh-agregar-todos { padding: 5px 12px; border: 0; border-radius: 999px; background: var(--exh-color, #1d5fd1) !important; color: #fff !important; font-size: 12px; font-weight: 800; cursor: pointer; }
