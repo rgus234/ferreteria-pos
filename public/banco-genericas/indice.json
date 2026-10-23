@@ -1,0 +1,166 @@
+{
+ "conceptos": [
+  {
+   "slug": "aguacate",
+   "nombre": "Aguacate",
+   "categoria": "Frutas",
+   "alias": [
+    "aguacate",
+    "aguacates",
+    "aguacate hass",
+    "palta"
+   ],
+   "archivo": "aguacate.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1171725
+  },
+  {
+   "slug": "cebolla",
+   "nombre": "Cebolla",
+   "categoria": "Verduras",
+   "alias": [
+    "cebolla",
+    "cebollas",
+    "cebolla blanca",
+    "cebolla amarilla"
+   ],
+   "archivo": "cebolla.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1238338
+  },
+  {
+   "slug": "chile-rojo",
+   "nombre": "Chile rojo",
+   "categoria": "Verduras",
+   "alias": [
+    "chile",
+    "chiles",
+    "chile rojo",
+    "chile de arbol",
+    "chile seco"
+   ],
+   "archivo": "chile-rojo.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3292349
+  },
+  {
+   "slug": "limon",
+   "nombre": "Limón",
+   "categoria": "Frutas",
+   "alias": [
+    "limon",
+    "limones",
+    "limon verde",
+    "limon sin semilla",
+    "limon persa"
+   ],
+   "archivo": "limon.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1239235
+  },
+  {
+   "slug": "manzana",
+   "nombre": "Manzana",
+   "categoria": "Frutas",
+   "alias": [
+    "manzana",
+    "manzanas",
+    "manzana roja",
+    "manzana red",
+    "manzana gala",
+    "manzana fuji"
+   ],
+   "archivo": "manzana.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1834639
+  },
+  {
+   "slug": "manzana-verde",
+   "nombre": "Manzana verde",
+   "categoria": "Frutas",
+   "alias": [
+    "manzana verde",
+    "manzana granny smith",
+    "manzana golden"
+   ],
+   "archivo": "manzana-verde.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3697734
+  },
+  {
+   "slug": "naranja",
+   "nombre": "Naranja",
+   "categoria": "Frutas",
+   "alias": [
+    "naranja",
+    "naranjas",
+    "naranja de mesa",
+    "naranja valencia"
+   ],
+   "archivo": "naranja.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 428072
+  },
+  {
+   "slug": "papa",
+   "nombre": "Papa",
+   "categoria": "Verduras",
+   "alias": [
+    "papa",
+    "papas",
+    "patata",
+    "patatas",
+    "papa blanca",
+    "papa alfa"
+   ],
+   "archivo": "papa.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2795
+  },
+  {
+   "slug": "platano",
+   "nombre": "Plátano",
+   "categoria": "Frutas",
+   "alias": [
+    "platano",
+    "platanos",
+    "banano",
+    "banana",
+    "platano tabasco",
+    "platano chiapas"
+   ],
+   "archivo": "platano.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1949166
+  },
+  {
+   "slug": "tomate",
+   "nombre": "Tomate",
+   "categoria": "Verduras",
+   "alias": [
+    "tomate",
+    "tomates",
+    "jitomate",
+    "jitomates",
+    "tomate saladette",
+    "tomate bola",
+    "tomate rojo"
+   ],
+   "archivo": "tomate.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1238255
+  },
+  {
+   "slug": "zanahoria",
+   "nombre": "Zanahoria",
+   "categoria": "Verduras",
+   "alias": [
+    "zanahoria",
+    "zanahorias"
+   ],
+   "archivo": "zanahoria.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2485051
+  }
+ ]
+}
