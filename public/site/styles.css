@@ -2693,7 +2693,7 @@ html.equipo-abierta { overflow: hidden; }
 .equipo-garantia { margin: 0; color: var(--muted); font-weight: 700; }
 .equipo-precios { padding: 14px; border-radius: 16px; background: var(--paper); }
 .equipo-precios h4 { margin-top: 0; }
-.equipo-precios-fila { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.equipo-precios-fila { display: grid; grid-template-columns: 1fr; gap: 8px; }
 .equipo-precios-fila div { padding: 10px; border-radius: 12px; background: #fff; text-align: center; }
 .equipo-precios-fila .destacado { outline: 2px solid var(--blue); }
 .equipo-precios-fila span { display: block; font-size: 12px; font-weight: 800; color: var(--muted); }

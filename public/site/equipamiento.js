@@ -50,7 +50,7 @@
             '<p class="equipo-marca">' + esc(p.marca) + " · " + esc(p.clave) + "</p>" +
             "<h3>" + esc(p.nombre) + "</h3>" +
             '<ul class="equipo-resumen">' + p.resumen.map(function (r) { return "<li>" + esc(r) + "</li>"; }).join("") + "</ul>" +
-            '<p class="equipo-precio"><span>Público</span><strong>' + dinero(p.precios.publico) + '</strong><small>Referencia · confirma vigencia</small></p>' +
+            '<p class="equipo-precio"><span>Mayoreo</span><strong>' + dinero(p.precios.mayoreo) + '</strong><small>Referencia · confirma vigencia</small></p>' +
             '<div class="equipo-acciones">' +
             '<button type="button" class="btn secondary" data-ficha="' + esc(p.id) + '">Ver ficha</button>' +
             '<button type="button" class="btn primary" data-cotizar="' + esc(p.id) + '">Cotizar</button>' +
@@ -117,10 +117,8 @@
             "<h3>" + esc(p.nombre) + "</h3>" +
             '<p class="equipo-garantia">Garantía: ' + esc(p.garantia) + "</p></div></div>" +
 
-            '<div class="equipo-precios"><h4>Precios de referencia</h4><div class="equipo-precios-fila">' +
-            '<div><span>Mayoreo</span><strong>' + dinero(p.precios.mayoreo) + "</strong></div>" +
-            '<div><span>Medio mayoreo</span><strong>' + dinero(p.precios.medioMayoreo) + "</strong></div>" +
-            '<div class="destacado"><span>Público</span><strong>' + dinero(p.precios.publico) + "</strong></div></div>" +
+            '<div class="equipo-precios"><h4>Precio</h4><div class="equipo-precios-fila">' +
+            '<div class="destacado"><span>Mayoreo</span><strong>' + dinero(p.precios.mayoreo) + "</strong></div></div>" +
             '<p class="equipo-nota">' + esc(estado.datos.avisoPrecios) + "</p></div>" +
 
             "<h4>Características</h4>" +
