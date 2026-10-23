@@ -32,10 +32,13 @@ function exhDinero(valor) {
 
 function exhMiniatura(productoId, nombre) {
     const producto = exhProducto(productoId);
-    if (producto && typeof miniaturaProducto === "function") {
+    // Abarrotes: sin foto sale la inicial del producto, no el maletin de herramientas de ferreteria.
+    const sinFotoAbarrotes = exhEsAbarrotes() && !(producto && producto.imagenUrl);
+
+    if (producto && !sinFotoAbarrotes && typeof miniaturaProducto === "function") {
         return miniaturaProducto(producto);
     }
-    return `<span class="exh-sin-foto" aria-hidden="true">${exhEscapar(String(nombre || "?").charAt(0).toUpperCase())}</span>`;
+    return `<span class="exh-sin-foto" aria-hidden="true">${exhEscapar(String(nombre || producto?.nombre || "?").charAt(0).toUpperCase())}</span>`;
 }
 
 async function exhLlamar(ruta, opciones = {}) {
@@ -470,7 +473,90 @@ function exhModalPOS() {
     }
 
     modal.style.display = "flex";
+    exhInstalarTeclado();
     return modal;
+}
+
+// ---------------------------------------------------------------------
+// Teclado en el exhibidor del Punto de Venta:
+//   izquierda/derecha  te mueves entre tarjetas
+//   arriba/abajo       sube o baja la cantidad que quieres de esa tarjeta
+//   Enter              pone esa cantidad en el carrito (1 si no elegiste otra)
+// ---------------------------------------------------------------------
+
+let exhTecladoInstalado = false;
+let exhTileActivo = 0;
+let exhPendientes = {};
+
+function exhTilesPOS() {
+    return [...document.querySelectorAll("#modalExhibidorPOS .exh-tile")];
+}
+
+function exhMarcarTileActivo(desplazar = true) {
+    const tiles = exhTilesPOS();
+    if (!tiles.length) return;
+
+    exhTileActivo = Math.min(Math.max(exhTileActivo, 0), tiles.length - 1);
+    tiles.forEach((tile, i) => tile.classList.toggle("exh-tile-activa", i === exhTileActivo));
+
+    if (desplazar) tiles[exhTileActivo].scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
+function exhIdTileActivo() {
+    const tile = exhTilesPOS()[exhTileActivo];
+    return tile ? Number(tile.dataset.productoId) : null;
+}
+
+function exhCambiarPendiente(productoId, delta) {
+    const nuevo = Math.max(0, (exhPendientes[productoId] || 0) + delta);
+
+    if (nuevo > 0) exhPendientes[productoId] = nuevo;
+    else delete exhPendientes[productoId];
+
+    renderExhibidorPOS(document.getElementById("exhFiltroPOS")?.value || "");
+}
+
+function exhConfirmarTile(productoId) {
+    const cantidad = exhPendientes[productoId] || 1;
+    delete exhPendientes[productoId];
+
+    for (let i = 0; i < cantidad; i++) agregarDesdeExhibidor(productoId);
+}
+
+function exhInstalarTeclado() {
+    if (exhTecladoInstalado) return;
+    exhTecladoInstalado = true;
+
+    document.addEventListener("keydown", evento => {
+        const modal = document.getElementById("modalExhibidorPOS");
+        if (!modal || modal.style.display === "none" || !exhibidorPOSActual) return;
+
+        const escribiendo = evento.target.matches?.("input, textarea, select");
+
+        // En el buscador las flechas son del cursor; abajo te lleva a las tarjetas.
+        if (escribiendo) {
+            if (evento.target.id === "exhFiltroPOS" && evento.key === "ArrowDown") {
+                evento.preventDefault();
+                evento.target.blur();
+                exhMarcarTileActivo();
+            }
+            return;
+        }
+
+        const id = exhIdTileActivo();
+
+        switch (evento.key) {
+            case "ArrowRight": exhTileActivo++; exhMarcarTileActivo(); break;
+            case "ArrowLeft": exhTileActivo--; exhMarcarTileActivo(); break;
+            case "ArrowUp": if (id) exhCambiarPendiente(id, 1); break;
+            case "ArrowDown": if (id) exhCambiarPendiente(id, -1); break;
+            case "Enter": if (id) exhConfirmarTile(id); break;
+            case "Escape": cerrarExhibidorPOS(); break;
+            default: return;
+        }
+
+        evento.preventDefault();
+    });
 }
 
 function cerrarExhibidorPOS() {
@@ -482,6 +568,8 @@ function cerrarExhibidorPOS() {
 async function abrirExhibidorPOS(id) {
     const modal = exhModalPOS();
     exhibidorPOSAgregados = 0;
+    exhPendientes = {};
+    exhTileActivo = 0;
 
     modal.innerHTML = `<div class="exh-modal-card"><div class="exh-vacio">Cargando...</div></div>`;
 
@@ -545,7 +633,8 @@ function renderExhibidorPOS(filtro = "") {
             const enCarrito = exhCantidadEnCarrito(e.productoId);
 
             return `
-            <button type="button" class="exh-tile${agotado ? " exh-tile-agotado" : ""}" onclick="agregarDesdeExhibidor(${e.productoId})" ${local ? "" : "disabled"}>
+            <button type="button" class="exh-tile${agotado ? " exh-tile-agotado" : ""}" data-producto-id="${e.productoId}" onclick="agregarDesdeExhibidor(${e.productoId})" ${local ? "" : "disabled"}>
+                ${exhPendientes[e.productoId] ? `<span class="exh-tile-pend" title="Enter la pone en el carrito">&times;${exhPendientes[e.productoId]}</span>` : ""}
                 ${enCarrito > 0 ? `<span class="exh-tile-cuenta">${Number(enCarrito.toFixed(3))}</span>` : ""}
                 <span class="exh-tile-foto">${exhMiniatura(e.productoId, e.nombre)}</span>
                 ${e.etiqueta ? `<span class="exh-tile-lugar">${exhEscapar(e.etiqueta)}</span>` : ""}
@@ -566,10 +655,12 @@ function renderExhibidorPOS(filtro = "") {
         </div>
         <div class="exh-modal-busqueda">
             <input id="exhFiltroPOS" type="search" autocomplete="off" placeholder="Buscar en este exhibidor..." value="${exhEscapar(filtro)}" oninput="filtrarExhibidorPOS(this.value)">
-            <span class="exh-modal-ayuda">${exhibidorPOSAgregados ? `${exhibidorPOSAgregados} toque${exhibidorPOSAgregados === 1 ? "" : "s"} agregado${exhibidorPOSAgregados === 1 ? "" : "s"} al carrito` : "Toca una tarjeta para agregarla al carrito"}</span>
+            <span class="exh-modal-ayuda">${exhibidorPOSAgregados ? `${exhibidorPOSAgregados} toque${exhibidorPOSAgregados === 1 ? "" : "s"} agregado${exhibidorPOSAgregados === 1 ? "" : "s"} al carrito` : "Toca una tarjeta para agregarla al carrito"} &middot; <b>&larr; &rarr;</b> moverte &middot; <b>&uarr; &darr;</b> cantidad &middot; <b>Enter</b> al carrito</span>
         </div>
         <div class="exh-tiles">${tarjetas || '<div class="exh-vacio">Nada coincide con esa busqueda.</div>'}</div>
     </div>`;
+
+    exhMarcarTileActivo(false);
 }
 
 function filtrarExhibidorPOS(texto) {

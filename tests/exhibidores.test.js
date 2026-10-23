@@ -338,3 +338,22 @@ test("surtir: el pedido a proveedor se crea en borrador", async () => {
     assert.equal(pedido.status, 200, JSON.stringify(pedido.cuerpo));
     assert.equal(pedido.cuerpo.pedido.estado, "borrador");
 });
+
+test("el exhibidor del punto de venta se maneja con teclado: flechas para moverse, arriba/abajo la cantidad y Enter al carrito", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const js = fs.readFileSync(path.join(__dirname, "..", "public", "js", "exhibidores.js"), "utf8");
+    const css = fs.readFileSync(path.join(__dirname, "..", "public", "css", "components", "exhibidores.css"), "utf8");
+
+    assert.match(js, /case "ArrowRight": exhTileActivo\+\+/);
+    assert.match(js, /case "ArrowLeft": exhTileActivo--/);
+    assert.match(js, /case "ArrowUp": if \(id\) exhCambiarPendiente\(id, 1\)/);
+    assert.match(js, /case "ArrowDown": if \(id\) exhCambiarPendiente\(id, -1\)/);
+    assert.match(js, /case "Enter": if \(id\) exhConfirmarTile\(id\)/);
+    assert.match(js, /exhPendientes\[productoId\] \|\| 1/, "Enter sin cantidad elegida agrega una pieza");
+    assert.match(js, /evento\.target\.id === "exhFiltroPOS"/, "en el buscador las flechas siguen siendo del cursor");
+
+    // El texto de las tarjetas ya no hereda un color oscuro.
+    assert.match(css, /\.exh-card \.exh-card-banda span \{[^}]*color: #fff/);
+    assert.match(css, /\.exh-tile-activa/);
+});

@@ -31,8 +31,8 @@
 .exh-card-boton { cursor: pointer; }
 .exh-inactivo { opacity: .55; }
 .exh-card-banda { display: grid; gap: 2px; padding: 16px 18px; color: #fff; background: radial-gradient(130% 160% at 0% 0%, var(--exh-color), var(--exh-color-2)); }
-.exh-card-banda strong { font-size: 17px; line-height: 1.2; }
-.exh-card-banda span { font-size: 12px; font-weight: 700; opacity: .85; }
+.exh-card .exh-card-banda strong { font-size: 17px; line-height: 1.2; color: #fff; }
+.exh-card .exh-card-banda span { font-size: 12.5px; font-weight: 800; color: #fff; opacity: .95; text-shadow: 0 1px 2px rgba(0, 0, 0, .35); }
 .exh-card-fotos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 14px 16px 6px; min-height: 84px; align-items: center; }
 .exh-card-vacio { grid-column: 1 / -1; color: var(--pos-muted, #687386); font-size: 13px; font-weight: 600; text-align: center; }
 .exh-card-pie { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px 16px; flex-wrap: wrap; }
@@ -175,3 +175,8 @@
 /* Abarrotes: exhibidores sugeridos para empezar */
 .exh-sugeridos-titulo { margin: 14px 0 6px; font-weight: 700; color: #475569; }
 .exh-sugeridos { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 14px; }
+
+/* Teclado en el exhibidor del Punto de Venta: tarjeta activa y cantidad pendiente */
+.exh-tile-activa:not(:disabled) { transform: translateY(-3px); border-color: var(--exh-color, #1d5fd1); box-shadow: 0 0 0 3px color-mix(in srgb, var(--exh-color, #1d5fd1) 30%, transparent), 0 12px 26px rgba(20, 32, 51, .16); }
+.exh-tile-pend { position: absolute; top: -8px; left: -6px; z-index: 2; min-width: 30px; height: 28px; padding: 0 9px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: #0f172a; color: #fff; font-size: 14px; font-weight: 900; box-shadow: 0 4px 10px rgba(0, 0, 0, .35); }
+.exh-modal-ayuda b { display: inline-block; padding: 0 5px; border-radius: 5px; background: rgba(15, 23, 42, .09); font-weight: 800; }
