@@ -2729,3 +2729,13 @@ html.equipo-abierta { overflow: hidden; }
 .equipo-resultado { min-height: 18px; font-size: 14px; font-weight: 700; }
 .equipo-resultado.ok { color: #0b7a5c; }
 .equipo-resultado.error { color: #b91c1c; }
+
+/* Como comprar (condiciones de entrega y pago, desde equipamiento.json) */
+.equipo-compra:empty { display: none; }
+.equipo-compra { margin-top: 22px; padding: 20px; border-radius: 20px; background: #fff; border: 1px solid var(--line); }
+.equipo-compra h3 { margin: 0 0 10px; font-size: 20px; }
+.equipo-compra h4 { margin: 0 0 6px; font-size: 15px; }
+.equipo-pasos { margin: 0 0 14px; padding-left: 20px; color: var(--muted); }
+.equipo-pasos li { margin-bottom: 4px; }
+.equipo-compra-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.equipo-compra-cols ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14.5px; }

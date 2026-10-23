@@ -2,6 +2,24 @@
   "actualizado": "2026-10-30",
   "fotosAutorizadas": true,
   "avisoPrecios": "Precios de referencia del catálogo del fabricante (Truper), sin verificar su vigencia. Confirma el precio actual y la disponibilidad al cotizar.",
+  "compra": {
+    "titulo": "Cómo comprar",
+    "pasos": [
+      "Escríbenos por WhatsApp o déjanos tus datos y te confirmamos precio, disponibilidad y tiempo de entrega.",
+      "Pagas antes de que lo pidamos: transferencia (SPEI) o tarjeta con un enlace de pago que te enviamos.",
+      "Lo recibes en persona o por paquetería."
+    ],
+    "entrega": [
+      "Entrega personal sin costo en Río Grande, Zac.",
+      "Envío gratis en pedidos de 2 o más equipos, o desde $2,500.",
+      "En pedidos menores, el envío se cotiza aparte y te lo decimos antes de pagar."
+    ],
+    "pago": [
+      "Transferencia o depósito: sin comisión.",
+      "Tarjeta: con enlace de pago; puede llevar la comisión del procesador.",
+      "Si necesitas factura, avísanos antes de pagar."
+    ]
+  },
   "fuentes": "Claves, códigos y precios: catálogo del fabricante cargado en Nexo (septiembre 2026). Especificaciones: ficha impresa del catálogo. Medio mayoreo de las impresoras: ficha impresa (el catálogo cargado no lo trae).",
   "categorias": [
     { "id": "impresoras", "nombre": "Impresoras térmicas de recibos" },

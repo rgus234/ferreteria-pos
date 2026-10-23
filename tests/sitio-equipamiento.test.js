@@ -120,3 +120,17 @@ test("la solicitud de un equipo se guarda aparte, valida y no crea invitaciones"
         await detenerServidorPrueba();
     }
 });
+
+test("el bloque 'Como comprar' sale de los datos: entrega personal, envio gratis en pedidos grandes y formas de pago", () => {
+    const html = fs.readFileSync(sitio("index.html"), "utf8");
+    const js = fs.readFileSync(sitio("equipamiento.js"), "utf8");
+
+    assert.match(html, /data-equipo-compra/);
+    assert.match(js, /d.compra/);
+
+    const c = datos.compra;
+    assert.equal(c.pasos.length, 3);
+    assert.ok(c.entrega.some(t => /Entrega personal sin costo en Río Grande/.test(t)));
+    assert.ok(c.entrega.some(t => /Envío gratis en pedidos de 2 o más equipos, o desde \$2,500/.test(t)));
+    assert.ok(c.pago.some(t => /Transferencia/.test(t)) && c.pago.some(t => /Tarjeta/.test(t)));
+});

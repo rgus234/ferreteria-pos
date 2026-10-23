@@ -92,6 +92,17 @@
             '<span id="equipoConteo" class="equipo-conteo"></span></div>';
 
         raiz.querySelector("[data-equipo-aviso]").textContent = d.avisoPrecios;
+
+        var c = d.compra;
+        var cuadro = raiz.querySelector("[data-equipo-compra]");
+
+        if (c && cuadro) {
+            var lista = function (items) { return "<ul>" + items.map(function (i) { return "<li>" + esc(i) + "</li>"; }).join("") + "</ul>"; };
+
+            cuadro.innerHTML = "<h3>" + esc(c.titulo) + "</h3>" +
+                '<ol class="equipo-pasos">' + c.pasos.map(function (p) { return "<li>" + esc(p) + "</li>"; }).join("") + "</ol>" +
+                '<div class="equipo-compra-cols"><div><h4>Entrega</h4>' + lista(c.entrega) + "</div><div><h4>Pago</h4>" + lista(c.pago) + "</div></div>";
+        }
         pintarLista();
     }
 
