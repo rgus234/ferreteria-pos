@@ -124,8 +124,12 @@ test("el CSV abre bien en Excel: UTF-8 con BOM y el codigo como texto con su cer
     assert.match(r.headers.get("content-type"), /text\/csv; charset=utf-8/);
     assert.match(r.headers.get("content-disposition"), /attachment; filename="codigos-capturados-\d{4}-\d{2}-\d{2}\.csv"/);
 
+    // response.text() descarta el BOM al decodificar: se revisan los bytes crudos.
+    const bytes = Buffer.from(await r.clone().arrayBuffer());
+    assert.deepEqual([...bytes.subarray(0, 3)], [0xEF, 0xBB, 0xBF], "empieza con BOM UTF-8 (Excel lo abre con acentos)");
+
     const texto = await r.text();
-    assert.ok(texto.startsWith("﻿codigo,nombre,capturado"), "BOM + encabezado");
+    assert.ok(texto.startsWith("codigo,nombre,capturado"), "encabezado");
     assert.match(texto, /"=""0750100012345""","Coca-Cola Original 600 ml"/);
     assert.match(texto, /"=""0012345678905""","Jabón ""Zote"", 400 g"/, "comillas y comas dentro del nombre se escapan");
 });
