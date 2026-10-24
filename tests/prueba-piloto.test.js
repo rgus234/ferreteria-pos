@@ -331,3 +331,15 @@ test("a Ferreteria Olimpico se le respeta la cuota de $100; los demas pilotos pa
     assert.equal(cuotaDeNegocio(null).cuota, 200);
     assert.ok(LLAVES_PRECIO_PILOTO_RECONOCIDAS.includes(cuotaDeNegocio(1).llave) && LLAVES_PRECIO_PILOTO_RECONOCIDAS.includes(cuotaDeNegocio(2).llave));
 });
+
+test("la cuota de $100 tambien se respeta por correo (Cuitlahuac, de Ferreteria El Profe) y sale en sus correos", () => {
+    const { cuotaDeNegocio } = require("../piloto-condiciones");
+
+    assert.equal(cuotaDeNegocio(null, "CuevasCuitlahuac430@gmail.com").cuota, 100, "sin importar mayusculas");
+    assert.equal(cuotaDeNegocio(999, ["otro@correo.com", "cuevascuitlahuac430@gmail.com"]).llave, "nexo_piloto_mensual");
+    assert.equal(cuotaDeNegocio(999, "otro@correo.com").cuota, 200);
+
+    const fs = require("node:fs");
+    const email = fs.readFileSync(require("node:path").join(__dirname, "..", "email.js"), "utf8");
+    assert.match(email, /condicionesPilotoHtml\(correo\)/);
+});

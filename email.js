@@ -552,7 +552,7 @@ async function enviarCorreoConfirmacionLead(correo, nombre, giro) {
                 <p style="margin:0 0 12px;color:#344054;font-size:15px;line-height:1.6;">Gracias por tu interes en Nexo, el sistema de punto de venta pensado para ${giroTexto.para}: ${giroTexto.incluye}. Nexo esta en etapa de pruebas con negocios reales.</p>
                 ${giroTexto.lineaPerfil ? `<p style="margin:0 0 12px;color:#344054;font-size:15px;line-height:1.6;">${escaparHtmlCorreo(giroTexto.lineaPerfil)}</p>` : ""}
                 <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Si tu negocio puede participar, te mandaremos un enlace personal para configurarlo. Asi funciona la prueba:</p>
-                ${condicionesPilotoHtml()}
+                ${condicionesPilotoHtml(correo)}
                 ${botonHtml("Hablar ahora por WhatsApp", WHATSAPP_LEAD_INFO)}
             `
         })
@@ -1052,8 +1052,9 @@ function enviarCorreoAlertaError({ esNuevo, veces, ruta, negocioId, mensaje, sta
 // participacion. El enlace es personal, sirve para configurar la cuenta una sola
 // vez y vence (ver invitaciones-server.js).
 // Condiciones de la prueba (mismas que la pagina del enlace y la pagina publica).
-function condicionesPilotoHtml() {
-    const { DIAS_PRUEBA_PILOTO, CUOTA_MENSUAL_PILOTO, QUE_CUBRE_CUOTA, ejemploCondiciones } = require("./piloto-condiciones");
+function condicionesPilotoHtml(correo = "") {
+    const { DIAS_PRUEBA_PILOTO, cuotaDeNegocio, QUE_CUBRE_CUOTA, ejemploCondiciones } = require("./piloto-condiciones");
+    const CUOTA_MENSUAL_PILOTO = cuotaDeNegocio(null, correo).cuota;
     const ej = ejemploCondiciones();
     const p = "margin:0 0 8px;color:#344054;font-size:14px;line-height:1.6;";
 
@@ -1092,7 +1093,7 @@ function enviarCorreoInvitacionPiloto({ correo, nombre, negocio, enlace, vigenci
                 <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">Configura tu negocio en un par de minutos (tus datos ya vienen cargados; solo eliges tu contrasena). Despues podras descargar Nexo e iniciar sesion.</p>
                 ${lineaGiro}
                 ${botonHtml("Configurar mi negocio", enlace)}
-                ${condicionesPilotoHtml()}
+                ${condicionesPilotoHtml(correo)}
                 ${avisoHtml(`Este enlace es personal y vence en ${vigenciaDias} dias. Nexo se instala en una computadora con Windows: puedes configurar tu negocio desde el celular y descargar el programa despues desde tu computadora.`)}
             `
         })
@@ -1124,7 +1125,7 @@ function enviarCorreoEnlaceInvitacion({ correo, nombre, enlace }) {
 // Unos dias antes de que termine la prueba: pregunta como le fue y le dice que
 // decide en Nexo -> Cuenta. Sin cobros automaticos.
 function enviarCorreoFinPrueba({ correo, nombre, negocio, fechaFinTexto, diasRestantes, enlace }) {
-    const { CUOTA_MENSUAL_PILOTO } = require("./piloto-condiciones");
+    const CUOTA_MENSUAL_PILOTO = require("./piloto-condiciones").cuotaDeNegocio(null, correo).cuota;
     const nombreSeguro = escaparHtmlCorreo(nombre);
     const dias = Number(diasRestantes);
     const cuando = dias <= 1 ? "manana" : `en ${dias} dias`;
@@ -1151,7 +1152,7 @@ function enviarCorreoFinPrueba({ correo, nombre, negocio, fechaFinTexto, diasRes
 
 // Cuando pone su tarjeta: confirma que NO se cobro nada todavia y cuando sera el primer cobro.
 function enviarCorreoSuscripcionPilotoProgramada({ correo, nombre, fechaCobroTexto, hayPrueba }) {
-    const { CUOTA_MENSUAL_PILOTO } = require("./piloto-condiciones");
+    const CUOTA_MENSUAL_PILOTO = require("./piloto-condiciones").cuotaDeNegocio(null, correo).cuota;
 
     return enviarCorreo({
         correo,

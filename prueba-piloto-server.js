@@ -42,8 +42,19 @@ function negocioIdDe(req) {
 
 // Busca el precio por su lookup_key; si no existe en este modo de Stripe, lo
 // crea (producto + precio mensual de $200 MXN). Idempotente.
-async function asegurarPrecioPiloto(stripe, negocioId = null) {
-    const { cuota, llave } = cuotaDeNegocio(negocioId);
+// Correos con los que se conoce a un negocio (el suyo y el de su invitacion) para respetar una cuota acordada.
+async function cuotaDelNegocio(pool, negocioId) {
+    const filas = await pool.query(
+        `SELECT correo FROM public.negocios WHERE id = $1
+         UNION SELECT correo FROM public.invitaciones_piloto WHERE negocio_id = $1`,
+        [negocioId]
+    );
+
+    return cuotaDeNegocio(negocioId, filas.rows.map(f => f.correo));
+}
+
+async function asegurarPrecioPiloto(stripe, pool = null, negocioId = null) {
+    const { cuota, llave } = pool && negocioId ? await cuotaDelNegocio(pool, negocioId) : cuotaDeNegocio(negocioId);
     if (preciosPiloto[llave]) return preciosPiloto[llave];
 
     const existentes = await stripe.prices.list({ lookup_keys: [llave], active: true, limit: 1 });
@@ -118,7 +129,7 @@ async function leerEstado(pool, negocioId) {
     return {
         esPiloto: true,
         ...calcularEstado(fila),
-        cuota: cuotaDeNegocio(negocioId).cuota,
+        cuota: (await cuotaDelNegocio(pool, negocioId)).cuota,
         decision: fila.decision_piloto || null,
         encuestaRespondida: fila.encuestas > 0
     };
@@ -297,7 +308,7 @@ module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
                 return;
             }
 
-            const precioId = await asegurarPrecioPiloto(stripe, negocioId);
+            const precioId = await asegurarPrecioPiloto(stripe, pool, negocioId);
 
             const filaLicencia = await pool.query(`SELECT stripe_customer_id, fecha_vencimiento FROM public.licencias WHERE negocio_id = $1`, [negocioId]);
             let clienteId = filaLicencia.rows[0]?.stripe_customer_id || null;

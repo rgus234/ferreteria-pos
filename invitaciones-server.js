@@ -5,7 +5,7 @@ const { hashPassword } = require("./password-utils");
 const { enviarCorreoInvitacionPiloto, enviarCorreoEnlaceInvitacion } = require("./email");
 const {
     DIAS_PRUEBA_PILOTO,
-    CUOTA_MENSUAL_PILOTO,
+    cuotaDeNegocio,
     QUE_CUBRE_CUOTA,
     ejemploCondiciones,
     fechaFinPrueba,
@@ -240,8 +240,9 @@ function cabeceraRecorrido(frase) {
 
 // Condiciones de la prueba. Con `inicioReal` (cuenta ya configurada) muestra las
 // fechas de esa persona; sin el, un ejemplo fijo y facil de seguir.
-function bloqueCondiciones(inicioReal) {
+function bloqueCondiciones(inicioReal, correo = "") {
     const ej = ejemploCondiciones();
+    const CUOTA_MENSUAL_PILOTO = cuotaDeNegocio(null, correo).cuota;
     const ejemplo = inicioReal
         ? `Tu prueba sin costo termina el <strong>${escapar(fechaLarga(fechaFinPrueba(inicioReal)))}</strong>. Si decides seguir, tu primer cobro de $${CUOTA_MENSUAL_PILOTO} sería ese día y después el mismo día de cada mes.`
         : `<strong>Ejemplo:</strong> si configuras tu negocio el ${ej.inicio}, pruebas sin costo hasta el ${ej.fin}. Si decides seguir, tu primer cobro de $${CUOTA_MENSUAL_PILOTO} sería el ${ej.fin} y después el día ${ej.diaCobro} de cada mes.`;
@@ -377,7 +378,7 @@ ${cabeceraRecorrido("¡Listo! Ahora descarga Nexo en tu computadora e inicia ses
 <p class="inv-saludo">Invitación a las pruebas</p>
 <h1>Tu negocio ya está configurado ✓</h1>
 <p class="inv-lead">Hola ${escapar(inv.nombre)}: solo falta instalar Nexo e iniciar sesión. No tienes que volver a escribir tus datos.</p>
-${bloqueCondiciones(inv.configurada_at)}
+${bloqueCondiciones(inv.configurada_at, inv.correo)}
 
 <div class="inv-bloque" id="bloqueWindows">
   <h2>1. Descarga Nexo en tu computadora</h2>
