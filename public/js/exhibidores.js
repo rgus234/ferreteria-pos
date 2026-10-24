@@ -714,11 +714,32 @@ function exhCambiarPendiente(productoId, delta) {
     exhActualizarTilePOS(productoId);
 }
 
+// Enter agrega la cantidad elegida (1 si no elegiste otra). Un segundo Enter seguido, sobre la misma tarjeta y sin
+// cantidad nueva, quiere decir "ya termine": cierra el exhibidor y deja a la vista el carrito.
+let exhUltimoEnter = null;
+
 function exhConfirmarTile(productoId) {
+    if (exhUltimoEnter === productoId && !exhPendientes[productoId]) {
+        exhUltimoEnter = null;
+        cerrarExhibidorPOS();
+        return;
+    }
+
     const cantidad = exhPendientes[productoId] || 1;
     delete exhPendientes[productoId];
+    exhUltimoEnter = productoId;
 
     for (let i = 0; i < cantidad; i++) agregarDesdeExhibidor(productoId);
+}
+
+// Tocar con el mouse o el dedo y moverte con el teclado usan la misma tarjeta marcada.
+function exhTocarTile(productoId) {
+    const indice = exhTilesPOS().findIndex(tile => Number(tile.dataset.productoId) === Number(productoId));
+    if (indice >= 0) { exhTileActivo = indice; exhMarcarTileActivo(false); }
+
+    exhUltimoEnter = null;
+    document.activeElement?.blur?.();
+    agregarDesdeExhibidor(productoId);
 }
 
 function exhInstalarTeclado() {
@@ -744,10 +765,11 @@ function exhInstalarTeclado() {
         const id = exhIdTileActivo();
 
         switch (evento.key) {
-            case "ArrowRight": exhTileActivo++; exhMarcarTileActivo(); break;
-            case "ArrowLeft": exhTileActivo--; exhMarcarTileActivo(); break;
+            case "ArrowRight": exhTileActivo++; exhUltimoEnter = null; exhMarcarTileActivo(); break;
+            case "ArrowLeft": exhTileActivo--; exhUltimoEnter = null; exhMarcarTileActivo(); break;
             case "ArrowUp": if (id) exhCambiarPendiente(id, 1); break;
             case "ArrowDown": if (id) exhCambiarPendiente(id, -1); break;
+            case "Backspace": abrirExhibidorPOS(); break;
             case "Enter": if (id) exhConfirmarTile(id); break;
             case "Escape": cerrarExhibidorPOS(); break;
             default: return;
@@ -768,6 +790,8 @@ async function abrirExhibidorPOS(id) {
     exhibidorPOSAgregados = 0;
     exhPendientes = {};
     exhTileActivo = 0;
+    exhUltimoEnter = null;
+    exhTodoAgregado = null;
 
     modal.innerHTML = `<div class="exh-modal-card"><div class="exh-vacio">Cargando...</div></div>`;
 
@@ -816,7 +840,7 @@ function exhCantidadEnCarrito(productoId) {
 
 function exhTextoAyudaPOS() {
     const n = exhibidorPOSAgregados;
-    return `${n ? `${n} toque${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} al carrito` : "Toca una tarjeta para agregarla al carrito"} &middot; <b>&larr; &rarr;</b> moverte &middot; <b>&uarr; &darr;</b> cantidad &middot; <b>Enter</b> al carrito`;
+    return `${n ? `${n} toque${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} al carrito` : "Toca una tarjeta para agregarla al carrito"} &middot; <b>&larr; &rarr;</b> moverte &middot; <b>&uarr; &darr;</b> cantidad &middot; <b>Enter</b> al carrito &middot; <b>Enter</b> otra vez = listo &middot; <b>Retroceso</b> otro exhibidor`;
 }
 
 // Cambia SOLO la tarjeta tocada (contador del carrito y cantidad pendiente) en vez de volver a dibujar toda la
@@ -876,7 +900,7 @@ function renderExhibidorPOS(filtro = "") {
             const enCarrito = exhCantidadEnCarrito(e.productoId);
 
             return `
-            <button type="button" class="exh-tile${agotado ? " exh-tile-agotado" : ""}" data-producto-id="${e.productoId}" onclick="agregarDesdeExhibidor(${e.productoId})" ${local ? "" : "disabled"}>
+            <button type="button" class="exh-tile${agotado ? " exh-tile-agotado" : ""}" data-producto-id="${e.productoId}" tabindex="-1" onclick="exhTocarTile(${e.productoId})" ${local ? "" : "disabled"}>
                 ${exhPendientes[e.productoId] ? `<span class="exh-tile-pend" title="Enter la pone en el carrito">&times;${exhPendientes[e.productoId]}</span>` : ""}
                 ${enCarrito > 0 ? `<span class="exh-tile-cuenta">${Number(enCarrito.toFixed(3))}</span>` : ""}
                 <span class="exh-tile-foto">${exhMiniatura(e.productoId, e.nombre)}</span>
@@ -892,7 +916,9 @@ function renderExhibidorPOS(filtro = "") {
         <div class="exh-modal-cabecera exh-modal-cabecera-color">
             <div><span>Punto de venta &middot; exhibidor</span><h3>${exhEscapar(x.nombre)}</h3></div>
             <div class="exh-modal-acciones">
-                <button type="button" class="exh-btn exh-btn-claro" onclick="exhAgregarTodoPOS()" title="Una pieza de cada producto con existencia">Agregar todo</button>
+                ${exhTodoAgregado
+                    ? `<button type="button" class="exh-btn exh-btn-claro" onclick="exhDeshacerTodoPOS()" title="Quita del carrito lo que agregó Agregar todo">Deshacer agregar todo</button>`
+                    : `<button type="button" class="exh-btn exh-btn-claro" onclick="exhAgregarTodoPOS()" title="Una pieza de cada producto con existencia">Agregar todo</button>`}
                 <button type="button" class="exh-btn exh-btn-claro" onclick="abrirExhibidorPOS()">Cambiar</button>
                 <button type="button" class="exh-btn exh-btn-claro" onclick="cerrarExhibidorPOS()">${exhibidorPOSAgregados ? "Listo" : "Cerrar"}</button>
             </div>
@@ -921,7 +947,7 @@ function exhAgregarTodoPOS() {
     const x = exhibidorPOSActual;
     if (!x) return;
 
-    let agregados = 0;
+    const puestos = [];
 
     for (const e of x.espacios) {
         const local = exhProducto(e.productoId);
@@ -929,12 +955,37 @@ function exhAgregarTodoPOS() {
             agregarProductoPorId(e.productoId);
             exhibidorPOSAgregados++;
             exhActualizarTilePOS(e.productoId);
-            agregados++;
+            puestos.push(e.productoId);
         }
     }
 
+    exhTodoAgregado = puestos.length ? puestos : null;
+    renderExhibidorPOS(document.getElementById("exhFiltroPOS")?.value || "");
+
     const ayuda = document.querySelector("#modalExhibidorPOS .exh-modal-ayuda");
-    if (ayuda && !agregados) ayuda.textContent = "Ningún producto de este exhibidor tiene existencia.";
+    if (ayuda && !puestos.length) ayuda.textContent = "Ningún producto de este exhibidor tiene existencia.";
+}
+
+// Por si se toco "Agregar todo" sin querer: quita del carrito la pieza de cada producto que puso.
+let exhTodoAgregado = null;
+
+function exhDeshacerTodoPOS() {
+    const puestos = exhTodoAgregado;
+    exhTodoAgregado = null;
+    if (!puestos || typeof carrito === "undefined" || !Array.isArray(carrito)) return;
+
+    for (const id of puestos) {
+        const indice = carrito.findIndex(item => Number(item.id) === Number(id));
+        if (indice < 0) continue;
+
+        carrito[indice].cantidad = Number(carrito[indice].cantidad) - 1;
+        if (carrito[indice].cantidad <= 0) carrito.splice(indice, 1);
+
+        exhibidorPOSAgregados = Math.max(0, exhibidorPOSAgregados - 1);
+    }
+
+    if (typeof actualizarCarrito === "function") actualizarCarrito();
+    renderExhibidorPOS(document.getElementById("exhFiltroPOS")?.value || "");
 }
 
 function agregarDesdeExhibidor(productoId) {

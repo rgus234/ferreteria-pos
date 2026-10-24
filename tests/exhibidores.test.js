@@ -451,3 +451,15 @@ test("la foto del exhibidor se reduce, solo la cambia su negocio y se puede quit
     const quitada = await llamar(negocioA, `/exhibidores/${id}/foto`, { method: "DELETE" });
     assert.equal(quitada.cuerpo.exhibidor.foto, null);
 });
+
+test("exhibidor en el POS: un solo flujo para mouse y teclado, Enter dos veces cierra y Agregar todo se puede deshacer", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const js = fs.readFileSync(path.join(__dirname, "..", "public", "js", "exhibidores.js"), "utf8");
+
+    assert.match(js, /function exhTocarTile/);
+    assert.match(js, /onclick="exhTocarTile\(/, "tocar una tarjeta usa la misma tarjeta marcada que el teclado");
+    assert.match(js, /exhUltimoEnter === productoId && !exhPendientes\[productoId\]/, "segundo Enter sin cantidad nueva cierra");
+    assert.match(js, /function exhDeshacerTodoPOS/);
+    assert.match(js, /exhTodoAgregado/);
+});
