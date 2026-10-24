@@ -32,7 +32,7 @@ test("sugiere por alias al inicio del nombre y no en medio (salsa de tomate, jug
     assert.equal(slug("pa"), null);
     assert.equal(slug("papaya"), "papaya", "no confunde papa con papaya");
     assert.equal(slug("papa blanca 1 kg"), "papa");
-    assert.equal(slug("coliflor"), null, "col no atrapa coliflor");
+    assert.equal(slug("coliflor"), "coliflor", "col no atrapa coliflor");
 });
 
 test("el formulario carga el banco de genericas y la pagina lo sirve", () => {
