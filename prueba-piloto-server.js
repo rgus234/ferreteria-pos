@@ -9,7 +9,7 @@
 //  - Si no decide, ya existe el mecanismo de licencias: gracia y luego solo
 //    consulta. Nada se borra y nada se cobra solo.
 //
-// El precio de $100/mes se crea (una sola vez, en el modo de Stripe en que
+// El precio de $200/mes se crea (una sola vez, en el modo de Stripe en que
 // corra el servidor) y se reconoce por su lookup_key, asi no depende de una
 // variable de entorno que alguien tenga que acordarse de copiar.
 
@@ -41,7 +41,7 @@ function negocioIdDe(req) {
 }
 
 // Busca el precio por su lookup_key; si no existe en este modo de Stripe, lo
-// crea (producto + precio mensual de $100 MXN). Idempotente.
+// crea (producto + precio mensual de $200 MXN). Idempotente.
 async function asegurarPrecioPiloto(stripe) {
     if (precioPilotoId) return precioPilotoId;
 

@@ -7,7 +7,7 @@ const {
     enviarCorreoSuscripcionPilotoProgramada,
     enviarCorreoAvisoPiloto
 } = require("./email");
-const { LLAVE_PRECIO_PILOTO, fechaLarga } = require("./piloto-condiciones");
+const { LLAVES_PRECIO_PILOTO_RECONOCIDAS, fechaLarga } = require("./piloto-condiciones");
 
 const NOMBRE_PLAN_LEGIBLE = { basico: "Basico", plus: "Plus", pro: "Pro", prueba: "Piloto" };
 
@@ -514,7 +514,7 @@ async function procesarEventoStripe(pool, stripe, evento) {
             // Cuota de los pilotos: el periodo lo marca Stripe. La factura de $0
             // de la prueba termina el dia en que acaba la prueba; despues, cada
             // mes. Asi pagar con anticipacion nunca acorta ni alarga la prueba.
-            const esPilotoFactura = linea?.price?.lookup_key === LLAVE_PRECIO_PILOTO && linea?.period?.end;
+            const esPilotoFactura = LLAVES_PRECIO_PILOTO_RECONOCIDAS.includes(linea?.price?.lookup_key) && linea?.period?.end;
 
             const licenciaRow = esPilotoFactura
                 ? await pool.query(

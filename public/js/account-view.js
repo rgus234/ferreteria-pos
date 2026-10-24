@@ -946,7 +946,7 @@ async function cargarPruebaPilotoCuenta() {
 }
 
 function renderPruebaPilotoCuenta(p) {
- const cuota = p.cuota || 100;
+ const cuota = p.cuota || 200;
  const dias = p.diasRestantes;
 
  if (p.fase === "suscrito") {

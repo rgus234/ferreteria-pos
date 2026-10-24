@@ -3,11 +3,14 @@
 // negocio digan (y usen) exactamente lo mismo.
 
 const DIAS_PRUEBA_PILOTO = 45;
-const CUOTA_MENSUAL_PILOTO = 100;
+const CUOTA_MENSUAL_PILOTO = 200;
 const DIAS_AVISO_FIN_PRUEBA = 7;
 
-// Identifica el precio de la cuota en Stripe (se crea solo si no existe).
-const LLAVE_PRECIO_PILOTO = "nexo_piloto_mensual";
+// Identifica el precio de la cuota en Stripe (se crea solo si no existe). Un precio de Stripe no se puede
+// editar, asi que al subir la cuota se estrena una llave nueva; la anterior ($100) se sigue reconociendo
+// para que las suscripciones que ya existen conserven su periodo y su precio.
+const LLAVE_PRECIO_PILOTO = "nexo_piloto_mensual_200";
+const LLAVES_PRECIO_PILOTO_RECONOCIDAS = [LLAVE_PRECIO_PILOTO, "nexo_piloto_mensual"];
 
 // Lo que cubre la cuota, tal cual se le explica a la persona.
 const QUE_CUBRE_CUOTA =
@@ -45,6 +48,7 @@ module.exports = {
     CUOTA_MENSUAL_PILOTO,
     DIAS_AVISO_FIN_PRUEBA,
     LLAVE_PRECIO_PILOTO,
+    LLAVES_PRECIO_PILOTO_RECONOCIDAS,
     QUE_CUBRE_CUOTA,
     sumarDias,
     fechaLarga,

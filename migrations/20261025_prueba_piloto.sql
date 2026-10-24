@@ -1,5 +1,5 @@
 -- Prueba de 45 dias para negocios piloto: seguimiento de la prueba, encuesta de
--- opinion y decision de seguir (cuota de $100 al mes) o no.
+-- opinion y decision de seguir (cuota mensual; hoy $200) o no.
 --
 -- Aditiva: columnas nuevas con DEFAULT/NULL y una tabla nueva. No cambia ninguna
 -- fila existente salvo marcar como piloto las licencias que ya nacieron de una

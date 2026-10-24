@@ -114,7 +114,7 @@ test("solo un negocio piloto ve su prueba", async () => {
     assert.equal(datos.fase, "prueba");
     // El reloj de la base de datos puede ir unos segundos adelantado del de esta computadora.
     assert.ok([38, 39].includes(datos.diasRestantes), `dias restantes ${datos.diasRestantes}`);
-    assert.equal(datos.cuota, 100);
+    assert.equal(datos.cuota, 200);
     assert.equal(datos.encuestaRespondida, false);
     assert.match(datos.fechaFinTexto, /\d+ de \w+/);
 
@@ -170,7 +170,7 @@ test("decision: exige sesion de cuenta, rechaza valores raros y 'no por ahora' n
     assert.equal(fila.stripe_subscription_id, null, "no se creo ninguna suscripcion");
 });
 
-test("seguir abre un Checkout de Stripe con la cuota de $100 al mes", { skip: !process.env.STRIPE_SECRET_KEY }, async () => {
+test("seguir abre un Checkout de Stripe con la cuota de $200 al mes", { skip: !process.env.STRIPE_SECRET_KEY }, async () => {
     await ponerLicencia(negocio.negocioId, { dias: 30 });
 
     const respuesta = await fetch(`${BASE_URL}/prueba-piloto/decision`, {
@@ -189,11 +189,11 @@ test("seguir abre un Checkout de Stripe con la cuota de $100 al mes", { skip: !p
     assert.ok(fila.stripe_customer_id, "quedo ligado a un cliente de Stripe");
     clientesStripe.push(fila.stripe_customer_id);
 
-    // El precio de la cuota existe, es de $100 MXN mensuales y es unico.
+    // El precio de la cuota existe, es de $200 MXN mensuales y es unico.
     const stripe = obtenerStripe();
     const precios = await stripe.prices.list({ lookup_keys: [LLAVE_PRECIO_PILOTO], active: true });
     assert.equal(precios.data.length, 1);
-    assert.equal(precios.data[0].unit_amount, 10000);
+    assert.equal(precios.data[0].unit_amount, 20000);
     assert.equal(precios.data[0].currency, "mxn");
     assert.equal(precios.data[0].recurring.interval, "month");
 });
@@ -223,7 +223,7 @@ test("la factura de $0 de la prueba no cuenta como pago; cada cobro mensual deja
 
     // Primer cobro real el dia que termina la prueba: el siguiente periodo.
     const finMes = finPrueba + 30 * 86400;
-    await procesarEventoStripe(pool, null, factura(10000, finMes));
+    await procesarEventoStripe(pool, null, factura(20000, finMes));
     fila = await licencia(otro.negocioId);
     assert.ok(fila.ultimo_pago_at, "el cobro real si queda registrado");
     assert.ok(Math.abs(new Date(fila.fecha_vencimiento) / 1000 - finMes) < 2);
