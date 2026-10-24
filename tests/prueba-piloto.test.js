@@ -322,3 +322,12 @@ test("admin: lista los pilotos con su seguimiento y puede extender la prueba", a
     await ponerLicencia(negocio.negocioId, { dias: 10, piloto: false });
     assert.equal((await extender(15)).status, 404, "solo pilotos");
 });
+
+test("a Ferreteria Olimpico se le respeta la cuota de $100; los demas pilotos pagan $200", () => {
+    const { cuotaDeNegocio, LLAVES_PRECIO_PILOTO_RECONOCIDAS } = require("../piloto-condiciones");
+
+    assert.deepEqual(cuotaDeNegocio(1), { cuota: 100, llave: "nexo_piloto_mensual" });
+    assert.equal(cuotaDeNegocio(2).cuota, 200);
+    assert.equal(cuotaDeNegocio(null).cuota, 200);
+    assert.ok(LLAVES_PRECIO_PILOTO_RECONOCIDAS.includes(cuotaDeNegocio(1).llave) && LLAVES_PRECIO_PILOTO_RECONOCIDAS.includes(cuotaDeNegocio(2).llave));
+});

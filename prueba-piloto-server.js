@@ -17,7 +17,7 @@ const { responderError } = require("./error-utils");
 const { obtenerStripe } = require("./stripe-server");
 const {
     DIAS_PRUEBA_PILOTO,
-    CUOTA_MENSUAL_PILOTO,
+    cuotaDeNegocio,
     DIAS_AVISO_FIN_PRUEBA,
     LLAVE_PRECIO_PILOTO,
     fechaLarga
@@ -30,7 +30,7 @@ const MS_DIA = 24 * 60 * 60 * 1000;
 // Stripe exige que trial_end quede al menos 48 horas en el futuro.
 const MARGEN_TRIAL_STRIPE_MS = 49 * 60 * 60 * 1000;
 
-let precioPilotoId = null;
+const preciosPiloto = {};
 
 function limpiar(valor, max) {
     return String(valor ?? "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -42,14 +42,15 @@ function negocioIdDe(req) {
 
 // Busca el precio por su lookup_key; si no existe en este modo de Stripe, lo
 // crea (producto + precio mensual de $200 MXN). Idempotente.
-async function asegurarPrecioPiloto(stripe) {
-    if (precioPilotoId) return precioPilotoId;
+async function asegurarPrecioPiloto(stripe, negocioId = null) {
+    const { cuota, llave } = cuotaDeNegocio(negocioId);
+    if (preciosPiloto[llave]) return preciosPiloto[llave];
 
-    const existentes = await stripe.prices.list({ lookup_keys: [LLAVE_PRECIO_PILOTO], active: true, limit: 1 });
+    const existentes = await stripe.prices.list({ lookup_keys: [llave], active: true, limit: 1 });
 
     if (existentes.data[0]) {
-        precioPilotoId = existentes.data[0].id;
-        return precioPilotoId;
+        preciosPiloto[llave] = existentes.data[0].id;
+        return preciosPiloto[llave];
     }
 
     const producto = await stripe.products.create({
@@ -61,14 +62,14 @@ async function asegurarPrecioPiloto(stripe) {
     const precio = await stripe.prices.create({
         product: producto.id,
         currency: "mxn",
-        unit_amount: CUOTA_MENSUAL_PILOTO * 100,
+        unit_amount: cuota * 100,
         recurring: { interval: "month" },
-        lookup_key: LLAVE_PRECIO_PILOTO,
+        lookup_key: llave,
         nickname: "Piloto mensual"
     });
 
-    precioPilotoId = precio.id;
-    return precioPilotoId;
+    preciosPiloto[llave] = precio.id;
+    return preciosPiloto[llave];
 }
 
 function calcularEstado(fila, ahora = Date.now()) {
@@ -117,7 +118,7 @@ async function leerEstado(pool, negocioId) {
     return {
         esPiloto: true,
         ...calcularEstado(fila),
-        cuota: CUOTA_MENSUAL_PILOTO,
+        cuota: cuotaDeNegocio(negocioId).cuota,
         decision: fila.decision_piloto || null,
         encuestaRespondida: fila.encuestas > 0
     };
@@ -296,7 +297,7 @@ module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
                 return;
             }
 
-            const precioId = await asegurarPrecioPiloto(stripe);
+            const precioId = await asegurarPrecioPiloto(stripe, negocioId);
 
             const filaLicencia = await pool.query(`SELECT stripe_customer_id, fecha_vencimiento FROM public.licencias WHERE negocio_id = $1`, [negocioId]);
             let clienteId = filaLicencia.rows[0]?.stripe_customer_id || null;

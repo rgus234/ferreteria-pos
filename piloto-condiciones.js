@@ -10,7 +10,19 @@ const DIAS_AVISO_FIN_PRUEBA = 7;
 // editar, asi que al subir la cuota se estrena una llave nueva; la anterior ($100) se sigue reconociendo
 // para que las suscripciones que ya existen conserven su periodo y su precio.
 const LLAVE_PRECIO_PILOTO = "nexo_piloto_mensual_200";
-const LLAVES_PRECIO_PILOTO_RECONOCIDAS = [LLAVE_PRECIO_PILOTO, "nexo_piloto_mensual"];
+const LLAVE_PRECIO_PILOTO_100 = "nexo_piloto_mensual";
+const LLAVES_PRECIO_PILOTO_RECONOCIDAS = [LLAVE_PRECIO_PILOTO, LLAVE_PRECIO_PILOTO_100];
+
+// Negocios a los que se les respeta la cuota que se acordo desde el principio (negocio_id -> cuota).
+// 1 = Ferreteria Olimpico: $100 al mes, no sube con la cuota nueva.
+const CUOTAS_ACORDADAS = { 1: 100 };
+
+// Cuota mensual y llave del precio de Stripe que le toca a un negocio.
+function cuotaDeNegocio(negocioId) {
+    const acordada = CUOTAS_ACORDADAS[Number(negocioId)];
+    if (acordada === 100) return { cuota: 100, llave: LLAVE_PRECIO_PILOTO_100 };
+    return { cuota: CUOTA_MENSUAL_PILOTO, llave: LLAVE_PRECIO_PILOTO };
+}
 
 // Lo que cubre la cuota, tal cual se le explica a la persona.
 const QUE_CUBRE_CUOTA =
@@ -49,6 +61,7 @@ module.exports = {
     DIAS_AVISO_FIN_PRUEBA,
     LLAVE_PRECIO_PILOTO,
     LLAVES_PRECIO_PILOTO_RECONOCIDAS,
+    cuotaDeNegocio,
     QUE_CUBRE_CUOTA,
     sumarDias,
     fechaLarga,
