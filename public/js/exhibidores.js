@@ -705,7 +705,28 @@ function exhIdTileActivo() {
     return tile ? Number(tile.dataset.productoId) : null;
 }
 
+// Quita una pieza de ese producto del carrito (para corregir "mejor dos y no cuatro" sin salir del exhibidor).
+function exhQuitarUnoDelCarrito(productoId) {
+    if (typeof carrito === "undefined" || !Array.isArray(carrito)) return;
+
+    const indice = carrito.findIndex(item => Number(item.id) === Number(productoId));
+    if (indice < 0) return;
+
+    carrito[indice].cantidad = Math.max(0, Number(carrito[indice].cantidad) - 1);
+    if (carrito[indice].cantidad <= 0) carrito.splice(indice, 1);
+
+    if (typeof actualizarCarrito === "function") actualizarCarrito();
+    exhActualizarTilePOS(productoId);
+}
+
 function exhCambiarPendiente(productoId, delta) {
+    // Sin cantidad nueva elegida, "abajo" baja lo que ya esta en el carrito.
+    if (delta < 0 && !exhPendientes[productoId] && exhCantidadEnCarrito(productoId) > 0) {
+        exhUltimoEnter = null;
+        exhQuitarUnoDelCarrito(productoId);
+        return;
+    }
+
     const nuevo = Math.max(0, (exhPendientes[productoId] || 0) + delta);
 
     if (nuevo > 0) exhPendientes[productoId] = nuevo;
@@ -840,7 +861,7 @@ function exhCantidadEnCarrito(productoId) {
 
 function exhTextoAyudaPOS() {
     const n = exhibidorPOSAgregados;
-    return `${n ? `${n} toque${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} al carrito` : "Toca una tarjeta para agregarla al carrito"} &middot; <b>&larr; &rarr;</b> moverte &middot; <b>&uarr; &darr;</b> cantidad &middot; <b>Enter</b> al carrito &middot; <b>Enter</b> otra vez = listo &middot; <b>Retroceso</b> otro exhibidor`;
+    return `${n ? `${n} toque${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} al carrito` : "Toca una tarjeta para agregarla al carrito"} &middot; <b>&larr; &rarr;</b> moverte &middot; <b>&uarr; &darr;</b> cantidad (&darr; también quita del carrito) &middot; <b>Enter</b> al carrito &middot; <b>Enter</b> otra vez = listo &middot; <b>Retroceso</b> otro exhibidor`;
 }
 
 // Cambia SOLO la tarjeta tocada (contador del carrito y cantidad pendiente) en vez de volver a dibujar toda la

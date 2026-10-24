@@ -463,3 +463,12 @@ test("exhibidor en el POS: un solo flujo para mouse y teclado, Enter dos veces c
     assert.match(js, /function exhDeshacerTodoPOS/);
     assert.match(js, /exhTodoAgregado/);
 });
+
+test("exhibidor en el POS: la flecha de abajo, sin cantidad nueva, quita del carrito lo ya agregado", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const js = fs.readFileSync(path.join(__dirname, "..", "public", "js", "exhibidores.js"), "utf8");
+
+    assert.match(js, /function exhQuitarUnoDelCarrito/);
+    assert.match(js, /delta < 0 && !exhPendientes\[productoId\] && exhCantidadEnCarrito\(productoId\) > 0/);
+});
