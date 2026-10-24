@@ -1,6 +1,18 @@
 {
  "conceptos": [
   {
+   "slug": "acelga",
+   "nombre": "Acelga",
+   "categoria": "Verduras",
+   "alias": [
+    "acelga",
+    "acelgas"
+   ],
+   "archivo": "acelga.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 5370
+  },
+  {
    "slug": "aguacate",
    "nombre": "Aguacate",
    "categoria": "Frutas",
@@ -26,6 +38,18 @@
    "archivo": "ajo.jpg",
    "fuente": "Pixabay",
    "pixabayId": 1239422
+  },
+  {
+   "slug": "alcachofa",
+   "nombre": "Alcachofa",
+   "categoria": "Verduras",
+   "alias": [
+    "alcachofa",
+    "alcachofas"
+   ],
+   "archivo": "alcachofa.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 4559730
   },
   {
    "slug": "almendra",
@@ -311,6 +335,19 @@
    "pixabayId": 1922458
   },
   {
+   "slug": "cilantro",
+   "nombre": "Cilantro",
+   "categoria": "Hierbas",
+   "alias": [
+    "cilantro",
+    "cilantros",
+    "manojo de cilantro"
+   ],
+   "archivo": "cilantro.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2475526
+  },
+  {
    "slug": "ciruela",
    "nombre": "Ciruela",
    "categoria": "Frutas",
@@ -492,6 +529,19 @@
    "pixabayId": 6873684
   },
   {
+   "slug": "hierbabuena",
+   "nombre": "Hierbabuena",
+   "categoria": "Hierbas",
+   "alias": [
+    "hierbabuena",
+    "yerbabuena",
+    "menta"
+   ],
+   "archivo": "hierbabuena.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2396530
+  },
+  {
    "slug": "higo",
    "nombre": "Higo",
    "categoria": "Frutas",
@@ -638,6 +688,19 @@
    "pixabayId": 3697734
   },
   {
+   "slug": "maracuya",
+   "nombre": "Maracuyá",
+   "categoria": "Frutas",
+   "alias": [
+    "maracuya",
+    "maracuyas",
+    "fruta de la pasion"
+   ],
+   "archivo": "maracuya.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3519303
+  },
+  {
    "slug": "melon",
    "nombre": "Melón",
    "categoria": "Frutas",
@@ -778,6 +841,18 @@
    "archivo": "pera.jpg",
    "fuente": "Pixabay",
    "pixabayId": 1665357
+  },
+  {
+   "slug": "perejil",
+   "nombre": "Perejil",
+   "categoria": "Hierbas",
+   "alias": [
+    "perejil",
+    "manojo de perejil"
+   ],
+   "archivo": "perejil.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3450411
   },
   {
    "slug": "pimiento-morron",
@@ -940,6 +1015,19 @@
    "pixabayId": 1436422
   },
   {
+   "slug": "tomatillo",
+   "nombre": "Tomatillo",
+   "categoria": "Verduras",
+   "alias": [
+    "tomatillo",
+    "tomatillos",
+    "tomate verde"
+   ],
+   "archivo": "tomatillo.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3559180
+  },
+  {
    "slug": "toronja",
    "nombre": "Toronja",
    "categoria": "Frutas",
@@ -951,6 +1039,18 @@
    "archivo": "toronja.jpg",
    "fuente": "Pixabay",
    "pixabayId": 5367514
+  },
+  {
+   "slug": "tuna",
+   "nombre": "Tuna",
+   "categoria": "Frutas",
+   "alias": [
+    "tuna",
+    "tunas"
+   ],
+   "archivo": "tuna.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3631128
   },
   {
    "slug": "uva",
