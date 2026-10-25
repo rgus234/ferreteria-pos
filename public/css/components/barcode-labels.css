@@ -529,3 +529,6 @@ body.oscuro .etiqueta-preview-hoja{ background:#fff; }
  .etiqueta-wizard-dots{ flex-wrap:wrap; }
  .etiqueta-dot-label{ display:none; }
 }
+
+.etiqueta-btn-pdf { margin-top: 10px; padding: 12px 18px; border: 2px solid #1d5fd1; border-radius: 12px; background: transparent !important; color: #1d5fd1 !important; font-weight: 800; font-size: 15px; cursor: pointer; }
+.etiqueta-btn-pdf[disabled] { opacity: .6; cursor: progress; }

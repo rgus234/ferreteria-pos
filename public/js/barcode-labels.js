@@ -1352,6 +1352,8 @@ function renderEtapaImprimirEtiquetas() {
  </div>
  ${sinCodigo > 0 ? `<p class="etiqueta-resumen-aviso">${sinCodigo} producto(s) sin código se van a imprimir sin barras.</p>` : ""}
  <button type="button" class="etiqueta-btn-imprimir-final" onclick="imprimirEtiquetas()">${iconoUISVG("printer")} Imprimir etiquetas</button>
+ <button type="button" class="etiqueta-btn-pdf" onclick="descargarPdfEtiquetas(this)" title="Para mandarla por WhatsApp o correo, o imprimirla en otro lado">Descargar PDF</button>
+ <p class="etiqueta-filas-indicador">¿No tienes impresora cerca? Descarga el PDF y mándalo por WhatsApp o correo.</p>
  </div>
  `;
 }
@@ -1406,6 +1408,70 @@ function construirHtmlGridEtiquetas(productos, diseno) {
  productos.map(producto => producto.__titulo ? construirTituloSeccionEtiqueta(producto) : construirUnaEtiquetaHtml(producto, diseno)).join("");
 
  return `<div class="hoja-etiquetas" style="display:grid;grid-template-columns:repeat(${diseno.columnas},1fr);gap:${diseno.espaciadoMm}mm;padding:${diseno.margenMm}mm;">${etiquetas}</div>`;
+}
+
+// Barras Code128 en ceros y unos (las mismas que dibuja la vista previa) para que el servidor las trace en el PDF.
+function barrasBinariasEtiqueta(codigo, cache) {
+ if (!codigo || typeof JsBarcode !== "function") return "";
+ if (cache.has(codigo)) return cache.get(codigo);
+
+ let binario = "";
+
+ try {
+ const salida = {};
+ JsBarcode(salida, String(codigo), { format: "CODE128" });
+ binario = (salida.encodings || []).map(e => e.data).join("");
+ } catch (error) { /* codigo que no se puede codificar: la etiqueta sale sin barras */ }
+
+ cache.set(codigo, binario);
+ return binario;
+}
+
+async function descargarPdfEtiquetas(boton) {
+ const paginas = construirPaginasVistaPreviaEtiquetas();
+
+ if (!paginas.length) {
+ alertaPOS("Agrega al menos un producto a tu lista.", "Sin productos", "alerta");
+ return;
+ }
+
+ const cache = new Map();
+ const textoOriginal = boton ? boton.textContent : "";
+
+ if (boton) { boton.disabled = true; boton.textContent = "Preparando PDF..."; }
+
+ try {
+ const respuesta = await fetch("/etiquetas/pdf", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({
+ nombre: "etiquetas",
+ diseno: disenoActualEtiquetas,
+ papel: tamanoPapelActual,
+ paginas: paginas.map(pagina => pagina.map(celda => celda.__titulo
+ ? { __titulo: true, texto: celda.texto, color: celda.color }
+ : { nombre: celda.nombre, marca: celda.marca, categoria: celda.categoria, precio: celda.precio, codigo: celda.codigo, __color: celda.__color, barras: barrasBinariasEtiqueta(celda.codigo, cache) }))
+ })
+ });
+
+ if (!respuesta.ok) {
+ const datos = await respuesta.json().catch(() => ({}));
+ throw new Error(datos.error || "No se pudo armar el PDF.");
+ }
+
+ const archivo = await respuesta.blob();
+ const enlace = document.createElement("a");
+ enlace.href = URL.createObjectURL(archivo);
+ enlace.download = "etiquetas-nexo.pdf";
+ document.body.appendChild(enlace);
+ enlace.click();
+ enlace.remove();
+ setTimeout(() => URL.revokeObjectURL(enlace.href), 10000);
+ } catch (error) {
+ alertaPOS(error.message || "No se pudo armar el PDF.", "Error", "alerta");
+ } finally {
+ if (boton) { boton.disabled = false; boton.textContent = textoOriginal; }
+ }
 }
 
 function imprimirEtiquetas() {
