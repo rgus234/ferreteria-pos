@@ -500,3 +500,13 @@ test("importar de Truper: la ficha se convierte en lista de productos con piezas
     assert.match(js, /crear-producto/);
     assert.match(modulos, /exhibidores-truper-server/);
 });
+
+test("importar de Truper: se puede agregar a un exhibidor que ya existe, sin duplicar lo que ya tiene", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const js = fs.readFileSync(path.join(__dirname, "..", "public", "js", "exhibidores.js"), "utf8");
+
+    assert.match(js, /exhTruperDestino/);
+    assert.match(js, /\/exhibidores\/\$\{destino\}\/espacios/);
+    assert.match(js, /status === 409/, "un producto que ya estaba en el exhibidor no es error");
+});

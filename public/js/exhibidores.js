@@ -1397,8 +1397,15 @@ window.abrirExhibidorPOS = abrirExhibidorPOS;
 
 let exhTruper = null;
 
-function abrirImportarTruper() {
+let exhTruperDestinos = [];
+
+async function abrirImportarTruper() {
     exhTruper = null;
+
+    // Para poder agregar el surtido a un exhibidor que ya armaste (por ejemplo tu "Brocas" a medias).
+    const { ok, datos } = await exhLlamar("/exhibidores");
+    exhTruperDestinos = ok ? (datos.exhibidores || []).filter(x => x.activo) : [];
+
     renderImportarTruper();
 }
 
@@ -1437,7 +1444,13 @@ function renderImportarTruper(mensaje = "") {
         ${mensaje ? `<p class="exh-truper-mensaje">${exhEscapar(mensaje)}</p>` : ""}
         ${t ? `
         <div class="exh-truper-resumen">
-            <label>Nombre del exhibidor<input id="exhTruperNombre" type="text" value="${exhEscapar(t.nombreElegido ?? t.exhibidor.nombre)}" maxlength="140"></label>
+            <label>¿Dónde lo pongo?
+                <select id="exhTruperDestino" onchange="document.getElementById('exhTruperNombreCaja').style.display = this.value === 'nuevo' ? '' : 'none'">
+                    <option value="nuevo">Crear un exhibidor nuevo</option>
+                    ${exhTruperDestinos.map(x => `<option value="${x.id}" ${String(t.destino) === String(x.id) ? "selected" : ""}>Agregar a "${exhEscapar(x.nombre)}" (${x.totalEspacios} productos)</option>`).join("")}
+                </select>
+            </label>
+            <label id="exhTruperNombreCaja" style="${t.destino && t.destino !== "nuevo" ? "display:none" : ""}">Nombre del exhibidor<input id="exhTruperNombre" type="text" value="${exhEscapar(t.nombreElegido ?? t.exhibidor.nombre)}" maxlength="140"></label>
             <p><b>${lista.length}</b> productos · <b>${hay}</b> ya los tienes · <b>${crear}</b> se crean con 0 existencias${faltan ? ` · <b>${faltan}</b> no están en tu catálogo (se omiten)` : ""}</p>
         </div>
         <div class="exh-truper-lista">${filas}</div>
@@ -1472,7 +1485,9 @@ async function truperCrearExhibidor() {
 
     const boton = document.getElementById("exhTruperCrear");
     const nombre = String(document.getElementById("exhTruperNombre")?.value || "").trim() || t.exhibidor.nombre || "Exhibidor Truper";
+    const destino = document.getElementById("exhTruperDestino")?.value || "nuevo";
     t.nombreElegido = nombre;
+    t.destino = destino;
     if (boton) boton.disabled = true;
 
     const pendientes = t.productos.filter(p => p.estado === "se_crea");
@@ -1500,19 +1515,36 @@ async function truperCrearExhibidor() {
     const espacios = t.productos.filter(p => p.productoId).map(p => ({ productoId: p.productoId, etiqueta: exhTruperEtiqueta(p.clave), capacidad: p.piezas }));
 
     if (boton) boton.textContent = "Armando el exhibidor...";
-    const { ok, datos } = await exhLlamar("/exhibidores", { method: "POST", body: JSON.stringify({ nombre, descripcion: `Truper ${t.exhibidor.codigo}${t.exhibidor.clave ? " · " + t.exhibidor.clave : ""}`, espacios }) });
 
-    if (typeof cargarProductos === "function") await cargarProductos();
+    let nombreFinal = nombre;
+    let yaEstaban = 0;
 
-    if (!ok) {
-        renderImportarTruper(datos.error || "No se pudo crear el exhibidor.");
-        return;
+    if (destino === "nuevo") {
+        const { ok, datos } = await exhLlamar("/exhibidores", { method: "POST", body: JSON.stringify({ nombre, descripcion: `Truper ${t.exhibidor.codigo}${t.exhibidor.clave ? " · " + t.exhibidor.clave : ""}`, espacios }) });
+
+        if (typeof cargarProductos === "function") await cargarProductos();
+
+        if (!ok) {
+            renderImportarTruper(datos.error || "No se pudo crear el exhibidor.");
+            return;
+        }
+    } else {
+        // Exhibidor que ya existe: solo se suman los productos que todavia no tiene (los que ya estan, se quedan como estan).
+        nombreFinal = (exhTruperDestinos.find(x => String(x.id) === String(destino)) || {}).nombre || "tu exhibidor";
+
+        for (const espacio of espacios) {
+            const { ok, status } = await exhLlamar(`/exhibidores/${destino}/espacios`, { method: "POST", body: JSON.stringify(espacio) });
+            if (!ok && status === 409) yaEstaban++;
+        }
+
+        if (typeof cargarProductos === "function") await cargarProductos();
     }
 
     cerrarExhModal("modalImportarTruper");
     await mostrarExhibidores();
 
     if (typeof alertaPOS === "function") {
-        alertaPOS(`Listo: "${nombre}" con ${espacios.length} productos. ${creados} nuevos (con 0 existencias), ${fotos} fotos del Banco${fallidos ? `, ${fallidos} no se pudieron crear` : ""}. Ahora usa Recibir para meter las piezas.`, "Exhibidor importado", "exito");
+        const agregados = espacios.length - yaEstaban;
+        alertaPOS(`Listo: "${nombreFinal}" ${destino === "nuevo" ? `con ${espacios.length} productos` : `ahora suma ${agregados} productos${yaEstaban ? ` (${yaEstaban} ya estaban)` : ""}`}. ${creados} productos nuevos (con 0 existencias), ${fotos} fotos del Banco${fallidos ? `, ${fallidos} no se pudieron crear` : ""}. Ahora usa Recibir para meter las piezas.`, "Exhibidor importado", "exito");
     }
 }
