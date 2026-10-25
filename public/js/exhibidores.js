@@ -1421,41 +1421,67 @@ function renderImportarTruper(mensaje = "") {
     const hay = lista.filter(p => p.estado === "en_inventario").length;
     const faltan = lista.filter(p => p.estado === "no_esta").length;
     const usables = crear + hay;
+    const textoEstado = { en_inventario: "Ya lo tienes", se_crea: "Se creará", no_esta: "No está en tu catálogo" };
+    const textoFoto = p => p.tieneFoto ? "Con foto" : p.fotoEnBanco ? "Foto del Banco" : "Sin foto";
 
     const filas = lista.map(p => `
         <div class="exh-truper-fila exh-truper-${p.estado}">
-            <b>${p.piezas}</b>
+            <b class="exh-truper-piezas">${p.piezas}</b>
             <span class="exh-truper-nombre">${exhEscapar(p.nombre)}<small>${exhEscapar(p.codigo)} · ${exhEscapar(p.clave)}</small></span>
-            <span class="exh-truper-estado">${p.estado === "en_inventario" ? "Ya lo tienes" : p.estado === "se_crea" ? "Se creará" : "No está en tu catálogo"}</span>
-            <span class="exh-truper-foto">${p.tieneFoto ? "con foto" : p.fotoEnBanco ? "foto del Banco" : "sin foto"}</span>
+            <span class="exh-truper-chip exh-truper-chip-${p.estado}">${textoEstado[p.estado]}</span>
+            <span class="exh-truper-foto ${p.tieneFoto || p.fotoEnBanco ? "" : "exh-truper-foto-falta"}">${textoFoto(p)}</span>
         </div>`).join("");
 
     modal.innerHTML = `
-    <div class="exh-modal-card">
+    <div class="exh-modal-card exh-truper-card">
         <div class="exh-modal-cabecera">
             <div><span>Exhibidores</span><h3>Importar de Truper</h3></div>
             <button type="button" class="exh-btn exh-btn-suave" onclick="cerrarExhModal('modalImportarTruper')">Cerrar</button>
         </div>
-        <div class="exh-truper-busqueda">
-            <input id="exhTruperCodigo" type="text" inputmode="numeric" placeholder="Código Truper del exhibidor (ej. 55956)" value="${exhEscapar(t ? t.exhibidor.codigo : "")}" onkeydown="if (event.key === 'Enter') truperLeerFicha()">
-            <button type="button" class="exh-btn exh-btn-primario" id="exhTruperLeer" onclick="truperLeerFicha()">Leer ficha</button>
+        <div class="exh-truper-cuerpo">
+            <section class="exh-truper-paso">
+                <h4><span>1</span> Código del exhibidor</h4>
+                <div class="exh-truper-busqueda">
+                    <input id="exhTruperCodigo" type="text" inputmode="numeric" placeholder="Ej. 55956" value="${exhEscapar(t ? t.exhibidor.codigo : "")}" onkeydown="if (event.key === 'Enter') truperLeerFicha()">
+                    <button type="button" class="exh-btn exh-btn-primario" id="exhTruperLeer" onclick="truperLeerFicha()">Leer ficha</button>
+                </div>
+                <p class="exh-truper-ayuda">Usa el código del exhibidor ya surtido, el que trae sus productos. Con el <b>55956</b> sale el despachador de 29 medidas de brocas.</p>
+                ${mensaje ? `<p class="exh-truper-mensaje">${exhEscapar(mensaje)}</p>` : ""}
+            </section>
+            ${t ? `
+            <section class="exh-truper-paso">
+                <h4><span>2</span> Qué trae</h4>
+                <p class="exh-truper-titulo-ficha">${exhEscapar(t.exhibidor.nombre)}</p>
+                <div class="exh-truper-stats">
+                    <div><strong>${lista.length}</strong><span>productos</span></div>
+                    <div class="ok"><strong>${hay}</strong><span>ya los tienes</span></div>
+                    <div class="nuevo"><strong>${crear}</strong><span>se crean con 0 existencias</span></div>
+                    ${faltan ? `<div class="aviso"><strong>${faltan}</strong><span>no están en tu catálogo (se omiten)</span></div>` : ""}
+                </div>
+                <div class="exh-truper-lista">
+                    <div class="exh-truper-fila exh-truper-encabezado"><span>Piezas</span><span>Producto</span><span>Estado</span><span>Foto</span></div>
+                    ${filas}
+                </div>
+            </section>
+            <section class="exh-truper-paso">
+                <h4><span>3</span> ¿Dónde lo pongo?</h4>
+                <div class="exh-truper-destino">
+                    <label>Destino
+                        <select id="exhTruperDestino" onchange="document.getElementById('exhTruperNombreCaja').style.display = this.value === 'nuevo' ? '' : 'none'">
+                            <option value="nuevo">Crear un exhibidor nuevo</option>
+                            ${exhTruperDestinos.map(x => `<option value="${x.id}" ${String(t.destino) === String(x.id) ? "selected" : ""}>Agregar a "${exhEscapar(x.nombre)}" (${x.totalEspacios} productos)</option>`).join("")}
+                        </select>
+                    </label>
+                    <label id="exhTruperNombreCaja" style="${t.destino && t.destino !== "nuevo" ? "display:none" : ""}">Nombre del exhibidor
+                        <input id="exhTruperNombre" type="text" value="${exhEscapar(t.nombreElegido ?? t.exhibidor.nombre)}" maxlength="140">
+                    </label>
+                </div>
+            </section>` : ""}
         </div>
-        <p class="exh-truper-ayuda">Escribe el código del exhibidor ya surtido (el que trae sus productos). Con el 55956 sale el despachador de 29 medidas de brocas.</p>
-        ${mensaje ? `<p class="exh-truper-mensaje">${exhEscapar(mensaje)}</p>` : ""}
         ${t ? `
-        <div class="exh-truper-resumen">
-            <label>¿Dónde lo pongo?
-                <select id="exhTruperDestino" onchange="document.getElementById('exhTruperNombreCaja').style.display = this.value === 'nuevo' ? '' : 'none'">
-                    <option value="nuevo">Crear un exhibidor nuevo</option>
-                    ${exhTruperDestinos.map(x => `<option value="${x.id}" ${String(t.destino) === String(x.id) ? "selected" : ""}>Agregar a "${exhEscapar(x.nombre)}" (${x.totalEspacios} productos)</option>`).join("")}
-                </select>
-            </label>
-            <label id="exhTruperNombreCaja" style="${t.destino && t.destino !== "nuevo" ? "display:none" : ""}">Nombre del exhibidor<input id="exhTruperNombre" type="text" value="${exhEscapar(t.nombreElegido ?? t.exhibidor.nombre)}" maxlength="140"></label>
-            <p><b>${lista.length}</b> productos · <b>${hay}</b> ya los tienes · <b>${crear}</b> se crean con 0 existencias${faltan ? ` · <b>${faltan}</b> no están en tu catálogo (se omiten)` : ""}</p>
-        </div>
-        <div class="exh-truper-lista">${filas}</div>
-        <div class="exh-modal-acciones exh-truper-pie">
-            <button type="button" class="exh-btn exh-btn-primario" id="exhTruperCrear" ${usables ? "" : "disabled"} onclick="truperCrearExhibidor()">Crear exhibidor con ${usables} productos</button>
+        <div class="exh-truper-pie">
+            <span>${usables} productos entran al exhibidor</span>
+            <button type="button" class="exh-btn exh-btn-primario" id="exhTruperCrear" ${usables ? "" : "disabled"} onclick="truperCrearExhibidor()">Crear exhibidor</button>
         </div>` : ""}
     </div>`;
 }
