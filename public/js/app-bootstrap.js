@@ -211,6 +211,11 @@ function buscarProductos() {
  producto => productoCoincideConTexto(producto, texto)
  );
 
+ // Primero los que empiezan con lo escrito, luego los que lo traen seguido y al final los demas (orden estable).
+ if (texto && typeof puntajeBusquedaProducto === "function") {
+ filtrados.sort((a, b) => puntajeBusquedaProducto(b, texto) - puntajeBusquedaProducto(a, texto));
+ }
+
  if (typeof cancelarBusquedaIaPendiente === "function") cancelarBusquedaIaPendiente();
 
  if (!texto) {

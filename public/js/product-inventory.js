@@ -10,20 +10,11 @@ function normalizarCodigo(codigo) {
 // codigos_relacionados) -- antes las busquedas solo revisaban el codigo
 // principal, asi que un producto sin codigo de barras real (ej. Gafi,
 // que solo trae clave interna) nunca aparecia buscando por esa clave.
+// Busca por palabras sueltas (ver busqueda-productos.js): "codo 45" encuentra "Codo pvc 45 grados 4".
 function productoCoincideConTexto(producto, texto) {
  if (!texto) return true;
 
- if (String(producto.nombre || "").toLowerCase().includes(texto)) return true;
- if (String(producto.codigo || "").toLowerCase().includes(texto)) return true;
- if (String(producto.categoria || "").toLowerCase().includes(texto)) return true;
-
- if (Array.isArray(producto.codigos_relacionados)) {
- return producto.codigos_relacionados.some(item =>
- String(item?.codigo || "").toLowerCase().includes(texto)
- );
- }
-
- return false;
+ return productoCoincidePalabras(producto, texto);
 }
 
 // Busca en el inventario propio (no en el catalogo de referencia del
