@@ -229,16 +229,16 @@ test("la pagina explica la prueba: dias, cuota, para que es el dinero y un ejemp
 
 test("el correo de invitacion y el de confirmacion traen las mismas condiciones y ya no hablan de planes ni PDF", () => {
     const correo = fs.readFileSync(path.join(__dirname, "..", "email.js"), "utf8");
-    const bloque = correo.match(/function condicionesPilotoHtml\(\)[\s\S]*?\n}\r?\n/);
+    const bloque = correo.match(/function condicionesPilotoHtml\([^)]*\)[\s\S]*?\n}\r?\n/);
     assert.ok(bloque, "falta condicionesPilotoHtml");
     assert.match(bloque[0], /DIAS_PRUEBA_PILOTO/);
     assert.ok(bloque[0].includes("$${CUOTA_MENSUAL_PILOTO} al mes"), "cuota mensual");
     assert.match(bloque[0], /Ejemplo:/);
 
     const invitacion = correo.match(/function enviarCorreoInvitacionPiloto\([\s\S]*?\n}\r?\n/)[0];
-    assert.match(invitacion, /condicionesPilotoHtml\(\)/);
+    assert.match(invitacion, /condicionesPilotoHtml\(correo\)/);
 
     const confirmacion = correo.match(/async function enviarCorreoConfirmacionLead\([\s\S]*?\n}\r?\n/)[0];
-    assert.match(confirmacion, /condicionesPilotoHtml\(\)/);
+    assert.match(confirmacion, /condicionesPilotoHtml\(correo\)/);
     assert.doesNotMatch(confirmacion, /cajaPreciosFundadorHtml|generarFichaInformativaPdf|planes y precios/);
 });

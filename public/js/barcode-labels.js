@@ -26,6 +26,15 @@ let modoCatalogoEtiquetas = "vacio"; // "vacio" | "busqueda" | "categoria"
 let busquedaEtiquetaTextoActual = "";
 let etiquetaBusquedaTimeout = null;
 
+// Secciones de la hoja (ver etiquetas-secciones.js): por que separar y si cada seccion va en hoja nueva.
+let agrupacionEtiquetas = (() => {
+ try {
+ const guardada = JSON.parse(localStorage.getItem("nexo_etiquetas_secciones") || "null");
+ if (guardada && typeof guardada.por === "string") return { por: guardada.por, hojaNueva: Boolean(guardada.hojaNueva) };
+ } catch (error) { /* sin almacenamiento: se usa el valor por defecto */ }
+ return { por: "ninguno", hojaNueva: false };
+})();
+
 let vistaPreviaEtiquetasPaginas = [];
 let paginaVistaPreviaActual = 0;
 let zoomVistaPreviaEtiquetas = 1;
@@ -1120,6 +1129,18 @@ function renderPanelFormatoEtiqueta() {
  <label>Espaciado (mm)<input type="number" min="0" step="1" value="${d.espaciadoMm}" onchange="actualizarDisenoEtiqueta('espaciadoMm', this.value, true)"></label>
  </div>
 
+ <h4>Secciones</h4>
+ <div class="encargo-form-fila">
+ <label>Separar la hoja en secciones por
+ <select onchange="actualizarAgrupacionEtiquetas('por', this.value)">
+ ${AGRUPAR_ETIQUETAS_OPCIONES.map(([valor, texto]) => `<option value="${valor}" ${agrupacionEtiquetas.por === valor ? "selected" : ""}>${escaparPOS(texto)}</option>`).join("")}
+ </select>
+ </label>
+ </div>
+ ${agrupacionEtiquetas.por !== "ninguno" ? `
+ <label class="etiqueta-seccion-opcion"><input type="checkbox" ${agrupacionEtiquetas.hojaNueva ? "checked" : ""} onchange="actualizarAgrupacionEtiquetas('hojaNueva', this.checked)"> Cada sección empieza en hoja nueva</label>
+ <p class="etiqueta-filas-indicador">Cada sección lleva un título grande y un color. Se separa en el orden de tu lista; ordénala primero (por ejemplo por medida).</p>` : ""}
+
  <h4>Papel</h4>
  <div class="etiqueta-papel-opciones">
  ${TAMANOS_PAPEL_ETIQUETAS.map(opcion => `
@@ -1145,6 +1166,14 @@ function actualizarDisenoEtiqueta(campo, valor, esNumero) {
  disenoActualEtiquetas.nombre = "Personalizada";
 
  renderPlantillasPredisenoEtiquetas();
+ renderPanelFormatoEtiqueta();
+}
+
+function actualizarAgrupacionEtiquetas(campo, valor) {
+ agrupacionEtiquetas = { ...agrupacionEtiquetas, [campo]: campo === "hojaNueva" ? Boolean(valor) : String(valor) };
+
+ try { localStorage.setItem("nexo_etiquetas_secciones", JSON.stringify(agrupacionEtiquetas)); } catch (error) { /* sin almacenamiento */ }
+
  renderPanelFormatoEtiqueta();
 }
 
@@ -1184,6 +1213,11 @@ function construirPaginasVistaPreviaEtiquetas() {
  const instancias = instanciasEtiquetasAImprimir();
  const diseno = disenoActualEtiquetas;
  const papel = tamanoPapelActual;
+
+ if (agrupacionEtiquetas.por !== "ninguno") {
+ return paginarCeldasEtiquetas(insertarSeccionesEtiquetas(instancias, agrupacionEtiquetas.por), diseno, papel, agrupacionEtiquetas.hojaNueva);
+ }
+
  const filas = filasPorPaginaEtiqueta(diseno, papel);
 
  if (filas === Infinity) {
@@ -1353,7 +1387,7 @@ function construirUnaEtiquetaHtml(item, diseno) {
  }
 
  return `
- <div class="etiqueta-producto" style="width:${diseno.anchoMm}mm;height:${diseno.altoMm}mm;border:1px solid #d0d5dd;border-radius:6px;padding:4px;text-align:center;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
+ <div class="etiqueta-producto" style="width:${diseno.anchoMm}mm;height:${diseno.altoMm}mm;border:1px solid ${item.__color || "#d0d5dd"};${item.__color ? `border-top:3px solid ${item.__color};` : ""}border-radius:6px;padding:4px;text-align:center;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
  ${diseno.mostrarNombre ? `<strong style="font-size:11px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;">${escaparPOS(item.nombre)}</strong>` : ""}
  ${diseno.mostrarMarca && item.marca ? `<small style="font-size:9px;color:#475467;">${escaparPOS(item.marca)}</small>` : ""}
  ${diseno.mostrarCategoria && item.categoria ? `<small style="font-size:9px;color:#475467;">${escaparPOS(item.categoria)}</small>` : ""}
@@ -1363,9 +1397,13 @@ function construirUnaEtiquetaHtml(item, diseno) {
  `;
 }
 
+function construirTituloSeccionEtiqueta(celda) {
+ return `<div class="etiqueta-seccion" style="grid-column:1 / -1;height:${SECCION_ALTO_MM}mm;background:${celda.color};color:#fff;font-weight:800;font-size:15px;line-height:${SECCION_ALTO_MM}mm;padding:0 3mm;border-radius:4px;box-sizing:border-box;overflow:hidden;white-space:nowrap;-webkit-print-color-adjust:exact;print-color-adjust:exact;">${escaparPOS(celda.texto)}</div>`;
+}
+
 function construirHtmlGridEtiquetas(productos, diseno) {
  const etiquetas =
- productos.map(producto => construirUnaEtiquetaHtml(producto, diseno)).join("");
+ productos.map(producto => producto.__titulo ? construirTituloSeccionEtiqueta(producto) : construirUnaEtiquetaHtml(producto, diseno)).join("");
 
  return `<div class="hoja-etiquetas" style="display:grid;grid-template-columns:repeat(${diseno.columnas},1fr);gap:${diseno.espaciadoMm}mm;padding:${diseno.margenMm}mm;">${etiquetas}</div>`;
 }
