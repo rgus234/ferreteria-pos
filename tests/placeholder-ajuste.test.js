@@ -29,7 +29,7 @@ test("el formulario de producto usa pistas cortas y deja la aclaracion larga com
 
     // La vida util lleva etiqueta como los demas campos y solo la ve abarrotes.
     assert.match(indice, /<label class="campo-ficha campo-vida-util">\s*<span>Vida util \(dias\)<\/span>/);
-    assert.match(leer("css/components/perfil-negocio.css"), /body:not\(\.perfil-simple\) \.campo-vida-util \{ display: none !important; \}/);
+    assert.match(leer("css/components/perfil-negocio.css"), /body:not\(\.perfil-con-abarrotes\) \.campo-vida-util \{ display: none !important; \}/);
 });
 
 test("las tarjetas de exhibidores no se salen: botones que bajan de fila y fotos con ancho flexible", () => {
