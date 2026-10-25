@@ -64,3 +64,11 @@ test("el POS usa la busqueda por palabras y la carga antes del inventario", () =
     assert.ok(html.indexOf("js/busqueda-productos.js") > 0 && html.indexOf("js/busqueda-productos.js") < html.indexOf("js/product-inventory.js"));
     assert.match(inventario, /return productoCoincidePalabras\(producto, texto\)/);
 });
+
+test("tocar la foto de un resultado del buscador la amplia; ya no abre la proyeccion a otra pantalla", () => {
+    const flyout = fs.readFileSync(path.join(__dirname, "..", "public", "js", "pos-search-flyout.js"), "utf8");
+
+    assert.match(flyout, /miniaturaProducto\(producto, "pos-flyout-thumb-img", \{ ampliable: true \}\)/);
+    assert.doesNotMatch(flyout, /pos-flyout-thumb" onclick="pantallaClientePOSMostrarProducto/);
+    assert.match(fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8"), /js\/pos-image-zoom\.js/);
+});

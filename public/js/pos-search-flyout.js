@@ -45,7 +45,7 @@
 
   return `
   <div class="pos-flyout-row" data-flyout-id="${Number(producto.id)}">
-   <span class="pos-flyout-thumb" onclick="pantallaClientePOSMostrarProducto(${Number(producto.id)}, true); event.stopPropagation();" title="Proyectar a otra pantalla">${typeof miniaturaProducto === "function" ? miniaturaProducto(producto, "pos-flyout-thumb-img") : "🧰"}</span>
+   <span class="pos-flyout-thumb" title="Ver la foto">${typeof miniaturaProducto === "function" ? miniaturaProducto(producto, "pos-flyout-thumb-img", { ampliable: true }) : "🧰"}</span>
    <div class="pos-flyout-info">
     <strong>${escaparPOS(producto.nombre || "Producto")}</strong>
     <small>${escaparPOS(producto.marca || "")}${producto.marca ? " &middot; " : ""}Codigo ${escaparPOS(codigo)} &middot; Stock ${escaparPOS(producto.stock ?? 0)} ${escaparPOS(unidad)}</small>
