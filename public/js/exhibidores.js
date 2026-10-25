@@ -113,7 +113,10 @@ function renderListaExhibidores() {
                     ? "Botanas, dulces, galletas, refrescos... Arma cada exhibidor una vez, surte lo que falta cuando pasa el proveedor y vende con tarjetas: tocas el producto y se agrega al carrito."
                     : "Despachador de brocas, exhibidor de lijas, rack de dulces... Arma el display una vez y vende con tarjetas: tocas el producto y se agrega al carrito."}</p>
             </div>
-            <button type="button" class="exh-btn exh-btn-primario" onclick="nuevoExhibidor()">+ Nuevo exhibidor</button>
+            <div class="exh-header-botones">
+                ${exhEsAbarrotes() ? "" : `<button type="button" class="exh-btn exh-btn-suave" onclick="abrirImportarTruper()" title="Trae el exhibidor surtido de Truper con todos sus productos">Importar de Truper</button>`}
+                <button type="button" class="exh-btn exh-btn-primario" onclick="nuevoExhibidor()">+ Nuevo exhibidor</button>
+            </div>
         </div>
         ${exhEsAbarrotes() ? "" : `
         <div class="exh-plantillas">
@@ -1382,3 +1385,134 @@ async function exhSurtirCrearPedido() {
 
 window.mostrarExhibidores = mostrarExhibidores;
 window.abrirExhibidorPOS = abrirExhibidorPOS;
+
+
+// ---------------------------------------------------------------------
+// Importar un exhibidor surtido de Truper (despachador de brocas, exhibidor de brochas...)
+//
+// Lee la ficha oficial (POST /exhibidores/truper/ficha) y arma el exhibidor con TODOS sus productos y la capacidad en
+// piezas. Lo que falta en el inventario se crea con las rutas de siempre (catalogo-proveedor/.../crear-producto, en 0
+// existencias) y la foto se trae del Banco de Nexo (fotos-sugeridas/aceptar). Nada de lo que ya tienes se modifica.
+// ---------------------------------------------------------------------
+
+let exhTruper = null;
+
+function abrirImportarTruper() {
+    exhTruper = null;
+    renderImportarTruper();
+}
+
+function exhTruperEtiqueta(clave) {
+    return String(clave || "").replace(/^[A-Za-z]+-/, "").slice(0, 40);
+}
+
+function renderImportarTruper(mensaje = "") {
+    const modal = exhModal("modalImportarTruper");
+    const t = exhTruper;
+    const lista = t ? t.productos : [];
+    const crear = lista.filter(p => p.estado === "se_crea").length;
+    const hay = lista.filter(p => p.estado === "en_inventario").length;
+    const faltan = lista.filter(p => p.estado === "no_esta").length;
+    const usables = crear + hay;
+
+    const filas = lista.map(p => `
+        <div class="exh-truper-fila exh-truper-${p.estado}">
+            <b>${p.piezas}</b>
+            <span class="exh-truper-nombre">${exhEscapar(p.nombre)}<small>${exhEscapar(p.codigo)} · ${exhEscapar(p.clave)}</small></span>
+            <span class="exh-truper-estado">${p.estado === "en_inventario" ? "Ya lo tienes" : p.estado === "se_crea" ? "Se creará" : "No está en tu catálogo"}</span>
+            <span class="exh-truper-foto">${p.tieneFoto ? "con foto" : p.fotoEnBanco ? "foto del Banco" : "sin foto"}</span>
+        </div>`).join("");
+
+    modal.innerHTML = `
+    <div class="exh-modal-card">
+        <div class="exh-modal-cabecera">
+            <div><span>Exhibidores</span><h3>Importar de Truper</h3></div>
+            <button type="button" class="exh-btn exh-btn-suave" onclick="cerrarExhModal('modalImportarTruper')">Cerrar</button>
+        </div>
+        <div class="exh-truper-busqueda">
+            <input id="exhTruperCodigo" type="text" inputmode="numeric" placeholder="Código Truper del exhibidor (ej. 55956)" value="${exhEscapar(t ? t.exhibidor.codigo : "")}" onkeydown="if (event.key === 'Enter') truperLeerFicha()">
+            <button type="button" class="exh-btn exh-btn-primario" id="exhTruperLeer" onclick="truperLeerFicha()">Leer ficha</button>
+        </div>
+        <p class="exh-truper-ayuda">Escribe el código del exhibidor ya surtido (el que trae sus productos). Con el 55956 sale el despachador de 29 medidas de brocas.</p>
+        ${mensaje ? `<p class="exh-truper-mensaje">${exhEscapar(mensaje)}</p>` : ""}
+        ${t ? `
+        <div class="exh-truper-resumen">
+            <label>Nombre del exhibidor<input id="exhTruperNombre" type="text" value="${exhEscapar(t.nombreElegido ?? t.exhibidor.nombre)}" maxlength="140"></label>
+            <p><b>${lista.length}</b> productos · <b>${hay}</b> ya los tienes · <b>${crear}</b> se crean con 0 existencias${faltan ? ` · <b>${faltan}</b> no están en tu catálogo (se omiten)` : ""}</p>
+        </div>
+        <div class="exh-truper-lista">${filas}</div>
+        <div class="exh-modal-acciones exh-truper-pie">
+            <button type="button" class="exh-btn exh-btn-primario" id="exhTruperCrear" ${usables ? "" : "disabled"} onclick="truperCrearExhibidor()">Crear exhibidor con ${usables} productos</button>
+        </div>` : ""}
+    </div>`;
+}
+
+async function truperLeerFicha() {
+    const campo = document.getElementById("exhTruperCodigo");
+    const boton = document.getElementById("exhTruperLeer");
+    const codigo = String(campo?.value || "").trim();
+
+    if (boton) { boton.disabled = true; boton.textContent = "Leyendo..."; }
+
+    const { ok, datos } = await exhLlamar("/exhibidores/truper/ficha", { method: "POST", body: JSON.stringify({ codigo }) });
+
+    if (!ok) {
+        exhTruper = null;
+        renderImportarTruper(datos.error || "No se pudo leer la ficha.");
+        return;
+    }
+
+    exhTruper = datos;
+    renderImportarTruper();
+}
+
+async function truperCrearExhibidor() {
+    const t = exhTruper;
+    if (!t) return;
+
+    const boton = document.getElementById("exhTruperCrear");
+    const nombre = String(document.getElementById("exhTruperNombre")?.value || "").trim() || t.exhibidor.nombre || "Exhibidor Truper";
+    t.nombreElegido = nombre;
+    if (boton) boton.disabled = true;
+
+    const pendientes = t.productos.filter(p => p.estado === "se_crea");
+    let creados = 0, fotos = 0, fallidos = 0;
+
+    for (let i = 0; i < pendientes.length; i++) {
+        if (boton) boton.textContent = `Creando productos ${i + 1} de ${pendientes.length}...`;
+
+        const p = pendientes[i];
+        const { ok, datos } = await exhLlamar(`/catalogo-proveedor/${p.catalogoId}/productos/${p.catalogoProductoId}/crear-producto`, { method: "POST" });
+
+        if (ok && datos.productoId) { p.productoId = datos.productoId; creados++; } else { fallidos++; }
+    }
+
+    // La foto se copia del Banco de Nexo a los productos que no tienen (si el plan no la incluye, se omite sin romper nada).
+    const sinFoto = t.productos.filter(p => p.productoId && !p.tieneFoto && p.fotoEnBanco);
+
+    for (let i = 0; i < sinFoto.length; i++) {
+        if (boton) boton.textContent = `Poniendo fotos ${i + 1} de ${sinFoto.length}...`;
+
+        const { ok } = await exhLlamar("/fotos-sugeridas/aceptar", { method: "POST", body: JSON.stringify({ productoId: sinFoto[i].productoId, codigoBanco: sinFoto[i].codigo }) });
+        if (ok) fotos++;
+    }
+
+    const espacios = t.productos.filter(p => p.productoId).map(p => ({ productoId: p.productoId, etiqueta: exhTruperEtiqueta(p.clave), capacidad: p.piezas }));
+
+    if (boton) boton.textContent = "Armando el exhibidor...";
+    const { ok, datos } = await exhLlamar("/exhibidores", { method: "POST", body: JSON.stringify({ nombre, descripcion: `Truper ${t.exhibidor.codigo}${t.exhibidor.clave ? " · " + t.exhibidor.clave : ""}`, espacios }) });
+
+    if (typeof cargarProductos === "function") await cargarProductos();
+
+    if (!ok) {
+        renderImportarTruper(datos.error || "No se pudo crear el exhibidor.");
+        return;
+    }
+
+    cerrarExhModal("modalImportarTruper");
+    await mostrarExhibidores();
+
+    if (typeof alertaPOS === "function") {
+        alertaPOS(`Listo: "${nombre}" con ${espacios.length} productos. ${creados} nuevos (con 0 existencias), ${fotos} fotos del Banco${fallidos ? `, ${fallidos} no se pudieron crear` : ""}. Ahora usa Recibir para meter las piezas.`, "Exhibidor importado", "exito");
+    }
+}

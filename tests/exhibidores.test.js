@@ -472,3 +472,31 @@ test("exhibidor en el POS: la flecha de abajo, sin cantidad nueva, quita del car
     assert.match(js, /function exhQuitarUnoDelCarrito/);
     assert.match(js, /delta < 0 && !exhPendientes\[productoId\] && exhCantidadEnCarrito\(productoId\) > 0/);
 });
+
+test("importar de Truper: la ficha se convierte en lista de productos con piezas y la ruta y el boton estan cableados", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const { parsearFicha } = require("../exhibidores-truper-server");
+
+    const ficha = parsearFicha(
+        "Despachador 29 compartimentos para brocas HSS con producto CÓDIGO: 55956 CLAVE: DESP-BAV-GR-C CARACTERÍSTICAS • Calibrador ESPECIFICACIONES Base 31 cm " +
+        "INCLUYE 10 Piezas: 11110 (BAV-1/16) Broca HSS 1/16\" Trugold para metal, Truper Expert 50 Piezas: 11118 (BAV-1/8) Broca HSS 1/8\" Trugold " +
+        "1 Pieza: 11168 (BAV-9/16) Broca HSS 9/16\" Trugold 1 Pieza: 11457 (BROU-R2-5/8)Broca para router, recta 2 filos, 5/8\", Truper"
+    );
+
+    assert.equal(ficha.codigo, "55956");
+    assert.equal(ficha.clave, "DESP-BAV-GR-C");
+    assert.equal(ficha.nombre, "Despachador 29 compartimentos para brocas HSS con producto");
+    assert.deepEqual(ficha.productos.map(p => [p.piezas, p.codigo, p.clave]), [[10, "11110", "BAV-1/16"], [50, "11118", "BAV-1/8"], [1, "11168", "BAV-9/16"], [1, "11457", "BROU-R2-5/8"]]);
+    assert.equal(ficha.productos[3].nombre, 'Broca para router, recta 2 filos, 5/8", Truper', "tambien sin espacio entre la clave y el nombre");
+    assert.deepEqual(parsearFicha("Exhibidor vacio CÓDIGO: 50020 CLAVE: DESP-BAV-GR CARACTERÍSTICAS x").productos, [], "un exhibidor sin lista no inventa productos");
+
+    const js = fs.readFileSync(path.join(__dirname, "..", "public", "js", "exhibidores.js"), "utf8");
+    const modulos = fs.readFileSync(path.join(__dirname, "..", "server-modules.js"), "utf8");
+
+    assert.match(js, /abrirImportarTruper/);
+    assert.match(js, /\/exhibidores\/truper\/ficha/);
+    assert.match(js, /fotos-sugeridas\/aceptar/);
+    assert.match(js, /crear-producto/);
+    assert.match(modulos, /exhibidores-truper-server/);
+});

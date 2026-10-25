@@ -196,3 +196,23 @@
 .exh-agregar-todos { padding: 5px 12px; border: 0; border-radius: 999px; background: var(--exh-color, #1d5fd1) !important; color: #fff !important; font-size: 12px; font-weight: 800; cursor: pointer; }
 
 .exh-tile:focus, .exh-tile:focus-visible { outline: none; }
+
+.exh-header-botones { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.exh-truper-busqueda { display: flex; gap: 8px; margin: 12px 0 4px; }
+.exh-truper-busqueda input { flex: 1; min-width: 0; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 15px; }
+.exh-truper-ayuda { margin: 4px 0 10px; color: #64748b; font-size: 13px; }
+.exh-truper-mensaje { margin: 6px 0; padding: 9px 12px; border-radius: 10px; background: rgba(220, 38, 38, .1); color: #b91c1c; font-weight: 700; }
+.exh-truper-resumen label { display: grid; gap: 4px; font-weight: 800; font-size: 13px; }
+.exh-truper-resumen input { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 15px; }
+.exh-truper-resumen p { margin: 8px 0; font-size: 14px; }
+.exh-truper-lista { max-height: 42vh; overflow-y: auto; display: grid; gap: 4px; margin: 8px 0; padding-right: 4px; }
+.exh-truper-fila { display: grid; grid-template-columns: 38px 1fr auto auto; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 10px; background: #f1f5f9; font-size: 13.5px; }
+.exh-truper-fila b { text-align: center; color: #0f172a; }
+.exh-truper-nombre small { display: block; color: #64748b; font-size: 11.5px; }
+.exh-truper-estado { font-weight: 800; font-size: 12px; }
+.exh-truper-en_inventario .exh-truper-estado { color: #15803d; }
+.exh-truper-se_crea .exh-truper-estado { color: #1d5fd1; }
+.exh-truper-no_esta { opacity: .65; }
+.exh-truper-no_esta .exh-truper-estado { color: #b45309; }
+.exh-truper-foto { color: #64748b; font-size: 12px; }
+.exh-truper-pie { justify-content: flex-end; }

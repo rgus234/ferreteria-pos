@@ -113,6 +113,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./exhibidores-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("exhibidores -- importar el surtido de Truper desde su ficha", () => {
+        require("./exhibidores-truper-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("Explorar Nexo (busqueda por intencion)", () => {
         require("./explorar-nexo-server")(app, pool, requerirAccesoNegocio);
     });
