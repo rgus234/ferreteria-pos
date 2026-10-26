@@ -46,6 +46,7 @@ const {
 } = require("./market-pedidos-server");
 const { servirTicketPublico, servirQrTicketPublico } = require("./ticket-publico-server");
 const { hashPassword, verificarPassword } = require("./password-utils");
+const turnoExtension = require("./turno-extension");
 const { responderError } = require("./error-utils");
 const { requerirFuncionPlan, funcionDelPlan, negocioIdDeRequest } = require("./plan-enforcement");
 const { resolverOcrearProveedorId } = require("./proveedor-resolver");
@@ -2963,6 +2964,9 @@ const limitadorLoginCuenta = crearLimitadorPorIp(8, 15 * 60 * 1000);
 const limitadorOlvidePassword = crearLimitadorPorIp(5, 60 * 60 * 1000);
 const limitadorVerificarCodigo = crearLimitadorPorIp(8, 15 * 60 * 1000);
 const limitadorPinEmpleado = crearLimitadorPorIp(6, 5 * 60 * 1000);
+
+// "Sigo trabajando": el empleado extiende su turno con su propio PIN (ver turno-extension.js).
+require("./turno-extension")(app, pool, requerirAccesoNegocio, limitadorPinEmpleado);
 
 function validarAdminKey(req, res, next) {
     if (!config.adminKey) {
@@ -8003,6 +8007,10 @@ async function exigirTurnoDentroDeHorario(client, res, negocioId, empleadoId, ad
 
     if (!finVencido) return true;
 
+    // 15 minutos de gracia despues de la hora de salida, y un turno extendido con el PIN del propio empleado sigue valido.
+    if (!turnoExtension.pasoLaGracia(finVencido, ahora.hora)) return true;
+    if (await turnoExtension.extensionVigente(client, negocioId, empleadoId)) return true;
+
     const turno = await turnoActivoVenta(client, negocioId, empleadoId);
     if (!turno) return true;
 
@@ -8011,7 +8019,8 @@ async function exigirTurnoDentroDeHorario(client, res, negocioId, empleadoId, ad
     if (!admin) {
         res.status(400).json({
             ok: false,
-            error: `Tu turno termino a las ${finVencido}. Cierra tu caja para seguir, o pide el PIN de un administrador.`,
+            error: `Tu turno termino a las ${finVencido}. Si sigues trabajando, extiende tu turno con tu PIN; si no, cierra tu caja o pide el PIN de un administrador.`,
+            puedeExtenderTurno: true,
             requiereCerrarTurno: true,
             horarioFin: finVencido
         });
