@@ -1,0 +1,21 @@
+/* Alta efectiva en el celular (ver dueno-alta.js). */
+
+.dai-seccion { display: grid; gap: 10px; margin: 6px 0 12px; padding: 14px; border-radius: 16px; background: #f1f5f9; }
+.dai-seccion h3 { margin: 0; font-size: 16px; }
+.dai-sugerencia { display: grid; gap: 3px; padding: 12px; border-radius: 14px; background: #ecfdf3; border: 2px solid #18b88f; }
+.dai-sugerencia b { font-size: 15px; color: #064e3b; }
+.dai-sugerencia span { font-size: 14px; color: #0f172a; font-weight: 700; }
+.dai-sugerencia small { color: #475569; }
+.dai-botones { display: flex; gap: 8px; margin-top: 8px; }
+.dai-botones button { flex: 1; padding: 11px 8px; border: 0; border-radius: 12px; font-weight: 800; font-size: 14px; }
+.dai-si { background: #18b88f !important; color: #04223f !important; }
+.dai-no { background: #e2e8f0 !important; color: #0f172a !important; }
+.dai-resumen { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: #334155; }
+.dai-resumen span { flex: 1; font-weight: 700; }
+.dai-resumen em { padding: 2px 8px; border-radius: 999px; background: #18b88f; color: #04223f; font-style: normal; font-size: 11px; font-weight: 800; }
+.dai-resumen button { padding: 8px 14px; border: 0; border-radius: 10px; background: #1d5fd1 !important; color: #fff !important; font-weight: 800; font-size: 13px; }
+.dai-campos { gap: 10px; }
+.dai-campos label { display: grid; gap: 4px; font-size: 13px; font-weight: 800; color: #334155; }
+.dai-campos select, .dai-campos input[type="number"] { padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; color: #0f172a; font-size: 16px; }
+.dai-campos .dai-check { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.dai-campos .dai-check input { width: 22px; height: 22px; }

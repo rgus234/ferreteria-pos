@@ -100,3 +100,33 @@ test("Actividad del equipo en el celular: cableada, con respaldo a 'mi actividad
     assert.match(js, /\/actividad\/mia/);
     assert.doesNotMatch(js, /method:\s*"(POST|PUT|PATCH|DELETE)"/, "solo lee");
 });
+
+test("Alta efectiva en el celular: configuracion de compra y venta con sugerencia, y viaja en el alta de siempre", () => {
+    const vm = require("node:vm");
+    const html = leer("dueno.html");
+    const sw = leer("dueno-sw.js");
+    const js = leer("dueno-alta.js");
+    const inventario = leer("dueno-inventario.js");
+
+    assert.match(html, /dueno-alta\.js\?v=/);
+    assert.match(sw, /\/dueno-alta\.js\?v=/);
+    assert.match(sw, /dueno-inventario\.js\?v=celular-plan-b-20261102-02/);
+    assert.match(inventario, /Object\.assign\(cuerpo, configuracionAltaDueno\(\)\)/, "el alta de siempre incluye lo elegido");
+    assert.match(js, /\/sugerencia-alta\?nombre=/);
+    assert.match(js, /daiUsarSugerencia/);
+
+    // La funcion que arma lo que se manda se prueba sin pantalla.
+    const contexto = { window: {}, document: {}, fetchAutenticado: async () => ({}) };
+    vm.runInNewContext(js, contexto);
+    const armar = (...a) => JSON.parse(JSON.stringify(contexto.window.construirConfiguracionAlta(...a))); // JSON: el objeto nace en otro contexto de vm
+
+    assert.deepEqual(armar({ presentacion_compra: "bolsa", factor_conversion: 100, unidad_venta: "kilo", permite_venta_pieza: true, bascula_digital: "si" }),
+        { unidadVenta: "kilo", presentacionCompra: "BOLSA", basculaDigital: "si", permiteVentaPieza: true, factorConversion: 100, piezasPorBolsa: 100 });
+    assert.deepEqual(armar({}), { unidadVenta: "pieza", presentacionCompra: "", basculaDigital: "no", permiteVentaPieza: false }, "sin elegir nada: como siempre");
+    assert.deepEqual(armar({ presentacion_compra: "", factor_conversion: 50, permite_venta_pieza: true }), { unidadVenta: "pieza", presentacionCompra: "", basculaDigital: "no", permiteVentaPieza: true }, "sin presentacion no hay factor");
+
+    const conSugerencia = armar({ presentacion_compra: "COSTAL", factor_conversion: 1000 }, { categoria: "Tornilleria", subcategoria: "Pijas", categoria_nexo_id: 25, proveedor_id: 7 });
+    assert.deepEqual([conSugerencia.categoria, conSugerencia.subcategoria, conSugerencia.categoriaNexoId, conSugerencia.proveedorId], ["Tornilleria", "Pijas", 25, 7]);
+    assert.equal(conSugerencia.permiteVentaPieza, false);
+    assert.equal(conSugerencia.piezasPorBolsa, undefined, "solo se manda piezas por bolsa si tambien se vende suelta");
+});

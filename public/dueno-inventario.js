@@ -495,6 +495,9 @@ async function guardarProductoNuevoDueno() {
 
     if (mayoreoTexto !== "" && mayoreoTexto !== undefined) cuerpo.precioMayoreo = Number(mayoreoTexto);
 
+    // "Como lo compras y lo vendes" (dueno-alta.js): bolsa/caja, piezas por bolsa, kilo/pieza, pieza suelta, bascula.
+    if (typeof configuracionAltaDueno === "function") Object.assign(cuerpo, configuracionAltaDueno());
+
     if (estado.categoriaNexo) {
         cuerpo.categoriaNexoId = estado.categoriaNexo.id;
         cuerpo.subcategoria = estado.categoriaNexo.nombre;
