@@ -46,6 +46,13 @@ function parsearFicha(texto) {
 }
 
 async function leerFichaTruper(codigo) {
+    // Solo para pruebas automaticas: carpeta con fichas locales (CODIGO.pdf) en vez de ir a truper.com.
+    if (process.env.TRUPER_FICHAS_LOCALES) {
+        const ruta = require("path").join(process.env.TRUPER_FICHAS_LOCALES, `${codigo}.pdf`);
+
+        if (require("fs").existsSync(ruta)) return parsearFicha(await textoDeFicha(require("fs").readFileSync(ruta)));
+    }
+
     const respuesta = await fetch(URL_FICHA + encodeURIComponent(codigo), { signal: AbortSignal.timeout(25000), headers: { "User-Agent": "NexoPOS/1.0" } });
 
     if (!respuesta.ok) {
