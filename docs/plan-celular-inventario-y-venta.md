@@ -262,3 +262,37 @@ Meta: que **no haya que volver después a completarlo** y que llegue al acomodo 
 1. ¿PIN de 4 dígitos por persona está bien, o prefieres elegir al usuario y tocar su foto/nombre sin PIN en el celular de la tienda (menos seguro)?
 2. Bloqueo por inactividad: ¿cuántos minutos le parecen razonables en la ferretería?
 3. ¿El dueño quiere ver en un reporte "quién hizo qué" (recepciones, ajustes, precios)? (se arma solo con el registro por usuario)
+
+---
+
+# Actualización 6 (2026-10-26): PIN por persona, bloqueo por horario (no por minutos) y reporte
+
+## X. Decisiones de Gustavo
+
+1. **PIN por persona: sí.** Nadie entra solo tocando su nombre.
+2. **El bloqueo se rige por el horario de cada persona, no por minutos de inactividad:** "a tal hora entra este, a tal hora entra este". Y hay que cubrir el caso de **quien se queda más tarde** y **llega el siguiente a vender**.
+3. **Reporte "quién hizo qué": sí.**
+
+## Y. Cómo encaja con lo que ya existe
+
+Ya hay **horario laboral por empleado, turnos simultáneos y bloqueo con PIN de administrador** (shipped 2026-08-25, 8c35675). El plan **extiende** eso, no lo rehace:
+
+- **Quién debe estar activo ahora:** el sistema calcula, según los horarios, qué personas están en turno. El selector de usuario (sección S) muestra primero a los que están en turno.
+- **Fin de turno = se cierra esa sesión de uso.** Cuando termina el horario de alguien, su "usuario activo" se bloquea: para seguir, hay que **teclear su PIN** (si sigue trabajando) o **cambiar a otra persona** con su PIN. Así nadie sigue vendiendo "a nombre de" alguien que ya se fue.
+- **Alguien salió más tarde y llega el siguiente:**
+  - El que llega **no necesita esperar nada**: toca el selector, pone **su** PIN y empieza. Los turnos se pueden **traslapar** (ya soportado: turnos simultáneos); cada venta queda a nombre de quien la hizo.
+  - El que se queda después de su hora: al terminar su turno la app le pregunta **"¿Sigues trabajando?"** → su PIN **extiende su turno** (queda registrado como tiempo extra, con hora de salida real) o lo cierra. El **dueño** también puede **extender el turno** de alguien con su PIN, desde el celular.
+  - **Entrada anticipada:** si alguien llega antes de su hora, puede entrar con su PIN; queda registrada la hora real (el dueño puede aprobar o corregir).
+- **Gracia configurable** (p. ej. 15–30 min después de la hora de salida antes de pedir PIN) para no estorbar en el cambio de turno.
+- **Inactividad por minutos:** queda **opcional y apagada por defecto** (solo como red de seguridad si el dueño la quiere activar).
+- **Registro:** cada entrada, salida, extensión y cambio de usuario queda en bitácora, también útil para asistencia.
+
+## Z. Reporte "quién hizo qué"
+
+Una pantalla (computadora y celular) con filtros por **persona, día y tipo de acción**: ventas, cancelaciones, cambios de precio, ajustes de inventario, recepciones, acomodos, conteos, altas de producto, entradas/salidas y turnos extendidos. Resumen por persona (cuántas ventas, cuánto vendió, cuántas correcciones) y lista detallada con hora. Se alimenta del `usuario_activo` que viaja en cada acción (sección S), así que no depende de quién abrió la sesión del equipo.
+
+## AA. Qué queda por decidir
+
+1. **Gracia al terminar el turno:** ¿cuántos minutos antes de pedir PIN? (propuesta: 15)
+2. **Tiempo extra:** ¿solo se registra, o el dueño debe aprobarlo?
+3. ¿El empleado puede **ver su propio historial** ("qué hice hoy") o solo el dueño?
