@@ -82,14 +82,18 @@ async function importar({ aplicar, archivo }) {
     try {
         await client.query("BEGIN");
 
-        for (const n of nuevos) {
+        // De 500 en 500 con unnest: una consulta por lote en vez de una por producto (la base esta lejos y 14 mil viajes tardan casi media hora).
+        for (let i = 0; i < nuevos.length; i += 500) {
+            const lote = nuevos.slice(i, i + 500);
             const r = await client.query(
                 `INSERT INTO public.catalogo_maestro_productos (codigo, marca, nombre, descripcion, fabricante, codigo_fabricante, clave, origen, fuente_identidad, fuente_fecha)
-                 VALUES ($1, $2, $3, $4, $5, $6, $6, 'fabricante', $7, NOW())
+                 SELECT t.codigo, t.marca, t.nombre, t.descripcion, t.marca, t.sku, t.sku, 'fabricante', $6, NOW()
+                 FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[]) AS t(codigo, marca, nombre, descripcion, sku)
                  ON CONFLICT (codigo) DO NOTHING RETURNING codigo`,
-                [n.codigo, n.marca, n.nombre, n.descripcion, n.marca, n.sku, FUENTE]
+                [lote.map(n => n.codigo), lote.map(n => n.marca), lote.map(n => n.nombre), lote.map(n => n.descripcion), lote.map(n => n.sku), FUENTE]
             );
-            if (r.rows.length) insertados.push(r.rows[0].codigo);
+            insertados.push(...r.rows.map(f => f.codigo));
+            console.log(`  ${Math.min(i + 500, nuevos.length)} de ${nuevos.length}`);
         }
 
         await client.query("COMMIT");
