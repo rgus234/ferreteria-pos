@@ -114,7 +114,7 @@ function renderListaExhibidores() {
                     : "Despachador de brocas, exhibidor de lijas, rack de dulces... Arma el display una vez y vende con tarjetas: tocas el producto y se agrega al carrito."}</p>
             </div>
             <div class="exh-header-botones">
-                ${exhEsAbarrotes() ? "" : `<button type="button" class="exh-btn exh-btn-suave" onclick="abrirImportarTruper()" title="Trae el exhibidor surtido de Truper con todos sus productos">Importar de Truper</button>`}
+                ${exhEsAbarrotes() ? "" : `<button type="button" class="exh-btn exh-btn-suave" onclick="abrirImportarTruper()" title="Trae un exhibidor surtido de Truper, Pretul, Volteck, Foset o Hermex con todos sus productos">Importar de Truper</button>`}
                 <button type="button" class="exh-btn exh-btn-primario" onclick="nuevoExhibidor()">+ Nuevo exhibidor</button>
             </div>
         </div>
@@ -1446,7 +1446,7 @@ function renderImportarTruper(mensaje = "") {
                     <input id="exhTruperCodigo" type="text" inputmode="numeric" placeholder="Ej. 55956" value="${exhEscapar(t ? t.exhibidor.codigo : "")}" onkeydown="if (event.key === 'Enter') truperLeerFicha()">
                     <button type="button" class="exh-btn exh-btn-primario" id="exhTruperLeer" onclick="truperLeerFicha()">Leer ficha</button>
                 </div>
-                <p class="exh-truper-ayuda">Usa el código del exhibidor ya surtido, el que trae sus productos. Con el <b>55956</b> sale el despachador de 29 medidas de brocas.</p>
+                <p class="exh-truper-ayuda">Usa el código del exhibidor ya surtido, el que trae sus productos. Con el <b>55956</b> sale el despachador de 29 medidas de brocas. Sirve para exhibidores de <b>Truper, Pretul, Volteck, Foset y Hermex</b>.</p>
                 ${mensaje ? `<p class="exh-truper-mensaje">${exhEscapar(mensaje)}</p>` : ""}
             </section>
             ${t ? `
