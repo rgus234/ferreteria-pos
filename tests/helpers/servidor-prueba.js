@@ -70,7 +70,7 @@ async function iniciarServidorPrueba() {
         ["--env-file=.env", "server.js"],
         {
             cwd: path.join(__dirname, "..", ".."),
-            env: { ...process.env, PORT: String(PUERTO_PRUEBA) },
+            env: { ...process.env, PORT: String(PUERTO_PRUEBA), NEXO_PRUEBAS: "1" },
             // Antes era "ignore" y la salida del servidor se tiraba a la
             // basura. Cuando no arrancaba, lo unico que quedaba era un
             // "no arranco a tiempo" mudo, y habia que adivinar la causa

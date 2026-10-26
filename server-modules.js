@@ -113,6 +113,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./exhibidores-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("exhibidores -- aviso diario de lo que hay que surtir", () => {
+        require("./exhibidores-avisos")(app, pool);
+    });
+
     cargarModuloPOS("exhibidores -- importar el surtido de Truper desde su ficha", () => {
         require("./exhibidores-truper-server")(app, pool, requerirAccesoNegocio);
     });
