@@ -342,3 +342,5 @@ Dentro del **mapa de la tienda** (ya planeado antes de la Fase C): el modelo de 
 2. Pantallas del mapa de la tienda (computadora y celular) + etiquetas de estantes/bodega.
 3. Alta efectiva en el celular (Esencial/Completo) usando `/sugerencia-alta`, escaneo continuo y contexto de estante.
 4. Escáner remoto celular → computadora; conteo por estante; recepción + acomodo; reorganizar la navegación del celular; venta móvil completa; "Dile a Nexo".
+
+**Actualización del estado (misma noche):** también quedó **hecha y subida la alta efectiva en el celular** (`public/dueno-alta.js`): en "Producto nuevo" aparece *Cómo lo compras y lo vendes* con la sugerencia de tus productos parecidos ("Es como tus otros …: se compra por bolsa de 100, se vende por kilo. ¿Usar esta configuración?"), campos para cambiarla (bolsa/caja/costal, piezas por bolsa, kilo/pieza, pieza suelta, báscula) y viaja en el mismo alta de siempre. Lo que queda del plan: ver la lista "Falta (siguiente)" de arriba (menos el punto 3, ya hecho en su versión base: falta el modo Esencial/Completo completo, el escaneo continuo "guardar y siguiente" y el contexto de estante).
