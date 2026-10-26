@@ -124,3 +124,52 @@ Hoy /dueno acumula funciones (Más → Mi tienda, Exhibidores, Capturar códigos
 2. Barra inferior de 5 destinos: ¿Inicio · Vender · Inventario · Clientes · Más es la mezcla correcta, o prefieres otros?
 3. En abarrotes sin computadora: ¿qué más necesita hacer el dueño solo con el celular el primer día? (corte de caja, compras a proveedor, fiado, reportes)
 4. Permisos: ¿el empleado puede cambiar precios al dar de alta o solo capturar existencias y que el dueño confirme?
+
+---
+
+# Actualización 3 (2026-10-26): estantes escaneables, modo consulta y "que todos tengan la app"
+
+## H. Estantes y pasillos con código (idea de Gustavo)
+
+**Problema:** al dar de alta o contar, a nadie le gusta escribir en qué pasillo/estante queda el producto, así que `ubicacion` queda vacía o desordenada.
+
+**Idea:** crear el **mapa de la tienda** (Pasillo 1 → Estante 1, Estante 2 → niveles) e **imprimir una etiqueta con QR/código de barras por cada lugar**. Al hacer inventario se escanea primero el estante (pip, "Estante 2 · Pasillo 1") y **todo lo que se escanee o dé de alta después se guarda en ese estante**, hasta escanear otro.
+
+**Cómo funcionaría**
+- **Datos:** tabla nueva `ubicaciones` (negocio_id, código único, nombre, tipo pasillo/estante/nivel, padre_id, orden) y `productos.ubicacion_id` (nullable). El texto actual `productos.ubicacion` se conserva y se mantiene sincronizado ("Pasillo 1 › Estante 2") para no romper nada de lo que ya hay.
+- **Códigos:** prefijo propio (p. ej. `EST-…`) para que nunca se confundan con un código de producto; el escáner reconoce el prefijo y cambia de "contexto" en vez de buscar un producto.
+- **Pantalla "Mi tienda → Estantes"** (celular y computadora): crear pasillos y estantes arrastrando, renombrar, ver cuántos productos hay en cada uno, e **imprimir las etiquetas** con el editor de códigos de barras que ya existe (con las *secciones por pasillo* que ya se hicieron, un color por pasillo).
+- **Modo estante en alta y conteo:** banner fijo "Guardando en Estante 2" mientras dure; botón "Cambiar" / escanear otro estante.
+  - **Alta:** cada producto guardado queda con ese `ubicacion_id`.
+  - **Conteo:** al escanear un estante, Nexo lista lo que *debería* estar ahí; al terminar muestra "no escaneaste estos 3" y "estos 2 estaban en otro estante (¿moverlos aquí?)".
+- **"¿Dónde está?"**: en Vender, Inventario y Consulta se ve la ubicación de cada producto; en **Surtir** (exhibidores, pedidos) la lista se ordena por pasillo para recorrer la tienda una sola vez.
+- **Permisos:** crear/renombrar estantes, solo quien administre; escanear estantes y guardar ahí, también empleados.
+
+## I. Modo consulta (escanear = ver qué es)
+
+Escanear un código desde Inventario sin estar en alta ni en conteo **muestra el producto**: foto, nombre, existencias, ubicación, precios, caducidad y últimas ventas, con atajos "ajustar existencia", "editar" y "imprimir etiqueta". Es el modo por defecto del escáner; los modos Alta, Conteo y Estante se eligen con una barra de chips.
+
+## J. Sugerencia de configuración por familia (el flujo concreto de Gustavo)
+
+Escaneo pijas de 3/4" que no tengo, y ya tengo las de 1":
+1. El código no está en mi inventario → se busca en el catálogo maestro (Truper/Urrea/mis capturas): nombre, marca, categoría y foto del Banco.
+2. Nexo detecta la **familia** ("Pija punta broca …") y encuentra la de 1" → tarjeta: *"Este producto es como tus pijas de 1 pulgada. ¿Reutilizar su configuración?"* con el resumen: *se compra por bolsa de 100 · se vende por kilo y por pieza · estante 3*.
+3. Si acepta, solo hace **preguntas cuando algo es ambiguo** (¿las vendes por kilo o sueltas?, ¿cuántas piezas trae la bolsa?). Lo demás ya queda puesto, incluida la **foto**.
+4. Se guarda y el escáner queda listo para el siguiente (con el mismo estante).
+
+## K. Que todos tengan la app
+
+Cada persona de la ferretería (dueño y empleados) entra con su propio usuario y ve solo lo que su rol permite (el control de roles ya existe). Para que sea fácil: invitación por **QR o enlace de WhatsApp** que instala la app (PWA en iPhone, tienda cuando Google Play la apruebe), y **pantalla inicial según el rol** (el empleado de piso cae directo en Escanear/Contar; el dueño en su resumen).
+
+## L. Dónde entra en el orden de fases
+
+Se agrega a la **Fase C** y la **Fase E**:
+- **Fase C (alta efectiva):** además del modo Esencial/Completo y las sugerencias, entran el **modo consulta** (I), la **sugerencia por familia** (J) y el **contexto de estante** (H, versión simple: escanear estante → se asigna a lo que se guarda).
+- **Fase E (conteo):** el conteo **por estante** con "lo que debería estar" y "lo que no escaneaste".
+- **Antes de C:** el **mapa de tienda + etiquetas de estantes** (H) como mini-fase propia, porque alta y conteo dependen de él.
+
+## M. Preguntas nuevas
+
+1. ¿Los estantes tienen **niveles** (repisa alta/media/baja) o basta Pasillo › Estante?
+2. ¿Un mismo producto puede estar en **más de un lugar** (bodega y mostrador)? Si sí, hay que contar existencias por ubicación (mucho más trabajo); si no, un lugar por producto (lo recomendado para empezar).
+3. ¿Las etiquetas de estante se pegan en el mueble (tamaño grande, QR + nombre en letras grandes)? Con esto defino la plantilla del editor.
