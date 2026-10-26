@@ -1,0 +1,33 @@
+/* Vender en el celular (ver dueno-venta-movil.js). */
+
+.dvm-barra { position: fixed; top: 0; left: 0; right: 0; z-index: 9700; display: none; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; background: #052a63; color: #fff; box-shadow: 0 4px 14px rgba(5, 42, 99, .35); }
+.dvm-barra.visible { display: flex; }
+.dvm-barra-resumen { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: 12px; background: rgba(255, 255, 255, .12) !important; color: #fff !important; font: inherit; text-align: left; }
+.dvm-barra-resumen b { font-size: 17px; }
+.dvm-barra-resumen small { opacity: .8; }
+.dvm-barra-resumen strong { margin-left: auto; font-size: 18px; }
+.dvm-barra-cobrar { padding: 11px 20px; border: 0; border-radius: 12px; background: #18b88f !important; color: #04223f !important; font-weight: 800; font-size: 15px; }
+body.dvm-con-barra #duenoVender { padding-top: calc(64px + env(safe-area-inset-top)); }
+
+.dvm-tarjeta { position: fixed; left: 12px; right: 12px; top: calc(64px + env(safe-area-inset-top)); z-index: 9800; display: none; align-items: center; gap: 12px; padding: 10px 14px 10px 10px; border-radius: 16px; background: #fff; color: #0f172a; box-shadow: 0 14px 34px rgba(5, 42, 99, .3); border-left: 6px solid #18b88f; animation: dvmEntrar .18s ease; }
+.dvm-tarjeta.visible { display: flex; }
+.dvm-tarjeta.dvm-error { border-left-color: #dc2626; }
+.dvm-tarjeta-foto { flex: none; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 12px; background: #f1f5f9; overflow: hidden; }
+.dvm-tarjeta-foto img { width: 100%; height: 100%; object-fit: contain; }
+.dvm-tarjeta-foto i { font-style: normal; font-size: 26px; }
+.dvm-tarjeta-texto { flex: 1; min-width: 0; display: grid; }
+.dvm-tarjeta-texto b { font-size: 15px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dvm-tarjeta-texto small { color: #64748b; font-size: 12.5px; }
+.dvm-tarjeta-cantidad { flex: none; padding: 6px 12px; border-radius: 999px; background: #18b88f; color: #04223f; font-weight: 800; font-size: 16px; }
+.dvm-tarjeta-marca { flex: none; font-size: 22px; font-weight: 900; color: #18b88f; }
+.dvm-tarjeta.dvm-error .dvm-tarjeta-marca { color: #dc2626; }
+@keyframes dvmEntrar { from { transform: translateY(-10px); opacity: 0; } to { opacity: 1; } }
+
+.dvm-destello { animation: dvmDestello 1.1s ease; }
+@keyframes dvmDestello { 0% { box-shadow: 0 0 0 0 rgba(24, 184, 143, .7); } 40% { box-shadow: 0 0 0 10px rgba(24, 184, 143, .25); } 100% { box-shadow: 0 0 0 0 rgba(24, 184, 143, 0); } }
+
+.dvm-escaner-total { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 2px 10px; font-weight: 800; }
+.dvm-escaner-total button { padding: 11px 18px; border: 0; border-radius: 12px; background: #1d5fd1 !important; color: #fff !important; font-weight: 800; }
+.dvm-nuevo { border-radius: 14px; animation: dvmDestello 1.1s ease; }
+
+@media (prefers-reduced-motion: reduce) { .dvm-tarjeta, .dvm-destello, .dvm-nuevo { animation: none; } }

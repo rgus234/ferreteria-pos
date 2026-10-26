@@ -50,3 +50,23 @@ test("Exhibidores en el celular: cableados en la pagina y el service worker, con
     assert.match(js, /duenoCarrito/);
     assert.match(js, /cambiarTabDueno\("vender"\)/);
 });
+
+test("Venta movil (Fase A): barra fija, tarjeta de confirmacion, pitido y lista del escaner con lo nuevo primero, cableado y sin tocar las reglas de venta", () => {
+    const html = leer("dueno.html");
+    const sw = leer("dueno-sw.js");
+    const js = leer("dueno-venta-movil.js");
+
+    assert.match(html, /dueno-venta-movil\.js\?v=/);
+    assert.match(html, /dueno-venta-movil\.css\?v=/);
+    assert.match(sw, /\/dueno-venta-movil\.js\?v=/);
+    assert.match(sw, /\/dueno-venta-movil\.css\?v=/);
+
+    for (const funcion of ["renderCarritoVenderDueno", "agregarAlCarritoVenderDueno", "duenoVenderIntentarAgregarPorCodigo", "abrirEscanerVenderDueno", "cambiarTabDueno"]) {
+        assert.ok(js.includes(`envolver("${funcion}"`), `envuelve ${funcion}`);
+    }
+
+    assert.match(js, /visualViewport/, "la barra sigue a la pantalla visible cuando sale el teclado");
+    assert.match(js, /createOscillator/, "pitido al agregar");
+    assert.match(js, /slice\(\)\.reverse\(\)/, "en el escaner lo nuevo sale primero");
+    assert.doesNotMatch(js, /fetchAutenticado|POST|precio\s*=\s*/, "no cambia ventas ni precios: solo muestra");
+});
