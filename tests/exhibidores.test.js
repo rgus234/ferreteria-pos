@@ -510,3 +510,13 @@ test("importar de Truper: se puede agregar a un exhibidor que ya existe, sin dup
     assert.match(js, /\/exhibidores\/\$\{destino\}\/espacios/);
     assert.match(js, /status === 409/, "un producto que ya estaba en el exhibidor no es error");
 });
+
+test("el editor de exhibidores tiene el boton Etiquetas que abre el editor de codigos de barras con sus productos", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const js = fs.readFileSync(path.join(__dirname, "..", "public", "js", "exhibidores.js"), "utf8");
+
+    assert.match(js, /imprimirEtiquetasExhibidor\(\$\{x\.id\}\)/);
+    assert.match(js, /mostrarCodigosBarras\(\{ productosIniciales/);
+    assert.match(js, /cambiarEtapaEtiquetas\(1\)/);
+});

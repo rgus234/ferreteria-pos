@@ -328,6 +328,7 @@ function renderEditorExhibidor() {
             <div class="exh-header-acciones">
                 <button type="button" class="exh-btn exh-btn-suave" data-requiere-espacios onclick="abrirRecibirExhibidor(${x.id})" ${x.espacios.length ? "" : "disabled"}>Recibir mercancia</button>
                 <button type="button" class="exh-btn exh-btn-suave" data-requiere-espacios onclick="abrirSurtirExhibidor(${x.id})" ${x.espacios.length ? "" : "disabled"}>Surtir</button>
+                <button type="button" class="exh-btn exh-btn-suave" data-requiere-espacios onclick="imprimirEtiquetasExhibidor(${x.id})" ${x.espacios.length ? "" : "disabled"} title="Etiquetas con nombre, codigo de barras y precio de cada producto del exhibidor">Etiquetas</button>
                 <button type="button" class="exh-btn exh-btn-primario" data-requiere-espacios onclick="abrirExhibidorPOS(${x.id})" ${x.espacios.length ? "" : "disabled"}>Probar venta</button>
                 <button type="button" class="exh-btn exh-btn-peligro" onclick="eliminarExhibidor()">Eliminar</button>
             </div>
@@ -1573,4 +1574,29 @@ async function truperCrearExhibidor() {
         const agregados = espacios.length - yaEstaban;
         alertaPOS(`Listo: "${nombreFinal}" ${destino === "nuevo" ? `con ${espacios.length} productos` : `ahora suma ${agregados} productos${yaEstaban ? ` (${yaEstaban} ya estaban)` : ""}`}. ${creados} productos nuevos (con 0 existencias), ${fotos} fotos del Banco${fallidos ? `, ${fallidos} no se pudieron crear` : ""}. Ahora usa Recibir para meter las piezas.`, "Exhibidor importado", "exito");
     }
+}
+
+
+// ---------------------------------------------------------------------
+// Etiquetas del exhibidor: abre el editor de codigos de barras ya con los productos del exhibidor (en su orden) y
+// parado en "Disenar", con la plantilla Anaquel. Desde ahi se imprime o se descarga el PDF.
+// ---------------------------------------------------------------------
+
+async function imprimirEtiquetasExhibidor(id) {
+    const { ok, datos } = await exhLlamar(`/exhibidores/${id}`);
+
+    if (!ok || !datos.exhibidor?.espacios?.length) {
+        if (typeof alertaPOS === "function") alertaPOS("Este exhibidor todavia no tiene productos.", "Etiquetas", "alerta");
+        return;
+    }
+
+    if (typeof mostrarCodigosBarras !== "function") return;
+
+    await mostrarCodigosBarras({ productosIniciales: datos.exhibidor.espacios.map(e => ({ id: e.productoId })) });
+
+    // "Anaquel": nombre, codigo de barras y precio en una etiqueta de 60x30 mm.
+    const anaquel = typeof PLANTILLAS_ETIQUETAS_POR_DEFECTO !== "undefined" ? PLANTILLAS_ETIQUETAS_POR_DEFECTO.find(p => p.nombre === "Anaquel") : null;
+    if (anaquel) disenoActualEtiquetas = { ...anaquel };
+
+    if (typeof cambiarEtapaEtiquetas === "function") cambiarEtapaEtiquetas(1);
 }
