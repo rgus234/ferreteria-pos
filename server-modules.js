@@ -145,6 +145,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./barcode-labels-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("actividad del equipo (quien hizo que)", () => {
+        require("./actividad-equipo-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("etiquetas en PDF", () => {
         require("./etiquetas-pdf-server")(app, pool, requerirAccesoNegocio);
     });

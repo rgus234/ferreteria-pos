@@ -86,3 +86,17 @@ test("Cambio rapido de usuario en el celular: cableado y con PIN, sin cerrar ses
     assert.match(js, /x-empleado-id/);
     assert.doesNotMatch(js, /cerrarSesionDuenoApp\(\)/, "no cierra la sesion para cambiar");
 });
+
+test("Actividad del equipo en el celular: cableada, con respaldo a 'mi actividad' y solo lectura", () => {
+    const html = leer("dueno.html");
+    const sw = leer("dueno-sw.js");
+    const js = leer("dueno-actividad.js");
+
+    assert.match(html, /dueno-actividad\.js\?v=/);
+    assert.match(html, /dueno-actividad\.css\?v=/);
+    assert.match(sw, /\/dueno-actividad\.js\?v=/);
+    assert.match(sw, /\/dueno-actividad\.css\?v=/);
+    assert.match(js, /\/actividad\/equipo/);
+    assert.match(js, /\/actividad\/mia/);
+    assert.doesNotMatch(js, /method:\s*"(POST|PUT|PATCH|DELETE)"/, "solo lee");
+});
