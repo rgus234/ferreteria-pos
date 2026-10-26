@@ -56,3 +56,71 @@ Más adelante (fase 6) se agrega un paso de IA: "Nexo, agrega pijas de 1 pulgada
 3. Venta por kilo de piezas sueltas (pijas): ¿se pesa en báscula o se calcula con "piezas por kilo"? Define cómo se guarda la conversión.
 4. ¿El alta y el conteo en celular son solo para el dueño o también para empleados (permisos)?
 5. ¿Qué es lo que hoy más te estorba al vender desde el celular? (para la fase 5: 2 o 3 situaciones concretas).
+
+---
+
+# Actualización (2026-10-26, mismo día): visión completa y respuestas de Gustavo
+
+## A. Visión
+
+**El celular puede ser la computadora.** Un abarrotes que apenas empieza no tiene computadora ni lector: con el celular debe poder dar de alta inventario, vender y llevar su negocio. Cuando después compre computadora (y todavía no tenga escáner), el celular le sirve de escáner. Todo conectado: lo que se hace en un lado se ve en el otro.
+
+**Alta efectiva, no solo rápida.** Debe capturar *toda* la información que maneja la computadora (presentación de compra, factor de conversión, venta suelta, precios por nivel, categoría, proveedor, ubicación, stock mínimo, caducidad, foto…) pero con una interfaz pensada para el celular:
+- **Dos modos:** *Esencial* (nombre, precio, cantidad: 3 campos, el resto ya sugerido) y *Completo* (todas las secciones). Mismo producto, mismos datos; solo cambia cuánto se muestra.
+- **Secciones colapsables en tarjetas** (Identidad · Cómo lo compras y lo vendes · Precios · Existencias · Más), con un resumen en una línea de cada sección ("Se compra por bolsa de 100 · se vende por kilo"), para entender de un vistazo sin entrar a cada una.
+- **Lo visual cuenta:** foto grande (del Banco o con la cámara), chips de colores para la configuración, vista previa de "así lo verá el cliente en la venta", validaciones en el momento, y animación/sonido al guardar.
+
+## B. Escáner remoto: celular → computadora
+
+Para negocios con computadora pero sin lector de códigos:
+1. En la computadora: botón "Usar mi celular como escáner" → muestra un **código QR** de emparejamiento (token corto, vence en minutos).
+2. En el celular: se escanea el QR → abre la pantalla de cámara de Nexo, ya vinculada a esa sesión.
+3. Cada lectura viaja al servidor (`POST /escaner/sesiones/:id/lecturas`) y la computadora la recibe en vivo (SSE o sondeo corto) y la **inyecta donde esté el cursor**: agrega al carrito en Vender, llena el código en Agregar producto, cuenta en Conteo.
+4. Indicador visible en ambos lados ("Celular conectado ✓"), desconexión con un toque, y la sesión se liga al negocio autenticado (no se puede escanear hacia otro negocio).
+Es la misma tecnología que "Capturar códigos" (cámara con ZXing, que ya funciona en iPhone) más un canal en vivo.
+
+## C. Reacomodar y rediseñar la app del celular
+
+Hoy /dueno acumula funciones (Más → Mi tienda, Exhibidores, Capturar códigos, Créditos, Caja…). Propuesta:
+- **Una arquitectura de información clara:** barra inferior con 5 destinos fijos (Inicio · Vender · Inventario · Clientes/Créditos · Más) y todo lo demás agrupado por tarea dentro de ellos, no como una lista suelta en "Más". Los atajos frecuentes (escanear, nuevo producto) como botón flotante central.
+- **Sistema de diseño único** (tipografía, colores Nexo, tarjetas, botones, estados vacíos, toasts, hojas inferiores) compartido con la computadora para que se sienta la misma app.
+- **Conectado:** lo que se hace en el celular se refleja al instante en la computadora y viceversa (mismo dato; solo cambia la presentación). Un "estado de conexión" visible y cola sin internet.
+- **Interacción cuidada:** transiciones cortas, hojas que suben desde abajo, feedback inmediato en cada acción.
+
+## D. Lo que hoy más estorba al vender desde el iPhone (navegador / PWA)
+
+1. **El teclado tapa lo que se vende.** Al escribir, el teclado cubre la lista y el cobro.
+2. **Escanear no avisa.** Se agrega el producto pero no hay confirmación, y la línea queda hasta abajo; hay que bajar para verla. Se puede seguir escaneando "a ciegas".
+3. **La línea del carrito es solo texto**: sin foto, sin precio destacado, sin cantidad cómoda.
+4. No se percibe como una experiencia de venta (no se ve el total mientras se agrega).
+
+**Arreglos concretos (Fase A, de bajo riesgo y mucho efecto):**
+- **Mini-carrito fijo arriba** (no se tapa con el teclado): cuántas piezas, total y botón Cobrar siempre visibles; el área de captura se ajusta con `visualViewport` cuando sale el teclado.
+- **Confirmación al escanear:** tarjeta grande que aparece unos segundos con foto, nombre, precio y cantidad ("Coca-Cola 600 ml · $18 · ×1 ✓") y **sonido corto** (iOS no soporta vibración en Safari); la línea nueva se resalta y el carrito se desplaza solo hasta ella. Si el código no existe, aviso rojo con opción de darlo de alta ahí mismo.
+- **Pantalla de escaneo continuo:** cámara arriba, carrito resumido abajo, cantidades con botones grandes; el escaneo de un mismo producto sube la cantidad en lugar de duplicar líneas.
+- **Líneas del carrito con foto, nombre, precio, cantidad y subtotal**, deslizar para quitar.
+- **Venta por peso en el celular:** para lo que se pesa (pijas por kilo), teclado numérico para capturar el peso leído de la báscula y cálculo del importe; más adelante, báscula Bluetooth.
+
+## E. Respuestas de Gustavo
+
+- **Piloto:** pijas y tornillos; las medidas y presentaciones salen del **catálogo de Truper** (no hay que adivinarlas: se importan de ahí).
+- **Pijas por kilo:** se pesan en báscula → venta por peso con captura manual del peso en el celular (y báscula Bluetooth después).
+- **Conteo de inventario y alta en el celular:** para **dueño y empleados** (con permisos por rol: el empleado cuenta y da de alta; ajustes grandes y precios, solo quien tenga permiso).
+- **Dispositivo:** iPhone, sin app de tienda todavía (Google Play aún no aprueba la solicitud): se usa como **PWA instalada en la pantalla de inicio** de Safari; todo lo diseñado debe funcionar bien así.
+
+## F. Orden recomendado (reemplaza el de la sección 3)
+
+1. **Fase A — Venta móvil: los 4 estorbos** (teclado, confirmación al escanear, mini-carrito fijo, líneas con foto/precio). Rápido, poco riesgo, se nota de inmediato.
+2. **Fase B — Auditoría + sistema de diseño y navegación** (la reorganización de /dueno con barra inferior de 5 destinos).
+3. **Fase C — Alta efectiva en el celular** (modo Esencial/Completo + sugerencias que aprenden del inventario + escaneo continuo + guardar y seguir) y el mismo motor de sugerencias en la computadora.
+4. **Fase D — Escáner remoto celular→computadora** (emparejar por QR).
+5. **Fase E — Familias de medidas (desde Truper) y conteo de inventario con empleados.**
+6. **Fase F — Venta móvil completa** (peso, fiado, ticket digital, cobro en 1 toque).
+7. **Fase G — "Dile a Nexo"** (voz/texto).
+
+## G. Preguntas que siguen abiertas
+
+1. ¿Aprobamos este orden (empezar por la Fase A)?
+2. Barra inferior de 5 destinos: ¿Inicio · Vender · Inventario · Clientes · Más es la mezcla correcta, o prefieres otros?
+3. En abarrotes sin computadora: ¿qué más necesita hacer el dueño solo con el celular el primer día? (corte de caja, compras a proveedor, fiado, reportes)
+4. Permisos: ¿el empleado puede cambiar precios al dar de alta o solo capturar existencias y que el dueño confirme?
