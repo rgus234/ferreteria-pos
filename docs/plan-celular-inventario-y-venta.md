@@ -325,3 +325,20 @@ Dentro del **mapa de la tienda** (ya planeado antes de la Fase C): el modelo de 
 
 1. ¿La bodega vive en el mismo local o es **otro domicilio**? (si es otro, es una **sucursal/almacén** con otra dirección: se maneja como zona distinta con traslados entre locales).
 2. ¿Quieres alertas de **"resurtir de bodega"** (exhibición vacía con producto en bodega)?
+
+---
+
+# Estado de avance (2026-10-26, noche)
+
+**Hecho y subido**
+- **Fase A (venta móvil, 4 estorbos):** mini-carrito fijo arriba, tarjeta con foto/precio + pitido al escanear, lista del escáner con lo último primero y botones de cantidad. (`public/dueno-venta-movil.js`)
+- **Usuarios:** cambio rápido de usuario con PIN sin cerrar sesión en el celular, "Sigo trabajando" (extiende el turno con el PIN propio, tiempo extra en bitácora) y **gracia de 15 minutos** al terminar el turno en el servidor. (`dueno-usuarios.js`, `turno-extension.js`)
+- **Actividad del equipo / Mi actividad:** ventas por persona, canceladas, cajas, tiempo extra y acciones, en el celular. (`actividad-equipo-server.js`, `dueno-actividad.js`)
+- **Sugerencias de alta (Fase 1, solo servidor):** `GET /sugerencia-alta?nombre=` propone la configuración que más productos parecidos del mismo negocio comparten. Con pruebas. Aún sin pantalla.
+- **Mapa de la tienda (servidor + migración):** estantes y bodega con código propio, un producto exhibido y en bodega, asignar, mover, borrar con confirmación. **Necesita `npm run migrate` (20261103_ubicaciones.sql) y correr `tests/ubicaciones.test.js`.**
+
+**Falta (siguiente)**
+1. Correr la migración de ubicaciones y sus pruebas.
+2. Pantallas del mapa de la tienda (computadora y celular) + etiquetas de estantes/bodega.
+3. Alta efectiva en el celular (Esencial/Completo) usando `/sugerencia-alta`, escaneo continuo y contexto de estante.
+4. Escáner remoto celular → computadora; conteo por estante; recepción + acomodo; reorganizar la navegación del celular; venta móvil completa; "Dile a Nexo".

@@ -145,6 +145,14 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./barcode-labels-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("sugerencia de configuracion al dar de alta", () => {
+        require("./sugerencia-alta-server")(app, pool, requerirAccesoNegocio);
+    });
+
+    cargarModuloPOS("mapa de la tienda: estantes y bodega", () => {
+        require("./ubicaciones-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("actividad del equipo (quien hizo que)", () => {
         require("./actividad-equipo-server")(app, pool, requerirAccesoNegocio);
     });
