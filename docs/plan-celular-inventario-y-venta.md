@@ -207,3 +207,58 @@ A venta móvil (4 estorbos) → B diseño y navegación → mapa de estantes + e
 1. Hoy, cuando llega mercancía, ¿quién la recibe y quién la acomoda? ¿Son la misma persona?
 2. Si la factura trae 80 renglones, ¿se escanean todos o solo los productos que tienen código de barras y el resto se confirma a mano?
 3. ¿Qué pasa con un producto que llega y todavía no existe en el inventario? (propuesta: se da de alta ahí mismo con la sugerencia por familia y queda ya con estante).
+
+---
+
+# Actualización 5 (2026-10-26): quién usa el sistema, renglones sin código y productos nuevos que llegan
+
+## R. Respuestas de Gustavo
+
+- **Quién recibe y acomoda:** quien esté presente (los trabajadores). No hay un responsable fijo → la tarea de acomodo se avisa a **todo el personal conectado** y la toma el primero que toque "Iniciar acomodo" (se puede soltar o reasignar).
+- **Problema real:** el empleado (Diego) tiene la sesión abierta, llega el dueño (Ketus) y usa el sistema **sin cambiar de usuario**. Todo queda a nombre de Diego y con los permisos de Diego.
+
+## S. Cambio rápido de usuario (y elevar permisos sin cerrar sesión)
+
+1. **Selector de usuario siempre visible** (avatar con el nombre de quien está activo, arriba en celular y computadora). Un toque → lista de las personas del negocio → **PIN de 4 dígitos** → cambia al instante, **sin cerrar sesión ni recargar**, conservando el carrito y la pantalla donde se estaba.
+2. **Cada acción queda a nombre de quien la hizo** (venta, recepción, acomodo, ajuste, cambio de precio): `usuario_activo` se envía en cada petición; no depende de quién abrió la sesión del equipo.
+3. **PIN de dueño para una sola acción** (elevar permisos): si Diego intenta algo que no puede (cambiar precio, anular venta, ajuste grande), aparece "Pide al dueño: PIN" y la acción se hace **a nombre del dueño** sin que Diego cambie de usuario. (Ya existe un PIN de administrador para el cambio de producto en créditos: se generaliza.)
+4. **Bloqueo por inactividad** configurable (p. ej. 2 min): pide PIN para volver; evita que se quede la sesión de uno usada por otro.
+5. **Respeta lo ya hecho:** horario laboral por empleado y turnos simultáneos, y los roles actuales (RBAC). Cambiar de usuario aplica *el rol de esa persona* al instante.
+6. Más adelante: huella/Face ID con WebAuthn (passkeys) donde el navegador lo permita.
+
+**Reglas de seguridad:** PIN de 4 dígitos con límite de intentos y espera; los PIN nunca se guardan en claro; el cambio de usuario queda en bitácora.
+
+## T. Facturas con muchos renglones: qué se escanea y qué no
+
+Ejemplo de una factura de 80 renglones: unos productos traen **código de barras** (se escanean); otros **no** (tornillos a granel, PVC y tubería con código interno, cosas que se compran por caja/costal). Propuesta:
+
+- **Con código → escanear** para verificar (verde al leer; suma la cantidad).
+- **Sin código → un toque**: "Llegó completo" o teclear la cantidad que llegó.
+- **Botón "Confirmar el resto como llegó completo"** al final: marca de una vez todos los renglones que no se escanearon, mostrando antes la lista para revisarla. Útil con proveedores de confianza; se registra quién lo confirmó.
+- Contador siempre visible: *"58 verificados · 20 pendientes · 2 con diferencia"*; los renglones con diferencia se resaltan en rojo.
+- Se puede **dejar la verificación a medias y retomarla** (desde el celular o la computadora).
+
+## U. Producto que llega y todavía no existe: alta completa en el momento
+
+Meta: que **no haya que volver después a completarlo** y que llegue al acomodo ya con su lugar.
+
+1. En la verificación, el renglón sale **"No está en tu inventario → Dar de alta"**.
+2. Se abre una **hoja inferior (celular) o panel (computadora)** con el alta **ya precargada**:
+   - de la **factura**: nombre, código, cantidad, costo, unidad;
+   - del **catálogo maestro** (Truper, Urrea, tus capturas, Open Food Facts): nombre limpio, marca, categoría, foto del Banco;
+   - de la **sugerencia por familia**: configuración de compra y venta (bolsa/kilo/pieza), proveedor, ubicación;
+   - de una **sugerencia de precio** a partir del costo y del margen que ya usa el negocio por categoría.
+3. Modo **Esencial** (revisar lo precargado y confirmar) o **Completo** (todo editable). Al guardar, el producto ya existe con **todas sus especificaciones** y **su estante** (se escanea el estante ahí mismo o se toma el sugerido).
+4. **Cola de nuevos:** si llegan 5 productos nuevos, se pueden dar de alta uno por uno sin perder la verificación; un indicador "3 de 5 completos" muestra el avance.
+5. **Nada queda incompleto en silencio:** si falta algo obligatorio (precio, configuración), el producto queda marcado **"por completar"**, aparece en la lista de pendientes del dueño, y la línea de acomodo lo muestra con advertencia.
+
+## V. Cómo cambia el orden de fases
+
+- **Nueva fase transversal al inicio (junto a la A):** *cambio rápido de usuario con PIN + acciones a nombre de quien las hace + PIN de dueño por acción*. Es pequeña, de alto impacto y es base para todo lo demás (acomodo, conteo, recepción).
+- Fase H (recepción + acomodo) incluye T y U.
+
+## W. Preguntas abiertas nuevas
+
+1. ¿PIN de 4 dígitos por persona está bien, o prefieres elegir al usuario y tocar su foto/nombre sin PIN en el celular de la tienda (menos seguro)?
+2. Bloqueo por inactividad: ¿cuántos minutos le parecen razonables en la ferretería?
+3. ¿El dueño quiere ver en un reporte "quién hizo qué" (recepciones, ajustes, precios)? (se arma solo con el registro por usuario)
