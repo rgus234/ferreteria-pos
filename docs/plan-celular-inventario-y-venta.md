@@ -296,3 +296,32 @@ Una pantalla (computadora y celular) con filtros por **persona, día y tipo de a
 1. **Gracia al terminar el turno:** ¿cuántos minutos antes de pedir PIN? (propuesta: 15)
 2. **Tiempo extra:** ¿solo se registra, o el dueño debe aprobarlo?
 3. ¿El empleado puede **ver su propio historial** ("qué hice hoy") o solo el dueño?
+
+---
+
+# Actualización 7 (2026-10-26): bodega con secciones y productos en dos lugares
+
+## AB. Lo que pide Gustavo
+
+Además del piso de venta (Pasillo 1 › Estante 1, Estante 2…), el negocio puede tener **bodega**, con **sus propias secciones**. Un mismo producto puede estar **exhibido y también en bodega** (responde la pregunta M.2: **sí, más de un lugar**).
+
+## AC. Modelo
+
+- **Zonas:** cada ubicación pertenece a una **zona**: `tienda` (exhibición) o `bodega`. El mapa de la tienda se arma por zona: *Tienda › Pasillo 1 › Estante 2* y *Bodega › Sección A › Rack 3 › Nivel 2* (árbol de profundidad libre).
+- **Existencias por lugar (`producto_ubicaciones`):** producto, ubicación, cantidad. El **total del producto (`productos.stock`) sigue siendo la fuente de verdad para vender**: la distribución por lugar es un desglose encima de él, así el POS actual no cambia y nada se rompe.
+- **Dos lugares "principales" por producto:** su lugar de **exhibición** y su lugar de **bodega** (pueden ser varias secciones de bodega). Los productos sin lugar siguen funcionando ("sin ubicar").
+- **Ventas:** descuentan del total (como hoy) y, en el desglose, **primero de exhibición**; cuando la exhibición llega a cero y queda en bodega, el producto aparece en la lista **"Resurtir de bodega"**.
+- **Traslado bodega → exhibición ("Resurtir"):** movimiento registrado (quién, cuándo, cuánto, de qué sección a qué estante); se hace en el celular escaneando la sección de bodega, el producto y el estante destino; no cambia el total, solo mueve el desglose.
+- **Recepción y acomodo:** la mercancía que llega puede mandarse **a exhibición, a bodega o repartida** (ej. "6 al estante, 24 a bodega Sección A"); el acomodo del celular muestra ambos destinos.
+- **Conteo:** por lugar (estante o sección de bodega); la suma de lugares se compara con el total y avisa "faltan/sobran".
+- **Etiquetas:** QR/código para cada sección de bodega igual que para los estantes (plantilla con el nombre grande y la zona).
+- **Compatibilidad:** `productos.ubicacion` (texto) se mantiene y muestra "Estante 2 · Bodega A" con lo principal.
+
+## AD. Dónde entra
+
+Dentro del **mapa de la tienda** (ya planeado antes de la Fase C): el modelo de zonas y ubicaciones nace con `zona` desde el principio; las existencias por lugar y los traslados se construyen en la **Fase E (conteo por estante)** junto con "Resurtir de bodega".
+
+## AE. Preguntas
+
+1. ¿La bodega vive en el mismo local o es **otro domicilio**? (si es otro, es una **sucursal/almacén** con otra dirección: se maneja como zona distinta con traslados entre locales).
+2. ¿Quieres alertas de **"resurtir de bodega"** (exhibición vacía con producto en bodega)?
