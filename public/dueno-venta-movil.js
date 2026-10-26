@@ -14,6 +14,7 @@
     let tarjeta = null;
     let temporizadorTarjeta = null;
     let audio = null;
+    let ultimoId = null; // lo ultimo que se agrego o subio de cantidad: en el escaner sale primero
 
     // ---- Sonido (iOS solo deja sonar despues de un toque: se desbloquea con el primero) ----
 
@@ -146,7 +147,7 @@
         const contenedor = document.getElementById("duenoVenderEscaneoCarrito");
         if (!contenedor || typeof filaCarritoVenderDuenoHtml !== "function") return;
 
-        const lineas = carrito().slice().reverse();
+        const lineas = carrito().slice().reverse().sort((a, b) => (b.id === ultimoId) - (a.id === ultimoId));
 
         contenedor.innerHTML = lineas.length
             ? `<div class="dvm-escaner-total"><span>${lineas.length} producto${lineas.length === 1 ? "" : "s"}</span><button type="button" onclick="dvmCobrar()">Cobrar ${dinero2(typeof resumenCarritoVenderDueno === "function" ? resumenCarritoVenderDueno().total : 0)}</button></div>`
@@ -173,6 +174,7 @@
         const item = carrito().find(linea => linea.id === id);
         if (!item) return;
 
+        ultimoId = item.id;
         avisarAgregado(item);
 
         if (!escanerAbierto()) {
