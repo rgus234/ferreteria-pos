@@ -1,0 +1,25 @@
+/* Cambio rapido de usuario en el celular (ver dueno-usuarios.js). */
+
+.du-chip { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 12px; z-index: 9650; display: none; place-items: center; width: 38px; height: 38px; padding: 0; border: 2px solid #fff; border-radius: 50%; color: #fff !important; font-weight: 800; font-size: 16px; box-shadow: 0 4px 12px rgba(15, 23, 42, .35); cursor: pointer; }
+body.dvm-con-barra .du-chip { top: calc(70px + env(safe-area-inset-top)); }
+
+.du-hoja { position: fixed; inset: 0; z-index: 9900; display: none; align-items: flex-end; justify-content: center; background: rgba(15, 23, 42, .55); }
+.du-hoja.abierta { display: flex; }
+.du-panel { width: min(520px, 100%); max-height: 90vh; overflow-y: auto; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0; background: #fff; color: #0f172a; display: grid; gap: 10px; animation: duSubir .2s ease; }
+.du-panel h3 { margin: 0; font-size: 20px; }
+.du-nota { margin: 0; color: #64748b; font-size: 14px; }
+.du-error { color: #b91c1c; font-weight: 700; }
+.du-lista { display: grid; gap: 8px; }
+.du-persona { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border: 2px solid transparent; border-radius: 14px; background: #f1f5f9 !important; color: #0f172a !important; text-align: left; font: inherit; }
+.du-persona.du-activa { border-color: #1d5fd1; }
+.du-persona b { display: block; font-size: 16px; }
+.du-persona small { color: #64748b; }
+.du-persona em { font-style: normal; font-weight: 800; font-size: 12px; color: #1d5fd1; }
+.du-avatar { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; color: #fff; font-weight: 800; }
+.du-pin { padding: 14px; border: 2px solid #cbd5e1; border-radius: 14px; font-size: 28px; text-align: center; letter-spacing: .4em; background: #fff; color: #0f172a; }
+.du-boton { padding: 14px; border: 0; border-radius: 14px; background: #1d5fd1 !important; color: #fff !important; font-weight: 800; font-size: 16px; }
+.du-boton[disabled] { opacity: .6; }
+.du-secundario { background: #e2e8f0 !important; color: #0f172a !important; }
+.du-enlace { padding: 10px; border: 0; background: transparent !important; color: #1d5fd1 !important; font-weight: 800; font-size: 14px; }
+.du-aviso { position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 9950; padding: 12px 18px; border-radius: 999px; background: #052a63; color: #fff; font-weight: 700; box-shadow: 0 10px 28px rgba(5, 42, 99, .4); }
+@keyframes duSubir { from { transform: translateY(30px); opacity: 0; } to { opacity: 1; } }

@@ -70,3 +70,19 @@ test("Venta movil (Fase A): barra fija, tarjeta de confirmacion, pitido y lista 
     assert.match(js, /slice\(\)\.reverse\(\)/, "en el escaner lo nuevo sale primero");
     assert.doesNotMatch(js, /fetchAutenticado|POST|precio\s*=\s*/, "no cambia ventas ni precios: solo muestra");
 });
+
+test("Cambio rapido de usuario en el celular: cableado y con PIN, sin cerrar sesion", () => {
+    const html = leer("dueno.html");
+    const sw = leer("dueno-sw.js");
+    const js = leer("dueno-usuarios.js");
+
+    assert.match(html, /dueno-usuarios\.js\?v=/);
+    assert.match(html, /dueno-usuarios\.css\?v=/);
+    assert.match(sw, /\/dueno-usuarios\.js\?v=/);
+    assert.match(sw, /\/dueno-usuarios\.css\?v=/);
+    assert.match(js, /\/dispositivo\/empleados\/verificar-pin/, "usa el mismo PIN de siempre");
+    assert.match(js, /guardarEmpleadoActivo\(datos\.empleado\)/, "el usuario activo cambia sin cerrar sesion");
+    assert.match(js, /\/turno\/extender/, "Sigo trabajando extiende el turno con el PIN propio");
+    assert.match(js, /x-empleado-id/);
+    assert.doesNotMatch(js, /cerrarSesionDuenoApp\(\)/, "no cierra la sesion para cambiar");
+});
