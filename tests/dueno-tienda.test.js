@@ -36,3 +36,17 @@ test("el pedido sugerido abre el WhatsApp del proveedor y los favoritos se puede
     assert.match(favoritos, /async function favMover/);
     assert.match(favoritos, /favMover\(\$\{producto\.id\}, -1\)/);
 });
+
+test("Exhibidores en el celular: cableados en la pagina y el service worker, con el carrito de siempre", () => {
+    const html = leer("dueno.html");
+    const sw = leer("dueno-sw.js");
+    const js = leer("dueno-exhibidores.js");
+
+    assert.match(html, /dueno-exhibidores\.js\?v=/);
+    assert.match(html, /dueno-exhibidores\.css\?v=/);
+    assert.match(sw, /\/dueno-exhibidores\.js\?v=/);
+    assert.match(sw, /\/dueno-exhibidores\.css\?v=/);
+    assert.match(js, /\/exhibidores/);
+    assert.match(js, /duenoCarrito/);
+    assert.match(js, /cambiarTabDueno\("vender"\)/);
+});
