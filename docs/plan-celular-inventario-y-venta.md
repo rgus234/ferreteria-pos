@@ -173,3 +173,37 @@ Se agrega a la **Fase C** y la **Fase E**:
 1. ¿Los estantes tienen **niveles** (repisa alta/media/baja) o basta Pasillo › Estante?
 2. ¿Un mismo producto puede estar en **más de un lugar** (bodega y mostrador)? Si sí, hay que contar existencias por ubicación (mucho más trabajo); si no, un lugar por producto (lo recomendado para empezar).
 3. ¿Las etiquetas de estante se pegan en el mueble (tamaño grande, QR + nombre en letras grandes)? Con esto defino la plantilla del editor.
+
+---
+
+# Actualización 4 (2026-10-26): de la factura al acomodo (recepción → verificación → acomodo en el celular)
+
+## N. El flujo completo que describe Gustavo
+
+1. **Llega la factura** y se sube en la computadora (XML/CFDI o PDF). Nexo la lee y *detecta* la recepción.
+2. **Verificación con escaneo.** Llega la mercancía; se escanean los productos (con el escáner de la computadora o con el celular como escáner remoto). Cada escaneo marca la línea de la factura en verde, suma la cantidad que llegó y señala lo que **no** viene en la factura (sobrante) o **no llegó** (faltante). Se corrigen cantidades.
+3. **Guardar recepción.** Entra el inventario (con la misma ruta de recepción que ya existe, sin lógica nueva de existencias) y Nexo crea una **tarea de acomodo**.
+4. **Aviso al celular.** Notificación a quien le toque acomodar (o a todo el personal de piso): *"Llegaron 23 productos (factura A-1234). Es hora de acomodarlos."*
+5. **Acomodo en el celular.** La lista de lo que llegó, **agrupada por pasillo/estante destino** y ordenada para recorrer la tienda una sola vez: producto, foto, cantidad, "va en Pasillo 2 › Estante 3". Un toque (o escanear el producto y luego el estante) marca **"acomodado"**; barra de avance (12 de 23). Quien acomoda puede cambiar el destino escaneando otro estante.
+6. **Finalizar.** Botón "Terminar acomodo": si faltan líneas pide confirmar o las deja pendientes; queda registrado quién acomodó qué y cuándo. La computadora ve el avance en vivo.
+
+## O. Piezas y datos
+
+- **Reutiliza lo que ya existe:** Recepción inteligente (lectura de factura), "confirmar por escaneo" (filas roja/verde; Gustavo siente que no quedó bien: se **audita en la Fase 0** y se corrige, no se reescribe), `POST /recepciones-mercancia/rapida` (existencias con transacción y sin duplicar), historial de recepciones, notificaciones push por rol, y el mapa de estantes (sección H).
+- **Tablas nuevas:** `acomodos` (negocio, recepción de origen, estado `pendiente|en_curso|terminado`, asignado_a, creado_at, terminado_por/at) y `acomodo_items` (producto, cantidad, `ubicacion_destino_id`, estado `pendiente|acomodado`, acomodado_por/at, ubicación real si cambió).
+- **Destino de cada producto:** su `ubicacion_id` actual; si no tiene, la línea sale "sin lugar: escanea el estante donde lo dejas" y **ese escaneo le asigna la ubicación** (así el mapa de la tienda se va llenando solo).
+- **Tomar la tarea:** el primero que toca "Iniciar acomodo" la toma (con su nombre), para que dos personas no acomoden lo mismo; se puede soltar o reasignar.
+- **Tiempo real:** el avance se refleja en la computadora al momento (mismo canal en vivo que el escáner remoto, sección B).
+- **Sin internet:** los "acomodado" se encolan y se sincronizan (ya existe la cola offline del celular).
+- **Permisos:** subir/guardar la factura, quien reciba mercancía; acomodar, cualquier empleado de piso.
+
+## P. Dónde entra
+
+Es la **Fase H** (después del mapa de estantes y del escáner remoto, porque usa los dos): *recepción con verificación por escaneo + acomodo móvil*. Orden resultante:
+A venta móvil (4 estorbos) → B diseño y navegación → mapa de estantes + etiquetas → C alta efectiva (+consulta, familia, contexto de estante) → D escáner remoto → E conteo por estante y medidas de Truper → **H recepción + acomodo** → F venta móvil completa → G "Dile a Nexo".
+
+## Q. Preguntas nuevas
+
+1. Hoy, cuando llega mercancía, ¿quién la recibe y quién la acomoda? ¿Son la misma persona?
+2. Si la factura trae 80 renglones, ¿se escanean todos o solo los productos que tienen código de barras y el resto se confirma a mano?
+3. ¿Qué pasa con un producto que llega y todavía no existe en el inventario? (propuesta: se da de alta ahí mismo con la sugerencia por familia y queda ya con estante).
