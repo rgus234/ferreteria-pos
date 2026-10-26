@@ -28,7 +28,7 @@ test("el nombre y la descripcion se limpian y se acotan", () => {
 test("el importador solo escribe identidad: nada de precios ni fotos", () => {
     const importador = fs.readFileSync(path.join(__dirname, "..", "scripts", "importar-urrea-al-maestro.js"), "utf8");
     const rastreador = fs.readFileSync(path.join(__dirname, "..", "scripts", "rastrear-urrea.js"), "utf8");
-    const insert = importador.match(/INSERT INTO public\.catalogo_maestro_productos[\s\S]*?VALUES/)[0];
+    const insert = importador.match(/INSERT INTO public\.catalogo_maestro_productos[\s\S]*?FROM unnest/)[0];
 
     assert.doesNotMatch(insert, /precio|imagen|foto/i);
     assert.doesNotMatch(rastreador, /pricing|price_range|regularPrice|small_image|\bimage\b/i, "el rastreador ni siquiera pide precios ni imagenes");
