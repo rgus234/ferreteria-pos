@@ -229,3 +229,29 @@ test("Producto nuevo sin codigo: busca en el catalogo de Nexo por nombre y al to
     assert.match(js, /f\.modo !== "nuevo" \|\| f\.maestroCodigo \|\| codigo/, "no busca por nombre si ya hay codigo o producto elegido ni en edicion");
     assert.match(css, /\.dai-cat-fila/);
 });
+
+test("Venta cobrada en el celular: pantalla rediseñada con Imprimir (Bluetooth ESC/POS o menu de imprimir) y el ticket se arma bien", () => {
+    const vm = require("node:vm");
+    const js = leer("dueno-ticket.js");
+
+    assert.match(js, /navigator\.bluetooth\.requestDevice/);
+    assert.match(js, /marco\.contentWindow\.print\(\)/, "plan B universal: menu de imprimir del telefono");
+    assert.match(leer("dueno.html"), /dueno-ticket\.js\?v=/);
+    assert.match(leer("dueno-sw.js"), /\/dueno-ticket\.js\?v=/);
+
+    const contexto = { window: {}, document: { getElementById: () => null }, navigator: {}, TextEncoder };
+    vm.runInNewContext(js, contexto);
+
+    const venta = { negocio: "Abarrotes Díaz", folio: "V-12", fecha: "07/11/26 10:00", total: 28, descuento: 0, metodo: "efectivo", recibido: 50, cliente: "", enlace: "https://nexoposoficial.com/ticket/ABC",
+        items: [{ nombre: "Galletas Marías con chispas de chocolate extra grandes", cantidad: 2, precio: 10 }, { nombre: "Chicle", cantidad: 1, precio: 8 }] };
+    const lineas = contexto.window.lineasTicketVentaDueno(venta);
+
+    assert.ok(lineas.every(l => l.length <= 32), "ninguna linea pasa de 32 caracteres (papel de 58 mm)");
+    assert.ok(lineas.some(l => /TOTAL\s+\$28\.00$/.test(l)));
+    assert.ok(lineas.some(l => /Cambio\s+\$22\.00$/.test(l)));
+    assert.ok(lineas.join("").includes("Abarrotes Diaz"), "sin acentos para la impresora");
+
+    const bytes = contexto.window.bytesTicketVentaDueno(venta);
+    assert.equal(bytes[0], 0x1b);
+    assert.equal(bytes[1], 0x40, "empieza con ESC @ (inicializar)");
+});

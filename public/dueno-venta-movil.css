@@ -100,3 +100,27 @@ body.dvm-con-barra #duenoVender { position: fixed; inset: 0; box-sizing: border-
 :root.oscuro .dvc-recibido-caja input { color: #f1f5f9; }
 :root.oscuro .dvc-cambio-vacio { background: #1e293b; color: #64748b; }
 :root.oscuro .dvc-cambio-falta { background: #78350f; color: #fef3c7; }
+
+/* Venta cobrada + imprimir (dueno-ticket.js) */
+.dtk-pantalla { display: grid; gap: 12px; justify-items: stretch; text-align: center; padding-top: 6px; }
+.dtk-check { width: 72px; height: 72px; margin: 4px auto 0; display: grid; place-items: center; border-radius: 50%; background: #18b88f; color: #04223f; animation: dvmEntrar .25s ease; }
+.dtk-check svg { width: 40px; height: 40px; }
+.dtk-titulo { margin: 0; font-size: 24px; color: #0f172a; }
+.dtk-folio { margin: -6px 0 0; color: #64748b; font-weight: 700; font-size: 14px; }
+.dtk-total, .dtk-cambio { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-radius: 16px; background: #f1f5f9; color: #334155; font-weight: 800; }
+.dtk-total strong { font-size: 32px; color: #0f172a; }
+.dtk-cambio { background: #18b88f; color: #04223f; }
+.dtk-cambio strong { font-size: 32px; }
+.dtk-acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+.dtk-boton { display: grid; gap: 2px; justify-items: center; align-content: center; padding: 14px 8px; border: 1px solid #cbd5e1; border-radius: 16px; background: #fff !important; color: #0f172a !important; text-decoration: none; font: inherit; }
+.dtk-boton svg { width: 26px; height: 26px; margin-bottom: 2px; }
+.dtk-boton b { font-size: 15px; }
+.dtk-boton small { color: #64748b; font-size: 12px; }
+.dtk-imprimir { grid-column: 1 / -1; background: #1d5fd1 !important; border-color: #1d5fd1; color: #fff !important; }
+.dtk-imprimir small { color: rgba(255, 255, 255, .85); }
+.dtk-whats svg { color: #16a34a; }
+.dtk-nueva { margin-top: 6px; }
+:root.oscuro .dtk-titulo, :root.oscuro .dtk-total strong { color: #f1f5f9; }
+:root.oscuro .dtk-total { background: #1e293b; color: #cbd5e1; }
+:root.oscuro .dtk-boton { background: #1e293b !important; border-color: #475569; color: #f1f5f9 !important; }
+:root.oscuro .dtk-imprimir { background: #1d5fd1 !important; border-color: #1d5fd1; color: #fff !important; }
