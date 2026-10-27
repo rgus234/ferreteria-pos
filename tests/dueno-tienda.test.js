@@ -149,3 +149,30 @@ test("Caja cerrada en el celular: aviso en Inicio/Vender y abrir el turno desde 
     assert.match(js, /dvmAbrirCajaYCobrar/);
     assert.equal((dueno.match(/manejarFaltaDeTurnoDueno\(error\)/g) || []).length, 2, "las dos rutas de cobro (contado y credito) lo manejan");
 });
+
+test("Venta movil completa: peso a mano ('dame $20 de jitomate'), pasos de 1/4 kg y cobro en 1 toque, apoyados en las funciones de siempre", () => {
+    const vm = require("node:vm");
+    const html = leer("dueno.html");
+    const sw = leer("dueno-sw.js");
+    const js = leer("dueno-venta-completa.js");
+
+    assert.match(html, /dueno-venta-completa\.js\?v=/);
+    assert.match(sw, /\/dueno-venta-completa\.js\?v=/);
+    assert.ok(html.indexOf("dueno-venta-movil.js") < html.indexOf("dueno-venta-completa.js"), "se carga despues de la venta movil");
+
+    for (const f of ["agregarAlCarritoVenderDueno", "cambiarCantidadCarritoVenderDueno", "filaCarritoVenderDuenoHtml", "renderCobroVenderDueno"]) assert.match(js, new RegExp(`window\.${f}`), `envuelve ${f}`);
+
+    assert.match(js, /elegirMetodoPagoVenderDueno\(metodo\)/);
+    assert.match(js, /aplicarMontoRapidoVenderDueno\(total\)/);
+    assert.match(js, /confirmarCobroVenderDueno\(\)/);
+
+    const contexto = { window: {}, document: { addEventListener() {}, createElement() { return {}; } } };
+    vm.runInNewContext(js, contexto);
+
+    assert.equal(contexto.window.dvcCantidadPorPesos(20, 28), 0.714, "$20 de jitomate a $28 el kilo");
+    assert.equal(contexto.window.dvcCantidadPorPesos(0, 28), 0);
+    assert.equal(contexto.window.dvcCantidadPorPesos(20, 0), 0);
+    assert.equal(contexto.window.dvcEsDecimal({ unidadVenta: "kilo" }), true);
+    assert.equal(contexto.window.dvcEsDecimal({ unidad_venta: "litro" }), true);
+    assert.equal(contexto.window.dvcEsDecimal({ unidadVenta: "pieza" }), false);
+});

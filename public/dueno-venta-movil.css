@@ -49,3 +49,20 @@ html { touch-action: manipulation; }
 .dvm-caja p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
 .dvm-caja .dueno-boton-primario { padding: 15px; font-size: 16px; }
 :root.oscuro .dvm-aviso-caja { background: rgba(245, 158, 11, .14); color: #fcd34d; }
+
+/* ---- Venta por peso y cobro en 1 toque (dueno-venta-completa.js) ---- */
+.dvc-hoja { max-height: 92vh; overflow-y: auto; }
+.dvc-cantidad { font-size: 22px !important; font-weight: 800; text-align: center; }
+.dvc-atajos { display: flex; flex-wrap: wrap; gap: 8px; }
+.dvc-atajos button { flex: 1 0 28%; padding: 12px 6px; border: 0; border-radius: 12px; background: #e0e7ff !important; color: #3730a3 !important; font-weight: 800; font-size: 15px; }
+.dvc-total { padding: 12px; border-radius: 14px; background: #ecfdf3; color: #047857; font-weight: 800; font-size: 18px; text-align: center; }
+.dvc-cant { min-width: 74px; padding: 8px 10px; border: 2px dashed #1d5fd1; border-radius: 10px; background: transparent !important; color: #1d5fd1 !important; font-weight: 800; font-size: 15px; }
+.dvc-rapido { display: grid; gap: 8px; margin-top: 12px; }
+.dvc-rapido p { margin: 0; font-weight: 800; }
+.dvc-rapido-botones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dvc-rapido-botones button { display: grid; gap: 2px; padding: 16px 8px; border: 0; border-radius: 16px; color: #fff !important; text-align: center; font-size: 16px; }
+.dvc-rapido-botones button span { font-size: 18px; font-weight: 800; }
+.dvc-efectivo { background: linear-gradient(135deg, #059669, #18b88f) !important; }
+.dvc-tarjeta { background: linear-gradient(135deg, #1d5fd1, #3b82f6) !important; }
+:root.oscuro .dvc-atajos button { background: rgba(99, 102, 241, .25) !important; color: #c7d2fe !important; }
+:root.oscuro .dvc-total { background: rgba(24, 184, 143, .14); color: #6ee7b7; }
