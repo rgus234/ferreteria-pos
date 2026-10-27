@@ -244,3 +244,35 @@
         abrir(img.src, img.closest(".fila-dueno")?.querySelector("strong")?.textContent || "");
     }, true);
 })();
+
+/* Escaner de Vender, version nueva: camara a pantalla completa con marco y, abajo, una hoja con "Escribir codigo", la lista de lo escaneado
+   (foto, cantidad con - / +) y el total con Cobrar. Aqui solo se acomoda lo que ya existe en dueno.html (mismos ids y mismo escaneo). */
+(function () {
+    function armarHoja() {
+        const overlay = document.getElementById("duenoVenderEscanerOverlay");
+        const inner = overlay?.querySelector(".dueno-subpantalla-inner");
+        const form = document.getElementById("duenoVenderEscaneoManualForm");
+        const ambiguo = document.getElementById("duenoVenderEscaneoAmbiguo");
+        const lista = document.getElementById("duenoVenderEscaneoCarrito");
+
+        if (!overlay || !inner || !form || !lista || document.getElementById("dvmHojaEscaner")) return;
+
+        overlay.classList.add("dvm-escaner-nuevo");
+
+        const hoja = document.createElement("div");
+        hoja.id = "dvmHojaEscaner";
+        hoja.className = "dvm-hoja-escaner";
+        hoja.innerHTML = `<button type="button" class="dvm-hoja-codigo" id="dvmBotonCodigo">⌨️ Escribir código</button>`;
+        hoja.appendChild(form);
+        if (ambiguo) hoja.appendChild(ambiguo);
+        hoja.appendChild(lista);
+        inner.appendChild(hoja);
+
+        hoja.querySelector("#dvmBotonCodigo").addEventListener("click", () => {
+            hoja.classList.toggle("dvm-con-codigo");
+            if (hoja.classList.contains("dvm-con-codigo")) document.getElementById("duenoVenderEscaneoManualInput")?.focus();
+        });
+    }
+
+    armarHoja();
+})();

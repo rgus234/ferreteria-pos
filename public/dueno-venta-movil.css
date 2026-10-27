@@ -124,3 +124,34 @@ body.dvm-con-barra #duenoVender { position: fixed; inset: 0; box-sizing: border-
 :root.oscuro .dtk-total { background: #1e293b; color: #cbd5e1; }
 :root.oscuro .dtk-boton { background: #1e293b !important; border-color: #475569; color: #f1f5f9 !important; }
 :root.oscuro .dtk-imprimir { background: #1d5fd1 !important; border-color: #1d5fd1; color: #fff !important; }
+
+/* Escaner de Vender (version nueva): camara a pantalla completa */
+#duenoVenderEscanerOverlay.dvm-escaner-nuevo { z-index: 9600 !important; background: #000; overflow: hidden; }
+#duenoVenderEscanerOverlay.dvm-escaner-nuevo .dueno-subpantalla-inner { position: relative; width: 100%; max-width: none; height: 100%; padding: 0; }
+#duenoVenderEscanerOverlay.dvm-escaner-nuevo .dueno-subpantalla-header { position: absolute; top: 0; left: 0; right: 0; z-index: 4; margin: 0; padding: calc(14px + env(safe-area-inset-top)) 14px 46px; background: linear-gradient(rgba(0, 0, 0, .72), transparent); }
+#duenoVenderEscanerOverlay.dvm-escaner-nuevo .dueno-subpantalla-header h2 { color: #fff; font-size: 17px; font-weight: 800; }
+#duenoVenderEscanerOverlay.dvm-escaner-nuevo .dueno-subpantalla-atras { padding: 10px 16px; border-radius: 999px; background: rgba(255, 255, 255, .2) !important; color: #fff !important; font-weight: 700; backdrop-filter: blur(8px); }
+#duenoVenderEscanerOverlay.dvm-escaner-nuevo .dueno-ped-verif-escaneo { position: absolute; inset: 0; margin: 0; }
+#duenoVenderEscaneoVideo { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; margin: 0; border-radius: 0; object-fit: cover; background: #000; }
+#duenoVenderEscanerOverlay.dvm-escaner-nuevo .dueno-ped-verif-escaneo::before { content: ""; position: absolute; left: 50%; top: 30%; z-index: 2; width: min(78vw, 330px); height: min(40vw, 170px); transform: translate(-50%, -50%); border-radius: 22px; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .5); pointer-events: none; }
+#duenoVenderEscanerOverlay.dvm-escaner-nuevo .dueno-ped-verif-escaneo::after { content: ""; position: absolute; left: 50%; top: 30%; z-index: 3; width: min(78vw, 330px); height: min(40vw, 170px); transform: translate(-50%, -50%); pointer-events: none;
+    background:
+        linear-gradient(#2cf5bd, #2cf5bd) left top / 30px 5px no-repeat, linear-gradient(#2cf5bd, #2cf5bd) left top / 5px 30px no-repeat,
+        linear-gradient(#2cf5bd, #2cf5bd) right top / 30px 5px no-repeat, linear-gradient(#2cf5bd, #2cf5bd) right top / 5px 30px no-repeat,
+        linear-gradient(#2cf5bd, #2cf5bd) left bottom / 30px 5px no-repeat, linear-gradient(#2cf5bd, #2cf5bd) left bottom / 5px 30px no-repeat,
+        linear-gradient(#2cf5bd, #2cf5bd) right bottom / 30px 5px no-repeat, linear-gradient(#2cf5bd, #2cf5bd) right bottom / 5px 30px no-repeat,
+        linear-gradient(90deg, transparent, #2cf5bd, transparent) 0 10% / 100% 2px no-repeat;
+    animation: dvmLinea 2.2s ease-in-out infinite alternate; }
+@keyframes dvmLinea { to { background-position: left top, left top, right top, right top, left bottom, left bottom, right bottom, right bottom, 0 90%; } }
+#duenoVenderEscaneoEstado { position: absolute; left: 50%; top: calc(30% + min(40vw, 170px) / 2 + 22px); z-index: 4; transform: translateX(-50%); max-width: 90%; margin: 0; padding: 9px 16px; border-radius: 999px; background: rgba(15, 23, 42, .78); color: #fff; font-size: 14px; font-weight: 700; text-align: center; backdrop-filter: blur(8px); }
+
+.dvm-hoja-escaner { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column; gap: 8px; max-height: 52vh; padding: 12px 14px calc(14px + env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; background: #fff; box-shadow: 0 -10px 30px rgba(0, 0, 0, .35); overflow-y: auto; overscroll-behavior: contain; }
+.dvm-hoja-escaner::before { content: ""; flex: none; align-self: center; width: 42px; height: 5px; border-radius: 999px; background: #cbd5e1; }
+.dvm-hoja-codigo { flex: none; align-self: flex-start; padding: 9px 14px; border: 1px solid #cbd5e1; border-radius: 999px; background: #f1f5f9 !important; color: #334155 !important; font-weight: 700; font-size: 13.5px; }
+.dvm-hoja-escaner #duenoVenderEscaneoManualForm { display: none; margin: 0; }
+.dvm-hoja-escaner.dvm-con-codigo #duenoVenderEscaneoManualForm { display: flex; }
+.dvm-hoja-escaner #duenoVenderEscaneoManualInput { font-size: 16px; }
+.dvm-hoja-escaner .dvm-escaner-total { position: sticky; top: 0; z-index: 2; background: #fff; padding: 4px 2px 8px; }
+:root.oscuro .dvm-hoja-escaner { background: #0f172a; }
+:root.oscuro .dvm-hoja-escaner .dvm-escaner-total { background: #0f172a; color: #f1f5f9; }
+:root.oscuro .dvm-hoja-codigo { background: #1e293b !important; color: #e2e8f0 !important; border-color: #475569; }
