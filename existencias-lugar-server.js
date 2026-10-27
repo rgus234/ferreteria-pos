@@ -100,9 +100,8 @@ function instalar(app, pool, requerirAccesoNegocio) {
 
     // ---- Resurtir: que hay que pasar de la bodega a la exhibicion ----
 
-    app.get("/resurtir", requerirAccesoNegocio, async (req, res) => {
-        try {
-            const id = negocioId(req);
+    async function listaResurtir(id) {
+        {
             const { porId, ruta } = await rutas(pool, id);
             const filas = (await pool.query(
                 `SELECT p.id, p.nombre, p.codigo, p.stock, p.stock_minimo, p.unidad_venta, p.ubicacion_id,
@@ -126,7 +125,58 @@ function instalar(app, pool, requerirAccesoNegocio) {
                 };
             }).filter(p => p.estado).sort((a, b) => (a.estado === "agotado" ? 0 : 1) - (b.estado === "agotado" ? 0 : 1) || a.nombre.localeCompare(b.nombre));
 
+            return lista;
+        }
+    }
+
+    app.get("/resurtir", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const lista = await listaResurtir(negocioId(req));
             res.json({ ok: true, productos: lista, agotados: lista.filter(p => p.estado === "agotado").length });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Indicadores de la pantalla principal del celular: todo calculado del inventario real del negocio.
+    app.get("/ubicaciones/resumen", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const id = negocioId(req);
+            const fila = (await pool.query(
+                `SELECT
+                    (SELECT COUNT(*)::int FROM public.ubicaciones WHERE negocio_id = $1 AND activa = true) AS ubicaciones,
+                    COUNT(*) FILTER (WHERE ubicacion_id IS NOT NULL OR ubicacion_bodega_id IS NOT NULL)::int AS con_lugar,
+                    COUNT(*) FILTER (WHERE ubicacion_id IS NULL AND ubicacion_bodega_id IS NULL AND stock > 0)::int AS sin_lugar
+                 FROM public.productos WHERE negocio_id = $1`,
+                [id]
+            )).rows[0];
+            const resurtir = await listaResurtir(id);
+
+            res.json({ ok: true, ubicaciones: fila.ubicaciones, productosConLugar: fila.con_lugar, productosSinLugar: fila.sin_lugar, porResurtir: resurtir.length, agotados: resurtir.filter(p => p.estado === "agotado").length });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // "¿Donde esta?": busca por nombre o codigo y dice en que estante / bodega esta y cuanto hay en cada lado.
+    app.get("/ubicaciones/buscar", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const id = negocioId(req);
+            const texto = String(req.query.q || "").trim();
+
+            if (texto.length < 2) { res.json({ ok: true, productos: [] }); return; }
+
+            const patron = "%" + texto.replace(/[\\%_]/g, m => "\\" + m) + "%";
+            const filas = (await pool.query(
+                `SELECT p.id, p.nombre, p.codigo, p.stock, p.unidad_venta, p.ubicacion,
+                        (SELECT COALESCE(SUM(pu.cantidad), 0) FROM public.producto_ubicaciones pu JOIN public.ubicaciones ub ON ub.id = pu.ubicacion_id AND ub.zona = 'bodega' WHERE pu.producto_id = p.id) AS bodega_total
+                 FROM public.productos p
+                 WHERE p.negocio_id = $1 AND (p.nombre ILIKE $2 OR p.codigo ILIKE $2)
+                 ORDER BY (p.codigo = $3) DESC, p.nombre LIMIT 20`,
+                [id, patron, texto]
+            )).rows;
+
+            res.json({ ok: true, productos: filas.map(p => ({ id: p.id, nombre: p.nombre, codigo: p.codigo, unidadVenta: p.unidad_venta, ubicacion: p.ubicacion || "", ...desglose(p.stock, p.bodega_total) })) });
         } catch (error) {
             responderError(res, error);
         }
@@ -193,6 +243,13 @@ function instalar(app, pool, requerirAccesoNegocio) {
                 [id, productoId, lugarId, cantidad]
             );
             await pool.query(`UPDATE public.productos SET ubicacion_bodega_id = $3 WHERE id = $1 AND negocio_id = $2 AND ubicacion_bodega_id IS NULL`, [productoId, id, lugarId]);
+
+            // El texto de ubicacion del producto ("Tienda › ... · Bodega: ...") se mantiene al dia, igual que al asignar.
+            const { porId, ruta } = await rutas(pool, id);
+            const fila = (await pool.query(`SELECT ubicacion_id, ubicacion_bodega_id FROM public.productos WHERE id = $1`, [productoId])).rows[0];
+            const tienda = fila.ubicacion_id && porId.get(fila.ubicacion_id) ? "Tienda › " + ruta(porId.get(fila.ubicacion_id)) : "";
+            const bodega = fila.ubicacion_bodega_id && porId.get(fila.ubicacion_bodega_id) ? "Bodega: " + ruta(porId.get(fila.ubicacion_bodega_id)) : "";
+            await pool.query(`UPDATE public.productos SET ubicacion = $2 WHERE id = $1`, [productoId, [tienda, bodega].filter(Boolean).join(" · ")]);
 
             res.json({ ok: true, ...desglose(producto.stock, otras + cantidad) });
         } catch (error) {

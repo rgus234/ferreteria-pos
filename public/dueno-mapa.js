@@ -12,6 +12,8 @@
     let vista = null; // "resurtir" | "conteo"
     let conteo = null; // { lugar, productos, valores, resultado, noEscaneados }
     let resurtir = [];
+    let resumen = null;
+    let busqueda = { texto: "", productos: [] };
 
     const esc = valor => (typeof escaparDueno === "function" ? escaparDueno(valor) : String(valor ?? ""));
 
@@ -32,7 +34,7 @@
         boton.type = "button";
         boton.id = "dmEntrada";
         boton.className = "dm-entrada";
-        boton.innerHTML = `<span aria-hidden="true">🗺️</span><b>Mapa de la tienda</b><small>Pasillos, estantes y bodega con su código QR</small>`;
+        boton.innerHTML = `<span aria-hidden="true">🗺️</span><b>Inventario de tienda</b><small>Escanear, contar, resurtir y saber dónde está cada producto</small>`;
         boton.addEventListener("click", abrir);
         destino.insertAdjacentElement("afterend", boton);
     }
@@ -77,6 +79,10 @@
 
         lugares = r.datos.ubicaciones || [];
         pintar();
+
+        const s = await llamar("/ubicaciones/resumen");
+
+        if (s.ok) { resumen = s.datos; if (!vista && !abierto && !formulario) pintar(); }
     }
 
     function cabecera(titulo) {
@@ -96,6 +102,7 @@
         const c = obtenerCapa();
 
         if (vista === "resurtir") return pintarResurtir(c);
+        if (vista === "buscar") return pintarBusqueda(c);
         if (vista === "conteo") return pintarConteo(c);
         if (formulario) return pintarFormulario(c);
         if (abierto) return pintarDetalle(c);
@@ -106,13 +113,83 @@
             ${lista.map(l => `<button type="button" class="dm-lugar" style="margin-left:${Math.min(l.nivel, 3) * 16}px" onclick="dmAbrir(${l.id})"><span><b>${esc(l.nombre)}</b><small>${esc(l.tipo)}</small></span><em>${l.productos || 0}</em></button>`).join("") || `<p class="dm-nota">${vacio}</p>`}</section>`;
         };
 
-        c.innerHTML = cabecera("Mapa de la tienda") + `<main class="dm-cuerpo">
-            <p class="dm-nota">Crea tus pasillos y estantes, imprime su etiqueta, pégala y escanéala para acomodar o buscar productos.</p>
-            <div class="dm-acciones"><button type="button" onclick="dmEscanear()">📷 Escanear un estante</button><button type="button" onclick="dmResurtir()">🔁 Resurtir</button>${lugares.length ? `<button type="button" onclick="dmImprimir()">🖨️ Imprimir todas</button>` : ""}</div>
+        const cifra = (valor, texto, clase = "") => `<div class="dm-dato ${clase}"><strong>${valor ?? "—"}</strong><span>${texto}</span></div>`;
+
+        c.innerHTML = cabecera("Inventario de tienda") + `<main class="dm-cuerpo">
+            <div class="dm-datos">
+                ${cifra(resumen?.productosConLugar, "productos con lugar")}
+                ${cifra(resumen?.ubicaciones ?? lugares.length, "lugares creados")}
+                ${cifra(resumen?.productosSinLugar, "sin lugar", resumen?.productosSinLugar ? "aviso" : "")}
+                ${cifra(resumen?.porResurtir, "por resurtir", resumen?.agotados ? "alerta" : "")}
+            </div>
+            <button type="button" class="dm-escanear" onclick="dmEscanear()"><span>📷</span>ESCANEAR UBICACIÓN</button>
+            <div class="dm-cuadricula">
+                <button type="button" onclick="dmContarEscaneando()"><span>🔢</span>Contar inventario</button>
+                <button type="button" onclick="dmBuscarVista()"><span>🔎</span>¿Dónde está?</button>
+                <button type="button" onclick="dmResurtir()"><span>🔁</span>Resurtir${resumen?.porResurtir ? ` (${resumen.porResurtir})` : ""}</button>
+                <button type="button" onclick="dmImprimir()" ${lugares.length ? "" : "disabled"}><span>🖨️</span>Etiquetas QR</button>
+            </div>
+            <h3 class="dm-titulo">Organizar tienda</h3>
             ${bloque("tienda", "Tienda", "Aún no tienes pasillos ni estantes.")}
             ${bloque("bodega", "Bodega", "Aún no tienes secciones de bodega.")}
         </main>`;
     }
+
+    // ---- ¿Donde esta? ----
+
+    window.dmBuscarVista = function () { vista = "buscar"; busqueda = { texto: "", productos: [] }; pintar(); setTimeout(() => document.getElementById("dmQ")?.focus(), 50); };
+
+    function pintarBusqueda(c) {
+        c.innerHTML = cabecera("¿Dónde está?") + `<main class="dm-cuerpo">
+            <input id="dmQ" class="dm-buscar" type="search" placeholder="Nombre o código del producto" oninput="dmBuscarDonde(this.value)" autocomplete="off" value="${esc(busqueda.texto)}">
+            <button type="button" class="dm-acciones-uno" onclick="dmBuscarEscaneando()">📷 Buscar escaneando</button>
+            <div id="dmDonde" class="dm-lista">${listaDonde()}</div>
+        </main>`;
+    }
+
+    function listaDonde() {
+        return busqueda.productos.map(p => `<article class="dm-tarjeta ${p.total <= 0 ? "agotado" : ""}">
+            <b>${esc(p.nombre)}</b>
+            <div class="dm-lugar-grande">📍 ${esc(p.ubicacion || "Sin lugar asignado")}</div>
+            <div class="dm-cifras"><span>En estante <strong>${p.exhibicion}</strong></span><span>En bodega <strong>${p.bodega}</strong></span><span>Total <strong>${p.total}</strong></span></div>
+        </article>`).join("") || (busqueda.texto.length >= 2 ? `<p class="dm-nota">No encontré ese producto.</p>` : `<p class="dm-nota">Escribe el nombre o escanea el código para saber dónde está y cuánto hay.</p>`);
+    }
+
+    let temporizadorBusqueda = null;
+
+    window.dmBuscarDonde = function (texto) {
+        busqueda.texto = texto.trim();
+        clearTimeout(temporizadorBusqueda);
+        temporizadorBusqueda = setTimeout(async () => {
+            const r = busqueda.texto.length >= 2 ? await llamar(`/ubicaciones/buscar?q=${encodeURIComponent(busqueda.texto)}`) : { ok: true, datos: { productos: [] } };
+            busqueda.productos = r.ok ? r.datos.productos || [] : [];
+            const caja = document.getElementById("dmDonde");
+            if (caja) caja.innerHTML = listaDonde();
+        }, 300);
+    };
+
+    window.dmBuscarEscaneando = function () {
+        if (typeof abrirEscanerCodigoDueno !== "function") return;
+
+        abrirEscanerCodigoDueno({ titulo: "Escanea el producto", alCodigo: codigo => { busqueda.texto = String(codigo).trim(); pintar(); window.dmBuscarDonde(busqueda.texto); } });
+    };
+
+    // Escanear la etiqueta de un estante y entrar directo a contar lo que hay en el.
+    window.dmContarEscaneando = function () {
+        if (typeof abrirEscanerCodigoDueno !== "function") return;
+
+        abrirEscanerCodigoDueno({
+            titulo: "Escanea el estante que vas a contar",
+            alCodigo: async codigo => {
+                const r = await llamar(`/ubicaciones/codigo/${encodeURIComponent(String(codigo).trim())}`);
+
+                if (!r.ok) { alert("Ese código no es de ningún estante de tu tienda."); return; }
+
+                await window.dmAbrir(r.datos.ubicacion.id);
+                window.dmContar();
+            }
+        });
+    };
 
     // ---- Alta de un lugar ----
 

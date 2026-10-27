@@ -110,3 +110,20 @@ test("compararConteo: lo no escaneado cuenta como cero solo si se pide", () => {
     assert.equal(compararConteo(lugar, productos, [{ productoId: 1, cantidad: 10 }], false).faltan, 0);
     assert.equal(compararConteo(lugar, productos, [{ productoId: 1, cantidad: 10 }], true).faltan, 5);
 });
+
+test("indicadores de la pantalla principal y buscador de donde esta cada producto", async () => {
+    const r = (await llamar("/ubicaciones/resumen")).cuerpo;
+
+    assert.equal(r.ubicaciones, 2);
+    assert.equal(r.productosConLugar, 2);
+    assert.equal(r.productosSinLugar, 0);
+    assert.equal(r.porResurtir, 0);
+
+    const busca = (await llamar("/ubicaciones/buscar?q=pija")).cuerpo.productos;
+    assert.equal(busca.length, 1);
+    assert.equal(busca[0].ubicacion, "Tienda › Estante 2 · Bodega: Rack 3");
+    assert.equal(busca[0].bodega, 20);
+    assert.equal(busca[0].exhibicion + busca[0].bodega, busca[0].total);
+
+    assert.deepEqual((await llamar("/ubicaciones/buscar?q=a")).cuerpo.productos, [], "con una letra no busca");
+});

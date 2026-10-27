@@ -56,3 +56,17 @@
 .dm-check { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; }
 .dm-check input { width: 22px; height: 22px; }
 .dm-secundario { padding: 14px; border: 0; border-radius: 14px; background: #e2e8f0 !important; color: #0f172a !important; font-weight: 800; }
+
+.dm-datos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.dm-dato { display: grid; gap: 2px; padding: 10px 6px; border-radius: 14px; background: #fff; text-align: center; }
+.dm-dato strong { font-size: 20px; }
+.dm-dato span { color: #64748b; font-size: 10.5px; font-weight: 700; line-height: 1.2; }
+.dm-dato.aviso { background: #fef3c7; } .dm-dato.alerta { background: #fee2e2; } .dm-dato.alerta strong { color: #b91c1c; }
+.dm-escanear { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 24px 12px; border: 0; border-radius: 20px; background: linear-gradient(135deg, #1d5fd1, #18b88f) !important; color: #fff !important; font-size: 19px; font-weight: 900; letter-spacing: .5px; box-shadow: 0 10px 22px -12px rgba(29, 95, 209, .8); }
+.dm-escanear span { font-size: 32px; }
+.dm-cuadricula { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dm-cuadricula button { display: grid; justify-items: center; gap: 4px; padding: 16px 8px; border: 0; border-radius: 16px; background: #fff !important; color: #0f172a !important; font-weight: 800; font-size: 14px; box-shadow: 0 6px 16px -12px rgba(15, 23, 42, .5); }
+.dm-cuadricula button span { font-size: 26px; }
+.dm-cuadricula button:disabled { opacity: .45; }
+.dm-acciones-uno { padding: 13px; border: 0; border-radius: 14px; background: #1d5fd1 !important; color: #fff !important; font-weight: 800; }
+.dm-lugar-grande { font-size: 15px; font-weight: 800; color: #1d5fd1; }
