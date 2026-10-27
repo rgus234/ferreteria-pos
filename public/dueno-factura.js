@@ -414,6 +414,14 @@
                 if (!u.ok) { N().aviso("Ese código no es de ningún lugar de tu tienda.", "error"); return; }
 
                 const lugar = u.datos.ubicacion;
+                const previo = e.productos.find(x => x.productoId === productoId);
+
+                // Ya tenia un estante distinto: se confirma el cambio (queda registrado quien lo movio).
+                if (previo?.lugar && lugar.zona !== "bodega" && !previo.lugar.includes(lugar.nombre)) {
+                    const d = await N().dialogo({ titulo: "Ya tiene otro estante", texto: `${previo.nombre} está registrado en: ${previo.lugar}. ¿Lo mueves a ${lugar.ruta}?`, aceptar: "Moverlo", cancelar: "No" });
+                    if (!d.ok) return;
+                }
+
                 const r = await llamar(`/ubicaciones/${lugar.id}/asignar`, { method: "POST", body: { productoIds: [productoId] } });
 
                 if (!r.ok) { N().aviso(r.datos.error || "No se pudo acomodar.", "error"); return; }

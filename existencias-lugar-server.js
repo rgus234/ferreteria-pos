@@ -179,9 +179,19 @@ function instalar(app, pool, requerirAccesoNegocio, firmarTokenImagen) {
             const d = desglose(p.stock, bodegas.reduce((t, b) => t + num(b.cantidad), 0));
             const [conFoto] = await agregarFotos(pool, id, [{ codigo: p.codigo }], firmarTokenImagen);
 
+            // Ultimos movimientos de lugar (quien lo movio, cuando, de donde a donde).
+            const movimientos = (await pool.query(
+                `SELECT b.accion, b.detalle, b.created_at, e.nombre AS quien
+                 FROM public.bitacora_acciones b LEFT JOIN public.empleados e ON e.id = b.empleado_id
+                 WHERE b.negocio_id = $1 AND b.accion IN ('producto_movido', 'producto_acomodado') AND (b.detalle->>'productoId')::int = $2
+                 ORDER BY b.created_at DESC LIMIT 5`,
+                [id, p.id]
+            ).catch(() => ({ rows: [] }))).rows.map(m => ({ accion: m.accion, desde: m.detalle?.desde || "", hacia: m.detalle?.hacia || "", quien: m.quien || "Dueño", cuando: m.created_at }));
+
             res.json({
                 ok: true,
                 producto: {
+                    movimientos,
                     id: p.id, nombre: p.nombre, codigo: p.codigo, marca: p.marca || "", categoria: p.categoria || "", subcategoria: p.subcategoria || "",
                     unidadVenta: p.unidad_venta, presentacionCompra: p.presentacion_compra || "", factorConversion: p.factor_conversion === null ? null : num(p.factor_conversion),
                     permiteVentaPieza: p.permite_venta_pieza, basculaDigital: p.bascula_digital === "si",

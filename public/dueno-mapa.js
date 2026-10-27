@@ -63,11 +63,11 @@
         setTimeout(() => t.remove(), 3000);
     }
 
-    function dialogo({ titulo, texto = "", campo = null, aceptar = "Aceptar", peligro = false }) {
+    function dialogo({ titulo, texto = "", campo = null, aceptar = "Aceptar", cancelar = "Cancelar", peligro = false }) {
         return new Promise(resolve => {
             const fondo = document.createElement("div");
             fondo.className = "dm-dialogo-fondo";
-            fondo.innerHTML = `<div class="dm-dialogo" role="dialog"><h3>${esc(titulo)}</h3>${texto ? `<p>${esc(texto)}</p>` : ""}${campo ? `<input class="dm-input" type="${campo.tipo || "text"}" inputmode="${campo.tipo === "number" ? "decimal" : "text"}" value="${esc(campo.valor ?? "")}" placeholder="${esc(campo.ayuda || "")}" autocomplete="off">` : ""}<div class="dm-dialogo-botones"><button type="button" data-r="no">Cancelar</button><button type="button" data-r="si" class="${peligro ? "peligro" : "principal"}">${esc(aceptar)}</button></div></div>`;
+            fondo.innerHTML = `<div class="dm-dialogo" role="dialog"><h3>${esc(titulo)}</h3>${texto ? `<p>${esc(texto)}</p>` : ""}${campo ? `<input class="dm-input" type="${campo.tipo || "text"}" inputmode="${campo.tipo === "number" ? "decimal" : "text"}" value="${esc(campo.valor ?? "")}" placeholder="${esc(campo.ayuda || "")}" autocomplete="off">` : ""}<div class="dm-dialogo-botones"><button type="button" data-r="no">${esc(cancelar)}</button><button type="button" data-r="si" class="${peligro ? "peligro" : "principal"}">${esc(aceptar)}</button></div></div>`;
             document.body.appendChild(fondo);
             const entrada = fondo.querySelector("input");
             const cerrar = ok => { const valor = entrada ? entrada.value : null; fondo.remove(); resolve({ ok, valor }); };
@@ -292,12 +292,25 @@
         const caja = document.getElementById("dmResultados");
         const hallados = typeof buscarEnCatalogoLocal === "function" && String(texto).trim().length >= 2 ? await buscarEnCatalogoLocal(texto) : [];
 
+        ultimosResultados = hallados;
         caja.innerHTML = hallados.map(p => `<button type="button" class="dm-producto" onclick="dmPoner(${p.id})">${miniatura(p.imagenUrl, 44)}<span class="dm-fila-texto"><b>${esc(p.nombre)}</b><small>${esc(p.ubicacion || "Sin lugar")}</small></span><span class="dm-boton-chico">Poner aquí</span></button>`).join("");
     };
+
+    let ultimosResultados = [];
 
     window.dmPoner = async function (productoId) {
         const e = actual();
         const l = lugarPorId(e.id);
+        const elegido = ultimosResultados.find(x => x.id === productoId);
+        const yaEn = String(elegido?.ubicacion || "");
+
+        // Ya tiene otro lugar en esta zona: se pregunta antes de moverlo (y el movimiento queda registrado).
+        if (yaEn && !yaEn.includes(l.nombre) && (l.zona === "bodega" ? yaEn.includes("Bodega") : yaEn.startsWith("Tienda"))) {
+            const d = await dialogo({ titulo: "Ya tiene otro lugar", texto: `${elegido.nombre} está registrado en: ${yaEn}. ¿Lo mueves a ${l.nombre}?`, aceptar: "Moverlo aquí", cancelar: "No" });
+
+            if (!d.ok) return;
+        }
+
         const r = await llamar(`/ubicaciones/${e.id}/asignar`, { method: "POST", body: { productoIds: [productoId] } });
 
         if (!r.ok) { aviso(r.datos.error || "No se pudo poner el producto.", "error"); return; }
@@ -432,7 +445,8 @@
                 ${fila("Se vende por", p.unidadVenta)}${fila("Se compra por", p.presentacionCompra ? p.presentacionCompra.toLowerCase() + (p.factorConversion ? ` de ${p.factorConversion}` : "") : "")}
                 ${fila("Precio", dinero2(p.precio))}${p.precioMayoreo ? fila("Mayoreo", dinero2(p.precioMayoreo)) : ""}${fila("Stock mínimo", p.stockMinimo || "")}
                 ${p.basculaDigital ? fila("Báscula", "Se pesa") : ""}
-            </div></section>`
+            </div></section>
+            ${p.movimientos?.length ? `<section class="dm-seccion"><div class="dm-seccion-cab"><h3>Movimientos</h3></div>${p.movimientos.map(m => `<div class="dm-spec"><span>${esc(new Date(m.cuando).toLocaleString("es-MX", { timeZone: "America/Mexico_City", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }))} · ${esc(m.quien)}</span><b>${m.desde ? esc(m.desde) + " → " : "Acomodado en "}${esc(m.hacia)}</b></div>`).join("")}</section>` : ""}`
         });
     }
 
@@ -571,6 +585,7 @@
                 <div class="dm-resultado"><div class="dm-falta"><strong>${numero(r.faltan)}</strong><span>faltan</span></div><div class="dm-sobra"><strong>${numero(r.sobran)}</strong><span>sobran</span></div></div>
                 <div class="dm-lista">${r.lineas.map(x => { const p = e.productos.find(q => q.id === x.productoId); return `<div class="dm-producto">${miniatura(p?.imagenUrl, 44)}<span class="dm-fila-texto"><b>${esc(x.nombre)}</b><small>${x.noEscaneado && !e.noEscaneados ? "No lo contaste (no cambia)" : `Esperado ${numero(x.esperado)} · contaste ${numero(x.contado)}`}</small></span><em class="dm-dif ${x.diferencia < 0 ? "neg" : x.diferencia > 0 ? "pos" : ""}">${x.diferencia > 0 ? "+" : ""}${numero(x.diferencia)}</em></div>`; }).join("")}</div>
                 <label class="dm-check"><input type="checkbox" ${e.noEscaneados ? "checked" : ""} onchange="dmConteoNoEscaneados(this.checked)"><span>Lo que no conté es que ya no hay (contarlo como 0)</span></label>
+                ${e.fuera?.length ? `<section class="dm-seccion"><div class="dm-seccion-cab"><h3>${icono("aviso", 18)} Fuera de su lugar (${e.fuera.length})</h3></div>${e.fuera.map(f => `<div class="dm-producto"><span class="dm-fila-texto"><b>${esc(f.nombre)}</b><small>Su lugar es: ${esc(f.ubicacion)}</small></span></div>`).join("")}<p class="dm-nota">Estaban aquí de paso; no cambian de lugar ni de existencias.</p></section>` : ""}
                 <p class="dm-nota">Al guardar, el conteo queda pendiente: no cambia las existencias hasta que un encargado lo apruebe.</p>`,
                 pie: `<button type="button" class="dm-secundario" onclick="dmConteoSeguir()">Seguir contando</button><button type="button" class="dm-grande" onclick="dmConteoGuardar()">Guardar conteo</button>`
             });
@@ -624,7 +639,7 @@
                 const p = e.productos.find(x => String(x.codigo) === String(codigo).trim());
                 const estado = document.getElementById("duenoEscanerCodigoEstado");
 
-                if (!p) { if (estado) estado.textContent = `✕ ${codigo}: no es de este lugar`; return; }
+                if (!p) { revisarFuera(e, codigo, estado); return; }
 
                 e.valores[p.id] = (e.valores[p.id] || 0) + 1;
                 if (estado) estado.textContent = `✓ ${p.nombre} · llevas ${e.valores[p.id]}`;
@@ -635,6 +650,41 @@
         const cerrar = window.cerrarEscanerCodigoDueno;
         window.cerrarEscanerCodigoDueno = function (...a) { window.cerrarEscanerCodigoDueno = cerrar; const r = cerrar.apply(this, a); if (actual() === e) pintar(); return r; };
     };
+
+    // Un producto que NO es de este lugar apareció al escanear: ¿está de paso o se acomoda aquí? Si se mueve queda registrado.
+    const normalizarCodigo = codigo => String(codigo || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+
+    async function revisarFuera(e, codigo, estado) {
+        if (e.revisandoFuera) return;
+        e.revisandoFuera = true;
+
+        try {
+            const r = await llamar(`/ubicaciones/buscar?q=${encodeURIComponent(String(codigo).trim())}`);
+            const p = (r.ok ? r.datos.productos || [] : []).find(x => normalizarCodigo(x.codigo) === normalizarCodigo(codigo));
+
+            if (!p) { if (estado) estado.textContent = `✕ ${codigo}: no existe en tu inventario`; return; }
+
+            const lugar = lugarPorId(e.lugarId);
+            const yaAvisado = e.fuera?.find(f => f.id === p.id);
+
+            if (yaAvisado) { if (estado) estado.textContent = `⚠ ${p.nombre}: ya lo marcaste fuera de lugar`; return; }
+
+            const d = await dialogo({ titulo: "Está en otro lugar", texto: `${p.nombre} está registrado en: ${p.ubicacion || "ningún lugar"}. ¿Lo dejas así (está de paso) o lo mueves a ${lugar?.nombre || "este lugar"}?`, aceptar: "Moverlo aquí", cancelar: "Está de paso" });
+
+            if (!d.ok) { (e.fuera ||= []).push({ id: p.id, nombre: p.nombre, ubicacion: p.ubicacion || "sin lugar" }); if (estado) estado.textContent = `⚠ ${p.nombre}: fuera de su lugar`; return; }
+
+            const m = await llamar(`/ubicaciones/${e.lugarId}/asignar`, { method: "POST", body: { productoIds: [p.id] } });
+
+            if (!m.ok) { aviso(m.datos.error || "No se pudo mover.", "error"); return; }
+
+            e.productos.push({ id: p.id, nombre: p.nombre, codigo: p.codigo, stock: p.total, imagenUrl: p.imagenUrl, exhibido: true });
+            e.valores[p.id] = 1;
+            if (estado) estado.textContent = `✓ ${p.nombre} movido aquí · llevas 1`;
+            if (typeof refrescarCatalogoLocalDueno === "function") refrescarCatalogoLocalDueno().catch(() => {});
+        } finally {
+            e.revisandoFuera = false;
+        }
+    }
 
     async function consultarConteo(aplicar) {
         const e = actual();

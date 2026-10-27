@@ -314,10 +314,31 @@ function instalar(app, pool, requerirAccesoNegocio, firmarTokenImagen) {
 
             // En la tienda va como exhibicion y en la bodega como bodega, salvo que se pida otra cosa explicitamente.
             const columna = ROLES[rol] || (lugar.zona === "bodega" ? ROLES.bodega : ROLES.exhibicion);
+            // Lo que tenian antes: si ya estaban en OTRO lugar es un movimiento y queda registrado (quien, cuando, de donde a donde).
+            const antes = (await pool.query(`SELECT id, nombre, ${columna} AS lugar_anterior FROM public.productos WHERE negocio_id = $1 AND id = ANY($2)`, [id, ids])).rows;
             const r = await pool.query(`UPDATE public.productos SET ${columna} = $3 WHERE negocio_id = $1 AND id = ANY($2) RETURNING id`, [id, ids, ubicacionId]);
 
             await sincronizarTextos(pool, id, r.rows.map(f => f.id));
-            res.json({ ok: true, asignados: r.rowCount });
+
+            const empleadoId = Number(req.headers["x-empleado-id"]) || null;
+            const movidos = [];
+
+            for (const p of antes) {
+                if (p.lugar_anterior === ubicacionId) continue;
+
+                const anterior = p.lugar_anterior ? porId.get(p.lugar_anterior) : null;
+                const detalle = { productoId: p.id, producto: p.nombre, rol: columna === ROLES.bodega ? "bodega" : "exhibicion", desdeId: p.lugar_anterior || null, desde: anterior ? rutaDe(anterior, porId) : "", haciaId: ubicacionId, hacia: rutaDe(lugar, porId) };
+
+                if (anterior) movidos.push(detalle);
+
+                try {
+                    await pool.query(`INSERT INTO public.bitacora_acciones (negocio_id, empleado_id, accion, detalle) VALUES ($1, $2, $3, $4::jsonb)`, [id, empleadoId, anterior ? "producto_movido" : "producto_acomodado", JSON.stringify(detalle)]);
+                } catch (error) {
+                    // La bitacora nunca debe tumbar la operacion real que registra.
+                }
+            }
+
+            res.json({ ok: true, asignados: r.rowCount, movidos: movidos.length });
         } catch (error) {
             responderError(res, error);
         }

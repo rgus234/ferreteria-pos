@@ -140,3 +140,21 @@ test("la ficha del producto trae existencias por lado, lugares y especificacione
     assert.equal("costo" in r, false, "el costo no se muestra en el celular");
     assert.equal((await llamar("/ubicaciones/producto/99999999")).status, 404);
 });
+
+test("mover un producto a otro estante queda registrado (de donde a donde) y se ve en su ficha", async () => {
+    const otro = (await post("/ubicaciones", { nombre: "Estante 9", zona: "tienda", tipo: "estante" })).cuerpo.ubicacion;
+
+    // Aun sin lugar anterior en esta zona no cuenta como movimiento: broca ya estaba en el estante 2.
+    const mov = await post(`/ubicaciones/${otro.id}/asignar`, { productoIds: [broca.id] });
+    assert.equal(mov.cuerpo.movidos, 1);
+
+    const ficha = (await llamar(`/ubicaciones/producto/${broca.id}`)).cuerpo.producto;
+    assert.equal(ficha.estante.id, otro.id);
+    assert.equal(ficha.movimientos.length >= 1, true);
+    assert.equal(ficha.movimientos[0].accion, "producto_movido");
+    assert.match(ficha.movimientos[0].desde, /Estante 2/);
+    assert.match(ficha.movimientos[0].hacia, /Estante 9/);
+
+    const igual = await post(`/ubicaciones/${otro.id}/asignar`, { productoIds: [broca.id] });
+    assert.equal(igual.cuerpo.movidos, 0, "asignarlo al mismo lugar no es un movimiento");
+});
