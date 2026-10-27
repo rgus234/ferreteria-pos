@@ -209,3 +209,12 @@
 .df-suelto { display: grid; gap: 10px; }
 .df-completar { background: #1d5fd1 !important; color: #fff !important; }
 .dm-dialogo { max-height: 90vh; overflow-y: auto; }
+
+/* ---- Tres precios al crear un producto desde la factura ---- */
+.df-precios { display: grid; gap: 8px; }
+.df-precio { padding: 10px; border: 2px solid transparent; border-radius: 14px; background: #f1f5f9; }
+.df-precio.df-activo { border-color: #18b88f; background: #ecfdf3; }
+.df-precio > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.df-precio small { color: #64748b; font-weight: 600; }
+.df-fijo { background: #e2e8f0; color: #334155; font-weight: 800; }
+.df-nivel { padding: 2px 8px; border-radius: 999px; background: #18b88f; color: #04223f; font-style: normal; font-size: 11px; font-weight: 800; }

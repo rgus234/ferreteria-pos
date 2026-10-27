@@ -268,16 +268,40 @@
         setTimeout(() => entrada.focus(), 80);
     }
 
-    // Producto nuevo: lo esencial se decide aqui (nombre, precios y venta suelta); el resto de la ficha (categoria, piezas por bolsa,
-    // bascula, stock minimo...) se completa justo despues de confirmar, en el mismo formulario completo de "Agregar producto".
-    function nuevoProducto(e, i) {
-        const sugerido = i.precioSugerido || Math.round(i.costo * 1.4);
+    // Nivel de precio con el que cobra este negocio por defecto (Configuracion): publico, medio mayoreo o distribuidor.
+    let nivelPrecioCache = null;
+
+    async function nivelDelNegocio() {
+        if (nivelPrecioCache) return nivelPrecioCache;
+
+        const r = await llamar("/negocio-actual");
+        const texto = String(r.ok ? (r.datos.negocio?.nivelPrecio || r.datos.negocio?.nivel_precio_por_defecto || "") : "").toLowerCase();
+
+        nivelPrecioCache = texto.includes("distrib") ? "distribuidor" : texto.includes("mayoreo") ? "medio" : "publico";
+        return nivelPrecioCache;
+    }
+
+    // Producto nuevo: lo esencial se decide aqui (nombre, los 3 precios y venta suelta); el resto de la ficha (categoria, piezas por
+    // bolsa, bascula, stock minimo...) se completa justo despues de confirmar, en el formulario completo de "Agregar producto".
+    // Precios: Publico y Medio mayoreo se capturan; Distribuidor es SIEMPRE el costo de la factura (asi lo maneja la recepcion).
+    // El que cobra tu negocio por defecto va marcado: el POS usa ese nivel al vender.
+    async function nuevoProducto(e, i) {
+        const nivel = await nivelDelNegocio();
+        const c = i.candidato || {};
+        const dePrecio = (...valores) => { const v = valores.map(Number).find(x => x > 0); return v ? Math.round(v * 100) / 100 : null; };
+        const base = dePrecio(i.precioSugerido, c.medioMayoreo, c.precioMedioMayoreo) || Math.round(i.costo * 1.25);
+        const medio = dePrecio(c.medioMayoreo, c.precioMedioMayoreo, nivel === "medio" ? i.precioSugerido : null) || base;
+        const publico = dePrecio(c.publico, c.precioPublico) || Math.round(medio * 1.18);
+        const marca = clave => (nivel === clave ? `<em class="df-nivel">Tu negocio cobra este</em>` : "");
+
         const fondo = hoja(`<h3>Producto nuevo</h3><p>Costo de la factura: ${dinero(i.costo)}. Se crea al confirmar la recepción.</p>
-            <label class="dm-campo">Nombre<input class="dm-input" id="dfNombre" value="${esc(i.candidato?.nombre || i.descripcion)}" autocomplete="off"></label>
-            <div class="df-dos">
-                <label class="dm-campo">Precio al público<input class="dm-input" id="dfPrecio" type="number" inputmode="decimal" value="${sugerido}"></label>
-                <label class="dm-campo">Medio mayoreo<input class="dm-input" id="dfMayoreo" type="number" inputmode="decimal" placeholder="Opcional"></label>
+            <label class="dm-campo">Nombre<input class="dm-input" id="dfNombre" value="${esc(c.nombre || i.descripcion)}" autocomplete="off"></label>
+            <div class="df-precios">
+                <label class="dm-campo df-precio ${nivel === "publico" ? "df-activo" : ""}"><span>Público ${marca("publico")}</span><input class="dm-input" id="dfPrecio" type="number" inputmode="decimal" value="${publico}"></label>
+                <label class="dm-campo df-precio ${nivel === "medio" ? "df-activo" : ""}"><span>Medio mayoreo ${marca("medio")}</span><input class="dm-input" id="dfMayoreo" type="number" inputmode="decimal" value="${medio}"></label>
+                <div class="dm-campo df-precio ${nivel === "distribuidor" ? "df-activo" : ""}"><span>Distribuidor ${marca("distribuidor")}</span><div class="dm-input df-fijo">${dinero(i.costo)}</div><small>Es el costo de la factura</small></div>
             </div>
+            <p class="dm-nota">Los precios sugeridos salen de tu margen con este proveedor y del catálogo. Tu negocio cobra con ${nivel === "medio" ? "Medio mayoreo" : nivel === "distribuidor" ? "Distribuidor" : "Público"} por defecto (se cambia en Configuración).</p>
             <label class="dm-check"><input type="checkbox" id="dfSuelto"><span>También se vende suelto (por pieza, kilo, metro…)</span></label>
             <div class="df-suelto" id="dfSueltoCampos" style="display:none">
                 <label class="dm-campo">Se vende suelto por<select class="dm-input" id="dfUnidad"><option value="pieza">Pieza</option><option value="kg">Kilo</option><option value="metro">Metro</option><option value="litro">Litro</option><option value="gramo">Gramo</option></select></label>
@@ -295,17 +319,18 @@
             if (r !== "si") return;
 
             const nombre = fondo.querySelector("#dfNombre").value.trim();
-            const precio = Number(fondo.querySelector("#dfPrecio").value);
-            const mayoreo = Number(fondo.querySelector("#dfMayoreo").value);
+            const precioPublico = Number(fondo.querySelector("#dfPrecio").value);
+            const precioMedio = Number(fondo.querySelector("#dfMayoreo").value);
             const suelto = fondo.querySelector("#dfSuelto").checked;
             const precioSuelto = Number(fondo.querySelector("#dfPrecioSuelto").value);
             const error = fondo.querySelector("#dfError");
 
-            if (!nombre || !(precio > 0)) { error.textContent = "Pon el nombre y el precio al público."; return; }
+            if (!nombre || !(precioPublico > 0) || !(precioMedio > 0)) { error.textContent = "Pon el nombre y los precios público y medio mayoreo."; return; }
+            if (precioMedio > precioPublico) { error.textContent = "El medio mayoreo no puede ser más caro que el precio al público."; return; }
             if (suelto && !(precioSuelto > 0)) { error.textContent = "Pon el precio de venta suelto."; return; }
+            if (precioMedio < i.costo) { error.textContent = `El medio mayoreo (${dinero(precioMedio)}) quedaría por debajo del costo (${dinero(i.costo)}).`; return; }
 
-            const cuerpo = { accion: "crear", nombreNuevoProducto: nombre, precioPublico: precio };
-            if (mayoreo > 0) cuerpo.precioMedioMayoreo = mayoreo;
+            const cuerpo = { accion: "crear", nombreNuevoProducto: nombre, precioPublico, precioMedioMayoreo: precioMedio };
             if (suelto) { cuerpo.unidadSuelta = fondo.querySelector("#dfUnidad").value; cuerpo.precioPieza = precioSuelto; }
 
             fondo.remove();

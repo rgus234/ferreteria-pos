@@ -82,3 +82,7 @@
 :root.oscuro .df-renglon.listo { background: rgba(52, 211, 153, .14) !important; }
 :root.oscuro .df-aviso { background: rgba(251, 191, 36, .14); color: #fcd34d; }
 :root.oscuro .df-opciones .df-gris { background: #223049 !important; color: #f1f5f9 !important; }
+
+:root.oscuro .df-precio { background: #111a28; }
+:root.oscuro .df-precio.df-activo { background: rgba(24, 184, 143, .14); border-color: #18b88f; }
+:root.oscuro .df-fijo { background: #223049; color: #e2e8f0; }
