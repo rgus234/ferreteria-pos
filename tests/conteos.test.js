@@ -109,3 +109,21 @@ test("contar una seccion de bodega: al aprobar se corrige lo anotado en esa secc
     assert.equal(Number((await pool.query(`SELECT cantidad FROM public.producto_ubicaciones WHERE producto_id = $1 AND ubicacion_id = $2`, [pinza.id, rack.id])).rows[0].cantidad), 8);
     assert.equal(await stockDe(pinza.id), 20, "18 + 2");
 });
+
+test("al aprobar, lo que falto puede quedar como merma (caducado/danado/otro) con su costo; el stock baja una sola vez", async () => {
+    await pool.query(`DELETE FROM public.producto_ubicaciones WHERE producto_id = $1`, [pinza.id]); // sin bodega: todo el stock esta en el estante
+    await pool.query(`UPDATE public.productos SET stock = 18, costo = 40, precio_distribuidor = 40 WHERE id = $1`, [pinza.id]);
+    const id = (await post(`/ubicaciones/${estante.id}/conteo/guardar`, { conteos: [{ productoId: pinza.id, cantidad: 13 }] })).cuerpo.conteoId;
+    const r = await post(`/conteos/${id}/aprobar`, { motivos: { [pinza.id]: "caducado", [martillo.id]: "otro" } });
+
+    assert.equal(r.status, 200);
+    assert.equal(await stockDe(pinza.id), 13, "el stock bajo una sola vez");
+
+    const mermas = (await pool.query(`SELECT motivo, cantidad, costo_unitario FROM public.mermas_producto WHERE negocio_id = $1 AND producto_id = $2`, [N.negocioId, pinza.id])).rows;
+    assert.equal(mermas.length, 1);
+    assert.equal(mermas[0].motivo, "caducado");
+    assert.equal(Number(mermas[0].cantidad), 5);
+    assert.equal(Number(mermas[0].costo_unitario), 40);
+
+    await pool.query(`DELETE FROM public.mermas_producto WHERE negocio_id = $1`, [N.negocioId]);
+});

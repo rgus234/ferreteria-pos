@@ -230,6 +230,7 @@
                 <button type="button" onclick="dmIrConteos()"><span class="dm-icono-caja dm-azul">${icono("ok", 24)}</span>Conteos${resumen?.conteosPendientes ? `<em>${resumen.conteosPendientes}</em>` : ""}</button>
                 <button type="button" onclick="dmImprimir()" ${lugares.length ? "" : "disabled"}><span class="dm-icono-caja dm-gris">${icono("etiqueta", 24)}</span>Etiquetas QR</button>
             </div>
+            ${lugares.length ? "" : `<section class="dm-seccion dm-plantilla"><div class="dm-fila-texto"><b>Empieza con una plantilla</b><small>Crea de un toque los lugares típicos de una tienda de abarrotes: Refrigerador, Botanas, Bebidas, Dulces, Limpieza, Abarrotes secos, Mostrador y Trastienda. Después los puedes cambiar o borrar.</small></div><button type="button" class="dm-grande" onclick="dmPlantilla('abarrotes')">Usar plantilla Abarrotes</button></section>`}
             ${zona("tienda", "Tienda", "pasillo", "Aún no tienes pasillos ni estantes.")}
             ${zona("bodega", "Bodega", "seccion", "Aún no tienes secciones de bodega.")}`
         });
@@ -768,9 +769,10 @@
     }
 
     window.dmIrConteoDetalle = async function (id) {
-        const entrada = { t: "conteoDetalle", id, datos: null, excluir: {} };
+        const entrada = { t: "conteoDetalle", id, datos: null, excluir: {}, motivos: {}, abarrotes: false };
         ir(entrada);
 
+        entrada.abarrotes = await esAbarrotes();
         const r = await llamar(`/conteos/${id}`);
         entrada.datos = r.ok ? r.datos : false;
         if (actual() === entrada) pintar();
@@ -796,6 +798,7 @@
             <section class="dm-seccion"><div class="dm-seccion-cab"><h3>Productos (${r.lineas.length})</h3></div>
             ${r.lineas.map(l => `<div class="dm-producto ${l.diferencia === 0 ? "" : "dm-con-dif"}"><span class="dm-fila-texto"><b>${esc(l.nombre)}</b><small>${l.noEscaneado ? "No se contó" : `Esperado ${numero(l.esperado)} · contó ${numero(l.contado)}`}</small></span>
                 ${pendiente && r.puedeRevisar && l.diferencia !== 0 ? `<label class="dm-excluir"><input type="checkbox" ${e.excluir[l.productoId] ? "checked" : ""} onchange="dmExcluir(${l.productoId}, this.checked)"><span>No aplicar</span></label>` : ""}
+                ${pendiente && r.puedeRevisar && e.abarrotes && l.diferencia < 0 ? `<select class="dm-motivo" onchange="dmMotivo(${l.productoId}, this.value)" aria-label="Qué pasó con lo que faltó">${[["", "Solo ajuste"], ["caducado", "Caducado"], ["danado", "Dañado"], ["otro", "Otro (merma)"]].map(([v, t]) => `<option value="${v}" ${(e.motivos[l.productoId] || "") === v ? "selected" : ""}>${t}</option>`).join("")}</select>` : ""}
                 <em class="dm-dif ${l.diferencia < 0 ? "neg" : l.diferencia > 0 ? "pos" : ""}">${l.diferencia > 0 ? "+" : ""}${numero(l.diferencia)}</em></div>`).join("")}</section>
             ${pendiente && r.puedeRevisar ? `<p class="dm-nota">Al aprobar se suma la diferencia a las existencias de hoy (${cuentan.length} producto${cuentan.length === 1 ? "" : "s"} con diferencia), así las ventas hechas mientras tanto no se pisan.</p>` : ""}
             ${pendiente && !r.puedeRevisar ? `<p class="dm-nota">Un encargado debe aprobarlo para que cambien las existencias.</p>` : ""}`,
@@ -804,6 +807,7 @@
     }
 
     window.dmExcluir = function (productoId, valor) { actual().excluir[productoId] = valor; };
+    window.dmMotivo = function (productoId, valor) { actual().motivos[productoId] = valor; };
 
     window.dmAprobarConteo = async function () {
         const e = actual();
@@ -812,7 +816,10 @@
 
         if (!d.ok) return;
 
-        const r = await llamar(`/conteos/${e.id}/aprobar`, { method: "POST", body: { excluir } });
+        const motivos = {};
+        Object.entries(e.motivos).forEach(([id, motivo]) => { if (motivo) motivos[id] = motivo; });
+
+        const r = await llamar(`/conteos/${e.id}/aprobar`, { method: "POST", body: { excluir, motivos } });
 
         if (!r.ok) { aviso(r.datos.error || "No se pudo aprobar.", "error"); return; }
 
@@ -949,6 +956,29 @@
         cargarGeneral();
     };
 
+    // ¿Es un negocio con abarrotes? Activa lo propio de abarrotes: caducidad al recibir y motivo de merma al aprobar un conteo.
+    let abarrotesCache = null;
+
+    async function esAbarrotes() {
+        if (abarrotesCache !== null) return abarrotesCache;
+
+        const r = await llamar("/negocio-actual");
+        const negocio = r.ok ? r.datos.negocio || {} : {};
+
+        abarrotesCache = String(negocio.giro || "").toLowerCase().includes("abarrote") || (negocio.girosActivos || []).some(g => String(g).toLowerCase().includes("abarrote"));
+        return abarrotesCache;
+    }
+
+    // Plantilla de lugares para una tienda nueva (Refrigerador, Botanas, Bebidas, Dulces, Limpieza, Abarrotes secos, Mostrador y Trastienda).
+    window.dmPlantilla = async function (tipo) {
+        const r = await llamar("/ubicaciones/plantilla", { method: "POST", body: { tipo } });
+
+        if (!r.ok) { aviso(r.datos.error || "No se pudo crear la plantilla.", "error"); return; }
+
+        aviso(r.datos.creados ? `Listo: ${r.datos.creados} lugares creados` : "Ya tenías esos lugares");
+        await cargarGeneral();
+    };
+
     // Ayudas visuales compartidas con las otras pantallas del celular (recibir factura, producto nuevo).
-    window.NexoMovil = { icono, esc, aviso, dialogo, elegirLugar, llamar };
+    window.NexoMovil = { icono, esc, aviso, dialogo, elegirLugar, llamar, esAbarrotes };
 })();

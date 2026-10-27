@@ -233,3 +233,11 @@
 .dp-estado small { font-weight: 600; opacity: .85; }
 .dp-estado i { width: 12px; height: 12px; border-radius: 50%; background: currentColor; flex: none; }
 .dp-estado.dp-ok { background: #e8f7f2; color: #047857; }
+
+/* ---- Abarrotes: plantilla, caducidad al recibir y motivo de merma ---- */
+.dm-plantilla { gap: 12px; background: #ecfdf3; border-left: 6px solid #18b88f; }
+.dm-plantilla small { white-space: normal; }
+.df-caduca { justify-self: start; margin-top: 6px; padding: 6px 10px; border: 0; border-radius: 10px; background: #e0e7ff !important; color: #3730a3 !important; font-weight: 800; font-size: 12px; }
+.df-caduca.puesta { background: #fef3c7 !important; color: #92400e !important; }
+.dm-con-dif { flex-wrap: wrap; }
+.dm-motivo { flex-basis: 100%; order: 5; padding: 10px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; color: #0f172a; font-size: 15px; }

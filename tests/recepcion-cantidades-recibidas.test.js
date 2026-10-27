@@ -69,3 +69,17 @@ test("REGRESION: sin cantidadesRecibidas todo se recibe como dice la factura", a
     assert.equal(r.ok, true, JSON.stringify(r));
     assert.equal(await stockPorNombre("Producto regresion tres"), 10);
 });
+
+test("la factura confirmada desde el celular puede traer la fecha de caducidad real de cada renglon (lote)", async () => {
+    const { recepcionId, items } = await subirYDecidir("UUID-CANT-0003", ["Producto con caducidad uno", "Producto sin caducidad dos"]);
+    const r = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${recepcionId}/confirmar`, { method: "POST", headers: headers(), body: JSON.stringify({ caducidades: { [items[0].id]: "2027-03-20" } }) })).json();
+
+    assert.equal(r.ok, true, JSON.stringify(r));
+
+    const lotes = (await pool.query(
+        `SELECT p.nombre, to_char(l.fecha_caducidad, 'YYYY-MM-DD') AS caduca, l.cantidad FROM public.producto_lotes l JOIN public.productos p ON p.id = l.producto_id WHERE l.negocio_id = $1`, [negocio.negocioId]
+    )).rows;
+
+    assert.deepEqual(lotes.filter(l => l.nombre === "Producto con caducidad uno").map(l => [l.caduca, Number(l.cantidad)]), [["2027-03-20", 10]]);
+    assert.equal(lotes.filter(l => l.nombre === "Producto sin caducidad dos").length, 0, "sin fecha ni vida util no se abre lote");
+});

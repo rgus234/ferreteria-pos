@@ -93,3 +93,7 @@
 :root.oscuro .dp-pasos { color: #cbd5e1; }
 :root.oscuro .dp-estado { background: rgba(251, 191, 36, .14); color: #fcd34d; }
 :root.oscuro .dp-estado.dp-ok { background: rgba(52, 211, 153, .14); color: #6ee7b7; }
+:root.oscuro .dm-plantilla { background: rgba(24, 184, 143, .12); }
+:root.oscuro .df-caduca { background: rgba(99, 102, 241, .22) !important; color: #c7d2fe !important; }
+:root.oscuro .df-caduca.puesta { background: rgba(251, 191, 36, .18) !important; color: #fcd34d !important; }
+:root.oscuro .dm-motivo { background: #182233; color: #f1f5f9; border-color: rgba(148, 163, 184, .3); }

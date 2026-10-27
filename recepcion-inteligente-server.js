@@ -1126,7 +1126,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                             [cantidad, costo, productoId, negocio.id]
                         );
 
-                        await registrarLoteDeRecepcion(client, { negocioId: negocio.id, productoId, cantidad });
+                        await registrarLoteDeRecepcion(client, { negocioId: negocio.id, productoId, cantidad, fechaCaducidad: req.body?.caducidades?.[item.id] || null });
                     }
 
                     totalAplicado += cantidad * costo;

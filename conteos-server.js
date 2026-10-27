@@ -164,6 +164,7 @@ function instalar(app, pool, requerirAccesoNegocio) {
         try {
             const id = negocioId(req);
             const excluir = new Set((Array.isArray(req.body?.excluir) ? req.body.excluir : []).map(Number));
+            const motivos = req.body?.motivos && typeof req.body.motivos === "object" ? req.body.motivos : {}; // { productoId: "caducado" | "danado" | "otro" }
 
             await cliente.query("BEGIN");
             const c = (await cliente.query(`SELECT * FROM public.conteos_inventario WHERE id = $1 AND negocio_id = $2 FOR UPDATE`, [Number(req.params.id), id])).rows[0];
@@ -178,7 +179,7 @@ function instalar(app, pool, requerirAccesoNegocio) {
             for (const l of lineas) {
                 if (excluir.has(l.producto_id)) continue;
 
-                const p = (await cliente.query(`SELECT id, nombre, codigo, stock FROM public.productos WHERE id = $1 AND negocio_id = $2 FOR UPDATE`, [l.producto_id, id])).rows[0];
+                const p = (await cliente.query(`SELECT id, nombre, codigo, stock, precio, precio_publico, precio_distribuidor, costo FROM public.productos WHERE id = $1 AND negocio_id = $2 FOR UPDATE`, [l.producto_id, id])).rows[0];
                 if (!p) continue;
 
                 const dif = num(l.diferencia);
@@ -198,6 +199,17 @@ function instalar(app, pool, requerirAccesoNegocio) {
                      VALUES ($1,$2,$3,$4,'conteo',$5,$6,$7,$8,$9,$10,CURRENT_DATE)`,
                     [id, p.id, p.nombre, p.codigo || "", Math.abs(dif), num(p.stock), nuevo, `Conteo aprobado (conto ${c.creado_por_nombre})`, `Conteo #${c.id} · ${c.ubicacion_texto}`, revisor.nombre]
                 );
+                // Lo que falto puede ser merma (se tiro): queda con su motivo y lo que costo, igual que "Tirar" en Por revisar. El stock baja una sola vez.
+                const motivoMerma = motivos[l.producto_id];
+
+                if (dif < 0 && ["caducado", "danado", "otro"].includes(motivoMerma)) {
+                    await cliente.query(
+                        `INSERT INTO public.mermas_producto (negocio_id, producto_id, producto_nombre, cantidad, motivo, costo_unitario, precio_unitario, usuario_nombre)
+                         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+                        [id, p.id, p.nombre, Math.abs(dif), motivoMerma, num(p.precio_distribuidor) || num(p.costo), num(p.precio_publico) || num(p.precio), revisor.nombre]
+                    );
+                }
+
                 await cliente.query(`UPDATE public.conteo_lineas SET aplicada = true WHERE id = $1`, [l.id]);
                 aplicadas++;
             }

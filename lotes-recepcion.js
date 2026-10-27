@@ -9,7 +9,7 @@
 
 const { caducidadDeEntrada, hoyEnMexico } = require("./lotes-calculo");
 
-async function registrarLoteDeRecepcion(client, { negocioId, productoId, cantidad }) {
+async function registrarLoteDeRecepcion(client, { negocioId, productoId, cantidad, fechaCaducidad = null }) {
     const piezas = Number(cantidad);
     const id = Number(productoId);
 
@@ -24,7 +24,7 @@ async function registrarLoteDeRecepcion(client, { negocioId, productoId, cantida
         )).rows[0];
 
         const hoy = hoyEnMexico();
-        const caducidad = caducidadDeEntrada({ vidaUtilDias: producto?.vida_util_dias, hoy });
+        const caducidad = caducidadDeEntrada({ fechaCaducidad, vidaUtilDias: producto?.vida_util_dias, hoy });
 
         if (!caducidad) {
             await client.query("RELEASE SAVEPOINT lote_recepcion");

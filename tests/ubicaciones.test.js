@@ -139,3 +139,18 @@ test("la hoja de etiquetas con QR sale como PDF valido, de todo el mapa o de un 
     const vacio = await llamar(B, "/ubicaciones/etiquetas", { method: "POST", body: JSON.stringify({}) });
     assert.equal(vacio.status, 400, "otro negocio sin lugares no recibe nada");
 });
+
+test("la plantilla Abarrotes crea los lugares tipicos con codigo legible y no duplica si se repite", async () => {
+    const primera = await llamar(B, "/ubicaciones/plantilla", { method: "POST", body: JSON.stringify({ tipo: "abarrotes" }) });
+    assert.equal(primera.status, 201);
+    assert.equal(primera.cuerpo.creados, 8);
+
+    const lista = (await llamar(B, "/ubicaciones")).cuerpo.ubicaciones;
+    assert.deepEqual(lista.filter(u => u.zona === "tienda").map(u => u.nombre), ["Refrigerador", "Botanas y galletas", "Bebidas", "Dulces", "Limpieza y hogar", "Abarrotes secos", "Mostrador"]);
+    assert.equal(lista.find(u => u.nombre === "Refrigerador").codigo, "E-01");
+    assert.equal(lista.find(u => u.nombre === "Mostrador").codigo, "E-07");
+    assert.equal(lista.find(u => u.nombre === "Trastienda").codigo, "B-S-01");
+
+    assert.equal((await llamar(B, "/ubicaciones/plantilla", { method: "POST", body: JSON.stringify({ tipo: "abarrotes" }) })).cuerpo.creados, 0, "repetirla no duplica");
+    assert.equal((await llamar(B, "/ubicaciones/plantilla", { method: "POST", body: JSON.stringify({ tipo: "inexistente" }) })).status, 400);
+});

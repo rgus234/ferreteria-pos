@@ -118,8 +118,10 @@
 
     window.dfVerificar = async function (id) {
         await cargarCodigos();
-        const entrada = { t: "verificar", id, datos: null, ...leer(id), recibido: leer(id).recibido || {} };
+        const entrada = { t: "verificar", id, datos: null, ...leer(id), recibido: leer(id).recibido || {}, caducidades: leer(id).caducidades || {}, abarrotes: false };
         ir(entrada);
+
+        entrada.abarrotes = await N().esAbarrotes();
 
         const r = await llamar(`/recepcion-inteligente/facturas/${id}`);
         entrada.datos = r.ok ? r.datos : false;
@@ -159,7 +161,7 @@
                 const recibido = e.recibido[i.id];
 
                 return `<div class="dm-producto df-renglon ${recibido !== undefined && recibido === i.cantidad ? "listo" : ""}">
-                    <span class="dm-fila-texto"><b>${esc(i.nombreNuevoProducto || i.descripcion)}</b><small>Facturado ${numero(i.cantidad)} ${esc(i.unidad || "")} · ${dinero(i.costo)} c/u</small><span class="dm-etiqueta dm-${color}">${texto}</span></span>
+                    <span class="dm-fila-texto"><b>${esc(i.nombreNuevoProducto || i.descripcion)}</b><small>Facturado ${numero(i.cantidad)} ${esc(i.unidad || "")} · ${dinero(i.costo)} c/u</small><span class="dm-etiqueta dm-${color}">${texto}</span>${e.abarrotes && i.accion && i.accion !== "omitir" ? `<button type="button" class="df-caduca ${e.caducidades[i.id] ? "puesta" : ""}" onclick="dfCaducidad(${i.id})">${e.caducidades[i.id] ? "Caduca " + esc(fechaCorta(e.caducidades[i.id])) : "+ Fecha de caducidad"}</button>` : ""}</span>
                     ${!i.accion ? `<button type="button" class="dm-boton-chico" onclick="dfDecidir(${i.id})">Decidir</button>` : i.accion === "omitir" ? "" : `<span class="dm-paso"><button type="button" onclick="dfPaso(${i.id}, -1)" aria-label="Menos">${icono("menos", 18)}</button><input class="dm-cant" type="number" inputmode="decimal" min="0" data-id="${i.id}" value="${recibido ?? ""}" oninput="dfValor(${i.id}, this.value)" placeholder="—"><button type="button" onclick="dfPaso(${i.id}, 1)" aria-label="Más">${icono("mas", 18)}</button></span>`}
                 </div>`;
             }).join("")}</div>`,
@@ -168,7 +170,7 @@
     }
 
     function actualizar(e, id) {
-        guardar(e.id, { recibido: e.recibido });
+        guardar(e.id, { recibido: e.recibido, caducidades: e.caducidades });
         const i = e.datos.items.find(x => x.id === id);
         const campo = document.querySelector(`.dm-cant[data-id="${id}"]`);
 
@@ -177,6 +179,20 @@
         const sub = document.querySelector(".dm-titulo-caja small");
         if (sub) sub.textContent = `${e.datos.recepcion.folio ? "Folio " + e.datos.recepcion.folio + " · " : ""}${e.datos.items.filter(x => x.accion !== "omitir" && e.recibido[x.id] !== undefined).length} de ${e.datos.items.filter(x => x.accion !== "omitir").length} verificados`;
     }
+
+    const fechaCorta = f => new Date(f + "T12:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+
+    // Fecha de caducidad real de lo que llego (abarrotes): se abre su lote con esa fecha al confirmar.
+    window.dfCaducidad = async function (itemId) {
+        const e = actual();
+        const d = await N().dialogo({ titulo: "¿Cuándo caduca?", texto: "Fecha impresa en el empaque. Déjala vacía si no aplica.", campo: { tipo: "date", valor: e.caducidades[itemId] || "" }, aceptar: "Guardar" });
+
+        if (!d.ok) return;
+
+        if (d.valor) e.caducidades[itemId] = d.valor; else delete e.caducidades[itemId];
+        guardar(e.id, { recibido: e.recibido, caducidades: e.caducidades });
+        pintar();
+    };
 
     window.dfValor = function (id, valor) { const e = actual(); if (valor === "") delete e.recibido[id]; else e.recibido[id] = Number(valor); actualizar(e, id); };
     window.dfPaso = function (id, paso) { const e = actual(); e.recibido[id] = Math.max(0, (e.recibido[id] || 0) + paso); actualizar(e, id); };
@@ -197,7 +213,7 @@
                 if (!i.accion) { if (estado) estado.textContent = `Ese producto está por decidir; decídelo y vuelve a escanear`; return; }
 
                 e.recibido[i.id] = (e.recibido[i.id] || 0) + 1;
-                guardar(e.id, { recibido: e.recibido });
+                guardar(e.id, { recibido: e.recibido, caducidades: e.caducidades });
                 if (estado) estado.textContent = `✓ ${i.nombreNuevoProducto || i.descripcion} · ${numero(e.recibido[i.id])} de ${numero(i.cantidad)}`;
             }
         });
@@ -357,7 +373,7 @@
         const cantidadesRecibidas = {};
         Object.entries(e.recibido).forEach(([id, c]) => { cantidadesRecibidas[id] = c; });
 
-        const r = await llamar(`/recepcion-inteligente/facturas/${e.id}/confirmar`, { method: "POST", body: { cantidadesRecibidas, ignorarConciliacion: false } });
+        const r = await llamar(`/recepcion-inteligente/facturas/${e.id}/confirmar`, { method: "POST", body: { cantidadesRecibidas, caducidades: e.caducidades, ignorarConciliacion: false } });
 
         if (!r.ok) {
             const texto = r.datos.requiereConciliacion ? "Esta factura puede corresponder a una remisión que ya recibiste. Confírmala en la computadora para conciliarlas." : (r.datos.error || "No se pudo confirmar.");

@@ -143,6 +143,51 @@ function instalar(app, pool, requerirAccesoNegocio, firmarTokenImagen) {
     });
 
     // Hoja de etiquetas con QR para pegar en cada estante / seccion de bodega. Regresa el PDF en base64 (el celular lo abre como archivo).
+    // Plantillas: crean de un toque los lugares tipicos de un giro (solo los que no existen todavia).
+    const PLANTILLAS = {
+        abarrotes: [
+            ...["Refrigerador", "Botanas y galletas", "Bebidas", "Dulces", "Limpieza y hogar", "Abarrotes secos", "Mostrador"].map(nombre => ({ zona: "tienda", tipo: "estante", nombre })),
+            { zona: "bodega", tipo: "seccion", nombre: "Trastienda" }
+        ]
+    };
+
+    app.post("/ubicaciones/plantilla", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
+        try {
+            const id = negocioId(req);
+            const plantilla = PLANTILLAS[req.body?.tipo];
+
+            if (!plantilla) { res.status(400).json({ ok: false, error: "Esa plantilla no existe." }); return; }
+
+            const { filas } = await todas(pool, id);
+            let creados = 0;
+
+            for (const lugar of plantilla) {
+                if (filas.some(f => f.zona === lugar.zona && !f.padre_id && f.nombre.toLowerCase() === lugar.nombre.toLowerCase())) continue;
+
+                let hecho = false;
+
+                for (let intento = 0; intento < 30 && !hecho; intento++) {
+                    try {
+                        const orden = (await pool.query(`SELECT COALESCE(MAX(orden), 0) + 1 AS o FROM public.ubicaciones WHERE negocio_id = $1 AND zona = $2 AND padre_id IS NULL`, [id, lugar.zona])).rows[0].o;
+                        await pool.query(
+                            `INSERT INTO public.ubicaciones (negocio_id, zona, tipo, nombre, codigo, padre_id, orden) VALUES ($1, $2, $3, $4, $5, NULL, $6)`,
+                            [id, lugar.zona, lugar.tipo, lugar.nombre, codigoLegible(lugar.tipo, lugar.zona, "", filas.filter(f => f.zona === lugar.zona && !f.padre_id && f.tipo === lugar.tipo).length + 1 + intento), orden]
+                        );
+                        hecho = true;
+                    } catch (error) {
+                        if (error.code !== "23505") throw error;
+                    }
+                }
+
+                if (hecho) { creados++; filas.push({ zona: lugar.zona, tipo: lugar.tipo, padre_id: null, nombre: lugar.nombre }); }
+            }
+
+            res.status(201).json({ ok: true, creados });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     app.post("/ubicaciones/etiquetas", requerirAccesoNegocio, async (req, res) => {
         try {
             const id = negocioId(req);
