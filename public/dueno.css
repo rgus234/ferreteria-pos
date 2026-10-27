@@ -2545,3 +2545,11 @@ button.fila-dueno:disabled{
     cursor:default;
     opacity:.7;
 }
+
+/* Selector de tema: Automatico / Claro / Oscuro */
+.dueno-tema-opciones{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:6px; }
+.dueno-tema-opcion{ display:grid; gap:3px; padding:12px 6px; border:2px solid var(--line); border-radius:14px; background:var(--surface-soft); color:var(--text); text-align:center; }
+.dueno-tema-opcion strong{ font-size:14px; }
+.dueno-tema-opcion span{ color:var(--muted); font-size:11px; line-height:1.25; }
+.dueno-tema-opcion.activa{ border-color:var(--brand); background:var(--brand-soft); }
+.dueno-tema-nota{ margin:12px 2px 0; color:var(--muted); font-size:13px; line-height:1.4; }

@@ -1,0 +1,75 @@
+/* Modo oscuro de los modulos nuevos del celular (inventario de tienda, usuarios, actividad, alta, venta movil).
+   Se activa con la clase "oscuro" de <html> (ver aplicarTemaDueno en dueno.js: automatico segun el celular, o a mano). */
+
+/* ---- Inventario de tienda (dm-) ---- */
+:root.oscuro .dm-capa { background: #0b1220; color: #f1f5f9; }
+:root.oscuro .dm-cabecera { background: linear-gradient(135deg, #0a1a30, #112b4d); }
+:root.oscuro .dm-pie { background: rgba(11, 18, 32, .94); border-top-color: rgba(148, 163, 184, .18); }
+:root.oscuro .dm-nota, :root.oscuro .dm-fila-texto small, :root.oscuro .dm-dato span, :root.oscuro .dm-cifras span, :root.oscuro .dm-resultado span, :root.oscuro .dm-tarjeta-cab small, :root.oscuro .dm-pasar small, :root.oscuro .dm-spec span, :root.oscuro .dm-vacio-grande span { color: #94a3b8; }
+:root.oscuro .dm-dato, :root.oscuro .dm-seccion, :root.oscuro .dm-ruta, :root.oscuro .dm-cifras > div, :root.oscuro .dm-ficha-foto, :root.oscuro .dm-tarjeta, :root.oscuro .dm-resultado > div, :root.oscuro .dm-check, :root.oscuro .dm-buscador, :root.oscuro .dm-grande-fila { background: #182233 !important; box-shadow: none; }
+:root.oscuro .dm-cuadricula button, :root.oscuro .dm-acciones button { background: #182233 !important; color: #f1f5f9 !important; box-shadow: none; }
+:root.oscuro .dm-acciones .dm-primario { background: linear-gradient(135deg, #1d5fd1, #18b88f) !important; color: #fff !important; }
+:root.oscuro .dm-dato strong, :root.oscuro .dm-cifras strong, :root.oscuro .dm-seccion-cab h3 { color: #f1f5f9; }
+:root.oscuro .dm-dato.aviso { background: rgba(251, 191, 36, .14); } :root.oscuro .dm-dato.alerta { background: rgba(248, 113, 113, .16); }
+:root.oscuro .dm-dato.aviso strong { color: #fbbf24; } :root.oscuro .dm-dato.alerta strong { color: #f87171; }
+:root.oscuro .dm-fila, :root.oscuro .dm-producto { background: #111a28 !important; color: #f1f5f9 !important; }
+:root.oscuro .dm-ruta { color: #cbd5e1; }
+:root.oscuro .dm-mini { background: #223049; color: #64748b; }
+:root.oscuro .dm-icono-caja { background: #223049; color: #cbd5e1; }
+:root.oscuro .dm-azul, :root.oscuro .dm-tienda { background: rgba(59, 130, 246, .2); color: #93c5fd; }
+:root.oscuro .dm-verde { background: rgba(52, 211, 153, .18); color: #6ee7b7; }
+:root.oscuro .dm-ambar, :root.oscuro .dm-bodega { background: rgba(251, 191, 36, .18); color: #fcd34d; }
+:root.oscuro .dm-gris { background: #223049; color: #cbd5e1; }
+:root.oscuro .dm-chip-codigo.dm-chico { background: rgba(99, 102, 241, .22); color: #c7d2fe; }
+:root.oscuro .dm-seccion-cab button { background: rgba(52, 211, 153, .16) !important; color: #6ee7b7 !important; }
+:root.oscuro .dm-cantidad { background: rgba(59, 130, 246, .22); color: #bfdbfe; }
+:root.oscuro .dm-input, :root.oscuro .dm-campo input, :root.oscuro .dm-campo select, :root.oscuro .dm-cant { background: #111a28; color: #f1f5f9; border-color: rgba(148, 163, 184, .3); }
+:root.oscuro .dm-campo { color: #cbd5e1; }
+:root.oscuro .dm-buscador { color: #94a3b8; } :root.oscuro .dm-buscador input { color: #f1f5f9; }
+:root.oscuro .dm-buscador button { background: rgba(59, 130, 246, .22) !important; color: #bfdbfe !important; }
+:root.oscuro .dm-secundario, :root.oscuro .dm-dialogo-botones button { background: #223049 !important; color: #f1f5f9 !important; }
+:root.oscuro .dm-dialogo-botones .principal { background: #1d5fd1 !important; color: #fff !important; }
+:root.oscuro .dm-dialogo-botones .peligro { background: #dc2626 !important; color: #fff !important; }
+:root.oscuro .dm-dialogo { background: #182233; color: #f1f5f9; } :root.oscuro .dm-dialogo p { color: #cbd5e1; }
+:root.oscuro .dm-enlaces button { color: #cbd5e1 !important; } :root.oscuro .dm-enlaces .dm-rojo { color: #f87171 !important; }
+:root.oscuro .dm-donde { color: #93c5fd !important; }
+:root.oscuro .dm-conteo-fila.listo { background: rgba(52, 211, 153, .14) !important; }
+:root.oscuro .dm-paso button { background: #223049 !important; color: #f1f5f9 !important; box-shadow: none; }
+:root.oscuro .dm-spec { border-bottom-color: rgba(148, 163, 184, .16); }
+:root.oscuro .dm-cifras .dm-total { background: #1d3a66; }
+:root.oscuro .dm-barra { background: rgba(251, 191, 36, .28); }
+:root.oscuro .dm-etiqueta.dm-verde { background: rgba(52, 211, 153, .18); color: #6ee7b7; } :root.oscuro .dm-etiqueta.dm-ambar { background: rgba(251, 191, 36, .18); color: #fcd34d; } :root.oscuro .dm-etiqueta.dm-rojo { background: rgba(248, 113, 113, .2); color: #fca5a5; }
+:root.oscuro .dm-dif { background: #223049; color: #e2e8f0; } :root.oscuro .dm-dif.neg { background: rgba(248, 113, 113, .22); color: #fca5a5; } :root.oscuro .dm-dif.pos { background: rgba(52, 211, 153, .2); color: #6ee7b7; }
+:root.oscuro .dm-falta strong { color: #f87171; } :root.oscuro .dm-sobra strong { color: #6ee7b7; }
+
+/* ---- Cambio de usuario (du-) ---- */
+:root.oscuro .du-panel { background: #182233; color: #f1f5f9; }
+:root.oscuro .du-nota, :root.oscuro .du-persona small { color: #94a3b8; }
+:root.oscuro .du-persona { background: #111a28 !important; color: #f1f5f9 !important; }
+:root.oscuro .du-pin { background: #111a28; color: #f1f5f9; border-color: rgba(148, 163, 184, .3); }
+:root.oscuro .du-secundario { background: #223049 !important; color: #f1f5f9 !important; }
+:root.oscuro .du-enlace, :root.oscuro .du-persona em { color: #93c5fd !important; }
+
+/* ---- Actividad del equipo (da-) ---- */
+:root.oscuro .da-capa { background: #0b1220; color: #f1f5f9; }
+:root.oscuro .da-cabecera, :root.oscuro .da-persona, :root.oscuro .da-resumen > div, :root.oscuro .da-detalle li { background: #182233; box-shadow: none; }
+:root.oscuro .da-icono { background: #223049 !important; color: #f1f5f9 !important; }
+:root.oscuro .da-datos > div { background: #111a28; }
+:root.oscuro .da-chips button { background: #223049 !important; color: #cbd5e1 !important; }
+:root.oscuro .da-chips button.activo { background: #1d5fd1 !important; color: #fff !important; }
+:root.oscuro .da-nota, :root.oscuro .da-resumen span, :root.oscuro .da-datos span, :root.oscuro .da-persona-cab small, :root.oscuro .da-acciones, :root.oscuro .da-detalle li span { color: #94a3b8; }
+:root.oscuro .da-entrada { background: rgba(124, 58, 237, .16) !important; color: #f1f5f9 !important; } :root.oscuro .da-entrada small { color: #94a3b8; }
+:root.oscuro .dm-entrada small { color: rgba(255, 255, 255, .78); }
+
+/* ---- Alta efectiva (dai-) ---- */
+:root.oscuro .dai-seccion { background: #111a28; }
+:root.oscuro .dai-seccion h3, :root.oscuro .dai-resumen { color: #f1f5f9; }
+:root.oscuro .dai-sugerencia { background: rgba(24, 184, 143, .14); } :root.oscuro .dai-sugerencia b { color: #6ee7b7; } :root.oscuro .dai-sugerencia span { color: #f1f5f9; } :root.oscuro .dai-sugerencia small { color: #94a3b8; }
+:root.oscuro .dai-no { background: #223049 !important; color: #f1f5f9 !important; }
+:root.oscuro .dai-campos label { color: #cbd5e1; }
+:root.oscuro .dai-campos select, :root.oscuro .dai-campos input[type="number"] { background: #182233; color: #f1f5f9; border-color: rgba(148, 163, 184, .3); }
+
+/* ---- Venta movil (dvm-) ---- */
+:root.oscuro .dvm-tarjeta { background: #182233; color: #f1f5f9; }
+:root.oscuro .dvm-tarjeta-texto small { color: #94a3b8; }
+:root.oscuro .dvm-tarjeta-foto { background: #223049; }

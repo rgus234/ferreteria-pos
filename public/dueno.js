@@ -5535,26 +5535,43 @@ function renderSubpantallaAyuda() {
         });
 }
 
-function aplicarTemaDueno() {
-    const oscuro =
-    localStorage.getItem(DUENO_TEMA_KEY) === "oscuro";
-
-    document.documentElement.classList.toggle("oscuro", oscuro);
+// Tema: "auto" (por defecto) sigue el modo claro/oscuro del celular y cambia en vivo; "claro" y "oscuro" lo fijan a mano.
+function preferenciaTemaDueno() {
+    const guardado = localStorage.getItem(DUENO_TEMA_KEY);
+    return guardado === "oscuro" || guardado === "claro" ? guardado : "auto";
 }
 
-function cambiarTemaDueno() {
-    const activo =
-    !document.documentElement.classList.contains("oscuro");
+function temaOscuroDelSistema() {
+    return Boolean(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+}
 
-    document.documentElement.classList.toggle("oscuro", activo);
-    localStorage.setItem(DUENO_TEMA_KEY, activo ? "oscuro" : "claro");
+function aplicarTemaDueno() {
+    const preferencia = preferenciaTemaDueno();
+    const oscuro = preferencia === "oscuro" || (preferencia === "auto" && temaOscuroDelSistema());
 
-    const meta =
-    document.querySelector('meta[name="theme-color"]');
+    document.documentElement.classList.toggle("oscuro", oscuro);
 
-    if (meta) meta.setAttribute("content", activo ? "#0b1220" : "#f6f7fb");
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", oscuro ? "#0b1220" : "#f6f7fb");
+}
 
+// Si el celular cambia de modo (por horario o a mano) y la app esta en automatico, se actualiza sola.
+if (window.matchMedia) {
+    const sistema = window.matchMedia("(prefers-color-scheme: dark)");
+    const alCambiar = () => { if (preferenciaTemaDueno() === "auto") { aplicarTemaDueno(); if (document.getElementById("duenoTemaOpciones")) renderSubpantallaApariencia(); } };
+
+    if (sistema.addEventListener) sistema.addEventListener("change", alCambiar); else if (sistema.addListener) sistema.addListener(alCambiar);
+}
+
+function elegirTemaDueno(valor) {
+    localStorage.setItem(DUENO_TEMA_KEY, valor === "oscuro" || valor === "claro" ? valor : "auto");
+    aplicarTemaDueno();
     renderSubpantallaApariencia();
+}
+
+// Se conserva por si algo mas lo llama: alterna entre claro y oscuro a mano.
+function cambiarTemaDueno() {
+    elegirTemaDueno(document.documentElement.classList.contains("oscuro") ? "claro" : "oscuro");
 }
 
 // Notificaciones push -- mismo patron ya probado en el POS de
@@ -5722,8 +5739,12 @@ function renderSubpantallaNotificaciones() {
 }
 
 function renderSubpantallaApariencia() {
-    const activo =
-    document.documentElement.classList.contains("oscuro");
+    const preferencia = preferenciaTemaDueno();
+    const opciones = [
+        ["auto", "Automático", "Igual que tu celular"],
+        ["claro", "Claro", "Siempre fondo claro"],
+        ["oscuro", "Oscuro", "Siempre fondo oscuro"]
+    ];
 
     document.getElementById("duenoMasSubpantallaContenido").innerHTML = `
         <article class="dueno-card">
@@ -5733,13 +5754,14 @@ function renderSubpantallaApariencia() {
                     <h2>Tema de la app</h2>
                 </div>
             </div>
-            <div class="dueno-toggle-fila" onclick="cambiarTemaDueno()">
-                <div>
-                    <strong>Modo oscuro</strong>
-                    <span>${activo ? "Activado" : "Usa el tema claro por defecto"}</span>
-                </div>
-                <span class="dueno-toggle-switch${activo ? " activo" : ""}"></span>
+            <div id="duenoTemaOpciones" class="dueno-tema-opciones">
+                ${opciones.map(([valor, titulo, texto]) => `
+                <button type="button" class="dueno-tema-opcion${preferencia === valor ? " activa" : ""}" onclick="elegirTemaDueno('${valor}')">
+                    <strong>${titulo}</strong>
+                    <span>${texto}</span>
+                </button>`).join("")}
             </div>
+            <p class="dueno-tema-nota">${preferencia === "auto" ? "Ahora mismo tu celular está en modo " + (temaOscuroDelSistema() ? "oscuro" : "claro") + ", y Nexo lo sigue solo." : "Elegiste el tema a mano; Nexo ya no sigue al celular."}</p>
         </article>
     `;
 }
