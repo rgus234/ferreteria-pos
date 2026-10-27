@@ -83,9 +83,20 @@
         return barra;
     }
 
+    // Pantallas que cubren Vender (cobro, cliente, escaner): ahi la barra NO va, taparia su flecha de regreso y repetiria "Cobrar".
+    const PANTALLAS_SOBRE_VENDER = ["duenoVenderCobroOverlay", "duenoVenderClienteOverlay", "duenoVenderEscanerOverlay", "duenoProductoFormOverlay"];
+    const hayPantallaEncima = () => PANTALLAS_SOBRE_VENDER.some(id => { const el = document.getElementById(id); return Boolean(el && (el.classList.contains("abierta") || (id === "duenoProductoFormOverlay" && el.style.display === "flex"))); });
+
     function ventaVisible() {
         const pestana = document.getElementById("duenoVender");
-        return Boolean(pestana && pestana.style.display !== "none");
+        return Boolean(pestana && pestana.style.display !== "none") && !hayPantallaEncima();
+    }
+
+    // Si una de esas pantallas se abre o se cierra, la barra se acomoda sola.
+    function vigilarPantallas() {
+        const observador = new MutationObserver(() => actualizarBarra());
+
+        PANTALLAS_SOBRE_VENDER.forEach(id => { const el = document.getElementById(id); if (el) observador.observe(el, { attributes: true, attributeFilter: ["class", "style"] }); });
     }
 
     function actualizarBarra() {
@@ -203,5 +214,6 @@
     envolver("abrirEscanerVenderDueno", () => { desbloquearAudio(); pintarListaEscaner(); actualizarBarra(); });
     envolver("cerrarEscanerVenderDueno", () => actualizarBarra());
 
+    vigilarPantallas();
     actualizarBarra();
 })();
