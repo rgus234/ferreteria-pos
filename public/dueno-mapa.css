@@ -173,3 +173,13 @@
 #duenoEscanerCodigoManualInput { padding: 14px 16px; border: 1px solid rgba(255, 255, 255, .28); border-radius: 16px; background: rgba(255, 255, 255, .14); color: #fff; font-size: 16px; }
 #duenoEscanerCodigoManualInput::placeholder { color: rgba(255, 255, 255, .7); }
 #duenoEscanerCodigoManualForm button { padding: 0 20px; border: 0; border-radius: 16px; background: #18b88f !important; color: #04223f !important; font-weight: 800; }
+
+/* ---- Conteos guardados ---- */
+.dm-cuadricula button:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.dm-chips { display: flex; gap: 8px; }
+.dm-chips button { flex: 1; padding: 11px; border: 0; border-radius: 14px; background: #fff !important; color: #475569 !important; font-weight: 800; font-size: 14px; }
+.dm-chips button.activo { background: #0f2a4a !important; color: #fff !important; }
+.dm-conteo-item .dm-fila-texto small { white-space: normal; }
+.dm-excluir { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #64748b; }
+.dm-excluir input { width: 18px; height: 18px; }
+.dm-con-dif { background: #fff7e0 !important; }

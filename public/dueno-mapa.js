@@ -127,7 +127,7 @@
     function pintar() {
         const c = obtenerCapa();
         const p = actual();
-        const mapa = { inicio: pintarInicio, lugar: pintarLugar, producto: pintarProducto, conteo: pintarConteo, resurtir: pintarResurtir, buscar: pintarBusqueda, nuevo: pintarNuevo };
+        const mapa = { inicio: pintarInicio, lugar: pintarLugar, producto: pintarProducto, conteo: pintarConteo, resurtir: pintarResurtir, buscar: pintarBusqueda, nuevo: pintarNuevo, conteos: pintarConteos, conteoDetalle: pintarConteoDetalle };
 
         c.innerHTML = (mapa[p.t] || pintarInicio)(p);
     }
@@ -208,6 +208,7 @@
                 <button type="button" onclick="dmContarEscaneando()"><span class="dm-icono-caja dm-azul">${icono("contar", 24)}</span>Contar inventario</button>
                 <button type="button" onclick="dmIrBuscar()"><span class="dm-icono-caja dm-verde">${icono("buscar", 24)}</span>¿Dónde está?</button>
                 <button type="button" onclick="dmIrResurtir()"><span class="dm-icono-caja dm-ambar">${icono("resurtir", 24)}</span>Resurtir${resumen?.porResurtir ? `<em>${resumen.porResurtir}</em>` : ""}</button>
+                <button type="button" onclick="dmIrConteos()"><span class="dm-icono-caja dm-azul">${icono("ok", 24)}</span>Conteos${resumen?.conteosPendientes ? `<em>${resumen.conteosPendientes}</em>` : ""}</button>
                 <button type="button" onclick="dmImprimir()" ${lugares.length ? "" : "disabled"}><span class="dm-icono-caja dm-gris">${icono("etiqueta", 24)}</span>Etiquetas QR</button>
             </div>
             ${zona("tienda", "Tienda", "pasillo", "Aún no tienes pasillos ni estantes.")}
@@ -551,8 +552,9 @@
                 cuerpo: `
                 <div class="dm-resultado"><div class="dm-falta"><strong>${numero(r.faltan)}</strong><span>faltan</span></div><div class="dm-sobra"><strong>${numero(r.sobran)}</strong><span>sobran</span></div></div>
                 <div class="dm-lista">${r.lineas.map(x => { const p = e.productos.find(q => q.id === x.productoId); return `<div class="dm-producto">${miniatura(p?.imagenUrl, 44)}<span class="dm-fila-texto"><b>${esc(x.nombre)}</b><small>${x.noEscaneado && !e.noEscaneados ? "No lo contaste (no cambia)" : `Esperado ${numero(x.esperado)} · contaste ${numero(x.contado)}`}</small></span><em class="dm-dif ${x.diferencia < 0 ? "neg" : x.diferencia > 0 ? "pos" : ""}">${x.diferencia > 0 ? "+" : ""}${numero(x.diferencia)}</em></div>`; }).join("")}</div>
-                <label class="dm-check"><input type="checkbox" ${e.noEscaneados ? "checked" : ""} onchange="dmConteoNoEscaneados(this.checked)"><span>Lo que no conté es que ya no hay (contarlo como 0)</span></label>`,
-                pie: `<button type="button" class="dm-secundario" onclick="dmConteoSeguir()">Seguir contando</button><button type="button" class="dm-grande" onclick="dmConteoAplicar()">Aplicar ajuste</button>`
+                <label class="dm-check"><input type="checkbox" ${e.noEscaneados ? "checked" : ""} onchange="dmConteoNoEscaneados(this.checked)"><span>Lo que no conté es que ya no hay (contarlo como 0)</span></label>
+                <p class="dm-nota">Al guardar, el conteo queda pendiente: no cambia las existencias hasta que un encargado lo apruebe.</p>`,
+                pie: `<button type="button" class="dm-secundario" onclick="dmConteoSeguir()">Seguir contando</button><button type="button" class="dm-grande" onclick="dmConteoGuardar()">Guardar conteo</button>`
             });
         }
 
@@ -642,20 +644,136 @@
     window.dmConteoNoEscaneados = async function (valor) { actual().noEscaneados = valor; await window.dmConteoVer(); };
     window.dmConteoSeguir = function () { actual().resultado = null; pintar(); };
 
-    window.dmConteoAplicar = async function () {
-        const d = await dialogo({ titulo: "¿Aplicar el ajuste?", texto: "Cambia las existencias de estos productos y queda registrado quién lo hizo.", aceptar: "Aplicar" });
+    // ---- Conteos guardados: pendientes de revisar, aprobados y rechazados ----
+
+    window.dmConteoGuardar = async function () {
+        const e = actual();
+        const d = await dialogo({ titulo: "¿Guardar el conteo?", texto: "Queda pendiente: no cambia ninguna existencia hasta que un encargado lo apruebe.", campo: { valor: "", ayuda: "Nota (opcional)" }, aceptar: "Guardar" });
 
         if (!d.ok) return;
 
-        const r = await consultarConteo(true);
+        const conteos = Object.entries(e.valores).map(([productoId, cantidad]) => ({ productoId: Number(productoId), cantidad }));
+        const r = await llamar(`/ubicaciones/${e.lugarId}/conteo/guardar`, { method: "POST", body: { conteos, incluirNoEscaneados: e.noEscaneados, nota: d.valor || "" } });
 
-        if (!r.ok) { aviso(r.datos.error || "No se pudo aplicar.", "error"); return; }
+        if (!r.ok) { aviso(r.datos.error || "No se pudo guardar el conteo.", "error"); return; }
+
+        aviso("Conteo guardado, pendiente de revisión");
+        await cargarGeneral();
+        pila.pop();
+        window.dmIrConteos();
+    };
+
+    window.dmIrConteos = async function () {
+        const entrada = { t: "conteos", filtro: "pendiente", lista: null, puedeRevisar: false };
+        ir(entrada);
+        await cargarConteos(entrada);
+    };
+
+    async function cargarConteos(entrada) {
+        const r = await llamar(`/conteos${entrada.filtro === "todos" ? "" : "?estado=" + entrada.filtro}`);
+        entrada.lista = r.ok ? r.datos.conteos || [] : [];
+        entrada.puedeRevisar = r.ok && r.datos.puedeRevisar;
+        entrada.error = r.ok ? "" : (r.datos.error || "No se pudo cargar.");
+
+        if (actual() === entrada) pintar();
+    }
+
+    window.dmFiltroConteos = function (filtro) { const e = actual(); e.filtro = filtro; e.lista = null; pintar(); cargarConteos(e); };
+
+    const hace = fecha => new Date(fecha).toLocaleString("es-MX", { timeZone: "America/Mexico_City", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    const estadoConteo = { pendiente: ["Por revisar", "ambar"], aprobado: ["Aprobado", "verde"], rechazado: ["Rechazado", "rojo"] };
+
+    function pintarConteos(e) {
+        const chips = [["pendiente", "Por revisar"], ["todos", "Historial"]];
+
+        return pantalla({
+            titulo: "Conteos",
+            subtitulo: e.puedeRevisar ? "Revisa y aprueba lo que contó tu equipo" : "Tus conteos guardados",
+            cuerpo: `<div class="dm-chips">${chips.map(([v, t]) => `<button type="button" class="${e.filtro === v ? "activo" : ""}" onclick="dmFiltroConteos('${v}')">${t}</button>`).join("")}</div>
+            ${e.error ? `<p class="dm-nota">${esc(e.error)}</p>` : e.lista === null ? `<p class="dm-nota">Cargando…</p>` : e.lista.map(c => `<button type="button" class="dm-fila dm-conteo-item" onclick="dmIrConteoDetalle(${c.id})">
+                <span class="dm-icono-caja ${c.zona === "bodega" ? "dm-bodega" : "dm-tienda"}">${icono("contar", 22)}</span>
+                <span class="dm-fila-texto"><b>${esc(c.lugar || "Lugar borrado")}</b><small>${esc(c.creadoPor)} · ${esc(hace(c.creadoAt))}</small><small>Faltan ${numero(c.faltan)} · sobran ${numero(c.sobran)}</small></span>
+                <span class="dm-etiqueta dm-${estadoConteo[c.estado][1]}">${estadoConteo[c.estado][0]}</span>
+            </button>`).join("") || `<div class="dm-vacio-grande">${icono("ok", 40)}<b>${e.filtro === "pendiente" ? "Nada por revisar" : "Sin conteos todavía"}</b><span>Los conteos que guarde tu equipo aparecen aquí.</span></div>`}`
+        });
+    }
+
+    window.dmIrConteoDetalle = async function (id) {
+        const entrada = { t: "conteoDetalle", id, datos: null, excluir: {} };
+        ir(entrada);
+
+        const r = await llamar(`/conteos/${id}`);
+        entrada.datos = r.ok ? r.datos : false;
+        if (actual() === entrada) pintar();
+    };
+
+    function pintarConteoDetalle(e) {
+        const r = e.datos;
+
+        if (r === null) return pantalla({ titulo: "Conteo", cuerpo: `<p class="dm-nota">Cargando…</p>` });
+        if (!r) return pantalla({ titulo: "Conteo", cuerpo: `<p class="dm-nota">No se pudo cargar este conteo.</p>` });
+
+        const c = r.conteo;
+        const pendiente = c.estado === "pendiente";
+        const cuentan = r.lineas.filter(l => l.diferencia !== 0);
+
+        return pantalla({
+            titulo: "Revisar conteo",
+            subtitulo: c.lugar,
+            cuerpo: `
+            <div class="dm-ficha-foto"><div class="dm-fila-texto"><b>${esc(c.lugar)}</b><small>Contó ${esc(c.creadoPor)} · ${esc(hace(c.creadoAt))}</small>${c.nota ? `<small>“${esc(c.nota)}”</small>` : ""}</div><span class="dm-etiqueta dm-${estadoConteo[c.estado][1]}">${estadoConteo[c.estado][0]}</span></div>
+            <div class="dm-resultado"><div class="dm-falta"><strong>${numero(c.faltan)}</strong><span>faltan</span></div><div class="dm-sobra"><strong>${numero(c.sobran)}</strong><span>sobran</span></div></div>
+            ${!pendiente ? `<p class="dm-nota">${c.estado === "aprobado" ? "Aprobó" : "Rechazó"} ${esc(c.revisadoPor)} · ${esc(hace(c.revisadoAt))}${c.notaRevision ? ` · “${esc(c.notaRevision)}”` : ""}</p>` : ""}
+            <section class="dm-seccion"><div class="dm-seccion-cab"><h3>Productos (${r.lineas.length})</h3></div>
+            ${r.lineas.map(l => `<div class="dm-producto ${l.diferencia === 0 ? "" : "dm-con-dif"}"><span class="dm-fila-texto"><b>${esc(l.nombre)}</b><small>${l.noEscaneado ? "No se contó" : `Esperado ${numero(l.esperado)} · contó ${numero(l.contado)}`}</small></span>
+                ${pendiente && r.puedeRevisar && l.diferencia !== 0 ? `<label class="dm-excluir"><input type="checkbox" ${e.excluir[l.productoId] ? "checked" : ""} onchange="dmExcluir(${l.productoId}, this.checked)"><span>No aplicar</span></label>` : ""}
+                <em class="dm-dif ${l.diferencia < 0 ? "neg" : l.diferencia > 0 ? "pos" : ""}">${l.diferencia > 0 ? "+" : ""}${numero(l.diferencia)}</em></div>`).join("")}</section>
+            ${pendiente && r.puedeRevisar ? `<p class="dm-nota">Al aprobar se suma la diferencia a las existencias de hoy (${cuentan.length} producto${cuentan.length === 1 ? "" : "s"} con diferencia), así las ventas hechas mientras tanto no se pisan.</p>` : ""}
+            ${pendiente && !r.puedeRevisar ? `<p class="dm-nota">Un encargado debe aprobarlo para que cambien las existencias.</p>` : ""}`,
+            pie: pendiente && r.puedeRevisar ? `<button type="button" class="dm-secundario" onclick="dmRechazarConteo()">Rechazar</button><button type="button" class="dm-grande" onclick="dmAprobarConteo()">Aprobar</button>` : ""
+        });
+    }
+
+    window.dmExcluir = function (productoId, valor) { actual().excluir[productoId] = valor; };
+
+    window.dmAprobarConteo = async function () {
+        const e = actual();
+        const excluir = Object.keys(e.excluir).filter(k => e.excluir[k]).map(Number);
+        const d = await dialogo({ titulo: "¿Aprobar el conteo?", texto: `Cambia las existencias${excluir.length ? ` (menos ${excluir.length} producto${excluir.length === 1 ? "" : "s"} que marcaste)` : ""} y queda registrado que lo aprobaste.`, aceptar: "Aprobar" });
+
+        if (!d.ok) return;
+
+        const r = await llamar(`/conteos/${e.id}/aprobar`, { method: "POST", body: { excluir } });
+
+        if (!r.ok) { aviso(r.datos.error || "No se pudo aprobar.", "error"); return; }
 
         if (typeof refrescarCatalogoLocalDueno === "function") refrescarCatalogoLocalDueno().catch(() => {});
-        aviso(`Listo: ${r.datos.ajustados} producto(s) ajustados`);
+        aviso(`Aprobado: ${r.datos.aplicadas} producto(s) ajustados`);
         await cargarGeneral();
-        window.dmAtras();
+        pila.pop();
+        const anterior = actual();
+        if (anterior?.t === "conteos") cargarConteos(anterior);
+        pintar();
     };
+
+    window.dmRechazarConteo = async function () {
+        const e = actual();
+        const d = await dialogo({ titulo: "¿Rechazar el conteo?", texto: "No cambia ninguna existencia. Puedes explicar por qué.", campo: { valor: "", ayuda: "Motivo (opcional)" }, aceptar: "Rechazar", peligro: true });
+
+        if (!d.ok) return;
+
+        const r = await llamar(`/conteos/${e.id}/rechazar`, { method: "POST", body: { nota: d.valor || "" } });
+
+        if (!r.ok) { aviso(r.datos.error || "No se pudo rechazar.", "error"); return; }
+
+        aviso("Conteo rechazado");
+        await cargarGeneral();
+        pila.pop();
+        const anterior = actual();
+        if (anterior?.t === "conteos") cargarConteos(anterior);
+        pintar();
+    };
+
 
     // ---- Etiquetas con QR (PDF) ----
 

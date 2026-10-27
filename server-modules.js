@@ -152,6 +152,7 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("mapa de la tienda: estantes y bodega", () => {
         require("./ubicaciones-server")(app, pool, requerirAccesoNegocio, firmarTokenImagen);
         require("./existencias-lugar-server")(app, pool, requerirAccesoNegocio, firmarTokenImagen);
+        require("./conteos-server")(app, pool, requerirAccesoNegocio);
     });
 
     cargarModuloPOS("actividad del equipo (quien hizo que)", () => {

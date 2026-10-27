@@ -73,3 +73,8 @@
 :root.oscuro .dvm-tarjeta { background: #182233; color: #f1f5f9; }
 :root.oscuro .dvm-tarjeta-texto small { color: #94a3b8; }
 :root.oscuro .dvm-tarjeta-foto { background: #223049; }
+
+:root.oscuro .dm-chips button { background: #182233 !important; color: #cbd5e1 !important; }
+:root.oscuro .dm-chips button.activo { background: #1d5fd1 !important; color: #fff !important; }
+:root.oscuro .dm-con-dif { background: rgba(251, 191, 36, .12) !important; }
+:root.oscuro .dm-excluir { color: #94a3b8; }

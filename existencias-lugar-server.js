@@ -152,8 +152,10 @@ function instalar(app, pool, requerirAccesoNegocio, firmarTokenImagen) {
                 [id]
             )).rows[0];
             const resurtir = await listaResurtir(id);
+            // Si todavia no se corrio la migracion de conteos, el indicador simplemente queda en 0.
+            const conteosPendientes = await pool.query(`SELECT COUNT(*)::int AS n FROM public.conteos_inventario WHERE negocio_id = $1 AND estado = $2`, [id, "pendiente"]).then(r => r.rows[0].n).catch(() => 0);
 
-            res.json({ ok: true, ubicaciones: fila.ubicaciones, productosConLugar: fila.con_lugar, productosSinLugar: fila.sin_lugar, porResurtir: resurtir.length, agotados: resurtir.filter(p => p.estado === "agotado").length });
+            res.json({ ok: true, conteosPendientes, ubicaciones: fila.ubicaciones, productosConLugar: fila.con_lugar, productosSinLugar: fila.sin_lugar, porResurtir: resurtir.length, agotados: resurtir.filter(p => p.estado === "agotado").length });
         } catch (error) {
             responderError(res, error);
         }
