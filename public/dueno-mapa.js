@@ -9,6 +9,9 @@
     let capa = null;
     let abierto = null; // lugar con su detalle abierto
     let formulario = null; // { zona, tipo, padreId }
+    let vista = null; // "resurtir" | "conteo"
+    let conteo = null; // { lugar, productos, valores, resultado, noEscaneados }
+    let resurtir = [];
 
     const esc = valor => (typeof escaparDueno === "function" ? escaparDueno(valor) : String(valor ?? ""));
 
@@ -57,7 +60,7 @@
     }
 
     window.dmCerrar = function () {
-        if (abierto || formulario) { abierto = null; formulario = null; pintar(); } else capa?.classList.remove("abierta");
+        if (vista) { vista = null; conteo = null; pintar(); } else if (abierto || formulario) { abierto = null; formulario = null; pintar(); } else capa?.classList.remove("abierta");
     };
 
     async function abrir() {
@@ -92,6 +95,8 @@
     function pintar() {
         const c = obtenerCapa();
 
+        if (vista === "resurtir") return pintarResurtir(c);
+        if (vista === "conteo") return pintarConteo(c);
         if (formulario) return pintarFormulario(c);
         if (abierto) return pintarDetalle(c);
 
@@ -103,7 +108,7 @@
 
         c.innerHTML = cabecera("Mapa de la tienda") + `<main class="dm-cuerpo">
             <p class="dm-nota">Crea tus pasillos y estantes, imprime su etiqueta, pégala y escanéala para acomodar o buscar productos.</p>
-            <div class="dm-acciones"><button type="button" onclick="dmEscanear()">📷 Escanear un estante</button>${lugares.length ? `<button type="button" onclick="dmImprimir()">🖨️ Imprimir todas</button>` : ""}</div>
+            <div class="dm-acciones"><button type="button" onclick="dmEscanear()">📷 Escanear un estante</button><button type="button" onclick="dmResurtir()">🔁 Resurtir</button>${lugares.length ? `<button type="button" onclick="dmImprimir()">🖨️ Imprimir todas</button>` : ""}</div>
             ${bloque("tienda", "Tienda", "Aún no tienes pasillos ni estantes.")}
             ${bloque("bodega", "Bodega", "Aún no tienes secciones de bodega.")}
         </main>`;
@@ -166,7 +171,7 @@
         c.innerHTML = cabecera(l.nombre) + `<main class="dm-cuerpo">
             <div class="dm-ficha dm-${l.zona}"><small>${esc(l.ruta)}</small><b class="dm-codigo">${esc(l.codigo)}</b></div>
             <div class="dm-acciones"><button type="button" onclick="dmImprimir(${l.id})">🖨️ Imprimir etiqueta</button><button type="button" onclick="dmNuevo('${l.zona}', ${l.id})">+ Dentro de este</button></div>
-            <div class="dm-acciones"><button type="button" onclick="dmRenombrar()">✏️ Cambiar nombre</button><button type="button" class="dm-peligro" onclick="dmBorrar()">Borrar</button></div>
+            <div class="dm-acciones"><button type="button" onclick="dmContar()">🔢 Contar este lugar</button><button type="button" onclick="dmRenombrar()">✏️ Cambiar nombre</button><button type="button" class="dm-peligro" onclick="dmBorrar()">Borrar</button></div>
             <h3 class="dm-titulo">Productos aquí (${l.productos.length})</h3>
             <input id="dmBuscar" class="dm-buscar" type="search" placeholder="Buscar producto para ponerlo aquí" oninput="dmBuscarProducto(this.value)" autocomplete="off">
             <div id="dmResultados" class="dm-lista"></div>
@@ -185,6 +190,16 @@
         const r = await llamar(`/ubicaciones/${abierto.id}/asignar`, { method: "POST", body: { productoIds: [productoId] } });
 
         if (!r.ok) { alert(r.datos.error || "No se pudo poner el producto."); return; }
+
+        if (abierto.zona === "bodega") {
+            const texto = prompt("¿Cuántas piezas hay en esta sección de bodega?", "0");
+            const cantidad = Number(texto);
+
+            if (texto !== null && cantidad >= 0) {
+                const g = await llamar(`/ubicaciones/${abierto.id}/bodega`, { method: "POST", body: { productoId, cantidad } });
+                if (!g.ok) alert(g.datos.error || "No se pudo anotar la cantidad.");
+            }
+        }
 
         if (typeof refrescarCatalogoLocalDueno === "function") refrescarCatalogoLocalDueno().catch(() => {});
 
@@ -250,5 +265,124 @@
 
         window.open(url, "_blank") || (location.href = url);
         setTimeout(() => URL.revokeObjectURL(url), 120000);
+    };
+    // ---- Resurtir: de la bodega a la exhibicion ----
+
+    window.dmResurtir = async function () {
+        vista = "resurtir";
+        obtenerCapa().innerHTML = cabecera("Resurtir de bodega") + `<main class="dm-cuerpo"><p class="dm-nota">Cargando...</p></main>`;
+
+        const r = await llamar("/resurtir");
+        resurtir = r.ok ? r.datos.productos || [] : [];
+        pintar();
+    };
+
+    function pintarResurtir(c) {
+        c.innerHTML = cabecera("Resurtir de bodega") + `<main class="dm-cuerpo">
+            <p class="dm-nota">Productos que se acabaron (o van a acabarse) en el estante y todavía tienes en bodega.</p>
+            ${resurtir.map(p => `<article class="dm-tarjeta ${p.estado}">
+                <b>${esc(p.nombre)}</b>
+                <div class="dm-cifras"><span>Estante <strong>${p.exhibicion}</strong></span><span>Bodega <strong>${p.bodega}</strong></span></div>
+                <small>${p.estado === "agotado" ? "Se acabó en el estante" : "Queda poco en el estante"}${p.estante ? " · va en " + esc(p.estante) : ""}</small>
+                ${p.lugaresBodega.map(l => `<div class="dm-pasar"><span>${esc(l.ruta)}: ${l.cantidad}</span><input type="number" inputmode="decimal" min="0" max="${l.cantidad}" value="${l.cantidad}" id="dmP${p.productoId}_${l.ubicacionId}"><button type="button" onclick="dmPasar(${p.productoId}, ${l.ubicacionId})">Pasar</button></div>`).join("")}
+            </article>`).join("") || `<p class="dm-nota">Nada por resurtir. Todo lo que tienes en bodega todavía se ve en el estante. ✅</p>`}
+        </main>`;
+    }
+
+    window.dmPasar = async function (productoId, desdeId) {
+        const cantidad = Number(document.getElementById(`dmP${productoId}_${desdeId}`)?.value);
+
+        if (!(cantidad > 0)) { alert("Escribe cuántas piezas pasas al estante."); return; }
+
+        const r = await llamar("/resurtir", { method: "POST", body: { productoId, desdeId, cantidad } });
+
+        if (!r.ok) { alert(r.datos.error || "No se pudo pasar."); return; }
+
+        window.dmResurtir();
+    };
+
+    // ---- Conteo de un estante o seccion ----
+
+    window.dmContar = function () {
+        conteo = { lugar: abierto, productos: abierto.productos, valores: {}, resultado: null, noEscaneados: false };
+        vista = "conteo";
+        pintar();
+    };
+
+    function pintarConteo(c) {
+        const k = conteo;
+
+        if (k.resultado) {
+            const r = k.resultado;
+            c.innerHTML = cabecera("Resultado del conteo") + `<main class="dm-cuerpo">
+                <div class="dm-resumen"><div class="dm-falta"><strong>${r.faltan}</strong><span>faltan</span></div><div class="dm-sobra"><strong>${r.sobran}</strong><span>sobran</span></div></div>
+                <div class="dm-lista">${r.lineas.map(l => `<div class="dm-producto"><span><b>${esc(l.nombre)}</b><small>${l.noEscaneado && !k.noEscaneados ? "No lo contaste (no cambia)" : `Esperado ${l.esperado} · contaste ${l.contado}`}</small></span><em class="dm-dif ${l.diferencia < 0 ? "neg" : l.diferencia > 0 ? "pos" : ""}">${l.diferencia > 0 ? "+" : ""}${l.diferencia}</em></div>`).join("")}</div>
+                <label class="dm-check"><input type="checkbox" ${k.noEscaneados ? "checked" : ""} onchange="dmConteoNoEscaneados(this.checked)"> Lo que no conté es que ya no hay (contarlo como 0)</label>
+                <button type="button" class="dm-grande" onclick="dmConteoAplicar()">Aplicar ajuste</button>
+                <button type="button" class="dm-secundario" onclick="dmConteoSeguir()">Seguir contando</button>
+            </main>`;
+            return;
+        }
+
+        c.innerHTML = cabecera("Contar: " + k.lugar.nombre) + `<main class="dm-cuerpo">
+            <p class="dm-nota">Cuenta lo que ves en ${esc(k.lugar.nombre)} y escríbelo. Lo que dejes vacío no se cuenta.</p>
+            <div class="dm-acciones"><button type="button" onclick="dmConteoEscanear()">📷 Contar escaneando</button></div>
+            <div class="dm-lista">${k.productos.map(p => `<label class="dm-producto"><span><b>${esc(p.nombre)}</b><small>${esc(p.codigo || "")}</small></span><input class="dm-cant" type="number" inputmode="decimal" min="0" data-id="${p.id}" value="${k.valores[p.id] ?? ""}" oninput="dmConteoValor(${p.id}, this.value)" placeholder="—"></label>`).join("") || `<p class="dm-nota">Este lugar no tiene productos. Agrégalos desde su pantalla.</p>`}</div>
+            <button type="button" class="dm-grande" onclick="dmConteoVer()">Ver diferencias</button>
+        </main>`;
+    }
+
+    window.dmConteoValor = function (id, valor) { if (valor === "") delete conteo.valores[id]; else conteo.valores[id] = Number(valor); };
+
+    // Cada escaneo suma una pieza al producto del lugar con ese codigo.
+    window.dmConteoEscanear = function () {
+        if (typeof abrirEscanerCodigoDueno !== "function") return;
+
+        abrirEscanerCodigoDueno({
+            titulo: "Escanea cada pieza",
+            continuo: true,
+            alCodigo: codigo => {
+                const p = conteo.productos.find(x => String(x.codigo) === String(codigo).trim());
+
+                if (!p) return;
+
+                conteo.valores[p.id] = (conteo.valores[p.id] || 0) + 1;
+                const campo = document.querySelector(`.dm-cant[data-id="${p.id}"]`);
+                if (campo) campo.value = conteo.valores[p.id];
+            }
+        });
+    };
+
+    async function consultarConteo(aplicar) {
+        const conteos = Object.entries(conteo.valores).map(([productoId, cantidad]) => ({ productoId: Number(productoId), cantidad }));
+        return llamar(`/ubicaciones/${conteo.lugar.id}/conteo`, { method: "POST", body: { conteos, aplicar, incluirNoEscaneados: conteo.noEscaneados } });
+    }
+
+    window.dmConteoVer = async function () {
+        if (!Object.keys(conteo.valores).length && !confirm("No contaste nada. ¿Ver el resultado de todos modos?")) return;
+
+        const r = await consultarConteo(false);
+
+        if (!r.ok) { alert(r.datos.error || "No se pudo calcular."); return; }
+
+        conteo.resultado = r.datos;
+        pintar();
+    };
+
+    window.dmConteoNoEscaneados = async function (valor) { conteo.noEscaneados = valor; await window.dmConteoVer(); };
+    window.dmConteoSeguir = function () { conteo.resultado = null; pintar(); };
+
+    window.dmConteoAplicar = async function () {
+        if (!confirm("Esto cambia las existencias de estos productos y queda registrado. ¿Aplicar?")) return;
+
+        const r = await consultarConteo(true);
+
+        if (!r.ok) { alert(r.datos.error || "No se pudo aplicar."); return; }
+
+        if (typeof refrescarCatalogoLocalDueno === "function") refrescarCatalogoLocalDueno().catch(() => {});
+        alert(`Listo: se ajustaron ${r.datos.ajustados} producto(s).`);
+        vista = null;
+        conteo = null;
+        await recargar();
     };
 })();

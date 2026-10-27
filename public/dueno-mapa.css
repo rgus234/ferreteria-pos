@@ -35,3 +35,24 @@
 .dm-campo { display: grid; gap: 4px; font-size: 13px; font-weight: 800; color: #334155; }
 .dm-error { margin: 0; color: #b91c1c; font-weight: 700; }
 .dm-grande { padding: 15px; border: 0; border-radius: 14px; background: #18b88f !important; color: #04223f !important; font-weight: 800; font-size: 16px; }
+
+.dm-tarjeta { display: grid; gap: 8px; padding: 14px; border-radius: 16px; background: #fff; border-left: 6px solid #f59e0b; }
+.dm-tarjeta.agotado { border-left-color: #dc2626; }
+.dm-tarjeta small { color: #64748b; }
+.dm-cifras { display: flex; gap: 10px; }
+.dm-cifras span { flex: 1; padding: 8px 10px; border-radius: 12px; background: #f1f5f9; display: grid; color: #64748b; font-size: 12px; font-weight: 700; }
+.dm-cifras strong { font-size: 22px; color: #0f172a; }
+.dm-pasar { display: flex; align-items: center; gap: 8px; }
+.dm-pasar span { flex: 1; font-size: 13px; font-weight: 700; color: #334155; }
+.dm-pasar input, .dm-cant { width: 84px; padding: 11px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; color: #0f172a; font-size: 18px; text-align: center; }
+.dm-pasar button { padding: 11px 16px; border: 0; border-radius: 12px; background: #18b88f !important; color: #04223f !important; font-weight: 800; }
+.dm-resumen { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dm-resumen > div { padding: 14px; border-radius: 16px; background: #fff; display: grid; }
+.dm-resumen strong { font-size: 26px; }
+.dm-resumen span { color: #64748b; font-size: 12px; font-weight: 700; }
+.dm-falta { border-left: 6px solid #dc2626; } .dm-sobra { border-left: 6px solid #18b88f; }
+.dm-dif { padding: 4px 10px; border-radius: 999px; background: #e2e8f0; font-style: normal; font-weight: 800; }
+.dm-dif.neg { background: #fee2e2; color: #b91c1c; } .dm-dif.pos { background: #dcfce7; color: #166534; }
+.dm-check { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; }
+.dm-check input { width: 22px; height: 22px; }
+.dm-secundario { padding: 14px; border: 0; border-radius: 14px; background: #e2e8f0 !important; color: #0f172a !important; font-weight: 800; }
