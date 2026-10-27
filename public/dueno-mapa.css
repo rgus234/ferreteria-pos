@@ -241,3 +241,26 @@
 .df-caduca.puesta { background: #fef3c7 !important; color: #92400e !important; }
 .dm-con-dif { flex-wrap: wrap; }
 .dm-motivo { flex-basis: 100%; order: 5; padding: 10px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; color: #0f172a; font-size: 15px; }
+
+/* ---- Dile a Nexo (dueno-nexo-dile.js) ---- */
+.dnx-barra { display: grid; gap: 8px; margin: 12px 0; }
+.dnx-barra-campo { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 14px; border-radius: 18px; background: var(--surface); border: 2px solid var(--brand); box-shadow: 0 8px 20px -14px rgba(37, 99, 255, .7); }
+.dnx-barra-campo input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 16px; padding: 10px 0; }
+.dnx-mic, .dnx-enviar { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border: 0; border-radius: 13px; font-size: 20px; font-weight: 800; padding: 0; }
+.dnx-mic { background: var(--brand-soft) !important; color: var(--brand) !important; }
+.dnx-mic.escuchando { background: #dc2626 !important; color: #fff !important; animation: dnxLate 1s infinite; }
+.dnx-enviar { background: var(--brand) !important; color: #fff !important; }
+@keyframes dnxLate { 50% { opacity: .55; } }
+.dnx-ejemplos { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.dnx-ejemplos button { flex: none; padding: 8px 12px; border: 0; border-radius: 999px; background: var(--surface-soft) !important; color: var(--muted) !important; font-size: 12.5px; font-weight: 700; }
+.dnx-tarjeta { display: grid; gap: 8px; border-left: 5px solid #18b88f; }
+.dnx-tarjeta.dnx-hecha { border-left-color: #94a3b8; color: var(--muted); }
+.dnx-fila { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.dnx-fila span { color: var(--muted); }
+.dnx-fila b { text-align: right; overflow-wrap: anywhere; }
+.dnx-tarjeta small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.dnx-aviso { color: #b45309 !important; }
+.dnx-botones { display: flex; gap: 8px; margin-top: 4px; }
+.dnx-botones button { flex: 1; padding: 11px 6px; border: 0; border-radius: 12px; background: var(--surface-soft) !important; color: var(--text) !important; font-weight: 800; font-size: 14px; }
+.dnx-botones .dnx-si { background: linear-gradient(135deg, #1d5fd1, #18b88f) !important; color: #fff !important; }
+.dnx-botones button:disabled { opacity: .5; }

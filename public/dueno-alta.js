@@ -216,6 +216,8 @@
     };
 
     window.daiQuitarLugar = function () { lugar = null; fijarLugar = false; pintarLugar(); };
+    // Lo usa "Dile a Nexo" > Revisar: deja elegido el lugar que dijo la persona.
+    window.daiPonerLugar = function (elegido) { if (elegido && elegido.id) { lugar = elegido; pintarLugar(); } };
     window.daiFijarLugar = function (valor) { fijarLugar = Boolean(valor); pintarLugar(); };
 
     // Se llama desde guardarProductoNuevoDueno con el producto ya creado: lo asigna al lugar elegido.

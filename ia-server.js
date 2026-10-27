@@ -273,7 +273,14 @@ const HERRAMIENTAS_NEXO = [
                 limiteCredito: { type: "number", description: "Limite de credito (solo cliente_credito)." },
                 precio: { type: "number", description: "Precio de venta (solo producto)." },
                 stock: { type: "number", description: "Existencia inicial (solo producto)." },
-                codigo: { type: "string", description: "Codigo del producto (solo producto)." }
+                codigo: { type: "string", description: "Codigo del producto (solo producto)." },
+                precioMayoreo: { type: "number", description: "Precio de medio mayoreo (solo producto, si lo dijeron)." },
+                unidadVenta: { type: "string", enum: ["pieza", "kilo", "metro", "litro", "paquete"], description: "Como se vende (solo producto, SOLO si lo dijeron; si no, se sugiere con los productos parecidos)." },
+                presentacionCompra: { type: "string", description: "Como se compra: bolsa, caja, costal, rollo... (solo producto, SOLO si lo dijeron)." },
+                factorConversion: { type: "number", description: "Piezas que trae la presentacion de compra, por ejemplo 100 en una bolsa de 100 (solo producto, SOLO si lo dijeron)." },
+                permiteVentaPieza: { type: "boolean", description: "Si tambien se vende por pieza suelta (solo producto, SOLO si lo dijeron)." },
+                stockMinimo: { type: "number", description: "Avisar cuando queden X (solo producto)." },
+                lugar: { type: "string", description: "Estante, pasillo o bodega donde se va a poner, tal como lo dijo la persona (solo producto)." }
             },
             required: ["tipo", "nombre"]
         }
@@ -288,8 +295,32 @@ const HERRAMIENTAS_NEXO = [
             },
             required: ["termino"]
         }
+    },
+    {
+        name: "donde_esta_producto",
+        description: "Dice en que estante o bodega esta un producto y cuanto hay en cada lado (estante, bodega y total). Usala para \"¿donde esta el arroz?\", \"¿cuanto hay en bodega de...?\".",
+        input_schema: { type: "object", properties: { termino: { type: "string", description: "Nombre o codigo del producto." } }, required: ["termino"] }
+    },
+    {
+        name: "lugares_tienda",
+        description: "Lista los lugares de la tienda y la bodega (pasillos, estantes, secciones) con su codigo y cuantos productos tiene cada uno. Usala para saber que lugares existen antes de proponer acomodar algo, o para \"¿que estantes tengo?\".",
+        input_schema: { type: "object", properties: {}, required: [] }
+    },
+    {
+        name: "preparar_movimiento",
+        description: "Cuando piden mover, acomodar o poner un producto en un estante o seccion (\"pon los refrescos en el refri\", \"mueve el arroz a abarrotes secos\"), usa esta herramienta para PREPARAR el movimiento. No lo ejecuta: el usuario lo confirma en pantalla. Si hay varios productos o lugares que coinciden, regresa las opciones: pregunta cual es.",
+        input_schema: {
+            type: "object",
+            properties: {
+                producto: { type: "string", description: "Nombre o codigo del producto." },
+                lugar: { type: "string", description: "Estante, pasillo o seccion de bodega, tal como lo dijo la persona." }
+            },
+            required: ["producto", "lugar"]
+        }
     }
 ];
+
+const herramientasLugares = require("./nexo-herramientas-lugares");
 
 const MAX_ITERACIONES_HERRAMIENTAS = 6;
 const MAX_HISTORIAL_ENTRADAS = 12;
@@ -809,6 +840,9 @@ async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
         case "preparar_creacion": {
             const tipo = String(input?.tipo || "");
 
+            // El producto lleva su configuracion (sugerida por los productos parecidos del negocio) y su lugar: ver nexo-herramientas-lugares.js.
+            if (tipo === "producto") return await herramientasLugares.prepararProducto(pool, negocioId, input);
+
             if (!["cliente_credito", "proveedor", "producto"].includes(tipo)) {
                 return { ok: false, error: "Ese tipo de registro no existe." };
             }
@@ -833,6 +867,15 @@ async function ejecutarHerramientaNexo(pool, negocioId, nombre, input) {
                 }
             };
         }
+
+        case "donde_esta_producto":
+            return await herramientasLugares.dondeEstaProducto(pool, negocioId, input?.termino);
+
+        case "lugares_tienda":
+            return await herramientasLugares.lugaresTienda(pool, negocioId);
+
+        case "preparar_movimiento":
+            return await herramientasLugares.prepararMovimiento(pool, negocioId, input);
 
         case "abrir_modulo": {
             const modulo = String(input?.modulo || "");
@@ -952,6 +995,10 @@ async function chatNexoIA(pool, negocioId, mensajes, modelo = "claude-opus-4-8",
 
             if (bloque.name === "preparar_creacion" && resultado?.ok) {
                 accion = { tipo: "preparar_creacion", datosCreacion: { tipo: resultado.tipo, datos: resultado.datos } };
+            }
+
+            if (bloque.name === "preparar_movimiento" && resultado?.ok) {
+                accion = { tipo: "preparar_movimiento", datos: resultado.datos };
             }
 
             // Wire del estado "celebrando" (IA-5 lo dejo construido sin

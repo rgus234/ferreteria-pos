@@ -55,6 +55,27 @@ function resumen(c) {
     return [compra, venta].filter(Boolean).join(" · ") || "Sin configuración especial";
 }
 
+// La misma busqueda de productos parecidos que usa la ruta, para que Nexo IA la pueda pedir sin pasar por HTTP.
+async function sugerirConfiguracion(pool, negocioId, nombre, { k = 10, excluir = 0 } = {}) {
+    const palabras = palabrasFamilia(nombre);
+    const tope = Math.min(Math.max(Number(k) || 10, 3), 25);
+    const ajeno = Math.trunc(Number(excluir)) || 0;
+
+    if (!negocioId || palabras.length === 0) return { sugerencia: null };
+
+    const filas = (await pool.query(
+        `SELECT id, nombre, ${CAMPOS.join(", ")},
+                (${palabras.map((_, i) => `(lower(nombre) LIKE $${i + 2})::int`).join(" + ")}) AS coincidencias
+         FROM public.productos
+         WHERE negocio_id = $1 AND lower(nombre) LIKE $2 AND id <> ${ajeno}
+         ORDER BY coincidencias DESC, id DESC
+         LIMIT ${tope}`,
+        [negocioId, ...palabras.map(p => `%${p}%`)]
+    )).rows;
+
+    return { familia: palabras.join(" "), sugerencia: proponerConfiguracion(filas) };
+}
+
 function instalar(app, pool, requerirAccesoNegocio) {
     app.get("/sugerencia-alta", requerirAccesoNegocio, async (req, res) => {
         try {
@@ -87,3 +108,4 @@ module.exports = instalar;
 module.exports.palabrasFamilia = palabrasFamilia;
 module.exports.proponerConfiguracion = proponerConfiguracion;
 module.exports.resumen = resumen;
+module.exports.sugerirConfiguracion = sugerirConfiguracion;

@@ -176,3 +176,44 @@ test("Venta movil completa: peso a mano ('dame $20 de jitomate'), pasos de 1/4 k
     assert.equal(contexto.window.dvcEsDecimal({ unidad_venta: "litro" }), true);
     assert.equal(contexto.window.dvcEsDecimal({ unidadVenta: "pieza" }), false);
 });
+
+test("Dile a Nexo en el celular: tarjetas de confirmacion para crear un producto o mover uno de lugar; Nexo nunca guarda solo", () => {
+    const html = leer("dueno.html");
+    const sw = leer("dueno-sw.js");
+    const js = leer("dueno-nexo-dile.js");
+    const alta = leer("dueno-alta.js");
+
+    assert.match(html, /dueno-nexo-dile\.js\?v=/);
+    assert.match(sw, /\/dueno-nexo-dile\.js\?v=/);
+    assert.match(js, /preparar_movimiento/);
+    assert.match(js, /preparar_creacion/);
+    assert.match(js, /data-a="si"/, "hay boton de confirmar");
+    assert.match(js, /\/ubicaciones\/\$\{d\.lugarId\}\/asignar/, "mover usa la ruta de asignar del mapa");
+    assert.match(js, /\/agregar-producto/, "crear usa el alta de siempre");
+    assert.match(js, /webkitSpeechRecognition/, "dictado donde el navegador lo permite");
+    assert.match(alta, /daiPonerLugar/, "Revisar deja elegido el lugar en el formulario");
+
+    // Nada se guarda al llegar la respuesta: los POST solo viven dentro de los clics de confirmar.
+    const antesDeTarjetas = js.slice(js.indexOf("(function"), js.indexOf("function pintarTarjeta"));
+    assert.doesNotMatch(antesDeTarjetas, /agregar-producto|\/asignar|\/bodega|creditos\/clientes/, "recibir la respuesta no escribe nada de inventario");
+});
+
+test("El chat de Nexo en el celular lee la respuesta en vivo (NDJSON); antes las preguntas que pasaban por el modelo salian como error", () => {
+    const vm = require("node:vm");
+    const js = leer("dueno-nexo-dile.js");
+
+    assert.match(js, /getReader\(\)/);
+    assert.match(js, /ndjson/);
+    assert.match(js, /tipo === "final"/);
+    assert.match(js, /window\.enviarMensajeNexoDueno = async function/);
+    assert.doesNotMatch(js, /fetchAutenticado\("\/ia\/chat"/, "ya no depende del lector de JSON que no entiende el stream");
+
+    // lineaDeStream se prueba con un stream simulado.
+    const mensajes = [];
+    const contexto = {
+        window: {}, document: { addEventListener() {}, getElementById: () => null, querySelector: () => null, createElement: () => ({}) },
+        agregarMensajeNexoDueno: texto => { const m = { textContent: texto, remove() {} }; mensajes.push(m); return m; }
+    };
+    vm.runInNewContext(js, contexto);
+    assert.equal(typeof contexto.window.enviarMensajeNexoDueno, "function");
+});
