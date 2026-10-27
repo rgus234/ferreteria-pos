@@ -23,3 +23,13 @@
 .dai-codigo-estado { display: block; margin-top: 6px; font-size: 13px; font-weight: 700; color: #64748b; }
 .dai-codigo-estado.ok { color: #047857; }
 .dai-codigo-estado.no { color: #b45309; }
+
+/* ---- ¿Donde lo vas a poner? ---- */
+.dai-lugar-elegido { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: #eef2ff; }
+.dai-lugar-elegido b { font-size: 14px; color: #1e1b4b; overflow-wrap: anywhere; }
+.dai-lugar-elegido small { color: #4338ca; font-family: ui-monospace, Menlo, monospace; font-weight: 800; }
+.dai-banner { margin: 0; padding: 10px 12px; border-radius: 12px; background: #ecfdf3; border: 2px solid #18b88f; color: #064e3b; font-weight: 700; font-size: 13.5px; }
+.dai-fijar { display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 700; color: #334155; }
+.dai-fijar input { width: 22px; height: 22px; flex: none; }
+.dai-campos-lugar { display: grid; gap: 4px; font-size: 13px; font-weight: 800; color: #334155; }
+.dai-campos-lugar input { padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; color: #0f172a; font-size: 16px; }

@@ -541,13 +541,22 @@ async function guardarProductoNuevoDueno() {
         }
     }
 
+    // Lugar elegido en el formulario (estante o bodega): se asigna con el producto ya creado. Nunca tumba el alta.
+    let lugarPuesto = "";
+    if (typeof asignarLugarNuevoDueno === "function") {
+        try { lugarPuesto = await asignarLugarNuevoDueno(productoId, stock); } catch (error) { mostrarToastDueno("Producto creado, pero no se pudo asignar su lugar."); }
+    }
+
     const alGuardar = estado.alGuardar;
     cerrarFormularioProductoDueno();
-    mostrarToastDueno(`"${nombre}" creado${codigoFinal ? ` (codigo ${codigoFinal})` : ""}.`);
+    mostrarToastDueno(`"${nombre}" creado${codigoFinal ? ` (codigo ${codigoFinal})` : ""}${lugarPuesto ? ` en ${lugarPuesto}` : ""}.`);
 
     await refrescarCatalogoLocalDueno();
     if (typeof filtrarInventarioDueno === "function") filtrarInventarioDueno();
     if (alGuardar) alGuardar({ id: productoId, nombre, codigo: codigoFinal, precio, stock });
+
+    // "Guardar y siguiente": con un estante fijo se abre el formulario en blanco para el siguiente producto.
+    if (typeof siguienteProductoNuevoDueno === "function") siguienteProductoNuevoDueno(Boolean(alGuardar));
 }
 
 async function guardarEdicionProductoDueno() {

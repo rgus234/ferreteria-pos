@@ -189,6 +189,62 @@
         campo.addEventListener("input", () => { clearTimeout(temporizadorCodigo); temporizadorCodigo = setTimeout(buscarPorCodigo, 700); });
     }
 
+    // ---- "¿Donde lo vas a poner?": estante o bodega al crear el producto, y "Guardar y siguiente" con un estante fijo ----
+
+    let lugar = null; // { id, nombre, zona, ruta, codigo }
+    let fijarLugar = false;
+
+    function pintarLugar() {
+        const caja = document.getElementById("daiLugar");
+        if (!caja) return;
+
+        caja.innerHTML = `<h3>¿Dónde lo vas a poner?</h3>
+            ${fijarLugar && lugar ? `<p class="dai-banner">Guardando en ${esc(lugar.nombre)}: al guardar se abre el siguiente producto.</p>` : ""}
+            ${lugar ? `<div class="dai-lugar-elegido"><b>${esc(lugar.ruta)}</b><small>${esc(lugar.codigo)}</small></div>
+                ${lugar.zona === "bodega" ? `<label class="dai-campos-lugar">Piezas en esta bodega (vacío = todas las existencias)<input id="daiCantBodega" type="number" inputmode="decimal" min="0" step="any" placeholder="Todas"></label>` : ""}
+                <label class="dai-fijar"><input type="checkbox" ${fijarLugar ? "checked" : ""} onchange="daiFijarLugar(this.checked)"><span>Seguir dando de alta aquí (Guardar y siguiente)</span></label>
+                <div class="dai-botones"><button type="button" class="dai-no" onclick="daiElegirLugar()">Cambiar</button><button type="button" class="dai-no" onclick="daiQuitarLugar()">Quitar</button></div>`
+            : `<p class="dai-resumen"><span>Opcional: así ya queda acomodado en la tienda.</span></p><div class="dai-botones"><button type="button" class="dai-si" onclick="daiElegirLugar()">Elegir o escanear lugar</button></div>`}`;
+    }
+
+    window.daiElegirLugar = async function () {
+        if (!window.NexoMovil?.elegirLugar) return;
+
+        const elegido = await window.NexoMovil.elegirLugar({ titulo: "¿Dónde lo vas a poner?" });
+
+        if (elegido) { lugar = elegido; pintarLugar(); }
+    };
+
+    window.daiQuitarLugar = function () { lugar = null; fijarLugar = false; pintarLugar(); };
+    window.daiFijarLugar = function (valor) { fijarLugar = Boolean(valor); pintarLugar(); };
+
+    // Se llama desde guardarProductoNuevoDueno con el producto ya creado: lo asigna al lugar elegido.
+    window.asignarLugarNuevoDueno = async function (productoId, existencias) {
+        if (!lugar || !document.getElementById("daiLugar")) return "";
+
+        const a = await window.NexoMovil.llamar(`/ubicaciones/${lugar.id}/asignar`, { method: "POST", body: { productoIds: [productoId] } });
+
+        if (!a.ok) throw new Error(a.datos.error || "No se pudo asignar el lugar");
+
+        if (lugar.zona === "bodega") {
+            const escrito = document.getElementById("daiCantBodega")?.value;
+            const cantidad = escrito === "" || escrito === undefined ? Number(existencias) || 0 : Number(escrito);
+
+            if (cantidad > 0) await window.NexoMovil.llamar(`/ubicaciones/${lugar.id}/bodega`, { method: "POST", body: { productoId, cantidad } });
+        }
+
+        return lugar.nombre;
+    };
+
+    // Con "Guardar y siguiente" el formulario vuelve a abrirse en blanco para el siguiente producto del mismo estante.
+    window.siguienteProductoNuevoDueno = function (vinoDeOtroFlujo) {
+        if (vinoDeOtroFlujo) return;
+
+        if (!fijarLugar || !lugar) { lugar = null; fijarLugar = false; return; }
+
+        setTimeout(() => { if (typeof abrirFormularioProductoDueno === "function") abrirFormularioProductoDueno(null); }, 350);
+    };
+
     // Enganche con el formulario de dueno-inventario.js (solo producto NUEVO).
     const original = window.renderFormularioProductoDueno;
 
@@ -217,6 +273,20 @@
                 pintar();
                 conectarNombre();
                 if (f.modo === "nuevo") conectarCodigo(); else pedirSugerencia();
+
+                // Lugar donde se va a poner (solo producto nuevo y si el inventario de tienda esta cargado).
+                if (f.modo === "nuevo" && window.NexoMovil?.elegirLugar) {
+                    if (!fijarLugar) lugar = null;
+
+                    if (error && !document.getElementById("daiLugar")) {
+                        const caja = document.createElement("section");
+                        caja.id = "daiLugar";
+                        caja.className = "dai-seccion";
+                        error.parentNode.insertBefore(caja, document.getElementById("daiSeccion"));
+                    }
+
+                    pintarLugar();
+                }
             }
 
             return resultado;

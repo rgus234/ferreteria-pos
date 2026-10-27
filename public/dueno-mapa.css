@@ -218,3 +218,8 @@
 .df-precio small { color: #64748b; font-weight: 600; }
 .df-fijo { background: #e2e8f0; color: #334155; font-weight: 800; }
 .df-nivel { padding: 2px 8px; border-radius: 999px; background: #18b88f; color: #04223f; font-style: normal; font-size: 11px; font-weight: 800; }
+
+/* ---- Selector de lugar (hoja) ---- */
+.dm-hoja { align-items: end; }
+.dm-hoja-panel { max-height: 88vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; width: min(520px, 100%); border-radius: 22px 22px 0 0; }
+.dm-hoja-lista { flex: none; overflow-y: auto; max-height: 38vh; min-height: 96px; }

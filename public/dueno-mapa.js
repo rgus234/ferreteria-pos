@@ -435,7 +435,7 @@
                 <div class="dm-total"><strong>${numero(p.total)}</strong><span>Total</span></div>
             </div>
             <div class="dm-barra" title="Parte del total que está en el estante"><i style="width:${pct}%"></i></div>
-            <section class="dm-seccion"><div class="dm-seccion-cab"><h3>Dónde está</h3></div>
+            <section class="dm-seccion"><div class="dm-seccion-cab"><h3>Dónde está</h3><button type="button" onclick="dmCambiarLugar(${p.id})">${icono("lugar", 16)} Cambiar lugar</button></div>
                 ${p.estante ? `<button type="button" class="dm-fila" onclick="dmIrLugar(${p.estante.id})"><span class="dm-icono-caja dm-tienda">${icono("estante", 20)}</span><span class="dm-fila-texto"><b>${esc(p.estante.ruta)}</b><small>Estante</small></span>${icono("siguiente", 18)}</button>` : ""}
                 ${p.bodegas.map(b => `<button type="button" class="dm-fila" onclick="dmIrLugar(${b.id})"><span class="dm-icono-caja dm-bodega">${icono("seccion", 20)}</span><span class="dm-fila-texto"><b>${esc(b.ruta)}</b><small>Bodega · ${numero(b.cantidad)} piezas</small></span>${icono("siguiente", 18)}</button>`).join("")}
                 ${!p.estante && !p.bodegas.length ? `<p class="dm-nota">Todavía no tiene lugar asignado.</p>` : ""}
@@ -857,6 +857,97 @@
         setTimeout(() => URL.revokeObjectURL(url), 120000);
     };
 
-    // Ayudas visuales compartidas con las otras pantallas del celular (recibir factura).
-    window.NexoMovil = { icono, esc, aviso, dialogo };
+    // ---- Elegir un lugar (escaneando su etiqueta o de la lista): lo usan Producto nuevo y la ficha del producto ----
+
+    function elegirLugar({ titulo = "¿Dónde lo pones?" } = {}) {
+        return new Promise(async resolve => {
+            const r = await llamar("/ubicaciones");
+            const todos = r.ok ? r.datos.ubicaciones || [] : [];
+            let resuelto = false;
+            const fondo = document.createElement("div");
+            fondo.className = "dm-dialogo-fondo dm-hoja";
+            document.body.appendChild(fondo);
+
+            const terminar = lugar => { if (resuelto) return; resuelto = true; fondo.remove(); resolve(lugar); };
+            const filas = filtro => {
+                const f = String(filtro || "").trim().toLowerCase();
+                const lista = todos.filter(l => !f || l.ruta.toLowerCase().includes(f) || l.codigo.toLowerCase().includes(f));
+
+                return lista.map(l => `<button type="button" class="dm-fila" data-id="${l.id}"><span class="dm-icono-caja dm-${l.zona} dm-chico">${icono(I[l.tipo] ? l.tipo : "estante", 18)}</span><span class="dm-fila-texto"><b>${esc(l.nombre)}</b><small>${esc(l.ruta)}</small></span><span class="dm-chip-codigo dm-chico">${esc(l.codigo)}</span></button>`).join("")
+                    || `<p class="dm-nota">${todos.length ? "No encontré ese lugar." : "Todavía no tienes estantes. Créalos en Inventario → Abrir mapa."}</p>`;
+            };
+
+            fondo.innerHTML = `<div class="dm-dialogo dm-hoja-panel"><h3>${esc(titulo)}</h3>
+                <button type="button" class="dm-escanear dm-chico" data-esc="1"><span class="dm-escanear-icono">${icono("escanear", 24)}</span><span><b>Escanear etiqueta</b><small>Apunta al QR del estante</small></span></button>
+                <input class="dm-input" type="search" placeholder="O busca por nombre o código" autocomplete="off">
+                <div class="dm-lista dm-hoja-lista">${filas("")}</div>
+                <div class="dm-dialogo-botones"><button type="button" data-r="no">Cancelar</button></div></div>`;
+
+            const lista = fondo.querySelector(".dm-hoja-lista");
+            fondo.querySelector("input").addEventListener("input", ev => { lista.innerHTML = filas(ev.target.value); });
+            fondo.addEventListener("click", ev => {
+                const fila = ev.target.closest("[data-id]");
+
+                if (fila) { terminar(todos.find(l => l.id === Number(fila.dataset.id)) || null); return; }
+                if (ev.target.dataset?.r === "no" || ev.target === fondo) { terminar(null); return; }
+
+                if (ev.target.closest("[data-esc]")) {
+                    if (typeof abrirEscanerCodigoDueno !== "function") { aviso("El escáner no está disponible en este equipo.", "error"); return; }
+
+                    fondo.style.display = "none";
+                    const cerrar = window.cerrarEscanerCodigoDueno;
+                    window.cerrarEscanerCodigoDueno = function (...a) { window.cerrarEscanerCodigoDueno = cerrar; const res = cerrar.apply(this, a); setTimeout(() => { if (!resuelto) fondo.style.display = ""; }, 50); return res; };
+
+                    abrirEscanerCodigoDueno({
+                        titulo: "Escanea la etiqueta del estante",
+                        alCodigo: async codigo => {
+                            const u = await llamar(`/ubicaciones/codigo/${encodeURIComponent(String(codigo).trim())}`);
+
+                            if (!u.ok) { aviso("Ese código no es de ningún lugar de tu tienda.", "error"); return; }
+
+                            terminar(todos.find(l => l.id === u.datos.ubicacion.id) || u.datos.ubicacion);
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    // Boton "Cambiar lugar" de la ficha del producto.
+    window.dmCambiarLugar = async function (productoId) {
+        const e = actual();
+        const lugar = await elegirLugar({ titulo: "Cambiar de lugar" });
+
+        if (!lugar) return;
+
+        const p = e.datos;
+        const yaEn = lugar.zona === "bodega" ? (p?.bodegas || []).map(b => b.ruta).join(" · ") : (p?.estante?.ruta || "");
+
+        if (yaEn && !yaEn.includes(lugar.nombre)) {
+            const d = await dialogo({ titulo: "Ya tiene otro lugar", texto: `Está registrado en: ${yaEn}. ¿Lo mueves a ${lugar.ruta}?`, aceptar: "Moverlo", cancelar: "No" });
+            if (!d.ok) return;
+        }
+
+        const r = await llamar(`/ubicaciones/${lugar.id}/asignar`, { method: "POST", body: { productoIds: [productoId] } });
+
+        if (!r.ok) { aviso(r.datos.error || "No se pudo cambiar el lugar.", "error"); return; }
+
+        if (lugar.zona === "bodega") {
+            const d = await dialogo({ titulo: "¿Cuántas piezas hay aquí?", texto: "Cantidad de este producto en esta sección de bodega.", campo: { tipo: "number", valor: String(p?.bodega || 0) }, aceptar: "Anotar" });
+
+            if (d.ok && Number(d.valor) >= 0) {
+                const g = await llamar(`/ubicaciones/${lugar.id}/bodega`, { method: "POST", body: { productoId, cantidad: Number(d.valor) } });
+                if (!g.ok) aviso(g.datos.error || "No se pudo anotar la cantidad.", "error");
+            }
+        }
+
+        aviso("Lugar actualizado");
+        if (typeof refrescarCatalogoLocalDueno === "function") refrescarCatalogoLocalDueno().catch(() => {});
+        const f = await llamar(`/ubicaciones/producto/${productoId}`);
+        if (f.ok && actual() === e) { e.datos = f.datos.producto; pintar(); }
+        cargarGeneral();
+    };
+
+    // Ayudas visuales compartidas con las otras pantallas del celular (recibir factura, producto nuevo).
+    window.NexoMovil = { icono, esc, aviso, dialogo, elegirLugar, llamar };
 })();

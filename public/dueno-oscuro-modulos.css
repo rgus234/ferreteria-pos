@@ -86,3 +86,7 @@
 :root.oscuro .df-precio { background: #111a28; }
 :root.oscuro .df-precio.df-activo { background: rgba(24, 184, 143, .14); border-color: #18b88f; }
 :root.oscuro .df-fijo { background: #223049; color: #e2e8f0; }
+:root.oscuro .dai-lugar-elegido { background: rgba(99, 102, 241, .2); } :root.oscuro .dai-lugar-elegido b { color: #e0e7ff; } :root.oscuro .dai-lugar-elegido small { color: #c7d2fe; }
+:root.oscuro .dai-banner { background: rgba(24, 184, 143, .14); color: #6ee7b7; }
+:root.oscuro .dai-fijar, :root.oscuro .dai-campos-lugar { color: #cbd5e1; }
+:root.oscuro .dai-campos-lugar input { background: #182233; color: #f1f5f9; border-color: rgba(148, 163, 184, .3); }

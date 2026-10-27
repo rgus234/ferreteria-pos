@@ -114,6 +114,8 @@ test("Alta efectiva en el celular: configuracion de compra y venta con sugerenci
     assert.match(inventario, /Object\.assign\(cuerpo, configuracionAltaDueno\(\)\)/, "el alta de siempre incluye lo elegido");
     assert.match(js, /\/sugerencia-alta\?nombre=/);
     assert.match(js, /daiUsarSugerencia/);
+    assert.match(js, /asignarLugarNuevoDueno/, "al crear el producto tambien se puede elegir su lugar");
+    assert.match(inventario, /asignarLugarNuevoDueno\(productoId, stock\)/);
     assert.match(js, /configuracionCompletarDueno/, "tambien se puede completar la ficha de un producto recien creado");
     assert.match(inventario, /configuracionCompletarDueno()/);
 
