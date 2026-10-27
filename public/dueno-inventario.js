@@ -496,6 +496,11 @@ async function guardarProductoNuevoDueno() {
 
     if (mayoreoTexto !== "" && mayoreoTexto !== undefined) cuerpo.precioMayoreo = Number(mayoreoTexto);
 
+    // En abarrotes ese campo es "lo que te cuesta" (dueno-alta.js): se guarda como precio de distribuidor y como costo.
+    const costoTexto = leerCampoNumeroDueno("duenoProdCostoNuevo");
+    const costoNuevo = costoTexto ? Number(costoTexto) : 0;
+    if (costoNuevo > 0) cuerpo.precioDistribuidor = costoNuevo;
+
     // "Como lo compras y lo vendes" (dueno-alta.js): bolsa/caja, piezas por bolsa, kilo/pieza, pieza suelta, bascula.
     if (typeof configuracionAltaDueno === "function") Object.assign(cuerpo, configuracionAltaDueno());
 
@@ -515,6 +520,15 @@ async function guardarProductoNuevoDueno() {
     });
 
     const productoId = creado.productoId;
+
+    if (costoNuevo > 0) {
+        try {
+            await fetchAutenticado(`/productos/${productoId}/edicion-rapida`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ costo: costoNuevo }) });
+        } catch (error) {
+            mostrarToastDueno("Producto creado, pero no se pudo guardar su costo.");
+        }
+    }
+
     // El codigo que quedo guardado (ya sin guiones), no el que se tecleo.
     let codigoFinal = creado.producto?.codigo || codigo;
 

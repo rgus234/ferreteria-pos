@@ -305,6 +305,62 @@
         campo.addEventListener("input", () => { clearTimeout(temporizadorCatalogo); temporizadorCatalogo = setTimeout(buscarPorNombreCatalogo, 450); });
     }
 
+    // ---- Producto nuevo segun el giro: en abarrotes no hay "medio mayoreo" (es lo que te cuesta, el precio de distribuidor), el
+    // ejemplo del nombre es de tienda y debajo se ve cuanto ganas (o pierdes) por pieza, igual que en la computadora. ----
+
+    function pintarGananciaNuevo() {
+        const caja = document.getElementById("daiGanancia");
+        if (!caja) return;
+
+        const costo = Number(document.getElementById("duenoProdCostoNuevo")?.value);
+        const precio = Number(document.getElementById("duenoProdPrecioPublico")?.value);
+        const dinero = valor => "$" + Math.abs(valor).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        caja.className = "dai-ganancia";
+
+        if (!(costo > 0) || !(precio > 0)) { caja.textContent = "Escribe lo que te cuesta y lo que cobras: aquí verás cuánto ganas por pieza."; return; }
+
+        const ganancia = precio - costo;
+
+        if (ganancia < 0) { caja.classList.add("dai-ganancia-mal"); caja.textContent = `⚠️ Estás perdiendo ${dinero(ganancia)} por pieza: cobras menos de lo que te cuesta.`; }
+        else if (ganancia === 0) { caja.classList.add("dai-ganancia-cero"); caja.textContent = "Cobras lo mismo que te cuesta: no estás ganando nada."; }
+        else { caja.classList.add("dai-ganancia-ok"); caja.textContent = `✅ Ganas ${dinero(ganancia)} por pieza (${Math.round((ganancia / costo) * 100)}% sobre lo que te cuesta).`; }
+    }
+
+    async function adaptarFormularioAlGiro(f) {
+        const abarrotes = typeof window.NexoMovil?.esAbarrotes === "function" ? await window.NexoMovil.esAbarrotes().catch(() => false) : false;
+
+        if (duenoProductoForm !== f || document.getElementById("daiGanancia")) return;
+
+        const nombre = document.getElementById("duenoProdNombre");
+        if (nombre && abarrotes) nombre.placeholder = "Ej. Coca-Cola 600 ml";
+
+        const publico = document.getElementById("duenoProdPrecioPublico");
+        const mayoreo = document.getElementById("duenoProdPrecioMayoreo");
+        const campoMayoreo = mayoreo?.closest("label");
+        const veCosto = typeof duenoRolSesion === "undefined" || duenoRolSesion !== "employee";
+
+        if (abarrotes && mayoreo && campoMayoreo) {
+            if (veCosto) {
+                // El mismo lugar, pero ahora es lo que le pagas al proveedor (precio de distribuidor).
+                campoMayoreo.childNodes[0].nodeValue = "Lo que te cuesta (precio de distribuidor)";
+                mayoreo.id = "duenoProdCostoNuevo";
+                mayoreo.placeholder = "0.00";
+                mayoreo.addEventListener("input", pintarGananciaNuevo);
+            } else {
+                campoMayoreo.style.display = "none";
+            }
+        }
+
+        if (abarrotes && veCosto && publico && !document.getElementById("daiGanancia")) {
+            const caja = document.createElement("p");
+            caja.id = "daiGanancia";
+            (campoMayoreo || publico.closest("label")).insertAdjacentElement("afterend", caja);
+            publico.addEventListener("input", pintarGananciaNuevo);
+            pintarGananciaNuevo();
+        }
+    }
+
     // ---- "¿Donde lo vas a poner?": estante o bodega al crear el producto, y "Guardar y siguiente" con un estante fijo ----
 
     let lugar = null; // { id, nombre, zona, ruta, codigo }
@@ -390,7 +446,7 @@
 
                 pintar();
                 conectarNombre();
-                if (f.modo === "nuevo") { conectarCodigo(); conectarCatalogoPorNombre(); resultadosCatalogo = []; } else pedirSugerencia();
+                if (f.modo === "nuevo") { conectarCodigo(); conectarCatalogoPorNombre(); resultadosCatalogo = []; adaptarFormularioAlGiro(f); } else pedirSugerencia();
 
                 // Lugar donde se va a poner (solo producto nuevo y si el inventario de tienda esta cargado).
                 if (f.modo === "nuevo" && window.NexoMovil?.elegirLugar) {

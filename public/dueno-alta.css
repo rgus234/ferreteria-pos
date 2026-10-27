@@ -49,3 +49,13 @@
 :root.oscuro .dai-cat-fila, html.oscuro .dai-cat-fila { background: #1e293b; border-color: #334155; color: #f1f5f9; }
 :root.oscuro .dai-cat-elegido, html.oscuro .dai-cat-elegido { background: #064e3b; border-color: #18b88f; }
 :root.oscuro .dai-cat-titulo, html.oscuro .dai-cat-titulo, :root.oscuro .dai-cat-texto small, html.oscuro .dai-cat-texto small { color: #94a3b8; }
+
+/* ---- Cuanto ganas por pieza (abarrotes) ---- */
+.dai-ganancia { margin: -4px 0 12px; padding: 10px 12px; border-radius: 12px; background: #f1f5f9; color: #334155; font-size: 13.5px; font-weight: 700; }
+.dai-ganancia-ok { background: #ecfdf3; color: #064e3b; }
+.dai-ganancia-cero { background: #fffbeb; color: #92400e; }
+.dai-ganancia-mal { background: #fef2f2; color: #991b1b; }
+:root.oscuro .dai-ganancia, html.oscuro .dai-ganancia { background: #1e293b; color: #cbd5e1; }
+:root.oscuro .dai-ganancia-ok, html.oscuro .dai-ganancia-ok { background: #064e3b; color: #d1fae5; }
+:root.oscuro .dai-ganancia-cero, html.oscuro .dai-ganancia-cero { background: #78350f; color: #fef3c7; }
+:root.oscuro .dai-ganancia-mal, html.oscuro .dai-ganancia-mal { background: #7f1d1d; color: #fee2e2; }
