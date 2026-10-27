@@ -59,6 +59,7 @@ test("confirmar con cantidadesRecibidas suma lo que llego; lo que no se mando se
     assert.equal(r.productos.length, 2, "la respuesta trae los productos para acomodarlos");
     assert.ok(r.productos.every(p => p.productoId > 0));
     assert.equal(r.productos.find(p => p.nombre === "Producto cantidades uno").cantidad, 7);
+    assert.ok(r.productos.every(p => p.creado === true), "los dos eran productos nuevos");
 });
 
 test("REGRESION: sin cantidadesRecibidas todo se recibe como dice la factura", async () => {

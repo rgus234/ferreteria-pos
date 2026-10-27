@@ -268,13 +268,26 @@
         setTimeout(() => entrada.focus(), 80);
     }
 
+    // Producto nuevo: lo esencial se decide aqui (nombre, precios y venta suelta); el resto de la ficha (categoria, piezas por bolsa,
+    // bascula, stock minimo...) se completa justo despues de confirmar, en el mismo formulario completo de "Agregar producto".
     function nuevoProducto(e, i) {
         const sugerido = i.precioSugerido || Math.round(i.costo * 1.4);
-        const fondo = hoja(`<h3>Producto nuevo</h3><p>Se crea al confirmar la recepción, con el costo de la factura (${dinero(i.costo)}).</p>
+        const fondo = hoja(`<h3>Producto nuevo</h3><p>Costo de la factura: ${dinero(i.costo)}. Se crea al confirmar la recepción.</p>
             <label class="dm-campo">Nombre<input class="dm-input" id="dfNombre" value="${esc(i.candidato?.nombre || i.descripcion)}" autocomplete="off"></label>
-            <label class="dm-campo">Precio de venta al público<input class="dm-input" id="dfPrecio" type="number" inputmode="decimal" value="${sugerido}"></label>
+            <div class="df-dos">
+                <label class="dm-campo">Precio al público<input class="dm-input" id="dfPrecio" type="number" inputmode="decimal" value="${sugerido}"></label>
+                <label class="dm-campo">Medio mayoreo<input class="dm-input" id="dfMayoreo" type="number" inputmode="decimal" placeholder="Opcional"></label>
+            </div>
+            <label class="dm-check"><input type="checkbox" id="dfSuelto"><span>También se vende suelto (por pieza, kilo, metro…)</span></label>
+            <div class="df-suelto" id="dfSueltoCampos" style="display:none">
+                <label class="dm-campo">Se vende suelto por<select class="dm-input" id="dfUnidad"><option value="pieza">Pieza</option><option value="kg">Kilo</option><option value="metro">Metro</option><option value="litro">Litro</option><option value="gramo">Gramo</option></select></label>
+                <label class="dm-campo">Precio suelto<input class="dm-input" id="dfPrecioSuelto" type="number" inputmode="decimal" placeholder="Ej. 5"></label>
+            </div>
+            <p class="dm-nota">Después de confirmar podrás completar el resto de su ficha: categoría, cómo se compra, báscula, stock mínimo y más.</p>
             <p class="dm-error" id="dfError"></p>
             <div class="dm-dialogo-botones"><button type="button" data-r="no">Cancelar</button><button type="button" class="principal" data-r="si">Crear</button></div>`);
+
+        fondo.querySelector("#dfSuelto").addEventListener("change", ev => { fondo.querySelector("#dfSueltoCampos").style.display = ev.target.checked ? "grid" : "none"; });
 
         fondo.addEventListener("click", async ev => {
             const r = ev.target.dataset?.r;
@@ -283,11 +296,20 @@
 
             const nombre = fondo.querySelector("#dfNombre").value.trim();
             const precio = Number(fondo.querySelector("#dfPrecio").value);
+            const mayoreo = Number(fondo.querySelector("#dfMayoreo").value);
+            const suelto = fondo.querySelector("#dfSuelto").checked;
+            const precioSuelto = Number(fondo.querySelector("#dfPrecioSuelto").value);
+            const error = fondo.querySelector("#dfError");
 
-            if (!nombre || !(precio > 0)) { fondo.querySelector("#dfError").textContent = "Pon el nombre y el precio de venta."; return; }
+            if (!nombre || !(precio > 0)) { error.textContent = "Pon el nombre y el precio al público."; return; }
+            if (suelto && !(precioSuelto > 0)) { error.textContent = "Pon el precio de venta suelto."; return; }
+
+            const cuerpo = { accion: "crear", nombreNuevoProducto: nombre, precioPublico: precio };
+            if (mayoreo > 0) cuerpo.precioMedioMayoreo = mayoreo;
+            if (suelto) { cuerpo.unidadSuelta = fondo.querySelector("#dfUnidad").value; cuerpo.precioPieza = precioSuelto; }
 
             fondo.remove();
-            await decidir(e, i, { accion: "crear", nombreNuevoProducto: nombre, precioPublico: precio });
+            await decidir(e, i, cuerpo);
         });
     }
 
@@ -340,13 +362,16 @@
 
     function pintarAcomodo(e) {
         const pendientes = e.productos.filter(p => !p.hecho && !p.lugar).length;
+        const porCompletar = e.productos.filter(p => p.creado && !p.completado).length;
 
         return pantalla({
             titulo: "Acomodar mercancía",
             subtitulo: e.cargando ? "" : pendientes ? `${pendientes} sin lugar` : "Todo acomodado",
-            cuerpo: `<p class="dm-nota">Escanea la etiqueta del estante donde pones cada producto. Si ya tiene lugar, puedes cambiarlo.</p>
+            cuerpo: `${porCompletar ? `<p class="dm-nota df-aviso">${porCompletar} producto(s) nuevo(s) se crearon con lo básico. Toca "Completar datos" para llenar su ficha: categoría, cómo se vende, báscula, stock mínimo y más.</p>` : ""}
+            <p class="dm-nota">Escanea la etiqueta del estante donde pones cada producto. Si ya tiene lugar, puedes cambiarlo.</p>
             <div class="dm-lista">${e.productos.map(p => `<div class="dm-producto">
-                <span class="dm-fila-texto"><b>${esc(p.nombre)}</b><small>Llegaron ${numero(p.cantidad)} · ${p.lugar ? esc(p.lugar) : "Sin lugar asignado"}</small></span>
+                <span class="dm-fila-texto"><b>${esc(p.nombre)}</b><small>Llegaron ${numero(p.cantidad)} · ${p.lugar ? esc(p.lugar) : "Sin lugar asignado"}</small>${p.creado ? `<span class="dm-etiqueta dm-${p.completado ? "verde" : "ambar"}">${p.completado ? "Ficha completa" : "Nuevo"}</span>` : ""}</span>
+                ${p.creado && !p.completado ? `<button type="button" class="dm-boton-chico df-completar" onclick="dfCompletar(${p.productoId})">Completar datos</button>` : ""}
                 <button type="button" class="dm-boton-chico" onclick="dfAcomodar(${p.productoId})">${p.hecho ? "✓ Cambiar" : p.lugar ? "Cambiar" : "Escanear estante"}</button>
             </div>`).join("")}</div>`,
             pie: `<button type="button" class="dm-grande" onclick="dfTerminar()">Terminar</button>`
@@ -384,9 +409,27 @@
         });
     };
 
+    // Abre el formulario completo de "Agregar producto" (modo edicion) con el producto recien creado.
+    window.dfCompletar = async function (productoId) {
+        const e = actual();
+        const r = await llamar(`/productos/${productoId}`);
+
+        if (!r.ok || !r.datos.producto) { N().aviso("No se pudo abrir el producto.", "error"); return; }
+
+        const overlay = document.getElementById("duenoProductoFormOverlay");
+        abrirFormularioProductoDueno(r.datos.producto, { alGuardar: () => { const p = e.productos.find(x => x.productoId === productoId); if (p) p.completado = true; if (actual() === e) pintar(); } });
+        if (overlay) overlay.style.zIndex = "9590";
+    };
+
     window.dfTerminar = async function () {
         const e = actual();
         const sin = e.productos.filter(p => !p.hecho && !p.lugar).length;
+        const sinFicha = e.productos.filter(p => p.creado && !p.completado).length;
+
+        if (sinFicha && !sin) {
+            const d = await N().dialogo({ titulo: "Fichas sin completar", texto: `${sinFicha} producto(s) nuevo(s) tienen solo lo básico. Puedes completarlos después desde Inventario.`, aceptar: "Terminar de todos modos" });
+            if (!d.ok) return;
+        }
 
         if (sin) {
             const d = await N().dialogo({ titulo: "Quedan productos sin lugar", texto: `${sin} producto(s) no tienen estante. Puedes acomodarlos después desde Inventario de tienda.`, aceptar: "Terminar de todos modos" });

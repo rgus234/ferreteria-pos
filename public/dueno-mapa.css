@@ -202,3 +202,10 @@
 .df-aviso { background: #fff7e0; border-radius: 12px; color: #92400e; font-weight: 700; }
 .df-resultados { max-height: 40vh; overflow-y: auto; }
 .dm-grande[disabled] { opacity: .45; }
+
+/* El formulario completo de producto debe quedar sobre las pantallas del inventario de tienda y bajo el escaner. */
+#duenoProductoFormOverlay { z-index: 9590 !important; }
+.df-dos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.df-suelto { display: grid; gap: 10px; }
+.df-completar { background: #1d5fd1 !important; color: #fff !important; }
+.dm-dialogo { max-height: 90vh; overflow-y: auto; }

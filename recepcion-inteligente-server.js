@@ -1130,7 +1130,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     }
 
                     totalAplicado += cantidad * costo;
-                    itemsAplicados.push({ productoId, codigo: item.codigo_factura, nombre: item.descripcion, cantidad, costo });
+                    itemsAplicados.push({ productoId, codigo: item.codigo_factura, nombre: item.descripcion, cantidad, costo, creado: item.accion === "crear" });
                 }
 
                 let recepcionMercanciaId;
@@ -1203,7 +1203,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     }
                 );
 
-                res.json({ ok: true, recepcionMercanciaId, totalAplicado, conciliada: Boolean(remisionAConciliar), tramoDescuentoAplicado, productos: itemsAplicados.filter(i => i.productoId).map(i => ({ productoId: i.productoId, nombre: i.nombre, cantidad: i.cantidad })) });
+                res.json({ ok: true, recepcionMercanciaId, totalAplicado, conciliada: Boolean(remisionAConciliar), tramoDescuentoAplicado, productos: itemsAplicados.filter(i => i.productoId).map(i => ({ productoId: i.productoId, nombre: i.nombre, cantidad: i.cantidad, creado: Boolean(i.creado) })) });
             } catch (error) {
                 await client.query("ROLLBACK").catch(() => {});
                 responderError(res, error);
