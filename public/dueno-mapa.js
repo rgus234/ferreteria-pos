@@ -95,6 +95,7 @@
                 <button type="button" onclick="dmAbrirEn('buscar')"><span class="dm-icono-caja dm-gris">${icono("buscar", 22)}</span>¿Dónde está?</button>
                 <button type="button" onclick="dmAbrirEn('resurtir')"><span class="dm-icono-caja dm-ambar">${icono("resurtir", 22)}</span>Resurtir</button>
                 <button type="button" onclick="dfAbrir()"><span class="dm-icono-caja dm-azul">${icono("etiqueta", 22)}</span>Recibir factura</button>
+                <button type="button" onclick="dpAbrir()"><span class="dm-icono-caja dm-gris">${icono("escanear", 22)}</span>Escáner de la compu</button>
             </div>`;
         tarjeta.insertAdjacentElement("afterend", caja);
     }
