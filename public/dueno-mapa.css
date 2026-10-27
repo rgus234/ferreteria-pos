@@ -1,0 +1,37 @@
+/* Mapa de la tienda en el celular (ver dueno-mapa.js). */
+
+.dm-entrada { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: center; width: calc(100% - 32px); margin: 12px 16px; padding: 14px 16px; border: 2px solid #18b88f; border-radius: 16px; background: #ecfdf3 !important; color: #0f172a !important; text-align: left; cursor: pointer; }
+.dm-entrada span { grid-row: span 2; font-size: 30px; }
+.dm-entrada small { color: #64748b; font-size: 12.5px; }
+
+.dm-capa { position: fixed; inset: 0; z-index: 9470; display: none; flex-direction: column; background: #f1f5f9; color: #0f172a; overflow-y: auto; }
+.dm-capa.abierta { display: flex; }
+.dm-cabecera { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+.dm-cabecera h2 { margin: 0; flex: 1; text-align: center; font-size: 18px; }
+.dm-icono { width: 42px; height: 42px; border: 0; border-radius: 12px; background: #e2e8f0 !important; color: #0f172a !important; font-size: 20px; }
+.dm-vacio { background: transparent !important; }
+.dm-cuerpo { display: grid; gap: 12px; padding: 14px; align-content: start; padding-bottom: 40px; }
+.dm-nota { margin: 0; color: #64748b; font-size: 14px; text-align: center; }
+.dm-acciones { display: flex; gap: 8px; }
+.dm-acciones button { flex: 1; padding: 13px 8px; border: 0; border-radius: 14px; background: #1d5fd1 !important; color: #fff !important; font-weight: 800; font-size: 14px; }
+.dm-acciones .dm-peligro { background: #fee2e2 !important; color: #b91c1c !important; }
+.dm-zona { display: grid; gap: 8px; padding: 12px; border-radius: 16px; background: #fff; border-left: 6px solid #1d5fd1; }
+.dm-zona.dm-bodega { border-left-color: #b45309; }
+.dm-zona-cab { display: flex; align-items: center; justify-content: space-between; }
+.dm-zona-cab h3 { margin: 0; font-size: 17px; }
+.dm-zona-cab button { padding: 8px 14px; border: 0; border-radius: 10px; background: #18b88f !important; color: #04223f !important; font-weight: 800; }
+.dm-lugar, .dm-producto { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; border: 0; border-radius: 12px; background: #f1f5f9 !important; color: #0f172a !important; text-align: left; }
+.dm-lugar span, .dm-producto span { display: grid; gap: 1px; }
+.dm-lugar small, .dm-producto small { color: #64748b; text-transform: capitalize; }
+.dm-lugar em { min-width: 28px; padding: 3px 9px; border-radius: 999px; background: #1d5fd1; color: #fff; font-style: normal; font-weight: 800; text-align: center; }
+.dm-poner em { padding: 6px 10px; border-radius: 10px; background: #18b88f; color: #04223f; font-style: normal; font-weight: 800; font-size: 13px; }
+.dm-ficha { display: grid; gap: 4px; padding: 16px; border-radius: 16px; background: #fff; border-left: 6px solid #1d5fd1; }
+.dm-ficha.dm-bodega { border-left-color: #b45309; }
+.dm-ficha small { color: #64748b; }
+.dm-codigo { font-family: ui-monospace, Menlo, monospace; font-size: 22px; letter-spacing: 1px; }
+.dm-titulo { margin: 6px 2px 0; font-size: 16px; }
+.dm-lista { display: grid; gap: 6px; }
+.dm-buscar, .dm-campo input, .dm-campo select { padding: 13px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; color: #0f172a; font-size: 16px; }
+.dm-campo { display: grid; gap: 4px; font-size: 13px; font-weight: 800; color: #334155; }
+.dm-error { margin: 0; color: #b91c1c; font-weight: 700; }
+.dm-grande { padding: 15px; border: 0; border-radius: 14px; background: #18b88f !important; color: #04223f !important; font-weight: 800; font-size: 16px; }

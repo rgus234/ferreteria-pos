@@ -119,3 +119,16 @@ test("borrar un lugar con productos pide confirmar y los productos se quedan sin
     assert.equal(Number(fila.stock), 40);
     assert.equal((await pool.query(`SELECT ubicacion FROM public.productos WHERE id = $1`, [broca.id])).rows[0].ubicacion, "", "sin ningun lugar se limpia el texto");
 });
+
+test("la hoja de etiquetas con QR sale como PDF valido, de todo el mapa o de un solo lugar", async () => {
+    const todo = await llamar(A, "/ubicaciones/etiquetas", { method: "POST", body: JSON.stringify({}) });
+    assert.equal(todo.status, 200);
+    assert.equal(todo.cuerpo.total, 2, "quedan la seccion y el rack (el pasillo se llevo su estante)");
+    assert.equal(Buffer.from(todo.cuerpo.pdfBase64, "base64").subarray(0, 4).toString(), "%PDF");
+
+    const uno = await llamar(A, "/ubicaciones/etiquetas", { method: "POST", body: JSON.stringify({ ids: [rack.id] }) });
+    assert.equal(uno.cuerpo.total, 1);
+
+    const vacio = await llamar(B, "/ubicaciones/etiquetas", { method: "POST", body: JSON.stringify({}) });
+    assert.equal(vacio.status, 400, "otro negocio sin lugares no recibe nada");
+});

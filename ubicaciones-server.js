@@ -35,6 +35,38 @@ function textoUbicacion(exhibicion, bodega) {
     return [exhibicion, bodega ? `Bodega: ${bodega.replace(/^Bodega › /, "")}` : ""].filter(Boolean).join(" · ");
 }
 
+// 2 columnas x 4 filas por hoja carta: QR a la izquierda, nombre grande y ruta a la derecha.
+async function generarPdfEtiquetasUbicacion(lugares) {
+    const PDFDocument = require("pdfkit");
+    const QRCode = require("qrcode");
+    const doc = new PDFDocument({ size: "LETTER", margin: 0 });
+    const trozos = [];
+    doc.on("data", t => trozos.push(t));
+    const fin = new Promise(resolve => doc.on("end", () => resolve(Buffer.concat(trozos))));
+    const ancho = 270, alto = 170, margenX = 36, margenY = 36, porHoja = 8;
+
+    for (let i = 0; i < lugares.length; i++) {
+        if (i > 0 && i % porHoja === 0) doc.addPage();
+
+        const l = lugares[i];
+        const x = margenX + (i % 2) * (ancho + 0);
+        const y = margenY + Math.floor((i % porHoja) / 2) * (alto + 10);
+        const color = l.zona === "bodega" ? "#b45309" : "#1d5fd1";
+        const qr = await QRCode.toBuffer(l.codigo, { margin: 1, width: 300, errorCorrectionLevel: "M" });
+
+        doc.lineWidth(1).roundedRect(x, y, ancho - 8, alto, 8).stroke("#cbd5e1");
+        doc.rect(x, y, 8, alto).fill(color);
+        doc.image(qr, x + 18, y + 18, { width: 110 });
+        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(l.nombre.length > 14 ? 15 : 20).text(l.nombre, x + 140, y + 22, { width: ancho - 160, lineBreak: true, height: 60, ellipsis: true });
+        doc.fillColor(color).font("Helvetica-Bold").fontSize(8).text(l.zona === "bodega" ? "BODEGA" : "TIENDA", x + 140, y + 90, { width: ancho - 160 });
+        doc.fillColor("#475569").font("Helvetica").fontSize(8).text(l.ruta.replace(/›/g, ">"), x + 140, y + 102, { width: ancho - 160, height: 36, ellipsis: true });
+        doc.fillColor("#111827").font("Courier-Bold").fontSize(11).text(l.codigo, x + 18, y + 136, { width: 110, align: "center" });
+    }
+
+    doc.end();
+    return fin;
+}
+
 function instalar(app, pool, requerirAccesoNegocio) {
     function negocioId(req) {
         const id = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -71,6 +103,23 @@ function instalar(app, pool, requerirAccesoNegocio) {
             const conteos = new Map(conteo.map(c => [c.ubicacion, c.n]));
 
             res.json({ ok: true, ubicaciones: filas.map(f => formato(f, porId, conteos)) });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Hoja de etiquetas con QR para pegar en cada estante / seccion de bodega. Regresa el PDF en base64 (el celular lo abre como archivo).
+    app.post("/ubicaciones/etiquetas", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const id = negocioId(req);
+            const pedidos = new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number));
+            const { filas, porId } = await todas(pool, id);
+            const lugares = filas.filter(f => !pedidos.size || pedidos.has(f.id)).slice(0, 120);
+
+            if (!lugares.length) { res.status(400).json({ ok: false, error: "No hay lugares para imprimir." }); return; }
+
+            const pdf = await generarPdfEtiquetasUbicacion(lugares.map(f => ({ nombre: f.nombre, ruta: rutaDe(f, porId), codigo: f.codigo, zona: f.zona })));
+            res.json({ ok: true, total: lugares.length, nombre: "etiquetas-estantes.pdf", pdfBase64: pdf.toString("base64") });
         } catch (error) {
             responderError(res, error);
         }
