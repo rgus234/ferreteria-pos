@@ -79,3 +79,24 @@ html { touch-action: manipulation; }
    completo arrastraba la barra hacia abajo hasta taparla). */
 body.dvm-con-barra { overflow: hidden; }
 body.dvm-con-barra #duenoVender { position: fixed; inset: 0; box-sizing: border-box; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; padding-top: calc(72px + env(safe-area-inset-top)); padding-bottom: 110px; background: var(--bg, #eef2f7); }
+
+/* Cobro en efectivo: total, monto recibido y cambio grandes, nada de formulario. */
+.dvc-efectivo-total { display: flex; align-items: baseline; justify-content: space-between; padding: 4px 2px 12px; color: #475569; font-weight: 800; }
+.dvc-efectivo-total strong { font-size: 28px; color: #0f172a; }
+.dvc-recibido { display: grid; gap: 8px; margin-bottom: 12px; font-weight: 800; color: #334155; }
+.dvc-recibido-caja { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: 2px solid #cbd5e1; border-radius: 18px; background: #fff; }
+.dvc-recibido-caja:focus-within { border-color: #1d5fd1; box-shadow: 0 0 0 4px rgba(29, 95, 209, .15); }
+.dvc-recibido-caja i { font-style: normal; font-size: 34px; font-weight: 800; color: #94a3b8; }
+.dvc-recibido-caja input { flex: 1; min-width: 0; width: 100%; border: 0 !important; outline: 0; background: transparent !important; box-shadow: none !important; padding: 4px 0; font-size: 42px; font-weight: 800; color: #0f172a; }
+.dvc-cambio { display: flex; align-items: center; justify-content: space-between; margin: 14px 0; padding: 16px 20px; border-radius: 18px; font-weight: 800; }
+.dvc-cambio span { font-size: 18px; }
+.dvc-cambio strong { font-size: 44px; line-height: 1; }
+.dvc-cambio-vacio { background: #f1f5f9; color: #94a3b8; }
+.dvc-cambio-ok { background: #18b88f; color: #04223f; }
+.dvc-cambio-falta { background: #fef3c7; color: #92400e; }
+:root.oscuro .dvc-efectivo-total strong { color: #f1f5f9; }
+:root.oscuro .dvc-recibido { color: #cbd5e1; }
+:root.oscuro .dvc-recibido-caja { background: #1e293b; border-color: #475569; }
+:root.oscuro .dvc-recibido-caja input { color: #f1f5f9; }
+:root.oscuro .dvc-cambio-vacio { background: #1e293b; color: #64748b; }
+:root.oscuro .dvc-cambio-falta { background: #78350f; color: #fef3c7; }

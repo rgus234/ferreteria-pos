@@ -4215,15 +4215,15 @@ function renderSubpanelMetodoPagoVenderDueno() {
         ].join("");
 
         subpanel.innerHTML = `
-            <p class="dueno-estado" style="font-weight:800;">Pago en efectivo</p>
-            <label class="dueno-campo">Recibido -- por cobrar ${dinero(total)}
-                <input type="text" inputmode="decimal" id="duenoVenderRecibido" placeholder="0.00" oninput="this.value=this.value.replace(/[^0-9.]/g,''); actualizarCambioVenderDueno()">
+            <div class="dvc-efectivo-total"><span>Por cobrar</span><strong>${dinero(total)}</strong></div>
+            <label class="dvc-recibido" for="duenoVenderRecibido">
+                <span>¿Con cuánto paga?</span>
+                <div class="dvc-recibido-caja"><i aria-hidden="true">$</i><input type="text" inputmode="decimal" id="duenoVenderRecibido" placeholder="0.00" autocomplete="off" oninput="this.value=this.value.replace(/[^0-9.]/g,''); actualizarCambioVenderDueno()"></div>
             </label>
             <div class="dueno-monto-rapido-fila">
                 ${botonesMontoRapido}
             </div>
-            <p class="dueno-estado" id="duenoVenderCambio">Cambio: ${dinero(0)}</p>
-            <div class="dueno-foto-descripcion">El cambio se calculará automáticamente al ingresar el monto recibido.</div>
+            <div class="dvc-cambio dvc-cambio-vacio" id="duenoVenderCambio"><span>Cambio</span><strong>${dinero(0)}</strong></div>
             <button type="button" class="dueno-boton-primario" id="duenoVenderBotonConfirmarEfectivo" onclick="confirmarCobroVenderDueno()" disabled>Confirmar cobro</button>
         `;
         return;
@@ -4317,8 +4317,12 @@ function actualizarCambioVenderDueno() {
     const recibido =
     Number(document.getElementById("duenoVenderRecibido")?.value || 0);
 
-    document.getElementById("duenoVenderCambio").textContent =
-    `Cambio: ${dinero(Math.max(recibido - total, 0))}`;
+    // Verde con el cambio cuando alcanza, ambar con lo que falta cuando no, gris mientras no se escribe nada.
+    const caja = document.getElementById("duenoVenderCambio");
+    const falta = recibido > 0 && recibido < total;
+
+    caja.className = "dvc-cambio " + (!recibido ? "dvc-cambio-vacio" : falta ? "dvc-cambio-falta" : "dvc-cambio-ok");
+    caja.innerHTML = `<span>${falta ? "Faltan" : "Cambio"}</span><strong>${dinero(falta ? total - recibido : Math.max(recibido - total, 0))}</strong>`;
 
     document.getElementById("duenoVenderBotonConfirmarEfectivo").disabled = recibido < total;
 }
