@@ -42,3 +42,29 @@
     .dueno-tabs { transform: translateX(-50%); width: min(520px, calc(100% - 32px)); }
     .dueno-tabs button { font-size: 12px; }
 }
+
+/* Vender en tablet ancha (>=900px, p. ej. iPad horizontal): productos a la izquierda y la venta actual a la derecha, siempre a la vista.
+   Solo cuando ya hay productos en la venta; sin venta, la pantalla ocupa todo el ancho. El display lo pone el JS en linea, por eso el !important. */
+@media (min-width: 900px) {
+    #duenoVender[style*="display: block"]:has(#duenoVenderCarritoCard:not([style*="none"])) {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 420px;
+        column-gap: 20px;
+        align-items: start;
+        width: min(1280px, 100%);
+    }
+
+    #duenoVender:has(#duenoVenderCarritoCard:not([style*="none"])) > header,
+    #duenoVender:has(#duenoVenderCarritoCard:not([style*="none"])) > .dueno-ventas-pendientes-banner { grid-column: 1 / -1; }
+
+    #duenoVender:has(#duenoVenderCarritoCard:not([style*="none"])) > .dueno-card:not(#duenoVenderCarritoCard),
+    #duenoVender:has(#duenoVenderCarritoCard:not([style*="none"])) > .dvi-frecuentes { grid-column: 1; }
+
+    #duenoVender:has(#duenoVenderCarritoCard:not([style*="none"])) > #duenoVenderCarritoCard {
+        grid-column: 2; grid-row: 3 / span 6; position: sticky; top: 92px; max-height: calc(100dvh - 92px - 120px); overflow-y: auto; margin-top: 0; margin-bottom: 120px;
+    }
+
+    /* Buscador y accesos en una sola fila. */
+    .dvi-vender .dueno-buscar-fila { grid-template-columns: minmax(0, 1fr) repeat(3, 110px); justify-content: stretch; }
+    .dvi-vender #duenoVenderBuscar { grid-column: auto; }
+}
