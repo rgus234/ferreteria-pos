@@ -1,0 +1,38 @@
+/* Celular pulido + tablet (/dueno). Tarjetas con contorno y aire entre ellas, nombres de producto pegados a su foto (antes el texto se
+   iba hasta la derecha) y, desde 768px, una pantalla ancha en vez de una tira de celular estirada. */
+
+.dueno-card { border: 1px solid rgba(15, 23, 42, .12); box-shadow: 0 2px 10px rgba(15, 23, 42, .06); }
+.dueno-card + .dueno-card, .dueno-app > article + article { margin-top: 14px; }
+.fila-dueno { border: 1px solid rgba(15, 23, 42, .08); }
+.lista-compacta, .lista-ventas { gap: 10px; }
+
+/* El texto del producto ocupa el espacio de en medio y queda a la izquierda, junto a la foto. */
+.fila-dueno-producto > div:nth-child(2) { flex: 1; min-width: 0; text-align: left; }
+.fila-dueno-producto .dueno-miniatura { flex: none; }
+
+:root.oscuro .dueno-card { border-color: rgba(148, 163, 184, .22); box-shadow: none; }
+:root.oscuro .fila-dueno { border-color: rgba(148, 163, 184, .16); }
+
+/* Tablet */
+@media (min-width: 768px) {
+    .dueno-app { width: min(1080px, 100%); padding-left: 28px; padding-right: 28px; }
+    .dueno-card { padding: 20px; }
+    .fila-dueno strong { font-size: 15px; }
+    .fila-dueno span { font-size: 13px; }
+
+    /* Las listas largas pasan a dos columnas. */
+    #duenoVenderResultados, #duenoInventario .lista-compacta, #duenoCreditos .lista-compacta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #duenoVenderResultados .vacio, #duenoInventario .lista-compacta .vacio { grid-column: 1 / -1; }
+
+    /* Barra y tarjeta de cobro de Vender: centradas con el mismo ancho que el contenido, no pegadas a las orillas de la tablet. */
+    .dvm-barra { padding-left: max(12px, calc((100vw - 1080px) / 2 + 28px)); padding-right: max(12px, calc((100vw - 1080px) / 2 + 28px)); }
+    .dvm-tarjeta { left: 50%; right: auto; width: min(640px, calc(100vw - 24px)); transform: translateX(-50%); }
+
+    /* Pantallas del Inventario de tienda (mapa, conteo, etc.): columna centrada y legible. */
+    .dm-capa > * { width: min(860px, 100%); margin-left: auto; margin-right: auto; box-sizing: border-box; }
+}
+
+/* Tablet grande / horizontal: Inicio e Inventario con tarjetas en dos columnas. */
+@media (min-width: 1024px) {
+    #duenoVender .dueno-card, #duenoInventario .dueno-card { max-width: 1080px; }
+}

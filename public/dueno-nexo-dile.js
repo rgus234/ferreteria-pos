@@ -341,7 +341,7 @@
     function barraHtml(id) {
         return `<div class="dnx-barra">
             <div class="dnx-barra-campo">
-                <input id="${id}" type="text" placeholder="Dile a Nexo… (ej. ¿dónde está el arroz?)" autocomplete="off" enterkeyhint="send" onkeydown="if(event.key==='Enter') dnxEnviar('${id}')">
+                <input id="${id}" type="text" placeholder="Dile a Nexo…" autocomplete="off" enterkeyhint="send" onkeydown="if(event.key==='Enter') dnxEnviar('${id}')">
                 <button type="button" class="dnx-mic" onclick="dnxDictar('${id}', this)" aria-label="Dictar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/></svg></button>
                 <button type="button" class="dnx-enviar" onclick="dnxEnviar('${id}')" aria-label="Enviar">→</button>
             </div>

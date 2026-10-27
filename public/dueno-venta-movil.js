@@ -217,3 +217,30 @@
     vigilarPantallas();
     actualizarBarra();
 })();
+
+/* Foto ampliada: al tocar la foto de un producto en la busqueda de Vender o en la venta se abre grande, para ver si es el que buscas.
+   El "+" y el resto de la fila siguen igual (solo la miniatura abre la foto). */
+(function () {
+    function cerrar() { document.getElementById("dvmFotoGrande")?.remove(); }
+
+    function abrir(url, nombre) {
+        cerrar();
+        const capa = document.createElement("div");
+        capa.id = "dvmFotoGrande";
+        capa.className = "dvm-foto-grande";
+        capa.innerHTML = `<figure><img alt=""><figcaption></figcaption><button type="button" aria-label="Cerrar">Cerrar</button></figure>`;
+        capa.querySelector("img").src = url;
+        capa.querySelector("figcaption").textContent = nombre || "";
+        capa.addEventListener("click", cerrar);
+        document.body.appendChild(capa);
+    }
+
+    document.addEventListener("click", evento => {
+        const img = evento.target.closest && evento.target.closest("#duenoVenderResultados .dueno-miniatura img, #duenoVenderCarritoLista .dueno-miniatura img");
+        if (!img || !img.src) return;
+
+        evento.preventDefault();
+        evento.stopPropagation();
+        abrir(img.src, img.closest(".fila-dueno")?.querySelector("strong")?.textContent || "");
+    }, true);
+})();

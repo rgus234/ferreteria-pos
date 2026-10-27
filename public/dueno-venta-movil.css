@@ -7,7 +7,7 @@
 .dvm-barra-resumen small { opacity: .8; }
 .dvm-barra-resumen strong { margin-left: auto; font-size: 18px; }
 .dvm-barra-cobrar { padding: 11px 20px; border: 0; border-radius: 12px; background: #18b88f !important; color: #04223f !important; font-weight: 800; font-size: 15px; }
-body.dvm-con-barra #duenoVender { padding-top: calc(64px + env(safe-area-inset-top)); }
+
 
 .dvm-tarjeta { position: fixed; left: 12px; right: 12px; top: calc(64px + env(safe-area-inset-top)); z-index: 9800; display: none; align-items: center; gap: 12px; padding: 10px 14px 10px 10px; border-radius: 16px; background: #fff; color: #0f172a; box-shadow: 0 14px 34px rgba(5, 42, 99, .3); border-left: 6px solid #18b88f; animation: dvmEntrar .18s ease; }
 .dvm-tarjeta.visible { display: flex; }
@@ -66,3 +66,16 @@ html { touch-action: manipulation; }
 .dvc-tarjeta { background: linear-gradient(135deg, #1d5fd1, #3b82f6) !important; }
 :root.oscuro .dvc-atajos button { background: rgba(99, 102, 241, .25) !important; color: #c7d2fe !important; }
 :root.oscuro .dvc-total { background: rgba(24, 184, 143, .14); color: #6ee7b7; }
+
+/* Foto ampliada (tocar la miniatura en Vender) */
+.dvm-foto-grande { position: fixed; inset: 0; z-index: 9900; display: grid; place-items: center; padding: 20px; background: rgba(2, 6, 23, .82); }
+.dvm-foto-grande figure { margin: 0; display: grid; gap: 12px; justify-items: center; max-width: min(92vw, 640px); }
+.dvm-foto-grande img { max-width: 100%; max-height: 68vh; border-radius: 18px; background: #fff; object-fit: contain; }
+.dvm-foto-grande figcaption { color: #fff; font-weight: 800; text-align: center; font-size: 16px; }
+.dvm-foto-grande button { padding: 12px 28px; border: 0; border-radius: 14px; background: #fff !important; color: #0f172a !important; font-weight: 800; font-size: 15px; }
+.dueno-miniatura img { cursor: zoom-in; }
+
+/* La barra de cobro y la tarjeta se quedan fijas: el que se mueve es SOLO el contenido de Vender (en iPhone, rebotar el documento
+   completo arrastraba la barra hacia abajo hasta taparla). */
+body.dvm-con-barra { overflow: hidden; }
+body.dvm-con-barra #duenoVender { position: fixed; inset: 0; box-sizing: border-box; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; padding-top: calc(72px + env(safe-area-inset-top)); padding-bottom: 110px; background: var(--bg, #eef2f7); }
