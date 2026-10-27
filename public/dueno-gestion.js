@@ -1068,7 +1068,7 @@ function pintarEncargoGestion() {
     const total = encargo.items.reduce((suma, item) => suma + item.cantidad * item.precioEstimado, 0);
     const telefonoWa = telefonoParaWhatsAppDueno(encargo.clienteTelefono);
     const abierto = encargo.estado === "pendiente" || encargo.estado === "listo";
-    const negocio = document.getElementById("duenoNegocio")?.textContent?.trim() || "tu ferreteria";
+    const negocio = document.getElementById("duenoNegocio")?.textContent?.trim() || "tu negocio";
     const mensajeListo = `Hola ${encargo.clienteNombre}, tu encargo ya esta listo para recoger en ${negocio}.`;
 
     contenidoGestion().innerHTML = `

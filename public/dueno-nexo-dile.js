@@ -294,7 +294,12 @@
 
     // ---- Barra "Dile a Nexo" (escribir o dictar) en Inicio y en el panel de Inventario ----
     const reconocimiento = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const EJEMPLOS = ["¿Dónde está el arroz?", "Pon los refrescos en el refrigerador", "Agrega pijas de 1 pulgada a 85 la bolsa"];
+    // Los ejemplos son de tienda de abarrotes si el negocio es solo de abarrotes (dueno-giro.js); si no, los de siempre.
+    const EJEMPLOS_FERRETERIA = ["¿Dónde está el arroz?", "Pon los refrescos en el refrigerador", "Agrega pijas de 1 pulgada a 85 la bolsa"];
+    const EJEMPLOS_ABARROTES = ["¿Dónde está el arroz?", "Pon los refrescos en el refrigerador", "Agrega Sabritas Originales a 22 pesos"];
+    const ejemplos = () => (window.duenoGiro?.abarrotesSolo ? EJEMPLOS_ABARROTES : EJEMPLOS_FERRETERIA);
+    const htmlEjemplos = () => ejemplos().map((e, i) => `<button type="button" onclick="dnxEjemplo(${i})">${esc(e)}</button>`).join("");
+    document.addEventListener("nexo-giro-listo", () => document.querySelectorAll(".dnx-ejemplos").forEach(caja => { caja.innerHTML = htmlEjemplos(); }));
 
     function dile(texto) {
         const mensaje = String(texto || "").trim();
@@ -316,7 +321,7 @@
         dile(texto);
     };
 
-    window.dnxEjemplo = function (i) { dile(EJEMPLOS[i]); };
+    window.dnxEjemplo = function (i) { dile(ejemplos()[i]); };
 
     // Dictado: donde el navegador lo permite (en iPhone, si no, se usa el microfono del teclado).
     window.dnxDictar = function (id, boton) {
@@ -345,7 +350,7 @@
                 <button type="button" class="dnx-mic" onclick="dnxDictar('${id}', this)" aria-label="Dictar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/></svg></button>
                 <button type="button" class="dnx-enviar" onclick="dnxEnviar('${id}')" aria-label="Enviar">→</button>
             </div>
-            <div class="dnx-ejemplos">${EJEMPLOS.map((e, i) => `<button type="button" onclick="dnxEjemplo(${i})">${esc(e)}</button>`).join("")}</div>
+            <div class="dnx-ejemplos">${htmlEjemplos()}</div>
         </div>`;
     }
 

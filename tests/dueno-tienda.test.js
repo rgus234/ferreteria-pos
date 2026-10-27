@@ -267,3 +267,29 @@ test("Vender rediseñado: accesos con nombre, 'Lo que mas vendes' con un toque y
     assert.match(leer("dueno-sw.js"), /\/dueno-vender-inicio\.js\?v=/);
     assert.match(leer("dueno-venta-movil.css"), /\.dvi-grid/);
 });
+
+test("Textos de ejemplo segun el giro: un negocio solo de abarrotes ya no ve martillos ni Diprofer, y uno con ferreteria los conserva", () => {
+    const vm = require("node:vm");
+    const js = leer("dueno-giro.js");
+
+    assert.match(leer("dueno.html"), /dueno-giro\.js\?v=/);
+    assert.match(leer("dueno-sw.js"), /\/dueno-giro\.js\?v=/);
+    assert.doesNotMatch(js.slice(js.indexOf("(function")), /martillo|Diprofer|pija/i, "los ejemplos de abarrotes no mencionan ferreteria");
+    assert.match(leer("dueno-nexo-dile.js"), /EJEMPLOS_ABARROTES/);
+
+    const campos = { duenoRecBuscar: { placeholder: "Ej. martillo" } };
+    let observador = null;
+    const contexto = {
+        window: {}, document: { body: {}, getElementById: id => campos[id] || null, dispatchEvent() {} }, CustomEvent: function () {},
+        MutationObserver: function (fn) { observador = fn; this.observe = () => {}; },
+        tokenGuardado: () => "t", setTimeout: fn => fn(), clearTimeout() {},
+        fetchAutenticado: async () => ({ negocio: { giro: "abarrotes", girosActivos: [] } })
+    };
+    vm.runInNewContext(js, contexto);
+
+    return new Promise(resolve => setImmediate(() => {
+        assert.equal(contexto.window.duenoGiro.abarrotesSolo, true);
+        assert.equal(campos.duenoRecBuscar.placeholder, "Ej. galletas");
+        resolve();
+    }));
+});
