@@ -136,6 +136,46 @@
         campo.addEventListener("input", () => { clearTimeout(temporizador); temporizador = setTimeout(pedirSugerencia, 600); });
     }
 
+    // Al ESCRIBIR el codigo (Truper, de proveedor o de barras) tambien se busca solo: antes solo buscaba al terminar de escribir
+    // y salir del campo, y en el iPhone eso casi nunca pasaba. Avisa "Buscando..." y "No encontre ese codigo".
+    let temporizadorCodigo = null;
+
+    function estadoCodigo(texto, clase = "") {
+        let caja = document.getElementById("daiCodigoEstado");
+        const campo = document.getElementById("duenoProdCodigo");
+
+        if (!caja && campo) {
+            caja = document.createElement("small");
+            caja.id = "daiCodigoEstado";
+            campo.insertAdjacentElement("afterend", caja);
+        }
+
+        if (caja) { caja.textContent = texto; caja.className = "dai-codigo-estado " + clase; caja.style.display = texto ? "" : "none"; }
+    }
+
+    async function buscarPorCodigo() {
+        const campo = document.getElementById("duenoProdCodigo");
+        const codigo = String(campo?.value || "").trim();
+
+        if (codigo.length < 4) { estadoCodigo(""); return; }
+        if (typeof autollenarDesdeMaestroDueno !== "function") return;
+
+        estadoCodigo("Buscando en el catálogo…");
+        await window.autollenarDesdeMaestroDueno(codigo);
+
+        const reconocido = document.getElementById("duenoProdReconocido");
+        const visible = reconocido && reconocido.style.display !== "none" && reconocido.offsetParent !== null;
+        estadoCodigo(visible ? "✓ Producto encontrado: se llenaron sus datos." : "No encontré ese código en el catálogo. Llena el producto a mano.", visible ? "ok" : "no");
+    }
+
+    function conectarCodigo() {
+        const campo = document.getElementById("duenoProdCodigo");
+        if (!campo || campo.dataset.dai) return;
+
+        campo.dataset.dai = "1";
+        campo.addEventListener("input", () => { clearTimeout(temporizadorCodigo); temporizadorCodigo = setTimeout(buscarPorCodigo, 700); });
+    }
+
     // Enganche con el formulario de dueno-inventario.js (solo producto NUEVO).
     const original = window.renderFormularioProductoDueno;
 
@@ -158,6 +198,7 @@
 
                 pintar();
                 conectarNombre();
+                conectarCodigo();
             }
 
             return resultado;

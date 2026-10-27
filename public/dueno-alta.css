@@ -19,3 +19,7 @@
 .dai-campos select, .dai-campos input[type="number"] { padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; color: #0f172a; font-size: 16px; }
 .dai-campos .dai-check { display: flex; align-items: center; gap: 10px; font-weight: 700; }
 .dai-campos .dai-check input { width: 22px; height: 22px; }
+
+.dai-codigo-estado { display: block; margin-top: 6px; font-size: 13px; font-weight: 700; color: #64748b; }
+.dai-codigo-estado.ok { color: #047857; }
+.dai-codigo-estado.no { color: #b45309; }
