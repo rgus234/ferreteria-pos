@@ -39,3 +39,13 @@ html { touch-action: manipulation; }
 .dueno-mas-subpantalla select, .dueno-mas-subpantalla textarea, .dueno-detalle-overlay input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 .dueno-detalle-overlay select, .dueno-detalle-overlay textarea { font-size: 16px !important; }
 .dueno-buscar-fila > button { flex: none; }
+
+/* ---- Caja cerrada: aviso y abrir turno desde Vender ---- */
+.dvm-aviso-caja { display: grid; gap: 10px; margin: 12px 0; padding: 14px; border-radius: 18px; background: #fff7e0; border: 2px solid #f59e0b; color: #78350f; }
+.dvm-aviso-caja b { font-size: 16px; }
+.dvm-aviso-caja p { margin: 0; font-size: 14px; line-height: 1.4; }
+.dvm-aviso-caja button { padding: 13px; border: 0; border-radius: 14px; background: #f59e0b !important; color: #fff !important; font-weight: 800; font-size: 15px; }
+.dvm-caja { display: grid; gap: 12px; padding: 4px 2px; }
+.dvm-caja p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.dvm-caja .dueno-boton-primario { padding: 15px; font-size: 16px; }
+:root.oscuro .dvm-aviso-caja { background: rgba(245, 158, 11, .14); color: #fcd34d; }

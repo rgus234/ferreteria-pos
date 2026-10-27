@@ -4449,6 +4449,7 @@ async function confirmarCobroVenderDueno() {
         duenoVentaCodigoPublico = null;
         mostrarVentaCobradaVenderDueno(respuesta.folio, total, respuesta.codigoPublico);
     } catch (error) {
+        if (typeof manejarFaltaDeTurnoDueno === "function" && manejarFaltaDeTurnoDueno(error)) return;
         // Sin red / servidor caido: la venta se guarda en el telefono con
         // la MISMA llave y codigo de ticket de este intento y se sube sola
         // (dueno-ventas-offline.js). Un rechazo del servidor (PIN, permiso,
@@ -4566,6 +4567,7 @@ async function confirmarCobroCreditoVenderDueno() {
         duenoVentaCodigoPublico = null;
         mostrarVentaCobradaVenderDueno(respuesta.folio, resumen.total, respuesta.codigoPublico);
     } catch (error) {
+        if (typeof manejarFaltaDeTurnoDueno === "function" && manejarFaltaDeTurnoDueno(error)) return;
         // Credito nunca se guarda para despues: el limite y el saldo del
         // cliente solo se pueden validar en el servidor.
         contenido.innerHTML = `

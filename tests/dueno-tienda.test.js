@@ -134,3 +134,18 @@ test("Alta efectiva en el celular: configuracion de compra y venta con sugerenci
     assert.equal(conSugerencia.permiteVentaPieza, false);
     assert.equal(conSugerencia.piezasPorBolsa, undefined, "solo se manda piezas por bolsa si tambien se vende suelta");
 });
+
+test("Caja cerrada en el celular: aviso en Inicio/Vender y abrir el turno desde el cobro (antes solo decia 'abre un turno' sin como)", () => {
+    const html = leer("dueno.html");
+    const sw = leer("dueno-sw.js");
+    const js = leer("dueno-caja-aviso.js");
+    const dueno = leer("dueno.js");
+
+    assert.match(html, /dueno-caja-aviso\.js\?v=/);
+    assert.match(sw, /\/dueno-caja-aviso\.js\?v=/);
+    assert.match(js, /requiereAbrirTurno/, "reconoce la respuesta del servidor");
+    assert.match(js, /\/caja\/turno-activo/, "revisa el turno antes de cobrar");
+    assert.match(js, /\/caja\/abrir/, "abre el turno ahi mismo");
+    assert.match(js, /dvmAbrirCajaYCobrar/);
+    assert.equal((dueno.match(/manejarFaltaDeTurnoDueno\(error\)/g) || []).length, 2, "las dos rutas de cobro (contado y credito) lo manejan");
+});
