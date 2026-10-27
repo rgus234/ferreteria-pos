@@ -260,3 +260,24 @@ test("recepcion rapida exige modificar_inventario", async () => {
     assert.equal(status, 403);
     assert.equal(Number((await filaProducto(id)).stock), 10);
 });
+
+test("edicion rapida acepta como se compra y se vende, valida la unidad y no toca lo demas", async () => {
+    const p = await crearProductoPrueba(negocio.negocioId, { nombre: "Pija completar ficha", precio: 85, stock: 10 });
+    await pool.query(`UPDATE public.productos SET marca = 'Fiero', categoria = 'Tornilleria' WHERE id = $1`, [p.id]);
+
+    const malo = await parchar(p.id, { unidadVenta: "galon" });
+    assert.equal(malo.status, 400, "una unidad rara no pasa");
+
+    const ok = await parchar(p.id, { unidadVenta: "kilo", presentacionCompra: "bolsa", factorConversion: 100, permiteVentaPieza: true, piezasPorBolsa: 100, basculaDigital: "si" });
+    assert.equal(ok.status, 200, JSON.stringify(ok.cuerpo));
+
+    const fila = await filaProducto(p.id);
+    assert.equal(fila.unidad_venta, "kilo");
+    assert.equal(fila.presentacion_compra, "BOLSA");
+    assert.equal(Number(fila.factor_conversion), 100);
+    assert.equal(fila.permite_venta_pieza, true);
+    assert.equal(fila.bascula_digital, "si");
+    assert.equal(fila.marca, "Fiero", "lo que no se toco se queda");
+    assert.equal(fila.categoria, "Tornilleria");
+    assert.equal(Number(fila.precio), 85);
+});

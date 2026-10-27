@@ -51,6 +51,18 @@
 
     window.construirConfiguracionAlta = construirConfiguracionAlta;
 
+    // Al COMPLETAR un producto recien creado (desde una factura) solo viajan los campos de como se compra y se vende, y solo si se tocaron.
+    window.configuracionCompletarDueno = function () {
+        const f = typeof duenoProductoForm !== "undefined" ? duenoProductoForm : null;
+        if (!f || f.modo !== "editar" || !f.completarConfig || !document.getElementById("daiSeccion") || estado.origen === "defecto") return {};
+
+        const c = construirConfiguracionAlta(estado.valores);
+        const cuerpo = { unidadVenta: c.unidadVenta, presentacionCompra: c.presentacionCompra, basculaDigital: c.basculaDigital, permiteVentaPieza: c.permiteVentaPieza };
+        cuerpo.factorConversion = c.factorConversion ?? null;
+        if (c.piezasPorBolsa) cuerpo.piezasPorBolsa = c.piezasPorBolsa;
+        return cuerpo;
+    };
+
     function opciones(lista, actual) {
         return lista.map(([valor, texto]) => `<option value="${esc(valor)}" ${String(actual ?? "") === valor ? "selected" : ""}>${esc(texto)}</option>`).join("");
     }
@@ -119,7 +131,8 @@
         ultimoNombre = nombre;
 
         try {
-            const datos = await fetchAutenticado(`/sugerencia-alta?nombre=${encodeURIComponent(nombre)}`);
+            const excluir = typeof duenoProductoForm !== "undefined" && duenoProductoForm?.modo === "editar" ? `&excluir=${Number(duenoProductoForm.producto?.id) || 0}` : "";
+            const datos = await fetchAutenticado(`/sugerencia-alta?nombre=${encodeURIComponent(nombre)}${excluir}`);
             estado.sugerencia = datos?.sugerencia ? { familia: datos.familia, sugerencia: datos.sugerencia } : null;
         } catch (error) {
             estado.sugerencia = null;
@@ -184,8 +197,13 @@
             const resultado = original.apply(this, argumentos);
             const f = typeof duenoProductoForm !== "undefined" ? duenoProductoForm : null;
 
-            if (f && f.modo === "nuevo") {
-                estado = { valores: { ...VACIO }, origen: "defecto", sugerencia: null, abierto: false };
+            if (f && (f.modo === "nuevo" || (f.modo === "editar" && f.completarConfig))) {
+                const p = f.producto || {};
+                const inicial = f.modo === "editar"
+                    ? { presentacion_compra: String(p.presentacion_compra || "").toUpperCase(), factor_conversion: p.factor_conversion === null || p.factor_conversion === undefined ? null : Number(p.factor_conversion), unidad_venta: p.unidad_venta || "pieza", permite_venta_pieza: Boolean(p.permite_venta_pieza), bascula_digital: p.bascula_digital === "si" ? "si" : "no" }
+                    : { ...VACIO };
+
+                estado = { valores: inicial, origen: "defecto", sugerencia: null, abierto: false };
                 ultimoNombre = "";
 
                 const error = document.getElementById("duenoProdError");
@@ -198,7 +216,7 @@
 
                 pintar();
                 conectarNombre();
-                conectarCodigo();
+                if (f.modo === "nuevo") conectarCodigo(); else pedirSugerencia();
             }
 
             return resultado;

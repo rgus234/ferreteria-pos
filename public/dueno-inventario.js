@@ -215,6 +215,7 @@ function abrirFormularioProductoDueno(producto, opciones = {}) {
         fotoBase64: null,
         categoriaNexo: null,
         codigoInicial: opciones.codigo || "",
+        completarConfig: Boolean(producto && opciones.completarConfig),
         alGuardar: opciones.alGuardar || null,
         guardando: false
     };
@@ -586,6 +587,9 @@ async function guardarEdicionProductoDueno() {
 
     const caducidad = document.getElementById("duenoProdCaducidad")?.value || "";
     if (caducidad !== String(original.fecha_caducidad || "").slice(0, 10)) cambios.fechaCaducidad = caducidad || null;
+
+    // Como se compra y se vende (solo al completar la ficha de un producto recien creado desde una factura).
+    if (typeof configuracionCompletarDueno === "function") Object.assign(cambios, configuracionCompletarDueno());
 
     if (!Object.keys(cambios).length) {
         mostrarErrorProductoDueno("No cambiaste nada.");

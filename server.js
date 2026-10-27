@@ -7007,6 +7007,22 @@ app.patch("/productos/:id/edicion-rapida", requerirAccesoNegocio, requerirPermis
 
         if (cuerpo.ubicacion !== undefined) poner("ubicacion = ?", String(cuerpo.ubicacion || "").trim().slice(0, 120));
 
+        // Como se compra y se vende (se completa al terminar la ficha de un producto recien creado). Solo si vienen en el cuerpo.
+        if (cuerpo.unidadVenta !== undefined) {
+            const unidad = String(cuerpo.unidadVenta || "pieza").toLowerCase();
+            if (!["pieza", "kilo", "metro", "litro", "paquete"].includes(unidad)) {
+                res.status(400).json({ ok: false, error: "La unidad de venta no es valida" });
+                return;
+            }
+            poner("unidad_venta = ?", unidad);
+        }
+
+        if (cuerpo.presentacionCompra !== undefined) poner("presentacion_compra = ?", String(cuerpo.presentacionCompra || "").trim().toUpperCase().slice(0, 30));
+        if (cuerpo.factorConversion !== undefined) poner("factor_conversion = ?", numeroOpcional(cuerpo.factorConversion, "Las piezas por presentacion"));
+        if (cuerpo.piezasPorBolsa !== undefined) poner("piezas_por_bolsa = ?", numeroOpcional(cuerpo.piezasPorBolsa, "Las piezas por bolsa"));
+        if (cuerpo.permiteVentaPieza !== undefined) poner("permite_venta_pieza = ?", cuerpo.permiteVentaPieza === true || cuerpo.permiteVentaPieza === "true");
+        if (cuerpo.basculaDigital !== undefined) poner("bascula_digital = ?", cuerpo.basculaDigital === "si" ? "si" : "no");
+
         if (cuerpo.fechaCaducidad !== undefined) {
             const fecha = cuerpo.fechaCaducidad ? String(cuerpo.fechaCaducidad) : null;
             if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {

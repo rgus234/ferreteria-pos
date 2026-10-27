@@ -88,3 +88,14 @@ test("sin parecidos no inventa nada, y un negocio no usa los productos de otro",
     assert.equal(deB.sugerencia.configuracion.presentacion_compra, "COSTAL", "B solo ve lo suyo");
     assert.equal(deB.sugerencia.total, 1);
 });
+
+test("al completar un producto no se vota a si mismo: con excluir, sus propios datos no cuentan", async () => {
+    const nuevo = await crearProductoPrueba(A.negocioId, { nombre: "Pija punta broca 3\"", precio: 85, stock: 10 });
+    await pool.query(`UPDATE public.productos SET unidad_venta = 'pieza', presentacion_compra = '', factor_conversion = NULL, permite_venta_pieza = false, bascula_digital = 'no' WHERE id = $1`, [nuevo.id]);
+
+    const url = extra => `${BASE_URL}/sugerencia-alta?nombre=${encodeURIComponent("Pija punta broca 3\"")}${extra}`;
+    const con = await (await fetch(url(`&excluir=${nuevo.id}`), { headers: { "x-dispositivo-token": A.token } })).json();
+
+    assert.equal(con.sugerencia.configuracion.presentacion_compra, "BOLSA", "manda lo que hacen las otras pijas");
+    assert.equal(con.sugerencia.total, 4, "las otras 4 pijas parecidas, sin el producto que se completa");
+});

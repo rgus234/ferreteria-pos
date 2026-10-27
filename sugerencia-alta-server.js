@@ -61,6 +61,7 @@ function instalar(app, pool, requerirAccesoNegocio) {
             const id = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
             const palabras = palabrasFamilia(req.query.nombre);
             const k = Math.min(Math.max(Number(req.query.k) || 10, 3), 25);
+            const excluir = Math.trunc(Number(req.query.excluir)) || 0; // el producto que se esta completando no cuenta para su propia sugerencia
 
             if (!id || palabras.length === 0) { res.json({ ok: true, sugerencia: null }); return; }
 
@@ -69,7 +70,7 @@ function instalar(app, pool, requerirAccesoNegocio) {
                 `SELECT id, nombre, ${CAMPOS.join(", ")},
                         (${palabras.map((_, i) => `(lower(nombre) LIKE $${i + 2})::int`).join(" + ")}) AS coincidencias
                  FROM public.productos
-                 WHERE negocio_id = $1 AND lower(nombre) LIKE $2
+                 WHERE negocio_id = $1 AND lower(nombre) LIKE $2 AND id <> ${excluir}
                  ORDER BY coincidencias DESC, id DESC
                  LIMIT ${k}`,
                 [id, ...palabras.map(p => `%${p}%`)]

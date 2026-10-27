@@ -110,10 +110,12 @@ test("Alta efectiva en el celular: configuracion de compra y venta con sugerenci
 
     assert.match(html, /dueno-alta\.js\?v=/);
     assert.match(sw, /\/dueno-alta\.js\?v=/);
-    assert.match(sw, /dueno-inventario\.js\?v=celular-plan-b-20261102-02/);
+    assert.match(sw, /dueno-inventario\.js\?v=celular-plan-b-\d+-\d+/);
     assert.match(inventario, /Object\.assign\(cuerpo, configuracionAltaDueno\(\)\)/, "el alta de siempre incluye lo elegido");
     assert.match(js, /\/sugerencia-alta\?nombre=/);
     assert.match(js, /daiUsarSugerencia/);
+    assert.match(js, /configuracionCompletarDueno/, "tambien se puede completar la ficha de un producto recien creado");
+    assert.match(inventario, /configuracionCompletarDueno()/);
 
     // La funcion que arma lo que se manda se prueba sin pantalla.
     const contexto = { window: {}, document: {}, fetchAutenticado: async () => ({}) };

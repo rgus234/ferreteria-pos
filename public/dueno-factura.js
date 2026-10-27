@@ -417,7 +417,7 @@
         if (!r.ok || !r.datos.producto) { N().aviso("No se pudo abrir el producto.", "error"); return; }
 
         const overlay = document.getElementById("duenoProductoFormOverlay");
-        abrirFormularioProductoDueno(r.datos.producto, { alGuardar: () => { const p = e.productos.find(x => x.productoId === productoId); if (p) p.completado = true; if (actual() === e) pintar(); } });
+        abrirFormularioProductoDueno(r.datos.producto, { completarConfig: true, alGuardar: () => { const p = e.productos.find(x => x.productoId === productoId); if (p) p.completado = true; if (actual() === e) pintar(); } });
         if (overlay) overlay.style.zIndex = "9590";
     };
 
