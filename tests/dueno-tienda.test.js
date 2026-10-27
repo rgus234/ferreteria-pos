@@ -255,3 +255,15 @@ test("Venta cobrada en el celular: pantalla rediseñada con Imprimir (Bluetooth 
     assert.equal(bytes[0], 0x1b);
     assert.equal(bytes[1], 0x40, "empieza con ESC @ (inicializar)");
 });
+
+test("Vender rediseñado: accesos con nombre, 'Lo que mas vendes' con un toque y conteo al cobrar (no al agregar)", () => {
+    const js = leer("dueno-vender-inicio.js");
+
+    assert.match(js, /Lo que más vendes/);
+    assert.match(js, /agregarAlCarritoVenderDueno\(\$\{Number\(p\.id\)\}\)/, "un toque agrega con la misma funcion de siempre");
+    assert.match(js, /window\.mostrarVentaCobradaVenderDueno = function/, "se cuenta al cobrar");
+    assert.doesNotMatch(js, /fetchAutenticado/, "no toca el servidor");
+    assert.match(leer("dueno.html"), /dueno-vender-inicio\.js\?v=/);
+    assert.match(leer("dueno-sw.js"), /\/dueno-vender-inicio\.js\?v=/);
+    assert.match(leer("dueno-venta-movil.css"), /\.dvi-grid/);
+});

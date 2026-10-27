@@ -155,3 +155,37 @@ body.dvm-con-barra #duenoVender { position: fixed; inset: 0; box-sizing: border-
 :root.oscuro .dvm-hoja-escaner { background: #0f172a; }
 :root.oscuro .dvm-hoja-escaner .dvm-escaner-total { background: #0f172a; color: #f1f5f9; }
 :root.oscuro .dvm-hoja-codigo { background: #1e293b !important; color: #e2e8f0 !important; border-color: #475569; }
+
+/* Vender: inicio rediseñado (dueno-vender-inicio.js) */
+.dvi-vender .dueno-header .dueno-saludo, .dvi-vender .dueno-header .dueno-estado { display: none; }
+.dvi-busqueda .card-head { display: none; }
+.dvi-vender .dueno-buscar-fila { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.dvi-vender #duenoVenderBuscar { grid-column: 1 / -1; min-height: 54px; padding: 0 18px; border: 2px solid #cbd5e1; border-radius: 18px; background: #fff; font-size: 17px; }
+.dvi-vender #duenoVenderBuscar:focus { border-color: #1d5fd1; outline: 0; box-shadow: 0 0 0 4px rgba(29, 95, 209, .15); }
+.dvi-vender .dueno-buscar-fila .dueno-boton-agregar { display: grid; justify-items: center; align-content: center; gap: 4px; width: auto; height: auto; padding: 14px 6px; border-radius: 18px; background: #fff !important; color: #1d5fd1 !important; border: 1px solid #cbd5e1; }
+.dvi-vender .dueno-buscar-fila .dueno-boton-agregar svg { width: 26px; height: 26px; }
+.dvi-vender .dueno-buscar-fila .dueno-boton-agregar span { font-size: 13px; font-weight: 800; color: #334155; }
+.dvi-vender .dueno-buscar-fila .dueno-boton-agregar:first-of-type { background: #1d5fd1 !important; color: #fff !important; border-color: #1d5fd1; }
+.dvi-vender .dueno-buscar-fila .dueno-boton-agregar:first-of-type span { color: #fff; }
+/* Mientras no se escribe nada, el mensaje de "escribe el nombre" sobra: los frecuentes ya dicen que hacer. */
+.dvi-vender .dueno-card:not(.dvi-con-texto) #duenoVenderResultados { display: none; }
+.dvi-frecuentes { margin-top: 14px; }
+.dvi-frecuentes:empty, .dvi-vender .dueno-card.dvi-con-texto + .dvi-frecuentes { display: none; }
+.dvi-frecuentes h3 { margin: 0 0 10px; font-size: 16px; color: #0f172a; }
+.dvi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.dvi-producto { display: grid; gap: 4px; justify-items: center; padding: 10px 8px; border: 1px solid #cbd5e1; border-radius: 16px; background: #fff !important; color: #0f172a !important; text-align: center; font: inherit; }
+.dvi-foto { display: grid; place-items: center; width: 100%; aspect-ratio: 1; border-radius: 12px; background: #f1f5f9; overflow: hidden; }
+.dvi-foto img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.dvi-producto b { font-size: 12.5px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dvi-producto small { color: #047857; font-weight: 800; font-size: 13px; }
+.dvi-producto:active { transform: scale(.97); }
+:root.oscuro .dvi-vender #duenoVenderBuscar { background: #1e293b; border-color: #475569; color: #f1f5f9; }
+:root.oscuro .dvi-vender .dueno-buscar-fila .dueno-boton-agregar, :root.oscuro .dvi-producto { background: #1e293b !important; border-color: #475569; color: #f1f5f9 !important; }
+:root.oscuro .dvi-vender .dueno-buscar-fila .dueno-boton-agregar span { color: #e2e8f0; }
+:root.oscuro .dvi-frecuentes h3 { color: #f1f5f9; }
+:root.oscuro .dvi-foto { background: #0f172a; }
+
+@media (min-width: 768px) {
+    .dvi-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .dvi-vender .dueno-buscar-fila { grid-template-columns: repeat(3, minmax(0, 220px)); justify-content: start; }
+}
