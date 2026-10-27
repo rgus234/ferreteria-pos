@@ -24,7 +24,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=celular-plan-b-20261104-02">
+    <link rel="stylesheet" href="dueno.css?v=celular-plan-b-20261106-03">
     <link rel="stylesheet" href="dueno-captura.css?v=captura-20261030-01">
     <link rel="stylesheet" href="dueno-tienda.css?v=tienda-20261031-01">
     <link rel="stylesheet" href="dueno-exhibidores.css?v=exhibidores-20261102-01">
@@ -32,7 +32,7 @@
     <link rel="stylesheet" href="dueno-usuarios.css?v=usuarios-20261102-01">
     <link rel="stylesheet" href="dueno-actividad.css?v=actividad-20261102-01">
     <link rel="stylesheet" href="dueno-alta.css?v=alta-20261105-04">
-    <link rel="stylesheet" href="dueno-mapa.css?v=mapa-20261105-14">
+    <link rel="stylesheet" href="dueno-mapa.css?v=mapa-20261106-15">
     <link rel="stylesheet" href="dueno-oscuro-modulos.css?v=oscuro-20261105-07">
 </head>
 
@@ -680,6 +680,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.4 12.2a1.6 1.6 0 0 0 1.6 1.3h9a1.6 1.6 0 0 0 1.6-1.3L21 7H6"/></svg>
             <span>Vender</span>
         </button>
+        <button type="button" class="dueno-tab-solo-empleado" data-tab="inventario" style="display:none;" onclick="cambiarTabDueno('inventario')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+            <span>Inventario</span>
+        </button>
         <button type="button" data-tab="pedidos" onclick="cambiarTabDueno('pedidos')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3.6l-1.6-2.7A1.8 1.8 0 0 0 13.2 3h-2.4a1.8 1.8 0 0 0-1.6 1.3L7.6 7H4a1 1 0 0 0-1 1v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a1 1 0 0 0-1-1z"/><path d="M9 12h6"/></svg>
             <span>Pedidos</span>
@@ -693,9 +697,9 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>
             <span>Créditos</span>
         </button>
-        <button type="button" class="dueno-tab-solo-empleado" data-tab="inventario" style="display:none;" onclick="cambiarTabDueno('inventario')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
-            <span>Inventario</span>
+        <button type="button" data-tab="mas" onclick="cambiarTabDueno('mas')">
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+            <span>Más</span>
         </button>
     </nav>
 
@@ -799,11 +803,11 @@
         </div>
     </div>
 
-    <script src="dueno-offline.js?v=celular-plan-b-20261104-02"></script>
-    <script src="dueno.js?v=celular-plan-b-20261104-02"></script>
+    <script src="dueno-offline.js?v=celular-plan-b-20261106-03"></script>
+    <script src="dueno.js?v=celular-plan-b-20261106-03"></script>
     <script src="dueno-inventario.js?v=celular-plan-b-20261105-04"></script>
-    <script src="dueno-ventas-offline.js?v=celular-plan-b-20261104-02"></script>
-    <script src="dueno-gestion.js?v=celular-plan-b-20261104-02"></script>
+    <script src="dueno-ventas-offline.js?v=celular-plan-b-20261106-03"></script>
+    <script src="dueno-gestion.js?v=celular-plan-b-20261106-03"></script>
     <script src="dueno-captura.js?v=captura-20261030-02"></script>
     <script src="dueno-tienda.js?v=tienda-20261031-01"></script>
     <script src="dueno-exhibidores.js?v=exhibidores-20261102-01"></script>
@@ -811,9 +815,10 @@
     <script src="dueno-usuarios.js?v=usuarios-20261102-01"></script>
     <script src="dueno-actividad.js?v=actividad-20261102-01"></script>
     <script src="dueno-alta.js?v=alta-20261105-04"></script>
-    <script src="dueno-mapa.js?v=mapa-20261105-14"></script>
+    <script src="dueno-mapa.js?v=mapa-20261106-15"></script>
     <script src="dueno-factura.js?v=factura-20261105-06"></script>
     <script src="dueno-escaner-pc.js?v=escanerpc-20261105-01"></script>
+    <script src="dueno-barra.js?v=barra-20261106-01"></script>
 </body>
 
 </html>

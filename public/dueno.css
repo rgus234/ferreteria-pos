@@ -2553,3 +2553,10 @@ button.fila-dueno:disabled{
 .dueno-tema-opcion span{ color:var(--muted); font-size:11px; line-height:1.25; }
 .dueno-tema-opcion.activa{ border-color:var(--brand); background:var(--brand-soft); }
 .dueno-tema-nota{ margin:12px 2px 0; color:var(--muted); font-size:13px; line-height:1.4; }
+
+/* Barra inferior de 5 destinos */
+.dueno-tabs button{ font-size:10.5px; min-width:0; }
+.dueno-tabs button span{ max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dueno-tabs button.activo::before{ content:""; position:absolute; top:-9px; left:28%; right:28%; height:3px; border-radius:0 0 3px 3px; background:var(--brand); }
+.dueno-barra-opciones{ grid-template-columns:repeat(2,1fr); }
+.dueno-barra-opciones .dueno-tema-opcion{ justify-items:center; padding:14px 8px; }

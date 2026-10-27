@@ -5764,6 +5764,7 @@ function renderSubpantallaApariencia() {
             <p class="dueno-tema-nota">${preferencia === "auto" ? "Ahora mismo tu celular está en modo " + (temaOscuroDelSistema() ? "oscuro" : "claro") + ", y Nexo lo sigue solo." : "Elegiste el tema a mano; Nexo ya no sigue al celular."}</p>
         </article>
     `;
+    if (typeof renderOpcionesBarraDueno === "function") renderOpcionesBarraDueno();
 }
 
 async function guardarCorreoDueno() {
