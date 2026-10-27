@@ -189,6 +189,122 @@
         campo.addEventListener("input", () => { clearTimeout(temporizadorCodigo); temporizadorCodigo = setTimeout(buscarPorCodigo, 700); });
     }
 
+    // ---- Buscar en el catalogo de Nexo POR NOMBRE (producto nuevo sin codigo): al escribir "dorit" salen las coincidencias del
+    // catalogo con su foto; al tocar una se llena codigo, nombre, categoria y precio igual que al escanear. ----
+
+    let resultadosCatalogo = [];
+    let temporizadorCatalogo = null;
+    let consultaCatalogo = 0;
+
+    function cajaCatalogo() {
+        let caja = document.getElementById("daiCatalogo");
+        const nombre = document.getElementById("duenoProdNombre");
+
+        if (!caja && nombre) {
+            caja = document.createElement("div");
+            caja.id = "daiCatalogo";
+            caja.className = "dai-catalogo";
+            (nombre.closest("label") || nombre).insertAdjacentElement("afterend", caja);
+        }
+
+        return caja;
+    }
+
+    function pintarCatalogo(elegido) {
+        const caja = cajaCatalogo();
+        if (!caja) return;
+
+        if (elegido) {
+            caja.innerHTML = `<div class="dai-cat-fila dai-cat-elegido"><span class="dai-cat-foto" id="daiCatFotoElegido"></span><span class="dai-cat-texto"><b>${esc(elegido.nombre)}</b><small>Del catálogo de Nexo · ${esc(elegido.codigo)}</small></span><button type="button" class="dai-no" onclick="daiQuitarCatalogo()">Quitar</button></div>`;
+            ponerFotoCatalogo(elegido.codigo, "daiCatFotoElegido");
+            return;
+        }
+
+        if (!resultadosCatalogo.length) { caja.innerHTML = ""; return; }
+
+        caja.innerHTML = `<p class="dai-cat-titulo">¿Es alguno de estos? Toca el tuyo y se llena solo.</p>` + resultadosCatalogo.map((r, i) => `
+            <button type="button" class="dai-cat-fila" onclick="daiElegirCatalogo(${i})"><span class="dai-cat-foto" id="daiCatFoto${i}"></span><span class="dai-cat-texto"><b>${esc(r.nombre)}</b><small>${esc([r.marca, r.codigo].filter(Boolean).join(" · "))}</small></span></button>`).join("");
+        resultadosCatalogo.forEach((r, i) => ponerFotoCatalogo(r.codigo, "daiCatFoto" + i));
+    }
+
+    async function ponerFotoCatalogo(codigo, idDestino) {
+        try {
+            const datos = await fetchAutenticado(`/explorar-nexo/foto/${encodeURIComponent(codigo)}`);
+            const destino = document.getElementById(idDestino);
+            if (destino && datos?.url) destino.innerHTML = `<img src="${esc(datos.url)}" alt="" loading="lazy">`;
+        } catch (error) { /* sin foto: queda el cuadro vacio */ }
+    }
+
+    async function buscarPorNombreCatalogo() {
+        const f = typeof duenoProductoForm !== "undefined" ? duenoProductoForm : null;
+        const nombre = String(document.getElementById("duenoProdNombre")?.value || "").trim();
+        const codigo = String(document.getElementById("duenoProdCodigo")?.value || "").trim();
+
+        // Solo producto nuevo, con nombre y sin codigo (con codigo ya se busco por codigo), y sin un producto del catalogo ya elegido.
+        if (!f || f.modo !== "nuevo" || f.maestroCodigo || codigo || nombre.length < 3 || !navigator.onLine) {
+            resultadosCatalogo = [];
+            if (!f?.maestroCodigo) pintarCatalogo();
+            return;
+        }
+
+        const turno = ++consultaCatalogo;
+
+        try {
+            const datos = await fetchAutenticado(`/explorar-nexo/buscar?q=${encodeURIComponent(nombre)}`);
+            if (turno !== consultaCatalogo) return;
+
+            const vistos = new Set();
+            resultadosCatalogo = (datos?.catalogoMaestro || []).map(r => ({ ...r, codigoUsable: r.ean || r.codigo })).filter(r => {
+                if (!r.codigoUsable || vistos.has(r.codigoUsable)) return false;
+                vistos.add(r.codigoUsable);
+                return true;
+            }).slice(0, 6).map(r => ({ nombre: r.nombre, marca: r.marca || "", codigo: r.codigoUsable }));
+        } catch (error) {
+            resultadosCatalogo = [];
+        }
+
+        pintarCatalogo();
+    }
+
+    window.daiElegirCatalogo = async function (indice) {
+        const elegido = resultadosCatalogo[indice];
+        const campoCodigo = document.getElementById("duenoProdCodigo");
+        const campoNombre = document.getElementById("duenoProdNombre");
+        if (!elegido || !campoCodigo || !campoNombre) return;
+
+        campoCodigo.value = elegido.codigo;
+        // Vacio a proposito: el autollenado solo pone el nombre completo (con tamaño) si el campo esta vacio.
+        campoNombre.value = "";
+        resultadosCatalogo = [];
+        await window.autollenarDesdeMaestroDueno(elegido.codigo);
+
+        if (!campoNombre.value.trim()) campoNombre.value = elegido.nombre;
+        ultimoNombre = "";
+        pintarCatalogo({ nombre: campoNombre.value, codigo: elegido.codigo });
+        pedirSugerencia();
+    };
+
+    window.daiQuitarCatalogo = function () {
+        const f = typeof duenoProductoForm !== "undefined" ? duenoProductoForm : null;
+
+        if (f) { f.maestroCodigo = null; f.catalogoMaestroId = null; }
+
+        const campoCodigo = document.getElementById("duenoProdCodigo");
+        if (campoCodigo) campoCodigo.value = "";
+        const reconocido = document.getElementById("duenoProdReconocido");
+        if (reconocido) reconocido.style.display = "none";
+
+        pintarCatalogo();
+    };
+
+    function conectarCatalogoPorNombre() {
+        const campo = document.getElementById("duenoProdNombre");
+        if (!campo || campo.dataset.daiCat) return;
+
+        campo.dataset.daiCat = "1";
+        campo.addEventListener("input", () => { clearTimeout(temporizadorCatalogo); temporizadorCatalogo = setTimeout(buscarPorNombreCatalogo, 450); });
+    }
+
     // ---- "¿Donde lo vas a poner?": estante o bodega al crear el producto, y "Guardar y siguiente" con un estante fijo ----
 
     let lugar = null; // { id, nombre, zona, ruta, codigo }
@@ -274,7 +390,7 @@
 
                 pintar();
                 conectarNombre();
-                if (f.modo === "nuevo") conectarCodigo(); else pedirSugerencia();
+                if (f.modo === "nuevo") { conectarCodigo(); conectarCatalogoPorNombre(); resultadosCatalogo = []; } else pedirSugerencia();
 
                 // Lugar donde se va a poner (solo producto nuevo y si el inventario de tienda esta cargado).
                 if (f.modo === "nuevo" && window.NexoMovil?.elegirLugar) {

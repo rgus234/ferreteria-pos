@@ -217,3 +217,15 @@ test("El chat de Nexo en el celular lee la respuesta en vivo (NDJSON); antes las
     vm.runInNewContext(js, contexto);
     assert.equal(typeof contexto.window.enviarMensajeNexoDueno, "function");
 });
+
+test("Producto nuevo sin codigo: busca en el catalogo de Nexo por nombre y al tocar una coincidencia se llena como al escanear", () => {
+    const js = leer("dueno-alta.js");
+    const css = leer("dueno-alta.css");
+
+    assert.match(js, /\/explorar-nexo\/buscar\?q=/, "reusa el buscador del catalogo que ya existe");
+    assert.match(js, /\/explorar-nexo\/foto\//, "cada coincidencia muestra su foto");
+    assert.match(js, /window\.daiElegirCatalogo = async function/);
+    assert.match(js, /window\.autollenarDesdeMaestroDueno\(elegido\.codigo\)/, "llena igual que al escanear");
+    assert.match(js, /f\.modo !== "nuevo" \|\| f\.maestroCodigo \|\| codigo/, "no busca por nombre si ya hay codigo o producto elegido ni en edicion");
+    assert.match(css, /\.dai-cat-fila/);
+});
