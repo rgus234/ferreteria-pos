@@ -78,3 +78,7 @@
 :root.oscuro .dm-chips button.activo { background: #1d5fd1 !important; color: #fff !important; }
 :root.oscuro .dm-con-dif { background: rgba(251, 191, 36, .12) !important; }
 :root.oscuro .dm-excluir { color: #94a3b8; }
+
+:root.oscuro .df-renglon.listo { background: rgba(52, 211, 153, .14) !important; }
+:root.oscuro .df-aviso { background: rgba(251, 191, 36, .14); color: #fcd34d; }
+:root.oscuro .df-opciones .df-gris { background: #223049 !important; color: #f1f5f9 !important; }

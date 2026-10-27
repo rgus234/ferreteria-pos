@@ -964,7 +964,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 for (const item of items.rows) {
                     if (item.accion === "omitir") continue;
 
-                    const cantidad = num(item.cantidad);
+                    // La verificacion en el celular puede mandar lo que de verdad llego (cantidadesRecibidas: { itemId: cantidad });
+                    // sin ese dato (la computadora, las pruebas) se usa la cantidad de la factura, igual que siempre.
+                    const recibida = req.body?.cantidadesRecibidas?.[item.id];
+                    const cantidad = recibida !== undefined && recibida !== null && Number(recibida) >= 0 ? num(recibida) : num(item.cantidad);
                     const costoLista = num(item.costo_unitario);
                     const { costoNeto, tramoAplicado } = costoNetoConDescuento(costoLista, tramosDescuentoProveedor, recepcion.rows[0].total);
                     if (tramoAplicado) tramoDescuentoAplicado = tramoAplicado;
@@ -1200,7 +1203,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     }
                 );
 
-                res.json({ ok: true, recepcionMercanciaId, totalAplicado, conciliada: Boolean(remisionAConciliar), tramoDescuentoAplicado });
+                res.json({ ok: true, recepcionMercanciaId, totalAplicado, conciliada: Boolean(remisionAConciliar), tramoDescuentoAplicado, productos: itemsAplicados.filter(i => i.productoId).map(i => ({ productoId: i.productoId, nombre: i.nombre, cantidad: i.cantidad })) });
             } catch (error) {
                 await client.query("ROLLBACK").catch(() => {});
                 responderError(res, error);

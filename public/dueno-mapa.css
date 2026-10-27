@@ -183,3 +183,22 @@
 .dm-excluir { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #64748b; }
 .dm-excluir input { width: 18px; height: 18px; }
 .dm-con-dif { background: #fff7e0 !important; }
+
+/* ---- Accesos dentro de la pestana Inventario ---- */
+.dm-accesos-inv { display: grid; gap: 10px; }
+.dm-accesos-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dm-accesos-cab span { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+.dm-accesos-cab h2 { margin: 2px 0 0; font-size: 18px; }
+.dm-accesos-cab button { display: inline-flex; align-items: center; gap: 4px; padding: 8px 12px; border: 0; border-radius: 12px; background: var(--brand-soft) !important; color: var(--brand) !important; font-weight: 800; font-size: 13px; }
+.dm-accesos-inv .dm-cuadricula button { background: var(--surface-soft) !important; color: var(--text) !important; box-shadow: none; }
+
+/* ---- Recibir factura (dueno-factura.js) ---- */
+.df-capa { z-index: 9480; }
+.df-opciones { display: grid; gap: 8px; }
+.df-opciones button { padding: 14px; border: 0; border-radius: 14px; background: #1d5fd1 !important; color: #fff !important; font-weight: 800; font-size: 15px; text-align: left; }
+.df-opciones .df-gris { background: #e2e8f0 !important; color: #0f2a4a !important; }
+.df-renglon.listo { background: #e8f7f2 !important; }
+.df-renglon .dm-etiqueta { justify-self: start; margin-top: 4px; }
+.df-aviso { background: #fff7e0; border-radius: 12px; color: #92400e; font-weight: 700; }
+.df-resultados { max-height: 40vh; overflow-y: auto; }
+.dm-grande[disabled] { opacity: .45; }

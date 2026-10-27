@@ -77,30 +77,53 @@
         });
     }
 
-    // ---- Entrada en "Mas" ----
+    // ---- Entrada: dentro de la pestana Inventario (ya no hay un "Inventario de tienda" aparte en Mas) ----
 
-    function insertarEntrada() {
-        const destino = document.getElementById("duenoMasStatusCard");
-        if (!destino || document.getElementById("dmEntrada") || !(typeof haySesionActivaDueno === "function" && haySesionActivaDueno())) return;
+    function insertarAccesos() {
+        const acciones = document.getElementById("duenoInventarioAcciones");
+        const tarjeta = acciones?.closest(".dueno-card");
 
-        const boton = document.createElement("button");
-        boton.type = "button";
-        boton.id = "dmEntrada";
-        boton.className = "dm-entrada";
-        boton.innerHTML = `<span class="dm-entrada-icono">${icono("escanear", 26)}</span><b>Inventario de tienda</b><small>Escanear, contar, resurtir y saber dónde está cada producto</small>`;
-        boton.addEventListener("click", abrir);
-        destino.insertAdjacentElement("afterend", boton);
+        if (!tarjeta || document.getElementById("dmAccesosInv")) return;
+
+        const caja = document.createElement("article");
+        caja.id = "dmAccesosInv";
+        caja.className = "dueno-card dm-accesos-inv";
+        caja.innerHTML = `<div class="dm-accesos-cab"><div><span>Control de la tienda</span><h2>Estantes y bodega</h2></div><button type="button" onclick="dmAbrirEn('inicio')">Abrir mapa ${icono("siguiente", 16)}</button></div>
+            <div class="dm-cuadricula">
+                <button type="button" onclick="dmAbrirEn('escanear')"><span class="dm-icono-caja dm-azul">${icono("escanear", 22)}</span>Escanear lugar</button>
+                <button type="button" onclick="dmAbrirEn('contar')"><span class="dm-icono-caja dm-verde">${icono("contar", 22)}</span>Contar</button>
+                <button type="button" onclick="dmAbrirEn('buscar')"><span class="dm-icono-caja dm-gris">${icono("buscar", 22)}</span>¿Dónde está?</button>
+                <button type="button" onclick="dmAbrirEn('resurtir')"><span class="dm-icono-caja dm-ambar">${icono("resurtir", 22)}</span>Resurtir</button>
+                <button type="button" onclick="dfAbrir()"><span class="dm-icono-caja dm-azul">${icono("etiqueta", 22)}</span>Recibir factura</button>
+            </div>`;
+        tarjeta.insertAdjacentElement("afterend", caja);
     }
 
-    const original = window.cargarPanelMasDueno;
+    const originalAcciones = window.actualizarAccionesInventarioDueno;
 
-    if (typeof original === "function") {
-        window.cargarPanelMasDueno = async function (...argumentos) {
-            const resultado = await original.apply(this, argumentos);
-            insertarEntrada();
+    if (typeof originalAcciones === "function") {
+        window.actualizarAccionesInventarioDueno = function (...argumentos) {
+            const resultado = originalAcciones.apply(this, argumentos);
+            insertarAccesos();
             return resultado;
         };
     }
+
+    document.addEventListener("DOMContentLoaded", insertarAccesos);
+    insertarAccesos();
+
+    // Abre el inventario de tienda directo en la pantalla pedida (la pila siempre arranca en el inicio).
+    window.dmAbrirEn = async function (destino) {
+        pila = [{ t: "inicio" }];
+        pintar();
+        cargarGeneral();
+
+        if (destino === "escanear") window.dmEscanear();
+        else if (destino === "contar") window.dmContarEscaneando();
+        else if (destino === "buscar") window.dmIrBuscar();
+        else if (destino === "resurtir") window.dmIrResurtir();
+        else if (destino === "conteos") window.dmIrConteos();
+    };
 
     // ---- Estructura de pantalla y navegacion ----
 
@@ -145,13 +168,7 @@
         if (p.t === "inicio") cargarGeneral(); else if (p.t === "lugar") cargarLugar(p);
     };
 
-    async function abrir() {
-        pila = [{ t: "inicio" }];
-        pintar();
-        await cargarGeneral();
-    }
-
-    async function cargarGeneral() {
+        async function cargarGeneral() {
         const [u, s] = await Promise.all([llamar("/ubicaciones"), llamar("/ubicaciones/resumen")]);
 
         if (u.ok) lugares = u.datos.ubicaciones || [];
@@ -208,6 +225,7 @@
                 <button type="button" onclick="dmContarEscaneando()"><span class="dm-icono-caja dm-azul">${icono("contar", 24)}</span>Contar inventario</button>
                 <button type="button" onclick="dmIrBuscar()"><span class="dm-icono-caja dm-verde">${icono("buscar", 24)}</span>¿Dónde está?</button>
                 <button type="button" onclick="dmIrResurtir()"><span class="dm-icono-caja dm-ambar">${icono("resurtir", 24)}</span>Resurtir${resumen?.porResurtir ? `<em>${resumen.porResurtir}</em>` : ""}</button>
+                <button type="button" onclick="dfAbrir()"><span class="dm-icono-caja dm-verde">${icono("caja", 24)}</span>Recibir factura</button>
                 <button type="button" onclick="dmIrConteos()"><span class="dm-icono-caja dm-azul">${icono("ok", 24)}</span>Conteos${resumen?.conteosPendientes ? `<em>${resumen.conteosPendientes}</em>` : ""}</button>
                 <button type="button" onclick="dmImprimir()" ${lugares.length ? "" : "disabled"}><span class="dm-icono-caja dm-gris">${icono("etiqueta", 24)}</span>Etiquetas QR</button>
             </div>
@@ -788,4 +806,7 @@
         window.open(url, "_blank") || (location.href = url);
         setTimeout(() => URL.revokeObjectURL(url), 120000);
     };
+
+    // Ayudas visuales compartidas con las otras pantallas del celular (recibir factura).
+    window.NexoMovil = { icono, esc, aviso, dialogo };
 })();
