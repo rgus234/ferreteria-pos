@@ -127,3 +127,16 @@ test("indicadores de la pantalla principal y buscador de donde esta cada product
 
     assert.deepEqual((await llamar("/ubicaciones/buscar?q=a")).cuerpo.productos, [], "con una letra no busca");
 });
+
+test("la ficha del producto trae existencias por lado, lugares y especificaciones (sin costos)", async () => {
+    const r = (await llamar(`/ubicaciones/producto/${pija.id}`)).cuerpo.producto;
+
+    assert.equal(r.nombre, "Pija punta broca 1");
+    assert.equal(r.total, 30);
+    assert.equal(r.bodega, 20);
+    assert.equal(r.exhibicion, 10);
+    assert.equal(r.estante.ruta, "Estante 2");
+    assert.equal(r.bodegas[0].ruta, "Rack 3");
+    assert.equal("costo" in r, false, "el costo no se muestra en el celular");
+    assert.equal((await llamar("/ubicaciones/producto/99999999")).status, 404);
+});

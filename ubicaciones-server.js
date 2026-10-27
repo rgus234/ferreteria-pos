@@ -5,6 +5,7 @@
 const crypto = require("crypto");
 const { responderError } = require("./error-utils");
 const { PERMISOS, requerirPermiso } = require("./rbac");
+const { agregarFotos } = require("./fotos-lugar");
 
 const ZONAS = { tienda: "Tienda", bodega: "Bodega" };
 const TIPOS = ["pasillo", "seccion", "estante", "rack", "nivel"];
@@ -15,6 +16,32 @@ function nuevoCodigo() {
     const alfabeto = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     const bytes = crypto.randomBytes(6);
     return "UB-" + Array.from(bytes, b => alfabeto[b % alfabeto.length]).join("");
+}
+
+// Codigo que se lee: P-01 (pasillo), P-01-E-03 (estante), P-01-E-03-N-02 (nivel); en la bodega B-S-01 (seccion) y B-S-01-R-02 (rack).
+// Se hereda el codigo del lugar de arriba y NO cambia si despues se renombra o se mueve: la identidad es el codigo.
+const LETRAS = { pasillo: "P", seccion: "S", estante: "E", rack: "R", nivel: "N" };
+
+function codigoLegible(tipo, zona, codigoPadre, numero) {
+    const parte = `${LETRAS[tipo] || "X"}-${String(numero).padStart(2, "0")}`;
+    return codigoPadre ? `${codigoPadre}-${parte}` : (zona === "bodega" ? `B-${parte}` : parte);
+}
+
+// Para renombrar de golpe los codigos viejos (UB-XXXXXX): filas con id, zona, tipo, padre_id, orden. Devuelve Map id -> codigo.
+function calcularCodigos(filas) {
+    const resultado = new Map();
+    const hijosDe = padre => filas.filter(f => (f.padre_id || null) === padre).sort((a, b) => a.orden - b.orden || a.id - b.id);
+    const recorrer = padre => {
+        const contador = {};
+        for (const f of hijosDe(padre)) {
+            const clave = `${f.zona}/${f.tipo}`;
+            contador[clave] = (contador[clave] || 0) + 1;
+            resultado.set(f.id, codigoLegible(f.tipo, f.zona, padre ? resultado.get(padre) : "", contador[clave]));
+            recorrer(f.id);
+        }
+    };
+    recorrer(null);
+    return resultado;
 }
 
 // "Tienda › Pasillo 1 › Estante 2" a partir de la lista plana de ubicaciones.
@@ -35,7 +62,8 @@ function textoUbicacion(exhibicion, bodega) {
     return [exhibicion, bodega ? `Bodega: ${bodega.replace(/^Bodega › /, "")}` : ""].filter(Boolean).join(" · ");
 }
 
-// 2 columnas x 4 filas por hoja carta: QR a la izquierda, nombre grande y ruta a la derecha.
+// Etiqueta de estante: 2 columnas x 4 filas por hoja carta. Franja de color con la zona, QR grande a la izquierda y a la derecha
+// el nombre, el CODIGO grande (P-01-E-03) y la ruta completa. Pensada para leerse a un par de metros.
 async function generarPdfEtiquetasUbicacion(lugares) {
     const PDFDocument = require("pdfkit");
     const QRCode = require("qrcode");
@@ -43,31 +71,37 @@ async function generarPdfEtiquetasUbicacion(lugares) {
     const trozos = [];
     doc.on("data", t => trozos.push(t));
     const fin = new Promise(resolve => doc.on("end", () => resolve(Buffer.concat(trozos))));
-    const ancho = 270, alto = 170, margenX = 36, margenY = 36, porHoja = 8;
+    const ancho = 270, alto = 172, margenX = 36, margenY = 34, porHoja = 8;
+    const sinAcentos = t => String(t || "").replace(/›/g, ">");
 
     for (let i = 0; i < lugares.length; i++) {
         if (i > 0 && i % porHoja === 0) doc.addPage();
 
         const l = lugares[i];
-        const x = margenX + (i % 2) * (ancho + 0);
-        const y = margenY + Math.floor((i % porHoja) / 2) * (alto + 10);
+        const x = margenX + (i % 2) * ancho;
+        const y = margenY + Math.floor((i % porHoja) / 2) * (alto + 8);
+        const w = ancho - 8;
         const color = l.zona === "bodega" ? "#b45309" : "#1d5fd1";
-        const qr = await QRCode.toBuffer(l.codigo, { margin: 1, width: 300, errorCorrectionLevel: "M" });
+        const qr = await QRCode.toBuffer(l.codigo, { margin: 1, width: 360, errorCorrectionLevel: "M" });
 
-        doc.lineWidth(1).roundedRect(x, y, ancho - 8, alto, 8).stroke("#cbd5e1");
-        doc.rect(x, y, 8, alto).fill(color);
-        doc.image(qr, x + 18, y + 18, { width: 110 });
-        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(l.nombre.length > 14 ? 15 : 20).text(l.nombre, x + 140, y + 22, { width: ancho - 160, lineBreak: true, height: 60, ellipsis: true });
-        doc.fillColor(color).font("Helvetica-Bold").fontSize(8).text(l.zona === "bodega" ? "BODEGA" : "TIENDA", x + 140, y + 90, { width: ancho - 160 });
-        doc.fillColor("#475569").font("Helvetica").fontSize(8).text(l.ruta.replace(/›/g, ">"), x + 140, y + 102, { width: ancho - 160, height: 36, ellipsis: true });
-        doc.fillColor("#111827").font("Courier-Bold").fontSize(11).text(l.codigo, x + 18, y + 136, { width: 110, align: "center" });
+        doc.roundedRect(x, y, w, alto, 10).lineWidth(1).stroke("#cbd5e1");
+        doc.save().roundedRect(x, y, w, 26, 10).clip().rect(x, y, w, 26).fill(color).restore();
+        doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(11).text(l.zona === "bodega" ? "BODEGA" : "TIENDA", x + 14, y + 8, { width: 120, lineBreak: false });
+        doc.font("Helvetica-Bold").fontSize(9).text("NEXO POS", x + w - 84, y + 9, { width: 70, align: "right", lineBreak: false });
+
+        doc.image(qr, x + 14, y + 38, { width: 108 });
+        doc.fillColor("#475569").font("Helvetica").fontSize(7.5).text("Escanea con Nexo", x + 14, y + 148, { width: 108, align: "center", lineBreak: false });
+
+        doc.fillColor("#0f172a").font("Helvetica-Bold").fontSize(l.nombre.length > 26 ? 11 : 14).text(l.nombre, x + 134, y + 40, { width: w - 148, height: 36, ellipsis: true });
+        doc.fillColor(color).font("Helvetica-Bold").fontSize(l.codigo.length > 12 ? 17 : 22).text(l.codigo, x + 134, y + 84, { width: w - 148, lineBreak: false });
+        doc.fillColor("#64748b").font("Helvetica").fontSize(8).text(sinAcentos(l.ruta), x + 134, y + 118, { width: w - 148, height: 34, ellipsis: true });
     }
 
     doc.end();
     return fin;
 }
 
-function instalar(app, pool, requerirAccesoNegocio) {
+function instalar(app, pool, requerirAccesoNegocio, firmarTokenImagen) {
     function negocioId(req) {
         const id = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
 
@@ -135,19 +169,24 @@ function instalar(app, pool, requerirAccesoNegocio) {
 
             if (!nombre) { res.status(400).json({ ok: false, error: "Escribe el nombre (por ejemplo Pasillo 1 o Estante 2)." }); return; }
 
+            let codigoPadre = "";
+
             if (padreId) {
-                const padre = (await pool.query(`SELECT zona FROM public.ubicaciones WHERE id = $1 AND negocio_id = $2 AND activa = true`, [padreId, id])).rows[0];
+                const padre = (await pool.query(`SELECT zona, codigo FROM public.ubicaciones WHERE id = $1 AND negocio_id = $2 AND activa = true`, [padreId, id])).rows[0];
+                codigoPadre = padre?.codigo || "";
 
                 if (!padre) { res.status(404).json({ ok: false, error: "El lugar de arriba no existe." }); return; }
                 if (padre.zona !== zona) { res.status(400).json({ ok: false, error: "Un lugar de la tienda no puede estar dentro de la bodega (ni al revés)." }); return; }
             }
 
-            for (let intento = 0; intento < 6; intento++) {
+            const hermanos = Number((await pool.query(`SELECT COUNT(*) AS n FROM public.ubicaciones WHERE negocio_id = $1 AND zona = $2 AND tipo = $3 AND padre_id IS NOT DISTINCT FROM $4`, [id, zona, tipo, padreId])).rows[0].n);
+
+            for (let intento = 0; intento < 30; intento++) {
                 try {
                     const orden = (await pool.query(`SELECT COALESCE(MAX(orden), 0) + 1 AS o FROM public.ubicaciones WHERE negocio_id = $1 AND zona = $2 AND padre_id IS NOT DISTINCT FROM $3`, [id, zona, padreId])).rows[0].o;
                     const fila = (await pool.query(
                         `INSERT INTO public.ubicaciones (negocio_id, zona, tipo, nombre, codigo, padre_id, orden) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-                        [id, zona, tipo, nombre, nuevoCodigo(), padreId, orden]
+                        [id, zona, tipo, nombre, intento < 29 ? codigoLegible(tipo, zona, codigoPadre, hermanos + 1 + intento) : nuevoCodigo(), padreId, orden]
                     )).rows[0];
                     const { porId } = await todas(pool, id);
 
@@ -252,7 +291,9 @@ function instalar(app, pool, requerirAccesoNegocio) {
                 [id, Number(req.params.id)]
             )).rows;
 
-            res.json({ ok: true, productos: filas.map(p => ({ id: p.id, nombre: p.nombre, codigo: p.codigo, stock: Number(p.stock), unidadVenta: p.unidad_venta, exhibido: p.exhibido, enBodega: p.en_bodega })) });
+            const conFoto = await agregarFotos(pool, id, filas, firmarTokenImagen);
+
+            res.json({ ok: true, productos: conFoto.map(p => ({ id: p.id, nombre: p.nombre, codigo: p.codigo, stock: Number(p.stock), unidadVenta: p.unidad_venta, exhibido: p.exhibido, enBodega: p.en_bodega, imagenUrl: p.imagenUrl })) });
         } catch (error) {
             responderError(res, error);
         }
@@ -306,5 +347,7 @@ function instalar(app, pool, requerirAccesoNegocio) {
 
 module.exports = instalar;
 module.exports.nuevoCodigo = nuevoCodigo;
+module.exports.codigoLegible = codigoLegible;
+module.exports.calcularCodigos = calcularCodigos;
 module.exports.rutaDe = rutaDe;
 module.exports.textoUbicacion = textoUbicacion;

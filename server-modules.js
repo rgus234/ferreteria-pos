@@ -150,8 +150,8 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     });
 
     cargarModuloPOS("mapa de la tienda: estantes y bodega", () => {
-        require("./ubicaciones-server")(app, pool, requerirAccesoNegocio);
-        require("./existencias-lugar-server")(app, pool, requerirAccesoNegocio);
+        require("./ubicaciones-server")(app, pool, requerirAccesoNegocio, firmarTokenImagen);
+        require("./existencias-lugar-server")(app, pool, requerirAccesoNegocio, firmarTokenImagen);
     });
 
     cargarModuloPOS("actividad del equipo (quien hizo que)", () => {

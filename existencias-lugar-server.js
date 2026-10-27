@@ -8,6 +8,7 @@
 // en bodega, el producto aparece en "Resurtir". Resurtir solo mueve cantidad de la bodega a la exhibicion: no cambia el total.
 const { responderError } = require("./error-utils");
 const { PERMISOS, requerirPermiso } = require("./rbac");
+const { agregarFotos } = require("./fotos-lugar");
 
 const num = valor => Number(valor) || 0;
 const redondear = valor => Math.round(num(valor) * 1000) / 1000;
@@ -54,7 +55,7 @@ function compararConteo(lugar, productos, conteos, incluirNoEscaneados) {
     return { lineas, faltan, sobran };
 }
 
-function instalar(app, pool, requerirAccesoNegocio) {
+function instalar(app, pool, requerirAccesoNegocio, firmarTokenImagen) {
     const puedeInventario = requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO);
 
     function negocioId(req) {
@@ -125,7 +126,7 @@ function instalar(app, pool, requerirAccesoNegocio) {
                 };
             }).filter(p => p.estado).sort((a, b) => (a.estado === "agotado" ? 0 : 1) - (b.estado === "agotado" ? 0 : 1) || a.nombre.localeCompare(b.nombre));
 
-            return lista;
+            return agregarFotos(pool, id, lista, firmarTokenImagen);
         }
     }
 
@@ -158,6 +159,41 @@ function instalar(app, pool, requerirAccesoNegocio) {
         }
     });
 
+    // Ficha del producto: lo que se quiere ver al tocarlo en un estante (sin costos).
+    app.get("/ubicaciones/producto/:id", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const id = negocioId(req);
+            const p = (await pool.query(
+                `SELECT id, nombre, codigo, marca, categoria, subcategoria, unidad_venta, presentacion_compra, factor_conversion, permite_venta_pieza, bascula_digital,
+                        precio, precio_mayoreo, stock, stock_minimo, ubicacion, ubicacion_id, ubicacion_bodega_id
+                 FROM public.productos WHERE id = $1 AND negocio_id = $2`,
+                [Number(req.params.id), id]
+            )).rows[0];
+
+            if (!p) { fallo(res, 404, "Ese producto no existe."); return; }
+
+            const { porId, ruta } = await rutas(pool, id);
+            const bodegas = (await pool.query(`SELECT pu.ubicacion_id, pu.cantidad FROM public.producto_ubicaciones pu JOIN public.ubicaciones u ON u.id = pu.ubicacion_id AND u.zona = 'bodega' WHERE pu.producto_id = $1 AND pu.cantidad > 0 ORDER BY pu.cantidad DESC`, [p.id])).rows;
+            const d = desglose(p.stock, bodegas.reduce((t, b) => t + num(b.cantidad), 0));
+            const [conFoto] = await agregarFotos(pool, id, [{ codigo: p.codigo }], firmarTokenImagen);
+
+            res.json({
+                ok: true,
+                producto: {
+                    id: p.id, nombre: p.nombre, codigo: p.codigo, marca: p.marca || "", categoria: p.categoria || "", subcategoria: p.subcategoria || "",
+                    unidadVenta: p.unidad_venta, presentacionCompra: p.presentacion_compra || "", factorConversion: p.factor_conversion === null ? null : num(p.factor_conversion),
+                    permiteVentaPieza: p.permite_venta_pieza, basculaDigital: p.bascula_digital === "si",
+                    precio: num(p.precio), precioMayoreo: p.precio_mayoreo === null ? null : num(p.precio_mayoreo), stockMinimo: num(p.stock_minimo),
+                    ...d, imagenUrl: conFoto.imagenUrl,
+                    estante: p.ubicacion_id && porId.get(p.ubicacion_id) ? { id: p.ubicacion_id, ruta: ruta(porId.get(p.ubicacion_id)) } : null,
+                    bodegas: bodegas.filter(b => porId.get(b.ubicacion_id)).map(b => ({ id: b.ubicacion_id, ruta: ruta(porId.get(b.ubicacion_id)), cantidad: num(b.cantidad) }))
+                }
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     // "¿Donde esta?": busca por nombre o codigo y dice en que estante / bodega esta y cuanto hay en cada lado.
     app.get("/ubicaciones/buscar", requerirAccesoNegocio, async (req, res) => {
         try {
@@ -176,7 +212,9 @@ function instalar(app, pool, requerirAccesoNegocio) {
                 [id, patron, texto]
             )).rows;
 
-            res.json({ ok: true, productos: filas.map(p => ({ id: p.id, nombre: p.nombre, codigo: p.codigo, unidadVenta: p.unidad_venta, ubicacion: p.ubicacion || "", ...desglose(p.stock, p.bodega_total) })) });
+            const lista = filas.map(p => ({ id: p.id, nombre: p.nombre, codigo: p.codigo, unidadVenta: p.unidad_venta, ubicacion: p.ubicacion || "", ...desglose(p.stock, p.bodega_total) }));
+
+            res.json({ ok: true, productos: await agregarFotos(pool, id, lista, firmarTokenImagen) });
         } catch (error) {
             responderError(res, error);
         }

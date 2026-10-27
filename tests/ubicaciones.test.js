@@ -3,7 +3,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { pool, crearNegocioPrueba, crearProductoPrueba, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
 const { iniciarServidorPrueba, detenerServidorPrueba, BASE_URL } = require("./helpers/servidor-prueba");
-const { nuevoCodigo, rutaDe, textoUbicacion } = require("../ubicaciones-server");
+const { nuevoCodigo, codigoLegible, calcularCodigos, rutaDe, textoUbicacion } = require("../ubicaciones-server");
 
 let A, B, pija, broca;
 const llamar = async (negocio, ruta, opciones = {}) => {
@@ -29,6 +29,13 @@ after(async () => {
 test("el codigo lleva prefijo propio, no se parece al de un producto y la ruta se arma de arriba hacia abajo", () => {
     assert.match(nuevoCodigo(), /^UB-[A-Z2-9]{6}$/);
     assert.notEqual(nuevoCodigo(), nuevoCodigo());
+    assert.equal(codigoLegible("pasillo", "tienda", "", 1), "P-01");
+    assert.equal(codigoLegible("estante", "tienda", "P-01", 3), "P-01-E-03");
+    assert.equal(codigoLegible("nivel", "tienda", "P-01-E-03", 2), "P-01-E-03-N-02");
+    assert.equal(codigoLegible("seccion", "bodega", "", 1), "B-S-01");
+    assert.equal(codigoLegible("rack", "bodega", "B-S-01", 2), "B-S-01-R-02");
+    const filas = [{ id: 1, zona: "tienda", tipo: "pasillo", padre_id: null, orden: 1 }, { id: 2, zona: "tienda", tipo: "estante", padre_id: 1, orden: 1 }, { id: 3, zona: "tienda", tipo: "estante", padre_id: 1, orden: 2 }, { id: 4, zona: "bodega", tipo: "seccion", padre_id: null, orden: 1 }];
+    assert.deepEqual([...calcularCodigos(filas)], [[1, "P-01"], [2, "P-01-E-01"], [3, "P-01-E-02"], [4, "B-S-01"]]);
 
     const lista = [{ id: 1, nombre: "Pasillo 1", zona: "tienda", padre_id: null }, { id: 2, nombre: "Estante 2", zona: "tienda", padre_id: 1 }];
     const porId = new Map(lista.map(f => [f.id, f]));
@@ -48,7 +55,7 @@ test("crear pasillos y estantes en la tienda y secciones en la bodega, cada uno 
 
     assert.equal(estante.ruta, "Tienda › Pasillo 1 › Estante 2");
     assert.equal(rack.ruta, "Bodega › Sección A › Rack 3");
-    assert.equal(new Set([pasillo.codigo, estante.codigo, seccion.codigo, rack.codigo]).size, 4, "codigos distintos");
+    assert.deepEqual([pasillo.codigo, estante.codigo, seccion.codigo, rack.codigo], ["P-01", "P-01-E-01", "B-S-01", "B-S-01-R-01"], "el codigo dice que es y de quien cuelga");
 
     const lista = (await llamar(A, "/ubicaciones")).cuerpo.ubicaciones;
     assert.equal(lista.length, 4);
