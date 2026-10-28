@@ -416,20 +416,40 @@ async function buscarRemisionPendienteConciliable(pool, negocioId, proveedorId) 
         [negocioId, proveedorId]
     );
 
-    if (!candidatas.rows.length) return null;
+    // Recepciones hechas a mano en el celular ("Recibir por marca" / Recibir mercancia) y marcadas "sin factura" con el proveedor elegido:
+    // no pasan por Recepcion Inteligente, asi que se emparejan por el NOMBRE del proveedor (el celular guarda el nombre exacto de la lista).
+    let todas = candidatas.rows;
+    const proveedor = await pool.query(`SELECT nombre FROM public.proveedores WHERE id = $1 AND negocio_id = $2`, [proveedorId, negocioId]);
+
+    if (proveedor.rows[0]?.nombre) {
+        const manuales = await pool.query(
+            `SELECT rm.id, rm.referencia, rm.fecha_documento, rm.total, rm.created_at
+             FROM public.recepciones_mercancia rm
+             WHERE rm.negocio_id = $1
+               AND rm.estado = 'recibido_sin_factura'
+               AND rm.tipo_documento LIKE 'Recepcion rapida%'
+               AND lower(btrim(rm.proveedor)) = lower(btrim($2))
+               AND rm.created_at > NOW() - INTERVAL '${DIAS_VENTANA_CONCILIACION_REMISION} days'
+             ORDER BY rm.created_at DESC`,
+            [negocioId, proveedor.rows[0].nombre]
+        );
+        todas = [...todas, ...manuales.rows.filter(m => !todas.some(c => c.id === m.id))].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+
+    if (!todas.length) return null;
 
     const items = await pool.query(
         `SELECT codigo, nombre, cantidad, costo FROM public.recepciones_mercancia_items WHERE recepcion_id = $1 ORDER BY id`,
-        [candidatas.rows[0].id]
+        [todas[0].id]
     );
 
     return {
-        recepcionMercanciaId: candidatas.rows[0].id,
-        referencia: candidatas.rows[0].referencia,
-        fechaDocumento: candidatas.rows[0].fecha_documento,
-        total: num(candidatas.rows[0].total),
+        recepcionMercanciaId: todas[0].id,
+        referencia: todas[0].referencia,
+        fechaDocumento: todas[0].fecha_documento || todas[0].created_at,
+        total: num(todas[0].total),
         items: items.rows.map(i => ({ codigo: i.codigo, nombre: i.nombre, cantidad: num(i.cantidad), costo: num(i.costo) })),
-        otrasPendientes: candidatas.rows.length - 1
+        otrasPendientes: todas.length - 1
     };
 }
 

@@ -537,7 +537,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
     // bloqueado (FOR UPDATE) en vez de que el celular lea-y-escriba un
     // numero que pudo cambiar mientras tanto (alguien vendiendo).
     app.post("/recepciones-mercancia/rapida", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
-        const { proveedor, referencia, notas, usuarioNombre, idempotencyKey, items } = req.body || {};
+        const { proveedor, referencia, notas, usuarioNombre, idempotencyKey, items, sinFactura } = req.body || {};
 
         if (!Array.isArray(items) || items.length === 0 || items.length > 200) {
             res.status(400).json({ ok: false, error: "Agrega al menos un producto (maximo 200)." });
@@ -637,8 +637,8 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
 
             const recepcion = await client.query(`
                 INSERT INTO public.recepciones_mercancia
-                    (negocio_id, pedido_id, proveedor, referencia, notas, total, tipo_documento, idempotency_key)
-                VALUES ($1, NULL, $2, $3, $4, $5, 'Recepcion rapida (celular)', $6)
+                    (negocio_id, pedido_id, proveedor, referencia, notas, total, tipo_documento, idempotency_key, estado)
+                VALUES ($1, NULL, $2, $3, $4, $5, 'Recepcion rapida (celular)', $6, $7)
                 RETURNING *
             `, [
                 negocio.id,
@@ -646,7 +646,9 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                 referenciaLimpia,
                 String(notas || "").trim().slice(0, 500),
                 total,
-                llave
+                llave,
+                // "Sin factura": cuando llegue su factura por correo, Recepcion Inteligente la compara con esto y no suma dos veces.
+                (sinFactura === true && String(proveedor || "").trim()) ? "recibido_sin_factura" : "conciliado"
             ]);
 
             for (const aplicada of aplicadas) {

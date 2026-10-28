@@ -114,6 +114,35 @@
         });
     }
 
+    // Confirma una factura desde el celular. Si ya habias recibido esa mercancia a mano (Recibir por marca / Recibir mercancia con proveedor), pregunta si
+    // es la misma: en ese caso la factura solo completa los costos y NO se vuelve a sumar al inventario. Lo usan esta pantalla y "Recibir por marca".
+    window.confirmarFacturaMovil = async function (id, cantidadesRecibidas, caducidades) {
+        const enviar = extra => llamar(`/recepcion-inteligente/facturas/${id}/confirmar`, { method: "POST", body: { cantidadesRecibidas, caducidades: caducidades || {}, ignorarConciliacion: false, ...extra } });
+        let r = await enviar({});
+
+        if (!r.ok && r.datos.requiereConciliacion) {
+            const p = r.datos.remisionPendiente || {};
+            const fecha = p.fechaDocumento ? new Date(p.fechaDocumento).toLocaleDateString("es-MX", { day: "numeric", month: "short" }) : "";
+            const misma = await N().dialogo({
+                titulo: "¿Es la mercancía que ya recibiste?",
+                texto: `Ya registraste una recepción de este proveedor${fecha ? ` el ${fecha}` : ""}${p.referencia ? ` (${p.referencia})` : ""}, con ${(p.items || []).length} producto(s). Si es la misma, la factura solo completa los costos y NO se vuelve a sumar al inventario.`,
+                aceptar: "Sí, es la misma",
+                cancelar: "No, es otra"
+            });
+
+            if (misma.ok) {
+                r = await enviar({ conciliarConRecepcionMercanciaId: p.recepcionMercanciaId });
+            } else {
+                const nueva = await N().dialogo({ titulo: "¿Sumarla como nueva?", texto: "Se sumará al inventario lo que verificaste, además de lo que ya habías recibido.", aceptar: "Sí, sumar", cancelar: "Cancelar" });
+
+                if (!nueva.ok) return { cancelado: true };
+                r = await enviar({ ignorarConciliacion: true });
+            }
+        }
+
+        return r;
+    };
+
     // ---- 2) Verificar escaneando ----
 
     window.dfVerificar = async function (id) {
@@ -373,11 +402,12 @@
         const cantidadesRecibidas = {};
         Object.entries(e.recibido).forEach(([id, c]) => { cantidadesRecibidas[id] = c; });
 
-        const r = await llamar(`/recepcion-inteligente/facturas/${e.id}/confirmar`, { method: "POST", body: { cantidadesRecibidas, caducidades: e.caducidades, ignorarConciliacion: false } });
+        const r = await window.confirmarFacturaMovil(e.id, cantidadesRecibidas, e.caducidades);
+
+        if (r.cancelado) return;
 
         if (!r.ok) {
-            const texto = r.datos.requiereConciliacion ? "Esta factura puede corresponder a una remisión que ya recibiste. Confírmala en la computadora para conciliarlas." : (r.datos.error || "No se pudo confirmar.");
-            N().aviso(texto, "error");
+            N().aviso(r.datos.error || "No se pudo confirmar.", "error");
             return;
         }
 

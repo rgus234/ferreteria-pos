@@ -389,3 +389,26 @@ test("Ferreteria: Recibir por marca usa la marca y la categoria del producto, y 
     assert.match(servidor, /Pasillo 1 · Tornillería/);
     assert.match(leer("dueno-mapa.js"), /dmPlantilla\('ferreteria'\)/);
 });
+
+test("Recibir por marca conectado con Recepcion inteligente: proveedor 'sin factura', facturas por recibir con 'Esperado' y conciliacion en el celular", () => {
+    const vm = require("node:vm");
+    const js = leer("dueno-recibir-marca.js");
+    const contexto = { window: {}, document: { querySelector: () => null, getElementById: () => null }, escaparDueno: String };
+    vm.runInNewContext(js, contexto);
+
+    const repartir = (ids, esperados, contado) => Object.assign({}, contexto.window.repartirRecibidoRecibirDueno(ids, esperados, contado));
+    assert.deepEqual(repartir([10], [12], 9), { 10: 9 });
+    assert.deepEqual(repartir([10, 11], [5, 5], 7), { 10: 5, 11: 2 }, "un producto en dos renglones: llena el primero y el resto va al segundo");
+    assert.deepEqual(repartir([10, 11], [5, 5], 12), { 10: 5, 11: 7 }, "lo que sobra va al ultimo");
+    assert.deepEqual(repartir([10, 11], [5, 5], 0), { 10: 0, 11: 0 });
+
+    assert.match(js, /\/recepcion-inteligente\/facturas/, "lista las facturas pendientes");
+    assert.match(js, /sinFactura: Boolean\(proveedorElegido\)/, "con proveedor la recepcion queda sin factura");
+    assert.match(js, /confirmarFacturaMovil/, "confirma la factura por la misma ayuda que Recibir factura");
+    assert.match(js, /Esperado/, "tarjetas con lo que dice la factura");
+
+    const factura = leer("dueno-factura.js");
+    assert.match(factura, /window\.confirmarFacturaMovil = async function/);
+    assert.match(factura, /conciliarConRecepcionMercanciaId: p\.recepcionMercanciaId/, "el celular concilia sin mandar a la computadora");
+    assert.doesNotMatch(factura, /Confírmala en la computadora para conciliarlas/, "ya no manda a la computadora");
+});
