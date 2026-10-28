@@ -411,8 +411,19 @@
     // Los exhibidores del negocio mandan (con su logo y su color); lo que no esta en ninguno se agrupa solo por marca.
     async function gruposConExhibidores(productos) {
         try {
-            const lista = (await fetchAutenticado("/exhibidores"))?.exhibidores || [];
-            const usables = lista.filter(x => x.activo !== false && x.totalEspacios > 0);
+            let lista = (await fetchAutenticado("/exhibidores"))?.exhibidores || [];
+            let usables = lista.filter(x => x.activo !== false && x.totalEspacios > 0);
+
+            // Primera vez en un abarrotes: se arman solos los exhibidores por marca (catalogo de marcas de Nexo) y se vuelve a leer.
+            if (!usables.length) {
+                try {
+                    const armado = await fetchAutenticado("/exhibidores/marcas/armar", { method: "POST" });
+                    if (armado?.colocados) {
+                        lista = (await fetchAutenticado("/exhibidores"))?.exhibidores || [];
+                        usables = lista.filter(x => x.activo !== false && x.totalEspacios > 0);
+                    }
+                } catch (errorArmar) { /* sin red o sin permiso: se agrupa por marca como antes */ }
+            }
 
             if (!usables.length) return agrupar(productos);
 

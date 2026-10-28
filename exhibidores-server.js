@@ -99,6 +99,25 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         return new Set(resultado.rows.map(fila => fila.id));
     }
 
+    // Arma los exhibidores por marca del catalogo central (marcas-catalogo.js) con los productos que el negocio ya tiene y aun no estan en
+    // ningun exhibidor. Solo abarrotes. Repetirlo no duplica nada.
+    app.post("/exhibidores/marcas/armar", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const negocio = await negocioActual(req);
+            const marcas = require("./marcas-catalogo");
+
+            if (!(await marcas.esNegocioDeAbarrotes(pool, negocio.id))) {
+                res.json({ ok: true, aplica: false, colocados: 0, porMarca: {} });
+                return;
+            }
+
+            const resultado = await marcas.armarExhibidoresDeMarcas(pool, negocio.id);
+            res.json({ ok: true, aplica: true, ...resultado });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     app.get("/exhibidores", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await negocioActual(req);
