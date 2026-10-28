@@ -293,3 +293,12 @@ test("Textos de ejemplo segun el giro: un negocio solo de abarrotes ya no ve mar
         resolve();
     }));
 });
+
+test("Producto nuevo por nombre: cada giro ve lo suyo (un abarrotes no recibe brocas al buscar 'coca-cola')", () => {
+    const alta = leer("dueno-alta.js");
+
+    assert.match(alta, /giro\.abarrotesSolo \? r\.origen !== "fabricante"/, "abarrotes excluye los productos de fabricante (ferreteria)");
+    assert.match(alta, /giro\.ferreteriaSolo \? r\.origen !== "negocio"/, "ferreteria excluye lo escaneado en abarrotes");
+    assert.match(fs.readFileSync(path.join(__dirname, "..", "explorar-nexo-server.js"), "utf8"), /origen: fila\.origen/, "el servidor manda el origen");
+    assert.match(leer("dueno-giro.js"), /ferreteriaSolo/);
+});

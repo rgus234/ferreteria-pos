@@ -253,8 +253,11 @@
             const datos = await fetchAutenticado(`/explorar-nexo/buscar?q=${encodeURIComponent(nombre)}`);
             if (turno !== consultaCatalogo) return;
 
+            // Cada giro ve lo suyo: un abarrotes no recibe brocas (los productos de fabricante son de ferreteria) ni una ferreteria las botanas escaneadas.
+            const giro = window.duenoGiro || {};
+            const delGiro = r => (giro.abarrotesSolo ? r.origen !== "fabricante" : giro.ferreteriaSolo ? r.origen !== "negocio" : true);
             const vistos = new Set();
-            resultadosCatalogo = (datos?.catalogoMaestro || []).map(r => ({ ...r, codigoUsable: r.ean || r.codigo })).filter(r => {
+            resultadosCatalogo = (datos?.catalogoMaestro || []).filter(delGiro).map(r => ({ ...r, codigoUsable: r.ean || r.codigo })).filter(r => {
                 if (!r.codigoUsable || vistos.has(r.codigoUsable)) return false;
                 vistos.add(r.codigoUsable);
                 return true;

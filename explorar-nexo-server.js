@@ -118,7 +118,7 @@ async function buscarEnCatalogoProveedor(pool, negocioId, termino) {
 // el join va por codigo_fabricante, nunca por marca/fabricante.
 async function buscarEnCatalogoMaestro(pool, termino) {
     const resultado = await consultarConUmbralPalabra(pool, umbralAdmisionPara(termino),
-        `SELECT m.id, m.codigo, m.marca, m.nombre, m.descripcion, m.fabricante,
+        `SELECT m.id, m.codigo, m.marca, m.nombre, m.descripcion, m.fabricante, m.origen,
                 m.codigo_fabricante, m.ean, m.clave,
                 f.precio_mayoreo, f.precio_medio_mayoreo, f.precio_publico, f.precio_distribuidor,
                 GREATEST(similarity(m.nombre, $1), word_similarity($1, m.nombre)) AS similitud,
@@ -147,6 +147,7 @@ async function buscarEnCatalogoMaestro(pool, termino) {
         marca: fila.marca,
         descripcion: fila.descripcion,
         fabricante: fila.fabricante,
+        origen: fila.origen || null,
         ean: fila.ean || null,
         precioListaMayoreo: numeroONull(fila.precio_mayoreo),
         precioListaMedioMayoreo: numeroONull(fila.precio_medio_mayoreo),
