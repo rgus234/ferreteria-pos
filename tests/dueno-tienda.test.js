@@ -364,3 +364,28 @@ test("Recibir por marca: lineas dentro de cada marca (Doritos, Cheetos, Bolzaza.
     assert.match(js, /id="drmLineas"/);
     assert.match(js, /window\.elegirLineaRecibirDueno = function/);
 });
+
+test("Ferreteria: Recibir por marca usa la marca y la categoria del producto, y hay plantilla de lugares de ferreteria", () => {
+    const vm = require("node:vm");
+    const js = leer("dueno-recibir-marca.js");
+    const contexto = { window: { duenoGiro: { ferreteriaSolo: true } }, document: { querySelector: () => null, getElementById: () => null }, escaparDueno: String };
+    vm.runInNewContext(js, contexto);
+
+    const productos = [
+        ...Array.from({ length: 5 }, (_, i) => ({ id: i + 1, nombre: `Martillo ${i}`, marca: "Truper", categoria: "Herramienta manual" })),
+        ...Array.from({ length: 4 }, (_, i) => ({ id: i + 10, nombre: `Pija ${i}`, marca: "Fiero", categoria: "Tornillería" })),
+        { id: 99, nombre: "Algo suelto", marca: "Pretul", categoria: "Pintura" }
+    ];
+    const grupos = Array.from(contexto.window.agruparMarcasRecibirDueno(productos));
+    assert.deepEqual(grupos.map(g => g.marca).sort(), ["Fiero", "Otros", "Truper"], "grupos por la marca real; las de un solo producto se juntan");
+    assert.equal(grupos.find(g => g.marca === "Truper").productos.length, 5);
+
+    const lineas = Array.from(contexto.window.lineasDeRecibirDueno(productos));
+    assert.deepEqual(lineas.map(x => x.linea).sort(), ["Herramienta manual", "Pintura", "Tornillería"], "lineas por categoria");
+
+    // El servidor trae la plantilla de ferreteria y el celular ofrece el boton segun el giro.
+    const servidor = fs.readFileSync(path.join(__dirname, "..", "ubicaciones-server.js"), "utf8");
+    assert.match(servidor, /ferreteria: \[/);
+    assert.match(servidor, /Pasillo 1 · Tornillería/);
+    assert.match(leer("dueno-mapa.js"), /dmPlantilla\('ferreteria'\)/);
+});

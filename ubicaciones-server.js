@@ -145,6 +145,11 @@ function instalar(app, pool, requerirAccesoNegocio, firmarTokenImagen) {
     // Hoja de etiquetas con QR para pegar en cada estante / seccion de bodega. Regresa el PDF en base64 (el celular lo abre como archivo).
     // Plantillas: crean de un toque los lugares tipicos de un giro (solo los que no existen todavia).
     const PLANTILLAS = {
+        ferreteria: [
+            ...["Pasillo 1 · Tornillería", "Pasillo 2 · Herramienta manual", "Pasillo 3 · Herramienta eléctrica", "Pasillo 4 · Plomería", "Pasillo 5 · Electricidad", "Pasillo 6 · Pintura y adhesivos"].map(nombre => ({ zona: "tienda", tipo: "pasillo", nombre })),
+            { zona: "tienda", tipo: "estante", nombre: "Mostrador" },
+            { zona: "bodega", tipo: "seccion", nombre: "Bodega" }
+        ],
         abarrotes: [
             ...["Refrigerador", "Botanas y galletas", "Bebidas", "Dulces", "Limpieza y hogar", "Abarrotes secos", "Mostrador"].map(nombre => ({ zona: "tienda", tipo: "estante", nombre })),
             { zona: "bodega", tipo: "seccion", nombre: "Trastienda" }

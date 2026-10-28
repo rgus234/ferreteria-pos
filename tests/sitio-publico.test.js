@@ -255,7 +255,10 @@ test("Pagina publica: seccion de computadora, tablet y celular con capturas real
     assert.match(html, /href="#movil"/, "acceso desde el menu");
 
     const imagenes = [...seccion.matchAll(/src="(\/site\/img\/[^"]+)"/g)].map(m => m[1]);
-    assert.ok(imagenes.length >= 5, "capturas de celular y tablet");
+    assert.ok(imagenes.length >= 10, "capturas de celular y tablet, de abarrotes y de ferreteria");
+    assert.ok(imagenes.some(r => /ferr-movil/.test(r)) && imagenes.some(r => r === "/site/img/movil-vender.webp"), "un juego por giro");
+    assert.match(seccion, /data-solo="abarrotes" hidden/, "las de abarrotes solo para ese giro");
+    assert.match(seccion, /data-solo="general ferreteria ambos"/, "las de ferreteria para el resto");
 
     for (const ruta of imagenes) {
         assert.ok(fs.existsSync(path.join(__dirname, "..", "public", ruta)), `existe ${ruta}`);

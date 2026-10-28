@@ -295,7 +295,7 @@
     // ---- Barra "Dile a Nexo" (escribir o dictar) en Inicio y en el panel de Inventario ----
     const reconocimiento = window.SpeechRecognition || window.webkitSpeechRecognition;
     // Los ejemplos son de tienda de abarrotes si el negocio es solo de abarrotes (dueno-giro.js); si no, los de siempre.
-    const EJEMPLOS_FERRETERIA = ["¿Dónde está el arroz?", "Pon los refrescos en el refrigerador", "Agrega pijas de 1 pulgada a 85 la bolsa"];
+    const EJEMPLOS_FERRETERIA = ["¿Dónde está el martillo?", "Pon las pijas en el estante 2", "Agrega pijas de 1 pulgada a 85 la bolsa"];
     const EJEMPLOS_ABARROTES = ["¿Dónde está el arroz?", "Pon los refrescos en el refrigerador", "Agrega Sabritas Originales a 22 pesos"];
     const ejemplos = () => (window.duenoGiro?.abarrotesSolo ? EJEMPLOS_ABARROTES : EJEMPLOS_FERRETERIA);
     const htmlEjemplos = () => ejemplos().map((e, i) => `<button type="button" onclick="dnxEjemplo(${i})">${esc(e)}</button>`).join("");

@@ -230,7 +230,7 @@
                 <button type="button" onclick="dmIrConteos()"><span class="dm-icono-caja dm-azul">${icono("ok", 24)}</span>Conteos${resumen?.conteosPendientes ? `<em>${resumen.conteosPendientes}</em>` : ""}</button>
                 <button type="button" onclick="dmImprimir()" ${lugares.length ? "" : "disabled"}><span class="dm-icono-caja dm-gris">${icono("etiqueta", 24)}</span>Etiquetas QR</button>
             </div>
-            ${lugares.length ? "" : `<section class="dm-seccion dm-plantilla"><div class="dm-fila-texto"><b>Empieza con una plantilla</b><small>Crea de un toque los lugares típicos de una tienda de abarrotes: Refrigerador, Botanas, Bebidas, Dulces, Limpieza, Abarrotes secos, Mostrador y Trastienda. Después los puedes cambiar o borrar.</small></div><button type="button" class="dm-grande" onclick="dmPlantilla('abarrotes')">Usar plantilla Abarrotes</button></section>`}
+            ${lugares.length ? "" : plantillasHtml()}
             ${zona("tienda", "Tienda", "pasillo", "Aún no tienes pasillos ni estantes.")}
             ${zona("bodega", "Bodega", "seccion", "Aún no tienes secciones de bodega.")}`
         });
@@ -955,6 +955,17 @@
         if (f.ok && actual() === e) { e.datos = f.datos.producto; pintar(); }
         cargarGeneral();
     };
+
+    // "Empieza con una plantilla": segun el giro (la ferreteria arma pasillos; abarrotes, refrigerador y botanas; si tiene los dos, ambas).
+    function plantillasHtml() {
+        const g = window.duenoGiro || {};
+        const bloques = [];
+
+        if (!g.abarrotesSolo) bloques.push(`<div class="dm-fila-texto"><b>Plantilla Ferretería</b><small>Crea de un toque los lugares típicos de una ferretería: pasillos de Tornillería, Herramienta manual y eléctrica, Plomería, Electricidad y Pintura, más Mostrador y Bodega. Después los puedes cambiar o borrar.</small></div><button type="button" class="dm-grande" onclick="dmPlantilla('ferreteria')">Usar plantilla Ferretería</button>`);
+        if (!g.ferreteriaSolo) bloques.push(`<div class="dm-fila-texto"><b>Plantilla Abarrotes</b><small>Crea de un toque los lugares típicos de una tienda de abarrotes: Refrigerador, Botanas, Bebidas, Dulces, Limpieza, Abarrotes secos, Mostrador y Trastienda. Después los puedes cambiar o borrar.</small></div><button type="button" class="dm-grande" onclick="dmPlantilla('abarrotes')">Usar plantilla Abarrotes</button>`);
+
+        return `<section class="dm-seccion dm-plantilla"><b class="dm-plantilla-titulo">Empieza con una plantilla</b>${bloques.join("")}</section>`;
+    }
 
     // ¿Es un negocio con abarrotes? Activa lo propio de abarrotes: caducidad al recibir y motivo de merma al aprobar un conteo.
     let abarrotesCache = null;

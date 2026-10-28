@@ -46,7 +46,7 @@
     function lineasDe(productos) {
         if (productos.length < 8) return [];
         const cuenta = new Map();
-        productos.forEach(p => cuenta.set(lineaDe(p.nombre), (cuenta.get(lineaDe(p.nombre)) || 0) + 1));
+        productos.forEach(p => cuenta.set(lineaDeProducto(p), (cuenta.get(lineaDeProducto(p)) || 0) + 1));
         // Pocas lineas: cada una con su chip (aunque sea de un solo producto, como Rancheritos). Muchas: las de uno se juntan en "Otros".
         const juntar = cuenta.size > 10;
         let sueltas = 0;
@@ -58,8 +58,30 @@
     }
 
     function perteneceALinea(p, linea, conocidas) {
-        const l = lineaDe(p.nombre);
+        const l = lineaDeProducto(p);
         return linea === "Otros" ? !conocidas.has(l) : l === linea;
+    }
+
+    // En una FERRETERIA (solo ferreteria) las marcas y lineas salen de los datos del producto (marca: Truper, Urrea, Pretul...; categoria: Tornillería,
+    // Plomería...) y no de la lista de marcas de botanas. En abarrotes se sigue reconociendo por nombre.
+    const esFerreteria = () => Boolean(window.duenoGiro && window.duenoGiro.ferreteriaSolo);
+
+    function colorDeMarca(texto) {
+        let suma = 0;
+        for (const c of plano(texto)) suma += c.charCodeAt(0);
+        return COLORES_RESPALDO[suma % COLORES_RESPALDO.length];
+    }
+
+    function marcaDeProducto(p) {
+        const propia = String(p.marca || "").trim();
+        if (esFerreteria() && propia) return { marca: propia, color: colorDeMarca(propia) };
+        return marcaDe(p.nombre);
+    }
+
+    function lineaDeProducto(p) {
+        const categoria = String(p.categoria || "").trim();
+        if (esFerreteria() && categoria) return categoria;
+        return lineaDe(p.nombre);
     }
 
     let estado = null; // { productos, grupos, marca, cantidades: Map(id -> n), enviando, llave }
@@ -84,7 +106,7 @@
         const mapa = new Map();
 
         productos.forEach(p => {
-            const { marca, color } = marcaDe(p.nombre);
+            const { marca, color } = marcaDeProducto(p);
             if (!mapa.has(marca)) mapa.set(marca, { marca, color, productos: [] });
             mapa.get(marca).productos.push(p);
         });
