@@ -41,3 +41,5 @@ body.drm-abierta { overflow: hidden; }
 @media (min-width: 768px) { .drm-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); padding-left: 28px; padding-right: 28px; } .drm-marcas, .drm-cabeza { padding-left: 28px; } }
 @media (min-width: 560px) { .drm-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 #drmBoton { grid-column: 1 / -1; }
+.drm-logo { display: grid; place-items: center; width: 64px; height: 40px; margin-bottom: 4px; border-radius: 10px; background: #fff; overflow: hidden; }
+.drm-logo img { width: 100%; height: 100%; object-fit: contain; }

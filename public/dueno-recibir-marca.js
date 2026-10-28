@@ -83,7 +83,7 @@
             <nav class="drm-marcas" aria-label="Marcas">${estado.grupos.map(g => {
                 const llevo = g.productos.reduce((s, p) => s + (estado.cantidades.get(p.id) > 0 ? 1 : 0), 0);
                 return `<button type="button" class="drm-marca${g === grupo ? " activa" : ""}" style="--marca:${g.color}" onclick="elegirMarcaRecibirDueno(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})">
-                    <b>${esc(g.marca)}</b><small>${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
+                    ${g.logo ? `<span class="drm-logo"><img src="${esc(g.logo)}" alt=""></span>` : ""}<b>${esc(g.marca)}</b><small>${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
             }).join("")}</nav>
             </div>
             <div class="drm-grid">${grupo ? grupo.productos.map(p => {
@@ -137,7 +137,14 @@
         actualizarTarjeta(id);
     };
 
-    window.elegirMarcaRecibirDueno = function (marca) { estado.marca = marca; pintar(); document.querySelector("#drmCapa .drm-grid")?.scrollIntoView({ block: "start" }); };
+    window.elegirMarcaRecibirDueno = function (marca) {
+        estado.marca = marca;
+        pintar();
+        // Arriba de la lista de esa marca, y la marca elegida a la vista en la fila de marcas.
+        const c = document.getElementById("drmCapa");
+        if (c) c.scrollTop = 0;
+        document.querySelector("#drmCapa .drm-marca.activa")?.scrollIntoView({ inline: "center", block: "nearest" });
+    };
 
     window.cerrarRecibirMarcaDueno = function () {
         if (estado && totales().productos && !window.confirm("Tienes cantidades sin guardar. ¿Salir sin confirmar?")) return;
@@ -145,6 +152,39 @@
         document.body.classList.remove("drm-abierta");
         estado = null;
     };
+
+    const COLORES_EXHIBIDOR = { azul: "#1d4ed8", naranja: "#ea580c", verde: "#15803d", rojo: "#dc2626", morado: "#7e22ce", negro: "#1f2937" };
+
+    // Los exhibidores del negocio mandan (con su logo y su color); lo que no esta en ninguno se agrupa solo por marca.
+    async function gruposConExhibidores(productos) {
+        try {
+            const lista = (await fetchAutenticado("/exhibidores"))?.exhibidores || [];
+            const usables = lista.filter(x => x.activo !== false && x.totalEspacios > 0);
+
+            if (!usables.length) return agrupar(productos);
+
+            const porId = new Map(productos.map(p => [Number(p.id), p]));
+            const detalles = await Promise.all(usables.map(x => fetchAutenticado("/exhibidores/" + x.id).then(d => d?.exhibidor).catch(() => null)));
+            const usados = new Set();
+            const grupos = [];
+
+            detalles.forEach((d, i) => {
+                if (!d) return;
+                const lista = d.espacios.map(e => {
+                    const base = porId.get(Number(e.productoId)) || { id: e.productoId, nombre: e.nombre, imagenUrl: null };
+                    usados.add(Number(e.productoId));
+                    return { ...base, stock: Number(e.existencia ?? base.stock) || 0 };
+                });
+                if (lista.length) grupos.push({ marca: d.nombre, color: COLORES_EXHIBIDOR[d.color] || "#1d4ed8", logo: usables[i].foto || d.foto || null, productos: lista });
+            });
+
+            const resto = productos.filter(p => !usados.has(Number(p.id)));
+            const extra = resto.length ? agrupar(resto) : [];
+            return grupos.concat(extra).length ? grupos.concat(extra) : agrupar(productos);
+        } catch (error) {
+            return agrupar(productos);
+        }
+    }
 
     window.abrirRecibirMarcaDueno = async function () {
         let catalogo = [];
@@ -154,7 +194,7 @@
 
         if (!productos.length) { if (typeof mostrarToastDueno === "function") mostrarToastDueno("Todavía no hay productos en tu catálogo."); return; }
 
-        const grupos = agrupar(productos);
+        const grupos = await gruposConExhibidores(productos);
         estado = { grupos, marca: grupos[0].marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
         pintar();
         capa().classList.add("abierta");
