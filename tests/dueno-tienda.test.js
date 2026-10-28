@@ -342,3 +342,25 @@ test("Recibir por marca: buscador (nombre o codigo), escaner con tarjetita y res
     assert.match(js, /class="drm-resumen-abrir"/, "el total del pie abre el resumen");
     assert.match(leer("dueno-recibir-marca.css"), /\.drm-resumen \{ position: fixed; inset: 0;/);
 });
+
+test("Recibir por marca: lineas dentro de cada marca (Doritos, Cheetos, Bolzaza...; Aguas, Fanta...) para encontrar mas rapido", () => {
+    const vm = require("node:vm");
+    const js = leer("dueno-recibir-marca.js");
+    const contexto = { window: {}, document: { querySelector: () => null, getElementById: () => null }, escaparDueno: String };
+    vm.runInNewContext(js, contexto);
+
+    const linea = n => contexto.window.lineaDeRecibirDueno(n);
+    assert.equal(linea("Doritos Nacho Rojos 58 g"), "Doritos");
+    assert.equal(linea("Cheetos Torciditos Bolzaza 115 g"), "Bolzaza", "Bolzaza es un tamaño que se busca aparte");
+    assert.equal(linea("Ciel Purificada 600 ml"), "Aguas");
+    assert.equal(linea("Power Ade Morado 1 L"), "Powerade");
+    assert.equal(linea("Topo-Chico Limonada 600 ml"), "Topo Chico");
+    assert.equal(linea("Fuzetea Sabor Durazno 600 ml"), "Fuze Tea");
+
+    const nombres = ["Cheetos A", "Cheetos B", "Doritos A", "Doritos B", "Rancheritos Original", "Ruffles Queso", "Sabritas Adobadas", "Sabritas Limón"].map(nombre => ({ nombre }));
+    const lineas = contexto.window.lineasDeRecibirDueno(nombres);
+    assert.deepEqual(Array.from(lineas.map(x => x.linea)).sort(), ["Cheetos", "Doritos", "Rancheritos", "Ruffles", "Sabritas"], "pocas lineas: cada una con su chip");
+    assert.equal(contexto.window.lineasDeRecibirDueno(nombres.slice(0, 3)).length, 0, "con pocos productos no hacen falta lineas");
+    assert.match(js, /id="drmLineas"/);
+    assert.match(js, /window\.elegirLineaRecibirDueno = function/);
+});

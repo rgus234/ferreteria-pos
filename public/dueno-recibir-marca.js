@@ -19,6 +19,49 @@
     const esc = valor => (typeof escaparDueno === "function" ? escaparDueno(valor) : String(valor ?? ""));
     const plano = t => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
+    // Lineas dentro de una marca (Doritos, Cheetos, Bolzaza...; en refrescos: Coca-Cola, Aguas, Fanta...). "Bolzaza" manda sobre la linea
+    // porque es un tamaño que se busca aparte. Lo que no esta en la tabla toma la primera palabra del nombre.
+    const LINEAS_PRIORITARIAS = [["Bolzaza", ["bolzaza", "bolsaza"]]];
+    const LINEAS = [
+        ["Aguas", ["ciel", "e-pura", "epura", "bonafont", "agua "]],
+        ["Fuze Tea", ["fuze", "fuzetea"]],
+        ["Powerade", ["powerade", "power ade"]],
+        ["Topo Chico", ["topo chico", "topo-chico", "topochico"]],
+        ["Pake Taxo", ["pake taxo", "paketaxo"]],
+        ["Coca-Cola", ["coca"]],
+        ["Sidral", ["sidral", "mundet"]]
+    ];
+
+    function lineaDe(nombre) {
+        const n = plano(nombre);
+
+        for (const [linea, palabras] of LINEAS_PRIORITARIAS) if (palabras.some(p => n.includes(p))) return linea;
+        for (const [linea, palabras] of LINEAS) if (palabras.some(p => n.includes(p))) return linea;
+
+        const primera = (String(nombre || "").trim().split(" ")[0] || "Otros").replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]/g, "") || "Otros";
+        return primera.charAt(0).toUpperCase() + primera.slice(1).toLowerCase();
+    }
+
+    // Lineas de una marca con su cuenta; las de un solo producto se juntan en "Otros". Sin lineas utiles (una sola o pocos productos), no se muestran.
+    function lineasDe(productos) {
+        if (productos.length < 8) return [];
+        const cuenta = new Map();
+        productos.forEach(p => cuenta.set(lineaDe(p.nombre), (cuenta.get(lineaDe(p.nombre)) || 0) + 1));
+        // Pocas lineas: cada una con su chip (aunque sea de un solo producto, como Rancheritos). Muchas: las de uno se juntan en "Otros".
+        const juntar = cuenta.size > 10;
+        let sueltas = 0;
+        const lista = [];
+        cuenta.forEach((n, linea) => { if (!juntar || n >= 2) lista.push({ linea, n }); else sueltas += n; });
+        lista.sort((a, b) => b.n - a.n);
+        if (sueltas) lista.push({ linea: "Otros", n: sueltas });
+        return lista.length >= 2 ? lista : [];
+    }
+
+    function perteneceALinea(p, linea, conocidas) {
+        const l = lineaDe(p.nombre);
+        return linea === "Otros" ? !conocidas.has(l) : l === linea;
+    }
+
     let estado = null; // { productos, grupos, marca, cantidades: Map(id -> n), enviando, llave }
 
     function marcaDe(nombre) {
@@ -105,7 +148,21 @@
         }
 
         const grupo = estado.grupos.find(g => g.marca === estado.marca) || estado.grupos[0];
-        return grupo ? grupo.productos : [];
+        if (!grupo) return [];
+        if (!estado.linea) return grupo.productos;
+
+        const conocidas = new Set(lineasDe(grupo.productos).filter(x => x.linea !== "Otros").map(x => x.linea));
+        return grupo.productos.filter(p => perteneceALinea(p, estado.linea, conocidas));
+    }
+
+    function lineasHtml() {
+        const grupo = estado.grupos.find(g => g.marca === estado.marca) || estado.grupos[0];
+        const lineas = grupo ? lineasDe(grupo.productos) : [];
+
+        if (!lineas.length) return "";
+
+        const chip = (linea, n, etiqueta) => `<button type="button" class="drm-linea${(estado.linea || "") === linea ? " activa" : ""}" onclick="elegirLineaRecibirDueno(${JSON.stringify(linea).replace(/"/g, "&quot;")})">${esc(etiqueta)} <small>${n}</small></button>`;
+        return chip("", grupo.productos.length, "Todos") + lineas.map(x => chip(x.linea, x.n, x.linea)).join("");
     }
 
     function marcasHtml(grupo) {
@@ -140,6 +197,7 @@
                 </button>
             </div>
             <nav class="drm-marcas" id="drmMarcas" aria-label="Marcas">${marcasHtml(grupo)}</nav>
+            <nav class="drm-lineas" id="drmLineas" aria-label="Líneas de la marca">${lineasHtml()}</nav>
             </div>
             <div class="drm-grid" id="drmGrid">${gridHtml()}</div>
             <footer class="drm-pie">
@@ -309,6 +367,21 @@
         actualizarTarjeta(id);
     };
 
+    window.elegirLineaRecibirDueno = function (linea) {
+        estado.linea = linea || "";
+        estado.consulta = "";
+        const campo = document.getElementById("drmBuscar");
+        if (campo) campo.value = "";
+        document.getElementById("drmCapa")?.classList.remove("drm-buscando");
+        const grid = document.getElementById("drmGrid");
+        if (grid) grid.innerHTML = gridHtml();
+        const barra = document.getElementById("drmLineas");
+        if (barra) barra.innerHTML = lineasHtml();
+        const c = document.getElementById("drmCapa");
+        if (c) c.scrollTop = 0;
+        barra?.querySelector(".drm-linea.activa")?.scrollIntoView({ inline: "center", block: "nearest" });
+    };
+
     window.escribirRecibirDueno = function (id, texto) {
         const n = Number(String(texto).replace(/[^0-9.]/g, ""));
         estado.cantidades.set(id, Number.isFinite(n) && n > 0 ? n : 0);
@@ -317,6 +390,7 @@
 
     window.elegirMarcaRecibirDueno = function (marca) {
         estado.marca = marca;
+        estado.linea = "";
         estado.consulta = "";
         pintar();
         // Arriba de la lista de esa marca, y la marca elegida a la vista en la fila de marcas.
@@ -375,7 +449,7 @@
 
         const grupos = await gruposConExhibidores(productos);
         const todos = grupos.flatMap(g => g.productos).concat(productos).filter((p, i, a) => a.findIndex(q => Number(q.id) === Number(p.id)) === i);
-        estado = { grupos, todos, indice: new Map(todos.map(p => [Number(p.id), p])), consulta: "", resumen: false, marca: (grupos.find(g => g.marca === marcaInicial) || grupos[0]).marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
+        estado = { grupos, todos, indice: new Map(todos.map(p => [Number(p.id), p])), consulta: "", linea: "", resumen: false, marca: (grupos.find(g => g.marca === marcaInicial) || grupos[0]).marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
         pintar();
         capa().classList.add("abierta");
         document.body.classList.add("drm-abierta");
@@ -417,6 +491,8 @@
 
     window.agruparMarcasRecibirDueno = agrupar;
     window.marcaDeRecibirDueno = marcaDe;
+    window.lineaDeRecibirDueno = lineaDe;
+    window.lineasDeRecibirDueno = lineasDe;
 
     // Boton junto a "Recibir mercancia" en Inventario.
     function ponerBoton() {
