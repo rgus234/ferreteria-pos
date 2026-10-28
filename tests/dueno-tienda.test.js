@@ -328,3 +328,17 @@ test("Recibir por marca: agrupa los productos por marca y manda las cantidades p
     assert.equal(grupos[0].productos.length, 2);
     assert.equal(grupos.at(-1).marca, "Otros", "las marcas con un solo producto y desconocidas se juntan en Otros");
 });
+
+test("Recibir por marca: buscador (nombre o codigo), escaner con tarjetita y resumen a pantalla completa", () => {
+    const js = leer("dueno-recibir-marca.js");
+
+    assert.match(js, /id="drmBuscar"/, "buscador arriba");
+    assert.match(js, /window\.escanearRecibirDueno = function/);
+    assert.match(js, /abrirEscanerCodigoDueno\(\{ titulo: "Escanear mercancía", continuo: true/, "usa el escaner de siempre, continuo");
+    assert.match(js, /window\.codigoRecibirDueno = function/, "un codigo escrito o de lector suma uno");
+    assert.match(js, /mostrarTarjetaEscaneo\(p, `Llevas/, "tarjetita corta al escanear");
+    assert.match(js, /window\.abrirResumenRecibirDueno = function/);
+    assert.match(js, /Seguir recibiendo/, "el resumen se baja para seguir");
+    assert.match(js, /class="drm-resumen-abrir"/, "el total del pie abre el resumen");
+    assert.match(leer("dueno-recibir-marca.css"), /\.drm-resumen \{ position: fixed; inset: 0;/);
+});
