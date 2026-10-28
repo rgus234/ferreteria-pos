@@ -20,7 +20,11 @@ const MARCAS = [
     { id: "monster", nombre: "Monster", color: "negro", palabras: ["monster"] },
     { id: "penafiel", nombre: "Peñafiel", color: "rojo", palabras: ["penafiel"] },
     { id: "volt", nombre: "Volt", color: "azul", palabras: ["volt"] },
-    { id: "v8", nombre: "V8", color: "rojo", palabras: ["v8"] }
+    { id: "v8", nombre: "V8", color: "rojo", palabras: ["v8"] },
+    { id: "barcel", nombre: "Barcel", color: "rojo", palabras: ["barcel", "takis", "hot nuts", "chips fuego", "runners", "big mix"] },
+    { id: "ricolino", nombre: "Ricolino", color: "rojo", palabras: ["ricolino", "bubulubu", "panditas", "kranky", "duvalin", "paleta payaso", "chocorroles", "rick"] },
+    { id: "lala", nombre: "Lala", color: "azul", palabras: ["lala"] },
+    { id: "jumex", nombre: "Jumex", color: "azul", palabras: ["jumex"] }
 ];
 
 const plano = texto => String(texto || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();

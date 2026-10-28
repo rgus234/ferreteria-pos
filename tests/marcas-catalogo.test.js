@@ -4,8 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const marcas = require("../marcas-catalogo");
 
-test("catalogo de marcas: 15 marcas, cada una con su logo y un color valido", () => {
-    assert.equal(marcas.MARCAS.length, 15);
+test("catalogo de marcas: 19 marcas, cada una con su logo y un color valido", () => {
+    assert.equal(marcas.MARCAS.length, 19);
 
     for (const m of marcas.MARCAS) {
         assert.ok(["azul", "naranja", "verde", "rojo", "morado", "negro"].includes(m.color), `${m.nombre}: color`);
@@ -25,6 +25,10 @@ test("catalogo de marcas: reconoce el producto por palabra completa y no confund
     assert.equal(marca("Jarrito Piña 600 ml"), "Jarritos");
     assert.equal(marca("Peñafiel Twist 600 ml"), "Peñafiel");
     assert.equal(marca("Volt Yellow 473 ml"), "Volt");
+    assert.equal(marca("Takis Fuego 62 g"), "Barcel");
+    assert.equal(marca("Panditas Ricolino 40 g"), "Ricolino");
+    assert.equal(marca("Leche Lala Entera 1 L"), "Lala");
+    assert.equal(marca("Jumex Mango 335 ml"), "Jumex");
     assert.equal(marca("Juanito Pan"), null, "'nito' dentro de otra palabra no cuenta");
     assert.equal(marca("Queso fresco 250 g"), null);
     assert.equal(marca("Refresco de cola 600 ml"), null);
