@@ -302,3 +302,29 @@ test("Producto nuevo por nombre: cada giro ve lo suyo (un abarrotes no recibe br
     assert.match(fs.readFileSync(path.join(__dirname, "..", "explorar-nexo-server.js"), "utf8"), /origen: fila\.origen/, "el servidor manda el origen");
     assert.match(leer("dueno-giro.js"), /ferreteriaSolo/);
 });
+
+test("Recibir por marca: agrupa los productos por marca y manda las cantidades por la recepcion rapida de siempre", () => {
+    const vm = require("node:vm");
+    const js = leer("dueno-recibir-marca.js");
+
+    assert.match(js, /\/recepciones-mercancia\/rapida/, "mismo camino que Recibir mercancia");
+    assert.match(js, /idempotencyKey: estado\.llave/, "la misma llave al reintentar: no suma dos veces");
+    assert.match(leer("dueno.html"), /dueno-recibir-marca\.js\?v=/);
+    assert.match(leer("dueno-sw.js"), /\/dueno-recibir-marca\.css\?v=/);
+
+    const contexto = { window: {}, document: { querySelector: () => null, getElementById: () => null }, escaparDueno: String };
+    vm.runInNewContext(js, contexto);
+
+    const marca = n => contexto.window.marcaDeRecibirDueno(n).marca;
+    assert.equal(marca("DORITOS NACHO ROJOS 58g"), "Sabritas");
+    assert.equal(marca("FANTA NARANJA 600 ml"), "Coca-Cola");
+    assert.equal(marca("MARIAS GAMESA 185g"), "Gamesa");
+    assert.equal(marca("GANSITO 50g"), "Marinela");
+    assert.equal(marca("MEDIAS NOCHES BIMBO 340g"), "Bimbo");
+    assert.equal(marca("PEÑAFIEL TWIST 600ml"), "Peñafiel", "marca desconocida: la primera palabra del nombre");
+
+    const grupos = contexto.window.agruparMarcasRecibirDueno([{ id: 1, nombre: "SABRITAS ORIGINAL" }, { id: 2, nombre: "DORITOS NACHO" }, { id: 3, nombre: "TAJÍN CLÁSICO" }]);
+    assert.equal(grupos[0].marca, "Sabritas");
+    assert.equal(grupos[0].productos.length, 2);
+    assert.equal(grupos.at(-1).marca, "Otros", "las marcas con un solo producto y desconocidas se juntan en Otros");
+});
