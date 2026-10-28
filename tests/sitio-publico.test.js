@@ -242,3 +242,27 @@ test("el correo de invitacion y el de confirmacion traen las mismas condiciones 
     assert.match(confirmacion, /condicionesPilotoHtml\(correo\)/);
     assert.doesNotMatch(confirmacion, /cajaPreciosFundadorHtml|generarFichaInformativaPdf|planes y precios/);
 });
+
+test("Pagina publica: seccion de computadora, tablet y celular con capturas reales de la app", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const html = fs.readFileSync(path.join(__dirname, "..", "public", "site", "index.html"), "utf8");
+    const seccion = html.slice(html.indexOf('<section id="movil"'), html.indexOf('<section id="nexo-ia"'));
+
+    assert.match(seccion, /computadora, tablet y celular/i);
+    assert.match(seccion, /escáner/i, "anuncia el celular como escaner");
+    assert.match(seccion, /datos de ejemplo/i, "las capturas se declaran con datos de ejemplo");
+    assert.match(html, /href="#movil"/, "acceso desde el menu");
+
+    const imagenes = [...seccion.matchAll(/src="(\/site\/img\/[^"]+)"/g)].map(m => m[1]);
+    assert.ok(imagenes.length >= 5, "capturas de celular y tablet");
+
+    for (const ruta of imagenes) {
+        assert.ok(fs.existsSync(path.join(__dirname, "..", "public", ruta)), `existe ${ruta}`);
+    }
+
+    for (const img of seccion.match(/<img [^>]+>/g)) {
+        assert.match(img, /alt="[^"]{10,}"/, "cada imagen con texto alternativo");
+        assert.match(img, /width="\d+" height="\d+"/, "con tamaño para que no salte la pagina");
+    }
+});
