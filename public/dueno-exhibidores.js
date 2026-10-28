@@ -100,6 +100,7 @@ async function abrirExhibidoresDueno() {
 
     cuerpo.innerHTML = lista.length ? lista.map(x => `
         <button type="button" class="dx-tarjeta dx-color-${dxEscapar(x.color || "azul")}" onclick="abrirExhibidorDueno(${x.id})">
+            ${x.foto ? `<span class="dx-logo"><img src="${dxEscapar(x.foto)}" alt=""></span>` : ""}
             <b>${dxEscapar(x.nombre)}</b>
             <span>${x.totalEspacios} producto${x.totalEspacios === 1 ? "" : "s"}${x.agotados ? ` · ${x.agotados} agotado${x.agotados === 1 ? "" : "s"}` : ""}</span>
         </button>`).join("") : `<p class="dx-nota">${ok ? "Todavía no tienes exhibidores con productos. Créalos en la computadora." : "No se pudieron cargar. Revisa tu internet."}</p>`;
@@ -131,9 +132,8 @@ function dxPintarExhibidor() {
     <header class="dx-cabecera dx-color-${dxEscapar(x.color || "azul")}">
         <button type="button" class="dx-icono" onclick="abrirExhibidoresDueno()" aria-label="Volver">&larr;</button>
         <h2>${dxEscapar(x.nombre)}</h2>
-        <span class="dx-icono dx-vacio-icono"></span>
-    </header>
-    <main class="dx-cuerpo">
+        ${typeof abrirRecibirMarcaDueno === "function" ? `<button type="button" class="dx-recibir" onclick="abrirRecibirMarcaDueno(${JSON.stringify(x.nombre).replace(/"/g, "&quot;")})">Recibir</button>` : `<span class="dx-icono dx-vacio-icono"></span>`}
+    </header>    <main class="dx-cuerpo">
         <p class="dx-nota">Toca una tarjeta para agregarla al carrito.</p>
         <div class="dx-tiles">${x.espacios.map(e => {
             const foto = dxFotos.get(e.productoId);

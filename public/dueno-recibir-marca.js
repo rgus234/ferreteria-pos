@@ -186,7 +186,7 @@
         }
     }
 
-    window.abrirRecibirMarcaDueno = async function () {
+    window.abrirRecibirMarcaDueno = async function (marcaInicial) {
         let catalogo = [];
         try { catalogo = typeof listarCatalogoLocalCompletoDueno === "function" ? await listarCatalogoLocalCompletoDueno() : []; } catch (error) { catalogo = []; }
 
@@ -195,7 +195,7 @@
         if (!productos.length) { if (typeof mostrarToastDueno === "function") mostrarToastDueno("Todavía no hay productos en tu catálogo."); return; }
 
         const grupos = await gruposConExhibidores(productos);
-        estado = { grupos, marca: grupos[0].marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
+        estado = { grupos, marca: (grupos.find(g => g.marca === marcaInicial) || grupos[0]).marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
         pintar();
         capa().classList.add("abierta");
         document.body.classList.add("drm-abierta");
