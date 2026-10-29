@@ -267,3 +267,12 @@
 
 .dm-fila-quieta { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 16px; background: #fff; }
 .dm-fila-quieta .dm-mini-lugar { flex: none; display: grid; }
+
+/* Elegir etiquetas QR */
+.dm-etq-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 6px; }
+.dm-etq-chips button { padding: 9px 14px; border: 0; border-radius: 999px; background: var(--brand-soft, #eaf0ff) !important; color: var(--brand, #2563ff) !important; font: inherit; font-size: 13.5px; font-weight: 800; }
+.dm-etq { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.dm-etq input { flex: none; width: 22px; height: 22px; accent-color: var(--brand, #2563ff); }
+.dm-etq.marcada { outline: 2px solid var(--brand, #2563ff); outline-offset: -2px; }
+.dm-principal { width: 100%; min-height: 52px; border: 0; border-radius: 16px; background: var(--brand, #2563ff) !important; color: #fff !important; font: inherit; font-size: 16px; font-weight: 800; }
+.dm-principal:disabled { opacity: .5; }

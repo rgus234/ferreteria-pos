@@ -492,3 +492,13 @@ test("Modo oscuro del celular: exhibidores, mapa, tienda, usuarios y captura tie
     assert.ok(leer("dueno.html").includes("dueno-oscuro-auto.css"));
     assert.ok(leer("dueno-sw.js").includes("/dueno-oscuro-auto.css"), "disponible sin conexion");
 });
+
+test("Etiquetas QR del celular: primero se elige cuales imprimir (por lugar, tienda, bodega o todas) y luego se imprime solo eso", () => {
+    const js = leer("dueno-mapa.js");
+    assert.match(js, /onclick="dmElegirEtiquetas\(\)"/, "el boton abre la lista, ya no imprime todo de golpe");
+    assert.match(js, /window\.dmImprimirSeleccion/);
+    assert.match(js, /MAX_ETIQUETAS = 120/, "limite por hoja avisado");
+    assert.match(js, /Preparando \$\{n\} etiqueta/, "avisa que esta preparando (no parece trabado)");
+    assert.match(js, /\{ numeric: true \}/, "Estante 2 va antes que Estante 10");
+    assert.match(js, /dmImprimir\(\$\{l\.id\}\)/, "la etiqueta de un solo lugar sigue directa");
+});

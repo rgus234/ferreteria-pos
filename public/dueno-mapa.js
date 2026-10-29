@@ -154,7 +154,7 @@
     function pintar() {
         const c = obtenerCapa();
         const p = actual();
-        const mapa = { inicio: pintarInicio, lugar: pintarLugar, producto: pintarProducto, conteo: pintarConteo, resurtir: pintarResurtir, criticos: pintarCriticos, buscar: pintarBusqueda, nuevo: pintarNuevo, conteos: pintarConteos, conteoDetalle: pintarConteoDetalle };
+        const mapa = { inicio: pintarInicio, lugar: pintarLugar, producto: pintarProducto, conteo: pintarConteo, resurtir: pintarResurtir, criticos: pintarCriticos, etiquetas: pintarEtiquetas, buscar: pintarBusqueda, nuevo: pintarNuevo, conteos: pintarConteos, conteoDetalle: pintarConteoDetalle };
 
         c.innerHTML = (mapa[p.t] || pintarInicio)(p);
     }
@@ -231,7 +231,7 @@
                 <button type="button" onclick="dmIrResurtir()"><span class="dm-icono-caja dm-ambar">${icono("resurtir", 24)}</span>Resurtir${resumen?.porResurtir ? `<em>${resumen.porResurtir}</em>` : ""}</button>
                 <button type="button" onclick="dfAbrir()"><span class="dm-icono-caja dm-verde">${icono("caja", 24)}</span>Recibir factura</button>
                 <button type="button" onclick="dmIrConteos()"><span class="dm-icono-caja dm-azul">${icono("ok", 24)}</span>Conteos${resumen?.conteosPendientes ? `<em>${resumen.conteosPendientes}</em>` : ""}</button>
-                <button type="button" onclick="dmImprimir()" ${lugares.length ? "" : "disabled"}><span class="dm-icono-caja dm-gris">${icono("etiqueta", 24)}</span>Etiquetas QR</button>
+                <button type="button" onclick="dmElegirEtiquetas()" ${lugares.length ? "" : "disabled"}><span class="dm-icono-caja dm-gris">${icono("etiqueta", 24)}</span>Etiquetas QR</button>
             </div>
             ${lugares.length ? "" : plantillasHtml()}
             ${zona("tienda", "Tienda", "pasillo", "Aún no tienes pasillos ni estantes.")}
@@ -889,8 +889,84 @@
 
     // ---- Etiquetas con QR (PDF) ----
 
-    window.dmImprimir = async function (id = null) {
-        const r = await llamar("/ubicaciones/etiquetas", { method: "POST", body: id ? { ids: [id] } : {} });
+    // Elegir QUE etiquetas imprimir (antes se preparaban todas de golpe y con muchos lugares la pantalla parecia trabada).
+    const MAX_ETIQUETAS = 120;
+
+    window.dmElegirEtiquetas = function () { ir({ t: "etiquetas", marcados: new Set(), imprimiendo: false }); };
+
+    function lugaresParaEtiquetas() {
+        return lugares.slice().sort((a, b) => (a.zona === b.zona ? 0 : a.zona === "tienda" ? -1 : 1) || String(a.ruta || a.nombre).localeCompare(String(b.ruta || b.nombre), "es", { numeric: true }));
+    }
+
+    function pintarEtiquetas(e) {
+        const filas = lugaresParaEtiquetas().map(l => `<label class="dm-fila dm-etq${e.marcados.has(l.id) ? " marcada" : ""}" data-id="${l.id}">
+            <input type="checkbox" ${e.marcados.has(l.id) ? "checked" : ""} onchange="dmEtqMarcar(${l.id}, this.checked)">
+            <span class="dm-fila-texto"><b>${esc(l.nombre)}</b><small>${esc(l.ruta || "")} · ${esc(l.codigo)}</small></span>
+            <span class="dm-chip-codigo dm-chico">${l.zona === "bodega" ? "Bodega" : "Tienda"}</span></label>`).join("");
+
+        return pantalla({
+            titulo: "Etiquetas QR",
+            subtitulo: "Elige cuáles imprimir",
+            cuerpo: `<div class="dm-etq-chips"><button type="button" onclick="dmEtqGrupo('todas')">Todas</button><button type="button" onclick="dmEtqGrupo('tienda')">Solo tienda</button><button type="button" onclick="dmEtqGrupo('bodega')">Solo bodega</button><button type="button" onclick="dmEtqGrupo('ninguna')">Ninguna</button></div>
+                <p class="dm-nota">Máximo ${MAX_ETIQUETAS} etiquetas por hoja. Si tienes más, imprime por tandas.</p>${filas || `<p class="dm-nota">Todavía no hay lugares.</p>`}`,
+            pie: `<button type="button" class="dm-principal" id="dmEtqBoton" onclick="dmImprimirSeleccion()" disabled>Elige al menos una etiqueta</button>`
+        });
+    }
+
+    function actualizarBotonEtiquetas() {
+        const e = actual();
+        const boton = document.getElementById("dmEtqBoton");
+        if (!boton || e?.t !== "etiquetas") return;
+        const n = e.marcados.size;
+        boton.disabled = !n || e.imprimiendo;
+        boton.textContent = e.imprimiendo ? `Preparando ${n} etiqueta${n === 1 ? "" : "s"}…` : (n ? `Imprimir ${n} etiqueta${n === 1 ? "" : "s"}` : "Elige al menos una etiqueta");
+    }
+
+    window.dmEtqMarcar = function (id, marcada) {
+        const e = actual();
+        if (e?.t !== "etiquetas") return;
+
+        if (marcada && e.marcados.size >= MAX_ETIQUETAS) {
+            aviso(`Máximo ${MAX_ETIQUETAS} por hoja. Imprime estas y luego las demás.`, "error");
+            const caja = document.querySelector(`.dm-etq[data-id="${id}"] input`);
+            if (caja) caja.checked = false;
+            return;
+        }
+
+        if (marcada) e.marcados.add(id); else e.marcados.delete(id);
+        document.querySelector(`.dm-etq[data-id="${id}"]`)?.classList.toggle("marcada", marcada);
+        actualizarBotonEtiquetas();
+    };
+
+    window.dmEtqGrupo = function (grupo) {
+        const e = actual();
+        if (e?.t !== "etiquetas") return;
+        e.marcados.clear();
+        lugaresParaEtiquetas().filter(l => grupo === "todas" || grupo === l.zona).slice(0, MAX_ETIQUETAS).forEach(l => e.marcados.add(l.id));
+        document.querySelectorAll(".dm-etq").forEach(fila => {
+            const marcada = e.marcados.has(Number(fila.dataset.id));
+            fila.classList.toggle("marcada", marcada);
+            const caja = fila.querySelector("input");
+            if (caja) caja.checked = marcada;
+        });
+        const total = lugares.filter(l => grupo === "todas" || grupo === l.zona).length;
+        if (total > MAX_ETIQUETAS) aviso(`Se eligieron las primeras ${MAX_ETIQUETAS}. Imprime estas y luego las demás.`);
+        actualizarBotonEtiquetas();
+    };
+
+    window.dmImprimirSeleccion = async function () {
+        const e = actual();
+        if (e?.t !== "etiquetas" || !e.marcados.size || e.imprimiendo) return;
+        e.imprimiendo = true;
+        actualizarBotonEtiquetas();
+        await window.dmImprimir([...e.marcados]);
+        e.imprimiendo = false;
+        actualizarBotonEtiquetas();
+    };
+
+    window.dmImprimir = async function (ids = null) {
+        const lista = Array.isArray(ids) ? ids : (ids ? [ids] : []);
+        const r = await llamar("/ubicaciones/etiquetas", { method: "POST", body: lista.length ? { ids: lista } : {} });
 
         if (!r.ok) { aviso(r.datos.error || "No se pudo preparar la hoja.", "error"); return; }
 
