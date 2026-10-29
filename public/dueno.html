@@ -24,7 +24,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=celular-plan-b-20261115-08">
+    <link rel="stylesheet" href="dueno.css?v=celular-plan-b-20261118-09">
     <link rel="stylesheet" href="dueno-captura.css?v=captura-20261030-01">
     <link rel="stylesheet" href="dueno-tienda.css?v=tienda-20261031-01">
     <link rel="stylesheet" href="dueno-exhibidores.css?v=exhibidores-20261108-04">
@@ -121,6 +121,15 @@
             </label>
             <p id="duenoLoginError" class="dueno-login-error" style="display:none;"></p>
             <button id="btnDuenoLogin" type="button" onclick="iniciarSesionDueno()">Entrar</button>
+            <p class="dueno-login-alt"><a href="#" onclick="mostrarCodigoEnlaceDueno(); return false;">Tengo un código de la computadora</a></p>
+            <div id="duenoCodigoEnlaceCaja" style="display:none;">
+                <label>Código de la computadora
+                    <input type="text" id="duenoCodigoEnlace" autocomplete="one-time-code" autocapitalize="characters" maxlength="9" placeholder="K7QM-2XPD" style="text-transform:uppercase;letter-spacing:.12em;">
+                </label>
+                <p id="duenoCodigoEnlaceError" class="dueno-login-error" style="display:none;"></p>
+                <button id="btnDuenoCodigoEnlace" type="button" onclick="enlazarConCodigoDueno()">Enlazar este celular</button>
+                <p class="dueno-login-alt" style="margin-top:6px;">En la computadora, abre “App del dueño” en el menú.</p>
+            </div>
             <p class="dueno-login-alt"><a href="#" onclick="mostrarLoginEmpleadoDueno(); return false;">¿Eres empleado? Entra con tu cuenta Nexo</a></p>
             <p class="dueno-login-alt"><a href="#" onclick="mostrarBienvenidaDueno(); return false;">&larr; Volver</a></p>
         </div>
@@ -791,11 +800,11 @@
         </div>
     </div>
 
-    <script src="dueno-offline.js?v=celular-plan-b-20261115-08"></script>
-    <script src="dueno.js?v=celular-plan-b-20261115-08"></script>
-    <script src="dueno-inventario.js?v=celular-plan-b-20261115-08"></script>
-    <script src="dueno-ventas-offline.js?v=celular-plan-b-20261115-08"></script>
-    <script src="dueno-gestion.js?v=celular-plan-b-20261115-08"></script>
+    <script src="dueno-offline.js?v=celular-plan-b-20261118-09"></script>
+    <script src="dueno.js?v=celular-plan-b-20261118-09"></script>
+    <script src="dueno-inventario.js?v=celular-plan-b-20261118-09"></script>
+    <script src="dueno-ventas-offline.js?v=celular-plan-b-20261118-09"></script>
+    <script src="dueno-gestion.js?v=celular-plan-b-20261118-09"></script>
     <script src="dueno-captura.js?v=captura-20261030-02"></script>
     <script src="dueno-tienda.js?v=tienda-20261031-01"></script>
     <script src="dueno-exhibidores.js?v=exhibidores-20261108-04"></script>

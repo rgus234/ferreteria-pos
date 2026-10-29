@@ -210,6 +210,63 @@ async function fetchAutenticado(url, opciones = {}) {
     return datos;
 }
 
+// ---- Enlazar este celular con el QR (o el codigo) que muestra la computadora: App del dueño -> Enlazar celular ----
+// El QR trae /dueno?enlace=TOKEN; el codigo corto se escribe en el login. Los dos se cambian por una sesion de dueño (enlace-celular-server.js).
+async function canjearEnlaceCelularDueno(cuerpo) {
+    try {
+        const respuesta = await fetch("/enlace-celular/canjear", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) });
+        const datos = await respuesta.json().catch(() => ({}));
+
+        if (!respuesta.ok || !datos.ok) return { ok: false, error: datos.error || "No se pudo enlazar. Pide un código nuevo en la computadora." };
+
+        localStorage.setItem(DUENO_TOKEN_KEY, datos.token);
+        duenoRolSesion = "owner";
+        duenoPermisosSesion = null;
+        return { ok: true, negocio: datos.negocio };
+    } catch (error) {
+        return { ok: false, error: "No se pudo conectar. Revisa tu internet e intenta de nuevo." };
+    }
+}
+
+function mostrarCodigoEnlaceDueno() {
+    const caja = document.getElementById("duenoCodigoEnlaceCaja");
+    if (!caja) return;
+    caja.style.display = caja.style.display === "none" ? "block" : "none";
+    if (caja.style.display === "block") document.getElementById("duenoCodigoEnlace")?.focus();
+}
+
+async function enlazarConCodigoDueno() {
+    const campo = document.getElementById("duenoCodigoEnlace");
+    const cajaError = document.getElementById("duenoCodigoEnlaceError");
+    const boton = document.getElementById("btnDuenoCodigoEnlace");
+    cajaError.style.display = "none";
+
+    if (String(campo.value || "").replace(/[^a-zA-Z0-9]/g, "").length !== 8) {
+        cajaError.textContent = "El código tiene 8 letras y números, como K7QM-2XPD.";
+        cajaError.style.display = "block";
+        return;
+    }
+
+    boton.disabled = true;
+    boton.textContent = "Enlazando...";
+    const r = await canjearEnlaceCelularDueno({ codigo: campo.value });
+    boton.disabled = false;
+    boton.textContent = "Enlazar este celular";
+
+    if (!r.ok) {
+        cajaError.textContent = r.error;
+        cajaError.style.display = "block";
+        return;
+    }
+
+    document.getElementById("duenoNegocio").textContent = r.negocio?.nombre || "Tu negocio";
+    aplicarRolShellDueno();
+    mostrarAppDueno();
+    cargarPanelDueno();
+    actualizarNexoBurbujaDueno();
+    mostrarToastDueno("Celular enlazado");
+}
+
 async function iniciarSesionDueno() {
     const correo =
     document.getElementById("duenoLoginCorreo")?.value.trim();
@@ -6217,9 +6274,19 @@ function aplicarDeepLinkDueno() {
     if (TABS_VALIDAS_DEEP_LINK_DUENO.has(ir)) cambiarTabDueno(ir);
 }
 
-window.addEventListener("load", () => {
+window.addEventListener("load", async () => {
     recibirTokenDesdeMarket();
     aplicarTemaDueno();
+
+    // Llego desde el QR de la computadora: se canjea el enlace y, si sirve, el resto del arranque encuentra la sesion ya iniciada.
+    const enlaceDeUrl = new URLSearchParams(location.search).get("enlace");
+
+    if (enlaceDeUrl) {
+        const r = await canjearEnlaceCelularDueno({ token: enlaceDeUrl });
+        // El codigo ya no debe quedarse en la barra de direcciones ni en el historial.
+        history.replaceState(null, "", location.pathname);
+        mostrarToastDueno(r.ok ? "Celular enlazado" : r.error);
+    }
 
     document.getElementById("duenoSaludo").textContent = saludoHora();
 

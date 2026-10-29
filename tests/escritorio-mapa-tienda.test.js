@@ -85,3 +85,24 @@ test("Computadora: grupos del menu abren en ventana angosta, modo oscuro de las 
     assert.match(explora, /origen !== "fabricante"/);
     assert.match(explora, /galletas marías/, "el ejemplo del buscador es de abarrotes");
 });
+
+test("App del dueño con QR: pantalla de la computadora conectada y apagada por defecto, y el celular canjea el enlace o el codigo", () => {
+    assert.match(html, /id="pantallaEnlaceCelular"/);
+    assert.match(html, /js\/enlace-celular-view\.js/);
+    assert.match(html, /css\/components\/enlace-celular\.css/);
+    assert.match(fs.readFileSync(publico("js/config-auth.js"), "utf8"), /"pantallaEnlaceCelular"/);
+
+    // apagada: el boton sigue abriendo la app en otra pestaña; encendida: abre la pantalla del QR
+    const beta = fs.readFileSync(publico("js/funciones-beta.js"), "utf8");
+    assert.match(beta, /funcionBeta\("enlace_celular"\) \? \(\) => window\.mostrarEnlaceCelular\(\) : \(\) => window\.open\("\/dueno", "_blank"\)/);
+
+    const vista = fs.readFileSync(publico("js/enlace-celular-view.js"), "utf8");
+    for (const ruta of ["/enlace-celular/crear", "/enlace-celular/celulares", "/estado"]) assert.ok(vista.includes(ruta), "usa " + ruta);
+    assert.match(vista, /clearInterval\(st\.relojId\)/, "deja de preguntar al salir de la pantalla");
+
+    const dueno = fs.readFileSync(publico("dueno.js"), "utf8");
+    assert.match(dueno, /new URLSearchParams\(location\.search\)\.get\("enlace"\)/, "abre el enlace del QR");
+    assert.match(dueno, /history\.replaceState\(null, "", location\.pathname\)/, "el codigo no se queda en la barra de direcciones");
+    assert.match(dueno, /async function enlazarConCodigoDueno/, "tambien acepta el codigo escrito");
+    assert.match(fs.readFileSync(publico("dueno.html"), "utf8"), /Tengo un código de la computadora/);
+});

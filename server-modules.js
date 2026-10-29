@@ -159,6 +159,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./conteos-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("enlazar el celular con QR", () => {
+        require("./enlace-celular-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("funciones nuevas (beta) por negocio", () => {
         require("./funciones-beta-server")(app, pool, requerirAccesoNegocio);
     });
