@@ -104,7 +104,7 @@ test("App del dueño con QR: pantalla de la computadora conectada y apagada por 
     assert.match(dueno, /new URLSearchParams\(location\.search\)\.get\("enlace"\)/, "abre el enlace del QR");
     assert.match(dueno, /history\.replaceState\(null, "", location\.pathname\)/, "el codigo no se queda en la barra de direcciones");
     assert.match(dueno, /async function enlazarConCodigoDueno/, "tambien acepta el codigo escrito");
-    assert.match(fs.readFileSync(publico("dueno.html"), "utf8"), /Tengo un código de la computadora/);
+    assert.ok(fs.readFileSync(publico("dueno.html"), "utf8").includes("mostrarCodigoEnlaceDueno()"), "escribir el codigo sigue disponible");
 });
 
 test("Pendientes en el Inicio de la computadora: conectados, apagados por defecto, y Fiado solo en abarrotes; el celular oculta Encargos en abarrotes", () => {
