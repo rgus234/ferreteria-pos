@@ -5190,6 +5190,8 @@ function renderCategoriasMasDueno() {
         if (esEmpleado && (categoria.id === "buscar-venta" || categoria.id === "ventas-pendientes" || categoria.id === "encargos-gestion") && !duenoTienePermiso("hacer_ventas")) return false;
         if (esEmpleado && categoria.id === "empleados-gestion" && !duenoTienePermiso("administrar_usuarios")) return false;
         if (esEmpleado && categoria.id === "finanzas-gestion" && !duenoTienePermiso("ver_reportes")) return false;
+        // Encargos (pedir lo que no tienes en inventario) es de ferreteria; una tienda solo de abarrotes no lo usa (la computadora ya lo oculta).
+        if (categoria.id === "encargos-gestion" && window.duenoGiro?.abarrotesSolo) return false;
 
         return categoria.id === "cambiar-usuario"
             ? enModoDispositivo

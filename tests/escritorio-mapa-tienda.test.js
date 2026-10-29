@@ -106,3 +106,19 @@ test("App del dueño con QR: pantalla de la computadora conectada y apagada por 
     assert.match(dueno, /async function enlazarConCodigoDueno/, "tambien acepta el codigo escrito");
     assert.match(fs.readFileSync(publico("dueno.html"), "utf8"), /Tengo un código de la computadora/);
 });
+
+test("Pendientes en el Inicio de la computadora: conectados, apagados por defecto, y Fiado solo en abarrotes; el celular oculta Encargos en abarrotes", () => {
+    assert.match(html, /js\/inicio-pendientes\.js/);
+    assert.match(html, /css\/components\/inicio-pendientes\.css/);
+
+    const codigo = fs.readFileSync(publico("js/inicio-pendientes.js"), "utf8");
+    assert.match(codigo, /window\.funcionBeta\("inicio_pendientes"\)/, "solo si el dueño lo enciende");
+    assert.match(codigo, /mostrarInventarioBajo\(\)/, "stock critico lleva a Inventario bajo");
+    assert.match(codigo, /abrirCreditos\(\)/, "creditos lleva a la pantalla de creditos");
+    assert.match(codigo, /mostrarRecibirMarca\(\)/, "facturas llevan a Recibir por marca cuando esta encendido");
+    assert.match(codigo, /mostrarRecepcionInteligente\(\)/);
+    assert.match(codigo, /Fiado pendiente/);
+    assert.match(codigo, /if \(!activa\(\) \|\| !esAbarrotes\(\)\) return;/, "Fiado solo con la funcion encendida y en abarrotes");
+
+    assert.match(fs.readFileSync(publico("dueno.js"), "utf8"), /categoria\.id === "encargos-gestion" && window\.duenoGiro\?\.abarrotesSolo/);
+});

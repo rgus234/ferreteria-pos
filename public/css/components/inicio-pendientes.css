@@ -1,0 +1,20 @@
+/* Pendientes en el Inicio de la computadora (prefijo ip-). */
+.ip-fila { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 0 0 18px; }
+.ip-fila:empty { display: none; }
+
+.ip-tarjeta { position: relative; display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px 18px; border: 1px solid var(--pos-line, #e2e8f0); border-radius: 20px; background: var(--pos-card, #fff); color: var(--pos-text, #172033); font: inherit; text-align: left; cursor: pointer; box-shadow: 0 1px 3px rgba(15, 23, 42, .06); transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.ip-tarjeta:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15, 23, 42, .12); border-color: color-mix(in srgb, var(--brand-color, #0d6efd) 35%, transparent); }
+.ip-tarjeta:active { transform: translateY(0); }
+.ip-icono { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 15px; font-size: 22px; background: rgba(245, 158, 11, .15); }
+.ip-credito .ip-icono { background: color-mix(in srgb, var(--brand-color, #0d6efd) 14%, transparent); }
+.ip-factura .ip-icono, .ip-tarjeta.ok .ip-icono { background: rgba(22, 163, 74, .15); }
+.ip-texto { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.ip-texto small { color: var(--pos-muted, #687386); font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.ip-texto strong { font-size: 24px; line-height: 1.1; font-weight: 800; letter-spacing: -.02em; }
+.ip-texto em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--pos-muted, #687386); font-size: 13px; font-style: normal; font-weight: 600; }
+.ip-flecha { flex: none; color: var(--pos-muted, #94a3b8); font-size: 28px; line-height: 1; opacity: .6; transition: transform .15s; }
+.ip-tarjeta:hover .ip-flecha { transform: translateX(3px); opacity: 1; }
+
+body.oscuro .ip-tarjeta { background: #162032; border-color: rgba(148, 163, 184, .22); box-shadow: none; color: #f1f5f9; }
+body.oscuro .ip-tarjeta:hover { box-shadow: 0 14px 30px rgba(0, 0, 0, .4); }
+body.oscuro .ip-texto small, body.oscuro .ip-texto em { color: #cbd5e1; }

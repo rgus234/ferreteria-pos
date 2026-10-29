@@ -9,7 +9,7 @@
     const DESCRIPCIONES = {
         mapa_tienda: "Pasillos, estantes y bodega: dónde está cada producto, resurtir de bodega y revisar los conteos que se hacen en el celular.",
         recibir_por_marca: "Recibir mercancía por marca, con la factura del correo a la vista y sin contarla dos veces.",
-        inicio_pendientes: "En el Inicio: stock crítico, fiado y facturas por recibir como tarjetas que llevan directo a resolverlos.",
+        inicio_pendientes: "En el Inicio: stock crítico, créditos y facturas por recibir como tarjetas que llevan directo a resolverlos. En una tienda de abarrotes, “Crédito” se llama “Fiado”.",
         diseno_nuevo: "Un diseño más limpio, con menos cajas y más aire. Se puede apagar en cualquier momento.",
         enlace_celular: "App del dueño con QR: enlaza tu celular desde aquí en 10 segundos, sin escribir correo ni contraseña, y quita el acceso a un celular perdido."
     };
