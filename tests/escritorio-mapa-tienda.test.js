@@ -139,3 +139,19 @@ test("Diseño nuevo de la computadora: solo existe bajo html.diseno-nuevo (apaga
 
     assert.match(fs.readFileSync(publico("js/funciones-beta.js"), "utf8"), /classList\.toggle\("diseno-nuevo", window\.funcionBeta\("diseno_nuevo"\)\)/);
 });
+
+test("Instalar la app despues del QR: aviso para Android e iPhone, codigo de 10 minutos para la app anclada y aviso en la computadora", () => {
+    const instalar = fs.readFileSync(publico("dueno-instalar.js"), "utf8");
+    assert.match(instalar, /beforeinstallprompt/, "Android: aviso nativo de instalacion");
+    assert.match(instalar, /Añadir a pantalla de inicio/, "iPhone: pasos de Compartir");
+    assert.match(instalar, /\/enlace-celular\/reservar/, "iPhone: cambia el QR por un codigo de 10 minutos");
+    assert.match(instalar, /Continuar en el navegador/, "siempre se puede seguir sin instalar");
+    assert.match(instalar, /display-mode: standalone/, "no se ofrece si la app ya esta instalada");
+
+    const dueno = fs.readFileSync(publico("dueno.js"), "utf8");
+    assert.match(dueno, /window\.mostrarInstalarAppDueno\(enlaceDeUrl\)/, "se ofrece ANTES de gastar el QR");
+    assert.ok(fs.readFileSync(publico("dueno.html"), "utf8").indexOf("dueno-instalar.js") < fs.readFileSync(publico("dueno.html"), "utf8").indexOf("dueno.js?v="), "se carga antes para atrapar beforeinstallprompt");
+    assert.match(fs.readFileSync(publico("dueno-sw.js"), "utf8"), /dueno-instalar\.js/);
+
+    assert.match(fs.readFileSync(publico("js/enlace-celular-view.js"), "utf8"), /Tu celular está instalando la app/, "la computadora avisa y espera los 10 minutos");
+});

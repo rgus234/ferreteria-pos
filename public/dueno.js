@@ -6284,10 +6284,21 @@ window.addEventListener("load", async () => {
     const enlaceDeUrl = new URLSearchParams(location.search).get("enlace");
 
     if (enlaceDeUrl) {
-        const r = await canjearEnlaceCelularDueno({ token: enlaceDeUrl });
+        // Celular o tableta sin la app instalada: primero se ofrece instalarla (dueno-instalar.js). Si elige instalar en iPhone, el QR se cambia por un
+        // codigo de 10 minutos para la app anclada (guarda su sesion aparte) y aqui NO se canjea; en cualquier otro caso se entra normal.
+        let canjearAqui = true;
+
         // El codigo ya no debe quedarse en la barra de direcciones ni en el historial.
         history.replaceState(null, "", location.pathname);
-        mostrarToastDueno(r.ok ? "Celular enlazado" : r.error);
+
+        if (typeof window.necesitaInstalarDueno === "function" && window.necesitaInstalarDueno() && typeof window.mostrarInstalarAppDueno === "function") {
+            canjearAqui = await window.mostrarInstalarAppDueno(enlaceDeUrl);
+        }
+
+        if (canjearAqui) {
+            const r = await canjearEnlaceCelularDueno({ token: enlaceDeUrl });
+            mostrarToastDueno(r.ok ? "Celular enlazado" : r.error);
+        }
     }
 
     document.getElementById("duenoSaludo").textContent = saludoHora();

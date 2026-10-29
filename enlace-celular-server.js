@@ -15,6 +15,8 @@ const { responderError } = require("./error-utils");
 const { resolverIdentidadNexo } = require("./rbac");
 
 const VIGENCIA_SEGUNDOS = 120;
+// Un celular que va a instalar la app (iPhone: la app anclada guarda su sesion aparte de Safari) cambia el QR por un codigo de mas tiempo.
+const VIGENCIA_RESERVADO_SEGUNDOS = 600;
 const ETIQUETA_CELULAR = "Celular enlazado por QR";
 const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sin O, I, 0, 1 para no confundir al escribirlo
 const INTENTOS_POR_VENTANA = 10;
@@ -133,7 +135,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             await asegurarTabla(pool);
 
             const fila = (await pool.query(
-                `SELECT e.usado_at, e.expira_at, e.expira_at <= NOW() AS vencido, s.dispositivo
+                `SELECT e.usado_at, e.expira_at, e.expira_at <= NOW() AS vencido, (e.expira_at - e.creado_at) > INTERVAL '3 minutes' AS reservado, s.dispositivo
                  FROM public.enlaces_celular e LEFT JOIN public.sesiones_cuenta s ON s.id = e.sesion_id
                  WHERE e.id = $1 AND e.negocio_id = $2`,
                 [Number(req.params.id), negocioId(req)]
@@ -146,7 +148,35 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 return;
             }
 
-            res.json({ ok: true, estado: fila.vencido ? "vencido" : "esperando", segundosRestantes: Math.max(0, Math.round((new Date(fila.expira_at) - Date.now()) / 1000)) });
+            res.json({ ok: true, estado: fila.vencido ? "vencido" : "esperando", reservado: Boolean(fila.reservado), segundosRestantes: Math.max(0, Math.round((new Date(fila.expira_at) - Date.now()) / 1000)) });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Publico: el celular que va a instalar la app cambia su QR por un codigo corto de 10 minutos. El QR deja de servir (sigue siendo un solo uso)
+    // y la sesion se entrega hasta que se escribe el codigo en la app ya instalada. Es la MISMA fila: la computadora sigue viendo "esperando".
+    app.post("/enlace-celular/reservar", async (req, res) => {
+        try {
+            if (bloqueada(req.ip)) { res.status(429).json({ ok: false, error: "Demasiados intentos. Espera unos minutos y pide un código nuevo en la computadora." }); return; }
+
+            const token = String(req.body?.token || "").trim();
+
+            if (!/^[a-f0-9]{64}$/.test(token)) { registrarFallo(req.ip); res.status(400).json({ ok: false, error: "Ese código no es válido." }); return; }
+
+            await asegurarTabla(pool);
+
+            const codigo = codigoCortoAleatorio();
+            const fila = (await pool.query(
+                `UPDATE public.enlaces_celular
+                    SET token_hash = $2, codigo_hash = $3, expira_at = NOW() + ($4 || ' seconds')::interval
+                  WHERE token_hash = $1 AND usado_at IS NULL AND expira_at > NOW() RETURNING id`,
+                [sha256(token), sha256(tokenAleatorio()), sha256(codigo), String(VIGENCIA_RESERVADO_SEGUNDOS)]
+            )).rows[0];
+
+            if (!fila) { registrarFallo(req.ip); res.status(400).json({ ok: false, error: "Ese código ya se usó o venció. Pide uno nuevo en la computadora." }); return; }
+
+            res.json({ ok: true, codigoCorto: formatoCodigo(codigo), expiraEnSegundos: VIGENCIA_RESERVADO_SEGUNDOS });
         } catch (error) {
             responderError(res, error);
         }
@@ -200,3 +230,4 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 };
 
 module.exports.VIGENCIA_SEGUNDOS = VIGENCIA_SEGUNDOS;
+module.exports.VIGENCIA_RESERVADO_SEGUNDOS = VIGENCIA_RESERVADO_SEGUNDOS;

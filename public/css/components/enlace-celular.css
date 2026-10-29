@@ -137,3 +137,7 @@ body.oscuro .ec-letras span { background: #f1f5f9; color: #0b1b3a; }
 /* el texto de la tarjeta azul siempre es claro (los titulos globales lo pintaban oscuro en modo claro) */
 .ec-shell .ec-hero h2, .ec-shell .ec-hero .ec-pildora, .ec-shell .ec-hero .ec-beneficios li { color: #fff !important; -webkit-text-fill-color: #fff; }
 .ec-shell .ec-hero p { color: rgba(255, 255, 255, .84); }
+
+.ec-instalando { margin: 0; max-width: 340px; padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, var(--brand-color, #0d6efd) 10%, #fff); color: var(--pos-text, #172033); font-size: 13px; font-weight: 600; line-height: 1.4; text-align: center; animation: ecEntra .3s ease; }
+.ec-instalando b { display: block; margin-bottom: 2px; }
+body.oscuro .ec-instalando { background: color-mix(in srgb, var(--brand-color, #0d6efd) 24%, #0f172a); color: #f1f5f9; }

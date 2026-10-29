@@ -3,7 +3,7 @@
 // Funcion nueva: se enciende en Nexo -> Funciones nuevas ("enlace_celular"); apagada, el boton abre la app en otra pestaña como siempre.
 (function () {
     const CIRCUNFERENCIA = 2 * Math.PI * 26;
-    const st = { enlace: null, estado: "cargando", segundos: 0, relojId: null, sondeoId: null, celulares: [], celular: "", error: "" };
+    const st = { enlace: null, estado: "cargando", segundos: 0, relojId: null, sondeoId: null, celulares: [], celular: "", error: "", reservado: false };
 
     const esc = valor => String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const pantalla = () => document.getElementById("pantallaEnlaceCelular");
@@ -61,6 +61,7 @@
         }
 
         st.enlace = r.datos;
+        st.reservado = false;
         st.estado = "esperando";
         st.segundos = r.datos.expiraEnSegundos;
         pintar();
@@ -90,6 +91,13 @@
                 st.estado = "vencido";
                 detener();
                 pintar();
+            } else if (e.datos.reservado) {
+                // El celular esta instalando la app: el QR se cambio por un codigo de 10 minutos que se escribe en la app ya instalada.
+                const primera = !st.reservado;
+                st.reservado = true;
+                st.segundos = e.datos.segundosRestantes;
+                st.enlace.expiraEnSegundos = Math.max(st.enlace.expiraEnSegundos, st.segundos);
+                if (primera) pintar();
             }
         }, 2000);
     }
@@ -177,7 +185,7 @@
             <section class="ec-panel">
                 <header><h3>Enlaza tu celular</h3><p>Escanea con la cámara. El código sirve una sola vez.</p></header>
                 ${htmlPasos()}
-                <div class="ec-centro">${htmlQr()}${htmlReloj()}</div>
+                <div class="ec-centro">${htmlQr()}${htmlReloj()}${st.reservado && st.estado === "esperando" ? `<p class="ec-instalando"><b>📲 Tu celular está instalando la app.</b> Cuando la abra, tocará “Tengo un código” y escribirá el que le mostró. Tiene hasta que termine el reloj.</p>` : ""}</div>
                 ${htmlCodigo()}
                 <div class="ec-acciones"><button type="button" class="ec-btn" onclick="ecGenerar()">${st.estado === "enlazado" ? "Enlazar otro celular" : "Generar código nuevo"}</button><button type="button" class="ec-btn suave" onclick="window.open('/dueno', '_blank')">Abrir la app en esta computadora</button></div>
             </section>

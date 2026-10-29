@@ -110,3 +110,40 @@ test("el dueño ve los celulares enlazados y puede quitarles el acceso (la sesio
     const sesion = await fetch(`${BASE_URL}/negocio-actual`, { headers: { Authorization: `Bearer ${canje.token}` } });
     assert.equal(sesion.status, 401, "sin acceso despues de quitarlo");
 });
+
+test("reservar (iPhone instalando la app): cambia el QR por un codigo de 10 minutos, el QR ya no sirve, la sesion llega hasta escribir el codigo y la computadora lo ve", async () => {
+    const e = await (await post("/enlace-celular/crear", {}, headers(a))).json();
+    const token = e.url.split("enlace=")[1];
+
+    const r = await (await post("/enlace-celular/reservar", { token })).json();
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.match(r.codigoCorto, /^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    assert.equal(r.expiraEnSegundos, 600);
+
+    // El QR original ya no sirve (ni para reservar ni para entrar) y todavia no hay sesion.
+    assert.equal((await post("/enlace-celular/canjear", { token })).status, 400, "el QR ya no sirve");
+    assert.equal((await post("/enlace-celular/reservar", { token })).status, 400, "ni para reservar otra vez");
+
+    // La computadora sigue viendo "esperando", ahora con mas tiempo y avisando que el celular esta instalando la app.
+    const estado = await (await fetch(`${BASE_URL}/enlace-celular/${e.id}/estado`, { headers: headers(a) })).json();
+    assert.equal(estado.estado, "esperando");
+    assert.equal(estado.reservado, true);
+    assert.ok(estado.segundosRestantes > 300 && estado.segundosRestantes <= 600, "cuenta los 10 minutos");
+
+    // Al escribir el codigo en la app instalada entra de verdad.
+    const canje = await (await post("/enlace-celular/canjear", { codigo: r.codigoCorto })).json();
+    assert.equal(canje.ok, true, JSON.stringify(canje));
+    const sesion = await (await fetch(`${BASE_URL}/negocio-actual`, { headers: { Authorization: `Bearer ${canje.token}` } })).json();
+    assert.equal(sesion.negocio.id, a.negocioId);
+
+    const despues = await (await fetch(`${BASE_URL}/enlace-celular/${e.id}/estado`, { headers: headers(a) })).json();
+    assert.equal(despues.estado, "enlazado");
+});
+
+test("reservar rechaza entradas invalidas y un QR vencido", async () => {
+    assert.equal((await post("/enlace-celular/reservar", { token: "nada" })).status, 400);
+
+    const e = await (await post("/enlace-celular/crear", {}, headers(a))).json();
+    await pool.query(`UPDATE public.enlaces_celular SET expira_at = NOW() - INTERVAL '1 second' WHERE id = $1`, [e.id]);
+    assert.equal((await post("/enlace-celular/reservar", { token: e.url.split("enlace=")[1] })).status, 400, "vencido");
+});
