@@ -299,7 +299,11 @@ function renderFormularioProductoDueno() {
             <div class="dueno-campo">Foto (opcional)
                 <div id="duenoProdFotoPreview" class="dueno-estado" style="margin:5px 0;">Sin foto</div>
                 <input type="file" id="duenoProdFotoInput" accept="image/*" capture="environment" style="display:none;" onchange="previsualizarFotoNuevoProductoDueno(this.files[0])">
-                <button type="button" class="dueno-boton-secundario-chico" onclick="document.getElementById('duenoProdFotoInput').click()">Tomar foto</button>
+                <input type="file" id="duenoProdFotoGaleria" accept="image/*" style="display:none;" onchange="previsualizarFotoNuevoProductoDueno(this.files[0])">
+                <div style="display:flex;gap:8px;">
+                    <button type="button" class="dueno-boton-secundario-chico" onclick="document.getElementById('duenoProdFotoInput').click()">Tomar foto</button>
+                    <button type="button" class="dueno-boton-secundario-chico" onclick="document.getElementById('duenoProdFotoGaleria').click()">Elegir de la galería</button>
+                </div>
             </div>
         `}
 
@@ -643,18 +647,41 @@ function abrirEdicionProductoDesdeDetalleDueno() {
 
 // ---------------- foto con la camara ----------------
 
-function cambiarFotoProductoDueno() {
+// Hoja "Tomar foto / Elegir de la galeria". Devuelve "camara", "galeria" o null si se cancela.
+function elegirOrigenFotoDueno() {
+    return new Promise(resolver => {
+        const fondo = document.createElement("div");
+        fondo.className = "drm-hoja-fondo";
+        fondo.innerHTML = `<div class="drm-hoja" role="dialog" aria-label="Foto del producto"><h3>Foto del producto</h3>
+            <div class="drm-hoja-lista"><button type="button" data-o="camara">Tomar foto</button><button type="button" data-o="galeria">Elegir de la galería</button></div>
+            <button type="button" class="drm-hoja-cancelar" data-o="x">Cancelar</button></div>`;
+        fondo.addEventListener("click", e => {
+            const o = e.target.dataset?.o;
+            if (o === undefined && e.target !== fondo) return;
+            fondo.remove();
+            resolver(o === "camara" || o === "galeria" ? o : null);
+        });
+        document.body.appendChild(fondo);
+    });
+}
+
+async function cambiarFotoProductoDueno() {
     const detalle = duenoProductoDetalleActual;
     if (!detalle) return;
 
-    let input = document.getElementById("duenoFotoProductoInput");
+    const origen = await elegirOrigenFotoDueno();
+    if (!origen) return;
+
+    // Dos entradas: la de camara abre directo la camara; la otra abre la galeria / archivos.
+    const idInput = origen === "camara" ? "duenoFotoProductoInput" : "duenoFotoProductoGaleria";
+    let input = document.getElementById(idInput);
 
     if (!input) {
         input = document.createElement("input");
         input.type = "file";
-        input.id = "duenoFotoProductoInput";
+        input.id = idInput;
         input.accept = "image/*";
-        input.setAttribute("capture", "environment");
+        if (origen === "camara") input.setAttribute("capture", "environment");
         input.hidden = true;
         document.body.appendChild(input);
     }

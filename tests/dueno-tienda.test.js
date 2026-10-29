@@ -455,3 +455,11 @@ test("Celular: la barra inferior es una capsula flotante de vidrio y lo flotante
     assert.match(css, /\.dueno-tabs \{[^}]*border-radius: 32px/, "capsula");
     assert.match(css, /\.dueno-nexo-burbuja \{ bottom: calc\(96px/, "la burbuja de Nexo queda por encima de la barra");
 });
+
+test("Producto: la foto se puede tomar o elegir de la galeria (alta y cambiar foto)", () => {
+    const js = leer("dueno-inventario.js");
+    assert.match(js, /id="duenoProdFotoInput" accept="image\/\*" capture="environment"/, "camara");
+    assert.match(js, /id="duenoProdFotoGaleria" accept="image\/\*" style/, "galeria, sin capture");
+    assert.match(js, /Elegir de la galería/);
+    assert.match(js, /function elegirOrigenFotoDueno/, "cambiar foto pregunta de donde");
+});
