@@ -102,8 +102,27 @@ body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI"
 #duenoInventario .fila-dueno span { font-size: 12.5px; }
 #duenoInventario .dueno-miniatura { width: 46px; height: 46px; border-radius: 10px; }
 
-/* ---- Barra inferior: translucida, sin sombra ---- */
-.dueno-tabs { background: color-mix(in srgb, var(--surface) 84%, transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); box-shadow: none; border-top: 1px solid var(--line); }
+/* ---- Barra inferior: capsula flotante de vidrio (Liquid Glass), con el contenido pasando por detras ---- */
+.dueno-tabs {
+    left: 50%; right: auto; bottom: calc(10px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    width: min(540px, calc(100% - 24px)); padding: 6px; gap: 2px; border-radius: 32px;
+    background: rgba(255, 255, 255, .55);
+    -webkit-backdrop-filter: blur(24px) saturate(190%); backdrop-filter: blur(24px) saturate(190%);
+    border: 1px solid rgba(255, 255, 255, .6);
+    box-shadow: 0 10px 32px rgba(15, 23, 42, .16), inset 0 1px 0 rgba(255, 255, 255, .75);
+}
+:root.oscuro .dueno-tabs { background: rgba(44, 44, 48, .5); border-color: rgba(255, 255, 255, .13); box-shadow: 0 10px 32px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .12); }
+.dueno-tabs button { padding: 7px 2px 6px; border-radius: 26px; transition: background-color .2s ease, color .2s ease; }
+.dueno-tabs button.activo { background: rgba(120, 120, 128, .2); color: var(--brand); }
+.dueno-tabs button.activo::before { display: none; }
+.dueno-tabs button:not(.activo) { opacity: .8; }
+.dueno-tab-badge { right: 24%; top: 0; }
+/* lo flotante sube para no quedar tapado por la capsula */
+.dueno-nexo-burbuja { bottom: calc(96px + env(safe-area-inset-bottom)) !important; }
+.dueno-toast { bottom: calc(96px + env(safe-area-inset-bottom)); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .dueno-tabs { background: var(--surface); }
+}
 
 /* ---- Menu Mas: accesos destacados sin bordes de color, mismo ritmo que la lista ---- */
 #duenoMas .dueno-status-card { margin-bottom: 14px; background: var(--surface); }

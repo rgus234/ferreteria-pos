@@ -448,3 +448,10 @@ test("Celular: las tarjetas de Inicio se abren encima de Inicio, Stock critico l
     assert.match(leer("dueno-giro.js"), /Fiado pendiente/, "abarrotes: fiado en vez de creditos");
     assert.match(leer("dueno-recibir-marca.css"), /drmEntra/, "Recibir por marca abre con animacion");
 });
+
+test("Celular: la barra inferior es una capsula flotante de vidrio y lo flotante sube para no taparse", () => {
+    const css = leer("dueno-estilo.css");
+    assert.match(css, /\.dueno-tabs \{[^}]*backdrop-filter: blur\(24px\)/, "vidrio translucido");
+    assert.match(css, /\.dueno-tabs \{[^}]*border-radius: 32px/, "capsula");
+    assert.match(css, /\.dueno-nexo-burbuja \{ bottom: calc\(96px/, "la burbuja de Nexo queda por encima de la barra");
+});
