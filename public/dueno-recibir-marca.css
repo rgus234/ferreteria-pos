@@ -173,3 +173,16 @@ body.drm-con-resumen { overflow: hidden; }
 .drm-capa.abierta { animation: drmEntra .28s cubic-bezier(.2, .8, .2, 1); }
 @keyframes drmEntra { from { transform: translateY(28px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .drm-capa.abierta { animation: none; } }
+
+/* Fluidez: lo que esta fuera de pantalla no se dibuja, y mientras carga se ve un esqueleto */
+.drm-tarjeta { content-visibility: auto; contain-intrinsic-size: auto 250px; }
+.drm-esq { gap: 10px; pointer-events: none; }
+.drm-esq-foto { width: 100%; aspect-ratio: 1; border-radius: 12px; }
+.drm-esq-linea { width: 80%; height: 12px; border-radius: 6px; }
+.drm-esq-linea.corta { width: 50%; }
+.drm-esq-fila { padding: 0 14px 12px; }
+.drm-esq-bloque { display: block; height: 46px; border-radius: 14px; }
+.drm-esq-foto, .drm-esq-linea, .drm-esq-bloque { background: linear-gradient(100deg, #e2e8f0 30%, #f1f5f9 50%, #e2e8f0 70%); background-size: 200% 100%; animation: drmBrillo 1.2s linear infinite; }
+:root.oscuro .drm-esq-foto, :root.oscuro .drm-esq-linea, :root.oscuro .drm-esq-bloque { background: linear-gradient(100deg, #1e293b 30%, #334155 50%, #1e293b 70%); background-size: 200% 100%; }
+@keyframes drmBrillo { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .drm-esq-foto, .drm-esq-linea, .drm-esq-bloque { animation: none; } }

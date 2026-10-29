@@ -463,3 +463,14 @@ test("Producto: la foto se puede tomar o elegir de la galeria (alta y cambiar fo
     assert.match(js, /Elegir de la galería/);
     assert.match(js, /function elegirOrigenFotoDueno/, "cambiar foto pregunta de donde");
 });
+
+test("Recibir por marca abre fluido: esqueleto al instante, tarjetas por tandas con presupuesto por cuadro, fotos fuera del HTML y catalogo en memoria", () => {
+    const js = leer("dueno-recibir-marca.js");
+    assert.match(js, /function esqueletoHtml/, "se abre YA con un esqueleto");
+    assert.match(js, /sesionAbrir/, "cerrar cancela una apertura en curso");
+    assert.match(js, /PRESUPUESTO_CUADRO_MS/, "las tarjetas se agregan sin bloquear un cuadro");
+    assert.match(js, /data-foto=/, "la foto no se escribe dentro del HTML de la tarjeta");
+    assert.doesNotMatch(js, /<img src="\$\{esc\(p\.imagenUrl\)\}" alt="" loading="lazy">`\s*:\s*\(typeof miniaturaVaciaDuenoHtml/, "ya no mete la foto en el HTML");
+    assert.match(js, /if \(datos && datos\.length\) catalogoEnMemoria/, "un catalogo vacio nunca se guarda en memoria");
+    assert.match(leer("dueno-recibir-marca.css"), /content-visibility: auto/, "lo que esta fuera de pantalla no se dibuja");
+});

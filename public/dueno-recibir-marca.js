@@ -139,12 +139,23 @@
     const pluralPieza = n => `pieza${n === 1 ? "" : "s"}`;
     const textoTotales = t => `<strong>${t.productos}</strong> ${pluralProducto(t.productos)} · <strong>${t.piezas}</strong> ${pluralPieza(t.piezas)}`;
 
+    // Las fotos del catalogo del telefono son data:URL de ~90 KB cada una. Escribirlas dentro del HTML de la tarjeta obliga a escapar y analizar megas de texto
+    // en cada dibujo; la tarjeta lleva la imagen vacia y la foto se asigna despues como propiedad (sin pasar por el analizador de HTML).
+    function ponerFotos(raiz) {
+        if (!raiz) return;
+        raiz.querySelectorAll("img[data-foto]").forEach(img => {
+            const p = estado && estado.indice.get(Number(img.dataset.foto));
+            img.removeAttribute("data-foto");
+            if (p && p.imagenUrl) img.src = p.imagenUrl;
+        });
+    }
+
     function tarjetaHtml(p) {
         const n = estado.cantidades.get(p.id) || 0;
         const hay = Number(p.stock) || 0;
         const poco = hay <= Math.max(3, Number(p.stock_minimo) || 0);
         return `<article class="drm-tarjeta${n > 0 ? " con-entrada" : ""}" data-id="${Number(p.id)}">
-            <span class="drm-foto">${p.imagenUrl ? `<img src="${esc(p.imagenUrl)}" alt="" loading="lazy">` : (typeof miniaturaVaciaDuenoHtml === "function" ? miniaturaVaciaDuenoHtml() : "")}</span>
+            <span class="drm-foto">${p.imagenUrl ? `<img data-foto="${Number(p.id)}" alt="" decoding="async">` : (typeof miniaturaVaciaDuenoHtml === "function" ? miniaturaVaciaDuenoHtml() : "")}</span>
             <b class="drm-nombre">${esc(p.nombre)}</b>
             <span class="drm-hay${poco ? " poco" : ""}">Hay ${esc(String(hay))}</span>
             ${p.esperado != null ? `<span class="drm-esperado${n > 0 && n !== p.esperado ? " dif" : ""}">${p.nuevoProducto ? "Nuevo · " : ""}Esperado ${esc(String(p.esperado))}</span>` : ""}
@@ -252,10 +263,37 @@
         }).join("");
     }
 
-    function gridHtml() {
+    // La rejilla se dibuja por tandas (la primera ya viene en el HTML y el resto en los siguientes cuadros): con cientos de fotos juntas la pantalla se trababa.
+    const TANDA_TARJETAS = 4;
+    const PRESUPUESTO_CUADRO_MS = 8;
+    let tokenRejilla = 0;
+
+    function gridHtml(limite = Infinity) {
         const lista = productosVisibles();
-        if (lista.length) return lista.map(tarjetaHtml).join("");
+        if (lista.length) return lista.slice(0, limite).map(tarjetaHtml).join("");
         return `<p class="drm-vacio">${(estado.consulta || "").trim() ? "No encontré nada con eso. Prueba con otra palabra o escanea el código." : "Esta marca no tiene productos."}</p>`;
+    }
+
+    function completarGrid() {
+        const token = ++tokenRejilla;
+        const lista = productosVisibles();
+        let desde = TANDA_TARJETAS;
+        if (lista.length <= desde) return;
+
+        const paso = () => {
+            const grid = document.getElementById("drmGrid");
+            if (token !== tokenRejilla || !estado || !grid) return;
+            // Se agregan tarjetas mientras quepan en ~8 ms: nunca se bloquea un cuadro (y la animacion) por dibujar muchas fotos juntas.
+            const limite = performance.now() + PRESUPUESTO_CUADRO_MS;
+            // Una tarjeta a la vez, con su foto: asignar la foto es lo que mas cuesta, asi que entra en el presupuesto del cuadro.
+            do {
+                grid.insertAdjacentHTML("beforeend", tarjetaHtml(lista[desde++]));
+                ponerFotos(grid.lastElementChild);
+            } while (desde < lista.length && performance.now() < limite);
+            if (desde < lista.length) requestAnimationFrame(paso);
+        };
+
+        requestAnimationFrame(paso);
     }
 
     function pintar() {
@@ -282,7 +320,7 @@
             <nav class="drm-marcas" id="drmMarcas" aria-label="Marcas">${marcasHtml(grupo)}</nav>
             <nav class="drm-lineas" id="drmLineas" aria-label="Líneas de la marca">${lineasHtml()}</nav>
             </div>
-            <div class="drm-grid" id="drmGrid">${gridHtml()}</div>
+            <div class="drm-grid" id="drmGrid">${gridHtml(TANDA_TARJETAS)}</div>
             <footer class="drm-pie">
                 <button type="button" class="drm-resumen-abrir" onclick="abrirResumenRecibirDueno()" ${t.productos ? "" : "disabled"} aria-label="Ver el resumen de lo que llegó">
                     <span class="drm-flecha" aria-hidden="true">▲</span><span class="drm-totales">${textoTotales(t)}</span>
@@ -290,6 +328,8 @@
                 <button type="button" class="drm-confirmar" id="drmConfirmar" onclick="confirmarRecibirMarcaDueno()" ${t.productos && !estado.enviando ? "" : "disabled"}>${estado.enviando ? "Guardando…" : "Confirmar recepción"}</button>
             </footer>
             ${estado.resumen ? resumenHtml() : ""}`;
+        ponerFotos(c);
+        completarGrid();
     }
 
     // ---- Resumen a pantalla completa: todo lo que llevas, por marca, editable; se baja para seguir recibiendo ----
@@ -368,7 +408,7 @@
     window.buscarRecibirDueno = function (texto) {
         estado.consulta = texto;
         const grid = document.getElementById("drmGrid");
-        if (grid) grid.innerHTML = gridHtml();
+        if (grid) { grid.innerHTML = gridHtml(TANDA_TARJETAS); ponerFotos(grid); completarGrid(); }
         const marcas = document.getElementById("drmMarcas");
         if (marcas) marcas.innerHTML = marcasHtml(estado.grupos.find(g => g.marca === estado.marca) || estado.grupos[0]);
         document.getElementById("drmCapa")?.classList.toggle("drm-buscando", Boolean((texto || "").trim()));
@@ -461,7 +501,7 @@
         if (campo) campo.value = "";
         document.getElementById("drmCapa")?.classList.remove("drm-buscando");
         const grid = document.getElementById("drmGrid");
-        if (grid) grid.innerHTML = gridHtml();
+        if (grid) { grid.innerHTML = gridHtml(TANDA_TARJETAS); ponerFotos(grid); completarGrid(); }
         const barra = document.getElementById("drmLineas");
         if (barra) barra.innerHTML = lineasHtml();
         const c = document.getElementById("drmCapa");
@@ -487,6 +527,8 @@
     };
 
     window.cerrarRecibirMarcaDueno = function () {
+        if (!estado) { sesionAbrir++; document.getElementById("drmCapa")?.classList.remove("abierta"); document.body.classList.remove("drm-abierta", "drm-con-resumen"); return; }
+
         if (estado && totales().productos && !window.confirm("Tienes cantidades sin guardar. ¿Salir sin confirmar?")) return;
         document.getElementById("drmCapa")?.classList.remove("abierta");
         document.body.classList.remove("drm-abierta", "drm-con-resumen");
@@ -757,20 +799,67 @@
         });
     }
 
-    window.abrirRecibirMarcaDueno = async function (marcaInicial) {
-        let catalogo = [];
-        try { catalogo = typeof listarCatalogoLocalCompletoDueno === "function" ? await listarCatalogoLocalCompletoDueno() : []; } catch (error) { catalogo = []; }
+    let sesionAbrir = 0;
 
+    // Leer el catalogo completo del telefono (con todas sus fotos) es lo mas pesado al abrir: se guarda un minuto en memoria y se descarta
+    // en cuanto el inventario se actualiza (despues de recibir, de editar un producto, etc.).
+    let catalogoEnMemoria = null;
+    const VIGENCIA_CATALOGO_MS = 180000;
+
+    async function catalogoParaRecibir() {
+        if (catalogoEnMemoria && Date.now() - catalogoEnMemoria.t < VIGENCIA_CATALOGO_MS) return catalogoEnMemoria.datos;
+        const datos = typeof listarCatalogoLocalCompletoDueno === "function" ? await listarCatalogoLocalCompletoDueno() : [];
+        // Un catalogo vacio nunca se guarda: puede ser que todavia se este sincronizando.
+        if (datos && datos.length) catalogoEnMemoria = { t: Date.now(), datos };
+        return datos;
+    }
+
+    ["refrescarCatalogoLocalDueno", "guardarCatalogoLocal"].forEach(nombre => {
+        const original = window[nombre];
+        if (typeof original !== "function") return;
+        window[nombre] = function (...argumentos) { catalogoEnMemoria = null; return original.apply(this, argumentos); };
+    });
+
+    function esqueletoHtml() {
+        return `<div class="drm-tope"><header class="drm-cabeza"><button type="button" class="drm-atras" onclick="cerrarRecibirMarcaDueno()">‹ Atrás</button><h2>Recibir por marca</h2></header>
+            <div class="drm-esq-fila"><span class="drm-esq-bloque"></span></div></div>
+            <div class="drm-grid">${"<div class=\"drm-tarjeta drm-esq\"><span class=\"drm-esq-foto\"></span><span class=\"drm-esq-linea\"></span><span class=\"drm-esq-linea corta\"></span></div>".repeat(6)}</div>`;
+    }
+
+    window.abrirRecibirMarcaDueno = async function (marcaInicial) {
+        const sesion = ++sesionAbrir;
+        const inicio = performance.now();
+
+        // La pantalla se abre YA (con un esqueleto) y la animacion corre ligera; el catalogo y los exhibidores se cargan despues.
+        const c = capa();
+        c.classList.remove("drm-modo-factura", "drm-buscando");
+        c.innerHTML = esqueletoHtml();
+        c.scrollTop = 0;
+        c.classList.add("abierta");
+        document.body.classList.add("drm-abierta");
+
+        const cerrarEsqueleto = () => { if (sesion === sesionAbrir) { c.classList.remove("abierta"); document.body.classList.remove("drm-abierta", "drm-con-resumen"); } };
+
+        let catalogo = [];
+        try { catalogo = await catalogoParaRecibir(); } catch (error) { catalogo = []; }
+
+        if (sesion !== sesionAbrir) return;
         const productos = catalogo.filter(p => Number(p.id) > 0);
 
-        if (!productos.length) { avisar("Todavía no hay productos en tu catálogo."); return; }
+        if (!productos.length) { cerrarEsqueleto(); avisar("Todavía no hay productos en tu catálogo."); return; }
 
         const grupos = await gruposConExhibidores(productos);
+        if (sesion !== sesionAbrir) return;
+
         const todos = grupos.flatMap(g => g.productos).concat(productos).filter((p, i, a) => a.findIndex(q => Number(q.id) === Number(p.id)) === i);
         estado = { grupos, todos, indice: new Map(todos.map(p => [Number(p.id), p])), consulta: "", linea: "", tipo: "", resumen: false, proveedores: [], facturas: [], factura: null, respaldo: null, marca: (grupos.find(g => g.marca === marcaInicial) || grupos[0]).marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
+
+        // El trabajo pesado (dibujar las tarjetas con sus fotos) espera a que termine la animacion de entrada.
+        const falta = 320 - (performance.now() - inicio);
+        if (falta > 0) await new Promise(r => setTimeout(r, falta));
+        if (sesion !== sesionAbrir) return;
+
         pintar();
-        capa().classList.add("abierta");
-        document.body.classList.add("drm-abierta");
         cargarExtras(estado);
     };
 
@@ -835,6 +924,10 @@
         boton.textContent = "Recibir por marca";
         boton.addEventListener("click", () => window.abrirRecibirMarcaDueno());
         original.insertAdjacentElement("afterend", boton);
+
+        // Con el boton a la vista se va leyendo el catalogo en un momento libre, para que al tocarlo la pantalla abra sin esperar.
+        const calentar = () => { if (!catalogoEnMemoria) catalogoParaRecibir().catch(() => {}); };
+        if (typeof requestIdleCallback === "function") requestIdleCallback(calentar, { timeout: 4000 }); else setTimeout(calentar, 1500);
     }
 
     ponerBoton();
