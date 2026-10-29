@@ -670,6 +670,22 @@ body.oscuro .nexo-menu-panel .nexo-menu-danger {
     display: none !important;
   }
 
+  /* Ventana angosta (media pantalla, tablet): la barra pasa a ser una fila y un grupo abierto antes quedaba oculto para siempre
+     (Inventario, Ventas y caja, Compras y Nexo no abrian nada). Ahora su lista baja a una fila propia debajo de los botones. */
+  .sidebar:has(.submenu-sidebar.abierto) {
+    flex-wrap: wrap;
+  }
+
+  .submenu-sidebar.abierto {
+    display: flex !important;
+    flex: 1 1 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: 0 !important;
+    padding: 4px 0 0 !important;
+    border-left: 0;
+  }
+
   .sidebar-footer {
     display: none;
   }

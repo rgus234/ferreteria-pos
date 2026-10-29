@@ -16,6 +16,11 @@ const EXPLORAR_NEXO_ETIQUETA_NIVEL = {
 	relacionado: "Producto relacionado"
 };
 
+// El ejemplo del buscador es de la tienda: abarrotes (perfil simple) ve galletas, el resto ve ferreteria.
+function ejemploExplorarNexo() {
+	return typeof perfilEsSimple === "function" && perfilEsSimple() ? "galletas marías" : "pinza para cortar cable grueso";
+}
+
 function explorarNexoBadgeNivel(nivel) {
 	const clase = nivel || "relacionado";
 	const texto = EXPLORAR_NEXO_ETIQUETA_NIVEL[clase] || "Producto relacionado";
@@ -49,7 +54,7 @@ async function mostrarExplorarNexo(textoInicial) {
 
 			<div class="explorar-nexo-buscador-fila">
 				<div class="buscador-con-limpiar">
-					<input id="explorarNexoInput" type="text" placeholder="Ej. pinza para cortar cable grueso"
+					<input id="explorarNexoInput" type="text" placeholder="Ej. ${ejemploExplorarNexo()}"
 						oninput="explorarNexoOnInput()"
 						onkeydown="if(event.key==='Enter'){event.preventDefault();buscarExplorarNexo();}">
 				</div>
@@ -62,7 +67,7 @@ async function mostrarExplorarNexo(textoInicial) {
 
 			<div class="explorar-nexo-grid">
 				<div class="explorar-nexo-resultados" id="explorarNexoResultados">
-					<p class="explorar-nexo-vacio">Escribe que producto buscas para empezar -- por ejemplo, "pinza para cortar cable grueso".</p>
+					<p class="explorar-nexo-vacio">Escribe que producto buscas para empezar -- por ejemplo, "${ejemploExplorarNexo()}".</p>
 				</div>
 				<div class="encargos-panel explorar-nexo-ficha" id="explorarNexoFicha">
 					<p class="explorar-nexo-ficha-vacio">Selecciona un resultado para ver los detalles.</p>
@@ -104,7 +109,7 @@ async function buscarExplorarNexo() {
 
 	if (!texto.trim()) {
 		explorarNexoUltimoResultado = null;
-		contenedor.innerHTML = `<p class="explorar-nexo-vacio">Escribe que producto buscas para empezar -- por ejemplo, "pinza para cortar cable grueso".</p>`;
+		contenedor.innerHTML = `<p class="explorar-nexo-vacio">Escribe que producto buscas para empezar -- por ejemplo, "${ejemploExplorarNexo()}".</p>`;
 		document.getElementById("explorarNexoChips").innerHTML = "";
 		document.getElementById("explorarNexoCoincidenciaExacta").innerHTML = "";
 		return;
@@ -126,6 +131,12 @@ async function buscarExplorarNexo() {
 		// aprobado): si el mismo codigo aparece en ambos, se prefiere la
 		// fila del Maestro (ya trae la identidad verificada + el precio
 		// de fabricante enlazado), y el fabricante solo rellena huecos.
+		// Un negocio solo de abarrotes (perfil simple) no ve lo de ferreteria: ni el catalogo de fabricante (Truper...) ni lo del Maestro que viene de fabricante.
+		if (typeof perfilEsSimple === "function" && perfilEsSimple()) {
+			datos.fabricante = [];
+			datos.catalogoMaestro = (datos.catalogoMaestro || []).filter(item => item.origen !== "fabricante");
+		}
+
 		const catalogoNexoPorCodigo = new Map();
 		datos.catalogoMaestro.forEach(item => catalogoNexoPorCodigo.set(item.codigo, item));
 		datos.fabricante.forEach(item => {

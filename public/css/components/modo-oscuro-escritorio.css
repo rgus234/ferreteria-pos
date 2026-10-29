@@ -1,0 +1,111 @@
+/* Modo oscuro de pantallas que se pintaban con blanco fijo (Inicio de abarrotes, favoritos del Punto de venta, servicios, pedido sugerido,
+   pedidos del Market y las pantallas nuevas). Solo colores: no cambia ninguna medida ni funcion. Las fotos de producto conservan su fondo claro. */
+
+body.oscuro {
+  --pos-card: #162032;
+  --oscuro-tarjeta: #162032;
+  --oscuro-tarjeta-2: #1f2b40;
+  --oscuro-linea: rgba(148, 163, 184, .22);
+  --oscuro-texto: #f1f5f9;
+  --oscuro-suave: #cbd5e1;
+  --oscuro-tenue: #94a3b8;
+}
+
+/* tarjetas */
+body.oscuro .inicio-ab-kpi,
+body.oscuro .inicio-ab-tarjeta,
+body.oscuro .inicio-ab-modal-card,
+body.oscuro .fav-franja,
+body.oscuro .svc-card,
+body.oscuro .pedsug-card,
+body.oscuro .pedsug-tabla,
+body.oscuro .pmk-tarjeta,
+body.oscuro .pmk-tab,
+body.oscuro .pmk-modal-escaneo .pmk-escaneo-caja,
+body.oscuro .pmk-modal-verificacion .pmk-verificacion-caja,
+body.oscuro .pmk-modal-detalle .pmk-detalle-caja,
+body.oscuro .pmk-verif-productos-caja {
+  background: var(--oscuro-tarjeta);
+  color: var(--oscuro-texto);
+  border-color: var(--oscuro-linea);
+  box-shadow: none;
+}
+
+body.oscuro .fav-tarjeta { background: var(--oscuro-tarjeta-2) !important; color: var(--oscuro-texto); }
+body.oscuro .fav-tarjeta:hover { border-color: var(--brand-color, #0d6efd); }
+
+/* botones secundarios */
+body.oscuro .fav-btn,
+body.oscuro .fav-resultados button,
+body.oscuro .fav-sugeridos button,
+body.oscuro .fav-mover button,
+body.oscuro .svc-chips button,
+body.oscuro .svc-btn,
+body.oscuro .svc-tipos button.activo,
+body.oscuro .pedsug-btn,
+body.oscuro .pmk-btn-secundario,
+body.oscuro .inicio-ab-periodos button {
+  background: var(--oscuro-tarjeta-2) !important;
+  color: var(--oscuro-texto) !important;
+  border-color: var(--oscuro-linea) !important;
+}
+
+/* textos que eran gris/azul oscuro fijos */
+body.oscuro .inicio-ab-kpi strong,
+body.oscuro .inicio-ab-tarjeta h3,
+body.oscuro .inicio-ab-lista li,
+body.oscuro .inicio-ab-ranking li,
+body.oscuro .fav-titulo,
+body.oscuro .fav-nombre,
+body.oscuro .fav-precio { color: var(--oscuro-texto); }
+
+body.oscuro .inicio-ab-kpi > span,
+body.oscuro .inicio-ab-kpi small,
+body.oscuro .inicio-ab-cargando,
+body.oscuro .inicio-ab-tarjeta header small,
+body.oscuro .inicio-ab-ranking em,
+body.oscuro .inicio-ab-barra-monto,
+body.oscuro .inicio-ab-barra-dia { color: var(--oscuro-suave); }
+
+body.oscuro .inicio-ab-lista small,
+body.oscuro .inicio-ab-ranking small,
+body.oscuro .inicio-ab-vacio,
+body.oscuro .inicio-ab-nd { color: var(--oscuro-tenue); }
+
+body.oscuro .inicio-ab-kpi-gana strong,
+body.oscuro .inicio-ab-verde { color: #4ade80; }
+body.oscuro .inicio-ab-rojo { color: #f87171; }
+body.oscuro .inicio-ab-aviso { color: #fcd34d; }
+body.oscuro .inicio-ab-etiqueta.mal { color: #fca5a5; }
+body.oscuro .inicio-ab-etiqueta.ojo { color: #fcd34d; }
+body.oscuro .inicio-ab-ranking li::before { background: #334155; color: var(--oscuro-texto); }
+
+/* pedido sugerido: filas de la tabla */
+body.oscuro .pedsug-tabla th,
+body.oscuro .pedsug-tabla td { color: var(--oscuro-texto); border-color: var(--oscuro-linea); }
+
+/* pantallas nuevas (Mapa de la tienda, Recibir por marca, Funciones nuevas) */
+body.oscuro .mt-kpi, body.oscuro .mt-arbol, body.oscuro .mt-detalle, body.oscuro .mt-tarjeta, body.oscuro .fb-fila, body.oscuro .rm-tarjeta, body.oscuro .rm-der { background: var(--oscuro-tarjeta); border-color: var(--oscuro-linea); color: var(--oscuro-texto); }
+body.oscuro .mt-resultado, body.oscuro .rm-linea { background: var(--oscuro-tarjeta-2); }
+body.oscuro .mt-btn, body.oscuro .rm-btn { background: var(--oscuro-tarjeta-2); color: var(--oscuro-texto); }
+body.oscuro .mt-btn.principal, body.oscuro .rm-btn.principal { background: var(--brand-color, #0d6efd); color: #fff; }
+body.oscuro .mt-nuevo input, body.oscuro .mt-nuevo select, body.oscuro .mt-poner input, body.oscuro .mt-buscador, body.oscuro .mt-pasar input,
+body.oscuro .rm-buscar, body.oscuro .rm-campo select, body.oscuro .rm-cantidad input { background: var(--oscuro-tarjeta-2); color: var(--oscuro-texto); border-color: var(--oscuro-linea); }
+body.oscuro .rm-chip { background: var(--oscuro-tarjeta-2); color: var(--oscuro-texto); border-color: var(--oscuro-linea); }
+body.oscuro .rm-chip.activo { background: #f1f5f9; color: #0f172a; }
+body.oscuro .rm-marca { background: var(--oscuro-tarjeta-2); color: var(--oscuro-texto); }
+body.oscuro .rm-marca.activa { background: color-mix(in srgb, var(--brand-color, #0d6efd) 30%, #0f172a); border-color: var(--brand-color, #0d6efd); }
+body.oscuro .rm-tarjeta.con-entrada { background: #0f3b2f; border-color: #18b88f; }
+body.oscuro .rm-cantidad button { background: var(--oscuro-tarjeta-2); color: var(--oscuro-texto); }
+body.oscuro .rm-atajos button { background: #1e3a5f; color: #bfdbfe; }
+body.oscuro .rm-atajos .rm-llego { background: #064e3b; color: #a7f3d0; }
+body.oscuro .rm-esperado { background: #1e3a8a; color: #bfdbfe; }
+body.oscuro .rm-facturas-campo select { background: #064e3b; color: #d1fae5; }
+body.oscuro .mt-tab em { background: #7f1d1d; color: #fecaca; }
+body.oscuro .mt-lugar-cuenta { background: rgba(148, 163, 184, .2); }
+body.oscuro .mt-tabla th, body.oscuro .mt-tabla td { border-color: var(--oscuro-linea); }
+
+body.oscuro .fav-tarjeta,
+body.oscuro .fav-tarjeta strong,
+body.oscuro .fav-tarjeta .fav-nombre,
+body.oscuro .fav-tarjeta .fav-precio { color: var(--oscuro-texto) !important; }
