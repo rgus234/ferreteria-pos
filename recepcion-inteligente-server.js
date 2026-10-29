@@ -16,7 +16,7 @@ const { responderError } = require("./error-utils");
 const { PERMISOS, requerirPermiso } = require("./rbac");
 const { parsearCfdi } = require("./cfdi-parser");
 const { registrarLoteDeRecepcion } = require("./lotes-recepcion");
-const { resolverConceptoFactura } = require("./recepcion-inteligente-matching");
+const { resolverConceptoFactura, elevarPreciosConListaFabricante } = require("./recepcion-inteligente-matching");
 const { resolverProveedorPorRfc, resolverOcrearProveedorId } = require("./proveedor-resolver");
 const { obtenerAnthropic, licenciaDelNegocio } = require("./ia-server");
 const { costoNetoConDescuento } = require("./descuento-proveedor");
@@ -598,6 +598,9 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 );
 
                 const fila = cabecera.rows[0];
+
+                // Las facturas ya cargadas traen el precio del catalogo del proveedor guardado en su momento: se corrige al abrirlas.
+                await elevarPreciosConListaFabricante(pool, items.rows.map(i => ({ codigo: i.codigo_factura, candidato: i.candidato })));
 
                 // Precio de venta sugerido para conceptos que todavia no
                 // tienen decision (van a "crear" un producto nuevo): costo

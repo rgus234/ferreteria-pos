@@ -595,7 +595,7 @@ function riFilaItem(item, estadoRecepcion) {
 			</td>
 			<td>${escaparPOS(item.codigo || "-")}</td>
 			<td>${item.cantidad}</td>
-			<td>$${item.costo.toFixed(2)}${sugerido ? `<small>Venta: $${sugerido.valor.toFixed(2)} (${sugerido.etiqueta})</small>` : ""}</td>
+			<td>$${item.costo.toFixed(2)}${sugerido ? `<small>Venta: $${sugerido.valor.toFixed(2)} (${sugerido.etiqueta})${item.candidato?.ajustadoConListaFabricante ? ` · lista del fabricante` : ""}</small>` : ""}</td>
 			<td>${yaDecidido}</td>
 			<td>${puedeEditar ? `<button type="button" class="btn-mini" data-ri-accion="revisar" data-item-id="${item.id}">${item.accion ? "Editar" : "Revisar"}</button>` : ""}</td>
 		</tr>

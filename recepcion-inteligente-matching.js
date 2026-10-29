@@ -31,6 +31,50 @@ const {
 // proveedor en ESTE negocio (mas especifico: ya sabe como Diprofer
 // nombra sus propios productos), y el Catalogo Maestro global
 // (identidadPorCodigo, EAN o codigo de fabricante) como respaldo.
+// El catalogo del proveedor (Diprofer) se carga una vez y se queda atras cuando el fabricante (Truper) publica una lista nueva: en miles de productos
+// Diprofer queda mas bajo que la lista vigente y la factura sugeria vender por debajo de lo que el fabricante recomienda. Regla: por cada nivel
+// (medio mayoreo, publico) la sugerencia es el MAYOR entre el catalogo del proveedor y la lista vigente del fabricante. Si el proveedor ya esta mas
+// alto, se respeta. Solo cambia la SUGERENCIA (no toca ningun precio guardado) y guarda el precio original del proveedor por si se quiere ver.
+async function elevarPreciosConListaFabricante(pool, elementos) {
+    const candidatos = elementos.filter(e => e && e.candidato && e.candidato.fuente === "catalogo_proveedor_codigo" && e.codigo);
+    const codigos = [...new Set(candidatos.map(e => String(e.codigo).trim()))];
+    if (!codigos.length) return;
+
+    let filas = [];
+    try {
+        filas = (await pool.query(
+            `SELECT DISTINCT ON (codigo) codigo, precio_medio_mayoreo, precio_publico
+             FROM public.catalogo_fabricante_productos
+             WHERE codigo = ANY($1::text[]) AND estado = 'activo'
+             ORDER BY codigo, actualizado_en DESC NULLS LAST`,
+            [codigos]
+        )).rows;
+    } catch (error) {
+        return; // sin la lista del fabricante se queda el precio del proveedor, como siempre
+    }
+
+    const lista = new Map(filas.map(f => [String(f.codigo).trim(), f]));
+    // Solo SUBE lo que el proveedor ya traia; un nivel que el proveedor no tiene no se inventa con la lista del fabricante.
+    const mayor = (actual, delFabricante) => (actual != null && delFabricante != null && delFabricante > actual) ? delFabricante : actual;
+
+    for (const e of candidatos) {
+        const f = lista.get(String(e.codigo).trim());
+        if (!f) continue;
+
+        const c = e.candidato;
+        const medioMayoreo = mayor(c.precioMedioMayoreo ?? null, numeroONull(f.precio_medio_mayoreo));
+        const publico = mayor(c.precioPublico ?? null, numeroONull(f.precio_publico));
+
+        if (medioMayoreo !== (c.precioMedioMayoreo ?? null) || publico !== (c.precioPublico ?? null)) {
+            c.precioProveedorMedioMayoreo = c.precioMedioMayoreo ?? null;
+            c.precioProveedorPublico = c.precioPublico ?? null;
+            c.precioMedioMayoreo = medioMayoreo;
+            c.precioPublico = publico;
+            c.ajustadoConListaFabricante = true;
+        }
+    }
+}
+
 async function buscarPorCodigoExacto(pool, negocioId, codigo) {
     const limpio = String(codigo || "").trim();
     if (!limpio) return null;
@@ -47,7 +91,7 @@ async function buscarPorCodigoExacto(pool, negocioId, codigo) {
 
     if (enProveedor.rows.length) {
         const fila = enProveedor.rows[0];
-        return {
+        const candidato = {
             fuente: "catalogo_proveedor_codigo",
             productoId: fila.producto_id || null,
             nombre: fila.nombre_proveedor,
@@ -58,6 +102,9 @@ async function buscarPorCodigoExacto(pool, negocioId, codigo) {
             similitud: 1,
             nivel: "fuerte"
         };
+
+        await elevarPreciosConListaFabricante(pool, [{ codigo: limpio, candidato }]);
+        return candidato;
     }
 
     const porMaestro = await identidadPorCodigo(pool, limpio).catch(() => null);
@@ -122,4 +169,4 @@ async function resolverConceptoFactura(pool, negocioId, concepto) {
     return await buscarPorDescripcion(pool, negocioId, concepto.descripcion);
 }
 
-module.exports = { resolverConceptoFactura, buscarPorCodigoExacto, buscarPorDescripcion };
+module.exports = { resolverConceptoFactura, buscarPorCodigoExacto, buscarPorDescripcion, elevarPreciosConListaFabricante };
