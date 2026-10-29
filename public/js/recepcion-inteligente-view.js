@@ -813,7 +813,9 @@ async function riAbrirModalDecision(itemId) {
 	} else {
 		const sugerido = riPrecioSugerido(item.candidato) || (item.precioSugerido != null ? { valor: item.precioSugerido } : null);
 		if (sugerido) {
-			riDecision.precioPublico = sugerido.valor;
+			// Medio mayoreo sigue siendo el precio de venta; el publico usa el de la lista si existe (antes quedaba igual al medio mayoreo).
+			const referencia = riPreciosReferenciaCandidato(item.candidato);
+			riDecision.precioPublico = referencia?.publico ?? sugerido.valor;
 			riDecision.precioMedioMayoreo = sugerido.valor;
 		}
 	}
