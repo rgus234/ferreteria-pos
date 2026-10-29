@@ -323,22 +323,49 @@
 
     window.dnxEjemplo = function (i) { dile(ejemplos()[i]); };
 
-    // Dictado: donde el navegador lo permite (en iPhone, si no, se usa el microfono del teclado).
+    // Dictado: donde el navegador lo permite (en iPhone, si no, se usa el microfono del teclado). El texto aparece en la barra mientras se habla;
+    // al terminar de hablar (o al tocar el microfono otra vez) se envia solo.
+    let dictadoActivo = null;
+
     window.dnxDictar = function (id, boton) {
         const campo = document.getElementById(id);
 
+        if (dictadoActivo) { dictadoActivo.stop(); return; }
+
         if (!reconocimiento) { if (typeof mostrarToastDueno === "function") mostrarToastDueno("Toca el micrófono de tu teclado para dictar."); campo?.focus(); return; }
+
+        const ayudaOriginal = campo ? campo.placeholder : "";
+        let texto = "";
+        let enviado = false;
+
+        const terminar = () => {
+            boton?.classList.remove("escuchando");
+            if (campo) campo.placeholder = ayudaOriginal;
+            dictadoActivo = null;
+            if (!enviado && texto.trim()) { enviado = true; if (campo) campo.value = texto.trim(); window.dnxEnviar(id); }
+        };
 
         try {
             const r = new reconocimiento();
             r.lang = "es-MX";
-            r.interimResults = false;
-            r.onstart = () => boton?.classList.add("escuchando");
-            r.onend = () => boton?.classList.remove("escuchando");
-            r.onerror = () => { boton?.classList.remove("escuchando"); if (typeof mostrarToastDueno === "function") mostrarToastDueno("No pude escucharte. Toca el micrófono de tu teclado para dictar."); campo?.focus(); };
-            r.onresult = ev => { const texto = ev.results[0]?.[0]?.transcript || ""; if (campo) campo.value = texto; window.dnxEnviar(id); };
+            r.interimResults = true;
+            r.continuous = false;
+            r.onstart = () => { boton?.classList.add("escuchando"); if (campo) { campo.value = ""; campo.placeholder = "Escuchando…"; } };
+            r.onresult = ev => {
+                texto = Array.from(ev.results).map(x => x[0]?.transcript || "").join(" ");
+                if (campo) campo.value = texto;
+            };
+            r.onerror = ev => {
+                const sinPermiso = ev && (ev.error === "not-allowed" || ev.error === "service-not-allowed");
+                if (typeof mostrarToastDueno === "function") mostrarToastDueno(sinPermiso ? "Permite el micrófono para dictar." : "No pude escucharte. Toca el micrófono de tu teclado para dictar.");
+                texto = "";
+                enviado = true;
+            };
+            r.onend = terminar;
+            dictadoActivo = r;
             r.start();
         } catch (error) {
+            dictadoActivo = null;
             campo?.focus();
         }
     };

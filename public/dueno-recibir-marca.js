@@ -188,8 +188,52 @@
         return chip("", grupo.productos.length, "Todos") + lineas.map(x => chip(x.linea, x.n, x.linea)).join("");
     }
 
+    // Marcas agrupadas por tipo de producto (botanas, refrescos, aguas...) para no tener todo revuelto. Solo en abarrotes y con marcas conocidas.
+    const TIPO_POR_MARCA = {
+        sabritas: "Botanas", barcel: "Botanas",
+        "coca-cola": "Refrescos", pepsi: "Refrescos", "dr pepper": "Refrescos", jarritos: "Refrescos",
+        bonafont: "Aguas", penafiel: "Aguas",
+        monster: "Jugos y energía", volt: "Jugos y energía", arizona: "Jugos y energía", v8: "Jugos y energía", jumex: "Jugos y energía",
+        gamesa: "Galletas y pan", bimbo: "Galletas y pan", marinela: "Galletas y pan",
+        ricolino: "Dulces",
+        lala: "Lácteos", nestle: "Lácteos"
+    };
+    const ORDEN_TIPOS = ["Botanas", "Refrescos", "Aguas", "Jugos y energía", "Galletas y pan", "Dulces", "Lácteos", "Otras"];
+    const tipoDeGrupo = g => TIPO_POR_MARCA[plano(g.marca)] || "Otras";
+
+    function tiposActivos() {
+        if (esFerreteria() || estado.factura) return [];
+        const presentes = new Set(estado.grupos.map(tipoDeGrupo));
+        const lista = ORDEN_TIPOS.filter(x => presentes.has(x));
+        return lista.length > 1 ? lista : [];
+    }
+
+    function gruposVisibles() {
+        if (!estado.tipo || estado.factura) return estado.grupos;
+        const lista = estado.grupos.filter(g => tipoDeGrupo(g) === estado.tipo);
+        return lista.length ? lista : estado.grupos;
+    }
+
+    function tiposHtml() {
+        const tipos = tiposActivos();
+        if (!tipos.length) return "";
+        const chip = (valor, etiqueta, n) => `<button type="button" class="drm-linea${(estado.tipo || "") === valor ? " activa" : ""}" onclick="elegirTipoRecibirDueno(${JSON.stringify(valor).replace(/"/g, "&quot;")})">${esc(etiqueta)} <small>${n}</small></button>`;
+        return chip("", "Todas", estado.grupos.length) + tipos.map(x => chip(x, x, estado.grupos.filter(g => tipoDeGrupo(g) === x).length)).join("");
+    }
+
+    window.elegirTipoRecibirDueno = function (tipo) {
+        estado.tipo = tipo || "";
+        const visibles = gruposVisibles();
+        if (!visibles.some(g => g.marca === estado.marca)) estado.marca = visibles[0].marca;
+        estado.linea = "";
+        estado.consulta = "";
+        pintar();
+        const c = document.getElementById("drmCapa");
+        if (c) c.scrollTop = 0;
+    };
+
     function marcasHtml(grupo) {
-        return estado.grupos.map(g => {
+        return gruposVisibles().map(g => {
             const llevo = g.productos.reduce((s, p) => s + (estado.cantidades.get(p.id) > 0 ? 1 : 0), 0);
             return `<button type="button" class="drm-marca${g === grupo ? " activa" : ""}" style="--marca:${g.color}" onclick="elegirMarcaRecibirDueno(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})">
                 ${g.logo ? `<span class="drm-logo"><img src="${esc(g.logo)}" alt=""></span>` : ""}<b>${esc(g.marca)}</b><small>${g.productos.length} ${pluralProducto(g.productos.length)}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
@@ -213,6 +257,7 @@
             <header class="drm-cabeza">
                 <button type="button" class="drm-atras" onclick="cerrarRecibirMarcaDueno()">‹ Atrás</button>
                 <h2>${estado.factura ? "Recibir con factura" : "Recibir por marca"}</h2>
+                <span id="drmFactBtn" class="drm-fact-lugar">${botonFacturasHtml()}</span>
             </header>
             <div class="drm-buscar">
                 <input id="drmBuscar" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="Buscar nombre o código" value="${esc(estado.consulta || "")}" oninput="buscarRecibirDueno(this.value)" onkeydown="if(event.key==='Enter'){ event.preventDefault(); codigoRecibirDueno(this.value); }">
@@ -221,6 +266,7 @@
                 </button>
             </div>
             <div class="drm-facturas" id="drmFacturas">${facturasHtml()}</div>
+            <nav class="drm-lineas drm-tipos" id="drmTipos" aria-label="Tipo de producto">${tiposHtml()}</nav>
             <nav class="drm-marcas" id="drmMarcas" aria-label="Marcas">${marcasHtml(grupo)}</nav>
             <nav class="drm-lineas" id="drmLineas" aria-label="Líneas de la marca">${lineasHtml()}</nav>
             </div>
@@ -478,6 +524,11 @@
     }
 
     // ---- Facturas por recibir (Recepcion inteligente) dentro de esta misma pantalla, y proveedor al recibir a mano ----
+    function avisar(mensaje) {
+        if (window.NexoMovil && window.NexoMovil.aviso) window.NexoMovil.aviso(mensaje);
+        else if (typeof mostrarToastDueno === "function") mostrarToastDueno(mensaje);
+    }
+
     const dinero0 = v => "$" + Number(v || 0).toLocaleString("es-MX", { maximumFractionDigits: 2 });
 
     // Reparte lo que se conto de un producto entre los renglones de la factura que lo traen (casi siempre uno): cada renglon recibe hasta lo que
@@ -507,14 +558,36 @@
             </div>`;
         }
 
-        if (!estado.facturas.length) return "";
-
-        return `<div class="drm-facturas-lista"><span>Facturas por recibir</span>${estado.facturas.map(f => `<button type="button" class="drm-factura-chip" onclick="abrirFacturaRecibirDueno(${Number(f.id)})"><b>${esc(f.proveedor)}</b><small>${f.totalItems} producto${f.totalItems === 1 ? "" : "s"} · ${dinero0(f.total)}${f.porRevisar ? ` · ${f.porRevisar} por decidir` : ""}</small></button>`).join("")}</div>`;
+        return "";
     }
+
+    function botonFacturasHtml() {
+        if (!estado || estado.factura || !estado.facturas.length) return "";
+        return `<button type="button" class="drm-fact-btn" onclick="abrirListaFacturasRecibirDueno()" aria-label="Facturas por recibir"><span aria-hidden="true">📄</span><b>${estado.facturas.length}</b></button>`;
+    }
+
+    window.abrirListaFacturasRecibirDueno = function () {
+        if (!estado || !estado.facturas.length) return;
+        const fondo = document.createElement("div");
+        fondo.className = "drm-hoja-fondo";
+        fondo.innerHTML = `<div class="drm-hoja" role="dialog" aria-label="Facturas por recibir"><h3>Facturas por recibir</h3>
+            <p>Llegaron a tu correo o las subiste en la computadora. Elige una para recibirla con las tarjetas.</p>
+            <div class="drm-hoja-lista">${estado.facturas.map(x => `<button type="button" data-i="${Number(x.id)}">${esc(x.proveedor)}<small>${x.folio ? "Folio " + esc(x.folio) + " · " : ""}${x.totalItems} producto${x.totalItems === 1 ? "" : "s"} · ${dinero0(x.total)}${x.porRevisar ? " · " + x.porRevisar + " por decidir" : ""}</small></button>`).join("")}</div>
+            <button type="button" class="drm-hoja-cancelar" data-i="x">Cerrar</button></div>`;
+        fondo.addEventListener("click", e => {
+            const i = e.target.dataset?.i;
+            if (i === undefined && e.target !== fondo) return;
+            fondo.remove();
+            if (i && i !== "x") window.abrirFacturaRecibirDueno(Number(i));
+        });
+        document.body.appendChild(fondo);
+    };
 
     function repintarFacturas() {
         const caja = document.getElementById("drmFacturas");
         if (caja && estado) caja.innerHTML = facturasHtml();
+        const boton = document.getElementById("drmFactBtn");
+        if (boton && estado) boton.innerHTML = botonFacturasHtml();
     }
 
     // Lo que no bloquea abrir la pantalla: la lista de proveedores y las facturas pendientes llegan despues.
@@ -535,7 +608,7 @@
         if (totales().productos && !window.confirm("Lo que ya anotaste en esta pantalla se descarta al abrir la factura. ¿Continuar?")) return;
 
         let datos;
-        try { datos = await fetchAutenticado(`/recepcion-inteligente/facturas/${id}`); } catch (error) { if (typeof mostrarToastDueno === "function") mostrarToastDueno("No se pudo abrir la factura."); return; }
+        try { datos = await fetchAutenticado(`/recepcion-inteligente/facturas/${id}`); } catch (error) { avisar("No se pudo abrir la factura."); return; }
 
         const lista = estado.facturas.find(f => Number(f.id) === Number(id)) || {};
         const items = (datos?.items || []).filter(i => i.accion && i.accion !== "omitir");
@@ -594,7 +667,23 @@
     async function confirmarFactura() {
         const f = estado.factura;
 
-        if (f.porDecidir) { if (typeof mostrarToastDueno === "function") mostrarToastDueno("Hay conceptos por decidir. Resuélvelos en Recibir factura."); return; }
+        if (f.porDecidir) {
+            const d = await window.NexoMovil.dialogo({
+                titulo: "Faltan conceptos por decidir",
+                texto: `Esta factura trae ${f.porDecidir} concepto${f.porDecidir === 1 ? "" : "s"} que Nexo no pudo emparejar (productos nuevos o sin reconocer). Decídelos en Recibir factura y luego confirma.`,
+                aceptar: "Ir a decidirlos",
+                cancelar: "Ahora no"
+            });
+
+            if (d.ok) {
+                const id = f.id;
+                estado = null;
+                document.getElementById("drmCapa")?.classList.remove("abierta");
+                document.body.classList.remove("drm-abierta", "drm-con-resumen");
+                if (typeof window.dfVerificar === "function") window.dfVerificar(id);
+            }
+            return;
+        }
 
         const cantidadesRecibidas = {};
         let sinContar = 0, distintos = 0;
@@ -628,7 +717,7 @@
         estado = null;
         document.getElementById("drmCapa")?.classList.remove("abierta");
         document.body.classList.remove("drm-abierta", "drm-con-resumen");
-        if (typeof mostrarToastDueno === "function") mostrarToastDueno(r.datos?.conciliada ? "Factura confirmada: completó los costos de lo que ya habías recibido." : "Factura recibida: inventario actualizado.");
+        avisar(r.datos?.conciliada ? "Factura confirmada: completó los costos de lo que ya habías recibido." : "Factura recibida: inventario actualizado.");
         if (typeof refrescarCatalogoLocalDueno === "function") await refrescarCatalogoLocalDueno();
         if (typeof filtrarInventarioDueno === "function") filtrarInventarioDueno();
     }
@@ -660,11 +749,11 @@
 
         const productos = catalogo.filter(p => Number(p.id) > 0);
 
-        if (!productos.length) { if (typeof mostrarToastDueno === "function") mostrarToastDueno("Todavía no hay productos en tu catálogo."); return; }
+        if (!productos.length) { avisar("Todavía no hay productos en tu catálogo."); return; }
 
         const grupos = await gruposConExhibidores(productos);
         const todos = grupos.flatMap(g => g.productos).concat(productos).filter((p, i, a) => a.findIndex(q => Number(q.id) === Number(p.id)) === i);
-        estado = { grupos, todos, indice: new Map(todos.map(p => [Number(p.id), p])), consulta: "", linea: "", resumen: false, proveedores: [], facturas: [], factura: null, respaldo: null, marca: (grupos.find(g => g.marca === marcaInicial) || grupos[0]).marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
+        estado = { grupos, todos, indice: new Map(todos.map(p => [Number(p.id), p])), consulta: "", linea: "", tipo: "", resumen: false, proveedores: [], facturas: [], factura: null, respaldo: null, marca: (grupos.find(g => g.marca === marcaInicial) || grupos[0]).marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
         pintar();
         capa().classList.add("abierta");
         document.body.classList.add("drm-abierta");
@@ -703,14 +792,14 @@
             estado = null;
             document.getElementById("drmCapa")?.classList.remove("abierta");
             document.body.classList.remove("drm-abierta", "drm-con-resumen");
-            if (typeof mostrarToastDueno === "function") mostrarToastDueno(respuesta.repetida ? "Esa recepción ya estaba guardada." : `Recepción guardada: ${cuantos} producto${cuantos === 1 ? "" : "s"} sumado${cuantos === 1 ? "" : "s"} al inventario.`);
+            avisar(respuesta.repetida ? "Esa recepción ya estaba guardada." : `Recepción guardada: ${cuantos} producto${cuantos === 1 ? "" : "s"} sumado${cuantos === 1 ? "" : "s"} al inventario.`);
             if (typeof refrescarCatalogoLocalDueno === "function") await refrescarCatalogoLocalDueno();
             if (typeof filtrarInventarioDueno === "function") filtrarInventarioDueno();
         } catch (error) {
             // La misma llave se conserva: si la peticion SI llego pero la respuesta se perdio, reintentar no suma dos veces.
             estado.enviando = false;
             pintar();
-            if (typeof mostrarToastDueno === "function") mostrarToastDueno(error.message || "No se pudo guardar. Revisa tu internet y vuelve a intentar.");
+            avisar(error.message || "No se pudo guardar. Revisa tu internet y vuelve a intentar.");
         }
     };
 

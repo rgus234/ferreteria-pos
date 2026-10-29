@@ -155,3 +155,14 @@ body.drm-con-resumen { overflow: hidden; }
 :root.oscuro .drm-hoja { background: #0f172a; color: #f1f5f9; }
 :root.oscuro .drm-hoja p { color: #94a3b8; }
 :root.oscuro .drm-hoja-lista button { background: #1e293b !important; border-color: #475569; color: #f1f5f9 !important; }
+
+/* Facturas por recibir: boton de esquina en la cabeza (antes una franja que ocupaba espacio) y chips de tipo de producto */
+.drm-fact-lugar { margin-left: auto; display: flex; }
+.drm-fact-lugar:empty { display: none; }
+.drm-fact-btn { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 12px; border: 2px solid #0f766e; border-radius: 999px; background: #ecfdf5 !important; color: #064e3b !important; font-size: 17px; }
+.drm-fact-btn b { min-width: 22px; padding: 2px 7px; border-radius: 999px; background: #0f766e; color: #fff; font-size: 13px; text-align: center; }
+.drm-hoja-lista button small { display: block; margin-top: 2px; color: #64748b; font-size: 12.5px; font-weight: 600; }
+.drm-tipos { padding-top: 2px; }
+.drm-tipos .drm-linea { border-color: #94a3b8; font-weight: 800; }
+.drm-tipos .drm-linea.activa { background: #0f172a !important; color: #fff !important; border-color: #0f172a; }
+:root.oscuro .drm-fact-btn { background: #064e3b !important; border-color: #10b981; color: #d1fae5 !important; }

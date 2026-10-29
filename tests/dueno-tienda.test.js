@@ -412,3 +412,19 @@ test("Recibir por marca conectado con Recepcion inteligente: proveedor 'sin fact
     assert.match(factura, /conciliarConRecepcionMercanciaId: p\.recepcionMercanciaId/, "el celular concilia sin mandar a la computadora");
     assert.doesNotMatch(factura, /Confírmala en la computadora para conciliarlas/, "ya no manda a la computadora");
 });
+
+test("Celular: avisos visibles en Recibir por marca, filtro por tipo, facturas en un boton, dictado en vivo y pendientes de Inicio tocables", () => {
+    const rec = leer("dueno-recibir-marca.js");
+    assert.equal((rec.match(/mostrarToastDueno\(/g) || []).length, 1, "solo el respaldo de avisar() usa el toast que queda detras de esta pantalla");
+    assert.match(rec, /Faltan conceptos por decidir/, "con conceptos por decidir se explica y se ofrece ir a decidirlos");
+    assert.match(rec, /elegirTipoRecibirDueno/, "filtro por tipo de producto");
+    assert.match(rec, /abrirListaFacturasRecibirDueno/, "facturas por recibir en un boton");
+    assert.doesNotMatch(rec, /drm-facturas-lista/, "ya no hay franja de chips");
+
+    const dile = leer("dueno-nexo-dile.js");
+    assert.match(dile, /interimResults = true/, "el dictado muestra lo que se va diciendo");
+
+    const html = leer("dueno.html");
+    for (const destino of ["stock", "creditos", "facturas"]) assert.match(html, new RegExp(`irAlertaDueno\('${destino}'\)`), "pendiente tocable: " + destino);
+    assert.match(leer("dueno.js"), /function irAlertaDueno/);
+});

@@ -674,6 +674,23 @@ async function iniciarSesionEmpleadoDueno() {
     }
 }
 
+// Las tarjetas de pendientes de Inicio llevan directo a donde se resuelven.
+function irAlertaDueno(destino) {
+    if (destino === "creditos") { cambiarTabDueno("creditos"); return; }
+
+    if (destino === "stock") {
+        cambiarTabDueno("inventario");
+        if (typeof dmAbrirEn === "function") dmAbrirEn("resurtir");
+        return;
+    }
+
+    if (destino === "facturas") {
+        cambiarTabDueno("inventario");
+        if (typeof dfAbrir === "function") dfAbrir();
+        else if (typeof mostrarToastDueno === "function") mostrarToastDueno("Abre Recibir factura desde Inventario.");
+    }
+}
+
 function mostrarToastDueno(mensaje) {
     const toast =
     document.getElementById("duenoToast");
@@ -774,20 +791,11 @@ function renderBajos(productos) {
             .sort((a, b) => Number(a.stock || 0) - Number(b.stock || 0));
 
     document.getElementById("duenoInventarioBajo").textContent =
-        `${bajos.length} producto${bajos.length === 1 ? "" : "s"} con stock crítico`;
+        `${bajos.length} producto${bajos.length === 1 ? "" : "s"}`;
 
-    document.getElementById("duenoListaBajos").innerHTML =
-        bajos.length
-            ? bajos.slice(0, 5).map(producto => `
-                <div class="fila-dueno">
-                    <div>
-                        <strong>${escaparDueno(producto.nombre)}</strong>
-                        <span>${escaparDueno(producto.codigo || "Sin codigo")} · Stock ${producto.stock}</span>
-                    </div>
-                    <b>${dinero(producto.precio)}</b>
-                </div>
-            `).join("")
-            : `<div class="vacio">Sin alertas por ahora.</div>`;
+    const lista = document.getElementById("duenoListaBajos");
+    lista.textContent = bajos.length ? bajos.slice(0, 2).map(p => p.nombre).join(" · ") + (bajos.length > 2 ? " y " + (bajos.length - 2) + " más" : "") : "Todo en orden por ahora.";
+    lista.closest(".dalerta")?.classList.toggle("dalerta-ok", !bajos.length);
 }
 
 function renderCreditos(datos) {
@@ -800,20 +808,9 @@ function renderCreditos(datos) {
     document.getElementById("duenoClientesCredito").textContent =
         `${datos.clientesConAdeudo || 0} clientes`;
 
-    document.getElementById("duenoListaCreditos").innerHTML =
-        clientes.length
-            ? clientes
-                .slice(0, 5)
-                .map(cliente => `
-                    <div class="fila-dueno">
-                        <div>
-                            <strong>${escaparDueno(cliente.nombre)}</strong>
-                            <span>${escaparDueno(cliente.telefono || "Sin telefono")}</span>
-                        </div>
-                        <b>${dinero(cliente.saldo)}</b>
-                    </div>
-                `).join("")
-            : `<div class="vacio">No hay creditos pendientes.</div>`;
+    const lista = document.getElementById("duenoListaCreditos");
+    lista.textContent = clientes.length ? clientes.slice(0, 2).map(c => c.nombre).join(" · ") + (clientes.length > 2 ? " y " + (clientes.length - 2) + " más" : "") : "No hay créditos pendientes.";
+    lista.closest(".dalerta")?.classList.toggle("dalerta-ok", !clientes.length);
 }
 
 // Tarjeta de solo lectura -- Recepcion Inteligente (revisar facturas
@@ -850,19 +847,8 @@ async function cargarRecepcionPendienteDueno() {
         document.getElementById("duenoRecepcionTitulo").textContent =
             `${pendientes.length} factura${pendientes.length === 1 ? "" : "s"}`;
 
-        document.getElementById("duenoListaRecepcion").innerHTML =
-            pendientes
-                .slice(0, 5)
-                .map(factura => `
-                    <div class="fila-dueno">
-                        <div>
-                            <strong>${escaparDueno(factura.proveedor)}</strong>
-                            <span>${escaparDueno(factura.folio || "Sin folio")}</span>
-                        </div>
-                        <b>${dinero(factura.total)}</b>
-                    </div>
-                `).join("") +
-            `<div class="vacio">Revisalas en tu computadora.</div>`;
+        document.getElementById("duenoListaRecepcion").textContent =
+            pendientes.slice(0, 2).map(f => f.proveedor).join(" · ") + (pendientes.length > 2 ? " y " + (pendientes.length - 2) + " más" : "");
     } catch (error) {
         // Sin permiso de inventario, o Recepcion Inteligente sin
         // configurar todavia -- no hay nada que mostrar, no un error.

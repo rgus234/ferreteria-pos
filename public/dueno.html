@@ -24,13 +24,13 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=celular-plan-b-20261107-05">
+    <link rel="stylesheet" href="dueno.css?v=celular-plan-b-20261112-06">
     <link rel="stylesheet" href="dueno-captura.css?v=captura-20261030-01">
     <link rel="stylesheet" href="dueno-tienda.css?v=tienda-20261031-01">
     <link rel="stylesheet" href="dueno-exhibidores.css?v=exhibidores-20261108-04">
     <link rel="stylesheet" href="dueno-venta-movil.css?v=ventamovil-20261107-10">
     <link rel="stylesheet" href="dueno-tablet.css?v=tablet-20261107-04">
-    <link rel="stylesheet" href="dueno-recibir-marca.css?v=rmarca-20261111-18">
+    <link rel="stylesheet" href="dueno-recibir-marca.css?v=rmarca-20261112-19">
     <link rel="stylesheet" href="dueno-usuarios.css?v=usuarios-20261102-01">
     <link rel="stylesheet" href="dueno-actividad.css?v=actividad-20261102-01">
     <link rel="stylesheet" href="dueno-alta.css?v=alta-20261107-08">
@@ -210,38 +210,23 @@
         </section>
 
         <section class="dueno-grid">
-            <article class="dueno-card">
-                <div class="card-head">
-                    <div>
-                        <span>Alertas importantes</span>
-                        <h2 id="duenoInventarioBajo">0 productos</h2>
-                    </div>
-                    <b class="alert-dot"></b>
-                </div>
-                <div id="duenoListaBajos" class="lista-compacta"></div>
-            </article>
-
-            <article class="dueno-card">
-                <div class="card-head">
-                    <div>
-                        <span>Créditos pendientes</span>
-                        <h2 id="duenoCreditosTotal">$0.00</h2>
-                    </div>
-                    <small id="duenoClientesCredito">0 clientes</small>
-                </div>
-                <div id="duenoListaCreditos" class="lista-compacta"></div>
-            </article>
-
-            <article class="dueno-card" id="duenoRecepcionCard" style="display:none;">
-                <div class="card-head">
-                    <div>
-                        <span>Recepción Inteligente</span>
-                        <h2 id="duenoRecepcionTitulo">0 facturas</h2>
-                    </div>
-                    <b class="alert-dot"></b>
-                </div>
-                <div id="duenoListaRecepcion" class="lista-compacta"></div>
-            </article>
+            <div class="dueno-alertas" aria-label="Pendientes">
+                <button type="button" class="dalerta dalerta-stock" onclick="irAlertaDueno('stock')">
+                    <span class="dalerta-icono"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg></span>
+                    <span class="dalerta-texto"><small>Stock crítico</small><strong id="duenoInventarioBajo">0 productos</strong><em id="duenoListaBajos"></em></span>
+                    <span class="dalerta-flecha" aria-hidden="true">›</span>
+                </button>
+                <button type="button" class="dalerta dalerta-credito" onclick="irAlertaDueno('creditos')">
+                    <span class="dalerta-icono"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
+                    <span class="dalerta-texto"><small>Créditos pendientes · <span id="duenoClientesCredito">0 clientes</span></small><strong id="duenoCreditosTotal">$0.00</strong><em id="duenoListaCreditos"></em></span>
+                    <span class="dalerta-flecha" aria-hidden="true">›</span>
+                </button>
+                <button type="button" class="dalerta dalerta-factura" id="duenoRecepcionCard" style="display:none;" onclick="irAlertaDueno('facturas')">
+                    <span class="dalerta-icono"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h4"/></svg></span>
+                    <span class="dalerta-texto"><small>Facturas por recibir</small><strong id="duenoRecepcionTitulo">0 facturas</strong><em id="duenoListaRecepcion"></em></span>
+                    <span class="dalerta-flecha" aria-hidden="true">›</span>
+                </button>
+            </div>
 
             <article class="dueno-card dueno-card-wide">
                 <div class="card-head">
@@ -805,11 +790,11 @@
         </div>
     </div>
 
-    <script src="dueno-offline.js?v=celular-plan-b-20261107-05"></script>
-    <script src="dueno.js?v=celular-plan-b-20261107-05"></script>
-    <script src="dueno-inventario.js?v=celular-plan-b-20261107-05"></script>
-    <script src="dueno-ventas-offline.js?v=celular-plan-b-20261107-05"></script>
-    <script src="dueno-gestion.js?v=celular-plan-b-20261107-05"></script>
+    <script src="dueno-offline.js?v=celular-plan-b-20261112-06"></script>
+    <script src="dueno.js?v=celular-plan-b-20261112-06"></script>
+    <script src="dueno-inventario.js?v=celular-plan-b-20261112-06"></script>
+    <script src="dueno-ventas-offline.js?v=celular-plan-b-20261112-06"></script>
+    <script src="dueno-gestion.js?v=celular-plan-b-20261112-06"></script>
     <script src="dueno-captura.js?v=captura-20261030-02"></script>
     <script src="dueno-tienda.js?v=tienda-20261031-01"></script>
     <script src="dueno-exhibidores.js?v=exhibidores-20261108-04"></script>
@@ -825,8 +810,8 @@
     <script src="dueno-venta-completa.js?v=ventacompleta-20261106-01"></script>
     <script src="dueno-ticket.js?v=ticket-20261107-01"></script>
     <script src="dueno-vender-inicio.js?v=vinicio-20261107-02"></script>
-    <script src="dueno-recibir-marca.js?v=rmarca-20261111-18"></script>
-    <script src="dueno-nexo-dile.js?v=nexodile-20261110-04"></script>
+    <script src="dueno-recibir-marca.js?v=rmarca-20261112-19"></script>
+    <script src="dueno-nexo-dile.js?v=nexodile-20261112-05"></script>
     <script src="dueno-giro.js?v=giro-20261107-02"></script>
 </body>
 
