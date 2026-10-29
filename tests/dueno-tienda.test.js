@@ -425,6 +425,6 @@ test("Celular: avisos visibles en Recibir por marca, filtro por tipo, facturas e
     assert.match(dile, /interimResults = true/, "el dictado muestra lo que se va diciendo");
 
     const html = leer("dueno.html");
-    for (const destino of ["stock", "creditos", "facturas"]) assert.match(html, new RegExp(`irAlertaDueno\('${destino}'\)`), "pendiente tocable: " + destino);
+    for (const destino of ["stock", "creditos", "facturas"]) assert.ok(html.includes(`irAlertaDueno('${destino}')`), "pendiente tocable: " + destino);
     assert.match(leer("dueno.js"), /function irAlertaDueno/);
 });

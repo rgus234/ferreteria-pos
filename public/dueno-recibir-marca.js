@@ -710,7 +710,7 @@
         if (r.cancelado || !r.ok) {
             estado.enviando = false;
             pintar();
-            if (!r.cancelado && typeof mostrarToastDueno === "function") mostrarToastDueno(r.datos?.error || "No se pudo confirmar la factura.");
+            if (!r.cancelado) avisar(r.datos?.error || "No se pudo confirmar la factura.");
             return;
         }
 
