@@ -485,3 +485,10 @@ test("Vender en el celular: 'Tus productos' se pliega y se desplega (se recuerda
     assert.match(css, /\.dvi-frecuentes\.plegado \.dvi-grid \{ display: none; \}/);
     assert.match(css, /\.dvi-frecuentes \+ \.dueno-card \{ margin-top: 20px; \}/, "respiro antes de la venta actual");
 });
+
+test("Modo oscuro del celular: exhibidores, mapa, tienda, usuarios y captura tienen su version oscura y se carga sin conexion", () => {
+    const css = leer("dueno-oscuro-auto.css");
+    for (const clase of [".dx-capa", ".dx-tarjeta", ".dm-capa"]) assert.ok(css.includes(":root.oscuro " + clase), "modo oscuro para " + clase);
+    assert.ok(leer("dueno.html").includes("dueno-oscuro-auto.css"));
+    assert.ok(leer("dueno-sw.js").includes("/dueno-oscuro-auto.css"), "disponible sin conexion");
+});

@@ -1,0 +1,133 @@
+/* Modo oscuro de los modulos del celular que se pintaban con colores claros fijos (exhibidores, mapa de la tienda, tienda, usuarios y captura).
+   GENERADO a partir de sus propias reglas (tmp/generar-oscuro.js): solo cambia colores de fondo, texto y bordes claros; las fotos y los colores de marca no se tocan. */
+
+/* dueno-exhibidores.css */
+:root.oscuro .dx-entrada { background: #182233 !important; }
+:root.oscuro .dx-entrada small { color: #aab7ca !important; }
+:root.oscuro .dx-capa { background: #0e1624 !important; }
+:root.oscuro .dx-cabecera { background: #182233 !important; }
+:root.oscuro .dx-icono { background: #182233 !important; }
+:root.oscuro .dx-nota { color: #aab7ca !important; }
+:root.oscuro .dx-tarjeta { background: #182233 !important; }
+:root.oscuro .dx-tarjeta span { color: #aab7ca !important; }
+:root.oscuro .dx-tile { background: #182233 !important; }
+:root.oscuro .dx-lugar { background: #182233 !important; color: #aab7ca !important; }
+:root.oscuro .dx-barra { background: #182233 !important; }
+
+/* dueno-mapa.css */
+:root.oscuro .dm-capa { background: #0e1624 !important; }
+:root.oscuro .dm-chip-codigo.dm-chico { background: #182233 !important; }
+:root.oscuro .dm-pie { border-color: rgba(148, 163, 184, .28) !important; }
+:root.oscuro .dm-nota { color: #aab7ca !important; }
+:root.oscuro .dm-dato { background: #182233 !important; }
+:root.oscuro .dm-dato span { color: #aab7ca !important; }
+:root.oscuro .dm-dato.aviso { background: #182233 !important; }
+:root.oscuro .dm-dato.alerta { background: #182233 !important; }
+:root.oscuro .dm-cuadricula button { background: #182233 !important; }
+:root.oscuro .dm-icono-caja { background: #182233 !important; }
+:root.oscuro .dm-azul { background: #182233 !important; }
+:root.oscuro .dm-verde { background: #182233 !important; }
+:root.oscuro .dm-ambar { background: #182233 !important; }
+:root.oscuro .dm-gris { background: #182233 !important; }
+:root.oscuro .dm-tienda { background: #182233 !important; }
+:root.oscuro .dm-bodega { background: #182233 !important; }
+:root.oscuro .dm-seccion { background: #182233 !important; }
+:root.oscuro .dm-seccion-cab button { background: #182233 !important; }
+:root.oscuro .dm-fila,
+:root.oscuro .dm-producto { background: #182233 !important; }
+:root.oscuro .dm-fila-texto small { color: #aab7ca !important; }
+:root.oscuro .dm-cantidad { background: #182233 !important; }
+:root.oscuro .dm-ruta { background: #182233 !important; color: #aab7ca !important; }
+:root.oscuro .dm-acciones button { background: #182233 !important; }
+:root.oscuro .dm-enlaces button { color: #aab7ca !important; }
+:root.oscuro .dm-input,
+:root.oscuro .dm-campo input,
+:root.oscuro .dm-campo select { background: #182233 !important; border-color: rgba(148, 163, 184, .28) !important; }
+:root.oscuro .dm-secundario { background: #182233 !important; }
+:root.oscuro .dm-buscador { background: #182233 !important; color: #aab7ca !important; }
+:root.oscuro .dm-buscador button { background: #182233 !important; }
+:root.oscuro .dm-grande-fila { background: #182233 !important; }
+:root.oscuro .dm-etiqueta.dm-verde { background: #182233 !important; }
+:root.oscuro .dm-etiqueta.dm-ambar { background: #182233 !important; }
+:root.oscuro .dm-etiqueta.dm-rojo { background: #182233 !important; }
+:root.oscuro .dm-cifras > div { background: #182233 !important; }
+:root.oscuro .dm-cifras span { color: #aab7ca !important; }
+:root.oscuro .dm-spec { border-color: rgba(148, 163, 184, .28) !important; }
+:root.oscuro .dm-spec span { color: #aab7ca !important; }
+:root.oscuro .dm-tarjeta { background: #182233 !important; }
+:root.oscuro .dm-tarjeta-cab small { color: #aab7ca !important; }
+:root.oscuro .dm-pasar small { color: #aab7ca !important; }
+:root.oscuro .dm-vacio-grande span { color: #aab7ca !important; }
+:root.oscuro .dm-conteo-fila.listo { background: #182233 !important; }
+:root.oscuro .dm-paso button { background: #182233 !important; }
+:root.oscuro .dm-cant { background: #182233 !important; border-color: rgba(148, 163, 184, .28) !important; }
+:root.oscuro .dm-resultado > div { background: #182233 !important; }
+:root.oscuro .dm-resultado span { color: #aab7ca !important; }
+:root.oscuro .dm-dif { background: #182233 !important; }
+:root.oscuro .dm-dif.neg { background: #182233 !important; }
+:root.oscuro .dm-dif.pos { background: #182233 !important; }
+:root.oscuro .dm-check { background: #182233 !important; }
+:root.oscuro .dm-chips button { background: #182233 !important; color: #aab7ca !important; }
+:root.oscuro .dm-excluir { color: #aab7ca !important; }
+:root.oscuro .dm-con-dif { background: #182233 !important; }
+:root.oscuro .df-opciones .df-gris { background: #182233 !important; }
+:root.oscuro .df-renglon.listo { background: #182233 !important; }
+:root.oscuro .df-aviso { background: #182233 !important; }
+:root.oscuro .df-precio { background: #182233 !important; }
+:root.oscuro .df-precio.df-activo { background: #182233 !important; }
+:root.oscuro .df-precio small { color: #aab7ca !important; }
+:root.oscuro .df-fijo { background: #182233 !important; }
+:root.oscuro .dp-pasos { color: #aab7ca !important; }
+:root.oscuro .dp-estado { background: #182233 !important; }
+:root.oscuro .dp-estado.dp-ok { background: #182233 !important; }
+:root.oscuro .dm-plantilla { background: #182233 !important; }
+:root.oscuro .df-caduca { background: #182233 !important; }
+:root.oscuro .df-caduca.puesta { background: #182233 !important; }
+:root.oscuro .dm-motivo { background: #182233 !important; border-color: rgba(148, 163, 184, .28) !important; }
+:root.oscuro .dm-fila-quieta { background: #182233 !important; }
+
+/* dueno-tienda.css */
+:root.oscuro .tienda-entrada { background: #182233 !important; }
+:root.oscuro .tienda-entrada small { color: #aab7ca !important; }
+:root.oscuro .tienda-capa { background: #0e1624 !important; }
+:root.oscuro .tienda-cabecera { background: #182233 !important; }
+:root.oscuro .tienda-icono { background: #182233 !important; }
+:root.oscuro .tienda-tabs { background: #182233 !important; }
+:root.oscuro .tienda-tabs button { background: #182233 !important; color: #aab7ca !important; }
+:root.oscuro .tienda-kpis article { background: #182233 !important; }
+:root.oscuro .tienda-kpis span { color: #aab7ca !important; }
+:root.oscuro .tienda-kpis small { color: #aab7ca !important; }
+:root.oscuro .tienda-tarjeta { background: #182233 !important; }
+:root.oscuro .tienda-barras span { color: #aab7ca !important; }
+:root.oscuro .tienda-nota { color: #aab7ca !important; }
+:root.oscuro .tienda-revisar li { background: #182233 !important; }
+:root.oscuro .tienda-revisar small { color: #aab7ca !important; }
+:root.oscuro .tienda-acciones button,
+:root.oscuro .tienda-acciones select { background: #182233 !important; }
+:root.oscuro .tienda-pedido li { background: #182233 !important; }
+:root.oscuro .tienda-pedido small { color: #aab7ca !important; }
+:root.oscuro .tienda-pedido input { border-color: rgba(148, 163, 184, .28) !important; }
+
+/* dueno-usuarios.css */
+:root.oscuro .du-chip { border-color: rgba(148, 163, 184, .28) !important; }
+:root.oscuro .du-panel { background: #182233 !important; }
+:root.oscuro .du-nota { color: #aab7ca !important; }
+:root.oscuro .du-persona { background: #182233 !important; }
+:root.oscuro .du-persona small { color: #aab7ca !important; }
+:root.oscuro .du-pin { background: #182233 !important; border-color: rgba(148, 163, 184, .28) !important; }
+:root.oscuro .du-secundario { background: #182233 !important; }
+
+/* dueno-captura.css */
+:root.oscuro .captura-entrada { background: #182233 !important; }
+:root.oscuro .captura-entrada small { color: #aab7ca !important; }
+:root.oscuro .captura-ficha { background: #182233 !important; }
+:root.oscuro .captura-etiqueta { color: #aab7ca !important; }
+:root.oscuro .captura-ficha input { border-color: rgba(148, 163, 184, .28) !important; }
+:root.oscuro .captura-btn { background: #182233 !important; }
+
+/* texto de Exhibidores: titulos y nombres claros (los heredaban oscuros del boton) */
+:root.oscuro .dx-capa, :root.oscuro .dx-capa h2, :root.oscuro .dx-capa h3, :root.oscuro .dx-capa p,
+:root.oscuro .dx-cabecera, :root.oscuro .dx-cabecera h2, :root.oscuro .dx-cabecera button,
+:root.oscuro .dx-tarjeta, :root.oscuro .dx-tarjeta b, :root.oscuro .dx-tarjeta strong, :root.oscuro .dx-tarjeta h3,
+:root.oscuro .dx-tile, :root.oscuro .dx-tile b, :root.oscuro .dx-tile strong, :root.oscuro .dx-lugar, :root.oscuro .dx-barra, :root.oscuro .dx-barra button { color: #f1f5f9 !important; }
+:root.oscuro .dx-tarjeta small, :root.oscuro .dx-tile small, :root.oscuro .dx-nota { color: #aab7ca !important; }
