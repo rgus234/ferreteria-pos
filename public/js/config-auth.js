@@ -1455,6 +1455,8 @@ function ocultarPantallasPrincipales() {
  "pantallaEncargos",
  "pantallaListasProducto",
  "pantallaExhibidores",
+ "pantallaMapaTienda",
+ "pantallaFuncionesBeta",
  "pantallaPedidoSugerido",
  "pantallaFotosSugeridas",
  "pantallaCargaInventario",
