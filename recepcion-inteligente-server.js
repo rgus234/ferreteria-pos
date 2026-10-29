@@ -527,10 +527,12 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 const negocio = await negocioActual(req, pool);
 
                 const filas = await pool.query(
-                    `SELECT r.id, r.nombre_emisor, r.folio, r.total, r.estado, r.origen, r.created_at, r.confirmada_en,
+                    `SELECT r.id, r.nombre_emisor, r.folio, r.total, r.estado, r.origen, r.created_at, r.confirmada_en, r.fecha_documento, r.uuid_cfdi,
                             p.nombre AS proveedor_nombre,
                             COUNT(i.id) AS total_items,
-                            COUNT(i.id) FILTER (WHERE i.accion <> '') AS resueltos
+                            COUNT(i.id) FILTER (WHERE i.accion <> '') AS resueltos,
+                            COUNT(i.id) FILTER (WHERE (i.candidato->>'fuente') IS DISTINCT FROM 'inventario') AS nuevos,
+                            (ARRAY_AGG(i.descripcion ORDER BY i.id))[1:3] AS muestra
                      FROM public.recepciones_inteligentes r
                      LEFT JOIN public.proveedores p ON p.id = r.proveedor_id
                      LEFT JOIN public.recepciones_inteligentes_items i ON i.recepcion_id = r.id
@@ -554,7 +556,12 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         resueltos: Number(fila.resueltos),
                         porRevisar: Number(fila.total_items) - Number(fila.resueltos),
                         creadaEn: fila.created_at,
-                        confirmadaEn: fila.confirmada_en
+                        confirmadaEn: fila.confirmada_en,
+                        // Con que distinguir una factura de otra cuando todas son del mismo proveedor y no traen folio.
+                        fechaDocumento: fila.fecha_documento,
+                        claveCorta: fila.uuid_cfdi ? String(fila.uuid_cfdi).slice(-6).toUpperCase() : "",
+                        nuevos: Number(fila.nuevos) || 0,
+                        muestra: (fila.muestra || []).filter(Boolean)
                     }))
                 });
             } catch (error) {

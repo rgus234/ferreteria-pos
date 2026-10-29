@@ -107,7 +107,7 @@
 
                 return `<button type="button" class="dm-fila dm-conteo-item" onclick="dfVerificar(${f.id})">
                     <span class="dm-icono-caja dm-tienda">${icono("etiqueta", 22)}</span>
-                    <span class="dm-fila-texto"><b>${esc(f.proveedor)}</b><small>${f.folio ? "Folio " + esc(f.folio) + " · " : ""}${f.totalItems} productos · ${dinero(f.total)}</small>${avance ? `<small>Llevas ${avance} verificados</small>` : ""}</span>
+                    <span class="dm-fila-texto"><b>${esc(f.proveedor)}</b><small>${f.folio ? "Folio " + esc(f.folio) : f.claveCorta ? "Factura …" + esc(f.claveCorta) : "Sin folio"} · ${f.fechaDocumento ? (m => m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(f.fechaDocumento))(String(f.fechaDocumento).match(/^(\d{4})-(\d{2})-(\d{2})/)).toLocaleDateString("es-MX", { day: "numeric", month: "short" }) : f.creadaEn ? new Date(f.creadaEn).toLocaleDateString("es-MX", { day: "numeric", month: "short" }) : ""} · ${f.totalItems} productos · ${dinero(f.total)}</small><small>${esc((f.muestra || []).map(n => String(n).slice(0, 24)).join(" · "))}${f.totalItems > (f.muestra || []).length ? " · +" + (f.totalItems - (f.muestra || []).length) + " más" : ""}</small>${avance ? `<small>Llevas ${avance} verificados</small>` : ""}</span>
                     ${f.porRevisar ? `<span class="dm-etiqueta dm-ambar">${f.porRevisar} por decidir</span>` : `<span class="dm-etiqueta dm-verde">Lista</span>`}
                 </button>`;
             }).join("") || `<div class="dm-vacio-grande">${icono("ok", 40)}<b>No hay facturas por recibir</b><span>Cuando llegue una factura a tu correo conectado, o la subas en la computadora, aparece aquí para verificarla con el celular.</span></div>`

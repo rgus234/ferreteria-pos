@@ -65,6 +65,31 @@ function riPrecioSugerido(candidato) {
 	return { valor: precios.distribuidor, etiqueta: "distribuidor" };
 }
 
+// Facturas del mismo proveedor: se distinguen por folio (o, si no trae, por el final de su clave), fecha y lo primero que traen.
+function riTituloFactura(f) {
+	if (f.folio) return `Folio ${f.folio}`;
+	if (f.claveCorta) return `Factura …${f.claveCorta}`;
+	return "Sin folio";
+}
+
+// La fecha del documento es solo un dia (sin hora): se toma tal cual para que no se recorra por la zona horaria.
+function riFechaSoloDia(fecha) {
+	const m = String(fecha || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+	if (!m) return riFechaCorta(fecha);
+	return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+}
+
+function riFechaCorta(fecha) {
+	if (!fecha) return "sin fecha";
+	const d = new Date(fecha);
+	return Number.isNaN(d.getTime()) ? "sin fecha" : d.toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+}
+
+function riMuestraFactura(f) {
+	const nombres = (f.muestra || []).map(n => String(n).replace(/\s+/g, " ").slice(0, 28));
+	return nombres.length ? nombres.join(" · ") + (f.totalItems > nombres.length ? ` · +${f.totalItems - nombres.length} más` : "") : "";
+}
+
 function riBadgeEstado(recepcion) {
 	if (recepcion.porRevisar === 0) return `<span class="ri-badge ri-badge-ok">🟢 Todo identificado</span>`;
 	return `<span class="ri-badge ri-badge-revisar">🟡 ${recepcion.porRevisar} por revisar</span>`;
@@ -421,13 +446,14 @@ function riRenderTablaFacturas(facturas) {
 					<span class="ri-avatar ${f.origen === "gmail" ? "" : "manual"}">${riIconoOrigen(f.origen)}</span>
 					<div class="ri-proveedor-texto">
 						<strong>${escaparPOS(f.proveedor)}</strong>
-						<small>Folio ${escaparPOS(f.folio || "-")}</small>
+						<small>${escaparPOS(riTituloFactura(f))} · ${f.fechaDocumento ? riFechaSoloDia(f.fechaDocumento) : riFechaCorta(f.creadaEn)} · ${f.totalItems} producto${f.totalItems === 1 ? "" : "s"}</small>
+						<small class="ri-muestra">${escaparPOS(riMuestraFactura(f))}</small>
 					</div>
 				</div>
 			</td>
 			<td>$${f.total.toFixed(2)}</td>
 			<td>${riBadgeGeneral(f.estado)}</td>
-			<td>${f.estado === "pendiente" ? riBadgeEstado(f) : ""}</td>
+			<td>${f.estado === "pendiente" ? riBadgeEstado(f) + (f.nuevos ? ` <span class="ri-badge ri-badge-nuevo">🔵 ${f.nuevos} nuevo${f.nuevos === 1 ? "" : "s"}</span>` : "") : ""}</td>
 		</tr>
 	`).join("");
 }
@@ -531,6 +557,8 @@ async function riVerDetalle(id) {
 			<div><span>Total</span><strong>$${recepcion.total.toFixed(2)}</strong></div>
 		</div>
 
+		${recepcion.estado === "pendiente" ? riPasosHtml(items, sinDecidir) : ""}
+
 		<div class="ri-tabla-wrap">
 			<table class="ri-tabla-items">
 				<thead><tr><th>Producto</th><th>Código</th><th>Cant.</th><th>Costo</th><th>Estado</th><th></th></tr></thead>
@@ -543,8 +571,9 @@ async function riVerDetalle(id) {
 		${recepcion.estado === "pendiente" ? `
 			<div class="ri-acciones-footer">
 				<button type="button" class="btn-secundario" onclick="riRechazar(${recepcion.id})">Rechazar factura</button>
-				<button type="button" class="btn-agregar" onclick="riConfirmar(${recepcion.id})">
-					Confirmar recepción${sinDecidir ? ` (${sinDecidir} sin revisar)` : ""}
+				<button type="button" class="${sinDecidir ? "btn-secundario" : "btn-agregar"}" onclick="riAbrirEscaneo(${recepcion.id})" ${sinDecidir ? `title="Primero revisa los productos marcados"` : ""}>📷 Escanear lo que llegó</button>
+				<button type="button" class="btn-secundario" onclick="riCantidadesEscaneadas = null; riConfirmar(${recepcion.id})">
+					Confirmar sin escanear${sinDecidir ? ` (${sinDecidir} sin revisar)` : ""}
 				</button>
 			</div>
 		` : ""}
@@ -597,7 +626,7 @@ function riFilaItem(item, estadoRecepcion) {
 			<td>${item.cantidad}</td>
 			<td>$${item.costo.toFixed(2)}${sugerido ? `<small>Venta: $${sugerido.valor.toFixed(2)} (${sugerido.etiqueta})${item.candidato?.ajustadoConListaFabricante ? ` · lista del fabricante` : ""}</small>` : ""}</td>
 			<td>${yaDecidido}</td>
-			<td>${puedeEditar ? `<button type="button" class="btn-mini" data-ri-accion="revisar" data-item-id="${item.id}">${item.accion ? "Editar" : "Revisar"}</button>` : ""}</td>
+			<td>${puedeEditar ? `<button type="button" class="btn-mini" data-ri-accion="revisar" data-item-id="${item.id}">${item.accion ? "Editar" : (item.candidato?.fuente !== "inventario" ? "＋ Agregar" : "Revisar")}</button>` : ""}</td>
 		</tr>
 	`;
 }
@@ -1084,7 +1113,7 @@ async function riConfirmarDefinitivo(id, extra) {
 	const respuesta = await fetch(`/recepcion-inteligente/facturas/${id}/confirmar`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(extra || {})
+		body: JSON.stringify({ ...(riCantidadesEscaneadas ? { cantidadesRecibidas: riCantidadesEscaneadas } : {}), ...(extra || {}) })
 	});
 	const datos = await respuesta.json().catch(() => ({}));
 
@@ -1103,6 +1132,7 @@ async function riConfirmarDefinitivo(id, extra) {
 		return;
 	}
 
+	riCantidadesEscaneadas = null;
 	await alertaPOS(`Recepción confirmada. Se aplicó un total de $${datos.totalAplicado.toFixed(2)} a tu inventario.`, "Recepción confirmada", "exito");
 
 	if (typeof cargarProductos === "function") cargarProductos();
@@ -1183,4 +1213,133 @@ function riModalConciliacion(id, remisionPendiente) {
 	};
 
 	document.addEventListener("keydown", manejarTeclado, true);
+}
+
+// ---------------------------------------------------------------------
+// Escanear lo que llego: con la pistola (o escribiendo el codigo) cada pieza suma uno; al final se confirma lo CONTADO.
+// ---------------------------------------------------------------------
+
+let riCantidadesEscaneadas = null;
+let riEscaneo = null;
+
+function riNormalizarCodigo(valor) {
+	return String(valor ?? "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+}
+
+function riPasosHtml(items, sinDecidir) {
+	const nuevos = items.filter(it => !it.accion && it.candidato?.fuente !== "inventario").length;
+	return `<ol class="ri-pasos">
+		<li class="${sinDecidir ? "activo" : "listo"}"><span>${sinDecidir ? "1" : "✓"}</span><div><b>Revisa los productos</b><small>${sinDecidir ? `${sinDecidir} por revisar${nuevos ? ` · ${nuevos} nuevo${nuevos === 1 ? "" : "s"} por agregar` : ""}` : "Todos listos"}</small></div></li>
+		<li class="${sinDecidir ? "" : "activo"}"><span>2</span><div><b>Escanea lo que llegó</b><small>Pistola o escribiendo el código</small></div></li>
+		<li><span>3</span><div><b>Confirma</b><small>Se suma al inventario lo contado</small></div></li>
+	</ol>`;
+}
+
+function riAbrirEscaneo(id) {
+	riCantidadesEscaneadas = null;
+	const items = recepcionInteligenteItemsActuales.filter(it => it.accion !== "omitir");
+
+	if (!items.length) { alertaPOS("Esta factura no tiene productos por recibir.", "Escanear", "info"); return; }
+
+	const catalogo = typeof todosProductos !== "undefined" && Array.isArray(todosProductos) ? todosProductos : [];
+	const claves = new Map();
+
+	items.forEach(it => {
+		const producto = catalogo.find(p => Number(p.id) === Number(it.productoId));
+		[it.codigo, it.candidato?.codigo, it.candidato?.ean, producto?.codigo, producto?.codigo_barras, producto?.codigoBarras, producto?.ean, producto?.codigo_interno]
+			.map(riNormalizarCodigo).filter(Boolean).forEach(c => { if (!claves.has(c)) claves.set(c, it.id); });
+	});
+
+	riEscaneo = { id, items, claves, contado: new Map(items.map(it => [it.id, 0])), ultimo: "", mal: false };
+	riPintarEscaneo();
+}
+
+function riEscaneoTotales() {
+	const esperadas = riEscaneo.items.reduce((s, it) => s + Number(it.cantidad || 0), 0);
+	const contadas = riEscaneo.items.reduce((s, it) => s + (riEscaneo.contado.get(it.id) || 0), 0);
+	return { esperadas, contadas };
+}
+
+function riPintarEscaneo() {
+	let capa = document.getElementById("riEscaneoCapa");
+	if (!capa) { capa = document.createElement("div"); capa.id = "riEscaneoCapa"; capa.className = "ri-escaneo-capa"; document.body.appendChild(capa); }
+
+	const { esperadas, contadas } = riEscaneoTotales();
+
+	capa.innerHTML = `<div class="ri-escaneo" role="dialog" aria-label="Escanear lo que llegó">
+		<header><div><h3>📷 Escanear lo que llegó</h3><p>Escanea cada pieza con la pistola, o escribe el código y presiona Enter.</p></div>
+			<div class="ri-escaneo-total"><b id="riEscTotal">${contadas}</b> de ${esperadas} piezas</div></header>
+		<div class="ri-escaneo-entrada"><input id="riEscInput" type="text" autocomplete="off" placeholder="Escanea o escribe el código…" onkeydown="if(event.key==='Enter'){riEscanear(this.value);this.value='';}"><button type="button" class="btn-secundario" onclick="riEscTodo()">Llegó todo</button></div>
+		<p class="ri-escaneo-aviso ${riEscaneo.mal ? "mal" : ""}" id="riEscAviso">${escaparPOS(riEscaneo.ultimo || "Esperando el primer código…")}</p>
+		<div class="ri-escaneo-lista">${riEscaneo.items.map(it => riFilaEscaneo(it)).join("")}</div>
+		<footer><button type="button" class="btn-secundario" onclick="riCerrarEscaneo()">Cancelar</button><button type="button" class="btn-agregar" onclick="riConfirmarEscaneo()">Confirmar lo contado</button></footer>
+	</div>`;
+	capa.style.display = "flex";
+	document.getElementById("riEscInput")?.focus();
+}
+
+function riFilaEscaneo(it) {
+	const contado = riEscaneo.contado.get(it.id) || 0;
+	const esperado = Number(it.cantidad || 0);
+	const estado = contado === esperado ? "ok" : contado > esperado ? "sobra" : contado > 0 ? "falta" : "";
+	return `<div class="ri-esc-fila ${estado}" data-item="${it.id}"><span class="ri-esc-nombre">${escaparPOS(it.candidato?.nombre || it.descripcion)}<small>${escaparPOS(it.codigo || "")}</small></span>
+		<span class="ri-esc-esperado">Esperado <b>${esperado}</b></span>
+		<span class="ri-esc-contado"><button type="button" onclick="riEscAjustar(${it.id}, -1)">−</button><input type="number" min="0" step="any" value="${contado}" onchange="riEscFijar(${it.id}, this.value)"><button type="button" onclick="riEscAjustar(${it.id}, 1)">+</button></span>
+		<span class="ri-esc-estado">${estado === "ok" ? "✓" : estado === "sobra" ? "▲ sobra" : estado === "falta" ? "▼ falta" : ""}</span></div>`;
+}
+
+function riEscActualizar(id) {
+	const fila = document.querySelector(`.ri-esc-fila[data-item="${id}"]`);
+	const it = riEscaneo.items.find(x => x.id === id);
+	if (fila && it) fila.outerHTML = riFilaEscaneo(it);
+	const { contadas } = riEscaneoTotales();
+	const total = document.getElementById("riEscTotal");
+	if (total) total.textContent = contadas;
+}
+
+function riEscanear(codigo) {
+	const limpio = riNormalizarCodigo(codigo);
+	if (!limpio || !riEscaneo) return;
+
+	const id = riEscaneo.claves.get(limpio);
+
+	if (id === undefined) {
+		riEscaneo.mal = true;
+		riEscaneo.ultimo = `Ese código (${codigo}) no está en esta factura.`;
+	} else {
+		riEscaneo.contado.set(id, (riEscaneo.contado.get(id) || 0) + 1);
+		const it = riEscaneo.items.find(x => x.id === id);
+		riEscaneo.mal = false;
+		riEscaneo.ultimo = `✓ ${it.candidato?.nombre || it.descripcion} — ${riEscaneo.contado.get(id)} de ${it.cantidad}`;
+		riEscActualizar(id);
+		document.querySelector(`.ri-esc-fila[data-item="${id}"]`)?.scrollIntoView({ block: "nearest" });
+	}
+
+	const aviso = document.getElementById("riEscAviso");
+	if (aviso) { aviso.textContent = riEscaneo.ultimo; aviso.classList.toggle("mal", Boolean(riEscaneo.mal)); }
+	document.getElementById("riEscInput")?.focus();
+}
+
+function riEscAjustar(id, delta) { riEscaneo.contado.set(id, Math.max(0, (riEscaneo.contado.get(id) || 0) + delta)); riEscActualizar(id); }
+function riEscFijar(id, valor) { const n = Number(valor); riEscaneo.contado.set(id, Number.isFinite(n) && n >= 0 ? n : 0); riEscActualizar(id); }
+function riEscTodo() { riEscaneo.items.forEach(it => riEscaneo.contado.set(it.id, Number(it.cantidad || 0))); riPintarEscaneo(); }
+
+function riCerrarEscaneo() {
+	const capa = document.getElementById("riEscaneoCapa");
+	if (capa) capa.style.display = "none";
+	riEscaneo = null;
+}
+
+async function riConfirmarEscaneo() {
+	if (!riEscaneo) return;
+
+	const id = riEscaneo.id;
+	const sinContar = riEscaneo.items.filter(it => !(riEscaneo.contado.get(it.id) > 0)).length;
+	const distintos = riEscaneo.items.filter(it => (riEscaneo.contado.get(it.id) || 0) > 0 && riEscaneo.contado.get(it.id) !== Number(it.cantidad)).length;
+	const ok = await confirmarPOS(`Se sumará al inventario lo que contaste.${distintos ? ` ${distintos} producto(s) llegaron distinto a la factura.` : ""}${sinContar ? ` ${sinContar} producto(s) sin contar se reciben en 0.` : ""}`, "¿Confirmar lo contado?", "info");
+	if (!ok) return;
+
+	riCantidadesEscaneadas = Object.fromEntries(riEscaneo.items.map(it => [it.id, riEscaneo.contado.get(it.id) || 0]));
+	riCerrarEscaneo();
+	await riConfirmar(id);
 }

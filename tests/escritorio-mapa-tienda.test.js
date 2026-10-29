@@ -176,3 +176,22 @@ test("Entrada del celular: se puede escanear el QR de la computadora (sin escrib
     assert.ok(html2.includes('onclick="escanearQrEnlaceDueno()"'), "boton de escanear en la entrada");
     assert.ok(html2.includes("Prefiero escribir el código"));
 });
+
+test("Recepcion inteligente: las facturas se distinguen, los productos nuevos dicen Agregar, y hay un paso para escanear lo que llego", () => {
+    const vista = fs.readFileSync(publico("js/recepcion-inteligente-view.js"), "utf8");
+    assert.match(vista, /function riTituloFactura/, "folio o final de la clave cuando no hay folio");
+    assert.match(vista, /function riMuestraFactura/, "lo primero que trae cada factura");
+    assert.ok(vista.includes("riFechaSoloDia"), "fecha del documento sin recorrerse por la zona horaria");
+    assert.ok(vista.includes('"＋ Agregar"'), "producto nuevo: boton Agregar");
+    assert.match(vista, /function riPasosHtml/, "pasos: revisa, escanea, confirma");
+    assert.match(vista, /function riAbrirEscaneo/);
+    assert.match(vista, /cantidadesRecibidas: riCantidadesEscaneadas/, "se confirma lo CONTADO");
+    assert.ok(vista.includes("Ese código (") && vista.includes("no está en esta factura"), "avisa si el codigo no es de la factura");
+
+    assert.match(html, /css\/components\/recepcion-escaneo\.css/);
+
+    const servidor = fs.readFileSync(path.join(__dirname, "..", "recepcion-inteligente-server.js"), "utf8");
+    assert.match(servidor, /claveCorta:/);
+    assert.match(servidor, /muestra: \(fila\.muestra/);
+    assert.ok(servidor.includes("AS nuevos"), "cuantos productos nuevos trae cada factura");
+});
