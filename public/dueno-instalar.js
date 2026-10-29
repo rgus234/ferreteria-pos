@@ -63,6 +63,7 @@
                 const letras = r.codigoCorto.split("").map(c => c === "-" ? `<i></i>` : `<span>${esc(c)}</span>`).join("");
                 capa.innerHTML = `<div class="dui-hoja"><img src="img/nexo-ia/feliz.jpg" alt="" class="dui-nexo"><h2>Tu código</h2><p class="dui-sub">Vale <b>10 minutos</b> y sirve una sola vez.</p>
                     <div class="dui-codigo">${letras}</div>
+                    <button type="button" class="dui-copiar" data-a="copiar" data-codigo="${esc(r.codigoCorto)}">Copiar código</button>
                     <ol class="dui-pasos">${paso(1, "📱", "Abre Nexo desde tu pantalla de inicio", "")}${paso(2, "🔑", "Toca “Tengo un código de la computadora”", "")}${paso(3, "⌨️", "Escribe el código de arriba", "")}</ol>
                     <button type="button" class="dui-suave" data-a="cerrar">Cerrar</button></div>`;
             }
@@ -71,6 +72,31 @@
                 const boton = evento.target.closest("[data-a]");
                 if (!boton) return;
                 const accion = boton.dataset.a;
+
+                if (accion === "copiar") {
+                    const texto = boton.dataset.codigo || "";
+                    let copiado = false;
+
+                    try { await navigator.clipboard.writeText(texto); copiado = true; } catch (error) { /* se prueba el metodo antiguo */ }
+
+                    if (!copiado) {
+                        // Safari viejo o sin permiso del portapapeles: se selecciona el texto en un campo temporal y se copia con el metodo antiguo.
+                        const campo = document.createElement("textarea");
+                        campo.value = texto;
+                        campo.setAttribute("readonly", "");
+                        campo.style.cssText = "position:fixed;top:0;left:0;opacity:0;font-size:16px;";
+                        document.body.appendChild(campo);
+                        campo.select();
+                        campo.setSelectionRange(0, texto.length);
+                        try { copiado = document.execCommand("copy"); } catch (error) { copiado = false; }
+                        campo.remove();
+                    }
+
+                    boton.textContent = copiado ? "¡Copiado! Ahora pégalo en la app" : "Mantén presionado el código para copiarlo";
+                    boton.classList.toggle("ok", copiado);
+                    setTimeout(() => { boton.textContent = "Copiar código"; boton.classList.remove("ok"); }, 3500);
+                    return;
+                }
 
                 if (accion === "seguir") { cerrar(true); return; }
                 if (accion === "cerrar") { cerrar(false); return; }

@@ -168,3 +168,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI"
 @keyframes duiSube { from { transform: translateY(60px); opacity: 0; } }
 @media (min-width: 560px) { .dui-capa { align-items: center; } .dui-hoja { border-radius: 30px; } }
 @media (prefers-reduced-motion: reduce) { .dui-capa, .dui-hoja { animation: none; } }
+
+.dui-copiar { min-height: 46px; padding: 0 22px; border: 1.5px solid var(--brand, #2563ff); border-radius: 14px; background: transparent !important; color: var(--brand, #2563ff) !important; font: inherit; font-size: 15px; font-weight: 800; transition: background .2s, color .2s; }
+.dui-copiar.ok { background: #16a34a !important; border-color: #16a34a; color: #fff !important; }
