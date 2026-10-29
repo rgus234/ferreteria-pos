@@ -51,3 +51,20 @@ test("el mapa usa las mismas rutas del servidor que el celular", () => {
 
     assert.match(codigo, /\/conteos\/\$\{c\.id\}\/\$\{accion\}/, "aprueba o rechaza los conteos que se hacen en el celular");
 });
+
+test("Recibir por marca en la computadora: conectado, apagado por defecto, y con la misma logica de factura y proveedor que el celular", () => {
+    assert.match(html, /data-shell-module="recibir-marca" data-beta="recibir_por_marca" hidden onclick="mostrarRecibirMarca\(\)"/);
+    assert.match(html, /id="pantallaRecibirMarca"/);
+    assert.match(html, /js\/recibir-marca-view\.js/);
+    assert.match(html, /css\/components\/recibir-marca\.css/);
+    assert.match(fs.readFileSync(publico("js/config-auth.js"), "utf8"), /"pantallaRecibirMarca"/);
+
+    const codigo = fs.readFileSync(publico("js/recibir-marca-view.js"), "utf8");
+    assert.match(codigo, /sinFactura: Boolean\(proveedor\)/, "con proveedor la recepcion queda sin factura");
+    assert.match(codigo, /\/recepciones-mercancia\/rapida/, "misma ruta que Recibir mercancia del celular");
+    assert.match(codigo, /requiereConciliacion/, "pregunta si es la misma mercancia en vez de sumarla dos veces");
+    assert.match(codigo, /conciliarConRecepcionMercanciaId: p\.recepcionMercanciaId/);
+    assert.match(codigo, /cantidadesRecibidas/, "confirma lo que de verdad llego");
+    assert.match(codigo, /Esperado/, "tarjetas con lo que dice la factura");
+    assert.match(codigo, /marcasQueCoinciden/, "el buscador tambien filtra las marcas");
+});

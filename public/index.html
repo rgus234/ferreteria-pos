@@ -63,6 +63,7 @@
   <link rel="stylesheet" href="css/components/encargos-clientes.css?v=encargos-rediseno-20260828-01">
   <link rel="stylesheet" href="css/components/exhibidores.css?v=exhibidores-20261102-14">
   <link rel="stylesheet" href="css/components/mapa-tienda.css?v=mapa-tienda-20261116-01">
+  <link rel="stylesheet" href="css/components/recibir-marca.css?v=recibir-marca-20261117-01">
   <link rel="stylesheet" href="css/components/servicios-pos.css?v=servicios-20261030-01">
   <link rel="stylesheet" href="css/components/favoritos-pos.css?v=favoritos-20261031-04">
   <link rel="stylesheet" href="css/components/inicio-abarrotes.css?v=inicio-ab-20261030-01">
@@ -577,6 +578,9 @@
  <button data-shell-module="recepcion-inteligente" onclick="mostrarRecepcionInteligente()">
  Recepción Inteligente
  </button>
+ <button data-shell-module="recibir-marca" data-beta="recibir_por_marca" hidden onclick="mostrarRecibirMarca()">
+ Recibir por marca
+ </button>
  </div>
 
  <button class="sidebar-grupo-toggle" data-grupo="nexo" onclick="toggleSubmenuSidebar('submenuNexo')">
@@ -630,6 +634,7 @@
  <section id="pantallaListasProducto" style="display:none;"></section>
  <section id="pantallaExhibidores" style="display:none;"></section>
  <section id="pantallaMapaTienda" style="display:none;"></section>
+ <section id="pantallaRecibirMarca" style="display:none;"></section>
  <section id="pantallaFuncionesBeta" style="display:none;"></section>
  <section id="pantallaPedidoSugerido" style="display:none;"></section>
  <section id="pantallaFotosSugeridas" style="display:none;"></section>
@@ -1881,6 +1886,7 @@
  <script src="js/exhibidores.js?v=exhibidores-20261102-14"></script>
  <script src="js/funciones-beta.js?v=funciones-beta-20261116-01"></script>
  <script src="js/mapa-tienda-view.js?v=mapa-tienda-20261116-01"></script>
+ <script src="js/recibir-marca-view.js?v=recibir-marca-20261117-01"></script>
  <script src="js/inicio-abarrotes.js?v=inicio-ab-20261030-01"></script>
  <script src="js/pedido-sugerido.js?v=pedido-sugerido-20261031-02"></script>
  <script src="js/servicios-pos.js?v=servicios-20261030-01"></script>
