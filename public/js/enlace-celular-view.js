@@ -24,6 +24,16 @@
         return `hace ${Math.round(s / 86400)} día${Math.round(s / 86400) === 1 ? "" : "s"}`;
     }
 
+    // "Mozilla/5.0 (iPhone; ...) Safari" -> "iPhone · Safari" (lo que el dueño reconoce, no el texto tecnico del navegador)
+    function nombreAmigable(texto) {
+        const t = String(texto || "");
+        const aparato = /iPad/.test(t) ? "iPad" : /iPhone|iPod/.test(t) ? "iPhone" : /Android/.test(t) ? (/Mobile/.test(t) ? "Celular Android" : "Tableta Android") : /Windows/.test(t) ? "Windows" : /Macintosh|Mac OS/.test(t) ? "Mac" : "Celular";
+        const navegador = /EdgA?\//.test(t) ? "Edge" : /SamsungBrowser/.test(t) ? "Samsung Internet" : /Firefox|FxiOS/.test(t) ? "Firefox" : /CriOS|Chrome/.test(t) ? "Chrome" : /Safari/.test(t) ? "Safari" : "";
+        return navegador ? `${aparato} · ${navegador}` : aparato;
+    }
+
+    const activoAhora = fecha => fecha && Date.now() - new Date(fecha).getTime() < 5 * 60 * 1000;
+
     const reloj = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
     function detener() {
@@ -107,6 +117,8 @@
         st.celulares = r.ok ? r.datos.celulares || [] : [];
         const caja = document.getElementById("ecCelulares");
         if (caja) caja.innerHTML = htmlCelulares();
+        const cuenta = document.querySelector(".ec-cuenta");
+        if (cuenta) cuenta.textContent = String(st.celulares.length);
     }
 
     function actualizarReloj() {
@@ -165,7 +177,7 @@
 
     function htmlCelulares() {
         if (!st.celulares.length) return `<div class="ec-vacio"><b>Todavía no hay celulares enlazados</b><small>Cuando enlaces uno aparecerá aquí, y desde aquí mismo le puedes quitar el acceso.</small></div>`;
-        return st.celulares.map(c => `<article class="ec-celular"><span class="ec-celular-icono">📱</span><div><b>${esc(c.nombre.length > 60 ? c.nombre.slice(0, 60) + "…" : c.nombre)}</b><small>Enlazado ${esc(hace(c.enlazadoEn))}${c.ultimoUso ? ` · último uso ${esc(hace(c.ultimoUso))}` : ""}</small></div><button type="button" class="ec-btn peligro" onclick="ecQuitar(${Number(c.id)})">Quitar acceso</button></article>`).join("");
+        return st.celulares.map(c => `<article class="ec-celular"><span class="ec-celular-icono">${/iPad|Tableta/.test(nombreAmigable(c.nombre)) ? "📲" : "📱"}</span><div><b>${esc(nombreAmigable(c.nombre))}${activoAhora(c.ultimoUso) ? `<span class="ec-activo"><i></i>Activo ahora</span>` : ""}</b><small>Enlazado ${esc(hace(c.enlazadoEn))}${c.ultimoUso ? ` · último uso ${esc(hace(c.ultimoUso))}` : ""}</small></div><button type="button" class="ec-btn peligro" onclick="ecQuitar(${Number(c.id)})">Quitar acceso</button></article>`).join("");
     }
 
     function pintar() {
@@ -187,9 +199,10 @@
                 ${htmlPasos()}
                 <div class="ec-centro">${htmlQr()}${htmlReloj()}${st.reservado && st.estado === "esperando" ? `<p class="ec-instalando"><b>📲 Tu celular está instalando la app.</b> Cuando la abra, tocará “Tengo un código” y escribirá el que le mostró. Tiene hasta que termine el reloj.</p>` : ""}</div>
                 ${htmlCodigo()}
-                <div class="ec-acciones"><button type="button" class="ec-btn" onclick="ecGenerar()">${st.estado === "enlazado" ? "Enlazar otro celular" : "Generar código nuevo"}</button><button type="button" class="ec-btn suave" onclick="window.open('/dueno', '_blank')">Abrir la app en esta computadora</button></div>
+                <div class="ec-acciones"><button type="button" class="ec-btn" onclick="ecGenerar()">${st.estado === "enlazado" ? "Enlazar otro celular" : "Generar código nuevo"}</button></div>
+                <p class="ec-web">¿Prefieres usarla aquí? <button type="button" class="ec-enlace" onclick="window.open('/dueno', '_blank')">Abrir la app del dueño en internet ↗</button></p>
             </section>
-            <section class="ec-lista"><header><h3>Celulares enlazados</h3><p>Los que entran con este código. Si pierdes un celular, quítale el acceso aquí.</p></header><div id="ecCelulares" class="ec-celulares">${htmlCelulares()}</div></section>
+            <section class="ec-lista"><header><h3>Dispositivos conectados <span class="ec-cuenta">${st.celulares.length}</span></h3><p>Los celulares enlazados con este QR. Si pierdes uno, quítale el acceso aquí.</p></header><div id="ecCelulares" class="ec-celulares">${htmlCelulares()}</div></section>
         </div>`;
     }
 

@@ -141,3 +141,11 @@ body.oscuro .ec-letras span { background: #f1f5f9; color: #0b1b3a; }
 .ec-instalando { margin: 0; max-width: 340px; padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, var(--brand-color, #0d6efd) 10%, #fff); color: var(--pos-text, #172033); font-size: 13px; font-weight: 600; line-height: 1.4; text-align: center; animation: ecEntra .3s ease; }
 .ec-instalando b { display: block; margin-bottom: 2px; }
 body.oscuro .ec-instalando { background: color-mix(in srgb, var(--brand-color, #0d6efd) 24%, #0f172a); color: #f1f5f9; }
+
+.ec-web { margin: 0; text-align: center; color: var(--pos-muted, #687386); font-size: 12.5px; font-weight: 600; }
+.ec-web .ec-enlace { font-size: 12.5px; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.ec-cuenta { display: inline-block; margin-left: 6px; padding: 1px 9px; border-radius: 999px; background: color-mix(in srgb, var(--brand-color, #0d6efd) 14%, transparent); color: var(--brand-color, #0d6efd); font-size: 13px; font-weight: 800; vertical-align: middle; }
+.ec-activo { display: inline-flex; align-items: center; gap: 5px; margin-left: 10px; padding: 2px 9px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: 11.5px; font-weight: 800; }
+.ec-activo i { width: 7px; height: 7px; border-radius: 50%; background: #16a34a; animation: ecLatidoPunto 1.6s ease-in-out infinite; }
+@keyframes ecLatidoPunto { 50% { opacity: .35; } }
+body.oscuro .ec-activo { background: #064e3b; color: #a7f3d0; }

@@ -92,9 +92,9 @@ test("App del dueño con QR: pantalla de la computadora conectada y apagada por 
     assert.match(html, /css\/components\/enlace-celular\.css/);
     assert.match(fs.readFileSync(publico("js/config-auth.js"), "utf8"), /"pantallaEnlaceCelular"/);
 
-    // apagada: el boton sigue abriendo la app en otra pestaña; encendida: abre la pantalla del QR
-    const beta = fs.readFileSync(publico("js/funciones-beta.js"), "utf8");
-    assert.match(beta, /funcionBeta\("enlace_celular"\) \? \(\) => window\.mostrarEnlaceCelular\(\) : \(\) => window\.open\("\/dueno", "_blank"\)/);
+    // "App del dueño" siempre abre esta pantalla; abrir la app web es un enlace discreto dentro de ella
+    assert.ok(html.includes(`class="btn-dueno-sidebar" data-shell-module="dueno" onclick="mostrarEnlaceCelular()"`), "el boton abre la pantalla de enlace");
+    assert.ok(!/btn-dueno-sidebar[^>]*window.open/.test(html), "el boton ya no abre la app web directo");
 
     const vista = fs.readFileSync(publico("js/enlace-celular-view.js"), "utf8");
     for (const ruta of ["/enlace-celular/crear", "/enlace-celular/celulares", "/estado"]) assert.ok(vista.includes(ruta), "usa " + ruta);

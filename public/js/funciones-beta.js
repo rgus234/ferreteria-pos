@@ -10,8 +10,7 @@
         mapa_tienda: "Pasillos, estantes y bodega: dónde está cada producto, resurtir de bodega y revisar los conteos que se hacen en el celular.",
         recibir_por_marca: "Recibir mercancía por marca, con la factura del correo a la vista y sin contarla dos veces.",
         inicio_pendientes: "En el Inicio: stock crítico, créditos y facturas por recibir como tarjetas que llevan directo a resolverlos. En una tienda de abarrotes, “Crédito” se llama “Fiado”.",
-        diseno_nuevo: "Un diseño más limpio, con menos cajas y más aire. Se puede apagar en cualquier momento.",
-        enlace_celular: "App del dueño con QR: enlaza tu celular desde aquí en 10 segundos, sin escribir correo ni contraseña, y quita el acceso a un celular perdido."
+        diseno_nuevo: "Un diseño más limpio, con menos cajas y más aire. Se puede apagar en cualquier momento."
     };
 
     const esc = valor => String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -22,9 +21,6 @@
         document.querySelectorAll("[data-beta]").forEach(el => { el.hidden = !window.funcionBeta(el.dataset.beta); });
         document.documentElement.classList.toggle("diseno-nuevo", window.funcionBeta("diseno_nuevo"));
 
-        // "App del dueño": con el enlace por QR encendido abre la pantalla de enlace; apagado abre la app en otra pestaña como siempre.
-        const botonDueno = document.querySelector(".btn-dueno-sidebar");
-        if (botonDueno) botonDueno.onclick = window.funcionBeta("enlace_celular") ? () => window.mostrarEnlaceCelular() : () => window.open("/dueno", "_blank");
         document.dispatchEvent(new CustomEvent("nexo-funciones-beta", { detail: { ...funciones } }));
     }
 

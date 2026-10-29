@@ -4,7 +4,6 @@
 //   recibir_por_marca Recibir por marca (con factura del correo) en la computadora
 //   inicio_pendientes Pendientes tocables en el Inicio de la computadora (stock critico, fiado/creditos, facturas por recibir)
 //   diseno_nuevo      Diseño mas limpio (menos cajas) en la computadora
-//   enlace_celular    "App del dueño" con QR: enlazar el celular desde la computadora sin escribir correo ni contraseña
 //
 // La columna se crea sola la primera vez (ADD COLUMN IF NOT EXISTS): no hace falta correr nada a mano y si algo falla, todo queda apagado.
 const { responderError } = require("./error-utils");
@@ -14,8 +13,7 @@ const FUNCIONES = {
     mapa_tienda: "Mapa de la tienda",
     recibir_por_marca: "Recibir por marca",
     inicio_pendientes: "Pendientes en el Inicio",
-    diseno_nuevo: "Diseño nuevo",
-    enlace_celular: "Enlazar celular con QR"
+    diseno_nuevo: "Diseño nuevo"
 };
 
 let columnaLista = false;
