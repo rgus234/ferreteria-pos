@@ -64,7 +64,7 @@
                 capa.innerHTML = `<div class="dui-hoja"><img src="img/nexo-ia/feliz.jpg" alt="" class="dui-nexo"><h2>Tu código</h2><p class="dui-sub">Vale <b>10 minutos</b> y sirve una sola vez.</p>
                     <div class="dui-codigo">${letras}</div>
                     <button type="button" class="dui-copiar" data-a="copiar" data-codigo="${esc(r.codigoCorto)}">Copiar código</button>
-                    <ol class="dui-pasos">${paso(1, "📱", "Abre Nexo desde tu pantalla de inicio", "")}${paso(2, "🔑", "Toca “Tengo un código de la computadora”", "")}${paso(3, "⌨️", "Escribe el código de arriba", "")}</ol>
+                    <ol class="dui-pasos">${paso(1, "📱", "Abre Nexo desde tu pantalla de inicio", "")}${paso(2, "🔑", "Toca “Prefiero escribir el código”", "O escanea el QR de la computadora con el botón de arriba.")}${paso(3, "⌨️", "Escribe o pega el código de arriba", "")}</ol>
                     <button type="button" class="dui-suave" data-a="cerrar">Cerrar</button></div>`;
             }
 

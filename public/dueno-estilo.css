@@ -171,3 +171,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI"
 
 .dui-copiar { min-height: 46px; padding: 0 22px; border: 1.5px solid var(--brand, #2563ff); border-radius: 14px; background: transparent !important; color: var(--brand, #2563ff) !important; font: inherit; font-size: 15px; font-weight: 800; transition: background .2s, color .2s; }
 .dui-copiar.ok { background: #16a34a !important; border-color: #16a34a; color: #fff !important; }
+
+/* Entrada con QR: boton para escanear el QR de la computadora */
+.dueno-login-o { display: flex; align-items: center; gap: 10px; margin: 10px 0 2px; color: var(--muted, #66738a); font-size: 12.5px; font-weight: 700; }
+.dueno-login-o::before, .dueno-login-o::after { content: ""; flex: 1; height: 1px; background: var(--line, rgba(60, 60, 67, .13)); }
+.dueno-boton-qr { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 50px; font-weight: 800; }

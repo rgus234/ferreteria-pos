@@ -259,12 +259,44 @@ async function enlazarConCodigoDueno() {
         return;
     }
 
+    entrarTrasEnlazarDueno(r);
+}
+
+// Lo que sigue despues de enlazar el celular (con el codigo escrito o con el QR escaneado): entrar a la app.
+function entrarTrasEnlazarDueno(r) {
     document.getElementById("duenoNegocio").textContent = r.negocio?.nombre || "Tu negocio";
     aplicarRolShellDueno();
     mostrarAppDueno();
     cargarPanelDueno();
     actualizarNexoBurbujaDueno();
     mostrarToastDueno("Celular enlazado");
+}
+
+// Escanea el QR de "App del dueño" (computadora) con la camara de la app: sin escribir nada. El QR trae una direccion con ?enlace=TOKEN;
+// tambien se acepta el token suelto o el codigo corto por si el lector entrega otra cosa.
+async function escanearQrEnlaceDueno() {
+    if (typeof abrirEscanerCodigoDueno !== "function") { mostrarCodigoEnlaceDueno(); return; }
+
+    abrirEscanerCodigoDueno({
+        titulo: "Escanea el QR de la computadora",
+        alCodigo: async texto => {
+            const bruto = String(texto || "").trim();
+            let token = null;
+            let codigo = null;
+
+            try { token = new URL(bruto).searchParams.get("enlace"); } catch (error) { /* no era una direccion */ }
+            if (!token && /^[a-f0-9]{64}$/i.test(bruto)) token = bruto.toLowerCase();
+            if (!token) { const limpio = bruto.replace(/[^a-zA-Z0-9]/g, ""); if (limpio.length === 8) codigo = limpio; }
+
+            if (!token && !codigo) { mostrarToastDueno("Ese no es el QR de Nexo. Escanea el de “App del dueño” en la computadora."); return; }
+
+            mostrarToastDueno("Enlazando…");
+            const r = await canjearEnlaceCelularDueno(token ? { token } : { codigo });
+
+            if (!r.ok) { mostrarToastDueno(r.error); return; }
+            entrarTrasEnlazarDueno(r);
+        }
+    });
 }
 
 async function iniciarSesionDueno() {

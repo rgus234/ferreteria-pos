@@ -24,7 +24,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=celular-plan-b-20261124-12">
+    <link rel="stylesheet" href="dueno.css?v=celular-plan-b-20261126-13">
     <link rel="stylesheet" href="dueno-captura.css?v=captura-20261030-01">
     <link rel="stylesheet" href="dueno-tienda.css?v=tienda-20261126-03">
     <link rel="stylesheet" href="dueno-exhibidores.css?v=exhibidores-20261108-04">
@@ -37,7 +37,7 @@
     <link rel="stylesheet" href="dueno-mapa.css?v=mapa-20261125-18">
     <link rel="stylesheet" href="dueno-oscuro-modulos.css?v=oscuro-20261105-07">
     <link rel="stylesheet" href="dueno-oscuro-auto.css?v=oscuro-auto-20261126-03">
-    <link rel="stylesheet" href="dueno-estilo.css?v=estilo-20261124-07">
+    <link rel="stylesheet" href="dueno-estilo.css?v=estilo-20261126-08">
 </head>
 
 <body>
@@ -122,7 +122,11 @@
             </label>
             <p id="duenoLoginError" class="dueno-login-error" style="display:none;"></p>
             <button id="btnDuenoLogin" type="button" onclick="iniciarSesionDueno()">Entrar</button>
-            <p class="dueno-login-alt"><a href="#" onclick="mostrarCodigoEnlaceDueno(); return false;">Tengo un código de la computadora</a></p>
+            <div class="dueno-login-o"><span>o enlaza con la computadora</span></div>
+            <button type="button" class="dueno-boton-secundario dueno-boton-qr" onclick="escanearQrEnlaceDueno()">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="4" height="4" rx="1"/><rect x="13" y="7" width="4" height="4" rx="1"/><rect x="7" y="13" width="4" height="4" rx="1"/><path d="M14 14h3v3"/></svg>
+                Escanear el QR de la computadora</button>
+            <p class="dueno-login-alt"><a href="#" onclick="mostrarCodigoEnlaceDueno(); return false;">Prefiero escribir el código</a></p>
             <div id="duenoCodigoEnlaceCaja" style="display:none;">
                 <label>Código de la computadora
                     <input type="text" id="duenoCodigoEnlace" autocomplete="one-time-code" autocapitalize="characters" maxlength="14" placeholder="K7QM-2XPD" style="text-transform:uppercase;letter-spacing:.12em;">
@@ -801,12 +805,12 @@
         </div>
     </div>
 
-    <script src="dueno-offline.js?v=celular-plan-b-20261124-12"></script>
-    <script src="dueno-instalar.js?v=instalar-20261124-02"></script>
-    <script src="dueno.js?v=celular-plan-b-20261124-12"></script>
-    <script src="dueno-inventario.js?v=celular-plan-b-20261124-12"></script>
-    <script src="dueno-ventas-offline.js?v=celular-plan-b-20261124-12"></script>
-    <script src="dueno-gestion.js?v=celular-plan-b-20261124-12"></script>
+    <script src="dueno-offline.js?v=celular-plan-b-20261126-13"></script>
+    <script src="dueno-instalar.js?v=instalar-20261126-03"></script>
+    <script src="dueno.js?v=celular-plan-b-20261126-13"></script>
+    <script src="dueno-inventario.js?v=celular-plan-b-20261126-13"></script>
+    <script src="dueno-ventas-offline.js?v=celular-plan-b-20261126-13"></script>
+    <script src="dueno-gestion.js?v=celular-plan-b-20261126-13"></script>
     <script src="dueno-captura.js?v=captura-20261030-02"></script>
     <script src="dueno-tienda.js?v=tienda-20261126-03"></script>
     <script src="dueno-exhibidores.js?v=exhibidores-20261108-04"></script>

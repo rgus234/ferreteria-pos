@@ -163,3 +163,16 @@ test("Inicio de abarrotes en la computadora: el tablero de ferreteria se oculta 
     assert.match(css, /body\.perfil-simple #pantallaInicio > \*:not\(\.dashboard-header\):not\(#inicioAbarrotes\):not\(#inicioPendientes\)/);
     assert.doesNotMatch(css, /body\.perfil-simple:not\(\.perfil-ver-todo\) #pantallaInicio >/, "ya no depende del modo 'ver todo'");
 });
+
+test("Entrada del celular: se puede escanear el QR de la computadora (sin escribir), y escribir el codigo queda como segunda opcion", () => {
+    const dueno = fs.readFileSync(publico("dueno.js"), "utf8");
+    assert.match(dueno, /async function escanearQrEnlaceDueno/);
+    assert.match(dueno, /abrirEscanerCodigoDueno\(\{/, "usa el mismo lector de codigos de la app");
+    assert.ok(dueno.includes('searchParams.get("enlace")'), "lee el enlace del QR");
+    assert.match(dueno, /Ese no es el QR de Nexo/, "avisa si el QR no es de Nexo");
+    assert.match(dueno, /function entrarTrasEnlazarDueno/, "misma entrada que al escribir el codigo");
+
+    const html2 = fs.readFileSync(publico("dueno.html"), "utf8");
+    assert.ok(html2.includes('onclick="escanearQrEnlaceDueno()"'), "boton de escanear en la entrada");
+    assert.ok(html2.includes("Prefiero escribir el código"));
+});
