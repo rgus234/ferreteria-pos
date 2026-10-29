@@ -219,8 +219,7 @@ function pedSugEnviar() {
         return;
     }
 
-    pedSugWhatsapp([`Pedido para ${pedidoSugerido.proveedor}:`, ...lineas.map(i => `- ${i.pedir} x ${i.nombre}`)].join("
-"), pedidoSugerido.telefono);
+    pedSugWhatsapp([`Pedido para ${pedidoSugerido.proveedor}:`, ...lineas.map(i => `- ${i.pedir} x ${i.nombre}`)].join("\n"), pedidoSugerido.telefono);
 }
 
 async function pedSugCopiar() {
