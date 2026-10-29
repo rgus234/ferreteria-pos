@@ -1,7 +1,8 @@
 /* Inicio de abarrotes (ver public/js/inicio-abarrotes.js). Solo perfil simple. */
 
-/* El tablero de ferreteria se esconde en abarrotes (quien activa "Mas herramientas" lo ve completo). */
-body.perfil-simple:not(.perfil-ver-todo) #pantallaInicio > *:not(.dashboard-header):not(#inicioAbarrotes) {
+/* El tablero de ferreteria se esconde SIEMPRE en el Inicio de abarrotes: "Mas herramientas" abre el menu completo, pero el Inicio ya trae lo suyo
+   (los mismos numeros, alertas y ventas) y el tablero de ferreteria encima solo lo duplicaba. Las tarjetas nuevas de pendientes se quedan. */
+body.perfil-simple #pantallaInicio > *:not(.dashboard-header):not(#inicioAbarrotes):not(#inicioPendientes) {
   display: none !important;
 }
 

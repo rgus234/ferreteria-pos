@@ -189,3 +189,15 @@ body.dvm-con-barra #duenoVender { position: fixed; inset: 0; box-sizing: border-
     .dvi-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     .dvi-vender .dueno-buscar-fila { grid-template-columns: repeat(3, minmax(0, 220px)); justify-content: start; }
 }
+
+/* Tus productos plegable + respiro antes de la venta actual (antes la tarjeta de la venta quedaba pegada a los productos) */
+.dvi-titulo { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 10px; padding: 4px 2px; border: 0; background: transparent !important; color: inherit !important; text-align: left; -webkit-tap-highlight-color: transparent; }
+.dvi-titulo h3 { flex: 1; margin: 0; }
+.dvi-cuenta { padding: 2px 10px; border-radius: 999px; background: rgba(120, 120, 128, .16); color: inherit; font-size: 12.5px; font-weight: 800; }
+.dvi-chevron { flex: none; width: 10px; height: 10px; margin: 0 4px 3px 2px; border-right: 2.5px solid currentColor; border-bottom: 2.5px solid currentColor; opacity: .6; transform: rotate(45deg); transition: transform .2s ease; }
+.dvi-frecuentes.plegado .dvi-chevron { transform: rotate(-45deg); margin-bottom: 0; }
+.dvi-frecuentes .dvi-grid { transition: opacity .2s ease; }
+.dvi-frecuentes.plegado .dvi-grid { display: none; }
+.dvi-frecuentes.plegado .dvi-titulo { margin-bottom: 0; padding: 12px 14px; border-radius: 16px; background: var(--surface, #fff) !important; }
+.dvi-frecuentes + .dueno-card { margin-top: 20px; }
+.dvi-frecuentes { margin-bottom: 4px; }

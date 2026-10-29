@@ -155,3 +155,9 @@ test("Instalar la app despues del QR: aviso para Android e iPhone, codigo de 10 
 
     assert.match(fs.readFileSync(publico("js/enlace-celular-view.js"), "utf8"), /Tu celular está instalando la app/, "la computadora avisa y espera los 10 minutos");
 });
+
+test("Inicio de abarrotes en la computadora: el tablero de ferreteria se oculta siempre (tambien con 'Menos herramientas')", () => {
+    const css = fs.readFileSync(publico("css/components/inicio-abarrotes.css"), "utf8");
+    assert.match(css, /body\.perfil-simple #pantallaInicio > \*:not\(\.dashboard-header\):not\(#inicioAbarrotes\):not\(#inicioPendientes\)/);
+    assert.doesNotMatch(css, /body\.perfil-simple:not\(\.perfil-ver-todo\) #pantallaInicio >/, "ya no depende del modo 'ver todo'");
+});

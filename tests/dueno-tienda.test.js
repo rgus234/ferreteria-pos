@@ -474,3 +474,14 @@ test("Recibir por marca abre fluido: esqueleto al instante, tarjetas por tandas 
     assert.match(js, /if \(datos && datos\.length\) catalogoEnMemoria/, "un catalogo vacio nunca se guarda en memoria");
     assert.match(leer("dueno-recibir-marca.css"), /content-visibility: auto/, "lo que esta fuera de pantalla no se dibuja");
 });
+
+test("Vender en el celular: 'Tus productos' se pliega y se desplega (se recuerda) y la venta actual ya no queda pegada a los productos", () => {
+    const js = leer("dueno-vender-inicio.js");
+    assert.match(js, /dviAlternarFrecuentes/, "boton para plegar y desplegar");
+    assert.match(js, /nexoDuenoFrecuentesPlegado/, "se recuerda lo que eligio el dueño");
+    assert.match(js, /aria-expanded/, "accesible");
+
+    const css = leer("dueno-venta-movil.css");
+    assert.match(css, /\.dvi-frecuentes\.plegado \.dvi-grid \{ display: none; \}/);
+    assert.match(css, /\.dvi-frecuentes \+ \.dueno-card \{ margin-top: 20px; \}/, "respiro antes de la venta actual");
+});
