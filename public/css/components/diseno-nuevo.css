@@ -1,0 +1,88 @@
+/* Diseño nuevo de la computadora (opcional): menos cajas flotantes, mas aire y una sola jerarquia, igual que el celular.
+   Solo se aplica con la clase html.diseno-nuevo, que pone Nexo -> Funciones nuevas -> "Diseño nuevo". Apagado no cambia NADA.
+   Es solo presentacion: ningun boton, dato ni funcion se mueve. */
+
+html.diseno-nuevo {
+  --dn-fondo: #f3f5f9;
+  --dn-tarjeta: #ffffff;
+  --dn-linea: rgba(15, 23, 42, .08);
+  --dn-relleno: #eef1f6;
+  --dn-texto: #0f172a;
+  --dn-suave: #64748b;
+}
+
+html.diseno-nuevo body.oscuro {
+  --dn-fondo: #0b1220;
+  --dn-tarjeta: #151f31;
+  --dn-linea: rgba(148, 163, 184, .18);
+  --dn-relleno: #1d293e;
+  --dn-texto: #f1f5f9;
+  --dn-suave: #94a3b8;
+}
+
+/* ---- fondo y espacio ---- */
+html.diseno-nuevo .contenido { background: var(--dn-fondo) !important; padding: 22px 28px 38px; }
+
+/* ---- barra superior: plana, con una linea fina ---- */
+html.diseno-nuevo .topbar-pos { margin-bottom: 20px; border: 1px solid var(--dn-linea); border-radius: 18px; background: var(--dn-tarjeta); box-shadow: none; }
+html.diseno-nuevo body.oscuro .topbar-pos { background: var(--dn-tarjeta); }
+
+/* ---- tarjetas: planas, con linea fina y sin sombras que flotan ---- */
+html.diseno-nuevo .caja,
+html.diseno-nuevo .mini,
+html.diseno-nuevo .dashboard-chart-card,
+html.diseno-nuevo .dashboard-pulso div,
+html.diseno-nuevo #pantallaInicio > .caja,
+html.diseno-nuevo #pantallaInventario .caja,
+html.diseno-nuevo .pos-carrito-card,
+html.diseno-nuevo .pos-historial-card {
+  background: var(--dn-tarjeta) !important;
+  border: 1px solid var(--dn-linea) !important;
+  border-radius: 20px !important;
+  box-shadow: none !important;
+}
+html.diseno-nuevo .caja:hover, html.diseno-nuevo .mini:hover { transform: none; box-shadow: none !important; }
+
+/* ---- Inicio: indicadores en horizontal, numero grande ---- */
+html.diseno-nuevo #pantallaInicio .dashboard-header h1 { margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -.03em; }
+html.diseno-nuevo #pantallaInicio .dashboard-header p { color: var(--dn-suave); font-weight: 600; }
+html.diseno-nuevo .caja.mini { min-height: 88px; flex-direction: row; justify-content: flex-start; align-items: center; gap: 14px; padding: 16px 18px; text-align: left; }
+html.diseno-nuevo .caja.mini .kpi-icono { flex: none; margin: 0; }
+html.diseno-nuevo .caja.mini .kpi-texto { display: grid; gap: 2px; text-align: left; }
+html.diseno-nuevo .caja.mini .kpi-texto h3 { margin: 0; color: var(--dn-suave); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+html.diseno-nuevo .caja.mini .kpi-texto p { margin: 0; color: var(--dn-texto); font-size: 28px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
+html.diseno-nuevo .caja.mini .kpi-texto small { color: var(--dn-suave); font-weight: 600; }
+
+/* ---- menu lateral: seleccion suave con una barrita de color, no un bloque azul ---- */
+html.diseno-nuevo .sidebar button { border-radius: 12px !important; font-weight: 700; }
+html.diseno-nuevo .sidebar button:hover { background: rgba(255, 255, 255, .07) !important; }
+html.diseno-nuevo .sidebar button.activo {
+  background: rgba(255, 255, 255, .11) !important;
+  color: #fff !important;
+  box-shadow: inset 3px 0 0 var(--brand-color, #0d6efd) !important;
+}
+html.diseno-nuevo .sidebar button.activo .ui-icon { color: color-mix(in srgb, var(--brand-color, #0d6efd) 65%, #fff) !important; }
+
+/* ---- campos: rellenos suaves en vez de cajas con borde ---- */
+html.diseno-nuevo .contenido input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+html.diseno-nuevo .contenido select,
+html.diseno-nuevo .contenido textarea {
+  border: 1px solid transparent !important;
+  border-radius: 12px !important;
+  background: var(--dn-relleno) !important;
+  color: var(--dn-texto) !important;
+  box-shadow: none !important;
+}
+html.diseno-nuevo .contenido input:focus, html.diseno-nuevo .contenido select:focus, html.diseno-nuevo .contenido textarea:focus {
+  border-color: var(--brand-color, #0d6efd) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-color, #0d6efd) 22%, transparent) !important;
+}
+
+/* ---- tablas: encabezado discreto y lineas finas ---- */
+html.diseno-nuevo .contenido table { border-collapse: collapse; }
+html.diseno-nuevo .contenido table th { background: transparent !important; color: var(--dn-suave) !important; font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid var(--dn-linea) !important; }
+html.diseno-nuevo .contenido table td { border-bottom: 1px solid var(--dn-linea) !important; }
+html.diseno-nuevo .contenido table tbody tr:hover td { background: color-mix(in srgb, var(--brand-color, #0d6efd) 5%, transparent); }
+
+/* ---- titulos de seccion ---- */
+html.diseno-nuevo .contenido h2 { letter-spacing: -.02em; }

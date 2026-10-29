@@ -122,3 +122,20 @@ test("Pendientes en el Inicio de la computadora: conectados, apagados por defect
 
     assert.match(fs.readFileSync(publico("dueno.js"), "utf8"), /categoria\.id === "encargos-gestion" && window\.duenoGiro\?\.abarrotesSolo/);
 });
+
+test("Diseño nuevo de la computadora: solo existe bajo html.diseno-nuevo (apagado no cambia nada)", () => {
+    const css = fs.readFileSync(publico("css/components/diseno-nuevo.css"), "utf8");
+    assert.match(html, /css\/components\/diseno-nuevo\.css/);
+
+    // toda regla (fuera de comentarios) empieza con html.diseno-nuevo: ninguna toca el diseño de siempre
+    const sinComentarios = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    const selectores = [...sinComentarios.matchAll(/(^|\})\s*([^{}@]+)\{/g)].map(m => m[2].trim()).filter(Boolean);
+    assert.ok(selectores.length > 15, "se leyeron las reglas");
+    for (const lista of selectores) {
+        for (const sel of lista.split(",").map(s => s.trim()).filter(Boolean)) {
+            assert.ok(sel.startsWith("html.diseno-nuevo"), "regla sin el prefijo del diseño nuevo: " + sel);
+        }
+    }
+
+    assert.match(fs.readFileSync(publico("js/funciones-beta.js"), "utf8"), /classList\.toggle\("diseno-nuevo", window\.funcionBeta\("diseno_nuevo"\)\)/);
+});
