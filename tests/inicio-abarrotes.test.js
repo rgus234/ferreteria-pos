@@ -148,6 +148,6 @@ test("el cliente reemplaza el Inicio solo en el perfil simple y lo demas sigue i
     assert.match(js, /\/abarrotes\/ganancia-productos/);
     assert.match(js, /if \(!inicioAbEsSimple\(\)\)/, "fuera de abarrotes no se pinta nada");
     assert.match(js, /mostrarInicioOriginal\(\)/, "el Inicio de siempre sigue funcionando");
-    assert.match(css, /body\.perfil-simple:not\(\.perfil-ver-todo\) #pantallaInicio > \*:not\(\.dashboard-header\):not\(#inicioAbarrotes\)/);
+    assert.ok(css.includes("body.perfil-simple #pantallaInicio > *:not(.dashboard-header):not(#inicioAbarrotes)"), "el tablero de ferreteria se oculta siempre en abarrotes");
     assert.ok(indice.indexOf("js/sales-history-documents.js") < indice.indexOf("js/inicio-abarrotes.js"), "envuelve mostrarInicio ya definida");
 });

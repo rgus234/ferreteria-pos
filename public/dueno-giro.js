@@ -13,7 +13,7 @@
         duenoProdUbicacion: "Ej. Refrigerador"
     };
 
-    let giro = { listo: false, abarrotesSolo: false, ferreteriaSolo: false };
+    let giro = { listo: false, abarrotesSolo: false, ferreteriaSolo: false, conAbarrotes: false };
     let cargando = false;
     let temporizador = null;
 
@@ -62,6 +62,7 @@
             const ferreteria = giros.some(g => g.includes("ferret"));
 
             giro.abarrotesSolo = abarrotes && !ferreteria;
+            giro.conAbarrotes = abarrotes;
             giro.ferreteriaSolo = ferreteria && !abarrotes;
             giro.listo = true;
             aplicar();

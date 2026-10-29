@@ -195,15 +195,19 @@ async function porSurtir(pool, negocioId, hoy) {
 }
 
 async function resumenInicio(pool, negocioId, hoy = fechaLocal()) {
-    const productos = (await pool.query(
-        `SELECT id, nombre, stock, stock_minimo, precio_distribuidor, costo FROM public.productos WHERE negocio_id = $1`,
-        [negocioId]
-    )).rows;
+    // Estas consultas no dependen una de otra: juntas el Inicio carga en una fraccion del tiempo (antes iban en fila).
+    const [productosConsulta, ventas, totales, servicios, filasLotes, porSurtirDatos, fiadoDatos] = await Promise.all([
+        pool.query(`SELECT id, nombre, stock, stock_minimo, precio_distribuidor, costo FROM public.productos WHERE negocio_id = $1`, [negocioId]),
+        ventasPorProductoYDia(pool, negocioId, DIAS_HISTORIAL),
+        totalesPorDia(pool, negocioId, DIAS_HISTORIAL),
+        serviciosPorDia(pool, negocioId, DIAS_HISTORIAL),
+        lotesPorRevisar(pool, negocioId, { dias: 3, hoy }),
+        porSurtir(pool, negocioId, hoy),
+        fiadoResumen(pool, negocioId)
+    ]);
+    const productos = productosConsulta.rows;
 
-    const ventas = await ventasPorProductoYDia(pool, negocioId, DIAS_HISTORIAL);
-    const totales = await totalesPorDia(pool, negocioId, DIAS_HISTORIAL);
     const { filas, sinCosto } = calcularGanancias(ventas, productos);
-    const servicios = await serviciosPorDia(pool, negocioId, DIAS_HISTORIAL);
 
     const gananciaDelDia = dia =>
         filas.filter(f => f.dia === dia && f.ganancia !== null).reduce((suma, f) => suma + f.ganancia, 0)
@@ -225,7 +229,6 @@ async function resumenInicio(pool, negocioId, hoy = fechaLocal()) {
     const masGanancia = ranking.filter(p => p.ganancia > 0).sort((a, b) => b.ganancia - a.ganancia).slice(0, 5);
     const pierden = ranking.filter(p => p.ganancia <= 0 || (p.margen !== null && p.margen < 5)).sort((a, b) => a.ganancia - b.ganancia).slice(0, 5);
 
-    const filasLotes = await lotesPorRevisar(pool, negocioId, { dias: 3, hoy });
     const inventario = productos.reduce((a, p) => {
         const stock = Number(p.stock) || 0;
         a.productos++;
@@ -254,8 +257,8 @@ async function resumenInicio(pool, negocioId, hoy = fechaLocal()) {
         },
         productosSinCosto: sinCosto.size,
         porRevisar: { resumen: resumirLotes(filasLotes), lotes: filasLotes.slice(0, 4) },
-        porSurtir: await porSurtir(pool, negocioId, hoy),
-        fiado: await fiadoResumen(pool, negocioId),
+        porSurtir: porSurtirDatos,
+        fiado: fiadoDatos,
         inventario
     };
 }

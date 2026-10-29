@@ -502,3 +502,19 @@ test("Etiquetas QR del celular: primero se elige cuales imprimir (por lugar, tie
     assert.match(js, /\{ numeric: true \}/, "Estante 2 va antes que Estante 10");
     assert.match(js, /dmImprimir\(\$\{l\.id\}\)/, "la etiqueta de un solo lugar sigue directa");
 });
+
+test("Mi tienda rediseñada: claro y oscuro con sus propios colores, sin alert/prompt, con fotos y filtros, y el pedido legible", () => {
+    const js = leer("dueno-tienda.js");
+    const css = leer("dueno-tienda.css");
+    assert.equal(js.split("window.alert(").length - 1, 1, "alert solo como respaldo dentro de tiAviso");
+    assert.equal(js.split("window.prompt(").length - 1, 2, "prompt solo como respaldo (cantidades y copiar)");
+    assert.match(js, /tiPedirNumero/, "cuadro propio para las cantidades");
+    assert.ok(js.includes(".replace(/\\D/g, \"\")"), "el telefono del proveedor se limpia bien (antes quitaba la letra D)");
+    assert.match(js, /tiTipo\(/, "filtros por tipo: botanas, refrescos, frutas y verduras...");
+    assert.match(js, /tiNombreProveedor/, "nombre legible del proveedor");
+    assert.match(js, /tiendaPintarInicio/, "lo que mas te deja y lo que pierdes tambien en el Inicio");
+    assert.match(css, /:root\.oscuro \.tienda-capa \{ --t-bg: #000/, "tema oscuro propio");
+    assert.match(css, /overscroll-behavior: contain/, "el scroll no se atora al llegar al final");
+    assert.match(css, /body\.tienda-abierta \{ overflow: hidden; \}/);
+    assert.ok(leer("dueno-giro.js").includes("giro.conAbarrotes = abarrotes"));
+});
