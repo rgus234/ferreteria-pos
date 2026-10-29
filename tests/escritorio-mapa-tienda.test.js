@@ -148,7 +148,7 @@ test("Instalar la app despues del QR: aviso para Android e iPhone, codigo de 10 
     assert.match(instalar, /Continuar en el navegador/, "siempre se puede seguir sin instalar");
     assert.match(instalar, /display-mode: standalone/, "no se ofrece si la app ya esta instalada");
     assert.match(instalar, /data-a="copiar"/, "el codigo se puede copiar con un toque");
-    assert.match(instalar, /execCommand("copy")/, "con metodo de respaldo si el portapapeles no deja");
+    assert.ok(instalar.includes(`execCommand("copy")`), "con metodo de respaldo si el portapapeles no deja");
 
     const dueno = fs.readFileSync(publico("dueno.js"), "utf8");
     assert.match(dueno, /window\.mostrarInstalarAppDueno\(enlaceDeUrl\)/, "se ofrece ANTES de gastar el QR");
