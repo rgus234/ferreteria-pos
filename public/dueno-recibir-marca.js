@@ -158,16 +158,27 @@
     }
 
     // Lo que se ve en la lista: lo que coincide con el buscador (nombre o codigo, en TODAS las marcas) o, sin buscar, la marca elegida.
+    // Al escribir en el buscador tambien se filtran las tarjetas de marca: "bim" deja solo Bimbo, "game" deja Gamesa.
+    function marcasQueCoinciden() {
+        const q = plano(estado.consulta || "").trim();
+        if (!q || estado.factura) return [];
+        const palabras = q.split(/\s+/).filter(Boolean);
+        return estado.grupos.filter(g => { const nombre = plano(g.marca); return palabras.every(w => nombre.includes(w)); });
+    }
+
     function productosVisibles() {
         const q = plano(estado.consulta || "").trim();
 
         if (q) {
             const palabras = q.split(/\s+/).filter(Boolean);
             const soloCodigo = nc(q);
-            return estado.todos.filter(p => {
+            const porNombre = estado.todos.filter(p => {
                 const nombre = plano(p.nombre);
                 return palabras.every(w => nombre.includes(w)) || (soloCodigo.length >= 3 && nc(p.codigo).includes(soloCodigo));
-            }).slice(0, 40);
+            });
+            const deMarca = marcasQueCoinciden().flatMap(g => g.productos);
+            const vistos = new Set();
+            return deMarca.concat(porNombre).filter(p => !vistos.has(Number(p.id)) && vistos.add(Number(p.id))).slice(0, 60);
         }
 
         const grupo = estado.grupos.find(g => g.marca === estado.marca) || estado.grupos[0];
@@ -233,7 +244,8 @@
     };
 
     function marcasHtml(grupo) {
-        return gruposVisibles().map(g => {
+        const coinciden = marcasQueCoinciden();
+        return (coinciden.length ? coinciden : gruposVisibles()).map(g => {
             const llevo = g.productos.reduce((s, p) => s + (estado.cantidades.get(p.id) > 0 ? 1 : 0), 0);
             return `<button type="button" class="drm-marca${g === grupo ? " activa" : ""}" style="--marca:${g.color}" onclick="elegirMarcaRecibirDueno(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})">
                 ${g.logo ? `<span class="drm-logo"><img src="${esc(g.logo)}" alt=""></span>` : ""}<b>${esc(g.marca)}</b><small>${g.productos.length} ${pluralProducto(g.productos.length)}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
@@ -357,6 +369,8 @@
         estado.consulta = texto;
         const grid = document.getElementById("drmGrid");
         if (grid) grid.innerHTML = gridHtml();
+        const marcas = document.getElementById("drmMarcas");
+        if (marcas) marcas.innerHTML = marcasHtml(estado.grupos.find(g => g.marca === estado.marca) || estado.grupos[0]);
         document.getElementById("drmCapa")?.classList.toggle("drm-buscando", Boolean((texto || "").trim()));
     };
 

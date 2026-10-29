@@ -52,7 +52,6 @@ body.drm-abierta { overflow: hidden; }
 .drm-escanear { flex: none; display: flex; align-items: center; gap: 6px; height: 46px; padding: 0 14px; border: 0; border-radius: 14px; background: #1d5fd1 !important; color: #fff !important; font-weight: 800; font-size: 14px; }
 .drm-escanear svg { width: 22px; height: 22px; }
 .drm-vacio { grid-column: 1 / -1; padding: 24px 8px; text-align: center; color: #64748b; font-weight: 700; }
-.drm-capa.drm-buscando .drm-marca { opacity: .45; }
 
 /* Pie: el total se toca y abre el resumen */
 .drm-resumen-abrir { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border: 0; background: transparent !important; color: inherit !important; font: inherit; text-align: left; }
@@ -166,3 +165,6 @@ body.drm-con-resumen { overflow: hidden; }
 .drm-tipos .drm-linea { border-color: #94a3b8; font-weight: 800; }
 .drm-tipos .drm-linea.activa { background: #0f172a !important; color: #fff !important; border-color: #0f172a; }
 :root.oscuro .drm-fact-btn { background: #064e3b !important; border-color: #10b981; color: #d1fae5 !important; }
+
+/* Mientras se busca: las lineas de la marca se esconden y las tarjetas de marca que coinciden quedan a color */
+.drm-capa.drm-buscando .drm-lineas { display: none; }

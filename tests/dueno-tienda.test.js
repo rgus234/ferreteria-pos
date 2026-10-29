@@ -428,3 +428,10 @@ test("Celular: avisos visibles en Recibir por marca, filtro por tipo, facturas e
     for (const destino of ["stock", "creditos", "facturas"]) assert.ok(html.includes(`irAlertaDueno('${destino}')`), "pendiente tocable: " + destino);
     assert.match(leer("dueno.js"), /function irAlertaDueno/);
 });
+
+test("Recibir por marca: al escribir en el buscador tambien se filtran las tarjetas de marca", () => {
+    const rec = leer("dueno-recibir-marca.js");
+    assert.match(rec, /function marcasQueCoinciden/);
+    assert.match(rec, /coinciden\.length \? coinciden : gruposVisibles\(\)/, "con coincidencias solo quedan esas marcas");
+    assert.match(rec, /marcas\.innerHTML = marcasHtml/, "el buscador repinta las tarjetas de marca al teclear");
+});
