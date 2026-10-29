@@ -9,16 +9,16 @@
 // siempre van a la red; los datos y la cola offline viven en
 // IndexedDB (dueno-offline.js), no en este cache.
 
-const CACHE_NAME = "nexo-dueno-shell-v105";
+const CACHE_NAME = "nexo-dueno-shell-v106";
 const CACHE_FOTOS = "nexo-dueno-fotos-v1";
 
 const ARCHIVOS_CASCARON = [
     "/dueno",
-    "/dueno.css?v=celular-plan-b-20261112-06",
-    "/dueno.js?v=celular-plan-b-20261112-06",
-    "/dueno-inventario.js?v=celular-plan-b-20261112-06",
-    "/dueno-ventas-offline.js?v=celular-plan-b-20261112-06",
-    "/dueno-gestion.js?v=celular-plan-b-20261112-06",
+    "/dueno.css?v=celular-plan-b-20261114-07",
+    "/dueno.js?v=celular-plan-b-20261114-07",
+    "/dueno-inventario.js?v=celular-plan-b-20261114-07",
+    "/dueno-ventas-offline.js?v=celular-plan-b-20261114-07",
+    "/dueno-gestion.js?v=celular-plan-b-20261114-07",
     "/dueno-captura.js?v=captura-20261030-02",
     "/dueno-captura.css?v=captura-20261030-01",
     "/dueno-tienda.js?v=tienda-20261031-01",
@@ -34,7 +34,7 @@ const ARCHIVOS_CASCARON = [
     "/dueno-actividad.css?v=actividad-20261102-01",
     "/dueno-alta.js?v=alta-20261107-08",
     "/dueno-alta.css?v=alta-20261107-08",
-    "/dueno-mapa.js?v=mapa-20261110-fe",
+    "/dueno-mapa.js?v=mapa-20261114-ff",
     "/dueno-factura.js?v=factura-20261111-07",
     "/dueno-escaner-pc.js?v=escanerpc-20261105-01",
     "/dueno-barra.js?v=barra-20261106-01",
@@ -42,14 +42,14 @@ const ARCHIVOS_CASCARON = [
     "/dueno-venta-completa.js?v=ventacompleta-20261106-01",
     "/dueno-ticket.js?v=ticket-20261107-01",
     "/dueno-vender-inicio.js?v=vinicio-20261107-02",
-    "/dueno-recibir-marca.js?v=rmarca-20261113-21",
-    "/dueno-recibir-marca.css?v=rmarca-20261113-21",
+    "/dueno-recibir-marca.js?v=rmarca-20261114-22",
+    "/dueno-recibir-marca.css?v=rmarca-20261114-22",
     "/dueno-nexo-dile.js?v=nexodile-20261112-05",
-    "/dueno-giro.js?v=giro-20261107-02",
-    "/dueno-mapa.css?v=mapa-20261106-16",
+    "/dueno-giro.js?v=giro-20261114-04",
+    "/dueno-mapa.css?v=mapa-20261114-17",
     "/dueno-oscuro-modulos.css?v=oscuro-20261105-07",
-    "/dueno-estilo.css?v=estilo-20261113-03",
-    "/dueno-offline.js?v=celular-plan-b-20261112-06",
+    "/dueno-estilo.css?v=estilo-20261114-04",
+    "/dueno-offline.js?v=celular-plan-b-20261114-07",
     "/manifest.json?v=shell-unificado-20260816-01",
     "/nexo-pos-icon.jpg",
     "/icons/nexo-pos-icon-192.png",

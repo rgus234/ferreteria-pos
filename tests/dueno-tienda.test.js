@@ -435,3 +435,16 @@ test("Recibir por marca: al escribir en el buscador tambien se filtran las tarje
     assert.match(rec, /coinciden\.length \? coinciden : gruposVisibles\(\)/, "con coincidencias solo quedan esas marcas");
     assert.match(rec, /marcas\.innerHTML = marcasHtml/, "el buscador repinta las tarjetas de marca al teclear");
 });
+
+test("Celular: las tarjetas de Inicio se abren encima de Inicio, Stock critico lista todo lo critico, Creditos tiene atras y abarrotes dice Fiado", () => {
+    const js = leer("dueno.js");
+    assert.match(js, /dmAbrirEn\("criticos", true\)/, "stock critico se abre encima de Inicio");
+    assert.doesNotMatch(js.slice(js.indexOf("function irAlertaDueno"), js.indexOf("function mostrarToastDueno")), /cambiarTabDueno\("inventario"\)/, "ya no cambia a Inventario");
+    assert.match(js, /function volverDeCreditosDueno/);
+    assert.match(leer("dueno.html"), /volverDeCreditosDueno\(\)/, "Creditos tiene flecha de atras");
+    const mapa = leer("dueno-mapa.js");
+    assert.match(mapa, /window\.dmIrCriticos/);
+    assert.match(mapa, /destino, directo/, "apertura directa sin el inicio del mapa debajo");
+    assert.match(leer("dueno-giro.js"), /Fiado pendiente/, "abarrotes: fiado en vez de creditos");
+    assert.match(leer("dueno-recibir-marca.css"), /drmEntra/, "Recibir por marca abre con animacion");
+});

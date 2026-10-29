@@ -264,3 +264,6 @@
 .dnx-botones button { flex: 1; padding: 11px 6px; border: 0; border-radius: 12px; background: var(--surface-soft) !important; color: var(--text) !important; font-weight: 800; font-size: 14px; }
 .dnx-botones .dnx-si { background: linear-gradient(135deg, #1d5fd1, #18b88f) !important; color: #fff !important; }
 .dnx-botones button:disabled { opacity: .5; }
+
+.dm-fila-quieta { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 16px; background: #fff; }
+.dm-fila-quieta .dm-mini-lugar { flex: none; display: grid; }

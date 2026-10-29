@@ -168,3 +168,8 @@ body.drm-con-resumen { overflow: hidden; }
 
 /* Mientras se busca: las lineas de la marca se esconden y las tarjetas de marca que coinciden quedan a color */
 .drm-capa.drm-buscando .drm-lineas { display: none; }
+
+/* Entrada suave al abrir (antes aparecia de golpe) */
+.drm-capa.abierta { animation: drmEntra .28s cubic-bezier(.2, .8, .2, 1); }
+@keyframes drmEntra { from { transform: translateY(28px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .drm-capa.abierta { animation: none; } }

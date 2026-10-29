@@ -114,3 +114,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI"
 #duenoMas .dx-entrada > span, #duenoMas .da-entrada > span, #duenoMas [id$="Entrada"] > span { grid-row: 1 / 3; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: var(--brand-soft); font-size: 19px; }
 #duenoMas .dx-entrada b, #duenoMas .da-entrada b, #duenoMas [id$="Entrada"] b { font-size: 15px; font-weight: 600; }
 #duenoMas .dx-entrada small, #duenoMas .da-entrada small, #duenoMas [id$="Entrada"] small { color: var(--muted); font-size: 12.5px; font-weight: 400; }
+
+/* Buscador de Creditos/Fiado igual que el de Inventario */
+#duenoCreditos input[type="search"] { display: block; width: 100%; height: 44px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--relleno); color: var(--text); font-size: 17px; font-family: inherit; }
+#duenoCreditos input[type="search"]::placeholder { color: var(--muted); }
+#duenoCreditos .dueno-card { background: var(--surface); }

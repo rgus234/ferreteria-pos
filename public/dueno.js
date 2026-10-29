@@ -678,14 +678,13 @@ async function iniciarSesionEmpleadoDueno() {
 function irAlertaDueno(destino) {
     if (destino === "creditos") { cambiarTabDueno("creditos"); return; }
 
+    // Se abren ENCIMA de Inicio: al volver con la flecha de atras se regresa a Inicio, no a Inventario.
     if (destino === "stock") {
-        cambiarTabDueno("inventario");
-        if (typeof dmAbrirEn === "function") dmAbrirEn("resurtir");
+        if (typeof dmAbrirEn === "function") dmAbrirEn("criticos", true);
         return;
     }
 
     if (destino === "facturas") {
-        cambiarTabDueno("inventario");
         if (typeof dfAbrir === "function") dfAbrir();
         else if (typeof mostrarToastDueno === "function") mostrarToastDueno("Abre Recibir factura desde Inventario.");
     }
@@ -959,7 +958,17 @@ async function cargarPanelDueno() {
 
 // ---------------- pestañas ----------------
 
+let duenoTabActual = "inicio";
+let duenoTabAntesDeCreditos = "inicio";
+
+function volverDeCreditosDueno() {
+    cambiarTabDueno(duenoTabAntesDeCreditos && duenoTabAntesDeCreditos !== "creditos" ? duenoTabAntesDeCreditos : "inicio");
+}
+
 function cambiarTabDueno(tab) {
+    if (tab === "creditos" && duenoTabActual !== "creditos") duenoTabAntesDeCreditos = duenoTabActual;
+    duenoTabActual = tab;
+
     document.querySelectorAll(".dueno-tabs button").forEach(boton => {
         boton.classList.toggle("activo", boton.dataset.tab === tab);
     });

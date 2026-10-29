@@ -114,10 +114,13 @@
     insertarAccesos();
 
     // Abre el inventario de tienda directo en la pantalla pedida (la pila siempre arranca en el inicio).
-    window.dmAbrirEn = async function (destino) {
-        pila = [{ t: "inicio" }];
-        pintar();
+    // directo: se abre encima de la pantalla actual SIN la pantalla de inicio del mapa debajo, para que "atras" regrese a donde estabas (p. ej. Inicio).
+    window.dmAbrirEn = async function (destino, directo) {
+        pila = directo ? [] : [{ t: "inicio" }];
+        if (!directo) pintar();
         cargarGeneral();
+
+        if (destino === "criticos") { window.dmIrCriticos(); return; }
 
         if (destino === "escanear") window.dmEscanear();
         else if (destino === "contar") window.dmContarEscaneando();
@@ -151,7 +154,7 @@
     function pintar() {
         const c = obtenerCapa();
         const p = actual();
-        const mapa = { inicio: pintarInicio, lugar: pintarLugar, producto: pintarProducto, conteo: pintarConteo, resurtir: pintarResurtir, buscar: pintarBusqueda, nuevo: pintarNuevo, conteos: pintarConteos, conteoDetalle: pintarConteoDetalle };
+        const mapa = { inicio: pintarInicio, lugar: pintarLugar, producto: pintarProducto, conteo: pintarConteo, resurtir: pintarResurtir, criticos: pintarCriticos, buscar: pintarBusqueda, nuevo: pintarNuevo, conteos: pintarConteos, conteoDetalle: pintarConteoDetalle };
 
         c.innerHTML = (mapa[p.t] || pintarInicio)(p);
     }
@@ -474,6 +477,39 @@
                 <div class="dm-cifras dm-chicas"><div><strong>${numero(p.exhibicion)}</strong><span>Estante</span></div><div><strong>${numero(p.bodega)}</strong><span>Bodega</span></div></div>
                 ${p.lugaresBodega.map(l => `<div class="dm-pasar"><span>${esc(l.ruta)}<small>${numero(l.cantidad)} disponibles</small></span><input class="dm-input dm-num" type="number" inputmode="decimal" min="0" max="${l.cantidad}" value="${l.cantidad}" id="dmP${p.productoId}_${l.ubicacionId}"><button type="button" class="dm-boton-chico" onclick="dmPasar(${p.productoId}, ${l.ubicacionId})">Pasar</button></div>`).join("")}
             </article>`).join("") || `<div class="dm-vacio-grande">${icono("ok", 40)}<b>Todo al día</b><span>Lo que tienes en bodega todavía se ve en el estante.</span></div>`
+        });
+    }
+
+    // ---- Stock critico: todo lo que esta por agotarse (lo mismo que cuenta la tarjeta de Inicio), no solo lo que se puede pasar de bodega ----
+
+    window.dmIrCriticos = async function () {
+        const entrada = { t: "criticos", lista: null };
+        ir(entrada);
+
+        let catalogo = [];
+        try { catalogo = typeof listarCatalogoLocalCompletoDueno === "function" ? await listarCatalogoLocalCompletoDueno() : []; } catch (error) { catalogo = []; }
+
+        entrada.lista = catalogo
+            .filter(p => Number(p.id) > 0 && Number(p.stock || 0) <= Number(p.stock_minimo || 3))
+            .sort((a, b) => Number(a.stock || 0) - Number(b.stock || 0));
+
+        if (actual() === entrada) pintar();
+    };
+
+    function pintarCriticos(e) {
+        const lista = e.lista;
+        const porResurtir = Number(resumen?.porResurtir || 0);
+        const enlaceResurtir = porResurtir
+            ? `<button type="button" class="dm-fila" onclick="dmIrResurtir()"><span class="dm-icono-caja dm-ambar">${icono("resurtir", 22)}</span><span class="dm-fila-texto"><b>Resurtir de bodega</b><small>${porResurtir} producto${porResurtir === 1 ? "" : "s"} se pueden pasar al estante</small></span>${icono("siguiente", 18)}</button>`
+            : "";
+        const filas = lista === null ? "" : lista.slice(0, 150).map(p => `<article class="dm-fila-quieta"><span class="dm-mini-lugar">${miniatura(p.imagenUrl, 44)}</span><span class="dm-fila-texto"><b>${esc(p.nombre)}</b><small>${Number(p.stock || 0) <= 0 ? "Agotado" : "Quedan " + numero(p.stock)}${p.codigo ? " · " + esc(p.codigo) : ""}</small></span></article>`).join("");
+        const nota = lista && lista.length > 150 ? `<p class="dm-nota">Se muestran los 150 más urgentes de ${lista.length}.</p>` : "";
+        const vacio = lista && !lista.length ? `<div class="dm-vacio-grande">${icono("ok", 40)}<b>Todo en orden</b><span>Nada está por agotarse.</span></div>` : "";
+
+        return pantalla({
+            titulo: "Stock crítico",
+            subtitulo: lista ? `${lista.length} producto${lista.length === 1 ? "" : "s"} por agotarse` : "",
+            cuerpo: lista === null ? `<p class="dm-nota">Cargando…</p>` : enlaceResurtir + filas + nota + vacio
         });
     }
 
