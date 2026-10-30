@@ -797,6 +797,8 @@ async function riAbrirModalDecision(itemId) {
 		productoSeleccionado: null,
 		terminoBusqueda: item.descripcion,
 		candidato: item.candidato || null,
+		codigo: item.codigo || "",
+		paso: 1,
 		resultadosBusqueda: null,
 		nombre: item.candidato?.nombre || item.descripcion,
 		precioPublico: null,
@@ -887,6 +889,7 @@ function riRenderModalDecision() {
 	}
 
 	const d = riDecision;
+	if (riUsaAsistenteNuevo(d)) { riRenderAsistenteNuevo(modal); return; }
 	const esRelacionar = d.modo === "relacionar";
 	const mostrarPrecios = !esRelacionar || d.productoSeleccionado;
 
@@ -1367,4 +1370,123 @@ async function riConfirmarEscaneo() {
 	riCantidadesEscaneadas = Object.fromEntries(riEscaneo.items.map(it => [it.id, riEscaneo.contado.get(it.id) || 0]));
 	riCerrarEscaneo();
 	await riConfirmar(id);
+}
+
+// ---------------------------------------------------------------------
+// Producto nuevo "paso a paso" (abarrotes): 5 pantallas cortas en vez de un formulario largo.
+// Usa el mismo estado (riDecision) y el mismo guardado (riGuardarModalDecision) que la ventana de siempre.
+// ---------------------------------------------------------------------
+
+const RI_PASOS_NUEVO = ["Nombre", "Precio", "Suelto", "Código", "Listo"];
+
+function riUsaAsistenteNuevo(d) {
+	return d.modo === "crear" && typeof perfilEsSimple === "function" && perfilEsSimple();
+}
+
+function riMargenTexto(costo, venta) {
+	const c = Number(costo), v = Number(venta);
+	if (!Number.isFinite(c) || !Number.isFinite(v) || v <= 0 || c <= 0) return "";
+	const margen = Math.round(((v - c) / v) * 100);
+	return `Te deja $${(v - c).toFixed(2)} por pieza (${margen}%)`;
+}
+
+function riPasoNuevoHtml(d) {
+	const paso = d.paso || 1;
+	const dinero = valor => (valor === "" || valor == null) ? "—" : "$" + Number(valor).toFixed(2);
+
+	if (paso === 1) return `
+		<h4>¿Cómo se llama?</h4>
+		<p class="ri-asis-ayuda">En la factura dice: <i>${escaparPOS(d.descripcion)}</i>. Escríbelo como lo dirían tus clientes.</p>
+		<input type="text" id="riAsisNombre" class="ri-asis-grande" value="${escaparPOS(d.nombre || "")}" placeholder="Ej. Coca-Cola 600 ml">`;
+
+	if (paso === 2) return `
+		<h4>¿A cuánto lo vendes?</h4>
+		<p class="ri-asis-ayuda">Te costó <b>$${Number(d.costo).toFixed(2)}</b>. Es una sugerencia: tú decides el precio.</p>
+		<div class="ri-modal-decision-precios-grid">
+			<label>Público<input type="number" step="0.01" min="0" inputmode="decimal" id="riAsisPublico" class="ri-asis-grande" value="${d.precioPublico ?? ""}"></label>
+			<label>Medio mayoreo<input type="number" step="0.01" min="0" inputmode="decimal" id="riAsisMayoreo" class="ri-asis-grande" value="${d.precioMedioMayoreo ?? ""}"></label>
+		</div>
+		<p class="ri-asis-margen" id="riAsisMargen">${escaparPOS(riMargenTexto(d.costo, d.precioPublico || d.precioMedioMayoreo))}</p>`;
+
+	if (paso === 3) return `
+		<h4>¿Lo vendes suelto?</h4>
+		<p class="ri-asis-ayuda">Por ejemplo, una galleta o un chicle de la caja. Si solo lo vendes completo, deja "No".</p>
+		<div class="ri-asis-opciones">
+			<button type="button" class="${d.unidadSuelta ? "" : "activo"}" data-suelto="no">No, solo completo</button>
+			<button type="button" class="${d.unidadSuelta ? "activo" : ""}" data-suelto="si">Sí, también suelto</button>
+		</div>
+		${d.unidadSuelta ? `<div class="ri-modal-decision-precios-grid">
+			<label>Se vende por<select id="riAsisUnidad">${RI_UNIDADES_SUELTA.filter(o => o.valor).map(o => `<option value="${o.valor}" ${d.unidadSuelta === o.valor ? "selected" : ""}>${o.etiqueta}</option>`).join("")}</select></label>
+			<label>Precio suelto<input type="number" step="0.01" min="0" inputmode="decimal" id="riAsisPieza" class="ri-asis-grande" value="${d.precioPieza ?? ""}"></label>
+		</div>` : ""}`;
+
+	if (paso === 4) return `
+		<h4>Código de barras</h4>
+		<p class="ri-asis-ayuda">${d.codigo ? `Se guarda con el código de la factura: <b class="ri-asis-codigo">${escaparPOS(d.codigo)}</b>.` : "La factura no trae código para este producto."}</p>
+		<p class="ri-asis-ayuda">Cuando lo escanees en la caja o al recibir, Nexo lo reconoce.</p>`;
+
+	return `
+		<h4>Todo listo</h4>
+		<ul class="ri-asis-resumen">
+			<li><span>Producto</span><b>${escaparPOS(d.nombre || "—")}</b></li>
+			<li><span>Te costó</span><b>${dinero(d.costo)}</b></li>
+			<li><span>Público</span><b>${dinero(d.precioPublico)}</b></li>
+			<li><span>Medio mayoreo</span><b>${dinero(d.precioMedioMayoreo)}</b></li>
+			<li><span>Suelto</span><b>${d.unidadSuelta ? `${escaparPOS(d.unidadSuelta)} a ${dinero(d.precioPieza)}` : "No"}</b></li>
+			${d.codigo ? `<li><span>Código</span><b>${escaparPOS(d.codigo)}</b></li>` : ""}
+		</ul>
+		<p class="ri-asis-margen">${escaparPOS(riMargenTexto(d.costo, d.precioPublico || d.precioMedioMayoreo))}</p>`;
+}
+
+function riRenderAsistenteNuevo(modal) {
+	const d = riDecision;
+	d.paso = d.paso || 1;
+	const ultimo = d.paso === RI_PASOS_NUEVO.length;
+
+	modal.innerHTML = `
+		<div class="ri-modal-decision-card ri-asis">
+			<button type="button" class="ri-modal-producto-cerrar" id="riDecisionCerrar" aria-label="Cerrar">✕</button>
+			<p class="ri-asis-paso">Producto nuevo · paso ${d.paso} de ${RI_PASOS_NUEVO.length}</p>
+			<div class="ri-asis-puntos">${RI_PASOS_NUEVO.map((n, i) => `<span class="${i + 1 === d.paso ? "activo" : i + 1 < d.paso ? "hecho" : ""}" title="${n}"></span>`).join("")}</div>
+			${riPasoNuevoHtml(d)}
+			<div class="ri-modal-decision-acciones">
+				<button type="button" class="ri-modal-decision-omitir" id="riAsisOtro">${d.paso === 1 ? "Ya lo tengo en inventario" : "Omitir este producto"}</button>
+				<div>
+					<button type="button" class="btn-secundario" id="riAsisAtras">${d.paso === 1 ? "Cancelar" : "Atrás"}</button>
+					<button type="button" class="btn-agregar" id="riAsisSiguiente">${ultimo ? "Guardar producto" : "Siguiente"}</button>
+				</div>
+			</div>
+		</div>`;
+	modal.style.display = "flex";
+
+	const por = id => document.getElementById(id);
+	por("riDecisionCerrar").onclick = riCerrarModalDecision;
+	por("riAsisOtro").onclick = async () => {
+		if (d.paso === 1) { d.modo = "relacionar"; riRenderModalDecision(); return; }
+		if (await riOmitirItem(d.itemId)) riCerrarModalDecision();
+	};
+	por("riAsisAtras").onclick = () => { if (d.paso === 1) riCerrarModalDecision(); else { d.paso--; riRenderModalDecision(); } };
+
+	const nombre = por("riAsisNombre");
+	if (nombre) { nombre.oninput = () => { d.nombre = nombre.value; }; nombre.onkeydown = e => { if (e.key === "Enter") por("riAsisSiguiente").click(); }; nombre.focus(); nombre.select(); }
+
+	const actualizarMargen = () => { const m = por("riAsisMargen"); if (m) m.textContent = riMargenTexto(d.costo, d.precioPublico || d.precioMedioMayoreo); };
+	const publico = por("riAsisPublico");
+	if (publico) publico.oninput = () => { d.precioPublico = publico.value; actualizarMargen(); };
+	const mayoreo = por("riAsisMayoreo");
+	if (mayoreo) mayoreo.oninput = () => { d.precioMedioMayoreo = mayoreo.value; actualizarMargen(); };
+	const unidad = por("riAsisUnidad");
+	if (unidad) unidad.onchange = () => { d.unidadSuelta = unidad.value; };
+	const pieza = por("riAsisPieza");
+	if (pieza) pieza.oninput = () => { d.precioPieza = pieza.value; };
+	modal.querySelectorAll("[data-suelto]").forEach(b => { b.onclick = () => { d.unidadSuelta = b.dataset.suelto === "si" ? (d.unidadSuelta || "pieza") : ""; riRenderModalDecision(); }; });
+
+	por("riAsisSiguiente").onclick = async () => {
+		if (d.paso === 1 && !String(d.nombre || "").trim()) { await alertaPOS("Escribe el nombre del producto.", "Falta el nombre", "info"); return; }
+		if (d.paso === 2 && !(Number(d.precioPublico) > 0) && !(Number(d.precioMedioMayoreo) > 0)) { await alertaPOS("Indica al menos un precio de venta.", "Falta el precio", "info"); return; }
+		if (d.paso === 3 && d.unidadSuelta && !(Number(d.precioPieza) > 0)) { await alertaPOS("Escribe el precio al que vendes suelto, o elige \"No\".", "Falta el precio suelto", "info"); return; }
+		if (ultimo) { await riGuardarModalDecision(); return; }
+		d.paso++;
+		riRenderModalDecision();
+	};
 }
