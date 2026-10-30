@@ -32,7 +32,7 @@ async function pedirMetodoPagoPOS(total, opciones = {}) {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
   transferencia: "Transferencia",
-  credito: "Credito",
+  credito: typeof perfilEsSimple === "function" && perfilEsSimple() ? "Fiado" : "Credito",
   mixto: "Mixto"
  };
 
@@ -234,7 +234,7 @@ async function pedirMetodoPagoPOS(total, opciones = {}) {
  <label>Efectivo<input type="number" step="0.01" min="0" id="pagoMixtoEfectivo" value="${pagosMixtos.efectivo}"></label>
  <label>Tarjeta<input type="number" step="0.01" min="0" id="pagoMixtoTarjeta" value="${pagosMixtos.tarjeta}"></label>
  <label>Transferencia<input type="number" step="0.01" min="0" id="pagoMixtoTransferencia" value="${pagosMixtos.transferencia}"></label>
- <label>Credito<input type="number" step="0.01" min="0" id="pagoMixtoCredito" value="${pagosMixtos.credito}"></label>
+ <label>${etiquetas.credito}<input type="number" step="0.01" min="0" id="pagoMixtoCredito" value="${pagosMixtos.credito}"></label>
  </div>
  <div class="metodo-pago-resumen-linea">
  <span id="modalPagoMixtoEtiqueta">${faltanteMixto > 0 ? "Falta" : "Cambio"}</span>

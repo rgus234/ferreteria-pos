@@ -4226,8 +4226,8 @@ function metodoPagoBotonVenderDuenoHtml(metodo) {
         <button type="button" class="dueno-metodo-pago-boton ${seleccionado ? "seleccionado" : ""}" onclick="elegirMetodoPagoVenderDueno('${metodo.id}')">
             ${seleccionado ? `<span class="dueno-metodo-pago-check">✓</span>` : ""}
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${metodo.icono}</svg>
-            <span>${metodo.etiqueta}</span>
-            ${metodo.sub ? `<span class="sub">${metodo.sub}</span>` : ""}
+            <span>${metodo.id === "credito" && window.duenoGiro?.abarrotesSolo ? "Fiado" : metodo.etiqueta}</span>
+            ${metodo.sub ? `<span class="sub">${metodo.id === "credito" && window.duenoGiro?.abarrotesSolo ? "Se anota en la libreta" : metodo.sub}</span>` : ""}
         </button>
     `;
 }

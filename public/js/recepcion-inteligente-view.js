@@ -796,6 +796,7 @@ async function riAbrirModalDecision(itemId) {
 		modo: modoInicial,
 		productoSeleccionado: null,
 		terminoBusqueda: item.descripcion,
+		candidato: item.candidato || null,
 		resultadosBusqueda: null,
 		nombre: item.candidato?.nombre || item.descripcion,
 		precioPublico: null,
@@ -912,6 +913,7 @@ function riRenderModalDecision() {
 							<button type="button" class="btn-mini" id="riDecisionQuitarSeleccion">Elegir otro</button>
 						</div>
 					` : riRenderResultadosBusquedaDecision()}
+					${riAvisoListaMasAlta(d)}
 				</div>
 			` : `
 				<div class="ri-modal-decision-seccion">
@@ -964,6 +966,19 @@ function riRenderModalDecision() {
 	riWireModalDecisionEventos();
 }
 
+// Si el producto que ya tienes se vende mas barato que la lista vigente, lo dice y deja subirlo con un toque (nunca lo cambia solo).
+function riAvisoListaMasAlta(d) {
+	const referencia = riPreciosReferenciaCandidato(d.candidato);
+	const actual = Number(d.productoSeleccionado?.precio_mayoreo);
+	if (!d.productoSeleccionado || !referencia?.medioMayoreo || !Number.isFinite(actual) || actual <= 0) return "";
+	if (Number(referencia.medioMayoreo) <= actual + 0.009) return "";
+	const publicoActual = Number(d.productoSeleccionado.precio_publico);
+	return `<div class="ri-aviso-lista">
+		<span>⚠ Lo tienes en <b>$${actual.toFixed(2)}</b> y la lista del fabricante está en <b>$${Number(referencia.medioMayoreo).toFixed(2)}</b>${referencia.publico ? ` (público $${Number(referencia.publico).toFixed(2)})` : ""}.</span>
+		<button type="button" class="btn-mini" id="riDecisionUsarLista">Usar precios de la lista</button>
+	</div>`;
+}
+
 function riCerrarModalDecision() {
 	const modal = document.getElementById("riModalDecision");
 	if (modal) modal.style.display = "none";
@@ -1004,6 +1019,14 @@ function riWireModalDecisionEventos() {
 		d.precioPieza = producto.permite_venta_pieza ? (numeroOrNull(producto.precio_pieza) ?? "") : "";
 		riRenderModalDecision();
 	});
+
+	const usarLista = document.getElementById("riDecisionUsarLista");
+	if (usarLista) usarLista.onclick = () => {
+		const referencia = riPreciosReferenciaCandidato(d.candidato);
+		d.precioMedioMayoreo = referencia.medioMayoreo;
+		if (referencia.publico != null && Number(referencia.publico) >= Number(referencia.medioMayoreo)) d.precioPublico = referencia.publico;
+		riRenderModalDecision();
+	};
 
 	const nombreInput = document.getElementById("riDecisionNombre");
 	if (nombreInput) nombreInput.oninput = () => { d.nombre = nombreInput.value; };

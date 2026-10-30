@@ -31,7 +31,7 @@ function costoDe(producto) {
 async function ventasPorProductoYDia(pool, negocioId, dias) {
     const filas = await pool.query(
         `SELECT (item->>'id')::int AS producto_id,
-                to_char(h.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') AS dia,
+                to_char((h.fecha AT TIME ZONE 'UTC') AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') AS dia,
                 COALESCE(SUM((item->>'cantidad')::numeric), 0) AS unidades,
                 COALESCE(SUM((item->>'importe')::numeric), 0) AS importe
          FROM public.historial_ventas h
@@ -50,7 +50,7 @@ async function ventasPorProductoYDia(pool, negocioId, dias) {
 // (importe menos lo que costo pagarle al proveedor). Sin costo no se inventa comision.
 async function serviciosPorDia(pool, negocioId, dias) {
     const filas = await pool.query(
-        `SELECT to_char(h.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') AS dia,
+        `SELECT to_char((h.fecha AT TIME ZONE 'UTC') AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') AS dia,
                 COALESCE(NULLIF(item->'servicio'->>'proveedor', ''), 'Otro') AS proveedor,
                 COALESCE(NULLIF(item->'servicio'->>'tipo', ''), 'servicio') AS tipo,
                 COALESCE(SUM((item->>'cantidad')::numeric), 0) AS operaciones,
@@ -70,7 +70,7 @@ async function serviciosPorDia(pool, negocioId, dias) {
 
 async function totalesPorDia(pool, negocioId, dias) {
     const filas = await pool.query(
-        `SELECT to_char(h.fecha AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') AS dia, COUNT(*) AS ventas, COALESCE(SUM(h.total), 0) AS total
+        `SELECT to_char((h.fecha AT TIME ZONE 'UTC') AT TIME ZONE '${ZONA}', 'YYYY-MM-DD') AS dia, COUNT(*) AS ventas, COALESCE(SUM(h.total), 0) AS total
          FROM public.historial_ventas h
          WHERE h.negocio_id = $1 AND h.estado = 'completada' AND h.fecha >= NOW() - ($2 || ' days')::interval
          GROUP BY 1`,
