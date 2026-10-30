@@ -86,3 +86,37 @@ html.diseno-nuevo .contenido table tbody tr:hover td { background: color-mix(in 
 
 /* ---- titulos de seccion ---- */
 html.diseno-nuevo .contenido h2 { letter-spacing: -.02em; }
+
+/* ---- Reportes y Clientes: sin la caja grande alrededor, mismo estilo del Inicio ---- */
+html.diseno-nuevo .reportes-shell,
+html.diseno-nuevo .clientes-shell { max-width: none; margin: 0; padding: 0; background: transparent !important; border: 0 !important; border-radius: 0; box-shadow: none !important; }
+
+html.diseno-nuevo .reportes-header h2,
+html.diseno-nuevo .clientes-header h2 { margin: 0; color: var(--dn-texto); font-size: 34px; font-weight: 800; letter-spacing: -.03em; }
+html.diseno-nuevo .reportes-header p,
+html.diseno-nuevo .clientes-header p { margin: 4px 0 0; color: var(--dn-suave); font-weight: 600; }
+
+html.diseno-nuevo .reportes-resumen div,
+html.diseno-nuevo .clientes-resumen div,
+html.diseno-nuevo .reportes-panel {
+  background: var(--dn-tarjeta) !important;
+  border: 1px solid var(--dn-linea) !important;
+  border-radius: 20px !important;
+  box-shadow: none !important;
+}
+html.diseno-nuevo .reportes-resumen div,
+html.diseno-nuevo .clientes-resumen div { padding: 16px 18px; }
+html.diseno-nuevo .reportes-resumen span,
+html.diseno-nuevo .clientes-resumen span { color: var(--dn-suave) !important; font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+html.diseno-nuevo .reportes-resumen strong,
+html.diseno-nuevo .clientes-resumen strong { color: var(--dn-texto) !important; font-size: 28px; font-weight: 800; letter-spacing: -.03em; }
+html.diseno-nuevo .reportes-panel h3 { color: var(--dn-texto); font-size: 16px; letter-spacing: -.01em; }
+
+/* filtros de Reportes: botones redondos con relleno suave; el activo lleva el color de la marca */
+html.diseno-nuevo .reportes-filtros button { border: 0 !important; border-radius: 999px !important; background: var(--dn-relleno) !important; color: var(--dn-texto) !important; box-shadow: none !important; font-weight: 700; }
+html.diseno-nuevo .reportes-filtros button.activo { background: var(--brand-color, #0d6efd) !important; color: #fff !important; }
+
+/* botones principales de estas pantallas: color liso, sin sombra de color */
+html.diseno-nuevo .btn-cliente-nuevo,
+html.diseno-nuevo .btn-reporte-exportar { border-radius: 14px; background: var(--brand-color, #0d6efd) !important; box-shadow: none !important; }
+html.diseno-nuevo .btn-reporte-actualizar { border: 0 !important; border-radius: 12px; background: var(--dn-relleno) !important; color: var(--dn-texto) !important; box-shadow: none !important; }
