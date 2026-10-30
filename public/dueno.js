@@ -1201,7 +1201,7 @@ async function buscarProductoVentaDueno(texto) {
                 <div class="fila-dueno fila-dueno-producto">
                     <div class="dueno-miniatura" onclick="verDetalleProductoDueno(${producto.id})">
                         ${producto.imagenUrl
-                            ? `<img src="${producto.imagenUrl}" alt="" loading="lazy">`
+                            ? `<img src="${fotoMiniDueno(producto.imagenUrl)}" alt="" loading="lazy">`
                             : miniaturaVaciaDuenoHtml()}
                     </div>
                     <div onclick="verDetalleProductoDueno(${producto.id})">
@@ -2527,7 +2527,7 @@ async function filtrarInventarioDueno() {
                 <div class="fila-dueno fila-dueno-producto">
                     <div class="dueno-miniatura" onclick="abrirDetalleProductoInventarioDueno(${producto.id})">
                         ${producto.imagenUrl
-                            ? `<img src="${producto.imagenUrl}" alt="" loading="lazy">`
+                            ? `<img src="${fotoMiniDueno(producto.imagenUrl)}" alt="" loading="lazy">`
                             : miniaturaVaciaDuenoHtml()}
                     </div>
                     <div onclick="abrirDetalleProductoInventarioDueno(${producto.id})">
@@ -3444,7 +3444,7 @@ function filaProductoVenderDuenoHtml(producto) {
         <div class="fila-dueno fila-dueno-producto">
             <div class="dueno-miniatura">
                 ${producto.imagenUrl
-                    ? `<img src="${producto.imagenUrl}" alt="" loading="lazy">`
+                    ? `<img src="${fotoMiniDueno(producto.imagenUrl)}" alt="" loading="lazy">`
                     : miniaturaVaciaDuenoHtml()}
             </div>
             <div>
@@ -3880,7 +3880,7 @@ function filaCarritoVenderDuenoHtml(item) {
             <div class="fila-dueno-carrito-info">
                 <div class="dueno-miniatura">
                     ${item.imagenUrl
-                        ? `<img src="${item.imagenUrl}" alt="" loading="lazy">`
+                        ? `<img src="${fotoMiniDueno(item.imagenUrl)}" alt="" loading="lazy">`
                         : miniaturaVaciaDuenoHtml()}
                 </div>
                 <div class="fila-dueno-carrito-texto">

@@ -135,7 +135,7 @@ async function tiPonerFotos(raiz) {
         const img = new Image();
         img.decoding = "async";
         img.alt = "";
-        img.src = p.imagenUrl;
+        img.src = fotoMiniDueno(p.imagenUrl);
         span.textContent = "";
         span.appendChild(img);
     });

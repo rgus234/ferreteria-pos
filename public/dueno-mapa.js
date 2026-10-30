@@ -201,7 +201,7 @@
     }
 
     function miniatura(url, tam = 52) {
-        return `<span class="dm-mini" style="width:${tam}px;height:${tam}px">${url ? `<img src="${esc(url)}" alt="" loading="lazy" onerror="this.remove()">` : ""}${icono("caja", Math.round(tam * 0.45))}</span>`;
+        return `<span class="dm-mini" style="width:${tam}px;height:${tam}px">${url ? `<img src="${esc(fotoMiniDueno(url))}" alt="" loading="lazy" onerror="this.remove()">` : ""}${icono("caja", Math.round(tam * 0.45))}</span>`;
     }
 
     // ---- Inicio ----

@@ -95,7 +95,7 @@
         caja.classList.toggle("plegado", plegadoGuardado());
         caja.innerHTML = `<button type="button" class="dvi-titulo" aria-expanded="${plegadoGuardado() ? "false" : "true"}" onclick="dviAlternarFrecuentes(this)"><h3>${hayHistorial ? "Lo que más vendes" : "Tus productos"}</h3><span class="dvi-cuenta">${lista.length}</span><i class="dvi-chevron" aria-hidden="true"></i></button>
             <div class="dvi-grid">${lista.map(p => `<button type="button" class="dvi-producto" onclick="agregarAlCarritoVenderDueno(${Number(p.id)})">
-                <span class="dvi-foto">${p.imagenUrl ? `<img src="${esc(p.imagenUrl)}" alt="" loading="lazy">` : (typeof miniaturaVaciaDuenoHtml === "function" ? miniaturaVaciaDuenoHtml() : "")}</span>
+                <span class="dvi-foto">${p.imagenUrl ? `<img src="${esc(fotoMiniDueno(p.imagenUrl))}" alt="" loading="lazy">` : (typeof miniaturaVaciaDuenoHtml === "function" ? miniaturaVaciaDuenoHtml() : "")}</span>
                 <b>${esc(p.nombre)}</b><small>${plata(p.precio)}</small></button>`).join("")}</div>`;
     }
 

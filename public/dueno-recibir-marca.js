@@ -146,7 +146,7 @@
         raiz.querySelectorAll("img[data-foto]").forEach(img => {
             const p = estado && estado.indice.get(Number(img.dataset.foto));
             img.removeAttribute("data-foto");
-            if (p && p.imagenUrl) img.src = p.imagenUrl;
+            if (p && p.imagenUrl) img.src = fotoMiniDueno(p.imagenUrl);
         });
     }
 
@@ -344,7 +344,7 @@
             const n = estado.cantidades.get(p.id) || 0;
             const hay = Number(p.stock) || 0;
             return `<li class="drm-res-fila">
-                <span class="drm-res-foto">${p.imagenUrl ? `<img src="${esc(p.imagenUrl)}" alt="" loading="lazy">` : ""}</span>
+                <span class="drm-res-foto">${p.imagenUrl ? `<img src="${esc(fotoMiniDueno(p.imagenUrl))}" alt="" loading="lazy">` : ""}</span>
                 <span class="drm-res-texto"><b>${esc(p.nombre)}</b><small>Hay ${esc(String(hay))} → quedan ${esc(String(Math.round((hay + n) * 1000) / 1000))}</small></span>
                 <span class="drm-res-cant">
                     <button type="button" aria-label="Quitar uno" onclick="ajustarResumenRecibirDueno(${Number(p.id)}, -1)">−</button>

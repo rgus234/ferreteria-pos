@@ -6434,6 +6434,10 @@ app.post("/fotos-producto/:codigo/principal", requerirAccesoNegocio, async (req,
     }
 });
 
+// Miniaturas (?w=160) de la foto principal: las listas del celular no necesitan la imagen completa. Se guardan en memoria para no repetir el trabajo.
+const miniaturasFoto = new Map();
+const MINIATURAS_FOTO_MAX = 800;
+
 app.get("/fotos-producto/:codigo/principal", requerirAccesoNegocioImagen, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
@@ -6449,6 +6453,33 @@ app.get("/fotos-producto/:codigo/principal", requerirAccesoNegocioImagen, async 
         if (!fila) {
             res.status(404).end();
             return;
+        }
+
+        const ancho = Math.round(Number(req.query.w));
+
+        if (Number.isFinite(ancho) && ancho >= 48 && ancho <= 640) {
+            const clave = `${negocio.id}:${codigo}:${ancho}:${req.query.v || ""}`;
+            let mini = miniaturasFoto.get(clave);
+
+            if (!mini) {
+                try {
+                    mini = await sharp(fila.imagen_principal).rotate().resize({ width: ancho, withoutEnlargement: true }).jpeg({ quality: 70 }).toBuffer();
+                } catch (errorMiniatura) {
+                    mini = null; // si no se puede reducir, se manda la original
+                }
+
+                if (mini) {
+                    if (miniaturasFoto.size >= MINIATURAS_FOTO_MAX) miniaturasFoto.delete(miniaturasFoto.keys().next().value);
+                    miniaturasFoto.set(clave, mini);
+                }
+            }
+
+            if (mini) {
+                res.set("Content-Type", "image/jpeg");
+                res.set("Cache-Control", "public, max-age=2592000, immutable");
+                res.send(mini);
+                return;
+            }
         }
 
         res.set("Content-Type", fila.imagen_principal_tipo || "image/jpeg");

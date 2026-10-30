@@ -47,6 +47,13 @@ function promesaTransaccion(transaccion) {
     });
 }
 
+// Las listas piden la foto chica (160 px) en vez de la completa: la pantalla carga mucho mas rapido y gasta menos datos.
+function fotoMiniDueno(url, ancho = 160) {
+    const texto = String(url || "");
+    if (!texto.includes("/fotos-producto/") || /[?&]w=/.test(texto)) return texto;
+    return texto + (texto.includes("?") ? "&" : "?") + "w=" + ancho;
+}
+
 async function guardarCatalogoLocal(productos) {
     try {
         const db = await abrirDuenoDB();
