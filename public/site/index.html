@@ -17,6 +17,7 @@
   <link rel="icon" href="/nexo-pos-icon.jpg">
   <link rel="stylesheet" href="/site/styles.css">
   <script src="/site/site-nav.js" defer></script>
+  <script src="/site/interactivo.js?v=interactivo-20261030-01" defer></script>
   <script src="/site/giro-contenido.js?v=giro-20261030-01" defer></script>
   <script src="/site/equipamiento.js?v=equipamiento-20261030-01" defer></script>
   <script src="/site/site-giro.js?v=giro-20261030-01" defer></script>
@@ -139,6 +140,123 @@
 
     <section id="giroSeccion" class="giro-seccion" hidden></section>
 
+    <section id="lo-mejor" class="destacados reveal" aria-labelledby="destacadosTitulo">
+      <div class="section-title">
+        <p class="eyebrow">Lo mejor de Nexo</p>
+        <h2 id="destacadosTitulo">Cinco cosas que vas a querer probar.</h2>
+        <p class="seccion-nota">Toca cada una y míralo funcionando. Capturas con datos de ejemplo.</p>
+      </div>
+      <div class="destacados-caja" data-destacados>
+        <div class="destacados-tabs" role="tablist" aria-label="Lo mejor de Nexo">
+          <button type="button" role="tab" id="tab-vende" aria-controls="panel-vende" aria-selected="true" tabindex="0" data-tab="vende"><span class="tab-icono" aria-hidden="true">&#9889;</span><span class="tab-texto"><b>Vende en segundos</b><small>Toca, escanea, cobra.</small></span></button>
+          <button type="button" role="tab" id="tab-fiado" aria-controls="panel-fiado" aria-selected="false" tabindex="-1" data-tab="fiado"><span class="tab-icono" aria-hidden="true">&#128203;</span><span class="tab-texto"><b>Cobra lo que te deben</b><small>Nada se pierde en la libreta.</small></span></button>
+          <button type="button" role="tab" id="tab-recibe" aria-controls="panel-recibe" aria-selected="false" tabindex="-1" data-tab="recibe"><span class="tab-icono" aria-hidden="true">&#128666;</span><span class="tab-texto"><b>Recibe mercancía fácil</b><small>Escaneas y Nexo arma todo.</small></span></button>
+          <button type="button" role="tab" id="tab-inventario" aria-controls="panel-inventario" aria-selected="false" tabindex="-1" data-tab="inventario"><span class="tab-icono" aria-hidden="true">&#128230;</span><span class="tab-texto"><b>Sabe qué se te acaba</b><small>Inventario siempre claro.</small></span></button>
+          <button type="button" role="tab" id="tab-ia" aria-controls="panel-ia" aria-selected="false" tabindex="-1" data-tab="ia"><span class="tab-icono" aria-hidden="true">&#10024;</span><span class="tab-texto"><b>Pregúntale a Nexo IA</b><small>Tu asistente dentro del POS.</small></span></button>
+        </div>
+        <div class="destacados-paneles">
+          <article class="destacado-panel" role="tabpanel" id="panel-vende" aria-labelledby="tab-vende" data-panel="vende">
+            <div class="destacado-texto">
+              <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
+              <h3>Cobra en segundos, hasta desde el celular.</h3>
+              <p>Busca, escanea con la cámara o toca lo que más vendes. Efectivo con el cambio a la vista, tarjeta, transferencia, mixto o crédito.</p>
+              <ul class="destacado-puntos">
+                <li>Varias ventas abiertas a la vez, como pestañas</li>
+                <li>Ticket por WhatsApp, por enlace o impreso</li>
+                <li>Recibo digital con QR para tu cliente</li>
+              </ul>
+              <div class="destacado-acciones">
+                <a class="btn primary" href="#participa">Quiero probarlo</a>
+
+              </div>
+            </div>
+            <div class="destacado-visual">
+            <img src="/site/img/ferr-movil-cobro.webp" width="600" height="1298" loading="lazy" alt="Cobro en el celular con el total, lo que paga el cliente y el cambio en grande" data-solo="general ferreteria ambos">
+            <img src="/site/img/movil-cobro.webp" width="600" height="1298" loading="lazy" alt="Cobro en el celular con el total, lo que paga el cliente y el cambio en grande" data-solo="abarrotes" hidden>
+            </div>
+          </article>
+          <article class="destacado-panel" role="tabpanel" id="panel-fiado" aria-labelledby="tab-fiado" data-panel="fiado" hidden>
+            <div class="destacado-texto">
+              <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
+              <h3>Ya no se te pierden las cuentas pendientes.</h3>
+              <p>Cada cliente con su saldo, sus abonos y qué tan antigua es su cuenta. Nexo te avisa para que cobres a tiempo.</p>
+              <ul class="destacado-puntos">
+                <li>Saldos y abonos por cliente</li>
+                <li>Antigüedad de cada cuenta</li>
+                <li>Avisos para cobrar a tiempo</li>
+              </ul>
+              <div class="destacado-acciones">
+                <a class="btn primary" href="#participa">Quiero probarlo</a>
+
+              </div>
+            </div>
+            <div class="destacado-visual">
+            <img src="/site/img/ferr-movil-resumen.webp" width="600" height="1298" loading="lazy" alt="Resumen de la venta en el celular con el estado de la cuenta del cliente" data-solo="general ferreteria ambos">
+            <img src="/site/img/movil-resumen.webp" width="600" height="1298" loading="lazy" alt="Resumen de la venta en el celular con el estado de la cuenta del cliente" data-solo="abarrotes" hidden>
+            </div>
+          </article>
+          <article class="destacado-panel" role="tabpanel" id="panel-recibe" aria-labelledby="tab-recibe" data-panel="recibe" hidden>
+            <div class="destacado-texto">
+              <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
+              <h3>Recibe mercancía sin teclear producto por producto.</h3>
+              <p>Escaneas lo que llega, o usas la factura de tu proveedor, y Nexo arma la recepción. Tú revisas y confirmas antes de que cambie tu inventario.</p>
+              <ul class="destacado-puntos">
+                <li>Por marca: escaneas y aparece la tarjeta del producto</li>
+                <li>Con la factura XML (CFDI) o CSV de tu proveedor</li>
+                <li>Se suma lo que de verdad contaste</li>
+              </ul>
+              <div class="destacado-acciones">
+                <a class="btn primary" href="#participa">Quiero probarlo</a>
+
+              </div>
+            </div>
+            <div class="destacado-visual">
+            <img src="/site/img/ferr-movil-escaneo.webp" width="600" height="1298" loading="lazy" alt="Recibir mercancía por marca en el celular: al escanear un código aparece la tarjeta del producto" data-solo="general ferreteria ambos">
+            <img src="/site/img/movil-escaneo.webp" width="600" height="1298" loading="lazy" alt="Recibir mercancía por marca en el celular: al escanear un código aparece la tarjeta del producto" data-solo="abarrotes" hidden>
+            </div>
+          </article>
+          <article class="destacado-panel" role="tabpanel" id="panel-inventario" aria-labelledby="tab-inventario" data-panel="inventario" hidden>
+            <div class="destacado-texto">
+              <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
+              <h3>Sabe qué tienes y qué se te está acabando.</h3>
+              <p>Stock mínimo, alertas de inventario bajo, conteos y resurtido. Cada producto con su lugar en estantes y bodega.</p>
+              <ul class="destacado-puntos">
+                <li>Alertas de inventario bajo</li>
+                <li>Estantes, bodega y conteos</li>
+                <li>Códigos alternos y productos sin código</li>
+              </ul>
+              <div class="destacado-acciones">
+                <a class="btn primary" href="#participa">Quiero probarlo</a>
+
+              </div>
+            </div>
+            <div class="destacado-visual">
+            <img src="/site/img/ferr-movil-inventario.webp" width="600" height="1298" loading="lazy" alt="Inventario en el celular: buscar, producto nuevo, recibir mercancía y control de estantes y bodega" data-solo="general ferreteria ambos">
+            <img src="/site/img/movil-inventario.webp" width="600" height="1298" loading="lazy" alt="Inventario en el celular: buscar, producto nuevo, recibir mercancía y control de estantes y bodega" data-solo="abarrotes" hidden>
+            </div>
+          </article>
+          <article class="destacado-panel" role="tabpanel" id="panel-ia" aria-labelledby="tab-ia" data-panel="ia" hidden>
+            <div class="destacado-texto">
+              <span class="estado estado-beta"><i aria-hidden="true">&#9680;</i> Beta</span>
+              <h3>Pregúntale a tu negocio.</h3>
+              <p>Nexo IA consulta tus ventas, inventario y créditos para responderte. Si no puede responder una pregunta, te lo dice en vez de adivinar.</p>
+              <ul class="destacado-puntos">
+                <li>Analiza tus ventas</li>
+                <li>Vigila tu inventario</li>
+                <li>Cuida tus créditos</li>
+              </ul>
+              <div class="destacado-acciones">
+                <a class="btn primary" href="#participa">Quiero probarlo</a>
+                <a class="btn secondary" href="/nexo-ia">Conocer a Nexo IA</a>
+              </div>
+            </div>
+            <div class="destacado-visual destacado-visual-ia">
+            <img class="destacado-mascota" src="/img/nexo-ia/feliz.jpg" width="320" height="320" loading="lazy" alt="Nexo, el asistente de inteligencia artificial de Nexo">
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
     <section id="ecosistema" class="ecosistema reveal">
       <div class="section-title">
         <p class="eyebrow">El ecosistema Nexo</p>
@@ -185,12 +303,12 @@
         </a>
       </div>
 
-      <dl class="estado-leyenda" aria-label="Qué significa cada estado">
+      <details class="ver-mas ver-mas-estados"><summary>¿Qué significa cada etiqueta de estado?</summary><dl class="estado-leyenda" aria-label="Qué significa cada estado">
         <div><dt><span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span></dt><dd>Funciona y se usa en un negocio real.</dd></div>
         <div><dt><span class="estado estado-beta"><i aria-hidden="true">&#9680;</i> Beta</span></dt><dd>Funciona, pero sigue en pruebas y puede cambiar.</dd></div>
         <div><dt><span class="estado estado-desarrollo"><i aria-hidden="true">&#9881;</i> En desarrollo</span></dt><dd>Lo estamos construyendo; todavía no está listo para uso general.</dd></div>
         <div><dt><span class="estado estado-planificacion"><i aria-hidden="true">&#9676;</i> En planificación</span></dt><dd>Una idea futura que todavía no se ha implementado.</dd></div>
-      </dl>
+      </dl></details>
     </section>
 
     <section class="section-band">
@@ -217,63 +335,91 @@
       </div>
     </section>
 
-    <section id="funciones" class="features reveal">
+    <section id="funciones" class="modulos-nexo funciones-unificadas reveal">
       <div class="section-title">
         <p class="eyebrow">Nexo POS</p>
-        <h2>El centro operativo de tu negocio.</h2>
-        <p class="seccion-nota">Pensado para el dueño y para quien atiende el mostrador: menos captura repetida, menos libretas y más claridad de lo que entra, sale y se debe.</p>
+        <h2>Todo lo que hace Nexo, en un vistazo.</h2>
+        <p class="seccion-nota">Pensado para el dueño y para quien atiende el mostrador. Elige lo que te interesa y mira solo eso.</p>
       </div>
-      <div class="feature-list">
-        <article><span class="nexo-capacidad-icono">&#128722;</span><strong>Punto de venta <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span></strong><span>Carrito, 5 métodos de pago (efectivo, tarjeta, transferencia, crédito y mixto), hojas de venta con varias pestañas, tickets e impresión.</span></article>
-        <article><span class="nexo-capacidad-icono">&#128230;</span><strong>Inventario y códigos de barras <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span></strong><span>Productos, categorías, códigos alternos, stock mínimo y alertas de inventario bajo.</span></article>
-        <article><span class="nexo-capacidad-icono">&#128666;</span><strong>Recepción de mercancía <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span></strong><span>XML CFDI o CSV para revisar las compras antes de actualizar el stock.</span></article>
-        <article><span class="nexo-capacidad-icono">&#128176;</span><strong>Caja <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span></strong><span>Aperturas, cortes, movimientos y control del dinero del turno.</span></article>
-        <article><span class="nexo-capacidad-icono">&#128202;</span><strong>Reportes <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span></strong><span>Ventas del día, ticket promedio, productos más vendidos y alertas.</span></article>
-        <article><span class="nexo-capacidad-icono">&#128179;</span><strong>Clientes y créditos <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span></strong><span>Saldos, abonos, antigüedad de cada cuenta y avisos para cobrar a tiempo.</span></article>
+      <div class="cap-filtros" role="group" aria-label="Filtrar funciones" data-cap-filtros>
+        <button type="button" data-filtro="todo" aria-pressed="true" class="activo">Todo <span>12</span></button>
+        <button type="button" data-filtro="vender" aria-pressed="false" class="">Vender y cobrar <span>4</span></button>
+        <button type="button" data-filtro="inventario" aria-pressed="false" class="">Inventario <span>3</span></button>
+        <button type="button" data-filtro="clientes" aria-pressed="false" class="">Clientes y crédito <span>3</span></button>
+        <button type="button" data-filtro="negocio" aria-pressed="false" class="">Control del negocio <span>2</span></button>
       </div>
-    </section>
-
-    <section class="modulos-nexo reveal">
-      <div class="section-title">
-        <p class="eyebrow">También en Nexo POS</p>
-        <h2>Lo que hemos ido sumando junto al negocio piloto.</h2>
-      </div>
-      <div class="nexo-capacidad-grid">
-        <article>
+      <div class="nexo-capacidad-grid" data-cap-grid>
+        <article data-cat="vender">
+          <span class="nexo-capacidad-icono">&#128722;</span>
+          <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
+          <h3>Punto de venta</h3>
+          <p>Carrito, 5 métodos de pago (efectivo, tarjeta, transferencia, crédito y mixto), hojas de venta con varias pestañas, tickets e impresión.</p>
+        </article>
+        <article data-cat="vender">
           <span class="nexo-capacidad-icono">&#129534;</span>
           <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
           <h3>Recibo digital con QR</h3>
           <p>Cada ticket trae un código QR: tu cliente lo escanea y ve su recibo completo en línea.</p>
         </article>
-        <article>
-          <span class="nexo-capacidad-icono">&#128203;</span>
-          <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
-          <h3>Encargos de clientes</h3>
-          <p>Registra lo que un cliente te pide, guarda un anticipo si aplica y avísale por WhatsApp cuando esté listo.</p>
-        </article>
-        <article>
+        <article data-cat="vender">
           <span class="nexo-capacidad-icono">&#128194;</span>
           <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
           <h3>Hojas de venta múltiples</h3>
           <p>Varios cobros abiertos a la vez, como pestañas de una hoja de cálculo, para no perder una venta a medias.</p>
         </article>
-        <article>
-          <span class="nexo-capacidad-icono">&#128101;</span>
+        <article data-cat="vender">
+          <span class="nexo-capacidad-icono">&#128176;</span>
           <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
-          <h3>Empleados con acceso propio</h3>
-          <p>Cada quien entra con su PIN y puedes limitar sus permisos en funciones clave como caja, ventas y usuarios.</p>
+          <h3>Caja</h3>
+          <p>Aperturas, cortes, movimientos y control del dinero del turno.</p>
         </article>
-        <article>
+        <article data-cat="inventario">
+          <span class="nexo-capacidad-icono">&#128230;</span>
+          <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
+          <h3>Inventario y códigos de barras</h3>
+          <p>Productos, categorías, códigos alternos, stock mínimo y alertas de inventario bajo.</p>
+        </article>
+        <article data-cat="inventario">
+          <span class="nexo-capacidad-icono">&#128666;</span>
+          <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
+          <h3>Recepción de mercancía</h3>
+          <p>XML CFDI o CSV para revisar las compras antes de actualizar el stock.</p>
+        </article>
+        <article data-cat="inventario">
           <span class="nexo-capacidad-icono">&#128444;</span>
           <span class="estado estado-beta"><i aria-hidden="true">&#9680;</i> Beta</span>
           <h3>Banco de Nexo</h3>
           <p>Fotos de producto ya listas para usar, compartidas entre negocios Nexo, para no fotografiar cada producto nuevo.</p>
         </article>
-        <article>
+        <article data-cat="clientes">
+          <span class="nexo-capacidad-icono">&#128179;</span>
+          <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
+          <h3>Clientes y créditos</h3>
+          <p>Saldos, abonos, antigüedad de cada cuenta y avisos para cobrar a tiempo.</p>
+        </article>
+        <article data-cat="clientes">
+          <span class="nexo-capacidad-icono">&#128203;</span>
+          <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
+          <h3>Encargos de clientes</h3>
+          <p>Registra lo que un cliente te pide, guarda un anticipo si aplica y avísale por WhatsApp cuando esté listo.</p>
+        </article>
+        <article data-cat="clientes">
           <span class="nexo-capacidad-icono">&#128196;</span>
           <span class="estado estado-desarrollo"><i aria-hidden="true">&#9881;</i> En desarrollo</span>
           <h3>Factura electrónica</h3>
           <p>La emisión de facturas CFDI a tus clientes está construida y la seguimos probando; todavía no la ofrecemos para uso general.</p>
+        </article>
+        <article data-cat="negocio">
+          <span class="nexo-capacidad-icono">&#128202;</span>
+          <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
+          <h3>Reportes</h3>
+          <p>Ventas del día, ticket promedio, productos más vendidos y alertas.</p>
+        </article>
+        <article data-cat="negocio">
+          <span class="nexo-capacidad-icono">&#128101;</span>
+          <span class="estado estado-disponible"><i aria-hidden="true">&#10003;</i> Disponible</span>
+          <h3>Empleados con acceso propio</h3>
+          <p>Cada quien entra con su PIN y puedes limitar sus permisos en funciones clave como caja, ventas y usuarios.</p>
         </article>
       </div>
     </section>
@@ -349,7 +495,7 @@
         </div>
       </div>
 
-      <div class="dispositivos-puntos">
+      <details class="ver-mas ver-mas-celular"><summary>Escáner, pedidos y tickets desde el celular</summary><div class="dispositivos-puntos">
         <article>
           <h3>&#128247; Tu celular es un escáner</h3>
           <p>Usa la cámara para leer códigos de barras al vender, al recibir mercancía y al contar el inventario. También puedes usar el celular como lector para la computadora: escaneas con el teléfono y el producto aparece en la caja.</p>
@@ -362,7 +508,7 @@
           <h3>&#128438; Tickets sin complicarte</h3>
           <p>Envía el ticket por WhatsApp, comparte su enlace o imprímelo. La impresión directa funciona con impresoras Bluetooth de tickets según el teléfono, y en iPhone usa el menú de imprimir.</p>
         </article>
-      </div>
+      </div></details>
 
       <p class="seccion-nota dispositivos-nota"><strong>Capturas de la aplicación con datos de ejemplo.</strong> Hoy se usa desde el navegador del teléfono o la tablet, sin instalar nada. Seguimos sumando operaciones y estamos preparando una aplicación para las tiendas de apps.</p>
     </section>
@@ -504,6 +650,7 @@
         <p class="equipamiento-intro">Impresoras de tickets y lectores de códigos de barras para armar tu punto de venta. Consulta la ficha de cada equipo y pídenos precio o asesoría.</p>
         <div data-equipo-filtros class="equipo-filtros"></div>
         <div id="equipoLista" class="equipo-lista" aria-live="polite"><p class="equipo-vacio">Cargando equipos...</p></div>
+        <button type="button" id="equipoMas" class="btn secondary equipo-mas" hidden></button>
         <p class="equipo-aviso" data-equipo-aviso></p>
         <div class="equipo-compra" data-equipo-compra></div>
       </div>

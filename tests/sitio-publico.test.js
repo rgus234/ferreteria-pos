@@ -108,7 +108,7 @@ test("los estados reflejan lo verificado: factura y pagos de Market no se presen
     const seccionFactura = inicio.match(/<h3>Factura electrónica<\/h3>/);
     assert.ok(seccionFactura);
 
-    const bloqueFactura = inicio.slice(inicio.lastIndexOf("<article>", seccionFactura.index), seccionFactura.index);
+    const bloqueFactura = inicio.slice(inicio.lastIndexOf("<article", seccionFactura.index), seccionFactura.index);
     assert.match(bloqueFactura, /estado-desarrollo/, "factura electronica: en desarrollo");
 
     assert.doesNotMatch(textoVisible(inicio), /comisi[oó]n|(?<![%A-Za-z0-9])[36]\s?%(?![0-9A-Fa-f])/i, "no se publican comisiones");

@@ -623,7 +623,9 @@
       "compatibilidad": {
         "sistemas": []
       },
-      "garantia": ""
+      "garantia": "",
+      "esencial": true,
+      "uso": "Recomendada para el mostrador de abarrotes: frutas, verduras y todo lo que se vende por peso."
     },
     {
       "id": "28461",
@@ -662,7 +664,9 @@
       "compatibilidad": {
         "sistemas": []
       },
-      "garantia": ""
+      "garantia": "",
+      "esencial": true,
+      "uso": "Recomendada para ferretería y bodega: tornillería a granel, costales y paquetes."
     },
     {
       "id": "28462",
@@ -701,7 +705,9 @@
       "compatibilidad": {
         "sistemas": []
       },
-      "garantia": ""
+      "garantia": "",
+      "esencial": true,
+      "uso": "Recomendada para cargas más pesadas: sacos, cajas y mercancía de bodega."
     },
     {
       "id": "100786",
@@ -828,7 +834,9 @@
       "compatibilidad": {
         "sistemas": []
       },
-      "garantia": ""
+      "garantia": "",
+      "esencial": true,
+      "uso": "Recomendada para porciones pequeñas y producto de precisión: especias, dulces, semillas."
     },
     {
       "id": "102651",

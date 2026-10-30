@@ -6,7 +6,7 @@
     var raiz = document.getElementById("equipamiento");
     if (!raiz) return;
 
-    var estado = { datos: null, categoria: "todos", conexion: "todas", texto: "" };
+    var estado = { datos: null, categoria: "todos", conexion: "todas", texto: "", verTodasBasculas: false };
     var WHATSAPP = "https://wa.me/524424950495?text=";
 
     function esc(valor) {
@@ -38,11 +38,22 @@
         return '<span class="' + clase + ' equipo-sin-foto" aria-hidden="true">' + (p.categoria === "impresoras" ? "🖨️" : p.categoria === "basculas" ? "⚖️" : "▦") + "</span>";
     }
 
+    // Las basculas son 18 modelos: se muestran las que cubren casi todos los negocios y el resto queda a un toque.
+    function ocultaPorEsencial(p) {
+        return p.categoria === "basculas" && !p.esencial && !estado.verTodasBasculas;
+    }
+
+    function basculasOcultas() {
+        if (estado.categoria !== "todos" && estado.categoria !== "basculas") return 0;
+        return estado.datos.productos.filter(function (p) { return p.categoria === "basculas" && !p.esencial; }).length;
+    }
+
     function visibles() {
         var buscado = norm(estado.texto).trim();
 
         return estado.datos.productos.filter(function (p) {
             if (estado.categoria !== "todos" && p.categoria !== estado.categoria) return false;
+            if (ocultaPorEsencial(p) && !buscado) return false;
             if (estado.conexion !== "todas" && p.conexiones.indexOf(estado.conexion) === -1) return false;
             if (!buscado) return true;
 
@@ -54,8 +65,10 @@
         return '<article class="equipo-tarjeta">' +
             foto(p, "equipo-foto") +
             '<div class="equipo-cuerpo">' +
+            (p.esencial ? '<span class="equipo-esencial">★ Esencial</span>' : "") +
             '<p class="equipo-marca">' + esc(p.marca) + " · " + esc(p.clave) + "</p>" +
             "<h3>" + esc(p.nombre) + "</h3>" +
+            (p.uso ? '<p class="equipo-uso">' + esc(p.uso) + "</p>" : "") +
             '<ul class="equipo-resumen">' + p.resumen.map(function (r) { return "<li>" + esc(r) + "</li>"; }).join("") + "</ul>" +
             '<p class="equipo-precio"><span>Precio</span><strong>' + dinero(p.precios.medioMayoreo) + '</strong><small>Referencia · confirma vigencia</small></p>' +
             '<div class="equipo-acciones">' +
@@ -70,6 +83,16 @@
 
         document.getElementById("equipoConteo").textContent = lista.length + " equipo" + (lista.length === 1 ? "" : "s");
         caja.innerHTML = lista.length ? lista.map(tarjeta).join("") : '<p class="equipo-vacio">Ningún equipo coincide. Prueba con otra búsqueda o escríbenos y te ayudamos a elegir.</p>';
+
+        var mas = document.getElementById("equipoMas");
+        var ocultas = basculasOcultas();
+
+        if (mas) {
+            mas.hidden = !ocultas || Boolean(norm(estado.texto).trim());
+            mas.textContent = estado.verTodasBasculas
+                ? "Mostrar solo las básculas esenciales"
+                : "Ver las " + ocultas + " básculas restantes (más capacidades y modelos)";
+        }
     }
 
     function pintarBase() {
@@ -220,6 +243,9 @@
             pintarLista();
         } else if (ficha) {
             abrirFicha(ficha.getAttribute("data-ficha"));
+        } else if (evento.target.closest("#equipoMas")) {
+            estado.verTodasBasculas = !estado.verTodasBasculas;
+            pintarLista();
         }
     });
 
