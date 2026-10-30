@@ -78,4 +78,67 @@
             });
         });
     }
+
+    // ---------- Pantallas de la computadora ----------
+    var pantallas = document.querySelector("[data-pantallas]");
+
+    if (pantallas) {
+        var botones = Array.prototype.slice.call(pantallas.querySelectorAll("[data-pantalla]"));
+        var imagen = document.getElementById("pcImagen");
+        var titulo = document.getElementById("pcTitulo");
+        var texto = document.getElementById("pcTexto");
+        var actualPc = 0;
+        var relojPc = null;
+        var tocadoPc = false;
+        var visiblePc = false;
+
+        // las imagenes pesan poco, pero se precargan para que el cambio sea inmediato
+        botones.forEach(function (b) { var pre = new Image(); pre.src = b.getAttribute("data-src"); });
+
+        function verPantalla(i) {
+            actualPc = (i + botones.length) % botones.length;
+
+            botones.forEach(function (b, n) {
+                var activo = n === actualPc;
+                b.classList.toggle("activa", activo);
+                b.setAttribute("aria-selected", String(activo));
+                b.setAttribute("tabindex", activo ? "0" : "-1");
+            });
+
+            var b = botones[actualPc];
+            imagen.classList.add("cambiando");
+
+            setTimeout(function () {
+                imagen.src = b.getAttribute("data-src");
+                imagen.alt = b.getAttribute("data-alt");
+                titulo.textContent = b.getAttribute("data-titulo");
+                texto.textContent = b.getAttribute("data-texto");
+                imagen.classList.remove("cambiando");
+            }, 140);
+        }
+
+        function pararPc() { if (relojPc) { clearInterval(relojPc); relojPc = null; } }
+
+        botones.forEach(function (b, i) {
+            b.addEventListener("click", function () { tocadoPc = true; pararPc(); verPantalla(i); });
+            b.addEventListener("keydown", function (e) {
+                if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); tocadoPc = true; pararPc(); verPantalla(i + 1); botones[actualPc].focus(); }
+                else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); tocadoPc = true; pararPc(); verPantalla(i - 1); botones[actualPc].focus(); }
+            });
+        });
+
+        verPantalla(0);
+
+        if ("IntersectionObserver" in window) {
+            new IntersectionObserver(function (entradas) { visiblePc = entradas[0].isIntersecting; }, { threshold: 0.4 }).observe(pantallas);
+        } else {
+            visiblePc = true;
+        }
+
+        if (!reducido) {
+            relojPc = setInterval(function () { if (visiblePc && !tocadoPc) verPantalla(actualPc + 1); }, 6000);
+        }
+
+        pantallas.addEventListener("pointerdown", function () { tocadoPc = true; pararPc(); });
+    }
 })();

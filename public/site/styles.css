@@ -2862,3 +2862,33 @@ h3 > .ic { width: 1.1em; height: 1.1em; margin-right: 6px; color: var(--blue); }
 .giro-opcion-icono .ic { width: 34px; height: 34px; }
 .nexo-showcase-spark .ic { width: 28px; height: 28px; }
 .eyebrow .ic { width: 1.1em; height: 1.1em; margin-right: 2px; }
+
+/* ===== Pantallas de la computadora ===== */
+.computadora { padding: clamp(40px, 6vw, 72px) clamp(16px, 5vw, 56px); }
+.pantallas-caja { display: grid; gap: 18px; }
+.pantallas-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.pantallas-tabs button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--glass); color: var(--ink); font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; transition: background .15s, color .15s, border-color .15s, transform .15s; }
+.pantallas-tabs button .ic { width: 18px; height: 18px; color: var(--blue); }
+.pantallas-tabs button:hover { border-color: rgba(16, 103, 232, .5); transform: translateY(-1px); }
+.pantallas-tabs button.activa, .pantallas-tabs button[aria-selected="true"] { border-color: var(--blue); background: var(--blue); color: #fff; }
+.pantallas-tabs button.activa .ic, .pantallas-tabs button[aria-selected="true"] .ic { color: #fff; }
+.pantallas-ventana { overflow: hidden; border: 1px solid rgba(20, 32, 51, .14); border-radius: 18px; background: #0b1220; box-shadow: 0 34px 90px rgba(20, 32, 51, .28); }
+.pantallas-barra { display: flex; align-items: center; gap: 7px; padding: 11px 16px; background: #e8edf5; }
+.pantallas-barra i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; }
+.pantallas-barra i:nth-child(2) { background: #febc2e; }
+.pantallas-barra i:nth-child(3) { background: #28c840; }
+.pantallas-barra span { margin: 0 auto; padding: 3px 18px; border-radius: 999px; background: #fff; color: var(--muted); font-size: 12px; font-weight: 700; }
+.pantallas-ventana img { display: block; width: 100%; height: auto; transition: opacity .14s ease; }
+.pantallas-ventana img.cambiando { opacity: 0; }
+.pantallas-pie { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 24px; align-items: center; }
+.pantallas-pie h3 { margin: 0; font-size: clamp(22px, 2.6vw, 28px); letter-spacing: -.02em; }
+.pantallas-pie p { grid-column: 1; margin: 0; color: var(--muted); font-weight: 700; line-height: 1.5; max-width: 760px; }
+.pantallas-pie .btn { grid-column: 2; grid-row: 1 / span 2; }
+@media (max-width: 760px) {
+  .pantallas-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; }
+  .pantallas-tabs button { flex: none; }
+  .pantallas-pie { grid-template-columns: 1fr; }
+  .pantallas-pie .btn { grid-column: 1; grid-row: auto; justify-self: start; }
+  .pantallas-barra span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .pantallas-ventana img { transition: none; } .pantallas-tabs button { transition: none; } }
