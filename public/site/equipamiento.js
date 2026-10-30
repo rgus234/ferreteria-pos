@@ -26,6 +26,10 @@
         return WHATSAPP + encodeURIComponent(texto);
     }
 
+    function icono(nombre) {
+        return '<svg class="ic" aria-hidden="true" focusable="false"><use href="/site/iconos.svg#i-' + nombre + '"/></svg>';
+    }
+
     function norm(t) {
         return String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
     }
@@ -35,7 +39,7 @@
             return '<img class="' + clase + '" src="' + esc(p.foto) + '" alt="' + esc(p.marca + " " + p.clave) + '" loading="lazy" width="320" height="320">';
         }
 
-        return '<span class="' + clase + ' equipo-sin-foto" aria-hidden="true">' + (p.categoria === "impresoras" ? "🖨️" : p.categoria === "basculas" ? "⚖️" : "▦") + "</span>";
+        return '<span class="' + clase + ' equipo-sin-foto" aria-hidden="true">' + icono(p.categoria === "impresoras" ? "impresora" : p.categoria === "basculas" ? "bascula" : "lector") + "</span>";
     }
 
     // Las basculas son 18 modelos: se muestran las que cubren casi todos los negocios y el resto queda a un toque.
@@ -65,7 +69,7 @@
         return '<article class="equipo-tarjeta">' +
             foto(p, "equipo-foto") +
             '<div class="equipo-cuerpo">' +
-            (p.esencial ? '<span class="equipo-esencial">★ Esencial</span>' : "") +
+            (p.esencial ? '<span class="equipo-esencial">' + icono("estrella") + " Esencial</span>" : "") +
             '<p class="equipo-marca">' + esc(p.marca) + " · " + esc(p.clave) + "</p>" +
             "<h3>" + esc(p.nombre) + "</h3>" +
             (p.uso ? '<p class="equipo-uso">' + esc(p.uso) + "</p>" : "") +

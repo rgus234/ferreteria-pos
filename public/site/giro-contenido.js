@@ -29,7 +29,7 @@
         ferreteria: {
             clave: "ferreteria",
             nombre: "Ferretería",
-            icono: "🔧",
+            icono: "llave",
             detalle: "Herramientas, materiales y construcción",
             eyebrow: "Nexo para ferreterías",
             titular: "Tu ferretería con el inventario, el crédito y los precios bajo control.",
@@ -50,7 +50,7 @@
         abarrotes: {
             clave: "abarrotes",
             nombre: "Abarrotes",
-            icono: "🛒",
+            icono: "carrito",
             detalle: "Tienda de la esquina o minisúper",
             eyebrow: "Nexo para tiendas de abarrotes",
             titular: "Tu tienda sin libretas: sabes qué vendes, qué se vence y cuánto ganas.",
@@ -71,7 +71,7 @@
         ambos: {
             clave: "ambos",
             nombre: "Ferretería y abarrotes",
-            icono: "🏪",
+            icono: "tienda",
             detalle: "Tengo los dos negocios",
             eyebrow: "Nexo para quien tiene ferretería y tienda",
             titular: "Una sola cuenta para tu ferretería y tu tienda.",

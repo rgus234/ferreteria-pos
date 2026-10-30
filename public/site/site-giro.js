@@ -63,6 +63,10 @@
         pintarChip(c);
     }
 
+    function iconoSvg(nombre) {
+        return '<svg class="ic" aria-hidden="true" focusable="false"><use href="/site/iconos.svg#i-' + escapar(nombre) + '"/></svg>';
+    }
+
     function escapar(texto) {
         return String(texto == null ? "" : texto).replace(/[&<>"']/g, function (ch) {
             return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
@@ -82,7 +86,7 @@
         caja.hidden = false;
         caja.innerHTML =
             '<div class="giro-seccion-interior">' +
-            '<p class="eyebrow">' + escapar(c.icono) + " " + escapar(c.eyebrow) + "</p>" +
+            '<p class="eyebrow">' + iconoSvg(c.icono) + " " + escapar(c.eyebrow) + "</p>" +
             "<h2>" + escapar(c.seccionTitulo) + "</h2>" +
             "<p>" + escapar(c.seccionTexto) + "</p>" +
             '<div class="giro-funciones">' +
@@ -131,7 +135,7 @@
         chip.type = "button";
         chip.id = "giroChip";
         chip.className = "giro-chip";
-        chip.innerHTML = c ? "<span>" + escapar(c.icono) + " Tu negocio: <b>" + escapar(c.nombre) + "</b></span><u>Cambiar</u>" : "<span>¿Qué negocio tienes?</span>";
+        chip.innerHTML = c ? "<span>" + iconoSvg(c.icono) + " Tu negocio: <b>" + escapar(c.nombre) + "</b></span><u>Cambiar</u>" : "<span>¿Qué negocio tienes?</span>";
         chip.addEventListener("click", abrirElegir);
         destino.prepend(chip);
     }
@@ -173,7 +177,7 @@
             '<div class="giro-opciones">' +
             datos.CLAVES.map(function (clave) {
                 var c = datos.CONTENIDO[clave];
-                return '<button type="button" class="giro-opcion" data-giro="' + clave + '"><span class="giro-opcion-icono" aria-hidden="true">' + escapar(c.icono) + "</span><strong>" + escapar(c.nombre) + "</strong><small>" + escapar(c.detalle) + "</small></button>";
+                return '<button type="button" class="giro-opcion" data-giro="' + clave + '"><span class="giro-opcion-icono" aria-hidden="true">' + iconoSvg(c.icono) + "</span><strong>" + escapar(c.nombre) + "</strong><small>" + escapar(c.detalle) + "</small></button>";
             }).join("") +
             "</div>" +
             '<button type="button" class="giro-saltar" data-giro="todos">Solo quiero mirar</button>' +
