@@ -529,7 +529,12 @@ async function tiendaPintarInicio() {
     const lista = (titulo, items, negativo, maximo) => `<article><div class="ti-titulo"><h3>${titulo}</h3></div>
         ${items.length ? `<ol class="ti-ranking compacto">${items.slice(0, 3).map(p => tiFilaRanking(p, maximo, negativo)).join("")}</ol>` : `<p class="tienda-vacio">${negativo ? "Nada te deja poco." : "Aún sin datos."}</p>`}</article>`;
 
-    caja.innerHTML = `${lista("Lo que más te deja", d.masGanancia, false, Math.max(1, ...d.masGanancia.map(p => Math.abs(p.ganancia))))}
+    // Lo que hay que pedir antes de que venga cada proveedor (el mismo calculo del Pedido de Mi tienda).
+    const cuando = dias => dias <= 0 ? "hoy" : dias === 1 ? "mañana" : `en ${dias} días`;
+    const surtir = (d.porSurtir || []).length ? `<article><div class="ti-titulo"><h3>Por surtir</h3></div>
+        <ul class="ti-surtir">${d.porSurtir.map(p => `<li><button type="button" onclick="abrirTienda('pedido')"><span>${tiEscapar(p.proveedor)}<small>viene ${cuando(p.dias)} · ${p.productos} producto${p.productos === 1 ? "" : "s"}</small></span><b>${tiDinero(p.total)}</b></button></li>`).join("")}</ul></article>` : "";
+
+    caja.innerHTML = `${surtir}${lista("Lo que más te deja", d.masGanancia, false, Math.max(1, ...d.masGanancia.map(p => Math.abs(p.ganancia))))}
         ${lista("Dejan poco o pierdes", d.pierden, true, Math.max(1, ...d.pierden.map(p => Math.abs(p.ganancia))))}
         <button type="button" class="ti-ver-todo" onclick="abrirTienda('dia')">Ver todo en Mi tienda ›</button>`;
     tiPonerFotos(caja);
