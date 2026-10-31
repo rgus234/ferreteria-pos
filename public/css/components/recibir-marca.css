@@ -66,3 +66,37 @@
 .rm-der > * { min-width: 0; }
 .rm-der .rm-campo select { width: 100%; max-width: 100%; min-width: 0; text-overflow: ellipsis; }
 .rm-der .rm-total, .rm-der .rm-resumen-cab { min-width: 0; }
+
+/* Recibir mercancia: buscador-escaner grande, ultimo escaneado y facturas con buscador */
+.rm-escaner { min-height: 56px; border: 2px solid var(--brand-color, #0d6efd); border-radius: 16px; font-size: 17px; font-weight: 700; }
+.rm-escaner:focus { outline: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-color, #0d6efd) 22%, transparent); }
+.rm-ultimo:empty { display: none; }
+.rm-ultimo-tarjeta { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 16px; border: 2px solid #18b88f; border-radius: 16px; background: #ecfdf3; animation: rmDestello .5s ease; }
+@keyframes rmDestello { from { transform: scale(.985); box-shadow: 0 0 0 0 rgba(24, 184, 143, .5); } to { transform: none; box-shadow: 0 0 0 10px rgba(24, 184, 143, 0); } }
+.rm-ultimo-foto { display: grid; place-items: center; width: 76px; height: 76px; overflow: hidden; border-radius: 12px; background: #fff; }
+.rm-ultimo-foto img { width: 100%; height: 100%; object-fit: contain; }
+.rm-ultimo-texto { display: grid; gap: 2px; min-width: 0; }
+.rm-ultimo-texto small { color: #0f766e; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.rm-ultimo-texto b { font-size: 18px; line-height: 1.2; }
+.rm-ultimo-texto span { color: var(--pos-muted, #687386); font-weight: 600; font-size: 13.5px; }
+.rm-ultimo-texto strong { color: #0f172a; font-size: 16px; }
+.rm-ultimo-mas { display: flex; gap: 8px; }
+.rm-ultimo-mas button { width: 44px; height: 44px; border: 0; border-radius: 12px; background: #fff; color: #0f172a; font: inherit; font-size: 22px; font-weight: 800; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .12); }
+.rm-mas { border: 2px dashed #94a3b8 !important; background: transparent !important; }
+
+.rm-facturas { position: relative; display: grid; justify-items: end; gap: 8px; min-width: 0; }
+.rm-facturas-panel { position: absolute; top: 46px; right: 0; z-index: 30; display: grid; gap: 8px; width: min(560px, 90vw); padding: 12px; border: 1px solid var(--pos-line, #dbe3ef); border-radius: 16px; background: var(--pos-card, #fff); box-shadow: 0 24px 60px rgba(15, 23, 42, .22); }
+.rm-facturas-lista { display: grid; gap: 6px; max-height: 420px; overflow-y: auto; }
+.rm-factura-fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 10px 12px; border: 1px solid var(--pos-line, #e2e8f0); border-radius: 12px; background: var(--pos-surface, #f8fafc); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rm-factura-fila:hover { border-color: var(--brand-color, #0d6efd); }
+.rm-factura-fila span { display: grid; gap: 2px; min-width: 0; }
+.rm-factura-fila b { font-size: 14px; }
+.rm-factura-fila small { color: var(--pos-muted, #687386); font-weight: 600; font-size: 12.5px; }
+.rm-factura-muestra { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rm-factura-fila strong { flex: none; font-size: 14px; }
+
+body.oscuro .rm-ultimo-tarjeta { background: #0f3b2f; border-color: #16a34a; }
+body.oscuro .rm-ultimo-foto, body.oscuro .rm-ultimo-mas button { background: #1f2b40; }
+body.oscuro .rm-ultimo-texto strong { color: #f1f5f9; }
+body.oscuro .rm-factura-fila { background: #1d293e; border-color: rgba(148, 163, 184, .22); }
+body.oscuro .rm-facturas-panel { background: #151f31; border-color: rgba(148, 163, 184, .22); }

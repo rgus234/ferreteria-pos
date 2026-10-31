@@ -5,6 +5,8 @@
 // Es una funcion nueva: solo aparece si el dueño la enciende en Nexo -> Funciones nuevas (funcionBeta("recibir_por_marca")).
 (function () {
     const MAX_TARJETAS = 150;
+    const MUCHAS_MARCAS = 12;   // con mas marcas que estas no se abre una por defecto: se escanea o se busca
+    const MARCAS_VISIBLES = 8;  // las que se ven como botones; el resto esta en "Ver todas las marcas"
     const TIPO_POR_MARCA = {
         sabritas: "Botanas", barcel: "Botanas",
         "coca-cola": "Refrescos", pepsi: "Refrescos", "dr pepper": "Refrescos", jarritos: "Refrescos",
@@ -51,13 +53,18 @@
             });
         } catch (error) { /* sin exhibidores: se agrupa por marca */ }
 
+        // Se junta "FOSET" con "Foset": la llave ignora mayusculas, acentos y espacios de mas; se muestra la forma que mas se escribio.
         const resto = new Map();
         productos.filter(p => !usados.has(Number(p.id))).forEach(p => {
-            const marca = String(p.marca || "").trim() || "Sin marca";
-            if (!resto.has(marca)) resto.set(marca, []);
-            resto.get(marca).push(p);
+            const marca = String(p.marca || "").trim().replace(/\s+/g, " ") || "Sin marca";
+            const llave = plano(marca);
+            if (!resto.has(llave)) resto.set(llave, { formas: new Map(), lista: [] });
+            const g = resto.get(llave);
+            g.formas.set(marca, (g.formas.get(marca) || 0) + 1);
+            g.lista.push(p);
         });
-        [...resto.entries()].sort((a, b) => b[1].length - a[1].length).forEach(([marca, lista]) => grupos.push({ marca, productos: lista }));
+        const nombreBonito = formas => [...formas.entries()].sort((a, b) => b[1] - a[1] || (a[0] === a[0].toUpperCase() ? 1 : -1) - (b[0] === b[0].toUpperCase() ? 1 : -1))[0][0];
+        [...resto.values()].sort((a, b) => b.lista.length - a.lista.length).forEach(g => grupos.push({ marca: nombreBonito(g.formas), productos: g.lista }));
 
         return grupos;
     }
@@ -96,6 +103,7 @@
             return deMarca.concat(porNombre).filter(p => !vistos.has(Number(p.id)) && vistos.add(Number(p.id)));
         }
 
+        if (!rm.marca) return [];
         const grupo = rm.grupos.find(g => g.marca === rm.marca) || rm.grupos[0];
         return grupo ? grupo.productos : [];
     }
@@ -116,7 +124,7 @@
         if (!productos.length) { pantalla.innerHTML = `<div class="rm-shell"><p class="rm-nota">Todavía no hay productos en tu catálogo.</p></div>`; return; }
 
         const grupos = await armarGrupos(productos);
-        rm = { productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: grupos[0]?.marca || "", tipo: "", consulta: "", cantidades: new Map(), proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
+        rm = { productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
         pintar();
 
         llamar("/proveedores").then(r => { if (rm) { rm.proveedores = (r.datos.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre })).filter(x => x.nombre); pintarResumen(); } }).catch(() => {});
@@ -128,11 +136,12 @@
         if (!pantalla || !rm) return;
 
         pantalla.innerHTML = `<div class="rm-shell">
-            <header class="rm-cab"><div><h2>${rm.factura ? "Recibir con factura" : "Recibir por marca"}</h2><p>${rm.factura ? "Confirma lo que llegó de cada producto. Lo que dice la factura aparece como “Esperado”." : "Elige la marca y anota cuántas piezas llegaron. Puedes buscar por marca, nombre o código."}</p></div>
+            <header class="rm-cab"><div><h2>${rm.factura ? "Recibir con factura" : "Recibir mercancía"}</h2><p>${rm.factura ? "Confirma lo que llegó de cada producto. Lo que dice la factura aparece como “Esperado”." : "Escanea cada producto con la pistola, o búscalo por nombre, código o marca. Cada escaneo suma 1."}</p></div>
                 <div id="rmFacturas" class="rm-facturas"></div></header>
             <div class="rm-dos">
                 <section class="rm-izq">
-                    <input id="rmBuscar" class="rm-buscar" type="search" placeholder="Buscar marca, producto o código…" oninput="rmBuscar(this.value)" value="${esc(rm.consulta)}" ${rm.factura ? "style=\"display:none\"" : ""}>
+                    <input id="rmBuscar" class="rm-buscar rm-escaner" type="search" autocomplete="off" placeholder="📷 Escanea el código o escribe producto, código o marca…" oninput="rmBuscar(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();rmEscanear(this.value)}" value="${esc(rm.consulta)}" ${rm.factura ? "style=\"display:none\"" : ""}>
+                    <div id="rmUltimo" class="rm-ultimo" aria-live="polite"></div>
                     <div id="rmTipos" class="rm-chips"></div>
                     <div id="rmMarcas" class="rm-marcas"></div>
                     <div id="rmGrid" class="rm-grid"></div>
@@ -143,6 +152,9 @@
         pintarFiltros();
         pintarGrid();
         pintarResumen();
+        pintarUltimo();
+        const campo = document.getElementById("rmBuscar");
+        if (campo && !rm.factura) campo.focus();
     }
 
     function pintarFiltros() {
@@ -153,11 +165,25 @@
 
         const m = document.getElementById("rmMarcas");
         if (!m) return;
-        const lista = gruposVisibles();
-        m.innerHTML = rm.factura ? "" : lista.map(g => {
+        const todas = gruposVisibles();
+        const buscando = Boolean(rm.consulta.trim());
+        // con muchas marcas se ven solo las de mas productos (y la elegida); el resto queda detras de "Ver todas"
+        let lista = todas;
+        let ocultas = 0;
+        if (!rm.factura && !buscando && !rm.verTodasMarcas && todas.length > MARCAS_VISIBLES + 2) {
+            lista = todas.slice(0, MARCAS_VISIBLES);
+            const activa = todas.find(g => g.marca === rm.marca);
+            if (activa && !lista.includes(activa)) lista = lista.concat(activa);
+            ocultas = todas.length - lista.length;
+        }
+        const boton = g => {
             const llevo = g.productos.reduce((s, p) => s + (rm.cantidades.get(Number(p.id)) > 0 ? 1 : 0), 0);
             return `<button type="button" class="rm-marca${g.marca === rm.marca ? " activa" : ""}" onclick="rmMarca(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})"><b>${esc(g.marca)}</b><small>${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
-        }).join("");
+        };
+        const mas = ocultas > 0
+            ? `<button type="button" class="rm-marca rm-mas" onclick="rmVerMarcas(true)"><b>Ver las ${ocultas} marcas restantes</b><small>o escribe la marca arriba</small></button>`
+            : (rm.verTodasMarcas && !rm.factura && !buscando && todas.length > MARCAS_VISIBLES + 2 ? `<button type="button" class="rm-marca rm-mas" onclick="rmVerMarcas(false)"><b>Mostrar menos marcas</b></button>` : "");
+        m.innerHTML = rm.factura ? "" : lista.map(boton).join("") + mas;
     }
 
     function tarjeta(p) {
@@ -183,7 +209,23 @@
         const lista = productosVisibles();
         g.innerHTML = lista.length
             ? lista.slice(0, MAX_TARJETAS).map(tarjeta).join("") + (lista.length > MAX_TARJETAS ? `<p class="rm-nota rm-completo">Se muestran ${MAX_TARJETAS} de ${lista.length}. Usa el buscador para acotar.</p>` : "")
-            : `<p class="rm-nota rm-completo">${rm.consulta.trim() ? "No encontré nada con eso." : "Esta marca no tiene productos."}</p>`;
+            : `<p class="rm-nota rm-completo">${rm.consulta.trim() ? "No encontré nada con eso." : (!rm.marca ? "Escanea un producto con la pistola, escribe su nombre o código, o elige una marca." : "Esta marca no tiene productos.")}</p>`;
+    }
+
+    function pintarUltimo() {
+        const caja = document.getElementById("rmUltimo");
+        if (!caja || !rm) return;
+        const u = rm.ultimo;
+        if (!u) { caja.innerHTML = ""; return; }
+        const p = rm.indice.get(u.id);
+        if (!p) { caja.innerHTML = ""; return; }
+        const n = rm.cantidades.get(u.id) || 0;
+        const miniatura = typeof miniaturaProducto === "function" ? miniaturaProducto(p) : "";
+        caja.innerHTML = `<div class="rm-ultimo-tarjeta">
+            <div class="rm-ultimo-foto">${miniatura}</div>
+            <div class="rm-ultimo-texto"><small>Último escaneado</small><b>${esc(p.nombre)}</b><span>Hay ${numero(p.stock)} · llevas <strong>${numero(n)}</strong> en esta recepción${p.esperado != null ? ` · esperado ${numero(p.esperado)}` : ""}</span></div>
+            <div class="rm-ultimo-mas"><button type="button" onclick="rmSumar(${u.id}, -1)" aria-label="Quitar uno">−</button><button type="button" onclick="rmSumar(${u.id}, 1)" aria-label="Agregar uno">+</button></div>
+        </div>`;
     }
 
     function actualizarTarjeta(id) {
@@ -219,19 +261,88 @@
             <button type="button" class="rm-btn principal grande" id="rmConfirmar" onclick="rmConfirmar()" ${ls.length && !rm.enviando ? "" : "disabled"}>${rm.enviando ? "Guardando…" : (rm.factura ? "Confirmar recepción de la factura" : "Confirmar recepción")}</button>`;
     }
 
+    function fechaCorta(f) {
+        const d = new Date(f.fechaDocumento || f.creadaEn || "");
+        return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+    }
+
+    function facturasFiltradas() {
+        const q = plano(rm.busFactura).trim();
+        const lista = rm.facturas;
+        if (!q) return lista;
+        return lista.filter(f => q.split(/\s+/).every(w => plano([f.proveedor, f.folio, f.claveCorta, (f.muestra || []).join(" ")].join(" ")).includes(w)));
+    }
+
+    // Recibir con factura: lista con buscador (proveedor, folio, producto). Al elegir una se abre Recepcion inteligente,
+    // que es donde se revisan los productos nuevos, se escanea lo que llego y se confirma.
     function pintarFacturas() {
         const caja = document.getElementById("rmFacturas");
         if (!caja || !rm) return;
         if (rm.factura || !rm.facturas.length) { caja.innerHTML = ""; return; }
-        caja.innerHTML = `<label class="rm-campo rm-facturas-campo">📄 Facturas por recibir (${rm.facturas.length})<select onchange="rmAbrirFactura(this.value)"><option value="">Elige una para recibirla con esta pantalla…</option>${rm.facturas.map(f => `<option value="${Number(f.id)}">${esc(f.proveedor)} · ${f.totalItems} producto${f.totalItems === 1 ? "" : "s"} · ${dinero(f.total)}${f.porRevisar ? ` · ${f.porRevisar} por decidir` : ""}</option>`).join("")}</select></label>`;
+
+        const filas = facturasFiltradas().slice(0, 40).map(f => `<button type="button" class="rm-factura-fila" onclick="rmIrAFactura(${Number(f.id)})">
+            <span><b>${esc(f.proveedor)}</b><small>${f.folio ? "Folio " + esc(f.folio) : (f.claveCorta ? "Factura …" + esc(f.claveCorta) : "Sin folio")} · ${esc(fechaCorta(f))} · ${f.totalItems} producto${f.totalItems === 1 ? "" : "s"}</small>${(f.muestra || []).length ? `<small class="rm-factura-muestra">${esc(f.muestra.map(n => String(n).slice(0, 26)).join(" · "))}</small>` : ""}</span>
+            <strong>${dinero(f.total)}</strong></button>`).join("");
+
+        caja.innerHTML = `<button type="button" class="rm-btn principal" onclick="rmVerFacturas(${rm.verFacturas ? "false" : "true"})">Recibir con factura (${rm.facturas.length}) ${rm.verFacturas ? "▴" : "▾"}</button>
+            ${rm.verFacturas ? `<div class="rm-facturas-panel"><input id="rmBuscarFactura" class="rm-buscar" type="search" placeholder="Buscar por proveedor, folio o producto…" oninput="rmBuscarFactura(this.value)" value="${esc(rm.busFactura)}"><div class="rm-facturas-lista" id="rmFacturasLista">${filas || '<p class="rm-nota">Ninguna factura coincide.</p>'}</div></div>` : ""}`;
+
+        if (rm.verFacturas) { const c = document.getElementById("rmBuscarFactura"); if (c && document.activeElement !== c && !rm.busFactura) c.focus(); }
     }
+
+    window.rmVerFacturas = function (ver) { rm.verFacturas = Boolean(ver); pintarFacturas(); };
+    window.rmBuscarFactura = function (texto) { rm.busFactura = texto; const l = document.getElementById("rmFacturasLista"); if (!l) return; const antes = rm.verFacturas; pintarFacturas(); rm.verFacturas = antes; const c = document.getElementById("rmBuscarFactura"); if (c) { c.focus(); c.setSelectionRange(c.value.length, c.value.length); } };
+    window.rmIrAFactura = function (id) {
+        if (typeof mostrarRecepcionInteligente === "function") mostrarRecepcionInteligente().then(() => { if (typeof riVerDetalle === "function") riVerDetalle(Number(id)); });
+    };
 
     // ---------- interacciones ----------
 
     window.rmBuscar = function (texto) { rm.consulta = texto; pintarFiltros(); pintarGrid(); };
+    // Codigos de un producto: el principal y los alternos que traiga el catalogo.
+    function codigosDe(p) {
+        const extra = [p.codigos_relacionados, p.codigosRelacionados, p.codigos].find(Array.isArray) || [];
+        return [p.codigo, ...extra.map(c => (c && typeof c === "object" ? c.codigo : c))].map(c => String(c || "").toLowerCase().replace(/[^a-z0-9]/g, "")).filter(Boolean);
+    }
+
+    function pitido(bien) {
+        try {
+            const ctx = pitido.ctx || (pitido.ctx = new (window.AudioContext || window.webkitAudioContext)());
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.frequency.value = bien ? 880 : 220; g.gain.value = 0.08;
+            o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + (bien ? 0.07 : 0.22));
+        } catch (error) { /* sin audio: no pasa nada */ }
+    }
+
+    // Enter en el buscador: si es el codigo exacto de un producto, suma 1 y sigue; si no, se queda como busqueda.
+    window.rmEscanear = function (texto) {
+        const codigo = String(texto || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const campo = document.getElementById("rmBuscar");
+        if (!codigo) return;
+
+        const p = rm.todos.find(x => codigosDe(x).includes(codigo));
+
+        if (p) {
+            const id = Number(p.id);
+            rm.cantidades.set(id, (rm.cantidades.get(id) || 0) + 1);
+            rm.ultimo = { id };
+            rm.consulta = ""; if (campo) campo.value = "";
+            actualizarTarjeta(id); pintarFiltros(); pintarGrid(); pintarResumen(); pintarUltimo();
+            pitido(true);
+            if (campo) campo.focus();
+            return;
+        }
+
+        pitido(false);
+        aviso(/^\d{6,}$/.test(codigo) ? "Ese código no está en tu catálogo. Si es un producto nuevo, agrégalo en Inventario o recíbelo con la factura." : "No encontré ese producto.", "error");
+        if (campo) campo.select();
+    };
+
+    window.rmVerMarcas = function (ver) { rm.verTodasMarcas = Boolean(ver); pintarFiltros(); };
+
     window.rmTipo = function (tipo) { rm.tipo = tipo || ""; const v = gruposVisibles(); if (!v.some(g => g.marca === rm.marca)) rm.marca = v[0].marca; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
     window.rmMarca = function (marca) { rm.marca = marca; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
-    window.rmSumar = function (id, delta) { rm.cantidades.set(id, Math.max(0, (rm.cantidades.get(id) || 0) + delta)); actualizarTarjeta(id); pintarResumen(); pintarFiltros(); };
+    window.rmSumar = function (id, delta) { rm.cantidades.set(id, Math.max(0, (rm.cantidades.get(id) || 0) + delta)); actualizarTarjeta(id); pintarResumen(); pintarFiltros(); pintarUltimo(); };
     window.rmEscribir = function (id, valor) { const n = Number(valor); rm.cantidades.set(id, Number.isFinite(n) && n > 0 ? n : 0); const t = document.querySelector(`#rmGrid .rm-tarjeta[data-id="${id}"]`); if (t) t.classList.toggle("con-entrada", (rm.cantidades.get(id) || 0) > 0); pintarResumen(); };
     window.rmQuitar = function (id) { rm.cantidades.set(id, 0); actualizarTarjeta(id); pintarResumen(); pintarFiltros(); };
     window.rmLlego = function (id) { const p = rm.indice.get(id); if (p && p.esperado != null) { rm.cantidades.set(id, p.esperado); actualizarTarjeta(id); pintarResumen(); } };
