@@ -60,3 +60,9 @@
 .rm-completo { grid-column: 1 / -1; }
 
 @media (max-width: 1100px) { .rm-dos { grid-template-columns: 1fr; } .rm-der { position: static; } }
+
+/* El panel de la derecha no crece con el nombre mas largo de un proveedor: el selector se ajusta al panel. */
+.rm-der { min-width: 0; box-sizing: border-box; }
+.rm-der > * { min-width: 0; }
+.rm-der .rm-campo select { width: 100%; max-width: 100%; min-width: 0; text-overflow: ellipsis; }
+.rm-der .rm-total, .rm-der .rm-resumen-cab { min-width: 0; }
