@@ -26,6 +26,7 @@
   estilo.textContent = `
    .er-boton{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;margin:0 4px;border:0;border-radius:10px;background:rgba(29,95,209,.12);color:#1d5fd1;cursor:pointer;flex:none}
    .er-boton:hover{background:rgba(29,95,209,.22)}
+   .pos-reference-search{grid-template-columns:36px minmax(0,1fr) auto auto auto !important}
    .er-boton.er-activo{background:#18b88f;color:#04223f}
    .er-fondo{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.55)}
    .er-panel{width:min(460px,100%);max-height:92vh;overflow-y:auto;display:grid;gap:14px;padding:22px;border-radius:20px;background:#fff;color:#0f172a;box-shadow:0 30px 60px -20px rgba(0,0,0,.5);font-family:inherit}
@@ -80,6 +81,12 @@
   totalRecibidos++;
   pitido();
   pintarEstado();
+
+  const recibir = document.getElementById("pantallaRecibirMarca");
+  if (recibir && recibir.style.display !== "none" && typeof window.rmEscanear === "function" && !document.querySelector('.modal-overlay[style*="flex"], .modal-personalizado[style*="flex"], .modal-form-credito[style*="flex"]')) {
+   window.rmEscanear(codigo);
+   return;
+  }
 
   const foco = document.activeElement;
   const esCampo = foco && ["INPUT", "TEXTAREA"].includes(foco.tagName) && foco.id !== "busqueda" && !foco.closest("#erFondo") && !["checkbox", "radio", "file", "button"].includes(foco.type);

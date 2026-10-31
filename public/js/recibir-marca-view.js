@@ -140,7 +140,8 @@
                 <div id="rmFacturas" class="rm-facturas"></div></header>
             <div class="rm-dos">
                 <section class="rm-izq">
-                    <input id="rmBuscar" class="rm-buscar rm-escaner" type="search" autocomplete="off" placeholder="📷 Escanea el código o escribe producto, código o marca…" oninput="rmBuscar(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();rmEscanear(this.value)}" value="${esc(rm.consulta)}" ${rm.factura ? "style=\"display:none\"" : ""}>
+                    <div class="rm-escaner-fila"><input id="rmBuscar" class="rm-buscar rm-escaner" type="search" autocomplete="off" placeholder="📷 Escanea o escribe producto, código o marca…" oninput="rmBuscar(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();rmEscanear(this.value)}" value="${esc(rm.consulta)}" ${rm.factura ? "style=\"display:none\"" : ""}>
+                    ${rm.factura ? "" : `<button type="button" class="rm-btn rm-celular" onclick="if(window.abrirEscanerRemotoPOS)abrirEscanerRemotoPOS()" title="Usar el celular como escáner">📱 Usar mi celular</button>`}</div>
                     <div id="rmUltimo" class="rm-ultimo" aria-live="polite"></div>
                     <div id="rmTipos" class="rm-chips"></div>
                     <div id="rmMarcas" class="rm-marcas"></div>

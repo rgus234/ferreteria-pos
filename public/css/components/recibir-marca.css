@@ -100,3 +100,8 @@ body.oscuro .rm-ultimo-foto, body.oscuro .rm-ultimo-mas button { background: #1f
 body.oscuro .rm-ultimo-texto strong { color: #f1f5f9; }
 body.oscuro .rm-factura-fila { background: #1d293e; border-color: rgba(148, 163, 184, .22); }
 body.oscuro .rm-facturas-panel { background: #151f31; border-color: rgba(148, 163, 184, .22); }
+
+.rm-escaner-fila { display: flex; gap: 10px; align-items: stretch; }
+.rm-escaner-fila .rm-escaner { flex: 1; min-width: 0; }
+.rm-celular { flex: none; min-height: 56px; padding: 0 18px; border-radius: 16px; background: #e8f0ff; color: #1d4ed8; font-size: 14px; white-space: nowrap; }
+body.oscuro .rm-celular { background: #1e2a44; color: #bfdbfe; }
