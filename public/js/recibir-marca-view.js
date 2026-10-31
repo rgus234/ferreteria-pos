@@ -25,6 +25,10 @@
     const numero = valor => Number(valor || 0).toLocaleString("es-MX", { maximumFractionDigits: 3 });
     const dinero = valor => "$" + Number(valor || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const aviso = (mensaje, tipo) => { if (typeof mostrarToastPOS === "function") mostrarToastPOS(mensaje, tipo ? { tipo } : undefined); };
+    // Mismos colores que Recibir por marca del celular: cada marca siempre sale del mismo color en los dos.
+    const COLORES_MARCA = ["#0369a1", "#15803d", "#a21caf", "#b91c1c", "#4d7c0f", "#0e7490", "#7c2d12", "#4338ca"];
+    const COLORES_EXHIBIDOR = { azul: "#1d4ed8", naranja: "#ea580c", verde: "#15803d", rojo: "#dc2626", morado: "#7e22ce", negro: "#1f2937" };
+    const colorDeMarca = texto => { let s = 0; for (const c of plano(texto)) s += c.charCodeAt(0); return COLORES_MARCA[s % COLORES_MARCA.length]; };
     const tipoDeGrupo = g => TIPO_POR_MARCA[plano(g.marca)] || "Otras";
 
     async function llamar(ruta, opciones = {}) {
@@ -49,7 +53,7 @@
             detalles.forEach(d => {
                 if (!d) return;
                 const productosDe = d.espacios.map(e => { usados.add(Number(e.productoId)); return porId.get(Number(e.productoId)); }).filter(Boolean);
-                if (productosDe.length) grupos.push({ marca: d.nombre, productos: productosDe });
+                if (productosDe.length) grupos.push({ marca: d.nombre, color: COLORES_EXHIBIDOR[d.color] || colorDeMarca(d.nombre), productos: productosDe });
             });
         } catch (error) { /* sin exhibidores: se agrupa por marca */ }
 
@@ -64,7 +68,7 @@
             g.lista.push(p);
         });
         const nombreBonito = formas => [...formas.entries()].sort((a, b) => b[1] - a[1] || (a[0] === a[0].toUpperCase() ? 1 : -1) - (b[0] === b[0].toUpperCase() ? 1 : -1))[0][0];
-        [...resto.values()].sort((a, b) => b.lista.length - a.lista.length).forEach(g => grupos.push({ marca: nombreBonito(g.formas), productos: g.lista }));
+        [...resto.values()].sort((a, b) => b.lista.length - a.lista.length).forEach(g => { const marca = nombreBonito(g.formas); grupos.push({ marca, color: colorDeMarca(marca), productos: g.lista }); });
 
         return grupos;
     }
@@ -91,6 +95,16 @@
         return lista.length ? lista : rm.grupos;
     }
 
+    // Lineas (categorias) de la marca elegida: solo se ofrecen si hay mas de una.
+    function lineasDeMarca() {
+        if (!rm || rm.factura || rm.consulta.trim() || !rm.marca) return [];
+        const g = rm.grupos.find(x => x.marca === rm.marca);
+        if (!g) return [];
+        const cuenta = new Map();
+        g.productos.forEach(p => { const c = String(p.categoria || "").trim(); if (c) cuenta.set(c, (cuenta.get(c) || 0) + 1); });
+        return cuenta.size > 1 ? [...cuenta.entries()].sort((a, b) => b[1] - a[1]) : [];
+    }
+
     function productosVisibles() {
         const q = plano(rm.consulta).trim();
 
@@ -105,7 +119,8 @@
 
         if (!rm.marca) return [];
         const grupo = rm.grupos.find(g => g.marca === rm.marca) || rm.grupos[0];
-        return grupo ? grupo.productos : [];
+        if (!grupo) return [];
+        return rm.linea ? grupo.productos.filter(p => String(p.categoria || "").trim() === rm.linea) : grupo.productos;
     }
 
     // ---------- pantalla ----------
@@ -124,7 +139,7 @@
         if (!productos.length) { pantalla.innerHTML = `<div class="rm-shell"><p class="rm-nota">Todavía no hay productos en tu catálogo.</p></div>`; return; }
 
         const grupos = await armarGrupos(productos);
-        rm = { productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
+        rm = { productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), linea: "", verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
         pintar();
 
         llamar("/proveedores").then(r => { if (rm) { rm.proveedores = (r.datos.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre })).filter(x => x.nombre); pintarResumen(); } }).catch(() => {});
@@ -144,6 +159,7 @@
                     ${rm.factura ? "" : `<button type="button" class="rm-btn rm-celular" onclick="if(window.abrirEscanerRemotoPOS)abrirEscanerRemotoPOS()" title="Usar el celular como escáner">📱 Usar mi celular</button>`}</div>
                     <div id="rmUltimo" class="rm-ultimo" aria-live="polite"></div>
                     <div id="rmTipos" class="rm-chips"></div>
+                    <div id="rmLineas" class="rm-chips rm-lineas-chips"></div>
                     <div id="rmMarcas" class="rm-marcas"></div>
                     <div id="rmGrid" class="rm-grid"></div>
                 </section>
@@ -164,6 +180,13 @@
         const t = document.getElementById("rmTipos");
         if (t) t.innerHTML = tipos.length ? chip("", "Todas", rm.grupos.length) + tipos.map(x => chip(x, x, rm.grupos.filter(g => tipoDeGrupo(g) === x).length)).join("") : "";
 
+        const ln = document.getElementById("rmLineas");
+        if (ln) {
+            const ls = lineasDeMarca();
+            const total = (rm.grupos.find(x => x.marca === rm.marca) || { productos: [] }).productos.length;
+            ln.innerHTML = ls.length ? `<button type="button" class="rm-chip${!rm.linea ? " activo" : ""}" onclick="rmLinea('')">Todos <small>${total}</small></button>` + ls.map(([c, n]) => `<button type="button" class="rm-chip${rm.linea === c ? " activo" : ""}" onclick="rmLinea(${JSON.stringify(c).replace(/"/g, "&quot;")})">${esc(c)} <small>${n}</small></button>`).join("") : "";
+        }
+
         const m = document.getElementById("rmMarcas");
         if (!m) return;
         const todas = gruposVisibles();
@@ -179,7 +202,7 @@
         }
         const boton = g => {
             const llevo = g.productos.reduce((s, p) => s + (rm.cantidades.get(Number(p.id)) > 0 ? 1 : 0), 0);
-            return `<button type="button" class="rm-marca${g.marca === rm.marca ? " activa" : ""}" onclick="rmMarca(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})"><b>${esc(g.marca)}</b><small>${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
+            return `<button type="button" class="rm-marca${g.marca === rm.marca ? " activa" : ""}" style="--marca:${g.color || "#475569"}" onclick="rmMarca(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})"><b>${esc(g.marca)}</b><small>${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
         };
         const mas = ocultas > 0
             ? `<button type="button" class="rm-marca rm-mas" onclick="rmVerMarcas(true)"><b>Ver las ${ocultas} marcas restantes</b><small>o escribe la marca arriba</small></button>`
@@ -196,10 +219,12 @@
             ? `<button type="button" class="rm-llego" onclick="rmLlego(${id})">Llegó todo (${numero(p.esperado)})</button>`
             : [6, 12, 24].map(a => `<button type="button" onclick="rmSumar(${id}, ${a})">+${a}</button>`).join("");
 
+        const poco = Number(p.stock) <= (Number(p.stock_minimo) > 0 ? Number(p.stock_minimo) : 2);
         return `<article class="rm-tarjeta${n > 0 ? " con-entrada" : ""}" data-id="${id}">
+            <span class="rm-palomita" aria-hidden="true">✓</span>
             <div class="rm-foto">${miniatura}</div>
             <b class="rm-nombre">${esc(p.nombre)}</b>
-            <small class="rm-hay">Hay ${numero(p.stock)}${esperado ? ` · <span class="rm-esperado">${p.nuevoProducto ? "Nuevo · " : ""}Esperado ${numero(p.esperado)}</span>` : ""}</small>
+            <small class="rm-hay${poco ? " poco" : ""}">Hay ${numero(p.stock)}${esperado ? ` · <span class="rm-esperado">${p.nuevoProducto ? "Nuevo · " : ""}Esperado ${numero(p.esperado)}</span>` : ""}</small>
             <div class="rm-cantidad"><button type="button" onclick="rmSumar(${id}, -1)" aria-label="Quitar uno">−</button><input type="number" min="0" step="any" inputmode="decimal" value="${n || ""}" placeholder="0" oninput="rmEscribir(${id}, this.value)" aria-label="Llegaron"><button type="button" onclick="rmSumar(${id}, 1)" aria-label="Agregar uno">+</button></div>
             <div class="rm-atajos">${atajos}</div></article>`;
     }
@@ -238,6 +263,11 @@
         if (campo && document.activeElement !== campo) campo.value = n || "";
     }
 
+    function colorDe(p) {
+        const g = rm.grupos.find(x => x.productos.some(q => Number(q.id) === Number(p.id)));
+        return (g && g.color) || colorDeMarca(p.marca || "");
+    }
+
     function lineas() {
         return [...rm.cantidades.entries()].filter(([, n]) => n > 0).map(([id, n]) => ({ id, n, p: rm.indice.get(id) })).filter(l => l.p);
     }
@@ -256,7 +286,7 @@
         r.innerHTML = `<div class="rm-resumen-cab"><h3>${rm.factura ? esc(rm.factura.proveedor) : "Lo que llegó"}</h3>${rm.factura ? `<small>${rm.factura.folio ? "Folio " + esc(rm.factura.folio) + " · " : ""}${dinero(rm.factura.total)}</small>` : ""}</div>
             ${rm.factura ? `<div class="rm-acciones"><button type="button" class="rm-btn" onclick="rmTodoFactura()">Llegó todo</button><button type="button" class="rm-btn" onclick="rmSalirFactura()">Salir de la factura</button></div>` : ""}
             ${sinDecidir ? `<p class="rm-alerta">${sinDecidir} concepto${sinDecidir === 1 ? "" : "s"} por decidir (producto nuevo o sin emparejar). Resuélvelos en <button type="button" class="rm-enlace" onclick="rmIrADecidir()">Recepción inteligente</button> antes de confirmar.</p>` : ""}
-            <div class="rm-lineas">${ls.map(l => `<div class="rm-linea"><span>${esc(l.p.nombre)}</span><b>${numero(l.n)}</b><button type="button" onclick="rmQuitar(${l.id})" aria-label="Quitar">✕</button></div>`).join("") || `<p class="rm-nota">Todavía no anotas nada.</p>`}</div>
+            <div class="rm-lineas">${ls.map(l => `<div class="rm-linea" style="--marca:${colorDe(l.p)}"><i class="rm-linea-mini">${typeof miniaturaProducto === "function" ? miniaturaProducto(l.p) : ""}</i><span>${esc(l.p.nombre)}</span><b>${numero(l.n)}</b><button type="button" onclick="rmQuitar(${l.id})" aria-label="Quitar">✕</button></div>`).join("") || `<p class="rm-nota">Todavía no anotas nada.</p>`}</div>
             <div class="rm-total"><span>${ls.length} producto${ls.length === 1 ? "" : "s"}</span><b>${numero(piezas)} piezas</b></div>
             ${proveedor}
             <button type="button" class="rm-btn principal grande" id="rmConfirmar" onclick="rmConfirmar()" ${ls.length && !rm.enviando ? "" : "disabled"}>${rm.enviando ? "Guardando…" : (rm.factura ? "Confirmar recepción de la factura" : "Confirmar recepción")}</button>`;
@@ -339,10 +369,11 @@
         if (campo) campo.select();
     };
 
+    window.rmLinea = function (linea) { rm.linea = linea || ""; pintarFiltros(); pintarGrid(); };
     window.rmVerMarcas = function (ver) { rm.verTodasMarcas = Boolean(ver); pintarFiltros(); };
 
-    window.rmTipo = function (tipo) { rm.tipo = tipo || ""; const v = gruposVisibles(); if (!v.some(g => g.marca === rm.marca)) rm.marca = v[0].marca; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
-    window.rmMarca = function (marca) { rm.marca = marca; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
+    window.rmTipo = function (tipo) { rm.linea = ""; rm.tipo = tipo || ""; const v = gruposVisibles(); if (!v.some(g => g.marca === rm.marca)) rm.marca = v[0].marca; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
+    window.rmMarca = function (marca) { rm.marca = marca; rm.linea = ""; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
     window.rmSumar = function (id, delta) { rm.cantidades.set(id, Math.max(0, (rm.cantidades.get(id) || 0) + delta)); actualizarTarjeta(id); pintarResumen(); pintarFiltros(); pintarUltimo(); };
     window.rmEscribir = function (id, valor) { const n = Number(valor); rm.cantidades.set(id, Number.isFinite(n) && n > 0 ? n : 0); const t = document.querySelector(`#rmGrid .rm-tarjeta[data-id="${id}"]`); if (t) t.classList.toggle("con-entrada", (rm.cantidades.get(id) || 0) > 0); pintarResumen(); };
     window.rmQuitar = function (id) { rm.cantidades.set(id, 0); actualizarTarjeta(id); pintarResumen(); pintarFiltros(); };
