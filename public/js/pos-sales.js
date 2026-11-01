@@ -200,6 +200,27 @@ async function procesarCodigoBarrasPos(codigoManual) {
  return;
  }
 
+ // Si lo escrito es un nombre (trae letras) y no un codigo: un solo producto que coincida se agrega directo (con su modal de peso si
+ // va por kilo); si hay varios se deja la lista abierta para que elija. Un codigo de barras (solo numeros) sigue igual.
+ const textoEscrito = String(codigoManual || input.value || "").trim();
+
+ if (/[a-zA-ZÀ-ſ]/.test(textoEscrito) && typeof todosProductos !== "undefined") {
+  const sinAcentos = valor => String(valor || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const palabras = sinAcentos(textoEscrito).split(/s+/).filter(Boolean);
+  const hallados = todosProductos.filter(p => Number(p.id) > 0 && palabras.every(w => sinAcentos(p.nombre).includes(w)));
+
+  if (hallados.length === 1 && typeof agregarDesdeFlyoutPOS === "function") {
+   await agregarDesdeFlyoutPOS(hallados[0].id);
+   return;
+  }
+
+  if (hallados.length > 1) {
+   if (typeof buscarProductos === "function") buscarProductos();
+   if (typeof mostrarToastPOS === "function") mostrarToastPOS("Hay varios productos con ese nombre: elige uno de la lista.");
+   return;
+  }
+ }
+
  alert(
  "Producto no encontrado en inventario ni catalogo"
  );
