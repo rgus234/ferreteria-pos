@@ -12,7 +12,7 @@
     async function llamar(ruta, opciones = {}) {
         const respuesta = await fetch(ruta, { ...opciones, headers: { "Content-Type": "application/json", ...(opciones.headers || {}) } });
         const datos = await respuesta.json().catch(() => ({}));
-        return { ok: respuesta.ok && datos.ok !== false, datos };
+        return { ok: respuesta.ok && datos.ok !== false, datos, estado: respuesta.status };
     }
 
     function hace(fecha) {
@@ -65,6 +65,8 @@
 
         if (!r.ok) {
             st.estado = "error";
+            // 403 = el perfil que esta abierto (por ejemplo Cajero) no puede enlazar celulares: se explica y se ofrece cambiar de perfil.
+            st.sinPermiso = r.estado === 403;
             st.error = r.datos.error || "No se pudo crear el código. Revisa tu conexión e intenta de nuevo.";
             pintar();
             return;
@@ -151,6 +153,10 @@
         const base = `<div class="ec-qr-caja ${st.estado}"><i class="ec-esq a"></i><i class="ec-esq b"></i><i class="ec-esq c"></i><i class="ec-esq d"></i>`;
 
         if (st.estado === "cargando") return `${base}<div class="ec-qr ec-qr-carga"><span class="ec-spinner"></span><small>Creando tu código…</small></div></div>`;
+        if (st.estado === "error" && st.sinPermiso) {
+            const nombre = (typeof usuarioActual !== "undefined" && usuarioActual && usuarioActual.nombre) ? usuarioActual.nombre : "";
+            return `${base}<div class="ec-qr ec-qr-carga"><b>Solo el dueño puede enlazar celulares</b><small>${nombre ? `Ahorita estás con el perfil “${esc(nombre)}”, que no es de dueño.` : "Ahorita estás con un perfil que no es de dueño."} Entra con el perfil de Administrador (con su PIN) y se crea el código al instante.</small><button type="button" class="ec-btn principal" onclick="ecEntrarComoAdmin()">Entrar como Administrador</button></div></div>`;
+        }
         if (st.estado === "error") return `${base}<div class="ec-qr ec-qr-carga"><b>No se pudo crear</b><small>${esc(st.error)}</small><button type="button" class="ec-btn principal" onclick="ecGenerar()">Reintentar</button></div></div>`;
 
         const velo = st.estado === "enlazado"
@@ -207,6 +213,22 @@
     }
 
     // ---------- acciones ----------
+
+    // Cambia al perfil de Administrador pidiendo su PIN, sin cerrar la sesion, y vuelve a crear el codigo.
+    window.ecEntrarComoAdmin = async function () {
+        const admins = (typeof usuariosSistema === "function" ? usuariosSistema() : []).filter(u => String(u.rol || "").toLowerCase() === "administrador");
+
+        if (!admins.length || typeof pedirPinUsuario !== "function" || typeof aplicarSesionUsuario !== "function") {
+            if (typeof mostrarToastPOS === "function") mostrarToastPOS("Cambia al perfil de Administrador desde Inicio (selector de usuario) y vuelve aquí.", { tipo: "error" });
+            return;
+        }
+
+        const verificado = await pedirPinUsuario(admins[0]);
+        if (!verificado) return;
+
+        aplicarSesionUsuario(verificado);
+        window.ecGenerar();
+    };
 
     window.ecGenerar = generar;
 
