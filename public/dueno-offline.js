@@ -54,6 +54,33 @@ function fotoMiniDueno(url, ancho = 160) {
     return texto + (texto.includes("?") ? "&" : "?") + "w=" + ancho;
 }
 
+// Nivel de precio con el que cobra el negocio. Es el MISMO que usa la computadora (Configuracion -> nivel de precio por defecto):
+// asi un producto cuesta lo mismo en el celular y en el mostrador. Un abarrotes vende siempre al publico. Se guarda para arrancar sin internet.
+const NIVELES_PRECIO_DUENO = ["publico", "mayoreo", "distribuidor"];
+
+function nivelPrecioDueno() {
+    if (NIVELES_PRECIO_DUENO.includes(window.duenoNivelPrecio)) return window.duenoNivelPrecio;
+
+    try {
+        const guardado = localStorage.getItem("nexoDuenoNivelPrecio");
+        if (NIVELES_PRECIO_DUENO.includes(guardado)) return guardado;
+    } catch (error) { /* sin almacenamiento */ }
+
+    return "publico";
+}
+
+// Misma regla que aplicarNivelPrecioAItem del POS de escritorio: el precio de ese nivel y, si no tiene, el publico.
+function precioSegunNivelDueno(producto) {
+    const publico = Number(producto.precioPublico ?? producto.precio) || 0;
+    const nivel = nivelPrecioDueno();
+    const candidato = nivel === "mayoreo" ? producto.precioMayoreo : nivel === "distribuidor" ? producto.precioDistribuidor : producto.precioPublico;
+    return Number(candidato) > 0 ? Number(candidato) : publico;
+}
+
+function conNivelPrecioDueno(lista) {
+    return (lista || []).map(producto => ({ ...producto, precio: precioSegunNivelDueno(producto) }));
+}
+
 async function guardarCatalogoLocal(productos) {
     try {
         const db = await abrirDuenoDB();
@@ -68,6 +95,8 @@ async function guardarCatalogoLocal(productos) {
                 nombre: producto.nombre || "",
                 codigo: producto.codigo || "",
                 precio: Number(producto.precio_publico ?? producto.precio ?? 0),
+                precioPublico: Number(producto.precio_publico ?? producto.precio ?? 0),
+                precioMayoreo: producto.precio_mayoreo != null ? Number(producto.precio_mayoreo) : null,
                 stock: Number(producto.stock || 0),
                 imagenUrl: producto.imagenUrl || null,
                 categoria: producto.categoria || "",
@@ -98,12 +127,12 @@ async function buscarEnCatalogoLocal(texto) {
         const tienda = transaccion.objectStore("catalogo");
         const todos = await promesaSolicitud(tienda.getAll());
 
-        return todos
+        return conNivelPrecioDueno(todos
             .filter(producto =>
                 producto.nombre.toLowerCase().includes(textoLimpio) ||
                 producto.codigo.toLowerCase().includes(textoLimpio)
             )
-            .slice(0, 20);
+            .slice(0, 20));
     } catch (error) {
         console.warn("No se pudo buscar en el catalogo local", error);
         return [];
@@ -146,14 +175,14 @@ async function listarCatalogoLocal({ texto = "", categoria = "", porVencer = fal
         );
 
         if (porVencer) {
-            return filtrados
+            return conNivelPrecioDueno(filtrados
                 .sort((a, b) => diasParaCaducarDueno(a) - diasParaCaducarDueno(b))
-                .slice(0, 60);
+                .slice(0, 60));
         }
 
-        return filtrados
+        return conNivelPrecioDueno(filtrados
             .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
-            .slice(0, 60);
+            .slice(0, 60));
     } catch (error) {
         console.warn("No se pudo listar el catalogo local", error);
         return [];

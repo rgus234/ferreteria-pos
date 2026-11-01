@@ -90,7 +90,8 @@ async function listarCatalogoLocalCompletoDueno() {
     try {
         const db = await abrirDuenoDB();
         const transaccion = db.transaction("catalogo", "readonly");
-        return await promesaSolicitud(transaccion.objectStore("catalogo").getAll());
+        const todos = await promesaSolicitud(transaccion.objectStore("catalogo").getAll());
+        return typeof conNivelPrecioDueno === "function" ? conNivelPrecioDueno(todos) : todos;
     } catch (error) {
         return [];
     }

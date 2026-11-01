@@ -133,13 +133,19 @@ async function buscarProductoPorCodigoDueno(codigo) {
         const remoto = await fetchAutenticado(`/producto-codigo/${encodeURIComponent(limpio)}`);
         if (!remoto || !remoto.id) return null;
 
-        return {
+        const producto = {
             id: remoto.id,
             nombre: remoto.nombre || "",
             codigo: remoto.codigo || "",
-            precio: numeroODefecto(remoto.precio_publico ?? remoto.precio),
+            precioPublico: numeroODefecto(remoto.precio_publico ?? remoto.precio),
+            precioMayoreo: remoto.precio_mayoreo != null ? Number(remoto.precio_mayoreo) : null,
+            precioDistribuidor: remoto.precio_distribuidor != null ? Number(remoto.precio_distribuidor) : null,
             stock: numeroODefecto(remoto.stock)
         };
+
+        // mismo precio de venta que en la computadora (nivel del negocio)
+        producto.precio = typeof precioSegunNivelDueno === "function" ? precioSegunNivelDueno(producto) : producto.precioPublico;
+        return producto;
     } catch (error) {
         return null;
     }

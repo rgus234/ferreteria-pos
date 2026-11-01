@@ -62,6 +62,11 @@
             const ferreteria = giros.some(g => g.includes("ferret"));
 
             giro.abarrotesSolo = abarrotes && !ferreteria;
+
+            // mismo nivel que la computadora: abarrotes siempre publico; los demas el que configuro el negocio (si no hay, medio mayoreo como en el POS)
+            const nivelConfigurado = String(negocio.nivelPrecio || "").toLowerCase();
+            window.duenoNivelPrecio = giro.abarrotesSolo ? "publico" : (["publico", "mayoreo", "distribuidor"].includes(nivelConfigurado) ? nivelConfigurado : "mayoreo");
+            try { localStorage.setItem("nexoDuenoNivelPrecio", window.duenoNivelPrecio); } catch (error) { /* sin almacenamiento */ }
             giro.conAbarrotes = abarrotes;
             giro.ferreteriaSolo = ferreteria && !abarrotes;
             giro.listo = true;

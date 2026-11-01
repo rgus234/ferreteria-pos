@@ -1244,7 +1244,15 @@ async function abrirDetalleProductoVentaDueno(id) {
                 id: datos.producto.id,
                 nombre: datos.producto.nombre,
                 codigo: datos.producto.codigo,
-                precio: datos.producto.precio_publico ?? datos.producto.precio,
+                // el precio con el que cobra el negocio (mismo nivel que la computadora), no siempre el publico
+                precio: typeof precioSegunNivelDueno === "function"
+                    ? precioSegunNivelDueno({
+                        precio: datos.producto.precio_publico ?? datos.producto.precio,
+                        precioPublico: datos.producto.precio_publico ?? datos.producto.precio,
+                        precioMayoreo: datos.producto.precio_mayoreo != null ? Number(datos.producto.precio_mayoreo) : null,
+                        precioDistribuidor: datos.producto.precio_distribuidor != null ? Number(datos.producto.precio_distribuidor) : null
+                    })
+                    : (datos.producto.precio_publico ?? datos.producto.precio),
                 stock: datos.producto.stock,
                 imagenUrl: datos.producto.imagenUrl,
                 categoria: datos.producto.categoria,
