@@ -3267,11 +3267,9 @@ async function duenoPedIniciarEscaneo() {
     estado.textContent = "Abriendo camara...";
 
     try {
-        const lector = new window.ZXingBrowser.BrowserMultiFormatReader();
-
-        duenoPedControlesEscaneo = await lector.decodeFromVideoDevice(undefined, video, (resultado) => {
-            if (!resultado || !duenoPedidoDetalleId) return;
-            duenoPedIntentarVerificarPorCodigo(resultado.getText());
+        duenoPedControlesEscaneo = await iniciarLectorCodigosDueno(video, codigo => {
+            if (!duenoPedidoDetalleId) return;
+            duenoPedIntentarVerificarPorCodigo(codigo);
         });
 
         estado.textContent = "Apunta la camara a cada codigo de barras.";
@@ -3626,12 +3624,7 @@ async function abrirEscanerVenderDueno() {
 
     try {
         const video = document.getElementById("duenoVenderEscaneoVideo");
-        const lector = new window.ZXingBrowser.BrowserMultiFormatReader();
-
-        duenoVenderControlesEscaneo = await lector.decodeFromVideoDevice(undefined, video, (resultado) => {
-            if (!resultado) return;
-            duenoVenderIntentarAgregarPorCodigo(resultado.getText());
-        });
+        duenoVenderControlesEscaneo = await iniciarLectorCodigosDueno(video, codigo => duenoVenderIntentarAgregarPorCodigo(codigo));
 
         estado.textContent = "Apunta la camara al codigo de barras.";
     } catch (error) {
@@ -3663,11 +3656,26 @@ async function duenoVenderIntentarAgregarPorCodigo(codigo) {
     const estado =
     document.getElementById("duenoVenderEscaneoEstado");
 
-    const resultados =
-    await buscarEnCatalogoLocal(codigoLimpio);
+    // Un UPC-A de 12 digitos y el mismo EAN-13 con un 0 delante son el mismo codigo; los guiones y las mayusculas no cuentan.
+    const claveCodigo = c => { const n = String(c || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase(); return /^\d+$/.test(n) ? n.replace(/^0+/, "") : n; };
+    const buscado = claveCodigo(codigoLimpio);
 
-    const coincidencias =
-    resultados.filter(p => p.codigo === codigoLimpio);
+    let resultados =
+    await buscarEnCatalogoLocal(/^\d+$/.test(buscado) ? buscado : codigoLimpio);
+
+    let coincidencias =
+    resultados.filter(p => claveCodigo(p.codigo) === buscado);
+
+    // No esta con ese codigo en el catalogo guardado: se pregunta al servidor, que tambien conoce los codigos alternos y de proveedor.
+    if (coincidencias.length === 0 && typeof buscarProductoPorCodigoDueno === "function") {
+        if (estado) estado.textContent = "Buscando " + codigoLimpio + "…";
+        const remoto = await buscarProductoPorCodigoDueno(codigoLimpio);
+
+        if (remoto) {
+            resultados = [remoto];
+            coincidencias = [remoto];
+        }
+    }
 
     if (coincidencias.length === 0) {
         if (estado) estado.textContent = `Sin coincidencia para "${codigoLimpio}". Sigue apuntando o escribe el nombre en Vender.`;

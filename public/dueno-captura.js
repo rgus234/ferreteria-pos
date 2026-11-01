@@ -171,11 +171,7 @@ async function capturaIniciarCamara() {
     }
 
     try {
-        const lector = new window.ZXingBrowser.BrowserMultiFormatReader();
-
-        capturaControles = await lector.decodeFromVideoDevice(undefined, document.getElementById("capturaVideo"), resultado => {
-            if (resultado) capturaDetectado(resultado.getText());
-        });
+        capturaControles = await iniciarLectorCodigosDueno(document.getElementById("capturaVideo"), codigo => capturaDetectado(codigo));
 
         estado.textContent = "Apunta la cámara al código de barras.";
     } catch (error) {

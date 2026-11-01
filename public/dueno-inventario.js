@@ -83,11 +83,8 @@ async function abrirEscanerCodigoDueno({ titulo = "Escanear", alCodigo, continuo
 
     try {
         const video = document.getElementById("duenoEscanerCodigoVideo");
-        const lector = new window.ZXingBrowser.BrowserMultiFormatReader();
-
-        duenoEscanerCodigoControles = await lector.decodeFromVideoDevice(undefined, video, resultado => {
-            if (resultado) procesarCodigoEscaneadoDueno(resultado.getText(), false);
-        });
+        // qr: true porque el mismo escaner sirve para enlazar el celular con el QR de la computadora
+        duenoEscanerCodigoControles = await iniciarLectorCodigosDueno(video, codigo => procesarCodigoEscaneadoDueno(codigo, false), { qr: true });
 
         estado.textContent = "Apunta la camara al codigo de barras.";
     } catch (error) {
