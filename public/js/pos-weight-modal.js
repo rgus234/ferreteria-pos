@@ -15,9 +15,19 @@ const ETIQUETAS_UNIDAD_DECIMAL_PESO = {
  litro: { pregunta: "litros", abrev: "L" }
 };
 
+// Cantidades que mas se piden de cada unidad: un toque las suma (1/2 + 1/2 = 1 kg) y se corrigen en el campo.
+const ATAJOS_PESO_POS = {
+ kg: [[0.25, "¼"], [0.5, "½"], [0.75, "¾"], [1, "1"], [2, "2"]],
+ gramo: [[100, "100"], [250, "250"], [500, "500"]],
+ litro: [[0.5, "½"], [1, "1"], [2, "2"]],
+ metro: [[1, "1"], [2, "2"], [5, "5"]]
+};
+
 async function pedirPesoPOS(producto) {
  const unidad =
  String(producto?.unidad_venta || producto?.unidadVenta || "kg").toLowerCase();
+
+ const atajosPeso = ATAJOS_PESO_POS[unidad === "kilo" ? "kg" : unidad] || [];
 
  const etiqueta =
  ETIQUETAS_UNIDAD_DECIMAL_PESO[unidad] || { pregunta: "cantidad", abrev: unidad };
@@ -106,6 +116,8 @@ async function pedirPesoPOS(producto) {
      <input type="number" step="0.001" min="0.001" id="modalPesoCantidad" placeholder="0.000" inputmode="decimal">
     </label>
 
+    ${atajosPeso.length ? `<div class="peso-pos-atajos" role="group" aria-label="Cantidades rapidas"><span>Toca para sumar</span>${atajosPeso.map(([valor, texto]) => `<button type="button" data-atajo="${valor}">${texto} ${etiqueta.abrev}</button>`).join("")}<button type="button" class="peso-pos-borrar" data-atajo="borrar">Borrar</button></div>` : ""}
+
     <p class="peso-pos-total" id="modalPesoTotal" style="visibility:hidden;"></p>
 
     <div class="modal-actions-row">
@@ -122,6 +134,20 @@ async function pedirPesoPOS(producto) {
      const accion = boton.dataset.accion;
      if (accion === "cancelar") cerrar(null);
      if (accion === "confirmar") confirmar();
+    };
+   });
+
+   modal.querySelectorAll("[data-atajo]").forEach(boton => {
+    boton.onclick = () => {
+     const campo = document.getElementById("modalPesoCantidad");
+     if (!campo) return;
+
+     if (boton.dataset.atajo === "borrar") cantidadTexto = "";
+     else cantidadTexto = String(Math.round(((Number(cantidadTexto) || 0) + Number(boton.dataset.atajo)) * 1000) / 1000);
+
+     campo.value = cantidadTexto;
+     actualizarTotal();
+     campo.focus();
     };
    });
 

@@ -45,7 +45,24 @@
   const ayuda = asegurarAyudaTipoProducto();
   if (!ayuda) return;
 
-  const info = tipoInfo[tipo || "catalogo"] || tipoInfo.catalogo;
+  let info = tipoInfo[tipo || "catalogo"] || tipoInfo.catalogo;
+  const esAbarrotes = typeof perfilEsSimple === "function" && perfilEsSimple();
+
+  // En abarrotes "granel" es la fruta, la verdura y lo que se vende por kilo: otro texto y la lista de frutas y verduras a un toque.
+  if (esAbarrotes && tipo === "granel") {
+   info = ["Venta por peso", "Frutas, verduras, granos o lo que se vende por kilo. Al cobrar, Nexo pregunta cuanto lleva y calcula el precio solo -- no hace falta bascula digital.", "Ideal para frutas, verduras, chiles, tortilla, frijol o arroz a granel."];
+  }
+
+  if (esAbarrotes) {
+   const tarjetaGranel = document.querySelector('[data-tipo-producto="granel"]');
+   if (tarjetaGranel) {
+    const nombreTarjeta = tarjetaGranel.querySelector("strong");
+    const detalleTarjeta = tarjetaGranel.querySelector("span");
+    if (nombreTarjeta) nombreTarjeta.textContent = "Por peso";
+    if (detalleTarjeta) detalleTarjeta.textContent = "Frutas, verduras y granel";
+   }
+  }
+
   ayuda.innerHTML =
    "<div><strong>" +
    seguro(info[0]) +
@@ -53,7 +70,10 @@
    seguro(info[1]) +
    "</span></div><small>" +
    seguro(info[2]) +
-   "</small>";
+   "</small>" +
+   (esAbarrotes && tipo === "granel" && typeof abrirPaqueteFrutasVerduras === "function"
+    ? '<button type="button" class="fv-boton-paquete" onclick="abrirPaqueteFrutasVerduras()">Elegir de la lista de frutas y verduras</button>'
+    : "");
  }
 
  const seleccionarBase = window.seleccionarTipoProducto;

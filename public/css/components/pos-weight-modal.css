@@ -112,3 +112,12 @@ body.oscuro .peso-pos-cantidad-label input {
   border-color: rgba(148, 163, 184, .2) !important;
   color: #f8fafc !important;
 }
+
+/* Atajos de cantidad (1/4, 1/2, 3/4, 1 kg...) */
+.peso-pos-atajos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 4px; }
+.peso-pos-atajos > span { flex: 0 0 100%; color: #64748b; font-size: 12px; font-weight: 700; }
+.peso-pos-atajos button { min-width: 64px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 12px; background: #dbeafe; color: #1d4ed8; font: inherit; font-size: 16px; font-weight: 800; cursor: pointer; }
+.peso-pos-atajos button:hover { background: #bfdbfe; }
+.peso-pos-atajos .peso-pos-borrar { background: #f1f5f9; color: #475569; font-size: 13px; }
+body.oscuro .peso-pos-atajos button { background: #1e2a44; color: #bfdbfe; }
+body.oscuro .peso-pos-atajos .peso-pos-borrar { background: #243148; color: #cbd5e1; }

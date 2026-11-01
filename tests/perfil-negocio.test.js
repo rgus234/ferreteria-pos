@@ -273,7 +273,7 @@ test("quien tiene ferreteria y abarrotes (ambos) recibe las herramientas de abar
 
     assert.match(leer("css/components/pedido-sugerido.css"), /body\.perfil-con-abarrotes \.sidebar \.solo-perfil-simple \{ display: flex; \}/);
     assert.match(leer("css/components/perfil-negocio.css"), /body:not\(\.perfil-con-abarrotes\) \.campo-vida-util/);
-    assert.match(leer("css/components/inicio-abarrotes.css"), /body\.perfil-simple:not\(\.perfil-ver-todo\) #pantallaInicio >/, "el tablero de ferreteria solo se esconde en el perfil simple");
+    assert.match(leer("css/components/inicio-abarrotes.css"), /body\.perfil-simple #pantallaInicio >/, "el tablero de ferreteria solo se esconde en el perfil simple (en el Inicio de abarrotes siempre: el menu completo sigue en Mas herramientas)");
     assert.match(leer("css/components/perfil-negocio.css"), /body\.perfil-simple:not\(\.perfil-ver-todo\) \.sidebar \[data-perfil-oculto="1"\]/, "el menu solo se recorta en el perfil simple");
 });
 

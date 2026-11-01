@@ -1,0 +1,47 @@
+/* Frutas y verduras (abarrotes): lista con foto para dar de alta de un jalon. Prefijo fv-. */
+.fv-modal { position: fixed; inset: 0; z-index: 9600; display: grid; place-items: center; padding: 20px; background: rgba(15, 23, 42, .55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.fv-caja { display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(1180px, 100%); height: min(780px, 100%); overflow: hidden; border-radius: 26px; background: var(--pos-card, #fff); color: var(--pos-text, #172033); box-shadow: 0 40px 100px rgba(0, 0, 0, .4); }
+.fv-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 26px 14px; border-bottom: 1px solid var(--pos-line, #e2e8f0); }
+.fv-cab h2 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
+.fv-cab p { margin: 4px 0 0; color: var(--pos-muted, #687386); font-weight: 600; font-size: 14px; }
+.fv-cerrar { width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--pos-surface, #eef2f8); color: inherit; font-size: 16px; cursor: pointer; }
+.fv-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
+.fv-izq { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 12px; min-height: 0; padding: 16px 20px 20px 26px; }
+.fv-buscar { min-height: 46px; padding: 0 16px; border: 2px solid var(--brand-color, #0d6efd); border-radius: 14px; background: var(--pos-card, #fff); color: inherit; font: inherit; font-size: 16px; font-weight: 600; }
+.fv-grupos { display: flex; flex-wrap: wrap; gap: 8px; }
+.fv-grupo { padding: 8px 16px; border: 1px solid var(--pos-line, #cbd5e1); border-radius: 999px; background: var(--pos-card, #fff); color: inherit; font: inherit; font-weight: 800; font-size: 13.5px; cursor: pointer; }
+.fv-grupo.activo { border-color: #0f172a; background: #0f172a; color: #fff; }
+.fv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 12px; align-content: start; min-height: 0; overflow-y: auto; padding: 4px 6px 6px 2px; }
+.fv-tarjeta { position: relative; display: grid; gap: 6px; justify-items: center; padding: 10px 8px 12px; border: 2px solid var(--pos-line, #e2e8f0); border-radius: 18px; background: var(--pos-card, #fff); color: inherit; font: inherit; cursor: pointer; transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease; }
+.fv-tarjeta:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(15, 23, 42, .1); }
+.fv-foto { display: grid; place-items: center; width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 12px; background: #fff; }
+.fv-foto img { width: 100%; height: 100%; object-fit: contain; }
+.fv-tarjeta b { font-size: 13.5px; line-height: 1.2; text-align: center; }
+.fv-tarjeta small { color: var(--pos-muted, #687386); font-weight: 700; font-size: 11.5px; }
+.fv-palomita { position: absolute; top: 8px; right: 8px; display: none; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #18b88f; color: #fff; font-size: 14px; font-weight: 900; box-shadow: 0 4px 10px rgba(24, 184, 143, .45); }
+.fv-tarjeta.elegida { border-color: #18b88f; background: #f0fdf7; }
+.fv-tarjeta.elegida .fv-palomita { display: grid; }
+.fv-tarjeta.ya { opacity: .5; cursor: default; }
+.fv-vacio { grid-column: 1 / -1; margin: 0; padding: 22px; border: 2px dashed var(--pos-line, #cbd5e1); border-radius: 16px; color: var(--pos-muted, #687386); font-weight: 600; text-align: center; }
+.fv-der { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 10px; min-height: 0; padding: 16px 22px 20px; border-left: 1px solid var(--pos-line, #e2e8f0); background: var(--pos-surface, #f6f8fb); }
+.fv-der h3 { margin: 0; font-size: 18px; }
+.fv-der h3 small { margin-left: 6px; color: var(--pos-muted, #687386); font-weight: 700; font-size: 13px; }
+.fv-lista { display: grid; gap: 8px; align-content: start; min-height: 0; overflow-y: auto; }
+.fv-fila { display: grid; grid-template-columns: 38px minmax(0, 1fr) 104px 24px; gap: 8px; align-items: center; padding: 6px 8px; border: 2px solid transparent; border-radius: 12px; background: var(--pos-card, #fff); }
+.fv-fila.falta { border-color: #f87171; background: #fef2f2; }
+.fv-fila img { width: 38px; height: 38px; border-radius: 8px; object-fit: contain; background: #fff; }
+.fv-fila b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+.fv-precio { display: flex; align-items: center; gap: 4px; font-weight: 800; }
+.fv-precio input { width: 100%; min-width: 0; height: 36px; border: 1px solid var(--pos-line, #cbd5e1); border-radius: 10px; background: var(--pos-card, #fff); color: inherit; font: inherit; font-weight: 800; text-align: right; padding: 0 8px; box-sizing: border-box; }
+.fv-quitar { border: 0; background: none; color: #94a3b8; cursor: pointer; font-size: 14px; }
+.fv-agregar { min-height: 52px; border: 0; border-radius: 16px; background: linear-gradient(135deg, #18b88f, #0f9d7a); color: #fff; font: inherit; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 12px 24px rgba(24, 184, 143, .3); }
+.fv-agregar:disabled { background: #cbd5e1; box-shadow: none; cursor: not-allowed; }
+.fv-nota { margin: 0; color: var(--pos-muted, #687386); font-weight: 600; font-size: 12px; line-height: 1.4; }
+.fv-boton-paquete { margin-top: 10px; padding: 10px 16px; border: 0; border-radius: 12px; background: #18b88f; color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+body.oscuro .fv-caja { background: #151f31; color: #f1f5f9; }
+body.oscuro .fv-tarjeta, body.oscuro .fv-fila, body.oscuro .fv-grupo, body.oscuro .fv-buscar, body.oscuro .fv-precio input { background: #1d293e; border-color: rgba(148, 163, 184, .25); color: #f1f5f9; }
+body.oscuro .fv-grupo.activo { background: #f1f5f9; color: #0f172a; }
+body.oscuro .fv-tarjeta.elegida { background: #0f3b2f; border-color: #18b88f; }
+body.oscuro .fv-der { background: #0f172a; border-color: rgba(148, 163, 184, .22); }
+body.oscuro .fv-foto, body.oscuro .fv-fila img { background: #fff; }
+@media (max-width: 900px) { .fv-cuerpo { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 40%); } .fv-der { border-left: 0; border-top: 1px solid var(--pos-line, #e2e8f0); } }
