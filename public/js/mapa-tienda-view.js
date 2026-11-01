@@ -2,7 +2,7 @@
 // Lugares (con sus productos), ¿Donde esta?, Resurtir de bodega y los Conteos que se hacen en el celular para aprobarlos o rechazarlos aqui.
 // Es una funcion nueva: solo aparece en el menu si el dueño la enciende en Nexo -> Funciones nuevas (funcionBeta("mapa_tienda")).
 (function () {
-    const mt = { tab: "lugares", lugares: [], resumen: null, elegido: null, productosLugar: [], busqueda: [], resurtir: null, conteos: null, conteo: null, cargando: false };
+    const mt = { tab: "lugares", lugares: [], resumen: null, elegido: null, productosLugar: [], busqueda: [], resurtir: null, conteos: null, conteo: null, cargando: false, escaneados: [], escLugar: null, cola: Promise.resolve(), temporizadorSuave: null, guardando: new Map() };
 
     const esc = valor => String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const numero = valor => Number(valor || 0).toLocaleString("es-MX", { maximumFractionDigits: 3 });
@@ -94,6 +94,10 @@
         return raices.map(l => fila(l, 0)).join("") || `<p class="mt-nota">Sin lugares en esta zona.</p>`;
     }
 
+    function htmlArbol() {
+        return `<button type="button" class="mt-btn principal mt-nuevo-suelto" onclick="mtNuevoSuelto()">＋ Nuevo lugar</button><h4>Tienda</h4>${arbol("tienda")}<h4>Bodega</h4>${arbol("bodega")}`;
+    }
+
     function htmlLugares() {
         if (!mt.lugares.length) {
             return `<div class="mt-vacio-grande"><h3>Todavía no tienes lugares</h3><p>Crea los pasillos y estantes de tu tienda de un toque con una plantilla (después los ajustas) o créalos uno por uno.</p>
@@ -102,7 +106,7 @@
         }
 
         return `<div class="mt-dos">
-            <aside class="mt-arbol"><h4>Tienda</h4>${arbol("tienda")}<h4>Bodega</h4>${arbol("bodega")}</aside>
+            <aside class="mt-arbol" id="mtArbol">${htmlArbol()}</aside>
             <section class="mt-detalle">${htmlDetalle()}</section>
         </div>`;
     }
@@ -154,21 +158,155 @@
         const aviso = document.getElementById("mtTipoAviso"); if (aviso) aviso.textContent = "";
     };
 
-    function htmlDetalle() {
-        const l = mt.elegido ? lugarPorId(mt.elegido) : null;
-        if (!l) return `${formNuevo()}<p class="mt-nota">Elige un lugar de la izquierda para ver sus productos.</p>`;
-
-        const filas = mt.productosLugar.map(p => `<tr><td><b>${esc(p.nombre)}</b><small>${esc(p.codigo || "")}</small></td><td>${esc(p.exhibido ? "Exhibición" : p.enBodega ? "Bodega" : "")}</td><td class="num">${numero(p.stock)}</td></tr>`).join("");
-
-        return `<div class="mt-detalle-cab"><div><h3>${esc(l.nombre)}</h3><small>${esc(l.ruta || "")} · código ${esc(l.codigo || "")}</small></div>
-                <div class="mt-acciones"><button type="button" class="mt-btn" onclick="mtRenombrar()">Renombrar</button><button type="button" class="mt-btn peligro" onclick="mtEliminar()">Eliminar</button></div></div>
-            ${formNuevo()}
-            <div class="mt-poner"><b>Poner productos aquí</b><input id="mtBuscarPoner" type="search" placeholder="Busca por nombre o código…" oninput="mtBuscarPoner(this.value)"><div id="mtResultadosPoner" class="mt-resultados"></div></div>
-            <h4>Productos en este lugar (${mt.productosLugar.length})</h4>
-            ${filas ? `<table class="mt-tabla"><thead><tr><th>Producto</th><th>Dónde</th><th class="num">Existencia</th></tr></thead><tbody>${filas}</tbody></table>` : `<p class="mt-nota">Todavía no hay productos aquí.</p>`}`;
+    function htmlTablaLugar() {
+        const filas = mt.productosLugar.map(p => `<tr><td class="mt-td-foto">${fotoLugar(p.imagenUrl)}</td><td><b>${esc(p.nombre)}</b><small>${esc(p.codigo || "")}</small></td><td>${esc(p.exhibido ? "Exhibición" : p.enBodega ? "Bodega" : "")}</td><td class="num">${numero(p.stock)}</td></tr>`).join("");
+        return `<h4>Productos en este lugar (${mt.productosLugar.length})</h4>
+            ${filas ? `<table class="mt-tabla"><thead><tr><th></th><th>Producto</th><th>Dónde</th><th class="num">Existencia</th></tr></thead><tbody>${filas}</tbody></table>` : `<p class="mt-nota">Todavía no hay productos aquí. Escanea el primero arriba.</p>`}`;
     }
 
-    window.mtElegir = async function (id) { mt.elegido = id; await cargarProductosLugar(); repintarCuerpo(); };
+    function fotoLugar(url) {
+        return url ? `<img src="${esc(url + (url.includes("?") ? "&" : "?") + "w=120")}" alt="" loading="lazy">` : `<span class="mt-sin-foto" aria-hidden="true">📦</span>`;
+    }
+
+    function htmlDetalle() {
+        const l = mt.elegido ? lugarPorId(mt.elegido) : null;
+        if (!l) return `${formNuevo()}<p class="mt-nota">Elige un lugar de la izquierda para acomodar productos en él.</p>`;
+
+        return `<div class="mt-detalle-cab"><div><button type="button" class="mt-volver" onclick="mtVolver()">← Todos los lugares</button><h3>${esc(l.nombre)}</h3><small>${esc(l.ruta || "")} · código ${esc(l.codigo || "")}</small></div>
+                <div class="mt-acciones"><button type="button" class="mt-btn" onclick="mtRenombrar()">Renombrar</button><button type="button" class="mt-btn peligro" onclick="mtEliminar()">Eliminar</button></div></div>
+
+            <section class="mt-escaner">
+                <div class="mt-escaner-cab"><div><b>Acomoda escaneando</b><small>Todo lo que escanees queda en “${esc(l.nombre)}”. Si estaba en otro lugar, lo muevo. Corrige el número si no coincide.</small></div>
+                    <button type="button" class="mt-btn mt-celular" onclick="if(window.abrirEscanerRemotoPOS)abrirEscanerRemotoPOS()">📱 Usar mi celular</button></div>
+                <input id="mtEscanear" class="mt-escaner-input" type="text" inputmode="none" autocomplete="off" placeholder="📷 Escanea el código de barras y presiona Enter…" onkeydown="if(event.key==='Enter'){event.preventDefault();mtEscanear(this.value)}">
+                <p id="mtEscAviso" class="mt-esc-aviso" role="status"></p>
+                <div id="mtEscLista" class="mt-esc-lista">${htmlEscLista()}</div>
+            </section>
+
+            <details class="mt-sub"><summary>＋ Crear un lugar dentro de “${esc(l.nombre)}” (por ejemplo niveles o filas)</summary>${formNuevo()}</details>
+            <details class="mt-sub"><summary>Buscar por nombre para ponerlo aquí</summary>
+                <div class="mt-poner"><input id="mtBuscarPoner" type="search" placeholder="Busca por nombre o código…" oninput="mtBuscarPoner(this.value)"><div id="mtResultadosPoner" class="mt-resultados"></div></div></details>
+            <div id="mtTablaLugar">${htmlTablaLugar()}</div>`;
+    }
+
+    // ---------- Acomodar escaneando ----------
+
+    function filaEsc(r) {
+        const etiqueta = r.accion === "movido" ? `↪ Estaba en ${esc(r.desde || "otro lugar")} · lo moví aquí` : r.accion === "ya_estaba" ? "Ya estaba aquí" : "✓ Puesto en este lugar";
+        const clase = r.accion === "movido" ? "mov" : r.accion === "ya_estaba" ? "ya" : "ok";
+        const unidad = r.unidadVenta ? ` · ${esc(r.unidadVenta)}` : "";
+        return `<article class="mt-esc-fila ${clase}" data-id="${r.id}">
+            <div class="mt-esc-foto">${fotoLugar(r.imagenUrl)}</div>
+            <div class="mt-esc-info"><b>${esc(r.nombre)}</b><small>${esc(r.codigo || "")}</small><span class="mt-esc-badge ${clase}">${etiqueta}</span></div>
+            <div class="mt-esc-num"><small>Hay aquí${unidad}</small>
+                <div class="mt-esc-contador"><button type="button" onclick="mtCorregirDelta(${r.id}, -1)" aria-label="Quitar uno">−</button><input type="number" min="0" step="any" inputmode="decimal" value="${r.aqui}" onchange="mtCorregir(${r.id}, this.value)" aria-label="Cuántos hay"><button type="button" onclick="mtCorregirDelta(${r.id}, 1)" aria-label="Agregar uno">+</button></div>
+                <em class="mt-esc-guardado" id="mtEscOk${r.id}">${r.mensaje ? esc(r.mensaje) : (r.bodega > 0 ? `Total ${numero(r.total)} (bodega ${numero(r.bodega)})` : "")}</em></div>
+        </article>`;
+    }
+
+    function htmlEscLista() {
+        return mt.escaneados.length ? mt.escaneados.map(filaEsc).join("") : `<p class="mt-esc-vacio">Aquí irán saliendo los productos que escanees, con su foto y cuántos hay.</p>`;
+    }
+
+    function pintarEscLista() { const c = document.getElementById("mtEscLista"); if (c) c.innerHTML = htmlEscLista(); }
+    function avisoEscaneo(texto, error) { const a = document.getElementById("mtEscAviso"); if (a) { a.textContent = texto || ""; a.classList.toggle("error", Boolean(error)); } }
+
+    function pitidoMapa(bien) {
+        try {
+            const ctx = pitidoMapa.ctx || (pitidoMapa.ctx = new (window.AudioContext || window.webkitAudioContext)());
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.frequency.value = bien ? 880 : 220; g.gain.value = 0.08;
+            o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + (bien ? 0.07 : 0.22));
+        } catch (error) { /* sin audio: no pasa nada */ }
+    }
+
+    // Despues de escanear se refrescan solo la lista de productos del lugar y los numeros del arbol, sin mover lo que estas haciendo.
+    function refrescarSuave() {
+        clearTimeout(mt.temporizadorSuave);
+        mt.temporizadorSuave = setTimeout(async () => {
+            if (!mt.elegido) return;
+            await cargarGeneral();
+            await cargarProductosLugar();
+            const a = document.getElementById("mtArbol"); if (a) a.innerHTML = htmlArbol();
+            const t = document.getElementById("mtTablaLugar"); if (t) t.innerHTML = htmlTablaLugar();
+        }, 1200);
+    }
+
+    window.mtEscanear = function (texto) {
+        const codigo = String(texto || "").trim();
+        const campo = document.getElementById("mtEscanear");
+        if (campo) { campo.value = ""; campo.focus(); }
+        if (!codigo || !mt.elegido) return;
+        const lugarId = mt.elegido;
+
+        // en fila: si escaneas muy rapido, cada codigo espera su turno y salen en orden
+        mt.cola = mt.cola.then(async () => {
+            const r = await llamar(`/ubicaciones/${lugarId}/escaneo`, { method: "POST", body: JSON.stringify({ codigo }) });
+            if (mt.elegido !== lugarId) return;
+
+            if (!r.ok) { pitidoMapa(false); avisoEscaneo(r.datos.noEncontrado ? `El código ${codigo} no está en tu catálogo. Si es un producto nuevo, agrégalo primero en Inventario.` : (r.datos.error || "No se pudo acomodar."), true); return; }
+
+            const fila = { ...r.datos.producto, accion: r.datos.accion, desde: r.datos.desde };
+            mt.escaneados = [fila, ...mt.escaneados.filter(x => x.id !== fila.id)].slice(0, 80);
+            pitidoMapa(true);
+            avisoEscaneo("");
+            pintarEscLista();
+            refrescarSuave();
+        }).catch(() => avisoEscaneo("No se pudo acomodar. Revisa tu conexión.", true));
+    };
+
+    // Lo que manda el celular-escaner: se trata igual que la pistola. Devuelve true si lo recibio esta pantalla.
+    window.mtRecibirCodigo = function (codigo) {
+        if (!mt.elegido || !document.getElementById("mtEscanear")) return false;
+        window.mtEscanear(codigo);
+        return true;
+    };
+
+    // Corregir el numero ahi mismo ajusta el stock (mismo conteo que usa el celular, deja registro de quien y cuando).
+    window.mtCorregir = async function (productoId, valor) {
+        const fila = mt.escaneados.find(x => x.id === productoId);
+        const n = Number(valor);
+        if (!fila || !Number.isFinite(n) || n < 0) { pintarEscLista(); return; }
+        if (n === fila.aqui) return;
+
+        const marca = document.getElementById(`mtEscOk${productoId}`);
+        if (marca) marca.textContent = "Guardando…";
+
+        const r = await llamar(`/ubicaciones/${mt.elegido}/conteo`, { method: "POST", body: JSON.stringify({ conteos: [{ productoId, cantidad: n }], aplicar: true }) });
+
+        if (!r.ok) { aviso(r.datos.error || "No se pudo corregir.", "error"); fila.mensaje = ""; pintarEscLista(); return; }
+
+        const antes = fila.aqui;
+        fila.total = Math.max(0, Math.round((fila.total + (n - antes)) * 1000) / 1000);
+        fila.aqui = n;
+        fila.mensaje = `✓ Stock corregido: ${numero(antes)} → ${numero(n)}`;
+        pintarEscLista();
+        refrescarSuave();
+    };
+
+    window.mtCorregirDelta = function (productoId, delta) {
+        const fila = mt.escaneados.find(x => x.id === productoId);
+        if (!fila) return;
+        const n = Math.max(0, Math.round((fila.aqui + delta) * 1000) / 1000);
+        window.mtCorregir(productoId, n);
+    };
+
+    window.mtVolver = function () { mt.elegido = null; mt.escaneados = []; mt.escLugar = null; repintarCuerpo(); };
+
+    // Crear un lugar suelto (que no este dentro del que tienes abierto).
+    window.mtNuevoSuelto = function () {
+        mt.elegido = null; mt.escaneados = []; mt.escLugar = null;
+        repintarCuerpo();
+        const c = document.getElementById("mtNombre"); if (c) { c.scrollIntoView({ block: "center", behavior: "smooth" }); c.focus(); }
+    };
+
+    window.mtElegir = async function (id) {
+        if (mt.escLugar !== id) { mt.escaneados = []; mt.escLugar = id; }
+        mt.elegido = id;
+        await cargarProductosLugar();
+        repintarCuerpo();
+        const c = document.getElementById("mtEscanear"); if (c) c.focus();
+    };
 
     window.mtPlantilla = async function (tipo) {
         const r = await llamar("/ubicaciones/plantilla", { method: "POST", body: JSON.stringify({ tipo }) });

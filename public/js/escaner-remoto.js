@@ -82,6 +82,9 @@
   pitido();
   pintarEstado();
 
+  const mapa = document.getElementById("pantallaMapaTienda");
+  if (mapa && mapa.style.display !== "none" && typeof window.mtRecibirCodigo === "function" && window.mtRecibirCodigo(codigo)) return;
+
   const recibir = document.getElementById("pantallaRecibirMarca");
   if (recibir && recibir.style.display !== "none" && typeof window.rmEscanear === "function" && !document.querySelector('.modal-overlay[style*="flex"], .modal-personalizado[style*="flex"], .modal-form-credito[style*="flex"]')) {
    window.rmEscanear(codigo);

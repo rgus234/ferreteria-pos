@@ -171,3 +171,35 @@ test("panel, mostrador y vitrina son tipos de lugar validos con su propio codigo
     const raro = await crear(A, { nombre: "Algo raro", tipo: "inventado", zona: "tienda" });
     assert.equal(raro.cuerpo.ubicacion.tipo, "estante");
 });
+
+test("escaneo rapido: pone el producto en el lugar, lo mueve si estaba en otro, avisa si el codigo no existe y la correccion ajusta el stock", async () => {
+    const codigo = (await pool.query(`SELECT codigo FROM public.productos WHERE id = $1`, [broca.id])).rows[0].codigo;
+    const panel1 = (await crear(A, { nombre: "Panel A", tipo: "panel", zona: "tienda" })).cuerpo.ubicacion;
+    const panel2 = (await crear(A, { nombre: "Panel B", tipo: "panel", zona: "tienda" })).cuerpo.ubicacion;
+    const escanear = (lugar, c) => llamar(A, `/ubicaciones/${lugar.id}/escaneo`, { method: "POST", body: JSON.stringify({ codigo: c }) });
+
+    const primera = await escanear(panel1, codigo);
+    assert.equal(primera.status, 200, JSON.stringify(primera.cuerpo));
+    assert.equal(primera.cuerpo.accion, "puesto");
+    assert.equal(primera.cuerpo.producto.id, broca.id);
+    assert.equal(primera.cuerpo.producto.aqui, 10, "dice cuanto hay (todo en exhibicion)");
+
+    // con guiones y minusculas tambien lo reconoce, y si ya estaba aqui no lo mueve
+    const repetida = await escanear(panel1, codigo.toLowerCase().replace(/(.{4})/, "$1-"));
+    assert.equal(repetida.cuerpo.accion, "ya_estaba");
+
+    const movida = await escanear(panel2, codigo);
+    assert.equal(movida.cuerpo.accion, "movido");
+    assert.match(movida.cuerpo.desde, /Panel A/);
+    assert.equal((await pool.query(`SELECT ubicacion_id FROM public.productos WHERE id = $1`, [broca.id])).rows[0].ubicacion_id, panel2.id);
+
+    const raro = await escanear(panel2, "NO-EXISTE-123");
+    assert.equal(raro.status, 404);
+    assert.equal(raro.cuerpo.noEncontrado, true);
+
+    // corregir el numero ahi mismo ajusta el stock y deja registro
+    const conteo = await llamar(A, `/ubicaciones/${panel2.id}/conteo`, { method: "POST", body: JSON.stringify({ conteos: [{ productoId: broca.id, cantidad: 7 }], aplicar: true }) });
+    assert.equal(conteo.status, 200, JSON.stringify(conteo.cuerpo));
+    assert.equal(Number((await pool.query(`SELECT stock FROM public.productos WHERE id = $1`, [broca.id])).rows[0].stock), 7);
+    assert.ok(Number((await pool.query(`SELECT COUNT(*) AS n FROM public.ajustes_inventario WHERE negocio_id = $1 AND producto_id = $2 AND tipo = 'conteo'`, [A.negocioId, broca.id])).rows[0].n) >= 1);
+});

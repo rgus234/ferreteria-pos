@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const { responderError } = require("./error-utils");
 const { PERMISOS, requerirPermiso } = require("./rbac");
 const { agregarFotos } = require("./fotos-lugar");
+const { desglose } = require("./existencias-lugar-server");
 
 const ZONAS = { tienda: "Tienda", bodega: "Bodega" };
 const TIPOS = ["pasillo", "seccion", "estante", "rack", "nivel", "panel", "mostrador", "vitrina"];
@@ -364,6 +365,88 @@ function instalar(app, pool, requerirAccesoNegocio, firmarTokenImagen) {
         }
     });
 
+    // Escaneo rapido: lee el codigo, pone el producto en este lugar (si estaba en otro lo mueve) y dice cuanto hay. Una llamada por escaneo.
+    app.post("/ubicaciones/:id/escaneo", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
+        try {
+            const id = negocioId(req);
+            const ubicacionId = Number(req.params.id);
+            const codigo = String(req.body?.codigo || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+            if (!codigo) { res.status(400).json({ ok: false, error: "No llegó ningún código." }); return; }
+
+            const { porId } = await todas(pool, id);
+            const lugar = porId.get(ubicacionId);
+
+            if (!lugar) { res.status(404).json({ ok: false, error: "Ese lugar no existe." }); return; }
+
+            const p = (await pool.query(
+                `SELECT p.id, p.nombre, p.codigo, p.stock, p.unidad_venta, p.ubicacion_id, p.ubicacion_bodega_id,
+                        (SELECT COALESCE(SUM(pu.cantidad), 0) FROM public.producto_ubicaciones pu JOIN public.ubicaciones ub ON ub.id = pu.ubicacion_id AND ub.zona = 'bodega' WHERE pu.producto_id = p.id) AS bodega_total,
+                        (SELECT cantidad FROM public.producto_ubicaciones WHERE producto_id = p.id AND ubicacion_id = $3) AS cantidad_lugar
+                 FROM public.productos p
+                 WHERE p.negocio_id = $1
+                   AND (UPPER(regexp_replace(COALESCE(p.codigo, ''), '[^A-Za-z0-9]', '', 'g')) = $2
+                        OR EXISTS (SELECT 1 FROM public.producto_codigos pc WHERE pc.producto_id = p.id AND pc.negocio_id = p.negocio_id AND UPPER(regexp_replace(COALESCE(pc.codigo, ''), '[^A-Za-z0-9]', '', 'g')) = $2))
+                 ORDER BY p.id LIMIT 1`,
+                [id, codigo, ubicacionId]
+            )).rows[0];
+
+            if (!p) { res.status(404).json({ ok: false, noEncontrado: true, error: "Ese código no está en tu catálogo." }); return; }
+
+            const columna = lugar.zona === "bodega" ? ROLES.bodega : ROLES.exhibicion;
+            const anteriorId = p[columna] || null;
+            const yaEstaba = anteriorId === ubicacionId;
+            const anterior = anteriorId && !yaEstaba ? porId.get(anteriorId) : null;
+
+            if (!yaEstaba) await acomodar(req, id, lugar, porId, [p.id], columna);
+
+            const d = desglose(p.stock, p.bodega_total);
+            const [conFoto] = await agregarFotos(pool, id, [{ codigo: p.codigo }], firmarTokenImagen);
+
+            res.json({
+                ok: true,
+                accion: yaEstaba ? "ya_estaba" : (anterior ? "movido" : "puesto"),
+                desde: anterior ? rutaDe(anterior, porId) : "",
+                producto: {
+                    id: p.id, nombre: p.nombre, codigo: p.codigo, unidadVenta: p.unidad_venta, imagenUrl: conFoto?.imagenUrl || null,
+                    total: d.total, bodega: d.bodega,
+                    aqui: lugar.zona === "bodega" ? Number(p.cantidad_lugar) || 0 : d.exhibicion
+                }
+            });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Pone productos en un lugar y registra en la bitacora cada movimiento (de donde a donde). Lo usan /asignar y el escaneo rapido.
+    async function acomodar(req, id, lugar, porId, ids, columna) {
+        const ubicacionId = lugar.id;
+        const antes = (await pool.query(`SELECT id, nombre, ${columna} AS lugar_anterior FROM public.productos WHERE negocio_id = $1 AND id = ANY($2)`, [id, ids])).rows;
+        const r = await pool.query(`UPDATE public.productos SET ${columna} = $3 WHERE negocio_id = $1 AND id = ANY($2) RETURNING id`, [id, ids, ubicacionId]);
+
+        await sincronizarTextos(pool, id, r.rows.map(f => f.id));
+
+        const empleadoId = Number(req.headers["x-empleado-id"]) || null;
+        const movidos = [];
+
+        for (const p of antes) {
+            if (p.lugar_anterior === ubicacionId) continue;
+
+            const anterior = p.lugar_anterior ? porId.get(p.lugar_anterior) : null;
+            const detalle = { productoId: p.id, producto: p.nombre, rol: columna === ROLES.bodega ? "bodega" : "exhibicion", desdeId: p.lugar_anterior || null, desde: anterior ? rutaDe(anterior, porId) : "", haciaId: ubicacionId, hacia: rutaDe(lugar, porId) };
+
+            if (anterior) movidos.push(detalle);
+
+            try {
+                await pool.query(`INSERT INTO public.bitacora_acciones (negocio_id, empleado_id, accion, detalle) VALUES ($1, $2, $3, $4::jsonb)`, [id, empleadoId, anterior ? "producto_movido" : "producto_acomodado", JSON.stringify(detalle)]);
+            } catch (error) {
+                // La bitacora nunca debe tumbar la operacion real que registra.
+            }
+        }
+
+        return { asignados: r.rowCount, movidos };
+    }
+
     // Pone varios productos en un lugar como exhibicion o como bodega (acomodo, alta y conteo con "contexto de estante").
     app.post("/ubicaciones/:id/asignar", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
         try {
@@ -379,31 +462,9 @@ function instalar(app, pool, requerirAccesoNegocio, firmarTokenImagen) {
 
             // En la tienda va como exhibicion y en la bodega como bodega, salvo que se pida otra cosa explicitamente.
             const columna = ROLES[rol] || (lugar.zona === "bodega" ? ROLES.bodega : ROLES.exhibicion);
-            // Lo que tenian antes: si ya estaban en OTRO lugar es un movimiento y queda registrado (quien, cuando, de donde a donde).
-            const antes = (await pool.query(`SELECT id, nombre, ${columna} AS lugar_anterior FROM public.productos WHERE negocio_id = $1 AND id = ANY($2)`, [id, ids])).rows;
-            const r = await pool.query(`UPDATE public.productos SET ${columna} = $3 WHERE negocio_id = $1 AND id = ANY($2) RETURNING id`, [id, ids, ubicacionId]);
+            const { asignados, movidos } = await acomodar(req, id, lugar, porId, ids, columna);
 
-            await sincronizarTextos(pool, id, r.rows.map(f => f.id));
-
-            const empleadoId = Number(req.headers["x-empleado-id"]) || null;
-            const movidos = [];
-
-            for (const p of antes) {
-                if (p.lugar_anterior === ubicacionId) continue;
-
-                const anterior = p.lugar_anterior ? porId.get(p.lugar_anterior) : null;
-                const detalle = { productoId: p.id, producto: p.nombre, rol: columna === ROLES.bodega ? "bodega" : "exhibicion", desdeId: p.lugar_anterior || null, desde: anterior ? rutaDe(anterior, porId) : "", haciaId: ubicacionId, hacia: rutaDe(lugar, porId) };
-
-                if (anterior) movidos.push(detalle);
-
-                try {
-                    await pool.query(`INSERT INTO public.bitacora_acciones (negocio_id, empleado_id, accion, detalle) VALUES ($1, $2, $3, $4::jsonb)`, [id, empleadoId, anterior ? "producto_movido" : "producto_acomodado", JSON.stringify(detalle)]);
-                } catch (error) {
-                    // La bitacora nunca debe tumbar la operacion real que registra.
-                }
-            }
-
-            res.json({ ok: true, asignados: r.rowCount, movidos: movidos.length });
+            res.json({ ok: true, asignados, movidos: movidos.length });
         } catch (error) {
             responderError(res, error);
         }
