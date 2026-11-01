@@ -8,7 +8,7 @@ const { PERMISOS, requerirPermiso } = require("./rbac");
 const { agregarFotos } = require("./fotos-lugar");
 
 const ZONAS = { tienda: "Tienda", bodega: "Bodega" };
-const TIPOS = ["pasillo", "seccion", "estante", "rack", "nivel"];
+const TIPOS = ["pasillo", "seccion", "estante", "rack", "nivel", "panel", "mostrador", "vitrina"];
 const ROLES = { exhibicion: "ubicacion_id", bodega: "ubicacion_bodega_id" };
 
 // Codigo con prefijo propio para que nunca se confunda con el de un producto ("UB-7K3Q9X").
@@ -20,7 +20,7 @@ function nuevoCodigo() {
 
 // Codigo que se lee: P-01 (pasillo), P-01-E-03 (estante), P-01-E-03-N-02 (nivel); en la bodega B-S-01 (seccion) y B-S-01-R-02 (rack).
 // Se hereda el codigo del lugar de arriba y NO cambia si despues se renombra o se mueve: la identidad es el codigo.
-const LETRAS = { pasillo: "P", seccion: "S", estante: "E", rack: "R", nivel: "N" };
+const LETRAS = { pasillo: "P", seccion: "S", estante: "E", rack: "R", nivel: "N", panel: "PN", mostrador: "MO", vitrina: "VI" };
 
 function codigoLegible(tipo, zona, codigoPadre, numero) {
     const parte = `${LETRAS[tipo] || "X"}-${String(numero).padStart(2, "0")}`;
@@ -101,7 +101,22 @@ async function generarPdfEtiquetasUbicacion(lugares) {
     return fin;
 }
 
+// Amplia (sin tocar lo que ya hay) la regla de la base que limita los tipos de lugar. Se repite al arrancar para que no importe el orden en que se despliegue.
+const SQL_AMPLIAR_TIPOS = `DO $$
+DECLARE c RECORD;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.ubicaciones'::regclass AND conname = 'ubicaciones_tipo_check_v2') THEN
+        FOR c IN SELECT conname FROM pg_constraint WHERE conrelid = 'public.ubicaciones'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) ILIKE '%tipo%' LOOP
+            EXECUTE format('ALTER TABLE public.ubicaciones DROP CONSTRAINT %I', c.conname);
+        END LOOP;
+        ALTER TABLE public.ubicaciones ADD CONSTRAINT ubicaciones_tipo_check_v2
+            CHECK (tipo IN ('pasillo', 'seccion', 'estante', 'rack', 'nivel', 'panel', 'mostrador', 'vitrina'));
+    END IF;
+END $$;`;
+
 function instalar(app, pool, requerirAccesoNegocio, firmarTokenImagen) {
+    pool.query(SQL_AMPLIAR_TIPOS).catch(error => console.warn("[ubicaciones] No se pudieron ampliar los tipos de lugar:", error.message));
+
     function negocioId(req) {
         const id = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
 

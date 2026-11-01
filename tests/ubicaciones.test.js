@@ -154,3 +154,20 @@ test("la plantilla Abarrotes crea los lugares tipicos con codigo legible y no du
     assert.equal((await llamar(B, "/ubicaciones/plantilla", { method: "POST", body: JSON.stringify({ tipo: "abarrotes" }) })).cuerpo.creados, 0, "repetirla no duplica");
     assert.equal((await llamar(B, "/ubicaciones/plantilla", { method: "POST", body: JSON.stringify({ tipo: "inexistente" }) })).status, 400);
 });
+
+test("panel, mostrador y vitrina son tipos de lugar validos con su propio codigo, y un tipo inventado cae en estante", async () => {
+    assert.equal(codigoLegible("panel", "tienda", "", 1), "PN-01");
+    assert.equal(codigoLegible("mostrador", "tienda", "", 2), "MO-02");
+    assert.equal(codigoLegible("vitrina", "tienda", "", 1), "VI-01");
+
+    const panel = await crear(A, { nombre: "Panel 1", tipo: "panel", zona: "tienda" });
+    assert.equal(panel.status, 201, JSON.stringify(panel.cuerpo));
+    assert.equal(panel.cuerpo.ubicacion.tipo, "panel");
+    assert.equal(panel.cuerpo.ubicacion.codigo, "PN-01");
+
+    const mostrador = await crear(A, { nombre: "Mostrador", tipo: "mostrador", zona: "tienda" });
+    assert.equal(mostrador.cuerpo.ubicacion.codigo, "MO-01");
+
+    const raro = await crear(A, { nombre: "Algo raro", tipo: "inventado", zona: "tienda" });
+    assert.equal(raro.cuerpo.ubicacion.tipo, "estante");
+});

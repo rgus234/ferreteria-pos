@@ -87,3 +87,22 @@
 .fb-nota { min-height: 18px; margin: 0; color: var(--pos-muted, #687386); font-weight: 700; font-size: 13px; }
 
 @media (max-width: 900px) { .mt-dos { grid-template-columns: 1fr; } }
+
+/* Nuevo lugar: pasos claros y tipos con dibujo y frase */
+.mt-nuevo-tipos { display: grid; gap: 14px; align-items: stretch; }
+.mt-paso { display: grid; gap: 6px; margin: 0; }
+.mt-paso > span { font-weight: 800; font-size: 13.5px; }
+.mt-paso small { color: var(--pos-muted, #687386); font-weight: 600; font-size: 12px; }
+.mt-nuevo-tipos .mt-paso input, .mt-nuevo-tipos .mt-paso select { width: 100%; min-height: 44px; font-size: 15px; box-sizing: border-box; }
+.mt-tipos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.mt-tipo { display: grid; justify-items: start; gap: 2px; padding: 12px; border: 2px solid var(--pos-line, #dbe3ef); border-radius: 16px; background: var(--pos-card, #fff); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background .15s, transform .15s; }
+.mt-tipo:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--brand-color, #0d6efd) 50%, transparent); }
+.mt-tipo svg { color: var(--brand-color, #0d6efd); margin-bottom: 4px; }
+.mt-tipo b { font-size: 14px; }
+.mt-tipo small { color: var(--pos-muted, #687386); font-weight: 600; font-size: 12px; line-height: 1.3; }
+.mt-tipo.activo { border-color: var(--brand-color, #0d6efd); background: color-mix(in srgb, var(--brand-color, #0d6efd) 9%, var(--pos-card, #fff)); box-shadow: 0 6px 16px color-mix(in srgb, var(--brand-color, #0d6efd) 18%, transparent); }
+body.oscuro .mt-tipo { background: #151f31; border-color: rgba(148, 163, 184, .25); }
+body.oscuro .mt-tipo.activo { background: #1b2a4a; border-color: var(--brand-color, #60a5fa); }
+.mt-nuevo-tipos { width: min(780px, 100%); box-sizing: border-box; text-align: left; margin-left: auto; margin-right: auto; }
+.mt-nuevo-tipos > b { text-align: left; }
+.mt-tipos { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }

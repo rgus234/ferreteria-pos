@@ -107,15 +107,52 @@
         </div>`;
     }
 
+    // Tipos de lugar: cada uno con su dibujo y una frase que dice para que sirve.
+    const TIPOS_LUGAR = [
+        ["panel", "Panel", "Pared o tablero con ganchos", "M4 4h16v16H4zM4 9h16M4 14h16M8 6.5v.01M12 11.5v.01M16 16.5v.01"],
+        ["estante", "Estante", "Repisas con productos", "M4 3h16v18H4zM4 9h16M4 15h16"],
+        ["pasillo", "Pasillo", "El camino entre estantes", "M6 21 9 3M18 21 15 3M12 5v3M12 11v3M12 17v3"],
+        ["mostrador", "Mostrador", "Donde cobras y atiendes", "M3 9h18l-1.5 3H4.5zM5 12v8h14v-8"],
+        ["vitrina", "Vitrina", "Escaparate o mueble con vidrio", "M5 3h14v18H5zM5 8h14M9 12v6M15 12v6"],
+        ["nivel", "Nivel", "Un piso dentro de un estante", "M3 8h18M3 16h18"],
+        ["seccion", "Sección", "Una zona grande de la bodega", "M3 21V8l9-5 9 5v13M8 21v-7h8v7"],
+        ["rack", "Rack", "Estructura alta de bodega", "M4 4v17M20 4v17M4 9h16M4 15h16M4 21h16"]
+    ];
+    const ADIVINAR_TIPO = [[/panel|tablero|ganch|pared/i, "panel"], [/pasillo/i, "pasillo"], [/mostrador|caja/i, "mostrador"], [/vitrina|aparador|escaparate|vidrio/i, "vitrina"], [/rack/i, "rack"], [/secci[oó]n|zona/i, "seccion"], [/nivel|piso|repisa/i, "nivel"], [/estante|anaquel/i, "estante"]];
+
     function formNuevo() {
         const padre = mt.elegido ? lugarPorId(mt.elegido) : null;
-        return `<form class="mt-nuevo" onsubmit="return mtCrear(event)">
+        const tipoActual = mt.tipoNuevo || "estante";
+        const botones = TIPOS_LUGAR.map(([clave, nombre, frase, dibujo]) => `<button type="button" class="mt-tipo${tipoActual === clave ? " activo" : ""}" data-tipo="${clave}" onclick="mtElegirTipo('${clave}')" aria-pressed="${tipoActual === clave}">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${dibujo}"/></svg>
+                <b>${nombre}</b><small>${frase}</small></button>`).join("");
+
+        return `<form class="mt-nuevo mt-nuevo-tipos" onsubmit="return mtCrear(event)">
             <b>${padre ? `Nuevo lugar dentro de “${esc(padre.nombre)}”` : "Nuevo lugar"}</b>
-            <input id="mtNombre" type="text" placeholder="Ej. Pasillo 1 o Estante 2" maxlength="80" required>
-            <select id="mtTipo"><option value="estante">Estante</option><option value="pasillo">Pasillo</option><option value="nivel">Nivel</option><option value="seccion">Sección</option><option value="rack">Rack</option></select>
-            ${padre ? "" : `<select id="mtZona"><option value="tienda">Tienda</option><option value="bodega">Bodega</option></select>`}
-            <button type="submit" class="mt-btn principal">Crear</button></form>`;
+            <label class="mt-paso"><span>1 · ¿Cómo se llama?</span><input id="mtNombre" type="text" placeholder="Ej. Panel 1, Pasillo 2, Mostrador" maxlength="80" required oninput="mtAdivinarTipo(this.value)"></label>
+            <div class="mt-paso"><span>2 · ¿Qué es? <small id="mtTipoAviso"></small></span><div class="mt-tipos">${botones}</div><input id="mtTipo" type="hidden" value="${tipoActual}"></div>
+            ${padre ? "" : `<label class="mt-paso"><span>3 · ¿Dónde está?</span><select id="mtZona"><option value="tienda">Tienda · donde vendes</option><option value="bodega">Bodega · donde guardas</option></select></label>`}
+            <button type="submit" class="mt-btn principal">Crear lugar</button></form>`;
     }
+
+    // Si el nombre dice "Panel 1", el tipo se elige solo (salvo que ya lo hayas elegido tú).
+    window.mtAdivinarTipo = function (texto) {
+        if (mt.tipoManual) return;
+        const hallado = ADIVINAR_TIPO.find(([patron]) => patron.test(texto));
+        if (!hallado) return;
+        mt.tipoNuevo = hallado[1];
+        document.querySelectorAll(".mt-tipo").forEach(b => { const on = b.dataset.tipo === mt.tipoNuevo; b.classList.toggle("activo", on); b.setAttribute("aria-pressed", String(on)); });
+        const oculto = document.getElementById("mtTipo"); if (oculto) oculto.value = mt.tipoNuevo;
+        const aviso = document.getElementById("mtTipoAviso"); if (aviso) aviso.textContent = "(lo elegí por el nombre, cámbialo si no es)";
+    };
+
+    window.mtElegirTipo = function (tipo) {
+        mt.tipoManual = true;
+        mt.tipoNuevo = tipo;
+        document.querySelectorAll(".mt-tipo").forEach(b => { const on = b.dataset.tipo === tipo; b.classList.toggle("activo", on); b.setAttribute("aria-pressed", String(on)); });
+        const oculto = document.getElementById("mtTipo"); if (oculto) oculto.value = tipo;
+        const aviso = document.getElementById("mtTipoAviso"); if (aviso) aviso.textContent = "";
+    };
 
     function htmlDetalle() {
         const l = mt.elegido ? lugarPorId(mt.elegido) : null;
@@ -148,6 +185,7 @@
         const r = await llamar("/ubicaciones", { method: "POST", body: JSON.stringify(cuerpoPeticion) });
         if (!r.ok) { aviso(r.datos.error || "No se pudo crear el lugar.", "error"); return false; }
         aviso("Lugar creado.");
+        mt.tipoManual = false; mt.tipoNuevo = "";
         await cargarGeneral();
         pintar();
         return false;

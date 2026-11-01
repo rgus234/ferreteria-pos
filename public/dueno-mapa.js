@@ -4,7 +4,7 @@
    Usa /ubicaciones, /resurtir y /ubicaciones/* (ubicaciones-server.js, existencias-lugar-server.js). */
 
 (function () {
-    const TIPOS_TIENDA = [["pasillo", "Pasillo"], ["estante", "Estante"], ["nivel", "Nivel"]];
+    const TIPOS_TIENDA = [["panel", "Panel · pared con ganchos"], ["estante", "Estante · repisas"], ["pasillo", "Pasillo"], ["mostrador", "Mostrador"], ["vitrina", "Vitrina"], ["nivel", "Nivel · un piso del estante"]];
     const TIPOS_BODEGA = [["seccion", "Sección"], ["rack", "Rack"], ["nivel", "Nivel"]];
 
     const I = {
@@ -22,6 +22,9 @@
         seccion: `<path d="M3 21V8l9-5 9 5v13"/><path d="M8 21v-7h8v7"/>`,
         rack: `<path d="M4 4v17M20 4v17M4 9h16M4 15h16M4 21h16"/>`,
         nivel: `<path d="M3 8h18M3 16h18"/>`,
+        panel: `<rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 9h16M4 14h16M8 6.5v.01M12 11.5v.01M16 16.5v.01"/>`,
+        mostrador: `<path d="M3 9h18l-1.5 3H4.5zM5 12v8h14v-8"/>`,
+        vitrina: `<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M5 8h14M9 12v6M15 12v6"/>`,
         caja: `<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>`,
         lugar: `<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>`,
         editar: `<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>`,
@@ -187,7 +190,7 @@
     const hijosDe = id => lugares.filter(l => (l.padreId || null) === id);
     const descendientes = id => hijosDe(id).flatMap(h => [h, ...descendientes(h.id)]);
     const totalProductos = l => (l.productos || 0) + descendientes(l.id).reduce((s, d) => s + (d.productos || 0), 0);
-    const nombreTipo = t => ({ pasillo: "Pasillo", estante: "Estante", nivel: "Nivel", seccion: "Sección", rack: "Rack" }[t] || t);
+    const nombreTipo = t => ({ pasillo: "Pasillo", estante: "Estante", nivel: "Nivel", seccion: "Sección", rack: "Rack", panel: "Panel", mostrador: "Mostrador", vitrina: "Vitrina" }[t] || t);
 
     function filaLugar(l) {
         const sub = hijosDe(l.id).length;
@@ -380,7 +383,7 @@
             titulo: e.zona === "bodega" ? "Nuevo lugar de bodega" : "Nuevo lugar de tienda",
             cuerpo: `
             <label class="dm-campo">Qué es<select id="dmTipo" class="dm-input" onchange="dmTipoElegido(this.value)">${tipos.map(([v, t]) => `<option value="${v}" ${e.tipo === v ? "selected" : ""}>${t}</option>`).join("")}</select></label>
-            <label class="dm-campo">Nombre<input id="dmNombre" class="dm-input" type="text" maxlength="60" placeholder="Ej. Tornillos y pijas" autocomplete="off"></label>
+            <label class="dm-campo">Nombre<input id="dmNombre" class="dm-input" type="text" maxlength="60" placeholder="Ej. Panel 1, Pasillo 2, Mostrador" autocomplete="off" oninput="dmAdivinarTipo(this.value)"></label>
             <label class="dm-campo">Dentro de<select id="dmPadre" class="dm-input"><option value="">Nada, va solo</option>${posibles.map(l => `<option value="${l.id}" ${e.padreId === l.id ? "selected" : ""}>${esc(l.codigo)} · ${esc(l.nombre)}</option>`).join("")}</select></label>
             <p class="dm-nota">El código se genera solo (por ejemplo P-01 o P-01-E-03) y es el que lleva la etiqueta.</p>
             <p id="dmError" class="dm-error"></p>`,
@@ -388,7 +391,19 @@
         });
     }
 
-    window.dmTipoElegido = function (tipo) { actual().tipo = tipo; };
+    window.dmTipoElegido = function (tipo) { const e = actual(); e.tipo = tipo; e.tipoManual = true; };
+
+    // Si el nombre dice "Panel 1", el tipo se elige solo (salvo que ya lo elegiste tú).
+    window.dmAdivinarTipo = function (texto) {
+        const e = actual();
+        if (e.tipoManual) return;
+        const mapa = [[/panel|tablero|ganch|pared/i, "panel"], [/pasillo/i, "pasillo"], [/mostrador|caja/i, "mostrador"], [/vitrina|aparador|escaparate/i, "vitrina"], [/rack/i, "rack"], [/secci[oó]n/i, "seccion"], [/nivel|piso/i, "nivel"], [/estante|anaquel/i, "estante"]];
+        const hallado = mapa.find(([p]) => p.test(texto));
+        const lista = (e.zona === "bodega" ? TIPOS_BODEGA : TIPOS_TIENDA).map(x => x[0]);
+        if (!hallado || !lista.includes(hallado[1])) return;
+        e.tipo = hallado[1];
+        const sel = document.getElementById("dmTipo"); if (sel) sel.value = hallado[1];
+    };
 
     window.dmGuardarNuevo = async function () {
         const e = actual();
