@@ -62,6 +62,7 @@ function lotesPrepararPantalla(simple) {
     barra.className = "lotes-acciones";
     barra.innerHTML = `
         <button type="button" onclick="lotesEntradaPorBusqueda()">+ Llego mercancia</button>
+        <button type="button" onclick="lotesPonerFecha()">Ponerle fecha a un producto</button>
         <button type="button" onclick="lotesVerMermas()">Lo que he tirado</button>`;
     pantalla.querySelector(".bajo-resumen")?.insertAdjacentElement("afterend", barra);
 }
@@ -71,6 +72,14 @@ async function lotesPedir(ruta, opciones) {
     const cuerpo = await respuesta.json().catch(() => ({}));
     if (!respuesta.ok) throw new Error(cuerpo.error || "No se pudo completar");
     return cuerpo;
+}
+
+// foto del producto (si ya la tiene): sin foto una lista de nombres no dice nada
+function lotesFoto(productoId) {
+    const producto = (typeof todosProductos !== "undefined" && Array.isArray(todosProductos)) ? todosProductos.find(p => p.id === productoId) : null;
+    return producto?.imagenUrl
+        ? `<img class="lotes-foto" src="${escaparPOS(producto.imagenUrl)}" alt="" loading="lazy">`
+        : `<span class="lotes-foto lotes-foto-vacia" aria-hidden="true"></span>`;
 }
 
 async function renderPorRevisarLotes() {
@@ -103,12 +112,13 @@ async function renderPorRevisarLotes() {
 
         return `
         <tr>
-            <td><strong>${escaparPOS(fila.nombre)}</strong><span>${dinero(fila.valorVenta)} a precio de venta</span></td>
+            <td>${lotesFoto(fila.productoId)}<div class="lotes-nombre"><strong>${escaparPOS(fila.nombre)}</strong><span>${dinero(fila.valorVenta)} a precio de venta</span></div></td>
             <td>${lotesFechaCorta(fila.fechaEntrada)}</td>
             <td>${lotesFechaCorta(fila.fechaCaducidad)}</td>
             <td><strong class="stock-bajo-numero">${fila.cantidad} ${escaparPOS(fila.unidad)}</strong></td>
             <td><span class="estado-bajo ${clase}">${estado}</span><div>${lotesTextoDias(fila)}</div></td>
             <td class="acciones-bajo">
+                <button type="button" onclick="editarProducto(${fila.productoId})">Editar</button>
                 <button type="button" onclick="lotesTirar(${fila.productoId}, ${fila.cantidad}, '${escaparPOS(fila.nombre).replace(/'/g, "&#39;")}')">Tirar</button>
                 <button type="button" onclick="lotesEntrada(${fila.productoId}, '${escaparPOS(fila.nombre).replace(/'/g, "&#39;")}')">Llego mas</button>
             </td>
@@ -178,6 +188,28 @@ async function lotesEntradaPorBusqueda() {
     }
 
     await lotesEntrada(coincidencias[0].id, coincidencias[0].nombre);
+}
+
+// Un producto sin fecha no sale en esta lista: aqui se busca y se abre su ficha para ponerle caducidad o vida util
+async function lotesPonerFecha() {
+    if (!Array.isArray(todosProductos) || !todosProductos.length) {
+        try { await cargarProductos(); } catch (error) { /* se avisa abajo */ }
+    }
+
+    const texto = await pedirTextoPOS("Que producto quieres editar? Escribe su nombre o su codigo.", "", "Ponerle fecha");
+    const buscado = String(texto || "").trim().toLowerCase();
+    if (!buscado) return;
+
+    const coincidencias = (todosProductos || []).filter(p =>
+        String(p.codigo || "").toLowerCase() === buscado || String(p.nombre || "").toLowerCase().includes(buscado)
+    );
+
+    if (coincidencias.length !== 1) {
+        alertaPOS(coincidencias.length ? `Hay ${coincidencias.length} productos con "${texto}". Escribe mas del nombre.` : `No encontre "${texto}" en tu inventario.`, "Ponerle fecha", "alerta");
+        return;
+    }
+
+    editarProducto(coincidencias[0].id);
 }
 
 async function lotesVerMermas() {

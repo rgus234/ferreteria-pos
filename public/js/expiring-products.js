@@ -158,8 +158,10 @@ function renderPorVencer(resetearPagina = true) {
  return `
  <tr>
  <td>
+ ${typeof lotesFoto === "function" ? lotesFoto(producto.id) : ""}<div class="lotes-nombre">
  <strong>${escaparPOS(producto.nombre)}</strong>
  <span>${dinero(producto.precio || 0)}</span>
+ </div>
  </td>
  <td>${escaparPOS(producto.codigo || "-")}</td>
  <td>${new Date(producto.fecha_caducidad).toLocaleDateString("es-MX")}</td>

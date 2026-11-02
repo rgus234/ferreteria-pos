@@ -231,7 +231,7 @@ function ordenarSidebarPOS() {
 function profesionalizarSidebarPOS() {
  asegurarBotonSidebarPOS("catalogo", "Catalogo proveedor", () => mostrarCatalogo());
  deduplicarSidebarPOS();
- document.querySelectorAll(".sidebar button").forEach(boton => {
+ document.querySelectorAll(".sidebar button:not(.ms-item)").forEach(boton => {
   const datos = datosSidebarPOS(boton);
   boton.dataset.modulo = datos.modulo;
   boton.dataset.shellModule = datos.modulo;
@@ -246,7 +246,7 @@ window.repararSidebarNexoPOS = function() {
  aplicarPermisosUsuario();
  renderSidebarFooterPOS();
 };
-function actualizarModuloActivoPOS(modulo) { document.querySelectorAll(".sidebar button").forEach(boton => boton.classList.toggle("activo", boton.dataset.shellModule === modulo)); if (typeof nexoIaTourAutoModulo === "function") nexoIaTourAutoModulo(modulo); }
+function actualizarModuloActivoPOS(modulo) { document.querySelectorAll(".sidebar button:not(.ms-item)").forEach(boton => boton.classList.toggle("activo", boton.dataset.shellModule === modulo)); if (typeof nexoIaTourAutoModulo === "function") nexoIaTourAutoModulo(modulo); }
 function toggleSidebarPOS() { document.body.classList.toggle("sidebar-oculta"); }
 function recordatoriosPOSGuardados() { try { const datos = JSON.parse(localStorage.getItem(RECORDATORIOS_POS_KEY) || "[]"); return Array.isArray(datos) ? datos : []; } catch (error) { console.warn("No se pudieron leer recordatorios", error); return []; } }
 function guardarRecordatoriosPOS(recordatorios) { localStorage.setItem(RECORDATORIOS_POS_KEY, JSON.stringify(recordatorios)); renderNotificacionesPOS(); }

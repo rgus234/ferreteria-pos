@@ -13,7 +13,7 @@
             id: "productos", etiqueta: "Productos", icono: "inventory", titulo: "Productos", subtitulo: "Todo lo que vendes",
             grupos: [
                 { tam: "g", cards: [
-                    { modulo: "inventario", icono: "inventory", titulo: "Mis productos", texto: "Ver, buscar y cambiar precios" },
+                    { modulo: "inventario", icono: "inventory", titulo: "Mis productos", texto: "Buscar y editar: precio, foto, caducidad" },
                     { modulo: "agregar-producto", icono: "plus", titulo: "Agregar producto", texto: "Uno nuevo, por peso o servicio" },
                     { modulo: "carga-inventario", icono: "file", titulo: "Cargar varios", texto: "Sube una lista y se agregan" }
                 ] },

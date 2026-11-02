@@ -135,3 +135,10 @@ body.perfil-simple:not(.perfil-ver-todo) .resumen-iva-informativo {
   background: rgba(220, 38, 38, .12);
   color: #b91c1c;
 }
+
+/* Por revisar / Por vencer: foto del producto junto al nombre */
+.lotes-foto { width: 44px; height: 44px; border-radius: 10px; object-fit: contain; background: #fff; border: 1px solid rgba(100, 116, 139, .25); flex: 0 0 auto; margin-right: 10px; vertical-align: middle; }
+.lotes-foto-vacia { display: inline-block; background: rgba(100, 116, 139, .12); }
+.lotes-nombre { display: inline-flex; flex-direction: column; vertical-align: middle; min-width: 0; }
+#tablaPorVencer .lotes-foto { display: inline-block !important; }
+#tablaPorVencer .lotes-nombre { display: inline-flex !important; }
