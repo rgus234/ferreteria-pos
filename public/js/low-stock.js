@@ -79,6 +79,14 @@ function renderInventarioBajo(resetearPagina = true) {
  document.getElementById("bajoReposicion").textContent =
  reposicion;
 
+ // Menu simplificado: tarjetas con foto en lugar de la tabla de siempre
+ if (document.body.classList.contains("menu-simple")) {
+  renderInventarioBajoTarjetas(bajos);
+  return;
+ }
+
+ document.getElementById("bajoTarjetas")?.remove();
+
  if (bajos.length === 0) {
  tabla.innerHTML = `
  <tr>
@@ -169,6 +177,52 @@ function renderInventarioBajo(resetearPagina = true) {
  TAMANO_PAGINA_INVENTARIO,
  "cambiarPaginaInventarioBajo"
  );
+}
+
+// Una tarjeta por producto: foto, cuanto queda (con color) y a quien se lo compras. Mismas acciones que la tabla.
+function renderInventarioBajoTarjetas(bajos) {
+ const tabla = document.getElementById("tablaInventarioBajo");
+ const tablaCompleta = tabla.closest("table");
+ let caja = document.getElementById("bajoTarjetas");
+
+ if (!caja) {
+  caja = document.createElement("div");
+  caja.id = "bajoTarjetas";
+  caja.className = "bajo-tarjetas";
+  tablaCompleta.insertAdjacentElement("beforebegin", caja);
+ }
+
+ tabla.innerHTML = "";
+
+ const totalPaginas = Math.max(1, Math.ceil(bajos.length / TAMANO_PAGINA_INVENTARIO));
+ paginaInventarioBajo = Math.min(paginaInventarioBajo, totalPaginas);
+ const inicio = (paginaInventarioBajo - 1) * TAMANO_PAGINA_INVENTARIO;
+ const pagina = bajos.slice(inicio, inicio + TAMANO_PAGINA_INVENTARIO);
+
+ caja.innerHTML = pagina.length ? pagina.map(producto => {
+  const stock = Number(producto.stock || 0);
+  const clase = stock <= 0 ? "sin-stock" : stock <= 2 ? "critico" : "bajo";
+  const estado = stock <= 0 ? "Sin existencia" : stock <= 2 ? "Casi se acaba" : "Está bajo";
+  const foto = producto.imagenUrl
+   ? `<img class="bajo-foto" src="${escaparPOS(producto.imagenUrl)}" alt="" loading="lazy">`
+   : `<span class="bajo-foto bajo-foto-vacia" aria-hidden="true"></span>`;
+
+  return `<article class="bajo-tarjeta ${clase}">
+   ${foto}
+   <div class="bajo-info">
+    <strong>${escaparPOS(producto.nombre)}</strong>
+    <span>${dinero(producto.precio || 0)}${producto.proveedor ? " · " + escaparPOS(producto.proveedor) : ""}</span>
+    <em class="estado-bajo ${clase}">${estado}</em>
+   </div>
+   <div class="bajo-cantidad"><b>${stock}</b><small>quedan</small></div>
+   <div class="bajo-botones">
+    <button type="button" onclick="editarProducto(${producto.id})">Editar</button>
+    <button type="button" class="bajo-secundario" onclick="abrirModalInventarioBajo(${producto.id})">Detalle</button>
+   </div>
+  </article>`;
+ }).join("") : `<p class="bajo-vacio">No hay productos bajos con ese filtro.</p>`;
+
+ renderPaginacion("paginacionInventarioBajo", bajos.length, paginaInventarioBajo, TAMANO_PAGINA_INVENTARIO, "cambiarPaginaInventarioBajo");
 }
 
 function asegurarModalInventarioBajo() {

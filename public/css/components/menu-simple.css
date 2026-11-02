@@ -99,3 +99,36 @@ body.menu-simple .ms-nav { display: flex; flex-direction: column; gap: 2px; }
 }
 
 body.oscuro #pantallaHubMenu { --ms-texto: #f8fafc; --ms-suave: #cbd5e1; }
+
+/* ---------- Inventario bajo como tarjetas (solo con el menu simplificado) ---------- */
+body.menu-simple #pantallaInventarioBajo .tabla-bajo { display: none; }
+body.menu-simple #pantallaInventarioBajo .bajo-resumen > div { border-radius: 16px; border: 1px solid rgba(100, 116, 139, .22); background: #fff; position: relative; overflow: hidden; }
+body.menu-simple #pantallaInventarioBajo .bajo-resumen > div::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: #ea580c; }
+body.menu-simple #pantallaInventarioBajo .bajo-resumen > div:nth-child(2)::before { background: #dc2626; }
+body.menu-simple #pantallaInventarioBajo .bajo-resumen > div:nth-child(3)::before { background: #2563eb; }
+
+.bajo-tarjetas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.bajo-tarjeta {
+    --tono: #ea580c; position: relative; display: grid; grid-template-columns: 64px 1fr auto; grid-template-areas: "foto info cant" "foto botones botones"; gap: 6px 14px; align-items: center;
+    padding: 14px 16px 14px 20px; border-radius: 16px; overflow: hidden; background: #fff; color: #101828;
+    border: 1px solid rgba(100, 116, 139, .25); box-shadow: 0 2px 6px rgba(15, 23, 42, .08);
+}
+.bajo-tarjeta::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--tono); }
+.bajo-tarjeta.critico { --tono: #dc2626; }
+.bajo-tarjeta.sin-stock { --tono: #7f1d1d; }
+.bajo-foto { grid-area: foto; width: 64px; height: 64px; border-radius: 12px; object-fit: contain; background: #fff; border: 1px solid rgba(100, 116, 139, .25); }
+.bajo-foto-vacia { background: rgba(100, 116, 139, .12); }
+.bajo-info { grid-area: info; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bajo-info strong { font-size: 16px; line-height: 1.25; color: #101828; }
+.bajo-info span { font-size: 13px; color: #475467; }
+.bajo-info em { align-self: flex-start; font-style: normal; font-size: 12.5px; font-weight: 700; margin-top: 2px; }
+.bajo-cantidad { grid-area: cant; text-align: center; min-width: 64px; }
+.bajo-cantidad b { display: block; font-size: 30px; line-height: 1; color: var(--tono); }
+.bajo-cantidad small { font-size: 12px; color: #475467; }
+.bajo-botones { grid-area: botones; display: flex; gap: 8px; margin-top: 6px; }
+.bajo-botones button { padding: 8px 16px; border-radius: 10px; font-weight: 700; cursor: pointer; border: 1px solid var(--tono); background: var(--tono); color: #fff; }
+.bajo-botones .bajo-secundario { background: transparent; color: #101828; border-color: rgba(100, 116, 139, .4); }
+body.oscuro .bajo-tarjeta, body.oscuro.menu-simple #pantallaInventarioBajo .bajo-resumen > div { background: #162032; color: #f8fafc; }
+body.oscuro .bajo-info strong, body.oscuro .bajo-botones .bajo-secundario { color: #f8fafc; }
+body.oscuro .bajo-info span, body.oscuro .bajo-cantidad small { color: #cbd5e1; }
+@media (max-width: 1100px) { .bajo-tarjetas { grid-template-columns: 1fr; } }

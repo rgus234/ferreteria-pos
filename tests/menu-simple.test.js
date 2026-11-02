@@ -60,3 +60,10 @@ test("abarrotes (perfil simple) siempre cobra a precio publico: sin selector de 
     assert.match(js, /perfilEsSimple\(\)\) \? "publico" : \(venta\.nivelPrecioActual/);
     assert.match(leer("css/components/perfil-negocio.css"), /^body\.perfil-simple \.resumen-precio-aplicado,/m);
 });
+
+test("Inventario bajo: con el menu simplificado se ve en tarjetas con foto y Editar; apagado sigue la tabla de siempre", () => {
+    const js = leer("js/low-stock.js");
+    assert.match(js, /body\.classList\.contains\("menu-simple"\)\) \{\s*renderInventarioBajoTarjetas\(bajos\);/);
+    assert.match(js, /editarProducto\(\$\{producto\.id\}\)/);
+    assert.match(leer("css/components/menu-simple.css"), /body\.menu-simple #pantallaInventarioBajo \.tabla-bajo \{ display: none; \}/);
+});
