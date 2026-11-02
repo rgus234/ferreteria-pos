@@ -1459,6 +1459,7 @@ function ocultarPantallasPrincipales() {
  "pantallaRecibirMarca",
  "pantallaEnlaceCelular",
  "pantallaFuncionesBeta",
+ "pantallaHubMenu",
  "pantallaPedidoSugerido",
  "pantallaFotosSugeridas",
  "pantallaCargaInventario",
