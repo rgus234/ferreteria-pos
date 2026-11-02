@@ -205,7 +205,7 @@
         const titulo = valorDe(hub.titulo);
         pantalla.style.display = "block";
         pantalla.innerHTML = `<div class="ms-hub">
-            <header class="ms-hub-cab"><h2>${esc(titulo)}</h2><p>${esc(hub.subtitulo)}</p></header>
+            <header class="ms-hub-cab"><span class="ms-cab-icono">${icono(hub.icono)}</span><div><h2>${esc(titulo)}</h2><p>${esc(hub.subtitulo)}</p></div></header>
             ${grupos.map((g, gi) => `<section class="ms-grupo">${g.titulo ? `<h3>${esc(g.titulo)}</h3>` : ""}
                 <div class="ms-tarjetas ms-${g.tam || "m"}">${g.cards.map((c, ci) => {
                     const nombre = c.etiquetaOriginal ? String(c.boton.textContent || "").replace(/\s+/g, " ").trim() : c.titulo;
