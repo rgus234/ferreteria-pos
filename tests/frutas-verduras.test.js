@@ -58,3 +58,40 @@ test("frutas y verduras: se elige kilo o pieza, dura N dias (vida util) y hay ta
     assert.match(html, /tipo-frutas" onclick="abrirPaqueteFrutasVerduras\(\)"/);
     assert.match(fs2.readFileSync(path.join(__dirname, "..", "public", "js", "menu-simple.js"), "utf8"), /modulo: "frutas-y-verduras"/);
 });
+
+test("con cantidad: 20 kg por kilo y 20 piezas se guardan como existencia, y con 'dura N dias' nace un lote con su caducidad", async () => {
+    const casos = [
+        { slug: "limon", unidad: "kg", tipo: "granel", cantidad: 20 },
+        { slug: "lechuga", unidad: "pieza", tipo: "manual", cantidad: 20 }
+    ];
+
+    for (const caso of casos) {
+        const c = indice.conceptos.find(x => x.slug === caso.slug);
+        assert.ok(c, caso.slug);
+        const codigo = "FV" + c.slug.replace(/[^a-z0-9]/gi, "").toUpperCase();
+
+        const alta = await llamar("/agregar-producto", {
+            nombre: c.nombre, codigo, precio: 30, precioPublico: 30, precioMayoreo: 30, stock: caso.cantidad, stockMinimo: 0,
+            categoria: "Frutas y verduras", subcategoria: c.categoria, unidadVenta: caso.unidad, tipoProducto: caso.tipo,
+            basculaDigital: false, permiteVentaPieza: false, visiblePos: true, vidaUtilDias: 5
+        });
+        assert.ok(alta.status === 200 || alta.status === 201, JSON.stringify(alta.cuerpo));
+
+        const fila = (await pool.query(`SELECT id, unidad_venta, stock, vida_util_dias FROM public.productos WHERE negocio_id = $1 AND codigo = $2`, [negocio.negocioId, codigo])).rows[0];
+        assert.equal(fila.unidad_venta, caso.unidad);
+        assert.equal(Number(fila.stock), caso.cantidad);
+        assert.equal(fila.vida_util_dias, 5);
+
+        const lote = (await pool.query(`SELECT cantidad, fecha_entrada, fecha_caducidad FROM public.producto_lotes WHERE negocio_id = $1 AND producto_id = $2`, [negocio.negocioId, fila.id])).rows;
+        assert.equal(lote.length, 1, "un lote con la cantidad que llego");
+        assert.equal(Number(lote[0].cantidad), caso.cantidad);
+        const dias = Math.round((new Date(lote[0].fecha_caducidad) - new Date(lote[0].fecha_entrada)) / 86400000);
+        assert.equal(dias, 5, "caduca a los 5 dias de entrar");
+    }
+});
+
+test("la lista pide 'Tengo' (cuantos kilos o piezas) y lo manda como existencia", () => {
+    const js = fs.readFileSync(path.join(__dirname, "..", "public", "js", "frutas-verduras-view.js"), "utf8");
+    assert.match(js, /stock: Number\(f\.cantidad\) > 0 \? Number\(f\.cantidad\) : 0/);
+    assert.match(js, /class="fv-tengo"/);
+});

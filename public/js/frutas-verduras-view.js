@@ -69,6 +69,7 @@
                     <button type="button" class="${f.unidad === "pieza" ? "activo" : ""}" onclick="fvUnidad('${esc(f.slug)}', 'pieza')">Pieza</button>
                 </div>
                 <label class="fv-precio">$<input type="number" min="0" step="0.5" inputmode="decimal" value="${f.precio ?? ""}" placeholder="${f.unidad === "kg" ? "por kilo" : "por pieza"}" oninput="fvPrecio('${esc(f.slug)}', this.value)" aria-label="Precio ${f.unidad === "kg" ? "por kilo" : "por pieza"} de ${esc(f.nombre)}"></label>
+                <label class="fv-tengo" title="Cuanto tienes ahorita. Si no sabes, déjalo vacío y lo registras cuando recibas.">Tengo <input type="number" min="0" step="0.1" inputmode="decimal" value="${f.cantidad ?? ""}" placeholder="0" oninput="fvCantidad('${esc(f.slug)}', this.value)" aria-label="Cuantos ${f.unidad === "kg" ? "kilos" : "piezas"} tienes de ${esc(f.nombre)}"> ${f.unidad === "kg" ? "kg" : "pzas"}</label>
                 <label class="fv-vida" title="Dias que dura. Con esto el sistema avisa antes de que caduque.">Dura <input type="number" min="1" max="365" inputmode="numeric" value="${f.vida ?? ""}" oninput="fvVida('${esc(f.slug)}', this.value)" aria-label="Dias que dura ${esc(f.nombre)}"> dias</label></div>
             </div>`).join("") : `<p class="fv-vacio">Toca las frutas y verduras que vendes. Aquí eliges si van por kilo o pieza y les pones el precio.</p>`;
 
@@ -104,6 +105,11 @@
         f.unidad = unidad;
         pintarLista();
         document.querySelector(`.fv-fila[data-slug="${CSS.escape(slug)}"] .fv-precio input`)?.focus();
+    };
+
+    window.fvCantidad = function (slug, valor) {
+        const f = fv.seleccion.get(slug);
+        if (f) f.cantidad = valor;
     };
 
     window.fvVida = function (slug, valor) {
@@ -149,7 +155,7 @@
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        nombre: f.nombre, codigo, precio, precioPublico: precio, precioMayoreo: precio, stock: 0, stockMinimo: 0,
+                        nombre: f.nombre, codigo, precio, precioPublico: precio, precioMayoreo: precio, stock: Number(f.cantidad) > 0 ? Number(f.cantidad) : 0, stockMinimo: 0,
                         categoria: "Frutas y verduras", subcategoria: f.categoria === "Frutas" || f.categoria === "Verduras" ? f.categoria : "",
                         unidadVenta: f.unidad === "pieza" ? "pieza" : "kg", tipoProducto: f.unidad === "pieza" ? "manual" : "granel", basculaDigital: false, permiteVentaPieza: false, visiblePos: true,
                         vidaUtilDias: Number(f.vida) >= 1 ? Math.round(Number(f.vida)) : ""
@@ -220,7 +226,7 @@
                     <h3>Tu lista <small id="fvCuenta"></small></h3>
                     <div id="fvLista" class="fv-lista"></div>
                     <button type="button" id="fvAgregar" class="fv-agregar" onclick="fvAgregar()">Elige al menos una</button>
-                    <p class="fv-nota">"Dura" son los días que aguanta: así el sistema calcula solo cuándo caduca cada vez que recibes fruta. Las existencias empiezan en 0.</p>
+                    <p class="fv-nota">"Dura" son los días que aguanta: así el sistema calcula solo cuándo caduca cada vez que recibes fruta. Si pones cuánto tienes, se guarda como existencia y ya cuenta su caducidad; si lo dejas vacío empieza en 0.</p>
                 </aside>
             </div></div>`;
         document.body.appendChild(modal);
