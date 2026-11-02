@@ -53,3 +53,10 @@ test("celular: 'Más' se agrupa en secciones solo si el negocio encendio el menu
     assert.match(giro, /nexoDuenoMenuSimple/);
     assert.match(leer("dueno.css"), /\.dueno-mas-seccion/);
 });
+
+test("abarrotes (perfil simple) siempre cobra a precio publico: sin selector de niveles ni con 'Mas herramientas'", () => {
+    const js = leer("js/pos-sales.js");
+    assert.match(js, /perfilEsSimple\(\)\) \? "publico" : \(nivel \|\| "mayoreo"\)/);
+    assert.match(js, /perfilEsSimple\(\)\) \? "publico" : \(venta\.nivelPrecioActual/);
+    assert.match(leer("css/components/perfil-negocio.css"), /^body\.perfil-simple \.resumen-precio-aplicado,/m);
+});

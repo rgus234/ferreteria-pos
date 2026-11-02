@@ -208,7 +208,9 @@ test("el punto de venta de un abarrotes cobra a un solo precio, sin cotizar ni l
     const perfilJs = leer("js/perfil-negocio.js");
 
     for (const selector of [".resumen-precio-aplicado", ".btn-agregar-lista-pos", ".btn-cotizar-carrito", ".resumen-requiere-factura"]) {
-        assert.ok(css.includes(`body.perfil-simple:not(.perfil-ver-todo) ${selector}`), `no se oculta ${selector}`);
+        // el selector de niveles se oculta siempre en abarrotes (un solo precio); lo demas, salvo con Mas herramientas
+        const esperado = selector === ".resumen-precio-aplicado" ? `body.perfil-simple ${selector}` : `body.perfil-simple:not(.perfil-ver-todo) ${selector}`;
+        assert.ok(css.includes(esperado), `no se oculta ${selector}`);
     }
 
     // Siempre el precio del publico.

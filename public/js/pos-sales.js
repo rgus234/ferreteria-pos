@@ -680,7 +680,8 @@ function nivelPrecioPorDefectoDelNegocio() {
 }
 
 function recalcularPreciosPorNivel(nivel) {
- nivelPrecioActual = nivel || "mayoreo";
+ // Un abarrotes vende a un solo precio (publico), aunque tenga "Mas herramientas" abierto o una venta guardada con otro nivel.
+ nivelPrecioActual = (typeof perfilEsSimple === "function" && perfilEsSimple()) ? "publico" : (nivel || "mayoreo");
 
  carrito.forEach(item => {
  aplicarNivelPrecioAItem(item, nivelPrecioActual);
@@ -909,7 +910,7 @@ async function recuperarVentaEnEspera(id) {
  carrito = JSON.parse(JSON.stringify(venta.carrito || []));
  clienteVentaActual = venta.cliente || null;
  descuentoCarrito = venta.descuentoCarrito || { tipo: "ninguno", valor: 0 };
- nivelPrecioActual = venta.nivelPrecioActual || nivelPrecioPorDefectoDelNegocio();
+ nivelPrecioActual = (typeof perfilEsSimple === "function" && perfilEsSimple()) ? "publico" : (venta.nivelPrecioActual || nivelPrecioPorDefectoDelNegocio());
  metodoPagoSeleccionado = venta.metodoPagoSeleccionado || "efectivo";
 
  guardarListaVentasEnEsperaPOS(lista.filter(v => Number(v.id) !== Number(id)));
@@ -1387,6 +1388,12 @@ function renderResumenCobroPOS() {
 
  const cursorDescuento =
  inputDescuentoEnfocado ? document.activeElement.selectionStart : null;
+
+ // abarrotes: si quedo otro nivel (hoja vieja, "Mas herramientas"), se vuelve al precio publico antes de calcular
+ if (typeof perfilEsSimple === "function" && perfilEsSimple() && nivelPrecioActual !== "publico") {
+  nivelPrecioActual = "publico";
+  carrito.forEach(item => aplicarNivelPrecioAItem(item, "publico"));
+ }
 
  const resumen =
  resumenCarritoPOS();
