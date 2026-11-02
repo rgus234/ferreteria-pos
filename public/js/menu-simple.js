@@ -106,7 +106,8 @@
     const activo = () => document.body.classList.contains("menu-simple");
 
     function original(modulo) {
-        return document.querySelector(`.sidebar [data-shell-module="${modulo}"]:not(.ms-item)`);
+        // los encabezados de grupo (Inventario, Ventas y caja...) comparten modulo con su primera opcion pero solo despliegan el submenu
+        return document.querySelector(`.sidebar [data-shell-module="${modulo}"]:not(.ms-item):not(.sidebar-grupo-toggle)`);
     }
 
     // El boton de siempre le corresponde a esta persona? (permiso, perfil de abarrotes, funcion nueva apagada)
