@@ -67,3 +67,10 @@ test("Inventario bajo: con el menu simplificado se ve en tarjetas con foto y Edi
     assert.match(js, /editarProducto\(\$\{producto\.id\}\)/);
     assert.match(leer("css/components/menu-simple.css"), /body\.menu-simple #pantallaInventarioBajo \.tabla-bajo \{ display: none; \}/);
 });
+
+test("dentro de una pantalla abierta desde un grupo hay una flecha para regresar a sus tarjetas", () => {
+    const js = leer("js/menu-simple.js");
+    assert.match(js, /id = "msVolver"/);
+    assert.match(js, /abrirHub\(barra\.dataset\.hub\)/);
+    assert.match(leer("css/components/menu-simple.css"), /body\.menu-simple \.ms-volver:not\(\[hidden\]\)/);
+});

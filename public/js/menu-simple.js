@@ -162,6 +162,27 @@
         marcarActivo(nav);
     }
 
+    // Flecha para regresar: dentro de una pantalla que se abrio desde un grupo (Productos, Compras...) se vuelve a sus tarjetas
+    function pintarVolver(hubId) {
+        let barra = document.getElementById("msVolver");
+
+        if (!hubId) { if (barra) barra.hidden = true; return; }
+
+        if (!barra) {
+            barra = document.createElement("div");
+            barra.id = "msVolver";
+            barra.className = "ms-volver";
+            const tope = document.getElementById("topbarPOS");
+            if (tope) tope.insertAdjacentElement("afterend", barra); else return;
+            barra.addEventListener("click", evento => { if (evento.target.closest("button")) abrirHub(barra.dataset.hub); });
+        }
+
+        const hub = HUBS.find(h => h.id === hubId);
+        barra.dataset.hub = hubId;
+        barra.innerHTML = `<button type="button" aria-label="Regresar a ${esc(valorDe(hub.titulo))}"><span aria-hidden="true">‹</span> ${esc(valorDe(hub.titulo))}</button>`;
+        barra.hidden = false;
+    }
+
     function marcarActivo(nav) {
         nav = nav || document.querySelector(".ms-nav");
         if (!nav) return;
@@ -177,6 +198,11 @@
         }
 
         nav.querySelectorAll(".ms-item").forEach(b => b.classList.toggle("activo", b.dataset.hub === actual));
+
+        // dentro de una pantalla (no en las tarjetas) de un grupo con tarjetas: mostrar la flecha de regreso
+        const hubVisible = pantallaHub && pantallaHub.style.display !== "none";
+        const hubDePantalla = !hubVisible && actual ? HUBS.find(h => h.id === actual) : null;
+        pintarVolver(hubDePantalla && hubDePantalla.grupos ? hubDePantalla.id : null);
     }
 
     // ---------- pantalla de tarjetas ----------
@@ -264,6 +290,9 @@
         const pantalla = document.getElementById("pantallaHubMenu");
         if (pantalla && pantalla.style.display !== "none" && estado.hubActual) abrirHub(estado.hubActual);
     }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+
+    // al apagar la funcion no debe quedar la flecha
+    document.addEventListener("nexo-funciones-beta", () => { if (!activo()) { const b = document.getElementById("msVolver"); if (b) b.hidden = true; } });
 
     if (typeof window.funcionBeta === "function" && window.funcionBeta("menu_simplificado")) encender(true);
 

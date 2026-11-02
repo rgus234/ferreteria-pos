@@ -132,3 +132,17 @@ body.oscuro .bajo-tarjeta, body.oscuro.menu-simple #pantallaInventarioBajo .bajo
 body.oscuro .bajo-info strong, body.oscuro .bajo-botones .bajo-secundario { color: #f8fafc; }
 body.oscuro .bajo-info span, body.oscuro .bajo-cantidad small { color: #cbd5e1; }
 @media (max-width: 1100px) { .bajo-tarjetas { grid-template-columns: 1fr; } }
+
+/* ---------- flecha para regresar a las tarjetas del grupo ---------- */
+.ms-volver { display: none; }
+body.menu-simple .ms-volver:not([hidden]) { display: block; position: sticky; top: 8px; z-index: 30; margin: 8px 0 -4px 4px; width: max-content; }
+.ms-volver button {
+    display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px 9px 12px; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 15px; font-weight: 700; color: #fff; border: none;
+    background: linear-gradient(120deg, var(--brand-color, #0d6efd), color-mix(in srgb, var(--brand-color, #0d6efd) 62%, #7c3aed));
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--brand-color, #0d6efd) 35%, transparent);
+}
+.ms-volver button, .ms-volver button span { color: #fff !important; }
+.ms-volver button span { font-size: 26px; line-height: 1; margin-top: -3px; font-weight: 800; }
+.ms-volver button:hover { filter: brightness(1.08); }
+.ms-volver button:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand-color, #0d6efd) 55%, transparent); outline-offset: 2px; }
