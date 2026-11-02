@@ -77,6 +77,20 @@
         cargando = false;
     }
 
+    // Menu simplificado: funcion nueva por negocio (apagada por defecto). Se recuerda para que no parpadee el menu al abrir.
+    try { window.duenoMenuSimple = localStorage.getItem("nexoDuenoMenuSimple") === "1"; } catch (error) { window.duenoMenuSimple = false; }
+
+    async function cargarMenuSimple() {
+        if (typeof fetchAutenticado !== "function" || typeof tokenGuardado !== "function" || !tokenGuardado()) return;
+
+        try {
+            const datos = await fetchAutenticado("/funciones-beta");
+            const encendida = datos?.funciones?.menu_simplificado === true;
+            try { localStorage.setItem("nexoDuenoMenuSimple", encendida ? "1" : "0"); } catch (error) { /* sin almacenamiento */ }
+            if (encendida !== window.duenoMenuSimple) { window.duenoMenuSimple = encendida; document.dispatchEvent(new CustomEvent("nexo-menu-simple-dueno")); }
+        } catch (error) { /* sin conexion: se queda como estaba */ }
+    }
+
     // Los formularios se dibujan cuando se abren: se revisan al cambiar el DOM (sin pasarse: una vez por tanda).
     new MutationObserver(() => {
         clearTimeout(temporizador);
@@ -84,4 +98,5 @@
     }).observe(document.body, { childList: true, subtree: true });
 
     cargar();
+    cargarMenuSimple();
 })();

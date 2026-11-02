@@ -2581,3 +2581,14 @@ button.fila-dueno:disabled{
 .dalerta-texto strong{ font-size:20px; line-height:1.15; }
 .dalerta-texto em{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-size:12.5px; font-style:normal; }
 .dalerta-flecha{ flex:none; color:var(--muted); font-size:26px; line-height:1; }
+
+/* Menu simplificado (celular): titulos de seccion en "Mas" */
+.dueno-mas-seccion{
+    margin:16px 4px 2px;
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--muted, #64748b);
+}
+.dueno-mas-seccion:first-child{ margin-top:4px; }

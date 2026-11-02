@@ -43,3 +43,13 @@ test("respeta permisos y perfil: usa el boton original para decidir que tarjetas
     assert.match(js, /perfilOculto === "1"/);
     assert.match(js, /solo-perfil-simple/);
 });
+
+test("celular: 'Más' se agrupa en secciones solo si el negocio encendio el menu simplificado", () => {
+    const js = leer("dueno.js");
+    assert.match(js, /if \(!window\.duenoMenuSimple\) \{\s*contenedor\.innerHTML = categorias\.map\(htmlFila\)\.join\(""\);/, "apagado: la lista de siempre");
+    assert.match(js, /SECCIONES_MAS_DUENO/);
+    const giro = leer("dueno-giro.js");
+    assert.match(giro, /datos\?\.funciones\?\.menu_simplificado === true/);
+    assert.match(giro, /nexoDuenoMenuSimple/);
+    assert.match(leer("dueno.css"), /\.dueno-mas-seccion/);
+});

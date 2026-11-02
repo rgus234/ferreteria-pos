@@ -55,5 +55,5 @@ test("el nivel sale de /negocio-actual: abarrotes siempre publico, los demas el 
     assert.match(js, /window\.duenoNivelPrecio = giro\.abarrotesSolo \? "publico"/);
     assert.match(js, /\? nivelConfigurado : "mayoreo"/);
     assert.match(js, /localStorage\.setItem\("nexoDuenoNivelPrecio"/, "se guarda para arrancar sin internet");
-    assert.match(leer("dueno-sw.js"), /nivel-20261101-01/);
+    assert.match(leer("dueno-sw.js"), /nivel-20261102-02/);
 });

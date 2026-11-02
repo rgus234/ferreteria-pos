@@ -5246,8 +5246,7 @@ function renderCategoriasMasDueno() {
             : !enModoDispositivo || !CATEGORIAS_MAS_SOLO_CUENTA_PERSONAL.has(categoria.id);
     });
 
-    document.getElementById("duenoMasCategorias").innerHTML =
-        categorias.map(categoria => `
+    const htmlFila = categoria => `
             <button type="button" class="dueno-categoria-row${categoria.proximamente ? " proximamente" : ""}"
                 onclick="${categoria.id === "cambiar-usuario" ? "cerrarSesionDuenoApp()" : categoria.id === "market" ? "irAComprarEnMarketDueno()" : categoria.tab ? `cambiarTabDueno('${categoria.tab}')` : categoria.href ? `location.href='${categoria.href}'` : (categoria.proximamente ? "proximamenteDueno()" : `abrirSubpantallaMasDueno('${categoria.id}')`)}">
                 <span class="dueno-categoria-icono${categoria.color ? ` dueno-categoria-icono-${categoria.color}` : ""}">${iconoCategoriaMasDueno(categoria.icono)}</span>
@@ -5258,8 +5257,36 @@ function renderCategoriasMasDueno() {
                 ${categoria.id === "ventas-tab" ? `<span id="duenoVentasBadge" class="dueno-tab-badge" style="display:none;"></span>` : ""}
                 <span class="dueno-categoria-flecha">${iconoCategoriaMasDueno("flecha")}</span>
             </button>
-        `).join("");
+        `;
+
+    // Menu simplificado (funcion nueva por negocio): las mismas opciones, pero en 4 secciones con titulo en lugar de una lista larga
+    const contenedor = document.getElementById("duenoMasCategorias");
+
+    if (!window.duenoMenuSimple) {
+        contenedor.innerHTML = categorias.map(htmlFila).join("");
+        return;
+    }
+
+    contenedor.innerHTML = SECCIONES_MAS_DUENO.map(seccion => {
+        const filas = categorias.filter(c => (SECCION_DE_CATEGORIA_MAS_DUENO[c.id] || "cuenta") === seccion.id);
+        return filas.length ? `<h3 class="dueno-mas-seccion">${escaparDueno(seccion.titulo)}</h3>${filas.map(htmlFila).join("")}` : "";
+    }).join("");
 }
+
+const SECCIONES_MAS_DUENO = [
+    { id: "negocio", titulo: "Tu negocio" },
+    { id: "clientes", titulo: "Clientes y ventas" },
+    { id: "equipo", titulo: "Equipo y más" },
+    { id: "cuenta", titulo: "Cuenta y ajustes" }
+];
+
+const SECCION_DE_CATEGORIA_MAS_DUENO = {
+    "reportes-tab": "negocio", "finanzas-gestion": "negocio", "inventario-tab": "negocio", "nexo-ia": "negocio",
+    "ventas-tab": "clientes", "creditos-tab": "clientes", "buscar-venta": "clientes", "encargos-gestion": "clientes", "ventas-pendientes": "clientes", market: "clientes",
+    "empleados-gestion": "equipo", dispositivos: "equipo", notificaciones: "equipo"
+};
+
+document.addEventListener("nexo-menu-simple-dueno", () => { if (document.getElementById("duenoMasCategorias")?.children.length) renderCategoriasMasDueno(); });
 
 const RENDER_SUBPANTALLA_MAS_DUENO = {
     "buscar-venta": renderSubpantallaBuscarVenta,
