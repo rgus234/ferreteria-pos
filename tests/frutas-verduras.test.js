@@ -47,3 +47,14 @@ test("el alta de la pantalla crea un producto por kilo con su codigo, y la foto 
     assert.equal(foto.status, 200, JSON.stringify(foto.cuerpo));
     assert.equal(Number((await pool.query(`SELECT COUNT(*) AS n FROM public.fotos_producto WHERE negocio_id = $1`, [negocio.negocioId])).rows[0].n), 1);
 });
+
+test("frutas y verduras: se elige kilo o pieza, dura N dias (vida util) y hay tarjeta visible en Agregar producto y en el menu", () => {
+    const fs2 = require("node:fs");
+    const js = fs2.readFileSync(path.join(__dirname, "..", "public", "js", "frutas-verduras-view.js"), "utf8");
+    assert.match(js, /unidadVenta: f\.unidad === "pieza" \? "pieza" : "kg"/);
+    assert.match(js, /vidaUtilDias: Number\(f\.vida\) >= 1/);
+    assert.match(js, /SUELE_SER_PIEZA/);
+    const html = fs2.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
+    assert.match(html, /tipo-frutas" onclick="abrirPaqueteFrutasVerduras\(\)"/);
+    assert.match(fs2.readFileSync(path.join(__dirname, "..", "public", "js", "menu-simple.js"), "utf8"), /modulo: "frutas-y-verduras"/);
+});

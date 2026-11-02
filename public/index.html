@@ -63,8 +63,8 @@
   <link rel="stylesheet" href="css/components/encargos-clientes.css?v=encargos-rediseno-20260828-01">
   <link rel="stylesheet" href="css/components/exhibidores.css?v=exhibidores-20261102-14">
   <link rel="stylesheet" href="css/components/mapa-tienda.css?v=mapa-tienda-20261118-04">
-  <link rel="stylesheet" href="css/components/frutas-verduras.css?v=frutas-20261101-01">
-  <link rel="stylesheet" href="css/components/menu-simple.css?v=menu-simple-20261102-11">
+  <link rel="stylesheet" href="css/components/frutas-verduras.css?v=frutas-20261102-03">
+  <link rel="stylesheet" href="css/components/menu-simple.css?v=menu-simple-20261102-12">
   <link rel="stylesheet" href="css/components/recibir-marca.css?v=recibir-marca-20261117-03">
   <link rel="stylesheet" href="css/components/enlace-celular.css?v=enlace-celular-20261122-06">
   <link rel="stylesheet" href="css/components/inicio-pendientes.css?v=inicio-pendientes-20261119-02">
@@ -520,7 +520,7 @@
  <button data-shell-module="agregar-producto" onclick="abrirFormularioAgregarProductoNuevo()">
  Agregar producto
  </button>
- <button class="solo-perfil-simple" onclick="abrirPaqueteFrutasVerduras()">
+ <button class="solo-perfil-simple" data-shell-module="frutas-y-verduras" onclick="abrirPaqueteFrutasVerduras()">
  Frutas y verduras
  </button>
  <button data-shell-module="inventario-bajo" onclick="mostrarInventarioBajo()">
@@ -1229,6 +1229,10 @@
  <strong>Sin codigo</strong>
  <span>Codigo automatico</span>
  </button>
+ <button type="button" class="tipo-producto-card solo-perfil-simple tipo-frutas" onclick="abrirPaqueteFrutasVerduras()">
+ <strong>Frutas y verduras</strong>
+ <span>Elige de la lista, con foto</span>
+ </button>
  <button type="button" class="tipo-producto-card" data-tipo-producto="granel"
  onclick="seleccionarTipoProducto('granel')">
  <strong>Granel</strong>
@@ -1872,7 +1876,7 @@
   <script src="js/busqueda-productos.js?v=busqueda-20261101-01"></script>
   <script src="js/product-inventory.js?v=precio-carrito-20261016-02"></script>
   <script src="js/banco-genericas.js?v=genericas-20261031-02"></script>
-  <script src="js/frutas-verduras-view.js?v=frutas-20261101-01"></script>
+  <script src="js/frutas-verduras-view.js?v=frutas-20261102-03"></script>
 <script src="js/pos-payment-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/pos-weight-modal.js?v=peso-carrito-20261101-02"></script>
@@ -1898,7 +1902,7 @@
  <script src="js/product-lists.js?v=listas-producto-20261102-02"></script>
  <script src="js/exhibidores.js?v=exhibidores-20261102-14"></script>
  <script src="js/funciones-beta.js?v=funciones-beta-20261122-03"></script>
- <script src="js/menu-simple.js?v=menu-simple-20261102-11"></script>
+ <script src="js/menu-simple.js?v=menu-simple-20261102-12"></script>
  <script src="js/mapa-tienda-view.js?v=mapa-tienda-20261118-04"></script>
  <script src="js/recibir-marca-view.js?v=recibir-marca-20261117-03"></script>
  <script src="js/enlace-celular-view.js?v=enlace-celular-20261118-03"></script>
@@ -1920,7 +1924,7 @@
   <script src="js/expiring-products.js?v=listas-producto-20261102-02"></script>
   <script src="js/lotes-ui.js?v=lotes-20261102-02"></script>
 <script src="js/factura-parser.js?v=fix-iva-cero-20260830-01"></script>
-<script src="js/ferretero-flow.js?v=frutas-20261101-01"></script>
+<script src="js/ferretero-flow.js?v=frutas-20261102-03"></script>
 <script src="js/nexo-tour.js?v=bienvenida-20260730-01"></script>
 <script src="js/nexo-onboarding.js?v=bienvenida-20260730-01"></script>
 <script src="js/asistente-inicio.js?v=perfil-20261030-12"></script>

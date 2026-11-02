@@ -10,6 +10,11 @@
     const plano = texto => String(texto || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9ñ ]+/g, " ").replace(/\s+/g, " ").trim();
     const aviso = (mensaje, tipo) => { if (typeof mostrarToastPOS === "function") mostrarToastPOS(mensaje, tipo ? { tipo } : undefined); };
 
+    // Lo que normalmente se vende por pieza o por manojo (lo demas, por kilo). Siempre se puede cambiar en la lista.
+    const SUELE_SER_PIEZA = /lechuga|coliflor|pi[ñn]a|sandia|melon|brocoli|repollo|^col|apio|elote|papaya|cilantro|perejil|epazote|hierbabuena|rabano|betabel|manojo/;
+    // Dias que suele durar sin refrigerar; con eso el sistema calcula solo la caducidad cada vez que llega mercancia.
+    const vidaSugerida = c => /cilantro|perejil|epazote|hierbabuena|albahaca|espinaca|lechuga/.test(plano(c.nombre)) ? 4 : 7;
+
     // Codigo propio y legible por producto: FVAGUACATE. Si el negocio ya tiene ese codigo, ese concepto se salta.
     const codigoDe = concepto => "FV" + concepto.slug.replace(/[^a-z0-9]/gi, "").toUpperCase();
 
@@ -58,9 +63,14 @@
         caja.innerHTML = filas.length ? filas.map(f => `<div class="fv-fila${f.faltaPrecio ? " falta" : ""}" data-slug="${esc(f.slug)}">
                 <img src="/banco-genericas/${encodeURIComponent(f.archivo)}" alt="">
                 <b>${esc(f.nombre)}</b>
-                <label class="fv-precio">$<input type="number" min="0" step="0.5" inputmode="decimal" value="${f.precio ?? ""}" placeholder="por kg" oninput="fvPrecio('${esc(f.slug)}', this.value)" aria-label="Precio por kilo de ${esc(f.nombre)}"></label>
                 <button type="button" class="fv-quitar" onclick="fvElegir('${esc(f.slug)}')" aria-label="Quitar">✕</button>
-            </div>`).join("") : `<p class="fv-vacio">Toca las frutas y verduras que vendes. Aquí les pones el precio por kilo.</p>`;
+                <div class="fv-controles"><div class="fv-unidad" role="group" aria-label="Se vende por">
+                    <button type="button" class="${f.unidad === "kg" ? "activo" : ""}" onclick="fvUnidad('${esc(f.slug)}', 'kg')">Kilo</button>
+                    <button type="button" class="${f.unidad === "pieza" ? "activo" : ""}" onclick="fvUnidad('${esc(f.slug)}', 'pieza')">Pieza</button>
+                </div>
+                <label class="fv-precio">$<input type="number" min="0" step="0.5" inputmode="decimal" value="${f.precio ?? ""}" placeholder="${f.unidad === "kg" ? "por kilo" : "por pieza"}" oninput="fvPrecio('${esc(f.slug)}', this.value)" aria-label="Precio ${f.unidad === "kg" ? "por kilo" : "por pieza"} de ${esc(f.nombre)}"></label>
+                <label class="fv-vida" title="Dias que dura. Con esto el sistema avisa antes de que caduque.">Dura <input type="number" min="1" max="365" inputmode="numeric" value="${f.vida ?? ""}" oninput="fvVida('${esc(f.slug)}', this.value)" aria-label="Dias que dura ${esc(f.nombre)}"> dias</label></div>
+            </div>`).join("") : `<p class="fv-vacio">Toca las frutas y verduras que vendes. Aquí eliges si van por kilo o pieza y les pones el precio.</p>`;
 
         pie.disabled = !filas.length || fv.enviando;
         pie.textContent = fv.enviando ? fv.progreso : (filas.length ? `Agregar ${filas.length} a mi inventario` : "Elige al menos una");
@@ -73,7 +83,7 @@
         else {
             const c = fv.conceptos.find(x => x.slug === slug);
             if (!c) return;
-            fv.seleccion.set(slug, { ...c, precio: "", faltaPrecio: false });
+            fv.seleccion.set(slug, { ...c, precio: "", faltaPrecio: false, unidad: SUELE_SER_PIEZA.test(plano(c.nombre)) ? "pieza" : "kg", vida: vidaSugerida(c) });
         }
         pintarGrid();
         pintarLista();
@@ -86,6 +96,19 @@
         f.precio = valor;
         f.faltaPrecio = false;
         document.querySelector(`.fv-fila[data-slug="${CSS.escape(slug)}"]`)?.classList.remove("falta");
+    };
+
+    window.fvUnidad = function (slug, unidad) {
+        const f = fv.seleccion.get(slug);
+        if (!f || fv.enviando) return;
+        f.unidad = unidad;
+        pintarLista();
+        document.querySelector(`.fv-fila[data-slug="${CSS.escape(slug)}"] .fv-precio input`)?.focus();
+    };
+
+    window.fvVida = function (slug, valor) {
+        const f = fv.seleccion.get(slug);
+        if (f) f.vida = valor;
     };
 
     window.fvGrupo = function (grupo) { fv.grupo = grupo; pintarGrid(); };
@@ -106,7 +129,7 @@
         if (sinPrecio.length) {
             sinPrecio.forEach(f => { f.faltaPrecio = true; });
             pintarLista();
-            aviso(`Falta el precio por kilo de ${sinPrecio.length} producto${sinPrecio.length === 1 ? "" : "s"}.`, "error");
+            aviso(`Falta el precio de ${sinPrecio.length} producto${sinPrecio.length === 1 ? "" : "s"}.`, "error");
             document.querySelector(".fv-fila.falta input")?.focus();
             return;
         }
@@ -128,7 +151,8 @@
                     body: JSON.stringify({
                         nombre: f.nombre, codigo, precio, precioPublico: precio, precioMayoreo: precio, stock: 0, stockMinimo: 0,
                         categoria: "Frutas y verduras", subcategoria: f.categoria === "Frutas" || f.categoria === "Verduras" ? f.categoria : "",
-                        unidadVenta: "kg", tipoProducto: "granel", basculaDigital: false, permiteVentaPieza: false, visiblePos: true
+                        unidadVenta: f.unidad === "pieza" ? "pieza" : "kg", tipoProducto: f.unidad === "pieza" ? "manual" : "granel", basculaDigital: false, permiteVentaPieza: false, visiblePos: true,
+                        vidaUtilDias: Number(f.vida) >= 1 ? Math.round(Number(f.vida)) : ""
                     })
                 });
                 const datos = await r.json().catch(() => ({}));
@@ -160,7 +184,7 @@
             return;
         }
 
-        aviso(`Listo: se agregaron ${hechos} frutas y verduras con su foto. Ya puedes venderlas por kilo.`);
+        aviso(`Listo: se agregaron ${hechos} frutas y verduras con su foto. Ya puedes venderlas.`);
         fv.enviando = false;
         window.fvCerrar();
     };
@@ -185,7 +209,7 @@
         modal.setAttribute("aria-modal", "true");
         modal.setAttribute("aria-label", "Frutas y verduras");
         modal.innerHTML = `<div class="fv-caja">
-            <header class="fv-cab"><div><h2>Frutas y verduras</h2><p>Toca las que vendes y ponles el precio por kilo. Se agregan con su foto y se cobran por peso.</p></div><button type="button" class="fv-cerrar" onclick="fvCerrar()" aria-label="Cerrar">✕</button></header>
+            <header class="fv-cab"><div><h2>Frutas y verduras</h2><p>Toca las que vendes, elige si van por kilo o por pieza y ponles el precio. Se agregan con su foto.</p></div><button type="button" class="fv-cerrar" onclick="fvCerrar()" aria-label="Cerrar">✕</button></header>
             <div class="fv-cuerpo">
                 <section class="fv-izq">
                     <input class="fv-buscar" type="search" placeholder="Buscar: jitomate, limón, nopal…" oninput="fvBuscar(this.value)" autocomplete="off">
@@ -196,7 +220,7 @@
                     <h3>Tu lista <small id="fvCuenta"></small></h3>
                     <div id="fvLista" class="fv-lista"></div>
                     <button type="button" id="fvAgregar" class="fv-agregar" onclick="fvAgregar()">Elige al menos una</button>
-                    <p class="fv-nota">El precio es por kilo. Las existencias empiezan en 0: se suman cuando recibes tu fruta.</p>
+                    <p class="fv-nota">"Dura" son los días que aguanta: así el sistema calcula solo cuándo caduca cada vez que recibes fruta. Las existencias empiezan en 0.</p>
                 </aside>
             </div></div>`;
         document.body.appendChild(modal);

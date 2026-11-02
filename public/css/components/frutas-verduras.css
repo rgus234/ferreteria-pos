@@ -27,7 +27,7 @@
 .fv-der h3 { margin: 0; font-size: 18px; }
 .fv-der h3 small { margin-left: 6px; color: var(--pos-muted, #687386); font-weight: 700; font-size: 13px; }
 .fv-lista { display: grid; gap: 8px; align-content: start; min-height: 0; overflow-y: auto; }
-.fv-fila { display: grid; grid-template-columns: 38px minmax(0, 1fr) 104px 24px; gap: 8px; align-items: center; padding: 6px 8px; border: 2px solid transparent; border-radius: 12px; background: var(--pos-card, #fff); }
+.fv-fila { display: grid; grid-template-columns: 38px minmax(0, 1fr) 24px; gap: 6px 8px; align-items: center; padding: 6px 8px; border: 2px solid transparent; border-radius: 12px; background: var(--pos-card, #fff); }
 .fv-fila.falta { border-color: #f87171; background: #fef2f2; }
 .fv-fila img { width: 38px; height: 38px; border-radius: 8px; object-fit: contain; background: #fff; }
 .fv-fila b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
@@ -45,3 +45,17 @@ body.oscuro .fv-tarjeta.elegida { background: #0f3b2f; border-color: #18b88f; }
 body.oscuro .fv-der { background: #0f172a; border-color: rgba(148, 163, 184, .22); }
 body.oscuro .fv-foto, body.oscuro .fv-fila img { background: #fff; }
 @media (max-width: 900px) { .fv-cuerpo { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 40%); } .fv-der { border-left: 0; border-top: 1px solid var(--pos-line, #e2e8f0); } }
+
+/* fila con dos renglones: foto + nombre, y debajo Kilo/Pieza, precio y cuantos dias dura */
+.fv-fila img { grid-row: 1 / span 2; }
+.fv-fila .fv-quitar { grid-column: 3; grid-row: 1; }
+.fv-controles { grid-column: 2 / 4; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fv-unidad { display: inline-flex; border: 1px solid var(--pos-line, #cbd5e1); border-radius: 10px; overflow: hidden; }
+.fv-unidad button { padding: 6px 10px; border: none; background: transparent; color: inherit; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.fv-unidad button.activo { background: var(--brand-color, #0d6efd); color: #fff; }
+.fv-controles .fv-precio { width: 112px; }
+.fv-vida { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--pos-muted, #475467); }
+.fv-vida input { width: 52px; height: 32px; border: 1px solid var(--pos-line, #cbd5e1); border-radius: 8px; background: var(--pos-card, #fff); color: inherit; font: inherit; font-weight: 700; text-align: center; box-sizing: border-box; }
+body.oscuro .fv-vida input { background: #1d293e; border-color: rgba(148, 163, 184, .25); color: #f1f5f9; }
+/* Agregar producto en abarrotes: 5 tipos en la fila */
+@layer nexo-product-form { body.perfil-con-abarrotes #modalAgregar .tipo-producto-selector { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; } }

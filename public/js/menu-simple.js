@@ -15,6 +15,7 @@
                 { tam: "g", cards: [
                     { modulo: "inventario", icono: "inventory", titulo: "Mis productos", texto: "Buscar y editar: precio, foto, caducidad" },
                     { modulo: "agregar-producto", icono: "plus", titulo: "Agregar producto", texto: "Uno nuevo, por peso o servicio" },
+                    { modulo: "frutas-y-verduras", icono: "leaf", titulo: "Frutas y verduras", texto: "Elige de la lista, con su foto" },
                     { modulo: "carga-inventario", icono: "file", titulo: "Cargar varios", texto: "Sube una lista y se agregan" }
                 ] },
                 { titulo: "Revisa", tam: "m", cards: [
