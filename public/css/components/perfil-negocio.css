@@ -65,11 +65,11 @@ body.perfil-simple:not(.perfil-ver-todo) .resumen-iva-informativo {
 
   /* Los campos van envueltos en <label class="campo-ficha"> con su etiqueta; perfil-negocio.js marca
      esos bloques con .perfil-campo-avanzado (el prefijo #modalAgregar gana a las reglas del formulario). */
-  /* Catalogos de proveedor ferreteros (Diprofer, Gafi, Truper) y modos de captura: un abarrotes no los usa. */
-  body.perfil-simple:not(.perfil-campos-todos) button[onclick="abrirActualizarCatalogo()"],
-  body.perfil-simple:not(.perfil-campos-todos) #proveedorCatalogoSeccion,
-  body.perfil-simple:not(.perfil-campos-todos) #proveedorCatalogoInfo,
-  body.perfil-simple:not(.perfil-campos-todos) #modoCapturaSeccion,
+  /* Catalogos de proveedor ferreteros (Diprofer, Gafi, Truper) y modos de captura: un abarrotes no los usa, ni con "Mostrar mas". */
+  body.perfil-simple button[onclick="abrirActualizarCatalogo()"],
+  body.perfil-simple #proveedorCatalogoSeccion,
+  body.perfil-simple #proveedorCatalogoInfo,
+  body.perfil-simple #modoCapturaSeccion,
   body.perfil-simple:not(.perfil-campos-todos) #modalAgregar .perfil-campo-avanzado,
   body.perfil-simple:not(.perfil-campos-todos) .perfil-campo-avanzado {
     display: none !important;
