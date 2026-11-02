@@ -33,7 +33,7 @@ test("un equipo sin negocio ve la bienvenida; el formulario viejo queda escondid
     assert.match(bloque[0], /recorridoNexo\.iniciarSesion\(\)/);
     assert.match(bloque[0], /recorridoNexo\.quieroParticipar\(\)/);
     assert.match(bloque[0], /celebrando-transparente\.png/, "la mascota da la bienvenida");
-    assert.match(bloque[0], /45 días sin costo/, "dice de entrada que la prueba no cuesta");
+    assert.match(bloque[0], /30 días sin costo/, "dice de entrada que la prueba no cuesta");
 
     // El formulario viejo sigue en el documento (sus ids los usa config-auth.js).
     assert.match(indice, /id="setupNombreNegocio"/);

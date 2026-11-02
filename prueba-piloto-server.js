@@ -1,9 +1,9 @@
-// Prueba de 45 dias de los negocios piloto: pantalla "Tu prueba" (dias que
+// Prueba de 30 dias de los negocios piloto: pantalla "Tu prueba" (dias que
 // quedan, encuesta de opinion, decision de seguir), cobro de la cuota con
 // Stripe y aviso por correo unos dias antes de que termine.
 //
 // Reglas (mismas que se le explican a la persona, ver piloto-condiciones.js):
-//  - 45 dias sin costo y sin tarjeta; la cuenta nace con fecha de vencimiento.
+//  - 30 dias sin costo y sin tarjeta; la cuenta nace con fecha de vencimiento.
 //  - Si decide seguir, pone su tarjeta en Stripe Checkout con la prueba aun
 //    corriendo: NO se cobra nada hasta el dia en que termina la prueba.
 //  - Si no decide, ya existe el mecanismo de licencias: gracia y luego solo

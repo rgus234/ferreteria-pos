@@ -4,7 +4,7 @@
 // Lo que se protege:
 //  - solo el admin acepta/descarta solicitudes;
 //  - el token no se guarda en claro y el enlace es de un solo uso para configurar;
-//  - la cuenta nace con licencia de prueba que vence a los 45 dias, correo ya verificado,
+//  - la cuenta nace con licencia de prueba que vence a los 30 dias, correo ya verificado,
 //    y el correo SIEMPRE es el de la invitacion (nunca el que mande el cliente);
 //  - despues de configurar, el mismo enlace solo muestra la descarga y nunca
 //    vuelve a pedir datos (configurar en el celular, abrir en la PC);
@@ -164,7 +164,7 @@ test("la pagina de la invitacion muestra los datos ya cargados y no se indexa", 
     for (const etapa of ["Tu cuenta", "Tu perfil", "Tu negocio", "¡A vender!"]) {
         assert.ok(html.includes(`<span>${etapa}</span>`), `falta la etapa ${etapa}`);
     }
-    assert.match(html, /45 días sin costo/);
+    assert.match(html, /30 días sin costo/);
     assert.ok(html.includes("$200 al mes"), "cuota mensual");
     assert.match(html, /base de datos/);
     assert.match(html, /Ejemplo:/);
@@ -197,7 +197,7 @@ test("configurar valida contrasena y terminos", async () => {
     assert.equal(nada.rows[0].n, 0, "ninguna validacion fallida crea cuenta");
 });
 
-test("configurar crea la cuenta: licencia de prueba a 45 dias, correo verificado y el correo de la invitacion", async () => {
+test("configurar crea la cuenta: licencia de prueba a 30 dias, correo verificado y el correo de la invitacion", async () => {
     const { token, id, correo } = global.__flujo;
 
     // Aunque el cliente intente mandar OTRO correo o un plan, se ignoran.
@@ -221,7 +221,7 @@ test("configurar crea la cuenta: licencia de prueba a 45 dias, correo verificado
     assert.equal(licencia.plan, "prueba");
     assert.equal(licencia.estado, "activa");
     const diasDePrueba = (new Date(licencia.fecha_vencimiento) - Date.now()) / 86400000;
-    assert.ok(diasDePrueba > 44.9 && diasDePrueba <= 45, `la prueba dura 45 dias (quedan ${diasDePrueba})`);
+    assert.ok(diasDePrueba > 29.9 && diasDePrueba <= 30, `la prueba dura 30 dias (quedan ${diasDePrueba})`);
     assert.equal(licencia.gracia_dias, 15);
     assert.equal(licencia.piloto, true, "queda marcado como piloto para el seguimiento de la prueba");
     assert.match(licencia.license_key, /^NXP-/);

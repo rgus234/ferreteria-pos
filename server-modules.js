@@ -73,7 +73,7 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./listas-producto-server")(app, pool, requerirAccesoNegocio);
     });
 
-    cargarModuloPOS("prueba de 45 dias de pilotos", () => {
+    cargarModuloPOS("prueba de 30 dias de pilotos", () => {
         require("./prueba-piloto-server")(app, pool, requerirSesionCuenta, requerirAccesoNegocio);
     });
 

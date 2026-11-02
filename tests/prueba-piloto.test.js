@@ -1,4 +1,4 @@
-// Prueba de 45 dias de los negocios piloto: estado, encuesta, decision de
+// Prueba de 30 dias de los negocios piloto: estado, encuesta, decision de
 // seguir (Stripe), aviso antes del fin, cobro de la cuota y panel de admin.
 //
 // Lo que se protege:
@@ -87,10 +87,10 @@ test("calcularEstado: prueba, gracia, vencida y suscrito", () => {
     const base = { estado: "activa", gracia_dias: 15, stripe_subscription_id: null };
     const en = dias => new Date(Date.now() + dias * MS_DIA).toISOString();
 
-    const prueba = calcularEstado({ ...base, fecha_vencimiento: en(38) });
+    const prueba = calcularEstado({ ...base, fecha_vencimiento: en(25) });
     assert.equal(prueba.fase, "prueba");
-    assert.equal(prueba.diasRestantes, 38);
-    assert.equal(prueba.diasTotales, 45);
+    assert.equal(prueba.diasRestantes, 25);
+    assert.equal(prueba.diasTotales, 30);
     assert.ok(prueba.progreso >= 15 && prueba.progreso <= 17, `progreso ${prueba.progreso}`);
 
     assert.equal(calcularEstado({ ...base, fecha_vencimiento: en(-3) }).fase, "gracia");

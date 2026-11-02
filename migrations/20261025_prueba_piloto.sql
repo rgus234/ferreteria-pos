@@ -1,4 +1,4 @@
--- Prueba de 45 dias para negocios piloto: seguimiento de la prueba, encuesta de
+-- Prueba de 30 dias para negocios piloto: seguimiento de la prueba, encuesta de
 -- opinion y decision de seguir (cuota mensual; hoy $200) o no.
 --
 -- Aditiva: columnas nuevas con DEFAULT/NULL y una tabla nueva. No cambia ninguna

@@ -2,7 +2,7 @@
 // correo de invitacion, la pagina del enlace, la pagina publica y la cuenta del
 // negocio digan (y usen) exactamente lo mismo.
 
-const DIAS_PRUEBA_PILOTO = 45;
+const DIAS_PRUEBA_PILOTO = 30;
 const CUOTA_MENSUAL_PILOTO = 200;
 const DIAS_AVISO_FIN_PRUEBA = 7;
 
@@ -51,12 +51,12 @@ function fechaFinPrueba(desde = new Date()) {
     return sumarDias(desde, DIAS_PRUEBA_PILOTO);
 }
 
-// Ejemplo fijo y facil de seguir (1 de marzo + 45 dias = 15 de abril).
+// Ejemplo fijo y facil de seguir (1 de abril + 30 dias = 1 de mayo).
 function ejemploCondiciones() {
     return {
-        inicio: "1 de marzo",
-        fin: "15 de abril",
-        diaCobro: "15"
+        inicio: "1 de abril",
+        fin: "1 de mayo",
+        diaCobro: "1"
     };
 }
 

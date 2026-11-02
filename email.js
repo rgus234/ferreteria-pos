@@ -1120,7 +1120,7 @@ function enviarCorreoEnlaceInvitacion({ correo, nombre, enlace }) {
     });
 }
 
-// ----- Prueba de 45 dias: aviso de fin de prueba, decision y encuesta -----
+// ----- Prueba de 30 dias: aviso de fin de prueba, decision y encuesta -----
 
 // Unos dias antes de que termine la prueba: pregunta como le fue y le dice que
 // decide en Nexo -> Cuenta. Sin cobros automaticos.

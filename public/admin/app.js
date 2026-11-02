@@ -1593,7 +1593,7 @@ async function invitarSolicitudAdmin(id) {
   if (!solicitud) return;
 
   const confirmado = await confirmarAdmin(
-    `Se enviara una invitacion personal a ${solicitud.correo} para que ${solicitud.negocio || solicitud.nombre} configure su cuenta de prueba (todas las funciones, 45 dias sin costo). Si ya tenia un enlace, el anterior deja de servir.`,
+    `Se enviara una invitacion personal a ${solicitud.correo} para que ${solicitud.negocio || solicitud.nombre} configure su cuenta de prueba (todas las funciones, 30 dias sin costo). Si ya tenia un enlace, el anterior deja de servir.`,
     "Aceptar solicitud",
     "info"
   );
@@ -1649,7 +1649,7 @@ async function invitarPorWhatsappAdmin(id) {
   try {
     const data = await apiAdmin(`/admin/api/solicitudes-participacion/${id}/invitar`, { method: "POST", body: JSON.stringify({ sinCorreo: true }) });
     const nombre = solicitud.nombre ? ` ${solicitud.nombre}` : "";
-    const mensaje = `Hola${nombre}! Te paso tu enlace para probar Nexo POS gratis 45 dias. Entra aqui y configura tu cuenta: ${data.enlace}`;
+    const mensaje = `Hola${nombre}! Te paso tu enlace para probar Nexo POS gratis 30 dias. Entra aqui y configura tu cuenta: ${data.enlace}`;
     const telefono = digitos.length === 10 ? `52${digitos}` : digitos;
 
     window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
