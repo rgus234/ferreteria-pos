@@ -201,3 +201,11 @@ body.dvm-con-barra #duenoVender { position: fixed; inset: 0; box-sizing: border-
 .dvi-frecuentes.plegado .dvi-titulo { margin-bottom: 0; padding: 12px 14px; border-radius: 16px; background: var(--surface, #fff) !important; }
 .dvi-frecuentes + .dueno-card { margin-top: 20px; }
 .dvi-frecuentes { margin-bottom: 4px; }
+
+/* QR grande del ticket (celular) */
+.dtk-qr-fondo { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 18px; background: rgba(15, 23, 42, .65); }
+.dtk-qr-caja { width: min(360px, 100%); padding: 22px 20px 18px; border-radius: 24px; text-align: center; background: #fff; color: #0f172a; box-shadow: 0 24px 60px rgba(2, 6, 23, .5); }
+.dtk-qr-caja h2 { margin: 0 0 4px; font-size: 21px; }
+.dtk-qr-caja p { margin: 0 0 12px; color: #475467; font-size: 14px; }
+.dtk-qr-caja img { display: block; width: 100%; max-width: 300px; margin: 0 auto 14px; border-radius: 12px; image-rendering: pixelated; }
+.dtk-qr-caja .dtk-qr-error { color: #b42318; font-weight: 700; }

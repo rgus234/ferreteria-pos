@@ -1,0 +1,22 @@
+/* QR grande del ticket digital (para quien no tiene impresora). */
+.tqr-fondo { position: fixed; inset: 0; z-index: 100000; display: grid; place-items: center; padding: 20px; background: rgba(15, 23, 42, .62); backdrop-filter: blur(4px); animation: tqrFondo .2s ease; }
+.tqr-caja { width: min(480px, 100%); max-height: 100%; overflow: auto; padding: 26px 26px 22px; border-radius: 26px; text-align: center; background: #fff; color: #101828; box-shadow: 0 30px 80px rgba(2, 6, 23, .45); animation: tqrCaja .28s cubic-bezier(.2, .75, .25, 1); }
+.tqr-caja h2 { margin: 0; font-size: 26px; color: #101828 !important; }
+.tqr-sub { margin: 6px 0 16px; color: #475467; font-size: 15px; }
+.tqr-qr { display: grid; place-items: center; min-height: 300px; margin: 0 auto 10px; padding: 14px; width: max-content; max-width: 100%; border-radius: 20px; border: 2px solid #e2e8f0; background: #fff; }
+.tqr-qr img { display: block; width: min(340px, 70vw); height: auto; image-rendering: pixelated; }
+.tqr-sin-imagen { max-width: 280px; margin: 0; color: #b42318; font-weight: 600; }
+.tqr-enlace { margin: 0 0 12px; font-size: 13px; color: #475467; word-break: break-all; }
+.tqr-datos { display: flex; justify-content: center; gap: 10px 22px; flex-wrap: wrap; margin-bottom: 14px; font-size: 15px; color: #475467; }
+.tqr-datos b { color: #101828; font-size: 18px; }
+.tqr-aviso { margin: 0 0 12px; padding: 8px 12px; border-radius: 12px; background: #fff7ed; color: #9a3412; font-size: 13.5px; }
+.tqr-listo { width: 100%; height: 50px; border: none; border-radius: 14px; font: inherit; font-size: 17px; font-weight: 800; cursor: pointer; color: #fff; background: linear-gradient(120deg, var(--brand-color, #0d6efd), color-mix(in srgb, var(--brand-color, #0d6efd) 62%, #7c3aed)); }
+.tqr-listo:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand-color, #0d6efd) 50%, transparent); outline-offset: 3px; }
+body.oscuro .tqr-caja { background: #162032; color: #f8fafc; }
+body.oscuro .tqr-caja h2, body.oscuro .tqr-datos b { color: #f8fafc !important; }
+body.oscuro .tqr-sub, body.oscuro .tqr-enlace, body.oscuro .tqr-datos { color: #cbd5e1; }
+body.oscuro .tqr-qr { border-color: #334155; }
+@keyframes tqrFondo { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tqrCaja { from { opacity: 0; transform: translateY(18px) scale(.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tqr-fondo, .tqr-caja { animation: none; } }
+.tqr-qr img[hidden] { display: none; }

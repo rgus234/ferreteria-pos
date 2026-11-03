@@ -114,3 +114,22 @@ test("botones de accion de las tablas: un solo estilo para Inventario, Inventari
 test("abarrotes: Cargar inventario no mezcla el catalogo de fabricantes de ferreteria en sus resultados", () => {
     assert.match(leer("js/carga-inventario.js"), /const fabricantes = typeof perfilEsSimple === "function" && perfilEsSimple\(\) \? \[\] : \(datos\.fabricante \|\| \[\]\)/);
 });
+
+test("ticket sin impresora: QR grande en la computadora al terminar la venta y boton 'Mostrar QR' en el celular", () => {
+    const vista = leer("js/ticket-qr-view.js");
+    assert.match(vista, /nexoposoficial\.com\/ticket\//);
+    assert.match(vista, /imprimirAutomatico === false/, "solo sale si la caja no imprime");
+    assert.match(vista, /evento\.key === "Escape" \|\| evento\.key === "Enter"/);
+
+    const ventas = leer("js/pos-sales.js");
+    assert.match(ventas, /debeMostrarQrTicketPOS\(negocio\) && codigoPublico\) \{\s*await mostrarQrTicketPOS\(/);
+    assert.ok(ventas.indexOf("mostrarQrTicketPOS({ codigoPublico") < ventas.indexOf("await imprimirTicketPOS(ticket);"), "el QR sale antes de intentar imprimir");
+
+    const html = leer("index.html");
+    assert.match(html, /js\/ticket-qr-view\.js/);
+    assert.match(html, /css\/components\/ticket-qr\.css/);
+
+    const celular = leer("dueno-ticket.js");
+    assert.match(celular, /mostrarQrTicketVentaDueno\('\$\{esc\(codigoPublico\)\}'\)/);
+    assert.match(celular, /<b>Mostrar QR<\/b>/);
+});

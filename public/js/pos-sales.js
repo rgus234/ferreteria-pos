@@ -2137,6 +2137,11 @@ const ticket = construirTicketVentaHTML({
  codigoPublico
 }, negocio, { tipo: "venta" });
 
+// Sin impresora (ticket apagado en Configuracion): se ensena un QR grande para que el cliente vea su ticket en su celular.
+if (typeof debeMostrarQrTicketPOS === "function" && debeMostrarQrTicketPOS(negocio) && codigoPublico) {
+ await mostrarQrTicketPOS({ codigoPublico, folio: folioTicket, total, cambio, ventaOffline });
+}
+
 const ticketEnviado =
  await imprimirTicketPOS(ticket);
 

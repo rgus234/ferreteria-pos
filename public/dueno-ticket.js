@@ -155,6 +155,7 @@
         imprimir: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="7" rx="1"/><path d="M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/></svg>`,
         whatsapp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.7-5.4A8.5 8.5 0 1 1 21 11.5z"/></svg>`,
         copiar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`,
+        qr: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v1M14 20h1M18 20h3v-3"/></svg>`,
         ver: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>`
     };
 
@@ -173,12 +174,31 @@
             <div class="dtk-acciones">
                 <button type="button" class="dtk-boton dtk-imprimir" onclick="imprimirTicketVentaDueno()">${ICONOS.imprimir}<b>Imprimir ticket</b><small>${modo}</small></button>
                 ${whats ? `<a class="dtk-boton dtk-whats" href="${esc(whats)}" target="_blank" rel="noopener">${ICONOS.whatsapp}<b>WhatsApp</b><small>Enviar ticket</small></a>` : ""}
-                ${enlace ? `<button type="button" class="dtk-boton" onclick="copiarEnlaceTicketDueno('${esc(codigoPublico)}')">${ICONOS.copiar}<b>Copiar enlace</b><small>Del ticket digital</small></button>
+                ${enlace ? `<button type="button" class="dtk-boton" onclick="mostrarQrTicketVentaDueno('${esc(codigoPublico)}')">${ICONOS.qr}<b>Mostrar QR</b><small>Que lo escaneen</small></button>
+                <button type="button" class="dtk-boton" onclick="copiarEnlaceTicketDueno('${esc(codigoPublico)}')">${ICONOS.copiar}<b>Copiar enlace</b><small>Del ticket digital</small></button>
                 <a class="dtk-boton" href="${esc(enlace)}" target="_blank" rel="noopener">${ICONOS.ver}<b>Ver ticket</b><small>Se abre aparte</small></a>` : ""}
             </div>
             <button type="button" class="dueno-boton-primario dtk-nueva" onclick="finalizarVentaVenderDueno()">Nueva venta</button>
         </div>`;
     }
+
+    // QR grande del ticket: el cliente lo escanea con su celular y ve su ticket (sin impresora, sin WhatsApp)
+    window.mostrarQrTicketVentaDueno = function (codigoPublico) {
+        if (!codigoPublico) return;
+        document.getElementById("dtkQrFondo")?.remove();
+        const base = typeof URL_BASE_TICKET_PUBLICO_DUENO !== "undefined" ? URL_BASE_TICKET_PUBLICO_DUENO : "https://nexoposoficial.com/ticket/";
+        const fondo = document.createElement("div");
+        fondo.id = "dtkQrFondo";
+        fondo.className = "dtk-qr-fondo";
+        fondo.onclick = evento => { if (evento.target === fondo) fondo.remove(); };
+        fondo.innerHTML = `<div class="dtk-qr-caja" role="dialog" aria-modal="true" aria-label="Codigo QR del ticket">
+            <h2>Escanea para ver tu ticket</h2>
+            <p>Abre la cámara del celular y apunta al código</p>
+            <img src="${esc(base + encodeURIComponent(codigoPublico))}/qr.png" alt="Codigo QR del ticket" onerror="this.outerHTML='<p class=&quot;dtk-qr-error&quot;>No se pudo cargar el código. Revisa el internet.</p>'">
+            <button type="button" class="dueno-boton-primario" onclick="document.getElementById('dtkQrFondo').remove()">Listo</button>
+        </div>`;
+        document.body.appendChild(fondo);
+    };
 
     const original = window.mostrarVentaCobradaVenderDueno;
 
