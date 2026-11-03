@@ -38,6 +38,14 @@ function plantillaRolGestion(rol) {
         };
     }
 
+    // Encargado: casi todo menos Configuracion, Finanzas y App del dueño; ademas puede crear tareas y avisos (se le da al crearlo)
+    if (rol === "Encargado") {
+        return {
+            permisos: { ...todos(true), configuracion: false, finanzas: false, dueno: false },
+            widgets: widgets(true)
+        };
+    }
+
     if (rol === "Inventario") {
         return {
             permisos: { ...todos(false), inicio: true, inventario: true, inventarioBajo: true, proveedores: true, catalogo: true },
@@ -188,6 +196,7 @@ function abrirNuevoEmpleadoGestion() {
                 <select id="duenoGestionRol">
                     <option value="Cajero">Cajero</option>
                     <option value="Inventario">Inventario</option>
+                    <option value="Encargado">Encargado (puede crear tareas)</option>
                     <option value="Administrador">Administrador</option>
                 </select>
             </label>
@@ -220,6 +229,11 @@ async function guardarNuevoEmpleadoGestion() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ nombre, rol, pin, permisos: plantilla.permisos, widgets: plantilla.widgets })
         });
+
+        // un encargado nace con permiso para crear tareas y avisos
+        if (rol === "Encargado") {
+            try { await fetchAutenticado(`/equipo/${respuesta.empleado.id}/gestor-tareas`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ permitido: true }) }); } catch (errorPermiso) { /* se puede dar despues desde su ficha */ }
+        }
 
         mostrarToastDueno("Empleado creado.");
         await renderSubpantallaEmpleadosGestion();
@@ -267,6 +281,10 @@ function abrirEmpleadoGestion(id) {
             <span class="dueno-categoria-texto"><strong>Rol y permisos</strong><span>Que pantallas puede usar en la computadora</span></span>
             <span class="dueno-categoria-flecha">${iconoCategoriaMasDueno("flecha")}</span>
         </button>
+        ${empleado.rol === "Administrador" ? "" : `<button type="button" class="dueno-categoria-row" onclick="alternarGestorTareasGestion(${Number(empleado.id)}, ${!(empleado.permisos && empleado.permisos.gestionar_tareas === true)})">
+            <span class="dueno-categoria-texto"><strong>Puede crear tareas y avisos</strong><span>${empleado.permisos && empleado.permisos.gestionar_tareas === true ? "Sí: encargado de tareas (toca para quitarlo)" : "No (toca para darle permiso)"}</span></span>
+            <span class="dueno-categoria-flecha">${iconoCategoriaMasDueno("flecha")}</span>
+        </button>`}
         <button type="button" class="dueno-categoria-row" onclick="abrirHorarioEmpleadoGestion(${Number(empleado.id)})">
             <span class="dueno-categoria-texto"><strong>Horario laboral</strong><span>${empleado.horarioLaboral ? "Con horario" : "Sin horario"}</span></span>
             <span class="dueno-categoria-flecha">${iconoCategoriaMasDueno("flecha")}</span>
@@ -283,6 +301,17 @@ function abrirEmpleadoGestion(id) {
                 : `<button type="button" class="dueno-boton-secundario" onclick="reactivarEmpleadoGestion(${Number(empleado.id)})">Volver a dar de alta</button>`}
         </article>
     `;
+}
+
+async function alternarGestorTareasGestion(id, permitido) {
+    try {
+        await fetchAutenticado(`/equipo/${id}/gestor-tareas`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ permitido }) });
+        mostrarToastDueno(permitido ? "Ahora puede crear tareas y avisos." : "Ya no puede crear tareas.");
+        await recargarEmpleadosGestion();
+        abrirEmpleadoGestion(id);
+    } catch (error) {
+        mostrarToastDueno(error.message || "No se pudo cambiar.");
+    }
 }
 
 // Despues de cualquier cambio se vuelve a pedir la lista completa: la

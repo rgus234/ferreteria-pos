@@ -140,3 +140,13 @@ test("avisos: para todos o para una persona; solo los crea quien puede", async (
     assert.equal(marta.length, 1, "Marta solo el de todos");
     assert.equal(marta[0].de, "Marta");
 });
+
+test("la lista de personas del equipo sirve para asignar tareas; solo un gestor ve quien puede crear tareas", async () => {
+    const lista = (await pedir("/equipo/personas", { quien: encargado })).cuerpo.personas;
+    assert.deepEqual(lista.map(p => p.nombre), ["Dueña", "Marta", "Luis"]);
+    assert.equal(lista.find(p => p.nombre === "Marta").gestorTareas, true);
+    assert.equal(lista.find(p => p.nombre === "Luis").gestorTareas, false);
+
+    const deCajero = (await pedir("/equipo/personas", { quien: cajero })).cuerpo.personas;
+    assert.ok(deCajero.every(p => !("gestorTareas" in p)), "un cajero no ve quien tiene permisos");
+});

@@ -81,7 +81,13 @@ function filaATarea(f) {
 // Quien esta usando el equipo: la persona activa del celular (x-empleado-id) o, sin ella, el dueño.
 async function quienEs(pool, req) {
     const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
-    const empleadoId = Number(req.headers["x-empleado-id"]) || null;
+    let empleadoId = Number(req.headers["x-empleado-id"]) || null;
+
+    // sesion de cuenta de un empleado (entro con su propia cuenta Nexo): se busca su ficha por su persona
+    if (!empleadoId && req.negocioAutenticado?.rol === "employee" && req.negocioAutenticado.persona_id) {
+        const ficha = (await pool.query(`SELECT id FROM public.empleados WHERE persona_id = $1 AND negocio_id = $2 AND activo = true LIMIT 1`, [req.negocioAutenticado.persona_id, negocioId])).rows[0];
+        if (ficha) empleadoId = ficha.id;
+    }
 
     if (!negocioId) {
         const error = new Error("Este equipo no esta vinculado a ningun negocio");
@@ -319,6 +325,20 @@ function instalar(app, pool, requerirAccesoNegocio) {
         try {
             await pool.query(`DELETE FROM public.avisos_equipo WHERE id = $1 AND negocio_id = $2`, [Number(req.params.id), req.yo.negocioId]);
             res.json({ ok: true });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // ---------- personas del equipo (para elegir a quien se le asigna) ----------
+    app.get("/equipo/personas", requerirAccesoNegocio, conIdentidad, async (req, res) => {
+        try {
+            const { negocioId, esGestor } = req.yo;
+            const filas = (await pool.query(`SELECT id, nombre, rol, permisos FROM public.empleados WHERE negocio_id = $1 AND activo = true ORDER BY creado_at ASC`, [negocioId])).rows;
+            res.json({
+                ok: true,
+                personas: filas.map(p => ({ id: p.id, nombre: p.nombre, rol: p.rol, ...(esGestor ? { gestorTareas: p.rol === "Administrador" || (p.permisos || {})[GESTIONAR_TAREAS] === true } : {}) }))
+            });
         } catch (error) {
             responderError(res, error);
         }
