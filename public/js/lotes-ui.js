@@ -78,7 +78,7 @@ async function lotesPedir(ruta, opciones) {
 function lotesFoto(productoId) {
     const producto = (typeof todosProductos !== "undefined" && Array.isArray(todosProductos)) ? todosProductos.find(p => p.id === productoId) : null;
     return producto?.imagenUrl
-        ? `<img class="lotes-foto" src="${escaparPOS(producto.imagenUrl)}" alt="" loading="lazy">`
+        ? `<img class="lotes-foto" src="${escaparPOS(producto.imagenUrl)}" alt="" loading="lazy" onerror="this.outerHTML='<span class=&quot;lotes-foto lotes-foto-vacia&quot; aria-hidden=&quot;true&quot;></span>'">`
         : `<span class="lotes-foto lotes-foto-vacia" aria-hidden="true"></span>`;
 }
 
@@ -100,6 +100,17 @@ async function renderPorRevisarLotes() {
     document.getElementById("vencerVencidos").textContent = datos.resumen.vencidos;
     document.getElementById("vencerValorRiesgo").textContent = dinero(datos.resumen.valorCosto);
     document.getElementById("paginacionPorVencer").innerHTML = "";
+
+    // Menu simplificado: tarjetas con foto y urgencia en lugar de la tabla
+    if (typeof renderPorVencerTarjetas === "function" && renderPorVencerTarjetas({
+        modo: "lotes",
+        filas: datos.lotes.map(f => ({ productoId: f.productoId, nombre: f.nombre, dias: f.dias, fechaCaducidad: f.fechaCaducidad, cantidad: f.cantidad, unidad: f.unidad, entrada: f.fechaEntrada, valorRiesgo: f.valorCosto }))
+    })) {
+        tabla.innerHTML = "";
+        return;
+    }
+
+    if (typeof quitarPorVencerTarjetas === "function") quitarPorVencerTarjetas();
 
     if (!datos.lotes.length) {
         tabla.innerHTML = `<tr><td colspan="6" class="bajo-vacio">Todo en orden: nada vence en los proximos 7 dias.</td></tr>`;

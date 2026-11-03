@@ -133,3 +133,17 @@ test("ticket sin impresora: QR grande en la computadora al terminar la venta y b
     assert.match(celular, /mostrarQrTicketVentaDueno\('\$\{esc\(codigoPublico\)\}'\)/);
     assert.match(celular, /<b>Mostrar QR<\/b>/);
 });
+
+test("Por revisar (abarrotes) y Por vencer (ferreteria): tarjetas con foto, urgencia por grupos, fichas filtro y acciones, con el menu simplificado", () => {
+    const js = leer("js/por-vencer-tarjetas.js");
+    assert.match(js, /id: "vencido", titulo: "Ya vencidos"/);
+    assert.match(js, /Venció hace/);
+    assert.match(js, /lotesTirar\(/);
+    assert.match(js, /lotesEntrada\(/);
+    assert.match(js, /miniaturaProducto\(producto, "pv-foto-img"\)/, "usa la miniatura de siempre (con su icono si la foto falla)");
+
+    assert.match(leer("js/lotes-ui.js"), /renderPorVencerTarjetas\(\{\s*modo: "lotes"/);
+    assert.match(leer("js/expiring-products.js"), /renderPorVencerTarjetas\(\{\s*modo: "producto"/);
+    assert.match(leer("css/components/por-vencer.css"), /body\.menu-simple #pantallaPorVencer \.tabla-bajo/);
+    assert.match(leer("index.html"), /js\/por-vencer-tarjetas\.js/);
+});

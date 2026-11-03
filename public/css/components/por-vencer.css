@@ -1,0 +1,74 @@
+/* Por revisar / Por vencer en tarjetas (solo con el menu simplificado). */
+body.menu-simple #pantallaPorVencer .tabla-bajo,
+body.menu-simple #pantallaPorVencer #paginacionPorVencer,
+body.menu-simple #pantallaPorVencer .bajo-toolbar { display: none; }
+
+/* las tres cifras de arriba, con su franja de color */
+body.menu-simple #pantallaPorVencer .bajo-resumen > div { position: relative; overflow: hidden; border-radius: 16px; border: 1px solid rgba(100, 116, 139, .22); background: #fff; }
+body.menu-simple #pantallaPorVencer .bajo-resumen > div::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: #ea580c; }
+body.menu-simple #pantallaPorVencer .bajo-resumen > div:nth-child(2)::before { background: #dc2626; }
+body.menu-simple #pantallaPorVencer .bajo-resumen > div:nth-child(3)::before { background: #7c3aed; }
+body.oscuro.menu-simple #pantallaPorVencer .bajo-resumen > div { background: #162032; }
+
+.pv { --pv-texto: #101828; --pv-suave: #475467; --pv-borde: rgba(100, 116, 139, .28); --pv-card: #fff; margin-top: 6px; color: var(--pv-texto); }
+body.oscuro .pv { --pv-texto: #f8fafc; --pv-suave: #cbd5e1; --pv-card: #162032; }
+
+.pv-barra { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 14px; }
+.pv-fichas { display: flex; gap: 8px; flex-wrap: wrap; }
+.pv-ficha { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--pv-borde); background: transparent; color: var(--pv-texto); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; transition: background-color .15s, color .15s, border-color .15s; }
+.pv-ficha b { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 99px; font-size: 12px; background: rgba(100, 116, 139, .18); }
+.pv-ficha.activa { background: var(--pv-texto); color: var(--pv-card); border-color: var(--pv-texto); }
+.pv-ficha.activa b { background: rgba(255, 255, 255, .22); color: inherit; }
+.pv-ficha-rojo b { background: #fee2e2; color: #b91c1c; }
+.pv-ficha-naranja b { background: #ffedd5; color: #c2410c; }
+.pv-ficha-ambar b { background: #fef3c7; color: #a16207; }
+.pv-ficha-azul b { background: #dbeafe; color: #1d4ed8; }
+.pv-buscar { height: 38px; min-width: 220px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--pv-borde); background: transparent; color: var(--pv-texto); font: inherit; }
+
+.pv-grupo { margin: 0 0 20px; }
+.pv-grupo h3 { display: flex; align-items: center; gap: 9px; margin: 0 0 10px; font-size: 16px; color: var(--pv-texto) !important; }
+.pv-grupo h3 b { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 99px; font-size: 12.5px; color: #fff; background: var(--pv-tono); }
+.pv-grupo h3 small { margin-left: 4px; font-size: 13px; font-weight: 500; color: var(--pv-suave); }
+.pv-punto { width: 10px; height: 10px; border-radius: 50%; background: var(--pv-tono); }
+.pv-rojo { --pv-tono: #dc2626; }
+.pv-naranja { --pv-tono: #ea580c; }
+.pv-ambar { --pv-tono: #ca8a04; }
+.pv-azul { --pv-tono: #2563eb; }
+
+.pv-rejilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pv-tarjeta {
+    position: relative; display: grid; grid-template-columns: 68px minmax(0, 1fr) auto; grid-template-areas: "foto info pildora" "foto acciones acciones"; gap: 8px 14px; align-items: start;
+    padding: 14px 16px 14px 20px; border-radius: 16px; overflow: hidden; background: var(--pv-card); border: 1px solid var(--pv-borde); box-shadow: 0 2px 6px rgba(15, 23, 42, .07);
+}
+.pv-tarjeta::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--pv-tono); }
+.pv-foto { grid-area: foto; display: grid; place-items: center; width: 68px; height: 68px; border-radius: 14px; overflow: hidden; background: #fff; border: 1px solid var(--pv-borde); }
+.pv-foto-img, .pv-foto img { width: 100%; height: 100%; object-fit: contain; }
+.pv-foto-vacia { background: color-mix(in srgb, var(--pv-tono) 14%, transparent); color: var(--pv-tono); font-size: 26px; font-weight: 800; }
+.pv-info { grid-area: info; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pv-info strong { font-size: 16px; line-height: 1.25; color: var(--pv-texto); }
+.pv-cantidad { font-size: 14px; font-weight: 700; color: var(--pv-texto); }
+.pv-fecha, .pv-riesgo { font-size: 13px; color: var(--pv-suave); }
+.pv-riesgo b { color: var(--pv-texto); }
+.pv-pildora { grid-area: pildora; align-self: start; padding: 5px 11px; border-radius: 99px; font-size: 12.5px; font-weight: 800; white-space: nowrap; color: #fff; background: var(--pv-tono); }
+.pv-acciones { grid-area: acciones; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.pv-acciones button { height: 36px; padding: 0 14px; border-radius: 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; border: 1px solid color-mix(in srgb, var(--ac, var(--brand-color, #0d6efd)) 28%, transparent); background: color-mix(in srgb, var(--ac, var(--brand-color, #0d6efd)) 11%, transparent); color: var(--ac, var(--brand-color, #0d6efd)); transition: background-color .15s, color .15s, transform .12s; }
+.pv-acciones button.accion-peligro { --ac: #dc2626; }
+.pv-acciones button:hover { background: var(--ac, var(--brand-color, #0d6efd)); border-color: var(--ac, var(--brand-color, #0d6efd)); color: #fff; transform: translateY(-1px); }
+
+.pv-vacio { display: grid; justify-items: center; gap: 4px; padding: 34px 20px; text-align: center; border-radius: 18px; background: color-mix(in srgb, #16a34a 9%, transparent); color: var(--pv-suave); }
+.pv-vacio span { font-size: 34px; }
+.pv-vacio b { font-size: 19px; color: var(--pv-texto); }
+.pv-vacio p { margin: 0; }
+
+@media (max-width: 1100px) { .pv-rejilla { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: no-preference) {
+    body.menu-simple .pv-tarjeta { animation: msTarjeta .34s cubic-bezier(.2, .75, .25, 1) backwards; }
+}
+
+/* botones de arriba (Llego mercancia, Ponerle fecha, Lo que he tirado) como los del resto */
+body.menu-simple #pantallaPorVencer .lotes-acciones { margin: 14px 0 4px; }
+body.menu-simple #pantallaPorVencer .lotes-acciones button { height: 38px; padding: 0 16px; border-radius: 12px; font-size: 13.5px; font-weight: 700; cursor: pointer; border: 1px solid color-mix(in srgb, var(--brand-color, #0d6efd) 28%, transparent) !important; background: color-mix(in srgb, var(--brand-color, #0d6efd) 11%, transparent) !important; color: var(--brand-color, #0d6efd) !important; transition: background-color .15s, color .15s, transform .12s; }
+body.menu-simple #pantallaPorVencer .lotes-acciones button:hover { background: var(--brand-color, #0d6efd) !important; color: #fff !important; transform: translateY(-1px); }
+body.oscuro.menu-simple #pantallaPorVencer .lotes-acciones button { color: color-mix(in srgb, var(--brand-color, #0d6efd) 55%, #fff) !important; }
+body.oscuro.menu-simple #pantallaPorVencer .bajo-resumen strong { color: #f8fafc !important; }
+body.oscuro.menu-simple #pantallaPorVencer .bajo-resumen span { color: #cbd5e1 !important; }

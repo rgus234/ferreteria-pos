@@ -93,6 +93,19 @@ function renderPorVencer(resetearPagina = true) {
  document.getElementById("vencerValorRiesgo").textContent =
  dinero(valorRiesgo);
 
+ // Menu simplificado: tarjetas con foto y urgencia en lugar de la tabla
+ if (typeof renderPorVencerTarjetas === "function" && renderPorVencerTarjetas({
+  modo: "producto",
+  filas: todosProximos.map(p => ({ productoId: p.id, nombre: p.nombre, dias: diasParaCaducar(p), fechaCaducidad: p.fecha_caducidad, cantidad: Number(p.stock || 0), unidad: typeof unidadProducto === "function" ? unidadProducto(p) : "", valorRiesgo: Number(p.stock || 0) * Number(p.precio || 0) }))
+ })) {
+  tabla.innerHTML = "";
+  const paginacion = document.getElementById("paginacionPorVencer");
+  if (paginacion) paginacion.innerHTML = "";
+  return;
+ }
+
+ if (typeof quitarPorVencerTarjetas === "function") quitarPorVencerTarjetas();
+
  if (proximos.length === 0) {
  tabla.innerHTML = `
  <tr>
