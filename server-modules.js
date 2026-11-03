@@ -171,6 +171,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./actividad-equipo-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("tareas y avisos del equipo", () => {
+        require("./tareas-equipo-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("etiquetas en PDF", () => {
         require("./etiquetas-pdf-server")(app, pool, requerirAccesoNegocio);
     });
