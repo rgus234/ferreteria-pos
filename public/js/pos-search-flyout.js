@@ -182,6 +182,42 @@
   if (!dentro) ocultarFlyoutBusquedaPOS();
  });
 
+ // Flechas arriba/abajo recorren los resultados (la fila elegida se pinta) y Enter agrega la elegida.
+ // Sin haber usado las flechas, Enter se comporta como siempre (escaner, codigo escrito, un solo resultado).
+ function filasNavegablesFlyout() {
+  const contenedor = contenedorFlyout();
+  return contenedor && contenedor.classList.contains("abierto") ? [...contenedor.querySelectorAll(".pos-flyout-row[data-flyout-id]")] : [];
+ }
+
+ function elegirFilaFlyout(filas, indice) {
+  filas.forEach((fila, i) => fila.classList.toggle("activa", i === indice));
+  filas[indice]?.scrollIntoView({ block: "nearest" });
+ }
+
+ document.addEventListener("keydown", event => {
+  if (!event.target || event.target.id !== "busqueda") return;
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Enter") return;
+
+  const filas = filasNavegablesFlyout();
+  if (!filas.length) return;
+
+  const actual = filas.findIndex(fila => fila.classList.contains("activa"));
+
+  if (event.key === "Enter") {
+   if (actual < 0) return;
+   event.preventDefault();
+   event.stopImmediatePropagation();
+   agregarDesdeFlyoutPOS(Number(filas[actual].dataset.flyoutId));
+   return;
+  }
+
+  event.preventDefault();
+  const siguiente = event.key === "ArrowDown"
+   ? (actual + 1) % filas.length
+   : (actual <= 0 ? filas.length - 1 : actual - 1);
+  elegirFilaFlyout(filas, siguiente);
+ }, true);
+
  document.addEventListener("keydown", event => {
   if (event.key !== "Escape") return;
 

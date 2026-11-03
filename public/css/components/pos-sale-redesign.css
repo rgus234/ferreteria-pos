@@ -833,3 +833,9 @@ body.oscuro .pos-referencia .pos-reference-search {
   opacity: .4;
   cursor: not-allowed;
 }
+
+/* Fila elegida con las flechas del teclado (Enter la agrega) */
+.pos-flyout-row.activa {
+  background: color-mix(in srgb, var(--brand-color, #0d6efd) 14%, transparent);
+  box-shadow: inset 4px 0 0 var(--brand-color, #0d6efd);
+}

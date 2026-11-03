@@ -88,3 +88,12 @@ test("animaciones: la tarjeta responde y la pantalla sale; toda pantalla entra a
     assert.match(css, /@keyframes nxEntraAdelante/);
     assert.match(css, /@keyframes msPulsada/);
 });
+
+test("buscador del punto de venta: flechas recorren los resultados, la elegida se pinta y Enter la agrega (sin flechas, Enter como siempre)", () => {
+    const js = leer("js/pos-search-flyout.js");
+    assert.match(js, /event\.key !== "ArrowDown" && event\.key !== "ArrowUp" && event\.key !== "Enter"/);
+    assert.match(js, /if \(actual < 0\) return;/, "Enter sin fila elegida no se intercepta (escaner / un solo resultado)");
+    assert.match(js, /agregarDesdeFlyoutPOS\(Number\(filas\[actual\]\.dataset\.flyoutId\)\)/);
+    assert.match(js, /\}, true\);/, "se escucha en captura para ganarle al Enter de siempre");
+    assert.match(leer("css/components/pos-sale-redesign.css"), /\.pos-flyout-row\.activa \{/);
+});
