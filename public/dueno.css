@@ -2624,3 +2624,10 @@ button.fila-dueno:disabled{
 .dt-opciones button, .dt-dias button{ padding:9px 12px; border:1px solid rgba(100,116,139,.4); border-radius:12px; background:transparent; font:inherit; font-weight:700; color:inherit; }
 .dt-dias button{ width:40px; padding:9px 0; text-align:center; }
 .dt-opciones button.activo, .dt-dias button.activo{ background:var(--brand, #2563ff); border-color:var(--brand, #2563ff); color:#fff; }
+
+.dt-invitacion { position: relative; margin: 0 0 12px; }
+.dt-invitacion-cuerpo { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px 40px 14px 14px; border: none; border-radius: 16px; background: var(--surface, #fff); box-shadow: var(--shadow, 0 1px 4px rgba(0,0,0,.12)); font: inherit; color: inherit; }
+.dt-invitacion-cuerpo > span:first-child { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; font-size: 22px; background: var(--brand-soft, #eef2ff); }
+.dt-invitacion-cuerpo b { display: block; font-size: 15.5px; }
+.dt-invitacion-cuerpo small { display: block; margin-top: 2px; font-size: 12.5px; opacity: .75; }
+.dt-invitacion-cerrar { position: absolute; right: 8px; top: 8px; width: 28px; height: 28px; border: none; border-radius: 50%; background: transparent; color: inherit; opacity: .55; font-size: 14px; }

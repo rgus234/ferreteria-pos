@@ -303,6 +303,41 @@
 
     window.duenoTareasRefrescar = refrescarResumen;
 
+    // ---------- invitacion en Inicio: "¿Alguien mas trabaja contigo?" (solo quien puede administrar y todavia no tiene equipo) ----------
+    const LLAVE_INVITACION = "nexoDuenoEquipoInvitacionCerrada";
+
+    async function invitarAEquipo() {
+        const inicio = document.getElementById("duenoApp");
+        if (!inicio || document.getElementById("duenoEquipoInvitacion") || !hayTabs()) return;
+
+        try { if (localStorage.getItem(LLAVE_INVITACION) === "1") return; } catch (error) { /* sin almacenamiento */ }
+        if (typeof duenoTienePermiso === "function" && !duenoTienePermiso("administrar_usuarios")) return;
+
+        let personas;
+        try { personas = (await api("/equipo/personas")).personas; } catch (error) { return; }
+        if (personas.length > 1) return;
+
+        const tarjeta = document.createElement("div");
+        tarjeta.id = "duenoEquipoInvitacion";
+        tarjeta.className = "dt-invitacion";
+        tarjeta.innerHTML = `<button type="button" class="dt-invitacion-cuerpo" onclick="dtIrAEmpleados()"><span aria-hidden="true">👥</span><span><b>¿Alguien más trabaja contigo?</b><small>Dales su perfil con PIN y elige qué pueden hacer. Luego les mandas tareas y avisos.</small></span></button><button type="button" class="dt-invitacion-cerrar" aria-label="Ahora no" onclick="dtCerrarInvitacion()">✕</button>`;
+        const grid = inicio.querySelector(".dueno-grid");
+        if (grid) grid.parentNode.insertBefore(tarjeta, grid); else inicio.appendChild(tarjeta);
+    }
+
+    window.dtCerrarInvitacion = function () {
+        try { localStorage.setItem(LLAVE_INVITACION, "1"); } catch (error) { /* sin almacenamiento */ }
+        document.getElementById("duenoEquipoInvitacion")?.remove();
+    };
+
+    window.dtIrAEmpleados = function () {
+        if (typeof cambiarTabDueno === "function") cambiarTabDueno("mas");
+        if (typeof abrirSubpantallaMasDueno === "function") abrirSubpantallaMasDueno("empleados-gestion");
+    };
+
+    setTimeout(invitarAEquipo, 3500);
+    setTimeout(invitarAEquipo, 10000);
+
     // revisa de vez en cuando (y al volver a la app) si hay tareas nuevas
     setInterval(() => { if (!document.hidden) refrescarResumen(); }, 90000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) refrescarResumen(); });
