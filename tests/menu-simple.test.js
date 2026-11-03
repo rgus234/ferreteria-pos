@@ -74,3 +74,17 @@ test("dentro de una pantalla abierta desde un grupo hay una flecha para regresar
     assert.match(js, /abrirHub\(barra\.dataset\.hub\)/);
     assert.match(leer("css/components/menu-simple.css"), /body\.menu-simple \.ms-volver:not\(\[hidden\]\)/);
 });
+
+test("animaciones: la tarjeta responde y la pantalla sale; toda pantalla entra animada; respeta 'menos movimiento'", () => {
+    const js = leer("js/menu-simple.js");
+    assert.match(js, /classList\.add\("ms-pulsada"\)/);
+    assert.match(js, /await salidaAnimada\(pantalla\)/);
+    assert.match(js, /nx-entra-adelante/);
+    assert.match(js, /direccion = "atras"/);
+    assert.match(js, /prefers-reduced-motion: reduce/);
+
+    const css = leer("css/components/menu-simple.css");
+    assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{\s*\/\* toda pantalla/);
+    assert.match(css, /@keyframes nxEntraAdelante/);
+    assert.match(css, /@keyframes msPulsada/);
+});

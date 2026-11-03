@@ -102,6 +102,54 @@
     ];
 
     const estado = { hubActual: null };
+    let direccion = "adelante";
+
+    const sinMovimiento = () => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const contenedor = () => document.querySelector(".contenido");
+    const esPantalla = el => el && el.nodeType === 1 && el.id && el.id !== "topbarPOS" && el.id !== "msVolver" && !/^nexo|^toast/i.test(el.id);
+    const visibleEl = el => Boolean(el) && getComputedStyle(el).display !== "none" && !el.hidden;
+    const pantallaVisible = () => [...(contenedor()?.children || [])].find(el => esPantalla(el) && visibleEl(el)) || null;
+
+    // La pantalla actual se va (sube / se desliza) antes de abrir la siguiente
+    function salidaAnimada(elemento, sentido) {
+        if (!elemento || sinMovimiento() || !activo()) return Promise.resolve();
+        const hub = elemento.querySelector?.(".ms-hub") || elemento;
+        hub.classList.add(sentido === "atras" ? "nx-sale-atras" : "nx-sale");
+        return new Promise(resolver => setTimeout(() => { hub.classList.remove("nx-sale", "nx-sale-atras"); resolver(); }, 170));
+    }
+
+    // Toda pantalla que aparece (menu, pantallas de cada modulo) entra con una animacion corta
+    const visiblesAntes = new WeakMap();
+
+    function vigilarPantallas() {
+        const caja = contenedor();
+        if (!caja || caja.dataset.msVigila === "1") return;
+        caja.dataset.msVigila = "1";
+        [...caja.children].forEach(el => visiblesAntes.set(el, visibleEl(el)));
+
+        const observador = new MutationObserver(registros => {
+            for (const r of registros) {
+                const el = r.target;
+                if (!esPantalla(el) || el.parentElement !== caja) continue;
+                const ahora = visibleEl(el);
+                const antes = visiblesAntes.get(el) === true;
+                visiblesAntes.set(el, ahora);
+
+                if (ahora && !antes && activo() && !sinMovimiento()) {
+                    el.classList.remove("nx-entra", "nx-entra-adelante", "nx-entra-atras");
+                    void el.offsetWidth;
+                    el.classList.add("nx-entra", direccion === "atras" ? "nx-entra-atras" : "nx-entra-adelante");
+                    setTimeout(() => el.classList.remove("nx-entra", "nx-entra-adelante", "nx-entra-atras"), 400);
+                    direccion = "adelante";
+                }
+            }
+        });
+
+        // solo las pantallas (hijos directos), no cada elemento de adentro
+        const observar = el => { if (esPantalla(el)) observador.observe(el, { attributes: true, attributeFilter: ["style", "hidden"] }); };
+        [...caja.children].forEach(observar);
+        new MutationObserver(registros => registros.forEach(r => r.addedNodes.forEach(n => { if (n.nodeType === 1) { visiblesAntes.set(n, visibleEl(n)); observar(n); } }))).observe(caja, { childList: true });
+    }
     const esc = valor => String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const valorDe = x => (typeof x === "function" ? x() : x);
     const icono = nombre => (typeof iconoUISVG === "function" ? iconoUISVG(nombre) : "");
@@ -176,7 +224,12 @@
             barra.className = "ms-volver";
             const tope = document.getElementById("topbarPOS");
             if (tope) tope.insertAdjacentElement("afterend", barra); else return;
-            barra.addEventListener("click", evento => { if (evento.target.closest("button")) abrirHub(barra.dataset.hub); });
+            barra.addEventListener("click", async evento => {
+                if (!evento.target.closest("button")) return;
+                direccion = "atras";
+                await salidaAnimada(pantallaVisible(), "atras");
+                abrirHub(barra.dataset.hub);
+            });
         }
 
         const hub = HUBS.find(h => h.id === hubId);
@@ -244,11 +297,20 @@
                         <span class="ms-flecha" aria-hidden="true">›</span></button>`;
                 }).join("")}</div></section>`).join("")}</div>`;
 
-        pantalla.onclick = evento => {
+        pantalla.onclick = async evento => {
             const t = evento.target.closest(".ms-tarjeta");
-            if (!t) return;
+            if (!t || pantalla.dataset.saliendo === "1") return;
             const c = grupos[Number(t.dataset.g)].cards[Number(t.dataset.c)];
-            if (c && c.boton) c.boton.click();
+            if (!c || !c.boton) return;
+
+            // la tarjeta responde al toque, la pantalla se va y entonces se abre el destino
+            pantalla.dataset.saliendo = "1";
+            t.classList.add("ms-pulsada");
+            direccion = "adelante";
+            await salidaAnimada(pantalla);
+            pantalla.dataset.saliendo = "";
+            t.classList.remove("ms-pulsada");
+            c.boton.click();
         };
 
         if (typeof actualizarTopbarContexto === "function") actualizarTopbarContexto(titulo, hub.subtitulo, "hub-" + hub.id);
@@ -298,6 +360,7 @@
 
     if (typeof window.funcionBeta === "function" && window.funcionBeta("menu_simplificado")) encender(true);
 
-    document.addEventListener("DOMContentLoaded", programar);
+    document.addEventListener("DOMContentLoaded", () => { programar(); vigilarPantallas(); });
+    setTimeout(vigilarPantallas, 0);
     window.addEventListener("load", programar);
 })();

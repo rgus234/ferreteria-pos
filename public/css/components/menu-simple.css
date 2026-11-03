@@ -146,3 +146,44 @@ body.menu-simple .ms-volver:not([hidden]) { display: block; position: sticky; to
 .ms-volver button span { font-size: 26px; line-height: 1; margin-top: -3px; font-weight: 800; }
 .ms-volver button:hover { filter: brightness(1.08); }
 .ms-volver button:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand-color, #0d6efd) 55%, transparent); outline-offset: 2px; }
+
+/* ---------- animaciones (solo con el menu simplificado y si la persona no pidio menos movimiento) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+    /* toda pantalla que aparece entra con una animacion corta; hacia adelante entra desde la derecha, al regresar desde la izquierda */
+    body.menu-simple .nx-entra-adelante { animation: nxEntraAdelante .3s cubic-bezier(.2, .75, .25, 1) backwards; }
+    body.menu-simple .nx-entra-atras { animation: nxEntraAtras .3s cubic-bezier(.2, .75, .25, 1) backwards; }
+    @keyframes nxEntraAdelante { from { opacity: 0; transform: translateX(34px); } to { opacity: 1; transform: none; } }
+    @keyframes nxEntraAtras { from { opacity: 0; transform: translateX(-34px); } to { opacity: 1; transform: none; } }
+
+    /* la pantalla se va antes de abrir la siguiente */
+    body.menu-simple .nx-sale, body.menu-simple .nx-sale-atras { transition: opacity .16s ease, transform .16s ease; opacity: 0; pointer-events: none; }
+    body.menu-simple .nx-sale { transform: translateX(-30px) scale(.985); }
+    body.menu-simple .nx-sale-atras { transform: translateX(30px) scale(.985); }
+
+    /* las tarjetas de cada grupo aparecen una tras otra */
+    body.menu-simple .ms-hub-cab { animation: msSube .35s cubic-bezier(.2, .75, .25, 1) backwards; }
+    body.menu-simple .ms-grupo { animation: msSube .38s cubic-bezier(.2, .75, .25, 1) backwards; }
+    body.menu-simple .ms-grupo:nth-of-type(2) { animation-delay: .06s; }
+    body.menu-simple .ms-grupo:nth-of-type(3) { animation-delay: .12s; }
+    body.menu-simple .ms-grupo:nth-of-type(n+4) { animation-delay: .18s; }
+    body.menu-simple .ms-tarjeta { animation: msTarjeta .36s cubic-bezier(.2, .75, .25, 1) backwards; }
+    body.menu-simple .ms-tarjeta:nth-child(2) { animation-delay: .05s; }
+    body.menu-simple .ms-tarjeta:nth-child(3) { animation-delay: .1s; }
+    body.menu-simple .ms-tarjeta:nth-child(4) { animation-delay: .15s; }
+    body.menu-simple .ms-tarjeta:nth-child(5) { animation-delay: .2s; }
+    body.menu-simple .ms-tarjeta:nth-child(n+6) { animation-delay: .25s; }
+    @keyframes msSube { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    @keyframes msTarjeta { from { opacity: 0; transform: translateY(16px) scale(.96); } to { opacity: 1; transform: none; } }
+
+    /* la tarjeta responde al toque */
+    body.menu-simple .ms-tarjeta:active { transform: scale(.97); }
+    body.menu-simple .ms-tarjeta.ms-pulsada { animation: msPulsada .2s ease forwards; }
+    @keyframes msPulsada { 0% { transform: scale(1); } 45% { transform: scale(.94); box-shadow: 0 0 0 6px color-mix(in srgb, var(--tono) 28%, transparent); } 100% { transform: scale(1.03); box-shadow: 0 10px 26px color-mix(in srgb, var(--tono) 35%, transparent); } }
+
+    /* la flecha de regreso y el menu de la izquierda tambien responden */
+    body.menu-simple .ms-volver button { transition: transform .12s ease, filter .12s ease; }
+    body.menu-simple .ms-volver button:hover { transform: translateX(-3px); }
+    body.menu-simple .ms-volver button:active { transform: scale(.95); }
+    body.menu-simple .ms-item { transition: background-color .18s ease, transform .12s ease; }
+    body.menu-simple .ms-item:active { transform: scale(.97); }
+}
