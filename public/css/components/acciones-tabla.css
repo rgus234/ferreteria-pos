@@ -1,0 +1,118 @@
+/* Botones de accion de las tablas (Inventario, Inventario bajo, Por vencer / Por revisar, Clientes, Proveedores):
+   antes cada tabla tenia su propio estilo (iconos azules, botones solidos, grises, con borde) y se veian disparejos.
+   Ahora todos comparten el mismo: misma altura, mismo redondeo, mismo color suave y el mismo efecto al pasar el mouse.
+   - Los iconos solos (ver, editar, eliminar) son cuadros de 36 px; los de texto (Editar, Tirar, Cuenta...) miden lo mismo de alto.
+   - Rojo suave: acciones que quitan (Eliminar, Baja, Tirar). Verde suave: volver a activar. El resto, el color de la marca. */
+
+td.acciones-inventario,
+td.acciones-bajo,
+td.acciones-clientes,
+td.acciones-proveedores {
+  display: table-cell !important;   /* antes eran flex y la celda se salia de la fila */
+  vertical-align: middle;
+  white-space: normal;               /* los de texto bajan de renglon si no caben */
+  font-size: 0;                     /* sin huecos raros entre botones */
+}
+
+td.acciones-inventario button:not(.ac-x),
+td.acciones-bajo button:not(.ac-x),
+td.acciones-clientes button:not(.ac-x),
+td.acciones-proveedores button:not(.ac-x) {
+  --ac-color: var(--brand-color, #0d6efd);
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  width: auto;
+  margin: 3px 6px 3px 0 !important;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--ac-color) 24%, transparent) !important;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ac-color) 11%, transparent) !important;
+  color: var(--ac-color) !important;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease, transform .12s ease, box-shadow .15s ease;
+}
+
+/* icono solo: un cuadro parejo */
+td.acciones-inventario button:not(.ac-x):has(> .ui-icon:only-child),
+td.acciones-bajo button:not(.ac-x):has(> .ui-icon:only-child),
+td.acciones-clientes button:not(.ac-x):has(> .ui-icon:only-child),
+td.acciones-proveedores button:not(.ac-x):has(> .ui-icon:only-child) {
+  width: 36px;
+  padding: 0;
+}
+
+td.acciones-inventario button:not(.ac-x) .ui-icon,
+td.acciones-bajo button:not(.ac-x) .ui-icon,
+td.acciones-clientes button:not(.ac-x) .ui-icon,
+td.acciones-proveedores button:not(.ac-x) .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* rojo: lo que quita; verde: lo que vuelve a activar */
+td.acciones-inventario button:not(.ac-x).accion-peligro,
+td.acciones-bajo button:not(.ac-x).accion-peligro,
+td.acciones-clientes button:not(.ac-x).accion-peligro,
+td.acciones-proveedores button:not(.ac-x).accion-peligro,
+td.acciones-proveedores button:not(.ac-x).btn-proveedor-baja { --ac-color: #dc2626; }
+td.acciones-proveedores button:not(.ac-x).btn-proveedor-reactivar { --ac-color: #059669; }
+
+td.acciones-inventario button:not(.ac-x):hover,
+td.acciones-bajo button:not(.ac-x):hover,
+td.acciones-clientes button:not(.ac-x):hover,
+td.acciones-proveedores button:not(.ac-x):hover {
+  background: var(--ac-color) !important;
+  border-color: var(--ac-color) !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--ac-color) 32%, transparent);
+}
+
+td.acciones-inventario button:not(.ac-x):active,
+td.acciones-bajo button:not(.ac-x):active,
+td.acciones-clientes button:not(.ac-x):active,
+td.acciones-proveedores button:not(.ac-x):active { transform: translateY(0) scale(.97); box-shadow: none; }
+
+td.acciones-inventario button:not(.ac-x):focus-visible,
+td.acciones-bajo button:not(.ac-x):focus-visible,
+td.acciones-clientes button:not(.ac-x):focus-visible,
+td.acciones-proveedores button:not(.ac-x):focus-visible { outline: 3px solid color-mix(in srgb, var(--ac-color) 45%, transparent); outline-offset: 2px; }
+
+/* modo oscuro: el mismo estilo con colores que se lean sobre fondo oscuro */
+body.oscuro td.acciones-inventario button:not(.ac-x),
+body.oscuro td.acciones-bajo button:not(.ac-x),
+body.oscuro td.acciones-clientes button:not(.ac-x),
+body.oscuro td.acciones-proveedores button:not(.ac-x) {
+  background: color-mix(in srgb, var(--ac-color) 20%, transparent) !important;
+  border-color: color-mix(in srgb, var(--ac-color) 40%, transparent) !important;
+  color: color-mix(in srgb, var(--ac-color) 55%, #fff) !important;
+}
+
+body.oscuro td.acciones-inventario button:not(.ac-x):hover,
+body.oscuro td.acciones-bajo button:not(.ac-x):hover,
+body.oscuro td.acciones-clientes button:not(.ac-x):hover,
+body.oscuro td.acciones-proveedores button:not(.ac-x):hover {
+  background: var(--ac-color) !important;
+  border-color: var(--ac-color) !important;
+  color: #fff !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  td.acciones-inventario button:not(.ac-x), td.acciones-bajo button:not(.ac-x), td.acciones-clientes button:not(.ac-x), td.acciones-proveedores button:not(.ac-x) { transition: none; }
+  td.acciones-inventario button:not(.ac-x):hover, td.acciones-bajo button:not(.ac-x):hover, td.acciones-clientes button:not(.ac-x):hover, td.acciones-proveedores button:not(.ac-x):hover { transform: none; }
+}
+
+
+/* los tres iconos del Inventario siempre en una sola fila */
+td.acciones-inventario { white-space: nowrap; min-width: 150px; }

@@ -1861,7 +1861,7 @@ function renderClientes() {
  <button onclick="editarClienteCredito(${cliente.id})">
  Editar
  </button>
- <button onclick="desactivarClienteCredito(${cliente.id})">
+ <button class="accion-peligro" onclick="desactivarClienteCredito(${cliente.id})">
  Baja
  </button>
  </td>

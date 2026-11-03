@@ -97,3 +97,20 @@ test("buscador del punto de venta: flechas recorren los resultados, la elegida s
     assert.match(js, /\}, true\);/, "se escucha en captura para ganarle al Enter de siempre");
     assert.match(leer("css/components/pos-sale-redesign.css"), /\.pos-flyout-row\.activa \{/);
 });
+
+test("botones de accion de las tablas: un solo estilo para Inventario, Inventario bajo, Por revisar, Clientes y Proveedores", () => {
+    const css = leer("css/components/acciones-tabla.css");
+    for (const clase of ["acciones-inventario", "acciones-bajo", "acciones-clientes", "acciones-proveedores"]) {
+        assert.ok(css.includes(`td.${clase} button:not(.ac-x)`), clase);
+    }
+    assert.match(css, /display: table-cell !important/, "la celda ya no es flex");
+    assert.match(css, /height: 36px/);
+    assert.match(css, /body\.oscuro td\.acciones-inventario/);
+    assert.match(leer("index.html"), /css\/components\/acciones-tabla\.css/);
+    assert.match(leer("js/credit-customers.js"), /class="accion-peligro" onclick="desactivarClienteCredito/);
+    assert.match(leer("js/lotes-ui.js"), /class="accion-peligro" onclick="lotesTirar/);
+});
+
+test("abarrotes: Cargar inventario no mezcla el catalogo de fabricantes de ferreteria en sus resultados", () => {
+    assert.match(leer("js/carga-inventario.js"), /const fabricantes = typeof perfilEsSimple === "function" && perfilEsSimple\(\) \? \[\] : \(datos\.fabricante \|\| \[\]\)/);
+});

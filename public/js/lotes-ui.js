@@ -119,7 +119,7 @@ async function renderPorRevisarLotes() {
             <td><span class="estado-bajo ${clase}">${estado}</span><div>${lotesTextoDias(fila)}</div></td>
             <td class="acciones-bajo">
                 <button type="button" onclick="editarProducto(${fila.productoId})">Editar</button>
-                <button type="button" onclick="lotesTirar(${fila.productoId}, ${fila.cantidad}, '${escaparPOS(fila.nombre).replace(/'/g, "&#39;")}')">Tirar</button>
+                <button type="button" class="accion-peligro" onclick="lotesTirar(${fila.productoId}, ${fila.cantidad}, '${escaparPOS(fila.nombre).replace(/'/g, "&#39;")}')">Tirar</button>
                 <button type="button" onclick="lotesEntrada(${fila.productoId}, '${escaparPOS(fila.nombre).replace(/'/g, "&#39;")}')">Llego mas</button>
             </td>
         </tr>`;

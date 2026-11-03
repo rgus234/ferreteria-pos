@@ -425,8 +425,11 @@ async function ciBuscar(texto, { alTerminar } = {}) {
     const vistos = new Set();
     const lista = [];
 
-    // Primero lo que ya ofrece su proveedor (con sus precios), luego Nexo.
-    for (const item of [...(datos.proveedor || []), ...(datos.catalogoMaestro || []), ...(datos.fabricante || [])]) {
+    // Primero lo que ya ofrece su proveedor (con sus precios), luego Nexo. Una tienda solo de abarrotes no ve el catalogo de fabricantes
+    // de ferreteria (Truper, Urrea...): buscando "cocacola" le salian brocas.
+    const fabricantes = typeof perfilEsSimple === "function" && perfilEsSimple() ? [] : (datos.fabricante || []);
+
+    for (const item of [...(datos.proveedor || []), ...(datos.catalogoMaestro || []), ...fabricantes]) {
         const clave = ciNormalizar(item.nombre);
         if (!item.nombre || vistos.has(clave)) continue;
         vistos.add(clave);
