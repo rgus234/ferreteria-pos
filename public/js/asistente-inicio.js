@@ -784,6 +784,9 @@ async function asistenteTerminar(primerPaso) {
  asistente = null;
  ocultarRecordatorioAsistente();
 
+ // la cuenta nueva queda con el menu simplificado: se vuelve a leer para que se vea de inmediato
+ if (typeof window.recargarFuncionesBeta === "function") await window.recargarFuncionesBeta();
+
  if (primerPaso === "primera_venta" && typeof cerrarBienvenidaNexoOnboarding === "function") {
   // Reusa el recorrido guiado de la venta (tambien marca la bienvenida como vista).
   cerrarBienvenidaNexoOnboarding(true);

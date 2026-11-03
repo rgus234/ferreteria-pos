@@ -913,6 +913,21 @@ app.put("/negocio-actual/onboarding", requerirAccesoNegocio, requerirPermiso(PER
             );
         }
 
+        // Cuenta nueva: al terminar el asistente por primera vez queda con el menu simplificado (se apaga en Funciones nuevas).
+        // Los negocios que ya existian no pasan por aqui (su asistente ya estaba terminado).
+        if (req.body?.completado === true && !negocio.onboarding_completado_at) {
+            try {
+                await pool.query(`ALTER TABLE public.negocios ADD COLUMN IF NOT EXISTS funciones_beta JSONB NOT NULL DEFAULT '{}'::jsonb`);
+                await pool.query(
+                    `UPDATE public.negocios SET funciones_beta = jsonb_set(COALESCE(funciones_beta, '{}'::jsonb), '{menu_simplificado}', 'true'::jsonb)
+                     WHERE id = $1 AND NOT (COALESCE(funciones_beta, '{}'::jsonb) ? 'menu_simplificado')`,
+                    [negocio.id]
+                );
+            } catch (errorMenu) {
+                console.warn("No se pudo dejar el menu simplificado por defecto:", errorMenu.message);
+            }
+        }
+
         res.json(await estadoAsistenteInicio(negocio.id));
     } catch (error) {
         responderError(res, error);

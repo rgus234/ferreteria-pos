@@ -17,6 +17,7 @@
     const esc = valor => String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
     window.funcionBeta = clave => funciones[clave] === true;
+    window.recargarFuncionesBeta = () => cargar();
 
     function aplicar() {
         document.querySelectorAll("[data-beta]").forEach(el => { el.hidden = !window.funcionBeta(el.dataset.beta); });

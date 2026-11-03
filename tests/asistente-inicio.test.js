@@ -152,6 +152,21 @@ test("terminar el asistente es de una sola vez", async () => {
     assert.equal(segunda.cuerpo.completadoAt, marca, "la fecha original no se pisa");
 });
 
+test("una cuenta nueva queda con el menu simplificado al terminar el asistente; si lo apaga, no se vuelve a encender", async () => {
+    const funciones = async () => (await (await fetch(`${BASE_URL}/funciones-beta`, { headers: headers() })).json()).funciones;
+
+    // el test anterior ya termino el asistente de este negocio: aqui se simula la primera vez
+    await pool.query(`UPDATE public.negocios SET onboarding_completado_at = NULL, funciones_beta = '{}'::jsonb WHERE id = $1`, [negocio.negocioId]);
+    assert.equal((await funciones()).menu_simplificado, false, "antes de terminar: apagado");
+
+    await guardar({ completado: true });
+    assert.equal((await funciones()).menu_simplificado, true, "al terminar el asistente: encendido");
+
+    await fetch(`${BASE_URL}/funciones-beta`, { method: "PUT", headers: headers(), body: JSON.stringify({ clave: "menu_simplificado", activo: false }) });
+    await guardar({ completado: true });
+    assert.equal((await funciones()).menu_simplificado, false, "lo que el dueño apago se respeta");
+});
+
 test("un empleado sin permiso de administrar usuarios no lo ve ni lo guarda", async () => {
     const extra = { "x-empleado-id": String(cajeroId) };
     assert.equal((await leer(extra)).status, 403);
