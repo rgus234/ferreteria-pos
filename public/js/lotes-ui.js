@@ -185,20 +185,84 @@ async function lotesEntradaPorBusqueda() {
         try { await cargarProductos(); } catch (error) { /* se avisa abajo */ }
     }
 
-    const texto = await pedirTextoPOS("Que producto llego? Escribe su nombre o su codigo.", "", "Llego mercancia");
-    const buscado = String(texto || "").trim().toLowerCase();
-    if (!buscado) return;
+    const producto = await lotesElegirProducto("¿Qué producto llegó?", "Escribe una parte del nombre, la marca o el código");
+    if (producto) await lotesEntrada(producto.id, producto.nombre);
+}
 
-    const coincidencias = (todosProductos || []).filter(p =>
-        String(p.codigo || "").toLowerCase() === buscado || String(p.nombre || "").toLowerCase().includes(buscado)
-    );
+// Buscador de producto con lista: se escribe una parte del nombre (en cualquier orden), se ve la foto y se elige con el mouse o con las flechas + Enter.
+function lotesElegirProducto(titulo, ayuda) {
+    const plano = texto => String(texto || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    if (coincidencias.length !== 1) {
-        alertaPOS(coincidencias.length ? `Hay ${coincidencias.length} productos con "${texto}". Escribe mas del nombre.` : `No encontre "${texto}" en tu inventario.`, "Llego mercancia", "alerta");
-        return;
-    }
+    return new Promise(resolver => {
+        document.getElementById("lotesElegirFondo")?.remove();
 
-    await lotesEntrada(coincidencias[0].id, coincidencias[0].nombre);
+        const fondo = document.createElement("div");
+        fondo.id = "lotesElegirFondo";
+        fondo.className = "le-fondo";
+        fondo.setAttribute("role", "dialog");
+        fondo.setAttribute("aria-modal", "true");
+        fondo.innerHTML = `<div class="le-caja">
+            <h2>${escaparPOS(titulo)}</h2>
+            <p>${escaparPOS(ayuda || "")}</p>
+            <input id="leBuscar" type="search" placeholder="Ej. leche lala" autocomplete="off">
+            <ul id="leLista" class="le-lista" role="listbox"></ul>
+            <button type="button" class="le-cancelar" id="leCancelar">Cancelar</button>
+        </div>`;
+        document.body.appendChild(fondo);
+
+        const entrada = fondo.querySelector("#leBuscar");
+        const lista = fondo.querySelector("#leLista");
+        let resultados = [];
+        let activo = -1;
+
+        const cerrar = producto => { document.removeEventListener("keydown", teclado, true); fondo.remove(); resolver(producto || null); };
+
+        function pintar() {
+            lista.innerHTML = resultados.length
+                ? resultados.map((p, i) => `<li class="le-fila${i === activo ? " activa" : ""}" role="option" data-i="${i}">
+                        <span class="le-foto">${typeof miniaturaProducto === "function" && p.imagenUrl ? miniaturaProducto(p, "le-foto-img") : escaparPOS(String(p.nombre || "?").slice(0, 1).toUpperCase())}</span>
+                        <span class="le-texto"><b>${escaparPOS(p.nombre)}</b><small>${escaparPOS(p.marca || "")}${p.marca ? " · " : ""}Hay ${escaparPOS(p.stock ?? 0)} ${escaparPOS(typeof unidadProducto === "function" ? unidadProducto(p) : "")} · ${typeof dinero === "function" ? dinero(p.precio || 0) : ""}</small></span>
+                    </li>`).join("")
+                : `<li class="le-vacio">${entrada.value.trim() ? "No encontré ese producto. Prueba con otra parte del nombre." : "Empieza a escribir para ver tus productos."}</li>`;
+        }
+
+        function buscar() {
+            const palabras = plano(entrada.value).split(/\s+/).filter(Boolean);
+            const base = Array.isArray(todosProductos) ? todosProductos.filter(p => Number(p.id) > 0) : [];
+
+            resultados = palabras.length
+                ? base.filter(p => { const texto = plano(`${p.nombre} ${p.marca || ""} ${p.codigo || ""}`); return palabras.every(w => texto.includes(w)); })
+                    .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre))).slice(0, 12)
+                : [];
+            activo = resultados.length ? 0 : -1;
+            pintar();
+        }
+
+        function teclado(evento) {
+            if (evento.key === "Escape") { evento.preventDefault(); evento.stopPropagation(); cerrar(null); return; }
+            if (!resultados.length) return;
+
+            if (evento.key === "ArrowDown" || evento.key === "ArrowUp") {
+                evento.preventDefault();
+                activo = evento.key === "ArrowDown" ? (activo + 1) % resultados.length : (activo <= 0 ? resultados.length - 1 : activo - 1);
+                pintar();
+                lista.querySelector(".activa")?.scrollIntoView({ block: "nearest" });
+            } else if (evento.key === "Enter" && activo >= 0) {
+                evento.preventDefault();
+                evento.stopPropagation();
+                cerrar(resultados[activo]);
+            }
+        }
+
+        entrada.addEventListener("input", buscar);
+        lista.addEventListener("click", evento => { const fila = evento.target.closest(".le-fila"); if (fila) cerrar(resultados[Number(fila.dataset.i)]); });
+        fondo.addEventListener("click", evento => { if (evento.target === fondo) cerrar(null); });
+        fondo.querySelector("#leCancelar").addEventListener("click", () => cerrar(null));
+        document.addEventListener("keydown", teclado, true);
+
+        pintar();
+        setTimeout(() => entrada.focus(), 30);
+    });
 }
 
 // Un producto sin fecha no sale en esta lista: aqui se busca y se abre su ficha para ponerle caducidad o vida util
@@ -207,20 +271,8 @@ async function lotesPonerFecha() {
         try { await cargarProductos(); } catch (error) { /* se avisa abajo */ }
     }
 
-    const texto = await pedirTextoPOS("Que producto quieres editar? Escribe su nombre o su codigo.", "", "Ponerle fecha");
-    const buscado = String(texto || "").trim().toLowerCase();
-    if (!buscado) return;
-
-    const coincidencias = (todosProductos || []).filter(p =>
-        String(p.codigo || "").toLowerCase() === buscado || String(p.nombre || "").toLowerCase().includes(buscado)
-    );
-
-    if (coincidencias.length !== 1) {
-        alertaPOS(coincidencias.length ? `Hay ${coincidencias.length} productos con "${texto}". Escribe mas del nombre.` : `No encontre "${texto}" en tu inventario.`, "Ponerle fecha", "alerta");
-        return;
-    }
-
-    editarProducto(coincidencias[0].id);
+    const producto = await lotesElegirProducto("¿A qué producto le pones fecha?", "Escribe una parte del nombre, la marca o el código; elígelo y se abre su ficha");
+    if (producto) editarProducto(producto.id);
 }
 
 async function lotesVerMermas() {

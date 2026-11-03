@@ -147,3 +147,13 @@ test("Por revisar (abarrotes) y Por vencer (ferreteria): tarjetas con foto, urge
     assert.match(leer("css/components/por-vencer.css"), /body\.menu-simple #pantallaPorVencer \.tabla-bajo/);
     assert.match(leer("index.html"), /js\/por-vencer-tarjetas\.js/);
 });
+
+test("Ponerle fecha / Llego mercancia: buscador con lista (palabras en cualquier orden, foto, flechas + Enter) en vez de pedir el nombre exacto", () => {
+    const js = leer("js/lotes-ui.js");
+    assert.match(js, /function lotesElegirProducto\(titulo, ayuda\)/);
+    assert.match(js, /palabras\.every\(w => texto\.includes\(w\)\)/);
+    assert.match(js, /await lotesElegirProducto\("¿A qué producto le pones fecha\?"/);
+    assert.match(js, /await lotesElegirProducto\("¿Qué producto llegó\?"/);
+    assert.match(js, /evento\.key === "ArrowDown" \|\| evento\.key === "ArrowUp"/);
+    assert.match(leer("css/components/por-vencer.css"), /\.le-fila\.activa/);
+});
