@@ -532,6 +532,11 @@ function asistentePintarListo() {
    <div><span>Equipo</span><span>${asistenteEsc(equipo)}</span></div>
    <div><span>Productos registrados</span><span>${Array.isArray(typeof todosProductos !== "undefined" ? todosProductos : null) ? todosProductos.length : 0}</span></div>
   </div>
+  <div class="asistente-equipo-pregunta">
+   <span aria-hidden="true">👥</span>
+   <div><b>¿Alguien más trabaja contigo?</b><small>Dales su perfil con PIN, elige qué pueden hacer y mándales tareas y avisos. Lo puedes hacer cuando quieras desde “Mi equipo”.</small></div>
+   <button type="button" class="asistente-boton chico" onclick="asistenteTerminar('agregar_equipo')">Sí, agregar a mi equipo</button>
+  </div>
   <p>${sinLector ? "Lo siguiente es cargar tus productos. Con la carga rapida los buscas por nombre y Nexo te llena el precio sugerido." : "Lo siguiente es cargar tus productos. Escanea el codigo de barras y Nexo reconoce muchos: te llena el nombre, la categoria y el precio sugerido."}</p>
  `;
 
@@ -789,6 +794,11 @@ async function asistenteTerminar(primerPaso) {
 
  if (primerPaso === "agregar_productos" && typeof mostrarCargaInventario === "function") {
   mostrarCargaInventario();
+  return;
+ }
+
+ if (primerPaso === "agregar_equipo" && typeof mostrarMiEquipo === "function") {
+  mostrarMiEquipo("personas");
   return;
  }
 

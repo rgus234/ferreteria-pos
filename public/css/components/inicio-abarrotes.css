@@ -2,7 +2,7 @@
 
 /* El tablero de ferreteria se esconde SIEMPRE en el Inicio de abarrotes: "Mas herramientas" abre el menu completo, pero el Inicio ya trae lo suyo
    (los mismos numeros, alertas y ventas) y el tablero de ferreteria encima solo lo duplicaba. Las tarjetas nuevas de pendientes se quedan. */
-body.perfil-simple #pantallaInicio > *:not(.dashboard-header):not(#inicioAbarrotes):not(#inicioPendientes) {
+body.perfil-simple #pantallaInicio > *:not(.dashboard-header):not(#inicioAbarrotes):not(#inicioPendientes):not(#eqTarjetaInicio) {
   display: none !important;
 }
 

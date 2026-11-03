@@ -337,3 +337,9 @@
 
 /* Pantalla final: tres salidas en una sola fila */
 .asistente-boton.chico { padding: 0 14px; font-size: 14px; }
+
+/* pregunta por el equipo en la pantalla final */
+.asistente-equipo-pregunta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 14px 0; padding: 14px 16px; border-radius: 16px; border: 1px solid rgba(100, 116, 139, .3); background: rgba(124, 58, 237, .08); }
+.asistente-equipo-pregunta > span { font-size: 28px; }
+.asistente-equipo-pregunta > div { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 2px; }
+.asistente-equipo-pregunta small { font-size: 13px; opacity: .8; }

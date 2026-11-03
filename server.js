@@ -776,7 +776,7 @@ const RESPUESTAS_ASISTENTE_VALIDAS = {
     impresora: ["si", "no", "no_se"],
     lector: ["si", "no", "no_se"],
     cajon: ["si", "no", "no_se"],
-    primerPaso: ["agregar_productos", "primera_venta", "inicio"]
+    primerPaso: ["agregar_productos", "primera_venta", "inicio", "agregar_equipo"]
 };
 
 async function estadoAsistenteInicio(negocioId) {

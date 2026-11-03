@@ -150,3 +150,33 @@ test("la lista de personas del equipo sirve para asignar tareas; solo un gestor 
     const deCajero = (await pedir("/equipo/personas", { quien: cajero })).cuerpo.personas;
     assert.ok(deCajero.every(p => !("gestorTareas" in p)), "un cajero no ve quien tiene permisos");
 });
+
+test("pantallas: Mi equipo en la computadora (Inicio, menu, asistente) y tareas en el celular quedan conectadas", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const leer = ruta => fs.readFileSync(path.join(__dirname, "..", "public", ruta), "utf8");
+    const html = leer("index.html");
+
+    assert.match(html, /<section id="pantallaMiEquipo"/);
+    assert.match(html, /data-shell-module="mi-equipo" data-beta="menu_simplificado" onclick="mostrarMiEquipo\(\)"/);
+    assert.match(html, /js\/mi-equipo-view\.js/);
+    assert.match(leer("js/config-auth.js"), /"pantallaMiEquipo"/);
+    assert.match(leer("js/menu-simple.js"), /modulo: "mi-equipo"/);
+
+    const vista = leer("js/mi-equipo-view.js");
+    assert.match(vista, /window\.mostrarMiEquipo = /);
+    assert.match(vista, /¿Alguien más trabaja contigo\?/);
+    assert.match(leer("css/components/inicio-abarrotes.css"), /:not\(#eqTarjetaInicio\)/, "el Inicio de abarrotes no esconde la tarjeta");
+
+    // el asistente de inicio pregunta por el equipo y lo manda a Mi equipo
+    const asistente = leer("js/asistente-inicio.js");
+    assert.match(asistente, /asistenteTerminar\('agregar_equipo'\)/);
+    assert.match(asistente, /mostrarMiEquipo\("personas"\)/);
+    assert.match(fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8"), /primerPaso: \["agregar_productos", "primera_venta", "inicio", "agregar_equipo"\]/);
+
+    // celular
+    assert.match(leer("dueno.html"), /dueno-tareas\.js/);
+    assert.match(leer("dueno-sw.js"), /dueno-tareas\.js/);
+    assert.match(leer("dueno.js"), /id: "tareas", titulo: "Tareas y avisos"/);
+    assert.match(leer("dueno-gestion.js"), /Encargado \(puede crear tareas\)/);
+});

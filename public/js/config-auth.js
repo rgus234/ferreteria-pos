@@ -1460,6 +1460,7 @@ function ocultarPantallasPrincipales() {
  "pantallaEnlaceCelular",
  "pantallaFuncionesBeta",
  "pantallaHubMenu",
+ "pantallaMiEquipo",
  "pantallaPedidoSugerido",
  "pantallaFotosSugeridas",
  "pantallaCargaInventario",

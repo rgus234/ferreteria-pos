@@ -91,6 +91,7 @@
             id: "config", etiqueta: "Configuración", icono: "settings", titulo: "Configuración", subtitulo: "Tu negocio, tu cuenta y tus equipos",
             grupos: [
                 { tam: "g", cards: [
+                    { modulo: "mi-equipo", icono: "users", titulo: "Mi equipo", texto: "Personas, tareas y avisos" },
                     { modulo: "configuracion", icono: "settings", titulo: "Mi negocio", texto: "Datos, ticket, precios y equipo" },
                     { modulo: "cuenta", icono: "wallet", titulo: "Mi cuenta", texto: "Plan, pagos y contraseña" },
                     { modulo: "dueno", icono: "cast", titulo: "App del dueño", texto: "Enlaza tu celular con un QR" },
