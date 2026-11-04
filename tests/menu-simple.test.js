@@ -192,3 +192,18 @@ test("Practica con Nexo: capitulos 2 (resultados con ventas de ejemplo) y 3 (agr
     assert.match(js, /soloVer: true/);
     assert.match(leer("css/components/practica-nexo.css"), /body\.practica-activa #modalDialogoPOS/);
 });
+
+test("Practica con Nexo: capitulo 4 (recorrido por las tarjetas del programa) y 5 (celular como escaner con codigo EAN-13 valido de prueba)", () => {
+    const js = leer("js/practica-nexo.js");
+    assert.match(js, /id: "recorrido", titulo: "Conoce tu programa"/);
+    assert.match(js, /id: "celular", titulo: "Tu celular como escáner"/);
+    assert.match(js, /ruta\.startsWith\("\/escaner-remoto"\)\) return estado\.fetchOriginal/, "el escaner del celular es real (solo los productos son de ejemplo)");
+    assert.match(js, /function ean13\(cuerpo12\)/);
+    assert.match(js, /function barrasEan13\(codigo\)/);
+    assert.match(js, /secundario: \{ texto: "Lo hago después"/);
+    assert.match(js, /aplica: \(\) => document\.body\.classList\.contains\("menu-simple"\)/);
+
+    // el digito verificador EAN-13 de los productos de ejemplo es valido
+    const suma = c => { const d = c.slice(0, 12).split("").map(Number); return (10 - (d.reduce((s, n, i) => s + n * (i % 2 ? 3 : 1), 0) % 10)) % 10; };
+    assert.equal(suma("750100000001"), 2, "Doritos: 7501000000012");
+});

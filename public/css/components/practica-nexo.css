@@ -68,3 +68,12 @@
 .px-escudo[hidden] { display: none; }
 
 body.practica-activa #modalDialogoPOS { z-index: 100001 !important; }
+
+.px-lista { margin: 8px 0 2px; padding-left: 18px; font-size: 15px; font-weight: 500; }
+.px-lista li { margin: 3px 0; }
+.px-lista b { color: #2563eb; }
+.px-botones { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.px-secundario { margin-top: 12px; height: 42px; padding: 0 16px; border: 1px solid rgba(100, 116, 139, .45); border-radius: 12px; background: transparent; color: #475467; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.px-secundario[hidden] { display: none; }
+.px-codigo-prueba { position: fixed; z-index: 99989; left: 50%; top: 22%; transform: translateX(-50%); display: grid; justify-items: center; gap: 4px; padding: 14px 18px 10px; border-radius: 18px; background: #fff; box-shadow: 0 24px 60px rgba(2, 6, 23, .5); animation: pxEntra .4s cubic-bezier(.2, .75, .25, 1); }
+.px-codigo-prueba small { color: #475467; font-weight: 700; }

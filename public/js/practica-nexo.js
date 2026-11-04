@@ -22,8 +22,36 @@
         return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
     }
 
+    // EAN-13: los 12 primeros digitos + el digito verificador
+    function ean13(cuerpo12) {
+        const d = String(cuerpo12).padStart(12, "0").slice(0, 12).split("").map(Number);
+        const suma = d.reduce((s, n, i) => s + n * (i % 2 ? 3 : 1), 0);
+        return d.join("") + ((10 - (suma % 10)) % 10);
+    }
+
+    const L = ["0001101", "0011001", "0010011", "0111101", "0100011", "0110001", "0101111", "0111011", "0110111", "0001011"];
+    const G = ["0100111", "0110011", "0011011", "0100001", "0011101", "0111001", "0000101", "0010001", "0001001", "0010111"];
+    const R = ["1110010", "1100110", "1101100", "1000010", "1011100", "1001110", "1010000", "1000100", "1001000", "1110100"];
+    const PARIDAD = ["LLLLLL", "LLGLGG", "LLGGLG", "LLGGGL", "LGLLGG", "LGGLLG", "LGGGLL", "LGLGLG", "LGLGGL", "LGGLGL"];
+
+    function barrasEan13(codigo) {
+        const d = String(codigo).split("").map(Number);
+        const paridad = PARIDAD[d[0]];
+        let bits = "101";
+        for (let i = 0; i < 6; i++) bits += (paridad[i] === "L" ? L : G)[d[i + 1]];
+        bits += "01010";
+        for (let i = 0; i < 6; i++) bits += R[d[i + 7]];
+        bits += "101";
+
+        const m = 3, alto = 90, margen = 12;
+        let barras = "";
+        [...bits].forEach((b, i) => { if (b === "1") barras += `<rect x="${margen + i * m}" y="0" width="${m}" height="${alto}" fill="#000"/>`; });
+        const ancho = bits.length * m + margen * 2;
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${ancho} ${alto + 28}" width="${ancho * 1.15}" height="${(alto + 28) * 1.15}"><rect width="${ancho}" height="${alto + 28}" fill="#fff"/>${barras}<text x="${ancho / 2}" y="${alto + 22}" font-family="monospace" font-size="20" text-anchor="middle" letter-spacing="3">${codigo}</text></svg>`;
+    }
+
     const base = (id, codigo, nombre, marca, precio, stock, emoji, c1, c2, categoria = "Ejemplo") => ({
-        id, codigo, nombre, marca, categoria, precio, precio_publico: precio, precio_mayoreo: precio, precio_distribuidor: precio, costo: Math.round(precio * 0.7 * 100) / 100,
+        id, codigo: String(codigo).length === 12 ? ean13(codigo) : codigo, nombre, marca, categoria, precio, precio_publico: precio, precio_mayoreo: precio, precio_distribuidor: precio, costo: Math.round(precio * 0.7 * 100) / 100,
         stock, stock_minimo: 3, unidad_venta: "pieza", imagenUrl: imagen(emoji, c1, c2), activo: true, visible_pos: true, practica: true
     });
 
@@ -31,22 +59,22 @@
         abarrotes: {
             nombre: "Abarrotes La Esquina",
             productos: [
-                base(9001, "7501000000011", "Doritos Nacho 58 g", "Sabritas", 18, 24, "🌮", "#fde68a", "#f97316", "Botanas"),
-                base(9002, "7501000000028", "Coca-Cola 600 ml", "Coca-Cola", 20, 36, "🥤", "#fecaca", "#dc2626", "Bebidas"),
-                base(9003, "7501000000035", "Sabritas Originales 45 g", "Sabritas", 17, 30, "🥔", "#fef08a", "#eab308", "Botanas"),
-                base(9004, "7501000000042", "Galletas Marías 170 g", "Gamesa", 15, 18, "🍪", "#fde68a", "#d97706", "Galletas"),
-                base(9005, "7501000000059", "Leche entera 1 L", "Lala", 28, 12, "🥛", "#dbeafe", "#3b82f6", "Lácteos")
+                base(9001, "750100000001", "Doritos Nacho 58 g", "Sabritas", 18, 24, "🌮", "#fde68a", "#f97316", "Botanas"),
+                base(9002, "750100000002", "Coca-Cola 600 ml", "Coca-Cola", 20, 36, "🥤", "#fecaca", "#dc2626", "Bebidas"),
+                base(9003, "750100000003", "Sabritas Originales 45 g", "Sabritas", 17, 30, "🥔", "#fef08a", "#eab308", "Botanas"),
+                base(9004, "750100000004", "Galletas Marías 170 g", "Gamesa", 15, 18, "🍪", "#fde68a", "#d97706", "Galletas"),
+                base(9005, "750100000005", "Leche entera 1 L", "Lala", 28, 12, "🥛", "#dbeafe", "#3b82f6", "Lácteos")
             ],
             busquedas: [{ id: 9001, escribe: "dori", nombre: "Doritos" }, { id: 9002, escribe: "coca", nombre: "Coca-Cola" }]
         },
         ferreteria: {
             nombre: "Ferretería La Esquina",
             productos: [
-                base(9001, "7501000000066", "Martillo de uña 16 oz", "Truper", 135, 14, "🔨", "#e2e8f0", "#64748b", "Herramientas manuales"),
-                base(9002, "7501000000073", "Pinzas de presión 10\"", "Truper", 145, 10, "🔧", "#dbeafe", "#2563eb", "Herramientas manuales"),
-                base(9003, "7501000000080", "Taladro percutor 800 W", "Truper", 1499, 4, "⚡", "#fde68a", "#f59e0b", "Herramientas eléctricas"),
-                base(9004, "7501000000097", "Flexómetro 5 m", "Truper", 89, 22, "📏", "#fef08a", "#ca8a04", "Medición"),
-                base(9005, "7501000000103", "Cinta de aislar negra", "Volteck", 28, 40, "🧵", "#e5e7eb", "#1f2937", "Electricidad")
+                base(9001, "750100000006", "Martillo de uña 16 oz", "Truper", 135, 14, "🔨", "#e2e8f0", "#64748b", "Herramientas manuales"),
+                base(9002, "750100000007", "Pinzas de presión 10\"", "Truper", 145, 10, "🔧", "#dbeafe", "#2563eb", "Herramientas manuales"),
+                base(9003, "750100000008", "Taladro percutor 800 W", "Truper", 1499, 4, "⚡", "#fde68a", "#f59e0b", "Herramientas eléctricas"),
+                base(9004, "750100000009", "Flexómetro 5 m", "Truper", 89, 22, "📏", "#fef08a", "#ca8a04", "Medición"),
+                base(9005, "750100000010", "Cinta de aislar negra", "Volteck", 28, 40, "🧵", "#e5e7eb", "#1f2937", "Electricidad")
             ],
             busquedas: [{ id: 9001, escribe: "marti", nombre: "Martillo" }, { id: 9002, escribe: "pinz", nombre: "Pinzas" }]
         }
@@ -114,6 +142,8 @@
             const url = String(entrada && entrada.url ? entrada.url : entrada);
             const metodo = String((opciones && opciones.method) || (entrada && entrada.method) || "GET").toUpperCase();
             const ruta = url.replace(location.origin, "").split("?")[0];
+
+            if (ruta.startsWith("/escaner-remoto")) return estado.fetchOriginal.apply(this, arguments);
 
             if (metodo === "GET") {
                 if (ruta === "/productos") return respuestaJson(estado.productos);
@@ -184,7 +214,7 @@
             <div class="px-banda" id="pxBanda"></div>
             <div class="px-mascota" id="pxMascota">
                 <img id="pxImagen" src="${mascota("feliz")}" alt="Nexo">
-                <div class="px-burbuja" id="pxBurbuja"><div id="pxTexto"></div><div class="px-pie" id="pxPie"></div><button type="button" class="px-continuar" id="pxContinuar" hidden></button></div>
+                <div class="px-burbuja" id="pxBurbuja"><div id="pxTexto"></div><div class="px-pie" id="pxPie"></div><div class="px-botones"><button type="button" class="px-continuar" id="pxContinuar" hidden></button><button type="button" class="px-secundario" id="pxSecundario" hidden></button></div></div>
             </div>`;
         document.body.appendChild(c);
 
@@ -371,10 +401,57 @@
         ];
     }
 
+    function pasosRecorrido() {
+        const hay = id => Boolean(document.querySelector(`.ms-item[data-hub="${id}"]`));
+        const abrir = id => () => { if (typeof abrirMenuSimple === "function") abrirMenuSimple(id); };
+        const hub = () => document.querySelector("#pantallaHubMenu .ms-hub");
+        const lista = items => `<ul class="px-lista">${items.map(([n, t]) => `<li><b>${n}</b> ${t}</li>`).join("")}</ul>`;
+
+        return [
+            { pose: "feliz", texto: `Ahora un <b>recorrido por tu programa</b>. Todo lo que Nexo hace está en el <b>menú de la izquierda</b>, en pocos grupos.`, objetivo: ".ms-nav", soloVer: true, boton: "Vamos" },
+            { pose: "neutral", texto: `<b>Productos</b>: todo lo que vendes.${lista([["Mis productos", "ver y editar"], ["Agregar producto", "uno nuevo"], ["Se está acabando", "lo que ya casi no tienes"]])}`, antes: abrir("productos"), omitir: () => !hay("productos"), objetivo: hub, soloVer: true, boton: "Siguiente" },
+            { pose: "neutral", texto: `<b>Compras</b>: lo que te llega.${lista([["Recibir mercancía", "con la factura o escaneando"], ["Mis proveedores", "y sus catálogos"], ["Pedidos", "lo que armaste para pedir"]])}`, antes: abrir("compras"), omitir: () => !hay("compras"), objetivo: hub, soloVer: true, boton: "Siguiente" },
+            { pose: "neutral", texto: `<b>Clientes y fiado</b>: quién te compra y quién te debe.${lista([["Mis clientes", "sus datos y compras"], ["Fiado", "saldos, abonos y cobros"], ["Encargos", "lo que te piden y aún no tienes"]])}`, antes: abrir("clientes"), omitir: () => !hay("clientes"), objetivo: hub, soloVer: true, boton: "Siguiente" },
+            { pose: "neutral", texto: `<b>Ventas</b>: cómo va tu negocio.${lista([["Reportes", "ventas del día, semana y mes"], ["Buscar un ticket", "por folio o cliente"], ["Caja", "abrir y hacer el corte"]])}`, antes: abrir("ventas"), omitir: () => !hay("ventas"), objetivo: hub, soloVer: true, boton: "Siguiente" },
+            { pose: "neutral", texto: `<b>En línea</b>: tu tienda en internet.${lista([["Pedidos de Market", "lo que te piden por internet"], ["Mi sitio web", "tu página con tus productos"]])}`, antes: abrir("enlinea"), omitir: () => !hay("enlinea"), objetivo: hub, soloVer: true, boton: "Siguiente" },
+            { pose: "pensando", texto: `<b>Nexo IA</b> soy yo 😄: pregúntame lo que quieras de tu negocio, por ejemplo <b>“¿qué vendí hoy?”</b> o <b>“¿qué se está acabando?”</b>.`, objetivo: () => document.querySelector('.ms-item[data-hub="nexo-ia"]'), omitir: () => !hay("nexo-ia"), soloVer: true, boton: "Siguiente" },
+            { pose: "neutral", texto: `<b>Configuración</b>: tu negocio y tu equipo.${lista([["Mi equipo", "personas, tareas y avisos"], ["App del dueño", "tu celular, con un QR"], ["Practicar con Nexo", "repite esta práctica cuando quieras"]])}`, antes: abrir("config"), omitir: () => !hay("config"), objetivo: hub, soloVer: true, boton: "Siguiente" },
+            { pose: "celebrando", texto: `¡Eso es todo el mapa! Si algo no lo encuentras, <b>pregúntale a Nexo IA</b> o vuelve a este recorrido desde Configuración.`, boton: "Seguir" }
+        ];
+    }
+
+    // ---- capitulo 5: usar el celular como escaner ----
+    function pasosCelular() {
+        const primero = estado.productos.find(p => p.id === 9001) || estado.productos[0];
+        const carritoTiene = id => typeof carrito !== "undefined" && Array.isArray(carrito) && carrito.some(p => Number(p.id) === id);
+        const conectado = () => Boolean(document.querySelector("#erEstado.er-ok"));
+
+        return [
+            { pose: "feliz", texto: `Tu <b>celular puede ser tu lector de códigos de barras</b>. Sin comprar nada. Te enseño a conectarlo.`, pie: "Funciona con cualquier celular con cámara", boton: "Enséñame" },
+            { pose: "pensando", texto: `Toca este botón del <b>celular</b> (junto al buscador).`, objetivo: ".er-boton", omitir: () => !document.querySelector(".er-boton"), cuando: () => Boolean(document.getElementById("erFondo")) },
+            { pose: "feliz", texto: `Con la <b>cámara de tu celular</b> escanea este <b>QR</b>. Se abre una página de Nexo: no instalas nada.`, pie: "¿No lo tienes a la mano? Lo puedes hacer después", objetivo: "#erFondo .er-panel", boton: "Ya lo conecté", secundario: { texto: "Lo hago después", valor: "omitirCapitulo" }, cuando: conectado },
+            { pose: "celebrando", texto: `¡Conectado! Ahora <b>escanea este código de prueba</b> con tu celular y mira cómo cae solito al carrito.`, pie: `Es el de ${esc(primero.nombre)}`, objetivo: () => document.getElementById("pxCodigoPrueba"),
+              antes: () => {
+                  document.getElementById("erCerrar")?.click();
+                  document.getElementById("pxCodigoPrueba")?.remove();
+                  const tarjeta = document.createElement("div");
+                  tarjeta.id = "pxCodigoPrueba";
+                  tarjeta.className = "px-codigo-prueba";
+                  tarjeta.innerHTML = barrasEan13(primero.codigo) + `<small>${esc(primero.nombre)}</small>`;
+                  document.body.appendChild(tarjeta);
+              },
+              cuando: () => carritoTiene(primero.id), secundario: { texto: "No me funciona, sigamos", valor: "omitirPaso" } },
+            { pose: "celebrando", texto: `¡Tu celular ya es tu <b>escáner</b>! Sirve igual para <b>recibir mercancía</b> y para <b>contar tu inventario</b>.`, pie: "Sin cables ni lectores", boton: "Seguir" }
+        ];
+    }
+
     const CAPITULOS = [
         { id: "cobrar", titulo: "Cobrar tu primera venta", pasos: pasosCobrar, entrar: () => { if (typeof mostrarPuntoVenta === "function") mostrarPuntoVenta(); if (typeof cargarFavoritosPOS === "function") cargarFavoritosPOS(); } },
         { id: "resultados", titulo: "Ver tus resultados", pasos: pasosResultados, entrar: () => { if (typeof mostrarGraficas === "function") mostrarGraficas(); } },
-        { id: "producto", titulo: "Agregar un producto", pasos: pasosAgregarProducto, entrar: () => { if (typeof mostrarInventario === "function") mostrarInventario(); } }
+        { id: "producto", titulo: "Agregar un producto", pasos: pasosAgregarProducto, entrar: () => { if (typeof mostrarInventario === "function") mostrarInventario(); } },
+        { id: "recorrido", titulo: "Conoce tu programa", pasos: pasosRecorrido, aplica: () => document.body.classList.contains("menu-simple"), entrar: () => { if (typeof abrirMenuSimple === "function") abrirMenuSimple("productos"); } },
+        { id: "celular", titulo: "Tu celular como escáner", pasos: pasosCelular, entrar: () => { if (typeof mostrarPuntoVenta === "function") mostrarPuntoVenta(); },
+          salir: () => { document.getElementById("pxCodigoPrueba")?.remove(); document.getElementById("erCerrar")?.click(); try { carrito = []; if (typeof actualizarCarrito === "function") actualizarCarrito(); } catch (error) { /* sin carrito */ } } }
     ];
 
     async function esperarPaso(paso) {
@@ -385,12 +462,20 @@
             let terminado = false;
             const listo = valor => { if (!terminado) { terminado = true; clearInterval(reloj); resolver(valor); } };
 
+            const secundario = document.getElementById("pxSecundario");
+            if (secundario) secundario.hidden = !paso.secundario;
+
             if (paso.boton) {
                 boton.hidden = false;
                 boton.textContent = paso.boton;
-                boton.onclick = listo;
+                boton.onclick = () => listo();
             } else {
                 boton.hidden = true;
+            }
+
+            if (paso.secundario && secundario) {
+                secundario.textContent = paso.secundario.texto;
+                secundario.onclick = () => listo(paso.secundario.valor || "omitirCapitulo");
             }
 
             const reloj = setInterval(() => {
@@ -404,6 +489,7 @@
     }
 
     async function correr(capitulo) {
+        if (capitulo.aplica && !capitulo.aplica()) return true;
         if (capitulo.entrar) capitulo.entrar();
         await pausa(900);
 
@@ -434,6 +520,8 @@
         const resultado = await esperarPaso(paso);
             if (estado.cancelado) return false;
             if (resultado === "atras") { i = Math.max(-1, i - 2); continue; }
+            if (resultado === "omitirCapitulo") break;
+            if (resultado === "omitirPaso") continue;
 
             if (paso.cuando && !paso.boton) {
                 // acerto: se celebra un instante antes de seguir
@@ -442,6 +530,7 @@
             }
         }
 
+        if (capitulo.salir) { try { capitulo.salir(); } catch (error) { /* sin limpieza */ } }
         return true;
     }
 
@@ -554,7 +643,7 @@
         if (resultado === "hecha") {
             estado.activa = false;
             await restaurar();
-            await despedida([["🛒", ventas === 1 ? "Cobraste tu primera venta" : `Cobraste ${ventas} ventas`], ["📊", "Viste tus resultados"], ["➕", "Agregaste un producto"]]);
+            await despedida([["🛒", ventas === 1 ? "Cobraste tu primera venta" : `Cobraste ${ventas} ventas`], ["📊", "Viste tus resultados"], ["➕", "Agregaste un producto"], ["🗺️", "Conociste tu programa"]]);
         } else {
             estado.activa = false;
             await restaurar();
