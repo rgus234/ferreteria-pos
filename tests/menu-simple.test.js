@@ -157,3 +157,26 @@ test("Ponerle fecha / Llego mercancia: buscador con lista (palabras en cualquier
     assert.match(js, /evento\.key === "ArrowDown" \|\| evento\.key === "ArrowUp"/);
     assert.match(leer("css/components/por-vencer.css"), /\.le-fila\.activa/);
 });
+
+test("Practica con Nexo: productos de ejemplo en memoria (nada llega al servidor), guia con mascota y se ofrece al terminar el asistente de inicio", () => {
+    const js = leer("js/practica-nexo.js");
+    assert.match(js, /ruta === "\/productos"\) return respuestaJson\(estado\.productos\)/);
+    assert.match(js, /cualquier otra escritura: "ok", sin tocar el servidor/);
+    assert.match(js, /ruta === "\/ventas" && metodo === "POST"/);
+    assert.match(js, /window\.imprimirTicketPOS = async \(\) => true/, "sin impresion durante la practica");
+    assert.match(js, /busquedas: \[\{ id: 9001, escribe: "dori"/);
+    assert.match(js, /busquedas: \[\{ id: 9001, escribe: "marti"/, "set de ferreteria");
+    assert.match(js, /await restaurar\(\)/);
+    assert.match(js, /\/img\/nexo-ia\/\$\{pose\}-hd\.webp/);
+
+    const asistente = leer("js/asistente-inicio.js");
+    assert.match(asistente, /window\.practicaNexo\.debeOfrecerse\(\) && primerPaso !== "primera_venta"/);
+    assert.match(asistente, /async function asistenteSeguirDespuesDeTerminar\(primerPaso\)/);
+    assert.match(fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8"), /practica: \["hecha", "saltada"\]/);
+
+    const html = leer("index.html");
+    assert.match(html, /js\/practica-nexo\.js/);
+    assert.match(html, /css\/components\/practica-nexo\.css/);
+    assert.match(html, /data-shell-module="practica" data-beta="menu_simplificado" onclick="practicaNexo\.iniciar\(\)"/);
+    for (const pose of ["feliz", "pensando", "celebrando", "neutral", "alerta"]) assert.ok(fs.existsSync(path.join(__dirname, "..", "public", "img", "nexo-ia", `${pose}-hd.webp`)), pose);
+});

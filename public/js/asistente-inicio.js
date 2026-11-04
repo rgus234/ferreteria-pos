@@ -784,6 +784,19 @@ async function asistenteTerminar(primerPaso) {
  asistente = null;
  ocultarRecordatorioAsistente();
 
+ // Cuenta nueva: antes de entrar, se ofrece practicar con la mascota (se puede saltar y repetir desde Configuracion)
+ if (window.practicaNexo && window.practicaNexo.debeOfrecerse() && primerPaso !== "primera_venta") {
+  const seguir = () => asistenteSeguirDespuesDeTerminar(primerPaso);
+  window.practicaNexo.iniciar({ alTerminar: seguir });
+  return;
+ }
+
+ asistenteSeguirDespuesDeTerminar(primerPaso);
+}
+
+// Lo que se hace al salir del asistente: ir a donde la persona dijo que queria empezar.
+async function asistenteSeguirDespuesDeTerminar(primerPaso) {
+
  // la cuenta nueva queda con el menu simplificado: se vuelve a leer para que se vea de inmediato
  if (typeof window.recargarFuncionesBeta === "function") await window.recargarFuncionesBeta();
 
