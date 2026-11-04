@@ -30,11 +30,11 @@
     const SETS = {
         abarrotes: {
             productos: [
-                prod(9001, "750100000001", "Doritos Nacho 58 g", "Sabritas", 18, 24, "🌮", "#fde68a", "#f97316", "Botanas"),
+                prod(9001, "750100000001", "Doritos Nacho Rojos 58 g", "Sabritas", 18, 24, "🌮", "#fde68a", "#f97316", "Botanas"),
                 prod(9002, "750100000002", "Coca-Cola 600 ml", "Coca-Cola", 20, 36, "🥤", "#fecaca", "#dc2626", "Bebidas"),
-                prod(9003, "750100000003", "Sabritas Originales 45 g", "Sabritas", 17, 30, "🥔", "#fef08a", "#eab308", "Botanas"),
-                prod(9004, "750100000004", "Galletas Marías 170 g", "Gamesa", 15, 18, "🍪", "#fde68a", "#d97706", "Galletas"),
-                prod(9005, "750100000005", "Leche entera 1 L", "Lala", 28, 12, "🥛", "#dbeafe", "#3b82f6", "Lácteos")
+                prod(9003, "750100000003", "Sabritas Original 45 g", "Sabritas", 17, 30, "🥔", "#fef08a", "#eab308", "Botanas"),
+                prod(9004, "750100000004", "Marías Gamesa 185 g", "Gamesa", 15, 18, "🍪", "#fde68a", "#d97706", "Galletas"),
+                prod(9005, "750100000005", "Leche Lala entera 1 L", "Lala", 28, 12, "🥛", "#dbeafe", "#3b82f6", "Lácteos")
             ],
             busquedas: [{ id: 9001, escribe: "dori", nombre: "Doritos" }, { id: 9002, escribe: "coca", nombre: "Coca-Cola" }]
         },
@@ -42,13 +42,30 @@
             productos: [
                 prod(9001, "750100000006", "Martillo de uña 16 oz", "Truper", 135, 14, "🔨", "#e2e8f0", "#64748b", "Herramientas manuales"),
                 prod(9002, "750100000007", "Pinzas de presión 10\"", "Truper", 145, 10, "🔧", "#dbeafe", "#2563eb", "Herramientas manuales"),
-                prod(9003, "750100000008", "Taladro percutor 800 W", "Truper", 1499, 4, "⚡", "#fde68a", "#f59e0b", "Herramientas eléctricas"),
+                prod(9003, "750100000008", "Taladro percutor 650 W", "Truper", 1499, 4, "⚡", "#fde68a", "#f59e0b", "Herramientas eléctricas"),
                 prod(9004, "750100000009", "Flexómetro 5 m", "Truper", 89, 22, "📏", "#fef08a", "#ca8a04", "Medición"),
-                prod(9005, "750100000010", "Cinta de aislar negra", "Volteck", 28, 40, "🧵", "#e5e7eb", "#1f2937", "Electricidad")
+                prod(9005, "750100000010", "Cinta de aislar negra 18 m", "Pretul", 28, 40, "🧵", "#e5e7eb", "#1f2937", "Electricidad")
             ],
             busquedas: [{ id: 9001, escribe: "marti", nombre: "Martillo" }, { id: 9002, escribe: "pinz", nombre: "Pinzas" }]
         }
     };
+
+    // Fotos reales de cada producto de ejemplo (public/img/practica), precargadas al empezar; si alguna falla se usa el dibujo con emoji
+    const FOTOS = { abarrotes: ["doritos", "cocacola", "sabritas", "marias", "leche"], ferreteria: ["martillo", "pinzas", "taladro", "flexometro", "cinta"] };
+
+    for (const [giroSet, slugs] of Object.entries(FOTOS)) {
+        SETS[giroSet].productos.forEach((p, i) => { p.imagenRespaldo = p.imagenUrl; p.imagenUrl = `/img/practica/${slugs[i]}.webp`; });
+    }
+
+    function precargarFotos(productos) {
+        const una = p => new Promise(resolver => {
+            const img = new Image();
+            img.onload = () => resolver();
+            img.onerror = () => { p.imagenUrl = p.imagenRespaldo || p.imagenUrl; resolver(); };
+            img.src = p.imagenUrl;
+        });
+        return Promise.race([Promise.all(productos.map(una)), pausa(4000)]);
+    }
 
     const estado = { activa: false, cancelado: false, set: null, productos: [], ventas: [], guardado: null, objetivo: null, soloVer: false, esperando: null, paso: 0, totalPasos: 0, capitulo: "", alTerminar: null };
     const giro = () => (window.duenoGiro && window.duenoGiro.ferreteriaSolo) ? "ferreteria" : "abarrotes";
@@ -365,6 +382,7 @@
         estado.ventas = [];
         estado.cancelado = false;
         estado.alTerminar = opciones.alTerminar || null;
+        await precargarFotos(estado.productos);
 
         const empezar = await bienvenida();
         if (!empezar) { marcar("saltada"); document.getElementById("duenoPracticaInvitacion")?.remove(); return; }

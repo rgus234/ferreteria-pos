@@ -222,3 +222,12 @@ test("Practica con Nexo en el celular: productos y servidor de ejemplo (nada del
     assert.match(leer("dueno.js"), /id: "practica", titulo: "Practicar con Nexo"/);
     assert.match(leer("dueno.js"), /practicaCelular\.iniciar\(\)/);
 });
+
+test("la practica usa fotos reales precargadas de los productos de ejemplo", () => {
+    for (const slug of ["doritos", "cocacola", "sabritas", "marias", "leche", "martillo", "pinzas", "taladro", "flexometro", "cinta"]) {
+        assert.ok(fs.existsSync(path.join(__dirname, "..", "public", "img", "practica", slug + ".webp")), slug);
+        assert.match(leer("dueno-sw.js"), new RegExp("/img/practica/" + slug + "\.webp"));
+    }
+    assert.match(leer("js/practica-nexo.js"), /precargarFotos\(estado\.productos\)/);
+    assert.match(leer("dueno-practica.js"), /precargarFotos\(estado\.productos\)/);
+});
