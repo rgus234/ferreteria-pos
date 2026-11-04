@@ -60,7 +60,7 @@ async function comprimirImagen(buffer, anchoMax = 320) {
 // que como exclusiva de Pro.
 //
 // 'prueba' tambien, y esto era un hueco real: es el plan que recibe TODO
-// registro publico nuevo durante 15 dias, los Terminos le prometen
+// registro publico nuevo durante 30 dias, los Terminos le prometen
 // "acceso completo al sistema", y plan-enforcement.js ya lo trata igual
 // que pro/demo en todo lo demas. Solo este gate lo dejaba fuera, asi que
 // un negocio recien registrado no veia una sola foto del banco.

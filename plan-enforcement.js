@@ -42,7 +42,7 @@ async function planDelNegocio(negocioId) {
 // no encontraba nada y CADA registro nuevo perdia acceso real a mitad
 // del sistema durante su periodo de prueba -- justo lo contrario de
 // lo que prometen los Terminos de Servicio ("acceso completo al
-// sistema" durante los 15 dias). Sembrar una fila 'prueba' en la base
+// sistema" durante los 30 dias). Sembrar una fila 'prueba' en la base
 // se descarto a proposito: /suscripcion/planes y /api/planes-publico
 // iteran TODAS las filas de planes para pintar tarjetas de plan
 // comprable, y una fila 'prueba' ahi apareceria como un 4o plan falso

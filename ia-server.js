@@ -522,7 +522,7 @@ Se te da el nombre de un producto (y a veces su marca). Responde UNICAMENTE con 
 // cortar el acceso que ya usa). "prueba" es el plan real que recibe
 // todo registro nuevo desde la pagina publica (ver server.js,
 // POST /api/clientes/registro) -- acceso completo a todas las
-// funciones del sistema durante los 15 dias de prueba, pero con
+// funciones del sistema durante los 30 dias de prueba, pero con
 // Nexo IA topada bajo para no exponer costo real de API a cuentas
 // que todavia no pagan nada; nunca recibe busqueda web (ver
 // permitirBusquedaWeb mas abajo, solo revisa pro/demo).

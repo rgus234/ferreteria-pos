@@ -169,7 +169,7 @@ function generarFichaInformativaPdf() {
 
         // Contacto / cierre
         doc.roundedRect(margenX, y, anchoUtil, 64, 10).fill(FONDO_SUAVE);
-        doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(11).text("Prueba gratis 15 dias, sin tarjeta, sin compromiso.", margenX + 18, y + 14);
+        doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(11).text("Prueba gratis 30 dias, sin tarjeta, sin compromiso.", margenX + 18, y + 14);
         doc.font("Helvetica").fontSize(9.5).fillColor(GRIS)
             .text("WhatsApp: +52 442 495 0495     |     nexoposoficial.com     |     nexoposoficial@gmail.com", margenX + 18, y + 34, { width: anchoUtil - 36 });
 

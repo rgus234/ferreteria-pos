@@ -4,7 +4,7 @@
 // 'prueba' -- asi que funcionDelPlan() no encontraba nada y CADA
 // negocio en periodo de prueba perdia acceso real a funciones de
 // Plus/Pro, justo lo contrario de lo que prometen los Terminos de
-// Servicio ("acceso completo al sistema" durante los 15 dias).
+// Servicio ("acceso completo al sistema" durante los 30 dias).
 // Corregido en plan-enforcement.js tratando "prueba" igual que
 // pro/demo. Corre contra la base real via un negocio sintetico.
 

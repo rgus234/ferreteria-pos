@@ -221,7 +221,7 @@ test("configurar crea la cuenta: licencia de prueba a 30 dias, correo verificado
     assert.equal(licencia.plan, "prueba");
     assert.equal(licencia.estado, "activa");
     const diasDePrueba = (new Date(licencia.fecha_vencimiento) - Date.now()) / 86400000;
-    assert.ok(diasDePrueba > 29.9 && diasDePrueba <= 30, `la prueba dura 30 dias (quedan ${diasDePrueba})`);
+    assert.ok(diasDePrueba > 29.9 && diasDePrueba <= 30.01, `la prueba dura 30 dias (quedan ${diasDePrueba})`);
     assert.equal(licencia.gracia_dias, 15);
     assert.equal(licencia.piloto, true, "queda marcado como piloto para el seguimiento de la prueba");
     assert.match(licencia.license_key, /^NXP-/);

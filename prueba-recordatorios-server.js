@@ -6,7 +6,7 @@
 // enfriamiento para no repetir el aviso.
 //
 // El enfriamiento (10 dias) es mas largo que la ventana de aviso (3
-// dias antes de vencer) a proposito -- una prueba dura 15 dias, asi
+// dias antes de vencer) a proposito -- una prueba dura 30 dias, asi
 // que esto garantiza como mucho un correo por negocio durante toda su
 // prueba, nunca uno por dia mientras esta en la ventana.
 

@@ -376,7 +376,7 @@ function enviarCorreoPruebaPorTerminar(correo, nombreNegocio, { diasRestantes, e
             robot: "alerta",
             cuerpoHtml: `
                 <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">
-                    Llevas usando Nexo en tu negocio y tu periodo de prueba de 15 dias
+                    Llevas usando Nexo en tu negocio y tu periodo de prueba de 30 dias
                     esta por terminar. Elige un plan para no perder acceso a tu
                     inventario, tus ventas y tus creditos.
                 </p>

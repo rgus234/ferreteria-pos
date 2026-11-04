@@ -24,7 +24,7 @@ test("pro y plus ven el banco", async () => {
 });
 
 test("el plan de PRUEBA tambien lo ve", async () => {
-    // Es el plan que recibe todo registro publico nuevo durante 15 dias,
+    // Es el plan que recibe todo registro publico nuevo durante 30 dias,
     // y los Terminos le prometen "acceso completo al sistema".
     // plan-enforcement.js ya lo trata igual que pro/demo en todo lo
     // demas; este gate era el unico que lo dejaba fuera, asi que un
