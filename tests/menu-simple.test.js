@@ -180,3 +180,15 @@ test("Practica con Nexo: productos de ejemplo en memoria (nada llega al servidor
     assert.match(html, /data-shell-module="practica" data-beta="menu_simplificado" onclick="practicaNexo\.iniciar\(\)"/);
     for (const pose of ["feliz", "pensando", "celebrando", "neutral", "alerta"]) assert.ok(fs.existsSync(path.join(__dirname, "..", "public", "img", "nexo-ia", `${pose}-hd.webp`)), pose);
 });
+
+test("Practica con Nexo: capitulos 2 (resultados con ventas de ejemplo) y 3 (agregar producto) y limpieza al terminar", () => {
+    const js = leer("js/practica-nexo.js");
+    assert.match(js, /ruta === "\/reportes\/ventas"\) return respuestaJson\(construirReporte\(\)\)/);
+    assert.match(js, /ruta === "\/agregar-producto" && metodo === "POST"/);
+    assert.match(js, /id: "resultados", titulo: "Ver tus resultados"/);
+    assert.match(js, /id: "producto", titulo: "Agregar un producto"/);
+    assert.match(js, /LLAVES_VENTA = \["hojasVentaFerreteriaPOS", "ultimaVentaPOS"\]/, "la practica no deja ultima venta ni hojas");
+    assert.match(js, /window\.nexoIaTourAutoModulo = \(\) => \{\}/, "sin mini-tours viejos encima");
+    assert.match(js, /soloVer: true/);
+    assert.match(leer("css/components/practica-nexo.css"), /body\.practica-activa #modalDialogoPOS/);
+});

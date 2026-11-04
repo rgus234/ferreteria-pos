@@ -63,3 +63,8 @@
 .px-mascota.px-apilada { flex-direction: column-reverse; align-items: center; width: 350px; }
 .px-mascota.px-apilada .px-burbuja { margin-bottom: 0; border-radius: 22px; max-width: 350px; }
 .px-mascota.px-apilada img { width: 120px; margin-top: 6px; }
+
+.px-escudo { position: fixed; border-radius: 16px; pointer-events: auto; cursor: not-allowed; background: transparent; }
+.px-escudo[hidden] { display: none; }
+
+body.practica-activa #modalDialogoPOS { z-index: 100001 !important; }
