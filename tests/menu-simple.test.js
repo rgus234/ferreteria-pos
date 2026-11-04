@@ -238,3 +238,9 @@ test("el tutorial del celular incluye el recorrido por la app al final", () => {
     assert.ok(js.indexOf('id: "escaner"') < js.indexOf('id: "recorrido"'));
     assert.match(js, /renderCategoriasMasDueno\(\)/);
 });
+
+test("en Vender del celular el numero de la cantidad se toca para escribirlo", () => {
+    assert.match(leer("dueno.js"), /class="dueno-cantidad-numero"[^>]*abrirCantidadVenderDueno\(\$\{item\.id\}\)/);
+    assert.match(leer("dueno-venta-movil.js"), /window\.abrirCantidadVenderDueno = function/);
+    assert.match(leer("dueno-venta-movil.css"), /\.dvm-cantidad-hoja/);
+});

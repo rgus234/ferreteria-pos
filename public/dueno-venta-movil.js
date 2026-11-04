@@ -274,5 +274,39 @@
         });
     }
 
+    // ---- Cantidad escrita: se toca el numero y se escribe (12 piezas sin dar 12 toques) ----
+    const carrito = () => (typeof duenoVentaCarrito !== "undefined" ? duenoVentaCarrito : []);
+    const esc = valor => (typeof escaparDueno === "function" ? escaparDueno(valor) : String(valor ?? ""));
+    window.cerrarCantidadVenderDueno = function () { document.getElementById("dvmCantidadHoja")?.remove(); };
+
+    window.abrirCantidadVenderDueno = function (id) {
+        const item = carrito().find(i => i.id === id);
+        if (!item) return;
+        window.cerrarCantidadVenderDueno();
+
+        const hoja = document.createElement("div");
+        hoja.id = "dvmCantidadHoja";
+        hoja.className = "dvm-cantidad-hoja";
+        hoja.innerHTML = '<div class="dvm-cantidad-fondo"></div><div class="dvm-cantidad-caja"><strong>' + esc(item.nombre) + '</strong>'
+            + '<div class="dvm-cantidad-rapidos">' + [1, 2, 3, 6, 12].map(n => '<button type="button" data-n="' + n + '">' + n + '</button>').join("") + '</div>'
+            + '<input type="text" inputmode="decimal" autocomplete="off" value="' + esc(item.cantidad) + '">'
+            + '<div class="dvm-cantidad-error"></div><button type="button" class="dueno-boton-primario">Listo</button></div>';
+        document.body.appendChild(hoja);
+
+        const campo = hoja.querySelector("input"), error = hoja.querySelector(".dvm-cantidad-error");
+        const aplicar = () => {
+            const valor = Number(String(campo.value).replace(",", "."));
+            if (!Number.isFinite(valor) || valor < 0) { error.textContent = "Escribe un número, por ejemplo 12."; return; }
+            if (valor === 0) duenoVentaCarrito = duenoVentaCarrito.filter(i => i.id !== id); else item.cantidad = Math.round(valor * 1000) / 1000;
+            window.cerrarCantidadVenderDueno();
+            renderCarritoVenderDueno();
+        };
+        hoja.querySelector(".dvm-cantidad-fondo").onclick = window.cerrarCantidadVenderDueno;
+        hoja.querySelectorAll(".dvm-cantidad-rapidos button").forEach(b => { b.onclick = () => { campo.value = b.dataset.n; aplicar(); }; });
+        hoja.querySelector(".dueno-boton-primario").onclick = aplicar;
+        campo.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); aplicar(); } });
+        setTimeout(() => { campo.focus(); campo.select(); }, 60);
+    };
+
     armarHoja();
 })();

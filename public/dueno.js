@@ -3907,7 +3907,7 @@ function filaCarritoVenderDuenoHtml(item) {
             <div class="fila-dueno-carrito-pie">
                 <div class="dueno-cantidad-control">
                     <button type="button" onclick="cambiarCantidadCarritoVenderDueno(${item.id}, -1)">-</button>
-                    <span>${item.cantidad}</span>
+                    <button type="button" class="dueno-cantidad-numero" aria-label="Escribir cantidad" onclick="abrirCantidadVenderDueno(${item.id})">${item.cantidad}</button>
                     <button type="button" onclick="cambiarCantidadCarritoVenderDueno(${item.id}, 1)">+</button>
                 </div>
                 <span class="dueno-cantidad-total">${dinero(item.precio * item.cantidad)}</span>
