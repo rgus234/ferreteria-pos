@@ -323,7 +323,7 @@ function ciRender() {
 function ciCabecera(titulo, texto, { atras = false } = {}) {
     return `
     <div class="ci-cabecera">
-        <img class="ci-mascota" src="img/nexo-ia/feliz-transparente.png" alt="Nexo">
+        <img class="ci-mascota" src="img/nexo-ia/feliz-hd.webp" alt="Nexo">
         <div>
             ${atras ? `<button type="button" class="ci-atras" onclick="ciIr('inicio')">&larr; Otras formas de cargar</button>` : ""}
             <h2>${titulo}</h2>

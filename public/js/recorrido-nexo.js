@@ -15,7 +15,7 @@ window.recorridoNexo = (function () {
  const ETAPAS = ["Tu cuenta", "Tu perfil", "Tu negocio", "¡A vender!"];
 
  function mascota(expresion) {
-  return `img/nexo-ia/${expresion}-transparente.png`;
+  return `img/nexo-ia/${expresion}-hd.webp`;
  }
 
  // actual: 1 a 4. Las anteriores aparecen como hechas.

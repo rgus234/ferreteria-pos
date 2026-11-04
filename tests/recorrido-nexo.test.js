@@ -59,7 +59,7 @@ test("cada paso del asistente tiene su gesto y su frase, y cada gesto tiene su i
 
     const gestos = new Set([...escenas.matchAll(/gesto: "(\w+)"/g)].map(m => m[1]));
     for (const gesto of gestos) {
-        assert.ok(fs.existsSync(path.join(publico, "img", "nexo-ia", `${gesto}-transparente.png`)), `falta la imagen ${gesto}-transparente.png`);
+        assert.ok(fs.existsSync(path.join(publico, "img", "nexo-ia", `${gesto}-hd.webp`)), `falta la imagen ${gesto}-hd.webp`);
     }
 });
 

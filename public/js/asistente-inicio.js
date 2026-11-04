@@ -192,14 +192,14 @@ function asistenteMontar() {
    <div class="rn-marca"><img src="nexo-pos-icon.jpg" alt="Nexo"><span>Nexo</span></div>
    <div class="rn-escena">
     <div class="rn-burbuja" id="asistenteBurbuja"></div>
-    <img class="rn-mascota" id="asistenteMascotaGrande" src="img/nexo-ia/feliz-transparente.png" alt="Nexo, tu asistente">
+    <img class="rn-mascota" id="asistenteMascotaGrande" src="img/nexo-ia/feliz-hd.webp" alt="Nexo, tu asistente">
    </div>
   </aside>
   <div class="asistente-card">
    <div id="asistenteEtapas" class="rn-etapas"></div>
    <div class="asistente-progreso"><span id="asistenteBarra" style="width:0%"></span></div>
    <div class="asistente-cabecera">
-    <img class="asistente-mascota" src="img/nexo-ia/feliz-transparente.png" alt="Nexo">
+    <img class="asistente-mascota" src="img/nexo-ia/feliz-hd.webp" alt="Nexo">
     <div>
      <small id="asistenteEtapa"></small>
      <h2 id="asistenteTitulo"></h2>
