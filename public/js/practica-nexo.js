@@ -44,7 +44,7 @@
             productos: [
                 base(9001, "7501000000066", "Martillo de uña 16 oz", "Truper", 135, 14, "🔨", "#e2e8f0", "#64748b"),
                 base(9002, "7501000000073", "Pinzas de presión 10\"", "Truper", 145, 10, "🔧", "#dbeafe", "#2563eb"),
-                base(9003, "7501000000080", "Rotomartillo 800 W", "Truper", 1499, 4, "⚡", "#fde68a", "#f59e0b"),
+                base(9003, "7501000000080", "Taladro percutor 800 W", "Truper", 1499, 4, "⚡", "#fde68a", "#f59e0b"),
                 base(9004, "7501000000097", "Flexómetro 5 m", "Truper", 89, 22, "📏", "#fef08a", "#ca8a04"),
                 base(9005, "7501000000103", "Cinta de aislar negra", "Volteck", 28, 40, "🧵", "#e5e7eb", "#1f2937")
             ],
