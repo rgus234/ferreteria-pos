@@ -242,14 +242,35 @@
         return [
             { pose: "pensando", texto: `Ahora lo mejor del celular: la <b>cámara como lector</b>. Aquí está.`, pie: "Apuntas al código de barras y el producto se agrega solo", objetivo: () => document.querySelector('#duenoVender .dueno-buscar-fila button[title^="Escanear"]'), soloVer: true, boton: "Entendido" },
             { pose: "feliz", texto: `Y si el producto no tiene código, <b>tómale una foto</b> y Nexo lo reconoce.`, objetivo: () => document.querySelector("#duenoVender .dueno-boton-camara"), soloVer: true, boton: "Entendido" },
-            { pose: "celebrando", texto: `¡Eso es todo! Ya sabes <b>cobrar</b> desde tu celular. Repite esta práctica cuando quieras desde <b>Más</b>.`, boton: "Terminar" }
+            { pose: "celebrando", texto: `Con eso ya sabes <b>cobrar</b> desde tu celular. Falta un último recorrido por tu app.`, boton: "Seguir" }
+        ];
+    }
+
+    // Recorrido por la app: la barra de abajo y lo que hay en Más
+    const pestana = nombre => () => document.querySelector(`#duenoTabs button[data-tab="${nombre}"]`);
+    const fila = texto => () => [...document.querySelectorAll("#duenoMasCategorias .dueno-categoria-row")].find(x => plano(x.textContent).includes(plano(texto)));
+
+    function pasosRecorrido() {
+        return [
+            { pose: "feliz", texto: `Ahora un <b>recorrido por tu app</b>. Es corto: solo mira y toca <b>Entendido</b>.`, boton: "Vamos" },
+            { pose: "neutral", texto: `<b>Inicio</b>: cómo va tu día. Ventas, caja y avisos de un vistazo.`, objetivo: pestana("inicio"), soloVer: true, boton: "Entendido", antes: () => cambiarTabDueno("inicio") },
+            { pose: "neutral", texto: `<b>Vender</b>: tu caja. Ya la usaste 😉`, objetivo: pestana("vender"), soloVer: true, boton: "Entendido" },
+            { pose: "neutral", texto: `<b>Caja</b>: abrir y cerrar el turno, y ver cuánto dinero hay.`, objetivo: pestana("caja"), soloVer: true, boton: "Entendido" },
+            { pose: "pensando", texto: `<b>Más</b>: todo lo demás vive aquí. Vamos a verlo.`, objetivo: pestana("mas"), soloVer: true, boton: "Abrir Más", antes: () => { cambiarTabDueno("mas"); try { renderCategoriasMasDueno(); } catch (error) { /* sin lista */ } } },
+            { pose: "neutral", texto: `<b>Reportes</b>: tus ventas del día, la semana y el mes.`, objetivo: fila("Reportes"), soloVer: true, boton: "Entendido", omitir: () => !fila("Reportes")() },
+            { pose: "neutral", texto: `<b>Inventario</b>: tu catálogo completo para consultar precios y existencias.`, objetivo: fila("Inventario"), soloVer: true, boton: "Entendido", omitir: () => !fila("Inventario")() },
+            { pose: "neutral", texto: `<b>Créditos</b>: quién te debe y cuánto. Aquí registras los abonos.`, objetivo: fila("Creditos"), soloVer: true, boton: "Entendido", omitir: () => !fila("Creditos")() },
+            { pose: "neutral", texto: `<b>Tareas y avisos</b>: lo que toca hoy y los mensajes de tu equipo.`, objetivo: fila("Tareas y avisos"), soloVer: true, boton: "Entendido", omitir: () => !fila("Tareas y avisos")() },
+            { pose: "neutral", texto: `<b>Empleados</b>: das de alta a tu gente con su PIN y decides qué puede hacer cada uno.`, objetivo: fila("Empleados"), soloVer: true, boton: "Entendido", omitir: () => !fila("Empleados")() },
+            { pose: "celebrando", texto: `¡Listo! Ya conoces tu app. Si algo no lo encuentras, <b>pregúntale a Nexo IA</b> desde la computadora o vuelve a esta práctica desde <b>Más</b>.`, boton: "Terminar", antes: () => cambiarTabDueno("inicio") }
         ];
     }
 
     const CAPITULOS = [
         { id: "vender", titulo: "Cobrar una venta", pasos: pasosVender, entrar: () => { if (typeof cambiarTabDueno === "function") cambiarTabDueno("vender"); try { if (typeof renderCarritoVenderDueno === "function") renderCarritoVenderDueno(); } catch (error) { /* sin carrito */ } },
           salir: () => { try { if (typeof finalizarVentaVenderDueno === "function") finalizarVentaVenderDueno(); } catch (error) { /* sin cobro */ } document.getElementById("duenoVenderCobroOverlay")?.classList.remove("abierta"); } },
-        { id: "escaner", titulo: "El escáner de la cámara", pasos: pasosEscaner, entrar: () => { if (typeof cambiarTabDueno === "function") cambiarTabDueno("vender"); const c = document.getElementById("duenoVenderBuscar"); if (c) { c.value = ""; c.dispatchEvent(new Event("input")); } } }
+        { id: "escaner", titulo: "El escáner de la cámara", pasos: pasosEscaner, entrar: () => { if (typeof cambiarTabDueno === "function") cambiarTabDueno("vender"); const c = document.getElementById("duenoVenderBuscar"); if (c) { c.value = ""; c.dispatchEvent(new Event("input")); } } },
+        { id: "recorrido", titulo: "Recorrido por tu app", pasos: pasosRecorrido, entrar: () => { if (typeof cambiarTabDueno === "function") cambiarTabDueno("inicio"); } }
     ];
 
     // ---------- motor ----------

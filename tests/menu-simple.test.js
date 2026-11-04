@@ -231,3 +231,10 @@ test("la practica usa fotos reales precargadas de los productos de ejemplo", () 
     assert.match(leer("js/practica-nexo.js"), /precargarFotos\(estado\.productos\)/);
     assert.match(leer("dueno-practica.js"), /precargarFotos\(estado\.productos\)/);
 });
+
+test("el tutorial del celular incluye el recorrido por la app al final", () => {
+    const js = leer("dueno-practica.js");
+    assert.match(js, /id: "recorrido", titulo: "Recorrido por tu app"/);
+    assert.ok(js.indexOf('id: "escaner"') < js.indexOf('id: "recorrido"'));
+    assert.match(js, /renderCategoriasMasDueno\(\)/);
+});
