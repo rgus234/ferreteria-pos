@@ -207,3 +207,18 @@ test("Practica con Nexo: capitulo 4 (recorrido por las tarjetas del programa) y 
     const suma = c => { const d = c.slice(0, 12).split("").map(Number); return (10 - (d.reduce((s, n, i) => s + n * (i % 2 ? 3 : 1), 0) % 10)) % 10; };
     assert.equal(suma("750100000001"), 2, "Doritos: 7501000000012");
 });
+
+test("Practica con Nexo en el celular: productos y servidor de ejemplo (nada del catalogo ni de las ventas reales), guia con mascota y entradas en Mas e Inicio", () => {
+    const js = leer("dueno-practica.js");
+    assert.match(js, /window\.guardarCatalogoLocal = async \(\) => \{\}/, "no se pisa el catalogo guardado del telefono");
+    assert.match(js, /if \(ruta === "\/ventas" && metodo === "POST"\)/);
+    assert.match(js, /window\.fetchAutenticado = g\.fetchAutenticado/, "se restaura al terminar");
+    assert.match(js, /id: "vender", titulo: "Cobrar una venta"/);
+    assert.match(js, /id: "escaner", titulo: "El escáner de la cámara"/);
+    assert.match(js, /window\.practicaCelular = /);
+    assert.match(leer("dueno.html"), /dueno-practica\.js/);
+    assert.match(leer("dueno.html"), /dueno-practica\.css/);
+    assert.match(leer("dueno-sw.js"), /dueno-practica\.js/);
+    assert.match(leer("dueno.js"), /id: "practica", titulo: "Practicar con Nexo"/);
+    assert.match(leer("dueno.js"), /practicaCelular\.iniciar\(\)/);
+});

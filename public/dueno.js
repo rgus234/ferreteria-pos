@@ -1104,7 +1104,7 @@ const DUENO_TABS_EMPLEADO = [
 
 // Las secciones del menu "Mas" que si tienen sentido para un empleado
 // (el resto es de la cuenta del dueño: plan, seguridad, reportes...).
-const DUENO_MAS_PARA_EMPLEADO = new Set(["tareas", "buscar-venta", "ventas-pendientes", "empleados-gestion", "finanzas-gestion", "encargos-gestion", "notificaciones", "apariencia", "ayuda", "cambiar-usuario"]);
+const DUENO_MAS_PARA_EMPLEADO = new Set(["practica", "tareas", "buscar-venta", "ventas-pendientes", "empleados-gestion", "finanzas-gestion", "encargos-gestion", "notificaciones", "apariencia", "ayuda", "cambiar-usuario"]);
 
 let duenoRolSesion = "owner";
 // null = sin restriccion (dueño). Un empleado trae { clave: true/false }.
@@ -5200,6 +5200,7 @@ const CATEGORIAS_MAS_DUENO = [
     { id: "inventario-tab", titulo: "Inventario", desc: "Consulta tu catalogo completo", icono: "caja", color: "azul", tab: "inventario" },
     { id: "creditos-tab", titulo: "Creditos", desc: "Clientes, saldos y abonos", icono: "tarjeta", color: "azul", tab: "creditos" },
     { id: "buscar-venta", titulo: "Buscar venta", desc: "Por folio, cliente o dia: ticket, cambios y cancelaciones", icono: "carrito", color: "azul" },
+    { id: "practica", titulo: "Practicar con Nexo", desc: "Aprende cobrando con productos de ejemplo", icono: "chispa", color: "morado" },
     { id: "tareas", titulo: "Tareas y avisos", desc: "Lo que toca hoy y mensajes del equipo", icono: "campana", color: "azul" },
     { id: "empleados-gestion", titulo: "Empleados", desc: "Altas, PIN, permisos, horario y foto", icono: "usuario", color: "azul" },
     { id: "finanzas-gestion", titulo: "Finanzas", desc: "Utilidad, gastos y cuentas por pagar", icono: "grafica", color: "verde" },
@@ -5249,7 +5250,7 @@ function renderCategoriasMasDueno() {
 
     const htmlFila = categoria => `
             <button type="button" class="dueno-categoria-row${categoria.proximamente ? " proximamente" : ""}"
-                onclick="${categoria.id === "cambiar-usuario" ? "cerrarSesionDuenoApp()" : categoria.id === "tareas" ? "abrirTareasDueno('hoy')" : categoria.id === "market" ? "irAComprarEnMarketDueno()" : categoria.tab ? `cambiarTabDueno('${categoria.tab}')` : categoria.href ? `location.href='${categoria.href}'` : (categoria.proximamente ? "proximamenteDueno()" : `abrirSubpantallaMasDueno('${categoria.id}')`)}">
+                onclick="${categoria.id === "cambiar-usuario" ? "cerrarSesionDuenoApp()" : categoria.id === "tareas" ? "abrirTareasDueno('hoy')" : categoria.id === "practica" ? "practicaCelular.iniciar()" : categoria.id === "market" ? "irAComprarEnMarketDueno()" : categoria.tab ? `cambiarTabDueno('${categoria.tab}')` : categoria.href ? `location.href='${categoria.href}'` : (categoria.proximamente ? "proximamenteDueno()" : `abrirSubpantallaMasDueno('${categoria.id}')`)}">
                 <span class="dueno-categoria-icono${categoria.color ? ` dueno-categoria-icono-${categoria.color}` : ""}">${iconoCategoriaMasDueno(categoria.icono)}</span>
                 <span class="dueno-categoria-texto">
                     <strong>${escaparDueno(categoria.titulo)}</strong>
@@ -5285,7 +5286,7 @@ const SECCIONES_MAS_DUENO = [
 const SECCION_DE_CATEGORIA_MAS_DUENO = {
     "reportes-tab": "negocio", "finanzas-gestion": "negocio", "inventario-tab": "negocio", "nexo-ia": "negocio",
     "ventas-tab": "clientes", "creditos-tab": "clientes", "buscar-venta": "clientes", "encargos-gestion": "clientes", "ventas-pendientes": "clientes", market: "clientes",
-    "empleados-gestion": "equipo", tareas: "equipo", dispositivos: "equipo", notificaciones: "equipo"
+    "empleados-gestion": "equipo", tareas: "equipo", practica: "equipo", dispositivos: "equipo", notificaciones: "equipo"
 };
 
 document.addEventListener("nexo-menu-simple-dueno", () => { if (document.getElementById("duenoMasCategorias")?.children.length) renderCategoriasMasDueno(); });

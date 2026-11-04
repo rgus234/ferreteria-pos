@@ -1,0 +1,53 @@
+/* Practica con Nexo (celular): mascota, recuadro iluminado y pantallas de bienvenida y final. */
+.dpx-capa { position: fixed; inset: 0; z-index: 99990; pointer-events: none; font-family: inherit; }
+.dpx-bloque { position: fixed; background: rgba(10, 15, 35, .68); pointer-events: auto; transition: all .18s ease; }
+.dpx-anillo { position: fixed; border-radius: 14px; pointer-events: none; box-shadow: 0 0 0 3px #5b8cff, 0 0 24px 5px rgba(91, 140, 255, .65); transition: all .18s ease; animation: dpxLate 1.6s ease-in-out infinite; }
+.dpx-escudo { position: fixed; border-radius: 14px; pointer-events: auto; background: transparent; }
+.dpx-escudo[hidden], .dpx-anillo[hidden] { display: none; }
+@keyframes dpxLate { 0%, 100% { box-shadow: 0 0 0 3px #5b8cff, 0 0 20px 4px rgba(91, 140, 255, .55); } 50% { box-shadow: 0 0 0 4px #8fb0ff, 0 0 34px 10px rgba(91, 140, 255, .8); } }
+
+.dpx-banda { position: fixed; left: 8px; right: 8px; top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 8px 7px 14px; border-radius: 999px; background: #fff; box-shadow: 0 8px 24px rgba(15, 23, 42, .3); font-size: 13px; font-weight: 700; color: #101828; pointer-events: auto; }
+.dpx-banda i { font-style: normal; padding: 4px 10px; border-radius: 99px; background: #fff3d6; color: #a15c00; font-size: 11.5px; letter-spacing: .04em; }
+.dpx-pasos { display: flex; gap: 4px; flex: 1; justify-content: center; }
+.dpx-pasos s { width: 14px; height: 5px; border-radius: 9px; background: #d5dbea; text-decoration: none; transition: background-color .25s; }
+.dpx-pasos s.on { background: #2563eb; }
+.dpx-banda button { border: none; background: #eef2ff; color: #334155; font: inherit; font-size: 12.5px; padding: 7px 14px; border-radius: 99px; }
+
+.dpx-mascota { position: fixed; left: 8px; right: 8px; bottom: 8px; display: flex; align-items: flex-end; gap: 4px; pointer-events: none; }
+.dpx-mascota img { flex: none; width: 92px; height: auto; filter: drop-shadow(0 10px 14px rgba(0, 0, 0, .4)); animation: dpxFlota 3.2s ease-in-out infinite; }
+.dpx-mascota.dpx-centro { top: 50%; bottom: auto; transform: translateY(-50%); flex-direction: column; align-items: center; }
+.dpx-mascota.dpx-centro img { width: 140px; }
+.dpx-mascota.dpx-centro .dpx-burbuja { margin-bottom: 0; border-radius: 20px; }
+@keyframes dpxFlota { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-6px) rotate(1deg); } }
+
+.dpx-burbuja { position: relative; flex: 1; min-width: 0; padding: 13px 16px; border-radius: 20px 20px 20px 6px; background: #fff; color: #101828; box-shadow: 0 16px 38px rgba(15, 23, 42, .4); font-size: 15.5px; line-height: 1.36; font-weight: 600; margin-bottom: 40px; pointer-events: auto; }
+.dpx-burbuja b { color: #2563eb; }
+.dpx-pie { margin-top: 6px; font-size: 12px; font-weight: 600; color: #667085; }
+.dpx-pie:empty { display: none; }
+.dpx-botones { display: flex; gap: 8px; flex-wrap: wrap; }
+.dpx-continuar { margin-top: 10px; height: 42px; padding: 0 22px; border: none; border-radius: 12px; font: inherit; font-size: 15px; font-weight: 800; color: #fff; background: linear-gradient(120deg, #2563eb, #7c3aed); box-shadow: 0 8px 18px rgba(37, 99, 235, .4); }
+.dpx-secundario { margin-top: 10px; height: 42px; padding: 0 14px; border: 1px solid rgba(100, 116, 139, .45); border-radius: 12px; background: transparent; color: #475467; font: inherit; font-size: 13.5px; font-weight: 700; }
+.dpx-continuar[hidden], .dpx-secundario[hidden] { display: none; }
+.dpx-nueva { animation: dpxBurbuja .3s cubic-bezier(.2, .75, .25, 1); }
+@keyframes dpxBurbuja { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
+.dpx-sacude { animation: dpxSacude .45s ease; }
+@keyframes dpxSacude { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(3px); } }
+
+.dpx-pantalla { position: fixed; inset: 0; z-index: 99995; display: grid; place-items: center; text-align: center; color: #fff; overflow: auto; animation: dpxEntra .45s cubic-bezier(.2, .75, .25, 1); }
+.dpx-pantalla.dpx-sale { animation: dpxSale .38s ease forwards; }
+.dpx-pantalla.dpx-zoom { animation: dpxZoom .6s cubic-bezier(.6, 0, .9, .4) forwards; }
+@keyframes dpxEntra { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: none; } }
+@keyframes dpxSale { to { opacity: 0; transform: scale(.97); } }
+@keyframes dpxZoom { to { opacity: 0; transform: scale(2.2); filter: blur(5px); } }
+.dpx-pantalla-int { display: grid; justify-items: center; gap: 12px; max-width: 420px; padding: 22px; }
+.dpx-grande { width: 200px; height: auto; filter: drop-shadow(0 20px 30px rgba(0, 0, 0, .45)); animation: dpxFlota 3.4s ease-in-out infinite; }
+.dpx-etiqueta { font-size: 13px; font-weight: 800; letter-spacing: .16em; opacity: .8; }
+.dpx-pantalla h1 { margin: 0; font-size: 36px; line-height: 1.06; font-weight: 800; color: #fff !important; }
+.dpx-pantalla p { margin: 0; font-size: 17px; color: rgba(255, 255, 255, .9) !important; }
+.dpx-gigante { margin-top: 8px; width: 100%; max-width: 320px; height: 60px; border: none; border-radius: 999px; font: inherit; font-size: 21px; font-weight: 800; color: #0b1236; background: #fff; box-shadow: 0 14px 40px rgba(91, 140, 255, .55); }
+.dpx-ligero { border: none; background: none; color: #fff; opacity: .75; font: inherit; font-size: 15px; font-weight: 600; padding: 10px; }
+.dpx-logros { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.dpx-logros div { padding: 12px 16px; border-radius: 16px; background: rgba(255, 255, 255, .16); font-weight: 700; font-size: 15px; }
+.dpx-logros span { display: block; font-size: 24px; }
+
+@media (prefers-reduced-motion: reduce) { .dpx-mascota img, .dpx-grande, .dpx-anillo, .dpx-pantalla, .dpx-nueva, .dpx-sacude { animation: none !important; } }
