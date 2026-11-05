@@ -3,7 +3,7 @@
    como productos "por peso" con su foto. En el cobro, el sistema pregunta cuantos kilos lleva y calcula el total.
    Se abre desde Inventario -> Frutas y verduras o desde Agregar producto -> Por peso. */
 (function () {
-    const GRUPOS = [["todo", "Todo"], ["Frutas", "Frutas"], ["Verduras", "Verduras"], ["otros", "Hierbas y otros"]];
+    const GRUPOS = [["todo", "Todo"], ["Frutas", "Frutas"], ["Verduras", "Verduras"], ["Especias", "Especias y chiles"], ["otros", "Hierbas y frutos secos"]];
     let fv = null;
 
     const esc = valor => String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -11,9 +11,11 @@
     const aviso = (mensaje, tipo) => { if (typeof mostrarToastPOS === "function") mostrarToastPOS(mensaje, tipo ? { tipo } : undefined); };
 
     // Lo que normalmente se vende por pieza o por manojo (lo demas, por kilo). Siempre se puede cambiar en la lista.
-    const SUELE_SER_PIEZA = /lechuga|coliflor|pi[ñn]a|sandia|melon|brocoli|repollo|^col|apio|elote|papaya|cilantro|perejil|epazote|hierbabuena|rabano|betabel|manojo/;
+    const SUELE_SER_PIEZA = /lechuga|coliflor|pi[ñn]a|sandia|melon|brocoli|repollo|^col|apio|elote|papaya|cilantro|perejil|epazote|hierbabuena|rabano|betabel|manojo|albahaca|romero|tomillo|menta|manzanilla|flor de calabaza|berro|verdolaga|guanabana/;
+    // Especias: en bolsita (pieza), salvo los chiles secos, que se venden por kilo. Lo demas, segun el nombre.
+    const unidadSugerida = c => c.categoria === "Especias" ? (/^chile/.test(plano(c.nombre)) ? "kg" : "pieza") : (/bruselas/.test(plano(c.nombre)) ? "kg" : (SUELE_SER_PIEZA.test(plano(c.nombre)) ? "pieza" : "kg"));
     // Dias que suele durar sin refrigerar; con eso el sistema calcula solo la caducidad cada vez que llega mercancia.
-    const vidaSugerida = c => /cilantro|perejil|epazote|hierbabuena|albahaca|espinaca|lechuga/.test(plano(c.nombre)) ? 4 : 7;
+    const vidaSugerida = c => c.categoria === "Especias" ? 180 : (c.categoria === "Frutos secos" ? 60 : (/cilantro|perejil|epazote|hierbabuena|albahaca|espinaca|lechuga|romero|tomillo|menta|manzanilla|berro|verdolaga|flor de calabaza/.test(plano(c.nombre)) ? 4 : 7));
 
     // Codigo propio y legible por producto: FVAGUACATE. Si el negocio ya tiene ese codigo, ese concepto se salta.
     const codigoDe = concepto => "FV" + concepto.slug.replace(/[^a-z0-9]/gi, "").toUpperCase();
@@ -30,7 +32,8 @@
         return fv.conceptos.filter(c => {
             if (fv.grupo === "Frutas" && c.categoria !== "Frutas") return false;
             if (fv.grupo === "Verduras" && c.categoria !== "Verduras") return false;
-            if (fv.grupo === "otros" && (c.categoria === "Frutas" || c.categoria === "Verduras")) return false;
+            if (fv.grupo === "Especias" && c.categoria !== "Especias") return false;
+            if (fv.grupo === "otros" && (c.categoria === "Frutas" || c.categoria === "Verduras" || c.categoria === "Especias")) return false;
             if (!q) return true;
             return plano(c.nombre).includes(q) || (c.alias || []).some(a => plano(a).includes(q));
         });
@@ -84,7 +87,7 @@
         else {
             const c = fv.conceptos.find(x => x.slug === slug);
             if (!c) return;
-            fv.seleccion.set(slug, { ...c, precio: "", faltaPrecio: false, unidad: SUELE_SER_PIEZA.test(plano(c.nombre)) ? "pieza" : "kg", vida: vidaSugerida(c) });
+            fv.seleccion.set(slug, { ...c, precio: "", faltaPrecio: false, unidad: unidadSugerida(c), vida: vidaSugerida(c) });
         }
         pintarGrid();
         pintarLista();

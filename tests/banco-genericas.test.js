@@ -38,3 +38,13 @@ test("sugiere por alias al inicio del nombre y no en medio (salsa de tomate, jug
 test("el formulario carga el banco de genericas y la pagina lo sirve", () => {
     assert.match(fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8"), /js\/banco-genericas\.js\?v=/);
 });
+
+test("ningun alias nuevo del banco se confunde con ferreteria (clavo, mostaza en aderezo, anis licor)", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const indice = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "public", "banco-genericas", "indice.json"), "utf8"));
+    const alias = new Set(indice.conceptos.flatMap(c => c.alias));
+
+    for (const ambiguo of ["clavo", "clavos", "mostaza", "anis"]) assert.ok(!alias.has(ambiguo), `"${ambiguo}" solo, sugeriria una foto equivocada`);
+    assert.ok(alias.has("clavo de olor"), "el clavo de cocina se reconoce por su nombre completo");
+});

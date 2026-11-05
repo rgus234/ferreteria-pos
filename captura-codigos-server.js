@@ -7,10 +7,21 @@
 const { responderError } = require("./error-utils");
 
 const CORREOS_POR_OMISION = "gustavodiazruiz4@gmail.com,nexoposoficial@gmail.com";
+
+// La cuenta de abarrotes del mismo dueño tambien puede capturar (aunque CAPTURA_CODIGOS_CORREOS traiga otra lista) y COMPARTE la lista de
+// la ferreteria: lo capturado en una se ve en la otra, el aviso de "ya lo capturaste" funciona entre las dos y el CSV sale completo.
+// Cualquier otra cuenta autorizada sigue teniendo su propia lista.
+const LISTA_COMPARTIDA = { "abarrotes.diaz.demo@nexoposoficial.com": "gustavodiazruiz4@gmail.com" };
+
+function propietarioDeLista(correo) {
+    return LISTA_COMPARTIDA[correo] || correo;
+}
 const LIMITE_LISTA = 500;
 
 function correosAutorizados() {
-    return String(process.env.CAPTURA_CODIGOS_CORREOS || CORREOS_POR_OMISION).split(",").map(c => c.trim().toLowerCase()).filter(Boolean);
+    const lista = String(process.env.CAPTURA_CODIGOS_CORREOS || CORREOS_POR_OMISION).split(",").map(c => c.trim().toLowerCase()).filter(Boolean);
+
+    return [...new Set([...lista, ...Object.keys(LISTA_COMPARTIDA)])];
 }
 
 function limpiarCodigo(valor) {
@@ -41,7 +52,7 @@ function instalar(app, pool, requerirAccesoNegocio) {
             const fila = (await pool.query(`SELECT correo FROM public.negocios WHERE id = $1`, [negocioId])).rows[0];
             const correo = String(fila?.correo || "").trim().toLowerCase();
 
-            if (correo && correosAutorizados().includes(correo)) return correo;
+            if (correo && correosAutorizados().includes(correo)) return propietarioDeLista(correo);
         }
 
         res.status(403).json({ ok: false, error: "Esta herramienta es privada." });
@@ -200,3 +211,5 @@ function instalar(app, pool, requerirAccesoNegocio) {
 module.exports = instalar;
 module.exports.celdaCodigoCsv = celdaCodigoCsv;
 module.exports.limpiarCodigo = limpiarCodigo;
+module.exports.correosAutorizados = correosAutorizados;
+module.exports.propietarioDeLista = propietarioDeLista;

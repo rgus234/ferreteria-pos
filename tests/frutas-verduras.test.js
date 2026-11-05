@@ -95,3 +95,29 @@ test("la lista pide 'Tengo' (cuantos kilos o piezas) y lo manda como existencia"
     assert.match(js, /stock: Number\(f\.cantidad\) > 0 \? Number\(f\.cantidad\) : 0/);
     assert.match(js, /class="fv-tengo"/);
 });
+
+test("el banco trae frutas, verduras, hierbas, especias y frutos secos, cada una con su foto, y la pantalla tiene su grupo de Especias", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const raiz = path.join(__dirname, "..", "public", "banco-genericas");
+    const indice = JSON.parse(fs.readFileSync(path.join(raiz, "indice.json"), "utf8"));
+    const categorias = new Set(indice.conceptos.map(c => c.categoria));
+
+    for (const categoria of ["Frutas", "Verduras", "Hierbas", "Especias", "Frutos secos"]) assert.ok(categorias.has(categoria), `falta la categoria ${categoria}`);
+    assert.ok(indice.conceptos.length >= 130, `solo ${indice.conceptos.length} conceptos`);
+    assert.equal(new Set(indice.conceptos.map(c => c.slug)).size, indice.conceptos.length, "slugs repetidos");
+
+    for (const c of indice.conceptos) {
+        assert.ok(fs.existsSync(path.join(raiz, c.archivo)), `${c.slug}: falta la foto ${c.archivo}`);
+        assert.ok(Array.isArray(c.alias) && c.alias.length, `${c.slug}: sin alias para buscarlo`);
+    }
+
+    // Lo que no puede faltar en un abarrotes de Mexico
+    for (const slug of ["canela", "pimienta-negra", "comino", "chile-guajillo", "chile-ancho", "chile-de-arbol", "chile-chipotle", "oregano", "laurel", "jamaica", "ajonjoli", "pepita", "pasas", "mamey", "tejocote", "jicama", "chile-poblano", "chile-pasilla", "berro", "verdolaga", "menta"]) {
+        assert.ok(indice.conceptos.some(c => c.slug === slug), `falta ${slug}`);
+    }
+
+    const vista = fs.readFileSync(path.join(__dirname, "..", "public", "js", "frutas-verduras-view.js"), "utf8");
+    assert.match(vista, /\["Especias", "Especias y chiles"\]/);
+    assert.match(vista, /c\.categoria === "Especias" \? 180/, "las especias duran meses");
+});

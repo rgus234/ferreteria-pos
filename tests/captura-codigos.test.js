@@ -161,3 +161,13 @@ test("el celular solo muestra la opcion si el servidor la autoriza y reutiliza e
     assert.match(sw, /dueno-captura\.js/);
     assert.match(sw, /nexo-dueno-shell-v\d{2,}"/);
 });
+
+test("la cuenta de abarrotes Diaz tambien puede capturar y comparte la lista de la ferreteria; las demas siguen separadas", () => {
+    const { correosAutorizados, propietarioDeLista } = require("../captura-codigos-server");
+    const abarrotes = "abarrotes.diaz.demo@nexoposoficial.com";
+
+    assert.ok(correosAutorizados().includes(abarrotes), "autorizada aunque la lista del servidor sea otra");
+    assert.equal(propietarioDeLista(abarrotes), "gustavodiazruiz4@gmail.com", "usa la lista de la ferreteria");
+    assert.equal(propietarioDeLista("gustavodiazruiz4@gmail.com"), "gustavodiazruiz4@gmail.com");
+    assert.equal(propietarioDeLista("otra.cuenta@example.com"), "otra.cuenta@example.com", "otra cuenta autorizada conserva su propia lista");
+});

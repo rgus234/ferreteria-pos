@@ -13,6 +13,19 @@
    "pixabayId": 5370
   },
   {
+   "slug": "achiote",
+   "nombre": "Achiote",
+   "categoria": "Especias",
+   "alias": [
+    "achiote",
+    "achiote en semilla",
+    "recado rojo"
+   ],
+   "archivo": "achiote.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 6873682
+  },
+  {
    "slug": "aguacate",
    "nombre": "Aguacate",
    "categoria": "Frutas",
@@ -40,6 +53,32 @@
    "pixabayId": 1239422
   },
   {
+   "slug": "ajonjoli",
+   "nombre": "Ajonjolí",
+   "categoria": "Especias",
+   "alias": [
+    "ajonjoli",
+    "ajonjolí",
+    "semillas de ajonjoli",
+    "sesamo"
+   ],
+   "archivo": "ajonjoli.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3985380
+  },
+  {
+   "slug": "albahaca",
+   "nombre": "Albahaca",
+   "categoria": "Hierbas",
+   "alias": [
+    "albahaca",
+    "albahaca fresca"
+   ],
+   "archivo": "albahaca.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 583816
+  },
+  {
    "slug": "alcachofa",
    "nombre": "Alcachofa",
    "categoria": "Verduras",
@@ -62,6 +101,19 @@
    "archivo": "almendra.jpg",
    "fuente": "Pixabay",
    "pixabayId": 1768792
+  },
+  {
+   "slug": "anis-estrella",
+   "nombre": "Anís estrella",
+   "categoria": "Especias",
+   "alias": [
+    "anis estrella",
+    "anís estrella",
+    "estrella de anis"
+   ],
+   "archivo": "anis-estrella.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 488176
   },
   {
    "slug": "apio",
@@ -88,6 +140,44 @@
    "pixabayId": 2271
   },
   {
+   "slug": "arandano-seco",
+   "nombre": "Arándano seco",
+   "categoria": "Frutos secos",
+   "alias": [
+    "arandano seco",
+    "arándano seco",
+    "arandano deshidratado",
+    "cranberry"
+   ],
+   "archivo": "arandano-seco.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2290076
+  },
+  {
+   "slug": "avellana",
+   "nombre": "Avellana",
+   "categoria": "Frutos secos",
+   "alias": [
+    "avellana",
+    "avellanas"
+   ],
+   "archivo": "avellana.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1124331
+  },
+  {
+   "slug": "azafran",
+   "nombre": "Azafrán",
+   "categoria": "Especias",
+   "alias": [
+    "azafran",
+    "azafrán"
+   ],
+   "archivo": "azafran.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 215932
+  },
+  {
    "slug": "berenjena",
    "nombre": "Berenjena",
    "categoria": "Verduras",
@@ -98,6 +188,17 @@
    "archivo": "berenjena.jpg",
    "fuente": "Pixabay",
    "pixabayId": 839859
+  },
+  {
+   "slug": "berro",
+   "nombre": "Berro",
+   "categoria": "Verduras",
+   "alias": [
+    "berro",
+    "berros"
+   ],
+   "archivo": "berro.jpg",
+   "fuente": "Aportada por el dueño"
   },
   {
    "slug": "betabel",
@@ -189,6 +290,44 @@
    "pixabayId": 1248078
   },
   {
+   "slug": "canela",
+   "nombre": "Canela",
+   "categoria": "Especias",
+   "alias": [
+    "canela",
+    "canela en raja",
+    "rajas de canela",
+    "canela molida"
+   ],
+   "archivo": "canela.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 233960
+  },
+  {
+   "slug": "caqui",
+   "nombre": "Caqui",
+   "categoria": "Frutas",
+   "alias": [
+    "caqui",
+    "persimon",
+    "persimonio"
+   ],
+   "archivo": "caqui.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 74199
+  },
+  {
+   "slug": "cardamomo",
+   "nombre": "Cardamomo",
+   "categoria": "Especias",
+   "alias": [
+    "cardamomo"
+   ],
+   "archivo": "cardamomo.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 6939528
+  },
+  {
    "slug": "cebolla",
    "nombre": "Cebolla",
    "categoria": "Verduras",
@@ -241,6 +380,20 @@
    "pixabayId": 1239092
   },
   {
+   "slug": "chabacano",
+   "nombre": "Chabacano",
+   "categoria": "Frutas",
+   "alias": [
+    "chabacano",
+    "chabacanos",
+    "albaricoque",
+    "damasco"
+   ],
+   "archivo": "chabacano.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2314631
+  },
+  {
    "slug": "champinon",
    "nombre": "Champiñón",
    "categoria": "Verduras",
@@ -267,6 +420,19 @@
    "pixabayId": 389574
   },
   {
+   "slug": "chia",
+   "nombre": "Chía",
+   "categoria": "Frutos secos",
+   "alias": [
+    "chia",
+    "chía",
+    "semillas de chia"
+   ],
+   "archivo": "chia.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1112987
+  },
+  {
    "slug": "chicharo",
    "nombre": "Chícharo",
    "categoria": "Verduras",
@@ -278,6 +444,74 @@
    "archivo": "chicharo.jpg",
    "fuente": "Pixabay",
    "pixabayId": 3353569
+  },
+  {
+   "slug": "chile-ancho",
+   "nombre": "Chile ancho",
+   "categoria": "Especias",
+   "alias": [
+    "ancho",
+    "chile ancho",
+    "chile ancho seco"
+   ],
+   "archivo": "chile-ancho.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3580059
+  },
+  {
+   "slug": "chile-chipotle",
+   "nombre": "Chile chipotle",
+   "categoria": "Especias",
+   "alias": [
+    "chipotle",
+    "chile chipotle",
+    "chile morita",
+    "morita"
+   ],
+   "archivo": "chile-chipotle.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2260330
+  },
+  {
+   "slug": "chile-de-arbol",
+   "nombre": "Chile de árbol",
+   "categoria": "Especias",
+   "alias": [
+    "chile de arbol",
+    "de arbol",
+    "chile de árbol",
+    "chile de arbol seco"
+   ],
+   "archivo": "chile-de-arbol.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 4660945
+  },
+  {
+   "slug": "chile-guajillo",
+   "nombre": "Chile guajillo",
+   "categoria": "Especias",
+   "alias": [
+    "guajillo",
+    "chile guajillo",
+    "chile guajillo seco"
+   ],
+   "archivo": "chile-guajillo.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 4820423
+  },
+  {
+   "slug": "chile-guero",
+   "nombre": "Chile güero",
+   "categoria": "Verduras",
+   "alias": [
+    "chile guero",
+    "guero",
+    "chile xcatik",
+    "xcatik"
+   ],
+   "archivo": "chile-guero.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 5556358
   },
   {
    "slug": "chile-habanero",
@@ -306,6 +540,32 @@
    "pixabayId": 1620473
   },
   {
+   "slug": "chile-pasilla",
+   "nombre": "Chile pasilla",
+   "categoria": "Especias",
+   "alias": [
+    "chile pasilla",
+    "pasilla",
+    "chile pasilla seco",
+    "chile negro"
+   ],
+   "archivo": "chile-pasilla.jpg",
+   "fuente": "Aportada por el dueño"
+  },
+  {
+   "slug": "chile-poblano",
+   "nombre": "Chile poblano",
+   "categoria": "Verduras",
+   "alias": [
+    "chile poblano",
+    "poblano",
+    "poblanos",
+    "chiles poblanos"
+   ],
+   "archivo": "chile-poblano.jpg",
+   "fuente": "Aportada por el dueño"
+  },
+  {
    "slug": "chile-rojo",
    "nombre": "Chile rojo",
    "categoria": "Verduras",
@@ -313,7 +573,6 @@
     "chile",
     "chiles",
     "chile rojo",
-    "chile de arbol",
     "chile seco"
    ],
    "archivo": "chile-rojo.jpg",
@@ -360,6 +619,30 @@
    "pixabayId": 2558100
   },
   {
+   "slug": "ciruela-pasa",
+   "nombre": "Ciruela pasa",
+   "categoria": "Frutos secos",
+   "alias": [
+    "ciruela pasa",
+    "ciruelas pasas"
+   ],
+   "archivo": "ciruela-pasa.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1836007
+  },
+  {
+   "slug": "clavo",
+   "nombre": "Clavo de olor",
+   "categoria": "Especias",
+   "alias": [
+    "clavo de olor",
+    "clavos de olor"
+   ],
+   "archivo": "clavo.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1326474
+  },
+  {
    "slug": "coco",
    "nombre": "Coco",
    "categoria": "Frutas",
@@ -385,6 +668,32 @@
    "pixabayId": 1128482
   },
   {
+   "slug": "col-de-bruselas",
+   "nombre": "Col de Bruselas",
+   "categoria": "Verduras",
+   "alias": [
+    "col de bruselas",
+    "coles de bruselas",
+    "repollitos de bruselas"
+   ],
+   "archivo": "col-de-bruselas.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 8517143
+  },
+  {
+   "slug": "col-morada",
+   "nombre": "Col morada",
+   "categoria": "Verduras",
+   "alias": [
+    "col morada",
+    "repollo morado",
+    "lombarda"
+   ],
+   "archivo": "col-morada.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 4357039
+  },
+  {
    "slug": "coliflor",
    "nombre": "Coliflor",
    "categoria": "Verduras",
@@ -395,6 +704,32 @@
    "archivo": "coliflor.jpg",
    "fuente": "Pixabay",
    "pixabayId": 4621686
+  },
+  {
+   "slug": "comino",
+   "nombre": "Comino",
+   "categoria": "Especias",
+   "alias": [
+    "comino",
+    "comino molido",
+    "semillas de comino"
+   ],
+   "archivo": "comino.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 5377177
+  },
+  {
+   "slug": "curcuma",
+   "nombre": "Cúrcuma",
+   "categoria": "Especias",
+   "alias": [
+    "curcuma",
+    "cúrcuma",
+    "turmeric"
+   ],
+   "archivo": "curcuma.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 7678634
   },
   {
    "slug": "datil",
@@ -481,6 +816,18 @@
    "pixabayId": 1125420
   },
   {
+   "slug": "flor-de-calabaza",
+   "nombre": "Flor de calabaza",
+   "categoria": "Verduras",
+   "alias": [
+    "flor de calabaza",
+    "flores de calabaza"
+   ],
+   "archivo": "flor-de-calabaza.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 4022164
+  },
+  {
    "slug": "frambuesa",
    "nombre": "Frambuesa",
    "categoria": "Frutas",
@@ -517,6 +864,18 @@
    "pixabayId": 1323080
   },
   {
+   "slug": "guanabana",
+   "nombre": "Guanábana",
+   "categoria": "Frutas",
+   "alias": [
+    "guanabana",
+    "guanábana"
+   ],
+   "archivo": "guanabana.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 6782765
+  },
+  {
    "slug": "guayaba",
    "nombre": "Guayaba",
    "categoria": "Frutas",
@@ -529,13 +888,25 @@
    "pixabayId": 6873684
   },
   {
+   "slug": "haba",
+   "nombre": "Haba",
+   "categoria": "Verduras",
+   "alias": [
+    "haba",
+    "habas",
+    "haba verde"
+   ],
+   "archivo": "haba.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3106259
+  },
+  {
    "slug": "hierbabuena",
    "nombre": "Hierbabuena",
    "categoria": "Hierbas",
    "alias": [
     "hierbabuena",
-    "yerbabuena",
-    "menta"
+    "yerbabuena"
    ],
    "archivo": "hierbabuena.jpg",
    "fuente": "Pixabay",
@@ -554,6 +925,31 @@
    "pixabayId": 1356770
   },
   {
+   "slug": "hongo-seta",
+   "nombre": "Hongo seta",
+   "categoria": "Verduras",
+   "alias": [
+    "seta",
+    "hongo seta",
+    "hongos seta"
+   ],
+   "archivo": "hongo-seta.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 700041
+  },
+  {
+   "slug": "jamaica",
+   "nombre": "Jamaica",
+   "categoria": "Especias",
+   "alias": [
+    "jamaica",
+    "flor de jamaica"
+   ],
+   "archivo": "jamaica.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3284431
+  },
+  {
    "slug": "jengibre",
    "nombre": "Jengibre",
    "categoria": "Verduras",
@@ -563,6 +959,17 @@
    "archivo": "jengibre.jpg",
    "fuente": "Pixabay",
    "pixabayId": 1960613
+  },
+  {
+   "slug": "jicama",
+   "nombre": "Jícama",
+   "categoria": "Verduras",
+   "alias": [
+    "jicama",
+    "jícama"
+   ],
+   "archivo": "jicama.jpg",
+   "fuente": "Aportada por el dueño"
   },
   {
    "slug": "kiwi",
@@ -575,6 +982,19 @@
    "archivo": "kiwi.jpg",
    "fuente": "Pixabay",
    "pixabayId": 428080
+  },
+  {
+   "slug": "laurel",
+   "nombre": "Laurel",
+   "categoria": "Especias",
+   "alias": [
+    "laurel",
+    "hoja de laurel",
+    "hojas de laurel"
+   ],
+   "archivo": "laurel.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1114
   },
   {
    "slug": "lechuga",
@@ -603,6 +1023,19 @@
    "pixabayId": 10155001
   },
   {
+   "slug": "lichi",
+   "nombre": "Lichi",
+   "categoria": "Frutas",
+   "alias": [
+    "lichi",
+    "litchi",
+    "lychee"
+   ],
+   "archivo": "lichi.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 605401
+  },
+  {
    "slug": "limon",
    "nombre": "Limón",
    "categoria": "Frutas",
@@ -629,6 +1062,29 @@
    "archivo": "limon-amarillo.jpg",
    "fuente": "Pixabay",
    "pixabayId": 1239236
+  },
+  {
+   "slug": "linaza",
+   "nombre": "Linaza",
+   "categoria": "Frutos secos",
+   "alias": [
+    "linaza",
+    "semilla de linaza"
+   ],
+   "archivo": "linaza.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 316590
+  },
+  {
+   "slug": "mamey",
+   "nombre": "Mamey",
+   "categoria": "Frutas",
+   "alias": [
+    "mamey",
+    "mameyes"
+   ],
+   "archivo": "mamey.jpg",
+   "fuente": "Aportada por el dueño"
   },
   {
    "slug": "mandarina",
@@ -688,6 +1144,18 @@
    "pixabayId": 3697734
   },
   {
+   "slug": "manzanilla",
+   "nombre": "Manzanilla",
+   "categoria": "Hierbas",
+   "alias": [
+    "manzanilla",
+    "te de manzanilla"
+   ],
+   "archivo": "manzanilla.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3489847
+  },
+  {
    "slug": "maracuya",
    "nombre": "Maracuyá",
    "categoria": "Frutas",
@@ -724,6 +1192,53 @@
    "archivo": "melon-honeydew.jpg",
    "fuente": "Pixabay",
    "pixabayId": 2494765
+  },
+  {
+   "slug": "membrillo",
+   "nombre": "Membrillo",
+   "categoria": "Frutas",
+   "alias": [
+    "membrillo",
+    "membrillos"
+   ],
+   "archivo": "membrillo.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2673421
+  },
+  {
+   "slug": "menta",
+   "nombre": "Menta",
+   "categoria": "Hierbas",
+   "alias": [
+    "menta",
+    "menta fresca"
+   ],
+   "archivo": "menta.jpg",
+   "fuente": "Aportada por el dueño"
+  },
+  {
+   "slug": "mostaza",
+   "nombre": "Mostaza (semilla)",
+   "categoria": "Especias",
+   "alias": [
+    "semilla de mostaza",
+    "semillas de mostaza"
+   ],
+   "archivo": "mostaza.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 231302
+  },
+  {
+   "slug": "nabo",
+   "nombre": "Nabo",
+   "categoria": "Verduras",
+   "alias": [
+    "nabo",
+    "nabos"
+   ],
+   "archivo": "nabo.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1129
   },
   {
    "slug": "naranja",
@@ -777,6 +1292,46 @@
    "pixabayId": 1941655
   },
   {
+   "slug": "nuez-de-la-india",
+   "nombre": "Nuez de la India",
+   "categoria": "Frutos secos",
+   "alias": [
+    "nuez de la india",
+    "anacardo",
+    "cashew",
+    "nuez de caju"
+   ],
+   "archivo": "nuez-de-la-india.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1452216
+  },
+  {
+   "slug": "nuez-moscada",
+   "nombre": "Nuez moscada",
+   "categoria": "Especias",
+   "alias": [
+    "nuez moscada",
+    "nuez de moscada"
+   ],
+   "archivo": "nuez-moscada.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1089390
+  },
+  {
+   "slug": "oregano",
+   "nombre": "Orégano",
+   "categoria": "Especias",
+   "alias": [
+    "oregano",
+    "orégano",
+    "oregano seco",
+    "oregano fresco"
+   ],
+   "archivo": "oregano.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2662890
+  },
+  {
    "slug": "papa",
    "nombre": "Papa",
    "categoria": "Verduras",
@@ -819,6 +1374,20 @@
    "pixabayId": 1476989
   },
   {
+   "slug": "pasas",
+   "nombre": "Pasas",
+   "categoria": "Frutos secos",
+   "alias": [
+    "pasas",
+    "uvas pasas",
+    "pasita",
+    "pasitas"
+   ],
+   "archivo": "pasas.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 617416
+  },
+  {
    "slug": "pepino",
    "nombre": "Pepino",
    "categoria": "Verduras",
@@ -829,6 +1398,20 @@
    "archivo": "pepino.jpg",
    "fuente": "Pixabay",
    "pixabayId": 845953
+  },
+  {
+   "slug": "pepita",
+   "nombre": "Pepita de calabaza",
+   "categoria": "Frutos secos",
+   "alias": [
+    "pepita",
+    "pepitas",
+    "pepita de calabaza",
+    "pepita verde"
+   ],
+   "archivo": "pepita.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1489510
   },
   {
    "slug": "pera",
@@ -855,6 +1438,60 @@
    "pixabayId": 3450411
   },
   {
+   "slug": "pimenton",
+   "nombre": "Pimentón",
+   "categoria": "Especias",
+   "alias": [
+    "pimenton",
+    "pimentón",
+    "paprika",
+    "pimenton dulce"
+   ],
+   "archivo": "pimenton.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1205688
+  },
+  {
+   "slug": "pimienta-gorda",
+   "nombre": "Pimienta gorda",
+   "categoria": "Especias",
+   "alias": [
+    "pimienta gorda",
+    "pimienta de jamaica",
+    "allspice"
+   ],
+   "archivo": "pimienta-gorda.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3817963
+  },
+  {
+   "slug": "pimienta-negra",
+   "nombre": "Pimienta negra",
+   "categoria": "Especias",
+   "alias": [
+    "pimienta",
+    "pimienta negra",
+    "pimienta entera",
+    "pimienta molida"
+   ],
+   "archivo": "pimienta-negra.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1239308
+  },
+  {
+   "slug": "pimiento-amarillo",
+   "nombre": "Pimiento amarillo",
+   "categoria": "Verduras",
+   "alias": [
+    "pimiento amarillo",
+    "morron amarillo",
+    "pimiento morron amarillo"
+   ],
+   "archivo": "pimiento-amarillo.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2468510
+  },
+  {
    "slug": "pimiento-morron",
    "nombre": "Pimiento morrón",
    "categoria": "Verduras",
@@ -863,13 +1500,24 @@
     "pimientos",
     "pimiento morron",
     "morron",
-    "chile morron",
-    "pimiento amarillo",
-    "pimiento rojo"
+    "chile morron"
    ],
    "archivo": "pimiento-morron.jpg",
    "fuente": "Pixabay",
    "pixabayId": 1717225
+  },
+  {
+   "slug": "pimiento-rojo",
+   "nombre": "Pimiento rojo",
+   "categoria": "Verduras",
+   "alias": [
+    "pimiento rojo",
+    "morron rojo",
+    "pimiento morron rojo"
+   ],
+   "archivo": "pimiento-rojo.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2918629
   },
   {
    "slug": "pina",
@@ -882,6 +1530,20 @@
    "archivo": "pina.jpg",
    "fuente": "Pixabay",
    "pixabayId": 1853466
+  },
+  {
+   "slug": "pistache",
+   "nombre": "Pistache",
+   "categoria": "Frutos secos",
+   "alias": [
+    "pistache",
+    "pistaches",
+    "pistacho",
+    "pistachos"
+   ],
+   "archivo": "pistache.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3223611
   },
   {
    "slug": "pitaya",
@@ -961,6 +1623,18 @@
    "pixabayId": 2934281
   },
   {
+   "slug": "romero",
+   "nombre": "Romero",
+   "categoria": "Hierbas",
+   "alias": [
+    "romero",
+    "ramas de romero"
+   ],
+   "archivo": "romero.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 1525050
+  },
+  {
    "slug": "sandia",
    "nombre": "Sandía",
    "categoria": "Frutas",
@@ -983,6 +1657,17 @@
    "archivo": "tamarindo.jpg",
    "fuente": "Pixabay",
    "pixabayId": 6918398
+  },
+  {
+   "slug": "tejocote",
+   "nombre": "Tejocote",
+   "categoria": "Frutas",
+   "alias": [
+    "tejocote",
+    "tejocotes"
+   ],
+   "archivo": "tejocote.jpg",
+   "fuente": "Aportada por el dueño"
   },
   {
    "slug": "tomate",
@@ -1028,6 +1713,18 @@
    "pixabayId": 3559180
   },
   {
+   "slug": "tomillo",
+   "nombre": "Tomillo",
+   "categoria": "Hierbas",
+   "alias": [
+    "tomillo",
+    "tomillo fresco"
+   ],
+   "archivo": "tomillo.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2126283
+  },
+  {
    "slug": "toronja",
    "nombre": "Toronja",
    "categoria": "Frutas",
@@ -1059,13 +1756,47 @@
    "alias": [
     "uva",
     "uvas",
-    "uva verde",
     "uva roja",
     "uva sin semilla"
    ],
    "archivo": "uva.jpg",
    "fuente": "Pixabay",
    "pixabayId": 582207
+  },
+  {
+   "slug": "uva-verde",
+   "nombre": "Uva verde",
+   "categoria": "Frutas",
+   "alias": [
+    "uva verde",
+    "uvas verdes"
+   ],
+   "archivo": "uva-verde.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 2673039
+  },
+  {
+   "slug": "verdolaga",
+   "nombre": "Verdolaga",
+   "categoria": "Verduras",
+   "alias": [
+    "verdolaga",
+    "verdolagas"
+   ],
+   "archivo": "verdolaga.jpg",
+   "fuente": "Aportada por el dueño"
+  },
+  {
+   "slug": "yuca",
+   "nombre": "Yuca",
+   "categoria": "Verduras",
+   "alias": [
+    "yuca",
+    "mandioca"
+   ],
+   "archivo": "yuca.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 6316593
   },
   {
    "slug": "zanahoria",
@@ -1078,6 +1809,20 @@
    "archivo": "zanahoria.jpg",
    "fuente": "Pixabay",
    "pixabayId": 2485051
+  },
+  {
+   "slug": "zapote",
+   "nombre": "Zapote",
+   "categoria": "Frutas",
+   "alias": [
+    "zapote",
+    "zapote negro",
+    "chicozapote",
+    "zapote prieto"
+   ],
+   "archivo": "zapote.jpg",
+   "fuente": "Pixabay",
+   "pixabayId": 3713573
   },
   {
    "slug": "zarzamora",
