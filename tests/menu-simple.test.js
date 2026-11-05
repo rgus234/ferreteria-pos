@@ -244,3 +244,18 @@ test("en Vender del celular el numero de la cantidad se toca para escribirlo", (
     assert.match(leer("dueno-venta-movil.js"), /window\.abrirCantidadVenderDueno = function/);
     assert.match(leer("dueno-venta-movil.css"), /\.dvm-cantidad-hoja/);
 });
+
+test("el boton de regresar va en su propia fila (sin flotar ni encimarse) y es compacto", () => {
+    const css = leer("css/components/menu-simple.css");
+    const regla = css.match(/body\.menu-simple \.ms-volver:not\(\[hidden\]\) \{[^}]*\}/)[0];
+    assert.match(regla, /position: static/, "ya no es sticky");
+    assert.doesNotMatch(regla, /margin: [^;]*-\d+px/, "sin margen negativo que lo encime con el titulo");
+    assert.match(css, /\.ms-volver button \{[^}]*white-space: nowrap/, "no se parte ni se ensancha");
+});
+
+test("el modal de cobro: las flechas cambian el metodo tambien con el cursor en Recibido", () => {
+    const modal = leer("js/pos-payment-modal.js");
+    assert.match(modal, /const enRecibido = event\.target\.id === "modalPagoRecibido"/);
+    assert.match(modal, /const puedeCambiar = !enCampo \|\| enRecibido/);
+    assert.match(modal, /event\.key === "ArrowLeft"/);
+});

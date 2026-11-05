@@ -301,12 +301,18 @@ async function pedirMetodoPagoPOS(total, opciones = {}) {
  const manejarTeclado = event => {
  if (modal.style.display === "none") return;
 
- if (event.key === "ArrowLeft" && !event.target.matches("input")) {
+ // "Recibido" queda enfocado al abrir (efectivo): con el cursor ahi tambien cambian el metodo izquierda/derecha. En los campos del pago mixto
+ // se respetan (ahi se escriben varias cantidades). Sin ningun campo enfocado, las cuatro flechas cambian de metodo.
+ const enCampo = event.target.matches && event.target.matches("input, textarea, select");
+ const enRecibido = event.target.id === "modalPagoRecibido";
+ const puedeCambiar = !enCampo || enRecibido;
+
+ if ((event.key === "ArrowLeft" || (!enCampo && event.key === "ArrowUp")) && puedeCambiar) {
  event.preventDefault();
  mover(-1);
  }
 
- if (event.key === "ArrowRight" && !event.target.matches("input")) {
+ if ((event.key === "ArrowRight" || (!enCampo && event.key === "ArrowDown")) && puedeCambiar) {
  event.preventDefault();
  mover(1);
  }
