@@ -20,6 +20,10 @@
 
     let rm = null;
 
+    // Abarrotes (perfil simple): llegan cajas y paquetes de un repartidor, no se escanea pieza por pieza. Los textos y atajos lo reflejan;
+    // la ferreteria queda como estaba.
+    const esAbarrotes = () => typeof perfilEsSimple === "function" && perfilEsSimple();
+
     const esc = valor => String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const plano = texto => String(texto || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
     const numero = valor => Number(valor || 0).toLocaleString("es-MX", { maximumFractionDigits: 3 });
@@ -130,7 +134,7 @@
         const pantalla = document.getElementById("pantallaRecibirMarca");
         if (!pantalla) return;
         pantalla.style.display = "block";
-        if (typeof actualizarTopbarContexto === "function") actualizarTopbarContexto("Recibir por marca", "Anota lo que llegó por marca o con la factura", "recibir-marca");
+        if (typeof actualizarTopbarContexto === "function") actualizarTopbarContexto(esAbarrotes() ? "Recibir mercancía" : "Recibir por marca", esAbarrotes() ? "Elige la marca y anota lo que llegó" : "Anota lo que llegó por marca o con la factura", "recibir-marca");
         pantalla.innerHTML = `<div class="rm-shell"><p class="rm-nota">Cargando tu catálogo…</p></div>`;
 
         if (!Array.isArray(todosProductos) || !todosProductos.length) { try { await cargarProductos(); } catch (error) { /* se avisa abajo */ } }
@@ -151,11 +155,11 @@
         if (!pantalla || !rm) return;
 
         pantalla.innerHTML = `<div class="rm-shell">
-            <header class="rm-cab"><div><h2>${rm.factura ? "Recibir con factura" : "Recibir mercancía"}</h2><p>${rm.factura ? "Confirma lo que llegó de cada producto. Lo que dice la factura aparece como “Esperado”." : "Escanea cada producto con la pistola, o búscalo por nombre, código o marca. Cada escaneo suma 1."}</p></div>
+            <header class="rm-cab"><div><h2>${rm.factura ? "Recibir con factura" : "Recibir mercancía"}</h2><p>${rm.factura ? "Confirma lo que llegó de cada producto. Lo que dice la factura aparece como “Esperado”." : (esAbarrotes() ? "Elige la marca y anota cuántas piezas llegaron de cada producto. Si traes la factura, ábrela arriba y confirma contra lo esperado." : "Escanea cada producto con la pistola, o búscalo por nombre, código o marca. Cada escaneo suma 1.")}</p></div>
                 <div id="rmFacturas" class="rm-facturas"></div></header>
             <div class="rm-dos">
                 <section class="rm-izq">
-                    <div class="rm-escaner-fila"><input id="rmBuscar" class="rm-buscar rm-escaner" type="search" autocomplete="off" placeholder="📷 Escanea o escribe producto, código o marca…" oninput="rmBuscar(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();rmEscanear(this.value)}" value="${esc(rm.consulta)}" ${rm.factura ? "style=\"display:none\"" : ""}>
+                    <div class="rm-escaner-fila"><input id="rmBuscar" class="rm-buscar rm-escaner" type="search" autocomplete="off" placeholder="${esAbarrotes() ? "🔎 Busca producto, código o marca…" : "📷 Escanea o escribe producto, código o marca…"}" oninput="rmBuscar(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();rmEscanear(this.value)}" value="${esc(rm.consulta)}" ${rm.factura ? "style=\"display:none\"" : ""}>
                     ${rm.factura ? "" : `<button type="button" class="rm-btn rm-celular" onclick="if(window.abrirEscanerRemotoPOS)abrirEscanerRemotoPOS()" title="Usar el celular como escáner">📱 Usar mi celular</button>`}</div>
                     <div id="rmUltimo" class="rm-ultimo" aria-live="polite"></div>
                     <div id="rmTipos" class="rm-chips"></div>
@@ -210,6 +214,18 @@
         m.innerHTML = rm.factura ? "" : lista.map(boton).join("") + mas;
     }
 
+    function atajosCantidad(p, id) {
+        const boton = (cuanto, texto) => `<button type="button" onclick="rmSumar(${id}, ${cuanto})">${texto}</button>`;
+        const porCaja = Number(p.factor_conversion);
+
+        if (esAbarrotes() && porCaja > 1 && porCaja <= 500) {
+            const nombre = String(p.presentacion_compra || "caja").toLowerCase().slice(0, 12);
+            return boton(porCaja, `+1 ${esc(nombre)} (${numero(porCaja)})`) + [6, 12].filter(a => a !== porCaja).map(a => boton(a, `+${a}`)).join("");
+        }
+
+        return [6, 12, 24].map(a => boton(a, `+${a}`)).join("");
+    }
+
     function tarjeta(p) {
         const id = Number(p.id);
         const n = rm.cantidades.get(id) || 0;
@@ -217,7 +233,7 @@
         const esperado = p.esperado != null;
         const atajos = esperado
             ? `<button type="button" class="rm-llego" onclick="rmLlego(${id})">Llegó todo (${numero(p.esperado)})</button>`
-            : [6, 12, 24].map(a => `<button type="button" onclick="rmSumar(${id}, ${a})">+${a}</button>`).join("");
+            : atajosCantidad(p, id);
 
         const poco = Number(p.stock) <= (Number(p.stock_minimo) > 0 ? Number(p.stock_minimo) : 2);
         return `<article class="rm-tarjeta${n > 0 ? " con-entrada" : ""}" data-id="${id}">
@@ -235,7 +251,7 @@
         const lista = productosVisibles();
         g.innerHTML = lista.length
             ? lista.slice(0, MAX_TARJETAS).map(tarjeta).join("") + (lista.length > MAX_TARJETAS ? `<p class="rm-nota rm-completo">Se muestran ${MAX_TARJETAS} de ${lista.length}. Usa el buscador para acotar.</p>` : "")
-            : `<p class="rm-nota rm-completo">${rm.consulta.trim() ? "No encontré nada con eso." : (!rm.marca ? "Escanea un producto con la pistola, escribe su nombre o código, o elige una marca." : "Esta marca no tiene productos.")}</p>`;
+            : `<p class="rm-nota rm-completo">${rm.consulta.trim() ? "No encontré nada con eso." : (!rm.marca ? (esAbarrotes() ? "Elige una marca, o busca un producto por su nombre o código." : "Escanea un producto con la pistola, escribe su nombre o código, o elige una marca.") : "Esta marca no tiene productos.")}</p>`;
     }
 
     function pintarUltimo() {

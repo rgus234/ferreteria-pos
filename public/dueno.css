@@ -2631,3 +2631,6 @@ button.fila-dueno:disabled{
 .dt-invitacion-cuerpo b { display: block; font-size: 15.5px; }
 .dt-invitacion-cuerpo small { display: block; margin-top: 2px; font-size: 12.5px; opacity: .75; }
 .dt-invitacion-cerrar { position: absolute; right: 8px; top: 8px; width: 28px; height: 28px; border: none; border-radius: 50%; background: transparent; color: inherit; opacity: .55; font-size: 14px; }
+
+/* En línea (Mi sitio web y Nexo Market) está oculto mientras se termina. Para volver a mostrarlo: quitar data-en-linea-oculto / descomentar. */
+[data-en-linea-oculto] { display: none !important; }

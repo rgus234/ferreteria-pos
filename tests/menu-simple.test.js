@@ -267,3 +267,16 @@ test("cobrar con Enter no le quita el cursor a la ventana de cobro, y la ventana
     assert.match(bloque, /Promise\.resolve\(cobrar\(total\)\)\.then\(volverAlBuscador, volverAlBuscador\)/);
     assert.match(leer("js/pos-payment-modal.js"), /matches\("input, textarea, select"\) && modal\.contains\(event\.target\)/);
 });
+
+test("Recibir mercancia habla de abarrotes (marca y cuanto llego, caja completa) sin cambiar lo de la ferreteria", () => {
+    const menu = leer("js/menu-simple.js");
+    assert.match(menu, /titulo: \(\) => \(typeof perfilEsSimple === "function" && perfilEsSimple\(\) \? "Recibir mercancía" : "Recibir sin factura"\)/);
+    assert.match(menu, /"Elige la marca y anota cuánto llegó" : "Escaneando lo que llegó"/, "la ferreteria conserva su texto");
+    assert.match(menu, /valorDe\(c\.titulo\)/);
+
+    const recibir = leer("js/recibir-marca-view.js");
+    assert.match(recibir, /esAbarrotes\(\) \? "Elige la marca y anota cuántas piezas llegaron/);
+    assert.match(recibir, /"Escanea cada producto con la pistola, o búscalo por nombre, código o marca\. Cada escaneo suma 1\."/, "texto de ferreteria intacto");
+    assert.match(recibir, /esAbarrotes\(\) && porCaja > 1/, "el atajo de caja solo en abarrotes y si el producto trae su caja");
+    assert.match(recibir, /\+1 \$\{esc\(nombre\)\} \(\$\{numero\(porCaja\)\}\)/);
+});

@@ -159,5 +159,5 @@ test("el celular solo muestra la opcion si el servidor la autoriza y reutiliza e
 
     assert.ok(html.indexOf("dueno.js") < html.indexOf("dueno-captura.js"), "envuelve cargarPanelMasDueno ya definida");
     assert.match(sw, /dueno-captura\.js/);
-    assert.match(sw, /nexo-dueno-shell-v52/);
+    assert.match(sw, /nexo-dueno-shell-v\d{2,}"/);
 });

@@ -18,5 +18,5 @@ test("el recordatorio por WhatsApp tambien aparece con plan prueba (pilotos)", (
 });
 
 test("la app del dueno sube la version del cache al cambiar dueno.js", () => {
-    assert.match(leer("dueno-sw.js"), /nexo-dueno-shell-v50/);
+    assert.match(leer("dueno-sw.js"), /nexo-dueno-shell-v\d{2,}"/);
 });

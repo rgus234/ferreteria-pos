@@ -1,0 +1,13 @@
+/* En línea (Mi sitio web y Nexo Market) está oculto mientras se termina.
+   Para volver a mostrarlo: borrar este archivo y su <link> en index.html, y quitar data-en-linea-oculto / hidden de los botones. */
+[data-en-linea-oculto] { display: none !important; }
+.ms-item[data-hub="enlinea"] { display: none !important; }
+
+/* Campos del producto que hablan de Market y del sitio web (el valor guardado no cambia).
+   Van en la misma capa del formulario para ganarle a su regla de display. */
+@layer nexo-product-form {
+    #modalAgregar .campo-ficha:has(#nuevoVisibleMarket),
+    #modalAgregar .campo-ficha:has(#nuevoDisponiblePedidos),
+    #modalAgregar .campo-ficha:has(#nuevoDestacado),
+    #modalAgregar .campo-ficha:has(#nuevoPrecioOferta) { display: none !important; }
+}

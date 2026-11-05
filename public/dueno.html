@@ -24,7 +24,7 @@
     <link rel="apple-touch-icon" href="icons/nexo-pos-icon-192.png">
     <link rel="icon" href="icons/nexo-pos-icon-192.png">
     <title>Panel del dueño</title>
-    <link rel="stylesheet" href="dueno.css?v=celular-plan-b-20261126-18">
+    <link rel="stylesheet" href="dueno.css?v=celular-plan-b-20261105-19">
     <link rel="stylesheet" href="dueno-captura.css?v=captura-20261030-01">
     <link rel="stylesheet" href="dueno-tienda.css?v=tienda-20261126-03">
     <link rel="stylesheet" href="dueno-exhibidores.css?v=exhibidores-20261108-04">
@@ -89,9 +89,9 @@
         </div>
         <div class="dueno-login-caja">
             <h1>Bienvenido a Nexo</h1>
-            <p>Entra al panel de tu negocio, o compra en negocios Nexo cerca de ti.</p>
+            <p>Entra al panel de tu negocio.</p>
             <button type="button" onclick="mostrarAccesoNegocioDueno(); return false;">Entrar a mi negocio</button>
-            <button type="button" class="dueno-boton-secundario" onclick="mostrarPromptMarketDueno(); return false;">Comprar en Nexo Market</button>
+            <button type="button" class="dueno-boton-secundario" data-en-linea-oculto hidden onclick="mostrarPromptMarketDueno(); return false;">Comprar en Nexo Market</button>
         </div>
     </main>
 
@@ -687,7 +687,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
             <span>Inventario</span>
         </button>
-        <button type="button" data-tab="pedidos" onclick="cambiarTabDueno('pedidos')">
+        <button type="button" data-tab="pedidos" data-en-linea-oculto hidden onclick="cambiarTabDueno('pedidos')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3.6l-1.6-2.7A1.8 1.8 0 0 0 13.2 3h-2.4a1.8 1.8 0 0 0-1.6 1.3L7.6 7H4a1 1 0 0 0-1 1v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a1 1 0 0 0-1-1z"/><path d="M9 12h6"/></svg>
             <span>Pedidos</span>
             <span id="duenoPedidosBadge" class="dueno-tab-badge" style="display:none;"></span>

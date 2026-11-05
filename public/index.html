@@ -72,6 +72,7 @@
   <link rel="stylesheet" href="css/components/servicios-pos.css?v=servicios-20261030-01">
   <link rel="stylesheet" href="css/components/envases.css?v=envases-20261105-01">
   <link rel="stylesheet" href="css/components/alcohol.css?v=alcohol-20261105-02">
+  <link rel="stylesheet" href="css/components/en-linea-oculto.css?v=en-linea-20261105-03">
   <link rel="stylesheet" href="css/components/favoritos-pos.css?v=favoritos-20261031-04">
   <link rel="stylesheet" href="css/components/inicio-abarrotes.css?v=inicio-ab-20261103-03">
   <link rel="stylesheet" href="css/components/pedido-sugerido.css?v=pedido-sugerido-20261028-01">
@@ -608,10 +609,10 @@
  <button data-shell-module="nexo-ia" onclick="mostrarNexoIA()">
  Nexo IA
  </button>
- <button data-shell-module="pedidos-market" onclick="mostrarPedidosMarket()">
+ <button data-shell-module="pedidos-market" data-en-linea-oculto hidden onclick="mostrarPedidosMarket()">
  Pedidos
  </button>
- <button data-shell-module="sitio-web" onclick="mostrarSitioWeb()">
+ <button data-shell-module="sitio-web" data-en-linea-oculto hidden onclick="mostrarSitioWeb()">
  Sitio web
  </button>
  <button data-shell-module="encargos" onclick="mostrarEncargos()">
@@ -1470,7 +1471,7 @@
  <section class="producto-form-seccion producto-form-seccion-lateral" data-seccion="market">
  <div class="producto-form-seccion-header">
  <span class="producto-form-numero">6</span>
- <h2>Market y pedidos</h2>
+ <h2>Visibilidad</h2>
  </div>
  <div class="producto-form-campos">
  <input id="nuevoVisiblePos" type="checkbox" checked>
@@ -1927,10 +1928,10 @@
  <script src="js/product-lists.js?v=listas-producto-20261102-02"></script>
  <script src="js/exhibidores.js?v=exhibidores-20261102-14"></script>
  <script src="js/funciones-beta.js?v=alcohol-20261105-01"></script>
- <script src="js/menu-simple.js?v=menu-simple-20261103-14"></script>
+ <script src="js/menu-simple.js?v=menu-simple-20261105-15"></script>
  <script src="js/mi-equipo-view.js?v=equipo-20261103-02"></script>
  <script src="js/mapa-tienda-view.js?v=mapa-tienda-20261118-04"></script>
- <script src="js/recibir-marca-view.js?v=recibir-marca-20261117-03"></script>
+ <script src="js/recibir-marca-view.js?v=recibir-marca-20261105-04"></script>
  <script src="js/enlace-celular-view.js?v=enlace-celular-20261118-03"></script>
  <script src="js/inicio-pendientes.js?v=inicio-pendientes-20261119-02"></script>
  <script src="js/inicio-abarrotes.js?v=inicio-ab-20261103-03"></script>

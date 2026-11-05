@@ -39,7 +39,7 @@
             grupos: [
                 { tam: "g", cards: [
                     { modulo: "recepcion-inteligente", icono: "truck", titulo: "Recibir mercancía", texto: "Con la factura de tu proveedor" },
-                    { modulo: "recibir-marca", icono: "arrowDownBox", titulo: "Recibir sin factura", texto: "Escaneando lo que llegó" }
+                    { modulo: "recibir-marca", icono: "arrowDownBox", titulo: () => (typeof perfilEsSimple === "function" && perfilEsSimple() ? "Recibir mercancía" : "Recibir sin factura"), texto: () => (typeof perfilEsSimple === "function" && perfilEsSimple() ? "Elige la marca y anota cuánto llegó" : "Escaneando lo que llegó") }
                 ] },
                 { titulo: "Proveedores", tam: "m", cards: [
                     { modulo: "proveedores", icono: "users", titulo: "Mis proveedores", texto: "Datos y días de visita" },
@@ -291,10 +291,10 @@
             <header class="ms-hub-cab"><span class="ms-cab-icono">${icono(hub.icono)}</span><div><h2>${esc(titulo)}</h2><p>${esc(hub.subtitulo)}</p></div></header>
             ${grupos.map((g, gi) => `<section class="ms-grupo">${g.titulo ? `<h3>${esc(g.titulo)}</h3>` : ""}
                 <div class="ms-tarjetas ms-${g.tam || "m"}">${g.cards.map((c, ci) => {
-                    const nombre = c.etiquetaOriginal ? String(c.boton.textContent || "").replace(/\s+/g, " ").trim() : c.titulo;
+                    const nombre = c.etiquetaOriginal ? String(c.boton.textContent || "").replace(/\s+/g, " ").trim() : valorDe(c.titulo);
                     return `<button type="button" class="ms-tarjeta" data-g="${gi}" data-c="${ci}">
                         <span class="ms-icono">${icono(c.icono)}</span>
-                        <span class="ms-texto"><b>${esc(nombre)}</b>${c.texto ? `<small>${esc(c.texto)}</small>` : ""}</span>
+                        <span class="ms-texto"><b>${esc(nombre)}</b>${valorDe(c.texto) ? `<small>${esc(valorDe(c.texto))}</small>` : ""}</span>
                         <span class="ms-flecha" aria-hidden="true">›</span></button>`;
                 }).join("")}</div></section>`).join("")}</div>`;
 
