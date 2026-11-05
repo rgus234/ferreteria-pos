@@ -259,3 +259,11 @@ test("el modal de cobro: las flechas cambian el metodo tambien con el cursor en 
     assert.match(modal, /const puedeCambiar = !enCampo \|\| enRecibido/);
     assert.match(modal, /event\.key === "ArrowLeft"/);
 });
+
+test("cobrar con Enter no le quita el cursor a la ventana de cobro, y la ventana responde a las flechas aunque el cursor quede fuera", () => {
+    const boot = fs.readFileSync(path.join(__dirname, "..", "public", "js", "app-bootstrap.js"), "utf8");
+    const bloque = boot.match(/function cobrarConEnter\([\s\S]*?\n\}/)[0];
+    assert.doesNotMatch(bloque, /setTimeout/, "ya no hay un temporizador que mande el cursor al buscador con la ventana abierta");
+    assert.match(bloque, /Promise\.resolve\(cobrar\(total\)\)\.then\(volverAlBuscador, volverAlBuscador\)/);
+    assert.match(leer("js/pos-payment-modal.js"), /matches\("input, textarea, select"\) && modal\.contains\(event\.target\)/);
+});

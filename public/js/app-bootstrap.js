@@ -283,17 +283,11 @@ function cobrarConEnter(
 
  event.preventDefault();
 
- cobrar(total);
+ // El cursor vuelve al buscador cuando el cobro termina (o se cancela), no mientras la ventana de cobro sigue abierta:
+ // a los 400 ms se lo quitaba y las flechas de esa ventana dejaban de funcionar.
+ const volverAlBuscador = () => document.getElementById("busqueda")?.focus();
 
- setTimeout(() => {
-
- document
- .getElementById(
- "busqueda"
- )
- ?.focus();
-
- }, 400);
+ Promise.resolve(cobrar(total)).then(volverAlBuscador, volverAlBuscador);
  }
 }
 function dinero(valor) {

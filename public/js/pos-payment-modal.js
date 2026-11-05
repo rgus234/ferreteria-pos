@@ -303,7 +303,7 @@ async function pedirMetodoPagoPOS(total, opciones = {}) {
 
  // "Recibido" queda enfocado al abrir (efectivo): con el cursor ahi tambien cambian el metodo izquierda/derecha. En los campos del pago mixto
  // se respetan (ahi se escriben varias cantidades). Sin ningun campo enfocado, las cuatro flechas cambian de metodo.
- const enCampo = event.target.matches && event.target.matches("input, textarea, select");
+ const enCampo = Boolean(event.target.matches && event.target.matches("input, textarea, select") && modal.contains(event.target));
  const enRecibido = event.target.id === "modalPagoRecibido";
  const puedeCambiar = !enCampo || enRecibido;
 
