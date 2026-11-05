@@ -143,7 +143,7 @@
         if (!productos.length) { pantalla.innerHTML = `<div class="rm-shell"><p class="rm-nota">Todavía no hay productos en tu catálogo.</p></div>`; return; }
 
         const grupos = await armarGrupos(productos);
-        rm = { productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), linea: "", verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
+        rm = { productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), linea: "", verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), caducidades: new Map(), pago: { activo: false, monto: "", metodo: "efectivo_caja", por: "", nota: "" }, proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
         pintar();
 
         llamar("/proveedores").then(r => { if (rm) { rm.proveedores = (r.datos.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre })).filter(x => x.nombre); pintarResumen(); } }).catch(() => {});
@@ -288,6 +288,75 @@
         return [...rm.cantidades.entries()].filter(([, n]) => n > 0).map(([id, n]) => ({ id, n, p: rm.indice.get(id) })).filter(l => l.p);
     }
 
+    // ---------- caducidad y pago al repartidor (abarrotes) ----------
+
+    const METODOS_PAGO_REPARTIDOR = [["efectivo_caja", "Efectivo de la caja"], ["efectivo_propio", "Efectivo (de mi bolsa)"], ["transferencia", "Transferencia"], ["a_deber", "Se quedó a deber"]];
+    const nombreQuienRecibe = () => (typeof usuarioActual !== "undefined" && usuarioActual && (usuarioActual.nombre || usuarioActual.usuario)) || "";
+
+    // Fecha de caducidad de lo que llego (opcional). Si el producto tiene vida util, vacia se calcula sola.
+    function fechaLineaHtml(l) {
+        if (!esAbarrotes()) return "";
+
+        const vida = Number(l.p.vida_util_dias) > 0 ? ` Si la dejas vacía se calcula sola (+${Number(l.p.vida_util_dias)} días).` : "";
+
+        return `<label class="rm-fecha" title="Fecha impresa en el empaque (opcional).${vida}">Caduca <input type="date" value="${esc(rm.caducidades.get(l.id) || "")}" onchange="rmCaducidad(${l.id}, this.value)"></label>`;
+    }
+
+    window.rmCaducidad = function (id, fecha) {
+        if (!rm) return;
+        if (fecha) rm.caducidades.set(Number(id), fecha); else rm.caducidades.delete(Number(id));
+    };
+
+    // ¿Pagaste al repartidor? Cuanto, como y quien (queda en la recepcion; si fue efectivo de la caja, tambien sale en Caja).
+    function pagoRepartidorHtml() {
+        if (!esAbarrotes()) return "";
+
+        const p = rm.pago;
+
+        return `<div class="rm-pago">
+            <label class="rm-pago-toggle"><input type="checkbox" ${p.activo ? "checked" : ""} onchange="rmPagoActivar(this.checked)"> Pagué al repartidor</label>
+            ${p.activo ? `<div class="rm-pago-campos">
+                <label class="rm-campo">¿Cuánto pagaste?<input type="number" min="0" step="0.01" inputmode="decimal" class="rm-buscar" placeholder="0.00" value="${esc(p.monto)}" oninput="rmPagoCampo('monto', this.value)"></label>
+                <label class="rm-campo">¿Cómo?<select onchange="rmPagoCampo('metodo', this.value)">${METODOS_PAGO_REPARTIDOR.map(([valor, texto]) => `<option value="${valor}" ${p.metodo === valor ? "selected" : ""}>${texto}</option>`).join("")}</select></label>
+                <label class="rm-campo">¿Quién pagó?<input type="text" maxlength="60" class="rm-buscar" value="${esc(p.por)}" oninput="rmPagoCampo('por', this.value)"></label>
+                <small class="rm-pago-ayuda">${p.metodo === "efectivo_caja" ? "Sale del efectivo de la caja: se anota en Caja para que el corte cuadre." : (p.metodo === "a_deber" ? "Queda anotado como pendiente con este proveedor." : "Queda anotado en la recepción.")}</small>
+            </div>` : ""}
+        </div>`;
+    }
+
+    window.rmPagoActivar = function (activo) {
+        if (!rm) return;
+        rm.pago.activo = Boolean(activo);
+        if (activo && !rm.pago.por) rm.pago.por = nombreQuienRecibe();
+        pintarResumen();
+    };
+
+    // Solo se guarda lo escrito: redibujar el resumen aqui le quitaria el cursor al campo.
+    window.rmPagoCampo = function (campo, valor) {
+        if (!rm || !(campo in rm.pago)) return;
+        rm.pago[campo] = valor;
+        if (campo === "metodo") pintarResumen();
+    };
+
+    // El pago a mandar al servidor (o undefined si no se pago / no aplica). Regresa null si falta el monto.
+    function pagoParaEnviar() {
+        const p = rm.pago;
+
+        if (!esAbarrotes() || !p.activo) return undefined;
+        if (p.metodo !== "a_deber" && !(Number(String(p.monto).replace(",", ".")) > 0)) return null;
+
+        return { monto: Number(String(p.monto).replace(",", ".")) || 0, metodo: p.metodo, por: p.por, nota: "" };
+    }
+
+    // Efectivo de la caja: el pago tambien sale en Caja (un movimiento de salida) para que el corte cuadre. No puede tumbar la recepcion.
+    async function anotarSalidaEnCaja(pago, proveedor, recepcionId) {
+        if (!pago || pago.metodo !== "efectivo_caja" || !(pago.monto > 0)) return;
+
+        const r = await llamar("/caja/movimientos", { method: "POST", body: JSON.stringify({ tipo: "salida", concepto: `Pago a proveedor${proveedor ? ": " + proveedor : ""}`, monto: pago.monto, metodo: "efectivo", referencia: recepcionId ? `Recepción ${recepcionId}` : "Recibir mercancía" }) });
+
+        if (!r.ok) aviso(`El pago quedó anotado en la recepción, pero no salió de la caja: ${r.datos.error || "abre tu turno de caja"}.`, "info");
+    }
+
     function pintarResumen() {
         const r = document.getElementById("rmResumen");
         if (!r || !rm) return;
@@ -302,9 +371,10 @@
         r.innerHTML = `<div class="rm-resumen-cab"><h3>${rm.factura ? esc(rm.factura.proveedor) : "Lo que llegó"}</h3>${rm.factura ? `<small>${rm.factura.folio ? "Folio " + esc(rm.factura.folio) + " · " : ""}${dinero(rm.factura.total)}</small>` : ""}</div>
             ${rm.factura ? `<div class="rm-acciones"><button type="button" class="rm-btn" onclick="rmTodoFactura()">Llegó todo</button><button type="button" class="rm-btn" onclick="rmSalirFactura()">Salir de la factura</button></div>` : ""}
             ${sinDecidir ? `<p class="rm-alerta">${sinDecidir} concepto${sinDecidir === 1 ? "" : "s"} por decidir (producto nuevo o sin emparejar). Resuélvelos en <button type="button" class="rm-enlace" onclick="rmIrADecidir()">Recepción inteligente</button> antes de confirmar.</p>` : ""}
-            <div class="rm-lineas">${ls.map(l => `<div class="rm-linea" style="--marca:${colorDe(l.p)}"><i class="rm-linea-mini">${typeof miniaturaProducto === "function" ? miniaturaProducto(l.p) : ""}</i><span>${esc(l.p.nombre)}</span><b>${numero(l.n)}</b><button type="button" onclick="rmQuitar(${l.id})" aria-label="Quitar">✕</button></div>`).join("") || `<p class="rm-nota">Todavía no anotas nada.</p>`}</div>
+            <div class="rm-lineas">${ls.map(l => `<div class="rm-linea" style="--marca:${colorDe(l.p)}"><i class="rm-linea-mini">${typeof miniaturaProducto === "function" ? miniaturaProducto(l.p) : ""}</i><div class="rm-linea-datos"><span>${esc(l.p.nombre)}</span>${fechaLineaHtml(l)}</div><b>${numero(l.n)}</b><button type="button" onclick="rmQuitar(${l.id})" aria-label="Quitar">✕</button></div>`).join("") || `<p class="rm-nota">Todavía no anotas nada.</p>`}</div>
             <div class="rm-total"><span>${ls.length} producto${ls.length === 1 ? "" : "s"}</span><b>${numero(piezas)} piezas</b></div>
             ${proveedor}
+            ${pagoRepartidorHtml()}
             <button type="button" class="rm-btn principal grande" id="rmConfirmar" onclick="rmConfirmar()" ${ls.length && !rm.enviando ? "" : "disabled"}>${rm.enviando ? "Guardando…" : (rm.factura ? "Confirmar recepción de la factura" : "Confirmar recepción")}</button>`;
     }
 
@@ -443,7 +513,7 @@
     window.rmSalirFactura = async function () {
         if (!rm.factura) return;
         if (lineas().length && !(await confirmarPOS("Lo que anotaste de esta factura se descarta. ¿Salir?", "Salir", "alerta"))) return;
-        Object.assign(rm, rm.respaldo, { factura: null, respaldo: null, cantidades: new Map(), consulta: "" });
+        Object.assign(rm, rm.respaldo, { factura: null, respaldo: null, cantidades: new Map(), caducidades: new Map(), consulta: "" });
         pintar();
     };
 
@@ -478,7 +548,14 @@
         rm.enviando = true;
         pintarResumen();
 
-        const enviar = extra => llamar(`/recepcion-inteligente/facturas/${f.id}/confirmar`, { method: "POST", body: JSON.stringify({ cantidadesRecibidas, caducidades: {}, ignorarConciliacion: false, ...extra }) });
+        // Fechas de caducidad escritas (por producto -> por cada renglon de la factura que lo trae) y pago al repartidor
+        const caducidades = {};
+        f.cards.forEach(c => { const fecha = rm.caducidades.get(Number(c.id)); if (fecha) c.itemIds.forEach(id => { caducidades[id] = fecha; }); });
+
+        const pago = pagoParaEnviar();
+        if (pago === null) { await alertaPOS("Escribe cuánto le pagaste al repartidor, o desmarca “Pagué al repartidor”.", "Falta el monto", "info"); return; }
+
+        const enviar = extra => llamar(`/recepcion-inteligente/facturas/${f.id}/confirmar`, { method: "POST", body: JSON.stringify({ cantidadesRecibidas, caducidades, ...(pago ? { pago } : {}), ignorarConciliacion: false, ...extra }) });
         let r = await enviar({});
 
         // Ya habias recibido esa mercancia a mano (con este proveedor): se pregunta si es la misma para NO sumarla dos veces.
@@ -502,6 +579,8 @@
         if (!r.ok) { pintarResumen(); aviso(r.datos.error || "No se pudo confirmar la factura.", "error"); return; }
 
         aviso(r.datos.conciliada ? "Factura confirmada: completó los costos de lo que ya habías recibido." : "Factura recibida: inventario actualizado.");
+        if (pago && !r.datos.pagoGuardado) aviso("La factura se recibió, pero el pago al repartidor no quedó anotado.", "info");
+        if (pago && r.datos.pagoGuardado) await anotarSalidaEnCaja(pago, f.proveedor, r.datos.recepcionMercanciaId);
         if (typeof cargarProductos === "function") await cargarProductos();
         await window.mostrarRecibirMarca();
     }
@@ -520,6 +599,10 @@
         const ls = lineas();
         const piezas = ls.reduce((s, l) => s + l.n, 0);
         const proveedor = document.getElementById("rmProveedor")?.value || "";
+
+        const pago = pagoParaEnviar();
+        if (pago === null) { await alertaPOS("Escribe cuánto le pagaste al repartidor, o desmarca “Pagué al repartidor”.", "Falta el monto", "info"); return; }
+
         const ok = await confirmarPOS(`Se suman ${numero(piezas)} pieza(s) (${ls.length} producto${ls.length === 1 ? "" : "s"}) al inventario.${proveedor ? `\nQuedan como “recibido sin factura” de ${proveedor}: cuando llegue su factura Nexo la compara y no suma dos veces.` : ""}`, "Recibir mercancía", "info");
         if (!ok) return;
 
@@ -534,13 +617,17 @@
                 referencia: "Recibir por marca",
                 usuarioNombre: (typeof usuarioActual !== "undefined" && usuarioActual?.nombre) || "",
                 idempotencyKey: rm.llave,
-                items: ls.map(l => ({ productoId: l.id, cantidad: l.n, costo: 0 }))
+                items: ls.map(l => ({ productoId: l.id, cantidad: l.n, costo: 0, ...(rm.caducidades.get(l.id) ? { caducidad: rm.caducidades.get(l.id) } : {}) })),
+                ...(pago ? { pago } : {})
             })
         });
 
         rm.enviando = false;
 
         if (!r.ok) { pintarResumen(); aviso(r.datos.error || "No se pudo guardar. No se sumó nada al inventario.", "error"); return; }
+
+        if (pago && !r.datos.pagoGuardado && !r.datos.repetida) aviso("La mercancía se recibió, pero el pago al repartidor no quedó anotado.", "info");
+        if (pago && r.datos.pagoGuardado) await anotarSalidaEnCaja(pago, proveedor, r.datos.recepcion && r.datos.recepcion.id);
 
         aviso(r.datos.repetida ? "Esa recepción ya estaba guardada." : `Recepción guardada: ${ls.length} producto${ls.length === 1 ? "" : "s"} sumado${ls.length === 1 ? "" : "s"} al inventario.`);
         if (typeof cargarProductos === "function") await cargarProductos();

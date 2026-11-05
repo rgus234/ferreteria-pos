@@ -1291,6 +1291,17 @@
   }
  };
 
+ // Pago al repartidor (abarrotes): "Pagado $480.00 · efectivo de la caja · Gustavo" o "A deber".
+ function textoPagoRecepcion(r) {
+  if (!r || !r.pago_metodo) return "";
+
+  const metodos = { efectivo_caja: "efectivo de la caja", efectivo_propio: "efectivo de su bolsa", transferencia: "transferencia" };
+  const monto = Number(r.pago_monto || 0);
+  const base = r.pago_metodo === "a_deber" ? `A deber${monto > 0 ? " " + dinero(monto) : ""}` : `Pagado ${dinero(monto)} · ${metodos[r.pago_metodo] || r.pago_metodo}`;
+
+  return base + (r.pago_por ? ` · ${r.pago_por}` : "");
+ }
+
  function renderListaHistorialRecepciones(recepciones) {
   const modal = modalHistorialRecepciones();
   modal.innerHTML = `
@@ -1305,7 +1316,7 @@
        <div class="fila-dueno" style="cursor:pointer;" onclick="verDetalleRecepcion(${r.id})">
         <div>
          <strong>${escaparPOS(r.proveedor || "Sin proveedor")}</strong>
-         <span>${escaparPOS(r.referencia || "Sin folio")} -- ${new Date(r.created_at).toLocaleDateString("es-MX")} -- ${r.items_count} producto${Number(r.items_count) === 1 ? "" : "s"}</span>
+         <span>${escaparPOS(r.referencia || "Sin folio")} -- ${new Date(r.created_at).toLocaleDateString("es-MX")} -- ${r.items_count} producto${Number(r.items_count) === 1 ? "" : "s"}${textoPagoRecepcion(r) ? " -- " + escaparPOS(textoPagoRecepcion(r)) : ""}</span>
         </div>
         <strong>${dinero(Number(r.total || 0))}</strong>
        </div>
@@ -1335,6 +1346,7 @@
       <div>
        <h2>${escaparPOS(r.proveedor || "Sin proveedor")}</h2>
        <p>${escaparPOS(r.referencia || "Sin folio")} -- ${new Date(r.created_at).toLocaleDateString("es-MX")}${r.tipo_documento ? " -- " + escaparPOS(r.tipo_documento) : ""}</p>
+       ${textoPagoRecepcion(r) ? `<p><strong>Pago al repartidor:</strong> ${escaparPOS(textoPagoRecepcion(r))}</p>` : ""}
       </div>
       <button type="button" onclick="cerrarHistorialRecepciones()">Cerrar</button>
      </div>

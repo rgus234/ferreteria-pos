@@ -571,8 +571,8 @@ async function riVerDetalle(id) {
 		${recepcion.estado === "pendiente" ? `
 			<div class="ri-acciones-footer">
 				<button type="button" class="btn-secundario" onclick="riRechazar(${recepcion.id})">Rechazar factura</button>
-				<button type="button" class="${sinDecidir ? "btn-secundario" : "btn-agregar"}" onclick="riAbrirEscaneo(${recepcion.id})" ${sinDecidir ? `title="Primero revisa los productos marcados"` : ""}>📷 Escanear lo que llegó</button>
-				<button type="button" class="btn-secundario" onclick="riCantidadesEscaneadas = null; riConfirmar(${recepcion.id})">
+				<button type="button" class="${sinDecidir ? "btn-secundario" : "btn-agregar"}" onclick="riAbrirEscaneo(${recepcion.id})" ${sinDecidir ? `title="Primero revisa los productos marcados"` : ""}>${riEsAbarrotes() ? "✍️ Contar lo que llegó" : "📷 Escanear lo que llegó"}</button>
+				<button type="button" class="btn-secundario" onclick="riCantidadesEscaneadas = null; riExtraConfirmacion = null; riConfirmar(${recepcion.id})">
 					Confirmar sin escanear${sinDecidir ? ` (${sinDecidir} sin revisar)` : ""}
 				</button>
 			</div>
@@ -680,8 +680,8 @@ function riVerProductoModal(itemId) {
 			${precios ? `
 				<div class="ri-modal-producto-precios">
 					${precios.publico != null ? `<div><span>Público</span><strong>$${precios.publico.toFixed(2)}</strong></div>` : ""}
-					${precios.medioMayoreo != null ? `<div><span>Medio mayoreo</span><strong>$${precios.medioMayoreo.toFixed(2)}</strong></div>` : ""}
-					${precios.distribuidor != null ? `<div><span>Distribuidor</span><strong>$${precios.distribuidor.toFixed(2)}</strong></div>` : ""}
+					${precios.medioMayoreo != null && !riEsAbarrotes() ? `<div><span>Medio mayoreo</span><strong>$${precios.medioMayoreo.toFixed(2)}</strong></div>` : ""}
+					${precios.distribuidor != null && !riEsAbarrotes() ? `<div><span>Distribuidor</span><strong>$${precios.distribuidor.toFixed(2)}</strong></div>` : ""}
 				</div>
 			` : `<p class="ri-modal-producto-sin-precio">Todavía no hay precios de referencia para este producto.</p>`}
 		</div>
@@ -928,14 +928,14 @@ function riRenderModalDecision() {
 
 			${mostrarPrecios ? `
 				<div class="ri-modal-decision-precios">
-					<h4>Precios de venta</h4>
+					<h4>${riEsAbarrotes() ? "Precio de venta" : "Precios de venta"}</h4>
 					<div class="ri-modal-decision-precios-grid">
-						<label>Público
+						<label>${riEsAbarrotes() ? "Precio de venta" : "Público"}
 							<input type="number" step="0.01" min="0" id="riDecisionPrecioPublico" value="${d.precioPublico ?? ""}">
 						</label>
-						<label>Medio mayoreo
+						${riEsAbarrotes() ? "" : `<label>Medio mayoreo
 							<input type="number" step="0.01" min="0" id="riDecisionPrecioMedioMayoreo" value="${d.precioMedioMayoreo ?? ""}">
-						</label>
+						</label>`}
 					</div>
 
 					<label class="ri-modal-decision-suelta-toggle">
@@ -1035,7 +1035,8 @@ function riWireModalDecisionEventos() {
 	if (nombreInput) nombreInput.oninput = () => { d.nombre = nombreInput.value; };
 
 	const precioPublicoInput = document.getElementById("riDecisionPrecioPublico");
-	if (precioPublicoInput) precioPublicoInput.oninput = () => { d.precioPublico = precioPublicoInput.value; };
+	// Abarrotes: un solo precio; el medio mayoreo se guarda igual para que nada se cobre distinto.
+	if (precioPublicoInput) precioPublicoInput.oninput = () => { d.precioPublico = precioPublicoInput.value; if (riEsAbarrotes()) d.precioMedioMayoreo = precioPublicoInput.value; };
 
 	const precioMedioMayoreoInput = document.getElementById("riDecisionPrecioMedioMayoreo");
 	if (precioMedioMayoreoInput) precioMedioMayoreoInput.oninput = () => { d.precioMedioMayoreo = precioMedioMayoreoInput.value; };
@@ -1141,7 +1142,12 @@ async function riConfirmarDefinitivo(id, extra) {
 	const respuesta = await fetch(`/recepcion-inteligente/facturas/${id}/confirmar`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ ...(riCantidadesEscaneadas ? { cantidadesRecibidas: riCantidadesEscaneadas } : {}), ...(extra || {}) })
+		body: JSON.stringify({
+			...(riCantidadesEscaneadas ? { cantidadesRecibidas: riCantidadesEscaneadas } : {}),
+			...(riExtraConfirmacion && Object.keys(riExtraConfirmacion.caducidades || {}).length ? { caducidades: riExtraConfirmacion.caducidades } : {}),
+			...(riExtraConfirmacion && riExtraConfirmacion.pago ? { pago: riExtraConfirmacion.pago } : {}),
+			...(extra || {})
+		})
 	});
 	const datos = await respuesta.json().catch(() => ({}));
 
@@ -1160,8 +1166,12 @@ async function riConfirmarDefinitivo(id, extra) {
 		return;
 	}
 
+	const pagoEnviado = riExtraConfirmacion && riExtraConfirmacion.pago;
 	riCantidadesEscaneadas = null;
-	await alertaPOS(`Recepción confirmada. Se aplicó un total de $${datos.totalAplicado.toFixed(2)} a tu inventario.`, "Recepción confirmada", "exito");
+	riExtraConfirmacion = null;
+	await alertaPOS(`Recepción confirmada. Se aplicó un total de $${datos.totalAplicado.toFixed(2)} a tu inventario.${pagoEnviado && !datos.pagoGuardado ? " El pago al repartidor no quedó anotado." : ""}`, "Recepción confirmada", "exito");
+
+	if (pagoEnviado && datos.pagoGuardado) await riAnotarSalidaCaja(pagoEnviado, recepcionInteligenteRecepcionActual?.proveedor || "", datos.recepcionMercanciaId);
 
 	if (typeof cargarProductos === "function") cargarProductos();
 	await riVerDetalle(id);
@@ -1250,6 +1260,11 @@ function riModalConciliacion(id, remisionPendiente) {
 let riCantidadesEscaneadas = null;
 let riEscaneo = null;
 
+// Abarrotes (perfil simple): llegan cajas y paquetes de un repartidor; se cuenta por producto (con caducidad y pago al repartidor), no pieza por pieza.
+function riEsAbarrotes() {
+	return typeof perfilEsSimple === "function" && perfilEsSimple();
+}
+
 function riNormalizarCodigo(valor) {
 	return String(valor ?? "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
@@ -1258,13 +1273,14 @@ function riPasosHtml(items, sinDecidir) {
 	const nuevos = items.filter(it => !it.accion && it.candidato?.fuente !== "inventario").length;
 	return `<ol class="ri-pasos">
 		<li class="${sinDecidir ? "activo" : "listo"}"><span>${sinDecidir ? "1" : "✓"}</span><div><b>Revisa los productos</b><small>${sinDecidir ? `${sinDecidir} por revisar${nuevos ? ` · ${nuevos} nuevo${nuevos === 1 ? "" : "s"} por agregar` : ""}` : "Todos listos"}</small></div></li>
-		<li class="${sinDecidir ? "" : "activo"}"><span>2</span><div><b>Escanea lo que llegó</b><small>Pistola o escribiendo el código</small></div></li>
+		<li class="${sinDecidir ? "" : "activo"}"><span>2</span><div><b>${riEsAbarrotes() ? "Cuenta lo que llegó" : "Escanea lo que llegó"}</b><small>${riEsAbarrotes() ? "Escribe cuántas llegaron de cada uno" : "Pistola o escribiendo el código"}</small></div></li>
 		<li><span>3</span><div><b>Confirma</b><small>Se suma al inventario lo contado</small></div></li>
 	</ol>`;
 }
 
 function riAbrirEscaneo(id) {
 	riCantidadesEscaneadas = null;
+	riExtraConfirmacion = null;
 	const items = recepcionInteligenteItemsActuales.filter(it => it.accion !== "omitir");
 
 	if (!items.length) { alertaPOS("Esta factura no tiene productos por recibir.", "Escanear", "info"); return; }
@@ -1278,7 +1294,7 @@ function riAbrirEscaneo(id) {
 			.map(riNormalizarCodigo).filter(Boolean).forEach(c => { if (!claves.has(c)) claves.set(c, it.id); });
 	});
 
-	riEscaneo = { id, items, claves, contado: new Map(items.map(it => [it.id, 0])), ultimo: "", mal: false };
+	riEscaneo = { id, items, claves, contado: new Map(items.map(it => [it.id, 0])), caducidades: new Map(), pago: { activo: false, monto: "", metodo: "efectivo_caja", por: (typeof usuarioActual !== "undefined" && usuarioActual && (usuarioActual.nombre || usuarioActual.usuario)) || "" }, ultimo: "", mal: false };
 	riPintarEscaneo();
 }
 
@@ -1294,12 +1310,15 @@ function riPintarEscaneo() {
 
 	const { esperadas, contadas } = riEscaneoTotales();
 
-	capa.innerHTML = `<div class="ri-escaneo" role="dialog" aria-label="Escanear lo que llegó">
-		<header><div><h3>📷 Escanear lo que llegó</h3><p>Escanea cada pieza con la pistola, o escribe el código y presiona Enter.</p></div>
+	const contar = riEsAbarrotes();
+
+	capa.innerHTML = `<div class="ri-escaneo" role="dialog" aria-label="${contar ? "Contar lo que llegó" : "Escanear lo que llegó"}">
+		<header><div><h3>${contar ? "✍️ Contar lo que llegó" : "📷 Escanear lo que llegó"}</h3><p>${contar ? "Escribe cuántas piezas llegaron de cada producto, o toca “Llegó todo”. Si prefieres, también puedes escanear." : "Escanea cada pieza con la pistola, o escribe el código y presiona Enter."}</p></div>
 			<div class="ri-escaneo-total"><b id="riEscTotal">${contadas}</b> de ${esperadas} piezas</div></header>
-		<div class="ri-escaneo-entrada"><input id="riEscInput" type="text" autocomplete="off" placeholder="Escanea o escribe el código…" onkeydown="if(event.key==='Enter'){riEscanear(this.value);this.value='';}"><button type="button" class="btn-secundario" onclick="riEscTodo()">Llegó todo</button></div>
-		<p class="ri-escaneo-aviso ${riEscaneo.mal ? "mal" : ""}" id="riEscAviso">${escaparPOS(riEscaneo.ultimo || "Esperando el primer código…")}</p>
+		<div class="ri-escaneo-entrada"><input id="riEscInput" type="text" autocomplete="off" placeholder="${contar ? "Escanea o escribe un código (opcional)…" : "Escanea o escribe el código…"}" onkeydown="if(event.key==='Enter'){riEscanear(this.value);this.value='';}"><button type="button" class="btn-secundario" onclick="riEscTodo()">Llegó todo</button></div>
+		<p class="ri-escaneo-aviso ${riEscaneo.mal ? "mal" : ""}" id="riEscAviso">${escaparPOS(riEscaneo.ultimo || (contar ? "Escribe las cantidades de abajo." : "Esperando el primer código…"))}</p>
 		<div class="ri-escaneo-lista">${riEscaneo.items.map(it => riFilaEscaneo(it)).join("")}</div>
+		${contar ? riPagoRepartidorHtml() : ""}
 		<footer><button type="button" class="btn-secundario" onclick="riCerrarEscaneo()">Cancelar</button><button type="button" class="btn-agregar" onclick="riConfirmarEscaneo()">Confirmar lo contado</button></footer>
 	</div>`;
 	capa.style.display = "flex";
@@ -1313,7 +1332,59 @@ function riFilaEscaneo(it) {
 	return `<div class="ri-esc-fila ${estado}" data-item="${it.id}"><span class="ri-esc-nombre">${escaparPOS(it.candidato?.nombre || it.descripcion)}<small>${escaparPOS(it.codigo || "")}</small></span>
 		<span class="ri-esc-esperado">Esperado <b>${esperado}</b></span>
 		<span class="ri-esc-contado"><button type="button" onclick="riEscAjustar(${it.id}, -1)">−</button><input type="number" min="0" step="any" value="${contado}" onchange="riEscFijar(${it.id}, this.value)"><button type="button" onclick="riEscAjustar(${it.id}, 1)">+</button></span>
-		<span class="ri-esc-estado">${estado === "ok" ? "✓" : estado === "sobra" ? "▲ sobra" : estado === "falta" ? "▼ falta" : ""}</span></div>`;
+		<span class="ri-esc-estado">${estado === "ok" ? "✓" : estado === "sobra" ? "▲ sobra" : estado === "falta" ? "▼ falta" : ""}</span>
+		${riEsAbarrotes() ? `<label class="ri-esc-fecha" title="Fecha impresa en el empaque (opcional). Si la dejas vacía y el producto tiene vida útil, se calcula sola.">Caduca <input type="date" value="${escaparPOS(riEscaneo.caducidades.get(it.id) || "")}" onchange="riEscCaducidad(${it.id}, this.value)"></label>` : ""}</div>`;
+}
+
+function riEscCaducidad(id, fecha) {
+	if (!riEscaneo) return;
+	if (fecha) riEscaneo.caducidades.set(id, fecha); else riEscaneo.caducidades.delete(id);
+}
+
+// ¿Pagaste al repartidor? (abarrotes) Cuanto, como y quien: queda en la recepcion; si fue efectivo de la caja, tambien sale en Caja.
+const RI_METODOS_PAGO = [["efectivo_caja", "Efectivo de la caja"], ["efectivo_propio", "Efectivo (de mi bolsa)"], ["transferencia", "Transferencia"], ["a_deber", "Se quedó a deber"]];
+
+function riPagoRepartidorHtml() {
+	const p = riEscaneo.pago;
+
+	return `<div class="ri-esc-pago">
+		<label class="ri-esc-pago-toggle"><input type="checkbox" ${p.activo ? "checked" : ""} onchange="riPagoActivar(this.checked)"> Pagué al repartidor</label>
+		${p.activo ? `<div class="ri-esc-pago-campos">
+			<label>¿Cuánto pagaste?<input type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${escaparPOS(p.monto)}" oninput="riPagoCampo('monto', this.value)"></label>
+			<label>¿Cómo?<select onchange="riPagoCampo('metodo', this.value)">${RI_METODOS_PAGO.map(([valor, texto]) => `<option value="${valor}" ${p.metodo === valor ? "selected" : ""}>${texto}</option>`).join("")}</select></label>
+			<label>¿Quién pagó?<input type="text" maxlength="60" value="${escaparPOS(p.por)}" oninput="riPagoCampo('por', this.value)"></label>
+		</div>
+		<small>${p.metodo === "efectivo_caja" ? "Sale del efectivo de la caja: se anota en Caja para que el corte cuadre." : (p.metodo === "a_deber" ? "Queda anotado como pendiente con este proveedor." : "Queda anotado en la recepción.")}</small>` : ""}
+	</div>`;
+}
+
+function riPagoActivar(activo) {
+	if (!riEscaneo) return;
+	riEscaneo.pago.activo = Boolean(activo);
+	riPintarEscaneo();
+}
+
+// Solo se guarda lo escrito: redibujar aqui le quitaria el cursor al campo (salvo al cambiar el metodo, que cambia la ayuda).
+function riPagoCampo(campo, valor) {
+	if (!riEscaneo || !(campo in riEscaneo.pago)) return;
+	riEscaneo.pago[campo] = valor;
+	if (campo === "metodo") riPintarEscaneo();
+}
+
+// Lo que el conteo manda al confirmar la factura (caducidades y pago); se limpia al terminar.
+let riExtraConfirmacion = null;
+
+async function riAnotarSalidaCaja(pago, proveedor, recepcionId) {
+	if (!pago || pago.metodo !== "efectivo_caja" || !(pago.monto > 0)) return;
+
+	try {
+		const respuesta = await fetch("/caja/movimientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipo: "salida", concepto: `Pago a proveedor${proveedor ? ": " + proveedor : ""}`, monto: pago.monto, metodo: "efectivo", referencia: recepcionId ? `Recepción ${recepcionId}` : "Recibir mercancía" }) });
+		const datos = await respuesta.json().catch(() => ({}));
+
+		if (!respuesta.ok) await alertaPOS(`El pago quedó anotado en la recepción, pero no salió de la caja: ${datos.error || "abre tu turno de caja"}.`, "Pago al repartidor", "info");
+	} catch (error) {
+		await alertaPOS("El pago quedó anotado en la recepción, pero no se pudo anotar en la caja.", "Pago al repartidor", "info");
+	}
 }
 
 function riEscActualizar(id) {
@@ -1362,12 +1433,26 @@ async function riConfirmarEscaneo() {
 	if (!riEscaneo) return;
 
 	const id = riEscaneo.id;
+
+	// Pago al repartidor (abarrotes): si lo marcaron, hace falta el monto (salvo "se quedo a deber")
+	let pago = null;
+
+	if (riEsAbarrotes() && riEscaneo.pago.activo) {
+		const monto = Number(String(riEscaneo.pago.monto).replace(",", "."));
+
+		if (riEscaneo.pago.metodo !== "a_deber" && !(monto > 0)) { await alertaPOS("Escribe cuánto le pagaste al repartidor, o desmarca “Pagué al repartidor”.", "Falta el monto", "info"); return; }
+
+		pago = { monto: Number.isFinite(monto) ? monto : 0, metodo: riEscaneo.pago.metodo, por: riEscaneo.pago.por, nota: "" };
+	}
+
+	const caducidades = Object.fromEntries([...riEscaneo.caducidades.entries()]);
 	const sinContar = riEscaneo.items.filter(it => !(riEscaneo.contado.get(it.id) > 0)).length;
 	const distintos = riEscaneo.items.filter(it => (riEscaneo.contado.get(it.id) || 0) > 0 && riEscaneo.contado.get(it.id) !== Number(it.cantidad)).length;
 	const ok = await confirmarPOS(`Se sumará al inventario lo que contaste.${distintos ? ` ${distintos} producto(s) llegaron distinto a la factura.` : ""}${sinContar ? ` ${sinContar} producto(s) sin contar se reciben en 0.` : ""}`, "¿Confirmar lo contado?", "info");
 	if (!ok) return;
 
 	riCantidadesEscaneadas = Object.fromEntries(riEscaneo.items.map(it => [it.id, riEscaneo.contado.get(it.id) || 0]));
+	riExtraConfirmacion = { caducidades, pago };
 	riCerrarEscaneo();
 	await riConfirmar(id);
 }
@@ -1403,10 +1488,9 @@ function riPasoNuevoHtml(d) {
 		<h4>¿A cuánto lo vendes?</h4>
 		<p class="ri-asis-ayuda">Te costó <b>$${Number(d.costo).toFixed(2)}</b>. Es una sugerencia: tú decides el precio.</p>
 		<div class="ri-modal-decision-precios-grid">
-			<label>Público<input type="number" step="0.01" min="0" inputmode="decimal" id="riAsisPublico" class="ri-asis-grande" value="${d.precioPublico ?? ""}"></label>
-			<label>Medio mayoreo<input type="number" step="0.01" min="0" inputmode="decimal" id="riAsisMayoreo" class="ri-asis-grande" value="${d.precioMedioMayoreo ?? ""}"></label>
+			<label>Precio de venta<input type="number" step="0.01" min="0" inputmode="decimal" id="riAsisPublico" class="ri-asis-grande" value="${d.precioPublico ?? ""}"></label>
 		</div>
-		<p class="ri-asis-margen" id="riAsisMargen">${escaparPOS(riMargenTexto(d.costo, d.precioPublico || d.precioMedioMayoreo))}</p>`;
+		<p class="ri-asis-margen" id="riAsisMargen">${escaparPOS(riMargenTexto(d.costo, d.precioPublico))}</p>`;
 
 	if (paso === 3) return `
 		<h4>¿Lo vendes suelto?</h4>
@@ -1430,8 +1514,7 @@ function riPasoNuevoHtml(d) {
 		<ul class="ri-asis-resumen">
 			<li><span>Producto</span><b>${escaparPOS(d.nombre || "—")}</b></li>
 			<li><span>Te costó</span><b>${dinero(d.costo)}</b></li>
-			<li><span>Público</span><b>${dinero(d.precioPublico)}</b></li>
-			<li><span>Medio mayoreo</span><b>${dinero(d.precioMedioMayoreo)}</b></li>
+			<li><span>Precio de venta</span><b>${dinero(d.precioPublico)}</b></li>
 			<li><span>Suelto</span><b>${d.unidadSuelta ? `${escaparPOS(d.unidadSuelta)} a ${dinero(d.precioPieza)}` : "No"}</b></li>
 			${d.codigo ? `<li><span>Código</span><b>${escaparPOS(d.codigo)}</b></li>` : ""}
 		</ul>
@@ -1441,6 +1524,9 @@ function riPasoNuevoHtml(d) {
 function riRenderAsistenteNuevo(modal) {
 	const d = riDecision;
 	d.paso = d.paso || 1;
+	// Un solo precio de venta: si solo venia el medio mayoreo de la lista del proveedor, ese es el precio de venta.
+	if (d.precioPublico == null || d.precioPublico === "") d.precioPublico = d.precioMedioMayoreo ?? "";
+	d.precioMedioMayoreo = d.precioPublico;
 	const ultimo = d.paso === RI_PASOS_NUEVO.length;
 
 	modal.innerHTML = `
@@ -1470,11 +1556,10 @@ function riRenderAsistenteNuevo(modal) {
 	const nombre = por("riAsisNombre");
 	if (nombre) { nombre.oninput = () => { d.nombre = nombre.value; }; nombre.onkeydown = e => { if (e.key === "Enter") por("riAsisSiguiente").click(); }; nombre.focus(); nombre.select(); }
 
-	const actualizarMargen = () => { const m = por("riAsisMargen"); if (m) m.textContent = riMargenTexto(d.costo, d.precioPublico || d.precioMedioMayoreo); };
+	const actualizarMargen = () => { const m = por("riAsisMargen"); if (m) m.textContent = riMargenTexto(d.costo, d.precioPublico); };
 	const publico = por("riAsisPublico");
-	if (publico) publico.oninput = () => { d.precioPublico = publico.value; actualizarMargen(); };
-	const mayoreo = por("riAsisMayoreo");
-	if (mayoreo) mayoreo.oninput = () => { d.precioMedioMayoreo = mayoreo.value; actualizarMargen(); };
+	// Abarrotes vende a UN solo precio: el medio mayoreo se guarda igual que el de venta (el POS de abarrotes siempre cobra el publico).
+	if (publico) publico.oninput = () => { d.precioPublico = publico.value; d.precioMedioMayoreo = publico.value; actualizarMargen(); };
 	const unidad = por("riAsisUnidad");
 	if (unidad) unidad.onchange = () => { d.unidadSuelta = unidad.value; };
 	const pieza = por("riAsisPieza");
@@ -1483,7 +1568,7 @@ function riRenderAsistenteNuevo(modal) {
 
 	por("riAsisSiguiente").onclick = async () => {
 		if (d.paso === 1 && !String(d.nombre || "").trim()) { await alertaPOS("Escribe el nombre del producto.", "Falta el nombre", "info"); return; }
-		if (d.paso === 2 && !(Number(d.precioPublico) > 0) && !(Number(d.precioMedioMayoreo) > 0)) { await alertaPOS("Indica al menos un precio de venta.", "Falta el precio", "info"); return; }
+		if (d.paso === 2 && !(Number(d.precioPublico) > 0)) { await alertaPOS("Escribe el precio al que lo vendes.", "Falta el precio", "info"); return; }
 		if (d.paso === 3 && d.unidadSuelta && !(Number(d.precioPieza) > 0)) { await alertaPOS("Escribe el precio al que vendes suelto, o elige \"No\".", "Falta el precio suelto", "info"); return; }
 		if (ultimo) { await riGuardarModalDecision(); return; }
 		d.paso++;

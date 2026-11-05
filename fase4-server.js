@@ -3,6 +3,7 @@ const { responderError } = require("./error-utils");
 const { requerirFuncionPlan } = require("./plan-enforcement");
 const { PERMISOS, requerirPermiso } = require("./rbac");
 const { registrarLoteDeRecepcion } = require("./lotes-recepcion");
+const { limpiarFecha, guardarPagoRecepcion } = require("./pago-recepcion");
 
 module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
     const requerirPedidosProveedor = requerirFuncionPlan(
@@ -537,7 +538,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
     // bloqueado (FOR UPDATE) en vez de que el celular lea-y-escriba un
     // numero que pudo cambiar mientras tanto (alguien vendiendo).
     app.post("/recepciones-mercancia/rapida", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
-        const { proveedor, referencia, notas, usuarioNombre, idempotencyKey, items, sinFactura } = req.body || {};
+        const { proveedor, referencia, notas, usuarioNombre, idempotencyKey, items, sinFactura, pago } = req.body || {};
 
         if (!Array.isArray(items) || items.length === 0 || items.length > 200) {
             res.status(400).json({ ok: false, error: "Agrega al menos un producto (maximo 200)." });
@@ -553,15 +554,18 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
             const productoId = Number(item?.productoId);
             const cantidad = n(item?.cantidad);
             const costo = n(item?.costo);
+            // Fecha de caducidad de lo que llego (opcional): abre el lote con esa fecha en vez de calcularla con la vida util.
+            const caducidad = limpiarFecha(item?.caducidad);
 
             if (!Number.isInteger(productoId) || productoId <= 0 || !(cantidad > 0) || cantidad > 1000000 || costo < 0) {
                 res.status(400).json({ ok: false, error: "Hay una linea con producto, cantidad o costo invalido." });
                 return;
             }
 
-            const actual = lineasPorProducto.get(productoId) || { productoId, cantidad: 0, costo: 0 };
+            const actual = lineasPorProducto.get(productoId) || { productoId, cantidad: 0, costo: 0, caducidad: null };
             actual.cantidad += cantidad;
             if (costo > 0) actual.costo = costo;
+            if (caducidad) actual.caducidad = caducidad;
             lineasPorProducto.set(productoId, actual);
         }
 
@@ -629,7 +633,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                     linea.cantidad, stockAnterior, stockNuevo, referenciaLimpia, usuario
                 ]);
 
-                await registrarLoteDeRecepcion(client, { negocioId: negocio.id, productoId: fila.id, cantidad: linea.cantidad });
+                await registrarLoteDeRecepcion(client, { negocioId: negocio.id, productoId: fila.id, cantidad: linea.cantidad, fechaCaducidad: linea.caducidad || null });
 
                 total += linea.cantidad * linea.costo;
                 aplicadas.push({ ...linea, nombre: fila.nombre, codigo: fila.codigo || "", stockNuevo });
@@ -659,10 +663,14 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                 `, [negocio.id, recepcion.rows[0].id, aplicada.productoId, aplicada.codigo, aplicada.nombre, aplicada.cantidad, aplicada.costo]);
             }
 
+            // Pago al repartidor (opcional): queda anotado en la recepcion; si no se pudo, la recepcion sigue y se avisa.
+            const pagoGuardado = pago ? await guardarPagoRecepcion(client, { negocioId: negocio.id, recepcionId: recepcion.rows[0].id, pago }) : null;
+
             await client.query("COMMIT");
 
             res.status(201).json({
                 ok: true,
+                pagoGuardado,
                 recepcion: recepcion.rows[0],
                 productos: aplicadas.map(a => ({ id: a.productoId, nombre: a.nombre, cantidad: a.cantidad, stockNuevo: a.stockNuevo }))
             });

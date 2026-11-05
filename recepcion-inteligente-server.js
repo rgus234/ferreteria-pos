@@ -16,6 +16,7 @@ const { responderError } = require("./error-utils");
 const { PERMISOS, requerirPermiso } = require("./rbac");
 const { parsearCfdi } = require("./cfdi-parser");
 const { registrarLoteDeRecepcion } = require("./lotes-recepcion");
+const { limpiarFecha, guardarPagoRecepcion } = require("./pago-recepcion");
 const { resolverConceptoFactura, elevarPreciosConListaFabricante } = require("./recepcion-inteligente-matching");
 const { resolverProveedorPorRfc, resolverOcrearProveedorId } = require("./proveedor-resolver");
 const { obtenerAnthropic, licenciaDelNegocio } = require("./ia-server");
@@ -1156,7 +1157,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                             [cantidad, costo, productoId, negocio.id]
                         );
 
-                        await registrarLoteDeRecepcion(client, { negocioId: negocio.id, productoId, cantidad, fechaCaducidad: req.body?.caducidades?.[item.id] || null });
+                        await registrarLoteDeRecepcion(client, { negocioId: negocio.id, productoId, cantidad, fechaCaducidad: limpiarFecha(req.body?.caducidades?.[item.id]) });
                     }
 
                     totalAplicado += cantidad * costo;
@@ -1213,6 +1214,9 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     }
                 }
 
+                // Pago al repartidor (opcional): queda anotado en la recepcion de mercancia; si no se pudo, la recepcion sigue y se avisa.
+                const pagoGuardado = req.body?.pago ? await guardarPagoRecepcion(client, { negocioId: negocio.id, recepcionId: recepcionMercanciaId, pago: req.body.pago }) : null;
+
                 await client.query(
                     `UPDATE public.recepciones_inteligentes
                      SET estado = 'confirmada', confirmada_en = NOW(),
@@ -1233,7 +1237,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     }
                 );
 
-                res.json({ ok: true, recepcionMercanciaId, totalAplicado, conciliada: Boolean(remisionAConciliar), tramoDescuentoAplicado, productos: itemsAplicados.filter(i => i.productoId).map(i => ({ productoId: i.productoId, nombre: i.nombre, cantidad: i.cantidad, creado: Boolean(i.creado) })) });
+                res.json({ ok: true, recepcionMercanciaId, pagoGuardado, totalAplicado, conciliada: Boolean(remisionAConciliar), tramoDescuentoAplicado, productos: itemsAplicados.filter(i => i.productoId).map(i => ({ productoId: i.productoId, nombre: i.nombre, cantidad: i.cantidad, creado: Boolean(i.creado) })) });
             } catch (error) {
                 await client.query("ROLLBACK").catch(() => {});
                 responderError(res, error);

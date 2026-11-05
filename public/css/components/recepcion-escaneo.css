@@ -77,3 +77,17 @@ body.oscuro .ri-aviso-lista { background: #3a2f10; color: #fcd34d; }
 .ri-asis-resumen li:first-child { border-top: 0; } .ri-asis-resumen span { color: var(--pos-muted, #687386); }
 body.oscuro .ri-asis-puntos span { background: #243148; } body.oscuro .ri-asis-grande, body.oscuro .ri-asis-opciones button { border-color: rgba(148, 163, 184, .3); }
 body.oscuro .ri-asis-resumen, body.oscuro .ri-asis-resumen li { border-color: rgba(148, 163, 184, .22); }
+
+/* Contar lo que llego (abarrotes): caducidad por producto y pago al repartidor */
+.ri-esc-fila:has(.ri-esc-fecha) { grid-template-columns: minmax(0, 1fr) 100px 150px 74px 150px; }
+.ri-esc-fecha { display: grid; gap: 2px; color: var(--pos-muted, #687386); font-size: 11.5px; font-weight: 700; }
+.ri-esc-fecha input { min-width: 0; height: 34px; padding: 0 6px; border: 1px solid var(--pos-line, #cbd5e1); border-radius: 10px; background: transparent; color: inherit; font: inherit; font-size: 13px; }
+.ri-esc-pago { display: grid; gap: 8px; padding: 10px 14px; border: 1px solid var(--pos-line, #e2e8f0); border-radius: 14px; background: var(--pos-surface, #f4f7fb); }
+.ri-esc-pago-toggle { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; cursor: pointer; }
+.ri-esc-pago-campos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ri-esc-pago-campos label { display: grid; gap: 4px; font-size: 12.5px; font-weight: 800; }
+.ri-esc-pago-campos input, .ri-esc-pago-campos select { min-height: 38px; padding: 0 10px; border: 1px solid var(--pos-line, #cbd5e1); border-radius: 10px; background: var(--pos-card, #fff); color: inherit; font: inherit; font-size: 14px; }
+.ri-esc-pago small { color: var(--pos-muted, #687386); font-weight: 600; font-size: 12px; }
+@media (max-width: 900px) { .ri-esc-pago-campos { grid-template-columns: 1fr; } .ri-esc-fila:has(.ri-esc-fecha) { grid-template-columns: minmax(0, 1fr) 90px 130px; } .ri-esc-fila:has(.ri-esc-fecha) .ri-esc-estado, .ri-esc-fila:has(.ri-esc-fecha) .ri-esc-fecha { grid-column: auto; } }
+body.oscuro .ri-esc-pago { background: #1d293e; border-color: rgba(148, 163, 184, .22); }
+body.oscuro .ri-esc-pago-campos input, body.oscuro .ri-esc-pago-campos select, body.oscuro .ri-esc-fecha input { background: #151f31; border-color: rgba(148, 163, 184, .3); color: #e6ecff; }

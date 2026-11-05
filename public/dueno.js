@@ -3574,11 +3574,52 @@ function agregarAlCarritoVenderDueno(id) {
             // piezas_por_bolsa como en el POS de escritorio.
             costo: producto.costo != null && Number(producto.costo) > 0 ? Number(producto.costo) : 0,
             costoConocido: producto.costo != null && Number(producto.costo) > 0,
-            imagenUrl: producto.imagenUrl || null
+            imagenUrl: producto.imagenUrl || null,
+            // Envases retornables (dueno-envases-alcohol.js): 0 si no lleva envase o la funcion esta apagada.
+            envaseImporte: typeof envaseImporteDeDueno === "function" ? envaseImporteDeDueno(producto.id) : 0,
+            envaseDevueltos: 0
         });
     }
 
     renderCarritoVenderDueno();
+}
+
+// Envases devueltos de una linea (nunca mas que las piezas) y lo que vale la linea ya con ese descuento.
+function envasesDevueltosDueno(item) {
+    return Math.max(0, Math.min(Math.floor(Number(item.envaseDevueltos) || 0), Math.floor(Number(item.cantidad) || 0)));
+}
+
+function importeLineaVenderDueno(item) {
+    const k = Number(item.envaseImporte) > 0 ? envasesDevueltosDueno(item) : 0;
+    const precioSin = Math.max(0, Math.round((item.precio - (Number(item.envaseImporte) || 0)) * 100) / 100);
+
+    return Math.round(((item.cantidad - k) * item.precio + k * precioSin) * 100) / 100;
+}
+
+// Lo que se manda al servidor: una linea con envase devuelto se separa en "con envase" (precio normal) y "sin envase" (precio menos el envase).
+function productosVentaVenderDueno() {
+    const lineas = [];
+
+    duenoVentaCarrito.forEach(item => {
+        const k = Number(item.envaseImporte) > 0 ? envasesDevueltosDueno(item) : 0;
+        const base = {
+            id: item.id,
+            codigo: item.codigo,
+            nombre: item.nombre,
+            unidadVenta: item.unidadVenta,
+            modoVenta: item.modoVenta,
+            // costo solo si de verdad se conoce (el servidor distingue por la PRESENCIA de esta llave)
+            ...(item.costoConocido ? { costo: Number(item.costo || 0) } : {})
+        };
+        const parte = (cantidad, precio, devuelto) => ({ ...base, precio, cantidad, importe: Math.round(precio * cantidad * 100) / 100, ...(devuelto ? { envaseDevuelto: true, envaseImporte: Number(item.envaseImporte) } : {}) });
+        const precioSin = Math.max(0, Math.round((item.precio - Number(item.envaseImporte || 0)) * 100) / 100);
+
+        if (k <= 0) lineas.push(parte(item.cantidad, item.precio, false));
+        else if (k >= item.cantidad) lineas.push(parte(item.cantidad, precioSin, true));
+        else { lineas.push(parte(item.cantidad - k, item.precio, false)); lineas.push(parte(k, precioSin, true)); }
+    });
+
+    return lineas;
 }
 
 // ---- Escanear codigo de barras con la camara (Vender) ----
@@ -3832,7 +3873,7 @@ function cambiarCantidadCarritoVenderDueno(id, delta) {
 // subtotal respectivamente) y total, todo redondeado a centavos.
 function resumenCarritoVenderDueno() {
     const subtotal =
-    duenoVentaCarrito.reduce((acumulado, item) => acumulado + item.precio * item.cantidad, 0);
+    duenoVentaCarrito.reduce((acumulado, item) => acumulado + importeLineaVenderDueno(item), 0);
 
     const valorDescuento =
     Math.max(0, Number(duenoVentaDescuento.valor || 0));
@@ -3902,6 +3943,7 @@ function filaCarritoVenderDuenoHtml(item) {
                 <div class="fila-dueno-carrito-texto">
                     <strong>${escaparDueno(item.nombre)}</strong>
                     <span>Código: ${escaparDueno(item.codigo || "Sin código")} · ${dinero(item.precio)} c/u</span>
+                    ${typeof envaseControlHtmlDueno === "function" ? envaseControlHtmlDueno(item) : ""}
                 </div>
             </div>
             <div class="fila-dueno-carrito-pie">
@@ -3910,7 +3952,7 @@ function filaCarritoVenderDuenoHtml(item) {
                     <button type="button" class="dueno-cantidad-numero" aria-label="Escribir cantidad" onclick="abrirCantidadVenderDueno(${item.id})">${item.cantidad}</button>
                     <button type="button" onclick="cambiarCantidadCarritoVenderDueno(${item.id}, 1)">+</button>
                 </div>
-                <span class="dueno-cantidad-total">${dinero(item.precio * item.cantidad)}</span>
+                <span class="dueno-cantidad-total">${dinero(importeLineaVenderDueno(item))}</span>
             </div>
         </div>
     `;
@@ -4285,6 +4327,7 @@ function renderCobroVenderDueno() {
                 <strong>${dinero(resumen.total)}</strong>
             </div>
         </div>
+        ${typeof avisoAlcoholCobroDueno === "function" ? avisoAlcoholCobroDueno() : ""}
         <p class="dueno-estado" style="margin-top:14px;">Método de pago</p>
         <div class="dueno-metodo-pago-grid">
             ${METODOS_PAGO_VENDER_DUENO.map(metodoPagoBotonVenderDuenoHtml).join("")}
@@ -4493,20 +4536,7 @@ async function confirmarCobroVenderDueno() {
         clienteNombre: duenoVentaClienteSeleccionado?.nombre || "Publico general",
         cajeroUsuario: duenoEmpleadoCorreoPersona || "dueno",
         cajeroNombre: duenoEmpleadoNombrePersona || document.getElementById("duenoNegocio")?.textContent || "Dueño",
-        productos: duenoVentaCarrito.map(item => ({
-            id: item.id,
-            codigo: item.codigo,
-            nombre: item.nombre,
-            precio: item.precio,
-            cantidad: item.cantidad,
-            unidadVenta: item.unidadVenta,
-            modoVenta: item.modoVenta,
-            importe: item.precio * item.cantidad,
-            // costo solo si de verdad se conoce (Fase "Finanzas avanzadas
-            // real", ver plan) -- el servidor distingue por la PRESENCIA
-            // de esta llave, nunca por su valor.
-            ...(item.costoConocido ? { costo: Number(item.costo || 0) } : {})
-        })),
+        productos: productosVentaVenderDueno(),
         metodoPago: duenoVentaMetodoPago,
         pagos,
         recibido,
@@ -4535,6 +4565,22 @@ async function confirmarCobroVenderDueno() {
         }
 
         cuerpo.adminPin = adminPin;
+    }
+
+    // Alcohol fuera del horario que el negocio configuro: pide el PIN de un administrador (dueno-envases-alcohol.js).
+    if (!cuerpo.adminPin && typeof motivoAlcoholDueno === "function") {
+        const motivoAlcohol = await motivoAlcoholDueno();
+
+        if (motivoAlcohol) {
+            const pinAlcohol = pedirPinAdministradorParaAlcoholDueno(motivoAlcohol);
+
+            if (!pinAlcohol) {
+                duenoVentaCobrando = false;
+                return;
+            }
+
+            cuerpo.adminPin = pinAlcohol;
+        }
     }
 
     const contenido =
@@ -4578,7 +4624,7 @@ async function confirmarCobroVenderDueno() {
         const sinInternetConPin = esFalloDeConexionDueno(error) && cuerpo.adminPin;
 
         contenido.innerHTML = `
-            <div class="vacio">${escaparDueno(sinInternetConPin ? "Sin internet no se puede autorizar este descuento: el PIN de administrador solo se valida en linea. Quita el descuento o espera a tener señal." : (error.message || "No se pudo cobrar la venta. Intenta de nuevo."))}</div>
+            <div class="vacio">${escaparDueno(sinInternetConPin ? "Sin internet no se puede autorizar con el PIN de administrador (descuento grande o alcohol fuera de horario): el PIN solo se valida en linea. Quita el descuento o espera a tener señal." : (error.message || "No se pudo cobrar la venta. Intenta de nuevo."))}</div>
             <button type="button" class="dueno-link" onclick="renderCobroVenderDueno()">Volver a intentar</button>
         `;
     } finally {
@@ -4607,17 +4653,7 @@ async function confirmarCobroCreditoVenderDueno() {
         descuentoTipo: resumen.descuentoTipo,
         descuentoValor: resumen.descuentoValor,
         concepto: "Venta de mostrador",
-        productos: duenoVentaCarrito.map(item => ({
-            id: item.id,
-            codigo: item.codigo,
-            nombre: item.nombre,
-            precio: item.precio,
-            cantidad: item.cantidad,
-            unidadVenta: item.unidadVenta,
-            modoVenta: item.modoVenta,
-            importe: item.precio * item.cantidad,
-            ...(item.costoConocido ? { costo: Number(item.costo || 0) } : {})
-        }))
+        productos: productosVentaVenderDueno()
     };
 
     if (!duenoVentaCreditoIdempotencyKey) {
@@ -4650,6 +4686,19 @@ async function confirmarCobroCreditoVenderDueno() {
         if (!adminPinCredito) {
             duenoVentaCobrando = false;
             return;
+        }
+    }
+
+    if (!adminPinCredito && typeof motivoAlcoholDueno === "function") {
+        const motivoAlcohol = await motivoAlcoholDueno();
+
+        if (motivoAlcohol) {
+            adminPinCredito = pedirPinAdministradorParaAlcoholDueno(motivoAlcohol);
+
+            if (!adminPinCredito) {
+                duenoVentaCobrando = false;
+                return;
+            }
         }
     }
 
