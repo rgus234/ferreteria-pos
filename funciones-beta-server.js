@@ -30,9 +30,12 @@ async function asegurarColumna(pool) {
     columnaLista = true;
 }
 
+// Un negocio con "_todas": true (solo se pone a mano en la base, p. ej. la cuenta de demostracion) recibe TODAS las funciones nuevas,
+// tambien las que se agreguen despues, sin tener que encenderlas; lo que su dueño apague a proposito (false) se respeta.
 function limpiar(valor) {
     const salida = {};
-    Object.keys(FUNCIONES).forEach(clave => { salida[clave] = valor && valor[clave] === true; });
+    const todas = Boolean(valor && valor._todas === true);
+    Object.keys(FUNCIONES).forEach(clave => { salida[clave] = valor ? (todas ? valor[clave] !== false : valor[clave] === true) : false; });
     return salida;
 }
 

@@ -49,3 +49,18 @@ test("una clave que no existe se rechaza", async () => {
     const r = await fetch(`${BASE_URL}/funciones-beta`, { method: "PUT", headers: headers(a), body: JSON.stringify({ clave: "inventada", activo: true }) });
     assert.equal(r.status, 400);
 });
+
+test("un negocio marcado con _todas recibe todas las funciones sin encenderlas, y lo que apaga a proposito se respeta", async () => {
+    await pool.query(`UPDATE public.negocios SET funciones_beta = '{"_todas": true}'::jsonb WHERE id = $1`, [b.negocioId]);
+
+    const todas = await (await fetch(`${BASE_URL}/funciones-beta`, { headers: headers(b) })).json();
+    assert.ok(Object.values(todas.funciones).every(v => v === true), "todas encendidas: " + JSON.stringify(todas.funciones));
+    assert.equal(Object.keys(todas.funciones).includes("_todas"), false, "la marca no se muestra como una funcion");
+
+    const apaga = await (await fetch(`${BASE_URL}/funciones-beta`, { method: "PUT", headers: headers(b), body: JSON.stringify({ clave: "diseno_nuevo", activo: false }) })).json();
+    assert.equal(apaga.funciones.diseno_nuevo, false, "lo que el dueño apaga se queda apagado");
+    assert.equal(apaga.funciones.mapa_tienda, true, "las demas siguen encendidas");
+
+    const otro = await (await fetch(`${BASE_URL}/funciones-beta`, { headers: headers(a) })).json();
+    assert.equal(otro.funciones.recibir_por_marca, false, "otro negocio sin la marca no cambia");
+});
