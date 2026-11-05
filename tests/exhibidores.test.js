@@ -520,3 +520,13 @@ test("el editor de exhibidores tiene el boton Etiquetas que abre el editor de co
     assert.match(js, /mostrarCodigosBarras\(\{ productosIniciales/);
     assert.match(js, /cambiarEtapaEtiquetas\(1\)/);
 });
+
+test("al elegir un exhibidor en el punto de venta salen cuadritos con el logo de la marca y su color", () => {
+    const js = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "public", "js", "exhibidores.js"), "utf8");
+    const css = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "public", "css", "components", "exhibidores.css"), "utf8");
+    assert.match(js, /exh-grid exh-grid-selector exh-grid-cuadros/);
+    assert.match(js, /exh-pick-logo">\$\{item\.foto \? `<img src="\$\{item\.foto\}"/, "muestra el logo (foto) del exhibidor");
+    assert.match(js, /exh-pick-alerta/, "avisa cuantos agotados trae");
+    assert.match(css, /\.exh-card\.exh-pick \{[^}]*aspect-ratio: 1 \/ 1/, "cuadrado");
+    assert.match(css, /\.exh-pick-logo img \{ position: absolute/, "la imagen no estira el cuadro");
+});

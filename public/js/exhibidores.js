@@ -847,10 +847,10 @@ async function abrirExhibidorPOS(id) {
         </div>
         ${lista.length === 0
             ? '<div class="exh-vacio">Todavia no tienes exhibidores con productos. Crealos en Inventario &rarr; Exhibidores.</div>'
-            : `<div class="exh-grid exh-grid-selector">${lista.map(item => `
-                <button type="button" class="exh-card exh-card-boton exh-color-${exhEscapar(item.color)}" onclick="abrirExhibidorPOS(${item.id})">
-                    <div class="exh-card-banda"><strong>${exhEscapar(item.nombre)}</strong><span>${item.totalEspacios} producto${item.totalEspacios === 1 ? "" : "s"}</span></div>
-                    <div class="exh-card-fotos">${(item.vistaPrevia || []).map(pid => `<span class="exh-mini">${exhMiniatura(pid, "")}</span>`).join("")}</div>
+            : `<div class="exh-grid exh-grid-selector exh-grid-cuadros">${lista.map(item => `
+                <button type="button" class="exh-card exh-card-boton exh-pick exh-color-${exhEscapar(item.color)}" onclick="abrirExhibidorPOS(${item.id})" title="${exhEscapar(item.nombre)}">
+                    <span class="exh-pick-logo">${item.foto ? `<img src="${item.foto}" alt="" loading="lazy">` : `<i aria-hidden="true">${exhEscapar(String(item.nombre || "?").trim().charAt(0).toUpperCase())}</i>`}${item.agotados ? `<em class="exh-pick-alerta">${item.agotados} agotado${item.agotados === 1 ? "" : "s"}</em>` : ""}</span>
+                    <span class="exh-pick-pie"><strong>${exhEscapar(item.nombre)}</strong><small>${item.totalEspacios} producto${item.totalEspacios === 1 ? "" : "s"}</small></span>
                 </button>`).join("")}</div>`}
     </div>`;
 }

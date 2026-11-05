@@ -240,3 +240,17 @@
     .exh-truper-fila { grid-template-columns: 44px 1fr; }
     .exh-truper-fila > :nth-child(n+3) { grid-column: 2; }
 }
+
+/* Elegir un exhibidor en el punto de venta: cuadritos con el logo de la marca arriba y su color abajo */
+.exh-grid-cuadros { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+.exh-card.exh-pick { grid-template-rows: minmax(0, 1fr) auto; align-content: stretch; aspect-ratio: 1 / 1; min-width: 0; height: auto; }
+.exh-grid-cuadros { grid-auto-rows: max-content; align-content: start; }
+.exh-pick-logo { position: relative; display: block; min-height: 0; overflow: hidden; background: #fff; }
+.exh-pick-logo img { position: absolute; inset: 14px; width: calc(100% - 28px); height: calc(100% - 24px); object-fit: contain; }
+.exh-pick-logo i { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.exh-pick-logo i { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; font-style: normal; font-size: 30px; font-weight: 900; color: #fff; background: radial-gradient(130% 160% at 0% 0%, var(--exh-color), var(--exh-color-2)); }
+.exh-pick-alerta { position: absolute; top: 8px; right: 8px; padding: 2px 8px; border-radius: 999px; font-style: normal; font-size: 11px; font-weight: 800; color: #8a1c10; background: #fde4e0; }
+.exh-pick-pie { display: grid; gap: 1px; padding: 10px 14px 12px; color: #fff; background: radial-gradient(130% 160% at 0% 0%, var(--exh-color), var(--exh-color-2)); }
+.exh-card .exh-pick-pie strong { font-size: 15.5px; line-height: 1.2; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exh-card .exh-pick-pie small { font-size: 12px; font-weight: 700; color: #fff; opacity: .92; }
+body.oscuro .exh-pick-logo { background: #fff; }
