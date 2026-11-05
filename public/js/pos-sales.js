@@ -1293,7 +1293,7 @@ function renderCarritoTablaPOS() {
  itemsHtml += `
  <tr class="pos-cart-row" data-id="${p.id}">
  <td class="pos-cart-index">${index + 1}</td>
- <td class="pos-cart-code">${escaparPOS(codigo)}</td>
+ <td class="pos-cart-code" title="${escaparPOS(codigo)}">${escaparPOS(codigo)}</td>
  <td class="pos-cart-product">
  <span class="pos-cart-thumb item-icono">${miniaturaProducto(p, "pos-cart-thumb-img", { ampliable: true })}</span>
  <div>

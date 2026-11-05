@@ -82,6 +82,12 @@ html.diseno-nuevo .contenido input:focus, html.diseno-nuevo .contenido select:fo
 html.diseno-nuevo .contenido table { border-collapse: collapse; }
 html.diseno-nuevo .contenido table th { background: transparent !important; color: var(--dn-suave) !important; font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid var(--dn-linea) !important; }
 html.diseno-nuevo .contenido table td { border-bottom: 1px solid var(--dn-linea) !important; }
+/* Encabezados que se quedan fijos al hacer scroll (carrito, Inicio de abarrotes, pedido sugerido, aplicar precios): fondo solido,
+   si no el contenido se transparenta y las letras se amontonan. */
+html.diseno-nuevo .contenido .pos-cart-table thead th,
+html.diseno-nuevo .contenido .inicio-ab-tabla th,
+html.diseno-nuevo .contenido .pedido-tabla th,
+html.diseno-nuevo .contenido .aplicar-precios-tabla th { background: var(--dn-tarjeta) !important; }
 html.diseno-nuevo .contenido table tbody tr:hover td { background: color-mix(in srgb, var(--brand-color, #0d6efd) 5%, transparent); }
 
 /* ---- titulos de seccion ---- */

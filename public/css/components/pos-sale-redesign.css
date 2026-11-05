@@ -311,7 +311,7 @@ body.oscuro .pos-referencia .pos-reference-search {
 .pos-cart-table th:nth-child(1),
 .pos-cart-table td.pos-cart-index { width: 28px; }
 .pos-cart-table th:nth-child(2),
-.pos-cart-table td.pos-cart-code { width: 13%; }
+.pos-cart-table td.pos-cart-code { width: 118px; }
 .pos-cart-table th:nth-child(3),
 .pos-cart-table td.pos-cart-product { width: auto; }
 .pos-cart-table th:nth-child(4),
@@ -359,7 +359,10 @@ body.oscuro .pos-referencia .pos-reference-search {
   color: var(--pos-sale-muted);
   font-size: 11.5px;
   font-weight: 800;
-  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pos-cart-product {
@@ -413,6 +416,9 @@ body.oscuro .pos-referencia .pos-reference-search {
 }
 
 .pos-cart-meta span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--pos-sale-soft);
@@ -838,4 +844,30 @@ body.oscuro .pos-referencia .pos-reference-search {
 .pos-flyout-row.activa {
   background: color-mix(in srgb, var(--brand-color, #0d6efd) 14%, transparent);
   box-shadow: inset 4px 0 0 var(--brand-color, #0d6efd);
+}
+
+/* Carrito en pantallas angostas: se esconde la columna del codigo (el nombre ya identifica el producto) y se aprietan las demas,
+   para que la cantidad, el precio y el total no se amontonen sobre el nombre. */
+.carrito-items { container-type: inline-size; }
+
+@container (max-width: 740px) {
+  .pos-cart-table th:nth-child(2),
+  .pos-cart-table td.pos-cart-code { display: none; }
+}
+
+@container (max-width: 560px) {
+  .pos-cart-table th:nth-child(4),
+  .pos-cart-table td.pos-cart-qty { width: 108px; }
+  .pos-cart-table th:nth-child(5),
+  .pos-cart-table td.pos-cart-price { width: 72px; }
+  .pos-cart-table th:nth-child(6),
+  .pos-cart-table td.pos-cart-total { width: 76px; }
+}
+
+/* Muy angosto: tambien sin el numero de fila ni el precio unitario (el total sigue a la vista) */
+@container (max-width: 460px) {
+  .pos-cart-table th:nth-child(1),
+  .pos-cart-table td.pos-cart-index,
+  .pos-cart-table th:nth-child(5),
+  .pos-cart-table td.pos-cart-price { display: none; }
 }
