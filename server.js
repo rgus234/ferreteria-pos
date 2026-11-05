@@ -8108,6 +8108,21 @@ async function exigirTurnoDentroDeHorario(client, res, negocioId, empleadoId, ad
     return true;
 }
 
+// Venta de alcohol fuera del horario que el negocio configuro (alcohol-server.js): pide el PIN de un administrador. Con la funcion
+// apagada, o si algo falla al revisar, la venta sigue como siempre.
+async function exigirAlcoholEnHorario(client, res, negocioId, productos, adminPin, empleadoId) {
+    try {
+        return await require("./alcohol-server").exigir({
+            pool, client, res, negocioId, productos, adminPin, empleadoId,
+            validarPin: validarPinAdministrador,
+            bitacora: registrarBitacora
+        });
+    } catch (error) {
+        console.warn("[alcohol] revision omitida:", error.message);
+        return true;
+    }
+}
+
 // Busca una venta ya registrada con esta idempotencyKey -- si el
 // cajero reintenta despues de que la red se cayo justo cuando el
 // servidor ya habia guardado la venta, regresa el resultado original
@@ -8211,6 +8226,11 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
         }
 
         if (!(await exigirTurnoDentroDeHorario(client, res, negocio.id, empleadoIdVenta, adminPin))) {
+            await client.query("ROLLBACK");
+            return;
+        }
+
+        if (!(await exigirAlcoholEnHorario(client, res, negocio.id, productos, adminPin, empleadoIdVenta))) {
             await client.query("ROLLBACK");
             return;
         }
@@ -10149,6 +10169,11 @@ app.post("/creditos/clientes/:id/cargos", requerirAccesoNegocio, requerirPermiso
         }
 
         if (!(await exigirTurnoDentroDeHorario(client, res, negocio.id, empleadoIdCajero, adminPin))) {
+            await client.query("ROLLBACK");
+            return;
+        }
+
+        if (!(await exigirAlcoholEnHorario(client, res, negocio.id, productos, adminPin, empleadoIdCajero))) {
             await client.query("ROLLBACK");
             return;
         }

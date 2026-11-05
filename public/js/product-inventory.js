@@ -3205,6 +3205,10 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  await guardarEnvaseProductoPOS(productoGuardado?.id);
  }
 
+ if (!productoOffline && typeof guardarAlcoholProductoPOS === "function") {
+ await guardarAlcoholProductoPOS(productoGuardado?.id);
+ }
+
  const continuarCaptura =
  Boolean(opciones?.continuar) && !esEdicion;
 
@@ -3260,6 +3264,7 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
 
 function limpiarFormularioProductoParaSiguientePOS(contexto = {}) {
  productoEditandoId = null;
+ if (typeof alcoholPonerCasillaProducto === "function") alcoholPonerCasillaProducto(null);
  codigoDuplicadoConfirmado = null;
  reiniciarProveedorCatalogoProducto();
  marcarImagenProductoEncontrada(false);
@@ -3445,6 +3450,7 @@ function editarProducto(
  if (campoVidaUtil) campoVidaUtil.value = producto?.vida_util_dias || "";
  const campoEnvase = document.getElementById("nuevoEnvaseImporte");
  if (campoEnvase) campoEnvase.value = (typeof envaseImporteDe === "function" && producto?.id && envaseImporteDe(producto.id)) || "";
+ if (typeof alcoholPonerCasillaProducto === "function") alcoholPonerCasillaProducto(producto?.id);
 
  document.getElementById("nuevaCategoria").value =
  producto?.categoria || "";
@@ -4736,6 +4742,7 @@ function cerrarFormularioAgregar() {
  document.getElementById("nuevaFechaCaducidad").value = "";
  if (document.getElementById("nuevaVidaUtilDias")) document.getElementById("nuevaVidaUtilDias").value = "";
  if (document.getElementById("nuevoEnvaseImporte")) document.getElementById("nuevoEnvaseImporte").value = "";
+ if (typeof alcoholPonerCasillaProducto === "function") alcoholPonerCasillaProducto(null);
  document.getElementById("altaRotacion").value = "";
  document.getElementById("nuevoCodigoInterno").value = "";
  document.getElementById("codigosRelacionados").value = "";

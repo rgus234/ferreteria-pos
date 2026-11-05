@@ -246,6 +246,8 @@ async function pedirMetodoPagoPOS(total, opciones = {}) {
  ${esTransferencia ? renderNotaTransferencia(total) : ""}
  ${!esEfectivo && !esMixto && !esCredito && !esTransferencia ? `<div class="metodo-pago-nota">Se registra el total (${dinero(total)}) como pagado por ${etiquetas[metodo].toLowerCase()}.</div>` : ""}
 
+ ${typeof avisoAlcoholCobroHTML === "function" ? avisoAlcoholCobroHTML() : ""}
+
  <div class="modal-actions-row">
  <button type="button" data-accion="cancelar">Cancelar</button>
  <button type="button" class="btn-principal" data-accion="aceptar">${esCredito ? "Continuar a credito" : "Confirmar cobro"}</button>

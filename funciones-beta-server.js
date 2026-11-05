@@ -6,6 +6,7 @@
 //   diseno_nuevo      Diseño mas limpio (menos cajas) en la computadora
 //   menu_simplificado Menu corto (Productos, Compras, Clientes, Ventas...) con tarjetas en lugar de ~40 entradas sueltas
 //   envases           Envases retornables (abarrotes): importe del envase por producto y "Trae envase" en la venta
+//   alcohol           Venta de alcohol (abarrotes): horario en que no se vende (PIN de administrador para saltarlo) y aviso de mayoria de edad
 //
 // La columna se crea sola la primera vez (ADD COLUMN IF NOT EXISTS): no hace falta correr nada a mano y si algo falla, todo queda apagado.
 const { responderError } = require("./error-utils");
@@ -17,7 +18,8 @@ const FUNCIONES = {
     inicio_pendientes: "Pendientes en el Inicio",
     diseno_nuevo: "Diseño nuevo",
     menu_simplificado: "Menú simplificado",
-    envases: "Envases retornables"
+    envases: "Envases retornables",
+    alcohol: "Venta de alcohol"
 };
 
 let columnaLista = false;

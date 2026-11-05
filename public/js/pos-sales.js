@@ -1905,6 +1905,16 @@ async function cobrarInternoPOS(total) {
  }
  }
 
+ if (!adminPin && typeof alcoholMotivoCobroPOS === "function") {
+ // Venta de alcohol fuera del horario que el negocio configuro: pide el PIN de un administrador (alcohol-pos.js).
+ const motivoAlcohol = await alcoholMotivoCobroPOS();
+
+ if (motivoAlcohol) {
+ adminPin = await pedirPinAlcoholPOS(motivoAlcohol);
+ if (!adminPin) return;
+ }
+ }
+
  const montoRecibido =
  pago.recibido;
 
@@ -2350,6 +2360,16 @@ async function cobrarCreditoInternoPOS(total) {
 
  if (horaFin && await hayTurnoAbiertoCajaPOS()) {
  adminPin = await pedirPinAdministradorParaTurnoVencidoPOS(horaFin);
+ if (!adminPin) return;
+ }
+ }
+
+ if (!adminPin && typeof alcoholMotivoCobroPOS === "function") {
+ // Venta de alcohol fuera del horario que el negocio configuro: pide el PIN de un administrador (alcohol-pos.js).
+ const motivoAlcohol = await alcoholMotivoCobroPOS();
+
+ if (motivoAlcohol) {
+ adminPin = await pedirPinAlcoholPOS(motivoAlcohol);
  if (!adminPin) return;
  }
  }

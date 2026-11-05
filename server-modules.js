@@ -89,6 +89,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./inicio-abarrotes-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("venta de alcohol por horario (abarrotes)", () => {
+        require("./alcohol-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("envases retornables (abarrotes)", () => {
         require("./envases-server")(app, pool, requerirAccesoNegocio);
     });
