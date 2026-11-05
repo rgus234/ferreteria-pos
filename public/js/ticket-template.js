@@ -72,7 +72,7 @@ function construirTicketVentaHTML(datos, config = {}, opciones = {}) {
  const filasProductos =
  productos.map(p => `
   <tr>
-   <td colspan="4" style="padding-top:5px;font-weight:bold;">${escaparPOS(p.nombre || "")}</td>
+   <td colspan="4" style="padding-top:5px;font-weight:bold;">${escaparPOS(p.nombre || "")}${p.envaseDevuelto && Number(p.envaseImporte) > 0 ? `<div style="font-weight:normal;font-size:10px;">Envase devuelto (-${dinero(p.envaseImporte)} c/u)</div>` : ""}</td>
   </tr>
   <tr>
    <td style="padding-bottom:4px;">${escaparPOS(formatearCantidad(p.cantidad, p.unidadVenta))}</td>

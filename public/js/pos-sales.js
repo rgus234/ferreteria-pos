@@ -364,7 +364,8 @@ function agregar(
  const existente =
  carrito.find(item =>
  Number(item.id) === Number(id) &&
- (item.modoVenta || "bolsa") === modoVenta
+ (item.modoVenta || "bolsa") === modoVenta &&
+ !item.envaseDevuelto
  );
 
  const cantidadCapturada =
@@ -430,7 +431,10 @@ function agregar(
  : Number(producto.costo))
  : 0,
  costoConocido: producto.costo != null && Number(producto.costo) > 0,
- imagenUrl: producto.imagenUrl || null
+ imagenUrl: producto.imagenUrl || null,
+ // Envases retornables (envases-pos.js): 0 si el producto no lleva envase o la funcion esta apagada.
+ envaseImporte: modoVenta === "bolsa" && typeof envaseImporteDe === "function" ? envaseImporteDe(id) : 0,
+ envaseDevuelto: false
  });
 
  // La venta suelta TAMBIEN entra aqui.
@@ -497,9 +501,11 @@ function eliminar(index) {
  actualizarCarrito();
 }
 
-function quitarUnoCarrito(id) {
+function quitarUnoCarrito(id, indiceLinea) {
  const index =
- carrito.findIndex(
+ Number.isInteger(indiceLinea) && carrito[indiceLinea] && Number(carrito[indiceLinea].id) === Number(id)
+ ? indiceLinea
+ : carrito.findIndex(
  producto => Number(producto.id) === Number(id)
  );
 
@@ -642,6 +648,12 @@ function aplicarNivelPrecioAItem(item, nivel) {
  Number(candidato) > 0
  ? Number(candidato)
  : respaldo;
+
+ // Envase devuelto: el importe del envase (por pieza) ya no se cobra.
+ if (item.envaseDevuelto && Number(item.envaseImporte) > 0) {
+ item.precioAntesEnvase = item.precio;
+ item.precio = Math.max(0, Math.round((item.precio - Number(item.envaseImporte)) * 100) / 100);
+ }
 }
 
 // Los tres niveles que el POS sabe aplicar. El nombre interno "mayoreo"
@@ -1287,11 +1299,12 @@ function renderCarritoTablaPOS() {
  <div>
  <strong>${escaparPOS(p.nombre)}</strong>
  ${etiquetas ? `<div class="pos-cart-meta">${etiquetas}</div>` : ""}
+ ${Number(p.envaseImporte) > 0 ? `<button type="button" class="pos-envase-boton${p.envaseDevuelto ? " activo" : ""}" onclick="alternarEnvaseDevueltoPOS(${index})">${p.envaseDevuelto ? `Envase devuelto &minus;$${+Number(p.envaseImporte).toFixed(2)} &middot; quitar` : `Trae envase (&minus;$${+Number(p.envaseImporte).toFixed(2)})`}</button>` : ""}
  </div>
  </td>
  <td class="pos-cart-qty">
  <div class="item-cantidad">
- <button onclick="quitarUnoConPulso(${p.id})">-</button>
+ <button onclick="quitarUnoConPulso(${p.id}, ${index})">-</button>
  <input
  type="number"
  min="0"
@@ -1347,8 +1360,8 @@ function sumarCantidadConPulso(index, id) {
  pulsarCantidadCarritoPorId(id);
 }
 
-function quitarUnoConPulso(id) {
- quitarUnoCarrito(id);
+function quitarUnoConPulso(id, indiceLinea) {
+ quitarUnoCarrito(id, indiceLinea);
  pulsarCantidadCarritoPorId(id);
 }
 
@@ -1633,6 +1646,12 @@ function productosCarritoAgrupados() {
  // totalmente sin la llave, no con costo:0.
  if (producto.costoConocido) {
  base.costo = Number(producto.costo || 0);
+ }
+
+ // Envase devuelto: el precio ya viene sin el envase; esto solo deja constancia en el ticket y el historial.
+ if (producto.envaseDevuelto && Number(producto.envaseImporte) > 0) {
+ base.envaseDevuelto = true;
+ base.envaseImporte = Number(producto.envaseImporte);
  }
 
  // Recargas y pago de servicios (servicios-pos.js): se guarda con la venta para el Inicio y el reporte de ganancia.

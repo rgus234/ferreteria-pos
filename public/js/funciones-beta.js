@@ -11,7 +11,8 @@
         recibir_por_marca: "Recibir mercancía por marca, con la factura del correo a la vista y sin contarla dos veces.",
         inicio_pendientes: "En el Inicio: stock crítico, créditos y facturas por recibir como tarjetas que llevan directo a resolverlos. En una tienda de abarrotes, “Crédito” se llama “Fiado”.",
         diseno_nuevo: "Un diseño más limpio, con menos cajas y más aire. Se puede apagar en cualquier momento.",
-        menu_simplificado: "Un menú más corto: Productos, Compras, Clientes, Ventas y más, cada uno con sus opciones en tarjetas. No se quita nada; se puede apagar cuando quieras."
+        menu_simplificado: "Un menú más corto: Productos, Compras, Clientes, Ventas y más, cada uno con sus opciones en tarjetas. No se quita nada; se puede apagar cuando quieras.",
+        envases: "Cerveza y refresco de vidrio: en cada producto anotas cuánto vale el envase y, en la venta, un botón “Trae envase” descuenta ese importe cuando el cliente devuelve el vacío."
     };
 
     const esc = valor => String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

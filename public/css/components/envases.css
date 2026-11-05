@@ -1,0 +1,7 @@
+/* Envases retornables: boton "Trae envase" en la linea del carrito */
+.pos-envase-boton { display: inline-flex; white-space: nowrap; align-items: center; margin-top: 5px; padding: 3px 10px; border: 1px solid #c9d3e6; border-radius: 999px; background: #f4f7fd; color: #3b4a6b; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.pos-envase-boton:hover { background: #e8eefb; }
+.pos-envase-boton.activo { border-color: #18b88f; background: #e5f8f2; color: #0b6e55; }
+body.oscuro .pos-envase-boton { border-color: #3a4560; background: #1e2638; color: #c5d0ea; }
+body.oscuro .pos-envase-boton:hover { background: #26304a; }
+body.oscuro .pos-envase-boton.activo { border-color: #18b88f; background: #123a31; color: #7ae0c2; }

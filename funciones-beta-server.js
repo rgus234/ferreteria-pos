@@ -5,6 +5,7 @@
 //   inicio_pendientes Pendientes tocables en el Inicio de la computadora (stock critico, fiado/creditos, facturas por recibir)
 //   diseno_nuevo      Diseño mas limpio (menos cajas) en la computadora
 //   menu_simplificado Menu corto (Productos, Compras, Clientes, Ventas...) con tarjetas en lugar de ~40 entradas sueltas
+//   envases           Envases retornables (abarrotes): importe del envase por producto y "Trae envase" en la venta
 //
 // La columna se crea sola la primera vez (ADD COLUMN IF NOT EXISTS): no hace falta correr nada a mano y si algo falla, todo queda apagado.
 const { responderError } = require("./error-utils");
@@ -15,7 +16,8 @@ const FUNCIONES = {
     recibir_por_marca: "Recibir por marca",
     inicio_pendientes: "Pendientes en el Inicio",
     diseno_nuevo: "Diseño nuevo",
-    menu_simplificado: "Menú simplificado"
+    menu_simplificado: "Menú simplificado",
+    envases: "Envases retornables"
 };
 
 let columnaLista = false;

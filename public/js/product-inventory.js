@@ -3200,6 +3200,11 @@ if (codigoFinal && !normalizarCodigo(codigo)) {
  };
  }
 
+ // Envase retornable: solo con la funcion encendida y con conexion (si se guardo offline, se anota la proxima vez que se edite).
+ if (!productoOffline && typeof guardarEnvaseProductoPOS === "function") {
+ await guardarEnvaseProductoPOS(productoGuardado?.id);
+ }
+
  const continuarCaptura =
  Boolean(opciones?.continuar) && !esEdicion;
 
@@ -3278,7 +3283,8 @@ function limpiarFormularioProductoParaSiguientePOS(contexto = {}) {
   "nuevoAnchoCm",
   "nuevoAltoCm",
   "nuevasNotasInternas",
-  "nuevaFechaCaducidad"
+  "nuevaFechaCaducidad",
+  "nuevoEnvaseImporte"
  ];
 
  limpiar.forEach(id => {
@@ -3437,6 +3443,8 @@ function editarProducto(
 
  const campoVidaUtil = document.getElementById("nuevaVidaUtilDias");
  if (campoVidaUtil) campoVidaUtil.value = producto?.vida_util_dias || "";
+ const campoEnvase = document.getElementById("nuevoEnvaseImporte");
+ if (campoEnvase) campoEnvase.value = (typeof envaseImporteDe === "function" && producto?.id && envaseImporteDe(producto.id)) || "";
 
  document.getElementById("nuevaCategoria").value =
  producto?.categoria || "";
@@ -4727,6 +4735,7 @@ function cerrarFormularioAgregar() {
  document.getElementById("nuevaUbicacion").value = "";
  document.getElementById("nuevaFechaCaducidad").value = "";
  if (document.getElementById("nuevaVidaUtilDias")) document.getElementById("nuevaVidaUtilDias").value = "";
+ if (document.getElementById("nuevoEnvaseImporte")) document.getElementById("nuevoEnvaseImporte").value = "";
  document.getElementById("altaRotacion").value = "";
  document.getElementById("nuevoCodigoInterno").value = "";
  document.getElementById("codigosRelacionados").value = "";
