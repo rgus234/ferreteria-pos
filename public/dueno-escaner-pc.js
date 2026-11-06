@@ -62,7 +62,7 @@
             <section class="dm-seccion"><div class="dm-seccion-cab"><h3>Enviados (${enviados.length})</h3></div>
                 ${enviados.slice(0, 12).map(e => `<div class="dm-producto"><span class="dm-fila-texto"><b>${esc(e.codigo)}</b><small>${e.ok ? "Enviado a la computadora" : "No se pudo enviar"}</small></span><span class="dm-etiqueta dm-${e.ok ? "verde" : "rojo"}">${e.ok ? "✓" : "✕"}</span></div>`).join("") || `<p class="dm-nota">Todavía no has enviado ningún código.</p>`}
             </section>
-            <p class="dm-nota">Sesión ${esc(sesion)}. Se cierra sola después de 4 horas sin usarse.</p>
+            <p class="dm-nota">Sesión ${esc(sesion)}. Si sales de la app y vuelves a abrirla, se reconecta sola. Se cierra sola si la computadora pasa 4 horas sin usarse.</p>
             <button type="button" class="dm-secundario" onclick="dpDesconectar()">Desconectar</button>
         </main></div>`;
     }
@@ -180,6 +180,56 @@
         window.cerrarEscanerCodigoDueno = function (...a) { window.cerrarEscanerCodigoDueno = cerrar; const res = cerrar.apply(this, a); setTimeout(() => { if (capa?.classList.contains("abierta")) pintar(); }, 60); return res; };
     };
 
+    // ---- Reconexion al abrir la app o volver a ella ----
+    // Antes solo se reconectaba al entrar a la pantalla "Escaner de la compu". Ahora, si ya habias conectado este celular, al abrir la app
+    // (o volver a ella) se reconecta sola y sin abrir nada. Si el codigo guardado ya no existe (la compu se reinicio), busca la computadora
+    // de tu negocio que este conectada; solo se une si hay UNA.
+    function adoptar(codigo, datos) {
+        sesion = codigo;
+        pcConectada = Boolean(datos.pcConectada);
+        guardar();
+        iniciarLatido();
+        if (capa?.classList.contains("abierta") && !document.getElementById("duenoEscanerCodigoOverlay")?.classList.contains("abierta")) pintar();
+    }
+
+    async function reconectarSilencioso() {
+        let guardada = "";
+        try { guardada = localStorage.getItem(LLAVE) || ""; } catch (error) { return; }
+
+        if (!guardada && !sesion) return; // nunca se ha conectado: no se une a nada por su cuenta
+
+        const codigo = sesion || guardada;
+        const r = await llamar("/escaner-remoto/unir", { sesion: codigo });
+
+        if (r.ok) { adoptar(codigo, r.datos); return; }
+        if (r.estado !== 404) return; // sin internet: se vuelve a intentar al volver a la app
+
+        sesion = "";
+        olvidar();
+        clearInterval(latido);
+
+        const activa = await (async () => { try { return await fetchAutenticado("/escaner-remoto/activa"); } catch (error) { return null; } })();
+
+        if (activa?.sesion) {
+            const union = await llamar("/escaner-remoto/unir", { sesion: activa.sesion });
+            if (union.ok) adoptar(activa.sesion, union.datos);
+        } else if (capa?.classList.contains("abierta")) pintar();
+    }
+
+    function iniciarReconexion() {
+        let intentos = 0;
+        const esperar = setInterval(() => {
+            intentos++;
+
+            if (typeof haySesionActivaDueno === "function" && haySesionActivaDueno()) { clearInterval(esperar); reconectarSilencioso(); }
+            else if (intentos > 40) clearInterval(esperar);
+        }, 1000);
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible" && typeof haySesionActivaDueno === "function" && haySesionActivaDueno()) reconectarSilencioso();
+        });
+    }
+
     // ---- Enlace directo: el QR de la compu abre /dueno?escaner=CODIGO ----
     function enlaceDirecto() {
         let codigo = "";
@@ -201,4 +251,5 @@
     }
 
     enlaceDirecto();
+    iniciarReconexion();
 })();

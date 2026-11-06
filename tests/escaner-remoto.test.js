@@ -83,3 +83,43 @@ test("cerrar la sesion la borra, y una sesion nueva reemplaza a las mas viejas d
     assert.equal((await post(A, "/escaner-remoto/unir", { sesion: primeras[0] })).status, 404, "la mas vieja se reemplazo (maximo 3)");
     assert.equal((await post(A, "/escaner-remoto/unir", { sesion: primeras[3] })).status, 200);
 });
+
+test("el celular encuentra la computadora de SU negocio sin escribir el codigo, pero solo si hay una", async () => {
+    // Sesiones sobrantes de pruebas anteriores: se dejan solo las que hacen falta.
+    const nueva = (await post(A, "/escaner-remoto/sesion", {})).cuerpo.sesion;
+    await llamar(A, `/escaner-remoto/esperar?sesion=${nueva}&desde=0&ms=0`); // la compu "late"
+
+    const activa = await llamar(A, "/escaner-remoto/activa");
+    assert.equal(activa.status, 200);
+    assert.ok(activa.cuerpo.computadoras >= 1);
+    if (activa.cuerpo.computadoras === 1) assert.equal(activa.cuerpo.sesion, nueva);
+    else assert.equal(activa.cuerpo.sesion, null, "con varias computadoras no se adivina a cual unirse");
+
+    const otro = await llamar(B, "/escaner-remoto/activa");
+    assert.equal(otro.cuerpo.computadoras, 0, "otro negocio no ve nada");
+    assert.equal(otro.cuerpo.sesion, null);
+});
+
+test("pantallas: indicador fijo en la barra, mismo estado en todos los botones del celular y reconexion automatica al abrir la app", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const leer = ruta => fs.readFileSync(path.join(__dirname, "..", ruta), "utf8");
+
+    const pc = leer("public/js/escaner-remoto.js");
+    assert.match(pc, /#topbarPOS \.topbar-actions/, "el indicador vive en la barra de arriba");
+    assert.match(pc, /window\.renderTopbarPOS = conEscaner/, "se vuelve a poner cuando la barra se redibuja");
+    assert.match(pc, /BOTONES_CELULAR = "\.er-boton, \.mt-celular, \.rm-celular"/, "los tres botones comparten estado");
+    assert.ok(!pc.includes("er-pildora"), "ya no hay pildora flotante abajo a la izquierda");
+    ["off", "espera", "ok", "error"].forEach(e => assert.ok(pc.includes(`"${e}"`), `estado ${e}`));
+    assert.match(pc, /Celular conectado · \$\{hace\(conectadoDesde\)\}/, "dice cuanto lleva conectado");
+
+    const celular = leer("public/dueno-escaner-pc.js");
+    assert.match(celular, /document\.addEventListener\("visibilitychange"/, "al volver a la app se reconecta");
+    assert.match(celular, /\/escaner-remoto\/activa/, "si el codigo guardado ya no existe busca la computadora de su negocio");
+    assert.match(celular, /if \(!guardada && !sesion\) return;/, "nunca se une a algo si el celular no se habia conectado antes");
+
+    const html = leer("public/dueno.html");
+    const sw = leer("public/dueno-sw.js");
+    const version = /dueno-escaner-pc\.js\?v=(escanerpc-[0-9-]+)/.exec(html)[1];
+    assert.ok(sw.includes(`/dueno-escaner-pc.js?v=${version}`), "el celular guarda la version nueva");
+});

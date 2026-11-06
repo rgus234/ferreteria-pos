@@ -3,6 +3,7 @@
 //            GET  /escaner-remoto/esperar  -> long-poll: espera hasta ~20 s a que lleguen codigos nuevos
 //   Celular: POST /escaner-remoto/unir     -> se une con el codigo de la sesion
 //            POST /escaner-remoto/codigo   -> manda un codigo leido
+//            GET  /escaner-remoto/activa   -> la computadora de este negocio que esta conectada ahora (para reconectar sin escribir el codigo)
 //   Ambos:   POST /escaner-remoto/cerrar
 // Todo va por requerirAccesoNegocio y la sesion queda amarrada al negocio: otro negocio no puede unirse ni mandar codigos.
 // Las sesiones viven en memoria (son de unas horas y se vuelven a crear con un toque); si el servidor se reinicia, la compu
@@ -135,6 +136,19 @@ function instalar(app, pool, requerirAccesoNegocio) {
 
             s.latidoCelular = Date.now();
             res.json({ ok: true, ...estado(s) });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
+    // Si el codigo guardado ya no existe (la compu se reinicio o paso mucho tiempo), el celular busca la computadora de SU negocio que
+    // esta conectada ahora. Solo se ofrece cuando hay UNA: con dos computadoras abiertas no se adivina a cual unirse.
+    app.get("/escaner-remoto/activa", requerirAccesoNegocio, (req, res) => {
+        try {
+            const id = negocioId(req);
+            const vivas = [...sesiones.entries()].filter(([, s]) => s.negocioId === id && vivo(s.latidoPc));
+
+            res.json({ ok: true, sesion: vivas.length === 1 ? vivas[0][0] : null, computadoras: vivas.length });
         } catch (error) {
             responderError(res, error);
         }
