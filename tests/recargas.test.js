@@ -43,3 +43,24 @@ test("tiene modo oscuro y respeta el movimiento reducido", () => {
     assert.match(css, /body\.oscuro \.rc-paso/);
     assert.match(css, /prefers-reduced-motion/);
 });
+
+test("celular: tarjeta en el Inicio solo con la funcion encendida, mismo servidor y mismas reglas que la computadora, cache del celular renovado", () => {
+    const js = leer("public/dueno-recargas.js");
+    assert.ok(js.includes('funciones?.recargas === true'), "sin la funcion no hay tarjeta");
+    assert.ok(js.includes("#duenoApp .dueno-kpis"), "la tarjeta va en el Inicio");
+    ["/recargas/modo", "/recargas/saldo", "/recargas/historial", "/recargas/recargar", "/recargas/productos"].forEach(ruta => assert.ok(js.includes(ruta), "usa " + ruta));
+    assert.ok(js.includes('LLAVE = "nexoRecargasDemo"'), "comparte el historial de demostracion con la computadora");
+    assert.ok(js.includes("let adaptador = ADAPTADOR_DEMO;"), "arranca en demostracion");
+    assert.ok(!/TAECEL_KEY|TAECEL_NIP|process\.env/.test(js), "el celular nunca conoce las claves");
+    assert.ok(js.includes("fetchAutenticado"), "usa la sesion del celular");
+
+    const demo = js.slice(js.indexOf("const ADAPTADOR_DEMO"), js.indexOf("const ADAPTADOR_REAL"));
+    assert.ok(demo.length > 200 && !demo.includes("fetch"), "la demostracion no llama a ningun servidor");
+
+    const html = leer("public/dueno.html");
+    const sw = leer("public/dueno-sw.js");
+    const version = /dueno-recargas\.js\?v=(recargas-[0-9-]+)/.exec(html)[1];
+    const css = /dueno-recargas\.css\?v=(recargas-[0-9-]+)/.exec(html)[1];
+    assert.ok(sw.includes("/dueno-recargas.js?v=" + version) && sw.includes("/dueno-recargas.css?v=" + css), "el celular guarda los archivos nuevos");
+    assert.match(leer("public/dueno-recargas.css"), /:root\.oscuro \.drc-paso/, "tiene modo oscuro");
+});
