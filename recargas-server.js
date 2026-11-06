@@ -24,9 +24,9 @@ const CACHE_SALDO_MS = 20 * 1000;
 const CACHE_PRODUCTOS_MS = 24 * 60 * 60 * 1000;
 const ESPERA_ENTRE_CONSULTAS_MS = 5000;
 
-// Prefijos que la documentacion da por seguros (matriz de prueba). El resto de las compañias se busca en getProducts.
-const PREFIJOS_DOCUMENTADOS = { telcel: "TEL", movistar: "MOV" };
-const PALABRAS_OPERADORA = { telcel: ["telcel"], att: ["at&t", "att", "iusacell"], movistar: ["movistar"], unefon: ["unefon"], bait: ["bait"], virgin: ["virgin"], weex: ["weex"] };
+// Ids de compañia de Taecel (los de getProducts, ejemplo de respuesta de Taecel 2026-11-06). Cualquier otra compañia de tiempo aire se manda como "c<id>".
+const CARRIER_IDS = { telcel: "1", movistar: "2", att: "5", unefon: "4", bait: "239", virgin: "11", weex: "93" };
+const BOLSA_TIEMPO_AIRE = "1";
 
 let tablaLista = false;
 
@@ -60,45 +60,41 @@ async function asegurarTabla(pool) {
     tablaLista = true;
 }
 
-// Saca la lista de productos de lo que conteste getProducts (la documentacion no detalla los campos de cada producto: se aceptan los nombres comunes).
-function normalizarProductos(data) {
-    const grupos = [];
+// getProducts regresa { bolsas, comisionTipo, carriersTipo, formatoCampos, carriers, productos, categorias }. De ahi solo se usa lo de TIEMPO AIRE (la bolsa de
+// pago de servicios es otra). Cada producto trae Codigo (TEL050), Monto ("50.00"), Carrier, CarrierID, Vigencia y Descripcion; cada carrier trae su comision.
+function normalizarCatalogo(data) {
+    const raiz = Array.isArray(data) ? Object.assign({}, ...data.filter(x => x && typeof x === "object" && !Array.isArray(x))) : (data || {});
+    const listaProductos = Array.isArray(raiz.productos) ? raiz.productos : [];
+    const listaCarriers = Array.isArray(raiz.carriers) ? raiz.carriers : [];
 
-    const buscar = valor => {
-        if (!valor) return;
-        if (Array.isArray(valor)) { valor.forEach(buscar); return; }
-        if (typeof valor === "object") {
-            if (Array.isArray(valor.productos)) grupos.push(...valor.productos);
-            else if (valor.codigo || valor.Codigo || valor.producto) grupos.push(valor);
-            else Object.values(valor).forEach(buscar);
-        }
-    };
+    const productos = listaProductos
+        .map(p => ({
+            codigo: String(p.Codigo ?? p.codigo ?? "").trim(),
+            carrierId: String(p.CarrierID ?? p.carrierId ?? ""),
+            carrier: String(p.Carrier ?? p.carrier ?? "").trim(),
+            bolsaId: String(p.BolsaID ?? p.bolsaId ?? ""),
+            monto: montoDeTexto(p.Monto ?? p.monto),
+            vigencia: String(p.Vigencia ?? "").trim(),
+            descripcion: String(p.Descripcion ?? "").replace(/\s+/g, " ").trim()
+        }))
+        .filter(p => p.codigo && p.monto != null && p.bolsaId === BOLSA_TIEMPO_AIRE);
 
-    buscar(data);
+    const carriers = listaCarriers
+        .filter(c => String(c.BolsaID ?? "") === BOLSA_TIEMPO_AIRE)
+        .map(c => ({ id: String(c.ID), nombre: String(c.Nombre || "").trim(), tipo: String(c.Tipo ?? "0"), comision: Number(c.Comision?.ComisionCliente) || 0 }));
 
-    return grupos
-        .map(p => {
-            const codigo = String(p.codigo ?? p.Codigo ?? p.producto ?? p.Producto ?? p.id ?? p.ID ?? "").trim();
-            const carrier = String(p.carrier ?? p.Carrier ?? p.compania ?? p.Compania ?? p.nombreCarrier ?? "").trim();
-            const nombre = String(p.nombre ?? p.Nombre ?? p.descripcion ?? p.Descripcion ?? "").trim();
-            const monto = montoDeTexto(p.monto ?? p.Monto ?? p.precio ?? p.Precio) ?? (/(\d{3})$/.test(codigo) ? Number(codigo.slice(-3)) : null);
-            return { codigo, carrier, nombre, monto };
-        })
-        .filter(p => p.codigo);
+    return { productos, carriers };
 }
 
+function carrierDe(operadora) {
+    return CARRIER_IDS[operadora] || (/^c\d+$/.test(operadora) ? operadora.slice(1) : null);
+}
+
+// El codigo sale SIEMPRE del catalogo de Taecel: compañia + monto exactos. Sin catalogo no se manda nada (no se adivinan codigos con dinero de por medio).
 function codigoDeProducto(productos, operadora, monto) {
-    const palabras = PALABRAS_OPERADORA[operadora] || [];
-    const coincide = productos.find(p => p.monto === monto && palabras.some(palabra => `${p.carrier} ${p.nombre}`.toLowerCase().includes(palabra)));
-
-    if (coincide) return coincide.codigo;
-
-    const prefijo = PREFIJOS_DOCUMENTADOS[operadora];
-    if (!prefijo) return null;
-
-    const sintetico = `${prefijo}${String(monto).padStart(3, "0")}`;
-    // Con lista de productos, el codigo tiene que estar en ella; sin lista, se confia en el prefijo documentado.
-    return productos.length === 0 || productos.some(p => p.codigo === sintetico) ? sintetico : null;
+    const carrierId = carrierDe(operadora);
+    const coincide = carrierId ? productos.find(p => p.carrierId === carrierId && p.bolsaId === BOLSA_TIEMPO_AIRE && p.monto === monto) : null;
+    return coincide ? coincide.codigo : null;
 }
 
 function filaPublica(f) {
@@ -117,7 +113,7 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
     const obtenerCliente = () => { if (!cliente) cliente = fabricarCliente(); return cliente; };
 
     let cacheSaldo = { t: 0, datos: null };
-    let cacheProductos = { t: 0, lista: [] };
+    let cacheCatalogo = { t: 0, productos: [], carriers: [] };
     const enVuelo = new Set(); // negocio:numero: un mismo numero no recibe dos recargas a la vez
 
     function negocioId(req) {
@@ -153,14 +149,14 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
         return { id, modo };
     }
 
-    async function productos() {
-        if (Date.now() - cacheProductos.t < CACHE_PRODUCTOS_MS && cacheProductos.lista.length) return cacheProductos.lista;
+    async function catalogo() {
+        if (Date.now() - cacheCatalogo.t < CACHE_PRODUCTOS_MS && cacheCatalogo.productos.length) return cacheCatalogo;
 
         const r = await obtenerCliente().getProducts();
 
-        if (r.ok) cacheProductos = { t: Date.now(), lista: normalizarProductos(r.data) };
+        if (r.ok) cacheCatalogo = { t: Date.now(), ...normalizarCatalogo(r.data) };
 
-        return cacheProductos.lista;
+        return cacheCatalogo;
     }
 
     const permiso = requerirPermiso(PERMISOS.HACER_VENTAS);
@@ -199,7 +195,8 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
             const real = await exigirReal(req, res);
             if (!real) return;
 
-            res.json({ ok: true, productos: await productos() });
+            const { productos, carriers } = await catalogo();
+            res.json({ ok: true, productos, carriers });
         } catch (error) {
             responderError(res, error);
         }
@@ -230,7 +227,7 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
             const monto = Number(req.body?.monto);
 
             if (!/^[A-Za-z0-9_-]{8,64}$/.test(token)) { res.status(400).json({ ok: false, error: "Falta el identificador de la recarga." }); return; }
-            if (!PALABRAS_OPERADORA[operadora]) { res.status(400).json({ ok: false, error: "Elige la compañía." }); return; }
+            if (!carrierDe(operadora)) { res.status(400).json({ ok: false, error: "Elige la compañía." }); return; }
             if (numero.length !== 10) { res.status(400).json({ ok: false, error: "El número lleva 10 dígitos." }); return; }
             if (!Number.isInteger(monto) || monto < MONTO_MINIMO || monto > MONTO_MAXIMO) { res.status(400).json({ ok: false, error: `El monto va de $${MONTO_MINIMO} a $${MONTO_MAXIMO}.` }); return; }
 
@@ -242,7 +239,7 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
             if (enVuelo.has(llave)) { llave = null; res.status(409).json({ ok: false, error: "Ya hay una recarga en proceso para ese número." }); return; }
             enVuelo.add(llave);
 
-            const lista = await productos().catch(() => []);
+            const { productos: lista } = await catalogo().catch(() => ({ productos: [] }));
             const producto = codigoDeProducto(lista, operadora, monto);
 
             if (!producto) { res.status(400).json({ ok: false, error: "Ese monto no está disponible para esa compañía." }); return; }
@@ -326,7 +323,7 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
 }
 
 module.exports = instalar;
-module.exports.normalizarProductos = normalizarProductos;
+module.exports.normalizarCatalogo = normalizarCatalogo;
 module.exports.codigoDeProducto = codigoDeProducto;
 module.exports.MONTO_MINIMO = MONTO_MINIMO;
 module.exports.MONTO_MAXIMO = MONTO_MAXIMO;

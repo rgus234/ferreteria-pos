@@ -159,8 +159,12 @@ test("rutas: saldo y productos salen de Taecel y la recarga exitosa guarda folio
     assert.equal(typeof saldo.saldoRecargas, "number");
     assert.equal(saldo.saldoServicios, 590);
 
-    const productos = (await api("/recargas/productos")).cuerpo.productos;
-    assert.ok(productos.find(p => p.codigo === "TEL050" && p.monto === 50));
+    const catalogo = (await api("/recargas/productos")).cuerpo;
+    assert.ok(catalogo.productos.find(p => p.codigo === "TEL050" && p.monto === 50 && p.carrierId === "1"));
+    assert.ok(catalogo.productos.every(p => p.bolsaId === "1"), "solo tiempo aire: la bolsa de pago de servicios es otra");
+    assert.ok(!catalogo.productos.find(p => p.codigo === "SKY000"));
+    assert.equal(catalogo.carriers.find(c => c.id === "1").comision, 4, "la comision real de cada compañia viene de Taecel");
+    assert.ok(!catalogo.carriers.find(c => c.nombre === "SKY"));
 
     const r = (await recargar({ numero: "5555555505", monto: 50 })).cuerpo;
     assert.equal(r.ok, true, JSON.stringify(r));
@@ -222,4 +226,45 @@ test("la pantalla de Nexo no trae el key ni el nip: solo el servidor los conoce"
     const pantalla = fs.readFileSync(path.join(__dirname, "..", "public/js/recargas-view.js"), "utf8");
     assert.ok(!/TAECEL_KEY|TAECEL_NIP|process\.env/.test(pantalla));
     assert.match(fs.readFileSync(path.join(__dirname, "..", "server-modules.js"), "utf8"), /recargas-server/);
+});
+
+test("catalogo real de Taecel: cada compañia tiene SUS montos (Telcel no tiene $120, Movistar si)", async () => {
+    const { productos } = (await api("/recargas/productos")).cuerpo;
+    const montos = id => productos.filter(p => p.carrierId === id).map(p => p.monto);
+    assert.ok(!montos("1").includes(120));
+    assert.ok(montos("2").includes(120) && montos("2").includes(60));
+
+    assert.equal((await recargar({ operadora: "telcel", numero: "5555555505", monto: 120 })).estado, 400, "Telcel no tiene recarga de $120");
+    const movistar = (await recargar({ operadora: "movistar", numero: "5555555505", monto: 120 })).cuerpo;
+    assert.equal(movistar.ok, true, JSON.stringify(movistar));
+    assert.equal(movistar.recarga.operadora, "movistar");
+
+    const att = (await recargar({ operadora: "c5", numero: "5555555505", monto: 70 })).cuerpo;
+    assert.equal(att.ok, true, "cualquier compañia de tiempo aire se puede mandar como c<id>");
+    assert.equal(taecel.llamadas.filter(l => l.metodo === "requestTXN").pop().parametros.producto, "ATT070");
+});
+
+test("normalizarCatalogo lee la forma real de getProducts (campos con mayuscula, Monto como texto)", () => {
+    const { normalizarCatalogo, codigoDeProducto } = require("../recargas-server");
+    const real = {
+        bolsas: [{ ID: "1", Nombre: "Tiempo Aire" }],
+        carriers: [{ ID: "239", Nombre: "BAIT", BolsaID: "1", Tipo: "0", Comision: { ComisionCliente: "4.0000" } }, { ID: "9", Nombre: "Otro", BolsaID: "2", Tipo: "1", Comision: { ComisionCliente: "1.0000" } }],
+        productos: [
+            { Bolsa: "Tiempo Aire", BolsaID: "1", Carrier: "BAIT", CarrierID: "239", Codigo: "BAIT030", Monto: "30.00", Vigencia: "30 DIAS", Descripcion: "Datos:   2GB \n Minutos" },
+            { Bolsa: "Pago de Servicios", BolsaID: "2", Carrier: "SKY", CarrierID: "9", Codigo: "SKY000", Monto: "95.00" },
+            { Bolsa: "Tiempo Aire", BolsaID: "1", Carrier: "BAIT", CarrierID: "239", Codigo: "", Monto: "50.00" }
+        ]
+    };
+    const { productos, carriers } = normalizarCatalogo(real);
+    assert.equal(productos.length, 1, "sin codigo o de otra bolsa no entra");
+    assert.deepEqual({ codigo: productos[0].codigo, monto: productos[0].monto, carrierId: productos[0].carrierId }, { codigo: "BAIT030", monto: 30, carrierId: "239" });
+    assert.equal(productos[0].descripcion, "Datos: 2GB Minutos", "los espacios y saltos se limpian");
+    assert.equal(carriers.length, 1);
+    assert.equal(carriers[0].comision, 4);
+
+    assert.equal(codigoDeProducto(productos, "bait", 30), "BAIT030");
+    assert.equal(codigoDeProducto(productos, "bait", 50), null, "monto que no esta en el catalogo");
+    assert.equal(codigoDeProducto([], "telcel", 50), null, "sin catalogo no se adivina ningun codigo");
+    assert.equal(codigoDeProducto(productos, "inventada", 30), null);
+    assert.deepEqual(normalizarCatalogo(null), { productos: [], carriers: [] });
 });

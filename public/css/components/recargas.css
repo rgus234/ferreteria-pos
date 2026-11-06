@@ -195,3 +195,13 @@ html.diseno-nuevo .contenido .rc-shell .rc-numero input, html.diseno-nuevo .cont
 body.oscuro .rc-pendiente p { color: #94a3b8; }
 body.oscuro .rc-reloj { background: rgba(245, 158, 11, .2); }
 body.oscuro .rc-demo.rc-vivo { background: rgba(16, 185, 129, .2); color: #6ee7b7; }
+
+/* Catalogo real de Taecel: vigencia bajo cada monto, lista de otras compañias y lo que incluye el paquete */
+.rc-shell .rc-monto { display: grid; align-content: center; gap: 1px; padding: 6px 4px; }
+.rc-monto small { display: block; font-size: 10.5px; font-weight: 700; opacity: .7; text-transform: lowercase; }
+.rc-select { width: 100%; margin-top: 12px; min-height: 46px; padding: 0 12px; border: 2px solid rgba(15, 23, 42, .12); border-radius: 14px; background: #f8fafc; color: inherit; font: inherit; font-size: 15px; font-weight: 700; }
+.rc-promo { margin: 0; padding: 9px 12px; border-radius: 12px; background: color-mix(in srgb, var(--rc-color) 10%, transparent); font-size: 12.5px; line-height: 1.45; color: #475569; }
+body.oscuro .rc-select { background: #1e293b; border-color: rgba(148, 163, 184, .25); color: #f1f5f9; }
+body.oscuro .rc-promo { color: #cbd5e1; }
+.rc-shell .rc-monto small { color: inherit; }
+.rc-shell .rc-monto.rc-sel small { opacity: .9; }
