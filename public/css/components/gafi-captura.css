@@ -1,0 +1,44 @@
+/* Gafi: codigos y fotos (ver js/gafi-captura-view.js). Solo se ve con la funcion "gafi_captura". */
+.gaf-shell { max-width: 760px; margin: 0 auto; padding: 18px 16px 40px; display: grid; gap: 14px; color: var(--pos-text, #111827); }
+.gaf-shell h2 { margin: 0 0 4px; font-size: 24px; }
+.gaf-shell header p { margin: 0; color: #64748b; font-size: 14px; line-height: 1.5; }
+.gaf-avance { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 13px; color: #475569; }
+.gaf-avance b { color: var(--pos-text, #111827); font-variant-numeric: tabular-nums; }
+
+.gaf-busqueda input, .gaf-bloque input[type="text"] { width: 100%; min-height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(15, 23, 42, .18); background: rgba(255, 255, 255, .92); color: #0f172a; font: inherit; font-size: 17px; box-sizing: border-box; }
+.gaf-resultados { display: grid; gap: 8px; }
+.gaf-shell .gaf-fila-resultado { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 1px solid rgba(15, 23, 42, .1); border-radius: 12px; background: #fff; color: #0f172a; font: inherit; text-align: left; cursor: pointer; }
+.gaf-fila-resultado b { display: block; font-size: 15px; }
+.gaf-fila-resultado small { color: #64748b; font-size: 12px; }
+.gaf-marcas { display: flex; gap: 6px; flex-shrink: 0; }
+.gaf-marcas i { padding: 3px 8px; border-radius: 999px; background: #e2e8f0; color: #64748b; font-size: 11px; font-style: normal; font-weight: 800; }
+.gaf-marcas i.gaf-listo { background: #dcfce7; color: #166534; }
+.gaf-vacio { margin: 0; padding: 20px; text-align: center; color: #64748b; }
+
+.gaf-captura { display: grid; gap: 16px; padding: 16px; border-radius: 14px; border: 1px solid rgba(15, 23, 42, .1); background: rgba(255, 255, 255, .75); }
+.gaf-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.gaf-cab h3 { margin: 0 0 4px; font-size: 18px; }
+.gaf-cab p { margin: 0; color: #64748b; font-size: 13px; }
+.gaf-bloque { display: grid; gap: 8px; }
+.gaf-bloque > label { font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; }
+.gaf-fila { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.gaf-fila input[type="text"] { flex: 1 1 220px; }
+.gaf-miniatura { width: 96px; height: 96px; border-radius: 12px; object-fit: contain; background: #fff; border: 1px solid rgba(15, 23, 42, .12); }
+.gaf-sin-foto { display: grid; place-items: center; color: #94a3b8; font-size: 12px; font-weight: 800; }
+.gaf-shell button, .gaf-boton-archivo { min-height: 42px; padding: 0 16px; border: 0; border-radius: 10px; background: #e2e8f0; color: #334155; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; }
+.gaf-shell button.gaf-principal { background: var(--brand-color, #0d6efd); color: #fff; }
+.gaf-ok { color: #166534; font-size: 12px; }
+.gaf-mensaje { margin: 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; font-weight: 700; }
+.gaf-mensaje.gaf-ok { background: #dcfce7; color: #166534; }
+.gaf-mensaje.gaf-error { background: #fee2e2; color: #991b1b; }
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .gaf-shell .gaf-fila-resultado { background: rgba(30, 41, 59, .85); color: #e2e8f0; border-color: rgba(148, 163, 184, .2); }
+    :root:not([data-theme="light"]) .gaf-captura { background: rgba(30, 41, 59, .7); border-color: rgba(148, 163, 184, .2); }
+    :root:not([data-theme="light"]) .gaf-busqueda input, :root:not([data-theme="light"]) .gaf-bloque input[type="text"] { background: rgba(15, 23, 42, .7); color: #e2e8f0; border-color: rgba(148, 163, 184, .3); }
+    :root:not([data-theme="light"]) .gaf-shell button, :root:not([data-theme="light"]) .gaf-boton-archivo { background: rgba(51, 65, 85, .8); color: #e2e8f0; }
+    :root:not([data-theme="light"]) .gaf-shell button.gaf-principal { background: var(--brand-color, #3b82f6); color: #fff; }
+    :root:not([data-theme="light"]) .gaf-marcas i { background: rgba(51, 65, 85, .8); color: #cbd5e1; }
+    :root:not([data-theme="light"]) .gaf-marcas i.gaf-listo { background: rgba(22, 101, 52, .5); color: #bbf7d0; }
+    :root:not([data-theme="light"]) .gaf-miniatura { background: rgba(15, 23, 42, .6); }
+}
