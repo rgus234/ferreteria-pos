@@ -103,6 +103,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./extras-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("recargas de tiempo aire (Taecel)", () => {
+        require("./recargas-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("venta rapida con favoritos (abarrotes)", () => {
         require("./favoritos-server")(app, pool, requerirAccesoNegocio);
     });

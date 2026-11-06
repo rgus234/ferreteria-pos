@@ -96,9 +96,55 @@
         reiniciar() { try { localStorage.removeItem(LLAVE); } catch (error) { /* nada */ } }
     };
 
+    // El servidor de Nexo habla con Taecel (la pantalla nunca ve el key ni el nip): ver recargas-server.js.
+    const ADAPTADOR_REAL = {
+        modo: "real",
+        cache: { saldo: 0, historial: [] },
+
+        leer() { return this.cache; },
+
+        async llamar(ruta, opciones) {
+            const respuesta = await fetch(ruta, opciones);
+            const cuerpo = await respuesta.json().catch(() => ({}));
+            return { estado: respuesta.status, cuerpo };
+        },
+
+        async estado() {
+            const [saldo, historial] = await Promise.all([this.llamar("/recargas/saldo"), this.llamar("/recargas/historial")]);
+
+            this.cache = {
+                saldo: saldo.cuerpo.ok ? Number(saldo.cuerpo.saldoRecargas || 0) : this.cache.saldo,
+                historial: historial.cuerpo.ok ? historial.cuerpo.recargas : this.cache.historial,
+                sinSaldo: !saldo.cuerpo.ok
+            };
+
+            return this.cache;
+        },
+
+        async recargar({ operadora: id, numero, monto }) {
+            const token = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `t${Date.now()}${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, "");
+            const { cuerpo } = await this.llamar("/recargas/recargar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, operadora: id, numero, monto }) });
+
+            if (cuerpo.ok && cuerpo.recarga) return { ok: true, registro: cuerpo.recarga };
+            if (cuerpo.pendiente && cuerpo.recarga) return { ok: false, pendiente: true, registro: cuerpo.recarga, error: cuerpo.error };
+
+            return { ok: false, error: cuerpo.error || "No se pudo completar la recarga." };
+        },
+
+        async consultar(idRecarga) {
+            const { cuerpo } = await this.llamar(`/recargas/${idRecarga}`);
+            return cuerpo.ok ? cuerpo.recarga : null;
+        },
+
+        async agregarSaldo() { return { ok: false, real: true }; },
+
+        reiniciar() { /* nada: el historial vive en el servidor */ }
+    };
+
     function pausa(ms) { return new Promise(resolver => setTimeout(resolver, ms)); }
 
-    const adaptador = ADAPTADOR_DEMO;
+    let adaptador = ADAPTADOR_DEMO;
+    let modoPantalla = "demostracion"; // demostracion | pruebas | produccion
 
     // ------------------------------------------------------------------
     // Estado de la pantalla
@@ -135,6 +181,13 @@
         raiz.style.display = "block";
         if (typeof actualizarTopbarContexto === "function") actualizarTopbarContexto("Recargas", "Tiempo aire en segundos", "recargas");
 
+        try {
+            const r = await fetch("/recargas/modo");
+            const cuerpo = await r.json();
+            modoPantalla = cuerpo.ok && ["pruebas", "produccion"].includes(cuerpo.modo) ? cuerpo.modo : "demostracion";
+        } catch (error) { modoPantalla = "demostracion"; }
+
+        adaptador = modoPantalla === "demostracion" ? ADAPTADOR_DEMO : ADAPTADOR_REAL;
         datos = await adaptador.estado();
         if (fase === "enviando") fase = "captura";
         pintar();
@@ -144,6 +197,17 @@
     // ------------------------------------------------------------------
     // Piezas
     // ------------------------------------------------------------------
+    function etiquetaModo() {
+        if (modoPantalla === "produccion") return `<span class="rc-demo rc-vivo" title="Conectado a Taecel">● Conectado a Taecel</span>`;
+        if (modoPantalla === "pruebas") return `<span class="rc-demo" title="Ambiente de pruebas de Taecel">● Taecel · pruebas</span>`;
+        return `<span class="rc-demo" title="No se recarga ni se cobra nada de verdad">● Modo demostración</span>`;
+    }
+
+    function notaModo() {
+        if (modoPantalla === "produccion") return "";
+        if (modoPantalla === "pruebas") return `<small class="rc-nota">Ambiente de pruebas de Taecel: no se cobra dinero real.</small>`;
+        return `<small class="rc-nota">Modo demostración: no se recarga ni se cobra nada de verdad.</small>`;
+    }
     function tarjetaSaldo() {
         const bajo = datos.saldo < 500;
         const hoyLista = hoy();
@@ -222,6 +286,15 @@
             </section>`;
         }
 
+        if (fase === "listo" && resultado?.pendiente) {
+            return `<section class="rc-resumen rc-pendiente" style="--rc-color:#f59e0b;--rc-tinta:#1f1300">
+                <div class="rc-reloj" aria-hidden="true">⏳</div>
+                <h3>Recarga por confirmar</h3>
+                <p>Taecel todavía no confirma esta recarga de ${entero(resultado.registro.monto)} al ${esc(formatoNumero(resultado.registro.numero))}. Puede que ya se haya hecho: <b>no la repitas</b> hasta confirmar.</p>
+                <div class="rc-acciones"><button type="button" class="rc-principal" data-rc="consultar" data-id="${esc(resultado.registro.id)}">Consultar de nuevo</button><button type="button" data-rc="nueva">Hacer otra</button></div>
+            </section>`;
+        }
+
         if (fase === "listo" && resultado?.ok) {
             const r = resultado.registro;
             const op = operadora(r.operadora);
@@ -253,7 +326,7 @@
             ${fase === "listo" && resultado && !resultado.ok ? `<p class="rc-error" role="alert">${esc(resultado.error)}</p>` : ""}
             ${error ? `<p class="rc-error" role="alert">${esc(error)}</p>` : ""}
             <button type="button" class="rc-recargar${problema ? " rc-incompleto" : ""}" data-rc="recargar">${problema ? esc(problema) : `Recargar ${entero(monto)}`}</button>
-            <small class="rc-nota">Modo demostración: no se recarga ni se cobra nada de verdad.</small>
+            ${notaModo()}
         </section>`;
     }
 
@@ -319,7 +392,7 @@
         raiz.innerHTML = `<div class="rc-shell"${elegida ? ` style="--rc-color:${elegida.color};--rc-tinta:${elegida.tinta}"` : ""}>
             <header class="rc-encabezado">
                 <div><h2>Recargas</h2><p>Tiempo aire en segundos: elige, escribe el número y listo.</p></div>
-                <span class="rc-demo" title="No se recarga ni se cobra nada de verdad">● Modo demostración</span>
+                ${etiquetaModo()}
             </header>
             <nav class="rc-tabs" role="tablist">
                 ${[["recargas", "Recargas"], ["historial", "Historial"], ["servicios", "Servicios"]].map(([id, nombre]) => `<button type="button" role="tab" aria-selected="${pestana === id}" class="${pestana === id ? "rc-tab-activa" : ""}" data-rc="tab" data-id="${id}">${nombre}${id === "servicios" ? `<em>Pronto</em>` : ""}</button>`).join("")}
@@ -353,8 +426,9 @@
         resultado = respuesta;
         fase = "listo";
 
+        if (respuesta.ok || respuesta.pendiente) datos = await adaptador.estado();
+
         if (respuesta.ok) {
-            datos = adaptador.leer();
             if (typeof window.mostrarToastPOS === "function") window.mostrarToastPOS(`Recarga de ${entero(monto)} enviada`, { titulo: "Recargas", tipo: "exito" });
         }
 
@@ -395,7 +469,22 @@
         window.open(`https://wa.me/52${r.numero}?text=${encodeURIComponent(`Tu recarga de ${dinero(r.monto)} ${operadora(r.operadora).nombre} fue exitosa. Folio ${r.folio}. ¡Gracias!`)}`, "_blank", "noopener");
     }
 
+    async function consultarPendiente(id) {
+        const registro = await adaptador.consultar?.(id);
+
+        if (registro && registro.estado === "exitosa") { resultado = { ok: true, registro }; datos = await adaptador.estado(); }
+        else if (registro && registro.estado === "fallida") { resultado = { ok: false, error: registro.mensaje || "La recarga no se completó." }; datos = await adaptador.estado(); }
+
+        pintar();
+    }
+
     async function agregarSaldo() {
+        if (modoPantalla !== "demostracion") {
+            const aviso = "El saldo de recargas se agrega depositando a tu cuenta de Taecel y reportando el pago en su portal (Reportar compra). Aquí se actualiza solo.";
+            if (typeof dialogoPOS === "function") await dialogoPOS({ titulo: "Agregar saldo", mensaje: aviso });
+            return;
+        }
+
         const texto = typeof dialogoPOS === "function"
             ? await dialogoPOS({ titulo: "Agregar saldo (demostración)", mensaje: "¿Cuánto quieres agregar al saldo de prueba?", entrada: true, tipoEntrada: "number", valorInicial: "1000", mostrarCancelar: true, textoAceptar: "Agregar" })
             : window.prompt("¿Cuánto agregas al saldo de prueba?", "1000");
@@ -423,6 +512,7 @@
                 if (accion === "imprimir") { imprimir(); return; }
                 if (accion === "whatsapp") { whatsapp(); return; }
                 if (accion === "saldo") { agregarSaldo(); return; }
+                if (accion === "consultar") { consultarPendiente(el.dataset.id); return; }
 
                 if (accion === "repetir") {
                     const r = datos.historial.find(x => x.id === el.dataset.id);

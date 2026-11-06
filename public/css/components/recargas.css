@@ -185,3 +185,13 @@ body.oscuro .rc-serv { border-color: rgba(148, 163, 184, .25); }
 /* Los campos de la pantalla se pintan con el estilo de la tarjeta, no con el de los formularios del resto del sistema. */
 .rc-shell .rc-numero input, .rc-shell .rc-otro input { padding: 0; border: 0 !important; border-radius: 0; background: transparent !important; box-shadow: none !important; }
 html.diseno-nuevo .contenido .rc-shell .rc-numero input, html.diseno-nuevo .contenido .rc-shell .rc-otro input, html body .rc-shell .rc-numero input[type], html body .rc-shell .rc-otro input[type] { padding: 0; border: 0 !important; border-radius: 0; background: transparent !important; box-shadow: none !important; }
+
+/* Recarga por confirmar (Taecel aun no da resultado final) y etiqueta de conexion real */
+.rc-pendiente { justify-items: center; text-align: center; padding: 26px 20px 20px; }
+.rc-pendiente h3 { margin: 4px 0 2px; font-size: 20px; }
+.rc-pendiente p { margin: 0 0 4px; color: #64748b; font-size: 14px; line-height: 1.5; }
+.rc-reloj { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; background: #fef3c7; font-size: 34px; }
+.rc-demo.rc-vivo { background: #d1fae5; color: #047857; }
+body.oscuro .rc-pendiente p { color: #94a3b8; }
+body.oscuro .rc-reloj { background: rgba(245, 158, 11, .2); }
+body.oscuro .rc-demo.rc-vivo { background: rgba(16, 185, 129, .2); color: #6ee7b7; }

@@ -16,13 +16,17 @@ test("la pantalla esta cableada detras de su funcion y nace oculta", () => {
     assert.match(leer("funciones-beta-server.js"), /recargas: "Recargas"/);
 });
 
-test("modo demostracion: avisa en pantalla y todo pasa por UN adaptador que se cambia al conectar el proveedor", () => {
+test("modo demostracion por defecto: avisa en pantalla, no llama a ningun servidor y todo pasa por UN adaptador (el real solo con el servidor configurado)", () => {
     const js = leer("public/js/recargas-view.js");
     assert.match(js, /Modo demostración/, "se ve que no es dinero de verdad");
     assert.match(js, /no se recarga ni se cobra nada de verdad/i);
-    assert.match(js, /const adaptador = ADAPTADOR_DEMO;/, "un solo punto para conectar el proveedor");
-    ["estado()", "recargar({", "agregarSaldo(monto)"].forEach(m => assert.ok(js.includes(m), `el adaptador ofrece ${m}`));
-    assert.ok(!/fetch\(/.test(js), "no llama a ningun servidor: nada sale de este equipo");
+    assert.match(js, /let adaptador = ADAPTADOR_DEMO;/, "arranca siempre en demostracion");
+    assert.ok(js.includes('fetch("/recargas/modo")'), "el servidor decide si hay recargas reales");
+    assert.ok(js.includes('modoPantalla === "demostracion" ? ADAPTADOR_DEMO : ADAPTADOR_REAL'));
+
+    const demo = js.slice(js.indexOf("const ADAPTADOR_DEMO"), js.indexOf("const ADAPTADOR_REAL"));
+    assert.ok(demo.length > 200 && !demo.includes("fetch("), "el adaptador de demostracion no llama a ningun servidor: nada sale de este equipo");
+    ["estado()", "recargar({", "agregarSaldo(monto)"].forEach(m => assert.ok(demo.includes(m), `el adaptador ofrece ${m}`));
 });
 
 test("reglas de la pantalla: 10 digitos, monto desde $10 con tope, saldo suficiente", () => {
