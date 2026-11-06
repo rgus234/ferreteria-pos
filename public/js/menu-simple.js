@@ -9,6 +9,7 @@
     const HUBS = [
         { id: "inicio", etiqueta: "Inicio", icono: "home", directo: "inicio" },
         { id: "venta", etiqueta: "Vender", icono: "cart", directo: "venta" },
+        { id: "recargas", etiqueta: "Recargas", icono: "phone", directo: "recargas" },
         {
             id: "productos", etiqueta: "Productos", icono: "inventory", titulo: "Productos", subtitulo: "Todo lo que vendes",
             grupos: [

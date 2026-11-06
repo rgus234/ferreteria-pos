@@ -122,7 +122,8 @@ function iconoUISVG(nombre) {
  printer: '<path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="8" rx="1.5"/><path d="M6 17v4h12v-4"/>',
  zoomIn: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6M8 11h6"/>',
  zoomOut: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/>',
- menu: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>'
+ menu: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>',
+ phone: '<rect x="7" y="2" width="10" height="20" rx="2.4"/><path d="M11 18h2"/>'
  };
  const cuerpo = iconos[nombre] || iconos.zap;
  return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + cuerpo + '</svg>';
