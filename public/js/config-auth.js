@@ -1457,6 +1457,7 @@ function ocultarPantallasPrincipales() {
  "pantallaExhibidores",
  "pantallaArmado",
  "pantallaGafiCaptura",
+ "pantallaRecargas",
  "pantallaMapaTienda",
  "pantallaRecibirMarca",
  "pantallaEnlaceCelular",
