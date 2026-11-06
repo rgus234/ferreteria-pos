@@ -123,3 +123,18 @@ test("solo el administrador entra y la pantalla esta cableada detras de su funci
     assert.match(leer("public/js/config-auth.js"), /"pantallaGafiCaptura"/);
     assert.match(leer("server-modules.js"), /gafi-captura-server/);
 });
+
+test("celular: la entrada sale en Mas solo con la funcion encendida, usa las mismas rutas y el cache del celular se renueva", () => {
+    const leer = ruta => fs.readFileSync(path.join(__dirname, "..", ruta), "utf8");
+    const js = leer("public/dueno-gafi.js");
+
+    assert.match(js, /funciones\?\.gafi_captura !== true/, "sin la funcion no hay entrada");
+    ["/gafi-captura/resumen", "/gafi-captura/buscar", "/codigo-barras", "/foto"].forEach(ruta => assert.ok(js.includes(ruta), `usa ${ruta}`));
+    assert.match(js, /abrirEscanerCodigoDueno/, "escanea con la camara del celular");
+
+    const html = leer("public/dueno.html");
+    const sw = leer("public/dueno-sw.js");
+    assert.match(html, /dueno-gafi\.js\?v=(gafi-[0-9-]+)/);
+    const version = /dueno-gafi\.js\?v=(gafi-[0-9-]+)/.exec(html)[1];
+    assert.ok(sw.includes(`/dueno-gafi.js?v=${version}`) && sw.includes(`/dueno-gafi.css?v=${version}`), "el celular guarda los archivos nuevos para abrir sin internet");
+});
