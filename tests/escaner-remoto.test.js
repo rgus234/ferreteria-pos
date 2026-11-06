@@ -123,3 +123,25 @@ test("pantallas: indicador fijo en la barra, mismo estado en todos los botones d
     const version = /dueno-escaner-pc\.js\?v=(escanerpc-[0-9-]+)/.exec(html)[1];
     assert.ok(sw.includes(`/dueno-escaner-pc.js?v=${version}`), "el celular guarda la version nueva");
 });
+
+test("celular: tarjeta del Inicio con el estado en vivo y lista de lo escaneado con nombre, precio y existencia", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const leer = ruta => fs.readFileSync(path.join(__dirname, "..", ruta), "utf8");
+
+    const js = leer("public/dueno-escaner-pc.js");
+    assert.match(js, /#duenoApp \.dueno-kpis/, "la tarjeta va en el Inicio, arriba de los indicadores");
+    assert.match(js, /insertAdjacentElement\("beforebegin"/);
+    assert.match(js, /document\.dispatchEvent\(new CustomEvent\("nexo-escaner-estado"\)\)/, "la tarjeta se actualiza sola con el estado");
+    assert.match(js, /buscarProductoPorCodigoDueno/, "cada codigo escaneado se busca en el inventario para mostrar nombre, precio y existencia");
+    assert.match(js, /No está en tu inventario/);
+    assert.match(js, /abrirFormularioProductoDueno\(null, \{/, "lo que no esta se puede agregar con un toque");
+    assert.match(js, /nexoEscanerPcHistorial/, "la lista del dia se conserva aunque se cierre la app");
+
+    const html = leer("public/dueno.html");
+    const sw = leer("public/dueno-sw.js");
+    const version = /dueno-escaner\.css\?v=(escanerpc-[0-9-]+)/.exec(html)[1];
+    assert.ok(sw.includes(`/dueno-escaner.css?v=${version}`), "el celular guarda el diseño nuevo");
+    assert.ok(fs.existsSync(path.join(__dirname, "..", "public/dueno-escaner.css")));
+    assert.match(leer("public/dueno-escaner.css"), /:root\.oscuro \.dpe-item/, "tiene modo oscuro");
+});
