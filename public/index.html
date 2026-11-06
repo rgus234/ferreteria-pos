@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/components/sale-documents.css?v=cancelar-venta-20260901-01">
   <link rel="stylesheet" href="css/components/pos-payment-modal.css?v=venta-pieza-20260711-01">
   <link rel="stylesheet" href="css/components/pos-piece-sale-modal.css?v=venta-pieza-20260711-01">
-  <link rel="stylesheet" href="css/components/pos-weight-modal.css?v=peso-carrito-20261101-02">
+  <link rel="stylesheet" href="css/components/pos-weight-modal.css?v=bascula-20261105-01">
   <link rel="stylesheet" href="css/components/pos-image-zoom.css?v=zoom-carrito-20260809-01">
   <link rel="stylesheet" href="css/components/account-view.css?v=prueba-20261025-04">
   <link rel="stylesheet" href="css/components/product-details-view.css?v=liquid-glass-inv-20260719-01">
@@ -71,6 +71,7 @@
   <link rel="stylesheet" href="css/components/inicio-pendientes.css?v=inicio-pendientes-20261119-02">
   <link rel="stylesheet" href="css/components/servicios-pos.css?v=servicios-20261030-01">
   <link rel="stylesheet" href="css/components/envases.css?v=envases-20261105-01">
+  <link rel="stylesheet" href="css/components/armado.css?v=armado-20261105-01">
   <link rel="stylesheet" href="css/components/alcohol.css?v=alcohol-20261105-02">
   <link rel="stylesheet" href="css/components/en-linea-oculto.css?v=en-linea-20261105-03">
   <link rel="stylesheet" href="css/components/favoritos-pos.css?v=favoritos-20261031-04">
@@ -546,6 +547,9 @@
  <button data-shell-module="exhibidores" onclick="mostrarExhibidores()">
  Exhibidores
  </button>
+ <button data-shell-module="armar-productos" data-beta="armado" hidden onclick="mostrarArmado()">
+ Armar productos
+ </button>
  <button data-shell-module="mapa-tienda" data-beta="mapa_tienda" hidden onclick="mostrarMapaTienda()">
  Mapa de la tienda
  </button>
@@ -659,6 +663,7 @@
  <section id="pantallaFacturacion" style="display:none;"></section>
  <section id="pantallaListasProducto" style="display:none;"></section>
  <section id="pantallaExhibidores" style="display:none;"></section>
+<section id="pantallaArmado" style="display:none;"></section>
  <section id="pantallaMapaTienda" style="display:none;"></section>
  <section id="pantallaRecibirMarca" style="display:none;"></section>
  <section id="pantallaEnlaceCelular" style="display:none;"></section>
@@ -1904,7 +1909,8 @@
   <script src="js/frutas-verduras-view.js?v=frutas-20261105-05"></script>
 <script src="js/pos-payment-modal.js?v=pago-20261105-03"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
-<script src="js/pos-weight-modal.js?v=peso-carrito-20261101-02"></script>
+<script src="js/bascula-pos.js?v=bascula-20261105-01"></script>
+<script src="js/pos-weight-modal.js?v=bascula-20261105-01"></script>
 <script src="js/pos-image-zoom.js?v=zoom-carrito-20260809-01"></script>
 <script src="js/pos-quick-item-modal.js?v=articulo-rapido-20260720-01"></script>
 <script src="js/ticket-qr-view.js?v=ticket-qr-20261103-02"></script>
@@ -1938,6 +1944,8 @@
  <script src="js/pedido-sugerido.js?v=pedido-sugerido-20261031-02"></script>
  <script src="js/servicios-pos.js?v=servicios-20261030-01"></script>
  <script src="js/envases-pos.js?v=envases-20261105-01"></script>
+ <script src="js/armado-view.js?v=armado-20261105-01"></script>
+ <script src="js/extras-pos.js?v=armado-20261105-01"></script>
  <script src="js/alcohol-pos.js?v=alcohol-20261105-01"></script>
  <script src="js/favoritos-pos.js?v=favoritos-20261031-04"></script>
  <script src="js/fotos-sugeridas.js?v=fotos-sugeridas-20261021-02"></script>

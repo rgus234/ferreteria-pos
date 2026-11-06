@@ -7,6 +7,8 @@
 //   menu_simplificado Menu corto (Productos, Compras, Clientes, Ventas...) con tarjetas en lugar de ~40 entradas sueltas
 //   envases           Envases retornables (abarrotes): importe del envase por producto y "Trae envase" en la venta
 //   alcohol           Venta de alcohol (abarrotes): horario en que no se vende (PIN de administrador para saltarlo) y aviso de mayoria de edad
+//   armado            Armar productos (granel a bolsitas, con merma y deshacer) y extras rapidos en la venta ("+ salsa $2")
+//   bascula           Vender por importe ("quiero $50") y bascula digital con barra de color en la ventana de peso (abarrotes y ferreteria)
 //
 // La columna se crea sola la primera vez (ADD COLUMN IF NOT EXISTS): no hace falta correr nada a mano y si algo falla, todo queda apagado.
 const { responderError } = require("./error-utils");
@@ -19,7 +21,9 @@ const FUNCIONES = {
     diseno_nuevo: "Diseño nuevo",
     menu_simplificado: "Menú simplificado",
     envases: "Envases retornables",
-    alcohol: "Venta de alcohol"
+    alcohol: "Venta de alcohol",
+    bascula: "Báscula y venta por importe",
+    armado: "Armar productos y extras"
 };
 
 let columnaLista = false;

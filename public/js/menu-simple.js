@@ -27,6 +27,7 @@
                     { modulo: "categorias", icono: "layers", titulo: "Categorías" },
                     { modulo: "listas-producto", icono: "clipboard", titulo: "Listas de productos" },
                     { modulo: "exhibidores", icono: "grid", titulo: "Exhibidores" },
+                    { modulo: "armar-productos", icono: "inventory", titulo: "Armar productos" },
                     { modulo: "mapa-tienda", icono: "building", titulo: "Mapa de la tienda" },
                     { modulo: "fotos-sugeridas", icono: "eye", titulo: "Fotos sugeridas" },
                     { modulo: "codigos-barras", icono: "printer", titulo: "Códigos de barras" },

@@ -97,6 +97,11 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./envases-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("armar productos (granel a bolsitas)", () => {
+        require("./armado-server")(app, pool, requerirAccesoNegocio);
+        require("./extras-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("venta rapida con favoritos (abarrotes)", () => {
         require("./favoritos-server")(app, pool, requerirAccesoNegocio);
     });

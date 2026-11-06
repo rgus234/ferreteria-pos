@@ -121,3 +121,40 @@ body.oscuro .peso-pos-cantidad-label input {
 .peso-pos-atajos .peso-pos-borrar { background: #f1f5f9; color: #475569; font-size: 13px; }
 body.oscuro .peso-pos-atajos button { background: #1e2a44; color: #bfdbfe; }
 body.oscuro .peso-pos-atajos .peso-pos-borrar { background: #243148; color: #cbd5e1; }
+
+/* Venta por importe y bascula (funcion nueva "bascula") */
+.peso-pos-modos { display: flex; gap: 6px; margin: 0 0 12px; padding: 4px; border-radius: 12px; background: #f1f5f9; }
+.peso-pos-modos button { flex: 1; min-height: 36px; border: 0; border-radius: 9px; background: transparent; color: #475569; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }
+.peso-pos-modos button.activo { background: #fff; color: var(--brand-color, #0d6efd); box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+body.oscuro .peso-pos-modos { background: #1e293b; }
+body.oscuro .peso-pos-modos button { color: #94a3b8; }
+body.oscuro .peso-pos-modos button.activo { background: #0f172a; color: #bfdbfe; box-shadow: none; }
+
+.bas-panel { --bas-color: #94a3b8; margin: 10px 0 4px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(15, 23, 42, .1); background: rgba(248, 250, 252, .8); }
+.bas-panel.bas-sin { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 10px; }
+.bas-panel.bas-sin:empty { display: none; }
+body.oscuro .bas-panel { border-color: rgba(148, 163, 184, .2); background: rgba(30, 41, 59, .6); }
+
+.bas-panel[data-color="rojo"] { --bas-color: #dc2626; }
+.bas-panel[data-color="ambar"] { --bas-color: #d97706; }
+.bas-panel[data-color="verde"] { --bas-color: #16a34a; }
+.bas-panel[data-color="azul"] { --bas-color: #2563eb; }
+
+.bas-vivo { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.bas-peso { font-size: 34px; font-weight: 900; line-height: 1.1; color: var(--bas-color); transition: color .25s; font-variant-numeric: tabular-nums; }
+.bas-importe { font-size: 15px; font-weight: 800; color: #64748b; font-variant-numeric: tabular-nums; }
+.bas-barra { height: 14px; margin: 10px 0 8px; border-radius: 7px; background: rgba(100, 116, 139, .2); overflow: hidden; }
+.bas-barra i { display: block; height: 100%; width: 0; border-radius: 7px; background: var(--bas-color); transition: width .2s ease-out, background-color .25s; }
+.bas-estado { min-height: 22px; font-size: 15px; font-weight: 800; color: var(--bas-color); text-align: center; transition: color .25s; }
+.bas-panel.bas-listo .bas-barra i { animation: bas-pulso .6s ease-out 1; }
+@keyframes bas-pulso { 0% { filter: brightness(1.5); } 100% { filter: brightness(1); } }
+@media (prefers-reduced-motion: reduce) { .bas-peso, .bas-barra i, .bas-estado { transition: none; } .bas-panel.bas-listo .bas-barra i { animation: none; } }
+
+.bas-conectar, .bas-usar, .bas-desconectar { min-height: 34px; padding: 0 12px; border: 0; border-radius: 10px; background: #dbeafe; color: #1d4ed8; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
+.bas-usar { display: block; width: 100%; margin-top: 8px; min-height: 40px; font-size: 14px; }
+.bas-desconectar { display: block; margin: 8px auto 0; background: transparent; color: #64748b; font-weight: 700; min-height: 28px; }
+.bas-velocidad { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #64748b; }
+.bas-velocidad select { min-height: 30px; border-radius: 8px; border: 1px solid rgba(15, 23, 42, .14); background: #fff; font: inherit; font-size: 12px; }
+.bas-error { flex: 0 0 100%; color: #b91c1c; font-size: 12px; font-weight: 700; }
+body.oscuro .bas-conectar, body.oscuro .bas-usar { background: #1e2a44; color: #bfdbfe; }
+body.oscuro .bas-importe { color: #94a3b8; }

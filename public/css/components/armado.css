@@ -1,0 +1,72 @@
+/* Armar productos (ver js/armado-view.js). Solo se ve con la funcion nueva "armado". */
+.arm-shell { max-width: 880px; margin: 0 auto; padding: 18px 16px 40px; display: grid; gap: 16px; color: var(--pos-text, #111827); }
+.arm-encabezado { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.arm-encabezado h2 { margin: 0 0 4px; font-size: 24px; }
+.arm-encabezado p { margin: 0; max-width: 560px; color: #64748b; font-size: 14px; line-height: 1.5; }
+.arm-lista { display: grid; gap: 12px; }
+.arm-vacio { margin: 0; padding: 28px 18px; text-align: center; color: #64748b; border: 1px dashed rgba(100, 116, 139, .4); border-radius: 14px; }
+
+.arm-tarjeta, .arm-form, .arm-historial { padding: 16px; border-radius: 14px; border: 1px solid rgba(15, 23, 42, .1); background: rgba(255, 255, 255, .7); }
+.arm-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.arm-tarjeta h3, .arm-form h3, .arm-historial h3 { margin: 0 0 4px; font-size: 17px; }
+.arm-receta { margin: 0; color: #64748b; font-size: 13px; }
+.arm-cifras { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: #475569; }
+.arm-cifras b { color: var(--pos-text, #111827); font-variant-numeric: tabular-nums; }
+
+.arm-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.arm-shell button { min-height: 38px; padding: 0 14px; border: 0; border-radius: 10px; background: #e2e8f0; color: #334155; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }
+.arm-shell button.arm-principal { background: var(--brand-color, #0d6efd); color: #fff; }
+.arm-atajos { display: flex; gap: 8px; margin: 8px 0; }
+.arm-atajos button { min-width: 56px; background: #dbeafe; color: #1d4ed8; }
+
+.arm-panel { display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(15, 23, 42, .08); }
+.arm-shell label { display: grid; gap: 4px; font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; }
+.arm-shell input { min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(15, 23, 42, .16); background: rgba(255, 255, 255, .9); color: #0f172a; font: inherit; font-size: 16px; text-transform: none; }
+.arm-gasto { margin: 0; min-height: 20px; font-size: 14px; font-weight: 800; color: #0f766e; }
+.arm-gasto.arm-mal, .arm-error { color: #b91c1c; }
+.arm-error { margin: 0; min-height: 0; font-size: 13px; font-weight: 700; }
+.arm-ayuda { margin: 0; font-size: 12px; color: #64748b; }
+
+.arm-form { display: grid; gap: 12px; }
+.arm-campo { display: grid; gap: 4px; }
+.arm-campo > label { font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; }
+.arm-elegido { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; background: #f1f5f9; font-weight: 800; }
+.arm-elegido small, .arm-resultados small { color: #64748b; font-weight: 700; }
+.arm-resultados { display: grid; gap: 4px; }
+.arm-resultados button { justify-content: flex-start; text-align: left; background: #f8fafc; }
+.arm-fila { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+
+.arm-historial { display: grid; gap: 8px; }
+.arm-fila-hist { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; }
+.arm-fila-hist button { min-height: 30px; font-size: 13px; }
+
+body.oscuro .arm-shell { color: #f8fafc; }
+body.oscuro .arm-tarjeta, body.oscuro .arm-form, body.oscuro .arm-historial { border-color: rgba(148, 163, 184, .2); background: rgba(30, 41, 59, .6); }
+body.oscuro .arm-shell button { background: #243148; color: #cbd5e1; }
+body.oscuro .arm-shell button.arm-principal { background: var(--brand-color, #0d6efd); color: #fff; }
+body.oscuro .arm-atajos button { background: #1e2a44; color: #bfdbfe; }
+body.oscuro .arm-shell input { background: rgba(15, 23, 42, .78); border-color: rgba(148, 163, 184, .25); color: #f8fafc; }
+body.oscuro .arm-elegido, body.oscuro .arm-resultados button { background: #1e293b; }
+body.oscuro .arm-cifras, body.oscuro .arm-receta, body.oscuro .arm-encabezado p { color: #94a3b8; }
+body.oscuro .arm-cifras b { color: #f8fafc; }
+body.oscuro .arm-gasto { color: #5eead4; }
+
+/* Extras rapidos en la venta: fichas encima del carrito */
+.extras-franja { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; padding: 8px 10px; border-radius: 12px; background: rgba(13, 110, 253, .08); border: 1px solid rgba(13, 110, 253, .18); }
+.extras-titulo { font-size: 12px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; color: var(--brand-color, #0d6efd); }
+.extras-franja button { min-height: 34px; padding: 0 12px; border: 0; border-radius: 10px; background: #fff; color: #1e293b; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; box-shadow: 0 1px 2px rgba(15, 23, 42, .12); }
+.extras-franja button b { margin-left: 4px; color: var(--brand-color, #0d6efd); }
+.extras-franja .extras-cerrar { margin-left: auto; min-width: 30px; padding: 0; background: transparent; box-shadow: none; color: #64748b; font-size: 18px; }
+body.oscuro .extras-franja { background: rgba(59, 130, 246, .12); border-color: rgba(96, 165, 250, .25); }
+body.oscuro .extras-franja button { background: #1e293b; color: #e2e8f0; box-shadow: none; }
+
+/* Seccion de extras dentro de Armar productos */
+.arm-extras { display: grid; gap: 10px; padding: 16px; border-radius: 14px; border: 1px solid rgba(15, 23, 42, .1); background: rgba(255, 255, 255, .7); }
+.arm-extras h3 { margin: 0; font-size: 17px; }
+.arm-extra-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid rgba(15, 23, 42, .06); }
+.arm-extra-fila > b { min-width: 160px; }
+.arm-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-size: 13px; font-weight: 800; }
+.arm-shell .arm-chip button { min-height: 22px; min-width: 22px; padding: 0; background: transparent; color: inherit; font-size: 16px; line-height: 1; }
+body.oscuro .arm-extras { border-color: rgba(148, 163, 184, .2); background: rgba(30, 41, 59, .6); }
+body.oscuro .arm-extra-fila { border-color: rgba(148, 163, 184, .15); }
+body.oscuro .arm-chip { background: #1e2a44; color: #bfdbfe; }
