@@ -96,6 +96,31 @@ async function buscarEnCatalogoMaestro(pool, codigo) {
     }
 }
 
+// "Proveedor del catalogo" en Agregar producto: con la funcion catalogo_por_proveedor el dueno elige UN proveedor y la
+// busqueda se queda en su catalogo, sin mezclar codigos de otros (un "14957" es un gato en Diprofer y una llave en Gafi).
+//   patron: como se reconoce el catalogo del negocio por su nombre (la lista de Gafi de Olimpico se llama "004BE Durango...").
+//   fabricantes: Truper no es un catalogo del negocio sino del Maestro, y vende varias marcas propias.
+const PROVEEDORES_ELEGIBLES = {
+    diprofer: { nombre: "Diprofer", patron: "diprofer" },
+    gafi: { nombre: "Gafi", patron: "gafi|004be" },
+    truper: { nombre: "Truper", fabricantes: ["truper", "pretul", "foset", "volteck", "fiero", "hermex", "expert", "klintek"] }
+};
+
+// Con proveedor elegido, "no esta en su lista" no manda a buscar a otro lado, pero si el codigo es de un producto conocido
+// (por ejemplo Truper, que Diprofer distribuye pero no siempre trae) se ofrece su IDENTIDAD sin precio: los precios de lista
+// del fabricante no son los de ese proveedor, asi que se quitan y el dueno pone el suyo.
+async function respuestaSinResultadoEnProveedor(pool, codigo, elegido) {
+    const respuesta = { ok: true, producto: null, soloProveedor: elegido.nombre };
+    const delMaestro = await buscarEnCatalogoMaestro(pool, codigo);
+
+    if (delMaestro) {
+        respuesta.sugerencia = { ...delMaestro, distribuidor: null, medioMayoreo: null, publico: null, mayoreo: null, precioDetectado: "" };
+        respuesta.sugerenciaFabricante = delMaestro.fabricante || delMaestro.marca || "";
+    }
+
+    return respuesta;
+}
+
 // Una fila del catalogo de proveedor, en la forma que espera la pantalla
 // de Agregar producto. Es la MISMA forma que devuelve el Maestro, para que
 // la pantalla no distinga de donde vino. Se saco a funcion porque ahora
@@ -545,6 +570,22 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                 return;
             }
 
+            // Opcional: con un proveedor elegido solo se busca en SU catalogo. Sin el, todo igual que siempre.
+            const elegido = PROVEEDORES_ELEGIBLES[String(req.query.proveedor || "").toLowerCase()] || null;
+
+            if (elegido && elegido.fabricantes) {
+                const delMaestro = await buscarEnCatalogoMaestro(pool, codigo);
+                const esDelProveedor = delMaestro && elegido.fabricantes.includes(String(delMaestro.fabricante || "").toLowerCase());
+
+                if (esDelProveedor) {
+                    res.json({ ok: true, producto: delMaestro, soloProveedor: elegido.nombre });
+                } else {
+                    res.json(await respuestaSinResultadoEnProveedor(pool, codigo, elegido));
+                }
+
+                return;
+            }
+
             const fila = await pool.query(
                 `
                 SELECT cp.codigo_proveedor, cp.codigo_interno, cp.clave_proveedor, cp.codigo_barras, cp.nombre_proveedor, cp.descripcion, cp.marca, cp.categoria,
@@ -553,6 +594,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                 JOIN public.catalogos_proveedor cat ON cat.id = cp.catalogo_id
                 WHERE cp.negocio_id = $1
                   AND (cp.codigo_proveedor = $2 OR NULLIF(cp.codigo_interno, '') = $2 OR NULLIF(cp.clave_proveedor, '') = $2 OR NULLIF(cp.codigo_barras, '') = $2)
+                  AND ($3::text IS NULL OR cat.proveedor ~* $3)
                 -- CUAL FILA GANA cuando el mismo codigo esta en varios
                 -- catalogos del negocio.
                 --
@@ -602,8 +644,14 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen, firmarTok
                          cp.catalogo_id DESC,
                          cp.id ASC
                 `,
-                [negocio.id, codigo]
+                [negocio.id, codigo, elegido ? elegido.patron : null]
             );
+
+            // Con proveedor elegido NO se cae al Maestro: la respuesta honesta es "ese codigo no esta en su catalogo".
+            if (fila.rows.length === 0 && elegido) {
+                res.json(await respuestaSinResultadoEnProveedor(pool, codigo, elegido));
+                return;
+            }
 
             if (fila.rows.length === 0) {
                 // El catalogo de proveedor es POR NEGOCIO: un negocio que

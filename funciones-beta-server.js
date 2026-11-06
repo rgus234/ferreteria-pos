@@ -9,6 +9,7 @@
 //   alcohol           Venta de alcohol (abarrotes): horario en que no se vende (PIN de administrador para saltarlo) y aviso de mayoria de edad
 //   armado            Armar productos (granel a bolsitas, con merma y deshacer) y extras rapidos en la venta ("+ salsa $2")
 //   bascula           Vender por importe ("quiero $50") y bascula digital con barra de color en la ventana de peso (abarrotes y ferreteria)
+//   catalogo_por_proveedor  En Agregar producto, el proveedor elegido (Diprofer, Gafi, Truper) manda: la busqueda se queda en SU catalogo
 //
 // La columna se crea sola la primera vez (ADD COLUMN IF NOT EXISTS): no hace falta correr nada a mano y si algo falla, todo queda apagado.
 const { responderError } = require("./error-utils");
@@ -23,7 +24,8 @@ const FUNCIONES = {
     envases: "Envases retornables",
     alcohol: "Venta de alcohol",
     bascula: "Báscula y venta por importe",
-    armado: "Armar productos y extras"
+    armado: "Armar productos y extras",
+    catalogo_por_proveedor: "Catálogo por proveedor"
 };
 
 let columnaLista = false;

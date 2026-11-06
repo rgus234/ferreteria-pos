@@ -136,6 +136,13 @@ const PROVEEDORES_CATALOGO_PRODUCTO = [
 
 let modoCapturaProductoActual = "barras";
 
+// Con la funcion catalogo_por_proveedor, el proveedor elegido en "Proveedor del catalogo" manda: la busqueda de codigos se queda en SU catalogo.
+let proveedorCatalogoElegido = null;
+
+function proveedorCatalogoActivo() {
+ return typeof window.funcionBeta === "function" && window.funcionBeta("catalogo_por_proveedor") ? proveedorCatalogoElegido : null;
+}
+
 // Se dispara al elegir un proveedor en "Proveedor del catalogo": llena el
 // campo Proveedor, cambia el modo de captura preferido de ese proveedor
 // (ej. Gafi no tiene codigo de barras real, asi que prioriza codigo
@@ -157,6 +164,8 @@ async function seleccionarProveedorCatalogoProducto(id) {
  campoProveedor.value =
  id === "generico" ? "" : info.nombre;
  }
+
+ proveedorCatalogoElegido = id === "generico" ? null : id;
 
  aplicarModoCapturaProducto(info.modoCapturaPreferido);
 
@@ -185,7 +194,7 @@ async function actualizarInfoProveedorCatalogoProducto(info) {
 
  if (!panel || !nombreEl || !reglaEl) return;
 
- nombreEl.textContent = info.nombre;
+ nombreEl.textContent = proveedorCatalogoActivo() ? `${info.nombre} · busca solo en su catálogo` : info.nombre;
  reglaEl.textContent = "Buscando regla de precio...";
  panel.style.display = "grid";
 
@@ -1759,11 +1768,34 @@ async function productoDesdeCatalogo(codigo) {
  if (!codigoNormalizado) return null;
 
  try {
+ const soloProveedor = proveedorCatalogoActivo();
+
  const respuesta =
- await fetch(`/catalogo-proveedor/buscar-codigo?codigo=${encodeURIComponent(codigoNormalizado)}`);
+ await fetch(`/catalogo-proveedor/buscar-codigo?codigo=${encodeURIComponent(codigoNormalizado)}${soloProveedor ? `&proveedor=${encodeURIComponent(soloProveedor)}` : ""}`);
 
  const datos =
  await respuesta.json();
+
+ // Con proveedor elegido, "no esta" se le dice al dueno. Si el codigo es de un producto conocido (ej. Truper que Diprofer
+ // no trae en su lista) se le ofrece agregarlo igual, con la identidad pero sin precio, y queda con el proveedor elegido.
+ if (datos.ok && !datos.producto && datos.soloProveedor) {
+ if (datos.sugerencia && typeof dialogoPOS === "function") {
+ const acepta = await dialogoPOS({
+ tipo: "alerta",
+ titulo: `No está en la lista de ${datos.soloProveedor}`,
+ mensaje: `Pero sí es un producto ${datos.sugerenciaFabricante || "conocido"}: "${datos.sugerencia.nombre}". ¿Agregarlo igual, sin precio? Quedará con proveedor ${datos.soloProveedor}.`,
+ mostrarCancelar: true,
+ textoAceptar: "Agregar sin precio",
+ textoCancelar: "No"
+ });
+
+ return acepta ? datos.sugerencia : null;
+ }
+
+ if (typeof mostrarToastPOS === "function") {
+ mostrarToastPOS(`Ese código no está en el catálogo de ${datos.soloProveedor}. Si es de otro proveedor, elígelo arriba; si no, captúralo a mano.`);
+ }
+ }
 
  if (!datos.ok || !datos.producto) return null;
 
@@ -4715,6 +4747,7 @@ function reiniciarProveedorCatalogoProducto() {
 
  ultimaReglaProveedorCatalogo = null;
  contextoPrecioListaCatalogoProducto = null;
+ proveedorCatalogoElegido = null;
 
  aplicarModoCapturaProducto("barras");
 
@@ -4906,13 +4939,19 @@ async function aplicarProductoCatalogoAlFormulario(producto, origen) {
  document.getElementById("precioPublico").value =
  producto.publico || "";
 
+ // Con proveedor elegido arriba, ese es el proveedor del producto (con su nombre de siempre: "Gafi", no el
+ // nombre del archivo de su lista) aunque el producto tambien exista en el catalogo de otro.
+ const proveedorElegidoNombre =
+ PROVEEDORES_CATALOGO_PRODUCTO.find(p => p.id === proveedorCatalogoActivo())?.nombre || "";
+
  document.getElementById("nuevoProveedor").value =
+ proveedorElegidoNombre ||
  producto.proveedor ||
  localStorage.getItem("ultimoProveedorCatalogo") ||
  ultimoProveedorCatalogo() ||
  "Diprofer";
 
- marcarCampoAutocompletado("nuevoProveedor", Boolean(producto.proveedor));
+ marcarCampoAutocompletado("nuevoProveedor", Boolean(proveedorElegidoNombre || producto.proveedor));
 
  if (origen !== "interno") {
  document.getElementById("nuevoCodigoInterno").value =

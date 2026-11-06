@@ -15,6 +15,7 @@
         envases: "Cerveza y refresco de vidrio: en cada producto anotas cuánto vale el envase y, en la venta, un botón “Trae envase” descuenta ese importe cuando el cliente devuelve el vacío.",
         alcohol: "Abarrotes: aviso de “solo mayores de 18 años” al cobrar bebidas alcohólicas y, si lo configuras, un horario en que no se venden (un administrador puede autorizar con su PIN).",
         bascula: "Al pesar (jamón, tornillos, lo que se vende por kilo): vender por importe (“quiero $50”) y, si conectas una báscula digital, el peso en vivo con una barra que va de rojo a verde hasta llegar a la meta.",
+        catalogo_por_proveedor: "En Agregar producto, el proveedor que eliges (Diprofer, Gafi, Truper) manda: solo busca en su catálogo y con sus códigos, para que no se crucen productos de distintos proveedores.",
         armado: "Convierte producto a granel en bolsitas o porciones (churros, azúcar, jamón en paquetes): al armar 20 bolsitas baja el granel y suben las bolsitas, con merma y un botón para deshacer. Además, extras rápidos en la venta (“+ salsa $2”) con un toque."
     };
 
