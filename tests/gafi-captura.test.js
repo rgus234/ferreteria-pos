@@ -138,3 +138,70 @@ test("celular: la entrada sale en Mas solo con la funcion encendida, usa las mis
     const version = /dueno-gafi\.js\?v=(gafi-[0-9-]+)/.exec(html)[1];
     assert.ok(sw.includes(`/dueno-gafi.js?v=${version}`) && sw.includes(`/dueno-gafi.css?v=${version}`), "el celular guarda los archivos nuevos para abrir sin internet");
 });
+
+// ---------------------------------------------------------------- buscador tolerante
+
+test("buscador: entiende lo escrito (codigos con espacios, palabras de relleno, acentos)", () => {
+    const { entenderConsulta } = require("../gafi-captura-server");
+
+    assert.deepEqual(entenderConsulta("resistol 500 dice idh 23 74 72 5"), { terminos: ["resistol", "500"], codigos: ["2374725"] });
+    assert.deepEqual(entenderConsulta("IDH 2374725").codigos, ["2374725"]);
+    assert.deepEqual(entenderConsulta("Pegamento 850 CLÁSICO").terminos, ["pegamento", "850", "clasico"]);
+    assert.deepEqual(entenderConsulta("hsg1406").codigos, ["hsg1406"]);
+    assert.deepEqual(entenderConsulta("1 2").codigos, [], "dos numeros chicos no forman un codigo");
+});
+
+test("buscador: encuentra aunque se escriba mal, con numeros separados o con palabras de mas", async () => {
+    const lista = (await pool.query(`SELECT id FROM public.catalogos_proveedor WHERE negocio_id = $1 AND proveedor ~* 'gafi|004be'`, [negocio.negocioId])).rows[0].id;
+    await fila(lista, "G-R1", "1857127", "Pegamento 850 clasico 500gr resistol", "RESISTOL");
+    await fila(lista, "G-R2", "1513922/2373802", "Pegamento 5000 clasico 1lt resistol", "RESISTOL");
+    await fila(lista, "G-R3", "", "Resanador p/madera 875 caoba 500ml Resistol", "RESISTOL");
+    await fila(lista, "G-R4", "", "Pegamento 5000 calzado 21ml resistol", "RESISTOL");
+
+    const buscar = async q => (await (await api(`/gafi-captura/buscar?q=${encodeURIComponent(q)}`)).json()).productos;
+    const nombres = r => r.map(p => p.nombre);
+
+    // "500" pide 500 (500gr, 500ml), no "5000": las de 500 van primero.
+    const r1 = await buscar("resistol 500");
+    const posicion = texto => nombres(r1).findIndex(n => n.includes(texto));
+    assert.ok(posicion("500gr") >= 0 && posicion("500ml") >= 0, "salen las de 500");
+    assert.ok(posicion("500gr") < posicion("5000 calzado"), "500gr va antes que 5000");
+    assert.ok(posicion("500ml") < posicion("5000 calzado"));
+
+    assert.ok(nombres(await buscar("resitol 500")).some(n => n.includes("500gr")), "perdona una letra");
+    assert.ok(nombres(await buscar("PEGAMENTO 850 CLÁSICO")).some(n => n.includes("850 clasico 500gr")), "ignora acentos y mayusculas");
+
+    // El codigo del empaque, con espacios y con la palabra de relleno: el producto con ese codigo en su clave va primero.
+    for (const q of ["idh 23 73 80 2", "IDH 2373802", "2373802"]) {
+        const r = await buscar(q);
+        assert.equal(r[0].nombre, "Pegamento 5000 clasico 1lt resistol", q);
+        assert.equal(r[0].coincidencia, "exacta");
+    }
+
+    // Un codigo que no existe no tapa lo demas: se encuentra por marca y medida.
+    assert.ok(nombres(await buscar("resistol 500 dice idh 23 74 72 5")).some(n => n.includes("500gr")));
+});
+
+test("buscador: sin coincidencia completa muestra las parecidas aparte, y lo que no tiene nada no devuelve nada", async () => {
+    const buscar = async q => (await (await api(`/gafi-captura/buscar?q=${encodeURIComponent(q)}`)).json()).productos;
+
+    const parecidas = await buscar("resistol 999");
+    assert.ok(parecidas.length > 0, "no se queda en blanco");
+    assert.ok(parecidas.every(p => p.coincidencia === "parcial"), "ninguna cumple con 999: todas van como parecidas");
+
+    assert.deepEqual(await buscar("qwxzvk"), []);
+    assert.equal((await buscar("diprofer")).length, 0, "lo de otro proveedor sigue sin salir");
+});
+
+test("buscador: despues de guardar un codigo de barras se puede buscar por ese codigo", async () => {
+    const r = await (await api("/gafi-captura/buscar?q=resistol%20850")).json();
+    const producto = r.productos.find(p => p.nombre.includes("850 clasico 500gr"));
+    assert.ok(producto);
+
+    const guardado = await (await api(`/gafi-captura/${producto.id}/codigo-barras`, "POST", { codigoBarras: "7501001234560" })).json();
+    assert.equal(guardado.ok, true, JSON.stringify(guardado));
+
+    const porCodigo = await (await api("/gafi-captura/buscar?q=7501001234560")).json();
+    assert.equal(porCodigo.productos[0].id, producto.id, "la lista en memoria se refresco");
+    assert.equal(porCodigo.productos[0].codigoBarras, "7501001234560");
+});

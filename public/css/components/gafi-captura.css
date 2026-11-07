@@ -42,3 +42,6 @@
     :root:not([data-theme="light"]) .gaf-marcas i.gaf-listo { background: rgba(22, 101, 52, .5); color: #bbf7d0; }
     :root:not([data-theme="light"]) .gaf-miniatura { background: rgba(15, 23, 42, .6); }
 }
+
+.gaf-parcial { margin: 6px 2px 0; color: #92400e; font-size: 12.5px; font-weight: 800; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .gaf-parcial { color: #fcd34d; } }

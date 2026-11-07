@@ -114,6 +114,16 @@ function dgfFilaResultado(p) {
     return `<button type="button" class="dgf-fila" data-dgf-elegir="${p.id}"><span><b>${dgfEscapar(p.nombre)}</b><small>${dgfEscapar(p.marca)}${p.clave ? ` · ${dgfEscapar(p.clave)}` : ""}</small></span><span class="dgf-marcas"><i class="${p.codigoBarras ? "dgf-listo" : ""}">${p.codigoBarras ? "✓ código" : "sin código"}</i><i class="${p.tieneFoto ? "dgf-listo" : ""}">${p.tieneFoto ? "✓ foto" : "sin foto"}</i></span></button>`;
 }
 
+// Las que no coinciden en todo lo escrito salen aparte, con su aviso.
+function dgfListaHtml() {
+    let hayParcial = false;
+
+    return dgfResultados.map(p => {
+        const aviso = p.coincidencia === "parcial" && !hayParcial ? ((hayParcial = true), `<p class="dgf-parcial">Parecidos: no coinciden en todo lo que escribiste</p>`) : "";
+        return aviso + dgfFilaResultado(p);
+    }).join("");
+}
+
 function dgfPintar() {
     const capa = dgfCapa();
     const p = dgfElegido;
@@ -142,9 +152,9 @@ function dgfPintar() {
             ${mensaje}
             <button type="button" class="dgf-secundario" id="dgfOtro">Otro producto</button>
         </section>` : `
-        <input id="dgfBuscar" class="dgf-buscar" type="search" autocomplete="off" placeholder="Clave, código o nombre (ej. HSG1406)" value="${dgfEscapar(dgfConsulta)}">
+        <input id="dgfBuscar" class="dgf-buscar" type="search" autocomplete="off" placeholder="Marca, medida o código (ej. resistol 500)" value="${dgfEscapar(dgfConsulta)}">
         ${mensaje}
-        <div id="dgfResultados" class="dgf-resultados">${dgfResultados.map(dgfFilaResultado).join("")}</div>`}
+        <div id="dgfResultados" class="dgf-resultados">${dgfListaHtml()}</div>`}
     </main>`;
 
     dgfEnlazar(capa);
@@ -209,7 +219,7 @@ async function dgfBuscar(texto) {
     const caja = document.getElementById("dgfResultados");
     if (!caja) return;
 
-    caja.innerHTML = dgfResultados.length ? dgfResultados.map(dgfFilaResultado).join("") : `<p class="dgf-vacio">No hay productos de Gafi con eso.</p>`;
+    caja.innerHTML = dgfResultados.length ? dgfListaHtml() : `<p class="dgf-vacio">No hay productos de Gafi con eso.</p>`;
     dgfEnlazarResultados(document.getElementById("dgfCapa"));
 }
 

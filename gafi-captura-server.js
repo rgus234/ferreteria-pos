@@ -15,6 +15,134 @@ const PATRON_GAFI = "gafi|004be"; // igual que en catalog-server.js: la lista de
 const LIMITE_FOTO_BYTES = 4 * 1024 * 1024;
 const TIPOS_FOTO = { "image/jpeg": "image/jpeg", "image/png": "image/png", "image/webp": "image/webp" };
 
+
+// ---------------------------------------------------------------- Buscador tolerante
+// La lista de Gafi trae nombres abreviados ("Pegamento 850 clasico 500gr resistol") y claves con varios codigos ("1513922/2373802"). La busqueda no pide
+// que todo este escrito exacto: ignora acentos y mayusculas, junta los numeros separados ("23 74 72 5" es el codigo 2374725), perdona errores de dedo
+// ("resitol"), ignora palabras de relleno ("idh", "clave") y, si no hay coincidencia completa, muestra las parciales marcadas como tales.
+
+const RELLENO = new Set(["dice", "dicen", "tiene", "trae", "es", "un", "una", "idh", "id", "sku", "cod", "codigo", "clave", "ref", "referencia", "modelo", "num", "numero", "de", "del", "la", "el", "los", "las", "para", "con", "y", "en"]);
+
+const normalizar = texto => String(texto ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+function distancia(a, b) {
+    if (Math.abs(a.length - b.length) > 2) return 3;
+
+    let anterior = Array.from({ length: b.length + 1 }, (_, i) => i);
+
+    for (let i = 1; i <= a.length; i++) {
+        const actual = [i];
+        for (let j = 1; j <= b.length; j++) actual[j] = Math.min(anterior[j] + 1, actual[j - 1] + 1, anterior[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        anterior = actual;
+    }
+
+    return anterior[b.length];
+}
+
+// Que pidio la persona: palabras, numeros sueltos y codigos (numeros pegados: "23 74 72 5" -> 2374725).
+function entenderConsulta(texto) {
+    const crudas = normalizar(texto).split(/[^a-z0-9]+/).filter(Boolean);
+    const codigos = new Set();
+    const consumidos = new Set();
+
+    // Tres o mas grupos de digitos seguidos (23 74 72 5) forman un solo codigo.
+    let racha = [];
+    const cerrar = () => {
+        if (racha.length >= 3 && racha.map(r => r.t).join("").length >= 5) {
+            codigos.add(racha.map(r => r.t).join(""));
+            racha.forEach(r => consumidos.add(r.i));
+        }
+        racha = [];
+    };
+    crudas.forEach((t, i) => { if (/^\d{1,4}$/.test(t)) racha.push({ t, i }); else cerrar(); });
+    cerrar();
+
+    const terminos = crudas.filter((t, i) => !RELLENO.has(t) && !consumidos.has(i));
+
+    // Un numero largo (5 o mas digitos) o una mezcla de letras y numeros (hsg1406) tambien se prueba como codigo.
+    terminos.forEach(t => { if (/^\d{5,}$/.test(t) || (/\d/.test(t) && /[a-z]/.test(t) && t.length >= 4)) codigos.add(t); });
+
+    return { terminos: [...new Set(terminos)], codigos: [...codigos] };
+}
+
+function prepararFila(f) {
+    const nombre = normalizar(f.nombre_proveedor);
+
+    return {
+        fila: f,
+        nombre,
+        palabras: nombre.split(/[^a-z0-9]+/).filter(Boolean),
+        marca: normalizar(f.marca),
+        clave: normalizar(f.clave_proveedor).replace(/[^a-z0-9]+/g, ""),
+        clavePartes: normalizar(f.clave_proveedor).split(/[^a-z0-9]+/).filter(Boolean),
+        codigo: normalizar(f.codigo_proveedor).replace(/[^a-z0-9]+/g, ""),
+        barras: String(f.codigo_barras || "")
+    };
+}
+
+// Cuanto coincide una fila con lo pedido. null = no coincide en nada.
+function puntuar(p, { terminos, codigos }) {
+    let puntos = 0;
+    let porCodigo = false;
+
+    for (const c of codigos) {
+        if (p.barras === c || p.codigo === c || p.clavePartes.includes(c)) { puntos += 200; porCodigo = true; }
+        else if (p.clave.includes(c) || p.codigo.includes(c)) { puntos += 90; porCodigo = true; }
+    }
+
+    let encontrados = 0;
+
+    for (const t of terminos) {
+        // Un numero pide ESE numero ("500" es 500, 500gr o 500ml; no "5000"): el que solo empieza igual cuenta mucho menos.
+        if (/^\d+$/.test(t)) {
+            if (p.palabras.some(w => w === t || (w.startsWith(t) && /^[a-z]{1,3}$/.test(w.slice(t.length))))) { puntos += 14; encontrados++; continue; }
+            if (p.palabras.some(w => w.startsWith(t))) { puntos += 3; encontrados++; continue; }
+        }
+
+        if (p.palabras.some(w => w === t)) { puntos += 14; encontrados++; continue; }
+        if (p.palabras.some(w => w.startsWith(t))) { puntos += 11; encontrados++; continue; }
+        if (p.marca.includes(t)) { puntos += 10; encontrados++; continue; }
+        if (p.nombre.includes(t) || p.clave.includes(t) || p.codigo.includes(t)) { puntos += 7; encontrados++; continue; }
+
+        if (t.length >= 4 && !/^\d+$/.test(t)) {
+            const tolerancia = t.length >= 7 ? 2 : 1;
+            if (p.palabras.some(w => w.length >= 3 && distancia(t, w) <= tolerancia) || (p.marca && distancia(t, p.marca) <= tolerancia)) { puntos += 5; encontrados++; }
+        }
+    }
+
+    if (!porCodigo && encontrados === 0) return null;
+
+    return { puntos, encontrados, completa: porCodigo || encontrados === terminos.length };
+}
+
+const MAXIMO_RESULTADOS = 25;
+const MINIMO_BUENOS = 6;
+
+function buscarEnLista(lista, texto) {
+    const consulta = entenderConsulta(texto);
+
+    if (!consulta.terminos.length && !consulta.codigos.length) return [];
+
+    const buenos = [];
+    const parciales = [];
+
+    for (const p of lista) {
+        const r = puntuar(p, consulta);
+        if (!r) continue;
+        (r.completa ? buenos : parciales).push({ p, ...r });
+    }
+
+    const orden = (a, b) => b.puntos - a.puntos || a.p.nombre.length - b.p.nombre.length;
+    buenos.sort(orden);
+    parciales.sort(orden);
+
+    // Con pocas coincidencias completas se agregan las parciales (las que cumplen al menos la mitad), marcadas aparte.
+    const minimo = Math.max(1, Math.ceil(consulta.terminos.length / 2));
+    const extra = buenos.length >= MINIMO_BUENOS ? [] : parciales.filter(x => x.encontrados >= minimo || x.puntos >= 90);
+
+    return [...buenos.map(x => ({ ...x, tipo: "exacta" })), ...extra.map(x => ({ ...x, tipo: "parcial" }))].slice(0, MAXIMO_RESULTADOS);
+}
+
 function instalar(app, pool, requerirAccesoNegocio) {
     function negocioId(req) {
         const id = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
@@ -62,7 +190,23 @@ function instalar(app, pool, requerirAccesoNegocio) {
         }
     });
 
-    // Busca por clave del fabricante, codigo de Gafi o palabras del nombre.
+    // La lista de Gafi de un negocio son unos miles de filas: se guarda preparada en memoria un minuto (y se borra al guardar un cambio).
+    const cache = new Map();
+
+    async function listaDe(idNegocio) {
+        const guardada = cache.get(idNegocio);
+        if (guardada && Date.now() - guardada.t < 60 * 1000) return guardada.lista;
+
+        const filas = await pool.query(
+            `${SELECT} WHERE cp.negocio_id = $1 AND cat.proveedor ~* $2`,
+            [idNegocio, PATRON_GAFI]
+        );
+        const lista = filas.rows.map(prepararFila);
+        cache.set(idNegocio, { t: Date.now(), lista });
+        return lista;
+    }
+
+    // Busca por clave, codigo, codigo de barras, marca o palabras del nombre; tolera errores y numeros separados.
     app.get("/gafi-captura/buscar", requerirAccesoNegocio, soloAdministrador, async (req, res) => {
         try {
             const texto = String(req.query.q || "").trim();
@@ -72,18 +216,8 @@ function instalar(app, pool, requerirAccesoNegocio) {
                 return;
             }
 
-            const palabras = texto.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
-            const condiciones = palabras.map((_, i) => `(cp.nombre_proveedor ILIKE $${i + 3} OR cp.clave_proveedor ILIKE $${i + 3} OR cp.codigo_proveedor ILIKE $${i + 3} OR cp.marca ILIKE $${i + 3})`).join(" AND ");
-
-            const filas = await pool.query(
-                `${SELECT}
-                 WHERE cp.negocio_id = $1 AND cat.proveedor ~* $2 AND ${condiciones}
-                 ORDER BY (cp.codigo_proveedor = $${palabras.length + 3}) DESC, cp.nombre_proveedor
-                 LIMIT 25`,
-                [negocioId(req), PATRON_GAFI, ...palabras.map(p => `%${p}%`), texto]
-            );
-
-            res.json({ ok: true, productos: filas.rows.map(filaPublica) });
+            const encontrados = buscarEnLista(await listaDe(negocioId(req)), texto);
+            res.json({ ok: true, productos: encontrados.map(x => ({ ...filaPublica(x.p.fila), coincidencia: x.tipo })) });
         } catch (error) {
             responderError(res, error);
         }
@@ -128,6 +262,7 @@ function instalar(app, pool, requerirAccesoNegocio) {
             }
 
             await pool.query(`UPDATE public.catalogo_productos SET codigo_barras = $1, updated_at = NOW() WHERE id = $2 AND negocio_id = $3`, [ean, id, idNegocio]);
+            cache.delete(idNegocio);
 
             res.json({ ok: true, producto: filaPublica({ ...producto.rows[0], codigo_barras: ean }) });
         } catch (error) {
@@ -165,6 +300,7 @@ function instalar(app, pool, requerirAccesoNegocio) {
             }
 
             await pool.query(`UPDATE public.catalogo_productos SET imagen = $1, imagen_tipo = $2, updated_at = NOW() WHERE id = $3 AND negocio_id = $4`, [bytes, TIPOS_FOTO[coincidencia[1]], id, idNegocio]);
+            cache.delete(idNegocio);
 
             // Si ese producto ya esta en inventario y NO tiene foto, se le pone la misma. Nunca se pisa una existente.
             const productoId = producto.rows[0].producto_id;
@@ -204,3 +340,6 @@ function instalar(app, pool, requerirAccesoNegocio) {
 
 module.exports = instalar;
 module.exports.PATRON_GAFI = PATRON_GAFI;
+module.exports.entenderConsulta = entenderConsulta;
+module.exports.buscarEnLista = buscarEnLista;
+module.exports.prepararFila = prepararFila;

@@ -166,22 +166,32 @@
         return `<button type="button" class="gaf-fila-resultado" data-elegir="${p.id}"><span><b>${esc(p.nombre)}</b><small>${esc(p.marca)}${p.clave ? ` · ${esc(p.clave)}` : ""}</small></span><span class="gaf-marcas"><i class="${p.codigoBarras ? "gaf-listo" : ""}">${p.codigoBarras ? "✓ código" : "sin código"}</i><i class="${p.tieneFoto ? "gaf-listo" : ""}">${p.tieneFoto ? "✓ foto" : "sin foto"}</i></span></button>`;
     }
 
+    // Las que no coinciden en todo lo escrito salen aparte, con su aviso.
+    function listaHtml() {
+        let hayParcial = false;
+
+        return resultados.map(p => {
+            const aviso = p.coincidencia === "parcial" && !hayParcial ? ((hayParcial = true), `<p class="gaf-parcial">Parecidos: no coinciden en todo lo que escribiste</p>`) : "";
+            return aviso + filaResultado(p);
+        }).join("");
+    }
+
     function pintar(soloResultados = false) {
         const raiz = pantalla();
         if (!raiz) return;
 
         if (soloResultados && document.getElementById("gafResultados")) {
-            document.getElementById("gafResultados").innerHTML = resultados.length ? resultados.map(filaResultado).join("") : (consulta.length >= 2 ? `<p class="gaf-vacio">No hay productos de Gafi con eso.</p>` : "");
+            document.getElementById("gafResultados").innerHTML = resultados.length ? listaHtml() : (consulta.length >= 2 ? `<p class="gaf-vacio">No hay productos de Gafi con eso.</p>` : "");
             enlazarResultados(raiz);
             return;
         }
 
         raiz.innerHTML = `<div class="gaf-shell">
-            <header><h2>Gafi: códigos y fotos</h2><p>Busca un producto de la lista de Gafi, escanea el código de barras de su empaque y tómale su foto. Así se va completando el catálogo, y escanear ese empaque ya lo reconoce.</p>
+            <header><h2>Gafi: códigos y fotos</h2><p>Busca un producto de la lista de Gafi, escanea el código de barras de su empaque y tómale su foto. Escribe como veas: marca, medida o el código del empaque (si dice “IDH 23 74 72 5”, escríbelo igual). Aunque te equivoques de letra, lo encuentra.</p>
             ${resumen ? `<div class="gaf-avance"><span><b>${resumen.con_barras}</b> con código</span><span><b>${resumen.con_foto}</b> con foto</span><span>de <b>${resumen.total}</b> productos</span></div>` : ""}</header>
-            ${elegido ? tarjetaCaptura() : `<div class="gaf-busqueda"><input id="gafBuscar" type="search" autocomplete="off" placeholder="Clave, código o nombre (ej. HSG1406, engrapadora)" value="${esc(consulta)}"></div>
+            ${elegido ? tarjetaCaptura() : `<div class="gaf-busqueda"><input id="gafBuscar" type="search" autocomplete="off" placeholder="Marca, medida, nombre o código (ej. resistol 500, HSG1406)" value="${esc(consulta)}"></div>
             ${mensaje ? `<p class="gaf-mensaje gaf-${mensaje.tipo}" role="status">${esc(mensaje.texto)}</p>` : ""}
-            <div id="gafResultados" class="gaf-resultados">${resultados.map(filaResultado).join("")}</div>`}
+            <div id="gafResultados" class="gaf-resultados">${listaHtml()}</div>`}
         </div>`;
 
         enlazar(raiz);
