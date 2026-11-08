@@ -9,6 +9,7 @@ const AdmZip = require("adm-zip");
 const sharp = require("sharp");
 const { config, validarConfigProduccion } = require("./config");
 const pool = require("./db");
+const { categoriasNexoDelNegocio } = require("./categorias-nexo-db");
 const {
     DEFAULT_NEGOCIO_SLUG,
     DEFAULT_NEGOCIO_NOMBRE,
@@ -6634,7 +6635,6 @@ async function resolverCategoriaNexo(categoriaNexoId) {
 // respuesta se filtra a los giros activos del negocio. Sin esto, en
 // cuanto existieran filas de abarrotes/papeleria, un negocio ferretero
 // las veria mezcladas en su selector.
-const cacheCategoriasNexoPorGiros = new Map();
 app.get("/categorias-nexo", requerirAccesoNegocio, async (req, res) => {
     try {
         const negocio = await negocioActual(req);
@@ -6643,27 +6643,18 @@ app.get("/categorias-nexo", requerirAccesoNegocio, async (req, res) => {
             [negocio.id]
         );
         const girosActivos = filasGiro.rows.length ? filasGiro.rows.map(fila => fila.giro) : ["ferreteria"];
-        const claveCache = girosActivos.join(",");
 
-        if (!cacheCategoriasNexoPorGiros.has(claveCache)) {
-            const filas = await pool.query(
-                `SELECT id, departamento, nombre FROM public.categorias_nexo WHERE giro = ANY($1::text[]) ORDER BY orden, departamento, nombre`,
-                [girosActivos]
-            );
-            const porDepartamento = new Map();
-            for (const fila of filas.rows) {
-                if (!porDepartamento.has(fila.departamento)) porDepartamento.set(fila.departamento, []);
-                porDepartamento.get(fila.departamento).push({ id: fila.id, nombre: fila.nombre });
-            }
-            cacheCategoriasNexoPorGiros.set(
-                claveCache,
-                Array.from(porDepartamento.entries()).map(([departamento, subcategorias]) => ({ departamento, subcategorias }))
-            );
+        // Ferreteria usa el arbol de 3 niveles (categoria = nivel de en medio); ver categorias-nexo-db.js.
+        const filas = await categoriasNexoDelNegocio(pool, girosActivos, negocio.id);
+        const porDepartamento = new Map();
+        for (const fila of filas) {
+            if (!porDepartamento.has(fila.departamento)) porDepartamento.set(fila.departamento, []);
+            porDepartamento.get(fila.departamento).push({ id: fila.id, nombre: fila.nombre, categoria: fila.categoria || "" });
         }
 
         res.json({
             ok: true,
-            departamentos: cacheCategoriasNexoPorGiros.get(claveCache),
+            departamentos: Array.from(porDepartamento.entries()).map(([departamento, subcategorias]) => ({ departamento, subcategorias })),
             girosActivos
         });
     } catch (error) {

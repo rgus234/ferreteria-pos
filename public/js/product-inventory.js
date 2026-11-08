@@ -2252,11 +2252,17 @@ function alCambiarDepartamentoCategoriaNexo() {
  const subcategorias =
   grupo?.subcategorias || [];
 
+ // Ferreteria trae un nivel de en medio (categoria): se muestra como grupo dentro de la lista.
+ const opcion = s => `<option value="${s.id}">${escaparPOS(s.nombre)}</option>`;
+ const categoriasMedio = [...new Set(subcategorias.map(s => s.categoria || ""))];
+
  selectSub.innerHTML =
   '<option value="">Subcategoria...</option>' +
-  subcategorias
-   .map(s => `<option value="${s.id}">${escaparPOS(s.nombre)}</option>`)
-   .join("");
+  (categoriasMedio.length === 1 && !categoriasMedio[0]
+   ? subcategorias.map(opcion).join("")
+   : categoriasMedio.map(categoria =>
+     `<optgroup label="${escaparPOS(categoria || "Otras")}">${subcategorias.filter(s => (s.categoria || "") === categoria).map(opcion).join("")}</optgroup>`
+    ).join(""));
 
  selectSub.disabled = subcategorias.length === 0;
 

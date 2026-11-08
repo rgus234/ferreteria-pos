@@ -1,10 +1,12 @@
 // Siembra (o actualiza) el catalogo canonico de categorias de Nexo en la
 // tabla categorias_nexo desde categorias-nexo.js -- ahora un arbol por
-// giro (Fase 2 del plan "Catalogo Maestro Nexo"). Idempotente -- correrlo
+// giro (Fase 2 del plan "Catalogo Maestro Nexo") -- y el arbol de 3 niveles
+// de ferreteria (categorias-ferreteria.js, giro "ferreteria_v2"). Idempotente -- correrlo
 // de nuevo tras agregar filas a CATEGORIAS_POR_GIRO es seguro (ON CONFLICT).
 // Uso: node --env-file=.env scripts/sembrar-categorias-nexo.js
 const pool = require("../db");
 const { CATEGORIAS_POR_GIRO } = require("../categorias-nexo");
+const { ARBOL, GIRO_ARBOL } = require("../categorias-ferreteria");
 
 (async () => {
     let insertadas = 0;
@@ -21,6 +23,19 @@ const { CATEGORIAS_POR_GIRO } = require("../categorias-nexo");
             if (resultado.rows.length > 0) insertadas++;
         }
     }
+
+    for (let i = 0; i < ARBOL.length; i++) {
+        const { departamento, categoria, nombre } = ARBOL[i];
+        const resultado = await pool.query(
+            `INSERT INTO public.categorias_nexo (giro, departamento, categoria, nombre, orden)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (giro, departamento, nombre) DO UPDATE SET categoria = EXCLUDED.categoria, orden = EXCLUDED.orden
+             RETURNING (xmax = 0) AS nueva`,
+            [GIRO_ARBOL, departamento, categoria, nombre, i]
+        );
+        if (resultado.rows[0]?.nueva) insertadas++;
+    }
+
     const total = await pool.query("SELECT giro, COUNT(*)::int AS total FROM public.categorias_nexo GROUP BY giro ORDER BY giro");
     console.log(`Insertadas ${insertadas} categorias nuevas.`);
     console.log("Total por giro:", total.rows);

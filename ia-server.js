@@ -1,5 +1,7 @@
 const sharp = require("sharp");
 const { config } = require("./config");
+const { categoriasNexoDelNegocio } = require("./categorias-nexo-db");
+const { clasificar: clasificarFerreteria, GIRO_ARBOL: GIRO_ARBOL_FERRETERIA } = require("./categorias-ferreteria");
 const { responderError } = require("./error-utils");
 const { calcularAntiguedadCredito } = require("./credit-aging");
 
@@ -486,32 +488,18 @@ function limpiarCacheCategoriaNexoExpirado() {
 // GET /categorias-nexo (server.js) -- muchos negocios comparten el
 // mismo giro 'ferreteria', no hace falta repetir la consulta ni
 // reconstruir el texto por negocio.
-const cachePromptCategoriaNexoPorGiros = new Map();
-
-async function promptYListaCategoriaNexo(pool, girosActivos) {
-    const clave = [...girosActivos].sort().join(",") || "ferreteria";
-
-    if (cachePromptCategoriaNexoPorGiros.has(clave)) {
-        return cachePromptCategoriaNexoPorGiros.get(clave);
-    }
-
-    const filas = await pool.query(
-        `SELECT id, departamento, nombre FROM public.categorias_nexo WHERE giro = ANY($1::text[]) ORDER BY orden, departamento, nombre`,
-        [girosActivos.length ? girosActivos : ["ferreteria"]]
-    );
-
-    const lista = filas.rows;
-    const listaTexto = lista.map((c, i) => `${i}. ${c.departamento} > ${c.nombre}`).join("\n");
+// La lista depende del negocio solo por sus categorias anteriores en uso (ver categorias-nexo-db.js).
+async function promptYListaCategoriaNexo(pool, girosActivos, negocioId) {
+    const lista = await categoriasNexoDelNegocio(pool, girosActivos, negocioId);
+    const listaTexto = lista.map((c, i) => `${i}. ${c.departamento} > ${c.categoria ? c.categoria + " > " : ""}${c.nombre}`).join("\n");
     const prompt = `Ayudas a clasificar productos dentro del catalogo de categorias de Nexo.
 
-Estas son las unicas categorias validas (indice. departamento > subcategoria):
+Estas son las unicas categorias validas (indice. departamento > categoria > subcategoria):
 ${listaTexto}
 
 Se te da el nombre de un producto (y a veces su marca). Responde UNICAMENTE con un JSON (objeto plano, sin texto extra) de la forma {"indice": N} donde N es el indice de la categoria de la lista que mejor corresponde. Si de verdad ninguna categoria corresponde razonablemente, responde {"indice": null}. Nunca inventes una categoria que no este en la lista.`;
 
-    const resultado = { lista, prompt };
-    cachePromptCategoriaNexoPorGiros.set(clave, resultado);
-    return resultado;
+    return { lista, prompt };
 }
 
 // Limites de Nexo IA Nivel 3 (el unico nivel con costo real) por
@@ -1267,13 +1255,28 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
                 return;
             }
 
-            const { lista: listaCategoriasNexo, prompt: promptCategoriaNexo } = await promptYListaCategoriaNexo(pool, girosActivos);
+            const { lista: listaCategoriasNexo, prompt: promptCategoriaNexo } = await promptYListaCategoriaNexo(pool, girosActivos, negocio.id);
 
             if (listaCategoriasNexo.length === 0) {
                 // Giro(s) sin arbol curado todavia -- nada contra que
                 // clasificar, mismo criterio que "sin acceso" del lado
                 // del cliente (el boton simplemente no aparece).
                 res.json({ ok: true, disponible: false });
+                return;
+            }
+
+            // Primero las reglas de nombre del arbol de ferreteria: gratis, siempre igual y sin gastar un uso de IA.
+            // Si ninguna aplica (o el giro no es ferreteria) sigue la IA, limitada a la misma lista.
+            const reglaFerreteria = girosActivos.includes("ferreteria") ? clasificarFerreteria(nombreProducto) : null;
+            const filaPorRegla = reglaFerreteria
+                ? listaCategoriasNexo.find(c => c.giro === GIRO_ARBOL_FERRETERIA && c.departamento === reglaFerreteria.dep && c.categoria === reglaFerreteria.cat && c.nombre === reglaFerreteria.sub)
+                : null;
+
+            if (filaPorRegla) {
+                const porRegla = { categoriaNexoId: filaPorRegla.id, departamento: filaPorRegla.departamento, categoria: filaPorRegla.categoria, nombre: filaPorRegla.nombre };
+                limpiarCacheCategoriaNexoExpirado();
+                CACHE_CATEGORIA_NEXO.set(clave, { resultado: porRegla, expiraEn: Date.now() + CACHE_BUSQUEDA_TTL_MS });
+                res.json({ ok: true, disponible: true, ...porRegla });
                 return;
             }
 
@@ -1313,7 +1316,7 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
             // ambiguar si dos giros distintos compartieran el mismo
             // nombre de departamento/subcategoria.
             const resultado = filaCategoria
-                ? { categoriaNexoId: filaCategoria.id, departamento: filaCategoria.departamento, nombre: filaCategoria.nombre }
+                ? { categoriaNexoId: filaCategoria.id, departamento: filaCategoria.departamento, categoria: filaCategoria.categoria || "", nombre: filaCategoria.nombre }
                 : { categoriaNexoId: null, departamento: null, nombre: null };
 
             limpiarCacheCategoriaNexoExpirado();
