@@ -232,7 +232,8 @@ function ordenarSidebarPOS() {
 function profesionalizarSidebarPOS() {
  asegurarBotonSidebarPOS("catalogo", "Catalogo proveedor", () => mostrarCatalogo());
  deduplicarSidebarPOS();
- document.querySelectorAll(".sidebar button:not(.ms-item)").forEach(boton => {
+ // El boton de sincronizacion del pie del menu NO es un modulo: reescribirle el contenido lo dejaba como boton generico (icono + texto pegado y cortado) y dejaba de actualizarse.
+ document.querySelectorAll(".sidebar button:not(.ms-item):not(.sync-desktop-chip)").forEach(boton => {
   const datos = datosSidebarPOS(boton);
   boton.dataset.modulo = datos.modulo;
   boton.dataset.shellModule = datos.modulo;
