@@ -733,3 +733,19 @@ body.oscuro .nexo-menu-panel .nexo-menu-danger {
     border-radius: 16px !important;
   }
 }
+
+/* Pantallas angostas (monitores de 1280 o menos): el titulo se recorta con puntos suspensivos en vez de amontonarse, y el aviso de sincronizacion cabe en el menu. */
+.topbar-title-block { flex: 1 1 auto; min-width: 230px; }
+.topbar-actions { flex: 0 1 auto; }
+@media (max-width: 1280px) {
+  .topbar-pos { gap: 12px; padding: 10px 14px; }
+  .topbar-actions { gap: 6px; }
+  .topbar-user-text { display: none; }
+  .topbar-icon-btn { width: 38px !important; min-width: 38px; height: 38px; }
+}
+.topbar-eyebrow,
+.topbar-title-block strong,
+.topbar-title-block small { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.sidebar-footer .sync-chip-inner { grid-template-columns: auto minmax(0, 1fr); max-width: 100%; }
+.sidebar-footer .sync-chip-inner small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.25; }

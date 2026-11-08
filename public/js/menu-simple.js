@@ -43,7 +43,7 @@
                 { tam: "g", cards: [
                     { modulo: "recepcion-inteligente", icono: "truck", titulo: "Recibir mercancía", texto: "Con la factura de tu proveedor" },
                     { modulo: "recibir-marca", icono: "arrowDownBox", titulo: () => (typeof perfilEsSimple === "function" && perfilEsSimple() ? "Recibir mercancía" : "Recibir sin factura"), texto: () => (typeof perfilEsSimple === "function" && perfilEsSimple() ? "Elige la marca y anota cuánto llegó" : "Escaneando lo que llegó") },
-                    { modulo: "recepcion", icono: "receipt", titulo: "Recepciones anteriores", texto: "Lo que ya recibiste y cuándo" }
+                    { modulo: "recepcion-inteligente", accion: "abrirHistorialRecepciones", icono: "receipt", titulo: "Recepciones anteriores", texto: "Lo que ya recibiste y cuándo" }
                 ] }
             ]
         },
@@ -212,7 +212,7 @@
         const visibles = HUBS.filter(h => h.directo ? disponible(original(h.directo)) : totalTarjetas(h) > 0);
         const huella = visibles.map(h => h.id + ":" + valorDe(h.etiqueta)).join("|");
 
-        if (nav.dataset.huella !== huella) {
+        if (nav.dataset.huella !== huella || nav.children.length !== visibles.length) {
             nav.dataset.huella = huella;
             nav.innerHTML = visibles.map(h => `<button type="button" class="ms-item" data-hub="${h.id}">${icono(h.icono)}<span>${esc(valorDe(h.etiqueta))}</span></button>`).join("");
         }
@@ -333,7 +333,8 @@
             await salidaAnimada(pantalla);
             pantalla.dataset.saliendo = "";
             t.classList.remove("ms-pulsada");
-            c.boton.click();
+            // algunas tarjetas abren directo una vista (ej. el historial) en lugar de la pantalla de su boton
+            if (c.accion && typeof window[c.accion] === "function") window[c.accion](); else c.boton.click();
         };
 
         if (typeof actualizarTopbarContexto === "function") actualizarTopbarContexto(titulo, hub.subtitulo, "hub-" + hub.id);

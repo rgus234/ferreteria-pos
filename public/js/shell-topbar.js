@@ -195,7 +195,7 @@ function ordenarSidebarPOS() {
  Object.values(GRUPOS_SIDEBAR_POS).forEach(grupo => {
   const contenedor = document.getElementById(grupo.contenedor);
   if (!contenedor) return;
-  const candidatos = Array.from(sidebar.querySelectorAll("button:not(.sidebar-grupo-toggle)"))
+  const candidatos = Array.from(sidebar.querySelectorAll("button:not(.sidebar-grupo-toggle):not(.ms-item)"))
    .filter(boton => grupo.modulos.includes(datosSidebarPOS(boton).modulo));
   candidatos
    .sort((a, b) => grupo.modulos.indexOf(datosSidebarPOS(a).modulo) - grupo.modulos.indexOf(datosSidebarPOS(b).modulo))
