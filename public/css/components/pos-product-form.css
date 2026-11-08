@@ -496,6 +496,20 @@
   gap: 6px !important;
  }
 
+ /* Lo oculto sigue oculto: el display:grid !important de .campo-ficha le ganaba a [hidden] (alcohol, envase, funciones
+    nuevas apagadas) y a las reglas por tipo de negocio (vida util, Frutas y verduras). */
+ #modalAgregar [hidden] {
+  display: none !important;
+ }
+
+ body:not(.perfil-con-abarrotes) #modalAgregar .campo-ficha.campo-vida-util {
+  display: none !important;
+ }
+
+ body:not(.perfil-simple):not(.perfil-con-abarrotes) #modalAgregar .tipo-producto-card.solo-perfil-simple {
+  display: none !important;
+ }
+
  #modalAgregar .campo-ficha span {
   color: var(--nexo-text-muted) !important;
   font-size: 12px !important;
