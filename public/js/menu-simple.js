@@ -1,9 +1,9 @@
-/* Menu simplificado (computadora): en lugar de ~40 entradas sueltas, un menu corto y, al elegir un grupo, una pantalla con tarjetas grandes.
-   Es una funcion nueva: solo existe si el dueño la enciende en Nexo -> Funciones nuevas ("Menu simplificado"). Apagada no cambia nada.
+/* Menu de Nexo (computadora): en lugar de ~40 entradas sueltas, un menu corto y, al elegir un grupo, una pantalla con tarjetas.
+   Es EL menu de Nexo (ya no se enciende ni se apaga). Reglas: dos niveles (modulo -> opcion), pocas opciones por modulo con su frase
+   de explicacion, lo demas en "Mas herramientas" (plegado) y el orden sigue el uso real.
    No quita ni mueve ninguna pantalla: cada tarjeta le da clic al boton de siempre del menu, asi que permisos, perfil de abarrotes y
    funciones beta se respetan solos (si el boton original no le corresponde al usuario, la tarjeta no aparece). */
 (function () {
-    const LLAVE_GUARDADA = "nexoMenuSimple";
 
     // Cada tarjeta apunta al boton de siempre por su modulo (data-shell-module). "tam": g = grande, m = mediana, c = compacta.
     const HUBS = [
@@ -11,7 +11,7 @@
         { id: "venta", etiqueta: "Vender", icono: "cart", directo: "venta" },
         { id: "recargas", etiqueta: "Recargas", icono: "phone", directo: "recargas" },
         {
-            id: "productos", etiqueta: "Productos", icono: "inventory", titulo: "Productos", subtitulo: "Todo lo que vendes",
+            id: "productos", etiqueta: "Inventario", icono: "inventory", titulo: "Inventario", subtitulo: "Lo que vendes y lo que tienes",
             grupos: [
                 { tam: "g", cards: [
                     { modulo: "inventario", icono: "inventory", titulo: "Mis productos", texto: "Buscar y editar: precio, foto, caducidad" },
@@ -24,33 +24,36 @@
                     { modulo: "por-vencer", icono: "clock", etiquetaOriginal: true, texto: "Lo que caduca pronto" },
                     { modulo: "pedido-sugerido", icono: "truck", titulo: "Qué pedir", texto: "Lo que conviene pedir a cada proveedor" }
                 ] },
-                { titulo: "Orden y herramientas", tam: "c", cards: [
-                    { modulo: "categorias", icono: "layers", titulo: "Categorías" },
-                    { modulo: "listas-producto", icono: "clipboard", titulo: "Listas de productos" },
-                    { modulo: "exhibidores", icono: "grid", titulo: "Exhibidores" },
-                    { modulo: "armar-productos", icono: "inventory", titulo: "Armar productos" },
-                    { modulo: "mapa-tienda", icono: "building", titulo: "Mapa de la tienda" },
-                    { modulo: "fotos-sugeridas", icono: "eye", titulo: "Fotos sugeridas" },
-                    { modulo: "codigos-barras", icono: "printer", titulo: "Códigos de barras" },
-                    { modulo: "explorar-nexo", icono: "search", titulo: "Explorar Nexo" }
+                { titulo: "Más herramientas", tam: "c", plegable: true, cards: [
+                    { modulo: "categorias", icono: "layers", titulo: "Categorías", texto: "Ordena tus productos por tipo" },
+                    { modulo: "ajustes", icono: "swap", titulo: "Ajustes de inventario", texto: "Corrige existencias y mermas" },
+                    { modulo: "listas-producto", icono: "clipboard", titulo: "Listas de productos", texto: "Grupos para vender o pedir" },
+                    { modulo: "exhibidores", icono: "grid", titulo: "Exhibidores", texto: "Muebles y displays con su producto" },
+                    { modulo: "armar-productos", icono: "inventory", titulo: "Armar productos", texto: "Del granel a bolsitas o porciones" },
+                    { modulo: "mapa-tienda", icono: "building", titulo: "Mapa de la tienda", texto: "Dónde está cada producto" },
+                    { modulo: "fotos-sugeridas", icono: "eye", titulo: "Fotos sugeridas", texto: "Ponle foto a lo que no tiene" },
+                    { modulo: "codigos-barras", icono: "printer", titulo: "Códigos de barras", texto: "Crea e imprime etiquetas" },
+                    { modulo: "explorar-nexo", icono: "search", titulo: "Explorar Nexo", texto: "Catálogo de productos conocidos" }
                 ] }
             ]
         },
         {
-            id: "compras", etiqueta: "Compras", icono: "truck", titulo: "Compras", subtitulo: "Lo que te llega y a quién se lo compras",
+            id: "compras", etiqueta: "Compras", icono: "truck", titulo: "Compras", subtitulo: "Lo que te llega",
             grupos: [
                 { tam: "g", cards: [
                     { modulo: "recepcion-inteligente", icono: "truck", titulo: "Recibir mercancía", texto: "Con la factura de tu proveedor" },
-                    { modulo: "recibir-marca", icono: "arrowDownBox", titulo: () => (typeof perfilEsSimple === "function" && perfilEsSimple() ? "Recibir mercancía" : "Recibir sin factura"), texto: () => (typeof perfilEsSimple === "function" && perfilEsSimple() ? "Elige la marca y anota cuánto llegó" : "Escaneando lo que llegó") }
-                ] },
-                { titulo: "Proveedores", tam: "m", cards: [
+                    { modulo: "recibir-marca", icono: "arrowDownBox", titulo: () => (typeof perfilEsSimple === "function" && perfilEsSimple() ? "Recibir mercancía" : "Recibir sin factura"), texto: () => (typeof perfilEsSimple === "function" && perfilEsSimple() ? "Elige la marca y anota cuánto llegó" : "Escaneando lo que llegó") },
+                    { modulo: "recepcion", icono: "receipt", titulo: "Recepciones anteriores", texto: "Lo que ya recibiste y cuándo" }
+                ] }
+            ]
+        },
+        {
+            id: "proveedores", etiqueta: "Proveedores", icono: "users", titulo: "Proveedores", subtitulo: "A quién le compras",
+            grupos: [
+                { tam: "g", cards: [
                     { modulo: "proveedores", icono: "users", titulo: "Mis proveedores", texto: "Datos y días de visita" },
                     { modulo: "catalogo", icono: "file", titulo: "Catálogo de proveedor", texto: "Sus productos y precios" },
                     { modulo: "pedidos", icono: "clipboard", titulo: "Pedidos a proveedor", texto: "Los que armaste y enviaste" }
-                ] },
-                { titulo: "Historial", tam: "c", cards: [
-                    { modulo: "recepcion", icono: "receipt", titulo: "Recepciones anteriores" },
-                    { modulo: "ajustes", icono: "swap", titulo: "Ajustes de inventario" }
                 ] }
             ]
         },
@@ -94,17 +97,19 @@
             grupos: [
                 { tam: "g", cards: [
                     { modulo: "mi-equipo", icono: "users", titulo: "Mi equipo", texto: "Personas, tareas y avisos" },
-                    { modulo: "practica", icono: "sparkle", titulo: "Practicar con Nexo", texto: "Aprende cobrando con productos de ejemplo" },
                     { modulo: "configuracion", icono: "settings", titulo: "Mi negocio", texto: "Datos, ticket, precios y equipo" },
                     { modulo: "cuenta", icono: "wallet", titulo: "Mi cuenta", texto: "Plan, pagos y contraseña" },
-                    { modulo: "dueno", icono: "cast", titulo: "App del dueño", texto: "Enlaza tu celular con un QR" },
+                    { modulo: "dueno", icono: "cast", titulo: "App del dueño", texto: "Enlaza tu celular con un QR" }
+                ] },
+                { titulo: "Más herramientas", tam: "c", plegable: true, cards: [
+                    { modulo: "practica", icono: "sparkle", titulo: "Practicar con Nexo", texto: "Aprende cobrando con productos de ejemplo" },
                     { modulo: "funciones-beta", icono: "zap", titulo: "Funciones nuevas", texto: "Pruébalas antes que nadie" }
                 ] }
             ]
         }
     ];
 
-    const estado = { hubActual: null };
+    const estado = { hubActual: null, masAbierto: {} };
     let direccion = "adelante";
 
     const sinMovimiento = () => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -291,16 +296,31 @@
         pantalla.style.display = "block";
         pantalla.innerHTML = `<div class="ms-hub">
             <header class="ms-hub-cab"><span class="ms-cab-icono">${icono(hub.icono)}</span><div><h2>${esc(titulo)}</h2><p>${esc(hub.subtitulo)}</p></div></header>
-            ${grupos.map((g, gi) => `<section class="ms-grupo">${g.titulo ? `<h3>${esc(g.titulo)}</h3>` : ""}
-                <div class="ms-tarjetas ms-${g.tam || "m"}">${g.cards.map((c, ci) => {
+            ${grupos.map((g, gi) => {
+                const abierto = !g.plegable || estado.masAbierto[hub.id] === true;
+                const cabecera = g.plegable
+                    ? `<button type="button" class="ms-mas" data-mas="${gi}" aria-expanded="${abierto}"><span>${esc(g.titulo)}</span><i aria-hidden="true">${abierto ? "▴" : "▾"}</i><em>${g.cards.length}</em></button>`
+                    : (g.titulo ? `<h3>${esc(g.titulo)}</h3>` : "");
+                return `<section class="ms-grupo${g.plegable ? " ms-plegable" : ""}">${cabecera}
+                <div class="ms-tarjetas ms-${g.tam || "m"}"${abierto ? "" : " hidden"}>${g.cards.map((c, ci) => {
                     const nombre = c.etiquetaOriginal ? String(c.boton.textContent || "").replace(/\s+/g, " ").trim() : valorDe(c.titulo);
                     return `<button type="button" class="ms-tarjeta" data-g="${gi}" data-c="${ci}">
                         <span class="ms-icono">${icono(c.icono)}</span>
                         <span class="ms-texto"><b>${esc(nombre)}</b>${valorDe(c.texto) ? `<small>${esc(valorDe(c.texto))}</small>` : ""}</span>
                         <span class="ms-flecha" aria-hidden="true">›</span></button>`;
-                }).join("")}</div></section>`).join("")}</div>`;
+                }).join("")}</div></section>`;
+            }).join("")}</div>`;
 
         pantalla.onclick = async evento => {
+            const mas = evento.target.closest(".ms-mas");
+            if (mas) {
+                estado.masAbierto[hub.id] = !(estado.masAbierto[hub.id] === true);
+                const posicion = pantalla.scrollTop;
+                abrirHub(hub.id);
+                pantalla.scrollTop = posicion;
+                return;
+            }
+
             const t = evento.target.closest(".ms-tarjeta");
             if (!t || pantalla.dataset.saliendo === "1") return;
             const c = grupos[Number(t.dataset.g)].cards[Number(t.dataset.c)];
@@ -326,20 +346,10 @@
     // ---------- encendido ----------
 
     let temporizador = null;
-    function programar() { clearTimeout(temporizador); temporizador = setTimeout(() => { if (activo()) pintarMenu(); }, 90); }
+    function programar() { clearTimeout(temporizador); temporizador = setTimeout(pintarMenu, 90); }
 
-    function encender(si) {
-        document.body.classList.toggle("menu-simple", si);
-        try { localStorage.setItem(LLAVE_GUARDADA, si ? "1" : "0"); } catch (error) { /* sin almacenamiento */ }
-
-        if (si) pintarMenu();
-        else document.querySelector(".ms-nav")?.remove();
-    }
-
-    // Apenas abre la pagina se usa lo ultimo que se sabia (para que no parpadee el menu); luego manda lo que diga el servidor.
-    try { if (localStorage.getItem(LLAVE_GUARDADA) === "1") document.body.classList.add("menu-simple"); } catch (error) { /* sin almacenamiento */ }
-
-    document.addEventListener("nexo-funciones-beta", evento => encender(Boolean(evento.detail && evento.detail.menu_simplificado)));
+    // Es el menu de Nexo: siempre activo.
+    document.body.classList.add("menu-simple");
 
     // el menu cambia solo (permisos al entrar, funciones nuevas, perfil de abarrotes, pantalla activa): se vuelve a pintar con calma
     const lateral = document.querySelector(".sidebar");
@@ -352,17 +362,12 @@
         const ahora = document.body.classList.contains("perfil-ver-todo");
         if (ahora === verTodoAntes) return;
         verTodoAntes = ahora;
-        if (!activo()) return;
         pintarMenu();
         const pantalla = document.getElementById("pantallaHubMenu");
         if (pantalla && pantalla.style.display !== "none" && estado.hubActual) abrirHub(estado.hubActual);
     }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
 
-    // al apagar la funcion no debe quedar la flecha
-    document.addEventListener("nexo-funciones-beta", () => { if (!activo()) { const b = document.getElementById("msVolver"); if (b) b.hidden = true; } });
-
-    if (typeof window.funcionBeta === "function" && window.funcionBeta("menu_simplificado")) encender(true);
-
+    document.addEventListener("nexo-funciones-beta", programar);
     document.addEventListener("DOMContentLoaded", () => { programar(); vigilarPantallas(); });
     setTimeout(vigilarPantallas, 0);
     window.addEventListener("load", programar);

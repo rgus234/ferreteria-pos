@@ -158,7 +158,7 @@ test("pantallas: Mi equipo en la computadora (Inicio, menu, asistente) y tareas 
     const html = leer("index.html");
 
     assert.match(html, /<section id="pantallaMiEquipo"/);
-    assert.match(html, /data-shell-module="mi-equipo" data-beta="menu_simplificado" onclick="mostrarMiEquipo\(\)"/);
+    assert.match(html, /data-shell-module="mi-equipo" onclick="mostrarMiEquipo\(\)"/);
     assert.match(html, /js\/mi-equipo-view\.js/);
     assert.match(leer("js/config-auth.js"), /"pantallaMiEquipo"/);
     assert.match(leer("js/menu-simple.js"), /modulo: "mi-equipo"/);

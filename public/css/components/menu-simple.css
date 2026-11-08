@@ -1,4 +1,4 @@
-/* Menu simplificado (funcion nueva, apagada por defecto). Solo actua con body.menu-simple. */
+/* Menu de Nexo (siempre activo: body.menu-simple). */
 
 /* el menu corto reemplaza al largo: los botones de siempre siguen existiendo (las tarjetas les dan clic), solo no se ven */
 body.menu-simple .sidebar > :not(#marcaSidebar):not(.ms-nav):not(#perfilMasHerramientas):not(#sidebarFooterPOS) { display: none !important; }
@@ -188,3 +188,11 @@ body.menu-simple .ms-volver:not([hidden]) { display: block; position: static; ma
     body.menu-simple .ms-item { transition: background-color .18s ease, transform .12s ease; }
     body.menu-simple .ms-item:active { transform: scale(.97); }
 }
+
+/* "Mas herramientas": grupo plegado con su numero de opciones */
+.ms-mas { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; padding: 8px 14px; border-radius: 12px; border: 1px dashed color-mix(in srgb, var(--ms-marca, #2563eb) 40%, transparent) !important; background: transparent !important; color: var(--ms-texto, #1e293b) !important; font-size: 14px; font-weight: 700; cursor: pointer; }
+.ms-mas:hover { background: color-mix(in srgb, var(--ms-marca, #2563eb) 8%, transparent) !important; }
+.ms-mas i { font-style: normal; font-size: 12px; opacity: .7; }
+.ms-mas em { font-style: normal; font-size: 12px; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--ms-marca, #2563eb) 14%, transparent); }
+.ms-plegable .ms-tarjetas[hidden] { display: none !important; }
+.ms-c .ms-texto small { display: block; margin-top: 1px; font-size: 12px; line-height: 1.25; opacity: .7; }
