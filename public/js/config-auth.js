@@ -4229,3 +4229,24 @@ function inicializarLoginUsuarios() {
 
  document.getElementById("password")?.focus();
 }
+
+// Equipos vinculados antes de que el escritorio guardara su propio token (ej. Ferreteria Olimpico) tenian el token solo en
+// localStorage: la parte de escritorio mandaba su reporte de version y su sincronizacion sin credencial y el servidor contestaba
+// "Este equipo no esta vinculado a ningun negocio". Se le pasa UNA vez; si ya lo tiene no se toca nada.
+async function respaldarVinculoEnEscritorio() {
+ try {
+  const escritorio = window.nexoDesktop;
+  const token = dispositivoTokenActual();
+
+  if (!token || !escritorio || typeof escritorio.getConfig !== "function" || typeof escritorio.saveDeviceLink !== "function") return;
+
+  const configuracion = await escritorio.getConfig();
+  if (configuracion && configuracion.dispositivoToken) return;
+
+  await escritorio.saveDeviceLink({ dispositivoToken: token, negocioSlug: configuracionNegocio()?.negocioSlug || "" });
+ } catch (error) {
+  // se vuelve a intentar en el proximo arranque
+ }
+}
+
+window.addEventListener("load", () => setTimeout(respaldarVinculoEnEscritorio, 4000));

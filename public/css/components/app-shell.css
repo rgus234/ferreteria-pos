@@ -748,4 +748,5 @@ body.oscuro .nexo-menu-panel .nexo-menu-danger {
 .topbar-title-block small { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .sidebar-footer .sync-chip-inner { grid-template-columns: auto minmax(0, 1fr); max-width: 100%; }
-.sidebar-footer .sync-chip-inner small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.25; }
+/* el detalle largo va en el globo (title) del boton: en el menu solo cabe el estado */
+.sidebar-footer .sync-chip-inner small { display: none; }
