@@ -41,7 +41,10 @@ async function deshacer(archivo) {
 }
 
 async function importar(aplicar) {
-    const capturas = (await pool.query("SELECT codigo, nombre FROM public.capturas_codigos ORDER BY id")).rows;
+    // --excluir=cod1,cod2 deja fuera codigos que todavia estan en duda (ej. dos codigos para el mismo producto).
+    const excluir = new Set(((process.argv.find(a => a.startsWith("--excluir=")) || "").slice(10)).split(",").map(c => c.trim()).filter(Boolean));
+    const capturas = (await pool.query("SELECT codigo, nombre FROM public.capturas_codigos ORDER BY id")).rows.filter(c => !excluir.has(c.codigo));
+    if (excluir.size) console.log(`Se dejan fuera ${excluir.size} codigos pendientes.`);
     const existentes = new Map((await pool.query(
         "SELECT codigo, nombre, origen, fuente_identidad, fuente_fecha FROM public.catalogo_maestro_productos WHERE codigo = ANY($1)",
         [capturas.map(c => c.codigo)]
