@@ -393,6 +393,32 @@ async function autollenarDesdeMaestroDueno(codigoCrudo) {
         aviso.textContent = `Nexo lo reconoce: ${producto.nombre}${producto.marca ? ` (${producto.marca})` : ""}. Solo falta tu precio.`;
         aviso.style.display = "block";
     }
+
+    traerFotoDelCatalogoDueno(codigo, estado);
+}
+
+// Si Nexo ya tiene la foto de ese producto (Banco de Nexo), se pone sola como la foto del producto nuevo. Nunca pisa una foto que
+// la persona ya tomo, y si no hay foto o falla algo, el alta sigue igual.
+async function traerFotoDelCatalogoDueno(codigo, estado) {
+    if (!estado || estado.fotoBase64 || !navigator.onLine) return;
+
+    try {
+        const datos = await fetchAutenticado(`/explorar-nexo/foto/${encodeURIComponent(codigo)}`);
+        if (!datos?.url) return;
+
+        const respuesta = await fetch(datos.url);
+        if (!respuesta.ok) return;
+
+        const blob = await respuesta.blob();
+        const imagen = await redimensionarImagenCanvasDueno(new File([blob], "catalogo.jpg", { type: blob.type || "image/jpeg" }), 1024);
+
+        if (duenoProductoForm !== estado || estado.fotoBase64) return;
+        if (document.getElementById("duenoProdCodigo")?.value.trim() !== codigo) return;
+
+        estado.fotoBase64 = imagen;
+        const vista = document.getElementById("duenoProdFotoPreview");
+        if (vista) vista.innerHTML = `<img src="${imagen}" alt="Foto del catálogo de Nexo" style="max-width:100%;max-height:140px;border-radius:12px;">`;
+    } catch (error) { /* sin foto del catalogo: queda como estaba */ }
 }
 
 async function previsualizarFotoNuevoProductoDueno(archivo) {

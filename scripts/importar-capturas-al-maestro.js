@@ -83,6 +83,14 @@ async function importar(aplicar) {
                  ON CONFLICT (codigo) DO NOTHING`,
                 [n.codigo, n.nombre, FUENTE]
             );
+
+            // Sin esta entrada el escaneo (identidadPorCodigo) no encuentra el producto aunque este en el maestro.
+            await client.query(
+                `INSERT INTO public.catalogo_maestro_identificadores (producto_maestro_id, tipo, valor, fuente, fuente_fecha)
+                 SELECT id, 'ean', codigo, $2, NOW() FROM public.catalogo_maestro_productos WHERE codigo = $1
+                 ON CONFLICT (tipo, valor) DO NOTHING`,
+                [n.codigo, FUENTE]
+            );
         }
 
         for (const r of renombrar) {

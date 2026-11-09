@@ -35,6 +35,7 @@
   estilo.textContent = `
    .er-boton{position:relative;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;margin:0 4px;border:0;border-radius:10px;background:rgba(29,95,209,.12);color:#1d5fd1;cursor:pointer;flex:none}
    .er-boton:hover{background:rgba(29,95,209,.22)}
+   #modalAgregar .er-boton-alta{width:auto;height:40px;padding:0 14px;margin:0;gap:8px;font:800 13.5px inherit;font-family:inherit}
    .pos-reference-search{grid-template-columns:36px minmax(0,1fr) auto auto auto !important}
    .er-fondo{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.55)}
    .er-panel{width:min(460px,100%);max-height:92vh;overflow-y:auto;display:grid;gap:14px;padding:22px;border-radius:20px;background:#fff;color:#0f172a;box-shadow:0 30px 60px -20px rgba(0,0,0,.5);font-family:inherit}
@@ -152,6 +153,20 @@
   const recibir = document.getElementById("pantallaRecibirMarca");
   if (recibir && recibir.style.display !== "none" && typeof window.rmEscanear === "function" && !document.querySelector('.modal-overlay[style*="flex"], .modal-personalizado[style*="flex"], .modal-form-credito[style*="flex"]')) {
    window.rmEscanear(codigo);
+   return;
+  }
+
+  // Agregar producto abierto: el codigo va al campo de codigo de barras aunque no este enfocado, y busca en el catalogo igual que al teclearlo.
+  // Si la persona puso el cursor en "Codigo interno" o "Codigos alternos", ahi va.
+  const alta = document.getElementById("modalAgregar");
+  const campoAlta = document.getElementById("nuevoCodigo");
+  const altaAbierta = alta && campoAlta && alta.getClientRects().length > 0 && getComputedStyle(alta).visibility !== "hidden";
+  const focoEnOtroCodigo = document.activeElement && ["nuevoCodigoInterno", "codigosRelacionados"].includes(document.activeElement.id);
+
+  if (altaAbierta && !focoEnOtroCodigo) {
+   campoAlta.value = codigo;
+   campoAlta.dispatchEvent(new Event("input", { bubbles: true }));
+   campoAlta.dispatchEvent(new Event("change", { bubbles: true }));
    return;
   }
 
@@ -385,6 +400,24 @@
   pintarEstado();
  }
 
+ // Boton dentro de Agregar producto: abre el mismo QR y toma el mismo color de estado que el del punto de venta.
+ function insertarBotonAlta() {
+  if (document.getElementById("erBotonAlta")) return;
+
+  const acciones = document.querySelector("#modalAgregar .producto-form-header-acciones");
+  if (!acciones) return;
+
+  const boton = document.createElement("button");
+  boton.id = "erBotonAlta";
+  boton.type = "button";
+  boton.className = "er-boton er-boton-alta";
+  boton.title = "Usar el celular como escáner";
+  boton.innerHTML = ICONO + "<span>Celular como escáner</span>";
+  boton.addEventListener("click", abrirModal);
+  acciones.insertAdjacentElement("afterbegin", boton);
+  pintarEstado();
+ }
+
  window.abrirEscanerRemotoPOS = abrirModal;
 
  // Si la pantalla se recarga con una sesion viva, se retoma sola.
@@ -426,10 +459,11 @@
   enganchar();
   pintarEstado();
   insertarBoton();
+  insertarBotonAlta();
   retomar();
   // El POS se pinta despues en algunos arranques: se reintenta un momento.
   let intentos = 0;
-  const reintento = setInterval(() => { insertarBoton(); asegurarChip(); pintarEstado(); if ((document.getElementById("erBoton") && document.getElementById("erChip")) || ++intentos > 20) clearInterval(reintento); }, 1000);
+  const reintento = setInterval(() => { insertarBoton(); insertarBotonAlta(); asegurarChip(); pintarEstado(); if ((document.getElementById("erBoton") && document.getElementById("erBotonAlta") && document.getElementById("erChip")) || ++intentos > 20) clearInterval(reintento); }, 1000);
   // El "hace X min" se refresca solo.
   setInterval(() => { if (sesion) pintarEstado(); }, 30000);
  }
