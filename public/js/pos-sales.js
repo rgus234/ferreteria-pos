@@ -740,7 +740,7 @@ async function cotizarVentaPOS() {
  const ticket = `
  <div style="width:300px;font-family:monospace;padding:20px;color:black;">
  <div style="text-align:center;margin-bottom:12px;">
- <h2 style="margin:0;font-size:20px;">${escaparPOS(negocio.ticketNombre || negocio.nombre || "Ferreteria")}</h2>
+ <h2 style="margin:0;font-size:20px;">${escaparPOS(negocio.ticketNombre || negocio.nombre || "Mi negocio")}</h2>
  <div style="font-weight:bold;margin-top:6px;">COTIZACION</div>
  <div style="font-size:11px;">No es un comprobante fiscal</div>
  <div>${fecha}</div>

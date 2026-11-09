@@ -1267,7 +1267,8 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
 
             // Primero las reglas de nombre del arbol de ferreteria: gratis, siempre igual y sin gastar un uso de IA.
             // Si ninguna aplica (o el giro no es ferreteria) sigue la IA, limitada a la misma lista.
-            const reglaFerreteria = girosActivos.includes("ferreteria") ? clasificarFerreteria(nombreProducto) : null;
+            // Las reglas son de ferreteria: en un negocio que tambien es de abarrotes confundirian "aceite" o "mango" (de cocina) con refacciones.
+            const reglaFerreteria = girosActivos.includes("ferreteria") && !girosActivos.includes("abarrotes") ? clasificarFerreteria(nombreProducto) : null;
             const filaPorRegla = reglaFerreteria
                 ? listaCategoriasNexo.find(c => c.giro === GIRO_ARBOL_FERRETERIA && c.departamento === reglaFerreteria.dep && c.categoria === reglaFerreteria.cat && c.nombre === reglaFerreteria.sub)
                 : null;

@@ -78,8 +78,8 @@ async function importar(aplicar) {
 
         for (const n of nuevos) {
             await client.query(
-                `INSERT INTO public.catalogo_maestro_productos (codigo, ean, nombre, origen, fuente_identidad, fuente_fecha)
-                 VALUES ($1, $1, $2, 'negocio', $3, NOW())
+                `INSERT INTO public.catalogo_maestro_productos (codigo, ean, nombre, origen, fuente_identidad, fuente_fecha, giro)
+                 VALUES ($1, $1, $2, 'negocio', $3, NOW(), 'abarrotes')
                  ON CONFLICT (codigo) DO NOTHING`,
                 [n.codigo, n.nombre, FUENTE]
             );

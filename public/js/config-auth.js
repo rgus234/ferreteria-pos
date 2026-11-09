@@ -323,7 +323,7 @@ function configuracionNegocio() {
 }
 
 function inicialesNegocio(nombre) {
- return String(nombre || "Ferreteria")
+ return String(nombre || "Nexo")
  .split(/\s+/)
  .filter(Boolean)
  .slice(0, 2)
@@ -2121,7 +2121,7 @@ function ticketPruebaPOS() {
  return `
  <div style="width:${config.ticketAncho === "58" ? 230 : 300}px;font-family:monospace;padding:20px;color:black;text-align:${config.ticketAlineacion || "center"};">
  ${config.logo && config.mostrarLogoTicket ? `<img src="${config.logo}" style="width:58px;height:58px;object-fit:cover;border-radius:10px;margin-bottom:8px;">` : ""}
- ${config.mostrarNombreTicket ? `<h2 style="margin:0;font-size:22px;text-transform:uppercase;">${config.ticketNombre || config.nombre || "Ferreteria Olimpico"}</h2>` : ""}
+ ${config.mostrarNombreTicket ? `<h2 style="margin:0;font-size:22px;text-transform:uppercase;">${config.ticketNombre || config.nombre || "Mi negocio"}</h2>` : ""}
  ${config.ticketSubtitulo ? `<div style="font-size:12px;">${config.ticketSubtitulo}</div>` : ""}
  ${config.mostrarDireccionTicket && config.direccion ? `<div>${config.direccion}</div>` : ""}
  ${config.mostrarTelefonoTicket && config.telefono ? `<div>Tel. ${config.telefono}</div>` : ""}

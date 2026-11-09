@@ -124,8 +124,8 @@ async function contribuirOEnlazarCatalogoMaestro(pool, negocioId, datos) {
         const nuevo = await pool.query(
             `
             INSERT INTO public.catalogo_maestro_productos
-                (codigo, marca, nombre, presentacion, categoria_nexo_id, descripcion, imagen, imagen_tipo, contribuido_por_negocio_id, codigo_fabricante, ean, imagen_fuente, imagen_confianza, imagen_actualizada_en)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,CASE WHEN $7::bytea IS NOT NULL THEN NOW() ELSE NULL END)
+                (codigo, marca, nombre, presentacion, categoria_nexo_id, descripcion, imagen, imagen_tipo, contribuido_por_negocio_id, codigo_fabricante, ean, imagen_fuente, imagen_confianza, giro, imagen_actualizada_en)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,COALESCE((SELECT giro FROM public.negocios WHERE id = $9 AND giro IN ('ferreteria','abarrotes','papeleria')), ''),CASE WHEN $7::bytea IS NOT NULL THEN NOW() ELSE NULL END)
             ON CONFLICT (codigo) DO NOTHING
             RETURNING id
             `,

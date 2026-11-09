@@ -805,7 +805,7 @@ function htmlNotaGrandeDesdeVentaPOS(venta, opciones = {}) {
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #111827;padding-bottom:14px;margin-bottom:18px;">
    <div>
     ${config.logo && config.mostrarLogoTicket !== false ? `<img src="${config.logo}" style="width:46px;height:46px;object-fit:cover;border-radius:8px;margin-bottom:6px;">` : ""}
-    ${config.mostrarNombreTicket === false ? "" : `<div style="font-size:21px;font-weight:bold;">${escaparPOS(config.ticketNombre || config.nombre || "Ferreteria Olimpico")}</div>`}
+    ${config.mostrarNombreTicket === false ? "" : `<div style="font-size:21px;font-weight:bold;">${escaparPOS(config.ticketNombre || config.nombre || "Mi negocio")}</div>`}
     ${config.mostrarDireccionTicket !== false && config.direccion ? `<div style="font-size:12px;color:#4b5563;">${escaparPOS(config.direccion)}</div>` : ""}
     ${config.mostrarTelefonoTicket !== false && config.telefono ? `<div style="font-size:12px;color:#4b5563;">Tel. ${escaparPOS(config.telefono)}</div>` : ""}
    </div>

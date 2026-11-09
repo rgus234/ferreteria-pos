@@ -116,7 +116,21 @@ async function buscarEnCatalogoProveedor(pool, negocioId, termino) {
 // catalog-server.js). El LEFT JOIN a precios de fabricante reusa
 // exactamente el razonamiento ya documentado en identidadPorCodigo():
 // el join va por codigo_fabricante, nunca por marca/fabricante.
-async function buscarEnCatalogoMaestro(pool, termino) {
+// Un abarrotes no ve productos de ferreteria ni una ferreteria los de abarrotes. Sin giro marcado en el producto, los de fabricante cuentan como ferreteria.
+// Un negocio "general" (o sin giros) ve todo.
+function condicionDeGiro(giros) {
+    const lista = Array.isArray(giros) && giros.length ? giros : ["ferreteria"];
+    if (lista.includes("general")) return { filtrar: false, giros: lista };
+    return { filtrar: true, giros: lista };
+}
+
+async function girosDelNegocio(pool, negocioId) {
+    const r = await pool.query(`SELECT giro FROM public.negocio_giros WHERE negocio_id = $1 AND activo = true`, [negocioId]);
+    return r.rows.length ? r.rows.map(f => f.giro) : ["ferreteria"];
+}
+
+async function buscarEnCatalogoMaestro(pool, termino, giros) {
+    const { filtrar, giros: permitidos } = condicionDeGiro(giros);
     const resultado = await consultarConUmbralPalabra(pool, umbralAdmisionPara(termino),
         `SELECT m.id, m.codigo, m.marca, m.nombre, m.descripcion, m.fabricante, m.origen,
                 m.codigo_fabricante, m.ean, m.clave,
@@ -127,9 +141,13 @@ async function buscarEnCatalogoMaestro(pool, termino) {
          LEFT JOIN public.catalogo_fabricante_productos f
                 ON f.codigo = m.codigo_fabricante AND f.estado = 'activo'
          WHERE (m.nombre % $1 OR $1 <% m.nombre) AND m.necesita_revision = false AND ${existeCoincidenciaPorPalabra("m.nombre", 1, minimoCoincidenciasPara(termino))}
+           AND ($2::boolean = false OR CASE WHEN m.giro <> '' THEN m.giro = ANY($3::text[])
+                                            WHEN m.origen = 'fabricante' THEN 'ferreteria' = ANY($3::text[])
+                                            WHEN m.origen = 'open_food_facts' THEN 'abarrotes' = ANY($3::text[])
+                                            ELSE TRUE END)
          ORDER BY afinidad_inicial DESC, similitud DESC
          LIMIT ${LIMITE_POR_FUENTE}`,
-        [termino]
+        [termino, filtrar, permitidos]
     );
 
     return resultado.rows.map(fila => ({
@@ -163,7 +181,11 @@ async function buscarEnCatalogoMaestro(pool, termino) {
 // honesto: solo una parte de las filas trae descripcion todavia (el
 // bootstrap de lectura no esta completo), asi que esta fuente crece
 // conforme avance el sincronizador, no es una limitacion del diseno.
-async function buscarEnCatalogoFabricante(pool, termino) {
+async function buscarEnCatalogoFabricante(pool, termino, giros) {
+    // El catalogo de fabricante (Truper...) es de ferreteria: un abarrotes no lo ve.
+    const { filtrar, giros: permitidos } = condicionDeGiro(giros);
+    if (filtrar && !permitidos.includes("ferreteria")) return [];
+
     const resultado = await consultarConUmbralPalabra(pool, umbralAdmisionPara(termino),
         `SELECT id, fabricante, codigo, clave, ean, descripcion, marca,
                 precio_mayoreo, precio_medio_mayoreo, precio_publico, precio_distribuidor,
@@ -241,11 +263,13 @@ async function buscarExplorarNexo(pool, negocioId, textoBusqueda) {
     // que hace identidadPorCodigo por su cuenta.
     const terminoTalCual = String(textoBusqueda || "").trim().slice(0, 120);
 
+    const giros = await girosDelNegocio(pool, negocioId);
+
     const [inventario, proveedor, catalogoMaestro, fabricante, identidad] = await Promise.all([
         buscarEnInventario(pool, negocioId, termino),
         buscarEnCatalogoProveedor(pool, negocioId, termino),
-        buscarEnCatalogoMaestro(pool, termino),
-        buscarEnCatalogoFabricante(pool, termino),
+        buscarEnCatalogoMaestro(pool, termino, giros),
+        buscarEnCatalogoFabricante(pool, termino, giros),
         identidadPorCodigo(pool, terminoTalCual).catch(() => null)
     ]);
 
