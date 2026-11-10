@@ -11,6 +11,7 @@
 //   bascula           Vender por importe ("quiero $50") y bascula digital con barra de color en la ventana de peso (abarrotes y ferreteria)
 //   gafi_captura      Pantalla "Gafi: codigos y fotos" (solo administrador): busca un producto de la lista de Gafi, guarda su codigo de barras y su foto
 //   recargas          Pantalla "Recargas" (tiempo aire): compañia, numero, monto y listo. Hoy en modo demostracion hasta conectar al proveedor
+//   mostrador         Mostrador de precios: pantalla completa para un monitor junto a la caja (escaneas, ves foto y precio en grande, y vas sumando una cuenta). No cobra ni mueve inventario
 //   catalogo_por_proveedor  En Agregar producto, el proveedor elegido (Diprofer, Gafi, Truper) manda: la busqueda se queda en SU catalogo
 //
 // La columna se crea sola la primera vez (ADD COLUMN IF NOT EXISTS): no hace falta correr nada a mano y si algo falla, todo queda apagado.
@@ -29,7 +30,8 @@ const FUNCIONES = {
     armado: "Armar productos y extras",
     catalogo_por_proveedor: "Catálogo por proveedor",
     gafi_captura: "Gafi: códigos y fotos",
-    recargas: "Recargas"
+    recargas: "Recargas",
+    mostrador: "Mostrador de precios"
 };
 
 let columnaLista = false;

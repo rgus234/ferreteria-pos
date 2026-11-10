@@ -1,0 +1,82 @@
+/* Mostrador de precios: pantalla completa para un monitor junto a la caja. Solo se ve con la funcion "mostrador" encendida. */
+#mostrador[hidden], #mostrador [hidden], .mos-chip[hidden] { display: none !important; }
+
+#mostrador {
+    position: fixed; inset: 0; z-index: 99999;
+    display: flex; flex-direction: column;
+    background: #f4f7fb; color: #0f172a;
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+}
+
+.mos-barra { display: flex; align-items: center; gap: 16px; padding: 14px 22px; background: #ffffff; border-bottom: 1px solid #d9e1ec; }
+.mos-barra #mosEntrada { flex: 1; font-size: 22px; padding: 12px 18px; border: 2px solid #c8d3e2; border-radius: 12px; background: #f8fafc; color: #0f172a; outline: none; }
+.mos-barra #mosEntrada:focus { border-color: #1d5fd1; background: #fff; }
+.mos-auto { display: flex; align-items: center; gap: 8px; font-size: 16px; color: #334155; white-space: nowrap; cursor: pointer; }
+.mos-auto input { width: 20px; height: 20px; }
+.mos-chico { color: #64748b; font-size: 14px; white-space: nowrap; }
+.mos-salir { border: 1px solid #c8d3e2; background: #fff; color: #475569; border-radius: 10px; padding: 8px 16px; font-size: 14px; cursor: pointer; }
+.mos-salir:hover { background: #eef2f7; }
+
+.mos-sugerencias { position: absolute; top: 74px; left: 22px; right: 330px; background: #fff; border: 1px solid #c8d3e2; border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 42, .18); overflow: hidden; z-index: 3; }
+.mos-sugerencias button { display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 16px; padding: 14px 20px; border: 0; border-bottom: 1px solid #eef2f7; background: #fff; font-size: 19px; color: #0f172a; text-align: left; cursor: pointer; }
+.mos-sugerencias button:hover { background: #eef4ff; }
+.mos-sugerencias strong { color: #1d5fd1; }
+
+.mos-escena { flex: 1; display: flex; align-items: center; justify-content: center; gap: 56px; padding: 28px 48px 110px; min-height: 0; }
+.mos-foto { flex: 0 0 46%; height: 100%; max-height: 640px; display: flex; align-items: center; justify-content: center; background: #fff; border-radius: 28px; border: 1px solid #d9e1ec; box-shadow: 0 18px 50px rgba(15, 23, 42, .10); padding: 24px; }
+.mos-foto img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.mos-sinfoto { width: 220px; height: 220px; border-radius: 50%; background: #e2e8f0; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 110px; font-weight: 700; }
+.mos-datos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.mos-nombre { font-size: clamp(30px, 3.6vw, 56px); font-weight: 700; line-height: 1.1; }
+.mos-sub { font-size: 22px; color: #64748b; }
+.mos-precio { font-size: clamp(90px, 12vw, 190px); font-weight: 800; line-height: 1; color: #0b8a4a; letter-spacing: -2px; }
+.mos-precio small { font-size: .3em; color: #64748b; font-weight: 600; letter-spacing: 0; }
+.mos-sumar { align-self: flex-start; margin-top: 10px; border: 0; border-radius: 16px; background: #1d5fd1; color: #fff; font-size: 24px; font-weight: 700; padding: 18px 34px; cursor: pointer; }
+.mos-sumar:hover { background: #164fb0; }
+.mos-sumar span { font-weight: 500; color: #cfe0ff; font-size: 18px; }
+
+.mos-vacio { text-align: center; color: #64748b; }
+.mos-vacio h1 { font-size: 44px; color: #334155; margin: 12px 0; }
+.mos-vacio p { font-size: 22px; margin: 6px 0; }
+.mos-vacio-icono { font-size: 64px; letter-spacing: 6px; color: #94a3b8; }
+.mos-desconocido h1 { color: #b45309; }
+
+.mos-carrito { position: absolute; right: 26px; bottom: 26px; display: flex; align-items: center; gap: 14px; border: 0; border-radius: 22px; background: #0f172a; color: #fff; padding: 16px 26px; font-size: 24px; cursor: pointer; box-shadow: 0 14px 36px rgba(15, 23, 42, .35); }
+.mos-carrito strong { font-size: 32px; }
+.mos-carrito-icono { font-size: 28px; }
+#mosCarritoCant { background: #1d5fd1; border-radius: 999px; min-width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; padding: 0 8px; }
+.mos-pulso { animation: mos-pulso .35s ease; }
+@keyframes mos-pulso { 0% { transform: scale(1); } 40% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+.mos-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(480px, 92vw); background: #fff; border-left: 1px solid #d9e1ec; box-shadow: -18px 0 40px rgba(15, 23, 42, .15); display: flex; flex-direction: column; z-index: 4; }
+.mos-panel header { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid #e5ebf3; }
+.mos-panel h2 { margin: 0; font-size: 26px; }
+.mos-panel header button { border: 0; background: #eef2f7; border-radius: 10px; width: 40px; height: 40px; font-size: 18px; cursor: pointer; }
+.mos-lista { flex: 1; overflow: auto; padding: 8px 16px; }
+.mos-lista-vacia { color: #64748b; text-align: center; margin-top: 40px; font-size: 18px; }
+.mos-fila { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 10px; padding: 12px 6px; border-bottom: 1px solid #eef2f7; }
+.mos-fila-nombre { font-size: 18px; font-weight: 600; }
+.mos-fila-nombre small { display: block; color: #64748b; font-weight: 400; font-size: 14px; }
+.mos-fila-cant { display: flex; align-items: center; gap: 8px; }
+.mos-fila-cant button { width: 34px; height: 34px; border: 1px solid #c8d3e2; background: #fff; border-radius: 8px; font-size: 20px; cursor: pointer; }
+.mos-fila-cant b { min-width: 26px; text-align: center; font-size: 19px; }
+.mos-fila-importe { font-weight: 700; font-size: 19px; min-width: 84px; text-align: right; }
+.mos-quitar { border: 0; background: transparent; color: #94a3b8; font-size: 16px; cursor: pointer; }
+.mos-quitar:hover { color: #dc2626; }
+.mos-panel footer { padding: 18px 22px; border-top: 1px solid #e5ebf3; display: flex; flex-direction: column; gap: 14px; }
+.mos-total { display: flex; justify-content: space-between; align-items: baseline; font-size: 22px; }
+.mos-total strong { font-size: 48px; color: #0b8a4a; }
+.mos-nueva { border: 0; border-radius: 14px; background: #eef2f7; color: #0f172a; font-size: 20px; font-weight: 700; padding: 16px; cursor: pointer; }
+.mos-nueva:hover { background: #dde5f0; }
+
+.mos-chip { position: fixed; left: 14px; bottom: 14px; z-index: 9000; border: 1px solid #c8d3e2; border-radius: 999px; background: #fff; color: #334155; padding: 8px 14px; font-size: 13px; cursor: pointer; box-shadow: 0 4px 14px rgba(15, 23, 42, .12); opacity: .85; }
+.mos-chip:hover { opacity: 1; }
+
+html.mostrador-abierto, html.mostrador-abierto body { overflow: hidden; }
+
+@media (max-width: 900px) {
+    .mos-escena { flex-direction: column; gap: 18px; padding: 18px 18px 110px; }
+    .mos-foto { flex: 0 0 auto; height: 38vh; width: 100%; }
+    .mos-sugerencias { right: 22px; }
+    .mos-auto, .mos-chico { display: none; }
+}
