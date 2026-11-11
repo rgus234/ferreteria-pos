@@ -137,6 +137,16 @@
         if (soloMarcas()) return [];
         const q = plano(rm.consulta).trim();
 
+        // Abarrotes con una marca elegida: el buscador solo busca en los productos de esa marca.
+        if (esAbarrotes() && rm.marca && !rm.factura) {
+            const grupo = rm.grupos.find(g => g.marca === rm.marca);
+            if (!grupo) return [];
+            if (!q) return rm.linea ? grupo.productos.filter(p => String(p.categoria || "").trim() === rm.linea) : grupo.productos;
+            const palabras = q.split(/\s+/).filter(Boolean);
+            const solo = q.replace(/[^a-z0-9]/g, "");
+            return grupo.productos.filter(p => palabras.every(w => plano(p.nombre).includes(w)) || (solo.length >= 3 && String(p.codigo || "").toLowerCase().replace(/[^a-z0-9]/g, "").includes(solo)));
+        }
+
         if (q) {
             const palabras = q.split(/\s+/).filter(Boolean);
             const solo = q.replace(/[^a-z0-9]/g, "");
@@ -225,7 +235,7 @@
                 <div id="rmFacturas" class="rm-facturas"></div></header>
             <div class="rm-dos">
                 <section class="rm-izq">
-                    <div class="rm-escaner-fila" ${rm.factura ? "style=\"display:none\"" : ""}><label class="rm-buscador"><svg class="rm-lupa" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="rmBuscar" class="rm-buscar rm-escaner" type="search" autocomplete="off" placeholder="${esAbarrotes() ? "Buscar producto, código o marca" : "Escanea o escribe producto, código o marca"}" oninput="rmBuscar(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();rmEscanear(this.value)}" value="${esc(rm.consulta)}"></label>
+                    <div class="rm-escaner-fila" ${rm.factura ? "style=\"display:none\"" : ""}><label class="rm-buscador"><svg class="rm-lupa" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span id="rmAlcance" class="rm-alcance-caja"></span><input id="rmBuscar" class="rm-buscar rm-escaner" type="search" autocomplete="off" placeholder="${esAbarrotes() ? "Buscar producto, código o marca" : "Escanea o escribe producto, código o marca"}" oninput="rmBuscar(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();rmEscanear(this.value)}" value="${esc(rm.consulta)}"></label>
                     ${rm.factura ? "" : `<button type="button" class="rm-btn rm-celular" onclick="if(window.abrirEscanerRemotoPOS)abrirEscanerRemotoPOS()" title="Usar el celular como escáner"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><span>Usar mi celular</span></button>`}</div>
                     <div id="rmUltimo" class="rm-ultimo" aria-live="polite"></div>
                     <div id="rmTipos" class="rm-chips"></div>
@@ -252,7 +262,20 @@
         dos.classList.toggle("rm-solo-marcas", soloMarcas() && lineas().length === 0);
     }
 
+    // El buscador dice donde busca: con una marca elegida aparece su nombre dentro del campo y el texto de ayuda cambia.
+    function pintarAlcance() {
+        const caja = document.getElementById("rmAlcance");
+        const campo = document.getElementById("rmBuscar");
+        const enMarca = esAbarrotes() && rm.marca && !rm.factura;
+        if (caja) {
+            const g = rm.grupos.find(x => x.marca === rm.marca);
+            caja.innerHTML = enMarca ? `<button type="button" class="rm-alcance" style="--marca:${(g && g.color) || "#1d4ed8"}" onclick="rmCambiarMarca()" title="Buscar en todas las marcas">${esc(rm.marca)}<span aria-hidden="true">✕</span></button>` : "";
+        }
+        if (campo) campo.placeholder = enMarca ? `Buscar en ${rm.marca}` : (esAbarrotes() ? "Buscar producto, código o marca" : "Escanea o escribe producto, código o marca");
+    }
+
     function pintarFiltros() {
+        pintarAlcance();
         ajustarVista();
         const tipos = tiposActivos();
         const chip = (valor, etiqueta, n) => `<button type="button" class="rm-chip${(rm.tipo || "") === valor ? " activo" : ""}" onclick="rmTipo('${esc(valor)}')">${esc(etiqueta)} <small>${n}</small></button>`;
@@ -280,7 +303,7 @@
             ocultas = todas.length - lista.length;
         }
         // Abarrotes: elegida una marca, las tarjetas se esconden y solo se ven sus productos (con un boton para volver a las tarjetas).
-        if (esAbarrotes() && rm.marca && !buscando && !rm.factura) {
+        if (esAbarrotes() && rm.marca && !rm.factura) {
             const t = document.getElementById("rmTipos");
             if (t) t.innerHTML = "";
             m.innerHTML = `<div class="rm-volver"><button type="button" class="rm-btn" onclick="rmCambiarMarca()">‹ Cambiar marca</button><b>${esc(rm.marca)}</b></div>`;
@@ -337,7 +360,7 @@
         if (soloMarcas()) { g.innerHTML = ""; return; }
         g.innerHTML = lista.length
             ? lista.slice(0, MAX_TARJETAS).map(tarjeta).join("") + (lista.length > MAX_TARJETAS ? `<p class="rm-nota rm-completo">Se muestran ${MAX_TARJETAS} de ${lista.length}. Usa el buscador para acotar.</p>` : "")
-            : `<p class="rm-nota rm-completo">${rm.consulta.trim() ? "No encontré nada con eso." : (!rm.marca ? (esAbarrotes() ? "Elige una marca, o busca un producto por su nombre o código." : "Escanea un producto con la pistola, escribe su nombre o código, o elige una marca.") : "Esta marca no tiene productos.")}</p>`;
+            : `<p class="rm-nota rm-completo">${rm.consulta.trim() ? (esAbarrotes() && rm.marca && !rm.factura ? `No encontré eso en ${esc(rm.marca)}. Toca la marca dentro del buscador para buscar en todas.` : "No encontré nada con eso.") : (!rm.marca ? (esAbarrotes() ? "Elige una marca, o busca un producto por su nombre o código." : "Escanea un producto con la pistola, escribe su nombre o código, o elige una marca.") : "Esta marca no tiene productos.")}</p>`;
     }
 
     function pintarUltimo() {
