@@ -1463,6 +1463,7 @@ function ocultarPantallasPrincipales() {
  "pantallaMapaTienda",
  "pantallaRecibirMarca",
  "pantallaPedidosUnico",
+ "pantallaAgendaPagos",
  "pantallaEnlaceCelular",
  "pantallaFuncionesBeta",
  "pantallaHubMenu",

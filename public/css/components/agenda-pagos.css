@@ -1,0 +1,45 @@
+/* Agenda de pagos a proveedores. Solo se ve con la funcion "agenda_pagos" encendida. */
+.ap-shell { max-width: 980px; margin: 0 auto; padding: 8px 4px 48px; }
+.ap-cab h2 { margin: 0 0 4px; font-size: 28px; }
+.ap-cab p { margin: 0 0 18px; color: #64748b; font-size: 16px; }
+.ap-metricas { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.ap-metricas > div { display: grid; gap: 2px; padding: 16px 18px; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 20px rgba(15, 23, 42, .06); }
+.ap-metricas span { font-size: 13px; font-weight: 700; color: #64748b; }
+.ap-metricas strong { font-size: 26px; letter-spacing: -.01em; }
+.ap-metricas small { font-size: 12.5px; color: #64748b; }
+.ap-m-rojo strong { color: #b91c1c; }
+.ap-m-ambar strong { color: #b45309; }
+.ap-grupo { margin-bottom: 22px; }
+.ap-grupo h3 { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 4px; font-size: 18px; }
+.ap-grupo h3 small { font-size: 15px; color: #475569; font-weight: 700; }
+.ap-grupo > p { margin: 0 0 8px; color: #64748b; font-size: 14px; }
+.ap-g-vencidas h3 { color: #b91c1c; }
+.ap-fila { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 14px; padding: 12px 16px; margin-top: 8px; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .06); }
+.ap-datos { display: grid; gap: 2px; min-width: 0; }
+.ap-datos b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-datos small { font-size: 13px; color: #64748b; }
+.ap-saldo { display: grid; justify-items: end; }
+.ap-saldo strong { font-size: 17px; }
+.ap-saldo small { font-size: 12px; color: #64748b; }
+.ap-chip { font-style: normal; font-size: 12.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #e2e8f0; color: #334155; white-space: nowrap; }
+.ap-chip.ap-rojo { background: #fee2e2; color: #991b1b; }
+.ap-chip.ap-ambar { background: #fef3c7; color: #92400e; }
+.ap-liquidar { border: 0; border-radius: 12px; padding: 10px 16px; background: #1d4ed8; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.ap-liquidar:hover { background: #1e40af; }
+.ap-vacio { padding: 28px 8px; color: #64748b; font-size: 16px; line-height: 1.5; }
+.ap-fondo { position: fixed; inset: 0; z-index: 99990; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .55); }
+.ap-modal { width: min(440px, 100%); display: grid; gap: 12px; padding: 22px; border-radius: 20px; background: #fff; color: #0f172a; box-shadow: 0 24px 60px rgba(15, 23, 42, .35); }
+.ap-modal h3 { margin: 0; font-size: 20px; }
+.ap-modal p { margin: 0; color: #64748b; font-size: 14px; }
+.ap-modal label { display: grid; gap: 4px; font-size: 13px; font-weight: 700; color: #475569; }
+.ap-modal input, .ap-modal select { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; font-size: 16px; background: #f8fafc; color: #0f172a; }
+.ap-acciones { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+.ap-acciones button { border: 0; border-radius: 12px; padding: 11px 18px; font: inherit; font-weight: 700; cursor: pointer; }
+.ap-cancelar { background: #e2e8f0; color: #0f172a; }
+.ap-aceptar { background: #1d4ed8; color: #fff; }
+:root.oscuro .ap-metricas > div, :root.oscuro .ap-fila { background: #111c2e; color: #f1f5f9; }
+:root.oscuro .ap-cab p, :root.oscuro .ap-datos small, :root.oscuro .ap-saldo small, :root.oscuro .ap-metricas span, :root.oscuro .ap-metricas small, :root.oscuro .ap-vacio, :root.oscuro .ap-grupo > p { color: #94a3b8; }
+:root.oscuro .ap-grupo h3 small { color: #cbd5e1; }
+:root.oscuro .ap-modal { background: #111c2e; color: #f1f5f9; }
+:root.oscuro .ap-modal input, :root.oscuro .ap-modal select { background: #0f172a; color: #f1f5f9; border-color: #334155; }
+@media (max-width: 720px) { .ap-fila { grid-template-columns: 1fr auto; } .ap-chip { justify-self: start; } .ap-liquidar { grid-column: 1 / -1; } }

@@ -13,6 +13,7 @@
 //   recargas          Pantalla "Recargas" (tiempo aire): compañia, numero, monto y listo. Hoy en modo demostracion hasta conectar al proveedor
 //   mostrador         Mostrador de precios: pantalla completa para un monitor junto a la caja (escaneas, ves foto y precio en grande, y vas sumando una cuenta). No cobra ni mueve inventario
 //   pedidos_unico     Pedidos (abarrotes): una sola puerta con Crear pedido (por marca), Sugerir pedido y Pedidos hechos
+//   agenda_pagos      Agenda de pagos a proveedores: lo que se recibe "a deber" queda como cuenta por pagar con su fecha limite (sugerida con los dias de credito del proveedor) y se ve en una agenda
 //   catalogo_por_proveedor  En Agregar producto, el proveedor elegido (Diprofer, Gafi, Truper) manda: la busqueda se queda en SU catalogo
 //
 // La columna se crea sola la primera vez (ADD COLUMN IF NOT EXISTS): no hace falta correr nada a mano y si algo falla, todo queda apagado.
@@ -33,7 +34,8 @@ const FUNCIONES = {
     gafi_captura: "Gafi: códigos y fotos",
     recargas: "Recargas",
     mostrador: "Mostrador de precios",
-    pedidos_unico: "Pedidos: crear, sugerir y hechos"
+    pedidos_unico: "Pedidos: crear, sugerir y hechos",
+    agenda_pagos: "Agenda de pagos a proveedores"
 };
 
 let columnaLista = false;

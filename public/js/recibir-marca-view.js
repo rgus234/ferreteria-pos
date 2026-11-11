@@ -161,11 +161,11 @@
         if (!productos.length) { pantalla.innerHTML = `<div class="rm-shell"><p class="rm-nota">Todavía no hay productos en tu catálogo.</p></div>`; return; }
 
         const grupos = await armarGrupos(productos);
-        rm = { modo, tocados: new Set(), comp: {}, productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: esAbarrotes() || grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), linea: "", verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), caducidades: new Map(), pago: { activo: false, monto: "", metodo: "efectivo_caja", por: "", nota: "" }, proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
+        rm = { modo, tocados: new Set(), comp: {}, productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: esAbarrotes() || grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), linea: "", verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), caducidades: new Map(), pago: { activo: false, monto: "", metodo: "efectivo_caja", por: "", nota: "", vencimiento: "", vencimientoManual: false }, proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
         if (modo === "sugerir") await cargarComprometido();
         pintar();
 
-        llamar("/proveedores").then(r => { if (rm) { rm.proveedores = (r.datos.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre })).filter(x => x.nombre); pintarResumen(); } }).catch(() => {});
+        llamar("/proveedores").then(r => { if (rm) { rm.proveedores = (r.datos.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre, diasCredito: x.dias_credito })).filter(x => x.nombre); pintarResumen(); } }).catch(() => {});
         llamar("/recepcion-inteligente/facturas").then(r => { if (rm) { rm.facturas = (r.datos.facturas || []).filter(f => f.estado === "pendiente"); pintarFacturas(); } }).catch(() => {});
     };
 
@@ -336,6 +336,31 @@
     };
 
     // ¿Pagaste al repartidor? Cuanto, como y quien (queda en la recepcion; si fue efectivo de la caja, tambien sale en Caja).
+    // ---------- Agenda de pagos: lo recibido "a deber" queda con su fecha limite ----------
+
+    const agendaPagosActiva = () => typeof funcionBeta === "function" && funcionBeta("agenda_pagos");
+    const fechaLocalISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+    // Hoy + los dias de credito del proveedor elegido (o de la factura); sin dias de credito, hoy. El dueño la puede cambiar.
+    function vencimientoSugerido() {
+        const nombre = rm.factura ? rm.factura.proveedor : (document.getElementById("rmProveedor")?.value || "");
+        const proveedor = rm.proveedores.find(x => plano(x.nombre) === plano(nombre));
+        const dias = proveedor && Number(proveedor.diasCredito) > 0 ? Number(proveedor.diasCredito) : 0;
+        const d = new Date();
+        d.setDate(d.getDate() + dias);
+        return fechaLocalISO(d);
+    }
+
+    window.rmVencimientoManual = function () { if (rm) rm.pago.vencimientoManual = true; };
+
+    // Cambiar de proveedor reajusta la fecha sugerida (sin redibujar el resumen, que le quitaria lo escrito).
+    window.rmProveedorCambio = function () {
+        if (!rm || !agendaPagosActiva() || rm.pago.metodo !== "a_deber" || rm.pago.vencimientoManual) return;
+        rm.pago.vencimiento = vencimientoSugerido();
+        const campo = document.querySelector(".rm-pago input[type=date]");
+        if (campo) campo.value = rm.pago.vencimiento;
+    };
+
     function pagoRepartidorHtml() {
         if (!esAbarrotes()) return "";
 
@@ -344,10 +369,11 @@
         return `<div class="rm-pago">
             <label class="rm-pago-toggle"><input type="checkbox" ${p.activo ? "checked" : ""} onchange="rmPagoActivar(this.checked)"> Pagué al repartidor</label>
             ${p.activo ? `<div class="rm-pago-campos">
-                <label class="rm-campo">¿Cuánto pagaste?<input type="number" min="0" step="0.01" inputmode="decimal" class="rm-buscar" placeholder="0.00" value="${esc(p.monto)}" oninput="rmPagoCampo('monto', this.value)"></label>
+                <label class="rm-campo">${p.metodo === "a_deber" ? "¿Cuánto quedó a deber?" : "¿Cuánto pagaste?"}<input type="number" min="0" step="0.01" inputmode="decimal" class="rm-buscar" placeholder="0.00" value="${esc(p.monto)}" oninput="rmPagoCampo('monto', this.value)"></label>
                 <label class="rm-campo">¿Cómo?<select onchange="rmPagoCampo('metodo', this.value)">${METODOS_PAGO_REPARTIDOR.map(([valor, texto]) => `<option value="${valor}" ${p.metodo === valor ? "selected" : ""}>${texto}</option>`).join("")}</select></label>
+                ${p.metodo === "a_deber" && agendaPagosActiva() ? `<label class="rm-campo">Fecha límite de pago<input type="date" class="rm-buscar" value="${esc(p.vencimiento || vencimientoSugerido())}" onchange="rmPagoCampo('vencimiento', this.value); rmVencimientoManual()"></label>` : ""}
                 <label class="rm-campo">¿Quién pagó?<input type="text" maxlength="60" class="rm-buscar" value="${esc(p.por)}" oninput="rmPagoCampo('por', this.value)"></label>
-                <small class="rm-pago-ayuda">${p.metodo === "efectivo_caja" ? "Sale del efectivo de la caja: se anota en Caja para que el corte cuadre." : (p.metodo === "a_deber" ? "Queda anotado como pendiente con este proveedor." : "Queda anotado en la recepción.")}</small>
+                <small class="rm-pago-ayuda">${p.metodo === "efectivo_caja" ? "Sale del efectivo de la caja: se anota en Caja para que el corte cuadre." : (p.metodo === "a_deber" ? (agendaPagosActiva() ? "Queda como cuenta por pagar en tu Agenda de pagos, con su fecha límite (si escribes cuánto quedó a deber)." : "Queda anotado como pendiente con este proveedor.") : "Queda anotado en la recepción.")}</small>
             </div>` : ""}
         </div>`;
     }
@@ -356,6 +382,7 @@
         if (!rm) return;
         rm.pago.activo = Boolean(activo);
         if (activo && !rm.pago.por) rm.pago.por = nombreQuienRecibe();
+        if (activo && rm.factura && !rm.pago.monto) rm.pago.monto = String(Number(rm.factura.total) || "");
         pintarResumen();
     };
 
@@ -363,7 +390,10 @@
     window.rmPagoCampo = function (campo, valor) {
         if (!rm || !(campo in rm.pago)) return;
         rm.pago[campo] = valor;
-        if (campo === "metodo") pintarResumen();
+        if (campo === "metodo") {
+            if (valor === "a_deber" && agendaPagosActiva() && !rm.pago.vencimientoManual) rm.pago.vencimiento = vencimientoSugerido();
+            pintarResumen();
+        }
     };
 
     // El pago a mandar al servidor (o undefined si no se pago / no aplica). Regresa null si falta el monto.
@@ -373,7 +403,7 @@
         if (!esAbarrotes() || !p.activo) return undefined;
         if (p.metodo !== "a_deber" && !(Number(String(p.monto).replace(",", ".")) > 0)) return null;
 
-        return { monto: Number(String(p.monto).replace(",", ".")) || 0, metodo: p.metodo, por: p.por, nota: "" };
+        return { monto: Number(String(p.monto).replace(",", ".")) || 0, metodo: p.metodo, por: p.por, nota: "", vencimiento: p.metodo === "a_deber" && agendaPagosActiva() ? (p.vencimiento || vencimientoSugerido()) : undefined };
     }
 
     // Efectivo de la caja: el pago tambien sale en Caja (un movimiento de salida) para que el corte cuadre. No puede tumbar la recepcion.
@@ -394,7 +424,7 @@
         const sinDecidir = rm.factura ? rm.factura.porDecidir : 0;
 
         const proveedor = !rm.factura && rm.proveedores.length
-            ? `<label class="rm-campo">¿De qué proveedor viene?<select id="rmProveedor"><option value="">Sin proveedor / no espero factura</option>${rm.proveedores.map(p => `<option value="${esc(p.nombre)}">${esc(p.nombre)}</option>`).join("")}</select><small>Si eliges uno y después te llega su factura por correo, Nexo la compara con lo que recibiste y no suma dos veces.</small></label>`
+            ? `<label class="rm-campo">¿De qué proveedor viene?<select id="rmProveedor" onchange="rmProveedorCambio()"><option value="">Sin proveedor / no espero factura</option>${rm.proveedores.map(p => `<option value="${esc(p.nombre)}">${esc(p.nombre)}</option>`).join("")}</select><small>Si eliges uno y después te llega su factura por correo, Nexo la compara con lo que recibiste y no suma dos veces.</small></label>`
             : "";
 
         r.innerHTML = `<div class="rm-resumen-cab"><h3>${rm.factura ? esc(rm.factura.proveedor) : "Lo que llegó"}</h3>${rm.factura ? `<small>${rm.factura.folio ? "Folio " + esc(rm.factura.folio) + " · " : ""}${dinero(rm.factura.total)}</small>` : ""}</div>

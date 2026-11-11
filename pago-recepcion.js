@@ -21,6 +21,24 @@ const SQL_COLUMNAS = `
         ADD COLUMN IF NOT EXISTS pago_at TIMESTAMPTZ
 `;
 
+const SQL_TABLA_CUENTAS = `
+    CREATE TABLE IF NOT EXISTS public.cuentas_pagar (
+        id SERIAL PRIMARY KEY,
+        negocio_id INTEGER REFERENCES public.negocios(id),
+        proveedor TEXT NOT NULL DEFAULT '',
+        origen_tipo TEXT NOT NULL DEFAULT 'manual',
+        origen_id INTEGER,
+        concepto TEXT NOT NULL DEFAULT '',
+        monto_total NUMERIC(12,2) NOT NULL DEFAULT 0,
+        saldo NUMERIC(12,2) NOT NULL DEFAULT 0,
+        vencimiento DATE,
+        estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'parcial', 'pagada', 'cancelada')),
+        notas TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+`;
+
 // Devuelve { monto, metodo, por, nota } limpio, o null si no mandaron un pago valido.
 function limpiarPago(crudo) {
     if (!crudo || typeof crudo !== "object") return null;
@@ -37,7 +55,8 @@ function limpiarPago(crudo) {
         monto: Math.round(monto * 100) / 100,
         metodo,
         por: String(crudo.por || "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120),
-        nota: String(crudo.nota || "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 240)
+        nota: String(crudo.nota || "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 240),
+        vencimiento: limpiarFecha(crudo.vencimiento)
     };
 }
 
@@ -54,6 +73,49 @@ function limpiarFecha(valor) {
 
 async function asegurarPagoRecepcion(pool) {
     await pool.query(SQL_COLUMNAS);
+}
+
+// La Agenda de pagos es una funcion nueva por negocio (negocios.funciones_beta.agenda_pagos); un negocio con "_todas" la tiene salvo que la apague.
+async function agendaActiva(client, negocioId) {
+    const fila = (await client.query(`SELECT funciones_beta FROM public.negocios WHERE id = $1`, [negocioId])).rows[0];
+    const valor = fila && fila.funciones_beta;
+
+    if (!valor) return false;
+
+    return valor._todas === true ? valor.agenda_pagos !== false : valor.agenda_pagos === true;
+}
+
+// Recibido "a deber" con un monto: queda como cuenta por pagar al proveedor, con su fecha limite. Una por recepcion; nunca tumba la recepcion.
+async function crearCuentaPorPagar(client, { negocioId, recepcionId, limpio }) {
+    if (limpio.metodo !== "a_deber" || !(limpio.monto > 0)) return false;
+
+    await client.query("SAVEPOINT cuenta_por_pagar");
+
+    try {
+        if (!(await agendaActiva(client, negocioId))) { await client.query("RELEASE SAVEPOINT cuenta_por_pagar"); return false; }
+
+        await client.query(SQL_TABLA_CUENTAS);
+
+        const ya = await client.query(`SELECT 1 FROM public.cuentas_pagar WHERE negocio_id = $1 AND origen_tipo = 'recepcion' AND origen_id = $2`, [negocioId, recepcionId]);
+
+        if (!ya.rows.length) {
+            const recepcion = (await client.query(`SELECT proveedor FROM public.recepciones_mercancia WHERE id = $1 AND negocio_id = $2`, [recepcionId, negocioId])).rows[0];
+            const proveedor = String((recepcion && recepcion.proveedor) || "").trim() || "Proveedor";
+
+            await client.query(
+                `INSERT INTO public.cuentas_pagar (negocio_id, proveedor, origen_tipo, origen_id, concepto, monto_total, saldo, vencimiento, notas)
+                 VALUES ($1, $2, 'recepcion', $3, $4, $5, $5, $6, $7)`,
+                [negocioId, proveedor, recepcionId, `Recepción de mercancía #${recepcionId}`, limpio.monto, limpio.vencimiento, limpio.nota || ""]
+            );
+        }
+
+        await client.query("RELEASE SAVEPOINT cuenta_por_pagar");
+        return true;
+    } catch (error) {
+        await client.query("ROLLBACK TO SAVEPOINT cuenta_por_pagar");
+        console.warn("[pago-recepcion] No se pudo crear la cuenta por pagar:", error.message);
+        return false;
+    }
 }
 
 // Dentro de la transaccion de la recepcion. Regresa true si quedo anotado.
@@ -82,6 +144,7 @@ async function guardarPagoRecepcion(client, { negocioId, recepcionId, pago }) {
         }
 
         await client.query("RELEASE SAVEPOINT pago_recepcion");
+        await crearCuentaPorPagar(client, { negocioId, recepcionId, limpio });
         return true;
     } catch (error) {
         await client.query("ROLLBACK TO SAVEPOINT pago_recepcion");
@@ -90,4 +153,4 @@ async function guardarPagoRecepcion(client, { negocioId, recepcionId, pago }) {
     }
 }
 
-module.exports = { METODOS_PAGO, limpiarPago, limpiarFecha, asegurarPagoRecepcion, guardarPagoRecepcion };
+module.exports = { crearCuentaPorPagar, agendaActiva, METODOS_PAGO, limpiarPago, limpiarFecha, asegurarPagoRecepcion, guardarPagoRecepcion };

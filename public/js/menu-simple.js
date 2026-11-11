@@ -54,6 +54,7 @@
                 { tam: "g", cards: [
                     { modulo: "proveedores", icono: "users", titulo: "Mis proveedores", texto: "Datos y días de visita" },
                     { modulo: "catalogo", icono: "file", titulo: "Catálogo de proveedor", texto: "Sus productos y precios" },
+                    { modulo: "agenda-pagos", icono: "receipt", titulo: "Agenda de pagos", texto: "Lo que debes y cuándo pagarlo" },
                     { modulo: "pedidos", icono: "clipboard", titulo: "Pedidos a proveedor", texto: "Los que armaste y enviaste", ocultaSi: () => pedidosUnicos() }
                 ] }
             ]

@@ -327,7 +327,15 @@ function camposProveedor(proveedor = {}) {
  etiqueta: "Notas",
  placeholder: "Dias de surtido, condiciones, ruta",
  valor: proveedor.notas || ""
- }
+ },
+ // Agenda de pagos: con los dias de credito Nexo sugiere la fecha limite de pago al recibir "a deber".
+ ...(typeof funcionBeta === "function" && funcionBeta("agenda_pagos") ? [{
+ nombre: "diasCredito",
+ etiqueta: "Días de crédito",
+ tipo: "number",
+ placeholder: "Ej. 15 (vacío = pago de contado)",
+ valor: proveedor.dias_credito ?? ""
+ }] : [])
  ];
 }
 

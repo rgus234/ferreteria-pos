@@ -9741,6 +9741,13 @@ app.get("/proveedores", requerirAccesoNegocio, async (req, res) => {
     }
 });
 
+// Dias de credito del proveedor (para sugerir la fecha limite de pago): entero de 0 a 365, o vacio.
+function diasCreditoProveedor(valor) {
+    if (valor === undefined || valor === null || valor === "") return null;
+    const dias = Number(valor);
+    return Number.isInteger(dias) && dias >= 0 && dias <= 365 ? dias : null;
+}
+
 app.post("/proveedores", requerirAccesoNegocio, async (req, res) => {
     const {
         nombre,
@@ -9767,9 +9774,10 @@ app.post("/proveedores", requerirAccesoNegocio, async (req, res) => {
                 contacto,
                 telefono,
                 correo,
-                notas
+                notas,
+                dias_credito
             )
-            VALUES ($1, $2, $3, $4, $5, $6)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
         `, [
             negocio.id,
@@ -9777,7 +9785,8 @@ app.post("/proveedores", requerirAccesoNegocio, async (req, res) => {
             contacto || "",
             telefono || "",
             correo || "",
-            notas || ""
+            notas || "",
+            diasCreditoProveedor(req.body.diasCredito)
         ]);
 
         res.json({
@@ -9815,7 +9824,8 @@ app.put("/proveedores/:id", requerirAccesoNegocio, async (req, res) => {
                 contacto = $2,
                 telefono = $3,
                 correo = $4,
-                notas = $5
+                notas = $5,
+                dias_credito = CASE WHEN $8::boolean THEN $9::integer ELSE dias_credito END
             WHERE id = $6
             AND negocio_id = $7
             RETURNING *
@@ -9826,7 +9836,9 @@ app.put("/proveedores/:id", requerirAccesoNegocio, async (req, res) => {
             correo || "",
             notas || "",
             id,
-            negocio.id
+            negocio.id,
+            req.body.diasCredito !== undefined,
+            diasCreditoProveedor(req.body.diasCredito)
         ]);
 
         if (resultado.rows.length === 0) {
