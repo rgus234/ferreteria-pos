@@ -6402,6 +6402,13 @@ function aplicarDeepLinkDueno() {
         return;
     }
 
+    // Aviso diario de pagos por vencer: se abre la Agenda de pagos (dentro de Mas).
+    if (ir === "agenda-pagos") {
+        cambiarTabDueno("mas");
+        if (typeof abrirSubpantallaMasDueno === "function") setTimeout(() => abrirSubpantallaMasDueno("agenda-pagos"), 400);
+        return;
+    }
+
     if (TABS_VALIDAS_DEEP_LINK_DUENO.has(ir)) cambiarTabDueno(ir);
 }
 

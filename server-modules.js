@@ -139,6 +139,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./exhibidores-avisos")(app, pool);
     });
 
+    cargarModuloPOS("agenda de pagos -- aviso diario de pagos por vencer", () => {
+        require("./agenda-pagos-avisos")(app, pool);
+    });
+
     cargarModuloPOS("exhibidores -- importar el surtido de Truper desde su ficha", () => {
         require("./exhibidores-truper-server")(app, pool, requerirAccesoNegocio);
     });

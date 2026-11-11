@@ -9,13 +9,13 @@
 // siempre van a la red; los datos y la cola offline viven en
 // IndexedDB (dueno-offline.js), no en este cache.
 
-const CACHE_NAME = "nexo-dueno-shell-v152";
+const CACHE_NAME = "nexo-dueno-shell-v153";
 const CACHE_FOTOS = "nexo-dueno-fotos-v1";
 
 const ARCHIVOS_CASCARON = [
     "/dueno",
     "/dueno.css?v=celular-plan-b-20261105-19",
-    "/dueno.js?v=celular-plan-b-20261105-21",
+    "/dueno.js?v=celular-plan-b-20261113-22",
     "/dueno-instalar.js?v=instalar-20261126-03",
     "/dueno-lector.js?v=lector-20261101-01",
     "/dueno-inventario.js?v=celular-plan-b-20261108-15",
@@ -178,6 +178,8 @@ function urlNotificacionDueno(datos) {
     if (datos.pantalla === "ventas" && datos.historialId) {
         return `/dueno?ir=venta&ventaId=${datos.historialId}`;
     }
+
+    if (datos.pantalla === "agenda-pagos") return "/dueno?ir=agenda-pagos";
 
     const tab = PANTALLA_A_TAB_DUENO[datos.pantalla];
     return tab ? `/dueno?ir=${tab}` : (datos.url || "/dueno");
