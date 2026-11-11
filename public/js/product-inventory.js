@@ -2344,6 +2344,42 @@ async function preseleccionarCategoriaNexoProducto(producto) {
  alElegirSubcategoriaCategoriaNexo();
 }
 
+// Al terminar de escribir el nombre (o al llenarse desde el catalogo) y sin categoria elegida, Nexo la sugiere solo: primero por reglas de nombre
+// (gratis, cualquier plan) y, si no aplican, con la IA. Es silencioso: si no hay sugerencia no avisa nada, y nunca pisa una categoria ya elegida.
+async function autoDetectarCategoriaNexo() {
+ const caja = document.getElementById("categoriaNexoCampo");
+ if (!caja || caja.hidden) return;
+ if (document.getElementById("categoriaNexoId")?.value) return;
+
+ const nombre = document.getElementById("nuevoNombre")?.value?.trim() || "";
+ if (nombre.length < 3) return;
+
+ const marca = document.getElementById("nuevaMarca")?.value?.trim() || "";
+
+ try {
+  const respuesta = await fetch("/ia/sugerir-categoria-nexo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre, marca }) });
+  const datos = await respuesta.json();
+
+  if (!respuesta.ok || !datos.ok || !datos.disponible || !datos.categoriaNexoId) return;
+  // Mientras llegaba la respuesta el dueño pudo elegir una a mano o cambiar el nombre: no se pisa.
+  if (document.getElementById("categoriaNexoId")?.value) return;
+  if ((document.getElementById("nuevoNombre")?.value?.trim() || "") !== nombre) return;
+
+  if (categoriasNexoCargando) await categoriasNexoCargando;
+
+  const selectDep = document.getElementById("categoriaNexoDepartamento");
+  if (selectDep) selectDep.value = datos.departamento;
+  alCambiarDepartamentoCategoriaNexo();
+
+  const selectSub = document.getElementById("categoriaNexoSubcategoria");
+  if (selectSub) selectSub.value = String(datos.categoriaNexoId);
+  alElegirSubcategoriaCategoriaNexo();
+  marcarCampoAutocompletado("categoriaNexoSubcategoria", true);
+ } catch (error) {
+  /* sin sugerencia: se elige a mano */
+ }
+}
+
 async function detectarCategoriaConIA() {
  const nombre =
   document.getElementById("nuevoNombre")?.value?.trim() || "";
@@ -4991,6 +5027,9 @@ async function aplicarProductoCatalogoAlFormulario(producto, origen) {
  producto.marca || "";
 
  marcarCampoAutocompletado("nuevaMarca", Boolean(producto.marca));
+
+ // El catalogo no la trajo clasificada: Nexo la sugiere con el nombre.
+ if (!producto.categoriaNexoId) autoDetectarCategoriaNexo();
 
  document.getElementById("nuevaDescripcion").value =
  producto.descripcion || "";

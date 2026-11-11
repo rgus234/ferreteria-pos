@@ -1217,13 +1217,6 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
     // prellena el selector -- el usuario sigue pudiendo cambiarlo antes
     // de guardar.
     app.post("/ia/sugerir-categoria-nexo", requerirAccesoNegocio, async (req, res) => {
-        const anthropic = obtenerAnthropic();
-
-        if (!anthropic) {
-            res.status(503).json({ ok: false, error: "Nexo IA todavia no esta configurado en este servidor" });
-            return;
-        }
-
         const nombreProducto = String(req.body?.nombre || "").trim().slice(0, 200);
         const marca = String(req.body?.marca || "").trim().slice(0, 80);
 
@@ -1234,6 +1227,22 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
 
         try {
             const negocio = await negocioActual(req, pool);
+
+            // Abarrotes: primero las reglas de nombre (gratis, siempre igual y de cualquier plan). Solo si ninguna aplica sigue la IA.
+            const porReglas = await require("./clasificar-abarrotes").categoriaAbarrotesParaNegocio(pool, negocio.id, nombreProducto);
+
+            if (porReglas) {
+                res.json({ ok: true, disponible: true, categoriaNexoId: porReglas.id, departamento: porReglas.departamento, categoria: porReglas.categoria || "", nombre: porReglas.nombre, origen: "reglas" });
+                return;
+            }
+
+            const anthropic = obtenerAnthropic();
+
+            if (!anthropic) {
+                res.status(503).json({ ok: false, error: "Nexo IA todavia no esta configurado en este servidor" });
+                return;
+            }
+
             const acceso = await licenciaDelNegocio(pool, negocio.id);
 
             if (!acceso.iaDisponible) {

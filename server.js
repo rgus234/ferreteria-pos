@@ -6719,8 +6719,15 @@ app.post("/agregar-producto", requerirAccesoNegocio, requerirPermiso(PERMISOS.MO
 
         if (!(await exigirLicenciaActiva(res, negocio, "agregar un producto"))) return;
 
-        const categoriaNexo = await resolverCategoriaNexo(categoriaNexoId);
-        const categoriaFinal = categoriaNexo ? categoriaNexo.departamento : (categoria || "");
+        // Abarrotes: si no mandaron categoria, se asigna por reglas de nombre para que nunca quede un producto sin categoria Nexo.
+        let categoriaNexo = await resolverCategoriaNexo(categoriaNexoId);
+        let categoriaAsignada = false;
+        if (!categoriaNexo) {
+            try { categoriaNexo = await require("./clasificar-abarrotes").categoriaAbarrotesParaNegocio(pool, negocio.id, nombre); categoriaAsignada = Boolean(categoriaNexo); }
+            catch (errorCategoria) { categoriaNexo = null; }
+        }
+        // Si la categoria la puso el sistema y ya venia un texto de categoria, se respeta el texto.
+        const categoriaFinal = categoriaNexo ? (categoriaAsignada && categoria ? categoria : categoriaNexo.departamento) : (categoria || "");
         const subcategoriaFinal = subcategoria || "";
 
         const resultado = await pool.query(
