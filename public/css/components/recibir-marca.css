@@ -262,3 +262,25 @@ body.oscuro .rm-fecha input { background: #151f31; border-color: rgba(148, 163, 
 .rm-factura-hace { justify-self: start; padding: 2px 10px; border-radius: 999px; background: #e0ecff; color: #1d4ed8; font-style: normal; font-size: 12px; font-weight: 800; }
 body.oscuro .rm-buscador .rm-escaner, body.oscuro .rm-btn.rm-celular { background: #151f31; border-color: rgba(148, 163, 184, .28); color: #f1f5f9; }
 body.oscuro .rm-factura-hace { background: #1e3a8a; color: #dbeafe; }
+
+/* Animaciones al elegir una marca y al volver a las marcas */
+@keyframes rmEntra { from { opacity: 0; transform: translateY(18px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes rmEntraDer { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
+@keyframes rmSale { to { opacity: 0; transform: translateY(8px) scale(.94); } }
+@keyframes rmElegida { 0% { transform: none; opacity: 1; } 55% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(1.08); opacity: 0; } }
+.rm-entra > .rm-marca, .rm-entra > .rm-tarjeta, .rm-entra > .rm-volver { animation: rmEntra .42s cubic-bezier(.2, .8, .2, 1) both; }
+.rm-entra > :nth-child(2) { animation-delay: 40ms; }
+.rm-entra > :nth-child(3) { animation-delay: 80ms; }
+.rm-entra > :nth-child(4) { animation-delay: 120ms; }
+.rm-entra > :nth-child(5) { animation-delay: 160ms; }
+.rm-entra > :nth-child(6) { animation-delay: 200ms; }
+.rm-entra > :nth-child(7) { animation-delay: 240ms; }
+.rm-entra > :nth-child(8) { animation-delay: 280ms; }
+.rm-entra > :nth-child(n+9) { animation-delay: 320ms; }
+.rm-der.rm-entra { animation: rmEntraDer .45s cubic-bezier(.2, .8, .2, 1) .12s both; }
+.rm-saliendo > .rm-marca, .rm-saliendo > .rm-tarjeta { animation: rmSale .22s ease forwards; pointer-events: none; }
+.rm-saliendo > .rm-marca.rm-elegida { animation: rmElegida .24s ease forwards; z-index: 2; }
+.rm-der.rm-saliendo { animation: rmSale .2s ease forwards; }
+@media (prefers-reduced-motion: reduce) {
+    .rm-entra > *, .rm-der.rm-entra, .rm-saliendo > *, .rm-der.rm-saliendo { animation: none !important; }
+}

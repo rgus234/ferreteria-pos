@@ -104,8 +104,16 @@
         const q = plano(rm.consulta).trim();
         if (!q || rm.factura) return [];
         const palabras = q.split(/\s+/).filter(Boolean);
-        return rm.grupos.filter(g => palabras.every(w => plano(g.marca).includes(w)));
+        const solo = q.replace(/[^a-z0-9]/g, "");
+        // Abarrotes en la primera pantalla: tambien salen las marcas que tienen un producto con ese nombre o codigo.
+        const porProducto = g => solo.length >= 3 && g.productos.some(p => palabras.every(w => plano(p.nombre).includes(w)) || String(p.codigo || "").toLowerCase().replace(/[^a-z0-9]/g, "").includes(solo));
+        // Si alguna marca se llama asi, solo salen esas; si no, las marcas que tienen un producto con ese nombre o codigo.
+        const porNombre = rm.grupos.filter(g => palabras.every(w => plano(g.marca).includes(w)));
+        return porNombre.length || !soloMarcas() ? porNombre : rm.grupos.filter(porProducto);
     }
+
+    // Abarrotes: hasta que se elige una marca, la pantalla es solo de tarjetas de marcas (tambien al buscar: salen las marcas que coinciden).
+    function soloMarcas() { return Boolean(rm) && esAbarrotes() && !rm.factura && !rm.marca; }
 
     function gruposVisibles() {
         const coinciden = marcasQueCoinciden();
@@ -126,6 +134,7 @@
     }
 
     function productosVisibles() {
+        if (soloMarcas()) return [];
         const q = plano(rm.consulta).trim();
 
         if (q) {
@@ -233,13 +242,14 @@
         pintarUltimo();
         const campo = document.getElementById("rmBuscar");
         if (campo && !rm.factura) campo.focus();
+        entrar();
     }
 
     // Abarrotes: mientras no se elija una marca ni se busque ni se anote nada, la pantalla es solo de tarjetas de marcas (sin el resumen de al lado).
     function ajustarVista() {
         const dos = document.querySelector("#pantallaRecibirMarca .rm-dos");
         if (!dos || !rm) return;
-        dos.classList.toggle("rm-solo-marcas", esAbarrotes() && !rm.factura && !rm.marca && !rm.consulta.trim() && lineas().length === 0);
+        dos.classList.toggle("rm-solo-marcas", soloMarcas() && lineas().length === 0);
     }
 
     function pintarFiltros() {
@@ -280,11 +290,12 @@
         const boton = g => {
             const llevo = g.productos.reduce((s, p) => s + (rm.cantidades.get(Number(p.id)) > 0 ? 1 : 0), 0);
             const imagen = esAbarrotes() ? `<span class="rm-marca-img"><span class="rm-marca-ini">${esc(iniciales(g.marca))}</span>${g.dir ? `<img src="/marcas-directorio/${esc(g.dir.id)}/imagen" alt="" loading="lazy" onerror="this.remove()">` : ""}</span>` : "";
-            return `<button type="button" class="rm-marca${g.marca === rm.marca ? " activa" : ""}${imagen ? " con-imagen" : ""}" style="--marca:${g.color || "#475569"}" onclick="rmMarca(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})">${imagen}<b>${esc(g.marca)}</b><small>${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}${rm.modo === "sugerir" ? textoPorPedir(g) : (llevo ? ` · ${llevo} con entrada` : "")}</small></button>`;
+            return `<button type="button" class="rm-marca${g.marca === rm.marca ? " activa" : ""}${imagen ? " con-imagen" : ""}" data-marca="${esc(g.marca)}" style="--marca:${g.color || "#475569"}" onclick="rmMarca(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})">${imagen}<b>${esc(g.marca)}</b><small>${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}${rm.modo === "sugerir" ? textoPorPedir(g) : (llevo ? ` · ${llevo} con entrada` : "")}</small></button>`;
         };
         const mas = ocultas > 0
             ? `<button type="button" class="rm-marca rm-mas" onclick="rmVerMarcas(true)"><b>Ver las ${ocultas} marcas restantes</b><small>o escribe la marca arriba</small></button>`
             : (rm.verTodasMarcas && !rm.factura && !buscando && todas.length > MARCAS_VISIBLES + 2 ? `<button type="button" class="rm-marca rm-mas" onclick="rmVerMarcas(false)"><b>Mostrar menos marcas</b></button>` : "");
+        if (soloMarcas() && buscando && !marcasQueCoinciden().length) { m.innerHTML = `<p class="rm-nota rm-completo">No encontré marcas ni productos con eso.</p>`; return; }
         m.innerHTML = rm.factura ? "" : lista.map(boton).join("") + mas;
     }
 
@@ -323,6 +334,7 @@
         const g = document.getElementById("rmGrid");
         if (!g) return;
         const lista = productosVisibles();
+        if (soloMarcas()) { g.innerHTML = ""; return; }
         g.innerHTML = lista.length
             ? lista.slice(0, MAX_TARJETAS).map(tarjeta).join("") + (lista.length > MAX_TARJETAS ? `<p class="rm-nota rm-completo">Se muestran ${MAX_TARJETAS} de ${lista.length}. Usa el buscador para acotar.</p>` : "")
             : `<p class="rm-nota rm-completo">${rm.consulta.trim() ? "No encontré nada con eso." : (!rm.marca ? (esAbarrotes() ? "Elige una marca, o busca un producto por su nombre o código." : "Escanea un producto con la pistola, escribe su nombre o código, o elige una marca.") : "Esta marca no tiene productos.")}</p>`;
@@ -672,7 +684,27 @@
         if (rm.verFacturas) { const c = document.getElementById("rmBuscarFactura"); if (c && document.activeElement !== c && !rm.busFactura) c.focus(); }
     }
 
-    window.rmCambiarMarca = function () { rm.marca = ""; rm.linea = ""; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
+    const pausa = ms => new Promise(r => setTimeout(r, ms));
+    let temporizadorEntra = null;
+
+    // Las tarjetas y el resumen entran con una animacion corta; la clase se quita sola para que escribir en el buscador no la repita.
+    function entrar() {
+        const ids = ["rmMarcas", "rmGrid", "rmResumen"];
+        ids.forEach(id => document.getElementById(id)?.classList.add("rm-entra"));
+        clearTimeout(temporizadorEntra);
+        temporizadorEntra = setTimeout(() => ids.forEach(id => document.getElementById(id)?.classList.remove("rm-entra")), 1000);
+    }
+
+    window.rmCambiarMarca = async function () {
+        if (esAbarrotes() && rm.marca && !rm.factura) {
+            document.getElementById("rmGrid")?.classList.add("rm-saliendo");
+            if (!lineas().length) document.getElementById("rmResumen")?.classList.add("rm-saliendo");
+            await pausa(200);
+        }
+        rm.marca = ""; rm.linea = ""; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = "";
+        document.querySelectorAll("#rmGrid, #rmResumen").forEach(x => x.classList.remove("rm-saliendo"));
+        pintarFiltros(); pintarGrid(); entrar();
+    };
     window.rmHistorial = function () { if (typeof mostrarRecepcionInteligente === "function") mostrarRecepcionInteligente().then(() => { if (typeof abrirHistorialRecepciones === "function") abrirHistorialRecepciones(); }); };
     window.rmFacturaManual = function () { if (typeof mostrarRecepcionInteligente === "function") mostrarRecepcionInteligente(); };
     window.rmVerFacturas = function (ver) { rm.verFacturas = Boolean(ver); pintarFacturas(); };
@@ -727,7 +759,16 @@
     window.rmVerMarcas = function (ver) { rm.verTodasMarcas = Boolean(ver); pintarFiltros(); };
 
     window.rmTipo = function (tipo) { rm.linea = ""; rm.tipo = tipo || ""; const v = gruposVisibles(); if (!v.some(g => g.marca === rm.marca)) rm.marca = esAbarrotes() ? "" : v[0].marca; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
-    window.rmMarca = function (marca) { rm.marca = marca; rm.linea = ""; rm.consulta = ""; if (rm.modo === "sugerir") rellenarSugeridos(marca); const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
+    window.rmMarca = async function (marca) {
+        // Abarrotes: la tarjeta elegida resalta y las demas se desvanecen antes de abrir los productos.
+        if (soloMarcas()) {
+            const m = document.getElementById("rmMarcas");
+            if (m) { m.querySelectorAll(".rm-marca").forEach(b => b.classList.toggle("rm-elegida", b.dataset.marca === marca)); m.classList.add("rm-saliendo"); await pausa(240); }
+        }
+        rm.marca = marca; rm.linea = ""; rm.consulta = ""; if (rm.modo === "sugerir") rellenarSugeridos(marca); const b = document.getElementById("rmBuscar"); if (b) b.value = "";
+        document.getElementById("rmMarcas")?.classList.remove("rm-saliendo");
+        pintarFiltros(); pintarGrid(); entrar();
+    };
     window.rmSumar = function (id, delta) { if (rm.tocados) rm.tocados.add(Number(id)); rm.cantidades.set(id, Math.max(0, (rm.cantidades.get(id) || 0) + delta)); actualizarTarjeta(id); pintarResumen(); pintarFiltros(); pintarUltimo(); };
     window.rmEscribir = function (id, valor) { if (rm.tocados) rm.tocados.add(Number(id)); const n = Number(valor); rm.cantidades.set(id, Number.isFinite(n) && n > 0 ? n : 0); const t = document.querySelector(`#rmGrid .rm-tarjeta[data-id="${id}"]`); if (t) t.classList.toggle("con-entrada", (rm.cantidades.get(id) || 0) > 0); pintarResumen(); };
     window.rmQuitar = function (id) { if (rm.tocados) rm.tocados.add(Number(id)); rm.cantidades.set(id, 0); actualizarTarjeta(id); pintarResumen(); pintarFiltros(); };
