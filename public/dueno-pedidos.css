@@ -36,3 +36,5 @@ body.dpe-abierta { overflow: hidden; }
 :root.oscuro .dpe-atras { background: #1e293b; color: #f1f5f9; }
 :root.oscuro .dpe-texto small, :root.oscuro .dpe-pedido-datos small, :root.oscuro .dpe-nota { color: #94a3b8; }
 .dpe-cabeza h2 { flex: 1; margin: 0; text-align: left; }
+.dpe-enlace { border: 0; background: transparent; color: #1d4ed8; font: inherit; font-weight: 700; padding: 10px 4px; text-align: left; }
+:root.oscuro .dpe-enlace { color: #93c5fd; }

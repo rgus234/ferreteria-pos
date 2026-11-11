@@ -63,8 +63,10 @@
         if (typeof mostrarRecibirMarca === "function") mostrarRecibirMarca();
     };
 
+    // Sugerir pedido: la pantalla de marcas y productos en modo "sugerir" (minimo y maximo por producto; Nexo calcula lo que falta).
     window.mostrarSugerirPedido = function () {
-        if (typeof mostrarPedidoSugerido === "function") mostrarPedidoSugerido();
+        window.__rmModo = "sugerir";
+        if (typeof mostrarRecibirMarca === "function") mostrarRecibirMarca();
     };
 
     // La lista de pedidos guardados (la pantalla de siempre de Pedidos a proveedor, sin su formulario de captura).

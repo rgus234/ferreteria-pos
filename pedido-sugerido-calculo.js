@@ -60,4 +60,18 @@ function formatoDinero(valor) {
 
 const DIAS_SEMANA = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
 
-module.exports = { proximaVisita, sugerirProducto, diaDeLaSemana, sumarDias, formatoDinero, DIAS_SEMANA };
+// Pedido sugerido por MINIMO y MAXIMO (los define el dueño por producto): si lo que va a haber (lo que hay + lo que viene en camino - lo que ya
+// esta encargado por clientes) llega al minimo o menos, se pide lo que falta para llegar al maximo. Sin minimo y maximo no se sugiere nada.
+function sugeridoMinMax({ stock = 0, minimo = 0, maximo = 0, enCamino = 0, encargado = 0 } = {}) {
+    const n = valor => { const x = Number(valor); return Number.isFinite(x) ? x : 0; };
+    const min = n(minimo);
+    const max = n(maximo);
+    const proyectado = Math.round((n(stock) + n(enCamino) - n(encargado)) * 1000) / 1000;
+
+    if (!(min > 0) || !(max > 0) || max < min) return { estado: "sin-limites", pedir: 0, proyectado };
+    if (proyectado > min) return { estado: "suficiente", pedir: 0, proyectado };
+
+    return { estado: "pedir", pedir: Math.max(0, Math.ceil(max - proyectado)), proyectado };
+}
+
+module.exports = { sugeridoMinMax, proximaVisita, sugerirProducto, diaDeLaSemana, sumarDias, formatoDinero, DIAS_SEMANA };

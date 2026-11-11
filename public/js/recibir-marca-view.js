@@ -146,13 +146,13 @@
     // ---------- pantalla ----------
 
     window.mostrarRecibirMarca = async function () {
-        const modo = window.__rmModo === "pedido" ? "pedido" : "recibir";
+        const modo = window.__rmModo === "pedido" || window.__rmModo === "sugerir" ? window.__rmModo : "recibir";
         window.__rmModo = null;
         if (typeof ocultarPantallasPrincipales === "function") ocultarPantallasPrincipales();
         const pantalla = document.getElementById("pantallaRecibirMarca");
         if (!pantalla) return;
         pantalla.style.display = "block";
-        if (typeof actualizarTopbarContexto === "function") (modo === "pedido" ? actualizarTopbarContexto("Crear pedido", "Elige la marca y anota lo que quieres pedir", "pedidos-unico") : actualizarTopbarContexto(esAbarrotes() ? "Recibir mercancía" : "Recibir por marca", esAbarrotes() ? "Elige la marca y anota lo que llegó" : "Anota lo que llegó por marca o con la factura", "recibir-marca"));
+        if (typeof actualizarTopbarContexto === "function") (modo !== "recibir" ? actualizarTopbarContexto(modo === "sugerir" ? "Sugerir pedido" : "Crear pedido", modo === "sugerir" ? "Pon mínimo y máximo y Nexo calcula lo que falta" : "Elige la marca y anota lo que quieres pedir", "pedidos-unico") : actualizarTopbarContexto(esAbarrotes() ? "Recibir mercancía" : "Recibir por marca", esAbarrotes() ? "Elige la marca y anota lo que llegó" : "Anota lo que llegó por marca o con la factura", "recibir-marca"));
         pantalla.innerHTML = `<div class="rm-shell"><p class="rm-nota">Cargando tu catálogo…</p></div>`;
 
         if (!Array.isArray(todosProductos) || !todosProductos.length) { try { await cargarProductos(); } catch (error) { /* se avisa abajo */ } }
@@ -161,7 +161,8 @@
         if (!productos.length) { pantalla.innerHTML = `<div class="rm-shell"><p class="rm-nota">Todavía no hay productos en tu catálogo.</p></div>`; return; }
 
         const grupos = await armarGrupos(productos);
-        rm = { modo, productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: esAbarrotes() || grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), linea: "", verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), caducidades: new Map(), pago: { activo: false, monto: "", metodo: "efectivo_caja", por: "", nota: "" }, proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
+        rm = { modo, tocados: new Set(), comp: {}, productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: esAbarrotes() || grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), linea: "", verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), caducidades: new Map(), pago: { activo: false, monto: "", metodo: "efectivo_caja", por: "", nota: "" }, proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
+        if (modo === "sugerir") await cargarComprometido();
         pintar();
 
         llamar("/proveedores").then(r => { if (rm) { rm.proveedores = (r.datos.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre })).filter(x => x.nombre); pintarResumen(); } }).catch(() => {});
@@ -173,7 +174,7 @@
         if (!pantalla || !rm) return;
 
         pantalla.innerHTML = `<div class="rm-shell">
-            <header class="rm-cab"><div><h2>${rm.modo === "pedido" ? "Crear pedido" : (rm.factura ? "Recibir con factura" : "Recibir mercancía")}</h2><p>${rm.modo === "pedido" ? "Elige la marca y anota cuántas piezas quieres pedir de cada producto." : rm.factura ? "Confirma lo que llegó de cada producto. Lo que dice la factura aparece como “Esperado”." : (esAbarrotes() ? "Elige la marca y anota cuántas piezas llegaron de cada producto. Si traes la factura, ábrela arriba y confirma contra lo esperado." : "Escanea cada producto con la pistola, o búscalo por nombre, código o marca. Cada escaneo suma 1.")}</p></div>
+            <header class="rm-cab"><div><h2>${rm.modo === "sugerir" ? "Sugerir pedido" : (rm.modo === "pedido" ? "Crear pedido" : (rm.factura ? "Recibir con factura" : "Recibir mercancía"))}</h2><p>${rm.modo === "sugerir" ? "Elige la marca, pon cuánto quieres tener como mínimo y como máximo de cada producto, y Nexo te dice cuánto pedir." : rm.modo === "pedido" ? "Elige la marca y anota cuántas piezas quieres pedir de cada producto." : rm.factura ? "Confirma lo que llegó de cada producto. Lo que dice la factura aparece como “Esperado”." : (esAbarrotes() ? "Elige la marca y anota cuántas piezas llegaron de cada producto. Si traes la factura, ábrela arriba y confirma contra lo esperado." : "Escanea cada producto con la pistola, o búscalo por nombre, código o marca. Cada escaneo suma 1.")}</p></div>
                 <div id="rmFacturas" class="rm-facturas"></div></header>
             <div class="rm-dos">
                 <section class="rm-izq">
@@ -233,7 +234,7 @@
         const boton = g => {
             const llevo = g.productos.reduce((s, p) => s + (rm.cantidades.get(Number(p.id)) > 0 ? 1 : 0), 0);
             const imagen = esAbarrotes() ? `<span class="rm-marca-img"><span class="rm-marca-ini">${esc(iniciales(g.marca))}</span>${g.dir ? `<img src="/marcas-directorio/${esc(g.dir.id)}/imagen" alt="" loading="lazy" onerror="this.remove()">` : ""}</span>` : "";
-            return `<button type="button" class="rm-marca${g.marca === rm.marca ? " activa" : ""}${imagen ? " con-imagen" : ""}" style="--marca:${g.color || "#475569"}" onclick="rmMarca(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})">${imagen}<b>${esc(g.marca)}</b><small>${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
+            return `<button type="button" class="rm-marca${g.marca === rm.marca ? " activa" : ""}${imagen ? " con-imagen" : ""}" style="--marca:${g.color || "#475569"}" onclick="rmMarca(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})">${imagen}<b>${esc(g.marca)}</b><small>${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}${rm.modo === "sugerir" ? textoPorPedir(g) : (llevo ? ` · ${llevo} con entrada` : "")}</small></button>`;
         };
         const mas = ocultas > 0
             ? `<button type="button" class="rm-marca rm-mas" onclick="rmVerMarcas(true)"><b>Ver las ${ocultas} marcas restantes</b><small>o escribe la marca arriba</small></button>`
@@ -269,7 +270,7 @@
             <b class="rm-nombre">${esc(p.nombre)}</b>
             <small class="rm-hay${poco ? " poco" : ""}">Hay ${numero(p.stock)}${esperado ? ` · <span class="rm-esperado">${p.nuevoProducto ? "Nuevo · " : ""}Esperado ${numero(p.esperado)}</span>` : ""}</small>
             <div class="rm-cantidad"><button type="button" onclick="rmSumar(${id}, -1)" aria-label="Quitar uno">−</button><input type="number" min="0" step="any" inputmode="decimal" value="${n || ""}" placeholder="0" oninput="rmEscribir(${id}, this.value)" aria-label="Llegaron"><button type="button" onclick="rmSumar(${id}, 1)" aria-label="Agregar uno">+</button></div>
-            <div class="rm-atajos">${atajos}</div></article>`;
+            ${rm.modo === "sugerir" ? minMaxHtml(p, id) : ""}<div class="rm-atajos">${atajos}</div></article>`;
     }
 
     function pintarGrid() {
@@ -302,7 +303,7 @@
         if (!t) return;
         const n = rm.cantidades.get(id) || 0;
         t.classList.toggle("con-entrada", n > 0);
-        const campo = t.querySelector("input");
+        const campo = t.querySelector(".rm-cantidad input");
         if (campo && document.activeElement !== campo) campo.value = n || "";
     }
 
@@ -387,7 +388,7 @@
     function pintarResumen() {
         const r = document.getElementById("rmResumen");
         if (!r || !rm) return;
-        if (rm.modo === "pedido") { pintarResumenPedido(r); return; }
+        if (esPedido()) { pintarResumenPedido(r); return; }
         const ls = lineas();
         const piezas = ls.reduce((s, l) => s + l.n, 0);
         const sinDecidir = rm.factura ? rm.factura.porDecidir : 0;
@@ -407,6 +408,81 @@
     }
 
     // ---------- Crear pedido (mismo flujo de marcas y productos, pero se guarda como pedido a proveedor) ----------
+
+    // ---------- Sugerir pedido: minimo y maximo por producto ----------
+
+    const esPedido = () => Boolean(rm) && (rm.modo === "pedido" || rm.modo === "sugerir");
+
+    // Igual que en el servidor (pedido-sugerido-calculo.js): lo que va a haber = lo que hay + lo que viene en camino - lo encargado por clientes.
+    function sugerenciaDe(p) {
+        const c = (rm.comp && rm.comp[p.id]) || {};
+        const n = v => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+        const min = n(p.stock_minimo);
+        const max = n(p.stock_maximo);
+        const proyectado = Math.round((n(p.stock) + n(c.enCamino) - n(c.encargado)) * 1000) / 1000;
+
+        if (!(min > 0) || !(max > 0) || max < min) return { estado: "sin-limites", pedir: 0, proyectado };
+        if (proyectado > min) return { estado: "suficiente", pedir: 0, proyectado };
+        return { estado: "pedir", pedir: Math.max(0, Math.ceil(max - proyectado)), proyectado };
+    }
+
+    async function cargarComprometido() {
+        const r = await llamar("/pedido-minmax/comprometido");
+        rm.comp = (r.ok && r.datos.productos) || {};
+    }
+
+    function textoPorPedir(g) {
+        const cuantos = g.productos.filter(p => sugerenciaDe(p).estado === "pedir").length;
+        return cuantos ? ` · ${cuantos} por pedir` : "";
+    }
+
+    function minMaxHtml(p, id) {
+        const s = sugerenciaDe(p);
+        const c = (rm.comp && rm.comp[p.id]) || {};
+        const piezas = v => numero(Number(v) || 0);
+        const detalle = `hay ${piezas(p.stock)}${c.enCamino ? ` + ${piezas(c.enCamino)} en camino` : ""}${c.encargado ? ` - ${piezas(c.encargado)} encargado${Number(c.encargado) === 1 ? "" : "s"}` : ""}`;
+        const texto = s.estado === "pedir"
+            ? `Pedir ${piezas(s.pedir)}: ${detalle}, mínimo ${piezas(p.stock_minimo)}, máximo ${piezas(p.stock_maximo)}`
+            : (s.estado === "suficiente" ? `Tienes suficiente (${detalle})` : "Pon mínimo y máximo para que Nexo calcule");
+
+        return `<div class="rm-minmax rm-${s.estado}">
+            <div class="rm-limites"><label>Mín <input type="number" class="rm-min" min="0" step="any" inputmode="decimal" value="${Number(p.stock_minimo) > 0 ? esc(String(p.stock_minimo)) : ""}" onchange="rmLimites(${id})"></label><label>Máx <input type="number" class="rm-max" min="0" step="any" inputmode="decimal" value="${Number(p.stock_maximo) > 0 ? esc(String(p.stock_maximo)) : ""}" onchange="rmLimites(${id})"></label></div>
+            <small>${esc(texto)}</small></div>`;
+    }
+
+    // Pone las cantidades sugeridas de la marca elegida (lo que ya anotaste a mano no se toca).
+    function rellenarSugeridos(marca) {
+        const g = rm.grupos.find(x => x.marca === marca);
+        if (!g) return;
+        g.productos.forEach(p => {
+            if (rm.tocados.has(Number(p.id))) return;
+            const s = sugerenciaDe(p);
+            if (s.pedir > 0) rm.cantidades.set(Number(p.id), s.pedir); else rm.cantidades.delete(Number(p.id));
+        });
+    }
+
+    // Guarda el minimo y el maximo del producto y recalcula lo que hay que pedir.
+    window.rmLimites = async function (id) {
+        const tarjetaEl = document.querySelector(`#rmGrid .rm-tarjeta[data-id="${id}"]`);
+        const p = rm && rm.indice.get(Number(id));
+        if (!tarjetaEl || !p) return;
+
+        const minimo = tarjetaEl.querySelector(".rm-min").value.trim();
+        const maximo = tarjetaEl.querySelector(".rm-max").value.trim();
+        const r = await llamar(`/productos/${Number(id)}/edicion-rapida`, { method: "PATCH", body: JSON.stringify({ stockMinimo: minimo === "" ? null : Number(minimo), stockMaximo: maximo === "" ? null : Number(maximo) }) });
+
+        if (!r.ok) { aviso(r.datos.error || "No se pudo guardar el mínimo y el máximo.", "error"); return; }
+
+        p.stock_minimo = minimo === "" ? 3 : Number(minimo);
+        p.stock_maximo = maximo === "" ? null : Number(maximo);
+        rm.tocados.delete(Number(id));
+        const s = sugerenciaDe(p);
+        if (s.pedir > 0) rm.cantidades.set(Number(id), s.pedir); else rm.cantidades.delete(Number(id));
+
+        tarjetaEl.outerHTML = tarjeta(p);
+        pintarResumen();
+        pintarFiltros();
+    };
 
     const costoDe = p => { const c = Number(p.costo); return Number.isFinite(c) && c > 0 ? c : 0; };
     const marcaDe = p => { const g = rm.grupos.find(x => x.productos.some(q => Number(q.id) === Number(p.id))); return g ? g.marca : String(p.marca || ""); };
@@ -451,7 +527,7 @@
             body: JSON.stringify({
                 proveedor,
                 estado: enviado ? "enviado" : "borrador",
-                notas: "Creado con Crear pedido",
+                notas: rm.modo === "sugerir" ? "Sugerido por Nexo (mínimos y máximos)" : "Creado con Crear pedido",
                 items: ls.map(l => ({ productoId: l.id, codigo: l.p.codigo, nombre: l.p.nombre, cantidad: l.n, costo: costoDe(l.p), unidad: "pieza", proveedor }))
             })
         });
@@ -484,7 +560,7 @@
     function pintarFacturas() {
         const caja = document.getElementById("rmFacturas");
         if (!caja || !rm) return;
-        if (rm.factura || rm.modo === "pedido") { caja.innerHTML = ""; return; }
+        if (rm.factura || esPedido()) { caja.innerHTML = rm.modo === "sugerir" ? `<div class="rm-esquina"><button type="button" class="rm-btn" onclick="mostrarPedidoSugerido()" title="El cálculo de siempre, con tus ventas y el día de visita de cada proveedor">Ver el cálculo por ventas</button></div>` : ""; return; }
 
         // Abarrotes: "Recibir con factura" e "Historial" siempre a la mano en la esquina (aunque no haya facturas del correo pendientes).
         const historial = esAbarrotes() ? `<button type="button" class="rm-btn" onclick="rmHistorial()">Historial</button>` : "";
@@ -559,10 +635,10 @@
     window.rmVerMarcas = function (ver) { rm.verTodasMarcas = Boolean(ver); pintarFiltros(); };
 
     window.rmTipo = function (tipo) { rm.linea = ""; rm.tipo = tipo || ""; const v = gruposVisibles(); if (!v.some(g => g.marca === rm.marca)) rm.marca = v[0].marca; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
-    window.rmMarca = function (marca) { rm.marca = marca; rm.linea = ""; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
-    window.rmSumar = function (id, delta) { rm.cantidades.set(id, Math.max(0, (rm.cantidades.get(id) || 0) + delta)); actualizarTarjeta(id); pintarResumen(); pintarFiltros(); pintarUltimo(); };
-    window.rmEscribir = function (id, valor) { const n = Number(valor); rm.cantidades.set(id, Number.isFinite(n) && n > 0 ? n : 0); const t = document.querySelector(`#rmGrid .rm-tarjeta[data-id="${id}"]`); if (t) t.classList.toggle("con-entrada", (rm.cantidades.get(id) || 0) > 0); pintarResumen(); };
-    window.rmQuitar = function (id) { rm.cantidades.set(id, 0); actualizarTarjeta(id); pintarResumen(); pintarFiltros(); };
+    window.rmMarca = function (marca) { rm.marca = marca; rm.linea = ""; rm.consulta = ""; if (rm.modo === "sugerir") rellenarSugeridos(marca); const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
+    window.rmSumar = function (id, delta) { if (rm.tocados) rm.tocados.add(Number(id)); rm.cantidades.set(id, Math.max(0, (rm.cantidades.get(id) || 0) + delta)); actualizarTarjeta(id); pintarResumen(); pintarFiltros(); pintarUltimo(); };
+    window.rmEscribir = function (id, valor) { if (rm.tocados) rm.tocados.add(Number(id)); const n = Number(valor); rm.cantidades.set(id, Number.isFinite(n) && n > 0 ? n : 0); const t = document.querySelector(`#rmGrid .rm-tarjeta[data-id="${id}"]`); if (t) t.classList.toggle("con-entrada", (rm.cantidades.get(id) || 0) > 0); pintarResumen(); };
+    window.rmQuitar = function (id) { if (rm.tocados) rm.tocados.add(Number(id)); rm.cantidades.set(id, 0); actualizarTarjeta(id); pintarResumen(); pintarFiltros(); };
     window.rmLlego = function (id) { const p = rm.indice.get(id); if (p && p.esperado != null) { rm.cantidades.set(id, p.esperado); actualizarTarjeta(id); pintarResumen(); } };
 
     window.rmTodoFactura = function () { if (!rm.factura) return; rm.factura.cards.forEach(c => rm.cantidades.set(Number(c.id), c.esperado)); pintarGrid(); pintarResumen(); };
@@ -689,7 +765,7 @@
 
     window.rmConfirmar = async function () {
         if (!rm || rm.enviando || !lineas().length) return;
-        if (rm.modo === "pedido") { await guardarPedidoRM(false); return; }
+        if (esPedido()) { await guardarPedidoRM(false); return; }
 
         if (rm.factura) {
             if (rm.factura.porDecidir) { await alertaPOS(`Esta factura trae ${rm.factura.porDecidir} concepto(s) que Nexo no pudo emparejar. Decídelos en Recepción inteligente y luego confirma aquí.`, "Faltan conceptos por decidir", "info"); return; }

@@ -196,6 +196,31 @@ function instalar(app, pool, requerirAccesoNegocio) {
         )).rows[0] || null;
     }
 
+    // Lo que ya esta comprometido por producto, para el pedido por minimo y maximo: encargado por clientes (pendientes) y lo que viene en camino
+    // (pedidos enviados que aun no llegan completos).
+    app.get("/pedido-minmax/comprometido", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const id = negocioId(req);
+            const leer = async consulta => { try { return (await pool.query(consulta, [id])).rows; } catch (error) { return []; } };
+
+            const encargos = await leer(`SELECT i.producto_id, SUM(i.cantidad) AS n
+                  FROM public.encargos_clientes_items i JOIN public.encargos_clientes e ON e.id = i.encargo_id
+                 WHERE e.negocio_id = $1 AND e.estado = 'pendiente' AND i.producto_id IS NOT NULL GROUP BY i.producto_id`);
+            const camino = await leer(`SELECT i.producto_id, SUM(GREATEST(i.cantidad - COALESCE(i.recibido, 0), 0)) AS n
+                  FROM public.pedidos_proveedor_items i JOIN public.pedidos_proveedor p ON p.id = i.pedido_id
+                 WHERE p.negocio_id = $1 AND p.estado IN ('enviado', 'parcial') AND i.producto_id IS NOT NULL GROUP BY i.producto_id`);
+
+            const productos = {};
+            const de = productoId => (productos[productoId] = productos[productoId] || { encargado: 0, enCamino: 0 });
+            encargos.forEach(r => { de(r.producto_id).encargado = Number(r.n) || 0; });
+            camino.forEach(r => { de(r.producto_id).enCamino = Number(r.n) || 0; });
+
+            res.json({ ok: true, productos });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     // Lista de proveedores con su dia de visita y lo que conviene pedir en cada uno.
     app.get("/pedido-sugerido", requerirAccesoNegocio, async (req, res) => {
         try {

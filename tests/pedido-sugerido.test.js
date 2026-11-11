@@ -184,3 +184,22 @@ test("el cliente muestra Pedido sugerido solo a abarrotes y guarda el pedido com
     assert.match(leer("js/config-auth.js"), /"pantallaPedidoSugerido"/);
     assert.match(leer("js/shell-topbar.js"), /"pedido-sugerido"/);
 });
+
+test("pedido por minimo y maximo: pide lo que falta para llegar al maximo, contando lo que viene en camino y lo encargado", () => {
+    const { sugeridoMinMax } = require("../pedido-sugerido-calculo");
+
+    // El ejemplo de siempre: hay 8, minimo 12, maximo 36 -> pedir 28.
+    assert.deepEqual(sugeridoMinMax({ stock: 8, minimo: 12, maximo: 36 }), { estado: "pedir", pedir: 28, proyectado: 8 });
+    // Justo en el minimo tambien se pide; arriba del minimo no.
+    assert.equal(sugeridoMinMax({ stock: 12, minimo: 12, maximo: 36 }).pedir, 24);
+    assert.equal(sugeridoMinMax({ stock: 13, minimo: 12, maximo: 36 }).estado, "suficiente");
+    // Lo que ya viene en camino cuenta; lo encargado por clientes se resta.
+    assert.equal(sugeridoMinMax({ stock: 8, minimo: 12, maximo: 36, enCamino: 24 }).estado, "suficiente");
+    assert.equal(sugeridoMinMax({ stock: 20, minimo: 12, maximo: 36, encargado: 10 }).pedir, 26);
+    // Sin minimo y maximo (o con el maximo menor al minimo) no se sugiere nada.
+    assert.equal(sugeridoMinMax({ stock: 1, minimo: 12 }).estado, "sin-limites");
+    assert.equal(sugeridoMinMax({ stock: 1, minimo: 12, maximo: 5 }).estado, "sin-limites");
+    assert.equal(sugeridoMinMax({ stock: 1 }).pedir, 0);
+    // Cantidades con decimales se redondean hacia arriba (piezas completas).
+    assert.equal(sugeridoMinMax({ stock: 0.5, minimo: 2, maximo: 6 }).pedir, 6);
+});

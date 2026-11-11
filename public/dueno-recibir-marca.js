@@ -191,6 +191,7 @@
             <span class="drm-foto">${p.imagenUrl ? `<img data-foto="${Number(p.id)}" alt="" decoding="async">` : (typeof miniaturaVaciaDuenoHtml === "function" ? miniaturaVaciaDuenoHtml() : "")}</span>
             <b class="drm-nombre">${esc(p.nombre)}</b>
             <span class="drm-hay${poco ? " poco" : ""}">Hay ${esc(String(hay))}</span>
+            ${estado.modo === "sugerir" ? minMaxHtmlDueno(p) : ""}
             ${p.esperado != null ? `<span class="drm-esperado${n > 0 && n !== p.esperado ? " dif" : ""}">${p.nuevoProducto ? "Nuevo · " : ""}Esperado ${esc(String(p.esperado))}</span>` : ""}
             <div class="drm-cantidad">
                 <button type="button" aria-label="Quitar uno" onclick="ajustarRecibirDueno(${Number(p.id)}, -1)">−</button>
@@ -309,7 +310,7 @@
         const html = lista.map(g => {
             const llevo = g.productos.reduce((s, p) => s + (estado.cantidades.get(p.id) > 0 ? 1 : 0), 0);
             return `<button type="button" class="drm-marca${g === grupo && (estado.marca || !modoTarjetas()) ? " activa" : ""}" style="--marca:${g.color}" onclick="elegirMarcaRecibirDueno(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})">
-                ${modoTarjetas() ? `<span class="drm-logo drm-logo-grande"><span class="drm-ini">${esc(iniciales(g.marca))}</span>${g.logo ? `<img src="${esc(g.logo)}" alt="" loading="lazy" onerror="this.remove()">` : ""}</span>` : (g.logo ? `<span class="drm-logo"><img src="${esc(g.logo)}" alt=""></span>` : "")}<b>${esc(g.marca)}</b><small>${g.productos.length} ${pluralProducto(g.productos.length)}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
+                ${modoTarjetas() ? `<span class="drm-logo drm-logo-grande"><span class="drm-ini">${esc(iniciales(g.marca))}</span>${g.logo ? `<img src="${esc(g.logo)}" alt="" loading="lazy" onerror="this.remove()">` : ""}</span>` : (g.logo ? `<span class="drm-logo"><img src="${esc(g.logo)}" alt=""></span>` : "")}<b>${esc(g.marca)}</b><small>${g.productos.length} ${pluralProducto(g.productos.length)}${estado.modo === "sugerir" ? textoPorPedirDueno(g) : (llevo ? ` · ${llevo} con entrada` : "")}</small></button>`;
         }).join("");
         return modoTarjetas() ? `<div class="drm-tarjetas">${html}</div>` : html;
     }
@@ -366,7 +367,7 @@
             <div class="drm-tope">
             <header class="drm-cabeza">
                 <button type="button" class="drm-atras" onclick="cerrarRecibirMarcaDueno()">‹ Atrás</button>
-                <h2>${estado.modo === "pedido" ? "Crear pedido" : (estado.factura ? "Recibir con factura" : (esFerreteria() ? "Recibir por marca" : "Recibir mercancía"))}</h2>
+                <h2>${estado.modo === "sugerir" ? "Sugerir pedido" : esPedidoDueno() ? "Crear pedido" : (estado.factura ? "Recibir con factura" : (esFerreteria() ? "Recibir por marca" : "Recibir mercancía"))}</h2>
                 <span id="drmFactBtn" class="drm-fact-lugar">${botonFacturasHtml()}</span>
             </header>
             <div class="drm-buscar">
@@ -385,7 +386,7 @@
                 <button type="button" class="drm-resumen-abrir" onclick="abrirResumenRecibirDueno()" ${t.productos ? "" : "disabled"} aria-label="Ver el resumen de lo que llegó">
                     <span class="drm-flecha" aria-hidden="true">▲</span><span class="drm-totales">${textoTotales(t)}</span>
                 </button>
-                <button type="button" class="drm-confirmar" id="drmConfirmar" onclick="confirmarRecibirMarcaDueno()" ${t.productos && !estado.enviando ? "" : "disabled"}>${estado.enviando ? "Guardando…" : (estado.modo === "pedido" ? "Guardar pedido" : "Confirmar recepción")}</button>
+                <button type="button" class="drm-confirmar" id="drmConfirmar" onclick="confirmarRecibirMarcaDueno()" ${t.productos && !estado.enviando ? "" : "disabled"}>${estado.enviando ? "Guardando…" : (esPedidoDueno() ? "Guardar pedido" : "Confirmar recepción")}</button>
             </footer>
             ${estado.resumen ? resumenHtml() : ""}`;
         ponerFotos(c);
@@ -405,7 +406,7 @@
             const hay = Number(p.stock) || 0;
             return `<li class="drm-res-fila">
                 <span class="drm-res-foto">${p.imagenUrl ? `<img src="${esc(fotoMiniDueno(p.imagenUrl))}" alt="" loading="lazy">` : ""}</span>
-                <span class="drm-res-texto"><b>${esc(p.nombre)}</b><small>${estado.modo === "pedido" ? `Hay ${esc(String(hay))}` : `Hay ${esc(String(hay))} → quedan ${esc(String(Math.round((hay + n) * 1000) / 1000))}`}</small></span>
+                <span class="drm-res-texto"><b>${esc(p.nombre)}</b><small>${esPedidoDueno() ? `Hay ${esc(String(hay))}` : `Hay ${esc(String(hay))} → quedan ${esc(String(Math.round((hay + n) * 1000) / 1000))}`}</small></span>
                 <span class="drm-res-cant">
                     <button type="button" aria-label="Quitar uno" onclick="ajustarResumenRecibirDueno(${Number(p.id)}, -1)">−</button>
                     <input type="text" inputmode="numeric" value="${n}" aria-label="Llegaron" onchange="escribirResumenRecibirDueno(${Number(p.id)}, this.value)">
@@ -416,7 +417,7 @@
 
         return `<section class="drm-resumen" id="drmResumen" aria-label="Resumen de la recepción">
             <header class="drm-res-cabeza">
-                <button type="button" class="drm-res-bajar" onclick="cerrarResumenRecibirDueno()"><span aria-hidden="true">▼</span> ${estado.modo === "pedido" ? "Seguir pidiendo" : "Seguir recibiendo"}</button>
+                <button type="button" class="drm-res-bajar" onclick="cerrarResumenRecibirDueno()"><span aria-hidden="true">▼</span> ${esPedidoDueno() ? "Seguir pidiendo" : "Seguir recibiendo"}</button>
                 <h2>Resumen</h2>
             </header>
             <div class="drm-res-cuerpo">${porGrupo.map(x => `
@@ -424,7 +425,7 @@
                 <ul class="drm-res-lista">${x.filas.map(fila).join("")}</ul>`).join("") || `<p class="drm-vacio">Todavía no has anotado nada.</p>`}</div>
             <footer class="drm-pie drm-res-pie">
                 <div class="drm-totales">${textoTotales(t)}</div>
-                <button type="button" class="drm-confirmar" onclick="confirmarRecibirMarcaDueno()" ${t.productos && !estado.enviando ? "" : "disabled"}>${estado.enviando ? "Guardando…" : (estado.modo === "pedido" ? "Guardar pedido" : "Confirmar recepción")}</button>
+                <button type="button" class="drm-confirmar" onclick="confirmarRecibirMarcaDueno()" ${t.productos && !estado.enviando ? "" : "disabled"}>${estado.enviando ? "Guardando…" : (esPedidoDueno() ? "Guardar pedido" : "Confirmar recepción")}</button>
             </footer>
         </section>`;
     }
@@ -453,12 +454,14 @@
     };
 
     window.ajustarResumenRecibirDueno = function (id, delta) {
+        if (estado.tocados) estado.tocados.add(Number(id));
         window.ajustarRecibirDueno(id, delta);
         if (!totales().productos) { window.cerrarResumenRecibirDueno(); return; }
         repintarResumen();
     };
 
     window.escribirResumenRecibirDueno = function (id, texto) {
+        if (estado.tocados) estado.tocados.add(Number(id));
         window.escribirRecibirDueno(id, texto);
         if (!totales().productos) { window.cerrarResumenRecibirDueno(); return; }
         repintarResumen();
@@ -536,7 +539,7 @@
             tarjeta.classList.toggle("con-entrada", n > 0);
             const esperado = estado.indice.get(id)?.esperado;
             tarjeta.querySelector(".drm-esperado")?.classList.toggle("dif", esperado != null && n > 0 && n !== esperado);
-            const campo = tarjeta.querySelector("input");
+            const campo = tarjeta.querySelector(".drm-cantidad input");
             if (campo && document.activeElement !== campo) campo.value = n || "";
         }
 
@@ -549,6 +552,7 @@
     }
 
     window.ajustarRecibirDueno = function (id, delta) {
+        if (estado.tocados) estado.tocados.add(Number(id));
         const nuevo = Math.max(0, Math.round(((estado.cantidades.get(id) || 0) + delta) * 1000) / 1000);
         estado.cantidades.set(id, nuevo);
         actualizarTarjeta(id);
@@ -570,12 +574,14 @@
     };
 
     window.escribirRecibirDueno = function (id, texto) {
+        if (estado.tocados) estado.tocados.add(Number(id));
         const n = Number(String(texto).replace(/[^0-9.]/g, ""));
         estado.cantidades.set(id, Number.isFinite(n) && n > 0 ? n : 0);
         actualizarTarjeta(id);
     };
 
     window.elegirMarcaRecibirDueno = function (marca) {
+        if (estado.modo === "sugerir") rellenarSugeridosDueno(marca);
         estado.marca = marca;
         estado.linea = "";
         estado.consulta = "";
@@ -679,7 +685,7 @@
     }
 
     function botonFacturasHtml() {
-        if (!estado || estado.factura || estado.modo === "pedido" || !estado.facturas.length) return "";
+        if (!estado || estado.factura || esPedidoDueno() || !estado.facturas.length) return "";
         return `<button type="button" class="drm-fact-btn" onclick="abrirListaFacturasRecibirDueno()" aria-label="Facturas por recibir"><span aria-hidden="true">📄</span><b>${estado.facturas.length}</b></button>`;
     }
 
@@ -860,6 +866,80 @@
         });
     }
 
+    // ---- Sugerir pedido: minimo y maximo por producto (igual que en el servidor, pedido-sugerido-calculo.js) ----
+    const esPedidoDueno = () => Boolean(estado) && (estado.modo === "pedido" || estado.modo === "sugerir");
+
+    function sugerenciaDueno(prod) {
+        const c = (estado.comp && estado.comp[prod.id]) || {};
+        const n = v => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+        const min = n(prod.stock_minimo);
+        const max = n(prod.stock_maximo);
+        const proyectado = Math.round((n(prod.stock) + n(c.enCamino) - n(c.encargado)) * 1000) / 1000;
+
+        if (!(min > 0) || !(max > 0) || max < min) return { estado: "sin-limites", pedir: 0, proyectado };
+        if (proyectado > min) return { estado: "suficiente", pedir: 0, proyectado };
+        return { estado: "pedir", pedir: Math.max(0, Math.ceil(max - proyectado)), proyectado };
+    }
+
+    function textoPorPedirDueno(g) {
+        const cuantos = g.productos.filter(prod => sugerenciaDueno(prod).estado === "pedir").length;
+        return cuantos ? ` · ${cuantos} por pedir` : "";
+    }
+
+    function minMaxHtmlDueno(prod) {
+        const s = sugerenciaDueno(prod);
+        const c = (estado.comp && estado.comp[prod.id]) || {};
+        const piezas = v => String(Math.round((Number(v) || 0) * 1000) / 1000);
+        const detalle = `hay ${piezas(prod.stock)}${c.enCamino ? ` + ${piezas(c.enCamino)} en camino` : ""}${c.encargado ? ` - ${piezas(c.encargado)} encargado${Number(c.encargado) === 1 ? "" : "s"}` : ""}`;
+        const texto = s.estado === "pedir"
+            ? `Pedir ${piezas(s.pedir)}: ${detalle}, mínimo ${piezas(prod.stock_minimo)}, máximo ${piezas(prod.stock_maximo)}`
+            : (s.estado === "suficiente" ? `Tienes suficiente (${detalle})` : "Pon mínimo y máximo para que Nexo calcule");
+
+        return `<div class="drm-minmax drm-${s.estado}">
+            <div class="drm-limites"><label>Mín <input type="text" class="drm-min" inputmode="decimal" value="${Number(prod.stock_minimo) > 0 ? esc(String(prod.stock_minimo)) : ""}" onchange="limitesRecibirDueno(${Number(prod.id)})"></label><label>Máx <input type="text" class="drm-max" inputmode="decimal" value="${Number(prod.stock_maximo) > 0 ? esc(String(prod.stock_maximo)) : ""}" onchange="limitesRecibirDueno(${Number(prod.id)})"></label></div>
+            <small>${esc(texto)}</small></div>`;
+    }
+
+    // Al elegir una marca se llenan las cantidades sugeridas (lo que anotaste a mano no se toca).
+    function rellenarSugeridosDueno(marca) {
+        const g = estado.grupos.find(x => x.marca === marca);
+        if (!g) return;
+        g.productos.forEach(prod => {
+            if (estado.tocados.has(Number(prod.id))) return;
+            const s = sugerenciaDueno(prod);
+            if (s.pedir > 0) estado.cantidades.set(prod.id, s.pedir); else estado.cantidades.delete(prod.id);
+        });
+    }
+
+    // Guarda el minimo y el maximo del producto y recalcula lo que hay que pedir.
+    window.limitesRecibirDueno = async function (id) {
+        const el = document.querySelector(`#drmCapa .drm-tarjeta[data-id="${id}"]`);
+        const prod = estado && estado.indice.get(Number(id));
+        if (!el || !prod) return;
+
+        const minimo = el.querySelector(".drm-min").value.trim().replace(",", ".");
+        const maximo = el.querySelector(".drm-max").value.trim().replace(",", ".");
+        if ((minimo !== "" && !(Number(minimo) >= 0)) || (maximo !== "" && !(Number(maximo) >= 0))) { avisar("El mínimo y el máximo deben ser números."); return; }
+
+        try {
+            await fetchAutenticado(`/productos/${Number(id)}/edicion-rapida`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ stockMinimo: minimo === "" ? null : Number(minimo), stockMaximo: maximo === "" ? null : Number(maximo) })
+            });
+        } catch (error) { avisar(error.message || "No se pudo guardar el mínimo y el máximo."); return; }
+
+        prod.stock_minimo = minimo === "" ? 3 : Number(minimo);
+        prod.stock_maximo = maximo === "" ? null : Number(maximo);
+        estado.tocados.delete(Number(id));
+        const s = sugerenciaDueno(prod);
+        if (s.pedir > 0) estado.cantidades.set(Number(id), s.pedir); else estado.cantidades.delete(Number(id));
+
+        el.outerHTML = tarjetaHtml(prod);
+        ponerFotos(document.querySelector(`#drmCapa .drm-tarjeta[data-id="${id}"]`));
+        actualizarTarjeta(Number(id));
+    };
+
     // ---- Crear pedido: lo anotado se guarda como pedido a proveedor (borrador o ya enviado), no como recepcion ----
     function elegirEstadoPedido(resumen) {
         return new Promise(resolver => {
@@ -901,7 +981,7 @@
             await fetchAutenticado("/pedidos-proveedor", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ proveedor, estado: elegido, notas: "Creado con Crear pedido (celular)", items: items.map(i => ({ ...i, proveedor })) })
+                body: JSON.stringify({ proveedor, estado: elegido, notas: estado.modo === "sugerir" ? "Sugerido por Nexo (mínimos y máximos, celular)" : "Creado con Crear pedido (celular)", items: items.map(i => ({ ...i, proveedor })) })
             });
 
             estado = null;
@@ -945,7 +1025,7 @@
 
     window.abrirRecibirMarcaDueno = async function (marcaInicial) {
         const sesion = ++sesionAbrir;
-        const modo = window.__drmModo === "pedido" ? "pedido" : "recibir";
+        const modo = window.__drmModo === "pedido" || window.__drmModo === "sugerir" ? window.__drmModo : "recibir";
         window.__drmModo = null;
         const inicio = performance.now();
 
@@ -972,12 +1052,17 @@
         if (sesion !== sesionAbrir) return;
 
         const todos = grupos.flatMap(g => g.productos).concat(productos).filter((p, i, a) => a.findIndex(q => Number(q.id) === Number(p.id)) === i);
-        estado = { modo, grupos, todos, indice: new Map(todos.map(p => [Number(p.id), p])), consulta: "", linea: "", tipo: "", resumen: false, proveedores: [], facturas: [], factura: null, respaldo: null, marca: (grupos.find(g => g.marca === marcaInicial) || (esFerreteria() ? grupos[0] : { marca: "" })).marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
+        estado = { modo, tocados: new Set(), comp: {}, grupos, todos, indice: new Map(todos.map(p => [Number(p.id), p])), consulta: "", linea: "", tipo: "", resumen: false, proveedores: [], facturas: [], factura: null, respaldo: null, marca: (grupos.find(g => g.marca === marcaInicial) || (esFerreteria() ? grupos[0] : { marca: "" })).marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
 
         // El trabajo pesado (dibujar las tarjetas con sus fotos) espera a que termine la animacion de entrada.
         const falta = 320 - (performance.now() - inicio);
         if (falta > 0) await new Promise(r => setTimeout(r, falta));
         if (sesion !== sesionAbrir) return;
+
+        if (modo === "sugerir") {
+            try { const r = await fetchAutenticado("/pedido-minmax/comprometido"); estado.comp = (r && r.productos) || {}; } catch (error) { estado.comp = {}; }
+            if (sesion !== sesionAbrir) return;
+        }
 
         pintar();
         cargarExtras(estado);
@@ -986,7 +1071,7 @@
     window.confirmarRecibirMarcaDueno = async function () {
         if (!estado || estado.enviando) return;
         if (estado.factura) { await confirmarFactura(); return; }
-        if (estado.modo === "pedido") { await guardarPedidoDueno(); return; }
+        if (esPedidoDueno()) { await guardarPedidoDueno(); return; }
 
         const items = [];
         estado.cantidades.forEach((n, id) => { if (n > 0) items.push({ productoId: id, cantidad: n, costo: 0 }); });

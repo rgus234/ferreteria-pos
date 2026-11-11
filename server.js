@@ -7051,6 +7051,9 @@ app.patch("/productos/:id/edicion-rapida", requerirAccesoNegocio, requerirPermis
             poner("stock_minimo = ?", minimo === null ? 3 : minimo);
         }
 
+        // Maximo que el dueño quiere tener (para el pedido sugerido por minimo y maximo); vacio lo quita.
+        if (cuerpo.stockMaximo !== undefined) poner("stock_maximo = ?", numeroOpcional(cuerpo.stockMaximo, "El stock maximo"));
+
         if (cuerpo.ubicacion !== undefined) poner("ubicacion = ?", String(cuerpo.ubicacion || "").trim().slice(0, 120));
 
         // Como se compra y se vende (se completa al terminar la ficha de un producto recien creado). Solo si vienen en el cuerpo.

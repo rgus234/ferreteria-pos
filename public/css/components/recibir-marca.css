@@ -206,3 +206,14 @@ body.oscuro .rm-chip.activo small { background: rgba(15, 23, 42, .14); color: #0
 .rm-der .rm-campo input.rm-buscar { width: 100%; box-sizing: border-box; }
 body.oscuro .rm-pago { background: #1d293e; border-color: rgba(148, 163, 184, .22); }
 body.oscuro .rm-fecha input { background: #151f31; border-color: rgba(148, 163, 184, .3); color: #e6ecff; }
+
+/* Sugerir pedido: minimo, maximo y por que se sugiere */
+.rm-minmax { display: grid; gap: 6px; margin: 6px 0 2px; padding: 8px 10px; border-radius: 12px; background: #f1f5f9; text-align: left; }
+.rm-limites { display: flex; gap: 8px; }
+.rm-limites label { display: flex; align-items: center; gap: 6px; flex: 1; font-size: 12px; font-weight: 700; color: #475569; }
+.rm-limites input { width: 100%; min-width: 0; padding: 5px 6px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font: inherit; font-size: 14px; text-align: center; }
+.rm-minmax small { font-size: 12px; line-height: 1.35; color: #475569; }
+.rm-minmax.rm-pedir { background: #fef3c7; }
+.rm-minmax.rm-pedir small { color: #92400e; font-weight: 700; }
+.rm-minmax.rm-suficiente { background: #dcfce7; }
+.rm-minmax.rm-suficiente small { color: #166534; }

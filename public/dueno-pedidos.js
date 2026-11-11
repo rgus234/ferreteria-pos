@@ -46,8 +46,9 @@
         c.innerHTML = `${cabeza("Pedidos", "cerrarPedidosDueno()")}
             <div class="dpe-cuerpo"><p class="dpe-nota">Elige qué quieres hacer.</p>
             ${tarjeta("crearPedidoDueno()", "＋", "Crear pedido", "Elige la marca y anota cuánto quieres")}
-            ${tarjeta("sugerirPedidoDueno()", "✦", "Sugerir pedido", "Nexo te dice qué conviene pedir")}
-            ${tarjeta("abrirPedidosHechosDueno()", "☰", "Pedidos hechos", "Cargando…", "dpeHechos")}</div>`;
+            ${tarjeta("sugerirPedidoDueno()", "✦", "Sugerir pedido", "Pon mínimo y máximo y Nexo calcula lo que falta")}
+            ${tarjeta("abrirPedidosHechosDueno()", "☰", "Pedidos hechos", "Cargando…", "dpeHechos")}
+            <button type="button" class="dpe-enlace" onclick="calculoPorVentasDueno()">Ver el cálculo por ventas (Mi tienda)</button></div>`;
         c.classList.add("abierta");
         document.body.classList.add("dpe-abierta");
 
@@ -67,6 +68,12 @@
     };
 
     window.sugerirPedidoDueno = function () {
+        window.__drmModo = "sugerir";
+        if (typeof abrirRecibirMarcaDueno === "function") abrirRecibirMarcaDueno();
+    };
+
+    // El cálculo de siempre (con tus ventas y el día de visita de cada proveedor), en Mi tienda.
+    window.calculoPorVentasDueno = function () {
         window.cerrarPedidosDueno();
         if (typeof abrirTienda === "function") abrirTienda("pedido");
     };
