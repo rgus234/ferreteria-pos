@@ -366,7 +366,7 @@
             <div class="drm-tope">
             <header class="drm-cabeza">
                 <button type="button" class="drm-atras" onclick="cerrarRecibirMarcaDueno()">‹ Atrás</button>
-                <h2>${estado.factura ? "Recibir con factura" : (esFerreteria() ? "Recibir por marca" : "Recibir mercancía")}</h2>
+                <h2>${estado.modo === "pedido" ? "Crear pedido" : (estado.factura ? "Recibir con factura" : (esFerreteria() ? "Recibir por marca" : "Recibir mercancía"))}</h2>
                 <span id="drmFactBtn" class="drm-fact-lugar">${botonFacturasHtml()}</span>
             </header>
             <div class="drm-buscar">
@@ -385,7 +385,7 @@
                 <button type="button" class="drm-resumen-abrir" onclick="abrirResumenRecibirDueno()" ${t.productos ? "" : "disabled"} aria-label="Ver el resumen de lo que llegó">
                     <span class="drm-flecha" aria-hidden="true">▲</span><span class="drm-totales">${textoTotales(t)}</span>
                 </button>
-                <button type="button" class="drm-confirmar" id="drmConfirmar" onclick="confirmarRecibirMarcaDueno()" ${t.productos && !estado.enviando ? "" : "disabled"}>${estado.enviando ? "Guardando…" : "Confirmar recepción"}</button>
+                <button type="button" class="drm-confirmar" id="drmConfirmar" onclick="confirmarRecibirMarcaDueno()" ${t.productos && !estado.enviando ? "" : "disabled"}>${estado.enviando ? "Guardando…" : (estado.modo === "pedido" ? "Guardar pedido" : "Confirmar recepción")}</button>
             </footer>
             ${estado.resumen ? resumenHtml() : ""}`;
         ponerFotos(c);
@@ -405,7 +405,7 @@
             const hay = Number(p.stock) || 0;
             return `<li class="drm-res-fila">
                 <span class="drm-res-foto">${p.imagenUrl ? `<img src="${esc(fotoMiniDueno(p.imagenUrl))}" alt="" loading="lazy">` : ""}</span>
-                <span class="drm-res-texto"><b>${esc(p.nombre)}</b><small>Hay ${esc(String(hay))} → quedan ${esc(String(Math.round((hay + n) * 1000) / 1000))}</small></span>
+                <span class="drm-res-texto"><b>${esc(p.nombre)}</b><small>${estado.modo === "pedido" ? `Hay ${esc(String(hay))}` : `Hay ${esc(String(hay))} → quedan ${esc(String(Math.round((hay + n) * 1000) / 1000))}`}</small></span>
                 <span class="drm-res-cant">
                     <button type="button" aria-label="Quitar uno" onclick="ajustarResumenRecibirDueno(${Number(p.id)}, -1)">−</button>
                     <input type="text" inputmode="numeric" value="${n}" aria-label="Llegaron" onchange="escribirResumenRecibirDueno(${Number(p.id)}, this.value)">
@@ -416,7 +416,7 @@
 
         return `<section class="drm-resumen" id="drmResumen" aria-label="Resumen de la recepción">
             <header class="drm-res-cabeza">
-                <button type="button" class="drm-res-bajar" onclick="cerrarResumenRecibirDueno()"><span aria-hidden="true">▼</span> Seguir recibiendo</button>
+                <button type="button" class="drm-res-bajar" onclick="cerrarResumenRecibirDueno()"><span aria-hidden="true">▼</span> ${estado.modo === "pedido" ? "Seguir pidiendo" : "Seguir recibiendo"}</button>
                 <h2>Resumen</h2>
             </header>
             <div class="drm-res-cuerpo">${porGrupo.map(x => `
@@ -424,7 +424,7 @@
                 <ul class="drm-res-lista">${x.filas.map(fila).join("")}</ul>`).join("") || `<p class="drm-vacio">Todavía no has anotado nada.</p>`}</div>
             <footer class="drm-pie drm-res-pie">
                 <div class="drm-totales">${textoTotales(t)}</div>
-                <button type="button" class="drm-confirmar" onclick="confirmarRecibirMarcaDueno()" ${t.productos && !estado.enviando ? "" : "disabled"}>${estado.enviando ? "Guardando…" : "Confirmar recepción"}</button>
+                <button type="button" class="drm-confirmar" onclick="confirmarRecibirMarcaDueno()" ${t.productos && !estado.enviando ? "" : "disabled"}>${estado.enviando ? "Guardando…" : (estado.modo === "pedido" ? "Guardar pedido" : "Confirmar recepción")}</button>
             </footer>
         </section>`;
     }
@@ -679,7 +679,7 @@
     }
 
     function botonFacturasHtml() {
-        if (!estado || estado.factura || !estado.facturas.length) return "";
+        if (!estado || estado.factura || estado.modo === "pedido" || !estado.facturas.length) return "";
         return `<button type="button" class="drm-fact-btn" onclick="abrirListaFacturasRecibirDueno()" aria-label="Facturas por recibir"><span aria-hidden="true">📄</span><b>${estado.facturas.length}</b></button>`;
     }
 
@@ -860,6 +860,62 @@
         });
     }
 
+    // ---- Crear pedido: lo anotado se guarda como pedido a proveedor (borrador o ya enviado), no como recepcion ----
+    function elegirEstadoPedido(resumen) {
+        return new Promise(resolver => {
+            const fondo = document.createElement("div");
+            fondo.className = "drm-hoja-fondo";
+            fondo.innerHTML = `<div class="drm-hoja" role="dialog" aria-label="Guardar pedido"><h3>Guardar pedido</h3>
+                <p>${esc(resumen)}</p>
+                <button type="button" class="drm-hoja-sin" data-i="borrador">Guardar (sin enviar todavía)</button>
+                <button type="button" class="drm-hoja-sin" data-i="enviado">Guardar y marcar como enviado</button>
+                <button type="button" class="drm-hoja-cancelar" data-i="x">Cancelar</button></div>`;
+            fondo.addEventListener("click", e => {
+                const i = e.target.dataset?.i;
+                if (i === undefined && e.target !== fondo) return;
+                fondo.remove();
+                resolver(i === "borrador" || i === "enviado" ? i : null);
+            });
+            document.body.appendChild(fondo);
+        });
+    }
+
+    async function guardarPedidoDueno() {
+        const items = [];
+        estado.cantidades.forEach((n, id) => {
+            const prod = estado.indice.get(id);
+            if (n > 0 && prod) items.push({ productoId: id, codigo: prod.codigo, nombre: prod.nombre, cantidad: n, costo: Number(prod.costo) > 0 ? Number(prod.costo) : 0, unidad: "pieza" });
+        });
+        if (!items.length) return;
+
+        const marcas = estado.grupos.filter(g => g.productos.some(prod => estado.cantidades.get(prod.id) > 0)).map(g => g.marca);
+        const proveedor = marcas.length <= 3 ? marcas.join(", ") : marcas.slice(0, 3).join(", ") + "…";
+        const piezas = items.reduce((s, i) => s + i.cantidad, 0);
+        const elegido = await elegirEstadoPedido(`Pedido de ${proveedor || "varias marcas"}: ${items.length} ${pluralProducto(items.length)} y ${piezas} ${pluralPieza(piezas)}.`);
+        if (!elegido) return;
+
+        estado.enviando = true;
+        pintar();
+
+        try {
+            await fetchAutenticado("/pedidos-proveedor", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ proveedor, estado: elegido, notas: "Creado con Crear pedido (celular)", items: items.map(i => ({ ...i, proveedor })) })
+            });
+
+            estado = null;
+            document.getElementById("drmCapa")?.classList.remove("abierta");
+            document.body.classList.remove("drm-abierta", "drm-con-resumen");
+            avisar(elegido === "enviado" ? "Pedido guardado y marcado como enviado." : "Pedido guardado como borrador.");
+            if (typeof abrirPedidosHechosDueno === "function") abrirPedidosHechosDueno();
+        } catch (error) {
+            estado.enviando = false;
+            pintar();
+            avisar(error.message || "No se pudo guardar el pedido. Revisa tu internet y vuelve a intentar.");
+        }
+    }
+
     let sesionAbrir = 0;
 
     // Leer el catalogo completo del telefono (con todas sus fotos) es lo mas pesado al abrir: se guarda un minuto en memoria y se descarta
@@ -889,6 +945,8 @@
 
     window.abrirRecibirMarcaDueno = async function (marcaInicial) {
         const sesion = ++sesionAbrir;
+        const modo = window.__drmModo === "pedido" ? "pedido" : "recibir";
+        window.__drmModo = null;
         const inicio = performance.now();
 
         // La pantalla se abre YA (con un esqueleto) y la animacion corre ligera; el catalogo y los exhibidores se cargan despues.
@@ -914,7 +972,7 @@
         if (sesion !== sesionAbrir) return;
 
         const todos = grupos.flatMap(g => g.productos).concat(productos).filter((p, i, a) => a.findIndex(q => Number(q.id) === Number(p.id)) === i);
-        estado = { grupos, todos, indice: new Map(todos.map(p => [Number(p.id), p])), consulta: "", linea: "", tipo: "", resumen: false, proveedores: [], facturas: [], factura: null, respaldo: null, marca: (grupos.find(g => g.marca === marcaInicial) || (esFerreteria() ? grupos[0] : { marca: "" })).marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
+        estado = { modo, grupos, todos, indice: new Map(todos.map(p => [Number(p.id), p])), consulta: "", linea: "", tipo: "", resumen: false, proveedores: [], facturas: [], factura: null, respaldo: null, marca: (grupos.find(g => g.marca === marcaInicial) || (esFerreteria() ? grupos[0] : { marca: "" })).marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
 
         // El trabajo pesado (dibujar las tarjetas con sus fotos) espera a que termine la animacion de entrada.
         const falta = 320 - (performance.now() - inicio);
@@ -928,6 +986,7 @@
     window.confirmarRecibirMarcaDueno = async function () {
         if (!estado || estado.enviando) return;
         if (estado.factura) { await confirmarFactura(); return; }
+        if (estado.modo === "pedido") { await guardarPedidoDueno(); return; }
 
         const items = [];
         estado.cantidades.forEach((n, id) => { if (n > 0) items.push({ productoId: id, cantidad: n, costo: 0 }); });

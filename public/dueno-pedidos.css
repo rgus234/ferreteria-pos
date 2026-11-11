@@ -1,0 +1,38 @@
+/* Pedidos en el celular: tres tarjetas y la lista de pedidos hechos. */
+.dpe-capa { position: fixed; inset: 0; z-index: 9300; display: none; flex-direction: column; background: #eef2f7; color: #0f172a; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.dpe-capa.abierta { display: flex; }
+body.dpe-abierta { overflow: hidden; }
+.dpe-cabeza { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px; padding: calc(10px + env(safe-area-inset-top)) 14px 10px; background: #eef2f7; }
+.dpe-cabeza h2 { margin: 0; font-size: 20px; }
+.dpe-atras { border: 0; border-radius: 12px; padding: 10px 14px; background: #e2e8f0; color: #0f172a; font: inherit; font-weight: 700; }
+.dpe-cuerpo { display: grid; gap: 12px; padding: 6px 14px calc(24px + env(safe-area-inset-bottom)); align-content: start; }
+.dpe-nota { margin: 4px 2px; color: #64748b; font-size: 15px; line-height: 1.4; }
+.dpe-tarjeta { display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px; border: 0; border-radius: 20px; background: #fff; color: #0f172a; font: inherit; text-align: left; box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 20px rgba(15, 23, 42, .08); }
+.dpe-icono { display: grid; place-items: center; flex: none; width: 54px; height: 54px; border-radius: 16px; background: #dbeafe; color: #1d4ed8; font-size: 26px; }
+.dpe-tarjeta:nth-of-type(2) .dpe-icono { background: #ede9fe; color: #6d28d9; }
+.dpe-tarjeta:nth-of-type(3) .dpe-icono { background: #dcfce7; color: #15803d; }
+.dpe-texto { display: grid; gap: 2px; }
+.dpe-texto b { font-size: 19px; }
+.dpe-texto small { font-size: 14px; color: #64748b; line-height: 1.35; }
+.dpe-pedido { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 14px 16px; border: 0; border-radius: 16px; background: #fff; color: #0f172a; font: inherit; text-align: left; box-shadow: 0 1px 2px rgba(15, 23, 42, .06); }
+.dpe-pedido-datos { display: grid; gap: 2px; min-width: 0; }
+.dpe-pedido-datos b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dpe-pedido-datos small { font-size: 13px; color: #64748b; }
+.dpe-pedido-der { display: grid; justify-items: end; gap: 4px; flex: none; }
+.dpe-pedido-der strong { font-size: 14px; }
+.dpe-estado { font-style: normal; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #e2e8f0; color: #334155; }
+.dpe-borrador { background: #fef3c7; color: #92400e; }
+.dpe-enviado, .dpe-parcial { background: #dbeafe; color: #1e40af; }
+.dpe-recibido { background: #dcfce7; color: #166534; }
+.dpe-cancelado { background: #fee2e2; color: #991b1b; }
+.dpe-resumen { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 2px; }
+.dpe-resumen b { font-size: 20px; }
+.dpe-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: #e2e8f0; border-radius: 14px; overflow: hidden; }
+.dpe-items li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; background: #fff; font-size: 15px; }
+.dpe-items b { flex: none; }
+.dpe-total { margin: 4px 2px; font-size: 16px; }
+:root.oscuro .dpe-capa, :root.oscuro .dpe-cabeza { background: #0b1220; color: #f1f5f9; }
+:root.oscuro .dpe-tarjeta, :root.oscuro .dpe-pedido, :root.oscuro .dpe-items li { background: #111c2e; color: #f1f5f9; }
+:root.oscuro .dpe-atras { background: #1e293b; color: #f1f5f9; }
+:root.oscuro .dpe-texto small, :root.oscuro .dpe-pedido-datos small, :root.oscuro .dpe-nota { color: #94a3b8; }
+.dpe-cabeza h2 { flex: 1; margin: 0; text-align: left; }

@@ -46,6 +46,7 @@
   <link rel="stylesheet" href="css/components/pos-busqueda-ia.css?v=borde-siri-fix2-20260721-01">
   <link rel="stylesheet" href="css/components/pos-product-form.css?v=ocultos-20261108-01">
   <link rel="stylesheet" href="css/components/mostrador.css?v=mostrador-20261109-01">
+  <link rel="stylesheet" href="css/components/pedidos-unico.css?v=pedidos-20261110-02">
   <link rel="stylesheet" href="css/components/banco-imagenes-galeria-modal.css?v=20260730-01">
   <link rel="stylesheet" href="css/components/pos-credit-modal.css?v=creditos-maestro-detalle-20260818-01">
   <link rel="stylesheet" href="css/components/sale-documents.css?v=cancelar-venta-20260901-01">
@@ -563,6 +564,9 @@
  <button data-shell-module="mapa-tienda" data-beta="mapa_tienda" hidden onclick="mostrarMapaTienda()">
  Mapa de la tienda
  </button>
+ <button class="solo-perfil-simple" data-shell-module="pedidos-unico" data-beta="pedidos_unico" hidden onclick="mostrarPedidosUnico()">
+ Pedidos
+ </button>
  <button class="solo-perfil-simple" data-shell-module="pedido-sugerido" onclick="mostrarPedidoSugerido()">
  Pedido sugerido
  </button>
@@ -678,6 +682,7 @@
 <section id="pantallaRecargas" style="display:none;"></section>
  <section id="pantallaMapaTienda" style="display:none;"></section>
  <section id="pantallaRecibirMarca" style="display:none;"></section>
+<section id="pantallaPedidosUnico" style="display:none;"></section>
  <section id="pantallaEnlaceCelular" style="display:none;"></section>
  <section id="pantallaFuncionesBeta" style="display:none;"></section>
 <section id="pantallaHubMenu" style="display:none;"></section>
@@ -1909,7 +1914,7 @@
   <script src="js/caja-recordatorios.js?v=recordatorio-caja-20260731-01"></script>
   <script src="js/recorrido-nexo.js?v=hd-20261104-02"></script>
   <script src="js/perfil-negocio.js?v=perfil-20261030-12"></script>
-  <script src="js/config-auth.js?v=giro-20261108-01"></script>
+  <script src="js/config-auth.js?v=pedidos-20261110-02"></script>
   <script src="js/ticket-template.js?v=envases-20261105-01"></script>
   <script src="js/catalog-provider-picker.js?v=catalog-adapters-20260708-01"></script>
   <script src="js/supplier-catalog.js?v=plantillas-servidor-ia-20260723-01"></script>
@@ -1945,11 +1950,11 @@
  <script src="js/facturacion-view.js?v=facturacion-representacion-20260831-01"></script>
  <script src="js/product-lists.js?v=listas-producto-20261102-02"></script>
  <script src="js/exhibidores.js?v=exhibidores-20261105-15"></script>
- <script src="js/funciones-beta.js?v=alcohol-20261105-01"></script>
- <script src="js/menu-simple.js?v=recepcion-unica-20261110-02"></script>
+ <script src="js/funciones-beta.js?v=pedidos-20261110-01"></script>
+ <script src="js/menu-simple.js?v=pedidos-20261110-01"></script>
  <script src="js/mi-equipo-view.js?v=equipo-20261103-02"></script>
  <script src="js/mapa-tienda-view.js?v=mapa-tienda-20261118-04"></script>
- <script src="js/recibir-marca-view.js?v=recepcion-unica-20261110-01"></script>
+ <script src="js/recibir-marca-view.js?v=pedidos-20261110-02"></script>
  <script src="js/enlace-celular-view.js?v=enlace-celular-20261118-03"></script>
  <script src="js/inicio-pendientes.js?v=inicio-pendientes-20261119-02"></script>
  <script src="js/inicio-abarrotes.js?v=inicio-ab-20261103-03"></script>
@@ -1971,6 +1976,7 @@
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/escaner-remoto.js?v=escaner-remoto-20261108-01"></script>
   <script src="js/mostrador.js?v=mostrador-20261109-01"></script>
+  <script src="js/pedidos-unico.js?v=pedidos-20261110-02"></script>
   <script src="js/pos-shortcuts.js?v=hojas-venta-20260819-01"></script>
   <script src="js/low-stock.js?v=bajo-20261102-02"></script>
   <script src="js/expiring-products.js?v=listas-producto-20261102-02"></script>

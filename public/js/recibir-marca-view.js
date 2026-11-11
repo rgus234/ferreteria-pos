@@ -146,11 +146,13 @@
     // ---------- pantalla ----------
 
     window.mostrarRecibirMarca = async function () {
+        const modo = window.__rmModo === "pedido" ? "pedido" : "recibir";
+        window.__rmModo = null;
         if (typeof ocultarPantallasPrincipales === "function") ocultarPantallasPrincipales();
         const pantalla = document.getElementById("pantallaRecibirMarca");
         if (!pantalla) return;
         pantalla.style.display = "block";
-        if (typeof actualizarTopbarContexto === "function") actualizarTopbarContexto(esAbarrotes() ? "Recibir mercancía" : "Recibir por marca", esAbarrotes() ? "Elige la marca y anota lo que llegó" : "Anota lo que llegó por marca o con la factura", "recibir-marca");
+        if (typeof actualizarTopbarContexto === "function") (modo === "pedido" ? actualizarTopbarContexto("Crear pedido", "Elige la marca y anota lo que quieres pedir", "pedidos-unico") : actualizarTopbarContexto(esAbarrotes() ? "Recibir mercancía" : "Recibir por marca", esAbarrotes() ? "Elige la marca y anota lo que llegó" : "Anota lo que llegó por marca o con la factura", "recibir-marca"));
         pantalla.innerHTML = `<div class="rm-shell"><p class="rm-nota">Cargando tu catálogo…</p></div>`;
 
         if (!Array.isArray(todosProductos) || !todosProductos.length) { try { await cargarProductos(); } catch (error) { /* se avisa abajo */ } }
@@ -159,7 +161,7 @@
         if (!productos.length) { pantalla.innerHTML = `<div class="rm-shell"><p class="rm-nota">Todavía no hay productos en tu catálogo.</p></div>`; return; }
 
         const grupos = await armarGrupos(productos);
-        rm = { productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: esAbarrotes() || grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), linea: "", verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), caducidades: new Map(), pago: { activo: false, monto: "", metodo: "efectivo_caja", por: "", nota: "" }, proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
+        rm = { modo, productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: esAbarrotes() || grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), linea: "", verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), caducidades: new Map(), pago: { activo: false, monto: "", metodo: "efectivo_caja", por: "", nota: "" }, proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
         pintar();
 
         llamar("/proveedores").then(r => { if (rm) { rm.proveedores = (r.datos.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre })).filter(x => x.nombre); pintarResumen(); } }).catch(() => {});
@@ -171,7 +173,7 @@
         if (!pantalla || !rm) return;
 
         pantalla.innerHTML = `<div class="rm-shell">
-            <header class="rm-cab"><div><h2>${rm.factura ? "Recibir con factura" : "Recibir mercancía"}</h2><p>${rm.factura ? "Confirma lo que llegó de cada producto. Lo que dice la factura aparece como “Esperado”." : (esAbarrotes() ? "Elige la marca y anota cuántas piezas llegaron de cada producto. Si traes la factura, ábrela arriba y confirma contra lo esperado." : "Escanea cada producto con la pistola, o búscalo por nombre, código o marca. Cada escaneo suma 1.")}</p></div>
+            <header class="rm-cab"><div><h2>${rm.modo === "pedido" ? "Crear pedido" : (rm.factura ? "Recibir con factura" : "Recibir mercancía")}</h2><p>${rm.modo === "pedido" ? "Elige la marca y anota cuántas piezas quieres pedir de cada producto." : rm.factura ? "Confirma lo que llegó de cada producto. Lo que dice la factura aparece como “Esperado”." : (esAbarrotes() ? "Elige la marca y anota cuántas piezas llegaron de cada producto. Si traes la factura, ábrela arriba y confirma contra lo esperado." : "Escanea cada producto con la pistola, o búscalo por nombre, código o marca. Cada escaneo suma 1.")}</p></div>
                 <div id="rmFacturas" class="rm-facturas"></div></header>
             <div class="rm-dos">
                 <section class="rm-izq">
@@ -385,6 +387,7 @@
     function pintarResumen() {
         const r = document.getElementById("rmResumen");
         if (!r || !rm) return;
+        if (rm.modo === "pedido") { pintarResumenPedido(r); return; }
         const ls = lineas();
         const piezas = ls.reduce((s, l) => s + l.n, 0);
         const sinDecidir = rm.factura ? rm.factura.porDecidir : 0;
@@ -403,6 +406,67 @@
             <button type="button" class="rm-btn principal grande" id="rmConfirmar" onclick="rmConfirmar()" ${ls.length && !rm.enviando ? "" : "disabled"}>${rm.enviando ? "Guardando…" : (rm.factura ? "Confirmar recepción de la factura" : "Confirmar recepción")}</button>`;
     }
 
+    // ---------- Crear pedido (mismo flujo de marcas y productos, pero se guarda como pedido a proveedor) ----------
+
+    const costoDe = p => { const c = Number(p.costo); return Number.isFinite(c) && c > 0 ? c : 0; };
+    const marcaDe = p => { const g = rm.grupos.find(x => x.productos.some(q => Number(q.id) === Number(p.id))); return g ? g.marca : String(p.marca || ""); };
+
+    function pintarResumenPedido(r) {
+        const ls = lineas();
+        const piezas = ls.reduce((s, l) => s + l.n, 0);
+        const total = ls.reduce((s, l) => s + l.n * costoDe(l.p), 0);
+        const sinCosto = ls.filter(l => !costoDe(l.p)).length;
+        const marcas = [...new Set(ls.map(l => marcaDe(l.p)).filter(Boolean))];
+        const proveedor = rm.proveedores.length
+            ? `<label class="rm-campo">¿Para qué proveedor? (opcional)<select id="rmProveedor"><option value="">${marcas.length === 1 ? esc(marcas[0]) : "Varias marcas"}</option>${rm.proveedores.map(x => `<option value="${esc(x.nombre)}">${esc(x.nombre)}</option>`).join("")}</select></label>`
+            : "";
+        const puede = ls.length && !rm.enviando;
+
+        r.innerHTML = `<div class="rm-resumen-cab"><h3>Tu pedido</h3></div>
+            <div class="rm-lineas">${ls.map(l => `<div class="rm-linea" style="--marca:${colorDe(l.p)}"><i class="rm-linea-mini">${typeof miniaturaProducto === "function" ? miniaturaProducto(l.p) : ""}</i><div class="rm-linea-datos"><span>${esc(l.p.nombre)}</span></div><b>${numero(l.n)}</b><button type="button" onclick="rmQuitar(${l.id})" aria-label="Quitar">✕</button></div>`).join("") || `<p class="rm-nota">Todavía no anotas nada.</p>`}</div>
+            <div class="rm-total"><span>${ls.length} producto${ls.length === 1 ? "" : "s"}</span><b>${numero(piezas)} piezas</b></div>
+            ${ls.length ? `<div class="rm-total"><span>Total estimado</span><b>${dinero(total)}</b></div>${sinCosto ? `<p class="rm-nota">${sinCosto} producto${sinCosto === 1 ? "" : "s"} sin costo guardado: no suma${sinCosto === 1 ? "" : "n"} al total.</p>` : ""}` : ""}
+            ${proveedor}
+            <button type="button" class="rm-btn principal grande" id="rmConfirmar" onclick="rmConfirmar()" ${puede ? "" : "disabled"}>${rm.enviando ? "Guardando…" : "Guardar pedido"}</button>
+            <button type="button" class="rm-btn" onclick="rmGuardarPedido(true)" ${puede ? "" : "disabled"}>Guardar y marcar como enviado</button>`;
+    }
+
+    async function guardarPedidoRM(enviado) {
+        const ls = lineas();
+        if (!rm || rm.enviando || !ls.length) return;
+
+        const piezas = ls.reduce((s, l) => s + l.n, 0);
+        const elegido = document.getElementById("rmProveedor")?.value || "";
+        const marcas = [...new Set(ls.map(l => marcaDe(l.p)).filter(Boolean))];
+        const proveedor = elegido || (marcas.length <= 3 ? marcas.join(", ") : marcas.slice(0, 3).join(", ") + "…");
+
+        const ok = await confirmarPOS(`Se guarda el pedido de ${proveedor || "varias marcas"} con ${ls.length} producto${ls.length === 1 ? "" : "s"} y ${numero(piezas)} pieza${piezas === 1 ? "" : "s"}${enviado ? ", marcado como enviado" : ", como borrador (sin enviar)"}.`, "Guardar pedido", "info");
+        if (!ok) return;
+
+        rm.enviando = true;
+        pintarResumen();
+
+        const r = await llamar("/pedidos-proveedor", {
+            method: "POST",
+            body: JSON.stringify({
+                proveedor,
+                estado: enviado ? "enviado" : "borrador",
+                notas: "Creado con Crear pedido",
+                items: ls.map(l => ({ productoId: l.id, codigo: l.p.codigo, nombre: l.p.nombre, cantidad: l.n, costo: costoDe(l.p), unidad: "pieza", proveedor }))
+            })
+        });
+
+        rm.enviando = false;
+
+        if (!r.ok) { pintarResumen(); aviso(r.datos.error || "No se pudo guardar el pedido.", "error"); return; }
+
+        aviso(enviado ? "Pedido guardado y marcado como enviado." : "Pedido guardado como borrador.");
+        if (typeof mostrarPedidosHechos === "function") await mostrarPedidosHechos();
+        else if (typeof mostrarPedidosProveedor === "function") await mostrarPedidosProveedor();
+    }
+
+    window.rmGuardarPedido = guardarPedidoRM;
+
     function fechaCorta(f) {
         const d = new Date(f.fechaDocumento || f.creadaEn || "");
         return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("es-MX", { day: "numeric", month: "short" });
@@ -420,7 +484,7 @@
     function pintarFacturas() {
         const caja = document.getElementById("rmFacturas");
         if (!caja || !rm) return;
-        if (rm.factura) { caja.innerHTML = ""; return; }
+        if (rm.factura || rm.modo === "pedido") { caja.innerHTML = ""; return; }
 
         // Abarrotes: "Recibir con factura" e "Historial" siempre a la mano en la esquina (aunque no haya facturas del correo pendientes).
         const historial = esAbarrotes() ? `<button type="button" class="rm-btn" onclick="rmHistorial()">Historial</button>` : "";
@@ -625,6 +689,7 @@
 
     window.rmConfirmar = async function () {
         if (!rm || rm.enviando || !lineas().length) return;
+        if (rm.modo === "pedido") { await guardarPedidoRM(false); return; }
 
         if (rm.factura) {
             if (rm.factura.porDecidir) { await alertaPOS(`Esta factura trae ${rm.factura.porDecidir} concepto(s) que Nexo no pudo emparejar. Decídelos en Recepción inteligente y luego confirma aquí.`, "Faltan conceptos por decidir", "info"); return; }

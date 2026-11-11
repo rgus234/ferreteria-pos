@@ -1429,6 +1429,8 @@ function guardarConfiguracionInicial() {
 }
 
 function ocultarPantallasPrincipales() {
+ // "Pedidos hechos" muestra solo la lista; al irse a otra pantalla la de Pedidos a proveedor vuelve a su forma completa
+ document.getElementById("pantallaPedidosProveedor")?.classList.remove("pu-solo-lista");
  [
  "pantallaInicio",
  "pantallaPuntoVenta",
@@ -1460,6 +1462,7 @@ function ocultarPantallasPrincipales() {
  "pantallaRecargas",
  "pantallaMapaTienda",
  "pantallaRecibirMarca",
+ "pantallaPedidosUnico",
  "pantallaEnlaceCelular",
  "pantallaFuncionesBeta",
  "pantallaHubMenu",

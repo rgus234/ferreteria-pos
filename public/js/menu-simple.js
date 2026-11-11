@@ -22,7 +22,7 @@
                 { titulo: "Revisa", tam: "m", cards: [
                     { modulo: "inventario-bajo", icono: "alert", titulo: "Se está acabando", texto: "Lo que ya casi no tienes" },
                     { modulo: "por-vencer", icono: "clock", etiquetaOriginal: true, texto: "Lo que caduca pronto" },
-                    { modulo: "pedido-sugerido", icono: "truck", titulo: "Qué pedir", texto: "Lo que conviene pedir a cada proveedor" }
+                    { modulo: "pedido-sugerido", icono: "truck", titulo: "Qué pedir", texto: "Lo que conviene pedir a cada proveedor", ocultaSi: () => pedidosUnicos() }
                 ] },
                 { titulo: "Más herramientas", tam: "c", plegable: true, cards: [
                     { modulo: "categorias", icono: "layers", titulo: "Categorías", texto: "Ordena tus productos por tipo" },
@@ -43,6 +43,7 @@
                 { tam: "g", cards: [
                     { modulo: "recepcion-inteligente", icono: "truck", titulo: "Recibir mercancía", texto: "Con la factura de tu proveedor", ocultaSi: () => recepcionUnica() },
                     { modulo: "recibir-marca", icono: "arrowDownBox", titulo: () => (typeof perfilEsSimple === "function" && perfilEsSimple() ? "Recibir mercancía" : "Recibir sin factura"), texto: () => (typeof perfilEsSimple === "function" && perfilEsSimple() ? "Elige la marca y anota cuánto llegó" : "Escaneando lo que llegó") },
+                    { modulo: "pedidos-unico", icono: "clipboard", titulo: "Pedidos", texto: "Crea un pedido o deja que Nexo te diga qué pedir" },
                     { modulo: "recepcion-inteligente", accion: "abrirHistorialRecepciones", icono: "receipt", titulo: "Recepciones anteriores", texto: "Lo que ya recibiste y cuándo", ocultaSi: () => recepcionUnica() }
                 ] }
             ]
@@ -53,7 +54,7 @@
                 { tam: "g", cards: [
                     { modulo: "proveedores", icono: "users", titulo: "Mis proveedores", texto: "Datos y días de visita" },
                     { modulo: "catalogo", icono: "file", titulo: "Catálogo de proveedor", texto: "Sus productos y precios" },
-                    { modulo: "pedidos", icono: "clipboard", titulo: "Pedidos a proveedor", texto: "Los que armaste y enviaste" }
+                    { modulo: "pedidos", icono: "clipboard", titulo: "Pedidos a proveedor", texto: "Los que armaste y enviaste", ocultaSi: () => pedidosUnicos() }
                 ] }
             ]
         },
@@ -170,6 +171,8 @@
 
     // El boton de siempre le corresponde a esta persona? (permiso, perfil de abarrotes, funcion nueva apagada)
     // Abarrotes con "Recibir por marca": una sola puerta "Recibir mercancia" (la factura y el historial quedan dentro de esa pantalla).
+    // Abarrotes con "Pedidos": una sola puerta (Crear, Sugerir y Pedidos hechos); las entradas sueltas de antes se esconden.
+    const pedidosUnicos = () => typeof perfilEsSimple === "function" && perfilEsSimple() && disponible(original("pedidos-unico"));
     const recepcionUnica = () => typeof perfilEsSimple === "function" && perfilEsSimple() && disponible(original("recibir-marca"));
 
     function disponible(boton) {

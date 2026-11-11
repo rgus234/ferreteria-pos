@@ -1,0 +1,18 @@
+/* Pedidos (abarrotes): tres tarjetas grandes. Solo se ve con la funcion "pedidos_unico" encendida. */
+.pu-shell { max-width: 960px; margin: 0 auto; padding: 8px 4px 40px; }
+.pu-cab h2 { margin: 0 0 4px; font-size: 28px; }
+.pu-cab p { margin: 0 0 20px; color: #64748b; font-size: 16px; }
+.pu-tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.pu-tarjeta { display: grid; gap: 6px; justify-items: start; text-align: left; padding: 22px 22px 24px; border: 0; border-radius: 22px; background: #fff; color: #0f172a; font: inherit; cursor: pointer; box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 10px 26px rgba(15, 23, 42, .08); transition: transform .15s ease, box-shadow .15s ease; }
+.pu-tarjeta:hover { transform: translateY(-3px); box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 16px 34px rgba(15, 23, 42, .14); }
+.pu-tarjeta b { font-size: 22px; letter-spacing: -.01em; }
+.pu-tarjeta small { font-size: 15px; color: #64748b; line-height: 1.35; }
+.pu-icono { display: grid; place-items: center; width: 56px; height: 56px; margin-bottom: 8px; border-radius: 16px; background: #dbeafe; color: #1d4ed8; font-size: 28px; }
+.pu-tarjeta:nth-child(2) .pu-icono { background: #ede9fe; color: #6d28d9; }
+.pu-tarjeta:nth-child(3) .pu-icono { background: #dcfce7; color: #15803d; }
+:root.oscuro .pu-tarjeta, body.oscuro .pu-tarjeta { background: #111c2e; color: #f1f5f9; }
+:root.oscuro .pu-tarjeta small, body.oscuro .pu-tarjeta small, :root.oscuro .pu-cab p, body.oscuro .pu-cab p { color: #94a3b8; }
+
+/* Pedidos hechos: solo la lista (sin el formulario de captura de la pantalla de siempre) */
+#pantallaPedidosProveedor.pu-solo-lista .pedidos-header-acciones, #pantallaPedidosProveedor.pu-solo-lista .pedidos-grid > .pedidos-panel:first-child { display: none; }
+#pantallaPedidosProveedor.pu-solo-lista .pedidos-grid { grid-template-columns: 1fr; }
