@@ -1,0 +1,58 @@
+/* Actualizar precios por lote (abarrotes). Solo se ve con la funcion "precios_lote" encendida. */
+.pl-shell { max-width: 1000px; margin: 0 auto; padding: 8px 4px 60px; color: #0f172a; }
+.pl-cab h2 { margin: 0 0 4px; font-size: 28px; }
+.pl-cab p { margin: 0 0 16px; color: #64748b; font-size: 16px; }
+.pl-pestanas { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.pl-pestanas button, .pl-chips button { padding: 10px 18px; border: 2px solid #cbd5e1; border-radius: 999px; background: #fff; color: #0f172a; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.pl-pestanas button.activo, .pl-chips button.activo { border-color: #1d4ed8; background: #1d4ed8; color: #fff; }
+.pl-paso { margin: 0 0 16px; padding: 18px 20px; border-radius: 20px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 22px rgba(15, 23, 42, .07); }
+.pl-paso:empty { display: none; }
+.pl-paso h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 19px; }
+.pl-paso h3 span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #dbeafe; color: #1d4ed8; font-size: 14px; }
+.pl-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.pl-buscar { width: 100%; box-sizing: border-box; padding: 13px 16px; border: 2px solid #cbd5e1; border-radius: 14px; background: #f8fafc; color: #0f172a; font: inherit; font-size: 16px; }
+.pl-buscar:focus { outline: none; border-color: #1d4ed8; background: #fff; }
+.pl-opciones { display: flex; flex-wrap: wrap; gap: 8px; max-height: 210px; overflow-y: auto; margin: 10px 0 0; padding: 2px; }
+.pl-opciones button { display: grid; gap: 1px; padding: 8px 14px; border: 2px solid #e2e8f0; border-radius: 14px; background: #f8fafc; color: #0f172a; font: inherit; font-size: 14.5px; font-weight: 700; text-align: left; cursor: pointer; }
+.pl-opciones button small { font-size: 12px; font-weight: 600; color: #64748b; }
+.pl-opciones button.activo { border-color: #16a34a; background: #dcfce7; }
+.pl-cuenta { margin: 12px 2px 0; font-size: 14.5px; font-weight: 700; color: #475569; }
+.pl-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 0 0 12px; }
+.pl-form label, .pl-motivo { display: grid; gap: 5px; font-size: 13px; font-weight: 700; color: #475569; }
+.pl-form select, .pl-form input, .pl-motivo input { padding: 12px 14px; border: 2px solid #cbd5e1; border-radius: 12px; background: #f8fafc; color: #0f172a; font: inherit; font-size: 16px; }
+.pl-check { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 14.5px; color: #334155; }
+.pl-principal { padding: 14px 26px; border: 0; border-radius: 14px; background: #1d4ed8; color: #fff; font: inherit; font-size: 17px; font-weight: 800; cursor: pointer; }
+.pl-principal:hover { background: #1e40af; }
+.pl-principal:disabled { background: #94a3b8; cursor: not-allowed; }
+.pl-tabla-caja { max-height: 460px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 14px; }
+.pl-tabla { width: 100%; border-collapse: collapse; }
+.pl-tabla th { position: sticky; top: 0; padding: 10px 12px; text-align: left; font-size: 12.5px; color: #64748b; background: #f8fafc; }
+.pl-tabla td { padding: 9px 12px; border-top: 1px solid #e2e8f0; font-size: 15px; vertical-align: middle; }
+.pl-tabla td small { display: block; font-size: 12px; color: #64748b; }
+.pl-tabla tr.excluida td { opacity: .45; }
+.pl-nuevo { width: 92px; padding: 6px 8px; border: 2px solid #cbd5e1; border-radius: 10px; font: inherit; font-size: 15px; font-weight: 800; }
+.pl-sube { font-weight: 800; color: #b45309; }
+.pl-baja { font-weight: 800; color: #15803d; }
+.pl-motivo { margin: 14px 0 0; }
+.pl-pie { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin: 14px 0 0; font-size: 15px; font-weight: 700; color: #475569; }
+.pl-vacio { padding: 18px 4px; color: #64748b; font-size: 15.5px; }
+.pl-lotes { display: grid; gap: 10px; }
+.pl-lote { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 6px 18px rgba(15, 23, 42, .07); }
+.pl-lote.deshecho { opacity: .6; }
+.pl-lote-datos b { display: block; font-size: 17px; }
+.pl-lote-datos small { font-size: 13.5px; color: #64748b; }
+.pl-lote-acciones { display: flex; gap: 8px; }
+.pl-lote-acciones button { padding: 9px 16px; border: 0; border-radius: 12px; background: #e2e8f0; color: #0f172a; font: inherit; font-size: 14.5px; font-weight: 800; cursor: pointer; }
+.pl-lote-acciones .pl-peligro { background: #fee2e2; color: #991b1b; }
+.pl-detalle { flex-basis: 100%; max-height: 300px; overflow: auto; border-top: 1px solid #e2e8f0; }
+:root.oscuro .pl-shell, body.oscuro .pl-shell { color: #f1f5f9; }
+:root.oscuro .pl-paso, :root.oscuro .pl-lote, body.oscuro .pl-paso, body.oscuro .pl-lote { background: #111c2e; }
+:root.oscuro .pl-pestanas button, :root.oscuro .pl-chips button, body.oscuro .pl-pestanas button, body.oscuro .pl-chips button { background: #111c2e; color: #f1f5f9; border-color: #334155; }
+:root.oscuro .pl-pestanas button.activo, :root.oscuro .pl-chips button.activo, body.oscuro .pl-pestanas button.activo, body.oscuro .pl-chips button.activo { background: #1d4ed8; border-color: #1d4ed8; }
+:root.oscuro .pl-buscar, :root.oscuro .pl-form select, :root.oscuro .pl-form input, :root.oscuro .pl-motivo input, :root.oscuro .pl-nuevo, body.oscuro .pl-buscar, body.oscuro .pl-form select, body.oscuro .pl-form input, body.oscuro .pl-motivo input, body.oscuro .pl-nuevo { background: #0f172a; color: #f1f5f9; border-color: #334155; }
+:root.oscuro .pl-opciones button, body.oscuro .pl-opciones button { background: #0f172a; color: #f1f5f9; border-color: #334155; }
+:root.oscuro .pl-opciones button.activo, body.oscuro .pl-opciones button.activo { background: #052e16; border-color: #16a34a; }
+:root.oscuro .pl-tabla th, body.oscuro .pl-tabla th { background: #0f172a; }
+:root.oscuro .pl-tabla td, :root.oscuro .pl-detalle, :root.oscuro .pl-tabla-caja, body.oscuro .pl-tabla td, body.oscuro .pl-detalle, body.oscuro .pl-tabla-caja { border-color: #334155; }
+:root.oscuro .pl-lote-acciones button, body.oscuro .pl-lote-acciones button { background: #1e293b; color: #f1f5f9; }
+:root.oscuro .pl-lote-acciones .pl-peligro, body.oscuro .pl-lote-acciones .pl-peligro { background: #450a0a; color: #fecaca; }

@@ -216,8 +216,8 @@
                 <div id="rmFacturas" class="rm-facturas"></div></header>
             <div class="rm-dos">
                 <section class="rm-izq">
-                    <div class="rm-escaner-fila"><input id="rmBuscar" class="rm-buscar rm-escaner" type="search" autocomplete="off" placeholder="${esAbarrotes() ? "🔎 Busca producto, código o marca…" : "📷 Escanea o escribe producto, código o marca…"}" oninput="rmBuscar(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();rmEscanear(this.value)}" value="${esc(rm.consulta)}" ${rm.factura ? "style=\"display:none\"" : ""}>
-                    ${rm.factura ? "" : `<button type="button" class="rm-btn rm-celular" onclick="if(window.abrirEscanerRemotoPOS)abrirEscanerRemotoPOS()" title="Usar el celular como escáner">📱 Usar mi celular</button>`}</div>
+                    <div class="rm-escaner-fila" ${rm.factura ? "style=\"display:none\"" : ""}><label class="rm-buscador"><svg class="rm-lupa" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="rmBuscar" class="rm-buscar rm-escaner" type="search" autocomplete="off" placeholder="${esAbarrotes() ? "Buscar producto, código o marca" : "Escanea o escribe producto, código o marca"}" oninput="rmBuscar(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();rmEscanear(this.value)}" value="${esc(rm.consulta)}"></label>
+                    ${rm.factura ? "" : `<button type="button" class="rm-btn rm-celular" onclick="if(window.abrirEscanerRemotoPOS)abrirEscanerRemotoPOS()" title="Usar el celular como escáner"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><span>Usar mi celular</span></button>`}</div>
                     <div id="rmUltimo" class="rm-ultimo" aria-live="polite"></div>
                     <div id="rmTipos" class="rm-chips"></div>
                     <div id="rmLineas" class="rm-chips rm-lineas-chips"></div>
@@ -235,7 +235,15 @@
         if (campo && !rm.factura) campo.focus();
     }
 
+    // Abarrotes: mientras no se elija una marca ni se busque ni se anote nada, la pantalla es solo de tarjetas de marcas (sin el resumen de al lado).
+    function ajustarVista() {
+        const dos = document.querySelector("#pantallaRecibirMarca .rm-dos");
+        if (!dos || !rm) return;
+        dos.classList.toggle("rm-solo-marcas", esAbarrotes() && !rm.factura && !rm.marca && !rm.consulta.trim() && lineas().length === 0);
+    }
+
     function pintarFiltros() {
+        ajustarVista();
         const tipos = tiposActivos();
         const chip = (valor, etiqueta, n) => `<button type="button" class="rm-chip${(rm.tipo || "") === valor ? " activo" : ""}" onclick="rmTipo('${esc(valor)}')">${esc(etiqueta)} <small>${n}</small></button>`;
         const t = document.getElementById("rmTipos");
@@ -456,6 +464,7 @@
     function pintarResumen() {
         const r = document.getElementById("rmResumen");
         if (!r || !rm) return;
+        ajustarVista();
         if (esPedido()) { pintarResumenPedido(r); return; }
         const ls = lineas();
         const piezas = ls.reduce((s, l) => s + l.n, 0);
@@ -617,6 +626,20 @@
         return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("es-MX", { day: "numeric", month: "short" });
     }
 
+    // "Llegó hoy / ayer / hace 3 días / hace 2 semanas": para reconocer una factura de un vistazo.
+    function haceCuanto(f) {
+        const d = new Date(f.creadaEn || f.fechaDocumento || "");
+        if (Number.isNaN(d.getTime())) return "";
+        const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+        const dia = new Date(d); dia.setHours(0, 0, 0, 0);
+        const dias = Math.round((hoy - dia) / 86400000);
+        if (dias <= 0) return "Llegó hoy";
+        if (dias === 1) return "Llegó ayer";
+        if (dias < 14) return `Llegó hace ${dias} días`;
+        if (dias < 60) return `Llegó hace ${Math.floor(dias / 7)} semanas`;
+        return `Llegó hace ${Math.floor(dias / 30)} meses`;
+    }
+
     function facturasFiltradas() {
         const q = plano(rm.busFactura).trim();
         const lista = rm.facturas;
@@ -640,7 +663,7 @@
         }
 
         const filas = facturasFiltradas().slice(0, 40).map(f => `<button type="button" class="rm-factura-fila" onclick="rmIrAFactura(${Number(f.id)})">
-            <span><b>${esc(f.proveedor)}</b><small>${f.folio ? "Folio " + esc(f.folio) : (f.claveCorta ? "Factura …" + esc(f.claveCorta) : "Sin folio")} · ${esc(fechaCorta(f))} · ${f.totalItems} producto${f.totalItems === 1 ? "" : "s"}</small>${(f.muestra || []).length ? `<small class="rm-factura-muestra">${esc(f.muestra.map(n => String(n).slice(0, 26)).join(" · "))}</small>` : ""}</span>
+            <span><b>${esc(f.proveedor)}</b><em class="rm-factura-hace">${esc(haceCuanto(f))}</em><small>${f.folio ? "Folio " + esc(f.folio) : (f.claveCorta ? "Factura …" + esc(f.claveCorta) : "Sin folio")} · ${esc(fechaCorta(f))} · ${f.totalItems} producto${f.totalItems === 1 ? "" : "s"}</small>${(f.muestra || []).length ? `<small class="rm-factura-muestra">${esc(f.muestra.map(n => String(n).slice(0, 26)).join(" · "))}</small>` : ""}</span>
             <strong>${dinero(f.total)}</strong></button>`).join("");
 
         caja.innerHTML = `<div class="rm-esquina"><button type="button" class="rm-btn principal" onclick="rmVerFacturas(${rm.verFacturas ? "false" : "true"})">Recibir con factura (${rm.facturas.length}) ${rm.verFacturas ? "▴" : "▾"}</button>${historial}</div>
@@ -703,7 +726,7 @@
     window.rmLinea = function (linea) { rm.linea = linea || ""; pintarFiltros(); pintarGrid(); };
     window.rmVerMarcas = function (ver) { rm.verTodasMarcas = Boolean(ver); pintarFiltros(); };
 
-    window.rmTipo = function (tipo) { rm.linea = ""; rm.tipo = tipo || ""; const v = gruposVisibles(); if (!v.some(g => g.marca === rm.marca)) rm.marca = v[0].marca; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
+    window.rmTipo = function (tipo) { rm.linea = ""; rm.tipo = tipo || ""; const v = gruposVisibles(); if (!v.some(g => g.marca === rm.marca)) rm.marca = esAbarrotes() ? "" : v[0].marca; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
     window.rmMarca = function (marca) { rm.marca = marca; rm.linea = ""; rm.consulta = ""; if (rm.modo === "sugerir") rellenarSugeridos(marca); const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
     window.rmSumar = function (id, delta) { if (rm.tocados) rm.tocados.add(Number(id)); rm.cantidades.set(id, Math.max(0, (rm.cantidades.get(id) || 0) + delta)); actualizarTarjeta(id); pintarResumen(); pintarFiltros(); pintarUltimo(); };
     window.rmEscribir = function (id, valor) { if (rm.tocados) rm.tocados.add(Number(id)); const n = Number(valor); rm.cantidades.set(id, Number.isFinite(n) && n > 0 ? n : 0); const t = document.querySelector(`#rmGrid .rm-tarjeta[data-id="${id}"]`); if (t) t.classList.toggle("con-entrada", (rm.cantidades.get(id) || 0) > 0); pintarResumen(); };

@@ -139,6 +139,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./exhibidores-avisos")(app, pool);
     });
 
+    cargarModuloPOS("actualizar precios por lote y su historial", () => {
+        require("./precios-lote-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("agenda de pagos -- aviso diario de pagos por vencer", () => {
         require("./agenda-pagos-avisos")(app, pool);
     });

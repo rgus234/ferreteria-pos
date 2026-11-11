@@ -56,15 +56,15 @@
    .er-ultimo{padding:8px 12px;border-radius:10px;background:#f1f5f9;font:700 13px ui-monospace,Menlo,Consolas,monospace;color:#334155}
 
    /* Indicador fijo en la barra de arriba */
-   .er-chip{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 14px;border:1px solid var(--pos-line,#e2e8f0);border-radius:14px;background:var(--pos-bg,#f3f4f6) !important;color:var(--pos-text,#101828) !important;font:800 13px system-ui,sans-serif;cursor:pointer;white-space:nowrap}
-   .er-chip svg{width:18px;height:18px;flex:none}
-   .er-chip i{width:10px;height:10px;border-radius:50%;background:#94a3b8;flex:none}
-   .er-chip[data-er="espera"]{border-color:#f59e0b}
+   .er-chip{display:inline-flex;align-items:center;gap:9px;height:40px;padding:0 15px 0 13px;border:1px solid var(--pos-line,#e2e8f0);border-radius:999px;background:var(--pos-card,#fff) !important;color:var(--pos-muted,#475569) !important;font:700 13px system-ui,sans-serif;cursor:pointer;white-space:nowrap;box-shadow:0 1px 2px rgba(15,23,42,.05);transition:border-color .15s,color .15s}
+   .er-chip:hover{border-color:#94a3b8;color:var(--pos-text,#101828) !important}
+   .er-chip svg{width:17px;height:17px;flex:none;opacity:.8}
+   .er-chip i{order:3;width:8px;height:8px;border-radius:50%;background:#cbd5e1;flex:none}
    .er-chip[data-er="espera"] i{background:#f59e0b;animation:erPulso 1.4s ease-in-out infinite}
-   .er-chip[data-er="ok"]{border-color:#18b88f;background:rgba(24,184,143,.14) !important}
+   .er-chip[data-er="ok"]{border-color:rgba(24,184,143,.45);background:rgba(24,184,143,.1) !important;color:#047857 !important}
    .er-chip[data-er="ok"] i{background:#18b88f}
-   .er-chip[data-er="error"]{border-color:#ef4444}
    .er-chip[data-er="error"] i{background:#ef4444}
+   .er-chip[data-er="error"]{color:#b91c1c !important}
    @keyframes erPulso{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
 
    /* El mismo estado en los botones del celular (junto al buscador, Mapa de la tienda, Recibir por marca) */
@@ -74,12 +74,11 @@
    .er-boton[data-er="ok"]{background:#18b88f;color:#04223f}
    .er-boton[data-er="ok"]::after{background:#047857}
    .er-boton[data-er="error"]::after{background:#ef4444}
-   .mt-celular[data-er], .rm-celular[data-er]{outline:2px solid transparent;outline-offset:-2px}
-   .mt-celular[data-er="espera"], .rm-celular[data-er="espera"]{outline-color:#f59e0b}
-   .mt-celular[data-er="ok"], .rm-celular[data-er="ok"]{outline-color:#18b88f}
-   .mt-celular[data-er="error"], .rm-celular[data-er="error"]{outline-color:#ef4444}
-   .mt-celular[data-er="ok"]::before, .rm-celular[data-er="ok"]::before{content:"● ";color:#18b88f}
-   .mt-celular[data-er="espera"]::before, .rm-celular[data-er="espera"]::before{content:"● ";color:#f59e0b}
+   .mt-celular[data-er]::after, .rm-celular[data-er]::after{content:"";width:8px;height:8px;border-radius:50%;margin-left:2px;background:#cbd5e1;flex:none}
+   .mt-celular[data-er="espera"]::after, .rm-celular[data-er="espera"]::after{background:#f59e0b;animation:erPulso 1.4s ease-in-out infinite}
+   .mt-celular[data-er="ok"]::after, .rm-celular[data-er="ok"]::after{background:#18b88f}
+   .mt-celular[data-er="error"]::after, .rm-celular[data-er="error"]::after{background:#ef4444}
+   .mt-celular{display:inline-flex;align-items:center;gap:8px}
 
    @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]) .er-panel{background:#1e293b;color:#e2e8f0}

@@ -177,8 +177,8 @@
 
             <section class="mt-escaner">
                 <div class="mt-escaner-cab"><div><b>Acomoda escaneando</b><small>Todo lo que escanees queda en “${esc(l.nombre)}”. Si estaba en otro lugar, lo muevo. Corrige el número si no coincide.</small></div>
-                    <button type="button" class="mt-btn mt-celular" onclick="if(window.abrirEscanerRemotoPOS)abrirEscanerRemotoPOS()">📱 Usar mi celular</button></div>
-                <input id="mtEscanear" class="mt-escaner-input" type="text" inputmode="none" autocomplete="off" placeholder="📷 Escanea el código de barras y presiona Enter…" onkeydown="if(event.key==='Enter'){event.preventDefault();mtEscanear(this.value)}">
+                    <button type="button" class="mt-btn mt-celular" onclick="if(window.abrirEscanerRemotoPOS)abrirEscanerRemotoPOS()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><span>Usar mi celular</span></button></div>
+                <input id="mtEscanear" class="mt-escaner-input" type="text" inputmode="none" autocomplete="off" placeholder="Escanea el código de barras y presiona Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();mtEscanear(this.value)}">
                 <p id="mtEscAviso" class="mt-esc-aviso" role="status"></p>
                 <div id="mtEscLista" class="mt-esc-lista">${htmlEscLista()}</div>
             </section>

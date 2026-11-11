@@ -241,3 +241,24 @@ body.oscuro .rm-fecha input { background: #151f31; border-color: rgba(148, 163, 
 :root.oscuro .rm-comp-modal th, body.oscuro .rm-comp-modal th { background: #0f172a; }
 :root.oscuro .rm-comp-modal td, body.oscuro .rm-comp-modal td { border-color: #334155; }
 :root.oscuro .rm-comp-modal tr.dif td, body.oscuro .rm-comp-modal tr.dif td { background: #422006; }
+
+/* ===== Recibir mercancia: rediseño (marcas a pantalla completa, una sola linea de tipos, buscador y boton del celular limpios) ===== */
+.rm-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 2px 2px 6px; margin-bottom: -4px; }
+.rm-chips::-webkit-scrollbar { display: none; }
+.rm-chip { flex: none; padding: 7px 14px; font-size: 13px; white-space: nowrap; }
+.rm-chip small { margin-left: 3px; padding: 0 7px; }
+.rm-dos.rm-solo-marcas { grid-template-columns: minmax(0, 1fr); }
+.rm-dos.rm-solo-marcas .rm-der { display: none; }
+.rm-dos.rm-solo-marcas .rm-marcas { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+.rm-buscador { position: relative; display: block; flex: 1; min-width: 0; margin: 0; }
+.rm-buscador .rm-lupa { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: var(--pos-muted, #64748b); pointer-events: none; }
+.rm-buscador .rm-escaner { width: 100%; box-sizing: border-box; min-height: 54px; padding: 0 18px 0 50px; border: 1px solid var(--pos-line, #d5deec); border-radius: 14px; background: var(--pos-card, #fff); box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 8px 22px rgba(15, 23, 42, .06); font-size: 16px; font-weight: 600; -webkit-appearance: none; appearance: none; }
+.rm-buscador .rm-escaner::placeholder { color: #8b97ab; font-weight: 500; }
+.rm-buscador .rm-escaner:focus { outline: 0; border-color: var(--brand-color, #1d5fd1); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-color, #1d5fd1) 16%, transparent), 0 8px 22px rgba(15, 23, 42, .06); }
+.rm-buscador .rm-escaner::-webkit-search-cancel-button { cursor: pointer; }
+.rm-btn.rm-celular { display: inline-flex; align-items: center; gap: 9px; min-height: 54px; padding: 0 20px; border: 1px solid var(--pos-line, #d5deec); border-radius: 14px; background: var(--pos-card, #fff); color: var(--pos-text, #172033); font-size: 14.5px; font-weight: 700; box-shadow: 0 1px 2px rgba(15, 23, 42, .05); }
+.rm-btn.rm-celular:hover { border-color: var(--brand-color, #1d5fd1); color: var(--brand-color, #1d5fd1); }
+.rm-btn.rm-celular svg { flex: none; }
+.rm-factura-hace { justify-self: start; padding: 2px 10px; border-radius: 999px; background: #e0ecff; color: #1d4ed8; font-style: normal; font-size: 12px; font-weight: 800; }
+body.oscuro .rm-buscador .rm-escaner, body.oscuro .rm-btn.rm-celular { background: #151f31; border-color: rgba(148, 163, 184, .28); color: #f1f5f9; }
+body.oscuro .rm-factura-hace { background: #1e3a8a; color: #dbeafe; }

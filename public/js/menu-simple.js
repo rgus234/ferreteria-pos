@@ -27,6 +27,7 @@
                 { titulo: "Más herramientas", tam: "c", plegable: true, cards: [
                     { modulo: "categorias", icono: "layers", titulo: "Categorías", texto: "Ordena tus productos por tipo" },
                     { modulo: "ajustes", icono: "swap", titulo: "Ajustes de inventario", texto: "Corrige existencias y mermas" },
+                    { modulo: "precios-lote", icono: "chart", titulo: "Actualizar precios", texto: "Sube o baja varios precios, con historial" },
                     { modulo: "listas-producto", icono: "clipboard", titulo: "Listas de productos", texto: "Grupos para vender o pedir" },
                     { modulo: "exhibidores", icono: "grid", titulo: "Exhibidores", texto: "Muebles y displays con su producto" },
                     { modulo: "armar-productos", icono: "inventory", titulo: "Armar productos", texto: "Del granel a bolsitas o porciones" },

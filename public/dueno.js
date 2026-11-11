@@ -5254,6 +5254,7 @@ const CATEGORIAS_MAS_DUENO = [
     { id: "empleados-gestion", titulo: "Empleados", desc: "Altas, PIN, permisos, horario y foto", icono: "usuario", color: "azul" },
     { id: "finanzas-gestion", titulo: "Finanzas", desc: "Utilidad, gastos y cuentas por pagar", icono: "grafica", color: "verde" },
     { id: "agenda-pagos", titulo: "Agenda de pagos", desc: "Lo que debes y cuándo pagarlo", icono: "tarjeta", color: "verde" },
+    { id: "precios-lote", titulo: "Actualizar precios", desc: "Sube o baja varios precios, con historial", icono: "grafica", color: "verde" },
     { id: "encargos-gestion", titulo: "Encargos", desc: "Pedidos de clientes que no tienes en inventario", icono: "caja", color: "" },
     { id: "ventas-pendientes", titulo: "Ventas sin sincronizar", desc: "Cobradas sin internet, por subir al sistema", icono: "nube", color: "azul" },
     { id: "market", titulo: "Comprar en Nexo Market", desc: "Explora productos de otros negocios Nexo", icono: "carrito", color: "verde", href: "https://app.nexoposoficial.com/market" },
@@ -5292,6 +5293,7 @@ function renderCategoriasMasDueno() {
         if (esEmpleado && categoria.id === "finanzas-gestion" && !duenoTienePermiso("ver_reportes")) return false;
         // Agenda de pagos: funcion nueva, solo si el dueño la enciende (dueno-agenda-pagos.js lo avisa).
         if (categoria.id === "agenda-pagos" && !window.duenoAgendaPagos) return false;
+        if (categoria.id === "precios-lote" && !window.duenoPreciosLote) return false;
 
         return categoria.id === "cambiar-usuario"
             ? enModoDispositivo
@@ -5334,7 +5336,7 @@ const SECCIONES_MAS_DUENO = [
 ];
 
 const SECCION_DE_CATEGORIA_MAS_DUENO = {
-    "reportes-tab": "negocio", "finanzas-gestion": "negocio", "agenda-pagos": "negocio", "inventario-tab": "negocio", "nexo-ia": "negocio",
+    "reportes-tab": "negocio", "finanzas-gestion": "negocio", "agenda-pagos": "negocio", "precios-lote": "negocio", "inventario-tab": "negocio", "nexo-ia": "negocio",
     "ventas-tab": "clientes", "creditos-tab": "clientes", "buscar-venta": "clientes", "encargos-gestion": "clientes", "ventas-pendientes": "clientes", market: "clientes",
     "empleados-gestion": "equipo", tareas: "equipo", practica: "equipo", dispositivos: "equipo", notificaciones: "equipo"
 };
@@ -5350,6 +5352,7 @@ const RENDER_SUBPANTALLA_MAS_DUENO = {
     "finanzas-gestion": () => renderSubpantallaFinanzasGestion(),
     "encargos-gestion": () => renderSubpantallaEncargosGestion(),
     "agenda-pagos": () => renderSubpantallaAgendaPagos(),
+    "precios-lote": () => renderSubpantallaPreciosLote(),
     cuenta: renderSubpantallaCuenta,
     plan: renderSubpantallaPlan,
     "nexo-ia": renderSubpantallaNexoIA,

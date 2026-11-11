@@ -25,7 +25,7 @@ test("todo nace apagado", async () => {
     const r = await (await fetch(`${BASE_URL}/funciones-beta`, { headers: headers(a) })).json();
 
     assert.equal(r.ok, true);
-    assert.deepEqual(Object.keys(r.funciones).sort(), ["agenda_pagos", "alcohol", "armado", "bascula", "catalogo_por_proveedor", "diseno_nuevo", "envases", "gafi_captura", "inicio_pendientes", "mapa_tienda", "menu_simplificado", "mostrador", "pedidos_unico", "recargas", "recibir_por_marca"]);
+    assert.deepEqual(Object.keys(r.funciones).sort(), ["agenda_pagos", "alcohol", "armado", "bascula", "catalogo_por_proveedor", "diseno_nuevo", "envases", "gafi_captura", "inicio_pendientes", "mapa_tienda", "menu_simplificado", "mostrador", "pedidos_unico", "precios_lote", "recargas", "recibir_por_marca"]);
     assert.ok(Object.values(r.funciones).every(v => v === false), "ninguna esta encendida por defecto");
 });
 

@@ -35,7 +35,8 @@ const FUNCIONES = {
     recargas: "Recargas",
     mostrador: "Mostrador de precios",
     pedidos_unico: "Pedidos: crear, sugerir y hechos",
-    agenda_pagos: "Agenda de pagos a proveedores"
+    agenda_pagos: "Agenda de pagos a proveedores",
+    precios_lote: "Actualizar precios por lote"
 };
 
 let columnaLista = false;
