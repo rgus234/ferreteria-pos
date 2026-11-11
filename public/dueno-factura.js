@@ -116,8 +116,8 @@
 
     // Confirma una factura desde el celular. Si ya habias recibido esa mercancia a mano (Recibir por marca / Recibir mercancia con proveedor), pregunta si
     // es la misma: en ese caso la factura solo completa los costos y NO se vuelve a sumar al inventario. Lo usan esta pantalla y "Recibir por marca".
-    window.confirmarFacturaMovil = async function (id, cantidadesRecibidas, caducidades) {
-        const enviar = extra => llamar(`/recepcion-inteligente/facturas/${id}/confirmar`, { method: "POST", body: { cantidadesRecibidas, caducidades: caducidades || {}, ignorarConciliacion: false, ...extra } });
+    window.confirmarFacturaMovil = async function (id, cantidadesRecibidas, caducidades, pago) {
+        const enviar = extra => llamar(`/recepcion-inteligente/facturas/${id}/confirmar`, { method: "POST", body: { cantidadesRecibidas, caducidades: caducidades || {}, ignorarConciliacion: false, ...(pago ? { pago } : {}), ...extra } });
         let r = await enviar({});
 
         if (!r.ok && r.datos.requiereConciliacion) {
@@ -402,7 +402,16 @@
         const cantidadesRecibidas = {};
         Object.entries(e.recibido).forEach(([id, c]) => { cantidadesRecibidas[id] = c; });
 
-        const r = await window.confirmarFacturaMovil(e.id, cantidadesRecibidas, e.caducidades);
+        // Agenda de pagos (si esta encendida): ¿quedo a deber?
+        let pago = null;
+        if (typeof window.pedirPagoCreditoDueno === "function") {
+            const datosRecepcion = (e.datos && e.datos.recepcion) || {};
+            const credito = await window.pedirPagoCreditoDueno({ proveedor: datosRecepcion.proveedor || "", montoSugerido: Number(datosRecepcion.total) || 0 });
+            if (credito === null) return;
+            pago = credito.pago || null;
+        }
+
+        const r = await window.confirmarFacturaMovil(e.id, cantidadesRecibidas, e.caducidades, pago);
 
         if (r.cancelado) return;
 

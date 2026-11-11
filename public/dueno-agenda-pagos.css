@@ -1,0 +1,58 @@
+/* Agenda de pagos en el celular: calendario del mes y pagos del dia. */
+.dap-metricas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.dap-metricas > div { display: grid; gap: 2px; padding: 12px 14px; border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .08); }
+.dap-metricas span { font-size: 12px; font-weight: 700; color: #64748b; }
+.dap-metricas strong { font-size: 19px; }
+.dap-m-rojo strong { color: #b91c1c; }
+.dap-grupo { margin-bottom: 14px; }
+.dap-grupo h3, .dap-dia h3 { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 6px; font-size: 16px; }
+.dap-grupo h3 small, .dap-dia h3 small { font-size: 14px; color: #475569; font-weight: 700; }
+.dap-g-vencidas h3 { color: #b91c1c; }
+.dap-fila { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 12px; padding: 12px 14px; margin-bottom: 8px; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .08); }
+.dap-datos { display: grid; gap: 3px; min-width: 0; justify-items: start; }
+.dap-datos b { font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dap-datos small { font-size: 12.5px; color: #64748b; }
+.dap-saldo { display: grid; justify-items: end; }
+.dap-saldo strong { font-size: 16px; }
+.dap-saldo small { font-size: 11.5px; color: #64748b; }
+.dap-chip { font-style: normal; font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #e2e8f0; color: #334155; }
+.dap-chip.dap-rojo { background: #fee2e2; color: #991b1b; }
+.dap-chip.dap-ambar { background: #fef3c7; color: #92400e; }
+.dap-liquidar { grid-column: 1 / -1; border: 0; border-radius: 12px; padding: 11px; background: #1d4ed8; color: #fff; font: inherit; font-weight: 700; }
+.dap-calendario { margin-bottom: 14px; padding: 12px; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .08); }
+.dap-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.dap-nav > div { flex: 1; display: grid; justify-items: center; }
+.dap-nav strong { font-size: 17px; text-transform: capitalize; }
+.dap-nav small { font-size: 12px; color: #64748b; }
+.dap-nav button { border: 0; border-radius: 10px; min-width: 38px; height: 38px; background: #eef2f7; color: #0f172a; font: inherit; font-size: 20px; font-weight: 700; }
+.dap-semana, .dap-rejilla { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.dap-semana span { text-align: center; font-size: 11.5px; font-weight: 700; color: #64748b; padding-bottom: 3px; }
+.dap-celda { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 1px; min-height: 50px; padding: 4px 2px; border: 2px solid transparent; border-radius: 10px; background: #f8fafc; color: #0f172a; font: inherit; }
+.dap-celda.dap-fuera { opacity: .35; }
+.dap-num { font-size: 13px; font-weight: 700; }
+.dap-monto { font-size: 10.5px; font-weight: 800; letter-spacing: -.02em; }
+.dap-es-hoy .dap-num { display: inline-grid; place-items: center; min-width: 22px; height: 22px; border-radius: 999px; background: #1d4ed8; color: #fff; }
+.dap-celda.dap-sel { border-color: #1d4ed8; }
+.dap-c-vencido { background: #fee2e2; color: #991b1b; }
+.dap-c-hoy { background: #fde68a; color: #78350f; }
+.dap-c-pronto { background: #fef3c7; color: #92400e; }
+.dap-c-futuro { background: #dbeafe; color: #1e40af; }
+.dap-leyenda { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 11.5px; color: #64748b; }
+.dap-leyenda span { display: inline-flex; align-items: center; gap: 5px; }
+.dap-leyenda i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+.dap-hoy { margin-top: 10px; width: 100%; border: 0; border-radius: 10px; padding: 9px; background: #eef2f7; color: #0f172a; font: inherit; font-weight: 700; }
+.dap-dia { margin-bottom: 14px; }
+.dap-nota { margin: 4px 2px; color: #64748b; font-size: 14px; line-height: 1.45; }
+.dap-campo { display: grid; gap: 4px; font-size: 13px; font-weight: 700; color: #475569; }
+.dap-campo input, .dap-campo select { padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; font-size: 16px; background: #f8fafc; color: #0f172a; }
+:root.oscuro .dap-metricas > div, :root.oscuro .dap-fila, :root.oscuro .dap-calendario { background: #111c2e; color: #f1f5f9; }
+:root.oscuro .dap-metricas span, :root.oscuro .dap-datos small, :root.oscuro .dap-saldo small, :root.oscuro .dap-nav small, :root.oscuro .dap-semana span, :root.oscuro .dap-leyenda, :root.oscuro .dap-nota { color: #94a3b8; }
+:root.oscuro .dap-grupo h3 small, :root.oscuro .dap-dia h3 small { color: #cbd5e1; }
+:root.oscuro .dap-celda { background: #0f172a; color: #f1f5f9; }
+:root.oscuro .dap-nav button, :root.oscuro .dap-hoy { background: #1e293b; color: #f1f5f9; }
+:root.oscuro .dap-c-vencido { background: #450a0a; color: #fecaca; }
+:root.oscuro .dap-c-hoy { background: #713f12; color: #fef3c7; }
+:root.oscuro .dap-c-pronto { background: #422006; color: #fcd34d; }
+:root.oscuro .dap-c-futuro { background: #172554; color: #bfdbfe; }
+:root.oscuro .dap-campo { color: #cbd5e1; }
+:root.oscuro .dap-campo input, :root.oscuro .dap-campo select { background: #0f172a; color: #f1f5f9; border-color: #334155; }

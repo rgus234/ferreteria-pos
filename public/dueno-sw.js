@@ -9,13 +9,13 @@
 // siempre van a la red; los datos y la cola offline viven en
 // IndexedDB (dueno-offline.js), no en este cache.
 
-const CACHE_NAME = "nexo-dueno-shell-v149";
+const CACHE_NAME = "nexo-dueno-shell-v150";
 const CACHE_FOTOS = "nexo-dueno-fotos-v1";
 
 const ARCHIVOS_CASCARON = [
     "/dueno",
     "/dueno.css?v=celular-plan-b-20261105-19",
-    "/dueno.js?v=celular-plan-b-20261105-20",
+    "/dueno.js?v=celular-plan-b-20261105-21",
     "/dueno-instalar.js?v=instalar-20261126-03",
     "/dueno-lector.js?v=lector-20261101-01",
     "/dueno-inventario.js?v=celular-plan-b-20261108-15",
@@ -49,16 +49,18 @@ const ARCHIVOS_CASCARON = [
     "/dueno-alta.js?v=alta-20261107-08",
     "/dueno-alta.css?v=alta-20261107-08",
     "/dueno-mapa.js?v=mapa-20261125-fh",
-    "/dueno-factura.js?v=factura-20261127-08",
+    "/dueno-factura.js?v=factura-20261127-09",
     "/dueno-escaner-pc.js?v=escanerpc-20261106-02",
     "/dueno-barra.js?v=barra-20261106-01",
     "/dueno-caja-aviso.js?v=cajaaviso-20261106-01",
     "/dueno-venta-completa.js?v=ventacompleta-20261106-01",
     "/dueno-ticket.js?v=ticket-20261103-02",
     "/dueno-vender-inicio.js?v=vinicio-20261123-03",
-    "/dueno-recibir-marca.js?v=rmarca-20261111-35",
-    "/dueno-recibir-marca.css?v=rmarca-20261111-35",
+    "/dueno-recibir-marca.js?v=rmarca-20261111-36",
+    "/dueno-recibir-marca.css?v=rmarca-20261111-36",
     "/dueno-pedidos.js?v=encargos-20261111-01",
+    "/dueno-agenda-pagos.js?v=agenda-20261111-01",
+    "/dueno-agenda-pagos.css?v=agenda-20261111-01",
     "/dueno-pedidos.css?v=encargos-20261111-01",
     "/dueno-nexo-dile.js?v=nexodile-20261112-05",
     "/dueno-giro.js?v=nivel-20261102-02",

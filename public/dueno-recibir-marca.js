@@ -717,7 +717,7 @@
     async function cargarExtras(mio) {
         try {
             const p = await fetchAutenticado("/proveedores");
-            if (estado === mio) mio.proveedores = (p?.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre })).filter(x => x.nombre);
+            if (estado === mio) mio.proveedores = (p?.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre, diasCredito: x.dias_credito })).filter(x => x.nombre);
         } catch (error) { /* sin proveedores: se recibe como antes */ }
 
         try {
@@ -825,10 +825,17 @@
 
         if (!d.ok) return;
 
+        let pago = null;
+        if (typeof window.pedirPagoCreditoDueno === "function") {
+            const credito = await window.pedirPagoCreditoDueno({ proveedor: f.proveedor, montoSugerido: Number(f.total) || 0 });
+            if (credito === null) return;
+            pago = credito.pago || null;
+        }
+
         estado.enviando = true;
         pintar();
 
-        const r = typeof window.confirmarFacturaMovil === "function" ? await window.confirmarFacturaMovil(f.id, cantidadesRecibidas, {}) : { ok: false, datos: { error: "No se pudo confirmar." } };
+        const r = typeof window.confirmarFacturaMovil === "function" ? await window.confirmarFacturaMovil(f.id, cantidadesRecibidas, {}, pago) : { ok: false, datos: { error: "No se pudo confirmar." } };
 
         if (r.cancelado || !r.ok) {
             estado.enviando = false;
@@ -1087,6 +1094,14 @@
             proveedorElegido = e.proveedor;
         }
 
+        // Agenda de pagos (si esta encendida): ¿quedo a deber? Si queda a credito con monto, se crea la cuenta por pagar con su fecha limite.
+        let pago = null;
+        if (typeof window.pedirPagoCreditoDueno === "function") {
+            const credito = await window.pedirPagoCreditoDueno({ proveedor: proveedorElegido ? proveedorElegido.nombre : (marcasConEntrada.length === 1 ? marcasConEntrada[0] : ""), montoSugerido: 0 });
+            if (credito === null) return;
+            pago = credito.pago || null;
+        }
+
         estado.enviando = true;
         pintar();
 
@@ -1094,7 +1109,7 @@
             const respuesta = await fetchAutenticado("/recepciones-mercancia/rapida", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ proveedor: proveedorElegido ? proveedorElegido.nombre : (marcasConEntrada.length === 1 ? marcasConEntrada[0] : "Varios"), sinFactura: Boolean(proveedorElegido), referencia: "Recibir por marca", usuarioNombre: (typeof duenoEmpleadoNombrePersona !== "undefined" && duenoEmpleadoNombrePersona) || "", idempotencyKey: estado.llave, items })
+                body: JSON.stringify({ proveedor: proveedorElegido ? proveedorElegido.nombre : (marcasConEntrada.length === 1 ? marcasConEntrada[0] : "Varios"), sinFactura: Boolean(proveedorElegido), referencia: "Recibir por marca", usuarioNombre: (typeof duenoEmpleadoNombrePersona !== "undefined" && duenoEmpleadoNombrePersona) || "", idempotencyKey: estado.llave, items, ...(pago ? { pago } : {}) })
             });
 
             const cuantos = items.length;

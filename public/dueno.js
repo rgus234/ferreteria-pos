@@ -5253,6 +5253,7 @@ const CATEGORIAS_MAS_DUENO = [
     { id: "tareas", titulo: "Tareas y avisos", desc: "Lo que toca hoy y mensajes del equipo", icono: "campana", color: "azul" },
     { id: "empleados-gestion", titulo: "Empleados", desc: "Altas, PIN, permisos, horario y foto", icono: "usuario", color: "azul" },
     { id: "finanzas-gestion", titulo: "Finanzas", desc: "Utilidad, gastos y cuentas por pagar", icono: "grafica", color: "verde" },
+    { id: "agenda-pagos", titulo: "Agenda de pagos", desc: "Lo que debes y cuándo pagarlo", icono: "tarjeta", color: "verde" },
     { id: "encargos-gestion", titulo: "Encargos", desc: "Pedidos de clientes que no tienes en inventario", icono: "caja", color: "" },
     { id: "ventas-pendientes", titulo: "Ventas sin sincronizar", desc: "Cobradas sin internet, por subir al sistema", icono: "nube", color: "azul" },
     { id: "market", titulo: "Comprar en Nexo Market", desc: "Explora productos de otros negocios Nexo", icono: "carrito", color: "verde", href: "https://app.nexoposoficial.com/market" },
@@ -5289,8 +5290,8 @@ function renderCategoriasMasDueno() {
         if (esEmpleado && (categoria.id === "buscar-venta" || categoria.id === "ventas-pendientes" || categoria.id === "encargos-gestion") && !duenoTienePermiso("hacer_ventas")) return false;
         if (esEmpleado && categoria.id === "empleados-gestion" && !duenoTienePermiso("administrar_usuarios")) return false;
         if (esEmpleado && categoria.id === "finanzas-gestion" && !duenoTienePermiso("ver_reportes")) return false;
-        // Encargos (pedir lo que no tienes en inventario) es de ferreteria; una tienda solo de abarrotes no lo usa (la computadora ya lo oculta).
-        if (categoria.id === "encargos-gestion" && window.duenoGiro?.abarrotesSolo) return false;
+        // Agenda de pagos: funcion nueva, solo si el dueño la enciende (dueno-agenda-pagos.js lo avisa).
+        if (categoria.id === "agenda-pagos" && !window.duenoAgendaPagos) return false;
 
         return categoria.id === "cambiar-usuario"
             ? enModoDispositivo
@@ -5333,7 +5334,7 @@ const SECCIONES_MAS_DUENO = [
 ];
 
 const SECCION_DE_CATEGORIA_MAS_DUENO = {
-    "reportes-tab": "negocio", "finanzas-gestion": "negocio", "inventario-tab": "negocio", "nexo-ia": "negocio",
+    "reportes-tab": "negocio", "finanzas-gestion": "negocio", "agenda-pagos": "negocio", "inventario-tab": "negocio", "nexo-ia": "negocio",
     "ventas-tab": "clientes", "creditos-tab": "clientes", "buscar-venta": "clientes", "encargos-gestion": "clientes", "ventas-pendientes": "clientes", market: "clientes",
     "empleados-gestion": "equipo", tareas: "equipo", practica: "equipo", dispositivos: "equipo", notificaciones: "equipo"
 };
@@ -5348,6 +5349,7 @@ const RENDER_SUBPANTALLA_MAS_DUENO = {
     "empleados-gestion": () => renderSubpantallaEmpleadosGestion(),
     "finanzas-gestion": () => renderSubpantallaFinanzasGestion(),
     "encargos-gestion": () => renderSubpantallaEncargosGestion(),
+    "agenda-pagos": () => renderSubpantallaAgendaPagos(),
     cuenta: renderSubpantallaCuenta,
     plan: renderSubpantallaPlan,
     "nexo-ia": renderSubpantallaNexoIA,

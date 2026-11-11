@@ -22,7 +22,7 @@ const PERFILES_NEGOCIO = {
         // Modulos del menu (data-shell-module) que un abarrotes no usa.
         ocultar: [
             "explorar-nexo", "catalogo", "recepcion-inteligente", "listas-producto",
-            "fotos-sugeridas", "codigos-barras", "encargos", "sitio-web", "pedidos-market", "facturacion"
+            "fotos-sugeridas", "codigos-barras", "sitio-web", "pedidos-market", "facturacion"
         ]
     },
     ferreteria: { nombre: "Ferretería", icono: "🔧", detalle: "Herramientas y materiales", simple: false, ocultar: [] },
