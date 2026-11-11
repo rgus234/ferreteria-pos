@@ -52,8 +52,7 @@ async function mostrarListasProducto() {
 
  <div class="encargo-add-row">
  <label>Producto
- <input id="listaProductoItemNombre" list="listaProductoItemLista" placeholder="Nombre del producto">
- <datalist id="listaProductoItemLista"></datalist>
+ <input id="listaProductoItemNombre" placeholder="Busca por nombre, marca o código">
  </label>
  <label>Cant.
  <input id="listaProductoItemCantidad" type="number" step="0.001" min="0.001" placeholder="1">
@@ -77,8 +76,16 @@ async function mostrarListasProducto() {
  `;
 
  llenarDatalistProductosListaProducto();
+ if (typeof lpvAdjuntar === "function") lpvAdjuntar("listaProductoItemNombre", { siguiente: "listaProductoItemCantidad" });
  renderTablaItemsListaProductoNuevo();
  await cargarListasProducto();
+}
+
+// Foto (o icono) del producto de un renglon de lista; el renglon solo trae el id y el nombre.
+function miniaturaDeItemLista(item) {
+ const id = Number(item.productoId ?? item.producto_id);
+ const producto = (typeof todosProductos !== "undefined" ? todosProductos : []).find(p => Number(p.id) === id);
+ return typeof miniaturaProducto === "function" ? miniaturaProducto(producto || { nombre: item.nombre }, "lpv-img") : "";
 }
 
 function llenarDatalistProductosListaProducto() {
@@ -132,7 +139,7 @@ function agregarItemFormularioListaProducto() {
  });
  }
 
- nombreInput.value = "";
+ if (typeof lpvLimpiar === "function") lpvLimpiar(nombreInput); else nombreInput.value = "";
  document.getElementById("listaProductoItemCantidad").value = "";
  nombreInput.focus();
 
@@ -156,20 +163,15 @@ function renderTablaItemsListaProductoNuevo() {
  }
 
  contenedor.innerHTML = `
- <table class="encargo-tabla-items">
- <thead>
- <tr><th>Producto</th><th>Cant.</th><th></th></tr>
- </thead>
- <tbody>
+ <div class="lpv-items">
  ${itemsListaNueva.map((item, indice) => `
- <tr>
- <td>${escaparPOS(item.nombre)}</td>
- <td>${item.cantidad}</td>
- <td><button type="button" class="btn-encargo-quitar" onclick="quitarItemFormularioListaProducto(${indice})">Quitar</button></td>
- </tr>
+ <div class="lpv-item">
+ <span class="lpv-foto">${miniaturaDeItemLista(item)}</span>
+ <span><b>${escaparPOS(item.nombre)}</b><small>× ${item.cantidad}</small></span>
+ <button type="button" class="lpv-quitar" onclick="quitarItemFormularioListaProducto(${indice})" aria-label="Quitar">✕</button>
+ </div>
  `).join("")}
- </tbody>
- </table>
+ </div>
  `;
 }
 
@@ -327,7 +329,7 @@ function renderModalDetalleListaProducto() {
  <tbody>
  ${lista.items.map(item => `
  <tr>
- <td>${escaparPOS(item.nombre)}</td>
+ <td><div class="lpv-celda"><span class="lpv-foto">${miniaturaDeItemLista(item)}</span><span>${escaparPOS(item.nombre)}</span></div></td>
  <td>${escaparPOS(item.codigo || "-")}</td>
  <td><input type="number" step="0.001" min="0.001" value="${item.cantidad}" class="lista-detalle-cantidad-input" onchange="actualizarCantidadItemListaProducto(${item.id}, this.value)"></td>
  <td><button type="button" class="btn-encargo-quitar" onclick="quitarItemListaProductoExistente(${item.id})">Quitar</button></td>
@@ -339,7 +341,7 @@ function renderModalDetalleListaProducto() {
 
  <div class="encargo-add-row">
  <label>Producto
- <input id="listaDetalleItemNombre" list="listaProductoItemLista" placeholder="Nombre del producto">
+ <input id="listaDetalleItemNombre" placeholder="Busca por nombre, marca o código">
  </label>
  <label>Cant.
  <input id="listaDetalleItemCantidad" type="number" step="0.001" min="0.001" placeholder="1">
@@ -356,6 +358,7 @@ function renderModalDetalleListaProducto() {
  `;
 
  modal.style.display = "flex";
+ if (typeof lpvAdjuntar === "function") lpvAdjuntar("listaDetalleItemNombre", { siguiente: "listaDetalleItemCantidad" });
 }
 
 function cerrarDetalleListaProducto() {
