@@ -9,6 +9,12 @@
 
     let cuentas = [];
     let error = "";
+    let vista = "calendario";   // "calendario" (un mes con sus pagos) o "lista" (agrupado por urgencia)
+    let mes = null;             // primer dia del mes que se ve
+    let dia = null;             // dia elegido (YYYY-MM-DD)
+
+    const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
     const aISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const hoyISO = () => aISO(new Date());
@@ -62,7 +68,102 @@
         </div>`;
     }
 
+    const corto = n => (n >= 1000 ? "$" + (n / 1000).toLocaleString("es-MX", { maximumFractionDigits: n >= 10000 ? 0 : 1 }) + " mil" : "$" + Math.round(n).toLocaleString("es-MX"));
+    const diaDe = c => (c.vencimiento ? String(c.vencimiento).slice(0, 10) : "");
+    const sumaDe = lista => lista.reduce((s, c) => s + Number(c.saldo), 0);
+
+    function botonesVista() {
+        return `<div class="ap-vista"><button type="button" class="${vista === "calendario" ? "ap-activo" : ""}" onclick="apVista('calendario')">Calendario</button><button type="button" class="${vista === "lista" ? "ap-activo" : ""}" onclick="apVista('lista')">Lista</button></div>`;
+    }
+
+    function metricas(lista) {
+        const de = clave => lista.filter(c => grupoDe(c) === clave);
+        const suma = clave => sumaDe(de(clave));
+
+        return `<div class="ap-metricas">
+            <div><span>Por pagar</span><strong>${dinero(sumaDe(lista))}</strong><small>${lista.length} cuenta${lista.length === 1 ? "" : "s"}</small></div>
+            <div class="ap-m-rojo"><span>Vencido</span><strong>${dinero(suma("vencidas"))}</strong><small>${de("vencidas").length} cuenta${de("vencidas").length === 1 ? "" : "s"}</small></div>
+            <div class="ap-m-ambar"><span>Hoy y esta semana</span><strong>${dinero(suma("hoy") + suma("semana"))}</strong><small>${de("hoy").length + de("semana").length} cuenta${de("hoy").length + de("semana").length === 1 ? "" : "s"}</small></div>
+        </div>`;
+    }
+
+    // ---------- Calendario ----------
+
+    function pintarCalendario() {
+        const pantalla = document.getElementById("pantallaAgendaPagos");
+        const lista = abiertas();
+        const hoy = hoyISO();
+
+        if (!mes) { const h = new Date(); mes = new Date(h.getFullYear(), h.getMonth(), 1); }
+        if (!dia) dia = hoy;
+
+        const primero = new Date(mes.getFullYear(), mes.getMonth(), 1);
+        const diasDelMes = new Date(mes.getFullYear(), mes.getMonth() + 1, 0).getDate();
+        const desfase = (primero.getDay() + 6) % 7;   // la semana empieza en lunes
+        const semanas = Math.ceil((desfase + diasDelMes) / 7);
+        const inicio = new Date(primero);
+        inicio.setDate(1 - desfase);
+
+        const celdas = [];
+
+        for (let i = 0; i < semanas * 7; i++) {
+            const d = new Date(inicio);
+            d.setDate(inicio.getDate() + i);
+            const iso = aISO(d);
+            const delDia = lista.filter(c => diaDe(c) === iso);
+            const total = sumaDe(delDia);
+            const urgencia = !delDia.length ? "" : (iso < hoy ? "ap-c-vencido" : (iso === hoy ? "ap-c-hoy" : (diasEntre(hoy, iso) <= 7 ? "ap-c-pronto" : "ap-c-futuro")));
+
+            celdas.push(`<button type="button" class="ap-celda ${d.getMonth() === mes.getMonth() ? "" : "ap-fuera"} ${urgencia} ${iso === hoy ? "ap-es-hoy" : ""} ${iso === dia ? "ap-sel" : ""}" onclick="apDia('${iso}')" aria-label="${d.getDate()} de ${MESES[d.getMonth()]}${delDia.length ? ", " + delDia.length + " pago" + (delDia.length === 1 ? "" : "s") : ""}">
+                <span class="ap-num">${d.getDate()}</span>${delDia.length ? `<span class="ap-monto">${corto(total)}</span><span class="ap-cuenta">${delDia.length} pago${delDia.length === 1 ? "" : "s"}</span>` : ""}</button>`);
+        }
+
+        const delMes = lista.filter(c => { const v = diaDe(c); return v >= aISO(primero) && v <= aISO(new Date(mes.getFullYear(), mes.getMonth(), diasDelMes)); });
+        const vencidas = lista.filter(c => grupoDe(c) === "vencidas").sort((a, b) => diaDe(a).localeCompare(diaDe(b)));
+        const sinFecha = lista.filter(c => !diaDe(c));
+        const delDiaElegido = lista.filter(c => diaDe(c) === dia);
+        const titulo = new Date(dia + "T12:00:00").toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" });
+
+        pantalla.innerHTML = `<div class="ap-shell">
+            <header class="ap-cab ap-cab-fila"><div><h2>Agenda de pagos</h2><p>Lo que debes a tus proveedores y cuándo pagarlo.</p></div>${botonesVista()}</header>
+            ${metricas(lista)}
+            ${vencidas.length ? `<section class="ap-grupo ap-g-vencidas"><h3>Vencidas <small>${dinero(sumaDe(vencidas))}</small></h3><p>Ya pasó la fecha límite: págalas primero.</p>${vencidas.map(fila).join("")}</section>` : ""}
+            <section class="ap-calendario">
+                <div class="ap-mes-nav">
+                    <button type="button" onclick="apMes(-1)" aria-label="Mes anterior">‹</button>
+                    <div><strong>${MESES[mes.getMonth()]} ${mes.getFullYear()}</strong><small>${delMes.length ? `Este mes debes ${dinero(sumaDe(delMes))} en ${delMes.length} pago${delMes.length === 1 ? "" : "s"}` : "Sin pagos este mes"}</small></div>
+                    <button type="button" onclick="apMes(1)" aria-label="Mes siguiente">›</button>
+                    <button type="button" class="ap-hoy" onclick="apHoy()">Hoy</button>
+                </div>
+                <div class="ap-semana">${DIAS_SEMANA.map(x => `<span>${x}</span>`).join("")}</div>
+                <div class="ap-rejilla">${celdas.join("")}</div>
+                <div class="ap-leyenda"><span><i class="ap-c-vencido"></i>Vencido</span><span><i class="ap-c-hoy"></i>Hoy</span><span><i class="ap-c-pronto"></i>Esta semana</span><span><i class="ap-c-futuro"></i>Más adelante</span></div>
+            </section>
+            <section class="ap-dia">
+                <h3>${titulo.charAt(0).toUpperCase() + titulo.slice(1)} <small>${delDiaElegido.length ? dinero(sumaDe(delDiaElegido)) : ""}</small></h3>
+                ${delDiaElegido.length ? delDiaElegido.map(fila).join("") : `<p class="ap-vacio ap-vacio-chico">No hay pagos este día.</p>`}
+            </section>
+            ${sinFecha.length ? `<section class="ap-grupo ap-g-sin-fecha"><h3>Sin fecha límite <small>${dinero(sumaDe(sinFecha))}</small></h3><p>Ponles una fecha en Finanzas para que salgan en el calendario.</p>${sinFecha.map(fila).join("")}</section>` : ""}
+        </div>`;
+    }
+
+    window.apVista = function (nueva) { vista = nueva === "lista" ? "lista" : "calendario"; pintar(); };
+    window.apMes = function (delta) { mes = new Date(mes.getFullYear(), mes.getMonth() + delta, 1); pintar(); };
+    window.apHoy = function () { const h = new Date(); mes = new Date(h.getFullYear(), h.getMonth(), 1); dia = hoyISO(); pintar(); };
+    window.apDia = function (iso) {
+        dia = iso;
+        const d = new Date(iso + "T12:00:00");
+        if (d.getMonth() !== mes.getMonth() || d.getFullYear() !== mes.getFullYear()) mes = new Date(d.getFullYear(), d.getMonth(), 1);
+        pintar();
+    };
+
     function pintar() {
+        if (vista === "calendario" && !error) pintarCalendario(); else pintarLista();
+    }
+
+    // ---------- Lista (por urgencia) ----------
+
+    function pintarLista() {
         const pantalla = document.getElementById("pantallaAgendaPagos");
         if (!pantalla) return;
 
@@ -78,12 +179,8 @@
         const orden = (a, b) => String(a.vencimiento || "9999").localeCompare(String(b.vencimiento || "9999"));
 
         pantalla.innerHTML = `<div class="ap-shell">
-            <header class="ap-cab"><h2>Agenda de pagos</h2><p>Lo que debes a tus proveedores y cuándo pagarlo.</p></header>
-            <div class="ap-metricas">
-                <div><span>Por pagar</span><strong>${dinero(total)}</strong><small>${lista.length} cuenta${lista.length === 1 ? "" : "s"}</small></div>
-                <div class="ap-m-rojo"><span>Vencido</span><strong>${dinero(suma("vencidas"))}</strong><small>${de("vencidas").length} cuenta${de("vencidas").length === 1 ? "" : "s"}</small></div>
-                <div class="ap-m-ambar"><span>Hoy y esta semana</span><strong>${dinero(suma("hoy") + suma("semana"))}</strong><small>${de("hoy").length + de("semana").length} cuenta${de("hoy").length + de("semana").length === 1 ? "" : "s"}</small></div>
-            </div>
+            <header class="ap-cab ap-cab-fila"><div><h2>Agenda de pagos</h2><p>Lo que debes a tus proveedores y cuándo pagarlo.</p></div>${botonesVista()}</header>
+            ${metricas(lista)}
             ${lista.length ? GRUPOS.map(([clave, titulo, ayuda]) => {
                 const filas = de(clave).sort(orden);
                 return filas.length ? `<section class="ap-grupo ap-g-${clave}"><h3>${titulo} <small>${dinero(suma(clave))}</small></h3>${ayuda ? `<p>${ayuda}</p>` : ""}${filas.map(fila).join("")}</section>` : "";
@@ -109,6 +206,8 @@
         if (!pantalla) return;
         pantalla.style.display = "block";
         if (typeof actualizarTopbarContexto === "function") actualizarTopbarContexto("Agenda de pagos", "Lo que debes y cuándo pagarlo", "agenda-pagos");
+        mes = null;
+        dia = null;
         pantalla.innerHTML = `<div class="ap-shell"><p class="ap-vacio">Cargando…</p></div>`;
         await cargar();
         pintar();

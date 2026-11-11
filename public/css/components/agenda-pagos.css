@@ -43,3 +43,58 @@
 :root.oscuro .ap-modal { background: #111c2e; color: #f1f5f9; }
 :root.oscuro .ap-modal input, :root.oscuro .ap-modal select { background: #0f172a; color: #f1f5f9; border-color: #334155; }
 @media (max-width: 720px) { .ap-fila { grid-template-columns: 1fr auto; } .ap-chip { justify-self: start; } .ap-liquidar { grid-column: 1 / -1; } }
+
+/* Vista de calendario */
+.ap-cab-fila { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.ap-vista { display: inline-flex; padding: 4px; border-radius: 12px; background: #e2e8f0; }
+.ap-vista button { border: 0; padding: 8px 16px; border-radius: 9px; background: transparent; color: #475569; font: inherit; font-weight: 700; cursor: pointer; }
+.ap-vista button.ap-activo { background: #fff; color: #0f172a; box-shadow: 0 1px 3px rgba(15, 23, 42, .15); }
+.ap-calendario { margin: 6px 0 20px; padding: 16px; border-radius: 20px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 20px rgba(15, 23, 42, .06); }
+.ap-mes-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.ap-mes-nav > div { flex: 1; display: grid; justify-items: center; }
+.ap-mes-nav strong { font-size: 20px; text-transform: capitalize; }
+.ap-mes-nav small { font-size: 13px; color: #64748b; }
+.ap-mes-nav button { border: 0; border-radius: 10px; min-width: 40px; height: 40px; background: #eef2f7; color: #0f172a; font: inherit; font-size: 20px; font-weight: 700; cursor: pointer; }
+.ap-mes-nav .ap-hoy { font-size: 14px; padding: 0 14px; }
+.ap-semana, .ap-rejilla { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.ap-semana span { text-align: center; font-size: 12.5px; font-weight: 700; color: #64748b; padding-bottom: 4px; }
+.ap-celda { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: 76px; padding: 6px 8px; border: 2px solid transparent; border-radius: 12px; background: #f8fafc; color: #0f172a; font: inherit; text-align: left; cursor: pointer; }
+.ap-celda:hover { background: #eef2f7; }
+.ap-celda.ap-fuera { opacity: .4; }
+.ap-num { font-size: 14px; font-weight: 700; }
+.ap-monto { font-size: 14px; font-weight: 800; letter-spacing: -.01em; }
+.ap-cuenta { font-size: 11px; font-weight: 700; opacity: .8; }
+.ap-es-hoy .ap-num { display: inline-grid; place-items: center; min-width: 24px; height: 24px; border-radius: 999px; background: #1d4ed8; color: #fff; }
+.ap-celda.ap-sel { border-color: #1d4ed8; }
+.ap-c-vencido { background: #fee2e2; color: #991b1b; }
+.ap-c-hoy { background: #fde68a; color: #78350f; }
+.ap-c-pronto { background: #fef3c7; color: #92400e; }
+.ap-c-futuro { background: #dbeafe; color: #1e40af; }
+.ap-celda.ap-c-vencido:hover { background: #fecaca; }
+.ap-leyenda { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 12.5px; color: #64748b; }
+.ap-leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.ap-leyenda i { width: 14px; height: 14px; border-radius: 5px; display: inline-block; }
+.ap-dia { margin-bottom: 22px; }
+.ap-dia h3 { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 4px; font-size: 18px; }
+.ap-dia h3 small { font-size: 15px; color: #475569; font-weight: 700; }
+.ap-vacio-chico { padding: 10px 2px; font-size: 15px; }
+:root.oscuro .ap-calendario { background: #111c2e; }
+:root.oscuro .ap-vista { background: #1e293b; }
+:root.oscuro .ap-vista button { color: #94a3b8; }
+:root.oscuro .ap-vista button.ap-activo { background: #334155; color: #f1f5f9; }
+:root.oscuro .ap-celda { background: #0f172a; color: #f1f5f9; }
+:root.oscuro .ap-celda:hover { background: #1e293b; }
+:root.oscuro .ap-mes-nav button { background: #1e293b; color: #f1f5f9; }
+:root.oscuro .ap-mes-nav small, :root.oscuro .ap-semana span, :root.oscuro .ap-leyenda { color: #94a3b8; }
+:root.oscuro .ap-c-vencido { background: #450a0a; color: #fecaca; }
+:root.oscuro .ap-c-hoy { background: #713f12; color: #fef3c7; }
+:root.oscuro .ap-c-pronto { background: #422006; color: #fcd34d; }
+:root.oscuro .ap-c-futuro { background: #172554; color: #bfdbfe; }
+:root.oscuro .ap-dia h3 small { color: #cbd5e1; }
+@media (max-width: 720px) {
+    .ap-semana, .ap-rejilla { gap: 3px; }
+    .ap-celda { min-height: 58px; padding: 4px 5px; border-radius: 9px; }
+    .ap-monto { font-size: 11.5px; }
+    .ap-cuenta { display: none; }
+    .ap-calendario { padding: 10px; }
+}
