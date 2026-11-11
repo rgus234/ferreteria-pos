@@ -27,6 +27,18 @@ const MARCAS = [
     { id: "jumex", nombre: "Jumex", color: "azul", palabras: ["jumex"] }
 ];
 
+// Directorio ampliado (marcas-directorio.js): tipo y empresa de cada marca, mas unas 110 marcas nuevas.
+const directorio = require("./marcas-directorio");
+MARCAS.forEach(m => {
+    const d = directorio.DATOS_BASE[m.id] || {};
+    m.tipo = d.tipo || "";
+    m.empresa = d.empresa || "";
+    const extra = directorio.PALABRAS_EXTRA[m.id];
+    if (extra) m.palabras = [...new Set([...m.palabras, ...extra])];
+});
+MARCAS.push(...directorio.MARCAS_NUEVAS.filter(n => !MARCAS.some(m => m.id === n.id)));
+MARCAS.forEach(m => { m.verificada = directorio.VERIFICADAS.has(m.id); m.verificadaEn = m.verificada ? directorio.VERIFICADAS_EN : ""; });
+
 const plano = texto => String(texto || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 // Palabra COMPLETA dentro del nombre ("nito" no coincide dentro de "Juanito"; "jarrito" si en "Jarrito Piña").
@@ -58,6 +70,25 @@ function logoDeMarca(marca) {
     }
 }
 
+// Si la marca no tiene logo, su tarjeta usa la foto de un producto de esa marca que ya este en el Banco de Nexo (solo productos de abarrotes).
+async function fotoDeMarcaDesdeBanco(db, marca) {
+    try {
+        const patrones = marca.palabras.map(p => "%" + p.replace(/[%_]/g, "") + "%");
+        const r = await db.query(
+            `SELECT b.imagen_principal, b.imagen_principal_tipo
+               FROM public.catalogo_maestro_productos m
+               JOIN public.banco_imagenes_producto b ON b.codigo = UPPER(regexp_replace(m.codigo, '[^A-Za-z0-9]', '', 'g'))
+              WHERE m.giro = 'abarrotes' AND translate(lower(m.nombre), 'áéíóúñ', 'aeioun') LIKE ANY($1::text[])
+              ORDER BY COALESCE(b.imagen_principal_ancho, 0) DESC, m.id LIMIT 1`,
+            [patrones]
+        );
+        const fila = r.rows[0];
+        return fila ? `data:${fila.imagen_principal_tipo || "image/jpeg"};base64,${Buffer.from(fila.imagen_principal).toString("base64")}` : null;
+    } catch (error) {
+        return null;
+    }
+}
+
 // Que el exhibidor de la marca exista en el negocio (se crea con su logo y color si falta). Devuelve su id.
 async function asegurarExhibidorDeMarca(db, negocioId, marca) {
     const hallado = await db.query(`SELECT id FROM public.exhibidores WHERE negocio_id = $1 AND lower(nombre) = lower($2) LIMIT 1`, [negocioId, marca.nombre]);
@@ -66,7 +97,7 @@ async function asegurarExhibidorDeMarca(db, negocioId, marca) {
 
     const creado = await db.query(
         `INSERT INTO public.exhibidores (negocio_id, nombre, descripcion, color, foto) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-        [negocioId, marca.nombre, `Productos ${marca.nombre}`, marca.color, logoDeMarca(marca)]
+        [negocioId, marca.nombre, `Productos ${marca.nombre}`, marca.color, logoDeMarca(marca) || await fotoDeMarcaDesdeBanco(db, marca)]
     );
 
     return creado.rows[0].id;
@@ -130,4 +161,4 @@ async function esNegocioDeAbarrotes(db, negocioId) {
     return Boolean(r.rows[0]?.si);
 }
 
-module.exports = { MARCAS, marcaDeProducto, logoDeMarca, asegurarExhibidorDeMarca, colocarProductoEnMarca, armarExhibidoresDeMarcas, esNegocioDeAbarrotes };
+module.exports = { MARCAS, marcaDeProducto, logoDeMarca, fotoDeMarcaDesdeBanco, asegurarExhibidorDeMarca, colocarProductoEnMarca, armarExhibidoresDeMarcas, esNegocioDeAbarrotes };

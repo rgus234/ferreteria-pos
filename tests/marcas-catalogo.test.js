@@ -4,14 +4,35 @@ const fs = require("node:fs");
 const path = require("node:path");
 const marcas = require("../marcas-catalogo");
 
-test("catalogo de marcas: 19 marcas, cada una con su logo y un color valido", () => {
-    assert.equal(marcas.MARCAS.length, 19);
+test("catalogo de marcas: las 19 originales tienen logo y todas un color, tipo y palabras validos, sin ids repetidos", () => {
+    assert.ok(marcas.MARCAS.length >= 140, "el directorio ampliado trae unas 140 marcas");
+    assert.equal(new Set(marcas.MARCAS.map(m => m.id)).size, marcas.MARCAS.length, "ids repetidos");
 
     for (const m of marcas.MARCAS) {
         assert.ok(["azul", "naranja", "verde", "rojo", "morado", "negro"].includes(m.color), `${m.nombre}: color`);
+        assert.ok(m.tipo, `${m.nombre}: falta su tipo`);
+        assert.ok(m.palabras.length > 0, `${m.nombre}: sin palabras`);
+    }
+
+    for (const m of marcas.MARCAS.slice(0, 19)) {
         assert.ok(fs.existsSync(path.join(__dirname, "..", "public", "marcas", `${m.id}.jpg`)), `${m.nombre}: falta su logo`);
         assert.match(marcas.logoDeMarca(m), /^data:image\/jpeg;base64,/);
     }
+});
+
+test("catalogo de marcas: el directorio nuevo reconoce marcas y no revuelve las existentes", () => {
+    const marca = n => marcas.marcaDeProducto(n)?.nombre ?? null;
+
+    assert.equal(marca("Activia Fibra Papaya 225 g"), "Danone");
+    assert.equal(marca("Halls Boost 25.2 g"), "Halls");
+    assert.equal(marca("Cloralex 950 ml"), "Cloralex");
+    assert.equal(marca("Victoria Lata 473 ml"), "Victoria");
+    assert.equal(marca("Fuzetea Durazno 600 ml"), "Coca-Cola");
+    assert.equal(marca("Chocolala 330 ml"), "Lala");
+    assert.equal(marca("Pingüinos Sabor Hershey's 80 g"), "Marinela", "un producto de familia no se roba por el sabor");
+    assert.equal(marca("Sal La Fina 1 kg"), null);
+    assert.equal(marcas.MARCAS.find(m => m.nombre === "Danone").empresa, "Danone");
+    assert.equal(marcas.MARCAS.find(m => m.nombre === "Sabritas").empresa, "PepsiCo");
 });
 
 test("catalogo de marcas: reconoce el producto por palabra completa y no confunde", () => {
