@@ -139,6 +139,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./exhibidores-avisos")(app, pool);
     });
 
+    cargarModuloPOS("asignar proveedor a varios productos", () => {
+        require("./productos-proveedor-masivo-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("actualizar precios por lote y su historial", () => {
         require("./precios-lote-server")(app, pool, requerirAccesoNegocio);
     });

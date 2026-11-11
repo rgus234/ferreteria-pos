@@ -82,8 +82,14 @@
         if (typeof mostrarRecibirMarca === "function") mostrarRecibirMarca();
     };
 
-    // Sugerir pedido: la pantalla de marcas y productos en modo "sugerir" (minimo y maximo por producto; Nexo calcula lo que falta).
+    // Sugerir pedido: Autollenar arma el pedido de todo lo que esta bajo el minimo, con foto y por proveedor (pedido-autollenar.js).
     window.mostrarSugerirPedido = function () {
+        if (typeof mostrarAutollenarPedido === "function") { mostrarAutollenarPedido(); return; }
+        window.mostrarSugerirPedidoPorMarca();
+    };
+
+    // La pantalla de marcas y productos en modo "sugerir" (minimo y maximo por producto; Nexo calcula lo que falta).
+    window.mostrarSugerirPedidoPorMarca = function () {
         window.__rmModo = "sugerir";
         if (typeof mostrarRecibirMarca === "function") mostrarRecibirMarca();
     };
