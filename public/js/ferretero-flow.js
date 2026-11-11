@@ -1273,7 +1273,7 @@
 
  window.abrirHistorialRecepciones = async function() {
   const modal = modalHistorialRecepciones();
-  modal.innerHTML = `<div class="permisos-card"><p class="permisos-rol-nota">Cargando historial...</p></div>`;
+  modal.innerHTML = `<div class="hr-card"><p class="hr-vacio">Cargando historial…</p></div>`;
   modal.style.display = "flex";
 
   try {
@@ -1283,9 +1283,9 @@
    renderListaHistorialRecepciones(datos.recepciones || []);
   } catch (error) {
    modal.innerHTML = `
-    <div class="permisos-card">
-     <div class="permisos-header"><h2>Historial de recepciones</h2><button type="button" onclick="cerrarHistorialRecepciones()">Cerrar</button></div>
-     <p class="permisos-rol-nota">${escaparPOS(error.message || "No se pudo cargar el historial.")}</p>
+    <div class="hr-card">
+     <header class="hr-cab"><div><h2>Historial de recepciones</h2></div><button type="button" class="hr-cerrar" onclick="cerrarHistorialRecepciones()" aria-label="Cerrar">✕</button></header>
+     <p class="hr-vacio">${escaparPOS(error.message || "No se pudo cargar el historial.")}</p>
     </div>
    `;
   }
@@ -1302,35 +1302,118 @@
   return base + (r.pago_por ? ` · ${r.pago_por}` : "");
  }
 
- function renderListaHistorialRecepciones(recepciones) {
+ // ---- Historial de recepciones: lista por dia con buscador y filtros, y detalle de cada recepcion ----
+ const HR_CERRAR = `<button type="button" class="hr-cerrar" onclick="cerrarHistorialRecepciones()" aria-label="Cerrar">✕</button>`;
+ const hrFecha = valor => { const d = new Date(valor); return Number.isNaN(d.getTime()) ? null : d; };
+ const hrHora = valor => { const d = hrFecha(valor); return d ? d.toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" }) : ""; };
+ const hrDiaClave = valor => { const d = hrFecha(valor); return d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` : "sin-fecha"; };
+
+ function hrEtiquetaDia(valor) {
+  const d = hrFecha(valor);
+  if (!d) return "Sin fecha";
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const dia = new Date(d); dia.setHours(0, 0, 0, 0);
+  const dias = Math.round((hoy - dia) / 86400000);
+  if (dias === 0) return "Hoy";
+  if (dias === 1) return "Ayer";
+  return d.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long", year: dia.getFullYear() === hoy.getFullYear() ? undefined : "numeric" });
+ }
+
+ // Estado de la recepcion: espera su factura, ya se concilio con una, o simplemente se recibio.
+ function hrEstado(r) {
+  if (r.estado === "recibido_sin_factura") return { clave: "espera", texto: "Esperando factura" };
+  if (r.estado === "conciliado" && (r.tipo_documento === "factura" || /conciliada con factura/i.test(r.notas || ""))) return { clave: "factura", texto: "Con factura" };
+  return null;
+ }
+
+ function hrPago(r) {
+  if (!r.pago_metodo) return null;
+  const monto = Number(r.pago_monto || 0);
+  return r.pago_metodo === "a_deber" ? { clave: "deber", texto: `A deber${monto > 0 ? " " + dinero(monto) : ""}` } : { clave: "pagado", texto: `Pagado ${dinero(monto)}` };
+ }
+
+ function hrReferencia(r) {
+  if (r.pedido_id) return `Pedido #${r.pedido_id}`;
+  return r.referencia || "Sin folio";
+ }
+
+ let historialRecepciones = { lista: [], filtro: "todas", q: "" };
+
+ function hrFiltradas() {
+  const q = String(historialRecepciones.q || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  return historialRecepciones.lista.filter(r => {
+   const estado = hrEstado(r);
+   const pago = hrPago(r);
+   if (historialRecepciones.filtro === "espera" && !(estado && estado.clave === "espera")) return false;
+   if (historialRecepciones.filtro === "factura" && !(estado && estado.clave === "factura")) return false;
+   if (historialRecepciones.filtro === "deber" && !(pago && pago.clave === "deber")) return false;
+   if (!q) return true;
+   return `${r.proveedor || ""} ${hrReferencia(r)} ${r.tipo_documento || ""}`.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().includes(q);
+  });
+ }
+
+ function hrFila(r) {
+  const estado = hrEstado(r);
+  const pago = hrPago(r);
+  const total = Number(r.total || 0);
+  const n = Number(r.items_count || 0);
+  const nombre = r.proveedor || "Sin proveedor";
+
+  return `<button type="button" class="hr-fila" onclick="verDetalleRecepcion(${Number(r.id)})">
+   <span class="hr-avatar" aria-hidden="true">${escaparPOS(nombre.trim().charAt(0).toUpperCase() || "?")}</span>
+   <span class="hr-datos">
+    <b>${escaparPOS(nombre)}</b>
+    <small><span class="hr-ref">${escaparPOS(hrReferencia(r))}</span> · ${n} producto${n === 1 ? "" : "s"} · ${escaparPOS(hrHora(r.created_at))}</small>
+   </span>
+   <span class="hr-etiquetas">${estado ? `<em class="hr-tag hr-${estado.clave}">${estado.texto}</em>` : ""}${pago ? `<em class="hr-tag hr-${pago.clave}">${escaparPOS(pago.texto)}</em>` : ""}</span>
+   <span class="hr-total">${total > 0 ? dinero(total) : `<small>Costo pendiente</small>`}</span>
+  </button>`;
+ }
+
+ function hrCuerpoLista() {
+  const lista = hrFiltradas();
+  if (!lista.length) return `<p class="hr-vacio">${historialRecepciones.lista.length ? "Ninguna recepción coincide con eso." : "Todavía no hay recepciones registradas."}</p>`;
+
+  const grupos = [];
+  lista.forEach(r => {
+   const clave = hrDiaClave(r.created_at);
+   let g = grupos[grupos.length - 1];
+   if (!g || g.clave !== clave) { g = { clave, etiqueta: hrEtiquetaDia(r.created_at), filas: [] }; grupos.push(g); }
+   g.filas.push(r);
+  });
+
+  return grupos.map(g => `<section class="hr-dia"><h3>${escaparPOS(g.etiqueta)} <small>${g.filas.length}</small></h3>${g.filas.map(hrFila).join("")}</section>`).join("");
+ }
+
+ window.hrFiltro = function(filtro) { historialRecepciones.filtro = filtro; renderListaHistorialRecepciones(null, true); };
+ window.hrBuscar = function(texto) {
+  historialRecepciones.q = texto;
+  const caja = document.getElementById("hrLista");
+  if (caja) caja.innerHTML = hrCuerpoLista();
+ };
+
+ function renderListaHistorialRecepciones(recepciones, conservar) {
   const modal = modalHistorialRecepciones();
+  if (!conservar) historialRecepciones = { lista: recepciones || [], filtro: "todas", q: "" };
+  const lista = historialRecepciones.lista;
+  const cuenta = { todas: lista.length, espera: lista.filter(r => hrEstado(r)?.clave === "espera").length, factura: lista.filter(r => hrEstado(r)?.clave === "factura").length, deber: lista.filter(r => hrPago(r)?.clave === "deber").length };
+  const filtros = [["todas", "Todas"], ["espera", "Esperando factura"], ["factura", "Con factura"], ["deber", "A deber"]];
+
   modal.innerHTML = `
-   <div class="permisos-card">
-    <div class="permisos-header">
-     <div><h2>Historial de recepciones</h2><p>Facturas y remisiones recibidas, con o sin pedido a proveedor.</p></div>
-     <button type="button" onclick="cerrarHistorialRecepciones()">Cerrar</button>
+   <div class="hr-card">
+    <header class="hr-cab"><div><h2>Historial de recepciones</h2><p>Lo que has recibido, con o sin pedido y con o sin factura.</p></div>${HR_CERRAR}</header>
+    <div class="hr-barra">
+     <label class="hr-buscador"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" placeholder="Buscar proveedor o pedido" value="${escaparPOS(historialRecepciones.q)}" oninput="hrBuscar(this.value)"></label>
+     <div class="hr-filtros">${filtros.map(([id, t]) => `<button type="button" class="${historialRecepciones.filtro === id ? "activo" : ""}" onclick="hrFiltro('${id}')">${t} <small>${cuenta[id]}</small></button>`).join("")}</div>
     </div>
-    <div class="permisos-secciones">
-     <section>
-      ${recepciones.length ? recepciones.map(r => `
-       <div class="fila-dueno" style="cursor:pointer;" onclick="verDetalleRecepcion(${r.id})">
-        <div>
-         <strong>${escaparPOS(r.proveedor || "Sin proveedor")}</strong>
-         <span>${escaparPOS(r.referencia || "Sin folio")} -- ${new Date(r.created_at).toLocaleDateString("es-MX")} -- ${r.items_count} producto${Number(r.items_count) === 1 ? "" : "s"}${textoPagoRecepcion(r) ? " -- " + escaparPOS(textoPagoRecepcion(r)) : ""}</span>
-        </div>
-        <strong>${dinero(Number(r.total || 0))}</strong>
-       </div>
-      `).join("") : `<div class="vacio">Todavia no hay recepciones registradas.</div>`}
-     </section>
-    </div>
-   </div>
-  `;
+    <div class="hr-lista" id="hrLista">${hrCuerpoLista()}</div>
+   </div>`;
   modal.style.display = "flex";
  }
 
  window.verDetalleRecepcion = async function(id) {
   const modal = modalHistorialRecepciones();
-  modal.innerHTML = `<div class="permisos-card"><p class="permisos-rol-nota">Cargando...</p></div>`;
+  modal.innerHTML = `<div class="hr-card"><p class="hr-vacio">Cargando…</p></div>`;
 
   try {
    const respuesta = await fetch("/recepciones-mercancia/" + id);
@@ -1339,44 +1422,37 @@
 
    const r = datos.recepcion;
    const items = datos.items || [];
+   const estado = hrEstado(r);
+   const pago = hrPago(r);
+   const total = Number(r.total || 0);
+   const fecha = hrFecha(r.created_at);
+   const piezas = items.reduce((s, i) => s + Number(i.cantidad || 0), 0);
 
    modal.innerHTML = `
-    <div class="permisos-card">
-     <div class="permisos-header">
+    <div class="hr-card">
+     <header class="hr-cab hr-cab-detalle">
       <div>
+       <button type="button" class="hr-atras" onclick="abrirHistorialRecepciones()">← Historial</button>
        <h2>${escaparPOS(r.proveedor || "Sin proveedor")}</h2>
-       <p>${escaparPOS(r.referencia || "Sin folio")} -- ${new Date(r.created_at).toLocaleDateString("es-MX")}${r.tipo_documento ? " -- " + escaparPOS(r.tipo_documento) : ""}</p>
-       ${textoPagoRecepcion(r) ? `<p><strong>Pago al repartidor:</strong> ${escaparPOS(textoPagoRecepcion(r))}</p>` : ""}
+       <p>${escaparPOS(hrReferencia(r))}${fecha ? " · " + escaparPOS(fecha.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }) + ", " + hrHora(r.created_at)) : ""}</p>
+       <div class="hr-etiquetas hr-etiquetas-cab">${estado ? `<em class="hr-tag hr-${estado.clave}">${estado.texto}</em>` : ""}${pago ? `<em class="hr-tag hr-${pago.clave}">${escaparPOS(pago.texto)}</em>` : ""}${r.tipo_documento ? `<em class="hr-tag hr-neutro">${escaparPOS(r.tipo_documento)}</em>` : ""}</div>
       </div>
-      <button type="button" onclick="cerrarHistorialRecepciones()">Cerrar</button>
-     </div>
-     <div class="permisos-secciones">
-      <section>
-       ${items.map(item => `
-        <div class="fila-dueno">
-         <div>
-          <strong>${escaparPOS(item.nombre)}</strong>
-          <span>${escaparPOS(item.codigo || "Sin codigo")} -- ${Number(item.cantidad)} pzas</span>
-         </div>
-         <strong>${dinero(Number(item.costo || 0))}</strong>
-        </div>
-       `).join("")}
-       <div class="fila-dueno" style="border-top:1px solid var(--line, #e2e8f0);margin-top:8px;padding-top:8px;">
-        <strong>Total</strong>
-        <strong>${dinero(Number(r.total || 0))}</strong>
-       </div>
-      </section>
-     </div>
-     <div class="permisos-acciones">
-      <button type="button" onclick="abrirHistorialRecepciones()">Volver al historial</button>
+      ${HR_CERRAR}
+     </header>
+     ${pago ? `<p class="hr-nota"><strong>Pago al repartidor:</strong> ${escaparPOS(textoPagoRecepcion(r))}</p>` : ""}
+     <div class="hr-lista">
+      <table class="hr-tabla"><thead><tr><th>Producto</th><th>Piezas</th><th>Costo</th></tr></thead><tbody>
+       ${items.map(item => `<tr><td><b>${escaparPOS(item.nombre)}</b><small>${escaparPOS(item.codigo || "Sin código")}</small></td><td>${Number(item.cantidad)}</td><td>${Number(item.costo) > 0 ? dinero(Number(item.costo)) : "—"}</td></tr>`).join("")}
+      </tbody></table>
+      <div class="hr-resumen"><span>${items.length} producto${items.length === 1 ? "" : "s"} · ${piezas} pieza${piezas === 1 ? "" : "s"}</span><strong>${total > 0 ? dinero(total) : "Costo pendiente"}</strong></div>
      </div>
     </div>
    `;
   } catch (error) {
    modal.innerHTML = `
-    <div class="permisos-card">
-     <div class="permisos-header"><h2>Recepcion</h2><button type="button" onclick="cerrarHistorialRecepciones()">Cerrar</button></div>
-     <p class="permisos-rol-nota">${escaparPOS(error.message || "No se pudo cargar la recepcion.")}</p>
+    <div class="hr-card">
+     <header class="hr-cab"><div><h2>Recepción</h2></div>${HR_CERRAR}</header>
+     <p class="hr-vacio">${escaparPOS(error.message || "No se pudo cargar la recepcion.")}</p>
     </div>
    `;
   }

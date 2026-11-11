@@ -125,6 +125,7 @@ test("el historial de recepciones muestra quien pago al repartidor, cuanto y com
 
     assert.match(flujo, /function textoPagoRecepcion\(r\)/);
     assert.match(flujo, /Pagado \$\{dinero\(monto\)\} · \$\{metodos\[r\.pago_metodo\]/);
-    assert.match(flujo, /textoPagoRecepcion\(r\) \? " -- " \+ escaparPOS\(textoPagoRecepcion\(r\)\) : ""/, "en la lista");
+    assert.match(flujo, /function hrPago\(r\)/, "en la lista (etiqueta de pago de cada recepcion)");
+    assert.match(flujo, /A deber\$\{monto > 0/, "a deber sale como etiqueta roja");
     assert.match(flujo, /Pago al repartidor:<\/strong>/, "en el detalle");
 });
