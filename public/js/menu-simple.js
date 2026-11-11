@@ -268,7 +268,9 @@
         // dentro de una pantalla (no en las tarjetas) de un grupo con tarjetas: mostrar la flecha de regreso
         const hubVisible = pantallaHub && pantallaHub.style.display !== "none";
         const hubDePantalla = !hubVisible && actual ? HUBS.find(h => h.id === actual) : null;
-        pintarVolver(hubDePantalla && hubDePantalla.grupos ? hubDePantalla.id : null);
+        // un grupo con una sola tarjeta no tiene pantalla de tarjetas a la que regresar (abrirlo la vuelve a abrir sola): sin flecha
+        const hayTarjetas = hubDePantalla && hubDePantalla.grupos && tarjetasDe(hubDePantalla).flatMap(g => g.cards).length > 1;
+        pintarVolver(hayTarjetas ? hubDePantalla.id : null);
     }
 
     // ---------- pantalla de tarjetas ----------
