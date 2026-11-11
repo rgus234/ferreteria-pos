@@ -213,3 +213,18 @@ body.drm-con-resumen { overflow: hidden; }
 :root.oscuro .drm-minmax.drm-suficiente small { color: #86efac; }
 :root.oscuro .drm-limites input { background: #0f172a; border-color: #334155; }
 :root.oscuro .drm-limites input { color: #f1f5f9; }
+
+/* Factura contra pedido */
+.drm-comp { display: grid; gap: 4px; margin: 0 0 10px; padding: 12px 14px; border-radius: 14px; background: #dcfce7; color: #14532d; font-size: 14px; }
+.drm-comp.con-dif { background: #fef3c7; color: #92400e; }
+.drm-comp b { font-size: 15px; }
+.drm-comp button { justify-self: start; padding: 0; border: 0; background: none; color: #1d4ed8; font: inherit; font-weight: 800; text-decoration: underline; }
+.drm-comp-fila { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: #f8fafc; text-align: left; }
+.drm-comp-fila.dif { background: #fffbeb; }
+.drm-comp-fila span { font-size: 13px; color: #475569; }
+.drm-comp-fila small { font-size: 12.5px; font-weight: 700; color: #92400e; }
+.drm-comp-fila small.sube { color: #b91c1c; }
+.drm-comp-fila small.baja { color: #15803d; }
+:root.oscuro .drm-comp-fila { background: #1e293b; }
+:root.oscuro .drm-comp-fila.dif { background: #422006; }
+:root.oscuro .drm-comp-fila span { color: #cbd5e1; }

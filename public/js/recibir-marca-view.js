@@ -467,6 +467,7 @@
 
         r.innerHTML = `<div class="rm-resumen-cab"><h3>${rm.factura ? esc(rm.factura.proveedor) : "Lo que llegó"}</h3>${rm.factura ? `<small>${esDePedido() ? "Pedido #" + esc(rm.factura.pedidoId) + " · estimado " : (rm.factura.folio ? "Folio " + esc(rm.factura.folio) + " · " : "")}${dinero(rm.factura.total)}</small>` : ""}</div>
             ${rm.factura ? `<div class="rm-acciones"><button type="button" class="rm-btn" onclick="rmTodoFactura()">Llegó todo</button><button type="button" class="rm-btn" onclick="rmSalirFactura()">${esDePedido() ? "Salir del pedido" : "Salir de la factura"}</button></div>` : ""}
+            ${rm.factura && !rm.factura.esPedido ? comparacionHtml() : ""}
             ${sinDecidir ? `<p class="rm-alerta">${sinDecidir} concepto${sinDecidir === 1 ? "" : "s"} por decidir (producto nuevo o sin emparejar). Resuélvelos en <button type="button" class="rm-enlace" onclick="rmIrADecidir()">Recepción inteligente</button> antes de confirmar.</p>` : ""}
             <div class="rm-lineas">${ls.map(l => `<div class="rm-linea" style="--marca:${colorDe(l.p)}"><i class="rm-linea-mini">${typeof miniaturaProducto === "function" ? miniaturaProducto(l.p) : ""}</i><div class="rm-linea-datos"><span>${esc(l.p.nombre)}</span>${fechaLineaHtml(l)}</div><b>${numero(l.n)}</b><button type="button" onclick="rmQuitar(${l.id})" aria-label="Quitar">✕</button></div>`).join("") || `<p class="rm-nota">Todavía no anotas nada.</p>`}</div>
             <div class="rm-total"><span>${ls.length} producto${ls.length === 1 ? "" : "s"}</span><b>${numero(piezas)} piezas</b></div>
@@ -752,6 +753,59 @@
         rm.consulta = "";
         rm.cantidades = new Map();
         pintar();
+        cargarComparacion(id);
+    };
+
+    // Factura <-> pedido: lo pedido, lo que llego y lo que cobra la factura. Llega despues y nunca bloquea la pantalla.
+    async function cargarComparacion(id, pedidoId) {
+        const r = await llamar(`/recepcion-inteligente/facturas/${id}/comparacion${pedidoId ? "?pedidoId=" + Number(pedidoId) : ""}`);
+
+        if (!rm || !rm.factura || rm.factura.id !== id || !r.ok || !r.datos.pedido) return;
+
+        rm.factura.comp = r.datos;
+        pintarResumen();
+    }
+
+    window.rmCompPedido = function (pedidoId) { if (rm && rm.factura && rm.factura.id) cargarComparacion(rm.factura.id, pedidoId); };
+
+    const ROTULOS_COMP = { igual: "Igual", menos: "Menos que lo pedido", mas: "Más que lo pedido", no_viene: "No viene en la factura", no_pedido: "No lo pediste" };
+
+    function comparacionHtml() {
+        const c = rm.factura && rm.factura.comp;
+
+        if (!c || !c.pedido) return "";
+
+        const r = c.resumen;
+        const partes = [];
+        if (r.faltan) partes.push(`${r.faltan} sin llegar completo`);
+        if (r.sobran) partes.push(`${r.sobran} de más`);
+        if (r.preciosSuben) partes.push(`${r.preciosSuben} subió de precio`);
+        if (r.preciosBajan) partes.push(`${r.preciosBajan} bajó de precio`);
+
+        return `<div class="rm-comp ${partes.length ? "con-dif" : "ok"}">
+            <b>Pedido #${Number(c.pedido.id)} · ${esc(c.pedido.proveedor || "")}</b>
+            <span>${partes.length ? esc(partes.join(" · ")) : "La factura coincide con lo que pediste."}</span>
+            <button type="button" class="rm-enlace" onclick="rmVerComparacion()">Ver pedido contra factura</button>
+            ${c.candidatos.length > 1 ? `<label class="rm-comp-otro">¿Es otro pedido? <select onchange="rmCompPedido(this.value)">${c.candidatos.map(p => `<option value="${Number(p.id)}" ${p.id === c.pedido.id ? "selected" : ""}>#${Number(p.id)} · ${esc(p.proveedor || "")}</option>`).join("")}</select></label>` : ""}
+        </div>`;
+    }
+
+    window.rmVerComparacion = function () {
+        const c = rm && rm.factura && rm.factura.comp;
+        if (!c) return;
+        document.getElementById("rmCompFondo")?.remove();
+        const fondo = document.createElement("div");
+        fondo.id = "rmCompFondo";
+        fondo.className = "rm-comp-fondo";
+        fondo.onclick = e => { if (e.target === fondo) fondo.remove(); };
+        fondo.innerHTML = `<div class="rm-comp-modal" role="dialog" aria-label="Pedido contra factura">
+            <header><h3>Pedido #${Number(c.pedido.id)} contra la factura</h3><button type="button" onclick="document.getElementById('rmCompFondo').remove()" aria-label="Cerrar">✕</button></header>
+            <table><thead><tr><th>Producto</th><th>Pediste</th><th>Llegó</th><th>Factura</th><th>Costo</th></tr></thead><tbody>${c.filas.map(f => `<tr class="${f.estado !== "igual" ? "dif" : ""}">
+                <td><b>${esc(f.nombre)}</b>${f.estado !== "igual" ? `<small>${ROTULOS_COMP[f.estado]}</small>` : ""}</td>
+                <td>${numero(f.pedido)}</td><td>${numero(f.llego)}</td><td>${numero(f.factura)}</td>
+                <td>${f.costoFactura !== null ? dinero(f.costoFactura) : "—"}${f.cambioPrecio ? `<small class="${f.cambioPrecio}">${f.cambioPrecio === "sube" ? "▲ antes " : "▼ antes "}${dinero(f.costoAnterior)}</small>` : ""}</td></tr>`).join("")}</tbody></table>
+        </div>`;
+        document.body.appendChild(fondo);
     };
 
     window.rmSalirFactura = async function () {
@@ -825,6 +879,7 @@
 
         aviso(r.datos.conciliada ? "Factura confirmada: completó los costos de lo que ya habías recibido." : "Factura recibida: inventario actualizado.");
         if (pago && !r.datos.pagoGuardado) aviso("La factura se recibió, pero el pago al repartidor no quedó anotado.", "info");
+        if (r.datos.cuentaPorPagar) { const c = r.datos.cuentaPorPagar; aviso(c.accion === "creada" ? `Quedó en tu Agenda de pagos: ${dinero(c.monto)} a ${c.proveedor || "tu proveedor"}${c.vencimiento ? ", vence el " + c.vencimiento.split("-").reverse().join("/") : ""}.` : `Se actualizó lo que debes a ${c.proveedor || "tu proveedor"} al total de la factura: ${dinero(c.monto)}.`); }
         if (pago && r.datos.pagoGuardado) await anotarSalidaEnCaja(pago, f.proveedor, r.datos.recepcionMercanciaId);
         if (typeof cargarProductos === "function") await cargarProductos();
         await window.mostrarRecibirMarca();
@@ -847,12 +902,11 @@
         rm.enviando = true;
         pintarResumen();
 
-        const conocido = rm.proveedores.some(p => plano(p.nombre) === plano(f.proveedor));
         const r = await llamar("/recepciones-mercancia/rapida", {
             method: "POST",
             body: JSON.stringify({
                 proveedor: f.proveedor,
-                sinFactura: conocido,
+                sinFactura: true,   // la factura de lo pedido llega despues: Nexo la compara y no suma dos veces
                 pedidoId: f.pedidoId,
                 referencia: "Pedido #" + f.pedidoId,
                 usuarioNombre: nombreQuienRecibe(),

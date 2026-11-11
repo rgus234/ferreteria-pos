@@ -396,8 +396,8 @@ async function procesarRemisionFoto(pool, negocioId, extraido, { empleadoId = nu
 // posible, lo dice, para que una persona confirme o descarte.
 const DIAS_VENTANA_CONCILIACION_REMISION = 20;
 
-async function buscarRemisionPendienteConciliable(pool, negocioId, proveedorId) {
-    if (!proveedorId) return null;
+async function buscarRemisionPendienteConciliable(pool, negocioId, proveedorId, facturaId = null) {
+    if (!proveedorId && !facturaId) return null;
 
     // El camino real hoy (remision por foto, Fase 5) resuelve su propio
     // proveedor_id en recepciones_inteligentes y queda ligada a la
@@ -405,7 +405,7 @@ async function buscarRemisionPendienteConciliable(pool, negocioId, proveedorId) 
     // Una remision futura registrada por otro medio (ej. a mano, sin
     // pasar por Recepcion Inteligente) no entra todavia a este
     // emparejamiento -- se puede sumar despues sin tocar esta funcion.
-    const candidatas = await pool.query(
+    const candidatas = proveedorId ? await pool.query(
         `SELECT rm.id, rm.referencia, rm.fecha_documento, rm.total, rm.created_at
          FROM public.recepciones_mercancia rm
          JOIN public.recepciones_inteligentes ri ON ri.recepcion_mercancia_id = rm.id
@@ -415,12 +415,12 @@ async function buscarRemisionPendienteConciliable(pool, negocioId, proveedorId) 
            AND rm.created_at > NOW() - INTERVAL '${DIAS_VENTANA_CONCILIACION_REMISION} days'
          ORDER BY rm.created_at DESC`,
         [negocioId, proveedorId]
-    );
+    ) : { rows: [] };
 
     // Recepciones hechas a mano en el celular ("Recibir por marca" / Recibir mercancia) y marcadas "sin factura" con el proveedor elegido:
     // no pasan por Recepcion Inteligente, asi que se emparejan por el NOMBRE del proveedor (el celular guarda el nombre exacto de la lista).
     let todas = candidatas.rows;
-    const proveedor = await pool.query(`SELECT nombre FROM public.proveedores WHERE id = $1 AND negocio_id = $2`, [proveedorId, negocioId]);
+    const proveedor = proveedorId ? await pool.query(`SELECT nombre FROM public.proveedores WHERE id = $1 AND negocio_id = $2`, [proveedorId, negocioId]) : { rows: [] };
 
     if (proveedor.rows[0]?.nombre) {
         const manuales = await pool.query(
@@ -435,6 +435,17 @@ async function buscarRemisionPendienteConciliable(pool, negocioId, proveedorId) 
             [negocioId, proveedor.rows[0].nombre]
         );
         todas = [...todas, ...manuales.rows.filter(m => !todas.some(c => c.id === m.id))].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+
+    // Recibidas contra un pedido (Pedidos -> Recibir): el pedido se guarda con la marca y la factura trae la razon social del emisor, asi que
+    // no se emparejan por nombre sino por los productos que comparten.
+    if (facturaId) {
+        try {
+            const dePedido = await require("./factura-pedido").recepcionesDePedidoSinFactura(pool, negocioId, facturaId, DIAS_VENTANA_CONCILIACION_REMISION + 10);
+            todas = [...todas, ...dePedido.filter(m => !todas.some(c => c.id === m.id))].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        } catch (error) {
+            console.warn("[recepcion-inteligente] No se pudo buscar entre lo recibido contra pedidos:", error.message);
+        }
     }
 
     if (!todas.length) return null;
@@ -699,6 +710,29 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     );
 
+    // Factura <-> pedido: pedido / llego / factura por producto, con diferencias de cantidad y de precio.
+    app.get(
+        "/recepcion-inteligente/facturas/:id/comparacion",
+        requerirAccesoNegocio,
+        requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO),
+        async (req, res) => {
+            try {
+                const negocio = await negocioActual(req, pool);
+                const existe = await pool.query(`SELECT 1 FROM public.recepciones_inteligentes WHERE id = $1 AND negocio_id = $2`, [req.params.id, negocio.id]);
+
+                if (!existe.rows.length) {
+                    res.status(404).json({ ok: false, error: "Recepcion no encontrada" });
+                    return;
+                }
+
+                const datos = await require("./factura-pedido").compararFacturaConPedido(pool, negocio.id, Number(req.params.id), req.query.pedidoId);
+                res.json({ ok: true, ...datos });
+            } catch (error) {
+                responderError(res, error);
+            }
+        }
+    );
+
     // Fase 5: antes de confirmar una factura real, la pantalla pregunta
     // aqui si hay una remision de este mismo proveedor que ya se recibio
     // y todavia espera factura -- para mostrar la comparacion ANTES de
@@ -729,7 +763,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     return;
                 }
 
-                const remisionPendiente = await buscarRemisionPendienteConciliable(pool, negocio.id, recepcion.rows[0].proveedor_id);
+                const remisionPendiente = await buscarRemisionPendienteConciliable(pool, negocio.id, recepcion.rows[0].proveedor_id, Number(req.params.id));
                 res.json({ ok: true, remisionPendiente });
             } catch (error) {
                 responderError(res, error);
@@ -960,7 +994,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                         }
                         remisionAConciliar = fila.rows[0];
                     } else {
-                        const posible = await buscarRemisionPendienteConciliable(pool, negocio.id, recepcion.rows[0].proveedor_id);
+                        const posible = await buscarRemisionPendienteConciliable(pool, negocio.id, recepcion.rows[0].proveedor_id, Number(req.params.id));
                         if (posible) {
                             await client.query("ROLLBACK");
                             res.status(409).json({ ok: false, requiereConciliacion: true, remisionPendiente: posible });
@@ -1217,6 +1251,19 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 // Pago al repartidor (opcional): queda anotado en la recepcion de mercancia; si no se pudo, la recepcion sigue y se avisa.
                 const pagoGuardado = req.body?.pago ? await guardarPagoRecepcion(client, { negocioId: negocio.id, recepcionId: recepcionMercanciaId, pago: req.body.pago }) : null;
 
+                // Del total real de la factura sale (o se ajusta) la cuenta por pagar de la Agenda de pagos.
+                const cuentaPorPagar = await require("./factura-pedido").cuentaPorFactura(client, {
+                    negocioId: negocio.id,
+                    recepcionId: recepcionMercanciaId,
+                    proveedorId: recepcion.rows[0].proveedor_id,
+                    proveedorNombre: recepcion.rows[0].nombre_emisor,
+                    total: recepcion.rows[0].total,
+                    folio: recepcion.rows[0].folio,
+                    fechaDocumento: recepcion.rows[0].fecha_documento,
+                    pagoEnviado: Boolean(req.body?.pago),
+                    soloFactura: recepcion.rows[0].origen !== "remision_foto"
+                });
+
                 await client.query(
                     `UPDATE public.recepciones_inteligentes
                      SET estado = 'confirmada', confirmada_en = NOW(),
@@ -1241,7 +1288,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     }
                 );
 
-                res.json({ ok: true, recepcionMercanciaId, pagoGuardado, totalAplicado, conciliada: Boolean(remisionAConciliar), tramoDescuentoAplicado, productos: itemsAplicados.filter(i => i.productoId).map(i => ({ productoId: i.productoId, nombre: i.nombre, cantidad: i.cantidad, creado: Boolean(i.creado) })) });
+                res.json({ ok: true, recepcionMercanciaId, pagoGuardado, cuentaPorPagar, totalAplicado, conciliada: Boolean(remisionAConciliar), tramoDescuentoAplicado, productos: itemsAplicados.filter(i => i.productoId).map(i => ({ productoId: i.productoId, nombre: i.nombre, cantidad: i.cantidad, creado: Boolean(i.creado) })) });
             } catch (error) {
                 await client.query("ROLLBACK").catch(() => {});
                 responderError(res, error);

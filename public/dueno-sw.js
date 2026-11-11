@@ -9,7 +9,7 @@
 // siempre van a la red; los datos y la cola offline viven en
 // IndexedDB (dueno-offline.js), no en este cache.
 
-const CACHE_NAME = "nexo-dueno-shell-v151";
+const CACHE_NAME = "nexo-dueno-shell-v152";
 const CACHE_FOTOS = "nexo-dueno-fotos-v1";
 
 const ARCHIVOS_CASCARON = [
@@ -49,15 +49,15 @@ const ARCHIVOS_CASCARON = [
     "/dueno-alta.js?v=alta-20261107-08",
     "/dueno-alta.css?v=alta-20261107-08",
     "/dueno-mapa.js?v=mapa-20261125-fh",
-    "/dueno-factura.js?v=factura-20261127-09",
+    "/dueno-factura.js?v=factura-20261112-10",
     "/dueno-escaner-pc.js?v=escanerpc-20261106-02",
     "/dueno-barra.js?v=barra-20261106-01",
     "/dueno-caja-aviso.js?v=cajaaviso-20261106-01",
     "/dueno-venta-completa.js?v=ventacompleta-20261106-01",
     "/dueno-ticket.js?v=ticket-20261103-02",
     "/dueno-vender-inicio.js?v=vinicio-20261123-03",
-    "/dueno-recibir-marca.js?v=rmarca-20261112-01",
-    "/dueno-recibir-marca.css?v=rmarca-20261112-01",
+    "/dueno-recibir-marca.js?v=rmarca-20261112-02",
+    "/dueno-recibir-marca.css?v=rmarca-20261112-02",
     "/dueno-pedidos.js?v=pedidos-20261112-01",
     "/dueno-agenda-pagos.js?v=agenda-20261111-01",
     "/dueno-agenda-pagos.css?v=agenda-20261111-01",

@@ -293,6 +293,51 @@
         pintar();
         const c = document.getElementById("drmCapa");
         if (c) c.scrollTop = 0;
+        cargarComparacionDueno(id);
+    };
+
+    // Factura <-> pedido: lo pedido, lo que llego y lo que cobra la factura. Llega despues y nunca bloquea la pantalla.
+    async function cargarComparacionDueno(id, pedidoId) {
+        let datos = null;
+        try { datos = await fetchAutenticado(`/recepcion-inteligente/facturas/${id}/comparacion${pedidoId ? "?pedidoId=" + Number(pedidoId) : ""}`); } catch (error) { datos = null; }
+
+        if (!estado || !estado.factura || estado.factura.id !== id || !datos || !datos.pedido) return;
+
+        estado.factura.comp = datos;
+        repintarFacturas();
+    }
+
+    const numeroDueno = v => Number(v || 0).toLocaleString("es-MX", { maximumFractionDigits: 3 });
+    const ROTULOS_COMP_DUENO = { igual: "Igual", menos: "Menos que lo pedido", mas: "Más que lo pedido", no_viene: "No viene en la factura", no_pedido: "No lo pediste" };
+
+    function comparacionHtmlDueno(f) {
+        const c = f.comp;
+
+        if (!c || !c.pedido || f.esPedido) return "";
+
+        const r = c.resumen;
+        const partes = [];
+        if (r.faltan) partes.push(`${r.faltan} sin llegar completo`);
+        if (r.sobran) partes.push(`${r.sobran} de más`);
+        if (r.preciosSuben) partes.push(`${r.preciosSuben} subió de precio`);
+        if (r.preciosBajan) partes.push(`${r.preciosBajan} bajó de precio`);
+
+        return `<div class="drm-comp ${partes.length ? "con-dif" : "ok"}"><b>Pedido #${Number(c.pedido.id)} · ${esc(c.pedido.proveedor || "")}</b><span>${partes.length ? esc(partes.join(" · ")) : "La factura coincide con lo que pediste."}</span><button type="button" onclick="verComparacionRecibirDueno()">Ver pedido contra factura</button></div>`;
+    }
+
+    window.verComparacionRecibirDueno = function () {
+        const c = estado && estado.factura && estado.factura.comp;
+        if (!c) return;
+        const fondo = document.createElement("div");
+        fondo.className = "drm-hoja-fondo";
+        fondo.innerHTML = `<div class="drm-hoja" role="dialog" aria-label="Pedido contra factura"><h3>Pedido #${Number(c.pedido.id)} contra la factura</h3>
+            <div class="drm-hoja-lista drm-comp-lista">${c.filas.map(x => `<div class="drm-comp-fila ${x.estado !== "igual" ? "dif" : ""}"><b>${esc(x.nombre)}</b>
+                <span>Pediste ${numeroDueno(x.pedido)} · Llegó ${numeroDueno(x.llego)} · Factura ${numeroDueno(x.factura)}</span>
+                ${x.estado !== "igual" ? `<small>${ROTULOS_COMP_DUENO[x.estado]}</small>` : ""}
+                ${x.cambioPrecio ? `<small class="${x.cambioPrecio}">${x.cambioPrecio === "sube" ? "▲ Subió" : "▼ Bajó"}: antes ${dinero0(x.costoAnterior)}, ahora ${dinero0(x.costoFactura)}</small>` : ""}</div>`).join("")}</div>
+            <button type="button" class="drm-hoja-cancelar" data-i="x">Cerrar</button></div>`;
+        fondo.addEventListener("click", e => { if (e.target === fondo || e.target.dataset?.i === "x") fondo.remove(); });
+        document.body.appendChild(fondo);
     };
 
     // Abarrotes: primero las tarjetas de marca; al elegir una, solo se ven sus productos (con un boton para volver a las tarjetas).
@@ -673,7 +718,7 @@
     function facturasHtml() {
         if (estado.factura) {
             const f = estado.factura;
-            return `<div class="drm-factura-banner">
+            return `${comparacionHtmlDueno(f)}<div class="drm-factura-banner">
                 <div><b>${f.esPedido ? "📦 Pedido #" + Number(f.pedidoId) + " · " : "📄 "}${esc(f.proveedor)}</b><small>${f.folio ? "Folio " + esc(f.folio) + " · " : ""}${f.cards.length} concepto${f.cards.length === 1 ? "" : "s"} · ${dinero0(f.total)}</small></div>
                 <button type="button" class="drm-factura-todo" onclick="marcarTodoFacturaRecibirDueno()">Llegó todo</button>
                 <button type="button" class="drm-factura-salir" onclick="salirFacturaRecibirDueno()">Salir</button>
@@ -854,7 +899,7 @@
         estado = null;
         document.getElementById("drmCapa")?.classList.remove("abierta");
         document.body.classList.remove("drm-abierta", "drm-con-resumen");
-        avisar(r.datos?.conciliada ? "Factura confirmada: completó los costos de lo que ya habías recibido." : "Factura recibida: inventario actualizado.");
+        avisar((r.datos?.conciliada ? "Factura confirmada: completó los costos de lo que ya habías recibido." : "Factura recibida: inventario actualizado.") + (r.textoCuenta ? " " + r.textoCuenta : ""));
         if (typeof refrescarCatalogoLocalDueno === "function") await refrescarCatalogoLocalDueno();
         if (typeof filtrarInventarioDueno === "function") filtrarInventarioDueno();
     }
@@ -1150,14 +1195,11 @@
         estado.enviando = true;
         pintar();
 
-        const plano = t => String(t || "").trim().toLowerCase();
-        const conocido = (estado.proveedores || []).some(p => plano(p.nombre) === plano(f.proveedor));
-
         try {
             const respuesta = await fetchAutenticado("/recepciones-mercancia/rapida", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ proveedor: f.proveedor, sinFactura: conocido, pedidoId: f.pedidoId, referencia: "Pedido #" + f.pedidoId, usuarioNombre: (typeof duenoEmpleadoNombrePersona !== "undefined" && duenoEmpleadoNombrePersona) || "", idempotencyKey: estado.llave, items, ...(pago ? { pago } : {}) })
+                body: JSON.stringify({ proveedor: f.proveedor, sinFactura: true, pedidoId: f.pedidoId, referencia: "Pedido #" + f.pedidoId, usuarioNombre: (typeof duenoEmpleadoNombrePersona !== "undefined" && duenoEmpleadoNombrePersona) || "", idempotencyKey: estado.llave, items, ...(pago ? { pago } : {}) })
             });
 
             const pedidoId = f.pedidoId;

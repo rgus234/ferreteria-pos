@@ -140,6 +140,15 @@
             }
         }
 
+        // Del total de la factura sale (o se ajusta) la cuenta por pagar de la Agenda de pagos: se le dice al dueño.
+        if (r.ok && r.datos && r.datos.cuentaPorPagar) {
+            const c = r.datos.cuentaPorPagar;
+            const monto = "$" + Number(c.monto || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            r.textoCuenta = c.accion === "creada"
+                ? `Quedó en tu Agenda de pagos: ${monto} a ${c.proveedor || "tu proveedor"}${c.vencimiento ? ", vence el " + c.vencimiento.split("-").reverse().join("/") : ""}.`
+                : `Se actualizó lo que debes a ${c.proveedor || "tu proveedor"} al total de la factura: ${monto}.`;
+        }
+
         return r;
     };
 
@@ -422,7 +431,7 @@
 
         borrar(e.id);
         if (typeof refrescarCatalogoLocalDueno === "function") refrescarCatalogoLocalDueno().catch(() => {});
-        N().aviso("Recepción confirmada: inventario actualizado");
+        N().aviso("Recepción confirmada: inventario actualizado" + (r.textoCuenta ? ". " + r.textoCuenta : ""));
         pila = [];
         ir({ t: "acomodo", productos: (r.datos.productos || []).map(p => ({ ...p, lugar: null, hecho: false })), cargando: true });
         cargarAcomodo(actual());

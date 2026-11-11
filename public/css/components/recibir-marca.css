@@ -217,3 +217,27 @@ body.oscuro .rm-fecha input { background: #151f31; border-color: rgba(148, 163, 
 .rm-minmax.rm-pedir small { color: #92400e; font-weight: 700; }
 .rm-minmax.rm-suficiente { background: #dcfce7; }
 .rm-minmax.rm-suficiente small { color: #166534; }
+
+/* Factura contra pedido */
+.rm-comp { display: grid; gap: 4px; margin: 0 0 10px; padding: 12px 14px; border-radius: 12px; background: #dcfce7; color: #14532d; font-size: 13px; }
+.rm-comp.con-dif { background: #fef3c7; color: #92400e; }
+.rm-comp b { font-size: 14px; }
+.rm-comp .rm-enlace { justify-self: start; }
+.rm-comp-otro { font-size: 12px; font-weight: 700; }
+.rm-comp-otro select { margin-left: 6px; padding: 3px 6px; border-radius: 8px; }
+.rm-comp-fondo { position: fixed; inset: 0; z-index: 9800; display: grid; place-items: center; padding: 18px; background: rgba(15, 23, 42, .6); }
+.rm-comp-modal { width: min(820px, 100%); max-height: calc(100vh - 36px); overflow: auto; border-radius: 20px; background: #fff; color: #0f172a; box-shadow: 0 30px 80px rgba(15, 23, 42, .4); }
+.rm-comp-modal header { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: #fff; border-bottom: 1px solid #e2e8f0; }
+.rm-comp-modal h3 { margin: 0; font-size: 20px; }
+.rm-comp-modal header button { border: 0; width: 36px; height: 36px; border-radius: 999px; background: #eef2f7; cursor: pointer; font-size: 16px; }
+.rm-comp-modal table { width: 100%; border-collapse: collapse; }
+.rm-comp-modal th { padding: 10px 14px; text-align: left; font-size: 12.5px; color: #64748b; background: #f8fafc; }
+.rm-comp-modal td { padding: 10px 14px; border-top: 1px solid #e2e8f0; font-size: 15px; }
+.rm-comp-modal td small { display: block; font-size: 12px; color: #64748b; }
+.rm-comp-modal tr.dif td { background: #fffbeb; }
+.rm-comp-modal td small.sube { color: #b91c1c; font-weight: 700; }
+.rm-comp-modal td small.baja { color: #15803d; font-weight: 700; }
+:root.oscuro .rm-comp-modal, body.oscuro .rm-comp-modal, :root.oscuro .rm-comp-modal header, body.oscuro .rm-comp-modal header { background: #111c2e; color: #f1f5f9; }
+:root.oscuro .rm-comp-modal th, body.oscuro .rm-comp-modal th { background: #0f172a; }
+:root.oscuro .rm-comp-modal td, body.oscuro .rm-comp-modal td { border-color: #334155; }
+:root.oscuro .rm-comp-modal tr.dif td, body.oscuro .rm-comp-modal tr.dif td { background: #422006; }
