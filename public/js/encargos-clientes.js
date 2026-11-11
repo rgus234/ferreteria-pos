@@ -113,8 +113,7 @@ async function mostrarEncargos() {
 
  <div class="encargo-add-row">
  <label>Producto
- <input id="encargoProductoNombre" list="encargoProductoLista" placeholder="Nombre del producto">
- <datalist id="encargoProductoLista"></datalist>
+ <input id="encargoProductoNombre" placeholder="Busca o escribe el producto">
  </label>
  <label>Cant.
  <input id="encargoCantidad" type="number" step="0.001" min="0.001" placeholder="1">
@@ -154,8 +153,23 @@ async function mostrarEncargos() {
 
  llenarDatalistClientesEncargo();
  llenarDatalistProductosEncargo();
+ // Buscador con foto: elegir un producto del inventario trae su precio; lo que no esta en el inventario se escribe a mano y se agrega igual.
+ if (typeof lpvAdjuntar === "function") lpvAdjuntar("encargoProductoNombre", {
+ siguiente: "encargoCantidad",
+ placeholder: "Busca en tu inventario o escribe lo que piden",
+ textoVacio: "No está en tu inventario: se agrega tal como lo escribas.",
+ alElegir: producto => { const precio = document.getElementById("encargoPrecioEstimado"); if (precio && !precio.value) precio.value = producto.precio_publico ?? producto.precio ?? ""; }
+ });
  renderTablaItemsEncargoNuevo();
  await cargarListaEncargos();
+}
+
+// Foto (o icono) del producto de un renglon del encargo; si no es del inventario, un icono generico.
+function miniaturaDeItemEncargo(item) {
+ const producto = (typeof todosProductos !== "undefined" ? todosProductos : []).find(p => Number(p.id) === Number(item.productoId));
+ // Lo que no es del inventario (escrito a mano) lleva un icono de nota, no el de una herramienta.
+ if (!producto) return `<span class="lpv-manual" title="Producto escrito a mano">📝</span>`;
+ return typeof miniaturaProducto === "function" ? miniaturaProducto(producto, "lpv-img") : "";
 }
 
 function llenarDatalistClientesEncargo() {
@@ -241,7 +255,7 @@ function agregarItemFormularioEncargo() {
  precioEstimado: precioEstimado >= 0 ? precioEstimado : 0
  });
 
- nombreInput.value = "";
+ if (typeof lpvLimpiar === "function") lpvLimpiar(nombreInput); else nombreInput.value = "";
  document.getElementById("encargoCantidad").value = "";
  document.getElementById("encargoPrecioEstimado").value = "";
  nombreInput.focus();
@@ -273,7 +287,7 @@ function renderTablaItemsEncargoNuevo() {
  <tbody>
  ${itemsEncargoNuevo.map((item, indice) => `
  <tr>
- <td>${escaparPOS(item.nombre)}${(item.marca || item.proveedor) ? `<br><small>${escaparPOS([item.marca, item.proveedor].filter(Boolean).join(" &middot; "))}</small>` : ""}</td>
+ <td><div class="lpv-celda"><span class="lpv-foto">${miniaturaDeItemEncargo(item)}</span><span>${escaparPOS(item.nombre)}${(item.marca || item.proveedor) ? `<br><small>${escaparPOS([item.marca, item.proveedor].filter(Boolean).join(" &middot; "))}</small>` : ""}</span></div></td>
  <td>${item.cantidad}</td>
  <td>${dineroEncargo(item.precioEstimado)}</td>
  <td><button type="button" class="btn-encargo-quitar" onclick="quitarItemFormularioEncargo(${indice})">Quitar</button></td>
@@ -566,7 +580,7 @@ function renderModalDetalleEncargo() {
  <tbody>
  ${encargo.items.map(item => `
  <tr>
- <td>${escaparPOS(item.nombre)}${(item.marca || item.proveedor) ? `<br><small>${escaparPOS([item.marca, item.proveedor].filter(Boolean).join(" &middot; "))}</small>` : ""}</td>
+ <td><div class="lpv-celda"><span class="lpv-foto">${miniaturaDeItemEncargo(item)}</span><span>${escaparPOS(item.nombre)}${(item.marca || item.proveedor) ? `<br><small>${escaparPOS([item.marca, item.proveedor].filter(Boolean).join(" &middot; "))}</small>` : ""}</span></div></td>
  <td>${item.cantidad}</td>
  <td>${dineroEncargo(item.precioEstimado)}</td>
  <td>${encargo.estado !== "entregado" && encargo.estado !== "cancelado" ? `<button type="button" class="btn-encargo-quitar" onclick="quitarItemEncargoExistente(${item.id})">Quitar</button>` : ""}</td>
@@ -602,6 +616,12 @@ function renderModalDetalleEncargo() {
  `;
 
  modal.style.display = "flex";
+ if (typeof lpvAdjuntar === "function") lpvAdjuntar("encargoDetalleProductoNombre", {
+ siguiente: "encargoDetalleCantidad",
+ placeholder: "Busca en tu inventario o escribe lo que piden",
+ textoVacio: "No está en tu inventario: se agrega tal como lo escribas.",
+ alElegir: producto => { const precio = document.getElementById("encargoDetallePrecioEstimado"); if (precio && !precio.value) precio.value = producto.precio_publico ?? producto.precio ?? ""; }
+ });
 }
 
 function cerrarDetalleEncargo() {

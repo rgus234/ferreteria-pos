@@ -69,7 +69,7 @@
             resultados = buscar(input.value);
 
             if (!resultados.length) {
-                panel.innerHTML = `<p class="lpv-vacio">No encontré productos con “${esc(input.value)}”.</p>`;
+                panel.innerHTML = `<p class="lpv-vacio">${opciones.textoVacio ? esc(opciones.textoVacio) : `No encontré productos con “${esc(input.value)}”.`}</p>`;
                 panel.hidden = false;
                 return;
             }
