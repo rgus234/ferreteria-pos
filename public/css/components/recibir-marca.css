@@ -301,3 +301,12 @@ body.oscuro .rm-buscador .rm-escaner { background: transparent; color: #f1f5f9; 
 #pantallaRecibirMarca .rm-buscador input.rm-escaner, #pantallaRecibirMarca .rm-buscador input.rm-escaner:focus, #pantallaRecibirMarca .rm-buscador input.rm-escaner:hover { background: transparent !important; background-color: transparent !important; box-shadow: none !important; border: 0 !important; border-radius: 0 !important; outline: 0 !important; }
 #pantallaRecibirMarca .rm-buscador input.rm-escaner:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px var(--pos-card, #fff) inset !important; }
 body.oscuro #pantallaRecibirMarca .rm-buscador input.rm-escaner:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #151f31 inset !important; }
+
+/* Recibir con factura (abarrotes): subir factura o remision y estado del correo dentro del panel */
+.rm-subir { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rm-subiendo { font-size: 13px; font-weight: 700; color: var(--pos-muted, #64748b); }
+.rm-correo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding-top: 10px; border-top: 1px solid var(--pos-line, #e2e8f0); font-size: 13.5px; color: var(--pos-muted, #64748b); }
+.rm-correo:empty { display: none; }
+.rm-correo b { color: var(--pos-text, #172033); }
+.rm-correo .rm-enlace { padding: 0; border: 0; background: none; color: var(--brand-color, #1d4ed8); font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
+body.oscuro .rm-correo b { color: #f1f5f9; }

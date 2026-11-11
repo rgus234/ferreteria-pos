@@ -102,6 +102,7 @@
                     { modulo: "mi-equipo", icono: "users", titulo: "Mi equipo", texto: "Personas, tareas y avisos" },
                     { modulo: "configuracion", icono: "settings", titulo: "Mi negocio", texto: "Datos, ticket, precios y equipo" },
                     { modulo: "cuenta", icono: "wallet", titulo: "Mi cuenta", texto: "Plan, pagos y contraseña" },
+                    { modulo: "correo-facturas", icono: "file", titulo: "Correo de facturas", texto: "Que tus facturas lleguen solas" },
                     { modulo: "dueno", icono: "cast", titulo: "App del dueño", texto: "Enlaza tu celular con un QR" }
                 ] },
                 { titulo: "Más herramientas", tam: "c", plegable: true, cards: [

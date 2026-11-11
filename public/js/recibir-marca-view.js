@@ -692,17 +692,21 @@
         // Abarrotes: "Recibir con factura" e "Historial" siempre a la mano en la esquina (aunque no haya facturas del correo pendientes).
         const historial = esAbarrotes() ? `<button type="button" class="rm-btn" onclick="rmHistorial()">Historial</button>` : "";
 
-        if (!rm.facturas.length) {
-            caja.innerHTML = esAbarrotes() ? `<div class="rm-esquina"><button type="button" class="rm-btn principal" onclick="rmFacturaManual()">Recibir con factura</button>${historial}</div>` : "";
-            return;
-        }
+        if (!rm.facturas.length && !esAbarrotes()) { caja.innerHTML = ""; return; }
 
         const filas = facturasFiltradas().slice(0, 40).map(f => `<button type="button" class="rm-factura-fila" onclick="rmIrAFactura(${Number(f.id)})">
             <span><b>${esc(f.proveedor)}</b><em class="rm-factura-hace">${esc(haceCuanto(f))}</em><small>${f.folio ? "Folio " + esc(f.folio) : (f.claveCorta ? "Factura …" + esc(f.claveCorta) : "Sin folio")} · ${esc(fechaCorta(f))} · ${f.totalItems} producto${f.totalItems === 1 ? "" : "s"}</small>${(f.muestra || []).length ? `<small class="rm-factura-muestra">${esc(f.muestra.map(n => String(n).slice(0, 26)).join(" · "))}</small>` : ""}</span>
             <strong>${dinero(f.total)}</strong></button>`).join("");
 
-        caja.innerHTML = `<div class="rm-esquina"><button type="button" class="rm-btn principal" onclick="rmVerFacturas(${rm.verFacturas ? "false" : "true"})">Recibir con factura (${rm.facturas.length}) ${rm.verFacturas ? "▴" : "▾"}</button>${historial}</div>
-            ${rm.verFacturas ? `<div class="rm-facturas-panel"><input id="rmBuscarFactura" class="rm-buscar" type="search" placeholder="Buscar por proveedor, folio o producto…" oninput="rmBuscarFactura(this.value)" value="${esc(rm.busFactura)}"><div class="rm-facturas-lista" id="rmFacturasLista">${filas || '<p class="rm-nota">Ninguna factura coincide.</p>'}</div></div>` : ""}`;
+        const n = rm.facturas.length;
+        // Abarrotes: subir la factura (o la foto de la remision) y ver el estado del correo se hace aqui mismo, sin salir de Recibir mercancia.
+        const subir = esAbarrotes() ? `<div class="rm-subir"><input type="file" id="rmArchivoXml" accept=".xml,text/xml" hidden onchange="rmSubirFactura(this)"><input type="file" id="rmArchivoRemision" accept="image/*" hidden onchange="rmSubirRemision(this)">
+                <button type="button" class="rm-btn principal" onclick="document.getElementById('rmArchivoXml').click()">Subir factura (XML)</button>
+                <button type="button" class="rm-btn" onclick="document.getElementById('rmArchivoRemision').click()">Subir remisión (foto)</button><span class="rm-subiendo" id="rmSubiendo"></span></div>` : "";
+        const lista = n ? `<input id="rmBuscarFactura" class="rm-buscar" type="search" placeholder="Buscar por proveedor, folio o producto…" oninput="rmBuscarFactura(this.value)" value="${esc(rm.busFactura)}"><div class="rm-facturas-lista" id="rmFacturasLista">${filas || '<p class="rm-nota">Ninguna factura coincide.</p>'}</div>` : `<p class="rm-nota">No hay facturas por recibir. Súbela aquí, o conecta tu correo para que lleguen solas.</p>`;
+
+        caja.innerHTML = `<div class="rm-esquina"><button type="button" class="rm-btn principal" onclick="rmVerFacturas(${rm.verFacturas ? "false" : "true"})">Recibir con factura${n ? " (" + n + ")" : ""} ${rm.verFacturas ? "▴" : "▾"}</button>${historial}</div>
+            ${rm.verFacturas ? `<div class="rm-facturas-panel">${subir}${lista}${esAbarrotes() ? `<div class="rm-correo" id="rmCorreo">${correoHtml()}</div>` : ""}</div>` : ""}`;
 
         if (rm.verFacturas) { const c = document.getElementById("rmBuscarFactura"); if (c && document.activeElement !== c && !rm.busFactura) c.focus(); }
     }
@@ -728,9 +732,91 @@
         document.querySelectorAll("#rmGrid, #rmResumen").forEach(x => x.classList.remove("rm-saliendo"));
         pintarFiltros(); pintarGrid(); entrar();
     };
-    window.rmHistorial = function () { if (typeof mostrarRecepcionInteligente === "function") mostrarRecepcionInteligente().then(() => { if (typeof abrirHistorialRecepciones === "function") abrirHistorialRecepciones(); }); };
+    window.rmHistorial = function () { if (typeof abrirHistorialRecepciones === "function") abrirHistorialRecepciones(); };
     window.rmFacturaManual = function () { if (typeof mostrarRecepcionInteligente === "function") mostrarRecepcionInteligente(); };
-    window.rmVerFacturas = function (ver) { rm.verFacturas = Boolean(ver); pintarFacturas(); };
+    window.rmVerFacturas = function (ver) { rm.verFacturas = Boolean(ver); pintarFacturas(); if (ver && esAbarrotes()) cargarCorreo(); };
+
+    // ---------- Subir factura / remision y correo (Recibir con factura, abarrotes) ----------
+
+    const subiendo = texto => { const c = document.getElementById("rmSubiendo"); if (c) c.textContent = texto || ""; };
+
+    function correoHtml() {
+        const c = rm && rm.correo;
+        if (!c || !c.configurado) return "";
+        if (!c.conectado) return `<span>Conecta tu correo y las facturas llegan solas.</span><button type="button" class="rm-enlace" onclick="rmConectarCorreo()">Conectar correo</button>`;
+        return `<span>Correo conectado: <b>${esc(c.correo)}</b></span><button type="button" class="rm-enlace" onclick="rmRevisarCorreo(this)">Revisar ahora</button><button type="button" class="rm-enlace" onclick="mostrarCorreoFacturas()">Configurar</button>`;
+    }
+
+    async function cargarCorreo() {
+        if (typeof estadoCorreoFacturas !== "function") return;
+        const estadoCorreo = await estadoCorreoFacturas();
+        if (!rm) return;
+        rm.correo = estadoCorreo;
+        const caja = document.getElementById("rmCorreo");
+        if (caja) caja.innerHTML = correoHtml();
+    }
+
+    async function refrescarFacturas() {
+        const r = await llamar("/recepcion-inteligente/facturas");
+        if (rm && r.ok) rm.facturas = (r.datos.facturas || []).filter(f => f.estado === "pendiente");
+    }
+
+    // Despues de subir: se actualiza la lista y la factura se abre aqui mismo para confirmar lo que llego.
+    async function abrirSubida(datos, texto) {
+        aviso(texto);
+        await refrescarFacturas();
+        if (!rm) return;
+        rm.verFacturas = false;
+        pintarFacturas();
+        if (datos.recepcionId && rm.facturas.some(f => Number(f.id) === Number(datos.recepcionId))) await window.rmAbrirFactura(datos.recepcionId);
+    }
+
+    window.rmSubirFactura = async function (input) {
+        const archivo = input.files && input.files[0];
+        input.value = "";
+        if (!archivo) return;
+        subiendo("Leyendo la factura…");
+
+        try {
+            const xml = await archivo.text();
+            const r = await llamar("/recepcion-inteligente/facturas", { method: "POST", body: JSON.stringify({ xml }) });
+            if (!r.ok) { aviso(r.datos.error || "No se pudo leer la factura. ¿Es un XML de factura válido?", "error"); return; }
+            await abrirSubida(r.datos, r.datos.repetida ? "Esa factura ya se había subido antes." : `Factura leída: ${r.datos.totalConceptos} producto${r.datos.totalConceptos === 1 ? "" : "s"}.`);
+        } catch (error) {
+            aviso("No se pudo leer el archivo. ¿Es un XML de factura válido?", "error");
+        } finally {
+            subiendo("");
+        }
+    };
+
+    window.rmSubirRemision = async function (input) {
+        const archivo = input.files && input.files[0];
+        input.value = "";
+        if (!archivo) return;
+        subiendo("Leyendo la remisión…");
+
+        try {
+            const imagenBase64 = await redimensionarImagenCanvas(archivo, 1600);
+            const r = await llamar("/recepcion-inteligente/remision-foto", { method: "POST", body: JSON.stringify({ imagenBase64 }) });
+            if (!r.ok) { aviso(r.datos.error || "No se pudo leer la remisión.", "error"); return; }
+            if (!r.datos.disponible) { aviso("Nexo IA no está disponible en tu plan por ahora.", "info"); return; }
+            await abrirSubida(r.datos, `Remisión leída${r.datos.proveedorDetectado ? " de " + r.datos.proveedorDetectado : ""}: ${r.datos.totalConceptos} producto${r.datos.totalConceptos === 1 ? "" : "s"}.`);
+        } catch (error) {
+            aviso("No se pudo leer la foto. ¿Es una imagen válida?", "error");
+        } finally {
+            subiendo("");
+        }
+    };
+
+    window.rmConectarCorreo = async function () { if (typeof conectarCorreoFacturas === "function") await conectarCorreoFacturas(); };
+    window.rmRevisarCorreo = async function (boton) {
+        if (typeof revisarCorreoFacturas !== "function") return;
+        if (boton) { boton.disabled = true; boton.textContent = "Buscando…"; }
+        await revisarCorreoFacturas();
+        await refrescarFacturas();
+        if (rm) pintarFacturas();
+        cargarCorreo();
+    };
     window.rmBuscarFactura = function (texto) { rm.busFactura = texto; const l = document.getElementById("rmFacturasLista"); if (!l) return; const antes = rm.verFacturas; pintarFacturas(); rm.verFacturas = antes; const c = document.getElementById("rmBuscarFactura"); if (c) { c.focus(); c.setSelectionRange(c.value.length, c.value.length); } };
     window.rmIrAFactura = function (id) {
         if (typeof mostrarRecepcionInteligente === "function") mostrarRecepcionInteligente().then(() => { if (typeof riVerDetalle === "function") riVerDetalle(Number(id)); });

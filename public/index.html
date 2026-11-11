@@ -48,6 +48,7 @@
   <link rel="stylesheet" href="css/components/mostrador.css?v=mostrador-20261109-01">
   <link rel="stylesheet" href="css/components/pedidos-unico.css?v=pedidos-20261112-01">
   <link rel="stylesheet" href="css/components/precios-lote.css?v=precios-20261113-01">
+  <link rel="stylesheet" href="css/components/correo-facturas.css?v=correo-20261114-01">
   <link rel="stylesheet" href="css/components/historial-recepciones.css?v=historial-20261114-03">
   <link rel="stylesheet" href="css/components/agenda-pagos.css?v=agenda-20261111-03">
   <link rel="stylesheet" href="css/components/buscador-producto-visual.css?v=visual-20261111-02">
@@ -73,7 +74,7 @@
   <link rel="stylesheet" href="css/components/frutas-verduras.css?v=frutas-20261102-04">
   <link rel="stylesheet" href="css/components/menu-simple.css?v=menu-fijo-20261108-01">
   <link rel="stylesheet" href="css/components/mi-equipo.css?v=equipo-20261103-02">
-  <link rel="stylesheet" href="css/components/recibir-marca.css?v=rmdiseno-20261113-05">
+  <link rel="stylesheet" href="css/components/recibir-marca.css?v=correo-20261114-01">
   <link rel="stylesheet" href="css/components/enlace-celular.css?v=enlace-celular-20261122-06">
   <link rel="stylesheet" href="css/components/inicio-pendientes.css?v=inicio-pendientes-20261119-02">
   <link rel="stylesheet" href="css/components/servicios-pos.css?v=servicios-20261030-01">
@@ -569,6 +570,9 @@
  <button data-shell-module="mapa-tienda" data-beta="mapa_tienda" hidden onclick="mostrarMapaTienda()">
  Mapa de la tienda
  </button>
+ <button class="solo-perfil-simple" data-shell-module="correo-facturas" hidden onclick="mostrarCorreoFacturas()">
+ Correo de facturas
+ </button>
  <button class="solo-perfil-simple" data-shell-module="precios-lote" data-beta="precios_lote" hidden onclick="mostrarPreciosLote()">
  Actualizar precios
  </button>
@@ -696,6 +700,7 @@
 <section id="pantallaPedidosUnico" style="display:none;"></section>
 <section id="pantallaAgendaPagos" style="display:none;"></section>
 <section id="pantallaPreciosLote" style="display:none;"></section>
+<section id="pantallaCorreoFacturas" style="display:none;"></section>
  <section id="pantallaEnlaceCelular" style="display:none;"></section>
  <section id="pantallaFuncionesBeta" style="display:none;"></section>
 <section id="pantallaHubMenu" style="display:none;"></section>
@@ -1967,7 +1972,7 @@
  <script src="js/menu-simple.js?v=agenda-20261111-02"></script>
  <script src="js/mi-equipo-view.js?v=equipo-20261103-02"></script>
  <script src="js/mapa-tienda-view.js?v=mapa-tienda-20261118-05"></script>
- <script src="js/recibir-marca-view.js?v=rmdiseno-20261113-05"></script>
+ <script src="js/recibir-marca-view.js?v=correo-20261114-01"></script>
  <script src="js/enlace-celular-view.js?v=enlace-celular-20261118-03"></script>
  <script src="js/inicio-pendientes.js?v=inicio-pendientes-20261119-02"></script>
  <script src="js/inicio-abarrotes.js?v=inicio-ab-20261103-03"></script>
@@ -1991,6 +1996,7 @@
   <script src="js/mostrador.js?v=mostrador-20261109-01"></script>
   <script src="js/pedidos-unico.js?v=pedidos-20261112-01"></script>
   <script src="js/precios-lote.js?v=precios-20261113-01"></script>
+  <script src="js/correo-facturas.js?v=correo-20261114-01"></script>
   <script src="js/agenda-pagos.js?v=agenda-20261111-03"></script>
   <script src="js/buscador-producto-visual.js?v=visual-20261111-02"></script>
   <script src="js/asistente-productos.js?v=asistente-20261111-01"></script>

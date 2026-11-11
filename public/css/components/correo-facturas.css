@@ -1,0 +1,18 @@
+/* Correo de facturas (Configuracion, abarrotes) */
+.cf-shell { max-width: 720px; margin: 0 auto; padding: 8px 4px 40px; }
+.cf-shell h2 { margin: 0 0 4px; font-size: 28px; }
+.cf-shell header p { margin: 0 0 20px; color: var(--pos-muted, #64748b); font-size: 16px; }
+.cf-estado { display: grid; gap: 8px; padding: 22px 24px; border-radius: 22px; background: var(--pos-card, #fff); box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 10px 26px rgba(15, 23, 42, .08); }
+.cf-estado b { font-size: 20px; }
+.cf-estado p { margin: 0; color: var(--pos-muted, #475569); font-size: 15.5px; line-height: 1.5; }
+.cf-ok b { color: #15803d; }
+.cf-acciones { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.cf-principal, .cf-sec { padding: 13px 22px; border: 0; border-radius: 14px; font: inherit; font-size: 16px; font-weight: 800; cursor: pointer; }
+.cf-principal { justify-self: start; background: var(--brand-color, #1d4ed8); color: #fff; }
+.cf-sec { background: #e2e8f0; color: #0f172a; }
+.cf-principal:disabled { opacity: .6; cursor: wait; }
+.cf-nota { padding: 20px 4px; color: var(--pos-muted, #64748b); font-size: 15.5px; }
+body.oscuro .cf-estado, :root.oscuro .cf-estado { background: #111c2e; color: #f1f5f9; }
+body.oscuro .cf-estado p, :root.oscuro .cf-estado p { color: #94a3b8; }
+body.oscuro .cf-sec, :root.oscuro .cf-sec { background: #1e293b; color: #f1f5f9; }
+body.oscuro .cf-ok b, :root.oscuro .cf-ok b { color: #4ade80; }
