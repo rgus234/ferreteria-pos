@@ -296,3 +296,8 @@ body.oscuro .rm-factura-hace { background: #1e3a8a; color: #dbeafe; }
 .rm-alcance:hover span { background: rgba(255, 255, 255, .45); }
 body.oscuro .rm-buscador { background: #151f31; border-color: rgba(148, 163, 184, .28); }
 body.oscuro .rm-buscador .rm-escaner { background: transparent; color: #f1f5f9; }
+
+/* El campo del buscador no pinta fondo propio: la caja blanca es la que se ve (otras reglas de inputs lo teñian de gris) */
+#pantallaRecibirMarca .rm-buscador input.rm-escaner, #pantallaRecibirMarca .rm-buscador input.rm-escaner:focus, #pantallaRecibirMarca .rm-buscador input.rm-escaner:hover { background: transparent !important; background-color: transparent !important; box-shadow: none !important; border: 0 !important; border-radius: 0 !important; outline: 0 !important; }
+#pantallaRecibirMarca .rm-buscador input.rm-escaner:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px var(--pos-card, #fff) inset !important; }
+body.oscuro #pantallaRecibirMarca .rm-buscador input.rm-escaner:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #151f31 inset !important; }
