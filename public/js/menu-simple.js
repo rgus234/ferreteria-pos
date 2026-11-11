@@ -41,9 +41,9 @@
             id: "compras", etiqueta: "Compras", icono: "truck", titulo: "Compras", subtitulo: "Lo que te llega",
             grupos: [
                 { tam: "g", cards: [
-                    { modulo: "recepcion-inteligente", icono: "truck", titulo: "Recibir mercancía", texto: "Con la factura de tu proveedor" },
+                    { modulo: "recepcion-inteligente", icono: "truck", titulo: "Recibir mercancía", texto: "Con la factura de tu proveedor", ocultaSi: () => recepcionUnica() },
                     { modulo: "recibir-marca", icono: "arrowDownBox", titulo: () => (typeof perfilEsSimple === "function" && perfilEsSimple() ? "Recibir mercancía" : "Recibir sin factura"), texto: () => (typeof perfilEsSimple === "function" && perfilEsSimple() ? "Elige la marca y anota cuánto llegó" : "Escaneando lo que llegó") },
-                    { modulo: "recepcion-inteligente", accion: "abrirHistorialRecepciones", icono: "receipt", titulo: "Recepciones anteriores", texto: "Lo que ya recibiste y cuándo" }
+                    { modulo: "recepcion-inteligente", accion: "abrirHistorialRecepciones", icono: "receipt", titulo: "Recepciones anteriores", texto: "Lo que ya recibiste y cuándo", ocultaSi: () => recepcionUnica() }
                 ] }
             ]
         },
@@ -169,6 +169,9 @@
     }
 
     // El boton de siempre le corresponde a esta persona? (permiso, perfil de abarrotes, funcion nueva apagada)
+    // Abarrotes con "Recibir por marca": una sola puerta "Recibir mercancia" (la factura y el historial quedan dentro de esa pantalla).
+    const recepcionUnica = () => typeof perfilEsSimple === "function" && perfilEsSimple() && disponible(original("recibir-marca"));
+
     function disponible(boton) {
         if (!boton || boton.hidden) return false;
         if (boton.style.display === "none") return false;
@@ -182,7 +185,7 @@
     function tarjetasDe(hub) {
         return (hub.grupos || []).map(g => ({
             ...g,
-            cards: g.cards.map(c => ({ ...c, boton: original(c.modulo) })).filter(c => disponible(c.boton))
+            cards: g.cards.map(c => ({ ...c, boton: original(c.modulo) })).filter(c => disponible(c.boton) && !(typeof c.ocultaSi === "function" && c.ocultaSi()))
         })).filter(g => g.cards.length);
     }
 

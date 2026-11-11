@@ -33,7 +33,17 @@
     const COLORES_MARCA = ["#0369a1", "#15803d", "#a21caf", "#b91c1c", "#4d7c0f", "#0e7490", "#7c2d12", "#4338ca"];
     const COLORES_EXHIBIDOR = { azul: "#1d4ed8", naranja: "#ea580c", verde: "#15803d", rojo: "#dc2626", morado: "#7e22ce", negro: "#1f2937" };
     const colorDeMarca = texto => { let s = 0; for (const c of plano(texto)) s += c.charCodeAt(0); return COLORES_MARCA[s % COLORES_MARCA.length]; };
-    const tipoDeGrupo = g => TIPO_POR_MARCA[plano(g.marca)] || "Otras";
+    const tipoDeGrupo = g => (g.dir && g.dir.tipo) || TIPO_POR_MARCA[plano(g.marca)] || "Otras";
+    let directorio = null;   // marcas de Nexo (tipo, color e imagen de cada tarjeta)
+
+    async function cargarDirectorio() {
+        if (directorio) return directorio;
+        directorio = new Map();
+        try { ((await llamar("/marcas-directorio")).datos.marcas || []).forEach(m => directorio.set(plano(m.nombre), m)); } catch (error) { /* sin directorio: se ve como antes */ }
+        return directorio;
+    }
+
+    const iniciales = texto => String(texto || "?").trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join("");
 
     async function llamar(ruta, opciones = {}) {
         const respuesta = await fetch(ruta, { ...opciones, headers: { "Content-Type": "application/json", ...(opciones.headers || {}) } });
@@ -74,13 +84,19 @@
         const nombreBonito = formas => [...formas.entries()].sort((a, b) => b[1] - a[1] || (a[0] === a[0].toUpperCase() ? 1 : -1) - (b[0] === b[0].toUpperCase() ? 1 : -1))[0][0];
         [...resto.values()].sort((a, b) => b.lista.length - a.lista.length).forEach(g => { const marca = nombreBonito(g.formas); grupos.push({ marca, color: colorDeMarca(marca), productos: g.lista }); });
 
+        const dir = await cargarDirectorio();
+        grupos.forEach(g => { g.dir = dir.get(plano(g.marca)) || null; if (g.dir && !g.color) g.color = COLORES_EXHIBIDOR[g.dir.color]; });
+
         return grupos;
     }
 
     function tiposActivos() {
         if (!rm || rm.factura) return [];
-        const presentes = new Set(rm.grupos.map(tipoDeGrupo));
-        const lista = ORDEN_TIPOS.filter(x => presentes.has(x));
+        const cuenta = new Map();
+        rm.grupos.forEach(g => { const t = tipoDeGrupo(g); cuenta.set(t, (cuenta.get(t) || 0) + 1); });
+        const conocidos = ORDEN_TIPOS.filter(x => cuenta.has(x) && x !== "Otras");
+        const nuevos = [...cuenta.keys()].filter(x => !ORDEN_TIPOS.includes(x)).sort((a, b) => cuenta.get(b) - cuenta.get(a));
+        const lista = [...conocidos, ...nuevos, ...(cuenta.has("Otras") ? ["Otras"] : [])];
         return lista.length > 1 ? lista : [];
     }
 
@@ -143,7 +159,7 @@
         if (!productos.length) { pantalla.innerHTML = `<div class="rm-shell"><p class="rm-nota">Todavía no hay productos en tu catálogo.</p></div>`; return; }
 
         const grupos = await armarGrupos(productos);
-        rm = { productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), linea: "", verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), caducidades: new Map(), pago: { activo: false, monto: "", metodo: "efectivo_caja", por: "", nota: "" }, proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
+        rm = { productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: esAbarrotes() || grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), linea: "", verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), caducidades: new Map(), pago: { activo: false, monto: "", metodo: "efectivo_caja", por: "", nota: "" }, proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
         pintar();
 
         llamar("/proveedores").then(r => { if (rm) { rm.proveedores = (r.datos.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre })).filter(x => x.nombre); pintarResumen(); } }).catch(() => {});
@@ -204,9 +220,18 @@
             if (activa && !lista.includes(activa)) lista = lista.concat(activa);
             ocultas = todas.length - lista.length;
         }
+        // Abarrotes: elegida una marca, las tarjetas se esconden y solo se ven sus productos (con un boton para volver a las tarjetas).
+        if (esAbarrotes() && rm.marca && !buscando && !rm.factura) {
+            const t = document.getElementById("rmTipos");
+            if (t) t.innerHTML = "";
+            m.innerHTML = `<div class="rm-volver"><button type="button" class="rm-btn" onclick="rmCambiarMarca()">‹ Cambiar marca</button><b>${esc(rm.marca)}</b></div>`;
+            return;
+        }
+
         const boton = g => {
             const llevo = g.productos.reduce((s, p) => s + (rm.cantidades.get(Number(p.id)) > 0 ? 1 : 0), 0);
-            return `<button type="button" class="rm-marca${g.marca === rm.marca ? " activa" : ""}" style="--marca:${g.color || "#475569"}" onclick="rmMarca(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})"><b>${esc(g.marca)}</b><small>${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
+            const imagen = esAbarrotes() ? `<span class="rm-marca-img"><span class="rm-marca-ini">${esc(iniciales(g.marca))}</span>${g.dir ? `<img src="/marcas-directorio/${esc(g.dir.id)}/imagen" alt="" loading="lazy" onerror="this.remove()">` : ""}</span>` : "";
+            return `<button type="button" class="rm-marca${g.marca === rm.marca ? " activa" : ""}${imagen ? " con-imagen" : ""}" style="--marca:${g.color || "#475569"}" onclick="rmMarca(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})">${imagen}<b>${esc(g.marca)}</b><small>${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
         };
         const mas = ocultas > 0
             ? `<button type="button" class="rm-marca rm-mas" onclick="rmVerMarcas(true)"><b>Ver las ${ocultas} marcas restantes</b><small>o escribe la marca arriba</small></button>`
@@ -220,10 +245,10 @@
 
         if (esAbarrotes() && porCaja > 1 && porCaja <= 500) {
             const nombre = String(p.presentacion_compra || "caja").toLowerCase().slice(0, 12);
-            return boton(porCaja, `+1 ${esc(nombre)} (${numero(porCaja)})`) + [6, 12].filter(a => a !== porCaja).map(a => boton(a, `+${a}`)).join("");
+            return boton(porCaja, `+1 ${esc(nombre)} (${numero(porCaja)})`) + [6, 12, 18].filter(a => a !== porCaja).map(a => boton(a, `+${a}`)).join("");
         }
 
-        return [6, 12, 24].map(a => boton(a, `+${a}`)).join("");
+        return [6, 12, 18, 24].map(a => boton(a, `+${a}`)).join("");
     }
 
     function tarjeta(p) {
@@ -395,18 +420,29 @@
     function pintarFacturas() {
         const caja = document.getElementById("rmFacturas");
         if (!caja || !rm) return;
-        if (rm.factura || !rm.facturas.length) { caja.innerHTML = ""; return; }
+        if (rm.factura) { caja.innerHTML = ""; return; }
+
+        // Abarrotes: "Recibir con factura" e "Historial" siempre a la mano en la esquina (aunque no haya facturas del correo pendientes).
+        const historial = esAbarrotes() ? `<button type="button" class="rm-btn" onclick="rmHistorial()">Historial</button>` : "";
+
+        if (!rm.facturas.length) {
+            caja.innerHTML = esAbarrotes() ? `<div class="rm-esquina"><button type="button" class="rm-btn principal" onclick="rmFacturaManual()">Recibir con factura</button>${historial}</div>` : "";
+            return;
+        }
 
         const filas = facturasFiltradas().slice(0, 40).map(f => `<button type="button" class="rm-factura-fila" onclick="rmIrAFactura(${Number(f.id)})">
             <span><b>${esc(f.proveedor)}</b><small>${f.folio ? "Folio " + esc(f.folio) : (f.claveCorta ? "Factura …" + esc(f.claveCorta) : "Sin folio")} · ${esc(fechaCorta(f))} · ${f.totalItems} producto${f.totalItems === 1 ? "" : "s"}</small>${(f.muestra || []).length ? `<small class="rm-factura-muestra">${esc(f.muestra.map(n => String(n).slice(0, 26)).join(" · "))}</small>` : ""}</span>
             <strong>${dinero(f.total)}</strong></button>`).join("");
 
-        caja.innerHTML = `<button type="button" class="rm-btn principal" onclick="rmVerFacturas(${rm.verFacturas ? "false" : "true"})">Recibir con factura (${rm.facturas.length}) ${rm.verFacturas ? "▴" : "▾"}</button>
+        caja.innerHTML = `<div class="rm-esquina"><button type="button" class="rm-btn principal" onclick="rmVerFacturas(${rm.verFacturas ? "false" : "true"})">Recibir con factura (${rm.facturas.length}) ${rm.verFacturas ? "▴" : "▾"}</button>${historial}</div>
             ${rm.verFacturas ? `<div class="rm-facturas-panel"><input id="rmBuscarFactura" class="rm-buscar" type="search" placeholder="Buscar por proveedor, folio o producto…" oninput="rmBuscarFactura(this.value)" value="${esc(rm.busFactura)}"><div class="rm-facturas-lista" id="rmFacturasLista">${filas || '<p class="rm-nota">Ninguna factura coincide.</p>'}</div></div>` : ""}`;
 
         if (rm.verFacturas) { const c = document.getElementById("rmBuscarFactura"); if (c && document.activeElement !== c && !rm.busFactura) c.focus(); }
     }
 
+    window.rmCambiarMarca = function () { rm.marca = ""; rm.linea = ""; rm.consulta = ""; const b = document.getElementById("rmBuscar"); if (b) b.value = ""; pintarFiltros(); pintarGrid(); };
+    window.rmHistorial = function () { if (typeof mostrarRecepcionInteligente === "function") mostrarRecepcionInteligente().then(() => { if (typeof abrirHistorialRecepciones === "function") abrirHistorialRecepciones(); }); };
+    window.rmFacturaManual = function () { if (typeof mostrarRecepcionInteligente === "function") mostrarRecepcionInteligente(); };
     window.rmVerFacturas = function (ver) { rm.verFacturas = Boolean(ver); pintarFacturas(); };
     window.rmBuscarFactura = function (texto) { rm.busFactura = texto; const l = document.getElementById("rmFacturasLista"); if (!l) return; const antes = rm.verFacturas; pintarFacturas(); rm.verFacturas = antes; const c = document.getElementById("rmBuscarFactura"); if (c) { c.focus(); c.setSelectionRange(c.value.length, c.value.length); } };
     window.rmIrAFactura = function (id) {

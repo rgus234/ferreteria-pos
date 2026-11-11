@@ -185,6 +185,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./funciones-beta-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("directorio de marcas de abarrotes", () => {
+        require("./marcas-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("actividad del equipo (quien hizo que)", () => {
         require("./actividad-equipo-server")(app, pool, requerirAccesoNegocio);
     });

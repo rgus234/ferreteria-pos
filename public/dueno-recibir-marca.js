@@ -15,6 +15,36 @@
         ["Barcel", "#b45309", ["barcel", "takis", "hot nuts", "chips fuego", "runners"]]
     ];
 
+    // Directorio de marcas de Nexo (144): tipo, color e imagen de cada tarjeta. Si no carga, todo funciona como antes con la lista de arriba.
+    const COLORES_DIRECTORIO = { azul: "#1d4ed8", naranja: "#ea580c", verde: "#15803d", rojo: "#dc2626", morado: "#7e22ce", negro: "#1f2937" };
+    let directorio = null;
+    const urlImagenMarca = m => "/marcas-directorio/" + encodeURIComponent(m.id) + "/imagen";
+
+    async function cargarDirectorioDueno() {
+        if (directorio) return directorio;
+        directorio = { lista: [], porNombre: new Map() };
+        try {
+            const r = await fetchAutenticado("/marcas-directorio");
+            (r && r.marcas || []).forEach(m => { m.palabras = m.palabras || []; directorio.lista.push(m); directorio.porNombre.set(plano(m.nombre), m); });
+        } catch (error) { /* sin directorio */ }
+        return directorio;
+    }
+
+    function coincidePalabraDirectorio(n, palabra) {
+        const e = palabra.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return new RegExp("(^|[^a-z0-9])" + e + "([^a-z0-9]|$)").test(n);
+    }
+
+    // Igual que en el servidor: las marcas con nombre propio (pocas palabras) mandan sobre las de familia.
+    function marcaDelDirectorio(nombre) {
+        if (!directorio || !directorio.lista.length) return null;
+        const n = plano(nombre);
+        const propias = directorio.lista.filter(m => m.palabras.length <= 2);
+        const familias = directorio.lista.filter(m => m.palabras.length > 2);
+        for (const m of [...propias, ...familias]) if (m.palabras.some(pl => coincidePalabraDirectorio(n, pl))) return m;
+        return null;
+    }
+
     const COLORES_RESPALDO = ["#0369a1", "#15803d", "#a21caf", "#b91c1c", "#4d7c0f", "#0e7490", "#7c2d12", "#4338ca"];
     const esc = valor => (typeof escaparDueno === "function" ? escaparDueno(valor) : String(valor ?? ""));
     const plano = t => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -88,6 +118,9 @@
 
     function marcaDe(nombre) {
         const n = plano(nombre);
+        const delDirectorio = marcaDelDirectorio(nombre);
+
+        if (delDirectorio) return { marca: delDirectorio.nombre, color: COLORES_DIRECTORIO[delDirectorio.color] || "#475569", dir: delDirectorio };
 
         for (const [marca, color, palabras] of MARCAS) {
             if (palabras.some(p => n.includes(p))) return { marca, color };
@@ -106,12 +139,12 @@
         const mapa = new Map();
 
         productos.forEach(p => {
-            const { marca, color } = marcaDeProducto(p);
-            if (!mapa.has(marca)) mapa.set(marca, { marca, color, productos: [] });
+            const { marca, color, dir } = marcaDeProducto(p);
+            if (!mapa.has(marca)) mapa.set(marca, { marca, color, dir: dir || null, logo: dir ? urlImagenMarca(dir) : null, productos: [] });
             mapa.get(marca).productos.push(p);
         });
 
-        const conocidas = new Set(MARCAS.map(m => m[0]));
+        const conocidas = new Set([...MARCAS.map(m => m[0]), ...(directorio ? directorio.lista.map(m => m.nombre) : [])]);
         const lista = [...mapa.values()];
         const sueltos = lista.filter(g => !conocidas.has(g.marca) && g.productos.length < 2);
         const grupos = lista.filter(g => !sueltos.includes(g));
@@ -164,7 +197,7 @@
                 <input type="text" inputmode="numeric" value="${n || ""}" placeholder="0" aria-label="Llegaron" oninput="escribirRecibirDueno(${Number(p.id)}, this.value)">
                 <button type="button" aria-label="Agregar uno" onclick="ajustarRecibirDueno(${Number(p.id)}, 1)">+</button>
             </div>
-            ${p.esperado != null ? `<div class="drm-atajos"><button type="button" class="drm-llego" onclick="llegoTodoRecibirDueno(${Number(p.id)})">Llegó todo (${esc(String(p.esperado))})</button></div>` : `<div class="drm-atajos">${[6, 12, 24].map(a => `<button type="button" onclick="ajustarRecibirDueno(${Number(p.id)}, ${a})">+${a}</button>`).join("")}</div>`}
+            ${p.esperado != null ? `<div class="drm-atajos"><button type="button" class="drm-llego" onclick="llegoTodoRecibirDueno(${Number(p.id)})">Llegó todo (${esc(String(p.esperado))})</button></div>` : `<div class="drm-atajos">${[6, 12, 18, 24].map(a => `<button type="button" onclick="ajustarRecibirDueno(${Number(p.id)}, ${a})">+${a}</button>`).join("")}</div>`}
         </article>`;
     }
 
@@ -192,6 +225,7 @@
             return deMarca.concat(porNombre).filter(p => !vistos.has(Number(p.id)) && vistos.add(Number(p.id))).slice(0, 60);
         }
 
+        if (!estado.marca && modoTarjetas()) return [];
         const grupo = estado.grupos.find(g => g.marca === estado.marca) || estado.grupos[0];
         if (!grupo) return [];
         if (!estado.linea) return grupo.productos;
@@ -201,7 +235,7 @@
     }
 
     function lineasHtml() {
-        const grupo = estado.grupos.find(g => g.marca === estado.marca) || estado.grupos[0];
+        const grupo = !estado.marca && modoTarjetas() ? null : (estado.grupos.find(g => g.marca === estado.marca) || estado.grupos[0]);
         const lineas = grupo && !estado.factura ? lineasDe(grupo.productos) : [];
 
         if (!lineas.length) return "";
@@ -221,12 +255,18 @@
         lala: "Lácteos", nestle: "Lácteos"
     };
     const ORDEN_TIPOS = ["Botanas", "Refrescos", "Aguas", "Jugos y energía", "Galletas y pan", "Dulces", "Lácteos", "Otras"];
-    const tipoDeGrupo = g => TIPO_POR_MARCA[plano(g.marca)] || "Otras";
+    const tipoDeGrupo = g => {
+        const d = g.dir || (directorio && directorio.porNombre.get(plano(g.marca)));
+        return (d && d.tipo) || TIPO_POR_MARCA[plano(g.marca)] || "Otras";
+    };
 
     function tiposActivos() {
         if (esFerreteria() || estado.factura) return [];
-        const presentes = new Set(estado.grupos.map(tipoDeGrupo));
-        const lista = ORDEN_TIPOS.filter(x => presentes.has(x));
+        const cuenta = new Map();
+        estado.grupos.forEach(g => { const t = tipoDeGrupo(g); cuenta.set(t, (cuenta.get(t) || 0) + 1); });
+        const conocidos = ORDEN_TIPOS.filter(x => cuenta.has(x) && x !== "Otras");
+        const nuevos = [...cuenta.keys()].filter(x => !ORDEN_TIPOS.includes(x)).sort((a, b) => cuenta.get(b) - cuenta.get(a));
+        const lista = [...conocidos, ...nuevos, ...(cuenta.has("Otras") ? ["Otras"] : [])];
         return lista.length > 1 ? lista : [];
     }
 
@@ -246,7 +286,7 @@
     window.elegirTipoRecibirDueno = function (tipo) {
         estado.tipo = tipo || "";
         const visibles = gruposVisibles();
-        if (!visibles.some(g => g.marca === estado.marca)) estado.marca = visibles[0].marca;
+        if (!visibles.some(g => g.marca === estado.marca)) estado.marca = esFerreteria() ? visibles[0].marca : "";
         estado.linea = "";
         estado.consulta = "";
         pintar();
@@ -254,14 +294,34 @@
         if (c) c.scrollTop = 0;
     };
 
+    // Abarrotes: primero las tarjetas de marca; al elegir una, solo se ven sus productos (con un boton para volver a las tarjetas).
+    const modoTarjetas = () => !esFerreteria() && !estado.factura && !(estado.consulta || "").trim();
+
     function marcasHtml(grupo) {
         const coinciden = marcasQueCoinciden();
-        return (coinciden.length ? coinciden : gruposVisibles()).map(g => {
+
+        if (modoTarjetas() && estado.marca) {
+            return `<div class="drm-volver"><button type="button" onclick="cambiarMarcaRecibirDueno()">‹ Cambiar marca</button><b>${esc(estado.marca)}</b></div>`;
+        }
+
+        const iniciales = texto => String(texto || "?").trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join("");
+        const lista = (coinciden.length ? coinciden : gruposVisibles());
+        const html = lista.map(g => {
             const llevo = g.productos.reduce((s, p) => s + (estado.cantidades.get(p.id) > 0 ? 1 : 0), 0);
-            return `<button type="button" class="drm-marca${g === grupo ? " activa" : ""}" style="--marca:${g.color}" onclick="elegirMarcaRecibirDueno(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})">
-                ${g.logo ? `<span class="drm-logo"><img src="${esc(g.logo)}" alt=""></span>` : ""}<b>${esc(g.marca)}</b><small>${g.productos.length} ${pluralProducto(g.productos.length)}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
+            return `<button type="button" class="drm-marca${g === grupo && (estado.marca || !modoTarjetas()) ? " activa" : ""}" style="--marca:${g.color}" onclick="elegirMarcaRecibirDueno(${JSON.stringify(g.marca).replace(/"/g, "&quot;")})">
+                ${modoTarjetas() ? `<span class="drm-logo drm-logo-grande"><span class="drm-ini">${esc(iniciales(g.marca))}</span>${g.logo ? `<img src="${esc(g.logo)}" alt="" loading="lazy" onerror="this.remove()">` : ""}</span>` : (g.logo ? `<span class="drm-logo"><img src="${esc(g.logo)}" alt=""></span>` : "")}<b>${esc(g.marca)}</b><small>${g.productos.length} ${pluralProducto(g.productos.length)}${llevo ? ` · ${llevo} con entrada` : ""}</small></button>`;
         }).join("");
+        return modoTarjetas() ? `<div class="drm-tarjetas">${html}</div>` : html;
     }
+
+    window.cambiarMarcaRecibirDueno = function () {
+        estado.marca = "";
+        estado.linea = "";
+        estado.consulta = "";
+        pintar();
+        const c = document.getElementById("drmCapa");
+        if (c) c.scrollTop = 0;
+    };
 
     // La rejilla se dibuja por tandas (la primera ya viene en el HTML y el resto en los siguientes cuadros): con cientos de fotos juntas la pantalla se trababa.
     const TANDA_TARJETAS = 4;
@@ -271,7 +331,7 @@
     function gridHtml(limite = Infinity) {
         const lista = productosVisibles();
         if (lista.length) return lista.slice(0, limite).map(tarjetaHtml).join("");
-        return `<p class="drm-vacio">${(estado.consulta || "").trim() ? "No encontré nada con eso. Prueba con otra palabra o escanea el código." : "Esta marca no tiene productos."}</p>`;
+        return `<p class="drm-vacio">${(estado.consulta || "").trim() ? "No encontré nada con eso. Prueba con otra palabra o escanea el código." : (!estado.marca && modoTarjetas() ? "Elige una marca para ver sus productos." : "Esta marca no tiene productos.")}</p>`;
     }
 
     function completarGrid() {
@@ -306,7 +366,7 @@
             <div class="drm-tope">
             <header class="drm-cabeza">
                 <button type="button" class="drm-atras" onclick="cerrarRecibirMarcaDueno()">‹ Atrás</button>
-                <h2>${estado.factura ? "Recibir con factura" : "Recibir por marca"}</h2>
+                <h2>${estado.factura ? "Recibir con factura" : (esFerreteria() ? "Recibir por marca" : "Recibir mercancía")}</h2>
                 <span id="drmFactBtn" class="drm-fact-lugar">${botonFacturasHtml()}</span>
             </header>
             <div class="drm-buscar">
@@ -571,6 +631,7 @@
                 if (lista.length) grupos.push({ marca: d.nombre, color: COLORES_EXHIBIDOR[d.color] || "#1d4ed8", logo: usables[i].foto || d.foto || null, productos: lista });
             });
 
+            grupos.forEach(g => { const d = directorio && directorio.porNombre.get(plano(g.marca)); if (d) { g.dir = d; if (!g.logo) g.logo = urlImagenMarca(d); } });
             const resto = productos.filter(p => !usados.has(Number(p.id)));
             const extra = resto.length ? agrupar(resto) : [];
             return grupos.concat(extra).length ? grupos.concat(extra) : agrupar(productos);
@@ -841,6 +902,7 @@
         const cerrarEsqueleto = () => { if (sesion === sesionAbrir) { c.classList.remove("abierta"); document.body.classList.remove("drm-abierta", "drm-con-resumen"); } };
 
         let catalogo = [];
+        try { await cargarDirectorioDueno(); } catch (error) { /* sin directorio */ }
         try { catalogo = await catalogoParaRecibir(); } catch (error) { catalogo = []; }
 
         if (sesion !== sesionAbrir) return;
@@ -852,7 +914,7 @@
         if (sesion !== sesionAbrir) return;
 
         const todos = grupos.flatMap(g => g.productos).concat(productos).filter((p, i, a) => a.findIndex(q => Number(q.id) === Number(p.id)) === i);
-        estado = { grupos, todos, indice: new Map(todos.map(p => [Number(p.id), p])), consulta: "", linea: "", tipo: "", resumen: false, proveedores: [], facturas: [], factura: null, respaldo: null, marca: (grupos.find(g => g.marca === marcaInicial) || grupos[0]).marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
+        estado = { grupos, todos, indice: new Map(todos.map(p => [Number(p.id), p])), consulta: "", linea: "", tipo: "", resumen: false, proveedores: [], facturas: [], factura: null, respaldo: null, marca: (grupos.find(g => g.marca === marcaInicial) || (esFerreteria() ? grupos[0] : { marca: "" })).marca, cantidades: new Map(), enviando: false, llave: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `rm-${Date.now()}-${Math.random().toString(16).slice(2)}` };
 
         // El trabajo pesado (dibujar las tarjetas con sus fotos) espera a que termine la animacion de entrada.
         const falta = 320 - (performance.now() - inicio);

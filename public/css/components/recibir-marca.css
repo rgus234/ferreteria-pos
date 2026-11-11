@@ -121,6 +121,13 @@ body.oscuro .rm-celular { background: #1e2a44; color: #bfdbfe; }
 .rm-marcas { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
 .rm-marca { min-width: 0; padding: 14px 16px; border: 0; border-radius: 18px; background: linear-gradient(135deg, var(--marca, #475569), color-mix(in srgb, var(--marca, #475569) 62%, #0b1220)); color: #fff; box-shadow: 0 8px 18px color-mix(in srgb, var(--marca, #475569) 28%, transparent); transition: transform .15s ease, box-shadow .15s ease; }
 .rm-marca:hover { transform: translateY(-2px); }
+.rm-marca.con-imagen { padding: 10px 12px 14px; }
+.rm-marca-img { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 96px; margin-bottom: 8px; border-radius: 12px; background: #fff; overflow: hidden; }
+.rm-marca-img img { position: relative; width: 100%; height: 100%; object-fit: contain; }
+.rm-marca-ini { position: absolute; font-size: 28px; font-weight: 800; color: var(--marca, #475569); opacity: .55; }
+.rm-volver { display: flex; align-items: center; gap: 12px; grid-column: 1 / -1; }
+.rm-volver b { font-size: 20px; }
+.rm-esquina { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .rm-marca b { font-size: 17px; letter-spacing: -.01em; }
 .rm-marca small { font-size: 12px; opacity: .92; font-weight: 700; }
 .rm-marca.activa { transform: translateY(-2px); background: linear-gradient(135deg, var(--marca, #475569), color-mix(in srgb, var(--marca, #475569) 62%, #0b1220)); box-shadow: 0 0 0 3px var(--pos-card, #fff), 0 0 0 6px var(--marca, #475569), 0 14px 26px color-mix(in srgb, var(--marca, #475569) 36%, transparent); }

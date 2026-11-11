@@ -41,6 +41,14 @@ body.drm-abierta { overflow: hidden; }
 @media (min-width: 768px) { .drm-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); padding-left: 28px; padding-right: 28px; } .drm-marcas, .drm-cabeza { padding-left: 28px; } }
 @media (min-width: 560px) { .drm-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 #drmBoton { grid-column: 1 / -1; }
+.drm-tarjetas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
+.drm-marcas:has(.drm-tarjetas), .drm-marcas:has(.drm-volver) { display: block; overflow: visible; }
+.drm-marcas .drm-tarjetas .drm-marca { width: auto; min-width: 0; padding: 10px 12px 12px; border-radius: 16px; }
+.drm-logo.drm-logo-grande { height: 84px; margin-bottom: 8px; }
+.drm-ini { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; color: var(--marca, #475569); opacity: .5; }
+.drm-volver { display: flex; align-items: center; gap: 12px; }
+.drm-volver button { border: 0; border-radius: 12px; padding: 10px 14px; background: #e2e8f0; color: #0f172a; font: inherit; font-weight: 700; cursor: pointer; }
+.drm-volver b { font-size: 18px; }
 .drm-logo { position: relative; display: block; width: 100%; height: 48px; margin-bottom: 6px; border-radius: 10px; background: #fff; overflow: hidden; }
 .drm-logo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .drm-marca:has(.drm-logo) { width: 168px; min-width: 168px; }
