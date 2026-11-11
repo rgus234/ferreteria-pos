@@ -163,18 +163,56 @@
         const grupos = await armarGrupos(productos);
         rm = { modo, tocados: new Set(), comp: {}, productos, grupos, todos: productos, indice: new Map(productos.map(p => [Number(p.id), p])), marca: esAbarrotes() || grupos.length > MUCHAS_MARCAS ? "" : (grupos[0]?.marca || ""), linea: "", verTodasMarcas: false, verFacturas: false, busFactura: "", ultimo: null, tipo: "", consulta: "", cantidades: new Map(), caducidades: new Map(), pago: { activo: false, monto: "", metodo: "efectivo_caja", por: "", nota: "", vencimiento: "", vencimientoManual: false }, proveedores: [], facturas: [], factura: null, respaldo: null, enviando: false, llave: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "rm-" + Date.now() + "-" + Math.random().toString(16).slice(2) };
         if (modo === "sugerir") await cargarComprometido();
+        const pedidoPorRecibir = Number(window.__rmPedidoId) || 0;
+        window.__rmPedidoId = null;
+        if (pedidoPorRecibir && modo === "recibir") await prepararPedido(pedidoPorRecibir);
         pintar();
 
         llamar("/proveedores").then(r => { if (rm) { rm.proveedores = (r.datos.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre, diasCredito: x.dias_credito })).filter(x => x.nombre); pintarResumen(); } }).catch(() => {});
         llamar("/recepcion-inteligente/facturas").then(r => { if (rm) { rm.facturas = (r.datos.facturas || []).filter(f => f.estado === "pendiente"); pintarFacturas(); } }).catch(() => {});
     };
 
+    // Recibir contra un pedido: cada producto del pedido trae "Esperado N" (lo que falta por llegar), igual que con una factura.
+    async function prepararPedido(id) {
+        const r = await llamar("/pedidos-proveedor/" + id);
+
+        if (!r.ok || !r.datos.pedido) { aviso(r.datos.error || "No se pudo abrir el pedido.", "error"); return; }
+
+        const porCard = new Map();
+
+        (r.datos.items || []).forEach(i => {
+            const pid = Number(i.producto_id);
+            const pendiente = Math.max(0, Number(i.cantidad || 0) - Number(i.recibido || 0));
+            if (!(pid > 0) || !(pendiente > 0)) return;
+            const base = rm.indice.get(pid) || { id: pid, nombre: i.nombre || "Producto", stock: 0, codigo: i.codigo };
+            const c = porCard.get(pid) || { ...base, id: pid, esperado: 0, itemIds: [], esperados: [], nuevoProducto: false };
+            c.esperado += pendiente;
+            porCard.set(pid, c);
+        });
+
+        const cards = [...porCard.values()];
+
+        if (!cards.length) { aviso("Ese pedido ya está completo: no falta nada por recibir.", "info"); return; }
+
+        rm.respaldo = rm.respaldo || { grupos: rm.grupos, todos: rm.todos, indice: rm.indice, marca: rm.marca, tipo: rm.tipo };
+        rm.factura = { id: null, esPedido: true, pedidoId: id, proveedor: r.datos.pedido.proveedor || "Proveedor", folio: "", total: Number(r.datos.pedido.total_estimado || 0), cards, porDecidir: 0 };
+        rm.grupos = [{ marca: "Pedido", productos: cards }];
+        rm.todos = cards;
+        rm.indice = new Map(cards.map(c => [Number(c.id), c]));
+        rm.marca = "Pedido";
+        rm.tipo = "";
+        rm.consulta = "";
+        rm.cantidades = new Map();
+    }
+
+    const esDePedido = () => Boolean(rm && rm.factura && rm.factura.esPedido);
+
     function pintar() {
         const pantalla = document.getElementById("pantallaRecibirMarca");
         if (!pantalla || !rm) return;
 
         pantalla.innerHTML = `<div class="rm-shell">
-            <header class="rm-cab"><div><h2>${rm.modo === "sugerir" ? "Sugerir pedido" : (rm.modo === "pedido" ? "Crear pedido" : (rm.factura ? "Recibir con factura" : "Recibir mercancía"))}</h2><p>${rm.modo === "sugerir" ? "Elige la marca, pon cuánto quieres tener como mínimo y como máximo de cada producto, y Nexo te dice cuánto pedir." : rm.modo === "pedido" ? "Elige la marca y anota cuántas piezas quieres pedir de cada producto." : rm.factura ? "Confirma lo que llegó de cada producto. Lo que dice la factura aparece como “Esperado”." : (esAbarrotes() ? "Elige la marca y anota cuántas piezas llegaron de cada producto. Si traes la factura, ábrela arriba y confirma contra lo esperado." : "Escanea cada producto con la pistola, o búscalo por nombre, código o marca. Cada escaneo suma 1.")}</p></div>
+            <header class="rm-cab"><div><h2>${rm.modo === "sugerir" ? "Sugerir pedido" : (rm.modo === "pedido" ? "Crear pedido" : (rm.factura ? (esDePedido() ? "Recibir pedido #" + rm.factura.pedidoId : "Recibir con factura") : "Recibir mercancía"))}</h2><p>${rm.modo === "sugerir" ? "Elige la marca, pon cuánto quieres tener como mínimo y como máximo de cada producto, y Nexo te dice cuánto pedir." : rm.modo === "pedido" ? "Elige la marca y anota cuántas piezas quieres pedir de cada producto." : rm.factura ? (esDePedido() ? "Confirma lo que llegó de cada producto. Lo que pediste aparece como “Esperado”; lo que no llegue queda pendiente en el pedido." : "Confirma lo que llegó de cada producto. Lo que dice la factura aparece como “Esperado”.") : (esAbarrotes() ? "Elige la marca y anota cuántas piezas llegaron de cada producto. Si traes la factura, ábrela arriba y confirma contra lo esperado." : "Escanea cada producto con la pistola, o búscalo por nombre, código o marca. Cada escaneo suma 1.")}</p></div>
                 <div id="rmFacturas" class="rm-facturas"></div></header>
             <div class="rm-dos">
                 <section class="rm-izq">
@@ -427,14 +465,14 @@
             ? `<label class="rm-campo">¿De qué proveedor viene?<select id="rmProveedor" onchange="rmProveedorCambio()"><option value="">Sin proveedor / no espero factura</option>${rm.proveedores.map(p => `<option value="${esc(p.nombre)}">${esc(p.nombre)}</option>`).join("")}</select><small>Si eliges uno y después te llega su factura por correo, Nexo la compara con lo que recibiste y no suma dos veces.</small></label>`
             : "";
 
-        r.innerHTML = `<div class="rm-resumen-cab"><h3>${rm.factura ? esc(rm.factura.proveedor) : "Lo que llegó"}</h3>${rm.factura ? `<small>${rm.factura.folio ? "Folio " + esc(rm.factura.folio) + " · " : ""}${dinero(rm.factura.total)}</small>` : ""}</div>
-            ${rm.factura ? `<div class="rm-acciones"><button type="button" class="rm-btn" onclick="rmTodoFactura()">Llegó todo</button><button type="button" class="rm-btn" onclick="rmSalirFactura()">Salir de la factura</button></div>` : ""}
+        r.innerHTML = `<div class="rm-resumen-cab"><h3>${rm.factura ? esc(rm.factura.proveedor) : "Lo que llegó"}</h3>${rm.factura ? `<small>${esDePedido() ? "Pedido #" + esc(rm.factura.pedidoId) + " · estimado " : (rm.factura.folio ? "Folio " + esc(rm.factura.folio) + " · " : "")}${dinero(rm.factura.total)}</small>` : ""}</div>
+            ${rm.factura ? `<div class="rm-acciones"><button type="button" class="rm-btn" onclick="rmTodoFactura()">Llegó todo</button><button type="button" class="rm-btn" onclick="rmSalirFactura()">${esDePedido() ? "Salir del pedido" : "Salir de la factura"}</button></div>` : ""}
             ${sinDecidir ? `<p class="rm-alerta">${sinDecidir} concepto${sinDecidir === 1 ? "" : "s"} por decidir (producto nuevo o sin emparejar). Resuélvelos en <button type="button" class="rm-enlace" onclick="rmIrADecidir()">Recepción inteligente</button> antes de confirmar.</p>` : ""}
             <div class="rm-lineas">${ls.map(l => `<div class="rm-linea" style="--marca:${colorDe(l.p)}"><i class="rm-linea-mini">${typeof miniaturaProducto === "function" ? miniaturaProducto(l.p) : ""}</i><div class="rm-linea-datos"><span>${esc(l.p.nombre)}</span>${fechaLineaHtml(l)}</div><b>${numero(l.n)}</b><button type="button" onclick="rmQuitar(${l.id})" aria-label="Quitar">✕</button></div>`).join("") || `<p class="rm-nota">Todavía no anotas nada.</p>`}</div>
             <div class="rm-total"><span>${ls.length} producto${ls.length === 1 ? "" : "s"}</span><b>${numero(piezas)} piezas</b></div>
             ${proveedor}
             ${pagoRepartidorHtml()}
-            <button type="button" class="rm-btn principal grande" id="rmConfirmar" onclick="rmConfirmar()" ${ls.length && !rm.enviando ? "" : "disabled"}>${rm.enviando ? "Guardando…" : (rm.factura ? "Confirmar recepción de la factura" : "Confirmar recepción")}</button>`;
+            <button type="button" class="rm-btn principal grande" id="rmConfirmar" onclick="rmConfirmar()" ${ls.length && !rm.enviando ? "" : "disabled"}>${rm.enviando ? "Guardando…" : (rm.factura ? (esDePedido() ? "Confirmar recepción del pedido" : "Confirmar recepción de la factura") : "Confirmar recepción")}</button>`;
     }
 
     // ---------- Crear pedido (mismo flujo de marcas y productos, pero se guarda como pedido a proveedor) ----------
@@ -718,7 +756,8 @@
 
     window.rmSalirFactura = async function () {
         if (!rm.factura) return;
-        if (lineas().length && !(await confirmarPOS("Lo que anotaste de esta factura se descarta. ¿Salir?", "Salir", "alerta"))) return;
+        if (lineas().length && !(await confirmarPOS(esDePedido() ? "Lo que anotaste de este pedido se descarta. ¿Salir?" : "Lo que anotaste de esta factura se descarta. ¿Salir?", "Salir", "alerta"))) return;
+        if (esDePedido() && typeof mostrarPedidosHechos === "function") { await mostrarPedidosHechos(); return; }
         Object.assign(rm, rm.respaldo, { factura: null, respaldo: null, cantidades: new Map(), caducidades: new Map(), consulta: "" });
         pintar();
     };
@@ -791,11 +830,57 @@
         await window.mostrarRecibirMarca();
     }
 
+    // Recibir contra un pedido: lo que llego se suma al inventario y al pedido (parcial o recibido). Pago, caducidad y "sin factura" igual que al recibir a mano.
+    async function confirmarPedidoRecibido() {
+        const f = rm.factura;
+        const ls = lineas();
+        const pago = pagoParaEnviar();
+
+        if (pago === null) { await alertaPOS("Escribe cuánto le pagaste al repartidor, o desmarca “Pagué al repartidor”.", "Falta el monto", "info"); return; }
+
+        const faltan = f.cards.filter(c => !((rm.cantidades.get(Number(c.id)) || 0) > 0)).length;
+        const distintos = f.cards.filter(c => { const n = rm.cantidades.get(Number(c.id)) || 0; return n > 0 && n !== c.esperado; }).length;
+        const piezas = ls.reduce((t, l) => t + l.n, 0);
+        const ok = await confirmarPOS(`Se suman ${numero(piezas)} pieza(s) al inventario y al pedido #${f.pedidoId}.${distintos ? ` ${distintos} producto(s) llegaron distinto a lo pedido.` : ""}${faltan ? ` ${faltan} producto(s) no llegaron: quedan pendientes en el pedido.` : ""}`, "¿Confirmar la recepción del pedido?", "info");
+        if (!ok) return;
+
+        rm.enviando = true;
+        pintarResumen();
+
+        const conocido = rm.proveedores.some(p => plano(p.nombre) === plano(f.proveedor));
+        const r = await llamar("/recepciones-mercancia/rapida", {
+            method: "POST",
+            body: JSON.stringify({
+                proveedor: f.proveedor,
+                sinFactura: conocido,
+                pedidoId: f.pedidoId,
+                referencia: "Pedido #" + f.pedidoId,
+                usuarioNombre: nombreQuienRecibe(),
+                idempotencyKey: rm.llave,
+                items: ls.map(l => ({ productoId: l.id, cantidad: l.n, costo: 0, ...(rm.caducidades.get(l.id) ? { caducidad: rm.caducidades.get(l.id) } : {}) })),
+                ...(pago ? { pago } : {})
+            })
+        });
+
+        rm.enviando = false;
+
+        if (!r.ok) { pintarResumen(); aviso(r.datos.error || "No se pudo guardar. No se sumó nada al inventario.", "error"); return; }
+
+        if (pago && !r.datos.pagoGuardado && !r.datos.repetida) aviso("La mercancía se recibió, pero el pago al repartidor no quedó anotado.", "info");
+        if (pago && r.datos.pagoGuardado) await anotarSalidaEnCaja(pago, f.proveedor, r.datos.recepcion && r.datos.recepcion.id);
+
+        aviso(r.datos.repetida ? "Esa recepción ya estaba guardada." : (r.datos.pedidoEstado === "recibido" ? `Pedido #${f.pedidoId} recibido completo.` : `Recibido. El pedido #${f.pedidoId} sigue con productos pendientes.`));
+        if (typeof cargarProductos === "function") await cargarProductos();
+        if (typeof mostrarPedidosHechos === "function") await mostrarPedidosHechos(); else await window.mostrarRecibirMarca();
+    }
+
     // ---------- confirmar ----------
 
     window.rmConfirmar = async function () {
         if (!rm || rm.enviando || !lineas().length) return;
         if (esPedido()) { await guardarPedidoRM(false); return; }
+
+        if (esDePedido()) { await confirmarPedidoRecibido(); return; }
 
         if (rm.factura) {
             if (rm.factura.porDecidir) { await alertaPOS(`Esta factura trae ${rm.factura.porDecidir} concepto(s) que Nexo no pudo emparejar. Decídelos en Recepción inteligente y luego confirma aquí.`, "Faltan conceptos por decidir", "info"); return; }

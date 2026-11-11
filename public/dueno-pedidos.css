@@ -40,3 +40,4 @@ body.dpe-abierta { overflow: hidden; }
 :root.oscuro .dpe-enlace { color: #93c5fd; }
 .dpe-aviso { border: 0; width: 100%; padding: 12px 14px; border-radius: 14px; background: #fef3c7; color: #92400e; font: inherit; font-size: 14px; text-align: left; line-height: 1.4; }
 :root.oscuro .dpe-aviso { background: #422006; color: #fcd34d; }
+.dpe-recibir { display: block; width: 100%; margin: 12px 0 4px; padding: 16px; border: 0; border-radius: 16px; background: #16a34a; color: #fff; font: inherit; font-size: 17px; font-weight: 800; }

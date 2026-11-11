@@ -550,6 +550,8 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
     // numero que pudo cambiar mientras tanto (alguien vendiendo).
     app.post("/recepciones-mercancia/rapida", requerirAccesoNegocio, requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO), async (req, res) => {
         const { proveedor, referencia, notas, usuarioNombre, idempotencyKey, items, sinFactura, pago } = req.body || {};
+        // Recibir contra un pedido (abarrotes): la recepcion queda ligada al pedido y le suma lo recibido a cada producto.
+        const pedidoLigado = Number(req.body?.pedidoId) > 0 ? Number(req.body.pedidoId) : null;
 
         if (!Array.isArray(items) || items.length === 0 || items.length > 200) {
             res.status(400).json({ ok: false, error: "Agrega al menos un producto (maximo 200)." });
@@ -605,6 +607,19 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                 }
             }
 
+            if (pedidoLigado) {
+                const pedido = await client.query(
+                    `SELECT id, estado FROM public.pedidos_proveedor WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
+                    [pedidoLigado, negocio.id]
+                );
+
+                if (!pedido.rows.length || pedido.rows[0].estado === "cancelado") {
+                    await client.query("ROLLBACK");
+                    res.status(404).json({ ok: false, error: "Ese pedido ya no existe o esta cancelado." });
+                    return;
+                }
+            }
+
             const aplicadas = [];
             let total = 0;
 
@@ -653,7 +668,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
             const recepcion = await client.query(`
                 INSERT INTO public.recepciones_mercancia
                     (negocio_id, pedido_id, proveedor, referencia, notas, total, tipo_documento, idempotency_key, estado)
-                VALUES ($1, NULL, $2, $3, $4, $5, 'Recepcion rapida (celular)', $6, $7)
+                VALUES ($1, $8, $2, $3, $4, $5, 'Recepcion rapida (celular)', $6, $7)
                 RETURNING *
             `, [
                 negocio.id,
@@ -663,7 +678,8 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                 total,
                 llave,
                 // "Sin factura": cuando llegue su factura por correo, Recepcion Inteligente la compara con esto y no suma dos veces.
-                (sinFactura === true && String(proveedor || "").trim()) ? "recibido_sin_factura" : "conciliado"
+                (sinFactura === true && String(proveedor || "").trim()) ? "recibido_sin_factura" : "conciliado",
+                pedidoLigado
             ]);
 
             for (const aplicada of aplicadas) {
@@ -672,6 +688,36 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                         (negocio_id, recepcion_id, producto_id, codigo, nombre, cantidad, costo)
                     VALUES ($1,$2,$3,$4,$5,$6,$7)
                 `, [negocio.id, recepcion.rows[0].id, aplicada.productoId, aplicada.codigo, aplicada.nombre, aplicada.cantidad, aplicada.costo]);
+            }
+
+            // Contra un pedido: lo recibido de cada producto se reparte entre sus renglones del pedido (primero lo que falta) y el pedido cambia de estado.
+            let pedidoEstado = null;
+
+            if (pedidoLigado) {
+                const renglones = await client.query(
+                    `SELECT id, producto_id, cantidad, recibido FROM public.pedidos_proveedor_items WHERE pedido_id = $1 AND negocio_id = $2 ORDER BY id`,
+                    [pedidoLigado, negocio.id]
+                );
+
+                for (const aplicada of aplicadas) {
+                    const suyos = renglones.rows.filter(r => Number(r.producto_id) === aplicada.productoId);
+                    let resto = aplicada.cantidad;
+
+                    for (let i = 0; i < suyos.length && resto > 0; i++) {
+                        const ultimo = i === suyos.length - 1;
+                        const falta = Math.max(0, n(suyos[i].cantidad) - n(suyos[i].recibido));
+                        const parte = ultimo ? resto : Math.min(falta, resto);
+
+                        if (parte <= 0) continue;
+
+                        await client.query(`UPDATE public.pedidos_proveedor_items SET recibido = recibido + $1 WHERE id = $2 AND negocio_id = $3`, [parte, suyos[i].id, negocio.id]);
+                        suyos[i].recibido = n(suyos[i].recibido) + parte;
+                        resto -= parte;
+                    }
+                }
+
+                pedidoEstado = estado(renglones.rows);
+                await client.query(`UPDATE public.pedidos_proveedor SET estado = $1, updated_at = NOW() WHERE id = $2 AND negocio_id = $3`, [pedidoEstado, pedidoLigado, negocio.id]);
             }
 
             // Pago al repartidor (opcional): queda anotado en la recepcion; si no se pudo, la recepcion sigue y se avisa.
@@ -686,6 +732,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
             res.status(201).json({
                 ok: true,
                 pagoGuardado,
+                pedidoEstado,
                 recepcion: recepcion.rows[0],
                 productos: aplicadas.map(a => ({ id: a.productoId, nombre: a.nombre, cantidad: a.cantidad, stockNuevo: a.stockNuevo }))
             });

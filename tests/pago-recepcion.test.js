@@ -25,7 +25,7 @@ after(async () => {
 });
 
 test("el pago se limpia: metodo conocido, monto valido, textos cortos; 'se quedo a deber' puede ir sin monto", () => {
-    assert.deepEqual(limpiarPago({ monto: "350,50", metodo: "efectivo_caja", por: "  Gustavo   Diaz ", nota: "Bimbo" }), { monto: 350.5, metodo: "efectivo_caja", por: "Gustavo Diaz", nota: "Bimbo" });
+    assert.deepEqual(limpiarPago({ monto: "350,50", metodo: "efectivo_caja", por: "  Gustavo   Diaz ", nota: "Bimbo" }), { monto: 350.5, metodo: "efectivo_caja", por: "Gustavo Diaz", nota: "Bimbo", vencimiento: null });
     assert.equal(limpiarPago({ monto: 100, metodo: "bitcoin" }), null, "metodo desconocido");
     assert.equal(limpiarPago({ monto: 0, metodo: "transferencia" }), null, "sin monto");
     assert.equal(limpiarPago({ monto: -5, metodo: "transferencia" }), null);

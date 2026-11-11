@@ -20,3 +20,43 @@
 .pu-aviso { margin: 18px 0 0; padding: 12px 16px; border-radius: 14px; background: #fef3c7; color: #92400e; font-size: 15px; }
 .pu-aviso[hidden] { display: none; }
 .pu-aviso button { margin-left: 8px; border: 0; background: transparent; color: #1d4ed8; font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+/* Pedidos hechos (nativo dentro de Pedidos) */
+.pu-atras { margin: 0 0 10px; padding: 8px 14px; border: 0; border-radius: 12px; background: #e2e8f0; color: #0f172a; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.pu-atras:hover { background: #cbd5e1; }
+.pu-filtros { display: flex; gap: 8px; margin: 0 0 14px; }
+.pu-filtros button { padding: 9px 16px; border: 2px solid #cbd5e1; border-radius: 999px; background: #fff; color: #0f172a; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.pu-filtros button.activo { border-color: #1d4ed8; background: #1d4ed8; color: #fff; }
+.pu-lista { display: grid; gap: 10px; }
+.pu-vacio { padding: 26px 8px; color: #64748b; font-size: 16px; }
+.pu-pedido { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 6px 18px rgba(15, 23, 42, .07); cursor: pointer; transition: transform .12s ease; }
+.pu-pedido:hover { transform: translateY(-2px); }
+.pu-pedido-datos { display: grid; gap: 4px; min-width: 0; }
+.pu-pedido-datos b { font-size: 18px; color: #0f172a; }
+.pu-pedido-datos small { font-size: 14px; color: #64748b; }
+.pu-barra { height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; max-width: 260px; }
+.pu-barra i { display: block; height: 100%; background: #f59e0b; }
+.pu-pedido-acciones { display: flex; align-items: center; gap: 10px; flex: none; }
+.pu-estado { padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 800; background: #e2e8f0; color: #334155; }
+.pu-estado.enviado { background: #dbeafe; color: #1d4ed8; }
+.pu-estado.parcial { background: #fef3c7; color: #92400e; }
+.pu-estado.recibido { background: #dcfce7; color: #15803d; }
+.pu-estado.cancelado { background: #fee2e2; color: #991b1b; }
+.pu-recibir { padding: 10px 18px; border: 0; border-radius: 12px; background: #16a34a; color: #fff; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
+.pu-recibir:hover { background: #15803d; }
+.pu-recibir.grande { padding: 15px 28px; font-size: 18px; }
+.pu-detalle-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.pu-tabla { width: 100%; border-collapse: collapse; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 6px 18px rgba(15, 23, 42, .07); }
+.pu-tabla th { padding: 12px 14px; text-align: left; font-size: 13px; color: #64748b; background: #f8fafc; }
+.pu-tabla td { padding: 12px 14px; border-top: 1px solid #e2e8f0; font-size: 16px; color: #0f172a; }
+.pu-tabla td small { display: block; color: #64748b; font-size: 12.5px; }
+.pu-tabla .pu-falta { font-weight: 800; color: #b45309; }
+.pu-tabla .pu-completo { font-weight: 800; color: #15803d; }
+.pu-pie { margin-top: 16px; }
+:root.oscuro .pu-pedido, :root.oscuro .pu-tabla, body.oscuro .pu-pedido, body.oscuro .pu-tabla { background: #111c2e; }
+:root.oscuro .pu-pedido-datos b, :root.oscuro .pu-tabla td, body.oscuro .pu-pedido-datos b, body.oscuro .pu-tabla td { color: #f1f5f9; }
+:root.oscuro .pu-tabla th, body.oscuro .pu-tabla th { background: #0f172a; }
+:root.oscuro .pu-tabla td, body.oscuro .pu-tabla td { border-color: #334155; }
+:root.oscuro .pu-atras, body.oscuro .pu-atras { background: #1e293b; color: #f1f5f9; }
+:root.oscuro .pu-filtros button, body.oscuro .pu-filtros button { background: #111c2e; color: #f1f5f9; border-color: #334155; }
+:root.oscuro .pu-filtros button.activo, body.oscuro .pu-filtros button.activo { background: #1d4ed8; border-color: #1d4ed8; }

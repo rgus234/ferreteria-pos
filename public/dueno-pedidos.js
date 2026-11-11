@@ -132,9 +132,16 @@
         const p = datos.pedido;
         const items = datos.items || [];
         cuerpo.innerHTML = `<div class="dpe-resumen"><b>${esc(p.proveedor || "Sin proveedor")}</b><em class="dpe-estado dpe-${esc(p.estado)}">${esc(ESTADOS[p.estado] || p.estado)}</em></div>
-            <ul class="dpe-items">${items.map(i => `<li><span>${esc(i.nombre)}</span><b>${numero(i.cantidad)}${Number(i.recibido) > 0 ? ` <small>(llegaron ${numero(i.recibido)})</small>` : ""}</b></li>`).join("") || `<li>Sin productos.</li>`}</ul>
+            <ul class="dpe-items">${items.map(i => `<li><span>${esc(i.nombre)}</span><b>${numero(i.cantidad)}${Number(i.recibido) > 0 ? ` <small>(llegaron ${numero(i.recibido)}${Number(i.recibido) < Number(i.cantidad) ? " · faltan " + numero(Number(i.cantidad) - Number(i.recibido)) : ""})</small>` : ""}</b></li>`).join("") || `<li>Sin productos.</li>`}</ul>
             ${Number(p.total_estimado) > 0 ? `<p class="dpe-total">Total estimado <strong>${dinero(p.total_estimado)}</strong></p>` : ""}
-            <p class="dpe-nota">Para recibir este pedido o cambiarlo, ábrelo en la computadora.</p>`;
+            ${p.estado === "recibido" || p.estado === "cancelado" ? "" : `<button type="button" class="dpe-recibir" onclick="recibirPedidoDueno(${Number(p.id)})">Recibir este pedido</button>`}
+            <p class="dpe-nota">Para cambiar el pedido, ábrelo en la computadora.</p>`;
+    };
+
+    window.recibirPedidoDueno = function (id) {
+        window.__drmPedidoId = Number(id);
+        window.__drmModo = null;
+        if (typeof abrirRecibirMarcaDueno === "function") abrirRecibirMarcaDueno();
     };
 
     // Boton junto a "Recibir por marca" en Inventario (solo si la funcion esta encendida).

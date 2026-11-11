@@ -674,7 +674,7 @@
         if (estado.factura) {
             const f = estado.factura;
             return `<div class="drm-factura-banner">
-                <div><b>📄 ${esc(f.proveedor)}</b><small>${f.folio ? "Folio " + esc(f.folio) + " · " : ""}${f.cards.length} concepto${f.cards.length === 1 ? "" : "s"} · ${dinero0(f.total)}</small></div>
+                <div><b>${f.esPedido ? "📦 Pedido #" + Number(f.pedidoId) + " · " : "📄 "}${esc(f.proveedor)}</b><small>${f.folio ? "Folio " + esc(f.folio) + " · " : ""}${f.cards.length} concepto${f.cards.length === 1 ? "" : "s"} · ${dinero0(f.total)}</small></div>
                 <button type="button" class="drm-factura-todo" onclick="marcarTodoFacturaRecibirDueno()">Llegó todo</button>
                 <button type="button" class="drm-factura-salir" onclick="salirFacturaRecibirDueno()">Salir</button>
                 ${f.porDecidir ? `<p class="drm-factura-aviso">${f.porDecidir} concepto${f.porDecidir === 1 ? "" : "s"} por decidir (producto nuevo o sin emparejar). Resuélvelos en <button type="button" onclick="cerrarRecibirMarcaDueno(); dfAbrir()">Recibir factura</button> antes de confirmar.</p>` : ""}
@@ -765,7 +765,14 @@
 
     window.salirFacturaRecibirDueno = function () {
         if (!estado || !estado.factura) return;
-        if (totales().productos && !window.confirm("Lo que anotaste de esta factura se descarta. ¿Salir?")) return;
+        if (totales().productos && !window.confirm(estado.factura.esPedido ? "Lo que anotaste de este pedido se descarta. ¿Salir?" : "Lo que anotaste de esta factura se descarta. ¿Salir?")) return;
+
+        if (estado.factura.esPedido) {
+            estado = null;
+            document.getElementById("drmCapa")?.classList.remove("abierta");
+            document.body.classList.remove("drm-abierta", "drm-con-resumen");
+            return;
+        }
 
         Object.assign(estado, estado.respaldo, { factura: null, respaldo: null, cantidades: new Map(), consulta: "", linea: "" });
         pintar();
@@ -1071,12 +1078,106 @@
             if (sesion !== sesionAbrir) return;
         }
 
+        // Recibir contra un pedido (desde Pedidos hechos): cada producto trae "Esperado N" con lo que falta por llegar.
+        const pedidoPorRecibir = Number(window.__drmPedidoId) || 0;
+        window.__drmPedidoId = null;
+        if (pedidoPorRecibir && modo === "recibir") await prepararPedidoDueno(pedidoPorRecibir);
+        if (sesion !== sesionAbrir) return;
+
         pintar();
         cargarExtras(estado);
     };
 
+    async function prepararPedidoDueno(id) {
+        let datos = null;
+        try { datos = await fetchAutenticado("/pedidos-proveedor/" + id); } catch (error) { datos = null; }
+
+        if (!datos || !datos.pedido) { avisar("No se pudo abrir el pedido."); return; }
+
+        const porCard = new Map();
+
+        (datos.items || []).forEach(i => {
+            const pid = Number(i.producto_id);
+            const pendiente = Math.max(0, Number(i.cantidad || 0) - Number(i.recibido || 0));
+            if (!(pid > 0) || !(pendiente > 0)) return;
+            const base = estado.indice.get(pid) || { id: pid, nombre: i.nombre || "Producto", imagenUrl: null, stock: 0, codigo: i.codigo };
+            const card = porCard.get(pid) || { ...base, id: pid, esperado: 0, itemIds: [], esperados: [], nuevoProducto: false };
+            card.esperado += pendiente;
+            porCard.set(pid, card);
+        });
+
+        const cards = [...porCard.values()];
+
+        if (!cards.length) { avisar("Ese pedido ya está completo: no falta nada por recibir."); return; }
+
+        estado.respaldo = estado.respaldo || { grupos: estado.grupos, todos: estado.todos, indice: estado.indice, marca: estado.marca };
+        estado.factura = { id: null, esPedido: true, pedidoId: id, proveedor: datos.pedido.proveedor || "Proveedor", folio: "", total: Number(datos.pedido.total_estimado || 0), cards, porDecidir: 0 };
+        estado.grupos = [{ marca: "Pedido", color: "#0f766e", productos: cards }];
+        estado.marca = "Pedido";
+        estado.todos = cards;
+        estado.indice = new Map(cards.map(c => [c.id, c]));
+        estado.cantidades = new Map();
+        estado.consulta = "";
+        estado.linea = "";
+    }
+
+    // Lo que llego se suma al inventario y al pedido (parcial o recibido). Pago y "sin factura" igual que al recibir a mano.
+    async function confirmarPedidoDueno() {
+        const f = estado.factura;
+        const items = [];
+        estado.cantidades.forEach((n, id) => { if (n > 0) items.push({ productoId: id, cantidad: n, costo: 0 }); });
+
+        if (!items.length) { avisar("Anota lo que llegó de al menos un producto."); return; }
+
+        const faltan = f.cards.filter(c => !(estado.cantidades.get(c.id) > 0)).length;
+        const distintos = f.cards.filter(c => { const n = estado.cantidades.get(c.id) || 0; return n > 0 && n !== c.esperado; }).length;
+
+        const d = await window.NexoMovil.dialogo({
+            titulo: "¿Confirmar la recepción del pedido?",
+            texto: `Se suma al inventario y al pedido #${f.pedidoId}.${distintos ? ` ${distintos} producto(s) llegaron distinto a lo pedido.` : ""}${faltan ? ` ${faltan} producto(s) no llegaron: quedan pendientes en el pedido.` : ""}`,
+            aceptar: "Confirmar"
+        });
+
+        if (!d.ok) return;
+
+        let pago = null;
+        if (typeof window.pedirPagoCreditoDueno === "function") {
+            const credito = await window.pedirPagoCreditoDueno({ proveedor: f.proveedor, montoSugerido: Number(f.total) || 0 });
+            if (credito === null) return;
+            pago = credito.pago || null;
+        }
+
+        estado.enviando = true;
+        pintar();
+
+        const plano = t => String(t || "").trim().toLowerCase();
+        const conocido = (estado.proveedores || []).some(p => plano(p.nombre) === plano(f.proveedor));
+
+        try {
+            const respuesta = await fetchAutenticado("/recepciones-mercancia/rapida", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ proveedor: f.proveedor, sinFactura: conocido, pedidoId: f.pedidoId, referencia: "Pedido #" + f.pedidoId, usuarioNombre: (typeof duenoEmpleadoNombrePersona !== "undefined" && duenoEmpleadoNombrePersona) || "", idempotencyKey: estado.llave, items, ...(pago ? { pago } : {}) })
+            });
+
+            const pedidoId = f.pedidoId;
+            estado = null;
+            document.getElementById("drmCapa")?.classList.remove("abierta");
+            document.body.classList.remove("drm-abierta", "drm-con-resumen");
+            avisar(respuesta.repetida ? "Esa recepción ya estaba guardada." : (respuesta.pedidoEstado === "recibido" ? `Pedido #${pedidoId} recibido completo.` : `Recibido. El pedido #${pedidoId} sigue con productos pendientes.`));
+            if (typeof refrescarCatalogoLocalDueno === "function") await refrescarCatalogoLocalDueno();
+            if (typeof filtrarInventarioDueno === "function") filtrarInventarioDueno();
+            if (typeof abrirPedidosHechosDueno === "function") abrirPedidosHechosDueno();
+        } catch (error) {
+            estado.enviando = false;
+            pintar();
+            avisar(error.message || "No se pudo guardar. Revisa tu internet y vuelve a intentar.");
+        }
+    }
+
     window.confirmarRecibirMarcaDueno = async function () {
         if (!estado || estado.enviando) return;
+        if (estado.factura && estado.factura.esPedido) { await confirmarPedidoDueno(); return; }
         if (estado.factura) { await confirmarFactura(); return; }
         if (esPedidoDueno()) { await guardarPedidoDueno(); return; }
 
