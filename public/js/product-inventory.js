@@ -4650,6 +4650,12 @@ function abrirFormularioAgregarProductoNuevo() {
  productoEditandoId = null;
  // Formulario en blanco: el vinculo del producto anterior no se hereda.
  catalogoMaestroIdDelFormulario = null;
+
+ // Si el formulario quedo sin codigo ni nombre (se salio a medias), no se hereda tampoco la foto ni la categoria del producto anterior.
+ if (!(document.getElementById("nuevoCodigo")?.value || "").trim() && !(document.getElementById("nuevoNombre")?.value || "").trim()) {
+  limpiarImagenYVinculoDelCatalogo();
+  reiniciarCategoriaNexoCampo();
+ }
  mostrarFormularioAgregar();
 }
 
@@ -4897,7 +4903,21 @@ function cerrarFormularioAgregar() {
  document.getElementById("modalAgregar").style.display = "none";
  }
 }
+// La foto, el aviso de "imagen encontrada", las ofertas del Banco y el vinculo al Maestro que llenaron el catalogo o una foto guardada por codigo.
+// Una foto que el dueño eligio a mano (archivo en el formulario) no se toca.
+function limpiarImagenYVinculoDelCatalogo() {
+ codigoImagenExistenteActual = null;
+ datosBancoImagenesActual = null;
+ catalogoMaestroIdDelFormulario = null;
+ marcarImagenProductoEncontrada(false);
+ renderTarjetaBancoImagenes(null);
+ renderTarjetaSolicitarFotoBanco(null);
+
+ if (!document.getElementById("nuevaImagenProducto")?.files?.length) mostrarImagenPreviewProducto("");
+}
+
 function limpiarCamposCatalogoProducto() {
+ limpiarImagenYVinculoDelCatalogo();
  document.getElementById("nuevoNombre").value = "";
  document.getElementById("precioDistribuidor").value = "";
  document.getElementById("precioMayoreo").value = "";
