@@ -6,6 +6,17 @@
 (function () {
     const esc = valor => String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+    // Encargos de clientes que siguen esperando mercancia (pendientes o ya pedidos al proveedor).
+    async function encargosEsperando() {
+        try {
+            const r = await fetch("/encargos-clientes");
+            const datos = await r.json().catch(() => ({}));
+            return (Array.isArray(datos.encargos) ? datos.encargos : []).filter(e => e.estado === "pendiente" || e.estado === "resurtiendo").length;
+        } catch (error) {
+            return 0;
+        }
+    }
+
     async function resumenPedidos() {
         try {
             const r = await fetch("/pedidos-proveedor");
@@ -51,7 +62,15 @@
                 ${tarjeta("mostrarSugerirPedido()", "✦", "Sugerir pedido", "Nexo te dice qué conviene pedir")}
                 ${tarjeta("mostrarPedidosHechos()", "☰", "Pedidos hechos", "Cargando…", "puHechos")}
             </div>
+            <p class="pu-aviso" id="puEncargos" hidden></p>
         </div>`;
+
+        encargosEsperando().then(n => {
+            const caja = document.getElementById("puEncargos");
+            if (!caja || !n) return;
+            caja.innerHTML = `Tienes <b>${n} encargo${n === 1 ? "" : "s"}</b> de clientes esperando mercancía. <button type="button" onclick="mostrarEncargos()">Ver encargos</button>`;
+            caja.hidden = false;
+        });
 
         const r = await resumenPedidos();
         const caja = document.getElementById("puHechos");

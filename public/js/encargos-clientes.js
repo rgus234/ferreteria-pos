@@ -22,6 +22,7 @@ function fechaCortaEncargo(valor) {
 
 const ETIQUETA_ESTADO_ENCARGO = {
  pendiente: "Pendiente",
+ resurtiendo: "En proceso de resurtido",
  listo: "Listo para entregar",
  entregado: "Entregado",
  cancelado: "Cancelado"
@@ -34,11 +35,16 @@ const ETIQUETA_FILTRO_ENCARGO = {
  entregado: "entregados"
 };
 
+// Abarrotes: los encargos tienen un paso mas, "En proceso de resurtido" (ya se pidio al proveedor); la ferreteria no lo ve.
+function esAbarrotesEncargo() {
+ return typeof perfilEsSimple === "function" && perfilEsSimple();
+}
+
 // "Vencido" no es un estado real en la base -- es pendiente/listo cuya
 // fecha de entrega ya paso. Se calcula aqui, nunca se guarda, para que
 // nunca se desincronice de "hoy".
 function esEncargoVencido(encargo) {
- if (encargo.estado !== "pendiente" && encargo.estado !== "listo") return false;
+ if (!["pendiente", "resurtiendo", "listo"].includes(encargo.estado)) return false;
  if (!encargo.fechaEntregaEsperada) return false;
 
  const hoy = new Date().toISOString().slice(0, 10);
@@ -130,6 +136,7 @@ async function mostrarEncargos() {
  <div class="encargos-filtros">
  <button type="button" class="activo" data-estado="" onclick="filtrarEncargos('')">Todos <span class="encargo-filtro-conteo" data-conteo="">0</span></button>
  <button type="button" data-estado="pendiente" onclick="filtrarEncargos('pendiente')">Pendientes <span class="encargo-filtro-conteo" data-conteo="pendiente">0</span></button>
+ ${esAbarrotesEncargo() ? `<button type="button" data-estado="resurtiendo" onclick="filtrarEncargos('resurtiendo')">En resurtido <span class="encargo-filtro-conteo" data-conteo="resurtiendo">0</span></button>` : ""}
  <button type="button" data-estado="listo" onclick="filtrarEncargos('listo')">Listos <span class="encargo-filtro-conteo" data-conteo="listo">0</span></button>
  <button type="button" data-estado="vencido" onclick="filtrarEncargos('vencido')">Vencidos <span class="encargo-filtro-conteo alerta" data-conteo="vencido">0</span></button>
  <button type="button" data-estado="entregado" onclick="filtrarEncargos('entregado')">Entregados <span class="encargo-filtro-conteo" data-conteo="entregado">0</span></button>
@@ -375,7 +382,7 @@ function renderStatsEncargos() {
 
  if (!contenedor) return;
 
- const pendientes = encargosClientesActuales.filter(e => e.estado === "pendiente");
+ const pendientes = encargosClientesActuales.filter(e => e.estado === "pendiente" || e.estado === "resurtiendo");
  const listos = encargosClientesActuales.filter(e => e.estado === "listo");
  const vencidos = encargosClientesActuales.filter(esEncargoVencido);
  const anticipoEnMano = [...pendientes, ...listos].reduce((suma, e) => suma + Number(e.anticipo || 0), 0);
@@ -404,6 +411,7 @@ function actualizarConteosFiltrosEncargos() {
  const conteos = {
  "": encargosClientesActuales.length,
  pendiente: 0,
+ resurtiendo: 0,
  listo: 0,
  vencido: 0,
  entregado: 0
@@ -585,9 +593,10 @@ function renderModalDetalleEncargo() {
 
  <div class="encargo-detalle-acciones">
  ${puedeAvisarPorWhatsAppEncargo(encargo) ? `<button type="button" class="btn-encargo-whatsapp" onclick="enviarWhatsAppEncargo()">Avisar por WhatsApp</button>` : ""}
- ${encargo.estado === "pendiente" ? `<button type="button" class="btn-encargo-primario" onclick="cambiarEstadoEncargo('listo')">Marcar listo para entregar</button>` : ""}
- ${encargo.estado === "pendiente" || encargo.estado === "listo" ? `<button type="button" class="btn-encargo-primario" onclick="cambiarEstadoEncargo('entregado')">Marcar entregado</button>` : ""}
- ${encargo.estado === "pendiente" || encargo.estado === "listo" ? `<button type="button" class="btn-encargo-secundario" onclick="cambiarEstadoEncargo('cancelado')">Cancelar encargo</button>` : ""}
+ ${encargo.estado === "pendiente" && esAbarrotesEncargo() ? `<button type="button" class="btn-encargo-secundario" onclick="cambiarEstadoEncargo('resurtiendo')">Ya lo pedí al proveedor</button>` : ""}
+ ${encargo.estado === "pendiente" || encargo.estado === "resurtiendo" ? `<button type="button" class="btn-encargo-primario" onclick="cambiarEstadoEncargo('listo')">Marcar listo para entregar</button>` : ""}
+ ${["pendiente", "resurtiendo", "listo"].includes(encargo.estado) ? `<button type="button" class="btn-encargo-primario" onclick="cambiarEstadoEncargo('entregado')">Marcar entregado</button>` : ""}
+ ${["pendiente", "resurtiendo", "listo"].includes(encargo.estado) ? `<button type="button" class="btn-encargo-secundario" onclick="cambiarEstadoEncargo('cancelado')">Cancelar encargo</button>` : ""}
  </div>
  </div>
  `;

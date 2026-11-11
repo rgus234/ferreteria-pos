@@ -205,7 +205,7 @@ function instalar(app, pool, requerirAccesoNegocio) {
 
             const encargos = await leer(`SELECT i.producto_id, SUM(i.cantidad) AS n
                   FROM public.encargos_clientes_items i JOIN public.encargos_clientes e ON e.id = i.encargo_id
-                 WHERE e.negocio_id = $1 AND e.estado = 'pendiente' AND i.producto_id IS NOT NULL GROUP BY i.producto_id`);
+                 WHERE e.negocio_id = $1 AND e.estado IN ('pendiente', 'resurtiendo', 'listo') AND i.producto_id IS NOT NULL GROUP BY i.producto_id`);
             const camino = await leer(`SELECT i.producto_id, SUM(GREATEST(i.cantidad - COALESCE(i.recibido, 0), 0)) AS n
                   FROM public.pedidos_proveedor_items i JOIN public.pedidos_proveedor p ON p.id = i.pedido_id
                  WHERE p.negocio_id = $1 AND p.estado IN ('enviado', 'parcial') AND i.producto_id IS NOT NULL GROUP BY i.producto_id`);

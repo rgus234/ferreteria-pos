@@ -956,6 +956,7 @@ function puedeVerEncargosGestion() {
 
 const ESTADOS_ENCARGO_GESTION = {
     pendiente: "Pendiente",
+    resurtiendo: "En proceso de resurtido",
     listo: "Listo para entregar",
     entregado: "Entregado",
     cancelado: "Cancelado"
@@ -979,7 +980,7 @@ function cambiarFiltroEncargosGestion(filtro) {
 }
 
 function pintarListaEncargosGestion(encargos) {
-    const filtros = [["pendiente", "Pendientes"], ["listo", "Listos"], ["entregado", "Entregados"], ["", "Todos"]];
+    const filtros = [["pendiente", "Pendientes"], ...(window.duenoGiro && window.duenoGiro.ferreteriaSolo ? [] : [["resurtiendo", "En resurtido"]]), ["listo", "Listos"], ["entregado", "Entregados"], ["", "Todos"]];
     const hoy = new Date().toISOString().slice(0, 10);
 
     contenidoGestion().innerHTML = `
@@ -990,7 +991,7 @@ function pintarListaEncargosGestion(encargos) {
         <div class="lista-compacta">
             ${encargos.map(encargo => {
                 const fecha = encargo.fechaEntregaEsperada ? String(encargo.fechaEntregaEsperada).slice(0, 10) : "";
-                const vencido = fecha && fecha < hoy && (encargo.estado === "pendiente" || encargo.estado === "listo");
+                const vencido = fecha && fecha < hoy && ["pendiente", "resurtiendo", "listo"].includes(encargo.estado);
                 return `
                     <button type="button" class="fila-dueno" style="width:100%;text-align:left;" onclick="abrirEncargoGestion(${Number(encargo.id)})">
                         <div>
@@ -1096,7 +1097,7 @@ function pintarEncargoGestion() {
     const encargo = duenoGestionEncargoActual;
     const total = encargo.items.reduce((suma, item) => suma + item.cantidad * item.precioEstimado, 0);
     const telefonoWa = telefonoParaWhatsAppDueno(encargo.clienteTelefono);
-    const abierto = encargo.estado === "pendiente" || encargo.estado === "listo";
+    const abierto = ["pendiente", "resurtiendo", "listo"].includes(encargo.estado);
     const negocio = document.getElementById("duenoNegocio")?.textContent?.trim() || "tu negocio";
     const mensajeListo = `Hola ${encargo.clienteNombre}, tu encargo ya esta listo para recoger en ${negocio}.`;
 
@@ -1155,7 +1156,8 @@ function pintarEncargoGestion() {
 
         ${abierto ? `
             <article class="dueno-card">
-                ${encargo.estado === "pendiente" ? `<button type="button" class="dueno-boton-primario" onclick="cambiarEstadoEncargoGestion('listo')">Marcar como listo</button>` : ""}
+                ${encargo.estado === "pendiente" && !(window.duenoGiro && window.duenoGiro.ferreteriaSolo) ? `<button type="button" class="dueno-boton-secundario" style="margin-bottom:8px;" onclick="cambiarEstadoEncargoGestion('resurtiendo')">Ya lo pedí al proveedor</button>` : ""}
+                ${encargo.estado === "pendiente" || encargo.estado === "resurtiendo" ? `<button type="button" class="dueno-boton-primario" onclick="cambiarEstadoEncargoGestion('listo')">Marcar como listo</button>` : ""}
                 <button type="button" class="dueno-boton-${encargo.estado === "listo" ? "primario" : "secundario"}" style="margin-top:8px;" onclick="cambiarEstadoEncargoGestion('entregado')">Marcar como entregado</button>
                 <button type="button" class="dueno-link dueno-link-peligro" style="display:block;margin:12px auto 0;" onclick="cancelarEncargoGestion()">Cancelar encargo</button>
             </article>

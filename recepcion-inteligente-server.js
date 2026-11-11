@@ -1227,6 +1227,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
                 await client.query("COMMIT");
 
+                // Abarrotes: si lo que llego completa un encargo, pasa a "listo para entregar" y se avisa. Nunca tumba la recepcion.
+                try { await require("./encargos-abarrotes").avanzarPorRecepcion(pool, negocio.id, itemsAplicados.map(i => i.productoId)); }
+                catch (errorEncargos) { console.warn("[encargos] No se pudo actualizar por la recepcion", errorEncargos.message); }
+
                 await registrarBitacora(pool, negocio.id, empleadoIdDeRequest(req),
                     remisionAConciliar ? "recepcion_inteligente_conciliada" : "recepcion_inteligente_confirmada",
                     {

@@ -41,6 +41,18 @@
         return partes.length ? partes.join(" · ") : `${lista.length} guardado${lista.length === 1 ? "" : "s"}`;
     }
 
+    async function encargosEsperando() {
+        try {
+            const r = await fetchAutenticado("/encargos-clientes");
+            return ((r && r.encargos) || []).filter(e => e.estado === "pendiente" || e.estado === "resurtiendo").length;
+        } catch (error) { return 0; }
+    }
+
+    window.verEncargosDesdePedidosDueno = function () {
+        window.cerrarPedidosDueno();
+        if (typeof abrirSubpantallaMasDueno === "function") abrirSubpantallaMasDueno("encargos-gestion");
+    };
+
     window.abrirPedidosDueno = async function () {
         const c = capa();
         c.innerHTML = `${cabeza("Pedidos", "cerrarPedidosDueno()")}
@@ -51,6 +63,12 @@
             <button type="button" class="dpe-enlace" onclick="calculoPorVentasDueno()">Ver el cálculo por ventas (Mi tienda)</button></div>`;
         c.classList.add("abierta");
         document.body.classList.add("dpe-abierta");
+
+        encargosEsperando().then(n => {
+            const cuerpo = document.querySelector("#dpeCapa .dpe-cuerpo");
+            if (!n || !cuerpo || !document.getElementById("dpeHechos")) return;
+            cuerpo.insertAdjacentHTML("beforeend", `<button type="button" class="dpe-aviso" onclick="verEncargosDesdePedidosDueno()">Tienes <b>${n} encargo${n === 1 ? "" : "s"}</b> de clientes esperando mercancía. Ver encargos ›</button>`);
+        });
 
         const lista = await listaPedidos();
         const caja = document.getElementById("dpeHechos");

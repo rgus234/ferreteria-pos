@@ -321,6 +321,13 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
             }
 
             await client.query("COMMIT");
+
+            // Abarrotes: un pedido enviado con un producto encargado deja ese encargo "en proceso de resurtido". Nunca tumba el pedido.
+            if ((estadoPedido || "enviado") === "enviado") {
+                try { await require("./encargos-abarrotes").marcarResurtiendoPorPedido(pool, negocio.id, items.map(item => item.productoId || item.producto_id)); }
+                catch (errorEncargos) { console.warn("[encargos] No se pudo actualizar por el pedido", errorEncargos.message); }
+            }
+
             res.json({ pedido: pedido.rows[0] });
         } catch (error) {
             await client.query("ROLLBACK");
@@ -447,6 +454,10 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
             `, [estado(partidas.rows), req.params.id, negocio.id]);
 
             await client.query("COMMIT");
+
+            try { await require("./encargos-abarrotes").avanzarPorRecepcion(pool, negocio.id, items.map(item => item.productoId || item.producto_id)); }
+            catch (errorEncargos) { console.warn("[encargos] No se pudo actualizar por la recepcion", errorEncargos.message); }
+
             res.json({ recepcion: recepcion.rows[0] });
         } catch (error) {
             await client.query("ROLLBACK");
@@ -667,6 +678,10 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
             const pagoGuardado = pago ? await guardarPagoRecepcion(client, { negocioId: negocio.id, recepcionId: recepcion.rows[0].id, pago }) : null;
 
             await client.query("COMMIT");
+
+            // Abarrotes: si lo que llego completa un encargo, pasa a "listo para entregar" y se avisa. Nunca tumba la recepcion.
+            try { await require("./encargos-abarrotes").avanzarPorRecepcion(pool, negocio.id, aplicadas.map(a => a.productoId)); }
+            catch (errorEncargos) { console.warn("[encargos] No se pudo actualizar por la recepcion", errorEncargos.message); }
 
             res.status(201).json({
                 ok: true,

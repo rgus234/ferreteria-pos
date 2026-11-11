@@ -131,6 +131,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./exhibidores-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("encargos de abarrotes -- avisos y conexion con pedidos y recepcion", () => {
+        require("./encargos-abarrotes")(app, pool);
+    });
+
     cargarModuloPOS("exhibidores -- aviso diario de lo que hay que surtir", () => {
         require("./exhibidores-avisos")(app, pool);
     });

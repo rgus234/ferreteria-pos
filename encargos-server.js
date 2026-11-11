@@ -303,7 +303,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         let indice = 1;
 
         if (req.body?.estado !== undefined) {
-            if (!["pendiente", "listo", "entregado", "cancelado"].includes(req.body.estado)) {
+            if (!["pendiente", "resurtiendo", "listo", "entregado", "cancelado"].includes(req.body.estado)) {
                 res.status(400).json({ ok: false, error: "Estado inválido." });
                 return;
             }

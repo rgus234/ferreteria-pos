@@ -16,3 +16,7 @@
 /* Pedidos hechos: solo la lista (sin el formulario de captura de la pantalla de siempre) */
 #pantallaPedidosProveedor.pu-solo-lista .pedidos-header-acciones, #pantallaPedidosProveedor.pu-solo-lista .pedidos-grid > .pedidos-panel:first-child { display: none; }
 #pantallaPedidosProveedor.pu-solo-lista .pedidos-grid { grid-template-columns: 1fr; }
+
+.pu-aviso { margin: 18px 0 0; padding: 12px 16px; border-radius: 14px; background: #fef3c7; color: #92400e; font-size: 15px; }
+.pu-aviso[hidden] { display: none; }
+.pu-aviso button { margin-left: 8px; border: 0; background: transparent; color: #1d4ed8; font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }

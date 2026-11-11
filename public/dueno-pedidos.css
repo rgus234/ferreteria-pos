@@ -38,3 +38,5 @@ body.dpe-abierta { overflow: hidden; }
 .dpe-cabeza h2 { flex: 1; margin: 0; text-align: left; }
 .dpe-enlace { border: 0; background: transparent; color: #1d4ed8; font: inherit; font-weight: 700; padding: 10px 4px; text-align: left; }
 :root.oscuro .dpe-enlace { color: #93c5fd; }
+.dpe-aviso { border: 0; width: 100%; padding: 12px 14px; border-radius: 14px; background: #fef3c7; color: #92400e; font: inherit; font-size: 14px; text-align: left; line-height: 1.4; }
+:root.oscuro .dpe-aviso { background: #422006; color: #fcd34d; }
