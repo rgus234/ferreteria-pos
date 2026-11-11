@@ -80,55 +80,12 @@ async function mostrarEncargos() {
  <h2>Encargos de clientes</h2>
  <p>Registra lo que un cliente pidió encargar, con anticipo y fecha estimada de entrega.</p>
  </div>
+ <button type="button" class="btn-nuevo-encargo" onclick="abrirNuevoEncargo()">${iconoUISVG("plus")} Nuevo encargo</button>
  </div>
 
  <div class="encargos-stats" id="encargosStats"></div>
 
  <div class="encargos-grid">
- <section class="encargos-panel">
- <h3>${iconoUISVG("plus")}<span>Nuevo encargo</span></h3>
-
- <div class="encargo-form-cliente">
- <label>Cliente
- <input id="encargoClienteNombre" list="encargoClienteLista" placeholder="Nombre del cliente" oninput="autocompletarClienteEncargo()">
- <datalist id="encargoClienteLista"></datalist>
- </label>
- <label>Teléfono
- <input id="encargoClienteTelefono" placeholder="Opcional">
- </label>
- </div>
-
- <div class="encargo-form-fila">
- <label>Anticipo
- <input id="encargoAnticipo" type="number" step="0.01" min="0" placeholder="0.00">
- </label>
- <label>Fecha estimada de entrega
- <input id="encargoFechaEntrega" type="date">
- </label>
- </div>
-
- <label class="encargo-form-notas">Notas
- <input id="encargoNotas" placeholder="Opcional">
- </label>
-
- <div class="encargo-add-row">
- <label>Producto
- <input id="encargoProductoNombre" placeholder="Busca o escribe el producto">
- </label>
- <label>Cant.
- <input id="encargoCantidad" type="number" step="0.001" min="0.001" placeholder="1">
- </label>
- <label>Precio est.
- <input id="encargoPrecioEstimado" type="number" step="0.01" min="0" placeholder="0.00">
- </label>
- <button type="button" class="btn-encargo-agregar" onclick="agregarItemFormularioEncargo()">Agregar</button>
- </div>
-
- <div id="encargoTablaItemsNuevo"></div>
-
- <button type="button" class="btn-encargo-primario encargo-btn-full" onclick="guardarEncargoNuevo()">Guardar encargo</button>
- </section>
-
  <section class="encargos-panel">
  <div class="encargos-panel-titulo-fila">
  <h3>${iconoUISVG("clipboard")}<span>Encargos</span></h3>
@@ -591,18 +548,7 @@ function renderModalDetalleEncargo() {
  <p class="encargo-detalle-total">Total estimado: <strong>${dineroEncargo(totalEstimado)}</strong></p>
 
  ${encargo.estado !== "entregado" && encargo.estado !== "cancelado" ? `
- <div class="encargo-add-row">
- <label>Producto
- <input id="encargoDetalleProductoNombre" placeholder="Nombre del producto">
- </label>
- <label>Cant.
- <input id="encargoDetalleCantidad" type="number" step="0.001" min="0.001" placeholder="1">
- </label>
- <label>Precio est.
- <input id="encargoDetallePrecioEstimado" type="number" step="0.01" min="0" placeholder="0.00">
- </label>
- <button type="button" class="btn-encargo-agregar" onclick="agregarItemEncargoExistente()">Agregar</button>
- </div>
+ <button type="button" class="btn-grande-agregar" onclick="abrirCatalogoEncargoExistente()">＋ Agregar productos</button>
  ` : ""}
 
  <div class="encargo-detalle-acciones">

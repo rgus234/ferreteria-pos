@@ -107,7 +107,7 @@ test("App del dueño con QR: pantalla de la computadora conectada y apagada por 
     assert.ok(fs.readFileSync(publico("dueno.html"), "utf8").includes("mostrarCodigoEnlaceDueno()"), "escribir el codigo sigue disponible");
 });
 
-test("Pendientes en el Inicio de la computadora: conectados, apagados por defecto, y Fiado solo en abarrotes; el celular oculta Encargos en abarrotes", () => {
+test("Pendientes en el Inicio de la computadora: conectados, apagados por defecto, y Fiado solo en abarrotes; Encargos ya se muestra tambien en abarrotes", () => {
     assert.match(html, /js\/inicio-pendientes\.js/);
     assert.match(html, /css\/components\/inicio-pendientes\.css/);
 
@@ -120,7 +120,9 @@ test("Pendientes en el Inicio de la computadora: conectados, apagados por defect
     assert.match(codigo, /Fiado pendiente/);
     assert.match(codigo, /if \(!activa\(\) \|\| !esAbarrotes\(\)\) return;/, "Fiado solo con la funcion encendida y en abarrotes");
 
-    assert.match(fs.readFileSync(publico("dueno.js"), "utf8"), /categoria\.id === "encargos-gestion" && window\.duenoGiro\?\.abarrotesSolo/);
+    // Encargos ya funciona en abarrotes (pasa solo a "en proceso de resurtido" y a "listo"): el celular y la computadora lo muestran.
+    assert.doesNotMatch(fs.readFileSync(publico("dueno.js"), "utf8"), /categoria\.id === "encargos-gestion" && window\.duenoGiro\?\.abarrotesSolo/);
+    assert.doesNotMatch(fs.readFileSync(publico("js/perfil-negocio.js"), "utf8"), /"encargos"/);
 });
 
 test("Diseño nuevo de la computadora: solo existe bajo html.diseno-nuevo (apagado no cambia nada)", () => {

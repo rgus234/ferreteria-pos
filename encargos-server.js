@@ -240,6 +240,21 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 return;
             }
 
+            // Desde el catalogo visual: si el producto ya esta en el encargo se suma la cantidad en vez de repetir el renglon.
+            if (req.body?.sumar === true && req.body?.productoId) {
+                const ya = await pool.query(
+                    `SELECT id FROM public.encargos_clientes_items WHERE encargo_id = $1 AND negocio_id = $2 AND producto_id = $3 ORDER BY id LIMIT 1`,
+                    [req.params.id, negocio.id, req.body.productoId]
+                );
+
+                if (ya.rows.length) {
+                    await pool.query(`UPDATE public.encargos_clientes_items SET cantidad = cantidad + $1 WHERE id = $2`, [Number(req.body?.cantidad || 1), ya.rows[0].id]);
+                    await pool.query(`UPDATE public.encargos_clientes SET updated_at = NOW() WHERE id = $1`, [req.params.id]);
+                    res.json({ ok: true, encargo: await encargoConItems(negocio.id, req.params.id) });
+                    return;
+                }
+            }
+
             await pool.query(
                 `INSERT INTO public.encargos_clientes_items
                     (negocio_id, encargo_id, producto_id, codigo, nombre, proveedor, marca, cantidad, precio_estimado)

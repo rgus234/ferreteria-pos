@@ -494,9 +494,8 @@ async function explorarNexoCrearEncargoSinResultado() {
 
 	itemsEncargoNuevo.push({ productoId: null, codigo: "", nombre, proveedor: "", marca: "", cantidad: 1, precioEstimado: 0 });
 
-	if (typeof renderTablaItemsEncargoNuevo === "function") renderTablaItemsEncargoNuevo();
-
-	document.getElementById("encargoClienteNombre")?.focus();
+	// Se abre el asistente de Nuevo encargo (paso 1: el cliente) con el producto ya agregado.
+	if (typeof abrirNuevoEncargo === "function") abrirNuevoEncargo({ conservar: true });
 }
 
 // Puente hacia Encargos (paso 7 del diseno aprobado): la busqueda
@@ -528,9 +527,8 @@ async function explorarNexoCrearEncargo(fuente, indice) {
 		precioEstimado: precioEstimado || 0
 	});
 
-	if (typeof renderTablaItemsEncargoNuevo === "function") renderTablaItemsEncargoNuevo();
-
-	document.getElementById("encargoClienteNombre")?.focus();
+	// Se abre el asistente de Nuevo encargo (paso 1: el cliente) con el producto ya agregado.
+	if (typeof abrirNuevoEncargo === "function") abrirNuevoEncargo({ conservar: true });
 }
 
 // "Pedir al proveedor" (restocking, sin cliente de por medio) --

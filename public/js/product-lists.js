@@ -35,36 +35,10 @@ async function mostrarListasProducto() {
  <h2>Listas de productos</h2>
  <p>Arma listas de productos que vendes seguido (utiles escolares, despensa basica) para agregarlas completas al carrito desde el Punto de Venta.</p>
  </div>
+ <button type="button" class="btn-nuevo-encargo" onclick="abrirNuevaLista()">＋ Nueva lista</button>
  </div>
 
  <div class="encargos-grid">
- <section class="encargos-panel">
- <h3>Nueva lista</h3>
-
- <div class="encargo-form-fila">
- <label>Nombre
- <input id="listaProductoNombre" placeholder="Ej. Utiles 3er grado">
- </label>
- <label>Descripcion
- <input id="listaProductoDescripcion" placeholder="Opcional">
- </label>
- </div>
-
- <div class="encargo-add-row">
- <label>Producto
- <input id="listaProductoItemNombre" placeholder="Busca por nombre, marca o código">
- </label>
- <label>Cant.
- <input id="listaProductoItemCantidad" type="number" step="0.001" min="0.001" placeholder="1">
- </label>
- <button type="button" class="btn-encargo-agregar" onclick="agregarItemFormularioListaProducto()">Agregar</button>
- </div>
-
- <div id="listaProductoTablaItemsNuevo"></div>
-
- <button type="button" class="btn-encargo-primario encargo-btn-full" onclick="guardarListaProductoNueva()">Guardar lista</button>
- </section>
-
  <section class="encargos-panel">
  <div class="encargos-panel-titulo-fila">
  <h3>Tus listas</h3>
@@ -339,15 +313,7 @@ function renderModalDetalleListaProducto() {
  </table>
  ${lista.items.length === 0 ? `<p class="encargo-items-vacio">Esta lista no tiene productos.</p>` : ""}
 
- <div class="encargo-add-row">
- <label>Producto
- <input id="listaDetalleItemNombre" placeholder="Busca por nombre, marca o código">
- </label>
- <label>Cant.
- <input id="listaDetalleItemCantidad" type="number" step="0.001" min="0.001" placeholder="1">
- </label>
- <button type="button" class="btn-encargo-agregar" onclick="agregarItemListaProductoExistente()">Agregar</button>
- </div>
+ <button type="button" class="btn-grande-agregar" onclick="abrirCatalogoListaExistente()">＋ Agregar productos</button>
 
  <div class="encargo-detalle-acciones">
  <button type="button" class="btn-encargo-primario" onclick="guardarCambiosListaProducto()">Guardar cambios</button>
