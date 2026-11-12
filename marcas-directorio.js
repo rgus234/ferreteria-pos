@@ -39,6 +39,7 @@ const PALABRAS_EXTRA = {
 const NUEVAS = [
     // Botanas y cereales
     ["Pringles", "Botanas", "rojo", "Kellanova", ["pringles"]],
+    ["Orange Crush", "Refrescos", "naranja", "", ["orange crush"]],
     ["ACT II", "Botanas", "naranja", "Conagra", ["act ii", "act 2"]],
     ["Tajín", "Salsas y condimentos", "rojo", "Tajín International", ["tajin"]],
     ["Quaker", "Cereales y avena", "rojo", "PepsiCo", ["quaker"]],
@@ -132,6 +133,12 @@ const NUEVAS = [
     ["Charras", "Botanas", "naranja", "", ["charras"]],
     ["Julitas", "Dulces y chicles", "rojo", "", ["julitas"]],
     ["Gerber", "Bebé", "verde", "Nestlé", ["gerber"]],
+    ["Cons-Mate", "Salsas y condimentos", "rojo", "", ["cons-mate", "cons mate", "consmate"]],
+    ["Pica-Limón", "Salsas y condimentos", "verde", "", ["pica-limon", "pica limon", "picalimon"]],
+    ["Pronto", "Despensa", "rojo", "", ["pronto hot cakes"]],
+    ["Milpa Real", "Despensa", "verde", "", ["milpa real"]],
+    ["La Fina", "Despensa", "azul", "", ["la fina"]],
+    ["Tarasquitos", "Otros", "verde", "", ["tarasquitos"]],
 
     // Limpieza del hogar
     ["Cloralex", "Limpieza", "azul", "Clorox", ["cloralex"]],

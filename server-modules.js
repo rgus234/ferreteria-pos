@@ -139,6 +139,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./exhibidores-avisos")(app, pool);
     });
 
+    cargarModuloPOS("proveedor por marca (abarrotes)", () => {
+        require("./proveedores-marca-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("asignar proveedor a varios productos", () => {
         require("./productos-proveedor-masivo-server")(app, pool, requerirAccesoNegocio);
     });

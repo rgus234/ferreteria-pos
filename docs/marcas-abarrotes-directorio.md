@@ -1,6 +1,6 @@
 # Directorio de marcas de abarrotes
 
-Revisa la columna **Empresa**. **Verificada** = confirmada en la web el 2026-11-10; el resto sale de conocimiento general y está por verificar. *(sin dato)* = no estoy seguro. Total: 144 marcas.
+Revisa la columna **Empresa**. **Verificada** = confirmada en la web el 2026-11-10; el resto sale de conocimiento general y está por verificar. *(sin dato)* = no estoy seguro. Total: 151 marcas.
 
 ## Aguas (3)
 
@@ -240,3 +240,15 @@ Revisa la columna **Empresa**. **Verificada** = confirmada en la web el 2026-11-
 | Hellmann's | Unilever |  | hellmanns, hellmann |
 | Knorr | Unilever |  | knorr |
 | Maggi | Nestlé |  | maggi |
+
+## Agregadas el 2026-11-14 (a petición del dueño, de sus productos reales)
+
+| Marca | Tipo | Empresa | Verificada | Se reconoce por |
+|---|---|---|---|---|
+| Cons-Mate | Salsas y condimentos | *(sin dato)* |  | cons-mate |
+| Pica-Limón | Salsas y condimentos | *(sin dato)* |  | pica-limon |
+| Pronto | Despensa | *(sin dato)* |  | pronto hot cakes |
+| Milpa Real | Despensa | *(sin dato)* |  | milpa real |
+| La Fina | Despensa | *(sin dato)* |  | la fina |
+| Tarasquitos | Otros | *(sin dato)* |  | tarasquitos |
+| Orange Crush | Refrescos | *(sin dato)* |  | orange crush |

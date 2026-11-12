@@ -32,7 +32,7 @@
 
         if (!Array.isArray(todosProductos) || !todosProductos.length) { try { await cargarProductos(); } catch (error) { /* se avisa abajo */ } }
 
-        const [prov, comp] = await Promise.all([llamar("/proveedores"), llamar("/pedido-minmax/comprometido")]);
+        const [prov, comp, marcas] = await Promise.all([llamar("/proveedores"), llamar("/pedido-minmax/comprometido"), llamar("/marcas-directorio")]);
 
         al = {
             productos: (Array.isArray(todosProductos) ? todosProductos : []).filter(p => Number(p.id) > 0),
@@ -41,7 +41,8 @@
             hasta: "minimo",
             items: null,
             guardados: new Map(),
-            elegido: {}
+            elegido: {},
+            marcas: (marcas.ok && marcas.datos.marcas) || []
         };
         pintar();
     };
@@ -130,8 +131,10 @@
         const productos = gs.reduce((s, g) => s + lineas(g).length, 0);
 
         const sinCosto = gs.reduce((c, g) => c + lineas(g).filter(i => !costoDe(i.p)).length, 0);
+        const sinResolver = gs.filter(g => g.clave === "sin" || !g.registro).length;
 
         return `<div class="pa-resumen"><span><b>${productos}</b> producto${productos === 1 ? "" : "s"} · <b>${gs.length}</b> proveedor${gs.length === 1 ? "" : "es"}</span><strong>${dinero(total)} <small>a costo</small></strong></div>
+            ${sinResolver ? `<div class="pa-auto"><span><b>${sinResolver} grupo${sinResolver === 1 ? "" : "s"}</b> no tiene${sinResolver === 1 ? "" : "n"} un proveedor creado. Nexo puede acomodarlos por la marca de cada producto (Doritos → Sabritas) y crear los proveedores que falten.</span><button type="button" class="pa-principal" onclick="paAcomodarPorMarca()">Acomodar por marca</button></div>` : ""}
             ${sinCosto ? `<p class="pa-nota">${sinCosto} producto${sinCosto === 1 ? "" : "s"} no tiene${sinCosto === 1 ? "" : "n"} costo capturado, así que el total es parcial. El costo se completa al recibir la factura de ese proveedor.</p>` : ""}
             ${gs.map(htmlGrupo).join("")}`;
     }
@@ -141,6 +144,13 @@
         const hoy = new Date().getDay();
         const dias = (Number(registro.dia_visita) - hoy + 7) % 7;
         return dias === 0 ? " · viene hoy" : (dias === 1 ? " · viene mañana" : ` · viene el ${DIAS[Number(registro.dia_visita)]}`);
+    }
+
+    // La marca del directorio que coincide con el nombre del proveedor (palabra completa): su imagen se ve en el encabezado.
+    function logoDe(nombre) {
+        const n = " " + plano(nombre).replace(/[^a-z0-9]+/g, " ") + " ";
+        const m = al.marcas.find(x => n.includes(" " + plano(x.nombre).replace(/[^a-z0-9]+/g, " ") + " "));
+        return m ? `<img class="pa-logo" src="/marcas-directorio/${esc(m.id)}/imagen" alt="" loading="lazy" onerror="this.remove()">` : "";
     }
 
     function htmlGrupo(g) {
@@ -169,7 +179,7 @@
                 <button type="button" onclick="paImprimir('${esc(g.clave)}')">Imprimir</button></div>`);
 
         return `<section class="pa-grupo ${aSinProveedor || sinCrear ? "pa-sin" : ""}" id="paG-${esc(g.clave)}">
-            <header><div><h3>${esc(g.nombre)}</h3><small>${ls.length} producto${ls.length === 1 ? "" : "s"}${esc(visita(g.registro))}${!aSinProveedor && !g.registro ? " · proveedor sin crear" : ""}${sinCosto ? ` · ${sinCosto} sin costo` : ""}</small></div>
+            <header><div class="pa-titulo">${logoDe(g.nombre)}<div><h3>${esc(g.nombre)}</h3><small>${ls.length} producto${ls.length === 1 ? "" : "s"}${esc(visita(g.registro))}${!aSinProveedor && !g.registro ? " · proveedor sin crear" : ""}${sinCosto ? ` · ${sinCosto} sin costo` : ""}${g.registro && g.registro.creado_automatico ? " · creado automáticamente" : ""}</small></div></div>
                 <strong class="pa-total" id="paT-${esc(g.clave)}">${dinero(totalDe(g))}</strong></header>
             ${asignar}${acciones}
             <div class="pa-tarjetas">${g.items.map(i => tarjeta(i)).join("")}</div>
@@ -187,6 +197,7 @@
             <small class="pa-hay">Hay ${numero(p.stock)} · mín ${numero(p.stock_minimo)}${i.enCamino ? ` · en camino ${numero(i.enCamino)}` : ""}</small>
             <div class="pa-cant"><button type="button" onclick="paSumar(${Number(p.id)}, -1)" aria-label="Menos">−</button><input type="number" min="0" step="1" value="${i.pedir}" onchange="paEscribir(${Number(p.id)}, this.value)" aria-label="Pedir"><button type="button" onclick="paSumar(${Number(p.id)}, 1)" aria-label="Más">+</button></div>
             <small class="pa-sub" id="paS-${Number(p.id)}">${costo ? `${dinero(costo)} c/u · ${dinero(i.pedir * costo)}` : "Sin costo"}</small>
+            <button type="button" class="pa-mover" onclick="paMover(${Number(p.id)})">Cambiar proveedor</button>
             <button type="button" class="pa-quitar" onclick="paEscribir(${Number(p.id)}, 0)" aria-label="Quitar">✕</button></article>`;
     }
 
@@ -264,6 +275,72 @@
         }
 
         await asignarGrupo(g, id);
+    };
+
+    // Un producto con el proveedor equivocado (el texto viejo del producto no siempre acierta): se le asigna otro, existente o nuevo.
+    window.paMover = function (id) {
+        const i = itemPorId(id);
+        if (!i) return;
+        document.getElementById("paFondo")?.remove();
+        const fondo = document.createElement("div");
+        fondo.id = "paFondo";
+        fondo.className = "pa-fondo";
+        fondo.onclick = e => { if (e.target === fondo) fondo.remove(); };
+        const actual = i.proveedor.registro ? Number(i.proveedor.registro.id) : 0;
+        fondo.innerHTML = `<div class="pa-modal" role="dialog" aria-label="Cambiar proveedor">
+            <header><div><h3>¿De qué proveedor es?</h3><p>${esc(i.p.nombre)}</p></div><button type="button" onclick="document.getElementById('paFondo').remove()" aria-label="Cerrar">✕</button></header>
+            <div class="pa-modal-lista">${al.proveedores.slice().sort((a, b) => String(a.nombre).localeCompare(String(b.nombre))).map(x => `<button type="button" class="${Number(x.id) === actual ? "actual" : ""}" onclick="paMoverA(${Number(id)}, ${Number(x.id)})">${esc(x.nombre)}${Number(x.id) === actual ? " <small>(actual)</small>" : ""}</button>`).join("") || `<p class="pa-vacio">Todavía no tienes proveedores creados.</p>`}</div>
+            <div class="pa-modal-nuevo"><input type="text" id="paMoverNuevo" placeholder="O escribe un proveedor nuevo" maxlength="120" onkeydown="if(event.key==='Enter'){paMoverNuevo(${Number(id)})}"><button type="button" class="pa-principal" onclick="paMoverNuevo(${Number(id)})">Crear y asignar</button></div></div>`;
+        document.body.appendChild(fondo);
+        setTimeout(() => document.getElementById("paMoverNuevo")?.focus(), 50);
+    };
+
+    // Asigna el proveedor solo a este producto y vuelve a armar el pedido (conservando las cantidades ajustadas).
+    window.paMoverA = async function (id, proveedorId) {
+        document.getElementById("paFondo")?.remove();
+        const r = await llamar("/productos/asignar-proveedor", { method: "POST", body: JSON.stringify({ productoIds: [id], proveedorId: Number(proveedorId) }) });
+
+        if (!r.ok) { aviso(r.datos.error || "No se pudo cambiar el proveedor.", "error"); return; }
+
+        const previas = new Map(al.items.map(x => [x.p.id, x.pedir]));
+        try { await cargarProductos(); } catch (error) { /* se queda con lo anterior */ }
+        al.productos = (Array.isArray(todosProductos) ? todosProductos : []).filter(p => Number(p.id) > 0);
+        al.items = calcular(previas);
+        pintar();
+        aviso(`Listo: ahora es de ${r.datos.proveedor}.`);
+    };
+
+    window.paMoverNuevo = async function (id) {
+        const nombre = String(document.getElementById("paMoverNuevo")?.value || "").replace(/\s+/g, " ").trim();
+        if (!nombre) { aviso("Escribe el nombre del proveedor.", "info"); return; }
+
+        let existente = al.proveedores.find(x => plano(x.nombre) === plano(nombre));
+
+        if (!existente) {
+            const r = await llamar("/proveedores", { method: "POST", body: JSON.stringify({ nombre }) });
+            if (!r.ok || !r.datos.proveedor) { aviso(r.datos.error || "No se pudo crear el proveedor.", "error"); return; }
+            existente = r.datos.proveedor;
+            al.proveedores.push(existente);
+        }
+
+        await window.paMoverA(id, existente.id);
+    };
+
+    window.paAcomodarPorMarca = async function () {
+        const r = await llamar("/productos/proveedores-por-marca", { method: "POST", body: "{}" });
+
+        if (!r.ok) { aviso(r.datos.error || "No se pudo acomodar por marca.", "error"); return; }
+
+        const d = r.datos;
+        aviso(`Listo: ${d.asignados} producto${d.asignados === 1 ? "" : "s"} con su proveedor.${d.creados.length ? " Proveedores creados: " + d.creados.join(", ") + "." : ""}${d.sinMarca ? " " + d.sinMarca + " sin marca conocida quedan aparte." : ""}`);
+
+        const previas = new Map(al.items.map(x => [x.p.id, x.pedir]));
+        const prov = await llamar("/proveedores");
+        if (prov.ok) al.proveedores = prov.datos.proveedores || [];
+        try { await cargarProductos(); } catch (error) { /* se queda con lo anterior */ }
+        al.productos = (Array.isArray(todosProductos) ? todosProductos : []).filter(p => Number(p.id) > 0);
+        al.items = calcular(previas);
+        pintar();
     };
 
     // ---------- guardar / enviar / copiar / imprimir ----------

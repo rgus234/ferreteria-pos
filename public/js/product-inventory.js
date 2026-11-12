@@ -2380,6 +2380,30 @@ async function autoDetectarCategoriaNexo() {
  }
 }
 
+// Abarrotes: con el nombre (o el codigo del catalogo) Nexo sabe la marca y sugiere su proveedor (Doritos -> Sabritas). Si ese proveedor todavia no existe
+// en tu lista, se crea solo al guardar. Solo llena el campo si esta vacio y nunca pisa lo que el dueño ya escribio.
+async function autoSugerirProveedor() {
+ const campo = document.getElementById("nuevoProveedor");
+ if (!campo || campo.value.trim()) return;
+ if (typeof perfilEsSimple !== "function" || !perfilEsSimple()) return;
+
+ const nombre = document.getElementById("nuevoNombre")?.value?.trim() || "";
+ if (nombre.length < 3) return;
+
+ try {
+  const respuesta = await fetch("/proveedores/sugerido?nombre=" + encodeURIComponent(nombre));
+  const datos = await respuesta.json();
+
+  if (!respuesta.ok || !datos.ok || !datos.sugerido || campo.value.trim()) return;
+  if ((document.getElementById("nuevoNombre")?.value?.trim() || "") !== nombre) return;
+
+  campo.value = datos.sugerido.proveedor;
+  marcarCampoAutocompletado("nuevoProveedor", true);
+ } catch (error) {
+  /* sin sugerencia: se escribe a mano */
+ }
+}
+
 async function detectarCategoriaConIA() {
  const nombre =
   document.getElementById("nuevoNombre")?.value?.trim() || "";
@@ -5050,6 +5074,9 @@ async function aplicarProductoCatalogoAlFormulario(producto, origen) {
 
  // El catalogo no la trajo clasificada: Nexo la sugiere con el nombre.
  if (!producto.categoriaNexoId) autoDetectarCategoriaNexo();
+
+ // Y el proveedor de su marca, si el producto no trae uno.
+ autoSugerirProveedor();
 
  document.getElementById("nuevaDescripcion").value =
  producto.descripcion || "";

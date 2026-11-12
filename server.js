@@ -6912,7 +6912,11 @@ RETURNING id
         // Catalogo de marcas (marcas-catalogo.js): en un abarrotes el producto cae solo en el exhibidor de su marca. Es un extra: si falla, el alta ya quedo.
         try {
             const marcasCatalogo = require("./marcas-catalogo");
-            if (await marcasCatalogo.esNegocioDeAbarrotes(pool, negocio.id)) await marcasCatalogo.colocarProductoEnMarca(pool, negocio.id, productoId, nombre);
+            if (await marcasCatalogo.esNegocioDeAbarrotes(pool, negocio.id)) {
+                await marcasCatalogo.colocarProductoEnMarca(pool, negocio.id, productoId, nombre);
+                // Y su proveedor: el de la marca (Doritos -> Sabritas). Nunca pisa uno que el producto ya traiga.
+                await require("./proveedores-marca").asignarProveedorAlAlta(pool, negocio.id, productoId, nombre);
+            }
         } catch (errorMarca) {
             console.error("No se pudo acomodar el producto por marca", errorMarca.message);
         }

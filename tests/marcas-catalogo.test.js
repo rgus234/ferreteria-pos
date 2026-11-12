@@ -30,7 +30,9 @@ test("catalogo de marcas: el directorio nuevo reconoce marcas y no revuelve las 
     assert.equal(marca("Fuzetea Durazno 600 ml"), "Coca-Cola");
     assert.equal(marca("Chocolala 330 ml"), "Lala");
     assert.equal(marca("Pingüinos Sabor Hershey's 80 g"), "Marinela", "un producto de familia no se roba por el sabor");
-    assert.equal(marca("Sal La Fina 1 kg"), null);
+    assert.equal(marca("Sal La Fina 1 kg"), "La Fina", "marca agregada a peticion del dueño (2026-11-14)");
+    assert.equal(marca("Sal de mesa 1 kg"), null, "un producto generico no se roba");
+    assert.equal(marca("Pronto Limpiador 400 ml"), null, "Pronto solo se reconoce como Pronto Hot Cakes");
     assert.equal(marcas.MARCAS.find(m => m.nombre === "Danone").empresa, "Danone");
     assert.equal(marcas.MARCAS.find(m => m.nombre === "Sabritas").empresa, "PepsiCo");
 });

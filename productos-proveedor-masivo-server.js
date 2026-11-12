@@ -30,7 +30,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 [proveedor.id, proveedor.nombre, negocioId, ids]
             );
 
-            res.json({ ok: true, actualizados: r.rowCount, proveedor: proveedor.nombre });
+            // El negocio aprende quien le vende cada marca: los siguientes productos de esa marca van con este proveedor.
+            const marcasAprendidas = await require("./proveedores-marca").aprenderMarcas(pool, negocioId, proveedor.id, ids);
+
+            res.json({ ok: true, actualizados: r.rowCount, proveedor: proveedor.nombre, marcasAprendidas });
         } catch (error) {
             responderError(res, error);
         }
