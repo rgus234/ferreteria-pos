@@ -47,3 +47,22 @@ test("clasificador: sin pistas no adivina", () => {
     assert.equal(clasificar("Articulo especial 12345"), null);
     assert.equal(clasificar(""), null);
 });
+
+test("clasificador: nombres de mostrador de una ferreteria real que antes caian en otro lado", () => {
+    const casos = [
+        ["Bolsa con 100 pijas cabeza cruz, punta de broca 1/2', FIERO", "Pijas"],
+        ["Aceite sintético para motor de 2 tiempos, 400 ml", "Aceites y grasas"],
+        ["Cemento Pvc", "Pegamentos"],
+        ["Coa agavera con mango de madera de 54', Truper", "Rastrillos y azadones"],
+        ["Conector de cobre, rosca exterior 2', FOSET", "Adaptadores"],
+        ["Conector para cable calibre 12", "Cable THW y de uso rudo"],
+        ["Niple terminal de latón de 5/16' X 1/2', FOSET", "Niples"],
+        ["Mini pinza de punta y corte 5', Pretul", "Pinzas"],
+        ["Mezcladora cuello alto para fregadero, negro, FOSET RIVIERA", "Mezcladoras de fregadero"],
+        ["Llave nariz 1/4 buelta", "Valvulas de paso y compuerta"],
+        ["Tubo rígido de cobre 3/4' tipo 'L', 3m, 1.9kg, FOSET", "Tubos"],
+        ["Cortadora de tubo ppr", "Cortadores y tijeras"],
+        ["Resorte p/ puerta de extension", "Ganchos y tensores"]
+    ];
+    for (const [nombre, sub] of casos) assert.equal(clasificar(nombre)?.sub, sub, nombre);
+});

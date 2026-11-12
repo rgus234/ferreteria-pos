@@ -7,6 +7,29 @@ const H = "Herramienta manual", E = "Herramienta electrica y neumatica", A = "Ab
   T = "Tornilleria y fijacion", CO = "Construccion", PI = "Pintura y acabados", AD = "Adhesivos y selladores", J = "Jardin y exteriores", S = "Seguridad industrial (EPP)",
   RO = "Ropa de trabajo", HO = "Hogar y limpieza", AU = "Automotriz y lubricantes", G = "Gas y calefaccion", CU = "Cuerdas, cadenas y sujecion", RE = "Refacciones y repuestos", EX = "Exhibidores y muebles";
 
+// Ajustes de nombres de mostrador (Olimpico): nombres cortos o con otra palabra que las reglas de R confundian. Se prueban primero y sobre el nombre completo.
+const AJ = [
+  [T, "Tornillos", "Pijas", /\bpijas?\b/],
+  [AU, "Lubricantes y fluidos", "Aceites y grasas", /\b(aceite|lubr[iu]cante)\b.*\b(2 tiempos|3 en 1|3en 1|cadenas?)\b|\b3 ?en ?1\b/],
+  [AD, "Pegamentos y cintas", "Pegamentos", /\bcemento\b.*\b(pvc|cpvc)\b/],
+  [A, "Lijas y abrasivos", "Piedras y cepillos de alambre", /\bcepillo\b.*\balambre\b/],
+  [P, "Conexiones y tuberia", "Coladeras, cespoles y sifones", /\b(contra ?canasta|comtra canasta)\b/],
+  [H, "Pinzas y cortadores", "Cortadores y tijeras", /\bcortador(a)? de tubo\b/],
+  [H, "Pinzas y cortadores", "Pinzas", /\bpinzas?\b/],
+  [J, "Herramienta de jardin", "Rastrillos y azadones", /\bcoa\b/],
+  [P, "Conexiones y tuberia", "Niples", /\bniple\b/],
+  [P, "Conexiones y tuberia", "Adaptadores", /\bmulti conector\b|\bconector(es)?\b.*\b(cobre|laton|flare|pealpe|rapidos?|click)\b/],
+  [P, "Tinacos y calentadores", "Tinacos y tanques", /\bfiltro para agua\b/],
+  [P, "Sanitarios", "Sanitarios y repuestos", /\b(empaque|tornillo|tornillos)\b.*\b(taza|tazs)\b|\btarja\b/],
+  [HO, "Limpieza", "Productos de limpieza", /\bdestapacanos\b/],
+  [P, "Valvulas", "Valvulas de paso y compuerta", /\bllave (angular|nariz|de esfera|de paso|paso)/],
+  [P, "Grifos y mezcladoras", "Mezcladoras de fregadero", /\bmezcladora\b.*\bfregadero\b/],
+  [C, "Bisagras y herrajes", "Ganchos y tensores", /\bresorte\b.*\bpuerta\b/],
+  [C, "Bisagras y herrajes", "Mensulas y soportes", /\btubo\b.*\b(closet|cortinero)\b|\bcortinero\b/],
+  [P, "Conexiones y tuberia", "Tubos", /\btubo\b.*\bcobre\b/],
+  [CU, "Cinchos y flejes", "Mallas y sombra", /\b(mala|malla) (sombra|verde)\b/],
+];
+
 const R = [
   // ---- Refacciones y exhibidores (primero: "empaque de repuesto" no es el producto en si)
   [RE, "Refacciones de herramienta", "Empaques y sellos", /\b(empaques?|sellos?|oring|o-ring)\b.*\b(repuesto|para)\b|\bempaque de repuesto\b|\bcaja de empaque\b/],
@@ -236,6 +259,7 @@ const norm = s => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "
 
 function clasificar(nombre) {
   const n = norm(nombre);
+  for (const [dep, cat, sub, re] of AJ) if (re.test(n)) return { dep, cat, sub };
   const sin = n.replace(PAQUETE, "");
   const cabeza = sin.split(" ").slice(0, 4).join(" ");
   const singEs = t => t.split(" ").map(w => (w.length > 5 && /es$/.test(w) ? w.slice(0, -2) : w)).join(" ");
