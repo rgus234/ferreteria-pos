@@ -56,6 +56,7 @@
                     { modulo: "proveedores", icono: "users", titulo: "Mis proveedores", texto: "Datos y días de visita" },
                     { modulo: "catalogo", icono: "file", titulo: "Catálogo de proveedor", texto: "Sus productos y precios" },
                     { modulo: "agenda-pagos", icono: "receipt", titulo: "Agenda de pagos", texto: "Lo que debes y cuándo pagarlo" },
+                    { modulo: "unir-proveedores", icono: "users", titulo: "Unir proveedores", texto: "Junta los que están repetidos" },
                     { modulo: "pedidos", icono: "clipboard", titulo: "Pedidos a proveedor", texto: "Los que armaste y enviaste", ocultaSi: () => pedidosUnicos() }
                 ] }
             ]
