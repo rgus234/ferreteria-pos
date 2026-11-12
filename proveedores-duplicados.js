@@ -30,7 +30,8 @@ function distancia(a, b) {
     return d[a.length][b.length];
 }
 
-function parecidos(a, b) {
+// subconjunto = false: solo mismo nombre o con una letra de diferencia (typos); no cuenta "DTC" dentro de "DTC AGUASCALIENTES".
+function parecidos(a, b, { subconjunto = true } = {}) {
     const ta = palabras(a);
     const tb = palabras(b);
 
@@ -41,7 +42,7 @@ function parecidos(a, b) {
     const chico = sa.size <= sb.size ? sa : sb;
     const grande = chico === sa ? sb : sa;
 
-    if ([...chico].every(w => grande.has(w))) return true;
+    if (subconjunto ? [...chico].every(w => grande.has(w)) : (sa.size === sb.size && [...sa].every(w => sb.has(w)))) return true;
 
     if (ta.length === 1 && tb.length === 1 && Math.max(ta[0].length, tb[0].length) >= 4 && Math.min(ta[0].length, tb[0].length) >= 3) return distancia(ta[0], tb[0]) <= 1;
 

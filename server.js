@@ -6881,7 +6881,7 @@ RETURNING id
         const proveedorIdNumerico = Number(proveedorId);
         const proveedorIdFinal = Number.isInteger(proveedorIdNumerico) && proveedorIdNumerico > 0
             ? proveedorIdNumerico
-            : (proveedor ? await resolverOcrearProveedorId(pool, negocio.id, proveedor) : null);
+            : (proveedor ? await resolverOcrearProveedorId(pool, negocio.id, proveedor, { parecido: "typos" }) : null);
 
         if (proveedorIdFinal) {
             await pool.query(`UPDATE public.productos SET proveedor_id = $1 WHERE id = $2`, [proveedorIdFinal, productoId]);
@@ -7276,7 +7276,7 @@ app.put("/editar-producto/:id", requerirAccesoNegocio, requerirPermiso(PERMISOS.
         const proveedorIdNumerico = Number(proveedorId);
         const proveedorIdResuelto = Number.isInteger(proveedorIdNumerico) && proveedorIdNumerico > 0
             ? proveedorIdNumerico
-            : (proveedor ? await resolverOcrearProveedorId(pool, negocio.id, proveedor) : null);
+            : (proveedor ? await resolverOcrearProveedorId(pool, negocio.id, proveedor, { parecido: "typos" }) : null);
 
         // Fase 8: los 3 toggles de visibilidad solo se tocan si esta
         // edicion los trae explicitos -- si vienen undefined (ninguna

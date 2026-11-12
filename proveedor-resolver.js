@@ -13,12 +13,16 @@ function normalizarNombreProveedor(nombre) {
     return String(nombre || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-async function resolverOcrearProveedorId(pool, negocioId, nombreProveedor) {
+// opciones.parecido (opcional): si no hay un proveedor con ese nombre exacto, se busca UNO ya existente que sea el mismo escrito distinto, en vez de
+// crear otro repetido. "typos" = mismo nombre o una letra de diferencia ("Gagi" / "Gafi"); "completo" = ademas que un nombre contenga al otro
+// ("DIPROFER MX" / "Diprofer"), para nombres que vienen de una factura. Con mas de un parecido NO se elige ninguno (se deja sin resolver).
+// opciones.rfc: un proveedor que ya tiene OTRO RFC nunca cuenta como el mismo. Solo se consideran proveedores activos (los unidos quedan inactivos).
+async function resolverOcrearProveedorId(pool, negocioId, nombreProveedor, opciones = {}) {
     const clave = normalizarNombreProveedor(nombreProveedor);
     if (!clave) return null;
 
     const coincidencias = await pool.query(
-        `SELECT id FROM public.proveedores WHERE negocio_id = $1 AND LOWER(TRIM(REGEXP_REPLACE(nombre, '\\s+', ' ', 'g'))) = $2`,
+        `SELECT id FROM public.proveedores WHERE negocio_id = $1 AND activo = true AND LOWER(TRIM(REGEXP_REPLACE(nombre, '\\s+', ' ', 'g'))) = $2`,
         [negocioId, clave]
     );
 
@@ -28,6 +32,16 @@ async function resolverOcrearProveedorId(pool, negocioId, nombreProveedor) {
 
     if (coincidencias.rows.length > 1) {
         return null;
+    }
+
+    if (opciones.parecido) {
+        const { parecidos } = require("./proveedores-duplicados");
+        const rfc = normalizarRfc(opciones.rfc);
+        const activos = (await pool.query(`SELECT id, nombre, COALESCE(rfc, '') AS rfc FROM public.proveedores WHERE negocio_id = $1 AND activo = true`, [negocioId])).rows;
+        const parecidosAl = activos.filter(p => parecidos(nombreProveedor, p.nombre, { subconjunto: opciones.parecido === "completo" }) && (!rfc || !p.rfc || normalizarRfc(p.rfc) === rfc));
+
+        if (parecidosAl.length === 1) return parecidosAl[0].id;
+        if (parecidosAl.length > 1) return null;
     }
 
     const nuevo = await pool.query(
@@ -53,10 +67,10 @@ function normalizarRfc(rfc) {
 // deja sin resolver, mismo criterio de "nunca fusionar solo".
 async function resolverProveedorPorRfc(pool, negocioId, rfcEmisor, nombreEmisor) {
     const rfc = normalizarRfc(rfcEmisor);
-    if (!rfc) return await resolverOcrearProveedorId(pool, negocioId, nombreEmisor);
+    if (!rfc) return await resolverOcrearProveedorId(pool, negocioId, nombreEmisor, { parecido: "completo" });
 
     const porRfc = await pool.query(
-        `SELECT id FROM public.proveedores WHERE negocio_id = $1 AND rfc = $2`,
+        `SELECT id FROM public.proveedores WHERE negocio_id = $1 AND rfc = $2 AND activo = true`,
         [negocioId, rfc]
     );
 
@@ -68,7 +82,8 @@ async function resolverProveedorPorRfc(pool, negocioId, rfcEmisor, nombreEmisor)
         return null;
     }
 
-    const porNombre = await resolverOcrearProveedorId(pool, negocioId, nombreEmisor);
+    // Por nombre: exacto o, si no, el que ya existe escrito distinto ("DIPROFER MX" -> "Diprofer"); solo crea uno nuevo si de verdad es otro.
+    const porNombre = await resolverOcrearProveedorId(pool, negocioId, nombreEmisor, { parecido: "completo", rfc });
     if (porNombre) {
         // Proveedor ya existia por nombre, sin RFC guardado todavia --
         // se completa con el de esta factura. No pisa nada: la

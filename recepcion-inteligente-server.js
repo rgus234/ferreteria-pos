@@ -333,7 +333,7 @@ async function procesarRemisionFoto(pool, negocioId, extraido, { empleadoId = nu
     }
 
     const proveedorId = extraido.proveedor
-        ? await resolverOcrearProveedorId(pool, negocioId, extraido.proveedor)
+        ? await resolverOcrearProveedorId(pool, negocioId, extraido.proveedor, { parecido: "completo" })
         : null;
 
     const conceptos = items.map(item => ({

@@ -732,9 +732,24 @@
         document.querySelectorAll("#rmGrid, #rmResumen").forEach(x => x.classList.remove("rm-saliendo"));
         pintarFiltros(); pintarGrid(); entrar();
     };
-    window.rmHistorial = function () { if (typeof abrirHistorialRecepciones === "function") abrirHistorialRecepciones(); };
+    window.rmHistorial = function () { cerrarPanelFacturas(); if (typeof abrirHistorialRecepciones === "function") abrirHistorialRecepciones(); };
     window.rmFacturaManual = function () { if (typeof mostrarRecepcionInteligente === "function") mostrarRecepcionInteligente(); };
     window.rmVerFacturas = function (ver) { rm.verFacturas = Boolean(ver); pintarFacturas(); if (ver && esAbarrotes()) cargarCorreo(); };
+
+    // El panel de facturas es un menu desplegable: se cierra al tocar fuera de el, al presionar Escape y al abrir el historial.
+    function cerrarPanelFacturas() {
+        if (!rm || !rm.verFacturas) return;
+        rm.verFacturas = false;
+        pintarFacturas();
+    }
+
+    document.addEventListener("click", evento => {
+        if (!rm || !rm.verFacturas) return;
+        // El camino del evento se fija al empezar: sirve aunque el boton tocado ya se haya vuelto a dibujar (y salido del documento).
+        if (evento.composedPath && evento.composedPath().some(n => n && n.id === "rmFacturas")) return;
+        cerrarPanelFacturas();
+    });
+    document.addEventListener("keydown", evento => { if (evento.key === "Escape") cerrarPanelFacturas(); });
 
     // ---------- Subir factura / remision y correo (Recibir con factura, abarrotes) ----------
 
