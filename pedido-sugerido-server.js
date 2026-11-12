@@ -221,6 +221,39 @@ function instalar(app, pool, requerirAccesoNegocio) {
         }
     });
 
+    // Costo ESTIMADO de los productos sin costo capturado (ferreteria): el precio de Distribuidor, que es lo mas cercano a lo que paga la tienda.
+    // Primero el del Catalogo Nexo TRUPER (por codigo o EAN); si no esta, el del catalogo del proveedor ligado al producto. Solo orienta: no se guarda.
+    app.get("/pedido-minmax/costos-estimados", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const id = negocioId(req);
+            const costos = {};
+            const guardar = filas => filas.forEach(r => { const v = Number(r.d); if (v > 0 && !(r.id in costos)) costos[r.id] = v; });
+            const sinCosto = `p.negocio_id = $1 AND COALESCE(p.costo, 0) <= 0`;
+
+            try {
+                guardar((await pool.query(
+                    `SELECT p.id, MAX(f.precio_distribuidor) AS d FROM public.productos p
+                       JOIN public.catalogo_fabricante_productos f ON f.fabricante = 'TRUPER' AND f.precio_distribuidor > 0 AND f.codigo = p.codigo
+                      WHERE ${sinCosto} GROUP BY p.id`, [id])).rows);
+                guardar((await pool.query(
+                    `SELECT p.id, MAX(f.precio_distribuidor) AS d FROM public.productos p
+                       JOIN public.catalogo_fabricante_productos f ON f.fabricante = 'TRUPER' AND f.precio_distribuidor > 0 AND f.ean = p.codigo
+                      WHERE ${sinCosto} GROUP BY p.id`, [id])).rows);
+            } catch (error) { /* sin el catalogo del fabricante se usa el del proveedor */ }
+
+            try {
+                guardar((await pool.query(
+                    `SELECT p.id, MAX(c.precio_distribuidor) AS d FROM public.productos p
+                       JOIN public.catalogo_productos c ON c.producto_id = p.id AND c.precio_distribuidor > 0
+                      WHERE ${sinCosto} GROUP BY p.id`, [id])).rows);
+            } catch (error) { /* sin catalogo de proveedor no hay estimado */ }
+
+            res.json({ ok: true, costos });
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
+
     // Lista de proveedores con su dia de visita y lo que conviene pedir en cada uno.
     app.get("/pedido-sugerido", requerirAccesoNegocio, async (req, res) => {
         try {

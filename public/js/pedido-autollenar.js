@@ -12,7 +12,16 @@
     const aviso = (mensaje, tipo) => { if (typeof mostrarToastPOS === "function") mostrarToastPOS(mensaje, tipo ? { tipo } : undefined); };
     const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
     const n = valor => { const x = Number(valor); return Number.isFinite(x) ? x : 0; };
-    const costoDe = p => { const c = n(p.costo); return c > 0 ? c : 0; };
+    // Ferreteria (perfil completo): el costo casi nunca esta capturado, asi que en pantalla se estima con el precio de distribuidor (se marca con ≈).
+    // Lo que se guarda en el pedido y se imprime para el proveedor usa SOLO el costo real.
+    const esFerreteria = () => !(typeof perfilEsSimple === "function" && perfilEsSimple());
+    const costoReal = p => { const c = n(p.costo); return c > 0 ? c : 0; };
+    // El estimado viene del servidor (distribuidor del Catalogo TRUPER o del catalogo del proveedor); NO el precio de distribuidor que el negocio le pone a sus clientes.
+    const costoEstimado = p => { if (costoReal(p) || !esFerreteria()) return 0; const d = n(al && al.estimados && al.estimados[p.id]); return d > 0 ? d : 0; };
+    const costoDe = p => costoReal(p) || costoEstimado(p);
+    const textoCosto = (p, pedir) => { const r = costoReal(p), e = costoEstimado(p); return r ? `${dinero(r)} c/u · ${dinero(pedir * r)}` : (e ? `≈ ${dinero(e)} c/u (estimado) · ≈ ${dinero(pedir * e)}` : "Sin costo"); };
+    // El minimo con el que nace todo producto (3, sin maximo): en ferreteria no significa que lo pidas, y marcaria casi todo el inventario.
+    const esMinimoDeFabrica = p => n(p.stock_minimo) === 3 && !(n(p.stock_maximo) > 0);
 
     let al = null;
 
@@ -32,12 +41,13 @@
 
         if (!Array.isArray(todosProductos) || !todosProductos.length) { try { await cargarProductos(); } catch (error) { /* se avisa abajo */ } }
 
-        const [prov, comp, marcas] = await Promise.all([llamar("/proveedores"), llamar("/pedido-minmax/comprometido"), llamar("/marcas-directorio")]);
+        const [prov, comp, marcas, est] = await Promise.all([llamar("/proveedores"), llamar("/pedido-minmax/comprometido"), llamar("/marcas-directorio"), esFerreteria() ? llamar("/pedido-minmax/costos-estimados") : Promise.resolve({ ok: false, datos: {} })]);
 
         al = {
             productos: (Array.isArray(todosProductos) ? todosProductos : []).filter(p => Number(p.id) > 0),
             proveedores: (prov.ok && prov.datos.proveedores) || [],
             comp: (comp.ok && comp.datos.productos) || {},
+            estimados: (est.ok && est.datos.costos) || {},
             hasta: "minimo",
             items: null,
             guardados: new Map(),
@@ -63,10 +73,12 @@
 
     function calcular(previas) {
         const items = [];
+        al.omitidos = 0;
 
         al.productos.forEach(p => {
             const minimo = n(p.stock_minimo);
             if (!(minimo > 0)) return;
+            const omitir = esFerreteria() && !al.incluirFabrica && esMinimoDeFabrica(p);
 
             const c = al.comp[p.id] || {};
             const proyectado = Math.round((n(p.stock) + n(c.enCamino) - n(c.encargado)) * 1000) / 1000;
@@ -76,6 +88,8 @@
 
             if (al.hasta === "minimo") { if (proyectado < minimo) pedir = Math.ceil(minimo - proyectado); }
             else if (proyectado <= minimo) pedir = Math.ceil(maximo - proyectado);
+
+            if (omitir) { if (pedir > 0) al.omitidos += 1; return; }
 
             if (pedir > 0) items.push({ p, pedir: previas && previas.has(p.id) ? previas.get(p.id) : pedir, proveedor: proveedorDe(p), sinMaximo: !(maxReal > 0) && al.hasta === "maximo", enCamino: n(c.enCamino) });
         });
@@ -123,9 +137,23 @@
         pintar();
     };
 
+    window.paFabrica = function () { al.incluirFabrica = !al.incluirFabrica; al.items = calcular(null); al.guardados = new Map(); pintar(); };
+
+    function notaOmitidos() {
+        if (!esFerreteria()) return "";
+        if (al.incluirFabrica) return `<p class="pa-nota">Incluí también los productos que tienen el mínimo de fábrica (3). <button type="button" class="pa-enlace-btn" onclick="paFabrica()">Quitarlos</button></p>`;
+        if (!al.omitidos) return "";
+        const calc = typeof funcionBeta === "function" && funcionBeta("minimos_ventas") && typeof mostrarMinimosVentas === "function";
+        return `<div class="pa-auto"><span><b>${al.omitidos} producto${al.omitidos === 1 ? "" : "s"}</b> ${al.omitidos === 1 ? "está" : "están"} bajo el mínimo solo porque tienen el mínimo de fábrica (3), no uno que tú pusiste, así que no los incluí.${calc ? " Con “Mínimos con tus ventas” Nexo pone el mínimo real de lo que sí vendes." : ""}</span><button type="button" class="pa-principal" onclick="paFabrica()">Incluirlos</button>${calc ? `<button type="button" class="pa-principal" onclick="mostrarMinimosVentas()">Calcular mis mínimos</button>` : ""}</div>`;
+    }
+
     function cuerpoResultado() {
         const gs = grupos();
-        if (!gs.length) return `<div class="pa-ok"><b>No hace falta pedir nada.</b><p>Todo lo que tiene mínimo está por encima de él${al.hasta === "maximo" ? " (o ya viene en camino)" : ""}. Si algo debería salir, revisa su mínimo en Inventario.</p></div>`;
+        if (!gs.length) return notaOmitidos() + `<div class="pa-ok"><b>No hace falta pedir nada.</b><p>Todo lo que tiene mínimo está por encima de él${al.hasta === "maximo" ? " (o ya viene en camino)" : ""}. Si algo debería salir, revisa su mínimo en Inventario.</p></div>`;
+        return notaOmitidos() + cuerpoGrupos(gs);
+    }
+
+    function cuerpoGrupos(gs) {
 
         const total = gs.reduce((s, g) => s + totalDe(g), 0);
         const productos = gs.reduce((s, g) => s + lineas(g).length, 0);
@@ -133,7 +161,7 @@
         const sinCosto = gs.reduce((c, g) => c + lineas(g).filter(i => !costoDe(i.p)).length, 0);
         const sinResolver = gs.filter(g => g.clave === "sin" || !g.registro).length;
 
-        return `<div class="pa-resumen"><span><b>${productos}</b> producto${productos === 1 ? "" : "s"} · <b>${gs.length}</b> proveedor${gs.length === 1 ? "" : "es"}</span><strong>${dinero(total)} <small>a costo</small></strong></div>
+        return `<div class="pa-resumen"><span><b>${productos}</b> producto${productos === 1 ? "" : "s"} · <b>${gs.length}</b> proveedor${gs.length === 1 ? "" : "es"}</span><strong>${gs.some(g => lineas(g).some(i => costoEstimado(i.p))) ? "≈ " : ""}${dinero(total)} <small>a costo</small></strong></div>
             ${sinResolver ? `<div class="pa-auto"><span><b>${sinResolver} grupo${sinResolver === 1 ? "" : "s"}</b> no tiene${sinResolver === 1 ? "" : "n"} un proveedor creado. Nexo puede acomodarlos por la marca de cada producto (Doritos → Sabritas) y crear los proveedores que falten.</span><button type="button" class="pa-principal" onclick="paAcomodarPorMarca()">Acomodar por marca</button></div>` : ""}
             ${sinCosto ? `<p class="pa-nota">${sinCosto} producto${sinCosto === 1 ? "" : "s"} no tiene${sinCosto === 1 ? "" : "n"} costo capturado, así que el total es parcial. El costo se completa al recibir la factura de ese proveedor.</p>` : ""}
             ${gs.map(htmlGrupo).join("")}`;
@@ -196,7 +224,7 @@
             <b class="pa-nombre">${esc(p.nombre)}</b>
             <small class="pa-hay">Hay ${numero(p.stock)} · mín ${numero(p.stock_minimo)}${i.enCamino ? ` · en camino ${numero(i.enCamino)}` : ""}</small>
             <div class="pa-cant"><button type="button" onclick="paSumar(${Number(p.id)}, -1)" aria-label="Menos">−</button><input type="number" min="0" step="1" value="${i.pedir}" onchange="paEscribir(${Number(p.id)}, this.value)" aria-label="Pedir"><button type="button" onclick="paSumar(${Number(p.id)}, 1)" aria-label="Más">+</button></div>
-            <small class="pa-sub" id="paS-${Number(p.id)}">${costo ? `${dinero(costo)} c/u · ${dinero(i.pedir * costo)}` : "Sin costo"}</small>
+            <small class="pa-sub" id="paS-${Number(p.id)}">${textoCosto(p, i.pedir)}</small>
             <button type="button" class="pa-mover" onclick="paMover(${Number(p.id)})">Cambiar proveedor</button>
             <button type="button" class="pa-quitar" onclick="paEscribir(${Number(p.id)}, 0)" aria-label="Quitar">✕</button></article>`;
     }
@@ -212,9 +240,8 @@
             const campo = t.querySelector(".pa-cant input");
             if (campo && document.activeElement !== campo) campo.value = i.pedir;
         }
-        const costo = costoDe(i.p);
         const s = document.getElementById(`paS-${id}`);
-        if (s) s.textContent = costo ? `${dinero(costo)} c/u · ${dinero(i.pedir * costo)}` : "Sin costo";
+        if (s) s.textContent = textoCosto(i.p, i.pedir);
         const g = grupos().find(x => x.clave === i.proveedor.clave);
         const total = document.getElementById(`paT-${i.proveedor.clave}`);
         if (g && total) total.textContent = dinero(totalDe(g));
@@ -359,7 +386,7 @@
             proveedor: g.nombre,
             estado,
             notas: "Sugerido con Autollenar",
-            items: ls.map(i => ({ productoId: i.p.id, codigo: i.p.codigo, nombre: i.p.nombre, cantidad: i.pedir, costo: costoDe(i.p), unidad: "pieza", proveedor: g.nombre }))
+            items: ls.map(i => ({ productoId: i.p.id, codigo: i.p.codigo, nombre: i.p.nombre, cantidad: i.pedir, costo: costoReal(i.p), unidad: "pieza", proveedor: g.nombre }))
         }) });
 
         if (!r.ok) { aviso(r.datos.error || "No se pudo guardar el pedido.", "error"); return false; }
@@ -371,7 +398,7 @@
     window.paGuardar = async function (clave, estado) {
         const g = grupoPorClave(clave);
         if (!g || !(await guardar(g, estado))) return;
-        aviso(`Pedido de ${g.nombre} guardado como ${estado === "enviado" ? "enviado" : "borrador"}: ${lineas(g).length} producto${lineas(g).length === 1 ? "" : "s"}, ${dinero(totalDe(g))}.`);
+        aviso(`Pedido de ${g.nombre} guardado como ${estado === "enviado" ? "enviado" : "borrador"}: ${lineas(g).length} producto${lineas(g).length === 1 ? "" : "s"}, ${dinero(lineas(g).reduce((s, i) => s + i.pedir * costoReal(i.p), 0))}.`);
         pintar();
     };
 
@@ -399,10 +426,10 @@
         const g = grupoPorClave(clave);
         if (!g) return;
         const negocio = (typeof configuracionNegocio === "function" && configuracionNegocio()) || {};
-        const filas = lineas(g).map(i => `<tr><td>${esc(i.p.codigo || "")}</td><td>${esc(i.p.nombre)}</td><td class="d">${i.pedir}</td><td class="d">${costoDe(i.p) ? dinero(costoDe(i.p)) : "—"}</td><td class="d">${costoDe(i.p) ? dinero(i.pedir * costoDe(i.p)) : "—"}</td></tr>`).join("");
+        const filas = lineas(g).map(i => `<tr><td>${esc(i.p.codigo || "")}</td><td>${esc(i.p.nombre)}</td><td class="d">${i.pedir}</td><td class="d">${costoReal(i.p) ? dinero(costoReal(i.p)) : "—"}</td><td class="d">${costoReal(i.p) ? dinero(i.pedir * costoReal(i.p)) : "—"}</td></tr>`).join("");
         const v = window.open("", "_blank", "width=900,height=720");
         if (!v) { aviso("Tu navegador bloqueó la ventana de impresión.", "info"); return; }
-        v.document.write(`<html><head><title>Pedido para ${esc(g.nombre)}</title><style>body{font-family:Arial,sans-serif;color:#111827;padding:28px}h1{font-size:22px;margin:0 0 2px}p{margin:0 0 18px;color:#475467}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #d0d5dd;padding:8px;text-align:left;font-size:13px}.d{text-align:right}tfoot td{font-weight:700;font-size:15px;border-bottom:0}</style></head><body><h1>Pedido para ${esc(g.nombre)}</h1><p>${esc(negocio.nombre || "")} · ${new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}</p><table><thead><tr><th>Código</th><th>Producto</th><th class="d">Cantidad</th><th class="d">Costo</th><th class="d">Importe</th></tr></thead><tbody>${filas}</tbody><tfoot><tr><td colspan="4">Total estimado</td><td class="d">${dinero(totalDe(g))}</td></tr></tfoot></table><script>window.print();<\/script></body></html>`);
+        v.document.write(`<html><head><title>Pedido para ${esc(g.nombre)}</title><style>body{font-family:Arial,sans-serif;color:#111827;padding:28px}h1{font-size:22px;margin:0 0 2px}p{margin:0 0 18px;color:#475467}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #d0d5dd;padding:8px;text-align:left;font-size:13px}.d{text-align:right}tfoot td{font-weight:700;font-size:15px;border-bottom:0}</style></head><body><h1>Pedido para ${esc(g.nombre)}</h1><p>${esc(negocio.nombre || "")} · ${new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}</p><table><thead><tr><th>Código</th><th>Producto</th><th class="d">Cantidad</th><th class="d">Costo</th><th class="d">Importe</th></tr></thead><tbody>${filas}</tbody><tfoot><tr><td colspan="4">Total estimado</td><td class="d">${dinero(lineas(g).reduce((s, i) => s + i.pedir * costoReal(i.p), 0))}</td></tr></tfoot></table><script>window.print();<\/script></body></html>`);
         v.document.close();
     };
 })();

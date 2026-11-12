@@ -292,8 +292,8 @@ function cerrarModalInventarioBajo() {
 }
 
 function generarSugerenciaPedido() {
- // Abarrotes con "Pedidos": el pedido sugerido es el de Pedidos (Autollenar, con fotos y por proveedor), no esta lista.
- if (typeof perfilEsSimple === "function" && perfilEsSimple() && typeof funcionBeta === "function" && funcionBeta("pedidos_unico") && typeof mostrarAutollenarPedido === "function") {
+ // Con "Pedidos" encendido (abarrotes y ferreteria): el pedido sugerido es el de Pedidos (Autollenar, con fotos y por proveedor), no esta lista.
+ if (typeof funcionBeta === "function" && funcionBeta("pedidos_unico") && typeof mostrarAutollenarPedido === "function") {
   mostrarAutollenarPedido();
   return;
  }
