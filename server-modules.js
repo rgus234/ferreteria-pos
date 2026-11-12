@@ -143,6 +143,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./proveedores-unir-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("minimos con tus ventas", () => {
+        require("./minimos-ventas-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("proveedor por marca (abarrotes)", () => {
         require("./proveedores-marca-server")(app, pool, requerirAccesoNegocio);
     });

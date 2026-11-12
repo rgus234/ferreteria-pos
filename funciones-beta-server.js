@@ -37,7 +37,8 @@ const FUNCIONES = {
     pedidos_unico: "Pedidos: crear, sugerir y hechos",
     agenda_pagos: "Agenda de pagos a proveedores",
     precios_lote: "Actualizar precios por lote",
-    unir_proveedores: "Unir proveedores repetidos"
+    unir_proveedores: "Unir proveedores repetidos",
+    minimos_ventas: "Minimos y maximos con tus ventas"
 };
 
 let columnaLista = false;

@@ -22,6 +22,7 @@
                 { titulo: "Revisa", tam: "m", cards: [
                     { modulo: "inventario-bajo", icono: "alert", titulo: "Se está acabando", texto: "Lo que ya casi no tienes" },
                     { modulo: "por-vencer", icono: "clock", etiquetaOriginal: true, texto: "Lo que caduca pronto" },
+                    { modulo: "minimos-ventas", icono: "clipboard", titulo: "Mínimos con tus ventas", texto: "Cuánto tener de cada cosa" },
                     { modulo: "pedido-sugerido", icono: "truck", titulo: "Qué pedir", texto: "Lo que conviene pedir a cada proveedor", ocultaSi: () => pedidosUnicos() }
                 ] },
                 { titulo: "Más herramientas", tam: "c", plegable: true, cards: [
