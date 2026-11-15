@@ -530,6 +530,39 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     );
 
+    // "Recibido, falta factura": la mercancia que ya recibiste a mano con proveedor y sigue esperando su factura, y, si esa factura ya llego (por correo o subida),
+    // cual es, para que la pantalla avise "ya llego su factura". Solo lee: el empate de verdad sigue siendo el de siempre al confirmar la factura (nunca suma dos veces).
+    app.get(
+        "/recepcion-inteligente/recibido-sin-factura",
+        requerirAccesoNegocio,
+        requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO),
+        async (req, res) => {
+            try {
+                const negocio = await negocioActual(req, pool);
+                const filas = (await pool.query(
+                    `SELECT rm.id, rm.proveedor, rm.total, rm.created_at,
+                            (SELECT COUNT(*)::int FROM public.recepciones_mercancia_items i WHERE i.recepcion_id = rm.id) AS productos,
+                            (SELECT ri.id FROM public.recepciones_inteligentes ri
+                               LEFT JOIN public.proveedores p ON p.id = ri.proveedor_id
+                              WHERE ri.negocio_id = rm.negocio_id AND ri.estado = 'pendiente' AND ri.origen IS DISTINCT FROM 'remision_foto'
+                                AND ri.created_at >= rm.created_at - INTERVAL '1 day'
+                                AND (lower(btrim(p.nombre)) = lower(btrim(rm.proveedor)) OR lower(btrim(ri.nombre_emisor)) = lower(btrim(rm.proveedor)))
+                              ORDER BY ri.created_at LIMIT 1) AS factura_id
+                       FROM public.recepciones_mercancia rm
+                      WHERE rm.negocio_id = $1 AND rm.estado = 'recibido_sin_factura' AND COALESCE(btrim(rm.proveedor), '') <> ''
+                        AND rm.created_at > NOW() - INTERVAL '${DIAS_VENTANA_CONCILIACION_REMISION} days'
+                      ORDER BY rm.created_at DESC LIMIT 20`, [negocio.id])).rows;
+
+                res.json({
+                    ok: true,
+                    recepciones: filas.map(f => ({ id: f.id, proveedor: f.proveedor, total: Number(f.total) || 0, creadaEn: f.created_at, productos: f.productos, facturaId: f.factura_id || null }))
+                });
+            } catch (error) {
+                responderError(res, error);
+            }
+        }
+    );
+
     // "Lo que sueles recibir" (pantalla Recibir de ferreteria): los productos que ya recibiste en los ultimos 90 dias, los que mas repites primero, con el
     // proveedor de la ultima vez. Si todavia no hay historial de recepciones, se ofrece lo que mas vendes. Solo lee: no cambia nada.
     app.get(

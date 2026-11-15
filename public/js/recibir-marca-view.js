@@ -148,12 +148,16 @@
         const recientes = listaFacturas().filter(f => !esAntigua(f));
         const fac = recientes.slice(0, 4).map(f => `<button type="button" class="rm-fac-mini" onclick="rmIrAFactura(${Number(f.id)})"><b>${esc(f.proveedor)}</b><small>${esc(haceCuanto(f))} · ${f.totalItems} producto${f.totalItems === 1 ? "" : "s"}</small><strong>${dinero(f.total)}</strong></button>`).join("");
         const facturas = fac ? `<div class="rm-sueles-cab"><b>Facturas por recibir</b>${recientes.length > 4 ? `<button type="button" class="rm-enlace" onclick="rmVerFacturas(true)">Ver las ${recientes.length}</button>` : ""}</div><div class="rm-fac-minis">${fac}</div>` : "";
+        const sf = (rm.sinFactura || []).slice(0, 6).map(r => r.facturaId
+            ? `<button type="button" class="rm-fac-mini ya" onclick="rmIrAFactura(${Number(r.facturaId)})"><b>${esc(r.proveedor)}</b><small>${esc(haceCuanto({ creadaEn: r.creadaEn }).replace("Llegó", "Recibido"))} · ${r.productos} producto${r.productos === 1 ? "" : "s"}</small><span class="rm-ya">Ya llegó su factura · Revisar</span></button>`
+            : `<div class="rm-fac-mini"><b>${esc(r.proveedor)}</b><small>${esc(haceCuanto({ creadaEn: r.creadaEn }).replace("Llegó", "Recibido"))} · ${r.productos} producto${r.productos === 1 ? "" : "s"}</small><span class="rm-falta">Falta su factura</span></div>`).join("");
+        const faltaFactura = sf ? `<div class="rm-sueles-cab"><b>Recibido, falta factura</b></div><div class="rm-fac-minis">${sf}</div><small class="rm-sueles-nota">Cuando llegue su factura, Nexo la compara con lo que recibiste y no suma dos veces.</small>` : "";
         const chip = (valor, etiqueta) => `<button type="button" class="rm-chip${(rm.provFiltro || "") === valor ? " activo" : ""}" onclick="rmProvFiltro(${JSON.stringify(valor).replace(/"/g, "&quot;")})">${esc(etiqueta)}</button>`;
         const chips = s && s.proveedores.length > 1 ? `<div class="rm-chips rm-sueles-chips">${chip("", "Todo")}${s.proveedores.map(p => chip(p.nombre, p.nombre)).join("")}</div>` : "";
         const titulo = !s ? "Cargando…" : (s.fuente === "recibido" ? "Lo que sueles recibir" : (s.fuente === "vendido" ? "Lo que más vendes" : ""));
         const nota = s && s.fuente === "vendido" ? `<small class="rm-sueles-nota">Todavía no hay recepciones anotadas: te muestro lo que más vendes.</small>` : "";
         const cab = titulo ? `<div class="rm-sueles-cab"><b>${esc(titulo)}</b><button type="button" class="rm-enlace" onclick="rmPorMarca(true)">Ver por marca</button></div>${nota}` : `<div class="rm-sueles-cab"><span></span><button type="button" class="rm-enlace" onclick="rmPorMarca(true)">Ver por marca</button></div>`;
-        return `<div class="rm-sueles">${facturas}${cab}${chips}</div>`;
+        return `<div class="rm-sueles">${facturas}${faltaFactura}${cab}${chips}</div>`;
     }
 
     window.rmProvFiltro = function (nombre) { rm.provFiltro = nombre || ""; pintarFiltros(); pintarGrid(); };
@@ -216,6 +220,7 @@
 
         llamar("/proveedores").then(r => { if (rm) { rm.proveedores = (r.datos.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre, diasCredito: x.dias_credito })).filter(x => x.nombre); pintarResumen(); } }).catch(() => {});
         llamar("/recepcion-inteligente/facturas").then(r => { if (rm) { rm.facturas = (r.datos.facturas || []).filter(f => f.estado === "pendiente"); pintarFacturas(); if (modoSueles()) pintarFiltros(); } }).catch(() => {});
+        if (aparta() && modo === "recibir") llamar("/recepcion-inteligente/recibido-sin-factura").then(r => { if (rm) { rm.sinFactura = r.ok ? (r.datos.recepciones || []) : []; if (modoSueles()) pintarFiltros(); } }).catch(() => {});
         if (aparta() && modo === "recibir") llamar("/recepcion-inteligente/lo-que-sueles-recibir").then(r => { if (rm) { rm.sueles = r.ok ? { fuente: r.datos.fuente, productos: r.datos.productos || [], proveedores: r.datos.proveedores || [] } : { fuente: "ninguno", productos: [], proveedores: [] }; pintarFiltros(); pintarGrid(); } }).catch(() => {});
     };
 

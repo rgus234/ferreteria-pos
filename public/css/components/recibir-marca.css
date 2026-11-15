@@ -322,3 +322,8 @@ body.oscuro .rm-correo b { color: #f1f5f9; }
 .rm-fac-mini strong { font-size: 15px; }
 .rm-sueles-chips { margin: 0 0 10px; }
 .rm-marcas > .rm-sueles { flex: 1 1 100%; grid-column: 1 / -1; width: 100%; min-width: 0; }
+.rm-fac-mini .rm-ya { color: #15803d; font-weight: 800; font-size: 13px; }
+.rm-fac-mini .rm-falta { color: #b45309; font-weight: 700; font-size: 13px; }
+.rm-fac-mini.ya { border-color: #86efac; background: color-mix(in srgb, #22c55e 8%, var(--pos-card, #fff)); }
+:root[data-theme="dark"] .rm-fac-mini .rm-ya { color: #4ade80; }
+:root[data-theme="dark"] .rm-fac-mini .rm-falta { color: #fbbf24; }
