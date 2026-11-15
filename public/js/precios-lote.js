@@ -10,6 +10,11 @@
     const quien = () => (typeof usuarioActual !== "undefined" && usuarioActual && (usuarioActual.nombre || usuarioActual.usuario)) || "";
 
     const CAMPOS = { precio_publico: "Precio de venta", costo: "Costo" };
+    // Ferreteria (perfil completo): los tres niveles de venta y el costo; se pueden mover varios a la vez con la misma regla.
+    const NIVELES = { precio_publico: "Público", precio_mayoreo: "Medio mayoreo", precio_distribuidor: "Distribuidor", costo: "Costo" };
+    const ETIQUETAS = { ...CAMPOS, ...NIVELES, precio_publico: "Precio de venta" };
+    const esFerr = () => !(typeof perfilEsSimple === "function" && perfilEsSimple());
+    const valorActual = (p, campo) => (campo === "precio_publico" ? (p.precio_publico !== null && p.precio_publico !== undefined ? p.precio_publico : p.precio) : p[campo]);
     const REDONDEOS = { ninguno: "Sin redondeo", peso: "Al peso", medio: "A 50 centavos", cinco: "Múltiplo de 5", diez: "Múltiplo de 10" };
     const TIPOS = { subir_pct: "Subir %", bajar_pct: "Bajar %", subir_monto: "Subir $", bajar_monto: "Bajar $", fijo: "Precio fijo" };
     const ORIGENES = { edicion: "Edición", alta: "Producto nuevo", lote: "Lote de precios", deshacer: "Se deshizo un lote" };
@@ -44,7 +49,8 @@
         else if (cfg.tipo === "bajar_monto") r = a - v;
         else r = v;
         // El redondeo es del precio que se eligio mover; el costo acompañante conserva sus centavos.
-        return Math.max(0, redondear(r, campo === cfg.campo ? cfg.redondeo : "ninguno"));
+        const regla = esFerr() ? (campo === "costo" ? "ninguno" : cfg.redondeo) : (campo === cfg.campo ? cfg.redondeo : "ninguno");
+        return Math.max(0, redondear(r, regla));
     }
 
     window.mostrarPreciosLote = async function () {
@@ -61,7 +67,7 @@
         let proveedores = [];
         try { proveedores = (await llamar("/proveedores")).datos.proveedores || []; } catch (error) { /* sin proveedores */ }
 
-        est = { pestana: "nuevo", productos, proveedores: new Map(proveedores.map(p => [Number(p.id), p.nombre])), alcance: "marca", elegidos: new Set(), busqueda: "", cfg: { campo: "precio_publico", tipo: "subir_pct", valor: "", redondeo: "peso", ambos: false }, filas: null, motivo: "", lotes: null, abierto: null, hist: null };
+        est = { pestana: "nuevo", productos, proveedores: new Map(proveedores.map(p => [Number(p.id), p.nombre])), alcance: "marca", elegidos: new Set(), busqueda: "", cfg: { campo: "precio_publico", tipo: "subir_pct", valor: "", redondeo: "peso", ambos: false, niveles: ["precio_publico"] }, filas: null, motivo: "", lotes: null, abierto: null, hist: null };
         pintar();
     };
 
@@ -124,12 +130,12 @@
                 <p class="pl-cuenta">${seleccionados.length} producto${seleccionados.length === 1 ? "" : "s"} elegido${seleccionados.length === 1 ? "" : "s"}</p></section>
             <section class="pl-paso"><h3><span>2</span> ¿Qué cambia?</h3>
                 <div class="pl-form">
-                    <label>Qué precio<select onchange="plCfg('campo', this.value)">${Object.entries(CAMPOS).map(([k, t]) => `<option value="${k}" ${est.cfg.campo === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+                    ${esFerr() ? nivelesHtml() : `<label>Qué precio<select onchange="plCfg('campo', this.value)">${Object.entries(CAMPOS).map(([k, t]) => `<option value="${k}" ${est.cfg.campo === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>`}
                     <label>Cómo<select onchange="plCfg('tipo', this.value)">${Object.entries(TIPOS).map(([k, t]) => `<option value="${k}" ${est.cfg.tipo === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
                     <label>${est.cfg.tipo.endsWith("pct") ? "Porcentaje" : "Cantidad ($)"}<input type="number" step="any" min="0" inputmode="decimal" placeholder="0" value="${esc(est.cfg.valor)}" oninput="plCfg('valor', this.value, true)"></label>
                     <label>Redondeo<select onchange="plCfg('redondeo', this.value)">${Object.entries(REDONDEOS).map(([k, t]) => `<option value="${k}" ${est.cfg.redondeo === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
                 </div>
-                ${est.cfg.tipo === "fijo" ? "" : `<label class="pl-check"><input type="checkbox" ${est.cfg.ambos ? "checked" : ""} onchange="plCfg('ambos', this.checked)"> Mover también ${est.cfg.campo === "costo" ? "el precio de venta" : "el costo"} en la misma cantidad</label>`}
+                ${esFerr() || est.cfg.tipo === "fijo" ? "" : `<label class="pl-check"><input type="checkbox" ${est.cfg.ambos ? "checked" : ""} onchange="plCfg('ambos', this.checked)"> Mover también ${est.cfg.campo === "costo" ? "el precio de venta" : "el costo"} en la misma cantidad</label>`}
                 <button type="button" class="pl-principal" onclick="plVistaPrevia()" ${seleccionados.length ? "" : "disabled"}>Ver cómo quedaría</button></section>
             <section class="pl-paso" id="plPrevia"></section>`;
 
@@ -145,21 +151,40 @@
         if (nuevo && campo) { nuevo.focus(); nuevo.setSelectionRange(nuevo.value.length, nuevo.value.length); }
     };
     window.plAlternar = function (clave) { if (est.elegidos.has(clave)) est.elegidos.delete(clave); else est.elegidos.add(clave); est.filas = null; const busq = est.busqueda; pintarNuevo(); est.busqueda = busq; };
+    function nivelesHtml() {
+        const sel = new Set(est.cfg.niveles || []);
+        return `<div class="pl-niveles"><span class="pl-niveles-t">Qué precios cambian</span>${Object.entries(NIVELES).map(([k, t]) => `<label class="pl-nivel${sel.has(k) ? " activo" : ""}"><input type="checkbox" ${sel.has(k) ? "checked" : ""} onchange="plNivel('${k}', this.checked)"> ${t}</label>`).join("")}</div>`;
+    }
+
+    window.plNivel = function (campo, marcado) {
+        const s = new Set(est.cfg.niveles || []);
+        if (marcado) s.add(campo); else s.delete(campo);
+        est.cfg.niveles = Object.keys(NIVELES).filter(k => s.has(k));
+        est.filas = null;
+        pintarNuevo();
+    };
+
     window.plCfg = function (campo, valor, sinPintar) { est.cfg[campo] = valor; est.filas = null; if (!sinPintar) { pintarNuevo(); } else { document.getElementById("plPrevia").innerHTML = ""; } };
 
     window.plVistaPrevia = function () {
         const valor = Number(est.cfg.valor);
         if (!(valor >= 0) || est.cfg.valor === "") { if (typeof alertaPOS === "function") alertaPOS("Escribe cuánto va a cambiar.", "Falta la cantidad", "alerta"); return; }
 
-        const acompaña = est.cfg.ambos && est.cfg.tipo !== "fijo";
-        const campos = acompaña ? [est.cfg.campo, est.cfg.campo === "costo" ? "precio_publico" : "costo"] : [est.cfg.campo];
+        const acompaña = !esFerr() && est.cfg.ambos && est.cfg.tipo !== "fijo";
+        let campos = acompaña ? [est.cfg.campo, est.cfg.campo === "costo" ? "precio_publico" : "costo"] : [est.cfg.campo];
+
+        if (esFerr()) {
+            campos = (est.cfg.niveles || []).slice();
+            if (!campos.length) { if (typeof alertaPOS === "function") alertaPOS("Marca al menos un precio para cambiar.", "Falta elegir el precio", "alerta"); return; }
+            if (est.cfg.tipo === "fijo" && campos.length > 1) { if (typeof alertaPOS === "function") alertaPOS("Con precio fijo elige un solo precio; para mover varios usa subir o bajar.", "Elige un solo precio", "alerta"); return; }
+        }
         const filas = [];
 
         productosDelAlcance().forEach(p => {
             const cambios = {};
 
             campos.forEach(campo => {
-                const actual = campo === "precio_publico" ? (p.precio_publico !== null && p.precio_publico !== undefined ? p.precio_publico : p.precio) : p.costo;
+                const actual = valorActual(p, campo);
                 if (actual === null || actual === undefined || !(Number(actual) > 0)) return;
                 const despues = calcular(actual, est.cfg, campo);
                 if (despues === null || Math.abs(despues - Number(actual)) < 0.005) return;
@@ -187,7 +212,7 @@
         const promedio = incluidas.length ? incluidas.reduce((s, f) => s + pct(f), 0) / incluidas.length : 0;
 
         caja.innerHTML = `<h3><span>3</span> Vista previa</h3>
-            <div class="pl-tabla-caja"><table class="pl-tabla"><thead><tr><th></th><th>Producto</th>${campos.map(c => `<th>${CAMPOS[c]}</th>`).join("")}<th>Cambio</th></tr></thead><tbody>
+            <div class="pl-tabla-caja"><table class="pl-tabla"><thead><tr><th></th><th>Producto</th>${campos.map(c => `<th>${(ETIQUETAS[c] || c)}</th>`).join("")}<th>Cambio</th></tr></thead><tbody>
             ${est.filas.map((f, i) => `<tr class="${f.incluido ? "" : "excluida"}"><td><input type="checkbox" ${f.incluido ? "checked" : ""} onchange="plIncluir(${i}, this.checked)" aria-label="Incluir"></td>
                 <td><b>${esc(f.p.nombre)}</b>${f.p.marca ? `<small>${esc(f.p.marca)}</small>` : ""}</td>
                 ${campos.map(c => f.cambios[c] ? `<td>${dinero(f.cambios[c].antes)} → <input class="pl-nuevo" type="number" step="0.01" min="0" value="${f.cambios[c].despues}" onchange="plEditar(${i}, '${c}', this.value)"></td>` : `<td>—</td>`).join("")}
@@ -257,7 +282,7 @@
         const r = await llamar("/precios-lote/lote/" + encodeURIComponent(id));
         const caja = document.getElementById("plDetalle");
         if (!caja) return;
-        caja.innerHTML = r.ok && r.datos.cambios.length ? `<table class="pl-tabla"><tbody>${r.datos.cambios.map(x => `<tr><td>${esc(x.producto_nombre)}</td><td>${CAMPOS[x.campo] || esc(x.campo)}</td><td>${dinero(x.anterior)} → <b>${dinero(x.nuevo)}</b></td></tr>`).join("")}</tbody></table>` : `<p class="pl-vacio">Sin detalle.</p>`;
+        caja.innerHTML = r.ok && r.datos.cambios.length ? `<table class="pl-tabla"><tbody>${r.datos.cambios.map(x => `<tr><td>${esc(x.producto_nombre)}</td><td>${ETIQUETAS[x.campo] || esc(x.campo)}</td><td>${dinero(x.anterior)} → <b>${dinero(x.nuevo)}</b></td></tr>`).join("")}</tbody></table>` : `<p class="pl-vacio">Sin detalle.</p>`;
     }
 
     window.plDeshacer = async function (id) {
@@ -306,6 +331,6 @@
     function historialHtml() {
         const h = est.hist;
         if (!h.cambios.length) return `<h3>${esc(h.nombre)}</h3><p class="pl-vacio">Todavía no hay cambios registrados de este producto.</p>`;
-        return `<h3>${esc(h.nombre)}</h3><table class="pl-tabla"><tbody>${h.cambios.map(x => `<tr><td>${esc(fechaHora(x.created_at))}</td><td>${CAMPOS[x.campo] || esc(x.campo.replace("precio_", "Precio "))}</td><td>${dinero(x.anterior)} → <b>${dinero(x.nuevo)}</b></td><td><small>${esc(ORIGENES[x.origen] || x.origen)}${x.motivo ? " · " + esc(x.motivo) : ""}${x.usuario ? " · " + esc(x.usuario) : ""}</small></td></tr>`).join("")}</tbody></table>`;
+        return `<h3>${esc(h.nombre)}</h3><table class="pl-tabla"><tbody>${h.cambios.map(x => `<tr><td>${esc(fechaHora(x.created_at))}</td><td>${ETIQUETAS[x.campo] || esc(x.campo.replace("precio_", "Precio "))}</td><td>${dinero(x.anterior)} → <b>${dinero(x.nuevo)}</b></td><td><small>${esc(ORIGENES[x.origen] || x.origen)}${x.motivo ? " · " + esc(x.motivo) : ""}${x.usuario ? " · " + esc(x.usuario) : ""}</small></td></tr>`).join("")}</tbody></table>`;
     }
 })();

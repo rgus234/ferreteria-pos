@@ -56,3 +56,9 @@
 :root.oscuro .pl-tabla td, :root.oscuro .pl-detalle, :root.oscuro .pl-tabla-caja, body.oscuro .pl-tabla td, body.oscuro .pl-detalle, body.oscuro .pl-tabla-caja { border-color: #334155; }
 :root.oscuro .pl-lote-acciones button, body.oscuro .pl-lote-acciones button { background: #1e293b; color: #f1f5f9; }
 :root.oscuro .pl-lote-acciones .pl-peligro, body.oscuro .pl-lote-acciones .pl-peligro { background: #450a0a; color: #fecaca; }
+
+/* Ferreteria: elegir cuales de los tres niveles de precio (y el costo) se mueven */
+.pl-niveles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; grid-column: 1 / -1; }
+.pl-niveles-t { font-weight: 800; margin-right: 4px; }
+.pl-nivel { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 2px solid var(--pos-line, #cbd5e1); border-radius: 999px; background: var(--pos-card, #fff); font-weight: 700; cursor: pointer; }
+.pl-nivel.activo { border-color: var(--brand-color, #1d4ed8); background: color-mix(in srgb, var(--brand-color, #1d4ed8) 10%, var(--pos-card, #fff)); }
