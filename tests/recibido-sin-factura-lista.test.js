@@ -12,9 +12,9 @@ const lista = async () => (await (await fetch(`${BASE_URL}/recepcion-inteligente
 const rapida = async cuerpo => (await fetch(`${BASE_URL}/recepciones-mercancia/rapida`, { method: "POST", headers: headers(), body: JSON.stringify(cuerpo) })).json();
 const nuevoProducto = async (codigo, nombre) => (await pool.query(`INSERT INTO public.productos (negocio_id, nombre, codigo, precio, stock) VALUES ($1,$2,$3,50,0) RETURNING id`, [negocio.negocioId, nombre, codigo])).rows[0].id;
 
-const cfdi = uuid => `<?xml version="1.0" encoding="UTF-8"?>
+const cfdi = (uuid, emisor = NOMBRE) => `<?xml version="1.0" encoding="UTF-8"?>
 <cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" Version="4.0" Folio="7" Fecha="2026-11-10T10:00:00" SubTotal="100.00" Total="116.00">
-  <cfdi:Emisor Rfc="PLF850101AB1" Nombre="${NOMBRE}"/>
+  <cfdi:Emisor Rfc="PLF850101AB1" Nombre="${emisor}"/>
   <cfdi:Receptor Rfc="OLI900101XX1" Nombre="RECEPTOR DE PRUEBA"/>
   <cfdi:Conceptos><cfdi:Concepto NoIdentificacion="ZZTEST-LF-001" ClaveProdServ="27112700" Descripcion="Producto lista falta factura" Cantidad="4" ValorUnitario="25" Importe="100.00"/></cfdi:Conceptos>
   <cfdi:Impuestos TotalImpuestosTrasladados="0"/>
@@ -61,4 +61,32 @@ test("lo recibido a mano con proveedor aparece como 'falta factura'; sin proveed
 
     await pool.query(`UPDATE public.recepciones_mercancia SET estado = 'conciliado' WHERE negocio_id = $1`, [negocio.negocioId]);
     assert.deepEqual((await lista()).recepciones, [], "ya conciliada, sale de la lista");
+});
+
+test("el empate tolera el nombre escrito distinto: recibido como \"Prueba Unico Falta\" y la factura llega de \"PRUEBA UNICO FALTA MX\"", async () => {
+    const productoId = await nuevoProducto("ZZTEST-LF-002", "Producto lista parecido");
+    const otro = (await pool.query(`INSERT INTO public.proveedores (negocio_id, nombre) VALUES ($1,$2) RETURNING id`, [negocio.negocioId, "PRUEBA UNICO FALTA MX"])).rows[0].id;
+
+    const manual = await rapida({ proveedor: "Prueba Unico Falta", sinFactura: true, referencia: "Recibir mercancia", idempotencyKey: "lf-parecido", items: [{ productoId, cantidad: 3, costo: 0 }] });
+    assert.equal(manual.ok, true, JSON.stringify(manual));
+    assert.equal((await lista()).recepciones[0].facturaId, null);
+
+    const subida = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas`, { method: "POST", headers: headers(), body: JSON.stringify({ xml: cfdi("UUID-LISTA-PARECIDO-0002", "PRUEBA UNICO FALTA MX") }) })).json();
+    assert.ok(subida.recepcionId, JSON.stringify(subida));
+    await pool.query(`UPDATE public.recepciones_inteligentes SET proveedor_id = $2 WHERE id = $1`, [subida.recepcionId, otro]);
+
+    assert.equal((await lista()).recepciones[0].facturaId, subida.recepcionId, "avisa que ya llego su factura aunque el nombre no sea igual");
+
+    const posible = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${subida.recepcionId}/posible-conciliacion`, { headers: headers() })).json();
+    assert.ok(posible.remisionPendiente, "al confirmar, ofrece la recepcion hecha a mano");
+    assert.equal(posible.remisionPendiente.recepcionMercanciaId, manual.recepcion.id);
+
+    // Un proveedor sin parecido NO se ofrece.
+    const ajeno = (await pool.query(`INSERT INTO public.proveedores (negocio_id, nombre) VALUES ($1,$2) RETURNING id`, [negocio.negocioId, "Otro Distinto Total"])).rows[0].id;
+    await pool.query(`UPDATE public.recepciones_inteligentes SET proveedor_id = $2, nombre_emisor = $3 WHERE id = $1`, [subida.recepcionId, ajeno, "Otro Distinto Total"]);
+    assert.equal((await lista()).recepciones[0].facturaId, null, "otro proveedor no se empata");
+    const noPosible = await (await fetch(`${BASE_URL}/recepcion-inteligente/facturas/${subida.recepcionId}/posible-conciliacion`, { headers: headers() })).json();
+    assert.equal(noPosible.remisionPendiente, null);
+
+    await pool.query(`UPDATE public.recepciones_mercancia SET estado = 'conciliado' WHERE negocio_id = $1`, [negocio.negocioId]);
 });

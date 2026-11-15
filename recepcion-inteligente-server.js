@@ -396,6 +396,16 @@ async function procesarRemisionFoto(pool, negocioId, extraido, { empleadoId = nu
 // posible, lo dice, para que una persona confirme o descarte.
 const DIAS_VENTANA_CONCILIACION_REMISION = 20;
 
+// Mismo proveedor aunque este escrito distinto ("Diprofer" / "DIPROFER MX", "Gafi" / "Gagi"): la recepcion hecha a mano guarda el nombre que eligio la persona y la
+// factura trae el del emisor. Solo SUGIERE (la persona siempre confirma viendo las dos lado a lado), asi que no hace falta que sea exacto.
+function mismoProveedor(a, b) {
+    const x = String(a || "").trim().toLowerCase().replace(/s+/g, " ");
+    const y = String(b || "").trim().toLowerCase().replace(/s+/g, " ");
+    if (!x || !y) return false;
+    if (x === y) return true;
+    try { return require("./proveedores-duplicados").parecidos(a, b, { subconjunto: true }); } catch (error) { return false; }
+}
+
 async function buscarRemisionPendienteConciliable(pool, negocioId, proveedorId, facturaId = null) {
     if (!proveedorId && !facturaId) return null;
 
@@ -424,17 +434,17 @@ async function buscarRemisionPendienteConciliable(pool, negocioId, proveedorId, 
 
     if (proveedor.rows[0]?.nombre) {
         const manuales = await pool.query(
-            `SELECT rm.id, rm.referencia, rm.fecha_documento, rm.total, rm.created_at
+            `SELECT rm.id, rm.referencia, rm.fecha_documento, rm.total, rm.created_at, rm.proveedor
              FROM public.recepciones_mercancia rm
              WHERE rm.negocio_id = $1
                AND rm.estado = 'recibido_sin_factura'
                AND rm.tipo_documento LIKE 'Recepcion rapida%'
-               AND lower(btrim(rm.proveedor)) = lower(btrim($2))
+               AND COALESCE(btrim(rm.proveedor), '') <> ''
                AND rm.created_at > NOW() - INTERVAL '${DIAS_VENTANA_CONCILIACION_REMISION} days'
              ORDER BY rm.created_at DESC`,
-            [negocioId, proveedor.rows[0].nombre]
+            [negocioId]
         );
-        todas = [...todas, ...manuales.rows.filter(m => !todas.some(c => c.id === m.id))].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        todas = [...todas, ...manuales.rows.filter(m => mismoProveedor(m.proveedor, proveedor.rows[0].nombre)).filter(m => !todas.some(c => c.id === m.id))].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
 
     // Recibidas contra un pedido (Pedidos -> Recibir): el pedido se guarda con la marca y la factura trae la razon social del emisor, asi que
@@ -541,17 +551,23 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 const negocio = await negocioActual(req, pool);
                 const filas = (await pool.query(
                     `SELECT rm.id, rm.proveedor, rm.total, rm.created_at,
-                            (SELECT COUNT(*)::int FROM public.recepciones_mercancia_items i WHERE i.recepcion_id = rm.id) AS productos,
-                            (SELECT ri.id FROM public.recepciones_inteligentes ri
-                               LEFT JOIN public.proveedores p ON p.id = ri.proveedor_id
-                              WHERE ri.negocio_id = rm.negocio_id AND ri.estado = 'pendiente' AND ri.origen IS DISTINCT FROM 'remision_foto'
-                                AND ri.created_at >= rm.created_at - INTERVAL '1 day'
-                                AND (lower(btrim(p.nombre)) = lower(btrim(rm.proveedor)) OR lower(btrim(ri.nombre_emisor)) = lower(btrim(rm.proveedor)))
-                              ORDER BY ri.created_at LIMIT 1) AS factura_id
+                            (SELECT COUNT(*)::int FROM public.recepciones_mercancia_items i WHERE i.recepcion_id = rm.id) AS productos
                        FROM public.recepciones_mercancia rm
                       WHERE rm.negocio_id = $1 AND rm.estado = 'recibido_sin_factura' AND COALESCE(btrim(rm.proveedor), '') <> ''
                         AND rm.created_at > NOW() - INTERVAL '${DIAS_VENTANA_CONCILIACION_REMISION} days'
                       ORDER BY rm.created_at DESC LIMIT 20`, [negocio.id])).rows;
+
+                // Facturas pendientes (con el nombre de su proveedor ligado y el del emisor): la primera del mismo proveedor, escrito igual o parecido, que llego despues.
+                const facturas = filas.length ? (await pool.query(
+                    `SELECT ri.id, ri.created_at, ri.nombre_emisor, p.nombre AS proveedor
+                       FROM public.recepciones_inteligentes ri LEFT JOIN public.proveedores p ON p.id = ri.proveedor_id
+                      WHERE ri.negocio_id = $1 AND ri.estado = 'pendiente' AND ri.origen IS DISTINCT FROM 'remision_foto'
+                      ORDER BY ri.created_at`, [negocio.id])).rows : [];
+                filas.forEach(f => {
+                    const desde = new Date(f.created_at).getTime() - 86400000;
+                    const hallada = facturas.find(x => new Date(x.created_at).getTime() >= desde && (mismoProveedor(f.proveedor, x.proveedor) || mismoProveedor(f.proveedor, x.nombre_emisor)));
+                    f.factura_id = hallada ? hallada.id : null;
+                });
 
                 res.json({
                     ok: true,
