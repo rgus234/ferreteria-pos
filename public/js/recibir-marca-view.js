@@ -133,9 +133,36 @@
         return cuenta.size > 1 ? [...cuenta.entries()].sort((a, b) => b[1] - a[1]) : [];
     }
 
+    // Ferreteria con la puerta unica: en vez de tarjetas de marcas, lo que ya sueles recibir (con filtro por proveedor) y las facturas por recibir.
+    const modoSueles = () => Boolean(rm) && rm.modo === "recibir" && aparta() && !rm.factura && !rm.verMarcas;
+
+    function suelesVisibles() {
+        const s = rm.sueles;
+        if (!s) return [];
+        const prov = rm.provFiltro || "";
+        return s.productos.filter(x => !prov || x.proveedor === prov).map(x => rm.indice.get(Number(x.id))).filter(Boolean);
+    }
+
+    function suelesHtml() {
+        const s = rm.sueles;
+        const recientes = listaFacturas().filter(f => !esAntigua(f));
+        const fac = recientes.slice(0, 4).map(f => `<button type="button" class="rm-fac-mini" onclick="rmIrAFactura(${Number(f.id)})"><b>${esc(f.proveedor)}</b><small>${esc(haceCuanto(f))} · ${f.totalItems} producto${f.totalItems === 1 ? "" : "s"}</small><strong>${dinero(f.total)}</strong></button>`).join("");
+        const facturas = fac ? `<div class="rm-sueles-cab"><b>Facturas por recibir</b>${recientes.length > 4 ? `<button type="button" class="rm-enlace" onclick="rmVerFacturas(true)">Ver las ${recientes.length}</button>` : ""}</div><div class="rm-fac-minis">${fac}</div>` : "";
+        const chip = (valor, etiqueta) => `<button type="button" class="rm-chip${(rm.provFiltro || "") === valor ? " activo" : ""}" onclick="rmProvFiltro(${JSON.stringify(valor).replace(/"/g, "&quot;")})">${esc(etiqueta)}</button>`;
+        const chips = s && s.proveedores.length > 1 ? `<div class="rm-chips rm-sueles-chips">${chip("", "Todo")}${s.proveedores.map(p => chip(p.nombre, p.nombre)).join("")}</div>` : "";
+        const titulo = !s ? "Cargando…" : (s.fuente === "recibido" ? "Lo que sueles recibir" : (s.fuente === "vendido" ? "Lo que más vendes" : ""));
+        const nota = s && s.fuente === "vendido" ? `<small class="rm-sueles-nota">Todavía no hay recepciones anotadas: te muestro lo que más vendes.</small>` : "";
+        const cab = titulo ? `<div class="rm-sueles-cab"><b>${esc(titulo)}</b><button type="button" class="rm-enlace" onclick="rmPorMarca(true)">Ver por marca</button></div>${nota}` : `<div class="rm-sueles-cab"><span></span><button type="button" class="rm-enlace" onclick="rmPorMarca(true)">Ver por marca</button></div>`;
+        return `<div class="rm-sueles">${facturas}${cab}${chips}</div>`;
+    }
+
+    window.rmProvFiltro = function (nombre) { rm.provFiltro = nombre || ""; pintarFiltros(); pintarGrid(); };
+    window.rmPorMarca = function (ver) { rm.verMarcas = Boolean(ver); pintarFiltros(); pintarGrid(); };
+
     function productosVisibles() {
         if (soloMarcas()) return [];
         const q = plano(rm.consulta).trim();
+        if (!q && modoSueles()) return suelesVisibles();
 
         // Abarrotes con una marca elegida: el buscador solo busca en los productos de esa marca.
         if (esAbarrotes() && rm.marca && !rm.factura) {
@@ -171,7 +198,7 @@
         const pantalla = document.getElementById("pantallaRecibirMarca");
         if (!pantalla) return;
         pantalla.style.display = "block";
-        if (typeof actualizarTopbarContexto === "function") (modo !== "recibir" ? actualizarTopbarContexto(modo === "sugerir" ? "Sugerir pedido" : "Crear pedido", modo === "sugerir" ? "Pon mínimo y máximo y Nexo calcula lo que falta" : "Elige la marca y anota lo que quieres pedir", "pedidos-unico") : actualizarTopbarContexto(esAbarrotes() ? "Recibir mercancía" : "Recibir por marca", esAbarrotes() ? "Elige la marca y anota lo que llegó" : "Anota lo que llegó por marca o con la factura", "recibir-marca"));
+        if (typeof actualizarTopbarContexto === "function") (modo !== "recibir" ? actualizarTopbarContexto(modo === "sugerir" ? "Sugerir pedido" : "Crear pedido", modo === "sugerir" ? "Pon mínimo y máximo y Nexo calcula lo que falta" : "Elige la marca y anota lo que quieres pedir", "pedidos-unico") : actualizarTopbarContexto(esAbarrotes() || funcionBeta("recepcion_unica") ? "Recibir mercancía" : "Recibir por marca", esAbarrotes() ? "Elige la marca y anota lo que llegó" : (funcionBeta("recepcion_unica") ? "Escanea lo que llegó, con factura o sin ella" : "Anota lo que llegó por marca o con la factura"), "recibir-marca"));
         pantalla.innerHTML = `<div class="rm-shell"><p class="rm-nota">Cargando tu catálogo…</p></div>`;
 
         if (!Array.isArray(todosProductos) || !todosProductos.length) { try { await cargarProductos(); } catch (error) { /* se avisa abajo */ } }
@@ -188,7 +215,8 @@
         pintar();
 
         llamar("/proveedores").then(r => { if (rm) { rm.proveedores = (r.datos.proveedores || []).map(x => ({ id: x.id, nombre: x.nombre, diasCredito: x.dias_credito })).filter(x => x.nombre); pintarResumen(); } }).catch(() => {});
-        llamar("/recepcion-inteligente/facturas").then(r => { if (rm) { rm.facturas = (r.datos.facturas || []).filter(f => f.estado === "pendiente"); pintarFacturas(); } }).catch(() => {});
+        llamar("/recepcion-inteligente/facturas").then(r => { if (rm) { rm.facturas = (r.datos.facturas || []).filter(f => f.estado === "pendiente"); pintarFacturas(); if (modoSueles()) pintarFiltros(); } }).catch(() => {});
+        if (aparta() && modo === "recibir") llamar("/recepcion-inteligente/lo-que-sueles-recibir").then(r => { if (rm) { rm.sueles = r.ok ? { fuente: r.datos.fuente, productos: r.datos.productos || [], proveedores: r.datos.proveedores || [] } : { fuente: "ninguno", productos: [], proveedores: [] }; pintarFiltros(); pintarGrid(); } }).catch(() => {});
     };
 
     // Recibir contra un pedido: cada producto del pedido trae "Esperado N" (lo que falta por llegar), igual que con una factura.
@@ -291,6 +319,12 @@
 
         const m = document.getElementById("rmMarcas");
         if (!m) return;
+        if (modoSueles()) {
+            const t = document.getElementById("rmTipos");
+            if (t) t.innerHTML = "";
+            m.innerHTML = rm.consulta.trim() ? "" : suelesHtml();
+            return;
+        }
         const todas = gruposVisibles();
         const buscando = Boolean(rm.consulta.trim());
         // con muchas marcas se ven solo las de mas productos (y la elegida); el resto queda detras de "Ver todas"
@@ -319,7 +353,8 @@
             ? `<button type="button" class="rm-marca rm-mas" onclick="rmVerMarcas(true)"><b>Ver las ${ocultas} marcas restantes</b><small>o escribe la marca arriba</small></button>`
             : (rm.verTodasMarcas && !rm.factura && !buscando && todas.length > MARCAS_VISIBLES + 2 ? `<button type="button" class="rm-marca rm-mas" onclick="rmVerMarcas(false)"><b>Mostrar menos marcas</b></button>` : "");
         if (soloMarcas() && buscando && !marcasQueCoinciden().length) { m.innerHTML = `<p class="rm-nota rm-completo">No encontré marcas ni productos con eso.</p>`; return; }
-        m.innerHTML = rm.factura ? "" : lista.map(boton).join("") + mas;
+        const volverSueles = rm.verMarcas && aparta() && rm.modo === "recibir" && !rm.factura ? `<div class="rm-volver"><button type="button" class="rm-btn" onclick="rmPorMarca(false)">‹ Lo que sueles recibir</button></div>` : "";
+        m.innerHTML = rm.factura ? "" : volverSueles + lista.map(boton).join("") + mas;
     }
 
     function atajosCantidad(p, id) {
@@ -675,9 +710,18 @@
         return `Llegó hace ${Math.floor(dias / 30)} meses`;
     }
 
+    // Puerta unica (ferreteria con la funcion "recepcion_unica"): la factura, el correo y el historial viven dentro de Recibir, igual que en abarrotes.
+    // Ahi las facturas de hace mas de 3 semanas se apartan ("Antiguas") para que la lista no se llene de pendientes que ya nadie espera.
+    const puertaUnica = () => esAbarrotes() || (typeof funcionBeta === "function" && funcionBeta("recepcion_unica"));
+    const DIAS_RECIENTE = 21;
+    const esAntigua = f => { const d = new Date(f.creadaEn || f.fechaDocumento || ""); return !Number.isNaN(d.getTime()) && (Date.now() - d.getTime()) / 86400000 > DIAS_RECIENTE; };
+    const aparta = () => !esAbarrotes() && puertaUnica();
+    // Una factura de $0 es casi siempre un complemento de pago del SAT (no una compra): no hay nada que recibir, asi que no se lista.
+    const listaFacturas = () => (aparta() ? rm.facturas.filter(f => Number(f.total) !== 0) : rm.facturas);
+
     function facturasFiltradas() {
         const q = plano(rm.busFactura).trim();
-        const lista = rm.facturas;
+        const lista = aparta() && !rm.verAntiguas ? listaFacturas().filter(f => !esAntigua(f)) : listaFacturas();
         if (!q) return lista;
         return lista.filter(f => q.split(/\s+/).every(w => plano([f.proveedor, f.folio, f.claveCorta, (f.muestra || []).join(" ")].join(" ")).includes(w)));
     }
@@ -690,23 +734,25 @@
         if (rm.factura || esPedido()) { caja.innerHTML = rm.modo === "sugerir" ? `<div class="rm-esquina"><button type="button" class="rm-btn" onclick="mostrarPedidoSugerido()" title="El cálculo de siempre, con tus ventas y el día de visita de cada proveedor">Ver el cálculo por ventas</button></div>` : ""; return; }
 
         // Abarrotes: "Recibir con factura" e "Historial" siempre a la mano en la esquina (aunque no haya facturas del correo pendientes).
-        const historial = esAbarrotes() ? `<button type="button" class="rm-btn" onclick="rmHistorial()">Historial</button>` : "";
+        const historial = puertaUnica() ? `<button type="button" class="rm-btn" onclick="rmHistorial()">Historial</button>` : "";
 
-        if (!rm.facturas.length && !esAbarrotes()) { caja.innerHTML = ""; return; }
+        if (!rm.facturas.length && !puertaUnica()) { caja.innerHTML = ""; return; }
 
         const filas = facturasFiltradas().slice(0, 40).map(f => `<button type="button" class="rm-factura-fila" onclick="rmIrAFactura(${Number(f.id)})">
             <span><b>${esc(f.proveedor)}</b><em class="rm-factura-hace">${esc(haceCuanto(f))}</em><small>${f.folio ? "Folio " + esc(f.folio) : (f.claveCorta ? "Factura …" + esc(f.claveCorta) : "Sin folio")} · ${esc(fechaCorta(f))} · ${f.totalItems} producto${f.totalItems === 1 ? "" : "s"}</small>${(f.muestra || []).length ? `<small class="rm-factura-muestra">${esc(f.muestra.map(n => String(n).slice(0, 26)).join(" · "))}</small>` : ""}</span>
             <strong>${dinero(f.total)}</strong></button>`).join("");
 
-        const n = rm.facturas.length;
+        const antiguas = aparta() ? listaFacturas().filter(esAntigua).length : 0;
+        const n = listaFacturas().length - (aparta() && !rm.verAntiguas ? antiguas : 0);
         // Abarrotes: subir la factura (o la foto de la remision) y ver el estado del correo se hace aqui mismo, sin salir de Recibir mercancia.
-        const subir = esAbarrotes() ? `<div class="rm-subir"><input type="file" id="rmArchivoXml" accept=".xml,text/xml" hidden onchange="rmSubirFactura(this)"><input type="file" id="rmArchivoRemision" accept="image/*" hidden onchange="rmSubirRemision(this)">
+        const subir = puertaUnica() ? `<div class="rm-subir"><input type="file" id="rmArchivoXml" accept=".xml,text/xml" hidden onchange="rmSubirFactura(this)"><input type="file" id="rmArchivoRemision" accept="image/*" hidden onchange="rmSubirRemision(this)">
                 <button type="button" class="rm-btn principal" onclick="document.getElementById('rmArchivoXml').click()">Subir factura (XML)</button>
                 <button type="button" class="rm-btn" onclick="document.getElementById('rmArchivoRemision').click()">Subir remisión (foto)</button><span class="rm-subiendo" id="rmSubiendo"></span></div>` : "";
-        const lista = n ? `<input id="rmBuscarFactura" class="rm-buscar" type="search" placeholder="Buscar por proveedor, folio o producto…" oninput="rmBuscarFactura(this.value)" value="${esc(rm.busFactura)}"><div class="rm-facturas-lista" id="rmFacturasLista">${filas || '<p class="rm-nota">Ninguna factura coincide.</p>'}</div>` : `<p class="rm-nota">No hay facturas por recibir. Súbela aquí, o conecta tu correo para que lleguen solas.</p>`;
+        const notaAntiguas = antiguas ? `<p class="rm-nota">${rm.verAntiguas ? "Mostrando también" : "Hay"} ${antiguas} factura${antiguas === 1 ? "" : "s"} de hace más de 3 semanas. <button type="button" class="rm-enlace" onclick="rmVerAntiguas(${rm.verAntiguas ? "false" : "true"})">${rm.verAntiguas ? "Ocultarlas" : "Verlas"}</button></p>` : "";
+        const lista = notaAntiguas + (n ? `<input id="rmBuscarFactura" class="rm-buscar" type="search" placeholder="Buscar por proveedor, folio o producto…" oninput="rmBuscarFactura(this.value)" value="${esc(rm.busFactura)}"><div class="rm-facturas-lista" id="rmFacturasLista">${filas || '<p class="rm-nota">Ninguna factura coincide.</p>'}</div>` : `<p class="rm-nota">No hay facturas por recibir. Súbela aquí, o conecta tu correo para que lleguen solas.</p>`);
 
         caja.innerHTML = `<div class="rm-esquina"><button type="button" class="rm-btn principal" onclick="rmVerFacturas(${rm.verFacturas ? "false" : "true"})">Recibir con factura${n ? " (" + n + ")" : ""} ${rm.verFacturas ? "▴" : "▾"}</button>${historial}</div>
-            ${rm.verFacturas ? `<div class="rm-facturas-panel">${subir}${lista}${esAbarrotes() ? `<div class="rm-correo" id="rmCorreo">${correoHtml()}</div>` : ""}</div>` : ""}`;
+            ${rm.verFacturas ? `<div class="rm-facturas-panel">${subir}${lista}${puertaUnica() ? `<div class="rm-correo" id="rmCorreo">${correoHtml()}</div>` : ""}</div>` : ""}`;
 
         if (rm.verFacturas) { const c = document.getElementById("rmBuscarFactura"); if (c && document.activeElement !== c && !rm.busFactura) c.focus(); }
     }
@@ -734,7 +780,8 @@
     };
     window.rmHistorial = function () { cerrarPanelFacturas(); if (typeof abrirHistorialRecepciones === "function") abrirHistorialRecepciones(); };
     window.rmFacturaManual = function () { if (typeof mostrarRecepcionInteligente === "function") mostrarRecepcionInteligente(); };
-    window.rmVerFacturas = function (ver) { rm.verFacturas = Boolean(ver); pintarFacturas(); if (ver && esAbarrotes()) cargarCorreo(); };
+    window.rmVerFacturas = function (ver) { rm.verFacturas = Boolean(ver); pintarFacturas(); if (ver && puertaUnica()) cargarCorreo(); };
+    window.rmVerAntiguas = function (ver) { rm.verAntiguas = Boolean(ver); pintarFacturas(); if (rm.verFacturas && puertaUnica()) cargarCorreo(); };
 
     // El panel de facturas es un menu desplegable: se cierra al tocar fuera de el, al presionar Escape y al abrir el historial.
     function cerrarPanelFacturas() {

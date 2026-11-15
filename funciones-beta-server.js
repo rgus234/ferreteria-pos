@@ -23,6 +23,7 @@ const { resolverIdentidadNexo } = require("./rbac");
 const FUNCIONES = {
     mapa_tienda: "Mapa de la tienda",
     recibir_por_marca: "Recibir por marca",
+    recepcion_unica: "Recibir mercancía en un solo lugar",
     inicio_pendientes: "Pendientes en el Inicio",
     diseno_nuevo: "Diseño nuevo",
     menu_simplificado: "Menú simplificado",

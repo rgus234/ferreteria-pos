@@ -310,3 +310,15 @@ body.oscuro #pantallaRecibirMarca .rm-buscador input.rm-escaner:-webkit-autofill
 .rm-correo b { color: var(--pos-text, #172033); }
 .rm-correo .rm-enlace { padding: 0; border: 0; background: none; color: var(--brand-color, #1d4ed8); font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
 body.oscuro .rm-correo b { color: #f1f5f9; }
+
+/* Recibir (ferreteria, puerta unica): facturas por recibir y "lo que sueles recibir" en lugar de las tarjetas de marcas */
+.rm-sueles-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0 8px; }
+.rm-sueles-cab b { font-size: 16px; }
+.rm-sueles-nota { display: block; margin: -4px 0 8px; color: var(--pos-muted, #64748b); font-weight: 600; }
+.rm-fac-minis { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.rm-fac-mini { display: grid; gap: 2px; text-align: left; padding: 12px 14px; border: 1px solid var(--pos-line, #dbe3ef); border-radius: 14px; background: var(--pos-card, #fff); color: inherit; cursor: pointer; font: inherit; }
+.rm-fac-mini:hover { border-color: var(--brand-color, #1d4ed8); }
+.rm-fac-mini small { color: var(--pos-muted, #64748b); font-weight: 600; }
+.rm-fac-mini strong { font-size: 15px; }
+.rm-sueles-chips { margin: 0 0 10px; }
+.rm-marcas > .rm-sueles { flex: 1 1 100%; grid-column: 1 / -1; width: 100%; min-width: 0; }

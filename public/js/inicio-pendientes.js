@@ -110,7 +110,7 @@
 
         if (datos.facturas && datos.facturas.length) {
             const n = datos.facturas.length;
-            const destino = window.funcionBeta("recibir_por_marca") ? "mostrarRecibirMarca()" : "mostrarRecepcionInteligente()";
+            const destino = (window.funcionBeta("recibir_por_marca") || window.funcionBeta("recepcion_unica")) ? "mostrarRecibirMarca()" : "mostrarRecepcionInteligente()";
             partes.push(tarjeta("ip-factura", "🧾", "Facturas por recibir", `${n} factura${n === 1 ? "" : "s"}`, nombres(datos.facturas, "proveedor"), destino, false));
         }
 

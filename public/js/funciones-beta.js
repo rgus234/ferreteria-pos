@@ -23,6 +23,7 @@
         agenda_pagos: "Lo que recibes “a deber” queda como cuenta por pagar con su fecha límite (Nexo la sugiere con los días de crédito de cada proveedor) y una agenda te muestra qué pagar y cuándo: vencido, esta semana, este mes. Desde ahí liquidas con efectivo o transferencia. Requiere Finanzas avanzadas.",
         gafi_captura: "Pantalla para el administrador: busca un producto de la lista de Gafi, escanea el código de barras de su empaque y tómale su foto, para ir completando el catálogo.",
         catalogo_por_proveedor: "En Agregar producto, el proveedor que eliges (Diprofer, Gafi, Truper) manda: solo busca en su catálogo y con sus códigos, para que no se crucen productos de distintos proveedores.",
+        recepcion_unica: "Recibir mercancía en un solo lugar (ferretería): escaneas lo que llega y, si hay factura, la subes ahí mismo o llega sola de tu correo; sin elegir antes si tienes factura o no. Las facturas de hace más de 3 semanas se apartan.",
         armado: "Convierte producto a granel en bolsitas o porciones (churros, azúcar, jamón en paquetes): al armar 20 bolsitas baja el granel y suben las bolsitas, con merma y un botón para deshacer. Además, extras rápidos en la venta (“+ salsa $2”) con un toque."
     };
 
@@ -32,7 +33,9 @@
     window.recargarFuncionesBeta = () => cargar();
 
     function aplicar() {
-        document.querySelectorAll("[data-beta]").forEach(el => { el.hidden = !window.funcionBeta(el.dataset.beta); });
+        document.querySelectorAll("[data-beta]").forEach(el => { el.hidden = !String(el.dataset.beta).split(",").some(k => window.funcionBeta(k.trim())); });
+        document.querySelectorAll("[data-beta-no]").forEach(el => { el.hidden = window.funcionBeta(el.dataset.betaNo); });
+        document.querySelectorAll("[data-beta-texto]").forEach(el => { const [clave, texto] = String(el.dataset.betaTexto).split("|"); if (!el.dataset.textoOriginal) el.dataset.textoOriginal = el.textContent.trim(); el.textContent = window.funcionBeta(clave) ? texto : el.dataset.textoOriginal; });
         document.documentElement.classList.toggle("diseno-nuevo", window.funcionBeta("diseno_nuevo"));
 
         document.dispatchEvent(new CustomEvent("nexo-funciones-beta", { detail: { ...funciones } }));

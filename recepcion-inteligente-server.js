@@ -530,6 +530,52 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     );
 
+    // "Lo que sueles recibir" (pantalla Recibir de ferreteria): los productos que ya recibiste en los ultimos 90 dias, los que mas repites primero, con el
+    // proveedor de la ultima vez. Si todavia no hay historial de recepciones, se ofrece lo que mas vendes. Solo lee: no cambia nada.
+    app.get(
+        "/recepcion-inteligente/lo-que-sueles-recibir",
+        requerirAccesoNegocio,
+        requerirPermiso(PERMISOS.MODIFICAR_INVENTARIO),
+        async (req, res) => {
+            try {
+                const negocio = await negocioActual(req, pool);
+
+                let filas = (await pool.query(
+                    `SELECT i.producto_id AS id, COUNT(DISTINCT r.id)::int AS veces,
+                            (ARRAY_AGG(NULLIF(TRIM(r.proveedor), '') ORDER BY r.created_at DESC))[1] AS proveedor
+                       FROM public.recepciones_mercancia_items i
+                       JOIN public.recepciones_mercancia r ON r.id = i.recepcion_id
+                      WHERE r.negocio_id = $1 AND r.created_at >= NOW() - INTERVAL '90 days' AND i.producto_id IS NOT NULL
+                        AND COALESCE(r.estado, '') NOT IN ('anulada', 'cancelada')
+                      GROUP BY i.producto_id
+                      ORDER BY veces DESC, MAX(r.created_at) DESC
+                      LIMIT 60`, [negocio.id])).rows;
+                let fuente = "recibido";
+
+                if (filas.length < 8) {
+                    filas = (await pool.query(
+                        `SELECT (item->>'id')::int AS id, COUNT(DISTINCT h.id)::int AS veces, NULL::text AS proveedor
+                           FROM public.historial_ventas h
+                          CROSS JOIN LATERAL jsonb_array_elements(h.productos) AS item
+                          WHERE h.negocio_id = $1 AND h.estado = 'completada' AND h.fecha >= NOW() - INTERVAL '60 days' AND item->>'id' ~ '^[0-9]+$'
+                          GROUP BY 1 ORDER BY veces DESC LIMIT 40`, [negocio.id])).rows;
+                    fuente = filas.length ? "vendido" : "ninguno";
+                }
+
+                const cuenta = new Map();
+                filas.forEach(f => { if (f.proveedor) cuenta.set(f.proveedor, (cuenta.get(f.proveedor) || 0) + 1); });
+                res.json({
+                    ok: true,
+                    fuente,
+                    productos: filas.map(f => ({ id: f.id, veces: f.veces, proveedor: f.proveedor || "" })),
+                    proveedores: [...cuenta.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([nombre, n]) => ({ nombre, n }))
+                });
+            } catch (error) {
+                responderError(res, error);
+            }
+        }
+    );
+
     app.get(
         "/recepcion-inteligente/facturas",
         requerirAccesoNegocio,
