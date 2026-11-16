@@ -24,6 +24,7 @@
         gafi_captura: "Pantalla para el administrador: busca un producto de la lista de Gafi, escanea el código de barras de su empaque y tómale su foto, para ir completando el catálogo.",
         catalogo_por_proveedor: "En Agregar producto, el proveedor que eliges (Diprofer, Gafi, Truper) manda: solo busca en su catálogo y con sus códigos, para que no se crucen productos de distintos proveedores.",
         recepcion_unica: "Recibir mercancía en un solo lugar (ferretería): escaneas lo que llega y, si hay factura, la subes ahí mismo o llega sola de tu correo; sin elegir antes si tienes factura o no. Las facturas de hace más de 3 semanas se apartan.",
+        paquetes_granel: "Productos sueltos: una lista de lo que se vende sin código (tornillería por kilo, cable o manguera por metro, thinner por litro, copias…) para darlo de alta de un jalón, con su precio y su unidad. La lista cambia según el tipo de negocio y puedes agregar los tuyos.",
         armado: "Convierte producto a granel en bolsitas o porciones (churros, azúcar, jamón en paquetes): al armar 20 bolsitas baja el granel y suben las bolsitas, con merma y un botón para deshacer. Además, extras rápidos en la venta (“+ salsa $2”) con un toque."
     };
 

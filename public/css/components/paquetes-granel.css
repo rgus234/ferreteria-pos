@@ -1,0 +1,5 @@
+/* Productos sueltos (cualquier giro): usa las clases fv-* de Frutas y verduras; aqui solo lo que cambia (sin foto: una inicial). */
+.pg-ini { display: grid; place-items: center; width: 100%; height: 100%; min-height: 56px; border-radius: inherit; font-size: 30px; font-weight: 800; color: var(--brand-color, #1d4ed8); background: color-mix(in srgb, var(--brand-color, #1d4ed8) 12%, var(--pos-card, #fff)); }
+.pg-ini.chico { width: 36px; height: 36px; min-height: 0; border-radius: 10px; font-size: 17px; flex: none; }
+.pg-unidad { color: var(--pos-muted, #64748b); font-weight: 700; }
+.pg-propio b { color: var(--brand-color, #1d4ed8); }

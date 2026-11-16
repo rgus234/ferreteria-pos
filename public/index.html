@@ -75,6 +75,7 @@
   <link rel="stylesheet" href="css/components/exhibidores.css?v=exhibidores-20261105-17">
   <link rel="stylesheet" href="css/components/mapa-tienda.css?v=mapa-tienda-20261118-04">
   <link rel="stylesheet" href="css/components/frutas-verduras.css?v=frutas-20261102-04">
+  <link rel="stylesheet" href="css/components/paquetes-granel.css?v=granel-20261115-01">
   <link rel="stylesheet" href="css/components/menu-simple.css?v=menu-fijo-20261108-01">
   <link rel="stylesheet" href="css/components/mi-equipo.css?v=equipo-20261103-02">
   <link rel="stylesheet" href="css/components/recibir-marca.css?v=puerta-20261115-06">
@@ -548,6 +549,9 @@
  </button>
  <button class="solo-perfil-simple" data-shell-module="frutas-y-verduras" onclick="abrirPaqueteFrutasVerduras()">
  Frutas y verduras
+ </button>
+ <button data-shell-module="paquetes-granel" data-beta="paquetes_granel" hidden onclick="abrirPaquetesGranel()">
+ Productos sueltos
  </button>
  <button data-shell-module="inventario-bajo" onclick="mostrarInventarioBajo()">
  Inventario bajo
@@ -1957,6 +1961,8 @@
   <script src="js/product-inventory.js?v=categorias-20261114-04"></script>
   <script src="js/banco-genericas.js?v=genericas-20261031-02"></script>
   <script src="js/frutas-verduras-view.js?v=frutas-20261105-05"></script>
+  <script src="js/paquetes-granel-datos.js?v=granel-20261115-01"></script>
+  <script src="js/paquetes-granel-view.js?v=granel-20261115-01"></script>
 <script src="js/pos-payment-modal.js?v=pago-20261105-03"></script>
 <script src="js/pos-piece-sale-modal.js?v=venta-pieza-20260711-01"></script>
 <script src="js/bascula-pos.js?v=bascula-20261105-01"></script>
@@ -1964,7 +1970,7 @@
 <script src="js/pos-image-zoom.js?v=zoom-carrito-20260809-01"></script>
 <script src="js/pos-quick-item-modal.js?v=articulo-rapido-20260720-01"></script>
 <script src="js/ticket-qr-view.js?v=ticket-qr-20261103-02"></script>
-<script src="js/pos-sales.js?v=giro-20261108-01"></script>
+<script src="js/pos-sales.js?v=recibido-20261115-01"></script>
 <script src="js/pos-hojas-venta.js?v=hojas-venta-20260819-01"></script>
 <script src="js/pos-search-flyout.js?v=flyout-20261103-03"></script>
   <script src="js/sales-history-documents.js?v=giro-20261108-01"></script>
