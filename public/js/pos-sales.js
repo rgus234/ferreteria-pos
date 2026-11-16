@@ -1974,7 +1974,9 @@ try {
  idempotencyKey,
  codigoPublico,
  adminPin,
- requiereFactura: carritoRequiereFactura
+ requiereFactura: carritoRequiereFactura,
+ recibido: montoRecibido,
+ cambio
  })
  }
  );
