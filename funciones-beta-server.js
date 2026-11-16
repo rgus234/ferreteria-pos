@@ -18,7 +18,6 @@
 //
 // La columna se crea sola la primera vez (ADD COLUMN IF NOT EXISTS): no hace falta correr nada a mano y si algo falla, todo queda apagado.
 const { responderError } = require("./error-utils");
-const { resolverIdentidadNexo } = require("./rbac");
 
 const FUNCIONES = {
     mapa_tienda: "Mapa de la tienda",
@@ -75,16 +74,9 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
     });
 
-    // Solo el dueño las enciende o apaga.
+    // Las puede encender o apagar cualquier persona del negocio (dueño o empleado), por decision del dueño del producto.
     app.put("/funciones-beta", requerirAccesoNegocio, async (req, res) => {
         try {
-            const identidad = await resolverIdentidadNexo(req);
-
-            if (!(identidad.rol === "owner" || identidad.permisos === null)) {
-                res.status(403).json({ ok: false, error: "Solo el dueño puede cambiar las funciones nuevas." });
-                return;
-            }
-
             const clave = String(req.body?.clave || "");
 
             if (!FUNCIONES[clave]) { res.status(400).json({ ok: false, error: "Esa función no existe." }); return; }

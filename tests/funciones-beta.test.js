@@ -64,3 +64,20 @@ test("un negocio marcado con _todas recibe todas las funciones sin encenderlas, 
     const otro = await (await fetch(`${BASE_URL}/funciones-beta`, { headers: headers(a) })).json();
     assert.equal(otro.funciones.recibir_por_marca, false, "otro negocio sin la marca no cambia");
 });
+
+test("un empleado (cajero) tambien puede encender y apagar una funcion", async () => {
+    const { hashPassword } = require("../password-utils");
+    const id = (await pool.query(`INSERT INTO public.empleados (negocio_id, nombre, rol, pin_hash, activo, permisos) VALUES ($1, 'Cajero beta', 'cajero', $2, true, '{}'::jsonb) RETURNING id`, [a.negocioId, hashPassword("1234")])).rows[0].id;
+
+    try {
+        const h = { ...headers(a), "x-empleado-id": String(id) };
+        const enciende = await (await fetch(`${BASE_URL}/funciones-beta`, { method: "PUT", headers: h, body: JSON.stringify({ clave: "recibir_por_marca", activo: true }) })).json();
+        assert.equal(enciende.ok, true, JSON.stringify(enciende));
+        assert.equal(enciende.funciones.recibir_por_marca, true);
+
+        const apaga = await (await fetch(`${BASE_URL}/funciones-beta`, { method: "PUT", headers: h, body: JSON.stringify({ clave: "recibir_por_marca", activo: false }) })).json();
+        assert.equal(apaga.funciones.recibir_por_marca, false);
+    } finally {
+        await pool.query(`DELETE FROM public.empleados WHERE id = $1`, [id]);
+    }
+});
