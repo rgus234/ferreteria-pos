@@ -484,7 +484,15 @@ function guardarConfiguracionNegocioDesdeServidor(negocio) {
  // de Configuracion mientras carga.
  const actual = configuracionNegocio() || {};
 
+ // Lo que se configura solo en ESTA computadora (opciones del ticket: mensaje, redes,
+ // IVA, codigo de barras, cajero...; impresora, ancho, copias) vive unicamente aqui.
+ // Antes se reconstruia todo de cero en cada inicio de sesion y esas opciones se
+ // perdian (el ticket salia con valores de fabrica). Solo se heredan si es el MISMO
+ // negocio; lo que viene del servidor sigue mandando.
+ const propiasDelEquipo = actual.negocioSlug === negocio.slug ? actual : {};
+
  const configuracionReconstruida = {
+ ...propiasDelEquipo,
  negocioSlug: negocio.slug,
  nombre: negocio.nombre,
  // El eslogan ahora puede venir del servidor (asistente de inicio). Si el
