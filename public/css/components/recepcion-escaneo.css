@@ -91,3 +91,10 @@ body.oscuro .ri-asis-resumen, body.oscuro .ri-asis-resumen li { border-color: rg
 @media (max-width: 900px) { .ri-esc-pago-campos { grid-template-columns: 1fr; } .ri-esc-fila:has(.ri-esc-fecha) { grid-template-columns: minmax(0, 1fr) 90px 130px; } .ri-esc-fila:has(.ri-esc-fecha) .ri-esc-estado, .ri-esc-fila:has(.ri-esc-fecha) .ri-esc-fecha { grid-column: auto; } }
 body.oscuro .ri-esc-pago { background: #1d293e; border-color: rgba(148, 163, 184, .22); }
 body.oscuro .ri-esc-pago-campos input, body.oscuro .ri-esc-pago-campos select, body.oscuro .ri-esc-fecha input { background: #151f31; border-color: rgba(148, 163, 184, .3); color: #e6ecff; }
+
+/* ---- escaneo continuo (funcion escaneo_continuo) ---- */
+@keyframes ri-esc-destello { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, .7); transform: scale(1.01); } 100% { box-shadow: 0 0 0 14px rgba(34, 197, 94, 0); transform: scale(1); } }
+@keyframes ri-esc-pulso { 0% { transform: scale(1.03); } 100% { transform: scale(1); } }
+.ri-esc-fila.ri-esc-destello { animation: ri-esc-destello .6s ease-out; }
+.ri-escaneo-aviso.ri-esc-pulso { animation: ri-esc-pulso .25s ease-out; font-size: 16px; }
+@media (prefers-reduced-motion: reduce) { .ri-esc-fila.ri-esc-destello, .ri-escaneo-aviso.ri-esc-pulso { animation: none; } }

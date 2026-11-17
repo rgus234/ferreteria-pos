@@ -1315,7 +1315,7 @@ function riPintarEscaneo() {
 	capa.innerHTML = `<div class="ri-escaneo" role="dialog" aria-label="${contar ? "Contar lo que llegó" : "Escanear lo que llegó"}">
 		<header><div><h3>${contar ? "✍️ Contar lo que llegó" : "📷 Escanear lo que llegó"}</h3><p>${contar ? "Escribe cuántas piezas llegaron de cada producto, o toca “Llegó todo”. Si prefieres, también puedes escanear." : "Escanea cada pieza con la pistola, o escribe el código y presiona Enter."}</p></div>
 			<div class="ri-escaneo-total"><b id="riEscTotal">${contadas}</b> de ${esperadas} piezas</div></header>
-		<div class="ri-escaneo-entrada"><input id="riEscInput" type="text" autocomplete="off" placeholder="${contar ? "Escanea o escribe un código (opcional)…" : "Escanea o escribe el código…"}" onkeydown="if(event.key==='Enter'){riEscanear(this.value);this.value='';}"><button type="button" class="btn-secundario" onclick="riEscTodo()">Llegó todo</button></div>
+		<div class="ri-escaneo-entrada"><input id="riEscInput" type="text" autocomplete="off" placeholder="${contar ? "Escanea o escribe un código (opcional)…" : "Escanea o escribe el código…"}" onkeydown="if(event.key==='Enter'){riEscanear(this.value);this.value='';}"><button type="button" class="btn-secundario" onclick="riEscTodo()">Llegó todo</button>${riEscContinuo() ? `<button type="button" class="btn-secundario" id="riEscSonido" onclick="riAlternarSonido()" title="Sonido al escanear" aria-label="Sonido al escanear">${riSonidoActivo() ? "🔊" : "🔇"}</button>` : ""}</div>
 		<p class="ri-escaneo-aviso ${riEscaneo.mal ? "mal" : ""}" id="riEscAviso">${escaparPOS(riEscaneo.ultimo || (contar ? "Escribe las cantidades de abajo." : "Esperando el primer código…"))}</p>
 		<div class="ri-escaneo-lista">${riEscaneo.items.map(it => riFilaEscaneo(it)).join("")}</div>
 		${contar ? riPagoRepartidorHtml() : ""}
@@ -1323,6 +1323,12 @@ function riPintarEscaneo() {
 	</div>`;
 	capa.style.display = "flex";
 	document.getElementById("riEscInput")?.focus();
+
+	// Escaneo continuo: si tocan un espacio vacio, el cursor vuelve a la casilla para seguir escaneando sin mouse.
+	if (riEscContinuo() && !capa.dataset.refoco) {
+		capa.dataset.refoco = "1";
+		capa.addEventListener("click", evento => { if (!evento.target.closest("input, button, select, textarea, label, a")) document.getElementById("riEscInput")?.focus(); });
+	}
 }
 
 function riFilaEscaneo(it) {
@@ -1396,11 +1402,46 @@ function riEscActualizar(id) {
 	if (total) total.textContent = contadas;
 }
 
+function riEscContinuo() { return typeof window.funcionBeta === "function" && window.funcionBeta("escaneo_continuo"); }
+
+// Escaneo continuo: pitidos y vibracion para escanear sin mirar la pantalla. Un solo AudioContext, creado al primer escaneo (el navegador lo exige tras un gesto).
+let riAudio = null;
+function riSonidoActivo() { try { return localStorage.getItem("nexo_esc_silencio") !== "1"; } catch (error) { return true; } }
+function riAlternarSonido() { try { localStorage.setItem("nexo_esc_silencio", riSonidoActivo() ? "1" : "0"); } catch (error) { /* sin almacenamiento */ } const b = document.getElementById("riEscSonido"); if (b) b.textContent = riSonidoActivo() ? "🔊" : "🔇"; document.getElementById("riEscInput")?.focus(); }
+function riPitido(tipo) {
+	if (!riEscContinuo()) return;
+
+	try { if (navigator.vibrate) navigator.vibrate(tipo === "ok" ? 25 : tipo === "listo" ? [40, 60, 40] : [90, 50, 90]); } catch (error) { /* sin vibracion */ }
+
+	if (!riSonidoActivo()) return;
+
+	try {
+		riAudio = riAudio || new (window.AudioContext || window.webkitAudioContext)();
+		const notas = { ok: [[880, 0.07]], sobra: [[520, 0.09], [520, 0.09]], mal: [[220, 0.16], [180, 0.18]], listo: [[660, 0.09], [880, 0.09], [1175, 0.16]] }[tipo] || [];
+		let t = riAudio.currentTime;
+
+		notas.forEach(([frecuencia, duracion]) => {
+			const osc = riAudio.createOscillator();
+			const ganancia = riAudio.createGain();
+			osc.type = tipo === "mal" ? "square" : "sine";
+			osc.frequency.value = frecuencia;
+			ganancia.gain.setValueAtTime(0.0001, t);
+			ganancia.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
+			ganancia.gain.exponentialRampToValueAtTime(0.0001, t + duracion);
+			osc.connect(ganancia).connect(riAudio.destination);
+			osc.start(t);
+			osc.stop(t + duracion + 0.02);
+			t += duracion + 0.04;
+		});
+	} catch (error) { /* sin audio: queda el aviso en pantalla */ }
+}
+
 function riEscanear(codigo) {
 	const limpio = riNormalizarCodigo(codigo);
 	if (!limpio || !riEscaneo) return;
 
 	const id = riEscaneo.claves.get(limpio);
+	let sonido = "mal";
 
 	if (id === undefined) {
 		riEscaneo.mal = true;
@@ -1408,14 +1449,32 @@ function riEscanear(codigo) {
 	} else {
 		riEscaneo.contado.set(id, (riEscaneo.contado.get(id) || 0) + 1);
 		const it = riEscaneo.items.find(x => x.id === id);
+		const de = Number(it.cantidad || 0);
+		const llevas = riEscaneo.contado.get(id);
+		const sobra = llevas > de;
 		riEscaneo.mal = false;
-		riEscaneo.ultimo = `✓ ${it.candidato?.nombre || it.descripcion} — ${riEscaneo.contado.get(id)} de ${it.cantidad}`;
+		riEscaneo.ultimo = `✓ ${it.candidato?.nombre || it.descripcion} — ${llevas} de ${it.cantidad}${sobra ? " (de más)" : ""}`;
 		riEscActualizar(id);
-		document.querySelector(`.ri-esc-fila[data-item="${id}"]`)?.scrollIntoView({ block: "nearest" });
+		const fila = document.querySelector(`.ri-esc-fila[data-item="${id}"]`);
+		fila?.scrollIntoView({ block: "nearest" });
+		sonido = sobra ? "sobra" : "ok";
+
+		if (riEscContinuo()) {
+			fila?.classList.add("ri-esc-destello");
+			const { esperadas, contadas } = riEscaneoTotales();
+			const faltan = Math.max(0, esperadas - contadas);
+
+			if (sobra) riEscaneo.mal = true;
+			riEscaneo.ultimo += faltan ? ` · faltan ${faltan}` : "";
+
+			if (!sobra && faltan === 0 && riEscaneo.items.every(x => (riEscaneo.contado.get(x.id) || 0) >= Number(x.cantidad || 0))) { riEscaneo.ultimo = "✓ ¡Todo llegó! Revisa y confirma."; sonido = "listo"; }
+		}
 	}
 
+	riPitido(sonido);
+
 	const aviso = document.getElementById("riEscAviso");
-	if (aviso) { aviso.textContent = riEscaneo.ultimo; aviso.classList.toggle("mal", Boolean(riEscaneo.mal)); }
+	if (aviso) { aviso.textContent = riEscaneo.ultimo; aviso.classList.toggle("mal", Boolean(riEscaneo.mal)); if (riEscContinuo()) { aviso.classList.remove("ri-esc-pulso"); void aviso.offsetWidth; aviso.classList.add("ri-esc-pulso"); } }
 	document.getElementById("riEscInput")?.focus();
 }
 

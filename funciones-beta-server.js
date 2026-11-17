@@ -24,6 +24,7 @@ const FUNCIONES = {
     recibir_por_marca: "Recibir por marca",
     recepcion_unica: "Recibir mercancía en un solo lugar",
     paquetes_granel: "Productos sueltos",
+    escaneo_continuo: "Escaneo continuo al recibir",
     inicio_pendientes: "Pendientes en el Inicio",
     diseno_nuevo: "Diseño nuevo",
     menu_simplificado: "Menú simplificado",
