@@ -8,6 +8,8 @@
 // Nada de esto toca a las ferreterias: solo mira pedidos y recepciones ligadas a un pedido, y la cuenta por pagar solo con la Agenda encendida.
 
 const { agendaActiva } = require("./pago-recepcion");
+const { proximaVisita } = require("./pedido-sugerido-calculo");
+const { parecidos } = require("./proveedores-duplicados");
 
 const DIAS_VENTANA_PEDIDO = 45;
 const num = valor => Number(valor || 0);
@@ -25,41 +27,101 @@ async function itemsDeFactura(db, negocioId, facturaId) {
     return filas.rows;
 }
 
-// Los pedidos de los ultimos dias que comparten productos con la factura (el que mas comparte, primero).
-async function pedidosCandidatos(db, negocioId, productosFactura) {
+// Lo que ya traen las facturas confirmadas de un pedido, por producto (para ir "tachando" el pedido factura por factura).
+async function facturadoAntes(db, negocioId, pedidoId, facturaId) {
+    const filas = await db.query(
+        `SELECT i.producto_id, SUM(i.cantidad) AS cantidad
+         FROM public.recepciones_inteligentes r
+         JOIN public.recepciones_inteligentes_items i ON i.recepcion_id = r.id
+         WHERE r.negocio_id = $1 AND r.pedido_id = $2 AND r.estado = 'confirmada' AND r.id <> $3 AND COALESCE(i.accion, '') <> 'omitir' AND i.producto_id IS NOT NULL
+         GROUP BY i.producto_id`,
+        [negocioId, pedidoId, facturaId || 0]
+    );
+
+    return new Map(filas.rows.map(f => [Number(f.producto_id), num(f.cantidad)]));
+}
+
+const diaLocal = valor => {
+    const d = valor instanceof Date ? valor : new Date(valor);
+    return Number.isNaN(d.getTime()) ? null : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const diasEntre = (a, b) => Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000);
+
+// Los pedidos de los ultimos dias que comparten productos con la factura. Un pedido que ya tiene facturas sigue valiendo mientras le falte algo de lo que
+// trae esta (asi la 2.a y 3.a factura del mismo pedido caen en el mismo pedido). Si hay mas de uno parecido, gana el que mas productos pendientes comparte
+// y, a igualdad, el que se esperaba mas cerca del dia que llego la factura (segun el dia de visita del proveedor).
+async function pedidosCandidatos(db, negocioId, productosFactura, contexto = {}) {
     if (!productosFactura.length) return [];
 
     const filas = await db.query(
         `SELECT p.id, p.proveedor, p.estado, p.created_at, p.total_estimado,
                 COUNT(DISTINCT i.producto_id) AS partidas,
-                COUNT(DISTINCT i.producto_id) FILTER (WHERE i.producto_id = ANY($2::int[])) AS coinciden
+                COUNT(DISTINCT i.producto_id) FILTER (WHERE i.producto_id = ANY($2::int[])) AS coinciden,
+                (EXISTS (
+                    SELECT 1 FROM public.recepciones_mercancia rm
+                    WHERE rm.pedido_id = p.id AND rm.negocio_id = p.negocio_id
+                      AND (rm.tipo_documento = 'factura' OR rm.notas LIKE '%conciliada con factura%')
+                ) OR EXISTS (
+                    SELECT 1 FROM public.recepciones_inteligentes r2
+                    WHERE r2.pedido_id = p.id AND r2.negocio_id = p.negocio_id AND r2.estado = 'confirmada' AND r2.id <> $3
+                )) AS ya_facturado
          FROM public.pedidos_proveedor p
          JOIN public.pedidos_proveedor_items i ON i.pedido_id = p.id AND i.negocio_id = p.negocio_id
          WHERE p.negocio_id = $1
            AND p.estado <> 'cancelado'
            AND p.created_at > NOW() - INTERVAL '${DIAS_VENTANA_PEDIDO} days'
-           AND NOT EXISTS (
-               SELECT 1 FROM public.recepciones_mercancia rm
-               WHERE rm.pedido_id = p.id AND rm.negocio_id = p.negocio_id
-                 AND (rm.tipo_documento = 'factura' OR rm.notas LIKE '%conciliada con factura%')
-           )
          GROUP BY p.id
          HAVING COUNT(DISTINCT i.producto_id) FILTER (WHERE i.producto_id = ANY($2::int[])) > 0
-         ORDER BY COUNT(DISTINCT i.producto_id) FILTER (WHERE i.producto_id = ANY($2::int[])) DESC, p.created_at DESC
-         LIMIT 5`,
-        [negocioId, productosFactura]
+         ORDER BY p.created_at DESC
+         LIMIT 12`,
+        [negocioId, productosFactura, contexto.facturaId || 0]
     );
 
-    // Un pedido solo es "el de esta factura" si comparte al menos la mitad de sus productos (o 3 o mas).
-    return filas.rows
-        .map(f => ({ id: f.id, proveedor: f.proveedor, estado: f.estado, fecha: f.created_at, total: num(f.total_estimado), partidas: num(f.partidas), coinciden: num(f.coinciden) }))
-        .filter(f => f.coinciden >= 3 || f.coinciden >= Math.ceil(f.partidas / 2));
+    const diasVisita = (await db.query(`SELECT nombre, dia_visita FROM public.proveedores WHERE negocio_id = $1 AND activo = true AND dia_visita IS NOT NULL`, [negocioId]).catch(() => ({ rows: [] }))).rows;
+    const diaFactura = contexto.fecha ? diaLocal(contexto.fecha) : null;
+    const salida = [];
+
+    for (const f of filas.rows) {
+        const candidato = { id: f.id, proveedor: f.proveedor, estado: f.estado, fecha: f.created_at, total: num(f.total_estimado), partidas: num(f.partidas), coinciden: num(f.coinciden), yaFacturado: Boolean(f.ya_facturado), pendientes: num(f.coinciden) };
+
+        if (candidato.yaFacturado) {
+            const previo = await facturadoAntes(db, negocioId, f.id, contexto.facturaId);
+            const renglones = (await db.query(`SELECT producto_id, SUM(cantidad) AS cantidad FROM public.pedidos_proveedor_items WHERE pedido_id = $1 AND negocio_id = $2 GROUP BY producto_id`, [f.id, negocioId])).rows;
+            const faltan = renglones.filter(r => num(r.cantidad) - (previo.get(Number(r.producto_id)) || 0) > 0);
+            candidato.pendientes = faltan.filter(r => productosFactura.includes(Number(r.producto_id))).length;
+            candidato.partidasPendientes = faltan.length;
+            // Ya quedo completo en lo que esta factura trae: es de otro pedido.
+            if (candidato.pendientes === 0) continue;
+        }
+
+        // Un pedido solo es "el de esta factura" si comparte al menos la mitad de sus productos (o 3 o mas). Si ya tiene facturas, la mitad de lo que le FALTA.
+        const base = candidato.yaFacturado ? candidato.partidasPendientes : candidato.partidas;
+        const compartidos = candidato.yaFacturado ? candidato.pendientes : candidato.coinciden;
+        if (!(compartidos >= 3 || compartidos >= Math.ceil(base / 2))) continue;
+
+        const proveedor = diasVisita.find(p => parecidos(p.nombre, f.proveedor));
+        const visita = proveedor && diaLocal(f.created_at) ? proximaVisita(diaLocal(f.created_at), proveedor.dia_visita) : null;
+
+        if (visita) {
+            candidato.entregaEsperada = visita.fecha;
+            if (diaFactura) candidato.diasDeDiferencia = Math.abs(diasEntre(visita.fecha, diaFactura));
+        }
+
+        salida.push(candidato);
+    }
+
+    return salida
+        .sort((a, b) => b.pendientes - a.pendientes
+            || (a.diasDeDiferencia ?? 99) - (b.diasDeDiferencia ?? 99)
+            || new Date(b.fecha) - new Date(a.fecha))
+        .slice(0, 5);
 }
 
 async function compararFacturaConPedido(db, negocioId, facturaId, pedidoElegido) {
     const items = await itemsDeFactura(db, negocioId, facturaId);
     const productosFactura = [...new Set(items.map(i => Number(i.producto_id)).filter(id => id > 0))];
-    const candidatos = await pedidosCandidatos(db, negocioId, productosFactura);
+    const cabecera = (await db.query(`SELECT created_at, fecha_documento FROM public.recepciones_inteligentes WHERE id = $1 AND negocio_id = $2`, [facturaId, negocioId])).rows[0] || {};
+    const candidatos = await pedidosCandidatos(db, negocioId, productosFactura, { facturaId, fecha: cabecera.created_at });
     const elegido = Number(pedidoElegido) > 0 ? candidatos.find(c => c.id === Number(pedidoElegido)) || null : candidatos[0] || null;
 
     if (!elegido) return { pedido: null, candidatos, filas: [], resumen: null };
@@ -70,6 +132,7 @@ async function compararFacturaConPedido(db, negocioId, facturaId, pedidoElegido)
         [elegido.id, negocioId]
     )).rows;
 
+    const previo = elegido.yaFacturado ? await facturadoAntes(db, negocioId, elegido.id, facturaId) : new Map();
     const ids = [...new Set([...delPedido.map(f => Number(f.producto_id)), ...productosFactura])].filter(id => id > 0);
     const productos = ids.length ? (await db.query(`SELECT id, nombre, costo FROM public.productos WHERE negocio_id = $1 AND id = ANY($2::int[])`, [negocioId, ids])).rows : [];
     const productoPorId = new Map(productos.map(p => [Number(p.id), p]));
@@ -93,9 +156,12 @@ async function compararFacturaConPedido(db, negocioId, facturaId, pedidoElegido)
         const cambioPrecio = x.costoFactura !== null && x.costoAnterior !== null && Math.abs(x.costoFactura - x.costoAnterior) / x.costoAnterior > 0.01
             ? (x.costoFactura > x.costoAnterior ? "sube" : "baja")
             : null;
-        const estado = x.pedido === 0 ? "no_pedido" : (x.factura === 0 ? "no_viene" : (x.factura < x.pedido ? "menos" : (x.factura > x.pedido ? "mas" : "igual")));
+        // Lo que ya trajeron las facturas anteriores del mismo pedido se descuenta: esta factura se compara contra lo que FALTABA.
+        const antes = previo.get(x.productoId) || 0;
+        const esperado = Math.max(0, x.pedido - antes);
+        const estado = x.pedido === 0 ? "no_pedido" : (antes >= x.pedido && x.factura === 0 ? "igual" : (x.factura === 0 ? "no_viene" : (x.factura < esperado ? "menos" : (x.factura > esperado ? "mas" : "igual"))));
 
-        return { ...x, estado, cambioPrecio };
+        return { ...x, antes, estado, cambioPrecio };
     }).sort((a, b) => (a.estado === "igual" && !a.cambioPrecio ? 1 : 0) - (b.estado === "igual" && !b.cambioPrecio ? 1 : 0) || a.nombre.localeCompare(b.nombre));
 
     const resumen = {

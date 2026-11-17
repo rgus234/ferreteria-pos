@@ -154,3 +154,62 @@ test("pagar de contado (o un proveedor sin credito) no crea cuenta por pagar", a
     assert.equal(r.cuentaPorPagar, null);
     assert.equal((await cuentas()).length, antes);
 });
+
+test("dos o tres facturas del mismo pedido: la 2.a se compara contra lo que faltaba y cae en el mismo pedido; la factura de un pedido completo no", async () => {
+    const a = await nuevoProducto("ZZFP-M1", "Martillo multi fp");
+    const b = await nuevoProducto("ZZFP-M2", "Pinzas multi fp");
+    const c = await nuevoProducto("ZZFP-M3", "Taladro multi fp");
+    const d = await nuevoProducto("ZZFP-M4", "Brocas multi fp");
+    const pedido = await pedidoCon([{ id: a, nombre: "Martillo multi fp", cantidad: 10 }, { id: b, nombre: "Pinzas multi fp", cantidad: 6 }, { id: c, nombre: "Taladro multi fp", cantidad: 4 }, { id: d, nombre: "Brocas multi fp", cantidad: 8 }]);
+    const prods = { "ZZFP-M1": a, "ZZFP-M2": b, "ZZFP-M3": c, "ZZFP-M4": d };
+
+    // Factura 1: trae 3 de los 4 productos (con 4 de los 6 pinzas).
+    const f1 = await subirFactura("11111111-AAAA-4AAA-8AAA-000000000001", [{ codigo: "ZZFP-M1", descripcion: "Martillo", cantidad: 10, costo: 50 }, { codigo: "ZZFP-M2", descripcion: "Pinzas", cantidad: 4, costo: 30 }, { codigo: "ZZFP-M3", descripcion: "Taladro", cantidad: 4, costo: 90 }], prods);
+    const comp1 = await api(`/recepcion-inteligente/facturas/${f1}/comparacion`);
+    assert.equal(comp1.pedido.id, pedido, "la primera factura es de ese pedido");
+    assert.equal(comp1.pedido.yaFacturado, false);
+
+    const conf1 = await api(`/recepcion-inteligente/facturas/${f1}/confirmar`, { pedidoId: pedido, cantidadesRecibidas: {} });
+    assert.ok(conf1.ok !== false, JSON.stringify(conf1));
+    assert.equal(Number((await pool.query(`SELECT pedido_id FROM public.recepciones_inteligentes WHERE id = $1`, [f1])).rows[0].pedido_id), pedido, "la factura quedo ligada al pedido");
+
+    // Factura 2: lo que faltaba (2 pinzas y 8 brocas): sigue siendo ese mismo pedido y se compara contra lo FALTANTE.
+    const f2 = await subirFactura("22222222-BBBB-4BBB-8BBB-000000000002", [{ codigo: "ZZFP-M2", descripcion: "Pinzas", cantidad: 2, costo: 30 }, { codigo: "ZZFP-M4", descripcion: "Brocas", cantidad: 8, costo: 12 }], prods);
+    const comp2 = await api(`/recepcion-inteligente/facturas/${f2}/comparacion`);
+    assert.equal(comp2.pedido.id, pedido, "la 2.a factura cae en el mismo pedido");
+    assert.equal(comp2.pedido.yaFacturado, true);
+
+    const pinzas = comp2.filas.find(f => f.productoId === b);
+    assert.equal(pinzas.antes, 4);
+    assert.equal(pinzas.estado, "igual", "2 pinzas es justo lo que faltaba (6 - 4)");
+    assert.equal(comp2.filas.find(f => f.productoId === d).estado, "igual");
+    assert.equal(comp2.filas.find(f => f.productoId === a).estado, "igual", "el martillo ya llego completo en la 1.a: no cuenta como faltante");
+
+    // Factura 3 con lo mismo que ya llego completo (martillo, taladro y pinzas): el pedido ya no tiene nada pendiente de eso.
+    await api(`/recepcion-inteligente/facturas/${f2}/confirmar`, { pedidoId: pedido, cantidadesRecibidas: {} });
+    const f3 = await subirFactura("33333333-CCCC-4CCC-8CCC-000000000003", [{ codigo: "ZZFP-M1", descripcion: "Martillo", cantidad: 10, costo: 50 }, { codigo: "ZZFP-M3", descripcion: "Taladro", cantidad: 4, costo: 90 }, { codigo: "ZZFP-M2", descripcion: "Pinzas", cantidad: 6, costo: 30 }], prods);
+    const comp3 = await api(`/recepcion-inteligente/facturas/${f3}/comparacion`);
+    assert.equal(comp3.pedido, null, "ya no hay un pedido al que le falte eso");
+});
+
+test("si dos pedidos se parecen igual, gana el que se esperaba mas cerca del dia que llego la factura segun el dia de visita del proveedor", async () => {
+    const a = await nuevoProducto("ZZFP-D1", "Cemento dia fp");
+    const b = await nuevoProducto("ZZFP-D2", "Varilla dia fp");
+    const c = await nuevoProducto("ZZFP-D3", "Alambre dia fp");
+    const renglones = [{ id: a, nombre: "Cemento dia fp", cantidad: 5 }, { id: b, nombre: "Varilla dia fp", cantidad: 5 }, { id: c, nombre: "Alambre dia fp", cantidad: 5 }];
+    const viejo = await pedidoCon(renglones);
+    const reciente = await pedidoCon(renglones);
+
+    // El proveedor viene el dia de la semana de hace 2 dias. El pedido viejo (hecho hace 4 dias) se esperaba hace 2 dias; el reciente (hace 1 dia) se espera dentro de 5.
+    const diaVisita = (new Date().getDay() + 5) % 7;
+    await pool.query(`INSERT INTO public.proveedores (negocio_id, nombre, dia_visita, frecuencia_dias) VALUES ($1, 'Sabritas', $2, 7)`, [negocio.negocioId, diaVisita]);
+    await pool.query(`UPDATE public.pedidos_proveedor SET created_at = NOW() - INTERVAL '4 days' WHERE id = $1`, [viejo]);
+    await pool.query(`UPDATE public.pedidos_proveedor SET created_at = NOW() - INTERVAL '1 day' WHERE id = $1`, [reciente]);
+
+    const f = await subirFactura("44444444-DDDD-4DDD-8DDD-000000000004", [{ codigo: "ZZFP-D1", descripcion: "Cemento", cantidad: 5, costo: 100 }, { codigo: "ZZFP-D2", descripcion: "Varilla", cantidad: 5, costo: 80 }, { codigo: "ZZFP-D3", descripcion: "Alambre", cantidad: 5, costo: 20 }], { "ZZFP-D1": a, "ZZFP-D2": b, "ZZFP-D3": c });
+    const comp = await api(`/recepcion-inteligente/facturas/${f}/comparacion`);
+
+    assert.equal(comp.pedido.id, viejo, "gana el pedido cuya entrega se esperaba mas cerca del dia de la factura");
+    assert.ok(comp.pedido.entregaEsperada, "se explica con la entrega esperada");
+    assert.ok(comp.candidatos.some(x => x.id === reciente), "el otro pedido sigue como opcion");
+});

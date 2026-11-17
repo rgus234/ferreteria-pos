@@ -1010,6 +1010,16 @@
 
     const ROTULOS_COMP = { igual: "Igual", menos: "Menos que lo pedido", mas: "Más que lo pedido", no_viene: "No viene en la factura", no_pedido: "No lo pediste" };
 
+    const DIAS_ES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+
+    // Por que Nexo cree que esta factura es de ese pedido: productos que comparten, facturas anteriores y el dia de entrega del proveedor.
+    function motivoPedidoHtml(p) {
+        const partes = [`coinciden ${Number(p.coinciden)} de ${Number(p.partidas)} productos`];
+        if (p.yaFacturado) partes.push("ya tiene otra factura: esta se compara con lo que faltaba");
+        if (p.entregaEsperada) { const d = new Date(`${p.entregaEsperada}T12:00:00`); partes.push(`entrega esperada el ${DIAS_ES[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`); }
+        return `<small class="rm-comp-motivo">${esc(partes.join(" · "))}</small>`;
+    }
+
     function comparacionHtml() {
         const c = rm.factura && rm.factura.comp;
 
@@ -1025,6 +1035,7 @@
         return `<div class="rm-comp ${partes.length ? "con-dif" : "ok"}">
             <b>Pedido #${Number(c.pedido.id)} · ${esc(c.pedido.proveedor || "")}</b>
             <span>${partes.length ? esc(partes.join(" · ")) : "La factura coincide con lo que pediste."}</span>
+            ${motivoPedidoHtml(c.pedido)}
             <button type="button" class="rm-enlace" onclick="rmVerComparacion()">Ver pedido contra factura</button>
             ${c.candidatos.length > 1 ? `<label class="rm-comp-otro">¿Es otro pedido? <select onchange="rmCompPedido(this.value)">${c.candidatos.map(p => `<option value="${Number(p.id)}" ${p.id === c.pedido.id ? "selected" : ""}>#${Number(p.id)} · ${esc(p.proveedor || "")}</option>`).join("")}</select></label>` : ""}
         </div>`;
@@ -1094,7 +1105,7 @@
         const pago = pagoParaEnviar();
         if (pago === null) { await alertaPOS("Escribe cuánto le pagaste al repartidor, o desmarca “Pagué al repartidor”.", "Falta el monto", "info"); return; }
 
-        const enviar = extra => llamar(`/recepcion-inteligente/facturas/${f.id}/confirmar`, { method: "POST", body: JSON.stringify({ cantidadesRecibidas, caducidades, ...(pago ? { pago } : {}), ignorarConciliacion: false, ...extra }) });
+        const enviar = extra => llamar(`/recepcion-inteligente/facturas/${f.id}/confirmar`, { method: "POST", body: JSON.stringify({ pedidoId: (f.comp && f.comp.pedido && f.comp.pedido.id) || undefined, cantidadesRecibidas, caducidades, ...(pago ? { pago } : {}), ignorarConciliacion: false, ...extra }) });
         let r = await enviar({});
 
         // Ya habias recibido esa mercancia a mano (con este proveedor): se pregunta si es la misma para NO sumarla dos veces.

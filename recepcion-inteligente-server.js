@@ -1359,12 +1359,18 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     soloFactura: recepcion.rows[0].origen !== "remision_foto"
                 });
 
+                // Si la persona dijo de que pedido es la factura, queda ligada: asi la siguiente factura de ese pedido se compara contra lo que faltaba.
+                const pedidoDeLaFactura = Number(req.body?.pedidoId) > 0
+                    ? (await client.query(`SELECT id FROM public.pedidos_proveedor WHERE id = $1 AND negocio_id = $2`, [Number(req.body.pedidoId), negocio.id])).rows[0]?.id || null
+                    : null;
+
                 await client.query(
                     `UPDATE public.recepciones_inteligentes
                      SET estado = 'confirmada', confirmada_en = NOW(),
-                         revisado_por_empleado_id = $1, recepcion_mercancia_id = $2
+                         revisado_por_empleado_id = $1, recepcion_mercancia_id = $2,
+                         pedido_id = COALESCE($4::int, pedido_id)
                      WHERE id = $3`,
-                    [empleadoIdDeRequest(req), recepcionMercanciaId, req.params.id]
+                    [empleadoIdDeRequest(req), recepcionMercanciaId, req.params.id, pedidoDeLaFactura]
                 );
 
                 await client.query("COMMIT");
