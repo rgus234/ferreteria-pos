@@ -451,6 +451,28 @@
         return `<label class="rm-fecha" title="Fecha impresa en el empaque (opcional).${vida}">Caduca <input type="date" value="${esc(rm.caducidades.get(l.id) || "")}" onchange="rmCaducidad(${l.id}, this.value)"></label>`;
     }
 
+    // Costo de lo que llego (funcion "Llegada sin factura"): sin factura el costo es lo unico que se tiene, asi que se pide aqui.
+    // Viene con el costo que ya tiene el producto; si no se toca, se manda el mismo y no cambia nada. Vacio o 0 = no se toca el costo guardado.
+    const pideCosto = () => typeof window.funcionBeta === "function" && window.funcionBeta("llegada_sin_factura") && !rm.factura && !esPedido();
+
+    function costoParaEnviar(l) {
+        if (!pideCosto()) return 0;
+        const escrito = rm.costos && rm.costos.has(l.id) ? Number(rm.costos.get(l.id)) : costoDe(l.p);
+        return Number.isFinite(escrito) && escrito > 0 ? escrito : 0;
+    }
+
+    function costoLineaHtml(l) {
+        if (!pideCosto()) return "";
+        const actual = rm.costos && rm.costos.has(l.id) ? rm.costos.get(l.id) : (costoDe(l.p) || "");
+        return `<label class="rm-fecha rm-costo" title="Lo que pagaste por cada pieza. Si lo dejas vacío se conserva el costo que ya tiene el producto.">Costo $ <input type="number" min="0" step="any" inputmode="decimal" placeholder="0.00" value="${esc(String(actual))}" onchange="rmCosto(${l.id}, this.value)"></label>`;
+    }
+
+    window.rmCosto = function (id, valor) {
+        if (!rm) return;
+        rm.costos = rm.costos || new Map();
+        rm.costos.set(Number(id), valor);
+    };
+
     window.rmCaducidad = function (id, fecha) {
         if (!rm) return;
         if (fecha) rm.caducidades.set(Number(id), fecha); else rm.caducidades.delete(Number(id));
@@ -553,7 +575,7 @@
             ${rm.factura ? `<div class="rm-acciones"><button type="button" class="rm-btn" onclick="rmTodoFactura()">Llegó todo</button><button type="button" class="rm-btn" onclick="rmSalirFactura()">${esDePedido() ? "Salir del pedido" : "Salir de la factura"}</button></div>` : ""}
             ${rm.factura && !rm.factura.esPedido ? comparacionHtml() : ""}
             ${sinDecidir ? `<p class="rm-alerta">${sinDecidir} concepto${sinDecidir === 1 ? "" : "s"} por decidir (producto nuevo o sin emparejar). Resuélvelos en <button type="button" class="rm-enlace" onclick="rmIrADecidir()">Recepción inteligente</button> antes de confirmar.</p>` : ""}
-            <div class="rm-lineas">${ls.map(l => `<div class="rm-linea" style="--marca:${colorDe(l.p)}"><i class="rm-linea-mini">${typeof miniaturaProducto === "function" ? miniaturaProducto(l.p) : ""}</i><div class="rm-linea-datos"><span>${esc(l.p.nombre)}</span>${fechaLineaHtml(l)}</div><b>${numero(l.n)}</b><button type="button" onclick="rmQuitar(${l.id})" aria-label="Quitar">✕</button></div>`).join("") || `<p class="rm-nota">Todavía no anotas nada.</p>`}</div>
+            <div class="rm-lineas">${ls.map(l => `<div class="rm-linea" style="--marca:${colorDe(l.p)}"><i class="rm-linea-mini">${typeof miniaturaProducto === "function" ? miniaturaProducto(l.p) : ""}</i><div class="rm-linea-datos"><span>${esc(l.p.nombre)}</span>${fechaLineaHtml(l)}${costoLineaHtml(l)}</div><b>${numero(l.n)}</b><button type="button" onclick="rmQuitar(${l.id})" aria-label="Quitar">✕</button></div>`).join("") || `<p class="rm-nota">Todavía no anotas nada.</p>`}</div>
             <div class="rm-total"><span>${ls.length} producto${ls.length === 1 ? "" : "s"}</span><b>${numero(piezas)} piezas</b></div>
             ${proveedor}
             ${pagoRepartidorHtml()}
@@ -1214,7 +1236,7 @@
                 referencia: "Recibir por marca",
                 usuarioNombre: (typeof usuarioActual !== "undefined" && usuarioActual?.nombre) || "",
                 idempotencyKey: rm.llave,
-                items: ls.map(l => ({ productoId: l.id, cantidad: l.n, costo: 0, ...(rm.caducidades.get(l.id) ? { caducidad: rm.caducidades.get(l.id) } : {}) })),
+                items: ls.map(l => ({ productoId: l.id, cantidad: l.n, costo: costoParaEnviar(l), ...(rm.caducidades.get(l.id) ? { caducidad: rm.caducidades.get(l.id) } : {}) })),
                 ...(pago ? { pago } : {})
             })
         });
