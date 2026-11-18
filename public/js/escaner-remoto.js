@@ -79,6 +79,8 @@
    .mt-celular[data-er="ok"]::after, .rm-celular[data-er="ok"]::after{background:#18b88f}
    .mt-celular[data-er="error"]::after, .rm-celular[data-er="error"]::after{background:#ef4444}
    .mt-celular{display:inline-flex;align-items:center;gap:8px}
+   button.mt-celular.mt-celular>span,button.rm-celular.rm-celular>span{display:none}
+   button.mt-celular.mt-celular,button.rm-celular.rm-celular{width:46px;min-height:44px;height:44px;padding:0;gap:3px;justify-content:center;border-radius:12px}
 
    @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]) .er-panel{background:#1e293b;color:#e2e8f0}
@@ -313,7 +315,8 @@
 
   document.querySelectorAll(BOTONES_CELULAR).forEach(boton => {
    if (estado === "off") boton.removeAttribute("data-er"); else boton.dataset.er = estado;
-   if (boton.id === "erBoton") boton.title = descripcion(estado);
+   boton.title = descripcion(estado);
+   if (!boton.getAttribute("aria-label")) boton.setAttribute("aria-label", "Usar el celular como escáner");
   });
 
   const chip = asegurarChip();
