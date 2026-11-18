@@ -330,3 +330,26 @@ body.oscuro .rm-correo b { color: #f1f5f9; }
 :root[data-theme="dark"] .rm-fac-mini .rm-ya { color: #4ade80; }
 :root[data-theme="dark"] .rm-fac-mini .rm-falta { color: #fbbf24; }
 .rm-comp .rm-comp-motivo { font-size: 12px; opacity: .8; }
+
+/* Alta completa dentro de Recibir (Llegada sin factura) */
+.rm-alta-btn { width: 100%; margin: 6px 0 2px; }
+.rma-fondo { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .55); }
+.rma-caja { width: min(560px, 100%); max-height: 92vh; overflow: auto; border-radius: 18px; background: var(--pos-card, #fff); color: var(--pos-text, #0f172a); box-shadow: 0 24px 60px rgba(15, 23, 42, .35); }
+.rma-cab { display: flex; justify-content: space-between; gap: 12px; padding: 18px 20px 6px; }
+.rma-cab h3 { margin: 0 0 4px; font-size: 18px; }
+.rma-cab p { margin: 0; font-size: 12.5px; color: var(--pos-muted, #687386); }
+.rma-x { border: 0; background: transparent; font-size: 18px; cursor: pointer; color: inherit; }
+.rma-form { display: grid; gap: 14px; padding: 8px 20px 18px; }
+.rma-form section { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--pos-line, #dbe3ef); border-radius: 12px; }
+.rma-form h4 { margin: 0; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--pos-muted, #687386); }
+.rma-form label { display: grid; gap: 4px; font-size: 13px; font-weight: 700; }
+.rma-form label small { font-weight: 500; color: var(--pos-muted, #687386); }
+.rma-form input, .rma-form select { padding: 9px 10px; border: 1px solid var(--pos-line, #cbd5e1); border-radius: 10px; background: var(--pos-card, #fff); color: inherit; font: inherit; font-weight: 500; }
+.rma-dos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rma-margen { margin: 0; min-height: 16px; font-size: 12px; color: var(--pos-muted, #687386); }
+.rma-form details { display: grid; gap: 8px; }
+.rma-form summary { cursor: pointer; font-size: 13px; font-weight: 700; }
+.rma-pie { display: flex; justify-content: flex-end; gap: 8px; }
+body.oscuro .rma-caja { background: #151f31; color: #e6ecff; }
+body.oscuro .rma-form input, body.oscuro .rma-form select { background: #0f1727; border-color: rgba(148, 163, 184, .3); color: #e6ecff; }
+@media (max-width: 520px) { .rma-dos { grid-template-columns: 1fr; } }

@@ -577,6 +577,7 @@
             ${sinDecidir ? `<p class="rm-alerta">${sinDecidir} concepto${sinDecidir === 1 ? "" : "s"} por decidir (producto nuevo o sin emparejar). Resuélvelos en <button type="button" class="rm-enlace" onclick="rmIrADecidir()">Recepción inteligente</button> antes de confirmar.</p>` : ""}
             <div class="rm-lineas">${ls.map(l => `<div class="rm-linea" style="--marca:${colorDe(l.p)}"><i class="rm-linea-mini">${typeof miniaturaProducto === "function" ? miniaturaProducto(l.p) : ""}</i><div class="rm-linea-datos"><span>${esc(l.p.nombre)}</span>${fechaLineaHtml(l)}${costoLineaHtml(l)}</div><b>${numero(l.n)}</b><button type="button" onclick="rmQuitar(${l.id})" aria-label="Quitar">✕</button></div>`).join("") || `<p class="rm-nota">Todavía no anotas nada.</p>`}</div>
             <div class="rm-total"><span>${ls.length} producto${ls.length === 1 ? "" : "s"}</span><b>${numero(piezas)} piezas</b></div>
+            ${pideCosto() ? `<button type="button" class="rm-btn rm-alta-btn" onclick="rmAltaDesdeRecibir()">+ No está en mi catálogo: darlo de alta</button>` : ""}
             ${proveedor}
             ${pagoRepartidorHtml()}
             <button type="button" class="rm-btn principal grande" id="rmConfirmar" onclick="rmConfirmar()" ${ls.length && !rm.enviando ? "" : "disabled"}>${rm.enviando ? "Guardando…" : (rm.factura ? (esDePedido() ? "Confirmar recepción del pedido" : "Confirmar recepción de la factura") : "Confirmar recepción")}</button>`;
@@ -949,8 +950,37 @@
         }
 
         pitido(false);
+
+        // Llegada sin factura: un codigo que no esta en el catalogo se da de alta ahi mismo, sin salir de Recibir.
+        if (pideCosto() && /^\d{6,}$/.test(codigo) && typeof window.rmAltaAbrir === "function") {
+            window.rmAltaAbrir({ codigo: String(texto || "").trim(), proveedores: (rm.proveedores || []).map(p => p.nombre) });
+            return;
+        }
+
         aviso(/^\d{6,}$/.test(codigo) ? "Ese código no está en tu catálogo. Si es un producto nuevo, agrégalo en Inventario o recíbelo con la factura." : "No encontré ese producto.", "error");
         if (campo) campo.select();
+    };
+
+    // Boton "No está en mi catálogo": abre el alta completa con el proveedor que ya se eligio.
+    window.rmAltaDesdeRecibir = function () {
+        if (typeof window.rmAltaAbrir !== "function") return;
+        window.rmAltaAbrir({ nombre: (rm && rm.consulta && !/^\d+$/.test(rm.consulta)) ? rm.consulta : "", proveedores: (rm && rm.proveedores ? rm.proveedores : []).map(p => p.nombre) });
+    };
+
+    // El producto recien dado de alta entra a la lista de lo que llego, con su cantidad y su costo.
+    window.rmProductoNuevo = function (producto, cantidad, costo) {
+        if (!rm) return;
+        const id = Number(producto.id);
+        rm.todos.push(producto);
+        rm.indice.set(id, producto);
+        rm.cantidades.set(id, Number(cantidad) || 0);
+        rm.costos = rm.costos || new Map();
+        if (costo > 0) rm.costos.set(id, costo);
+        if (rm.tocados) rm.tocados.add(id);
+        rm.ultimo = { id };
+        rm.consulta = "";
+        const buscar = document.getElementById("rmBuscar"); if (buscar) buscar.value = "";
+        pintarFiltros(); pintarGrid(); pintarResumen(); pintarUltimo();
     };
 
     window.rmLinea = function (linea) { rm.linea = linea || ""; pintarFiltros(); pintarGrid(); };
