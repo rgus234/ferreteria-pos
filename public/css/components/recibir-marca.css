@@ -334,7 +334,7 @@ body.oscuro .rm-correo b { color: #f1f5f9; }
 /* Alta completa dentro de Recibir (Llegada sin factura) */
 .rm-alta-btn { width: 100%; margin: 6px 0 2px; }
 .rma-fondo { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .55); }
-.rma-caja { width: min(560px, 100%); max-height: 92vh; overflow: auto; border-radius: 18px; background: var(--pos-card, #fff); color: var(--pos-text, #0f172a); box-shadow: 0 24px 60px rgba(15, 23, 42, .35); }
+.rma-caja { width: min(940px, 100%); max-height: 92vh; overflow: auto; border-radius: 18px; background: var(--pos-card, #fff); color: var(--pos-text, #0f172a); box-shadow: 0 24px 60px rgba(15, 23, 42, .35); }
 .rma-cab { display: flex; justify-content: space-between; gap: 12px; padding: 18px 20px 6px; }
 .rma-cab h3 { margin: 0 0 4px; font-size: 18px; }
 .rma-cab p { margin: 0; font-size: 12.5px; color: var(--pos-muted, #687386); }
@@ -355,3 +355,14 @@ body.oscuro .rma-form input, body.oscuro .rma-form select { background: #0f1727;
 @media (max-width: 520px) { .rma-dos { grid-template-columns: 1fr; } }
 .rm-linea input.rm-cantidad { width: 74px; padding: 5px 6px; border: 1px solid var(--pos-line, #cbd5e1); border-radius: 8px; background: var(--pos-card, #fff); color: inherit; font: inherit; font-weight: 800; font-size: 15px; text-align: right; }
 body.oscuro .rm-linea input.rm-cantidad { background: #151f31; border-color: rgba(148, 163, 184, .3); color: #e6ecff; }
+.rma-cuerpo { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 4px; align-items: start; }
+.rma-foto { position: sticky; top: 0; display: grid; gap: 10px; margin: 8px 0 18px 20px; align-content: start; }
+.rma-foto-marco { display: flex; align-items: center; justify-content: center; aspect-ratio: 1 / 1; overflow: hidden; border: 2px dashed var(--pos-line, #cbd5e1); border-radius: 16px; background: var(--pos-surface, #f4f7fb); color: var(--pos-muted, #687386); }
+.rma-foto-marco img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.rma-foto-vacio { display: grid; justify-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+.rma-foto-btn { padding: 11px 14px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; font: inherit; font-weight: 800; font-size: 14px; cursor: pointer; box-shadow: 0 8px 18px rgba(37, 99, 235, .28); }
+.rma-foto-btn:hover { filter: brightness(1.06); }
+.rma-foto-quitar { border: 0; background: transparent; color: var(--pos-muted, #687386); font: inherit; font-size: 12.5px; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.rma-foto small { color: var(--pos-muted, #687386); font-size: 11.5px; line-height: 1.35; }
+body.oscuro .rma-foto-marco { background: #0f1727; border-color: rgba(148, 163, 184, .35); }
+@media (max-width: 760px) { .rma-cuerpo { grid-template-columns: 1fr; } .rma-foto { position: static; margin: 8px 20px 0; } .rma-foto-marco { aspect-ratio: 4 / 3; } }
