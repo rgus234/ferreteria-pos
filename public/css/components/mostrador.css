@@ -80,3 +80,7 @@ html.mostrador-abierto, html.mostrador-abierto body { overflow: hidden; }
     .mos-sugerencias { right: 22px; }
     .mos-auto, .mos-chico { display: none; }
 }
+
+/* Dentro del pie de la barra lateral: ocupa su lugar en vez de flotar encima de la version y el "Con la tecnologia de" */
+.sidebar-footer .mos-chip { position: static; width: 100%; padding: 9px 12px; border: 1px solid rgba(255, 255, 255, .12); border-radius: 12px; background: rgba(255, 255, 255, .06); color: rgba(255, 255, 255, .85); text-align: center; box-shadow: none; opacity: 1; }
+.sidebar-footer .mos-chip:hover { background: rgba(255, 255, 255, .12); }

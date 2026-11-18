@@ -279,6 +279,10 @@
         }
 
         chip.hidden = false;
+
+        // Vive dentro del pie de la barra lateral (arriba de "Con la tecnologia de Nexo"), no flotando encima de el.
+        const pie = document.querySelector(".sidebar-footer");
+        if (pie && chip.parentElement !== pie) pie.insertBefore(chip, pie.firstChild);
     }
 
     function alCambiarFunciones() {
@@ -288,5 +292,7 @@
     }
 
     document.addEventListener("nexo-funciones-beta", alCambiarFunciones);
+    // La barra lateral se arma despues de cargar: se vuelve a acomodar el boton cuando ya existe su pie.
+    window.addEventListener("load", () => { setTimeout(pintarChip, 800); setTimeout(pintarChip, 3000); });
     document.addEventListener("keydown", e => { if (e.ctrlKey && e.altKey && (e.key === "m" || e.key === "M") && window.funcionBeta?.("mostrador")) { e.preventDefault(); abierto ? cerrar(true) : abrir(); } });
 })();
