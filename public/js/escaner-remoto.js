@@ -149,6 +149,14 @@
   const mapa = document.getElementById("pantallaMapaTienda");
   if (mapa && mapa.style.display !== "none" && typeof window.mtRecibirCodigo === "function" && window.mtRecibirCodigo(codigo)) return;
 
+  // Escanear lo que llegó (factura): cada codigo del celular cuenta como un escaneo de la pistola.
+  const escInput = document.getElementById("riEscInput");
+  if (escInput && escInput.getClientRects().length && typeof window.riEscanear === "function") {
+   window.riEscanear(codigo);
+   escInput.focus();
+   return;
+  }
+
   const recibir = document.getElementById("pantallaRecibirMarca");
   if (recibir && recibir.style.display !== "none" && typeof window.rmEscanear === "function" && !document.querySelector('.modal-overlay[style*="flex"], .modal-personalizado[style*="flex"], .modal-form-credito[style*="flex"]')) {
    window.rmEscanear(codigo);
