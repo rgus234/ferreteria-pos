@@ -127,8 +127,8 @@
 
             const tarjeta = { ...(datos.producto || {}), id, nombre, codigo, costo, precio, stock: 0, unidad_venta: unidad, proveedor, marca: (campo("marca")?.value || "").trim(), categoria };
             if (Array.isArray(window.todosProductos)) window.todosProductos.push(tarjeta);
-            window.rmProductoNuevo?.(tarjeta, cantidad, costo);
-            aviso(interno ? `Listo. Le pusimos el código interno ${codigo}; ya puedes imprimir su etiqueta.` : "Listo: producto dado de alta y anotado en lo que llegó.");
+            window.rmProductoNuevo?.(tarjeta, cantidad, costo, interno);
+            aviso(interno ? `Listo. Le pusimos el código interno ${codigo}; al confirmar la recepción te ofrezco imprimir su etiqueta.` : "Listo: producto dado de alta y anotado en lo que llegó.");
             alta.enviando = false;
             window.rmAltaCerrar();
         } catch (error) {

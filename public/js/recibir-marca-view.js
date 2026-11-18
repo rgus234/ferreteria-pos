@@ -968,9 +968,10 @@
     };
 
     // El producto recien dado de alta entra a la lista de lo que llego, con su cantidad y su costo.
-    window.rmProductoNuevo = function (producto, cantidad, costo) {
+    window.rmProductoNuevo = function (producto, cantidad, costo, codigoInterno) {
         if (!rm) return;
         const id = Number(producto.id);
+        if (codigoInterno) { rm.paraEtiqueta = rm.paraEtiqueta || new Set(); rm.paraEtiqueta.add(id); }
         rm.todos.push(producto);
         rm.indice.set(id, producto);
         rm.cantidades.set(id, Number(cantidad) || 0);
@@ -1252,6 +1253,9 @@
         const pago = pagoParaEnviar();
         if (pago === null) { await alertaPOS("Escribe cuánto le pagaste al repartidor, o desmarca “Pagué al repartidor”.", "Falta el monto", "info"); return; }
 
+        // Lo que se dio de alta aqui con codigo interno (sin codigo de barras): se guarda antes de que la pantalla se reinicie.
+        const aEtiquetar = rm.paraEtiqueta ? ls.filter(l => rm.paraEtiqueta.has(l.id)).map(l => ({ id: l.id, n: l.n })) : [];
+
         const ok = await confirmarPOS(`Se suman ${numero(piezas)} pieza(s) (${ls.length} producto${ls.length === 1 ? "" : "s"}) al inventario.${proveedor ? `\nQuedan como “recibido sin factura” de ${proveedor}: cuando llegue su factura Nexo la compara y no suma dos veces.` : ""}`, "Recibir mercancía", "info");
         if (!ok) return;
 
@@ -1281,5 +1285,22 @@
         aviso(r.datos.repetida ? "Esa recepción ya estaba guardada." : `Recepción guardada: ${ls.length} producto${ls.length === 1 ? "" : "s"} sumado${ls.length === 1 ? "" : "s"} al inventario.`);
         if (typeof cargarProductos === "function") await cargarProductos();
         await window.mostrarRecibirMarca();
+        await ofrecerEtiquetas(aEtiquetar);
     };
+
+    // Los productos que se dieron de alta aqui sin codigo de barras traen un codigo interno: se ofrece imprimir su etiqueta (una por pieza) en el editor de siempre.
+    async function ofrecerEtiquetas(lista) {
+        if (!lista.length || typeof mostrarCodigosBarras !== "function") return;
+
+        const piezas = lista.reduce((s, x) => s + x.n, 0);
+        const si = await confirmarPOS(`${lista.length === 1 ? "El producto nuevo que no traía código de barras tiene" : `Los ${lista.length} productos nuevos que no traían código de barras tienen`} un código interno.\n¿Imprimir ${piezas === 1 ? "su etiqueta" : `sus etiquetas (${numero(piezas)}, una por pieza)`} ahora?`, "Etiquetas", "info");
+        if (!si) return;
+
+        await mostrarCodigosBarras({ productosIniciales: lista.map(x => ({ id: x.id })) });
+
+        if (typeof itemsCodigosBarras !== "undefined") {
+            itemsCodigosBarras.forEach(item => { const x = lista.find(y => y.id === Number(item.productoId)); if (x) item.cantidad = Math.max(1, Math.round(x.n)); });
+            if (typeof refrescarSeleccionEtiquetas === "function") refrescarSeleccionEtiquetas();
+        }
+    }
 })();
