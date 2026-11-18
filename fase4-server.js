@@ -665,6 +665,17 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                 aplicadas.push({ ...linea, nombre: fila.nombre, codigo: fila.codigo || "", stockNuevo });
             }
 
+            // Proveedor marcado "no da factura": no hay factura que esperar, asi que la recepcion queda cerrada (conciliada) de una vez.
+            let proveedorNoDaFactura = false;
+
+            if (sinFactura === true && String(proveedor || "").trim()) {
+                const marca = await client.query(
+                    `SELECT 1 FROM public.proveedores WHERE negocio_id = $1 AND activo = true AND no_da_factura = true AND LOWER(nombre) = LOWER($2) LIMIT 1`,
+                    [negocio.id, String(proveedor).trim().slice(0, 160)]
+                );
+                proveedorNoDaFactura = marca.rows.length > 0;
+            }
+
             const recepcion = await client.query(`
                 INSERT INTO public.recepciones_mercancia
                     (negocio_id, pedido_id, proveedor, referencia, notas, total, tipo_documento, idempotency_key, estado)
@@ -678,7 +689,7 @@ module.exports = (app, pool, normalizarCodigo, requerirAccesoNegocio) => {
                 total,
                 llave,
                 // "Sin factura": cuando llegue su factura por correo, Recepcion Inteligente la compara con esto y no suma dos veces.
-                (sinFactura === true && String(proveedor || "").trim()) ? "recibido_sin_factura" : "conciliado",
+                (sinFactura === true && String(proveedor || "").trim() && !proveedorNoDaFactura) ? "recibido_sin_factura" : "conciliado",
                 pedidoLigado
             ]);
 

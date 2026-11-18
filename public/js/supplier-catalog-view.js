@@ -335,6 +335,17 @@ function camposProveedor(proveedor = {}) {
  tipo: "number",
  placeholder: "Ej. 15 (vacío = pago de contado)",
  valor: proveedor.dias_credito ?? ""
+ }] : []),
+ // Llegada sin factura: proveedores que nunca dan factura (Gafi, la camioneta). Lo que se recibe de ellos se cierra al momento.
+ ...(typeof funcionBeta === "function" && funcionBeta("llegada_sin_factura") ? [{
+ nombre: "noDaFactura",
+ etiqueta: "¿Da factura?",
+ tipo: "select",
+ valor: proveedor.no_da_factura ? "1" : "",
+ opciones: [
+  { valor: "", etiqueta: "Sí, da factura" },
+  { valor: "1", etiqueta: "No da factura (lo que recibo se cierra al momento)" }
+ ]
  }] : [])
  ];
 }

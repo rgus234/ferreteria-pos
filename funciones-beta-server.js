@@ -38,6 +38,7 @@ const FUNCIONES = {
     mostrador: "Mostrador de precios",
     pedidos_unico: "Pedidos: crear, sugerir y hechos",
     agenda_pagos: "Agenda de pagos a proveedores",
+    llegada_sin_factura: "Llegada sin factura",
     precios_lote: "Actualizar precios por lote",
     unir_proveedores: "Unir proveedores repetidos",
     minimos_ventas: "Minimos y maximos con tus ventas"

@@ -9836,7 +9836,8 @@ app.put("/proveedores/:id", requerirAccesoNegocio, async (req, res) => {
                 telefono = $3,
                 correo = $4,
                 notas = $5,
-                dias_credito = CASE WHEN $8::boolean THEN $9::integer ELSE dias_credito END
+                dias_credito = CASE WHEN $8::boolean THEN $9::integer ELSE dias_credito END,
+                no_da_factura = CASE WHEN $10::boolean THEN $11::boolean ELSE no_da_factura END
             WHERE id = $6
             AND negocio_id = $7
             RETURNING *
@@ -9849,7 +9850,10 @@ app.put("/proveedores/:id", requerirAccesoNegocio, async (req, res) => {
             id,
             negocio.id,
             req.body.diasCredito !== undefined,
-            diasCreditoProveedor(req.body.diasCredito)
+            diasCreditoProveedor(req.body.diasCredito),
+            // Solo cambia si el formulario lo manda (funcion "Llegada sin factura" encendida); si no, se conserva.
+            req.body.noDaFactura !== undefined,
+            req.body.noDaFactura === true || req.body.noDaFactura === "1" || req.body.noDaFactura === "true"
         ]);
 
         if (resultado.rows.length === 0) {
