@@ -73,7 +73,7 @@
     }
 
     function tarjeta(clase, icono, etiqueta, titulo, detalle, accion, ok) {
-        return `<button type="button" class="ip-tarjeta ${clase}${ok ? " ok" : ""}" onclick="${accion}"><span class="ip-icono">${icono}</span><span class="ip-texto"><small>${esc(etiqueta)}</small><strong>${esc(titulo)}</strong><em>${esc(detalle)}</em></span><span class="ip-flecha" aria-hidden="true">›</span></button>`;
+        return `<button type="button" class="ip-tarjeta ${clase}${ok ? " ok" : ""}" onclick="${accion}"><span class="ip-icono kpi-icono ${ok ? "kpi-verde" : (clase === "ip-credito" ? "kpi-morado" : (clase === "ip-factura" ? "kpi-verde" : "kpi-naranja"))}">${typeof iconoUISVG === "function" ? iconoUISVG(icono) : ""}</span><span class="ip-texto"><small>${esc(etiqueta)}</small><strong>${esc(titulo)}</strong><em>${esc(detalle)}</em></span><span class="ip-flecha" aria-hidden="true">›</span></button>`;
     }
 
     function pintar() {
@@ -99,19 +99,19 @@
 
         if (datos.bajos) {
             const n = datos.bajos.length;
-            partes.push(tarjeta("ip-stock", "⚠️", "Stock crítico", `${n} producto${n === 1 ? "" : "s"}`, n ? nombres(datos.bajos, "nombre") : "Todo en orden por ahora.", "mostrarInventarioBajo()", !n));
+            partes.push(tarjeta("ip-stock", "alert", "Stock crítico", `${n} producto${n === 1 ? "" : "s"}`, n ? nombres(datos.bajos, "nombre") : "Todo en orden por ahora.", "mostrarInventarioBajo()", !n));
         }
 
         if (datos.credito) {
             const n = datos.credito.length;
             const total = datos.credito.reduce((s, c) => s + Number(c.saldo || 0), 0);
-            partes.push(tarjeta("ip-credito", "💳", `${esAbarrotes() ? "Fiado pendiente" : "Créditos pendientes"} · ${n} cliente${n === 1 ? "" : "s"}`, dinero(total), n ? nombres(datos.credito, "nombre") : `No hay ${esAbarrotes() ? "fiado" : "créditos"} pendiente${esAbarrotes() ? "" : "s"}.`, "abrirCreditos()", !n));
+            partes.push(tarjeta("ip-credito", "credit", `${esAbarrotes() ? "Fiado pendiente" : "Créditos pendientes"} · ${n} cliente${n === 1 ? "" : "s"}`, dinero(total), n ? nombres(datos.credito, "nombre") : `No hay ${esAbarrotes() ? "fiado" : "créditos"} pendiente${esAbarrotes() ? "" : "s"}.`, "abrirCreditos()", !n));
         }
 
         if (datos.facturas && datos.facturas.length) {
             const n = datos.facturas.length;
             const destino = (window.funcionBeta("recibir_por_marca") || window.funcionBeta("recepcion_unica")) ? "mostrarRecibirMarca()" : "mostrarRecepcionInteligente()";
-            partes.push(tarjeta("ip-factura", "🧾", "Facturas por recibir", `${n} factura${n === 1 ? "" : "s"}`, nombres(datos.facturas, "proveedor"), destino, false));
+            partes.push(tarjeta("ip-factura", "receipt", "Facturas por recibir", `${n} factura${n === 1 ? "" : "s"}`, nombres(datos.facturas, "proveedor"), destino, false));
         }
 
         caja.innerHTML = partes.join("");
