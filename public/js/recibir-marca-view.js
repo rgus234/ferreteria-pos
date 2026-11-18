@@ -467,6 +467,21 @@
         return `<label class="rm-fecha rm-costo" title="Lo que pagaste por cada pieza. Si lo dejas vacío se conserva el costo que ya tiene el producto.">Costo $ <input type="number" min="0" step="any" inputmode="decimal" placeholder="0.00" value="${esc(String(actual))}" onchange="rmCosto(${l.id}, this.value)"></label>`;
     }
 
+    // Cantidad que se puede escribir en la linea (funcion "Llegada sin factura"): para 500 piezas no hay que dar 500 veces al +.
+    function cantidadLineaHtml(l) {
+        if (!pideCosto()) return `<b>${numero(l.n)}</b>`;
+        return `<input class="rm-cantidad" type="number" min="0" step="any" inputmode="decimal" value="${esc(String(l.n))}" aria-label="Cuántas llegaron" onfocus="this.select()" onchange="rmCantidad(${l.id}, this.value)">`;
+    }
+
+    window.rmCantidad = function (id, valor) {
+        if (!rm) return;
+        id = Number(id);
+        if (rm.tocados) rm.tocados.add(id);
+        const n = Number(String(valor).replace(",", "."));
+        rm.cantidades.set(id, Number.isFinite(n) && n > 0 ? n : 0);
+        actualizarTarjeta(id); pintarResumen(); pintarFiltros(); pintarUltimo();
+    };
+
     window.rmCosto = function (id, valor) {
         if (!rm) return;
         rm.costos = rm.costos || new Map();
@@ -575,7 +590,7 @@
             ${rm.factura ? `<div class="rm-acciones"><button type="button" class="rm-btn" onclick="rmTodoFactura()">Llegó todo</button><button type="button" class="rm-btn" onclick="rmSalirFactura()">${esDePedido() ? "Salir del pedido" : "Salir de la factura"}</button></div>` : ""}
             ${rm.factura && !rm.factura.esPedido ? comparacionHtml() : ""}
             ${sinDecidir ? `<p class="rm-alerta">${sinDecidir} concepto${sinDecidir === 1 ? "" : "s"} por decidir (producto nuevo o sin emparejar). Resuélvelos en <button type="button" class="rm-enlace" onclick="rmIrADecidir()">Recepción inteligente</button> antes de confirmar.</p>` : ""}
-            <div class="rm-lineas">${ls.map(l => `<div class="rm-linea" style="--marca:${colorDe(l.p)}"><i class="rm-linea-mini">${typeof miniaturaProducto === "function" ? miniaturaProducto(l.p) : ""}</i><div class="rm-linea-datos"><span>${esc(l.p.nombre)}</span>${fechaLineaHtml(l)}${costoLineaHtml(l)}</div><b>${numero(l.n)}</b><button type="button" onclick="rmQuitar(${l.id})" aria-label="Quitar">✕</button></div>`).join("") || `<p class="rm-nota">Todavía no anotas nada.</p>`}</div>
+            <div class="rm-lineas">${ls.map(l => `<div class="rm-linea" style="--marca:${colorDe(l.p)}"><i class="rm-linea-mini">${typeof miniaturaProducto === "function" ? miniaturaProducto(l.p) : ""}</i><div class="rm-linea-datos"><span>${esc(l.p.nombre)}</span>${fechaLineaHtml(l)}${costoLineaHtml(l)}</div>${cantidadLineaHtml(l)}<button type="button" onclick="rmQuitar(${l.id})" aria-label="Quitar">✕</button></div>`).join("") || `<p class="rm-nota">Todavía no anotas nada.</p>`}</div>
             <div class="rm-total"><span>${ls.length} producto${ls.length === 1 ? "" : "s"}</span><b>${numero(piezas)} piezas</b></div>
             ${pideCosto() ? `<button type="button" class="rm-btn rm-alta-btn" onclick="rmAltaDesdeRecibir()">+ No está en mi catálogo: darlo de alta</button>` : ""}
             ${proveedor}

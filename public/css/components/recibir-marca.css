@@ -353,3 +353,5 @@ body.oscuro .rm-correo b { color: #f1f5f9; }
 body.oscuro .rma-caja { background: #151f31; color: #e6ecff; }
 body.oscuro .rma-form input, body.oscuro .rma-form select { background: #0f1727; border-color: rgba(148, 163, 184, .3); color: #e6ecff; }
 @media (max-width: 520px) { .rma-dos { grid-template-columns: 1fr; } }
+.rm-linea input.rm-cantidad { width: 74px; padding: 5px 6px; border: 1px solid var(--pos-line, #cbd5e1); border-radius: 8px; background: var(--pos-card, #fff); color: inherit; font: inherit; font-weight: 800; font-size: 15px; text-align: right; }
+body.oscuro .rm-linea input.rm-cantidad { background: #151f31; border-color: rgba(148, 163, 184, .3); color: #e6ecff; }
