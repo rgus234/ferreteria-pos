@@ -262,6 +262,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./facturacion-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("timbres prepagados de facturacion", () => {
+        require("./timbres-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("autofactura publica (el cliente factura su ticket)", () => {
         require("./autofactura-server")(app, pool);
     });

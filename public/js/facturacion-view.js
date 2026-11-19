@@ -116,8 +116,7 @@ function renderFacturacionHero() {
                 ? `<button type="button" class="facturacion-hero-cta" onclick="iniciarWizardFacturacion()">Empezar</button>`
                 : `
                     <span class="facturacion-upsell-badge">${iconoUISVG("zap")} Complemento de pago</span>
-                    <p class="facturacion-hero-sub" style="font-size:13px;">Esta función no está incluida en tu plan actual. Actívala desde Cuenta.</p>
-                    <button type="button" class="facturacion-hero-cta" onclick="mostrarCuenta()">Ir a Cuenta</button>
+                    <p class="facturacion-hero-sub" style="font-size:13px;">La facturación todavía no está disponible para tu negocio. Muy pronto podrás activarla desde aquí.</p>
                   `
             }
         </div>
@@ -425,6 +424,8 @@ function renderFacturacionActiva() {
 
     contenedor.innerHTML = `
         <div class="facturacion-activa-grid">
+            ${renderTarjetaTimbresFacturacion(datos.timbres)}
+
             <div class="facturacion-tarjeta">
                 <h3>Tu certificado</h3>
                 <div class="facturacion-cert-fila"><span>RFC</span><span>${escaparPOS(datos.rfc || "--")}</span></div>
@@ -445,6 +446,74 @@ function renderFacturacionActiva() {
 
     cargarFacturasFacturacion();
 }
+
+/* ---------- Timbres prepagados (solo si el servidor los tiene encendidos) ---------- */
+
+function dineroTimbresFacturacion(valor) {
+    return Number(valor || 0).toLocaleString("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: Number(valor) % 1 ? 2 : 0 });
+}
+
+function renderTarjetaTimbresFacturacion(t) {
+    if (!t || !t.habilitado) return "";
+    const clase = t.saldo === 0 ? "vacio" : t.bajo ? "bajo" : "bien";
+    const aviso = t.saldo === 0
+        ? "Ya no te quedan timbres. Compra un paquete para seguir facturando."
+        : t.bajo ? "Te quedan pocos. Conviene comprar más antes de que se acaben." : "Cada factura que se timbra descuenta 1.";
+    const paquetes = (t.paquetes || []).map((p, i) => `
+        <button type="button" class="facturacion-paquete${i === 1 ? " recomendado" : ""}" onclick="comprarTimbresFacturacion('${escaparPOS(p.id)}', this)">
+            ${i === 1 ? '<em>Más elegido</em>' : ""}
+            <b>${p.timbres}</b><span>timbres</span>
+            <strong>${dineroTimbresFacturacion(p.precio)}</strong>
+            <small>${dineroTimbresFacturacion(p.porTimbre)} c/u</small>
+        </button>`).join("");
+    const movimientos = (t.movimientos || []).slice(0, 5).map(m => `
+        <div class="facturacion-mov"><span>${escaparPOS(new Date(m.created_at).toLocaleDateString("es-MX", { day: "numeric", month: "short" }))} · ${escaparPOS(m.nota || m.tipo)}</span><b class="${m.cantidad > 0 ? "mas" : "menos"}">${m.cantidad > 0 ? "+" : ""}${m.cantidad}</b></div>`).join("");
+
+    return `
+        <div class="facturacion-tarjeta facturacion-timbres ${clase}" style="grid-column:1 / -1;">
+            <div class="facturacion-timbres-cab">
+                <div><h3>Tus timbres</h3><p>${escaparPOS(aviso)}</p></div>
+                <div class="facturacion-saldo"><b>${t.saldo}</b><span>disponibles</span></div>
+            </div>
+            <div class="facturacion-paquetes">${paquetes}</div>
+            <p class="facturacion-timbres-nota">Precios con IVA incluido. Pagas con tarjeta y los timbres se suman al momento.</p>
+            ${movimientos ? `<div class="facturacion-movs">${movimientos}</div>` : ""}
+        </div>`;
+}
+
+async function comprarTimbresFacturacion(paqueteId, boton) {
+    if (boton) boton.disabled = true;
+    try {
+        const respuesta = await fetch("/facturacion/timbres/comprar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paquete: paqueteId }) });
+        const datos = await respuesta.json().catch(() => ({}));
+        if (!respuesta.ok || !datos.ok || !datos.url) throw new Error(datos.error || "No se pudo abrir el pago.");
+        window.location.href = datos.url;
+    } catch (error) {
+        if (boton) boton.disabled = false;
+        if (typeof alertaPOS === "function") alertaPOS(error.message || "No se pudo abrir el pago.", "Comprar timbres", "peligro");
+    }
+}
+
+// Al volver de pagar en Stripe (/?timbres=exito&session_id=...): se confirma la compra y se abre Facturacion.
+(function confirmarCompraTimbresAlVolver() {
+    const parametros = new URLSearchParams(window.location.search);
+    if (parametros.get("timbres") !== "exito" || !parametros.get("session_id")) return;
+    const sessionId = parametros.get("session_id");
+    let intentos = 0;
+
+    const intentar = async () => {
+        if (intentos++ > 40) return;
+        try {
+            const r = await fetch("/facturacion/timbres/confirmar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId }) });
+            if (r.status === 401 || r.status === 403) { setTimeout(intentar, 2500); return; }
+            const d = await r.json().catch(() => ({}));
+            history.replaceState(null, "", window.location.pathname);
+            if (typeof mostrarFacturacion === "function") await mostrarFacturacion();
+            if (d.ok && d.acreditado && typeof alertaPOS === "function") alertaPOS("¡Listo! Tus timbres ya están disponibles.", "Timbres", "info");
+        } catch (error) { setTimeout(intentar, 2500); }
+    };
+    setTimeout(intentar, 2500);
+})();
 
 async function cargarFacturasFacturacion() {
     const contenedor = document.getElementById("facturacionListaFacturas");

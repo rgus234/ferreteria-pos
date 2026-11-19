@@ -10,6 +10,7 @@ const PDFDocument = require("pdfkit");
 const QRCode = require("qrcode");
 const { armarConceptosFactura, formaPagoSat, urlVerificacionSat } = require("./facturacion-server");
 const { funcionDelPlan } = require("./plan-enforcement");
+const timbres = require("./timbres");
 
 const PLAZO_DIAS = 30;
 const RFC_GENERICOS = ["XAXX010101000", "XEXX010101000"];
@@ -96,12 +97,12 @@ async function marcaPorCodigo(pool, codigoCrudo) {
     return venta ? marcaDe(venta) : null;
 }
 
-async function motivoNoDisponible(venta) {
+async function motivoNoDisponible(pool, venta) {
     const flag = venta.funciones_beta && venta.funciones_beta.autofactura === true;
     if (!flag || !venta.facturacion_activa) return "Este negocio todavía no ofrece facturación en línea. Pídela directo en caja.";
     try {
-        const plan = await funcionDelPlan(venta.negocio_id, "facturacion.cfdi");
-        if (!plan.incluido) return "Este negocio todavía no ofrece facturación en línea. Pídela directo en caja.";
+        if (!(await timbres.puedeFacturar(pool, venta.negocio_id, funcionDelPlan))) return "Este negocio todavía no ofrece facturación en línea. Pídela directo en caja.";
+        if (!(await timbres.hayTimbres(pool, venta.negocio_id))) return "Este negocio no puede facturar en línea por ahora. Pídela directo en caja.";
     } catch (error) {
         return "No pudimos revisar la facturación de este negocio. Intenta en un rato.";
     }
@@ -135,7 +136,7 @@ async function consultar(pool, { codigo, total }) {
         return { ok: true, estado: "facturada", marca, venta: resumen, factura: { folio: `${timbrada.serie || ""}${timbrada.folio || timbrada.id}`, uuid: timbrada.uuid, rfc: timbrada.receptor_rfc, correo: enmascararCorreo(timbrada.receptor_correo) } };
     }
 
-    const motivo = await motivoNoDisponible(venta);
+    const motivo = await motivoNoDisponible(pool, venta);
     if (motivo) return { ok: true, estado: "no_disponible", motivo, marca, venta: resumen };
     return { ok: true, estado: "disponible", marca, venta: resumen };
 }
@@ -176,7 +177,7 @@ async function emitir(pool, deps, { codigo, total, receptor: receptorCrudo }) {
     const venta = await ventaConNegocio(pool, normalizarCodigo(codigo));
     if (!venta || !totalCoincide(total, venta.total)) return { ok: false, status: 404, error: "No encontramos esa compra. Revisa el código y el total del ticket." };
 
-    const motivo = await motivoNoDisponible(venta);
+    const motivo = await motivoNoDisponible(pool, venta);
     if (motivo) return { ok: false, status: 400, error: motivo };
 
     const items = armarConceptosFactura(productosDe(venta), venta.facturacion_clave_prod_serv_default || "01010101", venta.facturacion_clave_unidad_default || "H87", Number(venta.descuento) || 0);
@@ -206,9 +207,15 @@ async function emitir(pool, deps, { codigo, total, receptor: receptorCrudo }) {
             const total_ = redondear(items.reduce((a, i) => a + i.Total, 0));
             const subtotal = redondear(items.reduce((a, i) => a + i.Subtotal, 0));
 
-            const resultado = await deps.crearCfdi(comprobante);
+            // Cobro de timbres (si esta encendido): se aparta 1 y vuelve si el PAC rechaza.
+            const reserva = await timbres.reservar(pool, venta.negocio_id, `venta:${venta.id}`);
+            if (!reserva.ok) return { ok: false, status: 400, error: "Este negocio no puede facturar en línea por ahora. Pídela directo en caja." };
+
+            let resultado;
+            try { resultado = await deps.crearCfdi(comprobante); } catch (errorPac) { await timbres.devolver(pool, venta.negocio_id); throw errorPac; }
 
             if (!resultado.ok) {
+                await timbres.devolver(pool, venta.negocio_id);
                 await cliente.query(
                     `INSERT INTO public.facturas_cfdi (negocio_id, historial_venta_id, cliente_id, receptor_rfc, receptor_nombre, receptor_uso_cfdi, receptor_regimen_fiscal, receptor_codigo_postal, receptor_correo, estado, error_mensaje, subtotal, total, creado_por)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'error',$10,$11,$12,'Autofactura (cliente)')`,

@@ -484,8 +484,19 @@ module.exports = (app, pool, requerirSesionCuenta, requerirAccesoNegocio) => {
 
 async function procesarEventoStripe(pool, stripe, evento) {
     switch (evento.type) {
+        // Compra de un paquete de timbres de facturacion (pago unico). El pago con OXXO o transferencia llega despues como "async_payment_succeeded".
+        case "checkout.session.async_payment_succeeded": {
+            await require("./timbres").acreditarDesdeSesion(pool, evento.data.object);
+            break;
+        }
+
         case "checkout.session.completed": {
             const sesion = evento.data.object;
+
+            if (sesion.mode === "payment" && sesion.metadata?.tipo === "timbres") {
+                await require("./timbres").acreditarDesdeSesion(pool, sesion);
+                break;
+            }
 
             if (sesion.mode === "subscription" && sesion.subscription) {
                 await pool.query(

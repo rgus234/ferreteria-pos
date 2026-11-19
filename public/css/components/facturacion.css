@@ -553,3 +553,29 @@ body.oscuro .facturar-venta-card-pos {
   color: #f8fafc;
   border-color: rgba(226, 232, 240, .18);
 }
+
+/* ---------- Timbres prepagados ---------- */
+.facturacion-timbres-cab { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 16px; }
+.facturacion-timbres-cab h3 { margin: 0 0 4px; }
+.facturacion-timbres-cab p { margin: 0; font-size: 13px; color: var(--text-muted, #667085); }
+.facturacion-saldo { text-align: center; padding: 10px 20px; border-radius: 16px; background: color-mix(in srgb, #16a34a 14%, transparent); color: #15803d; flex: none; }
+.facturacion-saldo b { display: block; font-size: 34px; line-height: 1; letter-spacing: -.03em; }
+.facturacion-saldo span { font-size: 11.5px; font-weight: 700; }
+.facturacion-timbres.bajo .facturacion-saldo { background: color-mix(in srgb, #f59e0b 18%, transparent); color: #b45309; }
+.facturacion-timbres.vacio .facturacion-saldo { background: color-mix(in srgb, #dc2626 14%, transparent); color: #dc2626; }
+.facturacion-paquetes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 760px) { .facturacion-paquetes { grid-template-columns: repeat(2, 1fr); } }
+.facturacion-paquete { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 16px 10px 14px; border-radius: 16px; border: 2px solid var(--line-soft, rgba(15, 23, 42, .14)); background: transparent; color: inherit; cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s; }
+.facturacion-paquete:hover { transform: translateY(-2px); border-color: #2563eb; box-shadow: 0 10px 24px rgba(37, 99, 235, .18); }
+.facturacion-paquete:disabled { opacity: .6; cursor: progress; }
+.facturacion-paquete.recomendado { border-color: #2563eb; background: color-mix(in srgb, #2563eb 7%, transparent); }
+.facturacion-paquete em { position: absolute; top: -10px; font-style: normal; font-size: 10.5px; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: #2563eb; color: #fff; }
+.facturacion-paquete b { font-size: 30px; line-height: 1; letter-spacing: -.03em; }
+.facturacion-paquete span { font-size: 12px; color: var(--text-muted, #667085); font-weight: 600; }
+.facturacion-paquete strong { margin-top: 8px; font-size: 18px; }
+.facturacion-paquete small { font-size: 12px; color: var(--text-muted, #667085); }
+.facturacion-timbres-nota { margin: 12px 0 0; font-size: 12px; color: var(--text-muted, #667085); }
+.facturacion-movs { margin-top: 14px; border-top: 1px dashed var(--line-soft, rgba(15, 23, 42, .16)); padding-top: 8px; }
+.facturacion-mov { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12.5px; color: var(--text-muted, #667085); }
+.facturacion-mov b.mas { color: #16a34a; }
+.facturacion-mov b.menos { color: var(--text-main, #101828); }

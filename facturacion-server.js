@@ -16,7 +16,22 @@ const multer = require("multer");
 const QRCode = require("qrcode");
 const { responderError } = require("./error-utils");
 const { cargarCsd, crearCfdi, descargarXmlCfdi } = require("./facturama-client");
-const { negocioIdDeRequest, requerirFuncionPlan, funcionDelPlan } = require("./plan-enforcement");
+const { negocioIdDeRequest, funcionDelPlan } = require("./plan-enforcement");
+const timbres = require("./timbres");
+
+// Con el cobro de timbres encendido basta con poder comprarlos; apagado, manda el plan como siempre.
+function requerirFacturacionPermitida(mensaje) {
+    return async function (req, res, next) {
+        try {
+            const negocioId = negocioIdDeRequest(req);
+            if (!negocioId) { res.status(401).json({ ok: false, error: "Este equipo no esta vinculado a ningun negocio" }); return; }
+            if (await timbres.puedeFacturar(null, negocioId, funcionDelPlan)) { next(); return; }
+            res.status(403).json({ ok: false, error: mensaje, requiereUpgrade: true, funcion: "facturacion.cfdi" });
+        } catch (error) {
+            res.status(500).json({ ok: false, error: "No se pudo verificar tu plan. Intenta de nuevo." });
+        }
+    };
+}
 const { enviarCorreoFacturaCfdi } = require("./email");
 
 const PATRON_RFC = /\b([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\b/;
@@ -254,7 +269,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 return;
             }
 
-            const [negocio, { incluido }] = await Promise.all([
+            const [negocio, incluido] = await Promise.all([
                 pool.query(
                     `
                     SELECT rfc, razon_social, regimen_fiscal, codigo_postal_fiscal,
@@ -264,10 +279,10 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     `,
                     [negocioId]
                 ).then(r => r.rows[0]),
-                funcionDelPlan(negocioId, "facturacion.cfdi")
+                timbres.puedeFacturar(pool, negocioId, funcionDelPlan)
             ]);
 
-            res.json({ ok: true, disponibleEnPlan: incluido, ...negocio });
+            res.json({ ok: true, disponibleEnPlan: incluido, timbres: await timbres.resumen(pool, negocioId), ...negocio });
         } catch (error) {
             responderError(res, error);
         }
@@ -343,7 +358,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
     app.post(
         "/facturacion/generar/:historialVentaId",
         requerirAccesoNegocio,
-        requerirFuncionPlan("facturacion.cfdi", "La facturacion electronica es un complemento de pago. Actívalo desde Cuenta."),
+        requerirFacturacionPermitida("La facturacion electronica es un complemento de pago. Pide que te la activen."),
         async (req, res) => {
             try {
                 const negocioId = negocioIdDeRequest(req);
@@ -462,9 +477,23 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 const subtotalFactura = redondear(items.reduce((acc, item) => acc + item.Subtotal, 0));
                 const creadoPor = req.negocioAutenticado?.persona_nombre || req.negocioDispositivo?.nombre || null;
 
-                const resultado = await crearCfdi(comprobante);
+                // Cobro de timbres (solo si esta encendido): se aparta 1 antes de timbrar y vuelve si el PAC rechaza.
+                const reserva = await timbres.reservar(pool, negocioId, `venta:${historialVentaId}`);
+                if (!reserva.ok) {
+                    res.status(402).json({ ok: false, sinTimbres: true, error: "Te quedaste sin timbres. Compra un paquete en Facturación para seguir facturando." });
+                    return;
+                }
+
+                let resultado;
+                try {
+                    resultado = await crearCfdi(comprobante);
+                } catch (errorPac) {
+                    await timbres.devolver(pool, negocioId);
+                    throw errorPac;
+                }
 
                 if (!resultado.ok) {
+                    await timbres.devolver(pool, negocioId);
                     await pool.query(
                         `
                         INSERT INTO public.facturas_cfdi
@@ -708,7 +737,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
     app.post(
         "/facturacion/csd",
         requerirAccesoNegocio,
-        requerirFuncionPlan("facturacion.cfdi", "La facturacion electronica es un complemento de pago. Actívalo desde Cuenta."),
+        requerirFacturacionPermitida("La facturacion electronica es un complemento de pago. Pide que te la activen."),
         manejarSubidaCsd,
         async (req, res) => {
             try {
