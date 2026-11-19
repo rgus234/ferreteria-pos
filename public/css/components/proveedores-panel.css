@@ -1,0 +1,70 @@
+/* Proveedores: diseño nuevo (funcion beta proveedores_nuevo). Solo se ve con .pp-activo en la pantalla. */
+.proveedores-shell.pp-activo .proveedores-resumen,
+.proveedores-shell.pp-activo .proveedores-toolbar,
+.proveedores-shell.pp-activo .tabla-proveedores,
+.proveedores-shell.pp-activo .proveedores-pie { display: none; }
+.pp { display: none; }
+.proveedores-shell.pp-activo .pp { display: block; }
+
+.pp-resumen { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.pp-resumen > div, .pp-datos > div { background: var(--pos-surface, #fff); border: 1px solid var(--pos-border, #e5e9f0); border-radius: 14px; padding: 12px 16px; }
+.pp-resumen small, .pp-datos small, .pp-kv small { display: block; color: var(--pos-muted, #687386); font-size: 12px; font-weight: 600; }
+.pp-resumen b { font-size: 24px; display: block; margin-top: 2px; }
+.pp-ambar b, .pp-ambar em { color: #b45309; }
+.pp-rojo b, .pp-rojo em { color: #dc2626; }
+
+.pp-barra { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+.pp-barra input { flex: 1 1 240px; min-width: 200px; height: 42px; border-radius: 12px; border: 1px solid var(--pos-border, #e5e9f0); padding: 0 14px; background: var(--pos-surface, #fff); color: inherit; }
+.pp-filtros, .pp-estado { display: flex; gap: 6px; flex-wrap: wrap; }
+.pp-estado { margin-left: auto; }
+.pp-filtro { border: 1px solid var(--pos-border, #e5e9f0); background: var(--pos-surface, #fff); color: inherit; border-radius: 999px; padding: 7px 14px; font-weight: 600; font-size: 13px; cursor: pointer; }
+.pp-filtro.activo { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+.pp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.pp-card { background: var(--pos-surface, #fff); border: 1px solid var(--pos-border, #e5e9f0); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; cursor: pointer; transition: box-shadow .15s, transform .15s; }
+.pp-card:hover { box-shadow: 0 8px 24px rgba(15, 23, 42, .10); transform: translateY(-1px); }
+.pp-baja { opacity: .75; }
+.pp-card-cab { display: flex; gap: 12px; align-items: center; }
+.pp-avatar { width: 42px; height: 42px; border-radius: 12px; background: #dbeafe; color: #1d4ed8; display: grid; place-items: center; font-weight: 800; font-size: 18px; flex: none; }
+.pp-card-nombre { flex: 1; min-width: 0; }
+.pp-card-nombre b { display: block; font-size: 15px; line-height: 1.25; }
+.pp-card-nombre span { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.pp-chip, .pp-etiqueta { font-style: normal; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: #eef2f7; color: #475569; }
+.pp-etiqueta { background: #fef3c7; color: #92400e; }
+.pp-mas { border: 0; background: transparent; font-size: 22px; line-height: 1; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; color: inherit; }
+.pp-mas:hover { background: rgba(100, 116, 139, .15); }
+.pp-contacto { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--pos-muted, #687386); min-height: 20px; }
+.pp-enlace { border: 0; background: none; color: #2563eb; font-weight: 700; cursor: pointer; padding: 0; font-size: 13px; }
+.pp-datos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pp-datos > div { padding: 8px 10px; border-radius: 10px; background: rgba(100, 116, 139, .07); border: 0; }
+.pp-datos b { display: block; font-size: 14px; margin-top: 2px; }
+.pp-datos em { font-style: normal; font-size: 11px; font-weight: 700; }
+.pp-aviso { margin: 0; font-size: 12px; font-weight: 700; color: #1d4ed8; }
+.pp-card-pie { display: flex; gap: 8px; margin-top: auto; }
+.pp-btn { border: 1px solid var(--pos-border, #e5e9f0); background: var(--pos-surface, #fff); color: inherit; border-radius: 10px; padding: 8px 14px; font-weight: 700; font-size: 13px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+.pp-principal { background: #2563eb; border-color: #2563eb; color: #fff; }
+.pp-vacio { color: var(--pos-muted, #687386); text-align: center; padding: 24px; grid-column: 1 / -1; }
+
+.pp-menu { position: fixed; z-index: 10000; width: 190px; background: var(--pos-surface, #fff); color: var(--pos-text, #0f172a); border: 1px solid var(--pos-border, #e5e9f0); border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 42, .18); padding: 6px; display: flex; flex-direction: column; }
+.pp-menu button { text-align: left; border: 0; background: transparent; color: inherit; padding: 9px 12px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; }
+.pp-menu button:hover { background: rgba(100, 116, 139, .14); }
+.pp-menu .pp-peligro { color: #dc2626; }
+
+.pp-fondo { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); z-index: 9990; display: flex; justify-content: flex-end; }
+.pp-ficha { width: min(520px, 100%); height: 100%; background: var(--pos-surface, #fff); color: var(--pos-text, #0f172a); padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; box-shadow: -12px 0 40px rgba(15, 23, 42, .2); }
+.pp-ficha-cab { display: flex; gap: 12px; align-items: center; }
+.pp-ficha-cab h3 { margin: 0; font-size: 18px; }
+.pp-ficha-cab > div { flex: 1; }
+.pp-x { border: 0; background: transparent; font-size: 28px; cursor: pointer; color: inherit; width: 36px; height: 36px; border-radius: 10px; }
+.pp-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+.pp-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--pos-border, #e5e9f0); }
+.pp-tab { border: 0; background: transparent; color: var(--pos-muted, #687386); padding: 10px 12px; font-weight: 700; font-size: 13px; cursor: pointer; border-bottom: 3px solid transparent; }
+.pp-tab.activo { color: #2563eb; border-bottom-color: #2563eb; }
+.pp-cuerpo h4 { margin: 12px 0 4px; font-size: 13px; color: var(--pos-muted, #687386); }
+.pp-kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.pp-kv b { display: block; font-size: 14px; margin-top: 2px; word-break: break-word; }
+.pp-notas { color: var(--pos-muted, #687386); font-size: 13px; line-height: 1.5; }
+.pp-fila { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--pos-border, #e5e9f0); font-size: 13px; align-items: center; }
+.pp-cuerpo .pp-btn { margin-top: 14px; }
+
+@media (max-width: 900px) { .pp-resumen { grid-template-columns: repeat(2, 1fr); } .pp-estado { margin-left: 0; } .pp-kv { grid-template-columns: repeat(2, 1fr); } }

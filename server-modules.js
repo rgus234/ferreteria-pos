@@ -141,6 +141,7 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
 
     cargarModuloPOS("unir proveedores repetidos", () => {
         require("./proveedores-unir-server")(app, pool, requerirAccesoNegocio);
+        require("./proveedores-panel-server")(app, pool, requerirAccesoNegocio);
     });
 
     cargarModuloPOS("minimos con tus ventas", () => {

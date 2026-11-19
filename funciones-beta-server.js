@@ -42,7 +42,8 @@ const FUNCIONES = {
     catalogo_productos: "Catálogo de productos en PDF",
     precios_lote: "Actualizar precios por lote",
     unir_proveedores: "Unir proveedores repetidos",
-    minimos_ventas: "Minimos y maximos con tus ventas"
+    minimos_ventas: "Minimos y maximos con tus ventas",
+    proveedores_nuevo: "Proveedores: diseño nuevo"
 };
 
 let columnaLista = false;
