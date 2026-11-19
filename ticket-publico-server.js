@@ -67,7 +67,8 @@ async function ventaPorCodigoPublico(pool, codigo) {
     const resultado = await pool.query(
         `
         SELECT h.*, n.nombre AS negocio_nombre, n.logo AS negocio_logo, n.color AS negocio_color,
-               n.direccion AS negocio_direccion, n.telefono AS negocio_telefono, n.slug AS negocio_slug
+               n.direccion AS negocio_direccion, n.telefono AS negocio_telefono, n.slug AS negocio_slug,
+               (n.facturacion_activa AND COALESCE(n.funciones_beta->>'autofactura', '') = 'true') AS negocio_autofactura
         FROM public.historial_ventas h
         JOIN public.negocios n ON n.id = h.negocio_id
         WHERE h.codigo_publico = $1
@@ -268,6 +269,7 @@ function paginaTicketPublicoHtml(venta) {
    ${seccionPagoHtml(venta)}
   </div>
 
+  ${venta.estado !== "cancelada" && venta.negocio_autofactura ? `<a class="ticket-publico-boton-imprimir" style="display:block;text-align:center;text-decoration:none;margin-top:14px;" href="/facturar/${encodeURIComponent(venta.codigo_publico)}">Facturar esta compra</a>` : ""}
   <button type="button" class="ticket-publico-boton-imprimir" onclick="window.print()">Imprimir</button>
 
   <div class="ticket-publico-pie">Recibo digital -- con la tecnologia de Nexo</div>

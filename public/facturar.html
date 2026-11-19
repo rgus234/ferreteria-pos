@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1067e8">
+<title>Factura tu compra</title>
+<style>
+:root {
+  --brand: #1067e8;
+  --brand-2: color-mix(in srgb, var(--brand) 70%, #7c3aed);
+  --brand-soft: color-mix(in srgb, var(--brand) 12%, transparent);
+  --bg: #f3f5fb;
+  --card: #ffffff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --field: #f8fafc;
+  --ok: #16a34a;
+  --bad: #dc2626;
+  --shadow: 0 24px 60px -24px rgba(15, 23, 42, .35), 0 2px 6px rgba(15, 23, 42, .06);
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0b1020; --card: #131a30; --ink: #f1f5f9; --muted: #94a3b8; --line: #243053; --field: #0f1630; --shadow: 0 24px 60px -24px rgba(0,0,0,.7); }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; min-height: 100vh; color: var(--ink);
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background:
+    radial-gradient(900px 500px at 85% -10%, color-mix(in srgb, var(--brand) 32%, transparent), transparent 60%),
+    radial-gradient(700px 420px at -10% 10%, color-mix(in srgb, var(--brand-2) 26%, transparent), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+  padding: 0 0 calc(40px + env(safe-area-inset-bottom));
+}
+.wrap { width: min(560px, 100% - 32px); margin: 0 auto; }
+
+/* ---------- encabezado de marca ---------- */
+.hero { padding: 34px 0 22px; text-align: center; position: relative; }
+.logo {
+  width: 76px; height: 76px; border-radius: 22px; margin: 0 auto 14px; display: grid; place-items: center; overflow: hidden;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #fff; font-size: 32px; font-weight: 800;
+  box-shadow: 0 14px 30px -10px color-mix(in srgb, var(--brand) 70%, transparent), inset 0 0 0 2px rgba(255,255,255,.25);
+}
+.logo img { width: 100%; height: 100%; object-fit: cover; }
+.negocio { font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--brand); margin: 0 0 6px; }
+h1 { margin: 0; font-size: clamp(30px, 8vw, 42px); line-height: 1.05; letter-spacing: -.03em; font-weight: 800; }
+h1 span { background: linear-gradient(90deg, var(--brand), var(--brand-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sub { margin: 10px auto 0; max-width: 420px; color: var(--muted); font-size: 15.5px; line-height: 1.5; }
+
+/* ---------- pasos ---------- */
+.pasos { display: flex; align-items: center; justify-content: center; gap: 0; margin: 4px auto 22px; width: min(340px, 100%); }
+.paso { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; font-weight: 800; font-size: 14px; background: var(--card); color: var(--muted); border: 2px solid var(--line); transition: .35s; flex: none; position: relative; }
+.paso small { position: absolute; top: 40px; font-size: 11px; font-weight: 700; color: var(--muted); white-space: nowrap; letter-spacing: .02em; }
+.paso.activo { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #fff; border-color: transparent; box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--brand) 80%, transparent); transform: scale(1.1); }
+.paso.activo small { color: var(--brand); }
+.paso.hecho { background: var(--ok); color: #fff; border-color: transparent; }
+.linea { flex: 1; height: 3px; background: var(--line); margin: 0 6px; border-radius: 3px; overflow: hidden; }
+.linea i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--brand), var(--brand-2)); transition: width .5s cubic-bezier(.2,.8,.2,1); }
+.linea.llena i { width: 100%; }
+
+/* ---------- tarjeta tipo ticket ---------- */
+.tarjeta {
+  position: relative; background: var(--card); border-radius: 26px; padding: 26px 22px 24px; margin-top: 84px; box-shadow: var(--shadow);
+  animation: entra .5s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes entra { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: none; } }
+.tarjeta h2 { margin: 0 0 4px; font-size: 21px; letter-spacing: -.02em; }
+.tarjeta .nota { margin: 0 0 18px; color: var(--muted); font-size: 14.5px; line-height: 1.5; }
+.perfora { border: 0; border-top: 2px dashed var(--line); margin: 14px -22px 18px; }
+
+.mascota { position: absolute; right: 8px; top: -64px; width: 96px; height: 96px; object-fit: contain; filter: drop-shadow(0 12px 14px rgba(15,23,42,.28)); animation: flota 3.6s ease-in-out infinite; pointer-events: none; }
+@keyframes flota { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-8px) rotate(2deg); } }
+
+/* ---------- campos ---------- */
+.campo { display: block; margin-bottom: 14px; position: relative; }
+.campo > span { display: block; font-size: 12.5px; font-weight: 700; color: var(--muted); margin: 0 0 6px 2px; letter-spacing: .02em; }
+.campo input, .campo select {
+  width: 100%; height: 52px; padding: 0 16px; border-radius: 16px; border: 2px solid var(--line); background: var(--field); color: var(--ink);
+  font: inherit; font-size: 16px; outline: none; transition: border-color .2s, box-shadow .2s, background .2s; appearance: none; -webkit-appearance: none;
+}
+.campo select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; padding-right: 40px; }
+.campo input:focus, .campo select:focus { border-color: var(--brand); box-shadow: 0 0 0 5px var(--brand-soft); background: var(--card); }
+.campo input.mal { border-color: var(--bad); box-shadow: 0 0 0 5px color-mix(in srgb, var(--bad) 14%, transparent); }
+.campo input.bien { border-color: var(--ok); }
+.codigo { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .22em; font-weight: 800; text-transform: uppercase; font-size: 20px !important; text-align: center; }
+.dinero { position: relative; }
+.dinero b { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); font-weight: 800; color: var(--muted); font-size: 18px; }
+.dinero input { padding-left: 36px; font-weight: 800; font-size: 20px; }
+.fila2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 440px) { .fila2 { grid-template-columns: 1fr; gap: 0; } }
+.pista { font-size: 12.5px; color: var(--muted); margin: -6px 2px 14px; line-height: 1.45; }
+.tipo { position: absolute; right: 12px; top: 33px; font-size: 11px; font-weight: 800; padding: 4px 9px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); pointer-events: none; }
+
+.boton {
+  width: 100%; height: 56px; border: 0; border-radius: 18px; cursor: pointer; font: inherit; font-size: 17px; font-weight: 800; color: #fff; letter-spacing: -.01em;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 16px 30px -12px color-mix(in srgb, var(--brand) 80%, transparent);
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; transition: transform .15s, box-shadow .15s, filter .15s; text-decoration: none;
+}
+.boton:hover { transform: translateY(-2px); filter: brightness(1.06); }
+.boton:active { transform: translateY(0) scale(.99); }
+.boton[disabled] { opacity: .7; cursor: progress; transform: none; }
+.boton.claro { background: var(--field); color: var(--ink); box-shadow: none; border: 2px solid var(--line); }
+.boton.claro:hover { border-color: var(--brand); }
+.girando { width: 20px; height: 20px; border-radius: 50%; border: 3px solid rgba(255,255,255,.4); border-top-color: #fff; animation: gira .7s linear infinite; }
+@keyframes gira { to { transform: rotate(360deg); } }
+.enlace { background: none; border: 0; color: var(--brand); font: inherit; font-weight: 700; cursor: pointer; padding: 10px; display: block; margin: 8px auto 0; }
+
+.error { margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); font-weight: 600; font-size: 14px; line-height: 1.45; animation: tiembla .4s; }
+@keyframes tiembla { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+.oculto { display: none !important; }
+
+/* ---------- ayuda visual: donde esta el codigo ---------- */
+.ayuda { margin-top: 18px; padding: 14px; border-radius: 18px; background: var(--brand-soft); display: flex; gap: 14px; align-items: center; }
+.mini { flex: none; width: 74px; background: #fff; color: #111; border-radius: 6px; padding: 7px 6px; font: 700 7px/1.3 ui-monospace, Menlo, monospace; box-shadow: 0 6px 14px rgba(15,23,42,.18); transform: rotate(-4deg); }
+.mini i { display: block; height: 3px; background: #cbd5e1; border-radius: 2px; margin: 3px 0; }
+.mini .qr { width: 26px; height: 26px; margin: 5px auto 3px; background: conic-gradient(#111 25%, #fff 0 50%, #111 0 75%, #fff 0) 0 0 / 8px 8px; border: 2px solid #111; }
+.mini .t { color: var(--brand); text-align: center; }
+.ayuda p { margin: 0; font-size: 13.5px; color: var(--ink); line-height: 1.5; }
+
+/* ---------- resumen de la compra ---------- */
+.resumen { background: var(--field); border: 2px dashed var(--line); border-radius: 18px; padding: 14px 16px; margin-bottom: 18px; }
+.resumen .cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.resumen .cab b { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.resumen .tot { font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+.resumen details { margin-top: 6px; }
+.resumen summary { cursor: pointer; color: var(--brand); font-weight: 700; font-size: 13.5px; list-style: none; }
+.resumen summary::-webkit-details-marker { display: none; }
+.resumen ul { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13.5px; }
+.resumen li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px dotted var(--line); }
+.resumen li span:first-child { color: var(--muted); }
+.chip-ok { display: inline-flex; gap: 6px; align-items: center; background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); font-weight: 800; font-size: 12.5px; padding: 5px 11px; border-radius: 999px; }
+
+.recuerda { display: flex; gap: 10px; align-items: center; font-size: 13.5px; color: var(--muted); margin: 4px 0 16px; cursor: pointer; }
+.recuerda input { width: 20px; height: 20px; accent-color: var(--brand); }
+.seguro { text-align: center; font-size: 12.5px; color: var(--muted); margin: 14px 0 0; display: flex; gap: 6px; justify-content: center; align-items: center; }
+
+/* ---------- exito ---------- */
+.exito { text-align: center; padding-top: 30px; }
+.check { width: 92px; height: 92px; margin: 0 auto 14px; }
+.check circle { fill: none; stroke: var(--ok); stroke-width: 5; stroke-dasharray: 290; stroke-dashoffset: 290; animation: trazo .7s .1s ease forwards; transform-origin: center; }
+.check path { fill: none; stroke: var(--ok); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 60; stroke-dashoffset: 60; animation: trazo .45s .65s ease forwards; }
+@keyframes trazo { to { stroke-dashoffset: 0; } }
+.exito h2 { font-size: 27px; letter-spacing: -.03em; }
+.datos { text-align: left; background: var(--field); border-radius: 18px; padding: 8px 16px; margin: 16px 0; }
+.datos div { display: flex; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.datos div:last-child { border: 0; }
+.datos span { color: var(--muted); }
+.datos b { text-align: right; word-break: break-all; }
+.descargas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0 6px; }
+@media (max-width: 400px) { .descargas { grid-template-columns: 1fr; } }
+.correo-ok { margin: 14px 0 0; font-size: 14px; color: var(--muted); }
+.correo-ok b { color: var(--ink); }
+.reenvio { margin-top: 10px; display: flex; gap: 8px; }
+.reenvio input { flex: 1; height: 46px; border-radius: 14px; border: 2px solid var(--line); background: var(--field); color: var(--ink); padding: 0 14px; font: inherit; min-width: 0; }
+.reenvio button { height: 46px; padding: 0 18px; border-radius: 14px; border: 0; background: var(--brand); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+.sin-servicio { text-align: center; }
+.sin-servicio h2 { font-size: 23px; }
+
+canvas#confeti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; }
+.pie { text-align: center; margin-top: 26px; font-size: 12.5px; color: var(--muted); }
+.pie b { color: var(--brand); }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: .01s !important; animation-iteration-count: 1 !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<canvas id="confeti"></canvas>
+<main class="wrap">
+  <header class="hero">
+    <div class="logo" id="logo">N</div>
+    <p class="negocio" id="negocio">Nexo</p>
+    <h1>Factura <span>tu compra</span></h1>
+    <p class="sub" id="sub">En un minuto, sin salir de aquí. Tu factura llega a tu correo en PDF y XML.</p>
+  </header>
+
+  <div class="pasos" aria-hidden="true">
+    <div class="paso activo" id="p1">1<small>Tu ticket</small></div>
+    <div class="linea" id="l1"><i></i></div>
+    <div class="paso" id="p2">2<small>Tus datos</small></div>
+    <div class="linea" id="l2"><i></i></div>
+    <div class="paso" id="p3">3<small>¡Listo!</small></div>
+  </div>
+
+  <!-- PASO 1: codigo y total -->
+  <section class="tarjeta ticket" id="vista1">
+    <img class="mascota" src="/img/nexo-ia/pensando-transparente.png" alt="">
+    <h2>Busquemos tu compra</h2>
+    <p class="nota">Escribe el código de tu ticket y el total que pagaste.</p>
+    <hr class="perfora">
+    <p class="error oculto" id="err1" role="alert"></p>
+    <form id="form1" autocomplete="off" novalidate>
+      <label class="campo"><span>Código del ticket</span><input class="codigo" id="codigo" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="TICKET1A2B3C" required></label>
+      <label class="campo"><span>Total de la compra</span><div class="dinero"><b>$</b><input id="total" inputmode="decimal" placeholder="0.00" required></div></label>
+      <button class="boton" id="btn1" type="submit">Continuar <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    </form>
+    <div class="ayuda">
+      <div class="mini" aria-hidden="true">TICKET<i></i><i></i><i></i><div class="qr"></div><div class="t">/facturar/…</div></div>
+      <p><b>¿Dónde lo veo?</b> Al final de tu ticket, debajo del QR, está el link con tu código. Si escaneas el QR o entras desde ese link, el código ya viene puesto.</p>
+    </div>
+  </section>
+
+  <!-- PASO 2: datos fiscales -->
+  <section class="tarjeta oculto" id="vista2">
+    <img class="mascota" src="/img/nexo-ia/feliz-transparente.png" alt="">
+    <h2>Tus datos fiscales</h2>
+    <p class="nota">Cópialos tal cual de tu Constancia de Situación Fiscal para que el SAT la acepte.</p>
+    <div class="resumen" id="resumen"></div>
+    <p class="error oculto" id="err2" role="alert"></p>
+    <form id="form2" autocomplete="on" novalidate>
+      <label class="campo"><span>RFC</span><input id="rfc" name="rfc" maxlength="13" autocapitalize="characters" spellcheck="false" placeholder="XXXX000000XXX" style="text-transform:uppercase;letter-spacing:.06em;font-weight:700;" required><em class="tipo oculto" id="tipoRfc"></em></label>
+      <label class="campo"><span>Nombre o razón social</span><input id="nombre" name="nombre" autocomplete="name" placeholder="Como aparece en tu constancia" required></label>
+      <p class="pista">Sin “S.A. de C.V.” ni régimen de capital si tu constancia no lo trae. Mayúsculas y acentos se ajustan solos.</p>
+      <div class="fila2">
+        <label class="campo"><span>Código postal fiscal</span><input id="cp" name="postal-code" inputmode="numeric" maxlength="5" placeholder="00000" required></label>
+        <label class="campo"><span>Uso de la factura</span><select id="uso"></select></label>
+      </div>
+      <label class="campo"><span>Régimen fiscal</span><select id="regimen"></select></label>
+      <label class="campo"><span>Correo para recibir tu factura</span><input id="correo" name="email" type="email" inputmode="email" autocomplete="email" placeholder="tucorreo@ejemplo.com" required></label>
+      <label class="recuerda"><input type="checkbox" id="recordar" checked> Recordar mis datos en este dispositivo para la próxima</label>
+      <button class="boton" id="btn2" type="submit">Generar mi factura <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></button>
+      <button class="enlace" type="button" id="atras">← Cambiar el código</button>
+    </form>
+    <p class="seguro"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg> Tus datos solo se usan para esta factura.</p>
+  </section>
+
+  <!-- PASO 3: listo / ya facturada -->
+  <section class="tarjeta exito oculto" id="vista3">
+    <img class="mascota" id="mascota3" src="/img/nexo-ia/celebrando-transparente.png" alt="">
+    <svg class="check" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46"/><path d="M30 52l14 14 27-30"/></svg>
+    <h2 id="titulo3">¡Tu factura está lista!</h2>
+    <p class="nota" id="nota3" style="margin:0"></p>
+    <div class="datos" id="datos3"></div>
+    <div class="descargas">
+      <a class="boton" id="dPdf" href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg> PDF</a>
+      <a class="boton claro" id="dXml" href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg> XML</a>
+    </div>
+    <p class="correo-ok" id="correoOk"></p>
+    <div class="reenvio oculto" id="reenvio"><input id="correo2" type="email" inputmode="email" placeholder="Otro correo"><button type="button" id="bReenviar">Enviar</button></div>
+    <button class="enlace" type="button" id="mostrarReenvio">Mandarla a otro correo</button>
+  </section>
+
+  <!-- No disponible -->
+  <section class="tarjeta sin-servicio oculto" id="vistaNo">
+    <img class="mascota" src="/img/nexo-ia/alerta-transparente.png" alt="">
+    <h2>Esta compra no se puede facturar aquí</h2>
+    <p class="nota" id="motivo"></p>
+    <div class="resumen" id="resumenNo"></div>
+    <button class="boton claro" type="button" id="otra">Probar con otro ticket</button>
+  </section>
+
+  <p class="pie">Facturación con la tecnología de <b>Nexo</b></p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var estado = { codigo: "", total: "", consulta: null, cat: null };
+  var LS = "nexo-autofactura-datos";
+
+  function dinero(v) { return "$" + Number(v || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function leer() { try { return JSON.parse(localStorage.getItem(LS) || "null"); } catch (e) { return null; } }
+  function guardar(d) { try { if (d) localStorage.setItem(LS, JSON.stringify(d)); else localStorage.removeItem(LS); } catch (e) {} }
+
+  async function pedir(url, cuerpo) {
+    var opciones = cuerpo ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) } : {};
+    var r = await fetch(url, opciones);
+    var d = {};
+    try { d = await r.json(); } catch (e) {}
+    return { ok: r.ok && d.ok !== false, status: r.status, datos: d };
+  }
+
+  // ---------- marca ----------
+  function aplicarMarca(m) {
+    if (!m) return;
+    document.documentElement.style.setProperty("--brand", m.color);
+    var meta = document.querySelector("meta[name=theme-color]"); if (meta) meta.content = m.color;
+    $("negocio").textContent = m.nombre;
+    document.title = "Factura tu compra · " + m.nombre;
+    var logo = $("logo");
+    if (m.logo) { logo.innerHTML = '<img alt="" src="' + esc(m.logo) + '">'; }
+    else { logo.textContent = (m.nombre || "N").trim().charAt(0).toUpperCase(); }
+  }
+
+  // ---------- pasos ----------
+  function ir(n) {
+    ["vista1", "vista2", "vista3", "vistaNo"].forEach(function (v) { $(v).classList.add("oculto"); });
+    var mapa = { 1: "vista1", 2: "vista2", 3: "vista3", 0: "vistaNo" };
+    var el = $(mapa[n]);
+    el.classList.remove("oculto"); el.style.animation = "none"; void el.offsetWidth; el.style.animation = "";
+    var paso = n === 0 ? 1 : n;
+    [1, 2, 3].forEach(function (i) {
+      var p = $("p" + i);
+      p.classList.toggle("activo", i === paso && !(n === 3));
+      p.classList.toggle("hecho", i < paso || n === 3);
+      p.firstChild.nodeValue = (i < paso || n === 3) ? "✓" : String(i);
+    });
+    $("l1").classList.toggle("llena", paso >= 2);
+    $("l2").classList.toggle("llena", n === 3);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function error(id, texto) { var e = $(id); e.textContent = texto || ""; e.classList.toggle("oculto", !texto); }
+  function ocupado(btn, si, texto) {
+    if (si) { btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="girando"></span> ' + texto; btn.disabled = true; }
+    else { btn.innerHTML = btn.dataset.t || btn.innerHTML; btn.disabled = false; }
+  }
+
+  function pintarResumen(destino, c) {
+    var v = c.venta;
+    destino.innerHTML = '<div class="cab"><b>Compra ' + esc(v.folio) + '</b><span class="tot">' + dinero(v.total) + '</span></div>' +
+      '<details><summary>Ver lo que compraste (' + v.productos.length + ')</summary><ul>' +
+      v.productos.map(function (p) { return "<li><span>" + esc(p.cantidad) + " × " + esc(p.nombre) + "</span><b>" + dinero(p.importe) + "</b></li>"; }).join("") + "</ul></details>";
+  }
+
+  // ---------- paso 1 ----------
+  $("total").addEventListener("input", function () { this.value = this.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"); });
+  $("total").addEventListener("blur", function () { if (this.value && !isNaN(Number(this.value))) this.value = Number(this.value).toFixed(2); });
+  $("codigo").addEventListener("input", function () { this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
+
+  $("form1").addEventListener("submit", async function (e) {
+    e.preventDefault(); error("err1", "");
+    var codigo = $("codigo").value.trim(), total = $("total").value.trim();
+    if (!codigo) { error("err1", "Escribe el código de tu ticket."); $("codigo").classList.add("mal"); return; }
+    if (!total) { error("err1", "Escribe el total del ticket."); $("total").focus(); return; }
+    ocupado($("btn1"), true, "Buscando…");
+    try {
+      var r = await pedir("/autofactura/consultar", { codigo: codigo, total: total });
+      if (!r.ok) { error("err1", r.status === 429 ? r.datos.error : (r.datos.error || "No encontramos esa compra.")); return; }
+      estado.codigo = codigo; estado.total = total; estado.consulta = r.datos;
+      aplicarMarca(r.datos.marca);
+      if (r.datos.estado === "facturada") { mostrarFacturada(r.datos); return; }
+      if (r.datos.estado === "no_disponible") { $("motivo").textContent = r.datos.motivo; pintarResumen($("resumenNo"), r.datos); ir(0); return; }
+      pintarResumen($("resumen"), r.datos); prepararForm2(); ir(2);
+    } catch (err) { error("err1", "No hay conexión. Intenta de nuevo."); }
+    finally { ocupado($("btn1"), false); }
+  });
+  $("otra").addEventListener("click", function () { ir(1); });
+  $("atras").addEventListener("click", function () { ir(1); });
+
+  // ---------- paso 2 ----------
+  async function catalogos() {
+    if (estado.cat) return estado.cat;
+    var r = await pedir("/autofactura/catalogos");
+    estado.cat = r.datos; return estado.cat;
+  }
+  function llenarRegimen() {
+    var len = $("rfc").value.trim().length, cat = estado.cat; if (!cat) return;
+    var actual = $("regimen").value;
+    var lista = cat.regimenes.filter(function (x) { return len === 12 ? x.moral : len === 13 ? x.fisica : true; });
+    $("regimen").innerHTML = '<option value="">Elige tu régimen…</option>' + lista.map(function (x) { return '<option value="' + x.clave + '">' + x.clave + " · " + esc(x.nombre) + "</option>"; }).join("");
+    if (lista.some(function (x) { return x.clave === actual; })) $("regimen").value = actual;
+  }
+  async function prepararForm2() {
+    var cat = await catalogos();
+    $("uso").innerHTML = cat.usos.map(function (u) { return '<option value="' + u.clave + '">' + u.clave + " · " + esc(u.nombre) + "</option>"; }).join("");
+    $("uso").value = "G03";
+    llenarRegimen();
+    var g = leer();
+    if (g) {
+      $("rfc").value = g.rfc || ""; $("nombre").value = g.nombre || ""; $("cp").value = g.cp || ""; $("correo").value = g.correo || "";
+      llenarRegimen(); if (g.regimen) $("regimen").value = g.regimen; if (g.uso) $("uso").value = g.uso;
+      validarRfc();
+    }
+  }
+  var PATRON = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+  function validarRfc() {
+    var v = $("rfc").value.trim().toUpperCase(), t = $("tipoRfc"), c = $("rfc");
+    c.classList.remove("mal", "bien");
+    if (v.length >= 12) {
+      var bien = PATRON.test(v); c.classList.add(bien ? "bien" : "mal");
+      t.textContent = v.length === 12 ? "Empresa" : "Persona"; t.classList.toggle("oculto", !bien);
+    } else { t.classList.add("oculto"); }
+  }
+  $("rfc").addEventListener("input", function () { this.value = this.value.toUpperCase().replace(/[^A-ZÑ&0-9]/g, ""); validarRfc(); llenarRegimen(); });
+  $("cp").addEventListener("input", function () { this.value = this.value.replace(/\D/g, ""); });
+
+  $("form2").addEventListener("submit", async function (e) {
+    e.preventDefault(); error("err2", "");
+    var receptor = { rfc: $("rfc").value, nombre: $("nombre").value, regimenFiscal: $("regimen").value, codigoPostal: $("cp").value, usoCfdi: $("uso").value, correo: $("correo").value };
+    if (!PATRON.test(receptor.rfc.trim().toUpperCase())) { error("err2", "Revisa tu RFC: debe tener 12 (empresa) o 13 (persona) caracteres."); $("rfc").focus(); return; }
+    ocupado($("btn2"), true, "Generando tu factura…");
+    try {
+      var r = await pedir("/autofactura/emitir", { codigo: estado.codigo, total: estado.total, receptor: receptor });
+      if (!r.ok) { error("err2", r.datos.error || "No pudimos generar tu factura."); return; }
+      if ($("recordar").checked) guardar({ rfc: receptor.rfc, nombre: receptor.nombre, cp: receptor.codigoPostal, regimen: receptor.regimenFiscal, uso: receptor.usoCfdi, correo: receptor.correo }); else guardar(null);
+      mostrarExito(r.datos, receptor);
+    } catch (err) { error("err2", "No hay conexión. Intenta de nuevo."); }
+    finally { ocupado($("btn2"), false); }
+  });
+
+  // ---------- paso 3 ----------
+  function enlacesDescarga() {
+    var q = "codigo=" + encodeURIComponent(estado.codigo) + "&total=" + encodeURIComponent(estado.total);
+    $("dPdf").href = "/autofactura/archivo?" + q + "&tipo=pdf"; $("dXml").href = "/autofactura/archivo?" + q + "&tipo=xml";
+  }
+  function mostrarExito(d, receptor) {
+    $("titulo3").textContent = "¡Tu factura está lista!";
+    $("nota3").textContent = "Gracias por tu compra.";
+    $("datos3").innerHTML = '<div><span>Folio</span><b>' + esc(d.factura.folio) + '</b></div><div><span>Total</span><b>' + dinero(d.factura.total) + '</b></div><div><span>RFC</span><b>' + esc(receptor.rfc.toUpperCase()) + '</b></div><div><span>Folio fiscal</span><b>' + esc(d.factura.uuid || "") + '</b></div>';
+    $("correoOk").innerHTML = d.correoEnviado ? "📬 Te la mandamos a <b>" + esc(d.correo) + "</b> con el PDF y el XML." : "No pudimos mandar el correo, pero puedes <b>descargarla aquí mismo</b>.";
+    $("mascota3").src = "/img/nexo-ia/celebrando-transparente.png";
+    enlacesDescarga(); ir(3); lanzarConfeti();
+  }
+  function mostrarFacturada(c) {
+    $("titulo3").textContent = "Esta compra ya está facturada";
+    $("nota3").textContent = "Aquí tienes tu factura otra vez.";
+    $("datos3").innerHTML = '<div><span>Folio</span><b>' + esc(c.factura.folio) + '</b></div><div><span>Total</span><b>' + dinero(c.venta.total) + '</b></div><div><span>RFC</span><b>' + esc(c.factura.rfc) + '</b></div><div><span>Folio fiscal</span><b>' + esc(c.factura.uuid || "") + '</b></div>';
+    $("correoOk").innerHTML = c.factura.correo ? "Se envió a <b>" + esc(c.factura.correo) + "</b>." : "";
+    $("mascota3").src = "/img/nexo-ia/feliz-transparente.png";
+    enlacesDescarga(); ir(3);
+  }
+  $("mostrarReenvio").addEventListener("click", function () { $("reenvio").classList.remove("oculto"); this.classList.add("oculto"); $("correo2").focus(); });
+  $("bReenviar").addEventListener("click", async function () {
+    var b = this; ocupado(b, true, "…");
+    try {
+      var r = await pedir("/autofactura/reenviar", { codigo: estado.codigo, total: estado.total, correo: $("correo2").value });
+      $("correoOk").innerHTML = r.ok ? "📬 ¡Enviada a <b>" + esc($("correo2").value) + "</b>!" : esc(r.datos.error || "No pudimos enviarla.");
+      if (r.ok) $("reenvio").classList.add("oculto");
+    } catch (e) { $("correoOk").textContent = "No hay conexión."; }
+    ocupado(b, false);
+  });
+
+  // ---------- confeti ----------
+  function lanzarConfeti() {
+    var lienzo = $("confeti"), ctx = lienzo.getContext("2d");
+    if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    lienzo.width = innerWidth; lienzo.height = innerHeight;
+    var marca = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim() || "#1067e8";
+    var colores = [marca, "#f59e0b", "#10b981", "#ec4899", "#8b5cf6", "#06b6d4"];
+    var trozos = Array.from({ length: 140 }, function () {
+      return { x: innerWidth / 2, y: innerHeight * 0.32, vx: (Math.random() - .5) * 16, vy: -Math.random() * 15 - 4, g: .32 + Math.random() * .2, r: Math.random() * 6.3, vr: (Math.random() - .5) * .4, w: 6 + Math.random() * 8, h: 4 + Math.random() * 6, c: colores[(Math.random() * colores.length) | 0] };
+    });
+    var t0 = performance.now();
+    (function cuadro(t) {
+      ctx.clearRect(0, 0, lienzo.width, lienzo.height);
+      trozos.forEach(function (p) { p.vy += p.g; p.x += p.vx; p.y += p.vy; p.vx *= .99; p.r += p.vr; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.globalAlpha = Math.max(0, 1 - (t - t0) / 3200); ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore(); });
+      if (t - t0 < 3200) requestAnimationFrame(cuadro); else ctx.clearRect(0, 0, lienzo.width, lienzo.height);
+    })(t0);
+  }
+
+  // ---------- arranque: /facturar/CODIGO trae el codigo y pinta la marca ----------
+  (async function () {
+    var partes = location.pathname.split("/").filter(Boolean);
+    var codigo = partes[0] === "facturar" && partes[1] ? decodeURIComponent(partes[1]).toUpperCase().replace(/[^A-Z0-9]/g, "") : "";
+    if (!codigo) return;
+    $("codigo").value = codigo;
+    try { var r = await pedir("/autofactura/negocio/" + encodeURIComponent(codigo)); if (r.ok) { aplicarMarca(r.datos.marca); $("total").focus(); } } catch (e) {}
+  })();
+})();
+</script>
+</body>
+</html>

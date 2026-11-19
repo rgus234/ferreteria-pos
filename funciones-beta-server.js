@@ -43,7 +43,8 @@ const FUNCIONES = {
     precios_lote: "Actualizar precios por lote",
     unir_proveedores: "Unir proveedores repetidos",
     minimos_ventas: "Minimos y maximos con tus ventas",
-    proveedores_nuevo: "Proveedores: diseño nuevo"
+    proveedores_nuevo: "Proveedores: diseño nuevo",
+    autofactura: "Autofactura: el cliente factura su ticket"
 };
 
 let columnaLista = false;
@@ -56,10 +57,13 @@ async function asegurarColumna(pool) {
 
 // Un negocio con "_todas": true (solo se pone a mano en la base, p. ej. la cuenta de demostracion) recibe TODAS las funciones nuevas,
 // tambien las que se agreguen despues, sin tener que encenderlas; lo que su dueño apague a proposito (false) se respeta.
+// Estas NO se encienden solas con "_todas": cambian lo que imprime el ticket y lo que ve el cliente, asi que el negocio las prende a proposito.
+const SOLO_EXPLICITAS = ["autofactura"];
+
 function limpiar(valor) {
     const salida = {};
     const todas = Boolean(valor && valor._todas === true);
-    Object.keys(FUNCIONES).forEach(clave => { salida[clave] = valor ? (todas ? valor[clave] !== false : valor[clave] === true) : false; });
+    Object.keys(FUNCIONES).forEach(clave => { salida[clave] = valor ? (todas && !SOLO_EXPLICITAS.includes(clave) ? valor[clave] !== false : valor[clave] === true) : false; });
     return salida;
 }
 

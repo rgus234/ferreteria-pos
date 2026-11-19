@@ -985,7 +985,7 @@ function enviarCorreoSolicitudCreditoInformacionSolicitada(correo, clienteNombre
 // documento con validez fiscal real; el correo es solo un resumen
 // legible. Sin representacion impresa en PDF adjunta (no hay libreria
 // de PDF en el proyecto) -- se puede imprimir/guardar desde Nexo.
-function enviarCorreoFacturaCfdi(correo, razonSocialEmisor, { folioTexto, uuid, totalTexto, xmlContent }) {
+function enviarCorreoFacturaCfdi(correo, razonSocialEmisor, { folioTexto, uuid, totalTexto, xmlContent, pdfContent }) {
     const filas = [
         ["Folio", folioTexto],
         ["Folio fiscal (UUID)", uuid],
@@ -1008,7 +1008,7 @@ function enviarCorreoFacturaCfdi(correo, razonSocialEmisor, { folioTexto, uuid, 
             saludo: "Hola",
             robot: "feliz",
             cuerpoHtml: `
-                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">${razonSocialEmisor} te envio esta factura electronica (CFDI). El archivo XML adjunto es el documento con validez fiscal.</p>
+                <p style="margin:0;color:#344054;font-size:15px;line-height:1.6;">${razonSocialEmisor} te envio esta factura electronica (CFDI). El XML adjunto es el documento con validez fiscal${pdfContent ? " y el PDF es su versión para leer o imprimir" : ""}.</p>
             `,
             cajaHtml: `
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #eef2f7;border-radius:14px;padding:6px 18px;">
@@ -1017,7 +1017,10 @@ function enviarCorreoFacturaCfdi(correo, razonSocialEmisor, { folioTexto, uuid, 
                 </table>
             `
         }),
-        attachments: xmlContent ? [{ filename: `factura-${folioTexto}.xml`, content: xmlContent }] : []
+        attachments: [
+            ...(pdfContent ? [{ filename: `factura-${folioTexto}.pdf`, content: pdfContent }] : []),
+            ...(xmlContent ? [{ filename: `factura-${folioTexto}.xml`, content: xmlContent }] : [])
+        ]
     });
 }
 

@@ -261,6 +261,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
     cargarModuloPOS("facturacion electronica (CFDI)", () => {
         require("./facturacion-server")(app, pool, requerirAccesoNegocio);
     });
+
+    cargarModuloPOS("autofactura publica (el cliente factura su ticket)", () => {
+        require("./autofactura-server")(app, pool);
+    });
 }
 
 module.exports = {

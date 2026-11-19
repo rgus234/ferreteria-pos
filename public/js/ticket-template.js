@@ -250,6 +250,16 @@ function construirTicketVentaHTML(datos, config = {}, opciones = {}) {
     <div style="font-size:10px;margin-top:2px;">Ver tu recibo: ${escaparPOS(urlRecibo)}</div>
    </div>
   `;
+  // Autofactura: el cliente factura su compra solo con este codigo y el total del ticket.
+  if (typeof funcionBeta === "function" && funcionBeta("autofactura")) {
+   qrHtml += `
+   <div style="margin-top:8px;text-align:center;border-top:1px dashed #000;padding-top:6px;">
+    <div style="font-size:11px;font-weight:bold;">¿Necesitas factura?</div>
+    <div style="font-size:10px;">Factúrala tú mismo en:</div>
+    <div style="font-size:11px;font-weight:bold;">nexoposoficial.com/facturar/${escaparPOS(datos.codigoPublico)}</div>
+    <div style="font-size:10px;">Ten a la mano el total de este ticket.</div>
+   </div>`;
+  }
  }
 
  const offlineHtml =
