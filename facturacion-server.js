@@ -4,9 +4,9 @@
 // Limites honestos de v1 (documentados, no bugs silenciosos):
 // - IVA 16% parejo sobre cada linea -- "productos" no tiene columna de
 //   tasa de impuesto hoy, correcto para una ferreteria.
-// - Solo ventas SIN descuento -- prorratear un descuento de venta entre
-//   lineas para CFDI es una fuente real de errores de redondeo/legales:
-//   mejor rechazar con un mensaje claro que facturar mal.
+// - Ventas con descuento: el descuento se reparte entre los renglones (ver
+//   armarConceptosConDescuento) y se verifica que la suma cuadre al centavo;
+//   si no cuadra, se rechaza en vez de facturar mal.
 // - Solo ventas que NO son a credito -- una venta a credito es pago
 //   diferido (PPD), que en CFDI 4.0 exige un Complemento de Pago
 //   separado cuando se liquida. Eso es un modulo aparte, no construido
@@ -56,8 +56,9 @@ function formaPagoSat(metodoPago) {
 
 // Arma los Items[] que espera Facturama a partir de historial_ventas.productos.
 // Devuelve null si la venta no se puede facturar en v1 (ver limites arriba).
-function armarConceptosFactura(productos, claveProdServ, claveUnidad) {
+function armarConceptosFactura(productos, claveProdServ, claveUnidad, descuento = 0) {
     if (!Array.isArray(productos) || productos.length === 0) return null;
+    if (Number(descuento) > 0) return armarConceptosConDescuento(productos, claveProdServ, claveUnidad, Number(descuento));
 
     return productos.map(p => {
         const cantidad = Number(p.cantidad) || 1;
@@ -75,6 +76,42 @@ function armarConceptosFactura(productos, claveProdServ, claveUnidad) {
             TaxObject: "02",
             Taxes: [{ Total: iva, Name: "IVA", Base: base, Rate: TASA_IVA, IsRetention: false }],
             Total: redondear(base + iva)
+        };
+    });
+}
+
+// Venta con descuento. El descuento se guarda sobre el total CON IVA: se reparte entre los renglones en proporcion a su importe
+// (el ultimo absorbe el residuo de centavos para que la suma sea exacta) y cada renglon lo lleva como Descuento (sin IVA), con el IVA
+// calculado sobre lo que queda. Asi Subtotal - Descuento + IVA = Total de cada renglon, y la suma de los Total = total cobrado, al centavo.
+function armarConceptosConDescuento(productos, claveProdServ, claveUnidad, descuentoTotal) {
+    const importes = productos.map(p => redondear(Number(p.importe ?? (Number(p.precio || 0) * (Number(p.cantidad) || 1)))));
+    const suma = redondear(importes.reduce((a, b) => a + b, 0));
+    const descuento = Math.min(redondear(descuentoTotal), suma);
+    let repartido = 0;
+
+    return productos.map((p, i) => {
+        const cantidad = Number(p.cantidad) || 1;
+        const esUltimo = i === productos.length - 1;
+        const parte = esUltimo ? redondear(descuento - repartido) : (suma > 0 ? redondear(descuento * importes[i] / suma) : 0);
+        repartido = redondear(repartido + parte);
+
+        const neto = redondear(importes[i] - parte);
+        const antes = partirImporteConIva(importes[i]).base;
+        const { base, iva } = partirImporteConIva(neto);
+        const descontado = redondear(Math.max(0, antes - base));
+        const valorUnitario = Math.round((antes / cantidad) * 1e6) / 1e6;
+
+        return {
+            ProductCode: claveProdServ,
+            Description: String(p.nombre || "Producto").slice(0, 1000),
+            UnitCode: claveUnidad,
+            Quantity: cantidad,
+            UnitPrice: valorUnitario,
+            Subtotal: antes,
+            Discount: descontado,
+            TaxObject: "02",
+            Taxes: [{ Total: iva, Name: "IVA", Base: redondear(antes - descontado), Rate: TASA_IVA, IsRetention: false }],
+            Total: redondear(antes - descontado + iva)
         };
     });
 }
@@ -294,7 +331,6 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             const bloqueada =
                 !negocio?.facturacion_activa ? "Primero activa facturacion electronica." :
-                Number(venta.descuento) > 0 ? "Esta venta tiene un descuento aplicado -- facturar ventas con descuento no esta soportado todavia." :
                 String(venta.metodo_pago).toLowerCase() === "credito" ? "Las ventas a credito se facturan hasta que se liquidan (funcion en desarrollo)." :
                 null;
 
@@ -349,10 +385,6 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                     res.status(400).json({ ok: false, error: "Esta venta esta cancelada, no se puede facturar." });
                     return;
                 }
-                if (Number(venta.descuento) > 0) {
-                    res.status(400).json({ ok: false, error: "Esta venta tiene un descuento aplicado -- facturar ventas con descuento no esta soportado todavia." });
-                    return;
-                }
                 if (String(venta.metodo_pago).toLowerCase() === "credito") {
                     res.status(400).json({ ok: false, error: "Las ventas a credito se facturan hasta que se liquidan (funcion en desarrollo)." });
                     return;
@@ -393,10 +425,15 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
                 const claveProdServ = negocio.facturacion_clave_prod_serv_default || "01010101";
                 const claveUnidad = negocio.facturacion_clave_unidad_default || "H87";
-                const items = armarConceptosFactura(venta.productos, claveProdServ, claveUnidad);
+                const items = armarConceptosFactura(venta.productos, claveProdServ, claveUnidad, Number(venta.descuento) || 0);
 
                 if (!items) {
                     res.status(400).json({ ok: false, error: "Esta venta no tiene productos que facturar." });
+                    return;
+                }
+                // Con descuento, la factura debe sumar exactamente lo que se cobro; si no cuadra, mejor no facturar.
+                if (Number(venta.descuento) > 0 && Math.abs(items.reduce((a, i) => a + i.Total, 0) - Number(venta.total)) > 0.011) {
+                    res.status(400).json({ ok: false, error: "Los importes de esta venta con descuento no cuadran con su total, no se puede facturar automaticamente." });
                     return;
                 }
 
@@ -536,7 +573,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             const [factura, negocio] = await Promise.all([
                 pool.query(
                     `
-                    SELECT f.*, h.productos, h.folio AS venta_folio
+                    SELECT f.*, h.productos, h.descuento AS venta_descuento, h.folio AS venta_folio
                     FROM public.facturas_cfdi f
                     JOIN public.historial_ventas h ON h.id = f.historial_venta_id
                     WHERE f.id = $1 AND f.negocio_id = $2
@@ -565,7 +602,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 }
             }
 
-            const conceptos = armarConceptosFactura(factura.productos, "", "") || [];
+            const conceptos = armarConceptosFactura(factura.productos, "", "", Number(factura.venta_descuento) || 0) || [];
 
             res.json({ ok: true, factura, emisor: negocio, conceptos, qrDataUrl });
         } catch (error) {
@@ -750,6 +787,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 module.exports.validarCertificadoLocal = validarCertificadoLocal;
 module.exports.partirImporteConIva = partirImporteConIva;
 module.exports.armarConceptosFactura = armarConceptosFactura;
+module.exports.armarConceptosConDescuento = armarConceptosConDescuento;
 module.exports.resolverReceptorSugerido = resolverReceptorSugerido;
 module.exports.formaPagoSat = formaPagoSat;
 module.exports.urlVerificacionSat = urlVerificacionSat;

@@ -11,10 +11,12 @@ const RECEPTOR = { rfc: "XEXX010101AB1".replace("XEXX", "ABCD"), nombre: "Juan P
 
 async function crearVenta(overrides = {}) {
     const codigo = overrides.codigo || `${CODIGO}${Math.floor(Math.random() * 1e6)}`;
+    const bruto = overrides.total ?? 116;
+    const descuento = overrides.descuento ?? 0;
     const fila = await pool.query(
         `INSERT INTO public.historial_ventas (negocio_id, total, subtotal, descuento, metodo_pago, productos, estado, codigo_publico, folio, fecha)
-         VALUES ($1, $2, $2, $3, $4, $5::jsonb, $6, $7, $7, $8) RETURNING id`,
-        [negocio.negocioId, overrides.total ?? 116, overrides.descuento ?? 0, overrides.metodo || "efectivo",
+         VALUES ($1, ($2::numeric - $3::numeric), $2::numeric, $3::numeric, $4, $5::jsonb, $6, $7, $7, $8) RETURNING id`,
+        [negocio.negocioId, bruto, descuento, overrides.metodo || "efectivo",
          JSON.stringify([{ nombre: "Martillo", cantidad: 1, precio: overrides.total ?? 116, importe: overrides.total ?? 116 }]),
          overrides.estado || "completada", codigo, overrides.fecha || new Date()]
     );
@@ -54,9 +56,7 @@ test("consultar: codigo o total equivocado no revela nada", async () => {
 });
 
 test("consultar: no disponible si el negocio no la encendio, si hay descuento, credito, cancelada o fuera de plazo", async () => {
-    const descuento = await crearVenta({ descuento: 10 });
-    assert.equal((await autofactura.consultar(pool, { codigo: descuento.codigo, total: "116" })).estado, "no_disponible");
-    const credito = await crearVenta({ metodo: "credito" });
+        const credito = await crearVenta({ metodo: "credito" });
     assert.match((await autofactura.consultar(pool, { codigo: credito.codigo, total: "116" })).motivo, /crédito/);
     const cancelada = await crearVenta({ estado: "cancelada" });
     assert.equal((await autofactura.consultar(pool, { codigo: cancelada.codigo, total: "116" })).estado, "no_disponible");
@@ -67,6 +67,22 @@ test("consultar: no disponible si el negocio no la encendio, si hay descuento, c
     const apagada = await crearVenta();
     assert.equal((await autofactura.consultar(pool, { codigo: apagada.codigo, total: "116" })).estado, "no_disponible", "_todas no la enciende sola");
     await pool.query(`UPDATE public.negocios SET funciones_beta = '{"autofactura": true}'::jsonb WHERE id = $1`, [negocio.negocioId]);
+});
+
+test("una compra con descuento SI se factura: el cliente pone el total pagado y la factura suma exacto", async () => {
+    const v = await crearVenta({ total: 232, descuento: 23.2 });
+    const deps = depsOk();
+    let enviado = null;
+    deps.crearCfdi = async comprobante => { enviado = comprobante; return { ok: true, factura: { serie: "A", folio: "9", uuid: `UUID-DESC-${Date.now()}`, xml: "<cfdi/>", facturamaId: "fx" } }; };
+    assert.equal((await autofactura.consultar(pool, { codigo: v.codigo, total: "232" })).ok, false, "el total del ticket es lo PAGADO (208.80), no el bruto");
+    const c = await autofactura.consultar(pool, { codigo: v.codigo, total: "208.80" });
+    assert.equal(c.estado, "disponible");
+    const r = await autofactura.emitir(pool, deps, { codigo: v.codigo, total: "208.80", receptor: RECEPTOR });
+    assert.equal(r.ok, true, JSON.stringify(r));
+    const total = Math.round(enviado.Items.reduce((a, i) => a + i.Total, 0) * 100) / 100;
+    assert.equal(total, 208.8);
+    assert.ok(enviado.Items.every(i => i.Discount > 0));
+    assert.ok(Buffer.isBuffer(deps.llamadas.ultimoCorreo.datos.pdfContent));
 });
 
 test("emitir: valida al receptor antes de tocar al PAC", async () => {

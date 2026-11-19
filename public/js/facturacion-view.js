@@ -699,7 +699,8 @@ function construirRepresentacionFacturaHTML(datos) {
 
             <div class="factura-rep-totales">
                 <div><span>Subtotal</span><strong>$${Number(factura.subtotal || 0).toFixed(2)}</strong></div>
-                <div><span>IVA</span><strong>$${(Number(factura.total || 0) - Number(factura.subtotal || 0)).toFixed(2)}</strong></div>
+                ${(conceptos || []).some(c => Number(c.Discount) > 0) ? `<div><span>Descuento</span><strong>-${(conceptos || []).reduce((x, c) => x + Number(c.Discount || 0), 0).toFixed(2)}</strong></div>` : ""}
+                <div><span>IVA</span><strong>${(conceptos || []).reduce((x, c) => x + Number((c.Taxes && c.Taxes[0] && c.Taxes[0].Total) || 0), 0).toFixed(2)}</strong></div>
                 <div class="factura-rep-total-final"><span>Total</span><strong>$${Number(factura.total || 0).toFixed(2)}</strong></div>
             </div>
 

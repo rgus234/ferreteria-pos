@@ -106,7 +106,6 @@ async function motivoNoDisponible(venta) {
         return "No pudimos revisar la facturación de este negocio. Intenta en un rato.";
     }
     if (venta.estado === "cancelada") return "Esta venta fue cancelada, no se puede facturar.";
-    if (Number(venta.descuento) > 0) return "Esta compra tiene un descuento y todavía no se puede facturar en línea. Pídela directo en caja.";
     if (String(venta.metodo_pago).toLowerCase() === "credito") return "Las compras a crédito se facturan cuando se liquidan. Pídela directo en caja.";
     if (!productosDe(venta).length) return "Esta compra no tiene productos que facturar.";
     const dias = (Date.now() - new Date(venta.fecha).getTime()) / 86400000;
@@ -180,8 +179,11 @@ async function emitir(pool, deps, { codigo, total, receptor: receptorCrudo }) {
     const motivo = await motivoNoDisponible(venta);
     if (motivo) return { ok: false, status: 400, error: motivo };
 
-    const items = armarConceptosFactura(productosDe(venta), venta.facturacion_clave_prod_serv_default || "01010101", venta.facturacion_clave_unidad_default || "H87");
+    const items = armarConceptosFactura(productosDe(venta), venta.facturacion_clave_prod_serv_default || "01010101", venta.facturacion_clave_unidad_default || "H87", Number(venta.descuento) || 0);
     if (!items) return { ok: false, status: 400, error: "Esta compra no tiene productos que facturar." };
+    if (Number(venta.descuento) > 0 && Math.abs(items.reduce((x, i) => x + i.Total, 0) - Number(venta.total)) > 0.011) {
+        return { ok: false, status: 400, error: "Los importes de esta compra no cuadran con su total. Pide tu factura directo en caja." };
+    }
 
     const cliente = await pool.connect();
     try {
@@ -280,12 +282,12 @@ async function reenviar(pool, deps, { codigo, total, correo }) {
 // Datos completos de una factura timbrada, para el PDF.
 async function datosFactura(pool, facturaId) {
     const factura = (await pool.query(
-        `SELECT f.*, h.productos, h.metodo_pago, h.fecha AS fecha_venta FROM public.facturas_cfdi f JOIN public.historial_ventas h ON h.id = f.historial_venta_id WHERE f.id = $1 AND f.estado = 'timbrada'`,
+        `SELECT f.*, h.productos, h.descuento AS venta_descuento, h.metodo_pago, h.fecha AS fecha_venta FROM public.facturas_cfdi f JOIN public.historial_ventas h ON h.id = f.historial_venta_id WHERE f.id = $1 AND f.estado = 'timbrada'`,
         [facturaId]
     )).rows[0];
     if (!factura) return null;
     const emisor = (await pool.query(`SELECT nombre, rfc, razon_social, regimen_fiscal, codigo_postal_fiscal, color, logo FROM public.negocios WHERE id = $1`, [factura.negocio_id])).rows[0];
-    const conceptos = armarConceptosFactura(productosDe(factura), "", "") || [];
+    const conceptos = armarConceptosFactura(productosDe(factura), "", "", Number(factura.venta_descuento) || 0) || [];
     let qr = null;
     if (factura.uuid) {
         try { qr = await QRCode.toBuffer(urlVerificacionSat({ uuid: factura.uuid, rfcEmisor: emisor.rfc, rfcReceptor: factura.receptor_rfc, total: factura.total }), { width: 220, margin: 1 }); } catch (error) { qr = null; }
@@ -337,29 +339,33 @@ function generarPdf({ factura, emisor, conceptos, qr, marca }) {
         const fin2 = caja("Receptor", [factura.receptor_nombre, `RFC: ${factura.receptor_rfc}`, `Régimen: ${nombreRegimen(factura.receptor_regimen_fiscal)}`, `C.P.: ${factura.receptor_codigo_postal}`, `Uso del CFDI: ${nombreUso(factura.receptor_uso_cfdi)}`], 40 + ancho / 2 + 10, 112, ancho / 2 - 10);
 
         let y = Math.max(fin1, fin2) + 16;
-        const columnas = [40, 90, 330, 420, 500];
+        const hayDescuento = conceptos.some(c => Number(c.Discount) > 0);
+        const columnas = [40, 90, 290, 365, 440, 505];
         doc.rect(40, y, ancho, 20).fill(color);
         doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(9);
         doc.text("Cant.", columnas[0] + 6, y + 6); doc.text("Descripción", columnas[1], y + 6);
-        doc.text("P. unitario", columnas[2], y + 6, { width: 80, align: "right" }); doc.text("IVA", columnas[3], y + 6, { width: 60, align: "right" }); doc.text("Importe", columnas[4], y + 6, { width: 72, align: "right" });
+        doc.text("P. unitario", columnas[2], y + 6, { width: 70, align: "right" }); doc.text(hayDescuento ? "Descuento" : "", columnas[3], y + 6, { width: 70, align: "right" }); doc.text("IVA", columnas[4], y + 6, { width: 60, align: "right" }); doc.text("Importe", columnas[5], y + 6, { width: 67, align: "right" });
         y += 26;
         doc.fillColor("#111827").font("Helvetica").fontSize(9);
         conceptos.forEach(c => {
             if (y > 640) { doc.addPage(); y = 50; }
-            const alto = doc.heightOfString(c.Description, { width: 230 });
+            const alto = doc.heightOfString(c.Description, { width: 190 });
             doc.text(String(c.Quantity), columnas[0] + 6, y);
-            doc.text(c.Description, columnas[1], y, { width: 230 });
-            doc.text(dinero(c.UnitPrice), columnas[2], y, { width: 80, align: "right" });
-            doc.text(dinero(c.Taxes[0].Total), columnas[3], y, { width: 60, align: "right" });
-            doc.text(dinero(c.Total), columnas[4], y, { width: 72, align: "right" });
+            doc.text(c.Description, columnas[1], y, { width: 190 });
+            doc.text(dinero(c.UnitPrice), columnas[2], y, { width: 70, align: "right" });
+            doc.text(hayDescuento ? dinero(c.Discount || 0) : "", columnas[3], y, { width: 70, align: "right" });
+            doc.text(dinero(c.Taxes[0].Total), columnas[4], y, { width: 60, align: "right" });
+            doc.text(dinero(c.Total), columnas[5], y, { width: 67, align: "right" });
             y += Math.max(alto, 12) + 7;
             doc.moveTo(40, y - 3).lineTo(40 + ancho, y - 3).strokeColor("#e5e7eb").lineWidth(0.5).stroke();
         });
 
-        const iva = Number(factura.total) - Number(factura.subtotal);
+        const iva = conceptos.reduce((x, c) => x + Number(c.Taxes[0].Total), 0);
+        const descuentoTotal = conceptos.reduce((x, c) => x + Number(c.Discount || 0), 0);
         y += 8;
         doc.font("Helvetica").fontSize(10).fillColor("#111827");
         doc.text("Subtotal", 380, y, { width: 90, align: "right" }); doc.text(dinero(factura.subtotal), 472, y, { width: 100, align: "right" }); y += 15;
+        if (descuentoTotal > 0) { doc.text("Descuento", 380, y, { width: 90, align: "right" }); doc.text("-" + dinero(descuentoTotal), 472, y, { width: 100, align: "right" }); y += 15; }
         doc.text("IVA 16%", 380, y, { width: 90, align: "right" }); doc.text(dinero(iva), 472, y, { width: 100, align: "right" }); y += 15;
         doc.font("Helvetica-Bold").fontSize(13).fillColor(color).text("Total", 380, y, { width: 90, align: "right" }); doc.text(dinero(factura.total), 472, y, { width: 100, align: "right" }); y += 34;
 
