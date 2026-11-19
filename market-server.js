@@ -412,7 +412,7 @@ async function popularesMarket(pool, idsPermitidos, firmarTokenImagen, limite = 
 // (p.id DESC, proxy real de recencia -- productos no tiene columna de
 // fecha de creacion) alimenta "Explora productos"/"Nuevos"; se ignora
 // si hay texto de busqueda (la relevancia del texto manda).
-async function buscarProductosMarket(pool, { buscar = "", categoria = "", ofertas = false, marcas = [], precioMin = null, precioMax = null, pagina = 1, orden = "relevancia", limite = PRODUCTOS_POR_PAGINA_MARKET, giro = "" } = {}, firmarTokenImagen) {
+async function buscarProductosMarket(pool, { buscar = "", categoria = "", subcategoria = "", ofertas = false, marcas = [], precioMin = null, precioMax = null, pagina = 1, orden = "relevancia", limite = PRODUCTOS_POR_PAGINA_MARKET, giro = "" } = {}, firmarTokenImagen) {
     const tiendas = await tiendasPermitidasMarket(pool);
     const tiendasFiltradas = giro ? tiendas.filter(t => (t.giros || []).includes(giro)) : tiendas;
     if (tiendasFiltradas.length === 0) return { productos: [], total: 0 };
@@ -463,6 +463,12 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
     if (categoria) {
         parametros.push(categoria);
         condiciones.push(`COALESCE(cn.departamento, p.categoria) = $${parametros.length}`);
+    }
+
+    // Subcategoria de Nexo (solo dentro de una categoria): es la misma lista controlada que usa el catalogo.
+    if (categoria && subcategoria) {
+        parametros.push(subcategoria);
+        condiciones.push(`cn.nombre = $${parametros.length}`);
     }
 
     // Misma condicion real que ya usa ofertasMarket() -- nunca se
@@ -529,8 +535,8 @@ async function buscarProductosMarket(pool, { buscar = "", categoria = "", oferta
 // asi los checkboxes de marca no se autolimitan entre si, mismo criterio
 // de faceted search estandar. Sin datos reales, regresa listas vacias
 // (nunca se inventan marcas ni un rango de precio de relleno).
-async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "", ofertas = false } = {}) {
-    if (idsPermitidos.length === 0) return { marcas: [], precioMin: null, precioMax: null };
+async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "", subcategoria = "", ofertas = false } = {}) {
+    if (idsPermitidos.length === 0) return { marcas: [], precioMin: null, precioMax: null, subcategorias: [] };
 
     const condiciones = ["p.negocio_id = ANY($1::int[]) AND p.visible_market = true"];
     const parametros = [idsPermitidos];
@@ -565,6 +571,15 @@ async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "",
         condiciones.push(`p.precio_oferta IS NOT NULL AND p.precio_oferta < COALESCE(p.precio_publico, p.precio)`);
     }
 
+    // Las subcategorias se cuentan SIN el filtro de subcategoria, para poder ofrecer tambien las hermanas.
+    const whereSinSub = condiciones.join(" AND ");
+    const parametrosSinSub = parametros.slice();
+
+    if (categoria && subcategoria) {
+        parametros.push(subcategoria);
+        condiciones.push(`cn.nombre = $${parametros.length}`);
+    }
+
     const whereBase = condiciones.join(" AND ");
 
     const sqlMarcas = `SELECT p.marca, COUNT(*) AS total
@@ -581,6 +596,17 @@ async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "",
              LEFT JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
              WHERE ${whereBase} AND c.mostrar_precios = true`;
 
+    const sqlSubs = `SELECT cn.nombre AS nombre, COUNT(*) AS total
+             FROM public.productos p
+             JOIN public.categorias_nexo cn ON cn.id = p.categoria_nexo_id
+             WHERE ${whereSinSub}
+             GROUP BY cn.nombre
+             ORDER BY COUNT(*) DESC, cn.nombre
+             LIMIT 30`;
+    const subsRes = categoria
+        ? (buscarNormalizado ? await consultarConUmbralPalabra(pool, umbralAdmisionPara(buscarNormalizado), sqlSubs, parametrosSinSub) : await pool.query(sqlSubs, parametrosSinSub))
+        : { rows: [] };
+
     const [marcasRes, precioRes] = buscarNormalizado
         ? await Promise.all([
             consultarConUmbralPalabra(pool, umbralAdmisionPara(buscarNormalizado), sqlMarcas, parametros),
@@ -591,7 +617,8 @@ async function facetasMarket(pool, idsPermitidos, { buscar = "", categoria = "",
     return {
         marcas: marcasRes.rows.map(f => ({ marca: f.marca, total: Number(f.total) })),
         precioMin: precioRes.rows[0]?.min != null ? Number(precioRes.rows[0].min) : null,
-        precioMax: precioRes.rows[0]?.max != null ? Number(precioRes.rows[0].max) : null
+        precioMax: precioRes.rows[0]?.max != null ? Number(precioRes.rows[0].max) : null,
+        subcategorias: subsRes.rows.map(f => ({ nombre: f.nombre, total: Number(f.total) }))
     };
 }
 
@@ -641,6 +668,7 @@ async function buscarMarketJson(pool, req, res, firmarTokenImagen) {
     try {
         const buscar = String(req.query?.buscar || "").trim().slice(0, 120);
         const categoria = String(req.query?.categoria || "").trim().slice(0, 120);
+        const subcategoria = String(req.query?.subcategoria || "").trim().slice(0, 120);
         const ofertas = req.query?.ofertas === "1";
         const marcas = String(req.query?.marcas || "").split(",").map(m => m.trim()).filter(Boolean).slice(0, 12);
         const precioMinCrudo = req.query?.precioMin !== undefined ? Number(req.query.precioMin) : NaN;
@@ -661,8 +689,8 @@ async function buscarMarketJson(pool, req, res, firmarTokenImagen) {
         const idsPermitidos = tiendasFiltradas.map(t => t.id);
 
         const [{ productos, total }, facetas, categoriasDelGiro] = await Promise.all([
-            buscarProductosMarket(pool, { buscar, categoria, ofertas, marcas, precioMin, precioMax, pagina, orden, giro }, firmarTokenImagen),
-            facetasMarket(pool, idsPermitidos, { buscar, categoria, ofertas }),
+            buscarProductosMarket(pool, { buscar, categoria, subcategoria, ofertas, marcas, precioMin, precioMax, pagina, orden, giro }, firmarTokenImagen),
+            facetasMarket(pool, idsPermitidos, { buscar, categoria, subcategoria, ofertas }),
             categoriasMarket(pool, giro)
         ]);
 
@@ -2426,12 +2454,14 @@ function marketUrlDesdeFiltros(f) {
     if (f.buscar) {
         var params = ["buscar=" + encodeURIComponent(f.buscar)];
         if (f.categoria) params.push("categoria=" + encodeURIComponent(f.categoria));
+        if (f.categoria && f.subcategoria) params.push("subcategoria=" + encodeURIComponent(f.subcategoria));
         if (f.giro) params.push("giro=" + encodeURIComponent(f.giro));
         if (f.orden && f.orden !== "relevancia") params.push("orden=" + encodeURIComponent(f.orden));
         return "/market/buscar?" + params.join("&");
     }
     if (f.categoria) {
         var extra = [];
+        if (f.subcategoria) extra.push("subcategoria=" + encodeURIComponent(f.subcategoria));
         if (f.giro) extra.push("giro=" + encodeURIComponent(f.giro));
         if (f.orden && f.orden !== "relevancia") extra.push("orden=" + encodeURIComponent(f.orden));
         return "/market/categorias/" + encodeURIComponent(marketSlugificar(f.categoria)) + (extra.length ? "?" + extra.join("&") : "");
@@ -2507,7 +2537,7 @@ function marketMostrarResultados() {
     window.scrollTo(0, 0);
 }
 
-var marketFiltrosActuales = { buscar: "", categoria: "", giro: "", ofertas: false, marcas: [], precioMin: null, precioMax: null, orden: "relevancia", pagina: 1 };
+var marketFiltrosActuales = { buscar: "", categoria: "", subcategoria: "", giro: "", ofertas: false, marcas: [], precioMin: null, precioMax: null, orden: "relevancia", pagina: 1 };
 var marketResultadosAcumulados = [];
 var marketResultadosTotal = 0;
 
@@ -2525,11 +2555,20 @@ function marketRenderFiltros(facetas) {
         }).join('')
         : '<p class="market-vacio-chico">Sin marcas para filtrar.</p>';
 
-    var hayFiltrosActivos = Boolean(f.categoria) || f.marcas.length > 0 || f.precioMin !== null || f.precioMax !== null;
+    var subHtml = '';
+    if (f.categoria && facetas.subcategorias && facetas.subcategorias.length > 1) {
+        subHtml = '<div class="market-filtro-grupo"><h5>Subcategoria</h5>' +
+            '<label class="market-filtro-marca-fila"><input type="radio" name="marketSub" class="market-filtro-sub-radio" value=""' + (!f.subcategoria ? ' checked' : '') + '> Todas</label>' +
+            facetas.subcategorias.map(function(sc) {
+                return '<label class="market-filtro-marca-fila"><input type="radio" name="marketSub" class="market-filtro-sub-radio" value="' + escapeHtml(sc.nombre) + '"' + (f.subcategoria === sc.nombre ? ' checked' : '') + '> ' + escapeHtml(sc.nombre) + ' (' + sc.total + ')</label>';
+            }).join('') + '</div>';
+    }
+
+    var hayFiltrosActivos = Boolean(f.categoria) || Boolean(f.subcategoria) || f.marcas.length > 0 || f.precioMin !== null || f.precioMax !== null;
 
     return '<aside class="market-resultados-filtros">' +
         '<div class="market-filtro-header"><h4>Filtros</h4>' + (hayFiltrosActivos ? '<button type="button" id="marketLimpiarFiltros">Limpiar todo</button>' : '') + '</div>' +
-        '<div class="market-filtro-grupo"><h5>Categoria</h5>' + categoriaHtml + '</div>' +
+        '<div class="market-filtro-grupo"><h5>Categoria</h5>' + categoriaHtml + '</div>' + subHtml +
         '<div class="market-filtro-grupo"><h5>Marca</h5>' + marcasHtml + '</div>' +
         '<div class="market-filtro-grupo"><h5>Precio</h5>' +
         '<div class="market-filtro-precio">' +
@@ -2543,7 +2582,7 @@ function marketRenderFiltros(facetas) {
 function marketRenderResultados(facetas) {
     var f = marketFiltrosActuales;
     var tituloTexto = f.buscar ? 'Resultados para “' + escapeHtml(f.buscar) + '”'
-        : f.categoria ? escapeHtml(f.categoria)
+        : f.categoria ? escapeHtml(f.categoria) + (f.subcategoria ? ' &rsaquo; ' + escapeHtml(f.subcategoria) : '')
         : f.ofertas ? 'Ofertas'
         : f.orden === 'recientes' ? 'Nuevos'
         : 'Todos los productos';
@@ -2584,6 +2623,7 @@ async function marketMostrarBusqueda(opciones, agregarMas) {
         marketFiltrosActuales = {
             buscar: opciones.buscar !== undefined ? opciones.buscar : marketFiltrosActuales.buscar,
             categoria: opciones.categoria !== undefined ? opciones.categoria : marketFiltrosActuales.categoria,
+            subcategoria: opciones.subcategoria !== undefined ? opciones.subcategoria : "",
             giro: opciones.giro !== undefined ? opciones.giro : marketFiltrosActuales.giro,
             ofertas: opciones.ofertas !== undefined ? Boolean(opciones.ofertas) : false,
             marcas: opciones.marcas !== undefined ? opciones.marcas : [],
@@ -2606,6 +2646,7 @@ async function marketMostrarBusqueda(opciones, agregarMas) {
     var params = [];
     if (f.buscar) params.push("buscar=" + encodeURIComponent(f.buscar));
     if (f.categoria) params.push("categoria=" + encodeURIComponent(f.categoria));
+    if (f.categoria && f.subcategoria) params.push("subcategoria=" + encodeURIComponent(f.subcategoria));
     if (f.giro) params.push("giro=" + encodeURIComponent(f.giro));
     if (f.ofertas) params.push("ofertas=1");
     if (f.marcas.length) params.push("marcas=" + encodeURIComponent(f.marcas.join(",")));
@@ -2847,7 +2888,7 @@ document.addEventListener("click", function(evento) {
     var quitarCategoria = evento.target.closest("#marketQuitarCategoria");
     if (quitarCategoria) {
         document.getElementById("marketCategoriaSelect").value = "";
-        marketMostrarBusqueda(Object.assign({}, marketFiltrosActuales, { categoria: "" }));
+        marketMostrarBusqueda(Object.assign({}, marketFiltrosActuales, { categoria: "", subcategoria: "" }));
         return;
     }
 
@@ -2889,6 +2930,11 @@ document.addEventListener("change", function(evento) {
     if (evento.target.classList && evento.target.classList.contains("market-filtro-marca-check")) {
         var seleccionadas = Array.prototype.map.call(document.querySelectorAll(".market-filtro-marca-check:checked"), function(el) { return el.value; });
         marketMostrarBusqueda(Object.assign({}, marketFiltrosActuales, { marcas: seleccionadas }));
+        return;
+    }
+
+    if (evento.target.classList && evento.target.classList.contains("market-filtro-sub-radio")) {
+        marketMostrarBusqueda(Object.assign({}, marketFiltrosActuales, { subcategoria: evento.target.value }));
         return;
     }
 
@@ -3215,7 +3261,7 @@ window.addEventListener("popstate", function() {
             if (opcion.value && marketSlugificar(opcion.value) === slugBuscado) categoriaResuelta = opcion.value;
         });
         document.getElementById("marketCategoriaSelect").value = categoriaResuelta;
-        marketMostrarBusqueda({ buscar: "", categoria: categoriaResuelta, giro: params.get("giro") || "", orden: params.get("orden") || "relevancia" });
+        marketMostrarBusqueda({ buscar: "", categoria: categoriaResuelta, subcategoria: params.get("subcategoria") || "", giro: params.get("giro") || "", orden: params.get("orden") || "relevancia" });
     } else if (location.pathname === "/market/ofertas") {
         marketMostrarBusqueda({ buscar: "", categoria: "", ofertas: true, orden: params.get("orden") || "relevancia" });
     } else if (location.pathname === "/market/nuevos") {
@@ -3225,7 +3271,7 @@ window.addEventListener("popstate", function() {
         var categoriaVal = params.get("categoria") || "";
         document.getElementById("marketBuscarInput").value = buscarVal;
         document.getElementById("marketCategoriaSelect").value = categoriaVal;
-        marketMostrarBusqueda({ buscar: buscarVal, categoria: categoriaVal, giro: params.get("giro") || "", ofertas: params.get("ofertas") === "1", orden: params.get("orden") || "relevancia" });
+        marketMostrarBusqueda({ buscar: buscarVal, categoria: categoriaVal, subcategoria: params.get("subcategoria") || "", giro: params.get("giro") || "", ofertas: params.get("ofertas") === "1", orden: params.get("orden") || "relevancia" });
     } else {
         marketMostrarInicio();
     }

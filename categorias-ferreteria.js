@@ -5,10 +5,13 @@
 // "ferreteria", sigue intacto para los productos que ya lo usan).
 const H = "Herramienta manual", E = "Herramienta electrica y neumatica", A = "Abrasivos y corte", EL = "Electrico", P = "Plomeria", C = "Cerrajeria y herrajes",
   T = "Tornilleria y fijacion", CO = "Construccion", PI = "Pintura y acabados", AD = "Adhesivos y selladores", J = "Jardin y exteriores", S = "Seguridad industrial (EPP)",
-  RO = "Ropa de trabajo", HO = "Hogar y limpieza", AU = "Automotriz y lubricantes", G = "Gas y calefaccion", CU = "Cuerdas, cadenas y sujecion", RE = "Refacciones y repuestos", EX = "Exhibidores y muebles";
+  RO = "Ropa de trabajo", MA = "Mascotas", HO = "Hogar y limpieza", AU = "Automotriz y lubricantes", G = "Gas y calefaccion", CU = "Cuerdas, cadenas y sujecion", RE = "Refacciones y repuestos", EX = "Exhibidores y muebles";
 
 // Ajustes de nombres de mostrador (Olimpico): nombres cortos o con otra palabra que las reglas de R confundian. Se prueban primero y sobre el nombre completo.
 const AJ = [
+  [MA, "Alimento", "Alimento para mascotas", /\b(alimento|croquetas?)\b.*\b(perro|gato|cachorro|mascota)s?\b|\b(perron|dog chow|pedigree|whiskas|purina)\b/],
+  [MA, "Accesorios", "Correas y accesorios", /\b(correa|collar|pechera|arnes|cadena)\b.*\b(perro|gato|mascota)s?\b|\bcorrea para perro\b/],
+  [MA, "Cuidado", "Higiene y cuidado", /\b(shampoo|champu|antipulgas|garrapaticida|arena)\b.*\b(perro|gato|mascota)s?\b/],
   [T, "Tornillos", "Pijas", /\bpijas?\b/],
   [AU, "Lubricantes y fluidos", "Aceites y grasas", /\b(aceite|lubr[iu]cante)\b.*\b(2 tiempos|3 en 1|3en 1|cadenas?)\b|\b3 ?en ?1\b/],
   [AD, "Pegamentos y cintas", "Pegamentos", /\bcemento\b.*\b(pvc|cpvc)\b/],
@@ -252,6 +255,11 @@ const R = [
   [EL, "Conexion y canalizacion", "Canaletas y ductos", /(poliducto|ducto)/],
   [CU, "Cuerdas y cordeles", "Alambres", /(alambre|bandola)/],
   [AD, "Pegamentos y cintas", "Cintas adhesivas", /cinta/],
+
+  // ---- Mascotas
+  [MA, "Alimento", "Alimento para mascotas", /\b(alimento para (perro|gato|mascota)|croquetas?)\b/],
+  [MA, "Accesorios", "Correas y accesorios", /\b(correa|collar|pechera) para (perro|gato)\b/],
+  [MA, "Cuidado", "Higiene y cuidado", /\b(shampoo|antipulgas) para (perro|gato|mascota)\b/],
 ];
 
 const PAQUETE = /^(bolsa|juego|caja|blister|kit|rollo|kilo|metro|pieza|par|set|estuche|paquete|pack|cubeta|exhibidor de)\s+(con|de|c\/\d+|p\/|para)?\s*\d*\s*/;
