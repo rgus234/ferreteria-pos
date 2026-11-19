@@ -33,7 +33,16 @@
 
     const esc = valor => String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-    window.funcionBeta = clave => funciones[clave] === true;
+    // Cosas que solo tienen sentido en abarrotes: aunque esten encendidas (p. ej. con "_todas"), no se muestran en una ferreteria o papeleria.
+    const SOLO_ABARROTES = ["envases", "alcohol", "pedidos_unico"];
+    function esAbarrotes() {
+        let cfg = null;
+        try { cfg = typeof configuracionNegocio === "function" ? configuracionNegocio() : null; } catch (error) { cfg = null; }
+        const giros = [String(cfg?.perfilNegocio || ""), ...(Array.isArray(cfg?.girosActivos) ? cfg.girosActivos : [])].map(g => String(g).toLowerCase());
+        if (!giros.some(Boolean)) return true; // sin dato del giro: no se esconde nada
+        return giros.some(g => /abarrot|tienda|super/.test(g));
+    }
+    window.funcionBeta = clave => funciones[clave] === true && (!SOLO_ABARROTES.includes(clave) || esAbarrotes());
     window.recargarFuncionesBeta = () => cargar();
 
     function aplicar() {

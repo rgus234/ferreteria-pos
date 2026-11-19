@@ -13,6 +13,18 @@
     let extrasBases = {}; // { productoId: nombre }
     let formExtras = null; // { base, nuevos: [] } mientras se agregan extras
 
+    // Ejemplos segun el giro: una ferreteria no vende churros; abarrotes si.
+    function ejemplos() {
+        let cfg = null;
+        try { cfg = typeof configuracionNegocio === "function" ? configuracionNegocio() : null; } catch (error) { cfg = null; }
+        const giros = [String(cfg?.perfilNegocio || ""), ...(Array.isArray(cfg?.girosActivos) ? cfg.girosActivos : [])].map(g => String(g).toLowerCase());
+        const abarrotes = giros.some(g => /abarrot|tienda|super/.test(g));
+        if (!abarrotes && giros.some(g => /ferret|papel/.test(g))) {
+            return { granel: "tornillos, clavos, cable", base: "bolsa de 100 tornillos", extras: "Bolsa, etiqueta, taquete…", extra1: "Bolsa" };
+        }
+        return { granel: "churros, azúcar, jamón", base: "churros bolsita", extras: "Salsa, limón, bolsa…", extra1: "Salsa" };
+    }
+
     const esc = valor => String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const dinero = valor => `$${Number(valor || 0).toFixed(2)}`;
     const cantidad = valor => String(Math.round(Number(valor || 0) * 1000) / 1000);
@@ -54,6 +66,7 @@
 
         const raiz = pantalla();
         if (!raiz) return;
+        const ej = ejemplos();
 
         raiz.style.display = "block";
         if (typeof actualizarTopbarContexto === "function") actualizarTopbarContexto("Armar productos", "Convierte granel en bolsitas o porciones", "armado");
@@ -129,10 +142,11 @@
     function pintar() {
         const raiz = pantalla();
         if (!raiz) return;
+        const ej = ejemplos();
 
         raiz.innerHTML = `<div class="arm-shell">
             <header class="arm-encabezado">
-                <div><h2>Armar productos</h2><p>Tienes granel (churros, azúcar, jamón) y lo vendes en bolsitas o porciones. Al armar, el granel baja y lo armado sube, sin cuentas a mano.</p></div>
+                <div><h2>Armar productos</h2><p>Tienes granel (${ej.granel}) y lo vendes en bolsitas o porciones. Al armar, el granel baja y lo armado sube, sin cuentas a mano.</p></div>
                 ${formulario ? "" : `<button type="button" class="arm-principal" data-accion="nuevo">+ Nuevo armado</button>`}
             </header>
             ${formulario ? formularioHtml() : ""}
@@ -228,17 +242,18 @@
         const ids = Object.keys(extrasMapa);
         const filas = ids.map(id => `<div class="arm-extra-fila"><b>${esc(extrasBases[id] || "Producto")}</b>${extrasMapa[id].map(e => `<span class="arm-chip">${esc(e.nombre)} ${dinero(e.precio)}<button type="button" data-accion="extra-quitar" data-base="${id}" data-extra="${e.id}" aria-label="Quitar ${esc(e.nombre)}">×</button></span>`).join("")}</div>`).join("");
 
+        const ej = ejemplos();
         const formularioExtras = formExtras ? `<div class="arm-form">
             <h3>Agregar extras</h3>
-            <div class="arm-campo" data-rol="xbase"><label>Producto</label>${formExtras.base ? `<div class="arm-elegido"><span>${esc(formExtras.base.nombre)}</span><button type="button" data-accion="extra-cambiar-base">Cambiar</button></div>` : `<input type="search" data-buscar-extra="xbase" placeholder="Producto al que se le ofrecen (churros bolsita)" autocomplete="off"><div class="arm-resultados" id="armRes-xbase"></div>`}</div>
-            <div class="arm-campo" data-rol="xextra"><label>Extras que se le ofrecen</label>${formExtras.nuevos.length ? `<div>${formExtras.nuevos.map(e => `<span class="arm-chip">${esc(e.nombre)}<button type="button" data-accion="extra-sacar" data-extra="${e.id}" aria-label="Quitar ${esc(e.nombre)}">×</button></span>`).join(" ")}</div>` : ""}<input type="search" data-buscar-extra="xextra" placeholder="Salsa, limón, bolsa…" autocomplete="off"><div class="arm-resultados" id="armRes-xextra"></div></div>
-            <p class="arm-ayuda">Cada extra es un producto normal de tu inventario, con su precio. Si todavía no existe (por ejemplo "Salsa"), agrégalo primero en Agregar producto.</p>
+            <div class="arm-campo" data-rol="xbase"><label>Producto</label>${formExtras.base ? `<div class="arm-elegido"><span>${esc(formExtras.base.nombre)}</span><button type="button" data-accion="extra-cambiar-base">Cambiar</button></div>` : `<input type="search" data-buscar-extra="xbase" placeholder="Producto al que se le ofrecen (${ej.base})" autocomplete="off"><div class="arm-resultados" id="armRes-xbase"></div>`}</div>
+            <div class="arm-campo" data-rol="xextra"><label>Extras que se le ofrecen</label>${formExtras.nuevos.length ? `<div>${formExtras.nuevos.map(e => `<span class="arm-chip">${esc(e.nombre)}<button type="button" data-accion="extra-sacar" data-extra="${e.id}" aria-label="Quitar ${esc(e.nombre)}">×</button></span>`).join(" ")}</div>` : ""}<input type="search" data-buscar-extra="xextra" placeholder="${ej.extras}" autocomplete="off"><div class="arm-resultados" id="armRes-xextra"></div></div>
+            <p class="arm-ayuda">Cada extra es un producto normal de tu inventario, con su precio. Si todavía no existe (por ejemplo "${ej.extra1}"), agrégalo primero en Agregar producto.</p>
             <p class="arm-error" id="armErrorExtras" role="alert"></p>
             <div class="arm-acciones"><button type="button" data-accion="extra-cancelar">Cancelar</button><button type="button" class="arm-principal" data-accion="extra-guardar">Guardar</button></div>
         </div>` : "";
 
         return `<section class="arm-extras"><h3>Extras rápidos</h3>
-            <p class="arm-ayuda">Lo que casi siempre se agrega a un producto. Al venderlo salen fichas (“+ Salsa $2”) y un toque las suma.</p>
+            <p class="arm-ayuda">Lo que casi siempre se agrega a un producto. Al venderlo salen fichas (“+ ${ej.extra1} $2”) y un toque las suma.</p>
             ${filas || (formExtras ? "" : `<p class="arm-vacio">Todavía no hay extras.</p>`)}
             ${formularioExtras}
             ${formExtras ? "" : `<div class="arm-acciones"><button type="button" data-accion="extra-nuevo">+ Agregar extras a un producto</button></div>`}
