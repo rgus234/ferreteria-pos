@@ -1,0 +1,53 @@
+/* Catalogo de productos en PDF (prefijo ct-). */
+.ct-shell { max-width: 1100px; margin: 0 auto; padding: 4px 4px 40px; display: grid; gap: 16px; }
+.ct-cab h2 { margin: 0 0 6px; font-size: 26px; letter-spacing: -.02em; }
+.ct-cab p { margin: 0; max-width: 62ch; color: var(--pos-muted, #687386); font-size: 14px; line-height: 1.45; }
+.ct-vacio { padding: 22px; text-align: center; color: var(--pos-muted, #687386); }
+.ct-dos { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+
+.ct-arbol, .ct-tarjeta { border: 1px solid rgba(15, 23, 42, .08); border-radius: 20px; background: linear-gradient(180deg, color-mix(in srgb, var(--brand-color, #0d6efd) 4%, var(--surface, #fff)), var(--surface, #fff)); }
+.ct-arbol { padding: 14px; display: grid; gap: 10px; }
+.ct-barra { display: flex; gap: 8px; align-items: center; }
+.ct-barra input[type=search] { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--pos-line, #cbd5e1); border-radius: 12px; background: var(--pos-card, #fff); color: inherit; font: inherit; }
+.ct-chico { flex: none; padding: 9px 12px; border: 1px solid var(--pos-line, #cbd5e1); border-radius: 12px; background: var(--pos-card, #fff); color: inherit; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.ct-chico:hover { border-color: var(--brand-color, #1d5fd1); color: var(--brand-color, #1d5fd1); }
+
+.ct-depto { border-top: 1px solid rgba(15, 23, 42, .06); }
+.ct-depto:first-child { border-top: 0; }
+.ct-fila-depto { display: flex; align-items: center; gap: 10px; padding: 9px 4px; }
+.ct-fila-depto input, .ct-sub input, .ct-check input { width: 18px; height: 18px; flex: none; accent-color: var(--brand-color, #1d5fd1); cursor: pointer; }
+.ct-nombre { flex: 1; display: flex; align-items: baseline; gap: 10px; min-width: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; padding: 2px 0; }
+.ct-nombre b { font-size: 14.5px; }
+.ct-nombre small { color: var(--pos-muted, #687386); font-size: 12px; font-weight: 600; }
+.ct-flecha { margin-left: auto; font-style: normal; font-size: 22px; line-height: 1; color: var(--pos-muted, #94a3b8); transition: transform .15s; }
+.ct-flecha.abierta { transform: rotate(90deg); }
+.ct-sin { cursor: pointer; }
+.ct-subs { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 2px 14px; padding: 0 0 10px 30px; }
+.ct-sub { display: flex; align-items: center; gap: 9px; padding: 6px 4px; border-radius: 8px; font-size: 13.5px; cursor: pointer; }
+.ct-sub:hover { background: rgba(15, 23, 42, .04); }
+.ct-sub span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-sub small { flex: none; color: var(--pos-muted, #687386); font-size: 11.5px; font-weight: 700; }
+
+.ct-lado { display: grid; gap: 12px; position: sticky; top: 8px; }
+.ct-tarjeta { padding: 16px; display: grid; gap: 12px; }
+.ct-tarjeta label { display: grid; gap: 5px; font-size: 12.5px; font-weight: 800; color: var(--pos-muted, #475569); }
+.ct-tarjeta label small { font-weight: 600; }
+.ct-tarjeta input[type=text], .ct-tarjeta select { padding: 9px 10px; border: 1px solid var(--pos-line, #cbd5e1); border-radius: 10px; background: var(--pos-card, #fff); color: var(--pos-text, #0f172a); font: inherit; font-weight: 600; }
+.ct-tarjeta label.ct-check { display: flex; align-items: center; gap: 9px; font-size: 13.5px; font-weight: 600; color: inherit; cursor: pointer; }
+
+.ct-resumen { gap: 8px; }
+.ct-numero { display: flex; align-items: baseline; gap: 8px; }
+.ct-numero b { font-size: 38px; line-height: 1; letter-spacing: -.03em; }
+.ct-numero span { font-size: 14px; font-weight: 700; color: var(--pos-muted, #687386); }
+.ct-detalle { margin: 0; font-size: 12.5px; color: var(--pos-muted, #687386); line-height: 1.4; }
+.ct-aviso { margin: 0; padding: 8px 10px; border-radius: 10px; background: rgba(245, 158, 11, .14); font-size: 12.5px; font-weight: 700; }
+.ct-principal, .ct-secundario { width: 100%; padding: 12px 14px; border-radius: 12px; font: inherit; font-weight: 800; font-size: 14px; cursor: pointer; }
+.ct-principal { border: 0; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; box-shadow: 0 8px 18px rgba(37, 99, 235, .25); }
+.ct-secundario { border: 1px solid var(--pos-line, #cbd5e1); background: var(--pos-card, #fff); color: inherit; }
+.ct-principal:disabled, .ct-secundario:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+
+body.oscuro .ct-arbol, body.oscuro .ct-tarjeta { border-color: rgba(148, 163, 184, .22); background: linear-gradient(180deg, color-mix(in srgb, var(--brand-color, #0d6efd) 5%, var(--surface, #162032)), var(--surface, #162032)); }
+body.oscuro .ct-barra input[type=search], body.oscuro .ct-chico, body.oscuro .ct-tarjeta input[type=text], body.oscuro .ct-tarjeta select, body.oscuro .ct-secundario { background: #0f1727; border-color: rgba(148, 163, 184, .3); color: #e6ecff; }
+body.oscuro .ct-sub:hover { background: rgba(255, 255, 255, .06); }
+
+@media (max-width: 860px) { .ct-dos { grid-template-columns: 1fr; } .ct-lado { position: static; } }

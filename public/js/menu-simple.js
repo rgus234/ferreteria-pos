@@ -35,6 +35,7 @@
                     { modulo: "mapa-tienda", icono: "building", titulo: "Mapa de la tienda", texto: "Dónde está cada producto" },
                     { modulo: "fotos-sugeridas", icono: "eye", titulo: "Fotos sugeridas", texto: "Ponle foto a lo que no tiene" },
                     { modulo: "codigos-barras", icono: "printer", titulo: "Códigos de barras", texto: "Crea e imprime etiquetas" },
+                    { modulo: "catalogo-productos", icono: "file", titulo: "Catálogo de productos", texto: "Un PDF con foto, precio y código", ocultaSi: () => !(typeof window.funcionBeta === "function" && window.funcionBeta("catalogo_productos")) },
                     { modulo: "explorar-nexo", icono: "search", titulo: "Explorar Nexo", texto: "Catálogo de productos conocidos" }
                 ] }
             ]

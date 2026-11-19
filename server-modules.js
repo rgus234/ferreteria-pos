@@ -229,6 +229,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./etiquetas-pdf-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("catalogo de productos en PDF", () => {
+        require("./catalogo-productos-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("sitio web del negocio", () => {
         require("./public-site-server").registrarRutas(app, pool, requerirAccesoNegocio);
     });

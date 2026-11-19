@@ -1475,6 +1475,7 @@ function ocultarPantallasPrincipales() {
  "pantallaPreciosLote",
  "pantallaCorreoFacturas",
  "pantallaUnirProveedores",
+ "pantallaCatalogoProductos",
  "pantallaMinimosVentas",
  "pantallaEnlaceCelular",
  "pantallaFuncionesBeta",

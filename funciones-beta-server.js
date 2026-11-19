@@ -39,6 +39,7 @@ const FUNCIONES = {
     pedidos_unico: "Pedidos: crear, sugerir y hechos",
     agenda_pagos: "Agenda de pagos a proveedores",
     llegada_sin_factura: "Llegada sin factura",
+    catalogo_productos: "Catálogo de productos en PDF",
     precios_lote: "Actualizar precios por lote",
     unir_proveedores: "Unir proveedores repetidos",
     minimos_ventas: "Minimos y maximos con tus ventas"
