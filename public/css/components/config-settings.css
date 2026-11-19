@@ -880,3 +880,9 @@
     grid-template-columns: 1fr !important;
   }
 }
+
+/* El papel del ticket es blanco siempre: en modo oscuro el resto de la app pinta texto claro y fondos oscuros
+   (titulo, tabla, TOTAL y PAGO se perdian sobre el blanco). Aqui se fuerza tinta negra y sin fondos;
+   lo que trae color propio en linea (la insignia negra, notas en gris) lo conserva. */
+.ticket-paper :is(h1, h2, h3, p, strong, b, small, span, td, th, div, li):not([style*="color"]) { color: #111827 !important; }
+.ticket-paper :is(table, thead, tbody, tr, td, th) { background: transparent !important; }
