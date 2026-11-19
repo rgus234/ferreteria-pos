@@ -102,7 +102,7 @@
             <div class="ct-dos">
                 <div id="ctPanel">${est.tab === "productos" ? htmlProductos() : htmlEstilo()}</div>
                 <aside class="ct-lado">
-                    <div class="ct-tarjeta">
+                    ${est.tab === "estilo" ? htmlTarjetaVista() : `<div class="ct-tarjeta">
                         <label>Título del catálogo<input id="ctTitulo" type="text" maxlength="80" value="${esc(est.o.titulo)}" oninput="ctOpcion('titulo', this.value)"></label>
                         <label>Precio que se muestra<select onchange="ctOpcion('nivel', this.value)">
                             <option value="publico" ${est.o.nivel === "publico" ? "selected" : ""}>Público</option>
@@ -113,7 +113,7 @@
                         <label class="ct-check"><input type="checkbox" ${est.o.barras ? "checked" : ""} onchange="ctOpcion('barras', this.checked)"> Mostrar el código de barras</label>
                         <label class="ct-check"><input type="checkbox" ${est.o.soloFoto ? "checked" : ""} onchange="ctOpcion('soloFoto', this.checked)"> Solo los que tienen foto</label>
                         <label class="ct-check"><input type="checkbox" ${est.o.soloExistencia ? "checked" : ""} onchange="ctOpcion('soloExistencia', this.checked)"> Solo los que hay en existencia</label>
-                    </div>
+                    </div>`}
                     <div class="ct-tarjeta ct-resumen" id="ctResumen">${htmlResumen()}</div>
                 </aside>
             </div>
@@ -171,8 +171,6 @@
         const logoActual = e.logo === "negocio" ? neg.logo : (e.logo === "subido" ? e.logoSubido : "");
 
         return `<section class="ct-estilo">
-            <div class="ct-vista" id="ctVista">${htmlVista()}</div>
-
             <div class="ct-grupo"><h3>Color</h3>
                 <div class="ct-colores">${COLORES.map(([hex, nombre]) => `<button type="button" class="ct-color ${e.color === hex ? "elegido" : ""}" style="--c:${hex}" title="${nombre}" aria-label="${nombre}" onclick="ctEstilo('color', '${hex}')"></button>`).join("")}
                     ${miColor ? `<button type="button" class="ct-color ${e.color === miColor ? "elegido" : ""}" style="--c:${miColor}" title="El color de mi negocio" aria-label="El color de mi negocio" onclick="ctEstilo('color', '${miColor}')"></button>` : ""}
@@ -200,6 +198,7 @@
                         <button type="button" class="ct-chico ${e.logo === "ninguno" ? "elegido" : ""}" onclick="ctEstilo('logo', 'ninguno')">Sin logo</button>
                         <input id="ctArchivoLogo" type="file" accept="image/*" hidden onchange="ctSubirLogo(this.files[0]); this.value=''">
                     </div></div>
+                <label>Título del catálogo<input type="text" maxlength="80" value="${esc(est.o.titulo)}" oninput="ctOpcion('titulo', this.value)"></label>
                 <label>Nombre del negocio <small>(si lo dejas vacío se usa “${esc(neg.nombre || "el de tu negocio")}”)</small><input type="text" maxlength="60" value="${esc(e.nombreNegocio)}" placeholder="${esc(neg.nombre || "")}" oninput="ctEstilo('nombreNegocio', this.value, true)"></label>
                 <label>Teléfono, WhatsApp o dirección <small>(sale en la portada y al pie de cada hoja)</small><input type="text" maxlength="140" value="${esc(e.contacto)}" placeholder="${esc(neg.contacto || "Tel. 492 000 0000 | Av. Hidalgo 123")}" oninput="ctEstilo('contacto', this.value, true)"></label>
             </div>
@@ -218,11 +217,16 @@
         const cabecera = e.encabezado === "banda"
             ? `<div class="ct-v-banda" style="background:${e.color};color:${claro ? "#0f172a" : "#fff"}">${logo ? `<i class="ct-v-logo" style="border-radius:${radio === "0" ? "0" : "6px"}"><img src="${esc(logo)}" alt=""></i>` : ""}<div><b>${esc(nombre)}</b><small>${esc(est.o.titulo)}</small></div></div>`
             : `<div class="ct-v-linea" style="border-color:${e.color}">${logo ? `<img src="${esc(logo)}" alt="">` : ""}<div><b style="color:${e.color}">${esc(nombre)}</b><small>${esc(est.o.titulo)}</small></div></div>`;
-        const tarjeta = `<div class="ct-v-card" style="border-color:${e.color}55;border-radius:${radio}"><i style="background:${e.color}1f;color:${e.color}55;border-radius:${radio === "0" ? "0" : "6px"}">P</i><b>Producto de ejemplo</b><span style="color:${e.color}">$125.00</span><em></em></div>`;
-        const fila = `<div class="ct-v-fila" style="border-color:${e.color}55"><i style="background:${e.color}1f;color:${e.color}55;border-radius:${radio === "0" ? "0" : "4px"}">P</i><b>Producto de ejemplo</b><span style="color:${e.color}">$125.00</span></div>`;
+        const tarjeta = `<div class="ct-v-card" style="border-color:${e.color}55;border-radius:${radio}"><i style="background:${e.color}1f;color:${e.color}55;border-radius:${radio === "0" ? "0" : "6px"}">P</i><b>Producto de ejemplo</b>${est.o.precio ? `<span style="color:${e.color}">$125.00</span>` : ""}${est.o.barras ? "<em></em>" : ""}</div>`;
+        const fila = `<div class="ct-v-fila" style="border-color:${e.color}55"><i style="background:${e.color}1f;color:${e.color}55;border-radius:${radio === "0" ? "0" : "4px"}">P</i><b>Producto de ejemplo</b>${est.o.precio ? `<span style="color:${e.color}">$125.00</span>` : ""}</div>`;
         const cuerpoVista = e.diseno === "lista" ? `<div class="ct-v-lista">${fila.repeat(3)}</div>` : `<div class="ct-v-grid ${e.diseno}">${tarjeta.repeat(e.diseno === "compacto" ? 8 : 6)}</div>`;
 
         return `<div class="ct-v-hoja" style="font-family:${familia}">${cabecera}<div class="ct-v-seccion" style="background:${e.color};color:${claro ? "#0f172a" : "#fff"};border-radius:${radio === "0" ? "0" : "5px"}">DEPARTAMENTO</div>${cuerpoVista}</div>`;
+    }
+
+    // Tarjeta fija a la derecha: la muestra siempre se ve mientras se cambian las opciones.
+    function htmlTarjetaVista() {
+        return `<div class="ct-tarjeta ct-prev-card"><h3>Así se verá</h3><div class="ct-vista" id="ctVista">${htmlVista()}</div><p class="ct-prev-nota">Es una muestra del estilo: el PDF lleva tus productos y sus fotos.</p></div>`;
     }
 
     function colorClaro(hex) {
@@ -234,8 +238,10 @@
         est.e[clave] = valor;
         recordarEstilo();
         const v = document.getElementById("ctVista");
-        if (sinRepintar) { if (v) v.innerHTML = htmlVista(); return; }
-        pintar();
+        if (v) v.innerHTML = htmlVista();
+        if (sinRepintar) return;
+        const panel = document.getElementById("ctPanel");
+        if (panel && est.tab === "estilo") panel.innerHTML = htmlEstilo();
     };
 
     // El logo se reduce aqui (max. 600 px, PNG para conservar fondos transparentes) para que suba rapido y se pueda recordar.
@@ -302,7 +308,7 @@
     window.ctOpcion = function (clave, valor) {
         est.o[clave] = valor;
         if (["soloFoto", "soloExistencia", "marca"].includes(clave)) pedirConteo();
-        if (clave === "titulo" && est.tab === "estilo") { const v = document.getElementById("ctVista"); if (v) v.innerHTML = htmlVista(); }
+        if (["titulo", "precio", "barras"].includes(clave) && est.tab === "estilo") { const v = document.getElementById("ctVista"); if (v) v.innerHTML = htmlVista(); }
     };
 
     function pedirConteo() {
