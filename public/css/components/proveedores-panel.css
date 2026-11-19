@@ -68,3 +68,28 @@
 .pp-cuerpo .pp-btn { margin-top: 14px; }
 
 @media (max-width: 900px) { .pp-resumen { grid-template-columns: repeat(2, 1fr); } .pp-estado { margin-left: 0; } .pp-kv { grid-template-columns: repeat(2, 1fr); } }
+
+/* Ficha y menu salen fuera de la pantalla: necesitan fondo solido (en oscuro, --pos-surface es translucido) */
+body { --pp-solido: #ffffff; --pp-texto: #0f172a; --pp-borde: #e5e9f0; --pp-suave: #eef2f7; }
+body.oscuro { --pp-solido: #111c33; --pp-texto: #f1f5f9; --pp-borde: #2a3a58; --pp-suave: #1b2a47; }
+.pp-ficha, .pp-menu { background: var(--pp-solido); color: var(--pp-texto); border-color: var(--pp-borde); }
+.pp-ficha .pp-btn, .pp-menu button { color: var(--pp-texto); }
+.pp-ficha .pp-btn { background: var(--pp-solido); border-color: var(--pp-borde); }
+.pp-ficha .pp-principal { background: #2563eb; border-color: #2563eb; color: #fff; }
+.pp-ficha .pp-tabs, .pp-ficha .pp-fila { border-color: var(--pp-borde); }
+.pp-ficha .pp-activo, .pp-ficha .pp-tab.activo { color: #60a5fa; border-bottom-color: #60a5fa; }
+body.oscuro .pp-avatar { background: #1e3a8a; color: #bfdbfe; }
+body.oscuro .pp-chip { background: #1b2a47; color: #cbd5e1; }
+body.oscuro .pp-etiqueta { background: #78350f; color: #fde68a; }
+body.oscuro .pp-enlace, body.oscuro .pp-aviso { color: #60a5fa; }
+body.oscuro .pp-ambar b, body.oscuro .pp-ambar em { color: #fbbf24; }
+body.oscuro .pp-rojo b, body.oscuro .pp-rojo em { color: #f87171; }
+body.oscuro .pp-datos > div { background: rgba(148, 163, 184, .10); }
+body.oscuro .pp-card { background: var(--pp-solido); border-color: var(--pp-borde); }
+body.oscuro .pp-resumen > div { background: var(--pp-solido); border-color: var(--pp-borde); }
+body.oscuro .pp-filtro { background: var(--pp-solido); border-color: var(--pp-borde); color: var(--pp-texto); }
+body.oscuro .pp-filtro.activo { background: #2563eb; border-color: #2563eb; color: #fff; }
+body.oscuro .pp-barra input { background: var(--pp-solido); border-color: var(--pp-borde); color: var(--pp-texto); }
+body.oscuro .pp-btn { background: var(--pp-solido); border-color: var(--pp-borde); color: var(--pp-texto); }
+body.oscuro .pp-principal, body.oscuro .pp-ficha .pp-principal { background: #2563eb; border-color: #2563eb; color: #fff; }
+.pp-menu .pp-peligro { color: #ef4444; }
