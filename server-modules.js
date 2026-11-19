@@ -258,12 +258,13 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./prueba-recordatorios-server")(app, pool);
     });
 
-    cargarModuloPOS("facturacion electronica (CFDI)", () => {
-        require("./facturacion-server")(app, pool, requerirAccesoNegocio);
-    });
-
+    // Antes que facturacion: "/facturacion/timbres" no debe caer en "/facturacion/:id".
     cargarModuloPOS("timbres prepagados de facturacion", () => {
         require("./timbres-server")(app, pool, requerirAccesoNegocio);
+    });
+
+    cargarModuloPOS("facturacion electronica (CFDI)", () => {
+        require("./facturacion-server")(app, pool, requerirAccesoNegocio);
     });
 
     cargarModuloPOS("autofactura publica (el cliente factura su ticket)", () => {

@@ -93,3 +93,29 @@ test("con el cobro apagado nada cambia: no pide saldo ni descuenta", async () =>
     assert.equal(await timbres.hayTimbres(pool, negocio.negocioId), true);
     process.env.TIMBRES_PREPAGO = "1";
 });
+
+test("negocio de demostracion: compra sin pagar, factura sin tocar al SAT, factura marcada DEMO y con PDF", async () => {
+    process.env.TIMBRES_PREPAGO = "0"; // el cobro general apagado: la demo funciona igual
+    await pool.query(`UPDATE public.negocios SET funciones_beta = '{"autofactura": true, "facturacion_demo": true}'::jsonb WHERE id = $1`, [negocio.negocioId]);
+    timbres.olvidarDemo();
+    await pool.query(`UPDATE public.timbres_saldo SET saldo = 0 WHERE negocio_id = $1`, [negocio.negocioId]);
+
+    const comprado = await timbres.comprarDemo(pool, negocio.negocioId, timbres.paquetePorId("t50"));
+    assert.equal(comprado.saldo, 50);
+    const resumen = await timbres.resumen(pool, negocio.negocioId);
+    assert.equal(resumen.demo, true);
+    assert.equal(resumen.habilitado, true);
+
+    const v = await crearVenta();
+    const explota = { crearCfdi: async () => { throw new Error("no debe llamar a Facturama"); }, descargarXmlCfdi: async () => { throw new Error("no"); }, enviarCorreoFacturaCfdi: async () => { throw new Error("no debe mandar correos"); } };
+    const r = await autofactura.emitir(pool, explota, { codigo: v.codigo, total: "116", receptor: RECEPTOR });
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.match(r.factura.folio, /^DEMO/);
+    assert.equal((await timbres.saldoDe(pool, negocio.negocioId)).saldo, 49, "gasta un timbre de demostracion");
+    const fila = (await pool.query(`SELECT xml_cfdi, serie FROM public.facturas_cfdi WHERE historial_venta_id = $1`, [v.id])).rows[0];
+    assert.match(fila.xml_cfdi, /DEMOSTRACION/);
+    const datos = await autofactura.datosFactura(pool, (await pool.query(`SELECT id FROM public.facturas_cfdi WHERE historial_venta_id = $1`, [v.id])).rows[0].id);
+    const pdf = await autofactura.generarPdf(datos);
+    assert.equal(pdf.slice(0, 4).toString(), "%PDF");
+    process.env.TIMBRES_PREPAGO = "1";
+});

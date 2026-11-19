@@ -471,6 +471,7 @@ function renderTarjetaTimbresFacturacion(t) {
 
     return `
         <div class="facturacion-tarjeta facturacion-timbres ${clase}" style="grid-column:1 / -1;">
+            ${t.demo ? '<p class="facturacion-demo-banner">Modo demostración: aquí nada se cobra, no se timbra ante el SAT y no se manda ningún correo. Sirve para ver cómo funciona.</p>' : ""}
             <div class="facturacion-timbres-cab">
                 <div><h3>Tus timbres</h3><p>${escaparPOS(aviso)}</p></div>
                 <div class="facturacion-saldo"><b>${t.saldo}</b><span>disponibles</span></div>
@@ -486,6 +487,12 @@ async function comprarTimbresFacturacion(paqueteId, boton) {
     try {
         const respuesta = await fetch("/facturacion/timbres/comprar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paquete: paqueteId }) });
         const datos = await respuesta.json().catch(() => ({}));
+        if (datos.ok && datos.demo) {
+            // Negocio de demostracion: los timbres se suman al instante, sin pagar nada.
+            if (typeof alertaPOS === "function") alertaPOS("Compra de demostración: se sumaron los timbres y no se cobró nada.", "Timbres", "info");
+            await cargarEstadoFacturacion();
+            return;
+        }
         if (!respuesta.ok || !datos.ok || !datos.url) throw new Error(datos.error || "No se pudo abrir el pago.");
         window.location.href = datos.url;
     } catch (error) {

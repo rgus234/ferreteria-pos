@@ -17,6 +17,21 @@ const PAQUETES = [
 const AVISO_SALDO_BAJO = 10;
 
 const habilitado = () => process.env.TIMBRES_PREPAGO === "1";
+
+// Negocio de demostracion (marcado a mano con funciones_beta.facturacion_demo = true): ve y usa todo el flujo de timbres
+// (comprar, gastar, paquetes) pero SIN cobrar, SIN timbrar de verdad y SIN mandar correos. Las facturas salen marcadas DEMO.
+const cacheDemo = new Map();
+async function esDemo(pool, negocioId) {
+    if (!pool || !negocioId) return false;
+    const guardado = cacheDemo.get(negocioId);
+    if (guardado && Date.now() - guardado.t < 15000) return guardado.v;
+    const fila = (await pool.query(`SELECT funciones_beta->>'facturacion_demo' AS d FROM public.negocios WHERE id = $1`, [negocioId])).rows[0];
+    const v = Boolean(fila && fila.d === "true");
+    cacheDemo.set(negocioId, { v, t: Date.now() });
+    return v;
+}
+// ¿Aplica el cobro de timbres a este negocio? Si el servidor lo tiene encendido, o si es un negocio de demostracion.
+async function activoPara(pool, negocioId) { return habilitado() || (await esDemo(pool, negocioId)); }
 const paquetePorId = id => PAQUETES.find(p => p.id === id) || null;
 
 let tablasListas = false;
@@ -72,7 +87,7 @@ async function acreditar(pool, { negocioId, cantidad, tipo, referencia = null, c
 
 // Reserva 1 timbre antes de timbrar. { ok:false } si no hay saldo. Con el interruptor apagado siempre responde ok sin tocar nada.
 async function reservar(pool, negocioId, referencia = null) {
-    if (!habilitado()) return { ok: true, sinCobro: true };
+    if (!(await activoPara(pool, negocioId))) return { ok: true, sinCobro: true };
     await asegurarTablas(pool);
     const fila = (await pool.query(
         `UPDATE public.timbres_saldo SET saldo = saldo - 1, consumidos_total = consumidos_total + 1, updated_at = NOW()
@@ -85,7 +100,7 @@ async function reservar(pool, negocioId, referencia = null) {
 
 // Si el PAC rechazo el timbrado, el timbre vuelve.
 async function devolver(pool, negocioId, motivo = "El SAT o el PAC rechazaron la factura") {
-    if (!habilitado()) return;
+    if (!(await activoPara(pool, negocioId))) return;
     await pool.query(`UPDATE public.timbres_saldo SET saldo = saldo + 1, consumidos_total = GREATEST(0, consumidos_total - 1), updated_at = NOW() WHERE negocio_id = $1`, [negocioId]);
     const s = (await pool.query(`SELECT saldo FROM public.timbres_saldo WHERE negocio_id = $1`, [negocioId])).rows[0];
     await pool.query(`INSERT INTO public.timbres_movimientos (negocio_id, tipo, cantidad, saldo_despues, nota) VALUES ($1,'reembolso',1,$2,$3)`, [negocioId, s ? s.saldo : 0, motivo]);
@@ -93,19 +108,19 @@ async function devolver(pool, negocioId, motivo = "El SAT o el PAC rechazaron la
 
 // ¿Puede este negocio facturar? Con el cobro encendido basta con tener saldo; apagado, manda el plan como siempre.
 async function puedeFacturar(pool, negocioId, funcionDelPlan) {
-    if (habilitado()) return true;
+    if (await activoPara(pool, negocioId)) return true;
     return Boolean((await funcionDelPlan(negocioId, "facturacion.cfdi")).incluido);
 }
 async function hayTimbres(pool, negocioId) {
-    if (!habilitado()) return true;
+    if (!(await activoPara(pool, negocioId))) return true;
     return (await saldoDe(pool, negocioId)).saldo > 0;
 }
 
 // Resumen para la pantalla de Facturacion.
 async function resumen(pool, negocioId) {
-    if (!habilitado()) return { habilitado: false };
+    if (!(await activoPara(pool, negocioId))) return { habilitado: false };
     const { saldo, comprados, consumidos } = await saldoDe(pool, negocioId);
-    return { habilitado: true, saldo, comprados, consumidos, bajo: saldo <= AVISO_SALDO_BAJO, paquetes: PAQUETES.map(p => ({ id: p.id, timbres: p.timbres, precio: p.centavos / 100, porTimbre: Math.round(p.centavos / p.timbres) / 100 })), movimientos: await movimientoReciente(pool, negocioId) };
+    return { habilitado: true, demo: await esDemo(pool, negocioId), saldo, comprados, consumidos, bajo: saldo <= AVISO_SALDO_BAJO, paquetes: PAQUETES.map(p => ({ id: p.id, timbres: p.timbres, precio: p.centavos / 100, porTimbre: Math.round(p.centavos / p.timbres) / 100 })), movimientos: await movimientoReciente(pool, negocioId) };
 }
 
 // Una sesion de Stripe pagada se convierte en timbres (la llaman el webhook y la confirmacion al volver de pagar).
@@ -120,4 +135,9 @@ async function acreditarDesdeSesion(pool, sesion) {
     return acreditar(pool, { negocioId, cantidad: paquete.timbres, tipo: "compra", referencia: sesion.id, centavos: paquete.centavos, nota: `Paquete de ${paquete.timbres} timbres` });
 }
 
-module.exports = { PAQUETES, AVISO_SALDO_BAJO, habilitado, paquetePorId, asegurarTablas, saldoDe, acreditar, reservar, devolver, puedeFacturar, hayTimbres, resumen, acreditarDesdeSesion };
+// Compra de demostracion: suma los timbres al instante, sin Stripe y sin cobrar nada.
+async function comprarDemo(pool, negocioId, paquete) {
+    return acreditar(pool, { negocioId, cantidad: paquete.timbres, tipo: "compra", referencia: `demo-${negocioId}-${Date.now()}`, centavos: 0, nota: `Compra de demostración: ${paquete.timbres} timbres (no se cobró)` });
+}
+
+module.exports = { olvidarDemo: () => cacheDemo.clear(), esDemo, activoPara, comprarDemo, PAQUETES, AVISO_SALDO_BAJO, habilitado, paquetePorId, asegurarTablas, saldoDe, acreditar, reservar, devolver, puedeFacturar, hayTimbres, resumen, acreditarDesdeSesion };

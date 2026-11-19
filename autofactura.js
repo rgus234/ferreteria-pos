@@ -11,6 +11,7 @@ const QRCode = require("qrcode");
 const { armarConceptosFactura, formaPagoSat, urlVerificacionSat } = require("./facturacion-server");
 const { funcionDelPlan } = require("./plan-enforcement");
 const timbres = require("./timbres");
+const { pacPara } = require("./facturacion-demo");
 
 const PLAZO_DIAS = 30;
 const RFC_GENERICOS = ["XAXX010101000", "XEXX010101000"];
@@ -169,7 +170,7 @@ function validarReceptor(receptor) {
 }
 
 // Paso 2: emite la factura. deps = { crearCfdi, descargarXmlCfdi, enviarCorreoFacturaCfdi } (se inyectan para poder probarlo sin Facturama).
-async function emitir(pool, deps, { codigo, total, receptor: receptorCrudo }) {
+async function emitir(pool, depsReales, { codigo, total, receptor: receptorCrudo }) {
     const verificado = validarReceptor(receptorCrudo);
     if (verificado.error) return { ok: false, status: 400, error: verificado.error };
     const receptor = verificado.receptor;
@@ -180,6 +181,7 @@ async function emitir(pool, deps, { codigo, total, receptor: receptorCrudo }) {
     const motivo = await motivoNoDisponible(pool, venta);
     if (motivo) return { ok: false, status: 400, error: motivo };
 
+    const deps = await pacPara(pool, venta.negocio_id, depsReales);
     const items = armarConceptosFactura(productosDe(venta), venta.facturacion_clave_prod_serv_default || "01010101", venta.facturacion_clave_unidad_default || "H87", Number(venta.descuento) || 0);
     if (!items) return { ok: false, status: 400, error: "Esta compra no tiene productos que facturar." };
     if (Number(venta.descuento) > 0 && Math.abs(items.reduce((x, i) => x + i.Total, 0) - Number(venta.total)) > 0.011) {
@@ -275,8 +277,9 @@ async function enviarPorCorreo(pool, deps, facturaId, correo) {
     }
 }
 
-async function reenviar(pool, deps, { codigo, total, correo }) {
+async function reenviar(pool, depsReales, { codigo, total, correo }) {
     const venta = await ventaConNegocio(pool, normalizarCodigo(codigo));
+    const deps = venta ? await pacPara(pool, venta.negocio_id, depsReales) : depsReales;
     if (!venta || !totalCoincide(total, venta.total)) return { ok: false, status: 404, error: "No encontramos esa compra." };
     const destino = limpiar(correo, 200).toLowerCase();
     if (!PATRON_CORREO.test(destino)) return { ok: false, status: 400, error: "Escribe un correo válido." };
@@ -382,6 +385,10 @@ function generarPdf({ factura, emisor, conceptos, qr, marca }) {
         doc.font("Helvetica").fontSize(9).text(factura.uuid || "", 150, yPie + 12);
         doc.font("Helvetica-Bold").text("Forma de pago", 150, yPie + 32); doc.font("Helvetica").text(NOMBRE_PAGO[formaPagoSat(factura.metodo_pago)] || "99 - Por definir", 150, yPie + 44);
         doc.font("Helvetica-Bold").text("Método de pago", 330, yPie + 32); doc.font("Helvetica").text("PUE - Pago en una sola exhibición", 330, yPie + 44);
+        if (factura.serie === "DEMO") {
+            doc.save().rotate(-30, { origin: [300, 400] }).fillColor("#dc2626").opacity(0.16).font("Helvetica-Bold").fontSize(60).text("DEMOSTRACIÓN", 60, 360, { width: 500, align: "center" }).restore();
+            doc.fillColor("#dc2626").opacity(1).font("Helvetica-Bold").fontSize(9).text("FACTURA DE DEMOSTRACIÓN · Sin validez fiscal · No fue timbrada ante el SAT", 40, yPie + 100, { width: ancho });
+        }
         doc.fillColor("#6b7280").fontSize(8).text("Este documento es una representación impresa de un CFDI. Escanea el QR para verificarlo en el SAT. Factura generada con Nexo.", 150, yPie + 70, { width: 420 });
         doc.end();
     });

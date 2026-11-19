@@ -31,9 +31,14 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         try {
             const negocioId = negocioIdDeRequest(req);
             if (!negocioId) { res.status(401).json({ ok: false, error: "Este equipo no esta vinculado a ningun negocio" }); return; }
-            if (!timbres.habilitado()) { res.status(400).json({ ok: false, error: "La compra de timbres todavia no esta disponible." }); return; }
+            if (!(await timbres.activoPara(pool, negocioId))) { res.status(400).json({ ok: false, error: "La compra de timbres todavia no esta disponible." }); return; }
             const paquete = timbres.paquetePorId(String(req.body?.paquete || ""));
             if (!paquete) { res.status(400).json({ ok: false, error: "Elige un paquete de la lista." }); return; }
+            if (await timbres.esDemo(pool, negocioId)) {
+                await timbres.comprarDemo(pool, negocioId, paquete);
+                res.json({ ok: true, demo: true, ...(await timbres.resumen(pool, negocioId)) });
+                return;
+            }
             const stripe = obtenerStripe();
             if (!stripe) { res.status(503).json({ ok: false, error: "Los pagos todavia no estan configurados en este servidor." }); return; }
 

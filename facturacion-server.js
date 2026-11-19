@@ -18,6 +18,7 @@ const { responderError } = require("./error-utils");
 const { cargarCsd, crearCfdi, descargarXmlCfdi } = require("./facturama-client");
 const { negocioIdDeRequest, funcionDelPlan } = require("./plan-enforcement");
 const timbres = require("./timbres");
+const { pacPara } = require("./facturacion-demo");
 
 // Con el cobro de timbres encendido basta con poder comprarlos; apagado, manda el plan como siempre.
 function requerirFacturacionPermitida(mensaje) {
@@ -486,7 +487,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
                 let resultado;
                 try {
-                    resultado = await crearCfdi(comprobante);
+                    resultado = await (await pacPara(pool, negocioId, { crearCfdi })).crearCfdi(comprobante);
                 } catch (errorPac) {
                     await timbres.devolver(pool, negocioId);
                     throw errorPac;
@@ -521,7 +522,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 let xmlCfdi = factura.xml || null;
 
                 if (!xmlCfdi && factura.facturamaId) {
-                    const descarga = await descargarXmlCfdi(factura.facturamaId);
+                    const descarga = await (await pacPara(pool, negocioId, { descargarXmlCfdi })).descargarXmlCfdi(factura.facturamaId);
                     if (descarga.ok) xmlCfdi = descarga.xml;
                 }
 
@@ -670,7 +671,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 return;
             }
 
-            const resultado = await enviarCorreoFacturaCfdi(correoDestino, negocio?.razon_social || "Nexo", {
+            const resultado = await (await pacPara(pool, negocioId, { enviarCorreoFacturaCfdi })).enviarCorreoFacturaCfdi(correoDestino, negocio?.razon_social || "Nexo", {
                 folioTexto: `${factura.serie || ""}${factura.folio || facturaId}`,
                 uuid: factura.uuid || "--",
                 totalTexto: `$${Number(factura.total || 0).toFixed(2)}`,
