@@ -75,3 +75,28 @@ test("sin elegir categoria, o con filtros que no dejan nada, avisa con claridad"
     assert.equal(b.status, 400);
     assert.match((await b.json()).error, /no hay productos/i);
 });
+
+const paginas = buffer => (buffer.toString("latin1").match(/\/Type\s*\/Page[^s]/g) || []).length;
+
+test("el estilo cambia el PDF: portada agrega una hoja, y un estilo invalido no lo rompe", async () => {
+    const base = { subcategoriaIds: [subA, subB] };
+    const normal = Buffer.from(await (await post("/catalogo-productos/pdf", base)).arrayBuffer());
+
+    for (const diseno of ["tarjetas", "compacto", "lista"]) {
+        const r = await post("/catalogo-productos/pdf", { ...base, estilo: { color: "#dc2626", tipografia: "clasica", diseno, encabezado: "linea", esquinas: "rectas", nombreNegocio: "Mi Ferreteria", contacto: "Tel. 492 000 0000" } });
+        assert.equal(r.status, 200, `diseno ${diseno}`);
+        assert.equal(Buffer.from(await r.arrayBuffer()).slice(0, 5).toString(), "%PDF-");
+    }
+
+    const conPortada = Buffer.from(await (await post("/catalogo-productos/pdf", { ...base, estilo: { portada: true } })).arrayBuffer());
+    assert.equal(paginas(conPortada), paginas(normal) + 1, "la portada es una hoja mas");
+
+    const raro = await post("/catalogo-productos/pdf", { ...base, estilo: { color: "rojo", tipografia: "no-existe", diseno: "raro", logo: "data:image/png;base64,@@@" } });
+    assert.equal(raro.status, 200, "valores invalidos se reemplazan por los de siempre");
+});
+
+test("las opciones traen los datos del negocio y las tipografias", async () => {
+    const r = await (await fetch(`${BASE_URL}/catalogo-productos/opciones`, { headers: headers() })).json();
+    assert.ok(r.negocio && "nombre" in r.negocio && "logo" in r.negocio && "contacto" in r.negocio);
+    assert.ok(["moderna", "clasica", "maquina"].every(id => r.fuentes.some(f => f.id === id)));
+});

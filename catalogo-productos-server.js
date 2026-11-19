@@ -1,17 +1,22 @@
 // Catalogo de productos del negocio en PDF: se eligen categorias (las de Nexo) y se genera un catalogo para mandar o imprimir,
 // con foto, nombre, descripcion, clave, precio y codigo de barras escaneable de cada producto.
+// El dueño lo personaliza: logo y nombre de su negocio, color, tipografia, diseno (tarjetas, compacto o lista), encabezado y portada.
 //
 // Se arma con la categoria de Nexo de cada producto (categoria_nexo_id), no con el texto de categoria, que cada tienda escribia distinto.
 // No cambia ningun dato: solo lee.
-//   GET  /catalogo-productos/opciones  departamentos > subcategorias con cuantos productos (y cuantos con foto) tiene cada una, marcas
+//   GET  /catalogo-productos/opciones  departamentos > subcategorias con cuantos productos (y cuantos con foto) tiene cada una, marcas,
+//                                      datos del negocio (nombre, logo, color, contacto) y tipografias disponibles
 //   POST /catalogo-productos/contar    cuantos productos salen con esos filtros
 //   POST /catalogo-productos/pdf       el PDF
+const fs = require("fs");
+const path = require("path");
 const PDFDocument = require("pdfkit");
 const bwipjs = require("bwip-js");
 const sharp = require("sharp");
 const { responderError } = require("./error-utils");
 
 const MAX_PRODUCTOS = 400;
+const MAX_LOGO_BYTES = 2.5 * 1024 * 1024;
 
 // ---------- filtros y consulta ----------
 
@@ -52,16 +57,79 @@ async function consultar(pool, negocioId, f, limite) {
     return r.rows;
 }
 
+// ---------- estilo (lo que el dueño personaliza) ----------
+
+// Las 3 tipografias que trae todo PDF, mas las que se pongan como archivos en fonts-catalogo/ (<id>-Regular.ttf y <id>-Bold.ttf).
+const FUENTES_BASE = {
+    moderna: { nombre: "Moderna", regular: "Helvetica", bold: "Helvetica-Bold" },
+    clasica: { nombre: "Clásica", regular: "Times-Roman", bold: "Times-Bold" },
+    maquina: { nombre: "Máquina de escribir", regular: "Courier", bold: "Courier-Bold" }
+};
+const DIR_FUENTES = path.join(__dirname, "fonts-catalogo");
+
+function fuentesInstaladas() {
+    const salida = {};
+    try {
+        fs.readdirSync(DIR_FUENTES).forEach(archivo => {
+            const m = archivo.match(/^([a-z0-9-]+)-Regular\.ttf$/i);
+            if (!m) return;
+            const id = m[1].toLowerCase();
+            const bold = path.join(DIR_FUENTES, `${m[1]}-Bold.ttf`);
+            if (!fs.existsSync(bold)) return;
+            salida[id] = { nombre: id.split("-").map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" "), regular: path.join(DIR_FUENTES, archivo), bold, ttf: true };
+        });
+    } catch (error) { /* sin carpeta de tipografias: solo las 3 de siempre */ }
+    return salida;
+}
+
+const todasLasFuentes = () => ({ ...FUENTES_BASE, ...fuentesInstaladas() });
+
+const DISENOS = { tarjetas: { columnas: 3, alto: 205 }, compacto: { columnas: 4, alto: 172 }, lista: { columnas: 1, alto: 62 } };
+
+function estiloDe(e = {}) {
+    const fuentes = todasLasFuentes();
+    const color = /^#[0-9a-fA-F]{6}$/.test(String(e.color || "")) ? String(e.color).toLowerCase() : "#1d4ed8";
+
+    return {
+        color,
+        fuente: fuentes[e.tipografia] ? e.tipografia : "moderna",
+        diseno: DISENOS[e.diseno] ? e.diseno : "tarjetas",
+        encabezado: e.encabezado === "linea" ? "linea" : "banda",
+        portada: e.portada === true,
+        esquinas: e.esquinas === "rectas" ? "rectas" : "redondeadas",
+        logo: typeof e.logo === "string" ? e.logo : "negocio",
+        nombreNegocio: String(e.nombreNegocio || "").trim().slice(0, 60),
+        contacto: String(e.contacto || "").trim().slice(0, 140)
+    };
+}
+
+const aRgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+const luminancia = hex => { const [r, g, b] = aRgb(hex).map(v => v / 255); return 0.299 * r + 0.587 * g + 0.114 * b; };
+const textoSobre = hex => (luminancia(hex) > 0.62 ? "#0f172a" : "#ffffff");
+const mezclar = (hex, con, k) => { const a = aRgb(hex); const b = aRgb(con); return "#" + a.map((v, i) => Math.round(v * (1 - k) + b[i] * k).toString(16).padStart(2, "0")).join(""); };
+
+async function prepararLogo(valor, logoNegocio) {
+    const origen = valor === "ninguno" ? null : (valor && valor !== "negocio" ? valor : logoNegocio);
+    const m = String(origen || "").match(/^data:image\/(?:png|jpe?g|webp|gif|svg\+xml);base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) return null;
+
+    try {
+        const buffer = Buffer.from(m[1], "base64");
+        if (!buffer.length || buffer.length > MAX_LOGO_BYTES) return null;
+        return await sharp(buffer).resize({ width: 600, height: 300, fit: "inside", withoutEnlargement: true }).png().toBuffer();
+    } catch (error) {
+        return null;
+    }
+}
+
 // ---------- dibujo ----------
 
 const PAGINA = { ancho: 612, alto: 792, margen: 36 };
-const COLUMNAS = 3;
-const SEPARACION = 12;
-const ANCHO_TARJETA = (PAGINA.ancho - PAGINA.margen * 2 - SEPARACION * (COLUMNAS - 1)) / COLUMNAS;
-const ALTO_TARJETA = 205;
-const INICIO_Y = 82;
+const ANCHO_UTIL = PAGINA.ancho - PAGINA.margen * 2;
 const FIN_Y = PAGINA.alto - 50;
-const AZUL = "#1d4ed8";
+const SEPARACION = 12;
+const GRIS = "#64748b";
+const TINTA = "#0f172a";
 
 // Las letras estandar del PDF no traen todos los simbolos: se cambian los mas comunes y se quita lo raro.
 function limpiar(texto) {
@@ -142,85 +210,184 @@ async function imagenBarras(codigo) {
     return null;
 }
 
-function dibujarTarjeta(doc, p, foto, barras, x, y, opciones) {
-    const w = ANCHO_TARJETA;
-    const interior = w - 16;
+// Cada diseno dibuja un producto en su recuadro (x, y, w, h). ctx = { doc, F, estilo, opciones, radio }
+function textoLineas(ctx, lineas, fuente, tamano, color, x, y, ancho, paso) {
+    ctx.doc.fillColor(color).font(fuente).fontSize(tamano);
+    lineas.forEach((linea, i) => ctx.doc.text(linea, x, y + i * paso, { width: ancho, lineBreak: false }));
+}
 
-    doc.roundedRect(x, y, w, ALTO_TARJETA, 8).lineWidth(0.7).strokeColor("#dbe3ef").stroke();
-
-    // foto
-    const cajaFoto = { x: x + 8, y: y + 8, w: interior, h: 92 };
+function dibujarFoto(ctx, p, foto, x, y, w, h) {
+    const { doc, F, estilo } = ctx;
     if (foto) {
-        try { doc.image(foto, cajaFoto.x, cajaFoto.y, { fit: [cajaFoto.w, cajaFoto.h], align: "center", valign: "center" }); }
-        catch (error) { foto = null; }
+        try { doc.image(foto, x, y, { fit: [w, h], align: "center", valign: "center" }); return; }
+        catch (error) { /* se dibuja la letra */ }
     }
-    if (!foto) {
-        doc.roundedRect(cajaFoto.x, cajaFoto.y, cajaFoto.w, cajaFoto.h, 6).fillColor("#f1f5f9").fill();
-        doc.fillColor("#94a3b8").font("Helvetica-Bold").fontSize(28).text(limpiar(p.nombre).charAt(0).toUpperCase() || "?", cajaFoto.x, cajaFoto.y + 30, { width: cajaFoto.w, align: "center", lineBreak: false });
-    }
+    doc.roundedRect(x, y, w, h, ctx.radio ? 6 : 0).fillColor(mezclar(estilo.color, "#ffffff", 0.9)).fill();
+    doc.fillColor(mezclar(estilo.color, "#ffffff", 0.45)).font(F.bold).fontSize(Math.min(28, h * 0.4)).text(limpiar(p.nombre).charAt(0).toUpperCase() || "?", x, y + h / 2 - Math.min(28, h * 0.4) / 2 - 1, { width: w, align: "center", lineBreak: false });
+}
 
-    let cursor = y + 106;
+function textoPrecio(ctx, p, x, y, ancho, tamano, alinear) {
+    const { doc, F, estilo, opciones } = ctx;
+    const precio = precioDe(p, opciones.nivelPrecio);
+    const sufijo = SUFIJO_UNIDAD[String(p.unidad_venta || "").toLowerCase()] || "";
+    const texto = precio ? dinero(precio) + (sufijo ? " " + sufijo : "") : "Consultar precio";
 
-    // nombre
-    const nombre = ajustar(doc, p.nombre, interior, 2, "Helvetica-Bold", 9);
-    doc.fillColor("#0f172a").font("Helvetica-Bold").fontSize(9);
-    nombre.forEach((linea, i) => doc.text(linea, x + 8, cursor + i * 11, { width: interior, lineBreak: false }));
-    cursor += 24;
-
-    // descripcion (3 lineas si no hay codigo de barras; 2 si lo hay)
-    const lineasDescripcion = opciones.mostrarCodigoBarras ? 2 : 4;
-    const descripcion = limpiar(p.descripcion);
-    if (descripcion) {
-        const lineas = ajustar(doc, descripcion, interior, lineasDescripcion, "Helvetica", 7.2);
-        doc.fillColor("#64748b").font("Helvetica").fontSize(7.2);
-        lineas.forEach((linea, i) => doc.text(linea, x + 8, cursor + i * 9, { width: interior, lineBreak: false }));
-    }
-    cursor += lineasDescripcion * 9 + 3;
-
-    // clave / marca
-    const meta = [p.codigo ? `Cod. ${limpiar(p.codigo)}` : "", limpiar(p.marca)].filter(Boolean).join("  |  ");
-    if (meta) {
-        const [linea] = ajustar(doc, meta, interior, 1, "Helvetica", 6.8);
-        doc.fillColor("#94a3b8").font("Helvetica").fontSize(6.8).text(linea || "", x + 8, y + ALTO_TARJETA - (opciones.mostrarCodigoBarras ? 66 : 38), { width: interior, lineBreak: false });
-    }
-
-    // precio
-    if (opciones.mostrarPrecio) {
-        const precio = precioDe(p, opciones.nivelPrecio);
-        const sufijo = SUFIJO_UNIDAD[String(p.unidad_venta || "").toLowerCase()] || "";
-        const yPrecio = y + ALTO_TARJETA - (opciones.mostrarCodigoBarras ? 55 : 28);
-        doc.fillColor(precio ? AZUL : "#94a3b8").font("Helvetica-Bold").fontSize(precio ? 13 : 9).text(precio ? dinero(precio) : "Consultar precio", x + 8, yPrecio, { width: interior, lineBreak: false, continued: Boolean(precio && sufijo) });
-        if (precio && sufijo) doc.fillColor("#64748b").font("Helvetica").fontSize(7.5).text(" " + sufijo, { lineBreak: false });
-    }
-
-    // codigo de barras
-    if (opciones.mostrarCodigoBarras && barras) {
-        try { doc.image(barras, x + 8, y + ALTO_TARJETA - 38, { fit: [interior, 32], align: "center", valign: "center" }); }
-        catch (error) { /* sin codigo de barras en esta tarjeta */ }
+    if (precio) {
+        doc.fillColor(estilo.color).font(F.bold).fontSize(tamano);
+        const principal = dinero(precio);
+        if (alinear === "right") {
+            doc.fillColor(GRIS).font(F.regular).fontSize(Math.max(6.5, tamano * 0.58));
+            const anchoSufijo = sufijo ? doc.widthOfString(" " + sufijo) : 0;
+            doc.fillColor(estilo.color).font(F.bold).fontSize(tamano).text(principal, x, y, { width: ancho - anchoSufijo, align: "right", lineBreak: false });
+            if (sufijo) doc.fillColor(GRIS).font(F.regular).fontSize(Math.max(6.5, tamano * 0.58)).text(" " + sufijo, x + ancho - anchoSufijo, y + tamano * 0.28, { width: anchoSufijo, lineBreak: false });
+        } else {
+            doc.text(principal, x, y, { width: ancho, lineBreak: false, continued: Boolean(sufijo) });
+            if (sufijo) doc.fillColor(GRIS).font(F.regular).fontSize(Math.max(6.5, tamano * 0.58)).text(" " + sufijo, { lineBreak: false });
+        }
+    } else {
+        doc.fillColor("#94a3b8").font(F.bold).fontSize(Math.max(7.5, tamano * 0.7)).text(texto, x, y + 2, { width: ancho, align: alinear === "right" ? "right" : "left", lineBreak: false });
     }
 }
 
-async function generarPdf({ negocioNombre, titulo, productos, fotos, opciones }) {
-    const doc = new PDFDocument({ size: [PAGINA.ancho, PAGINA.alto], margin: PAGINA.margen, bufferPages: true, info: { Title: limpiar(titulo), Author: limpiar(negocioNombre) } });
+function dibujarTarjeta(ctx, p, foto, barras, x, y, w, h) {
+    const { doc, F, estilo, opciones } = ctx;
+    const interior = w - 16;
+
+    doc.roundedRect(x, y, w, h, ctx.radio ? 8 : 0).lineWidth(0.8).strokeColor(mezclar(estilo.color, "#ffffff", 0.78)).stroke();
+    dibujarFoto(ctx, p, foto, x + 8, y + 8, interior, 92);
+
+    let cursor = y + 106;
+    textoLineas(ctx, ajustar(doc, p.nombre, interior, 2, F.bold, 9), F.bold, 9, TINTA, x + 8, cursor, interior, 11);
+    cursor += 24;
+
+    const lineasDescripcion = opciones.mostrarCodigoBarras ? 2 : 4;
+    const descripcion = limpiar(p.descripcion);
+    if (descripcion) textoLineas(ctx, ajustar(doc, descripcion, interior, lineasDescripcion, F.regular, 7.2), F.regular, 7.2, GRIS, x + 8, cursor, interior, 9);
+
+    const meta = [p.codigo ? `Cod. ${limpiar(p.codigo)}` : "", limpiar(p.marca)].filter(Boolean).join("  |  ");
+    if (meta) textoLineas(ctx, ajustar(doc, meta, interior, 1, F.regular, 6.8), F.regular, 6.8, "#94a3b8", x + 8, y + h - (opciones.mostrarCodigoBarras ? 66 : 38), interior, 9);
+
+    if (opciones.mostrarPrecio) textoPrecio(ctx, p, x + 8, y + h - (opciones.mostrarCodigoBarras ? 55 : 28), interior, 13, "left");
+
+    if (opciones.mostrarCodigoBarras && barras) {
+        try { doc.image(barras, x + 8, y + h - 38, { fit: [interior, 32], align: "center", valign: "center" }); } catch (error) { /* sin codigo de barras en esta tarjeta */ }
+    }
+}
+
+function dibujarCompacta(ctx, p, foto, barras, x, y, w, h) {
+    const { doc, F, estilo, opciones } = ctx;
+    const interior = w - 12;
+
+    doc.roundedRect(x, y, w, h, ctx.radio ? 7 : 0).lineWidth(0.8).strokeColor(mezclar(estilo.color, "#ffffff", 0.78)).stroke();
+    dibujarFoto(ctx, p, foto, x + 6, y + 6, interior, 68);
+
+    textoLineas(ctx, ajustar(doc, p.nombre, interior, 2, F.bold, 7.6), F.bold, 7.6, TINTA, x + 6, y + 80, interior, 9);
+    if (p.codigo) textoLineas(ctx, ajustar(doc, "Cod. " + limpiar(p.codigo), interior, 1, F.regular, 6.2), F.regular, 6.2, "#94a3b8", x + 6, y + 100, interior, 8);
+    if (opciones.mostrarPrecio) textoPrecio(ctx, p, x + 6, y + 111, interior, 11, "left");
+
+    if (opciones.mostrarCodigoBarras && barras) {
+        try { doc.image(barras, x + 6, y + h - 36, { fit: [interior, 30], align: "center", valign: "center" }); } catch (error) { /* sin codigo */ }
+    }
+}
+
+function dibujarFila(ctx, p, foto, barras, x, y, w, h) {
+    const { doc, F, estilo, opciones } = ctx;
+    const derecha = 140;
+    const textoAncho = w - 64 - derecha - 8;
+
+    doc.moveTo(x, y + h).lineTo(x + w, y + h).lineWidth(0.6).strokeColor(mezclar(estilo.color, "#ffffff", 0.78)).stroke();
+    dibujarFoto(ctx, p, foto, x + 4, y + 6, 52, h - 12);
+
+    textoLineas(ctx, ajustar(doc, p.nombre, textoAncho, 1, F.bold, 10), F.bold, 10, TINTA, x + 64, y + 8, textoAncho, 11);
+    const descripcion = limpiar(p.descripcion);
+    if (descripcion) textoLineas(ctx, ajustar(doc, descripcion, textoAncho, 2, F.regular, 7.6), F.regular, 7.6, GRIS, x + 64, y + 22, textoAncho, 9.5);
+    const meta = [p.codigo ? `Cod. ${limpiar(p.codigo)}` : "", limpiar(p.marca)].filter(Boolean).join("  |  ");
+    if (meta) textoLineas(ctx, ajustar(doc, meta, textoAncho, 1, F.regular, 7), F.regular, 7, "#94a3b8", x + 64, y + h - 15, textoAncho, 9);
+
+    if (opciones.mostrarPrecio) textoPrecio(ctx, p, x + w - derecha, y + (opciones.mostrarCodigoBarras ? 6 : h / 2 - 8), derecha - 4, 13, "right");
+    if (opciones.mostrarCodigoBarras && barras) {
+        try { doc.image(barras, x + w - derecha, y + 22, { fit: [derecha - 4, h - 26], align: "right", valign: "center" }); } catch (error) { /* sin codigo */ }
+    }
+}
+
+const DIBUJAR = { tarjetas: dibujarTarjeta, compacto: dibujarCompacta, lista: dibujarFila };
+
+async function generarPdf({ negocioNombre, titulo, productos, fotos, opciones, estilo: estiloEntrada, logoNegocio, contactoNegocio }) {
+    const estilo = estiloDe(estiloEntrada);
+    const nombre = limpiar(estilo.nombreNegocio || negocioNombre) || "Catalogo";
+    const contacto = limpiar(estilo.contacto || contactoNegocio || "");
+    const logo = await prepararLogo(estilo.logo, logoNegocio);
+    const diseno = DISENOS[estilo.diseno];
+    const colorTexto = textoSobre(estilo.color);
+
+    const doc = new PDFDocument({ size: [PAGINA.ancho, PAGINA.alto], margin: PAGINA.margen, bufferPages: true, info: { Title: limpiar(titulo), Author: nombre } });
     const trozos = [];
     doc.on("data", t => trozos.push(t));
     const terminado = new Promise(resolver => doc.on("end", () => resolver(Buffer.concat(trozos))));
 
-    const fecha = new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
+    // tipografia
+    const fuente = todasLasFuentes()[estilo.fuente];
+    let F;
+    if (fuente.ttf) { doc.registerFont("cat-regular", fuente.regular); doc.registerFont("cat-bold", fuente.bold); F = { regular: "cat-regular", bold: "cat-bold" }; }
+    else F = { regular: fuente.regular, bold: fuente.bold };
 
+    const radio = estilo.esquinas === "redondeadas";
+    const ctx = { doc, F, estilo, opciones, radio };
+    const fecha = new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
+    const tituloLimpio = limpiar(titulo);
+
+    // portada (opcional)
+    if (estilo.portada) {
+        doc.rect(0, 0, PAGINA.ancho, 420).fillColor(estilo.color).fill();
+        doc.rect(0, 420, PAGINA.ancho, 6).fillColor(mezclar(estilo.color, "#000000", 0.25)).fill();
+        if (logo) {
+            doc.roundedRect(PAGINA.ancho / 2 - 130, 92, 260, 130, radio ? 16 : 0).fillColor("#ffffff").fill();
+            try { doc.image(logo, PAGINA.ancho / 2 - 118, 100, { fit: [236, 114], align: "center", valign: "center" }); } catch (error) { /* sin logo */ }
+        }
+        const yNombre = logo ? 252 : 170;
+        doc.fillColor(colorTexto).font(F.bold).fontSize(34).text(nombre, 50, yNombre, { width: PAGINA.ancho - 100, align: "center" });
+        doc.fillColor(colorTexto).font(F.regular).fontSize(15).text(tituloLimpio, 50, doc.y + 8, { width: PAGINA.ancho - 100, align: "center" });
+        doc.fillColor(TINTA).font(F.regular).fontSize(11).text(fecha, 50, 470, { width: PAGINA.ancho - 100, align: "center" });
+        if (contacto) doc.fillColor(GRIS).font(F.regular).fontSize(11).text(contacto, 80, 500, { width: PAGINA.ancho - 160, align: "center" });
+        doc.addPage();
+    }
+
+    // encabezado de cada pagina
+    const inicioY = estilo.encabezado === "banda" ? 76 : 82;
     const encabezado = () => {
-        doc.fillColor(AZUL).font("Helvetica-Bold").fontSize(15).text(limpiar(negocioNombre) || "Catalogo", PAGINA.margen, 34, { width: 330, lineBreak: false });
-        doc.fillColor("#64748b").font("Helvetica").fontSize(9).text(limpiar(titulo), PAGINA.margen, 53, { width: 330, lineBreak: false });
-        doc.fillColor("#64748b").font("Helvetica").fontSize(8.5).text(fecha, PAGINA.ancho - PAGINA.margen - 200, 38, { width: 200, align: "right", lineBreak: false });
-        doc.moveTo(PAGINA.margen, 70).lineTo(PAGINA.ancho - PAGINA.margen, 70).lineWidth(1.2).strokeColor(AZUL).stroke();
+        if (estilo.encabezado === "banda") {
+            doc.rect(0, 0, PAGINA.ancho, 58).fillColor(estilo.color).fill();
+            let xTexto = PAGINA.margen;
+            if (logo) {
+                doc.roundedRect(PAGINA.margen, 9, 62, 40, radio ? 6 : 0).fillColor("#ffffff").fill();
+                try { doc.image(logo, PAGINA.margen + 3, 11, { fit: [56, 36], align: "center", valign: "center" }); } catch (error) { /* sin logo */ }
+                xTexto = PAGINA.margen + 74;
+            }
+            doc.fillColor(colorTexto).font(F.bold).fontSize(15).text(nombre, xTexto, 14, { width: 300, lineBreak: false });
+            doc.fillColor(colorTexto).font(F.regular).fontSize(9).text(tituloLimpio, xTexto, 34, { width: 300, lineBreak: false });
+            doc.fillColor(colorTexto).font(F.regular).fontSize(8.5).text(fecha, PAGINA.ancho - PAGINA.margen - 160, 24, { width: 160, align: "right", lineBreak: false });
+        } else {
+            let xTexto = PAGINA.margen;
+            if (logo) { try { doc.image(logo, PAGINA.margen, 26, { fit: [60, 38], align: "left", valign: "center" }); xTexto = PAGINA.margen + 70; } catch (error) { /* sin logo */ } }
+            doc.fillColor(estilo.color).font(F.bold).fontSize(15).text(nombre, xTexto, 34, { width: 330, lineBreak: false });
+            doc.fillColor(GRIS).font(F.regular).fontSize(9).text(tituloLimpio, xTexto, 53, { width: 330, lineBreak: false });
+            doc.fillColor(GRIS).font(F.regular).fontSize(8.5).text(fecha, PAGINA.ancho - PAGINA.margen - 200, 38, { width: 200, align: "right", lineBreak: false });
+            doc.moveTo(PAGINA.margen, 70).lineTo(PAGINA.ancho - PAGINA.margen, 70).lineWidth(1.2).strokeColor(estilo.color).stroke();
+        }
     };
 
-    let y = INICIO_Y;
+    const columnas = diseno.columnas;
+    const gap = columnas === 1 ? 0 : (columnas === 4 ? 10 : SEPARACION);
+    const anchoTarjeta = (ANCHO_UTIL - gap * (columnas - 1)) / columnas;
+    const alto = diseno.alto;
+    const salto = columnas === 1 ? 6 : 10;
+
+    let y = inicioY;
     let columna = 0;
     encabezado();
 
-    const nuevaPagina = () => { doc.addPage(); encabezado(); y = INICIO_Y; columna = 0; };
-    const cerrarFila = () => { if (columna > 0) { y += ALTO_TARJETA + 10; columna = 0; } };
+    const nuevaPagina = () => { doc.addPage(); encabezado(); y = inicioY; columna = 0; };
+    const cerrarFila = () => { if (columna > 0) { y += alto + salto; columna = 0; } };
 
     let departamentoActual = null;
     let subcategoriaActual = null;
@@ -233,39 +400,42 @@ async function generarPdf({ negocioNombre, titulo, productos, fotos, opciones })
 
         if (cambiaSub) {
             cerrarFila();
-            const alto = (cambiaDepto ? 26 : 0) + (subcategoria ? 18 : 0);
-            if (y + alto + ALTO_TARJETA > FIN_Y) nuevaPagina();
+            const altoTitulos = (cambiaDepto ? 28 : 0) + (subcategoria ? 18 : 0);
+            if (y + altoTitulos + alto > FIN_Y) nuevaPagina();
 
             if (cambiaDepto) {
-                doc.roundedRect(PAGINA.margen, y, PAGINA.ancho - PAGINA.margen * 2, 22, 5).fillColor(AZUL).fill();
-                doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(11).text(limpiar(departamento).toUpperCase(), PAGINA.margen + 10, y + 6, { width: PAGINA.ancho - PAGINA.margen * 2 - 20, lineBreak: false });
+                doc.roundedRect(PAGINA.margen, y, ANCHO_UTIL, 22, radio ? 5 : 0).fillColor(mezclar(estilo.color, "#000000", 0.12)).fill();
+                doc.fillColor(textoSobre(mezclar(estilo.color, "#000000", 0.12))).font(F.bold).fontSize(11).text(limpiar(departamento).toUpperCase(), PAGINA.margen + 10, y + 6, { width: ANCHO_UTIL - 20, lineBreak: false });
                 y += 28;
             }
             if (subcategoria) {
-                doc.fillColor("#0f172a").font("Helvetica-Bold").fontSize(9.5).text(limpiar(subcategoria), PAGINA.margen + 2, y + 2, { width: 400, lineBreak: false });
+                doc.fillColor(estilo.color).font(F.bold).fontSize(9.5).text(limpiar(subcategoria), PAGINA.margen + 2, y + 2, { width: 400, lineBreak: false });
                 y += 18;
             }
             departamentoActual = departamento;
             subcategoriaActual = subcategoria;
         }
 
-        if (y + ALTO_TARJETA > FIN_Y) nuevaPagina();
+        if (y + alto > FIN_Y) nuevaPagina();
 
-        const x = PAGINA.margen + columna * (ANCHO_TARJETA + SEPARACION);
+        const x = PAGINA.margen + columna * (anchoTarjeta + gap);
         const barras = opciones.mostrarCodigoBarras ? await imagenBarras(p.codigo) : null;
-        dibujarTarjeta(doc, p, fotos.get(p.codigo_foto) || null, barras, x, y, opciones);
+        DIBUJAR[estilo.diseno](ctx, p, fotos.get(p.codigo_foto) || null, barras, x, y, anchoTarjeta, alto);
 
         columna += 1;
-        if (columna === COLUMNAS) { columna = 0; y += ALTO_TARJETA + 10; }
+        if (columna === columnas) { columna = 0; y += alto + salto; }
     }
 
-    // pie con el numero de pagina (el total se sabe hasta el final)
+    // pie: contacto a la izquierda y numero de pagina a la derecha (el total se sabe hasta el final)
     const rango = doc.bufferedPageRange();
-    for (let i = 0; i < rango.count; i++) {
+    const primera = estilo.portada ? 1 : 0;
+    for (let i = primera; i < rango.count; i++) {
         doc.switchToPage(rango.start + i);
         const margenInferior = doc.page.margins.bottom;
         doc.page.margins.bottom = 0;
-        doc.fillColor("#94a3b8").font("Helvetica").fontSize(8).text(`Pagina ${i + 1} de ${rango.count}`, PAGINA.margen, PAGINA.alto - 30, { width: PAGINA.ancho - PAGINA.margen * 2, align: "center", lineBreak: false });
+        doc.moveTo(PAGINA.margen, PAGINA.alto - 38).lineTo(PAGINA.ancho - PAGINA.margen, PAGINA.alto - 38).lineWidth(0.5).strokeColor(mezclar(estilo.color, "#ffffff", 0.7)).stroke();
+        if (contacto) doc.fillColor(GRIS).font(F.regular).fontSize(8).text(contacto, PAGINA.margen, PAGINA.alto - 30, { width: ANCHO_UTIL - 90, lineBreak: false });
+        doc.fillColor("#94a3b8").font(F.regular).fontSize(8).text(`Pagina ${i - primera + 1} de ${rango.count - primera}`, PAGINA.ancho - PAGINA.margen - 90, PAGINA.alto - 30, { width: 90, align: "right", lineBreak: false });
         doc.page.margins.bottom = margenInferior;
     }
 
@@ -277,6 +447,16 @@ async function generarPdf({ negocioNombre, titulo, productos, fotos, opciones })
 
 module.exports = (app, pool, requerirAccesoNegocio) => {
     const negocioId = req => req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
+
+    // Nombre, logo, color y contacto del negocio: son los valores de arranque; el dueño los puede cambiar solo para este catalogo.
+    async function datosNegocio(id) {
+        const n = (await pool.query(`SELECT nombre, telefono, direccion, logo, color FROM public.negocios WHERE id = $1`, [id])).rows[0] || {};
+        let whatsapp = "";
+        try { whatsapp = (await pool.query(`SELECT whatsapp FROM public.sitio_web_config WHERE negocio_id = $1`, [id])).rows[0]?.whatsapp || ""; } catch (error) { /* sin sitio web */ }
+
+        const contacto = [n.telefono ? `Tel. ${n.telefono}` : "", whatsapp && whatsapp !== n.telefono ? `WhatsApp ${whatsapp}` : "", n.direccion || ""].map(x => String(x).trim()).filter(Boolean).join("  |  ");
+        return { nombre: n.nombre || "", logo: n.logo || "", color: /^#[0-9a-fA-F]{6}$/.test(String(n.color || "")) ? String(n.color).toLowerCase() : "", contacto };
+    }
 
     app.get("/catalogo-productos/opciones", requerirAccesoNegocio, async (req, res) => {
         try {
@@ -308,7 +488,9 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 d.subcategorias.push({ id: s.id, nombre: s.nombre, total: s.total, conFoto: s.con_foto });
             });
 
-            res.json({ ok: true, departamentos, sinCategoria: { total: sin.total, conFoto: sin.con_foto }, marcas, maximo: MAX_PRODUCTOS });
+            const fuentes = Object.entries(todasLasFuentes()).map(([fid, f]) => ({ id: fid, nombre: f.nombre }));
+
+            res.json({ ok: true, departamentos, sinCategoria: { total: sin.total, conFoto: sin.con_foto }, marcas, maximo: MAX_PRODUCTOS, negocio: await datosNegocio(id), fuentes });
         } catch (error) {
             responderError(res, error);
         }
@@ -342,7 +524,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             const nivel = ["publico", "mayoreo", "distribuidor"].includes(cuerpo.nivelPrecio) ? cuerpo.nivelPrecio : "publico";
             const opciones = { nivelPrecio: nivel, mostrarPrecio: cuerpo.mostrarPrecio !== false, mostrarCodigoBarras: cuerpo.mostrarCodigoBarras !== false };
 
-            const negocio = (await pool.query(`SELECT nombre FROM public.negocios WHERE id = $1`, [id])).rows[0];
+            const negocio = await datosNegocio(id);
             const titulo = String(cuerpo.titulo || "").trim().slice(0, 80) || "Catalogo de productos";
 
             // fotos: una sola consulta, y cada una se reduce para que el PDF no pese de mas
@@ -356,7 +538,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 }
             }
 
-            const pdf = await generarPdf({ negocioNombre: negocio ? negocio.nombre : "", titulo, productos, fotos, opciones });
+            const pdf = await generarPdf({ negocioNombre: negocio.nombre, titulo, productos, fotos, opciones, estilo: cuerpo.estilo, logoNegocio: negocio.logo, contactoNegocio: negocio.contacto });
             const archivo = titulo.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "catalogo";
 
             res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${archivo}.pdf"`, "Content-Length": pdf.length, "Cache-Control": "no-store", "X-Productos": String(productos.length) });
@@ -369,6 +551,6 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
 module.exports.generarPdf = generarPdf;
 module.exports.filtrosDe = filtrosDe;
-
 module.exports.consultar = consultar;
 module.exports.fotoJpeg = fotoJpeg;
+module.exports.estiloDe = estiloDe;
