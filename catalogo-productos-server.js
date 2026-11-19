@@ -65,16 +65,16 @@ const FUENTES_BASE = {
     clasica: { nombre: "Clásica", regular: "Times-Roman", bold: "Times-Bold" },
     maquina: { nombre: "Máquina de escribir", regular: "Courier", bold: "Courier-Bold" }
 };
-const DIR_FUENTES = path.join(__dirname, "fonts-catalogo");
+const DIR_FUENTES = path.join(__dirname, "public", "fonts-catalogo");
 
 function fuentesInstaladas() {
     const salida = {};
     try {
         fs.readdirSync(DIR_FUENTES).forEach(archivo => {
-            const m = archivo.match(/^([a-z0-9-]+)-Regular\.ttf$/i);
+            const m = archivo.match(/^([a-z0-9-]+)-Regular\.(ttf|otf|woff)$/i);
             if (!m) return;
             const id = m[1].toLowerCase();
-            const bold = path.join(DIR_FUENTES, `${m[1]}-Bold.ttf`);
+            const bold = path.join(DIR_FUENTES, `${m[1]}-Bold.${m[2]}`);
             if (!fs.existsSync(bold)) return;
             salida[id] = { nombre: id.split("-").map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" "), regular: path.join(DIR_FUENTES, archivo), bold, ttf: true };
         });

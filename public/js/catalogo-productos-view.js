@@ -12,7 +12,9 @@
     const COLORES = [["#1d4ed8", "Azul"], ["#dc2626", "Rojo"], ["#ea580c", "Naranja"], ["#ca8a04", "Dorado"], ["#15803d", "Verde"], ["#0f766e", "Turquesa"], ["#7c3aed", "Morado"], ["#be185d", "Rosa"], ["#111827", "Negro"]];
     const DISENOS = [["tarjetas", "Tarjetas", "3 por fila, con descripción"], ["compacto", "Compacto", "4 por fila, más productos por hoja"], ["lista", "Lista", "Una fila por producto"]];
     // La vista previa usa tipografias parecidas del navegador; el PDF usa las reales.
-    const FAMILIA_VISTA = { moderna: "Helvetica, Arial, sans-serif", clasica: "Georgia, 'Times New Roman', serif", maquina: "'Courier New', Courier, monospace" };
+    const FAMILIA_VISTA = { moderna: "Helvetica, Arial, sans-serif", clasica: "Georgia, 'Times New Roman', serif", maquina: "'Courier New', Courier, monospace",
+        montserrat: "'Montserrat Cat', sans-serif", poppins: "'Poppins Cat', sans-serif", oswald: "'Oswald Cat', sans-serif",
+        "playfair-display": "'Playfair Display Cat', serif", "roboto-slab": "'Roboto Slab Cat', serif" };
 
     let est = null;
     let temporizador = null;

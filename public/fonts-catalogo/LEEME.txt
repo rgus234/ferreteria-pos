@@ -1,0 +1,8 @@
+Tipografias del catalogo de productos en PDF (solo letras latinas, pesos normal y negrita).
+Todas son de codigo abierto, descargadas de Fontsource (https://fontsource.org, via cdn.jsdelivr.net), que las toma de Google Fonts:
+- Montserrat        (SIL Open Font License 1.1)
+- Poppins           (SIL Open Font License 1.1)
+- Oswald            (SIL Open Font License 1.1)
+- Playfair Display  (SIL Open Font License 1.1)
+- Roboto Slab       (Apache License 2.0)
+Para agregar otra: copiar <nombre>-Regular.woff y <nombre>-Bold.woff aqui (y su @font-face en css/components/catalogo-productos.css para la vista previa).

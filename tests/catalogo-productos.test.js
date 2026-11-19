@@ -100,3 +100,14 @@ test("las opciones traen los datos del negocio y las tipografias", async () => {
     assert.ok(r.negocio && "nombre" in r.negocio && "logo" in r.negocio && "contacto" in r.negocio);
     assert.ok(["moderna", "clasica", "maquina"].every(id => r.fuentes.some(f => f.id === id)));
 });
+
+test("las tipografias descargadas salen en las opciones y cada una arma un PDF", async () => {
+    const r = await (await fetch(`${BASE_URL}/catalogo-productos/opciones`, { headers: headers() })).json();
+    const ids = r.fuentes.map(f => f.id);
+    for (const id of ["montserrat", "poppins", "oswald", "playfair-display", "roboto-slab"]) {
+        assert.ok(ids.includes(id), `falta ${id}`);
+        const pdf = await post("/catalogo-productos/pdf", { subcategoriaIds: [subA], estilo: { tipografia: id } });
+        assert.equal(pdf.status, 200, id);
+        assert.equal(Buffer.from(await pdf.arrayBuffer()).slice(0, 5).toString(), "%PDF-");
+    }
+});

@@ -134,3 +134,15 @@ body.oscuro .ct-grupo input[type=text] { background: #0f1727; border-color: rgba
 body.oscuro .ct-vista { background: #0b1220; }
 @media (max-width: 560px) { .ct-fila-dos { grid-template-columns: 1fr; } }
 .ct-segmento { justify-self: start; }
+
+/* Tipografias del catalogo (las mismas que usa el PDF), para que la vista previa se vea igual */
+@font-face { font-family: "Montserrat Cat"; src: url("../../fonts-catalogo/montserrat-Regular.woff") format("woff"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Montserrat Cat"; src: url("../../fonts-catalogo/montserrat-Bold.woff") format("woff"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Poppins Cat"; src: url("../../fonts-catalogo/poppins-Regular.woff") format("woff"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Poppins Cat"; src: url("../../fonts-catalogo/poppins-Bold.woff") format("woff"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Oswald Cat"; src: url("../../fonts-catalogo/oswald-Regular.woff") format("woff"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Oswald Cat"; src: url("../../fonts-catalogo/oswald-Bold.woff") format("woff"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Playfair Display Cat"; src: url("../../fonts-catalogo/playfair-display-Regular.woff") format("woff"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Playfair Display Cat"; src: url("../../fonts-catalogo/playfair-display-Bold.woff") format("woff"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Roboto Slab Cat"; src: url("../../fonts-catalogo/roboto-slab-Regular.woff") format("woff"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Roboto Slab Cat"; src: url("../../fonts-catalogo/roboto-slab-Bold.woff") format("woff"); font-weight: 700; font-display: swap; }
