@@ -2203,6 +2203,10 @@ async function cargarCategoriasNexo() {
  if (campo) campo.hidden = false;
  if (campoLibre) campoLibre.style.display = "none";
 
+ // La categoria y la subcategoria salen SOLO de la lista de Nexo: no se escriben a mano (asi no se llena de variantes).
+ const textoSub = document.getElementById("nuevaSubcategoriaTexto");
+ if (textoSub) { textoSub.disabled = true; textoSub.placeholder = "Se llena sola al elegir la subcategoría de Nexo"; }
+
  const select =
   document.getElementById("categoriaNexoDepartamento");
 
@@ -2297,7 +2301,7 @@ function reiniciarCategoriaNexoCampo() {
  if (campoId) campoId.value = "";
 }
 
-function alElegirSubcategoriaCategoriaNexo() {
+function alElegirSubcategoriaCategoriaNexo(reemplazar) {
  const selectSub =
   document.getElementById("categoriaNexoSubcategoria");
 
@@ -2311,7 +2315,18 @@ function alElegirSubcategoriaCategoriaNexo() {
 
  if (campoId) campoId.value = opcion.value;
 
- agregarChipSubcategoria(opcion.textContent);
+ // Al cambiar la categoria a proposito (o con la IA) la subcategoria anterior se quita: queda UNA sola, la de Nexo.
+ // Al abrir un producto ya guardado no se toca lo que ya tenia.
+ if (reemplazar) guardarChipsSubcategoria([String(opcion.textContent || "").replace(/,/g, "").trim()].filter(Boolean));
+ else agregarChipSubcategoria(opcion.textContent);
+}
+
+// "Departamento › Subcategoria" de lo que esta elegido ahora en el formulario (vacio si no hay nada).
+function textoCategoriaNexoElegida() {
+ const dep = document.getElementById("categoriaNexoDepartamento")?.value || "";
+ const sub = document.getElementById("categoriaNexoSubcategoria")?.selectedOptions?.[0];
+ const subTexto = sub && sub.value ? sub.textContent.trim() : "";
+ return [dep, subTexto].filter(Boolean).join(" › ");
 }
 
 // Preselecciona los selects cuando se edita un producto que ya tiene
@@ -2373,7 +2388,7 @@ async function autoDetectarCategoriaNexo() {
 
   const selectSub = document.getElementById("categoriaNexoSubcategoria");
   if (selectSub) selectSub.value = String(datos.categoriaNexoId);
-  alElegirSubcategoriaCategoriaNexo();
+  alElegirSubcategoriaCategoriaNexo(true);
   marcarCampoAutocompletado("categoriaNexoSubcategoria", true);
  } catch (error) {
   /* sin sugerencia: se elige a mano */
@@ -2443,6 +2458,20 @@ async function detectarCategoriaConIA() {
    return;
   }
 
+  // Si ya tiene una categoria de Nexo, la IA no la pisa sin preguntar: a veces duda entre dos parecidas.
+  const idActual = document.getElementById("categoriaNexoId")?.value || "";
+
+  if (idActual) {
+   if (String(idActual) === String(datos.categoriaNexoId)) {
+    alertaPOS("Ya tiene esa categoría: " + textoCategoriaNexoElegida() + ".", "Sin cambios", "info");
+    return;
+   }
+
+   const nueva = [datos.departamento, datos.nombre].filter(Boolean).join(" › ");
+   const cambiar = await confirmarPOS(["Este producto ya tiene la categoría:", textoCategoriaNexoElegida(), "", "Nexo IA sugiere:", nueva, "", "¿Cambiarla?"].join(String.fromCharCode(10)), "Cambiar categoría", "info");
+   if (!cambiar) return;
+  }
+
   const selectDep =
    document.getElementById("categoriaNexoDepartamento");
 
@@ -2455,7 +2484,7 @@ async function detectarCategoriaConIA() {
 
   if (selectSub) selectSub.value = String(datos.categoriaNexoId);
 
-  alElegirSubcategoriaCategoriaNexo();
+  alElegirSubcategoriaCategoriaNexo(true);
  } catch (error) {
   alertaPOS("No se pudo consultar Nexo IA ahora mismo.", "Error", "alerta");
  } finally {
