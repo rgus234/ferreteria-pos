@@ -59,8 +59,8 @@ test("celular: tarjeta en el Inicio solo con la funcion encendida, mismo servido
 
     const html = leer("public/dueno.html");
     const sw = leer("public/dueno-sw.js");
-    const version = /dueno-recargas\.js\?v=(recargas-[0-9-]+)/.exec(html)[1];
-    const css = /dueno-recargas\.css\?v=(recargas-[0-9-]+)/.exec(html)[1];
+    const version = /dueno-recargas\.js\?v=([\w-]+)/.exec(html)[1];
+    const css = /dueno-recargas\.css\?v=([\w-]+)/.exec(html)[1];
     assert.ok(sw.includes("/dueno-recargas.js?v=" + version) && sw.includes("/dueno-recargas.css?v=" + css), "el celular guarda los archivos nuevos");
     assert.match(leer("public/dueno-recargas.css"), /:root\.oscuro \.drc-paso/, "tiene modo oscuro");
 });
@@ -79,4 +79,12 @@ test("logos de marca: las compañías principales, los servicios y tarjetas del 
     });
     assert.ok(js.includes("/img/marcas/"), "la pantalla usa los logos propios");
     assert.ok(!/cdn\.(taecel|pagomex)\.com/.test(js), "la pantalla no carga imagenes de los servidores de Taecel");
+});
+
+test("servicios y tarjetas: los celulares y referencias recientes se pueden tocar pero siguen pidiendo confirmar", () => {
+    const js = leer("public/js/recargas-view.js");
+    assert.ok(js.includes("htmlRecientesSvc") && js.includes('data-rc="svc-reciente"'), "hay lista de recientes");
+    const accion = js.slice(js.indexOf('accion === "svc-reciente"'), js.indexOf('accion === "svc-reciente"') + 260);
+    assert.ok(accion.includes("abrirConfirmacion()"), "un reciente abre la confirmacion, no paga directo");
+    assert.ok(js.includes("recibidoHoy(s.id, n)"), "en las marcas con tope se ve cuanto lleva ya el celular hoy");
 });

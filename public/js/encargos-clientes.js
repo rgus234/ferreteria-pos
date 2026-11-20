@@ -613,15 +613,10 @@ function enviarWhatsAppEncargo() {
  const telefono =
  typeof normalizarTelefonoWhatsApp === "function" ? normalizarTelefonoWhatsApp(encargoDetalleActual.clienteTelefono) : null;
 
- if (!telefono) {
- alertaPOS("Este cliente no tiene un teléfono registrado. Agrégalo y vuelve a abrir el encargo.", "Avisar por WhatsApp", "alerta");
- return;
- }
-
  const mensaje =
  mensajeWhatsAppEncargo(encargoDetalleActual);
 
- window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+ nexoWA.enviar({ telefono, texto: mensaje });
 }
 
 async function agregarItemEncargoExistente() {

@@ -463,7 +463,7 @@
         if (!r) return;
 
         const nombre = (operadora(r.operadora) || OPERADORAS[0]).nombre;
-        window.open(`https://wa.me/52${r.numero}?text=${encodeURIComponent(`Tu recarga de ${dinero(r.monto)} ${nombre} fue exitosa. Folio ${r.folio || ""}. ¡Gracias!`)}`, "_blank", "noopener");
+        nexoWA.enviar({ telefono: r.numero, texto: `Tu recarga de ${dinero(r.monto)} ${nombre} fue exitosa. Folio ${r.folio || ""}. ¡Gracias!` });
     }
 
     async function consultar(id) {

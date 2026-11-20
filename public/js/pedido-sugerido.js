@@ -206,9 +206,7 @@ function pedSugLineas() {
 
 // Con telefono del proveedor abre su chat con el pedido ya escrito; sin telefono deja elegir el contacto.
 function pedSugWhatsapp(texto, telefono) {
-    const digitos = String(telefono || "").replace(/D/g, "");
-    const numero = digitos.length === 10 ? "52" + digitos : digitos.length >= 11 ? digitos : "";
-    window.open("https://wa.me/" + numero + "?text=" + encodeURIComponent(texto), "_blank", "noopener");
+    nexoWA.enviar({ telefono, texto });
 }
 
 function pedSugEnviar() {

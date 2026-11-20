@@ -1652,7 +1652,7 @@ async function invitarPorWhatsappAdmin(id) {
     const mensaje = `Hola${nombre}! Te paso tu enlace para probar Nexo POS gratis 30 dias. Entra aqui y configura tu cuenta: ${data.enlace}`;
     const telefono = digitos.length === 10 ? `52${digitos}` : digitos;
 
-    window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+    nexoWA.enviar({ telefono, texto: mensaje });
   } catch (error) {
     await alertaAdmin(error.message || "No se pudo crear el enlace.", "Error", "peligro");
   }

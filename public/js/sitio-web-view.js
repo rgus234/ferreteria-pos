@@ -463,18 +463,13 @@ function abrirWhatsAppCotizacion(id) {
  const { principal, items } = grupo;
  const telefono = normalizarTelefonoWhatsApp(principal.clienteTelefono);
 
- if (!telefono) {
- if (typeof alertaPOS === "function") alertaPOS("Este cliente no dejo un telefono valido.", "Cotizacion", "alerta");
- return;
- }
-
  const listaProductos = items.map(item => `${item.productoNombre} x${item.cantidad}`).join(", ");
  const mensaje =
  `Hola ${principal.clienteNombre || ""}, tu cotizacion de ${listaProductos} quedo en $${Number(principal.precioCotizado).toFixed(2)}` +
  (principal.notaNegocio ? `. ${principal.notaNegocio}` : "") +
  `. Cualquier duda, contactanos.`;
 
- window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+ nexoWA.enviar({ telefono, texto: mensaje });
 }
 
 async function actualizarEstadoPedidoPublico(id, estado) {

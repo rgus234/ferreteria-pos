@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("nexoDesktop", {
     return () => ipcRenderer.removeListener("nexo:update-status-changed", listener);
   },
   openExternal: url => ipcRenderer.invoke("nexo:open-external", url),
+  abrirWhatsApp: payload => ipcRenderer.invoke("nexo:abrir-whatsapp", payload),
   onWindowFocused: callback => {
     const listener = () => callback();
     ipcRenderer.on("nexo:window-focused", listener);

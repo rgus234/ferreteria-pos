@@ -1106,6 +1106,35 @@ ipcMain.handle("nexo:open-external", async (_event, url) => {
   }
 });
 
+// Mandar por WhatsApp desde la app de escritorio: si la app de WhatsApp para Windows esta instalada se abre directo (sin pasar por el
+// navegador); si no, se abre WhatsApp Web como siempre. Solo acepta un numero de 10 a 15 digitos y un texto: nunca una URL del renderer.
+// (La ventana principal jamas navega a whatsapp://: un protocolo desconocido dispararia did-fail-load y la pantalla de "sin conexion".)
+ipcMain.handle("nexo:abrir-whatsapp", async (_event, payload = {}) => {
+  try {
+    const digitos = String(payload.numero || "").replace(/\D/g, "");
+    if (digitos && !/^\d{10,15}$/.test(digitos)) return { ok: false, error: "Numero no valido" };
+
+    const mensaje = String(payload.texto || "").slice(0, 4000);
+    let instalada = false;
+
+    try {
+      const info = await app.getApplicationInfoForProtocol("whatsapp://");
+      instalada = Boolean(info && (info.name || info.path));
+    } catch (error) {
+      instalada = false;
+    }
+
+    const url = instalada
+      ? `whatsapp://send?${digitos ? `phone=${digitos}&` : ""}text=${encodeURIComponent(mensaje)}`
+      : `https://wa.me/${digitos}${mensaje ? `?text=${encodeURIComponent(mensaje)}` : ""}`;
+
+    await shell.openExternal(url);
+    return { ok: true, via: instalada ? "app" : "web" };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+
 app.whenReady().then(async () => {
   // Bug real encontrado al verificar el primer arranque: en una
   // instalacion nueva (sin config.json todavia) setupOfflineShellCache()

@@ -2790,11 +2790,6 @@ function enviarRecordatorioCreditoWhatsAppDueno() {
     const cliente = datos.cliente;
     const telefono = telefonoParaWhatsAppDueno(cliente.telefono);
 
-    if (!telefono) {
-        mostrarToastDueno("Este cliente no tiene telefono registrado.");
-        return;
-    }
-
     const negocio = document.getElementById("duenoNegocio")?.textContent?.trim() || "Nexo";
     const masAntigua = datos.aging?.ventaVencidaMasAntigua;
     const fechaTexto = masAntigua ? new Date(masAntigua.fechaVencimiento).toLocaleDateString("es-MX") : "";
@@ -2807,7 +2802,7 @@ function enviarRecordatorioCreditoWhatsAppDueno() {
         (fechaTexto ? ` de una compra con vencimiento el ${fechaTexto} (${dias} dia${dias === 1 ? "" : "s"} de atraso)` : "") +
         `. Te agradecemos tu pago a la brevedad. Cualquier duda, contactanos.`;
 
-    window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+    nexoWA.enviar({ telefono, texto: mensaje });
 }
 
 function abrirEdicionClienteCreditoDueno() {

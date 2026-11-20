@@ -474,7 +474,7 @@ function tiendaCompartir() {
     if (!tiendaLineas().length) { tiAviso("No hay nada que pedir.", "error"); return; }
     const digitos = String(tiendaPedido.telefono || "").replace(/\D/g, "");
     const numero = digitos.length === 10 ? "52" + digitos : digitos.length >= 11 ? digitos : "";
-    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(tiendaTexto())}`, "_blank", "noopener");
+    nexoWA.enviar({ telefono: numero, texto: tiendaTexto() });
 }
 
 async function tiendaCopiar() {

@@ -730,10 +730,7 @@ function enviarRecordatorioCreditoWhatsApp() {
  }
 
  const telefono = normalizarTelefonoWhatsApp(creditoActual.telefono);
- if (!telefono) {
- alertaPOS("Este cliente no tiene un telefono registrado. Agregalo desde 'Editar cliente'.", "Recordatorio por WhatsApp", "alerta");
- return;
- }
+ // Si el cliente no tiene telefono, nexoWA pide el numero en una ventanita.
 
  const negocio = configuracionNegocio() || {};
  const masAntigua = aging.ventaVencidaMasAntigua;
@@ -746,7 +743,7 @@ function enviarRecordatorioCreditoWhatsApp() {
  (fechaTexto ? ` de una compra con vencimiento el ${fechaTexto} (${dias} dia${dias === 1 ? "" : "s"} de atraso)` : "") +
  `. Te agradecemos tu pago a la brevedad. Cualquier duda, contactanos.`;
 
- window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+ nexoWA.enviar({ telefono, texto: mensaje });
 }
 
 // Portal de cliente final (Fase 6 del sitio web por negocio) -- el

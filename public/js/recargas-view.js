@@ -677,6 +677,27 @@
         </section>`;
     }
 
+    // Ultimos celulares (tarjetas) o ultimas referencias de ESE servicio (por ejemplo el numero de CFE de un cliente que paga cada mes).
+    // En las marcas con tope diario se avisa cuanto lleva ya ese celular hoy.
+    function htmlRecientesSvc(s, tarjeta) {
+        const lista = [];
+
+        datos.historial.forEach(r => {
+            const coincide = tarjeta ? r.tipo === "giftcard" : r.tipo === "servicio" && r.operadora === `c${s.id}`;
+            const numero = String(r.numero || "");
+
+            if (coincide && numero.length >= s.campo.min && numero.length <= s.campo.max && !lista.includes(numero) && lista.length < 4) lista.push(numero);
+        });
+
+        if (!lista.length) return "";
+
+        return `<div class="rc-frecuentes"><small>Recientes</small>${lista.map(n => {
+            const hoyN = tarjeta && TARJETAS_CON_LIMITE.includes(s.id) ? recibidoHoy(s.id, n) : 0;
+
+            return `<button type="button" data-rc="svc-reciente" data-ref="${esc(n)}">${esc(tarjeta ? formatoNumero(n) : grupos(n))}${hoyN ? `<em>hoy ${entero(hoyN)}</em>` : ""}</button>`;
+        }).join("")}</div>`;
+    }
+
     function svcPaso2() {
         const s = svcServicio();
         const tarjeta = s.categoria === "GiftCards";
@@ -691,6 +712,7 @@
                 <i class="rc-check" aria-hidden="true">✓</i>
             </div>
             <small id="rcSvcCuenta" class="rc-cuenta">${svc.referencia.length} / ${s.campo.max}</small>
+            ${htmlRecientesSvc(s, tarjeta)}
             <button type="button" class="rc-sigue" data-rc="svc-seguir-ref" ${valida ? "" : "disabled"}>Continuar</button>
         </section>`;
     }
@@ -829,7 +851,7 @@
             ? `Tu tarjeta ${s ? s.nombre : ""} de ${dinero(r.monto)} está lista. Código: ${r.pin || "(en proceso)"}. Folio ${r.folio}. ¡Gracias!`
             : `Tu pago de ${dinero(r.monto)} a ${s ? s.nombre : "tu servicio"} fue exitoso. Folio ${r.folio}. ¡Gracias!`;
 
-        window.open(`https://wa.me/${esTarjeta(r) ? "52" + r.numero : ""}?text=${encodeURIComponent(texto)}`, "_blank", "noopener");
+        nexoWA.enviar({ telefono: esTarjeta(r) ? r.numero : "", texto });
     }
 
     async function copiarTexto(texto, aviso) {
@@ -1180,7 +1202,7 @@
         if (!r) return;
         if (esPago(r)) { whatsappSvc(r); return; }
 
-        window.open(`https://wa.me/52${r.numero}?text=${encodeURIComponent(`Tu recarga de ${dinero(r.monto)} ${operadora(r.operadora).nombre} fue exitosa. Folio ${r.folio}. ¡Gracias!`)}`, "_blank", "noopener");
+        nexoWA.enviar({ telefono: r.numero, texto: `Tu recarga de ${dinero(r.monto)} ${operadora(r.operadora).nombre} fue exitosa. Folio ${r.folio}. ¡Gracias!` });
     }
 
     async function consultarPendiente(id) {
@@ -1260,6 +1282,7 @@
 
                 if (accion === "svc-ir") { const n = Number(el.dataset.paso); if (n <= svcPasoMaximo()) svcIr(n); return; }
                 if (accion === "svc-seguir-ref") { abrirConfirmacion(); return; }
+                if (accion === "svc-reciente") { svc.referencia = el.dataset.ref; svc.refOk = false; error = ""; abrirConfirmacion(); return; } // sigue pidiendo confirmar
 
                 if (accion === "svc-monto") {
                     svc.codigo = el.dataset.codigo; error = "";

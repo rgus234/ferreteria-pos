@@ -407,10 +407,9 @@
         const g = grupoPorClave(clave);
         if (!g) return;
         const texto = textoLista(g);
-        const digitos = String((g.registro && g.registro.telefono) || "").replace(/\D/g, "");
-        const telefono = digitos.length === 10 ? "52" + digitos : (digitos.length >= 11 ? digitos : "");
-        const ventana = window.open("https://wa.me/" + telefono + "?text=" + encodeURIComponent(texto), "_blank", "noopener");
-        if (!ventana) aviso("Tu navegador bloqueó la ventana de WhatsApp. Usa Copiar lista.", "info");
+        const estado = await nexoWA.enviar({ telefono: g.registro && g.registro.telefono, texto });
+        if (estado === "cancelado") return;
+        if (estado === "bloqueado") aviso("Tu navegador bloqueó la ventana de WhatsApp. Usa Copiar lista.", "info");
         if (await guardar(g, "enviado")) { aviso(`Pedido de ${g.nombre} guardado como enviado.`); pintar(); }
     };
 

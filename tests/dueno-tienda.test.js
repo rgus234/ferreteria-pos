@@ -30,9 +30,11 @@ test("el pedido sugerido abre el WhatsApp del proveedor y los favoritos se puede
     const favoritos = leer("js/favoritos-pos.js");
 
     assert.match(servidor, /telefono: proveedor\.telefono/);
-    assert.match(pedido, /"52" \+ digitos/);
+    // El "52 + 10 digitos" ya no se arma en cada pantalla: lo hace la funcion central nexoWA (js/nexo-whatsapp.js), que ademas pide el numero si falta.
+    assert.match(pedido, /nexoWA\.enviar\(\{ telefono, texto \}\)/);
     assert.match(pedido, /pedSugEnviar/);
-    assert.match(leer("dueno-tienda.js"), /"52" \+ digitos/);
+    assert.match(leer("dueno-tienda.js"), /nexoWA\.enviar\(\{ telefono: numero, texto: tiendaTexto\(\) \}\)/);
+    assert.match(leer("js/nexo-whatsapp.js"), /`52\$\{digitos\}`/);
     assert.match(favoritos, /async function favMover/);
     assert.match(favoritos, /favMover\(\$\{producto\.id\}, -1\)/);
 });

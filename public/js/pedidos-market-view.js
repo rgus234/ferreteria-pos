@@ -400,11 +400,11 @@ function pmkTarjetaPedidoHtml(pedido) {
 
 function pmkContactarCliente(pedidoId) {
     const pedido = pedidosMarketCache.find(p => p.id === pedidoId);
-    if (!pedido || !pedido.clienteTelefono) return;
+    if (!pedido) return;
 
     const telefono = String(pedido.clienteTelefono).replace(/\D/g, "");
     const mensaje = `Hola ${pedido.clienteNombre || ""}, te escribimos por tu pedido ${pedido.codigoRecogida}.`;
-    window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+    nexoWA.enviar({ telefono, texto: mensaje });
 }
 
 function pmkDatoDetalleHtml(etiqueta, valor) {
