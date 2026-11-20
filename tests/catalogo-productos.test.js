@@ -111,3 +111,36 @@ test("las tipografias descargadas salen en las opciones y cada una arma un PDF",
         assert.equal(Buffer.from(await pdf.arrayBuffer()).slice(0, 5).toString(), "%PDF-");
     }
 });
+
+test("por secciones: un PDF por departamento y los departamentos grandes se parten en varios", () => {
+    const { seccionesDe } = require("../catalogo-productos-server");
+    const lista = (depto, n) => Array.from({ length: n }, (_, i) => ({ departamento: depto, nombre: `${depto} ${i}` }));
+    const s = seccionesDe([...lista("Plomeria", 3), ...lista("Pintura", 2), ...lista(null, 1)]);
+    assert.deepEqual(s.map(x => [x.nombre, x.productos.length]), [["Plomeria", 3], ["Pintura", 2], ["Sin categoria", 1]]);
+    const grande = seccionesDe(lista("Herramientas", 2500), 1000);
+    assert.equal(grande.length, 3, "2500 con tope 1000 salen 3 partes");
+    assert.ok(grande.every(x => x.productos.length <= 1000));
+    assert.equal(grande.reduce((t, x) => t + x.productos.length, 0), 2500, "no se pierde ningun producto");
+    assert.equal(grande[0].nombre, "Herramientas 1 de 3");
+});
+
+test("contar dice cuantas secciones saldran, y el tope de un solo PDF ya es 1000", async () => {
+    const r = await (await post("/catalogo-productos/contar", { subcategoriaIds: [subA, subB] })).json();
+    assert.ok(r.secciones >= 1);
+    assert.equal(r.maximo, 1000);
+    assert.equal(r.pasaDelTope, false);
+});
+
+test("el ZIP por secciones trae PDFs de verdad con todos los productos", async () => {
+    const AdmZip = require("adm-zip");
+    const r = await post("/catalogo-productos/secciones", { subcategoriaIds: [subA, subB], titulo: "Mi catalogo" });
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get("content-type"), "application/zip");
+    assert.equal(r.headers.get("x-productos"), "3");
+    const zip = new AdmZip(Buffer.from(await r.arrayBuffer()));
+    const entradas = zip.getEntries();
+    assert.equal(entradas.length, Number(r.headers.get("x-secciones")));
+    assert.ok(entradas.every(e => e.entryName.endsWith(".pdf") && e.getData().subarray(0, 4).toString() === "%PDF"));
+    const sinNada = await post("/catalogo-productos/secciones", {});
+    assert.equal(sinNada.status, 400);
+});

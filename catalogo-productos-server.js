@@ -13,9 +13,12 @@ const path = require("path");
 const PDFDocument = require("pdfkit");
 const bwipjs = require("bwip-js");
 const sharp = require("sharp");
+const AdmZip = require("adm-zip");
 const { responderError } = require("./error-utils");
 
-const MAX_PRODUCTOS = 400;
+const MAX_PRODUCTOS = 1000;
+// Tope de todo lo que se puede armar "por secciones" de una vez (un PDF por departamento, en un ZIP).
+const MAX_TOTAL_SECCIONES = 5000;
 const MAX_LOGO_BYTES = 2.5 * 1024 * 1024;
 
 // ---------- filtros y consulta ----------
@@ -55,6 +58,43 @@ async function consultar(pool, negocioId, f, limite) {
         [negocioId, f.ids, f.sinCategoria, f.incluirOcultos, f.marcas, f.soloConFoto, f.soloConExistencia, limite]);
 
     return r.rows;
+}
+
+// Parte los productos (ya ordenados por departamento) en secciones: un PDF por departamento, y si un departamento
+// pasa del tope se parte en varios para que ningun PDF salga demasiado grande.
+function seccionesDe(productos, maximo = MAX_PRODUCTOS) {
+    const porDepto = new Map();
+
+    for (const p of productos) {
+        const nombre = p.departamento || "Sin categoria";
+        if (!porDepto.has(nombre)) porDepto.set(nombre, []);
+        porDepto.get(nombre).push(p);
+    }
+
+    const secciones = [];
+
+    for (const [nombre, lista] of porDepto) {
+        const partes = Math.ceil(lista.length / maximo);
+        const tam = Math.ceil(lista.length / partes);
+        for (let i = 0; i < partes; i++) secciones.push({ nombre: partes > 1 ? `${nombre} ${i + 1} de ${partes}` : nombre, productos: lista.slice(i * tam, (i + 1) * tam) });
+    }
+
+    return secciones;
+}
+
+// Las fotos de esos productos: una sola consulta, y cada una se reduce para que el PDF no pese de mas.
+async function cargarFotos(pool, negocioId, productos) {
+    const codigos = [...new Set(productos.filter(p => p.con_foto).map(p => p.codigo_foto))];
+    const fotos = new Map();
+
+    if (codigos.length) {
+        const filas = (await pool.query(`SELECT codigo, imagen_principal FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2::text[])`, [negocioId, codigos])).rows;
+        for (let i = 0; i < filas.length; i += 12) {
+            await Promise.all(filas.slice(i, i + 12).map(async fila => { const jpeg = fila.imagen_principal ? await fotoJpeg(fila.imagen_principal) : null; if (jpeg) fotos.set(fila.codigo, jpeg); }));
+        }
+    }
+
+    return fotos;
 }
 
 // ---------- estilo (lo que el dueño personaliza) ----------
@@ -490,7 +530,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             const fuentes = Object.entries(todasLasFuentes()).map(([fid, f]) => ({ id: fid, nombre: f.nombre }));
 
-            res.json({ ok: true, departamentos, sinCategoria: { total: sin.total, conFoto: sin.con_foto }, marcas, maximo: MAX_PRODUCTOS, negocio: await datosNegocio(id), fuentes });
+            res.json({ ok: true, departamentos, sinCategoria: { total: sin.total, conFoto: sin.con_foto }, marcas, maximo: MAX_PRODUCTOS, maximoSecciones: MAX_TOTAL_SECCIONES, negocio: await datosNegocio(id), fuentes });
         } catch (error) {
             responderError(res, error);
         }
@@ -499,10 +539,11 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
     app.post("/catalogo-productos/contar", requerirAccesoNegocio, async (req, res) => {
         try {
             const f = filtrosDe(req.body);
-            if (!f.ids.length && !f.sinCategoria) { res.json({ ok: true, total: 0, conFoto: 0, maximo: MAX_PRODUCTOS }); return; }
+            if (!f.ids.length && !f.sinCategoria) { res.json({ ok: true, total: 0, conFoto: 0, secciones: 0, maximo: MAX_PRODUCTOS }); return; }
 
-            const filas = await consultar(pool, negocioId(req), f, 5000);
-            res.json({ ok: true, total: filas.length, conFoto: filas.filter(x => x.con_foto).length, maximo: MAX_PRODUCTOS });
+            const filas = await consultar(pool, negocioId(req), f, MAX_TOTAL_SECCIONES + 1);
+            const pasaDelTope = filas.length > MAX_TOTAL_SECCIONES;
+            res.json({ ok: true, total: filas.length, conFoto: filas.filter(x => x.con_foto).length, secciones: seccionesDe(filas).length, pasaDelTope, maximo: MAX_PRODUCTOS, maximoSecciones: MAX_TOTAL_SECCIONES });
         } catch (error) {
             responderError(res, error);
         }
@@ -527,16 +568,7 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             const negocio = await datosNegocio(id);
             const titulo = String(cuerpo.titulo || "").trim().slice(0, 80) || "Catalogo de productos";
 
-            // fotos: una sola consulta, y cada una se reduce para que el PDF no pese de mas
-            const codigos = [...new Set(productos.filter(p => p.con_foto).map(p => p.codigo_foto))];
-            const fotos = new Map();
-
-            if (codigos.length) {
-                const filas = (await pool.query(`SELECT codigo, imagen_principal FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = ANY($2::text[])`, [id, codigos])).rows;
-                for (let i = 0; i < filas.length; i += 12) {
-                    await Promise.all(filas.slice(i, i + 12).map(async fila => { const jpeg = fila.imagen_principal ? await fotoJpeg(fila.imagen_principal) : null; if (jpeg) fotos.set(fila.codigo, jpeg); }));
-                }
-            }
+            const fotos = await cargarFotos(pool, id, productos);
 
             const pdf = await generarPdf({ negocioNombre: negocio.nombre, titulo, productos, fotos, opciones, estilo: cuerpo.estilo, logoNegocio: negocio.logo, contactoNegocio: negocio.contacto });
             const archivo = titulo.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "catalogo";
@@ -547,8 +579,46 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             responderError(res, error);
         }
     });
+
+    // Catalogo "por secciones": un PDF por departamento, todos juntos en un ZIP. Se arma de a uno para no llenar la memoria.
+    app.post("/catalogo-productos/secciones", requerirAccesoNegocio, async (req, res) => {
+        try {
+            const id = negocioId(req);
+            const cuerpo = req.body || {};
+            const f = filtrosDe(cuerpo);
+
+            if (!f.ids.length && !f.sinCategoria) { res.status(400).json({ ok: false, error: "Elige al menos una categoria." }); return; }
+
+            const productos = await consultar(pool, id, f, MAX_TOTAL_SECCIONES + 1);
+
+            if (!productos.length) { res.status(400).json({ ok: false, error: "Con esos filtros no hay productos." }); return; }
+            if (productos.length > MAX_TOTAL_SECCIONES) { res.status(400).json({ ok: false, error: `Son mas de ${MAX_TOTAL_SECCIONES} productos. Elige menos categorias o filtra por marca.` }); return; }
+
+            const nivel = ["publico", "mayoreo", "distribuidor"].includes(cuerpo.nivelPrecio) ? cuerpo.nivelPrecio : "publico";
+            const opciones = { nivelPrecio: nivel, mostrarPrecio: cuerpo.mostrarPrecio !== false, mostrarCodigoBarras: cuerpo.mostrarCodigoBarras !== false };
+            const negocio = await datosNegocio(id);
+            const titulo = String(cuerpo.titulo || "").trim().slice(0, 80) || "Catalogo de productos";
+            const limpio = texto => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "catalogo";
+            const secciones = seccionesDe(productos);
+            const zip = new AdmZip();
+
+            for (let i = 0; i < secciones.length; i++) {
+                const seccion = secciones[i];
+                const fotos = await cargarFotos(pool, id, seccion.productos);
+                const pdf = await generarPdf({ negocioNombre: negocio.nombre, titulo: `${titulo} - ${seccion.nombre}`, productos: seccion.productos, fotos, opciones, estilo: cuerpo.estilo, logoNegocio: negocio.logo, contactoNegocio: negocio.contacto });
+                zip.addFile(`${String(i + 1).padStart(2, "0")}-${limpio(seccion.nombre)}.pdf`, pdf);
+            }
+
+            const archivo = zip.toBuffer();
+            res.set({ "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="${limpio(titulo)}-por-secciones.zip"`, "Content-Length": archivo.length, "Cache-Control": "no-store", "X-Productos": String(productos.length), "X-Secciones": String(secciones.length) });
+            res.send(archivo);
+        } catch (error) {
+            responderError(res, error);
+        }
+    });
 };
 
+module.exports.seccionesDe = seccionesDe;
 module.exports.generarPdf = generarPdf;
 module.exports.filtrosDe = filtrosDe;
 module.exports.consultar = consultar;

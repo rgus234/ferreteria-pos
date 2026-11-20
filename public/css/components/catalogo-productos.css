@@ -41,6 +41,15 @@
 .ct-numero span { font-size: 14px; font-weight: 700; color: var(--pos-muted, #687386); }
 .ct-detalle { margin: 0; font-size: 12.5px; color: var(--pos-muted, #687386); line-height: 1.4; }
 .ct-aviso { margin: 0; padding: 8px 10px; border-radius: 10px; background: rgba(245, 158, 11, .14); font-size: 12.5px; font-weight: 700; }
+.ct-consejo { margin: 0; padding: 8px 10px; border-radius: 10px; background: rgba(37, 99, 235, .1); font-size: 12.5px; line-height: 1.4; }
+.ct-prog { display: grid; gap: 6px; margin: 2px 0; }
+.ct-prog-barra { height: 12px; border-radius: 999px; background: rgba(148, 163, 184, .28); overflow: hidden; }
+.ct-prog-relleno { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #2563eb, #60a5fa, #2563eb); background-size: 200% 100%; animation: ctBrillo 1.1s linear infinite; transition: width .25s ease-out; }
+.ct-prog-linea { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--pos-muted, #687386); }
+.ct-prog-linea b { color: inherit; font-variant-numeric: tabular-nums; }
+@keyframes ctBrillo { from { background-position: 200% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .ct-prog-relleno { animation: none; } }
+body.oscuro .ct-consejo { background: rgba(96, 165, 250, .14); }
 .ct-principal, .ct-secundario { width: 100%; padding: 12px 14px; border-radius: 12px; font: inherit; font-weight: 800; font-size: 14px; cursor: pointer; }
 .ct-principal { border: 0; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; box-shadow: 0 8px 18px rgba(37, 99, 235, .25); }
 .ct-secundario { border: 1px solid var(--pos-line, #cbd5e1); background: var(--pos-card, #fff); color: inherit; }

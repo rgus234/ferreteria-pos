@@ -84,7 +84,7 @@
         const r = await llamar("/catalogo-productos/opciones");
         if (!r.ok) { pantalla.innerHTML = `<div class="ct-shell"><p class="ct-vacio">No se pudieron cargar las categorías. Intenta de nuevo.</p></div>`; return; }
 
-        est = { opciones: r.datos, tab: "productos", sel: new Set(), sinCat: false, abiertos: new Set(), filtro: "", conteo: { total: 0, conFoto: 0 }, generando: false,
+        est = { opciones: r.datos, tab: "productos", sel: new Set(), sinCat: false, abiertos: new Set(), filtro: "", conteo: { total: 0, conFoto: 0, secciones: 0, pasaDelTope: false }, generando: false, prog: null,
             o: { titulo: "Catálogo de productos", nivel: "publico", precio: true, barras: true, soloFoto: false, soloExistencia: false, marca: "" },
             e: estiloInicial(r.datos.negocio || {}) };
         pintar();
@@ -272,19 +272,48 @@
 
     // ----- resumen y acciones -----
 
+    const MB_POR_PRODUCTO = 0.0245; // con foto; sin foto casi no pesa
+
+    function pesoAprox(c) {
+        const mb = c.conFoto * MB_POR_PRODUCTO + (c.total - c.conFoto) * 0.0025;
+        return mb < 1 ? "menos de 1 MB" : "unos " + Math.round(mb) + " MB";
+    }
+
+    function htmlProgreso() {
+        const p = est.prog;
+        if (!p) return "";
+        return `<div class="ct-prog" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p.pct)}">
+            <div class="ct-prog-barra"><div class="ct-prog-relleno" id="ctProgRelleno" style="width:${p.pct}%"></div></div>
+            <div class="ct-prog-linea"><span id="ctProgTexto">${esc(p.texto)}</span><b id="ctProgPct">${Math.round(p.pct)}%</b></div>
+        </div>`;
+    }
+
     function htmlResumen() {
         const c = est.conteo;
-        const max = est.opciones.maximo || 400;
+        const max = est.opciones.maximo || 1000;
+        const maxSec = est.opciones.maximoSecciones || 5000;
         const eligio = est.sel.size > 0 || est.sinCat;
-        const demasiados = c.total > max;
-        const deshabilitado = (!eligio || !c.total || demasiados || est.generando) ? "disabled" : "";
+        const hay = eligio && c.total > 0;
+        const grande = c.total > max;
+        const pasaDeTodo = c.pasaDelTope || c.total > maxSec;
+        const variasSecciones = c.secciones >= 2;
+        const ocupado = est.generando ? "disabled" : "";
+        const completo = (!hay || grande || est.generando) ? "disabled" : "";
+        const porSecciones = (!hay || pasaDeTodo || !variasSecciones || est.generando) ? "disabled" : "";
+        const sugerir = hay && !grande && variasSecciones && c.total > 400;
 
         return `<div class="ct-numero"><b>${eligio ? c.total : 0}</b><span>productos</span></div>
             <p class="ct-detalle">${!eligio ? "Elige una o más categorías para empezar." : (c.total ? `${c.conFoto} con foto${c.conFoto < c.total ? ` · ${c.total - c.conFoto} saldrán con una letra en lugar de foto` : ""}.` : "Con esos filtros no hay productos.")}</p>
-            ${demasiados ? `<p class="ct-aviso">Son más de ${max} productos para un solo catálogo. Elige menos categorías o filtra por marca.</p>` : ""}
-            <button type="button" class="ct-principal" onclick="ctDescargar(false)" ${deshabilitado}>${est.generando ? "Armando el PDF…" : "Descargar PDF"}</button>
-            <button type="button" class="ct-secundario" onclick="ctDescargar(true)" ${deshabilitado}>Ver para imprimir</button>
-            ${typeof navigator.canShare === "function" ? `<button type="button" class="ct-secundario" onclick="ctCompartir()" ${deshabilitado}>Compartir…</button>` : ""}`;
+            ${hay && c.total > 300 && !pasaDeTodo ? `<p class="ct-detalle">El PDF completo pesaría ${pesoAprox(c)}.</p>` : ""}
+            ${pasaDeTodo ? `<p class="ct-aviso">Son más de ${maxSec} productos. Elige menos categorías o filtra por marca.</p>` : ""}
+            ${grande && !pasaDeTodo ? `<p class="ct-aviso">Son más de ${max} productos: no caben en un solo PDF. Lo armamos por secciones, un PDF por departamento, todos juntos en un ZIP (${c.secciones} archivos).</p>` : ""}
+            ${sugerir ? `<p class="ct-consejo">Te recomendamos hacerlo por secciones (${c.secciones} PDF en un ZIP): cada archivo es más ligero y fácil de mandar. Si lo quieres todo junto, también se puede.</p>` : ""}
+            ${htmlProgreso()}
+            ${grande && !pasaDeTodo ? `<button type="button" class="ct-principal" onclick="ctSecciones()" ${porSecciones}>${est.generando ? "Armando los PDF…" : "Descargar por secciones (ZIP)"}</button>` : `
+            <button type="button" class="ct-principal" onclick="ctDescargar(false)" ${completo}>${est.generando ? "Armando el PDF…" : (variasSecciones ? "Descargar PDF completo" : "Descargar PDF")}</button>
+            ${variasSecciones ? `<button type="button" class="ct-secundario" onclick="ctSecciones()" ${porSecciones}>Descargar por secciones (ZIP)</button>` : ""}
+            <button type="button" class="ct-secundario" onclick="ctDescargar(true)" ${completo}>Ver para imprimir</button>
+            ${typeof navigator.canShare === "function" ? `<button type="button" class="ct-secundario" onclick="ctCompartir()" ${completo}>Compartir…</button>` : ""}`}`;
     }
 
     // Los departamentos con solo una parte marcada se ven "a medias" (estado indeterminado del checkbox).
@@ -315,10 +344,10 @@
         clearTimeout(temporizador);
         temporizador = setTimeout(async () => {
             if (!est) return;
-            if (!est.sel.size && !est.sinCat) { est.conteo = { total: 0, conFoto: 0 }; pintarResumen(); return; }
+            if (!est.sel.size && !est.sinCat) { est.conteo = { total: 0, conFoto: 0, secciones: 0, pasaDelTope: false }; pintarResumen(); return; }
             const r = await llamar("/catalogo-productos/contar", { method: "POST", body: JSON.stringify(cuerpo()) });
             if (!est) return;
-            est.conteo = r.ok ? { total: r.datos.total || 0, conFoto: r.datos.conFoto || 0 } : { total: 0, conFoto: 0 };
+            est.conteo = r.ok ? { total: r.datos.total || 0, conFoto: r.datos.conFoto || 0, secciones: r.datos.secciones || 0, pasaDelTope: Boolean(r.datos.pasaDelTope) } : { total: 0, conFoto: 0, secciones: 0, pasaDelTope: false };
             pintarResumen();
         }, 300);
     }
@@ -328,15 +357,81 @@
         if (r) r.innerHTML = htmlResumen();
     }
 
-    async function generar() {
-        const r = await fetch("/catalogo-productos/pdf", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo()) });
+    // ----- barra de progreso -----
+    // El servidor no avisa en que va, asi que la barra avanza por tiempo estimado (segun cuantos productos son),
+    // se frena cerca del 92 % esperando la respuesta, y al llegar el archivo muestra la descarga real.
+
+    function pintarProgreso() {
+        const p = est && est.prog;
+        if (!p) return;
+        const r = document.getElementById("ctProgRelleno"), t = document.getElementById("ctProgTexto"), n = document.getElementById("ctProgPct");
+        if (r) r.style.width = p.pct + "%";
+        if (t) t.textContent = p.texto;
+        if (n) n.textContent = Math.round(p.pct) + "%";
+    }
+
+    function empezarProgreso(porSecciones) {
+        const total = est.conteo.total || 1;
+        const estimado = (1.5 + total * 0.01) * (porSecciones ? 1.3 : 1) * 1000;
+        const t0 = Date.now();
+        est.prog = { pct: 2, texto: "Buscando los productos y sus fotos…", descargando: false };
+        clearInterval(est.progTimer);
+        est.progTimer = setInterval(() => {
+            if (!est || !est.prog || est.prog.descargando) return;
+            const pct = Math.max(est.prog.pct, Math.min(92, 92 * (1 - Math.exp(-(Date.now() - t0) / estimado))));
+            est.prog.pct = pct;
+            est.prog.texto = pct < 25 ? "Buscando los productos y sus fotos…" : pct < 75 ? (porSecciones ? "Armando los PDF por departamento…" : "Armando las páginas del catálogo…") : "Terminando el archivo…";
+            pintarProgreso();
+        }, 120);
+    }
+
+    function pararProgreso(listo) {
+        if (!est) return;
+        clearInterval(est.progTimer);
+        if (listo && est.prog) { est.prog.pct = 100; est.prog.texto = "¡Listo!"; pintarProgreso(); }
+        else est.prog = null;
+    }
+
+    async function generar(ruta = "/catalogo-productos/pdf") {
+        empezarProgreso(ruta.endsWith("/secciones"));
+        pintarResumen();
+
+        const r = await fetch(ruta, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo()) });
 
         if (!r.ok) {
             const datos = await r.json().catch(() => ({}));
             throw new Error(datos.error || "No se pudo armar el catálogo.");
         }
 
-        return r.blob();
+        const tipo = r.headers.get("Content-Type") || "";
+        const largo = Number(r.headers.get("Content-Length")) || 0;
+
+        if (!r.body || !r.body.getReader || !largo || !est) return r.blob();
+
+        est.prog.descargando = true;
+        est.prog.texto = "Descargando el archivo…";
+        const lector = r.body.getReader();
+        const trozos = [];
+        let leidos = 0;
+
+        for (;;) {
+            const { done, value } = await lector.read();
+            if (done) break;
+            trozos.push(value);
+            leidos += value.length;
+            if (est && est.prog) { est.prog.pct = Math.max(est.prog.pct, 92 + 7 * (leidos / largo)); pintarProgreso(); }
+        }
+
+        return new Blob(trozos, { type: tipo });
+    }
+
+    function cerrarProgreso() {
+        if (!est) return;
+        const listo = est.prog && est.prog.pct >= 100;
+        clearInterval(est.progTimer);
+        if (!listo) { est.prog = null; pintarResumen(); return; }
+        pintarResumen();
+        setTimeout(() => { if (est && !est.generando) { est.prog = null; pintarResumen(); } }, 1400);
     }
 
     const nombreArchivo = () => (plano(est.o.titulo).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "catalogo") + ".pdf";
@@ -347,6 +442,7 @@
 
         try {
             const blob = await generar();
+            pararProgreso(true);
             const url = URL.createObjectURL(blob);
 
             if (soloVer) {
@@ -362,7 +458,28 @@
         } catch (error) {
             aviso(error.message || "No se pudo armar el catálogo.", "error");
         } finally {
-            if (est) { est.generando = false; pintarResumen(); }
+            if (est) { est.generando = false; cerrarProgreso(); }
+        }
+    };
+
+    // Un PDF por departamento, todos en un ZIP.
+    window.ctSecciones = async function () {
+        if (!est || est.generando) return;
+        est.generando = true;
+
+        try {
+            const blob = await generar("/catalogo-productos/secciones");
+            pararProgreso(true);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = nombreArchivo().replace(/\.pdf$/, "") + "-por-secciones.zip";
+            document.body.appendChild(a); a.click(); a.remove();
+            aviso("Listo: " + est.conteo.secciones + " PDF en un ZIP (" + nProd(est.conteo.total) + ").");
+            setTimeout(() => URL.revokeObjectURL(url), 120000);
+        } catch (error) {
+            aviso(error.message || "No se pudo armar el catálogo.", "error");
+        } finally {
+            if (est) { est.generando = false; cerrarProgreso(); }
         }
     };
 
@@ -373,6 +490,7 @@
 
         try {
             const blob = await generar();
+            pararProgreso(true);
             const archivo = new File([blob], nombreArchivo(), { type: "application/pdf" });
 
             if (navigator.canShare && navigator.canShare({ files: [archivo] })) await navigator.share({ files: [archivo], title: est.o.titulo });
@@ -380,7 +498,7 @@
         } catch (error) {
             if (error && error.name !== "AbortError") aviso(error.message || "No se pudo compartir el catálogo.", "error");
         } finally {
-            if (est) { est.generando = false; pintarResumen(); }
+            if (est) { est.generando = false; cerrarProgreso(); }
         }
     };
 })();
