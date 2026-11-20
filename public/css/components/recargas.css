@@ -445,3 +445,25 @@ body.oscuro .rc-ficha .rc-total { border-top-color: rgba(148, 163, 184, .4); }
     .rc-monto-libre input { font-size: 36px; }
     .rc-seg button { font-size: 13px; padding: 0 6px; }
 }
+
+/* =====================================================================
+   Logos de marca (archivos en /img/marcas/<id>.png). Si uno falta, queda la inicial con el color de la marca.
+   ===================================================================== */
+.rc-marca { position: relative; display: grid; place-items: center; flex: none; width: 56px; height: 56px; border-radius: 16px; background: #fff; border: 1px solid rgba(15, 23, 42, .1); overflow: hidden; }
+.rc-marca img { position: absolute; inset: 9%; width: 82%; height: 82%; object-fit: contain; }
+.rc-marca b { display: none; font-size: 24px; font-weight: 800; color: var(--mt, #fff); }
+.rc-marca.rc-sin-logo { border: 0; background: var(--mc, linear-gradient(135deg, #0f766e, #14b8a6)); }
+.rc-marca.rc-sin-logo b { display: block; }
+.rc-marca.rc-chica { width: 28px; height: 28px; border-radius: 9px; }
+.rc-marca.rc-chica b { font-size: 13px; }
+.rc-marca.rc-mini { width: 40px; height: 40px; border-radius: 12px; }
+.rc-marca.rc-mini b { font-size: 16px; }
+
+/* fichas grandes: el logo va en un rectangulo para que quepan los nombres anchos (Telcel, Megacable, Amazon...) */
+.rc-shell .rc-op .rc-marca, .rc-shell .rc-svc .rc-marca { width: 100%; max-width: 132px; height: 66px; border-radius: 14px; }
+.rc-shell .rc-op .rc-marca img, .rc-shell .rc-svc .rc-marca img { inset: 6%; width: 88%; height: 88%; }
+.rc-shell .rc-op .rc-marca b, .rc-shell .rc-svc .rc-marca b { font-size: 28px; }
+
+/* los logos estan hechos para fondo claro: la caja se queda blanca tambien en modo oscuro */
+body.oscuro .rc-marca:not(.rc-sin-logo) { background: #fff; border-color: rgba(255, 255, 255, .2); }
+.rc-shell .rc-op .rc-marca.rc-sin-logo, .rc-shell .rc-svc .rc-marca.rc-sin-logo { width: 66px; }

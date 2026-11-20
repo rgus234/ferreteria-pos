@@ -81,6 +81,22 @@
     const esTarjeta = r => r && r.tipo === "giftcard";
     const esPago = r => r && r.tipo && r.tipo !== "recarga";
 
+    // Logos de las marcas: archivos propios en /img/marcas/<id de Taecel>.png (bajados del catalogo de Taecel, ya en tamano chico).
+    // Si falta uno o no carga, se queda la inicial con el color de la marca.
+    const logoDe = id => `/img/marcas/${encodeURIComponent(String(id))}.png`;
+
+    function marca(carrierId, inicial, clase = "", fondo = "", tinta = "#fff") {
+        const estilo = fondo ? ` style="--mc:${fondo};--mt:${tinta}"` : "";
+        const letra = `<b>${esc(inicial)}</b>`;
+
+        if (!carrierId) return `<span class="rc-marca rc-sin-logo ${clase}"${estilo}>${letra}</span>`;
+
+        return `<span class="rc-marca ${clase}"${estilo}><img src="${logoDe(carrierId)}" alt="" loading="lazy" onerror="this.parentNode.classList.add('rc-sin-logo');this.remove()">${letra}</span>`;
+    }
+
+    const marcaOp = (o, clase = "") => marca(CARRIER_IDS[o.id] || (/^c\d+$/.test(o.id) ? o.id.slice(1) : ""), o.sigla, clase, o.color, o.tinta);
+
+
 
     const formatoNumero = d => (d.length <= 3 ? d : d.length <= 6 ? `(${d.slice(0, 3)}) ${d.slice(3)}` : `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6, 10)}`);
     const soloDigitos = texto => String(texto || "").replace(/\D/g, "").slice(0, 10);
@@ -400,7 +416,7 @@
         const o = operadora(eleg.operadora);
         const chips = [];
 
-        if (paso > 1 && companiaLista()) chips.push(`<button type="button" class="rc-eleccion" data-rc="ir" data-paso="1"><i style="background:${o.color};color:${o.tinta}">${esc(o.sigla)}</i>${esc(o.nombre)}</button>`);
+        if (paso > 1 && companiaLista()) chips.push(`<button type="button" class="rc-eleccion" data-rc="ir" data-paso="1">${marcaOp(o, "rc-chica")}${esc(o.nombre)}</button>`);
         if (paso > 2 && numeroOk) chips.push(`<button type="button" class="rc-eleccion" data-rc="ir" data-paso="2"><i class="rc-eleccion-tel" aria-hidden="true">☎</i>${esc(formatoNumero(eleg.numero))}</button>`);
         if (paso > 3 && montoElegido() >= 10) chips.push(`<button type="button" class="rc-eleccion" data-rc="ir" data-paso="3"><i class="rc-eleccion-tel" aria-hidden="true">$</i>${entero(montoElegido())}</button>`);
 
@@ -412,7 +428,7 @@
             <h3>¿De qué compañía es el chip?</h3>
             <p class="rc-sub">Toca la compañía y seguimos.</p>
             <div class="rc-operadoras" role="radiogroup" aria-label="Compañía">
-                ${OPERADORAS.map((o, i) => `<button type="button" role="radio" aria-checked="${esElegida(o.id)}" class="rc-op ${esElegida(o.id) ? "rc-sel" : ""}" data-rc="operadora" data-id="${o.id}" style="--rc-color:${o.color};--rc-tinta:${o.tinta};--i:${i}"><i>${esc(o.sigla)}</i><span>${esc(o.nombre)}</span></button>`).join("")}
+                ${OPERADORAS.map((o, i) => `<button type="button" role="radio" aria-checked="${esElegida(o.id)}" class="rc-op ${esElegida(o.id) ? "rc-sel" : ""}" data-rc="operadora" data-id="${o.id}" style="--rc-color:${o.color};--rc-tinta:${o.tinta};--i:${i}">${marcaOp(o)}<span>${esc(o.nombre)}</span></button>`).join("")}
             </div>
             ${otrasCompanias()}
         </section>`;
@@ -478,7 +494,7 @@
         return `<section class="rc-paso rc-p rc-p4" style="--rc-color:${o.color};--rc-tinta:${o.tinta}">
             <h3>Revisa y confirma</h3>
             <div class="rc-ficha">
-                <span class="rc-chip-op"><i>${esc(o.sigla)}</i>${esc(o.nombre)}</span>
+                <span class="rc-chip-op">${marcaOp(o, "rc-chica")}${esc(o.nombre)}</span>
                 <div class="rc-grande">${entero(monto)}</div>
                 <div class="rc-linea"><span>Número</span><b>${esc(formatoNumero(eleg.numero))}</b></div>
                 <div class="rc-linea"><span>Cobrar al cliente</span><b>${dinero(monto)}</b></div>
@@ -511,7 +527,7 @@
             const nombre = sv ? sv.nombre : "Servicio";
 
             return `<article class="rc-fila">
-                <span class="rc-op-mini" style="background:#0f766e;color:#fff">${esc(nombre.charAt(0).toUpperCase())}</span>
+                ${marca(sv ? sv.id : "", nombre.charAt(0).toUpperCase(), "rc-mini")}
                 <div class="rc-fila-info"><b>${esc(nombre)}</b><small>${esc(esTarjeta(r) ? formatoNumero(r.numero) : grupos(r.numero))} · ${hace(r.t)}</small></div>
                 <div class="rc-fila-der"><strong>${dinero(r.monto).replace(/\.00$/, "")}</strong><span class="rc-estado ${clases[0]}">${clases[1]}</span></div>
                 ${esTarjeta(r) && r.pin ? `<button type="button" class="rc-repetir" data-rc="ver-pin" data-id="${esc(r.id)}" title="Copiar el código de la tarjeta" aria-label="Copiar el código de la tarjeta">🔑</button>` : `<span class="rc-repetir rc-repetir-vacio" aria-hidden="true"></span>`}
@@ -521,7 +537,7 @@
         const o = operadora(r.operadora) || OPERADORAS[0];
 
         return `<article class="rc-fila">
-            <span class="rc-op-mini" style="background:${o.color};color:${o.tinta}">${esc(o.sigla)}</span>
+            ${marcaOp(o, "rc-mini")}
             <div class="rc-fila-info"><b>${esc(formatoNumero(r.numero))}</b><small>${esc(o.nombre)} · ${hace(r.t)}</small></div>
             <div class="rc-fila-der"><strong>${entero(r.monto)}</strong><span class="rc-estado ${clases[0]}">${clases[1]}</span></div>
             <button type="button" class="rc-repetir" data-rc="repetir" data-id="${esc(r.id)}" title="Repetir esta recarga" aria-label="Repetir recarga a ${esc(formatoNumero(r.numero))}">↻</button>
@@ -592,7 +608,7 @@
         const s = svcServicio();
         const chips = [];
 
-        if (svc.paso > 1 && s) chips.push(`<button type="button" class="rc-eleccion" data-rc="svc-ir" data-paso="1"><i class="rc-eleccion-tel" aria-hidden="true">${esc(s.nombre.charAt(0).toUpperCase())}</i>${esc(s.nombre)}</button>`);
+        if (svc.paso > 1 && s) chips.push(`<button type="button" class="rc-eleccion" data-rc="svc-ir" data-paso="1">${marca(s.id, s.nombre.charAt(0).toUpperCase(), "rc-chica")}${esc(s.nombre)}</button>`);
         if (svc.paso > 2 && svc.refOk) chips.push(`<button type="button" class="rc-eleccion" data-rc="svc-ir" data-paso="2"><i class="rc-eleccion-tel" aria-hidden="true">#</i>${esc(s.categoria === "GiftCards" ? formatoNumero(svc.referencia) : grupos(svc.referencia))}</button>`);
         if (svc.paso > 3 && svcMontoValido()) chips.push(`<button type="button" class="rc-eleccion" data-rc="svc-ir" data-paso="3"><i class="rc-eleccion-tel" aria-hidden="true">$</i>${dinero(svcMonto())}</button>`);
 
@@ -600,11 +616,7 @@
     }
 
     function logoSvc(s) {
-        const inicial = esc(s.nombre.charAt(0).toUpperCase());
-
-        return s.logo && /^https:\/\//.test(s.logo)
-            ? `<span class="rc-svc-logo"><img src="${esc(s.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add('rc-sin-logo');this.remove()"><b>${inicial}</b></span>`
-            : `<span class="rc-svc-logo rc-sin-logo"><b>${inicial}</b></span>`;
+        return marca(s.id, s.nombre.charAt(0).toUpperCase());
     }
 
     function listaMostrada() {
@@ -697,7 +709,7 @@
         return `<section class="rc-paso rc-p rc-p4" style="--rc-color:#0f766e;--rc-tinta:#fff">
             <h3>Revisa y confirma</h3>
             <div class="rc-ficha">
-                <span class="rc-chip-op"><i>${esc(s.nombre.charAt(0).toUpperCase())}</i>${esc(s.nombre)}</span>
+                <span class="rc-chip-op">${marca(s.id, s.nombre.charAt(0).toUpperCase(), "rc-chica")}${esc(s.nombre)}</span>
                 <div class="rc-grande">${dinero(monto).replace(/\.00$/, "")}</div>
                 <div class="rc-linea"><span>${esc(s.campo.nombre)}</span><b class="rc-mono">${esc(tarjeta ? formatoNumero(svc.referencia) : grupos(svc.referencia))}</b></div>
                 <div class="rc-linea"><span>Monto</span><b>${dinero(monto)}</b></div>
@@ -817,7 +829,7 @@
 
         if (firma === "confirma") {
             return { clase: "rc-capa-confirma", html: `<div class="rc-tarjeta-confirma" role="dialog" aria-modal="true" aria-labelledby="rcConfTit">
-                <span class="rc-chip-op" style="--rc-color:#0f766e"><i style="background:#0f766e;color:#fff">${esc(nombre.charAt(0).toUpperCase())}</i>${esc(nombre)}</span>
+                <span class="rc-chip-op" style="--rc-color:#0f766e">${marca(s ? s.id : "", nombre.charAt(0).toUpperCase(), "rc-chica")}${esc(nombre)}</span>
                 <h3 id="rcConfTit">¿${tarjeta ? "Es este el número" : "Es correcta la referencia"}?</h3>
                 <div class="rc-digitos rc-digitos-largo" aria-label="${esc(svc.referencia)}">${(tarjeta ? formatoNumero(svc.referencia) : grupos(svc.referencia)).split("").map((c, i) => `<span style="--i:${i}">${c === " " ? "&nbsp;" : esc(c)}</span>`).join("")}</div>
                 <p>${tarjeta ? "Taecel pide este celular para la compra. Revísalo con el cliente." : "Compárala con el recibo del cliente: un pago a una referencia equivocada no se puede regresar."}</p>
@@ -954,7 +966,7 @@
 
         if (firma === "confirma") {
             return { clase: "rc-capa-confirma", html: `<div class="rc-tarjeta-confirma" role="dialog" aria-modal="true" aria-labelledby="rcConfTit">
-                <span class="rc-chip-op" style="--rc-color:${o.color}"><i style="background:${o.color};color:${o.tinta}">${esc(o.sigla)}</i>${esc(o.nombre)}</span>
+                <span class="rc-chip-op" style="--rc-color:${o.color}">${marcaOp(o, "rc-chica")}${esc(o.nombre)}</span>
                 <h3 id="rcConfTit">¿Es este el número?</h3>
                 <div class="rc-digitos" aria-label="${esc(formatoNumero(eleg.numero))}">${formatoNumero(eleg.numero).split("").map((c, i) => `<span style="--i:${i}">${c === " " ? "&nbsp;" : esc(c)}</span>`).join("")}</div>
                 <p>Revísalo bien con el cliente: una recarga al número equivocado no se puede regresar.</p>

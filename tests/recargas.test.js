@@ -64,3 +64,19 @@ test("celular: tarjeta en el Inicio solo con la funcion encendida, mismo servido
     assert.ok(sw.includes("/dueno-recargas.js?v=" + version) && sw.includes("/dueno-recargas.css?v=" + css), "el celular guarda los archivos nuevos");
     assert.match(leer("public/dueno-recargas.css"), /:root\.oscuro \.drc-paso/, "tiene modo oscuro");
 });
+
+test("logos de marca: las compañías principales, los servicios y tarjetas del catalogo tienen su archivo propio (sin depender de Taecel)", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const dir = path.join(__dirname, "..", "public", "img", "marcas");
+    const js = leer("public/js/recargas-view.js");
+    // ids de Taecel: Telcel, Movistar, AT&T, Unefon, BAIT, Virgin, Weex, CFE, Telmex, SKY, Izzi, Megacable, Gas Natural, Google Play, Netflix, Amazon, Roblox, Xbox, Nintendo, Uber
+    ["1", "2", "5", "4", "239", "11", "93", "7", "6", "10", "43", "18", "64", "211", "87", "166", "294", "155", "80", "147"].forEach(id => {
+        const archivo = path.join(dir, `${id}.png`);
+        assert.ok(fs.existsSync(archivo), `falta el logo ${id}.png`);
+        assert.ok(fs.statSync(archivo).size < 60 * 1024, `el logo ${id}.png pesa demasiado`);
+        assert.deepEqual([...fs.readFileSync(archivo).subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], `${id}.png es un PNG de verdad`);
+    });
+    assert.ok(js.includes("/img/marcas/"), "la pantalla usa los logos propios");
+    assert.ok(!/cdn\.(taecel|pagomex)\.com/.test(js), "la pantalla no carga imagenes de los servidores de Taecel");
+});
