@@ -16,17 +16,22 @@
 
 const { responderError } = require("./error-utils");
 const { PERMISOS, requerirPermiso } = require("./rbac");
-const { crearCliente, esperarResultado, interpretarEstado, mensajeDeError, montoDeTexto } = require("./taecel-cliente");
+const { crearCliente, esperarResultado, consultarVenta, mensajeDeError, montoDeTexto } = require("./taecel-cliente");
 
 const MONTO_MINIMO = 10;
 const MONTO_MAXIMO = 500;
 const CACHE_SALDO_MS = 20 * 1000;
 const CACHE_PRODUCTOS_MS = 24 * 60 * 60 * 1000;
-const ESPERA_ENTRE_CONSULTAS_MS = 5000;
+const ESPERA_ENTRE_CONSULTAS_MS = 10000;
+
+// Fecha (YYYY-MM-DD) en la hora de Taecel/Mexico, que es la que usa getSales.
+const fechaMexico = fecha => new Date(fecha || Date.now()).toLocaleDateString("en-CA", { timeZone: "America/Mexico_City" });
 
 // Ids de compañia de Taecel (los de getProducts, ejemplo de respuesta de Taecel 2026-11-06). Cualquier otra compañia de tiempo aire se manda como "c<id>".
 const CARRIER_IDS = { telcel: "1", movistar: "2", att: "5", unefon: "4", bait: "239", virgin: "11", weex: "93" };
 const BOLSA_TIEMPO_AIRE = "1";
+const BOLSA_SERVICIOS = "2"; // pago de servicios y tarjetas de regalo (GiftCards): otro saldo, otras reglas
+const MONTO_MAXIMO_SERVICIO = 50000;
 
 let tablaLista = false;
 
@@ -56,6 +61,10 @@ async function asegurarTabla(pool) {
             UNIQUE (negocio_id, token)
         )
     `);
+    // Pago de servicios y tarjetas de regalo comparten la tabla: tipo, cargo por servicio y el codigo (pin) de las tarjetas.
+    await pool.query(`ALTER TABLE public.recargas_transacciones ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'recarga'`);
+    await pool.query(`ALTER TABLE public.recargas_transacciones ADD COLUMN IF NOT EXISTS cargo NUMERIC(10, 2)`);
+    await pool.query(`ALTER TABLE public.recargas_transacciones ADD COLUMN IF NOT EXISTS pin TEXT`);
     await pool.query(`CREATE INDEX IF NOT EXISTS recargas_transacciones_negocio_idx ON public.recargas_transacciones (negocio_id, created_at DESC)`);
     tablaLista = true;
 }
@@ -86,6 +95,36 @@ function normalizarCatalogo(data) {
     return { productos, carriers };
 }
 
+// De la bolsa de PAGO DE SERVICIOS salen dos cosas: servicios (CFE, Telmex, agua... monto libre, referencia de la cuenta) y tarjetas de regalo (GiftCards:
+// Google Play, Netflix, Amazon, Xbox... montos fijos; Taecel regresa el codigo de la tarjeta en el campo "pin").
+function normalizarServicios(data) {
+    const raiz = Array.isArray(data) ? Object.assign({}, ...data.filter(x => x && typeof x === "object" && !Array.isArray(x))) : (data || {});
+    const listaProductos = Array.isArray(raiz.productos) ? raiz.productos : [];
+    const listaCarriers = Array.isArray(raiz.carriers) ? raiz.carriers : [];
+
+    return listaCarriers
+        .filter(c => String(c.BolsaID ?? "") === BOLSA_SERVICIOS)
+        .map(c => {
+            const campo = (Array.isArray(c.Campos) ? c.Campos : []).find(x => String(x.Campo || "") === "referencia") || {};
+            const productos = listaProductos
+                .filter(p => String(p.CarrierID ?? "") === String(c.ID) && String(p.BolsaID ?? "") === BOLSA_SERVICIOS && String(p.Codigo || "").trim())
+                .map(p => ({ codigo: String(p.Codigo).trim(), monto: montoDeTexto(p.Monto) || 0, nombre: String(p.Nombre || "").trim() }))
+                .sort((a, b) => a.monto - b.monto);
+
+            return {
+                id: String(c.ID),
+                nombre: String(c.Nombre || "").trim(),
+                logo: String(c.Logotipo || ""),
+                categoria: /gift/i.test(String(c.Categoria || "")) ? "GiftCards" : "Servicios",
+                libre: String(c.Tipo ?? "0") === "1",
+                cargo: Number(c.Comision?.CargoTrans) || 0,
+                campo: { nombre: String(campo.Nombre || "Referencia").trim(), min: Number(campo.Min) || 1, max: Number(campo.Max) || 30, alfanumerico: String(campo.Formato ?? "1") === "2" },
+                productos
+            };
+        })
+        .filter(s => s.nombre && s.productos.length);
+}
+
 function carrierDe(operadora) {
     return CARRIER_IDS[operadora] || (/^c\d+$/.test(operadora) ? operadora.slice(1) : null);
 }
@@ -98,7 +137,7 @@ function codigoDeProducto(productos, operadora, monto) {
 }
 
 function filaPublica(f) {
-    return { id: f.id, operadora: f.operadora, numero: f.numero, monto: Number(f.monto), comision: f.comision != null ? Number(f.comision) : 0, estado: f.estado, folio: f.folio || "", mensaje: f.mensaje || "", t: new Date(f.created_at).getTime() };
+    return { id: f.id, operadora: f.operadora, numero: f.numero, monto: Number(f.monto), comision: f.comision != null ? Number(f.comision) : 0, estado: f.estado, folio: f.folio || "", mensaje: f.mensaje || "", t: new Date(f.created_at).getTime(), tipo: f.tipo || "recarga", cargo: f.cargo != null ? Number(f.cargo) : 0, pin: f.pin || "" };
 }
 
 function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
@@ -113,7 +152,7 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
     const obtenerCliente = () => { if (!cliente) cliente = fabricarCliente(); return cliente; };
 
     let cacheSaldo = { t: 0, datos: null };
-    let cacheCatalogo = { t: 0, productos: [], carriers: [] };
+    let cacheCatalogo = { t: 0, productos: [], carriers: [], servicios: [] };
     const enVuelo = new Set(); // negocio:numero: un mismo numero no recibe dos recargas a la vez
 
     function negocioId(req) {
@@ -154,7 +193,7 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
 
         const r = await obtenerCliente().getProducts();
 
-        if (r.ok) cacheCatalogo = { t: Date.now(), ...normalizarCatalogo(r.data) };
+        if (r.ok) cacheCatalogo = { t: Date.now(), ...normalizarCatalogo(r.data), servicios: normalizarServicios(r.data) };
 
         return cacheCatalogo;
     }
@@ -195,8 +234,8 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
             const real = await exigirReal(req, res);
             if (!real) return;
 
-            const { productos, carriers } = await catalogo();
-            res.json({ ok: true, productos, carriers });
+            const { productos, carriers, servicios } = await catalogo();
+            res.json({ ok: true, productos, carriers, servicios: servicios || [] });
         } catch (error) {
             responderError(res, error);
         }
@@ -265,7 +304,8 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
             const transID = String(envio.data?.transID || "");
             await pool.query(`UPDATE public.recargas_transacciones SET trans_id = $2, estado = 'enviada', updated_at = NOW() WHERE id = $1`, [fila.id, transID]);
 
-            const resultado = await esperar(obtenerCliente(), transID, { desde });
+            const fechaTaecel = /^d{4}-d{2}-d{2}/.test(String(envio.data?.fecha || "")) ? String(envio.data.fecha).slice(0, 10) : fechaMexico();
+            const resultado = await esperar(obtenerCliente(), transID, { desde, fecha: fechaTaecel });
             const d = resultado.datos || {};
             const estado = resultado.estado === "exitosa" ? "exitosa" : resultado.estado === "fallida" ? "fallida" : "pendiente";
             const mensaje = estado === "fallida" ? resultado.mensaje : estado === "pendiente" ? "Taecel aún no confirma esta recarga. Se sigue consultando." : "";
@@ -286,7 +326,105 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
         }
     });
 
-    // Una recarga que quedo pendiente: se le vuelve a preguntar a Taecel (no mas de una vez cada 5 s por recarga).
+    // Pago de un servicio (CFE, Telmex, agua...) o compra de una tarjeta de regalo. Mismas reglas de seguridad que las recargas: token anti doble cobro,
+    // una sola operacion a la vez por referencia, y el codigo del producto sale SIEMPRE del catalogo de Taecel.
+    app.post("/recargas/pagar", requerirAccesoNegocio, permiso, async (req, res) => {
+        let llave = null;
+
+        try {
+            const real = await exigirReal(req, res);
+            if (!real) return;
+
+            await asegurarTabla(pool);
+
+            const token = String(req.body?.token || "").trim().slice(0, 64);
+            const carrierId = String(req.body?.carrierId || "").trim();
+            const codigoPedido = String(req.body?.producto || "").trim();
+            const montoPedido = Number(req.body?.monto);
+
+            if (!/^[A-Za-z0-9_-]{8,64}$/.test(token)) { res.status(400).json({ ok: false, error: "Falta el identificador del pago." }); return; }
+
+            const { servicios: lista } = await catalogo().catch(() => ({ servicios: [] }));
+            const servicio = (lista || []).find(s => s.id === carrierId);
+
+            if (!servicio) { res.status(400).json({ ok: false, error: "Ese servicio no está disponible." }); return; }
+
+            const referencia = servicio.campo.alfanumerico ? String(req.body?.referencia || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase() : String(req.body?.referencia || "").replace(/\D/g, "");
+
+            if (referencia.length < servicio.campo.min || referencia.length > servicio.campo.max) {
+                const largo = servicio.campo.min === servicio.campo.max ? `${servicio.campo.min}` : `${servicio.campo.min} a ${servicio.campo.max}`;
+                res.status(400).json({ ok: false, error: `${servicio.campo.nombre} lleva ${largo} ${servicio.campo.alfanumerico ? "caracteres" : "dígitos"}.` });
+                return;
+            }
+
+            let producto;
+            let monto;
+
+            if (servicio.libre) {
+                producto = servicio.productos[0];
+                monto = Math.round(montoPedido * 100) / 100;
+
+                if (!Number.isFinite(montoPedido) || Math.abs(montoPedido * 100 - Math.round(montoPedido * 100)) > 1e-6) { res.status(400).json({ ok: false, error: "El monto lleva máximo 2 decimales." }); return; }
+                if (monto < 1 || monto > MONTO_MAXIMO_SERVICIO) { res.status(400).json({ ok: false, error: `El monto va de $1 a ${MONTO_MAXIMO_SERVICIO.toLocaleString("es-MX")}.` }); return; }
+            } else {
+                producto = servicio.productos.find(p => p.codigo === codigoPedido);
+
+                if (!producto) { res.status(400).json({ ok: false, error: "Ese monto no está disponible para esta tarjeta." }); return; }
+
+                monto = producto.monto;
+            }
+
+            const previa = (await pool.query(`SELECT * FROM public.recargas_transacciones WHERE negocio_id = $1 AND token = $2`, [real.id, token])).rows[0];
+            if (previa) { res.json({ ok: previa.estado === "exitosa", repetida: true, recarga: filaPublica(previa), error: previa.estado === "exitosa" ? undefined : previa.mensaje || "Ese pago ya se intentó." }); return; }
+
+            llave = `${real.id}:${servicio.id}:${referencia}`;
+            if (enVuelo.has(llave)) { llave = null; res.status(409).json({ ok: false, error: "Ya hay un pago en proceso para esa referencia." }); return; }
+            enVuelo.add(llave);
+
+            const tipo = servicio.categoria === "GiftCards" ? "giftcard" : "servicio";
+            const usuario = req.empleadoActual?.nombre || req.negocioAutenticado?.usuario_nombre || null;
+            const fila = (await pool.query(
+                `INSERT INTO public.recargas_transacciones (negocio_id, token, operadora, numero, monto, producto, usuario_nombre, tipo, cargo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+                [real.id, token, `c${servicio.id}`, referencia, monto, producto.codigo, usuario, tipo, servicio.cargo || 0]
+            )).rows[0];
+
+            const desde = Date.now();
+            const envio = await obtenerCliente().requestTXN({ producto: producto.codigo, referencia, ...(servicio.libre ? { monto } : {}) });
+
+            if (!envio.ok) {
+                const incierto = Boolean(envio.red);
+                const mensaje = incierto ? "No se pudo confirmar con Taecel. Revisa el reporte de ventas antes de repetir este pago." : mensajeDeError(envio.error, envio.mensaje);
+                const actualizada = (await pool.query(`UPDATE public.recargas_transacciones SET estado = $2, codigo_error = $3, mensaje = $4, updated_at = NOW() WHERE id = $1 RETURNING *`, [fila.id, incierto ? "verificar" : "fallida", envio.error || null, mensaje])).rows[0];
+                res.json({ ok: false, error: mensaje, recarga: filaPublica(actualizada) });
+                return;
+            }
+
+            const transID = String(envio.data?.transID || "");
+            await pool.query(`UPDATE public.recargas_transacciones SET trans_id = $2, estado = 'enviada', updated_at = NOW() WHERE id = $1`, [fila.id, transID]);
+
+            const fechaTaecel = /^\d{4}-\d{2}-\d{2}/.test(String(envio.data?.fecha || "")) ? String(envio.data.fecha).slice(0, 10) : fechaMexico();
+            const resultado = await esperar(obtenerCliente(), transID, { desde, fecha: fechaTaecel });
+            const d = resultado.datos || {};
+            const estado = resultado.estado === "exitosa" ? "exitosa" : resultado.estado === "fallida" ? "fallida" : "pendiente";
+            const mensaje = estado === "fallida" ? resultado.mensaje : estado === "pendiente" ? "Taecel aún no confirma este pago. Se sigue consultando." : "";
+
+            const actualizada = (await pool.query(
+                `UPDATE public.recargas_transacciones
+                 SET estado = $2, folio = $3, comision = $4, saldo_final = $5, codigo_error = $6, mensaje = $7, cargo = COALESCE($8, cargo), pin = $9, ultima_consulta = NOW(), updated_at = NOW()
+                 WHERE id = $1 RETURNING *`,
+                [fila.id, estado, d.Folio || null, montoDeTexto(d.Comision ?? d["Comisión"]), montoDeTexto(d["Saldo Final"]), resultado.error || null, mensaje || null, montoDeTexto(d.Cargo), String(d.pin || "").trim() || null]
+            )).rows[0];
+
+            cacheSaldo = { t: 0, datos: null };
+            res.json({ ok: estado === "exitosa", pendiente: estado === "pendiente", error: estado === "exitosa" ? undefined : mensaje, recarga: filaPublica(actualizada) });
+        } catch (error) {
+            responderError(res, error);
+        } finally {
+            if (llave) enVuelo.delete(llave);
+        }
+    });
+
+    // Una recarga que quedo pendiente: se le vuelve a preguntar a Taecel por getSales (nunca por statusTXN: ya se acabo su tiempo), no mas de una vez cada 10 s.
     app.get("/recargas/:id", requerirAccesoNegocio, permiso, async (req, res) => {
         try {
             const real = await exigirReal(req, res);
@@ -301,13 +439,13 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
 
             if (fila.estado !== "pendiente" || !fila.trans_id || reciente) { res.json({ ok: true, recarga: filaPublica(fila) }); return; }
 
-            const r = interpretarEstado(await obtenerCliente().statusTXN(fila.trans_id));
+            const r = await consultarVenta(obtenerCliente(), fila.trans_id, fechaMexico(fila.created_at)).catch(() => ({ estado: "desconocido", datos: null }));
 
             if (r.estado === "exitosa" || r.estado === "fallida") {
                 const d = r.datos || {};
                 const actualizada = (await pool.query(
-                    `UPDATE public.recargas_transacciones SET estado = $2, folio = $3, comision = $4, saldo_final = $5, codigo_error = $6, mensaje = $7, ultima_consulta = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *`,
-                    [fila.id, r.estado, d.Folio || null, montoDeTexto(d.Comision ?? d["Comisión"]), montoDeTexto(d["Saldo Final"]), r.error || null, r.mensaje || null]
+                    `UPDATE public.recargas_transacciones SET estado = $2, folio = $3, comision = $4, saldo_final = $5, codigo_error = $6, mensaje = $7, pin = COALESCE($8, pin), ultima_consulta = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *`,
+                    [fila.id, r.estado, d.Folio || null, montoDeTexto(d.Comision ?? d["Comisión"]), montoDeTexto(d["Saldo Final"]), r.error || null, r.mensaje || null, String(d.pin || "").trim() || null]
                 )).rows[0];
                 cacheSaldo = { t: 0, datos: null };
                 res.json({ ok: true, recarga: filaPublica(actualizada) });
@@ -324,6 +462,7 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
 
 module.exports = instalar;
 module.exports.normalizarCatalogo = normalizarCatalogo;
+module.exports.normalizarServicios = normalizarServicios;
 module.exports.codigoDeProducto = codigoDeProducto;
 module.exports.MONTO_MINIMO = MONTO_MINIMO;
 module.exports.MONTO_MAXIMO = MONTO_MAXIMO;

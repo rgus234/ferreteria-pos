@@ -6,7 +6,8 @@ const express = require("express");
 const pool = require("../db");
 const { crearNegocioPrueba, borrarNegocioPrueba } = require("./helpers/negocio-prueba");
 const simulado = require("./helpers/taecel-simulado");
-const { crearCliente, esperarResultado, interpretarEstado, mensajeDeError, montoDeTexto } = require("../taecel-cliente");
+const { normalizarServicios } = require("../recargas-server");
+const { crearCliente, esperarResultado, consultarVenta, interpretarEstado, mensajeDeError, montoDeTexto, INTERVALO_CONSULTA_MS, TIEMPO_MAXIMO_MS, TIEMPO_REQUEST_MS, TIEMPO_STATUS_MS } = require("../taecel-cliente");
 const instalarRecargas = require("../recargas-server");
 
 let taecel;
@@ -119,16 +120,49 @@ test("cliente: fallas del carrier (codigo 1 y 3) y producto inexistente", async 
     assert.equal(inexistente.error, 3133);
 });
 
-test("cliente: si en 60 s no hay resultado queda PENDIENTE (nunca se da por fallida) y no pasa de una consulta cada 5 s", async () => {
+test("cliente: si en 60 s no hay resultado queda PENDIENTE (nunca se da por fallida), consulta cada 3 s y al terminar deja de mandar statusTXN", async () => {
     const cliente = crearCliente({ url: taecel.url, key: taecel.key, nip: taecel.nip });
     const envio = await cliente.requestTXN({ producto: "TEL010", referencia: "5555555999" });
     let reloj = 0;
-    const antes = taecel.llamadas.filter(l => l.metodo === "statusTXN").length;
-    const final = await esperarResultado(cliente, envio.data.transID, { dormir: async ms => { reloj += ms; }, ahora: () => reloj, desde: 0 });
+    const desde = taecel.llamadas.length;
+    const final = await esperarResultado(cliente, envio.data.transID, { dormir: async ms => { reloj += ms; }, ahora: () => reloj, desde: 0, fecha: "2026-11-06" });
 
     assert.equal(final.estado, "pendiente");
-    const consultas = taecel.llamadas.filter(l => l.metodo === "statusTXN").length - antes;
-    assert.ok(consultas >= 12 && consultas <= 13, `unas 12 consultas en 60 s (fueron ${consultas})`);
+    const nuevas = taecel.llamadas.slice(desde);
+    const consultas = nuevas.filter(l => l.metodo === "statusTXN").length;
+    assert.ok(consultas >= 19 && consultas <= 21, `unas 20 consultas en 60 s, una cada 3 s (fueron ${consultas})`);
+    assert.equal(reloj / (consultas - 1), 3000, "3 s entre consultas");
+    assert.equal(nuevas.filter(l => l.metodo === "getSales").length, 1, "al terminar el tiempo se consulta getSales una vez");
+    assert.equal(nuevas[nuevas.length - 1].metodo, "getSales", "despues del limite ya no se manda statusTXN");
+});
+
+test("cliente: la primera consulta de statusTXN es inmediata (sin esperar) y el limite se cuenta desde requestTXN", async () => {
+    const cliente = crearCliente({ url: taecel.url, key: taecel.key, nip: taecel.nip });
+    const envio = await cliente.requestTXN({ producto: "TEL010", referencia: "5555555999" });
+    const pausas = [];
+    let reloj = 58000; // ya pasaron 58 s desde requestTXN
+    await esperarResultado(cliente, envio.data.transID, { dormir: async ms => { pausas.push(ms); reloj += ms; }, ahora: () => reloj, desde: 0 });
+    assert.deepEqual(pausas, [], "con 58 s ya gastados no cabe otra espera de 3 s: se corta despues de la primera consulta");
+});
+
+test("cliente: si statusTXN se queda En proceso, getSales da el resultado final y NO se sigue consultando statusTXN", async () => {
+    const cliente = crearCliente({ url: taecel.url, key: taecel.key, nip: taecel.nip });
+    const envio = await cliente.requestTXN({ producto: "TEL050", referencia: "5555555998" });
+    let reloj = 0;
+    const final = await esperarResultado(cliente, envio.data.transID, { dormir: async ms => { reloj += ms; }, ahora: () => reloj, desde: 0, fecha: "2026-11-06" });
+    assert.equal(final.estado, "exitosa");
+    assert.equal(final.datos.Folio, "555111");
+
+    const pendiente = await cliente.requestTXN({ producto: "TEL010", referencia: "5555555999" });
+    assert.equal((await consultarVenta(cliente, pendiente.data.transID, "2026-11-06")).estado, "proceso", "getSales En proceso sigue pendiente");
+    assert.equal((await consultarVenta(cliente, "999999", "2026-11-06")).estado, "desconocido", "si no aparece no se da por fallida");
+});
+
+test("cliente: tiempos por peticion (requestTXN 30 s, statusTXN 9 s: dentro del rango de 5 a 10 s de Taecel)", () => {
+    assert.equal(TIEMPO_REQUEST_MS, 30000);
+    assert.equal(TIEMPO_STATUS_MS, 9000);
+    assert.equal(INTERVALO_CONSULTA_MS, 3000);
+    assert.equal(TIEMPO_MAXIMO_MS, 60000);
 });
 
 test("cliente: sin conexion a Taecel no se sabe si proceso: se marca como red, no como fallida", async () => {
@@ -267,4 +301,68 @@ test("normalizarCatalogo lee la forma real de getProducts (campos con mayuscula,
     assert.equal(codigoDeProducto([], "telcel", 50), null, "sin catalogo no se adivina ningun codigo");
     assert.equal(codigoDeProducto(productos, "inventada", 30), null);
     assert.deepEqual(normalizarCatalogo(null), { productos: [], carriers: [] });
+});
+
+const pagar = (datos, opciones = {}) => api("/recargas/pagar", { metodo: "POST", cuerpo: { token: `tok-pago-${Date.now()}-${++numeroToken}`, ...datos }, ...opciones });
+
+test("catalogo: separa los servicios y las tarjetas de regalo, con la referencia que pide cada uno", async () => {
+    const r = await api("/recargas/productos");
+    assert.equal(r.estado, 200);
+    const sky = r.cuerpo.servicios.find(s => s.nombre === "SKY");
+    const gp = r.cuerpo.servicios.find(s => s.nombre === "Google Play");
+    assert.equal(sky.categoria, "Servicios");
+    assert.equal(sky.libre, true);
+    assert.equal(sky.cargo, 5);
+    assert.deepEqual([sky.campo.min, sky.campo.max], [12, 12]);
+    assert.equal(gp.categoria, "GiftCards");
+    assert.equal(gp.libre, false);
+    assert.deepEqual(gp.productos.map(p => p.monto), [50, 100]);
+    assert.ok(!r.cuerpo.servicios.some(s => s.nombre === "Telcel"), "el tiempo aire no es un servicio");
+    assert.deepEqual(normalizarServicios(null), []);
+});
+
+test("pagar: un servicio de monto libre (con centavos) se paga y guarda su cargo", async () => {
+    const r = await pagar({ carrierId: "200", referencia: "871235412600", monto: 131.4 });
+    assert.equal(r.estado, 200);
+    assert.equal(r.cuerpo.ok, true);
+    assert.equal(r.cuerpo.recarga.tipo, "servicio");
+    assert.equal(r.cuerpo.recarga.monto, 131.4);
+    assert.equal(r.cuerpo.recarga.cargo, 5);
+    const enviada = taecel.llamadas.filter(l => l.metodo === "requestTXN" && l.parametros.referencia === "871235412600").pop();
+    assert.equal(enviada.parametros.producto, "SKY000", "el codigo sale del catalogo");
+    assert.equal(enviada.parametros.monto, "131.4");
+});
+
+test("pagar: una tarjeta de regalo regresa el codigo (pin) y no manda monto", async () => {
+    const r = await pagar({ carrierId: "211", producto: "GPLAY50", referencia: "4421234567" });
+    assert.equal(r.cuerpo.ok, true);
+    assert.equal(r.cuerpo.recarga.tipo, "giftcard");
+    assert.equal(r.cuerpo.recarga.monto, 50);
+    assert.equal(r.cuerpo.recarga.pin, "TEST-AAAAA-BBBBB-CCCCC");
+    const enviada = taecel.llamadas.filter(l => l.metodo === "requestTXN" && l.parametros.referencia === "4421234567").pop();
+    assert.equal(enviada.parametros.monto, undefined, "las tarjetas son de monto fijo: no se manda monto");
+});
+
+test("pagar: valida la referencia, el monto y el catalogo antes de hablar con Taecel", async () => {
+    const antes = solicitudes();
+    assert.match((await pagar({ carrierId: "200", referencia: "123", monto: 100 })).cuerpo.error, /12 dígitos/);
+    assert.match((await pagar({ carrierId: "200", referencia: "871235412600", monto: 0 })).cuerpo.error, /monto va de/i);
+    assert.match((await pagar({ carrierId: "200", referencia: "871235412600", monto: 10.123 })).cuerpo.error, /2 decimales/);
+    assert.equal((await pagar({ carrierId: "200", referencia: "871235412600", monto: 60000 })).estado, 400);
+    assert.equal((await pagar({ carrierId: "999", referencia: "871235412600", monto: 100 })).estado, 400, "servicio inexistente");
+    assert.equal((await pagar({ carrierId: "211", producto: "GPLAY999", referencia: "4421234567" })).estado, 400, "monto que no existe en el catalogo");
+    assert.equal((await pagar({ carrierId: "211", producto: "GPLAY50", referencia: "44212" })).estado, 400, "referencia corta");
+    assert.equal(solicitudes(), antes, "nada de eso llega a Taecel");
+});
+
+test("pagar: el mismo token no vuelve a cobrar, y otro negocio sin la funcion real no paga", async () => {
+    const token = `tok-unico-${Date.now()}`;
+    const primero = await pagar({ token, carrierId: "200", referencia: "871235412611", monto: 50 });
+    const antes = solicitudes();
+    const segundo = await pagar({ token, carrierId: "200", referencia: "871235412611", monto: 50 });
+    assert.equal(primero.cuerpo.ok, true);
+    assert.equal(segundo.cuerpo.repetida, true);
+    assert.equal(solicitudes(), antes, "no se vuelve a mandar a Taecel");
+    const ajenoR = await pagar({ carrierId: "200", referencia: "871235412622", monto: 50 }, { negocioId: ajeno.negocioId });
+    assert.equal(ajenoR.estado, 409, "el negocio fuera de TAECEL_NEGOCIOS no paga");
 });

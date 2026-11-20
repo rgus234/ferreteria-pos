@@ -7,13 +7,17 @@
 //
 // Reglas que impone Taecel y que este cliente respeta:
 //   * Una recarga exitosa genera cargo y NO se puede cancelar ni reversar. Por eso requestTXN jamas se reintenta a ciegas.
-//   * Despues de requestTXN se consulta statusTXN: primera consulta enseguida y luego cada 5 s, hasta 60 s desde el envio.
-//   * "En proceso" ya genero cargo: se sigue consultando; si se acaba el tiempo queda PENDIENTE (nunca se da por fallida).
+//   * Despues de requestTXN se consulta statusTXN: primera consulta ENSEGUIDA (sin esperar) y luego cada 3 s, hasta 60 s contados desde que se manda requestTXN.
+//   * Tiempos por peticion: requestTXN hasta 30 s; statusTXN hasta 9 s (Taecel pide 5 a 10 s; si no responde, se corta y se vuelve a intentar).
+//   * "En proceso" ya genero cargo: se sigue consultando; si se acaba el tiempo se DEJAN de mandar statusTXN y se consulta una vez getSales (ventas del dia).
+//     Si getSales sigue en proceso queda PENDIENTE (nunca se da por fallida) y se vuelve a preguntar mas tarde, siempre por getSales.
 //   * getProducts se consulta poco (una vez al dia basta).
 
-const INTERVALO_CONSULTA_MS = 5000;
-const TIEMPO_MAXIMO_MS = 60000;
-const TIEMPO_LLAMADA_MS = 15000;
+const INTERVALO_CONSULTA_MS = 3000; // pausa entre una consulta de statusTXN y la siguiente
+const TIEMPO_MAXIMO_MS = 60000; // desde que se manda requestTXN
+const TIEMPO_REQUEST_MS = 30000; // limite de una peticion requestTXN
+const TIEMPO_STATUS_MS = 9000; // limite de una peticion statusTXN (Taecel pide entre 5 y 10 s; 9 s deja margen para que nunca pase de 10)
+const TIEMPO_LLAMADA_MS = 15000; // las demas (saldo, productos, ventas)
 
 // Codigos del proveedor (1-9) y del servicio web (403, 405, 3129, 3133, 8888), tal como los describe la documentacion.
 const MENSAJES = {
@@ -51,8 +55,10 @@ function normalizarBase(url) {
     return String(url || "").trim().replace(/\/+$/, "").replace(/\/api$/i, "");
 }
 
-function crearCliente({ url, key, nip, fetchImpl = fetch, tiempoLlamadaMs = TIEMPO_LLAMADA_MS }) {
+function crearCliente({ url, key, nip, fetchImpl = fetch, tiempoLlamadaMs = null }) {
     const base = normalizarBase(url);
+    const limites = { requestTXN: TIEMPO_REQUEST_MS, statusTXN: TIEMPO_STATUS_MS };
+    const limiteDe = metodo => (tiempoLlamadaMs != null ? tiempoLlamadaMs : limites[metodo] || TIEMPO_LLAMADA_MS);
 
     if (!base || !key || !nip) throw new Error("Faltan los datos de conexion con Taecel (url, key y nip).");
 
@@ -60,7 +66,7 @@ function crearCliente({ url, key, nip, fetchImpl = fetch, tiempoLlamadaMs = TIEM
     async function llamar(metodo, parametros = {}) {
         const cuerpo = new URLSearchParams({ key, nip, ...parametros });
         const control = new AbortController();
-        const temporizador = setTimeout(() => control.abort(), tiempoLlamadaMs);
+        const temporizador = setTimeout(() => control.abort(), limiteDe(metodo));
 
         try {
             const respuesta = await fetchImpl(`${base}/api/${metodo}`, {
@@ -107,8 +113,27 @@ function interpretarEstado(respuesta) {
     return { estado: "desconocido", datos };
 }
 
+// Busca una transaccion en las ventas del dia (getSales). Es la consulta que se usa cuando ya se acabo el tiempo de statusTXN.
+// La fecha es la de Taecel (YYYY-MM-DD). Solo se da por fallida si la venta dice claramente que fracaso; si no aparece, queda "desconocido".
+async function consultarVenta(cliente, transID, fecha) {
+    const r = await cliente.getSales(fecha);
+    const lista = r && r.ok && Array.isArray(r.data) ? r.data : [];
+    const fila = lista.find(x => String(x.TransID ?? x.transID ?? "") === String(transID));
+
+    if (!fila) return { estado: "desconocido", datos: null };
+
+    const status = String(fila.Status ?? fila.status ?? "").toLowerCase();
+
+    if (status.includes("exitosa")) return { estado: "exitosa", datos: fila };
+    if (status.includes("proceso") || status.includes("pendiente")) return { estado: "proceso", datos: fila };
+    if (status.includes("fracas") || status.includes("fallid") || status.includes("rechaz")) return { estado: "fallida", datos: fila, error: 0, mensaje: fila.Nota || "La recarga no se completó." };
+
+    return { estado: "desconocido", datos: fila };
+}
+
 // Consulta el resultado de una transaccion respetando los tiempos de Taecel. `ahora` y `dormir` se pueden cambiar en las pruebas.
-async function esperarResultado(cliente, transID, { intervaloMs = INTERVALO_CONSULTA_MS, maximoMs = TIEMPO_MAXIMO_MS, dormir = dormirReal, ahora = Date.now, desde = ahora() } = {}) {
+// `desde` es el momento en que se mando requestTXN (el maximo se cuenta desde ahi). `fecha` (YYYY-MM-DD) es para la consulta por getSales al terminar el tiempo.
+async function esperarResultado(cliente, transID, { intervaloMs = INTERVALO_CONSULTA_MS, maximoMs = TIEMPO_MAXIMO_MS, dormir = dormirReal, ahora = Date.now, desde = ahora(), fecha = null } = {}) {
     let ultimo = { estado: "desconocido", datos: null };
 
     for (;;) {
@@ -121,8 +146,15 @@ async function esperarResultado(cliente, transID, { intervaloMs = INTERVALO_CONS
         await dormir(intervaloMs);
     }
 
-    // Se acabo el tiempo sin resultado final: PENDIENTE. Si estaba "en proceso" ya hay cargo; se vuelve a consultar despues.
+    // Se acabo el tiempo: ya NO se manda mas statusTXN. Una consulta a getSales; si sigue en proceso, queda pendiente (el cargo ya existe).
+    if (fecha && typeof cliente.getSales === "function") {
+        const venta = await consultarVenta(cliente, transID, fecha).catch(() => null);
+
+        if (venta && (venta.estado === "exitosa" || venta.estado === "fallida")) return venta;
+        if (venta && venta.estado === "proceso") return { estado: "pendiente", datos: venta.datos, enProceso: true };
+    }
+
     return { estado: "pendiente", datos: ultimo.datos, enProceso: ultimo.estado === "proceso" };
 }
 
-module.exports = { crearCliente, esperarResultado, interpretarEstado, mensajeDeError, montoDeTexto, MENSAJES, INTERVALO_CONSULTA_MS, TIEMPO_MAXIMO_MS };
+module.exports = { crearCliente, esperarResultado, consultarVenta, interpretarEstado, mensajeDeError, montoDeTexto, MENSAJES, INTERVALO_CONSULTA_MS, TIEMPO_MAXIMO_MS, TIEMPO_REQUEST_MS, TIEMPO_STATUS_MS };
