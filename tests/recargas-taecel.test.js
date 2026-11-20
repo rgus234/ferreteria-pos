@@ -366,3 +366,23 @@ test("pagar: el mismo token no vuelve a cobrar, y otro negocio sin la funcion re
     const ajenoR = await pagar({ carrierId: "200", referencia: "871235412622", monto: 50 }, { negocioId: ajeno.negocioId });
     assert.equal(ajenoR.estado, 409, "el negocio fuera de TAECEL_NEGOCIOS no paga");
 });
+
+test("pagar: una tarjeta de marca con limite (Google Play) no pasa de $2,000 al dia por celular, y otra marca o celular no se afecta", async () => {
+    const celular = "4425550000";
+    await pool.query(
+        `INSERT INTO public.recargas_transacciones (negocio_id, token, operadora, numero, monto, producto, estado, tipo) VALUES ($1, $2, 'c211', $3, 1950, 'GOO01', 'exitosa', 'giftcard')`,
+        [negocio.negocioId, `tok-limite-${Date.now()}`, celular]
+    );
+
+    const antes = solicitudes();
+    const pasa = await pagar({ carrierId: "211", producto: "GOO01", referencia: celular });
+    assert.equal(pasa.estado, 400);
+    assert.match(pasa.cuerpo.error, /1,950.*Google Play.*2,000/s);
+    assert.equal(solicitudes(), antes, "no se manda a Taecel una venta que la marca va a bloquear");
+
+    const cabe = await pagar({ carrierId: "211", producto: "GPLAY50", referencia: celular });
+    assert.equal(cabe.cuerpo.ok, true, "$1,950 + $50 llega justo a $2,000: todavia cabe");
+
+    const otroCelular = await pagar({ carrierId: "211", producto: "GOO01", referencia: "4425550001" });
+    assert.equal(otroCelular.cuerpo.ok, true, "otro celular no se ve afectado");
+});

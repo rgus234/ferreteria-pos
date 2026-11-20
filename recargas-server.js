@@ -32,6 +32,9 @@ const CARRIER_IDS = { telcel: "1", movistar: "2", att: "5", unefon: "4", bait: "
 const BOLSA_TIEMPO_AIRE = "1";
 const BOLSA_SERVICIOS = "2"; // pago de servicios y tarjetas de regalo (GiftCards): otro saldo, otras reglas
 const MONTO_MAXIMO_SERVICIO = 50000;
+// Marcas que no dejan que un mismo celular reciba mas de $2,000 al dia (ids de Taecel: Amazon, Netflix, Google Play, Uber).
+const TARJETAS_CON_LIMITE = ["166", "87", "211", "147"];
+const LIMITE_DIARIO_TARJETA = 2000;
 
 let tablaLista = false;
 
@@ -376,6 +379,21 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
 
             const previa = (await pool.query(`SELECT * FROM public.recargas_transacciones WHERE negocio_id = $1 AND token = $2`, [real.id, token])).rows[0];
             if (previa) { res.json({ ok: previa.estado === "exitosa", repetida: true, recarga: filaPublica(previa), error: previa.estado === "exitosa" ? undefined : previa.mensaje || "Ese pago ya se intentó." }); return; }
+
+            // Amazon, Netflix, Google Play y Uber: la marca bloquea la venta si un mismo celular recibe mas de $2,000 en un dia (aviso de Taecel, 2026-11-20).
+            if (servicio.categoria === "GiftCards" && TARJETAS_CON_LIMITE.includes(servicio.id)) {
+                const ya = Number((await pool.query(
+                    `SELECT COALESCE(SUM(monto), 0) AS total FROM public.recargas_transacciones
+                      WHERE negocio_id = $1 AND tipo = 'giftcard' AND numero = $2 AND operadora = $3 AND estado IN ('exitosa', 'pendiente', 'enviada')
+                        AND (created_at AT TIME ZONE 'America/Mexico_City')::date = (NOW() AT TIME ZONE 'America/Mexico_City')::date`,
+                    [real.id, referencia, `c${servicio.id}`]
+                )).rows[0].total);
+
+                if (ya + monto > LIMITE_DIARIO_TARJETA) {
+                    res.status(400).json({ ok: false, error: `Ese celular ya recibió $${ya.toLocaleString("es-MX")} hoy en ${servicio.nombre}. Las marcas no dejan pasar de $${LIMITE_DIARIO_TARJETA.toLocaleString("es-MX")} al día por número: usa el celular del cliente.` });
+                    return;
+                }
+            }
 
             llave = `${real.id}:${servicio.id}:${referencia}`;
             if (enVuelo.has(llave)) { llave = null; res.status(409).json({ ok: false, error: "Ya hay un pago en proceso para esa referencia." }); return; }

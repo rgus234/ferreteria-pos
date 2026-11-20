@@ -73,6 +73,18 @@
     };
     const MONTO_MAXIMO_SERVICIO = 50000;
 
+    // Taecel (2026-11-20): Amazon, Netflix, Google Play y Uber no dejan que un mismo celular reciba mas de $2,000 al dia; al llegar al tope la venta se bloquea.
+    const TARJETAS_CON_LIMITE = ["166", "87", "211", "147"];
+    const LIMITE_DIARIO_TARJETA = 2000;
+
+    function recibidoHoy(carrierId, numero) {
+        const hoyTexto = new Date().toDateString();
+
+        return datos.historial
+            .filter(r => r.tipo === "giftcard" && r.numero === numero && r.operadora === `c${carrierId}` && ["exitosa", "pendiente"].includes(r.estado) && new Date(r.t).toDateString() === hoyTexto)
+            .reduce((suma, r) => suma + Number(r.monto), 0);
+    }
+
     const plano = texto => String(texto || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
     const listaSvc = () => (catalogo && catalogo.servicios && catalogo.servicios.length ? catalogo.servicios : modoPantalla === "demostracion" ? SERVICIOS_DEMO : []);
     const servicioPorId = id => listaSvc().find(s => s.id === String(id)) || SERVICIOS_DEMO.find(s => s.id === String(id)) || null;
@@ -582,6 +594,11 @@
         if (!svcProducto() || monto < 1) return "Falta el monto.";
         if (monto > MONTO_MAXIMO_SERVICIO) return `El monto máximo es ${entero(MONTO_MAXIMO_SERVICIO)}.`;
         if (svcTotal() > (datos.saldoServicios || 0)) return "Saldo de servicios insuficiente.";
+
+        if (s.categoria === "GiftCards" && TARJETAS_CON_LIMITE.includes(s.id)) {
+            const ya = recibidoHoy(s.id, svc.referencia);
+            if (ya + monto > LIMITE_DIARIO_TARJETA) return `Ese celular ya recibió ${entero(ya)} hoy en ${s.nombre} (tope ${entero(LIMITE_DIARIO_TARJETA)} al día). Usa el celular del cliente.`;
+        }
         return "";
     }
 
@@ -668,7 +685,7 @@
 
         return `<section class="rc-paso rc-p rc-p2">
             <h3>${esc(s.campo.nombre)}</h3>
-            <p class="rc-sub">${tarjeta ? "Taecel pide el celular del cliente para esta compra. El código aparece en pantalla al terminar." : "Cópialo tal como viene en el recibo."} Lleva ${largo} ${s.campo.alfanumerico ? "caracteres" : "dígitos"}.</p>
+            <p class="rc-sub">${tarjeta ? "Pon el celular del cliente: Taecel le manda el código por SMS (aquí también aparece, por si no le llega). Amazon, Netflix, Google Play y Uber: máximo $2,000 al día por número." : "Cópialo tal como viene en el recibo."} Lleva ${largo} ${s.campo.alfanumerico ? "caracteres" : "dígitos"}.</p>
             <div class="rc-numero rc-svc-ref ${valida ? "rc-ok" : ""}">
                 <input id="rcSvcRef" style="background:transparent !important;border:0 !important;box-shadow:none !important;padding:0" type="text" inputmode="${s.campo.alfanumerico ? "text" : "numeric"}" autocomplete="off" maxlength="${s.campo.max}" placeholder="${"0".repeat(Math.min(s.campo.max, 12))}" value="${esc(svc.referencia)}" aria-label="${esc(s.campo.nombre)}">
                 <i class="rc-check" aria-hidden="true">✓</i>
@@ -716,6 +733,7 @@
                 ${svcCargo() ? `<div class="rc-linea"><span>Comisión por servicio</span><b>${dinero(svcCargo())}</b></div>` : ""}
                 <div class="rc-linea rc-total"><span>Cobrar al cliente</span><b>${dinero(svcTotal())}</b></div>
             </div>
+            ${tarjeta ? `<p class="rc-promo">📲 Taecel le manda el código por SMS al ${esc(formatoNumero(svc.referencia))}. Aquí también va a salir, por si no le llega.</p>` : ""}
             ${error ? `<p class="rc-error" role="alert">${esc(error)}</p>` : ""}
             ${problema
                 ? `<button type="button" class="rc-recargar rc-incompleto" disabled>${esc(problema)}</button>`
@@ -832,7 +850,7 @@
                 <span class="rc-chip-op" style="--rc-color:#0f766e">${marca(s ? s.id : "", nombre.charAt(0).toUpperCase(), "rc-chica")}${esc(nombre)}</span>
                 <h3 id="rcConfTit">¿${tarjeta ? "Es este el número" : "Es correcta la referencia"}?</h3>
                 <div class="rc-digitos rc-digitos-largo" aria-label="${esc(svc.referencia)}">${(tarjeta ? formatoNumero(svc.referencia) : grupos(svc.referencia)).split("").map((c, i) => `<span style="--i:${i}">${c === " " ? "&nbsp;" : esc(c)}</span>`).join("")}</div>
-                <p>${tarjeta ? "Taecel pide este celular para la compra. Revísalo con el cliente." : "Compárala con el recibo del cliente: un pago a una referencia equivocada no se puede regresar."}</p>
+                <p>${tarjeta ? "Taecel le manda el código por SMS a este celular: tiene que ser el del cliente. Revísalo con él." : "Compárala con el recibo del cliente: un pago a una referencia equivocada no se puede regresar."}</p>
                 <div class="rc-conf-botones"><button type="button" data-rc="corregir">Corregir</button><button type="button" class="rc-principal" data-rc="confirmar-numero">Sí, es correcta</button></div>
             </div>` };
         }
@@ -872,6 +890,7 @@
                 ${esTarjeta(r) ? (r.pin
                     ? `<div class="rc-pin"><span>Código de la tarjeta</span><b id="rcPin">${esc(r.pin)}</b><button type="button" data-rc="copiar-pin">Copiar código</button></div>`
                     : `<div class="rc-pin rc-pin-falta"><span>El código aún no llega</span><button type="button" data-rc="consultar" data-id="${esc(r.id)}">Consultar el código</button></div>`) : ""}
+                ${esTarjeta(r) ? `<p class="rc-cap-detalle">📲 Taecel también se lo manda por SMS al celular del cliente. Si no le llega, dale este código.</p>` : ""}
                 <div class="rc-ticket">
                     <div><span>${esTarjeta(r) ? "Celular del cliente" : esc(sr ? sr.campo.nombre : "Referencia")}</span><b class="rc-mono">${esc(esTarjeta(r) ? formatoNumero(r.numero) : grupos(r.numero))}</b></div>
                     ${r.cargo ? `<div><span>Comisión por servicio</span><b>${dinero(r.cargo)}</b></div><div><span>Cobrado al cliente</span><b>${dinero(total)}</b></div>` : ""}
