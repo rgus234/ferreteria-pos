@@ -228,7 +228,7 @@
             });
         }
 
-        const visibles = HUBS.filter(h => h.directo ? disponible(original(h.directo)) : totalTarjetas(h) > 0);
+        const visibles = HUBS.filter(h => h.directo ? disponible(original(h.directo)) : totalTarjetas(h) > 0).filter(h => !(h.id === "productos" && document.body.classList.contains("solo-mostrador"))); // en "Solo lo necesario" el inventario es Mi mercancia
         const huella = visibles.map(h => h.id + ":" + valorDe(h.etiqueta)).join("|");
 
         if (nav.dataset.huella !== huella || nav.children.length !== visibles.length) {

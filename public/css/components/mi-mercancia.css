@@ -137,3 +137,12 @@ body.oscuro .mm-error { background: rgba(239, 68, 68, .2); color: #fecaca; }
 /* lo oculto se queda oculto aunque la caja tenga su propio display */
 .mm-sugerencias[hidden], .mm-error[hidden] { display: none; }
 .si-tarjeta { align-content: start; }
+
+/* Inicio sencillo: el texto del encabezado se pierde si otra regla global pinta h2/p/span de oscuro; el id lo asegura. */
+#pantallaSoloInicio .si-hero h2 { color: #fff !important; } /* theme-runtime.css pinta todos los h2 con !important */
+#pantallaSoloInicio .si-hero p { color: rgba(255, 255, 255, .92); opacity: 1; }
+#pantallaSoloInicio .si-hero .si-numeros span { color: #fff; background: rgba(255, 255, 255, .2); }
+#pantallaSoloInicio .si-tarjeta b { color: #0f172a; }
+body.oscuro #pantallaSoloInicio .si-tarjeta b { color: #f1f5f9; }
+.si-tarjeta .si-icono svg { width: 32px; height: 32px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+body.solo-mostrador .mos-chip { display: none !important; } /* ya esta en el menu de la izquierda */

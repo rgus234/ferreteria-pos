@@ -7,6 +7,8 @@
     const activo = () => typeof window.funcionBeta === "function" && window.funcionBeta("solo_mostrador");
     const esc = valor => String(valor == null ? "" : valor).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     let instalado = false;
+    // Iconos de linea (en vez de emojis, que se ven genericos). Son fijos: no llevan datos del usuario.
+    const ICONOS = {"mostrador":"<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 12V4h8l10 10-8 8z\"/><circle cx=\"7.5\" cy=\"8.5\" r=\"1.2\"/></svg>","mercancia":"<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M21 8 12 3 3 8v8l9 5 9-5z\"/><path d=\"M3 8l9 5 9-5M12 13v8\"/></svg>","recargas":"<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"7\" y=\"2\" width=\"10\" height=\"20\" rx=\"2.5\"/><path d=\"M11 18h2\"/></svg>","proveedores":"<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M2 6h12v10H2zM14 10h4l3 3v3h-7\"/><circle cx=\"6.5\" cy=\"17.5\" r=\"1.8\"/><circle cx=\"17.5\" cy=\"17.5\" r=\"1.8\"/></svg>","acabando":"<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 3 2 20h20z\"/><path d=\"M12 10v5M12 18h.01\"/></svg>"};
 
     function aplicarClase() {
         document.body.classList.toggle("solo-mostrador", activo());
@@ -41,18 +43,18 @@
         const hoy = window.nexoMiMercancia ? window.nexoMiMercancia.hoy() : 0;
 
         const tarjetas = [
-            { icono: "🏷️", titulo: "Mostrador de precios", texto: "Escaneas un producto y ves su foto y su precio en grande, para enseñárselo al cliente.", accion: "mostrador" },
-            { icono: "📦", titulo: "Meter mi mercancía", texto: "Escaneas cada producto y solo le pones el precio. Nexo ya conoce su nombre y su foto.", accion: "mercancia" },
-            { icono: "📱", titulo: "Recargas y servicios", texto: "Tiempo aire, luz, teléfono y tarjetas de regalo.", accion: "recargas" },
-            { icono: "🚚", titulo: "Mis proveedores", texto: "A quién le compras y cuándo viene.", accion: "proveedores" },
-            { icono: "⚠️", titulo: "Se está acabando", texto: "Lo que ya casi no tienes y conviene pedir.", accion: "acabando", etiqueta: numeros && numeros.acabando ? `${numeros.acabando} por pedir` : "" }
+            { icono: ICONOS.mostrador, titulo: "Mostrador de precios", texto: "Escaneas un producto y ves su foto y su precio en grande, para enseñárselo al cliente.", accion: "mostrador" },
+            { icono: ICONOS.mercancia, titulo: "Meter mi mercancía", texto: "Escaneas cada producto y solo le pones el precio. Nexo ya conoce su nombre y su foto.", accion: "mercancia" },
+            { icono: ICONOS.recargas, titulo: "Recargas y servicios", texto: "Tiempo aire, luz, teléfono y tarjetas de regalo.", accion: "recargas" },
+            { icono: ICONOS.proveedores, titulo: "Mis proveedores", texto: "A quién le compras y cuándo viene.", accion: "proveedores" },
+            { icono: ICONOS.acabando, titulo: "Se está acabando", texto: "Lo que ya casi no tienes y conviene pedir.", accion: "acabando", etiqueta: numeros && numeros.acabando ? `${numeros.acabando} por pedir` : "" }
         ];
 
         raiz.innerHTML = `<div class="si-shell">
             <section class="si-hero">
                 <h2>Hola, ${esc(nombreNegocio())}</h2>
                 <p>Aquí tienes lo que necesitas, sin complicaciones.</p>
-                <div class="si-numeros">${numeros ? `<span>${numeros.total} productos</span>${hoy ? `<span>${hoy} metidos hoy</span>` : ""}` : ""}</div>
+                <div class="si-numeros">${numeros ? `<span>${numeros.total} ${numeros.total === 1 ? "producto" : "productos"}</span>${hoy ? `<span>${hoy} ${hoy === 1 ? "metido" : "metidos"} hoy</span>` : ""}` : ""}</div>
             </section>
             ${sinProductos ? `<section class="si-paso"><div><b>Empieza por aquí: mete tu mercancía</b><p>Pasa cada producto por el escáner y ponle su precio. Mientras más metas, más útil es el mostrador.</p></div><button type="button" data-accion="mercancia">Empezar ahora</button></section>` : ""}
             <section class="si-tarjetas">${tarjetas.map((t, i) => `<button type="button" class="si-tarjeta" data-accion="${t.accion}" style="--i:${i}"><span class="si-icono" aria-hidden="true">${t.icono}</span><b>${esc(t.titulo)}</b><span class="si-texto">${esc(t.texto)}</span>${t.etiqueta ? `<em>${esc(t.etiqueta)}</em>` : ""}</button>`).join("")}</section>
