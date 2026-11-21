@@ -38,13 +38,18 @@
 .mos-vacio { text-align: center; color: #64748b; }
 .mos-vacio h1 { font-size: 44px; color: #334155; margin: 12px 0; }
 .mos-vacio p { font-size: 22px; margin: 6px 0; }
-.mos-vacio-icono { font-size: 64px; letter-spacing: 6px; color: #94a3b8; }
+.mos-vacio-icono { display: flex; justify-content: center; }
+.mos-vacio-icono svg { width: 200px; height: 100px; }
+.mos-barras rect { fill: #94a3b8; }
+.mos-laser { fill: #ef4444; filter: drop-shadow(0 0 4px rgba(239, 68, 68, .9)); animation: mos-laser 2.2s ease-in-out infinite alternate; }
+@keyframes mos-laser { from { transform: translateY(-22px); } to { transform: translateY(26px); } }
 .mos-desconocido h1 { color: #b45309; }
 
 .mos-carrito { position: absolute; right: 26px; bottom: 26px; display: flex; align-items: center; gap: 14px; border: 0; border-radius: 22px; background: #0f172a; color: #fff; padding: 16px 26px; font-size: 24px; cursor: pointer; box-shadow: 0 14px 36px rgba(15, 23, 42, .35); }
 .mos-carrito strong { font-size: 32px; }
-.mos-carrito-icono { font-size: 28px; }
-#mosCarritoCant { background: #1d5fd1; border-radius: 999px; min-width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; padding: 0 8px; }
+.mos-carrito-icono { display: inline-flex; }
+.mos-carrito-icono svg { width: 30px; height: 30px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#mosCarritoCant { color: #fff; background: #1d5fd1; border-radius: 999px; min-width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; padding: 0 8px; }
 .mos-pulso { animation: mos-pulso .35s ease; }
 @keyframes mos-pulso { 0% { transform: scale(1); } 40% { transform: scale(1.1); } 100% { transform: scale(1); } }
 
@@ -84,3 +89,9 @@ html.mostrador-abierto, html.mostrador-abierto body { overflow: hidden; }
 /* Dentro del pie de la barra lateral: ocupa su lugar en vez de flotar encima de la version y el "Con la tecnologia de" */
 .sidebar-footer .mos-chip { position: static; width: 100%; padding: 9px 12px; border: 1px solid rgba(255, 255, 255, .12); border-radius: 12px; background: rgba(255, 255, 255, .06); color: rgba(255, 255, 255, .85); text-align: center; box-shadow: none; opacity: 1; }
 .sidebar-footer .mos-chip:hover { background: rgba(255, 255, 255, .12); }
+
+/* "Solo lo necesario": carrito mas discreto cuando esta vacio, y boton para dar de alta lo que no se conoce */
+.mos-agregar { margin-top: 18px; border: 0; border-radius: 16px; background: #1d5fd1; color: #fff; font-size: 24px; font-weight: 700; padding: 18px 38px; cursor: pointer; }
+.mos-agregar:hover { background: #164fb0; }
+body.solo-mostrador .mos-carrito.mos-vacio-carrito { padding: 10px 18px; font-size: 18px; opacity: .9; }
+body.solo-mostrador .mos-carrito.mos-vacio-carrito strong { font-size: 22px; }

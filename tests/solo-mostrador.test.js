@@ -135,3 +135,12 @@ test("la pantalla de Mi mercancia usa solo rutas que ya existen y no manda nada 
     assert.match(js, /Enter guarda/);
     assert.ok(!/localStorage\.setItem\("nexo[A-Za-z]*Token/.test(js), "no toca tokens");
 });
+
+test("el mostrador de Rinconada: lo que no conoce se da de alta ahi mismo, y el cambio de aspecto no depende de emojis", () => {
+    const mos = leer("public/js/mostrador.js");
+    assert.match(mos, /id="mosAgregar"/);
+    assert.match(mos, /nexoMiMercancia\.abrirConCodigo\(codigo\)/);
+    assert.match(mos, /solo\(\) && window\.nexoMiMercancia/, "el boton solo sale en modo solo-mostrador; los demas negocios siguen igual");
+    assert.ok(!mos.includes("🛒") && !mos.includes("▮"), "ni emoji de carrito ni cuadros de texto");
+    assert.match(leer("public/js/mi-mercancia.js"), /abrirConCodigo/);
+});

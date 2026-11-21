@@ -409,5 +409,8 @@
         pintarLista();
     };
 
-    window.nexoMiMercancia = { productos: () => productos, recargar: cargarProductos, hoy: leerHoy };
+    // El mostrador de precios manda aqui el codigo que no conoce: se abre Mi mercancia con ese codigo ya escaneado.
+    async function abrirConCodigo(codigo) { await window.mostrarMiMercancia(); await alEscanear(String(codigo || "")); }
+
+    window.nexoMiMercancia = { abrirConCodigo, productos: () => productos, recargar: cargarProductos, hoy: leerHoy };
 })();

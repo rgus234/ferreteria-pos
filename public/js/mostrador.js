@@ -38,7 +38,7 @@
                 });
             });
             const n = raiz?.querySelector("#mosTotalProductos");
-            if (n) n.textContent = `${lista.length} productos`;
+            if (n) n.textContent = `${lista.length} ${lista.length === 1 ? "producto" : "productos"}`;
         } catch (e) { /* se queda con lo que ya tenia */ }
     }
 
@@ -56,7 +56,7 @@
             <div id="mosSugerencias" class="mos-sugerencias" hidden></div>
             <div id="mosEscena" class="mos-escena"></div>
             <button type="button" id="mosCarrito" class="mos-carrito" title="Ver la cuenta (F2)">
-                <span class="mos-carrito-icono" aria-hidden="true">🛒</span>
+                <span class="mos-carrito-icono"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 3h3l2.6 12.4a1 1 0 0 0 1 .8h8.8a1 1 0 0 0 1-.8L20 7H6"/><circle cx="9.5" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg></span>
                 <span id="mosCarritoCant">0</span>
                 <strong id="mosCarritoTotal">$0.00</strong>
             </button>
@@ -89,7 +89,11 @@
         raiz.querySelector("#mosCarrito").addEventListener("click", () => alternarPanel());
         raiz.querySelector("#mosCerrarPanel").addEventListener("click", () => alternarPanel(false));
         raiz.querySelector("#mosNueva").addEventListener("click", nuevaCuenta);
-        raiz.querySelector("#mosEscena").addEventListener("click", e => { if (e.target.closest("#mosSumar")) sumarActual(); });
+        raiz.querySelector("#mosEscena").addEventListener("click", e => {
+            if (e.target.closest("#mosSumar")) sumarActual();
+            const agregar = e.target.closest("#mosAgregar");
+            if (agregar && window.nexoMiMercancia) { const codigo = agregar.dataset.codigo; cerrar(true); window.nexoMiMercancia.abrirConCodigo(codigo); }
+        });
         raiz.querySelector("#mosLista").addEventListener("click", e => {
             const b = e.target.closest("button[data-acc]");
             if (!b) return;
@@ -130,15 +134,16 @@
         const p = porCodigo.get(codigoNorm(t));
 
         if (p) {
+            sonido(true);
             mostrar(p);
             if (raiz.querySelector("#mosAuto").checked) sumarActual();
             return;
         }
 
-        if (/^\d{6,}$/.test(t)) { actual = { desconocido: t }; pintarEscena(); return; }
+        if (/^\d{6,}$/.test(t)) { actual = { desconocido: t }; sonido(false); pintarEscena(); return; }
 
         const r = buscar(t);
-        if (r.length) mostrar(r[0]); else { actual = { desconocido: t }; pintarEscena(); }
+        if (r.length) { sonido(true); mostrar(r[0]); } else { actual = { desconocido: t }; sonido(false); pintarEscena(); }
     }
 
     function buscar(texto) {
@@ -175,16 +180,30 @@
         }
     }
 
+    // En un negocio con "Solo lo necesario" lo que no se conoce se puede dar de alta ahi mismo.
+    function solo() { return document.body.classList.contains("solo-mostrador"); }
+
+    // Pitido corto: agudo al encontrar, grave si no existe. Solo en "Solo lo necesario" (no cambia el mostrador de los demas).
+    function sonido(bien) {
+        if (!solo()) return;
+        try {
+            const ctx = (sonido.ctx = sonido.ctx || new (window.AudioContext || window.webkitAudioContext)());
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.frequency.value = bien ? 880 : 220; o.type = "sine"; g.gain.value = .08;
+            o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + (bien ? .09 : .22));
+        } catch (e) { /* sin audio */ }
+    }
+
     function pintarEscena() {
         const e = raiz.querySelector("#mosEscena");
 
         if (!actual) {
-            e.innerHTML = `<div class="mos-vacio"><div class="mos-vacio-icono" aria-hidden="true">▮▯▮▮▯▮</div><h1>Pasa el producto por el lector</h1><p>Verás su foto y su precio aquí.</p></div>`;
+            e.innerHTML = `<div class="mos-vacio"><div class="mos-vacio-icono"><svg viewBox="0 0 120 60" aria-hidden="true"><g class="mos-barras"><rect x="4" y="4" width="3" height="52" rx=".6"/><rect x="10" y="4" width="1.5" height="52" rx=".6"/><rect x="14" y="4" width="5" height="52" rx=".6"/><rect x="22" y="4" width="2" height="52" rx=".6"/><rect x="27" y="4" width="1.5" height="52" rx=".6"/><rect x="32" y="4" width="4" height="52" rx=".6"/><rect x="40" y="4" width="1.5" height="52" rx=".6"/><rect x="45" y="4" width="3" height="52" rx=".6"/><rect x="52" y="4" width="1.5" height="52" rx=".6"/><rect x="57" y="4" width="5" height="52" rx=".6"/><rect x="65" y="4" width="2" height="52" rx=".6"/><rect x="70" y="4" width="1.5" height="52" rx=".6"/><rect x="75" y="4" width="4" height="52" rx=".6"/><rect x="83" y="4" width="2" height="52" rx=".6"/><rect x="88" y="4" width="1.5" height="52" rx=".6"/><rect x="93" y="4" width="5" height="52" rx=".6"/><rect x="101" y="4" width="2" height="52" rx=".6"/><rect x="106" y="4" width="3" height="52" rx=".6"/><rect x="112" y="4" width="1.5" height="52" rx=".6"/></g><rect class="mos-laser" x="0" y="28" width="120" height="2.4" rx="1.2"/></svg></div><h1>Pasa el producto por el lector</h1><p>Verás su foto y su precio aquí.</p></div>`;
             return;
         }
 
         if (actual.desconocido) {
-            e.innerHTML = `<div class="mos-vacio mos-desconocido"><h1>Producto no registrado</h1><p>El código <strong>${esc(actual.desconocido)}</strong> no está en el inventario.</p><p>Avisa al encargado.</p></div>`;
+            e.innerHTML = `<div class="mos-vacio mos-desconocido"><h1>${solo() ? "No lo tengo registrado" : "Producto no registrado"}</h1><p>El código <strong>${esc(actual.desconocido)}</strong> no está en el inventario.</p>${solo() && window.nexoMiMercancia ? `<button type="button" id="mosAgregar" class="mos-agregar" data-codigo="${esc(actual.desconocido)}">Agregarlo ahora</button>` : "<p>Avisa al encargado.</p>"}</div>`;
             return;
         }
 
@@ -217,6 +236,7 @@
         const total = cuenta.reduce((s, c) => s + c.precio * c.cant, 0);
         const piezas = cuenta.reduce((s, c) => s + c.cant, 0);
         raiz.querySelector("#mosCarritoCant").textContent = piezas;
+        raiz.querySelector("#mosCarrito").classList.toggle("mos-vacio-carrito", piezas === 0);
         raiz.querySelector("#mosCarritoTotal").textContent = dinero(total);
         raiz.querySelector("#mosPanelTotal").textContent = dinero(total);
         raiz.querySelector("#mosLista").innerHTML = cuenta.length
