@@ -443,16 +443,19 @@ function asistentePregunta(clave, titulo, opciones) {
 
 function asistentePintarVende() {
  const siNo = [{ valor: "si", etiqueta: "Si" }, { valor: "no", etiqueta: "No" }];
+ // Abarrotes, papeleria y vinateria venden a un solo precio (el publico): no se les pregunta por medio mayoreo ni distribuidor.
+ const unSoloPrecio = ["abarrotes", "papeleria", "vinateria"].includes(asistente.perfil);
+ if (unSoloPrecio) asistente.nivelPrecio = "publico";
 
  document.getElementById("asistenteTitulo").textContent = "¿Como vendes?";
  document.getElementById("asistenteCuerpo").innerHTML = `
   <p>Ya te dejamos marcado lo mas comun para tu giro. Cambia lo que no aplique.</p>
-  <div class="asistente-pregunta">
+  ${unSoloPrecio ? "" : `<div class="asistente-pregunta">
    <strong>¿A que precio vendes normalmente en el mostrador?</strong>
    <div class="asistente-opciones">
     ${ASISTENTE_NIVELES_PRECIO.map(n => `<button type="button" class="asistente-chip" data-nivel="${n.id}" aria-pressed="${asistente.nivelPrecio === n.id}" onclick="asistenteElegirNivel('${n.id}')">${asistenteEsc(n.etiqueta)}</button>`).join("")}
    </div>
-  </div>
+  </div>`}
   ${asistentePregunta("granel", "¿Vendes por peso o a granel?", siNo)}
   ${asistentePregunta("fiado", "¿Das fiado (credito) a tus clientes?", siNo)}
   ${asistentePregunta("caducidad", "¿Controlas fechas de caducidad?", siNo)}

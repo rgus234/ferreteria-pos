@@ -363,7 +363,7 @@ function ciPintarRapida() {
     ${ciCabecera("Carga rápida", "Escribe el nombre o escanea el código de barras. Elige el producto, pon cuántos tienes y presiona Enter.", { atras: true })}
     <div class="ci-rapida">
         <div class="ci-buscador">
-            <input id="ciBuscador" type="search" autocomplete="off" placeholder="Ej. martillo, cinta métrica, 7501206604571…" value="${ciEscapar(ciEstado.termino)}" oninput="ciAlEscribir(this.value)" onkeydown="ciAlTeclearBuscador(event)">
+            <input id="ciBuscador" type="search" autocomplete="off" placeholder="${typeof perfilEsSimple === "function" && perfilEsSimple() ? "Ej. galletas, refresco, 7501206604571…" : "Ej. martillo, cinta métrica, 7501206604571…"}" value="${ciEscapar(ciEstado.termino)}" oninput="ciAlEscribir(this.value)" onkeydown="ciAlTeclearBuscador(event)">
         </div>
         <div id="ciResultados" class="ci-resultados"></div>
         ${n ? `
