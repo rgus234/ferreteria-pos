@@ -144,3 +144,20 @@ test("el mostrador de Rinconada: lo que no conoce se da de alta ahi mismo, y el 
     assert.ok(!mos.includes("🛒") && !mos.includes("▮"), "ni emoji de carrito ni cuadros de texto");
     assert.match(leer("public/js/mi-mercancia.js"), /abrirConCodigo/);
 });
+
+test("el celular (/dueno): la version sencilla solo se enciende con la funcion, usa las rutas de siempre y esta en el cache de la app", () => {
+    const js = leer("public/dueno-solo.js");
+    assert.match(js, /funciones\.solo_mostrador === true/, "solo con la funcion encendida");
+    ["/productos", "/explorar-nexo/buscar", "/explorar-nexo/foto/", "/agregar-producto", "/edicion-rapida", "/ajustes-inventario", "/generar-codigo"].forEach(ruta => assert.ok(js.includes(ruta), `usa ${ruta}`));
+    assert.match(js, /iniciarLectorCodigosDueno/, "usa la camara de siempre");
+    assert.match(js, /abrirRecargasDueno/, "las recargas son el modulo de siempre");
+
+    const css = leer("public/dueno-solo.css");
+    assert.match(css, /html\.dueno-solo #duenoTabs \{ display: none/, "la barra de siempre solo se oculta con la clase del modo");
+
+    const html = leer("public/dueno.html");
+    const sw = leer("public/dueno-sw.js");
+    assert.ok(html.includes("dueno-solo.js") && html.includes("dueno-solo.css"));
+    assert.ok(sw.includes("/dueno-solo.js") && sw.includes("/dueno-solo.css"), "esta en el cache del service worker");
+    assert.ok(html.indexOf("dueno-recargas.js") < html.indexOf("dueno-solo.js"), "despues de recargas");
+});

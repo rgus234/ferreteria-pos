@@ -1,0 +1,121 @@
+/* "Solo lo necesario" en el celular. Todo cuelga de html.dueno-solo / #dsRaiz: sin la funcion encendida no se aplica nada.
+   Usa las variables de dueno.css (--bg, --surface, --text, --muted, --line, --brand, --green...) para que el modo oscuro salga solo. */
+#dsRaiz[hidden] { display: none !important; }
+.ds-raiz { position: fixed; inset: 0; z-index: 60; pointer-events: none; font-family: inherit; }
+.ds-raiz svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* La barra de siempre se reemplaza por la sencilla */
+html.dueno-solo #duenoTabs { display: none !important; }
+html.dueno-solo .dueno-tabs { display: none !important; }
+
+.ds-pantalla { pointer-events: auto; position: absolute; inset: 0 0 68px 0; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--bg, #f4f6fb); color: var(--text, #0f172a); padding: 14px 14px 28px; }
+.ds-pantalla[hidden] { display: none !important; }
+
+.ds-nav { pointer-events: auto; position: absolute; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--surface, #fff); border-top: 1px solid var(--line, #e6eaf1); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
+.ds-nav button { display: grid; justify-items: center; gap: 2px; border: 0; background: transparent; color: var(--muted, #66738a); font-size: 11.5px; font-weight: 700; padding: 6px 2px; border-radius: 12px; cursor: pointer; }
+.ds-nav button.activo { color: var(--brand, #2563ff); background: var(--brand-soft, #eaf0ff); }
+.ds-nav svg { width: 24px; height: 24px; }
+
+/* Encabezados */
+.ds-hero { display: grid; gap: 4px; padding: 20px 20px 18px; border-radius: 24px; background: linear-gradient(135deg, #0f2a4a, #0f766e 70%, #14b8a6); color: #fff; }
+.ds-hero h2 { margin: 0; font-size: 24px; font-weight: 800; color: #fff !important; }
+.ds-hero p { margin: 0; font-size: 14px; color: rgba(255, 255, 255, .92); }
+.ds-numeros { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ds-numeros span { padding: 4px 12px; border-radius: 999px; background: rgba(255, 255, 255, .2); color: #fff; font-size: 12.5px; font-weight: 800; }
+.ds-numeros.ds-claro span { background: var(--surface-soft, #f1f4f9); color: var(--muted, #66738a); }
+.ds-cab { margin-bottom: 10px; }
+.ds-cab h2 { margin: 0; font-size: 22px; font-weight: 800; color: var(--text, #0f172a) !important; }
+.ds-cab p { margin: 2px 0 0; font-size: 13.5px; color: var(--muted, #66738a); }
+
+/* Inicio */
+.ds-paso { display: grid; gap: 2px; width: 100%; margin-top: 12px; padding: 14px 16px; text-align: left; border: 2px dashed var(--brand, #2563ff); border-radius: 18px; background: var(--brand-soft, #eaf0ff); color: var(--text, #0f172a); cursor: pointer; }
+.ds-paso span { color: var(--muted, #66738a); font-size: 13px; }
+.ds-tarjetas { display: grid; gap: 10px; margin-top: 12px; }
+.ds-tarjeta { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; text-align: left; border: 1px solid var(--line, #e6eaf1); border-radius: 20px; background: var(--surface, #fff); color: var(--text, #0f172a); cursor: pointer; }
+.ds-icono { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 16px; background: linear-gradient(135deg, #0f766e, #14b8a6); }
+.ds-icono svg { stroke: #fff; width: 28px; height: 28px; }
+.ds-t-cuerpo { display: grid; gap: 2px; }
+.ds-t-cuerpo b { font-size: 16.5px; }
+.ds-t-cuerpo small { color: var(--muted, #66738a); font-size: 13px; line-height: 1.3; }
+.ds-tarjeta em { padding: 2px 10px; border-radius: 999px; background: #fee2e2; color: #b91c1c; font-size: 12px; font-style: normal; font-weight: 800; }
+
+/* Barra de escaneo y camara */
+.ds-barra { display: flex; gap: 8px; }
+.ds-barra input { flex: 1; min-width: 0; font-size: 17px; padding: 13px 14px; border: 2px solid var(--line, #e6eaf1); border-radius: 14px; background: var(--surface, #fff); color: var(--text, #0f172a); outline: none; }
+.ds-barra input:focus { border-color: var(--brand, #2563ff); }
+.ds-btn-camara { flex: 0 0 52px; display: grid; place-items: center; border: 0; border-radius: 14px; background: var(--brand, #2563ff); color: #fff; cursor: pointer; }
+.ds-btn-camara svg { stroke: #fff; }
+.ds-camara { position: relative; margin-top: 10px; border-radius: 18px; overflow: hidden; background: #000; }
+.ds-camara video { display: block; width: 100%; max-height: 42vh; object-fit: cover; }
+.ds-camara button { position: absolute; left: 10px; bottom: 10px; border: 0; border-radius: 999px; padding: 8px 16px; background: rgba(15, 23, 42, .75); color: #fff; font-weight: 700; }
+.ds-sugerencias { margin-top: 8px; border: 1px solid var(--line, #e6eaf1); border-radius: 14px; background: var(--surface, #fff); overflow: hidden; }
+.ds-sugerencias small { display: block; padding: 8px 14px 0; color: var(--muted, #66738a); }
+.ds-sugerencias button { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 13px 14px; border: 0; border-bottom: 1px solid var(--line, #e6eaf1); background: transparent; color: var(--text, #0f172a); font-size: 15px; text-align: left; cursor: pointer; }
+.ds-sugerencias strong { color: var(--brand, #2563ff); }
+.ds-sug-nuevo { color: var(--brand, #2563ff) !important; font-weight: 800; }
+
+/* Mostrador */
+.ds-escena { margin-top: 14px; }
+.ds-vacio { display: grid; justify-items: center; gap: 4px; padding: 26px 12px; text-align: center; color: var(--muted, #66738a); }
+.ds-vacio h3 { margin: 6px 0 0; font-size: 20px; color: var(--text, #0f172a) !important; }
+.ds-vacio p { margin: 0; font-size: 14px; }
+.ds-desconocido h3 { color: #b45309 !important; }
+.ds-barras svg { width: 150px; height: 76px; }
+.ds-barras rect { fill: #94a3b8; }
+.ds-laser { fill: #ef4444; filter: drop-shadow(0 0 4px rgba(239, 68, 68, .9)); animation: ds-laser 2.2s ease-in-out infinite alternate; }
+@keyframes ds-laser { from { transform: translateY(-22px); } to { transform: translateY(26px); } }
+.ds-producto { display: grid; justify-items: center; gap: 6px; text-align: center; }
+.ds-foto { display: grid; place-items: center; width: 100%; height: 34vh; max-height: 300px; border-radius: 22px; background: var(--surface, #fff); border: 1px solid var(--line, #e6eaf1); overflow: hidden; }
+.ds-foto img { max-width: 92%; max-height: 92%; object-fit: contain; }
+.ds-foto b { display: grid; place-items: center; width: 120px; height: 120px; border-radius: 50%; background: var(--surface-soft, #eef2f7); color: var(--muted, #66738a); font-size: 56px; }
+.ds-nombre { font-size: 22px; font-weight: 800; line-height: 1.15; }
+.ds-marca { color: var(--muted, #66738a); font-size: 15px; }
+.ds-precio { font-size: clamp(64px, 22vw, 110px); font-weight: 900; line-height: 1; color: var(--green, #16a34a); letter-spacing: -2px; }
+.ds-precio small { font-size: .3em; color: var(--muted, #66738a); font-weight: 700; letter-spacing: 0; }
+
+/* Mercancia */
+#dsFicha { margin-top: 12px; }
+.ds-ficha { display: grid; gap: 12px; padding: 16px; border: 2px solid var(--line, #e6eaf1); border-radius: 22px; background: var(--surface, #fff); }
+.ds-ficha-catalogo { border-color: #14b8a6; }
+.ds-ficha-nuevo { border-color: #f59e0b; }
+.ds-ficha-existe { border-color: var(--brand, #2563ff); }
+.ds-ficha-top { display: flex; align-items: center; gap: 12px; }
+.ds-mini { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 12px; overflow: hidden; background: var(--surface-soft, #eef2f7); color: var(--muted, #66738a); font-weight: 800; }
+.ds-mini img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.ds-mini-grande { flex-basis: 72px; width: 72px; height: 72px; border-radius: 16px; font-size: 28px; }
+.ds-etiqueta { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.ds-etiqueta-existe { background: var(--brand-soft, #eaf0ff); color: var(--brand, #2563ff); }
+.ds-etiqueta-catalogo { background: #ccfbf1; color: #0f766e; }
+.ds-etiqueta-nuevo { background: #fef3c7; color: #b45309; }
+.ds-codigo { display: block; margin-top: 4px; color: var(--muted, #66738a); font-size: 12.5px; }
+.ds-ficha label { display: grid; gap: 4px; }
+.ds-ficha label > span { color: var(--muted, #66738a); font-size: 12.5px; font-weight: 700; }
+.ds-ficha input { width: 100%; font-size: 18px; padding: 12px 12px; border: 2px solid var(--line, #e6eaf1); border-radius: 12px; background: var(--surface-soft, #f1f4f9); color: var(--text, #0f172a); outline: none; box-sizing: border-box; }
+.ds-ficha input:focus { border-color: var(--brand, #2563ff); background: var(--surface, #fff); }
+.ds-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ds-caja { position: relative; display: block; }
+.ds-caja i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-style: normal; color: var(--muted, #66738a); font-weight: 800; }
+.ds-caja i + input { padding-left: 28px; }
+.ds-error { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--red-soft, #fdecec); color: var(--red, #dc2626); font-size: 13.5px; font-weight: 700; }
+.ds-error[hidden] { display: none; }
+.ds-acciones { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.ds-primario { border: 0; border-radius: 14px; background: var(--brand, #2563ff); color: #fff; font-size: 17px; font-weight: 800; padding: 15px 22px; cursor: pointer; }
+.ds-primario:disabled { opacity: .6; }
+.ds-secundario { border: 0; border-radius: 14px; background: var(--surface-soft, #eef2f7); color: var(--text, #0f172a); font-size: 15px; font-weight: 700; padding: 15px 18px; cursor: pointer; }
+
+.ds-lista { margin-top: 18px; }
+.ds-lista-cab { display: grid; gap: 8px; margin-bottom: 8px; }
+.ds-lista-cab h3 { margin: 0; font-size: 16px; color: var(--text, #0f172a) !important; }
+.ds-lista-cab h3 small { color: var(--muted, #66738a); font-weight: 700; }
+.ds-lista-cab input { font-size: 16px; padding: 11px 14px; border: 2px solid var(--line, #e6eaf1); border-radius: 12px; background: var(--surface, #fff); color: var(--text, #0f172a); outline: none; }
+.ds-filtros { display: flex; gap: 8px; }
+.ds-filtros button { border: 1px solid var(--line, #e6eaf1); border-radius: 999px; background: var(--surface, #fff); color: var(--muted, #66738a); font-size: 13px; font-weight: 700; padding: 6px 14px; }
+.ds-filtros button.activo { background: var(--brand, #2563ff); border-color: var(--brand, #2563ff); color: #fff; }
+.ds-filas { display: grid; gap: 8px; }
+.ds-fila { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; text-align: left; border: 1px solid var(--line, #e6eaf1); border-radius: 16px; background: var(--surface, #fff); color: var(--text, #0f172a); cursor: pointer; }
+.ds-fila-info { display: grid; min-width: 0; }
+.ds-fila-info b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; }
+.ds-fila-info small, .ds-fila-precio small { color: var(--muted, #66738a); font-size: 12px; }
+.ds-fila-precio { display: grid; justify-items: end; font-weight: 800; }
+.ds-fila-precio small.ds-bajo { color: #b91c1c; font-weight: 800; }
+.ds-sin { color: var(--muted, #66738a); text-align: center; font-size: 13.5px; margin: 10px 0; }
