@@ -291,6 +291,9 @@
         else if (abierto && !window.funcionBeta?.("mostrador")) cerrar(true);
     }
 
+    // Para que el menu y el inicio sencillo (solo-mostrador.js) lo puedan abrir.
+    window.nexoMostrador = { abrir, cerrar: () => cerrar(true), estaAbierto: () => abierto };
+
     document.addEventListener("nexo-funciones-beta", alCambiarFunciones);
     // La barra lateral se arma despues de cargar: se vuelve a acomodar el boton cuando ya existe su pie.
     window.addEventListener("load", () => { setTimeout(pintarChip, 800); setTimeout(pintarChip, 3000); });

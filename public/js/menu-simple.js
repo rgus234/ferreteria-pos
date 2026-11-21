@@ -8,6 +8,9 @@
     // Cada tarjeta apunta al boton de siempre por su modulo (data-shell-module). "tam": g = grande, m = mediana, c = compacta.
     const HUBS = [
         { id: "inicio", etiqueta: "Inicio", icono: "home", directo: "inicio" },
+        // Solo existen para un negocio con "Solo lo necesario" (solo-mostrador.js): sus botones del menu de siempre estan ocultos para los demas.
+        { id: "mostrador", etiqueta: "Mostrador de precios", icono: "tag", directo: "mostrador-precios" },
+        { id: "mercancia", etiqueta: "Mi mercancía", icono: "inventory", directo: "mi-mercancia" },
         { id: "venta", etiqueta: "Vender", icono: "cart", directo: "venta" },
         { id: "recargas", etiqueta: "Recargas", icono: "phone", directo: "recargas" },
         {
@@ -181,11 +184,15 @@
     const pedidosUnicos = () => typeof perfilEsSimple === "function" && perfilEsSimple() && disponible(original("pedidos-unico"));
     const recepcionUnica = () => typeof perfilEsSimple === "function" && perfilEsSimple() && disponible(original("recibir-marca"));
 
+    // "Solo lo necesario" (negocios chicos): del menu solo quedan estos modulos. Nada se borra: al apagar la funcion vuelve todo.
+    const SOLO_MODULOS = new Set(["inicio", "mostrador-precios", "mi-mercancia", "recargas", "proveedores", "inventario-bajo", "configuracion", "cuenta"]);
+
     function disponible(boton) {
         if (!boton || boton.hidden) return false;
         if (boton.style.display === "none") return false;
 
         const cuerpo = document.body.classList;
+        if (cuerpo.contains("solo-mostrador") && !SOLO_MODULOS.has(boton.dataset.shellModule)) return false;
         if (boton.dataset.perfilOculto === "1" && cuerpo.contains("perfil-simple") && !cuerpo.contains("perfil-ver-todo")) return false;
         if (boton.classList.contains("solo-perfil-simple") && !cuerpo.contains("perfil-simple") && !cuerpo.contains("perfil-con-abarrotes")) return false;
         return true;

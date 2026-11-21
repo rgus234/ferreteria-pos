@@ -1468,6 +1468,8 @@ function ocultarPantallasPrincipales() {
  "pantallaArmado",
  "pantallaGafiCaptura",
  "pantallaRecargas",
+ "pantallaMiMercancia",
+ "pantallaSoloInicio",
  "pantallaMapaTienda",
  "pantallaRecibirMarca",
  "pantallaPedidosUnico",

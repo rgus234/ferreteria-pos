@@ -11,6 +11,7 @@
 //   bascula           Vender por importe ("quiero $50") y bascula digital con barra de color en la ventana de peso (abarrotes y ferreteria)
 //   gafi_captura      Pantalla "Gafi: codigos y fotos" (solo administrador): busca un producto de la lista de Gafi, guarda su codigo de barras y su foto
 //   recargas          Pantalla "Recargas" (tiempo aire): compañia, numero, monto y listo. Hoy en modo demostracion hasta conectar al proveedor
+//   solo_mostrador    "Solo lo necesario" (negocios chicos como La Rinconada): el menu se queda en Inicio sencillo, Mostrador de precios, Mi mercancia (escanear y poner precio), Recargas, Proveedores y Se esta acabando
 //   mostrador         Mostrador de precios: pantalla completa para un monitor junto a la caja (escaneas, ves foto y precio en grande, y vas sumando una cuenta). No cobra ni mueve inventario
 //   pedidos_unico     Pedidos (abarrotes): una sola puerta con Crear pedido (por marca), Sugerir pedido y Pedidos hechos
 //   agenda_pagos      Agenda de pagos a proveedores: lo que se recibe "a deber" queda como cuenta por pagar con su fecha limite (sugerida con los dias de credito del proveedor) y se ve en una agenda
@@ -36,6 +37,7 @@ const FUNCIONES = {
     gafi_captura: "Gafi: códigos y fotos",
     recargas: "Recargas",
     mostrador: "Mostrador de precios",
+    solo_mostrador: "Solo lo necesario: mostrador, mercancía y recargas",
     pedidos_unico: "Pedidos: crear, sugerir y hechos",
     agenda_pagos: "Agenda de pagos a proveedores",
     llegada_sin_factura: "Llegada sin factura",
@@ -58,7 +60,7 @@ async function asegurarColumna(pool) {
 // Un negocio con "_todas": true (solo se pone a mano en la base, p. ej. la cuenta de demostracion) recibe TODAS las funciones nuevas,
 // tambien las que se agreguen despues, sin tener que encenderlas; lo que su dueño apague a proposito (false) se respeta.
 // Estas NO se encienden solas con "_todas": cambian lo que imprime el ticket y lo que ve el cliente, asi que el negocio las prende a proposito.
-const SOLO_EXPLICITAS = ["autofactura"];
+const SOLO_EXPLICITAS = ["autofactura", "solo_mostrador"]; // solo_mostrador recorta el menu: JAMAS se enciende solo
 
 function limpiar(valor) {
     const salida = {};
