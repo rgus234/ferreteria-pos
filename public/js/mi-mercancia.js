@@ -167,7 +167,7 @@
             });
         });
 
-        el("mmPrecio").addEventListener("input", evento => { evento.target.value = evento.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1"); });
+        el("mmPrecio").addEventListener("input", evento => { evento.target.value = evento.target.value.replace(",", ".").replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1"); });
         el("mmStock").addEventListener("input", evento => { evento.target.value = evento.target.value.replace(/\D/g, ""); });
 
         zona.scrollIntoView({ block: "nearest", behavior: "smooth" });

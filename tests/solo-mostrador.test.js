@@ -170,3 +170,13 @@ test("el asistente de inicio de un negocio con Solo lo necesario es corto (negoc
     assert.match(js, /asistenteSoloModo && typeof window\.mostrarMiMercancia === "function"/, "el primer paso lleva a Mi mercancia");
     assert.match(js, /!asistenteSoloModo && window\.practicaNexo/, "no se ofrece la practica de venta");
 });
+
+test("un teclado con coma decimal (10,5) no rompe el precio ni el cobro mixto del celular", () => {
+    assert.ok(leer("public/dueno-solo.js").includes('.replace(",", ".").replace('), "la coma se vuelve punto antes de limpiar el precio");
+    assert.ok(leer("public/js/mi-mercancia.js").includes('.replace(",", ".").replace('), "la coma se vuelve punto antes de limpiar el precio");
+
+    const dueno = leer("public/dueno.js");
+    assert.match(dueno, /function numeroDecimalDueno/);
+    assert.match(dueno, /efectivo: numeroDecimalDueno\(document\.getElementById\("duenoVenderMixtoEfectivo"\)/);
+    assert.match(dueno, /recibido = numeroDecimalDueno\(document\.getElementById\("duenoVenderRecibido"\)/);
+});

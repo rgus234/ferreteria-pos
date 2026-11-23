@@ -380,7 +380,7 @@
 
         el("dsGuardar").addEventListener("click", guardar);
         el("dsCancelar").addEventListener("click", cancelar);
-        el("dsPrecio").addEventListener("input", e => { e.target.value = e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1"); });
+        el("dsPrecio").addEventListener("input", e => { e.target.value = e.target.value.replace(",", ".").replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1"); });
         el("dsStock").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, ""); });
         ["dsNombre", "dsPrecio", "dsStock"].forEach(id => el(id).addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); guardar(); } }));
 

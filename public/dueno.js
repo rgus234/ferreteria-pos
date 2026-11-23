@@ -4453,7 +4453,7 @@ function actualizarCambioVenderDueno() {
     resumenCarritoVenderDueno().total;
 
     const recibido =
-    Number(document.getElementById("duenoVenderRecibido")?.value || 0);
+    numeroDecimalDueno(document.getElementById("duenoVenderRecibido")?.value);
 
     // Verde con el cambio cuando alcanza, ambar con lo que falta cuando no, gris mientras no se escribe nada.
     const caja = document.getElementById("duenoVenderCambio");
@@ -4465,13 +4465,19 @@ function actualizarCambioVenderDueno() {
     document.getElementById("duenoVenderBotonConfirmarEfectivo").disabled = recibido < total;
 }
 
+// Un teclado con coma decimal ("10,5") daba NaN y el cobro mixto quedaba sin validar.
+function numeroDecimalDueno(valor) {
+    const numero = Number(String(valor == null ? "" : valor).trim().replace(",", "."));
+    return Number.isFinite(numero) ? numero : 0;
+}
+
 function actualizarMixtoVenderDueno() {
     const total =
     resumenCarritoVenderDueno().total;
 
     duenoVentaMixto = {
-        efectivo: Number(document.getElementById("duenoVenderMixtoEfectivo")?.value || 0),
-        tarjeta: Number(document.getElementById("duenoVenderMixtoTarjeta")?.value || 0)
+        efectivo: numeroDecimalDueno(document.getElementById("duenoVenderMixtoEfectivo")?.value),
+        tarjeta: numeroDecimalDueno(document.getElementById("duenoVenderMixtoTarjeta")?.value)
     };
 
     const suma =
@@ -4506,7 +4512,7 @@ async function confirmarCobroVenderDueno() {
     let cambio = 0;
 
     if (duenoVentaMetodoPago === "efectivo") {
-        recibido = Number(document.getElementById("duenoVenderRecibido")?.value || 0);
+        recibido = numeroDecimalDueno(document.getElementById("duenoVenderRecibido")?.value);
         cambio = Math.max(recibido - total, 0);
     }
 
