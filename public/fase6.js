@@ -674,6 +674,14 @@
  };
 
  window.confirmarCierreTurnoCajaPOS = async () => {
+  // Un corte sin el efectivo contado quedaba con una diferencia falsa (se tomaba como $0 contados).
+  const campoEfectivo = document.getElementById("cajaEfectivoContado");
+  if (campoEfectivo && String(campoEfectivo.value).trim() === "") {
+   if (typeof mostrarToastPOS === "function") mostrarToastPOS("Escribe cuanto efectivo contaste en la caja. Si no hay nada, pon 0.", { titulo: "Corte de caja", tipo: "advertencia" });
+   campoEfectivo.focus();
+   return;
+  }
+
   const ok = await confirmarPOS("Se guardara el corte y ya no podras agregar movimientos a este turno.", "Cerrar turno");
   if (!ok) return;
 

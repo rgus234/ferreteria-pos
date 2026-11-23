@@ -4772,6 +4772,12 @@ async function registrarBitacora(clientOPool, negocioId, empleadoId, accion, det
 }
 
 async function asegurarColumnasMovimientosCredito(client = pool) {
+    // Turno de caja en el que se cobro un abono: con turnos simultaneos cada corte cuenta solo los abonos de su turno.
+    // Nulo en los abonos viejos (esos se siguen asignando por horario).
+    await client.query(`
+        ALTER TABLE public.movimientos_credito
+        ADD COLUMN IF NOT EXISTS turno_id INTEGER
+    `);
     await client.query(`
         ALTER TABLE public.movimientos_credito
         ADD COLUMN IF NOT EXISTS subtotal NUMERIC(12,2) NOT NULL DEFAULT 0
@@ -10033,6 +10039,8 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, requerirPermiso
         await asegurarColumnasMovimientosCredito(client);
         await client.query("BEGIN");
 
+        const turnoAbono = await turnoActivoVenta(client, negocio.id, Number(req.headers["x-empleado-id"]) || null);
+
         const resultado = await client.query(`
             INSERT INTO public.movimientos_credito
             (
@@ -10042,9 +10050,10 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, requerirPermiso
                 referencia,
                 concepto,
                 monto,
-                metodo_pago
+                metodo_pago,
+                turno_id
             )
-            SELECT $1, c.id, 'abono', $2, $3, $4, $6
+            SELECT $1, c.id, 'abono', $2, $3, $4, $6, $7
             FROM public.clientes_credito c
             WHERE c.id = $5
             AND c.negocio_id = $1
@@ -10055,7 +10064,8 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, requerirPermiso
             concepto || "Abono",
             monto,
             id,
-            metodoPago
+            metodoPago,
+            turnoAbono ? turnoAbono.id : null
         ]);
 
         if (!resultado.rows.length) {

@@ -112,6 +112,12 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             [DEFAULT_NEGOCIO_SLUG]
         );
 
+        // El corte de caja ahora cuenta los abonos por turno: la columna debe existir aunque todavia no se haya cobrado ningun abono.
+        await pool.query(`
+            ALTER TABLE IF EXISTS public.movimientos_credito
+            ADD COLUMN IF NOT EXISTS turno_id INTEGER
+        `);
+
         await pool.query(`
             ALTER TABLE public.historial_ventas
             ADD COLUMN IF NOT EXISTS metodo_pago TEXT NOT NULL DEFAULT 'efectivo'
@@ -193,14 +199,18 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             FROM public.historial_ventas
             WHERE negocio_id = $1
             AND estado = 'completada'
-            AND (fecha AT TIME ZONE 'UTC') >= $2
-            AND (fecha AT TIME ZONE 'UTC') <= $3
-        `, [turno.negocio_id, turno.abierto_at, hasta]);
+            AND (
+                turno_id = $4
+                OR (turno_id IS NULL AND (fecha AT TIME ZONE 'UTC') >= $2 AND (fecha AT TIME ZONE 'UTC') <= $3)
+            )
+        `, [turno.negocio_id, turno.abierto_at, hasta, turno.id]);
 
         const movimientos = await client.query(`
             SELECT
                 COALESCE(SUM(monto) FILTER (WHERE tipo = 'entrada'), 0) AS entradas,
-                COALESCE(SUM(monto) FILTER (WHERE tipo = 'salida'), 0) AS salidas
+                COALESCE(SUM(monto) FILTER (WHERE tipo = 'salida'), 0) AS salidas,
+                COALESCE(SUM(monto) FILTER (WHERE tipo = 'entrada' AND metodo = 'efectivo'), 0) AS entradas_efectivo,
+                COALESCE(SUM(monto) FILTER (WHERE tipo = 'salida' AND metodo = 'efectivo'), 0) AS salidas_efectivo
             FROM public.movimientos_caja
             WHERE turno_id = $1
             AND negocio_id = $2
@@ -221,15 +231,18 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             FROM public.movimientos_credito
             WHERE negocio_id = $1
             AND tipo = 'abono'
-            AND fecha >= $2
-            AND fecha <= $3
-        `, [turno.negocio_id, turno.abierto_at, hasta]);
+            AND (
+                turno_id = $4
+                OR (turno_id IS NULL AND fecha >= $2 AND fecha <= $3)
+            )
+        `, [turno.negocio_id, turno.abierto_at, hasta, turno.id]);
 
         const venta = ventas.rows[0];
         const abono = abonos.rows[0];
         const entradas = n(movimientos.rows[0].entradas);
         const salidas = n(movimientos.rows[0].salidas);
-        const esperado = n(turno.fondo_inicial) + n(venta.efectivo) + n(abono.efectivo) + entradas - salidas;
+        // Solo el efectivo mueve el cajon: un pago a proveedor por transferencia no debe bajar el efectivo esperado.
+        const esperado = n(turno.fondo_inicial) + n(venta.efectivo) + n(abono.efectivo) + n(movimientos.rows[0].entradas_efectivo) - n(movimientos.rows[0].salidas_efectivo);
 
         return {
             turno,
@@ -285,6 +298,11 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
     app.post("/caja/abrir", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_CORTE), async (req, res) => {
         const { usuario, fondoInicial, notas } = req.body;
+
+        if (n(fondoInicial) < 0) {
+            res.status(400).json({ error: "El fondo inicial no puede ser negativo" });
+            return;
+        }
 
         try {
             await asegurar();
@@ -397,6 +415,12 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             creditoContado,
             notas
         } = req.body;
+
+        // Sin el efectivo contado el corte quedaba con una diferencia falsa (se tomaba como $0 contados).
+        if (efectivoContado === undefined || efectivoContado === null || String(efectivoContado).trim() === "" || n(efectivoContado) < 0) {
+            res.status(400).json({ error: "Escribe cuanto efectivo contaste en la caja" });
+            return;
+        }
 
         const client = await pool.connect();
 

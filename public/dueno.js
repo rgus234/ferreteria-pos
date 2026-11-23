@@ -4953,6 +4953,14 @@ async function mostrarCerrarTurnoDueno() {
 
 async function confirmarCerrarTurnoDueno() {
     const errorEl = document.getElementById("duenoCajaCerrarError");
+
+    // Un corte sin el efectivo contado quedaba con una diferencia falsa (se tomaba como $0 contados).
+    if (String(document.getElementById("duenoCajaEfectivoContado").value).trim() === "") {
+        errorEl.textContent = "Escribe cuánto efectivo contaste. Si no hay nada, pon 0.";
+        errorEl.style.display = "block";
+        return;
+    }
+
     const cuerpo = {
         efectivoContado: Number(document.getElementById("duenoCajaEfectivoContado").value || 0),
         tarjetaContado: Number(document.getElementById("duenoCajaTarjetaContado").value || 0),
