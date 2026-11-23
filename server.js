@@ -10047,7 +10047,8 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, requerirPermiso
 
     const metodoPago = METODOS_PAGO_ABONO_VALIDOS.has(req.body?.metodoPago) ? req.body.metodoPago : "efectivo";
 
-    if (!monto || Number(monto) <= 0) {
+    // Un monto con letras llegaba a la base y volvia como un 500 con texto tecnico; uno menor a un centavo rompia una regla de la tabla.
+    if (!monto || !Number.isFinite(Number(monto)) || Number(monto) < 0.01) {
         res.status(400).json({
             error: "Monto invalido"
         });
@@ -10060,6 +10061,35 @@ app.post("/creditos/clientes/:id/abonos", requerirAccesoNegocio, requerirPermiso
         const negocio = await negocioActual(req);
         await asegurarColumnasMovimientosCredito(client);
         await client.query("BEGIN");
+
+        // El cliente se bloquea mientras se registra el abono: dos abonos casi al mismo tiempo no pueden pasarse de lo que debe.
+        const clienteAbono = await client.query(
+            `SELECT id FROM public.clientes_credito WHERE id = $1 AND negocio_id = $2 FOR UPDATE`,
+            [Number(id) || 0, negocio.id]
+        );
+
+        if (!clienteAbono.rows.length) {
+            await client.query("ROLLBACK");
+            res.status(404).json({ error: "Cliente de credito no encontrado" });
+            return;
+        }
+
+        const deudaActual = Number((await client.query(
+            `SELECT COALESCE(SUM(CASE WHEN tipo = 'venta' THEN monto WHEN tipo = 'abono' THEN -monto ELSE 0 END), 0) AS saldo
+             FROM public.movimientos_credito WHERE negocio_id = $1 AND cliente_id = $2`,
+            [negocio.id, Number(id)]
+        )).rows[0].saldo);
+
+        // Un abono mayor a lo que debe casi siempre es un dedazo ($500 en vez de $50) y dejaba al cliente con saldo negativo.
+        if (Number(monto) > deudaActual + 0.009) {
+            await client.query("ROLLBACK");
+            res.status(400).json({
+                error: deudaActual > 0
+                    ? `El abono ($${Number(monto).toFixed(2)}) es mayor a lo que debe el cliente ($${deudaActual.toFixed(2)}).`
+                    : "Este cliente no debe nada."
+            });
+            return;
+        }
 
         const turnoAbono = await turnoActivoVenta(client, negocio.id, Number(req.headers["x-empleado-id"]) || null);
 

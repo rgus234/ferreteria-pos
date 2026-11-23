@@ -74,8 +74,25 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             return;
         }
 
-        if (items.length === 0) {
+        // Solo cuentan los productos con nombre: antes un encargo con renglones en blanco se guardaba vacio.
+        if (!items.some(item => String(item?.nombre || "").trim())) {
             res.status(400).json({ ok: false, error: "Agrega al menos un producto." });
+            return;
+        }
+
+        // Un anticipo negativo o con letras llegaba a la base y volvia como un error tecnico.
+        if (!Number.isFinite(anticipo) || anticipo < 0) {
+            res.status(400).json({ ok: false, error: "El anticipo no es valido." });
+            return;
+        }
+
+        if (fechaEntregaEsperada && !/^\d{4}-\d{2}-\d{2}/.test(String(fechaEntregaEsperada))) {
+            res.status(400).json({ ok: false, error: "La fecha de entrega no es valida." });
+            return;
+        }
+
+        if (items.some(item => String(item?.nombre || "").trim() && !(Number(item.cantidad || 1) > 0))) {
+            res.status(400).json({ ok: false, error: "Hay un producto con cantidad invalida." });
             return;
         }
 
@@ -327,8 +344,15 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         }
 
         if (req.body?.anticipo !== undefined) {
+            const anticipoNuevo = Number(req.body.anticipo || 0);
+
+            if (!Number.isFinite(anticipoNuevo) || anticipoNuevo < 0) {
+                res.status(400).json({ ok: false, error: "El anticipo no es valido." });
+                return;
+            }
+
             campos.push(`anticipo = $${indice++}`);
-            valores.push(Number(req.body.anticipo || 0));
+            valores.push(anticipoNuevo);
         }
 
         if (req.body?.fechaEntregaEsperada !== undefined) {
