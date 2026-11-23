@@ -1545,7 +1545,7 @@ function riPasoNuevoHtml(d) {
 
 	if (paso === 2) return `
 		<h4>¿A cuánto lo vendes?</h4>
-		<p class="ri-asis-ayuda">Te costó <b>$${Number(d.costo).toFixed(2)}</b>. Es una sugerencia: tú decides el precio.</p>
+		<p class="ri-asis-ayuda">Te costó <b>$${Number(d.costo).toFixed(2)}</b>. ${d.precioPublico ? "Es una sugerencia: tú decides el precio." : "Escribe el precio al que lo vas a vender."}</p>
 		<div class="ri-modal-decision-precios-grid">
 			<label>Precio de venta<input type="number" step="0.01" min="0" inputmode="decimal" id="riAsisPublico" class="ri-asis-grande" value="${d.precioPublico ?? ""}"></label>
 		</div>
@@ -1566,7 +1566,9 @@ function riPasoNuevoHtml(d) {
 	if (paso === 4) return `
 		<h4>Código de barras</h4>
 		<p class="ri-asis-ayuda">${d.codigo ? `Se guarda con el código de la factura: <b class="ri-asis-codigo">${escaparPOS(d.codigo)}</b>.` : "La factura no trae código para este producto."}</p>
-		<p class="ri-asis-ayuda">Cuando lo escanees en la caja o al recibir, Nexo lo reconoce.</p>`;
+		${/^\d{8,14}$/.test(String(d.codigo || "").trim())
+			? `<p class="ri-asis-ayuda">Cuando lo escanees en la caja o al recibir, Nexo lo reconoce.</p>`
+			: `<p class="ri-asis-ayuda">Ojo: ese código es de tu proveedor, no el de barras del empaque. Después, en Inventario, ponle su código de barras para poder escanearlo en la caja.</p>`}`;
 
 	return `
 		<h4>Todo listo</h4>
