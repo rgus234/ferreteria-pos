@@ -307,7 +307,7 @@ function instalar(app, pool, requerirAccesoNegocio, opciones = {}) {
             const transID = String(envio.data?.transID || "");
             await pool.query(`UPDATE public.recargas_transacciones SET trans_id = $2, estado = 'enviada', updated_at = NOW() WHERE id = $1`, [fila.id, transID]);
 
-            const fechaTaecel = /^d{4}-d{2}-d{2}/.test(String(envio.data?.fecha || "")) ? String(envio.data.fecha).slice(0, 10) : fechaMexico();
+            const fechaTaecel = /^\d{4}-\d{2}-\d{2}/.test(String(envio.data?.fecha || "")) ? String(envio.data.fecha).slice(0, 10) : fechaMexico();
             const resultado = await esperar(obtenerCliente(), transID, { desde, fecha: fechaTaecel });
             const d = resultado.datos || {};
             const estado = resultado.estado === "exitosa" ? "exitosa" : resultado.estado === "fallida" ? "fallida" : "pendiente";
