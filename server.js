@@ -10527,6 +10527,10 @@ app.get("/reportes/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.VER_
         // (ver "Cancelar venta") -- se agrega aqui porque filtroFecha y
         // filtroFechaAnterior ya interpolan esta misma constante, asi
         // que un solo cambio cubre las 9 consultas de este endpoint.
+        // Las ventas se guardan en hora UTC y el negocio vive en hora de Mexico: sin esta conversion el "dia" terminaba a las 6 pm y las horas salian corridas.
+        const FECHA_MX = "((historial_ventas.fecha AT TIME ZONE 'UTC') AT TIME ZONE 'America/Mexico_City')";
+        const AHORA_MX = "(NOW() AT TIME ZONE 'America/Mexico_City')";
+
         const FILTRO_CREDITO_LIQUIDADO = `
             AND estado = 'completada'
             AND NOT EXISTS (
@@ -10538,14 +10542,14 @@ app.get("/reportes/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.VER_
 
         const filtroFecha =
             (usarRango
-                ? "AND fecha::date BETWEEN $2::date AND $3::date"
+                ? `AND ${FECHA_MX}::date BETWEEN $2::date AND $3::date`
                 : periodo === "dia"
-                    ? "AND fecha >= CURRENT_DATE"
+                    ? `AND ${FECHA_MX} >= date_trunc('day', ${AHORA_MX})`
                     : periodo === "semana"
-                        ? "AND fecha >= date_trunc('week', NOW())"
+                        ? `AND ${FECHA_MX} >= date_trunc('week', ${AHORA_MX})`
                         : periodo === "anio"
-                            ? "AND fecha >= date_trunc('year', NOW())"
-                            : "AND fecha >= date_trunc('month', NOW())"
+                            ? `AND ${FECHA_MX} >= date_trunc('year', ${AHORA_MX})`
+                            : `AND ${FECHA_MX} >= date_trunc('month', ${AHORA_MX})`
             ) + FILTRO_CREDITO_LIQUIDADO;
 
         const params =
@@ -10560,19 +10564,19 @@ app.get("/reportes/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.VER_
             const duracionDias = Math.max(1, Math.round((hasta.getTime() - desde.getTime()) / 86400000) + 1);
             const anteriorHasta = new Date(desde.getTime() - 86400000);
             const anteriorDesde = new Date(anteriorHasta.getTime() - (duracionDias - 1) * 86400000);
-            filtroFechaAnterior = "AND fecha::date BETWEEN $2::date AND $3::date";
+            filtroFechaAnterior = `AND ${FECHA_MX}::date BETWEEN $2::date AND $3::date`;
             paramsAnterior = [negocio.id, anteriorDesde.toISOString().slice(0, 10), anteriorHasta.toISOString().slice(0, 10)];
         } else if (periodo === "dia") {
-            filtroFechaAnterior = "AND fecha >= CURRENT_DATE - INTERVAL '1 day' AND fecha < CURRENT_DATE";
+            filtroFechaAnterior = `AND ${FECHA_MX} >= date_trunc('day', ${AHORA_MX}) - INTERVAL '1 day' AND ${FECHA_MX} < date_trunc('day', ${AHORA_MX})`;
             paramsAnterior = [negocio.id];
         } else if (periodo === "semana") {
-            filtroFechaAnterior = "AND fecha >= date_trunc('week', NOW()) - INTERVAL '7 days' AND fecha < date_trunc('week', NOW())";
+            filtroFechaAnterior = `AND ${FECHA_MX} >= date_trunc('week', ${AHORA_MX}) - INTERVAL '7 days' AND ${FECHA_MX} < date_trunc('week', ${AHORA_MX})`;
             paramsAnterior = [negocio.id];
         } else if (periodo === "anio") {
-            filtroFechaAnterior = "AND fecha >= date_trunc('year', NOW()) - INTERVAL '1 year' AND fecha < date_trunc('year', NOW())";
+            filtroFechaAnterior = `AND ${FECHA_MX} >= date_trunc('year', ${AHORA_MX}) - INTERVAL '1 year' AND ${FECHA_MX} < date_trunc('year', ${AHORA_MX})`;
             paramsAnterior = [negocio.id];
         } else {
-            filtroFechaAnterior = "AND fecha >= date_trunc('month', NOW()) - INTERVAL '1 month' AND fecha < date_trunc('month', NOW())";
+            filtroFechaAnterior = `AND ${FECHA_MX} >= date_trunc('month', ${AHORA_MX}) - INTERVAL '1 month' AND ${FECHA_MX} < date_trunc('month', ${AHORA_MX})`;
             paramsAnterior = [negocio.id];
         }
 
@@ -10610,14 +10614,14 @@ app.get("/reportes/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.VER_
             `, params),
             pool.query(`
                 SELECT
-                    TO_CHAR(fecha, 'DD/MM') AS dia,
+                    TO_CHAR(${FECHA_MX}, 'DD/MM') AS dia,
                     COALESCE(SUM(total), 0) AS total,
                     COUNT(*) AS transacciones
                 FROM public.historial_ventas
                 WHERE negocio_id = $1
                 ${filtroFecha}
-                GROUP BY TO_CHAR(fecha, 'DD/MM'), DATE(fecha)
-                ORDER BY DATE(fecha) ASC
+                GROUP BY TO_CHAR(${FECHA_MX}, 'DD/MM'), DATE(${FECHA_MX})
+                ORDER BY DATE(${FECHA_MX}) ASC
                 LIMIT 30
             `, params),
             pool.query(`
@@ -10629,14 +10633,14 @@ app.get("/reportes/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.VER_
                 ORDER BY total DESC
             `, params),
             pool.query(`
-                SELECT TO_CHAR(date_trunc('hour', fecha), 'HH24:00') AS hora,
+                SELECT TO_CHAR(date_trunc('hour', ${FECHA_MX}), 'HH24:00') AS hora,
                        COALESCE(SUM(total), 0) AS total,
                        COUNT(*) AS transacciones
                 FROM public.historial_ventas
                 WHERE negocio_id = $1
                 ${filtroFecha}
-                GROUP BY date_trunc('hour', fecha)
-                ORDER BY date_trunc('hour', fecha)
+                GROUP BY date_trunc('hour', ${FECHA_MX})
+                ORDER BY date_trunc('hour', ${FECHA_MX})
             `, params),
             pool.query(`
                 SELECT

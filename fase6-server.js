@@ -269,8 +269,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             FROM public.historial_ventas
             WHERE negocio_id = $1
             AND estado = 'completada'
-            AND fecha >= CURRENT_DATE - INTERVAL '1 day'
-            AND fecha < CURRENT_DATE
+            AND ((fecha AT TIME ZONE 'UTC') AT TIME ZONE 'America/Mexico_City') >= date_trunc('day', NOW() AT TIME ZONE 'America/Mexico_City') - INTERVAL '1 day'
+            AND ((fecha AT TIME ZONE 'UTC') AT TIME ZONE 'America/Mexico_City') < date_trunc('day', NOW() AT TIME ZONE 'America/Mexico_City')
         `, [negocioId]);
 
         const fila = resultado.rows[0];

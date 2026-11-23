@@ -143,6 +143,12 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         listo = true;
     }
 
+    // Las ventas (historial_ventas.fecha, sin zona) se guardan en hora UTC y las recargas (created_at) con zona; el negocio vive en hora de Mexico:
+    // sin esta conversion el "dia" terminaba a las 6 pm.
+    const FECHA_MX = "((fecha AT TIME ZONE 'UTC') AT TIME ZONE 'America/Mexico_City')";
+    const CREATED_MX = "(created_at AT TIME ZONE 'America/Mexico_City')";
+    const AHORA_MX = "(NOW() AT TIME ZONE 'America/Mexico_City')";
+
     function rangoFechasFinanzas(req) {
         const periodo = String(req.query.periodo || "mes");
         const desde = req.query.desde ? new Date(String(req.query.desde)) : null;
@@ -151,23 +157,23 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
         if (usarRango) {
             return {
-                filtroCreatedAt: "AND created_at::date BETWEEN $2::date AND $3::date",
-                filtroFecha: "AND fecha::date BETWEEN $2::date AND $3::date AND estado = 'completada'",
+                filtroCreatedAt: `AND ${CREATED_MX}::date BETWEEN $2::date AND $3::date`,
+                filtroFecha: `AND ${FECHA_MX}::date BETWEEN $2::date AND $3::date AND estado = 'completada'`,
                 params: [desde.toISOString().slice(0, 10), hasta.toISOString().slice(0, 10)]
             };
         }
 
         const desdeSql = periodo === "dia"
-            ? "CURRENT_DATE"
+            ? `date_trunc('day', ${AHORA_MX})`
             : periodo === "semana"
-                ? "date_trunc('week', NOW())"
+                ? `date_trunc('week', ${AHORA_MX})`
                 : periodo === "anio"
-                    ? "date_trunc('year', NOW())"
-                    : "date_trunc('month', NOW())";
+                    ? `date_trunc('year', ${AHORA_MX})`
+                    : `date_trunc('month', ${AHORA_MX})`;
 
         return {
-            filtroCreatedAt: `AND created_at >= ${desdeSql}`,
-            filtroFecha: `AND fecha >= ${desdeSql} AND estado = 'completada'`,
+            filtroCreatedAt: `AND ${CREATED_MX} >= ${desdeSql}`,
+            filtroFecha: `AND ${FECHA_MX} >= ${desdeSql} AND estado = 'completada'`,
             params: []
         };
     }
@@ -183,23 +189,23 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             const anteriorHasta = new Date(desde.getTime() - 86400000);
             const anteriorDesde = new Date(anteriorHasta.getTime() - (duracionDias - 1) * 86400000);
             return {
-                filtroCreatedAt: "AND created_at::date BETWEEN $2::date AND $3::date",
-                filtroFecha: "AND fecha::date BETWEEN $2::date AND $3::date AND estado = 'completada'",
+                filtroCreatedAt: `AND ${CREATED_MX}::date BETWEEN $2::date AND $3::date`,
+                filtroFecha: `AND ${FECHA_MX}::date BETWEEN $2::date AND $3::date AND estado = 'completada'`,
                 params: [anteriorDesde.toISOString().slice(0, 10), anteriorHasta.toISOString().slice(0, 10)]
             };
         }
 
-        const condicion = periodo === "dia"
-            ? "AND fecha >= CURRENT_DATE - INTERVAL '1 day' AND fecha < CURRENT_DATE"
+        const condicionPara = columna => periodo === "dia"
+            ? `AND ${columna} >= date_trunc('day', ${AHORA_MX}) - INTERVAL '1 day' AND ${columna} < date_trunc('day', ${AHORA_MX})`
             : periodo === "semana"
-                ? "AND fecha >= date_trunc('week', NOW()) - INTERVAL '7 days' AND fecha < date_trunc('week', NOW())"
+                ? `AND ${columna} >= date_trunc('week', ${AHORA_MX}) - INTERVAL '7 days' AND ${columna} < date_trunc('week', ${AHORA_MX})`
                 : periodo === "anio"
-                    ? "AND fecha >= date_trunc('year', NOW()) - INTERVAL '1 year' AND fecha < date_trunc('year', NOW())"
-                    : "AND fecha >= date_trunc('month', NOW()) - INTERVAL '1 month' AND fecha < date_trunc('month', NOW())";
+                    ? `AND ${columna} >= date_trunc('year', ${AHORA_MX}) - INTERVAL '1 year' AND ${columna} < date_trunc('year', ${AHORA_MX})`
+                    : `AND ${columna} >= date_trunc('month', ${AHORA_MX}) - INTERVAL '1 month' AND ${columna} < date_trunc('month', ${AHORA_MX})`;
 
         return {
-            filtroCreatedAt: condicion.replace(/fecha/g, "created_at"),
-            filtroFecha: condicion + " AND estado = 'completada'",
+            filtroCreatedAt: condicionPara(CREATED_MX),
+            filtroFecha: condicionPara(FECHA_MX) + " AND estado = 'completada'",
             params: []
         };
     }
