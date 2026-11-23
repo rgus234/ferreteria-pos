@@ -16,6 +16,9 @@ const { columnaPrecioMultiTienda } = require("./public-site-server");
 // en el catalogo pero terminaba cobrando el publico al pagar de verdad.
 const PRECIO_MARKET_CHECKOUT = columnaPrecioMultiTienda("p.", "c.");
 
+// Monto minimo que Stripe acepta cobrar en pesos mexicanos.
+const MONTO_MINIMO_PAGO_MXN = 10;
+
 // Pagos reales de Nexo Market: cada ferreteria tiene su propia cuenta
 // conectada de Stripe (Connect, API "Accounts v2" -- 100% embebida, el
 // dueno nunca ve la interfaz de Stripe) para recibir el dinero de sus
@@ -694,13 +697,20 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
             const codigos = itemsBody.map(it => String(it?.codigo || "").trim()).filter(Boolean);
 
             const productosRes = await pool.query(
-                `SELECT p.codigo, ${PRECIO_MARKET_CHECKOUT} AS precio
+                `SELECT p.codigo, p.nombre, p.stock, ${PRECIO_MARKET_CHECKOUT} AS precio
                  FROM public.productos p
                  JOIN public.sitio_web_config c ON c.negocio_id = p.negocio_id
                  WHERE p.negocio_id = $1 AND p.codigo = ANY($2)`,
                 [negocio.id, codigos]
             );
             const precioPorCodigo = new Map(productosRes.rows.map(p => [p.codigo, Number(p.precio)]));
+            const agotados = productosRes.rows.filter(p => p.stock !== null && p.stock !== undefined && Number(p.stock) <= 0).map(p => p.nombre);
+
+            // La pantalla ya marca "Agotado", pero el servidor no lo revisaba: se podia pagar algo que no hay (y luego reembolsar).
+            if (agotados.length) {
+                res.status(400).json({ ok: false, error: `Ya no hay existencias de: ${agotados.join(", ")}. Quitalo del carrito para pagar.` });
+                return;
+            }
 
             let total = 0;
 
@@ -719,6 +729,12 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             if (total <= 0) {
                 res.status(400).json({ ok: false, error: "El total del pedido debe ser mayor a cero." });
+                return;
+            }
+
+            // Stripe no cobra menos de $10.00 MXN: antes un carrito chico llegaba a Stripe y volvia como un error tecnico en ingles.
+            if (total < MONTO_MINIMO_PAGO_MXN) {
+                res.status(400).json({ ok: false, error: `El pedido minimo para pagar en linea es de $${MONTO_MINIMO_PAGO_MXN.toFixed(2)}. Agrega algo mas al carrito.` });
                 return;
             }
 
