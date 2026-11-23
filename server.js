@@ -9818,7 +9818,10 @@ app.post("/proveedores", requerirAccesoNegocio, async (req, res) => {
         notas
     } = req.body;
 
-    if (!nombre) {
+    // Un nombre en blanco ("   ") pasaba como valido; y los espacios de sobra hacian "Bimbo" y "Bimbo " dos proveedores distintos.
+    const nombreLimpio = String(nombre || "").replace(/\s+/g, " ").trim();
+
+    if (!nombreLimpio) {
         res.status(400).json({
             error: "El nombre es obligatorio"
         });
@@ -9827,6 +9830,23 @@ app.post("/proveedores", requerirAccesoNegocio, async (req, res) => {
 
     try {
         const negocio = await negocioActual(req);
+
+        // Un proveedor con el mismo nombre (sin importar mayusculas ni acentos) ya activo: no se crea otro, se avisa cual es.
+        const repetido = await pool.query(`
+            SELECT id, nombre FROM public.proveedores
+            WHERE negocio_id = $1 AND activo = true
+            AND LOWER(TRANSLATE(TRIM(nombre), 'áéíóúÁÉÍÓÚñÑ', 'aeiouaeiounn')) = LOWER(TRANSLATE($2, 'áéíóúÁÉÍÓÚñÑ', 'aeiouaeiounn'))
+            LIMIT 1
+        `, [negocio.id, nombreLimpio]);
+
+        if (repetido.rows.length) {
+            res.status(409).json({
+                error: `Ya tienes un proveedor llamado "${repetido.rows[0].nombre}".`,
+                existente: repetido.rows[0]
+            });
+            return;
+        }
+
         const resultado = await pool.query(`
             INSERT INTO public.proveedores
             (
@@ -9842,7 +9862,7 @@ app.post("/proveedores", requerirAccesoNegocio, async (req, res) => {
             RETURNING *
         `, [
             negocio.id,
-            nombre,
+            nombreLimpio,
             contacto || "",
             telefono || "",
             correo || "",
@@ -9869,7 +9889,9 @@ app.put("/proveedores/:id", requerirAccesoNegocio, async (req, res) => {
         notas
     } = req.body;
 
-    if (!nombre) {
+    const nombreLimpio = String(nombre || "").replace(/\s+/g, " ").trim();
+
+    if (!nombreLimpio) {
         res.status(400).json({
             error: "El nombre es obligatorio"
         });
@@ -9892,7 +9914,7 @@ app.put("/proveedores/:id", requerirAccesoNegocio, async (req, res) => {
             AND negocio_id = $7
             RETURNING *
         `, [
-            nombre,
+            nombreLimpio,
             contacto || "",
             telefono || "",
             correo || "",
