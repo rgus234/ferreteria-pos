@@ -41,16 +41,19 @@ function nexoSpotlight(selectorObjetivo, texto, opciones = {}) {
   overlay.appendChild(globo);
   document.body.appendChild(overlay);
 
-  const cerrar = () => { overlay.remove(); resolve(); };
-  globo.querySelector(".nexo-tour-saltar").addEventListener("click", cerrar);
+  // "Saltar" termina TODO el recorrido (antes solo cerraba el paso y aparecia el siguiente, y habia que pulsarlo 4 veces).
+  const cerrar = () => { overlay.remove(); resolve(false); };
+  const saltar = () => { overlay.remove(); resolve(true); };
+  globo.querySelector(".nexo-tour-saltar").addEventListener("click", saltar);
   globo.querySelector(".nexo-tour-siguiente").addEventListener("click", cerrar);
-  overlay.addEventListener("click", event => { if (event.target === overlay) cerrar(); });
+  overlay.addEventListener("click", event => { if (event.target === overlay) saltar(); });
  });
 }
 
 async function nexoTour(pasos) {
  for (let indice = 0; indice < pasos.length; indice++) {
-  await nexoSpotlight(pasos[indice].selector, pasos[indice].texto, { esUltimo: indice === pasos.length - 1 });
+  const salto = await nexoSpotlight(pasos[indice].selector, pasos[indice].texto, { esUltimo: indice === pasos.length - 1 });
+  if (salto === true) break;
  }
 }
 

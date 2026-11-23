@@ -283,7 +283,8 @@ function iconoProducto(nombre) {
  const texto =
  String(nombre || "").toLowerCase();
 
- let icono = "🧰";
+ // Sin foto: en abarrotes y otros perfiles de tienda el icono de la caja de herramientas no tiene sentido.
+ let icono = typeof perfilEsSimple === "function" && perfilEsSimple() ? "📦" : "🧰";
 
  if (texto.includes("martillo")) icono = "🔨";
  else if (texto.includes("tornillo") || texto.includes("clavo")) icono = "🔩";

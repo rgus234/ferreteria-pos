@@ -8187,6 +8187,26 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
         return;
     }
 
+    // Revision de cobro (auditoria de Vender y cobrar): antes el servidor aceptaba una cantidad negativa que restaba dinero del total,
+    // pagos que no cubrian la venta y ventas a credito sin cliente. Solo se rechaza lo que es claramente un error: una venta sin
+    // desglose de pagos (clientes viejos o sin conexion) se acepta como siempre.
+    if (productos.some(p => p && p.cantidad !== undefined && p.cantidad !== null && !(Number(p.cantidad) > 0))) {
+        res.status(400).json({ ok: false, error: "Hay un producto con cantidad invalida en la venta." });
+        return;
+    }
+
+    const sumaPagos = pagoEfectivo + pagoTarjeta + pagoTransferencia + pagoCredito;
+
+    if (sumaPagos > 0 && sumaPagos + 0.01 < total) {
+        res.status(400).json({ ok: false, error: "Los pagos no cubren el total de la venta." });
+        return;
+    }
+
+    if ((pagoCredito > 0 || metodoPago === "credito") && !Number(clienteId)) {
+        res.status(400).json({ ok: false, error: "Para vender a credito elige primero al cliente." });
+        return;
+    }
+
     let negocioVenta;
 
     try {
@@ -8197,6 +8217,30 @@ app.post("/ventas", requerirAccesoNegocio, requerirPermiso(PERMISOS.HACER_VENTAS
     }
 
     if (!(await exigirLicenciaActiva(res, negocioVenta, "una venta"))) return;
+
+    // Alerta (no bloquea): un producto vendido por debajo de su precio mas bajo registrado queda marcado en la venta
+    // (precioBajoBase) para poder revisarlo. Servicios, articulos rapidos y recargas no tienen precio en la base y no se revisan.
+    try {
+        const ids = [...new Set(productos.map(p => Number(p?.id)).filter(id => Number.isInteger(id) && id > 0))];
+
+        if (ids.length) {
+            const base = await pool.query(
+                `SELECT id, NULLIF(LEAST(
+                        COALESCE(NULLIF(precio, 0), 1e12), COALESCE(NULLIF(precio_publico, 0), 1e12), COALESCE(NULLIF(precio_distribuidor, 0), 1e12)
+                    ), 1e12) AS minimo
+                 FROM public.productos WHERE negocio_id = $1 AND id = ANY($2)`,
+                [negocioVenta.id, ids]
+            );
+            const minimos = new Map(base.rows.map(f => [Number(f.id), f.minimo == null ? null : Number(f.minimo)]));
+
+            productos.forEach(p => {
+                const minimo = minimos.get(Number(p?.id));
+                if (minimo != null && Number(p.precio) + 0.005 < minimo) p.precioBajoBase = minimo;
+            });
+        }
+    } catch (error) {
+        console.warn("No se pudo revisar el precio de la venta:", error.message);
+    }
 
     const client = await pool.connect();
 
