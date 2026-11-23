@@ -161,3 +161,12 @@ test("el celular (/dueno): la version sencilla solo se enciende con la funcion, 
     assert.ok(sw.includes("/dueno-solo.js") && sw.includes("/dueno-solo.css"), "esta en el cache del service worker");
     assert.ok(html.indexOf("dueno-recargas.js") < html.indexOf("dueno-solo.js"), "despues de recargas");
 });
+
+test("el asistente de inicio de un negocio con Solo lo necesario es corto (negocio y listo) y termina en Mi mercancia", () => {
+    const js = leer("public/js/asistente-inicio.js");
+    assert.match(js, /ASISTENTE_PASOS_SOLO = \["negocio", "listo"\]/);
+    assert.match(js, /funciones\.solo_mostrador === true/, "solo si la funcion esta encendida");
+    assert.match(js, /asistentePintarListoSolo/);
+    assert.match(js, /asistenteSoloModo && typeof window\.mostrarMiMercancia === "function"/, "el primer paso lleva a Mi mercancia");
+    assert.match(js, /!asistenteSoloModo && window\.practicaNexo/, "no se ofrece la practica de venta");
+});

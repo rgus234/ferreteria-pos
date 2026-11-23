@@ -41,7 +41,11 @@ const ASISTENTE_SUGERENCIAS_GIRO = {
  general: { granel: "no", fiado: "no", caducidad: "no" }
 };
 
-const ASISTENTE_PASOS = ["bienvenida", "giro", "correos", "negocio", "vende", "equipo", "listo"];
+const ASISTENTE_PASOS_COMPLETOS = ["bienvenida", "giro", "correos", "negocio", "vende", "equipo", "listo"];
+// Un negocio con "Solo lo necesario" (p. ej. La Rinconada) hace un asistente corto: solo sus datos y listo.
+const ASISTENTE_PASOS_SOLO = ["negocio", "listo"];
+const ASISTENTE_PASOS = [...ASISTENTE_PASOS_COMPLETOS];
+let asistenteSoloModo = false;
 
 const ASISTENTE_NIVELES_PRECIO = [
  { id: "publico", etiqueta: "Precio publico (lo normal)" },
@@ -102,9 +106,18 @@ async function iniciarAsistenteInicio({ desdePaso = null } = {}) {
 
   if (estado.completado) return false;
 
+  // Negocio con "Solo lo necesario": pasos cortos (si la consulta falla, se usa el asistente de siempre).
+  try {
+   const funciones = await asistenteLlamar("/funciones-beta");
+   asistenteSoloModo = Boolean(funciones && funciones.funciones && funciones.funciones.solo_mostrador === true);
+  } catch (errorFunciones) { asistenteSoloModo = false; }
+
+  ASISTENTE_PASOS.splice(0, ASISTENTE_PASOS.length, ...(asistenteSoloModo ? ASISTENTE_PASOS_SOLO : ASISTENTE_PASOS_COMPLETOS));
+
   asistente = {
    estado,
-   paso: desdePaso ?? Math.min(Number(estado.respuestas?.paso) || 0, ASISTENTE_PASOS.length - 1),
+   // En el asistente corto siempre se empieza por los datos del negocio (el paso que llegaba de otro asistente no aplica).
+   paso: asistenteSoloModo ? 0 : (desdePaso ?? Math.min(Number(estado.respuestas?.paso) || 0, ASISTENTE_PASOS.length - 1)),
    giros: [...estado.giros],
    // Tipo principal (estricto): negocios.giro. Los demas giros son complementos.
    perfil: ASISTENTE_GIROS.some(g => g.id === estado.perfil) ? estado.perfil : ((estado.giros || [])[0] || null),
@@ -231,7 +244,7 @@ function asistentePintar() {
 
  document.getElementById("asistenteBarra").style.width = `${Math.round((asistente.paso / total) * 100)}%`;
  document.getElementById("asistenteEtapa").textContent =
-  paso === "bienvenida" ? "Bienvenido" : paso === "listo" ? "Listo" : `Paso ${asistente.paso} de ${total - 1}`;
+  paso === "bienvenida" ? "Bienvenido" : paso === "listo" ? "Listo" : asistenteSoloModo ? "Paso 1 de 1" : `Paso ${asistente.paso} de ${total - 1}`;
 
  asistenteError("");
 
@@ -512,7 +525,30 @@ function asistenteTextoSiNo(valor) {
  return valor === "si" ? "Si" : valor === "no" ? "No" : "Pendiente";
 }
 
+function asistentePintarListoSolo() {
+ const d = asistente.datos;
+
+ document.getElementById("asistenteTitulo").textContent = "¡Listo! Ya puedes empezar";
+ document.getElementById("asistenteCuerpo").innerHTML = `
+  <div class="asistente-resumen">
+   <div><span>Negocio</span><span>${asistenteEsc(d.nombre || "Mi negocio")}</span></div>
+   ${d.telefono ? `<div><span>Teléfono</span><span>${asistenteEsc(d.telefono)}</span></div>` : ""}
+   <div><span>Productos registrados</span><span>${Array.isArray(typeof todosProductos !== "undefined" ? todosProductos : null) ? todosProductos.length : 0}</span></div>
+  </div>
+  <p>Lo primero es meter tu mercancía: pasas cada producto por el escáner y solo le pones el precio. Después tu mostrador de precios y tus recargas ya están listos.</p>
+ `;
+
+ document.getElementById("asistenteAcciones").innerHTML = `
+  <button type="button" class="asistente-boton secundario chico" onclick="asistenteAtras()">Atras</button>
+  <span class="espacio"></span>
+  <button type="button" class="asistente-boton secundario chico" onclick="asistenteTerminar('inicio')">Ir al inicio</button>
+  <button type="button" class="asistente-boton chico" onclick="asistenteTerminar('agregar_productos')">Meter mi mercancía</button>
+ `;
+}
+
 function asistentePintarListo() {
+ if (asistenteSoloModo) { asistentePintarListoSolo(); return; }
+
  const d = asistente.datos;
  const correoNegocio = asistente.usarMismoCorreo ? "El mismo de acceso" : (d.correoNegocio || "El mismo de acceso");
  const nivel = ASISTENTE_NIVELES_PRECIO.find(n => n.id === asistente.nivelPrecio)?.etiqueta || asistente.nivelPrecio;
@@ -788,7 +824,7 @@ async function asistenteTerminar(primerPaso) {
  ocultarRecordatorioAsistente();
 
  // Cuenta nueva: antes de entrar, se ofrece practicar con la mascota (se puede saltar y repetir desde Configuracion)
- if (window.practicaNexo && window.practicaNexo.debeOfrecerse() && primerPaso !== "primera_venta") {
+ if (!asistenteSoloModo && window.practicaNexo && window.practicaNexo.debeOfrecerse() && primerPaso !== "primera_venta") {
   const seguir = () => asistenteSeguirDespuesDeTerminar(primerPaso);
   window.practicaNexo.iniciar({ alTerminar: seguir });
   return;
@@ -810,6 +846,11 @@ async function asistenteSeguirDespuesDeTerminar(primerPaso) {
  }
 
  try { localStorage.setItem("nexoOnboardingBienvenidaVisto", "1"); } catch (error) { /* sin almacenamiento */ }
+
+ if (primerPaso === "agregar_productos" && asistenteSoloModo && typeof window.mostrarMiMercancia === "function") {
+  window.mostrarMiMercancia();
+  return;
+ }
 
  if (primerPaso === "agregar_productos" && typeof mostrarCargaInventario === "function") {
   mostrarCargaInventario();
