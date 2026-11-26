@@ -8,8 +8,8 @@ Idea: una cuenta con la función `vendedor_market` ve un panel sencillo (Inicio 
 
 | # | Incremento | Estado |
 |---|-----------|--------|
-| A1 | Función `vendedor_market`, menú recortado, Inicio con los 4 pasos | por hacer |
-| A2 | Publicación: pedir publicar, aprobación del vendedor por enlace en correo, `visible_en_market` en falso hasta aprobar | por hacer |
+| A1 | Función `vendedor_market`, menú recortado, Inicio con los 4 pasos | subido |
+| A2 | Publicación: pedir publicar, aprobación del vendedor por enlace en correo; no sale en Market hasta aprobar | hecho (local) |
 | B | Alta pública "Quiero vender en Market" (crea la cuenta con la función encendida y oculta en Market) | por hacer |
 | C | Foto propia del producto desde el celular en Mi mercancía | por hacer |
 | D | Cobros en línea (Stripe Connect) como paso del panel, y Pedidos de Market con su aviso | por revisar |

@@ -1191,6 +1191,52 @@ function enviarCorreoAvisoPiloto({ asunto, titulo, lineas }) {
     });
 }
 
+
+// Vender en Nexo Market: aviso a Nexo cuando una tienda pide publicarse (con enlace firmado para aprobar o rechazar)
+// y aviso al dueño con la decision.
+function enviarCorreoSolicitudMarket({ nombreNegocio, slug, correoNegocio, telefono, direccion, totalProductos, enlace }) {
+    const nombreSeguro = escaparHtmlCorreo(nombreNegocio);
+
+    return enviarCorreo({
+        correo: CORREO_NOTIFICACIONES_LEADS,
+        asunto: `Tienda pide publicarse en Market -- ${nombreSeguro}`,
+        html: envolverPlantilla({
+            etiqueta: "Vender en Market",
+            titulo: "Una tienda pide publicarse",
+            saludo: "Revisa su tienda y decide.",
+            robot: "neutral",
+            cuerpoHtml: `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 6px;">
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Tienda:</strong> ${nombreSeguro}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Direccion:</strong> ${escaparHtmlCorreo(direccion) || "-"}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Telefono:</strong> ${escaparHtmlCorreo(telefono) || "-"}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Correo:</strong> ${escaparHtmlCorreo(correoNegocio) || "-"}</td></tr>
+                    <tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>Productos:</strong> ${Number(totalProductos) || 0}</td></tr>
+                </table>
+                ${enlace ? botonHtml("Revisar y decidir", `${DOMINIO_PUBLICO}${enlace}`) : avisoHtml("No hay llave de administrador configurada: no se pudo generar el enlace de revision.")}
+                <p style="color:#667085;font-size:13px;">El enlace vence en 7 dias y pide una confirmacion antes de aprobar.</p>`
+        })
+    });
+}
+
+function enviarCorreoDecisionMarket(correo, nombreNegocio, { aprobado, nota, slug }) {
+    const nombreSeguro = escaparHtmlCorreo(nombreNegocio);
+
+    return enviarCorreo({
+        correo,
+        asunto: aprobado ? `Tu tienda ya esta en Nexo Market -- ${nombreSeguro}` : `Revisamos tu tienda de Nexo Market -- ${nombreSeguro}`,
+        html: envolverPlantilla({
+            etiqueta: "Vender en Market",
+            titulo: aprobado ? "¡Tu tienda ya esta en Market!" : "Falta un poco para publicar tu tienda",
+            saludo: nombreSeguro,
+            robot: aprobado ? "feliz" : "neutral",
+            cuerpoHtml: aprobado
+                ? `<p style="color:#344054;font-size:15px;line-height:1.6;">Ya puedes recibir pedidos. Puede tardar un minuto en aparecer.</p>${botonHtml("Ver mi tienda en Market", `${DOMINIO_PUBLICO}/market/tienda/${encodeURIComponent(slug || "")}`)}`
+                : `<p style="color:#344054;font-size:15px;line-height:1.6;">Todavia no pudimos publicar tu tienda.</p>${nota ? avisoHtml(escaparHtmlCorreo(nota)) : ""}<p style="color:#344054;font-size:15px;line-height:1.6;">Corrige eso en tu panel y vuelve a pedir la publicacion.</p>`
+        })
+    });
+}
+
 module.exports = {
     enviarCorreoFinPrueba,
     enviarCorreoSuscripcionPilotoProgramada,
@@ -1223,5 +1269,7 @@ module.exports = {
     enviarCorreoFacturaCfdi,
     enviarCorreoSolicitudCreditoAprobada,
     enviarCorreoSolicitudCreditoRechazada,
-    enviarCorreoSolicitudCreditoInformacionSolicitada
+    enviarCorreoSolicitudCreditoInformacionSolicitada,
+    enviarCorreoSolicitudMarket,
+    enviarCorreoDecisionMarket
 };

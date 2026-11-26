@@ -144,6 +144,10 @@ function cargarModulosPOS({ app, pool, normalizarCodigo, requerirAccesoNegocio, 
         require("./proveedores-panel-server")(app, pool, requerirAccesoNegocio);
     });
 
+    cargarModuloPOS("vender en Market (publicar la tienda y aprobacion)", () => {
+        require("./market-publicacion-server")(app, pool, requerirAccesoNegocio);
+    });
+
     cargarModuloPOS("minimos con tus ventas", () => {
         require("./minimos-ventas-server")(app, pool, requerirAccesoNegocio);
     });

@@ -87,9 +87,18 @@ function normalizarTelefonoWhatsAppMarket(telefono) {
 let cacheTiendas = { negocios: null, expiraEn: 0 };
 const CACHE_TIENDAS_TTL_MS = 60 * 1000;
 
+let columnasMarketListas = false;
+
 async function tiendasPermitidasMarket(pool) {
     if (cacheTiendas.negocios && cacheTiendas.expiraEn > Date.now()) {
         return cacheTiendas.negocios;
+    }
+
+    // Las tiendas que venden con "Vender en Market" solo salen cuando Nexo las aprueba (market_estado = 'aprobado').
+    // Los negocios de siempre no tienen estado (NULL) y no cambian.
+    if (!columnasMarketListas) {
+        await pool.query(`ALTER TABLE public.negocios ADD COLUMN IF NOT EXISTS market_estado TEXT, ADD COLUMN IF NOT EXISTS funciones_beta JSONB NOT NULL DEFAULT '{}'::jsonb`);
+        columnasMarketListas = true;
     }
 
     const candidatas = await pool.query(`
@@ -101,6 +110,8 @@ async function tiendasPermitidasMarket(pool) {
         FROM public.negocios n
         JOIN public.sitio_web_config c ON c.negocio_id = n.id
         WHERE n.estado = 'activo' AND c.activo = true AND n.visible_en_market = true
+          AND (n.market_estado IS NULL OR n.market_estado = 'aprobado')
+          AND (COALESCE(n.funciones_beta->>'vendedor_market', 'false') <> 'true' OR n.market_estado = 'aprobado')
         ORDER BY n.nombre
     `);
 

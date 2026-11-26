@@ -81,25 +81,41 @@
     }
 
     async function cargarPasosVendedor() {
-        const [negocio, productos, sitio, cobros] = await Promise.all([
-            pedirJson("/negocio-actual"), pedirJson("/productos"), pedirJson("/negocio-actual/sitio-web"), pedirJson("/negocio-actual/cobros/estado")
-        ]);
+        // Los requisitos los calcula el servidor (los mismos que revisa al pedir la publicacion).
+        const [publicacion, cobros] = await Promise.all([pedirJson("/negocio-actual/market-publicacion"), pedirJson("/negocio-actual/cobros/estado")]);
+        const r = (publicacion && publicacion.requisitos) || { datos: false, productos: false, totalProductos: 0, minimoProductos: 5, tienda: false };
+        const total = Number(r.totalProductos) || 0;
 
-        const datos = (negocio && negocio.negocio) || {};
-        const totalProductos = Array.isArray(productos) ? productos.length : 0;
+        return {
+            publicacion,
+            pasos: [
+                { id: "datos", titulo: "Datos de tu tienda", texto: "Nombre, teléfono y dirección: es lo que ve quien te compra.", hecho: Boolean(r.datos), accion: "configuracion", boton: "Completar datos" },
+                { id: "productos", titulo: "Sube tus productos", texto: total ? `Llevas ${total} ${total === 1 ? "producto" : "productos"} con precio. Necesitas al menos ${r.minimoProductos || 5}.` : "Escanea cada producto y ponle su precio.", hecho: Boolean(r.productos), accion: "mercancia", boton: "Meter mercancía" },
+                { id: "tienda", titulo: "Prende tu tienda en línea", texto: "Elige cómo entregas (recoges en tienda o llevas a domicilio) y prende tu página.", hecho: Boolean(r.tienda), accion: "sitio-web", boton: "Configurar mi tienda" },
+                { id: "cobros", titulo: "Activa el cobro en línea", texto: "Opcional: con esto tus clientes pagan con tarjeta y el dinero llega directo a tu cuenta. Nexo cobra 6 % por venta.", hecho: Boolean(cobros && cobros.chargesEnabled), opcional: true, accion: "sitio-web", boton: "Activar cobros" }
+            ]
+        };
+    }
 
-        return [
-            { id: "datos", titulo: "Datos de tu tienda", texto: "Nombre, teléfono y dirección: es lo que ve quien te compra.", hecho: Boolean(datos.nombre && datos.telefono && datos.direccion), accion: "configuracion", boton: "Completar datos" },
-            { id: "productos", titulo: "Sube tus productos", texto: totalProductos ? `Llevas ${totalProductos} ${totalProductos === 1 ? "producto" : "productos"}. Con 5 o más tu tienda ya se ve completa.` : "Escanea cada producto y ponle su precio.", hecho: totalProductos >= 5, accion: "mercancia", boton: "Meter mercancía" },
-            { id: "tienda", titulo: "Prende tu tienda en línea", texto: "Elige cómo entregas (recoges en tienda o llevas a domicilio) y prende tu página.", hecho: Boolean(sitio && sitio.activo), accion: "sitio-web", boton: "Configurar mi tienda" },
-            { id: "cobros", titulo: "Activa el cobro en línea", texto: "Opcional: con esto tus clientes pagan con tarjeta y el dinero llega directo a tu cuenta. Nexo cobra 6 % por venta.", hecho: Boolean(cobros && cobros.chargesEnabled), opcional: true, accion: "sitio-web", boton: "Activar cobros" }
-        ];
+    // Ultimo paso: pedir la publicacion y ver en que va.
+    function htmlPublicacion(p) {
+        if (!p || !p.aplica) return "";
+
+        if (p.estado === "en_revision") return `<section class="si-publicar en-revision"><b>Tu tienda está en revisión</b><span>Nexo la revisa y te avisa por correo. Normalmente toma poco tiempo.</span></section>`;
+        if (p.estado === "aprobado") return `<section class="si-publicar aprobada"><b>¡Tu tienda ya está en Market!</b><span>Los clientes ya pueden encontrarla y hacerte pedidos.</span><a class="si-paso-boton" href="/market/tienda/${encodeURIComponent(p.slug || "")}" target="_blank" rel="noopener">Ver mi tienda en Market</a></section>`;
+
+        return `<section class="si-publicar">
+            <b>Publica tu tienda en Market</b>
+            ${p.estado === "rechazado" ? `<span class="si-publicar-nota">Nexo la revisó y falta esto: ${esc(p.nota || "revisa tus productos y tus datos")}</span>` : `<span>Cuando termines los pasos de arriba, Nexo revisa tu tienda una sola vez y la publica.</span>`}
+            <button type="button" class="si-paso-boton" data-publicar="1" ${p.puedeSolicitar ? "" : "disabled"}>Pedir que publiquen mi tienda</button>
+            <small class="si-publicar-error" hidden></small>
+        </section>`;
     }
 
     async function pintarVendedor(raiz) {
         raiz.innerHTML = `<div class="si-shell"><section class="si-hero"><h2>Hola, ${esc(nombreNegocio())}</h2><p>Estos son los pasos para vender en Nexo Market.</p></section><p class="si-cargando">Revisando tu tienda…</p></div>`;
 
-        const pasos = await cargarPasosVendedor();
+        const { publicacion, pasos } = await cargarPasosVendedor();
         const obligatorios = pasos.filter(p => !p.opcional);
         const listos = obligatorios.filter(p => p.hecho).length;
 
@@ -114,6 +130,7 @@
                 <div class="si-paso-cuerpo"><b>${esc(p.titulo)}${p.opcional ? " <em>(opcional)</em>" : ""}</b><small>${esc(p.texto)}</small></div>
                 <button type="button" class="si-paso-boton ${p.hecho ? "secundario" : ""}" data-accion="${p.accion}">${p.hecho ? "Revisar" : esc(p.boton)}</button>
             </div>`).join("")}</section>
+            ${htmlPublicacion(publicacion)}
             <section class="si-tarjetas">
                 <button type="button" class="si-tarjeta" data-accion="pedidos-market" style="--i:0"><span class="si-icono" aria-hidden="true">${ICONOS.recargas}</span><b>Pedidos de Market</b><span class="si-texto">Lo que te piden por internet, para prepararlo y entregarlo.</span></button>
                 <button type="button" class="si-tarjeta" data-accion="mercancia" style="--i:1"><span class="si-icono" aria-hidden="true">${ICONOS.mercancia}</span><b>Mi mercancía</b><span class="si-texto">Tus productos, con su precio y existencias.</span></button>
@@ -125,6 +142,21 @@
             if (accion === "mercancia") { if (typeof window.mostrarMiMercancia === "function") window.mostrarMiMercancia(); return; }
             abrirModulo(accion);
         }));
+
+        const publicar = raiz.querySelector("[data-publicar]");
+        if (publicar) publicar.addEventListener("click", async () => {
+            publicar.disabled = true;
+            const aviso = raiz.querySelector(".si-publicar-error");
+            try {
+                const r = await fetch("/negocio-actual/market-publicacion/solicitar", { method: "POST", headers: { "Content-Type": "application/json" } });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(d.error || "No se pudo pedir la publicación.");
+                await pintarVendedor(raiz);
+            } catch (error) {
+                if (aviso) { aviso.textContent = error.message; aviso.hidden = false; }
+                publicar.disabled = false;
+            }
+        });
     }
 
     window.mostrarSoloInicio = async function () {
