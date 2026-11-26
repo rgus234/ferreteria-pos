@@ -142,6 +142,7 @@
             <div class="mm-foto">${fotoHtml(ficha.foto, ficha.nombre)}</div>
             <div class="mm-ficha-cuerpo">
                 <span class="mm-etiqueta mm-etiqueta-${ficha.tipo}">${titulos[ficha.tipo]}</span>
+                <div class="mm-foto-fila"><button type="button" class="mm-cancelar" id="mmFotoBoton"><span id="mmFotoTexto">${ficha.fotoNueva ? "Cambiar foto" : (ficha.foto ? "Poner mi propia foto" : "Poner foto")}</span></button><input type="file" id="mmFotoArchivo" accept="image/*" hidden></div>
                 <input class="mm-nombre" id="mmNombre" value="${esc(ficha.nombre)}" placeholder="¿Cómo se llama?" aria-label="Nombre del producto" autocomplete="off">
                 <small class="mm-codigo">${esc([ficha.marca, ficha.codigo].filter(Boolean).join(" · ") || "Sin código: Nexo le pondrá uno")}</small>
                 <div class="mm-campos">
@@ -158,6 +159,20 @@
         </div>`;
 
         el("mmGuardar").addEventListener("click", guardar);
+        el("mmFotoBoton").addEventListener("click", () => el("mmFotoArchivo").click());
+        el("mmFotoArchivo").addEventListener("change", async evento => {
+            const archivo = evento.target.files && evento.target.files[0];
+            if (!archivo || !ficha) return;
+
+            try {
+                if (typeof redimensionarImagenCanvas !== "function") throw new Error("No se pudo preparar la foto.");
+                ficha.fotoNueva = await redimensionarImagenCanvas(archivo, 1024);
+                const foto = raiz()?.querySelector(".mm-foto");
+                if (foto) foto.innerHTML = `<img src="${ficha.fotoNueva}" alt="Tu foto">`;
+                const texto = el("mmFotoTexto");
+                if (texto) texto.textContent = "Cambiar foto";
+            } catch (error) { mostrarError(error.message || "No se pudo leer la foto."); }
+        });
         el("mmCancelar").addEventListener("click", cancelar);
 
         ["mmNombre", "mmPrecio", "mmStock"].forEach(id => {
@@ -318,6 +333,18 @@
     // ---------------------------------------------------------------------
     // Guardar
     // ---------------------------------------------------------------------
+    // Foto propia del producto (la que ve el cliente en Market). Si falla, el producto ya quedo guardado.
+    async function subirFotoDeFicha(codigo, productoId) {
+        try {
+            let codigoFoto = codigo;
+            if (!codigoFoto && productoId) { const generado = await llamar(`/productos/${productoId}/generar-codigo`, { method: "POST" }); codigoFoto = generado && generado.codigo; }
+            if (!codigoFoto) throw new Error("sin codigo");
+            await llamar(`/fotos-producto/${encodeURIComponent(codigoFoto)}/principal`, { method: "POST", body: JSON.stringify({ imagenBase64: ficha.fotoNueva }) });
+        } catch (error) {
+            if (typeof window.mostrarToastPOS === "function") window.mostrarToastPOS("Se guardó el producto, pero no se pudo subir la foto.", { titulo: "Mi mercancía", tipo: "advertencia" });
+        }
+    }
+
     async function guardar() {
         if (!ficha || guardando) return;
 
@@ -343,6 +370,7 @@
 
                 if (Object.keys(cambios).length) await llamar(`/productos/${p.id}/edicion-rapida`, { method: "PATCH", body: JSON.stringify(cambios) });
 
+                if (ficha.fotoNueva) await subirFotoDeFicha(p.codigo, p.id);
                 if (stockTexto !== "" && Number(stockTexto) !== Number(p.stock || 0)) {
                     await llamar("/ajustes-inventario", { method: "POST", body: JSON.stringify({ productoId: p.id, tipo: "conteo", cantidad: Number(stockTexto), motivo: "Conteo desde Mi mercancía" }) });
                 }
@@ -352,11 +380,13 @@
                 if (ficha.catalogoMaestroId) cuerpo.catalogoMaestroId = ficha.catalogoMaestroId;
 
                 const creado = await llamar("/agregar-producto", { method: "POST", body: JSON.stringify(cuerpo) });
-
                 // Sin codigo no se puede escanear: se le crea uno interno (igual que el boton "Generar codigo").
-                if (!ficha.codigo && creado && creado.productoId) {
-                    try { await llamar(`/productos/${creado.productoId}/generar-codigo`, { method: "POST" }); } catch (error) { /* queda sin codigo; se puede generar despues */ }
+                let codigoFinal = (creado && creado.producto && creado.producto.codigo) || ficha.codigo || "";
+                if (!codigoFinal && creado && creado.productoId) {
+                    try { const generado = await llamar(`/productos/${creado.productoId}/generar-codigo`, { method: "POST" }); codigoFinal = (generado && generado.codigo) || ""; } catch (error) { /* se puede generar despues */ }
                 }
+                if (ficha.fotoNueva && codigoFinal) await subirFotoDeFicha(codigoFinal, creado && creado.productoId);
+
 
                 sumarHoy();
             }

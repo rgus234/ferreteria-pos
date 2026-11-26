@@ -178,3 +178,6 @@ body.oscuro .si-paso-boton.secundario { background: #263445; color: #f1f5f9; }
 .si-publicar-error { color: #b91c1c; font-weight: 600; }
 body.oscuro .si-publicar { background: #14213d; color: #f1f5f9; }
 body.oscuro .si-publicar span { color: #cbd5e1; }
+
+/* Foto propia del producto (Mi mercancia) */
+.mm-foto-fila { display: flex; margin-bottom: 6px; }

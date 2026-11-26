@@ -369,6 +369,10 @@
             <div class="ds-ficha-top"><div class="ds-mini ds-mini-grande">${fotoHtml(ficha.foto, ficha.nombre)}</div>
                 <div><span class="ds-etiqueta ds-etiqueta-${ficha.tipo}">${titulos[ficha.tipo]}</span>
                 <small class="ds-codigo">${esc([ficha.marca, ficha.codigo].filter(Boolean).join(" · ") || "Sin código: Nexo le pondrá uno")}</small></div></div>
+            <div class="ds-foto-fila">
+                <button type="button" id="dsFotoBoton" class="ds-secundario ds-foto-boton">${icono("camara")}<span id="dsFotoTexto">${ficha.fotoNueva ? "Cambiar foto" : (ficha.foto ? "Poner mi propia foto" : "Tomar o elegir foto")}</span></button>
+                <input type="file" id="dsFotoArchivo" accept="image/*" hidden>
+            </div>
             <label><span>Nombre</span><input id="dsNombre" value="${esc(ficha.nombre)}" placeholder="¿Cómo se llama?" autocomplete="off"></label>
             <div class="ds-campos">
                 <label><span>Precio de venta</span><div class="ds-caja"><i>$</i><input id="dsPrecio" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" value="${precio === "" ? "" : esc(precio)}"></div></label>
@@ -380,6 +384,20 @@
 
         el("dsGuardar").addEventListener("click", guardar);
         el("dsCancelar").addEventListener("click", cancelar);
+        el("dsFotoBoton").addEventListener("click", () => el("dsFotoArchivo").click());
+        el("dsFotoArchivo").addEventListener("change", async evento => {
+            const archivo = evento.target.files && evento.target.files[0];
+            if (!archivo || !ficha) return;
+
+            try {
+                if (typeof redimensionarImagenCanvasDueno !== "function") throw new Error("Este celular no puede preparar la foto.");
+                ficha.fotoNueva = await redimensionarImagenCanvasDueno(archivo, 1024);
+                const mini = document.querySelector(".ds-mini-grande");
+                if (mini) mini.innerHTML = `<img src="${ficha.fotoNueva}" alt="Tu foto">`;
+                const texto = el("dsFotoTexto");
+                if (texto) texto.textContent = "Cambiar foto";
+            } catch (error) { mostrarError(error.message || "No se pudo leer la foto."); }
+        });
         el("dsPrecio").addEventListener("input", e => { e.target.value = e.target.value.replace(",", ".").replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1"); });
         el("dsStock").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, ""); });
         ["dsNombre", "dsPrecio", "dsStock"].forEach(id => el(id).addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); guardar(); } }));
@@ -481,6 +499,18 @@
 
     function cancelar() { ficha = null; mostrarError(""); pintarFicha(); }
 
+    // Foto propia del producto (la que ve el cliente en Market): misma ruta que el inventario del celular. Si falla, el producto ya quedo guardado.
+    async function subirFotoDeFicha(codigo, productoId) {
+        try {
+            let codigoFoto = codigo;
+            if (!codigoFoto && productoId) { const generado = await llamar(`/productos/${productoId}/generar-codigo`, { method: "POST" }); codigoFoto = generado && generado.codigo; }
+            if (!codigoFoto) throw new Error("sin codigo");
+            await llamar(`/fotos-producto/${encodeURIComponent(codigoFoto)}/principal`, { method: "POST", body: JSON.stringify({ imagenBase64: ficha.fotoNueva }) });
+        } catch (error) {
+            aviso("Se guardó el producto, pero no se pudo subir la foto. Intenta ponerla otra vez.");
+        }
+    }
+
     async function guardar() {
         if (!ficha || guardando) return;
 
@@ -503,6 +533,7 @@
                 if (nombre !== p.nombre) cambios.nombre = nombre;
                 if (Math.abs(precio - precioDe(p)) > 0.0001) cambios.precioPublico = precio;
                 if (Object.keys(cambios).length) await llamar(`/productos/${p.id}/edicion-rapida`, { method: "PATCH", body: JSON.stringify(cambios) });
+                if (ficha.fotoNueva) await subirFotoDeFicha(p.codigo, p.id);
                 if (stockTexto !== "" && Number(stockTexto) !== Number(p.stock || 0)) {
                     await llamar("/ajustes-inventario", { method: "POST", body: JSON.stringify({ productoId: p.id, tipo: "conteo", cantidad: Number(stockTexto), motivo: "Conteo desde Mi mercancía" }) });
                 }
@@ -512,9 +543,11 @@
                 if (ficha.catalogoMaestroId) cuerpo.catalogoMaestroId = ficha.catalogoMaestroId;
 
                 const creado = await llamar("/agregar-producto", { method: "POST", body: JSON.stringify(cuerpo) });
-                if (!ficha.codigo && creado && creado.productoId) {
-                    try { await llamar(`/productos/${creado.productoId}/generar-codigo`, { method: "POST" }); } catch (error) { /* se puede generar despues */ }
+                let codigoFinal = (creado && creado.producto && creado.producto.codigo) || ficha.codigo || "";
+                if (!codigoFinal && creado && creado.productoId) {
+                    try { const generado = await llamar(`/productos/${creado.productoId}/generar-codigo`, { method: "POST" }); codigoFinal = (generado && generado.codigo) || ""; } catch (error) { /* se puede generar despues */ }
                 }
+                if (ficha.fotoNueva && codigoFinal) await subirFotoDeFicha(codigoFinal, creado && creado.productoId);
                 sumarHoy();
             }
 

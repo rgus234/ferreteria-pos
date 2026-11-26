@@ -119,3 +119,8 @@ html.dueno-solo .dueno-tabs { display: none !important; }
 .ds-fila-precio { display: grid; justify-items: end; font-weight: 800; }
 .ds-fila-precio small.ds-bajo { color: #b91c1c; font-weight: 800; }
 .ds-sin { color: var(--muted, #66738a); text-align: center; font-size: 13.5px; margin: 10px 0; }
+
+/* Foto propia del producto */
+.ds-foto-fila { display: flex; }
+.ds-foto-boton { display: inline-flex; align-items: center; gap: 8px; }
+.ds-foto-boton svg { width: 20px; height: 20px; }

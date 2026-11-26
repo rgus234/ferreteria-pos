@@ -205,3 +205,30 @@ test("el asistente corto tambien se usa para Vender en Market, con su propio fin
     assert.match(js, /asistenteSoloModo = asistenteVendedorMercado \|\|/);
     assert.match(js, /Sigue los pasos de tu Inicio/);
 });
+
+test("Mi mercancia (computadora y celular): se puede poner una foto propia, que se sube a la ruta de siempre y no tumba el guardado", () => {
+    for (const [archivo, ayudante] of [["public/dueno-solo.js", "redimensionarImagenCanvasDueno"], ["public/js/mi-mercancia.js", "redimensionarImagenCanvas"]]) {
+        const js = leer(archivo);
+        assert.ok(js.includes(`${ayudante}(archivo, 1024)`), `${archivo}: la foto se achica antes de subirla`);
+        assert.match(js, /\/fotos-producto\/\$\{encodeURIComponent\(codigoFoto\)\}\/principal/);
+        assert.match(js, /async function subirFotoDeFicha/);
+        assert.match(js, /ficha\.fotoNueva\) await subirFotoDeFicha\(p\.codigo, p\.id\)/, "tambien se puede cambiar la foto de uno que ya tienes");
+        assert.match(js, /subirFotoDeFicha\(codigoFinal, creado && creado\.productoId\)/);
+        assert.ok(js.includes("no se pudo subir la foto"), "si la foto falla, el producto ya quedo guardado y se avisa");
+    }
+    assert.match(leer("public/dueno-sw.js"), /nexo-dueno-shell-v159/);
+});
+
+test("la foto propia llega al producto: se sube con su codigo y el producto la trae", async () => {
+    const codigo = `FOTO${String(Date.now()).slice(-8)}`;
+    const alta = await api("/agregar-producto", { method: "POST", body: JSON.stringify({ nombre: "Producto con foto propia", precio: 25, precioPublico: 25, stock: 3, stockMinimo: 1, codigo, unidadVenta: "pieza" }) });
+    assert.equal(alta.estado, 200, JSON.stringify(alta.datos));
+
+    // Una imagen real y chica, como la que arma el canvas del celular
+    const jpeg = (await require("sharp")({ create: { width: 8, height: 8, channels: 3, background: "#d33" } }).jpeg().toBuffer()).toString("base64");
+    const subida = await api(`/fotos-producto/${encodeURIComponent(codigo)}/principal`, { method: "POST", body: JSON.stringify({ imagenBase64: `data:image/jpeg;base64,${jpeg}` }) });
+    assert.equal(subida.estado, 200, JSON.stringify(subida.datos));
+
+    const fila = await pool.query("SELECT length(imagen_principal) AS bytes FROM public.fotos_producto WHERE negocio_id = $1 AND codigo = $2", [negocio.negocioId, codigo]);
+    assert.ok(fila.rows.length === 1 && Number(fila.rows[0].bytes) > 0, "la foto quedo guardada con el codigo del producto");
+});
