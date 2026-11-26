@@ -242,7 +242,7 @@ function marketCarritoExistenciaHtml(p) {
         return '<span class="market-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>';
     }
     return '<span class="market-producto-existencia' + (p.stock <= 0 ? ' agotado' : '') + '">' +
-        (p.stock <= 0 ? 'Agotado' : p.stock + ' disponibles') + '</span>';
+        (p.stock <= 0 ? 'Agotado' : p.stock + (Number(p.stock) === 1 ? ' disponible' : ' disponibles')) + '</span>';
 }
 
 function marketCarritoEnlaceProducto(p) {

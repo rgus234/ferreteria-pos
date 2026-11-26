@@ -551,7 +551,7 @@ function iconoCategoriaTenant(nombre) {
 function tarjetaProductoTenantHtml({ codigo, nombre, fotoUrl, precio, precioOferta, stock, basePath = "", mostrarFavorito = !basePath, mostrarComparar = !basePath }) {
     const nombreSeguro = escaparHtml(nombre);
     const existenciaHtml = stock !== null && stock !== undefined
-        ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>`
+        ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} ${Number(stock) === 1 ? "disponible" : "disponibles"}`}</span>`
         : `<span class="tenant-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>`;
     const precioHtml = precio !== null && precio !== undefined ? precioOfertaHtml(precio, precioOferta) : "";
     const favoritoBtnHtml = mostrarFavorito
@@ -570,7 +570,9 @@ ${precioHtml}
 ${existenciaHtml}
 </div>
 </a>
-<button type="button" class="tenant-btn-carrito" data-codigo="${escaparHtml(codigo)}" data-nombre="${nombreSeguro}">Agregar al carrito</button>
+${stock !== null && stock !== undefined && stock <= 0
+    ? `<button type="button" class="tenant-btn-carrito" disabled aria-disabled="true">Agotado</button>`
+    : `<button type="button" class="tenant-btn-carrito" data-codigo="${escaparHtml(codigo)}" data-nombre="${nombreSeguro}">Agregar al carrito</button>`}
 </div>`;
 }
 
@@ -794,6 +796,7 @@ ${estilosPromoBanner(color)}
 .tenant-carrito-boton-nav{ display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
 .tenant-carrito-contador{ display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 4px; border-radius:999px; background:rgba(255,255,255,.28); font-size:11px; font-weight:800; }
 .tenant-btn-carrito{ margin-top:10px; padding:10px 18px; border-radius:999px; border:1px solid var(--line); background:var(--glass); color:var(--ink); font-weight:700; font-size:13px; cursor:pointer; align-self:start; }
+.tenant-btn-carrito:disabled{ opacity:.55; cursor:not-allowed; }
 .tenant-btn-carrito.tenant-btn-primario{ margin-top:0; padding:13px 26px; border:none; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; font-size:14px; box-shadow:0 14px 28px rgba(16,103,232,.28); }
 .tenant-producto-card{ display:flex; flex-direction:column; }
 .tenant-producto-card .tenant-btn-carrito{ margin:0 14px 14px; }

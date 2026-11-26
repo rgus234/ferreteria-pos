@@ -1917,7 +1917,7 @@ function marketTarjetaProducto(p) {
     }
 
     const existenciaHtml = p.stock !== null && p.stock !== undefined
-        ? '<span class="market-producto-existencia' + (p.stock <= 0 ? ' agotado' : '') + '">' + (p.stock <= 0 ? 'Agotado' : p.stock + ' disponibles') + '</span>'
+        ? '<span class="market-producto-existencia' + (p.stock <= 0 ? ' agotado' : '') + '">' + (p.stock <= 0 ? 'Agotado' : p.stock + (Number(p.stock) === 1 ? ' disponible' : ' disponibles')) + '</span>'
         : '<span class="market-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>';
 
     const fotoHtml = p.fotoUrl
@@ -2054,7 +2054,7 @@ function marketTarjetaOfertaDelDia(p) {
 
     var agotado = p.stock !== null && p.stock !== undefined && p.stock <= 0;
     var existenciaHtml = p.stock !== null && p.stock !== undefined
-        ? '<span class="market-producto-existencia' + (agotado ? ' agotado' : '') + '">' + (agotado ? 'Agotado' : p.stock + ' disponibles') + '</span>'
+        ? '<span class="market-producto-existencia' + (agotado ? ' agotado' : '') + '">' + (agotado ? 'Agotado' : p.stock + (Number(p.stock) === 1 ? ' disponible' : ' disponibles')) + '</span>'
         : '<span class="market-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>';
 
     var link = '/market/tienda/' + encodeURIComponent(p.slug) + '/catalogo/' + encodeURIComponent(p.codigo);
@@ -3360,7 +3360,7 @@ function tarjetaProductoExploraHtml(p) {
     }
 
     const existenciaHtml = p.stock !== null && p.stock !== undefined
-        ? `<span class="market-producto-existencia${p.stock <= 0 ? ' agotado' : ''}">${p.stock <= 0 ? 'Agotado' : p.stock + ' disponibles'}</span>`
+        ? `<span class="market-producto-existencia${p.stock <= 0 ? ' agotado' : ''}">${p.stock <= 0 ? 'Agotado' : p.stock + (Number(p.stock) === 1 ? ' disponible' : ' disponibles')}</span>`
         : `<span class="market-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>`;
 
     const fotoHtml = p.fotoUrl

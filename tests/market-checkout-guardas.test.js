@@ -24,3 +24,14 @@ test("el pedido minimo y los productos agotados se rechazan antes de crear el co
     assert.ok(agotados < cobro, "lo agotado se revisa antes de llamar a Stripe");
     assert.match(fuente, /const MONTO_MINIMO_PAGO_MXN = 10;/);
 });
+
+test("las tarjetas de producto de Market: '1 disponible' en singular y lo agotado no se puede agregar al carrito", () => {
+    for (const archivo of ["market-server.js", "market-carrito-server.js", "public-site-server.js"]) {
+        const f = fs.readFileSync(path.join(__dirname, "..", archivo), "utf8");
+        assert.ok(!/p\.stock \+ ' disponibles'/.test(f), `${archivo}: el singular se cuida`);
+    }
+
+    const sitio = fs.readFileSync(path.join(__dirname, "..", "public-site-server.js"), "utf8");
+    assert.match(sitio, /class="tenant-btn-carrito" disabled aria-disabled="true">Agotado<\/button>/);
+    assert.match(sitio, /\.tenant-btn-carrito:disabled/);
+});
