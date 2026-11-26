@@ -198,3 +198,10 @@ test("Vender en Market (vendedor_market): nace apagada, el menu se recorta a sus
     assert.match(leer("public/js/solo-mostrador.js"), /pintarVendedor/);
     assert.match(leer("funciones-beta-server.js"), /SOLO_EXPLICITAS = \["autofactura", "solo_mostrador", "vendedor_market"\]/);
 });
+
+test("el asistente corto tambien se usa para Vender en Market, con su propio final que manda a los pasos del Inicio", () => {
+    const js = leer("public/js/asistente-inicio.js");
+    assert.match(js, /funciones\.funciones\.vendedor_market === true/);
+    assert.match(js, /asistenteSoloModo = asistenteVendedorMercado \|\|/);
+    assert.match(js, /Sigue los pasos de tu Inicio/);
+});

@@ -81,21 +81,35 @@ function paginaMarketVenderHtml() {
     return `<!doctype html>
 <html lang="es">
 <head>
-${cabezaMarketPaginaHtml("Vende en Nexo Market", "Da de alta tu negocio en Nexo Market: administra tu inventario con Nexo POS y vendele a mas clientes.")}
+${cabezaMarketPaginaHtml("Vende en Nexo Market", "Crea tu cuenta, sube tus productos y recibe pedidos en Nexo Market. Publicar es gratis.")}
+<style>
+.registro-modo{border:0;margin:0 0 6px;padding:0;display:grid;gap:10px}
+.registro-modo legend{font-weight:800;margin-bottom:8px;padding:0}
+.registro-modo-opcion{display:flex!important;align-items:flex-start;gap:12px;padding:14px 16px;border:2px solid rgba(15,23,42,.12);border-radius:14px;cursor:pointer;background:#fff}
+.registro-modo-opcion:has(input:checked){border-color:#1a5fe0;background:#eef4ff}
+.registro-modo-opcion input{margin-top:4px;width:auto!important}
+.registro-modo-opcion span{display:grid;gap:2px}
+.registro-modo-opcion small{color:#56647c;font-size:13px;line-height:1.35}
+</style>
 </head>
 <body>
 ${marketHeaderHtml({ activo: "vender" })}
 <main class="market-pagina-simple">
 <section class="contact">
 <div class="contact-intro">
-<p class="eyebrow">Para ferreterias, abarrotes y papelerias</p>
+<p class="eyebrow">Para ferreterias, abarrotes y papelerias con tienda fisica</p>
 <h2>Vende en Nexo Market</h2>
-<p>Da de alta tu negocio: administras tu inventario con Nexo POS y tus productos aparecen para miles de compradores en Nexo Market. <a href="/site#planes">Ver planes y precios en detalle</a>.</p>
+<p>Crea tu cuenta, sube tus productos y recibe pedidos: tus clientes recogen en tu tienda o tu les llevas. Publicar es gratis; Nexo cobra el 6% solo cuando vendes con pago en linea. Cuando quieras, tambien puedes usar el punto de venta. <a href="/site#planes">Ver planes y precios en detalle</a>.</p>
 </div>
 <div class="contact-panel-wrap">
 <div class="contact-panel" id="panelCuenta">
 <form class="lead-form" id="registroClienteForm">
 <input type="text" id="registroEmpresaWeb" name="empresaWeb" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
+<fieldset class="registro-modo">
+<legend>¿Como quieres empezar?</legend>
+<label class="registro-modo-opcion"><input type="radio" name="registroModo" value="market" checked><span><b>Solo vender en Nexo Market</b><small>Gratis. Subes tus productos y recibes pedidos. Nexo revisa tu tienda antes de publicarla.</small></span></label>
+<label class="registro-modo-opcion"><input type="radio" name="registroModo" value="pos"><span><b>Punto de venta completo</b><small>Prueba de 30 dias: caja, inventario, creditos y Market.</small></span></label>
+</fieldset>
 <label>Nombre del negocio<input id="registroNegocio" type="text" placeholder="Ej. Ferreteria Olimpico" required></label>
 <label>Giro del negocio
 <select id="registroGiro">
@@ -116,7 +130,7 @@ ${marketHeaderHtml({ activo: "vender" })}
 <input id="registroAceptaTerminos" type="checkbox" required>
 <span>Acepto los <a href="/terminos" target="_blank" rel="noopener">Terminos de Servicio</a> y el <a href="/privacidad" target="_blank" rel="noopener">Aviso de Privacidad</a> de Nexo.</span>
 </label>
-<button class="btn primary" type="submit" id="registroSubmit">Solicitar licencia</button>
+<button class="btn primary" type="submit" id="registroSubmit">Crear mi cuenta</button>
 <div id="registroResultado" class="lead-result" aria-live="polite"></div>
 </form>
 </div>
@@ -201,8 +215,25 @@ function renderRegistro(mensaje, esError) {
 }
 
 function mostrarExitoRegistro(datos) {
-    var campos = registroForm.querySelectorAll("label, button[type=submit]");
+    var campos = registroForm.querySelectorAll("label, fieldset, button[type=submit]");
     for (var i = 0; i < campos.length; i++) { campos[i].style.setProperty("display", "none", "important"); }
+
+    if (datos.modo === "vendedor_market") {
+        renderRegistro(
+            "<div class=\\"registro-exito\\">" +
+            "<div class=\\"registro-exito-check\\" aria-hidden=\\"true\\">&#10003;</div>" +
+            "<h3>&iexcl;Listo! Tu cuenta est&aacute; creada</h3>" +
+            "<p>Revisa tu correo (<b>" + marketPaginaEscapeHtml(datos.negocio.correo) + "</b>) y verif&iacute;calo: lo necesitas para entrar.</p>" +
+            "<ol class=\\"registro-pasos\\">" +
+            "<li>Entra a <b>app.nexoposoficial.com</b> con tu correo y tu contrase&ntilde;a.</li>" +
+            "<li>Crea tu usuario con un PIN de 4 n&uacute;meros.</li>" +
+            "<li>Sigue los pasos del Inicio: datos de tu tienda, tus productos y tu tienda en l&iacute;nea. Cuando termines, pides que Nexo la publique.</li>" +
+            "</ol>" +
+            "<a class=\\"btn primary registro-descarga-btn\\" href=\\"" + marketPaginaEscapeHtml(datos.appUrl) + "\\">Entrar a mi cuenta</a>" +
+            "</div>"
+        );
+        return;
+    }
 
     renderRegistro(
         "<div class=\\"registro-exito\\">" +
@@ -253,7 +284,8 @@ registroForm.addEventListener("submit", async function(evento) {
                 ciudad: document.getElementById("registroCiudad").value,
                 nombreContacto: document.getElementById("registroContacto").value,
                 empresaWeb: document.getElementById("registroEmpresaWeb").value,
-                giro: document.getElementById("registroGiro").value || "ferreteria"
+                giro: document.getElementById("registroGiro").value || "ferreteria",
+                quieroVenderMarket: (document.querySelector("input[name=registroModo]:checked") || {}).value !== "pos"
             })
         });
         var datos = await respuesta.json();
@@ -273,7 +305,7 @@ registroForm.addEventListener("submit", async function(evento) {
 // Terminos especificos de Nexo Market (compra/recoleccion/pagos/
 // devoluciones entre comprador y tienda) -- distintos de /terminos
 // (el contrato del software Nexo POS, para quien administra un
-// negocio). Cada dato operativo de este documento (comision 3%,
+// negocio). Cada dato operativo de este documento (comision 6%,
 // cancelacion solo en "pendiente", recoleccion en tienda sin entrega
 // a domicilio, credito por tienda) viene directo de como el sistema
 // ya funciona (ver COMISION_NEXO_MARKETPLACE en stripe-connect-server.js
@@ -332,7 +364,7 @@ esta en <a href="/terminos">Terminos de Nexo</a>.
 <p>Cada tienda es responsable de su propio inventario, precio y existencia -- Nexo Market muestra esa informacion tal como la tienda la mantiene, pero no la garantiza en tiempo real al 100%: puede haber diferencias si la tienda no ha actualizado su sistema.</p>
 
 <h2 id="pagos">5. Pagos</h2>
-<p>Puedes pagar con tarjeta (el cobro se procesa directo a la cuenta de la tienda que elegiste; Nexo cobra una comision del 3% a la tienda por ese servicio) o, si ya eres cliente de credito de esa tienda en particular, a tu credito con ella. El credito que tengas con una tienda es solo con esa tienda -- no es un credito general de Nexo Market que puedas usar en cualquier tienda.</p>
+<p>Puedes pagar con tarjeta (el cobro se procesa directo a la cuenta de la tienda que elegiste; Nexo cobra una comision del 6% a la tienda por ese servicio) o, si ya eres cliente de credito de esa tienda en particular, a tu credito con ella. El credito que tengas con una tienda es solo con esa tienda -- no es un credito general de Nexo Market que puedas usar en cualquier tienda.</p>
 
 <h2 id="devoluciones">6. Devoluciones, cambios y garantia</h2>
 <p>Cada tienda define su propia politica de cambios, devoluciones y garantia sobre lo que vende -- Nexo Market no fabrica ni almacena los productos, asi que no impone una regla unica para todas (una tienda no trata igual el cambio de un producto perecedero que el de una herramienta electrica). Si la tienda no tiene su propia politica publicada, aplican las protecciones que ya te da la ley mexicana de proteccion al consumidor, sin importar lo que diga cualquier otro documento.</p>

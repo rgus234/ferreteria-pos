@@ -964,6 +964,8 @@ app.post("/api/clientes/registro", async (req, res) => {
     const nombreContacto = limpiarTexto(req.body?.nombreContacto || req.body?.nombre, 120);
     const giro = limpiarTexto(req.body?.giro, 80) || "ferreteria";
     const plan = limpiarTexto(req.body?.plan, 80) || "prueba";
+    // "Quiero vender en Market" (Fase 1 de vender en Market): cuenta con la funcion vendedor_market, sin punto de venta y oculta en Market hasta que Nexo la apruebe.
+    const quiereVenderMarket = req.body?.quieroVenderMarket === true;
 
     // Validaciones que no necesitan tocar la base de datos se resuelven
     // antes de pedir una conexion del pool -- asi un intento con datos
@@ -1051,6 +1053,14 @@ app.post("/api/clientes/registro", async (req, res) => {
             [slug, nombreNegocio, giro, plan, telefono, correo, hashPassword(password), ciudad || null]
         );
 
+        if (quiereVenderMarket) {
+            await client.query(`ALTER TABLE public.negocios ADD COLUMN IF NOT EXISTS market_estado TEXT, ADD COLUMN IF NOT EXISTS funciones_beta JSONB NOT NULL DEFAULT '{}'::jsonb`);
+            await client.query(
+                `UPDATE public.negocios SET funciones_beta = '{"vendedor_market": true}'::jsonb, market_estado = 'borrador' WHERE id = $1`,
+                [negocio.rows[0].id]
+            );
+        }
+
         // Antes de esta migracion (Fase 1 de "Catalogo Maestro Nexo")
         // ningun negocio nuevo quedaba con fila en negocio_giros -- el
         // giro elegido en el registro se guardaba en negocios.giro pero
@@ -1067,7 +1077,8 @@ app.post("/api/clientes/registro", async (req, res) => {
         // "diasPrueba" leido del body dejaba a cualquiera pedir hasta
         // 90 dias de prueba con una sola peticion directa a la API,
         // sin pasar por el formulario (que nunca manda ese campo).
-        const venceEnDias = 30;
+        // Un vendedor de Market no paga mensualidad (publicar es gratis, Nexo cobra comision por venta): su licencia no vence en la practica.
+        const venceEnDias = quiereVenderMarket ? 3650 : 30;
 
         const licencia = await client.query(
             `
@@ -1082,9 +1093,7 @@ app.post("/api/clientes/registro", async (req, res) => {
                 licenciaKey,
                 plan,
                 venceEnDias,
-                nombreContacto
-                    ? `Alta publica. Contacto: ${nombreContacto}`
-                    : "Alta publica"
+                (quiereVenderMarket ? "Alta publica (vendedor de Market)" : "Alta publica") + (nombreContacto ? `. Contacto: ${nombreContacto}` : "")
             ]
         );
 
@@ -1141,6 +1150,8 @@ app.post("/api/clientes/registro", async (req, res) => {
                 fechaVencimiento: licencia.rows[0].fecha_vencimiento,
                 graciaDias: licencia.rows[0].gracia_dias
             },
+            modo: quiereVenderMarket ? "vendedor_market" : "punto_de_venta",
+            appUrl: "https://app.nexoposoficial.com",
             instalador: {
                 version: latest?.version || config.appVersion,
                 url: latest?.url_descarga || "/downloads/NexoPOS_Setup_1.0.0.exe",

@@ -46,6 +46,7 @@ const ASISTENTE_PASOS_COMPLETOS = ["bienvenida", "giro", "correos", "negocio", "
 const ASISTENTE_PASOS_SOLO = ["negocio", "listo"];
 const ASISTENTE_PASOS = [...ASISTENTE_PASOS_COMPLETOS];
 let asistenteSoloModo = false;
+let asistenteVendedorMercado = false; // "Vender en Market": mismo asistente corto, con otro final
 
 const ASISTENTE_NIVELES_PRECIO = [
  { id: "publico", etiqueta: "Precio publico (lo normal)" },
@@ -109,8 +110,9 @@ async function iniciarAsistenteInicio({ desdePaso = null } = {}) {
   // Negocio con "Solo lo necesario": pasos cortos (si la consulta falla, se usa el asistente de siempre).
   try {
    const funciones = await asistenteLlamar("/funciones-beta");
-   asistenteSoloModo = Boolean(funciones && funciones.funciones && funciones.funciones.solo_mostrador === true);
-  } catch (errorFunciones) { asistenteSoloModo = false; }
+   asistenteVendedorMercado = Boolean(funciones && funciones.funciones && funciones.funciones.vendedor_market === true);
+   asistenteSoloModo = asistenteVendedorMercado || Boolean(funciones && funciones.funciones && funciones.funciones.solo_mostrador === true);
+  } catch (errorFunciones) { asistenteSoloModo = false; asistenteVendedorMercado = false; }
 
   ASISTENTE_PASOS.splice(0, ASISTENTE_PASOS.length, ...(asistenteSoloModo ? ASISTENTE_PASOS_SOLO : ASISTENTE_PASOS_COMPLETOS));
 
@@ -528,8 +530,14 @@ function asistenteTextoSiNo(valor) {
 function asistentePintarListoSolo() {
  const d = asistente.datos;
 
- document.getElementById("asistenteTitulo").textContent = "¡Listo! Ya puedes empezar";
- document.getElementById("asistenteCuerpo").innerHTML = `
+ document.getElementById("asistenteTitulo").textContent = asistenteVendedorMercado ? "¡Listo! Sigue los pasos de tu Inicio" : "¡Listo! Ya puedes empezar";
+ document.getElementById("asistenteCuerpo").innerHTML = asistenteVendedorMercado ? `
+  <div class="asistente-resumen">
+   <div><span>Tienda</span><span>${asistenteEsc(d.nombre || "Mi tienda")}</span></div>
+   ${d.telefono ? `<div><span>Teléfono</span><span>${asistenteEsc(d.telefono)}</span></div>` : ""}
+  </div>
+  <p>En tu Inicio tienes los pasos para publicar tu tienda en Nexo Market: tus productos, tu tienda en línea y, cuando termines, pedir que Nexo la revise.</p>
+ ` : `
   <div class="asistente-resumen">
    <div><span>Negocio</span><span>${asistenteEsc(d.nombre || "Mi negocio")}</span></div>
    ${d.telefono ? `<div><span>Teléfono</span><span>${asistenteEsc(d.telefono)}</span></div>` : ""}
