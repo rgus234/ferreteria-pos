@@ -11,6 +11,9 @@
         // Solo existen para un negocio con "Solo lo necesario" (solo-mostrador.js): sus botones del menu de siempre estan ocultos para los demas.
         { id: "mostrador", etiqueta: "Mostrador de precios", icono: "tag", directo: "mostrador-precios" },
         { id: "mercancia", etiqueta: "Mi mercancía", icono: "inventory", directo: "mi-mercancia" },
+        // Solo existen con "Vender en Market" (vendedor_market): sus botones llevan data-beta y estan ocultos para los demas.
+        { id: "pedidosmarket", etiqueta: "Pedidos de Market", icono: "bag", directo: "pedidos-market" },
+        { id: "mitienda", etiqueta: "Mi tienda en línea", icono: "globe", directo: "sitio-web" },
         { id: "venta", etiqueta: "Vender", icono: "cart", directo: "venta" },
         { id: "recargas", etiqueta: "Recargas", icono: "phone", directo: "recargas" },
         {
@@ -186,6 +189,8 @@
 
     // "Solo lo necesario" (negocios chicos): del menu solo quedan estos modulos. Nada se borra: al apagar la funcion vuelve todo.
     const SOLO_MODULOS = new Set(["inicio", "mostrador-precios", "mi-mercancia", "recargas", "proveedores", "inventario-bajo", "configuracion", "cuenta"]);
+    // "Vender en Market": solo lo que ocupa quien vende en linea y no tiene (o todavia no usa) el punto de venta.
+    const VENDEDOR_MODULOS = new Set(["inicio", "mi-mercancia", "pedidos-market", "sitio-web", "configuracion", "cuenta"]);
 
     function disponible(boton) {
         if (!boton || boton.hidden) return false;
@@ -193,6 +198,7 @@
 
         const cuerpo = document.body.classList;
         if (cuerpo.contains("solo-mostrador") && !SOLO_MODULOS.has(boton.dataset.shellModule)) return false;
+        if (cuerpo.contains("vendedor-market")) return VENDEDOR_MODULOS.has(boton.dataset.shellModule); // el perfil (abarrotes) no oculta lo que el vendedor necesita
         if (boton.dataset.perfilOculto === "1" && cuerpo.contains("perfil-simple") && !cuerpo.contains("perfil-ver-todo")) return false;
         if (boton.classList.contains("solo-perfil-simple") && !cuerpo.contains("perfil-simple") && !cuerpo.contains("perfil-con-abarrotes")) return false;
         return true;
@@ -228,7 +234,8 @@
             });
         }
 
-        const visibles = HUBS.filter(h => h.directo ? disponible(original(h.directo)) : totalTarjetas(h) > 0).filter(h => !(h.id === "productos" && document.body.classList.contains("solo-mostrador"))); // en "Solo lo necesario" el inventario es Mi mercancia
+        const visibles = HUBS.filter(h => h.directo ? disponible(original(h.directo)) : totalTarjetas(h) > 0).filter(h => !(h.id === "productos" && (document.body.classList.contains("solo-mostrador") || document.body.classList.contains("vendedor-market"))))
+            .filter(h => !(h.id === "enlinea" && document.body.classList.contains("vendedor-market"))) // sus piezas ya salen sueltas: Pedidos de Market y Mi tienda en línea; // en "Solo lo necesario" el inventario es Mi mercancia
         const huella = visibles.map(h => h.id + ":" + valorDe(h.etiqueta)).join("|");
 
         if (nav.dataset.huella !== huella || nav.children.length !== visibles.length) {

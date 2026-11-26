@@ -10,8 +10,8 @@ const sinComentarios = html => html.replace(/<!--[\s\S]*?-->/g, "");
 
 test("escritorio: Pedidos y Sitio web no aparecen en el menu y el formulario no habla de Market", () => {
     const html = leer("index.html");
-    assert.match(html, /data-shell-module="pedidos-market" data-en-linea-oculto hidden/);
-    assert.match(html, /data-shell-module="sitio-web" data-en-linea-oculto hidden/);
+    assert.match(html, /data-shell-module="pedidos-market" data-en-linea-oculto data-beta="vendedor_market" hidden/);
+    assert.match(html, /data-shell-module="sitio-web" data-en-linea-oculto data-beta="vendedor_market" hidden/);
     assert.match(html, /css\/components\/en-linea-oculto\.css/);
     assert.match(html, /<h2>Visibilidad<\/h2>/, "la seccion ya no se llama Market y pedidos");
 

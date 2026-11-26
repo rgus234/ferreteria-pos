@@ -90,7 +90,7 @@
  <link rel="stylesheet" href="css/components/gafi-captura.css?v=gafi-20261106-02">
  <link rel="stylesheet" href="css/components/recargas.css?v=recargas-20261120-04">
   <link rel="stylesheet" href="css/components/alcohol.css?v=alcohol-20261105-02">
-  <link rel="stylesheet" href="css/components/en-linea-oculto.css?v=en-linea-20261105-03">
+  <link rel="stylesheet" href="css/components/en-linea-oculto.css?v=vendedor-20261125-01">
   <link rel="stylesheet" href="css/components/favoritos-pos.css?v=favoritos-20261031-04">
   <link rel="stylesheet" href="css/components/inicio-abarrotes.css?v=inicio-ab-20261103-03">
   <link rel="stylesheet" href="css/components/pedido-sugerido.css?v=pedido-sugerido-20261028-01">
@@ -536,7 +536,7 @@
  Mostrador de precios
  </button>
 
- <button data-shell-module="mi-mercancia" data-beta="solo_mostrador" hidden onclick="mostrarMiMercancia()">
+ <button data-shell-module="mi-mercancia" data-beta="solo_mostrador,vendedor_market" hidden onclick="mostrarMiMercancia()">
  Mi mercancía
  </button>
 
@@ -669,10 +669,10 @@
  <button data-shell-module="nexo-ia" onclick="mostrarNexoIA()">
  Nexo IA
  </button>
- <button data-shell-module="pedidos-market" data-en-linea-oculto hidden onclick="mostrarPedidosMarket()">
+ <button data-shell-module="pedidos-market" data-en-linea-oculto data-beta="vendedor_market" hidden onclick="mostrarPedidosMarket()">
  Pedidos
  </button>
- <button data-shell-module="sitio-web" data-en-linea-oculto hidden onclick="mostrarSitioWeb()">
+ <button data-shell-module="sitio-web" data-en-linea-oculto data-beta="vendedor_market" hidden onclick="mostrarSitioWeb()">
  Sitio web
  </button>
  <button data-shell-module="encargos" onclick="mostrarEncargos()">
@@ -2008,8 +2008,8 @@
  <script src="js/facturacion-view.js?v=timbres-20261120-02"></script>
  <script src="js/product-lists.js?v=asistente-20261111-02"></script>
  <script src="js/exhibidores.js?v=exhibidores-20261105-15"></script>
- <script src="js/funciones-beta.js?v=sinfactura-20261119-02"></script>
- <script src="js/menu-simple.js?v=solo-20261121-04"></script>
+ <script src="js/funciones-beta.js?v=vendedor-20261125-01"></script>
+ <script src="js/menu-simple.js?v=vendedor-20261125-03"></script>
  <script src="js/mi-equipo-view.js?v=equipo-20261103-02"></script>
  <script src="js/mapa-tienda-view.js?v=mapa-tienda-20261118-05"></script>
  <script src="js/recibir-marca-view.js?v=sinfactura-20261118-05"></script>
@@ -2035,7 +2035,7 @@
   <script src="js/scanner-usb.js?v=refactor-scanner-usb-20260702-01"></script>
   <script src="js/escaner-remoto.js?v=escaner-remoto-20261118-04"></script>
   <script src="js/mostrador.js?v=mostrador-20261121-03"></script>
-  <script src="js/mi-mercancia.js?v=solo-20261123-01"></script>
+  <script src="js/mi-mercancia.js?v=vendedor-20261125-01"></script>
   <script src="js/solo-mostrador.js?v=solo-20261121-04"></script>
   <script src="js/pedidos-unico.js?v=autollenar-20261114-04"></script>
   <script src="js/precios-lote.js?v=niveles-20261115-01"></script>
@@ -2059,7 +2059,7 @@
 <script src="js/ferretero-flow.js?v=historial-20261114-03"></script>
 <script src="js/nexo-tour.js?v=vender-20261123-01"></script>
 <script src="js/nexo-onboarding.js?v=bienvenida-20260730-01"></script>
-<script src="js/asistente-inicio.js?v=solo-20261123-01"></script>
+<script src="js/asistente-inicio.js?v=vendedor-20261125-01"></script>
 <script src="js/nexo-ia.js?v=ia-streaming-20260827-01"></script>
 <script src="js/pos-busqueda-ia.js?v=borde-siri-20260721-01"></script>
 <script src="js/explorar-nexo-view.js?v=asistente-20261111-03"></script>

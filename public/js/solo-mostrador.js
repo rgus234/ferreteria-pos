@@ -5,6 +5,9 @@
    - Cambia el Inicio por uno sencillo: botones grandes y el siguiente paso a la vista. */
 (function () {
     const activo = () => typeof window.funcionBeta === "function" && window.funcionBeta("solo_mostrador");
+    // "Vender en Market": el mismo Inicio sencillo, pero con los pasos para publicar la tienda en Market.
+    const vendedor = () => typeof window.funcionBeta === "function" && window.funcionBeta("vendedor_market");
+    const modoSencillo = () => activo() || vendedor();
     const esc = valor => String(valor == null ? "" : valor).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     let instalado = false;
     // Iconos de linea (en vez de emojis, que se ven genericos). Son fijos: no llevan datos del usuario.
@@ -12,6 +15,7 @@
 
     function aplicarClase() {
         document.body.classList.toggle("solo-mostrador", activo());
+        document.body.classList.toggle("vendedor-market", vendedor());
     }
 
     // Abre un modulo del menu de siempre, como si se hubiera tocado su boton (asi respeta permisos y funciones nuevas).
@@ -71,6 +75,58 @@
         }));
     }
 
+    // ---- Vender en Market: Inicio con los pasos para publicar la tienda ----
+    async function pedirJson(ruta) {
+        try { const r = await fetch(ruta); return r.ok ? await r.json() : null; } catch (error) { return null; }
+    }
+
+    async function cargarPasosVendedor() {
+        const [negocio, productos, sitio, cobros] = await Promise.all([
+            pedirJson("/negocio-actual"), pedirJson("/productos"), pedirJson("/negocio-actual/sitio-web"), pedirJson("/negocio-actual/cobros/estado")
+        ]);
+
+        const datos = (negocio && negocio.negocio) || {};
+        const totalProductos = Array.isArray(productos) ? productos.length : 0;
+
+        return [
+            { id: "datos", titulo: "Datos de tu tienda", texto: "Nombre, teléfono y dirección: es lo que ve quien te compra.", hecho: Boolean(datos.nombre && datos.telefono && datos.direccion), accion: "configuracion", boton: "Completar datos" },
+            { id: "productos", titulo: "Sube tus productos", texto: totalProductos ? `Llevas ${totalProductos} ${totalProductos === 1 ? "producto" : "productos"}. Con 5 o más tu tienda ya se ve completa.` : "Escanea cada producto y ponle su precio.", hecho: totalProductos >= 5, accion: "mercancia", boton: "Meter mercancía" },
+            { id: "tienda", titulo: "Prende tu tienda en línea", texto: "Elige cómo entregas (recoges en tienda o llevas a domicilio) y prende tu página.", hecho: Boolean(sitio && sitio.activo), accion: "sitio-web", boton: "Configurar mi tienda" },
+            { id: "cobros", titulo: "Activa el cobro en línea", texto: "Opcional: con esto tus clientes pagan con tarjeta y el dinero llega directo a tu cuenta. Nexo cobra 6 % por venta.", hecho: Boolean(cobros && cobros.chargesEnabled), opcional: true, accion: "sitio-web", boton: "Activar cobros" }
+        ];
+    }
+
+    async function pintarVendedor(raiz) {
+        raiz.innerHTML = `<div class="si-shell"><section class="si-hero"><h2>Hola, ${esc(nombreNegocio())}</h2><p>Estos son los pasos para vender en Nexo Market.</p></section><p class="si-cargando">Revisando tu tienda…</p></div>`;
+
+        const pasos = await cargarPasosVendedor();
+        const obligatorios = pasos.filter(p => !p.opcional);
+        const listos = obligatorios.filter(p => p.hecho).length;
+
+        raiz.innerHTML = `<div class="si-shell">
+            <section class="si-hero">
+                <h2>Hola, ${esc(nombreNegocio())}</h2>
+                <p>Estos son los pasos para vender en Nexo Market.</p>
+                <div class="si-numeros"><span>${listos} de ${obligatorios.length} pasos listos</span></div>
+            </section>
+            <section class="si-pasos">${pasos.map((p, i) => `<div class="si-paso-fila ${p.hecho ? "hecho" : ""}">
+                <span class="si-paso-marca" aria-hidden="true">${p.hecho ? "✓" : i + 1}</span>
+                <div class="si-paso-cuerpo"><b>${esc(p.titulo)}${p.opcional ? " <em>(opcional)</em>" : ""}</b><small>${esc(p.texto)}</small></div>
+                <button type="button" class="si-paso-boton ${p.hecho ? "secundario" : ""}" data-accion="${p.accion}">${p.hecho ? "Revisar" : esc(p.boton)}</button>
+            </div>`).join("")}</section>
+            <section class="si-tarjetas">
+                <button type="button" class="si-tarjeta" data-accion="pedidos-market" style="--i:0"><span class="si-icono" aria-hidden="true">${ICONOS.recargas}</span><b>Pedidos de Market</b><span class="si-texto">Lo que te piden por internet, para prepararlo y entregarlo.</span></button>
+                <button type="button" class="si-tarjeta" data-accion="mercancia" style="--i:1"><span class="si-icono" aria-hidden="true">${ICONOS.mercancia}</span><b>Mi mercancía</b><span class="si-texto">Tus productos, con su precio y existencias.</span></button>
+            </section>
+        </div>`;
+
+        raiz.querySelectorAll("[data-accion]").forEach(boton => boton.addEventListener("click", () => {
+            const accion = boton.dataset.accion;
+            if (accion === "mercancia") { if (typeof window.mostrarMiMercancia === "function") window.mostrarMiMercancia(); return; }
+            abrirModulo(accion);
+        }));
+    }
+
     window.mostrarSoloInicio = async function () {
         if (typeof ocultarPantallasPrincipales === "function") ocultarPantallasPrincipales();
 
@@ -78,6 +134,13 @@
         if (!raiz) return;
 
         raiz.style.display = "block";
+
+        if (vendedor() && !activo()) {
+            if (typeof actualizarTopbarContexto === "function") actualizarTopbarContexto("Inicio", "Tus pasos para vender en Market", "inicio");
+            await pintarVendedor(raiz);
+            return;
+        }
+
         if (typeof actualizarTopbarContexto === "function") actualizarTopbarContexto("Inicio", "Lo que necesitas, sin complicaciones", "inicio");
 
         pintar(raiz, null);
@@ -93,7 +156,7 @@
         const anterior = window.mostrarInicio;
 
         window.mostrarInicio = function (...argumentos) {
-            if (activo()) return window.mostrarSoloInicio();
+            if (modoSencillo()) return window.mostrarSoloInicio();
             return typeof anterior === "function" ? anterior.apply(this, argumentos) : undefined;
         };
     }
@@ -102,7 +165,7 @@
         aplicarClase();
 
         // Si las funciones llegaron despues de que ya se mostro el Inicio de siempre, se cambia por el sencillo.
-        if (activo()) {
+        if (modoSencillo()) {
             const inicio = document.getElementById("pantallaInicio");
             if (inicio && getComputedStyle(inicio).display !== "none") window.mostrarSoloInicio();
         }

@@ -25,7 +25,7 @@ test("todo nace apagado", async () => {
     const r = await (await fetch(`${BASE_URL}/funciones-beta`, { headers: headers(a) })).json();
 
     assert.equal(r.ok, true);
-    assert.deepEqual(Object.keys(r.funciones).sort(), ["agenda_pagos", "alcohol", "armado", "autofactura", "bascula", "catalogo_por_proveedor", "catalogo_productos", "diseno_nuevo", "envases", "escaneo_continuo", "gafi_captura", "inicio_pendientes", "llegada_sin_factura", "mapa_tienda", "menu_simplificado", "minimos_ventas", "mostrador", "paquetes_granel", "pedidos_unico", "precios_lote", "proveedores_nuevo", "recargas", "recepcion_unica", "recibir_por_marca", "solo_mostrador", "unir_proveedores"]);
+    assert.deepEqual(Object.keys(r.funciones).sort(), ["agenda_pagos", "alcohol", "armado", "autofactura", "bascula", "catalogo_por_proveedor", "catalogo_productos", "diseno_nuevo", "envases", "escaneo_continuo", "gafi_captura", "inicio_pendientes", "llegada_sin_factura", "mapa_tienda", "menu_simplificado", "minimos_ventas", "mostrador", "paquetes_granel", "pedidos_unico", "precios_lote", "proveedores_nuevo", "recargas", "recepcion_unica", "recibir_por_marca", "solo_mostrador", "unir_proveedores", "vendedor_market"]);
     assert.ok(Object.values(r.funciones).every(v => v === false), "ninguna esta encendida por defecto");
 });
 
@@ -55,7 +55,7 @@ test("un negocio marcado con _todas recibe todas las funciones sin encenderlas, 
 
     const todas = await (await fetch(`${BASE_URL}/funciones-beta`, { headers: headers(b) })).json();
     // autofactura y solo_mostrador (que recorta el menu) se prenden SIEMPRE a proposito
-    const SOLO_A_PROPOSITO = ["autofactura", "solo_mostrador"];
+    const SOLO_A_PROPOSITO = ["autofactura", "solo_mostrador", "vendedor_market"];
     assert.ok(Object.entries(todas.funciones).every(([k, v]) => v === !SOLO_A_PROPOSITO.includes(k)), "todas encendidas menos las que se prenden a proposito: " + JSON.stringify(todas.funciones));
     assert.equal(Object.keys(todas.funciones).includes("_todas"), false, "la marca no se muestra como una funcion");
 

@@ -66,7 +66,7 @@ test("el menu: dos entradas nuevas y solo quedan los modulos necesarios", () => 
 test("las pantallas estan conectadas: botones ocultos por defecto, secciones, scripts en orden y limpieza al cambiar de pantalla", () => {
     const html = leer("public/index.html");
     assert.match(html, /data-shell-module="mostrador-precios" data-beta="solo_mostrador" hidden onclick="nexoMostrador\.abrir\(\)"/);
-    assert.match(html, /data-shell-module="mi-mercancia" data-beta="solo_mostrador" hidden onclick="mostrarMiMercancia\(\)"/);
+    assert.match(html, /data-shell-module="mi-mercancia" data-beta="solo_mostrador,vendedor_market" hidden onclick="mostrarMiMercancia\(\)"/);
     assert.ok(html.includes('id="pantallaMiMercancia"') && html.includes('id="pantallaSoloInicio"'));
 
     const a = html.indexOf("js/mostrador.js"), b = html.indexOf("js/mi-mercancia.js"), c = html.indexOf("js/solo-mostrador.js");
@@ -79,7 +79,7 @@ test("las pantallas estan conectadas: botones ocultos por defecto, secciones, sc
 
 test("el Inicio sencillo solo reemplaza al de siempre si la funcion esta encendida, y avisa del primer paso si no hay productos", () => {
     const js = leer("public/js/solo-mostrador.js");
-    assert.match(js, /if \(activo\(\)\) return window\.mostrarSoloInicio\(\)/);
+    assert.match(js, /if \(modoSencillo\(\)\) return window\.mostrarSoloInicio\(\)/);
     assert.match(js, /classList\.toggle\("solo-mostrador", activo\(\)\)/);
     assert.match(js, /sinProductos/);
     assert.match(js, /Se está acabando/);
@@ -179,4 +179,22 @@ test("un teclado con coma decimal (10,5) no rompe el precio ni el cobro mixto de
     assert.match(dueno, /function numeroDecimalDueno/);
     assert.match(dueno, /efectivo: numeroDecimalDueno\(document\.getElementById\("duenoVenderMixtoEfectivo"\)/);
     assert.match(dueno, /recibido = numeroDecimalDueno\(document\.getElementById\("duenoVenderRecibido"\)/);
+});
+
+test("Vender en Market (vendedor_market): nace apagada, el menu se recorta a sus 5 piezas y lo de en linea solo se ve con su clase", () => {
+    const menu = leer("public/js/menu-simple.js");
+    const lista = /const VENDEDOR_MODULOS = new Set\(\[([^\]]*)\]\)/.exec(menu)[1];
+    ["inicio", "mi-mercancia", "pedidos-market", "sitio-web", "configuracion"].forEach(m => assert.ok(lista.includes(`"${m}"`), `${m} se queda`));
+    ["venta", "caja", "creditos", "reportes", "recargas"].forEach(m => assert.ok(!lista.includes(`"${m}"`), `${m} se oculta`));
+    assert.match(menu, /directo: "pedidos-market"/);
+    assert.match(menu, /directo: "sitio-web"/);
+
+    const html = leer("public/index.html");
+    assert.match(html, /data-shell-module="pedidos-market" data-en-linea-oculto data-beta="vendedor_market" hidden/);
+    assert.match(html, /data-shell-module="sitio-web" data-en-linea-oculto data-beta="vendedor_market" hidden/);
+    assert.match(html, /data-beta="solo_mostrador,vendedor_market" hidden onclick="mostrarMiMercancia\(\)"/);
+
+    assert.match(leer("public/css/components/en-linea-oculto.css"), /body:not\(\.vendedor-market\) \[data-en-linea-oculto\]/);
+    assert.match(leer("public/js/solo-mostrador.js"), /pintarVendedor/);
+    assert.match(leer("funciones-beta-server.js"), /SOLO_EXPLICITAS = \["autofactura", "solo_mostrador", "vendedor_market"\]/);
 });
