@@ -35,3 +35,11 @@ test("las tarjetas de producto de Market: '1 disponible' en singular y lo agotad
     assert.match(sitio, /class="tenant-btn-carrito" disabled aria-disabled="true">Agotado<\/button>/);
     assert.match(sitio, /\.tenant-btn-carrito:disabled/);
 });
+
+test("la pagina del producto tiene una barra fija de compra solo en celular, con precio y boton, y un agotado no se puede agregar", () => {
+    const sitio = fs.readFileSync(path.join(__dirname, "..", "public-site-server.js"), "utf8");
+    assert.match(sitio, /class="tenant-barra-compra" role="region"/);
+    assert.match(sitio, /\.tenant-barra-compra\{ display:none; \}/, "en computadora no se ve");
+    assert.match(sitio, /@media \(max-width:720px\)\{\s*\.tenant-barra-compra\{ display:flex; align-items:center; gap:14px; position:fixed/);
+    assert.ok((sitio.match(/disabled aria-disabled="true">Agotado<\/button>/g) || []).length >= 3, "tarjetas, caja de compra y barra deshabilitan lo agotado");
+});

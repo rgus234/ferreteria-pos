@@ -797,6 +797,14 @@ ${estilosPromoBanner(color)}
 .tenant-carrito-contador{ display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 4px; border-radius:999px; background:rgba(255,255,255,.28); font-size:11px; font-weight:800; }
 .tenant-btn-carrito{ margin-top:10px; padding:10px 18px; border-radius:999px; border:1px solid var(--line); background:var(--glass); color:var(--ink); font-weight:700; font-size:13px; cursor:pointer; align-self:start; }
 .tenant-btn-carrito:disabled{ opacity:.55; cursor:not-allowed; }
+/* Barra fija de compra: solo en el celular, para no tener que bajar una pantalla hasta el boton */
+.tenant-barra-compra{ display:none; }
+@media (max-width:720px){
+  .tenant-barra-compra{ display:flex; align-items:center; gap:14px; position:fixed; left:0; right:0; bottom:0; z-index:60; padding:10px 16px calc(10px + env(safe-area-inset-bottom)); background:#fff; border-top:1px solid var(--line); box-shadow:0 -10px 28px rgba(15,23,42,.14); }
+  .tenant-barra-compra-precio{ flex:0 0 auto; font-size:18px; font-weight:800; color:var(--blue); line-height:1.1; }
+  .tenant-barra-compra .tenant-btn-carrito{ flex:1; margin:0; padding:13px 18px; }
+  body:has(.tenant-barra-compra){ padding-bottom:84px; }
+}
 .tenant-btn-carrito.tenant-btn-primario{ margin-top:0; padding:13px 26px; border:none; background:linear-gradient(135deg, var(--blue), var(--blue-dark)); color:#fff; font-size:14px; box-shadow:0 14px 28px rgba(16,103,232,.28); }
 .tenant-producto-card{ display:flex; flex-direction:column; }
 .tenant-producto-card .tenant-btn-carrito{ margin:0 14px 14px; }
@@ -1910,19 +1918,25 @@ ${badgeDestacadoHtml}
 <h1 class="tenant-detalle-titulo">${nombreProducto}</h1>
 ${producto.marca || producto.categoria ? `<p class="tenant-detalle-marca">${producto.marca ? escaparHtml(producto.marca) : ""}${producto.marca && producto.categoria ? " &middot; " : ""}${producto.categoria ? escaparHtml(producto.categoria) : ""}</p>` : ""}
 ${precio !== null && Number.isFinite(precio) ? `<div class="tenant-detalle-precio">${precioOfertaHtml(precio, producto.precio_oferta)}</div>` : ""}
-${stock !== null ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} disponibles`}</span>` : `<span class="tenant-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>`}
+${stock !== null ? `<span class="tenant-producto-existencia${stock <= 0 ? " agotado" : ""}">${stock <= 0 ? "Agotado" : `${stock} ${Number(stock) === 1 ? "disponible" : "disponibles"}`}</span>` : `<span class="tenant-producto-existencia bajo-pedido">Bajo pedido -- confirma con la tienda</span>`}
 ${producto.descripcion ? `<p class="tenant-detalle-descripcion">${escaparHtml(producto.descripcion)}</p>` : ""}
 ${producto.tiene_garantia ? `<div class="tenant-detalle-garantia">Este producto tiene garantia${producto.garantia_detalle ? `: ${escaparHtml(producto.garantia_detalle)}` : "."}</div>` : ""}
 </div>
 <div class="tenant-detalle-comprabox">
-<div class="tenant-acciones"><button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button><button type="button" class="tenant-btn-secundario" onclick="document.getElementById('tenantPedidoRapido').hidden=false;document.getElementById('tenantPedidoRapido').scrollIntoView({behavior:'smooth',block:'start'});">Comprar ahora</button>${favoritoCompararLineaHtml}</div>
+<div class="tenant-acciones">${stock !== null && stock <= 0 ? `<button type="button" class="tenant-btn-carrito tenant-btn-primario" disabled aria-disabled="true">Agotado</button>` : `<button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button>`}<button type="button" class="tenant-btn-secundario" onclick="document.getElementById('tenantPedidoRapido').hidden=false;document.getElementById('tenantPedidoRapido').scrollIntoView({behavior:'smooth',block:'start'});">Comprar ahora</button>${favoritoCompararLineaHtml}</div>
 ${compraboxLineasHtml}
 </div>
 </div>
 </div>
 ${beneficiosTenantHtml(sitio.config)}
 <div id="tenantPedidoRapido" class="tenant-pedido-rapido" hidden>${formularioPedidoHtml}</div>
-${complementariosHtml}`;
+${complementariosHtml}
+<div class="tenant-barra-compra" role="region" aria-label="Comprar este producto">
+${precio !== null && Number.isFinite(precio) ? `<div class="tenant-barra-compra-precio">${precioOfertaHtml(precio, producto.precio_oferta)}</div>` : ""}
+${stock !== null && stock <= 0
+    ? `<button type="button" class="tenant-btn-carrito tenant-btn-primario" disabled aria-disabled="true">Agotado</button>`
+    : `<button type="button" class="tenant-btn-carrito tenant-btn-primario" data-codigo="${escaparHtml(producto.codigo)}" data-nombre="${nombreProducto}">Agregar al carrito</button>`}
+</div>`;
 }
 
 async function servirProductoNegocio(pool, req, res, slug, codigo, firmarTokenImagen) {
