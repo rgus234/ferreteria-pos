@@ -87,6 +87,22 @@ const TRANSICIONES = {
     cancelar: { desde: ["pendiente", "preparando", "listo"], hasta: "cancelado", fechas: ["cancelado_at"] }
 };
 
+async function descontarEntregaDeVendedor(pool, negocioId, pedidoId) {
+    const vende = await pool.query(
+        `SELECT 1 FROM public.negocios WHERE id = $1 AND to_jsonb(negocios) -> 'funciones_beta' ->> 'vendedor_market' = 'true'`,
+        [negocioId]
+    );
+    if (!vende.rows.length) return;
+
+    await pool.query(
+        `UPDATE public.productos p SET stock = GREATEST(p.stock - x.cantidad, 0)
+           FROM (SELECT producto_codigo, SUM(cantidad)::int AS cantidad FROM public.pedidos_publicos
+                  WHERE negocio_id = $1 AND pedido_market_id = $2 GROUP BY producto_codigo) x
+          WHERE p.negocio_id = $1 AND p.codigo = x.producto_codigo`,
+        [negocioId, pedidoId]
+    );
+}
+
 async function negocioActualPedidosMarket(req, pool) {
     const negocioId = req.negocioDispositivo?.negocio_id ?? req.negocioAutenticado?.negocio_id;
 
@@ -267,13 +283,26 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
             const asignaciones = transicion.fechas.map((campo, i) => `${campo} = NOW()`).join(", ");
             const setMotivo = motivo !== null ? ", motivo_cancelacion = $3" : "";
             const valores = motivo !== null ? [transicion.hasta, req.params.id, motivo] : [transicion.hasta, req.params.id];
+            valores.push(transicion.desde);
 
+            // El estado se vuelve a revisar al guardar: dos toques seguidos no aplican el cambio dos veces (ni descuentan dos veces).
             const actualizado = await pool.query(
-                `UPDATE public.pedidos_market SET estado = $1, ${asignaciones}${setMotivo} WHERE id = $2 RETURNING *`,
+                `UPDATE public.pedidos_market SET estado = $1, ${asignaciones}${setMotivo} WHERE id = $2 AND estado = ANY($${valores.length}::text[]) RETURNING *`,
                 valores
             );
 
             let pedidoActualizado = actualizado.rows[0];
+
+            if (!pedidoActualizado) {
+                res.status(400).json({ ok: false, error: "Ese pedido ya habia cambiado. Actualiza la pantalla." });
+                return;
+            }
+
+            // "Vender en Market" sin punto de venta: nadie mas descuenta lo vendido, asi que al ENTREGAR bajan las existencias.
+            // Los negocios con punto de venta no se tocan (lo suyo se descuenta al cobrar en la caja).
+            if (accion === "entregar") {
+                await descontarEntregaDeVendedor(pool, negocio.id, pedidoActualizado.id).catch(error => console.warn("No se pudieron descontar las existencias del pedido:", error.message));
+            }
 
             // Pedido pagado con tarjeta que se cancela: se devuelve el 100% (ver
             // market-reembolsos.js). Si falla, el pedido igual queda cancelado y se

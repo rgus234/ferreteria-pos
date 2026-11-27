@@ -215,7 +215,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             await pool.query(
                 `UPDATE public.negocios
-                    SET market_estado = $2, market_decision_at = NOW(), market_nota = $3, visible_en_market = $4, updated_at = NOW()
+                    SET market_estado = $2, market_decision_at = NOW(), market_nota = $3, visible_en_market = $4,
+                        estado = CASE WHEN $4 AND estado = 'prueba' THEN 'activo' ELSE estado END, updated_at = NOW()
                   WHERE id = $1`,
                 [id, aprobar ? "aprobado" : "rechazado", nota, aprobar ? true : false]
             );
@@ -230,6 +231,27 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
     });
 };
 
+// Una tienda de "Vender en Market" sin aprobar se puede VER (para revisarla) pero no recibe pedidos ni cobros.
+let columnasRevisionListas = false;
+
+async function tiendaEnRevision(pool, negocioId) {
+    if (!columnasRevisionListas) {
+        await pool.query(`ALTER TABLE public.negocios ADD COLUMN IF NOT EXISTS market_estado TEXT, ADD COLUMN IF NOT EXISTS funciones_beta JSONB NOT NULL DEFAULT '{}'::jsonb`);
+        columnasRevisionListas = true;
+    }
+
+    const fila = (await pool.query(
+        `SELECT COALESCE(funciones_beta->>'vendedor_market', 'false') = 'true' AND market_estado IS DISTINCT FROM 'aprobado' AS en_revision FROM public.negocios WHERE id = $1`,
+        [negocioId]
+    )).rows[0];
+
+    return Boolean(fila && fila.en_revision);
+}
+
+const AVISO_EN_REVISION = "Esta tienda todavia esta en revision: aun no recibe pedidos.";
+
+module.exports.tiendaEnRevision = tiendaEnRevision;
+module.exports.AVISO_EN_REVISION = AVISO_EN_REVISION;
 module.exports.firmar = firmar;
 module.exports.firmaValida = firmaValida;
 module.exports.MINIMO_PRODUCTOS = MINIMO_PRODUCTOS;

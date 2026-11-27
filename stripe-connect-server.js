@@ -682,6 +682,11 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
                 return;
             }
 
+            if (await require("./market-publicacion-server").tiendaEnRevision(pool, negocio.id)) {
+                res.status(403).json({ ok: false, error: require("./market-publicacion-server").AVISO_EN_REVISION });
+                return;
+            }
+
             if (!negocio.stripe_connect_charges_enabled || !negocio.stripe_connect_account_id) {
                 res.status(400).json({ ok: false, error: "Esta tienda no tiene pagos en linea activos todavia." });
                 return;

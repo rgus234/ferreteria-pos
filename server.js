@@ -1056,7 +1056,8 @@ app.post("/api/clientes/registro", async (req, res) => {
         if (quiereVenderMarket) {
             await client.query(`ALTER TABLE public.negocios ADD COLUMN IF NOT EXISTS market_estado TEXT, ADD COLUMN IF NOT EXISTS funciones_beta JSONB NOT NULL DEFAULT '{}'::jsonb`);
             await client.query(
-                `UPDATE public.negocios SET funciones_beta = '{"vendedor_market": true}'::jsonb, market_estado = 'borrador' WHERE id = $1`,
+                // 'activo' y no 'prueba': su pagina y Market solo muestran negocios activos. La puerta a Market sigue siendo la aprobacion.
+                `UPDATE public.negocios SET funciones_beta = '{"vendedor_market": true}'::jsonb, market_estado = 'borrador', estado = 'activo' WHERE id = $1`,
                 [negocio.rows[0].id]
             );
         }

@@ -2013,6 +2013,11 @@ async function recibirPedidoPublico(pool, req, res, slug, codigo, basePath = "")
             return;
         }
 
+        if (await require("./market-publicacion-server").tiendaEnRevision(pool, sitio.negocio.id)) {
+            res.status(403).send(require("./market-publicacion-server").AVISO_EN_REVISION);
+            return;
+        }
+
         // Nexo Market (Fase 2 admin) -- distingue de donde vino el
         // pedido para poder mostrarlo por separado en el modulo
         // "Nexo Market" del POS, sin duplicar la lista de pedidos.
@@ -2106,6 +2111,11 @@ async function recibirPedidoCarritoPublico(pool, req, res, slug) {
 
         if (!sitio) {
             res.status(404).json({ ok: false, error: "No encontrado" });
+            return;
+        }
+
+        if (await require("./market-publicacion-server").tiendaEnRevision(pool, sitio.negocio.id)) {
+            res.status(403).json({ ok: false, error: require("./market-publicacion-server").AVISO_EN_REVISION });
             return;
         }
 
