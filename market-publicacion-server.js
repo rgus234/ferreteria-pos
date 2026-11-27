@@ -79,6 +79,48 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
         };
     }
 
+    const MODOS_ENTREGA = ["solo_recoleccion", "tarifa_fija", "a_coordinar"];
+
+    async function tiendaDe(negocioId) {
+        let c = null;
+        try { c = (await pool.query(`SELECT activo, envio_modo, envio_tarifa, envio_notas FROM public.sitio_web_config WHERE negocio_id = $1`, [negocioId])).rows[0]; } catch (error) { c = null; }
+        return {
+            activo: Boolean(c && c.activo),
+            envioModo: (c && c.envio_modo) || "solo_recoleccion",
+            envioTarifa: c && c.envio_tarifa !== null && c.envio_tarifa !== undefined ? Number(c.envio_tarifa) : null,
+            envioNotas: (c && c.envio_notas) || ""
+        };
+    }
+
+    // La tienda en linea desde el celular: SOLO prender/apagar y la entrega. No toca el resto de la configuracion del sitio
+    // (descripcion, horario, redes, nivel de precio...), que se edita desde la computadora.
+    app.put("/negocio-actual/market-publicacion/tienda", requerirAccesoNegocio, requerirPermiso(PERMISOS.ADMINISTRAR_USUARIOS), async (req, res) => {
+        try {
+            const negocio = await leerNegocio(negocioIdDe(req));
+            if (!negocio || !esVendedor(negocio)) { res.status(404).json({ ok: false, error: "Esta cuenta no vende en Market." }); return; }
+
+            const activo = req.body?.activo === true;
+            const modo = String(req.body?.envioModo || "");
+            if (!MODOS_ENTREGA.includes(modo)) { res.status(400).json({ ok: false, error: "Elige como entregas." }); return; }
+
+            let tarifa = null;
+            if (modo === "tarifa_fija") {
+                tarifa = Number(req.body?.envioTarifa);
+                if (!Number.isFinite(tarifa) || tarifa < 0 || tarifa > 10000 || String(req.body?.envioTarifa ?? "").trim() === "") { res.status(400).json({ ok: false, error: "Escribe cuanto cobras por llevarlo." }); return; }
+            }
+            const notas = String(req.body?.envioNotas || "").trim().slice(0, 300);
+
+            await pool.query(
+                `INSERT INTO public.sitio_web_config (negocio_id, activo, mostrar_precios, mostrar_existencias, envio_modo, envio_tarifa, envio_notas, updated_at)
+                 VALUES ($1, $2, true, true, $3, $4, $5, NOW())
+                 ON CONFLICT (negocio_id) DO UPDATE SET activo = $2, envio_modo = $3, envio_tarifa = $4, envio_notas = $5, updated_at = NOW()`,
+                [negocio.id, activo, modo, tarifa, notas]
+            );
+
+            res.json({ ok: true, tienda: await tiendaDe(negocio.id) });
+        } catch (error) { responderError(res, error); }
+    });
+
     app.get("/negocio-actual/market-publicacion", requerirAccesoNegocio, async (req, res) => {
         try {
             const negocio = await leerNegocio(negocioIdDe(req));
@@ -91,6 +133,8 @@ module.exports = (app, pool, requerirAccesoNegocio) => {
 
             res.json({
                 ok: true, aplica: true, estado, nota: negocio.market_nota || "", slug: negocio.slug,
+                datos: { nombre: negocio.nombre || "", telefono: negocio.telefono || "", direccion: negocio.direccion || "" },
+                tienda: await tiendaDe(negocio.id),
                 requisitos: req2,
                 puedeSolicitar: (estado === "borrador" || estado === "rechazado") && req2.datos && req2.productos && req2.tienda
             });

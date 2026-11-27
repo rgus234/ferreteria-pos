@@ -11,6 +11,7 @@
     const MAXIMO_FILAS = 40;
 
     let activo = false;
+    let modo = "solo"; // "solo" = Solo lo necesario; "vendedor" = Vender en Market
     let vista = "inicio";
     let productos = [];
     let porCodigo = new Map();
@@ -37,6 +38,7 @@
         mas: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
         acabando: '<path d="M12 3 2 20h20z"/><path d="M12 10v5M12 18h.01"/>',
         camara: '<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13.5" r="3.4"/>',
+        pedidos: '<path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/>',
         carrito: '<path d="M2 3h3l2.6 12.4a1 1 0 0 0 1 .8h8.8a1 1 0 0 0 1-.8L20 7H6"/><circle cx="9.5" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/>'
     };
     const icono = nombre => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONOS[nombre]}</svg>`;
@@ -136,15 +138,22 @@
         raiz.className = "ds-raiz";
         raiz.hidden = true;
         raiz.innerHTML = `<div id="dsPantalla" class="ds-pantalla"></div>
-            <nav id="dsNav" class="ds-nav" aria-label="Menú">
-                ${[["inicio", "Inicio"], ["mostrador", "Mostrador"], ["mercancia", "Mercancía"], ["recargas", "Recargas"], ["mas", "Más"]].map(([id, texto]) => `<button type="button" data-ds="${id}">${icono(id)}<span>${texto}</span></button>`).join("")}
-            </nav>`;
+            <nav id="dsNav" class="ds-nav" aria-label="Menú"></nav>`;
         document.body.appendChild(raiz);
 
         raiz.querySelector("#dsNav").addEventListener("click", evento => {
             const boton = evento.target.closest("button[data-ds]");
             if (boton) ir(boton.dataset.ds);
         });
+    }
+
+    const BARRAS = {
+        solo: [["inicio", "Inicio"], ["mostrador", "Mostrador"], ["mercancia", "Mercancía"], ["recargas", "Recargas"], ["mas", "Más"]],
+        vendedor: [["inicio", "Inicio"], ["mercancia", "Mercancía"], ["pedidos", "Pedidos"], ["mas", "Más"]]
+    };
+
+    function pintarBarra() {
+        el("dsNav").innerHTML = BARRAS[modo].map(([id, texto]) => `<button type="button" data-ds="${id}">${icono(id)}<span>${texto}</span></button>`).join("");
     }
 
     function ir(destino) {
@@ -155,12 +164,12 @@
             return;
         }
 
-        if (destino === "mas") {
-            // Se deja ver lo de siempre (configuracion, cerrar sesion...) debajo de la barra sencilla.
-            vista = "mas";
+        if (destino === "mas" || destino === "pedidos") {
+            // Se deja ver la pantalla de siempre (Mas: configuracion y cerrar sesion; Pedidos de Market) debajo de la barra sencilla.
+            vista = destino;
             el("dsPantalla").hidden = true;
             marcarNav();
-            if (typeof cambiarTabDueno === "function") cambiarTabDueno("mas");
+            if (typeof cambiarTabDueno === "function") cambiarTabDueno(destino);
             return;
         }
 
@@ -168,7 +177,7 @@
         el("dsPantalla").hidden = false;
         marcarNav();
 
-        if (destino === "inicio") pintarInicio();
+        if (destino === "inicio") { if (modo === "vendedor") pintarInicioVendedor(); else pintarInicio(); }
         if (destino === "mostrador") pintarMostrador();
         if (destino === "mercancia") pintarMercancia();
     }
@@ -205,6 +214,134 @@
     }
 
     let filtroAcabando = false;
+
+    // ---------------------------------------------------------------------
+    // Inicio del vendedor de Market: los pasos para publicar la tienda
+    // ---------------------------------------------------------------------
+    let pasoAbierto = "";
+
+    async function pintarInicioVendedor() {
+        const pantalla = el("dsPantalla");
+        pantalla.innerHTML = `<div class="ds-hero"><h2>Hola, ${esc(nombreNegocio || "tu tienda")}</h2><p>Estos son los pasos para vender en Nexo Market.</p></div><p class="ds-sin">Revisando tu tienda…</p>`;
+
+        let p = null;
+        try { p = await llamar("/negocio-actual/market-publicacion"); } catch (error) { p = null; }
+        if (vista !== "inicio") return;
+
+        if (!p || !p.aplica) {
+            pantalla.innerHTML = `<div class="ds-vacio"><h3>No pude revisar tu tienda</h3><p>Revisa tu internet.</p><button type="button" class="ds-primario" id="dsReintentar">Intentar otra vez</button></div>`;
+            el("dsReintentar").addEventListener("click", pintarInicioVendedor);
+            return;
+        }
+
+        const r = p.requisitos;
+        const pasos = [
+            { id: "datos", titulo: "Datos de tu tienda", texto: "Nombre, teléfono y dirección.", hecho: r.datos },
+            { id: "productos", titulo: "Sube tus productos", texto: `Llevas ${r.totalProductos} con precio. Necesitas al menos ${r.minimoProductos}.`, hecho: r.productos },
+            { id: "tienda", titulo: "Prende tu tienda en línea", texto: "Elige cómo entregas.", hecho: r.tienda }
+        ];
+        const listos = pasos.filter(x => x.hecho).length;
+
+        pantalla.innerHTML = `<div class="ds-hero"><h2>Hola, ${esc(nombreNegocio || "tu tienda")}</h2><p>Estos son los pasos para vender en Nexo Market.</p><div class="ds-numeros"><span>${listos} de ${pasos.length} pasos listos</span></div></div>
+            <div class="ds-tarjetas">${pasos.map((x, i) => `<div class="ds-paso-vendedor ${x.hecho ? "hecho" : ""}">
+                <button type="button" class="ds-paso-cab" data-paso="${x.id}"><span class="ds-marca-paso">${x.hecho ? "✓" : i + 1}</span><span class="ds-t-cuerpo"><b>${x.titulo}</b><small>${esc(x.texto)}</small></span></button>
+                ${pasoAbierto === x.id ? formularioDePaso(x.id, p) : ""}
+            </div>`).join("")}</div>
+            ${publicacionHtml(p)}
+            <p class="ds-sin">El cobro en línea con tarjeta (opcional) se activa desde la computadora, en app.nexoposoficial.com.</p>`;
+
+        pantalla.querySelectorAll("[data-paso]").forEach(b => b.addEventListener("click", () => {
+            if (b.dataset.paso === "productos") { ir("mercancia"); return; }
+            pasoAbierto = pasoAbierto === b.dataset.paso ? "" : b.dataset.paso;
+            pintarInicioVendedor();
+        }));
+
+        enlazarFormularios(p);
+    }
+
+    function formularioDePaso(id, p) {
+        if (id === "datos") return `<div class="ds-form" id="dsFormDatos">
+            <label><span>Nombre de la tienda</span><input id="dsDatoNombre" value="${esc(p.datos.nombre)}" autocomplete="off"></label>
+            <label><span>Teléfono</span><input id="dsDatoTelefono" type="tel" inputmode="tel" value="${esc(p.datos.telefono)}" autocomplete="off"></label>
+            <label><span>Dirección (calle, número, ciudad)</span><input id="dsDatoDireccion" value="${esc(p.datos.direccion)}" autocomplete="off"></label>
+            <p class="ds-error" role="alert" hidden></p>
+            <button type="button" class="ds-primario" id="dsGuardarDatos">Guardar datos</button></div>`;
+
+        const t = p.tienda;
+        const opcion = (valor, texto) => `<option value="${valor}" ${t.envioModo === valor ? "selected" : ""}>${texto}</option>`;
+        return `<div class="ds-form" id="dsFormTienda">
+            <label class="ds-interruptor"><input id="dsTiendaActiva" type="checkbox" ${t.activo || !p.requisitos.tienda ? "checked" : ""}><span>Mi tienda está prendida</span></label>
+            <label><span>¿Cómo entregas?</span><select id="dsEnvioModo">${opcion("solo_recoleccion", "El cliente recoge en mi tienda")}${opcion("tarifa_fija", "También llevo, con costo fijo")}${opcion("a_coordinar", "Lo acordamos por teléfono")}</select></label>
+            <label id="dsCampoTarifa"><span>¿Cuánto cobras por llevarlo?</span><input id="dsEnvioTarifa" type="text" inputmode="decimal" value="${t.envioTarifa === null ? "" : esc(t.envioTarifa)}" autocomplete="off"></label>
+            <label><span>Notas de entrega (opcional)</span><input id="dsEnvioNotas" value="${esc(t.envioNotas)}" placeholder="Ej. Solo en el centro, de 10 a 6" autocomplete="off"></label>
+            <p class="ds-error" role="alert" hidden></p>
+            <button type="button" class="ds-primario" id="dsGuardarTienda">Guardar</button></div>`;
+    }
+
+    function publicacionHtml(p) {
+        if (p.estado === "en_revision") return `<div class="ds-publicar en-revision"><b>Tu tienda está en revisión</b><span>Nexo la revisa y te avisa por correo.</span></div>`;
+        if (p.estado === "aprobado") return `<div class="ds-publicar aprobada"><b>¡Tu tienda ya está en Market!</b><a class="ds-primario" href="/market/tienda/${encodeURIComponent(p.slug || "")}" target="_blank" rel="noopener">Ver mi tienda</a></div>`;
+        return `<div class="ds-publicar"><b>Publica tu tienda en Market</b>
+            <span>${p.estado === "rechazado" ? `Nexo la revisó y falta esto: ${esc(p.nota || "revisa tus productos y tus datos")}` : "Cuando termines los pasos, Nexo revisa tu tienda una sola vez."}</span>
+            <p class="ds-error" id="dsPublicarError" role="alert" hidden></p>
+            <button type="button" class="ds-primario" id="dsPublicar" ${p.puedeSolicitar ? "" : "disabled"}>Pedir que publiquen mi tienda</button></div>`;
+    }
+
+    // Guarda y vuelve a pintar; si falla, dice por que junto al boton.
+    async function guardarPaso(boton, caja, accion) {
+        const error = caja.querySelector(".ds-error");
+        boton.disabled = true;
+        if (error) error.hidden = true;
+        try {
+            await accion();
+            pasoAbierto = "";
+            aviso("Guardado");
+            await pintarInicioVendedor();
+        } catch (e) {
+            if (error) { error.textContent = e.message || "No se pudo guardar."; error.hidden = false; }
+            boton.disabled = false;
+        }
+    }
+
+    function enlazarFormularios() {
+        const datos = el("dsGuardarDatos");
+        if (datos) datos.addEventListener("click", () => guardarPaso(datos, el("dsFormDatos"), async () => {
+            const nombre = el("dsDatoNombre").value.trim();
+            const telefono = el("dsDatoTelefono").value.trim();
+            const direccion = el("dsDatoDireccion").value.trim();
+            if (!nombre || !telefono || !direccion) throw new Error("Llena los tres datos.");
+            await llamar("/negocio-actual/onboarding", { method: "PUT", body: JSON.stringify({ datos: { nombre, telefono, direccion } }) });
+            nombreNegocio = nombre;
+        }));
+
+        const modoEnvio = el("dsEnvioModo");
+        if (modoEnvio) {
+            const verTarifa = () => { el("dsCampoTarifa").hidden = modoEnvio.value !== "tarifa_fija"; };
+            modoEnvio.addEventListener("change", verTarifa);
+            verTarifa();
+
+            const guardarTienda = el("dsGuardarTienda");
+            guardarTienda.addEventListener("click", () => guardarPaso(guardarTienda, el("dsFormTienda"), async () => {
+                await llamar("/negocio-actual/market-publicacion/tienda", { method: "PUT", body: JSON.stringify({
+                    activo: el("dsTiendaActiva").checked, envioModo: modoEnvio.value,
+                    envioTarifa: el("dsEnvioTarifa").value.replace(",", ".").trim(), envioNotas: el("dsEnvioNotas").value
+                }) });
+            }));
+        }
+
+        const publicar = el("dsPublicar");
+        if (publicar) publicar.addEventListener("click", async () => {
+            publicar.disabled = true;
+            try {
+                await llamar("/negocio-actual/market-publicacion/solicitar", { method: "POST" });
+                await pintarInicioVendedor();
+            } catch (e) {
+                const error = el("dsPublicarError");
+                if (error) { error.textContent = e.message || "No se pudo pedir."; error.hidden = false; }
+                publicar.disabled = false;
+            }
+        });
+    }
 
     // ---------------------------------------------------------------------
     // Mostrador de precios
@@ -573,8 +710,9 @@
     async function revisarFuncion() {
         try {
             const r = await fetchAutenticado("/funciones-beta");
-            return Boolean(r && r.funciones && r.funciones.solo_mostrador === true);
-        } catch (error) { return false; }
+            const f = (r && r.funciones) || {};
+            return f.solo_mostrador === true ? "solo" : f.vendedor_market === true ? "vendedor" : "";
+        } catch (error) { return ""; }
     }
 
     async function nombreDelNegocio() {
@@ -584,11 +722,13 @@
         } catch (error) { return ""; }
     }
 
-    async function activar() {
+    async function activar(modoNuevo) {
         if (activo) return;
         activo = true;
+        modo = modoNuevo === "vendedor" ? "vendedor" : "solo";
 
         asegurarEstructura();
+        pintarBarra();
         document.documentElement.classList.add("dueno-solo");
         el("dsRaiz").hidden = false;
 
@@ -618,7 +758,8 @@
             const hay = typeof haySesionActivaDueno === "function" && haySesionActivaDueno();
 
             if (hay && !activo && (!ultimaSesion || !activo)) {
-                if (await revisarFuncion()) await activar();
+                const encontrado = await revisarFuncion();
+                if (encontrado) await activar(encontrado);
             } else if (!hay && activo) {
                 desactivar();
             }

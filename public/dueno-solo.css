@@ -8,10 +8,10 @@
 html.dueno-solo #duenoTabs { display: none !important; }
 html.dueno-solo .dueno-tabs { display: none !important; }
 
-.ds-pantalla { pointer-events: auto; position: absolute; inset: 0 0 68px 0; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--bg, #f4f6fb); color: var(--text, #0f172a); padding: 14px 14px 28px; }
+.ds-pantalla { pointer-events: auto; position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--bg, #f4f6fb); color: var(--text, #0f172a); padding: 14px 14px 100px; }
 .ds-pantalla[hidden] { display: none !important; }
 
-.ds-nav { pointer-events: auto; position: absolute; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--surface, #fff); border-top: 1px solid var(--line, #e6eaf1); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
+.ds-nav { pointer-events: auto; position: absolute; left: 0; right: 0; bottom: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--surface, #fff); border-top: 1px solid var(--line, #e6eaf1); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
 .ds-nav button { display: grid; justify-items: center; gap: 2px; border: 0; background: transparent; color: var(--muted, #66738a); font-size: 11.5px; font-weight: 700; padding: 6px 2px; border-radius: 12px; cursor: pointer; }
 .ds-nav button.activo { color: var(--brand, #2563ff); background: var(--brand-soft, #eaf0ff); }
 .ds-nav svg { width: 24px; height: 24px; }
@@ -124,3 +124,23 @@ html.dueno-solo .dueno-tabs { display: none !important; }
 .ds-foto-fila { display: flex; }
 .ds-foto-boton { display: inline-flex; align-items: center; gap: 8px; }
 .ds-foto-boton svg { width: 20px; height: 20px; }
+
+/* Vender en Market: pasos y publicacion en el celular */
+.ds-paso-vendedor { border: 1px solid var(--line, #e6eaf1); border-radius: 20px; background: var(--surface, #fff); overflow: hidden; }
+.ds-paso-vendedor.hecho { border-color: #14b8a6; }
+.ds-paso-cab { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border: 0; background: transparent; color: var(--text, #0f172a); text-align: left; cursor: pointer; }
+.ds-marca-paso { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--surface-soft, #eef2f7); font-weight: 800; }
+.ds-paso-vendedor.hecho .ds-marca-paso { background: #0f766e; color: #fff; }
+.ds-form { display: grid; gap: 10px; padding: 0 16px 16px; }
+.ds-form label { display: grid; gap: 4px; }
+.ds-form label > span { color: var(--muted, #66738a); font-size: 12.5px; font-weight: 700; }
+.ds-form label[hidden] { display: none; }
+.ds-form input:not([type="checkbox"]), .ds-form select { width: 100%; box-sizing: border-box; font-size: 16px; padding: 12px; border: 2px solid var(--line, #e6eaf1); border-radius: 12px; background: var(--surface-soft, #f1f4f9); color: var(--text, #0f172a); }
+.ds-form .ds-interruptor { display: flex; align-items: center; gap: 10px; }
+.ds-form .ds-interruptor input { width: 22px; height: 22px; }
+.ds-form .ds-interruptor > span { color: var(--text, #0f172a); font-size: 15px; }
+.ds-publicar { display: grid; gap: 8px; margin-top: 12px; padding: 16px; border: 2px dashed var(--brand, #2563ff); border-radius: 20px; background: var(--brand-soft, #eaf0ff); color: var(--text, #0f172a); }
+.ds-publicar span { color: var(--muted, #66738a); font-size: 13.5px; }
+.ds-publicar a.ds-primario { text-align: center; text-decoration: none; }
+.ds-publicar.en-revision { border-color: #f59e0b; background: var(--surface, #fff); }
+.ds-publicar.aprobada { border-style: solid; border-color: #22c55e; background: var(--surface, #fff); }

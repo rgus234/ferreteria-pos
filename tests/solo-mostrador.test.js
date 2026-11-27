@@ -147,7 +147,7 @@ test("el mostrador de Rinconada: lo que no conoce se da de alta ahi mismo, y el 
 
 test("el celular (/dueno): la version sencilla solo se enciende con la funcion, usa las rutas de siempre y esta en el cache de la app", () => {
     const js = leer("public/dueno-solo.js");
-    assert.match(js, /funciones\.solo_mostrador === true/, "solo con la funcion encendida");
+    assert.match(js, /f\.solo_mostrador === true/, "solo con la funcion encendida");
     ["/productos", "/explorar-nexo/buscar", "/explorar-nexo/foto/", "/agregar-producto", "/edicion-rapida", "/ajustes-inventario", "/generar-codigo"].forEach(ruta => assert.ok(js.includes(ruta), `usa ${ruta}`));
     assert.match(js, /iniciarLectorCodigosDueno/, "usa la camara de siempre");
     assert.match(js, /abrirRecargasDueno/, "las recargas son el modulo de siempre");
@@ -216,7 +216,7 @@ test("Mi mercancia (computadora y celular): se puede poner una foto propia, que 
         assert.match(js, /subirFotoDeFicha\(codigoFinal, creado && creado\.productoId\)/);
         assert.ok(js.includes("no se pudo subir la foto"), "si la foto falla, el producto ya quedo guardado y se avisa");
     }
-    assert.match(leer("public/dueno-sw.js"), /nexo-dueno-shell-v159/);
+    assert.match(leer("public/dueno-sw.js"), /nexo-dueno-shell-v160/);
 });
 
 test("la foto propia llega al producto: se sube con su codigo y el producto la trae", async () => {
