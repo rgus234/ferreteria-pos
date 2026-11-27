@@ -28,6 +28,9 @@ Otros comandos: `npm run copia:probar` (comprueba que sirve) y `npm run copia:re
 - Candado: si `NEXO_COPIA_AISLADA` está puesto y la base no es local, el servidor no arranca.
 - Los datos viven en `D:\nexo-copia` y Postgres escucha solo en esta computadora (puerto 5440).
 
-## Ojo
+## Las pruebas
 
-`npm test` y el servidor normal (`.env`) **siguen usando la base real**. Pasar las pruebas a la copia es un paso aparte.
+- `npm test` usa la copia (la arranca sola). `npm test -- tests/caja.test.js` corre solo ese archivo.
+- `npm run test:real` las corre contra la base real, a propósito. Crea negocios de prueba y los borra.
+- En la copia se saltan 4 pruebas de exhibidores que necesitan las fotos del Banco de Nexo.
+- El servidor normal (`.env`) sigue usando la base real.

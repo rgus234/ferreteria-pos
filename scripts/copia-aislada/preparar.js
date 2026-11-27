@@ -20,7 +20,8 @@ const RAIZ = path.join(__dirname, "..", "..");
 
 const REFERENCIA = [
     "planes", "categorias_funcion", "catalogo_funciones", "plan_funciones", "categorias_nexo", "schema_migrations", "app_versiones",
-    "catalogo_maestro_reconciliaciones", "catalogo_maestro_productos", "catalogo_maestro_identificadores"
+    "catalogo_maestro_reconciliaciones", "catalogo_maestro_productos", "catalogo_maestro_identificadores",
+    "catalogo_fabricante_modulos", "catalogo_fabricante_productos"
 ];
 
 const origen = process.env.DATABASE_URL || "";
@@ -102,6 +103,11 @@ if (!fs.existsSync(envCopia)) {
         `ADMIN_KEY=copia-${crypto.randomBytes(12).toString("hex")}`,
         "NEXO_COPIA_AISLADA=1",
         "NEXO_PRUEBAS=1",
+        "# Valores de mentira: solo para que las pantallas de Google respondan; con esto no se puede entrar a ninguna cuenta.",
+        "GOOGLE_CLIENT_ID=copia-sin-google.apps.googleusercontent.com",
+        "GOOGLE_CLIENT_SECRET=copia-sin-google",
+        "GOOGLE_REDIRECT_URI=http://localhost:3200/auth/google/callback",
+        "GOOGLE_GMAIL_REDIRECT_URI=http://localhost:3200/recepcion-inteligente/gmail/callback",
         ""
     ].join("\n"));
     console.log("Escrito .env.copia");

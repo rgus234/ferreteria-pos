@@ -78,7 +78,7 @@ after(async () => {
     await pool.end();
 });
 
-test("la ficha se cruza con el catalogo y el inventario: crear, ya lo tienes y no esta", async () => {
+test("la ficha se cruza con el catalogo y el inventario: crear, ya lo tienes y no esta", { skip: process.env.NEXO_COPIA_AISLADA ? "la copia aislada no trae las fotos del Banco de Nexo (npm run test:real)" : false }, async () => {
     const { status, cuerpo } = await llamar("/exhibidores/truper/ficha", { method: "POST", body: JSON.stringify({ codigo: "99001" }) });
 
     assert.equal(status, 200);
@@ -97,7 +97,7 @@ test("codigos invalidos o sin ficha dan un error claro", async () => {
 
 let ids = {};
 
-test("crear lo que falta, ponerle foto del Banco y armar el exhibidor con las piezas de cada uno", async () => {
+test("crear lo que falta, ponerle foto del Banco y armar el exhibidor con las piezas de cada uno", { skip: process.env.NEXO_COPIA_AISLADA ? "la copia aislada no trae las fotos del Banco de Nexo (npm run test:real)" : false }, async () => {
     const { cuerpo: ficha } = await llamar("/exhibidores/truper/ficha", { method: "POST", body: JSON.stringify({ codigo: "99001" }) });
 
     for (const p of ficha.productos.filter(x => x.estado === "se_crea")) {
@@ -124,14 +124,14 @@ test("crear lo que falta, ponerle foto del Banco y armar el exhibidor con las pi
     assert.equal(fotoGuardada.rows.length, 1, "la foto del Banco quedo en el producto nuevo");
 });
 
-test("al leer otra vez la ficha ya no se vuelve a crear nada", async () => {
+test("al leer otra vez la ficha ya no se vuelve a crear nada", { skip: process.env.NEXO_COPIA_AISLADA ? "la copia aislada no trae las fotos del Banco de Nexo (npm run test:real)" : false }, async () => {
     const { cuerpo } = await llamar("/exhibidores/truper/ficha", { method: "POST", body: JSON.stringify({ codigo: "99001" }) });
 
     assert.deepEqual(cuerpo.productos.map(p => p.estado), ["en_inventario", "en_inventario", "en_inventario", "no_esta"]);
     assert.equal(cuerpo.productos[0].tieneFoto, true);
 });
 
-test("sumar el surtido a un exhibidor que ya existe: lo repetido no es error y no se duplica", async () => {
+test("sumar el surtido a un exhibidor que ya existe: lo repetido no es error y no se duplica", { skip: process.env.NEXO_COPIA_AISLADA ? "la copia aislada no trae las fotos del Banco de Nexo (npm run test:real)" : false }, async () => {
     const { cuerpo: lista } = await llamar("/exhibidores/truper/ficha", { method: "POST", body: JSON.stringify({ codigo: "99001" }) });
     const propio = await llamar("/exhibidores", { method: "POST", body: JSON.stringify({ nombre: "Mi despachador a medias", espacios: [{ productoId: ids["11110"], capacidad: 4 }] }) });
     const id = propio.cuerpo.exhibidor.id;

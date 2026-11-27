@@ -67,7 +67,9 @@ async function iniciarServidorPrueba() {
 
     const hijo = spawn(
         process.execPath,
-        ["--env-file=.env", "server.js"],
+        // El servidor de pruebas usa el MISMO archivo de ambiente que las pruebas: la copia aislada (npm test) o la real (npm run test:real).
+        // Importante: mezclar .env.copia con .env meteria las llaves reales de correo y cobros.
+        [`--env-file=${process.env.NEXO_COPIA_AISLADA ? ".env.copia" : ".env"}`, "server.js"],
         {
             cwd: path.join(__dirname, "..", ".."),
             env: { ...process.env, PORT: String(PUERTO_PRUEBA), NEXO_PRUEBAS: "1" },

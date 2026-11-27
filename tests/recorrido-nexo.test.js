@@ -48,7 +48,7 @@ test("el perfil del administrador es la etapa 2 y la mascota lo acompana", () =>
 });
 
 test("cada paso del asistente tiene su gesto y su frase, y cada gesto tiene su imagen", () => {
-    const pasos = asistente.match(/const ASISTENTE_PASOS = \[([^\]]+)\]/)[1].match(/"(\w+)"/g).map(p => p.replace(/"/g, ""));
+    const pasos = asistente.match(/const ASISTENTE_PASOS_COMPLETOS = \[([^\]]+)\]/)[1].match(/"(\w+)"/g).map(p => p.replace(/"/g, ""));
     assert.ok(pasos.length >= 6, `pasos: ${pasos}`);
 
     const escenas = recorrido.match(/const ESCENAS_ASISTENTE = \{[\s\S]*?\n {1}\};/)[0];

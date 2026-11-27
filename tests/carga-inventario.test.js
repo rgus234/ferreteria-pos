@@ -154,7 +154,7 @@ test("el asistente cierra llevando a Cargar inventario", () => {
 
 test("el perfil de equipo es un paso del asistente y llega al punto de venta", () => {
     const asistente = leer("js/asistente-inicio.js");
-    assert.match(asistente, /const ASISTENTE_PASOS = \[[^\]]*"vende", "equipo", "listo"\]/);
+    assert.match(asistente, /const ASISTENTE_PASOS_COMPLETOS = \[[^\]]*"vende", "equipo", "listo"\]/);
     assert.match(asistente, /function asistentePintarEquipo\(\)/);
 
     for (const pregunta of ['"lector"', '"impresora"', '"cajon"']) {
