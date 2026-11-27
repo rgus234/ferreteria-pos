@@ -7,6 +7,9 @@
         "node": ">=22"
     },
     "scripts": {
+        "copia": "node --env-file=.env scripts/copia-aislada/preparar.js && node --env-file=.env.copia scripts/copia-aislada/negocios-ejemplo.js && node --env-file=.env.copia server.js",
+        "copia:probar": "node --env-file=.env.copia scripts/copia-aislada/probar.js",
+        "copia:reiniciar": "node --env-file=.env scripts/copia-aislada/preparar.js --reiniciar && node --env-file=.env.copia scripts/copia-aislada/negocios-ejemplo.js",
         "start": "node server.js",
         "dev": "node --env-file=.env server.js",
         "start:prod": "node --env-file=.env.production server.js",

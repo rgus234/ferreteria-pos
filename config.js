@@ -2,6 +2,12 @@ const APP_ENV = process.env.APP_ENV || process.env.NODE_ENV || "development";
 const IS_PRODUCTION = APP_ENV === "production";
 const packageJson = require("./package.json");
 
+// Candado de la copia aislada (scripts/copia-aislada): si el proceso dice ser la copia, la base TIENE que ser local.
+// Evita que una variable DATABASE_URL ya puesta en la terminal mande la "copia" a la base real. En produccion NEXO_COPIA_AISLADA no existe.
+if (process.env.NEXO_COPIA_AISLADA && !/@(127.0.0.1|localhost)[:/]/.test(process.env.DATABASE_URL || "")) {
+    throw new Error("NEXO_COPIA_AISLADA esta puesto pero DATABASE_URL no es local: no arranco para no tocar la base real.");
+}
+
 const config = {
     appName: process.env.APP_NAME || "Nexo",
     appEnv: APP_ENV,
