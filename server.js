@@ -41,6 +41,7 @@ const { servirCarritoMarket, servirCheckoutMarket } = require("./market-carrito-
 const {
     servirSeguimientoPedidoMarket,
     cancelarPedidoMarketPorCliente,
+    reportarPedidoMarket,
     estadoPedidoMarketJson,
     servirQrPedidoMarket,
     servirBarcodePedidoMarket
@@ -5819,6 +5820,11 @@ app.get("/market/pedido/:codigo/estado", async (req, res) => {
 app.post("/market/pedido/:codigo/cancelar", async (req, res) => {
     if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false }); return; }
     await cancelarPedidoMarketPorCliente(pool, req, res, firmarTokenImagen);
+});
+
+app.post("/market/pedido/:codigo/reportar", async (req, res) => {
+    if (slugDesdeSubdominio((req.hostname || "").toLowerCase())) { res.status(404).json({ ok: false }); return; }
+    await reportarPedidoMarket(pool, req, res);
 });
 
 app.get("/market/pedido/:codigo/qr.png", async (req, res) => {

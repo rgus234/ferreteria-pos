@@ -34,7 +34,7 @@ const sale = async () => {
 before(async () => { if (!OPCIONES.skip) await iniciarServidorPrueba(); });
 after(async () => {
     if (negocioId) {
-        for (const tabla of ["pedidos_market_items", "pedidos_market", "pedidos_publicos", "sitio_web_config"]) {
+        for (const tabla of ["market_reportes", "pedidos_market_items", "pedidos_market", "pedidos_publicos", "sitio_web_config"]) {
             await pool.query(`DELETE FROM public.${tabla} WHERE negocio_id = $1`, [negocioId]).catch(() => {});
         }
         await borrarNegocioPrueba(negocioId);
@@ -110,7 +110,27 @@ test("4. al entregar bajan las existencias del vendedor, una sola vez", OPCIONES
     assert.equal(await existencia(), 8, "no se descuenta dos veces");
 });
 
-test("5. un negocio con punto de venta no cambia: entregar un pedido no le mueve las existencias", OPCIONES, async () => {
+test("5. el comprador reporta un problema desde la pagina de su pedido, una sola vez", OPCIONES, async () => {
+    const { codigo_recogida: codigo, id } = (await pool.query("SELECT id, codigo_recogida FROM public.pedidos_market WHERE negocio_id = $1", [negocioId])).rows[0];
+    const pagina = async () => (await fetch(`${BASE_URL}/market/pedido/${codigo}`)).text();
+    assert.match(await pagina(), /Reportar un problema/);
+
+    const reportar = cuerpo => json(`/market/pedido/${codigo}/reportar`, { metodo: "POST", cuerpo });
+    assert.equal((await reportar({ motivo: "inventado", detalle: "algo que paso aqui" })).estado, 400);
+    assert.equal((await reportar({ motivo: "incompleto", detalle: "corto" })).estado, 400);
+    assert.equal((await reportar({ motivo: "incompleto", detalle: "Me falto una de las dos piezas" })).estado, 200);
+    assert.equal((await reportar({ motivo: "otro", detalle: "Lo mando otra vez por si acaso" })).datos.repetido, true);
+
+    const filas = (await pool.query("SELECT motivo FROM public.market_reportes WHERE pedido_market_id = $1", [id])).rows;
+    assert.deepEqual(filas.map(f => f.motivo), ["incompleto"]);
+    assert.match(await pagina(), /Ya recibimos tu reporte/);
+
+    await pool.query("UPDATE public.negocios SET funciones_beta = '{}'::jsonb WHERE id = $1", [negocioId]);
+    assert.doesNotMatch(await pagina(), /Reportar un problema|Ya recibimos tu reporte/, "las tiendas con punto de venta no cambian");
+    assert.equal((await reportar({ motivo: "otro", detalle: "Esto no deberia entrar aqui" })).estado, 404);
+});
+
+test("6. un negocio con punto de venta no cambia: entregar un pedido no le mueve las existencias", OPCIONES, async () => {
     await pool.query("UPDATE public.negocios SET funciones_beta = '{}'::jsonb WHERE id = $1", [negocioId]);
     const pedido = await pedirComoComprador();
     assert.equal(pedido.estado, 200, JSON.stringify(pedido.datos));

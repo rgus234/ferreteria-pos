@@ -1219,6 +1219,28 @@ function enviarCorreoSolicitudMarket({ nombreNegocio, slug, correoNegocio, telef
     });
 }
 
+function enviarCorreoReporteMarket(r) {
+    const fila = (etiqueta, valor) => `<tr><td style="padding:6px 0;color:#344054;font-size:15px;"><strong>${etiqueta}:</strong> ${escaparHtmlCorreo(String(valor ?? "")) || "-"}</td></tr>`;
+
+    return enviarCorreo({
+        correo: CORREO_NOTIFICACIONES_LEADS,
+        asunto: `Problema reportado en Market -- pedido ${escaparHtmlCorreo(r.codigo)}`,
+        html: envolverPlantilla({
+            etiqueta: "Nexo Market",
+            titulo: "Un comprador reporto un problema",
+            saludo: "La tienda y el comprador lo resuelven; Nexo ayuda a mediar.",
+            robot: "neutral",
+            cuerpoHtml: `
+                <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 6px;">
+                    ${fila("Que paso", r.motivo)}${fila("Detalle", r.detalle)}
+                    ${fila("Pedido", `${r.codigo} - $${Number(r.total).toFixed(2)} - ${r.estadoPedido}`)}
+                    ${fila("Tienda", r.tienda)}${fila("Telefono de la tienda", r.tiendaTelefono)}${fila("Correo de la tienda", r.tiendaCorreo)}
+                    ${fila("Comprador", r.cliente)}${fila("Telefono del comprador", r.clienteTelefono)}${fila("Correo del comprador", r.clienteCorreo)}
+                </table>`
+        })
+    });
+}
+
 function enviarCorreoDecisionMarket(correo, nombreNegocio, { aprobado, nota, slug }) {
     const nombreSeguro = escaparHtmlCorreo(nombreNegocio);
 
@@ -1271,5 +1293,6 @@ module.exports = {
     enviarCorreoSolicitudCreditoRechazada,
     enviarCorreoSolicitudCreditoInformacionSolicitada,
     enviarCorreoSolicitudMarket,
+    enviarCorreoReporteMarket,
     enviarCorreoDecisionMarket
 };

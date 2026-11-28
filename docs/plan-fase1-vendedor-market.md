@@ -14,7 +14,7 @@ Idea: una cuenta con la función `vendedor_market` ve un panel sencillo (Inicio 
 | C | Foto propia del producto en Mi mercancía (celular y computadora) | hecho (subido) |
 | C2 | Panel del vendedor en el celular (/dueno): Inicio con pasos, datos y entrega desde el teléfono, Mercancía, Pedidos, Más | hecho (subido) |
 | D | Cobros en línea (Stripe Connect) como paso del panel, y Pedidos de Market con su aviso | hecho (local): pedido probado de punta a punta y las existencias bajan al entregar; el cobro con tarjeta falta probarlo con Stripe |
-| E | Reportar un problema (botón del comprador) y aviso a Nexo | por hacer |
+| E | Reportar un problema (botón del comprador) y aviso a Nexo | hecho (local): botón en la página de seguimiento del pedido, solo tiendas vendedoras; un reporte por pedido y correo a Nexo |
 | F | Prueba con 2 o 3 tiendas de confianza | por hacer |
 
 ## Reglas que no se rompen

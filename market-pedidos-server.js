@@ -28,6 +28,7 @@ const { generarQrYBarcode } = require("./pedido-codigos");
 const { ESTILOS_MARKET, marketHeaderHtml, marketFooterHtml, scriptMarketHeaderHtml, metaInstalableMarketHtml } = require("./market-server");
 const { enviarPushAPersona } = require("./push-server");
 const { reembolsarPedidoMarket } = require("./market-reembolsos");
+const { MOTIVOS_REPORTE, yaReportado, registrarReporte } = require("./market-reportes");
 
 // Mismo helper chico duplicado que ya usan personas-server.js y
 // public-site-server.js (crearLimitadorPorIp) -- las 5 rutas de
@@ -481,7 +482,8 @@ module.exports = (app, pool, requerirAccesoNegocio, firmarTokenImagen) => {
 async function pedidoPorCodigo(pool, codigo) {
     const resultado = await pool.query(
         `
-        SELECT pm.*, n.nombre AS negocio_nombre, n.slug AS negocio_slug, n.direccion AS negocio_direccion, n.correo AS negocio_correo
+        SELECT pm.*, n.nombre AS negocio_nombre, n.slug AS negocio_slug, n.direccion AS negocio_direccion, n.correo AS negocio_correo, n.telefono AS negocio_telefono,
+               (to_jsonb(n) -> 'funciones_beta' ->> 'vendedor_market' = 'true') AS es_vendedor
         FROM public.pedidos_market pm
         JOIN public.negocios n ON n.id = pm.negocio_id
         WHERE pm.codigo_recogida = $1
@@ -550,10 +552,28 @@ const ESTILOS_SEGUIMIENTO_PEDIDO = `
 .market-pedido-cancelar-btn{ display:block; width:100%; padding:14px; border-radius:14px; border:1px solid rgba(217,83,79,.35); background:#fff; color:#b3261e; font-weight:800; font-size:14px; cursor:pointer; }
 .market-pedido-cancelar-btn:hover{ background:rgba(217,83,79,.06); }
 .market-pedido-cancelar-btn:disabled{ opacity:.6; cursor:default; }
+.market-pedido-reporte summary{ cursor:pointer; font-weight:800; font-size:14px; }
+.market-pedido-reporte select,.market-pedido-reporte textarea{ width:100%; box-sizing:border-box; margin:8px 0 0; padding:11px; border-radius:12px; border:1px solid var(--line); font:inherit; }
+.market-pedido-reporte button{ margin-top:10px; }
 .market-pedido-cancelar-aviso{ margin:10px 0 0; color:var(--muted); font-size:12.5px; text-align:center; }
 `;
 
-function paginaSeguimientoPedidoMarketHtml(pedido, items) {
+function bloqueReporteHtml(pedido, reportado) {
+    if (!pedido.es_vendedor) return "";
+    if (reportado) return `<div class="market-pedido-card"><h3>Problema reportado</h3><p class="market-pedido-recogida">Ya recibimos tu reporte. Contacta tambien a la tienda; si no se arreglan, Nexo te ayuda.</p></div>`;
+
+    return `<details class="market-pedido-card market-pedido-reporte">
+    <summary>Reportar un problema</summary>
+    <p class="market-pedido-recogida">Primero intenta arreglarlo con la tienda${pedido.negocio_telefono ? `: ${escaparHtml(pedido.negocio_telefono)}` : ""}. Si no se puede, cuentanos y Nexo te ayuda.</p>
+    <form id="marketReporteForm">
+        <select name="motivo" required><option value="">Que paso</option>${Object.entries(MOTIVOS_REPORTE).map(([clave, texto]) => `<option value="${clave}">${escaparHtml(texto)}</option>`).join("")}</select>
+        <textarea name="detalle" rows="4" minlength="10" maxlength="1000" required placeholder="Cuentanos que paso"></textarea>
+        <button type="submit" class="market-pedido-cancelar-btn">Enviar reporte</button>
+    </form>
+</details>`;
+}
+
+function paginaSeguimientoPedidoMarketHtml(pedido, items, reportado) {
     if (!pedido) {
         return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>Pedido no encontrado -- Nexo Market</title>
@@ -621,12 +641,34 @@ ${pedido.estado === "pendiente" ? `
 <button type="button" id="marketPedidoCancelarBtn" class="market-pedido-cancelar-btn">Cancelar pedido</button>
 <p class="market-pedido-cancelar-aviso">Puedes cancelar mientras la tienda todavia no acepta tu pedido. Despues de eso, contacta directamente a ${escaparHtml(pedido.negocio_nombre)}.</p>
 ` : ""}
+
+${bloqueReporteHtml(pedido, reportado)}
 </div>
 ${marketFooterHtml()}
 <script>${scriptMarketHeaderHtml({ navegarABusqueda: true })}</script>
 <script>
 (function(){
     var codigo = ${JSON.stringify(pedido.codigo_recogida)};
+    var reporte = document.getElementById("marketReporteForm");
+    if (reporte) {
+        reporte.addEventListener("submit", function(evento){
+            evento.preventDefault();
+            var boton = reporte.querySelector("button");
+            boton.disabled = true;
+            fetch("/market/pedido/" + encodeURIComponent(codigo) + "/reportar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ motivo: reporte.motivo.value, detalle: reporte.detalle.value })
+            })
+                .then(function(r){ return r.json(); })
+                .then(function(datos){
+                    if (datos.ok) { window.location.reload(); return; }
+                    alert(datos.error || "No se pudo enviar el reporte.");
+                    boton.disabled = false;
+                })
+                .catch(function(){ alert("No se pudo enviar el reporte. Intenta de nuevo."); boton.disabled = false; });
+        });
+    }
     var estadoInicial = document.body.getAttribute("data-estado");
     if (estadoInicial === "entregado" || estadoInicial === "cancelado") return;
 
@@ -687,7 +729,8 @@ async function servirSeguimientoPedidoMarket(pool, req, res, firmarTokenImagen) 
     }
 
     const itemsPorPedido = await itemsDePedidos(pool, pedido.negocio_id, [pedido.id], pedido.negocio_slug, firmarTokenImagen);
-    res.set("Content-Type", "text/html; charset=utf-8").send(paginaSeguimientoPedidoMarketHtml(pedido, itemsPorPedido.get(pedido.id) || []));
+    const reportado = pedido.es_vendedor ? await yaReportado(pool, pedido.id) : false;
+    res.set("Content-Type", "text/html; charset=utf-8").send(paginaSeguimientoPedidoMarketHtml(pedido, itemsPorPedido.get(pedido.id) || [], reportado));
 }
 
 // El cliente cancela su propio pedido por codigo, sin sesion (mismo
@@ -753,6 +796,24 @@ async function cancelarPedidoMarketPorCliente(pool, req, res, firmarTokenImagen)
     }
 
     res.json({ ok: true, pedido: mapearPedidoMarket(pedidoActualizado, items) });
+}
+
+// El comprador reporta un problema, con el mismo acceso por codigo que cancelar.
+async function reportarPedidoMarket(pool, req, res) {
+    if (limitadorPedidoPorCodigo.bloqueado(req.ip)) {
+        res.status(429).json({ ok: false, error: "Demasiados intentos. Espera unos minutos." });
+        return;
+    }
+
+    const pedido = await pedidoPorCodigo(pool, String(req.params.codigo || "").trim());
+    if (!pedido) {
+        limitadorPedidoPorCodigo.registrarFallo(req.ip);
+        res.status(404).json({ ok: false, error: "Pedido no encontrado" });
+        return;
+    }
+
+    const resultado = await registrarReporte(pool, pedido, req.body);
+    res.status(resultado.estado).json(resultado.cuerpo);
 }
 
 async function estadoPedidoMarketJson(pool, req, res) {
@@ -821,6 +882,7 @@ async function servirBarcodePedidoMarket(pool, req, res) {
 
 module.exports.servirSeguimientoPedidoMarket = servirSeguimientoPedidoMarket;
 module.exports.cancelarPedidoMarketPorCliente = cancelarPedidoMarketPorCliente;
+module.exports.reportarPedidoMarket = reportarPedidoMarket;
 module.exports.estadoPedidoMarketJson = estadoPedidoMarketJson;
 module.exports.servirQrPedidoMarket = servirQrPedidoMarket;
 module.exports.servirBarcodePedidoMarket = servirBarcodePedidoMarket;
